@@ -23,7 +23,8 @@ from kt import B, CT, check  # noqa: E402
 
 FW = "/app/folderwatch"
 FILES = ["kalmido-folder-watcher-mac-arm64.zip", "kalmido-folder-watcher-mac-amd64.zip", "kalmido-folder-watcher-windows.exe",
-         "kalmido-folder-watcher-linux-amd64", "kalmido-folder-watcher-linux-arm64", "LICENSE-Go.txt", "SHA256SUMS"]
+         "kalmido-folder-watcher-linux-amd64", "kalmido-folder-watcher-linux-arm64", "LICENSE-Go.txt",
+         "LICENSE-purego.txt", "SHA256SUMS"]  # 2.1175.0 (#2770): + the license of the vendored purego (Mac menu bar symbol)
 ROOT = "/tmp/fw2207"
 
 

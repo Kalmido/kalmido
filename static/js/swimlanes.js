@@ -24,7 +24,7 @@ function swlSet(lid, m) {
   if (m) a[lid] = m; else delete a[lid];
   LS.set('swl', a); renderView();
 }
-const swlModeName = (lid, m) => m === 'prio' ? tr('Priority') : m === 'person' ? tr('Person') : m ? fieldById(+m.slice(1))?.name || '' : tr('None');
+const swlModeName = (lid, m) => m === 'prio' ? tr('Priority') : m === 'person' ? tr('Person') : m ? fieldById(+m.slice(1))?.name || '' : tr('No grouping');
 // the lanes: [{key, name, has(task)}], the lane without a value last. Priority: all four; person: the people (and groups)
 // with tasks on the board; a field: its options (checkbox: yes / no)
 function swlLanes(lid, m, tasks) {
@@ -50,7 +50,7 @@ function swlBar(lid) {
 }
 function swlMenu(anchor, lid) {
   const m = swlMode(lid);
-  menu(anchor, [{head: tr('Swimlanes')}, {label: tr('None'), icon: 'x', on: !m, fn: () => swlSet(lid, '')},
+  menu(anchor, [{head: tr('Swimlanes')}, {label: tr('No grouping'), icon: 'x', on: !m, fn: () => swlSet(lid, '')},
     ...(collab() ? [{label: tr('Person'), icon: 'user', on: m === 'person', fn: () => swlSet(lid, 'person')}] : []),
     {label: tr('Priority'), icon: 'flag', on: m === 'prio', fn: () => swlSet(lid, 'prio')},
     ...swlFields(lid).map(f => ({label: f.name, icon: f.type === 'checkbox' ? 'check' : 'list', on: m === 'f' + f.id, fn: () => swlSet(lid, 'f' + f.id)}))]);

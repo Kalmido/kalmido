@@ -78,6 +78,8 @@ SETTINGS_FLAGS += ("agent_quota_show",)  # 2.407.0 B (#3493): the usage ring in 
 SETTINGS_FLAGS += ("ws_accent",)  # 2.490.0 B (#4026): the interface in the colour of the workspace (static/js/wscolor.js)
 SETTINGS_FLAGS += ("member_view",)  # 2.436.0 (#3620): "View as member", display only (static/js/core.js mvResp; the rights stay)
 SETTINGS_FLAGS += ("whatsnew_on",)  # 2.556.0 (#4685): the dialog "New for you" after an update (accounts/whatsnew.py)
+SETTINGS_FLAGS += ("undo_show_api",)  # 2.1175.0 (#6165): "Recent steps" shows the steps over an API key (static/js/undolist.js)
+USER_DEFAULTS.setdefault("undo_show_api", "0")
 SETTINGS_SERVER_ONLY += ("whatsnew_seen",)  # 2.556.0 (#4685): set by /api/whatsnew/seen only
 SETTINGS_SERVER_ONLY += ("sec_devices",)  # 2.1013.0 (#5519): the hashes of the known browsers, set by the sign-in only (accounts/secmail.py)
 SETTINGS_NUM = {"pomo_focus": (0, 600), "pomo_short": (0, 600), "pomo_long": (0, 600), "pomo_long_every": (1, 50),

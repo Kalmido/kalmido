@@ -630,7 +630,7 @@ function renderTop0() {
       // 2.8.0 (#434): the view switch as text tabs (List / Kanban / Timeline / Project overview)
       // 2.32.0 (#1062): no longer folds into "…" (no .tf): on a narrow header (tl3 / tl4, e.g. with the task panel open) the
       // tabs become icons (the name stays as aria-label and tooltip)
-      if (vc.length > 1 && !isMobile()) acts += `<div class="seg vseg ttabs" role="group" aria-label="${esc(tr('View'))}">${vc.map(([k, n, i]) => `<button class="${v === k ? 'on' : ''}" data-act="view-${k}" data-ico="${i}" title="${esc(tr(n))}" aria-label="${esc(tr(n))}" aria-pressed="${v === k}">${ic(i, 's')}<span class="vtl">${esc(tr(n))}</span></button>`).join('')}</div>`;
+      if (vc.length > 1 && !isMobile()) acts += `<div class="seg vseg ttabs" role="group" aria-label="${esc(tr('View'))}">${vc.map(([k, n, i]) => `<button class="${v === k ? 'on' : ''}" data-act="view-${k}" data-ico="${i}" title="${esc(viewTip(k, n))}" aria-label="${esc(tr(n))}" aria-pressed="${v === k}">${ic(i, 's')}<span class="vtl">${esc(tr(n))}</span></button>`).join('')}</div>`;
       // 2.14.0 (#425): "Columns…" (the list's columns for every member) replaces the per-device field-column switch
       if (td_colsWide() && v === 'list' && !l.archived) acts += `<button class="iconbtn tf ${listCols(l) ? 'on' : ''}" data-act="cols" data-ico="columns" data-id="${l.id}" title="${esc(tr('Shown fields…'))}" aria-label="${esc(tr('Shown fields…'))}" aria-haspopup="dialog">${ic('columns')}</button>`;
       if (!isMobile()) acts += lv_btn(l);  // 2.577.0 (#3356): the project's shared views (phones: in "…")
@@ -1408,10 +1408,10 @@ function taskRow(t, opts = {}) {
     // #3506: in a default layout (lcFallback, the collected views without an own choice) the due cell follows the symbol level too:
     // switched off, only an overdue date shows (as the row did, dueOn)
     const lcDef = opts.vc ? !S.settings?.view_cols : lcFb;
-    const cells = lc.filter(k => k !== 'id').map(k => [k, lcCell(k, t, {kids, openKids, time, checklist: opts.checklist, vc: opts.vc, inDay, dueOn: !lcDef || dueOn})]);
+    const cells = lc.filter(k => k !== 'id').map(k => [k, opts.byList && k === 'list' ? '' : lcCell(k, t, {kids, openKids, time, checklist: opts.checklist, vc: opts.vc, inDay, dueOn: !lcDef || dueOn})]);
     lcH = `<div class="lcols" id="tc-${t.id}" data-act="open"${lcFit(lc)}>${cells.map(([k, c], i) => `<span class="lc ${lcCls(k)} ${lcOvf(i)}" data-k="${esc(k)}"${tcAttr(k, t)}>${c}</span>`).join('')}</div>`;  // 2.39.1 (#1327): tcAttr
-    cells.forEach(([k, c], i) => { if (c && i >= 2) meta.push(`<span class="mlc ${lcOvf(i)}" data-lc="${esc(k)}">${c}</span>`); });
-    meta.unshift(...cells.slice(0, 2).filter(([, c]) => c).map(([k, c]) => `<span class="mlc o0" data-lc="${esc(k)}">${c}</span>`));  // 2.290.0 C (#3163): the first two cells too, shown only in a narrow list on a computer (app.css), else hidden
+    cells.forEach(([k, c], i) => { if (!lcBlank(c) && i >= 2) meta.push(`<span class="mlc ${lcOvf(i)}" data-lc="${esc(k)}">${c}</span>`); });
+    meta.unshift(...cells.slice(0, 2).filter(([, c]) => !lcBlank(c)).map(([k, c]) => `<span class="mlc o0" data-lc="${esc(k)}">${c}</span>`));  // 2.290.0 C (#3163): the first two cells too, shown only in a narrow list on a computer (app.css), else hidden
   }
   // 2.31.0 (#1051): the number is part of the tap area (opens the task); phones show it in the meta line instead (.mid), so
   // titles with and without a number start at the same x
@@ -1795,6 +1795,8 @@ function vcItems() {  // the shown columns of the collected views: tick on / off
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-act="vcols"]'); if (!b) return; e.preventDefault(); e.stopPropagation(); menu(b, [{label: tr('Shown columns'), dis: true, cls: 'mhead'}, '-', ...vcItems()]); }, true);
 const colName = (l, k) => k === 'id' ? tr('Task number') : (colChoices(l).find(x => x[0] === k) || [0, ''])[1];
 const colShort = (l, k) => k === 'time' ? tr('Tracked') : colName(l, k);  // the title row's label (narrow columns)
+// 2.1175.0 (#6141): the second line shows only what says something: a dash for an empty date or the dashed "assign" circle alone is no content
+const lcBlank = c => !c || c.includes('class="lcnil"') || c.includes('whob wnone');
 function lcCell(k, t, x) {
   switch (k) {
     case 'due': if (x.dueOn === false && dueClass(t) !== 'over') return '<span class="lcnil" aria-hidden="true">\u2013</span>';  // #3506: the level switched the due date off
@@ -2247,7 +2249,7 @@ function viewListBody() {
       // (it nods, botNod); a list without tasks gets the symbol pattern
       : v.done.length ? o3c_empty(tr('All done.'), '', 'erledigt')
       : flt ? emptyState({icon: 'filter', title: tr('No tasks match the filter.'), sub: tr('A filter is active: {0}', flt.name), action: `<div class="eacts">${/*html-ok*/ flt.btn/* lst_emptyFilter */}</div>`, cls: 'efilt'})  // 2.891.0 (#5440)
-      : emptyState({icon: 'list', title: tr('No tasks.'), sub: rl && !ro ? (isMobile() && !tabletDock() ? tr('Add the first one with the + button.') : tr('Add the first one with the field below.')) : '', action: (secBtn ? `<div class="eacts">${/*html-ok*/ secBtn/* the button above */}</div>` : '') + (rl && !ro ? `<div class="eacts">${/*html-ok*/ hlp_linkHtml('tasks')/* 2.1086.0 (#5820): How it works, a line of its own below "+ Section" */}</div>` : '')});  // 2.25.0 (UX-27): what this device shows; 2.891.0 (#5440): "+ Section" right under the text
+      : emptyState({icon: 'list', title: tr('No tasks'), sub: rl && !ro ? (isMobile() && !tabletDock() ? tr('Add the first one with the + button.') : tr('Add the first one with the field below.')) : '', action: (secBtn ? `<div class="eacts">${/*html-ok*/ secBtn/* the button above */}</div>` : '') + (rl && !ro ? `<div class="eacts">${/*html-ok*/ hlp_linkHtml('tasks')/* 2.1086.0 (#5820): How it works, a line of its own below "+ Section" */}</div>` : '')});  // 2.25.0 (UX-27): what this device shows; 2.891.0 (#5440): "+ Section" right under the text
   }
   let lastSub = '';
   // 2.17.0 (#649): a very long view renders its first ROW_CAP rows, then "Show more" (also by itself when it scrolls into
@@ -2266,7 +2268,7 @@ function viewListBody() {
     // 1.7.0 Flow: the first task of each group that waits on nothing is marked "Next" (2.0.4: "Ready to start", and only
     // when some open task shown here waits on something; without dependencies the badge would say nothing)
     const nx = flow && flowDeps ? g.tasks.find(t => t.status === 0 && !t.context && !(t.blocked && dFor(t)))?.id : 0;
-    if (!closed) { const n = Math.max(0, Math.min(g.tasks.length, budget)), row = (t, i) => (g.byList && (!i || g.tasks[i - 1].list_id !== t.list_id) ? mtListHead(t.list_id) : '') + (t._msv ? msvvRow(t._msv.sid, t._msv.t, {showList: true}) : taskRow(t, {showList: showList && !g.lic, tree: true, cols, lc, vc, tcols: {list: showList && !g.lic && (!moOwn() || moListCol())}, next: t.id === nx, crd, inToday: S.route.key === 'today', ...(v.dsx ? {dsx: showDone(), ...(t.status ? {drag: false} : {})} : {})}));  /* 2.73.0 C (#661): a task of another server */ h += vl ? vl_seg(g.id ?? '-', g.tasks, row, vl_tree(!!v.dsx && showDone())) : g.tasks.slice(0, n).map(row).join(''); budget -= n; cut += g.tasks.length - n; }
+    if (!closed) { const n = Math.max(0, Math.min(g.tasks.length, budget)), row = (t, i) => (g.byList && (!i || g.tasks[i - 1].list_id !== t.list_id) ? mtListHead(t.list_id) : '') + (t._msv ? msvvRow(t._msv.sid, t._msv.t, {showList: true}) : taskRow(t, {showList: showList && !g.lic && !g.byList, byList: !!(g.byList || g.lic), tree: true, cols, lc, vc, tcols: {list: showList && !g.lic && !g.byList && (!moOwn() || moListCol())}, next: t.id === nx, crd, inToday: S.route.key === 'today', ...(v.dsx ? {dsx: showDone(), ...(t.status ? {drag: false} : {})} : {})}));  /* 2.73.0 C (#661): a task of another server */ h += vl ? vl_seg(g.id ?? '-', g.tasks, row, vl_tree(!!v.dsx && showDone())) : g.tasks.slice(0, n).map(row).join(''); budget -= n; cut += g.tasks.length - n; }
     // 2.46.2 (#1662): no drop field under an empty section any more; the section name takes the drop (.ghead.drop)
     if (g.name) h += '</div>';
   }

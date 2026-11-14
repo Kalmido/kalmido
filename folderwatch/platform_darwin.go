@@ -38,7 +38,8 @@ func autostartActive() bool {
 	return err == nil
 }
 
-// autostartWrite writes the LaunchAgent (start at login, restart only after a crash).
+// autostartWrite writes the LaunchAgent (start at login, restart only after a crash). 2.1175.0 (#2770): ProcessType
+// Interactive instead of Background - the copy shows the menu bar symbol and should not be throttled like a daemon.
 func autostartWrite(exe string) error {
 	p, err := plistPath()
 	if err != nil {
@@ -56,7 +57,7 @@ func autostartWrite(exe string) error {
   <key>ProgramArguments</key><array><string>` + x + `</string><string>--background</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
-  <key>ProcessType</key><string>Background</string>
+  <key>ProcessType</key><string>Interactive</string>
 </dict>
 </plist>
 `

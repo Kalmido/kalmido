@@ -17,6 +17,9 @@ Limits: UNDO_KEEP_D days, UNDO_GROUPS_MAX groups per person (the oldest go when 
 above. undo_prune (the watchdog, notify/push.py) takes what is older, over the cap, or a part without its group. Agents never
 record steps (obj_is_agent in obj_undo_pre); a barrier of an agent is not written either.
 
+2.1175.0 (#6165): a group written over a personal API key carries via = 'token' (ug_via) and the key's name as its device
+(ug_key_name); it never joins a group of the app. "Recent steps" hides such groups unless the person shows them.
+
 Interface:
   ug_current(c, uid, area, org_id, label) -> the request's group {id, state, parts, bytes} (opened on first use) or None
   ug_own()                          2.934.0 (#5596): this request keeps its own undo (a proposal's apply / undo / redo): no group
@@ -79,12 +82,34 @@ def ug_device():
     subscription's endpoint / id, notify/push.py), printable, at most 80 characters; "" without."""
     if not has_request_context():
         return ""
-    v = request.headers.get(UNDO_DEVNAME_HDR) or g.get("undo_device") or ""  # 2.985.0 (#5394): a device of CalDAV / CardDAV
+    v = ug_key_name() or request.headers.get(UNDO_DEVNAME_HDR) or g.get("undo_device") or ""  # 2.985.0 (#5394): a device of CalDAV / CardDAV
     if not v.strip():
         v = request.headers.get(UNDO_DEVICE_HDR) or ""
         v = "" if re.match(r"\s*(https?:|\d+\s*$)", v) else v  # the device header of the push routes: never a name
     v = re.sub(r"[\x00-\x1f\x7f]+", " ", v).strip()
     return v[:80]
+
+
+UG_VIA_TOKEN = "token"  # 2.1175.0 (#6165): undo_groups.via of a step written over a personal API key (migrations.d/6165_a.py)
+
+
+def ug_via():
+    """2.1175.0 (#6165): 'token' when this request signed in with a personal API key (Authorization: Bearer, api/v1.py /
+    docs/fetcher.py set g.auth_via = 'token'), else '' (the app, a CalDAV / CardDAV sync). Its own mark, never guessed from
+    the device text: "Recent steps" hides such steps unless the person shows them (static/js/undolist.js)."""
+    return UG_VIA_TOKEN if has_request_context() and g.get("auth_via") == "token" else ""
+
+
+def ug_key_name():
+    """2.1175.0 (#6165): the name of the API key (or receipt fetcher key) of this request -- the device of its steps; ''
+    without one. The key's name wins over a device header the script sends (the person named the key)."""
+    if not ug_via():
+        return ""
+    row = g.get("token") or g.get("fetcher")
+    try:
+        return str((row["name"] if row is not None else "") or "")
+    except (KeyError, IndexError, TypeError):
+        return ""
 
 
 def _agent(c, uid):
@@ -172,9 +197,9 @@ def _open(c, uid, area, org_id, label, state="done", token="", keep_redo=False):
     lk, la = label
     ts = _now()
     gid = insert_id(c, "INSERT INTO undo_groups(user_id, org_id, area, label_key, label_args, device, token, state, parts, bytes, "
-                       "created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,0,0,?,?)",
+                       "created_at, updated_at, via) VALUES(?,?,?,?,?,?,?,?,0,0,?,?,?)",
                     (int(uid), org_id, area or "other", lk, json.dumps(list(la), ensure_ascii=False, default=str), ug_device(), token,
-                     state, ts, ts))
+                     state, ts, ts, ug_via()))  # 2.1175.0 (#6165): via
     ug_cap(c, uid)
     bump(c, "undo")  # the other devices of the person see the list move (GET /api/version, the own "undo" counter, #5407)
     return gid
@@ -196,14 +221,15 @@ def ug_current(c, uid, area, org_id, label, obj=None):
     bun = None if tok else g.get("undo_bundle")  # 2.985.0 (#5394, review F6): a server-side bundle (undo_bundle)
     row = None
     if tok:
-        row = c.execute("SELECT id, state, parts, bytes, org_id FROM undo_groups WHERE user_id=? AND token=? AND updated_at>=? ORDER BY id DESC LIMIT 1",
-                        (int(uid), tok, iso(now_utc() - timedelta(seconds=UNDO_BUNDLE_S)))).fetchone()
+        # 2.1175.0 (#6165): a step over an API key never joins a step of the app (and back): the list hides the one, not the other
+        row = c.execute("SELECT id, state, parts, bytes, org_id FROM undo_groups WHERE user_id=? AND token=? AND via=? AND updated_at>=? "
+                        "ORDER BY id DESC LIMIT 1", (int(uid), tok, ug_via(), iso(now_utc() - timedelta(seconds=UNDO_BUNDLE_S)))).fetchone()
         if row is not None and (row["state"] not in ("done", "toobig") or row["org_id"] != org_id):
             row = None  # undone meanwhile, or another workspace (#5302 N2): a new step
     elif bun:  # a fixed window from the group's start (a sync that never pauses still opens a new group every secs seconds)
         tok = f"{bun['token']}|{area or lv_area()}"[:200]
-        row = c.execute("SELECT id, state, parts, bytes, org_id FROM undo_groups WHERE user_id=? AND token=? AND created_at>=? ORDER BY id DESC LIMIT 1",
-                        (int(uid), tok, iso(now_utc() - timedelta(seconds=bun["secs"])))).fetchone()
+        row = c.execute("SELECT id, state, parts, bytes, org_id FROM undo_groups WHERE user_id=? AND token=? AND via=? AND created_at>=? "
+                        "ORDER BY id DESC LIMIT 1", (int(uid), tok, ug_via(), iso(now_utc() - timedelta(seconds=bun["secs"])))).fetchone()
         if row is not None and (row["state"] != "done" or row["org_id"] != org_id or (bun["newest"] and row["id"] != c.execute(
                 "SELECT MAX(id) FROM undo_groups WHERE user_id=?", (int(uid),)).fetchone()[0])):
             row = None  # undone / partial meanwhile, another workspace (#5302 N2), or another step came after it: a new group

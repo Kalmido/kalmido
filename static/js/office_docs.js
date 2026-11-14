@@ -354,7 +354,8 @@ const prd_lbl = (l, d) => l ? l[(d || OFD.doc)?.lang] || (ofdLang(d) === 'en' ? 
 const prd_prodShown = d => (d.producing_on != null && d.producing_on !== 0) || (d.producing_on == null && d.kind === 'offer') || (d.producing_mode === 'amount' && !!prd_opts().share)
   || (d.kind === 'offer' && !d.locked && !!prd_opts().share);  // 2.380.0 (#3420): also a quotation made before the pack was on
 const prd_slotShown = (d, k) => d.kind === 'offer' && (d[k + '_pct'] != null || !!prd_opts()[k]);
-const prd_slotName = (d, k) => prd_lbl(d[k + '_label'] || prd_opts()[k]?.label, d) || (k === 'handling' ? tr('Handling costs') : tr('Markup'));
+const prd_slotName = (d, k) => { const l = prd_lbl(d[k + '_label'] || prd_opts()[k]?.label, d);
+  return l === 'Markup' && ofdLang(d) !== 'en' ? tr('Markup') : l || (k === 'handling' ? tr('Handling costs') : tr('Markup')); };  // 2.1175.0 (#6146): the film pack's old German label 'Markup' (documents made before) reads 'Aufschlag'
 const ofdIn = (k, v, o = {}) => `<input id="ofd-${k}" data-f="${k}" value="${esc(v ?? '')}" maxlength="${o.max || 200}" ${o.num ? 'inputmode="decimal" class="numin"' : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.ro ? 'readonly' : ''}>`;
 // 2.431.0 B (#3594): o.grow = the field grows with its text from `rows` up to o.grow rows (ofcGrow)
 const ofdTa = (k, v, rows = 3, o = {}) => `<textarea id="ofd-${k}" data-f="${k}" rows="${o.grow ? Math.min(o.grow, Math.max(rows, String(v ?? '').split('\n').length)) : rows}" maxlength="${o.max || 8000}" ${o.grow ? `data-grow="${o.grow}" data-grow-min="${rows}"` : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''}>${esc(v ?? '')}</textarea>`;
@@ -517,20 +518,46 @@ function ofd_itRow(d, adm, it, i, its, inv, taxes, gp) {
       <select data-i="${i}" data-k="tax" aria-label="${esc(tr('VAT'))}">${taxes.map(([v, n]) => `<option value="${v}" ${it.tax === v ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
       <b class="ofdlt">${line ? esc(line.total_text || ofdMoney(line.total, d)) : ''}</b></span></div>${mv}</li>`;
     const opt = d.kind === 'offer' && it.opt ? it.opt : '';  // 2.1041.0 (#5814): marked, its amount in brackets (not in the sum)
-    return `<li class="ofdit${it.agent_flag ? ' oa_flag' : ''}${it.producing && !inv ? ' ofdprod' : ''}${opt ? ' ofdopt' : ''}"><span class="ofdpos rowgrip" ${gp}>${line?.pos || ''}</span>${opt ? `<span class="rotag ofdopttag">${esc(opt === 'optional' ? tr('Optional') : tr('Alternative'))}</span>` : ''}
-      <div class="ofditb"><input class="ofdtt" data-i="${i}" data-k="title" value="${esc(it.title)}" maxlength="500" placeholder="${esc(tr('Service'))}" aria-label="${esc(tr('Service'))}">
+    return `<li class="ofdit${it.agent_flag ? ' oa_flag' : ''}${it.producing && !inv ? ' ofdprod' : ''}${opt ? ' ofdopt' : ''}"><span class="ofdpos rowgrip" ${gp}>${line?.pos || ''}</span>
+      <div class="ofditb">${opt ? `<span class="rotag ofdopttag">${esc(opt === 'optional' ? tr('Optional') : tr('Alternative'))}</span>` : ''}<input class="ofdtt" data-i="${i}" data-k="title" value="${esc(it.title)}" maxlength="500" placeholder="${esc(tr('Service'))}" aria-label="${esc(tr('Service'))}">
       <input class="ofddt" data-i="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="4000" placeholder="${esc(tr('Detail (optional)'))}" aria-label="${esc(tr('Detail'))}">
       <span class="ofdnums">${it.unit === 'percent' ? ekUnitSel(it, i, d) + ekPctHtml(it, i, line, d) : `<input data-i="${i}" data-k="qty" inputmode="decimal" class="numin" value="${esc(ofdNumIn(it.qty))}" aria-label="${esc(tr('Quantity'))}">
       ${ekUnitSel(it, i, d)}
       <span class="muted">×</span><input data-i="${i}" data-k="rate" inputmode="decimal" class="numin ofdrate" value="${esc(ofdNumIn(it.rate))}" aria-label="${esc(ofcHome() === 'EUR' ? tr('Rate (EUR)') : tr('Rate ({0})', ofcHome()))}"><span class="muted">${ofcSym(ofcHome())}</span>`}
       <select data-i="${i}" data-k="tax" aria-label="${esc(tr('VAT'))}">${taxes.map(([v, n]) => `<option value="${v}" ${it.tax === v ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
-      ${/*html-ok*/ ofdItDiscHtml(it, i, line, d)}<b class="ofdlt">${line ? esc(opt ? '(' + (line.total_text || ofdMoney(line.total, d)) + ')' : line.total_text || ofdMoney(line.total, d)) : ''}</b></span>
-      ${/*html-ok*/ ofdItDiscNote(it, line, d)}<span class="ofdflags">${/*html-ok*/ ofdItDiscBtn(it, i, d)}${inv ? '' : `<label class="chkl"><input type="checkbox" data-i="${i}" data-k="raw_fee" ${it.raw_fee ? 'checked' : ''}> ${tr('raw data')}</label>${prd_prodShown(d) ? `<label class="chkl ofdprodf${it.producing ? ' on' : ''}"><input type="checkbox" data-i="${i}" data-k="producing" ${it.producing ? 'checked' : ''}> ${d.producing_mode === 'amount' ? esc(prd_lbl(d.share_label, d) || tr('producing')) : tr('producing')}</label>` : ''}${PRD_SLOTS.filter(k => prd_slotShown(d, k)).map(k => `<label class="chkl"><input type="checkbox" data-i="${i}" data-k="in_${k}" ${it['in_' + k] ? 'checked' : ''}> ${esc(prd_slotName(d, k))}</label>`).join('')}<label class="chkl"><input type="checkbox" data-i="${i}" data-k="discountable" ${it.discountable ? 'checked' : ''}> ${tr('discount')}</label>`}
-      ${adm ? `<label class="chkl ofdcost">${tr('Purchase')} <input data-i="${i}" data-k="cost" inputmode="decimal" class="numin" value="${esc(ofdNumIn(it.cost))}" aria-label="${esc(tr('External cost per unit (internal)'))}"></label>${it.margin != null ? `<span class="ofdmargin${it.margin < 0 ? ' neg' : ''}">${esc(tr('Surplus {0}', ofdMoney(it.margin, d)))}</span>` : ''}` : ''}${/*html-ok*/ d.kind === 'offer' ? ofd_optSel(it, i) : ''}</span>${typeof oa_flagHtml === 'function' ? oa_flagHtml(it, i) : ''}</div>${mv}</li>`;  // 2.51.0 A (#1348): an agent's marks
+      <b class="ofdlt">${line ? esc(opt ? '(' + (line.total_text || ofdMoney(line.total, d)) + ')' : line.total_text || ofdMoney(line.total, d)) : ''}</b></span>
+      ${/*html-ok*/ ofdItDiscNote(it, line, d)}${/*html-ok*/ ofd_kalkHtml(d, it, i, `${/*html-ok*/ ofdItDiscBtn(it, i, d)}${/*html-ok*/ ofdItDiscHtml(it, i, line, d)}${inv ? '' : `<label class="chkl"><input type="checkbox" data-i="${i}" data-k="raw_fee" ${it.raw_fee ? 'checked' : ''}> ${tr('raw data')}</label>${prd_prodShown(d) ? `<label class="chkl ofdprodf${it.producing ? ' on' : ''}"><input type="checkbox" data-i="${i}" data-k="producing" ${it.producing ? 'checked' : ''}> ${d.producing_mode === 'amount' ? esc(prd_lbl(d.share_label, d) || tr('producing')) : tr('producing')}</label>` : ''}${PRD_SLOTS.filter(k => prd_slotShown(d, k)).map(k => `<label class="chkl"><input type="checkbox" data-i="${i}" data-k="in_${k}" ${it['in_' + k] ? 'checked' : ''}> ${esc(prd_slotName(d, k))}</label>`).join('')}<label class="chkl"><input type="checkbox" data-i="${i}" data-k="discountable" ${it.discountable ? 'checked' : ''}> ${tr('discountable')}</label>`}
+      ${adm ? `<label class="chkl ofdcost">${tr('Purchase')} <input data-i="${i}" data-k="cost" inputmode="decimal" class="numin" value="${esc(ofdNumIn(it.cost))}" aria-label="${esc(tr('External cost per unit (internal)'))}"></label>${it.margin != null ? `<span class="ofdmargin${it.margin < 0 ? ' neg' : ''}">${esc(tr('Surplus {0}', ofdMoney(it.margin, d)))}</span>` : ''}` : ''}${/*html-ok*/ d.kind === 'offer' ? ofd_optSel(it, i) : ''}`)}${typeof oa_flagHtml === 'function' ? oa_flagHtml(it, i) : ''}</div>${mv}</li>`;  // 2.51.0 A (#1348): an agent's marks
 }
 // 2.1041.0 (#5814): normal / optional / alternative per position of a quotation (counted in no sum, printed with its amount)
 const OFD_OPT = [['', N_('Normal position')], ['optional', N_('Optional position')], ['alternative', N_('Alternative position')]];
 const ofd_optSel = (it, i) => `<select class="ofdoptsel" data-i="${esc(i)}" data-k="opt" aria-label="${esc(tr('Kind of position'))}">${OFD_OPT.map(([v, n]) => `<option value="${esc(v)}" ${(it.opt || '') === v ? 'selected' : ''}>${esc(tr(n))}</option>`).join('')}</select>`;
+// 2.1175.0 (#6146): discount %, the ticks, purchase / surplus and the kind of a position wait behind "Calculation" (closed);
+// opened stays open while the page is open (a redraw keeps it); a dot with a number says how many differ from a new position
+const OFD_KALK = new Set();
+const ofd_kalkKey = (d, it) => it?.id ? `${d?.id || ''}:${it.id}` : '';
+const ofd_kalkOpen = (d, it) => !!it?._kalk || OFD_KALK.has(ofd_kalkKey(d, it));
+function ofd_kalkSet(d, it, on) {
+  const k = ofd_kalkKey(d, it); it._kalk = on ? 1 : 0;
+  if (k) { if (on) OFD_KALK.add(k); else OFD_KALK.delete(k); }
+}
+function ofd_kalkCount(d, it) {
+  const inv = ofdIsInv(d), on = v => !!+v;
+  if (it.kind === 'part') return it.discountable != null && !on(it.discountable) ? 1 : 0;  // a part line: only its tick
+  let n = (+it.discount_pct > 0 ? 1 : 0) + (+it.cost > 0 ? 1 : 0) + (d.kind === 'offer' && it.opt ? 1 : 0);
+  if (!inv) {
+    n += (on(it.raw_fee) ? 1 : 0) + (prd_prodShown(d) && on(it.producing) ? 1 : 0) + (it.discountable != null && !on(it.discountable) ? 1 : 0);
+    for (const k of PRD_SLOTS) if (prd_slotShown(d, k) && it['in_' + k] != null && !on(it['in_' + k])) n++;  // a new position is in
+  }
+  return n;
+}
+function ofd_kalkHtml(d, it, i, inner) {
+  if (!inner.trim()) return '';
+  const open = ofd_kalkOpen(d, it) || !!it._pdisc, n = ofd_kalkCount(d, it);
+  const lbl = n ? tr('Calculation: {0} changed', n) : tr('Calculation|position');
+  return `<button type="button" class="btn sm ofdkbtn${n ? ' set' : ''}" data-ofd="it-kalk" data-i="${esc(i)}" aria-expanded="${/*html-ok*/ open}" aria-label="${esc(lbl)}" title="${esc(lbl)}">${ic('calc', 's')}<span>${esc(tr('Calculation|position'))}</span>${n ? `<span class="ofdkcnt" aria-hidden="true">${esc(n)}</span>` : ''}${ic('down', 's')}</button>`
+    + `<span class="ofdflags"${open ? '' : ' hidden'}>${/*html-ok*/ inner}</span>`;
+}
 // 2.1041.0 (#5816, #5817): the document's print switches below the positions (not inside a part: they belong to the document)
 function ofd_printSw(d) {
   if (d.tpPart || !['offer', 'invoice'].includes(d.kind)) return '';
@@ -1054,6 +1081,7 @@ async function ofdClick(e) {
     return;
   }
   if (a === 'it-del') { d.items.splice(+b.dataset.i, 1); await ofdPutItems(); return; }
+  if (a === 'it-kalk') { const it = d.items[+b.dataset.i]; if (!it) return; const on = b.getAttribute('aria-expanded') !== 'true'; ofd_kalkSet(d, it, on); b.setAttribute('aria-expanded', String(on)); b.nextElementSibling?.toggleAttribute('hidden', !on); return; }  // 2.1175.0 (#6146): no redraw, nothing jumps
   if (a === 'it-pdisc') { const it = d.items[+b.dataset.i]; if (!it) return; it._pdisc = 1; ofdDraw(); $(`${sc}.ofdits [data-i="${b.dataset.i}"][data-k="discount_pct"]`)?.focus({preventScroll: true}); return; }  // 2.1042.0 (#5815)
   if (a === 'it-up' || a === 'it-down') { const i = +b.dataset.i, j = a === 'it-up' ? i - 1 : i + 1; if (j < 0 || j >= d.items.length) return; await ofdMoveItem(d, i, j); setTimeout(() => $(`${sc}.ofdits [data-ofd="${a}"][data-i="${j}"]`)?.focus(), 0); return; }
   if (a === 'client-new') { if (typeof clientModal === 'function') clientModal(null, {org_id: pb_clOrg(), stay: true, quick: true, done: r => ofdPatch({client_id: r.id})}); return; }  // 2.80.0 (#1842); 2.97.0 B (#1951): set as the document's client

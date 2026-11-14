@@ -8448,6 +8448,8 @@ time,.meta .dt,.dpbtn,.remchips button,.dprow .dpt,.dprow .dps,.fwhen{font-famil
   .vsegm button:not(.on)>span{display:none}
   #top{min-height:2.5rem;padding-top:calc(.25rem + var(--safe-t));padding-bottom:.125rem}
 }
+/* 2.1175.0 (#6141): a finger device on its side keeps the 44 px view switch (the 2rem above is for a mouse only) */
+@media (max-height:500px) and (min-aspect-ratio:1/1) and (pointer:coarse){ .vsegm button{min-height:2.75rem} }
 @media (max-width:767px) and (max-height:500px) and (min-aspect-ratio:1/1){
   :root{--tabs-h:2.75rem}
   #tabs button>span:not(.dot):not(.temoji):not(.tsw):not(.tico){position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%)}

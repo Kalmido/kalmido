@@ -409,6 +409,11 @@ c.commit()
   a part that changed since stays and is named, a barrier stops the older groups of its own workspace only - same org_id, 2.866.0 #5302 N2; a group too big stops all), `POST /api/undo/<id>/undo` (exactly that group, 2.1005.0 #5637: newer groups stay; a newer barrier or too-big group of the same workspace holds it), `POST /api/undo/<id>/redo`; `undo_barrier` for
   finalising / sending; a tracked kind registers who may take its steps back (`undo_need_reg`, the office in
   `office/undo.py`), a kind without one is never written back. People only (agents 403).
+- Steps over an API key (2.1175.0, #6165): a write with a personal API key (Bearer) is a group with `undo_groups.via =
+  'token'` and the key's name as its device (`ug_via` / `ug_key_name`), never bundled with an app step. "Recent steps"
+  hides them unless the person's setting `undo_show_api` is on; `POST /api/undo/to/<id>` with `{"hide_api": true}` leaves
+  them as they are and stops before a shown group whose object a newer hidden group changed (`stopped.state = 'hidden'`).
+  Recorded as before: a script's mistake stays undoable.
 - Undo across devices, stage 4 (2.747.0, #5252): the office's step groups have area `office` and a label naming the object
   (`obj_track(undo_label=)` / `ow_kind(label=)`, `office/oubar.py`: a document by kind and number, a client or master data
   row by its name, a letter only by its object number; a sealed value never goes into a label). Finalising, sending (also
