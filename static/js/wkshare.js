@@ -139,7 +139,7 @@ function wsh_fill(md, tgt, sp, folder, legacy) {
         await changed();
       } else if (a === 'end') {
         const s = j.shares.find(x => String(x.id) === b.dataset.id); if (!s) return;
-        if (s.kind === 'link' && !await askConfirm(tr('Turn the public link off?'), tr('It stops working at once.'), {ok: tr('Switch off'), danger: true})) return;
+        // 2.1168.0 (#6092): no question before - the link comes back with Undo (the step below)
         await calReq('DELETE', `/api/wiki/shares/${s.id}`);
         await changed();  // 2.1115.0 (#5967): an open share by address too has the Undo (nothing tells it apart)
         step(s.kind === 'link' ? tr('Public link switched off') : tr('Stopped sharing with {0}', s.user?.name || '?'), s.id, false);
