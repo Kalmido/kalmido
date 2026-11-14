@@ -273,7 +273,8 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
 
   // ================= German
   w = await boot({user: 'carol', hash: 'home'}); d = w.document; await settleW(w);
-  check(d.querySelector('#top h1')?.textContent.includes('Heute'), 'German: the dashboard title (2.1121.0 #5477: the active tab Heute) ' + d.querySelector('#top h1')?.textContent);
+  // 2.1170.0 (#6126): a computer (sidebar, no tab bar): "Start" (the tab's name "Heute" only with the tab bar)
+  check(d.querySelector('#top h1 .ht')?.textContent === 'Start', 'German: the dashboard title on a computer is Start (#6126) ' + d.querySelector('#top h1')?.textContent);
   // 2.43.0 (#1452): the button is a small icon now (the blocks are changed at their "…" menu); its name says it
   check(d.querySelector('[data-act="dash-custom"]')?.getAttribute('aria-label') === 'Kacheln ordnen…', 'German: Kacheln ordnen…');  // 2.364.0 C (#3044): everyday words
   w.close();
