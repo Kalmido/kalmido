@@ -18,7 +18,7 @@ function wpState(md, j = md._wp) {
 async function wpDraw(md) {
   const box = $('#s-wp', md); if (!box || !S.webpush?.enabled) return;
   let j;
-  try { j = await api('GET', '/api/push/subs'); } catch (x) { box.innerHTML = `${errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wpDraw(md); }})}`; return; }
+  try { j = await api('GET', '/api/push/subs'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wpDraw(md); }})}`; return; }
   md._wp = j; S.webpush.devices = j.subs.length;
   const sub = await wpSub(), mine = sub && j.subs.find(x => x.endpoint === sub.endpoint);
   const hint = t => `<div class="shint">${t}</div>`;
@@ -492,7 +492,7 @@ function aiHtml(hint, want) {
     ${pbHelpHtml()}
     ${feat('agents') ? '' : `<div class="shint aimodoff">${ic('grid', 's')} <span>${tr('The Agents module (the tab with their status, jobs to approve and the chat) is switched off for you.')}</span> <button class="btn sm" data-m="go-modules">${tr('Open Modules')}</button></div>`}
     ${collab() ? '' : hint(setLinkHtml(tr('Agents work together with you in shared projects: switch on Collaboration (Settings > Modules) as well.')))}
-    <div class="members aglist" id="${adm ? 's-ags' : 's-myags'}">${loadingHtml()}</div>
+    <div class="members aglist" id="${adm ? 's-ags' : 's-myags'}">${/*html-ok*/ loadingHtml()}</div>
     <div class="row aibtns">${adm ? `<button class="btn sm" data-ag="new" aria-haspopup="menu">${ic('plus', 's')} ${tr('Add agent…')}</button>` : `<button class="btn sm" data-aigo="setup">${ic('plus', 's')} ${tr('Personal agent…')}</button>`}<button class="btn sm" data-m="ag-guide" title="${esc(tr('Set up an agent step by step, or let Claude Code do it'))}">${ic('help', 's')} ${tr('How to set one up')}</button></div>
     ${acz_linkHtml(true)}${''/* 2.166.0 (#2633) */}
     ${agDotsHtml(hint)}
@@ -502,7 +502,7 @@ function aiHtml(hint, want) {
     ${pane('lists', `<h4 id="s-ai-lists-h">${ags.length > 1 ? tr('Which projects they see') : tr('Which projects it sees')}</h4>
     ${hint(tr('Share below or in the project’s Share dialog; taking a project out ends the access at once.'))}
     ${mine && collab() ? `<div class="aishare" id="s-ai-share"></div><div class="aitblctl" id="s-ai-tblctl"></div>
-    <div class="aitbl" id="s-ai-tbl" role="table" aria-labelledby="s-ai-lists-h">${loadingHtml()}</div>` : `<div class="muted mhint">${tr('You do not manage any project yet.')}</div>`}`)}
+    <div class="aitbl" id="s-ai-tbl" role="table" aria-labelledby="s-ai-lists-h">${/*html-ok*/ loadingHtml()}</div>` : `<div class="muted mhint">${tr('You do not manage any project yet.')}</div>`}`)}
     ${subs.some(x => x[0] === 'usage') ? pane('usage', `${hint(adm ? tr('What the agents report about their model usage: tokens and, if they send it, the cost. You see every agent; limits are set per agent (Edit).') : tr('What the agents in your projects report about their model usage, counted in the projects you see.'))}
     <div class="aiu" id="s-aiu"></div>`) : ''}
     ${pane('setup', agSetupPaneHtml(hint))}
@@ -521,7 +521,7 @@ function agSetupPaneHtml(hint) {
     <div class="shint keep agone">${ic('download', 's')} <span>${tr('The quick way: create the agent, then “Set up on a computer” at it gives you one command to paste.')}</span></div>${typeof srv_guideHtml === 'function' ? srv_guideHtml() : ''}${''/* 2.557.0 C (#4670): the agent on the Kalmido server */}
     <h4 id="s-myown-h">${tr('Your personal agents')}</h4>
     ${hint(tr('Only you can chat with it; it runs on your own computer.'))}
-    <div class="members aglist" id="s-myown" aria-labelledby="s-myown-h">${loadingHtml()}</div>
+    <div class="members aglist" id="s-myown" aria-labelledby="s-myown-h">${/*html-ok*/ loadingHtml()}</div>
     <div id="s-mcpgr"></div>
     <details class="sdet aghand"><summary>${tr('For advanced users: set it up by hand')}</summary>
     ${seg('os', os, [['linux', 'Linux'], ['mac', 'macOS'], ['win', 'Windows']])}
@@ -558,7 +558,7 @@ async function agSetupDraw(md) {
   if (S.me?.is_admin) ad_agPolicyDraw(md);  // 2.46.6 (#1710): the rules sit in Administration > Agents (no #s-myown needed)
   const box = $('#s-myown', md); if (!box) return;
   let j;
-  try { j = await api('GET', '/api/my/agents'); } catch (x) { box.innerHTML = `${errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); agSetupDraw(md); }})}`; return; }
+  try { j = await api('GET', '/api/my/agents'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); agSetupDraw(md); }})}`; return; }
   box._j = j;
   for (const a of j.agents || []) if (a.color) (S.colors ||= {})[a.id] = a.color;  // 2.47.1 (#1721)
   const row = a => `<div class="mrow agsrow ${a.enabled ? '' : 'off'}" data-myag="${a.id}">${avBtn(a.id, a.name)}<span class="n"><span class="agnm"><b>${esc(a.name)}</b> <span class="muted">${esc(a.username)}</span>${av_wsBtn(a)}</span>
@@ -766,7 +766,7 @@ function ad_secDraw(md) {
 }
 // 2.364.0 C (#3041): Organisation > Data: the encryption, export and retention export of the organisations I administer
 // (wsPaneDraw fills it; before inside each organisation under People)
-const wsDataHtml = hint => `<h4 id="s-wsdata-h">${tr('Organisation data')}</h4>${hint(tr('Encryption, recovery key and export of each organisation you manage.'))}${ocScopeSlotHtml()}<div id="s-wsdata" class="wsdata" aria-labelledby="s-wsdata-h">${loadingHtml()}</div>`;
+const wsDataHtml = hint => `<h4 id="s-wsdata-h">${tr('Organisation data')}</h4>${hint(tr('Encryption, recovery key and export of each organisation you manage.'))}${ocScopeSlotHtml()}<div id="s-wsdata" class="wsdata" aria-labelledby="s-wsdata-h">${/*html-ok*/ loadingHtml()}</div>`;
 // Server: storage per person (#910), the support address, the daily e-mail limit (#899) and the notice above the app (#907)
 // 2.555.0 C (#4664): Settings > Server > Server in one place (first draw and the redraw after publishing a notice)
 // 2.75.0 (#1411): + asst_admHtml; 2.59.0 B (#1375): + related tasks; 2.46.6 (#1710): + the update check result (was Help)
@@ -798,7 +798,7 @@ function hostHtml(hint) {
     ${hint(tr('Per person and day (at most 5 a day to one address). Over the limit the link is shown to copy.'))}
     <div class="row"><label for="s-maillim">${tr('Per account and day')}</label><input id="s-maillim" inputmode="numeric" class="numin" value="${esc(String(a.mail_day_limit || 30))}"></div>
     ${a.hosted ? `<div class="shint keep">${ic('alert', 's')} ${tr('Hosted server: integrations only reach public HTTPS addresses.')}</div>` : ''}
-    <h4 id="s-ip-h">${tr('Your IP')}</h4><div id="s-ipbox" aria-labelledby="s-ip-h">${loadingHtml()}</div>${(setTimeout(ipFill, 0), '')}`;
+    <h4 id="s-ip-h">${tr('Your IP')}</h4><div id="s-ipbox" aria-labelledby="s-ip-h">${/*html-ok*/ loadingHtml()}</div>${(setTimeout(ipFill, 0), '')}`;
 }
 // 2.33.0 (#834): the address the server sees for me (self-test behind a reverse proxy) and the warning when many accounts
 // sign in from one private address (the proxy does not pass the client's address on)
@@ -866,7 +866,7 @@ function settingsModal(focus) {
       agents: S.me.is_admin ? ad_agentsHtml(hint) : '',  // 2.46.6 (#1710); 2.555.0 C (#4664): one switch for user_agents (s-uag), no second one
       odata: (lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin') ? wsDataHtml(hint) : '') + (S.me.is_admin ? ocAdminHtml(hint, !(lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin'))) : '')}, ad_admFocus(focus)) : '',  // 2.582.0 (#4827): backups + storage check under Server > Backup
     // 2.418.0 (#3560): the editor of every area's menu and the tab bar (navmenu.js nav_pageDraw)
-    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus">${loadingHtml()}</div>`,
+    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus">${/*html-ok*/ loadingHtml()}</div>`,
     look: `<div id="s-lookin">${lookHtml()}</div>
       ${typeof spl_can === 'function' && spl_can() ? `<h4 id="s-split-h">${tr('Split view')}</h4><div class="row">${chk('s-split', LS.get('split', false) === true, tr('A second view of the app on the right'))}</div>
       <div class="row splminrow"><label for="s-splmin">${tr('Split from window width')}</label><input type="number" id="s-splmin" class="aanum wide" inputmode="numeric" min="${esc(String(spl_lo()))}" max="${esc(String(SPL_MAX_PX))}" placeholder="${esc(String(spl_def()))}" value="${esc(+LS.get('splMin', 0) > 0 ? String(spl_from()) : '')}"> <span class="muted">px</span> <button type="button" class="btn sm" data-m="s-splmin-std">${tr('Default')}</button></div>
@@ -934,7 +934,7 @@ function settingsModal(focus) {
       <div class="shint wpstate" id="s-wpstate"></div>
       ${hint(tr('No extra app needed. Switch it on below on every device that should ring.'))}
       <h4>${tr('This device')}</h4>
-      <div id="s-wp">${loadingHtml()}</div>` : ''}
+      <div id="s-wp">${/*html-ok*/ loadingHtml()}</div>` : ''}
       <h4>${tr('In the app')}</h4>
       <div class="row">${/*html-ok*/ chk('s-msgpop', LS.get('msgPop', '1') !== '0', tr('Pop-up for new messages'))}</div>
       ${/*html-ok*/ hint(tr('A new message from a person or a finished answer of an agent shows briefly at the top edge, wherever you are in Kalmido. Only on this device; while the app is open, this device gets no extra push for it.'))}
@@ -958,7 +958,7 @@ function settingsModal(focus) {
       ${hint(tr('A task or a project can repeat its reminder until done (date dialog or project dialog). Nothing repeats during the quiet hours.'))}`,
     integr: integrCardsHtml() + intr_row('cals', 'cal', N_('Calendars'), calsHtml(chk, hint)) + intr_row('carddav', 'cake', N_('Birthdays from your contacts'), typeof famDavHtml === 'function' ? famDavHtml() : '') + intr_row('ical', 'link', N_('Calendar subscription'), `<h4 id="s-ical-h">${tr('Calendar subscription')}</h4>
       ${hint(tr('Read-only. Calendar apps fetch changes every few hours.'))}
-      <div id="s-ical">${loadingHtml()}</div>
+      <div id="s-ical">${/*html-ok*/ loadingHtml()}</div>
       <div class="row"><label for="s-icalscope">${tr('Tasks')}</label><select id="s-icalscope"><option value="all">${tr('All visible tasks (incl. shared projects)')}</option><option value="mine" ${s.ical_scope === 'mine' ? 'selected' : ''}>${tr('Only mine and assigned to me')}</option></select></div>
       <div class="row"><label>${tr('Reminders')}</label>${chk('s-icalalarm', s.ical_alarms !== '0', tr('as calendar alarms'))}</div>
       <details class="shelp sdet"><summary>${tr('How to subscribe')}</summary><ul class="slist">
@@ -999,7 +999,7 @@ function settingsModal(focus) {
       ${typeof umzHtml === 'function' ? umzHtml(hint) : ''}
       <h4 id="s-tpl-h">${tr('Templates')}</h4>
       ${hint(tr('Private to you. Save from a task’s menu (…) or the project dialog; use via the template button or Projects > +.'))}
-      <div class="members" id="s-tpls">${loadingHtml()}</div>
+      <div class="members" id="s-tpls">${/*html-ok*/ loadingHtml()}</div>
       ${sampleHtml(hint)}`,
     ai: aiPaneOn() ? aiHtml(hint, {agents: 'agents', agentdots: 'agents', usage: 'usage', agentsetup: 'setup', assistant: 'assistant'}[focus]) : asst_paneHtml(hint),  // 2.7.0 (#405 S2); 2.489.0 (#2664): the assistant alone while the agents are off
     users: S.me?.is_admin ? admSubsHtml('users', {  // 2.24.0 (#826): Administration in sub-tabs like Agents; 2.364.0 C (#3041): "Server"
@@ -1628,12 +1628,12 @@ async function cer_setList(el) {
 // Settings > Users > Whole server > Admin alerts: operational warnings to the admins via ntfy (server side, own
 // "Save"; loaded when the pane opens). Recent alerts below, with "Clear".
 // 2.555.0 C (#4664): the sub-tab is called Admin alerts: no heading of the same name under it
-const aaHtml = () => `<div id="s-aa" aria-labelledby="adms-log">${loadingHtml()}</div>`;
+const aaHtml = () => `<div id="s-aa" aria-labelledby="adms-log">${/*html-ok*/ loadingHtml()}</div>`;
 const AA_STATE = {sent: N_('delivered'), failed: N_('not delivered'), queued: N_('waiting for the summary'), summarized: N_('in the summary'), capped: N_('hourly limit reached'), listed: N_('only listed (no device or topic yet)')};
 function aaWhen(x) { return x ? fmtStamp(new Date(x)) : ''; }  // 2.368.0 B (#2982): one locale source
 async function aaDraw(md, j) {
   const box = $('#s-aa', md); if (!box) return;
-  if (!j) { try { j = await api('GET', '/api/admin/alerts'); } catch (x) { box.innerHTML = `${errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); aaDraw(md); }})}`; return; } }
+  if (!j) { try { j = await api('GET', '/api/admin/alerts'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); aaDraw(md); }})}`; return; } }
   const hint = t => `<div class="shint">${t}</div>`, num = (id, v, lo, hi, w) => `<input type="number" class="aanum${w ? ' wide' : ''}" id="${id}" value="${esc(v)}" min="${lo}" max="${hi}">`;
   // 2.5.2 (K04): where the alerts really go per admin (Web Push devices and / or an ntfy topic); nowhere yet = a neutral hint
   const via = a => [a.devices ? trn('Web Push to {0} device', 'Web Push to {0} devices', a.devices) : '', a.topic ? `ntfy <code class="topic">${esc(a.topic)}</code>` : ''].filter(Boolean).join(' + ') || `<span class="muted">${tr('nowhere yet')}</span>`;
@@ -1810,7 +1810,7 @@ async function adminSwitch(md, el, fromHist) {
 // calendar subscription (Settings > Integrations): the secret feed link, copy / new link / off
 async function icalDraw(md, j) {
   const box = $('#s-ical', md); if (!box) return;
-  if (!j) { try { j = await api('GET', '/api/ical'); } catch (x) { box.innerHTML = `${errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); icalDraw(md); }})}`; return; } }
+  if (!j) { try { j = await api('GET', '/api/ical'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); icalDraw(md); }})}`; return; } }
   intr_st('ical', !!(j.url || j.active));  // 2.625.0 (#4489): the state on its folded row in Settings > Integrations
   // 2.138.0 C (#1907): the server keeps only a hash: the link is in the answer of create / rotate once, later only "active since"
   if (!j.url && !j.active) { box.innerHTML = `<div class="row"><button class="btn sm pri" data-m="ical-create">${ic('cal', 's')} ${tr('Create subscription link')}</button></div>`; return; }
@@ -2034,7 +2034,7 @@ async function ss_areaOpen(h) {
 // office.js biz_paint draws them (the office scripts load here when the area is opened)
 function biz_paneHtml() {
   if (!S.me || S.me.kind === 'agent' || !officeOn()) return '';
-  return `<div id="s-biz" class="sbiz">${loadingHtml()}</div><div id="s-bizmail"></div>`;
+  return `<div id="s-biz" class="sbiz">${/*html-ok*/ loadingHtml()}</div><div id="s-bizmail"></div>`;
 }
 // the workspace's own mailbox (IMAP / SMTP, hubmailbox.js; also in Clients > E-mail filing): its state and Set up / Change
 async function biz_mailDraw(md) {
