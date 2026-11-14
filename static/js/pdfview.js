@@ -332,7 +332,7 @@ async function pdfView(o) {
     doc = o.pre.doc; base = o.pre.base; fit = pv_fit(body, base);
     body.replaceChildren(pv_pagesEl(base, fit, Math.abs(fit - o.pre.fit) < 0.002 ? o.pre.cv : null));
     pages = $$('.pvpage', body);
-    $('.pvnav', m).hidden = $('.pvzoom', m).hidden = false;
+    $('.pvzoom', m).hidden = false; $('.pvnav', m).hidden = base.length < 2;  // 2.1170.0 (#6110): one page has nothing to turn - no second counter under the documents' one
     layout(); observe(); ahead();
     const p0 = pages[0], s0 = p0?.dataset.s, g0 = gen;  // 2.742.0 (#4861): the first page drawn ahead gets its text layer too
     if (s0) doc.getPage(1).then(pg => pv_text(pv_libNow, pg, pg.getViewport({scale: +s0}), p0, () => g0 === gen && p0.dataset.s === s0 && p0.isConnected)).catch(() => {});
@@ -356,7 +356,7 @@ async function pdfView(o) {
     fit = pv_fit(body, base);
     body.innerHTML = `<div class="pvpages">${base.map((_, i) => `<div class="pvpage" data-i="${i}"></div>`).join('')}</div>`;
     pages = $$('.pvpage', body);
-    $('.pvnav', m).hidden = $('.pvzoom', m).hidden = false;
+    $('.pvzoom', m).hidden = false; $('.pvnav', m).hidden = base.length < 2;  // 2.1170.0 (#6110): one page has nothing to turn - no second counter under the documents' one
     layout(); observe(); ahead();
   } catch (e) {
     if (my !== gen || !m.isConnected) return;
