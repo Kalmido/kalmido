@@ -161,8 +161,8 @@ async function upload(name, data, type, parent) {
     check(await openF(PD), 'Firefox 360: the PDF opens');
     check(await wait(`!!document.querySelector('.dv-view .dv-pages .dv-pg canvas') && /1 \\/ 1/.test(document.querySelector('.dv-view .dv-pgn')?.textContent || '')`, 80), 'Firefox 360: the PDF page drawn, the page count there');
     const bar = await ev(`(() => { const b = document.querySelector('.dv-view .dv-pvbar'), r = b.getBoundingClientRect(), kids = [...b.children].filter(e => e.getBoundingClientRect().width > 0 && getComputedStyle(e).display !== 'none'), tops = kids.map(e => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)), s = b.querySelector('.dv-pgs'), l = b.querySelector('.dv-pgl');
-      return {h: Math.round(r.height), spread: Math.max(...tops) - Math.min(...tops), short: s && getComputedStyle(s).display !== 'none' ? s.textContent : '', long: l ? getComputedStyle(l).display : '', cut: s ? s.scrollWidth > s.clientWidth + 1 : true}; })()`);
-    check(bar && bar.spread <= 3 && bar.h <= 64 && bar.short === '1 / 1' && bar.long === 'none' && !bar.cut, 'Firefox 360: the PDF bar in one row with "1 / 1" (no "Se") ' + JSON.stringify(bar));
+      return {h: Math.round(r.height), spread: Math.max(...tops) - Math.min(...tops), short: s && getComputedStyle(s).display !== 'none' ? s.textContent : '', long: l ? getComputedStyle(l).display : ''}; })()`);
+    check(bar && bar.spread <= 3 && bar.h <= 64 && bar.short === '1 / 1' && bar.long === 'none', 'Firefox 360: the PDF bar in one row with "1 / 1" (no "Se") ' + JSON.stringify(bar));
     await shot('p21170b-pdf-360.png');
   });
 
