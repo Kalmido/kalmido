@@ -29,7 +29,7 @@ async function fs_shareDialog(id, opts = {}) {
   };
   /** @type {any} */
   const md = modal(`<div class="lhdr"><h3>${esc(tr('Share “{0}”', n.name))}</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="${tr('Close')}" title="${tr('Close')}">${ic('x')}</button></div>
-    <div class="shint lhint keep">${n.kind === 'folder' ? tr('The share applies to everything in this folder, also what is added later.') : n.kind === 'ref' ? tr('The share applies to this document.') : tr('The share applies to this file and all its versions.')} ${tr('Agents see exactly what is shared with them, nothing else; every access shows up in the history.')}</div>
+    <div class="shint lhint keep">${n.kind === 'folder' ? tr('The share applies to everything in this folder, also what is added later.') : n.kind === 'ref' ? (opts.refHint || tr('The share applies to this document.')) /* 2.1168.0 (#6091): a knowledge page says page */ : tr('The share applies to this file and all its versions.')} ${tr('Agents see exactly what is shared with them, nothing else; every access shows up in the history.')}</div>
     ${opts.hint ? `<div class="shint lhint keep fshint">${ic('info', 's')} ${esc(opts.hint)}</div>` : ''}
     ${n.locked ? `<div class="shint lhint keep fslhint">${ic('lock', 's')} ${esc(tr('Locked folder: only people can get access, and they open it once an owner handed them the key. Agents and API tokens are always excluded.'))}</div>` : ''}
     ${opts.office ? `<div class="shint lhint keep fsoffice">${ic('info', 's')} ${esc(tr('Folders give access to documents, not to office actions (releasing and sending, payments, locking, export): those stay with the office groups.'))}</div>` : ''}
