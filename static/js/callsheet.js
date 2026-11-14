@@ -359,7 +359,7 @@ async function cs_mail(job, org) {
             <div class="foot"><span class="spacer"></span><button type="button" class="btn pri" data-csm="cancel">${tr('Close')}</button></div>`);
           head();
         } else { md.remove(); toast(trn('Call sheet sent to {0} recipient', 'Call sheet sent to {0} recipients', r.sent.length)); }
-      } catch (e) { b.disabled = false; setHtml(b, `${ic('send', 's')} ${esc(tr('Send'))}`); err(e?.message || tr('Something went wrong')); /* 2.1180.0 (#6149): the symbol stays; the reason also in the dialog */ }
+      } catch (e) { b.disabled = false; setHtml(b, `${ic('send', 's')} ${esc(tr('Send'))}`); err(errText(e)); /* 2.1180.0 (#6149): the symbol stays; the reason also in the dialog */ }
     }
   });
 }
@@ -419,7 +419,7 @@ async function pcs_new(l) {  // 2.1180.0 (#6149): askDialog (Enter creates, focu
       if (!day) { say(tr('Please select a date')); return false; }
       say('');
       try { r = await api('POST', '/api/team/dispo/callsheets', {list_id: l.id, date: day}); return true; }
-      catch (e) { say(e?.message || tr('Something went wrong')); return false; }
+      catch (e) { say(errText(e)); return false; }
     }});
   if (!ok || !r) return;
   let ids = [r.booking_id];
