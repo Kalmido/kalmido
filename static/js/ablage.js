@@ -570,10 +570,9 @@ function ab_trashSee(n) {
 // top, its facts, a picture right there, a PDF / text to view - no new version, no sharing, no tags, no Open of a living file
 function ab_trashDetails(n) {
   $('.abdlg')?.remove();
-  const k = ab_trashKind(n), w = ab_canWrite(n.role), was = (n.crumbs || []).slice(0, -1).map(c => c.name).join(' / ');
+  const k = ab_trashKind(n), w = ab_canWrite(n.role);
   const md = modal(`<div class="lhdr"><h3>${/*html-ok*/ ab_icon(n)} ${esc(n.name)}</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="${tr('Close')}" title="${tr('Close')}">${ic('x')}</button></div>
     <div class="shint keep abtrashed" role="status">${ic('trash', 's')}<span>${esc(tr('In the trash'))}</span>${w ? `<span class="spacer"></span><button type="button" class="btn sm pri" data-abd="restore">${ic('undo', 's')} ${tr('Restore')}</button>` : ''}</div>
-    ${was ? `<div class="muted abpath">${esc(tr('Was in: {0}', was))}</div>` : ''}
     <div class="abfacts">${n.kind !== 'folder' ? `<span>${esc(fmtSize(n.size || 0))}</span>` : ''}${n.deleted_at ? `<span>${esc(tr('Deleted on {0}', ab_when(n.deleted_at)))}</span>` : ''}${n.owner ? `<span>${esc(tr('Owner: {0}', n.owner))}</span>` : ''}</div>
     ${k === 'img' ? `<div class="abtrimg"><img src="${esc(ab_trashUrl(n))}" alt="${esc(n.name)}" loading="lazy"></div>` : ''/* sprung-ok: fixed box, ablage.css .abtrimg */}
     ${k ? `<div class="row"><button type="button" class="btn sm" data-abd="see">${ic('eye', 's')} ${tr('Preview')}</button></div>` : ''}
