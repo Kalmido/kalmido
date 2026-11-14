@@ -1102,7 +1102,7 @@ def inv_render(c, oid, r, m, t, pack, L, lang, fmt_date):
         # the closing may carry {days} / {date} (pack text or the organisation's own): the deadline of this reminder
         m["closing"] = (m.get("closing") or "").replace("{days}", str(int(_col(r, "reminder_deadline_days") or 0))).replace("{date}", deadline)
     else:
-        rows = [[L.get("subtotal", tr("Subtotal|document", lg=lang)), tot["net_text"]]]
+        rows = [[L.get("net_total") or L.get("subtotal", tr("Subtotal|document", lg=lang)), tot["net_text"]]]  # 2.1179.0 A (#6174): "Summe netto" like the quotation (was "Zwischensumme", clashed with the section subtotals)
         for tl in tot["tax_lines"]:
             lab = tl.get("label") or ""
             if lab and tl.get("base") not in (None, ""):  # 2.296.0 B (#3175): the taxable amount per rate (section 14 (4) no. 8 UStG)

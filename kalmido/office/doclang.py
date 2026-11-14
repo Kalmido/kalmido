@@ -18,7 +18,13 @@ LEGACY = {"invoice_closing": {
     "en": "Please remit the invoice amount to the account specified above. Our general terms and conditions apply."},
     # 2.357.0 D (#3183): the German standard closing up to 2.356 ("allgemeinen" small)
     "invoice_closing_2": {"de": "Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer auf unser angegebenes Bankkonto. "
-                                "Es gelten unsere allgemeinen Geschäftsbedingungen."}}
+                                "Es gelten unsere allgemeinen Geschäftsbedingungen."},
+    # 2.1179.0 A (#6174): the standard closing up to 2.1178 (the transfer request; the PDF's payment block asks for it now);
+    # nl / fr / es / it: its translation (_dpk)
+    "invoice_closing_3": {"de": "Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer auf unser angegebenes Bankkonto. "
+                                "Es gelten unsere Allgemeinen Geschäftsbedingungen.",
+                          "en": "Please transfer the total amount, quoting the invoice number, to our bank account stated on this invoice. "
+                                "Our general terms and conditions apply."}}
 
 
 def doc_lg(lang):
@@ -108,6 +114,7 @@ DPK_WORDS = (N_("Quotation|pack"), N_("Quotation No.|pack"), N_("Invoice|pack"),
              N_("This quotation is valid until {date}.|pack"),
              N_("Regarding the project referenced above, we are pleased to submit the following charges for our services:|pack"),
              N_("Please transfer the total amount, quoting the invoice number, to our bank account stated on this invoice. Our general terms and conditions apply.|pack"),
+             N_("Thank you for your order and the pleasant cooperation.|pack"),  # 2.1179.0 A (#6174): the standard invoice closing
              N_("The following goods or services have been delivered:|pack"), N_("Goods or services received in full and in good condition.|pack"),  # 2.296.0 D (#3167)
              N_("Regarding the invoice referenced below we issue the following credit note:|pack"),
              N_("We will refund the credited amount to you or offset it against open invoices. Please do not hesitate to contact us with any questions.|pack"),
@@ -247,6 +254,9 @@ def _defaults(c, oid, s, cur, lang, level, ct):
                 cands.add(legacy)
         if kind in ("invoice", "credit") and LEGACY["invoice_closing_2"].get(lang):
             cands.add(LEGACY["invoice_closing_2"][lang])
+        if kind in ("invoice", "credit"):  # 2.1179.0 A (#6174)
+            l3 = LEGACY["invoice_closing_3"]
+            cands.add(l3.get(lang) or _dpk(l3["en"], lang))
         if kind == "reminder":  # any level's standard text counts (the level may change together with the language)
             for lv in (1, 2, 3):
                 cands.add(inv_default_texts(c, oid, s, kind, lang, lv)[1])
