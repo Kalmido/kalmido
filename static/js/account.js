@@ -971,7 +971,7 @@ function signupScreen(el, logo, info) {
   });
   setTimeout(() => $('#su-name', el)?.focus(), 50);
 }
-// ---- Settings > Users > Whole server: sign-in (2FA policy, passkey login, OIDC) (2.555.0 C, #4664: heading "Two-factor and passkeys", the sub-tab is called Sign-in)
+// ---- Settings > Server > Sign-in (2FA policy, passkey login, OIDC) (2.555.0 C, #4664: heading "Two-factor and passkeys", the sub-tab is called Sign-in)
 function signinHtml(hint) {
   const a = S.about || {}, o = a.oidc || {};
   let h = `<h4 id="s-signin-h">${tr('Two-factor and passkeys')}</h4>
@@ -1077,7 +1077,7 @@ function oidcWire(md) {
     } catch (x) { if (r) r.textContent = x.message; } finally { b.disabled = false; }
   });
 }
-// ---- Settings > Users > Whole server > Backups
+// ---- Settings > Server > Backup
 // 2.13.0: "Check storage": files of tasks / projects that are missing, empty or cut off on disk (read-only)
 const stoHtml = () => `<h4 id="s-sto-h">${tr('Check storage')}</h4><div class="row"><button class="btn sm" data-m="sto-check">${ic('search', 's')} ${tr('Check storage')}</button></div><div id="s-sto" role="status" aria-live="polite"></div><div id="s-scn"></div><div id="s-ret"></div>`;  // 2.61.0 (#1818): + s-scn; 2.223.3 A (#2877): + s-ret
 // 2.61.0 (#1818): the virus scanner's state below "Check storage" (one line; drawn once per opening)
