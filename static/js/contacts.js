@@ -110,14 +110,29 @@ function viewContacts() {
   const bar = `<div class="ctbar"><div class="ctsearch">${ic('search', 's')}<input id="ct-q" type="search" value="${esc(CT.q)}" placeholder="${esc(tr('Search contacts'))}" aria-label="${esc(tr('Search contacts'))}" autocomplete="off" enterkeyhint="search"></div>
     ${CT.groups.length ? `<select id="ct-group" aria-label="${esc(tr('Group'))}"><option value="">${tr('All groups')}</option>${CT.groups.map(g => `<option value="${esc(g)}" ${g === CT.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}<option value="${CTX_MANAGE}">${tr('Manage groups…')}</option></select>` : ''}
     ${books.length > 1 ? `<select id="ct-book" aria-label="${esc(tr('Address book'))}"><option value="">${tr('All address books')}</option>${books.map(b => `<option value="${b.id}" ${String(b.id) === String(CT.book) ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>` : ''}
-    <span class="spacer"></span>${books.some(ctWrite) ? `<button class="iconbtn ${CT.pick ? 'on' : ''}" data-ct="pick" aria-pressed="${!!CT.pick}" aria-label="${esc(tr(CT.pick ? 'End selection' : 'Select'))}" title="${esc(tr(CT.pick ? 'End selection' : 'Select'))}">${ic('select')}</button>` : ''}<button class="btn sm pri" data-ct="new">${ic('plus', 's')}<span class="cdl">${tr('New contact')}</span></button>
+    ${/*html-ok*/ ct_filtBtn(books)}<span class="spacer"></span>${books.some(ctWrite) ? `<button class="iconbtn ${CT.pick ? 'on' : ''}" data-ct="pick" aria-pressed="${!!CT.pick}" aria-label="${esc(tr(CT.pick ? 'End selection' : 'Select'))}" title="${esc(tr(CT.pick ? 'End selection' : 'Select'))}">${ic('select')}</button>` : ''}<button class="btn sm pri" data-ct="new">${ic('plus', 's')}<span class="cdl">${tr('New contact')}</span></button>
     ${!books.length || books.some(ctWrite) ? `<input type="file" id="ct-impfile" accept="${CT_IMP_ACCEPT}" multiple hidden>` : ''}<button class="iconbtn" data-ct="menu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>`;
   const list = items === null ? `<div class="muted ctempty">${tr('Loading…')}</div>` : !items.length
     ? `<div class="empty">${ic('users')}${CT.q || CT.group ? tr('No contact matches.') : tr('No contacts yet. Add one, import a vCard file, or connect the phone.')}</div>`
     : `<ul class="ctlist" role="list" aria-label="${esc(tr('Contacts'))}">${ctRows(items, (c, vl) => `<li${vl}><button type="button" class="ctrow ${c.id === CT.sel ? 'on' : ''} ${bk_rowCls(c)}" data-ctopen="${c.id}" ${CT.pick ? `aria-pressed="${CT.pick.has(c.id)}"` : `aria-current="${c.id === CT.sel}"`}>${CT.pick ? bk_chk(c) : ''}${ctAv(c)}<span class="ctn"><b>${esc(c.fn || c.org || '?')}</b><small class="muted">${esc([c.org !== c.fn ? c.org : '', c.email || c.phone].filter(Boolean).join(' · '))}</small></span>${(books.length > 1 && ctBook(c.book_id)) ? `<i class="cevdot" style="--cc:${cssColor(ctBook(c.book_id).color) || 'var(--accent)'}" title="${esc(ctBook(c.book_id).name)}"></i>` : ''}</button></li>`)}</ul>
       ${CT.total > CT.items.length ? `<div class="muted ctmore">${trh('{0} of {1} loaded', CT.items.length, CT.total)} <button type="button" class="linkbtn" data-ctxmore ${CT.more ? 'disabled' : ''}>${tr('Show more')}</button></div>` : ''}`;  // 2.119.1 A (#2081): the next page comes when scrolling near the end
   const fbar = typeof ctf_barHtml === 'function' && !(mob && showCard) ? ctf_barHtml() : '';  // 2.351.0 B (#2749): the folder filter
-  return CT.html = `<div class="ctview ${showCard ? 'withcard' : ''} ${CT.pick ? 'ctpicking' : ''}"><h2 class="sr">${tr('Contacts')}</h2>${ct18_hintHtml()}${CT.pick && !(mob && showCard) ? bk_barHtml() : ''}${mob && showCard ? '' : bar}${fbar}<div class="ctcols lsd2 lsdfill">${mob && showCard ? '' : `<div class="ctlistw lsdl" data-vlsc>${list}</div>`}${showCard ? ctCardHtml(CT.card) : mob ? '' : `<div class="ctcard ctnone muted">${ic('user')}${tr('Select a contact')}</div>`}</div></div>`;
+  return CT.html = `<div class="ctview ${showCard ? 'withcard' : ''} ${CT.pick ? 'ctpicking' : ''} ${CT.fOpen ? 'ctfopen' : ''}"><h2 class="sr">${tr('Contacts')}</h2>${CT.pick && !(mob && showCard) ? bk_barHtml() : ''}${mob && showCard ? '' : bar}${fbar}<div class="ctcols lsd2 lsdfill">${mob && showCard ? '' : `<div class="ctlistw lsdl" data-vlsc>${/*html-ok*/ ct18_show(items) ? ct18_hintHtml() : ''}${list}</div>`}${showCard ? ctCardHtml(CT.card) : mob ? '' : `<div class="ctcard ctnone muted">${ic('user')}${tr('Select a contact')}</div>`}</div></div>`;
+}
+// 2.1168.0 (#6118): the phone's bar is one row (search, Filter, New, More): group and address book wait behind Filter
+// (contacts.css), its number = the active filters
+function ct_filtBtn(books) {
+  if (!CT.groups.length && books.length < 2) return '';
+  const n = (CT.group ? 1 : 0) + (CT.book && books.length > 1 ? 1 : 0), lab = n ? tr('Filter: {0} active', n) : tr('Filter');
+  return `<button type="button" class="iconbtn ctfbtn ${n ? 'on' : ''}" data-ct="filt" aria-expanded="${CT.fOpen ? 'true' : 'false'}" aria-label="${esc(lab)}" title="${esc(lab)}">${ic('filter', 's')}${n ? `<span class="ctfn" aria-hidden="true">${/*html-ok*/ n}</span>` : ''}</button>`;
+}
+// 2.1168.0 (#6118): the office hint stands in the list column (never above a card): with an empty list, otherwise once - the
+// first visit after it was never seen (ct18Seen); it stays for that visit, Hide (x) ends it for good
+function ct18_show(items) {
+  if (items && !items.length && !CT.q && !CT.group && !CT.book && !CT.folder) return true;
+  if (CT.h18 === undefined) CT.h18 = !LS.get('ct18Seen');
+  if (CT.h18 && !LS.get('ct18Seen') && ct18_hintHtml()) LS.set('ct18Seen', 1);
+  return CT.h18;
 }
 // 2.364.0 B (#3018): Office & finance off: a line above the contacts that turns it on right here (instead of Settings >
 // Modules > Areas > Parts); everyone but a child switches their own modules (without an organisation they are their own admin)
@@ -208,6 +223,8 @@ function ctRows(items, row) {
   if (!vl_begin(items.length)) return items.map(c => row(c, '')).join('');
   return vl_seg('ct', items, (c, i) => row(c, ` data-vlg="${c.id}" aria-setsize="${items.length}" aria-posinset="${i + 1}"`), false, 'li');
 }
+// 2.1168.0 (#6118): above the card's blocks only the switch of saved arrangements (when there are any); Arrange blocks… is in More
+function ct_lyBar() { const v = typeof lyv_btn === 'function' ? lyv_btn('contacts') : ''; return v ? `<div class="lybar"><span class="spacer"></span>${/*html-ok*/ v}</div>` : ''; }
 function ctCardHtml(c) {
   const b = ctBook(c.book_id), w = c.role ? c.role === 'owner' || c.role === 'edit' : ctWrite(b);  // 2.351.0 B (#2749): also through a folder
   const it = (k, icon, href) => (c[k] || []).map(x => `<div class="ctf">${ic(icon, 's')}<span class="ctfl muted">${esc(ctTypeWord(k, x))}</span>${href(x)}</div>`).join('');
@@ -218,7 +235,7 @@ function ctCardHtml(c) {
   return `<article class="ctcard" aria-labelledby="ct-h" data-ck="${c.id}">
     <div class="cthead">${lsd_one() ? `<button class="iconbtn" data-ct="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>` : ''}${ctAv(c, 'avatar ctav big')}<div class="cthn"><h3 id="ct-h" tabindex="-1">${esc(c.fn || c.org || '?')}</h3>${feat('clients') ? `<div class="mstags">${ms_tag('contact')}</div>` : ''}${[c.title, c.org !== c.fn ? c.org : '', c.dept].filter(Boolean).length ? `<div class="muted">${esc([c.title, c.org !== c.fn ? c.org : '', c.dept].filter(Boolean).join(' · '))}</div>` : ''}</div>
       <span class="ctacts">${w ? `<button class="btn sm" data-ct="edit">${ic('edit', 's')} ${tr('Edit')}</button>` : `<span class="rotag">${ic('eye', 's')}${tr('Read-only')}</span>`}<button class="iconbtn" data-ct="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>
-    <div class="ctly">${S.ly.view === 'contacts' ? '' : `<div class="lybar"><span class="spacer"></span>${lyCustomBtn('contacts')}</div>`}${lyHtml('contacts', ct_foldAll(c, {  // 2.666.0 D (#3624): the card's sections are blocks of the view builder
+    <div class="ctly">${/*html-ok*/ S.ly.view === 'contacts' ? '' : ct_lyBar()}${lyHtml('contacts', ct_foldAll(c, {  // 2.666.0 D (#3624): the card's sections are blocks of the view builder
       details: `<div class="ctfields">
       ${it('phones', 'phone', x => `<a href="tel:${esc(x.value.replace(/[^\d+]/g, ''))}">${esc(x.value)}</a>`)}
       ${it('emails', 'at', x => `<a href="mailto:${esc(x.value)}">${esc(x.value)}</a>`)}
@@ -359,6 +376,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('#view [data-ct]'); if (!b) return;
   const k = b.dataset.ct;
   if (k === 'pick') { CT.pick = CT.pick ? null : new Set(); ctDraw(); return; }
+  if (k === 'filt') { CT.fOpen = !CT.fOpen; ctDraw(); if (CT.fOpen) $('#view #ct-group, #view #ct-book')?.focus({preventScroll: true}); return; }  // 2.1168.0 (#6118)
   if (k === 'tback') { if (!f8d_viewBack('ctt')) ctt_close(); return; }  // 2.272.0 E1 (#3038); 2.963.0 (#5233): the ‹ = Back
   if (k === 'tempty') { ctt_act('call'); return; }
   if (k === 'fold') {  // 2.666.0 D (#3624): fold a block of the card open / closed (kept per person)
@@ -369,7 +387,8 @@ document.addEventListener('click', async e => {
   else if (k === 'edit' && CT.card) ctEditor(CT.card);
   else if (k === 'back') { CT.sel = null; CT.card = null; navUp('contacts'); }  // 2.743.0 (#5235)
   else if (k === 'menu') {
-    menu(b, [{label: tr('Address books…'), icon: 'folder', fn: ctBooksModal},
+    menu(b, [isMobile() && (S.books || []).filter(x => wsObjIn(x)).some(ctWrite) && !CT.pick && {label: tr('Select'), icon: 'select', fn: () => { CT.pick = new Set(); ctDraw(); }},  // 2.1168.0 (#6118): the phone's bar has no select button
+      {label: tr('Address books…'), icon: 'folder', fn: ctBooksModal},
       {label: tr('Trash'), icon: 'trash', fn: () => { CT.trash = {}; CT.pick = null; f8d_viewStep('ctt', ctt_close); ctDraw(); }},  // 2.272.0 E1 (#3038); 2.963.0 (#5233): a step of the page
       {label: tr('Import a vCard file…'), icon: 'upload', fn: () => ctImport()},
       {label: tr('Import a CSV file…'), icon: 'upload', fn: () => ctImport(null, 'csv')},  // 2.119.1 A (#2080): Outlook, Google, a spreadsheet
@@ -385,7 +404,8 @@ document.addEventListener('click', async e => {
       feat('events') && {label: tr('Invite to a new event'), icon: 'cal', fn: () => evEditor({attendees: [{contact_id: c.id, name: c.fn, email: c.emails?.[0]?.value || '', partstat: 'needs-action'}]})},
       typeof nwl_ctItem === 'function' && nwl_ctItem(c, w, b),  // 2.55.0 (#1455): the newsletter consent
       ctk_clientItem(c, ctBook(c.book_id)),  // 2.119.1 B (#2082): create a client from the contact / open its client
-      ...(typeof ctf_cardItems === 'function' ? ctf_cardItems(c) : [])]);  // 2.351.0 B (#2749): into a folder, share it there
+      ...(typeof ctf_cardItems === 'function' ? ctf_cardItems(c) : []),  // 2.351.0 B (#2749): into a folder, share it there
+      typeof lyOpen === 'function' && S.ly.view !== 'contacts' && {label: tr('Arrange blocks…'), icon: 'sliders', fn: () => lyOpen('contacts', true)}]);  // 2.1168.0 (#6118): was its own row above the blocks
   }
 });
 
