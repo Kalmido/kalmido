@@ -312,7 +312,7 @@ async function wk_fTrash(sp, f) {
   try { await rawFetch('DELETE', `/api/files/nodes/${f.id}`); } catch (e) { toast(e.message); return; }
   if (S.route.mod === 'wiki' && S.route.wdir && (S.route.wdir + '/').toLowerCase().startsWith(f.path.toLowerCase() + '/')) go(wk_home(sp));
   wk_after(sp);
-  histToast(tr('“{0}” moved to the trash', f.name), histAdd({label: tr('Delete “{0}”', f.name), ids: [], snaps: [], lids: [], wsp: sp,
+  histToast(tr('“{0}” moved to the trash', f.name), histAdd({label: tr('“{0}” moved to the trash', f.name) /* 2.1168.0 (#6092): one word for the trash */, ids: [], snaps: [], lids: [], wsp: sp,
     undo: async () => { await rawFetch('POST', `/api/files/nodes/${f.id}/restore`); wk_after(sp); return {skipped: []}; },
     redo: async () => { await rawFetch('DELETE', `/api/files/nodes/${f.id}`); wk_after(sp); return {skipped: []}; }}));
 }
@@ -344,7 +344,7 @@ function wk_selBox(sp, nid, name) {
 function wk_selBar(sp) {
   if (!wk_selOk(sp)) return '';
   const ns = [...WK.sel].filter(x => WK.selVis.includes(x)), n = ns.length, all = n > 0 && n === new Set(WK.selVis).size;
-  return ms_barHtml('wk-sbar', 'wksel', n, tr('Tap pages'), [['all', 'all', all ? tr('Select none') : tr('All')], ['move', 'arrow', tr('Move')], ['trash', 'trash', tr('Delete'), 'danger']]);
+  return ms_barHtml('wk-sbar', 'wksel', n, tr('Tap pages'), [['all', 'all', all ? tr('Select none') : tr('All')], ['move', 'arrow', tr('Move')], ['trash', 'trash', tr('Move to the trash'), 'danger']]);  // 2.1168.0 (#6092): the page's and the row's word
 }
 // a box ticked on hover, Ctrl / Cmd / Shift + click on a row (computer), a long press (phone): choosing starts; while on, a tap chooses
 function wk_selPick(nid, shift) {
@@ -529,7 +529,7 @@ function wk_panelAllHtml() {
 // 2.139.0 C (#2386): a page whose text cannot be read -- the message with its way out, and deleting (save, rename, move are refused)
 function wk_lostHtml() {
   const may = WK.idx[wk_cur()]?.mayWrite !== false;
-  return `<div class="wklost" role="alert">${ic('lock')}<p>${esc(WK.pgErr)}</p>${may ? `<button type="button" class="btn sm" data-wk="lostdel">${ic('trash', 's')}${tr('Delete page')}</button>` : ''}</div>`;
+  return `<div class="wklost" role="alert">${ic('lock')}<p>${esc(WK.pgErr)}</p>${may ? `<button type="button" class="btn sm" data-wk="lostdel">${ic('trash', 's')}${tr('Move to the trash')}</button>` : ''}</div>`;  // 2.1168.0 (#6092): the trash's word
 }
 function wk_crumbs(p) {
   const parts = p.path.split('/'), sp = p.space;
@@ -694,7 +694,7 @@ function wka_html(p, may, edit) {  // 2.750.0 (#5229): attach, drop and delete o
   if (!fs.length && !(may && open && edit)) return '';
   return `<section class="wkfiles" aria-label="${esc(tr('Files'))}"><h4>${ic('file', 's')}${tr('Files')}${fs.length ? ` · ${fs.length}` : ''}<span class="spacer"></span>${may && open && edit ? `<input type="file" id="wka-file" multiple accept="${WKA_ACCEPT}" hidden><button type="button" class="btn" data-wka="add">${ic('upload', 's')}${tr('Attach files')}</button>` : ''}</h4>
     ${fs.length ? `<ul>${fs.map(f => `<li><a class="wkfile" href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.name)}">${f.image ? `<img src="${esc(f.url)}" alt="" loading="lazy">${''/* sprung-ok: fixed 2.5rem box, wiki.css .wkfile img (#5227) */}` : ic('pdf')}<span class="an">${esc(f.name)}</span><span class="as">${fmtSize(f.size)}</span></a>
-      <button type="button" class="iconbtn" data-wka="copy" data-id="${f.id}" title="${esc(tr('Copy link'))}" aria-label="${esc(tr('Copy link'))}">${ic('link')}</button>${may && edit ? `<button type="button" class="iconbtn" data-wka="del" data-id="${f.id}" title="${esc(tr('Delete'))}" aria-label="${esc(tr('Delete'))}">${ic('trash')}</button>` : ''}</li>`).join('')}</ul>` : ''}</section>`;
+      <button type="button" class="iconbtn" data-wka="copy" data-id="${f.id}" title="${esc(tr('Copy link'))}" aria-label="${esc(tr('Copy link'))}">${ic('link')}</button>${may && edit ? `<button type="button" class="iconbtn" data-wka="del" data-id="${f.id}" title="${esc(tr('Move to the trash'))}" aria-label="${esc(tr('Move to the trash'))}">${ic('trash')}</button>` : ''}</li>`).join('')}</ul>` : ''}</section>`;
 }
 const wka_md = f => `${f.image ? '!' : ''}[${f.name.replace(/[[\]]/g, '')}](${f.url})`;
 // 2.633.0 (#4920): fixed hidden file input before "Attach files" (wka_html), its change uploads (a drop onto the window too, dropany.js)
@@ -713,10 +713,10 @@ async function wka_add(p, fl) {
 async function wka_del(p, f) {
   try { await rawFetch('DELETE', '/api/wiki/files/' + f.id); } catch (e) { toast(e.message); return; }
   wk_after(p.space);
-  const e = histAdd({label: tr('Deleted {0}', qn(f.name)), ids: [], snaps: [], lids: [], wsp: p.space,
+  const e = histAdd({label: tr('“{0}” moved to the trash', f.name) /* 2.1168.0 (#6092) */, ids: [], snaps: [], lids: [], wsp: p.space,
     undo: async () => { const r = await rawFetch('POST', '/api/wiki/restore', {ids: [], files: [f.id]}); wk_after(p.space); return {skipped: r.files_skipped?.length ? [f.name] : []}; },
     redo: async () => { await rawFetch('POST', '/api/wiki/trash', {ids: [], files: [f.id]}); wk_after(p.space); return {skipped: []}; }});
-  histToast(tr('Deleted {0}', qn(f.name)), e);
+  histToast(tr('“{0}” moved to the trash', f.name), e);
 }
 // the import report: pages, files, what was skipped and why (at most 200 lines from the server)
 const wka_sum = r => [trn('{0} page imported', '{0} pages imported', (r.created || []).length), ...(r.files_n ? [trn('{0} file', '{0} files', r.files_n)] : []),
@@ -725,12 +725,14 @@ const wka_sum = r => [trn('{0} page imported', '{0} pages imported', (r.created 
 function wka_report(r) {
   const sk = r.skipped_detail || (r.skipped || []).map(n => ({name: n, reason: ''})), sh = r.shortened || [];
   if (!sk.length && !sh.length) return;
-  const md = modal(`<h3>${esc(tr('Import'))}</h3><p>${esc(wka_sum(r))}</p>
+  wk_info(tr('Import finished'), `<p>${esc(wka_sum(r))}</p>
     ${sh.length ? `<details class="wkrep wkrep-short"><summary>${esc(trn('{0} name shortened', '{0} names shortened', r.shortened_n || sh.length))}</summary><p class="muted">${esc(tr('Too long or too many folder levels: the page is there under a shorter name.'))}</p><ul>${sh.map(s => `<li><b>${esc(s.name)}</b> · ${esc(s.path)}</li>`).join('')}</ul></details>` : ''}
-    ${sk.length ? `<details class="wkrep"><summary>${esc(tr('{0} skipped', r.skipped_n || sk.length))}</summary><ul>${sk.map(s => `<li><b>${esc(s.name)}</b>${s.reason ? ' · ' + esc(s.reason) : ''}</li>`).join('')}</ul></details>` : ''}
-    <div class="foot"><button type="button" class="btn" data-m="close">${esc(tr('OK'))}</button></div>`);
-  md.addEventListener('click', e => { if (e.target.closest('[data-m="close"]')) modalClose(md); });
+    ${sk.length ? `<details class="wkrep"><summary>${esc(tr('{0} skipped', r.skipped_n || sk.length))}</summary><ul>${sk.map(s => `<li><b>${esc(s.name)}</b>${s.reason ? ' · ' + esc(s.reason) : ''}</li>`).join('')}</ul></details>` : ''}`);
 }
+// 2.1168.0 (#6092): a window that only tells (the import's report, a file too large, no room on the device): the shared
+// askDialog (dialogs.js) with its OK alone - no Cancel, there is nothing to cancel (hidden, not removed: Esc and the backdrop
+// close it the same way)
+const wk_info = (title, html) => askDialog({title, html, after: md => { const b = md.querySelector('[data-cd="no"]'); if (b) b.hidden = true; }});
 document.addEventListener('click', e => {
   const a = e.target.closest?.('[data-wka]'); if (!a || !$('#view')?.contains(a)) return;
   const p = WK.pg, f = p?.files?.find(x => x.id === +a.dataset.id); if (!p) return;
@@ -810,7 +812,7 @@ function wk_savedHint(t) { const s = $('#wk-saved'); if (s) { s.textContent = t;
 // true = settled (mine saved or theirs taken), false = mine could not be saved, null = closed without a choice (as before: theirs shown)
 async function wk_conflict(mine, theirs, patch) {
   let took = false;
-  const keep = await askDialog({after: md => md.querySelector('[data-cd="no"]')?.addEventListener('click', () => { took = true; }), title: tr('Changed in the meantime by {0}', theirs.updated_by_name || '?'), html: `<p>${tr('Keep your version or take theirs?')}</p><div class="ntdiff"><div><b>${tr('Yours')}</b><pre>${esc(patch.body)}</pre></div><div><b>${tr('Theirs')}</b><pre>${esc(theirs.body)}</pre></div></div>`, ok: tr('Keep mine'), cancel: tr('Take theirs')});
+  const keep = await askDialog({after: md => md.querySelector('[data-cd="no"]')?.addEventListener('click', () => { took = true; }), title: tr('Changed in the meantime by {0}', theirs.updated_by_name || '?'), html: `<p>${tr('Keep your version or take theirs?')}</p>${/*html-ok*/ wkh_bothHtml(patch.body, theirs.body) /* 2.1168.0 (#6092): the differences marked, not two raw texts */}`, ok: tr('Keep mine'), cancel: tr('Take theirs')});
   let ok = true;
   if (keep) { try { Object.assign(mine, await wkeApi('PATCH', '/api/wiki/pages/' + mine.id, {...patch, expect_updated_at: theirs.updated_at}, mine.space)); } catch (e) { toast(e.message); ok = false; } }
   else { Object.assign(mine, theirs); if (!took) ok = null; }
@@ -977,10 +979,11 @@ async function wk_delete(p) {
   await wk_flush();
   try { await rawFetch('DELETE', '/api/wiki/pages/' + p.id); } catch (e) { toast(e.message); return; }
   WK.pg = null; wk_after(p.space); go(wk_home(p.space));  // 2.198.0 A (#2743)
-  const e = histAdd({label: tr('Deleted {0}', qn(wk_base(p.path))), ids: [], snaps: [], lids: [], wsp: p.space,
+  const nm = wk_base(p.path || '') || tr('Page');  // 2.1168.0 (#6092): one word for the trash (a page without a readable name: Page)
+  const e = histAdd({label: tr('“{0}” moved to the trash', nm), ids: [], snaps: [], lids: [], wsp: p.space,
     undo: async () => { const r = await rawFetch('POST', '/api/wiki/restore', {ids: [p.id]}); wk_after(p.space); return {skipped: r.skipped?.length ? [p.path] : []}; },
     redo: async () => { await rawFetch('POST', '/api/wiki/trash', {ids: [p.id]}); wk_after(p.space); return {skipped: []}; }});
-  histToast(tr('Page {0} deleted', qn(wk_base(p.path))), e);
+  histToast(tr('“{0}” moved to the trash', nm), e);
 }
 function wk_export() { if (wk_e2e(wk_cur())) { wkeExport(wk_cur()).catch(e => toast(e.message)); return; }  // 2.64.3 B (#1817): the ZIP is made in the browser
   const a = document.createElement('a'); a.href = '/api/wiki/export?space=' + encodeURIComponent(wk_cur()); a.download = 'wiki.zip'; document.body.append(a); a.click(); a.remove(); }
@@ -1143,7 +1146,7 @@ function wk_pmenuItems(p) {
     ...(typeof wem_cbItems === 'function' ? wem_cbItems(p) : []),  // 2.1163.0 (#6089): "Open items as tasks" (was a big button above the text)
     ...(fold.length ? [{head: tr('Folder')}, ...fold] : []),
     {head: tr('View on this device')}, ...wk_modeItems(p) /* 2.554.0 (#4052): Edit as Markdown (the way out) / Read only */, ...view,  // 2.371.3 (#3152): reading style; 2.599.0 (#4808): the page's width
-    ...(top.length ? ['-', ...top] : []), '-', {label: tr('Delete'), icon: 'trash', cls: 'flag-5', fn: () => wk_delete(p)}];  // Delete stays last, set apart
+    ...(top.length ? ['-', ...top] : []), '-', {label: tr('Move to the trash'), icon: 'trash', cls: 'flag-5', fn: () => wk_delete(p)}];  // Delete stays last, set apart; 2.1168.0 (#6092): its word as in the row's menu
 }
 document.addEventListener('change', e => {
   if (e.target.matches?.('[data-wk-tpl]')) WK.tplPick = +e.target.value;
