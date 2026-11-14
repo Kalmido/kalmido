@@ -151,3 +151,39 @@ async function dpvSummarise(o, ags, m) {
   const label = tr('{0} was asked for a summary', pick.name);
   histToast(label, histAdd({label, ids: [], undo, redo}));
 }
+
+// 2.1170.0 (#6110): the same Word / Excel preview inside a page (the document view's preview column, docview.js), not as a
+// lightbox: host gets the sheet tabs and the body; o = {url, name, dlUrl, signal?, live?()}. The lightbox above stays as it is.
+async function dpvInline(host, o) {
+  const live = () => host.isConnected && (!o.live || o.live());
+  const fail = msg => { if (live()) host.innerHTML = `<div class="pvfail dpvfail">${ic('file')}<p>${esc(msg)}</p><a class="btn pri" href="${esc(o.dlUrl || '')}" download="${esc(o.name || '')}">${ic('download')} ${esc(tr('Download'))}</a></div>`; };
+  host.innerHTML = `<div class="tvmsg muted">${esc(tr('Loading…'))}</div>`;
+  let j;
+  try {
+    if (!navigator.onLine) throw new TypeError('offline');
+    const r = await fetch(o.url, {credentials: 'same-origin', headers: {'X-Requested-With': 'kalmido'}, signal: o.signal});
+    let d = null; try { d = await r.json(); } catch { d = null; }
+    if (!live()) return;
+    if (!r.ok) { fail(d?.error || (r.status === 404 ? tr('File damaged or missing') : tr('The preview could not be loaded.'))); return; }
+    j = d || {};
+  } catch (e) {
+    if (e?.name !== 'AbortError') fail(e instanceof TypeError ? tr('The preview needs a connection. You can download the file when you are online again.') : tr('The preview could not be loaded.'));
+    return;
+  }
+  let sheet = 0;
+  const draw = () => {
+    if (j.type === 'xlsx' || j.type === 'ods') {
+      const sh = j.sheets || [];
+      host.innerHTML = `<div class="dpvtabs" role="tablist"${sh.length < 2 ? ' hidden' : ''}>${sh.map((s, i) => `<button type="button" role="tab" class="dpvtab${i === sheet ? ' on' : ''}" aria-selected="${esc(String(i === sheet))}" data-dpv="sheet" data-i="${esc(String(i))}">${esc(s.name || tr('Sheet {0}', i + 1))}</button>`).join('')}${j.sheets_total > sh.length ? `<span class="muted dpvmore">${esc(tr('+{0} more sheets', j.sheets_total - sh.length))}</span>` : ''}</div><div class="dpvbody dpvin">${/*html-ok*/ dpvSheetHtml(sh[sheet], false)}</div>`;
+    } else host.innerHTML = `<div class="dpvbody dpvin">${/*html-ok*/ dpvDocHtml(j)}</div>`;
+  };
+  draw();
+  if (!host._dpv) {
+    host._dpv = true;
+    host.addEventListener('click', e => {
+      const b = /** @type {any} */ (e.target).closest?.('[data-dpv="sheet"]'); if (!b || !host._dpvSet) return;
+      host._dpvSet(+b.dataset.i || 0);
+    });
+  }
+  host._dpvSet = i => { sheet = i; draw(); $(`.dpvtab[data-i="${sheet}"]`, host)?.focus({preventScroll: true}); };
+}

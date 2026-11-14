@@ -16,7 +16,7 @@
    asks it through typeof checks. Classic script sharing the global scope with the others. */
 'use strict';
 
-const DVW = {back: null, tab: 'details', pdf: null, ro: null, drag: null, he: null, node: null, more: false, notext: null, closed: null, gone: new Set(), sz: null, th: null};  // notext: 2.742.0 (#4861); closed: #3506 the id of a view just closed; gone: #5478; sz / th: 2.882.0 (#5557) the sizes seen (dcv_phSize)
+const DVW = {back: null, tab: 'details', pdf: null, ro: null, drag: null, he: null, node: null, more: false, notext: null, closed: null, gone: new Set(), sz: null, th: null, pvBad: null};  // pvBad: 2.1170.0 (#6110)  // notext: 2.742.0 (#4861); closed: #3506 the id of a view just closed; gone: #5478; sz / th: 2.882.0 (#5557) the sizes seen (dcv_phSize)
 // the tabs of the fields; History and Shares come from the file store's node (GET /api/files/nodes/<id>, its rights)
 const DCV_TABS = [['details', N_('Details')], ['text', N_('Content')], ['hist', N_('History')], ['share', N_('Shares')]];
 const DCV_ZMIN = 0.1, DCV_ZMAX = 8, DCV_CVMAX = 12e6;  // the zoom's limits; the most pixels one page's canvas gets
@@ -218,11 +218,22 @@ function dcv_nbTake(d, old) {
   } else if (pdf) { DVW.pdf = pdf; dcv_free(); DVW.pdf = e.pdf || null; }
   return el;
 }
+// 2.1170.0 (#6110): Back names the place it leads to - the folder it came from (or the file's own folder when it opened by a
+// link / a reload: dcv_close leads there), the documents' list, else the area
+function dcv_backName(d, fromAb) {
+  const h = DVW.back?.hash || '', m = /^#ablage\/(\d+)$/.exec(h), id = m && !dcv_isDocHash(h) ? +m[1] : (!h || dcv_isDocHash(h)) && !(DC.docs || []).some(x => x.id === d.id) ? +(DVW.par || 0) : 0;
+  if (id) {
+    const n = d.folder?.id === id ? d.folder : typeof AB === 'object' && AB.data?.node?.id === id ? AB.data.node : typeof ab_ptItem === 'function' ? ab_ptItem(id) : null;
+    if (n?.name) return n.name;
+  }
+  if (/^#ablage\/review\b/.test(h)) return tr('To review');
+  return /^#ablage\/docs\b/.test(h) || !fromAb ? tr('Documents') : tr('Files');
+}
 function dcv_headHtml(d, w) {
   const fromAb = /^#ablage/.test(DVW.back?.hash || '');
   // 2.780.0 (#5389): three columns 1fr auto 1fr -- left back + title, middle the arrows (always at the same place), right keys + saved + actions
   const ti = d.file ? d.name : dc_title(d);
-  return `<header class="dv-head"><div class="dv-hl"><button type="button" class="btn dv-back" data-dc="close" aria-keyshortcuts="Escape" title="${esc(tr('Back to the list (Esc)'))}">${ic('back', 's')} <span>${esc(fromAb ? tr('File store') : tr('Documents'))}</span></button>
+  return `<header class="dv-head"><div class="dv-hl"><button type="button" class="btn dv-back" data-dc="close" aria-keyshortcuts="Escape" title="${esc(tr('Back to the list (Esc)'))}">${ic('back', 's')} <span>${esc(dcv_backName(d, fromAb))}</span></button>
     <h2 id="dc-h" class="dv-title" title="${esc(ti)}">${esc(ti)}</h2></div><span class="dv-navslot">${dc_navHtml(d)}</span>
     <div class="dv-hr"><span class="dv-keys muted" aria-hidden="true">${esc(tr('Arrow keys ← → leaf through, Esc back'))}</span><span class="spacer"></span>
     <span class="dv-saved" role="status" data-fl-fill></span><span class="dv-hacts">${dcv_actsHtml(d, w)}</span></div></header>`;
@@ -268,9 +279,9 @@ function dcv_stWin(i) {
 function dcv_stripHtml(d, off) {
   const ds = DC.docs || [], i = DC.navSrc ? -1 : dc_navIdx(d), s = i < 0 ? 0 : dcv_stWin(i), list = i < 0 ? [d] : ds.slice(s, s + DCV_STN);  // 2.683.0 (#5150): a file store folder's list has ids only
   const t = off ? tr('Show the list') : tr('Hide the list');
-  return `<nav class="dv-strip" aria-label="${esc(tr('In the list'))}"><div class="dv-sthd"><span class="dv-stt">${tr('In the list')}</span><button type="button" class="iconbtn" data-dc="dvstrip" aria-expanded="${!off}" aria-label="${esc(t)}" title="${esc(t)}">${ic(off ? 'panelshow' : 'panelhide', 's')}</button></div>${off ? '' : `<ul>${list.map(x => {
+  return `<nav class="dv-strip" aria-label="${esc(tr('In the list'))}"><div class="dv-sthd"><span class="dv-stt">${tr('In the list')}</span><button type="button" class="iconbtn" data-dc="dvstrip" aria-expanded="${!off}" aria-label="${esc(t)}" title="${esc(t)}">${ic(off ? 'panelshow' : 'panelhide', 's')}</button></div>${off ? '' : `<ul>${/*html-ok*/ list.map(x => {  // 2.1170.0 (#6110): a file without a small picture shows its kind's icon
     const on = x.id === d.id, nm = x.sender?.name || dc_title(x);  // 2.750.0 (#4876): the title
-    return `<li data-k="s${x.id}"><button type="button" class="dv-th${on ? ' on' : ''}" data-dvgo="${x.id}"${on ? ' aria-current="true"' : ''} aria-label="${esc(nm)}" title="${esc(dc_title(x))}"><span class="dv-thi">${x.thumb ? `<img src="${esc(dc_thumbUrl(x))}" alt="" loading="lazy">` : `<span class="dc-ph">${ic(dc_isPdf(x) ? 'file' : 'picture', 's')}</span>`}</span><span class="dv-tn">${esc(nm)}</span></button></li>`;
+    return `<li data-k="s${x.id}"><button type="button" class="dv-th${on ? ' on' : ''}" data-dvgo="${x.id}"${on ? ' aria-current="true"' : ''} aria-label="${esc(nm)}" title="${esc(dc_title(x))}"><span class="dv-thi">${x.thumb ? `<img src="${esc(dc_thumbUrl(x))}" alt="" loading="lazy">` : `<span class="dc-ph">${ic(dcv_kindIc(x), 's')}</span>`}</span><span class="dv-tn">${esc(nm)}</span></button></li>`;
   }).join('')}</ul>`}</nav>`;
 }
 // Details: what is used often first; due date, archive number, amount, custom fields and the capture date under "More fields"
@@ -433,7 +444,38 @@ function dcv_stBack(root, sm) {
 }
 
 // ---- the preview: an image as itself, a PDF with every page (drawn when it comes near, sharp at the size shown)
+// 2.1170.0 (#6110): what the preview column shows. Pages (a PDF up to 40 MB, a picture) get the bar with page count and zoom;
+// Word / Excel the office preview (docpreview.js), text the text viewer's way, the rest (and a PDF over 40 MB / one that did
+// not load: DVW.pvBad) its kind's icon, one sentence and Download - no bar there, there is nothing to zoom
+const DCV_IMG = /^image\/(jpeg|png|gif|webp)$/;
+function dcv_pvKind(d) {
+  if (DVW.pvBad?.has(`${d.id}:${d.size}`)) return 'bad';  // its sentence: DVW.pvBad.get(...)
+  if (dc_isPdf(d)) return d.size > 40e6 ? 'big' : 'pdf';
+  if (/^image\//.test(d.mime || '') && (d.thumb || DCV_IMG.test(d.mime || ''))) return 'img';
+  if (typeof dv_is === 'function' && dv_is(d)) return 'office';
+  if (typeof isTextFile === 'function' && isTextFile(d) && (d.size || 0) <= TV_MAX) return 'text';
+  return 'none';
+}
+const dcv_paged = d => { const k = dcv_pvKind(d); return k === 'pdf' || k === 'img'; };
+// the icon of a file's kind (the preview without one, the strip "In the list")
+function dcv_kindIc(d) {
+  const m = d?.mime || '', e = typeof attExt === 'function' ? attExt(d) : '';
+  if (dc_isPdf(d)) return 'pdf';
+  if (/^image\//.test(m)) return 'picture';
+  if (/^video\//.test(m) || /^(mp4|m4v|mov|webm|mkv|avi|wmv)$/.test(e)) return 'film';
+  if (/^audio\//.test(m) || /^(mp3|m4a|wav|ogg|oga|flac|aac|opus)$/.test(e)) return 'music';
+  if (/zip|compressed|x-tar|gzip|x-7z|x-rar|x-bzip/.test(m) || /^(zip|7z|rar|tar|gz|tgz|bz2|xz)$/.test(e)) return 'archive';
+  if (/spreadsheet|ms-excel|text\/csv/.test(m) || /^(xlsx|xls|ods|csv|tsv)$/.test(e)) return 'sheet';
+  if (/presentation|powerpoint/.test(m) || /^(pptx|ppt|odp|key)$/.test(e)) return 'monitor';
+  if (typeof isTextFile === 'function' && isTextFile(d)) return 'note';
+  return 'file';
+}
+// one sentence and Download in the preview column (a file without a preview, a PDF too large, a load error)
+const dcv_pvMsgHtml = (d, msg, icon) => `<div class="dv-pvmsg" role="status">${ic(icon || dcv_kindIc(d))}<p>${esc(msg)}</p><a class="btn pri" href="${esc(dcv_fileUrl(d, true))}" download="${esc(d.name || '')}">${ic('download', 's')} <span>${esc(tr('Download'))}</span></a></div>`;
 function dcv_pvHtml(d) {
+  // Word / Excel / text keep Full screen (the lightbox of their kind) in a bar of its own, without page count and zoom
+  const k = dcv_pvKind(d), full = k === 'office' || k === 'text' ? `<div class="dv-pvbar dv-pvbar1" role="group" aria-label="${esc(tr('Preview'))}"><span class="spacer"></span><button type="button" class="btn sm" data-dc="view" title="${esc(tr('Show {0}', d.name))}">${ic('expand', 's')} <span>${tr('Full screen')}</span></button></div>` : '';
+  if (!dcv_paged(d)) return `<section class="dv-pv dv-pvx" aria-label="${esc(tr('Preview'))}">${/*html-ok*/ full}<div class="dv-pvo" data-fl-fill tabindex="0" role="region" aria-label="${esc(tr('Show {0}', d.name))}" data-kind="${esc(k)}"></div></section>`;
   return `<section class="dv-pv" aria-label="${esc(tr('Preview'))}"><div class="dv-pvbar" role="group" aria-label="${esc(tr('Zoom'))}"><span class="dv-pgn" data-fl-fill></span><span class="spacer"></span>
     <button type="button" class="iconbtn" data-dc="dvz:out" aria-label="${esc(tr('Zoom out'))}" title="${esc(tr('Zoom out'))}">${ic('minus', 's')}</button><span class="dv-zp" data-fl-fill></span><button type="button" class="iconbtn" data-dc="dvz:in" aria-label="${esc(tr('Zoom in'))}" title="${esc(tr('Zoom in'))}">${ic('plus', 's')}</button>
     <button type="button" class="btn sm" data-dc="dvz:width" aria-pressed="${dcv_zoom() === 'width'}" title="${esc(tr('Fit to width'))}">${tr('Width')}</button><button type="button" class="btn sm" data-dc="dvz:page" aria-pressed="${dcv_zoom() === 'page'}" title="${esc(tr('Show the whole page'))}">${tr('Whole page')}</button><span class="spacer"></span>
@@ -461,6 +503,7 @@ document.addEventListener('keydown', e => {
 function dcv_free() { if (DVW.pdf) DVW.pdf.off = true; try { DVW.pdf?.doc?.destroy(); } catch { /* gone */ } DVW.pdf?.io?.disconnect(); DVW.pdf = null; }
 // 2.736.0 (#5212): nb = a neighbour drawn ahead ({ctrl}): its own PDF (nb.pdf, the open one's stays), stopped by nb.ctrl
 async function dcv_pvDraw(md, d, nb) {
+  const ob = $('.dv-pvo', md); if (ob) { dcv_pvOther(ob, d, nb); return; }  // 2.1170.0 (#6110)
   const box = $('.dv-pages', md); if (!box) return;
   const key = `${d.id}:${d.size}:${d._fv || ''}`;  // a field saved does not draw it again (2.768.0, #4888: another version does)
   if (box._pv === key && box.firstChild) return;
@@ -473,7 +516,7 @@ async function dcv_pvDraw(md, d, nb) {
   box.dataset.pages = ''; box._base = null;
   // 2.882.0 (#5557): the first picture already stands at its final size (dcv_phSize): the small picture in a page of the real
   // page's shape, a PDF without one an empty page; nothing grows or shrinks when the file is there
-  const ph = dcv_phSize(d), isImg = /^image\//.test(d.mime || '') && d.thumb;
+  const ph = dcv_phSize(d), isImg = dcv_pvKind(d) === 'img';  // 2.1170.0 (#6110): + a picture the browser shows without its small one
   box._ph = ph ? [ph] : null;
   box.innerHTML = `<div class="dv-pgcol">${ph ? `<div class="dv-pg dv-ph${isImg ? ' dv-img' : ''}${d.thumb ? ' dv-thumb' : ''}">${d.thumb ? `<img src="${esc(dc_thumbUrl(d))}" alt="">` : ''}</div>` : `<span class="dc-ph">${ic(dc_isPdf(d) ? 'file' : 'picture')}</span>`}</div>`;
   if (ph) { dcv_layout(box, false, true); dcv_phLearn(box, d); }
@@ -485,10 +528,18 @@ async function dcv_pvDraw(md, d, nb) {
     return;
   }
   if (!dc_isPdf(d) || d.size > 40e6 || typeof loadModule !== 'function') return;
+  // 2.1170.0 (#6110): a PDF that does not load says so in one sentence with Download (before: the small picture or an empty page stayed)
+  const bad = (msg, net) => {
+    if (!live()) return;
+    if (!net) (DVW.pvBad ||= new Map()).set(`${d.id}:${d.size}`, msg);  // the column keeps the sentence without the bar (a redraw); offline it may load next time
+    box.closest('.dv-pv')?.querySelector('.dv-pvbar')?.setAttribute('hidden', '');
+    box.dataset.pages = ''; box._base = box._ph = null; box.innerHTML = dcv_pvMsgHtml(d, msg, 'pdf'); dcv_pgn(box);
+  };
   try {
     await loadModule('pdf');
-    const lib = typeof pv_load === 'function' ? await pv_load() : null; if (!lib || !live()) return;
-    const r = await fetch(dcv_fileUrl(d), {credentials: 'same-origin', signal: nb?.ctrl.signal}); if (!r.ok || !live()) return;
+    const lib = typeof pv_load === 'function' ? await pv_load() : null; if (!live()) return; if (!lib) { bad(tr('The preview could not be loaded.')); return; }
+    const r = await fetch(dcv_fileUrl(d), {credentials: 'same-origin', signal: nb?.ctrl.signal}); if (!live()) return;
+    if (!r.ok) { bad(r.status === 404 || r.status === 410 ? tr('File damaged or missing') : tr('The preview could not be loaded.')); return; }
     // as in pdfview.js: nothing in the file runs (no eval, no scripts, no links)
     const doc = await lib.getDocument({data: new Uint8Array(await r.arrayBuffer()), isEvalSupported: false, enableScripting: false, disableAutoFetch: true, stopAtErrors: false, useSystemFonts: true}).promise;
     if (!live()) { doc.destroy(); return; }
@@ -506,7 +557,48 @@ async function dcv_pvDraw(md, d, nb) {
     box.innerHTML = `<div class="dv-pgcol">${base.map((_, i) => `<div class="dv-pg" data-i="${i}">${i === 0 && d.thumb ? `<img class="dv-pgth" src="${esc(dc_thumbUrl(d))}" alt="">` : ''}</div>`).join('')}</div>`;
     box.dataset.pages = String(base.length);
     dcv_layout(box, false, true);
-  } catch { /* the small picture stays */ }
+  } catch (e) {
+    if (e?.name === 'AbortError') return;  // a neighbour drawn ahead that was dropped
+    const net = e instanceof TypeError || !navigator.onLine;
+    bad(net ? tr('The preview needs a connection. You can download the file when you are online again.')
+      : e?.name === 'PasswordException' ? tr('This PDF is protected with a password and cannot be shown here.')
+      : e?.name === 'InvalidPDFException' ? tr('This file cannot be shown as a PDF.') : tr('The preview could not be loaded.'), net);
+  }
+}
+// 2.1170.0 (#6110): the preview column of a file without pages: Word / Excel as the office preview (docpreview.js dpvInline,
+// module pdf), text as the text viewer shows it (Markdown formatted, the rest as highlighted source), else the sentence
+async function dcv_pvOther(box, d, nb) {
+  const key = `${d.id}:${d.size}:${d._fv || ''}`;
+  if (box._pv === key && box.firstChild) return;
+  box._pv = key;
+  if (!nb && DVW.pdf) dcv_free();  // the PDF of the one before goes along (as dcv_pvDraw does)
+  const live = () => (nb && !nb.taken ? !nb.ctrl.signal.aborted : box.isConnected && !box.closest('.dv-nbhold')) && box._pv === key;
+  const k = dcv_pvKind(d);
+  if (k === 'big') { box.innerHTML = dcv_pvMsgHtml(d, tr('This PDF is too large for the preview (over 40 MB). Download it to read it.'), 'pdf'); return; }
+  if (k === 'bad') { box.innerHTML = dcv_pvMsgHtml(d, DVW.pvBad?.get(`${d.id}:${d.size}`) || tr('The preview could not be loaded.'), 'pdf'); return; }
+  if (k === 'office' && typeof loadModule === 'function') {
+    box.innerHTML = `<div class="tvmsg muted">${esc(tr('Loading…'))}</div>`;
+    try { await loadModule('pdf'); } catch { /* below */ }
+    if (!live()) return;
+    if (typeof dpvInline !== 'function') { box.innerHTML = dcv_pvMsgHtml(d, tr('The preview could not be loaded.')); return; }
+    await dpvInline(box, {url: `/api/files/nodes/${encodeURIComponent(d.id)}/preview`, name: d.name, dlUrl: dcv_fileUrl(d, true), signal: nb?.ctrl.signal, live});
+    return;
+  }
+  if (k === 'text') {
+    box.innerHTML = `<div class="tvmsg muted">${esc(tr('Loading…'))}</div>`;
+    let text = null, fail = '';
+    try {
+      const r = await fetch(dcv_fileUrl(d, true), {credentials: 'same-origin', signal: nb?.ctrl.signal});
+      if (!r.ok) fail = r.status === 404 || r.status === 410 ? tr('File damaged or missing') : tr('Could not load the file');
+      else { const buf = await r.arrayBuffer(); if (buf.byteLength > TV_MAX) fail = tr('Too large for the preview, please download it'); else text = new TextDecoder('utf-8').decode(buf); }
+    } catch (e) { if (e?.name === 'AbortError') return; fail = tr('Could not load the file'); }
+    if (!live()) return;
+    if (text === null) { box.innerHTML = dcv_pvMsgHtml(d, fail); return; }
+    const ext = attExt(d);
+    box.innerHTML = isMdFile(d) ? `<div class="md mdc tvmd dv-pvtext">${/*html-ok*/ renderMd(text, true)}</div>` : `<pre class="mdpre tvsrc dv-pvtext"><code>${/*html-ok*/ hlCode(text, HL_ALIAS[ext] || ext)}</code></pre>`;
+    return;
+  }
+  box.innerHTML = dcv_pvMsgHtml(d, tr('No preview for this kind of file'));
 }
 // ---- 2.882.0 (#5557): the preview without a jump. Before the file is there the box shows one page of the real page's shape
 // (box._ph, laid out by dcv_layout like the real pages): the size of the first page seen before in this session (DVW.sz, per
@@ -620,12 +712,13 @@ async function dcv_page(pdf, p) {
 function dcv_pgn(box) {  // "Page 3 / 12": the page at the upper third of the box
   const el = box.closest('.dv-pv')?.querySelector('.dv-pgn'); if (!el) return;
   const n = +(box.dataset.pages || 0);
-  if (!n) { el.textContent = ''; return; }
+  if (!n) { el.textContent = ''; el.dataset.t = ''; return; }
   const ps = $$('.dv-pg', box), mid = box.scrollTop + box.clientHeight / 3;
   let i = 0;
   while (i < ps.length - 1 && ps[i].offsetTop + ps[i].offsetHeight < mid) i++;
   const t = tr('Page {0} / {1}', i + 1, n);
-  if (el.textContent !== t) el.textContent = t;
+  // 2.1170.0 (#6110): a phone shows the short "3 / 12" (its narrow bar cut the long one to "Se"), the long one stays for screen readers
+  if (el.dataset.t !== t) { el.dataset.t = t; el.innerHTML = `<span class="dv-pgl">${esc(t)}</span><span class="dv-pgs" aria-hidden="true">${esc((i + 1) + ' / ' + n)}</span>`; }
 }
 function dcv_zbar(box) {
   const bar = box.closest('.dv-pv')?.querySelector('.dv-pvbar'); if (!bar) return;

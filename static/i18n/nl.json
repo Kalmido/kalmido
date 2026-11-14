@@ -18566,5 +18566,7 @@
   "Receipts stay in their area. Open one to view, change or book it there.": "Bonnen blijven in hun eigen onderdeel. Open er een om hem daar te bekijken, te wijzigen of te boeken.",
   "New": "Nieuw",
   "You can only read here": "Hier kun je alleen lezen",
-  "No documents yet": "Nog geen documenten"
+  "No documents yet": "Nog geen documenten",
+  "No preview for this kind of file": "Geen voorbeeld voor dit soort bestand",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen."
 }

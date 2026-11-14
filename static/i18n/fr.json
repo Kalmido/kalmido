@@ -18566,5 +18566,7 @@
   "Receipts stay in their area. Open one to view, change or book it there.": "Les justificatifs restent dans leur espace. Ouvre-en un pour le consulter, le modifier ou le comptabiliser là-bas.",
   "New": "Nouveau",
   "You can only read here": "Ici, tu peux seulement lire",
-  "No documents yet": "Pas encore de documents"
+  "No documents yet": "Pas encore de documents",
+  "No preview for this kind of file": "Pas d'aperçu pour ce type de fichier",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Ce PDF est trop volumineux pour l'aperçu (plus de 40 Mo). Téléchargez-le pour le lire."
 }
