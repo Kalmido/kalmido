@@ -26,6 +26,8 @@ from kt import FAILS, OKS, check  # noqa: E402
 # (file, the button's first data attribute, else its class) -> (how many unmarked buttons, why no row long press)
 RM_LEFT = {
     # 2.768.0 (#4888): + the bar above a folder with recognition (ab_foldTools, 2.752.0 #4887) - the count was stale since then
+    # 2.1163.0 (#6111): the files' tool row on a phone ends in one "..." (More tools) - a bar, not a row
+    ("ablage.js", 'data-abmore="1"'): (1, "the \"More tools\" of the files' tool row on a phone (a bar menu)"),
     ("ablage.js", 'data-ab="menu"'): (2, "the open folder's menu in the tool bar above the list and above a folder with recognition (page menus)"),
     # 2.1012.0 (#5690): the page menus of bookmarks / budget / feeds are anchor buttons for the shared menu() now (no <details>)
     ("bookmarks.js", 'data-bm="more"'): (1, "the page menu of the bookmarks (import / export)"),
@@ -73,6 +75,8 @@ RM_LEFT = {
     ("videorev.js", 'data-vdr="menu"'): (1, "the head of the video review dialog"),
     ("widgets.js", 'data-act="wg-more"'): (1, "a start page tile in edit mode: its long press drags the tile (dashboard.js)"),
     ("wiki.js", 'data-wk="amenu"'): (1, "the tool bar of the knowledge base (a workspace menu)"),
+    # 2.1163.0 (#6089): the page list's bar: Find a page, New page and one "..." (Today, New folder, Select, the workspace)
+    ("wiki.js", 'data-wk="lmenu"'): (1, "the bar above the knowledge page list (a list menu, no row)"),
     ("wiki.js", 'data-wk="pmenu"'): (1, "the head of an open page"),
 }
 BINDERS = ("ms_rowMenu", "ms_longPress", "cm_bind", "lm_btnMenu")
