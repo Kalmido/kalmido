@@ -39,7 +39,7 @@ from ..api.common import hit_limit
 from ..accounts.session import _accept_lang, _rate_fail, client_ip, rate_ip
 from ..accounts.login import finish_login, login_log_ip, pend_cookie, pend_new
 from ..accounts.invite import _limited, invite_new
-from ..accounts.discover import _link, _push, _state
+from ..accounts.discover import _link, _pair, _push
 from ..accounts.signup import SIGNUP_CONFIRMED, SIGNUP_RATE, _cleanup, _mail_on, _username, cinv_signup_on
 
 CINV_DAYS = 14      # a link works this long
@@ -215,7 +215,9 @@ def cinv_check():
         return err(tr(CINV_BAD), 404)
     r, inv = hit
     own = bool(me_) and me_["id"] == inv["id"]
-    connected = bool(me_) and not own and _state(c, me_["id"], inv["id"]) == "connected"
+    # an explicit connection (what "Find people" lists under Connections), not only seeing each other through a workspace
+    connected = bool(me_) and not own and bool(c.execute("SELECT 1 FROM conn_links WHERE a_id=? AND b_id=? AND deleted_at IS NULL",
+                                                         _pair(me_["id"], inv["id"])).fetchone())
     return jsonify(name=_name(inv), signed_in=bool(me_), own=own, connected=connected, may=bool(me_) and _opener_ok(me_) and not own,
                    mail=_mail_on(), min_password=MIN_PASSWORD)
 
