@@ -62,7 +62,7 @@ const labelOf = (root, id) => txt(root.querySelector(`label[for="${id}"]`));
   // Integrations: "For advanced users" at most once
   click(w, md.querySelector('.snav [data-sec="integr"]'));
   const ip = md.querySelector('[data-pane="integr"]');
-  check([...ip.querySelectorAll('summary')].filter(s => txt(s) === 'Für Fortgeschrittene').length <= 1, 'Integrations: "Für Fortgeschrittene" at most once');
+  check([...ip.querySelectorAll('summary')].filter(s => txt(s) === 'Für Fortgeschrittene').length <= 1 && ip.querySelectorAll('[data-m="go-access"]').length <= 1, 'Integrations: "Für Fortgeschrittene" and the link to Access at most once');
   // Account: no row labelled just "Server" (that name is the tab)
   const ap = md.querySelector('[data-pane="account"]');
   check(![...ap.querySelectorAll('label')].some(l => txt(l) === 'Server') && !ap.querySelector('#s-tabbar'), 'Account: no row called Server');
