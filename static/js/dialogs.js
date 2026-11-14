@@ -430,7 +430,18 @@ function fl_nameEnd(id) {
   OPT.delete(p); FL_LIVE.delete(id); const l = listById(id); if (l) delete l._live;
   fl_liveDraw.cancel(); renderSide(); renderTop();
 }
-const lp_fieldName = f => tr({name: N_('Name'), color: N_('Colour'), folder: N_('Folder'), view: N_('View'), kind: N_('Type'), checklist: N_('Show completed at the bottom'), dep_shift: N_('Move dependent tasks along'), rate: N_('Hourly rate'), archived: N_('Archived')}[f] || f);
+const LP_FIELDS = {name: N_('Name'), color: N_('Colour'), folder: N_('Folder'), view: N_('View'), kind: N_('Type'), checklist: N_('Show completed at the bottom'), dep_shift: N_('Move dependent tasks along'), rate: N_('Hourly rate'), archived: N_('Archived'), nag: N_('Reminders'), day_hours: N_('Hours per day')};
+const lp_fieldName = f => tr(LP_FIELDS[f] || f);
+// 2.1184.0 (#6137): the view (list / board / calendar) is a display switch, no step of its own and no part of one (as on the
+// server, lists/lpundo.py LPU_DISPLAY)
+const LIST_DISPLAY = ['view'];
+// 2.1184.0 (#6137): a step says what changed ("Imagefilm: Colour", "Imagefilm: Renamed to …"), as the server's label
+// (lists/lpundo.py lpu_what); a field without a readable name keeps "Settings of …"
+function lp_stepLabel(l, after) {
+  const ks = Object.keys(after), n = qn(lname(l));
+  if (!ks.length || ks.some(k => !LP_FIELDS[k])) return tr('Settings of {0}', n);
+  return tr('{0}: {1}', n, ks.map(k => k === 'name' && after.name ? tr('Renamed to {0}', after.name) : lp_fieldName(k)).join(', '));
+}
 // 2.474.0 (#3917): the writes of one list go out one after the other: a second quick choice on a slow connection could overtake
 // the first on the server, and the older value stayed while the screen showed the newer one
 const LP_TAIL = new Map();
@@ -445,7 +456,7 @@ async function listPatch(id, body, label, o = {}) {
   const l = listById(id); if (!l) return false;
   const ws0 = l.org_id || null;  // 2.53.0 (#1474)
   const before = {}, after = {};
-  for (const k of LIST_HIST) if (k in body && lv(k, l[k]) !== lv(k, body[k])) { before[k] = lv(k, l[k]); after[k] = lv(k, body[k]); }
+  for (const k of LIST_HIST) if (k in body && !LIST_DISPLAY.includes(k) && lv(k, l[k]) !== lv(k, body[k])) { before[k] = lv(k, l[k]); after[k] = lv(k, body[k]); }
   // 2.283.0 (#3119): the history step comes at once with the change on screen; an undo meanwhile waits for the write
   // (and its reload), a failed write takes the step out again
   let e = null, run, res;  // 2.270.0 A (#3019): res = the answer (conflicts of a save with _prev)
@@ -459,7 +470,7 @@ async function listPatch(id, body, label, o = {}) {
   try {  // 2.41.2 (#1501): optimistic, shows at once
     res = await optWrite(() => {
       const back = optSet(() => listById(id), vals)();
-      if (!e && Object.keys(before).length) { e = histAdd({label: label || tr('Settings of {0}', qn(lname(l))), undo: go(before, after), redo: go(after, before), post: o.post}); o.step?.(e); }
+      if (!e && Object.keys(before).length) { e = histAdd({label: label || lp_stepLabel(l, after), undo: go(before, after), redo: go(after, before), post: o.post}); o.step?.(e); }
       return back;
     }, () => lpSend(id, body));
   } catch {

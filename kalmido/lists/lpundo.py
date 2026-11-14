@@ -16,7 +16,13 @@ sort, grouping, columns, sums, key figures, properties); an agent records nothin
 
 Interface:
   lpu_pre(c, uid, lid, b, role)   before the PATCH writes (after lv_check): a step when b holds only plain settings
-  lpu_post(c) -> group id | None  right before its commit (a save of the same values leaves no step)"""
+  lpu_post(c) -> group id | None  right before its commit (a save of the same values leaves no step)
+
+2.1184.0 (#6137): a step says what changed -- "<project>: Colour", "<project>: Renamed to <new name>", several fields
+"<project>: Colour, Sorting" (LPU_NAMES; a field without a readable name keeps "Settings of <project>"). The project's view
+(list / board / calendar ...) is a display switch, no step: a save of the view alone records nothing, a view saved along
+with other settings is not part of their step (LPU_DISPLAY: not in the copy's columns, so an undo neither puts it back nor
+counts a view switched since as "changed in the meantime")."""
 from ..core.access import _list_role, list_out
 from ..core.errors import Denied
 from ..core.objhooks import GONE
@@ -25,7 +31,7 @@ from ..core.undodiff import undo_quiet
 from ..core.undoweb import undo_need_reg
 from ..core.writes import obj_track
 from ..core.errors import BadInput
-from ..core.i18n import N_
+from ..core.i18n import N_, stored_join
 from .lists import LIST_FIELDS, clean_list_value
 
 LPU_KIND = "listset"
@@ -41,7 +47,18 @@ LPU_KEYS = {"name": "name", "color": "color", "view": "view", "kind": "kind", "d
             "irreversible_needs_yes": "irreversible_needs_yes", "two_eyes": "two_eyes", "mail_guests": "mail_guests",
             "def_ttype": "def_ttype", "ttypes": "ttypes"}
 LPU_META = ("_prev", "expect_updated_at", "folder_adopt")
-LPU_COLS = frozenset(LPU_KEYS.values()) | {"archived_at"}
+LPU_DISPLAY = ("view",)  # 2.1184.0 (#6137): display switches -- never a step of their own, never part of one
+LPU_COLS = frozenset(v for k, v in LPU_KEYS.items() if k not in LPU_DISPLAY) | {"archived_at"}
+LPU_RENAMED = N_("Renamed to {0}")  # the key exists
+LPU_FIELD = N_("{0}: {1}")  # the key exists
+LPU_Q = N_("“{0}”")  # the key exists (static/js/undo.js qn: the project's name in quotes, as the app's own entry)
+# 2.1184.0 (#6137): the readable name of a changed setting in the step's label (the keys exist, the settings dialog's words)
+LPU_NAMES = {"color": N_("Colour"), "kind": N_("Type"), "dep_shift": N_("Move dependent tasks along"), "rate": N_("Hourly rate"),
+             "day_hours": N_("Hours per day"), "checklist": N_("Show completed at the bottom"),
+             "sort_mode": N_("Sorting"), "group_field": N_("Grouping"),
+             "columns": N_("Columns"), "kpis": N_("Key figures"), "props": N_("Properties"), "points_on": N_("Story points"),
+             "irreversible_needs_yes": N_("One-way steps"), "two_eyes": N_("Approvals"), "tap_done": N_("Tap to complete"),
+             "nag": N_("Reminders"), "archived": N_("Archived")}
 # what a project admin may change of them (list_update: adm, MANAGE_ROLES); the rest is the owner's
 LPU_ADMIN = frozenset({"name", "color", "archived", "archived_at", "checklist", "mail_guests", "sort_mode", "group_field",
                        "done_in_section", "tap_done", "props", "col_cfg", "tb_sums", "fx_kpis"})
@@ -67,9 +84,16 @@ obj_track(LPU_KIND, "lists", area="tasks", undo_keep={"lists": AllBut(LPU_COLS)}
 GONE[LPU_KIND] = "lists"  # an account's deletion takes its history / undo rows of the projects that went (core/objhooks.py)
 
 
+def _keys(b):
+    """The settings of the PATCH body b that may make a step (2.1184.0, #6137: not the display switches)."""
+    return [k for k in b if k not in LPU_META and k not in LPU_DISPLAY]
+
+
 def lpu_plain(b):
-    """Does the PATCH body b change only plain settings (and at least one)?"""
+    """Does the PATCH body b change only plain settings (and at least one that is not a display switch)?"""
     keys = [k for k in b if k not in LPU_META]
+    if not _keys(b):
+        return False
     return bool(keys) and all(k in LPU_KEYS for k in keys)
 
 
@@ -77,17 +101,7 @@ def _same(r, b):
     """Does b only repeat the row's values (its plain columns, cleaned as list_update cleans them)? Then no step: opening a
     group would end the person's way forward (redo) for nothing. Columns with their own cleaning (columns, sums, key figures,
     properties, templates ...) count as a change."""
-    for k in (k for k in b if k not in LPU_META):
-        col = LPU_KEYS[k]
-        if col not in LIST_FIELDS:
-            return False
-        try:
-            v = clean_list_value(col, b[k])
-        except BadInput:
-            return False  # the route refuses it
-        if (v if v not in ("", None) else None) != (r[col] if r[col] not in ("", None) else None):
-            return False
-    return True
+    return not _changed(r, b)
 
 
 def lpu_pre(c, uid, lid, b, role):
@@ -97,10 +111,48 @@ def lpu_pre(c, uid, lid, b, role):
     r = r and list_out(r)  # 2.1061.0 (#5867, stage 3): archived from the state marker, not the old column
     if r is None or _same(r, b):
         return
-    key = LPU_LABEL
-    if set(k for k in b if k not in LPU_META) == {"archived"} and bool(b["archived"]) != bool(r["archived"]):
-        key = LPU_ARCH if b["archived"] else LPU_UNARCH
-    ua_pre(c, uid, LPU_KIND, lid, key, ua_plain(r["name"], lid))
+    if set(_keys(b)) == {"archived"} and bool(b["archived"]) != bool(r["archived"]):
+        ua_pre(c, uid, LPU_KIND, lid, LPU_ARCH if b["archived"] else LPU_UNARCH, ua_plain(r["name"], lid))
+        return
+    ua_pre(c, uid, LPU_KIND, lid, *lpu_what(r, b))
+
+
+def _changed(r, b):
+    """The keys of b whose value differs from the row's (cleaned as list_update cleans them; one with its own cleaning counts)."""
+    out = []
+    for k in _keys(b):
+        col = LPU_KEYS[k]
+        if col in LIST_FIELDS:
+            try:
+                v = clean_list_value(col, b[k])
+            except BadInput:
+                out.append(k)  # the route refuses it
+                continue
+            if (v if v not in ("", None) else None) == (r[col] if r[col] not in ("", None) else None):
+                continue
+        out.append(k)
+    return out
+
+
+def lpu_what(r, b):
+    """2.1184.0 (#6137): the step's label -- (key, *values): what of project r the body b changes."""
+    name = ua_plain(r["name"], r["id"])
+    ch = list(dict.fromkeys("checklist" if k == "done_at_bottom" else k for k in _changed(r, b)))
+    parts = []
+    for k in ch:
+        if k == "name":
+            new = ua_plain(b.get("name"))
+            if new == "#":  # a sealed new name (e2e): never in a label
+                parts.append([N_("Name")])
+            else:
+                parts.append([LPU_RENAMED, new])
+        elif k in LPU_NAMES:
+            parts.append([LPU_NAMES[k]])
+        else:
+            return LPU_LABEL, name  # a setting without a readable name: the label as before, never a raw key
+    if not parts:
+        return LPU_LABEL, name
+    return LPU_FIELD, [LPU_Q, name], parts[0] if len(parts) == 1 else list(stored_join(parts))
 
 
 def lpu_post(c):
