@@ -268,7 +268,7 @@ const V = B + 'api/v1';
     // the snippet section on the phone
     await o.nav(B + '#t/' + T); await ready(ev); await sleep(800);
     await ev(`(() => { document.querySelector('#d-snips')?.scrollIntoView({block: 'start'}); return 1; })()`); await sleep(300);
-    const sn = await ev(`(() => { const s = document.querySelector('#d-snips'); if (!s) return null; const b = [...s.querySelectorAll('.sniphead .iconbtn')].map(x => x.getBoundingClientRect());
+    const sn = await ev(`(() => { const s = document.querySelector('#d-snips'); if (!s) return null; const b = [...s.querySelectorAll('.sniphead .iconbtn')].filter(x => getComputedStyle(x).clipPath !== 'inset(50%)').map(x => x.getBoundingClientRect());  /* 2.1163.0 (#3835): the symbols hidden on a phone (.ms-phsr, long press = menu) are no touch targets */
       return {n: s.querySelectorAll('.snip').length, min: Math.min(...b.map(r => Math.min(r.width, r.height))), fits: s.scrollWidth <= s.clientWidth + 1, hl: !!s.querySelector('.hl-k')}; })()`);
     check(sn && sn.n === 1 && sn.min >= 44 && sn.fits && sn.hl, `${tag}: #1095 the snippet on the phone: highlighted, buttons >= 44 px, fits ` + JSON.stringify(sn));
     await shot('p2350d-390-snippet.png'); console.log(`${tag}: snippet shot taken`);
