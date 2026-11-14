@@ -205,8 +205,8 @@ rd = A.get(B + f"{D}/{IID}/render").json()
 meta = dict((k, v) for k, v in rd["meta"])
 check(rd["title"] == "Rechnung" and meta.get("Rechnung Nr.") == "RE-2026-005" and meta.get("Bestellnr. / Referenz") == "PO-2026-0001-A" and meta.get("Leistungszeitraum") == "01.04.2026 – 31.05.2026"
       and meta.get("Fällig am") == "07.06.2027" and meta.get("Kunden-Nr.") == "K-1001", f"invoice print model meta: {meta}")
-check(rd["totals"]["show_tax_lines"] is True and rd["totals"]["rows"][-1] == ["Rechnungsbetrag", "40.963,25 €"] and rd["totals"]["rows"][0] == ["Zwischensumme", "34.422,90 €"]
-      and rd["totals"]["rows"][1][1] == "6.540,35 €", f"invoice print model totals rows: {rd['totals']['rows']}")
+check(rd["totals"]["show_tax_lines"] is True and rd["totals"]["rows"][-1] == ["Rechnungsbetrag", "40.963,25 €"] and rd["totals"]["rows"][0] == ["Summe netto", "34.422,90 €"]
+      and rd["totals"]["rows"][1][1] == "6.540,35 €", f"invoice print model totals rows: {rd['totals']['rows']}")  # 2.1179.0 (#6174): "Summe netto" (was "Zwischensumme")
 check(rd["payment"]["iban"] == TEST_IBAN and "07.06.2027" in rd["payment"]["text"] and rd["sender_fields"]["vat_id"] == "DE999999999", f"payment info and sender fields: {rd['payment']}")
 check(rd["recipient"]["street"] == "Marktstraße 5" and rd["recipient"]["customer_no"] == "K-1001" and rd["einvoice_format"] == "zugferd", f"recipient fields in the print model: {rd['recipient']}")
 check("Im Übrigen bleibt es bei den Regelungen unter §3 des RV." == rd["rights"]["note"], "framework contract closing printed on the invoice")
