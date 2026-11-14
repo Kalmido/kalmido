@@ -542,7 +542,7 @@ function ct_kbWalk(e) {
   if (!cur && e.key !== 'ArrowDown') return false;  // the search field keeps its own Up / Home / End
   const i = cur ? rows.indexOf(cur) : -1, to = {ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: rows.length - 1}[e.key];
   const r = rows[Math.max(0, Math.min(rows.length - 1, to ?? i))]; if (!r) return false;
-  r.focus({preventScroll: true}); r.scrollIntoView({block: 'nearest'});
+  r.focus({preventScroll: true}); r.scrollIntoView({block: 'nearest'});  // sprung-ok: the arrow key the person pressed brings its row into sight
 }
 for (const k of ['ArrowDown', 'ArrowUp', 'Home', 'End']) kb_on('view:contacts', k, ct_kbWalk);
 const ct_focName = () => { if (S.route.mod === 'contacts') $('#view #ct-h')?.focus({preventScroll: true}); };
