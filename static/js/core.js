@@ -1643,23 +1643,45 @@ setInterval(async () => {
 // 2.7.2 (#433): instead of a refresh button in the header of shared lists, a small hint once the change check has failed
 // for more than 30 s: "Offline – last update N min ago"; a tap tries again (refreshNow). "…" keeps "Refresh".
 S.syncOk = Date.now();
+// 2.1170.0 (#6132): ONE place for the app's bars (#newver, #codechg, #stale, #upbars): a stack that never covers anything - on a
+// computer under the header (its top follows the header's bottom edge, --bars-top), on a phone above the tab bar AND the "+"
+// button (app.css #bars). The bars sit in it one above the other, never on top of each other.
+function barStack() {
+  let b = document.getElementById('bars');
+  if (!b) { b = document.createElement('div'); b.id = 'bars'; document.body.appendChild(b); }
+  barsPos(b);
+  return b;
+}
+function barsPos(b = document.getElementById('bars')) {
+  if (!b) return;
+  const y = Math.max(0, ...['#kbar', '#top'].map(s => document.querySelector(s)).filter(e => e && e.offsetHeight).map(e => e.getBoundingClientRect().bottom));
+  b.style.setProperty('--bars-top', Math.round(y) + 'px');
+}
+if (globalThis.addEventListener) addEventListener('resize', () => barsPos());
+// 2.1170.0 (#6132): "Tap" on a touch screen, "Click" with a mouse
+const tapTry = () => matchMedia?.('(pointer:fine)')?.matches ? tr('Click to try again') : tr('Tap to try again');
+function netRetry() { if (OUT.q.length || !OUT.online) toast(tr('Changes are sent as soon as the server is reachable'), null, 4000); refreshNow().then(staleDraw).catch(() => {}); }
+document.addEventListener('click', e => { if (e.target.closest?.('#top .offline')) netRetry(); });
 // 2.13.0 (#453 A13): offline (or changes not sent yet) is said in words too, not only with the cloud icon: "Offline · 2
 // changes waiting"; a tap explains it and tries again
+// 2.1170.0 (#6132): offline / server not reachable is ONE sign, the chip in the header (render.js); this bar only while changes
+// wait to be sent (with the state in front when it is the reason)
 function staleDraw() {
   if (typeof document === 'undefined' || !document) return;  // 2.609.0 (#4929): a poll that ends after its window was closed (the tests' late rejection)
   const age = Date.now() - (S.syncOk || Date.now()), q = OUT.q.length, off = !OUT.online;
-  const on = !document.hidden && (age > 30000 || off || (q && age > 8000));
+  const dtop = isMobile() && S.sel ? $('#detail .dtop') : null;  // a phone's open task covers the header's chip: there the bar says offline too
+  const on = !document.hidden && ((!!q && (off || age > 8000)) || (off && !!dtop));
   let el = $('#stale');
   if (!on) { if (el) el.remove(); return; }
-  if (!el) { el = document.createElement('button'); el.id = 'stale'; el.type = 'button'; el.setAttribute('role', 'status'); el.addEventListener('click', () => { if (OUT.q.length || !OUT.online) toast(tr('Changes are sent as soon as the server is reachable'), null, 4000); refreshNow().then(staleDraw).catch(() => {}); }); document.body.appendChild(el); }
+  if (!el) { el = document.createElement('button'); el.id = 'stale'; el.type = 'button'; el.setAttribute('role', 'status'); el.addEventListener('click', netRetry); }
   const min = Math.floor(age / 60000);
   const txt = off && OUT.down ? (q ? tr('Server not reachable') + ' · ' + trn('{0} change waiting', '{0} changes waiting', q) : tr('Server not reachable – changes are sent later'))
     : (off || age > 30000) ? (q ? tr('Offline') + ' · ' + trn('{0} change waiting', '{0} changes waiting', q) : min < 1 ? tr('Offline – last update less than a minute ago') : trn('Offline – last update {0} min ago', 'Offline – last update {0} min ago', min))
     : trn('{0} change waiting', '{0} changes waiting', q);
   el.innerHTML = `${ic(off ? 'cloudoff' : 'sync', 's')}<span>${esc(txt)}</span>`;
-  el.title = tr('Tap to try again');
+  el.title = tapTry();
   // 2.13.2 (#478 F8): with a task open on a phone it sits in the task's header (the keyboard covers the bottom edge)
-  const dtop = isMobile() && S.sel ? $('#detail .dtop') : null, host = dtop || document.body;
+  const host = dtop || barStack();
   if (el.parentElement !== host) { if (dtop) (dtop.querySelector('.spacer') || dtop.lastElementChild).after(el); else host.appendChild(el); }
   el.classList.toggle('indet', !!dtop);
 }
@@ -1710,15 +1732,17 @@ function verCheck(app) {
   if (!verStale()) { if (el) el.remove(); if (typeof I18N !== 'undefined' && I18N.stale) i18nRetry(); return; }
   let once = ''; try { once = sessionStorage.getItem('kalmido-reloaded') || ''; } catch { /* private mode */ }
   if (once !== S.serverVer && S.verSeen.n >= 2 && verQuiet() && (document.hidden || Date.now() - verIdle > 20000) && verSpreadDue()) { verReload(); return; }  // 2.619.0 (#3890): + the spread
+  if (S.verShut === S.serverVer) { if (el) el.remove(); return; }  // 2.1170.0 (#6132): closed for this version (the reload by itself stays)
   if (!el) {
     el = document.createElement('div'); el.id = 'newver'; el.setAttribute('role', 'status');
-    el.innerHTML = `${ic('sync', 's')}<span>${esc(tr('New version available'))}</span><button type="button" class="btn sm pri" data-nv="go">${esc(tr('Reload'))}</button>`;
-    document.body.appendChild(el);
+    el.innerHTML = `${ic('sync', 's')}<span>${esc(tr('New version available'))}</span><button type="button" class="btn sm pri" data-nv="go">${esc(tr('Reload'))}</button><button type="button" class="iconbtn" data-nv="x" title="${esc(tr('Close'))}" aria-label="${esc(tr('Close'))}">${ic('x', 's')}</button>`;
+    barStack().appendChild(el);  // 2.1170.0 (#6132): in the stack, not on the header / the "+"
   }
   el.title = tr('This window runs v{0}, the server v{1}', APP_VER, S.serverVer);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && verStale()) verCheck(); });
 document.addEventListener('click', e => { const b = e.target.closest?.('[data-nv="go"]'); if (b) { b.disabled = true; verReload(); } });
+document.addEventListener('click', e => { if (e.target.closest?.('[data-nv="x"]')) { S.verShut = S.serverVer; $('#newver')?.remove(); } });  // 2.1170.0 (#6132)
 document.addEventListener('visibilitychange', async () => {
   if (!document.hidden && !editing()) { try { await load(); render(); } catch { /* offline */ } }
   if (!document.hidden) wpSweep();  // 2.19.0 (#668)
