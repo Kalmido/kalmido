@@ -113,6 +113,7 @@ const LD_MODS = {
   quotes_es: ['quotes_dada_es'], quotes_fr: ['quotes_dada_fr'], quotes_it: ['quotes_dada_it'], quotes_nl: ['quotes_dada_nl'],
   helpview: ['helpview'],  // 2.1086.0 (#5820): the view "Help" (#help), the user's how-to sections
   meetprop: ['meetprop'],  // 2.1166.0 (#4742): "Tasks from notes" (the request dialog, the chat's proposal cards); the agent chat loads it first (LD_NEED), the list menu through mtg_request (LD_CALL)
+  cinvite: ['cinvite'],  // 2.1191.0 (#4550): invitation links for people without an account ("Find people", the page /#cinv/<token>)
 };
 // 2.65.0 (#1823): modules a module needs before its own files (their globals are used while it draws): the settings dialog
 // draws the agent panes (agentchat.js), the calendars (calview.js) and the tokens / webhooks (integrations.js), the agent chat
@@ -125,6 +126,7 @@ const LD_NEED = {pdf: ['swipenav'], settings: ['agentchat', 'calendar', 'integra
 // module's own function declaration replaces the stand-in on window)
 const LD_CALL = {settings: ['settingsModal', 'setApply', 'settingsSync', 'modCountsSync', 'setSaved', 'setLocal', 'ojn_open', 'otkOpen', 'epv_link'],  // 2.149.0 F (#2519): setLocal (the command bar's "Theme: …"); bundle B: ojn_open (2.148.1 #2480, bell item of an invitation); 2.574.0 (#3376): otkOpen (acctset.js); 2.1033.0 (#5790): epv_link (the link of the address proof mail)
   ablage: ['ab_linkFile'],  // 2.501.0 (#4198): the button of a file row in a task / project
+  cinvite: ['cnv_open', 'cnv_boot', 'cnv_after'],  // 2.1156.0 (#4550): the dialog "Invite by link", the opened link before / after the start
   fltdlg: ['filterModal'],  // 2.521.0 (#4479): the filter dialog (sidebar, palette, a filter's menu)
   fints: ['fnt_open'],  // 2.616.0 (#2473): the button "Fetch from bank" (office_bank.js)
   family: ['occModal', 'dlModal', 'famPack', 'shopModeOpen', 'paskOpen', 'kd_pinAsk'],  // 2.501.0 (#4198): the palette, the first start, a child's PIN
