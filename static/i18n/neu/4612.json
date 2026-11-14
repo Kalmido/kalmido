@@ -1,0 +1,27 @@
+{
+  "de": {
+    "Daily notes": "Tagesnotizen",
+    "Write …": "Schreiben …",
+    "Write … (/ for commands)": "Schreiben … (/ für Befehle)"
+  },
+  "es": {
+    "Daily notes": "Notas diarias",
+    "Write …": "Escribe …",
+    "Write … (/ for commands)": "Escribe … (/ para comandos)"
+  },
+  "fr": {
+    "Daily notes": "Notes du jour",
+    "Write …": "Écrire …",
+    "Write … (/ for commands)": "Écrire … (/ pour les commandes)"
+  },
+  "it": {
+    "Daily notes": "Note giornaliere",
+    "Write …": "Scrivi …",
+    "Write … (/ for commands)": "Scrivi … (/ per i comandi)"
+  },
+  "nl": {
+    "Daily notes": "Dagnotities",
+    "Write …": "Schrijf …",
+    "Write … (/ for commands)": "Schrijf … (/ voor opdrachten)"
+  }
+}
