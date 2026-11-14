@@ -811,7 +811,12 @@ def _s(b, k, n=FIELD_MAX):
     return re.sub(r"[\x00-\x1f\x7f]", " ", v).strip()[:n]
 
 
-def _items(b, k, addr=False):
+# 2.1174.0 (#6120): a phone number of the app / the API: digits, spaces, + - / and brackets (the editor checks the same,
+# contacts.js CTE_RX); only when written there (strict) - a vCard, a sync or a booking keeps what it brings
+CT_PHONE_RX = re.compile(r"[\d\s+\-/()]*\d[\d\s+\-/()]*")
+
+
+def _items(b, k, addr=False, strict=False, keep=()):
     v = b.get(k)
     if v in (None, ""):
         return []
@@ -841,7 +846,11 @@ def _items(b, k, addr=False):
             if k == "emails" and val and not re.fullmatch(r"[^@\s<>\"]+@[^@\s<>\"]+", val):
                 raise BadInput(tr("Invalid value: {0}", tr("E-mail")))
             if k == "urls" and val and not re.fullmatch(r"(?i)(https?|mailto|tel|xmpp|sip):\S+", val):
-                raise BadInput(tr("Invalid value: {0}", "url"))
+                raise BadInput(tr("Invalid value: {0}", tr("Website")))  # 2.1174.0 (#6120): the field by its name (was "url")
+            # keep: 2.1174.0 (#6120, review) the numbers the contact already has pass (an import / sync kept them; a write of
+            # the whole list must not fail on an untouched one)
+            if k == "phones" and val and strict and val not in keep and not CT_PHONE_RX.fullmatch(val):
+                raise BadInput(tr("Invalid value: {0}", tr("Phone")))
             if val:
                 row["value"] = val
                 out.append(row)
@@ -870,7 +879,18 @@ def contact_copy(c, uid, cid, book_id):
     return contact_store(c, uid, book_id, {k: r[k] for k in CT_COPY_COLS}, uid_=r["uid"], extra=r["extra"], version=r["version"])
 
 
-def contact_fields(b, old=None):
+def _ct_values(old, k):
+    """2.1174.0 (#6120): the values of a list field (phones ...) of the stored contact row, cleaned like a write."""
+    try:
+        v = old[k] if old is not None else None
+        v = json.loads(v or "[]") if isinstance(v, (str, bytes, type(None))) else v  # TEXT or JSONB
+    except (KeyError, IndexError, TypeError, ValueError):
+        return set()
+    return {_s(x, "value") for x in v if isinstance(x, dict)} if isinstance(v, list) else set()
+
+
+def contact_fields(b, old=None, strict=False):
+    """strict: 2.1174.0 (#6120) a write of the app / the API (the phone numbers are checked, _items)."""
     out = {}
     for k in ("fn", "given", "family", "middle", "prefix", "suffix", "nickname", "org", "dept", "title"):
         if k in b or old is None:
@@ -887,7 +907,7 @@ def contact_fields(b, old=None):
         out["kind"] = k
     for k in ("emails", "phones", "urls"):
         if k in b or old is None:
-            out[k] = json.dumps(_items(b, k), ensure_ascii=False)
+            out[k] = json.dumps(_items(b, k, strict=strict, keep=_ct_values(old, k) if strict else ()), ensure_ascii=False)
     if "addresses" in b or old is None:
         out["addresses"] = json.dumps(_items(b, "addresses", True), ensure_ascii=False)
     for k in ("bday", "anniversary"):

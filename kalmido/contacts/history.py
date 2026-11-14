@@ -1,11 +1,11 @@
 """2.119.1 B (#2083): the history on a contact's card -- the filed e-mails from / to the contact's addresses (hub/hubmail.py),
-the quotations, invoices and credit notes of the clients the contact is a contact person of (office_docs) and the events
-the contact attends, newest first, in pages. Read only, nothing is summarised.
+the quotations, invoices and credit notes of the clients the contact is a contact person of (office_docs), newest first,
+in pages (2.1174.0, #6119: no events any more, the card lists them in its block "Events"). Read only, nothing is summarised.
 
 Shows only what the person sees anyway: the contact itself (its address book, module Contacts), a mail only when
 hbm_can lets the person read it (never one filed with a health or budget list), documents only with the module Office
 and a role in the client's office area (an organisation's office: its members; a private client: the person's own
-personal office) and only of clients the person may open (ckl_contact_clients), events only when need_event allows them.
+personal office) and only of clients the person may open (ckl_contact_clients).
 People only: agents and kid accounts get 403 (no v1 route, no MCP tool)."""
 import re
 
@@ -16,12 +16,11 @@ from ..core.db import db
 from ..core.access import Denied, live_sql, need_feat
 from ..core.i18n import tr
 from ..accounts.session import me
-from ..events.model import need_event  # 2.369.5 (#2517): pulled up from functions
 from .model import _jl, contact_visible  # 2.369.5 (#2517): pulled up from functions
 
 CTK_PAGE = 20           # entries per page (the card's "More" asks for the next one)
 CTK_MAILS_SCAN = 1000   # newest filed mails uid may reach, looked at for the contact's addresses (sealed: no SQL match)
-CTK_SOURCE_MAX = 200    # entries per source (mails, documents, events) at most
+CTK_SOURCE_MAX = 200    # entries per source (mails, documents) at most
 CTK_DOC_KINDS = ("offer", "invoice", "credit")
 
 
@@ -101,21 +100,13 @@ def ctk_docs(c, uid, clients):
     return out
 
 
-def ctk_events(c, uid, kid):
-    out = []
-    for e in c.execute("""SELECT e.id FROM events e WHERE e.id IN (SELECT a.event_id FROM event_attendees a WHERE a.contact_id=?)
-                          AND e.deleted_at IS NULL ORDER BY e.first_day DESC LIMIT ?""", (kid, CTK_SOURCE_MAX)):
-        try:
-            er, _ = need_event(c, e[0], uid=uid)
-        except Denied:
-            continue
-        out.append({"kind": "event", "id": er["id"], "title": er["title"], "sub": "", "at": er["start"], "all_day": bool(er["all_day"])})
-    return out
+# 2.1174.0 (#6119): the contact's events no longer come into the history: the card shows them in its own block "Events"
+# (contact_dict), the history had them a second time
 
 
 @app.get("/api/contacts/<int:cid>/history")
 def ctk_history(cid):
-    """?offset= -> {items: [{kind: mail|offer|invoice|credit|event, id, title, sub, at, ...}], more, offset} newest first,
+    """?offset= -> {items: [{kind: mail|offer|invoice|credit, id, title, sub, at, ...}], more, offset} newest first,
     CTK_PAGE per page; only what the person may see (see the module text)."""
     need_feat("contacts")
     u = g.user
@@ -132,6 +123,6 @@ def ctk_history(cid):
         off = 0
     emails = {(x.get("value") or "").strip().lower() for x in _jl(r["emails"]) if isinstance(x, dict) and "@" in (x.get("value") or "")}
     from ..office.contacts_cl import ckl_contact_clients
-    items = ctk_mails(c, uid, emails) + ctk_docs(c, uid, ckl_contact_clients(c, cid, uid)) + ctk_events(c, uid, cid)
+    items = ctk_mails(c, uid, emails) + ctk_docs(c, uid, ckl_contact_clients(c, cid, uid))
     items.sort(key=lambda x: (x["at"] or "", x["kind"], x["id"]), reverse=True)
     return jsonify(items=items[off:off + CTK_PAGE], more=len(items) > off + CTK_PAGE, offset=off)

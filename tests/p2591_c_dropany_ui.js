@@ -167,6 +167,9 @@ const PAGE = `(() => {
     await shot('p2633b-contacts-drop.png');
     await ev(`(() => { __drag('#view', 'drop', [__mk('erika.vcf', 'text/vcard', '${VCF}')]); return 1; })()`);
     check(await ev(`window.__ch.join() === 'ct-impfile'`), '#4920 contacts: the file went into #ct-impfile ' + await ev(`window.__ch.join()`));
+    // 2.1174.0 (#6122): without an address book of her own the import no longer creates one quietly: one sentence with the button first
+    check(await ready(ev, `/Create your own address book/.test(document.querySelector('.modal [data-cd="yes"]')?.textContent || '')`, 40), '#6122 contacts: no own address book - the import asks to create one');
+    await ev(`(() => { document.querySelector('.modal [data-cd="yes"]').click(); return 1; })()`);
     check(await ready(ev, `!!document.querySelector('.itc-dlg form')`, 40), '#4920 contacts: the import asks for its target, as from the menu');
     await ev(`(() => { document.querySelector('.itc-dlg form').requestSubmit(); return 1; })()`);
     check(await ready(ev, `/Imported: 1 new/.test(document.querySelector('#ctimp .ctimp-t')?.textContent || '')`, 80), '#4920 contacts: "Imported: 1 new" ' + await ev(`document.querySelector('#ctimp')?.textContent || ''`));

@@ -51,6 +51,8 @@ const setupFrida = async (CA, features) => {
 };
 const FEAT = 'comments,contacts';
 const lastModal = d => [...d.querySelectorAll('.modal')].pop();
+// 2.1174.0 (#6120): the editor steps aside while it saves (hidden, back on a refusal) - "closed" = no editor shown
+const edShown = d => [...d.querySelectorAll('.modal.ctmodal')].some(m => m.style.display !== 'none');
 const rowNames = d => [...d.querySelectorAll('#view .ctlist .ctrow .ctn b')].map(b => b.textContent);
 const ctOnServer = async (ck, q) => (await call(ck, 'GET', '/api/contacts?q=' + encodeURIComponent(q))).items || [];
 const newContact = async (w, d, given, family) => {
@@ -75,7 +77,7 @@ const newContact = async (w, d, given, family) => {
   await newContact(w, d, 'Ada', 'Lovelace');
   check(await until(() => w.__held.length === 1), 'new: the request is on its way (held)');
   const st0 = w.__st;
-  check(!d.querySelector('#ct-given'), 'new: the editor closed at once');
+  check(!edShown(d), 'new: the editor closed at once');
   check(await until(() => rowNames(d).includes('Ada Lovelace')), 'new: its row shows before the answer');
   check(w.eval(`CT.items.find(c => c.fn === 'Ada Lovelace')?.id`) < 0, 'new: with a stand-in id');
   check(!(await ctOnServer(CA, 'Lovelace')).length, 'new: the server has none yet');
@@ -93,7 +95,7 @@ const newContact = async (w, d, given, family) => {
   d.querySelector('#ct-family').value = 'King';
   lastModal(d).querySelector('[data-ctm2="save"]').click();
   check(await until(() => w.__held.length === 1), 'edit: the request is held');
-  check(!d.querySelector('#ct-family') && await until(() => rowNames(d).includes('Ada King') && w.eval(`CT.card.fn`) === 'Ada King'), 'edit: the new name shows at once');
+  check(!edShown(d) && await until(() => rowNames(d).includes('Ada King') && w.eval(`CT.card.fn`) === 'Ada King'), 'edit: the new name shows at once');
   w.__held[0].fail('Refused for the test');
   check(await until(() => rowNames(d).includes('Ada Lovelace') && !rowNames(d).includes('Ada King') && w.eval(`CT.card.fn`) === 'Ada Lovelace'), 'edit: the refusal puts the old name back');
   check(await toastHas(d, /Refused for the test/), 'edit: with the server\'s message');
@@ -146,7 +148,7 @@ const newContact = async (w, d, given, family) => {
   hold(w, /^POST \/api\/contacts$/);
   await newContact(w, d, 'Grace', 'Hopper');
   check(await until(() => w.__held.length === 1), 'freelancer: the request is held');
-  check(await until(() => rowNames(d).includes('Grace Hopper')) && !d.querySelector('#ct-given'), 'freelancer: its row shows at once');
+  check(await until(() => rowNames(d).includes('Grace Hopper')) && !edShown(d), 'freelancer: its row shows at once');
   w.__held[0].go(); unhold(w); freePoll(w);
   check(await until(async () => (await ctOnServer(CF, 'Hopper')).length === 1), 'freelancer: the server follows');
   w.close();
