@@ -10,10 +10,11 @@ const OCD_ICON = {invoice: 'file', card: 'card', payout: 'bank'};
 function ocd_card(c, o) {
   const icon = OCD_ICON[c.kind] || 'receipt', name = c.label || c.title || (c.kind === 'invoice' ? tr('Invoice') : tr('Receipt'));
   const sub = [c.date && fmtDateLoc(String(c.date).slice(0, 10)), o.sub ?? c.reason].filter(Boolean).join(' · ');
-  const pv = c.thumb ? `<img class="ocd-img" src="${esc(c.thumb)}" alt="" loading="lazy" decoding="async">` : '';
-  return `<div class="ocd${o.on ? ' on' : ''}" data-ocd="${esc(String(c.kind || 'receipt'))}:${esc(String(+c.id))}">
-    <div class="ocd-pv${c.thumb ? '' : ' none'}" aria-hidden="true">${/*html-ok*/ pv}<span class="ocd-ic">${ic(icon)}</span></div>
-    <div class="ocd-b"><span class="ocd-n"><b>${esc(name)}</b>${c.amount != null && c.amount !== '' ? `<span class="ocd-amt">${esc(ofcMoney(c.amount))}</span>` : ''}</span>
+  // 2.1180.0 (#6147): without a picture (an invoice, a receipt without a preview) a compact card: its icon beside the name
+  // instead of an empty preview area of 9rem
+  const pv = c.thumb ? `<div class="ocd-pv" aria-hidden="true"><img class="ocd-img" src="${esc(c.thumb)}" alt="" loading="lazy" decoding="async"><span class="ocd-ic">${ic(icon)}</span></div>` : '';
+  return `<div class="ocd${o.on ? ' on' : ''}${c.thumb ? '' : ' ocd-flat'}" data-ocd="${esc(String(c.kind || 'receipt'))}:${esc(String(+c.id))}">
+    ${/*html-ok*/ pv}<div class="ocd-b"><span class="ocd-n">${c.thumb ? '' : `<span class="ocd-ic" aria-hidden="true">${ic(icon, 's')}</span>`}<b>${esc(name)}</b>${c.amount != null && c.amount !== '' ? `<span class="ocd-amt">${esc(ofcMoney(c.amount))}</span>` : ''}</span>
     ${sub ? `<small class="muted ocd-why">${esc(sub)}</small>` : ''}
     <button type="button" class="btn sm pri ocd-take" ${/*html-ok*/ o.btn}>${o.key ? `<kbd class="ocd-key">${esc(String(o.key))}</kbd>` : ''}${ic('check', 's')}<span>${esc(o.take || tr('Take over'))}</span></button></div></div>`;
 }
