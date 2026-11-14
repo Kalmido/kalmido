@@ -18588,6 +18588,7 @@
   "You have {0} open invitation links. Withdraw one before you make a new one.": "Tienes {0} enlaces de invitación abiertos. Retira uno antes de crear otro.",
   "That is enough invitation links for today. Try again tomorrow.": "Ya son suficientes enlaces de invitación por hoy. Inténtalo mañana.",
   "Invitation accepted": "Invitación aceptada",
+  "{0} invited you to {1}. Please confirm your e-mail address and choose your password – after the confirmation you are connected.": "{0} te ha invitado a {1}. Confirma tu dirección de correo y elige tu contraseña: tras la confirmación estaréis conectados.",
   "Move “{0}” to the trash": "Mover «{0}» a la papelera",
   "Blocked: malware was found in this file ({0})": "Bloqueado: se encontró software malicioso en este archivo ({0})",
   "Blocked: malware found": "Bloqueado: se encontró software malicioso",

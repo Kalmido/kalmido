@@ -177,6 +177,12 @@ c1 = r.json()
 check(r.ok and c1["name"] == "Frida" and c1["signed_in"] is False and c1["mail"] is True, f"the page: who invites ({r.text[:200]})")
 check(anon().post(B + "/api/auth/cinv/accept", json={"token": T1, "name": "", "email": "nina@example.com"}).status_code == 400, "no name: 400")
 check(anon().post(B + "/api/auth/cinv/check", json={"token": T1}).ok, "an invalid form does not use the link up")
+# 2.1156.0 C (#4550, Fable F5): a name that looks like a link is refused like an empty one, the link stays valid
+NONAME = anon().post(B + "/api/auth/cinv/accept", json={"token": T1, "name": " ", "email": "nina@example.com"}).json().get("error")
+for bad in ("Visit https://evil.example", "www.evil example", "evil.com", "Prize at evil.co/win now"):
+    r = anon().post(B + "/api/auth/cinv/accept", json={"token": T1, "name": bad, "email": "nina@example.com"})
+    check(r.status_code == 400 and NONAME and r.json().get("error") == NONAME, f"Fable F5: name {bad!r} refused ({r.status_code})")
+check(anon().post(B + "/api/auth/cinv/check", json={"token": T1}).ok, "Fable F5: ... and the link stays valid")
 n0 = len(mails())
 r = anon().post(B + "/api/auth/cinv/accept", json={"token": T1, "name": "Nina Example", "email": "nina@example.com", "lang": "en"})
 ANSWER = (r.status_code, r.json())
@@ -184,6 +190,8 @@ check(r.ok and r.json() == {"ok": True, "mail": True}, f"registration: confirm b
 m = until(lambda: len(mails()) > n0 and mails()[-1], 15)
 itok = link_of(m) if m else None
 check(itok and "nina@example.com" in json.dumps(m["to"]).lower(), "the confirmation mail goes to the address")
+mtext = "".join(p.get_payload(decode=True).decode() for p in email.message_from_string(m["raw"]).walk() if p.get_content_type() == "text/plain") if m else ""
+check("Frida invited you to" in mtext and "you are connected" in mtext, f"Fable F5: the mail names who invited ({mtext[:300]!r})")
 NINA = uid_of("nina")
 check(NINA and dbx("SELECT signup, disabled FROM users WHERE id=?", (NINA,))[0][0] == "confirm", "a registration to confirm")
 check(dbx("SELECT used_by FROM conn_invites WHERE token_hash=?", (hashlib.sha256(T1.encode()).hexdigest(),))[0][0] == NINA, "the link names the new account")

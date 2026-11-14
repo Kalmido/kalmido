@@ -241,7 +241,7 @@ def cinv_accept():
         name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:60]
         mail = _mail_on()
         pw = b.get("password") if isinstance(b.get("password"), str) else ""
-        if not name:
+        if not name or _urlish(name):  # Fable F5: the name stands in a mail to the address: no link in it
             return err(tr("Please enter your name", lg=lg))
         if not EMAIL_RE.fullmatch(email):
             return err(tr("Please enter a valid e-mail address", lg=lg))
@@ -305,6 +305,14 @@ def cinv_accept():
         tok = pend_new("enrol", uid, remember=True)
         return pend_cookie(jsonify(ok=False, enrol=True, methods=["totp", "passkey"], username=u["username"]), tok)
     return finish_login(c, u, True, "invite", extra={"username": u["username"]})
+
+
+def _urlish(name):
+    """Fable F5: a name that looks like a link or a web address ("://", "www.", "example.com")."""
+    return bool(_URLISH.search(name))
+
+
+_URLISH = re.compile(r"://|\bwww\.|[^\s./]\.[a-z]{2,24}(?:[/:?#]|$|\s)", re.I)
 
 
 def _new_account(c, email, name, pw, ulang):
