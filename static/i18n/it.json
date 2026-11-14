@@ -17220,8 +17220,6 @@
   "Own file name template: each part only once": "Modello personalizzato: ogni parte una sola volta",
   "Applies to: {0}": "Vale per: {0}",
   "Markdown: # heading, - list, [[Page]] links a page, [[#123]] a task": "Markdown: # titolo, - elenco, [[Pagina]] collega una pagina, [[#123]] un'attività",
-  "Write … ([[Page]], [[#123]])": "Scrivi … ([[Pagina]], [[#123]])",
-  "Write … ([[Page]], [[#123]], / for commands)": "Scrivi … ([[Pagina]], [[#123]], / per i comandi)",
   "This poll belongs to an agent that changed hands: it stays in the trash": "Questo sondaggio appartiene a un agente che ha cambiato proprietario: resta nel cestino",
   "is": "è",
   "is not": "non è",
