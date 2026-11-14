@@ -377,9 +377,9 @@ def fs_ref_sweep(c):
             t = reg.get("table")
             if not t or t[0] not in names or t[1] not in table_columns(c, t[0]):
                 continue  # not checked, or a table this database does not have (never: every node of the kind is dead)
-            tab, col = qi(t[0], names), qi(t[1], table_columns(c, t[0]))
+            cols = table_columns(c, t[0])
             n += c.execute(f"DELETE FROM fs_nodes n WHERE n.kind='ref' AND n.ref_kind=? AND n.ref_id IS NOT NULL "
-                           f"AND NOT EXISTS (SELECT 1 FROM {tab} x WHERE x.{col}=n.ref_id)", (kind,)).rowcount
+                           f"AND NOT EXISTS (SELECT 1 FROM {qi(t[0], names)} x WHERE x.{qi(t[1], cols)}=n.ref_id)", (kind,)).rowcount
     return n
 
 
