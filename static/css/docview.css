@@ -232,8 +232,8 @@
   .dv-pvbar .iconbtn,.dv-pvbar .btn{min-height:2.75rem}
   .dv-tabs [role="tab"]{min-height:2.75rem}
   /* the head: the title in a row of its own, whole (wrapped, not cut to a few letters); below it Back with the place it leads
-     to, then Download / Actions / Delete */
-  .dv-title{order:-1;flex:1 1 100%;white-space:normal;overflow:visible;overflow-wrap:anywhere;text-overflow:clip;line-height:var(--lh-tight,1.25)}
+     to, then Download / Actions / Delete (#dc-h: app.css cuts the old sheet's title to one line by its id) */
+  .dv-title,.dv-head #dc-h{order:-1;flex:1 1 100%;white-space:normal;overflow:visible;overflow-wrap:anywhere;text-overflow:clip;line-height:var(--lh-tight,1.25)}
   .dv-back{flex:0 1 auto;min-width:0;max-width:60%}
   .dv-back>span{position:static;width:auto;height:auto;clip:auto;clip-path:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .dv-back{justify-content:flex-start;gap:.25rem}
