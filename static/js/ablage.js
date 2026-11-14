@@ -515,18 +515,34 @@ async function ab_moveTargets() {
   const fs = (await api('GET', '/api/files/folders?ablage=1')).folders || [];
   if (fs.some(f => f.lock_id)) {
     if (typeof fsl_paths !== 'function' && typeof loadModule === 'function') await loadModule('fslock').catch(() => {});
-    if (typeof fsl_paths === 'function') await fsl_paths(fs); else for (const f of fs) if (f.lock_id) f.path = f.parts.map(p => p.startsWith('e2e1:') ? tr('Encrypted') : p).join(' / ');
+    if (typeof fsl_paths === 'function') await fsl_paths(fs); else for (const f of fs) if (f.lock_id) { const ps = f.parts.map(p => p.startsWith('e2e1:') ? tr('Encrypted') : p); f.path = ps.join(' / '); f.name = ps[ps.length - 1]; }  // 2.1172.0 (#6113): + the name (the tree)
   }
   return fs;
 }
+// 2.1172.0 (#6113): ONE "Move to…" for a row, the bar's choice (n = null: the chosen ones, ab_selMove) and the document view
+// (at = the anchor of the menu): the app's menu with the search field of the projects' picker (popovers.js tch_menuSearch)
+// and every folder of the space as a tree (indented by depth, its name; the whole path as its tooltip), the current place
+// marked; no cut after 60 entries. The title once: a phone's sheet head carries it, a computer's menu its small heading.
 async function ab_moveDlg(n, at) {  // 2.768.0 (#4888): at = the anchor of the menu (the document view's Actions)
-  let fs; try { fs = await ab_moveTargets(); } catch { return; }
-  // the same space and tree only (the server refuses the rest, and a folder into itself)
-  const ok = fs.filter(f => (f.org_id || null) === (n.org_id || null) && f.owner_id === n.owner_id && f.id !== n.id && f.id !== n.parent_id);
-  const items = [...(n.parent_id ? [{label: tr('Top level'), icon: 'up', fn: () => ab_move(n, null)}] : []), ...ok.map(f => ({label: f.path, icon: 'folder', fn: () => ab_move(n, f.id)}))];
-  if (!items.length) { toast(tr('No other folder in this workspace')); return; }
-  const anchor = at || $(`[data-abid="${n.id}"] [data-ab="menu"]`) || $('[data-ab="menu"]') || document.body;
-  menu(anchor, [{head: tr('Move to …')}, ...items.slice(0, 60)], null, null, tr('Move to …'));
+  const sel = !n, xs = sel ? ab_selVals() : [n], ok = sel ? xs.filter(x => ab_canWrite(x.role)) : xs, skip = xs.length - ok.length;
+  if (!ok.length) { toast(ab_skipTxt(skip)); return; }
+  const org = ok[0].org_id || null;
+  if (ok.some(x => (x.org_id || null) !== org)) { toast(tr('Select items of one workspace')); return; }
+  let fs; try { fs = await ab_moveTargets(); } catch { return; }  // no folder in the trash (#4881); 2.953 (#3348): names decrypted
+  // the same space and tree only (the server refuses the rest, and a folder into itself or below itself)
+  const own = ok.find(x => x.owner_id != null)?.owner_id, ids = new Set(ok.map(x => x.id));
+  const sp = fs.filter(f => (f.org_id || null) === org && (own == null || f.owner_id === own)), byPath = new Map(sp.map(f => [f.path, f]));
+  const up = f => { const t = ' / ' + f.name; return f.path.endsWith(t) ? byPath.get(f.path.slice(0, -t.length)) : null; };
+  const chain = f => { const c = []; for (let x = f, g = 0; x && g < 64; x = up(x), g++) c.unshift(x); return c; };
+  const tg = sp.map(f => ({f, c: chain(f)})).filter(x => !x.c.some(y => ids.has(y.id)))
+    .sort((a, b) => a.c.map(y => y.name.toLowerCase()).join('\u0000').localeCompare(b.c.map(y => y.name.toLowerCase()).join('\u0000')));
+  const p0 = ok[0].parent_id ?? null, cur = ok.every(x => (x.parent_id ?? null) === p0) ? p0 : undefined;  // one place for all: marked
+  if (!tg.some(x => x.f.id !== cur) && cur === null) { toast(tr('No other folder in this workspace')); return; }
+  const go = t => sel ? ab_selMoveTo(ok, t, skip) : ab_move(n, t);
+  const rows = [{label: tr('Top level'), icon: 'up', on: cur === null, dis: cur === null, fn: () => go(null)},
+    ...tg.map(({f, c}) => ({label: f.name, icon: 'folder', title: f.path, cls: 'abmt ' + ['abmt1', 'abmt2', 'abmt3', 'abmt4', 'abmt5', 'abmt6'][Math.min(c.length, 6) - 1], on: f.id === cur, dis: f.id === cur, fn: () => go(f.id)}))];
+  const anchor = at || (sel ? $('[data-absel="move"]') : $(`[data-abid="${n.id}"] [data-ab="menu"]`) || $('[data-ab="menu"]')) || document.body;
+  tch_menuSearch(menu(anchor, [...isMobile() ? [] : [{head: tr('Move to …')}], ...rows], null, null, tr('Move to …')));
 }
 const ab_delete = n => abm_trash([n]);  // 2.768.0 (#4888): the same way as the bar (POST /api/files/trash, ONE undo)
 async function ab_restore(n) {
@@ -906,18 +922,8 @@ async function ab_selAll() {
   ab_selDraw();
 }
 const ab_relist = () => { ab_reload(); if (S.route.mod === 'docs' && typeof dc_load === 'function') { DC.facets = null; dc_load(); } };
-// several nodes into one folder of the same space (the server refuses another tree / a folder into itself: counted as skipped)
-async function ab_selMove(anchor) {
-  const xs = ab_selVals(), ok = xs.filter(x => ab_canWrite(x.role)), skip = xs.length - ok.length;
-  if (!ok.length) { toast(ab_skipTxt(skip)); return; }
-  const org = ok[0].org_id || null;
-  if (ok.some(x => (x.org_id || null) !== org)) { toast(tr('Select items of one workspace')); return; }
-  let fs; try { fs = await ab_moveTargets(); } catch { return; }  // no folder in the trash (#4881); 2.953 (#3348): names decrypted
-  const own = ok.find(x => x.owner_id != null)?.owner_id, ids = new Set(ok.map(x => x.id));
-  const tg = fs.filter(f => (f.org_id || null) === org && (own == null || f.owner_id === own) && !ids.has(f.id));
-  const items = [{label: tr('Top level'), icon: 'up', fn: () => ab_selMoveTo(ok, null, skip)}, ...tg.map(f => ({label: f.path, icon: 'folder', fn: () => ab_selMoveTo(ok, f.id, skip)}))];
-  menu(anchor || $('[data-absel="move"]') || document.body, [{head: tr('Move to …')}, ...items.slice(0, 60)], null, null, tr('Move to …'));
-}
+// several nodes into one folder of the same space: the one "Move to…" (2.1172.0, #6113: was a copy of ab_moveDlg)
+const ab_selMove = anchor => ab_moveDlg(null, anchor);
 async function ab_selMoveTo(xs, target, skip = 0) {
   const done = [];
   // 2.953 (#3348, review N16): what crosses a locked folder's border goes re-encrypted in the browser, after one question

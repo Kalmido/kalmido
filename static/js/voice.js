@@ -26,8 +26,7 @@ const tvc_rateTxt = r => new Intl.NumberFormat(document.documentElement.lang || 
 // ---- composer: the microphone (only while the text box is empty and files may be sent here) + the recording bar
 function tvc_micHtml(room, rid) {
   if (!tvc_can() || typeof tcx_filesOk !== 'function' || !tcx_filesOk(room)) return '';
-  const typed = !!(S.drafts['team:' + rid] || '').trim();
-  return `<button type="button" class="iconbtn tvcmic${typed ? ' hidden' : ''}" data-act="tvc-rec" data-rid="${rid}" title="${esc(tr('Record a voice message'))}" aria-label="${esc(tr('Record a voice message'))}">${ic('mic')}</button>`;  // 2.213.0 (#2788): the bar comes from tvc_barSlot (the button may sit in the plus menu)
+  return `<button type="button" class="iconbtn tvcmic" data-act="tvc-rec" data-rid="${rid}" title="${esc(tr('Record a voice message'))}" aria-label="${esc(tr('Record a voice message'))}">${ic('mic')}</button>`;  // 2.213.0 (#2788): the bar comes from tvc_barSlot (the button may sit in the plus menu)
 }
 const tvc_barSlot = rid => TVC.st?.rid === rid ? tvc_barHtml() : '';  // 2.213.0 (#2788)
 function tvc_barHtml() {
@@ -211,7 +210,6 @@ document.addEventListener('click', e => {
 document.addEventListener('input', ev => {
   const e = {target: /** @type {any} */ (ev.target)};
   if (e.target.classList?.contains('tvcseek')) { const box = e.target.closest('.tvcp'); if (box) tvc_play(box, +e.target.value / 1000); return; }
-  if (e.target.id === 'tc-in') { const mic = e.target.closest('.tccomp')?.querySelector('.tvcmic'); if (mic) mic.classList.toggle('hidden', !!e.target.value.trim()); }
 });
 document.addEventListener('keydown', e => {  // Escape while recording = discard (the recording is not sent by accident)
   if (e.key === 'Escape' && TVC.st && TVC.st.phase !== 'send' && /** @type {any} */ (e.target).closest?.('.tvcrec')) { e.preventDefault(); e.stopPropagation(); tvc_discard(); }
