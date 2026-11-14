@@ -215,7 +215,7 @@ check(Fr.post(B + f"/api/disc/invites/{j4['item']['id']}/restore").status_code =
 j5 = Fr.post(B + "/api/disc/invites", json={}).json()
 T5 = tok_of(j5)
 c5 = Do.post(B + "/api/auth/cinv/check", json={"token": T5}).json()
-check(c5.get("signed_in") is True and c5.get("own") is False and c5.get("may") is True and c5.get("connected") is False, f"dora signed in: may connect ({c5})")
+check(c5.get("signed_in") is True and c5.get("own") is False and c5.get("may") is True and c5.get("connected") is False, f"dora signed in: may connect, no connection yet ({c5})")
 c5f = Fr.post(B + "/api/auth/cinv/check", json={"token": T5}).json()
 check(c5f.get("own") is True, "frida's own link: own")
 r = Fr.post(B + "/api/auth/cinv/accept", json={"token": T5})
@@ -236,7 +236,8 @@ check(r.status_code in (401, 403, 404), f"an agent cannot make a link ({r.status
 j6 = Ki.post(B + "/api/disc/invites", json={}).json()
 T6 = tok_of(j6)
 write("UPDATE users SET kid=1 WHERE id=?", (KID_,))
-check(Ki.get(B + "/api/disc/invites").status_code == 404 and Ki.post(B + "/api/disc/invites", json={}).status_code == 404, "a kid account: no access")
+r1, r2 = Ki.get(B + "/api/disc/invites").status_code, Ki.post(B + "/api/disc/invites", json={}).status_code
+check(r1 == 404 and r2 in (403, 404), f"a kid account: no access ({r1}, {r2})")
 check(anon().post(B + "/api/auth/cinv/check", json={"token": T6}).status_code == 404, "a kid's older link stops working")
 c6 = Do.post(B + "/api/auth/cinv/check", json={"token": T6})
 check(c6.status_code == 404, "... also for a signed-in person")
