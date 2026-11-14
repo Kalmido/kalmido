@@ -128,6 +128,13 @@ button.cyd:hover{background:var(--bg2)}
 .wcol>.nowline{z-index:0}
 .wcol>.wev{z-index:1}
 .wcol>.wcev:not(.cgghost){background:linear-gradient(var(--cct),var(--cct)),var(--bg)}
+/* 2.1179.0 (#6155): three lanes and more on a computer's week: the title alone (the time is the block's place and its tooltip),
+   smaller, wrapped by words and hyphenated over the block's lines - more of "Drehtag" / "Telefonat" than "Dreh…" / "Telef…" */
+@media (min-width:768px){
+  .week:not(.oneday) .wcol>.wn3{padding:1px .1875rem;font-size:var(--fs-xs);white-space:normal;text-overflow:clip}
+  .week:not(.oneday) .wcol>.wn3>b{display:none}
+  .week:not(.oneday) .wcol>.wn3 .wct{display:block;white-space:normal;overflow:hidden;text-overflow:clip;overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;line-height:var(--lh-tight)}
+}
 /* three lanes and more on a phone's week: strips in the calendar's colour without letters, one "+N" over the group opens the day */
 .wmore{display:none}
 @media (max-width:767px){
@@ -140,12 +147,23 @@ button.cyd:hover{background:var(--bg2)}
 /* "+N more" in a month cell is a target: the day view of that day */
 .cal button.more{display:block;width:100%;min-height:1.25rem;margin:0;padding:0 .3125rem;border:0;border-radius:var(--r-s);background:none;color:var(--muted);font:var(--fs-xs) var(--mono);text-align:left;cursor:pointer}
 .cal button.more:hover,.cal button.more:focus-visible{color:var(--accent);background:var(--bg2)}
-/* the timeline on a phone: a calendar's name in up to three lines instead of cut after a few letters */
+/* 2.1179.0 (#6155): never over the next cell (one line, cut with "…"); a phone's month shows dots and no "+N more" at all (its
+   higher specificity had beaten app.css .cal .more{display:none}: "3 more8 more" over the neighbours at 360 px) */
+.cal button.more{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-sizing:border-box}
+@media (max-width:767px){ .cal button.more{display:none} }
+/* the timeline on a phone: a calendar's name in up to three lines instead of cut after a few letters; 2.1179.0 (#6155): a long
+   word is hyphenated by the language (lang of the page), only a word that has no break point breaks where it must */
 @media (max-width:767px){
   .tl-cal .tl-name{white-space:normal}
-  .tl-cal .cvxtln .tln,.tl-cal .tl-name>.tln{white-space:normal;overflow-wrap:anywhere;line-height:var(--lh-tight);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;font-size:var(--fs-xs)}
+  .tl-cal .cvxtln .tln,.tl-cal .tl-name>.tln{white-space:normal;overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto;line-height:var(--lh-tight);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;font-size:var(--fs-xs)}
   .tl-cal .cvxtlm{width:1.25rem;min-width:1.25rem}
 }
+/* 2.1179.0 (#6155): the calendar timeline: a bar too narrow for its title has no letters; neighbours of that kind are one "+N"
+   over their bars (calendar.js tlCalRows) */
+.tl-cev.tlmore{border:0;padding:0;margin:0;background:none;font:inherit;color:inherit;text-align:left}
+.tl-cev.tlmore>span{padding:0 .25rem;margin-left:2px;border-radius:.25rem;background:var(--bg2);border:1px solid var(--line2);font:600 var(--fs-xs) var(--mono);color:var(--text);line-height:1.125rem}
+.tl-cev.tlmore:hover>span,.tl-cev.tlmore:focus-visible>span{border-color:var(--accent);color:var(--accent)}
+.tl-cev:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 /* 2.828.0 (#5464): the "Calendars" window (calevents.js evCalsModal). The switch columns are as wide as their heads, which may
    wrap but are never cut; a phone shows one column "Show" (Today / Plan are in the row's menu) and the names in full, wrapped */
 .evcmodal{--cvxw:4.75rem}
