@@ -137,7 +137,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(d.querySelector(`#view .abrow[data-abid="${SF}"] [data-ab="restore"]`) && !d.querySelector('#view [data-ab="trash-empty"]'), 'rita: Restore, but no "Empty trash" (nothing she may delete for good)');
   d.querySelector(`#view .abrow[data-abid="${SF}"] [data-ab="tropen"]`).click();
   dlg = await until(() => d.querySelector('.abtrdlg'));
-  check(dlg && /drehplan\.txt/.test(txt(dlg)) && dlg.querySelector('[data-abd="restore"]') && /Was in: Gemeinsam/.test(txt(dlg)), 'rita: the details with Restore and where it was ' + txt(dlg));
+  check(dlg && /drehplan\.txt/.test(txt(dlg)) && dlg.querySelector('[data-abd="restore"]') && /Owner: Alice/.test(txt(dlg)), 'rita: the details with Restore and whose it is ' + txt(dlg));
   w.close();
 
   // ================= (1) Firefox: Delete in the file view keeps its message with Undo

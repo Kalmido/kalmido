@@ -18567,7 +18567,6 @@
   "Deleted items stay here until you delete them permanently.": "Les éléments supprimés restent ici jusqu'à ce que tu les supprimes définitivement.",
   "Deleted items stay here for {0} day, then they are deleted permanently.": ["Les éléments supprimés restent ici {0} jour, puis disparaissent définitivement.", "Les éléments supprimés restent ici {0} jours, puis disparaissent définitivement."],
   "In the trash": "Dans la corbeille",
-  "Was in: {0}": "Se trouvait dans : {0}",
   "Deleted on {0}": "Supprimé le {0}",
   "Contacts could not be loaded": "Les contacts n’ont pas pu être chargés",
   "No contacts yet": "Pas encore de contacts",
