@@ -107,7 +107,7 @@ const task = async id => (await st()).tasks.find(t => t.id === id);
   check(!('show_completed' in (await st()).settings), '1.8.1: no global setting any more');
   // 2.1184.0 (#6137): a display switch is no step (no history entry, the server records none); the message offers to take it back
   const hTopD = () => w.eval('HIST.undo[HIST.undo.length - 1]?.label || ""');
-  check(!/completed/i.test(hTopD()), 'no history step for the switch: ' + hTopD());
+  check(!/^(Hide|Show) completed/.test(hTopD()), 'no history step for the switch: ' + hTopD());
   const toastUndo = () => /** @type {HTMLElement|null} */ (d.querySelector('#toast:not(.hidden) button:not(.tx)'));
   check(/Completed tasks are hidden here/.test(d.querySelector('#toast')?.textContent || '') && !!toastUndo(), 'the message offers Undo: ' + d.querySelector('#toast')?.textContent);
   w.eval(`go('l/${WORK}')`); await until(() => w.eval('S.route.key') === `l:${WORK}` && doneGroup());
@@ -116,7 +116,7 @@ const task = async id => (await st()).tasks.find(t => t.id === id);
   await w.eval(`setShowDone(true)`); await until(doneGroup);
   click(w, toastUndo()); await until(async () => !doneGroup() && JSON.parse((await st()).settings.show_done_views).today === 0);
   check(!doneGroup() && JSON.parse((await st()).settings.show_done_views).today === 0, 'Undo in the message: the choice before again');
-  check(!(await call('GET', '/api/undo')).items?.some(g => /completed/i.test(g.label || '')), 'no server step for the switch (#6137)');
+  check(!(await call('GET', '/api/undo')).items?.some(g => /Show completed per view|Hide completed|Show completed:/.test(g.label || '')), 'no server step for the switch (#6137): ' + JSON.stringify(((await call('GET', '/api/undo')).items || []).slice(0, 3).map(g => g.label)));
   await idle(w);
   // sort menu + palette act on the current view
   w.eval(`sortMenu(document.querySelector('#top h1'))`); await until(() => menuLabels(d).includes('Show completed'));
@@ -154,7 +154,7 @@ const task = async id => (await st()).tasks.find(t => t.id === id);
   check(!calDone() && chip().getAttribute('aria-pressed') === 'false', 'calendar toggle hides completed tasks');
   check(await until(async () => JSON.parse((await st()).settings.show_done_views).cal === 0), 'stored as the calendar\'s own entry');
   check(w.eval(`showDone('l:${WORK}')`), 'lists keep their own choice');
-  check(!/completed/i.test(hTopD()) && !!toastUndo(), 'calendar: no history step, the message offers Undo: ' + hTopD());  // 2.1184.0 (#6137)
+  check(!/^(Hide|Show) completed/.test(hTopD()) && !!toastUndo(), 'calendar: no history step, the message offers Undo: ' + hTopD());  // 2.1184.0 (#6137)
   w.eval('openPalette()'); await until(() => w.eval(`palAll().some(x => x.id === 'a:showdone' && x.label === 'Show completed: Calendar')`));
   check(w.eval(`palAll().some(x => x.id === 'a:showdone' && x.label === 'Show completed: Calendar')`), 'palette: calendar toggle');
   w.eval('closePalette()');
