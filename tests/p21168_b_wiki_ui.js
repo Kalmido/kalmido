@@ -28,7 +28,8 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   const st0 = await call('GET', '/api/state');
   const feats = (st0.settings.features || '').split(',').filter(Boolean);
   await call('PATCH', '/api/settings', {features: [...feats, 'wiki'].join(',')});
-  const PG = (await call('POST', '/api/wiki/pages', {space: 'private', path: 'Garden/Watering plan', body: 'Water the roses\nCut the hedge'})).id;
+  const PG = (await call('POST', '/api/wiki/pages', {space: 'private', path: 'Garden/Watering plan', body: 'Water the roses'})).id;
+  await call('PATCH', '/api/wiki/pages/' + PG, {body: 'Water the roses\nCut the hedge'});
   sql("UPDATE obj_versions SET created_at=? WHERE kind='wiki' AND ref_id=?", ['2026-01-01T08:00:00.000+00:00', PG]);  // older than ten minutes: its own version
   await call('PATCH', '/api/wiki/pages/' + PG, {body: 'Water the roses\nCut the hedge\nFeed the fish'});
   check(((await call('GET', `/api/wiki/pages/${PG}/versions`)).versions || []).length === 2, 'setup: two versions');
