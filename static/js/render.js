@@ -654,8 +654,11 @@ function renderTop0() {
   // everything rarer sits in "…" (phones: undo / redo there too); the title keeps its room; 2.1108.0 (#5965): not on a phone's open knowledge page (its own "…" carries these)
   if (!wkPg) acts += `<button class="iconbtn tmore" data-act="top-more" aria-haspopup="menu" title="${tr('More actions')}" aria-label="${tr('More actions')}">${ic('dots')}${isMobile() && HIST.undo.length && histPending(HIST.undo[HIST.undo.length - 1]) ? '<span class="pdot"></span>' : ''}</button>`;
   const pm = '';  // focus / stopwatch are part of the running indicator (timerPill) now
-  const oflab = OUT.online ? tr('sync|pending changes') : OUT.down ? (OUT.maint ? tr('server in maintenance') : tr('server not reachable')) : tr('offline'), ofn = OUT.q.length ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : '';
-  const off = !OUT.online || OUT.q.length ? `<span class="offline" role="status" title="${esc([oflab, ofn, tr('Changes are sent as soon as the server is reachable')].filter(Boolean).join(' · '))}" aria-label="${esc([oflab, ofn].filter(Boolean).join(' · '))}">${ic(OUT.online ? 'sync' : 'cloudoff', 's')}<span class="ofl">${oflab}</span>${OUT.q.length ? `<span class="ofn">${OUT.q.length}</span>` : ''}</span>` : '';
+  // 2.1170.0 (#6132): offline / server not reachable / changes waiting = ONE sign, this chip: a word in the normal font (a phone: symbol +
+  // the short word), a click / tap tries again (core.js netRetry); the bar below only while changes wait, no grey dot at the bell
+  const oflab = OUT.online ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : OUT.down ? (OUT.maint ? tr('Server in maintenance') : tr('Server not reachable')) : tr('Offline'), ofn = OUT.q.length ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : '';
+  const ofw = !isMobile() ? oflab : OUT.online ? tr('Syncing') : tr('Offline');
+  const off = !OUT.online || OUT.q.length ? `<button type="button" class="offline" title="${esc([oflab, OUT.online ? '' : ofn, tr('Changes are sent as soon as the server is reachable'), tapTry()].filter(Boolean).join(' · '))}" aria-label="${esc([oflab, OUT.online ? '' : ofn].filter(Boolean).join(' · '))}">${ic(OUT.online ? 'sync' : 'cloudoff', 's')}<span class="ofl">${esc(ofw)}</span>${OUT.q.length && (!OUT.online || isMobile()) ? `<span class="ofn">${OUT.q.length}</span>` : ''}</button>` : '';
   const cf = S.conflicts?.length ? `<button class="cfpill" data-act="conflicts" title="${tr('Review conflicts')}">${ic('alert', 's')}${S.conflicts.length}</button>` : '';
   // open tasks of the view next to the title (Geist Mono), task views only
   const nOpen = m === 'tasks' && !NOLIST_KEYS.includes(k) ? msvvCount(viewTasks().open.length, k) : 0;  // 2.73.0 C (#661): + other servers in Today / Basket
@@ -676,6 +679,7 @@ function renderTop0() {
   fitTop();
   sbb_bar();  // 2.152.3 A (#2619): the bell's number
   netDotDraw();  // 2.31.0 (#378): the dot at the own picture follows every change of the connection
+  barsPos();  // 2.1170.0 (#6132): the bars' stack stays under the header
 }
 // ---- 2.6.0 (K01 + K02, UX audit 2): the header has a fixed priority on every width. The title comes first: it keeps at
 // least ~12 characters (or all of it, when shorter) and is shown in full whenever any level below makes room; "…" and the
