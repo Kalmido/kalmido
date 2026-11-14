@@ -32,7 +32,8 @@ const HEAD = `(() => {
   return {vw, more: R(t.querySelector('[data-act="top-more"]')), bell: R(t.querySelector('.bell')) || R(document.querySelector('#kbar .bell')),  /* 2.152.3 (#2619): with sidebar B the bell sits in the head bar #kbar */ out, ht: R(t.querySelector('h1 .ht'))};
 })()`;
 // every visible button / control in a container that is smaller than 44 x 44 px (touch), counting ::before / ::after zones
-const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e => e.offsetWidth && getComputedStyle(e).visibility !== 'hidden').map(e => {
+// 2.1163.0 (#3835): a row symbol hidden on a phone (.ms-phsr, like .sr: 1 px, clipped; long press = menu) is no touch target
+const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e => e.offsetWidth && getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).clipPath !== 'inset(50%)').map(e => {
   const b = e.getBoundingClientRect(); let w = b.width, h = b.height;
   for (const ps of ['::before', '::after']) { const s = getComputedStyle(e, ps); if (s.content && s.content !== 'none' && s.position === 'absolute') { const iw = b.width - parseFloat(s.left || 0) - parseFloat(s.right || 0), ih = b.height - parseFloat(s.top || 0) - parseFloat(s.bottom || 0); if (Number.isFinite(iw)) w = Math.max(w, iw); if (Number.isFinite(ih)) h = Math.max(h, ih); } }
   return [e.className || e.tagName, (e.textContent || '').trim().slice(0, 16), Math.round(w), Math.round(h)]; }).filter(x => x[2] < 43.5 || x[3] < 43.5))()`;
@@ -174,7 +175,8 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   w = await boot({user: 'alice', hash: 'l/' + P, ls: {'tasks.pov': JSON.stringify([P])}}); d = w.document;
   await until(() => d.querySelector('#view .pov .povs'));
   check(d.querySelector('#top [data-act="view-overview"]').title === 'Projektseite', 'de: Projektseite (2.25.0)');
-  check(/Projektablage/.test(d.querySelector('#pov-files h3').textContent) && /Anhänge aus Aufgaben/.test(d.querySelector('.povtf summary').textContent)
+  // 2.1163.0 (#6112): "Projektdateien" (no "Ablage" in the interface)
+  check(/Projektdateien/.test(d.querySelector('#pov-files h3').textContent) && /Anhänge aus Aufgaben/.test(d.querySelector('.povtf summary').textContent)
     && /Wichtige Links/.test(d.querySelector('#pov-links h3').textContent) && /Meilensteine/.test(d.querySelector('#pov-ms h3').textContent), 'de: section names');
   check(w.eval(`tr('Where is it stuck?')`) !== 'Projektübersicht', 'the global overview keeps its own name');
   w.close();

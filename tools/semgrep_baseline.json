@@ -3339,13 +3339,6 @@
   },
   {
    "rule": "javascript.express.security.injection.raw-html-format.raw-html-format",
-   "file": "static/js/wkembed.js",
-   "code": "return open > 1 ? `<div class=\"wemcbbar\"><button type=\"button\" class=\"btn sm\" data-wem=\"cbs\">${ic('check', 's')}${esc(tr('Open items as tasks'))} · ${open}</button></div>${h}` : h;",
-   "reason": "client template: every text goes through esc() or the app's markdown renderer (commentBody), ids are numbers, the rest are literals; the XSS suites cover the rendering.",
-   "date": "2026-11-05"
-  },
-  {
-   "rule": "javascript.express.security.injection.raw-html-format.raw-html-format",
    "file": "static/js/wkhist.js",
    "code": "return `<small class=\"wksnip\">${o + esc(cs.slice(at).join(''))}</small>`;",
    "reason": "client template: every text goes through esc() or the app's markdown renderer (commentBody), ids are numbers, the rest are literals; the XSS suites cover the rendering.",
