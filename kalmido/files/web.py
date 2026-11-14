@@ -8,7 +8,7 @@ import json
 import os
 from urllib.parse import quote
 
-from flask import Response, jsonify, request
+from flask import Response, g, jsonify, request
 
 from ..core.config import app, ATT_DIR, INLINE_TYPES
 from ..core.i18n import tr
@@ -396,13 +396,19 @@ def _log(c, nid):
              "detail": r["detail"], "at": r["at"]} for r in rows]
 
 
+def _trash_may_see(chain, role):
+    """2.1178.0 (#6115): a node in the trash is seen (details, content) only by who may restore it: an owner, or an editor
+    who put it there; a share or org access that stays on a deleted file reads nothing of it"""
+    return not fs_deleted(chain) or role == "owner" or (role == "edit" and fs_trash_root_by(chain) == me())
+
+
 @app.get("/api/files/nodes/<int:nid>")
 def files_node_get(nid):
     """A node with its path, versions, shares (owners) and history (owners and editors)."""
     c = db()
     n = need_node(c, nid, trash=True)
     chain = fs_chain(c, nid)
-    if fs_deleted(chain) and n["role"] != "owner" and not (n["role"] == "edit" and fs_trash_root_by(chain) == me()):
+    if not _trash_may_see(chain, n["role"]):  # 2.1178.0 (#6115): one rule with the trash's content below
         raise Denied(404)  # the trash hides a withdrawn branch from everybody but who may restore it
     out = fs_node_json(c, n, n["role"], shared=bool(_shared_flags(c, [nid])) or bool(n["org_access"]))
     out["crumbs"] = _crumbs(c, chain)
@@ -472,7 +478,17 @@ def _send_headers(resp, mime):
 @app.get("/api/files/nodes/<int:nid>/content")
 def files_content(nid):
     c = db()
-    n = need_node(c, nid)
+    # 2.1178.0 (#6115): trash=1 = a file in the trash to look at once more (read only), only a plain file, only for a person in
+    # the web app (session / proxy, no API token, no agent) and only for who may see its details (_trash_may_see); without
+    # trash=1 a file in the trash stays 404 as before
+    trash = request.args.get("trash") == "1"
+    if trash:
+        u = g.get("user")
+        if not u or ("kind" in u.keys() and u["kind"] == "agent") or g.get("auth_via") not in ("session", "proxy"):
+            raise Denied(404)
+    n = need_node(c, nid, trash=trash)
+    if trash and (n["kind"] != "file" or not _trash_may_see(fs_chain(c, nid), n["role"])):
+        raise Denied(404)
     if n["kind"] not in ("file", "link", "ref"):  # 2.199.0 A (#2742): + a filed document (its area's content hook)
         raise Denied(409, tr("Not a file"))
     fs_log_add(c, nid, "download", request.args.get("v") or "")
