@@ -112,13 +112,40 @@ r = A.patch(B + f"/api/books/{BK}", json={"org_id": ORG2})
 check(r.status_code == 409 and sql("SELECT org_id FROM books WHERE id=?", (BK,)) == [(None,)],
       f"control: bob's live share stops the move into an organisation he is not in ({r.status_code})")
 check(share("address_book", BK, BOB) == "view", "control: and the refused move dropped nothing")
+# 2.1168.0 (#4782, Fable review F3): a run-out share that does not fit next to a live one that does not: the refused move
+# drops nothing (the drop runs after every check)
+# (olga shares no workspace with alice: the row as an old one left behind, written directly)
+sql("INSERT INTO fs_shares(node_id,user_id,role,created_at,expires_at) VALUES(?,?,'view',?,?)", (NB, OLGA, TS, PAST), write=True)
+r = A.patch(B + f"/api/books/{BK}", json={"org_id": ORG2})
+check(r.status_code == 409 and share("address_book", BK, OLGA) == "view",
+      f"#4782 review F3: bob's live share refuses the move, olga's run-out one stays with it ({r.status_code})")
 sql("UPDATE fs_shares SET expires_at=? WHERE node_id=? AND user_id=?", (PAST, NB, BOB), write=True)
 r = A.patch(B + f"/api/books/{BK}", json={"org_id": ORG2})
 check(r.ok and sql("SELECT org_id FROM books WHERE id=?", (BK,)) == [(ORG2,)],
       f"#4782 N2: bob's run-out share stops the book's move no more ({r.status_code} {r.text[:160]})")
-check(share("address_book", BK, BOB) is None, "#4782 N2: and went with it")
+check(share("address_book", BK, BOB) is None and share("address_book", BK, OLGA) is None, "#4782 N2: and went with it (olga's too)")
+# Fable review F2: through the core's step -- in the node's history and in obj_revoked (reason move), not silently
+check(len(sql("SELECT 1 FROM fs_log WHERE node_id=? AND action='unshare'", (NB,))) == 2, "#4782 review F2: both take-backs in the node's history")
+check(len(sql("SELECT 1 FROM obj_revoked WHERE src='fs_shares' AND reason='move' AND kind='address_book' AND ref_id=?", (BK,))) == 2,
+      "#4782 review F2: and kept the core's way (obj_revoked, reason move)")
 kinds = boundary(A)
 check(not kinds.get("book_person"), f"#4782 N2: no finding of the nightly check for the book {kinds}")
+
+# ================================================================== Fable review F3: a group's live share still refuses; out to private
+K2 = A.post(B + "/api/evcals", json={"name": "Rota", "org_id": ORG}).json()["id"]
+check(A.put(B + f"/api/evcals/{K2}/members", json={"user_id": GINA, "role": "view"}).ok, "a second calendar shared with gina")
+NK2 = node("evcal", K2)
+sql("INSERT INTO fs_shares(node_id,group_id,role,created_at) VALUES(?,?,'view',?)", (NK2, GRP, TS), write=True)
+r = A.patch(B + f"/api/evcals/{K2}", json={"org_id": None})
+check(r.status_code == 409 and sql("SELECT org_id FROM ev_cals WHERE id=?", (K2,)) == [(ORG,)],
+      f"control: a group's live share still refuses a move ({r.status_code})")
+sql("UPDATE fs_shares SET expires_at=? WHERE node_id=? AND group_id=?", (PAST, NK2, GRP), write=True)
+r = A.patch(B + f"/api/evcals/{K2}", json={"org_id": None})
+check(r.ok and sql("SELECT org_id FROM ev_cals WHERE id=?", (K2,)) == [(None,)]
+      and not sql("SELECT 1 FROM fs_shares WHERE node_id=? AND group_id=?", (NK2, GRP)) and share("evcal", K2, GINA) == "view",
+      f"#4782 review F3: out to private the run-out group share goes, gina's live one stays ({r.status_code} {r.text[:120]})")
+kinds = boundary(A)
+check(not kinds.get("cal_person") and not kinds.get("file_person"), f"#4782: no finding of the nightly check {kinds}")
 
 # ================================================================== a person without an organisation (the same routes)
 FID, F = freelancer(B, A)
