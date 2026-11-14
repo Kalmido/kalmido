@@ -16,7 +16,7 @@
    asks it through typeof checks. Classic script sharing the global scope with the others. */
 'use strict';
 
-const DVW = {back: null, tab: 'details', pdf: null, ro: null, drag: null, he: null, node: null, more: false, notext: null, closed: null, gone: new Set(), sz: null, th: null, pvBad: null};  // pvBad: 2.1170.0 (#6110)  // notext: 2.742.0 (#4861); closed: #3506 the id of a view just closed; gone: #5478; sz / th: 2.882.0 (#5557) the sizes seen (dcv_phSize)
+const DVW = {back: null, tab: 'details', pdf: null, ro: null, drag: null, he: null, node: null, more: false, notext: null, closed: null, gone: new Set(), sz: null, th: null};  // notext: 2.742.0 (#4861); closed: #3506 the id of a view just closed; gone: #5478; sz / th: 2.882.0 (#5557) the sizes seen (dcv_phSize)
 // the tabs of the fields; History and Shares come from the file store's node (GET /api/files/nodes/<id>, its rights)
 const DCV_TABS = [['details', N_('Details')], ['text', N_('Content')], ['hist', N_('History')], ['share', N_('Shares')]];
 const DCV_ZMIN = 0.1, DCV_ZMAX = 8, DCV_CVMAX = 12e6;  // the zoom's limits; the most pixels one page's canvas gets
@@ -445,11 +445,11 @@ function dcv_stBack(root, sm) {
 
 // ---- the preview: an image as itself, a PDF with every page (drawn when it comes near, sharp at the size shown)
 // 2.1170.0 (#6110): what the preview column shows. Pages (a PDF up to 40 MB, a picture) get the bar with page count and zoom;
-// Word / Excel the office preview (docpreview.js), text the text viewer's way, the rest (and a PDF over 40 MB / one that did
-// not load: DVW.pvBad) its kind's icon, one sentence and Download - no bar there, there is nothing to zoom
+// Word / Excel the office preview (docpreview.js), text the text viewer's way, the rest (and a PDF over 40 MB) its kind's icon,
+// one sentence and Download - no bar there, there is nothing to zoom. A PDF that does not load keeps its bar (Pages, Full screen;
+// the zoom hides: docview.css) and says so in its page box (dcv_pvDraw)
 const DCV_IMG = /^image\/(jpeg|png|gif|webp)$/;
 function dcv_pvKind(d) {
-  if (DVW.pvBad?.has(`${d.id}:${d.size}`)) return 'bad';  // its sentence: DVW.pvBad.get(...)
   if (dc_isPdf(d)) return d.size > 40e6 ? 'big' : 'pdf';
   if (/^image\//.test(d.mime || '') && (d.thumb || DCV_IMG.test(d.mime || ''))) return 'img';
   if (typeof dv_is === 'function' && dv_is(d)) return 'office';
@@ -529,10 +529,8 @@ async function dcv_pvDraw(md, d, nb) {
   }
   if (!dc_isPdf(d) || d.size > 40e6 || typeof loadModule !== 'function') return;
   // 2.1170.0 (#6110): a PDF that does not load says so in one sentence with Download (before: the small picture or an empty page stayed)
-  const bad = (msg, net) => {
+  const bad = msg => {
     if (!live()) return;
-    if (!net) (DVW.pvBad ||= new Map()).set(`${d.id}:${d.size}`, msg);  // the column keeps the sentence without the bar (a redraw); offline it may load next time
-    box.closest('.dv-pv')?.querySelector('.dv-pvbar')?.setAttribute('hidden', '');
     box.dataset.pages = ''; box._base = box._ph = null; box.innerHTML = dcv_pvMsgHtml(d, msg, 'pdf'); dcv_pgn(box);
   };
   try {
@@ -562,7 +560,7 @@ async function dcv_pvDraw(md, d, nb) {
     const net = e instanceof TypeError || !navigator.onLine;
     bad(net ? tr('The preview needs a connection. You can download the file when you are online again.')
       : e?.name === 'PasswordException' ? tr('This PDF is protected with a password and cannot be shown here.')
-      : e?.name === 'InvalidPDFException' ? tr('This file cannot be shown as a PDF.') : tr('The preview could not be loaded.'), net);
+      : e?.name === 'InvalidPDFException' ? tr('This file cannot be shown as a PDF.') : tr('The preview could not be loaded.'));
   }
 }
 // 2.1170.0 (#6110): the preview column of a file without pages: Word / Excel as the office preview (docpreview.js dpvInline,
@@ -575,7 +573,6 @@ async function dcv_pvOther(box, d, nb) {
   const live = () => (nb && !nb.taken ? !nb.ctrl.signal.aborted : box.isConnected && !box.closest('.dv-nbhold')) && box._pv === key;
   const k = dcv_pvKind(d);
   if (k === 'big') { box.innerHTML = dcv_pvMsgHtml(d, tr('This PDF is too large for the preview (over 40 MB). Download it to read it.'), 'pdf'); return; }
-  if (k === 'bad') { box.innerHTML = dcv_pvMsgHtml(d, DVW.pvBad?.get(`${d.id}:${d.size}`) || tr('The preview could not be loaded.'), 'pdf'); return; }
   if (k === 'office' && typeof loadModule === 'function') {
     box.innerHTML = `<div class="tvmsg muted">${esc(tr('Loading…'))}</div>`;
     try { await loadModule('pdf'); } catch { /* below */ }
