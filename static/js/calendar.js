@@ -213,7 +213,7 @@ const cevChip = (e, d) => `<div class="cev${cevTimed(e, d) ? '' : ' allday'}${ab
 const cevRow = (e, d, cls = '', mark = '') => `<div class="cevrow${ap_draftCls(e)}${cls}" data-cev="${e.id}" style="--cc:${cevColor(e)}" role="button" tabindex="0"><i class="cevdot"></i><span class="cevt">${cevTime(e, d)}</span><span class="cevn">${esc(cevTitle(e))}</span>${/*html-ok*/ cevSubMark(e)}${mark}${e.location ? `<span class="cevl">${esc(e.location)}</span>` : ''}<span class="cevc">${esc(cevCal(e))}</span></div>`;
 // 2.884.0 (#5469): month / week chips and event rows (Today, day lists, home) are role=button: Enter / Space opens the event like a click
 document.addEventListener('keydown', e => {
-  const c = (e.key === 'Enter' || e.key === ' ') && !e.repeat && !e.isComposing && e.target.closest?.('#view .cev[role="button"], #view .wcev[role="button"], .cevrow[role="button"]');
+  const c = (e.key === 'Enter' || e.key === ' ') && !e.repeat && !e.isComposing && e.target.closest?.('#view .cev[role="button"], #view .wcev[role="button"], #view .tl-cev[role="button"], .cevrow[role="button"]');
   if (c && e.target === c) { e.preventDefault(); c.click(); }
 });
 // 2.490.0 (#4021): on Today a timed event that ends today and whose end has passed is "past"; all-day / multi-day ones stay until the day ends
@@ -286,6 +286,8 @@ async function cevToTask(e) {
   }
   try { const t = await createTask(body); toast(tr('Task created from the event')); openDetail(t.id); } catch { /* api() showed it */ }
 }
+// 2.1179.0 (#6155): the narrowest bar of the calendar timeline that shows its title (a few letters and "…" below it)
+const tlMinW = () => Math.round(4 * remPx());
 function tlCalRows(start, end, DW) {  // calendar timeline: one row per calendar (overlaps in extra lanes, at most 6)
   if (!calEvOn()) return '';
   ensureCalEv(start, end);
@@ -314,14 +316,30 @@ function tlCalRows(start, end, DW) {  // calendar timeline: one row per calendar
       // #1127: a tap on the name hides the calendar (toast with Undo), "…" offers "Only this one" / "Show all"
       const nm = l ? '' : inv ? `<i class="cevdot"></i><span class="tln">${esc(name)}</span>`
         : `<button type="button" class="cvxtln" data-act="cvx-tlhide" data-key="${key}" data-name="${esc(name)}" title="${esc(tr('Hide this calendar'))}"><i class="cevdot"></i><span class="tln">${esc(name)}</span></button><button data-rowmenu="tl-name" type="button" class="iconbtn cvxtlm" data-act="cvx-tlmenu" data-key="${key}" data-name="${esc(name)}" aria-haspopup="menu" aria-label="${esc(tr('More for {0}', name))}" title="${esc(tr('More'))}">${ic('dots', 's')}</button>`;
-      h += `<div class="tl-row tl-cal" style="--cc:${cc}"><div class="tl-name">${nm}</div><div class="tl-track">${inLane.map((p, i) => {
-        // #1126: the bar is as wide as the event; its title stays inside the element and may only run on over the free
-        // track up to the next bar of the same lane (cut with "…" there), never outside the row
+      // #1126: the bar is as wide as the event; its title stays inside the element and may only run on over the free
+      // track up to the next bar of the same lane (cut with "…" there), never outside the row
+      // 2.1179.0 (#6155): a title only from tlMinW on; narrower neighbours of a lane become one "+N" over their bars (a click
+      // opens their days: the day, or the week of the first one - a group spans one week at most), a narrow one alone stays a
+      // bar without letters (its title in the tooltip / aria-label; "T…" before)
+      const bars = inLane.map((p, i) => {
         const x = diffDays(start, p.s) * DW, w = (diffDays(p.s, p.en) + 1) * DW;
         const nx = inLane[i + 1] ? diffDays(start, inLane[i + 1].s) * DW : days * DW;
-        const free = Math.max(w, nx - x);
-        return `<div class="tl-cev${ap_draftCls(p.e)}" data-cev="${p.e.id}" style="left:${x + 2}px;width:${free - 4}px;--bw:${w - 4}px" title="${esc(cevTitle(p.e))}"><i class="cvxbar"></i><span>${esc(cevTitle(p.e))}</span></div>`;
-      }).join('')}</div></div>`;
+        return {p, x, w, free: Math.max(w, nx - x)};
+      });
+      const minW = tlMinW(), out = [];
+      for (let i = 0; i < bars.length;) {
+        let j = i;
+        while (j < bars.length && bars[j].free - 4 < minW && diffDays(bars[i].p.s, bars[j].p.s) < 7) j++;  // at most a week: its view shows them all
+        if (j - i >= 2) {
+          const g = bars.slice(i, j), x0 = g[0].x, x1 = g[g.length - 1].x + g[g.length - 1].free, d0 = g[0].p.s, multi = g.some(b => b.p.s !== d0), lbl = trn('{0} event', '{0} events', g.length);
+          out.push(`<button type="button" class="tl-cev tlmore" data-calday="${/*html-ok*/ d0 /* a date */}"${multi ? ' data-calmode="week"' : ''} style="left:${/*html-ok*/ x0 + 2}px;width:${/*html-ok*/ x1 - x0 - 4}px" title="${esc(g.map(b => cevTitle(b.p.e)).join(', '))}" aria-label="${esc(lbl)}">${/*html-ok*/ g.map(b => `<i class="cvxbar" style="left:${/*html-ok*/ b.x - x0}px;width:${/*html-ok*/ b.w - 4}px"></i>`).join('') /* bars of numbers */}<span>+${g.length}</span></button>`);
+          i = j; continue;
+        }
+        const {p, x, w, free} = bars[i], narrow = free - 4 < minW;
+        out.push(`<div class="tl-cev${narrow ? ' tlnarrow' : ''}${ap_draftCls(p.e)}" data-cev="${p.e.id}" role="button" tabindex="0" style="left:${x + 2}px;width:${free - 4}px;--bw:${w - 4}px" title="${esc(cevTitle(p.e))}"${narrow ? ` aria-label="${esc(cevTitle(p.e))}"` : ''}><i class="cvxbar"></i>${narrow ? '' : `<span>${esc(cevTitle(p.e))}</span>`}</div>`);
+        i++;
+      }
+      h += `<div class="tl-row tl-cal" style="--cc:${cc}"><div class="tl-name">${nm}</div><div class="tl-track">${/*html-ok*/ out.join('') /* built above with esc() */}</div></div>`;
     }
   }
   return h;

@@ -66,7 +66,9 @@ const utc = (d, h) => { const x = new Date(`${d}T${String(h).padStart(2, '0')}:0
 
   // ================= timeline (jsdom): rows per calendar, titles inside the bars, lanes
   let w = await boot({user: 'alice', hash: 'cal', ls: {'tasks.calMode': '"timeline"'}}), d = w.document;
-  await until(() => [...d.querySelectorAll('.tl-cev')].some(x => /SCHOOL BOARD/.test(x.textContent)));
+  // 2.1179.0 (#6155): one-day bars followed by a bar the next day are too narrow for a title: they are one "+N" now (its
+  // tooltip names them), the last bar of the lane keeps its title
+  await until(() => [...d.querySelectorAll('.tl-cev')].some(x => /Philipp birthday/.test(x.textContent)));
   const rows = [...d.querySelectorAll('.tl-cal')];
   const names = rows.map(r => r.querySelector('.cvxtln .tln')?.textContent).filter(Boolean);
   check(names.length === 4 && names.includes('Team feed') && names.includes('Family feed') && names.includes('Mine') && names.includes('Private'),
@@ -74,19 +76,19 @@ const utc = (d, h) => { const x = new Date(`${d}T${String(h).padStart(2, '0')}:0
   const ti = rows.findIndex(r => r.querySelector('.cvxtln .tln')?.textContent === 'Team feed'), teamRows = [rows[ti], rows[ti + 1]];
   check(ti >= 0 && rows.length === 5 && !teamRows[1].querySelector('.cvxtln') && !teamRows[1].querySelector('.tln') && teamRows[1].style.getPropertyValue('--cc') === teamRows[0].style.getPropertyValue('--cc'),
     'timeline: the overlapping event got a second lane of the same colour (no name there) ' + rows.length);
-  const bars = [...d.querySelectorAll('.tl-cev')];
-  check(bars.length >= 6 && bars.every(b => !b.classList.contains('short') && b.querySelector('.cvxbar') && b.querySelector('span') && b.style.getPropertyValue('--bw')),
+  const bars = [...d.querySelectorAll('.tl-cev:not(.tlmore):not(.tlnarrow)')];
+  check(bars.length >= 4 && bars.every(b => !b.classList.contains('short') && b.querySelector('.cvxbar') && b.querySelector('span') && b.style.getPropertyValue('--bw')),
     'timeline: every bar has its coloured part (--bw) and the title inside, no outside label');
   const DW = w.eval('tlDW()');
-  const school = bars.find(b => /SCHOOL BOARD/.test(b.textContent)), pres = bars.find(b => /PRESENTATION/.test(b.textContent));
-  check(school && Math.abs(parseFloat(school.style.getPropertyValue('--bw')) - (DW - 4)) < 1 && Math.abs(parseFloat(school.style.width) - (DW - 4)) < 1,
-    'timeline: a one-day bar followed by a bar on the next day stays one day wide (the title is cut there) ' + school?.getAttribute('style'));
+  check(DW - 4 < w.eval('tlMinW()'), 'timeline: a day is narrower than a bar with a title (test premise) ' + DW);
+  const grp = [...d.querySelectorAll('.tl-cev.tlmore')].find(b => /SCHOOL BOARD/.test(b.getAttribute('title') || ''));
+  check(grp && /PRESENTATION/.test(grp.getAttribute('title')) && /^\+[23]$/.test(grp.textContent.trim()) && grp.querySelectorAll('.cvxbar').length === +grp.textContent.trim().slice(1) && grp.dataset.calmode === 'week',
+    'timeline: one-day bars in a row are one "+N" over their bars (their titles in the tooltip) ' + grp?.outerHTML.slice(0, 200));
   const bday = bars.find(b => /Philipp birthday/.test(b.textContent));
   check(bday && parseFloat(bday.style.width) > 5 * DW, 'timeline: the last bar of a lane may run its title over the free days');
-  check(pres && Math.abs(parseFloat(pres.style.width) - (DW - 4)) < 1, 'timeline: a bar before another one is cut at that one');
-  check(school.getAttribute('title').startsWith('SCHOOL BOARD') && !school.querySelector('.tl-name'), 'timeline: the full title in the tooltip');
-  click(w, school); await sleep(150);
-  check(/SCHOOL BOARD MEETING with the parents council/.test(d.querySelector('#pop .cevpop')?.textContent || ''), 'timeline: a tap shows the full title (popover)');
+  check(bday.getAttribute('title').startsWith('Philipp birthday') && !bday.querySelector('.tl-name'), 'timeline: the full title in the tooltip');
+  click(w, bday); await sleep(150);
+  check(/Philipp birthday party at home/.test(d.querySelector('#pop .cevpop')?.textContent || ''), 'timeline: a tap shows the full title (popover)');
   w.eval('closePop()');
   // a tap on the name hides the subscription (same field as the settings switch), the toast takes it back
   click(w, teamRows[0].querySelector('.cvxtln')); await sleep(400);
@@ -116,6 +118,15 @@ const utc = (d, h) => { const x = new Date(`${d}T${String(h).padStart(2, '0')}:0
   click(w, d.querySelector('#toast button')); await sleep(900);  // "Show all"
   subs = (await call('GET', '/api/calendars')).subs; cals = (await call('GET', '/api/evcals')).items;
   check(subs.every(s => s.visible) && cals.every(c => !c.hidden), 'Show all: everything visible again');
+  await until(() => [...d.querySelectorAll('.tl-cal .tln')].some(x => x.textContent === 'Team feed'));
+  // 2.1179.0 (#6155): a tap on "+N" opens the week of its first day (all of them in view there)
+  await until(() => [...d.querySelectorAll('.tl-cev.tlmore')].some(b => /SCHOOL BOARD/.test(b.getAttribute('title') || '')));
+  const g2 = [...d.querySelectorAll('.tl-cev.tlmore')].find(b => /SCHOOL BOARD/.test(b.getAttribute('title') || ''));
+  const g2first = g2.getAttribute('title').split(', ')[0], g2day = g2.dataset.calday;
+  click(w, g2); await until(() => !!d.querySelector('#view .week') && [...d.querySelectorAll('#view .wcev, #view .wad .cev')].some(x => x.textContent.includes(g2first)));
+  check(w.eval('S.calMode') === 'week' && w.eval('S.calSel') === g2day && !!d.querySelector(`#view .wh[data-day="${g2day}"]`) && [...d.querySelectorAll('#view .wcev, #view .wad .cev')].some(x => x.textContent.includes(g2first)),
+    'timeline "+N": a tap opens the week of its first day with that event ' + w.eval('S.calMode') + ' ' + g2first);
+  w.eval(`S.calMode = 'timeline'; LS.set('calMode', 'timeline'); renderView()`);
   await until(() => [...d.querySelectorAll('.tl-cal .tln')].some(x => x.textContent === 'Team feed'));
 
   // ================= the Calendars window: tasks, own calendars, subscriptions, three switches each
@@ -266,13 +277,13 @@ const utc = (d, h) => { const x = new Date(`${d}T${String(h).padStart(2, '0')}:0
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await o.nav(B + '#cal'); await ready(ev);
     await ev(`(() => { S.calMode = 'timeline'; LS.set('calMode', 'timeline'); renderView(); return 1; })()`); await sleep(500);
-    for (let i = 0; i < 40 && !(await ev(`[...document.querySelectorAll('.tl-cev')].some(x => /SCHOOL BOARD/.test(x.textContent))`)); i++) await sleep(300);
+    for (let i = 0; i < 40 && !(await ev(`[...document.querySelectorAll('.tl-cev')].some(x => /Philipp birthday/.test(x.textContent))`)); i++) await sleep(300);  // 2.1179.0 (#6155): SCHOOL BOARD is in a "+N"
     console.log(tag + ': state ' + await ev(`JSON.stringify({mode: S.calMode, route: S.route, feats: S.settings?.features, evcals: (S.evcals || []).length, cals: S.calendars, items: S.cal.items.length, key: S.cal.key, loading: S.cal.loading, h1: document.querySelector('#top h1')?.textContent, bars: document.querySelectorAll('.tl-cev').length, view: (document.querySelector('#view')?.textContent || '').slice(0, 120)})`));
     const m = await ev(`(() => {
       const rows = [...document.querySelectorAll('.tl-row.tl-cal')], out = {rows: rows.length, inside: 0, outside: [], overlap: [], rowH: [], nameH: 0, side: document.documentElement.scrollWidth <= innerWidth + 1};
       for (const r of rows) {
         const rr = r.getBoundingClientRect(); out.rowH.push(Math.round(rr.height));
-        const bars = [...r.querySelectorAll('.tl-cev')].map(b => ({b, r: b.getBoundingClientRect(), s: b.querySelector('span').getBoundingClientRect(), t: b.textContent.slice(0, 18)}));
+        const bars = [...r.querySelectorAll('.tl-cev')].filter(b => b.querySelector('span')).map(b => ({b, r: b.getBoundingClientRect(), s: b.querySelector('span').getBoundingClientRect(), t: b.textContent.slice(0, 18)}));
         for (const x of bars) {
           if (x.s.left >= x.r.left - 0.5 && x.s.right <= x.r.right + 0.5 && x.s.top >= rr.top - 0.5 && x.s.bottom <= rr.bottom + 0.5) out.inside++; else out.outside.push([x.t, Math.round(x.s.right - x.r.right)]);
         }
@@ -308,9 +319,9 @@ const utc = (d, h) => { const x = new Date(`${d}T${String(h).padStart(2, '0')}:0
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1280, height: 800}});
     await o.nav(B + '#cal'); await ready(ev);
     await ev(`(() => { S.calMode = 'timeline'; LS.set('calMode', 'timeline'); renderView(); return 1; })()`); await sleep(500);
-    for (let i = 0; i < 40 && !(await ev(`[...document.querySelectorAll('.tl-cev')].some(x => /SCHOOL BOARD/.test(x.textContent))`)); i++) await sleep(300);
+    for (let i = 0; i < 40 && !(await ev(`[...document.querySelectorAll('.tl-cev')].some(x => /Philipp birthday/.test(x.textContent))`)); i++) await sleep(300);  // 2.1179.0 (#6155): SCHOOL BOARD is in a "+N"
     console.log(tag + ': state ' + await ev(`JSON.stringify({mode: S.calMode, route: S.route, feats: S.settings?.features, evcals: (S.evcals || []).length, cals: S.calendars, items: S.cal.items.length, key: S.cal.key, loading: S.cal.loading, h1: document.querySelector('#top h1')?.textContent, bars: document.querySelectorAll('.tl-cev').length, view: (document.querySelector('#view')?.textContent || '').slice(0, 120)})`));
-    const m = await ev(`(() => { let inside = 0, outside = 0; for (const b of document.querySelectorAll('.tl-cev')) { const r = b.getBoundingClientRect(), s = b.querySelector('span').getBoundingClientRect(); if (s.right <= r.right + 0.5 && s.left >= r.left - 0.5) inside++; else outside++; } return {inside, outside}; })()`);
+    const m = await ev(`(() => { let inside = 0, outside = 0; for (const b of document.querySelectorAll('.tl-cev')) { if (!b.querySelector('span')) continue; const r = b.getBoundingClientRect(), s = b.querySelector('span').getBoundingClientRect(); if (s.right <= r.right + 0.5 && s.left >= r.left - 0.5) inside++; else outside++; } return {inside, outside}; })()`);
     check(m.inside >= 6 && m.outside === 0, `${tag}: titles inside on a desktop too ` + JSON.stringify(m));
   }, false);
 
