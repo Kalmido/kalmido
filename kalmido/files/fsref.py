@@ -72,7 +72,7 @@ from flask import g, has_request_context
 from ..core.access import Denied, acx_of
 from ..core.db import insert_id
 from ..core.i18n import tr
-from ..core.pg import system_ctx
+from ..core.pg import qi, system_ctx, table_columns, table_names
 from .store import (DEPTH_MAX, ROLE_RANK, _free_name, _now, _shares_role, fs_chain, fs_deleted, fs_log_add, fs_role, fs_visible_sql_c,
                     safe_fs_name)
 
@@ -372,13 +372,12 @@ def fs_ref_sweep(c):
     back; the area drops the node when it deletes the object for good). Removes only dead nodes, never an object."""
     n = 0
     with system_ctx(c):
+        names = table_names(c)
         for kind, reg in sorted(FSR.items()):
             t = reg.get("table")
-            if not t:
-                continue
-            tab, col = t
-            if not (re.fullmatch(r"[a-z_][a-z0-9_]*", tab) and re.fullmatch(r"[a-z_][a-z0-9_]*", col)):
-                raise ValueError(f"fs_ref_sweep: invalid table {t!r}")
+            if not t or t[0] not in names or t[1] not in table_columns(c, t[0]):
+                continue  # not checked, or a table this database does not have (never: every node of the kind is dead)
+            tab, col = qi(t[0], names), qi(t[1], table_columns(c, t[0]))
             n += c.execute(f"DELETE FROM fs_nodes n WHERE n.kind='ref' AND n.ref_kind=? AND n.ref_id IS NOT NULL "
                            f"AND NOT EXISTS (SELECT 1 FROM {tab} x WHERE x.{col}=n.ref_id)", (kind,)).rowcount
     return n
