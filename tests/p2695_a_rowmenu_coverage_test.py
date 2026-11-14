@@ -59,6 +59,9 @@ RM_LEFT = {
     ("office_books.js", 'data-m="more"'): (1, "the foot of a receipt sheet on a phone (Open document / Bill on), no row"),
     ("office_docs.js", 'data-ofd="more"'): (1, "the bar of an open office document"),
     ("office_receipts.js", 'data-rcl="menu"'): (1, "the tool bar of the receipts page on a phone (kinds, CSV, ZIP, Select), no row"),
+    # 2.1180.0 (#6147): the bank bar on a phone and the walk-through dialog get "More" (one main step, the rest in the menu)
+    ("office_bank.js", 'data-bnk="menu"'): (1, "the bar of the bank page on a phone (Go through, Fetch from bank, Imports, Bank accounts), no row"),
+    ("office_walk.js", 'data-wlk="more"'): (1, "the actions of the one booking in the walk-through dialog (upload, marks, split), no list row"),
     ("office_doctpl.js", 'data-dt="more"'): (1, "the bar of an open document from a template"),
     ("office_letters.js", 'data-lt="more"'): (1, "the bar of an open letter"),
     ("polls.js", 'data-tpo="menu"'): (1, "the head of the poll dialog"),
