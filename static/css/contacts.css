@@ -17,7 +17,8 @@
 .ctmulti{border:0;margin:0 0 .625rem;padding:0;display:flex;flex-direction:column;gap:.375rem}
 .ctmulti legend{color:var(--muted);font-size:var(--fs-m);margin-bottom:.25rem;padding:0}
 .ctmi,.ctadr{display:flex;gap:.375rem;align-items:center;flex-wrap:wrap}
-.ctmi input{flex:1;min-width:10rem}
+.ctmi{flex-wrap:nowrap}
+.ctmi input{flex:1;min-width:0}
 .ctadr input{flex:1 1 8rem;min-width:6rem}
 .ctadr .ctzip{flex:0 1 6rem}
 .ctty{flex:0 0 auto;max-width:8rem}
@@ -39,6 +40,25 @@
   .ctmodal .ctfcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 3rem;align-items:start}
   .ctmodal .ctfcol{min-width:0}
 }
+/* 2.1174.0 (#6120): the phone's row of a phone number / e-mail keeps kind, field and its remove x on one line (.ctmi above:
+   no wrap, the field may shrink); a wrong value: the field marked, its sentence below it (contacts.js cte_mark) */
+.ctmi .ctty{flex:0 1 auto;min-width:0}
+.ctmi .iconbtn{flex:none}
+.modal.ctmodal .card input.cterrf:not([type=checkbox]):not([type=radio]):not([type=range]){border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}  /* stronger than the fields' own rules (app.css input:not(...), :focus) */
+.ctmodal .cterr{margin:.125rem 0 .375rem;color:var(--danger);font-size:var(--fs-s)}
+/* 2.1174.0 (#6119): Person / Company at the top of the editor; a company has no first / last name; its sign is a building */
+.ctmodal .ctkind{margin:0 0 .75rem;align-self:flex-start}
+.ctmodal.ctisorg .ctpers{display:none}
+.ctav.ctorg{border-radius:var(--radius)}
+.ctav.big.ctorg svg{width:1.75rem;height:1.75rem}
+.ctporg{display:inline-flex;align-items:center;gap:.25rem}
+/* 2.1174.0 (#6123): the address books dialog - one sentence on top, the book symbol in the book's colour, the name on its line and
+   what it holds / who shares it in a second line that wraps (was cut off after "shared with ...") */
+.ctbhint{margin:0 0 .5rem;font-size:var(--fs-s)}
+.ctbrow .ctbic{color:var(--cc);display:inline-flex;flex:none;align-self:flex-start;padding-top:.125rem}
+.evcrow .ctbn{white-space:normal;overflow:visible;padding:.125rem 0}
+.ctbn .ctbt{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctbn .ctbm{display:block;white-space:normal;overflow-wrap:anywhere;line-height:var(--lh-tight)}
 
 /* 2.1166.0 (#4742, start care): moved here unchanged from app.css - these rules style only what this module draws
    (their classes are used by its scripts alone), so they load with it (LD_CSS in static/js/lazyload.js) */
