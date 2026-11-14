@@ -3284,9 +3284,9 @@
   {
    "rule": "typescript.react.security.audit.react-unsanitized-method.react-unsanitized-method",
    "file": "static/js/contacts.js",
-   "code": "$('.foot', md).insertAdjacentHTML('beforebegin', `<div class=\"ctxdup\" role=\"status\"><p>${ic('users', 's')} ${tr('There is already a contact like this:')}</p><ul class=\"ctlinks\">${it.map(x => `<li><button type=\"button\" class=\"linkbtn\" data-ctxdup=\"${x.id}\">${esc(x.fn || x.org || '?')}</button><span class=\"muted\"> · ${esc(x.reasons.map(r => why[r]).join(', '))}${ctBook(x.book_id) && (S.books || []).length > 1 ? ' · ' + esc(ctBook(x.book_id).name) : ''}</span></li>`).join('')}</ul><p class=\"muted\">${tr('Save again to create it anyway.')}</p></div>`);",
-   "reason": "insertAdjacentHTML of the app's own template: texts go through esc() / tr(), values are numbers or picker markup built by the app.",
-   "date": "2026-11-05"
+   "code": "$('.lhdr', md).insertAdjacentHTML('afterend', `<div class=\"ctxdup\" role=\"status\" tabindex=\"-1\"><p>${ic('users', 's')} ${tr('There is already a contact like this:')}</p><ul class=\"ctlinks\">${it.map(x => `<li><button type=\"button\" class=\"linkbtn\" data-ctxdup=\"${x.id}\">${esc(x.fn || x.org || '?')}</button><span class=\"muted\"> · ${esc(x.reasons.map(r => why[r]).join(', '))}${ctBook(x.book_id) && (S.books || []).length > 1 ? ' · ' + esc(ctBook(x.book_id).name) : ''}</span></li>`).join('')}</ul><p class=\"muted\">${tr('Save again to create it anyway.')}</p></div>`);",
+   "reason": "insertAdjacentHTML of the app's own template (2.1174.0 #6120: moved to the top of the dialog): texts go through esc() / tr(), ids are numbers, icons are the app's own markup.",
+   "date": "2026-11-14"
   },
   {
    "rule": "javascript.express.security.injection.raw-html-format.raw-html-format",

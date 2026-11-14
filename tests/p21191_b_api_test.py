@@ -4,7 +4,7 @@
    person (an organisation's book -> a client of that organisation, a freelancer's own book -> a private client); the
    card then lists the client ("Open client"); the undo (DELETE) drops the client and the card's link
  - #2083 the contact history (GET /api/contacts/{id}/history): filed mails from / to the contact's addresses, quotations /
-   invoices / credit notes of its linked clients, its events, newest first, 20 per page with "more"; only what the person
+   invoices / credit notes of its linked clients (2.1174.0 #6119: no events), newest first, 20 per page with "more"; only what the person
    sees: no mail of somebody else's inbox, no mail of a health list, no documents without the module Office, 404 for a
    contact of an address book the person cannot see (another organisation, a freelancer's), 403 for a kid account
    freelancer-matrix: pim (a person without an organisation: own book, private client, personal office)
@@ -158,10 +158,9 @@ check(("mail", M2) not in k, "#2083: a mail from another address is not the cont
 check(("mail", M4) not in k, "#2083: bob's inbox stays bob's")
 check(("mail", M5) not in k, "#2083: a mail of a health list never shows")
 check(("offer", OFF) in k and ("invoice", INV) in k, f"#2083: the client's quotation and invoice {k}")
-check(("event", EV) in k, f"#2083: the event {k}")
+check(("event", EV) not in k and not any(x[0] == "event" for x in k), f"#2083: no event in the history {k}")  # 2.1174.0 (#6119): the card's block Events lists them, the history no more
 ats = [x["at"] for x in r.json()["items"]] if r.ok else []
 check(ats == sorted(ats, reverse=True), f"#2083: newest first {ats}")
-check(k and k[0] == ("event", EV), f"#2083: the newest (the event of {D}) on top {k[:2]}")
 check(r.ok and r.json()["more"] is False, "#2083: one page")
 it = {(x["kind"], x["id"]): x for x in r.json()["items"]} if r.ok else {}
 check(it.get(("mail", M1), {}).get("title") == "Re: quotation" and it.get(("mail", M1), {}).get("incoming") is True, "#2083: a mail shows its subject")

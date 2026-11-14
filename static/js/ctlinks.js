@@ -7,6 +7,7 @@ const ctOn = () => feat('contacts');
 const CT_LINK = [['waiting', N_('Waiting on')], ['responsible', N_('Assignee')], ['about', N_('About')]];
 function ctAv(c, cls = 'avatar ctav') {
   return c.photo && typeof c.photo === 'string' && c.photo.startsWith('data:image/') ? `<span class="${cls} pic"><img src="${esc(c.photo)}" alt="" loading="lazy" decoding="async"></span>`
+    : c.kind === 'org' ? `<span class="${esc(cls)} ctorg">${ic('building')}</span>`  // 2.1174.0 (#6119): a company shows a building, not initials
     : `<span class="${cls}">${esc(initials(c.fn || c.org || '?'))}</span>`;
 }
 // ---- the task panel: "Contacts" (waiting on / responsible / about) and "Events" of a task

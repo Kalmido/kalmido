@@ -1357,7 +1357,7 @@ OCC = {"occurrence": {"type": "string", "description": "only this date of a repe
 CT_IN = {"book_id": S_ID, "kind": {"type": "string", "enum": ["individual", "org", "group"]},
          **{k: {"type": "string"} for k in ("fn", "given", "family", "middle", "prefix", "suffix", "nickname", "org", "dept", "title", "note")},
          "emails": {"type": "array", "items": {"type": "object"}, "description": "[{value, type: [home|work|other]}]"},
-         "phones": {"type": "array", "items": {"type": "object"}, "description": "[{value, type: [cell|home|work|other]}]"},
+         "phones": {"type": "array", "items": {"type": "object"}, "description": "[{value, type: [cell|home|work|other]}]; value only digits, spaces, + - / ( )"},
          "addresses": {"type": "array", "items": {"type": "object"}, "description": "[{street, city, code, region, country, type}]"},
          "urls": {"type": "array", "items": {"type": "object"}}, "bday": {"type": "string", "description": "YYYY-MM-DD or --MM-DD"},
          "anniversary": {"type": "string"}, "groups": STRS}
