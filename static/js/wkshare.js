@@ -31,7 +31,7 @@ const wsh_lockHint = () => toast(tr('This workspace is encrypted in the browser:
 function wkfs_share(nodeId, t) {
   if (wsh_lockedSp(t.space)) { wsh_lockHint(); return; }
   if (!nodeId) { wsh_dlg(t.folder ? {path: t.path + '/x', space: t.space} : {id: t.page_id, path: t.path, space: t.space}, !!t.folder); return; }  // no node yet (an older page): the links as before
-  fs_shareDialog(nodeId, {org: false, onChange: () => { if (typeof wk_after === 'function') wk_after(t.space); },
+  fs_shareDialog(nodeId, {org: false, onChange: () => { if (typeof wk_after === 'function') wk_after(t.space); }, refHint: tr('The share applies to this page.'),  // 2.1168.0 (#6091)
     hint: t.space !== 'private' ? tr('Every member of the organisation reads these pages already: a share adds guests, the accounting and agents, or the right to edit.') : '',
     extra: (/** @type {any} */ box) => wsh_fill(box, t.folder ? {space: t.space, folder: t.path} : {page_id: t.page_id}, t.space, !!t.folder, true)});
 }
