@@ -18640,6 +18640,8 @@
   "New": "Nuovo",
   "You can only read here": "Qui puoi solo leggere",
   "No documents yet": "Ancora nessun documento",
+  "No preview for this kind of file": "Nessuna anteprima per questo tipo di file",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Questo PDF è troppo grande per l'anteprima (oltre 40 MB). Scaricalo per leggerlo.",
   "Total of items|pdf": "Totale delle voci",
   "Payment|pdf": "Pagamento",
   "Payment reference|pdf": "Causale",
