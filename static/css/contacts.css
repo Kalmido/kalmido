@@ -81,3 +81,5 @@
   .ctcard[data-ck] .cthead .cthn{order:5;flex:1 0 100%}
   .ctcard[data-ck] .cthead .ctacts{flex:none;margin-left:auto;justify-content:flex-end}
 }
+/* 2.1168.0 (#6117): on a computer a long name is not cut: it wraps onto a second line of its row (the list measures each row) */
+@media (min-width:768px){ .ctview:not(.msclients) .ctlist .ctn b{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2} }
