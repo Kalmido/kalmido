@@ -540,7 +540,7 @@ document.addEventListener('submit', e => {
 // ------------------------------------------------------------------ #443 Settings: tasks by e-mail
 const mchk = (id, on, label) => `<label class="chkl"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${esc(label)}</label>`;
 function mailHtml(j) {
-  if (!j) return `${loadingHtml()}`;
+  if (!j) return `${/*html-ok*/ loadingHtml()}`;
   const row = (lab, addr, lid) => `<div class="row mailrow"><label>${esc(lab)}</label>${addr ? `<code class="topic mailaddr">${esc(addr)}</code><button type="button" class="btn sm" data-mail="copy" data-addr="${esc(addr)}">${ic('copy', 's')} ${tr('Copy')}</button><button type="button" class="btn sm" data-mail="new" data-lid="${lid ?? ''}">${ic('sync', 's')} ${tr('New address')}</button><button type="button" class="iconbtn" data-mail="del" data-lid="${lid ?? ''}" aria-label="${esc(tr('Remove') + ': ' + addr)}">${ic('x', 's')}</button>`
     : `<button type="button" class="btn sm pri" data-mail="new" data-lid="${lid ?? ''}">${ic('plus', 's')} ${tr('Create an address')}</button>`}</div>`;
   const own = S.lists.filter(l => !l.archived && !l.is_inbox && !l.e2e && canEditList(l.id) && !j.lists.some(x => x.list_id === l.id));  // 2.64.1 (#1817): not for a locked list

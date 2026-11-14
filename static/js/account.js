@@ -221,7 +221,7 @@ async function orgsDraw(md) {
   const vs = $('#a-vis', md); if (vs) vs.innerHTML = VIS_UI.map(([k, n]) => `<option value="${k}" ${k === j.visibility ? 'selected' : ''}>${esc(tr(n))}</option>`).join('');
 }
 // 2.143.0 D (#2156): Administration > Organisation: activity per organisation (numbers only; + one row for people without one)
-const actHtml = () => `<h4 id="s-act-h">${tr('Activity per organisation')}</h4><div id="s-act" class="shint">${loadingHtml()}</div>`;
+const actHtml = () => `<h4 id="s-act-h">${tr('Activity per organisation')}</h4><div id="s-act" class="shint">${/*html-ok*/ loadingHtml()}</div>`;
 async function actDraw(md) {
   const box = $('#s-act', md); if (!box) return;
   let j; try { j = await api('GET', '/api/admin/orgs/activity'); } catch { box.innerHTML = ''; return; }
@@ -235,7 +235,7 @@ async function actDraw(md) {
 const wsPaneOn = () => wsOn() && !S.me?.kid;
 async function wsPaneDraw(md) {
   const box = $('#s-ws', md); if (!box) return;
-  let j; try { j = await api('GET', '/api/orgs'); } catch (x) { box.innerHTML = `${errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wsPaneDraw(md); }})}`; return; }
+  let j; try { j = await api('GET', '/api/orgs'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wsPaneDraw(md); }})}`; return; }
   box._j = j;
   const mm = Object.keys(j.mismatches || {}).length;
   // 2.364.0 C (#3041): with Organisation > Data in the dialog the data boxes of each organisation go there (one place)
@@ -400,7 +400,7 @@ async function oadmOpen(oid, name) {
   const md = modal(`<h3>${esc(tr('Projects of the organisation {0}', name))}</h3>
     <div class="shint keep">${tr('The projects of the organisation that are shared with at least one more person, with names and numbers: their contents stay with their people. Private projects stay invisible, also when they are shared.')}</div>
     <div class="shint lmohint">${ic('info', 's')} ${tr('A project is missing? It is probably private and only shared. Its owner can move it into the organisation: project menu > Edit project… > Workspace.')}</div>
-    <div class="members oadm" id="oadm-body">${loadingHtml()}</div>
+    <div class="members oadm" id="oadm-body">${/*html-ok*/ loadingHtml()}</div>
     <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button></div>`);
   md.classList.add('oadmmd');
   const oadmGo = async () => { try { oadmDraw(md, await api('GET', `/api/orgs/${oid}/lists`)); } catch (x) { const ob = $('#oadm-body', md); if (ob) ob.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { ob.innerHTML = loadingHtml(); oadmGo(); }}); } };  // 2.1180.0 (#6131)
@@ -1107,13 +1107,13 @@ async function retStatus(md) {
 }
 async function stoCheck(md) {
   const box = $('#s-sto', md); if (!box) return;
-  box.innerHTML = `${loadingHtml()}`;
+  box.innerHTML = `${/*html-ok*/ loadingHtml()}`;
   let j; try { j = await api('GET', '/api/admin/storage-check'); } catch { box.innerHTML = ''; return; }
   const P = {missing: N_('missing'), empty: N_('empty'), size: N_('incomplete')};
   box.innerHTML = !j.problems.length ? `<div class="muted mhint">${esc(trn('{0} file checked, all fine', '{0} files checked, all fine', j.checked))}</div>`
     : `<div class="mhint warn">${esc(trn('{0} damaged or missing file', '{0} damaged or missing files', j.problems.length))}</div><ul class="stol">${j.problems.map(p => `<li><b>${esc(p.name)}</b> <span class="muted">${esc(p.where)} · ${esc(tr(P[p.problem]))}</span>${p.kind === 'attachment' && p.owner ? ` <button class="linkbtn" data-act="open-id" data-id="${p.owner}">${tr('Open')}</button>` : ''}</li>`).join('')}</ul>`;
 }
-const bkHtml = () => `<h4 id="s-bk-h">${tr('Backups')}</h4><div class="shint">${tr('The server key KALMIDO_SECRET_KEY is not part of a backup: keep it separately. A backup restores the encrypted organisation data only with that key (or with the organisations’ recovery keys).')}</div><div id="s-bk">${loadingHtml()}</div><h4 id="s-bko-h">${tr('Off-site backup')}</h4><div id="s-bko"></div>`;  // 2.143.0 B (#2152): + the off-site target
+const bkHtml = () => `<h4 id="s-bk-h">${tr('Backups')}</h4><div class="shint">${tr('The server key KALMIDO_SECRET_KEY is not part of a backup: keep it separately. A backup restores the encrypted organisation data only with that key (or with the organisations’ recovery keys).')}</div><div id="s-bk">${/*html-ok*/ loadingHtml()}</div><h4 id="s-bko-h">${tr('Off-site backup')}</h4><div id="s-bko"></div>`;  // 2.143.0 B (#2152): + the off-site target
 const BK_KIND = {auto: N_('automatic'), manual: N_('manual'), safety: N_('before a restore')};
 const fmtBytes = n => fmtSize(Math.max(n || 0, 1024));  // 2.450.0 (#3770): fmtSize, at least "1 KB"
 async function bkDraw(md, j) {
