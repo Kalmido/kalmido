@@ -101,16 +101,17 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   // review: a portion the server refuses (400: one bad file) is listed and the next one goes on; Cancel / offline / rights stop
   check(w.eval(`ab_upGoOn({status: 400}) && !ab_upGoOn({status: 403}) && !ab_upGoOn({status: 400, cancelled: true}) && !ab_upGoOn(new Error('offline'))`), 'a refused portion does not stop the next ones, Cancel and rights do');
 
-  // Cancel of a small upload (below 1 MB): the bar's button aborts it before the body is out, nothing is sent on
-  // 2.1177.0 review: small forms go through the XHR of upbar.js too (its Cancel leaves once the body is out); send() is held here
-  const cancelled = w.eval(`(() => { const s0 = XMLHttpRequest.prototype.send; window.__s0 = s0;
-    XMLHttpRequest.prototype.send = function () { this.abort = function () { this.onabort?.(); }; };
+  // a small upload (below 1 MB): its bar shows while the server works, WITHOUT Cancel (review 2.1177.0: the body is out at once,
+  // a Cancel could only stop the waiting and call files cancelled that the server stores anyway); the answer is held here
+  const held = w.eval(`(() => { const f0 = window.fetch; window.__f0 = f0; let go; window.__go = new Promise(r => { go = r; }); window.__goNow = go;
+    window.fetch = (u, o) => o?.body instanceof FormData ? window.__go.then(() => f0(u, o)) : f0(u, o);
     window.__up = ab_upload([new File(['Notiz'], 'notiz-a.txt', {type: 'text/plain'}), new File(['Notiz'], 'notiz-b.txt', {type: 'text/plain'})], null); return 1; })()`);
-  check(cancelled && await until(() => d.querySelector('#upbars .upbar:not(.upout) button')), 'a small upload shows its bar with Cancel');
-  d.querySelector('#upbars .upbar:not(.upout) button').click();
-  await w.eval('window.__up'); w.eval('XMLHttpRequest.prototype.send = window.__s0');
-  check(await until(() => /notiz-a\.txt Upload cancelled/.test(txt(d.querySelector('#upbars .upout')))), 'Cancel: the list names the files as "Upload cancelled" ' + txt(d.querySelector('#upbars .upout')));
-  check(!(await items(FK, 'space=private')).some(x => /^notiz-/.test(x.name)), 'Cancel: nothing on the server');
+  check(held && await until(() => d.querySelector('#upbars .upbar:not(.upout)')), 'a small upload shows its bar');
+  const bar = d.querySelector('#upbars .upbar:not(.upout)');
+  check(bar && !bar.querySelector('button') && /2 files/.test(txt(bar)), 'the small upload\'s bar names the files and offers no Cancel: ' + txt(bar));
+  w.eval('window.__goNow()'); await w.eval('window.__up'); w.eval('window.fetch = window.__f0');
+  check(await until(() => !d.querySelector('#upbars .upbar:not(.upout)')), 'the bar leaves with the answer');
+  check(await until(async () => (await items(FK, 'space=private')).filter(x => /^notiz-/.test(x.name)).length === 2), 'both small files are stored');
   d.querySelector('#upbars .upout .upoutx')?.click();
 
   // the drop frame says where the files land

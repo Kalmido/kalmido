@@ -22,7 +22,7 @@ function upRow(label, cancel) {
   el.innerHTML = `<div class="uphead"><span class="upn"></span><span class="upp"></span><button type="button"></button></div><div class="uptrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>`;
   const q = s => /** @type {HTMLElement} */ (el.querySelector(s)), btn = q('button'), track = q('.uptrack'), bar = q('.uptrack>i');
   q('.upn').textContent = label; q('.upn').title = label; track.setAttribute('aria-label', label);
-  btn.textContent = tr('Cancel'); btn.addEventListener('click', cancel);
+  btn.textContent = tr('Cancel'); if (cancel) btn.addEventListener('click', cancel); else btn.remove();  // 2.1177.0 (#6114): upFetch has none
   const t = setTimeout(() => upBox().appendChild(el), UP_WAIT);
   return {
     set(p) { q('.upp').textContent = `${p} %`; bar.style.width = `${p}%`; track.setAttribute('aria-valuenow', String(p)); },
@@ -32,9 +32,14 @@ function upRow(label, cancel) {
   };
 }
 // what fetch(url, opt) does for a form, by XHR (fetch reports no upload progress). The answer offers what rawFetch0 reads of a Response.
+// 2.1177.0 (#6114): a form below UP_MIN that asks for the bar (fd.upBar): the plain fetch with its row. No Cancel (review): such a
+// body is out at once, the server stores it while the row waits, so Cancel could only stop the waiting and call stored files cancelled
+function upFetch(url, opt, fd) {
+  const row = upRow(upLabel(fd), null); row.sent();
+  return fetch(url, opt).finally(() => row.done());
+}
 function upSend(url, opt, fd) {
-  // 2.1177.0 (#6114): a small form with fd.upBar goes this way too - its Cancel leaves with the sent body (upload.onload) like
-  // a big one, so nothing the server already stores is called cancelled (review: a plain fetch kept Cancel until the answer)
+  if (upFiles(fd).reduce((n, f) => n + f.size, 0) < UP_MIN) return upFetch(url, opt, fd);  // 2.1177.0 (#6114)
   return new Promise((ok, no) => {
     const x = new XMLHttpRequest();
     const row = upRow(upLabel(fd), () => { x.abort(); toast(tr('Upload cancelled')); });
