@@ -18601,5 +18601,9 @@
   "About|contact link": "Riguarda",
   "New": "Nuovo",
   "You can only read here": "Qui puoi solo leggere",
-  "No documents yet": "Ancora nessun documento"
+  "No documents yet": "Ancora nessun documento",
+  "This kind of file cannot be added here": "Questo tipo di file non può essere aggiunto qui",
+  "{0} file was not uploaded:": ["{0} file non è stato caricato:", "{0} file non sono stati caricati:"],
+  "{0} not uploaded": ["{0} non caricato", "{0} non caricati"],
+  "Drop here - lands in “{0}”": "Rilascia qui - finisce in «{0}»"
 }

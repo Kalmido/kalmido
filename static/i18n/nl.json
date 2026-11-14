@@ -18600,5 +18600,9 @@
   "About|contact link": "Betreft",
   "New": "Nieuw",
   "You can only read here": "Hier kun je alleen lezen",
-  "No documents yet": "Nog geen documenten"
+  "No documents yet": "Nog geen documenten",
+  "This kind of file cannot be added here": "Dit soort bestand kan hier niet worden toegevoegd",
+  "{0} file was not uploaded:": ["{0} bestand is niet geüpload:", "{0} bestanden zijn niet geüpload:"],
+  "{0} not uploaded": ["{0} niet geüpload", "{0} niet geüpload"],
+  "Drop here - lands in “{0}”": "Hier neerzetten - komt in „{0}”"
 }

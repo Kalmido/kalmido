@@ -18600,5 +18600,9 @@
   "About|contact link": "Concerne",
   "New": "Nouveau",
   "You can only read here": "Ici, tu peux seulement lire",
-  "No documents yet": "Pas encore de documents"
+  "No documents yet": "Pas encore de documents",
+  "This kind of file cannot be added here": "Ce type de fichier ne peut pas être ajouté ici",
+  "{0} file was not uploaded:": ["{0} fichier n'a pas été envoyé :", "{0} fichiers n'ont pas été envoyés :"],
+  "{0} not uploaded": ["{0} non envoyé", "{0} non envoyés"],
+  "Drop here - lands in “{0}”": "Dépose ici - arrive dans « {0} »"
 }

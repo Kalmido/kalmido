@@ -385,22 +385,67 @@ async function ab_newFolder(parent, space) {  // 2.199.0 A (#2742): parent = a f
 document.addEventListener('click', e => { const b = e.target.closest?.('#side [data-abtadd]'); if (b) { e.preventDefault(); ab_newFolder(null, b.dataset.abtadd); } });  // 2.768.0 (#4888)
 // a request of an undo / redo step: the view follows, an error is a toast (api() shows it)
 async function ab_req(m, url, b) { try { await api(m, url, b); } catch { /* shown */ } ab_reload(); return {}; }
+// ---- 2.1177.0 (#6114): ONE way to upload for the file store and the documents (ab_upload, docs.js dc_upload). Before anything is
+// sent, what the server would refuse anyway stays out (empty, larger than its limit, a kind the place does not take: accept = an
+// input's accept list, '' = every kind); the rest goes up in portions (the server's limits per request), each with the progress
+// bar of upbar.js for any size (fd.upBar) and no second message; at the end ONE message with Undo and the list of what stayed out
+// and why (ab_upOut). Only a comfort: the server checks every file again and stays the judge.
+// a file the browser names no type for (HEIC and the like) goes on, the server decides as before
+const ab_accOk = (f, accept) => !accept || !f.type || accept.split(',').map(a => a.trim().toLowerCase()).filter(Boolean).some(a => a.startsWith('.')
+  ? (f.name || '').toLowerCase().endsWith(a) : a.endsWith('/*') ? (f.type || '').toLowerCase().startsWith(a.slice(0, -1)) : (f.type || '').toLowerCase() === a);
+function ab_upCheck(files, accept) {
+  const mb = S.maxFileMb || 50, ok = [], out = [];
+  for (const f of [...(files || [])].filter(Boolean)) {
+    const why = !f.size ? tr('The file is empty') : f.size > mb * 1024 * 1024 ? tr('Larger than {0} MB', mb) : !ab_accOk(f, accept) ? tr('This kind of file cannot be added here') : '';
+    if (why) out.push({name: f.name || tr('File'), why}); else ok.push(f);
+  }
+  return {ok, out};
+}
+// the portions of one upload: at most n files and at most four times the size limit together (the request limit, upLimit), 1 MB
+// room for the form's frame; a server that refuses a portion keeps the others (it rolls back only that request)
+function ab_upParts(files, n) {
+  const max = (S.maxFileMb || 50) * 1024 * 1024 * 4 - 1024 * 1024, parts = [];
+  let cur = [], sum = 0;
+  for (const f of files) {
+    if (cur.length && (cur.length >= n || sum + f.size > max)) { parts.push(cur); cur = []; sum = 0; }
+    cur.push(f); sum += f.size;
+  }
+  if (cur.length) parts.push(cur);
+  return parts;
+}
+// the files of the portions not sent after an error / Cancel: in the list with the reason
+const ab_upRest = (parts, i, x) => parts.slice(i).flat().map(f => ({name: f.name || tr('File'), why: x?.cancelled ? tr('Upload cancelled') : x?.message || tr('Not uploaded')}));
+// the list of what stayed out, where the progress bars are (upbar.js upBox): it stays until it is closed
+function ab_upOut(out) {
+  $('#upbars .upout')?.remove();
+  if (!out.length || typeof upBox !== 'function') return;
+  const el = document.createElement('div'); el.className = 'upbar upout'; el.setAttribute('role', 'status');
+  el.innerHTML = `<div class="uphead"><span class="upn">${esc(trn('{0} file was not uploaded:', '{0} files were not uploaded:', out.length))}</span><button type="button" class="upoutx" aria-label="${esc(tr('Close'))}" title="${esc(tr('Close'))}">${ic('x', 's')}</button></div><ul class="upoutl">${out.slice(0, 20).map(o => `<li>${o.name ? `<b>${esc(o.name)}</b> ` : ''}<span class="muted">${esc(o.why)}</span></li>`).join('')}${out.length > 20 ? `<li class="muted">${esc(trn('and {0} more', 'and {0} more', out.length - 20))}</li>` : ''}</ul>`;
+  /** @type {HTMLElement} */ (el.querySelector('.upoutx')).addEventListener('click', () => { el.remove(); if (!document.querySelector('.upbar')) document.getElementById('upbars')?.remove(); });
+  upBox().appendChild(el);
+}
+// the message at the end: "3 files uploaded" (+ "· 2 not uploaded": the list says which)
+const ab_upMsg = (msg, out) => out.length ? `${msg} · ${trn('{0} not uploaded', '{0} not uploaded', out.length)}` : msg;
 async function ab_upload(files, target) {
-  files = [...(files || [])]; if (!files.length) return;
+  const {ok, out} = ab_upCheck(files); ab_upOut(out);  // 2.1177.0 (#6114): the file store takes every kind (as its server)
+  files = ok; if (!files.length) return;
   const lid = await ab_lockOf(target);  // 2.353.0 A (#2758): encrypted here; F (review N8): also a folder outside the view, never plain
   if (lid) return typeof fsl_upload === 'function' ? fsl_upload(files, target, lid) : ab_noFsl();
-  const fd = new FormData();
-  for (const f of files) fd.append('file', f, f.name);
-  if (target) fd.append('parent_id', String(target)); else fd.append('space', ab_curSpace());
-  const old = new Set((AB.data?.items || []).map(x => x.id));
-  toast(trn('Uploading {0} file…', 'Uploading {0} files…', files.length));
-  let j; try { j = await api('POST', '/api/files/upload', fd); } catch { return; }
-  ab_reload();
-  const created = (j.items || []).filter(x => !old.has(x.id) && x.version <= 1), ver = (j.items || []).length - created.length;
-  const msg = ver ? tr('{0} uploaded, {1} as a new version', (j.items || []).length, ver) : trn('{0} file uploaded', '{0} files uploaded', created.length);
-  if (!created.length) { toast(msg); return; }
-  offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); return {}; },
-    redo: async () => { for (const x of created) await ab_req('POST', `/api/files/nodes/${x.id}/restore`); return {}; }}));
+  const old = new Set((AB.data?.items || []).map(x => x.id)), items = [], parts = ab_upParts(files, 50);
+  for (let i = 0; i < parts.length; i++) {
+    const fd = new FormData(); /** @type {any} */ (fd).upBar = true;  // 2.1177.0 (#6114): the bar for any size, no toast besides it
+    for (const f of parts[i]) fd.append('file', f, f.name);
+    if (target) fd.append('parent_id', String(target)); else fd.append('space', ab_curSpace());
+    let j; try { j = await api('POST', '/api/files/upload', fd); } catch (x) { out.push(...ab_upRest(parts, i, x)); break; }
+    items.push(...(j.items || []));
+  }
+  ab_reload(); ab_upOut(out);
+  if (!items.length) return;
+  const created = items.filter(x => !old.has(x.id) && x.version <= 1), vers = items.filter(x => !created.includes(x) && x.version > 1);
+  const msg = ab_upMsg(vers.length ? tr('{0} uploaded, {1} as a new version', items.length, vers.length) : trn('{0} file uploaded', '{0} files uploaded', created.length), out);
+  // one step back for all: the new files into the trash, a new version back to the one before (as Restore version does)
+  offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); for (const x of vers) await ab_verStep(x, x.version - 1); return {}; },
+    redo: async () => { for (const x of created) await ab_req('POST', `/api/files/nodes/${x.id}/restore`); for (const x of vers) await ab_verStep(x, x.version); return {}; }}));
 }
 async function ab_rename(n) {
   if (n.locked && n.lock_id !== n.id) return typeof fsl_rename === 'function' ? fsl_rename(n) : ab_noFsl();  // 2.353.0 A (#2758); F (review N8): never plain
@@ -685,9 +730,12 @@ document.addEventListener('dragover', e => {
   const v = e.target.closest?.('.abview'); if (!v) { ab_sideOver(e); return; }
   const files = [...(e.dataTransfer?.types || [])].includes('Files') && !kn_has(e), t = e.target.closest('[data-abdrop]');  // 2.750.0 (#4879)
   if (AB.drag && t && ab_dropOk(t.dataset.abdrop === 'top' ? null : +t.dataset.abdrop)) { e.preventDefault(); $$('.abdrop').forEach(x => x !== t && x.classList.remove('abdrop')); t.classList.add('abdrop'); return; }  // 2.750.0 (#4879): its own folder takes nothing
-  if (files && ab_filesOk(v, t)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; v.classList.add('abdrop'); }
+  if (files && ab_filesOk(v, t)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; v.classList.add('abdrop'); v.dataset.abdroptxt = tr('Drop here - lands in “{0}”', ab_dropName(t)); }  // 2.1177.0 (#6114): the frame says where
   else if (files && !AB.drag) ab_roHint();  // 2.1162.0 (#6108): a read-only place says so
 });
+// 2.1177.0 (#6114): the folder a drop of files lands in (as the drop below: the folder row under the pointer, else the open one / the space)
+const ab_dropName = t => { const id = t && t.dataset.abdrop !== 'top' ? +t.dataset.abdrop : S.route.nid || null;
+  return id ? ab_item(id)?.name || (AB.data?.crumbs || []).find(c => c.id === id)?.name || AB.data?.node?.name || '' : ab_spaceName(ab_curSpace()); };
 // 2.1162.0 (#6108): files from the computer: the open place takes them (abdropok), or the folder row under the pointer when the person may add there
 const ab_filesOk = (v, t) => v.classList.contains('abdropok') || (!!t && t.dataset.abdrop !== 'top' && ab_canWrite(ab_item(+t.dataset.abdrop)?.role));
 document.addEventListener('dragleave', e => { if (e.target.classList?.contains('abview') && !e.target.contains(e.relatedTarget)) e.target.classList.remove('abdrop'); });
