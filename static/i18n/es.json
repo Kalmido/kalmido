@@ -18566,5 +18566,9 @@
   "Receipts stay in their area. Open one to view, change or book it there.": "Los recibos se quedan en su área. Abre uno para verlo, cambiarlo o contabilizarlo allí.",
   "New": "Nuevo",
   "You can only read here": "Aquí solo puedes leer",
-  "No documents yet": "Aún no hay documentos"
+  "No documents yet": "Aún no hay documentos",
+  "Open Navigation": "Abrir Navegación",
+  "App server": "Servidor de esta app",
+  "Menus and bottom bar": "Menús y barra inferior",
+  "The bottom bar is edited under Navigation.": "La barra inferior se ajusta en Navegación."
 }
