@@ -69,7 +69,8 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
   check(!!logo, '#475: the account menu opens the dashboard ("Start")');
   click(w, logo); await settleW(w);
   // 2.1121.0 (#5477): without a Start tab the start page carries the name of the active tab (Today, #5963)
-  check(w.location.hash === '#home' && d.querySelector('#top h1')?.textContent.includes('Today'), '#475: #home, titled like the active tab Today (2.25.0, #5963) ' + d.querySelector('#top h1')?.textContent);
+  // 2.1170.0 (#6126): a computer (sidebar, no tab bar): "Start" - the tab's name only where the tab bar shows (phone)
+  check(w.location.hash === '#home' && d.querySelector('#top h1 .ht')?.textContent === 'Start', '#475: #home on a computer is titled Start (#6126) ' + d.querySelector('#top h1')?.textContent);
   await until(() => d.querySelector('.dcard.dc-news .hpnl li'));  // 2.45.0 (#1504): News compact, one line per bundle
   const cards = [...d.querySelectorAll('.dgrid .dcard')].map(c => [...c.classList].find(x => x.startsWith('dc-')));
   // 2.45.0 (#1504): Search is hidden by default

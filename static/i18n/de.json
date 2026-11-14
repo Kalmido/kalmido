@@ -18567,6 +18567,7 @@
   "New": "Neu",
   "You can only read here": "Hier kannst du nur lesen",
   "No documents yet": "Noch keine Dokumente",
+  "The card does not show projects without a status": "Projekte ohne Status zeigt die Kachel nicht",
   "No preview for this kind of file": "Keine Vorschau für diese Dateiart",
   "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Dieses PDF ist zu groß für die Vorschau (über 40 MB). Lade es herunter, um es zu lesen."
 }

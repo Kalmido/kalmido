@@ -6184,6 +6184,20 @@ body.fab-on #view .hpadd{padding-right:var(--fab-safe)}  /* 2.1111.0 (#5963): th
 .lysix > .hpcol > .lh1 > :first-child{max-height:15rem;overflow:auto}
 .lysix > .hpcol > .lh3 > :first-child{min-height:28rem}
 @media (pointer:fine){ .lysix > .hpcol > .lym > .dcard > h3{cursor:grab} }
+/* 2.1170.0 (#6126): two columns (768-1099 px): a slim empty strip and the last of an odd run of narrow blocks take the whole row
+   (dashboard.js lyHtml lyfill), no hole beside them; a row of another workspace: its dot + name (hpWsMark); the phone's greeting
+   line: name and date stacked on the left, "Arrange" beside them (a long name wraps, the date stays below it) */
+@media (min-width:768px) and (max-width:1099px){ .lysix > .lyfill,.lysix > .hpcol > .lyfill{grid-column:1/-1} }
+.hpws{flex:0 1 auto;display:inline-flex;align-items:center;gap:.25rem;min-width:0;max-width:45%;color:var(--text2);font-size:var(--fs-s);font-weight:400}
+.hpws .wsp-dot{width:.5rem;height:.5rem}
+.hpws>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:767px){
+  .dash > .dashhead{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-columns:auto;column-gap:.25rem;row-gap:.125rem;align-items:center}
+  .dash > .dashhead > h2{grid-row:1;grid-column:1;overflow-wrap:anywhere}
+  .dash > .dashhead > .muted{grid-row:2;grid-column:1}
+  .dash > .dashhead > .spacer{display:none}
+  .dash > .dashhead > button{grid-row:1 / span 2}
+}
 .dash .dtile b{font-family:inherit}
 /* 2.45.0 A (#1502 #1509 #1516) sidebar: a folded group holding the open view, the messenger rows, the notes overview */
 .sgh.sgon .sgt{color:var(--text);font-weight:600}

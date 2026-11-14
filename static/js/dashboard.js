@@ -196,12 +196,19 @@ function lyHtml(v, parts, o = {}) {
   if (S.ly.view === v) return lyEditor(v, {...o, parts});  // 2.35.0 (#1097): the editor shows the blocks themselves
   // 2.43.0 (#1452): every block has its "…" menu (width, height, order, hide, settings) and on a computer a grip to resize
   // it; the hide button at the block is gone (the menu has it)
-  const pr = lyPref(v), bs = lyBlocks(v), out = [], ws = [], m = o.canHide !== false;
+  const pr = lyPref(v), bs = lyBlocks(v), ent = [], m = o.canHide !== false;
   for (const k of order) {
     if (hidden.has(k)) continue;
     const b = bs.find(x => x[0] === k), p = parts[k], h = typeof p === 'function' ? p('') : p;
-    if (h) { ws.push(pr.w(k)); out.push(`<div class="lyb ly-${size(k)} lw${pr.w(k)} lh${pr.h(k)}${m ? ' lym' : ''}${wgColorCls(v, k)}" data-lyk="${k}"${o.cols ? ` style="order:${out.length}"` : ''}>${h}${m ? wgBlockTools(v, k, b) : ''}</div>`); }
+    if (h) ent.push({k, b, h, w: pr.w(k), slim: /class="dcard dempty/.test(h)});
   }
+  // 2.1170.0 (#6126): between 768 and 1099 px a third / half block is one of two columns, two thirds / full the whole row. A slim
+  // "...: nothing" strip takes the whole row, and so does the last of an odd run of narrow blocks: no hole beside it (lyfill, app.css)
+  let run = [];
+  const runEnd = () => { if (run.length % 2) run[run.length - 1].fill = true; run = []; };
+  for (const e of ent) { if (e.w >= 4 || e.slim) { runEnd(); e.fill = e.w < 4; } else run.push(e); }
+  runEnd();
+  const ws = ent.map(e => e.w), out = ent.map(({k, b, h, w, fill}, i) => `<div class="lyb ly-${size(k)} lw${esc(w)} lh${pr.h(k)}${fill ? ' lyfill' : ''}${m ? ' lym' : ''}${wgColorCls(v, k)}" data-lyk="${k}"${o.cols ? ` style="order:${i}"` : ''}>${h}${m ? wgBlockTools(v, k, b) : ''}</div>`);
   // 2.45.0 (#1504): two columns (wide main, narrow side) while every block is two thirds or a third wide, each column stacks
   // on its own; on narrower screens the columns are display:contents and the blocks keep their order (style order)
   const cols = o.cols && ws.includes(4) && ws.includes(2) && ws.every(x => x === 2 || x === 4);
@@ -365,6 +372,27 @@ function hpSubc(t) {
   const dn = kids.filter(k => k.status !== 0).length, lab = esc(tr('{0} of {1} subtasks done', dn, kids.length));
   return `<span class="subc" title="${lab}">${ic('sub', 's')}${dn}/${kids.length}<span class="sr"> ${lab}</span></span>`;
 }
+// 2.1170.0 (#6126): a row of another workspace than the shown one carries that workspace's colour dot + name (the start page
+// shows the bell's things of every workspace, the cards of the shown one). '' = no workspace / the shown one / "All" shown.
+const hpRoomWs = r => !r ? '' : r.list_id ? (listById(r.list_id) ? wsOf(listById(r.list_id)) : '') : r.org_id ? 'org:' + r.org_id : '';
+const hpItemWs = it => it.list_id ? (listById(it.list_id) ? wsOf(listById(it.list_id)) : '') : it.data?.room ? hpRoomWs((S.tc?.rooms || []).find(r => r.id === +it.data.room)) : '';
+const hpWsMark = ws => !ws || !wsOn() || wsCur() === 'all' || ws === wsCur() ? '' : `<span class="hpws">${/*html-ok*/ wsp_dot(ws)}<span>${esc(wsName(ws))}</span></span>`;
+// the deadline lines of the box: the server counts every workspace (the bell), the Today card and the sentence only the shown
+// one. Counted here the server's way (mine: assigned to me or nobody's in my list; due today / before), a part in another
+// workspace is a line of its own with that workspace's mark; [kind, n, ws]. Not the server's number (still loading): as before.
+function hpDueRows() {
+  const rows = dueRows(), cur = wsCur();
+  if (!rows.length || !wsOn() || cur === 'all') return rows.map(([k, n]) => [k, n, '']);
+  const t0 = today(), uid = S.me?.id, by = {today: new Map(), overdue: new Map()};
+  for (const t of S.tasks.values()) {
+    const l = t.status === 0 && t.due ? listById(t.list_id) : null; if (!l || l.archived) continue;
+    if (!(t.assignee_id === uid || (!t.assignee_id && !t.assignee_group_id && l.owner_id === uid))) continue;
+    const d = String(t.due).slice(0, 10); if (d > t0) continue;
+    const m = by[d === t0 ? 'today' : 'overdue'], ws = l.is_inbox ? cur : wsOf(l); m.set(ws, (m.get(ws) || 0) + 1);
+  }
+  return rows.flatMap(([k, n]) => { const m = by[k]; if ([...m.values()].reduce((a, b) => a + b, 0) !== n) return [[k, n, '']];
+    return [...m].sort((a, b) => (b[0] === cur) - (a[0] === cur)).map(([ws, c]) => [k, c, ws === cur ? '' : ws]); });
+}
 function dashCard(k) {
   const [_, name, icon] = DASH.find(d => d[0] === k), t0 = today();
   const card = (body, more = '', n = '', title = tr(name)) => `<section class="dcard dc-${k}" aria-labelledby="dh-${k}"><h3 id="dh-${k}">${ic(icon, 's')}<span>${esc(title)}</span>${n !== '' ? `<span class="dcn">${n}</span>` : ''}<span class="spacer"></span>${more}</h3>${body}</section>`;
@@ -377,7 +405,7 @@ function dashCard(k) {
     // 2.1111.0 (#5963): while the box "Waiting for you" stands, the mentions are in it: here only the agent lines, nothing when empty
     const boxed = collab() && bellCount() > 0, js = waitJobs ? waitJobs() : [], ments = boxed ? [] : (S.nf.items || []).filter(it => !it.read && ['mention', 'assign', 'approval', 'proposal'].includes(it.kind));
     const rows = [...js.map(j => `<li><a href="#agents">${hdot('waiting')}<span class="dwt">${esc(tr('{0} waits for you', j.agent_name))}: ${esc(j.title)}</span></a></li>`),
-      ...ments.slice(0, 5).map(it => `<li><a href="${it.task_id ? '#t/' + it.task_id : '#news'}">${ic(NEWS_ICON[it.kind] || 'bell', 's')}<span class="dwt">${newsText(it, S.nf.users)}${it.task_title ? ' · ' + esc(it.task_title) : ''}</span></a></li>`)];
+      ...ments.slice(0, 5).map(it => `<li><a href="${it.task_id ? '#t/' + it.task_id : '#news'}">${ic(NEWS_ICON[it.kind] || 'bell', 's')}<span class="dwt">${newsText(it, S.nf.users)}${it.task_title ? ' · ' + esc(it.task_title) : ''}</span>${/*html-ok*/ hpWsMark(hpItemWs(it))}</a></li>`)];
     return rows.length ? card(`<ul class="dwl">${rows.join('')}</ul>`, '', rows.length) : (boxed ? '' : slim());
   }
   if (k === 'today') {
@@ -397,9 +425,9 @@ function dashCard(k) {
     const vis = (S.nf.items || []).map((it, i) => [it, i]).filter(([it]) => !it.read);
     // 2.45.0 (#1504): compact, at most 5, a bundle is one line, "All news" below. 2.1037.0 (#5807): only what waits for me (For you:
     // the deadline lines, then the bundles for me); empty: "Nothing waits for you" -- the rest is the history of the News view
-    const boxed = collab() && bellCount() > 0, due = boxed ? [] : dueRows(), gs = newsGroups(vis).filter(g => g.needs).slice(0, Math.max(0, lyo_get('home', 'news', 'n', 5) - due.length));  // 2.55.0 (#1065)
+    const boxed = collab() && bellCount() > 0, due = boxed ? [] : hpDueRows(), gs = newsGroups(vis).filter(g => g.needs).slice(0, Math.max(0, lyo_get('home', 'news', 'n', 5) - due.length));  // 2.55.0 (#1065)
     if (!gs.length && !due.length) return boxed ? '' : slim(tr('Nothing waits for you'));  // 2.1111.0 (#5963): the deadline lines stand once, in the box "Waiting for you" above
-    const dueLi = ([k, n]) => `<li class="needs hpdue"><a href="#today"><span class="dwt">${esc(k === 'today' ? trn('{0} task due today', '{0} tasks due today', n) : trn('{0} task overdue', '{0} tasks overdue', n))}</span></a></li>`;
+    const dueLi = ([k, n, ws]) => `<li class="needs hpdue"><a href="#today"><span class="dwt">${esc(k === 'today' ? trn('{0} task due today', '{0} tasks due today', n) : trn('{0} task overdue', '{0} tasks overdue', n))}</span>${/*html-ok*/ hpWsMark(ws) /* 2.1170.0 (#6126) */}</a></li>`;
     return card(`<ul class="dwl hpnl">${/*html-ok*/ due.map(dueLi).join('')}${gs.map(hpNewsRow).join('')}</ul><a class="linkbtn hpall" href="#news">${tr('All news')}</a>`, '', bellCount() || '');
   }
   if (k === 'kpi') return typeof kp_tile === 'function' ? kp_tile(card) : '';  // 2.50.0 (#1197)
@@ -410,7 +438,7 @@ function dashCard(k) {
     if (S.tc.rooms === null && !S.tc.loading) { S.tc.loading = true; loadTeam().then(() => { S.tc.loading = false; if (S.route.mod === 'home') renderView(); }); }
     const rs = (S.tc.rooms || []).filter(r => r.last).slice(0, 4);
     if (!rs.length) return slim();
-    return card(`<ul class="dwl">${rs.map(r => `<li><a href="#team/${r.id}">${roomIcon(r)}<span class="dwt"><b>${esc(roomName(r))}</b> ${esc(r.last.text)}</span>${r.unread ? `<span class="nbadge">${r.unread}</span>` : ''}</a></li>`).join('')}</ul>`, `<a class="linkbtn" href="#team">${tr('Open')}</a>`, S.team?.unread || '');
+    return card(`<ul class="dwl">${rs.map(r => `<li><a href="#team/${r.id}">${roomIcon(r)}<span class="dwt"><b>${esc(roomName(r))}</b> ${esc(r.last.text)}</span>${/*html-ok*/ hpWsMark(hpRoomWs(r)) /* 2.1170.0 (#6126) */}${r.unread ? `<span class="nbadge">${r.unread}</span>` : ''}</a></li>`).join('')}</ul>`, `<a class="linkbtn" href="#team">${tr('Open')}</a>`, S.team?.unread || '');
   }
   if (k === 'projects') {
     // 2.45.0 (#1504): only active projects (not complete, not on hold), at most 5; none at all = no card
@@ -418,7 +446,8 @@ function dashCard(k) {
     const act = lyo_get('home', 'projects', 'active', true), srt = lyo_get('home', 'projects', 'sort', 'side');
     const all = S.lists.filter(l => !l.archived && isTracked(l) && inWs(l)),  // 2.352.0 B (#2752): tracked = has a status; 2.380.2 (#3407): the shown workspace
       ps = all.filter(l => !act || !['complete', 'on_hold'].includes(l.status));
-    if (!all.length) return '';
+    // 2.1170.0 (#6126): projects there but none with a status: the editor says why the card stays away (it is not hidden silently)
+    if (!all.length) return S.ly.view === 'home' && S.lists.some(l => !l.archived && !l.is_inbox && inWs(l)) ? slim(tr('The card does not show projects without a status')) : '';
     if (!ps.length) return slim(tr('Active projects: nothing'));
     // 2.579.0 (#4199): the top-level tasks per list counted once (was a scan of every task per list and per comparison of the sort)
     const pn = new Map(); for (const t of S.tasks.values()) if (!t.parent_id) { const x = pn.get(t.list_id) || pn.set(t.list_id, {n: 0, dn: 0}).get(t.list_id); x.n++; if (t.status === 2) x.dn++; }
@@ -473,9 +502,9 @@ function forMeBanner() {
   if (!collab()) return '';
   const n = bellCount(); if (!n) return '';
   if (S.nf.items === null || S.nf.sig !== (S.news?.sig ?? '')) { if (!S.nf.loading) loadNews().then(() => { if (S.route.mod === 'home') renderView(); }); }
-  const its = (S.nf.items || []).map((it, i) => [it, i]).filter(([it]) => !it.read && newsForMe(it) && newsInWs(it)).slice(0, 4), dms = dmRows().slice(0, 3);
+  const its = (S.nf.items || []).map((it, i) => [it, i]).filter(([it]) => !it.read && newsForMe(it)).slice(0, 4), dms = dmRows().slice(0, 3);  // 2.1170.0 (#6126): every workspace like the box's number, another one with its mark (was: only the shown one)
   return `<section class="dtome" aria-labelledby="dtome-h"><h3 id="dtome-h">${ic('at', 's')}<span>${esc(tr('Waiting for you: {0}', n)) /* 2.1037.0 (#5807): the bell's number, deadlines included */}</span><span class="spacer"></span><a class="linkbtn" href="#news">${tr('Show all')}</a></h3>
-    <ul class="dwl">${dueRows().map(([k, n]) => `<li><a href="#today">${ic(k === 'today' ? 'cal' : 'alarm', 's')}<span class="dwt">${esc(k === 'today' ? trn('{0} task due today', '{0} tasks due today', n) : trn('{0} task overdue', '{0} tasks overdue', n))}</span></a></li>`).join('')}${dms.map(r => `<li><a href="#team/${r.id}">${av(r.user_id, r.name, 'avatar')}<span class="dwt"><b>${esc(r.name)}</b> ${esc(r.last ? mdBrief(r.last.text) : '')}</span><span class="nbadge">${r.unread}</span></a></li>`).join('')}${its.map(([it, i]) => `<li><button type="button" class="dwb" data-act="news-open" data-i="${i}">${av(it.actor_id, uname(it.actor_id, S.nf.users), 'avatar')}<span class="dwt">${newsText(it, S.nf.users)}${it.task_title ? ' · ' + esc(it.task_title) : ''}</span></button></li>`).join('')}</ul></section>`;
+    <ul class="dwl">${hpDueRows().map(([k, n, ws]) => `<li><a href="#today">${ic(k === 'today' ? 'cal' : 'alarm', 's')}<span class="dwt">${esc(k === 'today' ? trn('{0} task due today', '{0} tasks due today', n) : trn('{0} task overdue', '{0} tasks overdue', n))}</span>${/*html-ok*/ hpWsMark(ws)}</a></li>`).join('')}${dms.map(r => `<li><a href="#team/${r.id}">${av(r.user_id, r.name, 'avatar')}<span class="dwt"><b>${esc(r.name)}</b> ${esc(r.last ? mdBrief(r.last.text) : '')}</span>${/*html-ok*/ hpWsMark(hpRoomWs(r))}<span class="nbadge">${r.unread}</span></a></li>`).join('')}${its.map(([it, i]) => `<li><button type="button" class="dwb" data-act="news-open" data-i="${i}">${av(it.actor_id, uname(it.actor_id, S.nf.users), 'avatar')}<span class="dwt">${newsText(it, S.nf.users)}${it.task_title ? ' · ' + esc(it.task_title) : ''}</span>${/*html-ok*/ hpWsMark(hpItemWs(it))}</button></li>`).join('')}</ul></section>`;
 }
 // ---- 2.45.0 (#1504) the start page: one sentence on top, compact news lines, "since HH:MM" of a running job
 // 2.144.0 C (#2418): the events of today for the block Today (setting "Show events", on by default)
@@ -503,8 +532,8 @@ function hpSummary() {
 function hpNewsRow(g) {
   const [first, i] = g.items[0], task = first.task_id && !(first.tasks || []).length, lst = g.key[0] === 'l' && first.list_id;
   const what = task || lst ? `${esc(task ? first.task_title || '' : newsListName(first))}<span class="muted"> · ${esc(newsSummaryLine(g))}</span>` : newsText(first, S.nf.users);
-  const inner = `<span class="dwt">${what}</span><time class="hpt">${esc(relTime(g.at))}</time>`;
-  return `<li class="${g.needs ? 'needs' : ''}">${g.items.length === 1 ? `<button type="button" class="dwb" data-act="news-open" data-i="${i}">${inner}</button>` : `<a href="${task ? '#t/' + first.task_id : '#news'}">${inner}</a>`}</li>`;
+  const inner = `<span class="dwt">${what}</span>${/*html-ok*/ hpWsMark(hpItemWs(first)) /* 2.1170.0 (#6126) */}<time class="hpt">${esc(relTime(g.at))}</time>`;
+  return `<li class="${g.needs ? 'needs' : ''}">${g.items.length === 1 ? `<button type="button" class="dwb" data-act="news-open" data-i="${esc(i)}">${inner}</button>` : `<a href="${task ? '#t/' + first.task_id : '#news'}">${inner}</a>`}</li>`;
 }
 function hpSince(iso) {
   const d = new Date(iso); if (isNaN(d)) return '';
