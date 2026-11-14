@@ -4512,7 +4512,6 @@
   "All address books": "Tous les carnets d’adresses",
   "New contact": "Nouveau contact",
   "No contact matches.": "Aucun contact ne correspond.",
-  "No contacts yet. Add one, import a vCard file, or connect the phone.": "Pas encore de contacts. Ajoutez-en un, importez un fichier vCard ou connectez le téléphone.",
   "Select a contact": "Choisissez un contact",
   "Nickname": "Surnom",
   "No linked tasks yet: “Link a contact” in a task’s panel.": "Pas encore de tâche liée : « Lier un contact » dans le panneau d’une tâche.",
@@ -18694,5 +18693,11 @@
   "Only digits, spaces and + - / ( ) here, please.": "Ici, uniquement des chiffres, des espaces et + - / ( ).",
   "Please enter a web address like https://example.org.": "Saisis une adresse web comme https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % sur les postes remisables",
-  "Fixed amount on the discountable positions|calc": "Montant fixe sur les postes remisables"
+  "Fixed amount on the discountable positions|calc": "Montant fixe sur les postes remisables",
+  "Contacts could not be loaded": "Les contacts n’ont pas pu être chargés",
+  "No contacts yet": "Pas encore de contacts",
+  "Add one, import a vCard or CSV file, or connect the phone.": "Ajoute-en un, importe un fichier vCard ou CSV, ou connecte le téléphone.",
+  "The groups could not be loaded": "Les groupes n’ont pas pu être chargés",
+  "The folders could not be loaded": "Les dossiers n’ont pas pu être chargés",
+  "The contact could not be saved": "Le contact n’a pas pu être enregistré"
 }
