@@ -85,7 +85,7 @@ function bellPopHtml() {
   const dms = dmRows(), pre = dueRowsHtml() + dms.map(dmRowHtml).join('');  // 2.1037.0 (#5801): + the deadline lines
   const head = `<div class="bphead"><button type="button" class="bphl" data-bp="news" title="${esc(tr('Show all'))}"><b id="bp-h">${tr('News')}</b><span class="bpchev" aria-hidden="true">›</span></button>${n ? `<span class="bpnew">${esc(tr('{0} for you', n))}</span>` : ''}<span class="spacer"></span>${nAll ? `<button type="button" class="btn sm bpread" data-bp="readall" title="${esc(tr('Mark all as read'))}" aria-label="${esc(tr('Mark all as read'))}">${ic('check', 's')}<span>${tr('All read')}</span></button>` : ''}<button type="button" class="iconbtn" data-bp="settings" title="${esc(tr('What shows up here'))}" aria-label="${esc(tr('What shows up here'))}">${ic('gear', 's')}</button></div>`;
   let body;
-  if (!mine) body = `<div class="empty bpempty">${S.nf.err === 'offline' ? tr('News are only available online.') : S.nf.err ? esc(S.nf.err) : tr('Loading…')}</div>`;
+  if (!mine) body = S.nf.err ? errorState({size: 'row', sub: S.nf.err, retry: () => { S.nf.err = null; loadNews().then(() => { const pp = $('#pop'); if (pp && $('#pop .bpop')) { pp.innerHTML = bellPopHtml(); bellSize(pp); } }); }}) : `<div class="empty bpempty">${tr('Loading…')}</div>`;  // 2.1180.0 (#6131)
   else body = `<div class="nlist bplist nbund">${/*html-ok*/ newsBundledHtml([...kMe, ...kOk.filter(([it]) => it.read || !newsForMe(it)).slice(0, 40)], true, pre)}</div>`;  // 2.17.0 (#452); 2.1037.0 (#5807): the 40 cut only the history; 2.1052.0 (#5808): the one way
   if (!mine && pre) body = `<div class="nlist bplist nbund">${/*html-ok*/ newsBundledHtml([], true, pre)}</div>`;  // 2.1052.0 (#5808): the same For you while loading
   const grab = isMobile() ? `<div class="bpgrab" data-bpgrab role="button" tabindex="0" aria-label="${esc(tr('Drag up for more room, tap for full height'))}" title="${esc(tr('Drag up for more room, tap for full height'))}"><i></i></div>`
@@ -396,7 +396,7 @@ function news_body() {
   const tabs = `<div class="seg ntabs" role="tablist" aria-label="${esc(tr('News'))}">${[['all', 'bell', N_('All'), nMe], ['me', 'at', N_('For you'), nMe], ['act', 'pulse', N_('Activity'), nAct]].map(([k, i, n, c]) => `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-act="news-tab" data-tab="${k}">${ic(i, 's')}<span>${tr(n)}</span>${c ? `<span class="c nunread">${c}</span>` : ''}</button>`).join('')}</div>`;
   const inTab = it => (tab === 'all' || (tab === 'me') === newsForMe(it));
   const bar = tabs + bar0 + fchips((mine0 || []).filter(it => (!S.nf.unread || !it.read || it.keep) && inTab(it)));
-  if (S.nf.err && !S.nf.items) return bar + `<div class="empty">${S.nf.err === 'offline' ? tr('News are only available online.') : esc(S.nf.err)}</div>`;
+  if (S.nf.err && !S.nf.items) return bar + errorState({size: 'sec', sub: S.nf.err, retry: () => { S.nf.err = null; loadNews(); }});  // 2.1180.0 (#6131)
   const mine = S.nf.items && S.nf.f === f ? S.nf.items : null;
   if (!mine && (S.nf.loading || S.nf.queued)) return bar + `<div class="empty">${tr('Loading…')}</div>`;
   // #302 unread only: read items hide (one opened just now stays until the next load); data-i keeps the index in S.nf.items
@@ -435,7 +435,7 @@ async function loadNews() {
     S.news = {unread: j.unread, unread_me: j.unread_me ?? S.news?.unread_me ?? 0, sig: j.sig, due: j.due ?? S.news?.due};  // 2.1037.0 (#5801): + due
     if (changed) { renderTop(); renderTabs(); renderSide(); }
   } catch (e) {
-    if (e.message !== 'auth') { S.nf.err = e instanceof Offline ? 'offline' : e.message; S.nf.sig = S.news?.sig ?? ''; S.nf.f = f; }
+    if (e.message !== 'auth') { S.nf.err = errText(e); S.nf.sig = S.news?.sig ?? ''; S.nf.f = f; }
   } finally { S.nf.loading = false; }
   if (S.route.mod === 'news') renderView();
 }
@@ -451,7 +451,7 @@ async function newsMore(b) {
     const ids = new Set(S.nf.items.map(x => x.id));
     S.nf.items = [...S.nf.items, ...(j.items || []).filter(x => !ids.has(x.id))];
     S.nf.users = {...S.nf.users, ...(j.users || {})}; S.nf.n += NEWS_PAGE; S.nf.next = j.next || null;
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); if (b) b.disabled = false; return; }
+  } catch (e) { toast(errText(e)); if (b) b.disabled = false; return; }
   if (S.route.mod === 'news') renderView();
 }
 const newsMoreHtml = () => S.nf.next && !S.nf.unread ? `<div class="audmore"><button type="button" class="btn sm" data-act="news-more">${tr('Load more')}</button></div>` : '';
@@ -546,7 +546,7 @@ async function newsOpen(i, opts) {
   if (!it.task_id) { if (it.list_id && listById(it.list_id)) go('l/' + it.list_id); return; }
   if (!taskById(it.task_id)) {  // e.g. completed long ago: not in the state
     try { (S.extra ||= []).push(await rawFetch('GET', `/api/tasks/${it.task_id}`)); }
-    catch (e) { toast(e instanceof Offline ? tr('News are only available online.') : tr('Task not found')); return; }
+    catch (e) { toast(e instanceof Offline ? tr('Only available online.') : tr('Task not found')); return; }
   }
   S.nswId = it.id; S.nswTask = it.task_id;  // 2.122.0 (#2314): the open task came from this news item: a sideways swipe goes on
   openDetail(it.task_id, opts);
@@ -864,7 +864,7 @@ function commentHtml(c, U, ro = false) {
 }
 function timelineItems(ro = false) {
   const T = S.tl;
-  if (T.err) return `<div class="muted cmempty">${esc(errText(T.err, tr('The comments could not be loaded')))}</div>`;  // 2.910.0 (#5444): offline the one sentence
+  if (T.err) return errorState({size: 'row', title: tr('The comments could not be loaded'), sub: errText(T.err), retry: () => { S.tl = {id: S.sel, v: S.v}; drawTimeline(); loadTimeline(S.sel); }});  // 2.910.0 (#5444): offline the one sentence
   if (!T.comments) return `<div class="muted cmempty cmload">${tr('Loading…')}</div>`;  // 2.891.0 (#5439): one line (start-detail-5439.css)
   const U = T.users || {};
   const items = [...T.comments.map(c => ({at: c.created_at, c, ro})), ...actItems(taskById(T.id), T).map(a => ({at: a.created_at, a}))]  // 2.685.0 (#5162): level 1 none, 2 changes of others, 3 all
@@ -882,7 +882,7 @@ function timelineItems(ro = false) {
 // 2.0.7: the folded history of a private list (as in 2.0.5): all changes of the task, oldest first
 function histItems() {
   const T = S.tl;
-  if (T.err) return `<div class="muted cmempty">${esc(errText(T.err, tr('The history could not be loaded')))}</div>`;  // 2.910.0 (#5444): offline the one sentence
+  if (T.err) return errorState({size: 'row', title: tr('The history could not be loaded'), sub: errText(T.err), retry: () => { S.tl = {id: S.sel, v: S.v}; drawTimeline(); loadTimeline(S.sel); }});  // 2.910.0 (#5444): offline the one sentence
   if (!T.activity) return `<div class="muted cmempty">${tr('Loading…')}</div>`;
   return T.activity.map(a => `<div class="actl"><span>${actText(a, T.users || {})}</span><time>${fmtWhen(a.created_at)}</time></div>`).join('');
 }
@@ -981,7 +981,7 @@ async function capi(method, url, body) {  // comments: never queued, clear messa
   try { return await rawFetch(method, url, body); }
   catch (e) {
     if (e instanceof Offline) toast(tr('You are offline: the comment was not sent and stays in the box'));
-    else if (e.message !== 'auth') toast(e.message);
+    else if (e.message !== 'auth') toast(errText(e));
     throw e;
   }
 }
@@ -1060,7 +1060,7 @@ async function cmtPendSend(tid, p) {
     if (p.mrep) mrep_done(r?.mail_reporter);
   } catch (e) {
     if (e.message === 'auth') { if (!S.drafts[tid]) fdKeep('fdc', tid, p.raw); return; }  // the sign-in page: the text comes back in the box
-    p.st = 'fail'; p.err = e instanceof Offline ? '' : e.message || '';
+    p.st = 'fail'; p.err = e instanceof Offline ? '' : errText(e);
     if (p.pub) { PTL.on[tid] = true; ptl_draw(); } if (p.mrep) { MREP.on[tid] = true; ptl_draw(); }
     cmtPendDraw(tid); return;
   }

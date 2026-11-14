@@ -920,7 +920,7 @@ async function refreshNow() {
   if (refreshing) return;
   refreshing = true; $$('[data-act="refresh"]').forEach(b => b.classList.add('spin'));
   try { await flushSaves(); await load(); render(); msvvLoad();  /* 2.73.0 C (#661) */ if (S.sel && (cmtOn() || collab())) loadTimeline(S.sel); S.syncOk = Date.now(); toast(tr('Up to date')); }
-  catch (e) { if (e instanceof Offline) toast(tr('You are offline')); }
+  catch (e) { if (e instanceof Offline) tr('Only available online.'); }
   finally { refreshing = false; $$('[data-act="refresh"]').forEach(b => b.classList.remove('spin')); }
 }
 function routeList() {
@@ -1700,7 +1700,7 @@ function errorState(o = {}) {
     act = `<div class="eacts"><button type="button" class="btn" data-esretry="${esc(k)}">${ic('sync', 's')} ${esc(tr('Try again'))}</button></div>`;
   }
   return emptyState({icon: 'alert', title: o.title || tr('Could not be loaded'), size: o.size, cls: 'eerr' + (o.cls ? ' ' + o.cls : ''), action: act,
-    sub: o.sub ?? (navigator.onLine === false ? tr('You are offline') : tr('Check the connection and try again.'))});
+    sub: o.sub ?? (navigator.onLine === false ? tr('Only available online.') : tr('Check the connection and try again.'))});
 }
 const noAccessState = (o = {}) => emptyState({icon: 'lock', title: o.title || tr('No access'), sub: o.sub ?? tr('Ask the owner to share it with you.'), size: o.size, cls: 'enoacc' + (o.cls ? ' ' + o.cls : ''), action: o.action});  // 2.1076.0 (#5450): + action (the office's "Submit receipt")
 document.addEventListener('click', e => {
@@ -2121,7 +2121,7 @@ function qInsert(i, ins) {
 }
 document.addEventListener('mousedown', e => { if (e.target.closest?.('.qhc')) e.preventDefault(); });  // the field keeps the focus (and the phone its keyboard)
 function quickFiles(inp) {
-  if (!OUT.online) { toast(tr('Offline: only works again with a connection')); return; }
+  if (!OUT.online) { toast(tr('Only available online.')); return; }
   let f = $('#qfile');
   if (!f) { f = document.createElement('input'); f.type = 'file'; f.multiple = true; f.id = 'qfile'; f.hidden = true; f.tabIndex = -1; f.setAttribute('aria-hidden', 'true'); document.body.appendChild(f); }
   f.value = '';
