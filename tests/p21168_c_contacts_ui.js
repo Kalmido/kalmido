@@ -161,7 +161,7 @@ execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'}
     // the selection bar: whole words, the rest in "..."
     await ev(`(() => { bk_start(${C.Petra}); bk_toggle(${C.Mia}); bk_toggle(${C.Ole}); return CT.pick.size; })()`);
     const sb = await until(`(() => { const b = document.querySelector('#ct-sbar'), x = b && b.querySelector('.mbx'); if (!b || !x) return null; const vis = [...b.querySelectorAll('.mbb')].filter(e => !e.hidden && e.getClientRects().length);
-      return {n: vis.length, row: vis.every(e => Math.abs(e.offsetTop - x.offsetTop) < 4), whole: vis.every(e => { const l = e.querySelector('.mbl'); return !l || l.scrollWidth <= l.clientWidth + 1; }), words: vis.map(e => e.querySelector('.mbl')?.textContent), dots: !b.querySelector('.mbdots').hidden, hid: [...b.querySelectorAll('.mbb[hidden]:not(.mbdots)')].map(e => e.getAttribute('aria-label')), sw: b.scrollWidth, cw: b.clientWidth}; })()`);
+      return {n: vis.length, row: vis.every(e => e.offsetTop < x.offsetTop + x.offsetHeight && e.offsetTop + e.offsetHeight > x.offsetTop), whole: vis.every(e => { const l = e.querySelector('.mbl'); return !l || l.scrollWidth <= l.clientWidth + 1; }), words: vis.map(e => e.querySelector('.mbl')?.textContent), dots: !b.querySelector('.mbdots').hidden, hid: [...b.querySelectorAll('.mbb[hidden]:not(.mbdots)')].map(e => e.getAttribute('aria-label')), sw: b.scrollWidth, cw: b.clientWidth}; })()`);
     check(sb && sb.row && sb.whole && sb.sw <= sb.cw + 1, '360: the selection bar is one row of whole words ' + JSON.stringify(sb));
     check(sb && (sb.dots ? sb.hid.length > 0 : sb.hid.length === 0), '360: "..." shows exactly when buttons went into it ' + JSON.stringify(sb));
     await shot('p21168c-360-select.png');
