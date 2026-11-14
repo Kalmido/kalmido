@@ -37,6 +37,7 @@ const rows = d => [...d.querySelectorAll('#view .ctrow')].map(x => x.querySelect
   const B3 = await mk('Team', ['Tom Team']);
   check(BK && B1 && B2 && B3, 'four address books');
 
+  // 2.1176.0 (#6124): the book's menu says "Move to the trash…" (was Delete…)
   // ================= delete in the dialog, no filter, the card of a contact of it open, one of it selected
   const CC = (await call('GET', '/api/contacts?q=clara')).items[0].id;
   let w = await boot({user: 'alice', hash: 'contacts/' + CC}), d = w.document;
@@ -46,8 +47,8 @@ const rows = d => [...d.querySelectorAll('#view .ctrow')].map(x => x.querySelect
   w.eval(`CT.pick = new Set([${CC}])`);
   click(w, d.querySelector('#view [data-ct="menu"]')); await until(() => item(d, 'Address books…'));
   click(w, item(d, 'Address books…')); await until(() => d.querySelector(`.modal [data-cbmenu="${B1}"]`));
-  click(w, d.querySelector(`.modal [data-cbmenu="${B1}"]`)); await until(() => item(d, 'Delete…'));
-  click(w, item(d, 'Delete…'));
+  click(w, d.querySelector(`.modal [data-cbmenu="${B1}"]`)); await until(() => item(d, 'Move to the trash…'));
+  click(w, item(d, 'Move to the trash…'));
   check(await until(() => rows(d).length === 3), '#1732: deleted in the dialog: its two contacts leave the list at once ' + rows(d));
   check(!rows(d).some(x => /Club/.test(x)), '#1732: no contact of the deleted book is shown');
   check(!w.eval('CT.card') && !w.eval('CT.sel'), '#1732: the open card of a contact of it is closed');
@@ -63,8 +64,8 @@ const rows = d => [...d.querySelectorAll('#view .ctrow')].map(x => x.querySelect
   check(await until(() => rows(d).length === 1 && rows(d)[0] === 'Hanna Choir'), 'filtered on Choir: one contact');
   click(w, d.querySelector('#view [data-ct="menu"]')); await until(() => item(d, 'Address books…'));
   click(w, item(d, 'Address books…')); await until(() => d.querySelector(`.modal [data-cbmenu="${B2}"]`));
-  click(w, d.querySelector(`.modal [data-cbmenu="${B2}"]`)); await until(() => item(d, 'Delete…'));
-  click(w, item(d, 'Delete…'));
+  click(w, d.querySelector(`.modal [data-cbmenu="${B2}"]`)); await until(() => item(d, 'Move to the trash…'));
+  click(w, item(d, 'Move to the trash…'));
   check(await until(() => rows(d).length === 2 && !rows(d).includes('Hanna Choir')), '#1732: filtered on the deleted book: the filter falls back, the other books show ' + rows(d));
   check(w.eval('CT.book') === '', '#1732: the filter on the deleted book is reset');
   d.querySelector('.modal [data-cb="close"]')?.click();
