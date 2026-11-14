@@ -18572,6 +18572,7 @@
   "New": "Nuevo",
   "You can only read here": "Aquí solo puedes leer",
   "No documents yet": "Aún no hay documentos",
+  "The card does not show projects without a status": "La tarjeta no muestra proyectos sin estado",
   "No preview for this kind of file": "No hay vista previa para este tipo de archivo",
   "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Este PDF es demasiado grande para la vista previa (más de 40 MB). Descárgalo para leerlo.",
   "Calculation|position": "Cálculo",
