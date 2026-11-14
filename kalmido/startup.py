@@ -105,6 +105,15 @@ if env_bool("TASKS_WATCHDOG", True) and WRK_ROLE != "web":
     # menu, /drop and the mail inbox
 if not _OC_CLI and env_bool("TASKS_WATCHDOG", True) and WRK_ROLE != "web":  # 2.312.0 C (#3265): once per instance start, not per web process
     _c = connect()
+    try:  # 2.1179.0 C (#2898): folder entries of objects that are gone for good (a way back to an older version left them)
+        from .files.fsref import fs_ref_sweep
+        _n = fs_ref_sweep(_c)
+        _c.commit()
+        if _n:
+            print("files:", _n, "folder entries of deleted objects removed", flush=True)
+    except Exception as e:  # noqa: BLE001 - a clean-up, never a reason not to start
+        _c.rollback()
+        print("files: folder entry clean-up:", type(e).__name__, flush=True)
     try:
         onc_long_report(_c)  # saved number schemes onc_parse no longer reads -> log + admin alert (nothing is changed)
     except Exception as e:  # noqa: BLE001 - a report, never a reason not to start

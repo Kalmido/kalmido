@@ -127,7 +127,8 @@ def _hidden(c, uid):
             + reading_sql("l") + ")")  # "Reading" follows the lists (#2742, decision 9): a read-later project, never an agent's
 
 
-fs_ref_register(LF_KIND, label=N_("Project"), open_url=lambda lid: f"list/{int(lid)}", base_role=_base, space=_space,
+fs_ref_register(LF_KIND, table=("lists", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Project"), open_url=lambda lid: f"list/{int(lid)}", base_role=_base, space=_space,
                 protect=_protect, hidden=_hidden, title=_title)
 
 

@@ -37,6 +37,7 @@ Interface (signatures fixed; B / C and 2.200-2.202 use them):
       on_trash  f(c, uid, ref_id, restore) -> None: the node went into the trash (restore False) / came back (True);
                 2.373.0 (#3335): coming back "stays" = the object stays in its area's trash (uid lacks the right)
       title     f(c, ref_id) -> the object's title: the node's name when fs_ref_place gets none (else the label)
+      table     2.1179.0 C (#2898): (table, id column) that holds the objects, for fs_ref_sweep; None = not swept
       content   f(c, uid, ref_id) -> (bytes, file name, mime) | None: the object as a file (its PDF ...) for the content
                 routes of the file store (web and /api/v1, + text); called only with fs_ref_role >= 'view'
       content_gate  f(c, uid, ref_id) -> None: 2.238.0 A (#2863) the area's own locks before content (a kid's account, the
@@ -85,7 +86,7 @@ fs_unshare_hooks = []
 
 
 def fs_ref_register(kind, *, label, open_url, base_role, space, protect=None, hidden=None, on_trash=None, title=None, content=None,
-                    content_gate=None, cap=None, listed=True):
+                    content_gate=None, cap=None, listed=True, table=None):
     """Register a kind of reference node (module docstring). Registering the same kind again replaces it (a module reload).
     2.565.0 (#4719): listed=False = the node only carries the object's shares (the team chat's rooms): it lies in no folder,
     no listing, search or route of the file store shows it (fs_ref_rows, fs_ref_hidden_sql, need_node) and it is never filed
@@ -94,7 +95,7 @@ def fs_ref_register(kind, *, label, open_url, base_role, space, protect=None, hi
         raise ValueError(f"fs_ref_register: invalid kind {kind!r}")
     FSR[kind] = {"label": label, "open_url": open_url, "base_role": base_role, "space": space, "protect": protect,
                  "hidden": hidden, "on_trash": on_trash, "title": title, "content": content, "content_gate": content_gate, "cap": cap,
-                 "listed": bool(listed)}
+                 "listed": bool(listed), "table": table}  # 2.1179.0 C (#2898): table for fs_ref_sweep
 
 
 def fs_ref_token_lacks(uid, scope):
@@ -362,6 +363,25 @@ def _actor():
 def fs_ref_drop(c, ref_kind, ref_id):
     """The object was deleted for good: its node goes (its shares with it)."""
     c.execute("DELETE FROM fs_nodes WHERE kind='ref' AND ref_kind=? AND ref_id=?", (ref_kind, int(ref_id)))
+
+
+def fs_ref_sweep(c):
+    """2.1179.0 C (#2898): at the start, the reference nodes whose object is gone for good -> how many were removed. A way back
+    to an older version that deleted the object without knowing its node left the node as a dead entry in its folder. Only
+    kinds with a registered table are checked; an object in its area's trash keeps its row and so its node (it can come
+    back; the area drops the node when it deletes the object for good). Removes only dead nodes, never an object."""
+    n = 0
+    with system_ctx(c):
+        for kind, reg in sorted(FSR.items()):
+            t = reg.get("table")
+            if not t:
+                continue
+            tab, col = t
+            if not (re.fullmatch(r"[a-z_][a-z0-9_]*", tab) and re.fullmatch(r"[a-z_][a-z0-9_]*", col)):
+                raise ValueError(f"fs_ref_sweep: invalid table {t!r}")
+            n += c.execute(f"DELETE FROM fs_nodes n WHERE n.kind='ref' AND n.ref_kind=? AND n.ref_id IS NOT NULL "
+                           f"AND NOT EXISTS (SELECT 1 FROM {tab} x WHERE x.{col}=n.ref_id)", (kind,)).rowcount
+    return n
 
 
 def fs_protect(c, n, hooks=True):

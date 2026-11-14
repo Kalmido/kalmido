@@ -107,7 +107,9 @@ obj_register("meeting", "meetings", label=N_("Meeting"), area="calendar",
   (the address books keep their folder rules: filing and sharing the node stay with who manages it).
 
 The kind is registered with the file store's reference nodes at the same time (files/fsref.py): the object can lie in
-folders, and a folder share opens it.
+folders, and a folder share opens it. Its table goes along (`table=(table, "id")`, 2.1179.0 C, #2898): at
+every start `fs_ref_sweep` removes reference nodes whose row is gone for good (a way back to an older version deleted the
+object without its node); a row in the trash keeps its node. An old area's own `fs_ref_register` names its table the same way.
 
 `listed=False` (2.565.0, #4719, the team chat's rooms): the reference node only carries the object's shares. It lies in no
 folder, the file store never lists, searches or opens it (fs_ref_rows, fs_ref_hidden_sql, need_node) and it is never filed

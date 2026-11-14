@@ -205,9 +205,11 @@ def _agr_content(c, uid, aid):
     return ("\n".join(x for x in lines if x is not None).strip() + "\n").encode("utf-8"), f"{name}.txt", "text/plain"
 
 
-fs_ref_register(DMA_KIND, label=N_("Framework contract"), open_url=lambda fid: "office/contracts", base_role=_base(DMA_KIND),
+fs_ref_register(DMA_KIND, table=("office_contract_files", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Framework contract"), open_url=lambda fid: "office/contracts", base_role=_base(DMA_KIND),
                 space=_space(DMA_KIND), title=_dma_title, content=_dma_content, content_gate=_gate(DMA_KIND),
                 hidden=_hidden(DMA_KIND), cap=_cap(DMA_KIND))
-fs_ref_register(AGR_KIND, label=N_("Contract or insurance"), open_url=lambda aid: "office/agreements", base_role=_base(AGR_KIND),
+fs_ref_register(AGR_KIND, table=("office_agreements", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Contract or insurance"), open_url=lambda aid: "office/agreements", base_role=_base(AGR_KIND),
                 space=_space(AGR_KIND), title=_agr_title, content=_agr_content, content_gate=_gate(AGR_KIND),
                 hidden=_hidden(AGR_KIND), cap=_cap(AGR_KIND))

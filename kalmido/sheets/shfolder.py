@@ -158,7 +158,8 @@ def _gate(c, uid, rid):
         raise Denied(403, tr("This token lacks the permission “{0}”", "sheets:read"))
 
 
-fs_ref_register(SHF_KIND, label=N_("Table"), open_url=lambda rid: f"sheets/{int(rid)}", base_role=_base, space=_space,
+fs_ref_register(SHF_KIND, table=("sheets", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Table"), open_url=lambda rid: f"sheets/{int(rid)}", base_role=_base, space=_space,
                 protect=_protect, hidden=_hidden, on_trash=_on_trash, title=_title, content=_content, content_gate=_gate)
 
 
