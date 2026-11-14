@@ -302,3 +302,20 @@ details.setmore>.setmoreb{padding-top:.25rem}
 .umzem { flex: 1 1 12rem; min-height: 2.75rem; }  /* review M1: the address an admin types for an invitation */
 .umzmis { flex-basis: 100%; color: var(--danger, inherit); }
 .orgrolehelp ul { margin: .25rem 0 0; padding-left: 1.125rem; }
+/* 2.1180.0 (#6130): Settings > Account in three groups - the jump bar on top, a group heading above each, Sign out next to the name,
+   the password fields one under the other (never cut off on a phone), the technical details folded for advanced users,
+   the colour swatches of "My colour" wrap inside the window and the workspace name is not cut */
+.acjump { display: flex; flex-wrap: wrap; gap: .375rem; margin: 0 0 .75rem; }
+.acjump .btn { min-height: 2.25rem; }
+.spane .acgh { margin: 1.75rem 0 .25rem; padding-top: .75rem; border-top: 1px solid var(--line); font-size: var(--fs-l); scroll-margin-top: .5rem; }
+.spane .acgh:first-of-type, .spane .acjump + .acgh { margin-top: .25rem; padding-top: 0; border-top: 0; }
+.spane .acgh:focus { outline: none; }
+.spane .acgh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.acwho .acout { margin-left: auto; }
+.pwrow .pwcol { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; flex: 1 1 14rem; min-width: 0; max-width: 24rem; }
+.pwrow .pwcol input { width: 100%; min-width: 0; box-sizing: border-box; }
+.pwrow .pwcol .btn { align-self: flex-start; }
+details.acadv { margin: .25rem 0 .5rem; }
+details.acadv > summary { cursor: pointer; color: var(--text2); font-size: var(--fs-s); padding: .375rem 0; min-height: 2rem; }
+.wsp-row .wsp-nm { white-space: normal; overflow-wrap: break-word; flex: 1 1 100%; }  /* the name on its own line above the swatches, whole */
+.wsp-row .colors, .wscpick .colors { flex: 1 1 auto; min-width: 0; max-width: 100%; }
