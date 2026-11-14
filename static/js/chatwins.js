@@ -12,7 +12,7 @@
 // row with the open chats above the chat switches between them.
 const CW_MIN = 220;  // px: the smallest height of an open window; more windows than fit fold to their header
 S.cw = {wins: [], act: '', st: {}, lt: '', home: null};
-const CW_TF = ['rid', 'room', 'msgs', 'more', 'edit', 'editTh', 'th'];  // 2.139.0 A (#2127): + the open thread
+const CW_TF = ['rid', 'room', 'msgs', 'more', 'edit', 'editTh', 'th', 'rerr'];  // 2.139.0 A (#2127): + the open thread; 2.1169.0 (#6098): + its load failure
 const cw_tcGet = () => Object.fromEntries(CW_TF.map(f => [f, S.tc[f]]));
 const cw_tcPut = o => { for (const f of CW_TF) S.tc[f] = o ? o[f] : (f === 'msgs' ? [] : null); };
 const cw_id = k => +k.slice(2);
@@ -193,6 +193,10 @@ function cw_patch(k) {
   const s = cw_sec(k), box = s && $('.chmsgs', s); if (!box) return;
   const near = chatNear(box);
   patchKids(box, cw_noIds(cw_with(k, k[0] === 'a' ? chatMsgs : tcMsgsHtml)));
+  // 2.1169.0 (#6098): the box opens once the window loaded
+  if (k[0] === 't') tc_inLock($('[data-cwid="tc-in"]', s), !!cw_stOf(k).room, k);
+  else { const st = cw_stOf(k), ta = $('[data-cwid="chat-in"]', s), on = !!agentById(st.aid)?.enabled && ac_ready(st);
+    if (ta && ta.disabled === on) { ta.disabled = !on; const b = ta.closest('.chcomp')?.querySelector('[data-act="chat-send"]'); if (b) b.disabled = !on; } }
   if (near) box.scrollTop = box.scrollHeight;
   cw_headSync(k);
 }
@@ -211,7 +215,7 @@ async function cw_aload(k) {
     if (j.now) st.off = Date.now() - Date.parse(j.now);
     const a = agentById(aid); if (a) { if (j.agent) Object.assign(a, j.agent); a.chat_unread = 0; }
   } catch (e) {
-    st.err = e instanceof Offline ? tr('Only available online.') : e.message;
+    st.err = chatErrKey(e);  // 2.1169.0 (#6098): the shared block says what failed (agentchat.js chatRows)
     st.f8c_wait = Math.min(2 * (st.f8c_wait || 7500), 300000); st.f8c_until = Date.now() + st.f8c_wait;  // 2.58.0 (#1773): pause, doubling up to 5 minutes
   }
   finally { st.busyL = false; }
@@ -223,9 +227,10 @@ async function cw_tload(k, st) {
   const rid = st.rid; let j;
   st.busyL = true;
   try { j = await rawFetch('GET', `/api/team/rooms/${rid}/messages`); }
-  catch (e) { st.err = e instanceof Offline ? tr('The team chat is only available online.') : e.message; return; }
+  catch (e) { st.rerr = chatErrKey(e); }  // 2.1169.0 (#6098): was never shown (the window stayed on "Loading…"): the block with Try again
   finally { st.busyL = false; }
-  st.room = j.room; st.more = j.has_more; st.msgs = j.messages; S.tc.users = {...S.tc.users, ...j.users};
+  if (!j) { if (cw_win(k)) cw_patch(k); return; }
+  st.rerr = null; st.room = j.room; st.more = j.has_more; st.msgs = j.messages; S.tc.users = {...S.tc.users, ...j.users};
   e2eFromCache(st.msgs);
   const last = st.msgs[st.msgs.length - 1], w = cw_win(k);
   if (w && !w.c && last && (!j.room.last_read || last.id > j.room.last_read) && !document.hidden) {  // seen in an open window = read

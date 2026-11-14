@@ -127,22 +127,18 @@ const LONG = 'Website relaunch 2026 for the client';
   check((await call('POST', `/api/team/messages/${bm().dataset.mid.split(":").pop()}/reactions`, {emoji: 'up'}, CB)).status === 400, '#823: Bob cannot react to his own message');
   click(w, bm().querySelector('.rxrow [data-e="up"]'));
   check(await until(() => !bm()?.querySelector('.rxrow [data-e="up"] .rxn')), 'a second tap takes mine back');
-  // edit to empty + Save -> "Delete this message?"
+  // edit to empty + Save -> deleted
+  // 2.1169.0 (#6099): no question any more ("Delete this message?" and then Undo was twice): deleted at once, Undo in the message
   const myM = () => d.querySelector(`#tc-msgs .cmsg[data-mid="t:${mA.id}"]`);
   await until(() => myM());
   click(w, myM().querySelector('[data-act="tc-msg-menu"]')); await sleep(80);
   click(w, [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => /Edit/.test(b.textContent))); await sleep(100);
   const ed = d.querySelector('#tc-msgs .tc-edit'); ed.value = '   ';
   click(w, d.querySelector('[data-act="tc-edit-save"]'));
-  let dl = await until(() => [...d.querySelectorAll('.modal.cdlg')].pop());
-  check(dl && /Delete this message\?/.test(dl.textContent) && dl.querySelector('[data-cd="yes"]')?.textContent.includes('Delete'), '#652: an emptied message: Save asks "Delete this message?"');
-  click(w, dl.querySelector('[data-cd="no"]')); await sleep(200);
-  check(d.activeElement?.classList.contains('tc-edit') && (await call('GET', `/api/team/rooms/${RID}/messages`)).messages.some(m => m.id === mA.id && !m.deleted), 'Cancel: the message stays, the focus back in the text box');
-  click(w, d.querySelector('[data-act="tc-edit-save"]'));
-  dl = await until(() => [...d.querySelectorAll('.modal.cdlg')].pop());
-  click(w, dl.querySelector('[data-cd="yes"]'));
-  check(await until(async () => (await call('GET', `/api/team/rooms/${RID}/messages`)).messages.find(m => m.id === mA.id)?.deleted), '#652: Delete deletes it');
+  check(await until(async () => (await call('GET', `/api/team/rooms/${RID}/messages`)).messages.find(m => m.id === mA.id)?.deleted), '#652: an emptied message: Save deletes it');
+  check(!d.querySelector('.modal.cdlg'), '#6099: without a question');
   check(await until(() => myM()?.querySelector('.cbub.del') && !d.querySelector('#tc-msgs .tc-edit')) && d.activeElement?.id === 'tc-in', 'it shows as deleted, the edit box is gone, the focus in the message box');
+  check(await until(() => /Message deleted/.test(d.querySelector('#toast:not(.hidden)')?.textContent || '') && d.querySelector('#toast:not(.hidden) button')), '#6099: the message says so with Undo');
   // 2.18.0 review (nit): the conversation list's preview shows no Markdown markers ("```js", **, `)
   await call('POST', `/api/team/rooms/${RID}/messages`, {body: 'Here is the fix:\n```js\nconst a = 1;\n```'}, CB);
   const pv = (await call('GET', '/api/team')).rooms.find(r => r.id === RID)?.last?.text;

@@ -16,7 +16,7 @@ from ..core.access import Denied
 from ..accounts.session import me
 from ..accounts.pictures import avatar_url
 from ..tasks.validation import as_int
-from ..collab.teamchat import tchat_new_for, tchat_rooms
+from ..collab.teamchat import md_brief, tchat_new_for, tchat_rooms
 from ..collab.liste2eguard import le2b_net
 from .core import need_person
 from .chat import chat_agent_or_org, chat_asks, chat_is_final, JCB_NOT_SQL
@@ -26,7 +26,7 @@ MP_TEXT = 140  # the first line, cut
 
 
 def mp_first_line(s):
-    s = le2b_net(str(s or "")).strip()
+    s = le2b_net(md_brief(str(s or ""))).strip()  # 2.1169.0 (#6100): no Markdown marks in a pop-up line, like the team texts
     return (s.split("\n", 1)[0].strip() or s)[:MP_TEXT]
 
 
