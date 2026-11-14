@@ -3,6 +3,8 @@
 // - the Calendars dialog has "Booking page…"; it opens the settings: the address, title, weekly hours, saving makes the page
 //   and shows its link; the switch turns it on; a new appointment type through its dialog shows in the list; Undo of saving
 // - 2.540.0 (#4349): the booking search finds an old booking, the bin deletes it after a question
+// - 2.1183.0 (#6157): "Save" in the dialog's foot, the time zone a city search (no "Europe/Berlin" field), X asks before changed
+//   fields go, no bookings / no type = the shared empty state
 // - the public page /s/b/<address> lists the type, its free times are links with large targets; on a phone nothing sticks out
 const path = require('path');
 const {execFileSync} = require('child_process');
@@ -87,6 +89,24 @@ if (!process.env.P294B_NOSTART) {
     check(await ready(ev, `/No booking found/.test(document.querySelector('.apb-dlg .apb-bwrap')?.textContent || '') && document.querySelector('#apb-q')?.value === 'kundin.ALT'`), '#4349: the list shows no hit any more, the search stays');
     await ev(`(() => { const q = document.querySelector('#apb-q'); q.value = ''; q.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
     check(await ready(ev, `/No bookings yet/.test(document.querySelector('.apb-dlg .apb-bwrap')?.textContent || '')`), '#4349: an empty search shows the coming bookings again');
+    // 2.1183.0 (#6157): Save stands in the foot (not in the middle of the dialog); the time zone is searched by city
+    check(await ev(`!!document.querySelector('.apb-dlg .apb-bwrap .nempty') && !!document.querySelector('.apb-dlg .apb-foot:not([hidden]) [data-apb="save"]') && !document.querySelector('.apb-dlg .apb-body [data-apb="save"]')`), '#6157: Save in the foot, no bookings = the shared empty state');
+    const tz0 = await ev(`JSON.stringify({h: document.querySelector('#apb-tz')?.type, v: document.querySelector('#apb-tzq')?.value, l: document.querySelector('#apb-tzq')?.getAttribute('list')})`);
+    check(/"h":"hidden"/.test(tz0) && /"l":"apb-tzl"/.test(tz0) && !/"v":"[^"]*\//.test(tz0), '#6157: the time zone is a city search, not a raw zone name ' + tz0);
+    // a headless Firefox without the window's focus moves the focus but sends no focus events: the one a browser sends
+    await ev(`(() => { const q = document.querySelector('#apb-tzq'); q.focus(); if (!document.querySelectorAll('#apb-tzl option').length) q.dispatchEvent(new FocusEvent('focusin', {bubbles: true})); return 1; })()`);
+    check(await ready(ev, `document.querySelectorAll('#apb-tzl option').length > 50`), '#6157: searching, the list holds the cities ' + await ev(`document.querySelectorAll('#apb-tzl option').length`));
+    await ev(`(() => { const q = document.querySelector('#apb-tzq'); q.value = 'Lisbon'; q.dispatchEvent(new Event('change', {bubbles: true})); return 1; })()`);
+    check(await ev(`document.querySelector('#apb-tz').value === 'Europe/Lisbon' && /^Lisbon/.test(document.querySelector('#apb-tzq').value)`), '#6157: a searched city sets the zone ' + await ev(`JSON.stringify([document.querySelector('#apb-tz').value, document.querySelector('#apb-tzq').value])`));
+    await ev(`(() => { document.querySelector('.apb-dlg .apb-foot [data-apb="save"]').click(); return 1; })()`);
+    check(await ready(ev, `fetch('/api/appt/page', {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.json()).then(j => j.page.tz === 'Europe/Lisbon')`), '#6157: Save in the foot saves the zone');
+    await ready(ev, `!!document.querySelector('#apb-tzq') && /^Lisbon/.test(document.querySelector('#apb-tzq').value)`);
+    const t0 = await ev(`document.querySelector('#apb-title').value`);
+    await ev(`(() => { const t = document.querySelector('#apb-title'); t.value = 'Halb getippt'; t.dispatchEvent(new Event('input', {bubbles: true})); document.querySelector('.apb-dlg .lhdr [data-apb="close"]').click(); return 1; })()`);
+    check(await ready(ev, `[...document.querySelectorAll('.modal.cdlg')].some(m => /Discard changes/.test(m.textContent)) && document.querySelector('.apb-dlg #apb-title')?.value === 'Halb getippt'`), '#6157: X asks before the typed title is thrown away');
+    await ev(`(() => { document.querySelector('.modal.cdlg [data-cd="no"]').click(); return 1; })()`);
+    check(await ready(ev, `!document.querySelector('.modal.cdlg') && document.querySelector('.apb-dlg #apb-title')?.value === 'Halb getippt'`), '#6157: "Keep editing" keeps the dialog and the title');
+    await ev(`(() => { document.querySelector('#apb-title').value = ${JSON.stringify(t0)}; return 1; })()`);
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await sleep(400);
     check(await ev(noSide('.apb-dlg .card')), 'on a phone the settings stay inside the screen');

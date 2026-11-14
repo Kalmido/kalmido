@@ -91,7 +91,8 @@ const waitMail = async (to, n) => { for (let i = 0; i < 50; i++) { if (mails(to)
     check(await ready(ev, `/\\/ical\\/ev\\/\\d+\\.[A-Za-z0-9_-]+\\.ics$/.test(document.querySelector('#evf-url')?.value || '')`), 'create shows the link');
     const u1 = await ev(`document.querySelector('#evf-url').value`);
     await ev(`(() => { document.querySelector('.evfmodal [data-evf="copy"]').click(); return 1; })()`);
-    check(await ready(ev, `/Link copied|Copy the selected link/.test(document.querySelector('#toast')?.textContent || '')`), 'Copy answers with a short note');
+    // 2.1183.0 (#6157): the shared copyText ("Copied: <link>", a blocked clipboard shows the link itself)
+    check(await ready(ev, `/Copied|\\/ical\\//.test(document.querySelector('#toast')?.textContent || '')`), 'Copy answers with a short note');
     await shot('p2111-b-feed.png');
     const p1 = new URL(u1).pathname;
     check((await fetch(B + p1.slice(1))).status === 200, 'the link works without login');

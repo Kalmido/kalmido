@@ -49,6 +49,11 @@
 .apb-hm .dpbtn{min-width:6.5rem}
 .apb-dlg .row textarea{flex:1;min-width:0;width:100%}
 .apb-save{display:flex;justify-content:flex-end;margin-top:.75rem}
+/* 2.1183.0 (#6157): "Save" in the foot, the foot stays in reach while the long dialog scrolls; the error line right above it */
+.apb-dlg .apb-foot{position:sticky;bottom:0;background:var(--bg2);z-index:1}
+.apb-dlg .apb-foot[hidden]{display:none}
+.apb-dlg .aerr:empty{display:none}
+.apb-dlg .row input#apb-tzq{flex:1;min-width:0}
 .apb-list{list-style:none;margin:0;padding:0}
 .apb-list li{display:flex;align-items:center;gap:.5rem;border-bottom:1px solid var(--line);min-height:3rem;padding:.25rem 0}
 .apb-list li.off .apb-main,.apb-books li.cancelled .apb-main{opacity:.55}
@@ -60,6 +65,7 @@
 /* 2.98.0 A (#1953): scheduling polls (polls.js): the list, the times of the form, one card per proposed time with its bar (yes
    in the accent, maybe lighter), the best / chosen time marked, the link row; phones: everything one column, large targets */
 .tpo-dlg .card{max-width:34rem}
+.tpo-form .row textarea{flex:1;min-width:0;width:100%}  /* 2.1183.0 (#6157): the description as wide as the other fields */
 .tpo-list{display:flex;flex-direction:column;gap:.375rem;margin:.5rem 0}
 .tpo-li{display:flex;flex-direction:column;align-items:flex-start;gap:.125rem;text-align:left;padding:.625rem .75rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg2);min-height:2.75rem}
 .tpo-li:hover,.tpo-li:focus-visible{border-color:var(--accent)}
