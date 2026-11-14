@@ -62,7 +62,7 @@ const rowOf = (d, txt) => [...d.querySelectorAll('#side .sbbt')].find(r => r.que
   check(tr1 && order[0] === '#Projekt' && order.includes('#intern') && !order.includes('#imcode') && !order.includes('#imblock'), 'most used first, no tag from code ' + JSON.stringify(order));
   tr1?.querySelector('.sbbtn')?.click();
   // 2.1169.0 (#6090): a row shows the page's name, its folder quietly beside it (was the full path "Kunden/Nord")
-  const rows = await until(() => { const r = [...d.querySelectorAll('#view .wktagview .wkdlist .wkitem > span')].map(s => s.firstChild?.textContent + '|' + s.querySelector('.wkpdir')?.textContent); return r.length ? r : null; });
+  const rows = await until(() => { const r = [...d.querySelectorAll('#view .wktagview .wkdlist .wkitem > span')].map(s => s.firstChild?.textContent.trim() + '|' + s.querySelector('.wkpdir')?.textContent); return r.length ? r : null; });
   check(w.location.hash === '#wiki/t/Projekt' && JSON.stringify(rows) === JSON.stringify(['Nord|Kunden', 'Odd <i>name|Kunden', 'Süd|Kunden', 'West|Kunden']),
     'a tag opens its pages (no template, names escaped) ' + w.location.hash + ' ' + JSON.stringify(rows));
   check(d.querySelector('#view .wktagview h2')?.textContent.trim() === '#Projekt', 'the list is headed by the tag');
