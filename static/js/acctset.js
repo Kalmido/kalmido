@@ -182,7 +182,7 @@ const UA8_PAGE = 50;
 const usersHtml = () => `<h4>${tr('People')}</h4>
   <div class="ua8bar"><input type="search" id="a-uq" placeholder="${esc(tr('Name, user name or e-mail'))}" aria-label="${esc(tr('Search people'))}" autocomplete="off" autocapitalize="off" spellcheck="false"><select id="a-uflt" aria-label="${esc(tr('Filter'))}">${UA8_FLT.map(([k, n]) => `<option value="${k}">${esc(tr(n))}</option>`).join('')}</select></div>
   <div id="a-usel" role="region" aria-label="${esc(tr('Selected people'))}" hidden></div>
-  <div class="members" id="a-users" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div>
+  <div class="members" id="a-users" aria-live="polite">${loadingHtml()}</div>
   <div class="ua8pg" id="a-upg"></div>
   <div class="row" style="margin-top:.5rem"><button class="btn sm" data-acc="user-new">${ic('plus', 's')} ${tr('New person')}</button></div>`;
 // ------------------------------------------------------------------ 2.10.0 (#441): groups
@@ -227,7 +227,7 @@ async function grpEdit(smd, gid) {
     const err = $('#gr-err', md);
     if (b.dataset.m === 'del') {
       if (!await askConfirm(tr('Delete the group {0}?', g.name), tr('Its members lose the access they had only through it; tasks assigned to it become unassigned.'), {ok: tr('Delete'), danger: true})) return;
-      try { await calReq('DELETE', `/api/admin/groups/${gid}`); } catch (x) { err.textContent = x.message; err.hidden = false; return; }
+      try { await calReq('DELETE', `/api/admin/groups/${gid}`); } catch (x) { err.textContent = errText(x); err.hidden = false; return; }
       md.remove(); await load().catch(() => {}); render(); grpDraw(smd); toast(tr('Group deleted')); return;
     }
     const name = $('#gr-name', md).value.trim(), og = $('#gr-oidc', md).value.trim();
@@ -242,7 +242,7 @@ async function grpEdit(smd, gid) {
 // 2.23.0 (#799): a shared server (KALMIDO_INSTANCE_MODE=shared) says so; 2.46.0 (#1592): every other server has workspaces
 const orgsHtml = () => S.instanceMode === 'shared' ? `<h4 id="a-orgs-h">${tr('Organisation')}</h4><div class="shint">${tr('A shared server: no organisations; people see only the people they are connected with and share by e-mail address (set by the server configuration).')}</div>`
   : `<h4 id="a-orgs-h">${tr('Organisations')}</h4><div class="shint">${tr('A shared server with workspaces: every organisation is its own workspace with its own admins, who manage its members. People see the members of their organisations and the people they are connected with; private projects stay invisible to an organisation.')}</div>
-  <div class="members" id="a-orgs"><div class="muted mhint">${tr('Loading…')}</div></div><div class="row"><button class="btn sm" data-acc="org-new">${ic('plus', 's')} ${tr('New organisation')}</button></div>`;
+  <div class="members" id="a-orgs">${loadingHtml()}</div><div class="row"><button class="btn sm" data-acc="org-new">${ic('plus', 's')} ${tr('New organisation')}</button></div>`;
 // 2.46.0 (#1561): "Add person": the organisation (none / each one; exactly one: preselected, as a member) and the role in it
 function omNewOrgRows() {
   const os = (S.orgs || []).filter(o => !o.apart), one = os.length === 1 ? os[0].id : 0;  // 2.399.0 (#2687): hosted, a client's organisation is not offered
@@ -329,8 +329,8 @@ async function orgModal(o, done) {
 }
 function wsPaneHtml(hint) {
   return `<h4 id="s-ws-h">${tr('Workspaces')}</h4>${hint(tr('Every project belongs to one workspace; the sidebar shows one at a time. An organisation’s project is shared only inside it; private sharing stays invisible to it.'))}
-    <div class="members" id="s-ws" aria-labelledby="s-ws-h"><div class="muted mhint">${tr('Loading…')}</div></div>
-    ${(S.me.workspaces || []).length ? `<h4 id="s-wsr-h">${tr('Absences and holiday')}</h4><div id="s-wsr"><div class="muted mhint">${tr('Loading…')}</div></div>` : ''}${''/* 2.365.2 C (#2789) */}`;
+    <div class="members" id="s-ws" aria-labelledby="s-ws-h">${loadingHtml()}</div>
+    ${(S.me.workspaces || []).length ? `<h4 id="s-wsr-h">${tr('Absences and holiday')}</h4><div id="s-wsr">${loadingHtml()}</div>` : ''}${''/* 2.365.2 C (#2789) */}`;
 }
 // 2.365.2 C (#2789): the rules of an organisation that the Absences tab used to hold: vacation needs an approval, the state
 // of the public holidays (same routes; only admins of the organisation write)
@@ -339,7 +339,7 @@ async function wsr_draw(md, oid) {
   const orgs = S.me.workspaces || [], c = wsCur();
   oid = oid || (c.startsWith('org:') && orgs.some(w => 'org:' + w.id === c) ? +c.slice(4) : orgs[0]?.id);
   if (!oid) { box.innerHTML = ''; return; }
-  let lv, ab; try { [lv, ab] = await Promise.all([api('GET', `/api/team/leave?org=${oid}`), api('GET', `/api/team/absences?org=${oid}`)]); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  let lv, ab; try { [lv, ab] = await Promise.all([api('GET', `/api/team/leave?org=${oid}`), api('GET', `/api/team/absences?org=${oid}`)]); } catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wsr_draw(md, oid); }}); return; }
   if (!md.isConnected) return;
   const dis = lv.admin ? '' : 'disabled';
   box.innerHTML = `${orgs.length > 1 ? `<div class="row"><label for="s-wsr-org">${tr('Organisation')}</label><select id="s-wsr-org">${orgs.map(w => `<option value="${w.id}" ${w.id === oid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>` : ''}
@@ -561,10 +561,10 @@ function rcModal(codes) {
   });
 }
 // ---- Settings > Account > Two-factor authentication
-const tfaHtml = () => `<h4 id="s-2fa-h">${tr('Two-factor authentication')}</h4><div id="s-2fa"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+const tfaHtml = () => `<h4 id="s-2fa-h">${tr('Two-factor authentication')}</h4><div id="s-2fa">${loadingHtml()}</div>`;
 async function tfaDraw(md, j) {
   const box = $('#s-2fa', md); if (!box) return;
-  if (!j) { try { j = await api('GET', '/api/me/2fa'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; } }
+  if (!j) { try { j = await api('GET', '/api/me/2fa'); } catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); tfaDraw(md); }}); return; } }
   box._j = j;
   const hint = t => `<div class="shint">${t}</div>`;
   if (!j.available) {
@@ -603,7 +603,7 @@ function tfaWire(md) {
           m.querySelector('form').addEventListener('submit', async ev => {
             ev.preventDefault();
             try { const r = await rawFetch('POST', '/api/me/2fa/totp/confirm', {code: $('#totp-code', m).value}); m.remove(); done(r); }
-            catch (x) { $('#totp-err', m).textContent = x.message; }
+            catch (x) { $('#totp-err', m).textContent = errText(x); }
           });
           setTimeout(() => $('#totp-code', m)?.focus(), 50);
         });
@@ -689,7 +689,7 @@ function bkRestore(md, src) {
         else toast(tr('Backup restored. Safety backup: {0}', r.safety));
         setTimeout(() => location.replace('/'), 1200);
         done(true);
-      } catch (x) { $('#bkr-err', m).textContent = x.message; go.disabled = false; go.textContent = tr('Restore'); }
+      } catch (x) { $('#bkr-err', m).textContent = errText(x); go.disabled = false; go.textContent = tr('Restore'); }
     });
     setTimeout(() => $('#bkr-pass', m)?.focus() || $('#bkr-word', m)?.focus(), 50);
   });
@@ -759,7 +759,7 @@ function bkWire(md) {
       const res = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(res.error || httpErrText(r.status));
       await bkRestore(md, {...res, word: j.confirm_word || 'RESTORE'});
-    } catch (x) { toast(x.message); }
+    } catch (x) { toast(errText(x)); }
     e.target.value = '';
   });
   md.addEventListener('click', async e => {
@@ -1101,7 +1101,7 @@ async function ofmSigSettings() {
   try {
     if (typeof ofmSigModal !== 'function') await loadModule('office');
     await ofmSigModal();
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); }
+  } catch (e) { toast(errText(e)); }
 }
 // 2.365.2 C (#2789): the letter signature dialog of the Office, opened from Settings > Account (the Office module loads first)
 async function ltSigSettings() {
@@ -1113,7 +1113,7 @@ async function ltSigSettings() {
       url = '/api/office/meals/signature'; profile = await api('GET', url);  // 2.372.0 (#3316): without the correspondence: the picture for the entertainment receipts
     }
     ltProfileModal({profile, url, done: () => toast(tr('Saved'))});
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); }
+  } catch (e) { toast(errText(e)); }
 }
 
 // 2.574.0 (#3376): an organisation admin reads the tasks of the organisation's projects (the ones "Projects of the organisation"
@@ -1123,7 +1123,7 @@ const OTK_ST = [['open', N_('Open')], ['done', N_('Completed')], ['all', N_('All
 async function otkLoad(md, oid, more) {
   const f = md._f, box = $('#otk-body', md);
   let j; try { j = await api('GET', `/api/orgs/${oid}/tasks?` + new URLSearchParams({status: f.st, ...(f.lid ? {list_id: f.lid} : {}), ...(f.q ? {q: f.q} : {}), offset: more ? md._rows.length : 0})); }
-  catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); otkLoad(md, oid, more); }}); return; }
   md._rows = more ? [...md._rows, ...j.tasks] : j.tasks;
   const sel = $('#otk-l', md);
   if (sel && !sel.options.length) sel.innerHTML = `<option value="">${esc(tr('All projects'))}</option>` + j.lists.map(l => `<option value="${l.id}">${esc(l.name)}${l.archived ? ' (' + esc(tr('archived')) + ')' : ''}</option>`).join('');
@@ -1138,7 +1138,7 @@ function otkOpen(oid, name) {
     <div class="row otkbar"><label for="otk-l" class="sr">${tr('Project')}</label><select id="otk-l"></select>
       <div class="seg" role="group" aria-label="${esc(tr('Show'))}">${OTK_ST.map(([k, n]) => `<button type="button" class="${k === 'open' ? 'on' : ''}" data-otk-st="${k}" aria-pressed="${k === 'open'}">${esc(tr(n))}</button>`).join('')}</div>
       <input id="otk-q" type="search" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search'))}" maxlength="200"></div>
-    <div class="members oadm" id="otk-body"><div class="muted mhint">${tr('Loading…')}</div></div>
+    <div class="members oadm" id="otk-body">${loadingHtml()}</div>
     <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button></div>`);
   md.classList.add('oadmmd', 'otkmd');
   md._f = {st: 'open', lid: '', q: ''}; md._rows = [];

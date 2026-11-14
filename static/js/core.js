@@ -735,7 +735,10 @@ function savedTick(el, again) {
 // app; without a sentence the server's text as before. e: an Error or a stored message
 function errText(e, what) {
   if (e instanceof Offline || e === 'offline') return tr('Only available online.');
-  const raw = String((typeof e === 'string' ? e : e?.message) || '').trim();
+  // 2.1180.0 (#6131): a browser's own refusal (DOMException: push, passkey) never shows its English text
+  const dn = e && typeof e === 'object' && !e.j && !e.status ? e.name : '';
+  const dom = dn === 'NotAllowedError' ? tr('Your browser or device did not allow this. Allow it and try again.') : dn === 'AbortError' ? tr('Cancelled.') : dn === 'InvalidStateError' ? tr('This is already set up on this device.') : dn === 'NotSupportedError' ? tr('Your browser does not support this.') : '';
+  const raw = dom || String((typeof e === 'string' ? e : e?.message) || '').trim();
   if (!what) return raw || tr('Something went wrong');
   return raw && raw !== what ? `${what} (${raw})` : what;
 }
@@ -782,7 +785,7 @@ async function api(method, url, body) {
   catch (e) {
     if (e instanceof Offline) {
       if (queueable(method, url) && !(body instanceof FormData)) return enqueue(method, url, body);
-      if (method !== 'GET') { toast(tr('Offline: only works again with a connection')); e.shown = true; }  // 2.855.0 (#5451)
+      if (method !== 'GET') { toast(tr('Only available online.')); e.shown = true; }  // 2.855.0 (#5451)
     } else if (e.message !== 'auth' && !e.shown) {
       if (e.data?.out_request && typeof oor_ask === 'function') toast(e.message, () => oor_ask(e.data.out_request), 10000, tr('Ask an admin'));  // 2.361.2 (#2923)
       else toast(errText(e, apiWhat(method, url, body)));  // 2.910.0 (#5444): what was not saved, the server's text as an addition
@@ -808,7 +811,7 @@ async function undoWrite(url, old, seenAt, o = {}) {
       if (!o.hist) toast(o.label ? tr('Changed elsewhere, not undone: {0}', o.label) : tr('Changed elsewhere, not undone'));
       return null;
     }
-    if (x instanceof Offline) toast(tr('Offline: only works again with a connection'));
+    if (x instanceof Offline) toast(tr('Only available online.'));
     else if (x?.message !== 'auth' && !x?.shown) toast(x?.message || tr('unknown'));
     if (x) x.shown = true;
     throw x;

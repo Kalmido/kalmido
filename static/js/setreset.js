@@ -47,7 +47,7 @@ function rs_listHtml(/** @type {any[]} */ items, /** @type {number} */ nLocal) {
 
 async function rsOpen() {
   /** @type {any} */ let j;
-  try { j = await rawFetch('POST', '/api/settings/reset', {dry_run: true}); } catch (/** @type {any} */ x) { toast(x?.message || tr('Only available online.')); return; }
+  try { j = await rawFetch('POST', '/api/settings/reset', {dry_run: true}); } catch (/** @type {any} */ x) { toast(errText(x)); return; }
   const loc = rs_localNow(), nLocal = Object.keys(loc).length, any = j.items.length > 0 || nLocal > 0;
   const md = /** @type {any} */ (modal(`<h3>${esc(tr('Reset settings?'))}</h3>
     <div class="shint keep">${esc(tr('These settings differ from the standard and go back:'))}</div>

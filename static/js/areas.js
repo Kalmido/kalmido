@@ -832,7 +832,7 @@ async function sbb_orgAdd() {
   const name = ((await askPrompt(tr('Name of the new company'), '', {body: tr('Keeps your work apart from your private things. You become its admin and can invite people by e-mail.'), ok: tr('Create'), input: {max: 60}})) || '').trim();
   if (!name) return;
   let o; try { o = await api('POST', '/api/orgs', {name}); } catch (x) {
-    await askConfirm(tr('Add an organisation'), x.status === 403 ? tr('A company is set up by the admin of this server. A company’s admin can then invite you by e-mail.') : (x.message || tr('unknown')), {ok: tr('OK')});
+    await askConfirm(tr('Add an organisation'), x.status === 403 ? tr('A company is set up by the admin of this server. A company’s admin can then invite you by e-mail.') : errText(x, tr('The company could not be created')), {ok: tr('OK')});
     return;
   }
   await load().catch(() => {});
