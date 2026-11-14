@@ -2200,9 +2200,7 @@ function lst_emptyFilter(rl, kb) {
   const cf = !kb && typeof SG !== 'undefined' && SG.cf?.[rl.id];  // kb: the board (calendar.js viewKanban) has no column filter
   if (cf) return {name: sgColName(rl, cf.k), btn: `<button type="button" class="btn" data-sgfoff="${esc(rl.id)}">${ic('filter', 's')} ${esc(tr('Show all'))}</button>`};
   // 2.1176.0 (#6139): the sprint filter of the list / board header (sprints.js sprKeep) too
-  const sf = spr_on(spr_list(rl.id)) && spr_flt(rl.id);
-  if (sf) return {name: tr(sf === 'cur' ? 'Current sprint' : 'Backlog|sprint'), btn: `<button type="button" class="btn" data-spr="flt" data-v="" data-lid="${esc(rl.id)}">${ic('filter', 's')} ${esc(tr('Show all'))}</button>`};
-  return null;
+  return spr_emptyFlt(rl);
 }
 function viewListBody() {
   const v = viewTasks();
