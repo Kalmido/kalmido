@@ -18632,7 +18632,6 @@
   "Deleted items stay here until you delete them permanently.": "Gelöschtes bleibt hier, bis du es endgültig löschst.",
   "Deleted items stay here for {0} day, then they are deleted permanently.": ["Gelöschtes bleibt {0} Tag hier, danach ist es endgültig weg.", "Gelöschtes bleibt {0} Tage hier, danach ist es endgültig weg."],
   "In the trash": "Liegt im Papierkorb",
-  "Was in: {0}": "Lag in: {0}",
   "Deleted on {0}": "Gelöscht am {0}",
   "Total of items|pdf": "Summe Positionen",
   "Payment|pdf": "Zahlung",

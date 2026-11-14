@@ -18632,7 +18632,6 @@
   "Deleted items stay here until you delete them permanently.": "Verwijderde items blijven hier tot je ze definitief verwijdert.",
   "Deleted items stay here for {0} day, then they are deleted permanently.": ["Verwijderde items blijven hier {0} dag en zijn daarna voorgoed weg.", "Verwijderde items blijven hier {0} dagen en zijn daarna voorgoed weg."],
   "In the trash": "Ligt in de prullenbak",
-  "Was in: {0}": "Lag in: {0}",
   "Deleted on {0}": "Verwijderd op {0}",
   "Total of items|pdf": "Totaal posten",
   "Payment|pdf": "Betaling",

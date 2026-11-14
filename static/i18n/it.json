@@ -18633,7 +18633,6 @@
   "Deleted items stay here until you delete them permanently.": "Ciò che è eliminato resta qui finché non lo elimini definitivamente.",
   "Deleted items stay here for {0} day, then they are deleted permanently.": ["Ciò che è eliminato resta qui {0} giorno, poi sparisce per sempre.", "Ciò che è eliminato resta qui {0} giorni, poi sparisce per sempre."],
   "In the trash": "Si trova nel cestino",
-  "Was in: {0}": "Si trovava in: {0}",
   "Deleted on {0}": "Eliminato il {0}",
   "Total of items|pdf": "Totale delle voci",
   "Payment|pdf": "Pagamento",
