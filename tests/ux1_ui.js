@@ -111,7 +111,7 @@ const addD = (s, n) => { const [y, m, d] = s.split('-').map(Number); const x = n
   check(mp.querySelector('[data-modrow="pomo"] details #s-pf') && mp.querySelector('[data-modrow="time"] details #s-trnd'), 'focus and time options folded under their module');
   check(!md.querySelector('#s-nav') && !md.querySelector('[data-pane="layout"]') && !md.querySelector('[data-pane="collab"]'), 'the duplicate module list and the Collaboration tab are gone');
   check(md.querySelector('[data-pane="look"] [data-m="go-nav"]') && !md.querySelector('#s-tabbar') && md.querySelector('[data-pane="nav"] [data-m="tab-add"]'), 'tab bar: Appearance links to Navigation, the editor lives there only (2.1178.0 (#6129))');
-  check(md.querySelector('[data-pane="account"] details.sdev [data-m="go-share"]') && !md.querySelector('[data-acc="token"]'), 'API tokens folded under "Advanced · for developers"; 2.7.0 (#405 S3): the upload token only under Share from your phone, a link here');
+  check(md.querySelector('[data-pane="account"] details.sdev [data-m="go-share"]') && !md.querySelector('[data-acc="token"]'), 'API tokens folded under "For advanced users" (2.1180.0 #6130); 2.7.0 (#405 S3): the upload token only under Share from your phone, a link here');
   // 1.9.0: /drop moved out of "Advanced" into Integrations > Share from your phone (the address to copy)
   check(md.querySelector('[data-pane="integr"] #s-share-h') && /^https?:\/\/[^/]+$/.test(md.querySelector('[data-pane="integr"] #s-dropurl')?.value || ''), 'server address (2.0.2: without /drop) in Integrations > Share from your phone');
   const prio = [...md.querySelectorAll('#s-pushprio option')].map(o => o.textContent);
