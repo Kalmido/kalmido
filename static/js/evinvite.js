@@ -72,8 +72,7 @@ async function evf_modal(c) {
     const a = b.dataset.evf;
     if (a === 'close') { md.remove(); return; }
     if (a === 'copy') {
-      const i = $('#evf-url', md);
-      try { await navigator.clipboard.writeText(i.value); toast(tr('Link copied')); } catch { i.focus(); i.select(); toast(tr('Copy the selected link')); }
+      copyText($('#evf-url', md).value);  // 2.1183.0 (#6157): the shared copy (a blocked clipboard shows the link)
       return;
     }
     if (a === 'rotate' && !await askConfirm(tr('Create a new link?'), tr('Calendars subscribed with the old one stop updating.'), {ok: tr('New link'), danger: true})) return;

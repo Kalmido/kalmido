@@ -4,24 +4,61 @@
    the list of bookings (cancel; 2.540.0 #4349: search over all bookings, delete confirmed / cancelled ones). Opened from the Calendars dialog (calevents.js). Lazy module "calendar" (lazyload.js). */
 'use strict';
 
-const APB = {data: null, types: [], bookings: [], md: null, q: '', found: null, more: false};  // 2.540.0 (#4349): q / found = the booking search
+const APB = {data: null, types: [], bookings: [], md: null, q: '', found: null, more: false, qErr: false, snap: ''};  // 2.540.0 (#4349): q / found = the booking search; 2.1183.0 (#6157): qErr = the search failed, snap = the page's fields as drawn
 const APB_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
+// rawFetch (2.1183.0 #6157): the dialog says what failed itself, no second message as a toast
 async function apbLoad() {
-  const [p, t, b] = await Promise.all([api('GET', '/api/appt/page'), api('GET', '/api/appt/types'), api('GET', '/api/appt/bookings')]);
+  const [p, t, b] = await Promise.all([rawFetch('GET', '/api/appt/page'), rawFetch('GET', '/api/appt/types'), rawFetch('GET', '/api/appt/bookings')]);
   APB.data = p; APB.types = t.types || []; APB.bookings = b.bookings || [];
 }
+// 2.1183.0 (#6157): the dialog opens at once with "Loading…" (render.js loadingHtml); a failed fetch shows the shared block with
+// "Try again" (errorState) instead of nothing; "Save" stands in the dialog's foot; X, Esc and the backdrop ask before changed
+// fields of the page are thrown away (modalGuard; the appointment types and bookings save at once, they are no draft)
 async function apbOpen() {
-  try { await apbLoad(); } catch { return; }
   APB.md?.remove();
-  const md = APB.md = modal(`<div class="lhdr"><h3>${ic('cal', 's')} ${tr('Booking page')}</h3><span class="spacer"></span><button class="iconbtn" data-apb="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div><div class="apb-body"></div>`);
+  const md = APB.md = modal(`<div class="lhdr"><h3>${ic('cal', 's')} ${tr('Booking page')}</h3><span class="spacer"></span><button class="iconbtn" data-apb="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div><div class="apb-body">${/*html-ok*/ loadingHtml('sec')}</div>
+    <div class="aerr" role="alert"></div>
+    <div class="foot apb-foot" hidden><span class="spacer"></span><button class="btn" data-apb="close">${tr('Close')}</button><button class="btn pri" data-apb="save">${tr('Save')}</button></div>`);
   md.classList.add('apb-dlg');
-  apbDraw();
+  modalGuard(md, apbDirty);
+  onRemove(md, () => { if (APB.md === md) APB.md = null; });
   md.addEventListener('click', apbClick);
-  md.addEventListener('change', e => { if (e.target.id === 'apb-on') apbToggle(e.target); if (e.target.matches('[data-apbday]')) apbDayRow(e.target); });
+  md.addEventListener('change', e => {
+    if (e.target.id === 'apb-on') apbToggle(e.target);
+    if (e.target.matches('[data-apbday]')) apbDayRow(e.target);
+    if (e.target.id === 'apb-tzq') apbTzPick(e.target);
+  });
   md.addEventListener('input', e => { if (e.target.id === 'apb-q') apbSearchSoon(e.target.value); });
+  md.addEventListener('focusin', e => {  // the time zone list is filled when it is searched (some hundred cities, as in the event editor)
+    if (e.target.id !== 'apb-tzq') return;
+    e.target.select?.();
+    const dl = $('#apb-tzl', md); if (dl && !dl.childElementCount) dl.innerHTML = evZones($('#apb-tz', md)?.value).map(z => `<option value="${esc(evTzLabel(z))}"></option>`).join('');
+  });
+  await apbFirst(md);
 }
-function apbReload() { return apbLoad().then(apbSearch).then(apbDraw).catch(() => {}); }
+async function apbFirst(md) {
+  const body = $('.apb-body', md);
+  try { await apbLoad(); } catch {
+    if (md.isConnected) body.innerHTML = errorState({size: 'sec', title: tr('The booking page could not be loaded'),
+      retry: () => { body.innerHTML = loadingHtml('sec'); apbFirst(md); }});
+    return;
+  }
+  if (md.isConnected) apbDraw();
+}
+// the page's fields differ from what was drawn (a save or a reload draws again and takes the new state as the start)
+const apbDirty = () => !!APB.md && !!APB.data && !!$('#apb-slug', APB.md) && JSON.stringify(apbRead()) !== APB.snap;
+// 2.846.0 (#5465) in the event editor, 2.1183.0 (#6157) here: the searched city sets the zone; nothing found = the zone stays
+function apbTzPick(inp) {
+  const h = $('#apb-tz', APB.md); if (!h) return;
+  const z = evTzFind(inp.value, h.value);
+  if (z) h.value = z;
+  inp.value = evTzLabel(h.value);
+}
+// 2.1183.0 (#6157): a reload that failed keeps what is shown and says so (was silent)
+function apbReload() {
+  return apbLoad().then(apbSearch).then(apbDraw).catch(x => { if (APB.md?.isConnected) toast(errText(x, tr('The booking page could not be updated'))); });
+}
 // 2.979.0 (#5667): an undo / redo the server did (undo.js histRedraw): the open booking page dialog fetches its page, types and bookings again
 histReloader('apptbook', () => { if (APB.md?.isConnected) return apbReload(); });
 
@@ -30,11 +67,12 @@ let apbSearchT = 0;
 function apbSearchSoon(v) { clearTimeout(apbSearchT); apbSearchT = setTimeout(() => { APB.q = v.trim(); apbSearch().then(apbDrawBooks); }, 250); }
 async function apbSearch() {
   const q = APB.q;
+  APB.qErr = false;
   if (!q) { APB.found = null; APB.more = false; return; }
   try {
-    const j = await api('GET', '/api/appt/bookings?q=' + encodeURIComponent(q));
+    const j = await rawFetch('GET', '/api/appt/bookings?q=' + encodeURIComponent(q));
     if (q === APB.q) { APB.found = j.bookings || []; APB.more = !!j.more; }
-  } catch { /* the list stays as it was */ }
+  } catch { if (q === APB.q) { APB.found = null; APB.qErr = true; } }  // 2.1183.0 (#6157): the list says it, with "Try again" (was silent)
 }
 
 const apbWhen = iso => { const d = new Date(iso); return `${WDL[d.getDay()]}, ${fmtStamp(d)}`; };
@@ -53,13 +91,15 @@ function apbDayRow(cb) { cb.closest('.apb-day')?.classList.toggle('off', !cb.che
 function apbDraw() {
   const md = APB.md, D = APB.data; if (!md || !D) return;
   const p = D.page, el = $('.apb-body', md);
-  const warn = !D.mail_ok ? tr('This server sends no e-mail: the booking page cannot be switched on') : !D.links_ok ? tr('Public links are switched off on this server') : '';
+  // 2.1183.0 (#6157): what it means for the person, not how the server is set up
+  const warn = !D.mail_ok ? tr('Bookings are confirmed by e-mail, and sending e-mail is not set up for this Kalmido yet: until then the booking page cannot be switched on.')
+    : !D.links_ok ? tr('Public links are switched off, so clients cannot open the booking page.') : '';
   const link = D.exists ? `<div class="apb-link"><code>${esc(p.url)}</code><button class="btn sm" data-apb="copy">${ic('copy', 's')} ${tr('Copy link')}</button><a class="btn sm" href="${esc(p.url)}" target="_blank" rel="noopener">${ic('link', 's')} ${tr('Open')}</a></div>` : '';
   const cals = D.calendars.map(c => `<option value="${c.id}" ${c.id === p.cal_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
   const offs = D.offices.map(o => `<option value="${o.personal ? 'personal' : o.id}" ${p.office_org_id && (o.id === p.office_org_id) ? 'selected' : ''}>${esc(o.name)}</option>`).join('');
   const types = APB.types.length ? `<ul class="apb-list">${APB.types.map(t => `<li class="${t.active ? '' : 'off'}"><button class="apb-main" data-apbtype="${t.id}"><b>${esc(t.name)}</b><span class="muted">${esc(apbTypeSub(t))}</span></button>
       <button class="iconbtn" data-apbdel="${t.id}" aria-label="${esc(tr('Delete {0}', t.name))}" title="${esc(tr('Delete'))}">${ic('trash', 's')}</button></li>`).join('')}</ul>`
-    : `<p class="muted">${tr('No appointment type yet. Clients select one of them first.')}</p>`;
+    : emptyState({icon: 'cal', size: 'row', title: tr('No appointment type yet'), sub: tr('Clients select one of them first.')});  // 2.1183.0 (#6157): the shared empty state
   el.innerHTML = `${warn ? `<p class="apb-warn" role="note">${esc(warn)}</p>` : ''}
     <label class="mmain apb-onrow"><span class="swc"><input type="checkbox" id="apb-on" ${p.enabled ? 'checked' : ''} ${warn && !p.enabled ? 'disabled' : ''}><span class="swt" aria-hidden="true"></span></span>
       <span><b>${tr('Clients can book appointments')}</b>${APB.types.length ? '' : `<small class="muted">${tr('A public page without sign-in: free times come from your calendars, every booking is confirmed by e-mail.')}</small>`}</span></label>
@@ -70,22 +110,23 @@ function apbDraw() {
     <div class="row"><label for="apb-intro">${tr('Text')}</label><textarea id="apb-intro" rows="3" maxlength="1000">${esc(p.intro)}</textarea></div>
     <div class="row"><label for="apb-cal">${tr('Calendar')}</label><select id="apb-cal"><option value="">${tr('My first calendar')}</option>${cals}</select></div>
     ${D.offices.length ? `<div class="row"><label for="apb-office">${tr('Leads in')}</label><select id="apb-office"><option value="">${tr('No lead')}</option>${offs}</select></div>` : ''}
-    <div class="row"><label for="apb-tz">${tr('Time zone')}</label><input id="apb-tz" maxlength="64" value="${esc(p.tz)}" spellcheck="false"></div>
+    <div class="row"><label for="apb-tzq">${tr('Time zone')}</label><input type="hidden" id="apb-tz" value="${esc(p.tz || evTz())}"><input id="apb-tzq" list="apb-tzl" value="${esc(evTzLabel(p.tz || evTz()))}" autocomplete="off" placeholder="${esc(tr('Search a city'))}" enterkeyhint="done"><datalist id="apb-tzl"></datalist></div>
     <h4>${tr('Opening hours')}</h4>
     <div class="apb-hours">${APB_DAYS.map(d => apbDayHtml(d, p.hours?.[d] || [])).join('')}</div>
-    <div class="aerr" role="alert"></div>
-    <div class="apb-save"><button class="btn pri" data-apb="save">${tr('Save')}</button></div>
     <h4>${tr('Appointment types')}</h4>${types}
     <div class="apb-save"><button class="btn" data-apb="newtype">${ic('plus', 's')} ${tr('New appointment type')}</button></div>
     <h4>${tr('Bookings')}</h4>
     <div class="apb-bsearch"><input id="apb-q" type="search" maxlength="200" autocomplete="off" spellcheck="false" value="${esc(APB.q)}" placeholder="${esc(tr('Search by name or e-mail'))}" aria-label="${esc(tr('Search by name or e-mail'))}"></div>
     <div class="apb-bwrap">${apbBooksHtml()}</div>`;
+  const ft = $('.apb-foot', md); if (ft) ft.hidden = false;
+  APB.snap = JSON.stringify(apbRead());
 }
 // the coming bookings, or with a search the hits over all bookings (newest first); confirmed / cancelled ones can be deleted
 function apbBooksHtml() {
   const now = Date.now(), found = APB.found;
+  if (APB.qErr) return errorState({size: 'row', title: tr('The search did not work'), retry: () => apbSearch().then(apbDrawBooks)});  // 2.1183.0 (#6157)
   const bk = found || APB.bookings.filter(b => new Date(b.end).getTime() >= now).slice(0, 100);
-  if (!bk.length) return `<p class="muted">${found ? tr('No booking found.') : tr('No bookings yet.')}</p>`;
+  if (!bk.length) return emptyState({icon: found ? 'search' : 'cal', size: 'row', title: found ? tr('No booking found.') : tr('No bookings yet.')});  // 2.1183.0 (#6157): the shared empty state
   return `<ul class="apb-list apb-books">${bk.map(b => { const past = new Date(b.end).getTime() < now; return `<li class="${b.status}${past ? ' past' : ''}" data-apbbk="${b.id}"><div class="apb-main"><b>${esc(apbWhen(b.start))}</b>
       <span>${esc(b.type_name || '')} · ${esc(b.name)}</span><span class="muted">${esc(b.email)}${b.phone ? ' · ' + esc(b.phone) : ''}</span>
       ${b.status !== 'confirmed' ? `<span class="apb-st">${esc(b.status === 'pending' ? tr('Waiting for the client to confirm') : b.cancelled_by === 'guest' ? tr('Cancelled by the client') : tr('Cancelled'))}</span>` : ''}</div>
@@ -118,7 +159,7 @@ async function apbSave() {
   const er = $('.aerr', md); if (er) er.textContent = '';
   // 2.564.0 D (#4701): against the version the page was loaded with; 409 = saved meantime elsewhere: the current page and the reason
   try { APB.data = await api('PUT', '/api/appt/page', D.exists && D.page.updated_at ? {...body, expect_updated_at: D.page.updated_at} : body); }
-  catch (x) { if (x.status === 409 && x.data?.current) { APB.data = x.data.current; apbDraw(); } const e2 = $('.aerr', APB.md); if (e2) e2.textContent = x.message || ''; return; }
+  catch (x) { if (x.status === 409 && x.data?.current) { APB.data = x.data.current; apbDraw(); } const e2 = $('.aerr', APB.md); if (e2) e2.textContent = errText(x, tr('The booking page could not be saved')); return; }
   apbDraw();
   // 2.566.0 (#4704): undo / redo send only the changed keys against the version the step before left (core.js undoStep):
   // changed on another device since -> "Changed elsewhere, not undone", that change stays
@@ -143,8 +184,8 @@ async function apbClick(e) {
   const b = e.target.closest('[data-apb]');
   if (b) {
     const a = b.dataset.apb;
-    if (a === 'close') { md.remove(); APB.md = null; return; }
-    if (a === 'copy') { try { await navigator.clipboard.writeText(APB.data.page.url); toast(tr('Copied')); } catch { toast(tr('Copy failed')); } return; }
+    if (a === 'close') { md._close(); return; }  // 2.1183.0 (#6157): asks first while the page's fields are changed
+    if (a === 'copy') { copyText(APB.data.page.url); return; }  // 2.1183.0 (#6157): the shared copy (a blocked clipboard shows the link)
     if (a === 'save') { apbSave(); return; }
     if (a === 'newtype') { apbTypeDlg(null); return; }
     if (a === 'add2' || a === 'rm2') {
@@ -192,7 +233,7 @@ function apbTypeDlg(t) {
       location: v('#apt-loc'), note: v('#apt-note'), active: !!$('#apt-active', md)?.checked};
     try { await apbTypeSave(t, body); md.remove(); } catch (x) {
       if (x.status === 409 && x.data?.type) { md.remove(); apbReload(); apbTypeDlg(x.data.type); return; }  // 2.564.0 D (#4701): the current type (api() said why)
-      const el = $('.aerr', md); if (el) el.textContent = x.message || '';
+      const el = $('.aerr', md); if (el) el.textContent = errText(x, tr('The appointment type could not be saved'));  // 2.1183.0 (#6157)
     }
   });
 }

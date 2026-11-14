@@ -266,7 +266,8 @@ def apb_page_put():
         return err(str(x))
     if f.get("enabled"):
         if not apb_mail_on():
-            return err(tr("This server sends no e-mail: the booking page cannot be switched on"), 409)
+            # 2.1183.0 (#6157): in plain words, the same sentence as the dialog (static/js/apptbook.js apbDraw)
+            return err(tr("Bookings are confirmed by e-mail, and sending e-mail is not set up for this Kalmido yet: until then the booking page cannot be switched on."), 409)
         if not public_links_on(c, "calendar"):
             return err(tr("Public links are switched off on this server"), 409)
         cid = f.get("cal_id", p["cal_id"] if p else None)
