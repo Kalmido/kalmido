@@ -18603,6 +18603,8 @@
   "New": "Nuovo",
   "You can only read here": "Qui puoi solo leggere",
   "No documents yet": "Ancora nessun documento",
+  "No preview for this kind of file": "Nessuna anteprima per questo tipo di file",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Questo PDF è troppo grande per l'anteprima (oltre 40 MB). Scaricalo per leggerlo.",
   "The polls could not be loaded": "Impossibile caricare i sondaggi",
   "Propose a few times with “New poll” and send the link.": "Proponi qualche orario con «Nuovo sondaggio» e invia il link.",
   "Not saved: the poll was changed meanwhile": "Non salvato: il sondaggio è stato modificato nel frattempo",

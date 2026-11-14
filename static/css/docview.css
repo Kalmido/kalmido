@@ -204,3 +204,38 @@
     .dv-pv:has(>.dpg:not([hidden])){height:88dvh}
   }
 }
+
+/* 2.1170.0 (#6110): the preview column of a file without pages (docview.js dcv_pvOther): Word / Excel / text fill it and scroll
+   in it, the rest shows its kind's icon, one sentence and Download in the middle; no zoom bar there */
+.dv-pvo{position:relative;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;background:var(--bg2);scrollbar-color:var(--bg4) transparent}
+.dv-pvo:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.dv-pvo>.tvmsg{padding:2rem 1rem;text-align:center}
+.dv-pvo>.dpvbody{padding:1rem 1.25rem}
+.dv-pvo>.dpvtabs{position:sticky;top:0;z-index:1;background:var(--bg2)}
+.dv-pvo>.dv-pvtext{margin:0;padding:1rem 1.25rem;border:0;border-radius:0;background:none}
+.dv-pvo>pre.dv-pvtext{white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font-size:var(--fs-m)}
+.dv-pvo .pvfail{display:flex;flex-direction:column;align-items:center;gap:.75rem;text-align:center;padding:3rem 1rem;color:var(--text2);max-width:28rem;margin:0 auto}
+.dv-pvmsg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;min-height:100%;box-sizing:border-box;padding:2rem 1rem;text-align:center;color:var(--text2)}
+.dv-pvmsg>svg{width:3rem;height:3rem;color:var(--muted)}
+.dv-pvmsg p{margin:0;max-width:24rem}
+.dv-pvmsg .btn{display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem}
+.dv-pages>.dv-pvmsg{min-height:calc(100% - 2rem)}
+.dv-pvbar[hidden]{display:none}
+.dv-pgs{display:none}
+@media (max-width:767px){
+  /* nothing to page: the column only as high as its content needs (a sentence), a document / text keeps the preview's height */
+  .dv-pv.dv-pvx:has(.dv-pvo>.dv-pvmsg){height:auto}
+  .dv-pvo>.dpvbody,.dv-pvo>.dv-pvtext{padding:.75rem}
+  /* the bar in one row: the short page count "3 / 12" (the long one was cut to "Se"), buttons as high as a finger */
+  .dv-pgl{display:none}
+  .dv-pgs{display:inline}
+  .dv-pvbar .iconbtn,.dv-pvbar .btn{min-height:2.75rem}
+  .dv-tabs [role="tab"]{min-height:2.75rem}
+  /* the head: the title in a row of its own, whole (wrapped, not cut to a few letters); below it Back with the place it leads
+     to, then Download / Actions / Delete */
+  .dv-title{order:-1;flex:1 1 100%;white-space:normal;overflow:visible;overflow-wrap:anywhere;text-overflow:clip;line-height:var(--lh-tight,1.25)}
+  .dv-back{flex:0 1 auto;min-width:0;max-width:60%}
+  .dv-back>span{position:static;width:auto;height:auto;clip:auto;clip-path:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .dv-back{justify-content:flex-start;gap:.25rem}
+  .dv-hr .spacer{flex:1 1 0;min-width:0}
+}

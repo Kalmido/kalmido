@@ -18602,6 +18602,8 @@
   "New": "Nieuw",
   "You can only read here": "Hier kun je alleen lezen",
   "No documents yet": "Nog geen documenten",
+  "No preview for this kind of file": "Geen voorbeeld voor dit soort bestand",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen.",
   "The polls could not be loaded": "De peilingen konden niet worden geladen",
   "Propose a few times with “New poll” and send the link.": "Stel met „Nieuwe peiling” een paar tijden voor en stuur de link.",
   "Not saved: the poll was changed meanwhile": "Niet opgeslagen: de peiling is intussen gewijzigd",
