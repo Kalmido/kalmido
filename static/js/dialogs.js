@@ -740,13 +740,15 @@ async function adsFill(box, q) {
     if (!again) { toast(tr('Invitation removed')); return; }
     let nid = null;
     const undo = async () => { await again(); const r = await rawFetch('GET', '/api/addr-shares?' + q); nid = (r.open || []).find(o => o.email === x.email)?.id ?? null; if (box.isConnected) adsFill(box, q); return {}; };
-    const redo = async () => { if (nid != null) await api('DELETE', `/api/addr-shares/${nid}`); if (box.isConnected) adsFill(box, q); return {}; };
+    // redo without an open row (the address was confirmed meanwhile and is a member now) says so instead of a quiet "redone" (review 2.1176.0)
+    const redo = async () => { if (nid == null) return {none: true, skipped: [tr('Invitation to {0} removed', x.email)]}; await api('DELETE', `/api/addr-shares/${nid}`); if (box.isConnected) adsFill(box, q); return {}; };
     offerUndo(tr('Invitation removed'), histAdd({label: tr('Invitation to {0} removed', x.email), undo, redo}));
   };
 }
 // the write that makes open share x of query q again (adsFill's Undo): a project's member route or the folder's, null = none
 function adsAgain(q, x) {
   const p = new URLSearchParams(q), role = x.role || 'edit';
+  if (x.expires) return null;  // review 2.1176.0: an invitation with an end date (API only) is not typed in again without it - no Undo
   if (p.get('kind') === 'list' && +p.get('ref')) return () => api('PUT', `/api/lists/${+p.get('ref')}/members`, {email: x.email, role});
   if (p.get('kind') === 'list_folder' && p.get('folder')) return () => api('PUT', '/api/folders/people', {folder: p.get('folder'), email: x.email, role});
   return null;
