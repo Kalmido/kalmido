@@ -220,7 +220,7 @@
 .dv-pvmsg p{margin:0;max-width:24rem}
 .dv-pvmsg .btn{display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem}
 .dv-pages>.dv-pvmsg{min-height:calc(100% - 2rem)}
-.dv-pvbar[hidden]{display:none}
+.dv-pv:has(.dv-pages>.dv-pvmsg) :is([data-dc^="dvz:"],.dv-zp){display:none}  /* a PDF that did not load: nothing to zoom */
 .dv-pgs{display:none}
 @media (max-width:767px){
   /* nothing to page: the column only as high as its content needs (a sentence), a document / text keeps the preview's height */
