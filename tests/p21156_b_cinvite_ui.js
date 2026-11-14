@@ -6,6 +6,7 @@
 //   is listed with its note; "Take back" removes it (one undo step brings it back)
 // - a second browser without a session opens the link: the page names frida, the form (name, address, password) creates the
 //   account; the new account then sees frida under Connections in its own "Find people"
+// - 2.1156.0 (#4550, Fable F1): without e-mail the form asks for no address (name + password); the username comes from the name
 // - dora (signed in) opens a link: the app starts and asks "Connect with Frida?"; yes connects
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -65,18 +66,19 @@ const wait = fn => until(fn, {timeout: 15000, step: 150});
   const card = await wait(() => d.querySelector('.authscreen #cnv-form') && d.querySelector('.authscreen'));
   check(card && /Frida invites you/.test(card.querySelector('h2')?.textContent || ''), 'the page names who invites');
   check(!/#cinv/.test(w.location.href), 'the token left the address bar');
+  // 2.1156.0 (#4550, Fable F1): no address field without e-mail
+  check(!card.querySelector('#cnv-mail') && card.querySelector('#cnv-pw') && card.querySelector('#cnv-pw2'), 'no e-mail: name + password, no address field');
   card.querySelector('#cnv-name').value = 'Nina Example';
-  card.querySelector('#cnv-mail').value = 'nina@example.com';
   card.querySelector('#cnv-pw').value = 'password123';
   card.querySelector('#cnv-pw2').value = 'password123';
   card.querySelector('#cnv-form').dispatchEvent(new w.Event('submit', {bubbles: true, cancelable: true}));
   const done = await wait(() => /You are connected with Frida/.test(d.querySelector('.authscreen [role="status"]')?.textContent || '') && d.querySelector('.authscreen'));
-  check(done && /username for signing in: nina/.test(done.textContent), 'registered: connected, the username is shown');
+  check(done && /username for signing in: nina\.example/.test(done.textContent), 'registered: connected, the username is shown');
   check(done && done.querySelector('[data-cnv="go"]'), '... with "Continue"');
   w.close();
 
   // ================= nina signs in: frida stands under Connections
-  w = await boot({user: 'nina', hash: 'today'}); d = w.document;
+  w = await boot({user: 'nina.example', hash: 'today'}); d = w.document;
   w.eval('dsc_open()');
   const m2 = await wait(() => d.querySelector('.dscmodal #dsc-con-h') && d.querySelector('.dscmodal'));
   check(m2 && /Frida/.test(m2.querySelector('[aria-labelledby="dsc-con-h"]')?.textContent || ''), 'nina: Frida under Connections');
