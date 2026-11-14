@@ -13,7 +13,10 @@ freelancer-matrix: team  (the routes /api/disc/invites... as a person without an
  - signed in: connect (no registration); the own link: 409 and stays valid
  - agents, kid accounts, a disabled inviting person: no access / the link stops working
  - the daily clean-up removes old rows; the brake per client address on wrong tokens
- - without e-mail: name + address + password -> active at once, signed in, connected; an address with an account is not kept
+ - without e-mail: name + password -> active at once, signed in, connected; no address is kept, the username from the name
+ - the Fable review (2.1156.0 part C): F1/F2 no address without e-mail, F3 the confirmation after the inviting person was
+   disabled / the switch went off waits for an admin, F4 a link taken back during a redemption / taking back under the
+   accounts lock, F5 the mail names the inviting person and a name like a link is refused
 usage: p21156_b_cinvite_test.py <datadir>"""
 import email
 import hashlib
@@ -391,16 +394,22 @@ check(c1.get("mail") is False and c1.get("min_password", 0) >= 8, "no e-mail: th
 check(anon().post(B + "/api/auth/cinv/accept", json={"token": T1, "name": "Nina", "email": "nina@example.com"}).status_code == 400, "no password: 400")
 Ni = anon()
 r = Ni.post(B + "/api/auth/cinv/accept", json={"token": T1, "name": "Nina Example", "email": "nina@example.com", "password": "nina-pass-123"})
-check(r.ok and r.json().get("ok") is True and r.json().get("username") == "nina", f"active at once and signed in ({r.text[:200]})")
+# 2.1156.0 C (#4550, Fable F1): without e-mail the username comes from the name and no address is kept (was: nina, the address)
+check(r.ok and r.json().get("ok") is True and r.json().get("username") == "nina.example", f"active at once and signed in ({r.text[:200]})")
+NINA = uid_of("nina.example")
+check(NINA and not (dbx("SELECT email FROM users WHERE id=?", (NINA,))[0][0] or ""), "Fable F1: no unproved address on the account")
 st = Ni.get(B + "/api/state").json()["me"]
-check(st.get("username") == "nina" and st.get("workspaces") == [], "the session works; a private account")
+check(st.get("username") == "nina.example" and st.get("workspaces") == [], "the session works; a private account")
 check(FID in [x["person"]["id"] for x in Ni.get(B + "/api/disc").json()["connections"]], "connected with frida")
-check(login(B, "nina", "nina-pass-123") is not None, "nina signs in with her password")
+check(login(B, "nina.example", "nina-pass-123") is not None, "nina signs in with her password")
 check(via(Fr.get(B + "/api/news").json().get("items", [])) == "invite", "frida's News: accepted your invitation")
 T2 = tok_of(Fr.post(B + "/api/disc/invites", json={}).json())
 Xx = anon()
 r = Xx.post(B + "/api/auth/cinv/accept", json={"token": T2, "name": "Dora Again", "email": "dora@example.com", "password": "dora-pass-123"})
 check(r.ok and set(r.json()) == {"ok", "user", "username"}, f"an address with an account: the same kind of answer ({r.text[:200]})")
 check(dbx("SELECT COUNT(*) FROM users WHERE lower(email)='dora@example.com'")[0][0] == 1, "the address is not kept twice")
+T3 = tok_of(Fr.post(B + "/api/disc/invites", json={}).json())
+r = anon().post(B + "/api/auth/cinv/accept", json={"token": T3, "name": "Jörg Müller", "password": "joerg-pass-123"})
+check(r.ok and r.json().get("username") == "jorg.muller", f"Fable F1: no address needed; umlauts in the username ({r.text[:200]})")
 
 sys.exit(kt.done("p21156_b_cinvite"))

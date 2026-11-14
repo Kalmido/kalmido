@@ -97,8 +97,7 @@ async function cnv_boot(tok) {
       <p class="muted">${esc(tr('Create your account: you are connected with {0} right away.', j.name))}</p>
       <form id="cnv-form" autocomplete="on">
         <label class="aulab" for="cnv-name">${tr('Your name')}</label><input id="cnv-name" maxlength="60" autocomplete="name" required>
-        <label class="aulab" for="cnv-mail">${tr('E-mail address')}</label><input id="cnv-mail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="200" required>
-        ${j.mail ? '' : `<label class="aulab" for="cnv-pw">${tr('Password')}</label><input id="cnv-pw" type="password" autocomplete="new-password" required minlength="${esc(String(j.min_password || 8))}" placeholder="${esc(tr('at least {0} characters', j.min_password || 8))}">
+        ${j.mail ? `<label class="aulab" for="cnv-mail">${tr('E-mail address')}</label><input id="cnv-mail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="200" required>` : `<label class="aulab" for="cnv-pw">${tr('Password')}</label><input id="cnv-pw" type="password" autocomplete="new-password" required minlength="${esc(String(j.min_password || 8))}" placeholder="${esc(tr('at least {0} characters', j.min_password || 8))}">
         <label class="aulab" for="cnv-pw2">${tr('Repeat the password')}</label><input id="cnv-pw2" type="password" autocomplete="new-password" required>`}
         <div class="aerr" role="alert" id="cnv-err"></div>
         <button class="btn pri" type="submit">${tr('Create account and connect')}</button>
@@ -110,8 +109,8 @@ async function cnv_boot(tok) {
       if (!j.mail && pw.length < (j.min_password || 8)) { errEl.textContent = tr('Password: at least {0} characters', j.min_password || 8); return; }
       if (!j.mail && pw !== cnv_$('#cnv-pw2', el).value) { errEl.textContent = tr('The two passwords are not the same'); return; }
       const sub = /** @type {any} */ (e.target).querySelector('button[type=submit]'); sub.disabled = true;
-      const mail = cnv_$('#cnv-mail', el).value.trim();
-      const res = await cnv_post('/api/auth/cinv/accept', {token: tok, name: cnv_$('#cnv-name', el).value.trim(), email: mail, lang: I18N.code || 'en', ...(j.mail ? {} : {password: pw})}).catch(() => null);
+      const mail = j.mail ? cnv_$('#cnv-mail', el).value.trim() : '';  // Fable F1: without e-mail no address (nothing proves it)
+      const res = await cnv_post('/api/auth/cinv/accept', {token: tok, name: cnv_$('#cnv-name', el).value.trim(), lang: I18N.code || 'en', ...(j.mail ? {email: mail} : {password: pw})}).catch(() => null);
       sub.disabled = false;
       if (!res) { errEl.textContent = tr('Server not reachable.'); return; }
       if (!res.r.ok) { errEl.textContent = res.j.error || httpErrText(res.r.status); return; }

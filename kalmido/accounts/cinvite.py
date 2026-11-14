@@ -10,12 +10,14 @@ and is connected with the inviting person at once (the same connection as an acc
 - A link stops working when it was used, taken back, ran out, or its person can no longer invite (disabled, waiting, agent /
   kid, collaboration or the switch off); the page then only says "invalid or expired" (no reason, rate limited per client
   address like the invitation page, accounts/invite.py _limited).
-- Opening it without an account: name + address. With e-mail sending the account is a registration to confirm (the mail of
-  accounts/signup.py, kind "signup"); the connection follows the confirmation (signup.SIGNUP_CONFIRMED -> cinv_confirmed), no
-  admin approval (the person's link vouches). Without e-mail: name, address and password, active at once (the link is the
-  proof), signed in. The account is always a PRIVATE one: never an organisation by its address, never admin or kid.
-  An address that already has an account gets the very same answer (with e-mail: no account, no mail; without: the new account
-  keeps no address) -- the link is used up either way, so it tells nothing by staying valid.
+- Opening it without an account: with e-mail sending name + address, the account is a registration to confirm (the mail of
+  accounts/signup.py, kind "signup", naming the inviting person); the connection follows the confirmation
+  (signup.SIGNUP_CONFIRMED -> cinv_confirmed), no admin approval (the person's link vouches) -- unless by then the person can no
+  longer invite, the switch is off or the link was taken back: then it waits for an admin (Fable F3). An address that already
+  has an account gets the very same answer (no account, no mail) -- the link is used up either way. Without e-mail: name +
+  password only, NO address (nothing proves it; Fable F1/F2), the username from the name, active at once (the link is the
+  proof), signed in. The account is always a PRIVATE one: never an organisation by its address, never admin or kid. A name that
+  looks like a link is refused (Fable F5).
 - Opening it signed in: no registration, the person confirms "Connect with X?" and is connected; the own link says so kindly.
 - The inviting person gets the News item + push "X accepted your invitation" (row "share", switchable like sharing).
 - Not for agents: no /api/v1 route, no MCP tool (like accounts/discover.py).
@@ -24,6 +26,7 @@ import hashlib
 import hmac
 import re
 import secrets
+import unicodedata
 from datetime import timedelta
 
 import segno
@@ -225,8 +228,9 @@ def cinv_check():
 
 @app.post("/api/auth/cinv/accept")
 def cinv_accept():
-    """{token} signed in: connect. {token, name, email, password? (without e-mail), lang?} without a session: a new private account
-    (with e-mail: to confirm by the mailed link -> {ok, mail: true}; without: signed in -> the login answer + username)."""
+    """{token} signed in: connect. Without a session: a new private account -- with e-mail {token, name, email, lang?}, to confirm
+    by the mailed link -> {ok, mail: true}; without {token, name, password, lang?} (an address is ignored), signed in -> the
+    login answer + username."""
     keys, e = _limited()
     if e:
         return e
@@ -237,13 +241,15 @@ def cinv_accept():
     if me_ and not _opener_ok(me_):
         return err(tr("Only people can accept an invitation", lg=lg), 403)
     if not me_:  # the form's checks before anything is used up
-        email = str(b.get("email") or "").strip()[:200]
-        name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:60]
         mail = _mail_on()
+        # Fable F1/F2: without e-mail no address is asked for or kept -- an unproved address in users.email would be what an
+        # OIDC first sign-in or an admin adding a member by address goes by (and the answer told whether it had an account)
+        email = str(b.get("email") or "").strip()[:200] if mail else ""
+        name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:60]
         pw = b.get("password") if isinstance(b.get("password"), str) else ""
         if not name or _urlish(name):  # Fable F5: the name stands in a mail to the address: no link in it
             return err(tr("Please enter your name", lg=lg))
-        if not EMAIL_RE.fullmatch(email):
+        if mail and not EMAIL_RE.fullmatch(email):
             return err(tr("Please enter a valid e-mail address", lg=lg))
         if not mail and len(pw) < MIN_PASSWORD:
             return err(tr("Password: at least {0} characters", MIN_PASSWORD, lg=lg))
@@ -278,13 +284,12 @@ def cinv_accept():
         c.rollback()
         return err(tr(CINV_BAD, lg=lg), 404)
     ulang = b.get("lang") if b.get("lang") in LANGS else lg
-    taken = c.execute("SELECT 1 FROM users WHERE lower(email)=lower(?)", (email,)).fetchone()
     if mail:
-        if taken:  # the same answer, no mail, no account: nobody learns which addresses have one (the link is used up)
+        if c.execute("SELECT 1 FROM users WHERE lower(email)=lower(?)", (email,)).fetchone():  # the same answer, no mail, no account: nobody learns which addresses have one (the link is used up)
             c.commit()
             print("invitation link: registration ignored (address)", "from", login_log_ip(client_ip()), flush=True)
             return jsonify(ok=True, mail=True)
-        uid = _new_account(c, email, name, None, ulang)
+        uid = _new_account(c, name, None, ulang, email)
         c.execute("UPDATE users SET email=?, disabled=true, signup='confirm' WHERE id=?", (email, uid))
         c.execute("UPDATE conn_invites SET used_by=? WHERE id=?", (uid, r["id"]))
         invite_new(c, uid, inv["id"], send=True, kind="signup", bg=True)  # counts against the inviting person's mail budget
@@ -292,10 +297,8 @@ def cinv_accept():
         c.commit()
         print("invitation link: registration, confirm by mail", "from", login_log_ip(client_ip()), flush=True)
         return jsonify(ok=True, mail=True)
-    # without e-mail: active at once, the link is the proof; an address that has an account is not kept
-    uid = _new_account(c, "" if taken else email, name, pw, ulang)
-    if not taken:
-        c.execute("UPDATE users SET email=? WHERE id=?", (email, uid))
+    # without e-mail: active at once, the link is the proof; no address (nothing could prove it), the username from the name
+    uid = _new_account(c, name, pw, ulang)
     c.execute("UPDATE conn_invites SET used_by=? WHERE id=?", (uid, r["id"]))
     u = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     _connect(c, r, inv, uid, _name(u))
@@ -315,9 +318,11 @@ def _urlish(name):
 _URLISH = re.compile(r"://|\bwww\.|[^\s./]\.[a-z]{2,24}(?:[/:?#]|$|\s)", re.I)
 
 
-def _new_account(c, email, name, pw, ulang):
-    """A private account like a registration (accounts/signup.py auth_signup): no organisation, never admin or kid."""
-    uid = create_user(c, _username(c, email or (name + "@x")), name, pw or None, onboard=True)
+def _new_account(c, name, pw, ulang, email=""):
+    """A private account like a registration (accounts/signup.py auth_signup): no organisation, never admin or kid. The
+    username from the address (with e-mail) or the name ("Jörg Müller" -> jorg.muller), made unique."""
+    base = email or (unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().replace(" ", ".") + "@x")
+    uid = create_user(c, _username(c, base), name, pw or None, onboard=True)
     fs = [x for x in (gsetting(c, "default_features") or USER_DEFAULTS["features"]).split(",") if x]
     uset(c, uid, "features", ",".join(fs + ([] if "agents" in fs else ["agents"])))
     uset(c, uid, "lang", ulang)
