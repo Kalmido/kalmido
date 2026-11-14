@@ -1090,8 +1090,8 @@ async function ctm_merge(ids) {
       return true;
     }});
 }
-function ctm_histHtml(c) {
-  return `<div class="ctsec ctmsec"><h4>${tr('Merges') /* 2.1176.0 (#6124): not "History" */}</h4><ul class="ctlinks">${c.merges.map(m => `<li class="ctmrow"><span>${esc(tr('Merged with {0}', (m.summary?.merged || []).map(x => x.fn).join(', ') || '?'))}<small class="muted"> · ${esc([fmtWhen(m.at), m.by_name, m.summary?.proposal?.agent && tr('from a proposal by {0}', m.summary.proposal.agent)].filter(Boolean).join(' · '))}${m.undone_at ? ' · ' + esc(tr('undone')) : ''}</small></span>${m.undo === '' ? `<button type="button" class="btn sm" data-ctmundo="${m.id}">${ic('undo', 's')} ${tr('Undo')}</button>` : ''}</li>`).join('')}</ul></div>`;
+function ctm_histHtml(c) {  // 2.1176.0 (#6124): the heading says "Merges" (not "History")
+  return `<div class="ctsec ctmsec"><h4>${tr('Merges')}</h4><ul class="ctlinks">${c.merges.map(m => `<li class="ctmrow"><span>${esc(tr('Merged with {0}', (m.summary?.merged || []).map(x => x.fn).join(', ') || '?'))}<small class="muted"> · ${esc([fmtWhen(m.at), m.by_name, m.summary?.proposal?.agent && tr('from a proposal by {0}', m.summary.proposal.agent)].filter(Boolean).join(' · '))}${m.undone_at ? ' · ' + esc(tr('undone')) : ''}</small></span>${m.undo === '' ? `<button type="button" class="btn sm" data-ctmundo="${m.id}">${ic('undo', 's')} ${tr('Undo')}</button>` : ''}</li>`).join('')}</ul></div>`;
 }
 async function ctm_undoCard(rid, el) {
   el.disabled = true;
