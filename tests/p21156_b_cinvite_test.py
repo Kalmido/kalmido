@@ -204,6 +204,39 @@ check(NINA in [x["person"]["id"] for x in Fr.get(B + "/api/disc").json()["connec
 check(via(Fr.get(B + "/api/news").json().get("items", [])) == "invite", "frida's News: accepted your invitation")
 check(Fr.get(B + "/api/disc/invites").json()["items"] == [], "a used link is no longer open")
 
+
+def confirm_late(inviter_s, uname, before):
+    """2.1156.0 C (#4550, Fable F3): registers uname by a link of inviter_s, runs before() (the inviting person / the switch
+    changes), confirms -> (answer, account id)."""
+    t = tok_of(inviter_s.post(B + "/api/disc/invites", json={}).json())
+    n0 = len(mails())
+    r = anon().post(B + "/api/auth/cinv/accept", json={"token": t, "name": uname.title() + " Example", "email": f"{uname}@example.com", "lang": "en"})
+    check(r.ok and r.json() == {"ok": True, "mail": True}, f"Fable F3: {uname} registers ({r.text[:200]})")
+    m = until(lambda: len(mails()) > n0 and mails()[-1], 15)
+    before()
+    r = anon().post(B + "/api/auth/invite/accept", json={"token": link_of(m) if m else "", "password": f"{uname}-pass-123"})
+    return r, uid_of(uname)
+
+
+def waits(uid, inviter, what):
+    u = dbx("SELECT signup, disabled FROM users WHERE id=?", (uid,))[0]
+    check(u[0] == "pending" and u[1], f"Fable F3: {what}: the account waits for an admin ({u})")
+    check(not dbx("SELECT 1 FROM conn_links WHERE (a_id=? AND b_id=?) OR (a_id=? AND b_id=?)", (inviter, uid, uid, inviter)), f"Fable F3: {what}: no connection")
+    items = A.get(B + "/api/news").json().get("items", [])
+    check(any(x.get("kind") == "signup" and (json.loads(x["data"]) if isinstance(x.get("data"), str) else x.get("data") or {}).get("user_id") == uid
+              for x in items), f"Fable F3: {what}: the admins hear of it")
+
+
+r, PAUL = confirm_late(Ol, "paul", lambda: write("UPDATE users SET disabled=true WHERE id=?", (OID,)))
+check(r.ok and r.json() == {"ok": False, "pending": True}, f"Fable F3: inviting person disabled: pending ({r.text[:200]})")
+waits(PAUL, OID, "inviting person disabled")
+write("UPDATE users SET disabled=false WHERE id=?", (OID,))
+r, RITA = confirm_late(Ol, "rita", lambda: check(A.patch(S, json={"cinv_signup": False}).ok, "Fable F3: the switch goes off"))
+check(r.ok and r.json() == {"ok": False, "pending": True}, f"Fable F3: switch off: pending ({r.text[:200]})")
+waits(RITA, OID, "switch off")
+check(A.patch(S, json={"cinv_signup": True, "password": PASSWORD}).ok, "Fable F3: the switch on again")
+check(A.post(B + f"/api/users/{RITA}/approve").ok and not dbx("SELECT disabled FROM users WHERE id=?", (RITA,))[0][0], "Fable F3: an admin approves")
+
 # ---- an address with an account: the same answer, no account, no mail
 T2 = tok_of(Fr.post(B + "/api/disc/invites", json={}).json())
 n0 = len(mails())

@@ -40,7 +40,7 @@ from ..accounts.session import _accept_lang, _rate_fail, client_ip, rate_ip
 from ..accounts.login import finish_login, login_log_ip, pend_cookie, pend_new
 from ..accounts.invite import _limited, invite_new
 from ..accounts.discover import _link, _pair, _push
-from ..accounts.signup import SIGNUP_CONFIRMED, SIGNUP_RATE, _cleanup, _mail_on, _username, cinv_signup_on
+from ..accounts.signup import SIGNUP_CONFIRMED, SIGNUP_RATE, _cleanup, _mail_on, _notify_admins, _username, cinv_signup_on
 
 CINV_DAYS = 14      # a link works this long
 CINV_OPEN = 20      # open links per account
@@ -318,18 +318,23 @@ def _new_account(c, email, name, pw, ulang):
 
 
 def cinv_confirmed(c, uid):
-    """signup.SIGNUP_CONFIRMED: a registration from an invitation link confirmed its address -> active at once (no admin
-    approval) and connected with the inviting person, if that person can still invite. True = handled here."""
+    """signup.SIGNUP_CONFIRMED: a registration from an invitation link confirmed its address -> "active": active at once (no
+    admin approval) and connected with the inviting person. Fable F3: when that person can no longer invite, the switch is
+    off or the link was taken back -> "pending": it waits for an admin like in mode "approval" (News + push), no connection.
+    None = not a registration from a link."""
     r = c.execute("SELECT * FROM conn_invites WHERE used_by=? AND linked_at IS NULL", (uid,)).fetchone()
     if not r:
-        return False
-    c.execute("UPDATE users SET signup='', disabled=false WHERE id=?", (uid,))
+        return None
     with system_ctx(c):  # the inviting person's account (the new one is not signed in yet)
         inv = c.execute("SELECT * FROM users WHERE id=?", (r["user_id"],)).fetchone()
+    if r["revoked_at"] or not _may_invite(inv) or not cinv_on(c):
+        c.execute("UPDATE users SET signup='pending' WHERE id=?", (uid,))
+        _notify_admins(c, uid)
+        return "pending"
+    c.execute("UPDATE users SET signup='', disabled=false WHERE id=?", (uid,))
     u = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
-    if _may_invite(inv) and collab_all():
-        _connect(c, r, inv, uid, _name(u))
-    return True
+    _connect(c, r, inv, uid, _name(u))
+    return "active"
 
 
 SIGNUP_CONFIRMED.append(cinv_confirmed)
