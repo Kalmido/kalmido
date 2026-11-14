@@ -39,8 +39,9 @@ const recode = (code, u) => { const j = JSON.parse(Buffer.from(code.slice('kalmi
   await until(() => box()?.querySelector('[data-msvid="self"]'));
   check(box()?.querySelector('[data-msvid="self"] .msvb')?.textContent.length >= 1, 'this server has a badge');
   check(/This server/.test(box()?.querySelector('[data-msvid="self"]')?.textContent || ''), 'this server is named');
-  check(d.querySelector('#s-msv-h') && d.querySelector('.smodal details.sdev')?.previousElementSibling?.classList.contains('msvsec'),
-    'the section stands above "Advanced · for developers"');
+  // 2.1180.0 (#6130): the section stands in the group "Devices and data" of the Account tab (its slot after that heading)
+  check(d.querySelector('#s-msv-h') && d.querySelector('.smodal #a-msv-slot > .msvsec') && (d.querySelector('.smodal #a-g-data').compareDocumentPosition(d.querySelector('.smodal .msvsec')) & 4),
+    'the section stands in the group "Devices and data"');
   check(/No other server connected yet/.test(box().textContent), 'the empty state');
 
   // ---- a broken code: the reason in the dialog

@@ -105,36 +105,46 @@ function storageHtml() {
   const q = S.storage; if (!q) return syncHtml();
   const pct = q.limit ? Math.min(100, q.pct) : 0;
   return `<h4 id="s-storage-h">${tr('Storage')}</h4>
-    <div class="row"><label>${tr('Your files')}</label><span class="stoq ${esc(q.level)}">${q.limit ? `<span class="stobar" role="meter" aria-labelledby="s-storage-h" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${pct}%"></i></span>` : ''}<span>${esc(q.limit ? tr('{0} of {1} used', fmtSize(q.used), fmtSize(q.limit)) + (q.pool === 'org' ? ' · ' + tr('shared by the organisation') : '') : tr('{0} used · no limit', fmtSize(q.used)))}</span></span></div>
+    <div class="row"><label>${tr('Your files')}</label><span class="stoq ${esc(q.level)}">${q.limit ? `<span class="stobar" role="meter" aria-labelledby="s-storage-h" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${pct}%"></i></span>` : ''}<span>${esc(q.limit ? tr('{0} of {1} used', fmtSize(q.used), fmtSize(q.limit)) + (q.pool === 'org' ? ' · ' + tr('shared by the organisation') : '') : stoFreeTxt(q))}</span></span></div>
     ${q.level === 'warn' || q.level === 'high' ? `<div class="shint keep">${ic('alert', 's')} ${esc(tr('Almost full: from 100 % new files cannot be uploaded.'))}</div>` : ''}
     ${q.level === 'full' ? `<div class="row"><span class="shint keep">${ic('alert', 's')} ${esc(tr('Your storage is full: new files cannot be uploaded.'))}</span>${q.support ? `<a class="btn sm pri" href="${esc(quotaMail(q))}">${ic('send', 's')} ${tr('Contact support')}</a>` : ''}</div>` : ''}${syncHtml()}`;
 }
+// 2.1180.0 (#6130): the Account tab in three groups with a jump bar on top (Profile · Security and sign-in · Devices and data)
+const ACG = [['profile', 's-account-h', N_('Profile')], ['security', 'a-g-sec', N_('Security and sign-in')], ['data', 'a-g-data', N_('Devices and data')]];
+const acgHead = k => { const [, id, n] = ACG.find(g => g[0] === k); return `<h3 class="acgh" id="${esc(id)}" data-acg="${esc(k)}" tabindex="-1">${tr(n)}</h3>`; };
+const acgJumpHtml = () => `<nav class="acjump" aria-label="${esc(tr('Parts of the account'))}">${ACG.map(([k, , n]) => `<button type="button" class="btn sm" data-acc="jump" data-acj="${esc(k)}">${tr(n)}</button>`).join('')}</nav>`;
+// 2.1180.0 (#6130): "0 B used · no limit" said nothing: no files yet / in use, and that the server sets no limit
+const stoFreeTxt = q => q.used ? tr('{0} in use, no storage limit', fmtSize(q.used)) : tr('No files stored yet, no storage limit');
 function accountHtml() {
   const m = S.me, pw = m.auth === 'session' || m.has_password;
-  return `<h4 id="s-account-h">${tr('Profile')}</h4>${''/* 2.555.0 C (#4664): the section is called Account already */}
-    <div class="row"><label>${tr('Signed in as')}</label><span class="acct">${av(m.id, m.display_name)}<b>${esc(m.display_name)}</b> <span class="muted">${esc(m.username)}${m.auth === 'proxy' ? ' · ' + tr('via single sign-on') : ''}</span></span></div>
+  // 2.1180.0 (#6130): Sign out also on top, next to the name (the one at the very end stays)
+  return `${/*html-ok*/ acgJumpHtml()}${/*html-ok*/ acgHead('profile')}${''/* 2.555.0 C (#4664): the section is called Account already; 2.1180.0 (#6130): the first group */}
+    <div class="row acwho"><label>${tr('Signed in as')}</label><span class="acct">${av(m.id, m.display_name)}<b>${esc(m.display_name)}</b> <span class="muted">${esc(m.username)}${m.auth === 'proxy' ? ' · ' + tr('via single sign-on') : ''}</span></span>${m.auth === 'session' ? `<button type="button" class="btn sm acout" data-acc="logout">${ic('logout', 's')} ${tr('Sign out')}</button>` : ''}</div>
     ${sup_accountRow()}${''/* 2.74.0 (#338): the supporter badge (self-hosted only) */}
     <div class="row"><label for="a-name">${tr('Display name')}</label><input id="a-name" value="${esc(m.display_name)}" maxlength="60" autocomplete="name" enterkeyhint="done"></div>
     ${m.agent ? '' : `<div class="row" id="a-epv"><label>${tr('E-mail address')}</label><span class="muted">${tr('Loading…')}</span></div>`}${''/* 2.1033.0 (#5790): the own address and its confirmation (epvDraw) */}
     <div class="row avrow"><label>${tr('Profile picture')}</label><div class="avpick" id="a-avpick">${avPickHtml()}</div></div>
     <div class="row"><label id="a-col-h">${tr('Colour')}</label><div class="pfcol" id="a-col" role="group" aria-labelledby="a-col-h">${ac_pickHtml((S.colors || {})[m.id] || '', 'me')}</div></div>
-    ${pw ? `<div class="row"><label for="a-cur">${tr('Password')}</label><input type="text" class="cfhid" hidden tabindex="-1" aria-hidden="true" autocomplete="username" value="${esc(S.me?.username || '')}" readonly><input type="password" id="a-cur" placeholder="${tr('current password')}" autocomplete="current-password"><input type="password" id="a-new" placeholder="${tr('new password')}" autocomplete="new-password"><button class="btn sm" data-acc="pw">${tr('Change')}</button></div>
-    <div class="featgrid"><label class="wide"><input type="checkbox" id="a-pwrev" checked><span>${tr('End all app passwords and API tokens')}<small class="muted">${tr('Ticked: calendar and contacts apps and scripts must be connected again afterwards (new app password, new token).')}</small></span></label></div>` : ''}
-    ${storageHtml()}
     ${dsc_rowHtml()}${''/* 2.49.0 (#1106): People: find, requests, findable by e-mail */}
     ${wsPaneOn() ? (lmOrgPaneOn() ? lmOrgLinkHtml() : wsPaneHtml(t => `<div class="shint">${t}</div>`)) : S.me?.kid ? '' : wsp_paneHtml() /* 2.138.2 C (#2389, P4): without an organisation the colour of Private is chosen here */}
     ${mvHas() ? `<h4 id="s-mview-h">${tr('View as member')}</h4><div class="row"><label class="chkl"><input type="checkbox" id="s-mview" ${mvOn() ? 'checked' : ''}> ${tr('Show Kalmido as a member sees it')}</label></div>
     <div class="shint">${tr('Kalmido looks like it does for a member: settings and administration of your organisations and of the server are hidden; your private area, your own agents and the daily office work stay. Only the display changes, your rights stay the same. The way back is at the bottom of the settings and in the account menu.')}</div>` : ''}${''/* 2.436.0 (#3620) */}
-    ${tfaHtml()}
     ${typeof officeOn === 'function' && officeOn() ? `<h4 id="s-sig-h">${tr('Signature for letters')}</h4>
     <div class="row"><button type="button" class="btn sm" data-act="lt-sigset">${ic('edit', 's')} ${tr('Edit signature…')}</button> <button type="button" class="btn sm" data-act="ofm-sigset">${ic('edit', 's')} ${tr('E-mail signature…')}</button></div>
     <div class="shint">${tr('Greeting, name and picture under your letters (the same dialog as in the Office, Letters).')}</div>` : ''}${''/* 2.365.2 C (#2789) */}
+    ${/*html-ok*/ acgHead('security')}
+    ${pw ? `<div class="row pwrow"><label for="a-cur">${tr('Password')}</label><input type="text" class="cfhid" hidden tabindex="-1" aria-hidden="true" autocomplete="username" value="${esc(S.me?.username || '')}" readonly><span class="pwcol"><input type="password" id="a-cur" placeholder="${tr('current password')}" aria-label="${esc(tr('current password'))}" autocomplete="current-password"><input type="password" id="a-new" placeholder="${tr('new password')}" aria-label="${esc(tr('new password'))}" autocomplete="new-password"><button class="btn sm" data-acc="pw">${tr('Change')}</button></span></div>${''/* 2.1180.0 (#6130): the two fields one under the other, never cut off */}
+    <div class="featgrid"><label class="wide"><input type="checkbox" id="a-pwrev" checked><span>${tr('End all app passwords and API tokens')}<small class="muted">${tr('Ticked: calendar and contacts apps and scripts must be connected again afterwards (new app password, new token).')}</small></span></label></div>` : ''}
+    ${tfaHtml()}
     ${typeof sesHtml === 'function' ? sesHtml() : ''}${''/* 2.115.0 B (#2062): active sessions */}${typeof sgvHtml === 'function' ? sgvHtml() : ''}${''/* 2.485.0 (#3939): support access (hosted) */}
     ${e2eHtml()}${''/* 2.42.0 (#828, #909) */}
     ${apwHtml()}
-    <details class="sdev"><summary>${ic('key', 's')}${tr('Advanced · for developers')}</summary>
+    <details class="sdev"><summary>${ic('key', 's')}${tr('For advanced users')}</summary>${''/* 2.1180.0 (#6130): was "Advanced · for developers" */}
     <div class="row"><label>${tr('Upload token')}</label><button class="btn sm" data-m="go-share">${ic('phone', 's')} ${tr('Share from your phone')}</button><span class="muted" style="font-size:var(--fs-s)">${tr('shown and renewed there')}</span></div>
     ${acz_linkHtml(S.api?.enabled)}</details>${''/* 2.166.0 (#2633): the API tokens moved to Access */}
+    ${/*html-ok*/ acgHead('data')}
+    ${storageHtml()}
+    <div id="a-msv-slot"></div>${''/* 2.1180.0 (#6130): the connected servers (servers.js msvDraw) */}
     ${typeof rsHtml === 'function' ? rsHtml() : ''}${''/* 2.593.0 (#4590): reset the look and comfort settings (setreset.js) */}
     ${typeof sdlHtml === 'function' ? sdlHtml() : ''}${''/* 2.553.0 (#1413): delete the own account (selfdelete.js) */}
     ${shellServerUrl() ? `<div class="row"><label>${tr('App server')}</label><button class="btn sm" data-acc="shell-server">${ic('link', 's')} ${tr('Change server')}</button></div>` : ''}${''/* 2.435.0 B (#3578): only in the app shell */}
@@ -412,6 +422,7 @@ function accountWire(md) {
         $('#a-cur', md).value = ''; $('#a-new', md).value = ''; toast(tr('Password changed'));
       }
       if (a === 'logout') logout();
+      if (a === 'jump') { const h = $(`[data-acg="${b.dataset.acj}"]`, md); if (h) { h.scrollIntoView({block: 'start'}); h.focus({preventScroll: true}); } }  // sprung-ok: the person asked for this place  // 2.1180.0 (#6130): the jump bar of the Account tab
       if (a === 'shell-server') { const u = shellServerUrl(); if (u) location.href = u; }  // 2.435.0 B (#3578)
       if (a === 'user-new') userModal(null, () => { drawUsers(); orgsDraw(md); });  // 2.58.0 (#1724): the organisations' member counts follow at once
       if (a === 'user-approve') { await api('POST', `/api/users/${b.dataset.uid}/approve`, {}); toast(tr('Approved: the person can sign in now')); drawUsers(); }  // 2.23.0 (#711)
@@ -578,7 +589,8 @@ async function tfaDraw(md, j) {
   h += `<div class="row"><label>${tr('Authenticator app')}</label><span class="tfastate ${j.totp ? 'on' : ''}">${j.totp ? tr('On') : tr('Off')}</span>
       ${j.totp ? `<button class="btn sm" data-tfa="totp-off">${tr('Switch off')}</button>` : `<button class="btn sm pri" data-tfa="totp-on">${ic('lock', 's')} ${tr('Set up')}</button>`}</div>`;
   h += `<div class="row"><label>${tr('Passkeys')}</label><button class="btn sm" data-tfa="pk-add" ${pkSupported() ? '' : 'disabled'}>${ic('key', 's')} ${tr('Add a passkey')}</button></div>`;
-  if (!pkSupported()) h += hintK(tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.'));
+  // 2.1180.0 (#6130): the everyday sentence for everyone; the server details (HTTPS, host name) only for server admins, folded
+  if (!pkSupported()) h += hintK(tr('Passkeys cannot be used on this address or in this browser.')) + (S.me?.is_admin ? `<details class="acadv"><summary>${tr('For advanced users')}</summary>${/*html-ok*/ hint(tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.'))}</details>` : '');
   if (j.passkeys.length) h += `<div class="members pklist">${j.passkeys.map(p => `<div class="mrow" data-pk="${p.id}"><span class="avatar">${ic('key', 's')}</span><span class="n">${esc(p.name)} <small class="muted">${tr('added {0}', esc(when(p.created_at)))}${p.last_used_at ? ' · ' + tr('last used {0}', esc(when(p.last_used_at))) : ''}${p.synced ? ' · ' + tr('synced') : ''}</small></span><button class="iconbtn ms-phsr" data-tfa="pk-ren" title="${tr('Rename')}">${ic('edit', 's')}</button><button class="iconbtn ms-phsr" data-tfa="pk-del" title="${tr('Remove')}">${ic('trash', 's')}</button>${/*html-ok*/ ms_dots('.ms-phsr', p.name) /* 2.1151.0 C (#3835): one "…" on a phone */}</div>`).join('')}</div>`;
   if (on) h += `<div class="row"><label>${tr('Recovery codes')}</label><span class="muted">${trn('{0} left', '{0} left', j.recovery_left)}</span><button class="btn sm" data-tfa="rc-new">${tr('New codes')}</button></div>`;
   h += hint(on ? tr('After your password, the sign-in asks for a code from the app or your passkey.') + (j.passkey_login && j.passkeys.length ? ' ' + tr('A passkey also logs you in without the password (“Sign in with a passkey”).') : '')
