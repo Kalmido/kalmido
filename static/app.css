@@ -2216,6 +2216,11 @@ button.tvr-task:hover{color:var(--accent)}
 .chnote{padding:0 .75rem .75rem;margin:0}
 /* 2.12.2 (#451): "Load older messages" above the newest 30, "New message ↓" over the bottom edge of the list while scrolled up */
 .chold{display:flex;justify-content:center;padding:.125rem 0 .25rem}
+/* 2.1169.0 (#6098): a failed older page is said at its button; the chats' loading / failed blocks fill their log */
+.chold{flex-wrap:wrap;align-items:center;gap:.25rem .5rem}.cholderr{color:var(--danger);font-size:var(--fs-sm)}
+.chstate{display:flex;flex-direction:column;justify-content:center;flex:1 0 auto}
+/* the shut box and Send look shut (loading, failed, a paused agent, one send at a time) */
+.chcomp textarea:disabled,.chcomp .btn:disabled{opacity:.5;cursor:default}
 /* 2.41.0 (#1206): a notice of the agent (new session, conversation compacted): a small grey line in the middle, no bubble */
 .chnew{position:relative;z-index:2;align-self:center;display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;margin:-3.25rem 0 .5rem;padding:0 1rem;border:1px solid var(--line2);border-radius:99rem;background:var(--bg2);color:var(--accent);font:inherit;font-size:var(--fs-s);font-weight:600;box-shadow:var(--shadow);cursor:pointer}
 .chnew.hidden{display:none}
@@ -3963,6 +3968,14 @@ button.trdline:hover,button.trdline:focus-visible{background:var(--bg3);color:va
   body.in-team #view{overflow:hidden;padding-bottom:var(--tabs-bot);display:flex;flex-direction:column;overscroll-behavior:none}
   body.in-team.kb-open #view{padding-bottom:0}
   body.in-team.kb-open .tcview{min-height:0}  /* 2.446.0 (#3334): the 20rem ran on behind the box in landscape */
+  /* 2.1169.0 (#6095): the keyboard is open: everything above the history shrinks to one line (pinned bar without the sender, member line gone, search replaces the pins) */
+  body.kb-open .tcrt .muted{display:none}
+  body.kb-open .cpnbar{padding-top:0;padding-bottom:0;align-items:center}
+  body.kb-open .cpnbar>.i{margin-top:0}
+  body.kb-open .cpnlist,body.kb-open .cpnlist.scr{max-height:2.25rem;overflow:hidden}
+  body.kb-open .cpnrow,body.kb-open .cpngo,body.kb-open .cpnbar .iconbtn{min-height:2.25rem}
+  body.kb-open .cpnrow:nth-child(n+2),body.kb-open .cpngo b{display:none}
+  body.ms-typing .cpnbar{display:none}
   .tcview{grid-template-columns:minmax(0,1fr);flex:1;height:auto;border:0;border-radius:0;margin:0 -.75rem}
   .tcview.inroom .tclist{display:none}
   .tcview:not(.inroom) .tcroom{display:none}
@@ -8508,6 +8521,11 @@ time,.meta .dt,.dpbtn,.remchips button,.dprow .dpt,.dprow .dps,.fwhen{font-famil
 /* 2.634.0 (#4797) board (mouse): the placeholder where the dragged card will land (dnd.js kph_*); the neighbours slide to
    make room (FLIP, transform only, class kflip while it runs). Reduced motion: the placeholder alone, nothing slides */
 #view .kcards>.kph{flex-shrink:0;border:2px dashed var(--accent);border-radius:var(--radius);background:color-mix(in srgb,var(--accent) 8%,transparent);pointer-events:auto}
+
+/* 2.1169.0 (#6100): a bell entry is never in word columns: the sentence is ONE flex item (clamped to three lines), approval / mention alike */
+.ngt .ngtt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.ngt .ngtt b{font-weight:inherit}
+.ngroup .ngex.ngq{font-weight:400;-webkit-line-clamp:3;color:var(--text2)}
 
 /* 2.1162.0 (#6107): a selection bar with many buttons (multisel.js ms_barHtml: ms4 = four and more, ms5 = five and more) on a
    narrow phone: the symbols alone, never a cut word ("Verschi…"); the word stays in title / aria-label */

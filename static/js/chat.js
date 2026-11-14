@@ -15,24 +15,26 @@ async function loadTeam() {
     Object.assign(S.tc, {rooms: j.rooms, people: j.people, users: {...S.tc.users, ...j.users}, err: null});
     if (j.avatars) S.avatars = {...(S.avatars || {}), ...j.avatars};
     if (S.team) S.team.unread = j.unread;
-  } catch (e) { S.tc.err = e instanceof Offline ? tr('The team chat is only available online.') : e.message; }
+  } catch (e) { S.tc.err = chatErrKey(e); }  // 2.1169.0 (#6098): 'offline' / 'fail', the list shows the shared block
 }
 async function loadRoom(rid, older = false) {
   if (!rid) return;
   const before = older && S.tc.msgs.length ? S.tc.msgs[0].id : null;
+  if (!before) S.tc.rerr = null;  // 2.1169.0 (#6098): a new try (another conversation, Try again) starts without the old failure
   let j;
   try { j = await rawFetch('GET', `/api/team/rooms/${rid}/messages` + (before ? `?before=${before}` : '')); }
-  catch (e) { S.tc.err = e instanceof Offline ? tr('The team chat is only available online.') : e.message; return; }
+  catch (e) { if (before) S.tc.olderErr = {rid, k: chatErrKey(e)}; else S.tc.rerr = chatErrKey(e); return false; }  // 2.1169.0 (#6098): an older page's failure is said at its button
   if (S.tc.rid !== rid) return;
   // CI of 2.168.4: a refresh of the newest page (someone wrote / read) keeps the older pages already loaded when the two meet,
   // so a jump to an old pinned message or scrolling back is not undone by it
   const first = j.messages[0]?.id, keep = !before && first && S.tc.msgs.length && S.tc.msgs[0].id < first && S.tc.msgs[S.tc.msgs.length - 1].id >= first
     ? S.tc.msgs.filter(m => m.id < first) : [];
-  S.tc.room = j.room; S.tc.users = {...S.tc.users, ...j.users}; S.tc.more = keep.length ? S.tc.more : j.has_more; S.tc.err = null;
+  S.tc.room = j.room; S.tc.users = {...S.tc.users, ...j.users}; S.tc.more = keep.length ? S.tc.more : j.has_more; S.tc.err = null; S.tc.rerr = null;
   S.tc.pins = j.pins || [];  // 2.62.0 (#1848)
   // CI of the train: an answer asked for before my send landed has not got that message yet - it stays (was gone until the next change)
   const top = j.messages.at(-1)?.id || 0, sent = before ? [] : S.tc.msgs.filter(m => m.id > top && m.user_id === S.me?.id);
-  S.tc.msgs = before ? [...j.messages, ...S.tc.msgs] : [...keep, ...j.messages, ...sent];
+  const lo = S.tc.msgs.length ? S.tc.msgs[0].id : Infinity;  // 2.1169.0 (#6098): an older page never brings a message twice
+  S.tc.msgs = before ? [...j.messages.filter(m => m.id < lo), ...S.tc.msgs] : [...keep, ...j.messages, ...sent];
   e2eFromCache(S.tc.msgs); e2eRoomDecrypt(rid);  // 2.42.0 (#909): encrypted DMs (e2e.js)
   le2eChanDecrypt(rid);  // 2.64.2 (#1817): the channel of a list with the lock (liste2echan.js)
   if (!before && S.tc.newAt?.rid !== rid) tc_newMark(rid, j.room.last_read || 0);  // 2.1162.0 (#6097): before the read mark below moves
@@ -77,7 +79,7 @@ const tc_listOff = () => typeof sbb_on === 'function' && sbb_on();
 const tc_newBtnHtml = () => teamOn() ? `<button type="button" class="iconbtn" data-act="tc-new" aria-haspopup="${S.tc.people.length ? 'menu' : 'dialog'}" title="${esc(tr('New message'))}" aria-label="${esc(tr('New message'))}">${ic('plus', 's')}</button>` : '';
 function tc_panelHtml() {
   if (!teamOn()) return '';
-  if (S.tc.rooms === null && !S.tc.loading) { S.tc.loading = true; loadTeam().then(() => { S.tc.loading = false; if (S.tc.rooms !== null) { renderSide(); if (S.route.mod === 'team') renderView(); } }); }  // the page may have waited on this load
+  if (S.tc.rooms === null && !S.tc.loading && !S.tc.err) { S.tc.loading = true; loadTeam().then(() => { S.tc.loading = false; renderSide(); if (S.route.mod === 'team') renderView(); }); }  // the page may have waited on this load; 2.1169.0 (#6098): failed = the block until "Try again" (no load per redraw)
   const rid = S.route.mod === 'team' ? (S.cw?.lt ? S.cw.home?.rid : S.tc.rid) : null, rooms = tc_rooms(rid);
   const n = S.team?.unread || 0, lab = tr('All conversations');
   const head = `<button type="button" class="srow smod sbbi ${S.route.mod === 'team' && !rid ? 'on' : ''}" data-go="team"${S.route.mod === 'team' && !rid ? ' aria-current="page"' : ''}>${ic('comment')}<span class="n">${esc(lab)}</span><span class="c ${n ? 'nunread' : ''}">${n ? `${n}<span class="sr"> ${esc(tr('unread'))}</span>` : ''}</span></button>`;
@@ -86,20 +88,46 @@ function tc_panelHtml() {
     const ico = r.kind === 'dm' ? av(r.user_id, r.name, 'avatar sbav') : `<span class="sic" aria-hidden="true">${tcx_isX(r) ? ic(r.kind === 'channel' ? 'hash' : 'users', 's') : listIconHtml(listById(r.list_id)) || ic('users', 's')}</span>`;
     return `<button type="button" class="srow sbconv sbbi ${u ? 'sbun' : ''} ${on ? 'on' : ''}" data-go="team/${r.id}"${on ? ' aria-current="page"' : ''} title="${esc(r.kind === 'dm' ? tr('Direct message with {0}', nm) : nm)}">${ico}<span class="n">${esc(nm)}</span>${r.muted ? `<span class="tcmute" title="${esc(tr('Muted'))}">${ic('belloff', 's')}</span>` : ''}<span class="c ${u ? 'nunread' : ''}">${r.unread ? `${r.mention ? '@' : ''}${r.unread}<span class="sr"> ${esc(tr('unread'))}</span>` : ''}</span></button>`;
   };
-  const body = S.tc.rooms === null ? `<div class="muted mhint">${tr('Loading…')}</div>` : rooms.length ? tcx_listHtml(rooms, row) : `<div class="muted mhint">${tr('No conversations yet')}</div>`;
+  const body = S.tc.rooms === null ? tc_listState('row') : rooms.length ? tcx_listHtml(rooms, row) : `<div class="muted mhint">${tr('No conversations yet')}</div>`;
   return `<div class="sgroup sbbp tcpanel">${head}${body}</div>`;
+}
+// 2.1169.0 (#6098): the list of conversations while it loads / when it failed (the shared blocks, "Try again" loads it again)
+const tc_listState = size => S.tc.err ? errorState({title: tr('The conversations could not be loaded'), sub: S.tc.err === 'offline' ? tr('Only available online.') : undefined, size,
+  retry: () => { S.tc.err = null; renderSide(); if (S.route.mod === 'team') renderView(); }}) : loadingHtml(size);
+// the conversation's messages failed: "Try again" loads that conversation again (the team view, the live or a parked panel window)
+function tc_retry(rid) {
+  return () => {
+    const k = 't:' + rid;
+    if (typeof cw_has === 'function' && cw_has(k) && !cw_isLive(k)) { const st = cw_stOf(k); st.rerr = null; cw_patch(k); cw_tload(k); return; }
+    if (S.cw?.lt && S.cw.home?.rid === rid && S.route.mod === 'team') { S.cw.home.rerr = null; renderView(); cw_tload(k, S.cw.home).then(() => { if (S.route.mod === 'team') renderView(); }); return; }
+    if (S.tc.rid !== rid) return;
+    S.tc.rerr = null; tcPatch();
+    loadRoom(rid).then(() => { if (S.tc.rid !== rid) return; if (S.route.mod === 'team' && !S.cw?.lt) { renderView(); teamFit(); } else tcPatch(true); });
+  };
+}
+// the message box and Send stay shut while the conversation loads or failed (nothing to answer to yet)
+function tc_inLock(ta, on, ck) {
+  if (!ta || ta.disabled === !on) return;
+  ta.disabled = !on; const b = ta.closest('.chcomp')?.querySelector('[data-act="tc-send"]'); if (b) b.disabled = !on || csdBusy(ck);
+}
+// "Load older messages": one page at a time (a second tap waits), a failure is said at the button
+async function tc_older() {
+  const rid = S.tc.rid; if (!rid || S.tc.olderBusy === rid) return;
+  S.tc.olderBusy = rid; S.tc.olderErr = null; tcPatch();
+  try { await loadRoom(rid, true); } finally { if (S.tc.olderBusy === rid) S.tc.olderBusy = null; }
+  if (S.tc.rid === rid) tcPatch();
 }
 function viewTeam() {
   if (typeof cw_tcHome === 'function' && S.cw.lt) return cw_tcHome(viewTeam);  // 2.47.1 (#1720): a conversation live in the chat panel (chatwins.js)
   if (!teamOn()) return `<div class="empty">${setLinkHtml(tr('The team chat needs collaboration (Settings > Modules).'))}</div>`;
-  if (S.tc.rooms === null && !S.tc.loading) { S.tc.loading = true; loadTeam().then(() => { S.tc.loading = false; if (S.route.mod === 'team') renderView(); }); }
+  if (S.tc.rooms === null && !S.tc.loading && !S.tc.err) { S.tc.loading = true; loadTeam().then(() => { S.tc.loading = false; if (S.route.mod === 'team') renderView(); }); }  // 2.1169.0 (#6098): see tc_panelHtml
   // 2.27.0 (#986): only conversations that have messages (newest first); an empty one shows once it is opened / written in
   // 2.479.0 (#2814): off = a computer's area "Chat": the list is the area's start page (no conversation open, full width) and the
   // panel; an open conversation takes the page alone (no second column)
   const rid = S.tc.rid, rooms = tc_rooms(rid), off = tc_listOff();
   const list = off && rid ? '' : `<nav class="tclist" aria-label="${esc(tr('Conversations'))}">
     <div class="tchead"><b>${tr('Conversations')}</b><span class="spacer"></span><button type="button" class="btn sm pri" data-act="tc-new" aria-haspopup="${S.tc.people.length ? 'menu' : 'dialog'}">${ic('plus', 's')}${tr('New message')}</button></div>
-    ${S.tc.rooms === null ? `<div class="muted mhint">${tr('Loading…')}</div>` : rooms.length ? tcx_listHtml(rooms, r => `<button type="button" class="tcrow ${r.id === rid ? 'on' : ''} ${r.unread ? 'unread' : ''}" data-act="tc-open" data-rid="${r.id}" ${r.id === rid ? 'aria-current="true"' : ''}>
+    ${/*html-ok*/ S.tc.rooms === null ? tc_listState('sec') /* 2.1169.0 (#6098): the shared blocks (render.js); the rows' own templates are checked on their own */ : rooms.length ? tcx_listHtml(rooms, r => `<button type="button" class="tcrow ${r.id === rid ? 'on' : ''} ${r.unread ? 'unread' : ''}" data-act="tc-open" data-rid="${r.id}" ${r.id === rid ? 'aria-current="true"' : ''}>
       ${roomIcon(r)}<span class="tcmain"><span class="tcn">${esc(roomName(r))}${r.kind !== 'dm' ? `<span class="tck">${ic('users', 's')}${r.members}</span>` : ''}</span>
       <span class="tclast">${r.last ? esc((r.last.user_id === S.me?.id ? tr('You') + ': ' : r.kind !== 'dm' ? uname(r.last.user_id, S.tc.users) + ': ' : '') + (e2eBriefText(r.last) ?? mdBrief(r.last.text))) : `<span class="muted">${tr('No messages yet')}</span>`}</span></span>
       <span class="tcside">${r.last_at ? `<time>${esc(relTime(r.last_at))}</time>` : ''}${r.unread ? `<span class="nbadge ${r.mention ? 'ment' : ''}" aria-label="${esc(trn('{0} unread', '{0} unread', r.unread))}">${r.mention ? '@' : ''}${r.unread}</span>` : ''}${r.muted ? `<span class="tcmute" title="${esc(tr('Muted'))}">${ic('belloff', 's')}</span>` : ''}</span></button>`)
@@ -140,18 +168,19 @@ function tcRoomHtml() {
     ${ph ? '' : `${typeof dw_winBtn === 'function' ? dw_winBtn('team', rid) : ''}${o3b_splitBtn(room, rid)}${tcx_headBtn(room)}${e2eRoomBtns(room)}`}${isTouch() ? `<button type="button" class="iconbtn" data-act="tc-more" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button>` : ''}${ph ? '' : `<button type="button" class="iconbtn ${room?.muted ? 'on' : ''}" data-act="tc-mute" aria-pressed="${!!room?.muted}" title="${esc(room?.muted ? tr('Muted: only mentions notify you') : tr('Mute (only mentions notify you)'))}" aria-label="${esc(tr('Mute|button'))}">${ic(room?.muted ? 'belloff' : 'bell')}</button>`}${typeof cw_headBtns === 'function' ? cw_headBtns('t:' + rid) : ''}</div>`;
   return `${typeof cw_switchHtml === 'function' ? cw_switchHtml('t:' + rid) : ''}${head}${e2eRoomNotice(room)}${le2eChanNotice(room)}${cpnBarHtml('t:' + rid)}${msBarHtml('t', rid)}<div class="chmsgs tcmsgs" id="tc-msgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="${esc(tr('Messages'))}">${tcMsgsHtml()}</div>
     <button type="button" class="chnew hidden" id="tc-new">${tr('New message')} <span aria-hidden="true">↓</span></button>
-    ${room?.archived ? tcx_archivedHtml(room) : room?.closed ? tcx_closedHtml() /* 2.266.0 (#2970) */ : room?.say_no ? tcx_sayNoHtml(room) /* 2.607.0 (#4549) */ : `${replyBarHtml('t:' + rid)}${tcx_filesBarHtml(room, rid)}<div class="chcomp tccomp">${chToolsHtml([tcx_clipHtml(room), mic, rfb /* 2.147.1 A (#2523) */])}${typeof tvc_barSlot === 'function' ? tvc_barSlot(rid) : ''}<div class="mpick hidden" role="listbox" aria-label="${esc(tr('Mention someone'))}"></div><textarea id="tc-in" rows="1" name="kalmido-team-message" autocomplete="off" data-form-type="other" data-lpignore="true" placeholder="${esc(name.length > cut ? tr('Message to {0}', name.slice(0, cut - 1).trimEnd() + '…') : tr('Message to {0}…', name))}" aria-label="${esc(tr('Message to {0}…', name))}" enterkeyhint="enter" maxlength="8000">${esc(S.drafts['team:' + rid] || '')}</textarea>
-    <span class="muted chkh">${esc(chatKeyHintVis())}</span><button type="button" class="btn pri" data-act="tc-send" title="${esc(chatKeyHint())}" aria-label="${esc(tr('Send'))}"${csdBusy('t:' + rid) ? ' disabled' : ''}>${ic('send', 's')}<span>${tr('Send')}</span></button></div>`}`;
+    ${/*html-ok*/ room?.archived ? tcx_archivedHtml(room) /* 2.1169.0 (#6098): helpers of escaped markup, the composer's template is checked on its own */ : room?.closed ? tcx_closedHtml() /* 2.266.0 (#2970) */ : room?.say_no ? tcx_sayNoHtml(room) /* 2.607.0 (#4549) */ : `${replyBarHtml('t:' + rid)}${tcx_filesBarHtml(room, rid)}<div class="chcomp tccomp">${chToolsHtml([tcx_clipHtml(room), mic, rfb /* 2.147.1 A (#2523) */])}${typeof tvc_barSlot === 'function' ? tvc_barSlot(rid) : ''}<div class="mpick hidden" role="listbox" aria-label="${esc(tr('Mention someone'))}"></div><textarea id="tc-in" rows="1" name="kalmido-team-message" autocomplete="off" data-form-type="other" data-lpignore="true" placeholder="${esc(name.length > cut ? tr('Message to {0}', name.slice(0, cut - 1).trimEnd() + '…') : tr('Message to {0}…', name))}" aria-label="${esc(tr('Message to {0}…', name))}" enterkeyhint="enter" maxlength="8000"${room ? '' : ' disabled' /* 2.1169.0 (#6098) */}>${esc(S.drafts['team:' + rid] || '')}</textarea>
+    <span class="muted chkh">${esc(chatKeyHintVis())}</span><button type="button" class="btn pri" data-act="tc-send" title="${esc(chatKeyHint())}" aria-label="${esc(tr('Send'))}"${csdBusy('t:' + rid) || !room ? ' disabled' : ''}>${ic('send', 's')}<span>${tr('Send')}</span></button></div>`}`;
 }
 // 2.139.0 A (#2127): list = the messages to draw; o.th = inside the thread view (o.root: its first message, o.older: the
 // "Load older" button), where editing / sending belong to the thread
 function tcMsgsHtml(list = S.tc.msgs, o = {}) {
   const th = !!o.th, ck = th ? 'h:' + (S.tc.th?.id || 0) : 't:' + S.tc.rid;
-  if (!th && S.tc.err && !list.length) return `<div class="muted mhint" data-k="err">${esc(S.tc.err)}</div>`;
-  if (!S.tc.room) return `<div class="muted mhint" data-k="ld">${tr('Loading…')}</div>`;
+  if (!th && S.tc.rerr && !list.length) return chatErrHtml(S.tc.rerr, tc_retry(S.tc.rid));  // 2.1169.0 (#6098): the shared blocks
+  if (!S.tc.room) return chatLoadHtml();
   if (!th && !list.length && !csdBusy(ck)) return `<div class="muted cmempty" data-k="empty">${tr('No messages yet. Say hello.')}</div>`;
   const U = S.tc.users, ags = new Set((S.tc.room.members || []).filter(m => m.agent).map(m => m.id)), rd = o.root ? null : trd_pick(list);
-  let prev = null, h = (th ? o.older : S.tc.more) ? `<div class="chold" data-k="older"><button type="button" class="btn sm" data-act="${th ? 'tth-older' : 'tc-older'}">${tr('Load older messages')}</button></div>` : '';
+  const ob = !th && S.tc.olderBusy === S.tc.rid, oe = !th && S.tc.olderErr?.rid === S.tc.rid && S.tc.olderErr.k;  // 2.1169.0 (#6098): loading / failed at the button
+  let prev = null, h = (th ? o.older : S.tc.more) ? `<div class="chold" data-k="older"><button type="button" class="btn sm" data-act="${th ? 'tth-older' : 'tc-older'}"${ob ? ' disabled aria-busy="true"' : ''}>${tr('Load older messages')}</button>${oe ? `<span class="cholderr" role="alert">${esc(oe === 'offline' ? tr('Only available online.') : tr('Older messages could not be loaded'))}</span>` : ''}</div>` : '';
   const nw = th ? 0 : tc_newId();  // 2.1162.0 (#6097)
   for (const m of list) {
     if (nw && m.id === nw) { h += `<div class="chunread tcunread" role="separator" data-k="unread"><span>${esc(tr('New'))}</span></div>`; prev = null; }
@@ -181,6 +210,7 @@ function tcPatch(bottom) {
   const box = $('#tc-msgs'); if (!box) return;
   const near = bottom || tcNear(box);
   fl_set(box, tcMsgsHtml());  // 2.547.0 (#4500): morphed as msgSecDraw (data-k per message): unchanged messages keep their nodes, no flash
+  tc_inLock($('#tc-in'), !!S.tc.room, 't:' + S.tc.rid);  // 2.1169.0 (#6098)
   const added = cf_after(box, 't:' + S.tc.rid);  // 2.46.2 (#1660): new messages fade in; scrolled up -> "New message ↓"
   if (near) { box.scrollTop = box.scrollHeight; cf_pill('tc-new', false); }
   else if (added.length) cf_pill('tc-new', true);
@@ -247,7 +277,7 @@ async function tcSend() {
   }
   catch (e) {  // 2.62.0 (#1530): the text goes back into the box
     csdDone(ck, p); csdBack($('#tc-in'), text, 'team:' + rid); if (sb()) sb().disabled = false; tcPatch();
-    if (e) toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : e.message); return;
+    if (e) toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); return;  // 2.1169.0 (#6098): errText
   }
   csdDone(ck, p); if (sb()) sb().disabled = false; replySent('t:' + rid);
   if (files.length) { delete S.tc.files[rid]; tcx_chipsSync(); }
@@ -261,7 +291,7 @@ async function tcSend() {
   else if (hadF || !isTouch()) ta.focus({preventScroll: true});
 }
 async function tcReact(mid, emoji) {
-  let r; try { r = await rawFetch('POST', `/api/team/messages/${mid}/reactions`, {emoji}); } catch (e) { toast(e.message); return; }
+  let r; try { r = await rawFetch('POST', `/api/team/messages/${mid}/reactions`, {emoji}); } catch (e) { toast(errText(e, tr('The reaction could not be saved'))); return; }  // 2.1169.0 (#6098)
   tth_each(mid, m => { m.reactions = r.reactions; });  // 2.139.0 A (#2127): also in the thread
   tcPatch(); rxRefocus(S.tc.th && !S.tc.msgs.some(x => x.id === mid) ? '.tthview' : '#tc-msgs', mid, emoji);
 }
@@ -279,19 +309,23 @@ function tcMsgMenu(anchor, mid) {
     ...(mine && !(m.enc && !m._dec) ? [sn ? null : {label: tr('Edit'), icon: 'edit', fn: () => { S.tc.edit = mid; S.tc.editTh = inTh; S.tc.editVer = m.edited_at || m.created_at; tcPatch(); setTimeout(() => { const t = tth_editBox(); if (t) { t.focus(); autosize(t); } }, 0); }},
       {label: tr('Delete'), icon: 'trash', cls: 'flag-5', fn: () => tcMsgDelete(mid)}] : [])]);
 }
+// 2.1169.0 (#6099): my own message goes at once, without a question: Undo in the message and under "Recent steps" (histAdd)
 async function tcMsgDelete(mid) {
   const m = tth_msg(mid); if (!m) return false;
-  if (!await askConfirm(tr('Delete this message?'), '', {ok: tr('Delete'), danger: true})) return false;
   const was = {body: m.body, dec: m._dec, rid: S.tc.rid};  // 2.530.0 A (#4315): the decrypted text for Undo (the server only has the ciphertext)
-  try { await rawFetch('DELETE', `/api/team/messages/${mid}`); } catch (e) { toast(e.message); return false; }
+  if (!await tcMsgDel(mid)) return false;
+  offerUndo(tr('Message deleted'), histAdd({label: tr('Message deleted'), area: 'team', undo: () => tcMsgRestore(mid, was), redo: async () => { if (!await tcMsgDel(mid)) throw new Error('not deleted'); }}));  // 2.530.0 A (#4315): in the trash, Undo brings it back
+  return true;
+}
+async function tcMsgDel(mid) {  // the delete itself (also the Redo of the step above)
+  try { await rawFetch('DELETE', `/api/team/messages/${mid}`); } catch (e) { toast(errText(e, tr('The message could not be deleted'))); return false; }
   if (S.tc.edit === mid) S.tc.edit = null;
   tth_each(mid, x => Object.assign(x, {deleted: true, body: '', reactions: []})); tcPatch();
-  toast(tr('Message deleted'), () => tcMsgRestore(mid, was));  // 2.530.0 A (#4315): in the trash, Undo brings it back
   if (S.tc.th) tth_load().then(() => tcPatch());  // 2.139.0 A (#2127): the thread's count
   return true;
 }
 async function tcMsgRestore(mid, was) {  // 2.530.0 A (#4315)
-  let r; try { r = await rawFetch('POST', `/api/team/messages/${mid}/restore`); } catch (e) { toast(e.message); return; }
+  let r; try { r = await rawFetch('POST', `/api/team/messages/${mid}/restore`); } catch (e) { toast(errText(e, tr('The message could not be restored'))); throw e; }  // 2.1169.0 (#6099): said once; the history does not count it as undone
   if (r.enc && was.dec) { r.body = was.body; r._dec = true; E2E.dec[r.id + ':' + (r.edited_at || '')] = r.body; }
   if (S.tc.rid !== was.rid) return;
   tth_each(mid, x => Object.assign(x, r)); tcPatch();
@@ -301,7 +335,8 @@ async function tcEditSave(mid) {
   const t = tth_editBox(), m = tth_msg(mid); if (!t || !m) return;  // 2.139.0 A (#2127): also in the thread
   const v = t.value.trim();
   // 2.18.0 (#652): saving an emptied message did nothing; it offers to delete the message instead (Cancel: back to the
-  // text box, Delete: the focus goes to the message box); 2.113.1 (#2059): a message with files keeps them without text
+  // text box, Delete: the focus goes to the message box); 2.113.1 (#2059): a message with files keeps them without text;
+  // 2.1169.0 (#6099): no question any more - deleted at once with Undo (tcMsgDelete), the focus in the message box
   if (!v && !m.attachments?.length) { if (await tcMsgDelete(mid)) $(S.tc.editTh ? '#tth-in' : '#tc-in')?.focus(); else tth_editBox()?.focus(); return; }
   let r;
   try {
@@ -312,7 +347,7 @@ async function tcEditSave(mid) {
     r = await rawFetch('PATCH', `/api/team/messages/${mid}`, {...(enc ? {enc} : {body: tcMentions(v)}), ...(ver ? {expect_updated_at: ver} : {})});
     if (enc) { r.body = lk ? lv : v; r._dec = true; E2E.dec[r.id + ':' + (r.edited_at || '')] = r.body; }
   } catch (e) {
-    toast(e.message);
+    toast(errText(e, tr('The message could not be saved')));  // 2.1169.0 (#6098)
     const cur = e.status === 409 ? e.data?.message : null;
     if (cur && !cur.enc) { tth_each(mid, x => Object.assign(x, cur)); S.tc.editVer = cur.edited_at || cur.created_at; tcPatch(); }
     else if (cur) { S.tc.edit = null; S.tc.editTh = false; await loadRoom(S.tc.rid); tcPatch(); }
@@ -322,7 +357,7 @@ async function tcEditSave(mid) {
 }
 async function tcMute() {
   const rid = S.tc.rid, on = !S.tc.room?.muted;
-  try { await rawFetch('POST', `/api/team/rooms/${rid}/read`, {muted: on}); } catch (e) { toast(e.message); return; }
+  try { await rawFetch('POST', `/api/team/rooms/${rid}/read`, {muted: on}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }  // 2.1169.0 (#6098)
   S.tc.room.muted = on; const r = (S.tc.rooms || []).find(x => x.id === rid); if (r) r.muted = on;
   toast(on ? tr('Muted: only mentions notify you') : tr('Notifications on')); renderView();
 }
@@ -380,7 +415,7 @@ document.addEventListener('click', e => {
   else if (act === 'tc-back') navUp('team');  // 2.743.0 (#5235): up = back in the history when the list was the view before
   else if (act === 'tc-send') tcSend();
   else if (act === 'tc-react') { tcReact(+a.dataset.mid, a.dataset.e); }
-  else if (act === 'tc-older') loadRoom(S.tc.rid, true).then(() => tcPatch());
+  else if (act === 'tc-older') tc_older();  // 2.1169.0 (#6098): one page at a time, failure at the button
   else if (act === 'tc-msg-menu') tcMsgMenu(a, +a.dataset.mid);
   else if (act === 'tc-edit-save') tcEditSave(+a.dataset.mid);
   else if (act === 'tc-edit-cancel') { S.tc.edit = null; S.tc.editTh = false; tcPatch(); }
@@ -426,7 +461,7 @@ function tth_html() {
 }
 function tth_msgsHtml(n) {
   const th = S.tc.th; if (!th) return '';
-  if (!th.root) return th.err ? `<div class="muted mhint" data-k="err">${esc(th.err)}</div>` : `<div class="muted mhint" data-k="ld">${tr('Loading…')}</div>`;
+  if (!th.root) return th.err ? chatErrHtml(th.err, () => { if (S.tc.th !== th) return; th.err = null; tth_patch(); tth_load().then(() => tth_patch()); }, tr('The thread could not be loaded')) : chatLoadHtml();  // 2.1169.0 (#6098)
   n = n ?? th.root.thread_count ?? th.msgs.length;
   return `${tcMsgsHtml([th.root], {th: true, root: true})}<div class="tthsep" data-k="sep"><span>${esc(n ? trn('{0} reply', '{0} replies', n) : tr('No replies yet'))}</span></div>${tcMsgsHtml(th.msgs, {th: true, older: th.more})}`;
 }
@@ -470,10 +505,10 @@ async function tth_load(older = false) {
   const rid = th.rid, before = older && th.msgs.length ? th.msgs[0].id : null;
   let j;
   try { j = await rawFetch('GET', `/api/team/rooms/${rid}/messages?thread=${th.id}` + (before ? `&before=${before}` : '')); }
-  catch (e) { if (S.tc.th === th) { th.err = e instanceof Offline ? tr('The team chat is only available online.') : e.message; th.ld = false; tth_patch(); } return false; }
+  catch (e) { if (S.tc.th === th) { th.err = chatErrKey(e); th.ld = false; tth_patch(); if (before) toast(errText(e, tr('Older messages could not be loaded'))); } return false; }  // 2.1169.0 (#6098)
   if (S.tc.th !== th) return false;
   if (th.id !== j.root.id) delete S.drafts['tth:' + th.id];
-  Object.assign(th, {id: j.root.id, root: j.root, more: j.has_more, msgs: before ? [...j.messages, ...th.msgs] : j.messages, read: j.thread_read || 0, readOk: j.room.read_ok, err: null, ld: false});
+  Object.assign(th, {id: j.root.id, root: j.root, more: j.has_more, msgs: before ? [...j.messages.filter(m => m.id < (th.msgs[0]?.id ?? Infinity)), ...th.msgs] : j.messages, read: j.thread_read || 0, readOk: j.room.read_ok, err: null, ld: false});
   S.tc.users = {...S.tc.users, ...j.users};
   tth_decrypt(rid, th);
   const last = th.msgs[th.msgs.length - 1];
@@ -508,7 +543,7 @@ async function tth_send() {
     if (enc) { m.body = lk ? ltext : text; m._dec = true; E2E.dec[m.id + ':'] = m.body; }
   } catch (e) {
     csdDone(ck, p); csdBack($('#tth-in'), text, 'tth:' + th.id); tth_patch();
-    if (e) toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : e.message); return;
+    if (e) toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); return;  // 2.1169.0 (#6098): errText
   }
   csdDone(ck, p); replySent(ck);
   if (!th.msgs.some(x => x.id === m.id)) th.msgs.push(m);
@@ -532,7 +567,7 @@ document.addEventListener('click', e => {
   if (act === 'tth-open') tth_open(S.tc.rid, +a.dataset.root, true);
   else if (act === 'tth-close') { if (!f8d_viewBack('tth')) tth_close(); }  // 2.963.0 (#5233): the ‹ goes the same way as Back
   else if (act === 'tth-send') tth_send();
-  else if (act === 'tth-older') tth_load(true).then(() => tth_patch());
+  else if (act === 'tth-older') { if (a.disabled) return; a.disabled = true; tth_load(true).then(() => tth_patch()); }  // 2.1169.0 (#6098): no second page while one loads
   else if (act === 'trd-show') trd_show(+a.dataset.rmid, !!a.closest('.tthview'));
   else return;
   e.preventDefault(); e.stopPropagation();
@@ -652,7 +687,7 @@ document.addEventListener('drop', e => {
 }, true);
 // channels / groups: create, settings, browse
 async function tcx_req(method, url, body) {
-  try { return await rawFetch(method, url, body); } catch (e) { toast(e instanceof Offline ? tr('The team chat is only available online.') : e.message); return null; }
+  try { return await rawFetch(method, url, body); } catch (e) { toast(errText(e, method === 'GET' ? tr('Could not be loaded') : tr('The change could not be saved'))); return null; }  // 2.1169.0 (#6098)
 }
 async function tcx_refresh(rid) { await loadTeam(); if (rid && S.tc.rid === rid) await loadRoom(rid); if (S.route.mod === 'team') renderView(); renderSide(); }
 const tcx_pick = (ids, users, agents = [], on = []) => ids.length || agents.length ? `<div class="tcxpick" role="group" aria-label="${esc(tr('Members'))}">${[...ids.map(id => [id, false]), ...agents.map(id => [id, true])].map(([id, ag]) => `<label class="tcxp"><input type="checkbox" value="${id}" ${on.includes(id) ? 'checked' : ''}>${av(id, users[id] || '?', 'avatar sm')}<span>${esc(users[id] || '?')}</span>${ag ? agentBadge(id) : ''}</label>`).join('')}</div>` : `<p class="muted">${tr('Nobody to add yet.')}</p>`;
@@ -699,6 +734,9 @@ async function tcx_groupNew() {
     submit: md => { const m = tcx_checked(md); if (m.length < 2) { toast(tr('A group needs at least two other people')); return null; } return {members: m, name: $('#tcx-name', md).value.trim()}; }});
   if (!v) return;
   const r = await tcx_req('POST', '/api/team/groups', v); if (!r) return;
+  // 2.1169.0 (#6099): Undo as for a new channel (the server archives a group only for its creator while nobody wrote in it)
+  const gn = r.name || tr('New group');
+  offerUndo(tr('Group “{0}” created', gn), histAdd({label: tr('New group “{0}”', gn), undo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: true}).then(() => { if (S.tc.rid === r.id && S.route.mod === 'team') go('team'); return tcx_refresh(); }), redo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: false}).then(() => tcx_refresh())}));
   await loadTeam(); go('team/' + r.id);
 }
 async function tcx_browse() {
@@ -772,7 +810,8 @@ async function tcx_settings() {
       md.remove(); step(tr('Channel archived'), () => patch({archived: false}), () => patch({archived: true})); await tcx_refresh(rid); }
     else if (a === 'leave') {
       const back = ch && room.open && room.org_id;  // an open channel: joining again is the undo
-      if (!back && !await askConfirm(tr('Leave this conversation?'), tr('You can only come back when someone adds you again.'), {ok: tr('Leave'), danger: true})) return;
+      // 2.1169.0 (#6099): only asks where I cannot come back by myself (a group, a closed channel), and says so
+      if (!back && !await askConfirm(ch ? tr('Leave this channel?') : tr('Leave this group?'), tr('You can only come back when someone adds you again.'), {ok: tr('Leave'), danger: true})) return;
       if (!await tcx_req('DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`)) return;
       md.remove();
       if (back) step(tr('Left the channel'), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: S.me.id}), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`));
