@@ -4,34 +4,59 @@
     "This is already set up on this device.": "Das ist auf diesem Gerät schon eingerichtet.",
     "Your browser does not support this.": "Dein Browser unterstützt das nicht.",
     "The company could not be created": "Die Firma konnte nicht angelegt werden",
-    "Could not switch on notifications": "Benachrichtigungen konnten nicht eingeschaltet werden"
+    "Could not switch on notifications": "Benachrichtigungen konnten nicht eingeschaltet werden",
+    "Receipt missing?": "Beleg fehlt?",
+    "Upload it in the documents of the office, then match it here.": "In den Dokumenten des Büros hochladen, dann hier zuordnen.",
+    "1-{0} select · Enter takes over · arrows back and forth": "1-{0} wählen · Enter übernimmt · Pfeile zurück und weiter",
+    "Enter takes over · arrows back and forth": "Enter übernimmt · Pfeile zurück und weiter",
+    "Arrows back and forth": "Pfeile zurück und weiter"
   },
   "es": {
     "Your browser or device did not allow this. Allow it and try again.": "Tu navegador o dispositivo no lo ha permitido. Permítelo e inténtalo de nuevo.",
     "This is already set up on this device.": "Esto ya está configurado en este dispositivo.",
     "Your browser does not support this.": "Tu navegador no admite esto.",
     "The company could not be created": "No se pudo crear la empresa",
-    "Could not switch on notifications": "No se pudieron activar las notificaciones"
+    "Could not switch on notifications": "No se pudieron activar las notificaciones",
+    "Receipt missing?": "¿Falta el justificante?",
+    "Upload it in the documents of the office, then match it here.": "Súbelo en los documentos de la oficina y asígnalo aquí.",
+    "1-{0} select · Enter takes over · arrows back and forth": "1-{0} elegir · Intro asigna · flechas adelante y atrás",
+    "Enter takes over · arrows back and forth": "Intro asigna · flechas adelante y atrás",
+    "Arrows back and forth": "Flechas adelante y atrás"
   },
   "fr": {
     "Your browser or device did not allow this. Allow it and try again.": "Ton navigateur ou appareil ne l’a pas autorisé. Autorise-le et réessaie.",
     "This is already set up on this device.": "C’est déjà configuré sur cet appareil.",
     "Your browser does not support this.": "Ton navigateur ne le prend pas en charge.",
     "The company could not be created": "L’entreprise n’a pas pu être créée",
-    "Could not switch on notifications": "Impossible d’activer les notifications"
+    "Could not switch on notifications": "Impossible d’activer les notifications",
+    "Receipt missing?": "Justificatif manquant ?",
+    "Upload it in the documents of the office, then match it here.": "Téléversez-le dans les documents du bureau, puis associez-le ici.",
+    "1-{0} select · Enter takes over · arrows back and forth": "1-{0} choisir · Entrée reprend · flèches avant et arrière",
+    "Enter takes over · arrows back and forth": "Entrée reprend · flèches avant et arrière",
+    "Arrows back and forth": "Flèches avant et arrière"
   },
   "it": {
     "Your browser or device did not allow this. Allow it and try again.": "Il browser o il dispositivo non lo ha consentito. Consentilo e riprova.",
     "This is already set up on this device.": "È già configurato su questo dispositivo.",
     "Your browser does not support this.": "Il browser non lo supporta.",
     "The company could not be created": "Non è stato possibile creare l’azienda",
-    "Could not switch on notifications": "Impossibile attivare le notifiche"
+    "Could not switch on notifications": "Impossibile attivare le notifiche",
+    "Receipt missing?": "Manca la ricevuta?",
+    "Upload it in the documents of the office, then match it here.": "Caricala nei documenti dell'ufficio, poi abbinala qui.",
+    "1-{0} select · Enter takes over · arrows back and forth": "1-{0} scegli · Invio applica · frecce avanti e indietro",
+    "Enter takes over · arrows back and forth": "Invio applica · frecce avanti e indietro",
+    "Arrows back and forth": "Frecce avanti e indietro"
   },
   "nl": {
     "Your browser or device did not allow this. Allow it and try again.": "Je browser of apparaat heeft dit niet toegestaan. Sta het toe en probeer het opnieuw.",
     "This is already set up on this device.": "Dit is al ingesteld op dit apparaat.",
     "Your browser does not support this.": "Je browser ondersteunt dit niet.",
     "The company could not be created": "Het bedrijf kon niet worden aangemaakt",
-    "Could not switch on notifications": "Meldingen konden niet worden ingeschakeld"
+    "Could not switch on notifications": "Meldingen konden niet worden ingeschakeld",
+    "Receipt missing?": "Bon ontbreekt?",
+    "Upload it in the documents of the office, then match it here.": "Upload hem bij de documenten van het kantoor en koppel hem dan hier.",
+    "1-{0} select · Enter takes over · arrows back and forth": "1-{0} kiezen · Enter neemt over · pijlen terug en verder",
+    "Enter takes over · arrows back and forth": "Enter neemt over · pijlen terug en verder",
+    "Arrows back and forth": "Pijlen terug en verder"
   }
 }

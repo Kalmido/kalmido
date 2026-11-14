@@ -71,7 +71,7 @@ function wlk_draw() {
   const top = `<div class="wlk-top"><h3>${tr('Go through')}</h3><span class="wlk-n" data-wlk-n>${it ? esc(tr('{0} of {1}', String(WLK.i + 1), String(n))) : ''}</span><span class="spacer"></span>
     <button type="button" class="btn ghost icon" data-wlk="close" aria-label="${esc(tr('Close'))}">${ic('x', 's')}</button></div>`;
   if (!it) {
-    card.innerHTML = `${/*html-ok*/ top}<div class="wlk-end"><p>${n ? tr('Every booking has its answer.') : tr('Nothing open here.')}</p></div><div class="foot">${/*html-ok*/ undo}<span class="spacer"></span><button type="button" class="btn pri" data-wlk="close">${tr('Close')}</button></div>`;
+    card.innerHTML = `${/*html-ok*/ top}${/*html-ok*/ emptyState({icon: 'check', title: n ? tr('Every booking has its answer.') : tr('Nothing open here.'), cls: 'wlk-end'})/* 2.1180.0 (#6147) */}<div class="foot">${/*html-ok*/ undo}<span class="spacer"></span><button type="button" class="btn pri" data-wlk="close">${tr('Close')}</button></div>`;
     return;
   }
   const x = it.x, bank = WLK.kind === 'bnk', out = !bank || +x.amount < 0, fine = wlk_fine();
@@ -83,21 +83,50 @@ function wlk_draw() {
       : ocd_row((many ? c : c.slice(0, 3)).map((d, k) => ocd_card(d, {btn: `data-wlk="take" data-k="${k}"`, key: fine && k < 3 ? k + 1 : '', on: k === WLK.sel})).join(''), 'wlk-cands');
     const search = many ? `<input type="search" class="wlk-q" data-wlk-q value="${esc(WLK.q)}" placeholder="${esc(bank && !out ? tr('Number or client') : tr('Search all receipts'))}" aria-label="${esc(tr('Search'))}">` : '';
     const acc = esc(bank ? BNK_ACCEPT_RC() : (typeof BK_ACCEPT === 'string' ? BK_ACCEPT : 'application/pdf,image/*'));
-    const acts = [
-      `<button type="button" class="btn sm" data-wlk="search" aria-expanded="${esc(String(many))}">${ic('search', 's')}<span>${bank && !out ? tr('Other invoice…') : tr('Search another receipt')}</span></button>`,
-      out ? `<label class="btn sm">${ic('upload', 's')}<span>${tr('Upload receipt')}</span><input type="file" data-wlk-up accept="${/*html-ok*/ acc}" hidden></label>` : '',
-      `<button type="button" class="btn sm ghost" data-wlk="mark" data-v="noreceipt">${tr('No receipt needed')}</button>`,
-      `<button type="button" class="btn sm ghost" data-wlk="mark" data-v="private">${tr('Private')}</button>`,
-      bank ? `<button type="button" class="btn sm ghost" data-wlk="mark" data-v="ignored">${tr('Ignore')}</button><button type="button" class="btn sm ghost" data-wlk="mark" data-v="cash">${tr('Cash box transfer')}</button>` : '',
-      bank && !out ? `<button type="button" class="btn sm ghost" data-wlk="split">${tr('Split across invoices…')}</button>` : ''].join('');
+    // 2.1180.0 (#6147): the order of the bank row (#5452): one main step -- take the suggestion (its card, "Take over" below)
+    // or, without one, search another receipt / invoice -- and the rest under "More" (wlk_more); was: six equal buttons
+    const acts = `<button type="button" class="btn sm${c && !WLK.err && !c.length ? ' pri' : ''}" data-wlk="search" aria-expanded="${esc(String(many))}">${ic('search', 's')}<span>${bank && !out ? tr('Other invoice…') : tr('Search another receipt')}</span></button>
+      <button type="button" class="btn sm ghost" data-wlk="more" aria-haspopup="menu">${ic('dots', 's')}<span>${tr('More')}</span></button>
+      ${out ? `<input type="file" data-wlk-up accept="${/*html-ok*/ acc}" hidden>` : ''}`;
     body = `${/*html-ok*/ search}${/*html-ok*/ cards}<div class="bnkacts wlk-acts">${/*html-ok*/ acts}</div>`;
   }
   card.innerHTML = `${/*html-ok*/ top}<div class="wlk-tx bnkhead">${/*html-ok*/ wlk_head(x)}</div><div class="wlk-body">${/*html-ok*/ body}</div>
     <div class="foot wlk-foot"><button type="button" class="btn ghost" data-wlk="prev" ${WLK.i ? '' : 'disabled'}>${ic('back', 's')}<span>${tr('Back')}</span></button>${/*html-ok*/ undo}
-    ${fine ? `<small class="muted wlk-keys">${tr('1-3 select · Enter takes over · arrows back and forth')}</small>` : ''}<span class="spacer"></span>
+    ${fine ? `<small class="muted wlk-keys">${esc(wlk_keys(it))}</small>` : ''}<span class="spacer"></span>
     ${!it.done && WLK.cands?.length ? `<button type="button" class="btn pri" data-wlk="take" data-k="${esc(String(WLK.sel))}">${ic('check', 's')}<span>${tr('Take over')}</span></button>` : ''}
     <button type="button" class="btn" data-wlk="skip">${it.done ? tr('Next') : tr('Skip')}${ic('right', 's')}</button></div>`;
   if (!md.contains(document.activeElement) || document.activeElement === document.body) card.focus({preventScroll: true});
+}
+// 2.1180.0 (#6147): the key hint names only what is on the screen: the numbers as far as the cards show them (was always "1-3")
+function wlk_keys(it) {
+  const k = !it.done && !WLK.err ? Math.min(3, WLK.cands?.length || 0) : 0;
+  return k > 1 ? tr('1-{0} select · Enter takes over · arrows back and forth', String(k)) : k ? tr('Enter takes over · arrows back and forth') : tr('Arrows back and forth');
+}
+// 2.1180.0 (#6147): "More" of the shown booking: upload, the marks with their line of explanation (as the bank row's
+// bnkMoreMenu), the split for money in
+function wlk_more(anchor) {
+  const it = wlk_cur(); if (!it || it.done) return;
+  const bank = WLK.kind === 'bnk', out = !bank || +it.x.amount < 0;
+  const mk = (v, sub) => ({label: tr(v === 'ignored' ? 'Ignore' : WLK_MARK[v]), sub, act: `wlk-${v}`, fn: () => wlk_mark(v)});
+  menu(anchor, [
+    out ? {label: tr('Upload receipt'), icon: 'upload', act: 'wlk-up', fn: () => /** @type {any} */ ($('[data-wlk-up]', WLK.md))?.click()} : null,
+    mk('private', tr('Private withdrawal or deposit: neither expense nor income of the business')),
+    mk('noreceipt', tr('A business payment without a receipt, e.g. bank fees or tax: it counts in the books')),
+    bank ? mk('ignored', tr('Left out of the books entirely, e.g. a transfer between your own accounts')) : null,
+    bank ? mk('cash', tr('Cash withdrawal or cash paid in: a transfer between the bank and the cash book, no expense')) : null,
+    bank && !out ? {label: tr('Split across invoices…'), act: 'wlk-split', fn: () => wlk_split()} : null].filter(Boolean), null, null, tr('Mark booking'));
+}
+function wlk_mark(v) {
+  const it = wlk_cur(); if (!it) return;
+  if (WLK.kind === 'cc') wlk_step(tr(WLK_MARK[v]), () => ccMarkLine(it.x.id, v, 'open'));
+  else wlk_step(tr(WLK_MARK[v]), () => bnkMatch(it.x.id, v));
+}
+function wlk_split() {  // the list's own split view (office_bank.js), at the booking
+  const it = wlk_cur(); if (!it) return;
+  WLK.md?.remove();
+  Object.assign(BNK, {state: 'open', other: it.x.id, split: true, parts: {}, cand: null, candQ: ''});
+  ofcDraw(); bnkCand(it.x.id);
+  requestAnimationFrame(() => $(`.bnkrow[data-tx="${it.x.id}"]`)?.scrollIntoView({block: 'start'}));
 }
 // the accepted files of a bank receipt upload (as the list "Without receipt", office_banknorc.js)
 const BNK_ACCEPT_RC = () => typeof BK_ACCEPT === 'string' ? BK_ACCEPT : 'application/pdf,image/*';
@@ -145,7 +174,7 @@ function wlk_take(k) {
 const WLK_MARK = {noreceipt: N_('No receipt needed'), private: N_('Private'), ignored: N_('Ignored'), cash: N_('Cash box transfer')};
 function wlk_click(e) {
   const b = /** @type {any} */ (e.target).closest?.('[data-wlk]'); if (!b || b.disabled) return;
-  const a = b.dataset.wlk, it = wlk_cur();
+  const a = b.dataset.wlk;
   e.preventDefault();
   if (a === 'close') WLK.md?.remove();
   else if (a === 'take') wlk_take(+b.dataset.k);
@@ -153,16 +182,7 @@ function wlk_click(e) {
   else if (a === 'prev') wlk_go(-1);
   else if (a === 'undo') wlk_undo();
   else if (a === 'search') { WLK.search = !WLK.search; WLK.q = ''; wlk_load().then(() => /** @type {any} */ ($('[data-wlk-q]', WLK.md))?.focus()); }
-  else if (a === 'mark' && it) {
-    const v = b.dataset.v, what = tr(WLK_MARK[v]);
-    if (WLK.kind === 'cc') wlk_step(what, () => ccMarkLine(it.x.id, v, 'open'));
-    else wlk_step(what, () => bnkMatch(it.x.id, v));
-  } else if (a === 'split' && it) {  // the list's own split view (office_bank.js), at the booking
-    WLK.md?.remove();
-    Object.assign(BNK, {state: 'open', other: it.x.id, split: true, parts: {}, cand: null, candQ: ''});
-    ofcDraw(); bnkCand(it.x.id);
-    requestAnimationFrame(() => $(`.bnkrow[data-tx="${it.x.id}"]`)?.scrollIntoView({block: 'start'}));
-  }
+  else if (a === 'more') wlk_more(b);  // 2.1180.0 (#6147): the marks, upload and split moved into "More"
 }
 function wlk_change(e) {
   const t = /** @type {any} */ (e.target), it = wlk_cur();
