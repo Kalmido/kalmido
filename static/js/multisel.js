@@ -23,7 +23,7 @@ function ms_barHtml(id, attr, n, hint, btns, o = {}) {
 function ms_fit(bar) {
   const bs = $$(':scope > .mbb:not(.mbdots)', bar), dots = $(':scope > .mbdots', bar), x = $(':scope > .mbx', bar); if (!dots || !x) return;
   for (const b of bs) b.hidden = false; dots.hidden = true;
-  const one = () => [...bs, dots].every(b => b.hidden || Math.abs(b.offsetTop - x.offsetTop) < 4);
+  const one = () => [...bs, dots].every(b => b.hidden || (b.offsetTop < x.offsetTop + x.offsetHeight && b.offsetTop + b.offsetHeight > x.offsetTop));  // on the close button's line
   if (one()) return;
   dots.hidden = false;
   const rank = b => b.classList.contains('danger') ? 2 : b.classList.contains('mball') ? 1 : 0;
