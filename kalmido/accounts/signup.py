@@ -155,15 +155,18 @@ def _notify_admins(c, uid):
                              tr("Settings > Organisation > People", lg=lg), f"{PUBLIC_URL}/#settings/users", push_prio(s)))
 
 
-# 2.1156.0 (#4550): fn(c, uid) -> True when it activated the account itself (accounts/cinvite.py: a person's invitation link
-# vouches for it, no admin approval); registered at import, so this module needs no import of the later one
+# 2.1156.0 (#4550): fn(c, uid) -> "active" when it activated the account itself (accounts/cinvite.py: a person's invitation link
+# vouches for it, no admin approval), "pending" when it set it to wait for an admin (Fable F3), None when not its account;
+# registered at import, so this module needs no import of the later one
 SIGNUP_CONFIRMED = []
 
 
 def signup_confirmed(c, u):
     """The address of registration u is confirmed (password set). True = it now waits for an admin (mode approval)."""
-    if any(fn(c, u["id"]) for fn in SIGNUP_CONFIRMED):
-        return False
+    for fn in SIGNUP_CONFIRMED:
+        done = fn(c, u["id"])
+        if done:
+            return done == "pending"
     if gsetting(c, "signup_mode") == "approval":
         c.execute("UPDATE users SET signup='pending' WHERE id=?", (u["id"],))
         _notify_admins(c, u["id"])
