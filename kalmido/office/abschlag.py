@@ -507,7 +507,7 @@ def abs_prepaid_view(m, L, lang, pack=None):
     m["abs_prepaid"], m["abs_full"] = out, full
     if rows is None:
         return
-    new = [[L.get("subtotal", tr("Subtotal|document", lg=lang)), fmt_money(full["net"], lang, cur)]]
+    new = [[L.get("net_total") or L.get("subtotal", tr("Subtotal|document", lg=lang)), fmt_money(full["net"], lang, cur)]]  # 2.1179.0 A (#6174): "Summe netto" as the invoice
     for tl in full["tax_lines"]:
         tlab = tl.get("label") or ""
         if tlab:

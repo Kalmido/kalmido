@@ -92,7 +92,8 @@ LAST = d
 
 # ---------------------------------------------------------------- #1368 2: closing texts, credit note
 d = inv()
-check("fällig" not in d["closing"] and d["closing"].startswith("Bitte überweisen Sie den Gesamtbetrag"), "#1368 2: invoice closing without a due statement: " + d["closing"][:80])
+# 2.1179.0 (#6174): the standard closing thanks (the PDF's payment block asks for the transfer)
+check("fällig" not in d["closing"] and d["closing"].startswith("Vielen Dank für Ihren Auftrag"), "#1368 2: invoice closing without a due statement: " + d["closing"][:80])
 fin(d["id"])
 r = A.post(B + f"{D}/{d['id']}/credit")
 cr = r.json()
@@ -102,7 +103,7 @@ fin(cr["id"])
 x = A.get(B + f"{D}/{cr['id']}/xml").text
 check("Zahlbar sofort" not in x and "<ram:TypeCode>381</ram:TypeCode>" in x and "erstattet oder verrechnet" in x, "#1368 2: credit note XML without 'Zahlbar sofort ohne Abzug'")
 d = inv(lang="en")
-check(d["closing"].startswith("Please transfer the total amount"), "#1368 2: English invoice closing: " + d["closing"][:60])
+check(d["closing"].startswith("Thank you for your order"), "#1368 2: English invoice closing: " + d["closing"][:60])  # 2.1179.0 (#6174)
 m = A.get(B + f"{D}/{d['id']}/render").json()
 check((m.get("labels") or {}).get("qty") == "Qty", f"#1368 6: English quantity column 'Qty': {(m.get('labels') or {}).get('qty')}")
 
@@ -182,7 +183,7 @@ check(e["intro"] == "Hallo Team, hier unser Angebot." and e["closing"].startswit
 check(any("Introduction" in n for n in e.get("lang_notes") or []), "#1381: note for the intro changed by hand: " + str(e.get("lang_notes")))
 d = inv()
 e = A.patch(B + f"{D}/{d['id']}", json={"lang": "en"}).json()
-check(e["intro"].startswith("Dear Sir or Madam") and e["closing"].startswith("Please transfer the total amount"), "#1368 3: invoice texts swapped to English")
+check(e["intro"].startswith("Dear Sir or Madam") and e["closing"].startswith("Thank you for your order"), "#1368 3: invoice texts swapped to English")  # 2.1179.0 (#6174)
 fin(d["id"])
 check(A.patch(B + f"{D}/{d['id']}", json={"lang": "de"}).status_code == 409, "#1381: a finalised document is never changed")
 
