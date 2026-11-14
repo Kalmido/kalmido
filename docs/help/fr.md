@@ -235,7 +235,7 @@ tu partages a aussi son propre chat.
 Ce qui se passe ensuite : les messages épinglés restent dans la barre au-dessus des messages (cinq au plus par
 conversation) ; un fil montre les réponses à ce message et ses participants sont prévenus.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0c996e57a9 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
 ## Inviter par un lien quelqu'un sans compte
 
 1. Dans Paramètres > Compte, choisis **Trouver une personne …**.

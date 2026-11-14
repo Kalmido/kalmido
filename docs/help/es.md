@@ -231,7 +231,7 @@ tiene además su propio chat.
 Qué pasa entonces: los mensajes fijados permanecen en la barra sobre los mensajes (como máximo cinco por conversación); un
 hilo muestra las respuestas a ese mensaje y sus participantes reciben aviso.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0c996e57a9 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
 ## Invitar con un enlace a alguien sin cuenta
 
 1. En Ajustes > Cuenta elige **Buscar a una persona …**.

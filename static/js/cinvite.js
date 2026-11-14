@@ -26,7 +26,7 @@ function cnv_html() {
     ${/*html-ok*/ made}
     ${items.length ? `<h4 id="cnv-open-h">${tr('Open invitation links')}</h4><div class="members" aria-labelledby="cnv-open-h">${items.map(x => `<div class="mrow cnv-row">
       <span class="n">${esc(x.note || tr('Invitation link'))}</span><span class="muted dsc-st">${esc(tr('runs out {0}', fmtDayAbs(x.expires_at)))}</span>
-      <button type="button" class="btn sm" data-cnv="withdraw" data-id="${esc(String(x.id))}">${tr('Take back')}</button></div>`).join('')}</div>` : ''}
+      <button type="button" class="btn sm" data-cnv="withdraw" data-id="${esc(String(x.id))}">${tr('Withdraw')}</button></div>`).join('')}</div>` : ''}
     <div class="shint">${esc(tr('At most {0} open links, {1} new ones a day.', l.open || 20, l.day || 10))}</div>`;
 }
 
@@ -67,9 +67,9 @@ async function cnv_open() {
         await api('DELETE', `/api/disc/invites/${id}`);
         if (CNV.made?.item?.id === id) CNV.made = null;
         const again = async fn => { await fn(); await cnv_load(); if (md.isConnected) cnv_draw(md); return {}; };
-        const h = histAdd({label: tr('Took back the invitation link {0}', name), undo: () => again(() => api('POST', `/api/disc/invites/${id}/restore`)),
+        const h = histAdd({label: tr('Withdrew the invitation link {0}', name), undo: () => again(() => api('POST', `/api/disc/invites/${id}/restore`)),
           redo: () => again(() => api('DELETE', `/api/disc/invites/${id}`))});
-        histToast(tr('Took back the invitation link {0}', name), h);
+        histToast(tr('Withdrew the invitation link {0}', name), h);
         await cnv_load();
       } catch { /* shown */ }
       if (md.isConnected) cnv_draw(md);

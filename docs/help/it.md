@@ -232,7 +232,7 @@ anche una propria chat.
 Cosa succede dopo: i messaggi fissati restano nella barra sopra i messaggi (al massimo cinque per conversazione); un
 thread mostra le risposte a quel messaggio e i suoi partecipanti vengono avvisati.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0c996e57a9 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
 ## Invitare con un link qualcuno senza account
 
 1. In Impostazioni > Account scegli **Trova una persona …**.

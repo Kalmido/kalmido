@@ -101,7 +101,7 @@ def cinv_new():
     n_open = c.execute(f"SELECT COUNT(*) FROM conn_invites WHERE user_id=? AND {_open_sql()}", (u["id"], iso(now))).fetchone()[0]
     if n_open >= CINV_OPEN:
         c.rollback()
-        return err(tr("You have {0} open invitation links. Take one back before you make a new one.", CINV_OPEN), 429)
+        return err(tr("You have {0} open invitation links. Withdraw one before you make a new one.", CINV_OPEN), 429)
     n_day = c.execute("SELECT COUNT(*) FROM conn_invites WHERE user_id=? AND created_at>?", (u["id"], iso(now - timedelta(days=1)))).fetchone()[0]
     if n_day >= CINV_DAY:
         c.rollback()
@@ -137,7 +137,7 @@ def cinv_restore(iid):
     now = now_utc()
     if c.execute(f"SELECT COUNT(*) FROM conn_invites WHERE user_id=? AND {_open_sql()}", (u["id"], iso(now))).fetchone()[0] >= CINV_OPEN:
         c.rollback()
-        return err(tr("You have {0} open invitation links. Take one back before you make a new one.", CINV_OPEN), 429)
+        return err(tr("You have {0} open invitation links. Withdraw one before you make a new one.", CINV_OPEN), 429)
     n = c.execute("UPDATE conn_invites SET revoked_at=NULL WHERE id=? AND user_id=? AND used_at IS NULL AND revoked_at>? AND expires_at>?",
                   (iid, u["id"], iso(now - timedelta(hours=CINV_UNDO_H)), iso(now))).rowcount
     c.commit()
