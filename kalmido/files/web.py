@@ -399,7 +399,10 @@ def _log(c, nid):
 def _trash_may_see(chain, role):
     """2.1178.0 (#6115): a node in the trash is seen (details, content) only by who may restore it: an owner, or an editor
     who put it there; a share or org access that stays on a deleted file reads nothing of it"""
-    return not fs_deleted(chain) or role == "owner" or (role == "edit" and fs_trash_root_by(chain) == me())
+    # review (job/4569): an editor only when every deleted node of the chain is hers - deleting the folder of a file the
+    # owner had already deleted must not open that file to her
+    return (not fs_deleted(chain) or role == "owner"
+            or (role == "edit" and all(r["deleted_by"] == me() for r in chain if r["deleted_at"])))
 
 
 @app.get("/api/files/nodes/<int:nid>")
