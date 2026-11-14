@@ -23,6 +23,8 @@ Invented names only.
    the archive; a save of the same values records no step (2.1074.0, #5493: a save with a folder is a listside step); a new sidebar order since
    does not block the undo; a rename by someone else since stays (named); a project admin takes back her own rename, but not
    after she became an editor (noaccess); another person neither lists nor takes back the step (404)
+ - 2.1184.0 (#6137): the label says what changed ("“X”: Colour", "“X”: Renamed to Y, Colour"); a view switch is no step,
+   neither blocks an older step's undo nor goes back with it
 freelancer-matrix: undo (a person without an organisation: her project's colour, her new section and field and her deleted time entry go back from the list)
 usage: p2809_a_undo_test.py <datadir>"""
 import os
@@ -96,6 +98,28 @@ check(r.ok and g.get("kind") == "listset" and (g.get("label") or "").startswith(
 res = back(A, g["id"])
 x = lrow(A, L)
 check(res.get("undone") == [g["id"]] and not x.get("archived"), f"undo: out of the archive again {res} {x.get('archived')}")
+
+# 2.1184.0 (#6137): a step says what changed; the view (list / kanban) is a display switch, no step and no part of one
+r = A.patch(B + f"/api/lists/{L}", json={"color": "#22aa55"})
+gc = newest(A)
+check(r.ok and gc.get("label") == "“Projekt Neu”: Colour", f"a colour change says so: {gc.get('label')}")
+r = A.patch(B + f"/api/lists/{L}", json={"name": "Projekt Zwei", "color": "#3366cc"})
+check(r.ok and newest(A).get("label") == "“Projekt Neu”: Renamed to Projekt Zwei, Colour", f"two fields named: {newest(A).get('label')}")
+back(A, newest(A)["id"])
+x0 = lrow(A, L).get("view") or "list"
+v1 = "kanban" if x0 != "kanban" else "list"
+before = newest(A).get("id")
+for v in (v1, x0, v1):
+    r = A.patch(B + f"/api/lists/{L}", json={"view": v})
+    check(r.ok and not r.json().get("undo_group"), f"a view switch ({v}) answers with no step {r.text[:160]}")
+check(newest(A).get("id") == before, f"switching the view three times records no step {newest(A)}")
+res = back(A, gc["id"])
+x = lrow(A, L)
+check(gc["id"] in (res.get("undone") or []) and x.get("color") == "#cc3333" and x.get("view") == v1,
+      f"a view switched since neither blocks the colour's undo nor goes back with it {res} {x.get('color')} {x.get('view')}")
+r = A.patch(B + f"/api/lists/{L}", json={"view": x0, "color": "#22aa55"})
+check(r.ok and newest(A).get("label") == "“Projekt Neu”: Colour", f"a view saved along: only the colour is named {newest(A).get('label')}")
+A.patch(B + f"/api/lists/{L}", json={"color": "#cc3333"})
 
 # nothing changed / side effects: no step
 before = newest(A).get("id")
