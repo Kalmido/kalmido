@@ -14,7 +14,7 @@ function upLabel(fd) {
 }
 function upBox() {
   let b = document.getElementById('upbars');
-  if (!b) { b = document.createElement('div'); b.id = 'upbars'; document.body.appendChild(b); }
+  if (!b) { b = document.createElement('div'); b.id = 'upbars'; (typeof barStack === 'function' ? barStack() : document.body).appendChild(b); }  // 2.1170.0 (#6132): the bars' one stack (core.js)
   return b;
 }
 function upRow(label, cancel) {
@@ -68,8 +68,13 @@ function upSend(url, opt, fd) {
 // Check code. Closing it or opening the check confirms it to the worker (code-ack); unconfirmed, the next start shows it again.
 // Every start asks the worker once (code-check) when the page is drawn.
 function upCodeAck() { navigator.serviceWorker?.ready?.then(r => r.active?.postMessage({type: 'code-ack'})).catch(() => {}); }
+// 2.1170.0 (#6132): only server admins see it (they can check the code and act); before the person is known it waits for that
+let upCodeTries = 0;
 function upCodeBar(d) {
   if (document.getElementById('codechg') || typeof tr !== 'function') return;
+  const me = typeof S === 'undefined' ? null : /** @type {any} */ (S).me;  // S: core.js (a script's const, not on globalThis)
+  if (!me) { if (++upCodeTries < 120) setTimeout(() => upCodeBar(d), 500); return; }
+  if (!me.is_admin && !me.real_admin) return;  // not confirmed to the worker: an admin's start shows it
   const el = document.createElement('div'); el.id = 'codechg'; el.setAttribute('role', 'status');
   el.innerHTML = '<span></span><button type="button" class="btn sm pri" data-ccgo></button><button type="button" class="iconbtn" data-ccx></button>';
   const sp = /** @type {HTMLElement} */ (el.querySelector('span')), go = /** @type {HTMLElement} */ (el.querySelector('[data-ccgo]')), x = /** @type {HTMLElement} */ (el.querySelector('[data-ccx]'));
@@ -78,7 +83,7 @@ function upCodeBar(d) {
   x.innerHTML = typeof ic === 'function' ? ic('x', 's') : '×'; x.title = tr('Close'); x.setAttribute('aria-label', tr('Close'));
   go.addEventListener('click', () => { el.remove(); upCodeAck(); loadModule('settings').then(() => settingsModal('codecheck'), () => {}); });
   x.addEventListener('click', () => { el.remove(); upCodeAck(); });
-  document.body.appendChild(el);
+  (typeof barStack === 'function' ? barStack() : document.body).appendChild(el);
 }
 if (globalThis.navigator?.serviceWorker?.addEventListener) {
   navigator.serviceWorker.addEventListener('message', e => { if (e.data?.type === 'code-changed' && typeof e.data.version === 'string') upCodeBar(e.data); });
