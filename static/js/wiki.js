@@ -222,7 +222,7 @@ function viewWiki() {
       : vis.length ? (q ? `<ul class="wktree">${vis.map((p, i) => `<li><a href="#wiki/${p.id}" class="wkitem">${ic('note', 's')}${wk_hitName(p, i)}</a></li>`).join('')}</ul>` : wk_treeHtml(wk_treeOf(sp), cur, vis.length > 30))  // 2.200.0 A (#2747): with the folders
       : q ? wk_noHit() : wk_noPagesHtml(sp, d)}${q && d?.pages && !d.off && typeof wks_html === 'function' ? wks_html(sp, WK.q, vis) : ''}</nav>${wk_selBar(sp)}`}${!q && (!all || op) && typeof wkt_sideHtml === 'function' ? wkt_sideHtml(sp) : ''}${typeof wsh_sideHtml === 'function' ? wsh_sideHtml() : ''}</div>`;  // 2.123.0 A (#2106): + found in the text (wkhist.js); 2.371 (#3150): + the tags
   const tagv = !id && S.route.wtag != null && typeof wkt_viewHtml === 'function' && (!all || op);  // 2.371 (#3150): a tag's pages
-  const main = tagv ? `<article class="ntedit wkpage wktagview" aria-label="${esc(tr('Tags'))}">${wkt_viewHtml(sp, S.route.wtag)}</article>` : id ? `<article class="ntedit wkpage${typeof wkst_cls === 'function' ? wkst_cls(cur?.space || sp) : ''}" aria-label="${esc(cur ? wk_base(cur.path) : tr('Page'))}">${/*html-ok*/ cur ? (cur._wke && typeof wkeLockHtml === 'function' ? wkeLockHtml(cur.space, true) : wk_pageHtml(cur)) : wk_pgStateHtml(id, sp)}</article>` : '';
+  const main = tagv ? `<article class="ntedit wkpage wktagview" aria-label="${esc(tr('Tags|wiki'))}">${wkt_viewHtml(sp, S.route.wtag)}</article>` : id ? `<article class="ntedit wkpage${typeof wkst_cls === 'function' ? wkst_cls(cur?.space || sp) : ''}" aria-label="${esc(cur ? wk_base(cur.path) : tr('Page'))}">${/*html-ok*/ cur ? (cur._wke && typeof wkeLockHtml === 'function' ? wkeLockHtml(cur.space, true) : wk_pageHtml(cur)) : wk_pgStateHtml(id, sp)}</article>` : '';
   if (mob) wk_scrollAfter(id, !!d?.pages);
   return `<div class="ntwrap wkwrap${id ? (typeof pgw_cls === 'function' ? pgw_cls('wiki', id) : '') : ''}">${wst}<div class="ntview ${id || tagv ? 'open' : ''}"${id ? ' data-pw="1"' : ''}>${mob && (id || tagv) ? '' : side}${main}</div></div>`;  // 2.599.0 (#4808): the page's width (chat.js pgw_*), data-pw = reports it to #top
 }
@@ -473,7 +473,7 @@ function wk_deskHtml(sp, d, id, cur, sel, op) {
     ${S.me?.kid || !op ? '' : `${!id && WK.idx[wk_cur()]?.mayWrite !== false ? '<input type="file" id="wk-zip-file" accept=".zip,application/zip" hidden>' : ''}<button type="button" class="iconbtn" data-wk="amenu" aria-haspopup="menu" title="${esc(tr('Workspace'))}" aria-label="${esc(tr('Workspace'))}">${ic('dots')}</button>`}</div>`}${d?.off ? wko_offHtml(d.off, d.more) : wk_moreHtml(d)}${d && typeof wkeBarHtml === 'function' ? wkeBarHtml(sp) : ''}${d && typeof wkoffBar === 'function' ? wkoffBar(sp) : ''}`;  // 2.637.0 (#4745): wkoffBar; 2.169 (#2671): the offline mark; 2.210 A (#2755): the cap online
   const hits = all && q ? wk_allHitsHtml(q, 'wkdlist') : q && d?.pages ? `<nav id="wk-res" class="wkdlist" aria-label="${esc(tr('Pages'))}">${(v => v.length ? `<ul class="wktree">${v.map((p, i) => `<li><a href="#wiki/${p.id}" class="wkitem">${ic('note', 's')}${wk_hitName(p, i)}</a></li>`).join('')}</ul>` : wk_noHit())(pages.filter(p => p.path.toLowerCase().includes(q) || d.off && String(p.body || '').toLowerCase().includes(q)))}${!d.off && typeof wks_html === 'function' ? wks_html(sp, WK.q, pages.filter(p => p.path.toLowerCase().includes(q))) : ''}</nav>` : '';  // 2.169 (#2671): offline the texts are searched here
   if (id && !hits) return `<div class="ntwrap wkwrap wkdesk wkpgo${(typeof pgw_cls === 'function' ? pgw_cls('wiki', id) : '')}">${bar}<article class="ntedit wkpage${typeof wkst_cls === 'function' ? wkst_cls(cur?.space || sp) : ''}" data-pw="1" aria-label="${esc(cur ? wk_base(cur.path) : tr('Page'))}">${/*html-ok*/ cur ? (cur._wke && typeof wkeLockHtml === 'function' ? wkeLockHtml(cur.space, true) : wk_pageHtml(cur)) : wk_pgStateHtml(id, sp)}</article></div>`;
-  if (!hits && S.route.wtag != null && typeof wkt_viewHtml === 'function' && (!all || op)) return `<div class="ntwrap wkwrap wkdesk">${bar}<section class="wkfolder wktagview" aria-label="${esc(tr('Tags'))}">${wkt_viewHtml(sp, S.route.wtag)}</section></div>`;  // 2.371 (#3150): a tag's pages
+  if (!hits && S.route.wtag != null && typeof wkt_viewHtml === 'function' && (!all || op)) return `<div class="ntwrap wkwrap wkdesk">${bar}<section class="wkfolder wktagview" aria-label="${esc(tr('Tags|wiki'))}">${wkt_viewHtml(sp, S.route.wtag)}</section></div>`;  // 2.371 (#3150): a tag's pages
   if (all && !op && !hits) return `<div class="ntwrap wkwrap wkdesk">${bar}<section class="wkfolder zlefull" aria-label="${esc(tr('Workspaces'))}"><div class="nthead"><div class="wktitle"><h2>${esc(tr('All workspaces'))}</h2></div></div>${wk_recentHtml()}${typeof wsh_sideHtml === 'function' ? wsh_sideHtml() : ''}</section></div>`;  // 2.769.0 (#5352): "Recently edited"  // 2.200.0 B (#2747): + Shared with me (a guest's start)
   const dir = S.route.wdir || '', parts = dir.split('/').filter(Boolean), n = d?.pages ? wk_node(wk_treeOf(sp), dir) : null;
   const crumbs = `<nav class="wkcrumbs" aria-label="${esc(tr('Path'))}">${parts.length ? `<a href="#${esc(wk_home(sp))}">${esc(wk_rootName(sp))}</a>` : ''}${parts.slice(0, -1).map((x, i) => `<span aria-hidden="true">/</span><a href="#${esc(wk_dirGo(parts.slice(0, i + 1).join('/'), sp))}">${esc(x)}</a>`).join('')}</nav>`;
@@ -726,7 +726,7 @@ async function wka_add(p, fl) {
   const e = histAdd({label: tr('Attach files'), ids: [], snaps: [], lids: [], wsp: p.space,
     undo: async () => { await rawFetch('POST', '/api/wiki/trash', {ids: [], files}); wk_after(p.space); return {skipped: []}; },
     redo: async () => { await rawFetch('POST', '/api/wiki/restore', {ids: [], files}); wk_after(p.space); return {skipped: []}; }});
-  histToast(tr('{0} files attached', files.length), e);
+  histToast(trn('{0} file attached', '{0} files attached', files.length), e);  // 2.1168.0 (#6091): one / many
 }
 async function wka_del(p, f) {
   try { await rawFetch('DELETE', '/api/wiki/files/' + f.id); } catch (e) { toast(errText(e, tr('The file could not be deleted'))); return; }
@@ -1154,7 +1154,7 @@ function wk_pmenuItems(p) {
   const may = WK.idx[p.space]?.mayWrite !== false, top = isMobile() && typeof topMoreItems === 'function' ? topMoreItems() : [];
   // 2.1163.0 (#6087): a page one may only read: everything that only reads (the history, the links, how it looks here)
   const link = [{label: tr('Copy link'), icon: 'link', fn: () => { navigator.clipboard?.writeText(`${location.origin}${location.pathname}#wiki/${p.id}`).then(() => toast(tr('Link copied'))); }},
-    {label: tr('Copy as [[link]]'), icon: 'copy', fn: () => { navigator.clipboard?.writeText(`[[${p.path}]]`).then(() => toast(tr('Link copied'))); }}];
+    {label: tr('Copy as [[link]]'), icon: 'copy', fn: () => { navigator.clipboard?.writeText(`[[${p.path}]]`).then(() => toast(tr('Reference copied')));  /* 2.1168.0 (#6091) */ }}];
   const view = [...(typeof wkst_items === 'function' ? wkst_items(p) : []), ...(typeof pgw_items === 'function' ? pgw_items('wiki', p.id) : [])];
   const hist = typeof wkh_items === 'function' ? wkh_items(p) : [];  // 2.123.0 A (#2102): the page history (wkhist.js)
   // 2.1163.0 (#6089): in groups - Page / Folder / View on this device, Delete last and set apart. The moves and shares of the page's
@@ -1176,7 +1176,7 @@ document.addEventListener('change', e => {
 function wk_modeItems(p) {
   const asMd = WK.mdFor === p.id, ro = wk_ro(), sw = fn => async () => { await wk_flush(); fn(); renderView(); if (WK.edit) setTimeout(() => wk_ta()?.focus(), 30); };
   return [...(ro ? [] : [asMd ? {label: tr('Back to the editor'), icon: 'edit', fn: sw(() => { WK.mdFor = 0; })} : {label: tr('Edit as Markdown'), icon: 'code', fn: sw(() => { WK.mdFor = p.id; WK.edit = true; })}]),
-    {label: tr('Read-only'), icon: 'lock', on: ro, fn: sw(() => { if (ro) LS.del('wkRo'); else { LS.set('wkRo', '1'); WK.mdFor = 0; WK.fresh = 0; } WK.edit = false; })}];
+    {label: tr('Lock editing (this device)') /* 2.1168.0 (#6091): not the share role "Read-only" */, icon: 'lock', on: ro, fn: sw(() => { if (ro) LS.del('wkRo'); else { LS.set('wkRo', '1'); WK.mdFor = 0; WK.fresh = 0; } WK.edit = false; })}];
 }
 document.addEventListener('input', async e => {
   if (wk_isTa(e.target) && e.target.id === 'wk-body') { wk_queue(); wk_acUpdate(e.target); }  // 2.554.0 (#4052): the editor saves through its own listener (wkcm.js wkcm_upd)
