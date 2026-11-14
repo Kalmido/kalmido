@@ -23,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -90,6 +91,22 @@ def py_in_app(code):
             break
         time.sleep(2)
     return (r.stdout + r.stderr).strip()
+
+
+def hold_accounts_lock():
+    """2.1156.0 C (#4550, Fable F4): a transaction of the app in the container that holds write_lock "accounts" until a line on stdin."""
+    code = ("import os, sys; os.environ['TASKS_WATCHDOG']='0'\nimport app\nfrom kalmido.core.pg import write_lock\nc=app.connect()\n"
+            "write_lock(c, 'accounts')\nprint('held', flush=True)\nsys.stdin.readline()\nc.commit()\nprint('done', flush=True)")
+    p = subprocess.Popen(["docker", "exec", "-i", CT, "python", "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, text=True)
+    line = p.stdout.readline()
+    return p if "held" in line else None
+
+
+def lock_waiter():
+    """A query waiting on an advisory lock (the request behind hold_accounts_lock)."""
+    return dbx("SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%pg_advisory_xact_lock%' "
+               "AND query NOT LIKE '%pg_stat_activity%'")
 
 
 def via(items):
@@ -225,6 +242,42 @@ r = Do.post(B + "/api/auth/cinv/accept", json={"token": T5})
 check(r.ok and r.json().get("connected") is True, f"dora connects with the link ({r.text[:200]})")
 check(FID in [x["person"]["id"] for x in Do.get(B + "/api/disc").json()["connections"]], "dora is connected with frida")
 check(Do.post(B + "/api/auth/cinv/accept", json={"token": T5}).status_code == 404, "used once")
+
+# ---- 2.1156.0 C (#4550, Fable F4): a link taken back between the look-up and its use is not used (signed in) ...
+T10 = tok_of(Ol.post(B + "/api/disc/invites", json={}).json())
+I10 = dbx("SELECT id FROM conn_invites WHERE token_hash=?", (hashlib.sha256(T10.encode()).hexdigest(),))[0][0]
+write("UPDATE conn_invites SET revoked_at=? WHERE id=?", (datetime.now(timezone.utc).isoformat(), I10))
+out = py_in_app(f"""from flask import g
+from kalmido.core.config import app as fl
+import kalmido.accounts.cinvite as ci
+def stale(c2, tok):  # the look-up saw the link while it was still open
+    r = c2.execute("SELECT * FROM conn_invites WHERE token_hash=?", (ci._hash(tok),)).fetchone()
+    return r, c2.execute("SELECT * FROM users WHERE id=?", (r["user_id"],)).fetchone()
+ci._lookup = stale
+with fl.test_request_context('/api/auth/cinv/accept', method='POST', json={{'token': {T10!r}}}):
+    g.db = c
+    g.pushes = []
+    g.user = c.execute("SELECT * FROM users WHERE id=?", ({DID},)).fetchone()
+    rv = ci.cinv_accept()
+    print('status', rv[1] if isinstance(rv, tuple) else rv.status_code)""")
+check("status 404" in out, f"Fable F4: a link taken back meanwhile: 404 ({out[-300:]})")
+check(not dbx("SELECT 1 FROM conn_links WHERE (a_id=? AND b_id=?) OR (a_id=? AND b_id=?)", (OID, DID, DID, OID)), "Fable F4: ... no connection")
+check(not dbx("SELECT used_at FROM conn_invites WHERE id=?", (I10,))[0][0], "Fable F4: ... the link is not marked used")
+# ... and taking a link back waits for the accounts lock (a redemption holds it from its look-up to its use)
+j11 = Ol.post(B + "/api/disc/invites", json={}).json()
+hp = hold_accounts_lock()
+check(hp is not None, "Fable F4: a transaction holds the accounts lock")
+res = {}
+th = threading.Thread(target=lambda: res.update(r=Ol.delete(B + f"/api/disc/invites/{j11['item']['id']}")))
+th.start()
+until(lambda: lock_waiter() or not th.is_alive(), 15)
+check(th.is_alive() and lock_waiter(), "Fable F4: taking back waits for the accounts lock")
+if hp:
+    hp.stdin.write("go\n")
+    hp.stdin.flush()
+    hp.communicate(timeout=60)
+th.join(30)
+check(res.get("r") is not None and res["r"].ok, "Fable F4: ... and goes through after it")
 
 # ---- agents, kids, a disabled inviting person
 r = A.post(B + "/api/admin/agents", json={"username": "helperbot", "display_name": "Helper bot", "scopes": ["write"]})

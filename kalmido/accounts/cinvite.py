@@ -120,6 +120,7 @@ def cinv_withdraw(iid):
     """Take an open link back (it stops working at once)."""
     c = db()
     u = _need_inviter(c)
+    write_lock(c, "accounts")  # Fable F4: not between a redemption's look-up and its use (cinv_accept holds the same lock)
     n = c.execute(f"UPDATE conn_invites SET revoked_at=? WHERE id=? AND user_id=? AND {_open_sql()}",
                   (iso(now_utc()), iid, u["id"], iso(now_utc()))).rowcount
     c.commit()
@@ -259,7 +260,11 @@ def cinv_accept():
         if me_["id"] == inv["id"]:
             c.rollback()
             return err(tr("This is your own invitation link. Send it to the person you want to invite.", lg=lg), 409)
-        c.execute("UPDATE conn_invites SET used_at=?, used_by=? WHERE id=? AND used_at IS NULL", (iso(now_utc()), me_["id"], r["id"]))
+        n = c.execute("UPDATE conn_invites SET used_at=?, used_by=? WHERE id=? AND used_at IS NULL AND revoked_at IS NULL",
+                      (iso(now_utc()), me_["id"], r["id"])).rowcount
+        if not n:  # Fable F4: taken back (or used) since the look-up
+            c.rollback()
+            return err(tr(CINV_BAD, lg=lg), 404)
         _connect(c, r, inv, me_["id"], _name(me_))
         c.commit()
         return jsonify(ok=True, connected=True, name=_name(inv))
