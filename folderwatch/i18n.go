@@ -97,6 +97,11 @@ var texts = map[string][2]string{ // key -> {de, en}
 	"con_other_copy":  {"Eine andere Kopie des Ordner-Wächters läuft schon (Prozess %s). Dort auf der Seite \"Beenden\" wählen oder ab- und wieder anmelden, dann neu starten.", "Another copy of the Folder watcher is already running (process %s). Choose \"Quit\" on its page or sign out and in again, then start this one again."},
 	"con_old_copy":    {"Eine ältere Version des Ordner-Wächters läuft noch. Dort auf der Seite \"Beenden\" wählen oder ab- und wieder anmelden, dann diese Version neu starten.", "An older version of the Folder watcher is still running. Choose \"Quit\" on its page or sign out and in again, then start this version again."},
 	"scans":           {"Kalmido Scans", "Kalmido Scans"},
+	// 2.1175.0 (#2770): the symbol in the menu bar / taskbar
+	"tray_open":   {"Status öffnen", "Open status"},
+	"tray_ok":     {"Bereit", "Ready"},
+	"tray_paused": {"Wartet", "Waiting"},
+	"tray_error":  {"Braucht dich - Status öffnen", "Needs you - open the status"},
 }
 
 // T returns the text for key in lang, formatted with args when given.

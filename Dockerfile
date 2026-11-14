@@ -3,7 +3,9 @@
 # 2.168.5: ${BUILDPLATFORM:-linux/amd64} and no RUN --mount - the classic builder (Docker without buildx, e.g. a
 # staging host) knows neither; BuildKit (release, multi-platform) still sets BUILDPLATFORM itself, so the default stays unused
 FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.27-alpine@sha256:eb61c3873c97416fff0116553fff65d67a3549f72e11d9758849a689cdd8b523 AS folderwatch
-ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOFLAGS=-trimpath
+# 2.1175.0 (#2770): the menu bar symbol on the Mac uses purego (Apache-2.0), vendored in folderwatch/vendor - still no cgo,
+# no network in the build (GOPROXY=off, -mod=vendor); its license ships next to the downloads like the Go license
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOFLAGS="-trimpath -mod=vendor"
 WORKDIR /src
 COPY folderwatch/ .
 COPY VERSION /VERSION
@@ -17,6 +19,7 @@ RUN set -e; go vet ./...; go test ./...; v="$(cat /VERSION)"; \
     /build/pack zip /build/mac-arm64 /out/kalmido-folder-watcher-mac-arm64.zip kalmido-folder-watcher; \
     /build/pack zip /build/mac-amd64 /out/kalmido-folder-watcher-mac-amd64.zip kalmido-folder-watcher; \
     cp "$(go env GOROOT)/LICENSE" /out/LICENSE-Go.txt; \
+    cp vendor/github.com/ebitengine/purego/LICENSE /out/LICENSE-purego.txt; \
     chmod 0644 /out/*; chmod 0755 /out/kalmido-folder-watcher-linux-*; /build/pack sums /out
 
 # 2.360.3 (#2915): base images by digest (the tag stays readable), kept current with tools/pins.py --update

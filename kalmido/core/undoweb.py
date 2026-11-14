@@ -1,7 +1,9 @@
 """2.747.0 (#5249): undo across devices, stage 1 -- a person's step groups (core/undogroups.py) listed and taken back.
 
 GET  /api/undo?limit=100       the own groups, newest first (heads only, no copies; the label in the reader's language)
-POST /api/undo/to/<gid>        every own group from the newest down to gid back ("bis hierher")
+POST /api/undo/to/<gid>        every own group from the newest down to gid back ("bis hierher"); 2.1175.0 (#6165): body
+                               {"hide_api": true} = only the groups the list shows -- the steps over an API key stay
+                               (undo_group_to)
 POST /api/undo/<gid>/undo      exactly this one group back (2.1005.0, #5637: the toast's "Undo"); newer steps of the person stay
 POST /api/undo/<gid>/redo      the way forward of one undone group again (until a new step of the person ends it)
 2.905.0 (#5255): a write that recorded its step in a group answers with the header X-Kalmido-Undo-Gid: <group id> (undo_gid_header),
@@ -31,7 +33,7 @@ from .objects import obj_need, obj_row
 from .objhooks import OBJ
 from .pg import write_lock
 from .undodiff import UNDO_DIFF
-from .undogroups import UNDO_GROUPS_MAX, UNDO_KEEP_D
+from .undogroups import UG_VIA_TOKEN, UNDO_GROUPS_MAX, UNDO_KEEP_D
 from .writes import UNDO_NOTHING, _area, _lock_rows, _redo_one, _reg, _undo_one, obj_is_agent, obj_undo_hist, undo_scope
 from .writes import UNDO_CONFLICT, obj_restore, obj_trash  # 2.773.0 (#5292): trash steps go back the core's way
 
@@ -46,6 +48,7 @@ UG_REDONE = N_("{0} of {1} steps redone")
 UG_KEPT = N_("Changed elsewhere, not undone: {0}")  # 2.774.0 (#5251): the fields of a diff part that stayed
 UG_KEPT_REDO = N_("Changed elsewhere, not redone: {0}")
 UNDO_GID_HDR = "X-Kalmido-Undo-Gid"  # 2.905.0 (#5255)
+UG_HIDDEN_STOP = N_("Stopped: a later step over an API key changed the same object: {0}")  # 2.1175.0 (#6165)
 
 
 def undo_need_reg(kind, fn):
@@ -218,10 +221,19 @@ def _own(c, uid, gid):
     return r
 
 
-def undo_group_to(c, uid, gid):
+def _hidden_objs(c, gid):
+    """2.1175.0 (#6165): the objects (kind, ref_id) a group still holds changed (its parts not undone)."""
+    return {(r[0], int(r[1])) for r in c.execute("SELECT kind, ref_id FROM obj_undo WHERE group_id=? AND state='done'", (int(gid),)).fetchall()}
+
+
+def undo_group_to(c, uid, gid, hide_api=False):
     """Every own group from the newest down to gid back (module docstring); commits after each group.
+    2.1175.0 (#6165): hide_api = the list hides the steps over an API key (undo_groups.via 'token'): those groups stay as they
+    are; a shown group with a part on an object such a newer hidden group changed (and did not undo) stops the run there
+    (stopped.state 'hidden') -- its way back would go through the hidden step. A hidden barrier / too-big group still holds.
     -> {undone: [ids], partial: [ids], stayed: [{group, kind, id, code, reason}], stopped: {id, state, label} | None, text}"""
     _own(c, uid, gid)
+    hidden = set()  # 2.1175.0 (#6165): (kind, ref_id) of the newer hidden groups
     groups = c.execute("SELECT * FROM undo_groups WHERE user_id=? AND id>=? AND state<>'undone' ORDER BY id DESC", (int(uid), int(gid))).fetchall()
     out = {"undone": [], "partial": [], "stayed": [], "stopped": None}
     total = 0
@@ -238,6 +250,12 @@ def undo_group_to(c, uid, gid):
             continue
         if c.execute("SELECT 1 FROM undo_groups WHERE id=?", (grp["id"],)).fetchone() is None:
             continue  # 2.991.0 (#5634, review): dropped on the way down by a kind's scrub (personal/timeundo.py), not undone
+        if hide_api and (grp["via"] or "") == UG_VIA_TOKEN:  # 2.1175.0 (#6165): a hidden step stays; its objects hold the older ones
+            hidden |= _hidden_objs(c, grp["id"])
+            continue
+        if hidden and _hidden_objs(c, grp["id"]) & hidden:
+            out["stopped"] = {"id": grp["id"], "state": "hidden", "label": _label(grp)[0]}
+            break
         total += 1
         moved, stayed = _run_group(c, uid, grp, False)
         out["stayed"] += stayed
@@ -251,7 +269,7 @@ def undo_group_to(c, uid, gid):
     c.commit()
     text = tr(UG_UNDONE, len(out["undone"]) + len(out["partial"]), total)
     if out["stopped"]:
-        text += " " + tr(UG_STOP, out["stopped"]["label"])
+        text += " " + tr(UG_HIDDEN_STOP if out["stopped"]["state"] == "hidden" else UG_STOP, out["stopped"]["label"])
     out["text"] = text
     return out
 
@@ -309,7 +327,7 @@ def undo_list(c, uid, limit=100):
         label, args = _label(r)
         out.append({"id": r["id"], "at": r["created_at"], "area": r["area"], "label": label, "label_key": r["label_key"],
                     "label_args": args, "device": r["device"], "state": r["state"], "parts": r["parts"], "bytes": r["bytes"],
-                    "kind": r["p_kind"], "ref_id": r["p_ref"], "org_id": r["org_id"],
+                    "kind": r["p_kind"], "ref_id": r["p_ref"], "org_id": r["org_id"], "via": r["via"] or "",  # 2.1175.0 (#6165)
                     "undo": r["state"] in ("done", "partial", "noaccess"), "redo": r["state"] in ("undone", "partial")})
     return out
 
@@ -333,7 +351,8 @@ def undo_list_route():
 @app.post("/api/undo/to/<int:gid>")
 def undo_to_route(gid):
     c, uid = db(), me()
-    return jsonify(undo_group_to(c, uid, gid))
+    b = request.get_json(silent=True)  # 2.1175.0 (#6165): {"hide_api": true} from the list when it hides the steps over a key
+    return jsonify(undo_group_to(c, uid, gid, hide_api=isinstance(b, dict) and b.get("hide_api") is True))
 
 
 @app.post("/api/undo/<int:gid>/undo")

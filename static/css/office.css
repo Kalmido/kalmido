@@ -1332,6 +1332,18 @@ button.dma-open:hover .dma-n,button.dma-open:focus-visible .dma-n{color:var(--ac
 .orp .orp-sum th{text-align:left;font-weight:400;padding:2px .625rem 2px 0}
 .orp .orp-sum td{padding:2px .25rem;text-align:right}
 .orp .orp-dev.ok{color:var(--ok, inherit)}
+/* 2.1175.0 (#6146): a position shows text, quantity, unit, price, VAT and sum; discount %, ticks, purchase and kind behind
+   "Calculation" (closed); the optional tag sits above the title (no indent at a computer); 44 px for the discount button by finger */
+.ofdit .ofditb>.ofdopttag{align-self:flex-start}
+.ofdit .ofdkbtn{align-self:flex-start;gap:.25rem;font-size:var(--fs-s);color:var(--text2)}
+.ofdit .ofdkbtn>svg:last-child{transition:transform .15s}
+.ofdit .ofdkbtn[aria-expanded="true"]>svg:last-child{transform:rotate(180deg)}
+.ofdit .ofdkbtn .ofdkcnt{display:inline-grid;place-items:center;min-width:1.125rem;height:1.125rem;padding:0 .25rem;border-radius:99rem;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:var(--fs-xs);line-height:1}
+.ofdit .ofdkbtn+.ofdflags{gap:.25rem .75rem;padding:.125rem 0 .25rem}
+.tppl .tpplbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:var(--fs-s)}
+.tppl .tpplbar>.ofdflags{flex-basis:100%;order:3}
+.tppl .tpplbar>[data-ofd="tp-open"]{margin-left:auto}
+@media (pointer:coarse){ .ofdit .ofdflags .ofdipdb{min-height:2.75rem} }
 
 /* 2.1166.0 (#4742, start care): moved here unchanged from app.css - these rules style only what this module draws
    (their classes are used by its scripts alone), so they load with it (LD_CSS in static/js/lazyload.js) */

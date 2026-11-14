@@ -2,7 +2,8 @@
 
 A small program for Mac, Windows and Linux that watches one or more folders on your computer (for example the folder
 your scanner software saves into) and uploads every finished file into Kalmido as a document. One file per platform,
-no installation, Go standard library only.
+no installation. Windows and Linux use only the Go standard library; the Mac files add purego (vendored, see Build) for
+the menu bar symbol.
 
 ## Use
 
@@ -10,6 +11,11 @@ no installation, Go standard library only.
 2. Start the program (double-click). A local page opens in the browser; paste the code, pick the folder.
 3. With autostart on, the program copies itself into its settings folder and starts at every login. Double-clicking it
    again opens the page: status, recent uploads, retry, remove an inbox, quit, uninstall.
+4. While it runs, a small folder symbol sits in the menu bar (Mac) or the notification area of the taskbar (Windows; it
+   may hide behind the arrow until you pin it). The sign on the folder shows the state: arrow up = ready, two bars =
+   waiting (no network, Kalmido refuses for now, or no inbox yet), exclamation mark = needs you (key revoked or folder
+   missing). Its menu has "Open status" (the page) and "Quit". Linux has no symbol. If the symbol cannot be shown, the
+   watcher runs on without it (a line in the log says so).
 
 Uploaded files move into the subfolder "Uploaded" ("Hochgeladen" in German), files Kalmido does not accept into
 "Not uploaded". Without network the files stay and are retried later. Hidden and temporary files are ignored; a file
@@ -39,7 +45,10 @@ Compare the download with `SHA256SUMS` next to it.
 
 ## Build
 
-The Kalmido `Dockerfile` builds, tests and packs all files (`go vet`, `go test`, then `cmd/pack`). By hand:
+The Kalmido `Dockerfile` builds, tests and packs all files (`go vet`, `go test`, then `cmd/pack`), without cgo and
+without network: the one outside module, purego (Apache-2.0, for the Mac menu bar symbol through the Objective-C
+runtime), lies in `vendor/` (`go mod vendor`; update it with `go get github.com/ebitengine/purego@<version>` +
+`go mod vendor`, then check `THIRD_PARTY_NOTICES.md`). By hand:
 
 ```sh
 go test ./...

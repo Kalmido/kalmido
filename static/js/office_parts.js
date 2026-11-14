@@ -54,8 +54,8 @@ function tpItemRow(it, i, d, line, mv) {
     <span class="ofdnums"><input data-i="${i}" data-k="qty" inputmode="decimal" class="numin" value="${esc(ofdNumIn(it.qty))}" aria-label="${esc(tr('Quantity'))}">
     <span class="muted">× ${esc(tpMoney(p?.totals?.net ?? it.rate, d))}</span>
     <b class="ofdlt">${line ? esc(line.total_text || ofdMoney(line.total, d)) : ''}</b></span>
-    <span class="ofdflags"><label class="chkl"><input type="checkbox" data-i="${i}" data-k="discountable" ${it.discountable ? 'checked' : ''}> ${tr('discount')}</label>
-    ${p ? `<a href="#" role="button" class="btn sm ${tpf_cls(d, p.id)}" data-ofd="tp-open" data-pid="${p.id}"><span class="tpfdot" aria-hidden="true"></span>${ic('right', 's')}<span>${tr('Open part')}</span></a>` : ''}</span></div>${mv}</li>`;  // 2.113.0 (#2248): the part's colour dot
+    <span class="tpplbar">${/*html-ok*/ typeof ofd_kalkHtml === 'function' ? ofd_kalkHtml(d, it, i, `<label class="chkl"><input type="checkbox" data-i="${i}" data-k="discountable" ${it.discountable ? 'checked' : ''}> ${tr('discountable')}</label>`) : ''}
+    ${p ? `<a href="#" role="button" class="btn sm ${tpf_cls(d, p.id)}" data-ofd="tp-open" data-pid="${p.id}"><span class="tpfdot" aria-hidden="true"></span>${ic('right', 's')}<span>${tr('Open part')}</span></a>` : ''}</span></div>${mv}</li>`;  // 2.1175.0 (#6146): its tick behind "Calculation" like a position's  // 2.113.0 (#2248): the part's colour dot
 }
 
 // ---- the section "Parts" below the title page's positions

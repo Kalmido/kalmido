@@ -52,7 +52,8 @@ func main() {
 	if *once {
 		os.Exit(runOnce(store))
 	}
-	os.Exit(runService(store, *background))
+	// 2.1175.0 (#2770): the symbol in the menu bar / taskbar runs on the main thread (macOS needs that), the service beside it
+	os.Exit(runWithTray(func(ready func(trayHooks)) int { return runService(store, *background, ready) }))
 }
 
 func fail(err error) {
@@ -234,7 +235,9 @@ func instanceLock(store *Store) (release func(), pid string, err error) {
 	return func() { _ = f.Close() }, "", nil
 }
 
-func runService(store *Store, background bool) int {
+// runService runs the page and the upload rounds until "Quit"; ready (may be nil) gets the hooks for the symbol once
+// this copy holds the instance lock.
+func runService(store *Store, background bool, ready func(trayHooks)) int {
 	log := newLogger(store.dir, false)
 	secret := pageSecret(store)
 	port := defaultPort
@@ -363,6 +366,24 @@ func runService(store *Store, background bool) int {
 	}()
 	go eng.Loop(stop)
 	log.Printf("started %s on %s", version, ln.Addr())
+	if ready != nil {
+		ready(trayHooks{
+			lang: lang,
+			status: func() trayIcon {
+				var states []State
+				for _, in := range store.Snapshot().Inboxes {
+					states = append(states, eng.View(in).State)
+				}
+				return trayState(states)
+			},
+			open: func() { _ = openURL(page.URL()) },
+			quit: func() {
+				log.Printf("quit from the symbol")
+				shutdown()
+			},
+			logf: log.Printf,
+		})
+	}
 	if !background {
 		fmt.Println(T(lang, "con_running", page.URL()))
 		_ = openURL(page.URL())

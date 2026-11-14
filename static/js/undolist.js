@@ -15,11 +15,16 @@
    undo.js histStep(only), runs of server groups through /api/undo/to; a conflict leaves that part and names it (the rest of
    the group goes back, the server decides), a barrier ends the run. Live: the person's own "self" counter of the 4-s poll
    (core.js, S.lpA.undo, #5407) reloads the server rows; the rows are patched in place and the row at the top of the view stays
-   where it is (no jump, #5224). Classic script sharing the global scope with the others. */
+   where it is (no jump, #5224). Classic script sharing the global scope with the others.
+   2.1175.0 (#6165): the steps written over a personal API key (scripts, via 'token', the key's name as the device) are hidden
+   unless the switch "Show steps over API keys" is on (user setting undo_show_api, every device); "Undo up to here" then takes
+   back only the shown rows (hide_api: the server leaves the hidden groups and stops before an object one of them changed). */
 'use strict';
 
-const UL = {items: null, err: '', undo: undefined, busy: false, note: '', t: 0, n: 0, html: new WeakMap(), at: 0};
+const UL = {items: null, err: '', undo: undefined, busy: false, note: '', t: 0, n: 0, html: new WeakMap(), at: 0, hidden: 0};
 const UL_MAX = 100;
+const ul_showApi = () => S.settings?.undo_show_api === '1';  // 2.1175.0 (#6165)
+const ul_api = r => r.kind === 's' && r.g?.via === 'token';
 
 const ul_key = e => { if (!e.ulk) e.ulk = ++UL.n; return 'l:' + e.ulk; };
 const ul_qOf = e => !e ? [] : e.parts ? e.parts.flatMap(ul_qOf) : e.qs || [];  // 2.905.0 (#5255): an entry's outbox entries
@@ -58,11 +63,13 @@ function ul_rows() {
     else if (r.state === 'undone') { r.redo = true; r.why = tr('Undone'); }
     else if (r.state === 'partial') r.why = tr('Partly undone');
   }
-  return [...pend, ...rows];
+  // 2.1175.0 (#6165): the holds above run over every row (a hidden barrier still holds); the hidden rows go after them
+  UL.hidden = ul_showApi() ? 0 : rows.filter(ul_api).length;
+  return [...pend, ...(UL.hidden ? rows.filter(r => !ul_api(r)) : rows)];
 }
 function ul_rowHtml(r) {
   const meta = [ul_time(r.at), r.area ? histAreaName(r.area) : '', r.kind === 's' ? ul_dev(r.dev) : r.kind === 'l' ? tr('only this device') : ''].filter(Boolean).join(' · ');
-  const tags = [r.why, r.pend ? tr('waiting for the connection') : ''].filter(Boolean).join(' · ');
+  const tags = [ul_api(r) ? tr('Over an API key') : '', r.why, r.pend ? tr('waiting for the connection') : ''].filter(Boolean).join(' · ');
   const btn = r.redo ? `<button type="button" class="btn sm" data-ul-redo="${r.g.id}"${UL.busy ? ' disabled' : ''}>${esc(tr('Redo'))}</button>`
     : r.kind === 'q' ? '' : `<button type="button" class="btn sm" data-ul-go="${esc(r.key)}"${r.off || UL.busy ? ' disabled aria-disabled="true"' : ''}>${esc(tr('Back up to here'))}</button>`;
   return `<li class="ulrow ul-${r.kind}${r.off ? ' uloff' : ''}${r.redo ? ' ulundone' : ''}" data-ul="${esc(r.key)}"><div class="ulmain"><span class="ullab">${esc(r.label || '')}</span>`
@@ -72,8 +79,9 @@ function ul_inner() {
   const rows = ul_rows();
   const note = UL.note ? `<p class="ulnote" role="status">${esc(UL.note)}</p>` : '';
   const err = UL.err ? `<p class="muted ulerr">${esc(UL.err)}</p>` : UL.items === null && S.me?.kind !== 'agent' ? `<p class="muted lempty">${esc(tr('Loading…'))}</p>` : '';
-  if (!rows.length) return note + err + (UL.items !== null || UL.err ? `<p class="muted ulempty">${esc(tr('Nothing to undo'))}</p>` : '');
-  return `${note}${err}<ol class="ullist" aria-label="${esc(tr('Recent steps'))}">${rows.map(ul_rowHtml).join('')}</ol>`;
+  const hid = UL.hidden ? `<p class="muted ulhid">${esc(trn('{0} step over an API key hidden', '{0} steps over API keys hidden', UL.hidden))}</p>` : '';  // 2.1175.0 (#6165)
+  if (!rows.length) return note + err + (UL.items !== null || UL.err ? `<p class="muted ulempty">${esc(tr('Nothing to undo'))}</p>` : '') + hid;
+  return `${note}${err}<ol class="ullist" aria-label="${esc(tr('Recent steps'))}">${rows.map(ul_rowHtml).join('')}</ol>${/*html-ok*/ hid}`;
 }
 // the hosts: the window's body scrolls itself, the page's body scrolls with #view
 function ul_hosts() { return /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.ulbody')]); }
@@ -112,7 +120,11 @@ function ul_live() {
     ul_draw();
   }, 1000);
 }
-function ul_head() { return `<div class="ulhead"><h2>${esc(tr('Recent steps'))}</h2><p class="muted">${esc(tr('Your steps of the last {0} days on every device, newest first.', 30))}</p></div>`; }
+function ul_head() {
+  // 2.1175.0 (#6165): the switch for the steps over an API key (scripts of the person), remembered for the account
+  const sw = `<label class="ulapi"><input type="checkbox" class="ulapi-chk"${ul_showApi() ? ' checked' : ''}> ${esc(tr('Show steps over API keys'))}</label>`;
+  return `<div class="ulhead"><h2>${esc(tr('Recent steps'))}</h2><p class="muted">${esc(tr('Your steps of the last {0} days on every device, newest first.', 30))}</p>${/*html-ok*/ sw}</div>`;
+}
 // the window (right-click / long-press on ←)
 function ul_open(anchor) {
   UL.note = '';
@@ -156,11 +168,12 @@ async function ul_go(key) {
       const todo = run.filter(x => x.state !== 'undone');
       if (!todo.length) continue;
       srv = true;
-      const a = await api('POST', `/api/undo/to/${todo[todo.length - 1].g.id}`);
+      const a = await api('POST', `/api/undo/to/${todo[todo.length - 1].g.id}`, {hide_api: !ul_showApi()});  // 2.1175.0 (#6165)
       n += (a.undone || []).length + (a.partial || []).length;
       histMark([...(a.undone || []), ...(a.partial || [])], 'undo');  // 2.905.0 (#5255): this window's entries of those groups go to the redo side
       stayed.push(...ul_stayed(a.stayed || [], items));
-      if (a.stopped) msg.push(tr('Stopped before a step that cannot be undone: {0}', a.stopped.label || ''));
+      if (a.stopped) msg.push(a.stopped.state === 'hidden' ? tr('Stopped: a later step over an API key changed the same object: {0}', a.stopped.label || '')
+        : tr('Stopped before a step that cannot be undone: {0}', a.stopped.label || ''));  // 2.1175.0 (#6165)
       // 2.866.0 (#5302 N2): a barrier holds only its own workspace -- the run goes on unless the target itself stayed behind it
       if (a.stopped && ![...(a.undone || []), ...(a.partial || [])].includes(todo[todo.length - 1].g.id)) break;
     }
@@ -189,6 +202,15 @@ async function ul_redo(gid) {
   await ul_fetch();
   ul_draw();
 }
+// 2.1175.0 (#6165): the switch (window and page): saved for the account (_auto: a view's switch is no step of its own,
+// accounts/setundo.py), the rows drawn again in place
+document.addEventListener('change', e => {
+  const b = /** @type {HTMLInputElement} */ (e.target); if (!b.classList?.contains('ulapi-chk') || !S.settings) return;
+  S.settings.undo_show_api = b.checked ? '1' : '0';
+  for (const x of /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll('.ulapi-chk')])) x.checked = b.checked;
+  api('PATCH', '/api/settings', {undo_show_api: S.settings.undo_show_api, _auto: 1}).catch(() => { /* api() said it; the local value stays */ });
+  UL.note = ''; ul_draw();
+});
 document.addEventListener('click', e => {
   const b = /** @type {HTMLElement} */ (e.target).closest?.('.ulbody [data-ul-go], .ulbody [data-ul-redo]'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
