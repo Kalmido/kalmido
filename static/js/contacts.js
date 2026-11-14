@@ -6,7 +6,7 @@
 // 2.21.0 (#658): the contacts live in Kalmido's own address books (S.books from /api/state) and sync with the phone over
 // CardDAV. The view loads its page of contacts (GET /api/contacts, never part of /api/state: contacts are personal data
 // and can be many); a contact opens as a card (desktop: next to the list, phone: the whole view), "Edit" opens the editor.
-const CT = {q: '', group: '', book: '', folder: null, items: null, total: 0, groups: [], sel: null, card: null, loading: false, seq: 0, pick: null};  // 2.46.1 (#1554): pick = the selected ids (Set) in the selection mode
+const CT = {q: '', group: '', book: '', folder: null, items: null, total: 0, groups: [], sel: null, card: null, loading: false, seq: 0, pick: null, err: null, cardLd: 0};  // 2.1178.0 (#6121): err = the list's load failed, cardLd = the id of a card being fetched  // 2.46.1 (#1554): pick = the selected ids (Set) in the selection mode
 // 2.53.0 (#1410): ctOn + CT_LINK live in ctlinks.js (loaded at start: the task panel shows the linked contacts)
 const CT_TYPES = {emails: [['home', N_('Home')], ['work', N_('Work')], ['other', N_('Other')]],
   phones: [['cell', N_('Mobile')], ['home', N_('Home')], ['work', N_('Work')], ['other', N_('Other')]],
@@ -56,10 +56,15 @@ async function ctLoad(q) {  // 2.431.0 C (#3602): q = quietly for ct_live (no dr
     const j = await api('GET', '/api/contacts?' + qs);
     if (seq !== CT.seq) return;
     fresh = CT.qk !== key;
-    CT.items = j.items; CT.total = j.total; CT.groups = j.groups || []; CT.qk = key;
+    CT.items = j.items; CT.total = j.total; CT.groups = j.groups || []; CT.qk = key; CT.err = null;
   } catch (e) {
     if (seq === CT.seq && e?.status === 404 && CT.book) { CT.book = ''; CT.loading = false; return ctLoad(); }  // 2.46.4 (#1732): the filtered book is gone
-    if (seq === CT.seq) CT.items = CT.items || [];
+    if (seq !== CT.seq) return;
+    // 2.1178.0 (#6121): a failed load says so (errorState with "Try again"), not "No contact matches"; a quiet refresh (ct_live)
+    // of a list already shown keeps it as it is
+    if (e?.message === 'auth') { CT.loading = false; return; }
+    if (!(q && CT.items && CT.qk === key)) CT.err = e || true;
+    CT.items = CT.items || [];
   }
   CT.loading = false;
   if (S.route.mod === 'contacts' && !q) ctDraw();
@@ -86,7 +91,12 @@ async function ctRoute(id) {
 async function ctOpen(id) {
   if (id < 0) return;  // 2.559.0 (#4660): a contact still being created (ct_saveOpt) opens once it is there
   CT.sel = id;
-  try { CT.card = await api('GET', `/api/contacts/${id}`); } catch { CT.card = null; CT.sel = null; toast(tr('This contact does not exist or you cannot see it.')); }
+  // 2.1178.0 (#6121): another contact: its place shows "Loading" at once instead of the one before (the same one again stays)
+  if (CT.card?.id !== id) { CT.card = null; CT.cardLd = id; if (S.route.mod === 'contacts') ctDraw(); }
+  let c = null; try { c = await api('GET', `/api/contacts/${id}`); } catch { /* below */ }
+  if (CT.sel !== id) return;  // another one was opened meanwhile
+  CT.cardLd = 0;
+  if (c) CT.card = c; else { CT.card = null; CT.sel = null; toast(tr('This contact does not exist or you cannot see it.')); }
   if (S.route.mod === 'contacts') ctDraw();
 }
 // 2.431.0 C (#3602): a change elsewhere: like the clients page (ms_clLive) - the shown page of contacts and the open card
@@ -108,18 +118,27 @@ function viewContacts() {
   ct_prune();  // 2.46.4 (#1732): also after a live update
   const books = (S.books || []).filter(b => wsObjIn(b));  // 2.30.0 (#1036): the address books of the shown workspace
   const items = CT.items === null ? null : CT.items.filter(c => !ctBook(c.book_id) || wsObjIn(ctBook(c.book_id)));
-  const mob = isMobile(), showCard = CT.card && (!mob || CT.sel);
+  const mob = isMobile(), cardLd = !CT.card && CT.cardLd && CT.cardLd === CT.sel, showCard = (CT.card || cardLd) && (!mob || CT.sel);
   const bar = `<div class="ctbar"><div class="ctsearch">${ic('search', 's')}<input id="ct-q" type="search" value="${esc(CT.q)}" placeholder="${esc(tr('Search contacts'))}" aria-label="${esc(tr('Search contacts'))}" autocomplete="off" enterkeyhint="search"></div>
     ${CT.groups.length ? `<select id="ct-group" aria-label="${esc(tr('Group'))}"><option value="">${tr('All groups')}</option>${CT.groups.map(g => `<option value="${esc(g)}" ${g === CT.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}<option value="${CTX_MANAGE}">${tr('Manage groups…')}</option></select>` : ''}
     ${books.length > 1 ? `<select id="ct-book" aria-label="${esc(tr('Address book'))}"><option value="">${tr('All address books')}</option>${books.map(b => `<option value="${b.id}" ${String(b.id) === String(CT.book) ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>` : ''}
     <span class="spacer"></span>${books.some(ctWrite) ? `<button class="iconbtn ${CT.pick ? 'on' : ''}" data-ct="pick" aria-pressed="${!!CT.pick}" aria-label="${esc(tr(CT.pick ? 'End selection' : 'Select'))}" title="${esc(tr(CT.pick ? 'End selection' : 'Select'))}">${ic('select')}</button>` : ''}<button class="btn sm pri" data-ct="new">${ic('plus', 's')}<span class="cdl">${tr('New contact')}</span></button>
     ${!books.length || books.some(ctWrite) ? `<input type="file" id="ct-impfile" accept="${CT_IMP_ACCEPT}" multiple hidden>` : ''}<button class="iconbtn" data-ct="menu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>`;
-  const list = items === null ? `<div class="muted ctempty">${tr('Loading…')}</div>` : !items.length
-    ? `<div class="empty">${ic('users')}${CT.q || CT.group ? tr('No contact matches.') : tr('No contacts yet. Add one, import a vCard file, or connect the phone.')}</div>`
+  // 2.1178.0 (#6121): loading / failed / empty from the shared blocks (render.js); empty without contacts: "New contact" + "Import…"
+  const canW = !books.length || books.some(ctWrite), filt = CT.q || CT.group || CT.book || CT.folder;
+  const list = items === null ? `<div class="ctempty">${/*html-ok*/ loadingHtml('sec')}</div>`
+    : CT.err ? errorState({title: tr('Contacts could not be loaded'), size: 'sec', retry: () => { CT.err = null; CT.items = null; CT.loading = false; ctLoad(); ctDraw(); }})
+    : !items.length ? (filt ? emptyState({icon: 'search', title: tr('No contact matches.'), size: 'sec'})
+      : emptyState({icon: 'users', title: tr('No contacts yet'), sub: tr('Add one, import a vCard or CSV file, or connect the phone.'), size: 'sec', cls: 'ctnoitems',
+        action: canW ? `<div class="eacts"><button type="button" class="btn pri" data-ct="new">${ic('plus', 's')}<span>${esc(tr('New contact'))}</span></button><button type="button" class="btn" data-ct="imp">${ic('upload', 's')}<span>${esc(tr('Import…'))}</span></button></div>` : ''}))
     : `<ul class="ctlist" role="list" aria-label="${esc(tr('Contacts'))}">${ctRows(items, (c, vl) => `<li${vl}><button type="button" class="ctrow ${c.id === CT.sel ? 'on' : ''} ${bk_rowCls(c)}" data-ctopen="${c.id}" ${CT.pick ? `aria-pressed="${CT.pick.has(c.id)}"` : `aria-current="${c.id === CT.sel}"`}>${CT.pick ? bk_chk(c) : ''}${ctAv(c)}<span class="ctn"><b>${esc(c.fn || c.org || '?')}</b><small class="muted">${esc([c.org !== c.fn ? c.org : '', c.email || c.phone].filter(Boolean).join(' · '))}</small></span>${(books.length > 1 && ctBook(c.book_id)) ? `<i class="cevdot" style="--cc:${cssColor(ctBook(c.book_id).color) || 'var(--accent)'}" title="${esc(ctBook(c.book_id).name)}"></i>` : ''}</button></li>`)}</ul>
       ${CT.total > CT.items.length ? `<div class="muted ctmore">${trh('{0} of {1} loaded', CT.items.length, CT.total)} <button type="button" class="linkbtn" data-ctxmore ${CT.more ? 'disabled' : ''}>${tr('Show more')}</button></div>` : ''}`;  // 2.119.1 A (#2081): the next page comes when scrolling near the end
   const fbar = typeof ctf_barHtml === 'function' && !(mob && showCard) ? ctf_barHtml() : '';  // 2.351.0 B (#2749): the folder filter
-  return CT.html = `<div class="ctview ${showCard ? 'withcard' : ''} ${CT.pick ? 'ctpicking' : ''}"><h2 class="sr">${tr('Contacts')}</h2>${ct18_hintHtml()}${CT.pick && !(mob && showCard) ? bk_barHtml() : ''}${mob && showCard ? '' : bar}${fbar}<div class="ctcols lsd2 lsdfill">${mob && showCard ? '' : `<div class="ctlistw lsdl" data-vlsc>${list}</div>`}${showCard ? ctCardHtml(CT.card) : mob ? '' : `<div class="ctcard ctnone muted">${ic('user')}${tr('Select a contact')}</div>`}</div></div>`;
+  return CT.html = `<div class="ctview ${showCard ? 'withcard' : ''} ${CT.pick ? 'ctpicking' : ''}"><h2 class="sr">${tr('Contacts')}</h2>${ct18_hintHtml()}${CT.pick && !(mob && showCard) ? bk_barHtml() : ''}${mob && showCard ? '' : bar}${fbar}<div class="ctcols lsd2 lsdfill">${mob && showCard ? '' : `<div class="ctlistw lsdl" data-vlsc>${list}</div>`}${/*html-ok*/ showCard ? (CT.card ? ctCardHtml(CT.card) : ct_cardLdHtml()) : mob ? '' : items && items.length ? `<div class="ctcard ctnone muted">${ic('user')}${tr('Select a contact')}</div>` : '<div class="ctcard ctnone" aria-hidden="true"></div>'}</div></div>`;  // 2.1178.0 (#6121): one hint only - the right column stays quiet while the list is empty, loading or failed
+}
+// 2.1178.0 (#6121): the card's place while a contact is fetched (on the phone with its way back)
+function ct_cardLdHtml() {
+  return `<div class="ctcard ctnone ctld">${isMobile() ? `<div class="cthead"><button class="iconbtn" data-ct="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button></div>` : ''}${/*html-ok*/ loadingHtml('sec')}</div>`;
 }
 // 2.364.0 B (#3018): Office & finance off: a line above the contacts that turns it on right here (instead of Settings >
 // Modules > Areas > Parts); everyone but a child switches their own modules (without an organisation they are their own admin)
@@ -139,7 +158,8 @@ document.addEventListener('click', e => { if (!e.target.closest?.('[data-ct18x]'
 // 2.272.0 E1 (#3038): the contacts' trash (More > Trash): the deleted contacts and address books, Restore, Delete for good
 // (asks with the number); after the trash period the server deletes them for good (trash_days)
 async function ctt_load() {
-  const [j, bj] = await Promise.all([api('GET', '/api/contacts?trash=1&limit=2000').catch(() => null), api('GET', '/api/books?trash=1').catch(() => null)]);
+  // 2.1178.0 (#6121): a failed load is said (errorState with "Try again"), not swallowed into "The trash is empty"
+  let j, bj; try { [j, bj] = await Promise.all([api('GET', '/api/contacts?trash=1&limit=2000'), api('GET', '/api/books?trash=1')]); } catch (e) { if (CT.trash && e?.message !== 'auth') { CT.trash = {err: e || true}; ctDraw(); } return; }
   if (!CT.trash) return;
   CT.trash = {items: j?.items || [], books: bj?.items || [], days: j?.trash_days || bj?.trash_days || 0};
   ctDraw();
@@ -149,10 +169,11 @@ function ctt_close() { if (!CT.trash) return; CT.trash = null; f8d_viewDrop('ctt
 function ctt_html() {
   const t = CT.trash, since = x => esc(tr('In the trash since {0}', fmtDate((x.deleted_at || '').slice(0, 10))));
   const bar = `<div class="ctbar"><button class="iconbtn" data-ct="tback" aria-label="${esc(tr('Back'))}">${ic('back')}</button><h2 class="sr">${tr('Trash')}</h2><b>${tr('Trash')}</b><span class="spacer"></span>${t.items?.length ? `<button class="btn sm" data-ct="tempty">${ic('trash', 's')} ${tr('Empty trash')}</button>` : ''}</div>`;
-  if (!t.items) { setTimeout(ctt_load, 0); return `<div class="ctview">${bar}<div class="muted ctempty">${tr('Loading…')}</div></div>`; }
+  if (t.err) return `<div class="ctview">${/*html-ok*/ bar/* the trash's bar */}<div class="ctlistw">${/*html-ok*/ errorState({title: tr('The trash could not be loaded'), size: 'sec', retry: () => { if (CT.trash) { CT.trash = {}; ctDraw(); } }})}</div></div>`;  // 2.1178.0 (#6121)
+  if (!t.items) { if (!t.ld) { t.ld = 1; setTimeout(ctt_load, 0); } return `<div class="ctview">${bar}<div class="ctempty">${/*html-ok*/ loadingHtml('sec')}</div></div>`; }
   const row = (x, k, name, sub) => `<li><div class="ctrow msarch">${k === 'b' ? `<i class="cevdot" style="--cc:${cssColor(x.color) || 'var(--accent)'}"></i>` : ctAv(x)}<span class="ctn"><b>${esc(name)}</b><small class="muted">${sub}</small></span>
     <button type="button" class="btn sm" data-ctt="${k}rest" data-id="${x.id}">${ic('undo', 's')} ${tr('Restore')}</button><button type="button" class="iconbtn" data-ctt="${k}purge" data-id="${x.id}" aria-label="${esc(tr('Delete permanently'))}" title="${esc(tr('Delete permanently'))}">${ic('trash', 's')}</button></div></li>`;
-  const list = t.books.length || t.items.length ? `<ul class="ctlist" role="list" aria-label="${esc(tr('Trash'))}">${t.books.map(b => row(b, 'b', b.name, esc(trn('{0} contact', '{0} contacts', b.count)) + ' · ' + since(b))).join('')}${t.items.map(c => row(c, 'c', c.fn || c.org || '?', [esc(ctBook(c.book_id)?.name || ''), since(c)].filter(Boolean).join(' · '))).join('')}</ul>` : `<div class="empty">${ic('trash')}${tr('The trash is empty')}</div>`;
+  const list = t.books.length || t.items.length ? `<ul class="ctlist" role="list" aria-label="${esc(tr('Trash'))}">${t.books.map(b => row(b, 'b', b.name, esc(trn('{0} contact', '{0} contacts', b.count)) + ' · ' + since(b))).join('')}${t.items.map(c => row(c, 'c', c.fn || c.org || '?', [esc(ctBook(c.book_id)?.name || ''), since(c)].filter(Boolean).join(' · '))).join('')}</ul>` : emptyState({icon: 'trash', title: tr('The trash is empty'), size: 'sec'});  // 2.1178.0 (#6121)
   return `<div class="ctview">${bar}<div class="ctlistw">${list}${t.days ? `<p class="muted mscltrdays">${esc(trashNote(trn('Contacts in the trash are deleted permanently after {0} day.', 'Contacts in the trash are deleted permanently after {0} days.', t.days)))}</p>` : ''}</div></div>`;
 }
 async function ctt_act(k, id) {
@@ -407,6 +428,7 @@ document.addEventListener('click', async e => {
     setTimeout(() => $(`#view [data-ct="fold"][data-k="${bk}"]`)?.focus({preventScroll: true}), 0); return;
   }
   if (k === 'new') ctEditor(null);
+  else if (k === 'imp') { const f = $('#ct-impfile'); if (f) f.click(); else ctImport(); }  // 2.1178.0 (#6121): the empty list's "Import…" (vCard, ZIP or CSV by its ending)
   else if (k === 'edit' && CT.card) ctEditor(CT.card);
   else if (k === 'back') { CT.sel = null; CT.card = null; navUp('contacts'); }  // 2.743.0 (#5235)
   else if (k === 'menu') {
@@ -704,7 +726,7 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
   if (dlg) {
     const url = `/api/contacts/${c.id}`;
     dlg.save = body => saveDialog(url, open, body, {exp: 'expect', key: 'contact', base: dlg.base,
-      send: x => rawFetch('PATCH', url, x).catch(e => { if (e.status !== 409 && e.message !== 'auth' && !e.shown) toast(e instanceof Offline ? tr('Only available online.') : e.message); throw e; })});
+      send: x => rawFetch('PATCH', url, x).catch(e => { if (e.status !== 409 && e.message !== 'auth' && !e.shown) toast(e instanceof Offline ? tr('Only available online.') : errText(e, tr('The contact could not be saved'))); throw e; })});  // 2.1178.0 (#6121): errText
     dlgStale(md, url, () => open.updated_at, cur => {
       const mine = objDiff(dlg.base, form());
       again(cur, Object.keys(form()).filter(k => !objSame(open[k], cur[k])), mine);
@@ -1003,7 +1025,7 @@ function ctImpRun(bid, f, mapping, noPhotos, norev = false) {  // 2.1151.0 D (#4
     if (j.created || j.updated) ct_impShowBtn(p.el, bid);  // 2.1174.0 (#6123)
     await load().catch(() => {}); ctLoad();
   };
-  const fail = msg => p.set(tr('Import failed') + (msg ? ': ' + msg : ''), null, true);
+  const fail = msg => p.set(errText(msg || '', tr('Import failed')), null, true);  // 2.1178.0 (#6121): what failed first, the server's text as an addition
   p.set(tr('Import running…'), 0);
   const x = new XMLHttpRequest();
   x.open('POST', `/api/books/${bid}/import?background=1`); x.setRequestHeader('X-Requested-With', 'kalmido'); x.withCredentials = true;
@@ -1080,13 +1102,14 @@ async function ctx_csvMap(bid, f, noPhotos) {
 // labels, the undo puts them back (POST /api/contacts/bulk action restore), the redo does the change again
 const CTX_MANAGE = '\u0001manage';
 async function ctx_groupsModal() {
-  const md = modal(`<div class="lhdr"><h3>${ic('tag', 's')} ${tr('Groups')}</h3><span class="spacer"></span><button class="iconbtn" data-ctg="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div><div id="ctg-body"><p class="muted">${tr('Loading…')}</p></div>
+  const md = modal(`<div class="lhdr"><h3>${ic('tag', 's')} ${tr('Groups')}</h3><span class="spacer"></span><button class="iconbtn" data-ctg="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div><div id="ctg-body">${/*html-ok*/ loadingHtml('sec')}</div>
     <div class="foot"><span class="spacer"></span><button class="btn" data-ctg="close">${tr('Done')}</button></div>`);
   let items = [];
   const draw = async () => {
-    try { items = (await api('GET', '/api/contacts/groups')).items || []; } catch { md.remove(); return; }
+    // 2.1178.0 (#6121): a failed load stays in the dialog with "Try again" (it no longer closes it)
+    try { items = (await api('GET', '/api/contacts/groups')).items || []; } catch (e) { if (e?.message === 'auth') md.remove(); else if (md.isConnected) $('#ctg-body', md).innerHTML = errorState({title: tr('The groups could not be loaded'), size: 'sec', retry: () => { $('#ctg-body', md).innerHTML = loadingHtml('sec'); draw(); }}); return; }
     if (!md.isConnected) return;
-    $('#ctg-body', md).innerHTML = items.length ? `<ul class="evclist">${items.map((g, i) => `<li class="evcrow"><span class="evcn">${esc(g.name)} <span class="muted">· ${esc(trn('{0} contact', '{0} contacts', g.count))}${g.writable < g.count ? ' · ' + esc(trn('{0} can only be read', '{0} can only be read', g.count - g.writable)) : ''}</span></span>${g.writable ? `<button class="iconbtn ms-phsr" data-ctgr="${i}" aria-label="${esc(tr('Rename {0}', g.name))}" title="${esc(tr('Rename…'))}">${ic('edit')}</button><button class="iconbtn ms-phsr" data-ctgd="${i}" aria-label="${esc(tr('Delete {0}', g.name))}" title="${esc(tr('Delete…'))}">${ic('trash')}</button>${/*html-ok*/ ms_dots('.ms-phsr', g.name) /* 2.1151.0 C (#3835): one "…" on a phone */}` : ''}</li>`).join('')}</ul>` : `<p class="muted">${tr('No groups yet. Groups are added in a contact or for several selected contacts.')}</p>`;
+    $('#ctg-body', md).innerHTML = items.length ? `<ul class="evclist">${items.map((g, i) => `<li class="evcrow"><span class="evcn">${esc(g.name)} <span class="muted">· ${esc(trn('{0} contact', '{0} contacts', g.count))}${g.writable < g.count ? ' · ' + esc(trn('{0} can only be read', '{0} can only be read', g.count - g.writable)) : ''}</span></span>${g.writable ? `<button class="iconbtn ms-phsr" data-ctgr="${i}" aria-label="${esc(tr('Rename {0}', g.name))}" title="${esc(tr('Rename…'))}">${ic('edit')}</button><button class="iconbtn ms-phsr" data-ctgd="${i}" aria-label="${esc(tr('Delete {0}', g.name))}" title="${esc(tr('Delete…'))}">${ic('trash')}</button>${/*html-ok*/ ms_dots('.ms-phsr', g.name) /* 2.1151.0 C (#3835): one "…" on a phone */}` : ''}</li>`).join('')}</ul>` : emptyState({icon: 'tag', title: tr('No groups yet. Groups are added in a contact or for several selected contacts.'), size: 'sec'});  // 2.1178.0 (#6121)
   };
   const after = async (from, to) => {
     if (CT.group && CT.group.toLowerCase() === from.toLowerCase()) CT.group = to || '';

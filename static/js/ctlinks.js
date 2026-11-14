@@ -24,14 +24,15 @@ function linksDetailHtml(t, ro) {
 function ctLinkPop(anchor, tid) {
   const p = openPop(anchor, `<div class="ctpick"><div class="row"><input id="ctp-q" type="search" placeholder="${esc(tr('Search contacts'))}" aria-label="${esc(tr('Search contacts'))}" autocomplete="off"></div>
     <div class="seg ctpk" role="radiogroup" aria-label="${esc(tr('Kind of link'))}">${CT_LINK.map(([k, n], i) => `<button type="button" role="radio" data-ctpk="${k}" class="${i === 2 ? 'on' : ''}" aria-checked="${i === 2}">${tr(n)}</button>`).join('')}</div>
-    <div class="ctpl" id="ctp-l" role="listbox" aria-label="${esc(tr('Contacts'))}"><div class="muted">${tr('Loading…')}</div></div>
+    <div class="ctpl" id="ctp-l" role="listbox" aria-label="${esc(tr('Contacts'))}">${/*html-ok*/ loadingHtml('row')}</div>
     <button type="button" class="linkbtn" data-ctpnew>${ic('plus', 's')} ${tr('New contact')}</button></div>`);
   let kind = 'about', seq = 0;
   const find = async q => {
     const s = ++seq;
-    let j; try { j = await api('GET', `/api/contacts?limit=30&q=${encodeURIComponent(q || '')}`); } catch { return; }
+    // 2.1178.0 (#6121): a failed search says so with "Try again" (no endless "Loading"); nothing found = the shared empty block
+    let j; try { j = await api('GET', `/api/contacts?limit=30&q=${encodeURIComponent(q || '')}`); } catch (e) { if (s === seq && $('#ctp-l') && e?.message !== 'auth') $('#ctp-l').innerHTML = errorState({title: tr('Contacts could not be loaded'), size: 'row', retry: () => { if ($('#ctp-l')) $('#ctp-l').innerHTML = loadingHtml('row'); find(q); }}); return; }
     if (s !== seq || !$('#ctp-l')) return;
-    $('#ctp-l').innerHTML = j.items.length ? j.items.map(c => `<button type="button" role="option" class="ctrow" data-ctpick="${c.id}">${ctAv(c)}<span class="ctn"><b>${esc(c.fn)}</b><small class="muted">${esc(c.org || c.email || c.phone || '')}</small></span></button>`).join('') : `<div class="muted">${tr('No contact matches.')}</div>`;
+    $('#ctp-l').innerHTML = j.items.length ? j.items.map(c => `<button type="button" role="option" class="ctrow" data-ctpick="${c.id}">${ctAv(c)}<span class="ctn"><b>${esc(c.fn)}</b><small class="muted">${esc(c.org || c.email || c.phone || '')}</small></span></button>`).join('') : emptyState({icon: 'search', title: tr('No contact matches.'), size: 'row'});
   };
   find('');
   p.oninput = e => { if (e.target.id === 'ctp-q') { clearTimeout(p._t); p._t = setTimeout(() => find(e.target.value.trim()), 180); } };

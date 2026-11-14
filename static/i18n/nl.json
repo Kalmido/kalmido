@@ -4511,7 +4511,6 @@
   "All address books": "Alle adresboeken",
   "New contact": "Nieuw contact",
   "No contact matches.": "Geen contact past.",
-  "No contacts yet. Add one, import a vCard file, or connect the phone.": "Nog geen contacten. Voeg er een toe, importeer een vCard-bestand of koppel je telefoon.",
   "Select a contact": "Kies een contact",
   "Nickname": "Bijnaam",
   "No linked tasks yet: “Link a contact” in a task’s panel.": "Nog geen gekoppelde taken: ‘Contact koppelen’ in het paneel van een taak.",
@@ -18714,5 +18713,10 @@
   "Deleted items stay here until you delete them permanently.": "Verwijderde items blijven hier tot je ze definitief verwijdert.",
   "Deleted items stay here for {0} day, then they are deleted permanently.": ["Verwijderde items blijven hier {0} dag en zijn daarna voorgoed weg.", "Verwijderde items blijven hier {0} dagen en zijn daarna voorgoed weg."],
   "In the trash": "Ligt in de prullenbak",
-  "Deleted on {0}": "Verwijderd op {0}"
+  "Deleted on {0}": "Verwijderd op {0}",
+  "The groups could not be loaded": "De groepen konden niet worden geladen",
+  "The contact could not be saved": "Het contact kon niet worden opgeslagen",
+  "Contacts could not be loaded": "De contacten konden niet worden geladen",
+  "No contacts yet": "Nog geen contacten",
+  "Add one, import a vCard or CSV file, or connect the phone.": "Voeg er een toe, importeer een vCard- of CSV-bestand of koppel de telefoon."
 }
