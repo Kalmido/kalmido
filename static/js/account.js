@@ -815,7 +815,7 @@ async function authEnrol(el, logo) {
     card.innerHTML = `${logo}<p>${tr('Two-factor authentication is required on this server. Set it up now, then you are signed in.')}</p>
       <div class="enrolopts"><button type="button" class="btn pri" data-en="totp">${ic('lock', 's')} ${tr('Use an authenticator app')}</button>
       <button type="button" class="btn" data-en="pk" ${pkSupported() ? '' : 'disabled'}>${ic('key', 's')} ${tr('Use a passkey')}</button></div>
-      ${pkSupported() ? '' : `<p class="muted">${tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.')}</p>`}
+      ${pkSupported() ? '' : `<p class="muted">${tr('Passkeys cannot be used on this address or in this browser.')}</p><details class="acadv"><summary>${tr('For advanced users')}</summary><p class="muted">${tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.')}</p></details>`}${''/* 2.1180.0 (#6130) */}
       <div class="aerr" role="alert" id="en-err"></div><div class="alinks"><button type="button" class="linkbtn" data-en="restart">${tr('Sign in again')}</button></div>`;
   };
   const fail = x => { if (x.j?.expired) { location.replace('/'); return; } const e = $('#en-err', card) || $('#totp-err', card); if (e) e.textContent = x.message || pkErr(x); };
