@@ -45,7 +45,6 @@
   text-align: left; background: none; border: 0; padding: .5rem .25rem; color: inherit; font: inherit; cursor: pointer; border-radius: .375rem; }
 .pcs .pcsopen:hover { background: var(--bg3); }
 .pcs .pcsopen > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pcs .pcsempty { margin: .75rem 0; }
 @media (max-width: 640px) {
   .pcs .pcsopen { grid-template-columns: minmax(0, 1fr) auto; gap: .125rem .5rem; }
   .pcs .pcsopen .pcsl { grid-column: 1 / -1; }
