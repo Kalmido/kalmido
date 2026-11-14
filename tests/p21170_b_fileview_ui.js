@@ -104,6 +104,15 @@ async function upload(name, data, type, parent) {
   const back = () => v()?.querySelector('.dv-head .dv-back');
   check(back()?.textContent.trim() === FNAME, `Back names the folder it came from ("${back()?.textContent.trim()}")`);
 
+  // 2.1170.0 (#6110 review): a Word file drawn ahead as a neighbour does not ask the server for its office preview; it loads when opened
+  const nbr = await w.eval(`(async () => {
+    const of = window.fetch, seen = []; window.fetch = (u, o) => { seen.push(String(u)); return of(u, o); };
+    const box = document.createElement('div'), it = document.querySelector('.dv-view .dc-body')?._dcv?.d || ab_item(${DX});
+    try { await dcv_pvOther(box, it, {taken: false, ctrl: new AbortController()}); } finally { window.fetch = of; }
+    return {pv: seen.filter(u => u.includes('/preview')).length, later: !!box._pvLater, txt: box.textContent};
+  })()`);
+  check(nbr && nbr.pv === 0 && nbr.later, 'a neighbour drawn ahead: no office preview fetched, it waits to be opened ' + JSON.stringify(nbr));
+
   // Back leads into that folder
   click(w, back());
   check(await until(() => !v() && w.location.hash === `#ablage/${FID}` && d.querySelector(`.abrow[data-abid="${ZP}"], [data-abid="${ZP}"]`)), 'Back leads into the folder, its files again ' + w.location.hash);
