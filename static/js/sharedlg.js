@@ -17,29 +17,30 @@ function folderShareModal(f, opt = {}) {
     <h4 id="fsh-people-h">${tr('People')}</h4><div class="members fpl shppl" id="fsh-members" aria-labelledby="fsh-people-h">${/*html-ok*/ loadingHtml()}</div>
     ${S.peopleVis === 'contacts' || S.instanceMode === 'workspaces' ? `<div class="row shmail"><input id="fsh-email" type="email" autocomplete="off" placeholder="${esc(tr('Share by e-mail address'))}" aria-label="${esc(tr('Share by e-mail address'))}"><button type="button" class="btn sm" data-m="fsh-mail">${ic('send', 's')} ${tr('Add')}</button></div><div class="members shopen" id="fsh-open"></div>` : ''}
     <details class="rolehelp sdet"><summary>${tr('What the roles may do')}</summary>${ROLES.map(([, n, h]) => `<div><b>${tr(n)}</b> <span class="muted">${tr(h)}</span></div>`).join('')}</details>
-    ${(S.groups || []).length ? fshSec('grp', tr('Groups'), `<div class="members" id="fsh-grp"><div class="muted mhint">${tr('Loading…')}</div></div>`, opt.focus === 'grp') : ''}
-    ${agentsOn() ? fshSec('ag', tr('Agents'), `<div class="shint lhint">${tr('An agent sees only what is shared with it; ending the sharing ends its access at once. At most one per project (the first is the default).')}</div><div id="fsh-ag"><div class="muted mhint">${tr('Loading…')}</div></div>
+    ${(S.groups || []).length ? fshSec('grp', tr('Groups'), `<div class="members" id="fsh-grp">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>`, opt.focus === 'grp') : ''}
+    ${agentsOn() ? fshSec('ag', tr('Agents'), `<div class="shint lhint">${tr('An agent sees only what is shared with it; ending the sharing ends its access at once. At most one per project (the first is the default).')}</div><div id="fsh-ag">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>
       ${fshGrey(tr('Members may see and use the agent') + ' · ' + tr('Agent follows up') + ' · ' + tr('Agent may tidy up entries'), tr('For a folder in the folder settings (defaults for its projects).'))}
       <div class="row"><span class="spacer"></span><button type="button" class="linkbtn" data-m="fsh-props">${ic('sliders', 's')} ${tr('Folder settings…')}</button></div>`, opt.focus === 'agents') : ''}
-    ${fshSec('ntf', tr('Notifications for members'), `<div id="fp-ntf"><div class="muted mhint">${tr('Loading…')}</div></div>`, opt.focus === 'ntf')}
-    ${pubOn('lists') ? fshSec('pub', tr('Public link'), `<div id="fsh-pub"><div class="muted mhint">${tr('Loading…')}</div></div>`) : ''}
+    ${fshSec('ntf', tr('Notifications for members'), `<div id="fp-ntf">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>`, opt.focus === 'ntf')}
+    ${pubOn('lists') ? fshSec('pub', tr('Public link'), `<div id="fsh-pub">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>`) : ''}
     ${fshSec('own', tr('Owner'), `<div id="fsh-own"></div>`)}
 `}));  // 2.913.0 (#5587): the shared frame (shFrameHtml in dialogs.js), "Done" also when opened from the folder settings (was "Back")
   md.classList.add('shmodal', 'fshmodal');
   md.dataset.folder = f;
-  let users = null, have = [], ags = null;
+  let users = null, have = [], ags = null, haveErr = false;  // 2.1176.0 (#6139): haveErr = the people could not be loaded
   const st = (k, t) => { const e = $(`#${fshId(k)}-st-${k}`, md); if (e) e.textContent = t || ''; };
   const roleSel = shRoleSel;  // 2.913.0 (#5587): the shared role choice (dialogs.js)
   const fws = () => { const e = folderEff(f); if ('org_id' in e) return e.org_id || null; const m = folderLists(f).find(l => isOwner(l)); return m ? m.org_id || null : wsDefaultOrg(f); };  // the folder's workspace, else its lists'
   const agFits = u => !wsOn() || (u.org_id || null) === fws();  // the agents of the folder's workspace, as in a list (agFits)
   const drawPeople = () => {
     const box = $('#fsh-members', md); if (!box) return;
+    if (haveErr) { box.innerHTML = errorState({size: 'row', title: tr('The people could not be loaded'), retry: () => { box.innerHTML = loadingHtml(); reload(); }}); return; }
     shWsFill($('#fsh-ws', md), fws(), own ? () => $('[data-m="fsh-props"]', md)?.click() : null);  // 2.46.4 (#1737)
     const nm = p => p.name || users?.find(u => u.id === p.user_id)?.display_name || '?';
     const cand = (users || []).filter(u => !u.agent && u.id !== S.me?.id && !have.some(p => p.user_id === u.id));
     box.innerHTML = `<div class="mrow fshowner">${av(S.me?.id, S.me?.display_name || '')}<span class="n">${esc(S.me?.display_name || '')} ${tr('(me)')}</span><span class="muted">${tr('Owner')}</span></div>`
       + have.map(p => `<div class="mrow" data-uid="${p.user_id}">${avBtn(p.user_id, nm(p))}<span class="n"><span class="fpn">${esc(nm(p))}</span> <small class="muted">${tr('new projects too')}</small></span>${roleSel(`data-fprole="${p.user_id}"`, p.role, tr('Role of {0}', nm(p)))}<button class="iconbtn" data-rm="${p.user_id}" title="${esc(tr('Stop sharing'))}" aria-label="${esc(tr('Stop sharing with {0}', nm(p)))}">${ic('x', 's')}</button></div>`).join('')
-      + (users === null ? `<div class="muted mhint">${tr('Loading…')}</div>` : cand.length ? `<div class="mrow madd"><select id="fp-user" aria-label="${esc(tr('Invite'))}"><option value="">${tr('Share with …')}</option>${shWsOptions(cand, fws())}</select>${roleSel('id="fp-role"', 'edit')}<button class="btn sm" data-m="add">${ic('plus', 's')} ${tr('Add')}</button></div>`
+      + (users === null ? `${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}` : cand.length ? `<div class="mrow madd"><select id="fp-user" aria-label="${esc(tr('Invite'))}"><option value="">${tr('Share with …')}</option>${shWsOptions(cand, fws())}</select>${roleSel('id="fp-role"', 'edit')}<button class="btn sm" data-m="add">${ic('plus', 's')} ${tr('Add')}</button></div>`
         : `<div class="muted mhint">${(users || []).filter(u => !u.agent).length > 1 ? tr('Shared with everyone') : noPeopleTxt()}</div>`);
   };
   const drawGroups = async () => {
@@ -84,7 +85,11 @@ function folderShareModal(f, opt = {}) {
         : fshGrey(tr('Transfer ownership of all projects…'), tr('No project of yours in this folder')));
     st('own', S.me?.display_name || '');
   };
-  const reload = async () => { try { have = (await api('GET', '/api/folders/people?folder=' + encodeURIComponent(f))).people; } catch { have = []; } drawPeople(); st('people', ''); };
+  // 2.1176.0 (#6139): a failed load says so with "Try again" (it drew "nobody" - as if the folder were not shared)
+  const reload = async () => {
+    try { have = (await api('GET', '/api/folders/people?folder=' + encodeURIComponent(f))).people; haveErr = false; } catch (e) { if (e.message === 'auth') return; haveErr = true; }
+    drawPeople(); st('people', '');
+  };
   api('GET', '/api/users').then(j => { users = j.users.filter(u => !u.disabled && S.me && u.id !== S.me.id).map(u => ({id: u.id, display_name: u.display_name, agent: !!(u.agent || u.kind === 'agent'), orgs: u.orgs || [], org_id: u.org_id ?? null})); drawPeople(); drawAgents(); }).catch(() => { users = []; drawPeople(); drawAgents(); });
   const openQ = 'kind=list_folder&folder=' + encodeURIComponent(f);  // 2.1071.0 (#5658): open shares by address (dialogs.js adsFill)
   adsFill($('#fsh-open', md), openQ);
