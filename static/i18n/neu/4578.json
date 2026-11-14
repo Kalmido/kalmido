@@ -1,0 +1,37 @@
+{
+  "de": {
+    "Your browser or device did not allow this. Allow it and try again.": "Dein Browser oder Gerät hat das nicht erlaubt. Erlaube es und versuche es erneut.",
+    "This is already set up on this device.": "Das ist auf diesem Gerät schon eingerichtet.",
+    "Your browser does not support this.": "Dein Browser unterstützt das nicht.",
+    "The company could not be created": "Die Firma konnte nicht angelegt werden",
+    "Could not switch on notifications": "Benachrichtigungen konnten nicht eingeschaltet werden"
+  },
+  "es": {
+    "Your browser or device did not allow this. Allow it and try again.": "Tu navegador o dispositivo no lo ha permitido. Permítelo e inténtalo de nuevo.",
+    "This is already set up on this device.": "Esto ya está configurado en este dispositivo.",
+    "Your browser does not support this.": "Tu navegador no admite esto.",
+    "The company could not be created": "No se pudo crear la empresa",
+    "Could not switch on notifications": "No se pudieron activar las notificaciones"
+  },
+  "fr": {
+    "Your browser or device did not allow this. Allow it and try again.": "Ton navigateur ou appareil ne l’a pas autorisé. Autorise-le et réessaie.",
+    "This is already set up on this device.": "C’est déjà configuré sur cet appareil.",
+    "Your browser does not support this.": "Ton navigateur ne le prend pas en charge.",
+    "The company could not be created": "L’entreprise n’a pas pu être créée",
+    "Could not switch on notifications": "Impossible d’activer les notifications"
+  },
+  "it": {
+    "Your browser or device did not allow this. Allow it and try again.": "Il browser o il dispositivo non lo ha consentito. Consentilo e riprova.",
+    "This is already set up on this device.": "È già configurato su questo dispositivo.",
+    "Your browser does not support this.": "Il browser non lo supporta.",
+    "The company could not be created": "Non è stato possibile creare l’azienda",
+    "Could not switch on notifications": "Impossibile attivare le notifiche"
+  },
+  "nl": {
+    "Your browser or device did not allow this. Allow it and try again.": "Je browser of apparaat heeft dit niet toegestaan. Sta het toe en probeer het opnieuw.",
+    "This is already set up on this device.": "Dit is al ingesteld op dit apparaat.",
+    "Your browser does not support this.": "Je browser ondersteunt dit niet.",
+    "The company could not be created": "Het bedrijf kon niet worden aangemaakt",
+    "Could not switch on notifications": "Meldingen konden niet worden ingeschakeld"
+  }
+}
