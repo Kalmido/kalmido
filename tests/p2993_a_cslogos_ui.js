@@ -91,7 +91,7 @@ const ROW = `(() => { const m = document.querySelector('.modal.csmd'); if (!m) r
     await ev(`(() => { document.querySelector('.modal.csmd .cslogo[data-logo="agency"] [data-cs="logo"]').click(); return 1; })()`);
     check(await ready(ev, `!!document.querySelector('.modal #cs-logoct')`), '"Add logo" without an agency: the choice of the contact first');
     check(await ev(`[...document.querySelectorAll('#cs-logoct option')].some(o => /Werbe Beispiel GmbH/.test(o.textContent))`), 'the choice lists the agency contact');
-    await ev(`(() => { const s = document.querySelector('#cs-logoct'); s.value = '${agy.id}'; document.querySelector('.modal [data-csl="ok"]').click(); return 1; })()`);
+    await ev(`(() => { const s = document.querySelector('#cs-logoct'); s.value = '${agy.id}'; document.querySelector('.modal [data-cd="yes"]').click(); return 1; })()`);
     check(await ready(ev, `!document.querySelector('#cs-logoct') && document.querySelector('.modal.csmd #cs-agency_contact').value === '${agy.id}'`), 'the agency is chosen in the call sheet');
     await ev(`(async () => { const cv = document.createElement('canvas'); cv.width = 240; cv.height = 80; const g = cv.getContext('2d'); g.fillStyle = '#c03030'; g.fillRect(0, 0, 240, 80);
       const blob = await new Promise(r => cv.toBlob(r, 'image/png')); const dt = new DataTransfer(); dt.items.add(new File([blob], 'agentur.png', {type: 'image/png'}));
