@@ -40,7 +40,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   d.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); await sleep(50);
   check(!d.querySelector('.modal'), 'Escape closes');
   w.eval(`settingsModal('tabbar')`); await sleep(200); md = d.querySelector('.smodal');
-  check(md.querySelector('.snav .on').dataset.sec === 'look' && md.querySelector('#s-tabadd'), 'settingsModal(tabbar) -> Appearance (tab bar)');
+  check(md.querySelector('.snav .on').dataset.sec === 'nav' && md.querySelector('#s-tabadd'), 'settingsModal(tabbar) -> Navigation (tab bar; 2.1178.0 (#6129): no longer Appearance)');
   md.remove();
   w.eval(`settingsModal('account')`); await sleep(200); md = d.querySelector('.smodal');
   check(md.querySelector('.snav .on').dataset.sec === 'account', 'settingsModal(account) -> Account');
