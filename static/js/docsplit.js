@@ -108,7 +108,7 @@ function dsp_pick(d) {
     if (b.dataset.m === 'close') { md.remove(); return; }
     if (!b.dataset.pick) return;
     const tid = +b.dataset.pick;
-    let j; try { j = await api('POST', `/api/docs/${d.id}/task/link`, {task_id: tid}); } catch (x) { const er = $('.aerr', md); if (er) er.textContent = x.message || ''; return; }
+    let j; try { j = await api('POST', `/api/docs/${d.id}/task/link`, {task_id: tid}); } catch (x) { const er = $('.aerr', md); if (er) er.textContent = errText(x, tr('The task could not be linked')); return; }  // 2.1176.0 (#6109): what failed first
     md.remove();
     const prev = j.prev_task_id;
     const go = to => async () => { if (to) await api('POST', `/api/docs/${d.id}/task/link`, {task_id: to}); else await api('DELETE', `/api/docs/${d.id}/task`); await dsp_redraw(d.id); return {}; };
@@ -197,7 +197,7 @@ async function dsp_click(e, md) {
   if (parts.length < 2) return;
   b.disabled = true;
   const split = async () => { const r = await api('POST', `/api/docs/${d.id}/split`, {parts}); return r; };
-  let r; try { r = await split(); } catch (x) { b.disabled = false; const er = $('.aerr', md); if (er) er.textContent = x.message || ''; return; }
+  let r; try { r = await split(); } catch (x) { b.disabled = false; const er = $('.aerr', md); if (er) er.textContent = errText(x, tr('The document could not be split')); return; }  // 2.1176.0 (#6109)
   const gone = on => { if (typeof dcv_gone === 'function') dcv_gone(d.id, on); };  // #5478: the stack is gone here (docview.js)
   gone(true);
   md.remove();

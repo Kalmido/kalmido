@@ -67,7 +67,7 @@ const ptr = (w, el, type, extra = {}) => {  // jsdom has no PointerEvent: a Mous
   await until(async () => ((await call('GET', `/api/contacts?book_id=${BT}`, null, CB)).items || []).length === 2, 40);
   check(((await call('GET', `/api/contacts?book_id=${BT}`, null, CB)).items || []).length === 2, '#1554: two contacts moved to Target');
   check(!d.querySelector('#ct-sbar') && w.eval('CT.pick') === null, '#1554: the selection ends after the move');
-  // delete: one question with the count, one request
+  // delete: one request; 2.1176.0 (#6124): no question any more (Undo in the toast instead)
   let asked = '';
   w.confirm = t => { asked = t; return true; };
   await until(() => d.querySelectorAll('#view .ctrow').length === 4, 40);
@@ -75,7 +75,8 @@ const ptr = (w, el, type, extra = {}) => {  // jsdom has no PointerEvent: a Mous
   row('Own Person 0').click(); row('Own Person 1').click(); await sleep(50);
   d.querySelector('[data-ctb="del"]').click();
   await until(async () => ((await call('GET', '/api/contacts', null, CB)).items || []).length === 2, 40);
-  check(/Delete 2 contacts\?/.test(asked), '#1554: one question with the count: ' + asked);
+  check(asked === '', '#6124: no question any more: ' + asked);  // 2.1176.0 (#6124): was "one question with the count"
+  check(/2 contacts moved to the trash/.test(d.querySelector('#toast')?.textContent || '') && !!d.querySelector('#toast button:not(.tx)'), '#6124: the toast names the count and offers Undo');
   const left = ((await call('GET', '/api/contacts', null, CB)).items || []).map(x => x.fn).sort();
   check(JSON.stringify(left) === JSON.stringify(['Alices Person 0', 'Own Person 2']), '#1554: the two are deleted: ' + left);
   d.querySelector('[data-ct="pick"]')?.click(); await sleep(50);
