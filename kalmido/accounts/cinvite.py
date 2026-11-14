@@ -66,12 +66,13 @@ def cinv_on(c):
     return collab_all() and cinv_signup_on(c)
 
 
-def _need_inviter(c):
-    """The signed-in person may make / list / take back links (else 404 like discover's _need_person, 403 when the switch is off)."""
+def _need_inviter(c, need_on=True):
+    """The signed-in person may make / list / take back links (else 404 like discover's _need_person, 403 when the switch is off).
+    need_on=False (the list): also with the switch off -- the own links are only shown (open ones do not work then), on=False says so."""
     u = g.user
     if not u or (u["kind"] or "user") != "user" or u["kid"] or not collab_all():
         raise Denied(404)
-    if not cinv_signup_on(c):
+    if need_on and not cinv_signup_on(c):
         raise Denied(403, tr("Inviting people without an account is switched off on this server"))
     return u
 
@@ -88,9 +89,9 @@ def _item(r):
 def cinv_list():
     """My open invitation links (no link: only its hash is stored) + the limits."""
     c = db()
-    u = _need_inviter(c)
+    u = _need_inviter(c, need_on=False)  # 2.1156.0 (#4550): the list answers with the switch off too (freelancer sweep: no 403 on a GET)
     rows = c.execute(f"SELECT * FROM conn_invites WHERE user_id=? AND {_open_sql()} ORDER BY id DESC", (u["id"], iso(now_utc()))).fetchall()
-    return jsonify(items=[_item(r) for r in rows], limits={"open": CINV_OPEN, "day": CINV_DAY, "days": CINV_DAYS}, mail=_mail_on())
+    return jsonify(items=[_item(r) for r in rows], limits={"open": CINV_OPEN, "day": CINV_DAY, "days": CINV_DAYS}, mail=_mail_on(), on=cinv_signup_on(c))
 
 
 @app.post("/api/disc/invites")
