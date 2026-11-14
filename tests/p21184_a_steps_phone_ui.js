@@ -47,7 +47,7 @@ const NAME = 'Imagefilm Sommerkampagne';
   // the row of the colour step: its label whole (not cut), its place against the button
   const rowOf = gid => `(() => {
     const li = document.querySelector('#view .ulbody .ulrow[data-ul="s:${gid}"]'); if (!li) return null;
-    const lab = li.querySelector('.ullab'), btn = li.querySelector('[data-ul-go]'); if (!lab || !btn) return null;
+    const lab = li.querySelector('.ullab'), btn = li.querySelector('[data-ul-go], [data-ul-redo]'); if (!lab || !btn) return null;
     const a = lab.getBoundingClientRect(), b = btn.getBoundingClientRect();
     return {text: lab.textContent, whole: lab.scrollWidth <= lab.clientWidth + 1, above: a.bottom <= b.top + 1, beside: b.left >= a.right - 1 && b.top < a.bottom,
       btn: btn.textContent.trim(), seen: b.bottom <= innerHeight && b.right <= innerWidth, wide: document.documentElement.scrollWidth <= innerWidth};
@@ -64,7 +64,7 @@ const NAME = 'Imagefilm Sommerkampagne';
     const row = await until(`(() => { const x = ${rowOf(G1.id)}; return x && /Colour/.test(x.text) ? x : null; })()`, {timeout: 20000});
     check(row && row.text === `“${NAME}”: Colour`, 'phone: the row names the colour: ' + JSON.stringify(row));
     check(row && row.whole && row.above, 'phone: the label stands whole above its button ' + JSON.stringify(row));
-    check(row && row.wide && /Back up to here/.test(row.btn), 'phone: nothing wider than the screen, the button is there ' + JSON.stringify(row));
+    check(row && row.wide && row.seen && /Back up to here/.test(row.btn), 'phone: nothing wider than the screen, the button is there ' + JSON.stringify(row));
     check(await ev(`![...document.querySelectorAll('#view .ulbody .ulrow')].some(li => /Settings of|View/.test(li.textContent))`), 'phone: no row "Settings of …" and none for the view');
     await shot('p21184a-handy-letzte-schritte.png');
     check(await ev(`(() => { const b = document.querySelector('#view .ulbody .ulrow[data-ul="s:${G1.id}"] [data-ul-go]'); b.scrollIntoView({block: 'center'}); b.click(); return 1; })()`) === 1, 'phone: Back up to here');
@@ -78,7 +78,7 @@ const NAME = 'Imagefilm Sommerkampagne';
     await ev(`(() => { localStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`);
     check(await signIn(ev) === 200, 'desktop: frida signed in');
     await nav(B + '#steps');
-    const G2 = mine.find(g => /Sorting$/.test(g.label)) || {};
+    const G2 = mine.find(g => /Sorting$/.test(g.label)) || {};  // undone on the phone: its row offers Redo
     const row = await until(`${rowOf(G2.id)}`, {timeout: 20000});
     check(row && row.beside && row.whole, 'desktop: the button beside the label ' + JSON.stringify(row));
     await shot('p21184a-desktop-letzte-schritte.png');
