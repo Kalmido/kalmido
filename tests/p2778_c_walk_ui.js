@@ -162,7 +162,12 @@ const de = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
     await ev(click(`document.querySelector('[data-bnk="walk"]')`));
     check(await ready(ev, progIs('1 von 3') + ' && ' + cardOk('.wlkdlg .wlk-cands', '/(119|45|12),00/')), 'the bank walk-through: "1 von 3", the card with picture and amount: ' + await ev(prog()));
     const first = await ev(`${W}.querySelector('.wlk-tx b').textContent`);
-    check(await ev(`!!${W}.querySelector('[data-wlk="mark"][data-v="ignored"]') && !!${W}.querySelector('[data-wlk="mark"][data-v="cash"]')`), 'bank: also "Ignorieren" and "Kasse"');
+    // 2.1180.0 (#6147): the marks moved into "More" (one main step, as the bank row since #5452); the menu has them all
+    check(await ev(`[...${W}.querySelectorAll('.wlk-acts button')].map(b => b.dataset.wlk).join(',') === 'search,more'`), 'bank: one main step + "More" ' + await ev(`[...${W}.querySelectorAll('.wlk-acts button')].map(b => b.dataset.wlk).join(',')`));
+    await ev(click(`${W}.querySelector('[data-wlk="more"]')`));
+    check(await ready(ev, `[...document.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].map(b => b.dataset.act).join(',') === 'wlk-up,wlk-private,wlk-noreceipt,wlk-ignored,wlk-cash'`), 'bank: "More" holds upload, "Privat", "Kein Beleg nötig", "Ignorieren" and "Kasse"');
+    await ev(`(() => { closePop(); return 1; })()`);
+    await ready(ev, `!document.querySelector('#pop:not(.hidden)')`, 20);
     await shot('p2778c-bank-walk.png');
     await ev(click(`${W}.querySelector('.wlk-foot [data-wlk="take"]')`));
     check(await ready(ev, progIs('2 von 3') + ` && ${W}.querySelector('.wlk-tx b').textContent !== ${JSON.stringify(first)}`), 'bank: "Übernehmen" goes to the next booking "2 von 3": ' + await ev(prog()));
@@ -171,7 +176,9 @@ const de = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
     check(await ready(ev, progIs('1 von 3') + ` && ${W}.querySelector('.wlk-tx b').textContent === ${JSON.stringify(first)}`), 'bank: undo goes back to the booking "1 von 3"');
     check(await ready(ev, `!!${W}.querySelector('.wlk-cands .ocd')`), 'bank: its card is there again');
     check(await openTx() === 3, 'the server: the booking is open again');
-    await ev(click(`${W}.querySelector('[data-wlk="mark"][data-v="noreceipt"]')`));
+    await ev(click(`${W}.querySelector('[data-wlk="more"]')`));  // 2.1180.0 (#6147): the mark from "More"
+    check(await ready(ev, `!!document.querySelector('#pop:not(.hidden) [data-act="wlk-noreceipt"]')`), 'bank: "More" opens again');
+    await ev(click(`document.querySelector('#pop [data-act="wlk-noreceipt"]')`));
     check(await ready(ev, progIs('2 von 3')), 'bank: "Kein Beleg nötig" goes on too');
     check(await openTx() === 2, 'the server: marked as needing no receipt');
     await ev(click(`${W}.querySelector('[data-wlk="undo"]')`));
@@ -183,8 +190,11 @@ const de = iso => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await nav(B + 'static/icon.svg');
     await nav(B + '#office/bank');
-    check(await ready(ev, `!!document.querySelector('[data-bnk="walk"]')`, 100), 'phone: the button "Durchgehen"');
-    await ev(click(`document.querySelector('[data-bnk="walk"]')`));
+    // 2.1180.0 (#6147): on a phone "Durchgehen" is in the bar's "More"
+    check(await ready(ev, `!!document.querySelector('.bnkbar [data-bnk="menu"]')?.offsetParent`, 100), 'phone: the bar\'s "Mehr"');
+    await ev(click(`document.querySelector('.bnkbar [data-bnk="menu"]')`));
+    check(await ready(ev, `!!document.querySelector('#pop:not(.hidden) [data-act="bnk-walk"]')`), 'phone: "Durchgehen" in "Mehr"');
+    await ev(click(`document.querySelector('#pop [data-act="bnk-walk"]')`));
     check(await ready(ev, progIs('1 von 3') + ' && ' + cardOk('.wlkdlg .wlk-cands', '/(119|45|12),00/')), 'phone: the walk-through with its card');
     check(await ev(`(() => { const r = ${W}.querySelector('.wlk-cands'), c = r.querySelector('.ocd'); return Math.abs(c.getBoundingClientRect().width - r.clientWidth) < 2; })()`), 'phone: one card fills the width');
     check(await ev(`document.documentElement.scrollWidth <= innerWidth + 1 && ${W}.querySelector('.card').scrollWidth <= ${W}.querySelector('.card').clientWidth + 1`), 'phone: no sideways scroll');
