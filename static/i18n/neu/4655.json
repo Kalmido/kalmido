@@ -1,0 +1,42 @@
+{
+  "de": {
+    "Lock editing (this device)": "Bearbeiten sperren (dieses Gerät)",
+    "Reference copied": "Verweis kopiert",
+    "Tags|wiki": "Schlagwörter",
+    "Locked|wiki": "Verschlüsselt (im Browser)",
+    "Import pages": "Seiten importieren",
+    "The share applies to this page.": "Der Zugriff gilt für diese Seite."
+  },
+  "es": {
+    "Lock editing (this device)": "Bloquear la edición (este dispositivo)",
+    "Reference copied": "Referencia copiada",
+    "Tags|wiki": "Etiquetas",
+    "Locked|wiki": "Cifrado (en el navegador)",
+    "Import pages": "Importar páginas",
+    "The share applies to this page.": "El uso compartido se aplica a esta página."
+  },
+  "fr": {
+    "Lock editing (this device)": "Bloquer la modification (cet appareil)",
+    "Reference copied": "Référence copiée",
+    "Tags|wiki": "Étiquettes",
+    "Locked|wiki": "Chiffré (dans le navigateur)",
+    "Import pages": "Importer des pages",
+    "The share applies to this page.": "Le partage s’applique à cette page."
+  },
+  "it": {
+    "Lock editing (this device)": "Blocca la modifica (questo dispositivo)",
+    "Reference copied": "Riferimento copiato",
+    "Tags|wiki": "Tag",
+    "Locked|wiki": "Cifrato (nel browser)",
+    "Import pages": "Importa pagine",
+    "The share applies to this page.": "La condivisione vale per questa pagina."
+  },
+  "nl": {
+    "Lock editing (this device)": "Bewerken vergrendelen (dit apparaat)",
+    "Reference copied": "Verwijzing gekopieerd",
+    "Tags|wiki": "Tags",
+    "Locked|wiki": "Versleuteld (in de browser)",
+    "Import pages": "Pagina’s importeren",
+    "The share applies to this page.": "Het delen geldt voor deze pagina."
+  }
+}
