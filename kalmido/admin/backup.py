@@ -2204,7 +2204,21 @@ def bk_weekly_max():
     return BK_KEEP_WEEKLY_MAX if bk_ret_on("backups") else BK_KEEP_WEEKLY_CAP
 
 
+def bk_same_disk():
+    """2.1179.0 C (#2898): the backup folder lies on the same file system as the data folder (st_dev; a backup folder not
+    made yet counts by the nearest folder above it that exists)."""
+    try:
+        p = BK_DIR
+        while not os.path.exists(p) and os.path.dirname(p) != p:
+            p = os.path.dirname(p)
+        return os.stat(p).st_dev == os.stat(os.path.dirname(os.path.abspath(DB))).st_dev
+    except OSError:
+        return False
+
+
 def bk_state(c):
+    from .offsite import bko_conf  # 2.1179.0 C (#2898)
+    bko = bko_conf(c)
     items = bk_list()
     store = bks.usage(BK_STORE)
     return {"env": BK_ON_ENV, "dir": BK_DIR, "on": gsetting(c, "bk_on") == "1", "time": gsetting(c, "bk_time"),
@@ -2218,7 +2232,8 @@ def bk_state(c):
             "store_files": store[0], "store_bytes": store[1],  # 2.432.0 (#3584): the shared store (one line in the list)
             "max_mb": BK_MAX_BYTES // 1048576, "items": [bk_public(x) for x in items],
             # 2.152.0 B (#2172): the limits the admin view explains
-            "encrypt_required": BK_ENCRYPT_REQUIRED, "keep_weekly_max": bk_weekly_max()}  # 2.306.0 G (#2946): always set
+            "encrypt_required": BK_ENCRYPT_REQUIRED, "keep_weekly_max": bk_weekly_max(),  # 2.306.0 G (#2946): always set
+            "same_disk_only": bk_same_disk() and not (bko["type"] and bko["on"])}  # 2.1179.0 C (#2898): no copy anywhere else
 
 
 def need_backups():

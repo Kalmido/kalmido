@@ -302,7 +302,7 @@ def obj_register(kind, table, *, label, fields, open_url=None, space=None, title
         protect = _members_protect(kind)
     fsr = dict(label=label, open_url=reg["open_url"], base_role=fsr_base, space=lambda c, rid: obj_space(c, kind, rid),
                protect=protect, hidden=hidden, on_trash=fsr_on_trash, title=lambda c, rid: obj_title(c, kind, rid),
-               content=content, cap=cap, listed=listed)
+               content=content, cap=cap, listed=listed, table=(table, "id"))  # 2.1179.0 C (#2898): table for fs_ref_sweep
     fsr.update(fs_hooks or {})  # 2.566.0 (#4712)
     fs_ref_register(kind, **fsr)
     return reg

@@ -32,10 +32,12 @@ CT = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")
 STUB = "http://127.0.0.1:9997"
 TZ = ZoneInfo("Europe/Berlin")
 SECRET = "SECRET-TITLE-7f3a"  # must never show up in an admin alert
-FAKE_RELEASE = '''import http.server, json
+FAKE_RELEASE = '''import http.server, json, os
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        b = json.dumps({"tag_name": "v9.9.9", "html_url": "https://github.com/example/kalmido/releases/tag/v9.9.9"}).encode()
+        hand = os.path.exists("/data/fake-action")  # 2.1179.0 C (#2898): a newer release with an "Action needed" section
+        b = json.dumps({"tag_name": "v9.9.10" if hand else "v9.9.9", "html_url": "https://github.com/example/kalmido/releases/tag/v9.9.9",
+                        "body": "### Action needed\\n- add a line to .env\\n" if hand else "### Changed\\n- nothing by hand\\n"}).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(b)))
         self.end_headers(); self.wfile.write(b)
     def log_message(self, *a): pass
@@ -162,7 +164,8 @@ clear()
 switch("update_check", False)
 switch("update_check", True)  # forces a check now
 m = wait_for(lambda: [x for x in admin_msgs("t-alice") if "Update available" in x["title"]])
-check(len(m) == 1 and "9.9.9 is available" in m[0]["msg"] and m[0]["click"].endswith("/releases/tag/v9.9.9"),
+# 2.1179.0 C (#2898): the alert says to back up first
+check(len(m) == 1 and "9.9.9 is available" in m[0]["msg"] and "Back up first" in m[0]["msg"] and m[0]["click"].endswith("/releases/tag/v9.9.9"),
       f"update alert with the release link: {m}")
 check(any("Check daily for a new version" in x["msg"] and " off" in x["msg"] for x in admin_msgs("t-alice")),
       "switching the update check is a security alert too")
@@ -170,6 +173,16 @@ switch("update_check", False)
 switch("update_check", True)
 time.sleep(2.5)
 check(len([x for x in admin_msgs("t-alice") if "Update available" in x["title"]]) == 1, "no second update alert for the same version")
+# 2.1179.0 C (#2898): a release with an "Action needed" section is marked in the alert as needing a step by hand
+with open(os.path.join(DATA, "fake-action"), "w") as f:
+    f.write("1")
+clear()
+switch("update_check", False)
+switch("update_check", True)
+m = wait_for(lambda: [x for x in admin_msgs("t-alice") if "Update available" in x["title"]])
+check(len(m) == 1 and "9.9.10 needs a step by hand" in m[0]["msg"] and "back up first" in m[0]["msg"], f"a step by hand in the alert: {m}")
+check(A.get(B + "/api/about").json().get("update_action") == "- add a line to .env", "and its section in the about data")
+os.remove(os.path.join(DATA, "fake-action"))
 
 # ---- test alert
 clear()

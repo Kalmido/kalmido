@@ -554,7 +554,9 @@ follow the upgrade notes of that version (it moves the data by itself), then upd
   size of each archive and the free space). A restore takes at most `KALMIDO_BACKUP_MAX_MB` (default 4096 MB, upload and
   unpacked, shared files included) and refuses a larger backup with a message; set it higher on the restoring server.
   On a small disk keep fewer of them (Settings > Server > Backup > *Keep*) or put the backup folder on another
-  disk with `KALMIDO_BACKUP_DIR`; the backup page warns once less than about three more archives fit. Without *Encrypt
+  disk with `KALMIDO_BACKUP_DIR`; the backup page warns once less than about three more archives fit. As long as the
+  backup folder lies on the same disk as the data and no off-site target is on, the backup page says so (since 2.1179.0,
+  #2898): a dead disk takes both. Without *Encrypt
   backups* the archives are plain zips: anyone who can read the backup folder (or a copy of it) reads every task, file and
   account. Set a passphrase (or `KALMIDO_BACKUP_PASSPHRASE`) as soon as the archives leave the server, and keep it
   somewhere else -- without it nobody can restore an encrypted backup.
@@ -582,7 +584,7 @@ follow the upgrade notes of that version (it moves the data by itself), then upd
   example with clevis / tang), so a stolen disk alone is unreadable.
 - **Offsite backups by pull.** Let a second machine pull the backup folder **with `.store`** (the server cannot delete them), encrypt them
   there (for example with `age`, or Kalmido's own *Encrypt backups*), and run a restore test now and then.
-- **Off-site target (2.143.0).** Settings > Server > Server > *Off-site backup*: one target per server --
+- **Off-site target (2.143.0).** Settings > Server > Backup > *Off-site backup*: one target per server --
   S3-compatible storage (an `https://` endpoint -- plain `http://` only to `localhost`, since 2.550 as for WebDAV --, region,
   bucket, folder, access key and secret key; requests signed with Signature V4;
   path-style addresses by default, switch them off for `bucket.s3.example.com`), WebDAV (an `https://` address -- plain
@@ -1463,7 +1465,7 @@ published). ClamAV needs **about 1 to 1.5 GB of RAM**; `freshclam` inside the co
   2.360.0: a locked document also shows no recognised text and leaves the search. The office's letterhead and terms go
   out with every document and have no later scan of their own: while the scanner cannot check them their upload is
   refused (503, "try again in a few minutes").
-  *Settings > Server > Server > Whole server* shows the scanner's state and how many files wait or are locked.
+  *Settings > Server > Backup* (below *Check storage*) shows the scanner's state and how many files wait or are locked.
 - Files encrypted in the browser (end-to-end) cannot be read by the server and are not scanned.
 - Independent of the scanner, the server looks at the first bytes of every upload: a program or HTML page that claims to be a
   picture or PDF is stored as a plain download (never shown inline).
@@ -2110,6 +2112,9 @@ stay blocked until you allow them.
   The installer pins the image to the digest of the release as before; it does not check the attestation itself.
   Images before 2.761.0 have no attestation.
 - **Read [UPGRADING.md](UPGRADING.md) first:** it lists every version that needs a step from you.
+- **The update notice** (*Settings > Server > Server* and the admin alert, since 2.1179.0, #2898) says to back up first; a
+  release with an "Action needed" section is marked as needing a step by hand. The notice reads only the newest release:
+  read the notes of every version in between too.
 
 ### Back to the previous version
 
@@ -2154,6 +2159,11 @@ stay blocked until you allow them.
   its first start with it.
 - **Format limits (2.359.3, #2896).** The guard also knows the [format limits](UPGRADING.md#format-limits-going-back): an
   image below the limit of its database refuses to start and names the step, even as the one step back.
+- **A database update that fails at the start** (since 2.1179.0, #2898; for example old data that breaks a new unique
+  index): the update runs in one transaction, so nothing is changed. The container stops with exit code 3 like the other
+  start checks, and the log has one line starting with `FATAL: updating the database to version`, which names the step
+  and the cause (no traceback). Start the previous version again, or remove the cause and start again; a backup is only
+  needed if the previous version does not start either.
 - **Installer.** The first start after an update migrates the database, which can take minutes on a big one; the
   installer keeps waiting (up to 30 minutes) while the container runs and stops at once when it exits.
 - **Restore.** A backup made with a newer minor version than the running server is refused ("update Kalmido first, then
@@ -2641,4 +2651,4 @@ All settings are environment variables in `.env` (see [.env.example](../.env.exa
 | `KALMIDO_PUBLIC_BURST` | `300` | Views of one public link within 10 minutes that trigger an admin alert |
 | `KALMIDO_IMAGE` | `kalmido:local` | Image for `docker compose`; set `ghcr.io/gegenschuss/kalmido:<version>` to use the prebuilt one |
 
-Everything else (language, reminder defaults, digest time, pomodoro lengths, which modules are shown) is set per user in the app under *Settings*; the switches for the whole server (collaboration, time tracking, public links, update check, sign-in policy, OIDC, backups, admin alerts, allowed internal hosts) are under *Settings > Server > Server > Whole server*.
+Everything else (language, reminder defaults, digest time, pomodoro lengths, which modules are shown) is set per user in the app under *Settings*; the switches for the whole server (collaboration, time tracking, public links, update check, allowed internal hosts) are under *Settings > Server > Server > Whole server*; the sign-in policy and OIDC under *Settings > Server > Sign-in*, backups under *Settings > Server > Backup*, admin alerts under *Settings > Server > Admin alerts*.
