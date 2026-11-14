@@ -226,7 +226,7 @@ async function dcv_hitsLoad(id) {
   if (h && (h.busy || Date.now() - h.at < 60000)) return;
   DCV.hits[id] = {...(h || {}), busy: true, at: Date.now()};
   try { const j = await rawFetch('GET', `/api/docs/views/${id}/hits?limit=${DCV_TODAY_N}`); DCV.hits[id] = {at: Date.now(), total: j.total, docs: j.docs || [], view: j.view}; }
-  catch (x) { DCV.hits[id] = {at: Date.now(), gone: x?.status === 404, docs: [], total: 0}; }
+  catch (x) { DCV.hits[id] = {at: Date.now(), gone: x?.status === 404, docs: [], total: 0, err: x?.status === 404 || x?.message === 'auth' ? '' : errText(x, tr('The view could not be loaded'))}; }  // 2.1176.0 (#6109): + err
   if (S.route.mod === 'tasks' && S.route.key === 'today') renderView();
 }
 function dcv_todayCard(id) {
@@ -236,7 +236,7 @@ function dcv_todayCard(id) {
   const v = h?.view || dcv_get(id), name = v?.title || tr('Saved view');
   const rows = (h?.docs || []).map(d => `<li><a href="#ablage/${d.id}">${ic('file', 's')}<span class="dwt"><b>${esc((typeof dc_title === 'function' ? dc_title(d) : d.title || d.name) || '')}</b>${d.date ? ` <span class="muted">${esc(dayLabel(d.date, true))}</span>` : ''}</span></a></li>`).join('');
   return `<section class="dcard dcv-today" aria-labelledby="dcvh-${id}"><h3 id="dcvh-${id}">${ic('filter', 's')}<span>${esc(name)}</span>${h && !h.busy ? `<span class="dcn">${h.total}</span>` : ''}<span class="spacer"></span><a class="linkbtn" href="#ablage/v/${id}">${esc(tr('Show all'))}</a></h3>
-    ${h && !h.busy ? rows ? `<ul class="dwl">${rows}</ul>` : `<p class="muted">${esc(tr('No documents in this view.'))}</p>` : `<p class="muted">${esc(tr('Loading…'))}</p>`}</section>`;
+    ${/*html-ok*/ h?.err ? errorState({title: h.err, sub: '', size: 'row', retry: () => { delete DCV.hits[id]; renderView(); }}) /* 2.1176.0 (#6109): a failure is no "No documents" */ : h && !h.busy ? rows ? `<ul class="dwl">${rows}</ul>` : emptyState({icon: 'filter', title: tr('No documents in this view.'), size: 'row'}) : loadingHtml('row')}</section>`;
 }
 function dcv_todayParts() {
   if (!DCV.items && !DCV.loading) dcv_load();

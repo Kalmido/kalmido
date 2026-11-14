@@ -91,7 +91,7 @@ async function dc_load() {
   DC.loading = true; DC.ws = ws;
   try {
     const p = dc_params(), key = dc_key(p);
-    const j = await api('GET', '/api/docs?' + p);
+    const j = await rawFetch('GET', '/api/docs?' + p);  // 2.1176.0 (#6109): the failure is said in the list (errorState), no toast beside it
     if (seq !== DC.seq || ws !== dc_ws()) return;  // 2.66.1 (#1945): an answer for a workspace no longer shown is dropped
     const rv0 = DC.review;
     // 2.476.0 (#3935): the same list loaded again (the poll, a change) keeps the pages loaded after the first one
@@ -100,7 +100,7 @@ async function dc_load() {
     Object.assign(DC, {docs, total: j.total, review: j.review, waiting: j.waiting, facets: j.facets || DC.facets, err: null, key});
     if (rv0 !== DC.review && typeof sbb_sync === 'function') setTimeout(() => sbb_sync('ablage'), 0);  // 2.353.0 D (#2759): the counter of the saved filter To review
     if (j.facets && typeof dfc_take === 'function') dfc_take(p, j.facets);  // 2.772.0 (#4890): the numbers below the tree follow the list
-  } catch (x) { if (seq !== DC.seq || ws !== dc_ws()) return; DC.err = x.message || tr('unknown'); }
+  } catch (x) { if (seq !== DC.seq || ws !== dc_ws()) return; DC.err = errText(x, tr('The documents could not be loaded')); }  // 2.1176.0 (#6109): what failed first
   DC.loading = false; DC.at = Date.now(); DC.atWs = ws;  // 2.62.0 (#1844)
   dc_draw();
   dc_pollSet();
@@ -250,15 +250,15 @@ function dc_bodyHtml(fold) {
   const card = fold?.card || dc_card;
   const more = DC.docs?.length && DC.total > DC.docs.length ? `<p class="muted dc-moreld"><button type="button" class="linkbtn" data-dc="loadmore">${esc(tr('Load more ({0} of {1})', DC.docs.length, DC.total))}</button></p>` /* 2.476.0 (#3935) */ : '';
   const grid = DC.docs?.length ? `<ul class="dc-grid${AB.selOn ? ' dc-selon' : ''}" aria-label="${esc(tr('Documents'))}">${DC.docs.map(d => card(d)).join('')}</ul>${more}` : '';
-  if (DC.err) return `<div class="empty">${ic('alert')}<span>${esc(DC.err)}</span></div>`;
+  if (DC.err) return errorState({title: DC.err, retry: () => { DC.err = null; dc_draw(); dc_load(); }});  // 2.1176.0 (#6109): the shared block with "Try again"
   if (fold) {
     const before = active ? '' : fold.before || '', after = active ? '' : fold.after || '';
-    if (!DC.docs && !before && !after) return `<p class="muted lempty">${tr('Loading…')}</p>`;
+    if (!DC.docs && !before && !after) return loadingHtml('big');  // 2.1176.0 (#6109)
     if (!DC.docs?.length && !before && !after) return `<div class="empty nempty dc-empty abempty">${ic('folder')}<span>${active ? tr('No documents found') : fold.canAdd ? tr('Drop files here or use “Upload”') : tr('This folder is empty')}</span></div>`;
     if (fold.list) return fold.list(before, after) + more + ab_selBar();  // 2.769.0 (#5340): a recognising folder as a list (abdocs.js abd_listHtml)
     return before + grid + after + ab_selBar();  // 2.768.0 (#4888): the area's one bar (ablage.js)
   }
-  if (!DC.docs) return `<p class="muted lempty">${tr('Loading…')}</p>`;
+  if (!DC.docs) return loadingHtml('big');  // 2.1176.0 (#6109)
   if (!DC.docs.length) return `<div class="empty nempty dc-empty">${ic('file')}<span>${active || DC.f.review ? tr('No documents found') : !dc_upOk() ? tr('No documents yet') : tr('Drop PDFs or photos of letters here, or add them with the button. Kalmido reads the text, finds date and amount and sorts them.')}</span>${/*html-ok*/ active || DC.f.review ? '' : hlp_linkHtml('files')/* 2.1086.0 (#5820): How it works */}</div>`;  // 2.1162.0 (#6108): no drop sentence where one only reads (dc_upOk)
   return grid + ab_selBar();
 }
@@ -299,18 +299,27 @@ async function dc_upload(files, ws, source) {
   if ((ws || dc_upWs()) === 'private') fd.append('sort', '1');  // 2.522.0 (#4433): the general input sorts (office / private; no office: nothing)
   if (source) fd.append('source', source);
   let j;
-  try { j = await api('POST', '/api/docs', fd); } catch { return []; }
-  for (const e of j.errors || []) toast(e);
+  // 2.1176.0 (#6109): nothing stored (400) = the server's reasons (its error, the list errors), not "Error 400"; several
+  // reasons (also beside stored ones) in ONE message instead of toasts that overwrite each other
+  try { j = await rawFetch('POST', '/api/docs', fd); }
+  catch (x) { if (x?.message !== 'auth' && !x?.shown) toast(dc_upErrs(x?.data?.errors?.length ? x.data.errors : [errText(x)], true), null, 10000); return []; }
+  const ers = j.errors?.length ? dc_upErrs(j.errors, !j.ids?.length && !j.dups?.length) : '';  // stored ones too: said in their message (one toast)
+  if (ers && !j.ids?.length) toast(ers, null, 10000);
   if (j.ids?.length) {
     const ids = j.ids;
-    histToast(trn('{0} document added', '{0} documents added', ids.length), histAdd({label: trn('{0} document added', '{0} documents added', ids.length),
+    histToast(trn('{0} document added', '{0} documents added', ids.length) + (ers ? ' · ' + ers : ''), histAdd({label: trn('{0} document added', '{0} documents added', ids.length),
       undo: async () => { for (const id of ids) await api('DELETE', `/api/files/nodes/${id}`); dc_load(); return {}; },
-      redo: async () => { for (const id of ids) await api('POST', `/api/files/nodes/${id}/restore`); dc_load(); return {}; }}));
+      redo: async () => { for (const id of ids) await api('POST', `/api/files/nodes/${id}/restore`); dc_load(); return {}; }}), ers ? 10000 : undefined);
   }
   const dup = (j.dups || [])[0];  // 2.146.0 B (#2452): the same file is not stored twice -- Open shows the one there
   if (dup) toast(j.dups.length === 1 ? tr('This file already exists: {0}', dup.name) : trn('{0} file already exists', '{0} files already exist', j.dups.length), () => dc_open(dup.id), 8000, tr('Open'));
   if (dc_listOn()) dc_load();
   return j.ids || [];
+}
+// 2.1176.0 (#6109): the refused files of an upload as ONE sentence: what failed first, the server's reasons after it
+function dc_upErrs(errs, none) {
+  const n = errs.length, what = none ? trn('The file could not be added', 'No file could be added', n) : trn('{0} file could not be added', '{0} files could not be added', n);
+  return n === 1 ? errText(errs[0], what) : `${what}: ${errs.slice(0, 5).join('; ')}${n > 5 ? ' …' : ''}`;
 }
 async function dc_shareFiles(files) {  // the share sheet: "File as document"
   const ids = await dc_upload(files, dc_upWs(), 'share');

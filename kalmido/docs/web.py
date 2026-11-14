@@ -477,7 +477,9 @@ def docs_upload():
     bump(c)
     c.commit()
     docs_kick()
-    return jsonify(ids=ids, errors=errors, dups=dups), 201 if ids else (200 if dups else 400)
+    if not ids and not dups:  # 2.1176.0 (#6109): nothing stored - the reasons as the error text too (the app's message says them, not "Error 400")
+        return jsonify(ids=ids, errors=errors, dups=dups, error="; ".join(errors[:10]) or tr("No document could be added")), 400
+    return jsonify(ids=ids, errors=errors, dups=dups), 201 if ids else 200
 
 
 @app.get("/api/docs/<int:nid>")

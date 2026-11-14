@@ -8,14 +8,16 @@ const DSCN = {code: '', ws: '', md: null, es: /** @type {any} */ (null), edit: 0
 // the scan inboxes, the forwarding address); the document settings only point to it
 // Settings > Integrations: the whole part (download, set-up code, inboxes with their last use) for the shown workspace
 function dsc_integrHtml(fx = true) {  // 2.625.0 (#4489): Settings > Integrations draws the receipt fetcher as its own row (fx false)
-  return `<h4 id="s-scan-h">${tr('Documents: inboxes')}</h4><div id="s-scan" class="dsc-embed"><div class="muted mhint">${tr('Loading…')}</div></div>${fx && typeof fx_html === 'function' ? fx_html() : ''}`;  // 2.425.0 C (#3453): + the receipt fetcher (docfetch.js)
+  return `<h4 id="s-scan-h">${tr('Documents: inboxes')}</h4><div id="s-scan" class="dsc-embed">${/*html-ok*/ loadingHtml('row') /* 2.1176.0 (#6109) */}</div>${fx && typeof fx_html === 'function' ? fx_html() : ''}`;  // 2.425.0 C (#3453): + the receipt fetcher (docfetch.js)
 }
 async function dsc_integrDraw(md) {
   if (typeof fx_draw === 'function') fx_draw(md);  // 2.425.0 C (#3453)
   const box = md.querySelector('#s-scan'); if (!box) return;
   const cur = typeof wsCur === 'function' ? wsCur() : 'private', want = DSCN.want, ws = want?.ws || (cur.startsWith('org:') ? cur : 'private');  // 2.1048.0 (#5821): want = from a folder's menu
   DSCN.want = null;
-  try { DSCN.es = await api('GET', `/api/docs/settings?ws=${encodeURIComponent(ws)}`); } catch { box.innerHTML = ''; return; }
+  // 2.1176.0 (#6109): a failure says so here with "Try again" instead of an empty part and a toast
+  try { DSCN.es = await rawFetch('GET', `/api/docs/settings?ws=${encodeURIComponent(ws)}`); }
+  catch (x) { if (x?.message === 'auth') return; box.innerHTML = errorState({title: errText(x, tr('The inboxes could not be loaded')), sub: '', size: 'sec', retry: () => { DSCN.want = want; box.innerHTML = loadingHtml('row'); dsc_integrDraw(md); }}); return; }
   if (DSCN.es?.mail?.enabled) DSCN.es.named = await dsc_namedLoad(ws);  // 2.577.0 C (#4466)
   if (!box.isConnected) return;
   dsc_embedDraw(box);
