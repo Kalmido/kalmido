@@ -1,21 +1,9 @@
-/* 2.572.0 (#4747): a phone's favourites over the tab bar (favtiles.js fvd_*): the grip on the bar's top edge (a button with
-   aria-expanded) and the row that slides in above the bar (an_up ~220 ms) and out (an_down ~180 ms, an-out from
+/* 2.572.0 (#4747): a phone's favourites over the tab bar (favtiles.js fvd_*): the row that slides in above the bar (an_up ~220 ms) and out (an_down ~180 ms, an-out from
    sheetmotion.js an_watch); "reduce motion" is the central rule (no slide). safe-area-inset-bottom: --tabs-bot like #tabs (2.633.0, #4994).
-   Neither on a computer / tablet, nor where the tab bar is away (keyboard, typing, a child, mini windows, full screen tables). */
-#favgrip,#favup{display:none}
+   Neither on a computer / tablet, nor where the tab bar is away (keyboard, typing, a child, mini windows, full screen tables).
+   2.1183.0 (#6178): the grip on the bar's top edge (#favgrip, #5965 / #6082) is gone; a swipe up on the tab bar opens the row. */
+#favup{display:none}
 @media (max-width:767px){
-  #favgrip:not(.hidden){display:block;position:fixed;left:clamp(2.25rem,var(--favgrip-x,50%),calc(100% - 2.25rem));bottom:calc(var(--tabs-bot) - .75rem);z-index:42;width:3.5rem;height:1.875rem;margin-left:-1.75rem;padding:0;border:0;background:none;cursor:pointer;touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
-  /* 2.1150.0 (#6082): held, the grip follows the finger sideways (favtiles.js fvd_grip*; --favgrip-x = this device's place, kept
-     off the edges by the clamp above); while it moves the tab lifts a little in the accent */
-  #favgrip.moving::before{border-color:var(--accent);transform:translateY(-.125rem)}
-  #favgrip.moving > svg.i{color:var(--accent);transform:translateY(-.125rem)}
-  /* 2.1108.0 (#5965): the grip was a bare grey line ("what is that?"): now a small tab growing out of the bar's top edge with the
-     favourites' star (favtiles.js fvd_sync), so it reads as "pull up the favourites"; the open row shows the slim accent line */
-  #favgrip::before{content:'';position:absolute;left:50%;bottom:calc(.75rem - 1px);width:2.75rem;height:1.0625rem;margin-left:-1.375rem;box-sizing:border-box;border:1px solid var(--line);border-bottom:0;border-radius:.625rem .625rem 0 0;background:var(--bg2)}
-  #favgrip > svg.i{position:absolute;left:50%;bottom:calc(.75rem + .0625rem);margin-left:calc(var(--ic-s) / -2);color:var(--text2);pointer-events:none}
-  #favgrip[aria-expanded="true"]::before{bottom:auto;top:50%;width:2.25rem;height:.25rem;margin:-.125rem 0 0 -1.125rem;border:0;border-radius:.125rem;background:var(--accent);opacity:.9}
-  #favgrip[aria-expanded="true"] > svg.i{display:none}
-  #favgrip:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:.5rem}
   #favup.hidden.an-out{display:flex!important}
   #favup:not(.hidden),#favup.hidden.an-out{display:flex;position:fixed;left:0;right:0;bottom:var(--tabs-bot);z-index:39;gap:.25rem;padding:.75rem .5rem .5rem;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;background:var(--bg2);border-top:1px solid var(--line);box-shadow:0 -.5rem 1.5rem rgba(0,0,0,.2)}
   #favup::-webkit-scrollbar{display:none}
@@ -23,7 +11,6 @@
   #favup.hidden.an-out{animation:an_down .18s ease-in forwards;pointer-events:none}
   #tabs{touch-action:pan-x}
   body.favup-open #fab{visibility:hidden}
-  body.kb-open #favgrip,body.kb-open #favup,body.ms-typing #favgrip,body.ms-typing #favup,body.tl-typing #favgrip,body.tl-typing #favup,
-  body.kidmode #favgrip,body.kidmode #favup,html.mini #favgrip,html.mini #favup,html.shzfull #favgrip,html.shzfull #favup{display:none!important}
+  body.kb-open #favup,body.ms-typing #favup,body.tl-typing #favup,body.kidmode #favup,html.mini #favup,html.shzfull #favup{display:none!important}
 }
 @media (max-width:767px) and (pointer:coarse){ #favup .fv2-tile{width:2.75rem;height:2.75rem} }
