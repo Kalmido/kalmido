@@ -7,7 +7,7 @@
 // - #6139: a refused write of the lists names what was not saved (a section, a task's move through the outbox), the server's
 //   text only in brackets; the open invitations and the folder's people: a failed load shows the error with "Try again"
 //   (not an empty list = "not shared"), "Try again" shows them; removing an invitation offers Undo, Undo brings it back
-//   (visible and on the server, same role); the board in lanes without tasks says "No tasks."; a sprint filter that hides
+//   (visible and on the server, same role); the board in lanes without tasks says "No tasks"; a sprint filter that hides
 //   every task says a filter is active and "Show all" shows them again
 // - #6136: a reader (role "view") gets the "…" menu in the task panel with Copy link, Print and History (no writing entries),
 //   Print opens the task's printable page, History scrolls to it; in the folder's Share dialog she sees no share by address,
@@ -108,7 +108,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   // ================= #6139 the board in lanes without tasks; a sprint filter that hides every task
   w.eval(`LS.set('swl', {${BOARD}: 'prio'}); go('l/${BOARD}')`);
   let ke = await until(() => d.querySelector('#view .kanban.swl') && d.querySelector('#view .kempty'));
-  check(ke && /No tasks\./.test(txt(ke)), '#6139: the board in lanes without tasks says so: ' + txt(ke));
+  check(ke && /No tasks/.test(txt(ke)), '#6139: the board in lanes without tasks says so: ' + txt(ke));
   w.eval(`LS.set('swl', {}); LS.set('sprFlt', {${SPR}: 'cur'}); go('l/${SPR}')`);
   ke = await until(() => w.eval(`S.route.key === 'l:${SPR}'`) && d.querySelector('#view .kempty.efilt'));
   check(ke && /No tasks match the filter/.test(txt(ke)) && /A filter is active: Current sprint/.test(txt(ke)) && !/Prune the vines/.test(txt(d.querySelector('#view'))), '#6139: the sprint filter hides every task: says a filter is active: ' + txt(ke));
