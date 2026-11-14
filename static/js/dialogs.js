@@ -725,10 +725,31 @@ async function mmAsk(lid, uid, name, offer, after) {
 // the address and "invited", with a button to take it back; the share is made once the address is confirmed
 async function adsFill(box, q) {
   if (!box) return;
-  let j; try { j = await rawFetch('GET', '/api/addr-shares?' + q); } catch { box.innerHTML = ''; return; }
+  // 2.1176.0 (#6139): a failed load says so with "Try again" (it emptied the part, as if nobody were invited)
+  let j; try { j = await rawFetch('GET', '/api/addr-shares?' + q); } catch (e) { if (e.message === 'auth' || !box.isConnected) return; box.innerHTML = errorState({size: 'row', title: tr('The invitations could not be loaded'), retry: () => { box.innerHTML = loadingHtml(); adsFill(box, q); }}); return; }
   if (!box.isConnected) return;
   box.innerHTML = (j.open || []).map(x => `<div class="mrow"><span class="n">${esc(x.email || '?')} <span class="muted">${esc(tr('Invited: gets access once the address is confirmed'))}</span></span><button type="button" class="iconbtn" data-adsrm="${esc(x.id)}" title="${esc(tr('Remove the invitation to {0}', x.email || '?'))}" aria-label="${esc(tr('Remove the invitation to {0}', x.email || '?'))}">${ic('x', 's')}</button></div>`).join('');
-  box.onclick = async e => { const b = /** @type {any} */ (e.target).closest('[data-adsrm]'); if (!b) return; e.stopPropagation(); try { await api('DELETE', `/api/addr-shares/${b.dataset.adsrm}`); } catch { return; } toast(tr('Invitation removed')); adsFill(box, q); };
+  box.onclick = async e => {
+    const b = /** @type {any} */ (e.target).closest('[data-adsrm]'); if (!b) return; e.stopPropagation();
+    const x = (j.open || []).find(o => String(o.id) === b.dataset.adsrm);
+    try { await api('DELETE', `/api/addr-shares/${b.dataset.adsrm}`); } catch { return; }
+    adsFill(box, q);
+    // 2.1176.0 (#6139): Undo through the history (undo.js histAdd): the invitation is typed in again through the route that made
+    // it (same address and role; the server checks the right as for a new one); redo removes the new row again
+    const again = x?.email && adsAgain(q, x);
+    if (!again) { toast(tr('Invitation removed')); return; }
+    let nid = null;
+    const undo = async () => { await again(); const r = await rawFetch('GET', '/api/addr-shares?' + q); nid = (r.open || []).find(o => o.email === x.email)?.id ?? null; if (box.isConnected) adsFill(box, q); return {}; };
+    const redo = async () => { if (nid != null) await api('DELETE', `/api/addr-shares/${nid}`); if (box.isConnected) adsFill(box, q); return {}; };
+    offerUndo(tr('Invitation removed'), histAdd({label: tr('Invitation to {0} removed', x.email), undo, redo}));
+  };
+}
+// the write that makes open share x of query q again (adsFill's Undo): a project's member route or the folder's, null = none
+function adsAgain(q, x) {
+  const p = new URLSearchParams(q), role = x.role || 'edit';
+  if (p.get('kind') === 'list' && +p.get('ref')) return () => api('PUT', `/api/lists/${+p.get('ref')}/members`, {email: x.email, role});
+  if (p.get('kind') === 'list_folder' && p.get('folder')) return () => api('PUT', '/api/folders/people', {folder: p.get('folder'), email: x.email, role});
+  return null;
 }
 function shareModal(id, opt = {}) {
   const l0 = listById(id); if (!shareOk(l0)) return;
@@ -740,10 +761,10 @@ function shareModal(id, opt = {}) {
     ${collab() && (S.peopleVis === 'contacts' || S.instanceMode === 'workspaces') && canManage(l0) ? `<div class="row shmail"><input id="sh-email" type="email" autocomplete="off" placeholder="${esc(tr('Share by e-mail address'))}" aria-label="${esc(tr('Share by e-mail address'))}"><button type="button" class="btn sm" data-m="share-mail">${ic('send', 's')} ${tr('Share')}</button></div><div class="members shopen" id="sh-open"></div>` : ''}
     ${collab() ? shSec('grp', tr('Groups'), `<div id="sh-grpwrap"></div>`, true) : ''}
     ${collab() && agentsOn() ? shSec('ag', tr('Agents'), `<div class="shint lhint keep">${tr('An agent sees exactly the projects shared with it, nothing else. Stopping the sharing ends its access at once.')}</div><div id="sh-agwrap"></div>`, !canManage(l0) && !listPeople(l0).some(p => p.agent || agentById(p.user_id))) : ''}${''/* 2.910.0 (#5442): shown from the start where it will be (no step when the people have loaded) */}
-    ${own && collab() ? shSec('ntf', tr('Notifications for members'), `<div id="sh-ntf"><div class="muted mhint">${tr('Loading…')}</div></div>`, false, opt.focus === 'ntf') : ''}
+    ${own && collab() ? shSec('ntf', tr('Notifications for members'), `<div id="sh-ntf">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>`, false, opt.focus === 'ntf') : ''}
     ${!own && collab() ? ntfMemberHint(l0) : ''}
     ${own && pubOn('lists') && l0.e2e && typeof le2u_pubHtml === 'function' ? shSec('pub', tr('Public link'), le2u_pubHtml()) : ''}${''/* 2.64.1 (#1817) */}
-    ${own && pubOn('lists') && !l0.e2e ? shSec('pub', tr('Public link'), `<div id="l-pub"><div class="muted mhint">${tr('Loading…')}</div></div>`) : ''}
+    ${own && pubOn('lists') && !l0.e2e ? shSec('pub', tr('Public link'), `<div id="l-pub">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>`) : ''}
     ${shSec('own', tr('Owner'), `<div id="sh-ownwrap"><div class="muted mhint" id="sh-owner"></div><div id="l-owner"></div></div>`, false, !collab())}
 `}));  // 2.910.0 (#5442): the shared frame (shFrameHtml)
   md.classList.add('shmodal');
@@ -774,7 +795,7 @@ function shareModal(id, opt = {}) {
       const ags = people.filter(isAg), acand = users ? users.filter(u => u.agent && !people.some(p => p.user_id === u.id) && agFits(u)) : [];
       aw.innerHTML = ags.length || (mng && acand.length) ? `<div class="members" id="sh-agents">${mng && !agentById(cur.owner_id) && (users || []).some(u => u.agent && agFits(u)) ? '' : ags.map(p => row(cur, p, mng)).join('')}${mng && !agentById(cur.owner_id) && (users || []).some(u => u.agent && agFits(u)) ? `<div class="row"><label for="sh-agsel">${tr('Agent')}</label><select id="sh-agsel"><option value="">${tr('No agent')}</option>${users.filter(u => u.agent && (agFits(u) || ags.some(p => p.user_id === u.id))).map(u => `<option value="${u.id}" ${ags[0]?.user_id === u.id ? 'selected' : ''}>${esc(u.display_name)}${!agFits(u) ? ' · ' + esc(tr('other workspace')) : ''}</option>`).join('')}</select></div>` : ''}${ags.some(p => !agFits((users || []).find(u => u.id === p.user_id) || {org_id: cur.org_id})) ? `<div class="shint keep">${ic('alert', 's')} ${esc(tr('This agent works in another workspace (from before the workspaces). Take it out of the project, or keep it on purpose.'))}</div>` : ''}</div>
         <div id="l-tidyrow">${tidyRowHtml(cur)}</div>` : '';
-      if (!aw.innerHTML && !$('#sh-sec-ag', md)?.hidden) aw.innerHTML = `<div class="muted mhint">${esc(users === null && mng ? tr('Loading…') : tr('No agent'))}</div>`;  // 2.910.0 (#5442)
+      if (!aw.innerHTML && !$('#sh-sec-ag', md)?.hidden) aw.innerHTML = users === null && mng ? loadingHtml() : `<div class="muted mhint">${esc(tr('No agent'))}</div>`;  // 2.910.0 (#5442); 2.1176.0 (#6139): loadingHtml
       shSecSet('ag', !!aw.innerHTML, ags.length ? ags.map(p => p.name).join(', ') + (listenOn(cur) ? ' · ' + tr('listens in') : '') : tr('No agent'));
     }
     const gw = $('#sh-grpwrap', md);  // 2.10.0 (#441)
@@ -1490,7 +1511,7 @@ async function ownerModal(lid, name, j, done) {
 // Settings > Administration: the lists nobody can manage (owner = an agent or a disabled user), with "Take over"
 const orphHtml = () => `<h4 id="s-orph-h">${tr('Projects owned by agents or disabled accounts')}</h4>
   <div class="shint">${tr('Nobody can manage who is in these projects: agents cannot share, disabled users cannot sign in. Take a project over for yourself or hand it to another person.')}</div>
-  <div class="members" id="s-orph"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+  <div class="members" id="s-orph">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>`;
 async function orphDraw(md) {
   const box = $('#s-orph', md); if (!box) return;
   let j; try { j = await calReq('GET', '/api/admin/lists/orphaned'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
@@ -1613,5 +1634,5 @@ const whiOn = l => !!l && !l.is_inbox && l.life !== 'health' && l.life !== 'budg
 
 function whiBoxHtml(l) {
   if (!whiOn(l)) return '';
-  return `<h4 title="${esc(tr('Create tasks in this project from other tools (n8n, Make, Zapier, Home Assistant)'))}">${tr('Inbound webhook')}</h4><div class="members whi-box" id="l-whi"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+  return `<h4 title="${esc(tr('Create tasks in this project from other tools (n8n, Make, Zapier, Home Assistant)'))}">${tr('Inbound webhook')}</h4><div class="members whi-box" id="l-whi">${/*html-ok*/ loadingHtml()/* 2.1176.0 (#6139) */}</div>`;
 }
