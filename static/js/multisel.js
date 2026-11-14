@@ -14,7 +14,7 @@ function ms_barHtml(id, attr, n, hint, btns, o = {}) {
   // only their symbols there (app.css), the word stays in title / aria-label. 2.1168.0 (#6118): o.words = the words stay
   // (contacts, clients): what does not fit goes into the bar's "..." (ms_fit)
   const sym = o.words ? '' : btns.length >= 5 ? ' ms4 ms5' : btns.length === 4 ? ' ms4' : '';
-  return `<div id="${id}" class="mselbar${sym}" role="toolbar" aria-label="${esc(tr('Selection'))}"><span class="mcount" role="status">${n ? trh('{0} selected', n) : hint}</span>
+  return `<div id="${id}" class="mselbar${/*html-ok*/ sym}" role="toolbar" aria-label="${esc(tr('Selection'))}"><span class="mcount" role="status">${n ? trh('{0} selected', n) : hint}</span>
     ${btns.map(btn).join('')}<button type="button" class="mbb mbdots" data-msmore hidden aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}<span class="mbl">${esc(tr('More'))}</span></button>
     <button type="button" class="iconbtn mbx" data-${attr}="close" title="${esc(tr('Clear selection') + ' (Esc)')}" aria-label="${esc(tr('Clear selection'))}">${ic('x')}</button></div>`;
 }
