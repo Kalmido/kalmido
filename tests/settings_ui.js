@@ -23,7 +23,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   await sleep(300);
   check(md.querySelectorAll('#a-users .mrow').length >= 4, 'users pane lists users');
   // 2.418.0 (#3560): the tab bar is the person's (setting nav_menus), no "This device" tag any more; Settings > Navigation is a section
-  check(md.querySelector('[data-pane="look"] #s-tabbar') && !md.querySelector('[data-pane="look"] #s-tabbar-h .devtag') && md.querySelector('[data-pane="nav"] #s-navmenus'), 'tab bar under Appearance (per person), Navigation section');
+  check(md.querySelector('[data-pane="look"] [data-m="go-nav"]') && !md.querySelector('#s-tabbar') && !md.querySelector('[data-pane="look"] #s-tabbar-h .devtag') && md.querySelector('[data-pane="nav"] #s-navmenus'), 'tab bar edited under Navigation only, Appearance links there (2.1178.0 (#6129)), Navigation section');
   // 2.152.2 (#2624): project instead of list
   check(md.querySelector('[data-pane="modules"] [data-feat="collab"]') && /Share projects, assign tasks, @mentions/.test(md.querySelector('[data-pane="modules"]').textContent) && md.querySelector('[data-pane="modules"] [data-feat="comments"]'), 'collab switch with explanation under Modules');
   check(md.querySelector('[data-pane="modules"] #s-collaball')?.checked === true, 'admin: instance switch shown next to it (Modules), on');

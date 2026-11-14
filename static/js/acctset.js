@@ -137,7 +137,7 @@ function accountHtml() {
     ${acz_linkHtml(S.api?.enabled)}</details>${''/* 2.166.0 (#2633): the API tokens moved to Access */}
     ${typeof rsHtml === 'function' ? rsHtml() : ''}${''/* 2.593.0 (#4590): reset the look and comfort settings (setreset.js) */}
     ${typeof sdlHtml === 'function' ? sdlHtml() : ''}${''/* 2.553.0 (#1413): delete the own account (selfdelete.js) */}
-    ${shellServerUrl() ? `<div class="row"><label>${tr('Server|settings')}</label><button class="btn sm" data-acc="shell-server">${ic('link', 's')} ${tr('Change server')}</button></div>` : ''}${''/* 2.435.0 B (#3578): only in the app shell */}
+    ${shellServerUrl() ? `<div class="row"><label>${tr('App server')}</label><button class="btn sm" data-acc="shell-server">${ic('link', 's')} ${tr('Change server')}</button></div>` : ''}${''/* 2.435.0 B (#3578): only in the app shell */}
     ${m.auth === 'session' ? `<div class="row alogout"><button class="btn sm" data-acc="logout">${ic('logout', 's')} ${tr('Sign out')}</button></div>` : ''}`;  // 2.24.0 (UX-21): at the very end, set apart
 }
 // 2.1033.0 (#5790): Settings > Account > E-mail address: the own address and whether it is confirmed. "Confirm address" mails
