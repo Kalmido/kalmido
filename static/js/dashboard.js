@@ -68,7 +68,7 @@ function newsBundledHtml(vis, pop, pre = '', noMe = false) {
     + newsHistHtml(hist.length, hist.map(g => newsGroupHtml(g, pop, true)).join(''));
 }
 async function newsGroupRead(ids) {
-  try { await rawFetch('POST', '/api/news/read', {ids}); } catch (e) { toast(e.message); return; }
+  try { await rawFetch('POST', '/api/news/read', {ids}); } catch (e) { toast(errText(e)); return; }
   for (const it of S.nf.items || []) if ((it.ids || [it.id]).some(x => ids.includes(x))) { it.read = true; it.keep = S.nf.unread; }
   announce(tr('Marked read')); render();
   await loadNews().catch(() => {}); render();  // the counts from the server (an item may stand for several)
@@ -82,7 +82,7 @@ function newsSummarize(anchor) {
     const U = S.nf.users;
     const lines = items.slice(0, 120).map(it => '- ' + newsText(it, U).replace(/<[^>]+>/g, '') + (it.task_title ? ` (${it.task_title})` : '') + (it.excerpt ? `: ${String(it.excerpt).replace(/<@(\d+)>/g, (_, id) => '@' + uname(+id, U)).slice(0, 160)}` : ''));
     const text = tr('Please summarise my {0} unread news items in at most 5 short lines: what needs me first, then the rest.', items.length) + '\n\n' + lines.join('\n');
-    try { await rawFetch('POST', `/api/agents/${a.id}/chat`, {body: text.slice(0, 7900)}); } catch (e) { toast(e.message); return; }
+    try { await rawFetch('POST', `/api/agents/${a.id}/chat`, {body: text.slice(0, 7900)}); } catch (e) { toast(errText(e)); return; }
     closePop(); chatOpen(a.id); toast(tr('Sent to {0}', a.name));
   };
   if (ags.length === 1) send(ags[0]);
@@ -540,7 +540,7 @@ document.addEventListener('submit', e => {
 // ------------------------------------------------------------------ #443 Settings: tasks by e-mail
 const mchk = (id, on, label) => `<label class="chkl"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${esc(label)}</label>`;
 function mailHtml(j) {
-  if (!j) return `<div class="muted">${tr('Loading…')}</div>`;
+  if (!j) return `${loadingHtml()}`;
   const row = (lab, addr, lid) => `<div class="row mailrow"><label>${esc(lab)}</label>${addr ? `<code class="topic mailaddr">${esc(addr)}</code><button type="button" class="btn sm" data-mail="copy" data-addr="${esc(addr)}">${ic('copy', 's')} ${tr('Copy')}</button><button type="button" class="btn sm" data-mail="new" data-lid="${lid ?? ''}">${ic('sync', 's')} ${tr('New address')}</button><button type="button" class="iconbtn" data-mail="del" data-lid="${lid ?? ''}" aria-label="${esc(tr('Remove') + ': ' + addr)}">${ic('x', 's')}</button>`
     : `<button type="button" class="btn sm pri" data-mail="new" data-lid="${lid ?? ''}">${ic('plus', 's')} ${tr('Create an address')}</button>`}</div>`;
   const own = S.lists.filter(l => !l.archived && !l.is_inbox && !l.e2e && canEditList(l.id) && !j.lists.some(x => x.list_id === l.id));  // 2.64.1 (#1817): not for a locked list
