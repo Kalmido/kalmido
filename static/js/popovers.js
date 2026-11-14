@@ -948,9 +948,22 @@ function tch_menuSearch(p) {  // 2.521.0 (#4479): [role^=menuitem] = also the ch
   });
   setTimeout(() => { if (q.isConnected && !isTouch()) q.focus({preventScroll: true}); }, 0);  // after the menu's own focus
 }
+// 2.1176.0 (#6136): who may only view the task gets its read functions (was a "read-only" message and no menu); the writing
+// ones stay with taskMenu, the server refuses them anyway
+function taskReadMenu(anchor, t, o = {}) {
+  const id = t.id;
+  menu(anchor, [
+    ...(o.select ? [{label: t.title.length > 60 ? t.title.slice(0, 59) + '…' : t.title, cls: 'mhead', dis: true, fn: () => {}}, '-'] : []),
+    ...tp_menuItems(t, anchor),
+    ...(t.id > 0 ? [{label: tr('Copy link') + ' · ' + (tkOf(t) ? tkOf(t) + ' · ' : '') + '#' + id, icon: 'link', act: 'tro-link', title: tr('Copy the link to this task'), fn: () => copyTaskLink(id)}] : []),
+    {label: tr('Print'), icon: 'printer', act: 'tro-print', fn: () => lexTaskPrint(id)},
+    ...(t.id > 0 && !t.context ? [{label: tr('History'), icon: 'clock', act: 'tro-hist', fn: () => taskHistGo(id)}] : []),
+  ]);
+}
 function taskMenu(anchor, id, o = {}) {
   const t = taskById(id);
-  if (!canEdit(t)) { roToast(); return; }
+  if (!t) return;
+  if (!canEdit(t)) { taskReadMenu(anchor, t, o); return; }
   const sib = siblings(t), i = sib.findIndex(x => x.id === t.id);
   const l = listById(t.list_id), open = t.status === 0;
   // 2.31.0 (#1056): groups with small headings (Plan, Time, Organize); won't do + delete last, set apart. In the task
