@@ -414,7 +414,11 @@ function ab_upParts(files, n) {
   return parts;
 }
 // the files of the portions not sent after an error / Cancel: in the list with the reason
-const ab_upRest = (parts, i, x) => parts.slice(i).flat().map(f => ({name: f.name || tr('File'), why: x?.cancelled ? tr('Upload cancelled') : x?.message || tr('Not uploaded')}));
+// (review: errText - offline reads as the app's sentence, not as the stored word); j = only this one portion
+const ab_upRest = (parts, i, x, j = parts.length) => parts.slice(i, j).flat().map(f => ({name: f.name || tr('File'), why: x?.cancelled ? tr('Upload cancelled') : errText(x) || tr('Not uploaded')}));
+// a refused portion (400: one bad file, the server rolled back this request only) is listed and the next portion still goes up;
+// Cancel, offline, rights, a full store stop the upload
+const ab_upGoOn = x => x?.status === 400 && !x?.cancelled;
 // the list of what stayed out, where the progress bars are (upbar.js upBox): it stays until it is closed
 function ab_upOut(out) {
   $('#upbars .upout')?.remove();
@@ -436,15 +440,19 @@ async function ab_upload(files, target) {
     const fd = new FormData(); /** @type {any} */ (fd).upBar = true;  // 2.1177.0 (#6114): the bar for any size, no toast besides it
     for (const f of parts[i]) fd.append('file', f, f.name);
     if (target) fd.append('parent_id', String(target)); else fd.append('space', ab_curSpace());
-    let j; try { j = await api('POST', '/api/files/upload', fd); } catch (x) { out.push(...ab_upRest(parts, i, x)); break; }
+    let j; try { j = await api('POST', '/api/files/upload', fd); } catch (x) { if (ab_upGoOn(x)) { out.push(...ab_upRest(parts, i, x, i + 1)); continue; } out.push(...ab_upRest(parts, i, x)); break; }
     items.push(...(j.items || []));
   }
+  // review: two files of one upload with the same name are one node with two new versions - once in the message and in Undo,
+  // which goes back to the version before the upload (a node that did not exist before goes to the trash)
+  const seen = new Map(); for (const x of items) { const e = seen.get(x.id); seen.set(x.id, {...x, n: (e?.n || 0) + 1}); }
+  items.length = 0; items.push(...seen.values());
   ab_reload(); ab_upOut(out);
   if (!items.length) return;
-  const created = items.filter(x => !old.has(x.id) && x.version <= 1), vers = items.filter(x => !created.includes(x) && x.version > 1);
+  const created = items.filter(x => !old.has(x.id) && x.version - x.n < 1), vers = items.filter(x => !created.includes(x) && x.version > 1);
   const msg = ab_upMsg(vers.length ? tr('{0} uploaded, {1} as a new version', items.length, vers.length) : trn('{0} file uploaded', '{0} files uploaded', created.length), out);
   // one step back for all: the new files into the trash, a new version back to the one before (as Restore version does)
-  offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); for (const x of vers) await ab_verStep(x, x.version - 1); return {}; },
+  offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); for (const x of vers) await ab_verStep(x, x.version - x.n); return {}; },
     redo: async () => { for (const x of created) await ab_req('POST', `/api/files/nodes/${x.id}/restore`); for (const x of vers) await ab_verStep(x, x.version); return {}; }}));
 }
 async function ab_rename(n) {

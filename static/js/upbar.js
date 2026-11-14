@@ -31,16 +31,10 @@ function upRow(label, cancel) {
     done() { clearTimeout(t); el.remove(); if (!document.querySelector('.upbar')) document.getElementById('upbars')?.remove(); },
   };
 }
-// 2.1177.0 (#6114): a form below UP_MIN that asks for the bar (fd.upBar): the plain fetch with its row (no percent, it is done at
-// once) and Cancel aborting it
-function upFetch(url, opt, fd) {
-  const ac = new AbortController(), row = upRow(upLabel(fd), () => { ac.abort(); toast(tr('Upload cancelled')); });
-  return fetch(url, {...opt, signal: ac.signal}).then(r => { row.done(); return r; },
-    e => { row.done(); throw ac.signal.aborted ? Object.assign(new Error(tr('Upload cancelled')), {cancelled: true, shown: true}) : e; });
-}
 // what fetch(url, opt) does for a form, by XHR (fetch reports no upload progress). The answer offers what rawFetch0 reads of a Response.
 function upSend(url, opt, fd) {
-  if (upFiles(fd).reduce((n, f) => n + f.size, 0) < UP_MIN) return upFetch(url, opt, fd);  // 2.1177.0 (#6114)
+  // 2.1177.0 (#6114): a small form with fd.upBar goes this way too - its Cancel leaves with the sent body (upload.onload) like
+  // a big one, so nothing the server already stores is called cancelled (review: a plain fetch kept Cancel until the answer)
   return new Promise((ok, no) => {
     const x = new XMLHttpRequest();
     const row = upRow(upLabel(fd), () => { x.abort(); toast(tr('Upload cancelled')); });

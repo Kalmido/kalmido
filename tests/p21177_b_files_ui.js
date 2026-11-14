@@ -91,13 +91,24 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   d.querySelector('#toast button').click();
   check(await until(async () => await content(FK, PLAN) === 'Drehplan Fassung 1'), 'Undo: the version before is on top again');
 
-  // Cancel of a small upload (below 1 MB): the bar's button aborts it, nothing is sent on
-  const cancelled = w.eval(`(() => { const f0 = window.fetch; window.__f0 = f0;
-    window.fetch = (u, o) => o?.body instanceof FormData ? new Promise((_, no) => o.signal.addEventListener('abort', () => no(new DOMException('aborted', 'AbortError')))) : f0(u, o);
+  // review (2.1177.0): two files of one upload with the same name = one node with two versions: ONE file in the message, Undo
+  // takes the new node to the trash (before: "2 uploaded, 2 as a new version", Undo restored version 1 twice)
+  await w.eval(`ab_upload([new File(['eins'], 'doppelt.txt', {type: 'text/plain'}), new File(['zwei'], 'doppelt.txt', {type: 'text/plain'})], null)`);
+  check(await until(() => /^1 file uploaded/.test(txt(d.querySelector('#toast')))), 'same name twice in one upload: one file in the message ' + txt(d.querySelector('#toast')));
+  const DOP = (await items(FK, 'space=private')).find(x => x.name === 'doppelt.txt')?.id;
+  d.querySelector('#toast button').click();
+  check(DOP && await until(async () => (await items(FK, 'space=trash')).some(x => x.id === DOP)), 'same name twice: Undo puts the new file in the trash');
+  // review: a portion the server refuses (400: one bad file) is listed and the next one goes on; Cancel / offline / rights stop
+  check(w.eval(`ab_upGoOn({status: 400}) && !ab_upGoOn({status: 403}) && !ab_upGoOn({status: 400, cancelled: true}) && !ab_upGoOn(new Error('offline'))`), 'a refused portion does not stop the next ones, Cancel and rights do');
+
+  // Cancel of a small upload (below 1 MB): the bar's button aborts it before the body is out, nothing is sent on
+  // 2.1177.0 review: small forms go through the XHR of upbar.js too (its Cancel leaves once the body is out); send() is held here
+  const cancelled = w.eval(`(() => { const s0 = XMLHttpRequest.prototype.send; window.__s0 = s0;
+    XMLHttpRequest.prototype.send = function () { this.abort = function () { this.onabort?.(); }; };
     window.__up = ab_upload([new File(['Notiz'], 'notiz-a.txt', {type: 'text/plain'}), new File(['Notiz'], 'notiz-b.txt', {type: 'text/plain'})], null); return 1; })()`);
   check(cancelled && await until(() => d.querySelector('#upbars .upbar:not(.upout) button')), 'a small upload shows its bar with Cancel');
   d.querySelector('#upbars .upbar:not(.upout) button').click();
-  await w.eval('window.__up'); w.eval('window.fetch = window.__f0');
+  await w.eval('window.__up'); w.eval('XMLHttpRequest.prototype.send = window.__s0');
   check(await until(() => /notiz-a\.txt Upload cancelled/.test(txt(d.querySelector('#upbars .upout')))), 'Cancel: the list names the files as "Upload cancelled" ' + txt(d.querySelector('#upbars .upout')));
   check(!(await items(FK, 'space=private')).some(x => /^notiz-/.test(x.name)), 'Cancel: nothing on the server');
   d.querySelector('#upbars .upout .upoutx')?.click();
