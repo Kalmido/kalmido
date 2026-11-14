@@ -207,6 +207,7 @@ function dcv_nbTake(d, old) {
   const was = /** @type {any} */ (old)._dcv, pdf = DVW.pdf?.box && old.contains(DVW.pdf.box) ? DVW.pdf : null;
   old.replaceWith(el);
   DVW.pdf = e.pdf || null;
+  const pvo = /** @type {any} */ ($('.dv-pvo', el)); if (pvo?._pvLater) { pvo._pvLater = false; dcv_pvOther(pvo, d); }  // 2.1170.0 (#6110 review): its office preview now
   const nbx = $('.dv-pages', el); if (nbx?._base || nbx?._ph) dcv_layout(nbx);  // 2.905.0 (#5393): laid out in its new room at once, not 80 ms later by the ResizeObserver (the page before the file too)
   if (e.pdf) { e.pdf.nb = false; setTimeout(() => dcv_textFill(e.pdf), 0); }  // 2.742.0 (#4861): its pages drawn ahead get their text layers now
   if (was?.d && was.d.id !== d.id && !DC_PEND.has(was.d.id) && $('.dv-pages', old)?._base) {  // its preview finished
@@ -449,9 +450,10 @@ function dcv_stBack(root, sm) {
 // one sentence and Download - no bar there, there is nothing to zoom. A PDF that does not load keeps its bar (Pages, Full screen;
 // the zoom hides: docview.css) and says so in its page box (dcv_pvDraw)
 const DCV_IMG = /^image\/(jpeg|png|gif|webp)$/;
+const DCV_IMGMAX = 25e6;  // 2.1170.0 (#6110 review): a picture without its small one is shown as itself only up to 25 MB (a phone's tab)
 function dcv_pvKind(d) {
   if (dc_isPdf(d)) return d.size > 40e6 ? 'big' : 'pdf';
-  if (/^image\//.test(d.mime || '') && (d.thumb || DCV_IMG.test(d.mime || ''))) return 'img';
+  if (/^image\//.test(d.mime || '') && (d.thumb || (DCV_IMG.test(d.mime || '') && (d.size || 0) <= DCV_IMGMAX))) return 'img';
   if (typeof dv_is === 'function' && dv_is(d)) return 'office';
   if (typeof isTextFile === 'function' && isTextFile(d) && (d.size || 0) <= TV_MAX) return 'text';
   return 'none';
@@ -474,7 +476,7 @@ function dcv_kindIc(d) {
 const dcv_pvMsgHtml = (d, msg, icon) => `<div class="dv-pvmsg" role="status">${ic(icon || dcv_kindIc(d))}<p>${esc(msg)}</p><a class="btn pri" href="${esc(dcv_fileUrl(d, true))}" download="${esc(d.name || '')}">${ic('download', 's')} <span>${esc(tr('Download'))}</span></a></div>`;
 function dcv_pvHtml(d) {
   // Word / Excel / text keep Full screen (the lightbox of their kind) in a bar of its own, without page count and zoom
-  const k = dcv_pvKind(d), full = k === 'office' || k === 'text' ? `<div class="dv-pvbar dv-pvbar1" role="group" aria-label="${esc(tr('Preview'))}"><span class="spacer"></span><button type="button" class="btn sm" data-dc="view" title="${esc(tr('Show {0}', d.name))}">${ic('expand', 's')} <span>${tr('Full screen')}</span></button></div>` : '';
+  const k = dcv_pvKind(d), full = k === 'office' || k === 'text' ? `<div class="dv-pvbar dv-pvbar1" role="group" aria-label="${esc(tr('Preview'))}"><span class="spacer"></span><button type="button" class="btn sm" data-dc="view" title="${esc(tr('Show {0}', d.name))}">${ic('expand', 's')} <span>${esc(tr('Full screen'))}</span></button></div>` : '';
   if (!dcv_paged(d)) return `<section class="dv-pv dv-pvx" aria-label="${esc(tr('Preview'))}">${/*html-ok*/ full}<div class="dv-pvo" data-fl-fill tabindex="0" role="region" aria-label="${esc(tr('Show {0}', d.name))}" data-kind="${esc(k)}"></div></section>`;
   return `<section class="dv-pv" aria-label="${esc(tr('Preview'))}"><div class="dv-pvbar" role="group" aria-label="${esc(tr('Zoom'))}"><span class="dv-pgn" data-fl-fill></span><span class="spacer"></span>
     <button type="button" class="iconbtn" data-dc="dvz:out" aria-label="${esc(tr('Zoom out'))}" title="${esc(tr('Zoom out'))}">${ic('minus', 's')}</button><span class="dv-zp" data-fl-fill></span><button type="button" class="iconbtn" data-dc="dvz:in" aria-label="${esc(tr('Zoom in'))}" title="${esc(tr('Zoom in'))}">${ic('plus', 's')}</button>
@@ -574,11 +576,14 @@ async function dcv_pvOther(box, d, nb) {
   const k = dcv_pvKind(d);
   if (k === 'big') { box.innerHTML = dcv_pvMsgHtml(d, tr('This PDF is too large for the preview (over 40 MB). Download it to read it.'), 'pdf'); return; }
   if (k === 'office' && typeof loadModule === 'function') {
+    // 2.1170.0 (#6110 review): a neighbour drawn ahead does not wake the server's office preview; dcv_nbTake loads it when it opens
+    if (nb && !nb.taken) { box.innerHTML = `<div class="tvmsg muted">${esc(tr('Loading…'))}</div>`; box._pv = null; box._pvLater = true; return; }
     box.innerHTML = `<div class="tvmsg muted">${esc(tr('Loading…'))}</div>`;
     try { await loadModule('pdf'); } catch { /* below */ }
     if (!live()) return;
     if (typeof dpvInline !== 'function') { box.innerHTML = dcv_pvMsgHtml(d, tr('The preview could not be loaded.')); return; }
     await dpvInline(box, {url: `/api/files/nodes/${encodeURIComponent(d.id)}/preview`, name: d.name, dlUrl: dcv_fileUrl(d, true), signal: nb?.ctrl.signal, live});
+    if (live() && box.querySelector('.dpvfail')) box._pv = null;  // a busy server (503): the next draw tries again
     return;
   }
   if (k === 'text') {
