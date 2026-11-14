@@ -54,7 +54,8 @@ areas = [a["area"] for a in j.get("areas", [])]
 check(r.ok and j.get("lang") == "de" and areas == ["files", "agents", "office", "tasks", "calendar", "wiki", "sheets", "team", "budget", "lists", "sharing"], f"GET /api/help: 2.1090.0 (#5900): the eleven areas in order ({r.status_code} {areas})")
 titles = {a["area"]: a["title"] for a in j.get("areas", [])}
 check(titles == {"files": "Dateien", "agents": "Agenten", "office": "Büro", "tasks": "Aufgaben", "calendar": "Kalender",
-                    "wiki": "Wissensseiten", "sheets": "Tabellen", "team": "Team-Chat", "budget": "Budget", "lists": "Projekte", "sharing": "Teilen"}, f"the areas in the sidebar's words: {titles}")
+                    "wiki": "Wissen",  # 2.1168.0 (#6091)
+                    "sheets": "Tabellen", "team": "Team-Chat", "budget": "Budget", "lists": "Projekte", "sharing": "Teilen"}, f"the areas in the sidebar's words: {titles}")
 files = next((a for a in j.get("areas", []) if a["area"] == "files"), {"sections": []})
 # 2.1090.0 (#5899): show = the section's named places in order (a list; one <!-- show: --> line per step)
 SCAN_SHOW = ["settings.open", "settings.integrations", "files.scan-inbox"]
