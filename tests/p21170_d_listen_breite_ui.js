@@ -1,6 +1,6 @@
 // 2.1170.0 (#6140) UI test, part D, own container (start.sh), Firefox with a mouse. Invented data only.
 // kalmido-suite:
-// - // Polish lists, round 2 - the content area gets narrow (820 px, or a computer with a task open): cards and bars stack instead of
+// - Polish lists, round 2 - the content area gets narrow (820 px, or a computer with a task open): cards and bars stack instead of
 // being squeezed. Per width (820 and 1280 with a task open):
 // - the archive card: the whole name readable, the buttons UNDER the text (Open starts below the name)
 // - a list's calendar: the month name AND the view switch (Month / Week / Day / Agenda) stay visible
