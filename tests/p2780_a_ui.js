@@ -66,7 +66,9 @@ async function upload(name, lines) {
   check(w.location.hash.startsWith('#ablage/') || w.location.hash.startsWith('#docs/'), '... the address stays a document address ' + w.location.hash);
   // a real failure of a folder load still says its message (a folder id that does not exist)
   w.location.hash = '#ablage/99999999';
-  check(await until(() => w.__toasts.length > toasts.length || /not found|denied|No access|error/i.test(d.querySelector('#view')?.textContent || '')), '... a folder that does not exist still says its message');
+  // 2.1176.0 (#6109): it says so once, in the view (the shared no-access block), no toast beside it
+  check(await until(() => /does not exist or you cannot see it/.test(d.querySelector('#view .enoacc')?.textContent || '')), '... a folder that does not exist still says its message');
+  check(w.__toasts.length === toasts.length, '... and no toast beside it ' + JSON.stringify(w.__toasts.slice(toasts.length)));
   w.close();
 
   // ================= #5389 (Firefox): the head of the document view

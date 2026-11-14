@@ -49,15 +49,15 @@ async function ab_load() {
   const r = S.route, key = ab_key(r), seq = ++AB.seq;
   AB.key = key; AB.loading = true;
   if (r.aus) {  // 2.429.0 (#3580): a collection "From <area>" (read-only, grouped by its object)
-    try { const j = await api('GET', `/api/files/collections/${encodeURIComponent(r.aus)}?space=${encodeURIComponent(ab_curSpace())}`); if (seq !== AB.seq) return; AB.data = {...j, items: [], coll: true}; AB.dkey = key; AB.err = ''; }
-    catch (x) { if (seq !== AB.seq) return; AB.data = null; AB.dkey = ''; AB.err = x.message || tr('unknown'); }
+    try { const j = await rawFetch('GET', `/api/files/collections/${encodeURIComponent(r.aus)}?space=${encodeURIComponent(ab_curSpace())}`); if (seq !== AB.seq) return; AB.data = {...j, items: [], coll: true}; AB.dkey = key; AB.err = ''; }
+    catch (x) { if (seq !== AB.seq) return; AB.data = null; AB.dkey = ''; ab_errSet(x, tr('The files could not be loaded')); }  // 2.1176.0 (#6109): said once, in the view (rawFetch: no toast)
     AB.loading = false; ab_draw(); return;
   }
   const dq = typeof abd_cardsOn === 'function' && abd_cardsOn(key) ? '&docs=1' : '';  // 2.353.0 D (#2759): the cards need the documents' fields
   try {
     // 2.780.0 (#5391): a node address may be a file (#ablage/<file id>): its folder query says 409 "Not a folder" -- rawFetch says nothing,
-    // the way below opens the file; any other failure of a folder load is toasted in the catch as api() did
-    const j = await (r.nid ? rawFetch('GET', `/api/files?parent=${r.nid}` + dq) : api('GET', `/api/files?space=${encodeURIComponent(ab_curSpace())}` + dq));
+    // the way below opens the file; 2.1176.0 (#6109): any other failure of a folder load is said once, in the view (errorState), no toast
+    const j = await rawFetch('GET', r.nid ? `/api/files?parent=${r.nid}` + dq : `/api/files?space=${encodeURIComponent(ab_curSpace())}` + dq);
     if (typeof fsl_prep !== 'function' && typeof loadModule === 'function') await loadModule('fslock').catch(() => {});  // 2.353.0 A (#2758)
     if (typeof fsl_prep === 'function') await fsl_prep(j);  // 2.353.0 A (#2758): names of a locked folder decrypted here
     if (seq !== AB.seq) return;
@@ -66,20 +66,25 @@ async function ab_load() {
   } catch (x) {
     if (seq !== AB.seq) return;
     if (r.nid) {  // a file: open its folder and the file's details
-      try { const n = await api('GET', `/api/files/nodes/${r.nid}`);
+      try { const n = await rawFetch('GET', `/api/files/nodes/${r.nid}`);  // 2.1176.0 (#6109): rawFetch - a folder that is not there is said once, in the view
         // 2.752.0 (#4887): #ablage/<id> of a file = its document view (core.js AB_FILEIDS: the route of the module docs); a locked /
         // encrypted file and the trash keep the way before (its folder with the file's details)
         if (n.kind === 'file' && !n.in_trash && !n.locked && !n._enc && !upLocked(n) && feat('docs') && !S.me?.kid && S.route.nid === n.id) { AB_FILEIDS.add(n.id); AB.loading = false; route(); return; }
         if (n.kind !== 'folder') { AB.loading = false; go(n.parent_id ? 'ablage/' + n.parent_id : ab_home(ab_nodeSp(n))); setTimeout(() => ab_details(n.id), 50); return; } } catch { /* below */ }
     }
-    if (r.nid && x.message !== 'auth' && !(x instanceof Offline) && !x.shown) toast(x.message || tr('unknown'));  // 2.780.0 (#5391): what api() would have said
-    AB.data = null; AB.dkey = ''; AB.err = x.message || tr('unknown');
+    AB.data = null; AB.dkey = ''; ab_errSet(x, r.nid ? tr('The folder could not be loaded') : tr('The files could not be loaded'));  // 2.1176.0 (#6109): no toast beside it
   }
   AB.loading = false;
   ab_draw();
   if (typeof sbb_sync === 'function') sbb_sync('ablage');  // 2.152.3 B (#2621): the path in the panel
   if (typeof fsl_auto === 'function') fsl_auto(AB.data);  // 2.353.0 A (#2758): an owner hands over waiting keys
 }
+// 2.1176.0 (#6109): a failed load in the shared blocks (render.js errorState / noAccessState, core.js errText) like the wiki
+// (#6088): what failed first, the server's text in brackets, "Try again"; a folder that is gone or not shared = the lock block
+function ab_errSet(x, what) { AB.err = errText(x, what); AB.errSt = x?.status || 0; }
+const ab_retry = () => { AB.err = ''; AB.key = ''; ab_draw(); };  // viewAblage shows "Loading…" and loads again
+const ab_errHtml = () => [403, 404].includes(AB.errSt) && S.route.nid ? noAccessState({title: tr('This folder does not exist or you cannot see it.'), sub: tr('It may have been deleted, or it is no longer shared with you.'),
+  action: `<div class="eacts"><button type="button" class="btn" data-ab="space" data-sp="private">${ic('back', 's')} ${esc(tr('Back to the files'))}</button></div>`}) : errorState({title: AB.err, retry: ab_retry});
 function ab_draw() { if (S.route.mod !== 'ablage') return; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('ablage', viewAblage()))); }
 const ab_reload = () => { AB.key = ''; ab_ptStale(); if (S.route.mod === 'ablage') { ab_load(); if (typeof dc_inFold === 'function' && dc_inFold()) dc_load(); } };  // 2.752.0 (#4887): + a folder's documents  // 2.152.3 B (#2621): + the panel's folders
 // 2.979.0 (#5667): after an undo / redo the server took back by its group (the step's own undo with ab_reload / ab_verAfter no
@@ -116,14 +121,15 @@ function viewAblage() {
   // 2.752.0 (#4887): a folder with recognition shows the documents' view (abdocs.js abd_foldHtml: their bar, the documents' cards,
   // its subfolders before them); every other folder its list as before
   const fold = !!(r.nid && d?.node && typeof abd_recogHere === 'function' && abd_recogHere(key) && typeof abd_foldHtml === 'function');
-  const crumbs = r.nid && d ? `<nav class="abcrumbs" aria-label="${esc(tr('Path'))}">${ab_all() ? spo_upHtml('ablage') : '' /* 2.540.0 (#4575) */}<button type="button" class="linkbtn" data-ab="space" data-sp="${esc(sp === 'shared' || !sp ? 'shared' : sp)}" data-abdrop="top">${esc(ab_spaceName(sp || 'shared'))}</button>${(d.crumbs || []).map((c, i, a) => `<span class="abcsep" aria-hidden="true">/</span>${i === a.length - 1 ? `<span class="abccur" aria-current="page">${esc(c.name)}</span>` : `<button type="button" class="linkbtn" data-go="ablage/${c.id}" data-abdrop="${c.id}">${esc(c.name)}</button>`}`).join('')}</nav>` : ab_all() ? spo_crumbHtml('ablage', ab_spaceName(sp)) : `<h3 class="abtitle">${esc(ab_spaceName(sp))}</h3>`;  // 2.540.0 (#4575): under "All" the path back to the overview
+  const ttl = r.nid && !d ? ab_ptItem(r.nid)?.name || tr('Files') : ab_spaceName(sp);  // 2.1176.0 (#6109): a folder not loaded (yet) = its name or "Files", never "Organisation"
+  const crumbs = r.nid && d ? `<nav class="abcrumbs" aria-label="${esc(tr('Path'))}">${ab_all() ? spo_upHtml('ablage') : '' /* 2.540.0 (#4575) */}<button type="button" class="linkbtn" data-ab="space" data-sp="${esc(sp === 'shared' || !sp ? 'shared' : sp)}" data-abdrop="top">${esc(ab_spaceName(sp || 'shared'))}</button>${(d.crumbs || []).map((c, i, a) => `<span class="abcsep" aria-hidden="true">/</span>${i === a.length - 1 ? `<span class="abccur" aria-current="page">${esc(c.name)}</span>` : `<button type="button" class="linkbtn" data-go="ablage/${c.id}" data-abdrop="${c.id}">${esc(c.name)}</button>`}`).join('')}</nav>` : ab_all() ? spo_crumbHtml('ablage', ttl) : `<h3 class="abtitle">${esc(ttl)}</h3>`;  // 2.540.0 (#4575): under "All" the path back to the overview
   const tools = trash ? ab_trashTools(d) : fold ? ab_foldTools(d, canAdd) : `<div class="abtools">${canAdd ? `<button type="button" class="btn sm" data-ab="new-folder">${ic('folder', 's')} ${tr('New folder')}</button><button type="button" class="btn sm pri" data-ab="upload">${ic('upload', 's')} ${tr('Upload')}</button>${d?.node?.locked ? '' : `<button type="button" class="btn sm" data-ab="scan">${ic('camera', 's')} ${tr('Scan')}</button>`}<input type="file" id="ab-file" multiple hidden>` : ''}${typeof dt_abOn === 'function' && dt_abOn(sp || d?.space) ? '' : ab_selTools(d)}${typeof dt_abBtn === 'function' ? dt_abBtn(sp || d?.space) : ''}${!trash && d && typeof abd_toolsHtml === 'function' ? abd_toolsHtml(d, key) : ''}${r.nid && d?.node?.share_with ? `<button type="button" class="btn sm abshbtn" data-ab="share" data-id="${d.node.id}" title="${esc(tr('Share…'))}">${ic('users', 's')} ${tr('Share')}</button>` : '' /* 2.558.0 (#4693) */}${r.nid && d?.node ? `<button type="button" class="iconbtn" data-ab="menu" data-id="${d.node.id}" aria-label="${esc(tr('More actions for {0}', d.node.name))}" title="${esc(tr('More'))}">${ic('dots')}</button>` : ''}</div>`;
   // 2.428.0 A (#3581): where "Select" is offered the rows' boxes show on hover too (ab_selBox), not in the trash / tag filter / search
   AB.selHere = !!d?.items?.length && !fold &&  /* 2.589.0 (#4875): the trash too */ !(typeof dt_abOn === 'function' && dt_abOn(sp || d.space)) && !(typeof ftxtActive === 'function' && ftxtActive());
   let body;
   if (r.aus) return `<div class="abview ${desk ? 'abdesk' : ''}">${desk ? '' : spaces}<div class="abmain">${ab_collHtml(d, sp)}</div></div>`;  // 2.429.0 (#3580)
-  if (AB.err && AB.key === key) body = `<div class="empty">${ic('folder')}<span>${esc(AB.err)}</span><button type="button" class="btn" data-ab="space" data-sp="private">${tr('Private|workspace')}</button></div>`;
-  else if (!d) body = `<p class="muted lempty">${tr('Loading…')}</p>`;
+  if (AB.err && AB.key === key) body = ab_errHtml();  // 2.1176.0 (#6109)
+  else if (!d) body = loadingHtml('big');
   else if (!d.items.length && !d.collections?.length) body = `<div class="empty abempty">${ic(trash ? 'trash' : 'folder')}<span>${trash ? tr('The trash is empty') : sp === 'shared' && !r.nid ? tr('Nothing is shared with you yet') : canAdd ? tr('Drop files here or use “Upload”') : tr('This folder is empty')}</span>${/*html-ok*/ trash ? '' : hlp_linkHtml('files')/* 2.1086.0 (#5820): How it works */}${!r.nid && sp.startsWith('org:') && !ab_orgAdmin(sp) ? `<span class="muted abemptyhint">${tr('You see the organisation’s folders once an admin opens them to everyone or shares them with you.')}</span>` : ''}</div>`;
   else body = `<div class="ablist${AB.selOn ? ' abselon' : ''}" role="list">${d.items.map(n => ab_rowHtml(n, trash)).join('')}${(d.collections || []).map(ab_collRow).join('')}</div>`;  // 2.429.0 (#3580): + "From <area>" after the folders and files
   if (d?.items.length && !trash && typeof abd_cardsOn === 'function' && abd_cardsOn(key)) body = abd_cardsHtml(d, key);  // 2.353.0 D (#2759): the folder as cards
@@ -167,7 +173,7 @@ async function ab_ptLoad(key) {
   const e = AB.pt[key] || (AB.pt[key] = {}); if (e.busy) return;
   e.busy = true;
   try { const j = await rawFetch('GET', key.startsWith('n:') ? `/api/files?parent=${+key.slice(2)}` : `/api/files?space=${encodeURIComponent(key.slice(2))}`); if (typeof fsl_prep === 'function') await fsl_prep(j); e.items = (j.items || []).filter(n => n.kind === 'folder'); e.coll = j.collections || []; e.err = ''; }  // 2.429.0 (#3580): + the collections
-  catch (x) { e.items = e.items || []; e.err = x.message; }
+  catch (x) { e.items = e.items || []; e.err = x.message; e.ex = x; }  // 2.1176.0 (#6109): ex for errText (offline says so)
   finally { e.busy = false; e.stale = false; }
   if (typeof sbb_sync === 'function') sbb_sync('ablage');
 }
@@ -197,7 +203,8 @@ function ab_panelHtml() {
   const docRows = () => `<div class="abfilt" role="group" aria-label="${esc(tr('Documents'))}">${sbb_row('ablage/docs', 'file', tr('All documents'), r.mod === 'docs' && !r.review && !r.dv && !r.id, 'data-sbbpart="docs"')}${sbb_row('ablage/review', 'check', tr('To review'), r.mod === 'docs' && !!r.review, 'data-sbbpart="docs-review"', rv)}${typeof dcv_sideHtml === 'function' ? dcv_sideHtml() : (typeof loadModule === 'function' && ab_docsOn() ? (loadModule('docviews').catch(() => {}), '') : '')}</div>${typeof dfc_sideHtml === 'function' ? dfc_sideHtml() : ''}`;  // 2.772.0 (#4890): the filters with numbers (docfacets.js, loaded with docviews)
   const files = dOn => {
     const one = real.length === 1, top = one ? ab_ptGet('s:' + real[0]) : [];
-    const tree = one ? (top ? sbb_treeHtml(withColl(real[0], top), 1) : `<p class="muted sbbtl" style="--sbbl:1">${esc(tr('Loading…'))}</p>`) : sbb_treeHtml(real.map(spaceNode), 1);
+    const pe = one && AB.pt['s:' + real[0]]?.err && !top?.length;  // 2.1176.0 (#6109): the folders failed: said with "Try again", not an empty tree
+    const tree = pe ? errorState({title: errText(AB.pt['s:' + real[0]].ex || AB.pt['s:' + real[0]].err, tr('The folders could not be loaded')), sub: '', size: 'row', cls: 'abpterr', retry: () => { AB.pt['s:' + real[0]].err = ''; ab_ptStale(); }}) : one ? (top ? sbb_treeHtml(withColl(real[0], top), 1) : `<p class="muted sbbtl" style="--sbbl:1">${esc(tr('Loading…'))}</p>`) : sbb_treeHtml(real.map(spaceNode), 1);
     const rest = sbb_treeHtml(ab_spaces().filter(s => !real.includes(s)).map(spaceNode));  // 2.932.0 (#5603): "Shared with me" and the trash on the left edge of Files / All documents (level 0), not stepped in like a sub folder; below the filter groups it starts with a group's gap, so it does not read as a value of the last group
     // 2.768.0 (#4888): "+" at the head of the tree = a new folder at the top of the space it shows (one space: that one; several: the one open)
     const addSp = one ? real[0] : (real.includes(ab_curSpace()) ? ab_curSpace() : real[0] || '');
@@ -244,8 +251,8 @@ const ab_collRow = x => `<div class="abrow abcoll" role="listitem" data-abcoll="
 function ab_collHtml(d, sp) {
   const rcPart = d && d.key !== 'receipts' && AB_RCX.includes(d.key);  // 2.1148.0 (#4895): a part of Receipts: Space / Receipts / Office
   const crumbs = `<nav class="abcrumbs" aria-label="${esc(tr('Path'))}">${ab_all() ? spo_upHtml('ablage') : '' /* 2.540.0 (#4575) */}<button type="button" class="linkbtn" data-ab="space" data-sp="${esc(sp)}">${esc(ab_spaceName(sp))}</button><span class="abcsep" aria-hidden="true">/</span>${rcPart ? `<button type="button" class="linkbtn" data-go="ablage/aus-receipts">${esc(tr('Receipts'))}</button><span class="abcsep" aria-hidden="true">/</span>` : ''}<span class="abccur" aria-current="page">${esc(d?.name || '')}</span></nav>`;
-  if (AB.err && !d) return crumbs + `<div class="empty">${ic('folder')}<span>${esc(AB.err)}</span><button type="button" class="btn" data-ab="space" data-sp="${esc(sp)}">${esc(ab_spaceName(sp))}</button></div>`;
-  if (!d) return `<p class="muted lempty">${tr('Loading…')}</p>`;
+  if (AB.err && !d) return crumbs + errorState({title: AB.err, retry: ab_retry});  // 2.1176.0 (#6109)
+  if (!d) return crumbs + loadingHtml('big');
   const note = `<p class="muted abhint abcollnote">${esc(d.key === 'wiki' ? tr('Files of knowledge pages, read-only. Delete them on the page itself.') : d.key === 'lists' ? tr('Files of projects, read-only. Delete them in the project itself.') : d.key === 'sheets' ? tr('Files of tables, read-only. Delete them in the table itself.') : tr('Files of this area, read-only.'))}</p>`;
   if (AB_RCX.includes(d.key)) return crumbs + ab_rcxHtml(d, sp);  // 2.1148.0 (#4895)
   if (!d.groups?.length) return crumbs + note + `<div class="empty abempty">${ic('folder')}<span>${tr('This folder is empty')}</span></div>`;
