@@ -164,7 +164,7 @@ function fv2_tileHtml(t, page) {
   return `<button type="button" class="fv2-tile ${t.on ? 'on' : ''}" data-fv2="${esc(t.key)}" ${t.attrs} title="${esc(fv2_hint(t))}" aria-label="${esc(fv2_hint(t))}"${t.on ? ' aria-current="page"' : ''}${m.c || (!page && t.dk?.c) ? ` style="--fvc:${esc(m.c || t.dk.c)}"` : ''}${drag}>${m.i ? ic(m.i) : t.icon}${!page && t.dk?.b ? `<span class="fv2-bdg" aria-hidden="true">${esc(t.dk.b)}</span>` : ''}${dot}${page ? `<span class="fv2-pn">${esc(t.name)}</span>${t.place ? `<span class="fv2-pp">${esc(t.place)}</span>` : ''}` : ''}</button>`;
 }
 // the row: a computer in the head bar (left empty by sbb_barHtml), else above the tab bar (#favup, a phone: swipe up on the
-// tab bar or tap the grip, fvd_* below); neither while the page is pinned
+// tab bar, fvd_* below; 2.1183.0 #6178: no grip any more); neither while the page is pinned
 // 2.552.0 (#4618): takes back #4014 -- the phone's sidebar shows no section "Favourites" (fv2_sideHtml), only this row or the tab
 // 2.572.0 (#4747): the phone's row moved from under the header (#favrow, ~120 px of every page) to a row over the tab bar
 const fv2_pagePinned = () => { try { return isMobile() && tabIds().includes('favs'); } catch { return false; } };
@@ -567,12 +567,13 @@ document.addEventListener('click', e => {
 }, true);
 
 // ---- 2.572.0 (#4747): a phone's favourites over the tab bar. The row under the header is gone; a swipe up that starts ON the
-// tab bar (not at the screen's edge: the system's own gestures live there) or a tap on the small grip over it slides the row
-// in above the bar (#favup, the same tiles as the head bar, swiped sideways when they are many). A tile, a swipe down, a tap
-// next to it or Escape closes it. No grip and no row while the tab "Favourites" is pinned (fv2_pagePinned), while a field has
-// the focus (the keyboard is up: nothing sticks over it) or the tab bar itself is away. Motion: start-favswipe-4747.css (an_up
-// in, an_down out via an_watch; "reduce motion" switches both off).
-const FVD = {n: 0, g: null, sw: 0, mvd: 0, /** @type {any} */ mv: null};  // mv / mvd: the grip being moved / when it was let go (#6082)
+// tab bar (not at the screen's edge: the system's own gestures live there) slides the row in above the bar (#favup, the same
+// tiles as the head bar, swiped sideways when they are many). A tile, a swipe down, a tap next to it or Escape closes it. No
+// row while the tab "Favourites" is pinned (fv2_pagePinned), while a field has the focus (the keyboard is up: nothing sticks
+// over it) or the tab bar itself is away. Motion: start-favswipe-4747.css (an_up in, an_down out via an_watch; "reduce motion"
+// switches both off). 2.1183.0 (#6178): the small grip with the star over the tab bar (#favgrip, #5965,
+// movable since #6082) is gone, and with it its place on this device (localStorage tasks.favgripX); the swipe stays.
+const FVD = {n: 0, g: null, sw: 0};
 const FVD_SW = 28;  // px a finger must travel up (and mostly straight) before the row opens: a tap on a tab moves far less
 const fvd_isOpen = () => { const r = $('#favup'); return !!r && !r.classList.contains('hidden'); };
 function fvd_can() {
@@ -582,64 +583,24 @@ function fvd_can() {
 // n = the number of tiles in the row (fv2_barDraw), undefined = only check again (focus, keyboard)
 function fvd_sync(n) {
   if (n !== undefined) FVD.n = n;
-  const g = $('#favgrip'); if (!g) return;
-  const can = fvd_can();
-  if (!can && fvd_isOpen()) fvd_set(false);
-  g.classList.toggle('hidden', !can);
-  if (can && g.title !== tr('Favourites')) { g.title = tr('Favourites'); g.setAttribute('aria-label', tr('Favourites')); }
-  if (can && !g.firstElementChild) g.innerHTML = ic('star', 's');  // 2.1108.0 (#5965): the tab shows what it opens
+  if (!fvd_can() && fvd_isOpen()) fvd_set(false);
 }
+// the focus a closing row hands back: the tab bar's current tab (2.1183.0 #6178: was the grip)
+const fvd_backFocus = () => { const t = $('#tabs button.on') || $('#tabs button'); if (t) t.focus({preventScroll: true}); };
 function fvd_set(on) {
-  const r = $('#favup'), g = $('#favgrip'); if (!r || !g || (on && !fvd_can()) || on === fvd_isOpen()) return;
+  const r = $('#favup'); if (!r || (on && !fvd_can()) || on === fvd_isOpen()) return;
   r.classList.toggle('hidden', !on);
-  g.setAttribute('aria-expanded', String(on));
   document.body.classList.toggle('favup-open', on);
   if (on) { const t = $('.fv2-tile.on', r); if (t) r.scrollLeft = Math.max(0, t.offsetLeft - (r.clientWidth - t.offsetWidth) / 2); }
-  else if (r.contains(document.activeElement)) g.focus({preventScroll: true});
+  else if (r.contains(document.activeElement)) fvd_backFocus();
 }
-// 2.1150.0 (#6082): the grip moves sideways along the bar's top edge: hold it (~400 ms, a short buzz), then slide the finger;
-// a tap (open / close) and a swipe up stay as they were (a move before the hold ends is the swipe). The place is this device's
-// (localStorage tasks.favgripX, a share of the width 0-1, so turning the phone and other widths fit; never the account's),
-// no value = the middle. The CSS keeps the grip off the edges (left: clamp(... var(--favgrip-x) ...), start-favswipe-4747.css);
-// Settings > Reset settings takes it back (setreset.js RS_LOCAL).
-const FVD_HOLD = 400, FVD_HOLD_MOVE = 8;  // ms to hold before the grip moves; px a finger may wander during the hold
-const fvd_gripX = () => { const v = LS.get('favgripX', null); return typeof v === 'number' && v >= 0 && v <= 1 ? v : null; };
-function fvd_gripPlace(/** @type {number | null} */ f) {
-  const g = $('#favgrip'); if (!g) return;
-  if (f == null) g.style.removeProperty('--favgrip-x'); else g.style.setProperty('--favgrip-x', (Math.round(f * 10000) / 100) + '%');
-}
-function fvd_gripEnd(/** @type {boolean} */ keep) {
-  const m = FVD.mv; FVD.mv = null; if (!m || !m.on) return;  // a hold not ended yet: its timer finds FVD.mv changed and does nothing
-  $('#favgrip')?.classList.remove('moving');
-  FVD.sw = FVD.mvd = Date.now();  // the click that follows the finger's lift is no tap on the grip
-  if (keep && m.f != null) LS.set('favgripX', m.f); else fvd_gripPlace(fvd_gripX());
-}
-// the swipe: on the tab bar, the grip and the row; up opens, down closes; a click on a tab right after a swipe is no tap on it
+// the swipe: on the tab bar and the row; up opens, down closes; a click on a tab right after a swipe is no tap on it
 function fvd_touchStart(e) {
   const p = e.touches?.[0];
   FVD.g = p && e.touches.length === 1 ? {x: p.clientX, y: p.clientY, done: false} : null;
-  if (FVD.mv) fvd_gripEnd(false);
-  if (FVD.g && e.currentTarget?.id === 'favgrip' && !fvd_isOpen()) {
-    const m = FVD.mv = {x: p.clientX, y: p.clientY, on: false, f: /** @type {number | null} */ (null)};
-    setTimeout(() => {
-      if (FVD.mv !== m) return;
-      m.on = true; if (FVD.g) FVD.g.done = true;  // no swipe any more: the finger moves the grip
-      $('#favgrip')?.classList.add('moving');
-      if (navigator.vibrate) navigator.vibrate(12);
-    }, FVD_HOLD);
-  }
 }
 function fvd_touchMove(e) {
-  const m = FVD.mv, p = e.touches?.[0];
-  if (m && p) {
-    if (m.on) {
-      const w = window.innerWidth || 1; m.f = Math.min(1, Math.max(0, p.clientX / w)); fvd_gripPlace(m.f);
-      if (e.cancelable) e.preventDefault();
-      return;
-    }
-    if (Math.hypot(p.clientX - m.x, p.clientY - m.y) > FVD_HOLD_MOVE) fvd_gripEnd(false);  // moved before the hold ended: a swipe
-  }
-  const g = FVD.g; if (!g || g.done || !p) return;
+  const p = e.touches?.[0], g = FVD.g; if (!g || g.done || !p) return;
   const dx = p.clientX - g.x, dy = p.clientY - g.y;
   if (Math.abs(dy) < FVD_SW || Math.abs(dy) < 1.5 * Math.abs(dx)) return;
   const open = fvd_isOpen();
@@ -648,31 +609,29 @@ function fvd_touchMove(e) {
   if (e.cancelable) e.preventDefault();
 }
 domReady(() => {
-  for (const el of [$('#tabs'), $('#favgrip'), $('#favup')]) {
+  for (const el of [$('#tabs'), $('#favup')]) {
     if (!el) continue;
     el.addEventListener('touchstart', fvd_touchStart, {passive: true});
     el.addEventListener('touchmove', fvd_touchMove, {passive: false});
-    el.addEventListener('touchend', () => { FVD.g = null; fvd_gripEnd(true); }, {passive: true});
-    el.addEventListener('touchcancel', () => { FVD.g = null; fvd_gripEnd(false); }, {passive: true});
+    el.addEventListener('touchend', () => { FVD.g = null; }, {passive: true});
+    el.addEventListener('touchcancel', () => { FVD.g = null; }, {passive: true});
   }
-  fvd_gripPlace(fvd_gripX());  // 2.1150.0 (#6082): this device's place of the grip
-  $('#favgrip')?.addEventListener('contextmenu', e => e.preventDefault());  // the hold moves the grip, no system menu
+  try { localStorage.removeItem('tasks.favgripX'); } catch { /* storage off */ }  // 2.1183.0 (#6178): the gone grip's place
   if (typeof an_watch === 'function') an_watch($('#favup'), 'hidden');
 });
-// the grip toggles; a tile opens its target and closes the row; any other tap closes it (on window, before the app's handlers)
+// a tile opens its target and closes the row; any other tap closes it (on window, before the app's handlers)
 window.addEventListener('click', e => {
   const t = e.target; if (Date.now() - FV2.held < 600) return;  // the click after a long press (the tile's menu) is none
   if (Date.now() - FVD.sw < 350 && t.closest?.('#tabs')) { e.preventDefault(); e.stopPropagation(); return; }
-  if (t.closest?.('#favgrip')) { e.preventDefault(); e.stopPropagation(); if (Date.now() - FVD.mvd < 350) FVD.mvd = 0; else fvd_set(!fvd_isOpen()); return; }  // #6082: only the one click after the lift
   if (!fvd_isOpen()) return;
   if (!t.closest?.('#favup') || t.closest('#favup .fv2-tile')) fvd_set(false);
 }, true);
-document.addEventListener('pointerdown', e => { if (fvd_isOpen() && !e.target.closest?.('#favup, #favgrip, #tabs, #pop')) fvd_set(false); }, true);
+document.addEventListener('pointerdown', e => { if (fvd_isOpen() && !e.target.closest?.('#favup, #tabs, #pop')) fvd_set(false); }, true);
 domReady(() => kb_on('first', 'Escape', () => {  // 2.655.0 (#4998): key registry (keys.js), before every field and area
   if (!fvd_isOpen() || !$('#pop')?.classList.contains('hidden')) return false;
-  fvd_set(false); $('#favgrip')?.focus({preventScroll: true});
+  fvd_set(false); fvd_backFocus();
 }));
-// a field takes or leaves the focus (the keyboard comes or goes), the phone turns: the grip follows
+// a field takes or leaves the focus (the keyboard comes or goes), the phone turns: an open row closes when it may not stay
 document.addEventListener('focusin', () => fvd_sync(), true);
 document.addEventListener('focusout', () => setTimeout(() => fvd_sync(), 0), true);
 window.addEventListener('resize', () => requestAnimationFrame(() => fvd_sync()));

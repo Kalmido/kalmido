@@ -188,10 +188,11 @@ const items = async ck => JSON.parse((await call(ck, 'GET', '/api/state')).setti
     await signIn(o, 'frida', '#today');
     // 2.552.0 (#4618): takes back #4014 -- no section "Favourites" in the phone's sidebar (no heading, no entries); the row under the header
     const NOSIDE = `!document.querySelector('#side .sg-favs .sgh, #side .fv2side, #side .fv2-row')`;
-    // 2.572.0 (#4747): no row under the header any more: the grip over the tab bar, the row slides in above the bar
-    check(await ready(ev, `document.querySelectorAll('#favup .fv2-tile').length === 4 && !document.querySelector('#favrow') && !document.querySelector('#favgrip').classList.contains('hidden')`), 'phone: no row under the header, the grip over the tab bar, four tiles');
-    await ev(`(() => { document.querySelector('#favgrip').click(); return 1; })()`);
-    check(await ready(ev, `!document.querySelector('#favup').classList.contains('hidden') && document.querySelector('#favup').getBoundingClientRect().height > 0`), 'phone: the grip opens the row');
+    // 2.572.0 (#4747): no row under the header any more: the row slides in above the tab bar
+    // 2.1183.0 (#6178): no grip any more; the row opens as a swipe up on the tab bar does (fvd_set, p2572_b_favswipe_ui swipes)
+    check(await ready(ev, `document.querySelectorAll('#favup .fv2-tile').length === 4 && !document.querySelector('#favrow') && !document.querySelector('#favgrip')`), 'phone: no row under the header, no grip, four tiles');
+    await ev(`(() => { fvd_set(true); return 1; })()`);
+    check(await ready(ev, `!document.querySelector('#favup').classList.contains('hidden') && document.querySelector('#favup').getBoundingClientRect().height > 0`), 'phone: the row opens over the tab bar');
     // 2.635.0 (#5005): the row slides in (an_up, translate 0 100% -> 0): measured mid-slide on a slow runner it still overlaps
     // the tab bar ({"over":false} in CI v2.629.0) - measure once it stands (as p2572_b_favswipe_ui does)
     await ready(ev, `!document.querySelector('#favup').getAnimations().some(a => a.playState === 'running')`, 20);
@@ -213,13 +214,13 @@ const items = async ck => JSON.parse((await call(ck, 'GET', '/api/state')).setti
     check(await ready(ev, `document.querySelector('#favup').classList.contains('hidden')`), '2.572.0 (#4747): the tile closed the row');
     // turning: wide = the row in the head bar, #favup empty; narrow again = the row over the tab bar
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1024, height: 760}});
-    check(await ready(ev, `document.querySelectorAll('#kbar .fv2bar .fv2-tile').length === 4 && !document.querySelector('#favup .fv2-tile') && document.querySelector('#favgrip').classList.contains('hidden')`), 'wide: the row in the head bar, #favup empty, no grip');
+    check(await ready(ev, `document.querySelectorAll('#kbar .fv2bar .fv2-tile').length === 4 && !document.querySelector('#favup .fv2-tile')`), 'wide: the row in the head bar, #favup empty');
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 760}});
     check(await ready(ev, `document.querySelectorAll('#favup .fv2-tile').length === 4 && !document.querySelector('#kbar .fv2bar .fv2-tile')`), 'narrow again: the row over the tab bar is back');
     check(await ev(`topMoreItems().some(x => /favourites/.test(x.label || ''))`), 'phone: the star of a page is in "…"');
     await ev(`(() => { nav_pref('tabbar').order.push('favs'); S.settings.nav_menus = S.settings.nav_menus || '{}'; LS.set('tabbar', [...tabIds(), 'favs']); render(); go('favorites'); return 1; })()`);
     check(await ready(ev, `S.route.key === 'favorites' && document.querySelectorAll('#view .fv2-page .fv2-tile').length === 4`), 'phone: the page lists them');
-    check(await ready(ev, `!document.querySelector('#favup .fv2-tile') && document.querySelector('#favgrip').classList.contains('hidden')`), '2.552.0 (#4618): tab pinned = no row over the page (2.572.0 #4747: and no grip)');
+    check(await ready(ev, `!document.querySelector('#favup .fv2-tile')`), '2.552.0 (#4618): tab pinned = no row over the page');
     check(/Image film|Quotation/.test(await ev(`document.querySelector('#view .fv2-page').textContent`)), 'phone: names on the page');
     await shot('p2441-page.png');
   }, true);
