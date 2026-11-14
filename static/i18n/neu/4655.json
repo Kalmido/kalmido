@@ -5,7 +5,8 @@
     "Tags|wiki": "Schlagwörter",
     "Locked|wiki": "Verschlüsselt (im Browser)",
     "Import pages": "Seiten importieren",
-    "The share applies to this page.": "Der Zugriff gilt für diese Seite."
+    "The share applies to this page.": "Der Zugriff gilt für diese Seite.",
+    "Filter: {0} active": "Filter: {0} aktiv"
   },
   "es": {
     "Lock editing (this device)": "Bloquear la edición (este dispositivo)",
@@ -13,7 +14,8 @@
     "Tags|wiki": "Etiquetas",
     "Locked|wiki": "Cifrado (en el navegador)",
     "Import pages": "Importar páginas",
-    "The share applies to this page.": "El uso compartido se aplica a esta página."
+    "The share applies to this page.": "El uso compartido se aplica a esta página.",
+    "Filter: {0} active": "Filtros activos: {0}"
   },
   "fr": {
     "Lock editing (this device)": "Bloquer la modification (cet appareil)",
@@ -21,7 +23,8 @@
     "Tags|wiki": "Étiquettes",
     "Locked|wiki": "Chiffré (dans le navigateur)",
     "Import pages": "Importer des pages",
-    "The share applies to this page.": "Le partage s’applique à cette page."
+    "The share applies to this page.": "Le partage s’applique à cette page.",
+    "Filter: {0} active": "Filtres actifs : {0}"
   },
   "it": {
     "Lock editing (this device)": "Blocca la modifica (questo dispositivo)",
@@ -29,7 +32,8 @@
     "Tags|wiki": "Tag",
     "Locked|wiki": "Cifrato (nel browser)",
     "Import pages": "Importa pagine",
-    "The share applies to this page.": "La condivisione vale per questa pagina."
+    "The share applies to this page.": "La condivisione vale per questa pagina.",
+    "Filter: {0} active": "Filtri attivi: {0}"
   },
   "nl": {
     "Lock editing (this device)": "Bewerken vergrendelen (dit apparaat)",
@@ -37,6 +41,7 @@
     "Tags|wiki": "Tags",
     "Locked|wiki": "Versleuteld (in de browser)",
     "Import pages": "Pagina’s importeren",
-    "The share applies to this page.": "Het delen geldt voor deze pagina."
+    "The share applies to this page.": "Het delen geldt voor deze pagina.",
+    "Filter: {0} active": "Filter: {0} actief"
   }
 }
