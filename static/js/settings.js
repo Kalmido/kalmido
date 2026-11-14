@@ -8,11 +8,12 @@ function wpState(md, j = md._wp) {
   const ch = $('#s-pushch', md)?.value || j.channel, n = j.subs.length;
   // 2.499.0 (#4215): on Web Push the public ntfy.sh gets no fallback, the message stays in the app
   const noFb = j.ntfy_public && ch !== 'both';
-  el.textContent = ch === 'ntfy' ? tr('Everything goes to ntfy.')
-    : !n ? (j.ntfy && !noFb ? tr('No device subscribed for push yet. Until then, notifications go to your ntfy topic.') : tr('No device subscribed for push yet. Switch on “Notify on this device” below.'))
-    : ch === 'both' ? trn('Web Push to {0} device and ntfy.', 'Web Push to {0} devices and ntfy.', n)
-    : noFb ? trn('Web Push to {0} device.', 'Web Push to {0} devices.', n)
-    : trn('Web Push to {0} device. ntfy only if no device accepts a push.', 'Web Push to {0} devices. ntfy only if no device accepts a push.', n);
+  // 2.1180.0 (#6130): everyday words - Browser notification (Web Push) and Notification app (ntfy); the technical words stay under "For advanced users"
+  el.textContent = ch === 'ntfy' ? tr('Everything goes to the notification app.')
+    : !n ? (j.ntfy && !noFb ? tr('No device switched on yet. Until then, notifications go to the notification app.') : tr('No device subscribed for push yet. Switch on “Notify on this device” below.'))
+    : ch === 'both' ? trn('Browser notification on {0} device and the notification app.', 'Browser notification on {0} devices and the notification app.', n)
+    : noFb ? trn('Browser notification on {0} device.', 'Browser notification on {0} devices.', n)
+    : trn('Browser notification on {0} device. The notification app only if no device accepts it.', 'Browser notification on {0} devices. The notification app only if no device accepts it.', n);
   el.classList.remove('warn');  // 2.5.2 (K04): a neutral hint, not a red warning
 }
 async function wpDraw(md) {
@@ -27,9 +28,9 @@ async function wpDraw(md) {
   const top = !!$('#s-pushnow', md);
   if (shellIOS()) h += top ? '' : hintK(tr('Notifications are not available in the iPhone app yet.'));  // 2.435.0 B (#3578)
   else if (isIOS() && !isStandalone()) h += hintK(tr('Add Kalmido to your Home Screen to get notifications on iPhone: Share > Add to Home Screen (iOS 16.4 or newer), then open it from there and switch it on here.'));
-  else if (!wpSupported()) h += top ? '' : hintK(tr('This browser does not support Web Push'));
+  else if (!wpSupported()) h += top ? '' : hintK(tr('This browser cannot show notifications'));  // 2.1180.0 (#6130)
   else {
-    h += `<div class="row"><label>${tr('Web Push')}</label><label class="chkl"><input type="checkbox" id="s-wpdev" ${mine ? 'checked' : ''}> ${tr('Notify on this device')}</label>${mine && !top ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test to this device')}</button>` : ''}</div>`;  // 2.555.0 C (#4664): the device test once
+    h += `<div class="row"><label>${tr('Browser notification')}</label><label class="chkl"><input type="checkbox" id="s-wpdev" ${mine ? 'checked' : ''}> ${tr('Notify on this device')}</label>${mine && !top ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test to this device')}</button>` : ''}</div>`;  // 2.555.0 C (#4664): the device test once
     if (Notification.permission === 'denied') h += hintK(tr('Notifications are blocked for this site. Allow them in the browser or system settings.'));
     else if (!mine) h += hint(tr('Your browser asks for permission once. Pushes arrive even when Kalmido is closed.'));
   }
@@ -43,7 +44,7 @@ async function wpDraw(md) {
   if (now) {
     const can = wpSupported() && !shellIOS() && !(isIOS() && !isStandalone()) && Notification.permission !== 'denied';
     now.className = 'pushnow ' + (mine ? 'on' : 'off');
-    now.innerHTML = `${ic(mine ? 'bellring' : 'belloff', 's')}<span><b>${mine ? tr('This device gets notifications') : tr('This device gets no notifications')}</b>${mine ? '' : `<small>${esc(shellIOS() ? tr('Notifications are not available in the iPhone app yet.') : !wpSupported() ? tr('This browser does not support Web Push') : isIOS() && !isStandalone() ? tr('Add Kalmido to the Home Screen first') : Notification.permission === 'denied' ? tr('Blocked in the browser or system settings') : j.subs.length ? trn('{0} other device does', '{0} other devices do', j.subs.length) : tr('No device is switched on yet'))}</small>`}</span>`
+    now.innerHTML = `${ic(mine ? 'bellring' : 'belloff', 's')}<span><b>${mine ? tr('This device gets notifications') : tr('This device gets no notifications')}</b>${mine ? '' : `<small>${esc(shellIOS() ? tr('Notifications are not available in the iPhone app yet.') : !wpSupported() ? tr('This browser cannot show notifications') : isIOS() && !isStandalone() ? tr('Add Kalmido to the Home Screen first') : Notification.permission === 'denied' ? tr('Blocked in the browser or system settings') : j.subs.length ? trn('{0} other device does', '{0} other devices do', j.subs.length) : tr('No device is switched on yet'))}</small>`}</span>`
       + (mine ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test')}</button>` : can ? `<button class="btn sm pri" data-m="wp-on">${tr('Switch on')}</button>` : '');
   }
 }
@@ -929,7 +930,7 @@ function settingsModal(focus) {
       ${typeof wt_setHtml === 'function' ? wt_setHtml(s, hint) : ''}`,
     modules: modulesHtml(hint),
     notify: `${S.webpush?.enabled ? `<div class="pushnow" id="s-pushnow" role="status" aria-live="polite"></div>` : ''}${S.webpush?.enabled ? `<h4>${tr('Delivery')}</h4>
-      <div class="row"><label for="s-pushch">${tr('Channel|push')}</label><select id="s-pushch">${[['webpush', N_('Web Push')], ['ntfy', 'ntfy'], ['both', N_('Both')]].map(([v, n]) => `<option value="${v}" ${(s.push_channel || 'webpush') === v ? 'selected' : ''}>${v === 'ntfy' ? n : tr(n)}</option>`).join('')}</select><button class="btn sm" data-m="ptest">${ic('bell', 's')} ${tr('Test all channels')}</button></div>
+      <div class="row"><label for="s-pushch">${tr('Channel|push')}</label><select id="s-pushch">${[['webpush', N_('Browser notification')], ['ntfy', N_('Notification app')], ['both', N_('Both')]].map(([v, n]) => `<option value="${v}" ${(s.push_channel || 'webpush') === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${''/* 2.1180.0 (#6130): everyday words */}<button class="btn sm" data-m="ptest">${ic('bell', 's')} ${tr('Test all channels')}</button></div>
       ${prio}
       <div class="shint wpstate" id="s-wpstate"></div>
       ${hint(tr('No extra app needed. Switch it on below on every device that should ring.'))}
@@ -938,10 +939,11 @@ function settingsModal(focus) {
       <h4>${tr('In the app')}</h4>
       <div class="row">${/*html-ok*/ chk('s-msgpop', LS.get('msgPop', '1') !== '0', tr('Pop-up for new messages'))}</div>
       ${/*html-ok*/ hint(tr('A new message from a person or a finished answer of an agent shows briefly at the top edge, wherever you are in Kalmido. Only on this device; while the app is open, this device gets no extra push for it.'))}
-      <div id="s-ntfy"><h4>${S.webpush?.enabled ? 'ntfy' : tr('Notifications (ntfy)')}</h4>
-      <div class="row"><label>${tr('Topic')}</label><code class="topic">${esc(s.ntfy_topic)}</code>${S.webpush?.enabled ? '' : `<button class="btn sm" data-m="test">${ic('bell', 's')} ${tr('Send test')}</button>`}</div>${''/* 2.555.0 C (#4664): with Web Push "Test all channels" above covers ntfy */}
+      <div id="s-ntfy"><h4>${tr('Notification app')}</h4>${''/* 2.1180.0 (#6130): no "ntfy" / "Topic" in the heading and the label */}
+      <div class="row"><label>${tr('Channel name')}</label><code class="topic">${esc(s.ntfy_topic)}</code>${S.webpush?.enabled ? '' : `<button class="btn sm" data-m="test">${ic('bell', 's')} ${tr('Send test')}</button>`}</div>${''/* 2.555.0 C (#4664): with Web Push "Test all channels" above covers ntfy */}
       ${S.webpush?.enabled ? '' : prio}
-      ${hint(`${tr('Subscribe in the ntfy app: server {0}, topic as above', esc(S.ntfyUrl))}. <a href="${esc(topicUrl)}" target="_blank" rel="noopener">${tr('Web view')}</a>`)}</div>
+      ${/*html-ok*/ hint(tr('Install the free app “ntfy” on your phone and subscribe there to the channel name above.'))}
+      <details class="acadv"><summary>${tr('For advanced users')}</summary>${hint(`${tr('Subscribe in the ntfy app: server {0}, topic as above', esc(S.ntfyUrl))}. <a href="${esc(topicUrl)}" target="_blank" rel="noopener">${tr('Web view')}</a>`)}</details></div>
       <div id="s-chn"></div>${''/* 2.142.0 A (#2145, #2146): channels + e-mail for single events (integrations.js chn_meDraw) */}
       ${notifMatrixHtml(s, hint)}${bl9SetHtml(s, hint)}${typeof tbl_setHtml === 'function' ? tbl_setHtml(chk, hint) : ''}
       ${typeof trd_setHtml === 'function' ? trd_setHtml(s, chk, hint) : ''}${typeof kbd_setHtml === 'function' ? kbd_setHtml(s, chk, hint) : ''}

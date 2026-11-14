@@ -21,12 +21,13 @@ const msvHtml = () => `<h4 id="s-msv-h">${tr('Servers')}</h4>
   <div class="members" id="s-msv"><div class="muted mhint">${tr('Loading…')}</div></div>
   <div class="row msvbtns"><button class="btn sm pri" data-msva="add">${ic('plus', 's')} ${tr('Add server')}</button><button class="btn sm" data-msva="code">${ic('key', 's')} ${tr('Create a connection code for another server')}</button></div>`;
 async function msvDraw(md) {
-  // the section stands in Settings > Account above "Advanced · for developers"
+  // the section stands in Settings > Account; 2.1180.0 (#6130): in the group "Devices and data" (its slot), else above "For advanced users"
   let box = $('#s-msv', md);
   if (!box) {
-    const anchor = $('#s-account-h', md)?.parentElement?.querySelector(':scope > details.sdev'); if (!anchor) return;
+    const slot = $('#a-msv-slot', md), anchor = slot || $('#s-account-h', md)?.parentElement?.querySelector(':scope > details.sdev'); if (!anchor) return;
     const sec = document.createElement('div'); sec.className = 'msvsec'; sec.innerHTML = msvHtml();
-    anchor.before(sec); box = $('#s-msv', md);
+    if (slot) slot.append(sec); else anchor.before(sec);
+    box = $('#s-msv', md);
   }
   msvWire(md);
   let j; try { j = await msvFetch(true); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
