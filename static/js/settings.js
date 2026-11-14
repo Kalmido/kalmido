@@ -982,8 +982,7 @@ function settingsModal(focus) {
       + intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()) + intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()) + intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // 2.365.2 B (#2789): integrations.js
       + intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
       + intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))
-      + intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html())
-      + acz_linkHtml(S.webhooks?.enabled),  // 2.166.0 (#2633): the webhooks moved to Access
+      + intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html()),  // 2.1178.0 (#6129): the link to Access stands once, under the cards at the top (integrCardsHtml)
     access: acz_html(),  // 2.166.0 (#2633): API tokens, webhooks and agent tokens in one place
     data: `<h4 id="s-imp-h">${tr('Import')}</h4>
       ${hint(tr('You see a preview first; an import can be undone for 24 hours. Nothing inside the file is fetched from the internet.'))}${nwls_impLinkHtml()}
