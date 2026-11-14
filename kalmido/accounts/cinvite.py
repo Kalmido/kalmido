@@ -32,7 +32,7 @@ from flask import g, jsonify
 from ..core.config import app, EMAIL_RE, MIN_PASSWORD, PUBLIC_URL
 from ..core.i18n import LANGS, N_, tr
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gsetting, iso, now_utc, parse_iso, uset, write_lock
-from ..core.access import Denied, collab_all
+from ..core.access import Denied, collab_all, live_sql
 from ..core.pg import insert_id, system_ctx
 from ..core.schema import USER_DEFAULTS
 from ..api.common import hit_limit
@@ -216,7 +216,7 @@ def cinv_check():
     r, inv = hit
     own = bool(me_) and me_["id"] == inv["id"]
     # an explicit connection (what "Find people" lists under Connections), not only seeing each other through a workspace
-    connected = bool(me_) and not own and bool(c.execute("SELECT 1 FROM conn_links WHERE a_id=? AND b_id=? AND deleted_at IS NULL",
+    connected = bool(me_) and not own and bool(c.execute(f"SELECT 1 FROM conn_links WHERE a_id=? AND b_id=? AND {live_sql()}",
                                                          _pair(me_["id"], inv["id"])).fetchone())
     return jsonify(name=_name(inv), signed_in=bool(me_), own=own, connected=connected, may=bool(me_) and _opener_ok(me_) and not own,
                    mail=_mail_on(), min_password=MIN_PASSWORD)
