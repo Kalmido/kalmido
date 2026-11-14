@@ -112,7 +112,10 @@ if not _OC_CLI and env_bool("TASKS_WATCHDOG", True) and WRK_ROLE != "web":  # 2.
         if _n:
             print("files:", _n, "folder entries of deleted objects removed", flush=True)
     except Exception as e:  # noqa: BLE001 - a clean-up, never a reason not to start
-        _c.rollback()
+        try:
+            _c.rollback()
+        except Exception:  # noqa: BLE001 - review 2.1179.0: a lost connection must not stop the start either
+            pass
         print("files: folder entry clean-up:", type(e).__name__, flush=True)
     try:
         onc_long_report(_c)  # saved number schemes onc_parse no longer reads -> log + admin alert (nothing is changed)

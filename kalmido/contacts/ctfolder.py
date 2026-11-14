@@ -145,7 +145,7 @@ fs_ref_register(CTF_BOOK, table=("books", "id"),  # 2.1179.0 C (#2898)
                 label=N_("Address book"), open_url=lambda bid: f"contacts/b/{int(bid)}", base_role=_book_base,
                 space=lambda c, bid: _book_space(c, _book(c, bid)), hidden=_hidden(CTF_BOOK), title=_book_title,
                 content=_book_content, content_gate=_gate, cap=_cap)
-fs_ref_register(CTF_CONTACT, table=("contacts", "id"),  # 2.1179.0 C (#2898)
+fs_ref_register(CTF_CONTACT,  # 2.1179.0 (#2898, review): no table= - a merge deletes the row but its undo brings it back under the same id, fs_ref_sweep must not drop the node meanwhile
                 label=N_("Contact"), open_url=lambda cid: f"contacts/{int(cid)}", base_role=_contact_base,
                 space=_contact_space, hidden=_hidden(CTF_CONTACT), title=_contact_title, content=_contact_content,
                 content_gate=_gate, cap=_cap)

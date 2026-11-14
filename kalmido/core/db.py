@@ -1575,11 +1575,11 @@ def init_db(guard=True):
         except Exception:  # noqa: BLE001 - a lost connection rolls back by itself
             if not guard:
                 raise
-        if guard and not isinstance(e, DataDirError):  # a start check of its own (RLS) already printed its FATAL line; 2.1179.0 C (#2898): one transaction, so nothing changed: a plain message + exit 3 like the other start checks (was a traceback, the container restarted in a loop)
+        if guard:  # 2.1179.0 C (#2898): one transaction, so nothing changed: a plain message + exit 3 like the other start checks (was a traceback, the container restarted in a loop)
             why = " ".join(str(e).split())[:300]
             print(f"FATAL: updating the database to version {APP_VERSION} failed after step {clk.last} ({type(e).__name__}: {why}). "
-                  "Nothing was changed, the database is as it was before this start. Start the previous version again, or remove "
-                  "the cause and start again; a backup is only needed if the previous version does not start either.", flush=True)
+                  "Nothing was changed, the database is as it was before this start. A passing cause (lock, lost connection) clears with "
+                  "the next start; otherwise start the previous version again, or remove the cause and start again; a backup is only needed if the previous version does not start either.", flush=True)
             raise DataDirError(3) from None
         raise
     finally:
