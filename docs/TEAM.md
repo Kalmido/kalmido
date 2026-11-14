@@ -1388,7 +1388,7 @@ the replies to that one message and its people get notified.
 
 What happens then: whoever opens the link creates an account with their name and e-mail address and is connected with
 you at once; you get a notification. The link works once and for 14 days and is shown only right after you made it;
-**Take back** ends an open link at once. Someone who already has an account opens it signed in and confirms the connection.
+**Withdraw** ends an open link at once. Someone who already has an account opens it signed in and confirms the connection.
 An admin of the server can switch these links off (Settings > Server > Sign-in).
 
 ## How to: Share a folder with people

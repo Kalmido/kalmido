@@ -231,7 +231,7 @@ heeft bovendien een eigen chat.
 Wat er dan gebeurt: vastgezette berichten blijven in de balk boven de berichten (hoogstens vijf per gesprek); een thread
 toont de antwoorden op dat ene bericht en de betrokkenen krijgen een melding.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0c996e57a9 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
 ## Iemand zonder account uitnodigen via een link
 
 1. Kies onder Instellingen > Account **Persoon zoeken …**.

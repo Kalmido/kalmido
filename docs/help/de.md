@@ -254,7 +254,7 @@ Projekt, das du teilst, hat außerdem einen eigenen Chat.
 Was dann passiert: Angeheftete Nachrichten bleiben in der Leiste über den Nachrichten (höchstens fünf je Gespräch); ein
 Thread zeigt die Antworten auf diese eine Nachricht, und seine Beteiligten werden benachrichtigt.
 
-<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0c996e57a9 -->
+<!-- help: team#how-to-invite-someone-without-an-account-by-a-link src=0b47d08909 -->
 ## Jemanden ohne Konto per Link einladen
 
 1. Wähle unter Einstellungen > Konto **Person finden…**.
