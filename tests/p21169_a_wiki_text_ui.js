@@ -59,9 +59,12 @@ if (!process.env.P21169A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
     const ph = await ev(`tr('Write … (/ for commands)')`);
     check(ph === 'Write … (/ for commands)' && !/\[\[/.test(ph), 'the editor\'s hint has no link syntax ' + ph);
     await shot('p21169a-editor-1280.png');
-    await ev(`(() => { WKCM.view.dispatch({selection: {anchor: 5}}); WKCM.view.focus(); return 1; })()`);  // the cursor in the front matter
+    // a click on the fields (wkcm_wDown) puts the cursor there; headless Firefox gives the page no real focus, so the editor's
+    // focus mark (WKCM_FOC, set by its focus event) is set by hand after the click
+    await ev(`(() => { const dt = document.querySelector('#wk-cm .cm-wkfmw dt'); dt.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true, button: 0})); WKCM.view.dispatch({effects: WKCM_FOC.of(true)}); return WKCM.view.state.selection.main.head; })()`);
     check(await until(`!document.querySelector('#wk-cm .cm-wkfmw') && [...document.querySelectorAll('#wk-cm .cm-line')].some(l => /^as_of: 2026-11-10/.test(l.textContent))`),
-      'the editor: the cursor in the fields shows the front matter to edit') || console.log('fm lines:', await ev(`JSON.stringify([...document.querySelectorAll('#wk-cm .cm-line')].slice(0, 6).map(l => l.textContent))`));
+      'the editor: a click on the fields shows the front matter to edit') || console.log('fm lines:', await ev(`JSON.stringify({lines: [...document.querySelectorAll('#wk-cm .cm-line')].slice(0, 6).map(l => l.textContent), doc: WKCM.view.state.doc.sliceString(0, 60), sel: WKCM.view.state.selection.main.head,
+        focus: WKCM.view.hasFocus, fld: WKCM_FIELD && WKCM.view.state.field(WKCM_FIELD, false)?.foc, same: document.querySelector('#wk-cm .cm-editor') === WKCM.view.dom, html: document.querySelector('#wk-cm .cm-content')?.innerHTML.slice(0, 500)})`));
     await ev(`(() => { const v = WKCM.view; v.dispatch({selection: {anchor: v.state.doc.length}}); return 1; })()`);
     check(await until(`!!document.querySelector('#wk-cm .cm-wkfmw .wkattrs')`), 'the editor: the cursor out of it folds the fields again');
 
