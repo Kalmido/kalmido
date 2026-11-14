@@ -27,7 +27,7 @@ const labelOf = (root, id) => txt(root.querySelector(`label[for="${id}"]`));
 
   let w = await boot({user: 'alice'}), d = w.document;
   w.eval(`settingsModal('look')`);
-  let md = await until(() => d.querySelector('.smodal [data-pane="look"] #s-sdd'));
+  let md = await until(() => d.querySelector('.smodal [data-pane="look"] #s-sdd') && d.querySelector('.smodal'));
   check(!!md, 'Appearance opens');
   const look = md.querySelector('[data-pane="look"]');
   // Completed tasks: one section, both switches, nothing else between the heading and the next heading
@@ -75,7 +75,7 @@ const labelOf = (root, id) => txt(root.querySelector(`label[for="${id}"]`));
   await fetch(B + 'api/settings', {method: 'PATCH', headers: {...H, Cookie: FK}, body: JSON.stringify({lang: 'de', tour: 'done'})});
   w = await boot({user: 'frida'}); d = w.document;
   w.eval(`settingsModal('look')`);
-  md = await until(() => d.querySelector('.smodal [data-pane="look"] [data-m="go-nav"]'));
+  md = await until(() => d.querySelector('.smodal [data-pane="look"] [data-m="go-nav"]') && d.querySelector('.smodal'));
   check(!!md, 'frida: Appearance links to Navigation');
   w.close();
 
