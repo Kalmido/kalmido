@@ -284,7 +284,8 @@ function viewProjOv() {
   const l = routeList(), d = S.povD[l.id];
   if (!d || (!d.busy && d.v !== S.v)) setTimeout(() => povLoad(l.id), 0);
   const head = `${listHead(l, {noPill: true})}`;  // 2.13.0 (#453 P1): "Set status" only once (in the status section)
-  if (!d?.j) return `<div class="pov">${head}<div class="muted mhint">${d?.err ? esc(errText(d.err, tr('The overview could not be loaded'))) : tr('Loading…')}</div></div>`;  // 2.910.0 (#5444)
+  // 2.910.0 (#5444); 2.1176.0 (#6139): the shared blocks (an error with "Try again", loading of the same height)
+  if (!d?.j) return `<div class="pov">${head}${/*html-ok*/ d?.err ? errorState({title: tr('The overview could not be loaded'), sub: d.err === 'offline' ? tr('Only available online.') : undefined, retry: () => povLoad(l.id, true)}) : loadingHtml('big')}</div>`;
   const j = d.j, can = !!j.can_edit && !l.archived, t0 = today();
   // description (2.538.0 #4372: none in a project with the lock -- not encrypted, the server refuses it)
   const ed = S.povEdit === l.id, povLong = !ed && mdIsLong(j.description);  // 2.331.0 A (#3310): a long description folds like a task's
