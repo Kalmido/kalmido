@@ -54,8 +54,8 @@ execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'}
     check(await until(`!document.querySelector('#view').classList.contains('lsdnar')`), '1280: the content area holds list and card (no lsdnar) ' + await ev(`document.querySelector('#view').clientWidth`));
     { const l = await ev(`(() => { const l = ${R('#view .ctlistw')}; return l ? {...l, rem: ${REM}} : null; })()`);
       check(l && l.w > 15 * l.rem + 2, '1280: the list is wider than the old 15rem ' + JSON.stringify(l)); }
-    check(await ev(`(() => { const b = document.querySelector('#view .ctrow[data-ctopen="${C.sw}"] .ctn b'); return !!b && b.textContent === ${JSON.stringify(LONG)} && b.scrollWidth <= b.clientWidth + 1; })()`),
-      '1280: the long company name is not cut ' + await ev(`(() => { const b = document.querySelector('#view .ctrow[data-ctopen="${C.sw}"] .ctn b'); return b ? [b.scrollWidth, b.clientWidth] : null; })()`));
+    const nm = `(() => { const b = document.querySelector('#view .ctrow[data-ctopen="${C.sw}"] .ctn b'); return b ? {t: b.textContent, sw: b.scrollWidth, cw: b.clientWidth, sh: b.scrollHeight, ch: b.clientHeight} : null; })()`;
+    { const n = await ev(nm); check(n && n.t === LONG && n.sw <= n.cw + 1 && n.sh <= n.ch + 1, '1280: the long company name is not cut (it may take a second line) ' + JSON.stringify(n)); }
     check(await ev(`!!document.querySelector('#view .ctlistw > .ct18') && !document.querySelector('#view .ctview > .ct18')`), '1280: the office hint stands in the list column (first visit)');
     check(/Contacts/.test(await ev(`document.querySelector('#top h1')?.textContent || ''`)) && !/Address book/.test(await ev(`document.querySelector('#top')?.textContent || ''`)), '1280: the page is called Contacts ' + await ev(`document.querySelector('#top h1')?.textContent`));
     await shot('p21168c-1280-list.png');
@@ -124,7 +124,7 @@ execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'}
     const bar = await ev(`(() => { const t = s => { const e = document.querySelector(s); return e && e.getClientRects().length ? Math.round(e.getBoundingClientRect().top) : null; };
       return {q: t('#ct-q'), filt: t('#view .ctfbtn'), nw: t('#view [data-ct="new"]'), more: t('#view [data-ct="menu"]'), group: t('#ct-group'), book: t('#ct-book'), pick: t('#view [data-ct="pick"]'), first: t('#view .ctrow[data-ctopen]')}; })()`);
     check(bar.q !== null && [bar.filt, bar.nw, bar.more].every(x => x !== null && Math.abs(x - bar.q) <= 8), '360: search, Filter, New and More in one row ' + JSON.stringify(bar));
-    check(bar.group === null && bar.book === null && bar.pick === null, '360: group, address book and Select are not in the bar ' + JSON.stringify(bar));
+    check(bar.group == null && bar.book == null && bar.pick == null, '360: group, address book and Select are not in the bar ' + JSON.stringify(bar));
     check(bar.first !== null && bar.first < 260, '360: the first contact is high up (was at 400) ' + JSON.stringify(bar));
     check(await ev(`!!document.querySelector('#view .ctlistw > .ct18') && !document.querySelector('#view .ctview > .ct18')`), '360: the office hint in the list column');
     await shot('p21168c-360-list.png');
