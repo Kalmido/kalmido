@@ -18581,7 +18581,7 @@
   "Only people can accept an invitation": "Seules des personnes peuvent accepter une invitation",
   "You are already connected with {0}.": "Tu es déjà connecté avec {0}.",
   "Connect with {0}?": "Se connecter avec {0} ?",
-  "{0} invited you. Connected, you can share lists and write to each other.": "{0} t'a invité. Connectés, vous pouvez partager des listes et vous écrire.",
+  "{0} invited you. Connected, you can share lists and write to each other.": "{0} t'a invité. Une fois connecté, tu peux partager des listes avec {0} et lui écrire.",
   "{0} accepted your invitation and is connected with you now": "{0} a accepté ton invitation et est maintenant connecté avec toi",
   "For someone without an account (link or QR code)": "Pour quelqu'un sans compte (lien ou code QR)",
   "Inviting people without an account is switched off on this server": "Inviter des personnes sans compte est désactivé sur ce serveur",
