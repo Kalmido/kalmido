@@ -39,6 +39,7 @@ one-per-task migration fragments in `kalmido/core/migrations.d/`, and every `sta
 People and organisations: sign-in, sessions, workspaces, roles, invitations, per-person settings and layouts.
 
 - `kalmido/accounts/bgjobs.py` (`bgj`) - The short background work a request starts (mails right after an action, "Back up now", the organisation keys' passes after a move)
+- `kalmido/accounts/cinvite.py` (`cinv`) - Invitation links: a person invites someone without an account by a link or QR code
 - `kalmido/accounts/colors.py` (`ac`) - A fixed colour per account (agents and people)
 - `kalmido/accounts/colwidths.py` - The column widths of the lists, per person on every device (setting col_widths)
 - `kalmido/accounts/discover.py` (`disc`) - Finding people by e-mail like in a messenger
@@ -897,6 +898,7 @@ The start-up module.
 - `static/js/chatwin.js` - A chat in its own small browser window
 - `static/js/chatwins.js` (`cw`) - Several chats at once in the chat side panel, one above the other
 - `static/js/choicecard.js` (`cc`) - (agentchat.js) and in task comments (collab.js)
+- `static/js/cinvite.js` (`cnv`) - Invitation links for people without an account (the dialog, the page /#cinv/<token>)
 - `static/js/cleanup.js` (`cln`) - "Tidy up the list"
 - `static/js/clienterr.js` (`cer`) - The browser's own errors to the server
 - `static/js/clientpage.js` (`ms`) - Office > Clients in the layout of the contacts
