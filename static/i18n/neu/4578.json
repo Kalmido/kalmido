@@ -9,7 +9,9 @@
     "Upload it in the documents of the office, then match it here.": "In den Dokumenten des Büros hochladen, dann hier zuordnen.",
     "1-{0} select · Enter takes over · arrows back and forth": "1-{0} wählen · Enter übernimmt · Pfeile zurück und weiter",
     "Enter takes over · arrows back and forth": "Enter übernimmt · Pfeile zurück und weiter",
-    "Arrows back and forth": "Pfeile zurück und weiter"
+    "Arrows back and forth": "Pfeile zurück und weiter",
+    "Crew|mail group": "Drehpersonal",
+    "Please select a contact": "Bitte einen Kontakt wählen"
   },
   "es": {
     "Your browser or device did not allow this. Allow it and try again.": "Tu navegador o dispositivo no lo ha permitido. Permítelo e inténtalo de nuevo.",
@@ -21,7 +23,9 @@
     "Upload it in the documents of the office, then match it here.": "Súbelo en los documentos de la oficina y asígnalo aquí.",
     "1-{0} select · Enter takes over · arrows back and forth": "1-{0} elegir · Intro asigna · flechas adelante y atrás",
     "Enter takes over · arrows back and forth": "Intro asigna · flechas adelante y atrás",
-    "Arrows back and forth": "Flechas adelante y atrás"
+    "Arrows back and forth": "Flechas adelante y atrás",
+    "Crew|mail group": "Equipo de rodaje",
+    "Please select a contact": "Elige un contacto"
   },
   "fr": {
     "Your browser or device did not allow this. Allow it and try again.": "Ton navigateur ou appareil ne l’a pas autorisé. Autorise-le et réessaie.",
@@ -33,7 +37,9 @@
     "Upload it in the documents of the office, then match it here.": "Téléversez-le dans les documents du bureau, puis associez-le ici.",
     "1-{0} select · Enter takes over · arrows back and forth": "1-{0} choisir · Entrée reprend · flèches avant et arrière",
     "Enter takes over · arrows back and forth": "Entrée reprend · flèches avant et arrière",
-    "Arrows back and forth": "Flèches avant et arrière"
+    "Arrows back and forth": "Flèches avant et arrière",
+    "Crew|mail group": "Équipe de tournage",
+    "Please select a contact": "Choisis un contact"
   },
   "it": {
     "Your browser or device did not allow this. Allow it and try again.": "Il browser o il dispositivo non lo ha consentito. Consentilo e riprova.",
@@ -45,7 +51,9 @@
     "Upload it in the documents of the office, then match it here.": "Caricala nei documenti dell'ufficio, poi abbinala qui.",
     "1-{0} select · Enter takes over · arrows back and forth": "1-{0} scegli · Invio applica · frecce avanti e indietro",
     "Enter takes over · arrows back and forth": "Invio applica · frecce avanti e indietro",
-    "Arrows back and forth": "Frecce avanti e indietro"
+    "Arrows back and forth": "Frecce avanti e indietro",
+    "Crew|mail group": "Troupe di ripresa",
+    "Please select a contact": "Scegli un contatto"
   },
   "nl": {
     "Your browser or device did not allow this. Allow it and try again.": "Je browser of apparaat heeft dit niet toegestaan. Sta het toe en probeer het opnieuw.",
@@ -57,6 +65,8 @@
     "Upload it in the documents of the office, then match it here.": "Upload hem bij de documenten van het kantoor en koppel hem dan hier.",
     "1-{0} select · Enter takes over · arrows back and forth": "1-{0} kiezen · Enter neemt over · pijlen terug en verder",
     "Enter takes over · arrows back and forth": "Enter neemt over · pijlen terug en verder",
-    "Arrows back and forth": "Pijlen terug en verder"
+    "Arrows back and forth": "Pijlen terug en verder",
+    "Crew|mail group": "Draaiploeg",
+    "Please select a contact": "Kies een contact"
   }
 }
