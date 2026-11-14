@@ -18639,6 +18639,7 @@
   "New": "Nieuw",
   "You can only read here": "Hier kun je alleen lezen",
   "No documents yet": "Nog geen documenten",
+  "The card does not show projects without a status": "De kaart toont geen projecten zonder status",
   "No preview for this kind of file": "Geen voorbeeld voor dit soort bestand",
   "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen.",
   "Total of items|pdf": "Totaal posten",
