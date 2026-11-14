@@ -119,9 +119,13 @@ const spy = w => {
   md = await until(() => typeof w.saveDialog === 'function' && d.querySelector('.modal.ctmodal #ct-title') && d.querySelector('.modal.ctmodal'));
   check(md, 'the contact dialog opens');
   md.querySelector('#ct-title').value = 'Engineer';
+  // 2.1174.0 (#6120): the dialog only steps aside while it saves and comes back as it was (the same one, no new one): waited
+  // for on the said error (the toast) and the dialog shown again
+  const toasts = []; { const t0 = w.toast; w.toast = (...a) => { toasts.push(String(a[0])); return t0(...a); }; }
+  const back = () => until(() => { const m = d.querySelector('.modal.ctmodal'); return toasts.some(t => /Offline/.test(t)) && m && m.style.display !== 'none' && !m._saving && m; });
   w.__offline = true;
   click(w, md.querySelector('[data-ctm2="save"]'));
-  md = await until(() => { const m = d.querySelector('.modal.ctmodal'); return m && m !== md && m; });
+  md = await back();
   check(md && md.querySelector('#ct-title')?.value === 'Engineer', 'edit without a connection: the dialog comes back with the typed title ' + md?.querySelector('#ct-title')?.value);
   check(!md?.querySelector('.obj-merge'), 'and no merge bar (it was no conflict)');
   w.__offline = false;
@@ -132,9 +136,10 @@ const spy = w => {
   w.eval('ctEditor(null)');
   md = await until(() => d.querySelector('.modal.ctmodal #ct-given') && d.querySelector('.modal.ctmodal'));
   md.querySelector('#ct-given').value = 'Grace'; md.querySelector('#ct-family').value = 'Hopper';
+  toasts.length = 0;
   w.__offline = true;
   click(w, md.querySelector('[data-ctm2="save"]'));
-  const m2 = await until(() => { const m = d.querySelector('.modal.ctmodal'); return m && m !== md && m; });
+  const m2 = await back();
   check(m2 && m2.querySelector('#ct-given')?.value === 'Grace' && m2.querySelector('#ct-family')?.value === 'Hopper', 'new without a connection: the dialog comes back with the typed name');
   w.__offline = false;
   w.close();

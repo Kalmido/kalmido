@@ -227,7 +227,8 @@ const ALL = 'cal,timeline,comments,collab,events,contacts';
   await until(() => d.querySelector('.modal.ctmodal'));
   md = d.querySelector('.modal.ctmodal');
   click(w, md.querySelector('[data-ctm2="save"]'));
-  check(/A name or a company/.test(d.querySelector('#toast').textContent) && d.querySelector('.modal.ctmodal'), 'no name: a hint, nothing saved');
+  // 2.1174.0 (#6120): the hint stands at the name field (was a toast)
+  check(/A name or a company/.test(md.querySelector('.cterr')?.textContent || '') && md.querySelector('#ct-given').getAttribute('aria-invalid') === 'true' && d.querySelector('.modal.ctmodal'), 'no name: a hint, nothing saved');
   md.querySelector('#ct-given').value = 'Max'; md.querySelector('#ct-family').value = 'Power';
   input(w, md.querySelector('[data-ctm="emails"] input[data-cf="value"]'), 'max@example.org');
   click(w, md.querySelector('[data-ctm2="save"]'));

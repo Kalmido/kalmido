@@ -91,7 +91,8 @@ const card = (i, fn, extra = '') => `BEGIN:VCARD\r\nVERSION:3.0\r\nUID:ui${i}\r\
     await click(ev, '#view [data-ct="menu"]');
     await ready(ev, `!document.querySelector('#pop').classList.contains('hidden')`);
     const mt = await popText(ev);
-    check(/Import a vCard file…/.test(mt) && /Import a CSV file…/.test(mt) && /Export Office \(vCard\)/.test(mt) && /Export Office \(CSV\)/.test(mt) && /Manage groups…/.test(mt), '#2080: the menu offers CSV import + export ' + mt);
+    // 2.1174.0 (#6123): one "Import…" (vCard, ZIP and CSV by the ending) and one "Export…" (the format on its second level), no line per book
+    check(/Import…/.test(mt) && /Export…/.test(mt) && !/Export Office/.test(mt) && /Manage groups…/.test(mt), '#2080: the menu offers import + export ' + mt);
     await ev(`(closePop(), 1)`);
     await ev(`(ctx_csvMap(${bk.id}, new File(['Vorname;Nachname;E-Mail-Adresse;Mobiltelefon;Lieblingsfarbe\\r\\nUla;Csvtest;ula@example.com;0170 111222;Blau\\r\\nKnown;Twin;known@example.com;;Rot\\r\\n'], 'ui.csv', {type: 'text/csv'})), 1)`);
     check(await ready(ev, `document.querySelectorAll('.modal .ctxmap select').length === 5`), '#2080: the mapping step with a field per column');

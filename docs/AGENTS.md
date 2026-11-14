@@ -1257,6 +1257,11 @@ Read first, send the version back:
 | Address books (2.657.0) | `PATCH /api/v1/address-books/{id}` (MCP `update_address_book`) | `expect_updated_at` or `If-Match` | `updated_at` of `list_address_books` |
 | Projects (2.657.0) | `PATCH /api/v1/lists/{id}` (MCP `update_list`, `set_list_columns`) | `expect_updated_at` or `If-Match` | `updated_at` of `list_lists` / `GET /api/v1/lists/{id}` |
 
+A contact's phone number written through the API (`POST` / `PATCH /api/v1/contacts`, MCP `create_contact`, `update_contact`)
+holds only digits, spaces, `+ - / ( )` and at least one digit, otherwise 400 "Invalid value: Phone" (2.1174.0, #6120; the
+app's editor checks the same); a website needs its scheme (`https://…`). Numbers already stored, CardDAV and imports stay as
+they are.
+
 Events and contacts carry `updated_by` (2.571.0): the account that changed them last - in the app, through the API (an
 agent's own id), over CalDAV / CardDAV or an import; `null` for rows nobody changed since then.
 
