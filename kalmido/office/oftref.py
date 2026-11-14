@@ -362,7 +362,7 @@ fs_ref_register(LT_KIND, table=("office_letters", "id"),  # 2.1179.0 C (#2898)
                 label=N_("Letter"), open_url=lambda rid: f"office/letters/{int(rid)}", base_role=_base(_lt, "letters"),
                 space=_space(_lt), protect=lt_protect, title=lt_title, content=lt_content, content_gate=_gate(_row_oid(_lt), "letters"),
                 hidden=_hidden(LT_KIND, "letters"), cap=_cap(_lt))
-fs_ref_register(RC_KIND, table=("rc_receipts", "node_id"),  # 2.1179.0 C (#2898)
+fs_ref_register(RC_KIND, table=("fs_nodes", "id"),  # 2.1179.0 C (#2898; review: the file, not rc_receipts - "no receipt" drops that row, marking again brings it back)
                 label=N_("Receipt"), open_url=lambda rid: f"docs/{int(rid)}", base_role=rc_base, space=rc_space,
                 protect=rc_protect, title=rc_title, content=rc_content, content_gate=_gate(_rc_row_oid, "receipts"),
                 hidden=_hidden(RC_KIND, "receipts"), cap=rc_cap)
