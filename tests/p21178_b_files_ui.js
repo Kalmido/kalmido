@@ -85,6 +85,17 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(await raw(VK, `/api/files/nodes/${SF2}/content?trash=1`) === 404, 'server: vera (reader) reads nothing of a deleted file');
   check(await raw(VK, `/api/files/nodes/${SF}/content?trash=1`) === 404, 'server: nor of the one rita deleted');
   check(await raw(VK, `/api/files/nodes/${SF2}/content`) === 404, 'server: without trash=1 a reader gets 404 as before');
+  // review (job/4569): rita deletes a folder after alice had deleted a file in it - that file stays closed to her
+  const SH2 = (await call(CA, 'POST', '/api/files/folders', {name: 'Vertraege', space: 'private'})).id;
+  const SG = await upload(CA, 'vertrag.txt', 'Vertrag nur fuer alice', {parent_id: String(SH2)});
+  const SR = await upload(CA, 'notiz.txt', 'Notiz', {parent_id: String(SH2)});
+  check((await call(CA, 'POST', `/api/files/nodes/${SH2}/shares`, {user_id: ID.rita, role: 'edit'})).http < 300, 'setup: Vertraege shared with rita to edit');
+  check((await call(CA, 'DELETE', `/api/files/nodes/${SG}`)).http < 300, 'setup: alice puts vertrag.txt into the trash');
+  check((await call(RK, 'DELETE', `/api/files/nodes/${SH2}`)).http < 300, 'setup: rita puts the folder Vertraege into the trash');
+  check(await raw(RK, `/api/files/nodes/${SG}/content?trash=1`) === 404, 'server: rita reads nothing of vertrag.txt alice deleted before she deleted the folder');
+  check(await raw(RK, `/api/files/nodes/${SG}`) === 404, 'server: nor its details');
+  check(await raw(RK, `/api/files/nodes/${SR}/content?trash=1`) === 200, 'server: notiz.txt, in the trash only through her folder, stays readable to her');
+  check(await raw(CA, `/api/files/nodes/${SG}/content?trash=1`) === 200, 'server: alice (owner) reads vertrag.txt');
 
   // ================= (2) a deleted file by its address: "In the trash" + Restore, no new version, no Share
   w = await boot({user: 'frida', hash: 'ablage/' + BRIEF, ls: {'tasks.abSpace': '"private"'}}); d = w.document;
