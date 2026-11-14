@@ -18566,5 +18566,15 @@
   "Receipts stay in their area. Open one to view, change or book it there.": "Bonnen blijven in hun eigen onderdeel. Open er een om hem daar te bekijken, te wijzigen of te boeken.",
   "New": "Nieuw",
   "You can only read here": "Hier kun je alleen lezen",
-  "No documents yet": "Nog geen documenten"
+  "No documents yet": "Nog geen documenten",
+  "Calculation|position": "Calculatie",
+  "Calculation: {0} changed": "Calculatie: {0} gewijzigd",
+  "discountable": "kortingsgeschikt",
+  "Show steps over API keys": "Stappen via API-sleutels tonen",
+  "Over an API key": "Via API-sleutel",
+  "{0} step over an API key hidden": ["{0} stap via API-sleutel verborgen", "{0} stappen via API-sleutels verborgen"],
+  "Stopped: a later step over an API key changed the same object: {0}": "Gestopt: een latere stap via API-sleutel wijzigde hetzelfde object: {0}",
+  "No tasks": "Geen taken",
+  "Kanban: tasks as cards in columns": "Kanban: taken als kaarten in kolommen",
+  "Mind map: tasks as branches of a map": "Mindmap: taken als takken van een kaart"
 }

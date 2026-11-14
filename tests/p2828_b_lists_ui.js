@@ -82,7 +82,7 @@ const DUMP = `(() => { const out = {}, seen = new Set();
     if (!b) return;
     const on = b.filter(x => x.on), off = b.filter(x => !x.on && x.shown);
     check(on.length === 1 && on[0].shown && on[0].icon && on[0].name === 'List', `${tag}: #5443 the active view with its symbol and name ` + JSON.stringify(on));
-    check(off.length >= 4 && off.every(x => x.icon && !x.name && x.label && x.title === x.label), `${tag}: #5443 the other views as symbols, their name as tooltip and aria-label ` + JSON.stringify(off));
+    check(off.length >= 4 && off.every(x => x.icon && !x.name && x.label && (x.title === x.label || x.title.startsWith(x.label + ':'))), `${tag}: #5443 the other views as symbols, their name as tooltip (Kanban / Mind map: name + explanation) and aria-label ` + JSON.stringify(off));
     if (tag !== 'desk') check(b.filter(x => x.shown).every(x => x.h >= 43.5), `${tag}: #5443 44 px high on a finger device ` + JSON.stringify(b.map(x => x.h)));
     // to another view and back: the board shows, then the rows again (a real click on the button)
     await ev(`(() => { (document.querySelector('#top .vseg.ttabs') || document.querySelector('#view .vsegm')).querySelector('[data-act="view-kanban"]').click(); return 1; })()`);

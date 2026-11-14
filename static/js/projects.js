@@ -35,7 +35,7 @@ function vsegHtml(l) {
   const v = curView(l), short = {overview: N_('Project|view')};  // 2.988.0 (#5651): "Call sheets" is short enough
   // 2.49.1 (#1201): four or five views (with the mind map) no longer fit side by side: "many" shows only the active one's name
   // 2.828.0 (#5443): on every width only the active one's name (the header's switch has the same form); each button names its view
-  return `<div class="vsegm${ch.length > 3 ? ' many' : ''}" role="group" aria-label="${esc(tr('View'))}">${ch.map(([k, n, i]) => `<button type="button" class="${v === k ? 'on' : ''}" data-act="view-${k}" aria-pressed="${v === k}" title="${esc(tr(n))}" aria-label="${esc(tr(n))}">${ic(i, 's')}<span>${esc(tr(short[k] || n))}</span></button>`).join('')}</div>`;
+  return `<div class="vsegm${ch.length > 3 ? ' many' : ''}" role="group" aria-label="${esc(tr('View'))}">${ch.map(([k, n, i]) => `<button type="button" class="${v === k ? 'on' : ''}" data-act="view-${k}" aria-pressed="${v === k}" title="${esc(viewTip(k, n))}" aria-label="${esc(tr(n))}">${ic(i, 's')}<span>${esc(tr(short[k] || n))}</span></button>`).join('')}</div>`;
 }
 function listHead(l, o = {}) {
   if (!l || l.is_inbox) return vsegHtml(l) + agBandHtml();
@@ -203,6 +203,8 @@ async function setListView(l, v) {  // List / Kanban / Timeline (stored on the s
   render();
 }
 // 2.13.0: in projects the overview comes first
+// 2.1175.0 (#6141): the switch names a view; "Board" and "Mind map" also say what they are (tooltip; the name stays the aria-label)
+const viewTip = (k, n) => k === 'kanban' ? tr('Kanban: tasks as cards in columns') : k === 'mindmap' ? tr('Mind map: tasks as branches of a map') : tr(n);
 const viewChoices = l => l.is_inbox ? [['list', N_('List'), 'list']] : [['overview', N_('Project page'), 'brief'], ['list', N_('List'), 'list'], ...(feat('kanban') ? [['kanban', N_('Kanban'), 'kanban']] : []), ...(feat('timeline') ? [['timeline', N_('Timeline'), 'timeline']] : []), ['mindmap', N_('Mind map'), 'mindmap'], ...(feat('cal') ? [['calendar', N_('Calendar'), 'cal']] : []),
   ...(pcsAvail(l) ? [['callsheets', N_('Call sheets'), 'file']] : [])];  // 2.49.0 (#1201); 2.156.0 C (#2071): + calendar; 2.988.0 (#5651): + call sheets (Film & Video)
 const curView = l => pcsOn(l) ? 'callsheets' : povOn(l) ? 'overview' : listView(l);

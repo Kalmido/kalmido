@@ -69,6 +69,9 @@ const FEAT = 'cal,comments,collab,office,clients';
     // phone width: the surplus stays inside its row
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await sleep(400);
+    // 2.1175.0 (#6146): purchase and surplus wait behind "Calculation" (closed): open it in every row first
+    await ev(`(() => { ${rows}.forEach(li => { const b = li.querySelector('[data-ofd="it-kalk"][aria-expanded="false"]'); if (b) b.click(); }); return 1; })()`);
+    await ready(ev, `${rows}.every(li => !li.querySelector('.ofdmargin') || !li.querySelector('.ofdmargin').closest('[hidden]'))`);
     check(await ev(`${rows}.every(li => { const m = li.querySelector('.ofdmargin'); if (!m) return true; const a = m.getBoundingClientRect(), b = li.getBoundingClientRect(); return a.width > 0 && a.right <= b.right + 1 && a.left >= b.left - 1; })`),
       '#1649: on a phone the surplus stays inside its row');
     await shot('p2470-d-phone.png');

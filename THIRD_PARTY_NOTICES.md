@@ -111,6 +111,15 @@ standard library. Each file contains the Go runtime and standard library, Copyri
 License. The full license text ships next to the downloads as `/app/folderwatch/LICENSE-Go.txt` (copied unchanged from
 the Go toolchain of the build) and is at [go.dev/LICENSE](https://go.dev/LICENSE).
 
+## purego (folder watcher menu bar symbol on the Mac, folderwatch/vendor, 2.1175.0)
+
+Since 2.1175.0 the Mac files of the folder watcher also contain purego (github.com/ebitengine/purego, version v0.11.3),
+Copyright 2022 The Ebitengine Authors, Apache License 2.0. It calls the Objective-C runtime of macOS without cgo and draws
+the symbol in the menu bar. The source lies unchanged in `folderwatch/vendor/github.com/ebitengine/purego` (with its
+`LICENSE`); the license text ships next to the downloads as `/app/folderwatch/LICENSE-purego.txt` and is at
+[apache.org/licenses/LICENSE-2.0](https://www.apache.org/licenses/LICENSE-2.0). The Windows and Linux files use
+only the Go standard library.
+
 ## CodeMirror 6 (the editor of knowledge pages, 2.554.0)
 
 Knowledge pages are edited with [CodeMirror 6](https://codemirror.net/) (Copyright Marijn Haverbeke and others, MIT

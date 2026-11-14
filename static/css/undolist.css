@@ -20,3 +20,6 @@
 .ulnote{margin:.375rem .5rem;font-size:var(--fs-s)}
 .ulerr,.ulempty{margin:.5rem;font-size:var(--fs-s)}
 @media (max-width:767px){ #pop.ulwin{width:auto} .ulpop .ulbody{max-height:60vh} }
+/* 2.1175.0 (#6165): the switch for the steps over an API key, the note how many are hidden */
+.ulhead .ulapi{display:inline-flex;align-items:center;gap:.375rem;margin-top:.375rem;font-size:var(--fs-s);cursor:pointer;min-height:2.75rem}
+.ulhid{margin:.5rem;font-size:var(--fs-xs)}

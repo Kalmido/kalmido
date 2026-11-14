@@ -86,9 +86,9 @@ fs.writeFileSync(path.join(DATA, 'packs', 'industry', 'example_share.json'), JSO
     await shot('p2113b-a-editor.png');
     // the markup switched on and renamed in the quotation
     await ev(`(() => { document.getElementById('ofd-markup_on').click(); return 1; })()`);
-    check(await ready(ev, `/Markup.*1\\.000,00\\s€/.test(${autos}) && !!document.querySelector('#ofd-markup_label')`, 60), '#2252: the markup switched on: 10 % of 10.000 = 1.000 ' + await ev(autos));
+    check(await ready(ev, `/Aufschlag.*1\\.000,00\\s€/.test(${autos}) && !!document.querySelector('#ofd-markup_label')`, 60), '#2252: the markup switched on: 10 % of 10.000 = 1.000 ' + await ev(autos));
     await ev(`(() => { const s = document.getElementById('ofd-markup_stacked'); s.click(); return 1; })()`);
-    check(await ready(ev, `/Markup.*1\\.040,00\\s€/.test(${autos})`, 60), '#2252: stacked: 10 % of 10.000 + 400 = 1.040');
+    check(await ready(ev, `/Aufschlag.*1\\.040,00\\s€/.test(${autos})`, 60), '#2252: stacked: 10 % of 10.000 + 400 = 1.040');  // 2.1175.0 (#6146): German 'Aufschlag' from the film pack (was 'Markup')
     await ev(`(() => { const i = document.getElementById('ofd-markup_label'); i.value = 'Production Fee'; i.dispatchEvent(new Event('change', {bubbles: true})); return 1; })()`);
     check(await ready(ev, `/Production Fee.*1\\.040,00\\s€/.test(${autos}) && [...document.querySelectorAll('.ofdeditor [data-k="in_markup"]')].some(x => /Production Fee/.test(x.closest('label')?.textContent || ''))`, 60),
       '#2252: the renamed title on the line and at the marks');

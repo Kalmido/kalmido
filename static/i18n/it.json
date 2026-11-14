@@ -18567,5 +18567,15 @@
   "Receipts stay in their area. Open one to view, change or book it there.": "Le ricevute restano nella loro area. Aprine una per vederla, modificarla o registrarla lì.",
   "New": "Nuovo",
   "You can only read here": "Qui puoi solo leggere",
-  "No documents yet": "Ancora nessun documento"
+  "No documents yet": "Ancora nessun documento",
+  "Calculation|position": "Calcolo",
+  "Calculation: {0} changed": "Calcolo: {0} modificato/i",
+  "discountable": "scontabile",
+  "Show steps over API keys": "Mostra i passaggi tramite chiavi API",
+  "Over an API key": "Tramite chiave API",
+  "{0} step over an API key hidden": ["{0} passaggio tramite chiave API nascosto", "{0} passaggi tramite chiavi API nascosti"],
+  "Stopped: a later step over an API key changed the same object: {0}": "Interrotto: un passaggio successivo tramite chiave API ha modificato lo stesso oggetto: {0}",
+  "No tasks": "Nessuna attività",
+  "Kanban: tasks as cards in columns": "Kanban: attività come schede in colonne",
+  "Mind map: tasks as branches of a map": "Mappa mentale: attività come rami di una mappa"
 }

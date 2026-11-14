@@ -189,7 +189,7 @@ hl = line(j, "surcharge", "handling")
 check(hl and hl["total"] == 80 and hl["title"] == "Handlungskosten" and j["totals"]["net"] == 2580, "#2252: 4 % of 2.000 = 80 " + str(hl))
 j = A.patch(B + f"{D}/{Q3['id']}", json={"markup_pct": 10}).json()
 ml = line(j, "surcharge", "markup")
-check(ml and ml["total"] == 200 and ml["title"] == "Markup" and j["totals"]["net"] == 2780, "#2252: markup 10 % of 2.000 = 200 " + str(ml))
+check(ml and ml["total"] == 200 and ml["title"] == "Aufschlag" and j["totals"]["net"] == 2780, "#2252: markup 10 % of 2.000 = 200 " + str(ml))  # 2.1175.0 (#6146): the film pack says "Aufschlag" in German (was "Markup")
 j = A.patch(B + f"{D}/{Q3['id']}", json={"markup_stacked": 1, "markup_label": "Production Fee", "handling_label": "HU"}).json()
 ml = line(j, "surcharge", "markup")
 check(ml and ml["total"] == 208 and ml["title"] == "Production Fee" and line(j, "surcharge", "handling")["title"] == "HU",
