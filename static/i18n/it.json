@@ -12136,7 +12136,6 @@
   "{0} calendar of an organisation goes to an admin of the organisation.": ["{0} calendario di un’organizzazione passa a un admin dell’organizzazione.", "{0} calendari di un’organizzazione passano a un admin dell’organizzazione."],
   "{0} time entry in projects of an organisation stays, without the name.": ["{0} registrazione di tempo in progetti di un’organizzazione resta, senza il nome.", "{0} registrazioni di tempo in progetti di un’organizzazione restano, senza il nome."],
   "{0} direct conversation stays for the other person.": ["{0} conversazione diretta resta per l’altra persona.", "{0} conversazioni dirette restano per le altre persone."],
-  "Files and folders in the trash are deleted permanently after {0} days.": "File e cartelle nel cestino vengono eliminati definitivamente dopo {0} giorni.",
   "Files in the trash are deleted permanently after {0} day.": ["I file nel cestino vengono eliminati definitivamente dopo {0} giorno.", "I file nel cestino vengono eliminati definitivamente dopo {0} giorni."],
   "This server only writes encrypted backups: set a passphrase (at least 10 characters).": "Questo server scrive solo backup cifrati: imposta una passphrase (almeno 10 caratteri).",
   "Weekly backups are kept for at most {0} weeks (data protection).": "I backup settimanali vengono conservati al massimo {0} settimane (protezione dei dati).",
@@ -18712,5 +18711,9 @@
   "{0} your time": "{0} da te",
   "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Sola lettura: vede gli eventi. Membro: li modifica anche. Sul telefono il calendario compare accanto al proprio.",
   "The people could not be loaded": "Impossibile caricare le persone",
-  "Stop sharing {0} with {1}": "Smetti di condividere {0} con {1}"
+  "Stop sharing {0} with {1}": "Smetti di condividere {0} con {1}",
+  "Deleted items stay here until you delete them permanently.": "Ciò che è eliminato resta qui finché non lo elimini definitivamente.",
+  "Deleted items stay here for {0} day, then they are deleted permanently.": ["Ciò che è eliminato resta qui {0} giorno, poi sparisce per sempre.", "Ciò che è eliminato resta qui {0} giorni, poi sparisce per sempre."],
+  "In the trash": "Si trova nel cestino",
+  "Deleted on {0}": "Eliminato il {0}"
 }
