@@ -55,7 +55,7 @@ function openPop(anchor, html, onClose) {
 }
 // 2.800.0 (#5460): the place of an open popover next to its anchor, also again once its content has grown (the event popover
 // measured only "Loading…" and then reached over the window's lower edge). Under the anchor, else above it (as before: a menu
-// that fits on neither side moves up to the window's top, over its anchor). fit: true (the event popover) = fits it on neither
+// that fits on neither side stays as near its anchor as the window allows, 2.1174.0 #6123). fit: true (the event popover) = fits it on neither
 // side, it takes the larger side with a height limit and scrolls itself (never below 240 px: then it may cover the anchor, but
 // stays inside the window). A phone sheet keeps its own place.
 function placePop(p, anchor, fit) {
@@ -65,7 +65,7 @@ function placePop(p, anchor, fit) {
   const w = p.offsetWidth, below = innerHeight - M - r.bottom - G, above = r.top - G - M;
   let h = p.offsetHeight, y;
   if (h <= below) y = r.bottom + G;
-  else if (!fit) y = Math.max(M, r.top - h - G);
+  else if (!fit) y = h <= above ? r.top - h - G : Math.max(M, Math.min(r.bottom + G, innerHeight - M - h));  // 2.1174.0 (#6123): fits on neither side: as near the anchor as the window allows (was: the window's top, far from a "…" in a dialog)
   else if (h <= above) y = r.top - G - h;
   else {
     const dn = below >= above, room = Math.max(dn ? below : above, Math.min(240, innerHeight - 2 * M));
