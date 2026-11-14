@@ -1086,7 +1086,7 @@ function settingsModal(focus) {
     LS.set(k === 'side' ? 'densSideV' : 'densRowsV', v); applyDensity(); e.target.setAttribute('aria-valuetext', v + ' %'); const o = $(`#s-dens-${k}-v`, md); if (o) o.textContent = v + ' %'; });
   md.addEventListener('input', e => { if (e.target.id !== 's-fsize') return; const v = +e.target.value; if (v === 100) LS.del('fsize'); else LS.set('fsize', v); applyLook(); fsLabel(v); });
   md.addEventListener('change', e => { if (e.target.id === 's-fsize' && S.settings) render(); });
-  if (focus === 'tabbar') setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) d.open = true; ($('#s-tabbar-h', md) || d)?.scrollIntoView({block: 'start'}); }, 50);  // 2.1178.0 (#6129)
+  if (focus === 'tabbar') setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) d.open = true; ($('#s-tabbar-h', md) || d)?.scrollIntoView({block: 'start'}); }, 50);  // sprung-ok: the person asked for this place  // 2.1178.0 (#6129)
   if (focus === 'sidebar') setTimeout(() => $('#s-side-h', md)?.scrollIntoView({block: 'start'}), 0);  // 2.25.0 (UX-03)
   if (focus === 'newskinds' || focus === 'share') setTimeout(() => intr_open(md, focus === 'share' ? '#s-share-h' : '#s-news-h')?.scrollIntoView({block: 'start'}), 0);
   if (focus === 'agentdots') setTimeout(() => $('#s-agdots-h', md)?.scrollIntoView({block: 'start'}), 0);
@@ -1383,7 +1383,7 @@ function settingsModal(focus) {
     if (b.dataset.m === 'keys') { md.remove(); shortcutsModal(); return; }
     if (b.dataset.m === 'hints-reset') { LS.del('hintsSeen'); toast(tr('Done')); render(); return; }
     if (b.dataset.m === 'ag-guide') { aiSubShow(md, 'setup', true); return; }  // 2.4.2 (#392); 2.7.2 (#420): the Set up tab
-    if (b.dataset.m === 'go-nav') { $('.snav [data-sec="nav"]', md)?.click(); setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) { d.open = true; d.scrollIntoView?.({block: 'start'}); } }, 50); return; }  // 2.1178.0 (#6129): the bottom bar lives under Navigation only
+    if (b.dataset.m === 'go-nav') { $('.snav [data-sec="nav"]', md)?.click(); setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) { d.open = true; d.scrollIntoView?.({block: 'start'}); } }, 50); return; }  // sprung-ok: the person asked for this place  // 2.1178.0 (#6129): the bottom bar lives under Navigation only
     if (b.dataset.m === 'go-access') { $('.snav [data-sec="access"]', md)?.click(); return; }  // 2.166.0 (#2633)
     if (b.dataset.m === 'go-share') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, '#s-share-h')?.scrollIntoView?.({block: 'start'}), 50); return; }  // 2.7.0 (#405 S3)
     if (b.dataset.m === 'go-modules') { $('.snav [data-sec="modules"]', md)?.click(); setTimeout(() => $('[data-pane="modules"] [data-modrow="agents"]', md)?.scrollIntoView?.({block: 'center'}), 50); return; }  // 2.6.0 (K09)
