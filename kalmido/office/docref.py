@@ -196,7 +196,8 @@ def ofd_cap(c, uid, did):
     return "view" if office_allowed(c, uid, r["org_id"], write=True) else "edit"
 
 
-fs_ref_register(OFD_KIND, label=N_("Quotation or invoice"), open_url=lambda did: f"office/offers/{int(did)}",
+fs_ref_register(OFD_KIND, table=("office_docs", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Quotation or invoice"), open_url=lambda did: f"office/offers/{int(did)}",
                 base_role=ofd_base_role, space=ofd_space, protect=ofd_protect, title=ofd_title, content=ofd_content,
                 content_gate=ofd_gate, hidden=ofd_hidden, cap=ofd_cap)
 

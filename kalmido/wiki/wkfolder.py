@@ -251,7 +251,8 @@ def _on_trash(c, uid, rid, restore):
             fs_log_add(c, n["id"], "trash", f"area:{_row(c, rid)['deleted_at']}")
 
 
-fs_ref_register(WKF_KIND, label=N_("Page"), open_url=lambda rid: f"wiki/{int(rid)}", base_role=_base, space=_space,
+fs_ref_register(WKF_KIND, table=("wiki_pages", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Page"), open_url=lambda rid: f"wiki/{int(rid)}", base_role=_base, space=_space,
                 hidden=_hidden, on_trash=_on_trash, title=_title, content=_content)
 
 
