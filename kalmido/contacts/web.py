@@ -239,7 +239,7 @@ def op_contact_new(c, uid, b):
     _unknown(b, CT_KEYS)
     bid = as_int(b["book_id"], "book_id", 1) if b.get("book_id") not in (None, "") else default_book(c, uid)
     need_book(c, bid, write=True)
-    f = contact_fields(b)
+    f = contact_fields(b, strict=True)  # 2.1174.0 (#6120): strict = the phone numbers are checked
     cid = contact_store(c, uid, bid, f)
     c.commit()
     return op_contact(c, uid, cid)
@@ -267,7 +267,7 @@ def op_contact_edit(c, uid, cid, b):
         org_out(c, so, to, "contacts", trn("{0} contact", "{0} contacts", 1))
         if c.execute("SELECT src_id FROM books WHERE id=?", (r["book_id"],)).fetchone()[0]:  # 2.138.4 C (#2378): out of a mirror = a copy
             ncid = contact_copy(c, uid, cid, nb)
-            contact_store(c, uid, nb, contact_fields({k: v for k, v in b.items() if k != "book_id"}, r), cid=ncid)
+            contact_store(c, uid, nb, contact_fields({k: v for k, v in b.items() if k != "book_id"}, r, strict=True), cid=ncid)
             book_touch(c, nb)
             ua_post(c)
             c.commit()
@@ -283,7 +283,7 @@ def op_contact_edit(c, uid, cid, b):
         r = c.execute("SELECT * FROM contacts WHERE id=?", (cid,)).fetchone()
     if not stepped:
         ua_pre(c, uid, CTU_KIND, cid)  # 2.777.0 (#5254): the person's step (core/undoareas.py; an agent records none)
-    f = contact_fields({k: v for k, v in b.items() if k != "book_id"}, r)
+    f = contact_fields({k: v for k, v in b.items() if k != "book_id"}, r, strict=True)  # 2.1174.0 (#6120)
     contact_store(c, uid, r["book_id"], f, cid=cid)
     ua_post(c)
     c.commit()
