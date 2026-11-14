@@ -85,6 +85,8 @@ FS_SUM = 10.4     # grand total, section titles
 FS_TITLE = 14.0   # document / appendix titles
 FS_BRAND = 15.0   # the company name in the head
 PDF_SUM_FILL = 1.0        # share of the free room of the last main page put ABOVE the totals (1 = totals + closing sit at the bottom)
+PDF_SUM_FILL_MAX = 25 * MM  # 2.1179.0 A (#6174): ... but at most this much (was unlimited: up to 10 cm hole between table and totals)
+PDF_INTRO_GAP = 10 * MM  # 2.1179.0 A (#6174): wished air intro -> table (was PDF_SUM_GAP, 18 mm)
 PDF_OV_KINDS = ("offer", "invoice")  # 2.438.0 B (#3622): the documents with an overview of the part totals (progress and final invoices are invoices)
 PDF_LOOK_A = contextvars.ContextVar("pdf_look_a", default=False)  # per request: parallel PDFs never see each other's look
 PDF_MARK_GREY = "0.85 0.86 0.88"  # 2.294.0 (#3155): the draft watermark (was 0.88 0.89 0.91, fill only)
@@ -117,8 +119,9 @@ PDF_LABELS = {"title": N_("Quotation|pdf"), "number": N_("Quotation No.|pdf"), "
               "accept": N_("Order confirmation|pdf"), "place_date": N_("Place, date|pdf"), "sign": N_("Signature, stamp of the client|pdf"),
               "accept_text": N_("We hereby place the order on the terms of this quotation.|pdf"),  # 2.357.0 C (#3182)
               "page": N_("Page {0} of {1}|pdf"), "contact": N_("Contact|pdf"), "register": N_("Registration|pdf"), "bank": N_("Bank|pdf"),
-              "discount": N_("Discount|pdf"), "producing": N_("Producing|pdf"),
+              "discount": N_("Discount|pdf"), "producing": N_("Producing|pdf"), "items_total": N_("Total of items|pdf"),  # 2.1179.0 A (#6174)
               # 2.438.0 B (#3622): the overview of the part totals on page 1
+              "pay_head": N_("Payment|pdf"), "ref_text": N_("Payment reference|pdf"),  # 2.1179.0 A (#6174)
               "ov_title": N_("Overview|pdf"), "ov_part": N_("Part|pdf"), "ov_page": N_("Page {0}|pdf"),
               "ov_hint": N_("The individual items of each part start on page {0}.|pdf")}
 PDF_COMMA = ("de", "fr", "es", "it", "nl")  # 2.185.0 C (#2520): decimal comma (English: the point)
@@ -1439,7 +1442,7 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         # from the last line to the table head; never less than that, the wish only while it costs no page)
         # 2.296.0 E (#3166): line by line (a long intro breaks; the title keeps its first two lines, page 1 never stays empty)
         para_blocks(pdf_wrap(it, body, PDF_CW), lh, 0, 8, lambda p, y, s_, q: p.text(PDF_L, y, s_, body), keep_next=True, soft=False,
-                    air=(0.0, max(0.0, PDF_SUM_GAP - (lh + 12 - body)), 0.0), air_kind="intro")
+                    air=(0.0, max(0.0, PDF_INTRO_GAP - (lh + 12 - body)), 0.0), air_kind="intro")
 
     # -- the table: columns Pos. | Service | Qty | Unit price | VAT | Total
     c_pos, c_qty, c_rate, c_vat, c_tot = 22, 64, 70, 56, 76  # 2.380.0 A (#3415): c_vat was 36 (the price and VAT columns almost touched)
@@ -1499,6 +1502,13 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         p.line(PDF_L, y + thead_h - 1, PDF_L + PDF_CW, y + thead_h - 1, 1.1, C_INK)
 
     lines = [x for x in (m.get("lines") or []) if isinstance(x, dict)]
+    # 2.1179.0 A (#6174): with sections, the discount on the whole quotation (kind discount without a number, after the last position)
+    # is no row of the last section: it goes into the totals ("Summe Positionen", "Rabatt 5 %", "Summe netto")
+    sum_disc = []
+    if any((x.get("kind") or "") == "heading" for x in lines) and not m.get("parts"):
+        _last = max([i for i, x in enumerate(lines) if (x.get("kind") or "item") == "item"], default=-1)
+        sum_disc = [x for i, x in enumerate(lines) if i > _last and x.get("kind") == "discount" and not x.get("pos")]
+        lines = [x for x in lines if not any(x is d for d in sum_disc)]
     # 2.296.0 E (#3166): the room of a following page below a table head; a row / payment text higher than that is split by lines
     p3s_cap = ((BP["bottom"][1] if BP["hide_footer"] else min(BP["bottom"][1], body_bottom)) if BP else body_bottom) - PDF_NEXT_TOP - thead_h - 8
     have_table = False
@@ -1654,7 +1664,8 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
                 rows_.append(cur_)
             else:
                 cur_[2] += amt
-        if nr < 2 or abs(sum(r[2] for r in rows_) - decimal.Decimal(str(tn))) >= decimal.Decimal("0.005"):
+        tn = decimal.Decimal(str(tn)) - sum((decimal.Decimal(str(d.get("total") or 0)) for d in sum_disc), decimal.Decimal(0))  # 2.1179.0 A (#6174)
+        if nr < 2 or abs(sum(r[2] for r in rows_) - tn) >= decimal.Decimal("0.005"):
             return None
         return rows_
     ov_rows = ov_plan()
@@ -1749,9 +1760,25 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         rows[1:1] = [(o_l, str(raw_opt.get("total_text") or "") or money(raw_opt.get("total") or 0), False)] + ([(inc_l, inc_t, "b")] if inc_t else [])
         if raw_opt.get("detail"):
             p3o[o_l] = str(raw_opt["detail"])
+    if sum_disc:  # 2.1179.0 A (#6174): "Summe Positionen" + the discount above the net total (see sum_disc); after the option rows, which go in behind the net total
+        _items = sum((decimal.Decimal(str(x.get("total") or 0)) for x in lines if (x.get("kind") or "item") in ("item", "producing", "surcharge", "raw")
+                      and not x.get("opt") and not (x.get("kind") == "raw" and x.get("optional"))), decimal.Decimal(0))
+        _pre = [(str(ml.get("items_total") or L["items_total"]), money(_items), False)]
+        for d in sum_disc:
+            _t = str(d.get("title") or L["discount"]) + (f" {pdf_num(d['pct'], lang, fmt)} %" if d.get("pct") not in (None, "", 0) else "")
+            _pre.append((_t, money(d.get("total") or 0), False))
+            if d.get("detail"):
+                p3o[_t] = str(d["detail"])
+        rows[0:0] = _pre
     # 2.114.5 (#2300): no "valid until" sentence below the table when the head names the date
     notes = [str(x) for x in (tot.get("opt_note"), tot.get("vat_note"), m.get("vat_note_text"), tot.get("exempt_note"), tot.get("fx_line") or m.get("fx_note"),  # 2.296.0 B (#3169): + exempt_note; 2.1041.0 (#5814): + opt_note
                               m.get("valid_note") if not m.get("valid_until") else None) if x and str(x).strip()]
+    # 2.1179.0 A (#6174): rights with only the note (no right entered, e.g. "Our terms apply.") print no appendix "Transfer of
+    # rights": the note stands small beside the totals (see the rights block below); without totals (delivery note) as before
+    rn_beside = bool((m.get("rights") or {}).get("note") and not (np_ and not (isinstance(tot.get("rows"), list) and tot["rows"])) and not any(
+        isinstance(r, (list, tuple)) and len(r) >= 2 and str(r[1]).strip() for r in ((m.get("rights") or {}).get("rows") or [])))
+    if rn_beside:
+        notes.append(str(m["rights"]["note"]))
     notes = list(dict.fromkeys(notes))
     note = "\n".join(notes)
     tot_w = 230 if raw_opt or m.get("abs_prepaid") else 190  # 2.114.5 (#2300): room for the option's name; 2.408.0 (#3520): the progress invoices
@@ -1789,6 +1816,13 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         sum_air = (PDF_SUM_GAP - 8, PDF_SUM_AFTER, PDF_SUM_GAP_MIN - 8) if last_item_idx is not None else None
         if look_a:
             sum_at.append(len(blocks))  # 2.406.0 (#3491): the totals block, see PDF_SUM_FILL in lay()
+        if last_item_idx is not None and last_item_idx == len(blocks) - 1:  # 2.1179.0 A (#6174): the totals take the last three rows
+            k_, rows_left = last_item_idx, 2                                  # along to a new page, never a single position (widow)
+            while k_ > 0 and rows_left > 0 and blocks[k_]["table"] and not blocks[k_]["brk"]:
+                blocks[k_]["keep_prev"] = True
+                if not blocks[k_ - 1]["keep_next"]:
+                    rows_left -= 1
+                k_ -= 1
         block(sum_h, draw_sum, keep_prev=last_item_idx is not None, sq=4, air=sum_air, air_kind="sum")
 
     # -- 2.38.0 (#1021): payment information of an invoice (due text + bank line) right below the totals; 2.434.0 A (#3603): only
@@ -1809,7 +1843,18 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         if pol:
             pb_lines += pdf_wrap(f'{tr(POL_LABELS[0], lg=lang)}: {pol}', FS_SMALL, pb_w)
         pb_lh = pdf_fs(FS_SMALL) * 1.42
-        if pt_lines:
+        # 2.1179.0 A (#6174): an invoice with a due text and a bank line prints ONE block "Payment" above the footer, beside the
+        # GiroCode: the due text (+ cash discount), the bank line, the reference = the invoice number (was: the due text below the
+        # totals, the bank line apart at the bottom, the closing asked for the transfer a third time)
+        pay_one = []
+        if pt_lines and (pb_lines or gcq):
+            ref_ = str(m.get("number") or "").strip()
+            pay_one = ([(t_, body, C_INK, lh) for t_ in pdf_wrap(str(pay.get("text") or ""), body, pb_w)] + [("", FS_SMALL, C_INK2, pb_lh * 0.5)]
+                       + [(t_, FS_SMALL, C_INK2, pb_lh) for t_ in pb_lines]
+                       + [(t_, FS_SMALL, C_INK2, pb_lh) for t_ in (pdf_wrap(f"{L['ref_text']}: {ref_}", FS_SMALL, pb_w) if ref_ else [])])
+            if 16 + sum(r[3] for r in pay_one) > p3s_cap:  # never higher than a page: then as before
+                pay_one = []
+        if pt_lines and not pay_one:
             pay_h = 6 + len(pt_lines) * lh
 
             def draw_pay(p, y, pt_lines=pt_lines):
@@ -1823,24 +1868,32 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
             else:
                 block(pay_h, draw_pay, keep_prev=True, tail=True)
         if pb_lines or gcq:
-            def draw_bank(p, y, pb_lines=pb_lines):
+            def draw_bank(p, y, pb_lines=pb_lines, pay_one=pay_one):
                 if gcq:
                     gcq_draw(p, PDF_L + PDF_CW - GCQ_SIZE, y + 10, gcq, lang, C_INK, C_INK2)
                 if pol:
                     gcq_draw(p, PDF_L + PDF_CW - GCQ_SIZE * (2 if gcq else 1) - (14 if gcq else 0), y + 10, pol, lang, C_INK, C_INK2,
                              labels=(tr(POL_LABELS[0], lg=lang), tr(POL_LABELS[1], lg=lang)))
                 yy = y + 10
+                if pay_one:  # 2.1179.0 A (#6174): heading, the due text in body size, bank + reference small
+                    p.text(PDF_L, yy, L["pay_head"].upper(), FS_SMALL, True, pdf_text_color(accent), spacing=0.8)
+                    yy += 16
+                    for t_, fs_, col_, st_ in pay_one:
+                        if t_:
+                            p.text(PDF_L, yy, t_, fs_, False, col_)
+                        yy += st_
+                    return
                 for t_ in pb_lines:
                     p.text(PDF_L, yy, t_, FS_SMALL, False, C_INK2)
                     yy += pb_lh
-            pay_end.append((10 + max(len(pb_lines) * pb_lh + 2, gcq_block_h() if gcq or pol else 0), draw_bank))
+            pay_end.append((10 + max((16 + sum(r[3] for r in pay_one)) if pay_one else len(pb_lines) * pb_lh + 2, gcq_block_h() if gcq or pol else 0), draw_bank))
 
     # -- rights block (not torn); 2.114.1 C (#2258): printed as an appendix on its own last page, see below
     bfc_rights, bfc_seen = [], []
     rights = m.get("rights") or {}
     r_rows = [(str(r[0]), str(r[1])) for r in (rights.get("rows") or []) if isinstance(r, (list, tuple)) and len(r) >= 2 and str(r[1]).strip()]
     # 2.122.4 B (#2261): exceptions / exclusive are already in rights.rows (docs.py print model), not appended again
-    if r_rows or rights.get("note"):
+    if r_rows or (rights.get("note") and not rn_beside):  # 2.1179.0 A (#6174): only the note = no appendix (rn_beside)
         lab_w = 112
         r_lines = [(a, pdf_wrap(b, FS_BODY, PDF_CW - lab_w - 12)) for a, b in r_rows]  # 2.138.2 B (#2388): rows 10 pt, label = value size
         rn_lines = pdf_wrap(str(rights.get("note") or ""), FS_SMALL, PDF_CW) if rights.get("note") else []  # 2.114.1 C (#2258): small note
@@ -1998,7 +2051,7 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         p.line(PDF_L + half + 28, yl, PDF_L + PDF_CW, yl, 0.6, C_INK)
         p.text(PDF_L + half + 28, yl + 3, L["sign"], FS_SMALL if gap else FS_SMALL, False, C_INK2)
     if (p3a_on and not p3a_end) or (m.get("kind") == "delivery" and np_):  # 2.120.0 D (#2089): the receipt box of a delivery note
-        block(16 + 40 + acc_dy + 16, draw_accept, tail=True, sq=8)
+        block(16 + 40 + acc_dy + 16, draw_accept, tail=True, sq=8, foot=(m.get("kind") or "offer") == "offer")  # 2.1179.0 A (#6174): the signature lines sit at the bottom, above the footer (like the payment block)
     bfc_see_ref()  # no signature, no order confirmation: the line ends the main pages
     for h_, fn_ in pay_end:  # 2.434.0 A (#3603): bank line + GiroCode at the end of the main pages, right above the footer
         block(h_, fn_, tail=True, foot=True, keep_prev=True)  # 2.434.0 (#3603) review: never alone on an otherwise empty page
@@ -2188,7 +2241,7 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
                     je += 1
                 free = bot - y - need(i, je, False)
                 if free > 0:
-                    y += free * PDF_SUM_FILL
+                    y += min(free * PDF_SUM_FILL, PDF_SUM_FILL_MAX)
             if b["foot"]:  # 2.434.0 A (#3603): down to the bottom of the page together with what follows up to the next page break
                 je = i
                 while je + 1 < n_blocks and not blocks[je + 1]["brk"]:
@@ -2231,7 +2284,7 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
                 p.text(PDF_L, y + 4, nr, body, False, C_INK2)
                 for j_, s_ in enumerate(nl):
                     p.text(PDF_L + num_w, y + 4 + j_ * lh, s_, body)
-                p.text(PDF_L + PDF_CW, y + 4, money(amt), FS_SMALL, align="r")
+                p.text(PDF_L + PDF_CW, y + 4, money(amt), body, align="r")  # 2.1179.0 A (#6174): was FS_SMALL (smaller than the names)
                 ov_tag(p, PDF_L + num_w + pdf_text_width(nl[-1], body) + 6, y + 4 + (len(nl) - 1) * lh, key)
                 p.line(PDF_L, y + hr - 0.5, PDF_L + PDF_CW, y + hr - 0.5, 0.5, C_RULE2)
             slots.append((hr, draw_ov_row, q == len(ov_rows) - 1))

@@ -264,6 +264,7 @@ def flow(s, who):
     check(rows[:3] == [Decimal("3600.00"), Decimal("7200.00"), Decimal("10800.00")], f"{who} quotation: the part totals {rows}")
 
     # a discount of the quotation stands as a row of its own: the parts keep their own totals, the rows add up to the net total
+    # 2.1179.0 (#6174): the discount is no row of the overview any more but a row of the totals right below it (same page 1)
     assert s.patch(B + f"{D}/{off}", json={"discount_pct": 10}).ok
     data = s.get(B + f"{D}/{off}/pdf").content
     rows, pg = overview_ok(data, f"{who} discount", PARTS, 0)
