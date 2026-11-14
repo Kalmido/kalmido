@@ -15,8 +15,6 @@ const ctTypeWord = (k, it) => { const t = (it.type || [])[0], o = (CT_TYPES[k] |
 const ctBook = id => (S.books || []).find(b => b.id === id);
 const ctWrite = b => !!b && (b.role === 'owner' || b.role === 'edit');
 // 2.53.0 (#1410): ctAv lives in ctlinks.js
-// 2.1177.0 (#6116): an error after api() is said there already (e.shown): no second toast; rawFetch's own error in plain words
-const ct_errToast = (x, what) => { if (x && !x.shown && x.message !== 'auth') toast(errText(x, what)); };
 function ctDate(v) {  // '1980-05-12' / '--05-12' -> "12 May 1980" / "12 May"
   if (!v) return '';
   if (v.startsWith('--')) { const d = new Date(2000, +v.slice(2, 4) - 1, +v.slice(5, 7)); try { return d.toLocaleDateString(LOCALE(), {day: 'numeric', month: 'long'}); } catch { return v.slice(2); } }  // no year: no weekday either
@@ -170,7 +168,7 @@ async function ctt_act(k, id) {
       if (!await askConfirm(trn('Delete {0} contact permanently?', 'Delete {0} contacts permanently?', ids.length), tr('This cannot be undone.'), {ok: tr('Delete permanently'), danger: true})) return;
       await bk_send({action: 'purge'}, ids);
     }
-  } catch (x) { ct_errToast(x); again(); return; }  // 2.1177.0 (#6116): api() said it
+  } catch (x) { toast(x.message || ''); again(); return; }
   if (k.endsWith('rest')) toast(tr('Restored'));
   again();
 }
@@ -236,7 +234,7 @@ function ctCardHtml(c) {
       note: c.note ? `<div class="ctnote md">${renderMd(c.note, false, {})}</div>` : '',
       care: typeof lifeCareHtml === 'function' ? lifeCareHtml(c) : '',
       clients: (c.clients || []).length ? `<div class="ctsec cklsec"><h4>${tr('Contact person at')}</h4><ul class="ctlinks">${c.clients.map(x => `<li><a class="linkbtn" href="#client/${x.client_id}">${ic('brief', 's')} ${esc(x.name)}</a>${x.role ? `<span class="muted"> · ${esc(x.role)}</span>` : ''}</li>`).join('')}</ul></div>` : '',  // 2.59.0 (#1735): the clients this contact is a contact person of (only who may open them)
-      tasks: `<div class="ctsec"><h4>${tr('Tasks')}</h4>${(c.tasks || []).length ? `<ul class="ctlinks">${c.tasks.map(t => `<li><button type="button" class="linkbtn ${t.status ? 'done' : ''}" data-cttask="${t.task_id}">${ic(t.status ? 'done' : 'list', 's')} ${esc(t.title)}</button><span class="muted"> · ${esc(tr(kinds[t.kind] || 'About|contact link'))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No linked tasks yet: “Link a contact” in a task’s panel.')}</p>`}</div>`,
+      tasks: `<div class="ctsec"><h4>${tr('Tasks')}</h4>${(c.tasks || []).length ? `<ul class="ctlinks">${c.tasks.map(t => `<li><button type="button" class="linkbtn ${t.status ? 'done' : ''}" data-cttask="${t.task_id}">${ic(t.status ? 'done' : 'list', 's')} ${esc(t.title)}</button><span class="muted"> · ${esc(tr(kinds[t.kind] || 'About'))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No linked tasks yet: “Link a contact” in a task’s panel.')}</p>`}</div>`,
       events: (c.events || []).length ? `<div class="ctsec"><h4>${tr('Events')}</h4><ul class="ctlinks">${c.events.map(e => `<li><button type="button" class="linkbtn" data-evopen="${e.event_id}">${ic('cal', 's')} ${esc(e.title)}</button><span class="muted"> · ${esc(e.all_day ? fmtDayAbs(e.start.slice(0, 10)) : fmtDayAbs(e.start.slice(0, 10)) + ' ' + fmtTimeLoc(e.start.slice(11, 16)))}</span></li>`).join('')}</ul></div>` : '',
       history: hist,  // 2.119.1 B (#2083): the block shows once the history has items
       merges: w && (c.merges || []).length ? ctm_histHtml(c) : ''}))}</div>
@@ -327,7 +325,7 @@ async function ctk_makeClient(c, b) {
     }
     id = r.id; await after(); return r;
   };
-  let r; try { r = await make(); } catch (x) { ct_errToast(x); return; }
+  let r; try { r = await make(); } catch (x) { toast(x.message || ''); return; }
   offerUndo(tr('Added: {0}', r.name), histAdd({label: tr('Create as client'), undo: async () => { await api('DELETE', `/api/clients/${id}`); await after(); }, redo: make}));
 }
 document.addEventListener('input', e => {
@@ -383,7 +381,7 @@ document.addEventListener('click', async e => {
       typeof dup_open === 'function' && propOn() && dup_books().length && {label: tr('Find duplicates with an agent…'), icon: 'bot', fn: () => dup_open()}]);  // 2.70.0 B (#1357)
   } else if (k === 'cmenu' && CT.card) {
     const c = CT.card, w = ctWrite(ctBook(c.book_id));
-    menu(b, [...fv2_menuRow('r:contact:' + c.id) /* 2.441.0 (#3592): opened beside the list a contact has no address of its own */, w && {label: tr('Delete'), icon: 'trash', cls: 'danger', fn: () => ct_delAsk(c)},
+    menu(b, [...fv2_menuRow('r:contact:' + c.id) /* 2.441.0 (#3592): opened beside the list a contact has no address of its own */, w && {label: tr('Move to the trash'), icon: 'trash', cls: 'danger', fn: () => ct_delAsk(c)},
       feat('events') && {label: tr('Invite to a new event'), icon: 'cal', fn: () => evEditor({attendees: [{contact_id: c.id, name: c.fn, email: c.emails?.[0]?.value || '', partstat: 'needs-action'}]})},
       typeof nwl_ctItem === 'function' && nwl_ctItem(c, w, b),  // 2.55.0 (#1455): the newsletter consent
       ctk_clientItem(c, ctBook(c.book_id)),  // 2.119.1 B (#2082): create a client from the contact / open its client
@@ -418,7 +416,7 @@ function bk_click(id, shift) {  // 2.47.3 (#1733): Shift-click ticks the rows be
 function bk_start(id) { CT.pick = new Set(); bk_toggle(id); if (!CT.pick.size) ctDraw(); }
 function bk_end() { CT.pick = null; CT.pickAll = null; ctDraw(); }
 function bk_barHtml() {
-  return ms_barHtml('ct-sbar', 'ctb', CT.pick.size, tr('Tap contacts'), [['all', 'all', bk_allOn() ? tr('Select none') : tr('All')], ['edit', 'edit', tr('Edit')], ['move', 'folder', tr('Move')], ['merge', 'collapse', tr('Merge'), '', 2], ['del', 'trash', tr('Delete'), 'danger']]);
+  return ms_barHtml('ct-sbar', 'ctb', CT.pick.size, tr('Tap contacts'), [['all', 'all', bk_allOn() ? tr('Select none') : tr('All')], ['edit', 'edit', tr('Edit')], ['move', 'folder', tr('Move')], ['merge', 'collapse', tr('Merge'), '', 2], ['del', 'trash', tr('Move to the trash'), 'danger']]);  // 2.1176.0 (#6124): the glossary's word
 }
 // every contact of the current search / group / address book (also the pages the list has not loaded yet): fetched as pages
 async function bk_matching() {
@@ -447,17 +445,19 @@ async function bk_barAct(k, el) {
   }
   const ids = [...CT.pick]; if (!ids.length) return;
   if (k === 'del') {
-    if (!await askConfirm(trn('Delete {0} contact?', 'Delete {0} contacts?', ids.length), tr('They go to the trash and are removed from the phones that sync these address books.'), {ok: tr('Delete'), danger: true})) return;
+    // 2.1176.0 (#6124): no question any more (as tasks): they lie in the trash, Undo in the toast, Ctrl+Z and "Recent steps"
     try { await bk_send({action: 'delete'}, ids); } catch (e) { if (e.data?.code === 'partial') { bk_end(); await load().catch(() => {}); ctLoad(); } return; }  // 2.58.0 (#1656): some are gone already
     // 2.272.0 E1 (#3038): they lie in the trash; Undo takes them out again
-    toast(trn('{0} contact deleted', '{0} contacts deleted', ids.length), async () => { try { await bk_send({action: 'undelete'}, ids); } catch (x) { ct_errToast(x); return; } await load().catch(() => {}); ctLoad(); });
+    const msg = trn('{0} contact moved to the trash', '{0} contacts moved to the trash', ids.length);
+    offerUndo(msg, histAdd({label: msg, undo: async () => { await bk_send({action: 'undelete'}, ids); await load().catch(() => {}); ctLoad(); return {skipped: []}; },
+      redo: async () => { await bk_send({action: 'delete'}, ids); await load().catch(() => {}); ctLoad(); return {skipped: []}; }}));
     if (CT.pick && CT.sel && ids.includes(CT.sel)) { CT.sel = null; CT.card = null; }
     bk_end(); await load().catch(() => {}); ctLoad();
   } else if (k === 'edit') bk_edit(ids);
   else if (k === 'merge') ctm_merge(ids);  // 2.66.0 A (#1835)
   else if (k === 'move') {
     const books = (S.books || []).filter(b => ctWrite(b) && wsObjIn(b) && !b.imported);
-    if (!books.length) { toast(tr('No address book you may change')); return; }
+    if (!books.length) { toast(tr('There is no address book you can change')); return; }  // 2.1176.0 (#6124): the sentence of dupprop.js
     menu(el, books.map(b => ({label: b.name, icon: 'folder', fn: () => bk_move(ids, b)})), null, null, tr('Move'));
   }
 }
@@ -478,7 +478,7 @@ function bk_edit(ids) {
     {k: 'groups_remove', label: tr('Remove from groups'), input: inp('groups_remove', tr('Group, another group'), 'list="ms-ct-groups"'), fill: true},
     {k: 'org', label: tr('Company'), input: inp('org', tr('empty = remove'))},
     {k: 'dept', label: tr('Department'), input: inp('dept', tr('empty = remove'))},
-    {k: 'kind', label: tr('Kind'), input: `<select id="ms-f-kind" data-msf="kind"><option value="individual">${tr('Person')}</option><option value="org">${tr('Company')}</option></select>`},
+    {k: 'kind', label: tr('Person/Company') /* 2.1176.0 (#6124) */, input: `<select id="ms-f-kind" data-msf="kind"><option value="individual">${tr('Person')}</option><option value="org">${tr('Company')}</option></select>`},
     {k: 'note_append', label: tr('Append to the note'), input: `<textarea id="ms-f-note_append" data-msf="note_append" rows="3" maxlength="4000"></textarea>`, fill: true}],
   async v => {
     const body = {action: 'set'};
@@ -523,7 +523,7 @@ function bk_rowMenu(r) {
   menu(r, [...cm_selHead(c.fn, bk_canPick() ? () => bk_start(id) : null),
     {label: tr('Open'), icon: 'eye', fn: () => { if (isMobile()) go('contacts/' + id); else ctOpen(id); }},
     ...fv2_menuRow('r:contact:' + id),
-    w && {label: tr('Delete'), icon: 'trash', cls: 'danger', fn: () => ct_delAsk(c)}].filter(Boolean));
+    w && {label: tr('Move to the trash'), icon: 'trash', cls: 'danger', fn: () => ct_delAsk(c)}].filter(Boolean));
   return true;
 }
 const bk_lpS = cm_bind('#view .ctrow[data-ctopen]', bk_rowMenu, r => { if (!CT.pick) return false; bk_click(+r.dataset.ctopen, false); return true; });
@@ -631,12 +631,10 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
     const b = e.target.closest('[data-ctm2]'); if (!b) return;
     if (b.dataset.ctm2 === 'close') { md.remove(); return; }
     if (b.dataset.ctm2 === 'nophoto') { st.photo = ''; $('#ct-ph', md).innerHTML = ctAv(st, 'avatar ctav big'); b.remove(); return; }
-    if (b.dataset.ctm2 !== 'save' || b.disabled) return;
+    if (b.dataset.ctm2 !== 'save') return;
     const body = form();
     if (!body.given && !body.family && !body.org && !body.fn) { toast(tr('A name or a company, please')); $('#ct-given', md).focus(); return; }
-    // 2.1177.0 (#6116): Save is locked until the look-alike check answered (a double click = one contact); the dialog closes after it
-    b.disabled = true; b.setAttribute('aria-busy', 'true');
-    if (!c && !await ctx_dupAsk(body, md)) { b.disabled = false; b.removeAttribute('aria-busy'); return; }  // 2.119.1 A (#2084): a look-alike first (the next Save creates it anyway)
+    if (!c && !await ctx_dupAsk(body, md)) return;  // 2.119.1 A (#2084): a look-alike first (the next Save creates it anyway)
     // 2.559.0 (#4660): the dialog closes and the contact shows at once (ct_saveOpt), no GET /api/state; an error takes it back
     LS.set('ctBook', body.book_id); md.remove();
     try {
@@ -674,12 +672,16 @@ async function ct_saveOpt(c, body, req) {  // req: 2.565.0 (#4705) the dialog's 
   return r;
 }
 // 2.272.0 E1 (#3038): into the trash; Undo takes it out again (with its notes and links). The card's menu and the row's (#4612)
+// 2.1176.0 (#6124): no question any more (as tasks): Undo in the toast, Ctrl+Z and "Recent steps" (the server's step group
+// of the delete when it named one, else the restore route); the phones lose it with the trash as with every delete
 async function ct_delAsk(c) {
-  if (!await askConfirm(tr('Delete the contact “{0}”?', c.fn), tr('It goes to the trash and is removed from the phones that sync this address book.'), {ok: tr('Delete'), danger: true})) return;
   // 2.559.0 (#4660): gone at once (ct_delOpt), no GET /api/state; an error brings it back
   if (isMobile()) go('contacts');
-  try { await ct_delOpt(c); } catch { return; }
-  toast(tr('Contact deleted'), async () => { try { await api('POST', `/api/contacts/${c.id}/restore`); } catch (x) { ct_errToast(x); return; } ctLoad(); });
+  let r; try { r = await ct_delOpt(c); } catch { return; }
+  const nm = c.fn || c.org || '?';
+  offerUndo(tr('“{0}” moved to the trash', nm), histAdd({label: tr('Delete “{0}”', nm), res: r,
+    undo: async () => { await api('POST', `/api/contacts/${c.id}/restore`); ctLoad(); return {skipped: []}; },
+    redo: async () => { await ct_delOpt(c); return {skipped: []}; }}));
 }
 async function ct_delOpt(c) {
   const put = () => {
@@ -954,7 +956,9 @@ async function ctBooksModal() {
         {label: tr('Export (CSV)'), icon: 'download', fn: () => { location.href = `/api/books/${b.id}/export.csv`; }},
         !own && {label: tr('Leave this address book'), icon: 'logout', fn: async () => { try { await api('DELETE', `/api/books/${b.id}/members/${S.me.id}`); } catch { return; } refresh(); }},
         // 2.272.0 E1 (#3038): the question names the number; the book goes to the trash with its contacts (Undo, Contacts > More > Trash)
-        own && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the address book “{0}” with all its contacts?', b.name), trn('Its {0} contact goes to the trash with it and is removed from the phones.', 'Its {0} contacts go to the trash with it and are removed from the phones.', b.count || 0), {ok: tr('Delete'), danger: true})) return; try { await api('DELETE', `/api/books/${b.id}`); } catch { return; } refresh(); toast(tr('“{0}” moved to the trash', b.name), async () => { try { await api('POST', `/api/books/${b.id}/restore`); } catch (x) { ct_errToast(x); return; } refresh(); }); }}]);
+        // 2.1176.0 (#6124): "Move to the trash…" (still one question: all its contacts go along); Undo in the toast, Ctrl+Z, "Recent steps"
+        own && {label: tr('Move to the trash…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Move the address book “{0}” with all its contacts to the trash?', b.name), trn('Its {0} contact goes to the trash with it and is removed from the phones.', 'Its {0} contacts go to the trash with it and are removed from the phones.', b.count || 0), {ok: tr('Move to the trash'), danger: true})) return; let r; try { r = await api('DELETE', `/api/books/${b.id}`); } catch { return; } refresh();
+          offerUndo(tr('“{0}” moved to the trash', b.name), histAdd({label: tr('Delete “{0}”', b.name), res: r, undo: async () => { await api('POST', `/api/books/${b.id}/restore`); await refresh(); return {skipped: []}; }, redo: async () => { await api('DELETE', `/api/books/${b.id}`); await refresh(); return {skipped: []}; }})); }}]);
       return;
     }
     const k = e.target.closest('[data-cb]')?.dataset.cb; if (!k) return;
@@ -1054,7 +1058,7 @@ function ob_roleItems(b, done) {
 // same merge again) and on the target's card the history with Undo (30 days)
 const CTM_MAX = 10;
 const ctm_F = () => [['fn', tr('Name')], ['given', tr('First name')], ['family', tr('Last name')], ['middle', tr('Middle name')],
-  ['prefix', tr('Name prefix')], ['suffix', tr('Name suffix')], ['nickname', tr('Nickname')], ['kind', tr('Kind')], ['org', tr('Company')],
+  ['prefix', tr('Name prefix')], ['suffix', tr('Name suffix')], ['nickname', tr('Nickname')], ['kind', tr('Person/Company')] /* 2.1176.0 (#6124): not the technical "Kind" */, ['org', tr('Company')],
   ['dept', tr('Department')], ['title', tr('Job title')], ['bday', tr('Birthday')], ['anniversary', tr('Anniversary')], ['photo', tr('Photo')],
   ['note', tr('Note')]];
 const ctm_L = () => [['phones', tr('Phone')], ['emails', tr('E-mail')], ['addresses', tr('Addresses')], ['urls', tr('Website')], ['groups', tr('Groups')]];
@@ -1087,7 +1091,7 @@ async function ctm_merge(ids) {
     }});
 }
 function ctm_histHtml(c) {
-  return `<div class="ctsec ctmsec"><h4>${tr('History')}</h4><ul class="ctlinks">${c.merges.map(m => `<li class="ctmrow"><span>${esc(tr('Merged with {0}', (m.summary?.merged || []).map(x => x.fn).join(', ') || '?'))}<small class="muted"> · ${esc([fmtWhen(m.at), m.by_name, m.summary?.proposal?.agent && tr('from a proposal by {0}', m.summary.proposal.agent)].filter(Boolean).join(' · '))}${m.undone_at ? ' · ' + esc(tr('undone')) : ''}</small></span>${m.undo === '' ? `<button type="button" class="btn sm" data-ctmundo="${m.id}">${ic('undo', 's')} ${tr('Undo')}</button>` : ''}</li>`).join('')}</ul></div>`;
+  return `<div class="ctsec ctmsec"><h4>${tr('Merges') /* 2.1176.0 (#6124): not "History" */}</h4><ul class="ctlinks">${c.merges.map(m => `<li class="ctmrow"><span>${esc(tr('Merged with {0}', (m.summary?.merged || []).map(x => x.fn).join(', ') || '?'))}<small class="muted"> · ${esc([fmtWhen(m.at), m.by_name, m.summary?.proposal?.agent && tr('from a proposal by {0}', m.summary.proposal.agent)].filter(Boolean).join(' · '))}${m.undone_at ? ' · ' + esc(tr('undone')) : ''}</small></span>${m.undo === '' ? `<button type="button" class="btn sm" data-ctmundo="${m.id}">${ic('undo', 's')} ${tr('Undo')}</button>` : ''}</li>`).join('')}</ul></div>`;
 }
 async function ctm_undoCard(rid, el) {
   el.disabled = true;
