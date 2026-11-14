@@ -39,6 +39,25 @@
   .abtact .abtl{display:none}
   .abtact{min-width:2.75rem;min-height:2.75rem;justify-content:center;padding:0 .5rem}
 }
+/* 2.1172.0 (#6113): "Move to…" as a tree (ablage.js ab_moveDlg): each level a step further in, the search stays on top */
+#pop:has(.abmt) .mqs{position:sticky;top:0;z-index:1}
+#pop .menu-list .abmt2{padding-left:1.5rem}
+#pop .menu-list .abmt3{padding-left:2.5rem}
+#pop .menu-list .abmt4{padding-left:3.5rem}
+#pop .menu-list .abmt5{padding-left:4.5rem}
+#pop .menu-list .abmt6{padding-left:5.5rem}
+#pop .menu-list .abmt .ml{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 2.1172.0 (#6113): the Share dialog (fsshare.js): role and end date beside each person, never cut ("Can edit" whole at
+   360 px); a narrow row puts them below the name */
+.abshdlg #ab-shl .mrow .n{flex:1 1 8rem}
+.abshdlg .abshctl{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin-left:auto}
+.abshdlg #ab-shl .mrow select{max-width:none;width:auto;min-height:2.25rem}
+.abshdlg .abshctl .dpbtn{min-height:2.25rem}
+.abshdlg .abshadd select{flex:1 1 100%}
+/* a phone: the person and "x" in the first line, role and end date in the second (not "x" alone in a third) */
+@media (max-width:599px){
+  .abshdlg #ab-shl .mrow .abshctl{order:3;flex-basis:100%;justify-content:flex-end;margin-left:0}
+}
 
 /* 2.1166.0 (#4742, start care): moved here unchanged from app.css - these rules style only what this module draws
    (their classes are used by its scripts alone), so they load with it (LD_CSS in static/js/lazyload.js) */

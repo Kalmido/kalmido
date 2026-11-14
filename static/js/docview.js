@@ -351,8 +351,11 @@ function dcv_tabFill(p, n, t) {
     return;
   }
   const shares = [...(n.shares || []), ...(n.inherited || [])], role = r => typeof ab_role === 'function' ? ab_role(r) : r;
-  p.innerHTML = `<div class="abshsum">${shares.length || n.org_access || n.org_access_from ? shares.map(s => `<span class="abshp">${s.agent_id ? ic('bot', 's') : s.group_id ? ic('users', 's') : ic('user', 's')}${esc(s.name)} · ${esc(role(s.role))}${s.from ? ` <small class="muted">${esc(tr('from “{0}”', s.from))}</small>` : ''}</span>`).join('') + (n.org_access || n.org_access_from ? `<span class="abshp">${ic('building', 's')}${esc(tr('Whole organisation'))}</span>` : '') : `<span class="muted">${tr('Only you')}</span>`}</div>
-    <div class="row">${typeof ab_share === 'function' ? `<button type="button" class="btn sm" data-dc="share">${ic('users', 's')} ${tr('Share…')}</button>` : ''}${typeof xl_newDlg === 'function' ? `<button type="button" class="btn sm" data-dc="xlink">${ic('link', 's')} ${tr('Link for external people…')}</button>` : ''}</div>`;
+  p.innerHTML = `<div class="abshsum">${/*html-ok*/ shares.length || n.org_access || n.org_access_from ? shares.map(s => `<span class="abshp">${s.agent_id ? ic('bot', 's') : s.group_id ? ic('users', 's') : ic('user', 's')}${esc(s.name)} · ${esc(role(s.role))}${s.from ? ` <small class="muted">${esc(tr('from “{0}”', s.from))}</small>` : ''}</span>`).join('') + (n.org_access || n.org_access_from ? `<span class="abshp">${ic('building', 's')}${esc(tr('Whole organisation'))}</span>` : '') : `<span class="muted">${tr('Only you')}</span>`}</div>
+    <div class="row">${typeof ab_share === 'function' ? `<button type="button" class="btn sm" data-dc="share">${ic('users', 's')} ${tr('Share…')}</button>` : ''}${typeof xl_newDlg === 'function' && !(typeof xl_mount === 'function' && n.role === 'owner') ? `<button type="button" class="btn sm" data-dc="xlink">${ic('link', 's')} ${tr('Link for external people…')}</button>` : ''}</div>`;
+  // 2.1172.0 (#6113): the links that exist (copy, new address, switch off) and "Create link" here too (ablinks.js xl_mount, the
+  // same section as the folder's details; the server decides as before)
+  if (typeof xl_mount === 'function' && n.role === 'owner') xl_mount(p, n, $('.row', p));
 }
 function dcv_tab(md, t, focus) {
   if (!$(`#dv-p-${t}`, md)) return;
