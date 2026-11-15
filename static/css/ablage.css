@@ -83,3 +83,7 @@
 .upbar.upout .upoutx{color:var(--text2)}
 .upoutl{margin:.375rem 0 0;padding:0;list-style:none;max-height:9rem;overflow:auto;display:flex;flex-direction:column;gap:.25rem}
 .upoutl li{overflow-wrap:anywhere}
+/* 2.1178.0 (#6115): a node in the trash (ablage.js ab_trashDetails): the line "In the trash" with Restore, a picture in a fixed box */
+.abtrashed{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.abtrimg{margin:.5rem 0;height:min(50vh,16rem);display:flex;align-items:center;justify-content:center}
+.abtrimg img{max-width:100%;max-height:100%;border-radius:var(--radius);object-fit:contain}

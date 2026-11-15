@@ -110,7 +110,7 @@ const api = async (w, method, url, body) => (await w.fetch(url, {method, headers
   const tab = d.querySelector('#tabs button[data-go="news"]');
   check(tab && tab.classList.contains('on') && /Neuigkeiten/.test(tab.textContent), 'News pinned in the mobile tab bar, active');
   w.eval('settingsModal()'); await sleep(300);
-  check(!![...d.querySelectorAll('#s-tabbar [data-tab="news"]')].length, 'settings list shows the pinned News tab');
+  await until(() => d.querySelector('#s-navmenus [data-navsec="tabbar"]')); check(!![...d.querySelectorAll('#s-navmenus [data-navsec="tabbar"] [data-k="news"]')].length, 'settings list shows the pinned News tab (2.1178.0 (#6129): under Navigation)');
   d.querySelector('.modal')?.remove();
   w.eval(`LS.set('tabbar', ['m:tasks', 'm:cal', 'm:matrix', 'm:habits', 'm:pomo', 's:today']); render()`);
   w.eval(`tabsMore(document.querySelector('[data-act="tabs-more"]'))`); await sleep(200);

@@ -895,9 +895,18 @@ async function dc_mdClick(e) {
   }
   if (a === 'task') { await dc_newTask(d, md); return; }
   if (a === 'del') {  // 2.768.0 (#4888): the area's one way into the trash (ablage.js abm_trash: POST /api/files/trash, ONE undo)
-    if (await abm_trash([{...ab_selInfo(d), role: d.role || 'edit'}])) md.remove();
+    await abm_trash([{...ab_selInfo(d), role: d.role || 'edit'}], {leave: () => dc_leave(md)});  // 2.1178.0 (#6115): the view goes first, then the message with Undo
   }
 }
+
+// 2.1178.0 (#6115): the view of a file that went into the trash leaves BEFORE its message: an undo message ends with its page
+// (events.js), and the way back of the document view (docview.js dcv_close: history.back()) changes the address a moment later
+const dc_leave = md => new Promise(res => {
+  const h = location.hash; md.remove();
+  if (location.hash !== h || !(typeof DVW === 'object' && DVW.closed)) { res(); return; }  // left at once / nothing to leave
+  let done = false; const fin = () => { if (!done) { done = true; res(); } };  // no clearTimeout pair (perf_budget)
+  setTimeout(fin, 1500); addEventListener('hashchange', fin, {once: true});
+});
 
 // ---- settings of a workspace: level per feature, archive numbers, rules, the lists and custom fields
 // 2.365.2 B (#2789): the settings live in Settings > Documents (dcs_paneHtml / dcs_draw, the workspace shown in the sidebar),

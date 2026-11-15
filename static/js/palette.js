@@ -386,7 +386,7 @@ function pg_actions(add) {
 function pg_settingParts(add) {
   if (!S.me) return;
   const adm = !!S.me.is_admin, parts = [
-    [N_('Language'), 'general', '#s-lang-h', 'sliders', 1], [N_('Sidebar'), 'sidebar', '#s-side-h', 'sliders', 1], [N_('Tab bar'), 'tabbar', '#s-tabbar-h', 'sliders', 1], [N_('Navigation'), 'nav', '#s-nav-h', 'menu', 1],  // 2.418.0 (#3560)
+    [N_('Language'), 'general', '#s-lang-h', 'sliders', 1], [N_('Sidebar'), 'sidebar', '#s-side-h', 'sliders', 1], [N_('Tab bar'), 'tabbar', '#s-tabbar-h, [data-navsec="tabbar"]', 'sliders', 1], [N_('Navigation'), 'nav', '#s-nav-h', 'menu', 1],  // 2.418.0 (#3560)
     [N_('Storage'), 'account', '#s-storage-h', 'user', 1], [N_('Two-factor authentication'), 'account', '#s-2fa-h', 'key', 1], [N_('Reset settings'), 'account', '#s-rs-h', 'undo', !S.me.kid],  // 2.593.0 (#4590)
     [N_('API tokens'), 'tokens', '#s-toks', 'key', !!S.api?.enabled], [N_('Calendar subscription'), 'ical', '#s-ical-h', 'link', 1],
     [N_('Templates'), 'templates', '#s-tpl-h', 'download', 1], [N_('Members'), 'org', '#og-mh', 'users', lmOrgPaneOn()], [N_('Groups'), 'groups', '#s-groups-h', 'users', adm]];
