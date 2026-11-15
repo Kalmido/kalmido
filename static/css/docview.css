@@ -236,5 +236,5 @@
   .dv-title,.dv-head #dc-h{order:-1;flex:1 1 100%;white-space:normal;overflow:visible;overflow-wrap:anywhere;text-overflow:clip;line-height:var(--lh-tight,1.25)}
   .dv-back{flex:1 1 0;min-width:0;max-width:max-content;justify-content:flex-start;gap:.25rem}  /* takes the room left beside the actions, never pushes them into a row of their own */
   .dv-back>span{position:static;width:auto;height:auto;clip:auto;clip-path:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  .dv-hr .spacer{flex:1 1 0;min-width:0}
+  .dv-hr .spacer{flex:0 0 0;min-width:0;margin-inline-start:auto}  /* the room Back does not need stays between it and the actions */
 }
