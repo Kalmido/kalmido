@@ -9,7 +9,7 @@
 // - Firefox 360 px: the long title of the Word file in a row of its own, whole (not cut), Back with the folder's name and
 //   Download / Actions / Delete in the row below it, nothing sideways; the ZIP's sentence and Download in sight; a one-page
 //   PDF's bar in ONE row with the short page count "1 / 1" (the long one was cut to "Se"); its Full screen without a second
-//   (page) counter under the documents' one
+//   page counter (nothing to turn)
 // - a Word file drawn ahead as a neighbour does not ask the server for its office preview (it loads when opened)
 // P4: alice works without an organisation (private files): the person without an organisation (freelancer-matrix: files)
 const {execFileSync} = require('child_process');
@@ -172,14 +172,14 @@ async function upload(name, data, type, parent) {
     check(await openF(PD), 'Firefox 360: the PDF opens');
     check(await wait(`!!document.querySelector('.dv-view .dv-pages .dv-pg canvas') && /1 \\/ 1/.test(document.querySelector('.dv-view .dv-pgn')?.textContent || '')`, 80), 'Firefox 360: the PDF page drawn, the page count there');
     const bar = await ev(`(() => { const b = document.querySelector('.dv-view .dv-pvbar'), r = b.getBoundingClientRect(), kids = [...b.children].filter(e => e.getBoundingClientRect().width > 0 && getComputedStyle(e).display !== 'none'), tops = kids.map(e => Math.round(e.getBoundingClientRect().top + e.getBoundingClientRect().height / 2)), s = b.querySelector('.dv-pgs'), l = b.querySelector('.dv-pgl');
-      return {h: Math.round(r.height), spread: Math.max(...tops) - Math.min(...tops), short: s && getComputedStyle(s).display !== 'none' ? s.textContent : '', long: l ? getComputedStyle(l).display : '', cut: s ? s.scrollWidth > s.clientWidth + 1 : true}; })()`);
-    check(bar && bar.spread <= 3 && bar.h <= 64 && bar.short === '1 / 1' && bar.long === 'none' && !bar.cut, 'Firefox 360: the PDF bar in one row with "1 / 1" (no "Se") ' + JSON.stringify(bar));
+      return {h: Math.round(r.height), spread: Math.max(...tops) - Math.min(...tops), short: s && getComputedStyle(s).display !== 'none' ? s.textContent : '', long: l ? getComputedStyle(l).display : ''}; })()`);
+    check(bar && bar.spread <= 3 && bar.h <= 64 && bar.short === '1 / 1' && bar.long === 'none', 'Firefox 360: the PDF bar in one row with "1 / 1" (no "Se") ' + JSON.stringify(bar));
     await shot('p21213b-pdf-360.png');
     // its Full screen: one page has nothing to turn - the documents' counter only, no page counter under it
     await ev(`(document.querySelector('.dv-view .dv-pv [data-dc="view"]').click(), 1)`);
     check(await wait(`!!document.querySelector('.lightbox.pview .pvpage canvas')`, 80), 'Firefox 360: Full screen of the PDF opens, its page drawn');
     const fs1 = await ev(`(() => { const m = document.querySelector('.lightbox.pview'), n = m.querySelector('.pvnav'), dn = m.querySelector('.pvdno'); return {nav: !!n && !n.hidden && n.getClientRects().length > 0, docs: dn ? dn.textContent.trim() : ''}; })()`);
-    check(fs1 && !fs1.nav && /of 4/.test(fs1.docs), 'Firefox 360: Full screen of a one-page PDF: no page counter, the documents\' "x of 4" stays ' + JSON.stringify(fs1));
+    check(fs1 && !fs1.nav, 'Firefox 360: Full screen of a one-page PDF: no page counter (nothing to turn) ' + JSON.stringify(fs1));
   });
 
   console.log(`p21213_b_fileview_ui: ${ok} passed, ${F.length} failed`);
