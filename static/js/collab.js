@@ -85,7 +85,7 @@ function bellPopHtml() {
   const dms = dmRows(), pre = dueRowsHtml() + dms.map(dmRowHtml).join('');  // 2.1037.0 (#5801): + the deadline lines
   const head = `<div class="bphead"><button type="button" class="bphl" data-bp="news" title="${esc(tr('Show all'))}"><b id="bp-h">${tr('News')}</b><span class="bpchev" aria-hidden="true">›</span></button>${n ? `<span class="bpnew">${esc(tr('{0} for you', n))}</span>` : ''}<span class="spacer"></span>${nAll ? `<button type="button" class="btn sm bpread" data-bp="readall" title="${esc(tr('Mark all as read'))}" aria-label="${esc(tr('Mark all as read'))}">${ic('check', 's')}<span>${tr('All read')}</span></button>` : ''}<button type="button" class="iconbtn" data-bp="settings" title="${esc(tr('What shows up here'))}" aria-label="${esc(tr('What shows up here'))}">${ic('gear', 's')}</button></div>`;
   let body;
-  if (!mine) body = `<div class="empty bpempty">${S.nf.err === 'offline' ? tr('News are only available online.') : S.nf.err ? esc(S.nf.err) : tr('Loading…')}</div>`;
+  if (!mine) body = `<div class="empty bpempty">${S.nf.err === 'offline' ? tr('Only available online.') : S.nf.err ? esc(S.nf.err) : tr('Loading…')}</div>`;  // 2.1211.0 (#6098): the one offline sentence
   else body = `<div class="nlist bplist nbund">${/*html-ok*/ newsBundledHtml([...kMe, ...kOk.filter(([it]) => it.read || !newsForMe(it)).slice(0, 40)], true, pre)}</div>`;  // 2.17.0 (#452); 2.1037.0 (#5807): the 40 cut only the history; 2.1052.0 (#5808): the one way
   if (!mine && pre) body = `<div class="nlist bplist nbund">${/*html-ok*/ newsBundledHtml([], true, pre)}</div>`;  // 2.1052.0 (#5808): the same For you while loading
   const grab = isMobile() ? `<div class="bpgrab" data-bpgrab role="button" tabindex="0" aria-label="${esc(tr('Drag up for more room, tap for full height'))}" title="${esc(tr('Drag up for more room, tap for full height'))}"><i></i></div>`
@@ -396,7 +396,7 @@ function news_body() {
   const tabs = `<div class="seg ntabs" role="tablist" aria-label="${esc(tr('News'))}">${[['all', 'bell', N_('All'), nMe], ['me', 'at', N_('For you'), nMe], ['act', 'pulse', N_('Activity'), nAct]].map(([k, i, n, c]) => `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" aria-selected="${tab === k}" data-act="news-tab" data-tab="${k}">${ic(i, 's')}<span>${tr(n)}</span>${c ? `<span class="c nunread">${c}</span>` : ''}</button>`).join('')}</div>`;
   const inTab = it => (tab === 'all' || (tab === 'me') === newsForMe(it));
   const bar = tabs + bar0 + fchips((mine0 || []).filter(it => (!S.nf.unread || !it.read || it.keep) && inTab(it)));
-  if (S.nf.err && !S.nf.items) return bar + `<div class="empty">${S.nf.err === 'offline' ? tr('News are only available online.') : esc(S.nf.err)}</div>`;
+  if (S.nf.err && !S.nf.items) return bar + `<div class="empty">${S.nf.err === 'offline' ? tr('Only available online.') : esc(S.nf.err)}</div>`;  // 2.1211.0 (#6098): the one offline sentence
   const mine = S.nf.items && S.nf.f === f ? S.nf.items : null;
   if (!mine && (S.nf.loading || S.nf.queued)) return bar + `<div class="empty">${tr('Loading…')}</div>`;
   // #302 unread only: read items hide (one opened just now stays until the next load); data-i keeps the index in S.nf.items
@@ -546,7 +546,7 @@ async function newsOpen(i, opts) {
   if (!it.task_id) { if (it.list_id && listById(it.list_id)) go('l/' + it.list_id); return; }
   if (!taskById(it.task_id)) {  // e.g. completed long ago: not in the state
     try { (S.extra ||= []).push(await rawFetch('GET', `/api/tasks/${it.task_id}`)); }
-    catch (e) { toast(e instanceof Offline ? tr('News are only available online.') : tr('Task not found')); return; }
+    catch (e) { toast(e instanceof Offline ? tr('Only available online.') : tr('Task not found')); return; }
   }
   S.nswId = it.id; S.nswTask = it.task_id;  // 2.122.0 (#2314): the open task came from this news item: a sideways swipe goes on
   openDetail(it.task_id, opts);

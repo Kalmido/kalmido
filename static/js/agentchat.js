@@ -95,7 +95,7 @@ async function chatLoad() {
     if (S.chat.mutAt && seq < S.chat.mutAt) return chatLoad();  // 2.13.0: an answer older than my own reaction / message: fetch again
     if (first) { const lo = j.messages.length ? j.messages[0].id : Infinity; S.chat.msgs = [...S.chat.msgs.filter(m => m.id < lo), ...j.messages]; }
     else { S.chat.msgs = j.messages; S.chat.more = !!j.has_more; }
-    S.chat.err = null; S.chat.live = j.steps_live || [];  // 2.32.0 (#1081)
+    S.chat.err = null; S.chat.loaded = true; S.chat.live = j.steps_live || [];  // 2.32.0 (#1081); 2.1211.0 (#6098): loaded = no "Loading…" block
     S.chat.apv = j.approvals_open || [];  // 2.35.0 (#1103): pinned until answered
     S.chat.pins = j.pins || [];  // 2.62.0 (#1848): pinned messages
     S.chat.prog = j.progress || [];  // 2.153.0 (#1962): a job's progress lines (only in its own chat)
@@ -107,7 +107,7 @@ async function chatLoad() {
     if (jobSideSig(a) !== sg) setTimeout(renderSide, 0);  // 2.36.2 (#1123): an approval answered in the chat leaves the sidebar's counter at once
     mtg_load(aid);  // 2.70.0 A (#1354): the cards of ready meeting proposals (meetprop.js)
   }
-  catch (e) { S.chat.err = e instanceof Offline ? tr('Only available online.') : e.message; }
+  catch (e) { S.chat.err = chatErrKey(e); }  // 2.1211.0 (#6098): never the server's text (agentchat showed "Only available online." for every error)
   jv_keepField(() => { chatDraw(); renderTop(); }); if (S.route.mod === 'agents' && !S.route.agent) jv_viewSoon();  // 2.46.2 (#1718): gathered; 2.425.0 (#3575): the focus stays
 }
 // 2.47.3 (#1764): messages of a background job ("Job #163: …", "✅ Job #163 … fertig:", ⏰ / ⏹ / ⚠️) are marked in the job's colour:
@@ -144,13 +144,23 @@ function chatMsgs() { return chatRows().join(''); }
 function chatRows() {
   const a = agentById(S.chat.aid);
   // 2.12.2 (#451): every row has a key (data-k), so chatPatch() only swaps or appends the rows that changed
-  if (S.chat.err && !S.chat.msgs.length) return [`<div class="muted mhint" data-k="err">${esc(S.chat.err)}</div>`];  // a failed refresh keeps the messages
+  if (S.chat.err && !S.chat.msgs.length) return [chatErrHtml(S.chat.err, ac_retry(S.chat.aid))];  // a failed refresh keeps the messages; 2.1211.0 (#6098): the shared block
+  if (!S.chat.msgs.length && !S.chat.loaded && !csdBusy('a:' + S.chat.aid)) return [chatLoadHtml()];  // 2.1211.0 (#6098): not "Ask … something" before it loaded
   if (!S.chat.msgs.length && !csdBusy('a:' + S.chat.aid)) return [jcb_html(), `<div class="muted cmempty" data-k="empty">${tr('Ask {0} something, or ask it to plan, comment or create tasks in the projects you share.', esc(a?.name || ''))}</div>`];
   const pend = chatPending(), off = a && pend && (!a.enabled || agentOffline(a));
-  const older = S.chat.more ? `<div class="chold" data-k="older"><button type="button" class="btn sm" data-act="chat-older">${tr('Load older messages')}</button></div>` : '';
+  const oe = S.chat.olderErr;  // 2.1211.0 (#6098): a failed older page is said at its button
+  const older = S.chat.more ? `<div class="chold" data-k="older"><button type="button" class="btn sm" data-act="chat-older">${tr('Load older messages')}</button>${oe ? `<span class="cholderr" role="alert">${esc(oe === 'offline' ? tr('Only available online.') : tr('Older messages could not be loaded'))}</span>` : ''}</div>` : '';
   return [jcb_html(), older, ...jcd_rows(a, jcf_row(m => chs_lineHtml(m) + chatRowHtml(m, a)))
     , csdHtml('a:' + S.chat.aid, S.chat.msgs, m => m.from !== 'agent')  // 2.62.0 (#1530): "Sending…"
     , off ? `<div class="chpend off" data-k="off" role="status">${ic('clock', 's')}<span>${esc(tr('{0} is offline – will answer later', a.name))}</span></div>` : ''];
+}
+// 2.1211.0 (#6098): "Try again" of a failed load: the live chat or a parked panel window (chatwins.js)
+function ac_retry(aid) {
+  return () => {
+    const k = 'a:' + aid;
+    if (S.chat.aid === aid) { S.chat.err = null; chatPatch(); chatLoad(); }
+    else if (typeof cw_has === 'function' && cw_has(k)) { const st = cw_stOf(k); st.err = null; st.f8c_until = 0; cw_patch(k); cw_aload(k); }
+  };
 }
 function chatRowHtml(m, a) {
   if (m.kind === 'notice') return chatNoticeHtml(m);  // 2.41.0 (#1206); 2.96.0 C (#2015): jcd_rows = job cards + filter
@@ -247,7 +257,7 @@ async function chatEditSave(mid) {
   if (v === (m.body || '').trim()) { chatEditEnd(); return; }
   const b = $('[data-act="chat-ed-save"]'); if (b) b.disabled = true;
   let r; try { r = await rawFetch('PATCH', `/api/agents/${S.chat.aid}/chat/${mid}`, {body: v}); }
-  catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); if (b) b.disabled = false; return; }
+  catch (e) { toast(errText(e, tr('The message could not be saved'))); if (b) b.disabled = false; return; }  // 2.1211.0 (#6098)
   Object.assign(m, r); S.chat.mutAt = (S.chat.seq || 0) + 1;  // a refresh that started before this answer fetches again
   chatEditEnd(); announce(tr('Saved'));
 }
@@ -473,7 +483,7 @@ function acset_style_html() {
 async function acset_style_save(aid, ta) {
   clearTimeout(ta._t); const v = ta.value.trim(); if (v === (acset_get('style') || '')) return;
   try { const r = await api('PUT', `/api/agents/${aid}/chat-prefs`, {style: v}); if (S.chat.aid === aid) S.chat.cp = r.prefs; }
-  catch (x) { toast(x instanceof Offline ? tr('Only available online.') : x.message); }
+  catch (x) { if (!x.shown) toast(errText(x, tr('The change could not be saved'))); }  // 2.1211.0 (#6098): api() said it already
 }
 async function acset_open() {
   const aid = S.chat.aid, a = agentById(aid); if (!aid) return;
@@ -492,7 +502,7 @@ async function acset_open() {
     const i = e.target.closest('[data-acset]'); if (!i || !i.checked) return;
     const k = i.dataset.acset, was = acset_get(k);
     try { const r = await api('PUT', `/api/agents/${aid}/chat-prefs`, {[k]: i.value}); if (S.chat.aid === aid) S.chat.cp = r.prefs; }
-    catch (x) { toast(x instanceof Offline ? tr('Only available online.') : x.message); const o = $(`[data-acset="${k}"][value="${was}"]`, md); if (o) o.checked = true; return; }
+    catch (x) { if (!x.shown) toast(errText(x, tr('The change could not be saved'))); const o = $(`[data-acset="${k}"][value="${was}"]`, md); if (o) o.checked = true; return; }
     if (S.chat.aid !== aid) return;
     if (k === 'sugg') chatLoad(); else chatPatch({keep: true});  // the server decides which suggestions stay answerable
   });
@@ -804,7 +814,7 @@ function chatModeMenu(btn) {
   const a = agentById(S.chat.aid); if (!a) return;
   const set = async m => {
     try { const r = await api('PUT', `/api/agents/${a.id}/permission-mode`, {mode: m}); a.permission_mode = r.permission_mode; $$('.chmode').forEach(x => x.outerHTML = chatModeHtml(a)); toast(tr('Permissions: {0}', agModeLbl(a, r.permission_mode))); }
-    catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); }
+    catch (e) { if (!e.shown) toast(errText(e, tr('The change could not be saved'))); }  // 2.1211.0 (#6098): api() said it already
   };
   // 2.1044.0 (#5826): a small head says what the choice is about, a line under it what the last run really used (host.permission_mode)
   const run = a.host?.permission_mode || '', hd = a.host?.host_permission_mode || '';
@@ -838,17 +848,18 @@ function chatStepsKept(m) {
   return `<div class="csteps" role="note" aria-label="${esc(tr('Steps'))}">${st.map(x => `<span>${esc(x.text)}</span>`).join('')}</div>`;
 }
 // ---- 2.152.0 D (#2175): delete one message or the whole history with this agent for good (no undo step: asks first)
+// 2.1211.0 (#6099): the team chat's dialog helper (askConfirm, as "Leave"); a failure is said once (api() says it already)
 async function acdDeleteMsg(mid) {
   const aid = S.chat.aid, m = S.chat.msgs.find(x => x.id === mid); if (!aid || !m) return;
-  if (!await askDialog({title: tr('Delete message'), body: tr('The message and its files are deleted permanently. This cannot be undone.'), ok: tr('Delete'), danger: true})) return;
-  try { await api('DELETE', `/api/agents/${aid}/chat/${mid}`); } catch (e) { toast(e.message || tr('Error')); return; }
+  if (!await askConfirm(tr('Delete message'), tr('The message and its files are deleted permanently. This cannot be undone.'), {ok: tr('Delete'), danger: true})) return;
+  try { await api('DELETE', `/api/agents/${aid}/chat/${mid}`); } catch (e) { if (!e.shown) toast(errText(e, tr('The message could not be deleted'))); return; }
   if (S.chat.aid === aid) { S.chat.msgs = S.chat.msgs.filter(x => x.id !== mid); chatPatch({keep: true}); }
   toast(tr('Message deleted'));
 }
 async function acdDeleteAll() {
   const aid = S.chat.aid, a = agentById(aid); if (!aid) return;
-  if (!await askDialog({title: tr('Delete history'), body: tr('The whole conversation with {0} and its files are deleted permanently. This cannot be undone.', a?.name || ''), ok: tr('Delete history'), danger: true})) return;
-  try { await api('DELETE', `/api/agents/${aid}/chat`); } catch (e) { toast(e.message || tr('Error')); return; }
+  if (!await askConfirm(tr('Delete history'), tr('The whole conversation with {0} and its files are deleted permanently. This cannot be undone.', a?.name || ''), {ok: tr('Delete history'), danger: true})) return;
+  try { await api('DELETE', `/api/agents/${aid}/chat`); } catch (e) { if (!e.shown) toast(errText(e, tr('The history could not be deleted'))); return; }
   if (S.chat.aid === aid) { S.chat.msgs = []; S.chat.more = false; chatPatch({}); }
   toast(tr('History deleted'));
 }
@@ -1093,7 +1104,7 @@ function chatPatch(o = {}) {
   else if (o.keep) box.scrollTop = top + box.scrollHeight - h;
   else if (near || o.bottom) { box.scrollTop = box.scrollHeight; chatNewPill(false); S.chat.pin = true; chs_save(box); }
   else { if (box.scrollTop !== top) box.scrollTop = top; if (last && nl > last && ms.some(m => m.id > last && m.from === 'agent' && m.kind !== 'notice' && !jcd_hidden(m))) chatNewPill(true); }
-  const on = !!a?.enabled, ci = $('#chat-in'),  /* 2.754.0 (#5222): an ended job's box stays on, a message wakes it (#1456) */ sb = ci?.closest('.chcomp')?.querySelector('[data-act="chat-send"]') || $('[data-act="chat-send"]');  // paused / resumed: the same box; 2.47.1 (#1720): the live window's button
+  const on = !!a?.enabled && ac_ready(S.chat), ci = $('#chat-in'),  /* 2.1211.0 (#6098): + loaded */  /* 2.754.0 (#5222): an ended job's box stays on, a message wakes it (#1456) */ sb = ci?.closest('.chcomp')?.querySelector('[data-act="chat-send"]') || $('[data-act="chat-send"]');  // paused / resumed: the same box; 2.47.1 (#1720): the live window's button
   if (ci && ci.disabled === on) ci.disabled = !on;
   if (sb && sb.disabled === on && !S.chat.sending) sb.disabled = !on;
   jc_patch();  // 2.56.0 (#1793)
@@ -1142,13 +1153,13 @@ function chatBottom() { const box = $('#chat-msgs'); if (box) box.scrollTop = bo
 document.addEventListener('scroll', e => { if (e.target.id !== 'chat-msgs') return; S.chat.pin = chatNear(e.target); if (S.chat.pin) chatNewPill(false); chs_saveSoon(e.target); }, true);  // 2.380 F (#3381): + the place
 async function chatOlder() {
   const aid = S.chat.aid, jk = jc_key(); if (!aid || !S.chat.msgs.length || S.chat.busy) return;
-  S.chat.busy = true;
+  S.chat.busy = true; S.chat.olderErr = null;
   const ae = document.activeElement, kb = !!ae?.closest?.('[data-act="chat-older"]'), lo0 = S.chat.msgs[0].id;  // 2.220.0 B (#2809)
   try {
     const j = await api('GET', `/api/agents/${aid}/chat?before=${S.chat.msgs[0].id}&limit=${CHAT_PAGE}` + jc_q()); if (S.chat.aid !== aid || jc_key() !== jk) return;
     const lo = S.chat.msgs.length ? S.chat.msgs[0].id : Infinity;
     S.chat.msgs = [...j.messages.filter(m => m.id < lo), ...S.chat.msgs]; S.chat.more = !!j.has_more;
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  } catch (e) { if (S.chat.aid === aid) { S.chat.olderErr = chatErrKey(e); chatPatch({keep: true}); } return; }  // 2.1211.0 (#6098): at the button
   finally { S.chat.busy = false; }
   chatPatch({keep: true});
   // 2.220.0 B (#2809): the focus stays in the chat: on the button again while there is more, else on the oldest new message
@@ -1179,7 +1190,7 @@ async function chatSend() {
   if (quick) { ta.value = ''; delete S.drafts['chat:' + aid]; autosize(ta); if (up) S.chat.pin = false; chatDraw(up ? {} : {bottom: true}); }
   if (files.length) toast(files.length === 1 ? tr('Uploading…') : tr('Uploading {0} files…', files.length));
   try { const m = await rawFetch('POST', `/api/agents/${aid}/chat`, payload); if (!st.msgs.some(x => x.id === m.id)) st.msgs.push(m); if (!quick) { ta.value = ''; delete S.drafts['chat:' + aid]; } delete S.chatFiles[aid]; replySent('a:' + aid); const fb = $('#chat-files'); if (fb) fb.innerHTML = ''; sent = true; }
-  catch (e) { if (quick) csdBack($('#chat-in'), raw.trim(), 'chat:' + aid); toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : e.message); }
+  catch (e) { if (quick) csdBack($('#chat-in'), raw.trim(), 'chat:' + aid); toast(e instanceof Offline ? tr('You are offline: the message was not sent and stays in the box') : errText(e, tr('The message could not be sent'))); }  // 2.1211.0 (#6098)
   finally { csdDone(ck, p); st.sending = false; if (btn) btn.disabled = false; }
   if (up) S.chat.pin = false;
   chatDraw({bottom: sent && !up});
@@ -1272,7 +1283,7 @@ async function aiTblDraw(md) {
   const box = $('#s-ai-tbl', md); if (!box) return;
   if (!box._ags) {
     try { box._ags = (await api('GET', '/api/users')).users.filter(u => u.agent && !u.disabled).map(u => ({id: u.id, name: u.display_name})); }
-    catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+    catch (e) { box.innerHTML = errorState({title: tr('Could not be loaded'), sub: e instanceof Offline ? tr('Only available online.') : undefined, size: 'sec', retry: () => aiTblDraw(md)}); return; }  // 2.1211.0 (#6098)
   }
   // 2.29.0 (#345): lists of others shared with me show up too -- read-only (owner named), changeable only where I am a list admin
   const ags = box._ags, lists = S.lists.filter(l => !l.archived && !l.is_inbox && (canManage(l) || l.owner_id !== S.me?.id)), ctl = $('#s-ai-tblctl', md);
@@ -1709,7 +1720,7 @@ async function agDraw(md) {
     if (us) { await us; if (box.isConnected) box.innerHTML = ags.map(a => agCardHtml(a, false)).join(''); }
     return;
   }
-  let j; try { [j] = await Promise.all([api('GET', '/api/admin/agents'), us]); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  let j; try { [j] = await Promise.all([api('GET', '/api/admin/agents'), us]); } catch (e) { box.innerHTML = errorState({title: tr('Could not be loaded'), sub: e instanceof Offline ? tr('Only available online.') : undefined, size: 'sec', retry: () => agDraw(md)}); return; }  // 2.1211.0 (#6098)
   box._j = j; S.agOffer = j.scopes; S.agDefScopes = j.default_scopes;  // 2.15.0 (#479)
   for (const a of j.agents || []) if (a.color) (S.colors ||= {})[a.id] = a.color;  // 2.47.1 (#1721): the admin sees every agent in its colour
   if (!box.isConnected) return;

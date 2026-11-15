@@ -1376,11 +1376,12 @@ svg.chart{display:block;max-width:100%;overflow:visible}
 .pitem .pic{width:1rem;display:inline-grid;place-items:center;color:var(--muted);flex:none}
 .pitem.on .pic{color:var(--accent)}
 .pitem.pf7 .pic{color:var(--p7)}.pitem.pf5 .pic{color:var(--p5)}.pitem.pf3 .pic{color:var(--p3)}.pitem.pf1 .pic{color:var(--p1)}
+.pitem.ptask .psw{width:.75rem;height:.75rem;border:1.5px solid var(--faint);border-radius:50%;background:none;box-sizing:border-box}
 .pitem .psw{width:.5rem;height:.5rem;border-radius:2px;background:var(--faint)}
 .pitem .pl{flex:1;min-width:0;display:flex;align-items:baseline;gap:.625rem;overflow:hidden}
 .pitem .plt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.pitem .pls{font:var(--fs-xs) var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
-.pitem .pk{font:var(--fs-xs) var(--mono);color:var(--faint);width:3.25rem;text-align:right;flex:none}
+.pitem .pls{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.pitem .pk{font-size:var(--fs-xs);color:var(--faint);width:3.25rem;text-align:right;flex:none}
 /* 2.217.0 A (#2796): on phones the title comes first and in full (up to two lines), project + kind small underneath */
 @media (max-width:599px){
   .pitem{display:grid;grid-template-columns:1rem minmax(0,1fr) auto;column-gap:.625rem;row-gap:0;align-items:center;padding-top:.375rem;padding-bottom:.375rem}
@@ -2237,6 +2238,11 @@ button.tvr-task:hover{color:var(--accent)}
 .chnote{padding:0 .75rem .75rem;margin:0}
 /* 2.12.2 (#451): "Load older messages" above the newest 30, "New message ↓" over the bottom edge of the list while scrolled up */
 .chold{display:flex;justify-content:center;padding:.125rem 0 .25rem}
+/* 2.1211.0 (#6098): a failed older page is said at its button; the chats' loading / failed blocks fill their log */
+.chold{flex-wrap:wrap;align-items:center;gap:.25rem .5rem}.cholderr{color:var(--danger);font-size:var(--fs-sm)}
+.chstate{display:flex;flex-direction:column;justify-content:center;flex:1 0 auto}
+/* the shut box and Send look shut (loading, failed, a paused agent, one send at a time) */
+.chcomp textarea:disabled,.chcomp .btn:disabled{opacity:.5;cursor:default}
 /* 2.41.0 (#1206): a notice of the agent (new session, conversation compacted): a small grey line in the middle, no bubble */
 .chnew{position:relative;z-index:2;align-self:center;display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;margin:-3.25rem 0 .5rem;padding:0 1rem;border:1px solid var(--line2);border-radius:99rem;background:var(--bg2);color:var(--accent);font:inherit;font-size:var(--fs-s);font-weight:600;box-shadow:var(--shadow);cursor:pointer}
 .chnew.hidden{display:none}
