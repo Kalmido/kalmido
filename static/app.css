@@ -6491,11 +6491,15 @@ html.mini-chat body.in-chat #view .chview .chmsgs{padding-inline:.75rem}  /* 2.1
 .cwsep:hover::after,.cwsep.on::after,.cwsep:focus-visible::after{top:calc(50% - .09375rem);height:.1875rem;background:var(--accent)}
 .cwdot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--accent);flex:0 0 auto}
 .cwdot[hidden]{display:none}
-.cwsw{display:flex;align-items:center;gap:.375rem;overflow-x:auto;padding:.375rem .5rem;border-bottom:1px solid var(--line);scrollbar-width:none;flex:0 0 auto}
+.cwsw{min-width:0;max-width:100%;box-sizing:border-box;display:flex;align-items:center;gap:.375rem;overflow-x:auto;padding:.375rem .5rem;border-bottom:1px solid var(--line);scrollbar-width:none;flex:0 0 auto}
 .cwsw::-webkit-scrollbar{display:none}
 .cwswb{display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;max-width:12rem;padding:0 .75rem 0 .375rem;border:1px solid var(--line);border-radius:99rem;background:var(--bg);color:inherit;flex:0 0 auto}
 .cwswb>span:not(.cwdot){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cwswb.on{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+/* 2.1220.0 (#6103): the tabs share the bar's width (the name gets … instead of leaving the screen on the right); the open one keeps its room */
+.cwswb{flex:0 1 auto;min-width:4.5rem}
+.cwswb.on{flex-shrink:0;max-width:min(12rem,calc(100vw - 4rem))}
+.cwswb>span:not(.cwdot){min-width:0}
 .cwswb .tcico{display:inline-flex}
 .cwswx{flex:0 0 auto;width:2.75rem;height:2.75rem;margin-left:-.25rem}
 /* 2.46.7 (#1708): touch targets of the Lists summary and the workspace button (device test) */
