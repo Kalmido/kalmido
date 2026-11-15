@@ -18680,5 +18680,11 @@
   "This kind of file cannot be added here": "Dit soort bestand kan hier niet worden toegevoegd",
   "{0} file was not uploaded:": ["{0} bestand is niet geüpload:", "{0} bestanden zijn niet geüpload:"],
   "{0} not uploaded": ["{0} niet geüpload", "{0} niet geüpload"],
-  "Drop here - lands in “{0}”": "Hier neerzetten - komt in „{0}”"
+  "Drop here - lands in “{0}”": "Hier neerzetten - komt in „{0}”",
+  "Download the helper": "Hulpprogramma downloaden",
+  "Receipt fetcher {0} for Mac and Windows (zip)": "Bonnenophaler {0} voor Mac en Windows (zip)",
+  "The download is not available on this server yet.": "De download is op deze server nog niet beschikbaar.",
+  "Unpack the zip file.": "Pak het zipbestand uit.",
+  "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Dubbelklik op een Mac op Einrichten.command of onder Windows op Einrichten.cmd.",
+  "Paste the setup code from below when the helper asks for it.": "Plak de instelcode van hieronder als het hulpprogramma erom vraagt."
 }
