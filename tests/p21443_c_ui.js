@@ -46,11 +46,12 @@ const FEAT = 'comments,collab,agents';
   check(bell === 1, '#2405: the bell number counts the agent approval ' + bell);
   const me = d.querySelector('.nbund .nsect.me'), sec = me?.querySelector('.nsh .c');
   check(sec && +sec.textContent === bell, `#2405: section "For you" equals the bell number (${bell}) ` + sec?.textContent);
-  check(me && [...me.querySelectorAll('.ngroup')].length === 1 && /Prepare the offer/.test(me.querySelector('.ngroup .ngt')?.textContent || '') && /approval waits/.test(me.querySelector('.ngroup .ngs')?.textContent || ''),
+  check(me && [...me.querySelectorAll('.ngroup')].length === 1 && /Prepare the offer/.test(me.querySelector('.ngroup .ngmain')?.textContent || '') && /approval waits/.test(me.querySelector('.ngroup .ngs')?.textContent || ''),
     '#2405/#5808: "For you" shows the waiting approval as its bundle: ' + (me?.textContent || '').replace(/\s+/g, ' ').slice(0, 120));
   // 2.1037.0 (#5807): "Read" became the history (Also new + Read, folded by default; boot opens it)
   const rd = d.querySelector('.nsect.nhist [data-act="news-hist"] span');  // 2.1052.0 (#5808): the bundled history's head
-  check(/Old thing/.test(d.querySelector('.nsect.nhist .ngroup.read .ngt')?.textContent || ''), '#5808: the read approval stands in the open history');
+  // 2.1215.0 (#6100): an approval's head line is 'X is waiting for your approval', its question stands below it (.ngex): read the entry
+  check(/Old thing/.test(d.querySelector('.nsect.nhist .ngroup.read .ngmain')?.textContent || ''), '#5808: the read approval stands in the open history');
   check(rd && rd.textContent.trim() === 'History', '#2405/#5807: the divider reads "History": ' + (rd && rd.textContent));
   w.close();
   console.log(`p21443_c_ui: ${ok} ok, ${F.length} failed`);

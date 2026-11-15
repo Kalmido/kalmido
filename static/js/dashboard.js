@@ -40,16 +40,19 @@ function newsSummaryLine(g) {
 }
 function newsGroupHtml(g, pop, calm) {  // 2.1037.0 (#5807): calm = a bundle of the history (no unread look, no count, no tick)
   const [first] = g.items[0], U = S.nf.users;
-  const title = first.task_id && !(first.tasks || []).length ? esc(first.task_title || '') : first.kind === 'comment' && (first.tasks || []).length === 1 ? esc(first.tasks[0].title || '') : first.list_id && g.key[0] === 'l' ? esc(newsListName(first)) : newsText(first, U);
+  // 2.1215.0 (#6100): an agent's approval: a head line "X is waiting for your approval" and the question below it in normal type (not three columns)
+  const apq = first.kind === 'approval' && g.items.length === 1 && first.data?.title ? String(first.data.title) : '';
+  const title = apq ? tr('{0} is waiting for your approval', `<b>${esc(viaName(first.data || {}, first.actor_id, U))}</b>`) : first.task_id && !(first.tasks || []).length ? esc(first.task_title || '') : first.kind === 'comment' && (first.tasks || []).length === 1 ? esc(first.tasks[0].title || '') : first.list_id && g.key[0] === 'l' ? esc(newsListName(first)) : newsText(first, U);
   const actors = [...new Set(g.items.flatMap(([it]) => it.actors || [it.actor_id]).filter(Boolean))].slice(0, 4);
   const ids = g.items.flatMap(([it]) => it.ids || [it.id]);
   const open = g.items.length === 1 ? (pop ? 'data-bp="open"' : 'data-act="news-open"') + ` data-i="${g.items[0][1]}"` : `data-act="news-group" data-g="${esc(g.key)}"`;
   const exp = S.nf.openG === g.key;
   return `<div class="ngroup ${g.unread && !calm ? 'unread' : 'read'} ${g.needs ? 'needs' : ''}" data-gk="${esc(g.key)}">
     <div class="nghead${g.unread && !calm ? ' ngrd' : ''}"><div class="ngav">${actors.map(a => av(a, uname(a, U), 'avatar sm')).join('')}</div>
-      <div class="ngmain" role="button" tabindex="0" ${open} ${g.items.length > 1 ? `aria-expanded="${exp}"` : ''}><div class="ngt">${title}${newsWsLabel(first) /* 2.331.0 A (#3300) */}${g.items.length > 1 && g.unread && !calm ? `<span class="ngn" title="${esc(tr('Unread'))}">${g.unread}</span>` : ''}</div><div class="ngs muted">${esc(newsSummaryLine(g)) ? esc(newsSummaryLine(g)) + ' · ' : ''}<time>${esc(relTime(g.at))}</time></div>${/*html-ok*/ (() => {  // 2.25.0 (newsExcerpt escapes) (UX-45): what was written, one line
+      <div class="ngmain" role="button" tabindex="0" ${open} ${g.items.length > 1 ? `aria-expanded="${exp}"` : ''}><div class="ngt"><span class="ngtt">${title}</span>${newsWsLabel(first) /* 2.331.0 A (#3300) */}${g.items.length > 1 && g.unread && !calm ? `<span class="ngn" title="${esc(tr('Unread'))}">${g.unread}</span>` : ''}</div><div class="ngs muted">${esc(newsSummaryLine(g)) ? esc(newsSummaryLine(g)) + ' · ' : ''}<time>${esc(relTime(g.at))}</time></div>${/*html-ok*/ (() => {  // 2.25.0 (newsExcerpt escapes) (UX-45): what was written, one line
         const ex = g.items.map(([it]) => it).find(it => (it.kind === 'mention' || it.kind === 'comment' || it.kind === 'chatmention') && it.excerpt)  // 2.1052.0 (#5808): a team chat mention's words too (the plain list showed them)
           || (g.items.length === 1 && g.items[0][0].excerpt && !g.items[0][0].enc ? g.items[0][0] : null);  // 2.1088.0 (#5938): a single entry shows its note (e.g. a status change's), like the plain row did
+        if (apq) return `<div class="nexc ngex ngq">${esc(apq)}</div>`;  // 2.1215.0 (#6100)
         return ex ? `<div class="nexc ngex">${newsExcerpt(ex.excerpt, U)}</div>` : ''; })()}</div>
       ${g.unread && !calm ? `<button type="button" class="iconbtn ms-phsr" data-act="news-gread" data-ids="${ids.join(',')}" title="${esc(tr('Mark read'))}" aria-label="${esc(tr('Mark read') + ': ' + title.replace(/<[^>]+>/g, ''))}">${ic('check', 's')}</button>` : ''}</div>
     ${exp && g.items.length > 1 ? `<div class="nlist ngitems">${g.items.map(([it, i]) => newsItemHtml(it, i, pop)).join('')}</div>` : ''}</div>`;

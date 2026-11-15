@@ -483,7 +483,7 @@ def md_brief(text):
         ln = re.sub(r"^\s*(```|~~~)[\w+#.-]*\s*", "", ln)
         ln = re.sub(r"^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)", "", ln)
         out.append(ln)
-    t = re.sub(r"!?\[([^\]]*)\]\([^)\s]*\)", r"\1", "\n".join(out))
+    t = re.sub(r"!?\[([^\]\[]*)\]\([^)\s]*\)", r"\1", "\n".join(out))  # 2.1215.0 (#6100): no "[" inside, linear on a run of "["
     t = re.sub(r"\*\*|__|~~|`", "", t)
     return re.sub(r"(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?!\w)", r"\1", t)
 

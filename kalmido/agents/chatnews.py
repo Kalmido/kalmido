@@ -18,6 +18,7 @@ import json
 
 from ..core.db import iso, now_utc
 from ..core.pg import st_ids
+from ..collab.teamchat import md_brief
 from ..collab.news import news_add
 from ..agents.chat import choice_state
 
@@ -69,10 +70,11 @@ def acn_news(c, r, s=None):
         if acn_job_has_entry(c, uid, jid):
             return
         title = ((ch.get("approval") or {}).get("title") if isinstance(ch.get("approval"), dict) else None) or (r["body"] or "")
-        data = {"title": " ".join(title.split())[:200], "chat": r["id"], "agent": aid, **({"job": jid} if jid else {}),
+        data = {"title": " ".join(md_brief(title).split())[:200], "chat": r["id"], "agent": aid, **({"job": jid} if jid else {}),
                 **({"permission": 1} if not ch.get("approval") else {})}
     else:
-        data = {"text": " ".join((r["body"] or "").split())[:ACN_EXCERPT], "chat": r["id"], "agent": aid}
+        data = {"text": " ".join(md_brief(r["body"] or "").split())[:ACN_EXCERPT], "chat": r["id"], "agent": aid}
+    # 2.1215.0 (#6100): md_brief - agent texts in the bell without Markdown marks, like the team texts
     news_add(c, uid, k, data=data, actor=aid, row="approval", s=s)
 
 

@@ -62,7 +62,7 @@ histReloader('team', () => { if (S.tc.rooms == null) return; return teamChanged(
 // their text); the server does the same in md_brief() (kalmido/collab/teamchat.py), this cleans the preview of a message sent from here
 function mdBrief(t) {
   t = String(t || '').split('\n').map(l => l.replace(/^\s*(```|~~~)[\w+#.-]*\s*/, '').replace(/^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)/, '')).join('\n');
-  t = t.replace(/!?\[([^\]]*)\]\([^)\s]*\)/g, '$1').replace(/\*\*|__|~~|`/g, '');
+  t = t.replace(/!?\[([^\][]*)\]\([^)\s]*\)/g, '$1').replace(/\*\*|__|~~|`/g, '');  // 2.1215.0 (#6100): no "[" inside, as md_brief
   return t.replace(/(^|[^\w*])\*(?=\S)([^*\n]+?)\*(?!\w)/g, '$1$2').replace(/\s+/g, ' ').trim();
 }
 const editingTeam = () => document.activeElement?.id === 'tc-in' || document.activeElement?.id === 'tth-in' || document.activeElement?.id === 'ms-q' || document.activeElement?.classList?.contains('tc-edit');  // 2.139.0 A (#2127): + the thread's box
