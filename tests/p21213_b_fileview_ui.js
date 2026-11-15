@@ -152,10 +152,10 @@ async function upload(name, data, type, parent) {
     check(await wait(`/Treibholz/.test(document.querySelector('.dv-view .dv-pvo .dpvdoc')?.textContent || '')`), 'Firefox 360: its text in the preview column');
     const hd = await ev(`(() => { const q = s => document.querySelector('.dv-view ' + s), r = e => e.getBoundingClientRect(), mid = e => Math.round(r(e).top + r(e).height / 2), t = q('.dv-title'), bk = q('.dv-back'), bs = bk.querySelector('span'), dl = q('.dv-hacts .dv-dl'), del = q('.dv-hacts [data-dc="del"]'), v = document.querySelector('.dv-view');
       return {title: t.textContent.trim(), cutX: t.scrollWidth > t.clientWidth + 1, tw: Math.round(r(t).width), tb: Math.round(r(t).bottom), bt: Math.round(r(bk).top), dt: Math.round(r(dl).top), delR: Math.round(r(del).right), vw: innerWidth,
-        row: Math.abs(mid(bk) - mid(dl)) <= 3 && Math.abs(mid(dl) - mid(del)) <= 3, bl: bs.textContent.trim(), blw: Math.round(r(bs).width), sw: v.scrollWidth, cw: v.clientWidth}; })()`);
+        row: Math.abs(mid(bk) - mid(dl)) <= 3 && Math.abs(mid(dl) - mid(del)) <= 3, bcut: bs.scrollWidth > bs.clientWidth + 1, bl: bs.textContent.trim(), blw: Math.round(r(bs).width), sw: v.scrollWidth, cw: v.clientWidth}; })()`);
     check(hd && hd.title === LONG && !hd.cutX && hd.tw >= 300, 'Firefox 360: the title whole, in a row of its own ' + JSON.stringify(hd));
     check(hd && hd.bt >= hd.tb - 1 && hd.dt >= hd.tb - 1 && hd.delR <= hd.vw && hd.row, 'Firefox 360: Back and Download / Actions / Delete in ONE row after the title, in sight');
-    check(hd && hd.bl === FNAME && hd.blw > 20, 'Firefox 360: Back shows the folder\'s name');
+    check(hd && hd.bl === FNAME && hd.blw > 20 && !hd.bcut, 'Firefox 360: Back shows the folder\'s name, not cut while there is room');
     check(hd && hd.sw <= hd.cw + 1, 'Firefox 360: nothing sideways');
     await shot('p21213b-docx-360.png');
 
