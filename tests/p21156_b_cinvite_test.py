@@ -224,7 +224,8 @@ def confirm_late(inviter_s, uname, before):
     n0 = len(mails())
     r = anon().post(B + "/api/auth/cinv/accept", json={"token": t, "name": uname.title() + " Example", "email": f"{uname}@example.com", "lang": "en"})
     check(r.ok and r.json() == {"ok": True, "mail": True}, f"Fable F3: {uname} registers ({r.text[:200]})")
-    m = until(lambda: len(mails()) > n0 and mails()[-1], 15)
+    # 2.1191.0 (#4550): the mail to this address, not just the latest one (a fixture account made just before may send its own)
+    m = until(lambda: next((x for x in reversed(mails()[n0:]) if f"{uname}@example.com" in x.get("raw", "")), None), 15)
     before()
     r = anon().post(B + "/api/auth/invite/accept", json={"token": link_of(m) if m else "", "password": f"{uname}-pass-123"})
     return r, uid_of(uname)
@@ -251,7 +252,13 @@ check(A.post(B + f"/api/users/{RITA}/approve").ok and not dbx("SELECT disabled F
 # 2.1191.0 (#4550, Fable review job/4601): the inviting person's account is deleted before the confirmation -> it waits too
 # (the link's row used to go with the account, the confirmation then activated the new one without approval)
 XID, Xe = freelancer(B, A, "xena")
-r, SAM = confirm_late(Xe, "sam", lambda: check(A.delete(B + f"/api/users/{XID}").ok, "Fable F3: the inviting person's account is deleted"))
+def gone_open():  # registration "open" meanwhile: mode "approval" would hold the account back anyway (the test must not pass by it)
+    check(A.patch(S, json={"signup_mode": "open", "password": PASSWORD}).ok, "registration open")
+    check(A.delete(B + f"/api/users/{XID}").ok, "Fable F3: the inviting person's account is deleted")
+
+
+r, SAM = confirm_late(Xe, "sam", gone_open)
+check(A.patch(S, json={"signup_mode": "approval", "password": PASSWORD}).ok, "registration with approval again")
 check(r.ok and r.json() == {"ok": False, "pending": True}, f"Fable F3: inviting person deleted: pending ({r.text[:200]})")
 waits(SAM, XID, "inviting person deleted")
 
