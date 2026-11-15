@@ -1,0 +1,22 @@
+{
+  "de": {
+    "No preview for this kind of file": "Keine Vorschau für diese Dateiart",
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Dieses PDF ist zu groß für die Vorschau (über 40 MB). Lade es herunter, um es zu lesen."
+  },
+  "es": {
+    "No preview for this kind of file": "No hay vista previa para este tipo de archivo",
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Este PDF es demasiado grande para la vista previa (más de 40 MB). Descárgalo para leerlo."
+  },
+  "fr": {
+    "No preview for this kind of file": "Pas d'aperçu pour ce type de fichier",
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Ce PDF est trop volumineux pour l'aperçu (plus de 40 Mo). Téléchargez-le pour le lire."
+  },
+  "it": {
+    "No preview for this kind of file": "Nessuna anteprima per questo tipo di file",
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Questo PDF è troppo grande per l'anteprima (oltre 40 MB). Scaricalo per leggerlo."
+  },
+  "nl": {
+    "No preview for this kind of file": "Geen voorbeeld voor dit soort bestand",
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen."
+  }
+}
