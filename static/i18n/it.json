@@ -18681,5 +18681,11 @@
   "This kind of file cannot be added here": "Questo tipo di file non può essere aggiunto qui",
   "{0} file was not uploaded:": ["{0} file non è stato caricato:", "{0} file non sono stati caricati:"],
   "{0} not uploaded": ["{0} non caricato", "{0} non caricati"],
-  "Drop here - lands in “{0}”": "Rilascia qui - finisce in «{0}»"
+  "Drop here - lands in “{0}”": "Rilascia qui - finisce in «{0}»",
+  "Download the helper": "Scarica l’assistente",
+  "Receipt fetcher {0} for Mac and Windows (zip)": "Raccoglitore di ricevute {0} per Mac e Windows (zip)",
+  "The download is not available on this server yet.": "Il download non è ancora disponibile su questo server.",
+  "Unpack the zip file.": "Estrai il file zip.",
+  "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Fai doppio clic su Einrichten.command su Mac o su Einrichten.cmd su Windows.",
+  "Paste the setup code from below when the helper asks for it.": "Incolla il codice di configurazione qui sotto quando l’assistente lo chiede."
 }
