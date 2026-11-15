@@ -123,7 +123,7 @@ def cinv_new():
 def cinv_withdraw(iid):
     """Take an open link back (it stops working at once)."""
     c = db()
-    u = _need_inviter(c)
+    u = _need_inviter(c, need_on=False)  # 2.1191.0 (#4550, Fable review job/4601): taking back works with the switch off too (it may come on again)
     write_lock(c, "accounts")  # Fable F4: not between a redemption's look-up and its use (cinv_accept holds the same lock)
     n = c.execute(f"UPDATE conn_invites SET revoked_at=? WHERE id=? AND user_id=? AND {_open_sql()}",
                   (iso(now_utc()), iid, u["id"], iso(now_utc()))).rowcount
@@ -293,7 +293,9 @@ def cinv_accept():
         uid = _new_account(c, name, None, ulang, email)
         c.execute("UPDATE users SET email=?, disabled=true, signup='confirm' WHERE id=?", (email, uid))
         c.execute("UPDATE conn_invites SET used_by=? WHERE id=?", (uid, r["id"]))
-        invite_new(c, uid, inv["id"], send=True, kind="signup", bg=True)  # counts against the inviting person's mail budget
+        if invite_new(c, uid, inv["id"], send=True, kind="signup", bg=True).get("error"):  # counts against the inviting person's mail budget
+            c.rollback()  # 2.1191.0 (#4550, Fable review job/4601): daily mail limit -> no mail, so nothing is used up (link stays open, no account)
+            return err(tr("Too many attempts, please wait a few minutes", lg=lg), 429)
         bump(c)
         c.commit()
         print("invitation link: registration, confirm by mail", "from", login_log_ip(client_ip()), flush=True)

@@ -248,6 +248,23 @@ check(r.ok and r.json() == {"ok": False, "pending": True}, f"Fable F3: switch of
 waits(RITA, OID, "switch off")
 check(A.patch(S, json={"cinv_signup": True, "password": PASSWORD}).ok, "Fable F3: the switch on again")
 check(A.post(B + f"/api/users/{RITA}/approve").ok and not dbx("SELECT disabled FROM users WHERE id=?", (RITA,))[0][0], "Fable F3: an admin approves")
+# 2.1191.0 (#4550, Fable review job/4601): the inviting person's account is deleted before the confirmation -> it waits too
+# (the link's row used to go with the account, the confirmation then activated the new one without approval)
+XID, Xe = freelancer(B, A, "xena")
+r, SAM = confirm_late(Xe, "sam", lambda: check(A.delete(B + f"/api/users/{XID}").ok, "Fable F3: the inviting person's account is deleted"))
+check(r.ok and r.json() == {"ok": False, "pending": True}, f"Fable F3: inviting person deleted: pending ({r.text[:200]})")
+waits(SAM, XID, "inviting person deleted")
+
+# 2.1191.0 (#4550, Fable review job/4601): the inviting person's daily mail limit is reached -> nothing is used up
+# (was: the link used, an account waiting for a mail that never came, the answer "look into your mails")
+out = py_in_app(f"from kalmido.core.db import now_utc\nc.execute(\"INSERT INTO mail_counts(k,day,n) VALUES(?,?,999) ON CONFLICT(k) DO UPDATE SET n=999, day=excluded.day\", ('s:{FID}', now_utc().strftime('%Y-%m-%d')))\nprint('limit set')")
+check("limit set" in out, f"the mail limit of frida is reached ({out[-200:]})")
+j9 = Fr.post(B + "/api/disc/invites", json={}).json()
+T9, T9_ID = tok_of(j9), j9["item"]["id"]
+r = anon().post(B + "/api/auth/cinv/accept", json={"token": T9, "name": "Lena Example", "email": "lena@example.com"})
+check(r.status_code == 429 and not uid_of("lena") and not dbx("SELECT 1 FROM users WHERE lower(email)='lena@example.com'"), f"mail limit: 429, no account ({r.status_code} {r.text[:200]})")
+check(anon().post(B + "/api/auth/cinv/check", json={"token": T9}).ok, "mail limit: the link stays open")
+write("DELETE FROM mail_counts WHERE k=?", (f"s:{FID}",))
 
 # ---- an address with an account: the same answer, no account, no mail
 T2 = tok_of(Fr.post(B + "/api/disc/invites", json={}).json())
@@ -369,6 +386,9 @@ check(r.status_code == 429 and "open invitation links" in r.json().get("error", 
 check(A.patch(S, json={"cinv_signup": False}).ok, "switching it off asks nothing")
 check(Fr.post(B + "/api/disc/invites", json={}).status_code == 403 and Fr.get(B + "/api/disc/invites").json().get("on") is False and Fr.get(B + "/api/disc").json().get("invite_link") is False, "off: making 403, list on false, no button")  # 2.1191.0 (#4550): the list answers with the switch off
 check(anon().post(B + "/api/auth/cinv/check", json={"token": T8}).status_code == 404, "off: an open link stops working")
+check(T9_ID in [x["id"] for x in Fr.get(B + "/api/disc/invites").json()["items"]], "off: the open link is listed")  # 2.1191.0 (#4550, Fable review job/4601)
+check(Fr.delete(B + f"/api/disc/invites/{T9_ID}").ok, "off: an open link can still be taken back")
+check(T9_ID not in [x["id"] for x in Fr.get(B + "/api/disc/invites").json()["items"]], "off: the taken back link is gone from the list")
 check(A.patch(S, json={"cinv_signup": True, "password": PASSWORD}).ok, "on again")
 
 # ---- the daily clean-up
