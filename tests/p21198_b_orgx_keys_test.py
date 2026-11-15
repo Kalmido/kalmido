@@ -169,18 +169,20 @@ def clash(s, target, own_lid, owner_where, who):
     check(lid and sorted(tasks_of(lid).values()) == [("Erster Eintrag", 1), ("Zweiter Eintrag", 2)], f"#6202 {who}: the numbers stay {tasks_of(lid) if lid else rows}")
     check(lid and keys_of(lid) == {("APP", 1): "Erster Eintrag", ("APP", 2): "Zweiter Eintrag", ("NEW", 1): "Erster Eintrag", ("NEW", 2): "Zweiter Eintrag"},
           f"#6202 {who}: NEW-1 / NEW-2 and APP-1 / APP-2 stay as old keys of the moved tasks {keys_of(lid) if lid else rows}")
-    ws = [" ".join(map(str, x.get("text") or [])) for x in w]
+    ws = [x.get("text") if isinstance(x.get("text"), str) else " ".join(map(str, x.get("text") or [])) for x in w]
     check(any("already used in this workspace" in t and "NEW" in t and "Bordbuch" in t for t in ws), f"#6202 {who}: the import report names the key {ws}")
     t = s.post(B + "/api/tasks", json={"title": "Eigener Eintrag", "list_id": own_lid}).json().get("id")
     check(tasks_of(own_lid).get(t, (None, None))[1] == 2, f"#6202 {who}: the target's own project counts on (NEW-2) {tasks_of(own_lid)}")
     s.delete(B + f"/api/account/import/{iid}")
 
 
-DEL = A.post(B + "/api/admin/orgs", json={"name": "Delta Ziel", "admin_id": ALICE}).json()["id"]
-DL = A.post(B + "/api/lists", json={"name": "Logbuch", "org_id": DEL, "kind": "project"}).json()["id"]
-A.post(B + "/api/tasks", json={"title": "Logbuch Eintrag", "list_id": DL})
-check(A.patch(B + f"/api/lists/{DL}", json={"ticket_key": "NEW"}).ok, "#6202 setup: the target organisation's project has NEW")
-clash(A, DEL, DL, ("org_id=?", (DEL,)), "organisation")
+# another person imports (the same person's second import of the same export loses its tasks to tasks_tt_user, an own task)
+DID, Do = freelancer(B, A, name="dora")
+DEL = A.post(B + "/api/admin/orgs", json={"name": "Delta Ziel", "admin_id": DID}).json()["id"]
+DL = Do.post(B + "/api/lists", json={"name": "Logbuch", "org_id": DEL, "kind": "project"}).json()["id"]
+Do.post(B + "/api/tasks", json={"title": "Logbuch Eintrag", "list_id": DL})
+check(Do.patch(B + f"/api/lists/{DL}", json={"ticket_key": "NEW"}).ok, "#6202 setup: the target organisation's project has NEW")
+clash(Do, DEL, DL, ("org_id=?", (DEL,)), "organisation")
 
 GID, Gr = freelancer(B, A, name="greta")
 GL = Gr.post(B + "/api/lists", json={"name": "Werkbank", "kind": "project"}).json()["id"]
