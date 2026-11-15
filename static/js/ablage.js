@@ -83,7 +83,7 @@ async function ab_load() {
   if (typeof sbb_sync === 'function') sbb_sync('ablage');  // 2.152.3 B (#2621): the path in the panel
   if (typeof fsl_auto === 'function') fsl_auto(AB.data);  // 2.353.0 A (#2758): an owner hands over waiting keys
 }
-function ab_draw() { if (S.route.mod !== 'ablage') return; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('ablage', viewAblage()))); }
+function ab_draw() { if (S.route.mod !== 'ablage') return; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('ablage', viewAblage()))); wso_sync(); }  // 2.1223.0 (#6184): the open space's / folder's organisation (a redraw without renderView)
 const ab_reload = () => { AB.key = ''; ab_ptStale(); if (S.route.mod === 'ablage') { ab_load(); if (typeof dc_inFold === 'function' && dc_inFold()) dc_load(); } };  // 2.752.0 (#4887): + a folder's documents  // 2.152.3 B (#2621): + the panel's folders
 // 2.979.0 (#5667): after an undo / redo the server took back by its group (the step's own undo with ab_reload / ab_verAfter no
 // longer runs; undo.js histRedraw lists a shown file store / documents list itself): a file store not shown and the panel's
