@@ -143,6 +143,9 @@ const items = d => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')
   check(md.querySelector('#ab-sht').value === '', 'Share: the choice is free again for the next person');
   const rs = md.querySelector('#ab-shl [data-absr]'); rs.value = 'edit'; rs.dispatchEvent(new w.Event('change', {bubbles: true}));
   check(await until(async () => ((await call(CA, 'GET', `/api/files/nodes/${BOX}`)).shares || []).some(s => s.user_id === mona.id && s.role === 'edit')), 'Share: the role beside her changes it (edit)');
+  // review (#6113): someone shared already is not offered again - choosing her would set her back to "Can view" without an end date
+  check(await until(() => !md.querySelector(`#ab-sht option[value="user_id:${mona.id}"]`)), 'Share: Mona, shared already, is no longer offered in the choice');
+  check(((await call(CA, 'GET', `/api/files/nodes/${BOX}`)).shares || []).some(s => s.user_id === mona.id && s.role === 'edit'), 'Share: her role stays "Can edit"');
   w.close();
 
   // ================= Firefox: the Share dialog at 360 px in German, the lock dialog
