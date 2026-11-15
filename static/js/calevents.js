@@ -105,7 +105,7 @@ async function evPop(anchor, e) {
   try { ev = await api('GET', `/api/events/${e.eid}`); } catch (x) {
     // 2.1212.0 (#6159): a failed load says so in the popover with "Try again" (it closed without a word)
     if ($('#pop').classList.contains('hidden') || x?.message === 'auth') return;
-    p.innerHTML = `<div class="cevpop evpop" style="--cc:${evCalColor(e)}"><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div>${/*html-ok*/ errorState({size: 'row', title: tr('The event could not be loaded'), retry: () => evPop(at(), e)}) /* the shared block */}</div>`;
+    p.innerHTML = `<div class="cevpop evpop" style="--cc:${esc(evCalColor(e))}"><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div>${/*html-ok*/ errorState({size: 'row', title: tr('The event could not be loaded'), retry: () => evPop(at(), e)}) /* the shared block */}</div>`;
     placePop(p, at(), true); return;
   }
   if ($('#pop').classList.contains('hidden')) return;
@@ -593,11 +593,11 @@ function cvf_lists(lists, hidL, hidF, tasksOn, sw, q) {
   const path = f => f ? `<span class="muted cvfpath" hidden> · ${esc(fDisp(f))}</span>` : '';
   const lrow = l => {
     const via = cvxFolderOff(l.folder, hidF);
-    return `<div class="cvxrow sub${ind(fDepth(l.folder || ''))}" data-cvfq="${esc((lname(l) + ' ' + (l.folder || '')).toLowerCase())}" style="--cc:${cssColor(lp_col(l)) || 'var(--muted)'}">${sw(String(l.id), 'list', !via && !hidL.includes(l.id), !tasksOn || via, tr('Show {0} in my calendar', lname(l)))}<i class="cevdot"></i><span class="evcn">${esc(lname(l))}${path(l.folder)}${via ? viaTxt : ''}</span></div>`;
+    return `<div class="cvxrow sub${esc(ind(fDepth(l.folder || '')))}" data-cvfq="${esc((lname(l) + ' ' + (l.folder || '')).toLowerCase())}" style="--cc:${cssColor(lp_col(l)) || 'var(--muted)'}">${sw(String(l.id), 'list', !via && !hidL.includes(l.id), !tasksOn || via, tr('Show {0} in my calendar', lname(l)))}<i class="cevdot"></i><span class="evcn">${esc(lname(l))}${path(l.folder)}${via ? viaTxt : ''}</span></div>`;
   };
   const frow = f => {
     const via = cvxFolderOff(fParent(f), hidF);
-    return `<div class="cvxrow cvfrow${ind(fDepth(f) - 1) || ' cvfi0'}" data-cvfq="${esc(f.toLowerCase())}" data-folder="${esc(f)}">${sw(esc(f), 'folder', !via && !hidF.includes(f), !tasksOn || via, tr('Show folder {0} in my calendar', fName(f)))}${ic('folder', 's')}<span class="evcn">${esc(fName(f))}${path(fParent(f))}${via ? viaTxt : ''}</span></div>`;
+    return `<div class="cvxrow cvfrow${esc(ind(fDepth(f) - 1) || ' cvfi0')}" data-cvfq="${esc(f.toLowerCase())}" data-folder="${esc(f)}">${sw(esc(f), 'folder', !via && !hidF.includes(f), !tasksOn || via, tr('Show folder {0} in my calendar', fName(f)))}${ic('folder', 's')}<span class="evcn">${esc(fName(f))}${path(fParent(f))}${via ? viaTxt : ''}</span></div>`;
   };
   const own = lists.filter(l => !l.is_inbox);
   const rows = [...own.filter(l => !l.folder).map(lrow),
