@@ -94,7 +94,7 @@ const FEAT = 'comments,collab,sheets,time';
   check(/Studio/.test(w.eval(`pal_org({id: 'fts:1', kind: 'tasks', lid: ${WL}})`)) && /Studio/.test(w.eval(`pal_org({kind: 'view', ws: 'org:${ORG}'})`)) && w.eval(`pal_org({kind: 'view', ws: 'private'})`) === '', '#6188 search hits (tasks, wiki pages) carry their organisation, private ones not');
   w.eval(`closePalette(true)`);
   check(/Studio/.test(w.eval(`newsWsLabel({list_id: ${WL}})`)) && w.eval(`newsWsLabel({list_id: ${PL}})`) === '', '#6188 news / bell under "All": the organisation\'s item names its organisation, a private one not');
-  w.eval(`go('pinned')`);
+  w.eval(`go('all')`);  // "All tasks": grouped by project (Pinned is one group now)
   const gh = await until(() => [...d.querySelectorAll('.ghead')].find(g => /Website/.test(g.textContent)), {timeout: 20000});
   if (!check(gh && gh.querySelector('.gorg .wsp-dot[data-wsc]') && /Studio/.test(gh.querySelector('.gorg').textContent), '#6188 a group head by project shows its organisation')) console.log('heads:', [...d.querySelectorAll('#view .ghead')].map(g => g.outerHTML.slice(0, 400)).join('\n'), w.eval('S.route.key'));
   check(![...d.querySelectorAll('.ghead')].find(g => /Garden/.test(g.textContent))?.querySelector('.gorg'), '#6188 a private project\'s group head stays neutral');
