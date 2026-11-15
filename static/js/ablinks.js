@@ -22,10 +22,12 @@ async function xl_mount(md, n) {
   /** @type {any} */
   const box = document.createElement('div');
   box.className = 'xl-sec';
-  box.innerHTML = `<h4>${tr('Link for external people')}</h4><div class="xl-links"><span class="muted">${tr('Loading…')}</span></div>`;
+  box.innerHTML = `<h4>${tr('Link for external people')}</h4><div class="xl-links">${/*html-ok*/ loadingHtml('row')}</div>`;  // 2.1216.0 (#6109)
   anchor.after(box);
-  let j; try { j = await api('GET', `/api/files/nodes/${n.id}/ext-links`); } catch { box.remove(); return; }
-  xl_draw(box, n, j);
+  // 2.1216.0 (#6109): a failure says so in the section with "Try again" (no toast, the section does not vanish)
+  const ld = async () => { let j; try { j = await rawFetch('GET', `/api/files/nodes/${n.id}/ext-links`); } catch (x) { if (x?.message === 'auth') { box.remove(); return; } $('.xl-links', box).innerHTML = errorState({title: errText(x, tr('The links could not be loaded')), sub: '', size: 'row', retry: () => { $('.xl-links', box).innerHTML = loadingHtml('row'); ld(); }}); return; }
+    xl_draw(box, n, j); };
+  await ld();
   box.addEventListener('click', e => xl_click(e, box, n));
 }
 function xl_rowHtml(l) {
@@ -58,11 +60,11 @@ async function xl_click(e, box, n) {
   if (a === 'copy') { xl_copy(l.url); return; }
   if (a === 'regen') {
     if (!await askConfirm(tr('Create a new link?'), tr('The old link stops working at once.') /* 2.1163.0 (#6112) */, {ok: tr('New link'), danger: true})) return;
-    let j; try { j = await calReq('POST', `/api/files/ext-links/${id}/regenerate`); } catch (x) { toast(x.message); return; }
+    let j; try { j = await calReq('POST', `/api/files/ext-links/${id}/regenerate`); } catch (x) { toast(errText(x, tr('The new link could not be created'))); return; }  // 2.1216.0 (#6109): what failed first
     xl_draw(box, n, j); toast(tr('New link created, the old one no longer works')); return;
   }
   if (a === 'revoke') {
-    let j; try { j = await calReq('DELETE', `/api/files/ext-links/${id}`); } catch (x) { toast(x.message); return; }
+    let j; try { j = await calReq('DELETE', `/api/files/ext-links/${id}`); } catch (x) { toast(errText(x, tr('The link could not be switched off'))); return; }
     xl_draw(box, n, j); ab_reload();
     const label = tr('Link for external people of {0}', qn(n.name));
     offerUndo(tr('Link revoked'), histAdd({label, undo: () => xl_req('POST', `/api/files/ext-links/${id}/restore`, box, n),
@@ -70,7 +72,7 @@ async function xl_click(e, box, n) {
   }
 }
 async function xl_req(m, url, box, n) {
-  try { const j = await calReq(m, url); if (box) xl_draw(box, n, j); } catch (x) { toast(x.message); }
+  try { const j = await calReq(m, url); if (box) xl_draw(box, n, j); } catch (x) { toast(errText(x, tr('The link could not be changed'))); }
   ab_reload(); return {};
 }
 
