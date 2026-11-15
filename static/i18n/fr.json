@@ -18737,5 +18737,20 @@
   "The documents could not be merged": "Impossible de fusionner les documents",
   "No document could be added": "Aucun document n’a pu être ajouté",
   "Surcharge|calc": "Majoration",
-  "Surcharge": "Majoration"
+  "Surcharge": "Majoration",
+  "The card does not show projects without a status": "La carte n’affiche pas les projets sans statut",
+  "No preview for this kind of file": "Pas d'aperçu pour ce type de fichier",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Ce PDF est trop volumineux pour l'aperçu (plus de 40 Mo). Téléchargez-le pour le lire.",
+  "Filter: {0} active": "Filtres actifs : {0}",
+  "Lock editing (this device)": "Bloquer la modification (cet appareil)",
+  "Reference copied": "Référence copiée",
+  "Tags|wiki": "Étiquettes",
+  "Locked|wiki": "Chiffré (dans le navigateur)",
+  "Import pages": "Importer des pages",
+  "The share applies to this page.": "Le partage s’applique à cette page.",
+  "Green comes back with Restore, red goes.": "Le vert revient avec Restaurer, le rouge disparaît.",
+  "Marked: what only this version has.": "Marqué : ce que seule cette version contient.",
+  "Import cancelled: {0} imported page moved to the trash": ["Import annulé : {0} page importée mise à la corbeille", "Import annulé : {0} pages importées mises à la corbeille"],
+  "Click to try again": "Clique pour réessayer",
+  "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "La clé de projet {0} est déjà utilisée dans cet espace de travail : le projet {1} est arrivé sans clé, ses anciens numéros retrouvent toujours les tâches"
 }

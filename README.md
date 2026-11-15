@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1240.0** (2026-11-15):
-- **Quotations**: a surcharge in percent ("Mehraufwand 15 %") as its own line for everyone, taxed like its positions; invoices take one position per tax rate.
-- **Team chat**: delete your own messages without a prompt and undo it right away; chat windows show clear loading and failed states with Try again.
-- **Search and files**: Ctrl+K shows open tasks with a ring and finds commands on whole words; files and documents show clear errors and empty states.
-- **Office**: device dialog sections open as soon as a field is filled; units sit beside the field.
+**2.1244.0** (2026-11-16):
+- **Contacts**: the card opens full width when space is tight, arrow-key navigation, a one-row toolbar on phones.
+- **Knowledge**: deleting goes to the trash with Undo, conflicts mark the differences, wording unified.
+- **Team chat**: tap "edited" to see earlier versions (also via agent API / MCP).
+- **Files and start page**: Word, Excel and text preview right in the file view; start page marks other workspaces.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 

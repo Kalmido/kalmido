@@ -1,6 +1,36 @@
 {
  "versions": [
   {
+   "version": "2.1245.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Kontakte zeigen auf dem Tablet mit offenem Seitenpanel die Karte in voller Breite und lassen sich mit den Pfeiltasten durchgehen.",
+     "en": "On a tablet with the side panel open, contacts show the card at full width, and you can move through the list with the arrow keys."
+    },
+    {
+     "de": "Im Wissen landet Gelöschtes ohne Rückfrage im Papierkorb und lässt sich direkt rückgängig machen; bei einem Konflikt siehst du die Unterschiede markiert.",
+     "en": "In Knowledge, deleted pages go to the trash without a question and can be undone right away; a conflict shows the differences marked."
+    },
+    {
+     "de": "Offline zeigt die Kopfzeile ein Zeichen statt drei, und die Meldung zur neuen Version verdeckt nichts mehr und lässt sich schließen.",
+     "en": "Offline now shows one sign in the header instead of three, and the new-version notice covers nothing and can be closed."
+    },
+    {
+     "de": "Im Team-Chat zeigt ein Tipp auf „bearbeitet“ die früheren Fassungen einer Nachricht.",
+     "en": "In the team chat, tapping \"edited\" shows a message's earlier versions."
+    },
+    {
+     "de": "Word-, Excel- und Textdateien zeigen ihren Inhalt direkt in der Dateiansicht.",
+     "en": "Word, Excel and text files show their content right in the file view."
+    },
+    {
+     "de": "Die Startseite markiert Einträge aus anderen Arbeitsbereichen mit deren Farbe und Namen.",
+     "en": "The start page marks entries from other workspaces with their colour and name."
+    }
+   ]
+  },
+  {
    "version": "2.1240.0",
    "date": "2026-11-15",
    "items": [
@@ -1275,40 +1305,6 @@
     {
      "de": "Der Verlauf eines Agenten liest sich in Alltagssprache, fasst gleiche Schritte zusammen und zeigt im Dialog nur die letzten fünf Zeilen.",
      "en": "An agent's history reads in plain words, groups similar steps and shows only the newest five lines in the dialog."
-    }
-   ]
-  },
-  {
-   "version": "2.668.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Auf dem Tablet wischt man im Aufgaben-Detail zur nächsten Aufgabe, und Dialoge öffnen ohne ungefragte Bildschirmtastatur.",
-     "en": "On a tablet you swipe to the next task in its details, and dialogs open without the screen keyboard popping up."
-    },
-    {
-     "de": "Wiki-Seiten öffnen auf dem Tablet zum Lesen, der Stift schaltet zum Schreiben.",
-     "en": "On a tablet wiki pages open for reading; the pen switches to writing."
-    },
-    {
-     "de": "Wischen blättert jetzt auch in der Vollansicht eines Dokuments und im Bildbetrachter zum nächsten Bild.",
-     "en": "Swiping now also leafs through documents in full screen and through pictures in the image viewer."
-    },
-    {
-     "de": "Dialoge und Menüs zieht man nur noch am Griff oben, im Inhalt wird immer gescrollt.",
-     "en": "Dialogs and menus are now dragged only by the grip at the top; the content always scrolls."
-    },
-    {
-     "de": "Neuer Projekttyp „Social-Media-Plan“: Beiträge im Kalender planen, Kanäle wählen und vom Kunden freigeben lassen.",
-     "en": "New project type \"Social media plan\": plan posts in a calendar, pick the channels and let your client approve them."
-    },
-    {
-     "de": "In der Abnahme lässt sich eine Audiodatei aus der Dateiablage abspielen und kommentieren, auch über den Kunden-Link.",
-     "en": "Approvals play and comment on an audio file from your file store, also through the customer link."
-    },
-    {
-     "de": "Sortieren in Tabellen lässt Summen-Bereiche an ihrem Platz.",
-     "en": "Sorting a sheet keeps sum ranges in place."
     }
    ]
   }
