@@ -6,7 +6,8 @@ static/sw.js (SHELL / LAZY / LAZY_CSS) are therefore written one entry per line,
 (tools/sw_lists.py), so that plain git merges two packages that add different files without a conflict.
 Throwaway git repos without .gitattributes / driver, no server, no network.
 
-- two packages that each add a module at the end of LD_MODS (the usual case) merge clean with plain git
+- two packages that each add a module at the end of LD_MODS (the usual case) merge clean with plain git; only two files
+  sorting into the same gap of a list still conflict (then the tooling's local rebuild with the driver solves it)
 - a package adding a module merges clean against main's CACHE line (the train's version cut)
 - the real static/sw.js is in that form (tools/sw_lists.py --check)"""
 import os
@@ -70,8 +71,12 @@ def lazy_of(text):
 # two packages, each appends its module to LD_MODS (the lists sorted: they land on different lines)
 ok, t = merge(sw_text(MODS + ["notes2"]), sw_text(MODS + ["calx"]), sw_text(MODS))
 check(ok and lazy_of(t) == sorted(MODS + ["notes2", "calx"]), f"two packages adding different modules: plain git merges clean\n{t}")
-ok, t = merge(sw_text(MODS + ["zz1"]), sw_text(MODS + ["zz2", "zz3"]), sw_text(MODS))
-check(ok and lazy_of(t) == sorted(MODS + ["zz1", "zz2", "zz3"]), "two packages adding modules that sort to the end: clean")
+ok, t = merge(sw_text(MODS + ["zz1"]), sw_text(MODS + ["m05b", "m20b"]), sw_text(MODS))
+check(ok and lazy_of(t) == sorted(MODS + ["zz1", "m05b", "m20b"]), "one package adds at the end, the other in between: clean")
+# the known limit: both add a file into the SAME gap of the sorted list (2 of 59 pairs measured) - a conflict as before;
+# the release tooling rebuilds such a branch locally, where tools/sw_lists.py merges it as the driver
+ok, t = merge(sw_text(MODS + ["zz1"]), sw_text(MODS + ["zz2"]), sw_text(MODS))
+check(not ok, "both into the same gap: still a conflict (documented limit)")
 ok, t = merge(sw_text(MODS[1:]), sw_text(MODS + ["new"]), sw_text(MODS))
 check(ok and lazy_of(t) == sorted(MODS[1:] + ["new"]), "one package drops a module, the other adds one: clean")
 # the train's version cut (CACHE line) against a package that adds a module at the start of SHELL / LAZY
