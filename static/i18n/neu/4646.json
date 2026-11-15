@@ -14,7 +14,10 @@
     "New group “{0}”": "Neue Gruppe „{0}“",
     "Leave this channel?": "Diesen Kanal verlassen?",
     "Leave this group?": "Diese Gruppe verlassen?",
-    "This group was undone": "Diese Gruppe wurde rückgängig gemacht"
+    "This group was undone": "Diese Gruppe wurde rückgängig gemacht",
+    "New note (no task selected)": "Neue Notiz (ohne gewählte Aufgabe)",
+    "Move to project (task selected)": "In Projekt verschieben (Aufgabe gewählt)",
+    "{0}: search and commands for everything (tasks, projects, views, settings). All keys are listed in the overview “Keyboard shortcuts”.": "{0}: Suche und Befehle für alles (Aufgaben, Projekte, Ansichten, Einstellungen). Alle Tasten stehen in der Übersicht „Tastenkürzel“."
   },
   "es": {
     "The messages could not be loaded": "No se pudieron cargar los mensajes",
@@ -31,7 +34,10 @@
     "New group “{0}”": "Nuevo grupo «{0}»",
     "Leave this channel?": "¿Salir de este canal?",
     "Leave this group?": "¿Salir de este grupo?",
-    "This group was undone": "Este grupo se ha deshecho"
+    "This group was undone": "Este grupo se ha deshecho",
+    "New note (no task selected)": "Nueva nota (sin tarea seleccionada)",
+    "Move to project (task selected)": "Mover a proyecto (tarea seleccionada)",
+    "{0}: search and commands for everything (tasks, projects, views, settings). All keys are listed in the overview “Keyboard shortcuts”.": "{0}: búsqueda y comandos para todo (tareas, proyectos, vistas, ajustes). Todas las teclas están en la vista general «Atajos de teclado»."
   },
   "fr": {
     "The messages could not be loaded": "Les messages n’ont pas pu être chargés",
@@ -48,7 +54,10 @@
     "New group “{0}”": "Nouveau groupe « {0} »",
     "Leave this channel?": "Quitter ce canal ?",
     "Leave this group?": "Quitter ce groupe ?",
-    "This group was undone": "Ce groupe a été annulé"
+    "This group was undone": "Ce groupe a été annulé",
+    "New note (no task selected)": "Nouvelle note (sans tâche sélectionnée)",
+    "Move to project (task selected)": "Déplacer vers un projet (tâche sélectionnée)",
+    "{0}: search and commands for everything (tasks, projects, views, settings). All keys are listed in the overview “Keyboard shortcuts”.": "{0} : recherche et commandes pour tout (tâches, projets, vues, réglages). Toutes les touches figurent dans l’aperçu « Raccourcis clavier »."
   },
   "it": {
     "The messages could not be loaded": "Non è stato possibile caricare i messaggi",
@@ -65,7 +74,10 @@
     "New group “{0}”": "Nuovo gruppo «{0}»",
     "Leave this channel?": "Lasciare questo canale?",
     "Leave this group?": "Lasciare questo gruppo?",
-    "This group was undone": "Questo gruppo è stato annullato"
+    "This group was undone": "Questo gruppo è stato annullato",
+    "New note (no task selected)": "Nuova nota (nessuna attività selezionata)",
+    "Move to project (task selected)": "Sposta in un progetto (attività selezionata)",
+    "{0}: search and commands for everything (tasks, projects, views, settings). All keys are listed in the overview “Keyboard shortcuts”.": "{0}: ricerca e comandi per tutto (attività, progetti, viste, impostazioni). Tutti i tasti sono nella panoramica «Scorciatoie da tastiera»."
   },
   "nl": {
     "The messages could not be loaded": "De berichten konden niet worden geladen",
@@ -82,6 +94,9 @@
     "New group “{0}”": "Nieuwe groep ‘{0}’",
     "Leave this channel?": "Dit kanaal verlaten?",
     "Leave this group?": "Deze groep verlaten?",
-    "This group was undone": "Deze groep is ongedaan gemaakt"
+    "This group was undone": "Deze groep is ongedaan gemaakt",
+    "New note (no task selected)": "Nieuwe notitie (geen taak geselecteerd)",
+    "Move to project (task selected)": "Naar project verplaatsen (taak geselecteerd)",
+    "{0}: search and commands for everything (tasks, projects, views, settings). All keys are listed in the overview “Keyboard shortcuts”.": "{0}: zoeken en opdrachten voor alles (taken, projecten, weergaven, instellingen). Alle toetsen staan in het overzicht ‘Sneltoetsen’."
   }
 }

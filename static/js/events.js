@@ -1016,7 +1016,7 @@ domReady(() => {
   kb_on('global', 'n', () => { if (no()) return false; const q = currentQuickInput(); if (q && (!isMobile() || tabletDock())) q.focus(); else openQuickSheet(); }, {help: N_('New task'), group: 'General'});  // layout: the quick field shows only on the wide shell (or the tablet dock), the phone opens the sheet
   kb_on('global', 'q', () => { if (no() || $('.modal')) return false; quickCapture(); }, {help: N_('Quick capture to the basket'), group: 'General'});
   // 2.477.0 (#3881): m = a quick note, where m means nothing else (palette.js: the focused task / the selection moves; the timeline's bar)
-  kb_on('global', 'm', e => { if (no() || $('.modal') || /** @type {any} */ (e.target).closest?.('.rm-sum')) return false; qn_new(); }, {help: N_('New note'), group: 'General'});
+  kb_on('global', 'm', e => { if (no() || $('.modal') || /** @type {any} */ (e.target).closest?.('.rm-sum')) return false; qn_new(); }, {help: N_('New note (no task selected)'), group: 'General'});
   kb_on('global', 'a', () => { if (no() || $('.modal') || chatFull() || !feat('agents') || !chatFabAgent()) return false; chatPop(); }, {help: N_('Chat with an agent (window)'), group: 'General'});  // 2.29.0 (#363)
   kb_on('global', '/', () => { if (no()) return false; go('search'); }, {help: N_('Search'), group: 'General'});
 });
