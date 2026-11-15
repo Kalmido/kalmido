@@ -239,7 +239,7 @@ const ws_abbr = ws => { const w = wsName(ws).trim().split(/\s+/).filter(Boolean)
 function ws_originHtml(l, lst, cls) {
   const ws = wsOf(l), nm = wsName(ws);
   return `<span class="${cls} wso" title="${esc(nm + ' · ' + lst)}"><span class="sr">${esc(tr('Workspace: {0}', nm) + ', ' + tr('Project') + ': ' + lst)}</span>`
-    + `<span class="wsov" aria-hidden="true">${wsp_dot(ws)}<span class="wsows">${esc(nm)}</span><span class="wsoab">${esc(ws_abbr(ws))}</span><span class="wsosep">·</span>${licMark(l, 'lsm')}<span class="wsol">${esc(lst)}</span></span></span>`;
+    + `<span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws) /* 2.1205.0 (#6179): the shared origin (wscolor.js) */}<span class="wsosep">·</span>${licMark(l, 'lsm')}<span class="wsol">${esc(lst)}</span></span></span>`;
 }
 // the <select> of a list's workspace (list dialog); only when the person has an organisation
 function wsSelectHtml(id, cur, dis = '') {

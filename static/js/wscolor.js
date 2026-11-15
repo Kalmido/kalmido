@@ -99,14 +99,12 @@ function wac_locVars(ws) {
   return m.v;
 }
 // the tone of a list's workspace in "All" ('' = stay global: another view, the switch off, no such list, a workspace without a tone)
-const wac_listVars = l => l && wsOn() && wac_on() && wsCur() === 'all' ? wac_locVars(l.is_inbox ? 'private' : wsOf(l)) : '';
+const wac_listVars = l => l ? wso_locVars(wso_ws(l)) : '';  // 2.1205.0 (#6179): the shared block
 const wac_openList = () => { const k = S.route?.mod === 'tasks' ? String(S.route.key || '') : ''; return k.startsWith('l:') ? listById(+k.slice(2)) : null; };
 // a row or card: nothing inside an open list (#view has the tone there)
 const wac_rowVars = t => wac_openList() ? '' : wac_listVars(lp_listOf(t?.list_id));
 // #view of an open list: the header in #main stays global, so #view and not #main; a list's own colour (#main.lp-acc) wins
-function wac_viewSync() {
-  lp_put($('#view'), 'wac-loc', $('#main')?.classList.contains('lp-acc') ? '' : wac_listVars(wac_openList()), WAC_VARS);
-}
+// 2.1205.0 (#6179): for every area now (wso_sync)
 // 2.542.0 (#4604): the one exception of #4026 -- an agent's chat wears the agent's own colour (its account colour, Settings of the
 // agent > Colour) as its accent: the header, the messages and the input box get class wac-loc with the same four variables, so
 // Send, the box's frame on focus and the links there follow it; text on Send reaches 4.5:1 (wac_fit, light and dark). '' = not a colour
@@ -163,7 +161,43 @@ const wsc_ofWs = ws => String(ws || '').startsWith('org:') ? +ws.slice(4) : 0;
 // with agent_org_id / org_id (the job chats of 2.107) passes the entry: acw_of(entry). Without organisations (wsOn() false): none.
 const acw_attr = orgId => { const v = wsOn() ? wsp_vars(orgId ? 'org:' + +orgId : 'private') : ''; return v ? ` data-wsc="1" style="${v}"` : ''; };
 const acw_of = e => acw_attr(e ? (e.agent_org_id ?? e.org_id) : null);
-const wsc_rowAttr = l => l && !l.is_inbox && l.org_id ? wsc_attr(l.org_id) : '';
+const wsc_rowAttr = l => l && !l.is_inbox && l.org_id ? wso_row(l.org_id) : '';  // 2.1205.0 (#6179): the shared row mark
+// ---- 2.1205.0 (#6179): the organisation's colour as ONE building block of the core (docs/dev/kern.md "Organisation colour").
+// Rule (owner decision 14.11.2026): what belongs to an organisation wears its colour in every area - the entry in an overview /
+// navigation (a stripe on its left edge) and the open object (#main.wsc-on: the frames of
+// the input fields; under "All workspaces" #view wears the tone as its accent, wac-loc). Private stays neutral.
+// wso_ws: an organisation's id, 'org:<id>', 'private', a list / an object with org_id -> the workspace key ('' = none)
+const wso_ws = w => w == null || w === '' ? '' : typeof w === 'number' ? (w ? 'org:' + w : 'private') : typeof w === 'object' ? (w.is_inbox || !w.org_id ? 'private' : 'org:' + +w.org_id) : String(w);
+// (1) a row / card / entry of an organisation: data-wso + data-wsc + --wsd / --wsl = the stripe on its left edge (app.css);
+// '' for Private and without organisations (wsOn() false). The sidebar's rows keep their own stripe (#side .srow[data-wsc])
+const wso_row = w => { const o = wsc_ofWs(wso_ws(w)), v = o ? wsc_vars(o) : ''; return v ? ` data-wso="1" data-wsc="1" style="${v}"` : ''; };
+// (2) where it comes from in a mixed view ("All workspaces"): the workspace's dot + its name (phones: its short letters), with
+// the name for screen readers; '' in one workspace or without organisations. ws_originHtml (task rows) adds the project to it
+const wso_head = ws => `${/*html-ok*/ wsp_dot(ws)}<span class="wsows">${esc(wsName(ws))}</span><span class="wsoab">${esc(ws_abbr(ws))}</span>`;
+function wso_origin(w, cls = '') {
+  const ws = wso_ws(w); if (!ws || ws === 'all' || !wsOn() || wsCur() !== 'all') return '';
+  const nm = wsName(ws);
+  return `<span class="wso${cls ? ' ' + esc(cls) : ''}" title="${esc(nm)}"><span class="sr">${esc(tr('Workspace: {0}', nm))}</span><span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws)}</span></span>`;
+}
+// (3) the open object: every area registers once how it finds the workspace of what it shows -- wso_open(name, fn), fn() ->
+// an organisation's id / 'org:<id>' / 'private' / an object with org_id, or null when its page is not open (or shows
+// nothing of one workspace). The open list of Projects is the first source (wac_openList); the others are asked in order
+const WSO_OPEN = new Map();
+const wso_open = (name, fn) => { if (name && typeof fn === 'function') WSO_OPEN.set(name, fn); };
+function wso_cur() {
+  const l = wac_openList(); if (l) return wso_ws(l);
+  if (S.route?.mod === 'tasks') return '';  // a task view without a list (Today, filters ...): rows wear their own tone
+  for (const fn of WSO_OPEN.values()) { let w = null; try { w = fn(); } catch { /* an area not ready yet */ } const ws = wso_ws(w); if (ws) return ws; }
+  return '';
+}
+// put the open object's workspace onto #main (wsc-on) and, under "All workspaces", its tone onto #view (wac-loc; an open list's
+// own colour, #main.lp-acc, wins). After every render and every redraw of the view (an area that loaded its object later)
+function wso_sync() {
+  const ws = wso_cur(), o = wsc_ofWs(ws), main = $('#main');
+  lp_put(main, 'wsc-on', o ? wsc_vars(o) : '', WSC_VARS);
+  lp_put($('#view'), 'wac-loc', main?.classList.contains('lp-acc') ? '' : wso_locVars(ws), WAC_VARS);
+}
+const wso_locVars = ws => ws && ws !== 'all' && wsOn() && wac_on() && wsCur() === 'all' ? wac_locVars(ws) : '';
 // moved from Private into an organisation -> the toast says who sees it now (the move keeps its Undo)
 function wsc_moveMsg(fromList, toList, msg) {
   const a = lp_listOf(fromList), b = lp_listOf(toList);
@@ -183,10 +217,8 @@ function wsc_listMoved(id, was, now, e) {
 const WSC_VARS = ['--wsd', '--wsl'];
 const wsc_listVars = l => l && !l.is_inbox && l.org_id ? wsc_vars(l.org_id) : '';
 function wsc_sync() {
-  const k = S.route?.mod === 'tasks' ? String(S.route.key || '') : '';
-  lp_put($('#main'), 'wsc-on', wsc_listVars(k.startsWith('l:') ? listById(+k.slice(2)) : null), WSC_VARS);
+  wso_sync();  // 2.1205.0 (#6179): the open object of any area (was: only an open list); 2.504.0 (#4222): + its tone under "All"
   wsc_detail();
-  wac_viewSync();  // 2.504.0 (#4222)
   wsp_side();  // 2.57.0 B (#1807); 2.138.2 C (#2389): the stripe's colour
 }
 function wsc_detail() {
