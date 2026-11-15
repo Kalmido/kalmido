@@ -71,7 +71,7 @@ function fakeMic(w) {
       && mic.querySelector('svg'), 'composer: the microphone (app icon) next to the paperclip');
     const ta = d.querySelector('#tc-in');
     ta.value = 'typing'; ta.dispatchEvent(new w.Event('input', {bubbles: true}));
-    check(mic.classList.contains('hidden'), 'composer: no microphone while text is typed');
+    check(!mic.classList.contains('hidden'), 'composer: the microphone stays while text is typed');  // 2.1220.0 (#6102): the tools stay where they are
     ta.value = ''; ta.dispatchEvent(new w.Event('input', {bubbles: true}));
     check(!mic.classList.contains('hidden'), 'composer: the microphone is back when the box is empty');
     // tap = recording
