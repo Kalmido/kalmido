@@ -63,6 +63,18 @@ def tk_taken(c, lid, key):
     return x["name"] if x else None
 
 
+def tk_import_clash(c, lid):
+    """2.1218.0 (#6202): an imported project whose key another project of the target workspace already uses (tk_taken) comes
+    without a key: its tasks' numbers stay as old keys (task_keys aliases, like a key change in tk_set), so APP-3 still finds
+    the moved task after the target's own APP-3 (tk_ids_ordered). Returns the key it took away (for the import's warning), else
+    None. The caller passes only the lists its run created."""
+    r = c.execute("SELECT ticket_key FROM lists WHERE id=?", (lid,)).fetchone()
+    if not r or not r["ticket_key"] or not tk_taken(c, lid, r["ticket_key"]):
+        return None
+    tk_set(c, lid, None)
+    return r["ticket_key"]
+
+
 def tk_set(c, lid, key):
     """Sets / changes / removes (None) the key of list lid. The rights are the caller's job (owner / project admins).
     Old keys stay as aliases; tasks without a number get theirs in the order they were made. Returns the stored key."""
