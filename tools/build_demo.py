@@ -150,10 +150,14 @@ def main(argv):
         shutil.copytree(os.path.join(STATIC, d), os.path.join(st, d))
     # translations + celebration one-liners as scripts (the page may not fetch anything; the shim loads them as <script>)
     langs = []
+    import importlib.util  # 2.1188.0 (#6194): a language = its file + the fragments static/i18n/neu/<KID>.json (kalmido/core/i18nfrag.py)
+    spec = importlib.util.spec_from_file_location("i18nfrag", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))
+    frag = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(frag)
     for f in sorted(os.listdir(os.path.join(STATIC, "i18n"))):
         if f.endswith(".json"):
             code = f[:-5]
-            data = json.load(open(os.path.join(STATIC, "i18n", f), encoding="utf-8"))
+            data = frag.load_lang(os.path.join(STATIC, "i18n"), code)
             write(os.path.join(st, "i18n", code + ".js"),
                   f"(window.KDEMO_I18N = window.KDEMO_I18N || {{}})[{json.dumps(code)}] = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n")
             langs.append(code)

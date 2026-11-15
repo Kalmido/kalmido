@@ -31,11 +31,13 @@ check(not errors, f"checker reads the code without errors: {errors[:3]}")
 check(len(keys) > 3000, f"{len(keys)} keys in the code")
 I18N = os.path.join(ROOT, "static", "i18n")
 files = sorted(f[:-5] for f in os.listdir(I18N) if f.endswith(".json"))
+# 2.1188.0 (#6194): a language = static/i18n/<code>.json + the fragments static/i18n/neu/<KID>.json (ic.load_code); every
+# check below reads it that way, and the checker reports the fragments' problems (a key in two places)
 check(set(files) >= {"de", "fr", "es", "it", "nl"}, f"languages: {files}")
 BETA = {"fr", "es", "it", "nl"}
 LOCALES = {"de": "de-DE", "fr": "fr-FR", "es": "es-ES", "it": "it-IT", "nl": "nl-NL"}
 for code in files:
-    d = json.load(open(os.path.join(I18N, code + ".json"), encoding="utf-8"))
+    d = ic.load_code(code)
     tk = {k: v for k, v in d.items() if not k.startswith("_")}
     missing = [k for k in keys if k not in tk]
     unused = [k for k in tk if k not in keys]
@@ -90,7 +92,7 @@ nodes = [n for n in ast.parse(src).body if (isinstance(n, ast.FunctionDef) and n
 check(len(nodes) == len(want), f"helpers found in kalmido/core/i18n.py: {[getattr(n, 'name', None) for n in nodes]}")
 LANGS = {"en": {"_meta": {"name": "English", "locale": "en-GB"}}}
 for code in files:
-    LANGS[code] = json.load(open(os.path.join(I18N, code + ".json"), encoding="utf-8"))
+    LANGS[code] = ic.load_code(code)
 ns = {"LANGS": LANGS, "lang": lambda: "en"}
 exec(compile(ast.Module(body=nodes, type_ignores=[]), "kalmido/core/i18n.py", "exec"), ns)  # noqa: S102 (our own source)
 langs = ns["languages"]()
@@ -119,7 +121,7 @@ pal = open(os.path.join(ROOT, "static", "js", "palette.js"), encoding="utf-8").r
 nq = pal[pal.index("function nextQuip()"):pal.index("QUIPS.last = LS.get")]
 check("d[I18N.code]" in nq and "d.en" not in nq, "nextQuip: no block for the language = no line (no English fallback)")
 for code in ("de", "fr", "es", "it", "nl"):
-    tk = json.load(open(os.path.join(I18N, code + ".json"), encoding="utf-8"))
+    tk = ic.load_code(code)
     for k in ("Answer to", "By list", "Lists and projects", "Kalmido text", "Auto-compact", "incl. producing ({0})"):
         check(tk.get(k) not in (None, k), f"{code}: '{k}' is translated")
 
@@ -129,8 +131,8 @@ DE_DU = re.compile(r"\b(du|dir|dich|dein\w*)\b", re.I)
 DE_SIE = re.compile(r"\b(Sie|Ihr\w*|Ihnen)\b")
 FR_VOUS = re.compile(r"\b(vous|votre|vos)\b", re.I)
 join = lambda v: " ".join(v) if isinstance(v, list) else v  # noqa: E731 (plural forms)
-de_t = json.load(open(os.path.join(I18N, "de.json"), encoding="utf-8"))
-fr_t = json.load(open(os.path.join(I18N, "fr.json"), encoding="utf-8"))
+de_t = ic.load_code("de")
+fr_t = ic.load_code("fr")
 vous_du = [k for k, v in fr_t.items() if not k.startswith("_") and k in de_t
            and FR_VOUS.search(re.sub(r"rendez-vous", "", join(v), flags=re.I))
            and DE_DU.search(join(de_t[k])) and not DE_SIE.search(join(de_t[k]))]
@@ -165,7 +167,7 @@ for rel, one in COUNTS:
     src = open(os.path.join(ROOT, rel), encoding="utf-8").read()
     check(("trn('%s'" % one) in src or ('trn("%s"' % one) in src, f"{rel}: trn with '{one[:50]}'")
     for code in ("de", "fr", "es", "it", "nl"):
-        v = json.load(open(os.path.join(I18N, code + ".json"), encoding="utf-8")).get(one)
+        v = ic.load_code(code).get(one)
         check(isinstance(v, list) and len(v) == 2 and all(x.strip() for x in v), f"{code}: singular + plural for '{one[:50]}'")
         if code in ("de", "es", "fr") and isinstance(v, list) and one not in SAME_OK:
             check(v[0] != v[1], f"{code}: singular differs from plural for '{one[:50]}'")

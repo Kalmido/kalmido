@@ -15,16 +15,21 @@ merge queue gets the same checks here, as a CI step on the commits of the change
               KALMIDO_PRIVACY_IDENT / KALMIDO_ALLOWED_EMAILS; each a regular expression, the e-mails a comma list). Without
               KALMIDO_PRIVACY_DENY (a pull request from a fork gets no secrets) the scan of the lines is skipped with a
               notice. Commit identities: the noreply addresses (project, GitHub) and the ones in KALMIDO_ALLOWED_EMAILS.
+  i18n        2.1188.0 (#6194): a change of static/i18n/<code>.json adds no key (changing or deleting a text is fine): the new
+              texts of a package go into static/i18n/neu/<KID>.json (kalmido/core/i18nfrag.py), so two entries of the merge
+              queue never conflict at the end of the big language files (GitHub merges without the merge drivers). A key that
+              stood in a fragment at the base may move into the big file (folding the fragments in).
   oneway      the one-way rules (destructive SQL, a schema version bump, a migration step that deletes, a sign-in route
               added / removed, the registration modes changed): a note (GitHub warning annotation), never red - a one-way
               step is a note while the switch "einbahn_braucht_ja" of the release tooling is off; --strict makes it red.
 
-  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,oneway] [--strict] [--repo DIR]
+  python3 tools/pr_lint.py --base BASE [--head HEAD] [--only subject,changelog,privacy,i18n,oneway] [--strict] [--repo DIR]
 Exit 0 clean (notes allowed), 1 a check failed (listed), 2 usage / git error. Python standard library only.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -32,7 +37,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = [ROOT]  # --repo (the self test runs on a temporary repository)
-CHECKS = ("subject", "changelog", "privacy", "oneway")
+CHECKS = ("subject", "changelog", "privacy", "i18n", "oneway")
 
 # subjects the release tooling writes itself (kalmido-livezug.py): the version commit, the README / changelog fold, a job's
 # changelog fragment, a job number; a revert keeps the subject of the reverted commit in quotes
@@ -41,6 +46,8 @@ APP_CODE = re.compile(r"^(app\.py$|kalmido/|static/|mcp/)")
 CHANGELOG = re.compile(r"^(changelog\.d/[^/]+\.md|CHANGELOG\.md)$")
 NOREPLY = re.compile(r"^(noreply@kalmido\.com|\d+\+[a-z0-9-]+@users\.noreply\.github\.com|noreply@github\.com)$", re.I)
 COMMENT = re.compile(r"^\s*(#|--)")
+I18N_BASE = re.compile(r"^static/i18n/([a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?)\.json$")  # the big language files
+I18N_FRAG = re.compile(r"^static/i18n/neu/[\w.-]+\.json$")  # the fragments of the packages (#6194)
 
 # The one-way rules (the same as the release tooling's defaults): side "+" added lines, "weg" removed lines that were not
 # added back unchanged, "geaendert" = "weg" + added lines that were not there before, "+-" both sides.
@@ -164,6 +171,40 @@ def check_privacy(ids, files, notes: list[str]) -> list[str]:
     return hits
 
 
+def _json_at(rev: str, path: str) -> dict:
+    """The JSON object of <path> at <rev>; {} = no such file / no object."""
+    try:
+        d = json.loads(git("show", f"{rev}:{path}"))
+    except (RuntimeError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def check_i18n(base: str, head: str, files) -> list[str]:
+    """2.1188.0 (#6194): the keys a change adds to static/i18n/<code>.json (merge base against HEAD); keys of a fragment at the
+    merge base do not count (they are being folded in)."""
+    langs = sorted(p for p in files if I18N_BASE.match(p))
+    if not langs:
+        return []
+    mb = git("merge-base", base, head).strip()
+    frag_keys: dict[str, set[str]] = {}
+    for p in git("ls-tree", "-r", "--name-only", mb, "--", "static/i18n/neu/").split("\n"):
+        if I18N_FRAG.match(p):
+            for code, texts in _json_at(mb, p).items():
+                if isinstance(texts, dict):
+                    frag_keys.setdefault(code, set()).update(texts)
+    hits = []
+    for p in langs:
+        code = I18N_BASE.match(p).group(1)
+        old, known = _json_at(mb, p), frag_keys.get(code, set())
+        new = [k for k in _json_at(head, p) if k not in old and k not in known]
+        if new:
+            more = f" and {len(new) - 3} more" if len(new) > 3 else ""
+            hits.append(f"{p}: {len(new)} new key(s) ({', '.join(repr(k[:60]) for k in new[:3])}{more}) - new texts go into "
+                        f"static/i18n/neu/<KID>.json, not into the big language file (tools/i18n_neu.py auslagern --base <rev> --kid <KID>)")
+    return hits
+
+
 def check_oneway(files) -> list[str]:
     hits = []
     for r in ONEWAY:
@@ -217,6 +258,12 @@ def main(argv=None) -> int:
             hits = check_changelog(files)
         elif c == "privacy":
             hits = check_privacy(idents(a.base, a.head), files, notes)
+        elif c == "i18n":
+            try:
+                hits = check_i18n(a.base, a.head, files)
+            except RuntimeError as e:
+                print(f"pr_lint: {e}", file=sys.stderr)
+                return 2
         else:
             hits = check_oneway(files)
             for h in hits:

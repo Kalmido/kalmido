@@ -269,6 +269,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/filters.py` (`kflt`) - The filter of the shared core on the server: rules {op, conds} of an area's catalog -> one SQL condition or a match (2.846.0, #5520)
 - `kalmido/core/fkeys.py` (`fk`) - Foreign keys for references that had none (GDPR art. 17: no reference to a deleted person / object)
 - `kalmido/core/i18n.py` - Server-side translations (tr / trn / N_)
+- `kalmido/core/i18nfrag.py` - The new texts of a package in a file of their own, mixed into the language files at run time
 - `kalmido/core/i18nkeys.py` (`key`) - The translation keys of the code and their split per module loaded on demand
 - `kalmido/core/i18nparts.py` (`i18np`) - The web client's texts per module
 - `kalmido/core/idem.py` (`idem`) - Idempotency keys of write requests (header Idempotency-Key)

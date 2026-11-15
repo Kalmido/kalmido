@@ -24,6 +24,7 @@ from flask import abort, request, Response
 
 from ..core.config import app, APP_DIR
 from ..core.i18n import I18N_DIR
+from ..core.i18nfrag import fragment_paths, lang_bytes, load_lang
 from ..core.pages import st_warm
 from ..core.i18nkeys import core_sources, key_sources, module_keys, split_lang
 
@@ -33,9 +34,11 @@ _I18NP_CODE = re.compile(r"[a-z]{2,3}(-[A-Za-z0-9]{2,8})?")
 
 
 def _i18np_sig():
-    """What the split depends on: the sources with keys, lazyload.js (LD_MODS) and the language files."""
+    """What the split depends on: the sources with keys, lazyload.js (LD_MODS), the language files and 2.1188.0 (#6194) their
+    fragments (static/i18n/neu/<KID>.json, core/i18nfrag.py)."""
     paths = [os.path.join(APP_DIR, r) for r in key_sources(APP_DIR) + core_sources(APP_DIR)] + [os.path.join(APP_DIR, "static", "js", "lazyload.js")]
     paths += sorted(os.path.join(I18N_DIR, f) for f in os.listdir(I18N_DIR) if f.endswith(".json"))
+    paths += fragment_paths(I18N_DIR)
     out = []
     for p in paths:
         try:
@@ -75,9 +78,9 @@ def _i18np_build(sig):
         mod_of, mods = module_keys(APP_DIR, uses)
         h = hashlib.sha256(json.dumps(sorted(mod_of.items()), ensure_ascii=False).encode())
         for p, _, _ in sig:
-            if p.startswith(I18N_DIR + os.sep):
+            if p.startswith(I18N_DIR + os.sep):  # 2.1188.0 (#6194): a fragment by its path below static/i18n (neu/<KID>.json)
                 with open(p, "rb") as f:
-                    h.update(os.path.basename(p).encode() + b"\0" + f.read())
+                    h.update(os.path.relpath(p, I18N_DIR).replace(os.sep, "/").encode() + b"\0" + f.read())
     except Exception as e:  # noqa: BLE001
         return _i18np_off(sig, repr(e))
     return {"sig": sig, "mod_of": mod_of, "mods": set(mods), "uses": uses, "ver": h.hexdigest()[:12], "langs": {}, "vers": {}}
@@ -129,8 +132,7 @@ def i18np_vers(code, st=None):
     path = os.path.join(I18N_DIR, code + ".json")
     if not _I18NP_CODE.fullmatch(code) or not os.path.isfile(path):
         return {}
-    with open(path, encoding="utf-8") as f:
-        d = json.load(f)
+    d = load_lang(I18N_DIR, code)  # 2.1188.0 (#6194): with the fragments
     core, parts = split_lang(d, st["mod_of"])
     h = lambda o: hashlib.sha256(json.dumps(o, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()[:12]  # noqa: E731 (the bytes of _i18np_lang)
     out = {"core": h(core)} | {"mod-" + m: h(parts.get(m, {})) for m in st["mods"]}
@@ -173,9 +175,8 @@ def i18np_parts():
     off: <code>.core.json = the whole language file, no module parts."""
     st, out = i18np_state(), {}
     for code in i18np_langs():
-        if not st["ver"]:
-            with open(os.path.join(I18N_DIR, code + ".json"), "rb") as f:
-                out[f"/static/i18n/{code}.core.json"] = f.read()
+        if not st["ver"]:  # 2.1188.0 (#6194): the whole file as /static/i18n/<code>.json sends it (with the fragments)
+            out[f"/static/i18n/{code}.core.json"] = lang_bytes(I18N_DIR, code)
             continue
         for part, (plain, _, _) in (_i18np_lang(st, code) or {}).items():
             if not part.startswith("old-"):
@@ -191,8 +192,7 @@ def _i18np_lang(st, code):
     path = os.path.join(I18N_DIR, code + ".json")
     if not _I18NP_CODE.fullmatch(code) or not os.path.isfile(path):
         return None
-    with open(path, encoding="utf-8") as f:
-        d = json.load(f)
+    d = load_lang(I18N_DIR, code)  # 2.1188.0 (#6194): with the fragments
     core, parts = split_lang(d, st["mod_of"])
     enc = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":")).encode()  # noqa: E731
     out = {"core": enc(core)}
@@ -212,8 +212,7 @@ def _i18np_send(code, part):
         path = os.path.join(I18N_DIR, code + ".json")
         if part != "core" or not _I18NP_CODE.fullmatch(code) or not os.path.isfile(path):
             abort(404)
-        with open(path, "rb") as f:
-            r = Response(f.read(), mimetype="application/json")
+        r = Response(lang_bytes(I18N_DIR, code), mimetype="application/json")  # 2.1188.0 (#6194): with the fragments
         r.headers["Cache-Control"] = "no-cache"
         return r
     lang = _i18np_lang(st, code)

@@ -8,6 +8,7 @@ from flask import g, has_request_context, request
 
 from ..core.config import APP_DIR
 from ..core.schema import USER_DEFAULTS
+from ..core.i18nfrag import merge_lang, read_fragments
 
 
 # ---------------------------------------------------------------- i18n
@@ -18,15 +19,16 @@ I18N_DIR = os.path.join(APP_DIR, "static", "i18n")
 
 
 def load_languages():
-    """{code: dict} of every static/i18n/*.json; English is built in (the keys themselves)."""
+    """{code: dict} of every static/i18n/*.json with its fragments (core/i18nfrag.py); English is built in (the keys themselves)."""
     out = {"en": {"_meta": {"name": "English", "locale": "en-GB"}}}
+    frags = read_fragments(I18N_DIR)  # 2.1188.0 (#6194): + the new texts of the packages (static/i18n/neu/<KID>.json)
     for fn in sorted(glob.glob(os.path.join(I18N_DIR, "*.json"))):
         code = os.path.basename(fn)[:-5]
         try:
             with open(fn, encoding="utf-8") as f:
                 d = json.load(f)
             if re.fullmatch(r"[a-z]{2,3}(-[A-Za-z0-9]{2,8})?", code) and code != "en" and isinstance(d, dict):
-                out[code] = d
+                out[code] = merge_lang(d, code, frags)
         except (OSError, ValueError) as e:
             print("i18n: skipping", fn, e, flush=True)
     return out

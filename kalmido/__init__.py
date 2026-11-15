@@ -31,6 +31,7 @@ ORDER = (
     "core.objhooks",  # 2.558.0 (#4709): what accounts needs of the shared core (filled by core.objects, no imports)
     "core.config",
     "core.schema",
+    "core.i18nfrag",  # 2.1188.0 (#6194): the new texts of the packages (static/i18n/neu/<KID>.json), read by core.i18n
     "core.i18n",
     "core.mailframe",  # 2.420.0 B (#3499): the one HTML frame of every mail
     "core.numtext",  # 2.263.0 (#2976): one reader for typed numbers
