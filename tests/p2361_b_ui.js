@@ -58,9 +58,11 @@ const FEAT = 'cal,comments,collab,clients';
   // 2.87.9 (#1917): the office menu with its four groups instead of the tab row; 2.92.0 (#1925): bookkeeping, bank (2.90),
   // subscriptions (2.91) and contracts (2.92) joined - an admin sees a point for every tab of OFC_TABS
   // 2.98.0 (#2180): the office rail; services and text blocks are the tab "Templates" under Settings, not in the rail
-  await until(() => d.querySelector('#side [data-ofm="settings"][aria-current="page"]'), 30);
+  // 2.1221.0 (#6244): CI of 2.1201.0 - the office had not loaded within 4.5 s / 9 s on a busy shard (menu, Settings, New service and
+  // the empty hint all red at once, the later checks with the shared window green): both waits get 30 s, they end at the real state
+  await until(() => d.querySelector('#side [data-ofm="settings"][aria-current="page"]'), 200);
   // CI of 2.223.0: on a slow runner the panel and the tab were not drawn yet (menu, tab, "New service" all red at once)
-  await until(() => d.querySelector('.office [data-setgo="biz-tpl"]') && d.querySelector('.office [data-ofc="new"][data-kind="services"]'), 60);  // 2.152.2 (#2617): the panel redraws once the office has loaded
+  await until(() => d.querySelector('.office [data-setgo="biz-tpl"]') && d.querySelector('.office [data-ofc="new"][data-kind="services"]'), 200);  // 2.152.2 (#2617): the panel redraws once the office has loaded
   check([...d.querySelectorAll('#side [data-ofm]')].filter(b => b.dataset.go.startsWith('office/')).length === w.eval("OFC_TABS.filter(t => t[0] !== 'time').length") - 3 /* services + texts under Settings; 2.489.0 (#2648): subs inside agreements */ && w.eval('OFC_TABS.length') >= 14, 'the menu has every office point (admin)');  // 2.152.2 (#2617): the office points sit in the panel #side; 2.187.1 B (#2735): Times to bill only for a person ruled by office groups, not for the admin
   check(d.querySelector('#side [data-ofm][aria-current="page"]')?.dataset.go === 'office/settings' && !!d.querySelector('.office [data-setgo="biz-tpl"]'), 'point Settings, the way back to Texts & templates');  // 2.152.2 (#2617): the office points sit in the panel #side
   check(!!d.querySelector('.office [data-ofc="new"][data-kind="services"]'), 'admin: "New service"');
