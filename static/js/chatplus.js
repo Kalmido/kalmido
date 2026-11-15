@@ -82,7 +82,7 @@ async function cpnSet(art, place, id, on) {
 }
 async function cpnToggle(art, id, on) {
   const place = art === 't' ? S.tc.rid : S.chat.aid, k = art + ':' + place;
-  try { await cpnSet(art, place, id, on); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  try { await cpnSet(art, place, id, on); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }  // 2.1211.0 (#6098): what failed first
   const e = histAdd({label: on ? tr('Message pinned') : tr('Message unpinned'), undo: () => cpnSet(art, place, id, !on), redo: () => cpnSet(art, place, id, on)});
   offerUndo(on ? tr('Message pinned') : tr('Message unpinned'), e);
   CPN.undoK = k; CPN.undoE = e;
