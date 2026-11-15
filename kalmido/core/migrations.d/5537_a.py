@@ -29,7 +29,7 @@ before puts its own back on its start and finds archived written by this one.
 as well and writes the column in its own type.
 
 2.1231.0 (#5880, stage 3b, one-way): the old column archived is gone (migrations.d/5880_a.py drops it after the start's
-move, lists/liststate.py lst_move). The trigger is one-sided again, as in stage 1, but from archived_at: 'trash' while
+move, core/liststate.py lst_move). The trigger is one-sided again, as in stage 1, but from archived_at: 'trash' while
 deleted_at is set, else 'archived' while archived_at is set, else 'live' -- a write that changes state to 'live' /
 'archived' on purpose (core/access.py list_set_archived; an INSERT that names 'archived') decides, and the trigger keeps
 archived_at with it (set when it is missing, cleared on 'live'), so marker and archived_at never part. A project in the

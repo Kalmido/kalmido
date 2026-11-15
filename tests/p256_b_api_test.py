@@ -50,7 +50,8 @@ def png(w=4, h=4):
 
 
 def row(lid):
-    return dict(dbx("SELECT name, color, icon, kind, archived, owner_id FROM lists WHERE id=?", (lid,))[0])
+    # 2.1231.0 (#5880): the column archived of lists is gone - archived = archived_at set, written through state
+    return dict(dbx("SELECT name, color, icon, kind, CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END AS archived, owner_id FROM lists WHERE id=?", (lid,))[0])
 
 
 subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], check=True, stdout=subprocess.DEVNULL)

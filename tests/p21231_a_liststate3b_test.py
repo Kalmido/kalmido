@@ -7,7 +7,7 @@ limit; the trigger kalmido_list_state reads archived_at since. Invented names.
  - a database of before (the suite adds the column back with the values of an older version and restarts): the column is gone
    after the start, every project keeps its archive (archived without a moment, a stale moment, archived in the trash, a row
    of a dump from before the marker), the back limit names #5880
- - a second start finds nothing to do (the column is gone)
+ - a second start finds nothing to do (the column is gone); a row marked archived without archived_at keeps its archive
  - "my data" (GET /api/export.json) still gives the key archived, from the marker
  - the account import: a file's archived (a file of before) or state (a file without the key) decides the archive
  - the undo of the settings: a copy of before the column went is written back as archive / archived_at, and a step of
@@ -84,9 +84,17 @@ check(row(P5) == ("live", False, False), f"a live project stays live {row(P5)}")
 meta = dict(dbx("SELECT key, value FROM kalmido_meta WHERE key IN ('back_floor', 'back_floor_how')"))
 check("#5880" in (meta.get("back_floor_how") or "") and meta.get("back_floor", "").endswith(".0"),
       f"the back limit is raised and names the move {meta}")
+# review 2.1231: a row marked archived without its moment (the trigger off, hand-made SQL) keeps its archive at the next start
+owner(f"""ALTER TABLE lists DISABLE TRIGGER kalmido_list_state;
+UPDATE lists SET state='archived', archived_at=NULL WHERE id={int(P5)};
+ALTER TABLE lists ENABLE TRIGGER kalmido_list_state;""")
+check(row(P5) == ("archived", False, False), f"setup: marked archived without archived_at {row(P5)}")
 fresh(keep=True, prefix="P21231A")
 check(not dbx(COL) and row(P1) == ("archived", True, False) and row(P2) == ("live", False, False),
       f"a second start: nothing to do {row(P1)} {row(P2)}")
+check(row(P5) == ("archived", True, False), f"the start's reconcile: archived without a moment gets one, stays archived {row(P5)}")
+dbx("UPDATE lists SET state='live' WHERE id=?", (P5,))
+check(row(P5) == ("live", False, False), f"setup: P5 live again {row(P5)}")
 check("None" in in_app("from kalmido.core.liststate import lst_move\nprint(lst_move(c))"), "lst_move without the column: nothing (None)")
 
 # ---------------------------------------------------------------- the app as before, through the route

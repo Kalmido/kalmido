@@ -53,14 +53,15 @@ check(A.delete(B + f"/api/lists/{INBOX}").status_code == 400, "the inbox can nev
 check(Bb.delete(B + f"/api/lists/{L}").status_code in (403, 404), "a member cannot delete the list")
 
 # ================= archive with _prev (undo / redo path) and the conflict rule
+# 2.1231.0 (#5880): the column archived of lists is gone - archived = archived_at set, written through state
 r = A.patch(B + f"/api/lists/{L}", json={"archived": 1, "_prev": {"archived": 0}}).json()
-check(r.get("ok") and r.get("conflicts") == [] and q("SELECT archived FROM lists WHERE id=?", L)[0]["archived"] == 1, "archive with _prev")
+check(r.get("ok") and r.get("conflicts") == [] and q("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END AS archived FROM lists WHERE id=?", L)[0]["archived"] == 1, "archive with _prev")
 check(Bb.patch(B + f"/api/lists/{L}", json={"archived": 0}).status_code == 403, "a member cannot archive / restore")
 r = A.patch(B + f"/api/lists/{L}", json={"archived": 0, "_prev": {"archived": 1}}).json()
-check(r.get("conflicts") == [] and q("SELECT archived FROM lists WHERE id=?", L)[0]["archived"] == 0, "undo of the archive: back (with _prev)")
+check(r.get("conflicts") == [] and q("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END AS archived FROM lists WHERE id=?", L)[0]["archived"] == 0, "undo of the archive: back (with _prev)")
 A.patch(B + f"/api/lists/{L}", json={"archived": 1})
 r = A.patch(B + f"/api/lists/{L}", json={"archived": 0, "_prev": {"archived": 0}}).json()
-check([c["field"] for c in r.get("conflicts", [])] == ["archived"] and q("SELECT archived FROM lists WHERE id=?", L)[0]["archived"] == 1,
+check([c["field"] for c in r.get("conflicts", [])] == ["archived"] and q("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END AS archived FROM lists WHERE id=?", L)[0]["archived"] == 1,
       "archived elsewhere meanwhile (_prev says 0): the undo of a restore is reported as a conflict, the list stays archived")
 A.patch(B + f"/api/lists/{L}", json={"archived": 1})
 st = A.get(B + "/api/state").json()

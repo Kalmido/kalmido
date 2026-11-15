@@ -1540,10 +1540,12 @@ def init_db(guard=True):
             # kalmido_offer_link_list (migrations.d/4586_a.py) follow their task's list once
             c.execute("UPDATE task_offer_links l SET list_id=t.list_id FROM tasks t WHERE t.id=l.task_id AND l.list_id<>t.list_id")
             gset(c, "migr_offerlist4586", "1")
-        # 2.1029.0 (#5537, migr_liststate5537): every start, the projects' state marker agrees with archived_at / deleted_at
-        # (migrations.d/5537_a.py; the trigger kalmido_list_state keeps it so; this reconcile covers a rollback that dropped the
-        # trigger -- review of 2.1029; touches only rows that differ). 2.1231.0 (#5880): archived_at, the old column archived is gone
+        # 2.1029.0 (#5537): every start, the projects' state marker agrees with archived_at / deleted_at (migrations.d/5537_a.py; the
+        # trigger kalmido_list_state keeps it so; this reconcile covers a rollback that dropped the trigger -- review of 2.1029; touches
+        # only rows that differ). 2.1231.0 (#5880): archived_at, the old column archived is gone; review 2.1231: a row marked archived
+        # without its moment (the trigger off, hand-made SQL) gets one first, so it keeps its archive (flag migr_liststate5537)
         with pg_system_ctx(c):  # every organisation's projects (row-level security)
+            c.execute("UPDATE lists SET archived_at=CURRENT_TIMESTAMP WHERE state='archived' AND archived_at IS NULL")
             c.execute("UPDATE lists SET state=state WHERE state IS DISTINCT FROM (CASE WHEN deleted_at IS NOT NULL THEN 'trash'"
                       " WHEN archived_at IS NOT NULL THEN 'archived' ELSE 'live' END)")
         gset(c, "migr_liststate5537", "1")
