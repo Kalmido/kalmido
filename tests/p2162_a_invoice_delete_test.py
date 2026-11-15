@@ -122,7 +122,10 @@ check(r.ok, "the invoice finalised " + r.text[:200])
 NUM = number(A, INV)
 check(NUM, f"the invoice has a number {NUM}")
 dbx("UPDATE office_docs SET status='sent', sent_at=? WHERE id=?", (T0 + "T09:00:00Z", INV))  # mailed (no mail server in the test)
-r = A.post(B + f"{D}/{INV}/payments", json={"date": T0, "amount": "100.00"})
+# 2.1192.0 (#6197): paid on the invoice's own date - the CI of v2.1162.0 ran over midnight (T0 taken at start = 14.11.,
+# the invoice dated 15.11. by the server) and the payment was refused as "before the invoice date" (#4082)
+PAYD = str(dbx("SELECT date FROM office_docs WHERE id=?", (INV,))[0][0] or T0)[:10]
+r = A.post(B + f"{D}/{INV}/payments", json={"date": PAYD, "amount": "100.00"})
 check(r.status_code in (200, 201), "a payment " + r.text[:200])
 r = A.post(B + f"{D}/{INV}/credit")
 check(r.status_code == 201, "a credit note draft " + r.text[:200])
