@@ -36,7 +36,7 @@ permissions:
   contents: read
 
 # landings on main replace each other; 2.556 (#4388): the own group of the "[release]" cut commit (2.321, #1368) is gone.
-# #6061 (14.11.2026): the train's release push (head commit "X.Y.Z: Live-Zug (...)", VERSION changed = full stage) gets its own
+# #6061 (14.11.2026): the train's release push (head commit "X.Y.Z: Live-Zug (...)"; #6253: stage release) gets its own
 # group per run again, like schedule / workflow_dispatch: since the merge queue lands on main every 10-30 minutes, a later
 # push on main cancelled the 2+ hour full run and no train went live. Every other push on main still replaces the one before.
 # The value is quoted: ": " inside a plain YAML scalar is a mapping.
@@ -49,7 +49,8 @@ concurrency:
 # "plan" and the image (all done in ~3-5 min, when the shards start), so 20 shards fit; no rerun - a red suite is red, a
 # proven flaky one is skipped with a date and a task (tests/skip.txt, checked by tests/skip_test.py).
 # 2.180.0 A (#2695): two stages, chosen by "plan" (tests/stages.py): "full" = every suite (nightly, by hand, a push that
-# changes VERSION = the release push before every live update, a change of the CI basics, "[full]" in the commit message);
+# changes VERSION, a change of the CI basics, "[full]" in the commit message; #6253: the train's release push "X.Y.Z: Live-Zug
+# (...)" runs the stage "release" = the hard groups only, the soft suites run nightly and by hand);
 # "push" = the security / rights / tenant / org / freelancer suites, the core flows and the suites of the touched areas
 # (pull requests, pushes on main without a release), in as many shards as ~15 min each need. The shard jobs are named
 # "Test suites <N>/<M> <stage> (API, UI, security)": the stage of a green run is readable from the job names.
@@ -79,7 +80,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0  # 2.180.0 A (#2695): the parent of HEAD for the changed files; 2.321 (#1368): the merge base with main for job/** branches
-      - name: Stage (full / push) and the groups of the push stage (tests/stages.py)
+      - name: Stage (full / push / queue / release) and the groups of the push stage (tests/stages.py)
         id: stage
         env:
           CI_BEFORE: ${{ github.event.before }}
@@ -106,7 +107,9 @@ jobs:
           stage=$(sed -n 's/^stage=//p' <<<"$out"); reason=$(sed -n 's/^reason=//p' <<<"$out")
           if [ "$stage" = push ] && ! [ -s /tmp/push-groups.txt ]; then stage=full; reason="no groups for the push stage - full run"; fi
           if [ "$stage" = queue ] && ! [ -s /tmp/push-groups.txt ]; then stage=full; reason="no groups for the queue stage - full run"; fi
-          [ "$stage" = push ] || [ "$stage" = queue ] || [ "$stage" = none ] || stage=full  # #5787: queue = a merge queue entry (hard + touched suites); #6063: none = a push from the queue
+          if [ "$stage" = release ] && ! [ -s /tmp/push-groups.txt ]; then stage=full; reason="no hard groups for the release stage - full run"; fi
+          # #6253: release = the train's release push (the hard suites only; the soft suites run nightly and by hand)
+          [ "$stage" = push ] || [ "$stage" = queue ] || [ "$stage" = release ] || [ "$stage" = none ] || stage=full  # #5787: queue = a merge queue entry (hard + touched suites); #6063: none = a push from the queue
           { echo "stage=$stage"; echo "reason=$reason"; } >> "$GITHUB_OUTPUT"
           if [ "$stage" = none ]; then
             echo 'matrix=[{"shard": 1, "hart": ""}]' >> "$GITHUB_OUTPUT"  # never expanded: the shard job is skipped
@@ -151,7 +154,9 @@ jobs:
         run: |
           t=$(while read -r id; do [ -z "$id" ] || find "/tmp/timings/$id" -name timings.csv; done < /tmp/timings/order.txt)
           stage=$STAGE
-          if [ "$stage" = push ] || [ "$stage" = queue ]; then  # #5787: the queue stage is cut like the push stage
+          # #5787: the queue stage is cut like the push stage; #6253: the release stage too (its groups are all hard: every
+          # shard is a "hart" one of ~9 min, all at once)
+          if [ "$stage" = push ] || [ "$stage" = queue ] || [ "$stage" = release ]; then
             python3 tools/shards.py --shards 20 --only /tmp/push-groups.txt $t | sed -n 1p || true
             python3 tools/shards.py --shards 20 --target-min 15 --hard-target-min 9 --only /tmp/push-groups.txt --assign $t > shard-plan.txt \
               || { stage=full; REASON="push stage plan failed - full run"; }
@@ -177,10 +182,12 @@ jobs:
           test "$n" -ge 1
           # #4557: "# hard H" = shards 1..H hold the hard groups; the matrix lists them first, their job name says "hart"
           h=$(sed -n 's/^# hard \([0-9][0-9]*\)$/\1/p' shard-plan.txt | sed -n 1p); h=${h:-0}
-          test "$h" -lt "$n" || h=0
+          # #6253: -le - in the release stage every group is hard, so every shard is a hard one ("release hart", the name the
+          # live train waits for); more hard shards than shards cannot be
+          test "$h" -le "$n" || h=0
           matrix=$(python3 -c 'import json, sys; n, h = map(int, sys.argv[1:]); print(json.dumps([{"shard": k, "hart": " hart" if k <= h else ""} for k in range(1, n + 1)]))' "$n" "$h")
           # #6054: the full run at most FULL_PARALLEL shards at once (GitHub runs ~20 jobs of the account at once: the rest stays
-          # free for the merge queue); push / queue stage all at once (~15 min each). Limit per shard: full 60, else 90 min
+          # free for the merge queue); push / queue / release stage all at once (~15 min each). Limit per shard: full 60, else 90 min
           FULL_PARALLEL=16
           if [ "$stage" = full ]; then par=$FULL_PARALLEL; lim=60; else par=$n; lim=90; fi
           { echo "stage=$stage"; echo "count=$n"; echo "shards=[$(seq -s, 1 "$n")]"; echo "hard=$h"; echo "matrix=$matrix"; echo "parallel=$par"; echo "limit=$lim"; } >> "$GITHUB_OUTPUT"
