@@ -246,9 +246,17 @@ def chat_dict(r, rx=None, files=None, api=False, newest=None, edits=False):
             "pinned_by": r["pinned_by"] if "pinned_by" in r.keys() and r["pinned_at"] else None,
             **({"edits": med_edits(r)} if edits else {}),
             # 2.1086.0 (#5860): "Show me" -- the steps of an agent's message (api/showme.py; null = none)
+            # 2.1239.0 (#6261): the model of an agent's message ({model?, effort?, klasse?, grund?}; null = none)
+            "run_meta": chat_run_meta_out(r),
             "show": shw_out(r["show_steps"] if "show_steps" in r.keys() and r["sender"] == "agent" else None, api),
             "attachments": [{**f, "url": (f"/api/v1/chat-attachments/{f['id']}" if api else f"/api/chat-files/{f['id']}")}
                             for f in (files or {}).get(r["id"], [])]}
+
+
+def chat_run_meta_out(r):
+    v = r["run_meta"] if "run_meta" in r.keys() and r["sender"] == "agent" else None
+    v = v if isinstance(v, dict) else _jload(v)
+    return {k: v[k] for k in RUN_META_KEYS if isinstance(v.get(k), str)} or None if isinstance(v, dict) else None
 
 
 def chat_reply(r):
@@ -1005,6 +1013,43 @@ def chat_task(c, v, uid_a, uid_b, person=False):
         if not lr or not agent_usable(c, uid_b, uid_a, lr[0]):
             raise BadInput(tr("Invalid value: {0}", "task_id"))
     return tid
+
+
+# 2.1239.0 (#6261): run_meta = which model wrote an agent's message ({model, effort, klasse, grund}, all optional strings of at
+# most RUN_META_MAX characters, unknown keys dropped). The app shows it as a small grey line under the bubble ("Fable 5.2 ·
+# Effort hoch"); the answer of the POST carries it back, so a service knows the app keeps it. NULL = none (old, people).
+RUN_META_KEYS = ("model", "effort", "klasse", "grund")
+RUN_META_MAX = 80
+
+
+def chat_run_meta(v):
+    """The field run_meta of an agent's message (a dict, or its JSON text from a multipart form) -> the stored JSON text, or
+    None (nothing usable). Not an object = 400; unknown keys and non-text values are dropped, texts cut to RUN_META_MAX."""
+    if v in (None, "", {}):
+        return None
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except ValueError:
+            raise BadInput(tr("Invalid value: {0}", "run_meta")) from None
+    if not isinstance(v, dict):
+        raise BadInput(tr("Invalid value: {0}", "run_meta"))
+    out = {}
+    for k in RUN_META_KEYS:
+        x = v.get(k)
+        if isinstance(x, str):
+            x = re.sub(r"\s+", " ", x).strip()[:RUN_META_MAX].strip()
+            if x:
+                out[k] = x
+    return json.dumps(out, ensure_ascii=False) if out else None
+
+
+def chat_set_run_meta(c, r, rm):
+    """Writes run_meta (chat_run_meta's text) on the new row r -> the row (caller commits)."""
+    if not rm:
+        return r
+    c.execute("UPDATE agent_chat SET run_meta=? WHERE id=?", (rm, r["id"]))
+    return c.execute("SELECT * FROM agent_chat WHERE id=?", (r["id"],)).fetchone()
 
 
 def chat_body(v):
