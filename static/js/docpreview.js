@@ -174,7 +174,7 @@ async function dpvInline(host, o) {
   const draw = () => {
     if (j.type === 'xlsx' || j.type === 'ods') {
       const sh = j.sheets || [];
-      host.innerHTML = `<div class="dpvtabs" role="tablist"${sh.length < 2 ? ' hidden' : ''}>${sh.map((s, i) => `<button type="button" role="tab" class="dpvtab${i === sheet ? ' on' : ''}" aria-selected="${esc(String(i === sheet))}" data-dpv="sheet" data-i="${esc(String(i))}">${esc(s.name || tr('Sheet {0}', i + 1))}</button>`).join('')}${j.sheets_total > sh.length ? `<span class="muted dpvmore">${esc(tr('+{0} more sheets', j.sheets_total - sh.length))}</span>` : ''}</div><div class="dpvbody dpvin">${/*html-ok*/ dpvSheetHtml(sh[sheet], false)}</div>`;
+      host.innerHTML = `<div class="dpvtabs" role="tablist"${sh.length < 2 ? ' hidden' : ''}>${sh.map((s, i) => `<button type="button" role="tab" class="dpvtab${i === sheet ? ' on' : ''}" aria-selected="${esc(String(i === sheet))}" data-dpv="sheet" data-i="${esc(String(i))}">${esc(s.name || tr('Sheet {0}', i + 1))}</button>`).join('')}${j.sheets_total > sh.length ? `<span class="muted dpvmore">${esc(trn('+{0} more sheet', '+{0} more sheets', j.sheets_total - sh.length))}</span>` : ''}</div><div class="dpvbody dpvin">${/*html-ok*/ dpvSheetHtml(sh[sheet], false)}</div>`;
     } else host.innerHTML = `<div class="dpvbody dpvin">${/*html-ok*/ dpvDocHtml(j)}</div>`;
   };
   draw();
