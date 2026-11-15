@@ -22,6 +22,26 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1226.0] - 2026-11-15
+
+Package 2.1198 (Bündel: Polish Wiki: Seiteninhalt lesbarer - Kopfdaten, Li, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- #6090: Wiki pages read like text - the front matter shows as fields (key as a word, dates written out, the event of minutes as a link "Open event"), folded into one line in the editor (a click opens it); page links, "Linked from", search hits and tag pages show the page name with its folders quietly beside it; a task link in the editor shows "#1 Title"; a daily note is titled by its date ("Sa, 14. Nov 2026"), the folders "journal" and "Templates" read "Daily notes" / "Templates" in the person's language (the paths stay); a page from an own template drops empty bullets / boxes and the template's front matter (tags stay); search snippets without the title and without raw Markdown; the editor's placeholder without [[...]].
+### Fixed
+- #3642: The organisation export takes the old ticket keys of tasks (APP-12 after a key change or a move) and the people taken off a project by hand along; the import writes them onto the new tasks and projects, so old keys still find their task and a person taken off stays off. A moved project with a key now counts on from its highest number (a new task got number 1 again).
+
+Package 2.1205 (Bündel: Organisations-Farbe als gemeinsamer Baustein für a, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Added
+- The organisation colour is one building block of the shared core (docs/dev/kern.md "Organisation colour", wscolor.js `wso_row`, `wso_origin`, `wso_open`, `wso_sync`): an entry of an organisation in any area gets the stripe on its left edge, an area registers its open object and gets the same marks as an open project (input frames, the organisation's tone under "All workspaces"), also when it draws the object later. Projects use it with unchanged behaviour; the other areas follow (#6180-#6188) (#6179).
+### Fixed
+- A project address without a project (deleted, no access, a typo) showed an empty project with "+ Section" and an add field that led nowhere; it now shows "This project does not exist (any more) or you have no access" with "To the projects", without add field or + button, and it is no longer remembered as the next start page. An unknown address still opens the Basket, now with the hint "This page does not exist" (#6133).
+
+Package 2.1210 (Bündel: Wackel-Test setup_ui, Weich rot: p21109_a_ui, Weich rot: p21177_a_wiki_polish_ui u. 2 weitere).
+
+### Fixed
+- Test suite setup_ui no longer races the login screen of an existing install: it waits until the screen is drawn (the boot screen fades before the login form arrives) (#5504).
+- Test suites follow intended changes: p21109_a_ui expects the empty receipts page without heading (#6223), p21177_a_wiki_polish_ui starts Select on a phone through the list's "…" menu (#6224), p2139_c_ui expects the shared error block on a page that fails to load (#6225), p2357_d_wording expects the thank-you as the standard invoice closing (#6226).
+
 ## [2.1217.0] - 2026-11-15
 
 Package 2.1192 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Teil 1/6: Sammelpaket: Aufgaben ohne Paket (Dispatcher), CI-only rot: p2458_b_ui u. 7).
@@ -66,6 +86,7 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1217.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1226.0...HEAD
+[2.1226.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1226.0
 [2.1217.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1217.0
 [2.1201.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1201.0
