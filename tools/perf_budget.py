@@ -106,7 +106,14 @@ def pbg_i18n(root, code="de"):
     spec = importlib.util.spec_from_file_location("i18nkeys", kp)
     keys = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(keys)
-    core, parts = keys.split_lang(json.loads(pbg_read(path)), keys.module_keys(root)[0])
+    d = json.loads(pbg_read(path))
+    fp = os.path.join(root, "kalmido", "core", "i18nfrag.py")
+    if os.path.isfile(fp):  # 2.1188.0 (#6194): the new texts of the packages (static/i18n/neu/<KID>.json) count like the base file's
+        spec = importlib.util.spec_from_file_location("i18nfrag", fp)
+        frag = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(frag)
+        d = frag.load_lang(os.path.dirname(path), code)
+    core, parts = keys.split_lang(d, keys.module_keys(root)[0])
     enc = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":")).encode()  # noqa: E731 (as the server sends it)
     c, p = enc(core), [enc(x) for x in parts.values()]
     return {"start_i18n_bytes": len(c), "start_i18n_gzip": len(gzip.compress(c, 6)), "lazy_i18n_bytes": sum(map(len, p)),

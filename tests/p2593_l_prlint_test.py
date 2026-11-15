@@ -2,7 +2,8 @@
 # kalmido-suite: nodata
 """#4006 (GitHub step 3): tools/pr_lint.py on a temporary repository - a commit without #<task> is red, the release tooling's
 own subjects pass, an app change without changelog.d is red, a private spot (pattern from the environment) and a private
-commit address are red, a one-way step is a note (red only with --strict). No container, standard library only."""
+commit address are red, a one-way step is a note (red only with --strict). 2.1188.0 (#6194): a new key in a big language
+file is red, a fragment green. No container, standard library only."""
 import os
 import subprocess
 import sys
@@ -116,6 +117,16 @@ def main():
         ok("... and red with --strict", rc == 1, out)
         rc, out = lint(repo, b4, "--only", "oneway", "--head", b5)
         ok("no one-way step: no note", rc == 0 and "one-way step(s)" not in out, out)
+
+        # 2.1188.0 (#6194): check i18n - new keys in static/i18n/<code>.json are red, a new fragment static/i18n/neu/<KID>.json green
+        b10 = commit(repo, {"static/i18n/de.json": '{\n  "A": "a"\n}\n'}, "#6194: language file")
+        commit(repo, {"static/i18n/neu/6194.json": '{"de": {"B": "b"}}\n', "static/i18n/de.json": '{\n  "A": "a2"\n}\n'}, "#6194: fragment")
+        rc, out = lint(repo, b10, "--only", "i18n")
+        ok("i18n: a fragment + a changed text pass", rc == 0 and "pr_lint i18n: ok" in out, out)
+        b11 = sh(repo, "rev-parse", "HEAD")
+        commit(repo, {"static/i18n/de.json": '{\n  "A": "a2",\n  "C": "c"\n}\n'}, "#6194: new key the old way")
+        rc, out = lint(repo, b11, "--only", "i18n")
+        ok("i18n: a new key in the big file is red with the hint", rc == 1 and "'C'" in out and "static/i18n/neu/<KID>.json" in out, out)
 
         # tests/stages.py: a merge queue entry runs the push stage against the queue's base commit
         import stages  # noqa: E402

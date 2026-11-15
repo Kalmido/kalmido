@@ -14,7 +14,6 @@ freelancer-matrix: public
  - a person without an organisation gets the same
 usage: p2191_f2_i18nrobust_test.py <datadir>   (KMT_NOSTART=1: the container runs already)"""
 import importlib.util
-import json
 import os
 import re
 import shutil
@@ -83,7 +82,8 @@ try:
     except ValueError:
         check(True, "LD_MODS unreadable: an error")
     # the checker reports an unreadable literal as an error (CI)
-    for rel in ("tools/i18n_check.py", "kalmido/core/i18nkeys.py", "static/js/lazyload.js", "static/index.html"):
+    # 2.1188.0 (#6194): + kalmido/core/i18nfrag.py (the checker reads the fragments static/i18n/neu/<KID>.json with it)
+    for rel in ("tools/i18n_check.py", "kalmido/core/i18nkeys.py", "kalmido/core/i18nfrag.py", "static/js/lazyload.js", "static/index.html"):
         os.makedirs(os.path.join(tmp, os.path.dirname(rel)), exist_ok=True)
         shutil.copy(os.path.join(ROOT, rel), os.path.join(tmp, rel))
     os.makedirs(os.path.join(tmp, "static", "i18n"))
@@ -117,7 +117,11 @@ def ver(s=anon):
 st, V = ver()
 check(st == 200 and re.fullmatch(r"[0-9a-f]{12}", V or ""), f"the page names the version {V!r}")
 core = anon.get(B + f"/static/i18n/de.core.json?v={V}").json()
-de = json.load(open(os.path.join(ROOT, "static", "i18n", "de.json"), encoding="utf-8"))
+# 2.1188.0 (#6194): the language as the server sends it = de.json + the fragments static/i18n/neu/<KID>.json
+_fspec = importlib.util.spec_from_file_location("i18nfrag", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))
+FRAG = importlib.util.module_from_spec(_fspec)
+_fspec.loader.exec_module(FRAG)
+de = FRAG.load_lang(os.path.join(ROOT, "static", "i18n"), "de")
 check(core.get("Collapse") == de.get("Collapse") and core.get("Expand") == de.get("Expand"), "the server's core holds Collapse / Expand")
 
 # ETag + 304

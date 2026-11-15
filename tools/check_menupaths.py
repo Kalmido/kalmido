@@ -13,7 +13,6 @@ are not read. Other apps have their own "Settings > ..." (iOS, Outlook, Todoist)
 Standard library only (the CI lint job runs plain Python).
 """
 import glob
-import json
 import os
 import re
 import sys
@@ -115,12 +114,21 @@ def files():
     return [p for p in docs if os.path.exists(p)], code
 
 
+def _i18n_lang(path):
+    """2.1188.0 (#6194): static/i18n/<code>.json + the new texts of the packages (static/i18n/neu/<KID>.json,
+    kalmido/core/i18nfrag.py, loaded by its path)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("i18nfrag", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))
+    frag = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(frag)
+    return frag.load_lang(os.path.dirname(path), os.path.basename(path)[:-5])
+
+
 def check_i18n(secs, tabs):
     """Translations: the section of an English key under the translated name of that section. -> [(file, key, why)]"""
     bad = []
     for path in sorted(glob.glob(os.path.join(ROOT, "static", "i18n", "*.json"))):
-        with open(path, encoding="utf-8") as f:
-            tr = json.load(f)
+        tr = _i18n_lang(path)  # 2.1188.0 (#6194): + the fragments static/i18n/neu/<KID>.json
         word = tr.get("Settings") or "Settings"
         for key, val in tr.items():
             if not isinstance(val, (str, list)) or "Settings" not in key:

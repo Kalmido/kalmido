@@ -33,6 +33,10 @@ STARTED = not os.environ.get("KMT_NOSTART")
 _spec = importlib.util.spec_from_file_location("i18nkeys", os.path.join(ROOT, "kalmido", "core", "i18nkeys.py"))
 KEYS = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(KEYS)
+# 2.1188.0 (#6194): a language = static/i18n/<code>.json + the fragments static/i18n/neu/<KID>.json
+_spec = importlib.util.spec_from_file_location("i18nfrag", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))
+FRAG = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(FRAG)
 
 if STARTED:
     r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], capture_output=True, text=True)
@@ -92,6 +96,8 @@ check(not must_core & set(MOD_OF), f"no key of a start script / the server / a N
 sizes = {}
 for code in LANGS:
     full = anon.get(B + f"/static/i18n/{code}.json").json()
+    # 2.1188.0 (#6194): the whole file goes out with the new texts of the packages
+    check(full == FRAG.load_lang(I18N, code), f"{code}: /static/i18n/{code}.json = the file + the fragments of static/i18n/neu/")
     r = anon.get(B + f"/static/i18n/{code}.core.json?v={V}", headers={"Accept-Encoding": "gzip"})
     cc = r.headers.get("Cache-Control", "")
     check(r.ok and "json" in r.headers.get("Content-Type", "") and "immutable" in cc and "max-age=31536000" in cc,
@@ -146,7 +152,8 @@ for u in ("/static/i18n/xx.core.json", "/static/i18n/en.core.json", "/static/i18
           "/static/i18n/DE.core.json", "/static/i18n/de.mod-.json"):
     check(anon.get(B + u).status_code == 404, f"{u}: 404")
 r = anon.get(B + "/static/i18n/de.json")
-check(r.ok and len(r.json()) == len(json.load(open(os.path.join(I18N, "de.json"), encoding="utf-8"))), "the whole file stays (older clients, the server)")
+# 2.1188.0 (#6194): the whole file with the fragments (static/i18n/neu/<KID>.json)
+check(r.ok and len(r.json()) == len(FRAG.load_lang(I18N, "de")), "the whole file stays (older clients, the server)")
 man = anon.get(B + "/sw-manifest.json").json().get("files", {})
 # 2.660.0 (#4197): with the version of the German core itself (meta kalmido-i18nv, "core,…;de=<12 hex per part>"), was: V of all
 pv = re.search(r'<meta name="kalmido-i18nv" content="core,[^";]*;(?:[^"]*;)?de=([0-9a-f]{12})', html)
