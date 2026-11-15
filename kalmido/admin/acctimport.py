@@ -53,6 +53,7 @@ from ..core.coltype import CT_JSON  # 2.1111.0 (#5953): the JSON columns that we
 from ..core.errors import BadInput  # 2.273.0 A (#3030)
 from ..accounts.settings import clean_look_pref, clean_setting  # 2.273.0 A (#3030); 2.363.4 (#3127): clean_setting
 from ..tasks.snippets import snip_clean  # 2.273.0 A (#3030)
+from ..tasks.ticketkey import tk_import_clash  # 2.1218.0 (#6202)
 from ..core.i18n import lang, LANGS, N_, short_day, stored_join, tr as _tr_base, tr_stored  # 2.531.0 (#4317): + short_day
 from ..core.access import Denied, ROLES, list_role, my_inbox, my_max_sort, WRITE_ROLES
 from ..accounts.session import me
@@ -1507,6 +1508,20 @@ def umz_formulas(c, run, data):
             run.warning(N_("A formula could not be imported"))
 
 
+def umz_ticket_keys(c, run, data):
+    """2.1218.0 (#6202): a project of the file whose key (lists.ticket_key, copied by umz_row) another project of the target
+    workspace already uses comes without one (tasks/ticketkey.py tk_import_clash; else APP-3 would name two tasks), the import
+    report says so. Only the lists this run created, before the areas' FINISH (orgimport _ticket_seq skips a list without a key)."""
+    for src in data.get("lists") or []:
+        lid = run.m("lists", src.get("id"))
+        if not lid or run.old("lists", lid):
+            continue
+        k = tk_import_clash(c, lid)
+        if k:
+            run.warning(N_("The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks"),
+                        k, _txt(src.get("name"), 80), must=True)
+
+
 def umz_files(c, run, uid, me_old, zf, files, data):
     """Attachments and project files of a run."""
     ts = iso(now_utc())
@@ -2068,6 +2083,7 @@ def umz_write(c, run, uid, man, zf, files, data, people):
         if v != (cur.get(k) or ""):
             run.created["settings"][k] = {"old": cur.get(k), "new": v}
             uset(c, uid, k, v)
+    umz_ticket_keys(c, run, data)
     umz_files(c, run, uid, me_old, zf, files, data)
     if man.get("kind") == "org" and data.get("oi") and run.oi_done:  # 2.362.3 (#3098): these areas came with the same file
         run.warning(N_("Office, file store, chat and the other areas of this export are here already: they were skipped."))
