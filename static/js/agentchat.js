@@ -227,11 +227,11 @@ document.addEventListener('visibilitychange', () => {
 // 2.1239.0 (#6261): which model wrote an agent's message (run_meta of POST /api/v1/agent/chats): one small grey text in the
 // line under the bubble, next to the time ("Fable 5.2 · Effort hoch", a short sorted run "Opus 5.5 · kurz sortiert"); the
 // reason as its title. Without run_meta (older messages, people) nothing changes.
-const RUN_EFFORT = {low: 'Effort low', medium: 'Effort medium', high: 'Effort high', xhigh: 'Effort very high', max: 'Effort max'};
+const RUN_EFFORT = {low: () => tr('Effort low'), medium: () => tr('Effort medium'), high: () => tr('Effort high'), xhigh: () => tr('Effort very high'), max: () => tr('Effort max')};
 function chatRunMetaHtml(m) {
   const r = m.run_meta;
   if (!r || typeof r !== 'object') return '';
-  const ef = r.effort ? (RUN_EFFORT[r.effort.toLowerCase()] ? tr(RUN_EFFORT[r.effort.toLowerCase()]) : tr('Effort {0}', r.effort)) : '';
+  const ef = !r.effort ? '' : Object.hasOwn(RUN_EFFORT, r.effort.toLowerCase()) ? RUN_EFFORT[r.effort.toLowerCase()]() : tr('Effort {0}', r.effort);
   const txt = [r.model, r.klasse === 'klein' ? tr('briefly sorted') : ef].filter(Boolean).join(' · ');
   return txt ? `<span class="crun"${r.grund ? ` title="${esc(r.grund)}"` : ''}>${esc(txt)}</span>` : '';
 }
