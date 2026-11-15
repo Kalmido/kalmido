@@ -403,7 +403,7 @@ async function evEditor(o = {}) {
   if (dlg) {  // lazy-ok-begin: dlg exists only once objsave.js is loaded (typeof saveDialog above, evEditor loads the module)
     const view = () => scope === 'one' ? (x => evOccView(x, o.occ)) : undefined, opened = () => scope === 'one' ? evOccView(srv, o.occ) : srv;
     dlg.save = (url, body) => saveDialog(url, opened(), body, {exp: 'expect', key: 'event', base: dlg.base, view: view(), get: `/api/events/${ev.id}`,
-      send: x => rawFetch('PATCH', url, x).catch(e => { if (e.status !== 409 && e.message !== 'auth' && !e.shown) toast(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message); throw e; })});
+      send: x => rawFetch('PATCH', url, x).catch(e => { if (e.status !== 409 && e.message !== 'auth' && !e.shown) toast(e instanceof Offline ? tr('Only available online.') : e.message); throw e; })});
     dlgStale(md, `/api/events/${ev.id}`, () => srv.updated_at, raw => {
       const now = form(scope), cur = view() ? view()(raw) : raw, op = opened();
       md.remove(); evAgain(raw, objDiff(dlg.base, now), {raw, cur, mine: objDiff(dlg.base, now), theirs: Object.keys(now).filter(k => !objSame(op[k], cur[k])), both: []});

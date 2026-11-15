@@ -511,7 +511,7 @@ async function rvSave0(day, patch) {
     const s = $('.rvsaved'); if (s) s.textContent = tr('Saved');
   } catch (x) {
     if (x.status === 409) { toast(tr('Changed in the meantime')); return; }  // without objsave.js
-    if (x.message !== 'auth') toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message);
+    if (x.message !== 'auth') toast(x instanceof Offline ? tr('Only available online.') : x.message);
   }
 }
 function rv_unmark() {

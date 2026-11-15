@@ -597,7 +597,7 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
   if (dlg) {
     const url = `/api/contacts/${c.id}`;
     dlg.save = body => saveDialog(url, open, body, {exp: 'expect', key: 'contact', base: dlg.base,
-      send: x => rawFetch('PATCH', url, x).catch(e => { if (e.status !== 409 && e.message !== 'auth' && !e.shown) toast(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message); throw e; })});
+      send: x => rawFetch('PATCH', url, x).catch(e => { if (e.status !== 409 && e.message !== 'auth' && !e.shown) toast(e instanceof Offline ? tr('Only available online.') : e.message); throw e; })});
     dlgStale(md, url, () => open.updated_at, cur => {
       const mine = objDiff(dlg.base, form());
       again(cur, Object.keys(form()).filter(k => !objSame(open[k], cur[k])), mine);

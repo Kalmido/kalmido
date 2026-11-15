@@ -232,7 +232,7 @@ async function tbCopy(ids) {
     } else { j = await req; await navigator.clipboard.writeText(j.markdown); }
     toast(tr('Brief copied') + note(j));
   } catch (e) {
-    try { j = j || await req; } catch (e2) { toast(e2 instanceof Offline ? tr('Offline: only works again with a connection') : e2.message); return; }
+    try { j = j || await req; } catch (e2) { toast(e2 instanceof Offline ? tr('Only available online.') : e2.message); return; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([j.markdown], {type: 'text/markdown'}));
     a.download = `brief-${today()}.md`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     toast(tr('Brief saved as a file') + note(j));

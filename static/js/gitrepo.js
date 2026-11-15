@@ -128,7 +128,7 @@ function repoWire(md, lid, folder) {
       try { await rawFetch('POST', folder ? '/api/folders/repos' : `/api/lists/${lid}/repos`, folder ? {...body, folder} : body); toast(tr('Repository connected')); }
       catch (er) {
         b.disabled = false; if (!md.isConnected) return;
-        ce.textContent = er instanceof Offline ? tr('Offline: only works again with a connection') : er.message === 'auth' ? '' : er.message;
+        ce.textContent = er instanceof Offline ? tr('Only available online.') : er.message === 'auth' ? '' : er.message;
         nm.setAttribute('aria-invalid', 'true'); nm.focus();
         return;
       }

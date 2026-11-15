@@ -146,7 +146,7 @@ function qn_create() {
   const sent = d.text, url = `/api/lists/${d.list_id}/notes`, body = {title: qn_titleOf(sent), body: sent, client_ref: outKey()};
   S.nt.creating = (async () => {
     let r = null;
-    if (ntLocked(d.list_id)) try { r = await rawFetch('POST', url, body); } catch (e) { toast(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message); return; }  // 2.536.0 (#4567): else the outbox, online too
+    if (ntLocked(d.list_id)) try { r = await rawFetch('POST', url, body); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }  // 2.536.0 (#4567): else the outbox, online too
     if (S.nt.lid === d.list_id && !S.nt.notes) S.nt.notes = [];
     if (!r) r = enqueue('POST', url, body);  // offline: the outbox (ntLocal draws it)
     else {
