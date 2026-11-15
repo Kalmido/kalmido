@@ -9,6 +9,13 @@
 // week grid (drag over free time) and the quick sheet's "Event" button open the editor (evEditor).
 const evOn = () => feat('events');
 const evCal = id => (S.evcals || []).find(c => c.id === id);
+// 2.1223.0 (#6181): the event dialog of an organisation's calendar wears its stripe (wso_mark) and, under "All workspaces",
+// says where it belongs next to the calendar (wso_origin); a change of calendar redraws both. dvw (other servers): neutral
+function evDlgWs(md, calId) {
+  const c = evCal(calId) || null;
+  wso_mark($('.card', md), c);
+  const o = $('.evwso', md); if (o) o.innerHTML = wso_origin(c, 'cevo');
+}
 // 2.657.0 (#5052): a calendar's settings with the version read (expect_updated_at; changed meanwhile = 409, its current version kept for the next try)
 const evcVerKeep = (id, v) => { const x = evCal(id); if (x && v) x.updated_at = v; };
 const evcPatch = (id, b) => api('PATCH', `/api/evcals/${id}`, {...b, expect_updated_at: evCal(id)?.updated_at || undefined})
@@ -109,12 +116,14 @@ async function evPop(anchor, e) {
   const att = ev.attendees || [];
   const t = ev.task_id ? taskById(ev.task_id) : null;
   const desc = (e.description || '').slice(0, 2000);
-  p.innerHTML = `<div class="cevpop evpop" style="--cc:${evCalColor(e)}">
+  // 2.1223.0 (#6181): an event of an organisation's calendar: the organisation's stripe on the popover and, under "All
+  // workspaces", where it comes from next to its calendar (cevOrg, docs/dev/kern.md "Organisation colour")
+  p.innerHTML = `<div class="cevpop evpop"${/*html-ok*/ wso_row(cevOrg(e), `--cc:${evCalColor(e)}`)}>
     <div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b>${e.status === 'cancelled' ? `<span class="evst">${tr('Cancelled')}</span>` : (ev.status || e.status) === 'tentative' ? `<span class="evst evdraftb">${tr('Draft')}</span>` : ''}</div>
     <div class="cevm">${ic('clock', 's')}<span>${esc(evWhen(e))}</span></div>
     ${e.recurring ? `<div class="cevm">${ic('repeat', 's')}<span>${esc(repeatLabel(ev.rrule) || tr('Repeats'))}${e.changed ? ' · ' + esc(tr('this date changed')) : ''}</span></div>` : ''}
     ${e.location ? `<div class="cevm">${ic('mappin', 's')}<span>${esc(e.location)}</span></div>` : ''}
-    <div class="cevm">${ic('cal', 's')}<span>${esc(evCalName(e))}${w ? '' : ' · ' + esc(tr('read-only'))}</span></div>
+    <div class="cevm">${ic('cal', 's')}<span>${esc(evCalName(e))}${w ? '' : ' · ' + esc(tr('read-only'))}</span>${/*html-ok*/ wso_origin(cevOrg(e), 'cevo')}</div>
     ${att.length ? `<div class="cevm evatt">${ic('users', 's')}<span>${att.slice(0, 8).map(a => `<span class="evap ps-${esc(a.partstat)}" title="${esc(tr(EV_PS_WORD[a.partstat] || ''))}">${esc(a.name || a.email)}</span>`).join(', ')}${att.length > 8 ? ' …' : ''}</span></div>` : ''}
     ${ev.reminders?.length ? `<div class="cevm">${ic('bell', 's')}<span>${esc(ev.reminders.map(m => evRemLabel(m, ev.all_day)).join(', '))}</span></div>` : ''}
     ${desc ? `<div class="cevdesc">${cevLinkify(desc)}</div>` : ''}
@@ -335,7 +344,7 @@ async function evEditor(o = {}) {
   const md = modal(`<div class="lhdr"><h3>${ev || o.dvw ? tr('Edit event') : tr('New event')}</h3><span class="spacer"></span><button class="iconbtn" data-evm="close" aria-label="${tr('Close')}">${ic('x')}</button></div>
     ${o.occ && !single ? `<div class="row"><span class="rlab">${tr('Change')}</span><div class="seg" role="radiogroup" aria-label="${esc(tr('Change'))}"><button type="button" role="radio" data-evsc="one" aria-checked="false">${tr('Only this date')}</button><button type="button" role="radio" data-evsc="all" class="on" aria-checked="true">${tr('All dates')}</button></div></div>` : ''}
     <div class="row"><label for="ev-title">${tr('Title')}</label><input id="ev-title" maxlength="500" value="${esc(st.title)}" autocomplete="off" enterkeyhint="done"></div>
-    <div class="row"><label for="ev-cal">${tr('Calendar')}</label><select id="ev-cal" data-sheet-ico="cal">${o.dvw ? '' : cals.map(c => `<option value="${c.id}" ${c.id === st.cal_id ? 'selected' : ''}>${esc(c.name)}${c.role !== 'owner' ? ' · ' + esc(c.owner_name || '') : ''}</option>`).join('')}${dvw_options(o, st.cal_id)}</select></div>
+    <div class="row"><label for="ev-cal">${tr('Calendar')}</label><select id="ev-cal" data-sheet-ico="cal">${o.dvw ? '' : cals.map(c => `<option value="${c.id}" ${c.id === st.cal_id ? 'selected' : ''}>${esc(c.name)}${c.role !== 'owner' ? ' · ' + esc(c.owner_name || '') : ''}</option>`).join('')}${dvw_options(o, st.cal_id)}</select><span class="evwso">${/*html-ok*/ wso_origin(evCal(st.cal_id), 'cevo')}</span></div>
     <div class="row"><label for="ev-allday">${tr('All day')}</label><label class="swc"><input type="checkbox" id="ev-allday" ${st.all_day ? 'checked' : ''}><span class="swt" aria-hidden="true"></span><span class="sr">${esc(tr('All day'))}</span></label></div>
     <div class="row evdt"><span class="rlab">${tr('Starts')}</span>${dateIn('ev-sd', st.start.slice(0, 10), {label: tr('Start date'), clear: false})}<span class="evtm" ${st.all_day ? 'hidden' : ''}>${timeIn('ev-stm', st.all_day ? '09:00' : st.start.slice(11, 16), {label: tr('Start time'), clear: false})}</span></div>
     <div class="row evdt"><span class="rlab">${tr('Ends')}</span>${dateIn('ev-ed', endDay(st.end), {label: tr('End date'), clear: false})}<span class="evtm" ${st.all_day ? 'hidden' : ''}>${timeIn('ev-etm', st.all_day ? '10:00' : st.end.slice(11, 16), {label: tr('End time'), clear: false})}</span></div>
@@ -358,6 +367,7 @@ async function evEditor(o = {}) {
     ${o.err ? `<div class="calerr evsaveerr" role="alert">${ic('alert', 's')} ${esc(tr('Not saved: {0}', o.err))}</div>` : ''/* 2.1077.0 (#5461): why the editor is open again */}
     <div class="foot">${ev && evWrite(evCal(ev.cal_id)) ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${tr('Save')}</button></div>`);
   md.classList.add('evmodal');
+  evDlgWs(md, st.cal_id);  // 2.1223.0 (#6181)
   // 2.484.0 (#3945): a changed date of a series shows the rows of "Only this date" (after dvw_rows, which shows them again)
   const rows = () => { dvw_rows(md); if (single) $('.evrep', md).hidden = $('.evatts', md).hidden = $('.evrems', md).hidden = true; };
   const val = id => $('#' + id, md)?.value || '';
@@ -433,7 +443,7 @@ async function evEditor(o = {}) {
   md.addEventListener('keydown', e => { if (e.target.id === 'ev-attin' && e.key === 'Enter') { e.preventDefault(); attAdd(); } });
   md.addEventListener('change', e => {
     const id = e.target.id;
-    if (id === 'ev-cal') rows();  // 2.52.0 (#1128)
+    if (id === 'ev-cal') { rows(); evDlgWs(md, +val('ev-cal')); }  // 2.52.0 (#1128); 2.1223.0 (#6181): the new calendar's organisation
     if (id === 'ev-allday') { const ad = e.target.checked; $$('.evtm', md).forEach(x => { x.hidden = ad; }); st.reminders = evRemSwitch(remMem, st.reminders, ad); drawRems(); }
     if (id === 'ev-tzq') {  // 2.846.0 (#5465): the searched city sets the zone; nothing found = the zone stays
       const z = evTzFind(e.target.value, val('ev-tz')), h = $('#ev-tz', md);
@@ -640,8 +650,8 @@ async function evCalsModal() {
       <i class="cevdot"></i><span class="evcn">${tr('Tasks with a date')}${nOff && tasksOn ? `<span class="muted"> · ${esc(trn('{0} project hidden', '{0} projects hidden', nOff))}</span>` : ''}</span>
       ${sw('tasks', 'tasks', tasksOn, false, tr('Show tasks in my calendar'))}${/*html-ok*/ pad + pad /* constant markup */}${''/* menu-ok: unfolds the per-project switches in place (view options, no menu) */}<button class="iconbtn cvxfold" data-evc="lists" aria-expanded="${st.lists}" aria-label="${esc(tr('Per project'))}" title="${esc(tr('Per project'))}">${ic('dots')}</button></div>
       ${st.lists ? cvf_lists(lists, hidL, hidF, tasksOn, sw, st.q) : ''}`;
-    const own = !feat('events') ? '' : `<div class="cvxgrp">${tr('My calendars')}</div>${cs.length ? `<ul class="evclist">${cs.map(c => `<li class="evcrow" style="--cc:${cssColor(c.color) || 'var(--accent)'}">
-      <i class="cevdot"></i><span class="evcn">${esc(c.name)}${wsOn() && c.role === 'owner' ? `<span class="muted wslbl"> · ${esc(wsLabel(c.org_id))}</span>` : ''}${c.role !== 'owner' ? `<span class="muted"> · ${esc(c.owner_name || '')} · ${esc(c.role === 'edit' ? tr('can edit') : tr('can view'))}</span>` : c.members?.length ? `<span class="muted"> · ${esc(trn('shared with {0} person', 'shared with {0} people', c.members.length))}</span>` : ''}</span>
+    const own = !feat('events') ? '' : `<div class="cvxgrp">${tr('My calendars')}</div>${cs.length ? `<ul class="evclist">${cs.map(c => `<li class="evcrow"${/*html-ok*/ wso_row(c, `--cc:${cssColor(c.color) || 'var(--accent)'}`)}>
+      <i class="cevdot"></i><span class="evcn">${esc(c.name)}${wsOn() && (c.role === 'owner' || c.org_id) ? `<span class="muted wslbl"> · ${/*html-ok*/ c.org_id ? wso_head(wso_ws(c)) : esc(wsLabel(c.org_id)) /* 2.1223.0 (#6181): an organisation's calendar: its dot + name, for every member (was: text, owners only) */}</span>` : ''}${c.role !== 'owner' ? `<span class="muted"> · ${esc(c.owner_name || '')} · ${esc(c.role === 'edit' ? tr('can edit') : tr('can view'))}</span>` : c.members?.length ? `<span class="muted"> · ${esc(trn('shared with {0} person', 'shared with {0} people', c.members.length))}</span>` : ''}</span>
       <label class="swc cvx-show" title="${esc(tr('Show in my calendar'))}"><input type="checkbox" data-evcshow="${c.id}" ${c.hidden ? '' : 'checked'}><span class="swt" aria-hidden="true"></span><span class="sr">${esc(tr('Show {0} in my calendar', c.name))}</span></label>
       ${three({key: `e:${c.id}`, name: c.name, on: !c.hidden})}
       <button data-rowmenu="evcrow" class="iconbtn" data-evcmenu="${c.id}" aria-haspopup="menu" aria-label="${esc(tr('More for {0}', c.name))}" title="${esc(tr('More'))}">${ic('dots')}</button></li>`).join('')}</ul>`
