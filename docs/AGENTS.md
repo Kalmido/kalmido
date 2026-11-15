@@ -4332,7 +4332,7 @@ endpoint is named somewhere in this guide or in [AGENT-SETUP.md](AGENT-SETUP.md)
 `delete_field`, `delete_filter`, `delete_folder`, `delete_form`, `delete_habit`, `delete_list`, `delete_list_tag`,
 `delete_milestone`, `delete_note`, `delete_project_file`, `delete_project_link`, `delete_reward`, `delete_section`,
 `delete_task`, `delete_team_message`, `delete_template`, `delete_time_entry`, `draft_invoice_from_offer`,
-`draft_reminder`, `duplicate_list`, `duplicate_task`, `edit_team_message`, `empty_trash`, `end_working`, `export_brief`, `export_data`, `export_ics`, `export_vcards`, `get_absences`,
+`draft_reminder`, `duplicate_list`, `duplicate_task`, `edit_team_message`, `empty_trash`, `team_message_versions`, `end_working`, `export_brief`, `export_data`, `export_ics`, `export_vcards`, `get_absences`,
 `get_agent`, `get_announcement`, `get_attachment`, `get_client`, `get_contact`, `get_day_plan`, `get_day_review`,
 `get_delivery_report`, `get_dependencies`, `get_document`, `get_event`, `get_family`, `get_filed_mail`, `get_group`, `get_habit_stats`, `get_job`, `get_life`, `get_list`, `get_me`,
 `get_milestone`, `get_note`, `get_office`, `get_office_document`, `get_office_subscriptions`, `get_plan_usage`, `get_playbook`, `get_poll`,
@@ -4546,6 +4546,7 @@ own chat.
 | `POST /team/rooms/{id}/messages` `{body, task_id?, reply_to?}` (mentions as `<@user id>`; 2.33.0 `reply_to`: a message of the same conversation; 2.281.0: at most 60 messages per account and minute, then `429`) | `post_team_message` | comments |
 | `PATCH /team/messages/{id}` `{body, expect_updated_at}` · `DELETE …` (own messages; 2.638.0: `expect_updated_at` = `edited_at`, else `created_at`, required for agents, `409` + `error.current` when edited since) | `edit_team_message` · `delete_team_message` | comments |
 | `POST /team/messages/{id}/reactions` `{emoji, on?}` | `react_team_message` | comments |
+| `GET /team/messages/{id}/versions` (2.1213.0, #6166: the earlier versions of a message, newest first `{no, at, replaced_at, body, enc}`; `at` = when that version was written, `replaced_at` = the edit that replaced it; in the channel of a project with the lock an agent gets `encrypted: true` without text; members of the conversation, a deleted message `404`) | `team_message_versions` | read |
 | `POST /team/messages/{id}/pin` `{pinned?}` (2.62.0: at most 5 per conversation; the page of a conversation carries `pins`) | `pin_team_message` | comments |
 | `POST /team/rooms/{id}/read` `{last_id?, thread?}` (2.139.0: `thread` = the read mark in a thread) | `mark_team_chat_read` | comments |
 | `GET /team/channels` (2.138.1: the channels a person added you to) | `list_team_channels` | read |

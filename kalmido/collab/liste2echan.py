@@ -20,6 +20,7 @@ from .e2e import E2E_MSG_MAX, E2E_B64, e2e_msg_parse
 from .liste2e import le2a_gen, le2a_reenc_again, le2e_writer_ok
 from .teamchat import tchat_room_members, TCHAT_MAX  # 2.369.5 (#2517): pulled up from functions
 from .teamchat import need_room, tchat_need_say, need_tchat  # 2.640.0 (#3388)
+from .teamchat import tcv_drop  # 2.1213.0 (#6166)
 from .e2eresv import e2r_new, e2r_ok  # 2.640.0 (#3388)
 from ..accounts.session import me
 
@@ -227,6 +228,7 @@ def le2c_bulk(c, lid, mode, gen, rows):
             if not enc or json.loads(enc)["g"] != gen:
                 raise ValueError("msgs")
             c.execute("UPDATE tchat_msgs SET body='', enc=? WHERE id=?", (enc, m["id"]))
+        tcv_drop(c, "id=?", (m["id"],))  # 2.1213.0 (#6166): no earlier version stays plain / under an old key after the conversion
         n += 1
     return n
 

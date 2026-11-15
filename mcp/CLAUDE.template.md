@@ -910,7 +910,7 @@ Flow *assign a receipt* (2.48.0): `list_documents` (e.g. `review: true`) -> `get
 `delete_folder`, `delete_form`, `delete_habit`, `delete_list`, `delete_list_tag`, `delete_milestone`, `delete_note`,
 `delete_notepad`, `delete_project_file`, `delete_project_link`, `delete_reward`, `delete_section`, `delete_task`,
 `delete_team_message`, `delete_template`, `delete_time_entry`, `draft_invoice_from_offer`, `draft_reminder`, `duplicate_list`, `duplicate_task`,
-`edit_team_message`, `empty_trash`, `export_brief`, `export_data`, `export_ics`, `export_vcards`, `freebusy`, `get_absences`, `get_agent`,
+`edit_team_message`, `team_message_versions`, `empty_trash`, `export_brief`, `export_data`, `export_ics`, `export_vcards`, `freebusy`, `get_absences`, `get_agent`,
 `get_announcement`, `get_attachment`, `get_client`, `get_contact`, `get_day_plan`, `get_day_review`, `get_delivery_report`, `get_dependencies`,
 `get_dispo`, `get_dispo_free`, `get_document`, `get_event`, `get_family`, `get_filed_mail`, `get_group`, `get_habit_stats`, `get_job`, `get_key_figures`,
 `get_life`, `get_list`, `get_me`, `get_milestone`, `get_note`, `get_object`, `get_office`, `get_office_document`, `get_office_subscriptions`, `get_plan_usage`, `get_queue`,

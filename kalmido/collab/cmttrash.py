@@ -72,6 +72,8 @@ def ctt_purge_list(c, lid):
     paths = tcx_trash_paths(c, w, (lid,))
     c.execute(f"DELETE FROM tchat_files WHERE message_id IN (SELECT id FROM tchat_msgs WHERE {w})", (lid,))
     ocm_trash_forget(c, "tchat", f"SELECT id FROM tchat_msgs WHERE {w}", (lid,))  # 2.981.0 (#5274)
+    from .teamchat import tcv_drop  # 2.1213.0 (#6166): their earlier versions were not converted either (teamchat.py imports this module)
+    tcv_drop(c, w, (lid,))
     return paths
 
 
@@ -79,6 +81,8 @@ def tcx_purge_user(c, uid):
     """2.981.0 (#5274): an account is deleted (accounts/users.py, core/objhooks.py USER_GONE): the kept texts of its deleted
     team chat messages go (nobody may bring its words back; the rows stay with user_id NULL). Only kind 'tchat'. Caller commits."""
     ocm_trash_forget(c, "tchat", "SELECT id FROM tchat_msgs WHERE user_id=? AND deleted_at IS NOT NULL", (uid,))
+    from .teamchat import tcv_drop  # 2.1213.0 (#6166): and the earlier versions of those messages
+    tcv_drop(c, "user_id=? AND deleted_at IS NOT NULL", (uid,))
 
 
 USER_GONE.append(tcx_purge_user)
