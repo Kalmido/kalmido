@@ -26,6 +26,8 @@ function dpj_rowHtml(d) {
   const cur = l ? `${listIconHtml(l, {cls: 'mlic'}) || ic('list', 's')}<span class="dpjnm">${esc(licName(l))}</span>`
     : d.list_id ? `${ic('list', 's')}<span class="dpjnm">${esc(d.list_name || tr('Project (not visible)'))}</span>` : `<span class="dpjnm muted">${tr('No project')}</span>`;
   const open = d.list_id && (known || d.list_name) ? `<a class="btn sm" href="#l/${d.list_id}">${ic('arrow', 's')}<span>${tr('Open project')}</span></a>` : '';
+  // 2.1206.0 (#6161, Stufe 3): a reader (office_docs.js ofd_readOnly) sees the project and its link, no picker / new project
+  if (ofd_readOnly(d)) return d.list_id ? `<div class="ofdgrid dpjrow"><div class="row"><label>${tr('Project')}</label><span class="lacts">${/*html-ok*/ cur}${/*html-ok*/ open}</span></div></div>` : '';
   const nw = DPJ.newFor === d.id;
   return `<div class="ofdgrid dpjrow"><div class="row"><label for="dpj-sel">${tr('Project')}</label><span class="lacts">
     <button type="button" class="btn sm dpjpick" id="dpj-sel" data-dpj="sel" data-lid="${d.list_id || ''}" aria-haspopup="menu">${cur}${ic('down', 's dpjchev')}</button>${open}</span></div>

@@ -9,7 +9,7 @@ import re
 import unicodedata
 from datetime import date, timedelta
 
-from flask import g, jsonify, request
+from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app
 from ..core.pg import insert_id, like_escape, qi, table_columns, ts_canon, write_lock  # 2.1095.0 (#5306): ts_canon
@@ -53,6 +53,8 @@ MAX_FIELDS = 20
 
 from .model import office_ctx as _ctx  # noqa: E402  2.149.0 G (#2517): was an own copy
 from .rights import ofr_admin_or  # noqa: E402  2.187.0 B (#2476)
+from .rights import office_can, ofr_rights  # noqa: E402  2.1206.0 (#6161): ofd_role_edit
+from ..accounts.orgroles import office_allowed  # noqa: E402  2.1206.0 (#6161): ofd_role_edit
 from .sheet import prd_options  # 2.369.5 (#2517): pulled up from functions
 from ..core.config import OFFICE_DIR  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_purge, fs_purge_files  # 2.369.5 (#2517): pulled up from functions
@@ -424,6 +426,20 @@ def recalc(c, oid, did):
     return t
 
 
+def ofd_role_edit(c, oid):
+    """2.1206.0 (#6161, Stufe 3): may the person of this request change office documents of oid by their role -- what
+    office_gate lets through for a change (model.py): the organisation role (office_allowed with write: read-only,
+    accounting, guest no) and, for a person ruled by office groups, the level "edit" in "offers". Only for the answer's
+    can_edit, so the client does not compute it again; every route keeps its own checks (nothing loosened here).
+    The folder way (g.ofref_ctx) gets its role from the folder (docref.ofd_get); outside a request: as before."""
+    if not has_request_context() or g.get("ofref_ctx") or g.get("user") is None:
+        return True
+    uid = g.user["id"]
+    if office_allowed(c, uid, oid, write=True):
+        return False
+    return ofr_rights(c, uid, oid) is None or office_can(c, uid, oid, "offers", "edit")
+
+
 def doc_public(c, oid, r, admin, items=True):
     d = oc_dec_fields(c, oid, "office_docs", r)  # 2.42.0 (#828)
     for k, dflt in (("recipient", {}), ("rights", {}), ("fields", []), ("totals", {})):
@@ -500,7 +516,7 @@ def doc_public(c, oid, r, admin, items=True):
     if locked and r["locked_by"]:
         u = c.execute("SELECT display_name, username FROM users WHERE id=?", (r["locked_by"],)).fetchone()
         d["locked_by_name"] = (u["display_name"] or u["username"]) if u else ""
-    d["can_edit"] = not locked and r["status"] != "sent"  # 2.38.0: sent documents are locked as well
+    d["can_edit"] = not locked and r["status"] != "sent" and ofd_role_edit(c, oid)  # 2.38.0: sent documents are locked as well; 2.1206.0 (#6161, Stufe 3): + the role
     d["can_unlock"] = bool(admin) and locked and not bga_offer_block(c, oid, r)  # 2.114.2 A (#2263): back to a draft
     d["trial"] = bool(r["trial"])  # 2.144.10 A (#2576)
     if r["trial"]:  # 2.144.10 A (#2576): an admin deletes a trial document at any time (finalised, sent, signed, with follow-ups)

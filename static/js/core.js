@@ -274,7 +274,9 @@ function listById(id) {
 // no others) and may add tasks there; the parents of their subtasks come as read-only context (t.context).
 const WRITE_ROLES = ['owner', 'admin', 'edit'];
 const listRole = id => listById(id)?.role || 'owner';
-const canEditList = id => WRITE_ROLES.includes(listRole(id));              // sections, moving tasks in, list-wide actions
+// 2.1206.0 (#6161, Stufe 2): the list's role through the shared core's canWrite (workspace.js): with the organisation role
+// (read-only, accounting, guest = no, like cap_list_role) - the server still decides
+const canEditList = id => WRITE_ROLES.includes(listRole(id)) && canWrite({role: listRole(id), org_id: listById(id)?.org_id});  // sections, moving tasks in, list-wide actions
 const isPart = id => listRole(id) === 'participant';
 const canAddTo = id => canEditList(id) || isPart(id);                     // new tasks (a participant's become theirs)
 const canEdit = t => !!t && (canEditList(t.list_id) || (isPart(t.list_id) && !t.context));

@@ -23,7 +23,8 @@ const cg_evOf = el => { const v = el?.dataset?.cev; if (v == null) return null; 
 // event of a CalDAV subscription that allows writing (part B sets dvw_write and supplies dvw_commit)
 function cg_canDrag(e) {
   if (!e || e.booking) return false;
-  if (e.own) return feat('events') && e.cal != null && (e.role === 'owner' || e.role === 'edit');
+  // 2.1206.0 (#6161, Stufe 1): the shared core's canWrite decides (the calendar's role + the organisation role)
+  if (e.own) return feat('events') && e.cal != null && evWrite({role: e.role, org_id: evCal(e.cal)?.org_id});
   return e.dvw_write === true && typeof dvw_commit === 'function';
 }
 const cg_at = (col, y) => Math.max(0, Math.min(1440, cg_snap((y - col.getBoundingClientRect().top) / weekH() * 60)));
@@ -111,12 +112,12 @@ function cg_down(t, x, y, touch) {
     // just below an event's lower edge (touch: the 24 px target reaches 12 px below it): that event's length
     const near = touch && [...col.querySelectorAll('.wcev')].find(x => { const r = x.getBoundingClientRect(), ev = cg_evOf(x); return e.clientX >= r.left && e.clientX <= r.right && e.clientY - r.bottom >= 0 && e.clientY - r.bottom <= 12 && cg_canDrag(ev) && ev.d1 === col.dataset.day; });
     if (near) st = {kind: 'size', ev: cg_evOf(near), el: near, col};
-    else if (evOn()) st = {kind: 'new', col};
+    else if (evCanNew()) st = {kind: 'new', col};  // 2.1206.0 (#6161, Stufe 1): no "new by dragging" for a reader
   } else if (t.closest('.week .wad .cev, .cal .cell .cev')) {  // an event in the all-day row / the month: into other days
     const ev = cg_evOf(t.closest('.cev')); if (!cg_canDrag(ev)) return null;
     st = {kind: 'dmove', ev, el: t.closest('.cev'), sel: t.closest('.wad') ? '#view .week .wad' : '#view .cal .cell'};
-  } else if (t.closest('.week .wad')) { if (evOn()) st = {kind: 'aday'}; }
-  else if (t.closest('.cal .cell')) { if (evOn()) st = {kind: 'mday'}; }
+  } else if (t.closest('.week .wad')) { if (evCanNew()) st = {kind: 'aday'}; }
+  else if (t.closest('.cal .cell')) { if (evCanNew()) st = {kind: 'mday'}; }
   if (!st) return null;
   if (st.kind === 'aday' || st.kind === 'mday' || st.kind === 'dmove') st.d0 = st.d1 = t.closest('[data-day]').dataset.day;
   Object.assign(st, {touch, x0: x, y0: y, x, y, active: false});

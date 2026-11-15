@@ -47,9 +47,10 @@ async function ovSet(id, body) {
 
 // the bar above a list seen only through the organisation (instead of "Read-only")
 // 2.147.2 A (#2500): read-only in the organisation = joining brings no writing (the server caps the role to view): no Join
-const ovOrgRO = l => !!l?.org_id && (S.me?.workspaces || []).some(o => o.id === l.org_id && o.role === 'readonly');
+// 2.1206.0 (#6161, Stufe 2): the shared core's canWrite (workspace.js) decides: an organisation role that writes nothing there
+const ovOrgRO = l => !!l?.org_id && !!wsOrg(l.org_id) && !canWrite('org:' + l.org_id);
 function ovJoinBar(l) {
-  if (ovOrgRO(l)) return `<div class="rohint ovbar">${ic('eye', 's')}<span>${esc(tr('Visible to everyone in the organisation. Your role there is read-only: you can look, not change.'))}</span></div>`;
+  if (ovOrgRO(l)) return roHintHtml(tr('Visible to everyone in the organisation. Your role there is read-only: you can look, not change.'));  // 2.1206.0 (#6161, Stufe 2): the ONE read hint of the core
   const txt = l.role === 'edit' ? tr('Visible to everyone in the organisation. Join to get its notifications.')
     : tr('Visible to everyone in the organisation, read-only. Join to work in it.');
   return `<div class="rohint ovbar">${ic('eye', 's')}<span>${esc(txt)}</span><button type="button" class="btn sm pri" data-ovjoin="${l.id}">${ic('plus', 's')} ${tr('Join')}</button></div>`;
