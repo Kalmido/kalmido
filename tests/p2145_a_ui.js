@@ -48,7 +48,8 @@ const FEAT = 'cal,comments,collab';
   // switches workspaces; Start is in the account menu. The phone keeps the brand in the drawer with Start (brandStart)
   const sbmark = `(() => { const b = document.querySelector('#kbar .kbsw'), k = b && b.querySelector('.kbbrand'); if (!k) return null; const lg = k.querySelector('svg.logo'), w = k.querySelector('svg.kword');
     return {act: b.dataset.act, plate: lg && lg.querySelector('rect').getAttribute('fill'), word: !!w, inside: k.scrollWidth <= k.clientWidth + 1, tag: b.tagName, old: !!document.querySelector('#side .sbmark, #side .sbbrand')}; })()`;
-  const brandStart = `(() => { document.querySelector('#side .sbbrand').click(); return new Promise(r => setTimeout(() => { const s = document.querySelector('#pop .wsm-home'); if (s) s.click(); r(!!s); }, 300)); })()`;
+  // 2.1208.0 (#6127): ONE workspace menu on every device: the phone's Start is in the drawer's account menu too (no wsm-home)
+  const brandStart = `(() => { document.querySelector('#side .sbacct').click(); return new Promise(r => setTimeout(() => { const s = [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => (b.querySelector('.ml') || b).textContent.trim() === 'Start'); if (s) s.click(); r(!!s); }, 300)); })()`;
   const acctStart = `(() => { document.querySelector('#kbar .kbacct').click(); return new Promise(r => setTimeout(() => { const s = [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => (b.querySelector('.ml') || b).textContent.trim() === 'Start'); if (s) s.click(); r(!!s); }, 300)); })()`;  // 2.152.3 (#2619): Start on a computer = the account menu
   const wsNoStart = `(() => { document.querySelector('#kbar .kbsw').click(); return new Promise(r => setTimeout(() => { const ok = !!document.querySelector('#pop .kbwsi') && !document.querySelector('#pop .wsm-home, #pop .wsm-side'); closePop(); r(ok); }, 300)); })()`;  // 2.152.3 (#2619)
 
@@ -99,7 +100,7 @@ const FEAT = 'cal,comments,collab';
     m = await ev(mids);
     check(m && Math.abs(m[0] - m[1]) <= 2.5, '#2438: phone, drawer open, the head and the page header share a middle: ' + JSON.stringify(m) + ' ' + await ev(dbg));
     await shot('p2145-a-drawer-phone.png');
-    check(await ev(brandStart), '#2607: on the phone the brand menu has Start');  // 2.161.2 (#2607): was the mark at the bottom
+    check(await ev(brandStart), '#2607: on the phone the account menu of the drawer has Start');  // 2.1208.0 (#6127): was the brand menu  // 2.161.2 (#2607): was the mark at the bottom
     check(await ready(ev, `S.route.mod === 'home' && !document.querySelector('#side.open')`), '#2437: on the phone Start opens the start page and closes the drawer');
   }, false);
 

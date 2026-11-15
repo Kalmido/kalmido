@@ -114,7 +114,8 @@ const api = async (w, method, url, body) => (await w.fetch(url, {method, headers
   d.querySelector('.modal')?.remove();
   w.eval(`LS.set('tabbar', ['m:tasks', 'm:cal', 'm:matrix', 'm:habits', 'm:pomo', 's:today']); render()`);
   w.eval(`tabsMore(document.querySelector('[data-act="tabs-more"]'))`); await sleep(200);
-  check(/Neuigkeiten/.test(d.querySelector('#pop, .menu-list')?.textContent || ''), '"More" offers News');
+  // 2.1208.0 (#6127): News is the bell's (always in the header): "More" no longer repeats it
+  check(!!d.querySelector('#pop .menu-list, .menu-list') && !/Neuigkeiten/.test(d.querySelector('#pop, .menu-list')?.textContent || ''), '#6127: "More" does not repeat News next to the bell');
   w.eval(`settingsModal()`); await sleep(300);
   check(w.eval(`tabAddGroups().flatMap(g => g.items).map(x => x.id)`).includes('news'), 'tab option "News" available');  // 2.122.2 (#2329): a sheet instead of the select
   // 2.183.0 A (#2623): the summary line of a News group never shows a raw kind ("orgjoin"); unknown kinds say nothing
