@@ -22,6 +22,27 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1229.0] - 2026-11-15
+
+Package 2.1212 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Calendar sharing uses the same Share dialog as projects and folders: cross on top and "Done", the owner first, the role words "Member" / "Read-only", "Shared" as feedback; taking a person out needs no question and can be undone (toast and Ctrl+Z), the share comes back through the shared core with its role (#6156).
+- Calendars window: the calendar name is shown in full and the line "shared with 2 people" (or owner and role) stays visible below it on every width (#6158).
+- An event in another time zone names the zone at its times: in the event window "10:00–11:00 New York · 16:00 your time", in the editor next to Starts / Ends (#6158).
+- The task an event prepares stands in the editor outside "More options" and is loaded when it is not in memory; it also shows and opens from the event window (#6158).
+- Subscribed calendars carry a link mark, own repeating events the repeat mark; "Create task from event" is a quiet button; no availability bar for an existing event without guests (#6158).
+
+### Fixed
+- Calendar: loading and errors use the shared blocks (event window, subscription link), failed loads say what failed with "Try again" instead of closing or showing raw server texts; the repeating tasks' dates, the people list and the editor's save error no longer fail silently (#6159).
+- Deleting an event, a date of a series, a calendar or a subscription goes into the history, so Ctrl+Z takes it back like the toast (#6159).
+- The view choice is a named group, the trash is the last row of the Calendars window, no inline styles or hex values left in the calendar files, "Termin" in the day plan (#6159).
+
+Package 2.1215 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Fixed
+- #6095: Team chat on a phone with the keyboard open - the head and the pinned message shrink to one line (no sender, no member line, only the first pin), a focused search replaces the pinned bar; without the keyboard nothing changes.
+- #6100: The bell on a phone - an approval or mention entry is one text block (at most three lines) instead of words in columns; an approval shows "X is waiting for your approval" with the question below in normal type; agent texts in the bell and in the message pop-up carry no Markdown marks (**, `, #).
+
 ## [2.1226.0] - 2026-11-15
 
 Package 2.1198 (Bündel: Polish Wiki: Seiteninhalt lesbarer - Kopfdaten, Li, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -86,7 +107,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1226.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1229.0...HEAD
+[2.1229.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1229.0
 [2.1226.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1226.0
 [2.1217.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1217.0
 [2.1201.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1201.0

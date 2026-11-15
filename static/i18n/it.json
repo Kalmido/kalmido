@@ -18697,5 +18697,21 @@
   "Write … (/ for commands)": "Scrivi … (/ per i comandi)",
   "This project does not exist (any more) or you have no access": "Questo progetto non esiste (più) o non hai accesso",
   "To the projects": "Ai progetti",
-  "This page does not exist": "Questa pagina non esiste"
+  "This page does not exist": "Questa pagina non esiste",
+  "Could not sync": "Impossibile sincronizzare",
+  "The calendar was not saved": "Il calendario non è stato salvato",
+  "Saved, but the calendar could not be synced": "Salvato, ma il calendario non è stato sincronizzato",
+  "The calendar was not added": "Il calendario non è stato aggiunto",
+  "Kind of calendar": "Tipo di calendario",
+  "Repeating tasks could not be loaded": "Impossibile caricare le attività ricorrenti",
+  "The event could not be loaded": "Impossibile caricare l’evento",
+  "People could not be loaded: type an e-mail address": "Persone non caricate: scrivi un indirizzo e-mail",
+  "The event was not saved": "L’evento non è stato salvato",
+  "Delete the calendar “{0}”": "Elimina il calendario «{0}»",
+  "Remove the calendar “{0}”": "Rimuovi il calendario «{0}»",
+  "The subscription link could not be loaded": "Impossibile caricare il link di abbonamento",
+  "{0} your time": "{0} da te",
+  "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Sola lettura: vede gli eventi. Membro: li modifica anche. Sul telefono il calendario compare accanto al proprio.",
+  "The people could not be loaded": "Impossibile caricare le persone",
+  "Stop sharing {0} with {1}": "Smetti di condividere {0} con {1}"
 }

@@ -18696,5 +18696,21 @@
   "Write … (/ for commands)": "Schrijf … (/ voor opdrachten)",
   "This project does not exist (any more) or you have no access": "Dit project bestaat niet (meer) of je hebt geen toegang",
   "To the projects": "Naar de projecten",
-  "This page does not exist": "Deze pagina bestaat niet"
+  "This page does not exist": "Deze pagina bestaat niet",
+  "Could not sync": "Kon niet synchroniseren",
+  "The calendar was not saved": "De agenda is niet opgeslagen",
+  "Saved, but the calendar could not be synced": "Opgeslagen, maar de agenda kon niet worden gesynchroniseerd",
+  "The calendar was not added": "De agenda is niet toegevoegd",
+  "Kind of calendar": "Soort agenda",
+  "Repeating tasks could not be loaded": "Terugkerende taken konden niet worden geladen",
+  "The event could not be loaded": "De afspraak kon niet worden geladen",
+  "People could not be loaded: type an e-mail address": "Personen niet geladen: typ een e-mailadres",
+  "The event was not saved": "De afspraak is niet opgeslagen",
+  "Delete the calendar “{0}”": "Agenda ‘{0}’ verwijderen",
+  "Remove the calendar “{0}”": "Agenda ‘{0}’ verwijderen",
+  "The subscription link could not be loaded": "De abonnementslink kon niet worden geladen",
+  "{0} your time": "{0} bij jou",
+  "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Alleen lezen: ziet de afspraken. Lid: wijzigt ze ook. Op de telefoon staat de agenda naast de eigen agenda.",
+  "The people could not be loaded": "De personen konden niet worden geladen",
+  "Stop sharing {0} with {1}": "{0} niet meer delen met {1}"
 }

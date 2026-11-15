@@ -18696,5 +18696,21 @@
   "Write … (/ for commands)": "Écrire … (/ pour les commandes)",
   "This project does not exist (any more) or you have no access": "Ce projet n'existe pas (ou plus) ou tu n'y as pas accès",
   "To the projects": "Vers les projets",
-  "This page does not exist": "Cette page n'existe pas"
+  "This page does not exist": "Cette page n'existe pas",
+  "Could not sync": "Synchronisation impossible",
+  "The calendar was not saved": "Le calendrier n'a pas été enregistré",
+  "Saved, but the calendar could not be synced": "Enregistré, mais le calendrier n'a pas pu être synchronisé",
+  "The calendar was not added": "Le calendrier n'a pas été ajouté",
+  "Kind of calendar": "Type de calendrier",
+  "Repeating tasks could not be loaded": "Les tâches récurrentes n'ont pas pu être chargées",
+  "The event could not be loaded": "L'événement n'a pas pu être chargé",
+  "People could not be loaded: type an e-mail address": "Personnes non chargées : saisis une adresse e-mail",
+  "The event was not saved": "L'événement n'a pas été enregistré",
+  "Delete the calendar “{0}”": "Supprimer le calendrier « {0} »",
+  "Remove the calendar “{0}”": "Retirer le calendrier « {0} »",
+  "The subscription link could not be loaded": "Le lien d'abonnement n'a pas pu être chargé",
+  "{0} your time": "{0} chez toi",
+  "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Lecture seule : voit les événements. Membre : les modifie aussi. Sur son téléphone, le calendrier apparaît à côté du sien.",
+  "The people could not be loaded": "Les personnes n'ont pas pu être chargées",
+  "Stop sharing {0} with {1}": "Ne plus partager {0} avec {1}"
 }
