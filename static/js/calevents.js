@@ -93,8 +93,30 @@ function evItemsPut(pick, vals) {
 const evIso = (s, allDay) => allDay ? s.slice(0, 10) : new Date(s.length === 10 ? s + 'T00:00' : s).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 // ---- the popover of an own event (occurrence e from S.cal.items)
-function evWhen(e) {
-  return cevWhen(e.d0 ? e : cevPrep({...e}));
+// 2.1212.0 (#6158): an event in another time zone than the device's names the zone at its times ("10:00–11:00 New York · 16:00
+// for you"); ev = the event from the server (its tz). Another zone with the same offset at that time is no other time: no hint
+function evWhen(e, ev) {
+  const x = e.d0 ? e : cevPrep({...e}), tz = ev?.tz;
+  if (x.all_day || !evTzOther(tz, x.s)) return cevWhen(x);
+  const zr = `${evTimeIn(x.s, tz)}–${evTimeIn(x.e, tz)} ${evCity(tz)}`;
+  return x.d0 === x.d1 ? `${fmtDayAbs(x.d0)}, ${zr} · ${tr('{0} your time', fmtTimeAt(x.s))}` : `${cevWhen(x)} · ${evCity(tz)}`;
+}
+// the minutes zone tz is ahead of UTC at instant d; the zone's wall time of d; another zone than the device's at d
+function evOffMin(d, tz) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}).formatToParts(d).map(y => [y.type, y.value]));
+  return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute) - Math.floor(+d / 60000) * 60000) / 60000);
+}
+const evTimeIn = (d, tz) => { const h = hour12(); try { return d.toLocaleTimeString(dpLocale(), {hour: h ? 'numeric' : '2-digit', minute: '2-digit', hour12: h, timeZone: tz}); } catch { return fmtTimeAt(d); } };
+function evTzOther(tz, d) {
+  if (!tz || tz === evTz() || !(d instanceof Date) || isNaN(+d)) return false;
+  try { return evOffMin(d, tz) !== -d.getTimezoneOffset(); } catch { return false; }
+}
+const evCity = tz => evTzLabel(tz).split(' (')[0];
+// a wall time "YYYY-MM-DDTHH:MM" of zone tz as an instant (the offset read twice: right also next to a clock change)
+function evWallAt(wall, tz) {
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(wall || ''); if (!m) return null;
+  const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  try { const o1 = evOffMin(new Date(t), tz); return new Date(t - evOffMin(new Date(t - o1 * 60000), tz) * 60000); } catch { return null; }
 }
 async function evPop(anchor, e) {
   if (e.eid < 0) return;  // 2.559.0 (#4659): the stand-in of a new event still on its way (evEditor) has nothing to open yet
@@ -112,11 +134,12 @@ async function evPop(anchor, e) {
   if (AP_EVPEND.has(ev.id)) { ev.status = AP_EVPEND.get(ev.id); e = {...e, status: ev.status}; }  // 2.144.2 B (#1811): a confirm still on its way
   const role = ev.role, w = role === 'owner' || role === 'edit', me = (ev.attendees || []).find(a => a.user_id === S.me?.id);
   const att = ev.attendees || [];
-  const t = ev.task_id ? taskById(ev.task_id) : null;
+  const t = ev.task_id ? taskById(ev.task_id) || await evTaskOf(ev.task_id) : null;  // 2.1212.0 (#6158): fetched when not in memory
+  if ($('#pop').classList.contains('hidden')) return;
   const desc = (e.description || '').slice(0, 2000);
   p.innerHTML = `<div class="cevpop evpop" style="--cc:${evCalColor(e)}">
     <div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b>${e.status === 'cancelled' ? `<span class="evst">${tr('Cancelled')}</span>` : (ev.status || e.status) === 'tentative' ? `<span class="evst evdraftb">${tr('Draft')}</span>` : ''}</div>
-    <div class="cevm">${ic('clock', 's')}<span>${esc(evWhen(e))}</span></div>
+    <div class="cevm">${ic('clock', 's')}<span>${esc(evWhen(e, ev))}</span></div>
     ${e.recurring ? `<div class="cevm">${ic('repeat', 's')}<span>${esc(repeatLabel(ev.rrule) || tr('Repeats'))}${e.changed ? ' · ' + esc(tr('this date changed')) : ''}</span></div>` : ''}
     ${e.location ? `<div class="cevm">${ic('mappin', 's')}<span>${esc(e.location)}</span></div>` : ''}
     <div class="cevm">${ic('cal', 's')}<span>${esc(evCalName(e))}${w ? '' : ' · ' + esc(tr('read-only'))}</span></div>
@@ -141,7 +164,7 @@ async function evPop(anchor, e) {
     closePop();
     if (k === 'edit') evEditor({ev, occ: e.recurring ? e.occ : null});
     else if (k === 'del') evDelete(ev, e.recurring ? e.occ : null);
-    else if (k === 'task') openDetail(ev.task_id);
+    else if (k === 'task') evOpenTask(ev.task_id);  // 2.1212.0 (#6158)
     else if (k === 'apok') ap_evConfirm(ev);  // 2.51.0 C (#1355): a draft (tentative) becomes confirmed (agentplan.js)
     else if (k === 'prep') evPrepTask(ev);
     else if (k === 'totask') cevToTask(cevPrep({...e}));
@@ -349,8 +372,8 @@ async function evEditor(o = {}) {
     <div class="row"><label for="ev-title">${tr('Title')}</label><input id="ev-title" maxlength="500" value="${esc(st.title)}" autocomplete="off" enterkeyhint="done"></div>
     <div class="row"><label for="ev-cal">${tr('Calendar')}</label><select id="ev-cal" data-sheet-ico="cal">${o.dvw ? '' : cals.map(c => `<option value="${c.id}" ${c.id === st.cal_id ? 'selected' : ''}>${esc(c.name)}${c.role !== 'owner' ? ' · ' + esc(c.owner_name || '') : ''}</option>`).join('')}${dvw_options(o, st.cal_id)}</select></div>
     <div class="row"><label for="ev-allday">${tr('All day')}</label><label class="swc"><input type="checkbox" id="ev-allday" ${st.all_day ? 'checked' : ''}><span class="swt" aria-hidden="true"></span><span class="sr">${esc(tr('All day'))}</span></label></div>
-    <div class="row evdt"><span class="rlab">${tr('Starts')}</span>${dateIn('ev-sd', st.start.slice(0, 10), {label: tr('Start date'), clear: false})}<span class="evtm" ${st.all_day ? 'hidden' : ''}>${timeIn('ev-stm', st.all_day ? '09:00' : st.start.slice(11, 16), {label: tr('Start time'), clear: false})}</span></div>
-    <div class="row evdt"><span class="rlab">${tr('Ends')}</span>${dateIn('ev-ed', endDay(st.end), {label: tr('End date'), clear: false})}<span class="evtm" ${st.all_day ? 'hidden' : ''}>${timeIn('ev-etm', st.all_day ? '10:00' : st.end.slice(11, 16), {label: tr('End time'), clear: false})}</span></div>
+    <div class="row evdt"><span class="rlab">${tr('Starts')}</span>${dateIn('ev-sd', st.start.slice(0, 10), {label: tr('Start date'), clear: false})}<span class="evtm" ${st.all_day ? 'hidden' : ''}>${timeIn('ev-stm', st.all_day ? '09:00' : st.start.slice(11, 16), {label: tr('Start time'), clear: false})}</span><span class="muted evtzh" id="ev-tzh-s" hidden></span></div>
+    <div class="row evdt"><span class="rlab">${tr('Ends')}</span>${dateIn('ev-ed', endDay(st.end), {label: tr('End date'), clear: false})}<span class="evtm" ${st.all_day ? 'hidden' : ''}>${timeIn('ev-etm', st.all_day ? '10:00' : st.end.slice(11, 16), {label: tr('End time'), clear: false})}</span><span class="muted evtzh" id="ev-tzh-e" hidden></span></div>
     <div class="row evrep"><label for="ev-rep">${tr('Repeat')}</label><select id="ev-rep" data-sheet-ico="repeat">${EV_REP.map(([k, n]) => `<option value="${k}" ${k === repK ? 'selected' : ''}>${tr(n)}</option>`).join('')}${repK === 'custom' ? `<option value="custom" selected>${esc(repeatLabelBase(rrBase(st.rrule)))}</option>` : ''}</select>
       <select id="ev-repend" aria-label="${esc(tr('Repeat ends'))}" title="${esc(tr('Repeat ends'))}" ${repK ? '' : 'hidden'}><option value="">${tr('forever')}</option><option value="until" ${rrEnd(st.rrule).type === 'until' ? 'selected' : ''}>${tr('until a date')}</option><option value="count" ${rrEnd(st.rrule).type === 'count' ? 'selected' : ''}>${tr('a number of times')}</option></select>
       <span id="ev-reu" ${rrEnd(st.rrule).type === 'until' ? '' : 'hidden'}>${dateIn('ev-until', rrEnd(st.rrule).type === 'until' ? rrEnd(st.rrule).val : '', {label: tr('until a date'), clear: false})}</span>
@@ -360,12 +383,12 @@ async function evEditor(o = {}) {
     <div class="row evatts"><span class="rlab" id="ev-att-l">${tr('People|event')}</span><div class="evatt-w"><div class="evchips" id="ev-atts" role="group" aria-labelledby="ev-att-l"></div>
       <div class="evattadd"><input id="ev-attin" list="ev-attl" autocomplete="off" placeholder="${esc(attPh())}" aria-label="${esc(tr('Add a person'))}" enterkeyhint="done"><datalist id="ev-attl"></datalist><button type="button" class="btn sm" data-evm="attadd">${ic('plus', 's')} ${tr('Add')}</button></div></div></div>
     <div class="row ppcol"><label for="ev-desc">${tr('Notes')}</label><textarea id="ev-desc" rows="3" maxlength="20000">${esc(st.description || '')}</textarea></div>
+    ${st.task_id ? `<div class="row evprep"><span class="rlab">${tr('Preparation')}</span><button type="button" class="linkbtn" data-evm="task">${ic('done', 's')} <span class="evprepn">${esc(taskById(st.task_id)?.title || tr('Loading…'))}</span></button><button type="button" class="iconbtn" data-evm="untask" aria-label="${esc(tr('Remove the link to the task'))}" title="${esc(tr('Remove the link to the task'))}">${ic('x', 's')}</button></div>` : ''/* 2.1212.0 (#6158): in sight, no longer under "More options"; its title fetched when not in memory (evTaskOf) */}
     <details class="evmore"><summary>${ic('chev', 's fcar')}<span>${tr('More options')}</span><span class="muted evmoreh">${tr('Time zone, status, link')}</span></summary>
       <div class="row"><label for="ev-tzq">${tr('Time zone')}</label><input type="hidden" id="ev-tz" value="${esc(st.tz || evTz())}"><input id="ev-tzq" list="ev-tzl" value="${esc(evTzLabel(st.tz || evTz()))}" autocomplete="off" placeholder="${esc(tr('Search a city'))}" enterkeyhint="done"><datalist id="ev-tzl"></datalist></div>
       <div class="row"><label for="ev-status">${tr('Status')}</label><select id="ev-status"><option value="confirmed">${tr('Confirmed')}</option><option value="tentative" ${st.status === 'tentative' ? 'selected' : ''}>${tr('Tentative')}</option><option value="cancelled" ${st.status === 'cancelled' ? 'selected' : ''}>${tr('Cancelled')}</option></select></div>
       <div class="row"><label for="ev-busy">${tr('Show as busy')}</label><label class="swc"><input type="checkbox" id="ev-busy" ${st.busy !== false ? 'checked' : ''}><span class="swt" aria-hidden="true"></span><span class="sr">${esc(tr('Show as busy'))}</span></label></div>
       <div class="row"><label for="ev-url">${tr('Link')}</label><input id="ev-url" type="url" inputmode="url" value="${esc(st.url || '')}" placeholder="https://…" autocomplete="off"></div>
-      ${st.task_id && taskById(st.task_id) ? `<div class="row"><span class="rlab">${tr('Preparation')}</span><button type="button" class="linkbtn" data-evm="task">${ic('done', 's')} ${esc(taskById(st.task_id).title)}</button><button type="button" class="iconbtn" data-evm="untask" aria-label="${esc(tr('Remove the link to the task'))}" title="${esc(tr('Remove the link to the task'))}">${ic('x', 's')}</button></div>` : ''}
     </details>
     ${o.err ? `<div class="calerr evsaveerr" role="alert">${ic('alert', 's')} ${esc(o.err)}</div>` : ''/* 2.1077.0 (#5461): why the editor is open again */}
     <div class="foot">${ev && evWrite(evCal(ev.cal_id)) ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${tr('Save')}</button></div>`);
@@ -390,6 +413,15 @@ async function evEditor(o = {}) {
   // 2.846.0 (#5465): the all-day switch keeps the reminders chosen for each kind (off and on again: the own ones are back)
   const remMem = {[st.all_day ? 'day' : 'timed']: (st.reminders || []).map(Number)};
   drawRems(); drawAtts(); rows(); if (typeof evi_init === 'function') evi_init(md, ev, atts);
+  // 2.1212.0 (#6158): the zone at the times when it is not the device's (with the start on the device's clock)
+  const drawTz = () => {
+    const tz = val('ev-tz'), ad = $('#ev-allday', md).checked, s0 = evWallAt(`${val('ev-sd')}T${val('ev-stm') || '09:00'}`, tz);
+    const on = !ad && !!s0 && evTzOther(tz, s0), hs = $('#ev-tzh-s', md), he = $('#ev-tzh-e', md);
+    if (hs) { hs.hidden = !on; hs.textContent = on ? `${evCity(tz)} · ${tr('{0} your time', fmtTimeAt(s0))}` : ''; }
+    if (he) { he.hidden = !on; he.textContent = on ? evCity(tz) : ''; }
+  };
+  drawTz();
+  if (st.task_id && !taskById(st.task_id)) evTaskOf(st.task_id).then(t => { const n = $('.evprepn', md); if (n) n.textContent = t ? t.title : tr('Task not found'); });
   // 2.565.0 (#4705): what the dialog would save now (sc = 'one': only this date's fields), read once as it opened (base); the
   // event the dialog builds on is the server's one (after a conflict: the current one, o.cf.raw)
   const form = sc => {
@@ -452,6 +484,7 @@ async function evEditor(o = {}) {
       if (z && z !== h.value) { h.value = z; h.dispatchEvent(new Event('change', {bubbles: true})); }
       e.target.value = evTzLabel(h.value);
     }
+    if (['ev-tz', 'ev-sd', 'ev-stm', 'ev-allday'].includes(id)) drawTz();  // 2.1212.0 (#6158)
     if (id === 'ev-rep') { const k = e.target.value; $('#ev-repend', md).hidden = !k; if (!k) { $('#ev-reu', md).hidden = true; $('#ev-count', md).hidden = true; } }
     if (id === 'ev-repend') { $('#ev-reu', md).hidden = e.target.value !== 'until'; $('#ev-count', md).hidden = e.target.value !== 'count'; }
     if (id === 'ev-sd' && val('ev-ed') < val('ev-sd')) dpSet($('#ev-ed', md), val('ev-sd'));
@@ -478,7 +511,7 @@ async function evEditor(o = {}) {
     const k = b.dataset.evm;
     if (k === 'close') md._close();  // 2.846.0 (#5465): asks first when something was typed (modalGuard below)
     else if (k === 'attadd') attAdd();
-    else if (k === 'task') { await md._close(); if (!md.isConnected) openDetail(st.task_id); }
+    else if (k === 'task') { await md._close(); if (!md.isConnected) evOpenTask(st.task_id); }  // 2.1212.0 (#6158)
     else if (k === 'untask') { st.task_id = null; b.closest('.row').remove(); }
     else if (k === 'del') { md.remove(); evDelete(ev, o.occ); }
     else if (k === 'save') {
@@ -540,6 +573,17 @@ async function evEditor(o = {}) {
     if (!ev) t.focus(); else if (!isTouchUi()) { t.focus(); try { t.setSelectionRange(t.value.length, t.value.length); } catch { /* no caret */ } }
   }, 40);
   return md;
+}
+// 2.1212.0 (#6158): the task an event prepares when it is not in memory (another project, closed, not loaded); null = gone / no access
+const EV_TASKS = new Map();
+function evTaskOf(id) {
+  if (!EV_TASKS.has(id)) EV_TASKS.set(id, rawFetch('GET', `/api/tasks/${id}`).then(j => j?.task || j || null, () => { EV_TASKS.delete(id); return null; }));
+  return EV_TASKS.get(id);
+}
+// opens the task an event prepares, also one that is not in memory (it is taken in first, as the small window does)
+async function evOpenTask(id) {
+  if (!taskById(id)) { const t = await evTaskOf(id); if (!t) { toast(tr('Task not found')); return; } putTask(t); }
+  openDetail(id);
 }
 const evMin = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
 function evAddMin(s, m) { const d = new Date(s.length === 10 ? s + 'T00:00' : s); d.setMinutes(d.getMinutes() + m); return `${ds(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
@@ -653,7 +697,7 @@ async function evCalsModal() {
       ${sw('tasks', 'tasks', tasksOn, false, tr('Show tasks in my calendar'))}${/*html-ok*/ pad + pad /* constant markup */}${''/* menu-ok: unfolds the per-project switches in place (view options, no menu) */}<button class="iconbtn cvxfold" data-evc="lists" aria-expanded="${st.lists}" aria-label="${esc(tr('Per project'))}" title="${esc(tr('Per project'))}">${ic('dots')}</button></div>
       ${st.lists ? cvf_lists(lists, hidL, hidF, tasksOn, sw, st.q) : ''}`;
     const own = !feat('events') ? '' : `<div class="cvxgrp">${tr('My calendars')}</div>${cs.length ? `<ul class="evclist">${cs.map(c => `<li class="evcrow" style="--cc:${cssColor(c.color) || 'var(--accent)'}">
-      <i class="cevdot"></i><span class="evcn">${esc(c.name)}${wsOn() && c.role === 'owner' ? `<span class="muted wslbl"> · ${esc(wsLabel(c.org_id))}</span>` : ''}${c.role !== 'owner' ? `<span class="muted"> · ${esc(c.owner_name || '')} · ${esc(c.role === 'edit' ? tr('can edit') : tr('can view'))}</span>` : c.members?.length ? `<span class="muted"> · ${esc(trn('shared with {0} person', 'shared with {0} people', c.members.length))}</span>` : ''}</span>
+      <i class="cevdot"></i><span class="evcn"><span class="evcnm">${esc(c.name)}</span>${/*html-ok*/ evcSub(c) /* built with esc() */}</span>
       <label class="swc cvx-show" title="${esc(tr('Show in my calendar'))}"><input type="checkbox" data-evcshow="${c.id}" ${c.hidden ? '' : 'checked'}><span class="swt" aria-hidden="true"></span><span class="sr">${esc(tr('Show {0} in my calendar', c.name))}</span></label>
       ${three({key: `e:${c.id}`, name: c.name, on: !c.hidden})}
       <button data-rowmenu="evcrow" class="iconbtn" data-evcmenu="${c.id}" aria-haspopup="menu" aria-label="${esc(tr('More for {0}', c.name))}" title="${esc(tr('More'))}">${ic('dots')}</button></li>`).join('')}</ul>`
@@ -749,6 +793,14 @@ async function evCalsModal() {
   await cvxCals(true).catch(() => {});
   draw();
   loadModule('calabs').then(() => { abc_wire(md, draw); draw(); }).catch(() => {});  // 2.155.0 B (#2076): holidays + absences
+}
+// 2.1212.0 (#6158): the second line of a calendar's row in the Calendars window: workspace, owner and role, or with whom it is
+// shared (on a computer the name took the row and the rest was cut: "Drehplanung · Gege…")
+function evcSub(c) {
+  const p = [wsOn() && c.role === 'owner' ? `<span class="wslbl">${esc(wsLabel(c.org_id))}</span>` : '',
+    c.role !== 'owner' ? esc(`${c.owner_name || ''} · ${c.role === 'edit' ? tr('can edit') : tr('can view')}`)
+      : c.members?.length ? esc(trn('shared with {0} person', 'shared with {0} people', c.members.length)) : ''].filter(Boolean);
+  return p.length ? `<small class="muted evcsub">${/*html-ok*/ p.join(' · ') /* parts built with esc() above */}</small>` : '';
 }
 // 2.1077.0 (#5461): the calendars in the trash; a failed fetch is marked (err), the window then says so with "Try again"
 const evcTrash = () => api('GET', '/api/evcals/trash').catch(() => ({items: [], err: 1}));

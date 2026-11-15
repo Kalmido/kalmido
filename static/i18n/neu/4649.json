@@ -11,7 +11,8 @@
   "The event was not saved": "Der Termin wurde nicht gespeichert",
   "Delete the calendar “{0}”": "Kalender „{0}“ löschen",
   "Remove the calendar “{0}”": "Kalender „{0}“ entfernen",
-  "The subscription link could not be loaded": "Der Kalender-Link konnte nicht geladen werden"
+  "The subscription link could not be loaded": "Der Kalender-Link konnte nicht geladen werden",
+  "{0} your time": "{0} bei dir"
  },
  "es": {
   "Could not sync": "No se pudo sincronizar",
@@ -25,7 +26,8 @@
   "The event was not saved": "El evento no se ha guardado",
   "Delete the calendar “{0}”": "Eliminar el calendario «{0}»",
   "Remove the calendar “{0}”": "Quitar el calendario «{0}»",
-  "The subscription link could not be loaded": "No se pudo cargar el enlace de suscripción"
+  "The subscription link could not be loaded": "No se pudo cargar el enlace de suscripción",
+  "{0} your time": "{0} tu hora"
  },
  "fr": {
   "Could not sync": "Synchronisation impossible",
@@ -39,7 +41,8 @@
   "The event was not saved": "L'événement n'a pas été enregistré",
   "Delete the calendar “{0}”": "Supprimer le calendrier « {0} »",
   "Remove the calendar “{0}”": "Retirer le calendrier « {0} »",
-  "The subscription link could not be loaded": "Le lien d'abonnement n'a pas pu être chargé"
+  "The subscription link could not be loaded": "Le lien d'abonnement n'a pas pu être chargé",
+  "{0} your time": "{0} chez toi"
  },
  "it": {
   "Could not sync": "Impossibile sincronizzare",
@@ -53,7 +56,8 @@
   "The event was not saved": "L’evento non è stato salvato",
   "Delete the calendar “{0}”": "Elimina il calendario «{0}»",
   "Remove the calendar “{0}”": "Rimuovi il calendario «{0}»",
-  "The subscription link could not be loaded": "Impossibile caricare il link di abbonamento"
+  "The subscription link could not be loaded": "Impossibile caricare il link di abbonamento",
+  "{0} your time": "{0} da te"
  },
  "nl": {
   "Could not sync": "Kon niet synchroniseren",
@@ -67,6 +71,7 @@
   "The event was not saved": "De afspraak is niet opgeslagen",
   "Delete the calendar “{0}”": "Agenda ‘{0}’ verwijderen",
   "Remove the calendar “{0}”": "Agenda ‘{0}’ verwijderen",
-  "The subscription link could not be loaded": "De abonnementslink kon niet worden geladen"
+  "The subscription link could not be loaded": "De abonnementslink kon niet worden geladen",
+  "{0} your time": "{0} bij jou"
  }
 }

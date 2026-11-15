@@ -259,3 +259,7 @@ button.cyd:hover{background:var(--bg2)}
 .cvflists .cvfi5{padding-left:7.75rem}
 .cvflists .cvfi6{padding-left:9rem}
 .cvflists .cvfq{flex:1;min-width:0}
+/* 2.1212.0 (#6158): a calendar's row in the Calendars window: the name in full while there is room (wrapped, never cut), below
+   it the line with workspace, owner and role or with whom it is shared - on every width (was cut from 600 px on) */
+.evcmodal .evcrow .evcn{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:var(--lh-tight)}
+.evcmodal .evcrow .evcsub{display:block;font-size:var(--fs-xs)}
