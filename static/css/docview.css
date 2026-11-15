@@ -139,7 +139,7 @@
     .dv-mask{flex:none;overflow:visible}
     /* 2.891.0 (#5358): the head too -- the three columns left the title 0 px beside Back (a document in the split view's right half
        with the side panel open); here: Back + title | the actions, the arrows centred in a row of their own as on a phone */
-    .dv-head{grid-template-columns:minmax(0,1fr) auto}
+    .dv-head{grid-template-columns:minmax(min(12rem,50%),1fr) auto}  /* 2.1199.0 (#6032): the title keeps 12rem, the actions wrap (#6112's longer "Move to the trash" took the whole row) */
     .dv-hr{grid-row:1;grid-column:2}
     .dv-navslot{grid-row:2;grid-column:1/-1}
     .dv-keys{display:none}
