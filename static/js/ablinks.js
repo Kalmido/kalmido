@@ -25,7 +25,7 @@ async function xl_mount(md, n) {
   box.innerHTML = `<h4>${tr('Link for external people')}</h4><div class="xl-links">${/*html-ok*/ loadingHtml('row')}</div>`;  // 2.1216.0 (#6109)
   anchor.after(box);
   // 2.1216.0 (#6109): a failure says so in the section with "Try again" (no toast, the section does not vanish)
-  const ld = async () => { let j; try { j = await rawFetch('GET', `/api/files/nodes/${n.id}/ext-links`); } catch (x) { if (x?.message === 'auth') { box.remove(); return; } $('.xl-links', box).innerHTML = errorState({title: errText(x, tr('The links could not be loaded')), sub: '', size: 'row', retry: () => { $('.xl-links', box).innerHTML = loadingHtml('row'); ld(); }}); return; }
+  const ld = async () => { let j; try { j = await rawFetch('GET', `/api/files/nodes/${n.id}/ext-links`); } catch (x) { if (x?.message === 'auth' || [403, 404].includes(x?.status)) { box.remove(); return; }  /* review: an agent / support session may not see the links - quiet as before */ $('.xl-links', box).innerHTML = errorState({title: errText(x, tr('The links could not be loaded')), sub: '', size: 'row', retry: () => { $('.xl-links', box).innerHTML = loadingHtml('row'); ld(); }}); return; }
     xl_draw(box, n, j); };
   await ld();
   box.addEventListener('click', e => xl_click(e, box, n));
