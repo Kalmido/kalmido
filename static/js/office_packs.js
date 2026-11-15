@@ -117,7 +117,8 @@ async function pkc_after() {
   await pkc_load();
 }
 // quietly for undo / redo: errors as a toast, the step reports itself
-const pkc_req = async (m, url, b) => { try { await api(m, url, b); } catch (x) { toast(x.status === 404 && m === 'POST' && url.endsWith('/install') ? tr('That version is no longer in the catalogue.') : ofcErrTxt(x)); } await pkc_after(); return {}; };
+// 2.1185.0 (#6151): api() said the error already (x.shown): ofcErr says nothing twice; only the vanished version gets its own words
+const pkc_req = async (m, url, b) => { try { await api(m, url, b); } catch (x) { if (x.status === 404 && m === 'POST' && url.endsWith('/install')) toast(tr('That version is no longer in the catalogue.')); else ofcErr(x); } await pkc_after(); return {}; };
 async function pkc_install(k, update) {
   const it = pkc_item(k); if (!it?.latest || PKC.busy) return;
   const body = {kind: it.kind, code: it.code, version: it.latest.version}, prev = it.installed?.version || null, name = it.name || it.code;

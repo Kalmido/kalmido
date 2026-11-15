@@ -15315,7 +15315,7 @@
   "Fill from name and company data": "Remplir avec le nom et les données de l'entreprise",
   "Show logo": "Afficher le logo",
   "Send through": "Envoyer via",
-  "E-mails leave from the server's address so they do not land in spam; answers go to the answer address. Your own sender address needs a mailbox with SMTP (E-mail filing).": "Les e-mails partent de l'adresse du serveur pour ne pas finir en spam ; les réponses vont à l'adresse de réponse. Une adresse d'expéditeur propre nécessite une boîte mail avec SMTP (classement des e-mails).",
+  "E-mails leave from the server's address so they do not land in spam; answers go to the answer address. Your own sender address needs a mailbox that can send (E-mail filing).": "Les e-mails partent de l'adresse du serveur pour ne pas finir en spam ; les réponses vont à l'adresse de réponse. Une adresse d'expéditeur propre nécessite une boîte mail qui peut envoyer (classement des e-mails).",
   "E-mails leave from {0} through your mailbox.": "Les e-mails partent de {0} via ta boîte mail.",
   "The organisation keeps its symbol: the one in the file was not imported.": "L’organisation garde son symbole : celui du fichier n’a pas été repris.",
   "Promo film": "Film promotionnel",

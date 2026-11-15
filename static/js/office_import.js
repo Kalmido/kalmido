@@ -530,7 +530,7 @@ async function r81b_archEdit(id) {
     ${adm ? `<div class="row"><span class="r81b-lbl">${esc(tr('Amount'))}</span>${!d.tax_lines && d.amount != null ? `<span class="muted ofchint">${esc(ofcMoney(d.amount) + ' (' + tr('gross, tax unknown') + ')')}</span>` : ''}
       <div id="r81b-lines"></div><button type="button" class="btn sm ghost" data-r81b="add">${ic('plus', 's')} ${esc(tr('Add tax rate'))}</button><p class="muted r81b-sum" id="r81b-sum" aria-live="polite"></p></div>
     ${inv ? `<label class="chkl r81b-paid"><input type="checkbox" id="r81b-paid" ${d.paid ? 'checked' : ''}> ${esc(tr('Paid'))}</label>` : ''}` : ''}
-    <details class="r81b-hist"><summary>${esc(tr('History'))} (${(d.history || []).length})</summary>${hist ? `<ul role="list">${hist}</ul>` : `<p class="muted">${esc(tr('No changes yet.'))}</p>`}</details>`;
+    <details class="r81b-hist"><summary>${esc(tr('History'))} (${(d.history || []).length})</summary>${/*html-ok*/ hist ? `<ul role="list">${hist}</ul>` : emptyState({icon: 'clock', title: tr('No changes yet.'), size: 'row'})/* 2.1185.0 (#6151): the one empty block */}</details>`;
   const read = md => $$('.r81b-ln', md).map(el => ({net: $('[data-r81b="net"]', el).value, tax: $('[data-r81b="tax"]', el).value}));
   const paint = md => {
     const box = $('#r81b-lines', md); if (!box) return;  // a member: amount read-only

@@ -108,7 +108,7 @@ function orr_groupsHtml(d) {
       ${orr_matrixHtml(d, g, edit)}
       ${edit ? `<div class="orr-act"><button type="button" class="btn sm danger" data-orr="del" data-gid="${g.id}">${ic('trash', 's')}<span>${tr('Delete group')}</span></button></div>` : ''}</div></details></li>`;
   }).join('');
-  return `<h3>${tr('Own groups')}</h3>${own ? `<ul class="orr-gl" role="list">${own}</ul>` : `<p class="muted">${tr('No own group yet. Copy a template to adjust it.')}</p>`}
+  return `<h3>${tr('Own groups')}</h3>${/*html-ok*/ own ? `<ul class="orr-gl" role="list">${own}</ul>` : emptyState({icon: 'users', title: tr('No own group yet. Copy a template to adjust it.'), size: 'sec'})/* 2.1185.0 (#6151): the one empty block */}
     <h3>${tr('Templates')}</h3><ul class="orr-gl" role="list">${tpl}</ul>`;
 }
 // "Bank: View · Receipts: Own entries only …" in short: how many areas per level
@@ -144,7 +144,7 @@ const ORR_ACT = {member_groups: N_('changed the groups of {0}'), group_create: N
 function orr_logHtml(d) {
   if (ORR.logErr) return ofcFail(ORR.logErr, () => { ORR.logErr = null; ORR.log = null; ORR.logBusy = false; });  // 2.1076.0 (#5450)
   if (!ORR.log) { if (!ORR.logBusy) { ORR.logBusy = true; setTimeout(orr_logLoad, 0); } return loadingHtml('big'); }
-  if (!ORR.log.length) return `<p class="muted">${tr('No change of the office rights yet.')}</p>`;
+  if (!ORR.log.length) return emptyState({icon: 'clock', title: tr('No change of the office rights yet.'), size: 'sec'});  // 2.1185.0 (#6151): the one empty block
   const when = iso => typeof ofdWhen === 'function' ? ofdWhen(iso) : iso;
   return `<ul class="orr-log" role="list">${ORR.log.map(x => {
     const gname = x.after?.name || x.before?.name || (x.group ? orr_refName(d, x.group) : '');

@@ -102,7 +102,7 @@ function dv_accHtml() {
   if (a.error) return errorState({sub: a.error, size: 'sec'});  // 2.1076.0 (#5450): the shared block (the settings window draws this part once: the reason, no button)
   const num = (k, name, v, ph, label) => `<input value="${esc(v || '')}" inputmode="numeric" maxlength="8" class="numin" data-dv="${k}" data-name="${esc(name)}" placeholder="${esc(ph)}" aria-label="${esc(label)}">`;
   const cats = a.categories.length ? a.categories.map(c => `<div class="row"><label>${esc(c.name)}</label>${num('cat', c.name, c.account, c.default, tr('Expense account for {0}', c.name))}</div>`).join('')
-    : `<p class="muted ofchint">${tr('No receipt categories yet.')}</p>`;
+    : emptyState({title: tr('No receipt categories yet.'), size: 'row'});  // 2.1185.0 (#6151): the one empty block
   return `<h4>${tr('Expense accounts of the receipt categories')}</h4>${cats}
     <h4>${tr('Travel expenses')}</h4>${a.travel.map(t => `<div class="row"><label>${esc(tr((DV_TRAVEL.find(x => x[0] === t.key) || [, t.key])[1]))}</label>${num('travel', t.key, t.account, t.default, tr((DV_TRAVEL.find(x => x[0] === t.key) || [, t.key])[1]))}</div>`).join('')}
     ${a.meal ? `<h4>${tr('Entertainment receipts')}</h4>${DV_MEAL.map(([k, n]) => `<div class="row"><label>${esc(tr(n))}</label>${num(k, k, (OFC.info?.settings?.datev_extf || {})[k], a[k], tr(n))}</div>`).join('')}` : ''}`;

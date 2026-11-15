@@ -89,7 +89,8 @@ const failFetch = (w, method, re, status, msg) => w.eval(`{ const f0 = window.fe
     const md = await until(() => d.querySelector('#ofd-s-to')?.closest('.modal'));
     const mtx = md?.textContent || '';
     check(!!md && !/KALMIDO_/.test(mtx), `${who}: the send dialog names no server variable (admin) ${mtx.slice(0, 160)}`);
-    if (!ms.smtp) check(/whoever runs the server/.test(md?.querySelector('.ofdwarn')?.textContent || ''), `${who}: mail not set up: who sets it up, in plain words`);
+    // 2.1185.0 (#6151): one sentence without mail (was a second one for admins: "whoever runs the server"), the form hidden
+    if (!ms.smtp) check(/not set up: download the PDF/.test(md?.querySelector('.ofdwarn')?.textContent || '') && md?.querySelector('.ofd-mailf')?.hidden, `${who}: mail not set up: one sentence, no empty mail form`);
     const miss = md?.querySelector('.ofdmiss')?.textContent || '';
     check(/Could not be loaded: Recipients/.test(miss), `${who}: the recipients that failed to load are named in the dialog ${JSON.stringify(miss)}`);
     check(!toastTxt(d).includes(ERR) && count(seen(d), ERR) === 0, `${who}: no toast and no raw text for the failed part ${JSON.stringify(toastTxt(d))}`);
