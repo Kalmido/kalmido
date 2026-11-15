@@ -18474,6 +18474,8 @@
   "Quotation marked as sent": "Preventivo segnato come inviato",
   "Adjust prices": "Adegua prezzi",
   "No preview": "Nessuna anteprima",
+  "No preview for this kind of file": "Nessuna anteprima per questo tipo di file",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Questo PDF è troppo grande per l'anteprima (oltre 40 MB). Scaricalo per leggerlo.",
   "Link valid until": "Link valido fino al",
   "Tell me when a sent quotation runs out without an answer": "Avvisami quando un preventivo inviato scade senza risposta",
   "Notice before it runs out": "Avviso prima della scadenza",
