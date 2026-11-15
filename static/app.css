@@ -3985,6 +3985,15 @@ button.trdline:hover,button.trdline:focus-visible{background:var(--bg3);color:va
   body.in-team #view{overflow:hidden;padding-bottom:var(--tabs-bot);display:flex;flex-direction:column;overscroll-behavior:none}
   body.in-team.kb-open #view{padding-bottom:0}
   body.in-team.kb-open .tcview{min-height:0}  /* 2.446.0 (#3334): the 20rem ran on behind the box in landscape */
+  /* 2.1215.0 (#6095): the keyboard is open: everything above the history shrinks to one line (pinned bar without the sender,
+     only the first pin, member line gone); a focused search (ms-typing) replaces the pinned bar. Without the keyboard nothing changes */
+  body.kb-open .tcrt .muted{display:none}
+  body.kb-open .cpnbar{padding-top:0;padding-bottom:0;align-items:center}
+  body.kb-open .cpnbar>.i{margin-top:0}
+  body.kb-open .cpnlist,body.kb-open .cpnlist.scr{max-height:2.25rem;overflow:hidden}
+  body.kb-open .cpnrow,body.kb-open .cpngo,body.kb-open .cpnbar .iconbtn{min-height:2.25rem}
+  body.kb-open .cpnrow:nth-child(n+2),body.kb-open .cpngo b{display:none}
+  body.ms-typing .cpnbar{display:none}
   .tcview{grid-template-columns:minmax(0,1fr);flex:1;height:auto;border:0;border-radius:0;margin:0 -.75rem}
   .tcview.inroom .tclist{display:none}
   .tcview:not(.inroom) .tcroom{display:none}
