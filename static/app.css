@@ -7120,7 +7120,7 @@ a.rfcard:hover{border-color:var(--muted);text-decoration:none}
    organisation in any area carries the 3 px stripe on its left edge (the sidebar's rows keep theirs above). The open object
    is marked as an open list is (#main.wsc-on: the frames above; "All": #view.wac-loc) - no header stripe (gone since #2389) */
 [data-wso][data-wsc]:not(#side .srow){box-shadow:inset .1875rem 0 0 var(--wsc)}
-/* 2.1223.0 (#6181-#6185): the areas on the block. A tree node of the panel (sbb_treeHtml n.wso) wears the sidebar rows' stripe;
+/* 2.1241.0 (#6181-#6185): the areas on the block. A tree node of the panel (sbb_treeHtml n.wso) wears the sidebar rows' stripe;
    a name with its dot (wso_head outside an origin mark: the calendar list) without the short letters; the origin mark in an
    event's / a conversation's / a contact's row; the open conversation's input frame like the add field's */
 #side .sbbt[data-wso][data-wsc]{box-shadow:none;background-image:linear-gradient(var(--wsc),var(--wsc));background-size:.1875rem 60%;background-repeat:no-repeat;background-position:0 50%}
