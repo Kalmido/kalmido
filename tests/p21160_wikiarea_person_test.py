@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1160.0 (#5862): a whole private knowledge area shared with a PERSON (until now agents only, #5823). Invented names only.
+"""2.1225.0 (#5862): a whole private knowledge area shared with a PERSON (until now agents only, #5823). Invented names only.
  - Frida (no organisation) shares her area "Knowledge" (POST /api/files/nodes/<root>/shares {user_id}) with Bob: the root's
    share targets offer people (no groups); the dialog's question (GET /api/wiki/area-share&user_id=) counts what he will see
  - Bob: "Shared with me" (GET /api/wiki/shared) lists every page (paths from "Knowledge" on) and the folder "Knowledge" with

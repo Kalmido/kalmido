@@ -1,4 +1,4 @@
-"""2.1160.0 (#5862): fs_shares.excl = the folders kept out of a person's share of a whole knowledge area (a JSON list of
+"""2.1225.0 (#5862): fs_shares.excl = the folders kept out of a person's share of a whole knowledge area (a JSON list of
 fs_nodes ids of that tree, set in the area's Share dialog; core/dlock.py dl_wiki_folders reads it for people like an agent's
 data lock wiki_folders). NULL = none. New column only: an older version ignores it (the person then sees the whole area)."""
 MIGRATIONS = [

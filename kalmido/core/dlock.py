@@ -78,15 +78,15 @@ def _dl_eff(raw):
 
 def dl_wiki_folders(c, uid):
     """2.1045.0 (#5823): the knowledge folders (node ids) excluded for account uid -- empty for people and agents without.
-    2.1160.0 (#5862): a person's come from the shares of whole knowledge areas made for them (fs_shares.excl, _dl_person_wkf)."""
+    2.1225.0 (#5862): a person's come from the shares of whole knowledge areas made for them (fs_shares.excl, _dl_person_wkf)."""
     d = dl_of(c, uid)
-    # 2.1160.0 (#5862, Fable review 4): an agent keeps the exclusions of a share it got while it was a person (make_agent
+    # 2.1225.0 (#5862, Fable review 4): an agent keeps the exclusions of a share it got while it was a person (make_agent
     # leaves its user_id rows, _shares_role still counts them) -- they only ever narrow
     return d["_wkf"] | _dl_person_wkf(c, uid) if d else _dl_person_wkf(c, uid)
 
 
 def _dl_person_wkf(c, uid):
-    """2.1160.0 (#5862): the knowledge folders kept out of the shares of whole knowledge areas made for person uid (fs_shares.excl
+    """2.1225.0 (#5862): the knowledge folders kept out of the shares of whole knowledge areas made for person uid (fs_shares.excl
     on the area's root, set in its Share dialog) -- the same rule as an agent's (dl_chain_cut). An expired share's exclusions
     still count: they only ever narrow, and the share itself gives nothing any more. Cached per request; read as system (ids only,
     the share rows of this one account, also when the asker is someone else: the Share dialog's inherited shares)."""
@@ -106,7 +106,7 @@ def _dl_person_wkf(c, uid):
 
 
 def dl_excl_parse(raw):
-    """2.1160.0 (#5862): the folder ids of a stored fs_shares.excl (invalid parts dropped, at most DL_WIKI_MAX)."""
+    """2.1225.0 (#5862): the folder ids of a stored fs_shares.excl (invalid parts dropped, at most DL_WIKI_MAX)."""
     try:
         d = json.loads(raw) if isinstance(raw, str) else raw
     except (ValueError, TypeError):
@@ -138,7 +138,7 @@ def dl_forget():
     if has_request_context():
         g.pop("_dl", None)
         g.pop("_dl_t", None)
-        g.pop("_dl_wkp", None)  # 2.1160.0 (#5862)
+        g.pop("_dl_wkp", None)  # 2.1225.0 (#5862)
 
 
 def dl_of(c, uid):

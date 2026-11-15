@@ -30,8 +30,8 @@ from .fsref import (FSR, fs_ref_content, fs_ref_json, fs_ref_need_move, fs_ref_n
 from .fsroots import fs_area_root_need_free, fs_area_root_of  # 2.199.0 F (#2742, review G1)
 from .fsroots import fs_area_after, fs_area_before, fs_area_folder_name, fs_area_need_fit, fs_area_of, fs_area_open  # 2.200.0 A (#2747)
 from .fsroots import fs_area_share  # 2.200.0 B (#2747)
-from .fsroots import fs_area_root_excl, fs_area_root_shares  # 2.1045.0 (#5823); 2.1160.0 (#5862): fs_area_root_excl
-from ..core.dlock import dl_chain_cut, dl_excl_parse, dl_forget  # 2.1045.0 (#5823); 2.1160.0 (#5862): dl_excl_parse, dl_forget
+from .fsroots import fs_area_root_excl, fs_area_root_shares  # 2.1045.0 (#5823); 2.1225.0 (#5862): fs_area_root_excl
+from ..core.dlock import dl_chain_cut, dl_excl_parse, dl_forget  # 2.1045.0 (#5823); 2.1225.0 (#5862): dl_excl_parse, dl_forget
 from .fsref import fs_unshare_hooks  # 2.623.0 (#4778)
 from .fsviews import fsv_collections, fsv_drop, fsv_hidden  # 2.429.0 (#3580): the file store shows only its own folders
 from ..core.conflict import Conflict, need_version, version_rule  # 2.577.0 (#4708 3)
@@ -382,7 +382,7 @@ def _inherited_shares(c, chain):
         for s in _shares(c, r["id"]):
             x = {**s, "from_id": r["id"], "from": r["name"], **({"area": True} if area else {})}
             if s["agent_id"] or s["user_id"]:  # 2.1045.0 (#5823): an excluded folder between cuts this share for its agent
-                # 2.1160.0 (#5862): and for its person (a private area's whole share)
+                # 2.1225.0 (#5862): and for its person (a private area's whole share)
                 if r["id"] not in dl_chain_cut(c, s["agent_id"] or s["user_id"], [y["id"] for y in chain[:i + 1]]):
                     x["excluded"] = True
             out.append(x)
@@ -971,7 +971,7 @@ def files_share_add(nid):
 
 
 def _excl_back(c, sid, nid, tid, given=()):
-    """2.1160.0 (#5862, Fable review 2): a person's share of a whole knowledge area made again (the dialog's Undo of "stop
+    """2.1225.0 (#5862, Fable review 2): a person's share of a whole knowledge area made again (the dialog's Undo of "stop
     sharing", Redo of a share) takes over the excluded folders of their share of it taken last (obj_revoked, 30 days) --
     else the Undo would open the folders kept out. Exclusions only narrow (joined with the ones given with the share, given);
     the dialog shows them at once. 2.1225.0 (Fable review job/4680 2): the row of this node looked up in SQL -- a window of
@@ -999,7 +999,7 @@ def _agent_event(c, aid, n, role):
 
 @app.patch("/api/files/shares/<int:sid>")
 def files_share_patch(sid):
-    """{role?, expires_at?, list_role?, excluded? (2.1160.0 #5862: [folder node ids] kept out of a person's share of a whole
+    """{role?, expires_at?, list_role?, excluded? (2.1225.0 #5862: [folder node ids] kept out of a person's share of a whole
     knowledge area, its root only)} -> {shares}."""
     c = db()
     s = c.execute("SELECT * FROM fs_shares WHERE id=? AND COALESCE(list_own, 0)=0 "  # #4739: the members dialog's
@@ -1019,7 +1019,7 @@ def files_share_patch(sid):
     if lists:  # 2.352.0 F (#2748, review H2): a list role set / changed without a role change was not checked at all
         fs_ref_need_move(c, me(), need_node(c, s["node_id"]))
     exc = None
-    if "excluded" in b:  # 2.1160.0 (#5862): the folders kept out of a person's share of a whole knowledge area (fsroots excl)
+    if "excluded" in b:  # 2.1225.0 (#5862): the folders kept out of a person's share of a whole knowledge area (fsroots excl)
         chk = fs_area_root_excl(c, s["node_id"]) if s["user_id"] else None
         if chk is None:
             return err(tr("Invalid value: {0}", "excluded"))
