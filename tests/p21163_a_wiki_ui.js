@@ -79,7 +79,7 @@ if (!process.env.P21163A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
       check(await ev(`(() => { const b = document.querySelector('#view .wkpage [data-wk="pmenu"]'); return !!b && !!b.offsetWidth && getComputedStyle(b).opacity === '1'; })()`), `#6087 ${W}: the page's "…" is in sight without hovering`);
       const m = await pmenu();
       check(m && m.includes('History') && m.includes('Copy link') && m.includes('Copy as [[link]]'), `#6087 ${W}: the "…" has History and the links ${JSON.stringify(m)}`);
-      check(m && !m.some(x => /^(Rename…|Delete|Move to the trash|Edit as Markdown|Read-only|Share…)$/.test(x)), `#6087 ${W}: nothing that writes in the "…" ${JSON.stringify(m)}`);
+      check(m && !m.some(x => /^(Rename…|Delete|Move to the trash|Edit as Markdown|Read-only|Lock editing \(this device\)|Share…)$/.test(x)), `#6087 ${W}: nothing that writes in the "…" ${JSON.stringify(m)}`);
       check(await pick('/^History$/') && await until(`!!document.querySelector('.modal:not(.hidden)')`), `#6087 ${W}: History opens`);
       await closeAll();
       check(await until(`/Alpha/.test(document.querySelector('#view .wkcrumbs')?.textContent || '')`), `#6089 ${W}: the path starts at the workspace's name (Alpha)`);
