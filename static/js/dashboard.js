@@ -467,7 +467,7 @@ function dashCard(k) {
     return rows.length ? card(`<ul class="dwl">${rows.join('')}</ul>`, `<a class="linkbtn" href="#family">${tr('Open')}</a>`) : slim();
   }
   if (k === 'search') {
-    return card(`<form class="dsearch" data-dsearch role="search"><input id="dash-q" type="search" placeholder="${esc(tr('Jump, create, ask an agent…'))}" aria-label="${esc(tr('Search and commands'))}" autocomplete="off"><button type="submit" class="btn sm">${ic('search', 's')}<span class="sr">${tr('Search')}</span></button></form>`);
+    return card(`<form class="dsearch" data-dsearch role="search"><input id="dash-q" type="search" placeholder="${esc(tr('Search tasks, projects, views and actions…'))}" aria-label="${esc(tr('Search and commands'))}" autocomplete="off"><button type="submit" class="btn sm">${ic('search', 's')}<span class="sr">${tr('Search')}</span></button></form>`);
   }
   return '';
 }

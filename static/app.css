@@ -1376,11 +1376,12 @@ svg.chart{display:block;max-width:100%;overflow:visible}
 .pitem .pic{width:1rem;display:inline-grid;place-items:center;color:var(--muted);flex:none}
 .pitem.on .pic{color:var(--accent)}
 .pitem.pf7 .pic{color:var(--p7)}.pitem.pf5 .pic{color:var(--p5)}.pitem.pf3 .pic{color:var(--p3)}.pitem.pf1 .pic{color:var(--p1)}
+.pitem.ptask .psw{width:.75rem;height:.75rem;border:1.5px solid var(--faint);border-radius:50%;background:none;box-sizing:border-box}
 .pitem .psw{width:.5rem;height:.5rem;border-radius:2px;background:var(--faint)}
 .pitem .pl{flex:1;min-width:0;display:flex;align-items:baseline;gap:.625rem;overflow:hidden}
 .pitem .plt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.pitem .pls{font:var(--fs-xs) var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
-.pitem .pk{font:var(--fs-xs) var(--mono);color:var(--faint);width:3.25rem;text-align:right;flex:none}
+.pitem .pls{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.pitem .pk{font-size:var(--fs-xs);color:var(--faint);width:3.25rem;text-align:right;flex:none}
 /* 2.217.0 A (#2796): on phones the title comes first and in full (up to two lines), project + kind small underneath */
 @media (max-width:599px){
   .pitem{display:grid;grid-template-columns:1rem minmax(0,1fr) auto;column-gap:.625rem;row-gap:0;align-items:center;padding-top:.375rem;padding-bottom:.375rem}

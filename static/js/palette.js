@@ -12,7 +12,7 @@ const kbText = s => s.split(' ').map(ch => ch.split('+').map(keyName).join(IS_MA
 // registered keys go (sc_withRegistry; without it they go to the group's end)
 const SHORTCUTS_ALL = [
   [N_('General'), [['Mod+K', N_('Search and commands')], ['?', N_('Keyboard shortcuts')], ['@kb', ''], ['Ctrl+Space', N_('Quick capture, also while typing')], ['Mod+Z', N_('Undo')], ['Mod+Shift+Z', N_('Redo')], ['Esc', N_('Close')]]],
-  [N_('Tasks'), [['↓', N_('Next task (or J)')], ['↑', N_('Previous task (or K)')], ['Enter', N_('Open task')], ['Space', N_('Complete task (or X)')], ['e', N_('Edit title in the list (or double-click)')], ['s', N_('Snooze task')], ['d', N_('Change date')], ['t', N_('Due today')], ['Shift+T', N_('Due tomorrow')], ['m', N_('Move to project')], ['Shift+C', N_('Collapse or expand all')]]],
+  [N_('Tasks'), [['↓', N_('Next task (or J)')], ['↑', N_('Previous task (or K)')], ['Enter', N_('Open task')], ['Space', N_('Complete task (or X)')], ['e', N_('Edit title in the list (or double-click)')], ['s', N_('Snooze task')], ['d', N_('Change date')], ['t', N_('Due today')], ['Shift+T', N_('Due tomorrow')], ['m', N_('Move to project (task selected)')], ['Shift+C', N_('Collapse or expand all')]]],
   // 2.0.6 (#191): multi-select and the calendar views
   [N_('Multi-select'), [['Mod+A', N_('Select all tasks of the view')], ['Shift+↓', N_('Extend the selection down (or Shift+J)')], ['Shift+↑', N_('Extend the selection up (or Shift+K)')], ['Shift+X', N_('Select or unselect the task')],
     ['Space', N_('Complete the selected tasks (or X)')], ['m', N_('Move the selected tasks to a project')], ['d', N_('Change the date of the selected tasks')], ['Esc', N_('Clear the selection')]]],
@@ -210,6 +210,12 @@ function fuzzy1(a, b) {
   // scattered letters are noise: at least half of the query must hit word starts or continue a run
   return j === b.length && good >= Math.ceil(b.replace(/\s/g, '').length / 2) ? score - a.length * 0.1 : 0;
 }
+// 2.1211.0 (#6128): commands (actions, views, settings) only match a coherent word / phrase, never scattered letters
+// ("Dreh" must not find "Adressbuch"): every word of the query is contained in the text
+const PAL_CMD = new Set(['action', 'view', 'setting']);
+const palUS = t => t.replace(/colour/g, 'color');  // the one spelling that differs in the app's own English ("Colour scheme")
+const palHas = (q, s) => { const a = palUS(fold(s)); return palQv(q).some(b => palUS(b).split(/\s+/).filter(Boolean).every(t => a.includes(t))); };
+const palFz = (x, q, s) => PAL_CMD.has(x.kind) && !palHas(q, s) ? 0 : fuzzy(q, s);
 function palAll() {
   const it = [], t = curTask(), ct = t && canEdit(t) && t.id > 0;
   const add = (id, kind, label, icon, fn, extra = {}) => it.push({id, kind, label, icon, fn, ...extra});
@@ -339,7 +345,7 @@ function palAll() {
   pg_settingParts(add);
   // tasks (open ones + the recently completed that are in the state)
   for (const x of S.tasks.values()) if (x.status === 0 && x.id > 0 && !archivedTask(x)) add('t:' + x.id, 'tasks', x.title, typeof le2eOn === 'function' && le2eOn(x.list_id) ? 'lock' : 'check', () => { const r = $(`#view .trow[data-id="${x.id}"]`); if (!r && x.list_id) go(x.list_id === inbox()?.id ? 'inbox' : 'l/' + x.list_id); setTimeout(() => openDetail(x.id), 30); },
-    {sub: [lname(listById(x.list_id)), x.due ? dayLabel(x.due) : ''].filter(Boolean).join('  ·  ')});
+    {sub: [lname(listById(x.list_id)), x.due ? dayLabel(x.due) : ''].filter(Boolean).join('  ·  '), ...(typeof le2eOn === 'function' && le2eOn(x.list_id) ? {} : {sw: '', cls: 'ptask'})});  // 2.1211.0 (#6128): an open task = a neutral ring (the .psw box), not the tick of a done one
   return it;
 }
 // 2.250.0 B (#2993): waits for an element (state, not time) and runs fn on it; gives up after ~3 s
@@ -479,7 +485,7 @@ function palItems() {
   // 2.13.0: "#447" or "447" jumps straight to that task (only one this person can see)
   const nm = q.match(/^#?(\d{1,9})$/), hit = (nm && taskById(+nm[1])) || tkFind(q);  // 2.390.0 (#3353): + "APP-12"
   const jump = hit ? [{id: 'tid:' + hit.id, kind: 'tasks', label: `${tkOf(hit) || '#' + hit.id} ${hit.title}`, sub: lname(listById(hit.list_id)) || '', icon: 'hash', fn: () => openDetail(hit.id)}] : [];
-  const hits = jump.concat(all.map(x => ({...x, score: Math.max(fuzzy(q, x.label), x.sub ? fuzzy(q, x.sub) * 0.3 : 0, x.kw ? fuzzy(q, x.kw) * 0.6 : 0)}))  // 2.250.0 B (#2993): kw = more words of the entry
+  const hits = jump.concat(all.map(x => ({...x, score: Math.max(palFz(x, q, x.label), x.sub ? palFz(x, q, x.sub) * 0.3 : 0, x.kw ? palFz(x, q, x.kw) * 0.6 : 0)}))  // 2.250.0 B (#2993): kw = more words of the entry
     .filter(x => x.score > 0).map(x => ({...x, score: x.score + boost[x.kind] + lc_favBoost(x)})).sort((a, b) => b.score - a.score).slice(0, 60));
   // 2.16.0 (#644): what the field can do with the text itself: ask an agent (the text goes to its chat) and create a task
   // (quick add syntax, the list like the quick add). Real matches first; without one, "Create" is on top (Enter = create)
@@ -508,7 +514,7 @@ function palDraw() {
   const el = $('.palette'); if (!el) return;
   PAL.items = palItems();
   PAL.i = Math.max(0, Math.min(PAL.i, PAL.items.length - 1));
-  let last = null, h = '';
+  let last = null, h = PAL.q.trim() && !PAL.mode && PAL.items.length && PAL.items.every(x => x.cls === 'pdo') ? `<div class="pempty pnone">${tr('Nothing found')}</div>` : '';  // 2.1211.0 (#6128)
   PAL.items.forEach((x, i) => {
     if (x.group && x.group !== last) { h += `<div class="pgroup">${tr(PAL_GROUP[x.group])}</div>`; last = x.group; }
     h += `<button class="pitem ${i === PAL.i ? 'on' : ''} ${x.cls || ''}" data-pi="${i}" role="option" aria-selected="${i === PAL.i}" id="pi-${i}">
@@ -524,7 +530,8 @@ function palDraw() {
     [ic('plus', 's'), tr('Text + Enter creates a task: “Dentist tomorrow 3pm !high”')],
     ...(ags.length ? [[ic('bot', 's'), tr('Ask {0}: type the question, then select “Ask {0}”', ags[0].name)]] : [])].map(([i, t]) => `<div class="phint">${i}<span>${esc(t)}</span></div>`).join('')}</div>` : '';
   const hw = $('.phintw', el); if (hw) hw.innerHTML = hints;  // outside the listbox (only options in there)
-  $('.plist', el).innerHTML = h || (hints ? '' : `<div class="pempty">${PAL.mode === 'ref' ? tr('Nothing found') : tr('Nothing found. Enter adds it as a new task.')}</div>`);
+  // 2.1211.0 (#6128): no Enter promise where Enter does nothing (move / reference); "Nothing found" above "Create as task" otherwise
+  $('.plist', el).innerHTML = h || (hints ? '' : `<div class="pempty">${PAL.mode === 'ref' ? tr('Nothing found') : PAL.mode === 'move' ? tr('No project matches.') : tr('Nothing found. Enter adds it as a new task.')}</div>`);
   $('.pqin', el).setAttribute('aria-activedescendant', PAL.items.length ? 'pi-' + PAL.i : '');
   $('.plist .pitem.on', el)?.scrollIntoView({block: 'nearest'});
 }
