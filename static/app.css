@@ -3992,6 +3992,8 @@ body.lcmoving{cursor:grabbing!important;user-select:none!important}  /* 2.331.0 
 .tcview.listpage{grid-template-columns:minmax(0,1fr);max-width:var(--w-seite);margin-inline:auto}  /* 2.580.0 (#4815): the channel list = --w-seite */
 .tcview.listpage .tclist{border-right:0}
 #side .tcpanel .tcsec{padding:.625rem .5rem .125rem;font-size:var(--fs-xs)}
+.tcxwhy{margin:0;padding:.5rem .75rem .25rem;font-size:var(--fs-s);line-height:var(--lh)}  /* 2.1220.0 (#6104) */
+#side .tcpanel .tcxwhy{padding:.375rem .5rem .125rem;font-size:var(--fs-xs)}
 #side .tcpanel .tcmute{display:inline-flex;color:var(--muted);flex:none}
 .tthpane{display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--line);background:var(--bg)}
 .tthview{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
