@@ -11381,7 +11381,6 @@
   "Delivery of raw data|calc": "Livraison des données brutes",
   "{amount} / {rate} x {factor} = {days} days, rounded to half days|calc": "{amount} / {rate} x {factor} = {days} jours, arrondi à la demi-journée",
   "Handling costs|calc": "Frais de gestion",
-  "Markup|calc": "Marge",
   "{pct} % on the marked positions|calc": "{pct} % sur les postes marqués",
   "{pct} % on the marked positions and the handling costs|calc": "{pct} % sur les postes marqués et les frais de gestion",
   "{pct} % of the positions with raw data|calc": "{pct} % des postes avec données brutes",

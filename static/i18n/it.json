@@ -11381,7 +11381,6 @@
   "Delivery of raw data|calc": "Consegna dei dati grezzi",
   "{amount} / {rate} x {factor} = {days} days, rounded to half days|calc": "{amount} / {rate} x {factor} = {days} giorni, arrotondato a mezze giornate",
   "Handling costs|calc": "Spese di gestione",
-  "Markup|calc": "Ricarico",
   "{pct} % on the marked positions|calc": "{pct} % sulle voci contrassegnate",
   "{pct} % on the marked positions and the handling costs|calc": "{pct} % sulle voci contrassegnate e sulle spese di gestione",
   "{pct} % of the positions with raw data|calc": "{pct} % delle voci con dati grezzi",

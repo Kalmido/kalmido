@@ -11360,7 +11360,6 @@
   "Delivery of raw data|calc": "Bereitstellung der Rohdaten",
   "{amount} / {rate} x {factor} = {days} days, rounded to half days|calc": "{amount} / {rate} x {factor} = {days} Tage, auf halbe Tage gerundet",
   "Handling costs|calc": "Handlungskosten",
-  "Markup|calc": "Aufschlag",
   "{pct} % on the marked positions|calc": "{pct} % auf die markierten Positionen",
   "{pct} % on the marked positions and the handling costs|calc": "{pct} % auf die markierten Positionen und die Handlungskosten",
   "{pct} % of the positions with raw data|calc": "{pct} % der Positionen mit Rohdaten",

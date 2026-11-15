@@ -11381,7 +11381,6 @@
   "Delivery of raw data|calc": "Entrega de los datos en bruto",
   "{amount} / {rate} x {factor} = {days} days, rounded to half days|calc": "{amount} / {rate} x {factor} = {days} días, redondeado a medias jornadas",
   "Handling costs|calc": "Gastos de gestión",
-  "Markup|calc": "Recargo",
   "{pct} % on the marked positions|calc": "{pct} % sobre las posiciones marcadas",
   "{pct} % on the marked positions and the handling costs|calc": "{pct} % sobre las posiciones marcadas y los gastos de gestión",
   "{pct} % of the positions with raw data|calc": "{pct} % de las posiciones con datos en bruto",
