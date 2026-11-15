@@ -262,7 +262,8 @@ async function part_swimlanes() {
     // none: the board as before, the button above it
     check(await ev(`!!document.querySelector('#view [data-swl-menu]') && !document.querySelector('#view .kanban.swl') && document.querySelectorAll('#view .kanban > .kcol').length === 2`), `${tag}: no lanes by default, the board as before`);
     const items = await pick(ev, '/^Priority$/');
-    check(['None', 'Person', 'Priority', 'Stage'].every(x => items.includes(x)), `${tag}: the menu offers none, person, priority and the select field ` + JSON.stringify(items));
+    // 2.1199.0 (#6207): #6141 (2.1175.0) names the "off" entry "No grouping" (one word per thing, was "None")
+    check(['No grouping', 'Person', 'Priority', 'Stage'].every(x => items.includes(x)) && !items.includes('None'), `${tag}: the menu offers no grouping, person, priority and the select field ` + JSON.stringify(items));
     const lanes = await ev(`[...document.querySelectorAll('#view .swlane')].map(l => l.dataset.swl + ':' + l.querySelector('.swln').textContent + ':' + l.querySelector('.swlh .c').textContent).join('|')`);
     // 2.574.0 (#3376): Urgent (7) above High is a lane of its own, empty here
     const want = theme === 'light' ? 'p7:Urgent:0|p5:High:1|p3:Medium:1|p1:Low:0|p0:No priority:1' : 'p7:Urgent:0|p5:High:1|p3:Medium:2|p1:Low:0|p0:No priority:1';  // (dark: + the task added in the light run)
