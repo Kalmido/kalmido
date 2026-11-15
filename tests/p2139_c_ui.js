@@ -56,8 +56,9 @@ const stub = (w, id, code, status = 409) => w.eval(`(() => { const real = rawFet
   await until(() => typeof w.wk_loadPage === 'function' && w.eval(`(WK.idx.private?.pages || []).length`) === 1, 60);
   stub(w, P2, 'other', 500);
   w.location.hash = '#wiki/' + P2;
-  const hint = await until(() => [...d.querySelectorAll('#view .wkpage .mhint')].find(x => x.textContent.includes('cannot be read')), 60);
-  check(hint && !d.querySelector('#view .wklost') && !d.querySelector('[data-wk="lostdel"]'), 'another error keeps the plain hint without the button');
+  // 2.1210.0 (#6225): since 2.1177 (#6088) another error shows the shared error block (.eerr: the server's text, Try again, Back)
+  const hint = await until(() => [...d.querySelectorAll('#view .eerr')].find(x => x.textContent.includes('cannot be read')), 60);
+  check(hint && hint.querySelector('[data-esretry]') && !d.querySelector('#view .wklost') && !d.querySelector('[data-wk="lostdel"]'), 'another error keeps the plain hint without the button');
 
   // ================= the browser lock names the skipped pages
   await until(() => typeof w.wkeLostNames === 'function', 40);

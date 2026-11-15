@@ -66,8 +66,12 @@ if (!process.env.P21177_NOSTART) execFileSync('bash', [path.join(__dirname, 'sta
     await ev(`(() => { document.querySelector('.wktrashdlg [data-wkt="close"]').click(); return 1; })()`);
     // Select: the leaves two folders deep keep their names
     await nav(B + '?w=360#wiki');
-    await until(`!!document.querySelector('#view .wktree [data-wksel="mode"], #view [data-wksel="mode"]')`, {timeout: 20000});
-    await ev(`(() => { document.querySelectorAll('#view details').forEach(x => x.open = true); document.querySelector('#view [data-wksel="mode"]').click(); return 1; })()`);
+    // 2.1210.0 (#6224, CI red of 2.1191.0): since 2.1163 (#6089) the phone's list has no "Select" button of its own - its entry is in
+    // the list's "…" (as a person does it: open "…", choose Select)
+    check(await until(`!!document.querySelector('#view [data-wk="lmenu"]') && WK.selHere === 'private'`, {timeout: 20000}), '360: the list\'s "…" offers its menu');
+    await ev(`(() => { document.querySelectorAll('#view details').forEach(x => x.open = true); document.querySelector('#view [data-wk="lmenu"]').click(); return 1; })()`);
+    const selIt = await until(`(() => { const b = [...document.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')].find(x => /^Select/.test(x.textContent.trim())); if (!b) return false; b.click(); return true; })()`, {timeout: 10000});
+    check(selIt && await until('WK.selOn === true'), '360: "…" > Select starts choosing');
     const sel = await until(`(() => { const rs = [...document.querySelectorAll('#view .wkselrow')]; if (rs.length < 5) return null; document.querySelectorAll('#view details').forEach(x => x.open = true);
       const cut = [...document.querySelectorAll('#view .wkselrow a.wkitem > span')].filter(s => s.offsetWidth && s.scrollWidth > s.clientWidth + 1 && s.clientWidth < 100).map(s => [s.textContent, s.clientWidth]);
       return {n: rs.length, cut, dates: [...document.querySelectorAll('#view .wkselrow .wkwhen')].filter(x => x.offsetWidth).length, sw: document.documentElement.scrollWidth, vw: innerWidth}; })()`);
