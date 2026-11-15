@@ -462,18 +462,35 @@ const ab_upRest = (parts, i, x, j = parts.length) => parts.slice(i, j).flat().ma
 // Cancel, offline, rights, a full store stop the upload
 const ab_upGoOn = x => x?.status === 400 && !x?.cancelled;
 // the list of what stayed out, where the progress bars are (upbar.js upBox): it stays until it is closed
-function ab_upOut(out) {
-  $('#upbars .upout')?.remove();
-  if (!out.length || typeof upBox !== 'function') return;
+// 2.1208.0 (#6173): each upload its own list - prev = this upload's list so far (replaced by the new one), the list of another
+// upload stays; -> the list (null = nothing out)
+function ab_upOut(out, prev) {
+  prev?.remove();
+  if (!out.length || typeof upBox !== 'function') return null;
   const el = document.createElement('div'); el.className = 'upbar upout'; el.setAttribute('role', 'status');
   el.innerHTML = `<div class="uphead"><span class="upn">${esc(trn('{0} file was not uploaded:', '{0} files were not uploaded:', out.length))}</span><button type="button" class="upoutx" aria-label="${esc(tr('Close'))}" title="${esc(tr('Close'))}">${ic('x', 's')}</button></div><ul class="upoutl">${out.slice(0, 20).map(o => `<li>${o.name ? `<b>${esc(o.name)}</b> ` : ''}<span class="muted">${esc(o.why)}</span></li>`).join('')}${out.length > 20 ? `<li class="muted">${esc(trn('and {0} more', 'and {0} more', out.length - 20))}</li>` : ''}</ul>`;
   /** @type {HTMLElement} */ (el.querySelector('.upoutx')).addEventListener('click', () => { el.remove(); if (!document.querySelector('.upbar')) document.getElementById('upbars')?.remove(); });
   upBox().appendChild(el);
+  return el;
+}
+// 2.1208.0 (#6173): one portion of an upload goes with rawFetch, not api(): its error is said once, in the list (ab_upOut), not a
+// second time as api()'s toast beside it (a full store still opens its dialog in rawFetch)
+const ab_upSend = (url, fd) => rawFetch('POST', url, fd);
+// 2.1208.0 (#6173): the Undo / Redo of an upload's new version: version no on top again with expect_version = cur (the newest
+// version this step knows, files/web.py fs_web_expect); someone else uploaded one meanwhile -> 409, nothing changed -> null;
+// any other error is said (as api()) and the step goes on with the next file -> undefined
+async function ab_upVerStep(x, no, cur) {
+  try { return await rawFetch('POST', `/api/files/nodes/${x.id}/versions/${no}/restore`, {expect_version: cur}); }
+  catch (e) {
+    if (e?.status === 409) return null;
+    if (e?.message !== 'auth' && !e?.shown) toast(errText(e));
+    return undefined;
+  } finally { ab_verAfter(x.id); }
 }
 // the message at the end: "3 files uploaded" (+ "· 2 not uploaded": the list says which)
 const ab_upMsg = (msg, out) => out.length ? `${msg} · ${trn('{0} not uploaded', '{0} not uploaded', out.length)}` : msg;
 async function ab_upload(files, target) {
-  const {ok, out} = ab_upCheck(files); ab_upOut(out);  // 2.1177.0 (#6114): the file store takes every kind (as its server)
+  const {ok, out} = ab_upCheck(files); const box = ab_upOut(out);  // 2.1177.0 (#6114): the file store takes every kind (as its server)
   files = ok; if (!files.length) return;
   const lid = await ab_lockOf(target);  // 2.353.0 A (#2758): encrypted here; F (review N8): also a folder outside the view, never plain
   if (lid) return typeof fsl_upload === 'function' ? fsl_upload(files, target, lid) : ab_noFsl();
@@ -483,20 +500,32 @@ async function ab_upload(files, target) {
     for (const f of parts[i]) fd.append('file', f, f.name);
     if (target) fd.append('parent_id', String(target)); else fd.append('space', ab_curSpace());
     // 2.1216.0 (#6109): rawFetch - a refused portion is said once, in the list (ab_upOut), no toast beside it
-    let j; try { j = await rawFetch('POST', '/api/files/upload', fd); } catch (x) { if (ab_upGoOn(x)) { out.push(...ab_upRest(parts, i, x, i + 1)); continue; } out.push(...ab_upRest(parts, i, x)); break; }
+    let j; try { j = await ab_upSend('/api/files/upload', fd); } catch (x) { if (x?.message === 'auth') return; if (ab_upGoOn(x)) { out.push(...ab_upRest(parts, i, x, i + 1)); continue; } out.push(...ab_upRest(parts, i, x)); break; }
     items.push(...(j.items || []));
   }
   // review: two files of one upload with the same name are one node with two new versions - once in the message and in Undo,
   // which goes back to the version before the upload (a node that did not exist before goes to the trash)
   const seen = new Map(); for (const x of items) { const e = seen.get(x.id); seen.set(x.id, {...x, n: (e?.n || 0) + 1}); }
   items.length = 0; items.push(...seen.values());
-  ab_reload(); ab_upOut(out);
+  ab_reload(); ab_upOut(out, box);
   if (!items.length) return;
   const created = items.filter(x => !old.has(x.id) && x.version - x.n < 1), vers = items.filter(x => !created.includes(x) && x.version > 1);
   const msg = ab_upMsg(vers.length ? tr('{0} uploaded, {1} as a new version', items.length, vers.length) : trn('{0} file uploaded', '{0} files uploaded', created.length), out);
   // one step back for all: the new files into the trash, a new version back to the one before (as Restore version does)
-  offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); for (const x of vers) await ab_verStep(x, x.version - x.n); return {}; },
-    redo: async () => { for (const x of created) await ab_req('POST', `/api/files/nodes/${x.id}/restore`); for (const x of vers) await ab_verStep(x, x.version); return {}; }}));
+  // 2.1208.0 (#6173): a new version goes back only while it is still the newest (expect_version); a file someone else gave a
+  // newer version meanwhile stays as it is, is named and leaves this step (also for Redo)
+  const cur = new Map(vers.map(x => [x.id, x.version]));
+  const verSteps = async back => {
+    const kept = [];
+    for (const x of vers) {
+      if (!cur.has(x.id)) continue;
+      const r = await ab_upVerStep(x, back ? x.version - x.n : x.version, cur.get(x.id));
+      if (r === null) { cur.delete(x.id); kept.push(x.name); } else if (r?.version) cur.set(x.id, r.version);
+    }
+    return kept.length ? {note: tr('Meanwhile someone else uploaded a newer version, it stays as it is: {0}', kept.slice(0, 4).join(', ') + (kept.length > 4 ? ' …' : '')), none: !created.length && !cur.size} : {};
+  };
+  offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); return verSteps(true); },
+    redo: async () => { for (const x of created) await ab_req('POST', `/api/files/nodes/${x.id}/restore`); return verSteps(false); }}));
 }
 async function ab_rename(n) {
   if (n.locked && n.lock_id !== n.id) return typeof fsl_rename === 'function' ? fsl_rename(n) : ab_noFsl();  // 2.353.0 A (#2758); F (review N8): never plain
