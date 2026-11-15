@@ -1083,11 +1083,20 @@ def obj_node_person_take(c, by, kind, rid, who):
         n = fs_ref_node(c, kind, rid)
         if n is None:
             return []
-        rows = c.execute("SELECT id FROM fs_shares WHERE node_id=? AND (user_id=? OR agent_id=?) ORDER BY id",
+        rows = c.execute("SELECT id, role, expires_at FROM fs_shares WHERE node_id=? AND (user_id=? OR agent_id=?) ORDER BY id",
                          (n["id"], int(who), int(who))).fetchall()
-        out = [obj_node_unshare(c, by, n, r[0], kind=kind, ref_id=int(rid), org=n["org_id"] or None) for r in rows]
+        if not rows:
+            return []
+        # fable review: only the row that counts (live, the higher role, the newest) is kept restorable; a second row of the same
+        # person (an old double, an expired one beside a live one) goes as the drop does -- one restore brings the access back
+        now = iso(now_utc())
+        best = max(rows, key=lambda r: (r[2] is None or r[2] > now, r[1] == "edit", r[0]))
+        for r in rows:
+            if r[0] != best[0]:
+                c.execute("DELETE FROM fs_shares WHERE id=?", (r[0],))
+        out = obj_node_unshare(c, by, n, best[0], kind=kind, ref_id=int(rid), org=n["org_id"] or None)
     obj_forget()
-    return [x for x in out if x]
+    return [out] if out else []
 
 
 # ---------------------------------------------------------------- revocation in one place

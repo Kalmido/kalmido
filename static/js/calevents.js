@@ -849,7 +849,9 @@ function evShareModal(c, users, done) {
       const uid = +x.dataset.evsrm, name = nm(uid), was = (c.members || []).find(m => m.user_id === uid);
       let rev; try { rev = (await rm(uid)).revoked || []; } catch { return; }
       // back: the core's restore of the shares taken back (the role they had); forward: taken out again (new rows in obj_revoked)
-      const back = async () => { for (const rid of rev) await api('POST', `/api/obj/evcal/${c.id}/shares/${rid}/restore`); c.members = [...(c.members || []).filter(m => m.user_id !== uid), was].filter(Boolean); draw(); done(); return {}; };
+      // the members after the restore as the server has them (its answer), not the remembered row (review)
+      const back = async () => { let j = null; for (const rid of rev) j = await api('POST', `/api/obj/evcal/${c.id}/shares/${rid}/restore`);
+        c.members = j?.shares ? j.shares.filter(x => x.user_id || x.agent_id).map(x => ({user_id: x.user_id || x.agent_id, role: x.role})) : [...(c.members || []).filter(m => m.user_id !== uid), was].filter(Boolean); draw(); done(); return {}; };
       const fwd = async () => { rev = (await rm(uid)).revoked || []; return {}; };
       offerUndo(tr('Stopped sharing with {0}', name), histAdd({label: tr('Stop sharing {0} with {1}', c.name, name), undo: back, redo: fwd}));
       return;
