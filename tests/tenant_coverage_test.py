@@ -999,6 +999,7 @@ ROUTES = {
     "POST /api/team/rooms/{}/messages": "team", "PATCH /api/team/messages/{}": "team",
     "DELETE /api/team/messages/{}": "team", "POST /api/team/messages/{}/reactions": "team",
     "POST /api/team/messages/{}/restore": "team",  # 2.530.0 A (#4315)
+    "GET /api/team/messages/{}/versions": "team", "GET /api/v1/team/messages/{}/versions": "team",  # 2.1213.0 (#6166): also p21213_d_tchat_versions_test.py
     "POST /api/team/rooms/{}/read": "team",
     # 2.42.0 (#828, #909): end-to-end encryption -- the person's own keys; a DM partner's public key / the DM switch (need_room,
     # tchat_coworkers); the encrypted note (need_task) and an encrypted file (need_task + attachment rules) of a task

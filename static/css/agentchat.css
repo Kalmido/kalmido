@@ -306,15 +306,6 @@ button.chmode .pmlong::after{content:"\a0\25BE";font-size:.75em}
   .chsteps{padding-left:calc(3.0625rem - 2px)}
   .chsteps.off{padding-left:3.5625rem}
 }
-.cmeta .cedited{border:0;background:none;padding:0 .25rem;min-height:1.5rem;color:var(--muted);font:inherit;font-size:var(--fs-xs);cursor:pointer;text-decoration:underline dotted}
-.cmeta .cedited:disabled{cursor:default;text-decoration:none}
-.chedmd .chednow{margin:.25rem 0 .75rem}
-.chedits{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.625rem;max-height:60vh;overflow:auto}
-.chedits li{display:flex;flex-direction:column;gap:.25rem}
-.chedits time{font-size:var(--fs-xs)}
-@media (pointer:coarse) {
-  .cmeta .cedited{min-height:2.75rem;margin:-.625rem 0}
-}
 @media not all and (pointer:coarse) and (max-width:599px) {
   .chath .chn{flex-direction:row;flex-wrap:wrap;align-items:center;column-gap:0;row-gap:.0625rem}
   .chath .chnm{display:contents}

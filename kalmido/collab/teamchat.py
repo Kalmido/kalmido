@@ -1,4 +1,5 @@
 """Team chat (rooms and direct messages)."""
+import json
 import re
 from flask import g, has_request_context, jsonify, request, Response
 
@@ -987,6 +988,7 @@ def tchat_edit(mid):
         if bad:
             return bad
         if enc:
+            tcv_keep(c, r, m)  # 2.1213.0 (#6166): the version before, sealed as it was stored
             c.execute("UPDATE tchat_msgs SET body='', enc=?, edited_at=? WHERE id=?", (enc, iso_ms(now_utc()), mid))
             c.commit()
             m = c.execute("SELECT * FROM tchat_msgs WHERE id=?", (mid,)).fetchone()
@@ -998,6 +1000,7 @@ def tchat_edit(mid):
         enc = e2e_blob(b.get("enc"), E2E_MSG_MAX)
         if not enc or (isinstance(text, str) and text.strip()):
             return err(tr("Invalid value: {0}", "enc"))
+        tcv_keep(c, r, m)  # 2.1213.0 (#6166): the ciphertext before (the server never reads it)
         c.execute("UPDATE tchat_msgs SET enc=?, edited_at=? WHERE id=?", (enc, iso_ms(now_utc()), mid))
         c.commit()
         m = c.execute("SELECT * FROM tchat_msgs WHERE id=?", (mid,)).fetchone()
@@ -1009,6 +1012,8 @@ def tchat_edit(mid):
         return err(tr("The message is too long (max. {0} characters)", TCHAT_MAX))
     text, mentions = ocm_mentions_clean(c, "tchat", r["id"], text.strip())  # 2.981.0 (#5274): the core's parser
     known = {int(x) for x in OCM_MENTION_RE.findall(m["body"] or "")}
+    if text != (m["body"] or ""):
+        tcv_keep(c, r, m)  # 2.1213.0 (#6166): the text before
     c.execute("UPDATE tchat_msgs SET body=?, edited_at=? WHERE id=?", (text, iso_ms(now_utc()), mid))
     from ..agents.chat import med_changed  # 2.39.0 (#1179): agents that got it as team_message learn the change
     med_changed(c, "team", r, c.execute("SELECT * FROM tchat_msgs WHERE id=?", (mid,)).fetchone(), m["body"])  # 2.981.0 (#5274): the one "edited" event
@@ -1018,6 +1023,83 @@ def tchat_edit(mid):
     c.commit()
     m = c.execute("SELECT * FROM tchat_msgs WHERE id=?", (mid,)).fetchone()
     return jsonify(tchat_msg_dict(c, m, tchat_rx(c, [mid])))
+
+
+# ---- 2.1213.0 (#6166): the earlier versions of a message ("edited" opens them, as in an agent's chat). No table of the team
+# chat: each edit puts the version before into the core's history (core/writes.py obj_history_add, kind TCV_KIND = the core's
+# kind of a team chat message, ref_id = the message id, action 'edit': never merged, every version stays, at most
+# OBJ_HISTORY_MAX per message). vals_before holds the message exactly as it was stored: {"body": text} of a plain message,
+# {"enc": ciphertext} of an end-to-end encrypted DM or of a channel of a project with the lock -- the browser opens it with the
+# key and AAD of the message itself, the server never can. org_id = the room's organisation (row-level security as the room).
+# Readers: the members of the room (need_tmsg -> need_room, the same check as reading the conversation: after leaving / being
+# removed 404); a message in the trash shows none (a restore brings them back). The rows go when the message goes for good
+# (trigger kalmido_oh_gone_tchat, core/migrations.d/6166_a.py: the trash run, a room / project deleted), when the lock of a
+# project converts its channel (collab/liste2echan.py le2c_bulk, collab/cmttrash.py ctt_purge_list: an old version must not
+# stay plain or under an old key) and with the deleted messages of an account that goes (cmttrash.py tcx_purge_user).
+TCV_KIND = "tchat_msg"
+
+
+def _tcv_reg():
+    from ..core.writes import OBJ_TRACK, obj_track  # core/writes.py -> core/objects.py -> ...: a cycle at the top (as wiki/wkhist.py)
+    if TCV_KIND not in OBJ_TRACK:
+        obj_track(TCV_KIND, "tchat_msgs", area="team")
+
+
+def tcv_org(c, r):
+    """The organisation of room r (None = a DM or a private project): the history rows' org_id."""
+    if r["kind"] == "list":
+        x = c.execute("SELECT org_id FROM lists WHERE id=?", (r["list_id"],)).fetchone()
+        return (x[0] or None) if x else None
+    return (r["org_id"] or None) if r["kind"] in TCX_KINDS else None
+
+
+def tcv_keep(c, r, m):
+    """Message row m (as stored, before the edit) of room r into the history. Caller holds the message's lock and commits."""
+    from ..core.writes import obj_history_add
+    _tcv_reg()
+    before = {"enc": m["enc"]} if m["enc"] else {"body": m["body"] or ""}
+    obj_history_add(c, me(), TCV_KIND, m["id"], before, {}, action="edit", org_id=tcv_org(c, r))
+
+
+def tcv_drop(c, where, args=()):
+    """The history rows of the messages SELECT id FROM tchat_msgs WHERE <where> go (one way). -> number of rows."""
+    with system_ctx(c):  # also the rows of an organisation the caller (a background run, a conversion) is not in
+        return c.execute(f"DELETE FROM obj_history WHERE kind=? AND ref_id IN (SELECT id FROM tchat_msgs WHERE {where})",
+                         (TCV_KIND, *args)).rowcount
+
+
+def tcv_list(c, r, m):
+    """The earlier versions of message m, newest first: [{no, at, replaced_at, body, enc}] -- at = when that version was written
+    (the first: the message's created_at), replaced_at = the edit that replaced it. An agent / API token in the channel of a
+    project with the lock gets no ciphertext (as le2c_out): body '', enc None, encrypted true."""
+    from .liste2echan import le2c_mode
+    from .liste2e import le2e_writer_ok
+    rows = c.execute("SELECT vals_before, created_at FROM obj_history WHERE kind=? AND ref_id=? AND action='edit' ORDER BY id",
+                     (TCV_KIND, m["id"])).fetchall()
+    hide = bool(le2c_mode(c, r)[0]) and not le2e_writer_ok()
+    out, at = [], m["created_at"]
+    for i, h in enumerate(rows):
+        v = h["vals_before"]
+        v = v if isinstance(v, dict) else json.loads(v or "{}")
+        enc = _e2e_parse(v["enc"]) if v.get("enc") else None
+        d = {"no": i + 1, "at": at, "replaced_at": h["created_at"], "body": "" if enc else (v.get("body") or ""), "enc": enc}
+        if hide and enc:
+            d.update(enc=None, encrypted=True)
+        out.append(d)
+        at = h["created_at"]
+    return list(reversed(out))
+
+
+@app.get("/api/team/messages/<int:mid>/versions")
+def tchat_versions(mid):
+    """2.1213.0 (#6166): {items: the earlier versions of the message, newest first} -- members of its room; 404 for a message in
+    the trash."""
+    c = db()
+    need_tchat(c)
+    m, r = need_tmsg(c, mid)
+    if m["deleted_at"]:
+        raise Denied(404)
+    return jsonify(items=tcv_list(c, r, m), message_id=m["id"], user_id=m["user_id"], edited_at=m["edited_at"])
 
 
 @app.delete("/api/team/messages/<int:mid>")
@@ -1300,6 +1382,15 @@ def v1_tchat_edit(mid):
     return jsonify(v1_call(tchat_edit, mid, body=take_version(b)))
 
 
+@app.get("/api/v1/team/messages/<int:mid>/versions")
+@v1_view
+def v1_tchat_versions(mid):
+    """2.1213.0 (#6166): the earlier versions of a message (members of its conversation)."""
+    v1_args(())
+    j = v1_call(tchat_versions, mid)
+    return jsonify(data=j["items"], message_id=j["message_id"], edited_at=j["edited_at"], next_cursor=None)
+
+
 @app.delete("/api/v1/team/messages/<int:mid>")
 @v1_view
 def v1_tchat_delete(mid):
@@ -1386,6 +1477,11 @@ def team_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
         "patch": op("Change your own message", TC, ok(ref("TeamMessage")) | errs("400", "403", "404", "409"), [mp],
                     body={"type": "object", "properties": {"body": {"type": "string"}}, "required": ["body"]}, scope="comments"),
         "delete": op("Delete your own message (list owners / admins: any in their channel)", TC, {"204": {"description": "Deleted"}} | errs("403", "404"), [mp], scope="comments")}
+    paths["/team/messages/{id}/versions"] = {"get": op(  # 2.1213.0 (#6166)
+        "2.1213.0 (#6166): the earlier versions of a message, newest first ({no, at, replaced_at, body, enc}: at = when that version "
+        "was written, replaced_at = the edit that replaced it; an end-to-end encrypted message keeps its ciphertext enc, body empty; "
+        "in the channel of a project with the lock an agent / API token gets encrypted: true without it). Members of the "
+        "conversation; a deleted message: 404", TC, ok({"type": "object"}) | errs("404"), [mp])}
     paths["/team/messages/{id}/reactions"] = {"post": op("Toggle your reaction on a message", TC, ok({"type": "object"}) | errs("400", "404", "409"), [mp],
                                                          body={"type": "object", "properties": {"emoji": {"type": "string"}, "on": {"type": "boolean"}}, "required": ["emoji"]},
                                                          scope="comments")}
