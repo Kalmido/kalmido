@@ -104,14 +104,14 @@ with open(os.path.join(REC, "broken.sig.json"), "w") as f:
 put("halfsig", "x = 2\n")
 with open(os.path.join(REC, "halfsig.sig.json"), "w") as f:
     json.dump({"id": "halfsig", "version": "1.0.0", "api": 1}, f)                 # incomplete: no sha256 / key / sig
-# review 2.1188: a symlinked recipe is never followed, a deeply nested signature document skips its pair (no 500)
+# review 2.1188: a symlinked recipe is never followed, a nested non-object signature document is left out
 _am = open(os.path.join(REC, "amazon.py"), "rb").read()
 put("linked", _am.decode(), sha=hashlib.sha256(_am).hexdigest())
 os.remove(os.path.join(REC, "linked.py"))
 os.symlink("amazon.py", os.path.join(REC, "linked.py"))                         # a link to a signed file of another id
 put("deep", "x = 3\n")
 with open(os.path.join(REC, "deep.sig.json"), "w") as f:
-    f.write("[" * 2000 + "]" * 2000)                                              # RecursionError in json, not a 500
+    f.write("[" * 2000 + "]" * 2000)                                              # a nested list, not a signature document: left out
 r = recipes(K)
 got = r.json().get("recipes", []) if r.ok else []
 ids = sorted(x.get("id") for x in got)
