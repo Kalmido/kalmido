@@ -7,9 +7,8 @@ full run and by hand. Without a server (CI Lint):
   by-hand runs stay full; a queue push keeps "none", a push on main keeps the push stage;
 - ci.yml: the plan keeps the stage release and cuts it like the queue stage, every shard of it is "hart" (the name the live
   train waits for, kalmido-livezug.py SG_HART_NAME_RE);
-- tools/ci_gate.py: a green release-stage run counts like a green full run for the image; a red one is soft when only soft
-  suites are red inside its hard shards (judged by suite, like the merge queue gate), never when a hard suite is red or a
-  hard shard was cut; release.yml waits at most 150 min (was 250)."""
+- tools/ci_gate.py: a green release-stage run counts like a green full run for the image; a red one is soft only when every
+  (hard) shard and hard job is green and a soft job is red (demo); a red or cut shard is no image; release.yml waits at most 150 min (was 250)."""
 import importlib.util
 import os
 import re
@@ -156,25 +155,17 @@ def suites(m):
     return lambda j: m.get(j["id"], [])
 
 
-ok, txt, info = gate.judge_soft(rel_jobs(c2="failure"), suites({2: ["p1_invoice_ui"]}), ["*invoice_api*"], GRP)
-check(ok and info["suites"] == ["p1_invoice_ui"], "release: a soft suite red in a hard shard (hard group, soft name) = soft go (%s)" % txt)
-ok, txt, _ = gate.judge_soft(rel_jobs(c2="failure"), suites({2: ["p1_invoice_api"]}), PATS, GRP)
-check(not ok and "p1_invoice_api" in txt, "release: a hard suite red = no image (%s)" % txt)
+ok, txt, _ = gate.judge_soft(rel_jobs(c2="failure"), suites({2: ["p1_invoice_ui"]}), ["*invoice_api*"], GRP)
+check(not ok and "hard shard" in txt, "release: a red shard is a hard one (its suites are in hard groups) = no image (%s)" % txt)
 ok, txt, _ = gate.judge_soft(rel_jobs(c3="cancelled"), suites({}), PATS, GRP)
 check(not ok and "hard shard" in txt, "release: a hard shard cut before its end = no image (%s)" % txt)
-ok, txt, _ = gate.judge_soft(rel_jobs(c2="failure"), suites({}), PATS, GRP)
-check(not ok and "without a named suite" in txt, "release: a red hard shard without a named suite = hard (%s)" % txt)
-ok, txt, _ = gate.judge_soft(rel_jobs(c2="failure"), suites({2: ["p1_invoice_ui", gate.STOPPED]}), ["*invoice_api*"], GRP)
-check(not ok and "red streak" in txt, "release: a hard shard stopped after a red streak = hard (%s)" % txt)
-ok, txt, _ = gate.judge_soft(rel_jobs(c2="failure"), suites({2: ["p1_invoice_ui"] * gate.ANN_MAX}), ["*invoice_api*"], GRP)
-check(not ok and "maybe more" in txt, "release: as many red suites as GitHub names = unknown = hard (%s)" % txt)
+ok, txt, info = gate.judge_soft(rel_jobs() + [job(7, "Browser demo + quick add languages", "failure")], suites({}), PATS, GRP)
+check(ok and info["jobs"] == ["Browser demo + quick add languages"], "release: every hard shard green, a soft job red = soft go (%s)" % txt)
+ok, txt, _ = gate.judge_soft(rel_jobs() + [job(7, "OWASP ZAP baseline", "failure")], suites({}), PATS, GRP)
+check(not ok and "hard job" in txt, "release: ZAP red = no image (%s)" % txt)
 mixed = rel_jobs() + [job(9, "Test suites 3/3 full (API, UI, security)", "failure")]
 ok, txt, _ = gate.judge_soft(mixed, suites({9: ["x_ui"]}), PATS, GRP)
 check(not ok and "stage" in txt, "a run with two stages is unknown = hard (%s)" % txt)
-# the full stage keeps its rule: a red hard shard = no image, whatever suite
-full = [dict(j, name=j["name"].replace(" release ", " full ")) for j in rel_jobs(c2="failure")]
-ok, txt, _ = gate.judge_soft(full, suites({2: ["p1_invoice_ui"]}), ["*invoice_api*"], GRP)
-check(not ok and "hard shard" in txt, "full stage: a red hard shard stays no image (%s)" % txt)
 
 rel = read(".github", "workflows", "release.yml")
 g = re.search(r"^  ci-gate:\n((?:    .*\n|\n)+)", rel, re.M)
