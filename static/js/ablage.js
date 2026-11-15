@@ -29,11 +29,11 @@ const ab_nodeSp = n => n?.space || (n?.org_id ? 'org:' + n.org_id : n?.role === 
 const ab_url = (n, dl, v) => `/api/files/nodes/${n.id}/content?${[dl ? 'dl=1' : '', v ? 'v=' + v : ''].filter(Boolean).join('&')}`;
 const ab_isImg = n => /^image\/(png|jpe?g|gif|webp|avif)$/.test(n.mime || '');
 const ab_isPdf = n => n.mime === 'application/pdf';
-const ab_canWrite = r => r === 'owner' || r === 'edit';
-// 2.1162.0 (#6108): may the person add at the top of space sp? Private: always; an organisation: not as read-only / guest /
-// accounting (the server's need_org_write, files/store.py; only the view follows it, the server still decides)
-const AB_RO_ROLES = ['readonly', 'guest', 'accounting'];
-const ab_spWrite = sp => sp === 'private' || (!!sp && sp.startsWith('org:') && !AB_RO_ROLES.includes(wsOrg(sp.slice(4))?.role));
+// 2.1238.0 (#6161, Stufe 2): may the person change node n / add into it? The shared core's canWrite (workspace.js) decides
+// from the node's role (the server's; read-only organisation roles already view) and its organisation; a node without a role = no.
+// At the top of a space: canWrite(space) (Private: always; an organisation: not as read-only / guest / accounting, the
+// server's need_org_write). The own helpers of 2.1162.0 (#6108) for that are gone; the server still decides.
+const ab_canWrite = n => !!n?.role && canWrite(n);
 // 2.1162.0 (#6108): a drop onto a place the person only reads: a short note instead of nothing (once per drag, not on every dragover)
 const ab_roHint = () => { const t = Date.now(); if (t - (AB.roAt || 0) > 4000) toast(tr('You can only read here')); AB.roAt = t; };
 const ab_role = r => r === 'owner' ? tr('Owner') : r === 'edit' ? tr('Can edit') : r === 'view' ? tr('Can view') : '';
@@ -120,7 +120,7 @@ function viewAblage() {
   const treeHtml = tree.map(t => `<button type="button" class="abspace abtree ${t.on ? 'on' : ''}" style="--ablvl:${Math.min(t.lvl, 6)}" data-go="ablage/${t.id}" data-abdrop="${t.id}" ${t.on ? 'aria-current="page"' : ''}>${ic('folder', 's')}<span>${esc(t.name)}</span></button>`).join('');
   const spaces = `<nav class="abspaces" aria-label="${esc(tr('Files'))}">${ab_spaces().map(s => `<button type="button" class="abspace ${!r.nid && s === sp ? 'on' : ''}" data-ab="space" data-sp="${esc(s)}" ${!r.nid && s === sp ? 'aria-current="page"' : ''}${/*html-ok*/ wso_row(s) /* 2.1241.0 (#6184) */}>${ab_spaceIcon(s)}<span>${esc(ab_spaceName(s))}</span></button>${r.nid && s === (sp || 'shared') ? treeHtml : ''}`).join('')}${ab_docBtns(true)}</nav>`;  // 2.353.0 D (#2759): + the saved filters; 2.752.0 (#4887): All documents, To review
   const desk = typeof sbb_on === 'function' && sbb_on();  // 2.152.3 B (#2621): a computer: spaces and folders are in the panel (ab_panelHtml), the path on top
-  const trash = !r.nid && sp === 'trash', canAdd = r.nid ? ab_canWrite(d?.node?.role) : ab_spWrite(sp);  // 2.1162.0 (#6108): + the role in the organisation
+  const trash = !r.nid && sp === 'trash', canAdd = r.nid ? ab_canWrite(d?.node) : canWrite(sp);  // 2.1162.0 (#6108): + the role in the organisation
   // 2.752.0 (#4887): a folder with recognition shows the documents' view (abdocs.js abd_foldHtml: their bar, the documents' cards,
   // its subfolders before them); every other folder its list as before
   const fold = !!(r.nid && d?.node && typeof abd_recogHere === 'function' && abd_recogHere(key) && typeof abd_foldHtml === 'function');
@@ -149,7 +149,9 @@ function viewAblage() {
   if (search && ftxtActive()) body = ftxtResults();
   const hint = !r.nid && sp === 'private' && d && !d.items.length ? `<p class="muted abhint">${tr('Share a folder with a person or an agent: they see exactly that folder, nothing else.')}</p>` : '';
   const tdays = trash && d?.trash_days ? `<p class="muted abhint abtrashdays">${esc(trashNote(tr('Files and folders in the trash are deleted permanently after {0} days.', d.trash_days), d.purge_on === false))}</p>` : '';  // 2.152.0 B (#2165)
-  return `<div class="abview ${canAdd ? 'abdropok' : ''} ${desk ? 'abdesk' : ''}" data-abzone="${r.nid || ''}">${desk ? '' : spaces}<div class="abmain">${search}${search && ftxtActive() ? `<h3 class="abtitle">${tr('Search results')}</h3>` : crumbs + tools + (r.nid ? ab_shHead(d) : '') + ab_scanDoneHtml() + (!trash && d && typeof abd_recogLine === 'function' ? abd_recogLine(d) : '')}${body}${search && ftxtActive() ? '' : hint + tdays + ab_selBar(trash)}</div></div>`;
+  // 2.1238.0 (#6161, Stufe 2): a folder / an organisation's top the person only reads: ONE read hint (roHintHtml) under the tools
+  const ro = d && !trash && !canAdd && (r.nid || String(sp).startsWith('org:')) ? roHintHtml() : '';
+  return `<div class="abview ${canAdd ? 'abdropok' : ''} ${desk ? 'abdesk' : ''}" data-abzone="${r.nid || ''}">${desk ? '' : spaces}<div class="abmain">${search}${search && ftxtActive() ? `<h3 class="abtitle">${tr('Search results')}</h3>` : /*html-ok*/ crumbs + tools + ro + (r.nid ? ab_shHead(d) : '') + ab_scanDoneHtml() + (!trash && d && typeof abd_recogLine === 'function' ? abd_recogLine(d) : '')}${body}${search && ftxtActive() ? '' : hint + tdays + ab_selBar(trash)}</div></div>`;
 }
 // 2.752.0 (#4887): the file store's tools above a folder with recognition: New folder, Share, its menu (Upload and Scan are
 // "Add documents" / "Scan" in the documents' bar, the same way into the folder)
@@ -223,7 +225,7 @@ function ab_panelHtml() {
   const path = on && r.nid && AB.dkey === 'n:' + r.nid ? (AB.data?.crumbs || []).map(c => c.id) : [];  // the open folder's path stays open
   // 2.199.0 A (#2742): dragged to move / sort, a menu (sbb_treeReg('ab') below)
   const node = n => ({k: 'ab:' + n.id, name: n.name, go: 'ablage/' + n.id, on: on && r.nid === n.id, icon: n.agent_id ? 'bot' : 'folder', attrs: `data-abdrop="${n.id}"`,
-    ns: 'ab', id: n.id, par: n.parent_id ? 'n:' + n.parent_id : 'top:' + (n.org_id || 'p'), drag: ab_canWrite(n.role), drop: ab_canWrite(n.role), menu: true,
+    ns: 'ab', id: n.id, par: n.parent_id ? 'n:' + n.parent_id : 'top:' + (n.org_id || 'p'), drag: ab_canWrite(n), drop: ab_canWrite(n), menu: true,
     kids: AB.pt['n:' + n.id]?.items?.length !== 0, open: path.includes(n.id) && n.id !== r.nid, sub: () => (it => it && it.map(node))(ab_ptGet('n:' + n.id))});
   // 2.429.0 (#3580): a space's collections "From <area>" after its folders (read-only: no drag, no drop, no menu)
   // 2.1148.0 (#4895): "Receipts" (x.subs) with its parts Office / Entertainment / Household below it; open while one of them is shown
@@ -246,7 +248,7 @@ function ab_panelHtml() {
     const rest = sbb_treeHtml(ab_spaces().filter(s => !real.includes(s)).map(spaceNode));  // 2.932.0 (#5603): "Shared with me" and the trash on the left edge of Files / All documents (level 0), not stepped in like a sub folder; below the filter groups it starts with a group's gap, so it does not read as a value of the last group
     // 2.768.0 (#4888): "+" at the head of the tree = a new folder at the top of the space it shows (one space: that one; several: the one open)
     const addSp = one ? real[0] : (real.includes(ab_curSpace()) ? ab_curSpace() : real[0] || '');
-    const add = !ab_spWrite(addSp) ? '' /* 2.1162.0 (#6108): only where the person may add */ : `<button type="button" class="iconbtn abtadd" data-abtadd="${esc(addSp)}" title="${esc(tr('New folder'))}" aria-label="${esc(tr('New folder'))}">${ic('plus', 's')}</button>`;
+    const add = !canWrite(addSp) ? '' /* 2.1162.0 (#6108): only where the person may add */ : `<button type="button" class="iconbtn abtadd" data-abtadd="${esc(addSp)}" title="${esc(tr('New folder'))}" aria-label="${esc(tr('New folder'))}">${ic('plus', 's')}</button>`;
     return `<div class="abthead">${sbb_row('ablage', 'folder', tr('Files'), one && cur === real[0], `data-sbbpart="ablage" ${one ? `data-absp="${esc(real[0])}"` : ''}`)}${real.length ? add : ''}</div>` + `<div class="sbbtree" role="group" aria-label="${esc(tr('Folders'))}">${tree}</div>`
       + (dOn ? docRows() : '') + `<div class="sbbtree abrest${dOn ? ' sgroup' : ''}" role="group" aria-label="${esc(tr('Shared with me'))}">${rest}</div>`;
   };
@@ -355,7 +357,7 @@ function ab_rowHtml(n, trash) {
   const tact = (k, icon, lab, cls = '') => `<button type="button" class="btn sm abtact ${esc(cls)}" data-ab="${esc(k)}" data-id="${n.id}" title="${esc(lab)}" aria-label="${esc(lab + ': ' + n.name)}">${ic(icon, 's')}<span class="abtl"> ${esc(lab)}</span></button>`;
   const acts = trash ? `<span class="abtacts">${/*html-ok*/ tact('restore', 'undo', tr('Restore'))}${/*html-ok*/ n.role === 'owner' ? tact('purge', 'trash', tr('Delete permanently'), 'danger') : ''}</span>`  // 2.589.0 (#4875): + for good (owners)
     : `<button data-rowmenu="abrow" type="button" class="iconbtn" data-ab="menu" data-id="${n.id}" aria-label="${esc(tr('More actions for {0}', n.name))}" title="${esc(tr('More'))}">${ic('dots')}</button>`;
-  return `<div class="abrow" role="listitem" data-abid="${n.id}" ${!trash && ab_canWrite(n.role) ? (rowd_touch() ? 'data-abmv="1"' : 'draggable="true"') : '' /* 2.627.0 (#4961): a finger by drag.js */}>${ab_selBox(n)}${main}${typeof dt_abTags === 'function' ? dt_abTags(n) : ''}<span class="abmeta muted">${esc(meta)}</span><span class="abbadges">${badges}</span>${acts}</div>`;
+  return `<div class="abrow" role="listitem" data-abid="${n.id}" ${!trash && ab_canWrite(n) ? (rowd_touch() ? 'data-abmv="1"' : 'draggable="true"') : '' /* 2.627.0 (#4961): a finger by drag.js */}>${ab_selBox(n)}${main}${typeof dt_abTags === 'function' ? dt_abTags(n) : ''}<span class="abmeta muted">${esc(meta)}</span><span class="abbadges">${badges}</span>${acts}</div>`;
 }
 const ab_item = id => (AB.data?.items || []).find(x => x.id === +id) || (AB.data?.node?.id === +id ? AB.data.node : null) || (typeof ftxtItem === 'function' ? ftxtItem(id) : null) || (typeof dt_abItem === 'function' ? dt_abItem(id) : null);  // 2.61.0 (#1820): + search hits; 2.122.0 B: + tag filter hits
 
@@ -536,7 +538,7 @@ async function ab_moveTargets() {
 // place marked and not choosable; no cut after 60 entries. The title once: a phone's sheet head carries it, a computer's menu
 // its small heading.
 async function ab_moveDlg(n, at) {  // 2.768.0 (#4888): at = the anchor of the menu (the document view's Actions)
-  const sel = !n, xs = sel ? ab_selVals() : [n], ok = sel ? xs.filter(x => ab_canWrite(x.role)) : xs, skip = xs.length - ok.length;
+  const sel = !n, xs = sel ? ab_selVals() : [n], ok = sel ? xs.filter(x => ab_canWrite(x)) : xs, skip = xs.length - ok.length;
   if (!ok.length) { toast(ab_skipTxt(skip)); return; }
   const org = ok[0].org_id || null;
   if (ok.some(x => (x.org_id || null) !== org)) { toast(tr('Select items of one workspace')); return; }
@@ -589,7 +591,7 @@ async function ab_newVersionFile(n, f) {
 function ab_menu(anchor, n, pick) { menu(anchor, pick ? [...cm_selHead(n.name, pick), ...ab_menuItems(n)] : ab_menuItems(n), null, null, pick ? '' : n.name); }  // 2.607.0 (#4612): pick = "Select" on top
 // 2.199.0 A (#2742): the items of a node's menu (the row's "…", the tree's right-click / long press); tree: + New folder…
 function ab_menuItems(n, tree) {
-  const w = ab_canWrite(n.role), own = n.role === 'owner', f = n.kind !== 'folder', ref = n.kind === 'ref';
+  const w = ab_canWrite(n), own = n.role === 'owner', f = n.kind !== 'folder', ref = n.kind === 'ref';
   return [
     f ? {label: tr('Open'), icon: 'eye', fn: () => n._open ? n._open() : ab_openFile(n)} : null,  // 2.768.0 (#4888): _open = a document card's own way (its list to leaf through)
     ...(f && n._spl && typeof spl_item === 'function' ? spl_item(n._spl) : []),  // 2.742.0 (#4858): a document card: Open on the right
@@ -632,7 +634,7 @@ function ab_detailsOf(n) { if (ab_viewOk(n)) dc_open(n.id, {tab: 'hist'}); else 
 // upload of a new version (a fixed hidden input: a file dropped onto the window lands there too, dropany.js)
 function ab_versHtml(n) {
   if (n.kind !== 'file') return '';
-  const w = ab_canWrite(n.role);
+  const w = ab_canWrite(n);
   const vers = (n.versions || []).map(v => {
     const cur = v.no === n.version, see = !n._enc && !n.locked && ab_verKind(n, v);
     return `<div class="abvrow" data-abvno="${v.no}"><span><b>v${v.no}</b>${cur ? ` <small class="muted">(${esc(tr('current'))})</small>` : ''} · ${esc(ab_when(v.created_at))} · ${fmtSize(v.size)}${v.by ? ' · ' + esc(v.by) : ''}</span><span class="spacer"></span>${see ? `<button type="button" class="iconbtn" data-abvv="${v.no}" title="${esc(tr('View version {0}', v.no))}" aria-label="${esc(tr('View version {0}', v.no))}">${ic('eye', 's')}</button>` : ''}<a class="iconbtn" href="${n._enc ? '#' : ab_url(n, true, v.no)}" ${n._enc ? `data-fslv="${v.no}" data-fslid="${n.id}" data-fsllk="${n.lock_id}"` : ''} download="${esc(n.name)}" title="${esc(tr('Download'))}" aria-label="${esc(tr('Download version {0}', v.no))}">${ic('download', 's')}</a>${w && !cur ? `<button type="button" class="btn sm" data-abv="${v.no}">${tr('Restore')}</button>` : ''}</div>`;
@@ -776,7 +778,7 @@ const ab_dragObj = id => (typeof ab_selObj === 'function' ? ab_selObj(id) : null
 // the nodes a drag of id moves: the choice when id is ticked in it (only what the person may change), else id alone
 function ab_dragIds(id) {
   if (!(AB.selOn && AB.sel.has(id) && AB.sel.size > 1)) return [id];
-  return [...AB.sel.values()].filter(x => ab_canWrite(x.role)).map(x => x.id);
+  return [...AB.sel.values()].filter(x => ab_canWrite(x)).map(x => x.id);
 }
 // a target folder takes the drag: not one of the dragged nodes, not (for one node) its own folder
 const ab_dropOk = to => { const ids = AB.dragIds || []; if (!ids.length || ids.includes(to)) return false; return ids.length > 1 || ab_moveTo(ab_dragObj(ids[0]), to); };
@@ -789,7 +791,7 @@ function ab_dragDrop(to) {
   ab_selMoveTo(xs, to, AB.sel.size - xs.length);
 }
 const ab_dragId = r => r.classList.contains('dc-card') ? ab_cardId(r) : +(r.dataset.abid || r.dataset.dco || r.dataset.id) || 0;
-const ab_canMove = n => !!n && ab_canWrite(n.role) && !(!S.route.nid && ab_curSpace() === 'trash');
+const ab_canMove = n => !!n && ab_canWrite(n) && !(!S.route.nid && ab_curSpace() === 'trash');
 const ab_moveTo = (n, to) => !!n && to !== n.id && (to ?? null) !== (n.parent_id ?? null);  // not onto itself, not into its own folder (nothing to do)
 document.addEventListener('dragstart', e => {
   const r = ab_dragSrc(e.target); if (!r || !e.dataTransfer) return;
@@ -809,7 +811,7 @@ document.addEventListener('dragover', e => {
 const ab_dropName = t => { const id = t && t.dataset.abdrop !== 'top' ? +t.dataset.abdrop : S.route.nid || null;
   return id ? ab_item(id)?.name || (AB.data?.crumbs || []).find(c => c.id === id)?.name || AB.data?.node?.name || '' : ab_spaceName(ab_curSpace()); };
 // 2.1162.0 (#6108): files from the computer: the open place takes them (abdropok), or the folder row under the pointer when the person may add there
-const ab_filesOk = (v, t) => v.classList.contains('abdropok') || (!!t && t.dataset.abdrop !== 'top' && ab_canWrite(ab_item(+t.dataset.abdrop)?.role));
+const ab_filesOk = (v, t) => v.classList.contains('abdropok') || (!!t && t.dataset.abdrop !== 'top' && ab_canWrite(ab_item(+t.dataset.abdrop)));
 document.addEventListener('dragleave', e => { if (e.target.classList?.contains('abview') && !e.target.contains(e.relatedTarget)) e.target.classList.remove('abdrop'); });
 document.addEventListener('drop', e => {
   const v = e.target.closest?.('.abview'); if (!v) { ab_sideDrop(e); return; }
@@ -888,7 +890,7 @@ async function ab_linkFile(refKind, refId, org) {
 // workspace). What the person may not change is left out and counted ("2 skipped"): the server's bulk routes are all or nothing.
 // The trash keeps its own bar (ab_trashBar). Replaces AB.sel / AB.selOn of the rows + DC.sel / DC.selOn of the document cards and
 // their two bars (2.96.0 A #1941, 2.428.0 A #3581, 2.430.0 #3582). Each action = ONE undo step.
-const ab_smvOk = n => !!n && n.kind !== 'link' && !n.agent_id && !n.locked && ab_canWrite(n.role);  // another workspace (2.96.0 A, #1941); 2.953 (#3348, review N16): a locked folder stays in its workspace
+const ab_smvOk = n => !!n && n.kind !== 'link' && !n.agent_id && !n.locked && ab_canWrite(n);  // another workspace (2.96.0 A, #1941); 2.953 (#3348, review N16): a locked folder stays in its workspace
 const ab_selInfo = x => ({id: x.id, name: x.name || '', kind: x.kind || 'file', role: x.role || '', org_id: x.org_id || null, parent_id: x.parent_id ?? null,
   owner_id: x.owner_id ?? null, agent_id: x.agent_id || null, locked: !!x.locked, up: x.up || null, isdoc: x.kind ? !!x.doc : !x.file,
   lock_id: x.lock_id || null, mime: x.mime || '', _enc: !!x._enc});  // 2.953 (#3348, review N16): what a locked folder's moves / downloads need
@@ -914,7 +916,7 @@ function ab_selBar(trash) {
   if (!AB.selOn) return '';
   if (trash) return ab_trashBar();  // 2.589.0 (#4875)
   const xs = ab_selVals(), n = xs.length, docs = xs.some(x => x.isdoc), more = docs || smv_can(xs[0]?.org_id || null);
-  const w = !n || xs.some(x => ab_canWrite(x.role));  // 2.1162.0 (#6108): nothing chosen the person may change = no Move / Trash
+  const w = !n || xs.some(x => ab_canWrite(x));  // 2.1162.0 (#6108): nothing chosen the person may change = no Move / Trash
   return ms_barHtml('ab-sbar', 'absel', n, tr('Select files'), [['all', 'all', n && n >= ab_selTotal() ? tr('Select none') : tr('All')],
     ...w ? [['move', 'arrow', tr('Move')]] : [], ['dl', 'download', tr('Download')], ...docs ? [['edit', 'edit', tr('Edit')]] : [], ...w ? [['trash', 'trash', tr('Move to the trash'), 'danger']] : []  /* 2.1163.0 (#6112): one word everywhere; a narrow phone shows the symbol (multisel.js ms4) */, ...more ? [['more', 'dots', tr('More')]] : []]);
 }
@@ -1075,7 +1077,7 @@ const AB_CARDLP = cm_bind('.dc-view .dc-card, .abcards .dc-card, .dc-view .abdl 
 
 // ---- 2.112.1 A (#2058): the selection into the trash (ONE undo step for all), download (one file as it is, else a ZIP),
 // a folder as a ZIP, the phone scan (abscan.js) into the open folder
-const abm_trashOk = n => ab_canWrite(n.role) && (n.parent_id || n.role === 'owner');
+const abm_trashOk = n => ab_canWrite(n) && (n.parent_id || n.role === 'owner');
 const abm_dlOk = n => n.kind === 'folder' || (n.kind === 'file' && !upLocked(n));
 // 2.768.0 (#4888): the ONE way into the trash - the bar, a row's or card's menu, the document view (docs.js): POST /api/files/trash
 // in parts of 500 (all or nothing per part: what may not go is left out first and counted), ONE undo step (POST /api/files/restore).

@@ -173,7 +173,7 @@ check(j.get("tasks") == 2 and j.get("moved") == 1, f"B12: the field's delete cou
 check(Fr.patch(B + f"/api/lists/{L1}", json={"archived": True}).ok and Fr.delete(B + f"/api/lists/{L1}").ok, "B12: the old project into the projects' trash")
 pi = Fr.get(B + f"/api/trash/purge-info?list={L1}").json()
 check(pi.get("moved_values") == 1 and pi.get("tasks") == 1, f"B12: purge-info of the project names the moved task {pi}")
-for rel in ("static/js/projects.js", "static/js/tablecells.js"):
+for rel in ("static/js/fieldmodal.js", "static/js/tablecells.js"):  # 2.1238.0 (#4280): the field dialog moved out of projects.js
     check("fdMovedWarn(fc)" in kt_src(rel), f"B12: the field delete dialog of {rel} names the moved tasks")
 check("j.moved_values" in kt_src("static/js/trashui.js"), "B12: the project's delete dialog names them")
 

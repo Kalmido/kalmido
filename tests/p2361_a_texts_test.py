@@ -47,11 +47,14 @@ OLD_JS = {"clients.js": ["Only people of your organisation", "people of your org
           "dispo.js": ["add people to the organisation", "'Organisation'"], "absence.js": ["admins of the organisation", "'Organisation'"],
           "core.js": ["within your organisation", "person of your organisation"], "chat.js": ["ask an admin to set up"],
           "dashboard.js": ["Ask your admin"], "render.js": ["ask your admin"], "newsletter.js": ["Only admins of the organisation"],
-          "dialogs.js": ["An admin can add them"], "sharedlg.js": ["An admin can add them"]}
+          "dialogs.js": ["An admin can add them"], "sharedlg.js": ["An admin can add them"],
+          # 2.1238.0 (#4280): the Share dialogs moved to sharemodal.js / foldershare.js (loaded on demand)
+          "sharemodal.js": ["An admin can add them"], "foldershare.js": ["An admin can add them"]}
 for f, olds in OLD_JS.items():
     s = src("static/js/" + f)
     check(not any(o in s for o in olds), f"{f}: no organisation / admin sentence left ({[o for o in olds if o in s]})")
-check("noPeopleTxt()" in src("static/js/dialogs.js") and "noPeopleTxt()" in src("static/js/sharedlg.js"), "share dialogs use the e-mail way text")
+# 2.1238.0 (#4280): the Share dialogs moved out of dialogs.js / sharedlg.js into sharemodal.js / foldershare.js
+check("noPeopleTxt()" in src("static/js/sharemodal.js") and "noPeopleTxt()" in src("static/js/foldershare.js"), "share dialogs use the e-mail way text")
 check("e.status === 403" in src("static/js/newsletter.js"), "newsletter: only a 403 says 'admins'")
 check("wsCur() === 'private'" in src("static/js/clients.js") and "wsCur() === 'private'" in src("static/js/dispo.js"), "private variants of the empty client / dispo texts")
 import json  # noqa: E402
