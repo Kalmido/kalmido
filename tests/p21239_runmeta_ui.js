@@ -12,6 +12,7 @@ const {sleep, B, login} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const firefox = require('./ff')({tag: 'p21239_runmeta_ui', check, shots: 'P21239_SHOTS'});
+const FEATS = 'cal,comments,collab,agents,office,clients,files,docs,events,time';
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 const DATA = process.argv[2] || path.join(__dirname, '.data');
 if (!process.env.KMT_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
@@ -35,8 +36,8 @@ const ROW = id => `(() => { const m = document.querySelector('#chat-msgs .cmsg[d
   const r = await fetch(B + 'api/auth/setup', {method: 'POST', headers: H, body: JSON.stringify({username: 'alice', display_name: 'Alice', password: 'password123', wizard: true, lang: 'de'})});
   check(r.ok, 'setup');
   CK = await login('alice');
-  await call('POST', '/api/admin/setup', {org_name: 'Example Org', lang: 'de', collab_all: true, modules: ['comments']});
-  check((await call('PATCH', '/api/settings', {lang: 'de', tour: 'done', tours_more: '0'})).http < 300, 'alice: German');
+  await call('POST', '/api/admin/setup', {org_name: 'Example Org', lang: 'de', collab_all: true, modules: ['cal', 'comments']});
+  check((await call('PATCH', '/api/settings', {lang: 'de', tour: 'done', tours_more: '0', features: FEATS})).http < 300, 'alice: German');
   const ME = (await call('GET', '/api/state')).me, ORG = ME.workspaces[0].id;
   const ag = await call('POST', '/api/admin/agents', {scopes: ['read', 'tasks:write', 'comments'], username: 'modelbot', display_name: 'Modelbot', org_id: ORG});
   const L = (await call('POST', '/api/lists', {name: 'Models', org_id: ORG})).id;
@@ -45,7 +46,7 @@ const ROW = id => `(() => { const m = document.querySelector('#chat-msgs .cmsg[d
   check(u.http === 200 || u.http === 201, 'the freelancer ' + u.http);
   const fag = await call('POST', '/api/admin/agents', {scopes: ['read', 'tasks:write', 'comments'], username: 'fridabot', display_name: 'Fridabot', owner_id: u.id});
   const ACK = CK, FCK = await login('frida');
-  check((await call('PATCH', '/api/settings', {lang: 'de', tour: 'done', tours_more: '0'}, FCK)).http < 300, 'frida: German');
+  check((await call('PATCH', '/api/settings', {lang: 'de', tour: 'done', tours_more: '0', features: FEATS}, FCK)).http < 300, 'frida: German');
   const FL = (await call('POST', '/api/lists', {name: 'Meins'}, FCK)).id;
   const PEOPLE = [{who: 'frida', uid: u.id, ag: fag, ck: FCK, start: 'l/' + FL}, {who: 'alice', uid: ME.id, ag, ck: ACK, start: 'l/' + L}];
   const say = async (p, body, run_meta) => (await fetch(B + `api/v1/agent/chats/${p.uid}`, {method: 'POST', headers: {Authorization: 'Bearer ' + p.ag.token, 'Content-Type': 'application/json'},
@@ -67,6 +68,7 @@ const ROW = id => `(() => { const m = document.querySelector('#chat-msgs .cmsg[d
         await until(`!!document.querySelector('#view')?.children.length || !!document.querySelector('#chat-msgs')`);
         await ev(`loadModule('agentchat').then(() => { if (!document.querySelector('#chat-msgs')) chatOpen(${p.ag.id}); return 1; })`);
         const a = JSON.parse(await until(`(() => { const x = ${ROW(m1.id)}; return x && JSON.parse(x).run ? x : null; })()`) || 'null');
+        if (!a) console.log('DIAG', await ev(`JSON.stringify({hash: location.hash, msgs: !!document.querySelector('#chat-msgs'), n: document.querySelectorAll('#chat-msgs .cmsg').length, ids: [...document.querySelectorAll('#chat-msgs .cmsg')].map(x => x.dataset.mid).slice(-6), aid: S.chat?.aid, err: S.chat?.err, achat: document.querySelector('#achat')?.className})`));
         check(a && a.run === 'Fable 5.2 · Effort hoch' && a.title === 'Sicherheitsbereich', `${p.who} ${view}: "Fable 5.2 · Effort hoch" under the answer, the reason as tooltip ` + JSON.stringify(a));
         check(a && a.on && a.below && a.sameLine && a.time, `${p.who} ${view}: on the screen, under the bubble, in the line of the time ` + JSON.stringify(a));
         check(a && a.small && a.muted, `${p.who} ${view}: small and grey like the time ` + JSON.stringify(a));
