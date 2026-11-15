@@ -816,6 +816,8 @@ function evShareModal(c, users, done) {
     <div class="shint lhint">${tr('Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.')}</div>`}));
   md.classList.add('shmodal', 'evsmodal');
   let ppl = users;
+  // the people of this session were read before a member was added elsewhere: read once more (else a name would be missing)
+  if (!ppl.err && (c.members || []).some(m => !ppl.some(u => u.id === m.user_id))) { EVU = null; evPeople().then(u => { if (!u.err) { ppl = u; draw(); } }); }
   const roleSel = (attr, cur, lab) => shRoleSel(attr, cur, lab, {only: EV_ROLES, help: false});
   const nm = id => ppl.find(u => u.id === id)?.display_name || '';
   const draw = () => {
