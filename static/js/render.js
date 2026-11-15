@@ -1142,7 +1142,7 @@ function kr_scroller(n) {
 }
 function vw_anchorKeep(fn) { return keepReading($('#view'), fn); }  // 2.924.0 (#5224): the agents page's boxes through keepReading
 function renderView() { FL.vlast = Date.now(); return td_rcRun(() => { const r = an_view(() => keepFocus($('#view'), renderView0));  // 2.46.1 (#1560): a view change / a new empty hint fades in
-    rowRove(); rowMoreWatch(); agb_after(); vl_after(); vm_after(); td_lcSweep(); topw_sync(); topw_later(); return r; }); }  // 2.65.0 (#1825): vl_after = the window of a long list; 2.413.0 A (#3439): vm_after = a view entered again gets its place back (viewmem.js)  // 2.599.0 (#4814): topw_sync = the page's width for #top
+    wso_sync(); rowRove(); rowMoreWatch(); agb_after(); vl_after(); vm_after(); td_lcSweep(); topw_sync(); topw_later(); return r; }); }  // 2.1205.0 (#6179): wso_sync = the open object's workspace colour, also when an area drew it later (wscolor.js)  // 2.65.0 (#1825): vl_after = the window of a long list; 2.413.0 A (#3439): vm_after = a view entered again gets its place back (viewmem.js)  // 2.599.0 (#4814): topw_sync = the page's width for #top
 // ---- 2.599.0 (#4814): the page reports its width once to #main: data-w = lesen | form | seite (the widths of :root,
 // static/css/start-breite.css), eigen (an element with data-pw: its own centred block, e.g. notes / a knowledge page) or voll;
 // --pw = that width in px, --pw-sb = the scrollbar of #view. static/css/start-kopf-4814.css gives #top the same middle and
