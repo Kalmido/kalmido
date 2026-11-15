@@ -158,7 +158,8 @@ def heading_color(col):
     m["kind"] = "delivery"  # 2.406.0 (#3491): look A prints the heading 2 pt smaller; the colour rule is the same; 2.434.0 (#3603): invoices are look A too
     pg = PdfReader(io.BytesIO(pdf.office_pdf(m))).pages[0]
     ops = pg.get_contents().get_data().decode("latin-1")
-    hit = re.search(r"BT ([\d.]+) ([\d.]+) ([\d.]+) rg /F2 8\.00 Tf 0\.80 Tc", ops)  # the category heading: 8 pt bold, spaced
+    # 2.1221.0 (#6242): the category heading prints in FS_SUM since #6175 (10.4 pt in the old look of a delivery note, was 8 pt)
+    hit = re.search(r"BT ([\d.]+) ([\d.]+) ([\d.]+) rg /F2 10\.40 Tf 0\.80 Tc", ops)  # the category heading: FS_SUM bold, spaced
     return [float(x) for x in hit.groups()] if hit else None
 
 
