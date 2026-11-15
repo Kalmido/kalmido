@@ -1438,7 +1438,17 @@ organisation's mark is the stripe, so the two never read as one.
 `${wso_origin(obj.org_id, 'mymeta')}`
 // (3) the open object: once per area, at the top level of its file; null when its page is not open
 wso_open('wiki', () => S.route?.mod === 'wiki' && WK.pg ? WK.pg.org_id || 'private' : null);
+// (4) 2.1241.0 (#6181): an element with an inline style of its own (a calendar's --cc): the style goes in, one attribute out
+`<div class="cev"${wso_row(cal, `--cc:${color}`)}>…</div>`
+// (5) an element already drawn (a dialog whose calendar changes, a document's view): set or clear the same mark
+wso_mark(el, obj);
 ```
+
+A file loaded at start before `wscolor.js` (chat.js, calendar.js ...) registers its `wso_open` on `DOMContentLoaded`; an area that
+redraws `#view` without `renderView` (its own `setHtml`) calls `wso_sync()` after it. A tree node of the shared panel tree
+(`sbb_treeHtml`) takes `wso: <workspace>` and wears the sidebar rows' stripe; the overview rows of "All workspaces"
+(`zle_ovrHtml`) carry the stripe of their space. Under "All workspaces" `wso_origin` names Private too (as the task rows do) -
+without a colour.
 
 `wso_sync()` runs after every render and every redraw of the view (render.js `render0` via `wsc_sync`, `renderView`): it
 asks the open list of Projects first (`wac_openList`), then the registered areas in order, and puts the answer on the page
@@ -1449,6 +1459,9 @@ tone (`wac_sync`). No header stripe (removed in 2.138.2, #2389). Do not set `wsc
 hand, and do not build a second origin mark (`ws_originHtml` of the task rows uses `wso_head` too).
 
 Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open list -> `wso_sync`, task rows under "All" ->
-`ws_originHtml`). The other areas follow as their own tasks (#6180-#6188: office and clients, calendar, wiki, team chat,
-files and documents, contacts, tables, time tracking, search / trash / news / favourites). Tests:
-`tests/p21205_b_orgcolor_ui.js`.
+`ws_originHtml`). 2.1241.0 (#6181-#6185): the calendar (event chips, rows, week blocks, popover, dialog, calendar list;
+`cevOrg`), the wiki (spaces, panel root, the open page or space), the team chat (channels / groups / project chats; direct
+messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open space / folder / document) and
+contacts (rows, card, address books, panel spaces). Still to follow as their own tasks (#6180, #6186-#6188: office and
+clients, tables, time tracking, search / trash / news / favourites). Tests: `tests/p21205_b_orgcolor_ui.js`,
+`tests/p21223_orgcolor_areas_ui.js`.
