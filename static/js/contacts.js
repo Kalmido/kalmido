@@ -475,7 +475,7 @@ function bk_click(id, shift) {  // 2.47.3 (#1733): Shift-click ticks the rows be
 function bk_start(id) { CT.pick = new Set(); bk_toggle(id); if (!CT.pick.size) ctDraw(); }
 function bk_end() { CT.pick = null; CT.pickAll = null; ctDraw(); }
 function bk_barHtml() {
-  return ms_barHtml('ct-sbar', 'ctb', CT.pick.size, tr('Tap contacts'), [['all', 'all', bk_allOn() ? tr('Select none') : tr('All')], ['edit', 'edit', tr('Edit')], ['move', 'folder', tr('Move')], ['merge', 'collapse', tr('Merge'), '', 2], ['del', 'trash', tr('Delete'), 'danger']]);
+  return ms_barHtml('ct-sbar', 'ctb', CT.pick.size, tr('Tap contacts'), [['all', 'all', bk_allOn() ? tr('Select none') : tr('All')], ['edit', 'edit', tr('Edit')], ['move', 'folder', tr('Move')], ['merge', 'collapse', tr('Merge'), '', 2], ['del', 'trash', tr('Delete'), 'danger']], {words: true});  // 2.1168.0 (#6118): whole words, the rest in "..."
 }
 // every contact of the current search / group / address book (also the pages the list has not loaded yet): fetched as pages
 async function bk_matching() {
