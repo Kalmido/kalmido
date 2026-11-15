@@ -199,6 +199,8 @@ async function setListView(l, v) {  // List / Kanban / Timeline (stored on the s
   povSet(l, false); pcsSet(l, false);
   if (lv_disp(l)) (S.lvFree = S.lvFree || {})[l.id] = true;  // 2.577.0 (#3356): the choice by hand wins over an open shared view
   // 2.41.2 (#1501): the view switches at once (optimistic), the server follows
+  // 2.1213.0 (#6140): another view of the list starts at its top (it drew at the old view's place: the calendar's month and views out of sight)
+  if (v !== listView(l)) { const vw = $('#view'); if (vw && vw.scrollTop) vw.scrollTop = 0; }  // sprung-ok: a new view, not a redraw
   if (v !== listView(l)) { try { await optWrite(optSet(() => listById(l.id), {view: v}), () => api('PATCH', '/api/lists/' + l.id, {view: v})); } catch { /* shown, put back */ } return; }
   render();
 }
