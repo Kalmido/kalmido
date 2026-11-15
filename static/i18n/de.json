@@ -18690,7 +18690,6 @@
   "Please enter a web address like https://example.org.": "Bitte eine Webadresse wie https://example.org eingeben.",
   "{pct} % on the discountable positions|calc": "{pct} % auf die rabattfähigen Positionen",
   "Fixed amount on the discountable positions|calc": "Fester Betrag auf die rabattfähigen Positionen",
-  "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "Die Projekt-Kennung {0} ist in diesem Arbeitsbereich schon vergeben: Das Projekt {1} kam ohne Kennung an, seine alten Nummern finden die Aufgaben weiter",
   "Daily notes": "Tagesnotizen",
   "Write …": "Schreiben …",
   "Write … (/ for commands)": "Schreiben … (/ für Befehle)",
