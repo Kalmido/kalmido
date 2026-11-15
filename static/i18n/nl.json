@@ -18691,5 +18691,11 @@
   "Only digits, spaces and + - / ( ) here, please.": "Hier alleen cijfers, spaties en + - / ( ).",
   "Please enter a web address like https://example.org.": "Vul een webadres in zoals https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % op de posten met korting",
-  "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting"
+  "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting",
+  "Who sees the whole knowledge area": "Wie het hele kennisgebied ziet",
+  "Nobody sees the whole knowledge area yet.": "Nog niemand ziet het hele kennisgebied.",
+  "The person can change these pages.": "De persoon kan deze pagina's wijzigen.",
+  "The person can read these pages.": "De persoon kan deze pagina's lezen.",
+  "{0} no longer sees these folders and everything in them, also what is added later. A folder or page inside that you share with them on its own stays visible.": "{0} ziet deze mappen en alles erin niet meer, ook niet wat later wordt toegevoegd. Een map of pagina erin die je apart met die persoon deelt, blijft zichtbaar.",
+  "Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out afterwards.": "Deelt je hele kennisgebied met een persoon of een agent: elke map en pagina, ook die later worden toegevoegd. Losse mappen kun je daarna uitsluiten."
 }
