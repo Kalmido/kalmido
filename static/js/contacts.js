@@ -105,7 +105,7 @@ async function ct_live() {
   if (lpBusy()) { S.viewStale = true; return; }  // a field / form in use: drawn once it is left (the poll)
   S.lpN.ctDraw = (S.lpN.ctDraw || 0) + 1; ctDraw();
 }
-function ctDraw() { if (S.route.mod === 'contacts') { const el = $('#view'); if (el) { const ck = ct_scrollKeep(el); keepFocus(el, () => setHtml(el, mg_wrap('contacts', viewContacts()))); ck(); vl_after(); } } }  // 2.65.0 (#1825): vl_after; 2.431.0 C (#3598): + the columns' scroll
+function ctDraw() { if (S.route.mod === 'contacts') { const el = $('#view'); if (el) { const ck = ct_scrollKeep(el); keepFocus(el, () => setHtml(el, mg_wrap('contacts', viewContacts()))); ck(); vl_after(); wso_sync(); /* 2.1241.0 (#6185): the open card's organisation (a redraw without renderView) */ } } }  // 2.65.0 (#1825): vl_after; 2.431.0 C (#3598): + the columns' scroll
 function viewContacts() {
   if (CT.trash) return ctt_html();  // 2.272.0 E1 (#3038)
   if (CT.items === null && !CT.loading) setTimeout(ctLoad, 0);
