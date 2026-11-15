@@ -18714,6 +18714,7 @@
   "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Sola lettura: vede gli eventi. Membro: li modifica anche. Sul telefono il calendario compare accanto al proprio.",
   "The people could not be loaded": "Impossibile caricare le persone",
   "Stop sharing {0} with {1}": "Smetti di condividere {0} con {1}",
+  "For server admins": "Per gli amministratori del server",
   "The messages could not be loaded": "Non è stato possibile caricare i messaggi",
   "The conversations could not be loaded": "Non è stato possibile caricare le conversazioni",
   "The thread could not be loaded": "Non è stato possibile caricare il thread",
