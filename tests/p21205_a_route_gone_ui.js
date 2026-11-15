@@ -27,6 +27,7 @@ if (!process.env.P21205_NOSTART) execFileSync('bash', [path.join(__dirname, 'sta
   const SHOOT = (await call('POST', '/api/lists', {name: 'Shoot day', kind: 'project'})).id;
   const GONE = (await call('POST', '/api/lists', {name: 'Old campaign', kind: 'project'})).id;
   check(SHOOT && GONE, 'setup: two projects');
+  await call('PATCH', `/api/lists/${GONE}`, {archived: 1});  // a project is archived before it can be deleted
   check((await call('DELETE', `/api/lists/${GONE}`)).trash === true, 'setup: one project deleted (into the trash)');
   const login2 = ev => ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`);
   // what the view shows: the block, its button, the add field, a section, the +
