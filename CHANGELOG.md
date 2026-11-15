@@ -21,6 +21,30 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1175.0] - 2026-11-15
+
+Package 2.1166 (Start pflegen: Startgröße senken).
+### Changed
+- Start: Settings > Data > "Move and export everything" (`move.js`) now loads with the settings instead of at start, and "Tasks from notes" (`meetprop.js`, the request dialog and the meeting cards in the agent chat) loads on its first use: the agent chat loads it first, the list menu's "Tasks from notes…" through a stand-in. The start sends about 11.2 KB less JavaScript (packed), two scripts less and 3.5 KB less of the language core (#4742).
+- Start: style rules of `app.css` that only the home & life, office, settings, knowledge, contacts and file store areas use moved unchanged into their own stylesheets, which load with the area; the start sends about 2.3 KB less CSS (packed) (#4742).
+- Start budget: the ceilings in `tools/perf_budget.json` sink by what this saved (JS packed 1,040,262 -> 1,029,039 bytes, CSS packed 125,000 -> 122,675, language core 319,286 -> 315,785, start scripts 144 -> 142) (#4742).
+
+Package 2.1175 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Added
+- Recent steps: a step written over a personal API key is marked (own mark `via`, the device shows the key's name) and hidden by default; the switch "Show steps over API keys" at the top of the list shows them (remembered per account), a line below the list says how many are hidden. "Undo up to here" leaves hidden steps as they are and stops with a message when a later hidden step changed the same object. Everything is still recorded (#6165).
+- Folder watcher: a symbol in the Mac menu bar and the Windows taskbar shows ready / waiting / needs you; its menu has "Open status" and "Quit". Built without cgo (vendored purego on the Mac, the standard library on Windows), no signature; Linux stays without a symbol. Device check: does the symbol appear on a Mac and on Windows, also after the autostart at sign-in, and do "Open status" and "Quit" work (#2770).
+### Changed
+- Quotations and invoices: a position shows only text, quantity, unit, price, VAT and sum; discount %, the ticks, purchase / margin and the kind sit behind a "Calculation" button per row (a small number shows how much differs from a new position). The tick "Discount" is now "discountable", the film pack's "Markup" is "Aufschlag", an optional position no longer indents its title, the discount button is 44 px by finger (#6146).
+- Lists: a task row without date and assignees has no extra line with a dash and an empty symbol; rows in a project group no longer repeat the project badge; one word per thing ("No grouping", no "0 watchers", "Board" in German with an explanation in the view switch, empty title without a full stop); the view switch keeps 44 px by finger in landscape (#6141).
+
+Package 2.1163 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- #6087: Knowledge pages - a reader (read-only role) no longer sees New page / Today / New folder; every page has a "…" menu, readers get History, Copy link, Copy as [[link]], reading style and page width.
+- #6089: An open knowledge page has one head (path, title, share, "…") and scrolls as a whole (files and "Linked from" follow the text); the page menu is grouped (Page / Folder / View on this device, Delete last), "Open items as tasks" moved into it; the phone's list is one row (search, New page, "…"); the path starts with the workspace's name instead of "Knowledge".
+- #6094: Team chat between 768 and 899 px behaves like the phone (thread full size with Back, composer with plus menu and round Send); the floating agent button keeps clear of Send; the page head above an open conversation is one low row from 900 px; the 90 px squeezed thread column is gone.
+- #6111: Files on a phone - one tool row above the folder (Upload + "…" with New folder, Scan, Select, Tags, view, Share), the path in one line with the folder's name as heading, no "Text recognised" marks in the rows (names readable, full name as tooltip); the documents bar in one row (search, filter, sort, +, "…"), saved views with a bookmark icon.
+- #6112: Files speak one language - the area is called "Dateien" everywhere, throwing away is "In den Papierkorb", the file view's tab "Teilen" is "Zugriff", malware is "Blockiert", no server/technical words in the trash note (also contacts), plurals fixed, upload reports only once.
+
 ## [2.1162.0] - 2026-11-14
 
 Package 2.1162 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Polish Dateien: Handy - Papierkorb-Knöpfe überlapp, Polish Dateien: Schreibknöpfe nur).
@@ -510,7 +534,8 @@ Not released (the CI of this version was red); its changes are listed under 2.11
 
 Not released (the CI of this version was red); its changes are listed under 2.1103.0.
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1162.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1175.0...HEAD
+[2.1175.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1175.0
 [2.1162.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1162.0
 [2.1155.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1155.0
 [2.1150.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1150.0

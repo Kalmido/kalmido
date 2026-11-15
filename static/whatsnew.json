@@ -1,6 +1,36 @@
 {
  "versions": [
   {
+   "version": "2.1175.0",
+   "date": "2026-11-15",
+   "items": [
+    {
+     "de": "In „Letzte Schritte“ sind Schritte von Skripten über API-Schlüssel ausgeblendet; ein Schalter zeigt sie.",
+     "en": "\"Recent steps\" hides steps made by scripts over API keys; a switch shows them."
+    },
+    {
+     "de": "Angebotspositionen sind ruhiger: Rabatt, Haken und Einkauf liegen hinter „Kalkulation“.",
+     "en": "Quotation positions are calmer: discount, ticks and purchase sit behind \"Calculation\"."
+    },
+    {
+     "de": "Der Ordner-Wächter zeigt seinen Zustand als Symbol in der Mac-Menüleiste und der Windows-Taskleiste.",
+     "en": "The folder watcher shows its state as a symbol in the Mac menu bar and the Windows taskbar."
+    },
+    {
+     "de": "Am Handy hat der Bereich Dateien nur noch eine Werkzeugzeile, alles Weitere steckt im Menü „…“.",
+     "en": "On a phone, Files has just one tool row; everything else is in the \"…\" menu."
+    },
+    {
+     "de": "Eine offene Wissensseite hat einen ruhigen Kopf und scrollt als Ganzes; Lesende sehen Verlauf und Link kopieren.",
+     "en": "An open knowledge page has one calm head and scrolls as a whole; readers get history and copy link."
+    },
+    {
+     "de": "Der Team-Chat auf dem Tablet zeigt Antworten im vollen Fenster und eine breite Eingabe.",
+     "en": "Team chat on a tablet shows threads full size with a wide message box."
+    }
+   ]
+  },
+  {
    "version": "2.1162.0",
    "date": "2026-11-14",
    "items": [
@@ -1279,28 +1309,6 @@
     {
      "de": "Escape schließt jetzt immer nur das zuletzt geöffnete Fenster oder Menü.",
      "en": "Escape now always closes only the most recently opened window or menu."
-    }
-   ]
-  },
-  {
-   "version": "2.639.0",
-   "date": "2026-11-07",
-   "items": [
-    {
-     "de": "Mit der Branche Film gibt es unter den Dokument-Mustern jetzt Drehgenehmigung, Location-Vertrag und Model-Release.",
-     "en": "With the industry Film & Video the document samples now include a filming permission, a location agreement and a model release."
-    },
-    {
-     "de": "Eigene Ticket-Typen wie Epic und Story, dazu Felder, Pflichtfelder und Labels für die ganze Organisation.",
-     "en": "Own ticket types such as Epic and Story, plus fields, required fields and labels for the whole organisation."
-    },
-    {
-     "de": "Später lesen, Verträge, Gesundheit und andere Bereiche erscheinen nicht mehr als Projekte, nur noch in ihrem Bereich.",
-     "en": "Read later, contracts, health and other areas no longer show up as projects, only in their own area."
-    },
-    {
-     "de": "Gelesenes zählt nicht mehr in Statistik und Wochenrückblick.",
-     "en": "What you read no longer counts in the statistics and the weekly review."
     }
    ]
   }
