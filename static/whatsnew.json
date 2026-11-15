@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1240.0",
+   "date": "2026-11-15",
+   "items": [
+    {
+     "de": "Im Team-Chat löschst du eigene Nachrichten ohne Nachfrage und kannst es sofort rückgängig machen.",
+     "en": "In the team chat you delete your own messages without a prompt and can undo it right away."
+    },
+    {
+     "de": "Die Suche (Strg+K) zeigt offene Aufgaben mit einem Ring und findet Befehle nur noch bei echten Wort-Treffern.",
+     "en": "Search (Ctrl+K) shows open tasks with a ring and finds commands only on real word matches."
+    },
+    {
+     "de": "Im Angebot kannst du jetzt einen Zuschlag in Prozent als eigene Zeile setzen, z. B. „Mehraufwand 15 %“.",
+     "en": "In a quotation you can now add a surcharge in percent as its own line, e.g. \"Extra work 15 %\"."
+    }
+   ]
+  },
+  {
    "version": "2.1229.0",
    "date": "2026-11-15",
    "items": [
@@ -1291,28 +1309,6 @@
     {
      "de": "Sortieren in Tabellen lässt Summen-Bereiche an ihrem Platz.",
      "en": "Sorting a sheet keeps sum ranges in place."
-    }
-   ]
-  },
-  {
-   "version": "2.659.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Word-, Excel- und OpenDocument-Dateien sind in Dokumente jetzt durchsuchbar und haben ein Vorschaubild.",
-     "en": "Word, Excel and OpenDocument files in Documents are now searchable and have a preview image."
-    },
-    {
-     "de": "An Dokumenten lassen sich Notizen schreiben, sichtbar für alle, die das Dokument sehen.",
-     "en": "You can write notes on documents, visible to everyone who sees the document."
-    },
-    {
-     "de": "Dokument-Abläufe lassen sich bearbeiten und können Dokumente automatisch freigeben.",
-     "en": "Document flows can be edited and can share documents automatically."
-    },
-    {
-     "de": "Abnahmen gehen jetzt auch für Bilder und PDFs: Kommentare sitzen an einem Punkt im Bild oder auf der PDF-Seite.",
-     "en": "Approvals now work for images and PDFs too: comments sit at a point in the image or on the PDF page."
     }
    ]
   }
