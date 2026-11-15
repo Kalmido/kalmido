@@ -390,16 +390,15 @@ def ofa_match_ids(items, old):
 
 
 def ofa_surcharge(c, oid, v):
-    """2.1228.0 (#6254): the agent's {pct, title?} (null = off) -> the document's markup fields (docs.prd_doc_clean: pct
-    0..100, an empty title = the default "Surcharge" / the pack's)."""
+    """2.1228.0 (#6254): the agent's {pct?, title?} (null = off) -> the request fields markup_pct / markup_label, as a
+    person's change sends them (checked by docs.prd_doc_clean: pct 0..100, an empty title = the default / the pack's)."""
     if v is None:
         return {"markup_pct": None}
     if not isinstance(v, dict) or any(k not in ("pct", "title") for k in v):
         raise BadInput(tr("Invalid value: {0}", "surcharge"))
     if not v or ("title" in v and not isinstance(v["title"], str)):  # review: a title is text, {} sets nothing
         raise BadInput(tr("Invalid value: {0}", "surcharge"))
-    b = {k2: v[k] for k, k2 in (("pct", "markup_pct"), ("title", "markup_label")) if k in v}  # review: a title alone keeps the percent
-    return prd_doc_clean(c, oid, b)
+    return {k2: v[k] for k, k2 in (("pct", "markup_pct"), ("title", "markup_label")) if k in v}  # review: a title alone keeps the percent
 
 
 def ofa_draft_create(c, uid, oid, data, agent_id=None):
@@ -422,10 +421,9 @@ def ofa_draft_create(c, uid, oid, data, agent_id=None):
     if data.get("trial") not in (None, False, 0, True, 1):
         raise BadInput(tr("Invalid value: {0}", "trial"))
     b["trial"] = bool(data.get("trial"))  # 2.144.10 A (#2576): a trial draft (TEST number at once, set only here)
+    if "surcharge" in data:  # 2.1228.0 (#6254): checked by doc_create's clean_doc like a person's quotation
+        b.update(ofa_surcharge(c, oid, data["surcharge"]))
     did = doc_create(c, oid, uid, b, False, number=False)
-    if "surcharge" in data:  # 2.1228.0 (#6254)
-        sf = ofa_surcharge(c, oid, data["surcharge"])
-        c.execute(f"UPDATE office_docs SET {','.join(k + '=?' for k in sf)} WHERE id=? AND org_id=?", [*sf.values(), did, oid])
     r = doc_row(c, oid, did)
     items, flags = ofa_items(c, oid, r, data.get("items"))
     if items:
@@ -771,7 +769,7 @@ def v1_office_offer_patch(did):
     if "list_id" in b:
         f["list_id"] = _list_ok(c, oid, uid, b.get("list_id"), aid)
     if "surcharge" in b:  # 2.1228.0 (#6254)
-        f.update(ofa_surcharge(c, oid, b["surcharge"]))
+        f.update(prd_doc_clean(c, oid, ofa_surcharge(c, oid, b["surcharge"])))
     if "cashflow" in b:  # 2.88.0 (#1915)
         if b["cashflow"] not in CF8_CHOICES:
             raise BadInput(tr("Invalid value: {0}", "cashflow"))
