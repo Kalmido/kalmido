@@ -55,9 +55,9 @@ async function fs_shareDialog(id, opts = {}) {
     if (opts.listRole) { const sel = $('#ab-sht', md); if (sel) sel.innerHTML = tgtOpts(shares); }
   };
   draw();
-  const add = async (target, role, exp) => {
+  const add = async (target, role, exp, more = {}) => {  // more: 2.1225.0 (#5862) what the area's question adds (excluded folders)
     const [k, v] = target.split(':');
-    const r = await api('POST', `/api/files/nodes/${id}/shares`, {[k]: +v, ...roleBody(k === 'agent_id' && role === 'admin' ? 'edit' : role), expires_at: exp || null, tz: evTz()});
+    const r = await api('POST', `/api/files/nodes/${id}/shares`, {[k]: +v, ...roleBody(k === 'agent_id' && role === 'admin' ? 'edit' : role), expires_at: exp || null, tz: evTz(), ...more});
     shares = r.shares; draw(); changed(); return r.id;
   };
   md.addEventListener('click', async (/** @type {any} */ e) => {
@@ -65,11 +65,12 @@ async function fs_shareDialog(id, opts = {}) {
     if (e.target.closest('[data-abs="add"]')) {
       const tg = $('#ab-sht', md).value; if (!tg) { $('#ab-sht', md).focus(); return; }
       const role = $('#ab-shr', md).value, exp = $('#ab-she', md).value;
-      if (typeof opts.confirm === 'function' && !(await opts.confirm(tg, role))) return;  // 2.1045.0 (#5823): an area's own question first
+      let more = {};  // 2.1225.0 (#5862): the question may answer with fields for the share ({excluded}), sent with it
+      if (typeof opts.confirm === 'function') { const ok = await opts.confirm(tg, role); if (!ok) return; if (typeof ok === 'object') more = ok; }  // 2.1045.0 (#5823): an area's own question first
       const nm = $(`#ab-sht option[value="${tg}"]`, md)?.textContent || '';  // before the add (a projects folder's list drops it)
-      let sid; try { sid = await add(tg, role, exp); } catch { return; }
+      let sid; try { sid = await add(tg, role, exp, more); } catch { return; }
       $('#ab-sht', md).value = '';
-      offerUndo(tr('Shared with {0}', nm), histAdd({label: tr('Share “{0}”', n.name), undo: () => ab_req('DELETE', `/api/files/shares/${sid}`), redo: async () => { try { sid = await add(tg, role, exp); } catch { /* shown */ } return {}; }}));
+      offerUndo(tr('Shared with {0}', nm), histAdd({label: tr('Share “{0}”', n.name), undo: () => ab_req('DELETE', `/api/files/shares/${sid}`), redo: async () => { try { sid = await add(tg, role, exp, more); } catch { /* shown */ } return {}; }}));
       return;
     }
     const x = e.target.closest('[data-absx]');

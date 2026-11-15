@@ -107,14 +107,22 @@ async function wkar_share(sp) {
   let box = null;
   const priv = sp === 'private';  // 2.1160.0 (#5862): a private area also with a person
   await fs_shareDialog(a.root, {org: false,
-    hint: priv ? tr('Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out afterwards.')
+    hint: priv ? tr('Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.')
       : tr('Shares the whole knowledge area of this workspace with an agent: every folder and page, also the ones added later. People keep sharing single folders or pages.'),
     confirm: async (target, role) => {
       const [k, v] = String(target).split(':'); if (k !== 'agent_id' && k !== 'user_id') return true;
       let p; try { p = (await api('GET', wkar_q(sp) + `&${k}=${+v}`)).preview; } catch { return false; }
       const ag = k === 'agent_id';
-      return /** @type {any} */ (askDialog)({title: tr('Share the whole knowledge area?'), ok: tr('Share'),
-        body: tr('{0} folders / {1} pages visible, {2} folders excluded.', p.folders, p.pages, p.excluded) + ' ' + (role === 'edit' ? (ag ? tr('The agent can change these pages.') : tr('The person can change these pages.')) : (ag ? tr('The agent can read these pages.') : tr('The person can read these pages.')))});
+      const body = tr('{0} folders / {1} pages visible, {2} folders excluded.', p.folders, p.pages, p.excluded) + ' ' + (role === 'edit' ? (ag ? tr('The agent can change these pages.') : tr('The person can change these pages.')) : (ag ? tr('The agent can read these pages.') : tr('The person can read these pages.')));
+      // 2.1225.0 (#5862, Fable review job/4680 1): a person's folders to keep out are chosen HERE and go with the share -- not
+      // afterwards, when every folder would already be open to them for a moment
+      const fs = ag ? [] : (WK.idx[sp]?.folders || []).slice().sort((x, y) => x.path.localeCompare(y.path));
+      if (!fs.length) return /** @type {any} */ (askDialog)({title: tr('Share the whole knowledge area?'), ok: tr('Share'), body});
+      let picked = /** @type {number[]} */ ([]);
+      const ok = await /** @type {any} */ (askDialog)({title: tr('Share the whole knowledge area?'), ok: tr('Share'),
+        html: `<p>${esc(body)}</p><p class="muted">${esc(tr('Keep folders out (optional):'))}</p><div class="wkapick">${fs.map(f => `<label class="chk"><input type="checkbox" value="${esc(f.id)}"> ${esc(f.path)}</label>`).join('')}</div>`,
+        submit: () => { picked = $$('.wkapick input:checked').map(x => +(/** @type {any} */ (x)).value); return true; }});
+      return ok ? (picked.length ? {excluded: picked} : true) : false;
     },
     onChange: async () => { await wkar_load(sp); if (typeof wk_after === 'function') wk_after(sp); if (box) wkar_extra(box, sp); },
     extra: (/** @type {any} */ b) => { box = b; wkar_extra(b, sp); }});
