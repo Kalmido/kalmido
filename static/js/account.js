@@ -221,7 +221,7 @@ async function orgsDraw(md) {
   const vs = $('#a-vis', md); if (vs) vs.innerHTML = VIS_UI.map(([k, n]) => `<option value="${k}" ${k === j.visibility ? 'selected' : ''}>${esc(tr(n))}</option>`).join('');
 }
 // 2.143.0 D (#2156): Administration > Organisation: activity per organisation (numbers only; + one row for people without one)
-const actHtml = () => `<h4 id="s-act-h">${tr('Activity per organisation')}</h4><div id="s-act" class="shint">${tr('Loading…')}</div>`;
+const actHtml = () => `<h4 id="s-act-h">${tr('Activity per organisation')}</h4><div id="s-act" class="shint">${/*html-ok*/ loadingHtml()}</div>`;
 async function actDraw(md) {
   const box = $('#s-act', md); if (!box) return;
   let j; try { j = await api('GET', '/api/admin/orgs/activity'); } catch { box.innerHTML = ''; return; }
@@ -235,7 +235,7 @@ async function actDraw(md) {
 const wsPaneOn = () => wsOn() && !S.me?.kid;
 async function wsPaneDraw(md) {
   const box = $('#s-ws', md); if (!box) return;
-  let j; try { j = await api('GET', '/api/orgs'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  let j; try { j = await api('GET', '/api/orgs'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wsPaneDraw(md); }})}`; return; }
   box._j = j;
   const mm = Object.keys(j.mismatches || {}).length;
   // 2.364.0 C (#3041): with Organisation > Data in the dialog the data boxes of each organisation go there (one place)
@@ -400,10 +400,11 @@ async function oadmOpen(oid, name) {
   const md = modal(`<h3>${esc(tr('Projects of the organisation {0}', name))}</h3>
     <div class="shint keep">${tr('The projects of the organisation that are shared with at least one more person, with names and numbers: their contents stay with their people. Private projects stay invisible, also when they are shared.')}</div>
     <div class="shint lmohint">${ic('info', 's')} ${tr('A project is missing? It is probably private and only shared. Its owner can move it into the organisation: project menu > Edit project… > Workspace.')}</div>
-    <div class="members oadm" id="oadm-body"><div class="muted mhint">${tr('Loading…')}</div></div>
+    <div class="members oadm" id="oadm-body">${/*html-ok*/ loadingHtml()}</div>
     <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button></div>`);
   md.classList.add('oadmmd');
-  try { oadmDraw(md, await api('GET', `/api/orgs/${oid}/lists`)); } catch { $('#oadm-body', md).innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; }
+  const oadmGo = async () => { try { oadmDraw(md, await api('GET', `/api/orgs/${oid}/lists`)); } catch (x) { const ob = $('#oadm-body', md); if (ob) ob.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { ob.innerHTML = loadingHtml(); oadmGo(); }}); } };  // 2.1180.0 (#6131)
+  await oadmGo();
   md.addEventListener('click', async e => {
     if (e.target.closest('[data-m="close"]')) { md.remove(); return; }
     const od = e.target.closest('[data-oord]');
@@ -562,7 +563,7 @@ function qd_slot(/** @type {string} */ cls) {
 async function inviteScreen(tok) {
   history.replaceState(null, '', location.pathname);  // the token leaves the address bar (and the history) at once
   let info = null;
-  try { const r = await fetch('/api/auth/invite/check', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok})}); info = await r.json(); if (!r.ok) info = {error: info.error || httpErrText(r.status)}; } catch { info = {error: tr('Server not reachable.')}; }
+  try { const r = await fetch('/api/auth/invite/check', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({token: tok})}); info = await r.json(); if (!r.ok) info = {error: info.error || httpErrText(r.status)}; } catch { info = {error: tr('Only available online.')}; }
   await i18nLoad(info.lang || uiLang());
   const el = document.createElement('div');
   el.className = 'modal authscreen';
@@ -598,7 +599,7 @@ async function inviteScreen(tok) {
         if (res.pending) { $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('Thank you!')}</h2><p role="status">${tr('Your account waits for an admin to approve it. You can sign in once it is approved.')}</p><button class="btn pri" type="button" data-au="login">${tr('Go to sign-in')}</button>`; return; }  // 2.23.0 (#711)
         if ($('#inv-2fa', el).checked) LS.set('after2fa', true);
         location.replace('/');
-      } catch { errEl.textContent = tr('Server not reachable.'); }
+      } catch { errEl.textContent = tr('Only available online.'); }
     });
   }
   el.addEventListener('click', e => { if (e.target.closest('[data-au="login"]')) location.replace('/'); });
@@ -691,7 +692,7 @@ async function authScreen(j) {
         if (res.twofa) { await authTwofa(el, logo, res.methods || ['totp']); return; }
         if (res.enrol) { await authEnrol(el, logo); return; }
         location.replace(afterLogin());
-      } catch { errEl.textContent = tr('Server not reachable.'); }
+      } catch { errEl.textContent = tr('Only available online.'); }
     });
     const dc = (location.hash.match(/delete-cancel=([\w.-]+)/) || [])[1];  // 2.553.0 (#1413): the link of the mail
     if (dc) { history.replaceState(null, '', location.pathname); lg_delScreen(el, logo, {token: dc}); }
@@ -723,7 +724,7 @@ async function pkGet(o) {
     response: {clientDataJSON: bufB64u(r.clientDataJSON), authenticatorData: bufB64u(r.authenticatorData), signature: bufB64u(r.signature), userHandle: r.userHandle ? bufB64u(r.userHandle) : null},
     clientExtensionResults: {}};
 }
-const pkErr = e => e && (e.name === 'NotAllowedError' || e.name === 'AbortError') ? tr('Cancelled.') : (e?.message || String(e));
+const pkErr = e => errText(e);  // 2.1180.0 (#6131): the browser's refusals in plain words (core.js errText)
 // a device name for a new passkey (editable later)
 function pkDefaultName() {
   const ua = navigator.userAgent || '';
@@ -789,7 +790,7 @@ async function authTwofa(el, logo, methods) {
       </form>`;
     setTimeout(() => $('#tfa-code', card)?.focus(), 50);
   };
-  const fail = x => { if (x.j?.expired) { location.replace('/'); return; } $('#tfa-err', card).textContent = x.message; };
+  const fail = x => { if (x.j?.expired) { location.replace('/'); return; } $('#tfa-err', card).textContent = errText(x); };
   const done = res => { if (res.recovery_left !== undefined && res.recovery_left < 3) LS.set('rcWarn', res.recovery_left); location.replace(afterLogin()); };
   draw();
   card.addEventListener('submit', async e => {
@@ -815,10 +816,10 @@ async function authEnrol(el, logo) {
     card.innerHTML = `${logo}<p>${tr('Two-factor authentication is required on this server. Set it up now, then you are signed in.')}</p>
       <div class="enrolopts"><button type="button" class="btn pri" data-en="totp">${ic('lock', 's')} ${tr('Use an authenticator app')}</button>
       <button type="button" class="btn" data-en="pk" ${pkSupported() ? '' : 'disabled'}>${ic('key', 's')} ${tr('Use a passkey')}</button></div>
-      ${pkSupported() ? '' : `<p class="muted">${tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.')}</p>`}
+      ${pkSupported() ? '' : `<p class="muted">${tr('Passkeys cannot be used on this address or in this browser.')}</p><details class="acadv"><summary>${tr('For advanced users')}</summary><p class="muted">${tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.')}</p></details>`}${''/* 2.1180.0 (#6130) */}
       <div class="aerr" role="alert" id="en-err"></div><div class="alinks"><button type="button" class="linkbtn" data-en="restart">${tr('Sign in again')}</button></div>`;
   };
-  const fail = x => { if (x.j?.expired) { location.replace('/'); return; } const e = $('#en-err', card) || $('#totp-err', card); if (e) e.textContent = x.message || pkErr(x); };
+  const fail = x => { if (x.j?.expired) { location.replace('/'); return; } const e = $('#en-err', card) || $('#totp-err', card); if (e) e.textContent = errText(x); };
   start();
   card.addEventListener('submit', async e => {
     e.preventDefault();
@@ -849,7 +850,7 @@ async function authPasskey(errEl, remember) {
     const cred = await pkGet(o);
     await authPost('/api/auth/passkey', {credential: cred});
     location.replace('/');
-  } catch (x) { errEl.textContent = x instanceof Error && x.j ? x.message : pkErr(x); }
+  } catch (x) { errEl.textContent = errText(x); }
 }
 // 2.611.0 (#4019): an admin without a password: the server asks a fresh sign-in (403 reauth_needed) before a switch that
 // opens the server. Passkey: signed in again here, true = send the switch again. OIDC: the step-up at the provider
@@ -866,7 +867,7 @@ async function reauthFresh(d) {
     const j = await authPost('/api/auth/passkey', {credential: await pkGet(await authPost('/api/auth/passkey/options', {keep: true}))});
     if (S.me && j.user?.id !== S.me.id) { location.replace('/'); return false; }  // another account's passkey: that account now
     return true;
-  } catch (x) { toast(x instanceof Error && x.j ? x.message : pkErr(x)); return false; }
+  } catch (x) { toast(errText(x)); return false; }
 }
 // ---- 2.23.0 (#711): registration on the login page (admins): the mode and the e-mail domains
 const SIGNUP_UI = [['off', N_('Off: only admins add people')], ['domain', N_('Only addresses of certain e-mail domains')], ['approval', N_('Anyone, after an admin approves')], ['open', N_('Anyone with a confirmed e-mail address')]];
@@ -890,7 +891,7 @@ document.addEventListener('change', async e => {
     const ask = id === 's-signup' || id === 's-spriv' || id === 's-cinv';  // 2.1191.0 (#4550): switching it on asks for the password
     let j; try { j = await (ask ? rawFetch : api)('PATCH', '/api/admin/settings', b); } catch (x) {  // 2.360.0 A (#2496): the mode asks for the password
       if (ask && x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', b); } else {  // 2.611.0 (#4019)
-      if (!x.data?.password_needed) { if (ask) toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); throw x; }
+      if (!x.data?.password_needed) { if (ask) toast(errText(x)); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {...b, password: p.password}); }
     }
@@ -921,7 +922,7 @@ function lg_delScreen(el, logo, o) {
     try {
       await authPost('/api/auth/delete-cancel', o.token ? {token: o.token} : {username: o.username, password: o.password});
       $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('The deletion was cancelled')}</h2><p role="status">${tr('Your account can be used again. Please sign in.')}</p><button class="btn pri" type="button" data-au="back">${tr('Go to sign-in')}</button>`;
-    } catch (x) { $('#dc-err', el).textContent = x.message; b.disabled = false; }
+    } catch (x) { $('#dc-err', el).textContent = errText(x); b.disabled = false; }
   });
 }
 function lg_forgotScreen(el, logo, pre = '') {
@@ -943,7 +944,7 @@ function lg_forgotScreen(el, logo, pre = '') {
       const res = await r.json().catch(() => ({}));
       if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); btn.disabled = false; return; }
       $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('Check your e-mail')}</h2><p role="status" class="lgsent">${tr('If an account with a stored e-mail address matches, a link to set a new password is on its way.')}</p><p class="muted">${tr('No e-mail after a few minutes? Look in the spam folder or ask an admin.')}</p><button class="btn" type="button" data-au="back">${tr('Back to sign-in')}</button>`;
-    } catch { errEl.textContent = tr('Server not reachable.'); btn.disabled = false; }
+    } catch { errEl.textContent = tr('Only available online.'); btn.disabled = false; }
   });
   setTimeout(() => $('#fg-login', el)?.focus(), 50);
 }
@@ -969,7 +970,7 @@ function signupScreen(el, logo, info) {
       const res = await r.json().catch(() => ({}));
       if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); return; }
       $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('Almost done')}</h2><p role="status">${esc(res.mail ? tr('If the address can be used, an e-mail with a link is on its way. Open it to choose your password.') : tr('Your account waits for an admin to approve it. You can sign in once it is approved.'))}</p><button class="btn" type="button" data-au="back">${tr('Back to sign-in')}</button>`;
-    } catch { errEl.textContent = tr('Server not reachable.'); }
+    } catch { errEl.textContent = tr('Only available online.'); }
   });
   setTimeout(() => $('#su-name', el)?.focus(), 50);
 }
@@ -1042,7 +1043,7 @@ function oidcWire(md) {
       if (!i.checked) return;
       i.disabled = true;
       // 2.306.0 D1 (#2875): a change of who becomes an admin asks for the account password
-      const apply = async b => { try { return await rawFetch('POST', '/api/admin/oidc/draft/apply', b); } catch (x) { if (x.data?.password_needed || x.data?.reauth_needed) throw x; throw new Error(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); } };
+      const apply = async b => { try { return await rawFetch('POST', '/api/admin/oidc/draft/apply', b); } catch (x) { if (x.data?.password_needed || x.data?.reauth_needed) throw x; throw new Error(errText(x)); } };
       try {
         let j; try { j = await apply({}); } catch (x) {
           if (x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw new Error(tr('Cancelled|dialog')); j = await apply({}); } else {  // 2.611.0 (#4019)
@@ -1052,14 +1053,14 @@ function oidcWire(md) {
         }
         took(j, true); toast(tr('The sign-in uses the new settings'));
       }
-      catch (x) { i.checked = false; i.disabled = false; const r = res(); if (r) r.textContent = x.message; }
+      catch (x) { i.checked = false; i.disabled = false; const r = res(); if (r) r.textContent = errText(x); }
       return;
     }
     const k = i.dataset?.oik; if (!k || i.readOnly) return;
     if (k === 'client_secret' && !i.value) return;
     const r = res(); if (r) r.textContent = '';
     try { took(await calReq('PUT', '/api/admin/oidc/draft', {[k]: k === 'client_secret' ? i.value : i.value.trim()})); saved(); }
-    catch (x) { if (r) r.textContent = x.message; }
+    catch (x) { if (r) r.textContent = errText(x); }
   });
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-oidc]'); if (!b) return;
@@ -1076,7 +1077,7 @@ function oidcWire(md) {
       }
       if (a === 'discard') { took(await calReq('DELETE', '/api/admin/oidc/draft'), true); toast(tr('Discarded')); return; }
       if (a === 'secret-del') { took(await calReq('PUT', '/api/admin/oidc/draft', {client_secret: ''})); b.remove(); saved(); }
-    } catch (x) { if (r) r.textContent = x.message; } finally { b.disabled = false; }
+    } catch (x) { if (r) r.textContent = errText(x); } finally { b.disabled = false; }
   });
 }
 // ---- Settings > Server > Backup
@@ -1108,19 +1109,19 @@ async function retStatus(md) {
 }
 async function stoCheck(md) {
   const box = $('#s-sto', md); if (!box) return;
-  box.innerHTML = `<div class="muted mhint">${tr('Loading…')}</div>`;
+  box.innerHTML = `${/*html-ok*/ loadingHtml()}`;
   let j; try { j = await api('GET', '/api/admin/storage-check'); } catch { box.innerHTML = ''; return; }
   const P = {missing: N_('missing'), empty: N_('empty'), size: N_('incomplete')};
   box.innerHTML = !j.problems.length ? `<div class="muted mhint">${esc(trn('{0} file checked, all fine', '{0} files checked, all fine', j.checked))}</div>`
     : `<div class="mhint warn">${esc(trn('{0} damaged or missing file', '{0} damaged or missing files', j.problems.length))}</div><ul class="stol">${j.problems.map(p => `<li><b>${esc(p.name)}</b> <span class="muted">${esc(p.where)} · ${esc(tr(P[p.problem]))}</span>${p.kind === 'attachment' && p.owner ? ` <button class="linkbtn" data-act="open-id" data-id="${p.owner}">${tr('Open')}</button>` : ''}</li>`).join('')}</ul>`;
 }
-const bkHtml = () => `<h4 id="s-bk-h">${tr('Backups')}</h4><div class="shint">${tr('The server key KALMIDO_SECRET_KEY is not part of a backup: keep it separately. A backup restores the encrypted organisation data only with that key (or with the organisations’ recovery keys).')}</div><div id="s-bk"><div class="muted mhint">${tr('Loading…')}</div></div><h4 id="s-bko-h">${tr('Off-site backup')}</h4><div id="s-bko"></div>`;  // 2.143.0 B (#2152): + the off-site target
+const bkHtml = () => `<h4 id="s-bk-h">${tr('Backups')}</h4><div class="shint">${tr('The server key KALMIDO_SECRET_KEY is not part of a backup: keep it separately. A backup restores the encrypted organisation data only with that key (or with the organisations’ recovery keys).')}</div><div id="s-bk">${/*html-ok*/ loadingHtml()}</div><h4 id="s-bko-h">${tr('Off-site backup')}</h4><div id="s-bko"></div>`;  // 2.143.0 B (#2152): + the off-site target
 const BK_KIND = {auto: N_('automatic'), manual: N_('manual'), safety: N_('before a restore')};
 const fmtBytes = n => fmtSize(Math.max(n || 0, 1024));  // 2.450.0 (#3770): fmtSize, at least "1 KB"
 async function bkDraw(md, j) {
   const box = $('#s-bk', md); if (!box) return;
   scnStatus(md);  // 2.61.0 (#1818): the virus scanner's line (once)
-  if (!j) { try { j = await api('GET', '/api/admin/backups'); } catch (x) { box.innerHTML = `<div class="muted mhint">${x.status === 404 ? esc(x.message) : tr('Only available online.')}</div>`; return; } }
+  if (!j) { try { j = await api('GET', '/api/admin/backups'); } catch (x) { box.innerHTML = `<div class="muted mhint">${x.status === 404 ? esc(x.message) : esc(errText(x))}</div>`; return; } }
   box._j = j;
   const hint = t => `<div class="shint">${t}</div>`;
   let h = `<div class="featgrid"><label class="wide"><input type="checkbox" id="bk-on" ${j.on ? 'checked' : ''}><span>${tr('Automatic backups')}<small class="muted">${tr('Every day a copy of the database and all attachments goes into the folder {0} on the server. Copy that folder somewhere else too (another disk, your usual server backup): a backup on the same disk does not help if the disk dies.', `<code>${esc(j.dir)}</code>`)}</small></span></label></div>
@@ -1346,7 +1347,7 @@ async function setupChoices(el, logo) {
       else return;
       if (start === 'import') { try { sessionStorage.setItem('kalmido-suimport', '1'); LS.set('settingsSec', 'data'); } catch { /* private mode: the card only starts empty */ } }  // 2.538.0 (#4361): main.js opens Settings > Data > Import
       location.replace('/');
-    } catch (err) { $('#su-err', el).textContent = err.message || tr('Server not reachable.'); }
+    } catch (err) { $('#su-err', el).textContent = errText(err); }
   });
 }
 function sectionMenu(anchor, sid, head = []) {  // 2.1151.0 B (#3835): head = items on top (dnd.js secHeadMenu: the head's "+")

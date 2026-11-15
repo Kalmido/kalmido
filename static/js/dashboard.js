@@ -68,7 +68,7 @@ function newsBundledHtml(vis, pop, pre = '', noMe = false) {
     + newsHistHtml(hist.length, hist.map(g => newsGroupHtml(g, pop, true)).join(''));
 }
 async function newsGroupRead(ids) {
-  try { await rawFetch('POST', '/api/news/read', {ids}); } catch (e) { toast(e.message); return; }
+  try { await rawFetch('POST', '/api/news/read', {ids}); } catch (e) { toast(errText(e)); return; }
   for (const it of S.nf.items || []) if ((it.ids || [it.id]).some(x => ids.includes(x))) { it.read = true; it.keep = S.nf.unread; }
   announce(tr('Marked read')); render();
   await loadNews().catch(() => {}); render();  // the counts from the server (an item may stand for several)
@@ -82,7 +82,7 @@ function newsSummarize(anchor) {
     const U = S.nf.users;
     const lines = items.slice(0, 120).map(it => '- ' + newsText(it, U).replace(/<[^>]+>/g, '') + (it.task_title ? ` (${it.task_title})` : '') + (it.excerpt ? `: ${String(it.excerpt).replace(/<@(\d+)>/g, (_, id) => '@' + uname(+id, U)).slice(0, 160)}` : ''));
     const text = tr('Please summarise my {0} unread news items in at most 5 short lines: what needs me first, then the rest.', items.length) + '\n\n' + lines.join('\n');
-    try { await rawFetch('POST', `/api/agents/${a.id}/chat`, {body: text.slice(0, 7900)}); } catch (e) { toast(e.message); return; }
+    try { await rawFetch('POST', `/api/agents/${a.id}/chat`, {body: text.slice(0, 7900)}); } catch (e) { toast(errText(e)); return; }
     closePop(); chatOpen(a.id); toast(tr('Sent to {0}', a.name));
   };
   if (ags.length === 1) send(ags[0]);
@@ -540,7 +540,7 @@ document.addEventListener('submit', e => {
 // ------------------------------------------------------------------ #443 Settings: tasks by e-mail
 const mchk = (id, on, label) => `<label class="chkl"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}> ${esc(label)}</label>`;
 function mailHtml(j) {
-  if (!j) return `<div class="muted">${tr('Loading…')}</div>`;
+  if (!j) return `${/*html-ok*/ loadingHtml()}`;
   const row = (lab, addr, lid) => `<div class="row mailrow"><label>${esc(lab)}</label>${addr ? `<code class="topic mailaddr">${esc(addr)}</code><button type="button" class="btn sm" data-mail="copy" data-addr="${esc(addr)}">${ic('copy', 's')} ${tr('Copy')}</button><button type="button" class="btn sm" data-mail="new" data-lid="${lid ?? ''}">${ic('sync', 's')} ${tr('New address')}</button><button type="button" class="iconbtn" data-mail="del" data-lid="${lid ?? ''}" aria-label="${esc(tr('Remove') + ': ' + addr)}">${ic('x', 's')}</button>`
     : `<button type="button" class="btn sm pri" data-mail="new" data-lid="${lid ?? ''}">${ic('plus', 's')} ${tr('Create an address')}</button>`}</div>`;
   const own = S.lists.filter(l => !l.archived && !l.is_inbox && !l.e2e && canEditList(l.id) && !j.lists.some(x => x.list_id === l.id));  // 2.64.1 (#1817): not for a locked list
@@ -555,7 +555,7 @@ function mailHtml(j) {
     <div class="row"><label></label>${mchk('s-mailtrimeml', j.trim_eml, tr('Keep the original e-mail as an attachment'))}</div>
     <div class="shint">${tr('A forwarded e-mail becomes the title (without Fwd:) and one line “From … , date” above the message; signatures, legal notices and older quoted replies are cut. Your own words above the forwarding stay.')}</div>
     ${S.me?.is_admin ? `<div class="row"><label>${tr('Mailbox')}</label><button type="button" class="btn sm" data-mail="poll" id="s-mailpoll">${ic('sync', 's')} ${tr('Fetch e-mails now')}</button><span class="muted" id="s-mailpoll-r" role="status" aria-live="polite"></span></div>` : ''}`
-    : `<div class="shint">${S.me?.is_admin ? tr('Not set up on this server: an admin sets KALMIDO_MAIL_ADDRESS and KALMIDO_IMAP_* (see the README).') : tr('Not set up on this server yet. The operator of this server can set it up.')}</div>`;  // 2.25.0 (UX-20): server details only for admins
+    : `<div class="shint">${tr('Not set up on this server yet. The operator of this server can set it up.')}</div>${S.me?.is_admin ? `<details class="acadv"><summary>${tr('For advanced users')}</summary><div class="shint">${tr('Not set up on this server: an admin sets KALMIDO_MAIL_ADDRESS and KALMIDO_IMAP_* (see the README).')}</div></details>` : ''}`;  // 2.25.0 (UX-20): server details only for admins; 2.1180.0 (#6130): and folded under "For advanced users"
 }
 function mailDigestHtml(j) {
   if (!j) return '';

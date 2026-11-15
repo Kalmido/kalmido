@@ -8,17 +8,18 @@ function wpState(md, j = md._wp) {
   const ch = $('#s-pushch', md)?.value || j.channel, n = j.subs.length;
   // 2.499.0 (#4215): on Web Push the public ntfy.sh gets no fallback, the message stays in the app
   const noFb = j.ntfy_public && ch !== 'both';
-  el.textContent = ch === 'ntfy' ? tr('Everything goes to ntfy.')
-    : !n ? (j.ntfy && !noFb ? tr('No device subscribed for push yet. Until then, notifications go to your ntfy topic.') : tr('No device subscribed for push yet. Switch on “Notify on this device” below.'))
-    : ch === 'both' ? trn('Web Push to {0} device and ntfy.', 'Web Push to {0} devices and ntfy.', n)
-    : noFb ? trn('Web Push to {0} device.', 'Web Push to {0} devices.', n)
-    : trn('Web Push to {0} device. ntfy only if no device accepts a push.', 'Web Push to {0} devices. ntfy only if no device accepts a push.', n);
+  // 2.1180.0 (#6130): everyday words - Browser notification (Web Push) and Notification app (ntfy); the technical words stay under "For advanced users"
+  el.textContent = ch === 'ntfy' ? tr('Everything goes to the notification app.')
+    : !n ? (j.ntfy && !noFb ? tr('No device switched on yet. Until then, notifications go to the notification app.') : tr('No device subscribed for push yet. Switch on “Notify on this device” below.'))
+    : ch === 'both' ? trn('Browser notification on {0} device and the notification app.', 'Browser notification on {0} devices and the notification app.', n)
+    : noFb ? trn('Browser notification on {0} device.', 'Browser notification on {0} devices.', n)
+    : trn('Browser notification on {0} device. The notification app only if no device accepts it.', 'Browser notification on {0} devices. The notification app only if no device accepts it.', n);
   el.classList.remove('warn');  // 2.5.2 (K04): a neutral hint, not a red warning
 }
 async function wpDraw(md) {
   const box = $('#s-wp', md); if (!box || !S.webpush?.enabled) return;
   let j;
-  try { j = await api('GET', '/api/push/subs'); } catch { box.innerHTML = `<div class="muted">${tr('Offline: only works again with a connection')}</div>`; return; }
+  try { j = await api('GET', '/api/push/subs'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wpDraw(md); }})}`; return; }
   md._wp = j; S.webpush.devices = j.subs.length;
   const sub = await wpSub(), mine = sub && j.subs.find(x => x.endpoint === sub.endpoint);
   const hint = t => `<div class="shint">${t}</div>`;
@@ -27,9 +28,9 @@ async function wpDraw(md) {
   const top = !!$('#s-pushnow', md);
   if (shellIOS()) h += top ? '' : hintK(tr('Notifications are not available in the iPhone app yet.'));  // 2.435.0 B (#3578)
   else if (isIOS() && !isStandalone()) h += hintK(tr('Add Kalmido to your Home Screen to get notifications on iPhone: Share > Add to Home Screen (iOS 16.4 or newer), then open it from there and switch it on here.'));
-  else if (!wpSupported()) h += top ? '' : hintK(tr('This browser does not support Web Push'));
+  else if (!wpSupported()) h += top ? '' : hintK(tr('This browser cannot show notifications'));  // 2.1180.0 (#6130)
   else {
-    h += `<div class="row"><label>${tr('Web Push')}</label><label class="chkl"><input type="checkbox" id="s-wpdev" ${mine ? 'checked' : ''}> ${tr('Notify on this device')}</label>${mine && !top ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test to this device')}</button>` : ''}</div>`;  // 2.555.0 C (#4664): the device test once
+    h += `<div class="row"><label>${tr('Browser notification')}</label><label class="chkl"><input type="checkbox" id="s-wpdev" ${mine ? 'checked' : ''}> ${tr('Notify on this device')}</label>${mine && !top ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test to this device')}</button>` : ''}</div>`;  // 2.555.0 C (#4664): the device test once
     if (Notification.permission === 'denied') h += hintK(tr('Notifications are blocked for this site. Allow them in the browser or system settings.'));
     else if (!mine) h += hint(tr('Your browser asks for permission once. Pushes arrive even when Kalmido is closed.'));
   }
@@ -43,7 +44,7 @@ async function wpDraw(md) {
   if (now) {
     const can = wpSupported() && !shellIOS() && !(isIOS() && !isStandalone()) && Notification.permission !== 'denied';
     now.className = 'pushnow ' + (mine ? 'on' : 'off');
-    now.innerHTML = `${ic(mine ? 'bellring' : 'belloff', 's')}<span><b>${mine ? tr('This device gets notifications') : tr('This device gets no notifications')}</b>${mine ? '' : `<small>${esc(shellIOS() ? tr('Notifications are not available in the iPhone app yet.') : !wpSupported() ? tr('This browser does not support Web Push') : isIOS() && !isStandalone() ? tr('Add Kalmido to the Home Screen first') : Notification.permission === 'denied' ? tr('Blocked in the browser or system settings') : j.subs.length ? trn('{0} other device does', '{0} other devices do', j.subs.length) : tr('No device is switched on yet'))}</small>`}</span>`
+    now.innerHTML = `${ic(mine ? 'bellring' : 'belloff', 's')}<span><b>${mine ? tr('This device gets notifications') : tr('This device gets no notifications')}</b>${mine ? '' : `<small>${esc(shellIOS() ? tr('Notifications are not available in the iPhone app yet.') : !wpSupported() ? tr('This browser cannot show notifications') : isIOS() && !isStandalone() ? tr('Add Kalmido to the Home Screen first') : Notification.permission === 'denied' ? tr('Blocked in the browser or system settings') : j.subs.length ? trn('{0} other device does', '{0} other devices do', j.subs.length) : tr('No device is switched on yet'))}</small>`}</span>`
       + (mine ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test')}</button>` : can ? `<button class="btn sm pri" data-m="wp-on">${tr('Switch on')}</button>` : '');
   }
 }
@@ -492,7 +493,7 @@ function aiHtml(hint, want) {
     ${pbHelpHtml()}
     ${feat('agents') ? '' : `<div class="shint aimodoff">${ic('grid', 's')} <span>${tr('The Agents module (the tab with their status, jobs to approve and the chat) is switched off for you.')}</span> <button class="btn sm" data-m="go-modules">${tr('Open Modules')}</button></div>`}
     ${collab() ? '' : hint(setLinkHtml(tr('Agents work together with you in shared projects: switch on Collaboration (Settings > Modules) as well.')))}
-    <div class="members aglist" id="${adm ? 's-ags' : 's-myags'}"><div class="muted mhint">${tr('Loading…')}</div></div>
+    <div class="members aglist" id="${adm ? 's-ags' : 's-myags'}">${/*html-ok*/ loadingHtml()}</div>
     <div class="row aibtns">${adm ? `<button class="btn sm" data-ag="new" aria-haspopup="menu">${ic('plus', 's')} ${tr('Add agent…')}</button>` : `<button class="btn sm" data-aigo="setup">${ic('plus', 's')} ${tr('Personal agent…')}</button>`}<button class="btn sm" data-m="ag-guide" title="${esc(tr('Set up an agent step by step, or let Claude Code do it'))}">${ic('help', 's')} ${tr('How to set one up')}</button></div>
     ${acz_linkHtml(true)}${''/* 2.166.0 (#2633) */}
     ${agDotsHtml(hint)}
@@ -502,7 +503,7 @@ function aiHtml(hint, want) {
     ${pane('lists', `<h4 id="s-ai-lists-h">${ags.length > 1 ? tr('Which projects they see') : tr('Which projects it sees')}</h4>
     ${hint(tr('Share below or in the project’s Share dialog; taking a project out ends the access at once.'))}
     ${mine && collab() ? `<div class="aishare" id="s-ai-share"></div><div class="aitblctl" id="s-ai-tblctl"></div>
-    <div class="aitbl" id="s-ai-tbl" role="table" aria-labelledby="s-ai-lists-h"><div class="muted mhint">${tr('Loading…')}</div></div>` : `<div class="muted mhint">${tr('You do not manage any project yet.')}</div>`}`)}
+    <div class="aitbl" id="s-ai-tbl" role="table" aria-labelledby="s-ai-lists-h">${/*html-ok*/ loadingHtml()}</div>` : `<div class="muted mhint">${tr('You do not manage any project yet.')}</div>`}`)}
     ${subs.some(x => x[0] === 'usage') ? pane('usage', `${hint(adm ? tr('What the agents report about their model usage: tokens and, if they send it, the cost. You see every agent; limits are set per agent (Edit).') : tr('What the agents in your projects report about their model usage, counted in the projects you see.'))}
     <div class="aiu" id="s-aiu"></div>`) : ''}
     ${pane('setup', agSetupPaneHtml(hint))}
@@ -521,7 +522,7 @@ function agSetupPaneHtml(hint) {
     <div class="shint keep agone">${ic('download', 's')} <span>${tr('The quick way: create the agent, then “Set up on a computer” at it gives you one command to paste.')}</span></div>${typeof srv_guideHtml === 'function' ? srv_guideHtml() : ''}${''/* 2.557.0 C (#4670): the agent on the Kalmido server */}
     <h4 id="s-myown-h">${tr('Your personal agents')}</h4>
     ${hint(tr('Only you can chat with it; it runs on your own computer.'))}
-    <div class="members aglist" id="s-myown" aria-labelledby="s-myown-h"><div class="muted mhint">${tr('Loading…')}</div></div>
+    <div class="members aglist" id="s-myown" aria-labelledby="s-myown-h">${/*html-ok*/ loadingHtml()}</div>
     <div id="s-mcpgr"></div>
     <details class="sdet aghand"><summary>${tr('For advanced users: set it up by hand')}</summary>
     ${seg('os', os, [['linux', 'Linux'], ['mac', 'macOS'], ['win', 'Windows']])}
@@ -558,7 +559,7 @@ async function agSetupDraw(md) {
   if (S.me?.is_admin) ad_agPolicyDraw(md);  // 2.46.6 (#1710): the rules sit in Administration > Agents (no #s-myown needed)
   const box = $('#s-myown', md); if (!box) return;
   let j;
-  try { j = await api('GET', '/api/my/agents'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  try { j = await api('GET', '/api/my/agents'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); agSetupDraw(md); }})}`; return; }
   box._j = j;
   for (const a of j.agents || []) if (a.color) (S.colors ||= {})[a.id] = a.color;  // 2.47.1 (#1721)
   const row = a => `<div class="mrow agsrow ${a.enabled ? '' : 'off'}" data-myag="${a.id}">${avBtn(a.id, a.name)}<span class="n"><span class="agnm"><b>${esc(a.name)}</b> <span class="muted">${esc(a.username)}</span>${av_wsBtn(a)}</span>
@@ -766,7 +767,7 @@ function ad_secDraw(md) {
 }
 // 2.364.0 C (#3041): Organisation > Data: the encryption, export and retention export of the organisations I administer
 // (wsPaneDraw fills it; before inside each organisation under People)
-const wsDataHtml = hint => `<h4 id="s-wsdata-h">${tr('Organisation data')}</h4>${hint(tr('Encryption, recovery key and export of each organisation you manage.'))}${ocScopeSlotHtml()}<div id="s-wsdata" class="wsdata" aria-labelledby="s-wsdata-h"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+const wsDataHtml = hint => `<h4 id="s-wsdata-h">${tr('Organisation data')}</h4>${hint(tr('Encryption, recovery key and export of each organisation you manage.'))}${ocScopeSlotHtml()}<div id="s-wsdata" class="wsdata" aria-labelledby="s-wsdata-h">${/*html-ok*/ loadingHtml()}</div>`;
 // Server: storage per person (#910), the support address, the daily e-mail limit (#899) and the notice above the app (#907)
 // 2.555.0 C (#4664): Settings > Server > Server in one place (first draw and the redraw after publishing a notice)
 // 2.75.0 (#1411): + asst_admHtml; 2.59.0 B (#1375): + related tasks; 2.46.6 (#1710): + the update check result (was Help)
@@ -798,7 +799,7 @@ function hostHtml(hint) {
     ${hint(tr('Per person and day (at most 5 a day to one address). Over the limit the link is shown to copy.'))}
     <div class="row"><label for="s-maillim">${tr('Per account and day')}</label><input id="s-maillim" inputmode="numeric" class="numin" value="${esc(String(a.mail_day_limit || 30))}"></div>
     ${a.hosted ? `<div class="shint keep">${ic('alert', 's')} ${tr('Hosted server: integrations only reach public HTTPS addresses.')}</div>` : ''}
-    <h4 id="s-ip-h">${tr('Your IP')}</h4><div id="s-ipbox" aria-labelledby="s-ip-h"><div class="muted mhint">${tr('Loading…')}</div></div>${(setTimeout(ipFill, 0), '')}`;
+    <h4 id="s-ip-h">${tr('Your IP')}</h4><div id="s-ipbox" aria-labelledby="s-ip-h">${/*html-ok*/ loadingHtml()}</div>${(setTimeout(ipFill, 0), '')}`;
 }
 // 2.33.0 (#834): the address the server sees for me (self-test behind a reverse proxy) and the warning when many accounts
 // sign in from one private address (the proxy does not pass the client's address on)
@@ -846,7 +847,7 @@ function xl_stdLater(md, hint) {
     if (!sec.isConnected) return;
     sec.innerHTML = xl_stdHtml(hint);
     xl_stdMount(md);
-  }, () => { if (sec.isConnected) sec.innerHTML = `<p class="muted">${esc(tr('Could not be loaded'))}</p>`; });
+  }, () => { if (sec.isConnected) sec.innerHTML = errorState({size: 'row', retry: () => { sec.innerHTML = loadingHtml(); xl_stdLater(md, hint); }}); });
 }
 function settingsModal(focus) {
   if (kd_pinNeed()) return kd_pinAsk(() => settingsModal(focus));  // 2.49.0 (#1551): a child with the parents' PIN
@@ -866,7 +867,7 @@ function settingsModal(focus) {
       agents: S.me.is_admin ? ad_agentsHtml(hint) : '',  // 2.46.6 (#1710); 2.555.0 C (#4664): one switch for user_agents (s-uag), no second one
       odata: (lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin') ? wsDataHtml(hint) : '') + (S.me.is_admin ? ocAdminHtml(hint, !(lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin'))) : '')}, ad_admFocus(focus)) : '',  // 2.582.0 (#4827): backups + storage check under Server > Backup
     // 2.418.0 (#3560): the editor of every area's menu and the tab bar (navmenu.js nav_pageDraw)
-    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus"><div class="muted mhint">${tr('Loading…')}</div></div>`,
+    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus">${/*html-ok*/ loadingHtml()}</div>`,
     look: `<div id="s-lookin">${lookHtml()}</div>
       ${typeof spl_can === 'function' && spl_can() ? `<h4 id="s-split-h">${tr('Split view')}</h4><div class="row">${chk('s-split', LS.get('split', false) === true, tr('A second view of the app on the right'))}</div>
       <div class="row splminrow"><label for="s-splmin">${tr('Split from window width')}</label><input type="number" id="s-splmin" class="aanum wide" inputmode="numeric" min="${esc(String(spl_lo()))}" max="${esc(String(SPL_MAX_PX))}" placeholder="${esc(String(spl_def()))}" value="${esc(+LS.get('splMin', 0) > 0 ? String(spl_from()) : '')}"> <span class="muted">px</span> <button type="button" class="btn sm" data-m="s-splmin-std">${tr('Default')}</button></div>
@@ -929,19 +930,20 @@ function settingsModal(focus) {
       ${typeof wt_setHtml === 'function' ? wt_setHtml(s, hint) : ''}`,
     modules: modulesHtml(hint),
     notify: `${S.webpush?.enabled ? `<div class="pushnow" id="s-pushnow" role="status" aria-live="polite"></div>` : ''}${S.webpush?.enabled ? `<h4>${tr('Delivery')}</h4>
-      <div class="row"><label for="s-pushch">${tr('Channel|push')}</label><select id="s-pushch">${[['webpush', N_('Web Push')], ['ntfy', 'ntfy'], ['both', N_('Both')]].map(([v, n]) => `<option value="${v}" ${(s.push_channel || 'webpush') === v ? 'selected' : ''}>${v === 'ntfy' ? n : tr(n)}</option>`).join('')}</select><button class="btn sm" data-m="ptest">${ic('bell', 's')} ${tr('Test all channels')}</button></div>
+      <div class="row"><label for="s-pushch">${tr('Channel|push')}</label><select id="s-pushch">${[['webpush', N_('Browser notification')], ['ntfy', N_('Notification app')], ['both', N_('Both')]].map(([v, n]) => `<option value="${v}" ${(s.push_channel || 'webpush') === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${''/* 2.1180.0 (#6130): everyday words */}<button class="btn sm" data-m="ptest">${ic('bell', 's')} ${tr('Test all channels')}</button></div>
       ${prio}
       <div class="shint wpstate" id="s-wpstate"></div>
       ${hint(tr('No extra app needed. Switch it on below on every device that should ring.'))}
       <h4>${tr('This device')}</h4>
-      <div id="s-wp"><div class="muted">${tr('Loading…')}</div></div>` : ''}
+      <div id="s-wp">${/*html-ok*/ loadingHtml()}</div>` : ''}
       <h4>${tr('In the app')}</h4>
       <div class="row">${/*html-ok*/ chk('s-msgpop', LS.get('msgPop', '1') !== '0', tr('Pop-up for new messages'))}</div>
       ${/*html-ok*/ hint(tr('A new message from a person or a finished answer of an agent shows briefly at the top edge, wherever you are in Kalmido. Only on this device; while the app is open, this device gets no extra push for it.'))}
-      <div id="s-ntfy"><h4>${S.webpush?.enabled ? 'ntfy' : tr('Notifications (ntfy)')}</h4>
-      <div class="row"><label>${tr('Topic')}</label><code class="topic">${esc(s.ntfy_topic)}</code>${S.webpush?.enabled ? '' : `<button class="btn sm" data-m="test">${ic('bell', 's')} ${tr('Send test')}</button>`}</div>${''/* 2.555.0 C (#4664): with Web Push "Test all channels" above covers ntfy */}
+      <div id="s-ntfy"><h4>${tr('Notification app')}</h4>${''/* 2.1180.0 (#6130): no "ntfy" / "Topic" in the heading and the label */}
+      <div class="row"><label>${tr('Channel name')}</label><code class="topic">${esc(s.ntfy_topic)}</code>${S.webpush?.enabled ? '' : `<button class="btn sm" data-m="test">${ic('bell', 's')} ${tr('Send test')}</button>`}</div>${''/* 2.555.0 C (#4664): with Web Push "Test all channels" above covers ntfy */}
       ${S.webpush?.enabled ? '' : prio}
-      ${hint(`${tr('Subscribe in the ntfy app: server {0}, topic as above', esc(S.ntfyUrl))}. <a href="${esc(topicUrl)}" target="_blank" rel="noopener">${tr('Web view')}</a>`)}</div>
+      ${/*html-ok*/ hint(tr('Install the free app “ntfy” on your phone and subscribe there to the channel name above.'))}
+      <details class="acadv"><summary>${tr('For advanced users')}</summary>${hint(`${tr('Subscribe in the ntfy app: server {0}, topic as above', esc(S.ntfyUrl))}. <a href="${esc(topicUrl)}" target="_blank" rel="noopener">${tr('Web view')}</a>`)}</details></div>
       <div id="s-chn"></div>${''/* 2.142.0 A (#2145, #2146): channels + e-mail for single events (integrations.js chn_meDraw) */}
       ${notifMatrixHtml(s, hint)}${bl9SetHtml(s, hint)}${typeof tbl_setHtml === 'function' ? tbl_setHtml(chk, hint) : ''}
       ${typeof trd_setHtml === 'function' ? trd_setHtml(s, chk, hint) : ''}${typeof kbd_setHtml === 'function' ? kbd_setHtml(s, chk, hint) : ''}
@@ -958,7 +960,7 @@ function settingsModal(focus) {
       ${hint(tr('A task or a project can repeat its reminder until done (date dialog or project dialog). Nothing repeats during the quiet hours.'))}`,
     integr: integrCardsHtml() + intr_row('cals', 'cal', N_('Calendars'), calsHtml(chk, hint)) + intr_row('carddav', 'cake', N_('Birthdays from your contacts'), typeof famDavHtml === 'function' ? famDavHtml() : '') + intr_row('ical', 'link', N_('Calendar subscription'), `<h4 id="s-ical-h">${tr('Calendar subscription')}</h4>
       ${hint(tr('Read-only. Calendar apps fetch changes every few hours.'))}
-      <div id="s-ical"><div class="muted mhint">${tr('Loading…')}</div></div>
+      <div id="s-ical">${/*html-ok*/ loadingHtml()}</div>
       <div class="row"><label for="s-icalscope">${tr('Tasks')}</label><select id="s-icalscope"><option value="all">${tr('All visible tasks (incl. shared projects)')}</option><option value="mine" ${s.ical_scope === 'mine' ? 'selected' : ''}>${tr('Only mine and assigned to me')}</option></select></div>
       <div class="row"><label>${tr('Reminders')}</label>${chk('s-icalalarm', s.ical_alarms !== '0', tr('as calendar alarms'))}</div>
       <details class="shelp sdet"><summary>${tr('How to subscribe')}</summary><ul class="slist">
@@ -999,7 +1001,7 @@ function settingsModal(focus) {
       ${typeof umzHtml === 'function' ? umzHtml(hint) : ''}
       <h4 id="s-tpl-h">${tr('Templates')}</h4>
       ${hint(tr('Private to you. Save from a task’s menu (…) or the project dialog; use via the template button or Projects > +.'))}
-      <div class="members" id="s-tpls"><div class="muted mhint">${tr('Loading…')}</div></div>
+      <div class="members" id="s-tpls">${/*html-ok*/ loadingHtml()}</div>
       ${sampleHtml(hint)}`,
     ai: aiPaneOn() ? aiHtml(hint, {agents: 'agents', agentdots: 'agents', usage: 'usage', agentsetup: 'setup', assistant: 'assistant'}[focus]) : asst_paneHtml(hint),  // 2.7.0 (#405 S2); 2.489.0 (#2664): the assistant alone while the agents are off
     users: S.me?.is_admin ? admSubsHtml('users', {  // 2.24.0 (#826): Administration in sub-tabs like Agents; 2.364.0 C (#3041): "Server"
@@ -1297,7 +1299,7 @@ function settingsModal(focus) {
     if (e.target.id !== 's-wpdev') return;
     e.target.disabled = true;
     try { if (e.target.checked ? await wpEnable() : await wpDisable()) toast(e.target.checked ? tr('Notifications on for this device') : tr('Notifications off for this device')); }
-    catch (x) { if (x.message !== 'auth') toast(tr('Could not switch on notifications: {0}', x.message || x)); }
+    catch (x) { if (x.message !== 'auth') toast(errText(x, tr('Could not switch on notifications'))); }
     await wpDraw(md);
   });
   const tabDraw = () => {
@@ -1628,12 +1630,12 @@ async function cer_setList(el) {
 // Settings > Users > Whole server > Admin alerts: operational warnings to the admins via ntfy (server side, own
 // "Save"; loaded when the pane opens). Recent alerts below, with "Clear".
 // 2.555.0 C (#4664): the sub-tab is called Admin alerts: no heading of the same name under it
-const aaHtml = () => `<div id="s-aa" aria-labelledby="adms-log"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+const aaHtml = () => `<div id="s-aa" aria-labelledby="adms-log">${/*html-ok*/ loadingHtml()}</div>`;
 const AA_STATE = {sent: N_('delivered'), failed: N_('not delivered'), queued: N_('waiting for the summary'), summarized: N_('in the summary'), capped: N_('hourly limit reached'), listed: N_('only listed (no device or topic yet)')};
 function aaWhen(x) { return x ? fmtStamp(new Date(x)) : ''; }  // 2.368.0 B (#2982): one locale source
 async function aaDraw(md, j) {
   const box = $('#s-aa', md); if (!box) return;
-  if (!j) { try { j = await api('GET', '/api/admin/alerts'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; } }
+  if (!j) { try { j = await api('GET', '/api/admin/alerts'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); aaDraw(md); }})}`; return; } }
   const hint = t => `<div class="shint">${t}</div>`, num = (id, v, lo, hi, w) => `<input type="number" class="aanum${w ? ' wide' : ''}" id="${id}" value="${esc(v)}" min="${lo}" max="${hi}">`;
   // 2.5.2 (K04): where the alerts really go per admin (Web Push devices and / or an ntfy topic); nowhere yet = a neutral hint
   const via = a => [a.devices ? trn('Web Push to {0} device', 'Web Push to {0} devices', a.devices) : '', a.topic ? `ntfy <code class="topic">${esc(a.topic)}</code>` : ''].filter(Boolean).join(' + ') || `<span class="muted">${tr('nowhere yet')}</span>`;
@@ -1761,7 +1763,7 @@ async function sh_pubKind(md, el, fromHist) {
   try {
     let j; try { j = await rawFetch('PATCH', '/api/admin/settings', {public_links_off: off}); } catch (x) {
       if (x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', {public_links_off: off}); } else {  // 2.611.0 (#4019)
-      if (!x.data?.password_needed) { toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); throw x; }
+      if (!x.data?.password_needed) { toast(errText(x)); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {public_links_off: off, password: p.password}); }
     }
@@ -1787,7 +1789,7 @@ async function adminSwitch(md, el, fromHist) {
     const pw = ['twofa_required', 'passkey_login', 'oidc_autocreate', 'public_links', 'mcp_remote'].includes(key);  // 2.488.0 (#3363): + mcp_remote
     let j; try { j = await (pw ? rawFetch : api)('PATCH', '/api/admin/settings', {[key]: on}); } catch (x) {
       if (pw && x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', {[key]: on}); } else {  // 2.611.0 (#4019)
-      if (!pw || !x.data?.password_needed) { if (pw) toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); throw x; }
+      if (!pw || !x.data?.password_needed) { if (pw) toast(errText(x)); throw x; }
       const p = await pwPrompt(tr('Confirm with your password')); if (!p) throw x;
       j = await api('PATCH', '/api/admin/settings', {[key]: on, password: p.password}); }
     }
@@ -1811,7 +1813,7 @@ async function adminSwitch(md, el, fromHist) {
 // calendar subscription (Settings > Integrations): the secret feed link, copy / new link / off
 async function icalDraw(md, j) {
   const box = $('#s-ical', md); if (!box) return;
-  if (!j) { try { j = await api('GET', '/api/ical'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; } }
+  if (!j) { try { j = await api('GET', '/api/ical'); } catch (x) { box.innerHTML = `${/*html-ok*/ errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); icalDraw(md); }})}`; return; } }
   intr_st('ical', !!(j.url || j.active));  // 2.625.0 (#4489): the state on its folded row in Settings > Integrations
   // 2.138.0 C (#1907): the server keeps only a hash: the link is in the answer of create / rotate once, later only "active since"
   if (!j.url && !j.active) { box.innerHTML = `<div class="row"><button class="btn sm pri" data-m="ical-create">${ic('cal', 's')} ${tr('Create subscription link')}</button></div>`; return; }
@@ -2035,7 +2037,7 @@ async function ss_areaOpen(h) {
 // office.js biz_paint draws them (the office scripts load here when the area is opened)
 function biz_paneHtml() {
   if (!S.me || S.me.kind === 'agent' || !officeOn()) return '';
-  return `<div id="s-biz" class="sbiz"><div class="muted mhint">${tr('Loading…')}</div></div><div id="s-bizmail"></div>`;
+  return `<div id="s-biz" class="sbiz">${/*html-ok*/ loadingHtml()}</div><div id="s-bizmail"></div>`;
 }
 // the workspace's own mailbox (IMAP / SMTP, hubmailbox.js; also in Clients > E-mail filing): its state and Set up / Change
 async function biz_mailDraw(md) {
@@ -2051,7 +2053,7 @@ async function biz_mailDraw(md) {
 }
 async function biz_draw(md) {
   const box = $('#s-biz', md); if (!box) return;
-  try { await loadModule('office'); } catch { box.innerHTML = `<p class="muted">${esc(tr('Could not be loaded'))}</p>`; return; }
+  try { await loadModule('office'); } catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); biz_draw(md); }}); return; }
   if (!box.isConnected) return;
   if (!box._biz) { box._biz = 1; box.addEventListener('click', e => { if (e.target.closest('a[href^="#"], [data-go]')) $('[data-m="close"]', md)?.click(); }); }  // a link into the office (import, rights) closes Settings
   setTimeout(biz_paint, 0);
@@ -2215,7 +2217,7 @@ function tty_mount(md) {
   tty_open(box, w === 'all' ? 'private' : w);
 }
 async function tty_open(box, ws) {
-  let j; try { j = await api('GET', `/api/ticket-types?space=${encodeURIComponent(ws)}`); } catch { box.innerHTML = `<p class="muted">${esc(tr('Only available online.'))}</p>`; return; }
+  let j; try { j = await api('GET', `/api/ticket-types?space=${encodeURIComponent(ws)}`); } catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); tty_open(box, ws); }}); return; }
   if (box.isConnected) tty_draw(box, j);
 }
 function tty_draw(box, j) {

@@ -105,36 +105,46 @@ function storageHtml() {
   const q = S.storage; if (!q) return syncHtml();
   const pct = q.limit ? Math.min(100, q.pct) : 0;
   return `<h4 id="s-storage-h">${tr('Storage')}</h4>
-    <div class="row"><label>${tr('Your files')}</label><span class="stoq ${esc(q.level)}">${q.limit ? `<span class="stobar" role="meter" aria-labelledby="s-storage-h" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${pct}%"></i></span>` : ''}<span>${esc(q.limit ? tr('{0} of {1} used', fmtSize(q.used), fmtSize(q.limit)) + (q.pool === 'org' ? ' · ' + tr('shared by the organisation') : '') : tr('{0} used · no limit', fmtSize(q.used)))}</span></span></div>
+    <div class="row"><label>${tr('Your files')}</label><span class="stoq ${esc(q.level)}">${q.limit ? `<span class="stobar" role="meter" aria-labelledby="s-storage-h" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}"><i style="width:${pct}%"></i></span>` : ''}<span>${esc(q.limit ? tr('{0} of {1} used', fmtSize(q.used), fmtSize(q.limit)) + (q.pool === 'org' ? ' · ' + tr('shared by the organisation') : '') : stoFreeTxt(q))}</span></span></div>
     ${q.level === 'warn' || q.level === 'high' ? `<div class="shint keep">${ic('alert', 's')} ${esc(tr('Almost full: from 100 % new files cannot be uploaded.'))}</div>` : ''}
     ${q.level === 'full' ? `<div class="row"><span class="shint keep">${ic('alert', 's')} ${esc(tr('Your storage is full: new files cannot be uploaded.'))}</span>${q.support ? `<a class="btn sm pri" href="${esc(quotaMail(q))}">${ic('send', 's')} ${tr('Contact support')}</a>` : ''}</div>` : ''}${syncHtml()}`;
 }
+// 2.1180.0 (#6130): the Account tab in three groups with a jump bar on top (Profile · Security and sign-in · Devices and data)
+const ACG = [['profile', 's-account-h', N_('Profile')], ['security', 'a-g-sec', N_('Security and sign-in')], ['data', 'a-g-data', N_('Devices and data')]];
+const acgHead = k => { const [, id, n] = ACG.find(g => g[0] === k); return `<h3 class="acgh" id="${esc(id)}" data-acg="${esc(k)}" tabindex="-1">${tr(n)}</h3>`; };
+const acgJumpHtml = () => `<nav class="acjump" aria-label="${esc(tr('Parts of the account'))}">${ACG.map(([k, , n]) => `<button type="button" class="btn sm" data-acc="jump" data-acj="${esc(k)}">${tr(n)}</button>`).join('')}</nav>`;
+// 2.1180.0 (#6130): "0 B used · no limit" said nothing: no files yet / in use, and that the server sets no limit
+const stoFreeTxt = q => q.used ? tr('{0} in use, no storage limit', fmtSize(q.used)) : tr('No files stored yet, no storage limit');
 function accountHtml() {
   const m = S.me, pw = m.auth === 'session' || m.has_password;
-  return `<h4 id="s-account-h">${tr('Profile')}</h4>${''/* 2.555.0 C (#4664): the section is called Account already */}
-    <div class="row"><label>${tr('Signed in as')}</label><span class="acct">${av(m.id, m.display_name)}<b>${esc(m.display_name)}</b> <span class="muted">${esc(m.username)}${m.auth === 'proxy' ? ' · ' + tr('via single sign-on') : ''}</span></span></div>
+  // 2.1180.0 (#6130): Sign out also on top, next to the name (the one at the very end stays)
+  return `${/*html-ok*/ acgJumpHtml()}${/*html-ok*/ acgHead('profile')}${''/* 2.555.0 C (#4664): the section is called Account already; 2.1180.0 (#6130): the first group */}
+    <div class="row acwho"><label>${tr('Signed in as')}</label><span class="acct">${av(m.id, m.display_name)}<b>${esc(m.display_name)}</b> <span class="muted">${esc(m.username)}${m.auth === 'proxy' ? ' · ' + tr('via single sign-on') : ''}</span></span>${m.auth === 'session' ? `<button type="button" class="btn sm acout" data-acc="logout">${ic('logout', 's')} ${tr('Sign out')}</button>` : ''}</div>
     ${sup_accountRow()}${''/* 2.74.0 (#338): the supporter badge (self-hosted only) */}
     <div class="row"><label for="a-name">${tr('Display name')}</label><input id="a-name" value="${esc(m.display_name)}" maxlength="60" autocomplete="name" enterkeyhint="done"></div>
     ${m.agent ? '' : `<div class="row" id="a-epv"><label>${tr('E-mail address')}</label><span class="muted">${tr('Loading…')}</span></div>`}${''/* 2.1033.0 (#5790): the own address and its confirmation (epvDraw) */}
     <div class="row avrow"><label>${tr('Profile picture')}</label><div class="avpick" id="a-avpick">${avPickHtml()}</div></div>
     <div class="row"><label id="a-col-h">${tr('Colour')}</label><div class="pfcol" id="a-col" role="group" aria-labelledby="a-col-h">${ac_pickHtml((S.colors || {})[m.id] || '', 'me')}</div></div>
-    ${pw ? `<div class="row"><label for="a-cur">${tr('Password')}</label><input type="text" class="cfhid" hidden tabindex="-1" aria-hidden="true" autocomplete="username" value="${esc(S.me?.username || '')}" readonly><input type="password" id="a-cur" placeholder="${tr('current password')}" autocomplete="current-password"><input type="password" id="a-new" placeholder="${tr('new password')}" autocomplete="new-password"><button class="btn sm" data-acc="pw">${tr('Change')}</button></div>
-    <div class="featgrid"><label class="wide"><input type="checkbox" id="a-pwrev" checked><span>${tr('End all app passwords and API tokens')}<small class="muted">${tr('Ticked: calendar and contacts apps and scripts must be connected again afterwards (new app password, new token).')}</small></span></label></div>` : ''}
-    ${storageHtml()}
     ${dsc_rowHtml()}${''/* 2.49.0 (#1106): People: find, requests, findable by e-mail */}
     ${wsPaneOn() ? (lmOrgPaneOn() ? lmOrgLinkHtml() : wsPaneHtml(t => `<div class="shint">${t}</div>`)) : S.me?.kid ? '' : wsp_paneHtml() /* 2.138.2 C (#2389, P4): without an organisation the colour of Private is chosen here */}
     ${mvHas() ? `<h4 id="s-mview-h">${tr('View as member')}</h4><div class="row"><label class="chkl"><input type="checkbox" id="s-mview" ${mvOn() ? 'checked' : ''}> ${tr('Show Kalmido as a member sees it')}</label></div>
     <div class="shint">${tr('Kalmido looks like it does for a member: settings and administration of your organisations and of the server are hidden; your private area, your own agents and the daily office work stay. Only the display changes, your rights stay the same. The way back is at the bottom of the settings and in the account menu.')}</div>` : ''}${''/* 2.436.0 (#3620) */}
-    ${tfaHtml()}
     ${typeof officeOn === 'function' && officeOn() ? `<h4 id="s-sig-h">${tr('Signature for letters')}</h4>
     <div class="row"><button type="button" class="btn sm" data-act="lt-sigset">${ic('edit', 's')} ${tr('Edit signature…')}</button> <button type="button" class="btn sm" data-act="ofm-sigset">${ic('edit', 's')} ${tr('E-mail signature…')}</button></div>
     <div class="shint">${tr('Greeting, name and picture under your letters (the same dialog as in the Office, Letters).')}</div>` : ''}${''/* 2.365.2 C (#2789) */}
+    ${/*html-ok*/ acgHead('security')}
+    ${pw ? `<div class="row pwrow"><label for="a-cur">${tr('Password')}</label><input type="text" class="cfhid" hidden tabindex="-1" aria-hidden="true" autocomplete="username" value="${esc(S.me?.username || '')}" readonly><span class="pwcol"><input type="password" id="a-cur" placeholder="${tr('current password')}" aria-label="${esc(tr('current password'))}" autocomplete="current-password"><input type="password" id="a-new" placeholder="${tr('new password')}" aria-label="${esc(tr('new password'))}" autocomplete="new-password"><button class="btn sm" data-acc="pw">${tr('Change')}</button></span></div>${''/* 2.1180.0 (#6130): the two fields one under the other, never cut off */}
+    <div class="featgrid"><label class="wide"><input type="checkbox" id="a-pwrev" checked><span>${tr('End all app passwords and API tokens')}<small class="muted">${tr('Ticked: calendar and contacts apps and scripts must be connected again afterwards (new app password, new token).')}</small></span></label></div>` : ''}
+    ${tfaHtml()}
     ${typeof sesHtml === 'function' ? sesHtml() : ''}${''/* 2.115.0 B (#2062): active sessions */}${typeof sgvHtml === 'function' ? sgvHtml() : ''}${''/* 2.485.0 (#3939): support access (hosted) */}
     ${e2eHtml()}${''/* 2.42.0 (#828, #909) */}
     ${apwHtml()}
-    <details class="sdev"><summary>${ic('key', 's')}${tr('Advanced · for developers')}</summary>
+    <details class="sdev"><summary>${ic('key', 's')}${tr('For advanced users')}</summary>${''/* 2.1180.0 (#6130): was "Advanced · for developers" */}
     <div class="row"><label>${tr('Upload token')}</label><button class="btn sm" data-m="go-share">${ic('phone', 's')} ${tr('Share from your phone')}</button><span class="muted" style="font-size:var(--fs-s)">${tr('shown and renewed there')}</span></div>
     ${acz_linkHtml(S.api?.enabled)}</details>${''/* 2.166.0 (#2633): the API tokens moved to Access */}
+    ${/*html-ok*/ acgHead('data')}
+    ${storageHtml()}
+    <div id="a-msv-slot"></div>${''/* 2.1180.0 (#6130): the connected servers (servers.js msvDraw) */}
     ${typeof rsHtml === 'function' ? rsHtml() : ''}${''/* 2.593.0 (#4590): reset the look and comfort settings (setreset.js) */}
     ${typeof sdlHtml === 'function' ? sdlHtml() : ''}${''/* 2.553.0 (#1413): delete the own account (selfdelete.js) */}
     ${shellServerUrl() ? `<div class="row"><label>${tr('Server|settings')}</label><button class="btn sm" data-acc="shell-server">${ic('link', 's')} ${tr('Change server')}</button></div>` : ''}${''/* 2.435.0 B (#3578): only in the app shell */}
@@ -182,7 +192,7 @@ const UA8_PAGE = 50;
 const usersHtml = () => `<h4>${tr('People')}</h4>
   <div class="ua8bar"><input type="search" id="a-uq" placeholder="${esc(tr('Name, user name or e-mail'))}" aria-label="${esc(tr('Search people'))}" autocomplete="off" autocapitalize="off" spellcheck="false"><select id="a-uflt" aria-label="${esc(tr('Filter'))}">${UA8_FLT.map(([k, n]) => `<option value="${k}">${esc(tr(n))}</option>`).join('')}</select></div>
   <div id="a-usel" role="region" aria-label="${esc(tr('Selected people'))}" hidden></div>
-  <div class="members" id="a-users" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div>
+  <div class="members" id="a-users" aria-live="polite">${/*html-ok*/ loadingHtml()}</div>
   <div class="ua8pg" id="a-upg"></div>
   <div class="row" style="margin-top:.5rem"><button class="btn sm" data-acc="user-new">${ic('plus', 's')} ${tr('New person')}</button></div>`;
 // ------------------------------------------------------------------ 2.10.0 (#441): groups
@@ -227,7 +237,7 @@ async function grpEdit(smd, gid) {
     const err = $('#gr-err', md);
     if (b.dataset.m === 'del') {
       if (!await askConfirm(tr('Delete the group {0}?', g.name), tr('Its members lose the access they had only through it; tasks assigned to it become unassigned.'), {ok: tr('Delete'), danger: true})) return;
-      try { await calReq('DELETE', `/api/admin/groups/${gid}`); } catch (x) { err.textContent = x.message; err.hidden = false; return; }
+      try { await calReq('DELETE', `/api/admin/groups/${gid}`); } catch (x) { err.textContent = errText(x); err.hidden = false; return; }
       md.remove(); await load().catch(() => {}); render(); grpDraw(smd); toast(tr('Group deleted')); return;
     }
     const name = $('#gr-name', md).value.trim(), og = $('#gr-oidc', md).value.trim();
@@ -242,7 +252,7 @@ async function grpEdit(smd, gid) {
 // 2.23.0 (#799): a shared server (KALMIDO_INSTANCE_MODE=shared) says so; 2.46.0 (#1592): every other server has workspaces
 const orgsHtml = () => S.instanceMode === 'shared' ? `<h4 id="a-orgs-h">${tr('Organisation')}</h4><div class="shint">${tr('A shared server: no organisations; people see only the people they are connected with and share by e-mail address (set by the server configuration).')}</div>`
   : `<h4 id="a-orgs-h">${tr('Organisations')}</h4><div class="shint">${tr('A shared server with workspaces: every organisation is its own workspace with its own admins, who manage its members. People see the members of their organisations and the people they are connected with; private projects stay invisible to an organisation.')}</div>
-  <div class="members" id="a-orgs"><div class="muted mhint">${tr('Loading…')}</div></div><div class="row"><button class="btn sm" data-acc="org-new">${ic('plus', 's')} ${tr('New organisation')}</button></div>`;
+  <div class="members" id="a-orgs">${/*html-ok*/ loadingHtml()}</div><div class="row"><button class="btn sm" data-acc="org-new">${ic('plus', 's')} ${tr('New organisation')}</button></div>`;
 // 2.46.0 (#1561): "Add person": the organisation (none / each one; exactly one: preselected, as a member) and the role in it
 function omNewOrgRows() {
   const os = (S.orgs || []).filter(o => !o.apart), one = os.length === 1 ? os[0].id : 0;  // 2.399.0 (#2687): hosted, a client's organisation is not offered
@@ -329,8 +339,8 @@ async function orgModal(o, done) {
 }
 function wsPaneHtml(hint) {
   return `<h4 id="s-ws-h">${tr('Workspaces')}</h4>${hint(tr('Every project belongs to one workspace; the sidebar shows one at a time. An organisation’s project is shared only inside it; private sharing stays invisible to it.'))}
-    <div class="members" id="s-ws" aria-labelledby="s-ws-h"><div class="muted mhint">${tr('Loading…')}</div></div>
-    ${(S.me.workspaces || []).length ? `<h4 id="s-wsr-h">${tr('Absences and holiday')}</h4><div id="s-wsr"><div class="muted mhint">${tr('Loading…')}</div></div>` : ''}${''/* 2.365.2 C (#2789) */}`;
+    <div class="members" id="s-ws" aria-labelledby="s-ws-h">${/*html-ok*/ loadingHtml()}</div>
+    ${(S.me.workspaces || []).length ? `<h4 id="s-wsr-h">${tr('Absences and holiday')}</h4><div id="s-wsr">${/*html-ok*/ loadingHtml()}</div>` : ''}${''/* 2.365.2 C (#2789) */}`;
 }
 // 2.365.2 C (#2789): the rules of an organisation that the Absences tab used to hold: vacation needs an approval, the state
 // of the public holidays (same routes; only admins of the organisation write)
@@ -339,7 +349,7 @@ async function wsr_draw(md, oid) {
   const orgs = S.me.workspaces || [], c = wsCur();
   oid = oid || (c.startsWith('org:') && orgs.some(w => 'org:' + w.id === c) ? +c.slice(4) : orgs[0]?.id);
   if (!oid) { box.innerHTML = ''; return; }
-  let lv, ab; try { [lv, ab] = await Promise.all([api('GET', `/api/team/leave?org=${oid}`), api('GET', `/api/team/absences?org=${oid}`)]); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  let lv, ab; try { [lv, ab] = await Promise.all([api('GET', `/api/team/leave?org=${oid}`), api('GET', `/api/team/absences?org=${oid}`)]); } catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); wsr_draw(md, oid); }}); return; }
   if (!md.isConnected) return;
   const dis = lv.admin ? '' : 'disabled';
   box.innerHTML = `${orgs.length > 1 ? `<div class="row"><label for="s-wsr-org">${tr('Organisation')}</label><select id="s-wsr-org">${orgs.map(w => `<option value="${w.id}" ${w.id === oid ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></div>` : ''}
@@ -412,6 +422,7 @@ function accountWire(md) {
         $('#a-cur', md).value = ''; $('#a-new', md).value = ''; toast(tr('Password changed'));
       }
       if (a === 'logout') logout();
+      if (a === 'jump') { const h = $(`[data-acg="${b.dataset.acj}"]`, md); if (h) { h.scrollIntoView({block: 'start'}); h.focus({preventScroll: true}); } }  // sprung-ok: the person asked for this place  // 2.1180.0 (#6130): the jump bar of the Account tab
       if (a === 'shell-server') { const u = shellServerUrl(); if (u) location.href = u; }  // 2.435.0 B (#3578)
       if (a === 'user-new') userModal(null, () => { drawUsers(); orgsDraw(md); });  // 2.58.0 (#1724): the organisations' member counts follow at once
       if (a === 'user-approve') { await api('POST', `/api/users/${b.dataset.uid}/approve`, {}); toast(tr('Approved: the person can sign in now')); drawUsers(); }  // 2.23.0 (#711)
@@ -561,10 +572,10 @@ function rcModal(codes) {
   });
 }
 // ---- Settings > Account > Two-factor authentication
-const tfaHtml = () => `<h4 id="s-2fa-h">${tr('Two-factor authentication')}</h4><div id="s-2fa"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+const tfaHtml = () => `<h4 id="s-2fa-h">${tr('Two-factor authentication')}</h4><div id="s-2fa">${/*html-ok*/ loadingHtml()}</div>`;
 async function tfaDraw(md, j) {
   const box = $('#s-2fa', md); if (!box) return;
-  if (!j) { try { j = await api('GET', '/api/me/2fa'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; } }
+  if (!j) { try { j = await api('GET', '/api/me/2fa'); } catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); tfaDraw(md); }}); return; } }
   box._j = j;
   const hint = t => `<div class="shint">${t}</div>`;
   if (!j.available) {
@@ -578,7 +589,8 @@ async function tfaDraw(md, j) {
   h += `<div class="row"><label>${tr('Authenticator app')}</label><span class="tfastate ${j.totp ? 'on' : ''}">${j.totp ? tr('On') : tr('Off')}</span>
       ${j.totp ? `<button class="btn sm" data-tfa="totp-off">${tr('Switch off')}</button>` : `<button class="btn sm pri" data-tfa="totp-on">${ic('lock', 's')} ${tr('Set up')}</button>`}</div>`;
   h += `<div class="row"><label>${tr('Passkeys')}</label><button class="btn sm" data-tfa="pk-add" ${pkSupported() ? '' : 'disabled'}>${ic('key', 's')} ${tr('Add a passkey')}</button></div>`;
-  if (!pkSupported()) h += hintK(tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.'));
+  // 2.1180.0 (#6130): the everyday sentence for everyone; the server details (HTTPS, host name) only for server admins, folded
+  if (!pkSupported()) h += hintK(tr('Passkeys cannot be used on this address or in this browser.')) + (S.me?.is_admin ? `<details class="acadv"><summary>${tr('For advanced users')}</summary>${/*html-ok*/ hint(tr('Passkeys need HTTPS (or localhost), a host name instead of an IP address and a current browser.'))}</details>` : '');
   if (j.passkeys.length) h += `<div class="members pklist">${j.passkeys.map(p => `<div class="mrow" data-pk="${p.id}"><span class="avatar">${ic('key', 's')}</span><span class="n">${esc(p.name)} <small class="muted">${tr('added {0}', esc(when(p.created_at)))}${p.last_used_at ? ' · ' + tr('last used {0}', esc(when(p.last_used_at))) : ''}${p.synced ? ' · ' + tr('synced') : ''}</small></span><button class="iconbtn ms-phsr" data-tfa="pk-ren" title="${tr('Rename')}">${ic('edit', 's')}</button><button class="iconbtn ms-phsr" data-tfa="pk-del" title="${tr('Remove')}">${ic('trash', 's')}</button>${/*html-ok*/ ms_dots('.ms-phsr', p.name) /* 2.1151.0 C (#3835): one "…" on a phone */}</div>`).join('')}</div>`;
   if (on) h += `<div class="row"><label>${tr('Recovery codes')}</label><span class="muted">${trn('{0} left', '{0} left', j.recovery_left)}</span><button class="btn sm" data-tfa="rc-new">${tr('New codes')}</button></div>`;
   h += hint(on ? tr('After your password, the sign-in asks for a code from the app or your passkey.') + (j.passkey_login && j.passkeys.length ? ' ' + tr('A passkey also logs you in without the password (“Sign in with a passkey”).') : '')
@@ -603,7 +615,7 @@ function tfaWire(md) {
           m.querySelector('form').addEventListener('submit', async ev => {
             ev.preventDefault();
             try { const r = await rawFetch('POST', '/api/me/2fa/totp/confirm', {code: $('#totp-code', m).value}); m.remove(); done(r); }
-            catch (x) { $('#totp-err', m).textContent = x.message; }
+            catch (x) { $('#totp-err', m).textContent = errText(x); }
           });
           setTimeout(() => $('#totp-code', m)?.focus(), 50);
         });
@@ -689,7 +701,7 @@ function bkRestore(md, src) {
         else toast(tr('Backup restored. Safety backup: {0}', r.safety));
         setTimeout(() => location.replace('/'), 1200);
         done(true);
-      } catch (x) { $('#bkr-err', m).textContent = x.message; go.disabled = false; go.textContent = tr('Restore'); }
+      } catch (x) { $('#bkr-err', m).textContent = errText(x); go.disabled = false; go.textContent = tr('Restore'); }
     });
     setTimeout(() => $('#bkr-pass', m)?.focus() || $('#bkr-word', m)?.focus(), 50);
   });
@@ -759,7 +771,7 @@ function bkWire(md) {
       const res = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(res.error || httpErrText(r.status));
       await bkRestore(md, {...res, word: j.confirm_word || 'RESTORE'});
-    } catch (x) { toast(x.message); }
+    } catch (x) { toast(errText(x)); }
     e.target.value = '';
   });
   md.addEventListener('click', async e => {
@@ -1101,7 +1113,7 @@ async function ofmSigSettings() {
   try {
     if (typeof ofmSigModal !== 'function') await loadModule('office');
     await ofmSigModal();
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); }
+  } catch (e) { toast(errText(e)); }
 }
 // 2.365.2 C (#2789): the letter signature dialog of the Office, opened from Settings > Account (the Office module loads first)
 async function ltSigSettings() {
@@ -1113,7 +1125,7 @@ async function ltSigSettings() {
       url = '/api/office/meals/signature'; profile = await api('GET', url);  // 2.372.0 (#3316): without the correspondence: the picture for the entertainment receipts
     }
     ltProfileModal({profile, url, done: () => toast(tr('Saved'))});
-  } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); }
+  } catch (e) { toast(errText(e)); }
 }
 
 // 2.574.0 (#3376): an organisation admin reads the tasks of the organisation's projects (the ones "Projects of the organisation"
@@ -1123,7 +1135,7 @@ const OTK_ST = [['open', N_('Open')], ['done', N_('Completed')], ['all', N_('All
 async function otkLoad(md, oid, more) {
   const f = md._f, box = $('#otk-body', md);
   let j; try { j = await api('GET', `/api/orgs/${oid}/tasks?` + new URLSearchParams({status: f.st, ...(f.lid ? {list_id: f.lid} : {}), ...(f.q ? {q: f.q} : {}), offset: more ? md._rows.length : 0})); }
-  catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  catch (x) { box.innerHTML = errorState({size: 'row', sub: errText(x), retry: () => { box.innerHTML = loadingHtml(); otkLoad(md, oid, more); }}); return; }
   md._rows = more ? [...md._rows, ...j.tasks] : j.tasks;
   const sel = $('#otk-l', md);
   if (sel && !sel.options.length) sel.innerHTML = `<option value="">${esc(tr('All projects'))}</option>` + j.lists.map(l => `<option value="${l.id}">${esc(l.name)}${l.archived ? ' (' + esc(tr('archived')) + ')' : ''}</option>`).join('');
@@ -1138,7 +1150,7 @@ function otkOpen(oid, name) {
     <div class="row otkbar"><label for="otk-l" class="sr">${tr('Project')}</label><select id="otk-l"></select>
       <div class="seg" role="group" aria-label="${esc(tr('Show'))}">${OTK_ST.map(([k, n]) => `<button type="button" class="${k === 'open' ? 'on' : ''}" data-otk-st="${k}" aria-pressed="${k === 'open'}">${esc(tr(n))}</button>`).join('')}</div>
       <input id="otk-q" type="search" placeholder="${esc(tr('Search'))}" aria-label="${esc(tr('Search'))}" maxlength="200"></div>
-    <div class="members oadm" id="otk-body"><div class="muted mhint">${tr('Loading…')}</div></div>
+    <div class="members oadm" id="otk-body">${/*html-ok*/ loadingHtml()}</div>
     <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button></div>`);
   md.classList.add('oadmmd', 'otkmd');
   md._f = {st: 'open', lid: '', q: ''}; md._rows = [];
