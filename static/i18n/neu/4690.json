@@ -1,0 +1,22 @@
+{
+  "de": {
+    "Surcharge|calc": "Zuschlag",
+    "Surcharge": "Zuschlag"
+  },
+  "es": {
+    "Surcharge|calc": "Recargo",
+    "Surcharge": "Recargo"
+  },
+  "fr": {
+    "Surcharge|calc": "Majoration",
+    "Surcharge": "Majoration"
+  },
+  "it": {
+    "Surcharge|calc": "Maggiorazione",
+    "Surcharge": "Maggiorazione"
+  },
+  "nl": {
+    "Surcharge|calc": "Toeslag",
+    "Surcharge": "Toeslag"
+  }
+}
