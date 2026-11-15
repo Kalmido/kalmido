@@ -44,7 +44,8 @@ async function person(ck, user, tag) {
   check(GS && GL && /Projekt Alpha/.test(GL.label) && /Abschnitt Eins/.test(GS.label), `the server has both steps ${JSON.stringify(srv.slice(0, 3).map(g => [g.kind, g.label]))}`);
   open();
   check(await until(() => row(GL.id) && row(GS.id)), 'the window shows both as rows of the server');
-  check(/Settings of Projekt Alpha/.test(row(GL.id).textContent) && /This device/.test(row(GL.id).textContent), `the rename's row: label, "This device" (${row(GL.id)?.textContent})`);
+  // 2.1184.0 (#6137): the row says what changed (was "Settings of Projekt Alpha")
+  check(/“Projekt Alpha”: Renamed to Projekt Beta/.test(row(GL.id).textContent) && /This device/.test(row(GL.id).textContent), `the rename's row: label, "This device" (${row(GL.id)?.textContent})`);
   check(![...d.querySelectorAll('#pop .ulbody .ulrow.ul-l')].some(r => /Projekt Alpha|Abschnitt Eins/.test(r.textContent)), 'no row "only this device" for them');
 
   // ---- the second device takes the rename back; this browser follows

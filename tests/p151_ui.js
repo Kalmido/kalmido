@@ -105,14 +105,19 @@ const task = async id => (await st()).tasks.find(t => t.id === id);
   check(!doneGroup(), 'Today: group gone');
   check(await until(async () => JSON.parse((await st()).settings.show_done_views).today === 0), 'stored per view on the server');
   check(!('show_completed' in (await st()).settings), '1.8.1: no global setting any more');
-  check(w.eval('HIST.undo[HIST.undo.length - 1].label') === 'Hide completed: Today', 'history step: ' + w.eval('HIST.undo[HIST.undo.length - 1]?.label'));
+  // 2.1184.0 (#6137): a display switch is no step (no history entry, the server records none); the message offers to take it back
+  const hTopD = () => w.eval('HIST.undo[HIST.undo.length - 1]?.label || ""');
+  check(!/^(Hide|Show) completed/.test(hTopD()), 'no history step for the switch: ' + hTopD());
+  const toastUndo = () => /** @type {HTMLElement|null} */ (d.querySelector('#toast:not(.hidden) button:not(.tx)'));
+  check(/Completed tasks are hidden here/.test(d.querySelector('#toast')?.textContent || '') && !!toastUndo(), 'the message offers Undo: ' + d.querySelector('#toast')?.textContent);
   w.eval(`go('l/${WORK}')`); await until(() => w.eval('S.route.key') === `l:${WORK}` && doneGroup());
   check(doneGroup(), 'the list keeps its own (default) choice');
   w.eval(`go('today')`); await routed('today'); await until(() => !doneGroup());
-  await w.eval(`histStep('undo')`); await until(async () => doneGroup() && !('today' in JSON.parse((await st()).settings.show_done_views)));
-  check(doneGroup() && !('today' in JSON.parse((await st()).settings.show_done_views)), 'undo: back to the default');
-  await w.eval(`histStep('redo')`); await until(() => !doneGroup()); await idle(w);
-  check(!doneGroup(), 'redo');
+  await w.eval(`setShowDone(true)`); await until(doneGroup);
+  click(w, toastUndo()); await until(async () => !doneGroup() && JSON.parse((await st()).settings.show_done_views).today === 0);
+  check(!doneGroup() && JSON.parse((await st()).settings.show_done_views).today === 0, 'Undo in the message: the choice before again');
+  check(!(await call('GET', '/api/undo')).items?.some(g => /Show completed per view|Hide completed|Show completed:/.test(g.label || '')), 'no server step for the switch (#6137): ' + JSON.stringify(((await call('GET', '/api/undo')).items || []).slice(0, 3).map(g => g.label)));
+  await idle(w);
   // sort menu + palette act on the current view
   w.eval(`sortMenu(document.querySelector('#top h1'))`); await until(() => menuLabels(d).includes('Show completed'));
   check(menuLabels(d).includes('Show completed'), 'sort menu: the current view: ' + menuLabels(d));
@@ -149,13 +154,13 @@ const task = async id => (await st()).tasks.find(t => t.id === id);
   check(!calDone() && chip().getAttribute('aria-pressed') === 'false', 'calendar toggle hides completed tasks');
   check(await until(async () => JSON.parse((await st()).settings.show_done_views).cal === 0), 'stored as the calendar\'s own entry');
   check(w.eval(`showDone('l:${WORK}')`), 'lists keep their own choice');
-  check(w.eval('HIST.undo[HIST.undo.length - 1].label') === 'Hide completed: Calendar', 'history step names the calendar: ' + w.eval('HIST.undo[HIST.undo.length - 1]?.label'));
+  check(!/^(Hide|Show) completed/.test(hTopD()) && !!toastUndo(), 'calendar: no history step, the message offers Undo: ' + hTopD());  // 2.1184.0 (#6137)
   w.eval('openPalette()'); await until(() => w.eval(`palAll().some(x => x.id === 'a:showdone' && x.label === 'Show completed: Calendar')`));
   check(w.eval(`palAll().some(x => x.id === 'a:showdone' && x.label === 'Show completed: Calendar')`), 'palette: calendar toggle');
   w.eval('closePalette()');
   for (const v of ['week', 'day']) { w.eval(`S.calMode = '${v}'; renderView()`); check(!!chip(), `${v} view has the toggle`); }
-  await w.eval(`histStep('undo')`); await until(async () => calDone() && !('cal' in JSON.parse((await st()).settings.show_done_views)));
-  check(calDone() && !('cal' in JSON.parse((await st()).settings.show_done_views)), 'undo: calendar back to the default (shown)');
+  await w.eval(`setShowDone(true, 'cal')`); await until(async () => calDone() && JSON.parse((await st()).settings.show_done_views).cal === 1);
+  check(calDone(), 'calendar: shown again with the toggle');
   if (w.eval(`feat('timeline')`)) { w.eval(`S.calMode = 'timeline'; renderView()`); check(!chip(), 'timeline mode: no toggle'); }
   w.eval(`S.calSel = '${T0}'; S.calMode = 'month'`);
   // a checklist has no toggle
@@ -236,7 +241,7 @@ const task = async id => (await st()).tasks.find(t => t.id === id);
   click(w, col);
   check(await until(async () => (await st()).lists.find(l => l.id === WORK).color === col.dataset.c), 'colour saves at once');
   check(await until(() => md().querySelector('.ssaved.on [data-m="l-undo"]')), '"Saved · Undo" in the header');
-  check(await until(() => /Settings of/.test(w.eval('HIST.undo[HIST.undo.length - 1]?.label || ""'))), 'history step: ' + w.eval('HIST.undo[HIST.undo.length - 1]?.label'));
+  check(await until(() => /: Colour$/.test(w.eval('HIST.undo[HIST.undo.length - 1]?.label || ""'))), 'history step names the colour (#6137): ' + w.eval('HIST.undo[HIST.undo.length - 1]?.label'));  // 2.1184.0 (#6137): was "Settings of …"
   click(w, md().querySelector('[data-m="l-undo"]'));
   check(await until(async () => (await st()).lists.find(l => l.id === WORK).color === ''), 'Undo in the dialog');
   check(await until(() => !md().querySelector('#l-col button.on') || md().querySelector('#l-col button.on').dataset.c === ''), 'the dialog shows the old colour again');

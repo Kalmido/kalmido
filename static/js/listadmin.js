@@ -117,11 +117,11 @@ async function lmDoneReset(key) {
   const put = async v => {
     const o = doneViews(); if (v === undefined) delete o[key]; else o[key] = v;
     S.settings.show_done_views = JSON.stringify(o); lc_doneOwnSync(key); render();
-    try { await api('PATCH', '/api/settings', {show_done_views: S.settings.show_done_views}); } catch { try { await load(); } catch { /* offline */ } render(); }
+    try { await api('PATCH', '/api/settings', {show_done_views: S.settings.show_done_views, _auto: 1}); } catch { try { await load(); } catch { /* offline */ } render(); }
     return {skipped: []};
   };
   await put(undefined);
-  offerUndo(tr('Completed tasks follow the default here'), histAdd({label: `${tr('Completed: like the default')}: ${titleFor(key)}`, sett: true, undo: () => put(was), redo: () => put(undefined)}));
+  toast(tr('Completed tasks follow the default here'), () => put(was));  // 2.1184.0 (#6137): a display switch, no step (views.js setShowDone)
 }
 
 // ---- 2.102.0 A (#1988): the trash of deleted lists (lists/listtrash.py). Deleting an archived list moves it with its tasks,

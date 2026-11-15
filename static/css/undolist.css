@@ -23,3 +23,9 @@
 /* 2.1175.0 (#6165): the switch for the steps over an API key, the note how many are hidden */
 .ulhead .ulapi{display:inline-flex;align-items:center;gap:.375rem;margin-top:.375rem;font-size:var(--fs-s);cursor:pointer;min-height:2.75rem}
 .ulhid{margin:.5rem;font-size:var(--fs-xs)}
+/* 2.1184.0 (#6137): on the phone the label stands above its button (whole, wrapped) instead of cut off beside it */
+@media (max-width:767px){
+  .ulrow{flex-wrap:wrap;align-items:flex-start}
+  .ulmain{flex-basis:100%}
+  .ullab{white-space:normal;overflow-wrap:anywhere}
+}

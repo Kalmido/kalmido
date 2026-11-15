@@ -190,11 +190,13 @@ async function setShowDone(on, key = S.route.key) {
     const o = doneViews(); if (v === undefined) delete o[key]; else o[key] = v;
     for (const x of Object.keys(o)) if ((x.startsWith('l:') && !listById(+x.slice(2))) || (x.startsWith('f:') && !S.filters.some(f => f.id === +x.slice(2)))) delete o[x];  // gone lists / filters
     S.settings.show_done_views = JSON.stringify(o); lc_doneOwnSync(key); render();  // 2.46.1 (#1422): lc_doneOwnSync
-    try { await api('PATCH', '/api/settings', {show_done_views: S.settings.show_done_views}); } catch { try { await load(); } catch { /* offline */ } render(); }
+    try { await api('PATCH', '/api/settings', {show_done_views: S.settings.show_done_views, _auto: 1}); } catch { try { await load(); } catch { /* offline */ } render(); }
     return {skipped: []};
   };
   await put(to);
-  offerUndo(on ? tr('Completed tasks are shown here') : tr('Completed tasks are hidden here'), histAdd({label: `${on ? tr('Show completed') : tr('Hide completed')}: ${titleFor(key)}`, sett: true, undo: () => put(was), redo: () => put(to)}));
+  // 2.1184.0 (#6137): a display switch, no step (not in "Recent steps", not on the arrows, _auto: the server records none
+  // either): the message alone offers to take it back at once
+  toast(on ? tr('Completed tasks are shown here') : tr('Completed tasks are hidden here'), () => put(was));
 }
 const doneItem = () => ({label: showDone() ? tr('Hide completed') : tr('Show completed'), icon: 'eye', fn: () => setShowDone(!showDone())});
 // default: priority first, manual order (drag) inside each priority. 'sort2.' = new key, old per-view choices reset once.
