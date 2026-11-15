@@ -74,6 +74,16 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(await until(async () => await content(FK, PL) === 'Plan A'), 'Undo once more: Plan A (the step knew the version Redo made)');
   check(!w.__toasts.some(t => /Meanwhile someone else/.test(t)), 'no "someone else" message for her own steps');
 
+  // Fable review M1: a 409 that is no version conflict (a locked month, a folder that switches; no "current") is said as it is,
+  // not as "someone else uploaded" (the step still counts as done: Fable review N1, follow-up task)
+  w.eval(`(() => { const f0 = window.fetch; window.__f1 = f0; window.fetch = (u, o) => /versions\\/\\d+\\/restore/.test(String(u)) ? Promise.resolve(new Response(JSON.stringify({error: 'Folder is switching right now'}), {status: 409, headers: {'Content-Type': 'application/json'}})) : f0(u, o); return 1; })()`);
+  w.__toasts.length = 0;
+  await w.eval('histStep("redo")');
+  check(await until(() => w.__toasts.some(t => /Folder is switching right now/.test(t))), 'M1: another 409 says its own reason: ' + JSON.stringify(w.__toasts));
+  check(!w.__toasts.some(t => /Meanwhile someone else/.test(t)), 'M1: no "someone else" message for a 409 without current');
+  w.eval('window.fetch = window.__f1');
+  check(await content(FK, PL) === 'Plan A', 'M1: nothing changed while refused');
+
   // ================= #6173 2: a refused portion stands in the list only, not in a toast as well
   // the server's own 400: the portion's form goes up with an empty file in it (the server refuses the whole form)
   w.eval(`(() => { const f0 = window.fetch; window.__f0 = f0; window.fetch = (u, o) => { if (o?.body instanceof FormData && /files\\/upload/.test(String(u))) { const fd = new FormData(); fd.append('file', new File(['x'], 'a.txt')); fd.append('file', new File([], 'b.mp4')); fd.append('space', 'private'); return f0(u, {...o, body: fd}); } return f0(u, o); }; return 1; })()`);
