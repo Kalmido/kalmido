@@ -171,6 +171,11 @@ R2 = next(x["id"] for x in A.get(B + "/api/team").json()["rooms"] if x["kind"] =
 M3 = A.post(B + f"/api/team/rooms/{R2}/messages", json={"body": "Vor dem Schloss"}).json()["id"]
 check(A.patch(B + f"/api/team/messages/{M3}", json={"body": "Vor dem Schloss, geaendert"}).ok, "setup: edited while open")
 check([x["body"] for x in versions(Bo, M3)[1] or []] == ["Vor dem Schloss"], "an open project: the plain version")
+# review job/4658 finding 1: a message the conversion does not touch (text emptied beside a file: body '') kept a plain version
+M4 = A.post(B + f"/api/team/rooms/{R2}/messages", json={"body": "Geheim offen"}).json()["id"]
+check(A.patch(B + f"/api/team/messages/{M4}", json={"body": "Geheim offen 2"}).ok, "setup: a second message edited while open")
+dbx("UPDATE tchat_msgs SET body='' WHERE id=?", (M4,))  # what an edit to an empty text beside a file leaves
+check(len(hist(M4)) == 1, "setup: its plain version is kept while open")
 r = A.post(B + f"/api/lists/{L2}/e2e/start", json={"keys": [{"user_id": ALICE, "wrapped": wrapped()}, {"user_id": BOB, "wrapped": wrapped()}]})
 check(r.ok, f"setup: the lock goes on {r.status_code} {r.text[:200]}")
 r = A.post(B + f"/api/lists/{L2}/e2e/bulk", json={"msgs": [{"id": M3, "enc": chan(1)}]})
@@ -178,6 +183,7 @@ check(r.ok, f"setup: the channel message converted {r.status_code} {r.text[:200]
 check(hist(M3) == [] and versions(Bo, M3) == (200, []), "the conversion took the plain version away (no plain copy under the lock)")
 r = A.post(B + f"/api/lists/{L2}/e2e/finish")
 check(r.ok, f"setup: the lock is on {r.status_code} {r.text[:200]}")
+check(hist(M4) == [], "the end of the conversion takes every version of the channel, also of a message it did not convert")
 c1 = chan(1)
 r = A.patch(B + f"/api/team/messages/{M3}", json={"enc": c1})
 check(r.ok, f"alice edits under the lock {r.status_code} {r.text[:200]}")
@@ -190,6 +196,12 @@ r = requests.get(B + f"/api/v1/team/messages/{M3}/versions", headers=TB)
 d = r.json().get("data", []) if r.ok else []
 check(r.ok and len(d) == 1 and d[0]["enc"] is None and d[0]["body"] == "" and d[0].get("encrypted") is True,
       f"an API token gets encrypted: true, no ciphertext {r.status_code} {r.text[:200]}")
+# review job/4658 finding 2: a plain leftover under the lock, edited, leaves no plain version behind
+M5 = M4  # the message the conversion left alone, now with a plain text again: a leftover
+dbx("UPDATE tchat_msgs SET enc=NULL, body='Rest im Klartext' WHERE id=?", (M5,))
+r = A.patch(B + f"/api/team/messages/{M5}", json={"enc": chan(1)})
+check(r.ok, f"alice edits the leftover under the lock {r.status_code} {r.text[:200]}")
+check(hist(M5) == [] and versions(Bo, M5) == (200, []), "no plain version of a leftover under the lock")
 
 # ================================================================== a person without an organisation
 FID, Fr = freelancer(B, A)

@@ -988,7 +988,13 @@ def tchat_edit(mid):
         if bad:
             return bad
         if enc:
-            tcv_keep(c, r, m)  # 2.1213.0 (#6166): the version before, sealed as it was stored
+            from ..collab.liste2echan import le2c_gen_of, le2c_mode
+            # 2.1213.0 (#6166): the version before, sealed as it was stored -- only a ciphertext of the current key; a plain
+            # leftover or an old key's text is not kept, and what the message kept before goes (review job/4658, finding 2)
+            if m["enc"] and le2c_gen_of(m["enc"]) == le2c_mode(c, r)[1]:
+                tcv_keep(c, r, m)
+            else:
+                tcv_drop(c, "id=?", (mid,))
             c.execute("UPDATE tchat_msgs SET body='', enc=?, edited_at=? WHERE id=?", (enc, iso_ms(now_utc()), mid))
             c.commit()
             m = c.execute("SELECT * FROM tchat_msgs WHERE id=?", (mid,)).fetchone()
@@ -1083,8 +1089,8 @@ def tcv_list(c, r, m):
         v = v if isinstance(v, dict) else json.loads(v or "{}")
         enc = _e2e_parse(v["enc"]) if v.get("enc") else None
         d = {"no": i + 1, "at": at, "replaced_at": h["created_at"], "body": "" if enc else (v.get("body") or ""), "enc": enc}
-        if hide and enc:
-            d.update(enc=None, encrypted=True)
+        if hide:  # every version, a plain one too (review job/4658, finding 4)
+            d.update(body="", enc=None, encrypted=True)
         out.append(d)
         at = h["created_at"]
     return list(reversed(out))
