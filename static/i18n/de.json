@@ -18709,14 +18709,5 @@
   "{0} your time": "{0} bei dir",
   "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Nur ansehen: sieht die Termine. Mitglied: ändert sie auch. Am Handy erscheint der Kalender neben dem eigenen.",
   "The people could not be loaded": "Die Personen konnten nicht geladen werden",
-  "Stop sharing {0} with {1}": "{0} nicht mehr mit {1} teilen",
-  "Deleted items stay here until you delete them permanently.": "Gelöschtes bleibt hier, bis du es endgültig löschst.",
-  "Deleted items stay here for {0} day, then they are deleted permanently.": ["Gelöschtes bleibt {0} Tag hier, danach ist es endgültig weg.", "Gelöschtes bleibt {0} Tage hier, danach ist es endgültig weg."],
-  "In the trash": "Liegt im Papierkorb",
-  "Deleted on {0}": "Gelöscht am {0}",
-  "The groups could not be loaded": "Die Gruppen konnten nicht geladen werden",
-  "The contact could not be saved": "Der Kontakt konnte nicht gespeichert werden",
-  "Contacts could not be loaded": "Die Kontakte konnten nicht geladen werden",
-  "No contacts yet": "Noch keine Kontakte",
-  "Add one, import a vCard or CSV file, or connect the phone.": "Lege einen an, importiere eine vCard- oder CSV-Datei oder verbinde das Handy."
+  "Stop sharing {0} with {1}": "{0} nicht mehr mit {1} teilen"
 }
