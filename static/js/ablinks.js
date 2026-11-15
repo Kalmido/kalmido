@@ -16,9 +16,10 @@ const xl_menuItem = n => n.role === 'owner' && (n.kind === 'file' || n.kind === 
   ? {label: tr('Link for external people…'), icon: 'link', fn: () => xl_newDlg(n.id)} : null;
 
 // ---- the section in the details (after "Shared with"); md = the details dialog, n = the node
-async function xl_mount(md, n) {
+// 2.1172.0 (#6113): at = the element the section follows (the document view's tab Shares: its row of buttons)
+async function xl_mount(md, n, at) {
   if (n.role !== 'owner' || (n.kind !== 'file' && n.kind !== 'folder') || n.in_trash) return;
-  const anchor = $('[data-abd="share"]', md)?.closest('.row'); if (!anchor) return;
+  const anchor = at || $('[data-abd="share"]', md)?.closest('.row'); if (!anchor) return;
   /** @type {any} */
   const box = document.createElement('div');
   box.className = 'xl-sec';
@@ -117,8 +118,9 @@ async function xl_newDlg(nid, done, std) {
     $('[data-m="close"].btn', md).textContent = tr('Done');
     $('#xl-url', md).select();
     const name = node?.name || '';
-    histAdd({label: tr('Link for external people of {0}', qn(name)), undo: () => xl_req('DELETE', `/api/files/ext-links/${j.id}`, $('.abdlg .xl-sec'), {id: nid}),
-      redo: () => xl_req('POST', `/api/files/ext-links/${j.id}/restore`, $('.abdlg .xl-sec'), {id: nid})});
+    const sec = () => $('.abdlg .xl-sec') || $('.dv-view .xl-sec');  // 2.1172.0 (#6113): + the document view's tab Shares
+    histAdd({label: tr('Link for external people of {0}', qn(name)), undo: () => xl_req('DELETE', `/api/files/ext-links/${j.id}`, sec(), {id: nid}),
+      redo: () => xl_req('POST', `/api/files/ext-links/${j.id}/restore`, sec(), {id: nid})});
     if (done) done(); else ab_reload();
   });
 }
