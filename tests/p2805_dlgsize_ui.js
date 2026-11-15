@@ -37,6 +37,7 @@ const until = (fn, ms) => require('./boot').until(fn, {timeout: ms || 20000, ste
   CK = await login('alice');
   await call('POST', '/api/admin/setup', {lang: 'en', collab_all: true});
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'collab,comments,clients,contacts,videos', workspace: 'all'});
+  await call('POST', '/api/books', {name: 'People', org_id: null});  // 2.1174.0 (#6122): "New contact" no longer creates an address book quietly
   // a review (Video review) and a filed mail (the mail of the hub)
   const L = await call('POST', '/api/lists', {name: 'Imagefilm', kind: 'project'});
   const T = await call('POST', '/api/tasks', {title: 'Rohschnitt', list_id: L.id});

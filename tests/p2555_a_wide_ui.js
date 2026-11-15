@@ -24,6 +24,7 @@ const today = new Date().toISOString().slice(0, 10);
   const CA = await login('alice');
   await call(CA, 'POST', '/api/admin/setup', {lang: 'en', collab_all: true});
   await call(CA, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'cal,comments,collab,office,clients,docs,time,contacts'});
+  await call(CA, 'POST', '/api/books', {name: 'People', org_id: null});  // 2.1174.0 (#6122): "New contact" no longer creates an address book quietly
   await call(CA, 'PUT', '/api/office/settings', {lang: 'en', company_fields: {name: 'Beispiel Studio GmbH', street: 'Musterweg 1', zip: '12345', city: 'Musterstadt', country: 'DE', tax_number: '12/345/67890', iban: 'DE02120300000000202051'}});
   const cl = await call(CA, 'POST', '/api/clients', {name: 'Kunde Eins GmbH', street: 'Kundenweg 5', zip: '20000', city: 'Beispielstadt', country: 'DE'});
   const items = [{title: 'Shoot', qty: 2, unit: 'day', rate: 4000, tax: 'standard'}, {title: 'Script', qty: 1, unit: 'flat', rate: 2000, tax: 'reduced'}, {title: 'Edit', qty: 3, unit: 'day', rate: 900, tax: 'standard'}];
