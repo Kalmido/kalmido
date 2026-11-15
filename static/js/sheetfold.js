@@ -166,7 +166,7 @@ sbb_treeReg('sh', {
 
 // ---- the overview: folder cards (a phone opens them by a tap), one folder (#sheets/f/<id>)
 function shf_cardsHtml(sp, fid) {
-  return shf_kids(sp, fid).map(f => `<li class="shvcard shfcard" data-fid="${f.id}"${wso_row(sp)}><a href="#sheets/f/${f.id}" class="shvcl">${ic(f.shared ? 'users' : 'folder')}<span class="shvct"><b>${esc(f.name)}</b>
+  return shf_kids(sp, fid).map(f => `<li class="shvcard shfcard" data-fid="${f.id}"${/*html-ok*/ wso_row(sp)}><a href="#sheets/f/${f.id}" class="shvcl">${ic(f.shared ? 'users' : 'folder')}<span class="shvct"><b>${esc(f.name)}</b>
       <span class="muted">${esc(trn('{0} table', '{0} tables', shf_tables(shf_items(), sp, f.id).length))}</span></span></a>
     <button data-rowmenu="shfcard" type="button" class="iconbtn" data-shf="fmenu" data-id="${f.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More') + ': ' + f.name)}">${ic('dots')}</button></li>`).join('');
 }

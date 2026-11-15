@@ -517,7 +517,7 @@ function palDraw() {
     h += `<button class="pitem ${i === PAL.i ? 'on' : ''} ${x.cls || ''}" data-pi="${i}" role="option" aria-selected="${i === PAL.i}" id="pi-${i}">
       <span class="pic">${x.lic && listIconHtml(x.lic, {cls: 'pli'}) ? listIconHtml(x.lic, {cls: 'pli'}) : x.img ? `<img class="picon" src="${esc(x.img)}" alt="">` : x.sw !== undefined ? `<span class="psw" style="${x.sw ? 'background:' + x.sw : ''}"></span>` : ic(x.icon, 's')}</span>
       <span class="pl"><span class="plt">${esc(x.label)}</span>${x.subHtml ? `<span class="pls pmsg">${x.subHtml}</span>` : x.sub ? `<span class="pls">${esc(x.sub)}</span>` : ''}</span>
-      ${pal_org(x)}${x.keys ? kb(x.keys) : ''}${x.kind === 'action' || x.kind === 'setting' || x.kind === 'view' || x.kind === 'msg' ? '' : `<span class="pk">${esc(tr(PAL_KIND[x.kind] || x.kind))}</span>`}</button>`;
+      ${/*html-ok*/ pal_org(x)}${x.keys ? kb(x.keys) : ''}${x.kind === 'action' || x.kind === 'setting' || x.kind === 'view' || x.kind === 'msg' ? '' : `<span class="pk">${esc(tr(PAL_KIND[x.kind] || x.kind))}</span>`}</button>`;
   });
   // 2.16.0 (#644): an empty field says what it can do (only what exists; no key hints on touch)
   const ags = (S.agents || []).filter(x => x.enabled);
