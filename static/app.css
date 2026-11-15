@@ -1385,6 +1385,8 @@ svg.chart{display:block;max-width:100%;overflow:visible}
 .pitem .plt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .pitem .pls{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
 .pitem .pk{font-size:var(--fs-xs);color:var(--faint);width:3.25rem;text-align:right;flex:none}
+/* 2.1224.0 (#6188): the organisation of a hit (pal_org, wso_origin): its dot + name before the kind */
+.pitem .porg{flex:0 1 auto;min-width:0;max-width:9rem;font-size:var(--fs-xs);color:var(--muted)}
 /* 2.217.0 A (#2796): on phones the title comes first and in full (up to two lines), project + kind small underneath */
 @media (max-width:599px){
   .pitem{display:grid;grid-template-columns:1rem minmax(0,1fr) auto;column-gap:.625rem;row-gap:0;align-items:center;padding-top:.375rem;padding-bottom:.375rem}
@@ -1393,6 +1395,8 @@ svg.chart{display:block;max-width:100%;overflow:visible}
   .pitem .plt{grid-column:2/-1;grid-row:1;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
   .pitem .pls{grid-column:2;grid-row:2}
   .pitem .pk{grid-column:3;grid-row:2;width:auto;text-align:right}
+  .pitem:has(.porg) .plt{grid-column:2}
+  .pitem .porg{grid-column:3;grid-row:1;justify-self:end}
 }
 .pempty{padding:1.5rem 1rem;color:var(--muted);font-size:var(--fs-m);text-align:center}
 .pfoot{display:flex;align-items:center;gap:.375rem;padding:.5rem .875rem;border-top:1px solid var(--line);font-size:var(--fs-xs);color:var(--muted)}
@@ -8220,6 +8224,9 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 
 /* 2.145.0 A (#2444): unread news in other workspaces */
 .nws{flex:none;margin-left:.375rem;padding:0 .375rem;border:1px solid var(--line);border-radius:var(--radius);color:var(--text2);font-size:var(--fs-s)}  /* 2.331.0 A (#3300) */
+/* 2.1224.0 (#6188): the organisation of a project group's head (render.js, mineorder.js) and of a news item (wso_origin) */
+.ghead .gorg,.mthl .gorg{flex:0 1 auto;min-width:0;max-width:12rem;margin-left:.5rem;font-size:var(--fs-s);font-weight:400;color:var(--muted)}
+.nws.wso{max-width:12rem;min-width:0}
 .nelse{display:flex;flex-direction:column;gap:.375rem;margin:.5rem 0}
 .nelse .nerow{display:flex;align-items:center;gap:.75rem;justify-content:space-between;padding:.375rem .75rem;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg2);color:var(--text2);font-size:var(--fs-m)}
 .nelse .nerow span{min-width:0;overflow-wrap:anywhere}
