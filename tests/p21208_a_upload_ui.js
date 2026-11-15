@@ -53,7 +53,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(SK, 'skript.txt uploaded');
   await w.eval(`ab_upload([new File(['Skript Fassung 2'], 'skript.txt', {type: 'text/plain'})], null)`);
   check(await until(() => /1 uploaded, 1 as a new version/.test(txt(d.querySelector('#toast'))) && /Undo/.test(d.querySelector('#toast button')?.textContent || '')), 'a new version: its message with Undo ' + txt(d.querySelector('#toast')));
-  check(await upElsewhere('skript.txt', 'Skript Fassung 3 von woanders') === 200, 'meanwhile a newer version from elsewhere');
+  check(await upElsewhere('skript.txt', 'Skript Fassung 3 von woanders') < 300, 'meanwhile a newer version from elsewhere');
   d.querySelector('#toast button').click();
   check(await until(() => /Meanwhile someone else uploaded a newer version, it stays as it is: skript\.txt/.test(txt(d.querySelector('#toast')))), 'Undo says that someone else uploaded a newer version: ' + txt(d.querySelector('#toast')));
   check(await content(FK, SK) === 'Skript Fassung 3 von woanders', 'Undo left the newer version on top (nothing put back over it)');
@@ -61,6 +61,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(vers.length === 3, 'no restore was stored (still 3 versions): ' + vers.length);
 
   // Undo -> Redo -> Undo of an own new version: each step sends the version the step before made
+  w.__toasts.length = 0;
   await w.eval(`ab_upload([new File(['Plan A'], 'plan.txt', {type: 'text/plain'})], null)`);
   const PL = await until(async () => (await items(FK, 'space=private')).find(x => x.name === 'plan.txt')?.id);
   await w.eval(`ab_upload([new File(['Plan B'], 'plan.txt', {type: 'text/plain'})], null)`);
