@@ -104,9 +104,10 @@ const day = i => { const d = new Date(); d.setDate(d.getDate() + i); return `${d
     check(await ready(ev, `S.route?.mod === 'cal' && !!document.querySelector('#view #wbody')`), 'desktop: the calendar loaded');
     await ev(`(() => { S.calSel = '${t0}'; renderView(); return 1; })()`);
     check(await ready(ev, `[...document.querySelectorAll('#view .wcol[data-day="${t0}"] .wcev')].length >= 5`), 'desktop week: the events of today drawn');
-    // a block of two lines: the time above a one-line title cut with "…" (never broken in the middle of words)
-    const blk = JSON.parse(await ev(`JSON.stringify([...document.querySelectorAll('#view .wcol[data-day="${t0}"] .wcev.wn3')].map(x => { const t = x.querySelector('.wct'), b = x.querySelector('b'); return {two: x.classList.contains('w2'), ws: getComputedStyle(t).whiteSpace, bt: Math.round(b.getBoundingClientRect().bottom), tt: Math.round(t.getBoundingClientRect().top), th: Math.round(t.getBoundingClientRect().height)}; }))`));
-    check(blk.length === 3 && blk.every(x => x.two && x.ws === 'nowrap' && x.tt >= x.bt - 1 && x.th < 26), 'desktop week: three at once = the time above a one-line title ' + JSON.stringify(blk));
+    // 2.1179.0 (#6155): three at once on a computer: the title alone (no time line), wrapped by words over the block's lines
+    // (before: the time above a one-line title cut to "Dreh…"; tests/p21179_b_cal_ui.js counts the letters in view)
+    const blk = JSON.parse(await ev(`JSON.stringify([...document.querySelectorAll('#view .wcol[data-day="${t0}"] .wcev.wn3')].map(x => { const t = x.querySelector('.wct'), b = x.querySelector('b'); return {two: x.classList.contains('w2'), ws: getComputedStyle(t).whiteSpace, bd: getComputedStyle(b).display, tt: Math.round(t.getBoundingClientRect().top - x.getBoundingClientRect().top), th: Math.round(t.getBoundingClientRect().height)}; }))`));
+    check(blk.length === 3 && blk.every(x => x.two && x.ws === 'normal' && x.bd === 'none' && x.tt <= 4 && x.th > 20), 'desktop week: three at once = the title alone over several lines ' + JSON.stringify(blk));
     check(await ev(`(() => { const n = document.querySelector('#view .nowline'); return !n || getComputedStyle(n).zIndex === '0'; })()`), 'desktop: the now line runs behind the blocks');
     check(await ev(`!document.querySelector('#view .wmore') || getComputedStyle(document.querySelector('#view .wmore')).display === 'none'`), 'desktop: no "+N" in the week');
     await shot('p2828-c-week-desktop.png');

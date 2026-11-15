@@ -248,14 +248,16 @@ function viewWeek() {
   const chip = t => `<div class="ev p${t.priority} ${t.status ? 'done' : ''} ${t.ghost ? 'ghost' : ''} ${isMs(t) ? 'ms' : ''}${lp_cls(t)}" data-id="${t.id}"${lp_attr(t) /* 2.53.0 (#1426) */} draggable="${t.status || t.ghost || isTouch() || !canEdit(t) ? 'false' : 'true'}">${msGlyph(t)}${mdTitleNL(t.title)}</div>`;
   const now = new Date(), nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * H;
   // 2.828.0 (#5463): where the hours start: the first timed entry of the days shown or 07:00, the earlier one (render.js cvw_scroll)
-  let first = 7 * 60;
+  // 2.1179.0 (#6155): at the working hours (cvw_workStart); only an own entry that starts on the day earlier pulls them up (Kalmido's
+  // own calendars, invitations) - a subscribed calendar's event and the end of an event of the day before do not
+  let first = cvw_workStart();
   // 2.828.0 (#5463): a block of two lines or more shows its time above a one-line title (cut with "…", never word stumps); a
   // short one keeps both in one line. Three lanes and more: on a phone strips without letters and one "+N" over the group
   // (calendar.css .wn3 / .wmore), a tap on it opens the day
   const two = Math.round(2.25 * remPx()), lane = it => `left:calc(${it.lane} * 100% / ${it.n});width:calc(100% / ${it.n} - 2px)`;
   const cols = days.map(d => {
     const lay = layoutDay((map.get(d) || []).filter(t => t.due_time), evsOf(d).filter(e => cevTimed(e, d)).map(e => ({c: e, ...cevMin(e, d)})));
-    for (const it of lay) if (!it.c || it.c.d0 === d) first = Math.min(first, it.s);
+    for (const it of lay) if (!it.c || (it.c.own && it.c.d0 === d)) first = Math.min(first, it.s);
     const blocks = lay.map(it => {
       const t = it.t, top = it.s / 60 * H, h = Math.max((it.e - it.s) / 60 * H, 20), cls = `${h >= two ? ' w2' : ''}${it.n >= 3 ? ' wn3' : ''}`;
       const more = it.n >= 3 && it.cl[0] === it ? `<button type="button" class="wmore" data-calday="${/*html-ok*/ d /* a date */}" style="top:${Math.round(top)}px" aria-label="${esc(trn('{0} event', '{0} events', it.cl.length))}" title="${esc(trn('{0} event', '{0} events', it.cl.length))}">+${it.cl.length}</button>` : '';
@@ -276,6 +278,12 @@ function viewWeek() {
     <div class="wallday"><div class="wlbl" title="${esc(tr('All day'))}">${tr('all day|short')}</div>${days.map(d => `<div class="wad" data-day="${d}">${evsOf(d).filter(e => !cevTimed(e, d)).map(e => cevChip(e, d)).join('')}${(map.get(d) || []).filter(t => !t.due_time).map(chip).join('')}${msvvCalChips(d).join('') /* 2.73.0 C (#661): other servers, in the all-day row */}</div>`).join('')}</div>
     <div class="wbody" id="wbody" tabindex="0" role="region" aria-label="${esc(tr('Hours of the week'))}"><div class="wgutter">${[...Array(24)].map((_, h) => `<div class="wtime" style="top:${h * H}px">${esc(fmtTimeLoc(pad(h) + ':00'))}</div>`).join('')}</div>${cols}</div></div>`;
 }
+// 2.1179.0 (#6155): the minute the hour grid starts at: the person's working hours (Settings, work_start) once changed from the
+// default 09:00, else 07:00
+function cvw_workStart() {
+  const v = S.settings?.work_start, m = /^(\d{1,2}):(\d{2})$/.exec(v || '');
+  return m && v !== '09:00' ? Math.min(23 * 60, +m[1] * 60 + +m[2]) : 7 * 60;
+}
 // 2.828.0 (#5463): the hour grid's scroll position after a render (render.js): a new grid (other mode, days or their count)
 // starts at CVW.start (the first entry or 07:00, the earlier); the same grid keeps where the person scrolled to, but follows a
 // new start while nobody scrolled (the events arrive after the first drawing)
@@ -285,7 +293,7 @@ function cvw_scroll(wb, keep) {
   // fingers changing the number of days (calgest.js, CAL_LIVE) and the drawing after they let go keep the hours where they are
   const pinch = !!CAL_LIVE || (CVW.live && !!l && !!st && mode(l.k) === mode(st.k));
   CVW.live = !!CAL_LIVE;
-  if (!st) { wb.scrollTop = keep ?? 7 * weekH() - 12; return; }
+  if (!st) { wb.scrollTop = keep ?? cvw_workStart() / 60 * weekH() - 12; return; }
   if (keep != null && l && (pinch || (l.k === st.k && Math.abs(keep - l.top) > 2))) { wb.scrollTop = keep; if (pinch) CVW.last = {k: st.k, top: -1e9}; return; }
   wb.scrollTop = Math.max(0, st.m / 60 * weekH() - 12);  // 2.15.1 (#633): the hour's label in full, not cut at the top
   CVW.last = {k: st.k, top: wb.scrollTop};
@@ -294,7 +302,9 @@ function cvw_scroll(wb, keep) {
 document.addEventListener('click', e => {
   const b = e.target instanceof Element ? e.target.closest('#view [data-calday]') : null; if (!b) return;
   e.stopPropagation(); e.preventDefault();
-  S.calSel = /** @type {HTMLElement} */ (b).dataset.calday; S.calMode = 'day'; LS.set('calMode', 'day'); renderView();
+  // 2.1179.0 (#6155): the timeline's "+N" over several days opens their week (data-calmode)
+  const md = /** @type {HTMLElement} */ (b).dataset.calmode === 'week' ? 'week' : 'day';
+  S.calSel = /** @type {HTMLElement} */ (b).dataset.calday; S.calMode = md; LS.set('calMode', md); renderView();
 }, true);
 // 2.290.0 A (#3144): "28. Sep – 1. Okt" for a grid of other than a week's days (the week number only while it is one week)
 function calRangeTitle(a, b) {

@@ -69,6 +69,16 @@ print(json.dumps({"tries": bk.BK_RESTORE_TRIES, "once": case(1, dl), "always": c
   check(!box.querySelector('.bkspace'), 'room for four more: no note');
   await w.bkDraw(md, {...box._j, free_bytes: 1, items: []});
   check(!box.querySelector('.bkspace'), 'no backup yet: no note (nothing to measure by)');
+  // 2.1179.0 (#2898): the same disk as the data and no off-site target (admin/backup.py same_disk_only); the update hint
+  check(st.same_disk_only === true, 'the test server keeps its backups next to its data, no off-site target');
+  await w.bkDraw(md, {...box._j});
+  const sd = box.querySelector('.bksamedisk');
+  check(!!sd && /same disk as the data/.test(sd.textContent) && sd.classList.contains('cnote'), 'same disk, no off-site target: the note ' + (sd && sd.textContent));
+  await w.bkDraw(md, {...box._j, same_disk_only: false});
+  check(!box.querySelector('.bksamedisk'), 'another disk or an off-site target: no note');
+  const upd = about => w.eval(`S.about = ${JSON.stringify({version: '1.0.0', latest: '1.1.0', available: true, ...about})}; ad_updHtml(x => x)`);
+  check(/Back up first: Server &gt; Backup &gt; Back up now\.|Back up first: Server > Backup > Back up now\./.test(upd({})) && /every version in between/.test(upd({})), 'update hint: back up first, read the versions in between');
+  check(/Back up first/.test(upd({update_action: 'x'})) && (upd({update_action: 'x'}).match(/versions? in between/g) || []).length === 1, 'with an action section: the in-between note once (in the section)');
   // ---- 2.446.0 (#3613): a backup of an earlier passphrase: the download asks for it in the same step, the ticket carries it
   w.__dialogs = 'manual';
   const DL = '/api/admin/backups/older.zip.enc/download', sent = [], clicked = [], fetch0 = w.fetch;

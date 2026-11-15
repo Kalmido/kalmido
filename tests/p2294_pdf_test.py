@@ -55,11 +55,12 @@ class RecPage(_Base):  # every text / line call per page (y from the top)
 
 
 pdf._Page = RecPage
-NEW = (pdf.PDF_SUM_GAP, pdf.PDF_SUM_GAP_MIN, pdf.PDF_SUM_AFTER)
+NEW = (pdf.PDF_SUM_GAP, pdf.PDF_SUM_GAP_MIN, pdf.PDF_SUM_AFTER, pdf.PDF_INTRO_GAP)
 
 
 def old_gaps(on):  # on = False: the layout before 2.294.0 (8 pt in draw_sum, no air; the intro air is then 0 as well)
-    pdf.PDF_SUM_GAP, pdf.PDF_SUM_GAP_MIN, pdf.PDF_SUM_AFTER = (8.0, 8.0, 0.0) if not on else NEW
+    # 2.1179.0 (#6174): the intro has its own wish PDF_INTRO_GAP (10 mm, was PDF_SUM_GAP 18 mm): 8 pt = no air, as before 2.294.0
+    pdf.PDF_SUM_GAP, pdf.PDF_SUM_GAP_MIN, pdf.PDF_SUM_AFTER, pdf.PDF_INTRO_GAP = (8.0, 8.0, 0.0, 8.0) if not on else NEW
 
 
 def money(v):
@@ -128,7 +129,7 @@ def shot(name, data):
 
 LH = 9.6 * 1.42
 INTRO_OLD = LH + 12  # before 2.294.0: one line box + 8 + the head's 4 pt
-INTRO_WISH = INTRO_OLD + (pdf.PDF_SUM_GAP - (LH + 12 - 9.6))
+INTRO_WISH = INTRO_OLD + (pdf.PDF_INTRO_GAP - (LH + 12 - 9.6))  # 2.1179.0 (#6174): was PDF_SUM_GAP
 
 # ---------------------------------------------------------------- 1. short documents: the wished gaps
 for kind in ("offer", "invoice"):

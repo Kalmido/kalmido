@@ -180,7 +180,10 @@ def update_check(c, force=False):
     if latest and cur and latest > cur and new["latest"] != gsetting(c, "aa_update_notified"):
         cfg = aa_cfg(c)
         if cfg["on"] and "update" in cfg["kinds"]:  # once per new version
-            aa_now("update", "update:" + new["latest"], N_("Kalmido {0} is available (installed: {1}). Nothing is installed automatically."),
+            # 2.1179.0 C (#2898): back up first; a release with an "Action needed" section (update_action) needs a step by hand
+            aa_now("update", "update:" + new["latest"],
+                   N_("Kalmido {0} needs a step by hand (installed: {1}): read the release notes and back up first. Nothing is installed automatically.")
+                   if new.get("action") else N_("Kalmido {0} is available (installed: {1}). Back up first. Nothing is installed automatically."),
                    [new["latest"], APP_VERSION], click=new.get("url") or None)
             gset(c, "aa_update_notified", new["latest"])
             c.commit()

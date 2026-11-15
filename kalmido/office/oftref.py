@@ -354,13 +354,16 @@ def _rc_row_oid(c, rid):
     return (True, _rc_oid(c, r)) if r else (False, None)
 
 
-fs_ref_register(GD_KIND, label=N_("Document"), open_url=lambda rid: f"office/gendocs/{int(rid)}", base_role=_base(_gd, "gendocs"),
+fs_ref_register(GD_KIND, table=("office_gen_docs", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Document"), open_url=lambda rid: f"office/gendocs/{int(rid)}", base_role=_base(_gd, "gendocs"),
                 space=_space(_gd), protect=gd_protect, title=gd_title, content=gd_content, content_gate=_gate(_row_oid(_gd), "gendocs"),
                 hidden=_hidden(GD_KIND, "gendocs"), cap=_cap(_gd))
-fs_ref_register(LT_KIND, label=N_("Letter"), open_url=lambda rid: f"office/letters/{int(rid)}", base_role=_base(_lt, "letters"),
+fs_ref_register(LT_KIND, table=("office_letters", "id"),  # 2.1179.0 C (#2898)
+                label=N_("Letter"), open_url=lambda rid: f"office/letters/{int(rid)}", base_role=_base(_lt, "letters"),
                 space=_space(_lt), protect=lt_protect, title=lt_title, content=lt_content, content_gate=_gate(_row_oid(_lt), "letters"),
                 hidden=_hidden(LT_KIND, "letters"), cap=_cap(_lt))
-fs_ref_register(RC_KIND, label=N_("Receipt"), open_url=lambda rid: f"docs/{int(rid)}", base_role=rc_base, space=rc_space,
+fs_ref_register(RC_KIND, table=("fs_nodes", "id"),  # 2.1179.0 C (#2898; review: the file, not rc_receipts - "no receipt" drops that row, marking again brings it back)
+                label=N_("Receipt"), open_url=lambda rid: f"docs/{int(rid)}", base_role=rc_base, space=rc_space,
                 protect=rc_protect, title=rc_title, content=rc_content, content_gate=_gate(_rc_row_oid, "receipts"),
                 hidden=_hidden(RC_KIND, "receipts"), cap=rc_cap)
 acx_warm_register("/api/state", oft_warm)  # 2.602.0 (#4729)

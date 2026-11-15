@@ -971,7 +971,7 @@ function signupScreen(el, logo, info) {
   });
   setTimeout(() => $('#su-name', el)?.focus(), 50);
 }
-// ---- Settings > Users > Whole server: sign-in (2FA policy, passkey login, OIDC) (2.555.0 C, #4664: heading "Two-factor and passkeys", the sub-tab is called Sign-in)
+// ---- Settings > Server > Sign-in (2FA policy, passkey login, OIDC) (2.555.0 C, #4664: heading "Two-factor and passkeys", the sub-tab is called Sign-in)
 function signinHtml(hint) {
   const a = S.about || {}, o = a.oidc || {};
   let h = `<h4 id="s-signin-h">${tr('Two-factor and passkeys')}</h4>
@@ -1077,7 +1077,7 @@ function oidcWire(md) {
     } catch (x) { if (r) r.textContent = x.message; } finally { b.disabled = false; }
   });
 }
-// ---- Settings > Users > Whole server > Backups
+// ---- Settings > Server > Backup
 // 2.13.0: "Check storage": files of tasks / projects that are missing, empty or cut off on disk (read-only)
 const stoHtml = () => `<h4 id="s-sto-h">${tr('Check storage')}</h4><div class="row"><button class="btn sm" data-m="sto-check">${ic('search', 's')} ${tr('Check storage')}</button></div><div id="s-sto" role="status" aria-live="polite"></div><div id="s-scn"></div><div id="s-ret"></div>`;  // 2.61.0 (#1818): + s-scn; 2.223.3 A (#2877): + s-ret
 // 2.61.0 (#1818): the virus scanner's state below "Check storage" (one line; drawn once per opening)
@@ -1138,6 +1138,7 @@ async function bkDraw(md, j) {
   // 2.209.0 E (#1627): little room left for further backups (less than three of the newest one's size)
   const each = j.items.length ? j.items[0].size + (j.items[0].store_new_bytes || 0) : 0;  // 2.432.0 (#3584): + its new shared files
   if (j.free_bytes && j.items.length && j.free_bytes < 3 * each) h += `<div class="shint cnote bkspace">${trh('Little space left on the disk for further backups (each one about {0}). Keep fewer backups or give the backup folder a bigger disk.', fmtBytes(each))}</div>`;
+  if (j.same_disk_only) h += `<div class="shint cnote bksamedisk">${tr('The backups are on the same disk as the data and no off-site target is on: if that disk dies, both are gone.')}</div>`;  // 2.1179.0 C (#2898)
   if (j.last_error) h += `<div class="shint cnote">${tr('The last backup failed ({0}): {1}', esc(aaWhen(j.last_error_at)), esc(j.last_error))}</div>`;
   if ((j.leftovers || []).length) h += `<div class="shint cnote" id="bk-leftovers">${tr('Folders from a restore are lying next to the data folder ({0}). After a hard stop the database and the files may not match: check them, a successful restore removes them.', esc(j.leftovers.join(', ')))}</div>`;  // 2.370.2 (#2779)
   h += j.items.length ? `<div class="members bklist">${j.items.map(x => `<div class="mrow bkrow" data-bkn="${esc(x.name)}"><span class="n"><b>${esc(aaWhen(x.created_at))}</b> · ${tr(BK_KIND[x.kind] || x.kind)} · ${fmtBytes(x.size)}${x.encrypted ? ` · ${ic('lock', 's')} ${tr('encrypted')}` : ''}${x.legacy ? ` · ${tr('old (SQLite), cannot be restored here')}` : ''}

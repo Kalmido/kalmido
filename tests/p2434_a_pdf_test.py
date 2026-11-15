@@ -9,6 +9,7 @@ organisation gets the same PDF: the route around it is unchanged and covered by 
  - the GiroCode is 2 x 2 cm (56.7 pt, was about 2.7 cm), its labels stay within the right margin
  - the payment text (due date) stays right below the totals; the bank line (bank, IBAN, BIC) and the GiroCode form one
    block at the end of the document right above the footer (not below the totals any more), the code never over the footer
+   2.1179.0 (#6174): the due text moved into that block ("Zahlung": due text, bank line, reference = the invoice number)
  - a long invoice (40 positions): the bank block on the last page above the footer, the layout clean
 P2434A_SHOTS=<dir> (shots: 'P2434A_SHOTS'): the PDFs and, with pdftoppm, PNGs of their last page.
 usage: p2434_a_pdf_test.py      (KALMIDO_TEST_CONTAINER)"""
@@ -147,22 +148,23 @@ for kind, data in by.items():
         check(foot and y1 < foot and max(t["y"] + t["size"] for t in lab) <= foot + 0.6, f"#3603 {kind}: the code above the footer ({y1:.0f} / {foot})")
     # the bank line at the end right above the footer, the due text right below the totals
     bank = find(pg, "Beispielbank · IBAN", True)
-    gross = find(pg, "Gesamt") if kind != "reminder" else []
     check(len(bank) == 1, f"#3603 {kind}: one bank line ({len(bank)})")
     if bank and pay:
         n, bt = bank[0]
         foot = pg[n - 1]["foot"]
         check(foot and foot - bt["y"] < 30 * MM, f"#3603 {kind}: the bank line sits right above the footer ({(foot - bt['y']) / MM if foot else 0:.0f} mm above it)")
-        check(bt["y"] - pay[0][1]["y"] > 15 * MM or n > pay[0][0], f"#3603 {kind}: the bank line no longer right below the due text "
+        # 2.1179.0 (#6174): ONE block "Zahlung" beside the code: the due text, right below it the bank line, then the reference
+        # (was: the due text below the totals, the bank line apart above the footer)
+        check(pay[0][0] == n and 0 < bt["y"] - pay[0][1]["y"] < 15 * MM, f"#6174 {kind}: the bank line right below the due text in the payment block "
               f"({(bt['y'] - pay[0][1]['y']) / MM:.0f} mm)")
         cl = find(pg, "Vielen Dank für Ihren Auftrag.")
-        check(cl and (cl[0][0], cl[0][1]["y"]) < (n, bt["y"]), f"#3603 {kind}: the bank block comes after the closing")
-        if cb:
-            check(cb[0][0] == n and abs(cb[0][2] - bt["y"]) < 2, f"#3603 {kind}: code and bank line one block ({cb[0][2]:.0f} / {bt['y']:.0f})")
-    if gross and pay:
-        g = [t for t in gross if t[1]["bold"]] or gross
-        check(pay[0][0] == g[-1][0] and 0 < pay[0][1]["y"] - g[-1][1]["y"] < 25 * MM, f"#3603 {kind}: the due text stays right below the totals "
-              f"({(pay[0][1]['y'] - g[-1][1]['y']) / MM:.0f} mm)")
+        check(cl and (cl[0][0], cl[0][1]["y"]) < (pay[0][0], pay[0][1]["y"]), f"#6174 {kind}: the payment block (due text) comes after the closing")
+        hd = find(pg, "ZAHLUNG")
+        ref = find(pg, "Verwendungszweck: RE-2026-434")
+        check(len(hd) == 1 and hd[0][0] == n and hd[0][1]["y"] < pay[0][1]["y"], f"#6174 {kind}: the heading of the payment block above the due text {hd[:1]}")
+        check(len(ref) == 1 and ref[0][0] == n and ref[0][1]["y"] > bt["y"], f"#6174 {kind}: the reference (invoice number) below the bank line {ref[:1]}")
+        if cb and hd:
+            check(cb[0][0] == n and abs(cb[0][2] - hd[0][1]["y"]) < 2, f"#3603 {kind}: code and payment block one block ({cb[0][2]:.0f} / {hd[0][1]['y']:.0f})")
     check(not pdfcheck.problems(data), f"#3603 {kind}: the layout is clean {pdfcheck.problems(data)[:3]}")
 
 if dl:
