@@ -95,7 +95,8 @@ const FEAT = 'cal,comments,collab,office,clients,docs,files';
       check(await ev(`(() => { ${R} const s = q('.dc-rev .dc-ht svg'), t = q('.dc-rev .dc-ht > span'); return !!s && !!t && Math.abs(r(s).top - r(t).top) < 12 && r(s).right <= r(t).left + 2; })()`), tag + ': the symbol stays with its text');
       let a = JSON.parse(await ev(ACTS));
       // 2.583.0 (#4835): the head of the view (sketch): a red "Delete" with the trash icon at the end, the text hidden on phones
-      check(Math.max(...a.tops) - Math.min(...a.tops) <= 1 && a.lastDel && a.atEnd && a.aria === 'Delete' && a.title === 'Delete', tag + ': one action line, red Delete at the end ' + JSON.stringify(a));
+      // 2.1199.0 (#4981): #6112 (2.1163.0) names it for what it does - "Move to the trash" (label and hover text)
+      check(Math.max(...a.tops) - Math.min(...a.tops) <= 1 && a.lastDel && a.atEnd && a.aria === 'Move to the trash' && a.title === 'Move to the trash', tag + ': one action line, red Delete at the end ' + JSON.stringify(a));
       await shot(`p2554-a-stack-${tag}.png`);
       await click(ev, '.dc-md .dc-rev [data-dsp="dismiss"]');
       check(await ready(ev, `!!document.querySelector('.dc-md [data-dc="checked"]') && !document.querySelector('.dc-md [data-dsp="dismiss"]')`), tag + ': after "No stack" the box offers "Checked"');
