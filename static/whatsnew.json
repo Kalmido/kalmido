@@ -1,6 +1,52 @@
 {
  "versions": [
   {
+   "version": "2.1191.0",
+   "date": "2026-11-15",
+   "items": [
+    {
+     "de": "Am Handy ist der kleine Stern über der Tableiste weg; die Favoriten holst du weiter mit einem Wisch nach oben auf der Tableiste.",
+     "en": "On a phone the small star above the tab bar is gone; swipe up on the tab bar to bring up your favourites."
+    },
+    {
+     "de": "Bei der Buchungsseite suchst du die Zeitzone jetzt nach Stadt, und „Speichern“ steht unten im Fenster.",
+     "en": "On the booking page you now pick the time zone by searching a city, and \"Save\" sits at the bottom of the window."
+    },
+    {
+     "de": "Angebote und Rechnungen als PDF sind aufgeräumter: Rabatt in den Summen, ein Zahlungsblock mit Verwendungszweck, keine leere Rechte-Seite.",
+     "en": "Quotation and invoice PDFs are tidier: discount in the totals, one payment block with the payment reference, no empty rights page."
+    },
+    {
+     "de": "Die Kalender-Woche beginnt bei deiner Arbeitszeit, nicht mehr bei nächtlichen Abo-Terminen.",
+     "en": "The calendar week starts at your working hours, no longer at subscribed events in the night."
+    },
+    {
+     "de": "In „Letzte Schritte“ steht jetzt, was sich an einem Projekt geändert hat (z. B. Farbe oder Name), Ansichtswechsel tauchen dort nicht mehr auf.",
+     "en": "Recent steps now say what changed in a project (e.g. colour or name), and switching the view no longer shows up there."
+    },
+    {
+     "de": "Beim Hochladen gibt es nur noch eine Rückmeldung, und Dateien, die nicht passen, werden vorher mit Grund genannt.",
+     "en": "Uploading now gives a single message, and files that do not fit are named with the reason before sending."
+    },
+    {
+     "de": "Wissensseiten sagen bei Fehlern, was nicht geklappt hat, und bieten Erneut versuchen und den Weg zurück.",
+     "en": "Knowledge pages say what failed and offer Try again and the way back."
+    },
+    {
+     "de": "Angebote: Als abgelehnt markieren, Gültigkeit verlängern und Preise anpassen lassen sich direkt im Hinweis rückgängig machen.",
+     "en": "Quotations: marking as rejected, extending the validity and adjusting prices can be undone right from the message."
+    },
+    {
+     "de": "Beim Nachfassen steht der Text in der Sprache des Angebots.",
+     "en": "Following up writes the text in the quotation's language."
+    },
+    {
+     "de": "Unter „Personen finden“ lädst du jemanden ohne Konto per Link oder QR-Code ein; nach der Anmeldung seid ihr gleich verbunden.",
+     "en": "In Find people you invite someone without an account by a link or QR code; once they sign up you are connected."
+    }
+   ]
+  },
+  {
    "version": "2.1175.0",
    "date": "2026-11-15",
    "items": [
@@ -1283,32 +1329,6 @@
     {
      "de": "Im Kalender lassen sich unter „Pro Projekt“ ganze Ordner ausblenden, ab 8 Projekten gibt es eine Suche.",
      "en": "In the calendar, \"Per project\" can hide whole folders, and from 8 projects on there is a search."
-    }
-   ]
-  },
-  {
-   "version": "2.643.0",
-   "date": "2026-11-07",
-   "items": [
-    {
-     "de": "Zeilen und Spalten einer Tabelle lassen sich am Kopf per Ziehen verschieben, am Handy nach langem Drücken.",
-     "en": "Table rows and columns can be moved by dragging their head, on a phone after a long press."
-    },
-    {
-     "de": "Beim Konto löschen zeigt der Dialog, was in übergebenen Ordnern zurückbleibt und welche Links enden.",
-     "en": "When you delete an account, the dialog shows what stays behind in handed-on folders and which links end."
-    },
-    {
-     "de": "Die Statistik zeigt jetzt auch Verträge, Gesundheit und Reisen, wenn diese Bereiche eingeschaltet sind.",
-     "en": "Statistics now also show contracts, health and travel when these areas are switched on."
-    },
-    {
-     "de": "Hinweise wie „Einstellungen > Module“ sind jetzt ein Link direkt an die Stelle.",
-     "en": "Hints like \"Settings > Modules\" are now a link straight to that place."
-    },
-    {
-     "de": "Escape schließt jetzt immer nur das zuletzt geöffnete Fenster oder Menü.",
-     "en": "Escape now always closes only the most recently opened window or menu."
     }
    ]
   }
