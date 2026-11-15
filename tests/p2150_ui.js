@@ -215,8 +215,18 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
     await ev(`(() => { const x = document.querySelector('.smodal details.sdev'); if (x) x.open = true; return 1; })()`);
     for (let i = 0; i < 20 && !(await ev(`!!document.querySelector('#s-toks .tokrow') && !!document.querySelector('#s-toks')._j`)); i++) await sleep(300);  // 2.308.0 (#3252): loaded
     // the permissions dialog of a token
-    const p = await ev(center('#s-toks .tokrow [data-tok="edit"]'));
-    if (touch) await tap(o, p.x, p.y); else await ev(`(() => { document.querySelector('#s-toks .tokrow [data-tok="edit"]').click(); return 1; })()`);
+    // 2.1192.0 (#5172): since #3835 (2.1151.0) a phone shows ONE "…" per token row instead of its symbols (they are 1 px and
+    // clipped there): a finger opens the permissions through that menu, the mouse clicks the symbol as before
+    if (touch) {
+      const d = await ev(center('#s-toks .tokrow .ms-phdots'));
+      check(d && d.x > 0, `${tag}: the token row has its "…" on the phone ` + JSON.stringify(d));
+      await tap(o, d.x, d.y);
+      await until(() => ev(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`).catch(() => false));
+      const lab = await ev(`document.querySelector('#s-toks .tokrow [data-tok="edit"]').getAttribute('title')`);
+      const mi = await ev(`(() => { const e = [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => b.textContent.includes(${JSON.stringify(lab)})); if (!e) return null; const r = e.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height}; })()`);
+      check(mi && mi.h >= 43.5, `${tag}: the "…" menu offers "${lab}" as a 44 px entry ` + JSON.stringify(mi));
+      if (mi) await tap(o, mi.x, mi.y);
+    } else await ev(`(() => { document.querySelector('#s-toks .tokrow [data-tok="edit"]').click(); return 1; })()`);
     await until(() => ev(`!!document.querySelector('.modal #pm-ips') && document.querySelectorAll('.modal .scgrid .chkl').length >= 10`).catch(() => false));  // 2.308.0 (#3252): wait for the dialog instead of a fixed time
     const f = await ev(FIT);
     check(f.n >= 10 && f.over <= 1 && f.out === 0 && f.left >= 0 && f.right >= 0, `${tag}: the permissions dialog fits ` + JSON.stringify(f));
