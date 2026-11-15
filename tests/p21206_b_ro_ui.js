@@ -6,7 +6,7 @@
 //   with him as "view". Fred: no organisation (the freelancer fixture's case), his own calendar and address book.
 // - a reader (Rita, Bob): no "+ Event", no new event by dragging over a day, an event is not draggable, the popover has no
 //   Edit / Delete, the editor opened on the event reads (fields disabled, no Save / Delete); no "New contact", no import
-//   (file input, menu), no select button, the card has no Edit and its "..." no Delete; the read hint shows exactly ONCE per
+//   (file input, menu; Bob in his own Private workspace keeps them: #6122 asks for his own book), no select button, the card has no Edit and its "..." no Delete; the read hint shows exactly ONCE per
 //   view; the CONTENT (event title, contact name) is there
 // - a direct API write of the reader stays 403 (event, contact)
 // - the same persons with the right (Bob: share "edit", Rita: member) see the entries and no read hint; Fred too
@@ -114,18 +114,20 @@ const FEATS = 'cal,events,contacts,collab,comments';
     w.close();
   };
   // ================= the contacts
-  const ctCase = async (user, name, cid, writer) => {
+  // adds: "New contact" / import are there - a writer, or a reader whose own workspace lets him add (Bob in Private: #6122 asks
+  // first and creates HIS own address book, nothing quiet); Rita (read-only in Alpha) gets neither
+  const ctCase = async (user, name, cid, writer, adds = writer) => {
     const who = `${user} contacts (${writer ? 'writes' : 'reads'})`;
     let w = await boot({user, hash: 'contacts'}), d = w.document;
     const row = () => [...d.querySelectorAll('#view .ctrow')].find(x => x.textContent.includes(name));
     check(await until(() => row()), `${who}: the list shows "${name}"`);
-    check(!!d.querySelector('#view [data-ct="new"]') === writer, `${who}: "New contact" ${writer ? 'there' : 'left out'}`);
-    check(!!d.querySelector('#ct-impfile') === writer && !!d.querySelector('#view [data-ct="pick"]') === writer, `${who}: import input / select ${writer ? 'there' : 'left out'}`);
+    check(!!d.querySelector('#view [data-ct="new"]') === adds, `${who}: "New contact" ${adds ? 'there' : 'left out'}`);
+    check(!!d.querySelector('#ct-impfile') === adds && !!d.querySelector('#view [data-ct="pick"]') === writer, `${who}: import input ${adds ? 'there' : 'left out'}, select ${writer ? 'there' : 'left out'}`);
     check(d.querySelectorAll('#view .cwro').length === (writer ? 0 : 1), `${who}: read hint ${writer ? 'none' : 'exactly once'}`);
     click(w, d.querySelector('#view [data-ct="menu"]'));
     await until(() => d.querySelector('#pop [role="menuitem"]'));
     const mi = [...d.querySelectorAll('#pop [role="menuitem"]')].map(x => x.textContent.trim());
-    check(mi.some(x => /Address books/.test(x)) && mi.some(x => /^Import/.test(x)) === writer /* 2.1174.0 (#6123): one "Import…" */, `${who}: the menu's import ${writer ? 'there' : 'left out'}: ${mi.join('|')}`);
+    check(mi.some(x => /Address books/.test(x)) && mi.some(x => /^Import/.test(x)) === adds /* 2.1174.0 (#6123): one "Import…" */, `${who}: the menu's import ${adds ? 'there' : 'left out'}: ${mi.join('|')}`);
     w.eval('closePop()'); w.close();
     // the card
     w = await boot({user, hash: `contacts/${cid}`}); d = w.document;
@@ -142,7 +144,7 @@ const FEATS = 'cal,events,contacts,collab,comments';
   await calCase('rita', 'Board meeting', OE.id, false);
   await calCase('bob', 'Dentist visit', PE.id, false);
   await ctCase('rita', 'Petra Partner', OK1.id, false);
-  await ctCase('bob', 'Viktor Viewonly', PK1.id, false);
+  await ctCase('bob', 'Viktor Viewonly', PK1.id, false, true);
   await calCase('fred', 'Fred client call', FE.id, true);
   await ctCase('fred', 'Clara Client', FK.id, true);
 

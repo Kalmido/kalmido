@@ -18,9 +18,10 @@ const ctBook = id => (S.books || []).find(b => b.id === id);
 const ctWrite = b => !!b && canWrite(b);
 // may I change this contact: its own role (through a folder, 2.351.0 B #2749) or its address book's; the card and its "..." ask this
 const ctCardW = c => { const b = ctBook(c.book_id); return c.role ? canWrite({role: c.role, org_id: b?.org_id}) : ctWrite(b); };
-// may a new contact be made here: an address book I may write in the shown workspace, or none there yet and its space lets me
-// add (the editor / import make one then). A reader gets no New, no Import - nothing makes a private book behind her back
-const ctCanNew = (bs = (S.books || []).filter(b => wsObjIn(b))) => bs.some(ctWrite) || (!bs.length && canWrite(wsNewOrg() ? 'org:' + wsNewOrg() : 'private'));
+// may a new contact be made here: an address book I may write in the shown workspace, or the space lets me add (then
+// ct_ownBook asks first and creates my own book, 2.1174.0 #6122 - nothing quiet). A reader of the space (an organisation's
+// read-only role) gets no New, no Import; who only reads a book shared into his own Private keeps them (his own book)
+const ctCanNew = (bs = (S.books || []).filter(b => wsObjIn(b))) => bs.some(ctWrite) || canWrite(wsNewOrg() ? 'org:' + wsNewOrg() : 'private');
 // 2.53.0 (#1410): ctAv lives in ctlinks.js
 // 2.1177.0 (#6116): an error after api() is said there already (e.shown): no second toast; rawFetch's own error in plain words
 const ct_errToast = (x, what) => { if (x && !x.shown && x.message !== 'auth') toast(errText(x, what)); };
