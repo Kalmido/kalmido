@@ -312,7 +312,8 @@ const FAM = 'cal,habits,comments,collab,family';
     await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 't1', parameters: {pointerType: 'touch'}, actions: [{type: 'pointerMove', x: Math.round(x), y: Math.round(y)}, {type: 'pointerDown', button: 0}, {type: 'pause', duration: 60}, {type: 'pointerUp', button: 0}]}]});
     await cmd('input.releaseActions', {context: ctx});
   };
-  const SMALL = sel => `(() => { const coarse = matchMedia('(pointer: coarse)').matches, min = coarse ? 43.5 : 23.5; return [...document.querySelectorAll('${sel}')].filter(b => { const r = b.getBoundingClientRect(), cs = getComputedStyle(b); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && !b.closest('[hidden]'); })
+  // 2.1192.0 (#4049): a row symbol hidden on a phone (#3835: .ms-phsr / fam-ingr, 1 px and clipped, long press = menu) is no touch target
+  const SMALL = sel => `(() => { const coarse = matchMedia('(pointer: coarse)').matches, min = coarse ? 43.5 : 23.5; return [...document.querySelectorAll('${sel}')].filter(b => { const r = b.getBoundingClientRect(), cs = getComputedStyle(b); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.clipPath !== 'inset(50%)' && !b.closest('[hidden]'); })
     .filter(b => { const r = b.getBoundingClientRect(); return r.width < min || r.height < min; }).map(b => (b.dataset.act || b.className) + ' ' + Math.round(b.getBoundingClientRect().width) + 'x' + Math.round(b.getBoundingClientRect().height)).slice(0, 8); })()`;
   const axe = async (ev, where) => {
     if ((await ev(`typeof axe`)) === 'undefined') await ev(AXE + '\n;1');
