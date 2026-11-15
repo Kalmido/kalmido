@@ -99,7 +99,16 @@ function evWhen(e, ev) {
   const x = e.d0 ? e : cevPrep({...e}), tz = ev?.tz;
   if (x.all_day || !evTzOther(tz, x.s)) return cevWhen(x);
   const zr = `${evTimeIn(x.s, tz)}–${evTimeIn(x.e, tz)} ${evCity(tz)}`;
-  return x.d0 === x.d1 ? `${fmtDayAbs(x.d0)}, ${zr} · ${tr('{0} your time', fmtTimeAt(x.s))}` : `${cevWhen(x)} · ${evCity(tz)}`;
+  // 2.1244.0 (#6263): the day next to the zone's times is the zone's day (22:00 New York on Sunday, not the viewer's Monday);
+  // when the viewer's day differs, the time "for you" carries the viewer's day
+  const z0 = evDayIn(x.s, tz), z1 = evDayIn(new Date(Math.max(+x.s, +x.e - 1)), tz);
+  if (!z0 || z0 !== z1) return `${cevWhen(x)} · ${evCity(tz)}`;
+  const mine = z0 === x.d0 ? fmtTimeAt(x.s) : `${fmtDayAbs(x.d0)}, ${fmtTimeAt(x.s)}`;
+  return `${fmtDayAbs(z0)}, ${zr} · ${tr('{0} your time', mine)}`;
+}
+// the day "YYYY-MM-DD" of instant d in zone tz ('' when the zone is unknown)
+function evDayIn(d, tz) {
+  try { const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(d).map(y => [y.type, y.value])); return `${p.year}-${p.month}-${p.day}`; } catch { return ''; }
 }
 // the minutes zone tz is ahead of UTC at instant d; the zone's wall time of d; another zone than the device's at d
 function evOffMin(d, tz) {
