@@ -1,0 +1,47 @@
+{
+  "de": {
+    "Who sees the whole knowledge area": "Wer den gesamten Wissensbereich sieht",
+    "Nobody sees the whole knowledge area yet.": "Noch sieht niemand den gesamten Wissensbereich.",
+    "The person can change these pages.": "Die Person kann diese Seiten ändern.",
+    "The person can read these pages.": "Die Person kann diese Seiten lesen.",
+    "{0} no longer sees these folders and everything in them, also what is added later. A folder or page inside that you share with them on its own stays visible.": "{0} sieht diese Ordner und alles darin nicht mehr, auch was später dazukommt. Ein Ordner oder eine Seite darin, die du einzeln mit der Person teilst, bleibt sichtbar.",
+    "Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.": "Teilt deinen gesamten Wissensbereich mit einer Person oder einem Agenten: jeden Ordner und jede Seite, auch spätere. Einzelne Ordner kannst du vorher oder danach ausnehmen.",
+    "Keep folders out (optional):": "Ordner ausnehmen (freiwillig):"
+  },
+  "es": {
+    "Who sees the whole knowledge area": "Quién ve toda el área de conocimiento",
+    "Nobody sees the whole knowledge area yet.": "Todavía nadie ve toda el área de conocimiento.",
+    "The person can change these pages.": "La persona puede cambiar estas páginas.",
+    "The person can read these pages.": "La persona puede leer estas páginas.",
+    "{0} no longer sees these folders and everything in them, also what is added later. A folder or page inside that you share with them on its own stays visible.": "{0} ya no ve estas carpetas ni nada de su interior, tampoco lo que se añada después. Una carpeta o página dentro que compartas aparte con esa persona sigue visible.",
+    "Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.": "Comparte toda tu área de conocimiento con una persona o un agente: cada carpeta y página, también las que se añadan después. Puedes excluir carpetas sueltas antes o después.",
+    "Keep folders out (optional):": "Excluir carpetas (opcional):"
+  },
+  "fr": {
+    "Who sees the whole knowledge area": "Qui voit tout l’espace de connaissances",
+    "Nobody sees the whole knowledge area yet.": "Personne ne voit encore tout l’espace de connaissances.",
+    "The person can change these pages.": "La personne peut modifier ces pages.",
+    "The person can read these pages.": "La personne peut lire ces pages.",
+    "{0} no longer sees these folders and everything in them, also what is added later. A folder or page inside that you share with them on its own stays visible.": "{0} ne voit plus ces dossiers ni leur contenu, ni ce qui y sera ajouté. Un dossier ou une page à l’intérieur que tu partages à part avec cette personne reste visible.",
+    "Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.": "Partage tout ton espace de connaissances avec une personne ou un agent : chaque dossier et chaque page, y compris ceux ajoutés plus tard. Tu peux exclure des dossiers avant ou après.",
+    "Keep folders out (optional):": "Exclure des dossiers (facultatif) :"
+  },
+  "it": {
+    "Who sees the whole knowledge area": "Chi vede l’intera area della conoscenza",
+    "Nobody sees the whole knowledge area yet.": "Nessuno vede ancora l’intera area della conoscenza.",
+    "The person can change these pages.": "La persona può modificare queste pagine.",
+    "The person can read these pages.": "La persona può leggere queste pagine.",
+    "{0} no longer sees these folders and everything in them, also what is added later. A folder or page inside that you share with them on its own stays visible.": "{0} non vede più queste cartelle e tutto il loro contenuto, nemmeno ciò che verrà aggiunto. Una cartella o pagina al loro interno che condividi a parte con questa persona resta visibile.",
+    "Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.": "Condivide tutta la tua area di conoscenza con una persona o un agente: ogni cartella e pagina, anche quelle aggiunte dopo. Puoi escludere singole cartelle prima o dopo.",
+    "Keep folders out (optional):": "Escludi cartelle (facoltativo):"
+  },
+  "nl": {
+    "Who sees the whole knowledge area": "Wie het hele kennisgebied ziet",
+    "Nobody sees the whole knowledge area yet.": "Nog niemand ziet het hele kennisgebied.",
+    "The person can change these pages.": "De persoon kan deze pagina's wijzigen.",
+    "The person can read these pages.": "De persoon kan deze pagina's lezen.",
+    "{0} no longer sees these folders and everything in them, also what is added later. A folder or page inside that you share with them on its own stays visible.": "{0} ziet deze mappen en alles erin niet meer, ook niet wat later wordt toegevoegd. Een map of pagina erin die je apart met die persoon deelt, blijft zichtbaar.",
+    "Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.": "Deelt je hele kennisgebied met een persoon of een agent: elke map en pagina, ook wat later wordt toegevoegd. Losse mappen kun je vooraf of achteraf uitsluiten.",
+    "Keep folders out (optional):": "Mappen uitsluiten (optioneel):"
+  }
+}
