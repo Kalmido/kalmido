@@ -384,7 +384,13 @@ mode: not checked yet) keeps its line in the list without the file (2.306.0).
   (1 when a position counts towards producing, else the default), so their sums stay. Since 2.138.1 a new quotation computes producing only
   through an industry pack that offers "share by amount" (see docs/PACKS.md, calculation options); without such a pack
   new quotations start without producing and the switch, the fields and the marks are hidden. Older quotations keep
-  their calculation by quantities / quotient (and show their switch to turn it off). The company data choose the word before the
+  their calculation by quantities / quotient (and show their switch to turn it off). Since 2.1228.0 (#6254) every quotation
+  can add a **surcharge** ("Zuschlag") in percent as its own line, no industry pack needed (`markup_pct`, empty = off;
+  `markup_label` = its title, default "Surcharge"/"Zuschlag"): on the positions marked for it (`in_markup`, a new position
+  is in, untick it in the position's calculation), after the positions, before discount and tax. It carries the tax of
+  those positions (each rate's share, `by_tax` on the line), so an invoice or progress invoice from the quotation takes it
+  as one position per tax rate and the e-invoice has it as a line per rate (like the discount). Repricing computes it
+  with the new prices. An industry pack only presets its title and percentage (and adds the handling costs). The company data choose the word before the
   management's names in the footer (`md_label`: Geschäftsführung, Gesellschafter, Inhaber, Inhaberin, Vorstand, Partner;
   German or English by the document's language). Unsaved input of these pages survives a change of the view and live
   updates until it is saved or discarded.

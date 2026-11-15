@@ -11380,7 +11380,6 @@
   "Delivery of raw data|calc": "Levering van de ruwe data",
   "{amount} / {rate} x {factor} = {days} days, rounded to half days|calc": "{amount} / {rate} x {factor} = {days} dagen, afgerond op halve dagen",
   "Handling costs|calc": "Handlingkosten",
-  "Markup|calc": "Opslag",
   "{pct} % on the marked positions|calc": "{pct} % op de gemarkeerde posten",
   "{pct} % on the marked positions and the handling costs|calc": "{pct} % op de gemarkeerde posten en de handlingkosten",
   "{pct} % of the positions with raw data|calc": "{pct} % van de posten met ruwe data",

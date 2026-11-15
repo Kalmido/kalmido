@@ -42,6 +42,7 @@ from .rights import LV, NO_RIGHT, office_can, ofr_admin_or, ofr_groups_of, ofr_r
 from .invoices import ofi_ref, ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
 from .offerlink import OilExists, oil_agent_filter, oil_need_no_invoice  # 2.356.0 C (#3003)
 from .docs import MAX_ITEMS, _num, clean_items, doc_items, doc_public, DOC_KINDS, ODOC_PAGE_MAX, doc_brief, doc_row, recalc, _date  # 2.369.5 (#2517): pulled up from functions
+from .docs import prd_doc_clean  # 2.1228.0 (#6254)
 from .model import TEXT_MAX, office_gate, office_org  # 2.369.5 (#2517): pulled up from functions
 from .ledger import ofx_log, ofx_locked, ofx_diff, ofx_items_brief  # 2.369.5 (#2517): pulled up from functions
 from .packs import office_feature_on  # 2.369.5 (#2517): pulled up from functions
@@ -56,7 +57,7 @@ from ..core.pg import like_escape  # 2.369.5 (#2517): pulled up from functions
 
 OFA_ITEM_KEYS = ("kind", "service_id", "text", "detail", "qty", "unit", "price", "discount")
 OFA_ITEM_KEYS += ("id",)  # 2.270.0 D (#3028): the stored position it changes (from GET): what the agent does not send stays
-OFA_DATA_KEYS = ("client_id", "title", "intro", "items", "list_id")
+OFA_DATA_KEYS = ("client_id", "title", "intro", "items", "list_id", "surcharge")  # 2.1228.0 (#6254): + surcharge
 OFA_CONF = ("high", "medium", "low")
 OFA_MASTER = ("services", "texts", "contracts")
 OFA_LOG_TARGETS = ("office", "services", "texts", "contracts", "clients", "docs", "doc", "pdf", "offer", "invoice", "reminder", "payment", "leads", "letter", "series", "subs", "deals")  # 2.644.0 (#3663): + deals; 2.94.0 A (#1930): + leads; 2.153.0 (#2031): + letter; 2.483.0 (#2007): + series, subs
@@ -388,6 +389,18 @@ def ofa_match_ids(items, old):
             sent.add(o["id"])
 
 
+def ofa_surcharge(c, oid, v):
+    """2.1228.0 (#6254): the agent's {pct?, title?} (null = off) -> the request fields markup_pct / markup_label, as a
+    person's change sends them (checked by docs.prd_doc_clean: pct 0..100, an empty title = the default / the pack's)."""
+    if v is None:
+        return {"markup_pct": None}
+    if not isinstance(v, dict) or any(k not in ("pct", "title") for k in v):
+        raise BadInput(tr("Invalid value: {0}", "surcharge"))
+    if not v or ("title" in v and not isinstance(v["title"], str)):  # review: a title is text, {} sets nothing
+        raise BadInput(tr("Invalid value: {0}", "surcharge"))
+    return {k2: v[k] for k, k2 in (("pct", "markup_pct"), ("title", "markup_label")) if k in v}  # review: a title alone keeps the percent
+
+
 def ofa_draft_create(c, uid, oid, data, agent_id=None):
     """A quotation draft in office area oid as person uid (agreed with part B): data = {client_id, title, intro?, items:
     [{service_id, text, qty, unit?, price, discount?}], list_id}. Never a number (a person reserves it or finalising does).
@@ -408,6 +421,8 @@ def ofa_draft_create(c, uid, oid, data, agent_id=None):
     if data.get("trial") not in (None, False, 0, True, 1):
         raise BadInput(tr("Invalid value: {0}", "trial"))
     b["trial"] = bool(data.get("trial"))  # 2.144.10 A (#2576): a trial draft (TEST number at once, set only here)
+    if "surcharge" in data:  # 2.1228.0 (#6254): checked by doc_create's clean_doc like a person's quotation
+        b.update(ofa_surcharge(c, oid, data["surcharge"]))
     did = doc_create(c, oid, uid, b, False, number=False)
     r = doc_row(c, oid, did)
     items, flags = ofa_items(c, oid, r, data.get("items"))
@@ -753,6 +768,8 @@ def v1_office_offer_patch(did):
         f.update(clean_doc(c, oid, {"client_id": b["client_id"]}, r, False))
     if "list_id" in b:
         f["list_id"] = _list_ok(c, oid, uid, b.get("list_id"), aid)
+    if "surcharge" in b:  # 2.1228.0 (#6254)
+        f.update(prd_doc_clean(c, oid, ofa_surcharge(c, oid, b["surcharge"])))
     if "cashflow" in b:  # 2.88.0 (#1915)
         if b["cashflow"] not in CF8_CHOICES:
             raise BadInput(tr("Invalid value: {0}", "cashflow"))
@@ -1058,6 +1075,8 @@ def ofa_spec(paths, schemas, op, ok, errs, ref, pid, q):
     draft = {"type": "object", "properties": {
         "client_id": {"type": ["integer", "null"]}, "title": {"type": "string"}, "intro": {"type": "string"}, "items": {"type": "array", "items": item},
         "list_id": {"type": ["integer", "null"], "description": "The project list (in the office's workspace)"},
+        "surcharge": {"type": ["object", "null"], "description": "2.1228.0: a surcharge in percent on the positions marked for it (new ones are), its own line after the positions, before discount and tax; null = off",
+                      "properties": {"pct": {"type": ["number", "null"], "description": "0..100"}, "title": {"type": "string", "description": "The line title (empty = Surcharge)"}}},
         "notify": {"type": "boolean", "description": "A card in the person's chat: sum, PDF preview, Open in the office"},
         "requested_by": {"type": "integer"}}}
     schemas["OfficeDraftInput"] = {"type": "object", "properties": {**draft["properties"], "trial": {  # 2.144.10 A (#2576): set at creation only
