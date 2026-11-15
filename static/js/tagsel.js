@@ -76,7 +76,7 @@ function dt_abBody(sp) {
 }
 const dt_abItem = id => (DT_AB.res?.items || []).find(x => x.id === +id) || null;
 function dt_abDetails(n) {
-  const w = ab_canWrite(n.role) && !n.in_trash;
+  const w = ab_canWrite(n) && !n.in_trash;
   return `<h4>${tr('Tags')}</h4><div class="abdtags">${(n.tags || []).map(t => `<span class="abtag">${esc(t.name)}</span>`).join('') || `<span class="muted">${tr('No tags yet')}</span>`}
     ${w ? `<button type="button" class="btn sm" data-abd="tags">${ic('tag', 's')} ${tr('Edit tags…')}</button>` : ''}</div>`;
 }

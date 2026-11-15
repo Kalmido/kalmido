@@ -413,6 +413,7 @@ def ofd_get(did):
     out = ofd_view(_run(c, uid, oid, go))
     c.commit()
     out["folder_role"] = role
+    out["can_edit"] = bool(out.get("can_edit")) and role == "edit" and not _agent(c, uid)  # 2.1238.0 (#6161, Stufe 3): the folder's role (as _need for a change)
     return jsonify(out)
 
 

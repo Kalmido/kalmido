@@ -41,7 +41,7 @@ const FEAT = 'comments,collab,office,clients';
   await until(() => w.eval(`!!listById(${L1}) && S.route.key === 'l:${L1}'`));
   for (const L of [L1, L2]) {
     w.eval(`go('l/${L}')`); await sleep(300);
-    const bar = d.querySelector('#view .ovbar');
+    const bar = d.querySelector('#view .ovbar, #view .cwro');  // 2.1238.0 (#6161): the read-only case is the core's ONE read hint (roHintHtml .cwro)
     check(bar && !bar.querySelector('[data-ovjoin]'), `#2500: read-only: no Join in list ${L} (${bar?.textContent || 'no bar'})`);
     check(bar && /read-only/.test(bar.textContent), '#2500: read-only: the bar says why');
   }

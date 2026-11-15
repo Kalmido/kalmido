@@ -490,7 +490,7 @@ async function dsb_mail(x) {
 async function dt_fileWhere(nid, anchor) {
   let doc, set;
   try { doc = await api('GET', `/api/docs/${nid}`); set = await api('GET', `/api/docs/settings?ws=${doc.org_id ? 'org:' + doc.org_id : 'private'}`); } catch { return; }
-  const fs = (set.folders || []).filter(f => ab_canWrite(f.role) && f.id !== doc.folder?.id);
+  const fs = (set.folders || []).filter(f => ab_canWrite(f) && f.id !== doc.folder?.id);
   if (!fs.length) return;
   const was = doc.folder?.id || '';
   const put = async fid => {

@@ -190,14 +190,16 @@ const RO = /read-only/, GU = /does not include this/;
 
   // ================= the app: the hint instead of the boxes
   let w = await boot({user: 'rita', hash: 't/' + T2}), d = w.document;
-  check(await until(() => d.querySelector('#detail .dcomp .sayno') && d.querySelector(`#detail [data-cid="${C0}"]`)), 'read-only: the hint instead of the comment box');
-  check(!d.querySelector('#detail #c-input'), 'read-only: no comment box');
-  check(RO.test(d.querySelector('#detail .sayno')?.textContent || ''), 'read-only: the hint says the role ' + d.querySelector('#detail .sayno')?.textContent);
+  // 2.1238.0 (#6161): the role's hint is the panel's ONE read hint (roHintHtml .cwro at its top), no second one at the comment box
+  // (the list head beside the panel, or the panel's top without it)
+  check(await until(() => d.querySelector('.cwro') && d.querySelector(`#detail [data-cid="${C0}"]`)), 'read-only: the hint instead of the comment box');
+  check(!d.querySelector('#detail #c-input') && !d.querySelector('#detail .sayno') && d.querySelectorAll('.cwro').length === 1, 'read-only: no comment box, one hint');
+  check(RO.test(d.querySelector('.cwro')?.textContent || ''), 'read-only: the hint says the role ' + d.querySelector('.cwro')?.textContent);
   check(!d.querySelector('#detail [data-act="c-react-more"]') && !d.querySelector('#detail .rx.add'), 'read-only: no reaction buttons');
   w.close();
   w = await boot({user: 'bob', hash: 't/' + T2}); d = w.document;
   check(await until(() => d.querySelector('#detail #c-input') && d.querySelector(`#detail [data-act="c-react-more"]`)), 'member: the comment box and the reaction button');
-  check(!d.querySelector('#detail .sayno'), 'member: no hint');
+  check(!d.querySelector('#detail .sayno') && !d.querySelector('.cwro'), 'member: no hint');  // 2.1238.0 (#6161): + the read hint
   w.close();
   w = await boot({user: 'rita', hash: 'team/' + CH}); d = w.document;
   check(await until(() => d.querySelector('.tcarch.sayno') && d.querySelector(`[data-mid="t:${MB}"]`)), 'read-only: the hint instead of the chat input');
