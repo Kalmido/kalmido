@@ -470,12 +470,12 @@ function ab_upOut(out, prev) {
 // second time as api()'s toast beside it (a full store still opens its dialog in rawFetch)
 const ab_upSend = (url, fd) => rawFetch('POST', url, fd);
 // 2.1208.0 (#6173): the Undo / Redo of an upload's new version: version no on top again with expect_version = cur (the newest
-// version this step knows, files/web.py fs_web_expect); someone else uploaded one meanwhile -> 409, nothing changed -> null;
+// version this step knows, files/web.py fs_web_expect); someone else uploaded one meanwhile -> 409 with "current", nothing changed -> null;
 // any other error is said (as api()) and the step goes on with the next file -> undefined
 async function ab_upVerStep(x, no, cur) {
   try { return await rawFetch('POST', `/api/files/nodes/${x.id}/versions/${no}/restore`, {expect_version: cur}); }
   catch (e) {
-    if (e?.status === 409) return null;
+    if (e?.status === 409 && e.data?.current) return null;  // only the version conflict (Fable review M1): a locked month or a folder that switches is a 409 as well - said below, the file stays in the step
     if (e?.message !== 'auth' && !e?.shown) toast(errText(e));
     return undefined;
   } finally { ab_verAfter(x.id); }
