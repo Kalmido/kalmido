@@ -732,6 +732,8 @@ settings sections), `ctlinks.js` (the contacts in the task panel) and `officeOn`
 | `clientpage` | `clientpage.js` | 2.563.0 (#4742): Office > Clients (the list, the client's card); the office, the contacts and the trash dialogs load it first (`LD_NEED`) |
 | `settings` + `move.js` | 2.1166.0 (#4742) | Settings > Data > "Move and export everything" (`settings.js` draws it, so `move.js` loads before it) |
 | `meetprop` | `meetprop.js` | 2.1166.0 (#4742): "Tasks from notes"; the agent chat loads it first (`LD_NEED`), the list menu through the stand-in `mtg_request` (`LD_CALL`) |
+| `rules` | `rules.js` | 2.1230.0 (#4742): the rules of a list; the list settings fill the box through the stand-in `rul_mount` (`LD_CALL`), `propOpen` loads it for a rule proposal; `rul_on`, `rul_boxHtml`, `rul_cmtTag`, `rul_is` stay at start (`lazyload.js`) |
+| `orgexport` | `orgexport.js` | 2.1230.0 (#4742): the export / retention export of an organisation or the own office; the settings and the office load it first (`LD_NEED`) |
 | `timesheet` | `timesheet.js` | 2.149.0 F: the time page's card, Settings (`LD_NEED`); News texts / lock mark in `time.js` |
 | `team` | `absence.js`, `leave.js`, `dispo.js` | 2.149.0 F: the tabs Absences / Disposition, vacation, Settings (`LD_NEED`); tabs, `dp_on`, day hint in `clients.js` |
 | `listprint`, `evinvite`, `projtime`, `envs` | one file each | 2.149.0 F: "Print", the event editor, the "Tracked" figure (its click stays in `projects.js`), a project's environments (row texts in `quickadd.js`) |
