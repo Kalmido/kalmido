@@ -159,7 +159,9 @@ except bk.BackupError as e:
     print(json.dumps({"stopped": e.code, "tries": n[0]}))
 """
 j = py(DEAD, BK1)
-check(j.get("stopped") == "restore" and j.get("tries") == 2, f"#3506: a deadlock while taking the keys away is tried again {j}")
+# (job/4602: the CI queue run saw tries 3 - a real deadlock with the server's own work on the second try is retried as well;
+# the test needs the retry after the made-up one, not that no real one follows)
+check(j.get("stopped") == "restore" and (j.get("tries") or 0) >= 2, f"#3506: a deadlock while taking the keys away is tried again {j}")
 
 # ================================================================== #3051 p. 12 + 13: the restore names what it cannot bring back
 sql("INSERT INTO bg_jobs(kind, payload, state, run_after, created_at) VALUES ('p2273_test', '', 'wait', '2099-01-01T00:00:00Z', '2026-10-24T10:00:00Z')")
