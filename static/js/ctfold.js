@@ -55,7 +55,7 @@ function ctf_panelTree() {
     sub: () => [...ctf_kids(f.space, f.id).map(fold), ...ctf_items(f.id).map(x => item(x, 'f' + f.id))]});
   const ws = typeof wsCur === 'function' ? wsCur() : 'all';
   const sps = ctf_data().spaces.filter(s => (s.root || s.can_add) && (!ws || ws === 'all' || s.space === ws));
-  return sps.map(s => ({k: 'ct:s:' + s.space, name: ctf_spaceName(s.space), icon: s.space === 'private' ? 'home' : 'building', go: 'contacts',
+  return sps.map(s => ({k: 'ct:s:' + s.space, name: ctf_spaceName(s.space), icon: s.space === 'private' ? 'home' : 'building', go: 'contacts', wso: s.space /* 2.1223.0 (#6185) */,
     ns: 'ct', id: 'r:' + s.space, par: '', drop: !!s.can_add, menu: !!s.can_add, kids: ctf_kids(s.space, null).length > 0, open: true,
     sub: () => ctf_kids(s.space, null).map(fold)}));
 }
