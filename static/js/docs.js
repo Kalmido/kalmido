@@ -23,7 +23,9 @@ const dc_ws = () => (typeof wsCur === 'function' ? wsCur() : 'all');
 const dc_upWs = () => { const w = dc_ws(); return w.startsWith('org:') ? w : 'private'; };
 // 2.1162.0 (#6108): may the person add documents where they go (dc_upWs)? Private: yes; an organisation: not as read-only / guest
 // (accounting uploads receipts: docs/store.py root_add_ok). Only the view follows the server's rule.
-const dc_upOk = () => { const w = dc_upWs(); return w === 'private' || !['readonly', 'guest'].includes(wsOrg(w.slice(4))?.role); };
+// 2.1206.0 (#6161, Stufe 2): the shared core's canWrite (workspace.js) decides; the one exception of the server stays: accounting
+// adds receipts here (docs/web.py), so that role keeps "Add documents" though canWrite says no for it
+const dc_upOk = () => { const w = dc_upWs(); return canWrite(w) || (w.startsWith('org:') && wsOrg(w.slice(4))?.role === 'accounting'); };
 const dc_hashId = () => { try { const m = location.hash.match(/^#(docs|ablage)\/(\d+)/); return m && (m[1] === 'docs' || AB_FILEIDS.has(+m[2])) ? +m[2] : null; } catch { return null; } };  // the sheet may close after its window is gone; 2.752.0 (#4887): #ablage/<id> of a file (core.js AB_FILEIDS)
 const dc_money = (a, cur) => curMoney(a, cur);  // 2.189.0 (#2475): + £; 2.368.0 C (#2983): one money format (i18n.js curMoney)
 const dc_day = d => { const s = String(d || '').slice(0, 10); return /^\d{4}-\d\d-\d\d$/.test(s) ? fmtDateNum(pd(s)) : ''; };  // 2.583.0 (#4877): always the whole date with the year (06.11.2026), no Today / weekday
@@ -275,7 +277,7 @@ const dc_selMark = d => { const on = AB.selOn && AB.sel.has(d.id); return `<butt
 function dc_dragAttr(d) {
   if (typeof ab_canWrite !== 'function' || (S.route.mod === 'ablage' && !S.route.nid && typeof ab_curSpace === 'function' && ab_curSpace() === 'trash')) return '';
   const n = typeof ab_item === 'function' ? ab_item(d.id) : null;
-  return ab_canWrite(n?.role || d.role) ? (typeof rowd_touch === 'function' && rowd_touch() ? ' data-abmv="1"' : ' draggable="true"') : '';
+  return ab_canWrite(n || d) ? (typeof rowd_touch === 'function' && rowd_touch() ? ' data-abmv="1"' : ' draggable="true"') : '';
 }
 function dc_card(d, o = {}) {
   const f = o.file;

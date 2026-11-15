@@ -14,31 +14,31 @@ const SHELL = ['/', '/manifest.json', '/static/app.css', '/static/i18n.js', '/st
   '/static/js/quickadd2.js', '/static/js/fltkern.js', '/static/js/views.js', '/static/js/render.js', '/static/js/vlist.js', '/static/js/viewmem.js',
   '/static/js/calendar.js', '/static/js/habits.js', '/static/js/detail.js', '/static/js/rowswipe.js', '/static/js/collab.js',
   '/static/js/attachments.js', '/static/js/mdtitle.js', '/static/js/undo.js', '/static/js/popovers.js', '/static/js/dialogs.js',
-  '/static/js/dlgmove.js', '/static/js/setcore.js', '/static/js/custview.js', '/static/js/signoff.js', '/static/js/account.js',
+  '/static/js/dlgmove.js', '/static/js/setcore.js', '/static/js/custview.js', '/static/js/account.js',
   '/static/js/templates.js', '/static/js/time.js', '/static/js/projects.js', '/static/js/sprints.js', '/static/js/events.js', '/static/js/sidebar.js',
   '/static/js/sharedlg.js', '/static/js/drag.js', '/static/js/dnd.js', '/static/js/secdrag.js', '/static/js/dragmulti.js', '/static/js/palette.js',
   '/static/js/ftsearch.js', '/static/js/backclose.js', '/static/js/backnav.js', '/static/js/agents.js', '/static/js/minewait.js',
   '/static/js/cleanup.js', '/static/js/dayplan.js', '/static/js/choicecard.js', '/static/js/chatbase.js', '/static/js/jobchat.js',
   '/static/js/agentview.js', '/static/js/propkinds2.js', '/static/js/listedit.js', '/static/js/git.js', '/static/js/chat.js', '/static/js/refs.js',
-  '/static/js/tagsview.js', '/static/js/cfnew.js', '/static/js/cfstage.js', '/static/js/richcopy.js', '/static/js/dashboard.js',
+  '/static/js/cfnew.js', '/static/js/cfstage.js', '/static/js/richcopy.js', '/static/js/dashboard.js',
   '/static/js/widgets.js', '/static/js/pinboard.js', '/static/js/lysets.js', '/static/js/tapdone.js', '/static/js/props.js', '/static/js/listhead.js',
   '/static/js/purposemods.js', '/static/js/calevents.js', '/static/js/davwrite.js', '/static/js/multisel.js', '/static/js/ctlinks.js',
   '/static/js/formguard.js', '/static/js/liveparts.js', '/static/js/countries.js', '/static/js/clients.js', '/static/js/agentplan.js',
   '/static/js/lyprop.js', '/static/js/portal.js', '/static/js/areas.js', '/static/js/multiedit.js', '/static/js/basket.js', '/static/js/sbnav.js',
   '/static/js/notesall.js', '/static/js/favorites.js', '/static/js/favtiles.js', '/static/js/mineorder.js', '/static/js/tablecells.js',
-  '/static/js/sheetgrid.js', '/static/js/formula.js', '/static/js/listadmin.js', '/static/js/orgexport.js', '/static/js/orgcrypt.js',
-  '/static/js/cryptscope.js', '/static/js/sheetdrag.js', '/static/js/sheetmotion.js', '/static/js/miniwin.js', '/static/js/chatwin.js',
+  '/static/js/sheetgrid.js', '/static/js/formula.js', '/static/js/listadmin.js', '/static/js/orgcrypt.js',
+  '/static/js/sheetdrag.js', '/static/js/sheetmotion.js', '/static/js/miniwin.js', '/static/js/chatwin.js',
   '/static/js/chatwins.js', '/static/js/chatplus.js', '/static/js/taskbell.js', '/static/js/e2e.js', '/static/js/notelock.js',
   '/static/js/related.js', '/static/js/liste2e.js', '/static/js/liste2eui.js', '/static/js/liste2efile.js', '/static/js/liste2echan.js',
   '/static/js/orgvis.js', '/static/js/discover.js', '/static/js/listcolor.js', '/static/js/wscolor.js', '/static/js/rowsym.js',
-  '/static/js/review.js', '/static/js/wip.js', '/static/js/swimlanes.js', '/static/js/points.js', '/static/js/oneway.js', '/static/js/photometa.js',
-  '/static/js/filetext.js', '/static/js/depchain.js', '/static/js/importprop.js', '/static/js/dupprop.js', '/static/js/contractprop.js',
+  '/static/js/review.js', '/static/js/wip.js', '/static/js/swimlanes.js', '/static/js/points.js', '/static/js/oneway.js',
+  '/static/js/filetext.js', '/static/js/depchain.js', '/static/js/dupprop.js',
   '/static/js/multilist.js', '/static/js/rules.js', '/static/js/supporter.js', '/static/js/assistant.js', '/static/js/dropany.js',
   '/static/js/keys.js', '/static/js/main.js'];
 // 2.53.0 (#1410): the modules loaded on demand (static/js/lazyload.js LD_MODS; no script tag in index.html, tools/check_layout.py
 // compares): cached right after the shell, so they open offline too; a failure there does not drop the install
 const LAZY = ['/static/js/acctset.js', '/static/js/sesview.js', '/static/js/supportview.js', '/static/js/oinvview.js', '/static/js/servers.js',
-  '/static/js/selfdelete.js', '/static/js/setreset.js', '/static/js/move.js', '/static/js/settings.js', '/static/js/contacts.js',
+  '/static/js/selfdelete.js', '/static/js/setreset.js', '/static/js/move.js', '/static/js/acctadm.js', '/static/js/settings.js', '/static/js/contacts.js',
   '/static/js/ctfold.js', '/static/js/newsletter.js', '/static/js/office.js', '/static/js/office_docs.js', '/static/js/office_tree.js',
   '/static/js/office_import.js', '/static/js/office_sheet.js', '/static/js/office_parts.js', '/static/js/office_travel.js',
   '/static/js/office_cashflow.js', '/static/js/office_doctpl.js', '/static/js/office_logbook.js', '/static/js/office_cashbook.js',
@@ -78,7 +78,11 @@ const LAZY = ['/static/js/acctset.js', '/static/js/sesview.js', '/static/js/supp
   '/static/js/trashui.js', '/static/js/clientpage.js', '/static/js/whatsnew.js', '/static/js/msgpop.js', '/static/js/offcache.js',
   '/static/js/shoot.js', '/static/js/splitview.js', '/static/js/codecheck.js', '/static/js/undolist.js', '/static/js/recent.js',
   '/static/js/office_walk.js', '/static/js/callsheet.js', '/static/js/quotes_dada.js', '/static/js/quotes_dada_es.js', '/static/js/quotes_dada_fr.js',
-  '/static/js/quotes_dada_it.js', '/static/js/quotes_dada_nl.js', '/static/js/helpview.js', '/static/js/meetprop.js', '/static/js/cinvite.js'];
+  '/static/js/quotes_dada_it.js', '/static/js/quotes_dada_nl.js', '/static/js/helpview.js', '/static/js/meetprop.js', '/static/js/cinvite.js',
+  '/static/js/signoff.js', '/static/js/tagsview.js', '/static/js/listmodal.js', '/static/js/sharemodal.js', '/static/js/foldershare.js',
+  '/static/js/folderprops.js', '/static/js/clientdlg.js', '/static/js/fieldmodal.js', '/static/js/orgadmin.js', '/static/js/sched.js',
+  '/static/js/habitdlg.js', '/static/js/importprop.js', '/static/js/contractprop.js', '/static/js/propcards.js', '/static/js/orgexport.js',
+  '/static/js/photometa.js', '/static/js/cryptscope.js'];
 // 2.45.0 (#1529): the new cache is filled completely first (addAll fails on any non-2xx -> this install is dropped and the
 // old worker and cache stay); old caches are deleted only when the new one holds the whole shell
 // 2.65.0 (#1824): the stylesheets of the modules loaded on demand (static/css/, LD_CSS in lazyload.js, same order)

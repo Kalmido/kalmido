@@ -358,11 +358,12 @@ function calBar(title, done = true, extra = '') {
   const modes = [['month', N_('Month')], ['week', N_('Week')], ['day', N_('Day')], ['year', N_('Year')], ...(feat('events') ? [['agenda', N_('Agenda')]] : []), ...(feat('timeline') ? [['timeline', N_('Timeline')]] : [])].map(([k, n]) => [k, tr(n)]);
   // 2.21.0 (#659): "+ Event" and the calendars (own, shared: show, share, import, the phone)
   // 2.36.1 (#1127): the "Calendars" window (own calendars, subscriptions, tasks) opens here too, also without own events
-  const evb = (feat('events') ? `<button class="btn sm pri evnew" data-act="ev-new" title="${esc(tr('New event'))}" aria-label="${esc(tr('New event'))}">${ic('plus', 's')}<span class="cdl">${tr('Event|calendar')}</span></button>` : '')
+  // 2.1206.0 (#6161, Stufe 1): "+ Event" only where a new event may be made (evCanNew: the shared core's canWrite)
+  const evb = (evCanNew() ? `<button class="btn sm pri evnew" data-act="ev-new" title="${esc(tr('New event'))}" aria-label="${esc(tr('New event'))}">${ic('plus', 's')}<span class="cdl">${tr('Event|calendar')}</span></button>` : '')
     + (typeof tpo_on === 'function' && tpo_on() ? `<button class="btn sm" data-act="tpo-list" title="${esc(tr('Find a date'))}" aria-label="${esc(tr('Find a date'))}">${ic('users', 's')}<span class="cdl">${tr('Find a date')}</span></button>` : '')  // 2.98.0 A (#1953)
     + (feat('events') || S.calendars?.enabled ? `<button class="btn sm" data-act="ev-cals" title="${esc(tr('Calendars'))}" aria-label="${esc(tr('Calendars'))}">${ic('cal', 's')}<span class="cdl">${tr('Calendars')}</span></button>` : '');
   return `<div class="calbar cbm"><h2>${title}</h2><div class="seg">${modes.map(([k, n]) => `<button class="${S.calMode === k ? 'on' : ''}" data-act="cal-mode" data-k="${k}" aria-pressed="${S.calMode === k ? 'true' : 'false'}">${n}</button>`).join('')}</div>${dn}${evb}${extra}
-    <button class="iconbtn calmore" data-act="cal-more" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button><div class="calnav"><button class="iconbtn" data-act="cal-prev" title="${esc(tr('Previous period'))}" aria-label="${esc(tr('Previous period'))}">${ic('left')}</button><button class="btn sm" data-act="cal-today">${tr('Today')}</button><button class="iconbtn" data-act="cal-next" title="${esc(tr('Next period'))}" aria-label="${esc(tr('Next period'))}">${ic('right')}</button></div></div>`;
+    <button class="iconbtn calmore" data-act="cal-more" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button><div class="calnav"><button class="iconbtn" data-act="cal-prev" title="${esc(tr('Previous period'))}" aria-label="${esc(tr('Previous period'))}">${ic('left')}</button><button class="btn sm" data-act="cal-today">${tr('Today')}</button><button class="iconbtn" data-act="cal-next" title="${esc(tr('Next period'))}" aria-label="${esc(tr('Next period'))}">${ic('right')}</button></div></div>${/*html-ok*/ evRoHint() /* 2.1206.0 (#6161, Stufe 1): the ONE read hint */}`;
 }
 // 2.855.0 (#5462): phone and tablet: the head keeps the views, the period and "..."; Completed, Find a date, Calendars and the
 // timeline's "No date" wait in this menu (with their word). The entries press the head's own buttons (hidden by calendar.css),
@@ -380,7 +381,7 @@ function calMoreMenu(anchor) {
   ], null, null, tr('Calendar'));
 }
 // 2.855.0 (#5462): the round + of a phone in the calendar adds an event (with events on; a list's calendar keeps the task)
-const calFabEv = () => S.route.mod === 'cal' && !S.lcal && feat('events') && isMobile();
+const calFabEv = () => S.route.mod === 'cal' && !S.lcal && evCanNew() && isMobile();  // 2.1206.0 (#6161, Stufe 1): only where an event may be made
 function isoWeek(s) { const d = pd(s); d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / 864e5 - 3 + (w1.getDay() + 6) % 7) / 7); }
 const cvxKey = e => e.holiday ? 'x:hol' : e.absence ? `x:${e.absence === 'team' ? 'team' : 'abs'}` : e.own ? `e:${e.cal}` : `s:${e.sub}`;  // 2.155.0 B (#2076): x = holidays / absences
 function cvxList(k) { try { const a = JSON.parse(S.settings?.[k] || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } }
