@@ -139,7 +139,8 @@ const nEv = w => w.__log.filter(k => /^GET \/api\/calendars\/events/.test(k)).le
   click(w, md.querySelector('[data-evm="save"]'));
   md = await until(() => d.querySelector('.modal.evmodal .evsaveerr') && d.querySelector('.modal.evmodal'));
   const se = md?.querySelector('.evsaveerr');
-  check(se && se.getAttribute('role') === 'alert' && /^Not saved: \S/.test(txt(se)), '#5461: the editor that opens again says it was not saved and why: ' + txt(se));
+  // 2.1212.0 (#6159): what failed first, the server's text in brackets (errText) - was "Not saved: <server text>"
+  check(se && se.getAttribute('role') === 'alert' && /^The event was not saved \(Refused for the test\)/.test(txt(se)), '#5461: the editor that opens again says it was not saved and why: ' + txt(se));
   check(md?.querySelector('#ev-title')?.value === 'Refused one', '#5461: with what was typed');
   w.__fail = null;
   d.querySelectorAll('.modal').forEach(m => m.remove());
