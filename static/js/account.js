@@ -880,13 +880,14 @@ function signupAdminHtml(a) {
     <div class="shint">${esc([tr('New people confirm their address with a link (or wait for an admin), choose their password and start without access to projects: share projects with them. Never an admin or a child account.'),
       a.mail_out ? '' : tr('Without e-mail sending (SMTP) only “after an admin approves” works.'), org && !priv ? tr('This server has organisations: open registration is not possible (only their e-mail domains or with approval).') : ''].filter(Boolean).join(' '))}</div>
     ${org ? `<label class="wide"><input type="checkbox" id="s-spriv" ${priv ? 'checked' : ''}><span>${tr('Private accounts register without an invitation')}<small class="muted">${tr('Then “Anyone with a confirmed e-mail address” works here too: such an account stays private and never joins an organisation by its address; a company’s admin invites the person. Off by default.')}</small></span></label>` : ''}
-    <label class="wide"><input type="checkbox" id="s-oinv" ${a.org_invites !== false ? 'checked' : ''}><span>${tr('Organisation admins may invite new people by e-mail')}<small class="muted">${tr('They get an account in that organisation and an e-mail to choose a password. Off: only admins of the server create accounts.')}</small></span></label>`;  // 2.115.0 B (#2062)
+    <label class="wide"><input type="checkbox" id="s-oinv" ${a.org_invites !== false ? 'checked' : ''}><span>${tr('Organisation admins may invite new people by e-mail')}<small class="muted">${tr('They get an account in that organisation and an e-mail to choose a password. Off: only admins of the server create accounts.')}</small></span></label>
+    <label class="wide"><input type="checkbox" id="s-cinv" ${a.cinv_signup ? 'checked' : ''}><span>${tr('People without an account register with an invitation link')}<small class="muted">${tr('Anyone may invite someone by a link or QR code (Find people); the new account is private and connected with the inviting person. On by default when anyone may register.')}</small></span></label>`;  // 2.115.0 B (#2062); 2.1191.0 (#4550): s-cinv
 }
 document.addEventListener('change', async e => {
-  const id = e.target.id; if (id !== 's-signup' && id !== 's-sdom' && id !== 's-oinv' && id !== 's-spriv') return;
+  const id = e.target.id; if (id !== 's-signup' && id !== 's-sdom' && id !== 's-oinv' && id !== 's-spriv' && id !== 's-cinv') return;
   try {
-    const b = id === 's-signup' ? {signup_mode: e.target.value} : id === 's-oinv' ? {org_invites: e.target.checked} : id === 's-spriv' ? {signup_private: e.target.checked} : {signup_domains: e.target.value};  // 2.115.0 B (#2062): + s-oinv; 2.422.0 (#2937): + s-spriv
-    const ask = id === 's-signup' || id === 's-spriv';
+    const b = id === 's-signup' ? {signup_mode: e.target.value} : id === 's-oinv' ? {org_invites: e.target.checked} : id === 's-spriv' ? {signup_private: e.target.checked} : id === 's-cinv' ? {cinv_signup: e.target.checked} : {signup_domains: e.target.value};  // 2.115.0 B (#2062): + s-oinv; 2.422.0 (#2937): + s-spriv
+    const ask = id === 's-signup' || id === 's-spriv' || id === 's-cinv';  // 2.1191.0 (#4550): switching it on asks for the password
     let j; try { j = await (ask ? rawFetch : api)('PATCH', '/api/admin/settings', b); } catch (x) {  // 2.360.0 A (#2496): the mode asks for the password
       if (ask && x.data?.reauth_needed) { if (!await reauthFresh(x.data)) throw x; j = await api('PATCH', '/api/admin/settings', b); } else {  // 2.611.0 (#4019)
       if (!x.data?.password_needed) { if (ask) toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); throw x; }
@@ -901,6 +902,7 @@ document.addEventListener('change', async e => {
   } catch {
     if (id === 's-signup') e.target.value = S.about?.signup_mode || 'off';
     if (id === 's-spriv') e.target.checked = !!S.about?.signup_private;
+    if (id === 's-cinv') e.target.checked = !!S.about?.cinv_signup;  // 2.1191.0 (#4550)
   }
 });
 // the form "Create account" on the login page (#711)
