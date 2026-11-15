@@ -219,7 +219,7 @@ function cevTime(e, d) {
 // 2.1212.0 (#6158): the subscription's mark is a link (the circling arrows read like "repeats"); an own series carries the repeat mark
 const cevSubMark = e => abcX(e) ? '' : e.own ? (e.recurring ? `<span class="cevsub cevrep" title="${esc(tr('Repeats'))}" aria-label="${esc(tr('Repeats'))}" role="img">${ic('repeat', 's')}</span>` : '')
   : `<span class="cevsub" title="${esc(tr('Subscribed calendar'))}" aria-label="${esc(tr('Subscribed calendar'))}" role="img">${ic('link', 's')}</span>`;
-// 2.1223.0 (#6181): an own event of an organisation's calendar wears the organisation's stripe (wso_row, docs/dev/kern.md
+// 2.1241.0 (#6181): an own event of an organisation's calendar wears the organisation's stripe (wso_row, docs/dev/kern.md
 // "Organisation colour") next to its calendar's colour (--cc stays the chip's fill); under "All workspaces" its rows say where
 // it comes from (wso_origin). Subscriptions, bookings, holidays and absences have no calendar of an organisation: neutral
 const cevOrg = e => e.own && e.cal != null && typeof evCal === 'function' ? evCal(e.cal) || null : null;

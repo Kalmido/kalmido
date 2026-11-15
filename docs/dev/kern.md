@@ -1471,4 +1471,4 @@ Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open lis
 messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open space / folder / document) and
 contacts (rows, card, address books, panel spaces). Still to follow as their own tasks (#6180, #6186-#6188: office and
 clients, tables, time tracking, search / trash / news / favourites). Tests: `tests/p21205_b_orgcolor_ui.js`,
-`tests/p21223_orgcolor_areas_ui.js`.
+`tests/p21241_orgcolor_areas_ui.js`.
