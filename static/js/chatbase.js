@@ -6,6 +6,14 @@
 'use strict';
 const chatFull = () => isMobile() || innerWidth < 1000 || (typeof dw_chatMini === 'function' && dw_chatMini());  // 2.46.2 (#1719): the chat's own window (chatwin.js)
 S.chat = {aid: null, msgs: [], err: null};
+// 2.1211.0 (#6098): the chats' loading / failed states from the shared blocks (render.js loadingHtml / errorState): a failed
+// load is kept as 'offline' or 'fail' only (never the server's text); the block says what failed, the one offline sentence of
+// the app (errText) and "Try again". data-k keeps the row for the keyed patches (patchRows / fl_set).
+const chatErrKey = e => e instanceof Offline ? 'offline' : 'fail';
+const chatErrHtml = (err, retry, what) => `<div class="chstate" data-k="err">${/*html-ok*/ errorState({title: what || tr('The messages could not be loaded'), sub: err === 'offline' ? tr('Only available online.') : undefined, size: 'sec', retry})}</div>`;
+// an agent chat's box and Send stay shut while it loads or failed without messages (c = S.chat or a panel window's state)
+const ac_ready = c => c.msgs.length > 0 || (!!c.loaded && !c.err);
+const chatLoadHtml = () => `<div class="chstate" data-k="ld">${/*html-ok*/ loadingHtml('sec')}</div>`;
 // ---- 2.29.0 (#363) desktop: the chat as a pop-up window from anywhere -- the round button bottom right (the agent last
 // chatted with), the key A and "Chat as a window" in the command bar. The window stays open while you switch lists and views,
 // can be moved by its header, folded to the header and docked as the side panel again (remembered per device: chatFloat).
