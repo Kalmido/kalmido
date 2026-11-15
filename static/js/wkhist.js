@@ -122,7 +122,7 @@ function wks_snip(text, q) {
   return {snippet: pre + t.slice(start, end).join('') + (end < t.length ? '…' : ''), marks: mg.filter(([a]) => a >= start && a < end).map(([a, b]) => [a + sh, Math.min(b, end) + sh])};
 }
 // the snippet line of a hit p (query q): escaped, the words <b>; '' without one
-// 2.1169.0 (#6090): a snippet reads like text - the server's / wks_plain's text is plain already, but a cut can split a link or a
+// 2.1198.0 (#6090): a snippet reads like text - the server's / wks_plain's text is plain already, but a cut can split a link or a
 // mark ("…/[[Ab"): what is left of them goes here, and a snippet that starts with the page's title starts after it
 const wks_frag = t => String(t).replace(/\[\[|\]\]|\*\*|__|~~|`/g, '');
 function wks_snipHtml(p, q) {
@@ -138,7 +138,7 @@ function wks_snipHtml(p, q) {
   return o ? `<small class="wksnip">${/*html-ok*/ o/* the parts escaped above */}</small>` : '';
 }
 // the name of a hit with its snippet (wks_inner, wiki.js wk_hitHtml / the hit lists): the row wraps, the snippet goes below
-const wks_nameHtml = (p, q, path = p.path) => `${wk_pathHtml(path)}${wks_snipHtml(p, q)}`;  // 2.1169.0 (#6090): the name, its folders beside it
+const wks_nameHtml = (p, q, path = p.path) => `${wk_pathHtml(path)}${wks_snipHtml(p, q)}`;  // 2.1198.0 (#6090): the name, its folders beside it
 // ---- the text search below the page list (wiki.js viewWiki: wks_html in #wk-res)
 function wks_html(sp, q, shown) {
   q = String(q || '').trim();

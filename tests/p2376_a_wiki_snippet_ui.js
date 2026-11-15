@@ -49,7 +49,7 @@ const type = (w, d, v) => { const q = d.querySelector('#wk-q'); q.value = v; q.d
   const sn = await until(() => d.querySelector('#wks .wksnip'));
   check(sn && [...sn.querySelectorAll('b')].map(b => b.textContent).join('|') === 'Kühlschrank', 'the hit has its snippet, the word bold ' + (sn?.innerHTML || '').slice(0, 300));
   check(sn && sn.textContent.startsWith('…') && sn.textContent.endsWith('…') && sn.textContent.includes('3 < 5 & mehr') && !sn.querySelector(':not(b)'), 'plain text, escaped, "…" where cut ' + (sn?.textContent || ''));
-  // 2.1169.0 (#6090): the name, its folder quietly beside it (was the full path "Haushalt/Notiz")
+  // 2.1198.0 (#6090): the name, its folder quietly beside it (was the full path "Haushalt/Notiz")
   check(sn && sn.closest('.wkitem')?.querySelector('span')?.firstChild?.textContent.trim() === 'Notiz' && sn.closest('.wkitem')?.querySelector('.wkpdir')?.textContent === 'Haushalt', 'the snippet sits below the name');
   // 2.1026.0 (#5280): the one search route (was the wiki's own search route)
   const srv = await call('GET', '/api/search?kind=wiki&q=kuhlschrank'), sp = (srv.pages || []).find(p => p.id === id.note);
