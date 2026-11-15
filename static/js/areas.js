@@ -256,7 +256,8 @@ function ofm_detail(mod) {
   let p = null;
   if (mod === 'clients' && S.route.client && S.route.client !== 'mailhub' && typeof CLV !== 'undefined' && CLV.id === S.route.client && CLV.data?.name) p = [tr('Clients'), CLV.data.name];
   else if (mod === 'contacts' && typeof CT !== 'undefined' && CT.sel && CT.card) p = [tr('Address book'), CT.card.fn || CT.card.org || '?'];
-  else if (mod === 'office' && S.route.id && typeof ofd_openDoc === 'function' && ofd_openDoc()?.id === S.route.id && !(typeof ofd_phoneDoc === 'function' && ofd_phoneDoc())) p = [tr(ofd_openDoc().kind === 'offer' ? 'Quotations' : 'Invoices'), `${ofdKindName(ofd_openDoc().kind, true)} ${ofd_openDoc().number || tr('Draft')}`];  // 2.356.0 C (#3004): the open document, never the one before
+  // 2.1185.0 (#6151): an open quotation / invoice has no path line any more: the big heading names it and "< Quotations" in its
+  // head is its one way back (the path repeated both)
   else if (mod === 'office' && S.route.tab === 'travel' && typeof RK !== 'undefined' && RK.open && typeof rk_trip === 'function' && rk_trip(RK.open)) p = [tr('Travel expenses'), rk_trip(RK.open).dest || tr('Trip')];
   return p ? `<nav class="ofmcrumb" aria-label="${esc(tr('Path'))}">${p.map(x => `<span>${esc(x)}</span>`).join('<span aria-hidden="true">›</span>')}</nav>` : '';
 }
@@ -324,7 +325,9 @@ function ofm_startHtml() {
   const head = g => g[3] ? '' : g[0] !== 'money' ? `<h3>${esc(tr(g[2]))}</h3>` : `<h3><button type="button" class="oflgt" data-act="ofm-group" aria-expanded="${!sbb_folded('office:money')}">${ic('chev', 's fcar')}<span>${esc(tr(g[2]))}</span></button></h3>`;
   const fold = g => g[0] === 'money' && sbb_folded('office:money');
   const norc = typeof bnr_startHtml === 'function' && ofm_adm() && !ofm_menuOff('bank') ? bnr_startHtml() : '';  // 2.299.0 C (#3192): "12 bookings without a receipt"
-  return `<div class="ofmstart">${nav_penHtml('office')}${fig}${norc}<div class="ofl">${OFM_GROUPS.map(g => { const gi = its.filter(i => i.group === g[0]); return gi.length ? `<section class="oflg${fold(g) ? ' closed' : ''}" data-ofmg="${g[0]}">${head(g)}${fold(g) ? '' : `<div class="oflc">${gi.map(row).join('')}</div>`}</section>` : ''; }).join('')}</div></div>`;
+  // 2.1185.0 (#6151): the phone's pen no longer stands alone in an empty line above the figures: a labelled button below the menu
+  const pen = nav_penBtn('office') ? `<div class="navpen ofmpen"><button type="button" class="btn sm ghost" data-act="nav-edit" data-area="office">${ic('edit', 's')}<span>${esc(tr('Edit menu'))}</span></button></div>` : '';
+  return `<div class="ofmstart">${fig}${norc}<div class="ofl">${OFM_GROUPS.map(g => { const gi = its.filter(i => i.group === g[0]); return gi.length ? `<section class="oflg${fold(g) ? ' closed' : ''}" data-ofmg="${g[0]}">${head(g)}${fold(g) ? '' : `<div class="oflc">${gi.map(row).join('')}</div>`}</section>` : ''; }).join('')}</div>${/*html-ok*/ pen}</div>`;
 }
 // ---- the sidebar row of an area. Hidden (Settings > Appearance > Sidebar) while every part is ("e:<route>" of each part,
 // so an arrangement from before 2.44.0 that hid both still hides the area, and 2.43.1 reads what this one writes)

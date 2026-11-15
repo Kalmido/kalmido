@@ -76,11 +76,14 @@ function kp_tile(card) {
   const on = n => lyo_get('home', 'kpi', n, true);  // 2.55.0 (#1065): which figures (the block's settings, lyopts.js)
   // 2.1076.0 (#5450): on the office start page the block keeps its place while it loads (its rows, the values still "…"),
   // so the page does not jump when the figures arrive (the home page keeps its own rule: nothing until there is data)
-  if (KPT.data === undefined) return S.route.mod === 'office' ? card(`<ul class="kptl" role="status" aria-label="${esc(tr('Loading…'))}">${/*html-ok*/ on('rev') ? row(tr('Revenue this month'), '…') : ''}${/*html-ok*/ on('open') ? row(tr('Open items'), '…') : ''}${/*html-ok*/ on('pipe') ? row(tr('Pipeline, weighted'), '…') : ''}</ul><span class="linkbtn">${tr('All figures')}</span>`) : '';
+  if (KPT.data === undefined) return S.route.mod === 'office' ? card(`<ul class="kptl" role="status" aria-label="${esc(tr('Loading…'))}">${/*html-ok*/ on('rev') ? row(tr('Revenue this month'), '…') : ''}${/*html-ok*/ on('open') ? row(tr('Open items'), '…') : ''}${/*html-ok*/ on('over') ? row(tr('Overdue|invoices'), '…') : ''}${/*html-ok*/ on('pipe') ? row(tr('Pipeline, weighted'), '…') : ''}</ul><span class="linkbtn">${tr('All figures')}</span>`) : '';
   const d = KPT.data;
   if (!d) return '';
+  // 2.1185.0 (#6151): on the office start page the row "Overdue" always stands (also at 0), like its place while loading: the
+  // card no longer grows by a row when the figures arrive (the home page keeps it only when something is overdue)
+  const over = +d.invoices.overdue.count, overRow = on('over') && (over || S.route.mod === 'office');
   return card(`<ul class="kptl" role="list">${on('rev') ? row(tr('Revenue this month'), ofcMoney(d.revenue.month)) : ''}${on('open') ? row(tr('Open items'), ofcMoney(d.invoices.open.amount)) : ''}
-    ${on('over') && +d.invoices.overdue.count ? row(tr('Overdue|invoices'), ofcMoney(d.invoices.overdue.amount), 'neg') : ''}${on('pipe') ? row(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted)) : ''}</ul>
+    ${overRow ? row(tr('Overdue|invoices'), ofcMoney(d.invoices.overdue.amount), over ? 'neg' : '') : ''}${on('pipe') ? row(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted)) : ''}</ul>
     <a class="linkbtn" href="#office/kpi">${tr('All figures')}</a>`);
 }
 

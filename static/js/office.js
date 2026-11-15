@@ -825,7 +825,7 @@ const ux_info = k => ofcII(k);
 const ofcCoHint = (k, row) => row + ofcII(k);
 function ofcLogHtml() {
   if (!OFC.log) return `<button type="button" class="btn sm" data-ofc="log">${ic('clock', 's')} ${tr('Show the latest entries')}</button>`;
-  if (!OFC.log.length) return `<p class="muted">${tr('No entries yet.')}</p>`;
+  if (!OFC.log.length) return emptyState({icon: 'clock', title: tr('No entries yet.'), size: 'sec'});  // 2.1185.0 (#6151): the one empty block
   const tg = {doc: N_('Document'), settings: N_('Settings'), company: N_('Company'), logo: N_('Logo'), master_data: N_('Master data'), services: N_('Services'),
     equipment: N_('Equipment'), sets: N_('Sets'), texts: N_('Text blocks'), contracts: N_('Framework contracts'), legacy: N_('Legacy import'), archive: N_('Archive|documents'), datev: N_('DATEV export'), terms: N_('Terms and conditions')};  // 2.47.3 (#1460): + datev; 2.113.2 (#2253): + terms
   if (typeof OA_LOG_TG === 'object') Object.assign(tg, OA_LOG_TG);  // 2.51.0 A (#1348): what agents read / drafted, the filter "Agents"

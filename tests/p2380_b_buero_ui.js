@@ -133,14 +133,15 @@ async function archive(ck, run, f) {
     w = await boot({user, hash: 'office/offers/' + I.id}); d = w.document;
     check(await until(() => w.location.hash === '#office/invoices/' + I.id && d.querySelector('.ofdeditor')), `${who}: #3409 #office/offers/<invoice> moves on to ${w.location.hash}`);
     check(await until(() => d.querySelector('#side [data-ofm="invoices"]')?.getAttribute('aria-current') === 'page'), `${who}: #3409 the panel marks Invoices for the invoice`);
-    check(await until(() => /Invoices/.test(d.querySelector('#view .ofmcrumb')?.textContent || '') && !/Quot/.test(d.querySelector('#view .ofmcrumb')?.textContent || '')), `${who}: #3409 the path names Invoices: ${d.querySelector('#view .ofmcrumb')?.textContent}`);
+    // 2.1185.0 (#6151): no path line on an open document: its back button names Invoices
+    check(await until(() => /Invoices/.test(d.querySelector('.ofdhead .ofdback')?.getAttribute('aria-label') || '') && !d.querySelector('#view .ofmcrumb')), `${who}: #3409 the way back names Invoices: ${d.querySelector('.ofdhead .ofdback')?.getAttribute('aria-label')}`);
     d.querySelector('[data-ofd="back"]').click();
     check(await until(() => /^#office\/invoices(\/invoice)?$/.test(w.location.hash) && d.querySelector('.ofdlist')), `${who}: #3409 back to the invoices' list ${w.location.hash}`);
     w.location.hash = '#office/offers/credit';
     check(await until(() => w.location.hash === '#office/invoices/credit' && d.querySelector('.ofdkinds [data-kind="credit"][aria-selected="true"]')), `${who}: #3409 #office/offers/credit moves on to ${w.location.hash}`);
     w.location.hash = '#office/offers/' + Q.id;
     check(await until(() => d.querySelector('.ofdeditor') && w.eval('OFD.doc?.id') === Q.id) && w.location.hash === '#office/offers/' + Q.id, `${who}: a quotation stays in Quotations ${w.location.hash}`);
-    check(await until(() => /Quotations/.test(d.querySelector('#view .ofmcrumb')?.textContent || '')), `${who}: #3409 the path names Quotations`);
+    check(await until(() => /Quotations/.test(d.querySelector('.ofdhead .ofdback')?.getAttribute('aria-label') || '')), `${who}: #3409 the way back names Quotations`);  // 2.1185.0 (#6151)
     w.close();
 
     // ================= a phone: the group's row has both points

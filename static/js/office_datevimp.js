@@ -28,7 +28,7 @@ function dimp_supHtml() {
   const s = DIMP.sup;
   if (!s) return `${loadingHtml('row')}`;
   if (s.error) return errorState({sub: s.error, size: 'sec'});  // 2.1076.0 (#5450): the shared block (the settings window draws this part once: the reason, no button)
-  if (!s.length) return `<p class="muted ofchint">${tr('No suppliers yet. They come with the creditors of a DATEV master data file.')}</p>`;
+  if (!s.length) return emptyState({icon: 'users', title: tr('No suppliers yet. They come with the creditors of a DATEV master data file.'), size: 'sec'});  // 2.1185.0 (#6151): the one empty block
   return `<ul class="ofclist dimpsup" role="list">${s.map(x => `<li class="row" data-id="${x.id}"><label for="dimp-s-${x.id}" class="dimpacct">${esc(x.account_no)}</label>
     <span class="lacts"><input id="dimp-s-${x.id}" data-dimp-name="${x.id}" value="${esc(x.name)}" maxlength="80" aria-label="${esc(tr('Name of the supplier {0}', x.account_no))}">
     <small class="muted">${esc([x.zip, x.city].filter(Boolean).join(' '))}</small>

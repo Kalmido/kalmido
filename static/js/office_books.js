@@ -107,7 +107,8 @@ function bkPhotoHtml(empty) {
   if (isTouch()) return `<div class="bk-photo"><button type="button" class="btn pri bk-shot" data-bk="up" aria-haspopup="menu">${ic('upload')}<span>${tr('Upload receipt')}</span></button>
     <input type="file" id="bk-file" accept="image/*,application/pdf,.xml,application/xml,text/xml" capture="environment" multiple hidden aria-label="${esc(tr('Photograph receipt'))}">
     <input type="file" id="bk-files" accept="${esc(BK_ACCEPT)}" multiple hidden aria-label="${esc(tr('Upload files'))}">${/*html-ok*/ hint/* the span above */}</div>`;
-  return `<div class="bk-photo"><label class="btn pri bk-files">${ic('upload')}<span>${tr('Upload files')}</span><input type="file" id="bk-files" accept="${esc(BK_ACCEPT)}" multiple hidden></label>${/*html-ok*/ hint/* the span above */}</div>`;
+  // 2.1185.0 (#6151): one word in every width: "Upload receipt" (a computer said "Upload files")
+  return `<div class="bk-photo"><label class="btn pri bk-files">${ic('upload')}<span>${tr('Upload receipt')}</span><input type="file" id="bk-files" accept="${esc(BK_ACCEPT)}" multiple hidden></label>${/*html-ok*/ hint/* the span above */}</div>`;
 }
 // 2.892.0 (#5453): the sheet of the one upload button: camera or files (the click on the hidden input stays inside the tap)
 const bkUpMenu = b => menu(b, [{label: tr('Photograph receipt'), icon: 'camera', fn: () => $('#bk-file')?.click()},

@@ -241,7 +241,7 @@ function bnv_html() {
       <label class="bnvportal"><span class="muted">${tr('Client portal')}</span><input type="url" inputmode="url" data-bnv-portal value="${esc(v.portal)}" placeholder="https://" aria-label="${esc(tr('Client portal'))}: ${esc(v.name)}"${v.portal_suggested ? ` title="${esc(tr('Suggestion'))}"` : ''}></label>
       <div class="bnkacts"><label class="chkl"><input type="checkbox" data-bnv="active" ${v.active ? 'checked' : ''}><span>${tr('Remind me of missing invoices')}</span></label>
       <label class="chkl"><input type="checkbox" data-bnv="noreceipt" ${v.noreceipt ? 'checked' : ''}><span>${tr('No receipt needed')}</span></label></div></li>`;
-  }).join('')}</ul>` : `<p class="muted">${tr('No recurring providers found yet. A counterpart that takes money out regularly (monthly, yearly) shows up here.')}</p>`;
+  }).join('')}</ul>` : emptyState({icon: 'bank', title: tr('No recurring providers found yet. A counterpart that takes money out regularly (monthly, yearly) shows up here.'), size: 'sec'});  // 2.1185.0 (#6151): the one empty block
   return `<details class="bnvlist" ${BNV.open ? 'open' : ''}><summary data-bnv-open>${tr('Recurring providers')}${vs.length ? ` <small>${vs.length}</small>` : ''}</summary>
     ${ofcRowF('bnv-days', tr('Invoice missing after'), `<input id="bnv-days" type="number" min="0" max="90" step="1" inputmode="numeric" data-bnv-days value="${BNV.data.days}"> <span class="muted">${tr('days')}</span>`)}
     ${rows}</details>`;

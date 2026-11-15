@@ -96,7 +96,7 @@ const PAGE = `(() => {
     const n0 = await ev(count);
     await ev(`(() => { const e = __drag('#view', 'dragover', [__pdf()]); window.__dp = e.defaultPrevented; return 1; })()`);
     check(await ev(`window.__dp && document.documentElement.classList.contains('dropany-one')`), 'dragged over the view: the window takes the drop (frame)');
-    check(await ev(`${hint} === 'Drop here: Upload files'`), 'the hint names the button ' + await ev(hint));
+    check(await ev(`${hint} === 'Drop here: Upload receipt'`), 'the hint names the button ' + await ev(hint));  // 2.1185.0 (#6151): the button says "Upload receipt" in every width
     await shot('p2591c-books-frame.png');
     await ev(`(() => { __drag('#view .ofcbar, #view', 'drop', [__pdf('kasse.pdf')]); return 1; })()`);
     check(await ev(`!document.getElementById('dahint') && !document.documentElement.classList.contains('dropany-one')`), 'released: the frame goes');

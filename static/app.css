@@ -8448,6 +8448,7 @@ time,.meta .dt,.dpbtn,.remchips button,.dprow .dpt,.dprow .dps,.fwhen{font-famil
 .cfst-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:899px){.cfst .cfst-l{display:none}}
 .navpen{display:flex;justify-content:flex-end;padding:0 .25rem}  /* 2.418.0 (#3560): the pen on top of a phone's area menu */
+.ofmpen{margin-top:.75rem}  /* 2.1185.0 (#6151): the office start page: "Edit menu" below the menu, no line of its own above the figures */
 /* 2.1113.0 (#5966): the phone drawer's area head (areas.js sbm_headHtml) looks like the heads of the Projects area (.shead):
    the name on the left, the actions on the right; the rows below without an extra gap */
 #side .sbah{margin-top:.25rem}
