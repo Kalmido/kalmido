@@ -13050,7 +13050,6 @@
   "No open form in this workspace yet: create one in a project (… > Forms).": "Ancora nessun modulo aperto in questo spazio: creane uno in un progetto (… > Moduli).",
   "This client is not in the workspace of the project": "Questo cliente non appartiene allo spazio del progetto",
   "@name assigns (people of the project) · 30 min, 2h, for 1.5 hours = duration<br>remind me 15 min before · remind me tomorrow 9am, remind me Tue 9:00 (also without a date)": "@nome assegna (persone del progetto) · 30 min, 2h, per 1,5 ore = durata<br>ricordami 15 min prima · ricordami domani alle 9, ricordami martedì alle 9 (anche senza data)",
-  "Projects and direct messages": "Progetti e messaggi diretti",
   "At most {0} inbound webhooks per project": "Al massimo {0} webhook in entrata per progetto",
   "Create tasks in this project from other tools (n8n, Make, Zapier, Home Assistant)": "Crea attività in questo progetto da altri strumenti (n8n, Make, Zapier, Home Assistant)",
   "Each request creates one task in this project with your rights: JSON with title (required), notes, due, priority, tags and fields, or plain text.": "Ogni richiesta crea un’attività in questo progetto con i tuoi permessi: JSON con title (obbligatorio), notes, due, priority, tags e fields, oppure testo semplice.",

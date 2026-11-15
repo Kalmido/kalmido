@@ -316,14 +316,32 @@ function apvOpen() {
   for (const m of [...(S.chat.apv || []), ...S.chat.msgs]) if (apvHeld(m)) by.set(m.id, m);
   return [...by.values()].filter(m => chatChoiceSt(m) === 'open').sort((x, y) => x.id - y.id);
 }
+// 2.1220.0 (#6103): the pinned bar shows only the questions whose card is NOT in view (the same question never stands twice with two button pairs)
+const APV_VIS = new Set();
+let apvIO = null;
+function apvWatch() {
+  if (typeof IntersectionObserver !== 'function') return;
+  const box = $('#chat-msgs'); if (!box) return;
+  if (!apvIO || apvIO._root !== box) {
+    apvIO?.disconnect(); APV_VIS.clear();
+    apvIO = new IntersectionObserver(es => {
+      let ch = false;
+      for (const e of es) { const id = +String(e.target.id).replace('apv-', ''), was = APV_VIS.has(id); if (e.isIntersecting) APV_VIS.add(id); else APV_VIS.delete(id); if (was !== e.isIntersecting) ch = true; }
+      if (ch) apvPinSync();
+    }, {root: box, threshold: 0.6});
+    apvIO._root = box;
+  }
+  for (const m of apvOpen()) { const n = $('#apv-' + m.id); if (n && !n._apvO) { n._apvO = 1; apvIO.observe(n); } }
+}
 function apvPinHtml() {
-  const ms = apvOpen(); if (!ms.length) return '';
+  const ms = apvOpen().filter(m => !APV_VIS.has(m.id)); if (!ms.length) return '';
   return ms.map(m => { const t = m.choices.approval?.title || (m.body || '').replace(/\s+/g, ' ').slice(0, 120);
     const btns = apvIs(m) ? apvBtns(m) : chatPermHtml(m, 'open');
     return `<div class="apvpin" role="group" aria-label="${esc(tr('Approval needed'))}"><button type="button" class="apvgo" data-act="apv-jump" data-mid="${m.id}" title="${esc(tr('Show in the chat'))}">${ic('lock', 's')}<b>${esc(tr('Approval needed'))}</b><span>${esc(t)}</span></button>${btns}</div>`; }).join('');
 }
 function apvPinSync() {
   const p = $('#chat-apv'); if (!p) return;
+  apvWatch();
   const h = acset_get('pin') === 'off' ? '' : apvPinHtml(); if (p._h === h) return;  // 2.233.0 A (#2848): chat setting
   p._h = h; p.innerHTML = h; p.hidden = !h;
 }
@@ -1051,7 +1069,7 @@ function chatInner(aid) {
   // switch, ⋯ and close as one group (the phone: only ⋯). The search button stays hidden as the anchor of the search bar.
   return `<div class="chath chh2${acc}">${back}${avBtn(a.id, a.name, 'avatar')}<div class="chn"><span class="chnm"><b>${esc(a.name)}</b>${chatRingHtml(a)}${chatWsHtml(a)}</span><span class="chl2">${chatStHtml(a)}${/*html-ok*/ chatRunModelHtml(a)}${chatPausedHtml(a)}</span></div><span class="spacer"></span>${msgSearchBtn('a', a.id)}${typeof cw_headBtns === 'function' ? cw_headBtns('a:' + a.id) : ''}
       <span class="chhb" role="group" aria-label="${esc(tr('Chat'))}">${back ? '' : chatWinBtns()}${/*html-ok*/ a.shared === false ? '' /* 2.777.0 C (#5378, review F4) */ : jcd_fbtnHtml() /* 2.152.2 C (#2627): the menu button */}${back ? '' : `<button class="iconbtn" data-act="chat-close" title="${tr('Close')}" aria-label="${tr('Close')}">${ic('x')}</button>`}</span></div>
-    ${jc_barHtml()}${jcd_filtHtml()}${msBarHtml('a', a.id)}<div class="apvpins" id="chat-apv" hidden></div>${cpnBarHtml('a:' + a.id)}<div class="chmsgs${acv ? ' wac-loc' : ''}" id="chat-msgs" data-agid="${a.id}"${acv ? ` data-agacc="${a.id}" style="--agcol:${gc};${acv}"` : gc ? ` style="--agcol:${gc}"` : ''} role="log" aria-live="polite" aria-relevant="additions" aria-label="${esc(tr('Messages'))}">${chatMsgs()}</div>
+    ${jc_barHtml()}${jcd_filtHtml()}${msBarHtml('a', a.id)}<div class="apvpins${acv ? ' wac-loc' : ''}" id="chat-apv"${acv ? ` data-agacc="${/*html-ok*/ a.id}" style="${/*html-ok*/ acv}"` : ''} hidden></div>${cpnBarHtml('a:' + a.id)}<div class="chmsgs${acv ? ' wac-loc' : ''}" id="chat-msgs" data-agid="${a.id}"${acv ? ` data-agacc="${a.id}" style="--agcol:${gc};${acv}"` : gc ? ` style="--agcol:${gc}"` : ''} role="log" aria-live="polite" aria-relevant="additions" aria-label="${esc(tr('Messages'))}">${chatMsgs()}</div>
     <button type="button" class="chnew hidden${acv ? ' wac-loc' : ''}" id="chat-new" data-act="chat-bottom"${acv ? ` data-agacc="${a.id}" style="${acv}"` : ''}>${tr('New message')} <span aria-hidden="true">↓</span></button>
     ${typingHtml(chatTypers(a), 'chat-typing')}
     ${chatStepsLiveHtml()}

@@ -44,6 +44,9 @@
    no wrap, the field may shrink); a wrong value: the field marked, its sentence below it (contacts.js cte_mark) */
 .ctmi .ctty{flex:0 1 auto;min-width:0}
 .ctmi .iconbtn{flex:none}
+/* 2.1220.0 (#6233): a fieldset is at least as wide as its content (min-inline-size:min-content), at 320 px the phone / e-mail
+   row pushed the remove x out of the sheet; the fieldset may shrink like the column it sits in */
+.ctmulti{min-width:0}
 .modal.ctmodal .card input.cterrf:not([type=checkbox]):not([type=radio]):not([type=range]){border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}  /* stronger than the fields' own rules (app.css input:not(...), :focus) */
 .ctmodal .cterr{margin:.125rem 0 .375rem;color:var(--danger);font-size:var(--fs-s)}
 /* 2.1174.0 (#6119): Person / Company at the top of the editor; a company has no first / last name; its sign is a building */
