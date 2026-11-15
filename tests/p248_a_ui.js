@@ -74,12 +74,17 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   const md = await until(() => d.querySelector('.abshdlg'));
   const opts = [...md.querySelectorAll('#ab-sht option')].map(o => o.value);
   check(opts.includes('user_id:' + BOB) && opts.includes('agent_id:' + AG), 'share targets: bob and the agent ' + opts.join(','));
+  // 2.1224.0 (#6113): a choice adds at once with "Can view", the role beside the person; an agent is asked about first (it reads at once)
+  let asked = ''; w.confirm = t => { asked = t; return true; };
   md.querySelector('#ab-sht').value = 'agent_id:' + AG;
-  md.querySelector('#ab-shr').value = 'edit';
-  md.querySelector('[data-abs="add"]').click();
+  md.querySelector('#ab-sht').dispatchEvent(new w.Event('change', {bubbles: true}));
+  check(await until(() => /Helper bot/.test(asked) && /read everything/.test(asked)), 'sharing with an agent asks first: ' + asked);
   await until(() => md.querySelector('#ab-shl .mrow[data-sid]'));
-  check(/Helper bot/.test(md.querySelector('#ab-shl').textContent) && md.querySelector('#ab-shl [data-absr]').value === 'edit', 'the agent is in the list with "Can edit"');
+  check(/Helper bot/.test(md.querySelector('#ab-shl').textContent) && md.querySelector('#ab-shl [data-absr]').value === 'view', 'the agent is in the list with "Can view"');
   check(w.eval(`/Share/.test(HIST.undo[HIST.undo.length - 1].label)`), 'sharing = one undo step');
+  const rsel = md.querySelector('#ab-shl [data-absr]');
+  rsel.value = 'edit'; rsel.dispatchEvent(new w.Event('change', {bubbles: true}));
+  check(await until(async () => ((await call('GET', `/api/files/nodes/${FID}`)).shares || []).some(s => s.agent_id === AG && s.role === 'edit')), 'the role beside the agent: "Can edit" on the server');
   md.querySelector('[data-m="close"]').click();
   w.eval(`go('ablage')`);
   await until(() => d.querySelector(`.abrow[data-abid="${FID}"] .abbadge`));
