@@ -380,9 +380,10 @@ function prd_opts() {
 const prd_lbl = (l, d) => l ? l[(d || OFD.doc)?.lang] || (ofdLang(d) === 'en' ? l.en : l.de) || l.de || l.en || '' : '';  // 2.449.0 (#3768): + the pack's other languages
 const prd_prodShown = d => (d.producing_on != null && d.producing_on !== 0) || (d.producing_on == null && d.kind === 'offer') || (d.producing_mode === 'amount' && !!prd_opts().share)
   || (d.kind === 'offer' && !d.locked && !!prd_opts().share);  // 2.380.0 (#3420): also a quotation made before the pack was on
-const prd_slotShown = (d, k) => d.kind === 'offer' && (d[k + '_pct'] != null || !!prd_opts()[k]);
+// 2.1228.0 (#6254): the markup ("Zuschlag") is a core function of every quotation (no pack needed); handling costs stay a pack option
+const prd_slotShown = (d, k) => d.kind === 'offer' && (k === 'markup' || d[k + '_pct'] != null || !!prd_opts()[k]);
 const prd_slotName = (d, k) => { const l = prd_lbl(d[k + '_label'] || prd_opts()[k]?.label, d);
-  return l === 'Markup' && ofdLang(d) !== 'en' ? tr('Markup') : l || (k === 'handling' ? tr('Handling costs') : tr('Markup')); };  // 2.1175.0 (#6146): the film pack's old German label 'Markup' (documents made before) reads 'Aufschlag'
+  return l === 'Markup' && ofdLang(d) !== 'en' ? tr('Markup') : l || (k === 'handling' ? tr('Handling costs') : tr('Surcharge')); };  // 2.1228.0 (#6254): 'Zuschlag' without a pack  // 2.1175.0 (#6146): the film pack's old German label 'Markup' (documents made before) reads 'Aufschlag'
 const ofdIn = (k, v, o = {}) => `<input id="ofd-${k}" data-f="${k}" value="${esc(v ?? '')}" maxlength="${o.max || 200}" ${o.num ? 'inputmode="decimal" class="numin"' : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.ro ? 'readonly' : ''}>`;
 // 2.431.0 B (#3594): o.grow = the field grows with its text from `rows` up to o.grow rows (ofcGrow)
 const ofdTa = (k, v, rows = 3, o = {}) => `<textarea id="ofd-${k}" data-f="${k}" rows="${o.grow ? Math.min(o.grow, Math.max(rows, String(v ?? '').split('\n').length)) : rows}" maxlength="${o.max || 8000}" ${o.grow ? `data-grow="${o.grow}" data-grow-min="${rows}"` : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''}>${esc(v ?? '')}</textarea>`;
@@ -574,7 +575,7 @@ function ofd_kalkCount(d, it) {
   let n = (+it.discount_pct > 0 ? 1 : 0) + (+it.cost > 0 ? 1 : 0) + (d.kind === 'offer' && it.opt ? 1 : 0);
   if (!inv) {
     n += (on(it.raw_fee) ? 1 : 0) + (prd_prodShown(d) && on(it.producing) ? 1 : 0) + (it.discountable != null && !on(it.discountable) ? 1 : 0);
-    for (const k of PRD_SLOTS) if (prd_slotShown(d, k) && it['in_' + k] != null && !on(it['in_' + k])) n++;  // a new position is in
+    for (const k of PRD_SLOTS) if (prd_slotShown(d, k) && d[k + '_pct'] != null && it['in_' + k] != null && !on(it['in_' + k])) n++;  // a new position is in; 2.1228.0 (#6254): only while the surcharge is on
   }
   return n;
 }
@@ -634,7 +635,7 @@ function ofdAutoHtml(d, t) {
     ${slots.map(k => `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-${k}_on" data-f="${k}_on" ${d[k + '_pct'] != null ? 'checked' : ''}> ${esc(tr('Calculate {0}', prd_slotName(d, k)))}</label></div>
     ${d[k + '_pct'] != null ? `${ofdF(k + '_label', tr('Line title'), ofdIn(k + '_label', prd_slotName(d, k), {max: 80}))}
     ${ofdF(k + '_pct', tr('Percent'), ofdIn(k + '_pct', ofdNumIn(d[k + '_pct']), {num: true, max: 8}), tr('on the marked positions'))}
-    ${k === 'markup' ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-markup_stacked" data-f="markup_stacked" ${d.markup_stacked ? 'checked' : ''}> ${esc(tr('Also on the handling costs'))}</label></div>` : ''}` : ''}`).join('')}
+    ${k === 'markup' && prd_slotShown(d, 'handling') ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-markup_stacked" data-f="markup_stacked" ${d.markup_stacked ? 'checked' : ''}> ${esc(tr('Also on the handling costs'))}</label></div>` : ''}` : ''}`).join('')}
     ${/*html-ok*/ ofdDiscHtml(d)}
     </div>`;
 }

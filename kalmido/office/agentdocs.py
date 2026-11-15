@@ -56,7 +56,7 @@ from ..core.pg import like_escape  # 2.369.5 (#2517): pulled up from functions
 
 OFA_ITEM_KEYS = ("kind", "service_id", "text", "detail", "qty", "unit", "price", "discount")
 OFA_ITEM_KEYS += ("id",)  # 2.270.0 D (#3028): the stored position it changes (from GET): what the agent does not send stays
-OFA_DATA_KEYS = ("client_id", "title", "intro", "items", "list_id")
+OFA_DATA_KEYS = ("client_id", "title", "intro", "items", "list_id", "surcharge")  # 2.1228.0 (#6254): + surcharge
 OFA_CONF = ("high", "medium", "low")
 OFA_MASTER = ("services", "texts", "contracts")
 OFA_LOG_TARGETS = ("office", "services", "texts", "contracts", "clients", "docs", "doc", "pdf", "offer", "invoice", "reminder", "payment", "leads", "letter", "series", "subs", "deals")  # 2.644.0 (#3663): + deals; 2.94.0 A (#1930): + leads; 2.153.0 (#2031): + letter; 2.483.0 (#2007): + series, subs
@@ -388,6 +388,20 @@ def ofa_match_ids(items, old):
             sent.add(o["id"])
 
 
+def ofa_surcharge(c, oid, v):
+    """2.1228.0 (#6254): the agent's {pct, title?} (null = off) -> the document's markup fields (docs.prd_doc_clean: pct
+    0..100, an empty title = the default "Surcharge" / the pack's)."""
+    from .docs import prd_doc_clean
+    if v is None:
+        return {"markup_pct": None}
+    if not isinstance(v, dict) or any(k not in ("pct", "title") for k in v):
+        raise BadInput(tr("Invalid value: {0}", "surcharge"))
+    b = {"markup_pct": v.get("pct")}
+    if "title" in v:
+        b["markup_label"] = v.get("title")
+    return prd_doc_clean(c, oid, b)
+
+
 def ofa_draft_create(c, uid, oid, data, agent_id=None):
     """A quotation draft in office area oid as person uid (agreed with part B): data = {client_id, title, intro?, items:
     [{service_id, text, qty, unit?, price, discount?}], list_id}. Never a number (a person reserves it or finalising does).
@@ -409,6 +423,9 @@ def ofa_draft_create(c, uid, oid, data, agent_id=None):
         raise BadInput(tr("Invalid value: {0}", "trial"))
     b["trial"] = bool(data.get("trial"))  # 2.144.10 A (#2576): a trial draft (TEST number at once, set only here)
     did = doc_create(c, oid, uid, b, False, number=False)
+    if "surcharge" in data:  # 2.1228.0 (#6254)
+        sf = ofa_surcharge(c, oid, data["surcharge"])
+        c.execute(f"UPDATE office_docs SET {','.join(k + '=?' for k in sf)} WHERE id=? AND org_id=?", [*sf.values(), did, oid])
     r = doc_row(c, oid, did)
     items, flags = ofa_items(c, oid, r, data.get("items"))
     if items:
@@ -753,6 +770,8 @@ def v1_office_offer_patch(did):
         f.update(clean_doc(c, oid, {"client_id": b["client_id"]}, r, False))
     if "list_id" in b:
         f["list_id"] = _list_ok(c, oid, uid, b.get("list_id"), aid)
+    if "surcharge" in b:  # 2.1228.0 (#6254)
+        f.update(ofa_surcharge(c, oid, b["surcharge"]))
     if "cashflow" in b:  # 2.88.0 (#1915)
         if b["cashflow"] not in CF8_CHOICES:
             raise BadInput(tr("Invalid value: {0}", "cashflow"))
@@ -1058,6 +1077,8 @@ def ofa_spec(paths, schemas, op, ok, errs, ref, pid, q):
     draft = {"type": "object", "properties": {
         "client_id": {"type": ["integer", "null"]}, "title": {"type": "string"}, "intro": {"type": "string"}, "items": {"type": "array", "items": item},
         "list_id": {"type": ["integer", "null"], "description": "The project list (in the office's workspace)"},
+        "surcharge": {"type": ["object", "null"], "description": "2.1228.0: a surcharge in percent on the positions marked for it (new ones are), its own line after the positions, before discount and tax; null = off",
+                      "properties": {"pct": {"type": ["number", "null"], "description": "0..100"}, "title": {"type": "string", "description": "The line title (empty = Surcharge)"}}},
         "notify": {"type": "boolean", "description": "A card in the person's chat: sum, PDF preview, Open in the office"},
         "requested_by": {"type": "integer"}}}
     schemas["OfficeDraftInput"] = {"type": "object", "properties": {**draft["properties"], "trial": {  # 2.144.10 A (#2576): set at creation only
