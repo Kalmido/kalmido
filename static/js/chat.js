@@ -578,11 +578,14 @@ const trd_setHtml = (s, chk, hint) => teamOn() ? `<h4 id="s-trd-h">${tr('Team ch
 const tcx_isX = r => r?.kind === 'channel' || r?.kind === 'group';
 const tcx_vis = r => !r.org_id || inWs({org_id: r.org_id});
 const tcx_icon = r => `<span class="tcico">${ic(r.kind === 'channel' ? 'hash' : 'users', 's')}</span>`;
+// 2.1220.0 (#6104): projects and direct messages in two sections (were one "Projects and direct messages"); one kind alone keeps
+// the plain list; in the workspace Private one line above says why groups and direct messages stand there too
 function tcx_listHtml(rooms, row) {
-  const ch = rooms.filter(r => r.kind === 'channel'), gr = rooms.filter(r => r.kind === 'group'), rest = rooms.filter(r => !tcx_isX(r));
-  if (!ch.length && !gr.length) return rest.map(row).join('');
+  const ch = rooms.filter(r => r.kind === 'channel'), gr = rooms.filter(r => r.kind === 'group'), dm = rooms.filter(r => r.kind === 'dm'), pj = rooms.filter(r => !tcx_isX(r) && r.kind !== 'dm');
+  const why = wsCur() === 'private' && (gr.length || dm.length) ? `<p class="muted tcxwhy">${esc(tr('Groups and direct messages with people you work with belong to no organisation, so they stand here in Private.'))}</p>` : '';
+  if ([ch, gr, pj, dm].filter(x => x.length).length < 2) return why + rooms.map(row).join('');
   const sec = (t, a) => a.length ? `<div class="tcsec" role="heading" aria-level="3">${esc(t)}</div>${a.map(row).join('')}` : '';
-  return sec(tr('Channels'), ch) + sec(tr('Groups'), gr) + sec(tr('Projects and direct messages'), rest);
+  return why + sec(tr('Channels'), ch) + sec(tr('Groups'), gr) + sec(tr('Projects'), pj) + sec(tr('Direct messages'), dm);
 }
 const tcx_headBtn = room => tcx_isX(room) ? `<button type="button" class="iconbtn" data-act="tc-set" title="${esc(room.kind === 'channel' ? tr('Channel settings') : tr('Group settings'))}" aria-label="${esc(room.kind === 'channel' ? tr('Channel settings') : tr('Group settings'))}">${ic('gear')}</button>` : '';
 const tcx_archivedHtml = room => `<div class="tcarch" role="status">${ic('archive', 's')}<span>${tr('This channel is archived')}</span>${room.manage ? `<button type="button" class="btn sm" data-act="tc-restore" data-rid="${room.id}">${tr('Restore')}</button>` : ''}</div>`;
