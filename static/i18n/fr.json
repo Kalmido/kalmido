@@ -18627,14 +18627,6 @@
   "New": "Nouveau",
   "You can only read here": "Ici, tu peux seulement lire",
   "No documents yet": "Pas encore de documents",
-  "Open Navigation": "Ouvrir Navigation",
-  "App server": "Serveur de cette app",
-  "Menus and bottom bar": "Menus et barre du bas",
-  "The bottom bar is edited under Navigation.": "La barre du bas se règle sous Navigation.",
-  "Deleted items stay here until you delete them permanently.": "Les éléments supprimés restent ici jusqu'à ce que tu les supprimes définitivement.",
-  "Deleted items stay here for {0} day, then they are deleted permanently.": ["Les éléments supprimés restent ici {0} jour, puis disparaissent définitivement.", "Les éléments supprimés restent ici {0} jours, puis disparaissent définitivement."],
-  "In the trash": "Dans la corbeille",
-  "Deleted on {0}": "Supprimé le {0}",
   "Total of items|pdf": "Total des positions",
   "Payment|pdf": "Paiement",
   "Payment reference|pdf": "Référence du paiement",
@@ -18696,11 +18688,5 @@
   "Only digits, spaces and + - / ( ) here, please.": "Ici, uniquement des chiffres, des espaces et + - / ( ).",
   "Please enter a web address like https://example.org.": "Saisis une adresse web comme https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % sur les postes remisables",
-  "Fixed amount on the discountable positions|calc": "Montant fixe sur les postes remisables",
-  "Contacts could not be loaded": "Les contacts n’ont pas pu être chargés",
-  "No contacts yet": "Pas encore de contacts",
-  "Add one, import a vCard or CSV file, or connect the phone.": "Ajoute-en un, importe un fichier vCard ou CSV, ou connecte le téléphone.",
-  "The groups could not be loaded": "Les groupes n’ont pas pu être chargés",
-  "The folders could not be loaded": "Les dossiers n’ont pas pu être chargés",
-  "The contact could not be saved": "Le contact n’a pas pu être enregistré"
+  "Fixed amount on the discountable positions|calc": "Montant fixe sur les postes remisables"
 }
