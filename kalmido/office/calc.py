@@ -18,7 +18,9 @@ office_calc(doc, items, pack) -> dict reproduces the rules of the spreadsheet te
    doc["handling_label"] / doc["markup_label"] ({de, en} or the document's own text)
    2.1228.0 (#6254): the markup ("Zuschlag") is a core function of every quotation, no pack needed (default title
    "Surcharge|calc"); both surcharges carry the tax of the positions they are on: each tax key's share of the amount
-   (calc_spread, line["by_tax"]); a document whose marked positions share one tax key computes as before
+   (calc_spread, line["by_tax"]; a key whose marked positions add up to zero or less takes no share); a document whose
+   marked positions are all at the standard rate computes as before. doc["sur_standard"] (a quotation finalised before,
+   docs._calc_doc) = all on the standard rate as then; a surcharge is never negative (a negative base = no line)
  - raw data: the sum of the totals of the positions flagged raw_fee times doc["raw_factor"]; raw_mode "optional" shows
    the line without counting it (net_incl_raw next to net), "included" counts it (net_excl_raw next to net), "none" omits it
  - discount: doc["discount_pct"] on the positions flagged discountable, one negative line; 2.1042.0 (#5815): or
@@ -495,12 +497,14 @@ def office_calc(doc, items, pack=None):
                       "tax_pct": _num(rates["standard"]), "total": _num(prod_total), "detail": detail})
 
     # 2.113.1 (#2252): handling costs, then the markup (stacked: also on the handling costs); the discount takes in neither
-    hu_total = money(hu_base * hu_pct / 100) if hu_pct > 0 else Decimal(0)
+    hu_total = max(money(hu_base * hu_pct / 100), Decimal(0)) if hu_pct > 0 else Decimal(0)  # 2.1228.0 (#6254, review): never negative (was in the net without a line)
     stacked = _flag(doc.get("markup_stacked"))
-    mk_total = money((mk_base + (hu_total if stacked else 0)) * mk_pct / 100) if mk_pct > 0 else Decimal(0)
+    mk_total = max(money((mk_base + (hu_total if stacked else 0)) * mk_pct / 100), Decimal(0)) if mk_pct > 0 else Decimal(0)
+    if _flag(doc.get("sur_standard")):  # a quotation finalised before 2.1228.0: its invoice as it was computed then
+        hu_by = mk_by = {"standard": Decimal(1)}
     # 2.1228.0 (#6254): each surcharge spread over the tax keys of its positions (the stacked markup: + the handling's keys)
     hu_split = calc_spread(hu_by, hu_total)
-    mk_src = {k: mk_by[k] + (hu_split.get(k, Decimal(0)) if stacked else 0) for k in TAX_KEYS}
+    mk_src = {k: mk_by.get(k, Decimal(0)) + (hu_split.get(k, Decimal(0)) if stacked else 0) for k in TAX_KEYS}
     for slot, amt, pct_, det, split in (("handling", hu_total, hu_pct, "surcharge_detail", hu_split),
                                         ("markup", mk_total, mk_pct, "surcharge_detail_stacked" if stacked and hu_total > 0 else "surcharge_detail",
                                          calc_spread(mk_src, mk_total))):
@@ -512,7 +516,8 @@ def office_calc(doc, items, pack=None):
         lines.append({"kind": "surcharge", "slot": slot, "pos": pos + 1 + sum(1 for x in lines if x["kind"] in ("producing", "surcharge")),
                       "title": prd_label(doc.get(slot + "_label"), lang) or label(pack, lang, slot),
                       "qty": 1, "qty_text": "1", "unit": "flat", "unit_text": unit_text(pack, lang, "flat", 1), "pct": _num(pct_), "rate": _num(amt),  # 2.296.0 B (#3173): was "" (printed "1 flat")
-                      "tax": tk, "tax_pct": _num(rates[tk]), "total": _num(amt), "by_tax": {k: _num(v) for k, v in split.items()},
+                      "tax": tk, "tax_pct": _num(rates[tk]) if len(split) < 2 else None, "total": _num(amt), "by_tax": {k: _num(v) for k, v in split.items()},
+                      **({"mixed_tax": True} if len(split) > 1 else {}),  # review: no single rate printed for a mixed one (like a part line)
                       "detail": label(pack, lang, det, pct=fmt_qty(pct_, lang))})
 
     # raw data
@@ -558,6 +563,7 @@ def office_calc(doc, items, pack=None):
         "items_net": _num(items_net), "producing_qty": _num(prod_qty), "producing_days": _num(days), "producing_rate": _num(prod_rate_doc),
         "producing_total": _num(prod_total), "producing_mode": "amount" if share else None, "producing_amount": _num(prod_amt),
         "handling_pct": _num(hu_pct), "handling_base": _num(hu_base), "handling_total": _num(hu_total),
+        "sur_split": 1,  # 2.1228.0 (#6254): the surcharges carry the tax of their positions (docs._calc_doc reads it on finalised ones)
         "markup_pct": _num(mk_pct), "markup_base": _num(mk_base), "markup_total": _num(mk_total), "raw_base": _num(raw_base), "raw_factor": _num(raw_factor), "raw_amount": _num(raw_amount),
         "discount_pct": _num(disc_pct), "discount": _num(discount),
         # 2.1042.0 (#5815): the fixed amount as asked (home currency), the discountable sum it may take, whether it was cut to it

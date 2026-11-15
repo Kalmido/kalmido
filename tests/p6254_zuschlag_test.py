@@ -13,7 +13,7 @@ freelancer-matrix: office) and once in an organisation's office (its admin). Inv
    XML has the line per rate and the own check (einvoice.ein_check) finds nothing; a progress invoice of 50 % takes half
    of the net including the surcharge
  - an agent's quotation draft (POST / PATCH /api/v1/office/offers) sets the surcharge with {pct, title}, null switches it
-   off, unknown keys are refused (400)
+   off, a title alone keeps the percent, unknown keys / a title that is no text are refused (400)
 usage: p6254_zuschlag_test.py <datadir>"""
 import importlib.util
 import os
@@ -57,6 +57,7 @@ t = calc.office_calc({"lang": "de", "markup_pct": 15, "raw_mode": "none", "produ
 sur = [x for x in t["lines"] if x["kind"] == "surcharge"]
 check(len(sur) == 1 and sur[0]["title"] == "Zuschlag" and sur[0]["total"] == 225 and sur[0]["by_tax"] == {"standard": 150, "reduced": 75},
       f"calc: the default title 'Zuschlag', 15 % of 1500.00 = 225.00, 150.00 at 19 % and 75.00 at 7 % (the hotel is not in it): {sur}")
+check(sur[0].get("mixed_tax") is True and sur[0].get("tax_pct") is None and t.get("sur_split") == 1, f"calc: a mixed line prints no single rate: {sur}")
 tl = {x["rate_key"]: (x["base"], x["amount"]) for x in t["tax_lines"]}
 check(t["net"] == 2025 and tl == {"standard": (1450, 275.5), "reduced": (575, 40.25)} and t["gross"] == 2340.75,
       f"calc: net 2025.00, 19 % on 1450.00 = 275.50, 7 % on 575.00 = 40.25, gross 2340.75: {t['net']} {tl} {t['gross']}")
@@ -67,6 +68,12 @@ t1 = calc.office_calc({"lang": "de", "markup_pct": 15, "markup_label": '{"de": "
 s1 = next(x for x in t1["lines"] if x["kind"] == "surcharge")
 check(s1["title"] == "Mehraufwand" and s1["tax"] == "standard" and s1["by_tax"] == {"standard": 225} and t1["net"] == 2025
       and [(x["rate_key"], x["base"]) for x in t1["tax_lines"]] == [("standard", 2025)], f"calc: one rate = as before, own title: {s1} {t1['tax_lines']}")
+# review: a negative marked sum gives no surcharge (was -50.00 in the net without a line)
+t3 = calc.office_calc({"lang": "de", "markup_pct": 10}, [{"title": "Gutschrift", "qty": 1, "rate": -500, "unit": "flat", "in_markup": 1}], PACK)
+check(t3["net"] == -500 and t3["markup_total"] == 0 and not [x for x in t3["lines"] if x["kind"] == "surcharge"], f"calc: no negative surcharge: {t3['net']} {t3['markup_total']}")
+# review: a quotation finalised before 2.1228.0 (sur_standard): its invoice puts the surcharge on the standard rate as then
+t4 = calc.office_calc({"lang": "de", "markup_pct": 15, "sur_standard": 1}, ITS, PACK)
+check(next(x for x in t4["lines"] if x["kind"] == "surcharge")["by_tax"] == {"standard": 225}, "calc: sur_standard = all at the standard rate (as frozen)")
 sp = calc.calc_spread({"standard": Z(1), "reduced": Z(1), "exempt": Z(1)}, Z("0.10"))
 check(sum(sp.values()) == Z("0.10") and sorted(sp.values()) == [Z("0.03"), Z("0.03"), Z("0.04")], f"calc_spread: the parts add up exactly: {sp}")
 check(calc.calc_spread({"standard": Z(0), "reduced": Z(0), "exempt": Z(0)}, Z(5)) == {"standard": Z(5)}, "calc_spread: no base = all at the standard rate")
@@ -183,6 +190,14 @@ def run(S, who):
         ok(r.status_code == 400, f"an unknown key is refused: {r.status_code}")
         r = requests.patch(V1 + f"/{dj['id']}", headers=AH, json={"surcharge": {"pct": 150}, "expect_updated_at": cur.get("updated_at")})
         ok(r.status_code == 400, f"more than 100 % is refused: {r.status_code}")
+        r = requests.patch(V1 + f"/{dj['id']}", headers=AH, json={"surcharge": {"pct": 10}, "expect_updated_at": cur.get("updated_at")})
+        cur = r.json()["doc"] if r.ok else cur
+        r = requests.patch(V1 + f"/{dj['id']}", headers=AH, json={"surcharge": {"title": "Extra"}, "expect_updated_at": cur.get("updated_at")})
+        ok(r.ok and float(r.json()["doc"].get("markup_pct") or 0) == 10 and (r.json()["doc"].get("markup_label") or {}).get("de") == "Extra",
+           f"a title alone renames and keeps the 10 %: {r.status_code} {r.text[:200]}")
+        cur = r.json()["doc"] if r.ok else cur
+        r = requests.patch(V1 + f"/{dj['id']}", headers=AH, json={"surcharge": {"title": 5}, "expect_updated_at": cur.get("updated_at")})
+        ok(r.status_code == 400, f"a title that is no text is refused: {r.status_code}")
 
 
 run(Fr, "freelancer")
