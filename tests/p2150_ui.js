@@ -194,11 +194,13 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
     return ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`);
   };
   const ready = async (ev, n = 30) => { for (let i = 0; i < n && !(await ev(`!!document.querySelector('#top h1')`).catch(() => false)); i++) await sleep(300); await sleep(700); };
-  const FIT = `(() => { const m = [...document.querySelectorAll('.modal')].pop(), b = m.querySelector('.mbox') || m.firstElementChild || m, r = b.getBoundingClientRect();
+  // 2.1192.0 (#5172): the dialog WITH the permission grid (CI v2.1155.0: the last .modal was another one, without a save button ->
+  // TypeError); no save button = false instead of a script error
+  const FIT = `(() => { const m = [...document.querySelectorAll('.modal')].filter(x => x.querySelector('.scgrid')).pop() || [...document.querySelectorAll('.modal')].pop(), b = m.querySelector('.mbox') || m.firstElementChild || m, r = b.getBoundingClientRect();
     const rows = [...m.querySelectorAll('.scgrid .chkl')].map(x => x.getBoundingClientRect());
     return {over: document.documentElement.scrollWidth - innerWidth, left: Math.round(r.left), right: Math.round(innerWidth - r.right), n: rows.length,
       minH: Math.round(Math.min(...rows.map(x => x.height))), minW: Math.round(Math.min(...rows.map(x => x.width))), out: rows.filter(x => x.right > innerWidth + 1 || x.left < -1).length,
-      save: (() => { const s = m.querySelector('[data-m="ok"]').getBoundingClientRect(); return s.height >= 40 && s.bottom <= innerHeight + 2 || !!m.querySelector('.foot'); })()}; })()`;
+      save: (() => { const e = m.querySelector('[data-m="ok"]'); if (!e) return !!m.querySelector('.foot'); const s = e.getBoundingClientRect(); return s.height >= 40 && s.bottom <= innerHeight + 2 || !!m.querySelector('.foot'); })()}; })()`;
   const tap = async ({cmd, ctx}, x, y) => {
     await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 't1', parameters: {pointerType: 'touch'}, actions: [{type: 'pointerMove', x: Math.round(x), y: Math.round(y)}, {type: 'pointerDown', button: 0}, {type: 'pause', duration: 60}, {type: 'pointerUp', button: 0}]}]});
     await cmd('input.releaseActions', {context: ctx});
@@ -213,8 +215,18 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
     await ev(`(() => { const x = document.querySelector('.smodal details.sdev'); if (x) x.open = true; return 1; })()`);
     for (let i = 0; i < 20 && !(await ev(`!!document.querySelector('#s-toks .tokrow') && !!document.querySelector('#s-toks')._j`)); i++) await sleep(300);  // 2.308.0 (#3252): loaded
     // the permissions dialog of a token
-    const p = await ev(center('#s-toks .tokrow [data-tok="edit"]'));
-    if (touch) await tap(o, p.x, p.y); else await ev(`(() => { document.querySelector('#s-toks .tokrow [data-tok="edit"]').click(); return 1; })()`);
+    // 2.1192.0 (#5172): since #3835 (2.1151.0) a phone shows ONE "…" per token row instead of its symbols (they are 1 px and
+    // clipped there): a finger opens the permissions through that menu, the mouse clicks the symbol as before
+    if (touch) {
+      const d = await ev(center('#s-toks .tokrow .ms-phdots'));
+      check(d && d.x > 0, `${tag}: the token row has its "…" on the phone ` + JSON.stringify(d));
+      await tap(o, d.x, d.y);
+      await until(() => ev(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`).catch(() => false));
+      const lab = await ev(`document.querySelector('#s-toks .tokrow [data-tok="edit"]').getAttribute('title')`);
+      const mi = await ev(`(() => { const e = [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => b.textContent.includes(${JSON.stringify(lab)})); if (!e) return null; const r = e.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height}; })()`);
+      check(mi && mi.h >= 43.5, `${tag}: the "…" menu offers "${lab}" as a 44 px entry ` + JSON.stringify(mi));
+      if (mi) await tap(o, mi.x, mi.y);
+    } else await ev(`(() => { document.querySelector('#s-toks .tokrow [data-tok="edit"]').click(); return 1; })()`);
     await until(() => ev(`!!document.querySelector('.modal #pm-ips') && document.querySelectorAll('.modal .scgrid .chkl').length >= 10`).catch(() => false));  // 2.308.0 (#3252): wait for the dialog instead of a fixed time
     const f = await ev(FIT);
     check(f.n >= 10 && f.over <= 1 && f.out === 0 && f.left >= 0 && f.right >= 0, `${tag}: the permissions dialog fits ` + JSON.stringify(f));
