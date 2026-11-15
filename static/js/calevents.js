@@ -855,7 +855,7 @@ function evShareModal(c, users, done) {
     const b = e.target.closest('[data-evs], [data-m]'); if (!b) return;
     if (b.dataset.m === 'close') md.remove();
     if (b.dataset.evs === 'add') {
-      const uid = +($('#evs-user', md)?.value || 0); if (!uid) { $('#evs-user', md)?.focus(); return; }
+      const uid = +($('#evs-user', md)?.value || 0); if (!uid) { $('#evs-user', md)?.focus({preventScroll: true}); return; }
       try { await put(uid, $('#evs-role', md).value); } catch { return; }
       toast(tr('Shared'));
     }
