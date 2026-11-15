@@ -7096,6 +7096,10 @@ a.rfcard:hover{border-color:var(--muted);text-decoration:none}
 .wsbar.on[data-wsc]{border-color:color-mix(in srgb,var(--wsc) 55%,transparent);background:color-mix(in srgb,var(--wsc) 10%,transparent)}
 .wsbar.on[data-wsc]:hover{border-color:var(--wsc)}
 .wsc-on .qadd:not(.dock) .box,.wsc-on .qadd.dock,.wsc-on .ccomp{border-color:color-mix(in srgb,var(--wsc) 65%,var(--line2))}
+/* 2.1205.0 (#6179): the organisation colour as a block of the core (wscolor.js wso_row / wso_sync, docs/dev/kern.md): an entry of an
+   organisation in any area carries the 3 px stripe on its left edge (the sidebar's rows keep theirs above). The open object
+   is marked as an open list is (#main.wsc-on: the frames above; "All": #view.wac-loc) - no header stripe (gone since #2389) */
+[data-wso][data-wsc]:not(#side .srow){box-shadow:inset .1875rem 0 0 var(--wsc)}
 .wscpick .colors button[disabled]{cursor:default}
 /* 2.53.0 C (#1424): the bell of one task (taskbell.js): the header button, its menu and "Urgent for others" */
 .dtop .tbl-b.on{color:var(--accent)}

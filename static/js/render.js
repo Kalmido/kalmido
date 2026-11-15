@@ -1142,7 +1142,7 @@ function kr_scroller(n) {
 }
 function vw_anchorKeep(fn) { return keepReading($('#view'), fn); }  // 2.924.0 (#5224): the agents page's boxes through keepReading
 function renderView() { FL.vlast = Date.now(); return td_rcRun(() => { const r = an_view(() => keepFocus($('#view'), renderView0));  // 2.46.1 (#1560): a view change / a new empty hint fades in
-    rowRove(); rowMoreWatch(); agb_after(); vl_after(); vm_after(); td_lcSweep(); topw_sync(); topw_later(); return r; }); }  // 2.65.0 (#1825): vl_after = the window of a long list; 2.413.0 A (#3439): vm_after = a view entered again gets its place back (viewmem.js)  // 2.599.0 (#4814): topw_sync = the page's width for #top
+    wso_sync(); rowRove(); rowMoreWatch(); agb_after(); vl_after(); vm_after(); td_lcSweep(); topw_sync(); topw_later(); return r; }); }  // 2.1205.0 (#6179): wso_sync = the open object's workspace colour, also when an area drew it later (wscolor.js)  // 2.65.0 (#1825): vl_after = the window of a long list; 2.413.0 A (#3439): vm_after = a view entered again gets its place back (viewmem.js)  // 2.599.0 (#4814): topw_sync = the page's width for #top
 // ---- 2.599.0 (#4814): the page reports its width once to #main: data-w = lesen | form | seite (the widths of :root,
 // static/css/start-breite.css), eigen (an element with data-pw: its own centred block, e.g. notes / a knowledge page) or voll;
 // --pw = that width in px, --pw-sb = the scrollbar of #view. static/css/start-kopf-4814.css gives #top the same middle and
@@ -1263,6 +1263,7 @@ function renderView0() {
   else if (S.route.key === 'help') setHtml(el, viewHelp());  // 2.1086.0 (#5820): the page "Help" (helpview.js)
   else if (S.route.key === 'steps') setHtml(el, viewSteps());  // 2.773.0 (#5250): the page "Recent steps" (undolist.js)
   else if (S.route.key === 'projects') setHtml(el, viewProjStart());  // 2.417.0 A (#3559)
+  else if (lmiss_id()) setHtml(el, lmiss_html());  // 2.1205.0 (#6133): a project address without a project
   else if (isRoadmap()) setHtml(el, viewRoadmap());
   else if (isOverview()) setHtml(el, pcsOn(routeList()) ? viewProjCs() : viewProjOv());  // 2.7.1 (#410); 2.988.0 (#5651): the call sheets (callsheet.js)
   else if (isMindmap()) setHtml(el, vsegHtml(routeList()) + viewMindmap(routeList()));  // 2.49.0 (#1201)
@@ -1706,6 +1707,9 @@ function errorState(o = {}) {
     sub: o.sub ?? (navigator.onLine === false ? tr('You are offline') : tr('Check the connection and try again.'))});
 }
 const noAccessState = (o = {}) => emptyState({icon: 'lock', title: o.title || tr('No access'), sub: o.sub ?? tr('Ask the owner to share it with you.'), size: o.size, cls: 'enoacc' + (o.cls ? ' ' + o.cls : ''), action: o.action});  // 2.1076.0 (#5450): + action (the office's "Submit receipt")
+// 2.1205.0 (#6133): a project address without a project (deleted, no access, a typo): the shared state with the way to Projects,
+// no section, no add field and no + (nothing could be added there)
+const lmiss_html = () => noAccessState({title: tr('This project does not exist (any more) or you have no access'), sub: '', action: `<div class="eacts"><button type="button" class="btn pri" data-go="projects">${ic('folder', 's')} ${esc(tr('To the projects'))}</button></div>`});
 document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-esretry]'), f = b && ES_RETRY.get(b.dataset.esretry);
   if (!f) return;

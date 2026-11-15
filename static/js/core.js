@@ -221,7 +221,7 @@ document.addEventListener('scroll', e => {
   if (e.target !== v || QS.top == null || Date.now() - QS.at > 400 || document.activeElement?.id !== 'qinput') return;
   if (Math.abs(v.scrollTop - QS.top) > 1) v.scrollTop = QS.top;
 }, true);
-const noFab = () => ['habits', 'pomo', 'news', 'stats', 'time', 'overview', 'agents', 'team', 'notes', 'family', 'contacts', 'life', 'review', 'clients', 'workload', 'office', 'ablage', 'docs', 'wiki', 'tags', 'budget', 'msv', 'feeds', 'sheets', 'bookmarks', 'reading'].includes(S.route.mod) || NOLIST_KEYS.includes(S.route.key) || isOverview()
+const noFab = () => ['habits', 'pomo', 'news', 'stats', 'time', 'overview', 'agents', 'team', 'notes', 'family', 'contacts', 'life', 'review', 'clients', 'workload', 'office', 'ablage', 'docs', 'wiki', 'tags', 'budget', 'msv', 'feeds', 'sheets', 'bookmarks', 'reading'].includes(S.route.mod) || NOLIST_KEYS.includes(S.route.key) || isOverview() || lmiss_id()  /* 2.1205.0 (#6133): no + on a project that is not there */
   || (/^l:\d+$/.test(S.route.key || '') && !!listById(+S.route.key.slice(2)) && !canAddTo(+S.route.key.slice(2)));  // 2.147.2 A (#2500): no + in a list I may not add to
 // package 3: progress bar / overview (switch "progress"), project status (+ collaboration), custom fields, dependencies
 // 2.13.0 (#453, Fold screenshots): the round + only on phones; tablets / an unfolded Fold add with the docked "Add task"
@@ -1818,6 +1818,10 @@ function ab_docsHash(h) {  // 'docs/…' -> 'ablage/…' (null: not an old docum
 // 2.787.0 (#5438): a task opened by its address on a fresh load (link, push, reload, bookmark) stands over its own project, not over the empty Inbox;
 // inside the running app the view stays (S.lastRouteKey is set after the first route()); no list of its own (unknown / area store list) = as before
 function th_ownKey(id) { const t = S.lastRouteKey ? null : taskById(id), l = t && listById(t.list_id); return l && !LIFE_STORE_GO[l.life] && l.life !== 'budget' ? 'l:' + l.id : null; }
+// 2.1205.0 (#6133): addresses read by other parts (discover.js, popovers.js) that land in the Basket on purpose: no hint there
+const RT_QUIET = /^(dsc|dsc-confirm\/.*|vvdebug.*)$/;
+// a project address whose project is not in the state (deleted, no access, a typo): the id, else 0. Only once the state is there
+const lmiss_id = (k = S.route?.mod === 'tasks' ? String(S.route.key || '') : '') => k.startsWith('l:') && S.lists?.length && !listById(+k.slice(2)) ? +k.slice(2) || -1 : 0;
 function parseHash() {
   let h = decodeURIComponent(location.hash.slice(1));
   if (!h) return {mod: 'tasks', key: LS.get('lastKey', START_KEY)};
@@ -1878,7 +1882,7 @@ function parseHash() {
   if (a === 'office') return {mod: 'office', key: 'office', tab: b || '', id: +(h.split('/')[2]) || null};  // 2.36.1 (#1021): office/<tab>/<id>
   if (['cal', 'matrix', 'habits', 'pomo', 'news', 'stats', 'time', 'overview', 'family', 'life', 'review', 'clients', 'workload', 'tags'].includes(a)) return {mod: a, key: a};  // 2.22.0 (#663): life, review
   if (SMART[a]) return {mod: 'tasks', key: a};
-  return {mod: 'tasks', key: START_KEY};
+  return {mod: 'tasks', key: START_KEY, ...(RT_QUIET.test(h) ? {} : {unknown: true})};  // 2.1205.0 (#6133): an unknown address lands in the Basket with a hint
 }
 function go(hash, rep = false) {  // 2.743.0 (#5235): rep = replace the current entry instead of a new one (navUp, backnav.js)
   if (typeof f8d_defer === 'function' && f8d_defer(() => goNow(hash, rep))) return;  // #3506: after the Back of a closed menu on its way (backclose.js)
@@ -1923,14 +1927,16 @@ async function route() {
   wsv_seen();  // 2.397.0 (#3404): and its workspace (workspace.js)
   if (r.mod === 'team') teamRoute(r.rid || null); else if (S.tc.rid) teamRoute(null);  // 2.17.0
   if (r.mod === 'notes') noteRoute(r.lid, r.nid || null); else if (S.nt.id) { if (!qn_leave()) noteFlush(); S.nt.id = null; }  // 2.477.0 (#3881): qn_leave
-  if (r.noteMissing) setTimeout(() => toast(tr('This note does not exist or you cannot see it.')), 0);  // 2.10.0: review = #today/review
+  if (r.noteMissing) setTimeout(() => toast(tr('This note does not exist or you cannot see it.')), 0);
+  if (r.unknown && S.booted) setTimeout(() => toast(tr('This page does not exist')), 0);  // 2.1205.0 (#6133)  // 2.10.0: review = #today/review
   if (r.mod === 'agents') S.jobs.items = null;
   S.jobFocus = r.job || null;  // 2.36.2 (#1141): #job/<id>
   if (S.route.mod !== 'tasks' || r.key !== S.lastRouteKey) { S.multi.clear(); S.multiMode = false; }
   if (r.key === 'search' && S.lastRouteKey !== 'search') S.searchFocus = true;  // 2.15.1 (#633): opening Search focuses its field on a phone too (a re-render or a task closed on top of it does not)
   S.lastRouteKey = r.key;
-  if (r.mod === 'tasks' && r.key !== 'search') LS.set('lastKey', r.key);
-  if (r.mod === 'tasks' && r.key.startsWith('l:')) recentPush('l', +r.key.slice(2));
+  const gone = r.mod === 'tasks' && lmiss_id(r.key);  // 2.1205.0 (#6133): a project that is not there is no next start and no recent place
+  if (r.mod === 'tasks' && r.key !== 'search' && !gone) LS.set('lastKey', r.key);
+  if (r.mod === 'tasks' && r.key.startsWith('l:') && !gone) recentPush('l', +r.key.slice(2));
   S.extra = (r.key === 'done' || r.key === 'trash' || r.mod === 'news' || r.mod === 'time') ? [] : null;
   S.hist.k = null;  // 2.40.0 (#1432): entering Completed / Trash starts with the first page again
   S.extraErr = 0;

@@ -1410,3 +1410,36 @@ calm jump. A new area does not keep scroll positions itself:
 - `tools/check_scrolljump.py` (CI lint) is red for a NEW `scrollIntoView` / `scrollTo` / `scrollBy` / `scrollTop =` /
   `focus()` without `preventScroll` outside a dialog; a jump the person asked for carries `// sprung-ok: <reason>`. The
   places from before are the baseline `tools/scrolljump_baseline.json` (only shrinks, `--update`).
+
+## Organisation colour (2.1205.0, #6179)
+
+What belongs to an organisation wears that organisation's colour in every area (owner decision 14.11.2026): its entry in an
+overview or the navigation, and the object while it is open ("you are in the organisation now"). Private stays neutral.
+The colour is the organisation's (its admins choose, `orgs.color`) or the person's own choice per workspace (`ws_colors`);
+an area never picks or stores a colour of its own for this. A calendar's or address book's own colour stays its dot - the
+organisation's mark is the stripe, so the two never read as one.
+
+- browser, at every start: `static/js/wscolor.js` -- `wso_row(w)`, `wso_origin(w, cls)`, `wso_open(name, fn)`, `wso_sync()`;
+  `w` is an organisation's id, `'org:<id>'`, `'private'` or an object with `org_id` (`wso_ws(w)` makes the workspace key)
+
+```js
+// (1) an entry (row, card, tile) of an organisation: a 3 px stripe on its left edge; '' for Private / no organisations
+`<div class="myrow"${wso_row(obj.org_id)}>…</div>`
+// (2) a mixed view under "All workspaces": the workspace's dot + name (phones: its short letters), '' otherwise
+`${wso_origin(obj.org_id, 'mymeta')}`
+// (3) the open object: once per area, at the top level of its file; null when its page is not open
+wso_open('wiki', () => S.route?.mod === 'wiki' && WK.pg ? WK.pg.org_id || 'private' : null);
+```
+
+`wso_sync()` runs after every render and every redraw of the view (render.js `render0` via `wsc_sync`, `renderView`): it
+asks the open list of Projects first (`wac_openList`), then the registered areas in order, and puts the answer on the page
+the way an open list has always shown it - `#main.wsc-on` with `--wsd / --wsl` (the frames of the add field and the comment
+box, `.wsc-on …` in app.css) and, under "All workspaces", `#view.wac-loc` (the content wears the organisation's tone as its
+accent; a list's own colour, `#main.lp-acc`, wins). Inside one organisation's workspace the whole interface already wears its
+tone (`wac_sync`). No header stripe (removed in 2.138.2, #2389). Do not set `wsc-on` / `wac-loc` on `#main` / `#view` by
+hand, and do not build a second origin mark (`ws_originHtml` of the task rows uses `wso_head` too).
+
+Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open list -> `wso_sync`, task rows under "All" ->
+`ws_originHtml`). The other areas follow as their own tasks (#6180-#6188: office and clients, calendar, wiki, team chat,
+files and documents, contacts, tables, time tracking, search / trash / news / favourites). Tests:
+`tests/p21205_b_orgcolor_ui.js`.
