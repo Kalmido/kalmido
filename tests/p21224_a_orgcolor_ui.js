@@ -42,7 +42,8 @@ const FEAT = 'comments,collab,sheets,time';
   const E1 = await call('POST', '/api/time/entries', {task_id: WT, start: t0, minutes: 45, note: 'studio work'});
   const E2 = await call('POST', '/api/time/entries', {task_id: PT, start: t0, minutes: 20, note: 'garden work'});
   check(E1.http < 300 && E2.http < 300, 'setup: a time entry in each project ' + E1.http + ' ' + E2.http);
-  check((await call('DELETE', '/api/lists/' + GL)).http < 300, 'setup: a project of the organisation goes to the trash');
+  await call('PATCH', `/api/lists/${GL}`, {archived: 1});
+  check((await call('DELETE', '/api/lists/' + GL)).trash === true, 'setup: a project of the organisation goes to the trash');
 
   const want = w => w.eval(`(() => { const t = WSC_TONES[wsc_ix(wsOrg(${ORG}).color, ${ORG})]; return {d: t[0], l: t[1]}; })()`);
   const striped = (el, t) => !!el && el.dataset.wso === '1' && el.style.getPropertyValue('--wsd') === t.d;
@@ -69,8 +70,10 @@ const FEAT = 'comments,collab,sheets,time';
   check(await until(() => d.querySelector('.shvov') && !d.querySelector('#main').classList.contains('wsc-on')), '#6186 back in the overview: no open object, no mark');
   check(w.eval(`shf_panelTree(SHV.idx.all.items, shvSpaces(), null).find(n => n.id === 'r:org:${ORG}').battrs`).includes('data-wso="1"') && !w.eval(`shf_panelTree(SHV.idx.all.items, shvSpaces(), null).find(n => n.id === 'r:private').battrs`).includes('data-wso'), '#6186 the panel: the organisation\'s workspace entry wears its stripe, Private not');
 
-  // ================= #6187 time tracking (the page is always mixed)
+  // ================= #6187 time tracking (the page is always mixed); the list of entries opened as a person does
+  const openEntries = async () => { const t = await until(() => d.querySelector('[data-act="tv-entries"]'), {timeout: 20000}); if (t && t.querySelector('.closedc')) t.click(); };
   w.eval(`go('time')`);
+  await openEntries();
   const r1 = await until(() => [...d.querySelectorAll('.terow')].find(r => /studio work/.test(r.textContent)), {timeout: 20000});
   check(r1 && r1.querySelector('.teorg .wsp-dot[data-wsc]') && /Studio/.test(r1.querySelector('.teorg').textContent), '#6187 the organisation\'s time entry shows its dot + name');
   const r2 = [...d.querySelectorAll('.terow')].find(r => /garden work/.test(r.textContent));
@@ -93,7 +96,7 @@ const FEAT = 'comments,collab,sheets,time';
   check(/Studio/.test(w.eval(`newsWsLabel({list_id: ${WL}})`)) && w.eval(`newsWsLabel({list_id: ${PL}})`) === '', '#6188 news / bell under "All": the organisation\'s item names its organisation, a private one not');
   w.eval(`go('pinned')`);
   const gh = await until(() => [...d.querySelectorAll('.ghead')].find(g => /Website/.test(g.textContent)), {timeout: 20000});
-  check(gh && gh.querySelector('.gorg .wsp-dot[data-wsc]') && /Studio/.test(gh.querySelector('.gorg').textContent), '#6188 a group head by project shows its organisation');
+  if (!check(gh && gh.querySelector('.gorg .wsp-dot[data-wsc]') && /Studio/.test(gh.querySelector('.gorg').textContent), '#6188 a group head by project shows its organisation')) console.log('heads:', [...d.querySelectorAll('#view .ghead')].map(g => g.outerHTML.slice(0, 400)).join('\n'), w.eval('S.route.key'));
   check(![...d.querySelectorAll('.ghead')].find(g => /Garden/.test(g.textContent))?.querySelector('.gorg'), '#6188 a private project\'s group head stays neutral');
   check(/gorg/.test(w.eval(`mtListHead(${WL})`)) && !/gorg/.test(w.eval(`mtListHead(${PL})`)), '#6188 "Hidden" in My tasks: the project head carries its organisation');
   // the trash: the organisation's project row wears its stripe
@@ -105,6 +108,7 @@ const FEAT = 'comments,collab,sheets,time';
   // ================= inside the organisation's workspace: no repeated origin; another workspace's item keeps it
   await call('PATCH', '/api/settings', {workspace: 'org:' + ORG});
   w = await boot({hash: 'time'}); d = w.document;
+  await openEntries();
   const r3 = await until(() => [...d.querySelectorAll('.terow')].find(r => /studio work/.test(r.textContent)), {timeout: 20000});
   check(r3 && !r3.querySelector('.teorg'), '#6187 inside the organisation\'s workspace its own entries need no mark');
   check(w.eval(`newsWsLabel({list_id: ${PL}})`).includes('nws') && !w.eval(`newsWsLabel({list_id: ${PL}})`).includes('wsp-dot'), '#6188 inside the organisation: a private news item keeps its plain label (Private stays neutral)');
@@ -125,6 +129,7 @@ const FEAT = 'comments,collab,sheets,time';
   const sc = await until(() => d.querySelector(`.shvcard[data-id="${SS}"]`), {timeout: 20000});
   check(sc && /Own table/.test(sc.textContent) && !sc.dataset.wso, '#6186 without an organisation: the table card is shown, neutral');
   w.eval(`go('time')`);
+  await openEntries();
   const sr = await until(() => [...d.querySelectorAll('.terow')].find(r => /own work/.test(r.textContent)), {timeout: 20000});
   check(sr && !sr.querySelector('.teorg'), '#6187 without an organisation: the time entry is shown, neutral');
   check(w.eval(`pal_org({kind: 'list', lic: listById(${SL})}) + newsWsLabel({list_id: ${SL}})`) === '', '#6188 without an organisation: no marks in palette and news');
