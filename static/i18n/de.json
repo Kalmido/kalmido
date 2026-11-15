@@ -18484,6 +18484,8 @@
   "Quotation marked as sent": "Angebot als gesendet markiert",
   "Adjust prices": "Preise anpassen",
   "No preview": "Keine Vorschau",
+  "No preview for this kind of file": "Keine Vorschau für diese Dateiart",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Dieses PDF ist zu groß für die Vorschau (über 40 MB). Lade es herunter, um es zu lesen.",
   "Link valid until": "Link gültig bis",
   "Tell me when a sent quotation runs out without an answer": "Melden, wenn ein gesendetes Angebot ohne Antwort abläuft",
   "Notice before it runs out": "Hinweis vor Ablauf",

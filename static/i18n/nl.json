@@ -18484,6 +18484,8 @@
   "Quotation marked as sent": "Offerte gemarkeerd als verzonden",
   "Adjust prices": "Prijzen aanpassen",
   "No preview": "Geen voorbeeld",
+  "No preview for this kind of file": "Geen voorbeeld voor dit soort bestand",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen.",
   "Link valid until": "Link geldig tot",
   "Tell me when a sent quotation runs out without an answer": "Meld het als een verzonden offerte zonder antwoord verloopt",
   "Notice before it runs out": "Melding voor het verloopt",
