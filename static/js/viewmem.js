@@ -25,7 +25,14 @@ const vm_ws = () => typeof wsCur === 'function' ? wsCur() : 'all';
 // the key of the view shown now: a task view by its key, any other by its address (office/offers/12 = that document)
 function vm_key() {
   const r = S.route; if (!r || !r.mod || r.mod === 'team' || (r.mod === 'agents' && r.agent)) return '';  // a conversation opens at its newest message
-  return vm_ws() + '|' + (r.mod === 'tasks' ? 't:' + r.key : location.hash.slice(1).split('?')[0] || r.mod);
+  return vm_ws() + '|' + (r.mod === 'tasks' ? 't:' + r.key + vm_lv() : location.hash.slice(1).split('?')[0] || r.mod);
+}
+// 2.1213.0 (#6140): a list keeps one place per view (its calendar opened at the list's place: month name and views scrolled
+// away). The plain list view keeps its old key (places kept before stay); calendar / board / timeline / overview get their own.
+function vm_lv() {
+  const l = typeof routeList === 'function' ? routeList() : null; if (!l || typeof fl_sig !== 'function') return '';
+  const v = String(fl_sig()).split('|')[4] || '';
+  return v && v !== 'list' ? '|' + v : '';
 }
 const vm_sideKey = () => 'side|' + vm_ws() + '|' + (typeof sbb_area === 'function' ? sbb_area() : 'tasks');
 const vm_all = () => { const o = LS.get(VM_LS, {}); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; };
