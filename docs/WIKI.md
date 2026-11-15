@@ -25,6 +25,8 @@ Switch it on in **Settings > Modules > Knowledge pages**; it then has its own ro
   *2.371:* placeholders are filled in when a page starts from a template: `{{datum}}` (or `{{date}}`) today's date,
   `{{titel}}` (`{{title}}`) the new page's name, `{{ich}}` (`{{me}}`) your name, `{{cursor}}` the place where writing starts.
   Other `{{…}}` stay as they are. This happens in the browser, so it works the same in an encrypted space.
+  *2.1198:* empty list points and boxes of the template (`- `, `- [ ]`) and its own frontmatter are not copied into the
+  new page; its `tags:` line stays. The built-in minutes keep their empty points to fill.
 - **Embedding a page (2.371).** `![[Page]]` shows another page of the same space inside this one, `![[Page#Heading]]`
   only its part from that heading to the next heading of the same level. The embedded text is read only, framed, with its
   name as a link. Only pages you may read are shown (otherwise *Page not available*); a page that would show itself,
@@ -32,6 +34,9 @@ Switch it on in **Settings > Modules > Knowledge pages**; it then has its own ro
 - **Daily notes (2.371).** *Today* next to *New page* opens the page `journal/YYYY-MM-DD` of the space and creates it
   when it is missing, from the template `Templates/Tagesnotiz` (or `Templates/Daily note`) when there is one. A daily
   note shows arrows to the previous and next day that has a note and a date field to jump to any day.
+  *2.1198:* the app names what it made itself in words: a daily note is titled with its date (*Sat, 14 Nov 2026*), the
+  folders `journal` and `Templates` / `Vorlagen` show as *Daily notes* and *Templates* in your language. The paths stay
+  as they are (links, agents and the export keep `journal/YYYY-MM-DD`).
 - **Meeting minutes (2.384).** *Minutes* in the window of a calendar event makes the page
   `Minutes/YYYY-MM-DD <title>` (German: `Protokolle/…`) in the workspace of the event's calendar (your private space when
   you have no organisation or may not write there) and opens it for writing. It starts from the template
@@ -379,3 +384,13 @@ undone.
 - **On a phone.** Names in the trash keep their own line (the buttons wrap below), *Select* hides the date and the row
   menu so the names stay readable, tables in the editor scroll sideways instead of breaking words, and small targets
   (boxes, row menu, attachment buttons, day arrows, back in the history) are big enough for a finger.
+
+## Reading a page (2.1198)
+
+- **Frontmatter as fields.** The keys of the frontmatter show as words (*Tags*, *Event*, *Date*, *As of*; other keys with
+  a capital letter), a date as the app writes dates, the event of minutes as a link to it. In the editor the frontmatter
+  is one folded line of these fields; with the cursor in it (a click) its lines show to be edited.
+- **Links and lists name the page.** `[[Folder/Page]]` shows *Page* (the path as its tooltip), in the editor too;
+  *Linked from*, search hits and a tag's pages show the page's name with its folders quietly beside it. A task link
+  in the editor shows the task's title after its number. A search snippet does not repeat the page's title and shows no
+  leftover Markdown marks.

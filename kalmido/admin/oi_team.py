@@ -957,6 +957,10 @@ SPECS = [
         label=N_("Module cards"), prep=_modcard),
     OiT("settings/module_card_people.json", "module_card_people", refs={"card_id": "module_cards"}, need=("card_id",),
         people={"user_id": "member"}, space=(), private=False, rid=False, enc=False, label=N_("Module cards")),
+    # 2.1198.0 (#3642): a person taken off a project by hand stays off although its folder is shared with them (lists/lffolder.py);
+    # only into an organisation (a private project has no folder shares of the organisation)
+    OiT("lists/folder_skip.json", "list_folder_skip", refs={"list_id": "lists"}, need=("list_id",), people={"user_id": "member"},
+        space=(), private=False, rid=False, enc=False, label=N_("Projects")),
     OiT("lists/sprints.json", "sprints", refs={"list_id": "lists"}, need=("list_id",), people={"created_by": "null"}, space=(),
         label=N_("Sprints"), prep=_sprint),
     OiT("lists/rules.json", "list_rules", refs={"list_id": "lists", "target_list_id": "lists"}, need=("list_id",),
@@ -975,6 +979,10 @@ SPECS = [
         people={"user_id": "member"}, space=(), rid=False, fixed={"kind": "task", "mode": "watch"}, label=N_("People")),
     OiT("tasks/links.json", "task_links", refs={"task_id": "tasks", "list_id": "lists", "section_id": "sections"},
         need=("task_id", "list_id"), people={"added_by": "null"}, rid=False, label=N_("Tasks")),
+    # 2.1198.0 (#3642): the old ticket keys of a task (APP-12 before a move or a new key, tasks/ticketkey.py): they keep finding
+    # it after the move; the project the key belonged to maps too (unmapped: NULL, the key still finds the task)
+    OiT("tasks/keys.json", "task_keys", refs={"task_id": "tasks", "list_id": "lists"}, need=("task_id",), space=(), rid=False,
+        enc=False, label=N_("Tasks")),
     OiT("tasks/decisions.json", "task_decisions", refs={"task_id": "tasks"}, need=("task_id",), people={"by_id": "null"},
         late={"superseded_by": "task_decisions"}, space=(), label=N_("History")),  # 2.392.0 C (#3370)
     OiT("tasks/history.json", "activity", refs={"task_id": "tasks"}, need=("task_id",), people={"user_id": "null"}, space=(),
@@ -1103,4 +1111,22 @@ def _schema_links(c, run, uid, data, who):
         c.execute("UPDATE list_fields SET org_field_id=? WHERE id=?", (ofid, fid))
 
 
-FINISH = [_sprints, _schema_links]  # 2.455.0 (#3469); 2.959.0 (#4031): the project fields' link to the schema
+def _ticket_seq(c, run, uid, data, who):
+    """2.1198.0 (#3642): a project with a key brings its tasks with their numbers (tasks.ticket_no, the trigger keeps a given one);
+    its counter (list_ticket_seq, derived) starts above the highest of them and of its old keys, else the next new task would
+    get APP-1 again. Only lists this run created."""
+    for src in data.get("lists") or []:
+        lid = run.m("lists", src.get("id"))
+        if not lid or run.old("lists", lid):
+            continue
+        r = c.execute("SELECT ticket_key FROM lists WHERE id=?", (lid,)).fetchone()
+        if not r or not r["ticket_key"]:
+            continue
+        n = max(c.execute("SELECT COALESCE(MAX(ticket_no), 0) FROM tasks WHERE list_id=?", (lid,)).fetchone()[0],
+                c.execute("SELECT COALESCE(MAX(no), 0) FROM task_keys WHERE list_id=? AND prefix=?", (lid, r["ticket_key"])).fetchone()[0])
+        if n:
+            c.execute("""INSERT INTO list_ticket_seq(list_id, seq) VALUES(?, ?)
+                         ON CONFLICT (list_id) DO UPDATE SET seq=GREATEST(list_ticket_seq.seq, excluded.seq)""", (lid, n))
+
+
+FINISH = [_sprints, _schema_links, _ticket_seq]  # 2.455.0 (#3469); 2.959.0 (#4031): the project fields' link to the schema; 2.1198.0 (#3642): the ticket counter

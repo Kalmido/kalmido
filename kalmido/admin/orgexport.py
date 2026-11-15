@@ -361,6 +361,8 @@ OX_AREAS = (
     ("lists/forms.json", "forms", f"list_id IN ({LSQ})"),
     ("lists/form_entries.json", "form_entries", f"form_id IN (SELECT id FROM forms WHERE list_id IN ({LSQ}))"),  # 2.137.0 C (#2344): answers of form entries
     ("lists/sprints.json", "sprints", f"list_id IN ({LSQ})"),  # 2.137.0 C (#2344): sprints of the lists (tasks.sprint_id)
+    # 2.1198.0 (#3642): who was taken off a project by hand although its folder is shared with them (lists/lffolder.py)
+    ("lists/folder_skip.json", "list_folder_skip", f"list_id IN ({LSQ})"),
     # 2.905.0 (#5288, rest of #4031): the organisation's templates -- task, project and section templates, one kind of the core
     # (was lists/section_templates.json, 2.362.0 #3096; an older archive's file is still read by the import), not the trash
     ("lists/templates.json", "templates", f"org_id=? AND {live_sql()}"),
@@ -378,6 +380,7 @@ OX_AREAS = (
     ("tasks/people.json", "task_people", f"task_id IN ({TSQ})"),
     ("tasks/links.json", "task_links", f"task_id IN ({TSQ})"),  # 2.137.0 C (#2344): a task placed in a further list
     ("tasks/decisions.json", "task_decisions", f"task_id IN ({TSQ})"),  # 2.392.0 C (#3370)
+    ("tasks/keys.json", "task_keys", f"task_id IN ({TSQ})"),  # 2.1198.0 (#3642): old ticket keys (APP-12) that still find the task
     # 2.654.0 (#4585): where a task came from in a quotation (office/offertasks.py); the import maps task, list, quotation and the
     # position key (admin/oi_office.py _p_offer_link), so the moved positions stay linked and are not offered as new again
     ("tasks/offer_links.json", "task_offer_links", f"task_id IN ({TSQ})"),
@@ -577,7 +580,6 @@ _DERIVED = "derived or working data, rebuilt on the target"
 _SERVER = "state of this server (keys, jobs, scanner, queues)"
 _AGENT = "agents and their logs (never in the organisation export)"
 _ONLINEPAY = "the online provider's working data (the payments themselves are in the export)"
-_LATER2 = "not yet in the export"  # follow-up task #3642: the 2.390 / 2.352 tables
 OX_LEFT = {
     # organisation column
     "agents": _AGENT, "bg_jobs": _SERVER, "doc_mail": _SECRET, "doc_models": _DERIVED, "doc_flow_runs": _DERIVED, "file_text": _DERIVED,
@@ -609,7 +611,7 @@ OX_LEFT = {
     "list_keys": "list keys (client_encrypted)", "list_layouts": _PERSONAL, "list_mine_hide": _PERSONAL,
     "list_paperless": _SECRET, "mail_tokens": _SECRET, "notifications": _PERSONAL, "playbook_proposals": _AGENT, "public_links": _SECRET,
     "agent_schedules": _AGENT, "budget_meta": _PERSONAL, "issue_hooks": _SECRET, "issue_reports": "not yet in the export",  # 2.362.4 (#3107)
-    "shop_memory": _PERSONAL, "list_ticket_seq": _DERIVED, "task_keys": _LATER2, "list_folder_skip": _LATER2,
+    "shop_memory": _PERSONAL, "list_ticket_seq": _DERIVED,
 }
 
 # 2.1093.0 (#5289, stage Q11): the tables of the core say where their rows go themselves (core/objexport.py, the export register);
