@@ -77,9 +77,10 @@ check(r.status_code in (401, 403), f"frida's web session: 401 / 403 {r.status_co
 r = Fr.post(B + "/api/me/tokens", json={"name": "files", "scopes": ["read", "files:write"]})
 PT = r.json().get("token", "") if r.ok else ""
 check(PT and recipes(PT).status_code == 403, "an ordinary API token of frida: 403")
+A.put(B + "/api/admin/agent-policy", json={"user_agents": True})  # a fresh server without organisations: personal agents off
 r = Fr.post(B + "/api/my/agents", json={"username": "fridabot", "display_name": "Fridabot", "scopes": ["read", "files:read"]})
 AT = r.json().get("token", "") if r.ok else ""
-check(AT and recipes(AT).status_code == 403, f"frida's agent token: 403 ({r.status_code})")
+check(AT and recipes(AT).status_code == 403, f"frida's agent token: 403 (agent made: {r.status_code} {r.text[:120]})")
 check(recipes("kbh_" + "x" * 43).status_code == 401, "an unknown fetcher key: 401")
 check(requests.get(V + "/fetcher/recipes?api=1").status_code == 401, "no key: 401")
 
