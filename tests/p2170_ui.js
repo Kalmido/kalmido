@@ -69,7 +69,8 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
   check(!!logo, '#475: the account menu opens the dashboard ("Start")');
   click(w, logo); await settleW(w);
   // 2.1121.0 (#5477): without a Start tab the start page carries the name of the active tab (Today, #5963)
-  check(w.location.hash === '#home' && d.querySelector('#top h1')?.textContent.includes('Today'), '#475: #home, titled like the active tab Today (2.25.0, #5963) ' + d.querySelector('#top h1')?.textContent);
+  // 2.1213.0 (#6126): a computer (sidebar, no tab bar): "Start" - the tab's name only where the tab bar shows (phone)
+  check(w.location.hash === '#home' && d.querySelector('#top h1 .ht')?.textContent === 'Start', '#475: #home on a computer is titled Start (#6126) ' + d.querySelector('#top h1')?.textContent);
   await until(() => d.querySelector('.dcard.dc-news .hpnl li'));  // 2.45.0 (#1504): News compact, one line per bundle
   const cards = [...d.querySelectorAll('.dgrid .dcard')].map(c => [...c.classList].find(x => x.startsWith('dc-')));
   // 2.45.0 (#1504): Search is hidden by default
@@ -272,7 +273,8 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
 
   // ================= German
   w = await boot({user: 'carol', hash: 'home'}); d = w.document; await settleW(w);
-  check(d.querySelector('#top h1')?.textContent.includes('Heute'), 'German: the dashboard title (2.1121.0 #5477: the active tab Heute) ' + d.querySelector('#top h1')?.textContent);
+  // 2.1213.0 (#6126): a computer (sidebar, no tab bar): the German start page is "Start" (the tab's name "Heute" only with the tab bar)
+  check(d.querySelector('#top h1 .ht')?.textContent === 'Start', 'German: the dashboard title on a computer is Start (#6126) ' + d.querySelector('#top h1')?.textContent);
   // 2.43.0 (#1452): the button is a small icon now (the blocks are changed at their "…" menu); its name says it
   check(d.querySelector('[data-act="dash-custom"]')?.getAttribute('aria-label') === 'Kacheln ordnen…', 'German: Kacheln ordnen…');  // 2.364.0 C (#3044): everyday words
   w.close();
