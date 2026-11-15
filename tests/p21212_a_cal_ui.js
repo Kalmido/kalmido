@@ -245,7 +245,7 @@ const closeAll = d => { d.querySelectorAll('.modal').forEach(m => m.remove()); }
   const mems = async () => Object.fromEntries(((await call('GET', '/api/evcals')).items.find(c => c.id === W.id)?.members || []).map(m => [m.user_id, m.role]));
   check(await call('DELETE', `/api/evcals/${W.id}/members/${carol.id}`).then(r => r.http < 300), 'set-up: Carol out again');
   await w.eval('load()');
-  w.eval('evCalsModal()');
+  w.eval('EVU = null; evCalsModal()');  // the people of the session were read before Bob and Carol existed
   md = await until(() => d.querySelector(`.modal.evcmodal [data-evcmenu="${W.id}"]`) && d.querySelector('.modal.evcmodal'));
   click(w, md.querySelector(`[data-evcmenu="${W.id}"]`));
   await until(() => [...d.querySelectorAll('#pop [role="menuitem"]')].some(b => /Share/.test(b.textContent)));
