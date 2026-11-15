@@ -79,7 +79,7 @@ if (!process.env.P21163A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
       check(await ev(`(() => { const b = document.querySelector('#view .wkpage [data-wk="pmenu"]'); return !!b && !!b.offsetWidth && getComputedStyle(b).opacity === '1'; })()`), `#6087 ${W}: the page's "…" is in sight without hovering`);
       const m = await pmenu();
       check(m && m.includes('History') && m.includes('Copy link') && m.includes('Copy as [[link]]'), `#6087 ${W}: the "…" has History and the links ${JSON.stringify(m)}`);
-      check(m && !m.some(x => /^(Rename…|Delete|Edit as Markdown|Read-only|Share…)$/.test(x)), `#6087 ${W}: nothing that writes in the "…" ${JSON.stringify(m)}`);
+      check(m && !m.some(x => /^(Rename…|Delete|Move to the trash|Edit as Markdown|Read-only|Lock editing \(this device\)|Share…)$/.test(x)), `#6087 ${W}: nothing that writes in the "…" ${JSON.stringify(m)}`);
       check(await pick('/^History$/') && await until(`!!document.querySelector('.modal:not(.hidden)')`), `#6087 ${W}: History opens`);
       await closeAll();
       check(await until(`/Alpha/.test(document.querySelector('#view .wkcrumbs')?.textContent || '')`), `#6089 ${W}: the path starts at the workspace's name (Alpha)`);
@@ -111,7 +111,7 @@ if (!process.env.P21163A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
     const at = x => (m || []).indexOf(x);
     check(m && at('H:Page') === 0 && at('H:Folder') > at('H:Page') && at('H:View on this device') > at('H:Folder'), '#6089: the "…" in groups Page / Folder / View on this device ' + JSON.stringify(m));
     check(m && at('Rename…') > at('H:Page') && at('Rename…') < at('H:Folder') && at('Rename folder…') > at('H:Folder') && at('Rename folder…') < at('H:View on this device'), '#6089: Rename under Page, Rename folder under Folder ' + JSON.stringify(m));
-    check(m && at('Page width…') > at('H:View on this device') && m[m.length - 1] === 'Delete', '#6089: Page width under View, Delete last ' + JSON.stringify(m));
+    check(m && at('Page width…') > at('H:View on this device') && m[m.length - 1] === 'Move to the trash', '#6089: Page width under View, Delete last (2.1187.0 #6092: its word Move to the trash) ' + JSON.stringify(m));
     check(m && at('Open items as tasks · 2') > at('H:Page') && at('Open items as tasks · 2') < at('H:Folder'), '#6089: "Open items as tasks" under Page ' + JSON.stringify(m));
     check(await pick('/^Open items as tasks/') && await until(`!!document.querySelector('.modal.wemdlg')`), '#6089: "Open items as tasks" opens its dialog');
     await closeAll();
