@@ -1091,6 +1091,9 @@ svg.chart{display:block;max-width:100%;overflow:visible}
 .terow .ten{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .terow .tesrc{color:var(--muted);display:inline-flex}
 .terow .tesrc.warn{color:var(--p3)}
+/* 2.1224.0 (#6187): the organisation of an entry's / a report line's project (wso_origin, the page is always mixed) */
+.terow .teorg,.tvl .teorg,.tslinfo .tslorg{flex:0 1 auto;min-width:0;max-width:10rem;font-size:var(--fs-s);color:var(--muted)}
+.tvl .teorg{margin-right:.375rem}
 /* 2.144.6 A (#2053): billed (opens the invoice) / not billable */
 .terow .tebill{flex:none;font-size:var(--fs-s);color:var(--muted);white-space:nowrap}
 .terow .who{display:inline-flex;align-items:center;justify-content:center;width:1.25rem;height:1.25rem;border-radius:50%;background:var(--bg4);font-size:var(--fs-xxs);font-weight:600;flex:none}
