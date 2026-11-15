@@ -555,13 +555,17 @@ async function fsl_lockDlg(n) {
   if (info.block) { toast(info.block); return; }
   const without = (info.members || []).filter(m => !m.has_keys && m.user_id !== S.me.id);
   const get = (info.members || []).filter(m => m.has_keys && m.user_id !== S.me.id);  // 2.353.0 F (#2758, review M1): named before the lock
+  // 2.1224.0 (#6113): three short sentences - what happens, what no longer works afterwards (also the removed earlier versions),
+  // who gets the key and who is still missing - plus the one warning; no technical words without what they mean
+  const who = [get.length ? tr('They get the key right away: {0}.', get.map(m => m.name).join(', ')) : '',
+    without.length ? tr('Still missing: {0}. They get the key once they have set up encryption in their account.', without.map(m => m.name).join(', ')) : '']
+    .filter(Boolean).join(' ') || tr('Only you get the key.');
   const yes = await askConfirm(tr('Lock “{0}”?', n.name), '', {ok: tr('Lock folder'), danger: true, html:
-    [tr('Names and files of this folder are encrypted in your browser. The server, the operator, agents and API tokens cannot read them any more: no preview, no text recognition, no search on the server.'),
-      `<b>${esc(tr('Warning: if you and everyone holding the key lose passphrase and recovery code, the content is lost permanently. Nobody can restore it, not even the operator.'))}</b>`,
-      get.length ? tr('These people get the key with the lock: {0}', get.map(m => m.name).join(', ')) : '',
+    [['fsl-what', tr('The names and files of this folder are encrypted in your browser; only people with the key can open them.')],
       // 2.953 (#3348): tags are plain words the server reads -- they are removed with the lock
-      info.tagged ? trn('The tags of {0} file or folder in it are removed (the server could read them).', 'The tags of {0} files or folders in it are removed (the server could read them).', info.tagged) : '',
-      without.length ? tr('Waiting for the key until they set up encryption: {0}', without.map(m => m.name).join(', ')) : ''].filter(Boolean).map(x => `<p>${x.startsWith('<b>') ? x : esc(x)}</p>`).join('')});
+      ['fsl-after', tr('After that the server, the operator, agents and connected apps can no longer read them: no preview, no search, no text recognition. Earlier versions of the files are removed.') + (info.tagged ? ' ' + trn('The tags of {0} file or folder in it are removed (the server could read them).', 'The tags of {0} files or folders in it are removed (the server could read them).', info.tagged) : '')],
+      ['fsl-who', who]].map(([c, x]) => `<p class="${esc(c)}">${esc(x)}</p>`).join('')
+    + `<p class="fsl-warn"><b>${esc(tr('If everyone with the key forgets their encryption password (passphrase) and loses the recovery code, the content is lost permanently. Nobody can bring it back, not even the operator.'))}</b></p>`});
   if (!yes) return;
   try { await fslStart(n.id, fslProgToast(tr('Encrypting'))); } catch (x) { if (!x.shown) toast(tr('The folder stays open: {0}', x.message || '?')); ab_reload(); return; }
   ab_reload(); toast(tr('“{0}” is locked', n.name));
