@@ -203,7 +203,7 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1280, height: 800}});
     check(await signIn(o, 'dora') === 200, 'reader: login');
     await nav(B + '#t/' + T);
-    check(await ready(ev, `document.querySelector('#detail #d-title')?.value === 'Cut the trailer' && !!document.querySelector('#detail .rotag')`, 80), 'reader: the task opens read-only');
+    check(await ready(ev, `document.querySelector('#detail #d-title')?.value === 'Cut the trailer' && !!document.querySelector('.cwro')`, 80), 'reader: the task opens read-only');  // 2.1238.0 (#6161): the ONE read hint (roHintHtml) instead of the tag
     await ev(`(() => { const m = document.querySelector('#detail #d-more'); if (m) m.open = true; return 1; })()`);
     check(!(await ev(`!!document.querySelector('#detail .attsec')`)), 'reader: #5439 no empty "Attachments" section');
   }, false);

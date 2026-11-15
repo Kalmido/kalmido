@@ -116,6 +116,8 @@ for (const f of fs.readdirSync(I18N).filter(x => x.endsWith('.json'))) {
     check(await ev(`(() => { const st = E2E.st; E2E.st = {set: true}; const h = e2eAttAddHtml({id: 5}); E2E.st = st; const d = document.createElement('div'); d.innerHTML = h; return !!d.querySelector('label[aria-label="Attach encrypted"]') && !!d.querySelector('input[aria-label="Attach encrypted"]'); })()`), '#1518: "Attach encrypted" has an aria-label');
     // ---- Administration overview: three categories
     // 2.152.2 (#2624): project instead of list
+    // 2.1238.0 (#4280): cryptscope.js loads on demand (with the settings); the test draws its part directly, so it loads it first
+    await ev(`loadModule('cryptscope').then(() => 1)`);
     check(await ev(`(() => { const d = document.createElement('div'); d.innerHTML = pm_cryptScopeHtml(${JSON.stringify(sc)}); return d.querySelectorAll('.pmcs').length === 3 && /projects with a lock/.test(d.querySelector('.pmcs.br')?.textContent || '') && /except in projects with a lock/.test(d.querySelector('.pmcs.off .pmcsn')?.textContent || ''); })()`),
       '#1817: Settings > Administration > Encryption shows the third category and "except in lists with a lock"');
 

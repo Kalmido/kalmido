@@ -161,8 +161,9 @@ const api = async (w, method, url, body) => (await w.fetch(url, {method, headers
   // view-only hint + comments allowed for carol
   w.close();
   w = await boot({user: 'carol', hash: 'l/' + ids.L}); d = w.document;
-  w.eval(`openDetail(${ids.ST})`); await until(() => d.querySelector('#c-input') && d.querySelector('.rotag')); await idle(w);
-  check(d.querySelector('#c-input') && d.querySelector('.rotag'), 'view-only member: read-only task but comment box');
+  // 2.1238.0 (#6161): the ONE read hint (roHintHtml .cwro: the list head beside the panel) instead of the tag .rotag
+  w.eval(`openDetail(${ids.ST})`); await until(() => d.querySelector('#c-input') && d.querySelector('.cwro')); await idle(w);
+  check(d.querySelector('#c-input') && d.querySelector('.cwro'), 'view-only member: read-only task but comment box');
   check(!d.querySelector('#d-url') && !d.querySelector('[data-act="link-edit"]'), 'view-only: no link editing');
   w.close();
 
