@@ -18691,5 +18691,11 @@
   "Only digits, spaces and + - / ( ) here, please.": "Hier alleen cijfers, spaties en + - / ( ).",
   "Please enter a web address like https://example.org.": "Vul een webadres in zoals https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % op de posten met korting",
-  "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting"
+  "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting",
+  "Daily notes": "Dagnotities",
+  "Write …": "Schrijf …",
+  "Write … (/ for commands)": "Schrijf … (/ voor opdrachten)",
+  "This project does not exist (any more) or you have no access": "Dit project bestaat niet (meer) of je hebt geen toegang",
+  "To the projects": "Naar de projecten",
+  "This page does not exist": "Deze pagina bestaat niet"
 }

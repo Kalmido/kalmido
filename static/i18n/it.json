@@ -18692,5 +18692,11 @@
   "Only digits, spaces and + - / ( ) here, please.": "Qui solo cifre, spazi e + - / ( ).",
   "Please enter a web address like https://example.org.": "Inserisci un indirizzo web come https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % sulle voci scontabili",
-  "Fixed amount on the discountable positions|calc": "Importo fisso sulle voci scontabili"
+  "Fixed amount on the discountable positions|calc": "Importo fisso sulle voci scontabili",
+  "Daily notes": "Note giornaliere",
+  "Write …": "Scrivi …",
+  "Write … (/ for commands)": "Scrivi … (/ per i comandi)",
+  "This project does not exist (any more) or you have no access": "Questo progetto non esiste (più) o non hai accesso",
+  "To the projects": "Ai progetti",
+  "This page does not exist": "Questa pagina non esiste"
 }
