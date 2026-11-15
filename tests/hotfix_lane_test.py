@@ -5,9 +5,12 @@ branch hotfix/X.Y.Z beside main. Without a server (CI Lint):
   push on main never cancel each other); the suite times are still read from main only;
 - tests/stages.py gives a push on a hotfix branch the full stage (a push on main keeps the push stage);
 - 2.513.0 (#4354): "a tag below the newest keeps latest where it is" now lives in promote.yml (tests/p2513_promote_test.py);
-- #6063: a push on main the merge queue made (a merge_group run for the same commit) = stage "none", no test shards."""
+- #6063: a push on main the merge queue made (a merge_group run for the same commit) = stage "none", no test shards;
+  #6195: whatever the overall result of that run (soft red = failure), only a cancelled run does not count."""
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -113,6 +116,23 @@ check("stage=none" in out.splitlines(), "stages.py --ci prints stage=none for a 
 check("event=merge_group&head_sha=$GITHUB_SHA" in ci and "export CI_QUEUE_RUN" in ci,
       "ci.yml plan looks up the merge_group run of the pushed commit")
 check('[ "$stage" = none ] || stage=full' in ci, "ci.yml plan keeps the stage none")
+# #6195 (decision 15.11.2026): the merge_group run counts whatever its overall result - queue runs end "failure" when a
+# soft part is red, yet GitHub merged with the gate green; only a cancelled run does not count. Evaluate the jq filter of
+# ci.yml on sample runs (with jq where it is installed, CI/Mac), and statically everywhere
+jm = re.search(r"event=merge_group&head_sha=\$GITHUB_SHA[^\n]*\n\s*--jq '([^']*)'", ci)
+jqf = jm.group(1) if jm else ""
+check(jqf and '"success"' not in jqf and 'conclusion != "cancelled"' in jqf,
+      "ci.yml takes the merge_group run whatever its result, cancelled aside (%s)" % jqf[:160])
+if jqf and shutil.which("jq"):
+    def pick(*runs):
+        doc = {"workflow_runs": [dict(id=i, path=".github/workflows/ci.yml@refs/heads/gh-readonly-queue/main/pr-64", conclusion=c)
+                                 for i, c in runs]}
+        r = subprocess.run(["jq", "-r", jqf], input=json.dumps(doc), capture_output=True, text=True)
+        return r.stdout.strip()
+    check(pick((7, "failure")) == "7", "a queue run with a soft red part (failure) counts (%r)" % pick((7, "failure")))
+    check(pick((8, "success")) == "8" and pick((9, None)) == "9", "a green or still running queue run counts")
+    check(pick((5, "cancelled")) == "", "a cancelled queue run does not count (%r)" % pick((5, "cancelled")))
+    check(pick((5, "cancelled"), (6, "failure")) == "6", "after a cancelled run the next queue run of the commit counts")
 tj = re.search(r"^  tests:\n(.*?)^  [a-z-]+:\n", ci, re.M | re.S)
 check(tj is not None and "    if: needs.plan.outputs.stage != 'none'" in tj.group(1), "the shard job is skipped for stage none")
 td = re.search(r"^  tests-done:\n(.*?)^  [a-z-]+:\n", ci, re.M | re.S)
