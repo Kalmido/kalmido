@@ -18679,5 +18679,19 @@
   "The download is not available on this server yet.": "Der Download ist auf diesem Server noch nicht verfügbar.",
   "Unpack the zip file.": "Zip-Datei auspacken.",
   "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Auf dem Mac Einrichten.command, unter Windows Einrichten.cmd doppelklicken.",
-  "Paste the setup code from below when the helper asks for it.": "Den Einrichtungscode von unten einfügen, wenn der Helfer danach fragt."
+  "Paste the setup code from below when the helper asks for it.": "Den Einrichtungscode von unten einfügen, wenn der Helfer danach fragt.",
+  "Export…": "Exportieren…",
+  "vCard (.vcf)": "vCard (.vcf)",
+  "CSV (spreadsheet)": "CSV (Tabelle)",
+  "You cannot add contacts to any address book here.": "Du kannst hier in kein Adressbuch Kontakte eintragen.",
+  "Create your own address book for your contacts; the others stay as they are.": "Leg ein eigenes Adressbuch für deine Kontakte an; die anderen bleiben, wie sie sind.",
+  "Create your own address book": "Eigenes Adressbuch anlegen",
+  "Show imported": "Importierte anzeigen",
+  "An address book holds the contacts and is shared and synced with the phone as a whole; folders sort address books and contacts, groups are labels on single contacts.": "Ein Adressbuch enthält die Kontakte und wird als Ganzes geteilt und mit dem Handy abgeglichen; Ordner sortieren Adressbücher und Kontakte, Gruppen sind Etiketten an einzelnen Kontakten.",
+  "No address book yet.": "Noch kein Adressbuch.",
+  "Please enter an e-mail address like name@example.org.": "Bitte eine E-Mail-Adresse wie name@example.org eingeben.",
+  "Only digits, spaces and + - / ( ) here, please.": "Hier bitte nur Ziffern, Leerzeichen und + - / ( ).",
+  "Please enter a web address like https://example.org.": "Bitte eine Webadresse wie https://example.org eingeben.",
+  "{pct} % on the discountable positions|calc": "{pct} % auf die rabattfähigen Positionen",
+  "Fixed amount on the discountable positions|calc": "Fester Betrag auf die rabattfähigen Positionen"
 }

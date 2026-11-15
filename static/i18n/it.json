@@ -18680,5 +18680,19 @@
   "The download is not available on this server yet.": "Il download non è ancora disponibile su questo server.",
   "Unpack the zip file.": "Estrai il file zip.",
   "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Fai doppio clic su Einrichten.command su Mac o su Einrichten.cmd su Windows.",
-  "Paste the setup code from below when the helper asks for it.": "Incolla il codice di configurazione qui sotto quando l’assistente lo chiede."
+  "Paste the setup code from below when the helper asks for it.": "Incolla il codice di configurazione qui sotto quando l’assistente lo chiede.",
+  "Export…": "Esporta…",
+  "vCard (.vcf)": "vCard (.vcf)",
+  "CSV (spreadsheet)": "CSV (foglio di calcolo)",
+  "You cannot add contacts to any address book here.": "Qui non puoi aggiungere contatti a nessuna rubrica.",
+  "Create your own address book for your contacts; the others stay as they are.": "Crea una tua rubrica per i tuoi contatti; le altre restano come sono.",
+  "Create your own address book": "Crea una tua rubrica",
+  "Show imported": "Mostra gli importati",
+  "An address book holds the contacts and is shared and synced with the phone as a whole; folders sort address books and contacts, groups are labels on single contacts.": "Una rubrica contiene i contatti e si condivide e sincronizza con il telefono per intero; le cartelle ordinano rubriche e contatti, i gruppi sono etichette sui singoli contatti.",
+  "No address book yet.": "Ancora nessuna rubrica.",
+  "Please enter an e-mail address like name@example.org.": "Inserisci un indirizzo e-mail come name@example.org.",
+  "Only digits, spaces and + - / ( ) here, please.": "Qui solo cifre, spazi e + - / ( ).",
+  "Please enter a web address like https://example.org.": "Inserisci un indirizzo web come https://example.org.",
+  "{pct} % on the discountable positions|calc": "{pct} % sulle voci scontabili",
+  "Fixed amount on the discountable positions|calc": "Importo fisso sulle voci scontabili"
 }

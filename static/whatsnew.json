@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1201.0",
+   "date": "2026-11-15",
+   "items": [
+    {
+     "de": "Im Kontakt-Editor wählst du oben Person oder Firma; eine Firmenkarte zeigt ihre Personen.",
+     "en": "In the contact editor you choose Person or Company at the top; a company's card shows its people."
+    },
+    {
+     "de": "Falsche E-Mail-Adressen und Telefonnummern werden direkt am Feld markiert, der Dialog bleibt offen.",
+     "en": "Wrong e-mail addresses and phone numbers are marked right at the field, the dialog stays open."
+    },
+    {
+     "de": "Am Handy stehen die „Letzten Schritte“ jetzt immer im „…“-Menü oben.",
+     "en": "On a phone, \"Recent steps\" is now always in the \"…\" menu at the top."
+    }
+   ]
+  },
+  {
    "version": "2.1196.0",
    "date": "2026-11-15",
    "items": [
@@ -1299,20 +1317,6 @@
     {
      "de": "Verbundene Agenten können Anfragen und Deals der Vertriebs-Pipeline lesen, anlegen und ihre Stufe setzen, wenn ein Büro-Admin es erlaubt.",
      "en": "Connected agents can read the sales pipeline, add inquiries and deals and move them to another stage when an office admin allows it."
-    }
-   ]
-  },
-  {
-   "version": "2.646.0",
-   "date": "2026-11-07",
-   "items": [
-    {
-     "de": "Wissensseiten und Notizen haben im Menü eine Seitenbreite: Lesen, Breit oder Voll.",
-     "en": "Knowledge pages and notes have a page width in their menu: Read, Wide or Full."
-    },
-    {
-     "de": "Auf großen Bildschirmen liegt eine Wissensseite oder Notiz als Blatt da, die Kopfzeile steht bündig zur Seite.",
-     "en": "On large screens a knowledge page or note lies as a sheet, with the top bar flush with the page."
     }
    ]
   }
