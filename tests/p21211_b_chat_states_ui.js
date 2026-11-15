@@ -42,6 +42,9 @@ const FEAT = 'collab,comments';
   const CC = await login('carol');
   await call(CC, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT, workspace: `org:${org.id}`});
   const carol = (await call(CC, 'GET', '/api/state')).me;
+  // the people one may put in a group are those one works with: a shared project with bob and carol
+  const shoot = await call(CA, 'POST', '/api/lists', {name: 'Shoot', org_id: org.id});
+  for (const u of [bob.id, carol.id]) check((await call(CA, 'PUT', `/api/lists/${shoot.id}/members`, {user_id: u, role: 'edit'})).http < 300, 'a shared project ' + u);
   const room = await call(CA, 'POST', '/api/team/channels', {name: 'Film crew', org_id: org.id, open: false, members: [bob.id]});
   check(room.id > 0, 'a room ' + JSON.stringify(room).slice(0, 200));
   // 55 messages (the first page holds 50): 28 of Bob, then 27 of mine (under the 60 per minute of each)
@@ -203,16 +206,20 @@ const FEAT = 'collab,comments';
     await ev(`(document.querySelector('#toast:not(.hidden) button').click(), 1)`);
     check(await wait(async () => { const m = await msgOf(CF, fch.id, fm.id); return m && !m.deleted; }, {timeout: 15000}), 'freelancer: Undo brings it back');
     // #6098 the agent chat: a failed load is the shared block (it said "Only available online." for every error), the box shut
+    await call(CF, 'PATCH', '/api/settings', {features: FEAT + ',agents'});  // the area Agents on: her agent's chat
+    await signIn('frida');
+    await go(B + '#today');
+    check(await wait(`!!S.booted && agentsTab() && (S.agents || []).length === 1`, {timeout: 20000}), 'freelancer: her agent in the app');
     await ev(STEER);
-    await ev(`(window.__amode = 'fail', location.hash = '#agents/${ag.id}', 1)`);
-    check(await wait(`!!document.querySelector('#chat-msgs .eerr')`, {timeout: 20000}), '#6098 agent chat: the failed load shows the block ' + await ev(`document.querySelector('#chat-msgs')?.textContent.slice(0, 200) || 'no #chat-msgs'`));
+    await ev(`(window.__amode = 'fail', chatOpen(S.agents[0].id), 1)`);  // her one agent; the phone: the chat's own page agents/<id> (agentchat.js)
+    check(await wait(`!!document.querySelector('#chat-msgs .eerr')`, {timeout: 20000}), '#6098 agent chat: the failed load shows the block ' + await ev(`JSON.stringify({hash: location.hash, agents: (S.agents || []).map(a => a.id), aid: S.chat.aid, err: S.chat.err, box: document.querySelector('#chat-msgs')?.textContent.slice(0, 200) ?? null, view: (document.querySelector('#view')?.textContent || '').replace(/\\s+/g, ' ').slice(0, 200)})`));
     const ac = await ev(`(() => { const box = document.querySelector('#chat-msgs'); return {t: box.textContent, retry: !!box.querySelector('.eerr [data-esretry]'), off: !!document.querySelector('#chat-in')?.disabled}; })()`);
     check(/The messages could not be loaded/.test(ac.t) && ac.retry && !/Testfehler|Only available online/.test(ac.t), '#6098 agent chat: says what failed, with Try again, no server text ' + JSON.stringify(ac));
     check(ac.off, '#6098 agent chat: the box is shut while it failed');
     await shot('p21211b-agent-ladefehler.png');
     await ev(`(window.__amode = '', document.querySelector('#chat-msgs .eerr [data-esretry]').click(), 1)`);
     check(await wait(`!document.querySelector('#chat-msgs .eerr') && !document.querySelector('#chat-msgs .eload') && !!document.querySelector('#chat-msgs .cmempty')`, {timeout: 20000}), '#6098 agent chat: Try again loads it (the empty conversation reads) ' + await ev(`document.querySelector('#chat-msgs')?.textContent.slice(0, 200) || ''`));
-    if (await ev(`!!agentById(${ag.id})?.enabled`)) check(await wait(`!document.querySelector('#chat-in')?.disabled`, {timeout: 10000}), '#6098 agent chat: the box opens once it loaded');
+    if (await ev(`!!agentById(S.chat.aid)?.enabled`)) check(await wait(`!document.querySelector('#chat-in')?.disabled`, {timeout: 10000}), '#6098 agent chat: the box opens once it loaded');
   }, true);
 
   console.log(`p21211_b_chat_states_ui: ${ok} passed, ${F.length} failed`);

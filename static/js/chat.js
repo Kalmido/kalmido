@@ -724,8 +724,16 @@ async function tcx_chanNew() {
       const s = sp(md); return {name, org_id: s.id || null, open: !!s.id && $('#tcx-open', md).checked, members: tcx_checked(md)}; }});
   if (!v) return;
   const r = await tcx_req('POST', '/api/team/channels', v); if (!r) return;
-  offerUndo(tr('Channel “{0}” created', r.name), histAdd({label: tr('New channel “{0}”', r.name), undo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: true}).then(() => tcx_refresh()), redo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: false}).then(() => tcx_refresh())}));
-  await loadTeam(); go('team/' + r.id);
+  await loadTeam(); go('team/' + r.id);  // 2.1211.0 (#6099): first the new page, then its Undo (a page change ended the message at once)
+  tcx_afterGo('#team/' + r.id, tr('Channel “{0}” created', r.name), histAdd({label: tr('New channel “{0}”', r.name), undo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: true}).then(() => tcx_refresh()), redo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: false}).then(() => tcx_refresh())}));
+}
+// 2.1211.0 (#6099): the Undo message of a new conversation belongs to the page it opens (events.js toastPage ends a message when
+// the page changes, and go() may wait for the dialog's Back): shown once the address is there (at the latest after 2 s)
+function tcx_afterGo(hash, msg, e) {
+  let done = false;
+  const run = () => { if (done) return; done = true; removeEventListener('hashchange', on); offerUndo(msg, e); }, on = () => { if (location.hash === hash) run(); };
+  if (location.hash === hash) { run(); return; }
+  addEventListener('hashchange', on); setTimeout(run, 2000);
 }
 async function tcx_groupNew() {
   const ppl = S.tc.people || [];
@@ -739,8 +747,8 @@ async function tcx_groupNew() {
   const r = await tcx_req('POST', '/api/team/groups', v); if (!r) return;
   // 2.1211.0 (#6099): Undo as for a new channel (the server archives a group only for its creator while nobody wrote in it)
   const gn = r.name || tr('New group');
-  offerUndo(tr('Group “{0}” created', gn), histAdd({label: tr('New group “{0}”', gn), undo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: true}).then(() => { if (S.tc.rid === r.id && S.route.mod === 'team') go('team'); return tcx_refresh(); }), redo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: false}).then(() => tcx_refresh())}));
-  await loadTeam(); go('team/' + r.id);
+  await loadTeam(); go('team/' + r.id);  // first the new page, then its Undo (see tcx_chanNew)
+  tcx_afterGo('#team/' + r.id, tr('Group “{0}” created', gn), histAdd({label: tr('New group “{0}”', gn), undo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: true}).then(() => { if (S.tc.rid === r.id && S.route.mod === 'team') go('team'); return tcx_refresh(); }), redo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: false}).then(() => tcx_refresh())}));
 }
 async function tcx_browse() {
   const j = await tcx_req('GET', '/api/team/channels'); if (!j) return;
