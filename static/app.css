@@ -2237,6 +2237,11 @@ button.tvr-task:hover{color:var(--accent)}
 .chnote{padding:0 .75rem .75rem;margin:0}
 /* 2.12.2 (#451): "Load older messages" above the newest 30, "New message ↓" over the bottom edge of the list while scrolled up */
 .chold{display:flex;justify-content:center;padding:.125rem 0 .25rem}
+/* 2.1211.0 (#6098): a failed older page is said at its button; the chats' loading / failed blocks fill their log */
+.chold{flex-wrap:wrap;align-items:center;gap:.25rem .5rem}.cholderr{color:var(--danger);font-size:var(--fs-sm)}
+.chstate{display:flex;flex-direction:column;justify-content:center;flex:1 0 auto}
+/* the shut box and Send look shut (loading, failed, a paused agent, one send at a time) */
+.chcomp textarea:disabled,.chcomp .btn:disabled{opacity:.5;cursor:default}
 /* 2.41.0 (#1206): a notice of the agent (new session, conversation compacted): a small grey line in the middle, no bubble */
 .chnew{position:relative;z-index:2;align-self:center;display:inline-flex;align-items:center;gap:.375rem;min-height:2.75rem;margin:-3.25rem 0 .5rem;padding:0 1rem;border:1px solid var(--line2);border-radius:99rem;background:var(--bg2);color:var(--accent);font:inherit;font-size:var(--fs-s);font-weight:600;box-shadow:var(--shadow);cursor:pointer}
 .chnew.hidden{display:none}
