@@ -52,11 +52,15 @@ def merge(ours, theirs, base):
     r = tempfile.mkdtemp(prefix="p6199-")
     try:
         git(r, "init", "-q", "-b", "main")
-        put(r, base); git(r, "add", "-A"); git(r, "commit", "-qm", "base")
+        put(r, base)
+        git(r, "add", "-A")
+        git(r, "commit", "-qm", "base")
         git(r, "checkout", "-qb", "b")
-        put(r, theirs); git(r, "commit", "-qam", "theirs")
+        put(r, theirs)
+        git(r, "commit", "-qam", "theirs")
         git(r, "checkout", "-q", "main")
-        put(r, ours); git(r, "commit", "-qam", "ours")
+        put(r, ours)
+        git(r, "commit", "-qam", "ours")
         p = git(r, "merge", "-q", "b", ok=False)
         with open(os.path.join(r, "static", "sw.js"), encoding="utf-8") as f:
             return p.returncode == 0, f.read()
