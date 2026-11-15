@@ -18737,5 +18737,20 @@
   "The documents could not be merged": "Die Dokumente konnten nicht zusammengeführt werden",
   "No document could be added": "Es konnte kein Dokument hinzugefügt werden",
   "Surcharge|calc": "Zuschlag",
-  "Surcharge": "Zuschlag"
+  "Surcharge": "Zuschlag",
+  "The card does not show projects without a status": "Projekte ohne Status zeigt die Kachel nicht",
+  "No preview for this kind of file": "Keine Vorschau für diese Dateiart",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Dieses PDF ist zu groß für die Vorschau (über 40 MB). Lade es herunter, um es zu lesen.",
+  "Filter: {0} active": "Filter: {0} aktiv",
+  "Lock editing (this device)": "Bearbeiten sperren (dieses Gerät)",
+  "Reference copied": "Verweis kopiert",
+  "Tags|wiki": "Schlagwörter",
+  "Locked|wiki": "Verschlüsselt (im Browser)",
+  "Import pages": "Seiten importieren",
+  "The share applies to this page.": "Der Zugriff gilt für diese Seite.",
+  "Green comes back with Restore, red goes.": "Grün kommt mit Wiederherstellen zurück, Rot fällt weg.",
+  "Marked: what only this version has.": "Markiert: was nur in dieser Version steht.",
+  "Import cancelled: {0} imported page moved to the trash": ["Import abgebrochen: {0} importierte Seite in den Papierkorb gelegt", "Import abgebrochen: {0} importierte Seiten in den Papierkorb gelegt"],
+  "Click to try again": "Klicken, um es erneut zu versuchen",
+  "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "Die Projekt-Kennung {0} ist in diesem Arbeitsbereich schon vergeben: Das Projekt {1} kam ohne Kennung an, seine alten Nummern finden die Aufgaben weiter"
 }

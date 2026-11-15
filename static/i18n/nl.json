@@ -18737,5 +18737,20 @@
   "The documents could not be merged": "De documenten konden niet worden samengevoegd",
   "No document could be added": "Er kon geen document worden toegevoegd",
   "Surcharge|calc": "Toeslag",
-  "Surcharge": "Toeslag"
+  "Surcharge": "Toeslag",
+  "The card does not show projects without a status": "De kaart toont geen projecten zonder status",
+  "No preview for this kind of file": "Geen voorbeeld voor dit soort bestand",
+  "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen.",
+  "Filter: {0} active": "Filter: {0} actief",
+  "Lock editing (this device)": "Bewerken vergrendelen (dit apparaat)",
+  "Reference copied": "Verwijzing gekopieerd",
+  "Tags|wiki": "Tags",
+  "Locked|wiki": "Versleuteld (in de browser)",
+  "Import pages": "Pagina’s importeren",
+  "The share applies to this page.": "Het delen geldt voor deze pagina.",
+  "Green comes back with Restore, red goes.": "Groen komt terug met Herstellen, rood verdwijnt.",
+  "Marked: what only this version has.": "Gemarkeerd: wat alleen in deze versie staat.",
+  "Import cancelled: {0} imported page moved to the trash": ["Import geannuleerd: {0} geïmporteerde pagina naar de prullenbak verplaatst", "Import geannuleerd: {0} geïmporteerde pagina’s naar de prullenbak verplaatst"],
+  "Click to try again": "Klik om het opnieuw te proberen",
+  "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "De projectcode {0} wordt in deze werkruimte al gebruikt: het project {1} kwam zonder code aan, de oude nummers vinden de taken nog steeds"
 }
