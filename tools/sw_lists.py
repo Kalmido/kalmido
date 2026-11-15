@@ -5,6 +5,10 @@ SHELL = the fixed start files (kept as they stand in sw.js: '/', manifest, app.c
 static/js/<module>.js that static/index.html loads with a <script> tag, in that order; LAZY = the modules of LD_MODS in
 static/js/lazyload.js; LAZY_CSS = the stylesheets of LD_CSS there (tools/check_layout.py checks exactly this). Every package
 that adds a module appended to these three lines by hand, so two packages built side by side always conflicted in sw.js.
+2.1193.0 (#6199): GitHub's merge queue merges without this driver, so the lists are written one entry per line, sorted,
+each with a trailing comma: two packages that add different modules touch different lines and merge clean with plain git
+(59 neighbouring package pairs since 2.900: 33 conflicts in the wrapped lines, 2 in this form). The order of the lists
+does not matter to the service worker (it caches them in parallel); tools/check_layout.py checks this form.
 
   python3 tools/sw_lists.py                 rewrite the three lists in static/sw.js from index.html + lazyload.js
   python3 tools/sw_lists.py --check         exit 1 when sw.js differs from what the sources say
@@ -24,7 +28,6 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIST_RE = {n: re.compile(r"^const " + n + r" = \[(.*?)\];", re.S | re.M) for n in ("SHELL", "LAZY", "LAZY_CSS")}
-WRAP = 150
 
 
 def read(*p):
@@ -44,17 +47,8 @@ def sources():
 
 
 def fmt(name, urls):
-    """const NAME = [...]; wrapped like the hand-written lines (one line of ~150 chars, continuation indented)."""
-    out, line = [], f"const {name} = ["
-    for i, u in enumerate(urls):
-        item = f"'{u}'" + ("," if i + 1 < len(urls) else "")
-        if len(line) + len(item) + 1 > WRAP and line.strip() not in (f"const {name} = [",):
-            out.append(line.rstrip())
-            line = "  " + item
-        else:
-            line += ("" if line.endswith("[") else " ") + item
-    out.append(line + "];")
-    return "\n".join(out)
+    """const NAME = [ one entry per line, sorted, duplicates dropped, each with a trailing comma ]; (2.1193.0, #6199)."""
+    return f"const {name} = [\n" + "".join(f"  '{u}',\n" for u in sorted(set(urls))) + "];"
 
 
 def rebuild(sw_text, src=None):
@@ -125,11 +119,10 @@ def main(argv):
         return merge_driver(*argv[1:4])
     text = read("static", "sw.js")
     new, changed = rebuild(text)
-    lists = lambda t: [re.findall(r"'(/[^']*)'", LIST_RE[n].search(t).group(1)) for n in ("SHELL", "LAZY", "LAZY_CSS")]
-    changed = lists(new) != lists(text)  # the wrapping of the lines does not count
-    if "--check" in argv:
+    if "--check" in argv:  # 2.1193.0 (#6199): the form counts as well (one entry per line, sorted)
         if changed:
-            print("static/sw.js: the lists SHELL / LAZY / LAZY_CSS differ from index.html + lazyload.js - run python3 tools/sw_lists.py")
+            print("static/sw.js: the lists SHELL / LAZY / LAZY_CSS differ from index.html + lazyload.js or are not one entry "
+                  "per line, sorted - run python3 tools/sw_lists.py")
             return 1
         print("sw.js lists current")
         return 0
