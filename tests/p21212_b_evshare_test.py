@@ -77,6 +77,21 @@ check(members().get(BOB) == "view", "#6156: with the role he had (view) " + str(
 r = Fr.post(B + f"/api/obj/evcal/{C['id']}/shares/{rev[0]}/restore")
 check(r.status_code == 404, "#6156: the same row a second time: 404 " + str(r.status_code))
 
+# fable review: a person with two share rows (an old double, one expired) -> one restorable row, one restore gives the access back
+import dbx as dbxm  # noqa: E402
+from kt import DATA  # noqa: E402
+c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+nid = c.execute("SELECT id FROM fs_nodes WHERE kind='ref' AND ref_kind='evcal' AND ref_id=?", (C["id"],)).fetchone()[0]
+c.execute("INSERT INTO fs_shares(node_id,user_id,role,expires_at,created_by,created_at) VALUES(?,?,?,?,?,?)",
+          (nid, BOB, "edit", "2020-01-01T00:00:00Z", FID, "2020-01-01T00:00:00Z"))
+c.commit()
+c.close()
+r = Fr.delete(B + f"/api/evcals/{C['id']}/members/{BOB}")
+rev2 = r.json().get("revoked") if r.ok else None
+check(r.ok and rev2 and len(rev2) == 1, "review: two rows of Bob -> one restorable share " + r.text[:200])
+r = Fr.post(B + f"/api/obj/evcal/{C['id']}/shares/{rev2[0]}/restore")
+check(r.ok and sees(Bo) and members().get(BOB) == "view", "review: one restore gives Bob his live share back (view) " + r.text[:200] + str(members()))
+
 # a member leaving on their own: nothing to restore
 r = Ca.delete(B + f"/api/evcals/{C['id']}/members/{CAR}")
 check(r.ok and r.json().get("revoked") == [] and not sees(Ca), "#6156: Carol leaves on her own: out, nothing to restore " + r.text[:200])
