@@ -1,6 +1,6 @@
-// Package 2.1169.0 A (#6090) UI tests: what Kalmido writes itself on a knowledge page reads like text, not like Markdown.
+// Package 2.1198.0 A (#6090) UI tests: what Kalmido writes itself on a knowledge page reads like text, not like Markdown.
 // kalmido-suite: fresh
-// Own container (start.sh), Firefox with a mouse; invented pages only. Screenshots: P21169A_SHOTS.
+// Own container (start.sh), Firefox with a mouse; invented pages only. Screenshots: P21198A_SHOTS.
 // - the front matter as fields: keys as words (Tags, As of), a date as the app writes dates; in the editor one folded line of
 //   these fields, the cursor in it shows the lines to edit; the event of minutes (termin) as a link "Open event"
 // - a link [[Folder/Page]] shows the page's name (the path as its tooltip), in the read view and in the editor; a task link in
@@ -15,10 +15,10 @@ const {execFileSync} = require('child_process');
 const {sleep, B, login} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } return !!c; };
-const firefox = require('./ff')({tag: 'p21169_a_wiki_text_ui', check, shots: 'P21169A_SHOTS'});
+const firefox = require('./ff')({tag: 'p21198_a_wiki_text_ui', check, shots: 'P21198A_SHOTS'});
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 const DATA = process.argv[2] || path.join(__dirname, '.data');
-if (!process.env.P21169A_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
+if (!process.env.P21198A_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
 
 (async () => {
   await sleep(600);
@@ -58,7 +58,7 @@ if (!process.env.P21169A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
     check(tk === `#${T} Book the hall`, `the editor: a task link shows its title after the number (was only "#${T}") ${tk}`);
     const ph = await ev(`tr('Write … (/ for commands)')`);
     check(ph === 'Write … (/ for commands)' && !/\[\[/.test(ph), 'the editor\'s hint has no link syntax ' + ph);
-    await shot('p21169a-editor-1280.png');
+    await shot('p21198a-editor-1280.png');
     // a click on the fields (wkcm_wDown) puts the cursor there; headless Firefox gives the page no real focus, so the editor's
     // focus mark (WKCM_FOC, set by its focus event) is set by hand after the click
     await ev(`(() => { const dt = document.querySelector('#wk-cm .cm-wkfmw dt'); dt.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true, button: 0})); WKCM.view.dispatch({effects: WKCM_FOC.of(true)}); return WKCM.view.state.selection.main.head; })()`);
@@ -75,7 +75,7 @@ if (!process.env.P21169A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
       return {t: a.textContent, ti: a.getAttribute('title'), dt: [...dl.querySelectorAll('dt')].map(x => x.textContent).sort().join('|'), dd: as?.querySelector('dd')?.textContent, want: ${want}}; })()`, {timeout: 20000});
     check(rd && rd.t === 'Weather plan B' && rd.ti === 'Processes/Shoot day/Weather plan B', `read: the link shows the page's name, the path as its tooltip ${JSON.stringify(rd)}`);
     check(rd && rd.dt === 'As of|Tags' && rd.dd === rd.want, `read: the front matter's keys as words, the date written out (was "as_of 2026-11-10") ${JSON.stringify(rd)}`);
-    await shot('p21169a-read-1280.png');
+    await shot('p21198a-read-1280.png');
     await nav(B + '?w=1280#wiki/' + P.min);
     const ev1 = await until(`(() => { const a = document.querySelector('#view .wkpage .wkattrs dd a'); return a ? {t: a.textContent, h: a.getAttribute('href'), dt: document.querySelector('#view .wkpage .wkattrs dt')?.textContent} : null; })()`, {timeout: 20000});
     check(ev1 && ev1.t === 'Open event' && ev1.h === '#ev/4711' && ev1.dt === 'Event', `read: the minutes' event as a link (was "termin 4711") ${JSON.stringify(ev1)}`);
@@ -87,7 +87,7 @@ if (!process.env.P21169A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
     await nav(B + '?w=1280#wiki/' + P.day);
     const dn = await until(`(() => { const h = document.querySelector('#view .wkpage h2'); return h && h.textContent.trim() ? {h: h.textContent.trim(), want: fmtDay('year', new Date('2026-11-14T00:00:00')), crumbs: document.querySelector('#view .wkpage .wkcrumbs')?.textContent} : null; })()`, {timeout: 20000});
     check(dn && dn.h === dn.want && /2026/.test(dn.h) && /Daily notes/.test(dn.crumbs || '') && !/journal/.test(dn.crumbs || ''), `the daily note: titled with its date, its folder "Daily notes" (was 2026-11-14 in "journal") ${JSON.stringify(dn)}`);
-    await shot('p21169a-daynote-1280.png');
+    await shot('p21198a-daynote-1280.png');
     const lbl = await ev(`JSON.stringify([wk_label('journal'), wk_label('Templates'), wk_label('Vorlagen'), wk_label('journal/2026-11-14') === fmtDay('year', new Date('2026-11-14T00:00:00')), wk_label('journal/x'), wk_label('A/journal'), wk_dirLabel('journal/2026-11-14')])`);
     check(lbl === JSON.stringify(['Daily notes', 'Templates', 'Templates', true, 'x', 'journal', 'Daily notes']), 'the labels: only the top folders and a dated note are named in words, other names stay ' + lbl);
     await nav(B + '?w=1280#wiki');
@@ -110,10 +110,10 @@ if (!process.env.P21169A_NOSTART) execFileSync('bash', [path.join(__dirname, 'st
     await ev(`(() => { const q = document.querySelector('#wk-q'); q.value = 'Weather'; q.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
     const hit = await until(`(() => { const a = [...document.querySelectorAll('#wk-res a.wkitem')].find(x => x.getAttribute('href') === '#wiki/${P.plan}'); const s = a && a.querySelector(':scope > span'); return s ? {name: s.firstChild?.textContent.trim(), dir: s.querySelector('.wkpdir')?.textContent} : null; })()`, {timeout: 20000});
     check(hit && hit.name === 'Weather plan B' && hit.dir === 'Processes / Shoot day', `a search hit: the name, its folders quietly beside it ${JSON.stringify(hit)}`);
-    await shot('p21169a-search-1280.png');
+    await shot('p21198a-search-1280.png');
     await ev(`(() => { LS.set('wkRo', ''); return 1; })()`);
   });
 
-  console.log(`p21169_a_wiki_text_ui: ${ok} ok, ${F.length} failed`);
+  console.log(`p21198_a_wiki_text_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

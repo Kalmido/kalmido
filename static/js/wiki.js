@@ -37,7 +37,7 @@ function wk_pgAt(id) {
 // the area "Knowledge pages" and has no "…" of its own (render.js renderTop0), the page's head keeps the back arrow, the path and
 // the page's "…", which also carries the head bar's entries (undo / redo, favourite, help, the space's section)
 const wk_phonePage = () => isMobile() && S.route.mod === 'wiki' && !!S.route.wid && WK.pg?.id === S.route.wid && !WK.pg._wke;
-const wk_topTitle = () => wk_label(WK.pg?.path || '');  // 2.1169.0 (#6090): a daily note as its date
+const wk_topTitle = () => wk_label(WK.pg?.path || '');  // 2.1198.0 (#6090): a daily note as its date
 function wk_open() {
   if (!wk_all()) return wk_cur();
   const r = S.route, ok = v => !!v && wk_spaces().includes(v); if (r.mod !== 'wiki') return null;
@@ -64,13 +64,13 @@ function wk_allHits(q) {
 const wk_hitHtml = (p, i) => `<li><a href="#wiki/${p.id}" class="wkitem">${ic('note', 's')}${wk_hitName(p, i)}<small class="muted wkspn">${esc(wk_spaceName(p.space))}</small></a></li>`;
 // 2.376 (#3292): a hit's name with the snippet of its text when the text is here already (a space with the lock, offline;
 // wkhist.js wks_nameHtml), for the first 30 hits; nothing is loaded for it
-const wk_hitName = (p, i) => i < 30 && typeof wks_nameHtml === 'function' ? wks_nameHtml(p, WK.q) : wk_pathHtml(p.path);  // 2.1169.0 (#6090): name + folders
+const wk_hitName = (p, i) => i < 30 && typeof wks_nameHtml === 'function' ? wks_nameHtml(p, WK.q) : wk_pathHtml(p.path);  // 2.1198.0 (#6090): name + folders
 function wk_allHitsHtml(q, cls = '') {
   const v = wk_allHits(q), wait = wk_spaces().some(s => !WK.idx[s]?.pages && !WK.idx[s]?.err);
   return `<nav id="wk-res" class="${cls}" aria-label="${esc(tr('Pages'))}">${/*html-ok*/ v.length ? `<ul class="wktree">${v.map(wk_hitHtml).join('')}</ul>` : wait ? '' : wk_noHit()}${wait ? `<div class="muted mhint">${tr('Loading…')}</div>` : ''}${typeof wks_html === 'function' ? wks_html('', WK.q, v.filter(p => p.path.toLowerCase().includes(q))) : ''}</nav>`;
 }
 const wk_base = p => p.split('/').pop();
-// 2.1169.0 (#6090): what Kalmido names itself reads like text, the paths stay as they are: the daily notes' folder "journal" and
+// 2.1198.0 (#6090): what Kalmido names itself reads like text, the paths stay as they are: the daily notes' folder "journal" and
 // the templates' folder "Templates" / "Vorlagen" (top level) in the person's language, a daily note as its date (Sa, 14. Nov 2026)
 function wk_label(path) {
   const parts = String(path || '').split('/'), b = parts[parts.length - 1];
@@ -158,7 +158,7 @@ function wk_tree(pages, folders = []) {
     for (const part of path.split('/')) {
       acc = acc ? acc + '/' + part : part;
       const k = part.toLowerCase();
-      if (!n.kids.has(k)) n.kids.set(k, {name: part, label: wk_label(acc), path: acc, page: null, kids: new Map()});  // 2.1169.0 (#6090): label = what the lists show
+      if (!n.kids.has(k)) n.kids.set(k, {name: part, label: wk_label(acc), path: acc, page: null, kids: new Map()});  // 2.1198.0 (#6090): label = what the lists show
       n = n.kids.get(k);
     }
     return n;
@@ -566,12 +566,12 @@ function wk_crumbs(p) {
   const parts = p.path.split('/'), sp = p.space;
   return `<nav class="wkcrumbs" aria-label="${esc(tr('Path'))}"><a href="#${esc(wk_home(sp))}" data-wk="home">${esc(wk_rootName(sp))}</a>${/*html-ok*/ parts.slice(0, -1).map((x, i) => {
     const pg = wk_byPath(sp, parts.slice(0, i + 1).join('/'));
-    const lb = wk_label(parts.slice(0, i + 1).join('/'));  // 2.1169.0 (#6090)
+    const lb = wk_label(parts.slice(0, i + 1).join('/'));  // 2.1198.0 (#6090)
     if (typeof sbb_on === 'function' && sbb_on()) return `<span aria-hidden="true">/</span><a href="#${esc(wk_dirGo(parts.slice(0, i + 1).join('/'), sp))}">${esc(lb)}</a>`;  // 2.152.3 B (#2620): the folder's list
     return `<span aria-hidden="true">/</span>${pg ? `<a href="#wiki/${pg.id}">${esc(lb)}</a>` : `<span>${esc(lb)}</span>`}`;
   }).join('')}</nav>`;
 }
-// 2.1169.0 (#6090): the front matter as fields, not as Markdown: the key as a word (Tags, Termin, Datum, Stand; others with a capital),
+// 2.1198.0 (#6090): the front matter as fields, not as Markdown: the key as a word (Tags, Termin, Datum, Stand; others with a capital),
 // a date as the app writes dates, the event of minutes (termin / event, wk_meetText) as a link to it. cls: the editor's folded line
 const WK_ATTR_LB = {tags: N_('Tags'), tag: N_('Tags'), termin: N_('Event|calendar'), event: N_('Event|calendar'), datum: N_('Date'), date: N_('Date'), stand: N_('As of')};
 function wk_attrVal(k, v) {
@@ -676,7 +676,7 @@ function wk_render(p, ctx = {seen: new Set([p.id]), d: 0}) {
     if (skip > 0) return m;
     if (tid) return wk_taskLink(+tid, tlb);  // 2.619.0 (#4947)
     const t = path.trim(), pg = wk_byPath(p.space, wk_unesc(t));  // t is HTML already
-    const lb = label ? label : esc(wk_label(wk_unesc(t).replace(/#.*$/, '').trim())), ti = label || !t.includes('/') ? '' : ` title="${t}"`;  // 2.1169.0 (#6090): the page's name, the path as its tooltip
+    const lb = label ? label : esc(wk_label(wk_unesc(t).replace(/#.*$/, '').trim())), ti = label || !t.includes('/') ? '' : ` title="${t}"`;  // 2.1198.0 (#6090): the page's name, the path as its tooltip
     if (bang && typeof wem_pgHtml === 'function' && !/^\s*(datei|tabelle)\s*:/i.test(t)) { pgs.push({path: wk_unesc(t), part: wk_unesc((_a || '').slice(1)), label: label ? wk_unesc(label) : '', pg}); return `\u2063WKE${pgs.length - 1}\u2063`; }
     if (/^\s*(datei|tabelle)\s*:/i.test(t)) return wem_link(p, wk_unesc(t), label);  // 2.123.0 C (#2107): a file / table (wkembed.js)
     return pg ? `<a href="#wiki/${pg.id}" class="wklink"${/*html-ok*/ ti/* the path, HTML already (t) */}>${lb}</a>` : `<a href="#wiki" class="wklink wkmissing" data-wk="create" data-path="${t}" title="${esc(tr('Create this page'))}">${lb}</a>`;
@@ -910,7 +910,7 @@ function wk_after(sp) { if (WK.idx[sp]) { WK.idx[sp].v = -1; WK.idx[sp].mk = (WK
 // {{teilnehmer}} / {{participants}} and {{tagesordnung}} / {{agenda}} as well (more = those values); elsewhere they stay
 const WK_PH = /\{\{[ \t]*(datum|date|titel|title|ich|me|cursor|termin|event|zeit|time|ort|place|teilnehmer|participants|tagesordnung|agenda)[ \t]*\}\}/gi;
 const WK_PH_EN = {date: 'datum', title: 'titel', me: 'ich', event: 'termin', time: 'zeit', place: 'ort', participants: 'teilnehmer', agenda: 'tagesordnung'};
-// 2.1169.0 (#6090): a new page from a template: empty list items / boxes of the template ("- ", "- [ ] ") and the template's own
+// 2.1198.0 (#6090): a new page from a template: empty list items / boxes of the template ("- ", "- [ ] ") and the template's own
 // front matter (typ: protokoll …) are not copied; its tags stay (the new page belongs to them too). Only a template of the space:
 // the built-in minutes keep their empty points to fill (#1958)
 function wk_tplClean(text) {
@@ -938,7 +938,7 @@ async function wk_tplText(sp, id) {  // a template's text (from the index when i
   return q.body || '';
 }
 async function wk_mk(sp, path, tpl, f0) {  // makes the page (tpl = a template's id, 0 = empty; f0 = a text made already, {text, at}); the answer {id, path, …}
-  const f = f0 || (tpl ? wk_tplFill(wk_tplClean(await wk_tplText(sp, tpl)), path) : {text: '', at: -1});  // 2.1169.0 (#6090)
+  const f = f0 || (tpl ? wk_tplFill(wk_tplClean(await wk_tplText(sp, tpl)), path) : {text: '', at: -1});  // 2.1198.0 (#6090)
   const r = wk_e2e(sp) ? await wkeCreate(sp, path, 0, f.text) : await rawFetch('POST', '/api/wiki/pages', {space: sp, path, ...(f.text ? {body: f.text} : {})});
   WK.caretNext = f.at >= 0 ? {id: r.id, at: f.at} : null;
   return r;
