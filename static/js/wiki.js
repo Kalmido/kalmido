@@ -1437,7 +1437,7 @@ function wko_cfHtml(p) {
 }
 async function wko_cfShow(p) {
   const r = WKO.cf[p.id]; if (!r) return;
-  if (!OUT.online) { toast(tr('Offline: only works again with a connection')); return; }
+  if (!OUT.online) { toast(tr('Only available online.')); return; }
   await wk_loadPage(p.id, true);
   const cur = WK.pg; if (!cur || cur.id !== p.id || cur._off) return;
   let mine = r.mine;

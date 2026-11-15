@@ -126,7 +126,7 @@ async function rt9_adminDraw(md) {
       if (e.target.id !== 's-rt9-on') return;
       const on = e.target.checked;
       try { await rawFetch('PUT', '/api/admin/related', {on}); RT9.on = null; RT9.ask = null; RT9.cache.clear(); toast(tr('Saved')); rt9_adminDraw(md); }
-      catch { e.target.checked = !on; toast(tr('Offline: only works again with a connection')); }
+      catch { e.target.checked = !on; toast(tr('Only available online.')); }
     });
   }
 }

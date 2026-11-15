@@ -1070,7 +1070,7 @@ async function noteFlush() {
     const s = $('#nt-saved'); if (s) { s.textContent = tr('Saved'); setTimeout(() => { if (s.isConnected) s.textContent = ''; }, 1500); }
   } catch (e) {
     if (e.status === 409 && e.data?.note) { noteConflict(n, e.data.note, patch); return; }
-    S.nt.dirty = true; toast(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message);  // 2.143.0 C (#2153): only a locked list's note
+    S.nt.dirty = true; toast(e instanceof Offline ? tr('Only available online.') : e.message);  // 2.143.0 C (#2153): only a locked list's note
   }
 }
 async function noteConflict(mine, theirs, patch) {
@@ -1086,7 +1086,7 @@ async function noteNew() {
   if (qn_isList(lid)) { qn_new(lid); return; }  // 2.477.0 (#3881): the list "Notes" makes quick notes
   const url = `/api/lists/${lid}/notes`, b = {title: tr('New note'), client_ref: outKey()};  // 2.143.0 C (#2153): offline into the outbox (ntLocal draws it)
   let r = null;  // 2.536.0 (#4567): online too into the outbox (a temporary id, ntSent swaps it), a locked list straight
-  if (ntLocked(lid)) try { r = await rawFetch('POST', url, b); } catch (e) { toast(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message); return; }
+  if (ntLocked(lid)) try { r = await rawFetch('POST', url, b); } catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
   if (!r) { r = enqueue('POST', url, b); S.nt.newId = r.id; go('note/' + r.id); setTimeout(() => { const t = $('#nt-title'); if (t) { t.focus(); t.select(); } }, 120); return; }
   S.nt.notes = [r, ...(S.nt.notes || [])]; S.notes = [{id: r.id, list_id: lid, title: r.title, tags: [], pinned: false, updated_at: r.updated_at}, ...(S.notes || [])];
   S.nt.newId = r.id; go('note/' + r.id);
@@ -1101,7 +1101,7 @@ function noteMenu(anchor, id) {
   menu(anchor, [...(card ? [{label: tr('Open'), icon: 'eye', act: 'm-open', fn: () => go('note/' + n.id)},
       ...(rw ? [{label: n.pinned ? tr('Unpin') : tr('Pin'), icon: 'pin', act: 'm-pin', fn: () => ntWrite(n, {pinned: !n.pinned}).then(r => {
         if (!r.queued) for (const x of [(S.nt.notes || []).find(y => y.id === n.id), (S.notes || []).find(y => y.id === n.id)]) if (x) x.pinned = r.pinned;
-        renderView(); }).catch(err => toast(err instanceof Offline ? tr('Offline: only works again with a connection') : err.message))}] : [])] : []),
+        renderView(); }).catch(err => toast(err instanceof Offline ? tr('Only available online.') : err.message))}] : [])] : []),
     {label: tr('Copy link'), icon: 'link', act: 'm-copy-link', fn: () => { navigator.clipboard?.writeText(`${location.origin}${location.pathname}#note/${n.id}`).then(() => toast(tr('Link copied'))); }},
     ...(card ? [] : pgw_items('notes', n.id)),  // 2.599.0 (#4808): the open note's width
     ...(others.length ? [{label: tr('Move to project…'), icon: 'folder', act: 'm-move', next: 1, fn: () => tch_listPicker(anchor, {filter: l => others.includes(l), pick: async l => {  // 2.38.0 (#1177)
@@ -1145,7 +1145,7 @@ document.addEventListener('click', e => {
   if (act === 'nt-new') noteNew();
   else if (act === 'nt-close') { noteFlush(); navUp('notes/' + S.nt.lid); }  // 2.743.0 (#5235)
   else if (act === 'nt-mode') { noteFlush(); S.nt.edit = a.dataset.m === 'edit'; renderView(); if (S.nt.edit) setTimeout(() => { const b = $('#nt-body'); if (b) { autosize(b); b.focus(); } }, 0); }
-  else if (act === 'nt-pin' && n) { ntWrite(n, {pinned: !n.pinned}).then(r => { if (!r.queued) Object.assign(n, r); renderView(); }).catch(err => toast(err instanceof Offline ? tr('Offline: only works again with a connection') : err.message)); }  // 2.143.0 C (#2153): offline too
+  else if (act === 'nt-pin' && n) { ntWrite(n, {pinned: !n.pinned}).then(r => { if (!r.queued) Object.assign(n, r); renderView(); }).catch(err => toast(err instanceof Offline ? tr('Only available online.') : err.message)); }  // 2.143.0 C (#2153): offline too
   else if (act === 'nt-menu') noteMenu(a);
   else if (act === 'nt-trash') { if (!S.nt.trash) { S.nt.trash = {}; f8d_viewStep('ntt', ntt_close); renderView(); } else if (!f8d_viewBack('ntt')) ntt_close(); }  // 2.272.0 E1 (#3038): notetrash.js draws it; 2.963.0 (#5233): a step of the page, off again = Back
   else return;

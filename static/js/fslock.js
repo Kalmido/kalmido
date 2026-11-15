@@ -201,7 +201,7 @@ async function fslFetch(n, v) {
   if (!r.ok) throw fslErr(tr('File damaged or missing'), 'file');
   return r.arrayBuffer();
 }
-const fslToast = x => toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x?.message || tr('Cannot be decrypted'));
+const fslToast = x => toast(x instanceof Offline ? tr('Only available online.') : x?.message || tr('Cannot be decrypted'));
 async function fslDec(n, v) { await fslKeys(n.lock_id, true); return fslFileDec(n.lock_id, await fslFetch(n, v)); }
 // a picture as a data: URL (the CSP allows img-src 'self' data:); '' = unreadable
 const fslDataUrl = blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result)); fr.onerror = () => res(''); fr.readAsDataURL(blob); });

@@ -184,7 +184,7 @@ async function suAsk(d, title) {
   return b;
 }
 async function suApi(method, url, body, title, quiet) {  // quiet: 2.446.0 (#3613) error codes the caller answers itself
-  const shout = e => { if (quiet?.includes(e.data?.code)) throw e; if (e instanceof Offline) toast(tr('Offline: only works again with a connection')); else if (e.message !== 'auth' && !e.shown) toast(e.message); throw e; };
+  const shout = e => { if (quiet?.includes(e.data?.code)) throw e; if (e instanceof Offline) toast(tr('Only available online.')); else if (e.message !== 'auth' && !e.shown) toast(e.message); throw e; };
   try { return await rawFetch(method, url, body); } catch (e) {
     if (!(e.status === 403 && SU_NEEDS.includes(e.data?.need))) shout(e);
     const b = await suAsk(e.data, title);

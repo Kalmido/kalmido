@@ -123,7 +123,7 @@ async function ml_addMany(ids, lid) {
   const done = [];
   for (const t of ok) {
     try { const r = await rawFetch('POST', `/api/tasks/${t.id}/links`, {list_id: lid}); if (r?.id) { putTask(r); done.push(t.id); } else skip++; }
-    catch (e) { if (e instanceof Offline) { toast(tr('Offline: only works again with a connection')); break; } skip++; }
+    catch (e) { if (e instanceof Offline) { toast(tr('Only available online.')); break; } skip++; }
   }
   render(); if (S.sel && done.includes(S.sel)) renderDetail();
   const n = lname(l), rest = [there ? trn('{0} already there', '{0} already there', there) : '', skip ? trn('{0} skipped (not possible there)', '{0} skipped (not possible there)', skip) : ''].filter(Boolean);

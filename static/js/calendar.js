@@ -331,7 +331,7 @@ function tlCalRows(start, end, DW) {  // calendar timeline: one row per calendar
 // direct request without the api() toast: the dialogs show the error themselves
 async function calReq(method, url, body) {
   try { return await rawFetch(method, url, body); }
-  catch (e) { throw new Error(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message); }
+  catch (e) { throw new Error(e instanceof Offline ? tr('Only available online.') : e.message); }
 }
 function calBar(title, done = true, extra = '') {
   if (S.lcal && typeof lcal_bar === 'function') return lcal_bar(title, done);  // 2.156.0 C (#2071): a list's calendar (listcal.js)

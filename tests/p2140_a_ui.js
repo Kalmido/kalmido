@@ -81,7 +81,7 @@ const RECIPE = '## Ingredients\n- 500 g Mince\n- 2 Onions\n- 1 can Tomatoes\n\n#
   check(await until(() => item('Eggs') && w.eval('OUT.q.length') === 2), 'offline: a new item listed, waiting');
   check(await until(() => /Offline – changes are sent later/.test(sm().querySelector('.shopoff')?.textContent || '') && /2 changes waiting/.test(sm().querySelector('.shopoff').textContent), 40), 'a quiet hint with the waiting changes: ' + (sm().querySelector('.shopoff')?.textContent || ''));
   await sleep(4500);  // two polls: no error toasts while offline
-  check(!toasts.some(x => /Offline: only works again|Error/.test(x)), 'no error toasts while offline: ' + toasts.join(' | ') + ' calls: ' + [...new Set(offCalls)].join(', '));
+  check(!toasts.some(x => /Offline: only works again|Only available online|Error/.test(x)), 'no error toasts while offline: ' + toasts.join(' | ') + ' calls: ' + [...new Set(offCalls)].join(', '));
   w.__offline = false; w.dispatchEvent(new w.Event('online'));
   check(await until(() => w.eval('OUT.q.length') === 0, 100), 'back online: the queue goes out');
   check(await until(async () => { const ts = await tasks(); return ts.find(t => t.id === BREAD)?.status !== 0 && ts.filter(t => t.title === 'Eggs' && t.list_id === SH).length === 1; }), 'Bread ticked on the server, Eggs there once');

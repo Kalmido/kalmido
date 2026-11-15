@@ -88,7 +88,7 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   await until(() => d.querySelector('#fd-name'));
   d.querySelector('#fd-name').value = 'Offline field';
   lastModal(d).querySelector('[data-m="save"]').click();
-  check(await until(() => /Offline: only works again with a connection/.test(d.querySelector('#toast')?.textContent || '')), 'offline: "only with a connection"');
+  check(await until(() => /Only available online\./.test(d.querySelector('#toast')?.textContent || '')), 'offline: "only available online"');
   check(!!d.querySelector('#fd-name') && !w.eval(`S.fields.some(f => f.name === 'Offline field')`), 'offline: the dialog stays, no field made');
   lastModal(d).remove();
   w.eval(`setOnline(true)`);

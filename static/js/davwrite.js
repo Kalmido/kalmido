@@ -123,7 +123,7 @@ function dvw_editWire(md, x, done) {
       histToast(on ? tr('Writing allowed') : tr('Read-only'), histAdd({label: tr('Changed setting: {0}', tr('Allow writing')), sett: true, undo: () => put(!on), redo: () => put(on)}));
     } catch (err) {
       inp.checked = !on;
-      if (er) { er.textContent = err instanceof Offline ? tr('Offline: only works again with a connection') : err.message; er.hidden = false; }
+      if (er) { er.textContent = err instanceof Offline ? tr('Only available online.') : err.message; er.hidden = false; }
     } finally { inp.disabled = false; }
   });
 }

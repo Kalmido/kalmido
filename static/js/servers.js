@@ -14,7 +14,7 @@ const msvBadge = (short, color) => `<span class="msvb${msvInk(color) ? ' dk' : '
 const msvHost = u => { try { return new URL(u).host; } catch { return u || ''; } };
 async function msvReq(method, url, body) {
   try { return await rawFetch(method, url, body); }
-  catch (e) { throw new Error(e instanceof Offline ? tr('Offline: only works again with a connection') : e.message); }
+  catch (e) { throw new Error(e instanceof Offline ? tr('Only available online.') : e.message); }
 }
 const msvHtml = () => `<h4 id="s-msv-h">${tr('Servers')}</h4>
   <div class="shint keep">${tr('Show accounts on other Kalmido servers here too (e.g. work and home). The data stays there.')}</div>
