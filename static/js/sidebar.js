@@ -33,7 +33,17 @@ function renderMultiBar() {
     ${acts}
     <button class="iconbtn mbx" data-act="mb-close" title="${esc(tr('Clear selection') + ' (Esc)')}" aria-label="${esc(tr('Clear selection'))}">${ic('x')}</button>`;
   meSync();
+  mb_place();
 }
+// 2.1213.0 (#6140): on a computer / tablet the bar sits at the bottom in the full width of the list area (#view), not in the middle of
+// the window (with a task panel open it hung over the rows / the panel); CSS start-polish-listen-6140.css: #mbar.mbfit uses --mb-l / --mb-w
+function mb_place() {
+  const b = $('#mbar'), v = $('#view'); if (!b || !v) return;
+  const r = v.getBoundingClientRect(), on = !isMobile() && r.width > 0;
+  b.classList.toggle('mbfit', on);
+  if (on) { b.style.setProperty('--mb-l', Math.round(r.left) + 'px'); b.style.setProperty('--mb-w', Math.round(r.width) + 'px'); }
+}
+if (typeof ResizeObserver !== 'undefined') domReady(() => { const v = $('#view'); if (v) new ResizeObserver(() => { if ($('#mbar:not(.hidden)')) mb_place(); }).observe(v); });
 // 2.270.0 D (#3028): {id: {field: the value this device saw}} for a multi-select change (server: batch "patch" data.prev)
 const btcPrev = (ids, data) => Object.fromEntries(ids.map(i => [i, S.tasks.get(i)]).filter(([, t]) => t).map(([i, t]) =>
   [i, Object.fromEntries(Object.keys(data).filter(k => k in t && k !== 'tags').map(k => [k, typeof t[k] === 'boolean' ? +t[k] : t[k] ?? null]))]));

@@ -944,6 +944,7 @@ ROUTES = {
     "DELETE /api/disc/blocks/{}": "team", "DELETE /api/disc/connections/{}": "team", "DELETE /api/disc/requests/{}": "team",
     "DELETE /api/e2e/keys": "team", "DELETE /api/team/messages/{}": "team", "DELETE /api/users/{}": "team",
     "POST /api/team/messages/{}/restore": "team",  # 2.530.0 A (#4315): p4315_a_comment_trash_test.py, freelancer-matrix: team
+    "GET /api/team/messages/{}/versions": "team", "GET /api/v1/team/messages/{}/versions": "team",  # 2.1213.0 (#6166): p21213_d_tchat_versions_test.py (a DM of the freelancer)
     # 2.87.9 after the merge of 2.88.0 (#1980): the instance admin's account administration (an organisation admin only
     # deletes inside the own organisation)
     "GET /api/users/{}/delete-info": "admin", "POST /api/users/bulk": "admin",

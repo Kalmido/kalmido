@@ -198,7 +198,7 @@ function tcMsgsHtml(list = S.tc.msgs, o = {}) {
     h += `<div class="cmsg ${mine ? 'me' : 'ag'}${!mine && ags.has(m.user_id) ? ' agc' : ''} ${first ? 'first' : ''}${rxShow('t' + m.id)}${!th && S.tc.th?.id === m.id ? ' tthon' : ''}" data-k="m${m.id}" data-mid="t:${m.id}"${agcol ? ` data-agid="${m.user_id}" style="--agcol:${agcol}"` : ''}>
       ${first && !mine ? `<div class="tcwho">${av(m.user_id, uname(m.user_id, U), 'avatar sm')}<b>${esc(uname(m.user_id, U))}</b>${ags.has(m.user_id) ? agentBadge(m.user_id) : ''}</div>` : ''}
       ${body}${m.task ? `<button class="runtask" data-act="open-id" data-id="${m.task.id}">${ic('arrow', 's')}<span>${esc(m.task.title)}</span></button>` : ''}
-      <div class="cmeta"><time title="${esc(fmtWhen(m.created_at))}">${fmtWhen(m.created_at)}</time>${m.edited_at && !m.deleted ? `<span class="muted">${tr('edited')}</span>` : ''}${cpnMark(m)}${rxr}${m.deleted || editing ? '' : replyBtn('chrbtn mreply')}${m.deleted ? '' : chatSavedMark(m)}${!m.deleted ? `<button data-rowmenu="cmsg" type="button" class="rx rxtog" data-act="tc-msg-menu" data-mid="${m.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button>` : ''}</div>${!th && m.thread_count ? tth_lineHtml(m) : ''}${rd === m.id ? trd_lineHtml(m, th) : ''}</div>`;
+      <div class="cmeta"><time title="${esc(fmtWhen(m.created_at))}">${fmtWhen(m.created_at)}</time>${/*html-ok*/ m.edited_at && !m.deleted ? tcEditedHtml(m) : ''}${cpnMark(m)}${rxr}${m.deleted || editing ? '' : replyBtn('chrbtn mreply')}${m.deleted ? '' : chatSavedMark(m)}${!m.deleted ? `<button data-rowmenu="cmsg" type="button" class="rx rxtog" data-act="tc-msg-menu" data-mid="${m.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button>` : ''}</div>${!th && m.thread_count ? tth_lineHtml(m) : ''}${rd === m.id ? trd_lineHtml(m, th) : ''}</div>`;
   }
   return h + (o.root ? '' : csdHtml(ck, list, m => m.user_id === S.me?.id));  // 2.62.0 (#1530): "Sending…"
 }
@@ -419,6 +419,7 @@ document.addEventListener('click', e => {
   else if (act === 'tc-msg-menu') tcMsgMenu(a, +a.dataset.mid);
   else if (act === 'tc-edit-save') tcEditSave(+a.dataset.mid);
   else if (act === 'tc-edit-cancel') { S.tc.edit = null; S.tc.editTh = false; tcPatch(); }
+  else if (act === 'tc-ed-hist') tcEditsShow(+a.dataset.mid);  // 2.1213.0 (#6166)
   else if (act === 'tc-mute') tcMute();
   else if (act === 'tc-more') menu(a, [...tc_headItems(), ...kbd_item('team')]);  // 2.380 E (#3449); 2.446.0 (#3334): the phone's header
   else if (act === 'tc-new') tcNewMenu(a);
@@ -444,6 +445,35 @@ document.addEventListener('click', e => {
 const tc_mid = () => td_rc('tcmid', () => matchMedia('(max-width:899px)').matches);
 const tth_wide = () => !tc_mid() && !(typeof cw_ren !== 'undefined' && cw_ren) && !S.cw?.lt;
 const tth_all = () => S.tc.th ? [S.tc.th.root, ...S.tc.th.msgs].filter(Boolean) : [];
+// 2.1213.0 (#6166): "edited" opens the earlier versions (as in an agent's chat, agentchat.js chatEditsShow). The server keeps
+// them in the core's history exactly as the message was stored: an encrypted one as its ciphertext, opened here with the key
+// and AAD of the message itself (an encrypted DM: e2e.js; the channel of a project with the lock: liste2echan.js).
+function tcEditedHtml(m) {
+  return `<button type="button" class="cedited" data-act="tc-ed-hist" data-mid="${esc(m.id)}" title="${esc(tr('Edited {0}', fmtWhen(m.edited_at)))}" aria-label="${esc(tr('Edited – show the earlier versions'))}">${tr('edited')}</button>`;
+}
+async function tcVersionText(room, m, v) {
+  if (!v.enc) return v.encrypted ? null : (v.body || '');
+  if (typeof e2eUnlocked !== 'function' || !e2eUnlocked()) return null;
+  try {
+    if (room?.kind === 'dm') return e2eTDec().decode(await e2eOpen(await e2eDmKey(room.id, e2eDmOther(room)), v.enc, e2eDmAad(room.id, m.user_id)));
+    if (typeof le2eChanOn === 'function' && le2eChanOn(room)) { const s = await le2eChanOpen(room, {id: m.id, user_id: m.user_id, enc: v.enc}); return s === undefined ? null : s; }
+  } catch { return false; }
+  return null;
+}
+async function tcEditsShow(mid) {
+  const m = tth_msg(mid), room = S.tc.room; if (!m || !room) return;
+  let j; try { j = await rawFetch('GET', `/api/team/messages/${mid}/versions`); }
+  catch (e) { toast(e instanceof Offline ? tr('Only available online.') : e.message); return; }
+  const U = S.tc.users, lock = t => `<span class="muted">${ic('lock', 's')} ${esc(t === false ? tr('Cannot be decrypted') : tr('Encrypted message'))}</span>`;
+  const texts = await Promise.all((j.items || []).map(v => tcVersionText(room, m, v)));
+  const cur = m.enc && !m._dec ? lock(m._fail ? false : null) : commentBody(m.body || '', U);
+  const rows = (j.items || []).map((v, i) => `<li><time class="muted">${esc(fmtWhen(v.at))}</time><div class="cbub">${/*html-ok*/ typeof texts[i] === 'string' ? commentBody(texts[i], U) : lock(texts[i])}</div></li>`).join('');
+  const md = modal(`<div class="kbhead"><h3>${tr('Earlier versions')}</h3><button class="iconbtn" data-m="close" aria-label="${tr('Close')}">${ic('x')}</button></div>
+    <div class="shint">${tr('Current version')} · ${esc(fmtWhen(m.edited_at))}</div><div class="cbub chednow">${/*html-ok*/ cur}</div>
+    ${rows ? `<ol class="chedits">${/*html-ok*/ rows}</ol>` : `<p class="muted">${tr('No earlier versions yet.')}</p>`}`);
+  md.classList.add('chedmd', 'tcedmd');
+  md.addEventListener('click', e => { if (e.target.closest('[data-m="close"]')) md.remove(); });
+}
 const tth_msg = mid => S.tc.msgs.find(x => x.id === mid) || tth_all().find(x => x.id === mid);
 const tth_each = (mid, fn) => { for (const m of [...S.tc.msgs, ...tth_all()]) if (m.id === mid) fn(m); };  // a first message lives in both lists
 const tth_editBox = () => $(S.tc.editTh ? '.tthview .tc-edit' : '#tc-msgs .tc-edit');

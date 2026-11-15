@@ -326,6 +326,10 @@ IDS["field"] = _id(ok(F.post(B + f"/api/lists/{IDS['list']}/fields", json={"name
 IDS["docview"] = _id(ok(F.post(B + "/api/obj/docview", json={"title": "Receipts", "query": "q=Koala", "ws": "private"}),
                         "sweep setup: a saved documents view", (200, 201)))
 check(all(IDS.get(k) for k in ("sprint", "field", "docview")), f"sweep setup: sprint / field / view {[IDS.get(k) for k in ('sprint', 'field', 'docview')]}")
+# 2.1213.0 (#6166): an edited message in an own channel (/api(/v1)/team/messages/{}/versions: its earlier version)
+_ch = _id(ok(F.post(B + "/api/team/channels", json={"name": "Notes 6166"}), "sweep setup: an own team chat channel", (200, 201)))
+IDS["tmsg"] = _id(ok(F.post(B + f"/api/team/rooms/{_ch}/messages", json={"body": "First take"}), "sweep setup: a team chat message", (200, 201)))
+ok(F.patch(B + f"/api/team/messages/{IDS['tmsg']}", json={"body": "Second take"}), "sweep setup: the message edited")
 for key, path, payload, sub in (
         ("trippurpose", "/trips/purposes", {"name": "Fair"}, None),
         ("fixedcost", "/fixed-costs", {"label": "Rent", "amount": "500", "start": TODAY[:7] + "-01", "repeat": "monthly"}, None),
@@ -376,6 +380,7 @@ SUBST = [
     (r"/api/team/dispo/callsheet/[^/]+/photo/$", "contact"),  # 2.993.0 (#5650): the logo of a contact on the call sheet
     # 2.421.0 A (#2936): own objects of the setup above; file ids of other stores than the file store: none (skipped)
     (r"/me/webhooks/$", "webhook"),  # 2.391.0 (#3362)
+    (r"/team/messages/$", "tmsg"),  # 2.1213.0 (#6166): the earlier versions of the own edited message
     (r"/sprints/$", "sprint"), (r"/api/fields/$", "field"), (r"/api/docs/views/$", "docview"),  # 2.602.0 (job/3106)
     (r"/api/v1/agent/chats/$", "me"),  # 2.491.0 (#2849): the agent (its token) reads the reply style wishes of its own person
     (r"/sheets/\d+/files/$", None), (r"/sheets/$", "sheet"), (r"/polls/$", "poll"), (r"/bookmarks/$", "bookmark"),
