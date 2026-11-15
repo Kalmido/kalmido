@@ -1539,8 +1539,10 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
             line_at[id(ln)] = len(blocks)
             if k == "heading":
                 t = str(ln.get("title") or "")
-                hl = pb_wrap(t.upper(), FS_SMALL, c_title + c_qty + c_rate + c_vat + c_tot - 6, True, 0.8)  # 2.296.0 E (#3170): a long heading wraps
-                block(22 + (len(hl) - 1) * 11, lambda p, y, hl=hl: [p.text(x_title + 3, y + 11 + j * 11, t_, FS_SMALL, True, pdf_text_color(accent), spacing=0.8)
+                hl = pb_wrap(t.upper(), FS_SUM, c_title + c_qty + c_rate + c_vat + c_tot - 6, True, 0.8)  # 2.296.0 E (#3170): a long heading wraps
+                # 2.1201.0 (#6175): FS_SUM, the step of section titles (was FS_SMALL: weaker than the subtotals; 8.4 pt in a quotation)
+                # and 6 pt more air above (was 22 high, the text 11 down, 11 per line)
+                block(28 + (len(hl) - 1) * 13, lambda p, y, hl=hl: [p.text(x_title + 3, y + 17 + j * 13, t_, FS_SUM, True, pdf_text_color(accent), spacing=0.8)
                                                                for j, t_ in enumerate(hl)], keep_next=True, table=True)  # 2.296.0 D (#3172): readable text colour
                 have_table = True
             elif k == "text":

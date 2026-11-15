@@ -18337,7 +18337,6 @@
   "fixed net amount on the marked positions": "importo netto fisso sulle voci contrassegnate",
   "Discount on this position (%)": "Sconto su questa voce (%)",
   "{0} less {1} % discount ({2})": "{0} meno {1} % di sconto ({2})",
-  "Fixed amount on the marked positions|calc": "Importo fisso sulle voci contrassegnate",
   "Split from window width": "Dividi da larghezza finestra",
   "At least {0} px, otherwise neither half has enough room.": "Almeno {0} px, altrimenti nessuna metà ha spazio sufficiente.",
   "Your window: {0} px": "La tua finestra: {0} px",

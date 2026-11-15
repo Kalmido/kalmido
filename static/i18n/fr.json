@@ -18336,7 +18336,6 @@
   "fixed net amount on the marked positions": "montant net fixe sur les postes marqués",
   "Discount on this position (%)": "Remise sur ce poste (%)",
   "{0} less {1} % discount ({2})": "{0} moins {1} % de remise ({2})",
-  "Fixed amount on the marked positions|calc": "Montant fixe sur les postes marqués",
   "Split from window width": "Partager à partir de la largeur de fenêtre",
   "At least {0} px, otherwise neither half has enough room.": "Au moins {0} px, sinon aucune moitié n’a assez de place.",
   "Your window: {0} px": "Ta fenêtre : {0} px",

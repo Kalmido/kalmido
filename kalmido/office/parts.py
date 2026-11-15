@@ -20,7 +20,7 @@ from ..core.i18n import N_, tr
 from ..core.pg import insert_id, write_lock
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_item_store, oc_json_load, oc_json_store
 from ..core.errors import BadInput
-from .calc import RAW_MODES, TAX_KEYS, calc_cur, calc_discount_split, calc_line_amount, calc_subtotals, calc_tax_day, calc_lang, dec, fmt_money, fmt_qty, fmt_rate, label, money, office_calc, pack_tax, _num
+from .calc import RAW_MODES, TAX_KEYS, calc_cur, calc_discount_split, calc_line_amount, calc_subtotals, calc_tax_day, calc_lang, dec, fmt_money, fmt_qty, fmt_rate, label, money, office_calc, opt_label_under, pack_tax, _num
 from .homecur import hc_home  # 2.189.0 (#2475)
 from .doclang import doc_txt
 from .model import PARTS_TITLE_FILM, UNITS, office_role, office_settings
@@ -585,15 +585,19 @@ def tp_render(c, oid, r, m, pack, lang, locked):
             out.append({"id": p["id"], "kind": "shoot", "title": p["title"] or pr.get("title") or "", "head": head, "lines": lines,
                         "totals": {"rows": rows, "raw_opt": None}})
             continue
-        lines = []
+        lines, sec = [], ""  # 2.1201.0 (#6175): sec = the heading of the section a position stands in
         for ln in pc.get("lines") or []:
             ln = dict(ln)
+            if ln["kind"] == "heading":
+                sec = ln.get("title") or ""
+            elif ln["kind"] == "subtotal":
+                sec = ""
             if ln["kind"] in ("item", "producing", "surcharge", "raw", "discount"):  # 2.113.1 (#2252): + surcharge
                 ln["total_text"] = fmt_money(ln["total"], lang, cur)
                 if ln.get("rate") is not None:
                     ln["rate_text"] = fmt_rate(ln["rate"], lang, cur)  # 2.354.0 A (#2831): up to 4 places
             if ln.get("opt"):  # 2.1041.0 (#5814, review F2): "Optional:" on a part's page too
-                ln["opt_label"] = label(pack, lang, "opt_" + ln["opt"])
+                ln["opt_label"] = opt_label_under(label(pack, lang, "opt_" + ln["opt"]), sec)  # 2.1201.0 (#6175)
             lines.append(ln)
         labels = pc.get("labels") or {}
         rows = [[L.get("net_total", labels.get("net") or label(pack, lang, "net")), fmt_money(pc.get("net") or 0, lang, cur)]]
