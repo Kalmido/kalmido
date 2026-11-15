@@ -568,7 +568,9 @@ hand used to conflict in almost every merge; they are handled now so two package
 - `static/i18n/<code>.json` are merged by key (`tools/i18n_merge.py`, git merge driver): keys both sides added or changed
   differently are the only conflict left.
 - the precache lists of `static/sw.js` are merged entry by entry (`tools/sw_lists.py`; `python3 tools/sw_lists.py` rewrites
-  them from `index.html` + `lazyload.js`, `--check` compares).
+  them from `index.html` + `lazyload.js`, `--check` compares). 2.1202.0 (#6199): GitHub's merge queue merges without the
+  drivers, so the lists stand one entry per line, sorted, each with a comma: two packages adding different files merge
+  clean with plain git (`tools/check_layout.py` checks the form).
 - `tests/skip.txt` and `tests/selfstart.txt` merge as line unions.
 - `tools/eslint_globals.json` is generated, not committed; `VERSION`, `CHANGELOG.md` and the `CACHE` line of `sw.js` are
   written only by the release cut (packages describe their change in `changelog.d/<id>.md`).
@@ -689,8 +691,8 @@ Rarely opened areas have no `<script>` tag: `static/js/lazyload.js` loads them t
 other). What the start needs from them stays in files loaded at start: `setcore.js` (Web Push, the app badge, the
 settings sections), `ctlinks.js` (the contacts in the task panel) and `officeOn` in `lazyload.js`.
 
-- `LD_MODS` in `lazyload.js` names the files of each module; `LAZY` in `static/sw.js` lists the same files in the same
-  order (cached right after the shell, so they open offline); `tools/check_layout.py` compares both and checks that none
+- `LD_MODS` in `lazyload.js` names the files of each module; `LAZY` in `static/sw.js` lists the same files, sorted
+  (#6199; cached right after the shell, so they open offline); `tools/check_layout.py` compares both and checks that none
   of them has a script tag.
 - Code loaded at start calls a module's functions only through the stand-ins in `lazyload.js` (`LD_CALL`: load, then
   call; `LD_VIEW`: draw "Loading…", load, draw the view again) or after `await loadModule(...)`. Constants of an
