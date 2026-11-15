@@ -201,9 +201,18 @@ const ALL = 'cal,timeline,matrix,habits,pomo,kanban,collab,stats,time,progress,d
     // 5) the section "+" with a keyboard: the sheet's box is above the keyboard
     if (vw === 390) {
       await nav(B + '#l/' + L); await ready(ev, idle); await ev(VVSIM);
-      await ev(`(() => { document.querySelector('#view .ghead [data-act="sec-add"][data-sec="${SEC}"]').scrollIntoView({block: 'center'}); return 1; })()`); await fu(`(() => { const b = document.querySelector('#view .ghead [data-act="sec-add"][data-sec="${SEC}"]').getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; })()`, {timeout: 3000});
-      const sp = await ev(`(() => { const b = document.querySelector('#view .ghead [data-act="sec-add"][data-sec="${SEC}"]').getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })()`);
-      await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 't1', parameters: {pointerType: 'touch'}, actions: [{type: 'pointerMove', x: Math.round(sp.x), y: Math.round(sp.y)}, {type: 'pointerDown', button: 0}, {type: 'pause', duration: 60}, {type: 'pointerUp', button: 0}]}]}); await release();
+      // 2.1192.0 (#4791): since #3835 (2.1151.0) a phone hides the head's "+" (1 px, clipped: start-00-lists.css); a long press on
+      // the section head opens its menu with "Add a task to ..." on top (dnd.js secHeadMenu) - the finger goes that way
+      await ev(`(() => { document.querySelector('#view .ghead[data-section="${SEC}"]').scrollIntoView({block: 'center'}); return 1; })()`); await fu(`(() => { const b = document.querySelector('#view .ghead[data-section="${SEC}"]').getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; })()`, {timeout: 3000});
+      const hp = await ev(`(() => { const h = document.querySelector('#view .ghead[data-section="${SEC}"]'), b = h.getBoundingClientRect(), y = b.top + b.height / 2;
+        for (let x = b.left + b.width * .35; x < b.right - 8; x += 6) { const e = document.elementFromPoint(x, y); if (e && h.contains(e) && !e.closest('.iconbtn, .gact, button')) return {x, y}; } return null; })()`);
+      check(hp && hp.y > 0 && hp.y < vh, '390: a free spot on the section head ' + JSON.stringify(hp));
+      if (hp) await touch([[hp.x, hp.y]], {hold: 700}); await release();
+      await fu(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`, {timeout: 3000});
+      const addLab = await ev(`document.querySelector('#view .ghead [data-act="sec-add"][data-sec="${SEC}"]').getAttribute('aria-label')`);
+      const sp = await ev(`(() => { const e = [...document.querySelectorAll('#pop [role="menuitem"]')].find(b => b.textContent.includes(${JSON.stringify(addLab)})); if (!e) return null; const b = e.getBoundingClientRect(); return {x: b.left + b.width / 2, y: b.top + b.height / 2}; })()`);
+      check(!!sp, `390: the section head menu offers "${addLab}" ` + JSON.stringify(sp));
+      if (sp) { await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 't1', parameters: {pointerType: 'touch'}, actions: [{type: 'pointerMove', x: Math.round(sp.x), y: Math.round(sp.y)}, {type: 'pointerDown', button: 0}, {type: 'pause', duration: 60}, {type: 'pointerUp', button: 0}]}]}); await release(); }
       await fu(`!!document.querySelector('#qsheet') && document.activeElement === document.querySelector('#qsheet')`, {timeout: 5000});
       await ev(`__setKb(${Math.round(vh * .55)}, 0)`); await fu(`(() => { const b = document.querySelector('#qsheet').getBoundingClientRect(); return b.bottom <= visualViewport.height + 1 && b.top >= 0; })()`, {timeout: 3000});
       const kb = await ev(`(() => { const i = document.querySelector('#qsheet'); if (!i) return null; const b = i.getBoundingClientRect(); return {bottom: Math.round(b.bottom), top: Math.round(b.top), vv: visualViewport.height, focus: document.activeElement === i}; })()`);
@@ -221,7 +230,12 @@ const ALL = 'cal,timeline,matrix,habits,pomo,kanban,collab,stats,time,progress,d
       // 6) the phone chat: swiping beside the box scrolls nothing outside the messages
       await nav(B + '#agents/' + AG); await ready(ev, idle); await fu(`!!document.querySelector('#chat-in') && document.querySelectorAll('#chat-msgs ol').length > 0`); await settle(ev, idle);
       const c0 = await ev(`(() => { const c = document.querySelector('.chview .chcomp') || document.querySelector('#chat-in').parentElement; const b = c.getBoundingClientRect(), t = document.querySelector('#tabs'); return {x: Math.round(b.left + 12), y: Math.round(b.top + b.height / 2), gap: Math.round((t && getComputedStyle(t).display !== 'none' ? t.getBoundingClientRect().top : innerHeight) - b.bottom), vs: document.querySelector('#view').scrollTop}; })()`);
-      await touch([[c0.x, c0.y], [c0.x, c0.y - 120], [c0.x, c0.y - 250]], {hold: 30}); await release(); await sleep(500);  // 2.624.0 (#3943): kept: a window in which nothing may scroll or move after the swipe
+      // 2.1192.0 (#4791): CI v2.1155.0 / Mac on main: the box lay at y 1869 of 844 - say where the chat stood instead of a WebDriver error
+      const cdx = await ev(`(() => { const c = document.querySelector('.chview .chcomp') || document.querySelector('#chat-in')?.parentElement, v = document.querySelector('#view'), R = e => { if (!e) return null; const b = e.getBoundingClientRect(); return [Math.round(b.top), Math.round(b.height)]; };
+        return {ih: innerHeight, cls: c && c.className, chview: R(document.querySelector('.chview')), msgs: R(document.querySelector('#chat-msgs')), comp: R(c), view: R(v), vsh: v && v.scrollHeight, doc: document.scrollingElement.scrollHeight, hash: location.hash}; })()`);
+      if (process.env.P2134_DEBUG || !(c0.y > 0 && c0.y < 844)) console.log('p2134 chat layout', JSON.stringify(cdx));
+      check(c0.y > 0 && c0.y < 844, '390 chat: the box is on the screen ' + JSON.stringify({c0, cdx}));
+      if (c0.y > 0 && c0.y < 844) await touch([[c0.x, c0.y], [c0.x, c0.y - 120], [c0.x, c0.y - 250]], {hold: 30}); await release(); await sleep(500);  // 2.624.0 (#3943): kept: a window in which nothing may scroll or move after the swipe
       const c1 = await ev(`(() => { const c = document.querySelector('.chview .chcomp') || document.querySelector('#chat-in').parentElement; const b = c.getBoundingClientRect(), t = document.querySelector('#tabs'); return {gap: Math.round((t && getComputedStyle(t).display !== 'none' ? t.getBoundingClientRect().top : innerHeight) - b.bottom), vs: document.querySelector('#view').scrollTop, ws: document.scrollingElement.scrollTop}; })()`);
       check(c1.vs === 0 && c1.ws === 0 && Math.abs(c1.gap - c0.gap) <= 2, '390 chat: a swipe beside the box moves nothing, no gap above the tab bar ' + JSON.stringify({c0, c1}));
       await shot('p2134-390-chat-swipe.png');
