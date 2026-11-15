@@ -5,7 +5,7 @@ the closing up of empty template variables only at the gap. Own container (start
 freelancer-matrix: office
  - #3183 the words of the built-in packs: "Summe netto" / "Gesamt brutto" / "Einzelpreis" (de), sentence case and the
    column "Description" (en), the credit note of the base pack says "above"; every new pack word translated in all languages
- - #3183 an invoice for one day prints "Leistungsdatum", for a period "Leistungszeitraum"; the closing says "Allgemeinen"
+ - #3183 an invoice for one day prints "Leistungsdatum", for a period "Leistungszeitraum"; the closing says "Allgemeinen" (since 2.1196 #6174: the thank-you)
  - #3183 fr / es: the sentence after the salutation starts with a capital; es dates "9 de octubre de 2026"
  - #3183 the entertainment receipt carries the logo and a printed date in its title; a one-page letter has no "Seite 1 von 1"
    (a long one counts its pages), its producer is "Kalmido v<version>"; the online acceptance box in French
@@ -59,7 +59,9 @@ for p in (DE, XX):
     check((len_["title"], len_["unit_price"], len_["net_total"], len_["gross_total"], len_["rights_time"], len_["rights_territory"], len_["rights_media"])
           == ("Description", "Unit price", "Net total", "Gross total", "Duration of licence", "Territorial rights", "Rights by medium"),
           f"#3183 {p['code']}: English labels in sentence case, 'Description' for the service column")
-    check("Allgemeinen Geschäftsbedingungen" in p["texts"]["invoice_closing"]["de"], f"#3183 {p['code']}: 'Allgemeinen Geschäftsbedingungen'")
+    # 2.1210.0 (#6226): #6174 made the standard closing a thank-you (the payment block asks for the transfer, no terms sentence)
+    check(p["texts"]["invoice_closing"]["de"] == "Vielen Dank für Ihren Auftrag und die angenehme Zusammenarbeit.",
+          f"#6174 {p['code']}: the standard closing thanks {p['texts']['invoice_closing']['de']!r}")
     check("oben genannten" in p["texts"]["credit_intro"]["de"] and "referenced above" in p["texts"]["credit_intro"]["en"],
           f"#3183 {p['code']}: the credit note refers to the invoice above (its number stands in the head)")
 check(XX["texts"]["rights_media"][1]["de"] == "intern, Web, unbezahlte Medien", "#3183 xx: the German rights text is German")
@@ -143,7 +145,7 @@ def run(s, who, me):
     m = render(s, inv)
     meta = meta_of(m)
     check(meta.get("Leistungsdatum") == "09.10.2026" and "Leistungszeitraum" not in meta, f"#3183 {who}: one day = 'Leistungsdatum' {meta}")
-    check("Allgemeinen Geschäftsbedingungen" in (m.get("closing") or ""), f"#3183 {who}: 'Allgemeinen' in the closing {(m.get('closing') or '')[-80:]!r}")
+    check("Vielen Dank für Ihren Auftrag" in (m.get("closing") or ""), f"#6174 {who}: the standard thanks in the closing {(m.get('closing') or '')[-80:]!r}")  # 2.1210.0 (#6226)
     s.patch(B + f"{D}/{inv}", json={"service_from": "2026-10-09", "service_to": "2026-10-12"})
     meta = meta_of(render(s, inv))
     check(meta.get("Leistungszeitraum") == "09.10.2026 – 12.10.2026" and "Leistungsdatum" not in meta, f"#3183 {who}: a period = 'Leistungszeitraum' {meta}")
