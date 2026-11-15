@@ -1,0 +1,67 @@
+{
+  "de": {
+    "Filter: {0} active": "Filter: {0} aktiv",
+    "Lock editing (this device)": "Bearbeiten sperren (dieses Gerät)",
+    "Reference copied": "Verweis kopiert",
+    "Tags|wiki": "Schlagwörter",
+    "Locked|wiki": "Verschlüsselt (im Browser)",
+    "Import pages": "Seiten importieren",
+    "The share applies to this page.": "Der Zugriff gilt für diese Seite.",
+    "Green comes back with Restore, red goes.": "Grün kommt mit Wiederherstellen zurück, Rot fällt weg.",
+    "Marked: what only this version has.": "Markiert: was nur in dieser Version steht.",
+    "Import cancelled: {0} imported page moved to the trash": ["Import abgebrochen: {0} importierte Seite in den Papierkorb gelegt", "Import abgebrochen: {0} importierte Seiten in den Papierkorb gelegt"],
+    "Click to try again": "Klicken, um es erneut zu versuchen"
+  },
+  "es": {
+    "Filter: {0} active": "Filtros activos: {0}",
+    "Lock editing (this device)": "Bloquear la edición (este dispositivo)",
+    "Reference copied": "Referencia copiada",
+    "Tags|wiki": "Etiquetas",
+    "Locked|wiki": "Cifrado (en el navegador)",
+    "Import pages": "Importar páginas",
+    "The share applies to this page.": "El uso compartido se aplica a esta página.",
+    "Green comes back with Restore, red goes.": "Lo verde vuelve con Restaurar, lo rojo desaparece.",
+    "Marked: what only this version has.": "Marcado: lo que solo tiene esta versión.",
+    "Import cancelled: {0} imported page moved to the trash": ["Importación cancelada: {0} página importada movida a la papelera", "Importación cancelada: {0} páginas importadas movidas a la papelera"],
+    "Click to try again": "Haz clic para volver a intentarlo"
+  },
+  "fr": {
+    "Filter: {0} active": "Filtres actifs : {0}",
+    "Lock editing (this device)": "Bloquer la modification (cet appareil)",
+    "Reference copied": "Référence copiée",
+    "Tags|wiki": "Étiquettes",
+    "Locked|wiki": "Chiffré (dans le navigateur)",
+    "Import pages": "Importer des pages",
+    "The share applies to this page.": "Le partage s’applique à cette page.",
+    "Green comes back with Restore, red goes.": "Le vert revient avec Restaurer, le rouge disparaît.",
+    "Marked: what only this version has.": "Marqué : ce que seule cette version contient.",
+    "Import cancelled: {0} imported page moved to the trash": ["Import annulé : {0} page importée mise à la corbeille", "Import annulé : {0} pages importées mises à la corbeille"],
+    "Click to try again": "Clique pour réessayer"
+  },
+  "it": {
+    "Filter: {0} active": "Filtri attivi: {0}",
+    "Lock editing (this device)": "Blocca la modifica (questo dispositivo)",
+    "Reference copied": "Riferimento copiato",
+    "Tags|wiki": "Tag",
+    "Locked|wiki": "Cifrato (nel browser)",
+    "Import pages": "Importa pagine",
+    "The share applies to this page.": "La condivisione vale per questa pagina.",
+    "Green comes back with Restore, red goes.": "Il verde torna con Ripristina, il rosso sparisce.",
+    "Marked: what only this version has.": "Evidenziato: ciò che c’è solo in questa versione.",
+    "Import cancelled: {0} imported page moved to the trash": ["Importazione annullata: {0} pagina importata spostata nel cestino", "Importazione annullata: {0} pagine importate spostate nel cestino"],
+    "Click to try again": "Fai clic per riprovare"
+  },
+  "nl": {
+    "Filter: {0} active": "Filter: {0} actief",
+    "Lock editing (this device)": "Bewerken vergrendelen (dit apparaat)",
+    "Reference copied": "Verwijzing gekopieerd",
+    "Tags|wiki": "Tags",
+    "Locked|wiki": "Versleuteld (in de browser)",
+    "Import pages": "Pagina’s importeren",
+    "The share applies to this page.": "Het delen geldt voor deze pagina.",
+    "Green comes back with Restore, red goes.": "Groen komt terug met Herstellen, rood verdwijnt.",
+    "Marked: what only this version has.": "Gemarkeerd: wat alleen in deze versie staat.",
+    "Import cancelled: {0} imported page moved to the trash": ["Import geannuleerd: {0} geïmporteerde pagina naar de prullenbak verplaatst", "Import geannuleerd: {0} geïmporteerde pagina’s naar de prullenbak verplaatst"],
+    "Click to try again": "Klik om het opnieuw te proberen"
+  }
+}

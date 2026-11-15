@@ -274,7 +274,9 @@ const ALL = 'cal,timeline,comments,collab,events,contacts';
   const reloads0 = w.eval('typeof __reloads === "number" ? __reloads : 0');
   await w.eval(`load().catch(e => (window.__lerr = e.message))`); await sleep(200);
   w.eval('staleDraw()');
-  check(w.eval('OUT.online === false && OUT.down === true') && /Server not reachable – changes are sent later/.test(d.querySelector('#stale')?.textContent || ''), '#673: 502 = server not reachable, the calm hint');
+  // 2.1170.0 (#6132): said once, by the header's chip; the bar below only while changes wait
+  w.eval('renderTop()');
+  check(w.eval('OUT.online === false && OUT.down === true') && /Server not reachable/.test(d.querySelector('#top .offline')?.textContent || '') && !d.querySelector('#stale'), '#673: 502 = server not reachable, the calm hint (the chip, no bar without waiting changes)');
   check(w.eval('S.lists.length > 0') && reloads0 === 0, '… the cached data stays, no reload loop');
   const n0 = (await call('GET', '/api/state')).tasks.length;
   await w.eval(`createTask({title: 'Written while the server is down', list_id: inbox().id}).catch(() => 0)`); await sleep(200);

@@ -1664,7 +1664,7 @@ body.tdrag .sdrop{display:flex}
 #top>:not(h1):not(.tmini){flex:none}
 #top .tmini{flex:0 1 auto}
 @container (max-width:46rem){ #top .tmini .tmt{display:none} #top .kbtn>span,#top .kbtn kbd{display:none} #top .kbtn{padding:0 .5rem} }
-@container (max-width:34rem){ #top .offline .ofl{display:none} #top .kbadge{display:none} }
+@container (max-width:34rem){ #top .kbadge{display:none} }  /* 2.1170.0 (#6132): the offline chip keeps its word */
 #top .tmore{position:relative}
 #top .tmore .pdot{position:absolute;right:.1875rem;top:.1875rem;width:.375rem;height:.375rem;border-radius:50%;background:var(--p3)}
 #top .hnew span{white-space:nowrap}
@@ -1675,7 +1675,7 @@ body.tdrag .sdrop{display:flex}
 /* U16: offline / waiting changes: icon + word (hidden when tight) + count */
 .offline{display:inline-flex;align-items:center;gap:.3125rem}
 .offline .ofn{font-weight:600}
-@media (max-width:767px){ .offline .ofl{display:none} }
+/* 2.1170.0 (#6132): a phone's offline chip keeps its word (was: the symbol alone) */
 /* U09: the running indicator is neutral with a pulsing accent dot (red stays for "overdue") */
 .tmini{background:var(--bg3)}
 .tmini [data-timer-mini]{color:var(--text)}
@@ -2714,11 +2714,11 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 #top.tl1 .achip{flex:0 1 auto;min-width:0;max-width:none;padding:.25rem .5rem;gap:.25rem}
 #top.tl1 .achip>.avatar,#top.tl1 .achip>.i,#top.tl1 .achip .act{display:none}
 #top.tl1 .achip .acn{display:inline-flex;align-items:center;gap:.25rem;font:600 var(--fs-m)/1 var(--mono)}
-#top.tl1 .tmini .tmt,#top.tl1 .kbtn>span,#top.tl1 .kbtn kbd,#top.tl1 .offline .ofl,#top.tl1 .kbadge{display:none}
+#top.tl1 .tmini .tmt,#top.tl1 .kbtn>span,#top.tl1 .kbtn kbd,#top.tl1 .kbadge{display:none}
 #top.tl1 .tmini{flex:none;min-width:0}
 #top.tl1 .kbtn{padding:0 .5rem}
 #top:is(.tl2,.tl3,.tl4) .achip,#top:is(.tl2,.tl3,.tl4) .tmini.run,#top:is(.tl2,.tl3,.tl4) .tmini .tmt,
-#top:is(.tl2,.tl3,.tl4) .kbtn>span,#top:is(.tl2,.tl3,.tl4) .kbtn kbd,#top:is(.tl2,.tl3,.tl4) .offline .ofl,#top:is(.tl2,.tl3,.tl4) .kbadge{display:none}
+#top:is(.tl2,.tl3,.tl4) .kbtn>span,#top:is(.tl2,.tl3,.tl4) .kbtn kbd,#top:is(.tl2,.tl3,.tl4) .kbadge{display:none}
 #top:is(.tl2,.tl3,.tl4) .stchip{display:inline-flex}
 #top:is(.tl2,.tl3,.tl4) .kbtn{padding:0 .5rem}
 /* only one of the two pills: it stays (shrunk), there is nothing to merge */
@@ -3047,6 +3047,24 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 #newver svg{color:var(--accent);flex:none}
 @media (max-width:767px){ #stale{bottom:calc(env(safe-area-inset-bottom,0px) + 4.75rem)} }
 @media (pointer:coarse){ #stale{min-height:2.75rem} }
+/* 2.1170.0 (#6132): ONE stack for the bars (core.js barStack): new version, code changed, changes waiting, uploads. A computer: under the
+   header (--bars-top = its bottom edge, core.js barsPos); a phone: above the tab bar AND the "+" button. One above the other, never on
+   top of each other; the stack itself lets clicks through. A phone's bar wraps its words instead of cutting them. */
+#bars{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--bars-top,3.5rem) + .5rem);z-index:95;display:flex;flex-direction:column;align-items:center;gap:.375rem;width:max-content;max-width:calc(100vw - 2rem);pointer-events:none}
+#bars:empty{display:none}
+#bars > :is(#newver,#codechg,#stale,#upbars){position:static;transform:none;top:auto;bottom:auto;left:auto;pointer-events:auto;max-width:100%}
+#bars > #newver{order:1} #bars > #codechg{order:2} #bars > #stale{order:3} #bars > #upbars{order:4}
+@media (max-width:767px){
+  #bars{top:auto;bottom:calc(var(--tabs-bot) + 4.75rem);width:calc(100vw - 1.5rem);max-width:none}
+  #bars > :is(#newver,#codechg,#stale) span{white-space:normal;overflow-wrap:anywhere}
+  #bars > :is(#newver,#codechg,#stale){border-radius:var(--r-l)}
+}
+#newver [data-nv="x"]{flex:none}
+/* the header's chip: the word in the normal font, a button (tries again) */
+#top .offline{font:inherit;font-size:var(--fs-s);background:none;cursor:pointer}
+#top .offline .ofl{display:inline}
+/* the connection dot stays for syncing; offline is said once, by the chip */
+#kbar .netdot.n-off,#side .sbhead .netdot.n-off{display:none}
 /* #417: the robot needs a little room on phones / tight headers */
 @media (max-width:767px){ #top .achip{padding:.25rem .375rem;gap:.125rem}#top .achip .abot .i{width:.875rem;height:.875rem} }
 #top:is(.tl3,.tl4) .achip{padding:.25rem .375rem;gap:.125rem}
@@ -4540,6 +4558,7 @@ button.lkchip:hover{border-color:var(--accent)}
 }
 .cthead{display:flex;align-items:center;gap:.75rem}
 .cthn{min-width:0;flex:1}
+.cthn h3:focus:not(:focus-visible){outline:none}  /* 2.1168.0 (#6117): the name takes the focus when the card opens (contacts.js ct_focName) */
 .cthn h3{margin:0;font-size:var(--fs-l);overflow-wrap:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}  /* 2.217.0 A (#2794): two lines, break inside a word only as last resort */
 .cthead .ctacts{display:flex;gap:.375rem;flex:none;align-items:center}
 @media (max-width:599px){ .cthead{flex-wrap:wrap} .cthead .ctacts{flex:1 0 100%;justify-content:flex-end} }  /* 2.217.0 A (#2794): the name gets the width, actions drop to a second row */
@@ -6218,6 +6237,7 @@ body.fab-on #view .hpadd{padding-right:var(--fab-safe)}  /* 2.1111.0 (#5963): th
 .mselbar .mbb.danger{color:var(--danger)}
 .mselbar .mbb .mbl{white-space:nowrap}
 .mselbar .mbx{flex:none}
+.mselbar .mbb[hidden]{display:none}  /* 2.1168.0 (#6118): the buttons multisel.js ms_fit put into "…" (and "…" while all fit) */
 @media (max-width:767px){ .mselbar{left:.625rem;right:.625rem;transform:none;justify-content:space-between;gap:0;padding:.25rem .375rem} .mselbar .mcount{padding:0 .25rem;font-size:var(--fs-xs)} .mselbar .mbb{flex:1 1 0;min-width:3.25rem} }
 .ctpicking .ctlistw{padding-bottom:5rem}
 .ctrow .ctchk{width:1.25rem;height:1.25rem;border:1.5px solid var(--line2);border-radius:.375rem;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--bg)}
@@ -7891,8 +7911,7 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 @media (max-width:767px){
   .mselbar{flex-wrap:wrap;overflow-x:hidden;row-gap:.125rem}
   .mselbar .mcount{flex:1 0 100%;padding:.25rem .375rem 0}
-  .mselbar .mbb{min-width:2.75rem;max-width:100%}
-  .mselbar .mbb .mbl{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .mselbar .mbb{min-width:2.75rem;max-width:100%;flex:1 0 auto}  /* 2.1168.0 (#6118): the whole word (no ellipsis); what does not fit goes into "…" (multisel.js ms_fit) */
   .ctpicking .ctlistw{padding-bottom:6.5rem}
 }
 /* 2.83.0 C (#1427) themes, header strips of lists and folders, small moments (listhead.js) */
