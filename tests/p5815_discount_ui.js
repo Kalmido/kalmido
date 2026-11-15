@@ -3,7 +3,7 @@
 // container (start.sh), jsdom, invented services and amounts. As a person WITHOUT an organisation (her personal office;
 // freelancer-matrix: office).
 // - the discount field has a switch % / EUR; switched to EUR and 500 typed, the quotation shows the line "Discount
-//   -500.00" with "Fixed amount on the marked positions" and the gross of the acceptance case (2,638.43); back to %, the
+//   -500.00" with "Fixed amount on the discountable positions" and the gross of the acceptance case (2,638.43); back to %, the
 //   amount is gone and the percent field is there again
 // - a position row has a quiet "Discount %" button; tapped, its percent field appears, 10 typed: the row shows
 //   "2,000.00 less 10 % discount (-200.00)" and its amount 1,800.00; the button is gone while the position has a discount
@@ -66,9 +66,10 @@ const svc = (title, qty, rate, tax = 'standard', unit = 'day') => ({kind: 'servi
   change(w, amt, '500');
   x = await until(async () => { const j = await get(); return +j.discount_amount === 500 ? j : null; });
   check(x && x.totals?.gross === 2638.43 && x.totals?.net === 2300, 'saved: 500 off, net 2300.00, gross 2638.43 ' + (x && x.totals?.gross));
-  await until(() => /Fixed amount on the marked positions/.test(d.querySelector('.ofdautos')?.textContent || ''));
+  // 2.1201.0 (#6175): "discountable" (was "marked")
+  await until(() => /Fixed amount on the discountable positions/.test(d.querySelector('.ofdautos')?.textContent || ''));
   const at = d.querySelector('.ofdautos')?.textContent || '';
-  check(/Fixed amount on the marked positions/.test(at) && /500\.00/.test(at), 'on screen: the discount line "Fixed amount on the marked positions" with 500.00');
+  check(/Fixed amount on the discountable positions/.test(at) && /500\.00/.test(at), 'on screen: the discount line "Fixed amount on the discountable positions" with 500.00');
   await until(() => /2,638\.43/.test(d.querySelector('#ofd-totals')?.textContent || ''));
   check(/2,638\.43/.test(d.querySelector('#ofd-totals')?.textContent || ''), 'on screen: the total 2,638.43');
   check(d.querySelector('#ofd-discount_mode')?.value === 'amount' && d.querySelector('#ofd-discount_amount')?.value.replace(/[^0-9]/g, '') === '500', 'after the save the switch stays on the amount, 500 in the field');

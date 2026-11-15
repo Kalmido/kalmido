@@ -19,7 +19,7 @@ from ..core.db import body, bump, db, err, iso, iso_ms, local_now, now_utc
 from ..core.access import Denied, live_sql
 from ..core.errors import BadInput, BadKey, DeniedKey
 from .costs import ek_item_margins, ek_purchases_write, ek_role_cost
-from .calc import INV_ITEM_KINDS, INV_VAT_NOTES, PRD_INTERNAL_DETAIL, OPT_KINDS, RAW_MODES, TAX_KEYS, calc_tax_day, dec, fmt_money, fmt_rate, inv_calc, label, office_calc
+from .calc import INV_ITEM_KINDS, INV_VAT_NOTES, PRD_INTERNAL_DETAIL, OPT_KINDS, RAW_MODES, TAX_KEYS, calc_tax_day, dec, fmt_money, fmt_rate, inv_calc, label, office_calc, opt_label_under
 from .packs import office_pack_for
 from .doclang import DOC_LANGS, doc_client_lang, doc_lg, doc_own, doc_pack, fd_lang_gaps  # 2.185.0 C (#2520); 2.460.0 (#3767)
 from .sheet import dk_pack, dk_packs_on
@@ -1224,13 +1224,18 @@ def odoc_render(c, doc_id, oid, keep_detail=False):
     _fd = lambda d, _p=None: _fmt_date(d, pack, lang)  # noqa: E731  2.296.0 B (#3175): dates in the document's language
     L = dict((pack.get("labels") or {}).get(lang) or {})
     cur = r["currency"]
+    sec = ""  # 2.1201.0 (#6175): the heading of the section a position stands in
     for ln in t["lines"]:
+        if ln["kind"] == "heading":
+            sec = ln.get("title") or ""
+        elif ln["kind"] == "subtotal":
+            sec = ""
         if ln["kind"] in ("item", "producing", "surcharge", "raw", "discount"):  # 2.113.1 (#2252): + surcharge
             ln["total_text"] = fmt_money(ln["total"], lang, cur)
             if ln.get("rate") is not None:
                 ln["rate_text"] = fmt_rate(ln["rate"], lang, cur)  # 2.354.0 A (#2831): up to 4 places
         if ln.get("opt") in OPT_KINDS:  # 2.1041.0 (#5814): "Optional:" / "Alternative:" before the title, in the document's language
-            ln["opt_label"] = label(pack, lang, "opt_" + ln["opt"])
+            ln["opt_label"] = opt_label_under(label(pack, lang, "opt_" + ln["opt"]), sec)  # 2.1201.0 (#6175): not below "Optionen"
     rec = _j(r["recipient_snapshot"] if locked and r["recipient_snapshot"] else r["recipient"], {})
     if not locked:
         rec = cdn_doc_recipient(c, oid, r, rec)  # 2.97.0 B (#1951): a draft prints its client's address as it is now

@@ -18342,7 +18342,6 @@
   "fixed net amount on the marked positions": "importe neto fijo sobre las posiciones marcadas",
   "Discount on this position (%)": "Descuento en esta posición (%)",
   "{0} less {1} % discount ({2})": "{0} menos {1} % de descuento ({2})",
-  "Fixed amount on the marked positions|calc": "Importe fijo sobre las posiciones marcadas",
   "Split from window width": "Dividir a partir del ancho de ventana",
   "At least {0} px, otherwise neither half has enough room.": "Al menos {0} px; si no, ninguna mitad tiene espacio suficiente.",
   "Your window: {0} px": "Tu ventana: {0} px",

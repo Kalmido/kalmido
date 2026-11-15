@@ -74,6 +74,18 @@ RAW_MODES = ("optional", "included", "none")
 # 2.1041.0 (#5814): a position of a quotation that is printed with its amount but counted in no sum ('' = a normal one)
 OPT_KINDS = ("optional", "alternative")
 
+
+def opt_label_under(lbl, heading):
+    """2.1201.0 (#6175): the "Optional:" / "Alternative:" before a position's title, or '' when the section heading above it
+    names it already ("Optionen", "Options", "Alternativen"): the word of the label (its last one, without the colon) and a
+    word of the heading start with the same six letters ("Optik" is no "Optional")."""
+    lbl = str(lbl or "")
+    w = re.findall(r"\w+", lbl.lower())
+    stem = w[-1][:6] if w else ""
+    if len(stem) < 6 or not heading:
+        return lbl
+    return "" if re.search(r"(?<!\w)" + re.escape(stem), str(heading).lower()) else lbl
+
 # the words of the document itself (its language, not the signed-in person's): the country pack may override them
 # (pack["labels"][lang][key]); these are the defaults so the calculator works without a pack
 # 2.185.0 C (#2520): English keys through tr() in the document's language (was a de / en table; the words stay the same)
@@ -84,8 +96,9 @@ LABELS = {
     "handling": N_("Handling costs|calc"), "markup": N_("Markup|calc"), "surcharge_detail": N_("{pct} % on the marked positions|calc"),  # 2.113.1 (#2252)
     "surcharge_detail_stacked": N_("{pct} % on the marked positions and the handling costs|calc"),
     "raw_detail": N_("{pct} % of the positions with raw data|calc"), "discount": N_("Discount|calc"),
-    "discount_detail": N_("{pct} % on the marked positions|calc"),
-    "discount_detail_amount": N_("Fixed amount on the marked positions|calc"),  # 2.1042.0 (#5815)
+    # 2.1201.0 (#6175): "discountable" (was "marked": the PDF marks nothing)
+    "discount_detail": N_("{pct} % on the discountable positions|calc"),
+    "discount_detail_amount": N_("Fixed amount on the discountable positions|calc"),  # 2.1042.0 (#5815)
     "net": N_("Net Total|calc"), "net_incl_raw": N_("Net total with option raw data|calc"), "net_excl_raw": N_("excluding raw data|calc"),  # 2.114.4 A (#2275)
     "gross": N_("Gross Total|calc"),
     "tax_standard": N_("VAT {pct} %|calc"), "tax_reduced": N_("VAT {pct} %|calc"), "tax_exempt": N_("tax exempt|calc"),
