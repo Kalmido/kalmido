@@ -4,6 +4,8 @@
 //   two visitors vote on the public page (fetch, with its stamp), the window shows the counts, the names and the best time,
 //   "Select this time" opens the calendar dialog and makes ONE event (undo = reopen, the event goes to the trash);
 //   the task's "Find a date" and the client menu's "Find a date…" exist; a person without an organisation sees no workspace field.
+// 2.1183.0 (#6157): the list opens at once and a failed fetch says so with "Try again" (was: nothing opened); no poll / no vote =
+//   the shared empty state; the form asks "Discard changes?" before typed input goes; a poll that fails to load says so too.
 // Firefox 402 x 844 touch: the public page (open and closed) and the app's poll window without horizontal scrolling, the
 // answers >= 44 px high; screenshots with P298A_SHOTS. P298A_NOSTART=1 = the server already runs.
 const {execFileSync} = require('child_process');
@@ -43,8 +45,8 @@ const FEAT = 'collab,comments,events,cal,clients,office';
   const fb = await until(() => d.querySelector('#view [data-act="tpo-list"]'));
   check(fb && /Find a date/.test(fb.textContent), 'the calendar bar has "Find a date"');
   fb?.click();
-  const ld = await until(() => d.querySelector('.tpo-dlg'));
-  check(ld && /No polls yet/.test(ld.textContent), 'the list: empty');
+  const ld = await until(() => d.querySelector('.tpo-dlg .tpo-list .nempty'));  // 2.1183.0 (#6157): the window is there before the list
+  check(ld && /No polls yet/.test(ld.textContent) && !d.querySelector('.tpo-dlg p.empty'), 'the list: empty, the shared empty state');
   d.querySelector('.tpo-dlg [data-tpo="new"]')?.click();
   const fm = await until(() => d.querySelector('.tpo-dlg #tpo-title'));
   check(fm && d.querySelectorAll('.tpo-dlg .tpo-row').length === 3, 'the form: three proposed times');
@@ -64,7 +66,7 @@ const FEAT = 'collab,comments,events,cal,clients,office';
   const PID = made && made.id;
   const sw = await until(() => d.querySelector('.tpo-dlg .tpo-link input'));
   check(sw && /\/s\/v\//.test(sw.value) && d.querySelector('.tpo-dlg [data-tpo="copy"]') && d.querySelector('.tpo-dlg [data-tpo="qr"]'), 'the poll window: link, copy, QR');
-  check(d.querySelectorAll('.tpo-dlg .tpo-o').length === 3 && /No votes yet/.test(d.querySelector('.tpo-dlg').textContent), 'three times, no votes yet');
+  check(d.querySelectorAll('.tpo-dlg .tpo-o').length === 3 && /No votes yet/.test(d.querySelector('.tpo-dlg .nempty')?.textContent || ''), 'three times, no votes yet (the shared empty state)');
   d.querySelector('.tpo-dlg [data-tpo="qr"]')?.click();
   check(await until(() => d.querySelector('.tpo-dlg .tpo-qr img')), 'the QR code');
   d.querySelector('.tpo-dlg [data-tpo="close"]')?.click();
@@ -104,6 +106,38 @@ const FEAT = 'collab,comments,events,cal,clients,office';
   check(w.eval(`evTaskHtml({id: ${T.id}, list_id: ${L.id}}, true).includes('tpo-task') === false`), 'read-only: no entry');
   const cpj = await (await fetch(B + 'static/js/clientpage.js')).text();
   check(w.eval(`typeof tpo_forClient === 'function'`) && cpj.includes("tr('Find a date…'), icon: 'users', fn: () => tpo_forClient(c)"), 'the client menu has its entry');
+  // ================= 2.1183.0 (#6157): a failed fetch says so (the window stays, "Try again" loads again)
+  await w.eval(`window.__rf = rawFetch; rawFetch = (m, u, b) => /^\\/api\\/polls(\\/\\d+)?$/.test(u) && m === 'GET' ? Promise.reject(Object.assign(new Error('boom'), {status: 500})) : window.__rf(m, u, b); 1`);
+  await w.eval(`tpo_list()`);
+  const le = await until(() => d.querySelector('.tpo-dlg .eerr'));
+  check(le && /The polls could not be loaded/.test(le.textContent) && le.querySelector('[data-esretry]') && !/boom/.test(le.textContent), '#6157: the list says it could not load, with "Try again", no server text');
+  await w.eval(`rawFetch = window.__rf; 1`);
+  le?.querySelector('[data-esretry]')?.click();
+  check(await until(() => d.querySelector('.tpo-dlg .tpo-li[data-tpo-open]')), '#6157: "Try again" loads the list');
+  d.querySelector('.tpo-dlg [data-tpo="close"]')?.click();
+  await w.eval(`window.__rf = rawFetch; rawFetch = (m, u, b) => m === 'GET' && u === '/api/polls/${PID}' ? Promise.reject(new Error('boom')) : window.__rf(m, u, b); 1`);
+  await w.eval(`tpo_show(${PID})`);
+  check(await until(() => /The poll could not be loaded/.test(d.querySelector('.tpo-dlg .eerr')?.textContent || '')), '#6157: a poll that fails to load says so (was: nothing opened)');
+  await w.eval(`rawFetch = window.__rf; 1`);
+  d.querySelector('.tpo-dlg .eerr [data-esretry]')?.click();
+  check(await until(() => d.querySelectorAll('.tpo-dlg .tpo-o').length === 3), '#6157: "Try again" shows the poll');
+  d.querySelector('.tpo-dlg [data-tpo="close"]')?.click();
+  // the form: typed input is not thrown away without a question; the description as wide as the other fields (CSS rule)
+  await w.eval(`tpo_edit()`);
+  await until(() => d.querySelector('.tpo-dlg #tpo-title'));
+  d.querySelector('.tpo-dlg #tpo-title').value = 'Half typed';
+  d.querySelector('.tpo-dlg #tpo-title').dispatchEvent(new w.Event('input', {bubbles: true}));
+  d.querySelector('.tpo-dlg .tpo-form .lhdr [data-tpo="close"]')?.click();  // the form's X (a closed window may still fold away)
+  const ask = await until(() => [...d.querySelectorAll('.modal.cdlg')].find(x => /Discard changes/.test(x.textContent)));
+  check(ask && d.querySelector('.tpo-dlg #tpo-title')?.value === 'Half typed', '#6157: X asks "Discard changes?" before the typed title goes');
+  ask?.querySelector('[data-cd="no"]')?.click();
+  check(await until(() => !d.querySelector('.modal.cdlg')) && d.querySelector('.tpo-dlg #tpo-title')?.value === 'Half typed', '#6157: "Keep editing" keeps the form and the title');
+  d.querySelector('.tpo-dlg .tpo-form .foot [data-tpo="close"]')?.click();
+  const ask2 = await until(() => [...d.querySelectorAll('.modal.cdlg')].find(x => /Discard changes/.test(x.textContent)));
+  ask2?.querySelector('[data-cd="yes"]')?.click();
+  check(await until(() => !d.querySelector('.tpo-dlg #tpo-title')), '#6157: Cancel + Discard closes the form');
+  const css = require('fs').readFileSync(path.join(__dirname, '..', 'static', 'css', 'calendar.css'), 'utf8');
+  check(/\.tpo-form \.row textarea\{flex:1;min-width:0;width:100%\}/.test(css), '#6157: the description is as wide as the other fields');
   w.close();
 
   // ================= without an organisation: no workspace field

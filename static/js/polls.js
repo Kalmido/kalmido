@@ -22,19 +22,31 @@ function tpo_status(p) {
 async function tpo_get(id) { return (await api('GET', `/api/polls/${id}`)).poll; }
 function tpo_redraw() { calInvalidate(); render(); }
 
+// 2.1183.0 (#6157): a failed fetch of a window: the shared block with "Try again" (render.js errorState: offline or not, it
+// says which in plain words, no server text)
+const tpo_loadErr = (title, retry) => errorState({size: 'sec', title, retry});
 // ---- the list of polls (the calendar bar's "Find a date")
+// 2.1183.0 (#6157): the window opens at once with "Loading…" (render.js loadingHtml), a failed fetch says so with "Try again"
+// instead of closing silently, no poll = the shared empty state; rawFetch: the window says it, no second message as a toast
 async function tpo_list() {
   await loadCss('calendar').catch(() => {});
-  let items = [];
-  try { items = (await api('GET', '/api/polls')).items || []; } catch { return; }
   const md = modal(`<div class="lhdr"><h3 id="tpo-lt">${esc(tr('Find a date'))}</h3><span class="spacer"></span><button class="iconbtn" data-tpo="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div>
     ${hintOnce('pollintro', tr('Propose several times, send the link, and the time that suits most becomes an event.'))}
-    <div class="tpo-list">${items.length ? items.map(p => `<button type="button" class="tpo-li${p.closed_at ? ' tpo-closed' : ''}" data-tpo-open="${p.id}">
-      <span class="tpo-lt">${esc(p.title)}</span><span class="muted tpo-ls">${esc(tpo_status(p))}</span></button>`).join('')
-      : `<p class="empty">${esc(tr('No polls yet'))}</p>`}</div>
+    <div class="tpo-list">${/*html-ok*/ loadingHtml('sec') /* the shared block */}</div>
     <div class="foot"><span class="spacer"></span><button type="button" class="btn pri" data-tpo="new">${ic('plus', 's')} ${esc(tr('New poll'))}</button></div>`);
   md.classList.add('tpo-dlg');
   md.setAttribute('aria-labelledby', 'tpo-lt');
+  const box = $('.tpo-list', md);
+  const load = async () => {
+    let items;
+    try { items = (await rawFetch('GET', '/api/polls')).items || []; }
+    catch { if (box.isConnected) box.innerHTML = tpo_loadErr(tr('The polls could not be loaded'), () => { box.innerHTML = loadingHtml('sec'); load(); }); return; }
+    if (!box.isConnected) return;
+    box.innerHTML = items.length ? items.map(p => `<button type="button" class="tpo-li${p.closed_at ? ' tpo-closed' : ''}" data-tpo-open="${p.id}">
+      <span class="tpo-lt">${esc(p.title)}</span><span class="muted tpo-ls">${esc(tpo_status(p))}</span></button>`).join('')
+      : emptyState({icon: 'cal', size: 'sec', title: tr('No polls yet'), sub: tr('Propose a few times with “New poll” and send the link.')});
+  };
+  load();
   md.addEventListener('click', e => {
     if (e.target.closest('[data-tpo="close"]')) md.remove();
     else if (e.target.closest('[data-tpo="new"]')) { md.remove(); tpo_edit(); }
@@ -76,9 +88,12 @@ async function tpo_edit(p = null, o = {}) {
     <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-tpo="close">${esc(tr('Cancel'))}</button><button type="submit" class="btn pri">${esc(p ? tr('Save') : tr('Create'))}</button></div></form>`);
   md.classList.add('tpo-dlg');
   md.setAttribute('aria-labelledby', 'tpo-et');
+  // 2.1183.0 (#6157): X, Cancel, Esc and the backdrop ask before typed input is thrown away (formguard.js fgModal: a time
+  // added or removed changes the fields, so it counts too); the input also survives a reload like in every such dialog
+  const close = fgModal(md);
   const rows = $('.tpo-rows', md), fail = t => { const x = $('.tpo-err', md); x.textContent = t; x.hidden = !t; };
   md.addEventListener('click', e => {
-    if (e.target.closest('[data-tpo="close"]')) md.remove();
+    if (e.target.closest('[data-tpo="close"]')) close();
     else if (e.target.closest('[data-tpo="add"]')) {
       if ($$('.tpo-row', rows).length >= 20) { fail(tr('Please propose between {0} and {1} times', 2, 20)); return; }
       const last = $$('.tpo-row', rows).pop(), d = last ? $('.tpo-d', last).value : '', t = last ? $('.tpo-t', last).value : '10:00';
@@ -103,7 +118,7 @@ async function tpo_edit(p = null, o = {}) {
           expires_at: p.expires_at, ...(closed ? {} : {options: p.options.map(x => ({id: x.id, start: x.start, end: x.end}))})};
         // 2.564.0 D (#4701): against the version the dialog opened with; 409 = saved meantime: the reason, the current poll opens
         let r; try { r = (await rawFetch('PATCH', `/api/polls/${p.id}`, {...b, expect_updated_at: p.updated_at})).poll; }
-        catch (x) { if (x.status === 409 && x.data?.poll) { md.remove(); toast(x.message); tpo_show(x.data.poll); return; } throw x; }
+        catch (x) { if (x.status === 409 && x.data?.poll) { md.remove(); toast(errText(x, tr('Not saved: the poll was changed meanwhile'))); tpo_show(x.data.poll); return; } throw x; }
         md.remove();
         // 2.566.0 (#4704): only the changed keys, against the version the step before left (core.js undoStep): changed or
         // voted on since -> "Changed elsewhere, not undone", nothing written over
@@ -119,18 +134,21 @@ async function tpo_edit(p = null, o = {}) {
         histToast(tr('Poll created'), histAdd({label: tr('Poll “{0}” created', r.title), undo: () => api('DELETE', `/api/polls/${r.id}`), redo: () => api('POST', `/api/polls/${r.id}/restore`)}));
         tpo_show(r);
       }
-    } catch (x) { btn.disabled = false; fail(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message); }
+    } catch (x) { btn.disabled = false; fail(x instanceof Offline ? tr('Offline: only works again with a connection') : errText(x, p ? tr('The poll could not be saved') : tr('The poll could not be created'))); }
   });
   $('#tpo-title', md).focus();
 }
 
 // ---- one poll: link, results, choosing the time
+// 2.1183.0 (#6157): opened by its number (the list) the window is there at once with "Loading…", a failed fetch says so with
+// "Try again" (was: nothing happened)
 async function tpo_show(p) {
-  if (typeof p === 'number') { try { p = await tpo_get(p); } catch { return; } }
   await loadCss('calendar').catch(() => {});
   const md = modal('');
   md.classList.add('tpo-dlg');
   md.setAttribute('aria-labelledby', 'tpo-st');
+  const card = md.querySelector('.card');
+  const head = `<div class="lhdr"><h3 id="tpo-st">${esc(tr('Find a date'))}</h3><span class="spacer"></span><button class="iconbtn" data-tpo="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div>`;
   const draw = () => {
     const best = p.best_id, open = !p.closed_at, max = Math.max(1, ...p.options.map(o => o.y + o.m));
     const who = id => { const y = [], m = []; for (const v of p.votes || []) { const a = v.answers[String(id)]; if (a === 'y') y.push(v.name); else if (a === 'm') m.push(v.name); } return {y, m}; };
@@ -146,19 +164,34 @@ async function tpo_show(p) {
       <p class="muted tpo-sub">${esc(tpo_status(p))}${p.location ? ' · ' + esc(p.location) : ''}${wsOn() ? ' · ' + esc(wsName(p.space)) : ''}</p>
       ${p.url ? `<div class="tpo-link"><input readonly value="${esc(p.url)}" aria-label="${esc(tr('Link to the poll'))}"${p.live ? '' : ' class="tpo-off"'}>
         <button type="button" class="btn sm" data-tpo="copy">${ic('copy', 's')} ${esc(tr('Copy'))}</button><button type="button" class="iconbtn" data-tpo="qr" aria-label="${esc(tr('QR code'))}" title="${esc(tr('QR code'))}">${ic('grid', 's')}</button></div>
-        ${p.live ? '' : `<p class="muted mhint">${esc(!p.link_on ? tr('The link is switched off: nobody can vote.') : p.expires_at && new Date(p.expires_at) < new Date() ? tr('Voting has ended: the link no longer opens.') : tr('Public links are switched off on this server'))}</p>`}
+        ${p.live ? '' : `<p class="muted mhint">${esc(!p.link_on ? tr('The link is switched off: nobody can vote.') : p.expires_at && new Date(p.expires_at) < new Date() ? tr('Voting has ended: the link no longer opens.') : tr('Public links are switched off, so nobody can open the link.'))}</p>`}
         <div class="tpo-qr" hidden></div>` : ''}
       ${p.description ? `<p class="tpo-desc">${esc(p.description)}</p>` : ''}
       <ul class="tpo-opts">${p.options.map(opt).join('')}</ul>
-      ${p.votes_n ? '' : `<p class="empty">${esc(tr('No votes yet. Send the link to the people you want to meet.'))}</p>`}
+      ${/*html-ok*/ p.votes_n ? '' : /* 2.1183.0 (#6157): the shared empty state (was a bare p.empty with its big gap) */ emptyState({icon: 'users', size: 'row', title: tr('No votes yet'), sub: tr('Send the link to the people you want to meet.')})}
       <div class="foot">${p.closed_at && p.event_id ? `<button type="button" class="btn" data-tpo="event">${ic('cal', 's')} ${esc(tr('Open event'))}</button>` : ''}
         ${p.closed_at && p.can_edit ? `<button type="button" class="btn" data-tpo="reopen">${ic('undo', 's')} ${esc(tr('Reopen poll'))}</button>` : ''}
         <span class="spacer"></span><button type="button" class="btn" data-tpo="close">${esc(tr('Close'))}</button></div>`;
   };
-  const reload = async () => { try { p = await tpo_get(p.id); } catch { md.remove(); return; } if (md.isConnected) draw(); };
-  draw();
+  // 2.1183.0 (#6157): a failed fetch after a change keeps the window as it was and says so (was: it closed without a word)
+  const reload = async () => {
+    try { p = await tpo_get(p.id); } catch (x) { if (x instanceof Offline) toast(tr('Only available online.')); return; }
+    if (md.isConnected) draw();
+  };
+  if (typeof p === 'number') {
+    const id = p;
+    const first = async () => {
+      card.innerHTML = head + loadingHtml('sec');
+      let q; try { q = (await rawFetch('GET', `/api/polls/${id}`)).poll; }
+      catch { if (md.isConnected) card.innerHTML = head + tpo_loadErr(tr('The poll could not be loaded'), first); return; }
+      if (!md.isConnected) return;
+      p = q; draw();
+    };
+    first();
+  } else draw();
   md.addEventListener('click', async e => {
     const k = e.target.closest('[data-tpo]')?.dataset.tpo;
+    if (typeof p !== 'object') { if (k === 'close') md.remove(); return; }  // still loading / failed: only the X
     const pick = e.target.closest('[data-tpo-pick]');
     if (pick) { tpo_decide(p, +pick.dataset.tpoPick, reload); return; }
     if (k === 'close') md.remove();
@@ -240,7 +273,7 @@ function tpo_decide(p, oid, done) {
     const target = dvw_isSub(v) ? {sub_id: +v.slice(1)} : v ? {cal_id: +v} : {};
     btn.disabled = true;
     let r; try { r = await rawFetch('POST', `/api/polls/${p.id}/decide`, {option_id: oid, ...target, mail: !!$('#tpo-mail', md)?.checked}); }
-    catch (x) { btn.disabled = false; err.textContent = x instanceof Offline ? tr('Offline: only works again with a connection') : x.message; err.hidden = false; return; }
+    catch (x) { btn.disabled = false; err.textContent = x instanceof Offline ? tr('Offline: only works again with a connection') : errText(x, tr('The event could not be created')); err.hidden = false; return; }
     md.remove();
     const again = {option_id: oid, ...target, mail: false};  // a redo never mails twice
     histToast(r.mailed ? trn('Event created, {0} invitation sent', 'Event created, {0} invitations sent', r.mailed) : tr('Event created'),
