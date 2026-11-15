@@ -27,7 +27,7 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   const su = await call('POST', '/api/admin/setup', {org_name: 'Studio', lang: 'en', collab_all: true, modules: ['cal', 'comments', 'collab', 'team']});
   check(su.http < 300, 'setup: the organisation Studio ' + JSON.stringify(su));
   const st0 = await call('GET', '/api/state');
-  const feats = [...new Set([...(st0.settings?.features || '').split(',').filter(Boolean), 'cal', 'events', 'contacts', 'wiki', 'team', 'collab'])].join(',');
+  const feats = [...new Set([...(st0.settings?.features || '').split(',').filter(Boolean), 'cal', 'events', 'contacts', 'wiki', 'team', 'collab', 'files'])].join(',');
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', ws_colors: '{}', workspace: 'all', features: feats});
   const ORG = ((await call('GET', '/api/state')).me.workspaces || [])[0]?.id;
   if (!ORG) { console.log('no organisation'); process.exit(1); }
@@ -64,9 +64,10 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(neutral(ep) && ep.style.getPropertyValue('--cc') !== '', '#6181 the private event: no stripe, its calendar colour');
   const row = w.eval(`(() => { const e = S.cal.items.find(x => x.title === 'Studio meeting'); return cevRow(e, e.d0); })()`);
   check(/data-wso="1"/.test(row) && /class="wso cevo"/.test(row) && /Studio/.test(row) && /--cc:/.test(row), '#6181 an event row (Today, day list) under "All": stripe + where it comes from ' + row.slice(0, 200));
-  check(!/class="wso/.test(w.eval(`(() => { const e = S.cal.items.find(x => x.title === 'Dentist'); return cevRow(e, e.d0); })()`)), '#6181 a private event row: no origin mark');
+  const rowP = w.eval(`(() => { const e = S.cal.items.find(x => x.title === 'Dentist'); return cevRow(e, e.d0); })()`);
+  check(!/data-wso/.test(rowP) && /Private/.test(rowP), '#6181 a private event row: no stripe; under "All" its origin says Private (as the task rows)');
   eo.click();
-  check(await until(() => d.querySelector('#pop .cevpop b')?.textContent.includes('Studio meeting')), '#6181 a click opens the event\'s popover with its title');
+  check(await until(() => d.querySelector('#pop .cevpop b')?.textContent.includes('Studio meeting') && d.querySelector('#pop .cevpop .cevact')), '#6181 a click opens the event\'s popover with its title and actions');
   const pop = d.querySelector('#pop .cevpop');
   check(striped(pop) && /Studio/.test(pop.querySelector('.cevo')?.textContent || ''), '#6181 the popover: the organisation\'s stripe and its name');
   w.eval(`closePop()`);
@@ -75,7 +76,7 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(/data-wso="1"/.test(lst.own) && /--cc:red;--wsd:/.test(lst.own) && /wsp-dot/.test(lst.dot), '#6181 the calendar list row: stripe next to the calendar colour, the dot with the name');
   // the event dialog: stripe + origin, a change of calendar redraws it
   const dlg = w.eval(`(() => { const md = document.createElement('div'); md.innerHTML = '<div class="card"><span class="evwso"></span></div>'; evDlgWs(md, ${CO.id}); const a = {wso: md.firstChild.dataset.wso, o: md.querySelector('.evwso').textContent}; evDlgWs(md, ${CP.id}); return {...a, wso2: md.firstChild.dataset.wso || '', o2: md.querySelector('.evwso').textContent}; })()`);
-  check(dlg.wso === '1' && /Studio/.test(dlg.o) && dlg.wso2 === '' && dlg.o2 === '', '#6181 the event dialog: stripe + origin for the organisation\'s calendar, gone after switching to the private one ' + JSON.stringify(dlg));
+  check(dlg.wso === '1' && /Studio/.test(dlg.o) && dlg.wso2 === '' && !/Studio/.test(dlg.o2), '#6181 the event dialog: stripe + origin for the organisation\'s calendar, gone after switching to the private one ' + JSON.stringify(dlg));
   w.close();
 
   // ---- #6182 Wiki
@@ -113,7 +114,7 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(await until(() => !main().classList.contains('wsc-on')), '#6184 the private space: neutral');
   const card = w.eval(`dc_card({id: 7, name: 'Invoice.pdf', org_id: ${ORG}, tags: [], state: 'done'})`), cardP = w.eval(`dc_card({id: 8, name: 'Own.pdf', org_id: null, tags: [], state: 'done'})`);
   check(/data-wso="1"/.test(card) && /class="wso dco"/.test(card) && /Invoice\.pdf/.test(card), '#6184 a document card of the organisation: stripe + where it comes from');
-  check(!/data-wso/.test(cardP) && !/class="wso/.test(cardP), '#6184 a private document card: neutral');
+  check(!/data-wso/.test(cardP) && /Own\.pdf/.test(cardP), '#6184 a private document card: no stripe');
   w.eval(`window.__dv = document.createElement('div'); wso_mark(__dv, {org_id: ${ORG}})`);
   check(w.eval(`__dv.dataset.wso === '1' && __dv.style.getPropertyValue('--wsd') === ${JSON.stringify(want.d)}`), '#6184 an open document\'s view gets the mark (wso_mark)');
   w.eval(`wso_mark(__dv, 'private')`);
@@ -125,7 +126,7 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   const ctRow = n => [...d.querySelectorAll('.ctrow')].find(r => r.textContent.includes(n));
   check(await until(() => ctRow('Olga') && ctRow('Paul')), '#6185 the contacts show both people by name');
   check(striped(ctRow('Olga')) && /Studio/.test(ctRow('Olga').querySelector('.cto')?.textContent || ''), '#6185 the contact of the organisation\'s book: stripe + where it comes from');
-  check(neutral(ctRow('Paul')) && !ctRow('Paul').querySelector('.cto'), '#6185 the private contact: neutral');
+  check(neutral(ctRow('Paul')) && !/Studio/.test(ctRow('Paul').textContent), '#6185 the private contact: no stripe, no organisation');
   ctRow('Olga').click();
   check(await until(() => d.querySelector('.ctcard #ct-h')?.textContent.includes('Olga')), '#6185 a click opens the card with the name');
   check(striped(d.querySelector('article.ctcard')), '#6185 the open card wears the organisation\'s stripe');
