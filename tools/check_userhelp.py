@@ -39,6 +39,9 @@ BOLD = re.compile(r"\*\*([^*\n]{1,80})\*\*")
 _spec = importlib.util.spec_from_file_location("i18nkeys_uh", os.path.join(ROOT, "kalmido", "core", "i18nkeys.py"))
 KEYS = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(KEYS)
+_spec = importlib.util.spec_from_file_location("i18nfrag_uh", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))  # 2.1188.0 (#6194)
+FRAG = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(FRAG)
 
 
 def fold(s):
@@ -154,8 +157,7 @@ def check(docs_dir, js_dir, i18n_dir, verbose=False):
     langs = sorted(os.path.basename(p)[:-5] for p in glob.glob(os.path.join(i18n_dir, "*.json")))
     by_key = {s["key"]: s for s in secs}
     for lg in langs:
-        with open(os.path.join(i18n_dir, lg + ".json"), encoding="utf-8") as f:
-            d = json.load(f)
+        d = FRAG.load_lang(i18n_dir, lg)  # 2.1188.0 (#6194): + the fragments static/i18n/neu/<KID>.json
         ctx = {}
         for k, v in d.items():
             if isinstance(v, str):

@@ -126,6 +126,8 @@ the web client (`static/js/*.js`) and the server (`app.py`, `kalmido/`) and comp
 - **_meta / names / date formats**: missing name or locale, wrong number of names, unknown tokens -> error
 - **glossary**: a key with a word the glossary below replaces -> error
 - **unused**: in the file but no longer used by the code -> warning, just delete it
+- **fragments** (2.1188.0): a file in `static/i18n/neu/` that cannot be read, names a language without a file, holds a
+  key starting with `_`, or a key that is already in the language file or in another fragment -> error
 
 Exit code 1 on any error. When the English texts change, run it for every language: new keys show up as
 missing, removed ones as unused.
@@ -191,6 +193,26 @@ Spelling is British, with -ise: customise, organise, recognise, summarise.
   lists such non-literal calls as info.
 - Server texts (error messages, push notifications, `/drop` replies) use the same JSON files. The language is
   a server setting because the push notifications are sent from there.
+- **New texts go into a fragment, not into the big language files** (2.1188.0, #6194): a change adds its new keys
+  to `static/i18n/neu/<KID>.json` (one file per package or pull request, e.g. the job number):
+
+  ```json
+  {
+    "de": {"New English text": "Neuer deutscher Text"},
+    "es": {"New English text": "…"}, "fr": {"New English text": "…"},
+    "it": {"New English text": "…"}, "nl": {"New English text": "…"}
+  }
+  ```
+
+  The server, the split language parts and the web manifest mix every fragment in at run time (base file + fragments
+  in the order of their file names, `kalmido/core/i18nfrag.py`), so `tr()` and the web client see the text at once.
+  Changing or deleting a text stays in `static/i18n/<code>.json`. Why: GitHub's merge queue merges without our merge
+  drivers, and two changes that both append to the end of the big files always conflicted. The pull request lint
+  (`tools/pr_lint.py`, check `i18n`) refuses new keys in the big files. Added them there anyway?
+  `python3 tools/i18n_neu.py auslagern --base <base commit> --kid <KID>` moves exactly the keys new since that commit
+  into the fragment and leaves the big files otherwise byte for byte as they were; `tools/i18n_neu.py einfalten`
+  puts all fragments back into the big files (the release's step). Tests that read a language read it with the
+  fragments (`tools/i18n_check.py load_code(code)`).
 - English needs no file: the keys are the English texts, English weekday / month names and date formats live
   in `static/i18n.js`.
 - Server-side number and date formats (pushes, CSV, public pages) use `short_day()`, `fmt_int()` and `dec_comma()` in

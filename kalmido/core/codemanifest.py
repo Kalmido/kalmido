@@ -15,7 +15,7 @@ hashes, versions of the language parts) - no nonce, no instance name, nothing fr
 the same way (cm_index). /manifest.json is no code (texts in the visitor's language, the shortcuts of the signed-in person)
 and stays out. The first 12 hex digits of every entry are the ?v= / sw-manifest.json value of that file.
 
-Only the standard library and two files of this folder without imports from the app (strip.py, i18nkeys.py)."""
+Only the standard library and three files of this folder without imports from the app (strip.py, i18nkeys.py, i18nfrag.py)."""
 import hashlib
 import json
 import os
@@ -24,13 +24,16 @@ import re
 try:
     from .strip import strip_asset, start_css_files, with_start_css
     from .i18nkeys import module_keys, split_lang
+    from .i18nfrag import fragment_paths, lang_bytes, load_lang, read_fragments
 except ImportError:  # tools/web_manifest.py loads this folder by its path, without the app
     from strip import strip_asset, start_css_files, with_start_css  # type: ignore
     from i18nkeys import module_keys, split_lang  # type: ignore
+    from i18nfrag import fragment_paths, lang_bytes, load_lang, read_fragments  # type: ignore
 
 CM_V = 1  # the format of the manifest
 CM_ASSET_RE = re.compile(r'(<(?:script|link)\b[^>]*?\b(?:src|href)="/static/)([\w./-]+\.(?:js|css))"')
 CM_SW_LIST_RE = re.compile(r"const (SHELL|LAZY|LAZY_CSS) = \[(.*?)\];", re.S)
+CM_LANG_FILE = re.compile(r"i18n/([a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?)\.json")  # 2.1188.0 (#6194): a whole language file (static/<rel>)
 _CM_LANG = re.compile(r"[a-z]{2,3}(-[A-Za-z0-9]{2,8})?")  # as core/i18nparts.py _I18NP_CODE
 
 
@@ -41,7 +44,12 @@ def cm_sha(data):
 def cm_served(root, rel, data, starts=None):
     """-> (the bytes of static/<rel> as they go out, stripped). data = the file's bytes; .js / .css outside vendor/ without
     comments (core/strip.py; unsure = the original), app.css with the start style files behind it (starts: their paths, None =
-    find them). core/pages.py st_asset hashes exactly these bytes."""
+    find them). core/pages.py st_asset hashes exactly these bytes. 2.1188.0 (#6194): i18n/<code>.json with the fragments of
+    static/i18n/neu/ (core/i18nfrag.py lang_bytes; True = not the file as it is)."""
+    m = CM_LANG_FILE.fullmatch(rel)
+    if m:
+        out = lang_bytes(os.path.join(root, "i18n"), m.group(1), data)
+        return out, out is not data
     if not rel.endswith((".js", ".css")) or rel.startswith("vendor/"):
         return data, False
     if rel == "app.css":
@@ -110,16 +118,16 @@ def cm_i18n(app_dir):
     i18n_dir = os.path.join(app_dir, "static", "i18n")
     mod_of, mods = module_keys(app_dir)
     h = hashlib.sha256(json.dumps(sorted(mod_of.items()), ensure_ascii=False).encode())
-    for f in sorted(os.path.join(i18n_dir, n) for n in os.listdir(i18n_dir) if n.endswith(".json")):
+    # 2.1188.0 (#6194): + the fragments (static/i18n/neu/<KID>.json) by their path below static/i18n, as core/i18nparts.py
+    for f in sorted(os.path.join(i18n_dir, n) for n in os.listdir(i18n_dir) if n.endswith(".json")) + fragment_paths(i18n_dir):
         with open(f, "rb") as fh:
-            h.update(os.path.basename(f).encode() + b"\0" + fh.read())
+            h.update(os.path.relpath(f, i18n_dir).replace(os.sep, "/").encode() + b"\0" + fh.read())
     ver = h.hexdigest()[:12]
     enc = lambda o: json.dumps(o, ensure_ascii=False, separators=(",", ":")).encode()  # noqa: E731 (i18nparts _i18np_lang)
     names = ["core"] + sorted(mods)
-    rows, urls = [], {}
+    rows, urls, frags = [], {}, read_fragments(i18n_dir)
     for code in sorted(n[:-5] for n in os.listdir(i18n_dir) if n.endswith(".json") and _CM_LANG.fullmatch(n[:-5])):
-        with open(os.path.join(i18n_dir, code + ".json"), encoding="utf-8") as f:
-            core, parts = split_lang(json.load(f), mod_of)
+        core, parts = split_lang(load_lang(i18n_dir, code, frags), mod_of)
         out = {"core": enc(core)} | {"mod-" + m: enc(parts.get(m, {})) for m in mods}
         for part, data in out.items():
             urls[f"/static/i18n/{code}.{part}.json"] = data

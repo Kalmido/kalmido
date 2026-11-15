@@ -21,7 +21,8 @@ from ..core.tokenhash import tkh_hash, tkh_match  # 2.149.0 G (#2517): pulled up
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from ..core.db import GLOBAL_DEFAULTS, lv_versions_fmt, lv_versions_q  # 2.149.0 G (#2517): pulled up from functions
 from ..core.strip import start_css_files  # 2.191.0 B (#1824), 2.476.0 (#3487)
-from ..core.codemanifest import CM_ASSET_RE, CM_SW_LIST_RE, cm_index, cm_json, cm_ld_metas, cm_served, cm_sha, cm_static_rels  # 2.742.0 (#5217)
+from ..core.i18nfrag import fragment_paths  # 2.1188.0 (#6194)
+from ..core.codemanifest import CM_ASSET_RE, CM_LANG_FILE, CM_SW_LIST_RE, cm_index, cm_json, cm_ld_metas, cm_served, cm_sha, cm_static_rels  # 2.742.0 (#5217)
 
 
 # ---------------------------------------------------------------- pages
@@ -104,8 +105,12 @@ def st_asset(rel):
     # 2.476.0 (#3487): app.css goes out with the start style files behind it (core/strip.py with_start_css): a new, changed
     # or removed file is a new version of app.css
     starts = start_css_files(root) if rel == "app.css" else []
+    # 2.1188.0 (#6194): a whole language file goes out with the fragments of static/i18n/neu/ (core/i18nfrag.py): a new,
+    # changed or removed fragment is a new version of it
+    lang = bool(CM_LANG_FILE.fullmatch(rel))
+    deps = fragment_paths(os.path.join(root, "i18n")) if lang else starts
     mtime = st.st_mtime
-    for sp in starts:
+    for sp in deps:
         try:
             s2 = os.stat(sp)
         except OSError:
@@ -117,7 +122,13 @@ def st_asset(rel):
         return hit[1]
     h, served = hashlib.sha256(), None
     try:
-        if rel.endswith((".js", ".css")) and not rel.startswith("vendor/"):
+        if lang:
+            with open(path, "rb") as f:
+                data = f.read()
+            out, merged = cm_served(root, rel, data)
+            served = out if merged else None  # no fragment for this language: the file as it is
+            h.update(out)
+        elif rel.endswith((".js", ".css")) and not rel.startswith("vendor/"):
             with open(path, "rb") as f:
                 data = f.read()
             # 2.742.0 (#5217): the same step as the web manifest (core/codemanifest.py cm_served)
@@ -169,8 +180,8 @@ def st_static(filename):
     everything else as before through flask's own sender. 2.442.0 (#2808): .js / .css go out packed ahead of time when
     there is a copy (st_packed; its own ETag, a proxy leaves an answer with a Content-Encoding alone)."""
     asset = filename.endswith((".js", ".css"))
-    hit = st_asset(filename) if asset else None
-    packed = st_packed(hit[1]) if hit else None
+    hit = st_asset(filename) if asset or CM_LANG_FILE.fullmatch(filename) else None  # 2.1188.0 (#6194): + i18n/<code>.json
+    packed = st_packed(hit[1]) if hit and asset else None
     mt = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     if packed:
         r = Response(packed[0], mimetype=mt)

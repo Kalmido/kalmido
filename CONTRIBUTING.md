@@ -93,6 +93,9 @@ How it works:
   the English key on the left, the translation on the right. `_meta` holds the name shown in the picker, the locale
   for dates and numbers and `"beta": true` for machine-translated files; `_weekdays`, `_months` and `_date_formats` set
   the date labels. Details and the file format: [TRANSLATING.md](TRANSLATING.md).
+- A change that adds NEW texts puts them into its own fragment `static/i18n/neu/<KID>.json`
+  (`{"de": {...}, "fr": {...}, ...}`), not into the big files: the app mixes the fragments in at run time and the pull
+  request lint refuses new keys in `static/i18n/<code>.json` (2.1188.0, see [TRANSLATING.md](TRANSLATING.md#for-developers)).
 
 To **fix a translation**, edit the value in the language's JSON file (never the key) and open a pull request; a
 screenshot of where the text appears helps. To **add a language**, copy `de.json` to `<code>.json`, set `_meta`

@@ -48,6 +48,15 @@ except ImportError:  # 2.185.0 C (#2520): loaded as a single file (tests/office_
                     out[fn[:-5]] = json.load(fh) if fn.endswith(".json") else {}
             except (OSError, ValueError):
                 pass
+        try:  # 2.1188.0 (#6194): + the new texts of the packages (static/i18n/neu/<KID>.json, core/i18nfrag.py by its path)
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("i18nfrag", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core", "i18nfrag.py"))
+            frag = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(frag)
+            frags = frag.read_fragments(d)
+            out = {code: frag.merge_lang(v, code, frags) for code, v in out.items()}
+        except (OSError, ImportError, AttributeError):
+            pass
         return out
     LANGS = _calc_langs()
 

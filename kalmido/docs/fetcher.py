@@ -12,10 +12,12 @@ that in the answer of its next report. Kalmido never stores passwords, cookies o
 the routes refuse every field they do not know (400). Only for people with the office (feature "office"), also the own one.
 The setup code: "kalmido-fetch:1:" + base64url (no padding) of {"url", "key", "name"}."""
 import base64
+import hashlib
 import json
 import os
 import re
 import secrets
+import stat
 from datetime import timedelta
 
 from flask import g, jsonify, request
@@ -51,7 +53,15 @@ FX_NAME_MAX, FX_ERR_MAX, FX_ORDER_MAX = 60, 300, 100
 FX_KEY_PORTAL = re.compile(r"[a-z0-9][a-z0-9_.-]{0,39}")
 FX_PORTAL_FIELDS = ("key", "name", "last_run", "new", "error")
 # the only routes a fetcher key reaches (method, rule)
-FX_ROUTES = {("GET", "/api/v1/fetcher"), ("PUT", "/api/v1/fetcher/status"), ("POST", "/api/v1/fetcher/documents")}
+FX_ROUTES = {("GET", "/api/v1/fetcher"), ("PUT", "/api/v1/fetcher/status"), ("POST", "/api/v1/fetcher/documents"),
+             ("GET", "/api/v1/fetcher/recipes")}  # 2.1188.0 (#6152): the central recipes
+# 2.1188.0 (#6152): the signed recipes a helper fetches (<id>.py + <id>.sig.json, signed outside the server; the helper checks
+# the signature itself) and the helper's download (static/downloads/kalmido-belegabholer-<version>.zip, the newest one)
+FX_RECIPES_DIR = os.path.abspath(os.environ.get("KALMIDO_FETCHER_RECIPES", "").strip() or os.path.join(os.path.dirname(os.path.abspath(__file__)), "fetcher_recipes"))
+FX_RECIPE_ID = re.compile(r"[a-z0-9_]{1,40}")  # as the helper's verteilung.ID_RE (a file name, never a path)
+FX_RECIPE_MAX = 256 * 1024  # bytes of one recipe file (a bigger one is left out)
+FX_SIG_FIELDS = ("id", "version", "api", "sha256", "key", "sig")
+FX_ZIP_RE = re.compile(r"kalmido-belegabholer-(\d{1,4}(?:\.\d{1,4}){0,3})\.zip")
 OFF_MSG = N_("Receipt fetchers need the office")
 GONE = N_("This receipt fetcher is no longer connected")
 
@@ -122,6 +132,78 @@ def v1_fetcher_get():
     """The fetcher's own view: its name, the place its receipts go, the largest file and which portals are switched on."""
     c, _uid, fx, _oid, place = _fx_row()
     return jsonify(name=fx["name"], target=place, max_mb=MAX_FILE_MB, portals=[_portal_out(p) for p in _portals(c, fx["id"])])
+
+
+def _fx_read(path, limit):
+    """review 2.1188 (#6152): the bytes of a regular file of at most limit bytes, else None - no symlink followed (O_NOFOLLOW),
+    no FIFO / device opened blocking, size checked on the open file and the read bounded (a file growing meanwhile counts too)."""
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb") as f:
+            fd = -1
+            data = f.read(limit + 1)
+        return data if len(data) <= limit else None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def fx_recipes(api, folder=None):
+    """The signed recipes of the recipe folder for helpers of recipe interface api: [{id, version, api, sha256, key, sig,
+    source}]. Only pairs <id>.py + <id>.sig.json whose signature document is complete, names the same id and api and whose
+    sha256 matches the file; everything else is left out (the server never checks the signature itself: no key here)."""
+    folder = folder or FX_RECIPES_DIR
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return []
+    out = []
+    for n in names:
+        rid = n[:-3] if n.endswith(".py") else ""
+        if not FX_RECIPE_ID.fullmatch(rid) or f"{rid}.sig.json" not in names:
+            continue
+        py, sj = os.path.join(folder, n), os.path.join(folder, f"{rid}.sig.json")
+        try:
+            src, sjb = _fx_read(py, FX_RECIPE_MAX), _fx_read(sj, 4096)
+            if src is None or sjb is None:
+                continue
+            sig = json.loads(sjb.decode("utf-8"))
+            text = src.decode("utf-8")
+        except (OSError, ValueError, RecursionError):  # review 2.1188: a deeply nested sig file skips its pair, never a 500
+            continue
+        if not isinstance(sig, dict) or any(not isinstance(sig.get(k), int if k == "api" else str) for k in FX_SIG_FIELDS):
+            continue
+        if sig["id"] != rid or sig["api"] != api or isinstance(sig["api"], bool) or sig["sha256"] != hashlib.sha256(src).hexdigest():
+            continue
+        out.append({**{k: sig[k] for k in FX_SIG_FIELDS}, "source": text})
+    return out
+
+
+@app.get("/api/v1/fetcher/recipes")
+@v1_view
+def v1_fetcher_recipes():
+    """?api=N -> {recipes: [{id, version, api, sha256, key, sig, source}]}: the signed recipes for this recipe interface
+    (2.1188.0, #6152). The helper takes only newer versions whose signature checks out with its own public keys."""
+    _fx_row()
+    raw = request.args.get("api", "")
+    extra = sorted(k for k in request.args if k != "api")
+    if extra:
+        raise UnknownFields(extra)
+    if not re.fullmatch(r"[0-9]{1,3}", raw or ""):
+        raise BadInput(tr("Invalid value: {0}", "api"))
+    return jsonify(recipes=fx_recipes(int(raw)))
+
+
+def fx_download():
+    """The newest helper download in static/downloads (its URL path) or None."""
+    try:
+        names = os.listdir(os.path.join(app.static_folder, "downloads"))
+    except OSError:
+        return None
+    best = max(((tuple(int(x) for x in m.group(1).split(".")), n) for n in names if (m := FX_ZIP_RE.fullmatch(n))), default=None)
+    return {"url": f"/static/downloads/{best[1]}", "version": ".".join(map(str, best[0]))} if best else None
 
 
 def _clean_portal(x):
@@ -291,7 +373,7 @@ def docs_fetchers():
     """?ws= -- my receipt fetchers of this workspace with the state of their portals; whether the API is on."""
     c, uid, oid = _fx_web(request.args.get("ws"))
     api_on = _v1().API_ON
-    return jsonify(api=api_on, fetchers=fx_list(c, uid, oid) if api_on else [])
+    return jsonify(api=api_on, fetchers=fx_list(c, uid, oid) if api_on else [], download=fx_download())  # 2.1188.0 (#6152)
 
 
 @app.post("/api/docs/fetchers")
@@ -379,11 +461,12 @@ def docs_fetcher_portal(fid, key):
 
 
 def fx_spec(paths, op, ok, errs, T):
-    """OpenAPI of the three routes of a receipt fetcher key (called from docs/v1.py docs_spec). Documented with the scope
+    """OpenAPI of the four routes of a receipt fetcher key (called from docs/v1.py docs_spec). Documented with the scope
     docs:upload: no ordinary token reaches them (403), a fetcher key reaches nothing else."""
     pt = {"type": "object", "properties": {"key": {"type": "string"}, "name": {"type": "string"}, "enabled": {"type": "boolean"}}}
     why = ("Only for receipt fetcher keys (kbh_..., made with a setup code in Settings > Integrations > Receipt fetcher): such a key "
-           "reaches only GET /fetcher, PUT /fetcher/status and POST /fetcher/documents; every other route answers 401 / 403. ")
+           "reaches only GET /fetcher, PUT /fetcher/status, POST /fetcher/documents and GET /fetcher/recipes; every other route answers "
+           "401 / 403. ")
     paths["/fetcher"] = {"get": op(
         "The receipt fetcher of this key (2.425.0)", T,
         ok({"type": "object", "properties": {"name": {"type": "string"}, "target": {"type": "string"}, "max_mb": {"type": "integer"},
@@ -405,6 +488,14 @@ def fx_spec(paths, op, ok, errs, T):
         | errs("400", "403", "409", "413"), [], scope="docs:upload",
         desc=why + "multipart/form-data: file (a PDF), portal (a reported key), order (order number, optional). The document is "
                    "recognised like an upload; the same file or order again answers 200 with duplicate true.")}
+    rec = {"type": "object", "properties": {k: {"type": "integer" if k == "api" else "string"} for k in FX_SIG_FIELDS + ("source",)}}
+    paths["/fetcher/recipes"] = {"get": op(  # 2.1188.0 (#6152)
+        "The signed central recipes (2.1188.0)", T, ok({"type": "object", "properties": {"recipes": {"type": "array", "items": rec}}})
+        | errs("400", "403", "409"), [{"name": "api", "in": "query", "required": True, "schema": {"type": "integer"},
+                                       "description": "The recipe interface of the helper (1)"}], scope="docs:upload",
+        desc=why + "The recipes of this interface the server hands out: source (the recipe file) and its signature document "
+                   "(id, version, api, sha256, key, sig). The server checks only that sha256 matches the source; the helper "
+                   "checks the signature with its own public keys and takes only newer versions. An empty list is fine.")}
     paths["/fetcher/documents"]["post"]["requestBody"] = {"required": True, "content": {"multipart/form-data": {"schema": {
         "type": "object", "required": ["file", "portal"], "properties": {"file": {"type": "string", "format": "binary"},
                                                                          "portal": {"type": "string"}, "order": {"type": "string"}}}}}}

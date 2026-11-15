@@ -38,6 +38,8 @@ ALLOW = {
     "GET /api/v1/documents/upload-target": "a personal token has no docs:upload (only a scan inbox key has it)",
     # 2.425.0 (#3453): only a receipt fetcher's own key reaches it (p2425_c_api_test.py calls it as the freelancer with one)
     "GET /api/v1/fetcher": "a personal token is no receipt fetcher key",
+    # 2.1188.0 (#6152): the same (p21188_b_fetcherrecipes_test.py calls it as the freelancer with a fetcher key)
+    "GET /api/v1/fetcher/recipes": "a personal token is no receipt fetcher key",
 }
 # 2.421.0 A (#2936): route -> (status, why) of a 4xx other than 401 / 403 that is right for the freelancer, too (every other
 # 4xx of the sweep fails like a 403; an exception whose status does not come any more fails as stale)

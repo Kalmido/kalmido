@@ -13,11 +13,14 @@ this reports
 Non-literal calls such as tr(name) are listed as info: their argument must be a key that is marked
 with N_("...") somewhere (tables), otherwise the checker cannot see it.
 
+2.1188.0 (#6194): a language = static/i18n/<code>.json + the fragments static/i18n/neu/<KID>.json (where a package puts
+its NEW texts, kalmido/core/i18nfrag.py); a fragment that cannot be read, names a language without a file, or holds a key that
+is already in the base file or in another fragment -> error.
+
 usage: python3 tools/i18n_check.py [code ...]      exit code 1 on errors
 """
 import glob
 import importlib.util
-import json
 import os
 import re
 import sys
@@ -28,6 +31,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _spec = importlib.util.spec_from_file_location("i18nkeys", os.path.join(ROOT, "kalmido", "core", "i18nkeys.py"))
 KEYS = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(KEYS)
+# 2.1188.0 (#6194): the new texts of a package live in static/i18n/neu/<KID>.json and count as part of every language
+_spec = importlib.util.spec_from_file_location("i18nfrag", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))
+FRAG = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(FRAG)
 # 2.20.0 (#646): the client in static/js/, the server in the package kalmido/
 SOURCES = KEYS.key_sources(ROOT)
 I18N_DIR = os.path.join(ROOT, "static", "i18n")
@@ -147,6 +154,16 @@ def extract():
     return keys, dynamic, errors
 
 
+def load(fn, frags=None):
+    """2.1188.0 (#6194): a language file + its fragments (ValueError: invalid JSON)."""
+    return FRAG.load_lang(os.path.dirname(fn), os.path.basename(fn)[:-5], frags)
+
+
+def load_code(code):
+    """The language <code> as the app uses it (static/i18n/<code>.json + static/i18n/neu/*.json); for the tests."""
+    return FRAG.load_lang(I18N_DIR, code)
+
+
 def placeholders(s):
     return set(PH.findall(s))
 
@@ -217,9 +234,17 @@ def main(argv):
         print("  ERROR", e)
         ok = False
     files = sorted(glob.glob(os.path.join(I18N_DIR, "*.json")))
+    frag_errs = []
+    frags = FRAG.read_fragments(I18N_DIR, frag_errs)
+    frag_errs += FRAG.fragment_problems(I18N_DIR, frags)
+    names = FRAG.fragment_names(I18N_DIR)
+    print(f"fragments: {len(names)} in static/i18n/{FRAG.FRAG_DIR}/ ({', '.join(names) or '-'}), {len(frag_errs)} error(s)")
+    for e in frag_errs:
+        print("  ERROR", e)
+        ok = False
     for fn in files:
         try:
-            dj = json.load(open(fn, encoding="utf-8"))
+            dj = load(fn, frags)
             for e in private_term_errors(dj, os.path.basename(fn)) + share_term_errors(dj, os.path.basename(fn)):
                 print("  ERROR", e)
                 ok = False
@@ -230,7 +255,7 @@ def main(argv):
     for fn in files:
         name = os.path.basename(fn)
         try:
-            d = json.load(open(fn, encoding="utf-8"))
+            d = load(fn, frags)
         except ValueError as e:
             print(f"\n{name}: invalid JSON: {e}")
             ok = False

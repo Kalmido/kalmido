@@ -1,0 +1,42 @@
+{
+ "de": {
+  "Download the helper": "Helfer herunterladen",
+  "Receipt fetcher {0} for Mac and Windows (zip)": "Beleg-Abholer {0} für Mac und Windows (Zip)",
+  "The download is not available on this server yet.": "Der Download ist auf diesem Server noch nicht verfügbar.",
+  "Unpack the zip file.": "Zip-Datei auspacken.",
+  "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Auf dem Mac Einrichten.command, unter Windows Einrichten.cmd doppelklicken.",
+  "Paste the setup code from below when the helper asks for it.": "Den Einrichtungscode von unten einfügen, wenn der Helfer danach fragt."
+ },
+ "es": {
+  "Download the helper": "Descargar el asistente",
+  "Receipt fetcher {0} for Mac and Windows (zip)": "Recolector de recibos {0} para Mac y Windows (zip)",
+  "The download is not available on this server yet.": "La descarga aún no está disponible en este servidor.",
+  "Unpack the zip file.": "Descomprime el archivo zip.",
+  "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Haz doble clic en Einrichten.command en un Mac o en Einrichten.cmd en Windows.",
+  "Paste the setup code from below when the helper asks for it.": "Pega el código de configuración de abajo cuando el asistente lo pida."
+ },
+ "fr": {
+  "Download the helper": "Télécharger l’assistant",
+  "Receipt fetcher {0} for Mac and Windows (zip)": "Récupérateur de justificatifs {0} pour Mac et Windows (zip)",
+  "The download is not available on this server yet.": "Le téléchargement n’est pas encore disponible sur ce serveur.",
+  "Unpack the zip file.": "Décompressez le fichier zip.",
+  "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Double-cliquez sur Einrichten.command sur un Mac ou sur Einrichten.cmd sous Windows.",
+  "Paste the setup code from below when the helper asks for it.": "Collez le code de configuration ci-dessous lorsque l’assistant le demande."
+ },
+ "it": {
+  "Download the helper": "Scarica l’assistente",
+  "Receipt fetcher {0} for Mac and Windows (zip)": "Raccoglitore di ricevute {0} per Mac e Windows (zip)",
+  "The download is not available on this server yet.": "Il download non è ancora disponibile su questo server.",
+  "Unpack the zip file.": "Estrai il file zip.",
+  "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Fai doppio clic su Einrichten.command su Mac o su Einrichten.cmd su Windows.",
+  "Paste the setup code from below when the helper asks for it.": "Incolla il codice di configurazione qui sotto quando l’assistente lo chiede."
+ },
+ "nl": {
+  "Download the helper": "Hulpprogramma downloaden",
+  "Receipt fetcher {0} for Mac and Windows (zip)": "Bonnenophaler {0} voor Mac en Windows (zip)",
+  "The download is not available on this server yet.": "De download is op deze server nog niet beschikbaar.",
+  "Unpack the zip file.": "Pak het zipbestand uit.",
+  "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Dubbelklik op een Mac op Einrichten.command of onder Windows op Einrichten.cmd.",
+  "Paste the setup code from below when the helper asks for it.": "Plak de instelcode van hieronder als het hulpprogramma erom vraagt."
+ }
+}
