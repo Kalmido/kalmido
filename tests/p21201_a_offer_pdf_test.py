@@ -91,7 +91,7 @@ if hd and sub and it4 and it5:
     check(abs(h["size"] - max(pdf.PDF_FS_MIN, pdf.FS_SUM + pdf.PDF_FS_DELTA)) < 0.01,  # look A of a quotation
           f"#6175 12: the heading in the step FS_SUM ({h['size']})")
     pitch = b["y"] - a["y"]  # one table row
-    # was: subtotal row + 11 pt down to the heading text (about a row + 11); now 6 pt more
-    check(h["y"] - s["y"] >= pitch + 15, f"#6175 12: more air above the heading ({h['y'] - s['y']:.1f} pt after the subtotal, a row is {pitch:.1f})")
+    # the subtotal's text sits 4 pt into its row (a row high): was a row - 4 + 11 pt down to the heading text (25.8 pt), now 6 pt more
+    check(h["y"] - s["y"] >= pitch + 10, f"#6175 12: more air above the heading ({h['y'] - s['y']:.1f} pt after the subtotal, a row is {pitch:.1f})")
 check(not pdfcheck.problems(data), f"#6175 12: clean {pdfcheck.problems(data)[:3]}")
 sys.exit(done("p21201_a_offer_pdf"))
