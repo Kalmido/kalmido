@@ -9,7 +9,7 @@
 // week grid (drag over free time) and the quick sheet's "Event" button open the editor (evEditor).
 const evOn = () => feat('events');
 const evCal = id => (S.evcals || []).find(c => c.id === id);
-// 2.1223.0 (#6181): the event dialog of an organisation's calendar wears its stripe (wso_mark) and, under "All workspaces",
+// 2.1241.0 (#6181): the event dialog of an organisation's calendar wears its stripe (wso_mark) and, under "All workspaces",
 // says where it belongs next to the calendar (wso_origin); a change of calendar redraws both. dvw (other servers): neutral
 function evDlgWs(md, calId) {
   const c = evCal(calId) || null;
@@ -127,7 +127,7 @@ function evWallAt(wall, tz) {
 }
 async function evPop(anchor, e) {
   if (e.eid < 0) return;  // 2.559.0 (#4659): the stand-in of a new event still on its way (evEditor) has nothing to open yet
-  const p = openPop(anchor, `<div class="cevpop evpop" style="--cc:${evCalColor(e)}"><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div>${/*html-ok*/ loadingHtml() /* 2.1212.0 (#6159): the shared block */}</div>`);
+  const p = openPop(anchor, `<div class="cevpop evpop"${/*html-ok*/ wso_row(cevOrg(e), `--cc:${evCalColor(e)}`) /* 2.1241.0 (#6181) */}><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div>${/*html-ok*/ loadingHtml() /* 2.1212.0 (#6159): the shared block */}</div>`);
   // 2.800.0 (#5460): placed again once the details are in (a redraw meanwhile may have taken the anchor: its place from the start)
   const r0 = anchor.getBoundingClientRect(), at = () => anchor.isConnected ? anchor : {getBoundingClientRect: () => r0};
   let ev;
@@ -144,7 +144,7 @@ async function evPop(anchor, e) {
   const t = ev.task_id ? taskById(ev.task_id) || await evTaskOf(ev.task_id) : null;  // 2.1212.0 (#6158): fetched when not in memory
   if ($('#pop').classList.contains('hidden')) return;
   const desc = (e.description || '').slice(0, 2000);
-  // 2.1223.0 (#6181): an event of an organisation's calendar: the organisation's stripe on the popover and, under "All
+  // 2.1241.0 (#6181): an event of an organisation's calendar: the organisation's stripe on the popover and, under "All
   // workspaces", where it comes from next to its calendar (cevOrg, docs/dev/kern.md "Organisation colour")
   p.innerHTML = `<div class="cevpop evpop"${/*html-ok*/ wso_row(cevOrg(e), `--cc:${evCalColor(e)}`)}>
     <div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b>${e.status === 'cancelled' ? `<span class="evst">${tr('Cancelled')}</span>` : (ev.status || e.status) === 'tentative' ? `<span class="evst evdraftb">${tr('Draft')}</span>` : ''}</div>
@@ -402,7 +402,7 @@ async function evEditor(o = {}) {
     ${o.err ? `<div class="calerr evsaveerr" role="alert">${ic('alert', 's')} ${esc(o.err)}</div>` : ''/* 2.1077.0 (#5461): why the editor is open again */}
     <div class="foot">${ev && evWrite(evCal(ev.cal_id)) ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${tr('Save')}</button></div>`);
   md.classList.add('evmodal');
-  evDlgWs(md, st.cal_id);  // 2.1223.0 (#6181)
+  evDlgWs(md, st.cal_id);  // 2.1241.0 (#6181)
   // 2.484.0 (#3945): a changed date of a series shows the rows of "Only this date" (after dvw_rows, which shows them again)
   const rows = () => { dvw_rows(md); if (single) $('.evrep', md).hidden = $('.evatts', md).hidden = $('.evrems', md).hidden = true; };
   const val = id => $('#' + id, md)?.value || '';
@@ -487,7 +487,7 @@ async function evEditor(o = {}) {
   md.addEventListener('keydown', e => { if (e.target.id === 'ev-attin' && e.key === 'Enter') { e.preventDefault(); attAdd(); } });
   md.addEventListener('change', e => {
     const id = e.target.id;
-    if (id === 'ev-cal') { rows(); evDlgWs(md, +val('ev-cal')); }  // 2.52.0 (#1128); 2.1223.0 (#6181): the new calendar's organisation
+    if (id === 'ev-cal') { rows(); evDlgWs(md, +val('ev-cal')); }  // 2.52.0 (#1128); 2.1241.0 (#6181): the new calendar's organisation
     if (id === 'ev-allday') { const ad = e.target.checked; $$('.evtm', md).forEach(x => { x.hidden = ad; }); st.reminders = evRemSwitch(remMem, st.reminders, ad); drawRems(); }
     if (id === 'ev-tzq') {  // 2.846.0 (#5465): the searched city sets the zone; nothing found = the zone stays
       const z = evTzFind(e.target.value, val('ev-tz')), h = $('#ev-tz', md);
@@ -807,7 +807,7 @@ async function evCalsModal() {
 // 2.1212.0 (#6158): the second line of a calendar's row in the Calendars window: workspace, owner and role, or with whom it is
 // shared (on a computer the name took the row and the rest was cut: "Drehplanung · Gege…")
 function evcSub(c) {
-  // 2.1223.0 (#6181): an organisation's calendar: its dot + name, for every member (was: text, owners only)
+  // 2.1241.0 (#6181): an organisation's calendar: its dot + name, for every member (was: text, owners only)
   const p = [wsOn() && (c.role === 'owner' || c.org_id) ? `<span class="wslbl">${/*html-ok*/ c.org_id ? wso_head(wso_ws(c)) : esc(wsLabel(c.org_id))}</span>` : '',
     c.role !== 'owner' ? esc(`${c.owner_name || ''} · ${roleLabel(c.role === 'edit' ? 'edit' : 'view')}`)  // 2.1212.0 (#6156): the role words of the Share dialog
       : c.members?.length ? esc(trn('shared with {0} person', 'shared with {0} people', c.members.length)) : ''].filter(Boolean);
