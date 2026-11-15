@@ -861,7 +861,7 @@ function fieldModal(lid, f, done, ep) {
       if (ep) { try { await api(edit ? 'PATCH' : 'POST', edit ? ep.one(f.id) : ep.post, edit ? body : {...body, type: st.type}); } catch { return; } md.remove(); done && done(); return; }
       // 2.554.0 B (#4658): the dialog closes and the field shows at once (fdCreate / fdEdit); offline it stays open (fields need the server)
       // what the server would refuse is said here, the dialog stays: a selection without options, a third pinned field, field 21
-      if (!OUT.online) { toast(tr('Offline: only works again with a connection')); return; }
+      if (!OUT.online) { toast(tr('Only available online.')); return; }
       if ((st.type === 'select' || st.type === 'multiselect') && !options.options.length) { toast(tr('A selection field needs at least one option')); return; }
       if (body.pinned && !(edit && f.pinned) && fieldsAll(lid).filter(x => x.pinned && x.id !== f?.id).length >= 2) { toast(tr('At most {0} fields can be shown on the task rows', 2)); return; }
       if (!edit && fieldsAll(lid).length >= 20) { toast(tr('At most {0} fields per project', 20)); return; }

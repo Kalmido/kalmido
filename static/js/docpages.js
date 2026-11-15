@@ -261,7 +261,7 @@ async function dpg_verStep(/** @type {number} */ id, /** @type {number} */ no, /
     if (st) st.cur = +j?.version || 0;
   } catch (/** @type {any} */ x) {  // histStep drops the step (thrown, already said); offline it stays
     if (x?.status === 409 && x.data?.current) toast(tr('There is a newer version by now - this step was dropped'));
-    else if (x instanceof Offline) toast(tr('Offline: only works again with a connection'));
+    else if (x instanceof Offline) toast(tr('Only available online.'));
     else if (x?.message !== 'auth' && !x?.shown) toast(x?.message || tr('unknown'));
     if (x) x.shown = true;
     dpg_after(id); throw x;
