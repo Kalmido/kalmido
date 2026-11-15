@@ -5,17 +5,18 @@
 // (POST /api/office/docs/<id>/reprice, kalmido/office/reprice.py): every change of the dialog asks it for a preview
 // (apply false), "Apply" writes it as one undo step. The positions to change are ticked in the dialog (the editor has no
 // selection of its own); a quotation with parts chooses whose prices: the title page or one part.
+// 2.1185.0 (#6150): the mode "Surplus" by the right of the area (ofcAdmin('offers'): OFD.role came from the list only), the
+// currency sign of the quotation (ofcSym)
 'use strict';
 
 const ORP = {seq: 0, t: 0};
 const orp_scopes = d => [[0, tr('Title page')], ...(d.parts || []).filter(p => p.kind === 'items').map(p => [p.id, p.title || tr('Part {0}', p.id)])];
 const orp_items = (d, pid) => ((pid ? (d.parts || []).find(p => p.id === pid)?.items : d.items) || []).filter(it => (it.kind || 'service') === 'service' && it.unit !== 'percent' && it.id);
-const orp_sym = () => ({EUR: '€', USD: '$', GBP: '£'})[ofcHome()] || ofcHome();
 const orp_pct = n => fmtNum(n, 2);
 const orp_hasCosts = d => +(d.totals?.costs || 0) > 0;
 
 function orp_open(d) {
-  const admin = OFD.role === 'admin', vat = d.vat_mode !== 'novat', costs = orp_hasCosts(d);
+  const admin = ofcAdmin('offers'), vat = d.vat_mode !== 'novat', costs = orp_hasCosts(d);
   const prodOn = !!d.producing_on && +(d.totals?.producing_days || 0) > 0;
   const scopes = orp_scopes(d);
   const seg = (name, opts, cur) => `<div class="seg" role="radiogroup" data-orp-seg="${esc(name)}">${opts.map(([v, n, dis]) => `<button type="button" role="radio" data-v="${esc(v)}" aria-checked="${v === cur ? 'true' : 'false'}" class="${v === cur ? 'on' : ''}" ${dis ? 'disabled' : ''}>${esc(n)}</button>`).join('')}</div>`;
@@ -25,20 +26,22 @@ function orp_open(d) {
     ${admin && !costs ? `<p class="muted orp-nocost">${esc(tr('The surplus can only be aimed at when the quotation has external costs (purchase prices).'))}</p>` : ''}
     <div class="row"><label for="orp-v" class="orp-vl">${esc(tr('Change in %'))}</label><input id="orp-v" type="text" inputmode="decimal" autocomplete="off" value="" placeholder="${esc(tr('e.g. {0}', '10'))}"></div>
     <div class="row orp-net" hidden>${/*html-ok*/ vat ? seg('net', [['net', tr('net')], ['gross', tr('gross')]], 'net') : '' /* seg escapes */}</div>
-    <div class="row"><label for="orp-round">${esc(tr('Rounding'))}</label><select id="orp-round"><option value="cent">${esc(tr('to the cent'))}</option><option value="euro">${esc(tr('to whole {0}', orp_sym()))}</option><option value="five">${esc(tr('to 5 {0}', orp_sym()))}</option></select></div>
+    <div class="row"><label for="orp-round">${esc(tr('Rounding'))}</label><select id="orp-round"><option value="cent">${esc(tr('to the cent'))}</option><option value="euro">${esc(tr('to whole {0}', ofcSym(d.currency)))}</option><option value="five">${esc(tr('to 5 {0}', ofcSym(d.currency)))}</option></select></div>
     <div class="row orp-rest" hidden><label class="chkl"><input type="checkbox" id="orp-rest" checked> ${esc(tr('Put the rest on one position'))}</label></div>
     ${prodOn ? `<div class="row"><label class="chkl"><input type="checkbox" id="orp-prod" checked> ${esc(tr('Adjust the producing day rate too'))}</label></div>` : ''}
     ${scopes.length > 1 ? `<div class="row"><label for="orp-scope">${esc(tr('Prices of'))}</label><select id="orp-scope">${scopes.map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('')}</select></div>` : ''}
     <details class="orp-pos"><summary>${esc(tr('Positions'))} <span class="muted orp-cnt"></span></summary><ul class="orp-list" role="list"></ul></details>
     <div class="orp-prev" aria-live="polite"></div></div>`;
-  const md = /** @type {any} */ (ofdDlg(tr('Adjust prices…'), body, tr('Apply'), m => orp_apply(m, d)));
+  // 2.1185.0 (#6150): the title without the dots of the menu entry; "Apply" only once the preview says the target is reachable
+  const md = /** @type {any} */ (ofdDlg(tr('Adjust prices'), body, tr('Apply'), m => orp_apply(m, d)));
   md.classList.add('orp-dlg');
+  orp_okSync(md, false);
   const st = {mode: 'pct', net: 'net'};
   md._orp = st;
   const list = () => {
     const pid = +($('#orp-scope', md)?.value || 0), its = orp_items(d, pid);
     $('.orp-list', md).innerHTML = its.map(it => `<li><label class="chkl"><input type="checkbox" data-orp-it="${esc(it.id)}" checked> ${esc(it.title || tr('Position'))} <span class="muted">${esc(ofdMoney(it.rate, d))}</span></label></li>`).join('')
-      || `<li class="muted">${esc(tr('No position with a price'))}</li>`;
+      || `<li>${/*html-ok*/ emptyState({icon: 'receipt', title: tr('No position with a price'), size: 'row'}) /* 2.1185.0 (#6150): the one empty block */}</li>`;
     orp_count(md);
   };
   list();
@@ -55,6 +58,9 @@ function orp_open(d) {
   orp_modeSync(md, d);
   return md;
 }
+
+// 2.1185.0 (#6150): "Apply" is on only while the last preview reached the target (empty field, no position, an error: off)
+function orp_okSync(md, on) { const b = $('[data-m="ok"]', md); if (b) b.disabled = !on; }
 
 function orp_count(md) {
   const all = $$('[data-orp-it]', md), on = all.filter(x => x.checked).length;
@@ -84,6 +90,7 @@ function orp_body(md) {
 // a preview from the server; an older answer than the last question is dropped
 function orp_ask(md, d, wait = 0) {
   clearTimeout(ORP.t);
+  orp_okSync(md, false);  // 2.1185.0 (#6150): a changed field waits for its own preview
   ORP.t = setTimeout(async () => {
     const b = orp_body(md), out = $('.orp-prev', md), n = ++ORP.seq;
     if (!b) { out.innerHTML = ''; return; }
@@ -91,8 +98,8 @@ function orp_ask(md, d, wait = 0) {
     out.classList.add('busy');
     try {
       const j = await rawFetch('POST', `/api/office/docs/${d.id}/reprice`, {...b, apply: false});
-      if (n === ORP.seq && md.isConnected) { out.innerHTML = orp_prevHtml(j, d); md._orpLast = j; }
-    } catch (x) { if (n === ORP.seq && md.isConnected) out.innerHTML = `<p class="err">${esc(ofcErrHere(x))}</p>`; }
+      if (n === ORP.seq && md.isConnected) { out.innerHTML = orp_prevHtml(j, d); md._orpLast = j; orp_okSync(md, !!j.reachable); }
+    } catch (x) { if (n === ORP.seq && md.isConnected) out.innerHTML = errorState({title: tr('No preview'), sub: ofcErrHere(x), size: 'row', retry: () => orp_ask(md, d)}); }  // 2.1185.0 (#6150): the one error block, with "Try again"
     finally { if (n === ORP.seq) out.classList.remove('busy'); }
   }, wait);
 }
@@ -116,9 +123,12 @@ async function orp_apply(md, d) {
   const b = orp_body(md);
   if (!b) throw new Error(tr('Enter a number.'));
   if (b.item_ids && !b.item_ids.length) throw new Error(tr('Select at least one position.'));
-  const j = await ofdSave('POST', `/api/office/docs/${d.id}/reprice`, {...b, apply: true, expect_updated_at: OFD.doc?.updated_at});
-  if (!j) return false;  // said by ofdSave (a conflict shows its bar)
+  // 2.1185.0 (#6150): a refusal is said in the open dialog (ofd_dlgSave), the step has Undo in its toast (the server's step group of
+  // the answer, office/reprice.py oun_pre / oun_post: one step for every position)
+  const j = await ofd_dlgSave('POST', `/api/office/docs/${d.id}/reprice`, {...b, apply: true, expect_updated_at: OFD.doc?.updated_at});
+  if (!j) return false;  // a conflict shows its bar
   if (j.doc && OFD.doc && j.doc.id === OFD.doc.id) { OFD.doc = j.doc; OFD.log = null; ofdDraw(); }
-  toast(tr('Prices changed by {0} %', orp_pct(j.pct)));
+  const msg = tr('Prices changed by {0} %', orp_pct(j.pct));
+  histToast(msg, histAdd({label: msg, res: j, area: 'office'}));
   return true;
 }
