@@ -127,7 +127,8 @@ try:
     want = max(1, min(60, -(-int(est) // (25 * 60))))
     check(n == hh + want, f"full run: {hh} hard + {want} others of ~25 min (estimates only): {n}")
     check(o.get("parallel") == "16" and o.get("limit") == "60", f"full run: 16 at once, 60 min each: {o.get('parallel')} {o.get('limit')}")
-    check(re.search(r"needs: plan\n\s+timeout-minutes: \$\{\{ fromJSON\(needs\.plan\.outputs\.limit \|\| '90'\) \}\}", ci),
+    # 2.1192.0 (#6084): #6063 (6d181a2ae) put an `if:` line between needs and timeout-minutes - any job lines in between are fine
+    check(re.search(r"needs: plan\n(?:    [a-z-]+: .*\n)*?\s+timeout-minutes: \$\{\{ fromJSON\(needs\.plan\.outputs\.limit \|\| '90'\) \}\}", ci),
           "the shard job takes its limit from the plan (90 when it says nothing)")
     check("max-parallel: ${{ fromJSON(needs.plan.outputs.parallel || '20') }}" in ci, "the shard job runs at most the plan's number at once")
     check("parallel: ${{ steps.plan.outputs.parallel }}" in ci and "limit: ${{ steps.plan.outputs.limit }}" in ci, "plan hands both on")
