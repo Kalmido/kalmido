@@ -29,7 +29,12 @@ async function api(cookie, method, url, body) {
   // row keeps its mobile meta copy (class m-col) of the date column
   // 2.750.0 (#4502): Today shows the person's columns (.lcols, was .tcols); due today without a time = an empty cell
   const dRows = [...d.querySelectorAll('#view .trow.haslc')].filter(r => r.querySelector('.lcols .lc-due'));
-  check(dRows.length && dRows.every(r => !!r.querySelector('.meta .mlc[data-lc="due"]')) && !dRows.some(r => /Today/.test(r.querySelector('.lcols .lc-due').textContent)), 'desktop: date column + mobile meta copy');
+  // 2.1199.0 (#5673): #6141 (2.1175.0) leaves an empty cell (the dash) out of the mobile meta line on purpose: a row with a date
+  // keeps its meta copy (with the same text), a row due today without a time has none (a lone dash says nothing). The sample
+  // tasks in Today are all due today without a time, so here the empty side is the check (a dated row: p21175_b_rows_words_ui)
+  const dueTxt = r => r.querySelector('.lcols .lc-due').textContent.trim(), blank = r => !!r.querySelector('.lcols .lc-due .lcnil') || !dueTxt(r);
+  const dFull = dRows.filter(r => !blank(r)), dNil = dRows.filter(blank);
+  check(dRows.length && dNil.length && dFull.every(r => r.querySelector('.meta .mlc[data-lc="due"]')?.textContent.trim() === dueTxt(r)) && dNil.every(r => !r.querySelector('.meta .mlc[data-lc="due"]')) && !dRows.some(r => /Today/.test(dueTxt(r))), 'desktop: date column + mobile meta copy ' + JSON.stringify({full: dFull.length, nil: dNil.length}));
   check(/\d/.test(d.querySelector('#top h1 .hn')?.textContent || ''), 'title: open count (mono)');
   const tour = () => d.querySelector('.tour');
   check(tour() && tour().dataset.step === 'side' && /Smart lists/.test(d.querySelector('.tcard').textContent), 'tour: step 1 smart lists');
