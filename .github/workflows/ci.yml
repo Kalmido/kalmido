@@ -89,12 +89,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # #6063 (decision 14.11.2026): a push on main the merge queue made is the very commit its merge_group run checked
-          # (gate green, same tree) - look that run up by head SHA; found (green or still finishing) = stage "none", no test
-          # shards (tests/stages.py). The train's release push, the nightly run and runs by hand keep the full run. Not found
-          # / API error = the usual stage
+          # (gate green, same tree) - look that run up by head SHA; found = stage "none", no test shards (tests/stages.py).
+          # #6195 (decision 15.11.2026): whatever that run's overall result is - queue runs end "failure" when a soft part is
+          # red, yet GitHub merges only with the required check "Merge queue gate" green; only a cancelled run does not count.
+          # The train's release push, the nightly run and runs by hand keep the full run. Not found / API error = the usual stage
           if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
             CI_QUEUE_RUN=$(timeout 60 gh api "repos/$GITHUB_REPOSITORY/actions/runs?event=merge_group&head_sha=$GITHUB_SHA&per_page=10" \
-                             --jq '[.workflow_runs[] | select((.path // "" | startswith(".github/workflows/ci.yml")) and (.conclusion == null or .conclusion == "success"))][0].id // empty' || true)
+                             --jq '[.workflow_runs[] | select((.path // "" | startswith(".github/workflows/ci.yml")) and (.conclusion != "cancelled"))][0].id // empty' || true)
             export CI_QUEUE_RUN
             echo "merge_group run of $GITHUB_SHA: ${CI_QUEUE_RUN:-none}"
           fi
