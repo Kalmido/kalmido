@@ -19,10 +19,11 @@
 
 ## What's new
 
-**2.1155.0** (2026-11-14):
-- **Call sheet**: send it by e-mail with the PDF attached to crew, agency and client, recipients can be left out, always with a preview before sending.
-- **Knowledge**: a page can be downloaded as PDF or Word file from the page menu.
-- **Phone**: list rows are tidy; a long press opens the row menu with every action.
+**2.1185.0** (2026-11-15):
+- **Quotations and invoices**: tidier PDFs (discount in the totals, one payment block with the payment reference, no empty rights page); marking as rejected, extending and adjusting prices can be undone from the message.
+- **Calendar**: the week starts at your working hours; the booking page picks the time zone by city.
+- **Files and knowledge**: one message per upload with unfit files named first; knowledge pages say what failed and offer Try again.
+- **Recent steps**: say what changed in a project; view switches no longer appear.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -247,7 +248,7 @@ How to update depends on how you installed:
 | Installed with | Update |
 |---|---|
 | the installer | `~/kalmido/update.sh` (Windows: `update.ps1`): backs up the database to `data/backups/` (from 2.37 a `pg_dump`; Windows: `update.ps1` also makes a `pg_dump` into `data/backups/`; only while the `db` service of this installation runs: with an external `DATABASE_URL`, or with Kalmido stopped, it warns and goes on without a copy), adds a database password to `.env` if missing, then fetches the latest release and restarts |
-| prebuilt image (`KALMIDO_IMAGE`) | set the new version in `KALMIDO_IMAGE` (or use `:latest`), then `docker compose pull && docker compose up -d` (2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`) |
+| prebuilt image (`KALMIDO_IMAGE`) | set the new version in `KALMIDO_IMAGE` (pin the version), then `docker compose pull && docker compose up -d` (2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`) |
 | git + local build | `git fetch --tags && git checkout "$(curl -fsSI -o /dev/null -w '%{redirect_url}' https://github.com/Gegenschuss/kalmido/releases/latest \| sed 's#.*/##')" && docker compose up -d --build` (takes the latest release, the same one the installer takes; a newer `v*` tag may have no release yet; 2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`, and Docker Compose 2.20+; the installer adds it) |
 
 A version number alone does not tell you whether an update needs a step from you: read [docs/UPGRADING.md](docs/UPGRADING.md) first.
@@ -267,12 +268,12 @@ Back up first (*Back up now*, see *Backups and restore*). The database migrates 
 `mkdir secret && sudo chown 1000 secret`. If `KALMIDO_SECRET_KEY` is already set in `.env`, it stays in charge and the folder
 stays empty. Otherwise the server creates a key once and from then on encrypts organisation data with it: keep a copy of
 `secret/kalmido.key` apart from the backups of `./data` - a backup without its key cannot be read
-(*Settings > Server > Server > Whole server* reminds you).
+(*Settings > Server > Backup* reminds you).
 
 **Update check:** every 6 hours the server asks the GitHub API for the latest release and compares it with its own
 version (after a failed check, e.g. GitHub's rate limit, again after an hour; right after an update at once). Admins then see a dot on the settings gear and, under *Settings > Server > Server* (since 2.46.6; before *Settings > Help*), "vX.Y.Z installed — vX.Y.Z+1
-available" with a link to the release notes. Nothing is downloaded or installed automatically, the container gets
-no Docker access, and the browser never contacts GitHub. Switch it off under *Settings > Server > Server > Whole server* or
+available" with a link to the release notes and the advice to back up first; a release with an "Action needed" section is marked as needing a step by hand (read the notes of every version in between). Nothing is downloaded or installed automatically, the container gets
+no Docker access, and the browser never contacts GitHub. Switch it off under *Settings > Server > Admin alerts* or
 for good with `KALMIDO_UPDATE_CHECK=0` in `.env`. The update check uses api.github.com every 6 hours; an update pulls the image from ghcr.io, and update.sh downloads the installer of the latest release. The image `:X.Y.Z` appears after the full CI of that version is green or red only outside the hard areas (invoices, backup, sign-in, security scanners; the weekly release notes name such suites); the image `:latest` and the latest release follow after its device test.
 
 </details>
