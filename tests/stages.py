@@ -280,6 +280,144 @@ def js_tokens(text, stem):
     return toks
 
 
+# #6201 (decision 15.11.2026): a changed stylesheet takes the suites that name the classes, ids and data-act values of its CHANGED
+# rules (from the diff, as js_tokens for a client module), and for a rule inside a phone media query (max-width up to 767px) also the
+# phone suites of the client modules that render those names. #3835 hid row symbols in its phone rows stylesheet; eleven phone suites that
+# never name the file (p251_ui, p2190_family_ui, p2458_b_ui ...) were red for several trains because only the file name counted.
+CSS_PHONE_PX = 767
+CSS_TOKEN_RE = re.compile(r"[.#](-?[A-Za-z_][\w-]{3,})|\[data-act\s*[~|^$*]?=\s*['\"]?([\w-]{4,})")
+CSS_MAXW_RE = re.compile(r"max-width\s*:\s*([\d.]+)\s*(px|rem|em)\b", re.I)
+CSS_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", re.M)
+CSS_NAMED_MAX = 20  # suites that name a changed selector (rarest first, rare_hits)
+CSS_PHONE_MAX = 20  # phone suites of the client modules behind a changed phone rule
+CSS_TOKEN_MODULES = 6  # a name in more client modules than this is a shared helper class (.ms-phsr): no module of its own
+# a test file that sets a phone-sized window: "390 x 844", "320 px", "width: 390", "[360, 780]"
+_PW = r"(?:3[2-9]\d|4[0-3]\d)"
+PHONE_SUITE_RE = re.compile(rf"\b{_PW}\s*(?:px\b|[x×*]\s*\d{{3}})|width\W{{0,3}}{_PW}\b|\[\s*{_PW}\s*,", re.I)
+
+
+def css_phone_media(prelude):
+    """True for an @media prelude with a max-width of at most CSS_PHONE_PX (rem / em at 16 px)."""
+    for n, unit in CSS_MAXW_RE.findall(prelude):
+        px = float(n) * (1 if unit.lower() == "px" else 16)
+        if px <= CSS_PHONE_PX:
+            return True
+    return False
+
+
+def css_rules(text):
+    """[(selector, first line, last line, phone, (start lines of the enclosing @-blocks))] of a stylesheet; lines from 1."""
+    text = re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
+    out, stack, start, line = [], [], 0, 1
+    for i, ch in enumerate(text):
+        if ch == "{":
+            pre = text[start:i]
+            lead = len(pre) - len(pre.lstrip())
+            first = line - pre.count("\n") + pre[:lead].count("\n")
+            pre = pre.strip()
+            outer_phone = any(x[2] for x in stack)
+            if pre.startswith("@"):
+                stack.append(("at", first, outer_phone or (pre.lower().startswith("@media") and css_phone_media(pre))))
+            else:
+                stack.append(("rule", first, outer_phone, pre))
+            start = i + 1
+        elif ch == "}":
+            if stack:
+                top = stack.pop()
+                if top[0] == "rule":
+                    out.append((top[3], top[1], line, top[2], tuple(x[1] for x in stack if x[0] == "at")))
+            start = i + 1
+        elif ch == ";" and (not stack or stack[-1][0] == "at"):
+            start = i + 1  # an @import / @charset line
+        if ch == "\n":
+            line += 1
+    return out
+
+
+def css_changed_rules(base, head, rel, root):
+    """The rules of a stylesheet a diff touches, old side (removed / changed rules) and new side: [(selector, phone)].
+    A changed @media line counts for every rule inside it. None without a diff (no base)."""
+    if not base:
+        return None
+    cmd = ["git", "-C", root, "diff", "-U0", base] + ([head] if head else []) + ["--", rel]
+    try:
+        d = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    old_lines, new_lines = set(), set()
+    for m in CSS_HUNK_RE.finditer(d):
+        a, b, c, n = int(m.group(1)), int(m.group(2) or 1), int(m.group(3)), int(m.group(4) or 1)
+        old_lines.update(range(a, a + b))
+        new_lines.update(range(c, c + n))
+
+    def show(ref):
+        try:
+            return subprocess.run(["git", "-C", root, "show", f"{ref}:{rel}"], capture_output=True, text=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError):
+            return ""
+    new_text = show(head) if head else read(os.path.join(root, rel))
+    out = []
+    for text, lines in ((show(base), old_lines), (new_text, new_lines)):
+        if not lines or not text:
+            continue
+        for sel, a, b, phone, ats in css_rules(text):
+            if any(a <= x <= b for x in lines) or lines.intersection(ats):
+                out.append((sel, phone))
+    return out
+
+
+def css_tokens(selector):
+    """The class names, ids and data-act values a selector names (at least 4 characters)."""
+    return {a or b for a, b in CSS_TOKEN_RE.findall(selector)}
+
+
+def css_rule_hits(repo, p, base=None, head=None):
+    """#6201: {suite: why} for a changed stylesheet: the suites that name a selector of a changed rule (at most CSS_NAMED_MAX,
+    rarest first), and for the changed phone rules the phone suites (PHONE_SUITE_RE) of the client modules that render their
+    names (at most CSS_PHONE_MAX: per module the suites that name its rarest names, summed over the modules). {} without a diff."""
+    return css_hits(repo, css_changed_rules(base, head, p, repo.root))
+
+
+def css_hits(repo, rules):
+    """#6201: {suite: why} for the changed rules [(selector, phone)] of a stylesheet (css_rule_hits)."""
+    if not rules:
+        return {}
+    skip = repo.skipped()
+    toks = sorted({t for sel, _ in rules for t in css_tokens(sel)})
+    out = {s: f"names a changed rule: {tok[:40]} (#6201)" for s, tok in rare_hits(repo, toks, skip, CSS_NAMED_MAX).items()}
+    phone_toks = sorted({t for sel, ph in rules if ph for t in css_tokens(sel)})
+    if not phone_toks:
+        return out
+    if "_phone" not in repo.__dict__:
+        repo._phone = {s for rel, ss in repo.by_file.items() if PHONE_SUITE_RE.search(repo.text(rel)) for s in ss}
+    if "_jsfiles" not in repo.__dict__:
+        d = os.path.join(repo.root, "static", "js")
+        repo._jsfiles = sorted("static/js/" + n for n in os.listdir(d) if n.endswith(".js")) if os.path.isdir(d) else []
+    mods = {}
+    for t in phone_toks:
+        ms = [js for js in repo._jsfiles if t in repo.text(js)]
+        if len(ms) <= CSS_TOKEN_MODULES:
+            for js in ms:
+                mods.setdefault(js, t)
+    score, why = {}, {}
+    for js, t in sorted(mods.items()):
+        stem = os.path.splitext(os.path.basename(js))[0]
+        part = {}
+        for tok in js_tokens(repo.text(js), stem):
+            hit = {s for rel in repo._files_with(tok) for s in repo.by_file.get(rel, ()) if s in repo._phone} - skip
+            if not hit or len(hit) > TOUCHED_HITS_BROAD:
+                continue
+            for s in hit:
+                part[s] = part.get(s, 0.0) + 1.0 / len(hit)
+        top = max(part.values(), default=0.0)
+        for s, v in part.items():  # each module counts the same, however many names it has
+            score[s] = score.get(s, 0.0) + v / top
+            why.setdefault(s, f"phone rule .{t} -> {os.path.basename(js)} (#6201)")
+    for s in sorted(score, key=lambda x: (-score[x], x))[:CSS_PHONE_MAX]:
+        out.setdefault(s, why[s])
+    return out
+
+
 def diff_lines(base, head, rel, root):
     """(removed lines, added lines) of one file between base and head (or the work tree), None without a diff."""
     if not base:
@@ -509,7 +647,7 @@ def touched_group(p, why):
     return None
 
 
-def rare_hits(repo, tokens, skip=()):
+def rare_hits(repo, tokens, skip=(), limit=TOUCHED_HITS_MAX):
     """{suite: token} of the suites whose own test file names a token, rare tokens first, at most TOUCHED_HITS_MAX suites; a token
     in more than TOUCHED_HITS_BROAD suites is left out. Own files only: a helper most suites load would name every suite."""
     score, why = {}, {}
@@ -520,7 +658,7 @@ def rare_hits(repo, tokens, skip=()):
         for s in hit:
             score[s] = score.get(s, 0.0) + 1.0 / len(hit)
             why.setdefault(s, tok)
-    return {s: why[s] for s in sorted(score, key=lambda x: (-score[x], x))[:TOUCHED_HITS_MAX]}
+    return {s: why[s] for s in sorted(score, key=lambda x: (-score[x], x))[:limit]}
 
 
 def i18n_changed_texts(base, head, rel, root):
@@ -615,6 +753,11 @@ def touched(repo, files, base=None, head=None):
             fixed = touched_fixed(repo, f, res, base, head)
             if fixed:
                 kind, res = "suites", fixed
+        if f == "static/app.css" or f.startswith("static/css/") and f.endswith(".css"):
+            css = css_rule_hits(repo, f, base, head)  # #6201: the suites of the changed rules, on top of the file's own
+            if css:
+                res = {**(res if kind == "suites" else {}), **{s: w for s, w in css.items() if kind != "suites" or s not in res}}
+                kind = "suites"
         cov = repo.covering(f)  # 2.628.0 (#4580): the suites that declare they cover this file, on top of the rest
         if cov:
             res = {**(res if kind == "suites" else {}), **{s: w for s, w in cov.items() if kind != "suites" or s not in res}}
