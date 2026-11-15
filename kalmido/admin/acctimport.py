@@ -1044,6 +1044,12 @@ def umz_row(c, table, src, fixed, ts):
                 d.pop("repeat")
             else:
                 d["repeat"] = rule
+    if table == "lists":  # 2.1231.0 (#5880): the archive of the file -- its key archived (every file has it: the column
+        # until 2.1230, from the marker since), state for a file without it; the trigger sets archived_at with it
+        arch = src.get("archived") if "archived" in src else src.get("state") == "archived"
+        d["state"] = "archived" if arch not in (0, False, None, "0", "false", "") else "live"
+        if d["state"] == "live":
+            d.pop("archived_at", None)
     d.update({k: v for k, v in fixed.items() if k in cols})
     for k, (typ, nullable, dflt) in cols.items():
         if k in d or nullable or dflt or k == "id":

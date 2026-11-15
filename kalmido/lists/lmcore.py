@@ -45,7 +45,7 @@ from ..core.objects import obj_register, obj_share, obj_share_locks, obj_share_r
 from ..core.pg import system_ctx
 from ..core.writes import obj_history, obj_history_add
 from ..core.writes import obj_on_purge  # 2.936.0 (#5364)
-from ..core.writes import undo_skip  # 2.1029.0 (#5537)
+from ..core.writes import undo_gone, undo_skip  # 2.1029.0 (#5537); 2.1231.0 (#5880): undo_gone
 from ..api.common import v1_call
 from .groups import grp_list_ids, grp_of_user, grp_sync
 from .lffolder import lf_own_stale, lf_place
@@ -239,8 +239,27 @@ def lmc_history(c, uid, lid, before, after):
 
 
 # 2.1029.0 (#5537): the state marker follows archived / deleted_at (trigger kalmido_list_state, migrations.d/5537_a.py) -- no
-# undo copy holds it, so taking a step back writes the old columns and the trigger sets the marker from them
+# undo copy holds it, so taking a step back writes the old columns and the trigger sets the marker from them. 2.1231.0 (#5880):
+# archived_at / deleted_at, the column archived is gone
 undo_skip("lists", "state")
+
+
+def _lm_gone_add(r):
+    """2.1231.0 (#5880): the old column archived as a copy of before held it (1 / 0; archived_at kept with it since 2.1054.0)."""
+    return {"archived": 1 if r.get("archived_at") else 0}
+
+
+def _lm_gone_back(r):
+    """2.1231.0 (#5880): a copy of before the column archived went: its archive into archived_at (the marker follows it, trigger
+    kalmido_list_state). An archive of before 1.6.1 had no archived_at: the moment of the step back; a restore before
+    2.1054.0 could leave archived_at set on a project out of the archive: cleared."""
+    if "archived" in r:
+        on = r.pop("archived") not in (0, False, None, "0", "false", "")
+        r["archived_at"] = (r.get("archived_at") or iso(now_utc())) if on else None
+    return r
+
+
+undo_gone("lists", _lm_gone_add, _lm_gone_back)
 obj_register(LMC_KIND, "lists", label=N_("Project"), fields={}, open_url=lambda lid: f"list/{int(lid)}", title=_title,
              base_role=_base, visible=_visible, area="tasks", routes=False, fsref=False, share_cols=("list_role", "list_own"),
              on_restore=_on_restore, on_revoke=_on_revoke, list_col="id",
