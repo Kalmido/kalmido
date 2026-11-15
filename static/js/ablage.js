@@ -88,7 +88,7 @@ function ab_errSet(x, what) { AB.err = errText(x, what); AB.errSt = x?.status ||
 const ab_retry = () => { AB.err = ''; AB.key = ''; ab_draw(); };  // viewAblage shows "Loading…" and loads again
 const ab_errHtml = () => [403, 404].includes(AB.errSt) && S.route.nid ? noAccessState({title: tr('This folder does not exist or you cannot see it.'), sub: tr('It may have been deleted, or it is no longer shared with you.'),
   action: `<div class="eacts"><button type="button" class="btn" data-ab="space" data-sp="private">${ic('back', 's')} ${esc(tr('Back to the files'))}</button></div>`}) : errorState({title: AB.err, retry: ab_retry});
-function ab_draw() { if (S.route.mod !== 'ablage') return; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('ablage', viewAblage()))); }
+function ab_draw() { if (S.route.mod !== 'ablage') return; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('ablage', viewAblage()))); wso_sync(); }  // 2.1241.0 (#6184): the open space's / folder's organisation (a redraw without renderView)
 const ab_reload = () => { AB.key = ''; ab_ptStale(); if (S.route.mod === 'ablage') { ab_load(); if (typeof dc_inFold === 'function' && dc_inFold()) dc_load(); } };  // 2.752.0 (#4887): + a folder's documents  // 2.152.3 B (#2621): + the panel's folders
 // 2.979.0 (#5667): after an undo / redo the server took back by its group (the step's own undo with ab_reload / ab_verAfter no
 // longer runs; undo.js histRedraw lists a shown file store / documents list itself): a file store not shown and the panel's
