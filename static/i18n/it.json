@@ -18691,7 +18691,5 @@
   "Only digits, spaces and + - / ( ) here, please.": "Qui solo cifre, spazi e + - / ( ).",
   "Please enter a web address like https://example.org.": "Inserisci un indirizzo web come https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % sulle voci scontabili",
-  "Fixed amount on the discountable positions|calc": "Importo fisso sulle voci scontabili",
-  "Groups and direct messages with people you work with belong to no organisation, so they stand here in Private.": "I gruppi e i messaggi diretti con le persone con cui lavori non appartengono a nessuna organizzazione, per questo compaiono qui in Privato.",
-  "(you)": "(tu)"
+  "Fixed amount on the discountable positions|calc": "Importo fisso sulle voci scontabili"
 }
