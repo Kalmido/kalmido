@@ -133,7 +133,8 @@ const spaceRows = d => [...d.querySelectorAll('#view .spov [data-spov], #view .w
   w = await boot({user: 'alice', hash: 'home'}); d = w.document;
   check(await until(() => rowsOf(d, '#view .dc-recent').length === 8), '#5352: Start: the block "Recently edited" is on, 8 entries ' + rowsOf(d, '#view .dc-recent').length);
   check(titles(d, '#view .dc-recent')[0] === 'Page 8' && rowsOf(d, '#view .dc-recent')[0].querySelector('.zlec'), '#5352: Start: newest first, with the chip under "All"');
-  check(d.querySelector('#view .dc-recent a.hpall')?.getAttribute('href') === '#wiki/recent', '#5561: Start: "More" leads to the page "Recently edited"');
+  // 2.1208.0 (#6125): "More" is the link in the card's head (was below the list)
+  check(d.querySelector('#view .dc-recent h3 a.zlemore')?.getAttribute('href') === '#wiki/recent', '#5561/#6125: Start: "More" in the card head leads to the page "Recently edited"');
   w.close();
   await call('PATCH', '/api/settings', {workspace: 'private'}, CA);
   w = await boot({user: 'alice', hash: 'home'}); d = w.document;
