@@ -202,6 +202,7 @@ VARS = (
     _v("KALMIDO_FS_GC_EVERY", "86400", "Seconds between two clean-ups of moved files.", "files"),
     _v("KALMIDO_PAPERLESS_ZIP_DIR", "<data dir>/paperless-zip", "Folder of the Paperless export uploads while they are imported.", "files"),
     _v("KALMIDO_PAPERLESS_ZIP_MAX_MB", "4096", "Size in MB of one uploaded Paperless export.", "files"),
+    _v("KALMIDO_FETCHER_RECIPES", "", "Folder with the signed receipt fetcher recipes (<id>.py + <id>.sig.json) handed out by GET /api/v1/fetcher/recipes; empty = kalmido/docs/fetcher_recipes (2.1188.0).", "files"),
     _v("KALMIDO_FOLDERWATCH_DIR", "/app/folderwatch", "Folder with the folder watcher programs offered in the document settings (built by the image; 2.207.0).", "files"),
     _v("KALMIDO_PAPERLESS_ZIP_CHUNK_KB", "8192", "Size in KB of one upload part of a Paperless export.", "files"),
 
