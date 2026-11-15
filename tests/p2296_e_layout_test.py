@@ -186,7 +186,8 @@ hd = "Leistungsblock mit einer sehr langen Überschrift, die über die ganze Bre
 data = pdf.office_pdf(model(lines=[{"kind": "heading", "title": hd}, item(1)]))
 clean("#3170 long heading", data)
 # 2.406.0 (#3491): in look A the table head's labels print in the heading's size too (both 6 pt): the heading inside them
-check(hd.upper().replace(" ", "") in "".join(t["s"] for t in pdfcheck.layout(data)[0]["texts"] if t["bold"] and t["size"] == FS(8)).replace(" ", ""),
+# 2.1221.0 (#6243): the section heading prints in FS_SUM since #6175 (FS(10.4) in look A, was FS(8))
+check(hd.upper().replace(" ", "") in "".join(t["s"] for t in pdfcheck.layout(data)[0]["texts"] if t["bold"] and t["size"] == FS(10.4)).replace(" ", ""),
       "#3170: the long heading wraps, every word printed")
 
 lab = "Ein sehr langes eigenes Feld mit vielen Wörtern im Namen"
