@@ -199,13 +199,13 @@ function shvOverview(lid) {
   const groups = [...shvSpaces(), 'shared'].map(sp => [sp, items.filter(x => sp === 'shared' ? x.shared_in : x.space === sp && !x.shared_in), fold(sp)])
     .map(g => [g[0], lid ? g[1] : shf_topItems(g[1], g[0]), g[2]]).filter(g => g[1].length || g[2]);  // 2.124.0 C (#2113): + shared with me
   const many = groups.length > 1 || (!lid && shvSpaces().length > 1);
-  return `<div class="shvwrap shvov">${head}${groups.map(([sp, xs, fs]) => `<section class="shvgrp" aria-label="${esc(shvSpaceName(sp))}">${many ? `<h3>${shvSpaceDot(sp)}${esc(shvSpaceName(sp))}</h3>` : ''}<ul class="shvcards">${fs}${xs.map(card).join('')}</ul></section>`).join('')}</div>`;
+  return `<div class="shvwrap shvov">${head}${groups.map(([sp, xs, fs]) => `<section class="shvgrp" aria-label="${esc(shvSpaceName(sp))}">${many ? `<h3>${/*html-ok*/ shvSpaceDot(sp)}${esc(shvSpaceName(sp))}</h3>` : ''}<ul class="shvcards">${fs}${xs.map(card).join('')}</ul></section>`).join('')}</div>`;
 }
 // 2.1224.0 (#6186): the organisation colour (docs/dev/kern.md "Organisation colour"): a group heading of an organisation wears its
 // dot, a card of an organisation's table the stripe on its left edge (wso_row); Private stays neutral
 const shvSpaceDot = sp => String(sp || '').startsWith('org:') && wsOn() ? wsp_dot(sp) : '';
 function shvCardHtml(x, lid) {
-  return `<li class="shvcard" data-id="${x.id}"${wso_row(x.space)}><a href="#sheets/${x.id}" class="shvcl">${ic('sheet')}<span class="shvct"><b>${esc(x.title || tr('Untitled table'))}</b>
+  return `<li class="shvcard" data-id="${x.id}"${/*html-ok*/ wso_row(x.space)}><a href="#sheets/${x.id}" class="shvcl">${ic('sheet')}<span class="shvct"><b>${esc(x.title || tr('Untitled table'))}</b>
       <span class="muted">${x.list_title && !lid ? esc(x.list_title) + ' · ' : ''}${x.updated_at ? esc(relTime(x.updated_at)) : ''}${x.updated_by_name ? ' · ' + esc(x.updated_by_name) : ''}${x.agent ? ' · ' + esc(tr('changed by an agent')) : ''}${x.sheets > 1 ? ' · ' + esc(trn('{0} sheet', '{0} sheets', x.sheets)) : ''}${x.shared && !x.shared_in ? ` · <span class="shs-mark">${ic('users', 's')}${tr('Shared')}</span>` : ''}</span></span></a>
     <button data-rowmenu="shvcard" type="button" class="iconbtn" data-shv="cmenu" data-id="${x.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More') + ': ' + (x.title || ''))}">${ic('dots')}</button></li>`;
 }
