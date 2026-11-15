@@ -2,8 +2,9 @@
 """Checks that the module lists agree (2.20.0, #646; see docs/ARCHITECTURE.md):
 
   * web client: every static/js/*.js is loaded by a <script> tag in static/index.html, main.js last, and the service
-    worker (static/sw.js, SHELL) precaches exactly these files in the same order; 2.53.0 (#1410): or it is loaded on
-    demand -- then it stands in LAZY (sw.js) and in LD_MODS (static/js/lazyload.js), in the same order, and has no tag
+    worker (static/sw.js, SHELL) precaches exactly these files; 2.53.0 (#1410): or it is loaded on demand -- then it
+    stands in LAZY (sw.js) and in LD_MODS (static/js/lazyload.js) and has no tag; 2.1202.0 (#6199): the sw.js lists are
+    sorted, one entry per line (as tools/sw_lists.py writes them: GitHub's merge queue merges without the merge driver)
   * server: kalmido/__init__.py ORDER names every module of the package exactly once (and nothing else)
   * schema (2.30.0, #1036): every table with a reference to a person (a column REFERENCES users(id) or named user_id,
     owner_id, created_by, ...) carries org_id or list_id -- the workspace boundary can be checked on it -- or stands in
@@ -32,19 +33,19 @@ tags = re.findall(r'<script src="/static/js/([\w-]+\.js)"(?: defer)?></script>',
 sw = read("static", "sw.js")
 _list = lambda name: re.findall(r"'/static/js/([\w-]+\.js)'", (re.search(name + r" = \[(.*?)\];", sw, re.S) or [None, ""])[1])
 shell = _list("SHELL")
-# 2.53.0 (#1410): the modules loaded on demand: LAZY in sw.js = the files of LD_MODS in lazyload.js (same order), no script tag
+# 2.53.0 (#1410): the modules loaded on demand: LAZY in sw.js = the files of LD_MODS in lazyload.js (sorted, #6199), no script tag
 lazy = _list("LAZY")
 _ld = re.search(r"const LD_MODS = \{(.*?)\n\};", read("static", "js", "lazyload.js"), re.S)
 ld_files = [f + ".js" for f in re.findall(r"'([\w-]+)'", re.sub(r"^\s*\w+:", "", _ld.group(1), flags=re.M))] if _ld else []
-if lazy != ld_files:
-    ERR.append(f"sw.js LAZY differs from LD_MODS in static/js/lazyload.js (same files, same order): {lazy} vs {ld_files}")
+if lazy != sorted(ld_files):
+    ERR.append(f"sw.js LAZY differs from LD_MODS in static/js/lazyload.js (same files, sorted - python3 tools/sw_lists.py): {lazy} vs {ld_files}")
 if set(lazy) & set(tags):
     ERR.append(f"index.html loads modules that are loaded on demand (LAZY): {sorted(set(lazy) & set(tags))}")
 if len(set(lazy)) != len(lazy):
     ERR.append("sw.js LAZY names a module twice")
 if sorted(tags + lazy) != files:
     ERR.append(f"index.html script tags + LAZY vs static/js/: missing {sorted(set(files) - set(tags) - set(lazy))}, unknown {sorted(set(tags + lazy) - set(files))}")
-# 2.65.0 (#1824): the stylesheets loaded with a module: LAZY_CSS in sw.js = the files of LD_CSS in lazyload.js (same order) =
+# 2.65.0 (#1824): the stylesheets loaded with a module: LAZY_CSS in sw.js = the files of LD_CSS in lazyload.js (sorted, #6199) =
 # static/css/*.css, each once
 lazy_css = re.findall(r"'/static/css/([\w-]+\.css)'", (re.search(r"LAZY_CSS = \[(.*?)\];", sw, re.S) or [None, ""])[1])
 _lc = re.search(r"const LD_CSS = \{(.*?)\};", read("static", "js", "lazyload.js"), re.S)
@@ -52,8 +53,8 @@ ld_css = [f + ".css" for f in re.findall(r"'([\w-]+)'", re.sub(r"^\s*\w+:", "", 
 # 2.476.0 (#3487): static/css/start-*.css are no module stylesheets: the server sends them behind app.css (tools/check_appcss.py)
 css_files = sorted(os.path.basename(p) for p in glob.glob(os.path.join(ROOT, "static", "css", "*.css"))
                    if not os.path.basename(p).startswith("start-"))
-if lazy_css != ld_css:
-    ERR.append(f"sw.js LAZY_CSS differs from LD_CSS in static/js/lazyload.js (same files, same order): {lazy_css} vs {ld_css}")
+if lazy_css != sorted(ld_css):
+    ERR.append(f"sw.js LAZY_CSS differs from LD_CSS in static/js/lazyload.js (same files, sorted - python3 tools/sw_lists.py): {lazy_css} vs {ld_css}")
 if sorted(lazy_css) != css_files or len(set(lazy_css)) != len(lazy_css):
     ERR.append(f"sw.js LAZY_CSS vs static/css/: missing {sorted(set(css_files) - set(lazy_css))}, unknown {sorted(set(lazy_css) - set(css_files))}")
 if len(set(tags)) != len(tags):
@@ -82,8 +83,14 @@ else:
 # 2.312.0 (#3285): render() (render.js) draws only once main.js declared bootDone(); renamed or moved = a blank app
 if not re.search(r"^function bootDone\(", read("static", "js", "main.js"), re.M):
     ERR.append("static/js/main.js: function bootDone() must stay declared there (render.js waits for it)")
-if shell != tags:
-    ERR.append("sw.js SHELL: the static/js/ files differ from index.html (same files, same order)")
+if shell != sorted(tags):
+    ERR.append("sw.js SHELL: the static/js/ files differ from index.html (same files, sorted - python3 tools/sw_lists.py)")
+# 2.1202.0 (#6199): the lists one entry per line, sorted, trailing comma (GitHub merges without tools/sw_lists.py as driver)
+for _n in ("SHELL", "LAZY", "LAZY_CSS"):
+    _m = re.search(r"^const " + _n + r" = \[(.*?)\];", sw, re.S | re.M)
+    _e = re.findall(r"'(/[^']*)'", _m.group(1)) if _m else []
+    if _m and _m.group(0) != f"const {_n} = [\n" + "".join(f"  '{u}',\n" for u in sorted(set(_e))) + "];":
+        ERR.append(f"static/sw.js {_n}: one entry per line, sorted, each with a comma - run python3 tools/sw_lists.py")
 # 2.126.0 D (#1992 O7): every file the service worker precaches exists (addAll fails on a single 404: the new version would
 # never install), and the cache name is counted up with every version -- its line names the version it belongs to
 for name in ("SHELL", "LAZY", "LAZY_CSS"):
