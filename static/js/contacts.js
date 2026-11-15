@@ -15,6 +15,8 @@ const ctTypeWord = (k, it) => { const t = (it.type || [])[0], o = (CT_TYPES[k] |
 const ctBook = id => (S.books || []).find(b => b.id === id);
 const ctWrite = b => !!b && (b.role === 'owner' || b.role === 'edit');
 // 2.53.0 (#1410): ctAv lives in ctlinks.js
+// 2.1177.0 (#6116): an error after api() is said there already (e.shown): no second toast; rawFetch's own error in plain words
+const ct_errToast = (x, what) => { if (x && !x.shown && x.message !== 'auth') toast(errText(x, what)); };
 function ctDate(v) {  // '1980-05-12' / '--05-12' -> "12 May 1980" / "12 May"
   if (!v) return '';
   if (v.startsWith('--')) { const d = new Date(2000, +v.slice(2, 4) - 1, +v.slice(5, 7)); try { return d.toLocaleDateString(LOCALE(), {day: 'numeric', month: 'long'}); } catch { return v.slice(2); } }  // no year: no weekday either
@@ -168,7 +170,7 @@ async function ctt_act(k, id) {
       if (!await askConfirm(trn('Delete {0} contact permanently?', 'Delete {0} contacts permanently?', ids.length), tr('This cannot be undone.'), {ok: tr('Delete permanently'), danger: true})) return;
       await bk_send({action: 'purge'}, ids);
     }
-  } catch (x) { toast(x.message || ''); again(); return; }
+  } catch (x) { ct_errToast(x); again(); return; }  // 2.1177.0 (#6116): api() said it
   if (k.endsWith('rest')) toast(tr('Restored'));
   again();
 }
@@ -234,7 +236,7 @@ function ctCardHtml(c) {
       note: c.note ? `<div class="ctnote md">${renderMd(c.note, false, {})}</div>` : '',
       care: typeof lifeCareHtml === 'function' ? lifeCareHtml(c) : '',
       clients: (c.clients || []).length ? `<div class="ctsec cklsec"><h4>${tr('Contact person at')}</h4><ul class="ctlinks">${c.clients.map(x => `<li><a class="linkbtn" href="#client/${x.client_id}">${ic('brief', 's')} ${esc(x.name)}</a>${x.role ? `<span class="muted"> · ${esc(x.role)}</span>` : ''}</li>`).join('')}</ul></div>` : '',  // 2.59.0 (#1735): the clients this contact is a contact person of (only who may open them)
-      tasks: `<div class="ctsec"><h4>${tr('Tasks')}</h4>${(c.tasks || []).length ? `<ul class="ctlinks">${c.tasks.map(t => `<li><button type="button" class="linkbtn ${t.status ? 'done' : ''}" data-cttask="${t.task_id}">${ic(t.status ? 'done' : 'list', 's')} ${esc(t.title)}</button><span class="muted"> · ${esc(tr(kinds[t.kind] || 'About'))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No linked tasks yet: “Link a contact” in a task’s panel.')}</p>`}</div>`,
+      tasks: `<div class="ctsec"><h4>${tr('Tasks')}</h4>${(c.tasks || []).length ? `<ul class="ctlinks">${c.tasks.map(t => `<li><button type="button" class="linkbtn ${t.status ? 'done' : ''}" data-cttask="${t.task_id}">${ic(t.status ? 'done' : 'list', 's')} ${esc(t.title)}</button><span class="muted"> · ${esc(tr(kinds[t.kind] || 'About|contact link'))}</span></li>`).join('')}</ul>` : `<p class="muted">${tr('No linked tasks yet: “Link a contact” in a task’s panel.')}</p>`}</div>`,
       events: (c.events || []).length ? `<div class="ctsec"><h4>${tr('Events')}</h4><ul class="ctlinks">${c.events.map(e => `<li><button type="button" class="linkbtn" data-evopen="${e.event_id}">${ic('cal', 's')} ${esc(e.title)}</button><span class="muted"> · ${esc(e.all_day ? fmtDayAbs(e.start.slice(0, 10)) : fmtDayAbs(e.start.slice(0, 10)) + ' ' + fmtTimeLoc(e.start.slice(11, 16)))}</span></li>`).join('')}</ul></div>` : '',
       history: hist,  // 2.119.1 B (#2083): the block shows once the history has items
       merges: w && (c.merges || []).length ? ctm_histHtml(c) : ''}))}</div>
@@ -325,7 +327,7 @@ async function ctk_makeClient(c, b) {
     }
     id = r.id; await after(); return r;
   };
-  let r; try { r = await make(); } catch (x) { toast(x.message || ''); return; }
+  let r; try { r = await make(); } catch (x) { ct_errToast(x); return; }
   offerUndo(tr('Added: {0}', r.name), histAdd({label: tr('Create as client'), undo: async () => { await api('DELETE', `/api/clients/${id}`); await after(); }, redo: make}));
 }
 document.addEventListener('input', e => {
@@ -448,7 +450,7 @@ async function bk_barAct(k, el) {
     if (!await askConfirm(trn('Delete {0} contact?', 'Delete {0} contacts?', ids.length), tr('They go to the trash and are removed from the phones that sync these address books.'), {ok: tr('Delete'), danger: true})) return;
     try { await bk_send({action: 'delete'}, ids); } catch (e) { if (e.data?.code === 'partial') { bk_end(); await load().catch(() => {}); ctLoad(); } return; }  // 2.58.0 (#1656): some are gone already
     // 2.272.0 E1 (#3038): they lie in the trash; Undo takes them out again
-    toast(trn('{0} contact deleted', '{0} contacts deleted', ids.length), async () => { try { await bk_send({action: 'undelete'}, ids); } catch (x) { toast(x.message || ''); return; } await load().catch(() => {}); ctLoad(); });
+    toast(trn('{0} contact deleted', '{0} contacts deleted', ids.length), async () => { try { await bk_send({action: 'undelete'}, ids); } catch (x) { ct_errToast(x); return; } await load().catch(() => {}); ctLoad(); });
     if (CT.pick && CT.sel && ids.includes(CT.sel)) { CT.sel = null; CT.card = null; }
     bk_end(); await load().catch(() => {}); ctLoad();
   } else if (k === 'edit') bk_edit(ids);
@@ -629,10 +631,12 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
     const b = e.target.closest('[data-ctm2]'); if (!b) return;
     if (b.dataset.ctm2 === 'close') { md.remove(); return; }
     if (b.dataset.ctm2 === 'nophoto') { st.photo = ''; $('#ct-ph', md).innerHTML = ctAv(st, 'avatar ctav big'); b.remove(); return; }
-    if (b.dataset.ctm2 !== 'save') return;
+    if (b.dataset.ctm2 !== 'save' || b.disabled) return;
     const body = form();
     if (!body.given && !body.family && !body.org && !body.fn) { toast(tr('A name or a company, please')); $('#ct-given', md).focus(); return; }
-    if (!c && !await ctx_dupAsk(body, md)) return;  // 2.119.1 A (#2084): a look-alike first (the next Save creates it anyway)
+    // 2.1177.0 (#6116): Save is locked until the look-alike check answered (a double click = one contact); the dialog closes after it
+    b.disabled = true; b.setAttribute('aria-busy', 'true');
+    if (!c && !await ctx_dupAsk(body, md)) { b.disabled = false; b.removeAttribute('aria-busy'); return; }  // 2.119.1 A (#2084): a look-alike first (the next Save creates it anyway)
     // 2.559.0 (#4660): the dialog closes and the contact shows at once (ct_saveOpt), no GET /api/state; an error takes it back
     LS.set('ctBook', body.book_id); md.remove();
     try {
@@ -675,7 +679,7 @@ async function ct_delAsk(c) {
   // 2.559.0 (#4660): gone at once (ct_delOpt), no GET /api/state; an error brings it back
   if (isMobile()) go('contacts');
   try { await ct_delOpt(c); } catch { return; }
-  toast(tr('Contact deleted'), async () => { try { await api('POST', `/api/contacts/${c.id}/restore`); } catch (x) { toast(x.message || ''); return; } ctLoad(); });
+  toast(tr('Contact deleted'), async () => { try { await api('POST', `/api/contacts/${c.id}/restore`); } catch (x) { ct_errToast(x); return; } ctLoad(); });
 }
 async function ct_delOpt(c) {
   const put = () => {
@@ -950,7 +954,7 @@ async function ctBooksModal() {
         {label: tr('Export (CSV)'), icon: 'download', fn: () => { location.href = `/api/books/${b.id}/export.csv`; }},
         !own && {label: tr('Leave this address book'), icon: 'logout', fn: async () => { try { await api('DELETE', `/api/books/${b.id}/members/${S.me.id}`); } catch { return; } refresh(); }},
         // 2.272.0 E1 (#3038): the question names the number; the book goes to the trash with its contacts (Undo, Contacts > More > Trash)
-        own && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the address book “{0}” with all its contacts?', b.name), trn('Its {0} contact goes to the trash with it and is removed from the phones.', 'Its {0} contacts go to the trash with it and are removed from the phones.', b.count || 0), {ok: tr('Delete'), danger: true})) return; try { await api('DELETE', `/api/books/${b.id}`); } catch { return; } refresh(); toast(tr('“{0}” moved to the trash', b.name), async () => { try { await api('POST', `/api/books/${b.id}/restore`); } catch (x) { toast(x.message || ''); return; } refresh(); }); }}]);
+        own && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the address book “{0}” with all its contacts?', b.name), trn('Its {0} contact goes to the trash with it and is removed from the phones.', 'Its {0} contacts go to the trash with it and are removed from the phones.', b.count || 0), {ok: tr('Delete'), danger: true})) return; try { await api('DELETE', `/api/books/${b.id}`); } catch { return; } refresh(); toast(tr('“{0}” moved to the trash', b.name), async () => { try { await api('POST', `/api/books/${b.id}/restore`); } catch (x) { ct_errToast(x); return; } refresh(); }); }}]);
       return;
     }
     const k = e.target.closest('[data-cb]')?.dataset.cb; if (!k) return;
