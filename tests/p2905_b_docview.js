@@ -161,6 +161,9 @@ const same = (a, b) => !!a && !!b && ['l', 't', 'w', 'h'].every(k => Math.abs(a[
     await nav(B + `#docs/${L.id}`);
     await ev(GATE);
     // the view opened by the address loads at once: open it again from the list to hold its file
+    // 2.1221.0 (#5642): CI of 2.1201.0 - on a slow runner Escape came before the address had opened the view, the view
+    // opened afterwards and stayed (no list, no card to click): Escape only once the view is there
+    check(await wait(`document.querySelector('.dv-view .dc-body')?.dataset.id === '${L.id}'`), 'the address opens the document view');
     await ev(`(document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true})), 1)`);
     check(await wait(`!document.querySelector('.dv-view') && document.querySelectorAll('.dc-card').length === 5`), 'back in the list');
     await ev(`(document.querySelector('.dc-view [data-dco="${L.id}"]').click(), 1)`);
