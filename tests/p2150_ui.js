@@ -194,11 +194,13 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
     return ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`);
   };
   const ready = async (ev, n = 30) => { for (let i = 0; i < n && !(await ev(`!!document.querySelector('#top h1')`).catch(() => false)); i++) await sleep(300); await sleep(700); };
-  const FIT = `(() => { const m = [...document.querySelectorAll('.modal')].pop(), b = m.querySelector('.mbox') || m.firstElementChild || m, r = b.getBoundingClientRect();
+  // 2.1192.0 (#5172): the dialog WITH the permission grid (CI v2.1155.0: the last .modal was another one, without a save button ->
+  // TypeError); no save button = false instead of a script error
+  const FIT = `(() => { const m = [...document.querySelectorAll('.modal')].filter(x => x.querySelector('.scgrid')).pop() || [...document.querySelectorAll('.modal')].pop(), b = m.querySelector('.mbox') || m.firstElementChild || m, r = b.getBoundingClientRect();
     const rows = [...m.querySelectorAll('.scgrid .chkl')].map(x => x.getBoundingClientRect());
     return {over: document.documentElement.scrollWidth - innerWidth, left: Math.round(r.left), right: Math.round(innerWidth - r.right), n: rows.length,
       minH: Math.round(Math.min(...rows.map(x => x.height))), minW: Math.round(Math.min(...rows.map(x => x.width))), out: rows.filter(x => x.right > innerWidth + 1 || x.left < -1).length,
-      save: (() => { const s = m.querySelector('[data-m="ok"]').getBoundingClientRect(); return s.height >= 40 && s.bottom <= innerHeight + 2 || !!m.querySelector('.foot'); })()}; })()`;
+      save: (() => { const e = m.querySelector('[data-m="ok"]'); if (!e) return !!m.querySelector('.foot'); const s = e.getBoundingClientRect(); return s.height >= 40 && s.bottom <= innerHeight + 2 || !!m.querySelector('.foot'); })()}; })()`;
   const tap = async ({cmd, ctx}, x, y) => {
     await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 't1', parameters: {pointerType: 'touch'}, actions: [{type: 'pointerMove', x: Math.round(x), y: Math.round(y)}, {type: 'pointerDown', button: 0}, {type: 'pause', duration: 60}, {type: 'pointerUp', button: 0}]}]});
     await cmd('input.releaseActions', {context: ctx});
