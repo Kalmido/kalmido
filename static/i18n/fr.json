@@ -4474,7 +4474,6 @@
   "Delete…": "Supprimer…",
   "Delete the calendar “{0}” with all its events?": "Supprimer le calendrier « {0} » avec tous ses événements ?",
   "Share {0}": "Partager {0}",
-  "People with “can view” see the events, with “can edit” they also change them. In their phone the calendar appears next to their own.": "Les personnes avec « peut voir » voient les événements, avec « peut modifier » elles les changent aussi. Sur leur téléphone, le calendrier apparaît à côté des leurs.",
   "Not shared yet.": "Pas encore partagé.",
   "Import failed": "Échec de l’importation",
   "Imported: {0} new, {1} updated": "Importé : {0} nouveaux, {1} mis à jour",

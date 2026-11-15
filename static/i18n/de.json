@@ -4458,7 +4458,6 @@
   "Security settings": "Sicherheits-Einstellungen",
   "Delete the calendar “{0}” with all its events?": "Kalender „{0}“ mit allen Terminen löschen?",
   "Share {0}": "{0} teilen",
-  "People with “can view” see the events, with “can edit” they also change them. In their phone the calendar appears next to their own.": "Personen mit „kann ansehen“ sehen die Termine, mit „kann bearbeiten“ ändern sie sie auch. Auf ihrem Handy erscheint der Kalender neben ihren eigenen.",
   "Not shared yet.": "Noch nicht geteilt.",
   "Import failed": "Import fehlgeschlagen",
   "Imported: {0} new, {1} updated": "Importiert: {0} neu, {1} aktualisiert",

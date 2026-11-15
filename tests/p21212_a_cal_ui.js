@@ -16,9 +16,13 @@
 //   next to Starts / Ends; the device's zone: no hint); the task an event prepares stands in the editor outside "More options"
 //   and is fetched when it is not in memory (popover too, it opens); an own series carries the repeat mark; an existing event
 //   without guests has no availability bar; the Calendars window: a shared calendar's row has its own line "shared with 2 people"
+// - #6156: the calendar's Share dialog is the shared frame (X on top, "Done"), the owner first, the people with the role words
+//   of projects (Member / Read-only, only these two), "Add" says "Shared"; taking a person out goes without a question, the
+//   toast's Undo and Ctrl+Z put the share back with its role (the core's restore); people that could not be loaded say so
+//   with "Try again" (no names "?"); the window's row of a calendar shared with me uses the same role word
 const {execFileSync} = require('child_process');
 const path = require('path');
-const {boot, sleep, B, login, until: until0, histAdded, idle} = require('./boot');
+const {boot, sleep, B, login, until: until0, histAdded, idle, undoToast} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
@@ -235,6 +239,58 @@ const closeAll = d => { d.querySelectorAll('.modal').forEach(m => m.remove()); }
   md = await until(() => d.querySelector(`.modal.evcmodal [data-evcmenu="${W.id}"]`) && d.querySelector('.modal.evcmodal'));
   const wrow = md.querySelector(`[data-evcmenu="${W.id}"]`).closest('.evcrow');
   check(txt(wrow.querySelector('.evcnm')) === 'Work' && /shared with 2 people/.test(txt(wrow.querySelector('.evcsub'))), '#6158: the name and below it "shared with 2 people" ' + txt(wrow));
+  closeAll(d);
+
+  // ================= #6156: the Share dialog on the shared frame
+  const mems = async () => Object.fromEntries(((await call('GET', '/api/evcals')).items.find(c => c.id === W.id)?.members || []).map(m => [m.user_id, m.role]));
+  check(await call('DELETE', `/api/evcals/${W.id}/members/${carol.id}`).then(r => r.http < 300), 'set-up: Carol out again');
+  await w.eval('load()');
+  w.eval('evCalsModal()');
+  md = await until(() => d.querySelector(`.modal.evcmodal [data-evcmenu="${W.id}"]`) && d.querySelector('.modal.evcmodal'));
+  click(w, md.querySelector(`[data-evcmenu="${W.id}"]`));
+  await until(() => [...d.querySelectorAll('#pop [role="menuitem"]')].some(b => /Share/.test(b.textContent)));
+  click(w, [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => /Share/.test(b.textContent)));
+  let sm = await until(() => d.querySelector(`.modal.evsmodal .mrow[data-uid="${bob.id}"]`) && d.querySelector('.modal.evsmodal'));
+  check(sm && sm.querySelector('.lhdr [data-m="close"][aria-label="Close"]') && txt(sm.querySelector('.foot .btn.pri')) === 'Done' && /Share Work/.test(txt(sm.querySelector('.lhdr h3'))),
+    '#6156: the shared frame: title, X on top, "Done"');
+  check(/Alice/.test(txt(sm.querySelector('.mrow.evsowner'))) && /Owner/.test(txt(sm.querySelector('.mrow.evsowner'))), '#6156: the owner first');
+  const bsel = sm.querySelector(`.mrow[data-uid="${bob.id}"] select`);
+  check(/Bob/.test(txt(sm.querySelector(`.mrow[data-uid="${bob.id}"] .n`))) && bsel.selectedOptions[0].text === 'Read-only' && [...bsel.options].map(o => o.text).join('|') === 'Member|Read-only',
+    '#6156: Bob with the role words of projects (only Member / Read-only) ' + [...bsel.options].map(o => o.text).join('|'));
+  check(!/can view|can edit/.test(txt(sm)), '#6156: no own role words');
+  // add Carol as a member
+  const us = sm.querySelector('#evs-user'); us.value = String(carol.id); us.dispatchEvent(new w.Event('change', {bubbles: true}));
+  check(sm.querySelector('#evs-role').value === 'edit', 'the role of a new person: Member');
+  click(w, sm.querySelector('[data-evs="add"]'));
+  check(await until(async () => (await mems())[carol.id] === 'edit'), '#6156: Carol shared as a member');
+  check(await until(() => { const t = d.querySelector('#toast'); return t && !t.classList.contains('hidden') && /^Shared/.test(txt(t)); }), '#6156: "Shared" as the feedback');
+  check(await until(() => sm.querySelector(`.mrow[data-uid="${carol.id}"] select`)?.value === 'edit'), '#6156: her row with "Member"');
+  // take Bob out: no question, Undo puts him back as Read-only
+  n0 = w.eval('HIST.undo.length');
+  click(w, sm.querySelector(`[data-evsrm="${bob.id}"]`));
+  check(await until(async () => !(bob.id in await mems())), '#6156: Bob taken out');
+  check(!d.querySelector('.modal.cdlg'), '#6156: without a question');
+  check(!sm.querySelector(`.mrow[data-uid="${bob.id}"]`), '#6156: his row left the dialog');
+  check(await undoToast(w, 'Stopped sharing with Bob'), '#6156: the toast offers Undo');
+  check(await until(async () => (await mems())[bob.id] === 'view'), '#6156: Undo puts the share back with its role (Read-only)');
+  check(await until(() => sm.querySelector(`.mrow[data-uid="${bob.id}"] select`)?.value === 'view'), '#6156: and his row into the dialog');
+  // again, and Ctrl+Z (the dialog closed)
+  n0 = w.eval('HIST.undo.length');
+  click(w, sm.querySelector(`[data-evsrm="${bob.id}"]`));
+  check(await until(async () => !(bob.id in await mems())), 'Bob taken out again');
+  check(await histAdded(w, n0), '#6156: taking a person out is a step of the history');
+  closeAll(d);
+  ctrlZ(w);
+  check(await until(async () => (await mems())[bob.id] === 'view'), '#6156: Ctrl+Z puts the share back');
+  // the people could not be loaded: said so, no names "?"
+  w.eval('EVU = null');
+  w.__fail = /^GET \/api\/users/;
+  w.eval(`evPeople().then(u => evShareModal(evCal(${W.id}), u, () => {}))`);
+  sm = await until(() => d.querySelector('.modal.evsmodal #evs-members .eerr') && d.querySelector('.modal.evsmodal'));
+  check(sm && /The people could not be loaded/.test(txt(sm.querySelector('.eerr'))) && !/\?/.test(txt(sm.querySelector('#evs-members'))), '#6156: the people that could not be loaded say so (no "?") ' + txt(sm?.querySelector('#evs-members')));
+  w.__fail = null;
+  click(w, sm.querySelector('[data-esretry]'));
+  check(await until(() => /Bob/.test(txt(sm.querySelector(`.mrow[data-uid="${bob.id}"]`)))), '#6156: "Try again" loads them, the names show');
   closeAll(d);
 
   // ================= #6159: the view choice is a named group
