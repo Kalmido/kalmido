@@ -58,7 +58,8 @@ check(pdf.pdf_encode(f"1{NB}234,50 €") in (b"1\xa0234,50 \x80", b"1 234,50 \x8
 q = calc.office_calc({"lang": "de", "markup_pct": 10}, [{"kind": "service", "title": "Schnitt", "qty": 2, "unit": "day", "rate": 500, "in_markup": 1}],
                      {"tax": {"standard": 19}})
 sur = [x for x in q["lines"] if x["kind"] == "surcharge"]
-check(sur and sur[0]["unit_text"] == "pauschal" and sur[0]["title"] == "Aufschlag", f"markup line: unit 'pauschal', title 'Aufschlag': {sur}")
+# 2.1228.0 (#6254): without a pack the line says "Zuschlag" (was "Aufschlag")
+check(sur and sur[0]["unit_text"] == "pauschal" and sur[0]["title"] == "Zuschlag", f"markup line: unit 'pauschal', title 'Zuschlag': {sur}")
 q_en = calc.office_calc({"lang": "en", "markup_pct": 10}, [{"kind": "service", "title": "Edit", "qty": 2, "unit": "day", "rate": 500, "in_markup": 1}], {})
 check([x["unit_text"] for x in q_en["lines"] if x["kind"] == "surcharge"] == ["flat"], "markup line in English: unit 'flat' (the English word)")
 

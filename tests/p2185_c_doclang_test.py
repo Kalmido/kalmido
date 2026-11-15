@@ -77,7 +77,7 @@ OLD_CALC = {  # office/calc.py LABELS up to 2.167 (2.357.0 (#3183): German "Summ
     "producing_detail": ("{days} {day_word} = {qty} {prod_word} / {quot}, auf halbe Tage gerundet", "{days} {day_word} = {qty} {prod_word} / {quot}, rounded to half days"),
     "raw_optional": ("Optional: Bereitstellung der Rohdaten", "Optional: Delivery of raw data"), "raw_included": ("Bereitstellung der Rohdaten", "Delivery of raw data"),
     "share_detail": ("{amount} / {rate} x {factor} = {days} Tage, auf halbe Tage gerundet", "{amount} / {rate} x {factor} = {days} days, rounded to half days"),
-    "handling": ("Handlungskosten", "Handling costs"), "markup": ("Aufschlag", "Markup"),  # 2.296.0 B (#3173): German "Aufschlag" (was "Markup")
+    "handling": ("Handlungskosten", "Handling costs"), "markup": ("Zuschlag", "Surcharge"),  # 2.296.0 B (#3173): German "Aufschlag" (was "Markup"); 2.1228.0 (#6254): "Zuschlag" / "Surcharge" without a pack
     "surcharge_detail": ("{pct} % auf die markierten Positionen", "{pct} % on the marked positions"),
     "surcharge_detail_stacked": ("{pct} % auf die markierten Positionen und die Handlungskosten", "{pct} % on the marked positions and the handling costs"),
     "raw_detail": ("{pct} % der Positionen mit Rohdaten", "{pct} % of the positions with raw data"), "discount": ("Rabatt", "Discount"),
