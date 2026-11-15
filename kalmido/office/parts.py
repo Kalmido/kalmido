@@ -306,8 +306,11 @@ def tp_doc_totals(c, oid, r, items, pack, eur=False, home=None, part_items=None)
             base[ln["tax"]] += dec(ln["total"])
             if ln.get("discountable"):
                 disc_base[ln["tax"]] += dec(ln["total"])
-        elif k in ("producing", "surcharge"):  # 2.113.1 (#2252): + surcharge
+        elif k == "producing":
             base["standard"] += dec(ln["total"])
+        elif k == "surcharge":  # 2.113.1 (#2252); 2.1228.0 (#6254): on the tax keys of its positions
+            for tk, v in (ln.get("by_tax") or {"standard": ln["total"]}).items():
+                base[tk if tk in TAX_KEYS else "standard"] += dec(v)
         elif k == "raw":
             if ln.get("optional"):
                 raw_opt += dec(ln["total"])
@@ -701,8 +704,11 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
         for ln in lines:
             if ln["kind"] == "producing":  # 2.113.1 (#2251): without its calculation (internal)
                 res.append(pos(ln["title"], dec(ln["qty"]) * factor, "day", ln["rate"], "standard", ""))
-            elif ln["kind"] == "raw" and not ln.get("optional") or ln["kind"] == "surcharge":  # 2.113.1 (#2252): + surcharge
-                res.append(pos(ln["title"], factor, "flat", ln["total"], "standard", "" if ln["kind"] == "surcharge" else ln.get("detail") or ""))
+            elif ln["kind"] == "surcharge":  # 2.1228.0 (#6254): one position per tax key (was all at "standard")
+                for tk, v in (ln.get("by_tax") or {"standard": ln["total"]}).items():
+                    res.append(pos(ln["title"], factor, "flat", v, tk if tk in TAX_KEYS else "standard", ""))
+            elif ln["kind"] == "raw" and not ln.get("optional"):
+                res.append(pos(ln["title"], factor, "flat", ln["total"], "standard", ln.get("detail") or ""))
             elif ln["kind"] == "discount" and with_disc:
                 taxes = ln.get("taxes") or {"standard": abs(dec(ln["total"]))}
                 for k in TAX_KEYS:

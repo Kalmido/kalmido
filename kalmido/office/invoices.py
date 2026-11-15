@@ -507,8 +507,12 @@ def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None):
         if ln["kind"] == "producing":  # 2.113.1 (#2251): without its calculation (internal)
             out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": "", "qty": ln["qty"], "unit": "day",
                         "rate": ln["rate"], "tax": "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
-        elif ln["kind"] == "raw" and not ln.get("optional") or ln["kind"] == "surcharge":  # 2.113.1 (#2252): + surcharge
-            out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": "" if ln["kind"] == "surcharge" else ln.get("detail") or "", "qty": 1, "unit": "flat",
+        elif ln["kind"] == "surcharge":  # 2.1228.0 (#6254): one position per tax key, as the quotation computed it (was all at "standard")
+            for k, v in (ln.get("by_tax") or {"standard": ln["total"]}).items():
+                out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": "", "qty": 1, "unit": "flat",
+                            "rate": dec(v), "tax": k if k in TAX_KEYS else "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+        elif ln["kind"] == "raw" and not ln.get("optional"):
+            out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": ln.get("detail") or "", "qty": 1, "unit": "flat",
                         "rate": ln["total"], "tax": "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
         elif ln["kind"] == "discount":  # 2.354.0 A (#2835): one position per tax key, as the quotation computed it (was all at "standard")
             for k, v in (ln.get("by_tax") or {"standard": abs(dec(ln["total"]))}).items():

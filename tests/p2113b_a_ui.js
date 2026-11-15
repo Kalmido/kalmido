@@ -1,5 +1,6 @@
 // 2.113.1 UI tests, part A (#2251, #2252), own container (start.sh, mode workspaces), Firefox (desktop + phone width):
 // - no pack option: a new quotation shows no producing switch / fields / marks; an older quotation that computes producing
+//   (2.1228.0, #6254: but the surcharge "Zuschlag": switched on, 15 % titled "Mehraufwand" adds its line)
 //   still shows its line and its switch (so it can be switched off)
 // - an own pack of the data folder with "share by amount" and the film pack switched on: the settings show factor / day
 //   rate; a new quotation shows the switch, the factor with the new help text, the marks per position, the share line,
@@ -58,6 +59,19 @@ fs.writeFileSync(path.join(DATA, 'packs', 'industry', 'example_share.json'), JSO
     check(await ready(ev, `document.querySelectorAll('.ofdeditor .ofdits .ofdit').length >= 1`, 80), 'the quotation editor');
     check(await ev(`!document.querySelector('#ofd-producing_on') && !document.querySelector('#ofd-prod_quotient') && !document.querySelector('.ofdeditor [data-k="producing"]') && !document.querySelector('.ofdeditor [data-k="in_handling"]') && !document.querySelector('.ofdautos .ofdauto')`),
       '#2251: without a pack option no producing switch, fields or marks');
+    // 2.1228.0 (#6254): the surcharge needs no pack: switched on, 15 % titled "Mehraufwand", its line and the marks show
+    const autos0 = `[...document.querySelectorAll('.ofdautos .ofdauto')].map(x => x.textContent).join(' | ')`;
+    check(await ev(`!!document.getElementById('ofd-markup_on') && !document.getElementById('ofd-handling_on') && !document.getElementById('ofd-markup_stacked') && /Calculate Surcharge/.test(document.getElementById('ofd-markup_on').closest('label')?.textContent || '')`),
+      '#6254: without a pack the switch "Calculate Surcharge" (English UI), no handling costs');
+    await ev(`(() => { document.getElementById('ofd-markup_on').click(); return 1; })()`);
+    check(await ready(ev, `!!document.getElementById('ofd-markup_pct') && !!document.getElementById('ofd-markup_label')`, 60), '#6254: switched on: percent and line title fields');
+    await ev(`(() => { const i = document.getElementById('ofd-markup_pct'); i.value = '15'; i.dispatchEvent(new Event('change', {bubbles: true})); return 1; })()`);
+    check(await ready(ev, `/Zuschlag.*1\\.500,00\\s€/.test(${autos0})`, 60), '#6254: the line "Zuschlag" 15 % of 10.000 = 1.500: ' + await ev(autos0));
+    await ev(`(() => { const i = document.getElementById('ofd-markup_label'); i.value = 'Mehraufwand'; i.dispatchEvent(new Event('change', {bubbles: true})); return 1; })()`);
+    check(await ready(ev, `/Mehraufwand.*1\\.500,00\\s€/.test(${autos0}) && [...document.querySelectorAll('.ofdeditor [data-k="in_markup"]')].some(x => x.checked && /Mehraufwand/.test(x.closest('label')?.textContent || ''))`, 60),
+      '#6254: the renamed line and the ticked mark of the position: ' + await ev(autos0));
+    const q0s = await call(CA, 'GET', `/api/office/docs/${q0.id}`);
+    check(q0s.markup_pct === 15 && q0s.markup_label?.de === 'Mehraufwand' && q0s.totals?.net === 11500, '#6254: saved on the server: ' + JSON.stringify([q0s.markup_pct, q0s.markup_label, q0s.totals?.net]));
     await open(nav, qOld.id);
     check(await ready(ev, `[...document.querySelectorAll('.ofdautos .ofdauto')].some(x => /Producing/.test(x.textContent) && /3,5 Tage/.test(x.textContent))`, 80)
       && await ev(`!!document.querySelector('#ofd-producing_on')?.checked && !!document.querySelector('#ofd-prod_quotient') && !!document.querySelector('.ofdeditor [data-k="producing"]')`),
