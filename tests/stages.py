@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test stages: which suites a change needs (2.180.0 A, #2695).
 
-Two stages: "full" runs every suite (nightly, before every live update = a push that changes VERSION, a change of the CI
-basics, a commit with "[full]"); "push" runs (a) every security / rights / tenant / org / freelancer suite, (b) the core
+Two stages: "full" runs every suite (nightly, by hand, a push that changes VERSION, a change of the CI basics, a commit
+with "[full]"; #6253: the train's release push runs the stage "release" = the hard suites only); "push" runs (a) every security / rights / tenant / org / freelancer suite, (b) the core
 flows, (c) the suites of the touched areas. A file that cannot be mapped safely (core server / client files, schema, test
 helpers most suites use, anything unknown inside the image) makes the stage full. A chosen suite brings its whole group
 (the `fresh` container and the suites after it in run_all.sh), as ONLY_GROUPS does. Static and fast: reads run_all.sh, the
@@ -33,6 +33,8 @@ test files and the changed files, nothing is started; Python standard library on
                      (tests/hard_suites.txt) + the suites it touches (--touched), never the push stage or the full run
                      #6063: a push on main the merge queue made (CI_QUEUE_RUN = its merge_group run, looked up by ci.yml)
                      gets the stage "none" = no test shards (the queue checked the same commit)
+                     #6253: the train's release push on main ("X.Y.Z: Live-Zug (...)") gets the stage "release" = the
+                     groups of the hard suites only; the soft suites run nightly and by hand (stage full)
 
 With a separate test runner, only the suites a branch touches (exit 3 = the change needs the full run):
   s=$(python3 tests/stages.py --suites --changed origin/main) && <test runner> run $s
@@ -874,6 +876,13 @@ def ci_base():
         if base:
             return None, "package branch (job/**) against main", base
         return "full", "package branch (job/**) without a merge base with main: full run", None
+    if ev == "push" and os.environ.get("GITHUB_REF", "") == "refs/heads/main" and ": Live-Zug (" in msg:
+        # #6253 (decision 15.11.2026): the train's release push ("X.Y.Z: Live-Zug (...)", the same test as the concurrency
+        # group of ci.yml, #6061) runs the stage "release" = the groups of the hard suites only (tests/hard_suites.txt) beside
+        # Lint, scanners, semgrep, e-invoice and ZAP. Live waits for the hard parts only (card 12288) and every package ran
+        # its touched suites in its merge queue run; the soft suites run in the nightly full run and by hand. The full run
+        # per train push held up to 16 runners for 3.5-4 h (36 % of all runner minutes) and starved the merge queue
+        return "release", "the train's release push: the hard suites only (soft suites nightly)", None
     queue_run = os.environ.get("CI_QUEUE_RUN", "").strip()
     if ev == "push" and os.environ.get("GITHUB_REF", "") == "refs/heads/main" and queue_run and ": Live-Zug (" not in msg:
         # #6063 (decision 14.11.2026): the merge queue lands its entry on main as the very commit its merge_group run checked
@@ -947,7 +956,14 @@ def main(argv=None):
             return 3
         print(" ".join(order))
         return 0
-    if pre:
+    if pre == "release":  # #6253: the groups of the hard suites only; no list = the full run
+        groups, why = hard_groups(repo), {}
+        stage = "release" if groups else "full"
+        if not groups:
+            reason = f"{reason} - no hard groups (tests/hard_suites.txt), full run"
+        else:
+            reason = f"{reason}: {len(groups)} of {len(repo.first)} groups"
+    elif pre:
         stage, groups, why = pre, {}, {}
     elif a.ci and os.environ.get("GITHUB_EVENT_NAME", "") == "merge_group":  # #5787: the queue's own lean stage
         r, groups = queue(repo, files, base, head)
@@ -959,7 +975,7 @@ def main(argv=None):
         print(f"stage={stage}\nreason={' '.join(reason.split())[:900]}")
     if a.groups_out:
         with open(a.groups_out, "w", encoding="utf-8") as f:
-            for g in sorted(groups) if stage in ("push", "queue") else []:  # #5787: + the queue stage
+            for g in sorted(groups) if stage in ("push", "queue", "release") else []:  # #5787: + the queue stage; #6253: + release
                 f.write(repo.first[g] + "\n")
     if a.suites:
         if stage == "full":
