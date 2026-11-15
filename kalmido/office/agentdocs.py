@@ -396,9 +396,9 @@ def ofa_surcharge(c, oid, v):
         return {"markup_pct": None}
     if not isinstance(v, dict) or any(k not in ("pct", "title") for k in v):
         raise BadInput(tr("Invalid value: {0}", "surcharge"))
-    b = {"markup_pct": v.get("pct")}
-    if "title" in v:
-        b["markup_label"] = v.get("title")
+    if not v or ("title" in v and not isinstance(v["title"], str)):  # review: a title is text, {} sets nothing
+        raise BadInput(tr("Invalid value: {0}", "surcharge"))
+    b = {k2: v[k] for k, k2 in (("pct", "markup_pct"), ("title", "markup_label")) if k in v}  # review: a title alone keeps the percent
     return prd_doc_clean(c, oid, b)
 
 

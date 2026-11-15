@@ -387,7 +387,16 @@ def _calc_doc(r, home="EUR"):  # 2.189.0 (#2475): home = the office's home curre
             **{k: dict(r).get(k) for k in PRD_DOC_KEYS},  # 2.113.1 (#2252): handling costs / markup
             "vat_note": dict(r).get("vat_note"),  # 2.47.3 (#1360): "small" prints the section 19 note
             "subtotals": dict(r).get("subtotals"),  # 2.1041.0 (#5816): the subtotal lines per section
-            "date": dict(r).get("date"), "service_to": dict(r).get("service_to")}  # 2.531.0 (#4498): the rates of the day of service
+            "date": dict(r).get("date"), "service_to": dict(r).get("service_to"),  # 2.531.0 (#4498): the rates of the day of service
+            "sur_standard": _sur_legacy(r)}  # 2.1228.0 (#6254, review)
+
+
+def _sur_legacy(r):
+    """2.1228.0 (#6254, review): a quotation finalised before its surcharges carried the tax of their positions (its frozen
+    totals lack "sur_split"): its invoices / progress invoices put them on the standard rate as its frozen sums did."""
+    if not ofx_locked(r) or not (dict(r).get("markup_pct") is not None or dict(r).get("handling_pct") is not None):
+        return 0
+    return 0 if _j(r["totals"], {}).get("sur_split") else 1
 
 
 def doc_totals(c, oid, r, items=None):
