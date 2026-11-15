@@ -192,7 +192,7 @@ function ms_clBar() {
   const shown = ms_clShown(), allOn = n && shown.every(c => MSC.pick.has(c.id));
   return ms_barHtml('ct-sbar', 'clb', n, tr('Tap clients'), [['all', 'all', allOn ? tr('Select none') : tr('All')], ['edit', 'edit', tr('Edit')],
     ['arch', allArch ? 'undo' : 'archive', allArch ? tr('Restore') : tr('Archive')], ['merge', 'collapse', tr('Merge'), '', 2],
-    ...(ofm_can(sel[0]?.org_id ?? null) ? [['move', 'brief', tr('Move to another workspace…')]] : []), ['del', 'trash', tr('Delete'), 'danger']]);  // 2.97.0 C (#2049)  // 2.66.0 (#1835): merge from two clients on (min 2)
+    ...(ofm_can(sel[0]?.org_id ?? null) ? [['move', 'brief', tr('Move to another workspace…')]] : []), ['del', 'trash', tr('Delete'), 'danger']], {words: true});  // 2.1168.0 (#6118): whole words like the contacts; 2.97.0 C (#2049)  // 2.66.0 (#1835): merge from two clients on (min 2)
 }
 function ms_clClick(id, shift) {
   if (!MSC.pick) { MSC.pick = new Set(); MSC.last = null; }
