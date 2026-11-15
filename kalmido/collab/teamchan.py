@@ -25,7 +25,7 @@ from flask import g, has_request_context, jsonify, request, Response
 from ..core.config import app, ATT_DIR, MAX_FILE_MB
 from ..core.pg import insert_id, system_ctx, write_lock
 from ..core.i18n import N_, tr
-from ..core.db import body, db, err, iso, iso_ms, now_utc
+from ..core.db import body, db, err, fresh_within, iso, iso_ms, now_utc
 from ..core.retention import ret_days, ret_on, ret_report  # 2.272.0 A (#3026)
 from ..core.access import Denied
 from ..core.serializers import unlink_files
@@ -436,10 +436,24 @@ def tcx_group_new():
     return jsonify(tcx_out(c, r, uid)), 201
 
 
+TCX_GROUP_UNDO_MIN = 60  # 2.1211.0 (#6099): how long "New group" can be undone
+
+
+def tcx_group_undo_ok(c, r, arch):
+    """2.1211.0 (#6099): a group is archived only as the Undo of its creation: by its creator, while it has no message (the
+    others have nothing in it yet); bringing it back (Redo) is its creator's too."""
+    if r["created_by"] != me() or not isinstance(arch, bool):
+        return False
+    if arch and not fresh_within(r["created_at"], TCX_GROUP_UNDO_MIN):
+        return False  # a young group only: a group whose messages the trash run purged is not "never used"
+    return not arch or not c.execute("SELECT 1 FROM tchat_msgs WHERE room_id=? LIMIT 1", (r["id"],)).fetchone()
+
+
 @app.patch("/api/team/rooms/<int:rid>")
 def tcx_room_patch(rid):
     """{name?, open? (channel of an organisation), archived? (channel)} -- channel: its creator or an organisation admin;
-    group: every member (name only; '' = the names of the members)."""
+    group: every member (name only; '' = the names of the members). 2.1211.0 (#6099): archived of a group only for the Undo of
+    "New group": its creator, while nobody wrote in it (archived=false brings it back, by its creator)."""
     c = db()
     need_person(c)
     r = need_xroom(c, rid)
@@ -450,7 +464,7 @@ def tcx_room_patch(rid):
     write_lock(c, f"tchat_rooms-{rid}")  # 2.564.0 D (#4701): changed meantime (another manager, another device) -> 409 + the room
     r = c.execute("SELECT * FROM tchat_rooms WHERE id=?", (rid,)).fetchone()
     ccf_check(b, tcx_ver(r), "room", lambda: tcx_out(c, r))
-    if r["kind"] == "group" and ("open" in b or "archived" in b):
+    if r["kind"] == "group" and ("open" in b or ("archived" in b and not tcx_group_undo_ok(c, r, b["archived"]))):
         return err(tr("Invalid value: {0}", "open" if "open" in b else "archived"))
     if "name" in b:
         name = tcx_clean_name(b["name"], r["kind"] == "channel") or ""
@@ -650,6 +664,8 @@ def tcx_files_refused(c, r):
             return err(tr("Files cannot be sent in an end-to-end encrypted conversation"), 409)
     if r["kind"] == "channel" and r["archived_at"]:
         return err(tr("This channel is archived"), 409)
+    if r["kind"] == "group" and r["archived_at"]:  # 2.1211.0 (#6099)
+        return err(tr("This group was undone"), 409)
     return None
 
 
