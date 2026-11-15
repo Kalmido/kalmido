@@ -883,7 +883,7 @@ function timelineItems(ro = false) {
 function histItems() {
   const T = S.tl;
   if (T.err) return `<div class="muted cmempty">${esc(errText(T.err, tr('The history could not be loaded')))}</div>`;  // 2.910.0 (#5444): offline the one sentence
-  if (!T.activity) return `<div class="muted cmempty">${tr('Loading…')}</div>`;
+  if (!T.activity) return loadingHtml();  // 2.1176.0 (#6139): the shared block
   return T.activity.map(a => `<div class="actl"><span>${actText(a, T.users || {})}</span><time>${fmtWhen(a.created_at)}</time></div>`).join('');
 }
 function composerFiles(tid) {
