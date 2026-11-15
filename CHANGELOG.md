@@ -22,6 +22,46 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1240.0] - 2026-11-15
+
+Package 2.1216 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Files and documents: loading, errors and empty states use the shared blocks - a folder, the folder tree, the document list, the file search, a saved view on Today, the History / Sharing tabs, the external links and the scan inboxes show a clear sentence with "Try again" instead of raw server text, an empty spot, a second toast or "No results"; a folder that is gone or not shared shows the no-access block with "Back to the files"; the title of a folder not loaded yet is its name or "Files", never "Organisation" (#6109).
+- Uploading files or documents lists the refused files once (the list of what stayed out) without an "Error 400" toast beside it; the 400 of `POST /api/docs` carries the reasons as `error` too (#6109).
+- Release tooling: the pull request lint's i18n hint says a build job leaves new texts in the big language file - the merge queue moves them per commit (#6231).
+
+Package 2.1221 (Bündel: Teil 1/6: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Weich rot: p2905_b_docview, Weich rot: parity u. 5 weitere).
+### Fixed
+- #4736 #6241 #6242 #6243 #6245: Suites that still checked the behaviour before intended changes follow them: a phone's "..." keeps "Recent steps" (#6164), contact events sit in the card's Events block instead of the history (#6119), PDF section headings print in the section-title size (#6175), the offline toast reads "Only available online." (#6189). Tests only, no app change.
+- #5642 #6244: Two UI suites that were red only on the slower CI runner wait for the real state: the document view opened by its address before Escape, the office view up to 30 s to load.
+
+Package 2.1211 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Command search: extra line and kind in the normal font, open tasks with a neutral ring instead of a tick, commands only match whole words, "Nothing found" above "Create as task", own empty sentence when moving; Settings > Help points to the one shortcut overview; the start page search tile uses the same placeholder (#6128)
+- Office device dialog: the sections keep their arrow and open as soon as any field inside is filled (serial number, vendor, receipt ...); units (EUR, €, %, days) sit right beside the field; the empty sets list has a symbol and "Import…" looks like a button (#6148)
+- Team chat, chat windows and agent chat show loading and failed states from the shared blocks with "Try again", never the raw server text; the input is locked while loading or failed; "Load older" fetches one page at a time without duplicates and shows its error at the button; one offline sentence (#6098)
+- Deleting an own team chat message no longer asks first: it is deleted with Undo (also under "Recent steps"); a new group has Undo like a new channel (creator only, within an hour, while empty); "Leave" only asks where you cannot come back yourself and says why; the agent chat shows an error only once (#6099)
+
+### Fixed
+- A chat window no longer stays on "Loading…" forever after a load error (#6098)
+- The Undo toast of a new channel no longer vanishes when the new conversation opens (#6099)
+- Office settings: the number ranges keep their preview and hint under the field (the unit-beside-field rule left them out) (#6148)
+
+Package 2.1228 (Bündel: Angebote: Zuschlag in Prozent auf die Summe als ei).
+
+### Added
+- Quotations: a surcharge in percent ("Zuschlag", e.g. "Mehraufwand 15 %") as its own line for every organisation and every person without one, no industry pack needed: switch "Calculate Surcharge" in the quotation's calculation, own line title, on the positions marked for it (new ones are), after the positions, before discount and tax (#6254)
+- Agent API / MCP: quotation drafts take `surcharge` `{pct, title?}` (`null` = off) in `create_offer_draft` / `update_offer_draft` (#6254)
+
+### Changed
+- Surcharges (also the industry packs' handling costs / markup) carry the tax rate of their positions: one share per rate; the invoice and progress invoices from a quotation take them as one position per rate, so the e-invoice has a line per rate; a quotation finalised before keeps its frozen calculation for its invoices (#6254)
+- The default title without a pack is "Zuschlag" / "Surcharge" (#6254)
+
+### Fixed
+- A surcharge on a negative sum of marked positions no longer lowers the net without a line (#6254)
+
 ## [2.1229.0] - 2026-11-15
 
 Package 2.1212 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -107,7 +147,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1229.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1240.0...HEAD
+[2.1240.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1240.0
 [2.1229.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1229.0
 [2.1226.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1226.0
 [2.1217.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1217.0
