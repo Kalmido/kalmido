@@ -18723,5 +18723,6 @@
   "{0} your time": "{0} bij jou",
   "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Alleen lezen: ziet de afspraken. Lid: wijzigt ze ook. Op de telefoon staat de agenda naast de eigen agenda.",
   "The people could not be loaded": "De personen konden niet worden geladen",
-  "Stop sharing {0} with {1}": "{0} niet meer delen met {1}"
+  "Stop sharing {0} with {1}": "{0} niet meer delen met {1}",
+  "For server admins": "Voor serverbeheerders"
 }

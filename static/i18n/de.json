@@ -18723,5 +18723,6 @@
   "{0} your time": "{0} bei dir",
   "Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.": "Nur ansehen: sieht die Termine. Mitglied: ändert sie auch. Am Handy erscheint der Kalender neben dem eigenen.",
   "The people could not be loaded": "Die Personen konnten nicht geladen werden",
-  "Stop sharing {0} with {1}": "{0} nicht mehr mit {1} teilen"
+  "Stop sharing {0} with {1}": "{0} nicht mehr mit {1} teilen",
+  "For server admins": "Für Server-Admins"
 }
