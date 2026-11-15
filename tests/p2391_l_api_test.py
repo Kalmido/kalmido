@@ -82,13 +82,14 @@ check(Da.delete(B + f"/api/lists/{SH}").status_code == 403, "#1188: a member wit
 check(A.delete(B + f"/api/lists/{SH}").status_code in (403, 404), "#1188: a server admin outside the list cannot delete it")
 check(Ca.delete(B + f"/api/lists/{SH}").status_code == 409, "#1188: the list admin: only from the archive (409)")
 r = Ca.patch(B + f"/api/lists/{SH}", json={"archived": 1})
-check(r.ok and dbx("SELECT archived, archived_at IS NOT NULL FROM lists WHERE id=?", (SH,))[0] == (1, 1), "#1188: the list admin archives " + r.text[:120])
+# 2.1231.0 (#5880): the column archived of lists is gone - archived = archived_at set, written through state
+check(r.ok and dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END, archived_at IS NOT NULL FROM lists WHERE id=?", (SH,))[0] == (1, 1), "#1188: the list admin archives " + r.text[:120])
 nb = news(Bo)
 check(any((x.get("data") or {}).get("action") == "larchive" and (x.get("data") or {}).get("name") == "Fair stand" for x in nb),
       "#1188: the owner hears about the archive " + json.dumps(nb)[:300])
 check(Ca.patch(B + f"/api/lists/{SH}", json={"archived": 1, "kind": "project"}).status_code == 403, "#1188: the list admin still cannot change the type (owner; 2.40.0 #1431: renaming is allowed)")
 r = Ca.patch(B + f"/api/lists/{SH}", json={"archived": 0})
-check(r.ok and dbx("SELECT archived FROM lists WHERE id=?", (SH,))[0][0] == 0, "#1188: ... and restores")
+check(r.ok and dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END AS archived FROM lists WHERE id=?", (SH,))[0][0] == 0, "#1188: ... and restores")
 Ca.patch(B + f"/api/lists/{SH}", json={"archived": 1})
 # a server admin who is only an editor of the list: still no delete
 check(Bo.put(B + f"/api/lists/{SH}/members", json={"user_id": dbx("SELECT id FROM users WHERE username='alice'")[0][0], "role": "edit"}).ok, "setup: alice edits")
