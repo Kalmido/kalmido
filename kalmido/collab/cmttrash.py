@@ -74,6 +74,9 @@ def ctt_purge_list(c, lid):
     ocm_trash_forget(c, "tchat", f"SELECT id FROM tchat_msgs WHERE {w}", (lid,))  # 2.981.0 (#5274)
     from .teamchat import tcv_drop  # 2.1213.0 (#6166): their earlier versions were not converted either (teamchat.py imports this module)
     tcv_drop(c, w, (lid,))
+    # every earlier version in the project's channels goes, not only those of deleted messages: a version of a message the
+    # conversion did not touch (its text emptied beside a file) stayed plain (review job/4658, finding 1)
+    tcv_drop(c, "room_id IN (SELECT id FROM tchat_rooms WHERE kind='list' AND list_id=?)", (lid,))
     return paths
 
 
