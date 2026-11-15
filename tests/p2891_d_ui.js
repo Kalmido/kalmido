@@ -52,7 +52,8 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   check(/No access/.test(w.eval(`noAccessState()`)) && /enoacc/.test(w.eval(`noAccessState({size: 'row'})`)) && /es-row/.test(w.eval(`noAccessState({size: 'row'})`)), '#5440: noAccessState in the shared block');
   // an empty project: symbol + sentence + hint; "+ Section" right under the text, inside the block (and only once)
   let em = await until(() => d.querySelector('#view .empty.nempty.es-big'));
-  check(em && /No tasks\./.test(txt(em)) && /Add the first one/.test(txt(em)) && em.querySelector('svg.i'), '#5440: empty project = the block with its sentence ' + txt(em));
+  // 2.1199.0 (#6210): #6141 (2.1175.0) writes the empty title without a full stop ("No tasks"); the sentence below stays
+  check(em && txt(em.querySelector('b')).trim() === 'No tasks' && /Add the first one/.test(txt(em)) && em.querySelector('svg.i'), '#5440: empty project = the block with its sentence ' + txt(em));
   check(em?.querySelector('.eacts [data-act="section-new"]') && d.querySelectorAll('#view [data-act="section-new"]').length === 1, '#5440: "+ Section" sits in the empty state, once');
   em?.querySelector('[data-act="section-new"]')?.click();
   check(await until(() => /Name of the section/.test(txt(d.querySelector('.modal'))) && d.querySelector('.modal input')), '#5440: "+ Section" of the empty state still asks for the new section');
@@ -87,7 +88,7 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   w.eval(`go('l/${BOARD}')`); await until(() => w.eval(`S.route.key === 'l:${BOARD}'`));
   await w.eval(`setListView(listById(${BOARD}), 'kanban')`);
   em = await until(() => d.querySelector('#view .empty.kempty'));
-  check(em && /No tasks\./.test(txt(em)) && /\+ Task/.test(txt(em)) && em.classList.contains('es-sec') && d.querySelector('#view .kanban'), '#5440: empty board: the block above the columns ' + txt(em));
+  check(em && txt(em.querySelector('b')).trim() === 'No tasks' && /\+ Task/.test(txt(em)) && em.classList.contains('es-sec') && d.querySelector('#view .kanban'), '#5440: empty board: the block above the columns ' + txt(em));
   w.eval(`go('l/${WORK}')`); await until(() => w.eval(`S.route.key === 'l:${WORK}'`));
   await w.eval(`setListView(listById(${WORK}), 'kanban')`);
   check(await until(() => /Sand the boards/.test(txt(d.querySelector('#view .kanban')))) && !d.querySelector('#view .empty.kempty'), '#5440: a board with tasks has no empty state');
@@ -101,6 +102,8 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
   await call(CA, 'POST', `/api/tasks/${T}/comments`, {body: 'First cut is on the drive.'});
   await call(CC, 'POST', `/api/tasks/${T}/comments`, {body: 'Looks good, shorten the intro please.'});
   for (const b of [{due: day(3)}, {priority: 3}, {due: day(4)}, {priority: 5}, {due: day(5)}, {priority: 1}, {due: day(6)}, {priority: 3}, {due: day(7)}, {priority: 5}, {due: day(8)}, {priority: 1}]) await call(CC, 'PATCH', `/api/tasks/${T}`, b);
+  // 2.1199.0 (#6210): #6141 (2.1175.0) hides a count of 0 watchers; carol watches the task, so "1 watcher" stands next to Watch
+  await call(CC, 'POST', `/api/tasks/${T}/watchers`, {});
   const T0 = (await call(CA, 'POST', '/api/tasks', {title: 'Book the studio', list_id: LP})).id;  // no comment
   await call(CA, 'PATCH', '/api/settings', {detail_split: '75'});  // a small comments area (~200 px, as on the shots of the tour)
   const signIn = async (o, u) => {
@@ -144,7 +147,7 @@ const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
     check(await ready(ev, SEEN('shorten the intro'), 20), '1280: #5439 the newest comment is in sight when the task opens ' + await ev(`JSON.stringify({st: document.querySelector('#d-cpane').scrollTop, sh: document.querySelector('#d-cpane').scrollHeight, ch: document.querySelector('#d-cpane').clientHeight})`));
     await shot('p2891d-detail-1280.png');
     const g = await ev(`(() => { const w = document.querySelector('#detail .dlgrow'), m = document.querySelector('#detail #d-md:not(.hidden), #detail #d-content:not(.hidden)'); if (!w || !m) return null;
-      return {gap: Math.round(m.getBoundingClientRect().top - w.getBoundingClientRect().bottom), one: !!w.querySelector('.dlg-wg .dlg-w') && !!w.querySelector('.dlg-wg .dlg-l'), proj: !!document.querySelector('#detail .dmlp'), crumb: document.querySelector('#detail .dcrumbs')?.textContent || ''}; })()`);
+      return {gap: Math.round(m.getBoundingClientRect().top - w.getBoundingClientRect().bottom), one: !!w.querySelector('.dlg-wg .dlg-w') && /^1 watcher$/.test(w.querySelector('.dlg-wg .dlg-l')?.textContent.trim() || ''), proj: !!document.querySelector('#detail .dmlp'), crumb: document.querySelector('#detail .dcrumbs')?.textContent || ''}; })()`);
     check(g && g.gap <= 30, '1280: #5439 no empty space between "Watch" and the description ' + JSON.stringify(g));
     check(g && g.one, '1280: #5439 Watch and the watchers count are one element');
     check(g && !g.proj && /Imagefilm/.test(g.crumb), '1280: #5439 the project once (the path on top, no field Projects) ' + JSON.stringify(g));
