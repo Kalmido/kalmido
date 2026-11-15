@@ -38,6 +38,7 @@ from ..tasks.validation import valid_date
 from ..collab.news import news_add
 from .model import office_ctx as _ctx, office_role, office_settings, ofx_release
 from .docs import doc_public, doc_row
+from .pdf import pdf_date
 from .pdfweb import epdf_store
 from .signoff import sig_people
 from .fixedimport import fci_people
@@ -95,7 +96,6 @@ def ofe_doc_state(c, oid, r):
         return None
     # 2.1185.0 (#6150): "Follow up" writes in the quotation's own language (the client reads the person's one only), with the
     # past tense once the date is gone
-    from .pdf import pdf_date
     lg = str(dict(r).get("lang") or "de").split("-")[0]
     when, num = pdf_date(r["valid_until"], lg), r["number"] or ""
     text = tr(OFE_FOLLOW_GONE if st == "gone" else OFE_FOLLOW, num, when, lg=lg)
