@@ -21,7 +21,6 @@ usage: python3 tools/i18n_check.py [code ...]      exit code 1 on errors
 """
 import glob
 import importlib.util
-import json
 import os
 import re
 import sys
