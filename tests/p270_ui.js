@@ -235,9 +235,12 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   w.close();
   w = await boot({user: 'alice', hash: 'l/' + L, mobile: true}); d = w.document;
   // 2.25.0 (UX-12): on a phone "…" lists Undo / Redo only when there is something to undo / redo
-  check(!d.querySelector('#top [data-act="hist-undo"]') && !w.eval('topMoreItems()').some(x => x.icon === 'undo' && /hmi/.test(x.cls || ''))  /* 2.49.0 (#1535): a new list's "Completed: like the default" row carries the undo icon too */, 'phone: nothing to undo: no dead "Undo" row in "…"');
+  // 2.1221.0 (#4736): since #6164 (2.1174.0) a phone's "…" always has "Recent steps" (icon undo, class hmi hsteps) - that is no dead Undo row
+  const undoRow = x => x.icon === 'undo' && /hmi/.test(x.cls || '') && !/hsteps/.test(x.cls || '');
+  check(!d.querySelector('#top [data-act="hist-undo"]') && !w.eval('topMoreItems()').some(undoRow)  /* 2.49.0 (#1535): a new list's "Completed: like the default" row carries the undo icon too */, 'phone: nothing to undo: no dead "Undo" row in "…"');
+  check(!w.eval('histListable()') || w.eval('topMoreItems()').some(x => /hsteps/.test(x.cls || '') && x.label === 'Recent steps'), 'phone: "Recent steps" stays in "…" also with nothing to undo');
   await w.eval(`patchUndoable(S.lists[0] && [...S.tasks.values()][0]?.id, {priority: 5}, 'p')`).catch?.(() => {}); await settle(w);
-  check(!w.eval('HIST.undo.length') || w.eval('topMoreItems()').some(x => x.icon === 'undo' && /hmi/.test(x.cls || ''))  /* 2.49.0 (#1535): a new list's "Completed: like the default" row carries the undo icon too */, 'phone: ← in "…" once there is something to undo');
+  check(!w.eval('HIST.undo.length') || w.eval('topMoreItems()').some(undoRow)  /* 2.49.0 (#1535): a new list's "Completed: like the default" row carries the undo icon too */, 'phone: ← in "…" once there is something to undo');
   w.close();
   if (errs.length) { check(false, 'JS errors: ' + [...new Set(errs)].join(' | ')); }
 
