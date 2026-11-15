@@ -122,7 +122,8 @@ function fv2_tile(key, ctx) {
   }
   if (p === 'a') {
     const a = shownAgents().find(x => x.id === +v); if (!a) return null;
-    return {key, name: a.name, icon: `${ic('bot')}<span class="fv2-st"${ac_mk(a.id)}>${hdot(agentHst(a))}</span>`, attrs: `data-act="team-agent" data-aid="${a.id}"`, on: S.route.mod === 'agents' && +S.route.agent === a.id};
+    // 2.1224.0 (#6188): an agent of an organisation shows its dot like the other tiles (ws); a private agent stays neutral
+    return {key, name: a.name, ws: a.org_id ? 'org:' + a.org_id : '', icon: `${ic('bot')}<span class="fv2-st"${ac_mk(a.id)}>${hdot(agentHst(a))}</span>`, attrs: `data-act="team-agent" data-aid="${a.id}"`, on: S.route.mod === 'agents' && +S.route.agent === a.id};
   }
   return null;
 }
