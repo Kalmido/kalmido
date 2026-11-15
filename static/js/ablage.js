@@ -12,6 +12,9 @@ const ab_spaces = () => { const w = wsCur(); return [...(w === 'all' || w === 'p
 // (#ablage/s/<space>, ab_home). AB.space (LS 'abSpace') is only kept and used while one workspace is shown; under "All"
 // AB.allSp = the space opened last (in memory: a collection ablage/aus-<key> of it, the panel's highlight)
 const ab_all = () => wsCur() === 'all' && ab_spaces().filter(s => s === 'private' || s.startsWith('org:')).length > 1;
+// 2.1223.0 (#6184): the organisation colour (docs/dev/kern.md): the open space or folder of an organisation is the open object
+// (#main.wsc-on, under "All workspaces" its tone; wso_sync); the overview, "Shared with me" and the trash show none
+wso_open('ablage', () => { const r = S.route; if (r.mod !== 'ablage' || r.zle || ab_ovr()) return null; return r.nid ? (AB.dkey === 'n:' + r.nid ? AB.data?.space || null : null) : ab_curSpace(); });
 const ab_curSpace = () => {
   const sp = ab_spaces(), r = S.route;
   if (!ab_all()) return sp.includes(AB.space) ? AB.space : sp[0];
@@ -85,7 +88,7 @@ function ab_errSet(x, what) { AB.err = errText(x, what); AB.errSt = x?.status ||
 const ab_retry = () => { AB.err = ''; AB.key = ''; ab_draw(); };  // viewAblage shows "Loading…" and loads again
 const ab_errHtml = () => [403, 404].includes(AB.errSt) && S.route.nid ? noAccessState({title: tr('This folder does not exist or you cannot see it.'), sub: tr('It may have been deleted, or it is no longer shared with you.'),
   action: `<div class="eacts"><button type="button" class="btn" data-ab="space" data-sp="private">${ic('back', 's')} ${esc(tr('Back to the files'))}</button></div>`}) : errorState({title: AB.err, retry: ab_retry});
-function ab_draw() { if (S.route.mod !== 'ablage') return; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('ablage', viewAblage()))); }
+function ab_draw() { if (S.route.mod !== 'ablage') return; const el = $('#view'); if (el) keepFocus(el, () => setHtml(el, mg_wrap('ablage', viewAblage()))); wso_sync(); }  // 2.1223.0 (#6184): the open space's / folder's organisation (a redraw without renderView)
 const ab_reload = () => { AB.key = ''; ab_ptStale(); if (S.route.mod === 'ablage') { ab_load(); if (typeof dc_inFold === 'function' && dc_inFold()) dc_load(); } };  // 2.752.0 (#4887): + a folder's documents  // 2.152.3 B (#2621): + the panel's folders
 // 2.979.0 (#5667): after an undo / redo the server took back by its group (the step's own undo with ab_reload / ab_verAfter no
 // longer runs; undo.js histRedraw lists a shown file store / documents list itself): a file store not shown and the panel's
@@ -115,7 +118,7 @@ function viewAblage() {
   const tree = r.nid && d ? [...(d.crumbs || []).map((c, i) => ({id: c.id, name: c.name, lvl: i + 1, on: c.id === r.nid})),
     ...d.items.filter(n => n.kind === 'folder').map(n => ({id: n.id, name: n.name, lvl: (d.crumbs || []).length + 1, sub: true}))] : [];
   const treeHtml = tree.map(t => `<button type="button" class="abspace abtree ${t.on ? 'on' : ''}" style="--ablvl:${Math.min(t.lvl, 6)}" data-go="ablage/${t.id}" data-abdrop="${t.id}" ${t.on ? 'aria-current="page"' : ''}>${ic('folder', 's')}<span>${esc(t.name)}</span></button>`).join('');
-  const spaces = `<nav class="abspaces" aria-label="${esc(tr('Files'))}">${ab_spaces().map(s => `<button type="button" class="abspace ${!r.nid && s === sp ? 'on' : ''}" data-ab="space" data-sp="${esc(s)}" ${!r.nid && s === sp ? 'aria-current="page"' : ''}>${ab_spaceIcon(s)}<span>${esc(ab_spaceName(s))}</span></button>${r.nid && s === (sp || 'shared') ? treeHtml : ''}`).join('')}${ab_docBtns(true)}</nav>`;  // 2.353.0 D (#2759): + the saved filters; 2.752.0 (#4887): All documents, To review
+  const spaces = `<nav class="abspaces" aria-label="${esc(tr('Files'))}">${ab_spaces().map(s => `<button type="button" class="abspace ${!r.nid && s === sp ? 'on' : ''}" data-ab="space" data-sp="${esc(s)}" ${!r.nid && s === sp ? 'aria-current="page"' : ''}${/*html-ok*/ wso_row(s) /* 2.1223.0 (#6184) */}>${ab_spaceIcon(s)}<span>${esc(ab_spaceName(s))}</span></button>${r.nid && s === (sp || 'shared') ? treeHtml : ''}`).join('')}${ab_docBtns(true)}</nav>`;  // 2.353.0 D (#2759): + the saved filters; 2.752.0 (#4887): All documents, To review
   const desk = typeof sbb_on === 'function' && sbb_on();  // 2.152.3 B (#2621): a computer: spaces and folders are in the panel (ab_panelHtml), the path on top
   const trash = !r.nid && sp === 'trash', canAdd = r.nid ? ab_canWrite(d?.node?.role) : ab_spWrite(sp);  // 2.1162.0 (#6108): + the role in the organisation
   // 2.752.0 (#4887): a folder with recognition shows the documents' view (abdocs.js abd_foldHtml: their bar, the documents' cards,
@@ -228,7 +231,7 @@ function ab_panelHtml() {
     kids: !!x.subs?.length, open: !!x.subs?.some(y => on && r.aus === y.key && ab_curSpace() === s), sub: () => (x.subs || []).map(y => collNode(s, y))});
   const collNodes = s => (AB.pt['s:' + s]?.coll || []).map(x => collNode(s, x));
   const withColl = (s, it) => it && [...it.map(node), ...collNodes(s)];
-  const spaceNode = s => ({k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s) /* 2.540.0 (#4575) */, on: cur === s, icon: s === 'private' ? 'home' : s === 'shared' ? 'users' : s === 'trash' ? 'trash' : 'folder', battrs: `data-absp="${esc(s)}"`,
+  const spaceNode = s => ({k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s) /* 2.540.0 (#4575) */, on: cur === s, wso: s /* 2.1223.0 (#6184): an organisation's space wears its stripe */, icon: s === 'private' ? 'home' : s === 'shared' ? 'users' : s === 'trash' ? 'trash' : 'folder', battrs: `data-absp="${esc(s)}"`,
     kids: real.includes(s) && (AB.pt['s:' + s]?.items?.length !== 0 || !!AB.pt['s:' + s]?.coll?.length), open: !!path.length && AB.data?.space === s, sub: () => withColl(s, ab_ptGet('s:' + s))});
   // 2.752.0 (#4887): ONE tree (the documents' own tree with the same folders again is gone); below it "All documents", "To
   // review" and the saved views (2.579.0 #4802, docviews.js, loaded without redrawing the view: it draws the panel itself,
