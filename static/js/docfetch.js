@@ -36,7 +36,7 @@ function fx_bodyHtml(j) {
       <button type="button" class="iconbtn" data-fx="ips:${f.id}" aria-label="${esc(tr('Permissions of {0}', f.name))}" title="${esc(tr('Only from'))}">${ic('lock')}</button>
       <button type="button" class="iconbtn danger" data-fx="del:${f.id}" aria-label="${esc(tr('Disconnect {0}', f.name))}" title="${esc(tr('Disconnect'))}">${ic('trash')}</button></div>
     ${f.portals.length ? `<ul class="dc-rules">${f.portals.map(p => fx_portalHtml(f, p)).join('')}</ul>` : `<p class="muted">${tr('The portals appear here after the first report of the helper.')}</p>`}</div>`;
-  return `${intro}${dl}${j.fetchers.map(one).join('')}${FXS.code ? fx_codeHtml() : ''}
+  return `${intro}${/*html-ok*/ dl}${j.fetchers.map(one).join('')}${FXS.code ? fx_codeHtml() : ''}
     <details class="dc-radd dsc-new fx-new"${j.fetchers.length || FXS.code ? '' : ' open'}><summary>${tr('Connect a receipt fetcher')}</summary>
       <div class="row"><label for="fx-name">${tr('Name')}</label><input id="fx-name" maxlength="60" value="${esc(tr('My computer'))}" autocomplete="off"></div>
       <div class="foot"><span class="spacer"></span><button type="button" class="btn pri" data-fx="new">${tr('Create setup code')}</button></div></details>`;
@@ -45,7 +45,7 @@ function fx_bodyHtml(j) {
 function fx_dlHtml(/** @type {{url: string, version: string}|null|undefined} */ d) {
   const how = d ? `<a class="btn sm" id="fx-dl" href="${esc(d.url)}" download>${ic('download', 's')} ${esc(tr('Receipt fetcher {0} for Mac and Windows (zip)', d.version))}</a>`
     : `<p class="muted">${tr('The download is not available on this server yet.')}</p>`;
-  return `<div class="dsc-way fx-dl"><p><b>${tr('Download the helper')}</b></p>${how}
+  return `<div class="dsc-way fx-dl"><p><b>${tr('Download the helper')}</b></p>${/*html-ok*/ how}
     <ol class="muted fx-steps"><li>${tr('Unpack the zip file.')}</li><li>${tr('Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.')}</li>
     <li>${tr('Paste the setup code from below when the helper asks for it.')}</li></ol></div>`;
 }
