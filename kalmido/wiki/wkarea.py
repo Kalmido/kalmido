@@ -14,7 +14,7 @@ its person's own agents, an organisation's area only with its agents). Single fo
       may      the asker may manage the area's shares (else only {root, locked, may: false})
       folders / pages   how many the tree holds; limit: the tree is larger than one read (WKF_TREE_MAX) -- some pages left out
       shares   the agent shares on the root; editable: the asker may change that agent's data lock (its exclusions)
-               2.1160.0 (#5862): a private area's person shares too (user_id, agents last); their exclusions are the share's
+               2.1225.0 (#5862): a private area's person shares too (user_id, agents last); their exclusions are the share's
                own (fs_shares.excl, PATCH /api/files/shares/<id> {excluded}), editable for who manages the area
       preview  what agent_id would see through an area share now: folders / pages visible, excluded folders of this tree
 """
@@ -23,11 +23,11 @@ from flask import jsonify, request
 from ..core.config import app
 from ..core.access import Denied, live_sql
 from ..core.db import db
-from ..core.dlock import dl_excl_parse, dl_wiki_folders  # 2.1160.0 (#5862): dl_excl_parse
+from ..core.dlock import dl_excl_parse, dl_wiki_folders  # 2.1225.0 (#5862): dl_excl_parse
 from ..core.errors import BadInput
 from ..core.i18n import tr
 from ..accounts.session import me
-from ..files.store import FS_NOT_ADDR, _now  # 2.1160.0 (#5862): FS_NOT_ADDR
+from ..files.store import FS_NOT_ADDR, _now  # 2.1225.0 (#5862): FS_NOT_ADDR
 from .pages import wiki_space
 from .wkfolder import WKF_KIND, WKF_TREE_MAX, _share, _space_locked, _subtree, _walk, wkf_root
 
@@ -97,7 +97,7 @@ def wkarea_get():
     out.update(may=True, limit=len(rows) >= WKF_TREE_MAX,
                folders=sum(1 for r in rows if r["kind"] == "folder" and r["id"] != root and r["id"] in fp and not fp[r["id"]][1]),
                pages=sum(1 for r in rows if r["kind"] == "ref" and r["id"] in fp and not fp[r["id"]][1]))
-    # 2.1160.0 (#5862): a private area's person shares too (user_id; their exclusions are the share's own, fs_shares.excl)
+    # 2.1225.0 (#5862): a private area's person shares too (user_id; their exclusions are the share's own, fs_shares.excl)
     sh = c.execute(f"""SELECT s.id, s.agent_id, s.user_id, s.role, s.expires_at, s.excl, u.display_name FROM fs_shares s
                        JOIN users u ON u.id=COALESCE(s.agent_id, s.user_id)
                        WHERE s.node_id=? AND (s.agent_id IS NOT NULL OR s.user_id IS NOT NULL) AND COALESCE(s.list_own, 0)=0
@@ -110,7 +110,7 @@ def wkarea_get():
                       # full replacement, so a folder outside the capped tree read (ids) must not drop out of it
                       "excluded": (sorted(x for x in dl_wiki_folders(c, s["agent_id"]) if x in ids) if s["agent_id"]
                                    else sorted(dl_excl_parse(s["excl"])))} for s in sh]
-    for key in ("agent_id", "user_id"):  # 2.1160.0 (#5862): the dialog's question for a person as well
+    for key in ("agent_id", "user_id"):  # 2.1225.0 (#5862): the dialog's question for a person as well
         tid = request.args.get(key)
         if tid in (None, ""):
             continue

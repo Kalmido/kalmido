@@ -78,7 +78,7 @@ def sgen_shares(c, uid):
     the sign-in mark: a share taken back (or expired, or a group left) changes sgen, so sessGuard (core.js) drops the offline
     copy of the knowledge pages at the next /api/state instead of keeping it until that space is synced again. The members
     rows of the projects (list_own, #4739) are no folder shares: a project membership leaves the mark as it is."""
-    # 2.1160.0 (#5862, Fable review 7): + the share's excluded folders (a whole knowledge area): a folder kept out later
+    # 2.1225.0 (#5862, Fable review 7): + the share's excluded folders (a whole knowledge area): a folder kept out later
     # changes the mark too, so the offline copies of its pages go as well
     rows = c.execute("""SELECT id, node_id, role, excl FROM fs_shares WHERE (user_id=? OR group_id IN (SELECT group_id FROM group_members WHERE user_id=?))
                         AND (expires_at IS NULL OR expires_at > ?) AND COALESCE(list_own, 0)=0 ORDER BY id LIMIT 5000""", (uid, uid, now_iso())).fetchall()
