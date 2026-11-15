@@ -83,7 +83,7 @@ function kp_tile(card) {
   // card no longer grows by a row when the figures arrive (the home page keeps it only when something is overdue)
   const over = +d.invoices.overdue.count, overRow = on('over') && (over || S.route.mod === 'office');
   return card(`<ul class="kptl" role="list">${on('rev') ? row(tr('Revenue this month'), ofcMoney(d.revenue.month)) : ''}${on('open') ? row(tr('Open items'), ofcMoney(d.invoices.open.amount)) : ''}
-    ${overRow ? row(tr('Overdue|invoices'), ofcMoney(d.invoices.overdue.amount), over ? 'neg' : '') : ''}${on('pipe') ? row(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted)) : ''}</ul>
+    ${/*html-ok*/ overRow ? row(tr('Overdue|invoices'), ofcMoney(d.invoices.overdue.amount), over ? 'neg' : '') : '' /* row() escapes */}${on('pipe') ? row(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted)) : ''}</ul>
     <a class="linkbtn" href="#office/kpi">${tr('All figures')}</a>`);
 }
 
