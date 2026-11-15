@@ -185,9 +185,9 @@ function wso_mark(el, w) {
 // the name for screen readers; '' in one workspace or without organisations. ws_originHtml (task rows) adds the project to it
 const wso_head = ws => `${/*html-ok*/ wsp_dot(ws)}<span class="wsows">${esc(wsName(ws))}</span><span class="wsoab">${esc(ws_abbr(ws))}</span>`;
 // 2.1224.0 (#6187): mixed = a page that is mixed in every workspace (time tracking, search hits, the trash): the mark also
-// inside one workspace; Private stays neutral there (no mark)
+// inside one workspace for what belongs to another organisation; Private and the shown workspace itself stay without a mark
 function wso_origin(w, cls = '', mixed = false) {
-  const ws = wso_ws(w); if (!ws || ws === 'all' || !wsOn() || (mixed ? ws === 'private' : wsCur() !== 'all')) return '';
+  const ws = wso_ws(w); if (!ws || ws === 'all' || !wsOn() || (mixed ? ws === 'private' || ws === wsCur() : wsCur() !== 'all')) return '';
   const nm = wsName(ws);
   return `<span class="wso${cls ? ' ' + esc(cls) : ''}" title="${esc(nm)}"><span class="sr">${esc(tr('Workspace: {0}', nm))}</span><span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws)}</span></span>`;
 }
