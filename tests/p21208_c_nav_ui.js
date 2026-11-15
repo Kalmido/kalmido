@@ -45,6 +45,7 @@ const NAMES = sel => `(() => [...document.querySelectorAll('${sel} .fv2-tile')].
   // two projects with the same symbol as favourites (the photo of #6127: only the colour of a 16 px symbol told them apart)
   const L1 = (await call(CA, 'POST', '/api/lists', {name: 'Imagefilm Stadtwerke Musterstadt'})).id;
   const L2 = (await call(CA, 'POST', '/api/lists', {name: 'Website Relaunch'})).id;
+  for (const L of [L1, L2]) await call(CA, 'PUT', `/api/lists/${L}/favorite`, {on: true});
   await call(CA, 'PATCH', '/api/settings', {fav_items: ['v:today', `l:${L1}`, `l:${L2}`]});
   const ready = async (ev, expr, n = 60) => { for (let i = 0; i < n; i++) { if (await ev(expr).catch(() => false)) return true; await sleep(150); } return false; };
   const signIn = async (o, u) => {
