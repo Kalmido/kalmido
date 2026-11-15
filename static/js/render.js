@@ -607,7 +607,7 @@ function renderTop0() {
   const m = S.route.mod, k = S.route.key;
   const MT = {cal: N_('Calendar'), matrix: N_('Matrix'), habits: N_('Habits'), pomo: N_('Focus timer'), news: N_('News'), stats: N_('Statistics'), time: N_('Time tracking'), overview: N_('Project status'), agents: N_('Agents'), team: N_('Team chat'), home: N_('Start|home'), family: N_('Family'), contacts: N_('Contacts'), life: N_('Home & life'), review: N_('Review & journal'), clients: N_('Clients'), workload: N_('Workload & absences'), wiki: N_('Knowledge pages'), tags: N_('Tags'), sheets: N_('Tables')};  // 2.49.0 (#1199): + wiki
   let title = m === 'tasks' ? titleFor(k) : m === 'notes' ? (S.nt.lid ? (qn_isList(S.nt.lid) ? lname(listById(S.nt.lid)) : tr('Notes') + ' · ' + (lname(listById(S.nt.lid)) || '')) : tr('Notes')) : m === 'family' && S.me?.kid ? tr('My day') : MT[m] ? tr(MT[m]) : '';
-  if (m === 'home') { const tl = tabItems(), on = tabOn(tl), ti = tl.find(t => t.id === on); if (ti && ti.mod !== 'home') title = ti.label; }  // 2.1111.0 (#5963): title and the active tab have one name
+  if (m === 'home' && isMobile()) { const tl = tabItems(), on = tabOn(tl), ti = tl.find(t => t.id === on); if (ti && ti.mod !== 'home') title = ti.label; }  // 2.1111.0 (#5963): title and the active tab have one name; 2.1213.0 (#6126): only with the tab bar shown (phone) - beside the sidebar, which marks "Start", the page is "Start"
   if (m === 'tasks' && isRoadmap()) title = tr('Timeline');  // 2.445.0 (#3011): the heading = the name in the menu
   if (m === 'matrix' && mxTitle()) title = `${tr('Matrix')} · ${mxTitle()}`;
   if (!title && m === 'budget') title = tr('Budget');  // 2.72.0 (#1333)
@@ -663,7 +663,7 @@ function renderTop0() {
   // 2.18.0 (#651, owner decision: the magnifier is always visible): Search never folds into "…" (no .tf4); the title gets cut instead (fitTop)
   const pal = `<button class="kbtn cmdbar" data-act="palette" data-ico="search" title="${esc(tr('Search and commands'))} (${kbText('Mod+K')})" aria-label="${esc(tr('Search and commands'))}">${ic('search', 's')}<span>${tr('Jump, create, ask an agent…')}</span>${kb('Mod+K')}</button>`;
   // 2.25.0 (UX-32): ONE way to add per view: where the add bar sits at the bottom, no second "New task" up here
-  const tnew = (!isMobile() || tabletDock()) && !dockView() && (m === 'tasks' || (m === 'cal' && isTouch())) && !noFab() && !S.multiMode ? `<button class="btn pri tnew tf4" data-act="new-task" data-ico="plus" title="${esc(kt(tr('New task'), 'n'))}" aria-label="${esc(tr('New task'))}">${ic('plus', 's')}<span>${tr('New task')}</span></button>` : '';
+  const tnew = (!isMobile() || tabletDock()) && !dockView() && (m === 'tasks' || (m === 'cal' && isTouch() && !feat('events') /* 2.1213.0 (#6126): the calendar's own "+ Event" is its main button */)) && !noFab() && !S.multiMode ? `<button class="btn pri tnew tf4" data-act="new-task" data-ico="plus" title="${esc(kt(tr('New task'), 'n'))}" aria-label="${esc(tr('New task'))}">${ic('plus', 's')}<span>${tr('New task')}</span></button>` : '';
   const ms = (() => {  // the next open milestone of a project list
     const l = m === 'tasks' && k.startsWith('l:') ? listById(+k.slice(2)) : null;
     const x = l && !l.is_inbox ? (l.milestones || []).filter(y => !y.done).sort((a, b) => a.day.localeCompare(b.day))[0] : null;
