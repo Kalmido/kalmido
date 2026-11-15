@@ -22,6 +22,38 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1245.0] - 2026-11-16
+
+Package 2.1214 (Bündel: Kern Stufe 3 Nachlauf: alte Tabellen-Leser von Kal, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Polish Wiki: Wortwahl vereinheitl).
+### Changed
+- #6117: Contacts and clients put the list beside the card only when the content area (not the window) has room for both (43rem); with the side panel open on a tablet the card opens alone and full width with a back arrow, like on a phone. On a computer the list is wider (about a third, 14-26rem) and long names wrap instead of being cut. Keyboard: arrow keys, Home and End move through the list (down from the search field), opening a contact puts the focus on its name, Esc closes the card at every width.
+- #6118: Contacts on a phone - one row on top (search, filter with the number of active filters, new, more); group and address book filters sit behind the filter button; the "Switch on Office & finance" hint only in an empty list or once, never above a card; the card head shows name and position under the picture over the full width with Edit and More in the head row, "Arrange blocks" moved into More, no sideways scrolling, no breadcrumb beside the back arrow. The selection bar of contacts and clients shows whole words under the symbols, what does not fit goes into "...". The page is called "Contacts" instead of "Address book".
+- #6091: Knowledge wording (German) - the area is "Wissen" everywhere, "Arbeitsbereich", "Version" instead of "Fassung", "Schlagwort" for tags, du-form in the conflict, the device lock "Bearbeiten sperren (dieses Gerät)", "Verweis kopiert", one/many attached files, "Lesestil"/"Schlicht", no Markdown / ZIP / end-to-end words; help texts and glossary follow.
+- #6092: Knowledge - deleting is "Move to the trash" everywhere (page menu, row, selection bar, attachments) without a question and with one toast offering Undo; switching off a public link has Undo instead of a question; a cancelled import in the browser says how many pages went to the trash, with Undo; info windows (import report, file too large, no room) use the shared dialog with OK; in the history the current version is no longer clickable and the hint is plain; the conflict window marks the lines only each version has (one below the other on a phone).
+- #6132: Notice bars - offline is one sign (the header chip in words, click to retry), the bottom bar only while changes wait; "New version available", upload bars and the code hint share one stack that covers nothing (under the header on a computer, above the tab bar and the "+" on a phone) and "New version" can be closed; the code hint is for server admins only.
+### Fixed
+- #4782: A calendar's or address book's share that ran out no longer blocks moving it to another workspace; run-out shares that would not fit the new workspace are taken back the core's way (restorable, in the history) and the share rows are locked during the move. Developer docs: what happens to the nodes when an organisation is dismantled.
+
+Package 2.1213 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Added
+- Team chat: "edited" under a message opens its earlier versions, as in the agent chat; kept in the core's history (kind tchat_msg), an encrypted message only as its ciphertext, readable by the room's members; API `GET /api/v1/team/messages/<id>/versions` and MCP tool `team_message_versions` (#6166).
+### Changed
+- File view: Word / Excel / text show their preview right in the preview column, other kinds (ZIP, video, audio) a file sign with "No preview for this kind of file" and Download; zoom and page bar only where there are pages; on a phone the title has its own row and Back names the folder you came from (#6110).
+- Start page: titled "Start" beside the sidebar, two columns without holes at tablet width, entries from another workspace carry its colour dot and name, the Today tile and the line on top count the same (#6126).
+- Lists at a middle width or with a task open: archive card, selection bar and breadcrumb stack instead of being squeezed (#6140).
+### Fixed
+- A list scrolled down and then shown as a calendar opened out of sight of its month name and views: a list keeps its scroll place per view now (#6140, #6168).
+
+Package 2.1218 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Import: a project whose ticket key another project of the target workspace already uses arrives without a key; its task numbers stay as old keys (APP-3 still finds the moved task) and the import report says so; a key from the file is normalised or dropped when invalid (#6202)
+
+Package 2.1227 (Bündel: CI: Zug-Push fährt nur harte Testteile (Stufe rele).
+
+### Changed
+- CI: the train's release push ("X.Y.Z: Live-Zug (...)") runs the new lean stage "release" - Lint, scanners, semgrep, e-invoice validators, ZAP and only the hard test groups (tests/hard_suites.txt, shards "Test suites N/M release hart"); the soft suites run in the nightly full run and by hand. This gives the merge queue its runners back (the full run per train push held up to 16 runners for 3.5-4 h). The release gate (tools/ci_gate.py) counts a green release-stage run like a green full run; release.yml waits at most 150 min instead of 250 (#6253).
+
 ## [2.1240.0] - 2026-11-15
 
 Package 2.1216 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -147,7 +179,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1240.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1245.0...HEAD
+[2.1245.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1245.0
 [2.1240.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1240.0
 [2.1229.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1229.0
 [2.1226.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1226.0
