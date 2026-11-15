@@ -1018,6 +1018,7 @@ API_ONLY = {  # REST routes on purpose without an MCP tool (reason)
     "GET /fetcher": "2.425.0 C (#3453): only for receipt fetcher keys (their own key kind, a helper program); never agents",
     "PUT /fetcher/status": "2.425.0 C (#3453): only for receipt fetcher keys (their own key kind, a helper program); never agents",
     "POST /fetcher/documents": "2.425.0 C (#3453): only for receipt fetcher keys (their own key kind, a helper program); never agents",
+    "GET /fetcher/recipes": "2.1188.0 (#6152): the central recipes, only for receipt fetcher keys (a helper program); never agents",
     "GET /lists/{}/notify-template": "2.33.0 (#927): the owner's notification ceiling of a list; agents get no pushes, it is read by scripts",
     "POST /import/{}": "imports of other apps' files: people upload them (multipart) in the app or with the REST API",
     "POST /imports/{}/undo": "belongs to the import",
