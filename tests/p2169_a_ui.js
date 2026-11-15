@@ -154,6 +154,12 @@ function browser() {
   check(await until(() => !br.db.has('x:' + P1) && !d.querySelector('#view .wkocf'), 40), 'conflict: decided = the bar and the waiting version are gone');
 
   // ================= 2.169.1 (#949): a phone: the same offline mark and text search in its list
+  // 2.1199.0 (#5909): CI red v2.1175.0 (phone offline mark + search, green on the Mac): each boot() is its own sign-in
+  // (me.sgen) but both windows share the copy and localStorage. The computer window stayed open and online: its sign-in check
+  // (core.js sessGuard: LS wko.g of the other sign-in -> wkoDrop) or its next sync (the copy with its own mark, which wko_get of
+  // the phone refuses) could land between the phone's sync and its offline load - a slower runner hit that window. Real tabs of
+  // one browser share one sign-in; here the computer window closes for the phone part and opens again afterwards.
+  w.close();
   const wp = await boot({...opt, mobile: true}), dp = wp.document;
   await until(() => typeof wp.wk_loadPage === 'function' && wp.eval(`(WK.idx.private?.pages || []).length`) >= 2, 60);
   // 2.238.0 B (#2872): the phone window has its own sign-in (boot logs in again): the copy carries its mark once it synced
@@ -162,16 +168,21 @@ function browser() {
   await goOffline(wp);
   wp.eval(`WK.idx = {}; 1`); await wp.eval(`wk_load('private', true)`); wp.eval(`renderView(); 1`);
   const hp = await until(() => dp.querySelector('#view .wkoff'), 40);
-  check(hp && !wp.eval(`sbb_on()`) && !dp.querySelector('#view .wkdesk'), 'phone: offline mark without the computer view');
+  const pst = () => JSON.stringify({off: wp.eval(`!!WK.idx.private?.off`), pages: wp.eval(`(WK.idx.private?.pages || []).length`), pg: wp.eval(`WK.pg?.id || 0`), hash: wp.location.hash,
+    copy: !!br.db.get('s:private'), mine: br.db.get('s:private')?.g === wp.eval('S.me.sgen'), q: !!dp.querySelector('#wk-q'), res: dp.querySelectorAll('#wk-res a').length});
+  check(hp && !wp.eval(`sbb_on()`) && !dp.querySelector('#view .wkdesk'), 'phone: offline mark without the computer view ' + (hp ? '' : pst()));
   const qp = dp.querySelector('#wk-q');
   if (qp) { qp.value = 'edit two'; qp.dispatchEvent(new wp.Event('input', {bubbles: true})); }
-  check([...dp.querySelectorAll('#wk-res a')].some(a => a.getAttribute('href') === '#wiki/' + P2), 'phone: offline the search finds a word of the text');
+  const hit = await until(() => [...dp.querySelectorAll('#wk-res a')].some(a => a.getAttribute('href') === '#wiki/' + P2), 20);
+  check(hit, 'phone: offline the search finds a word of the text ' + (hit ? '' : pst()));
   // 2.169.1 (#2672): the kept lock state fills WKE.info offline (names, not ?)
   br.db.set('e:org:4242', {k: 'e:org:4242', sp: 'org:4242', uid: st0.me.id, g: wp.eval('S.me.sgen'), j: {mode: 'e2e', gen: 1, space_id: 4242, members: [{user_id: 777, name: 'Zora'}]}});
   await wp.eval(`delete WKE.info['org:4242']; wkeInfo('org:4242').catch(() => null)`);
   check(wp.eval(`wkeName('org:4242', 777)`) === 'Zora' && wp.eval(`!!WKE.st['org:4242']`), 'offline: the kept lock state fills WKE.info');
   br.db.delete('e:org:4242');
   wp.close();
+  w = await boot(opt); d = w.document;  // 2.1199.0 (#5909): the computer window again (its own sign-in, the copy syncs below)
+  await until(() => typeof w.wk_loadPage === 'function', 60);
   // 2.169.1 (#2672): an offline change of a page deleted meanwhile: its own toast, not "task deleted"
   const P3 = (await call('POST', '/api/wiki/pages', {space: 'private', path: 'Docs/Gone', body: 'Gone soon'})).id;
   await w.eval(`wk_load('private', true)`);
