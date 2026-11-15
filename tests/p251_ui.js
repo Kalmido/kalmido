@@ -286,7 +286,9 @@ function backdate(agentId, ids) {
         if (k === 'usage') { await ev(`(() => { const x = document.querySelector('#aiu-det'); x.open = true; })()`); await sleep(300); }
         const m = await ev(`(() => {
           const sp = document.querySelector('${SP}'), pane = document.querySelector('${PN}'), r = pane.getBoundingClientRect();
-          const over = [...pane.querySelectorAll('*')].filter(e => { const b = e.getBoundingClientRect(); return b.width && b.right > r.right + 1 && !e.closest('select') && getComputedStyle(e).position !== 'fixed'; }).map(e => e.getAttribute('class') || e.tagName).slice(0, 4);
+          // 2.1192.0 (#6192): the row symbols a phone hides (#3835: .ms-phsr / .ms-phacts, 1 px and clipped, long press = menu) - their icon and label stick out invisibly
+          const clipped = e => { for (let x = e; x && x !== pane; x = x.parentElement) if (getComputedStyle(x).clipPath === 'inset(50%)') return true; return false; };
+          const over = [...pane.querySelectorAll('*')].filter(e => { const b = e.getBoundingClientRect(); return b.width && b.right > r.right + 1 && !e.closest('select') && getComputedStyle(e).position !== 'fixed' && !clipped(e); }).map(e => e.getAttribute('class') || e.tagName).slice(0, 4);
           const cut = [...pane.querySelectorAll('.agsrow .agnm, .aitd select')].filter(e => e.getBoundingClientRect().right > r.right + 1).length
             + [...pane.querySelectorAll('.agsrow .agfacts, .agsrow .agnm')].filter(e => e.scrollWidth > e.clientWidth + 1).length;  // nothing cut off ("ready · 9 l…")
           const ax = [...(pane.querySelector('svg.chart') ? pane.querySelector('svg.chart').querySelectorAll('text.ch-ax') : [])].map(t => t.getBoundingClientRect()), bot = Math.max(0, ...ax.map(b => b.top));
