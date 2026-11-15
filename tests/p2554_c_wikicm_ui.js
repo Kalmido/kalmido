@@ -133,13 +133,13 @@ const ROUND = '---\ntags: demo\n---\n# Title  \n\nSome **bold** word and `code`.
     check(await until(`!![...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /Back to the editor/.test(b.textContent))`) && await click(`[...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /Back to the editor/.test(b.textContent))`), 'the menu entry is there and clicked');
     check(await until(`!!${cm} && !document.querySelector('#wk-body') && WKCM.view.state.doc.toString().endsWith('Plain end')`), 'markdown: back in the editor with the new text');
 
-    // ---- "Read-only" lock and back
+    // ---- "Read-only" lock and back (2.1187.0 #6091: the entry reads "Lock editing (this device)", not the share role's word)
     // 2.658.0 (#5091): a menu entry is clicked only once it is there (click() returned false silently before, CI v2.646)
     await ev(`(() => { document.querySelector('[data-wk="pmenu"]').click(); return 1; })()`);
-    check(await until(`!![...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Read-only/.test(b.textContent.trim()))`) && await click(`[...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Read-only/.test(b.textContent.trim()))`), 'the menu entry is there and clicked');
+    check(await until(`!![...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Lock editing/.test(b.textContent.trim()))`) && await click(`[...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Lock editing/.test(b.textContent.trim()))`), 'the menu entry is there and clicked');
     check(await until(`!!document.querySelector('#wk-md') && !document.querySelector('#wk-cm')`), 'read only: the read view on this device');
     await ev(`(() => { document.querySelector('[data-wk="pmenu"]').click(); return 1; })()`);
-    check(await until(`!![...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Read-only/.test(b.textContent.trim()))`) && await click(`[...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Read-only/.test(b.textContent.trim()))`), 'the menu entry is there and clicked');
+    check(await until(`!![...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Lock editing/.test(b.textContent.trim()))`) && await click(`[...document.querySelectorAll('#pop [role="menuitem"]')].find(b => /^Lock editing/.test(b.textContent.trim()))`), 'the menu entry is there and clicked');
     check(await until(`!!${cm}`), 'read only: off again, the editor');
 
     // ---- a [[link]] opens with the first click
@@ -179,7 +179,7 @@ const ROUND = '---\ntags: demo\n---\n# Title  \n\nSome **bold** word and `code`.
     check(await until(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`), 'no right: the "…" opens');
     const roItems = await ev(`[...document.querySelectorAll('#pop [role="menuitem"]')].map(x => x.textContent.trim())`);
     // 2.1163.0 (#6087): plus everything that only reads (History, the links)
-    check(roItems.includes('Download as PDF') && roItems.includes('History') && roItems.includes('Copy link') && !roItems.some(t => /^(Rename…|Delete|Move to the trash|Edit as Markdown|Read-only)$/.test(t)), 'no right: the "…" only reads (downloads, history, links) ' + JSON.stringify(roItems));
+    check(roItems.includes('Download as PDF') && roItems.includes('History') && roItems.includes('Copy link') && !roItems.some(t => /^(Rename…|Delete|Move to the trash|Edit as Markdown|Read-only|Lock editing \(this device\))$/.test(t)), 'no right: the "…" only reads (downloads, history, links) ' + JSON.stringify(roItems));
   }, false);
   console.log(`p2554_c_wikicm_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
