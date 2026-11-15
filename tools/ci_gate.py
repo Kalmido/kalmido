@@ -7,7 +7,7 @@ get a red version; "latest" comes later still, with promote.yml after the device
 
 Reads the CI runs of the commit (GET /repos/R/actions/workflows/ci.yml/runs?head_sha=SHA, needs `actions: read`) and
 the job names of a green run (the shard jobs "Test suites N/M full ..." = the full stage, see ci.yml / tests/stages.py).
-Exit 0 = a run of SHA is green and was the full stage; 1 = the CI of SHA is red / cancelled / only the push stage /
+Exit 0 = a run of SHA is green and was the full stage (#6253: or the release stage of the train's push = every hard part); 1 = the CI of SHA is red / cancelled / only the push stage /
 no CI run within --no-run-min / still running at --timeout-min. While a run of SHA is queued or running it waits.
 A red or cancelled run that is re-run by hand (same run, new attempt) counts again; re-run this workflow afterwards.
 2.595.0 (#4905): when the tagged commit itself has no green full run, a green full CI run of ANOTHER commit with the same
@@ -46,8 +46,9 @@ import sys
 import time
 import urllib.request
 
-STAGE_RE = re.compile(r"^Test suites \d+/\d+ (full|push)\b")
-SHARD_RE = re.compile(r"^Test suites (\d+)/\d+ (full|push)( hart)?\b")  # #5324: " hart" = a shard of the hard groups (ci.yml, #4557)
+# #6253: + "release" = the train's release push (the hard groups only, ci.yml / tests/stages.py) - a release needs full or release
+STAGE_RE = re.compile(r"^Test suites \d+/\d+ (full|release|push)\b")
+SHARD_RE = re.compile(r"^Test suites (\d+)/\d+ (full|release|push)( hart)?\b")  # #5324: " hart" = a shard of the hard groups (ci.yml, #4557)
 SUITE_ANN_RE = re.compile(r"^suite ([A-Za-z0-9_.-]+) failed$")  # tests/run_all.sh: ::error title=suite NAME failed::...
 # #6054: tests/run_all.sh ended the shard after KALMIDO_RED_STREAK red suites in a row - the suites after them did not run
 STOP_ANN_RE = re.compile(r"^shard stopped after \d+ red suites in a row$")
@@ -73,9 +74,15 @@ def suites_from_titles(titles):
 
 
 def stage(job_names):
-    """"full" | "push" | "?" - the test stage of a CI run from its shard job names."""
+    """"full" | "release" | "push" | "?" - the test stage of a CI run from its shard job names."""
     seen = {m.group(1) for m in (STAGE_RE.match(n or "") for n in job_names) if m}
-    return "full" if "full" in seen else ("push" if "push" in seen else "?")
+    for st in ("full", "release", "push"):
+        if st in seen:
+            return st
+    return "?"
+
+
+RELEASE_STAGES = ("full", "release")  # #6253: the stages a release (image, latest) may stand on
 
 
 def decide(runs, jobs_of, soft=None):
@@ -89,15 +96,15 @@ def decide(runs, jobs_of, soft=None):
     for r in runs:
         if r.get("status") == "completed" and r.get("conclusion") == "success":
             st = stage(jobs_of(r["id"]))
-            if st == "full":
-                return "green", "CI run %s is green (full stage)" % r["id"]
-            why.append("run %s green, but stage %s (a release needs the full stage)" % (r["id"], st))
+            if st in RELEASE_STAGES:  # #6253: + the release stage of the train's push (all hard parts)
+                return "green", "CI run %s is green (%s stage)" % (r["id"], st)
+            why.append("run %s green, but stage %s (a release needs the full or release stage)" % (r["id"], st))
     if soft is not None:  # #5324: a finished full run red only in soft parts = go, like live in the fast lane
         for r in runs:  # #5600: a cancelled run as well (its cancelled hard parts are red in judge_soft)
             if r.get("status") == "completed" and r.get("conclusion") in SOFT_CONCL:
                 ok, txt = soft(r["id"])
                 if ok:
-                    return "soft", "CI run %s is red only in soft parts (full stage): %s" % (r["id"], txt)
+                    return "soft", "CI run %s is red only in soft parts: %s" % (r["id"], txt)
                 why.append("run %s failure: %s" % (r["id"], txt))
     busy = [r for r in runs if r.get("status") != "completed"]
     if busy:
@@ -170,8 +177,9 @@ def judge_soft(jobs, suites_of, pats, grp):
         return False, "no tests/hard_suites.txt in the tagged tree (unknown = hard)", info
     shards = [(SHARD_RE.match(j.get("name") or ""), j) for j in jobs]
     shards = [(m, j) for m, j in shards if m]
-    if not shards or any(m.group(2) != "full" for m, _ in shards):
-        return False, "not the full stage", info
+    stg = {m.group(2) for m, _ in shards}
+    if not shards or len(stg) != 1 or not stg <= set(RELEASE_STAGES):
+        return False, "not the full stage (nor the release stage)", info
     hard = [j for m, j in shards if m.group(3)]
     want = {int(m.group(1)) for m, _ in shards}
     tot = max((int(re.match(r"^Test suites \d+/(\d+)", j["name"]).group(1)) for _, j in shards), default=0)
@@ -180,6 +188,8 @@ def judge_soft(jobs, suites_of, pats, grp):
     if not hard:
         return False, "no hard shard in the plan (unknown = hard)", info
     for j in hard:
+        # #6253: in the release stage every shard is a hard one: any red suite there is in a hard group (hard_suite judges by
+        # the group too), so a red or cut shard of the release stage is no image - the same rule as the hard shards of full
         if j.get("conclusion") != "success":
             return False, "hard shard red: %s (%s)" % (j.get("name"), j.get("conclusion")), info
     for m, j in shards:
@@ -317,8 +327,9 @@ def decide_tree(res, txt, tree_runs, jobs_of):
     if res in ("green", "soft"):
         return res, txt
     for r in tree_runs:
-        if stage(jobs_of(r["id"])) == "full":
-            return "green", "CI run %s of %s is green (full stage) on the same tree as the tag" % (r["id"], str(r.get("head_sha"))[:12])
+        st = stage(jobs_of(r["id"]))
+        if st in RELEASE_STAGES:  # #6253: + release
+            return "green", "CI run %s of %s is green (%s stage) on the same tree as the tag" % (r["id"], str(r.get("head_sha"))[:12], st)
     return res, txt
 
 
