@@ -19,7 +19,8 @@
 
 ## What's new
 
-**2.1185.0** (2026-11-15):
+**2.1191.0** (2026-11-15):
+- **People**: invite someone without an account by a link or QR code (Find people); the new account is private and connected with you.
 - **Quotations and invoices**: tidier PDFs (discount in the totals, one payment block with the payment reference, no empty rights page); marking as rejected, extending and adjusting prices can be undone from the message.
 - **Calendar**: the week starts at your working hours; the booking page picks the time zone by city.
 - **Files and knowledge**: one message per upload with unfit files named first; knowledge pages say what failed and offer Try again.
