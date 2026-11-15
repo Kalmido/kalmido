@@ -1,22 +1,27 @@
 {
   "de": {
     "No preview for this kind of file": "Keine Vorschau für diese Dateiart",
-    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Dieses PDF ist zu groß für die Vorschau (über 40 MB). Lade es herunter, um es zu lesen."
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Dieses PDF ist zu groß für die Vorschau (über 40 MB). Lade es herunter, um es zu lesen.",
+    "The card does not show projects without a status": "Projekte ohne Status zeigt die Kachel nicht"
   },
   "es": {
     "No preview for this kind of file": "No hay vista previa para este tipo de archivo",
-    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Este PDF es demasiado grande para la vista previa (más de 40 MB). Descárgalo para leerlo."
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Este PDF es demasiado grande para la vista previa (más de 40 MB). Descárgalo para leerlo.",
+    "The card does not show projects without a status": "La tarjeta no muestra proyectos sin estado"
   },
   "fr": {
     "No preview for this kind of file": "Pas d'aperçu pour ce type de fichier",
-    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Ce PDF est trop volumineux pour l'aperçu (plus de 40 Mo). Téléchargez-le pour le lire."
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Ce PDF est trop volumineux pour l'aperçu (plus de 40 Mo). Téléchargez-le pour le lire.",
+    "The card does not show projects without a status": "La carte n’affiche pas les projets sans statut"
   },
   "it": {
     "No preview for this kind of file": "Nessuna anteprima per questo tipo di file",
-    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Questo PDF è troppo grande per l'anteprima (oltre 40 MB). Scaricalo per leggerlo."
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Questo PDF è troppo grande per l'anteprima (oltre 40 MB). Scaricalo per leggerlo.",
+    "The card does not show projects without a status": "La scheda non mostra i progetti senza stato"
   },
   "nl": {
     "No preview for this kind of file": "Geen voorbeeld voor dit soort bestand",
-    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen."
+    "This PDF is too large for the preview (over 40 MB). Download it to read it.": "Deze pdf is te groot voor het voorbeeld (meer dan 40 MB). Download hem om hem te lezen.",
+    "The card does not show projects without a status": "De kaart toont geen projecten zonder status"
   }
 }

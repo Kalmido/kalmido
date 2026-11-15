@@ -278,7 +278,8 @@ const TABLET = {'(min-width:600px) and (min-height:600px)': true};
   w.eval(`go('habits')`); await sleep(300);
   check(d.querySelector('#fab').classList.contains('gone'), 'habits: no "+" either');
   w.eval(`go('cal')`); await sleep(300);
-  check(!d.querySelector('#view .qdock') && d.querySelector('#fab').classList.contains('gone') && d.querySelector('#top .tnew'), 'calendar (no composer): 2.13.0: no round "+" on tablets, the header\'s "New task" instead');
+  // 2.1213.0 (#6126): the header's "New task" only while the calendar has no main button of its own ("+ Event")
+  check(!d.querySelector('#view .qdock') && d.querySelector('#fab').classList.contains('gone') && !!d.querySelector('#top .tnew') === !d.querySelector('#view .evnew'), 'calendar (no composer): 2.13.0: no round "+" on tablets; one main button: the header\'s "New task" or the calendar\'s "+ Event"');
   w.close();
   w = await boot({user: 'alice', hash: 'l/' + PRIV, mobile: true}); d = w.document;
   check(!w.eval('tabletDock()') && !d.querySelector('#fab').classList.contains('gone'), 'phone: the "+" as before');
