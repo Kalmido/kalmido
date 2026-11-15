@@ -172,7 +172,7 @@ function mr_dialog(r, done) {
       toast(r ? tr('Rule saved') : tr('Rule added'));
     } catch (x) {
       b0.disabled = false;
-      err(x instanceof Offline ? tr('Offline: only works again with a connection') : x?.status === 409 ? tr('This rule was changed on another device. Its current state is shown in the list.') : x?.message || tr('Could not save.'));
+      err(x instanceof Offline ? tr('Only available online.') : x?.status === 409 ? tr('This rule was changed on another device. Its current state is shown in the list.') : x?.message || tr('Could not save.'));
       if (x?.status === 409 || x?.status === 404) { await mr_load().catch(() => {}); done?.(); }
     }
   });

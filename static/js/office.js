@@ -850,7 +850,7 @@ const oxaStale = x => x?.status === 409 && !!x.data?.settings;
 const oxaAt = () => OFC.info?.settings?.updated_at ?? '';
 // the PUT with the version; errors shown as api() shows them, except the 409 of a newer version (handled by the caller)
 const oxaPut = b => rawFetch('PUT', '/api/office/settings', {...b, expect_updated_at: oxaAt()}).catch(x => {
-  if (!oxaStale(x) && x.message !== 'auth' && !x.shown) toast(x instanceof Offline ? tr('Offline: only works again with a connection') : x.message);
+  if (!oxaStale(x) && x.message !== 'auth' && !x.shown) toast(x instanceof Offline ? tr('Only available online.') : x.message);
   throw x;
 });
 // 2.531.0 (#4497): the check of the hash chain over the finalised documents (GET /api/office/log/chain)
@@ -1156,7 +1156,7 @@ const ofcUpErr = x => ofcErrTxt(x);  // 2.855.0 (#5451)
 // (it marks the error shown); ofcErr says only what nobody said yet (an own check, rawFetch), an empty text as a plain sentence.
 // ofcErrHere = the text for a place on the page (a dialog's .aerr, an empty list): api()'s toast of the same text goes, the
 // place keeps it (one message, where it belongs)
-const ofcErrTxt = (/** @type {any} */ x) => x instanceof Offline ? tr('Offline: only works again with a connection') : (x?.message && x.message !== 'auth' && x.message !== 'down' ? String(x.message) : tr('That did not work. Please try again.'));
+const ofcErrTxt = (/** @type {any} */ x) => x instanceof Offline ? tr('Only available online.') : (x?.message && x.message !== 'auth' && x.message !== 'down' ? String(x.message) : tr('That did not work. Please try again.'));
 /** @param {any} x */
 function ofcErr(x) {
   if (x?.shown || x?.message === 'auth') return;

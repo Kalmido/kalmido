@@ -134,7 +134,7 @@ async function tpo_edit(p = null, o = {}) {
         histToast(tr('Poll created'), histAdd({label: tr('Poll “{0}” created', r.title), undo: () => api('DELETE', `/api/polls/${r.id}`), redo: () => api('POST', `/api/polls/${r.id}/restore`)}));
         tpo_show(r);
       }
-    } catch (x) { btn.disabled = false; fail(x instanceof Offline ? tr('Offline: only works again with a connection') : errText(x, p ? tr('The poll could not be saved') : tr('The poll could not be created'))); }
+    } catch (x) { btn.disabled = false; fail(x instanceof Offline ? tr('Only available online.') : errText(x, p ? tr('The poll could not be saved') : tr('The poll could not be created'))); }
   });
   $('#tpo-title', md).focus();
 }
@@ -273,7 +273,7 @@ function tpo_decide(p, oid, done) {
     const target = dvw_isSub(v) ? {sub_id: +v.slice(1)} : v ? {cal_id: +v} : {};
     btn.disabled = true;
     let r; try { r = await rawFetch('POST', `/api/polls/${p.id}/decide`, {option_id: oid, ...target, mail: !!$('#tpo-mail', md)?.checked}); }
-    catch (x) { btn.disabled = false; err.textContent = x instanceof Offline ? tr('Offline: only works again with a connection') : errText(x, tr('The event could not be created')); err.hidden = false; return; }
+    catch (x) { btn.disabled = false; err.textContent = x instanceof Offline ? tr('Only available online.') : errText(x, tr('The event could not be created')); err.hidden = false; return; }
     md.remove();
     const again = {option_id: oid, ...target, mail: false};  // a redo never mails twice
     histToast(r.mailed ? trn('Event created, {0} invitation sent', 'Event created, {0} invitations sent', r.mailed) : tr('Event created'),

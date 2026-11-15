@@ -79,7 +79,7 @@ function wkoffItems(sp) {
 }
 async function wkof_list(sp) { return rawFetch('GET', '/api/wiki/space-files?space=' + encodeURIComponent(sp)); }
 async function wkof_on(sp) {
-  if (!OUT.online) { toast(tr('Offline: only works again with a connection')); return; }
+  if (!OUT.online) { toast(tr('Only available online.')); return; }
   let j; try { j = await wkof_list(sp); } catch (e) { toast(e.message); return; }
   if (j.e2e) { toast(tr('This workspace is encrypted: it has no files, its texts are offline already')); return; }
   const est = await navigator.storage?.estimate?.().catch(() => null), free = est && est.quota ? Math.max(0, est.quota - (est.usage || 0)) : null;
@@ -211,7 +211,7 @@ document.addEventListener('click', e => {
   const w = window.open('', '_blank');  // now, in the click (a window opened after the database answered is blocked)
   if (w) try { w.opener = null; } catch { /* closed */ }
   wkof_fget(+id).then(r => {
-    if (!r?.blob) { w?.close(); toast(tr('Offline: only works again with a connection')); return; }
+    if (!r?.blob) { w?.close(); toast(tr('Only available online.')); return; }
     const svg = !WKOF_MIMES.includes(r.mime), url = URL.createObjectURL(new Blob([r.blob], {type: svg ? 'application/octet-stream' : r.mime}));
     if (w && !svg) w.location.href = url;
     else { w?.close(); const d = document.createElement('a'); d.href = url; d.download = r.name || 'file'; document.body.appendChild(d); d.click(); d.remove(); }
@@ -235,5 +235,5 @@ document.addEventListener('click', e => {
   const b = /** @type {Element} */ (e.target)?.closest?.('[data-wkof]'); if (!b) return;
   const sp = b.closest('.wkofbar')?.getAttribute('data-sp'); if (!sp) return;
   if (b.getAttribute('data-wkof') === 'stop') { if (WKOF.run?.sp === sp) WKOF.run.ac.abort('pause'); else if (WKOF.q.includes(sp)) { WKOF.q = WKOF.q.filter(x => x !== sp); const m = WKOF.m[sp]; if (m) { m.st = 'pause'; wkof_save(m).then(() => wkof_paint(sp)); } } }
-  else if (b.getAttribute('data-wkof') === 'go') { if (!OUT.online) { toast(tr('Offline: only works again with a connection')); return; } wkof_start(sp); }
+  else if (b.getAttribute('data-wkof') === 'go') { if (!OUT.online) { toast(tr('Only available online.')); return; } wkof_start(sp); }
 });

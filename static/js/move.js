@@ -149,7 +149,7 @@ async function umzUpload(md, file) {
     const part = file.slice(off, Math.min(file.size, off + chunk));
     let r;
     try { r = await fetch(`/api/account/import/${id}?offset=${off}`, {method: 'PUT', body: part, headers: {'X-Requested-With': 'kalmido', 'Content-Type': 'application/octet-stream'}}); }
-    catch { toast(tr('Offline: only works again with a connection')); return; }
+    catch { toast(tr('Only available online.')); return; }
     j = await r.json().catch(() => ({}));
     if (!r.ok) { if (r.status === 409 && typeof j.received === 'number') { off = j.received; continue; } toast(j.error || httpErrText(r.status)); umzImpDraw(md, null); return; }
     off += part.size;

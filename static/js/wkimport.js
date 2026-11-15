@@ -109,8 +109,8 @@ async function wki_start(sp, file, replace = false) {
     j = r ? await r.json().catch(() => ({})) : {};
     // a lost connection / a server in a restart: the same piece again, waiting longer each time (review L4: at most ~20 min)
     if (!r || [502, 503, 504].includes(r.status)) {
-      if (++fails > 25) { wki_fail(tr('Offline: only works again with a connection')); return; }
-      if (fails === 1) toast(tr('Offline: only works again with a connection'));
+      if (++fails > 25) { wki_fail(tr('Only available online.')); return; }
+      if (fails === 1) toast(tr('Only available online.'));
       if (!await pause(Math.min(60000, 2000 * 2 ** Math.min(fails, 5)))) return;
       continue;
     }
