@@ -78,7 +78,7 @@ def signup_mode(c):
 
 
 def cinv_signup_on(c):
-    """2.1156.0 (#4550): the switch "people without an account register with a person's invitation link" (Settings > Users >
+    """2.1191.0 (#4550): the switch "people without an account register with a person's invitation link" (Settings > Users >
     Sign-in): stored by an admin, else on exactly when registration is open to anyone (signup_mode "open" in effect)."""
     v = gsetting(c, "cinv_signup")
     return v == "1" if v in ("0", "1") else signup_mode(c) == "open"
@@ -155,7 +155,7 @@ def _notify_admins(c, uid):
                              tr("Settings > Organisation > People", lg=lg), f"{PUBLIC_URL}/#settings/users", push_prio(s)))
 
 
-# 2.1156.0 (#4550): fn(c, uid) -> "active" when it activated the account itself (accounts/cinvite.py: a person's invitation link
+# 2.1191.0 (#4550): fn(c, uid) -> "active" when it activated the account itself (accounts/cinvite.py: a person's invitation link
 # vouches for it, no admin approval), "pending" when it set it to wait for an admin (Fable F3), None when not its account;
 # registered at import, so this module needs no import of the later one
 SIGNUP_CONFIRMED = []
@@ -267,7 +267,7 @@ def signup_settings(c, b):
         gset(c, "signup_private", "1" if b["signup_private"] else "0")
         if not b["signup_private"] and gsetting(c, "signup_mode") == "open" and om_has_orgs(c) and b.get("signup_mode") in (None, "open"):
             gset(c, "signup_mode", "off")  # switched off: the stored mode says what is in effect (off)
-    if "cinv_signup" in b:  # 2.1156.0 (#4550): people without an account register with a person's invitation link
+    if "cinv_signup" in b:  # 2.1191.0 (#4550): people without an account register with a person's invitation link
         if not isinstance(b["cinv_signup"], bool):
             return err(tr("Invalid value: {0}", "cinv_signup"))
         gset(c, "cinv_signup", "1" if b["cinv_signup"] else "0")
@@ -287,7 +287,7 @@ def signup_admin(c):
             "signup_domains": gsetting(c, "signup_domains"), "signup_effective": signup_mode(c), "mail_out": _mail_on(),
             "org_invites": gsetting(c, "org_invites") != "0",  # 2.115.0 B (#2062)
             "signup_private": signup_private(c),  # 2.422.0 (#2937)
-            "cinv_signup": cinv_signup_on(c)}  # 2.1156.0 (#4550)
+            "cinv_signup": cinv_signup_on(c)}  # 2.1191.0 (#4550)
 
 
 # ---------------------------------------------------------------- 2.23.0 (#444): sign-in link / QR code

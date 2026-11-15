@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # kalmido-suite: fresh
-"""2.1156.0 part B (#4550): a person invites someone without an account by a link / QR code (accounts/cinvite.py). Own container
+"""2.1191.0 (#4550): a person invites someone without an account by a link / QR code (accounts/cinvite.py). Own container
 (start.sh): first with the SMTP sink stub_mail.py, then a second fresh one without e-mail. Invented names and example.com
 addresses only; every inviting / invited person is a person without an organisation (tests/freelancer_fixture.py).
 freelancer-matrix: team  (the routes /api/disc/invites... as a person without an organisation)
@@ -143,7 +143,7 @@ check(dbx("SELECT 1 FROM information_schema.tables WHERE table_name='conn_invite
 
 # ---- the switch: off while registration is not open
 check(Fr.get(B + "/api/disc").json().get("invite_link") is False, "switch off by default (registration off): no button")
-_r = Fr.get(B + "/api/disc/invites")  # 2.1156.0 (#4550): the list answers with the switch off (on: false), making links does not
+_r = Fr.get(B + "/api/disc/invites")  # 2.1191.0 (#4550): the list answers with the switch off (on: false), making links does not
 check(_r.status_code == 200 and _r.json().get("on") is False, "switch off: GET 200 with on false")
 check(Fr.post(B + "/api/disc/invites", json={}).status_code == 403, "switch off: POST 403")
 check(A.get(B + "/api/about").json().get("cinv_signup") is False, "Administration: the switch shows off")
@@ -367,7 +367,7 @@ check(r.status_code == 429 and "open invitation links" in r.json().get("error", 
 
 # ---- the switch off again: routes 403, open links invalid
 check(A.patch(S, json={"cinv_signup": False}).ok, "switching it off asks nothing")
-check(Fr.post(B + "/api/disc/invites", json={}).status_code == 403 and Fr.get(B + "/api/disc/invites").json().get("on") is False and Fr.get(B + "/api/disc").json().get("invite_link") is False, "off: making 403, list on false, no button")  # 2.1156.0 (#4550): the list answers with the switch off
+check(Fr.post(B + "/api/disc/invites", json={}).status_code == 403 and Fr.get(B + "/api/disc/invites").json().get("on") is False and Fr.get(B + "/api/disc").json().get("invite_link") is False, "off: making 403, list on false, no button")  # 2.1191.0 (#4550): the list answers with the switch off
 check(anon().post(B + "/api/auth/cinv/check", json={"token": T8}).status_code == 404, "off: an open link stops working")
 check(A.patch(S, json={"cinv_signup": True, "password": PASSWORD}).ok, "on again")
 

@@ -126,7 +126,7 @@ const LD_NEED = {pdf: ['swipenav'], settings: ['agentchat', 'calendar', 'integra
 // module's own function declaration replaces the stand-in on window)
 const LD_CALL = {settings: ['settingsModal', 'setApply', 'settingsSync', 'modCountsSync', 'setSaved', 'setLocal', 'ojn_open', 'otkOpen', 'epv_link'],  // 2.149.0 F (#2519): setLocal (the command bar's "Theme: …"); bundle B: ojn_open (2.148.1 #2480, bell item of an invitation); 2.574.0 (#3376): otkOpen (acctset.js); 2.1033.0 (#5790): epv_link (the link of the address proof mail)
   ablage: ['ab_linkFile'],  // 2.501.0 (#4198): the button of a file row in a task / project
-  cinvite: ['cnv_open', 'cnv_boot', 'cnv_after'],  // 2.1156.0 (#4550): the dialog "Invite by link", the opened link before / after the start
+  cinvite: ['cnv_open', 'cnv_boot', 'cnv_after'],  // 2.1191.0 (#4550): the dialog "Invite by link", the opened link before / after the start
   fltdlg: ['filterModal'],  // 2.521.0 (#4479): the filter dialog (sidebar, palette, a filter's menu)
   fints: ['fnt_open'],  // 2.616.0 (#2473): the button "Fetch from bank" (office_bank.js)
   family: ['occModal', 'dlModal', 'famPack', 'shopModeOpen', 'paskOpen', 'kd_pinAsk'],  // 2.501.0 (#4198): the palette, the first start, a child's PIN
