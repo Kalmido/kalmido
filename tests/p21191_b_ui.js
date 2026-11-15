@@ -93,8 +93,11 @@ const acme = async () => ((await call('GET', '/api/clients')).clients || []).fin
   const sec = await until(() => { const x = d.querySelector('#view .ctkhist'); return x && !x.hidden && x.querySelector('li') ? x : null; }, 60);
   check(sec && /Contact history/.test(sec.querySelector('h4')?.textContent || ''), '#2083: the card shows "Contact history"');
   const lis = sec ? [...sec.querySelectorAll('li')].map(x => x.textContent) : [];
-  check(lis.length === 2 && /Kick-off/.test(lis[0]) && /Appointment/.test(lis[0]) && /Image film/.test(lis[1]) && /Quotation/.test(lis[1]), '#2083: the event (newest) and the quotation ' + JSON.stringify(lis));
-  check(sec && sec.querySelector(`[data-evopen="${ev.id}"]`) && sec.querySelector(`a[href="#office/offers/${off.id}"]`), '#2083: each entry opens its object');
+  // 2.1221.0 (#6241): since #6119 (2.1174.0) the contact's events are no longer in the history - the card shows them in its own block "Events"
+  check(lis.length === 1 && /Image film/.test(lis[0]) && /Quotation/.test(lis[0]) && !lis.some(x => /Kick-off/.test(x)), '#2083: the history lists the quotation, the event not twice ' + JSON.stringify(lis));
+  check(sec && sec.querySelector(`a[href="#office/offers/${off.id}"]`), '#2083: the history entry opens its quotation');
+  const evb = [...d.querySelectorAll('#view .ctsec')].find(x => /^Events$/.test(x.querySelector('h4')?.textContent || ''));
+  check(evb && /Kick-off/.test(evb.textContent) && evb.querySelector(`[data-evopen="${ev.id}"]`) && !sec?.querySelector('[data-evopen]'), '#2083: the event sits in the card\'s block "Events" and opens from there');
   check(sec && !sec.querySelector('[data-ctkmore]'), '#2083: no "Show more" on one page');
   w.close();
   w = await boot({hash: `contacts/${ct.id}`, mobile: true}); d = w.document;
