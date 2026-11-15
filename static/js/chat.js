@@ -309,19 +309,23 @@ function tcMsgMenu(anchor, mid) {
     ...(mine && !(m.enc && !m._dec) ? [sn ? null : {label: tr('Edit'), icon: 'edit', fn: () => { S.tc.edit = mid; S.tc.editTh = inTh; S.tc.editVer = m.edited_at || m.created_at; tcPatch(); setTimeout(() => { const t = tth_editBox(); if (t) { t.focus(); autosize(t); } }, 0); }},
       {label: tr('Delete'), icon: 'trash', cls: 'flag-5', fn: () => tcMsgDelete(mid)}] : [])]);
 }
+// 2.1211.0 (#6099): my own message goes at once, without a question: Undo in the message and under "Recent steps" (histAdd)
 async function tcMsgDelete(mid) {
   const m = tth_msg(mid); if (!m) return false;
-  if (!await askConfirm(tr('Delete this message?'), '', {ok: tr('Delete'), danger: true})) return false;
   const was = {body: m.body, dec: m._dec, rid: S.tc.rid};  // 2.530.0 A (#4315): the decrypted text for Undo (the server only has the ciphertext)
-  try { await rawFetch('DELETE', `/api/team/messages/${mid}`); } catch (e) { toast(e.message); return false; }
+  if (!await tcMsgDel(mid)) return false;
+  offerUndo(tr('Message deleted'), histAdd({label: tr('Message deleted'), area: 'team', undo: () => tcMsgRestore(mid, was), redo: async () => { if (!await tcMsgDel(mid)) throw new Error('not deleted'); }}));  // 2.530.0 A (#4315): in the trash, Undo brings it back
+  return true;
+}
+async function tcMsgDel(mid) {  // the delete itself (also the Redo of the step above)
+  try { await rawFetch('DELETE', `/api/team/messages/${mid}`); } catch (e) { toast(errText(e, tr('The message could not be deleted'))); return false; }
   if (S.tc.edit === mid) S.tc.edit = null;
   tth_each(mid, x => Object.assign(x, {deleted: true, body: '', reactions: []})); tcPatch();
-  toast(tr('Message deleted'), () => tcMsgRestore(mid, was));  // 2.530.0 A (#4315): in the trash, Undo brings it back
   if (S.tc.th) tth_load().then(() => tcPatch());  // 2.139.0 A (#2127): the thread's count
   return true;
 }
 async function tcMsgRestore(mid, was) {  // 2.530.0 A (#4315)
-  let r; try { r = await rawFetch('POST', `/api/team/messages/${mid}/restore`); } catch (e) { toast(e.message); return; }
+  let r; try { r = await rawFetch('POST', `/api/team/messages/${mid}/restore`); } catch (e) { toast(errText(e, tr('The message could not be restored'))); throw e; }  // 2.1211.0 (#6099): said once; the history does not count it as undone
   if (r.enc && was.dec) { r.body = was.body; r._dec = true; E2E.dec[r.id + ':' + (r.edited_at || '')] = r.body; }
   if (S.tc.rid !== was.rid) return;
   tth_each(mid, x => Object.assign(x, r)); tcPatch();
@@ -331,7 +335,8 @@ async function tcEditSave(mid) {
   const t = tth_editBox(), m = tth_msg(mid); if (!t || !m) return;  // 2.139.0 A (#2127): also in the thread
   const v = t.value.trim();
   // 2.18.0 (#652): saving an emptied message did nothing; it offers to delete the message instead (Cancel: back to the
-  // text box, Delete: the focus goes to the message box); 2.113.1 (#2059): a message with files keeps them without text
+  // text box, Delete: the focus goes to the message box); 2.113.1 (#2059): a message with files keeps them without text;
+  // 2.1211.0 (#6099): no question any more - deleted at once with Undo (tcMsgDelete), the focus in the message box
   if (!v && !m.attachments?.length) { if (await tcMsgDelete(mid)) $(S.tc.editTh ? '#tth-in' : '#tc-in')?.focus(); else tth_editBox()?.focus(); return; }
   let r;
   try {
@@ -732,6 +737,9 @@ async function tcx_groupNew() {
     submit: md => { const m = tcx_checked(md); if (m.length < 2) { toast(tr('A group needs at least two other people')); return null; } return {members: m, name: $('#tcx-name', md).value.trim()}; }});
   if (!v) return;
   const r = await tcx_req('POST', '/api/team/groups', v); if (!r) return;
+  // 2.1211.0 (#6099): Undo as for a new channel (the server archives a group only for its creator while nobody wrote in it)
+  const gn = r.name || tr('New group');
+  offerUndo(tr('Group “{0}” created', gn), histAdd({label: tr('New group “{0}”', gn), undo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: true}).then(() => { if (S.tc.rid === r.id && S.route.mod === 'team') go('team'); return tcx_refresh(); }), redo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: false}).then(() => tcx_refresh())}));
   await loadTeam(); go('team/' + r.id);
 }
 async function tcx_browse() {
@@ -805,7 +813,8 @@ async function tcx_settings() {
       md.remove(); step(tr('Channel archived'), () => patch({archived: false}), () => patch({archived: true})); await tcx_refresh(rid); }
     else if (a === 'leave') {
       const back = ch && room.open && room.org_id;  // an open channel: joining again is the undo
-      if (!back && !await askConfirm(tr('Leave this conversation?'), tr('You can only come back when someone adds you again.'), {ok: tr('Leave'), danger: true})) return;
+      // 2.1211.0 (#6099): only asks where I cannot come back by myself (a group, a closed channel), and says so
+      if (!back && !await askConfirm(ch ? tr('Leave this channel?') : tr('Leave this group?'), tr('You can only come back when someone adds you again.'), {ok: tr('Leave'), danger: true})) return;
       if (!await tcx_req('DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`)) return;
       md.remove();
       if (back) step(tr('Left the channel'), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: S.me.id}), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`));

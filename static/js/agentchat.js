@@ -848,17 +848,18 @@ function chatStepsKept(m) {
   return `<div class="csteps" role="note" aria-label="${esc(tr('Steps'))}">${st.map(x => `<span>${esc(x.text)}</span>`).join('')}</div>`;
 }
 // ---- 2.152.0 D (#2175): delete one message or the whole history with this agent for good (no undo step: asks first)
+// 2.1211.0 (#6099): the team chat's dialog helper (askConfirm, as "Leave"); a failure is said once (api() says it already)
 async function acdDeleteMsg(mid) {
   const aid = S.chat.aid, m = S.chat.msgs.find(x => x.id === mid); if (!aid || !m) return;
-  if (!await askDialog({title: tr('Delete message'), body: tr('The message and its files are deleted permanently. This cannot be undone.'), ok: tr('Delete'), danger: true})) return;
-  try { await api('DELETE', `/api/agents/${aid}/chat/${mid}`); } catch (e) { toast(e.message || tr('Error')); return; }
+  if (!await askConfirm(tr('Delete message'), tr('The message and its files are deleted permanently. This cannot be undone.'), {ok: tr('Delete'), danger: true})) return;
+  try { await api('DELETE', `/api/agents/${aid}/chat/${mid}`); } catch (e) { if (!e.shown) toast(errText(e, tr('The message could not be deleted'))); return; }
   if (S.chat.aid === aid) { S.chat.msgs = S.chat.msgs.filter(x => x.id !== mid); chatPatch({keep: true}); }
   toast(tr('Message deleted'));
 }
 async function acdDeleteAll() {
   const aid = S.chat.aid, a = agentById(aid); if (!aid) return;
-  if (!await askDialog({title: tr('Delete history'), body: tr('The whole conversation with {0} and its files are deleted permanently. This cannot be undone.', a?.name || ''), ok: tr('Delete history'), danger: true})) return;
-  try { await api('DELETE', `/api/agents/${aid}/chat`); } catch (e) { toast(e.message || tr('Error')); return; }
+  if (!await askConfirm(tr('Delete history'), tr('The whole conversation with {0} and its files are deleted permanently. This cannot be undone.', a?.name || ''), {ok: tr('Delete history'), danger: true})) return;
+  try { await api('DELETE', `/api/agents/${aid}/chat`); } catch (e) { if (!e.shown) toast(errText(e, tr('The history could not be deleted'))); return; }
   if (S.chat.aid === aid) { S.chat.msgs = []; S.chat.more = false; chatPatch({}); }
   toast(tr('History deleted'));
 }
