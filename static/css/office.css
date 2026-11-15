@@ -666,7 +666,7 @@ button.dun-hint{cursor:pointer}
 .ast-sec{margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--line2)}
 .ast-sec>summary{min-height:2.75rem;display:list-item;line-height:2.75rem;font-weight:500;cursor:pointer}  /* 2.1211.0 (#6148): list-item keeps the arrow like every other details of the app (flex hid it) */
 .row>.ofunit{flex:none;white-space:nowrap;font-size:var(--fs-m)}
-.row>.lacts:has(>input.numin){flex-wrap:nowrap}.row>.lacts>input.numin{min-width:0;width:5.5rem;flex:0 0 5.5rem}.row>.lacts:has(>input.numin)>.muted{min-width:0;flex:0 1 auto;overflow-wrap:anywhere}  /* 2.1211.0 (#6148): number + unit of the office settings stay one line */  /* 2.1211.0 (#6148): a unit (EUR, %, days) right beside the field, never its own line */
+.row:not(.onumrow)>.lacts:has(>input.numin){flex-wrap:nowrap}.row:not(.onumrow)>.lacts>input.numin{min-width:0;width:5.5rem;flex:0 0 5.5rem}.row:not(.onumrow)>.lacts:has(>input.numin)>.muted{min-width:0;flex:0 1 auto;overflow-wrap:anywhere}  /* 2.1211.0 (#6148): number + unit of the office settings stay one line; not the number ranges (their preview and hint wrap under the field, p2802_c) */
 .ast-mrow{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem;padding:.375rem 0;border-bottom:1px solid var(--line2)}
 .ast-mrow .ast-ml{flex:1 1 8rem;min-width:0}.ast-me input{width:3.5rem}.ast-task{font-size:var(--fs-s);margin-left:.375rem}  /* 2.558.0 C (#4591) */
 .ast-rc{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

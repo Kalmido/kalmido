@@ -114,7 +114,7 @@ window.__fake = html => { const d = document.createElement('div'); d.innerHTML =
 
     // ================= team chat (the team view)
     await ev(`(() => { go('team/${RID}'); return 1; })()`);
-    check(await ready(ev, `!!document.querySelector('#tc-in')`, 60), 'team chat: the box is there');
+    check(await ready(ev, `!!S.tc.room && !document.querySelector('#tc-in')?.disabled`, 60), 'team chat: the box is there and open');  // 2.1211.0 (#6098): the box stays shut until the conversation has loaded
     await setVal(ev, '#tc-in', 'before|after');
     await ev(`(() => { const i = document.querySelector('#tc-in'); i.focus(); i.setSelectionRange(7, 7); return 1; })()`);
     d = await ev(`__drag(__fake('<div class="trow" data-id="${T3}" draggable="true">Scout the harbour</div>'), document.querySelector('#tc-in'), true)`);
@@ -149,7 +149,7 @@ window.__fake = html => { const d = document.createElement('div'); d.innerHTML =
     // racing it: a late go('agents/…') closed the reference search on the team chat again (the Back handling of backclose.js)
     check(await ready(ev, `!document.querySelector('#achat:not(.hidden)') && /^#agents\\//.test(location.hash)`, 40), 'phone: the agent chat panel became the chat page ' + await ev('location.hash'));
     await nav(B + '#team/' + RID);
-    await ready(ev, `typeof rf_card === 'function' && !!S.booted && !!taskById(${T1}) && !!document.querySelector('#tc-in')`, 80);
+    await ready(ev, `typeof rf_card === 'function' && !!S.booted && !!taskById(${T1}) && !!S.tc.room && !document.querySelector('#tc-in')?.disabled`, 80);  // 2.1211.0 (#6098): shut while the conversation loads
     check(await ready(ev, `!!document.querySelector('.tccomp [data-rfins="tc-in"]')`, 20), 'phone: "Insert reference" in the team chat row ' + await ev(`[isTouch(), isMobile(), innerWidth, [...document.querySelectorAll('#tc-in')].map(x => x.parentElement.className + ':' + [...x.parentElement.children].map(c => c.tagName + '.' + c.className).join('/')).join(' | ')].join(',')`));
     await setVal(ev, '#tc-in', '');
     await tapSel(ev, '[data-rfins="tc-in"]');
