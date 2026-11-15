@@ -1132,7 +1132,8 @@ def files_folders():
         while p in rows and guard < 64:
             path.insert(0, rows[p]["name"])
             p, guard = rows[p]["parent_id"], guard + 1
-        x = {"id": r["id"], "name": r["name"], "path": " / ".join(path), "org_id": r["org_id"], "owner_id": r["owner_id"]}
+        x = {"id": r["id"], "name": r["name"], "path": " / ".join(path), "org_id": r["org_id"], "owner_id": r["owner_id"],
+             "parent_id": r["parent_id"]}  # 2.1224.0 (#6113): the tree of the one "Move to…" picker (ablage.js ab_moveDlg)
         if r["id"] in lk:  # the names below the lock are ciphers: the parts to decrypt (a name may hold " / " itself)
             x.update(lock_id=lk[r["id"]][0], parts=path)
         out.append(x)

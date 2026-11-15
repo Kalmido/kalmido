@@ -45,10 +45,16 @@ const FEAT = 'cal,comments,collab,wiki,files';
   const opts = [...(dlg?.querySelectorAll('#ab-sht option[value]') || [])].map(o => o.value).filter(Boolean);
   check(JSON.stringify(opts) === JSON.stringify([`agent_id:${ag.id}`]), 'only her own agent is offered ' + JSON.stringify(opts));
   check(await until(() => /No agent sees the whole knowledge area yet/.test(dlg.querySelector('.fsextra')?.textContent || '')), 'the section: no agent yet');
+  // 2.1224.0 (#6113): a choice adds at once with "Can view" (the area's question first), raising it to "Can edit" asks again
   dlg.querySelector('#ab-sht').value = `agent_id:${ag.id}`;
-  dlg.querySelector('#ab-shr').value = 'edit';
-  dlg.querySelector('[data-abs="add"]').click();
-  const q = await until(() => [...d.querySelectorAll('.cdlg')].find(m => /visible/.test(m.textContent)));
+  dlg.querySelector('#ab-sht').dispatchEvent(new w.Event('change', {bubbles: true}));
+  const q0 = await until(() => [...d.querySelectorAll('.cdlg')].find(m => /visible/.test(m.textContent)));
+  check(/can read these pages/.test(q0?.textContent || ''), 'the question on the choice: the agent can read');
+  yes()?.click();
+  const rs = await until(() => dlg.querySelector('#ab-shl [data-absr]'));
+  check(rs?.value === 'view', 'the agent is listed with "Can view"');
+  rs.value = 'edit'; rs.dispatchEvent(new w.Event('change', {bubbles: true}));
+  const q = await until(() => [...d.querySelectorAll('.cdlg')].find(m => /visible/.test(m.textContent) && /can change/.test(m.textContent)));
   check(/2 folders \/ 2 pages visible, 0 folders excluded\./.test(q?.textContent || '') && /can change these pages/.test(q?.textContent || ''),
     'the question names what becomes visible: ' + [...d.querySelectorAll('.modal, .cdlg')].map(m => m.className + ': ' + m.textContent.trim().slice(0, 200)).join(' | '));
   yes()?.click();
