@@ -35,7 +35,9 @@ const FEAT = 'cal,comments,collab,office,clients';
     await ev(`(() => { localStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`);
     check(await signIn(ev, 'frida') === 200, 'frida signed in');
     // #5959: both address forms show the same sub page (heading in sight)
-    const subs = [['archive', 'Booking archive', '.bka-h'], ['procdoc', 'Procedure documentation', '.pd-h'], ['receipts', 'All receipts', '#rcl-h']];
+    const subs = [['archive', 'Booking archive', '.bka-h'], ['procdoc', 'Procedure documentation', '.pd-h'], ['receipts', 'No receipts yet.', '.rcl-none']];
+    // 2.1210.0 (#6223): frida has no receipt yet - since 2.1185 (#6151) the empty office shows the shared empty block with its upload
+    // and no heading "All receipts" over nothing; both address forms must still show the receipts page (its empty block)
     for (const [sub, head, sel] of subs) {
       for (const ws of ['', 's/private/']) {
         await nav(B + `#office/${ws}books/${sub}`);
