@@ -18737,5 +18737,6 @@
   "The documents could not be merged": "No se pudieron combinar los documentos",
   "No document could be added": "No se pudo añadir ningún documento",
   "Surcharge|calc": "Recargo",
-  "Surcharge": "Recargo"
+  "Surcharge": "Recargo",
+  "You can only read this document": "Solo puedes leer este documento"
 }

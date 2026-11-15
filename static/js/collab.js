@@ -907,7 +907,8 @@ const cmSayNo = t => (t && listById(t.list_id)?.say_no) || (t && S.tl.id === t.i
 const sayNoHtml = msg => `<div class="tcarch sayno" role="status">${ic('lock', 's')}<span>${esc(msg)}</span></div>`;
 function cmComposer(t, top = false) {  // top: 2.4.2 (#386) newest first, the box above the newest comment
   const sn = cmSayNo(t);
-  if (sn) return `<div class="dcomp ${top ? 'dctop' : ''}">${sayNoHtml(sn)}</div>`;
+  // 2.1238.0 (#6161, Stufe 2): who only reads the task has the ONE read hint above (detail.js roDet / the list head): no second one here
+  if (sn) return canEdit(t) ? `<div class="dcomp ${top ? 'dctop' : ''}">${sayNoHtml(sn)}</div>` : '';
   const soc = cmSocial(t), used = !!cmtDraft(t.id) || !!(S.cfiles[t.id] || []).length;
   return `<div class="dcomp ${top ? 'dctop' : ''}">${replyBarHtml('c:' + t.id)}<div class="ccomp ${used ? 'used' : ''}"><textarea id="c-input" rows="1" name="kalmido-comment" autocomplete="off" data-form-type="other" data-lpignore="true" placeholder="${soc ? tr('Write a comment… (@ mentions someone)') : tr('Write a comment…')}" aria-label="${tr('Comment')}">${esc(cmtDraft(t.id))}</textarea>
       <div class="mpick hidden"></div>

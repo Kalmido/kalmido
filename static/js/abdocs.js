@@ -64,13 +64,13 @@ function abd_recogLine(d) {
   if (!n.recog_on && n.recog !== 'off') return '';  // nothing recognises here and nobody switched it off: no line
   const from = n.recog_on && n.recog !== 'on' ? (n.recog_from ? tr('as in “{0}”', n.recog_from) : n.recog_root ? tr('the documents folder') : '') : '';
   const txt = n.recog_on ? tr('Recognition on: text, sender, type and date of new files are recognised') : tr('Recognition off in this folder');
-  return `<p class="muted abrecog">${ic('sparkle', 's')}<span>${esc(txt)}${from ? ` <small>(${esc(from)})</small>` : ''}</span>${ab_canWrite(n.role) ? `<button type="button" class="linkbtn" data-abdr="${n.id}">${tr('Change…')}</button>` : ''}</p>`;
+  return `<p class="muted abrecog">${ic('sparkle', 's')}<span>${esc(txt)}${from ? ` <small>(${esc(from)})</small>` : ''}</span>${ab_canWrite(n) ? `<button type="button" class="linkbtn" data-abdr="${n.id}">${tr('Change…')}</button>` : ''}</p>`;
 }
 // 2.683.0 (#5150): the documents of the folder in the order shown (its cards; in the list view its entries), the sheet leafs
 // through them (docs.js dc_nav: "3 of 48", the arrows, the swipe); before, the sheet of the file store could not leaf at all
 const abd_navIds = () => { const c = $$('.abview [data-dco]').map(x => +x.dataset.dco); return c.length ? c : (AB.data?.items || []).filter(n => n.doc && !abd_locked(n)).map(n => n.id); };  // 2.750.0 (#5228): the list's entries carry doc {state, review} without an id
 function abd_menuItems(n) {
-  if (!abd_on() || abd_locked(n) || !ab_canWrite(n.role)) return n.doc?.id && abd_on() ? [{label: tr('Open as document'), icon: 'file', fn: () => dc_open(n.id, {list: abd_navIds()})}] : [];
+  if (!abd_on() || abd_locked(n) || !ab_canWrite(n)) return n.doc?.id && abd_on() ? [{label: tr('Open as document'), icon: 'file', fn: () => dc_open(n.id, {list: abd_navIds()})}] : [];
   if (n.kind === 'folder') return [{label: tr('Recognition…'), icon: 'sparkle', fn: () => setTimeout(() => abd_recogMenu(n), 0)}];  // after this menu closed
   if (n.kind !== 'file') return [];
   if (n.doc) return [{label: tr('Open as document'), icon: 'file', fn: () => dc_open(n.id, {list: abd_navIds()})}];
@@ -118,7 +118,7 @@ function abd_foldHtml(d) {
   const ul = xs => xs.length ? `<ul class="dc-grid abcards${AB.selOn ? ' dc-selon' : '' /* 2.768.0 (#4888) */}" aria-label="${esc(tr('Files'))}">${xs.map(abd_card).join('')}</ul>` : '';
   // 2.769.0 (#5340): the list chosen (the switch, ab_cards '!n:<id>'): the same documents, sort and filters as rows with their fields
   const list = !abd_cardsOn('n:' + n.id), li = xs => xs.map(abd_lRow).join('');
-  const fold = {node: n, canAdd: ab_canWrite(n.role), before: list ? li(kids) : ul(kids), after: list ? li(plain) : ul(plain), card: abd_docCard, list: list ? abd_listHtml : null};
+  const fold = {node: n, canAdd: ab_canWrite(n), before: list ? li(kids) : ul(kids), after: list ? li(plain) : ul(plain), card: abd_docCard, list: list ? abd_listHtml : null};
   return `<div class="dc-view dc-infold${list ? ' abdlon' : ''}" data-abfold="${n.id}">${dc_headHtml(fold)}${dc_bodyHtml(fold)}</div>`;
 }
 // ---- 2.769.0 (#5340): the list of a recognising folder: Name, Type, Sender, Date, Amount, To review (a header sorts like the
