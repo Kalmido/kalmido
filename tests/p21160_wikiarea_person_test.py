@@ -157,6 +157,32 @@ SID = r.json().get("id")
 check(area(F)["shares"][0]["excluded"] == [FOLD["Private"]], f"the exclusion came back with it: {area(F)['shares']}")
 check(P_SEC not in shared(Bo)[0], "Private stays out for Bob")
 
+# ---- 2.1225.0 (Fable review job/4680 1): the share made WITH its exclusions (the dialog's question), never open before
+check(F.delete(B + f"/api/files/shares/{SID}").ok, "taken back once more")
+r = F.post(B + f"/api/files/nodes/{ROOT}/shares", json={"user_id": BOB, "role": "view", "excluded": [FOLD["Two"]]})
+check(r.status_code == 201, f"made again with Two kept out at once: {r.status_code} {r.text[:200]}")
+SID = r.json().get("id")
+check(sorted(area(F)["shares"][0]["excluded"]) == sorted([FOLD["Two"], FOLD["Private"]]),
+      f"the given exclusion joins the ones of the share taken last (Undo): {area(F)['shares']}")
+check(P_TWO not in shared(Bo)[0] and reads(Bo, P_TWO) == 404, "Two is out for Bob from the first moment")
+check(F.post(B + f"/api/files/nodes/{ROOT}/shares", json={"user_id": OID, "role": "view", "excluded": [ROOT]}).status_code == 400,
+      "excluded with the share: the root itself 400")
+check(F.post(B + f"/api/files/nodes/{FOLD['One']}/shares", json={"user_id": BOB, "role": "view", "excluded": []}).status_code == 400,
+      "excluded on a share that is not a whole area's: 400")
+check(not any(x["user_id"] == OID for x in area(F)["shares"]), "a refused share leaves no row behind")
+# ---- 2.1225.0 (Fable review job/4680 2): the Undo finds its row also after many other ended shares of the person
+for i in range(55):
+    nid = index(F)[1]["One"]
+    rr = F.post(B + f"/api/files/nodes/{nid}/shares", json={"user_id": BOB, "role": "view"})
+    F.delete(B + f"/api/files/shares/{rr.json().get('id')}")
+check(F.delete(B + f"/api/files/shares/{SID}").ok, "the area share ended")
+r = F.post(B + f"/api/files/nodes/{ROOT}/shares", json={"user_id": BOB, "role": "edit"})
+check(r.status_code == 201, "and made again")
+SID = r.json().get("id")
+check(sorted(area(F)["shares"][0]["excluded"]) == sorted([FOLD["Two"], FOLD["Private"]]),
+      f"the exclusions came back although 55 other shares of Bob ended since: {area(F)['shares']}")
+check(F.patch(B + f"/api/files/shares/{SID}", json={"excluded": [FOLD["Private"]]}).ok, "Two included again")
+
 # ---- an organisation's area: agents only (tenant-matrix: wiki)
 page(A, "Team/Plan", space=f"org:{ORG}")
 OROOT = index(A, f"org:{ORG}")[0]

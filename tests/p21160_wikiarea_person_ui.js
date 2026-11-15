@@ -55,21 +55,25 @@ const FEAT = 'cal,comments,collab,wiki,files';
   const q = await until(() => [...d.querySelectorAll('.cdlg')].find(m => /visible/.test(m.textContent)));
   check(/2 folders \/ 2 pages visible, 0 folders excluded\./.test(q?.textContent || '') && /The person can read these pages/.test(q?.textContent || ''),
     'the question names what Bob will see: ' + (q?.textContent || '').trim().slice(0, 200));
+  // 2.1225.0 (#5862, Fable review job/4680 1): the folders to keep out are ticked in this question and go with the share --
+  // the share never exists without them (before: excluded only afterwards, every folder open for a moment)
+  check(/Keep folders out \(optional\)/.test(q?.textContent || ''), 'the question offers "Keep folders out (optional)"');
+  const box = await until(() => q?.querySelector(`.wkapick input[value="${priv}"]`));
+  check(!!box, 'the question lists the folder Private');
+  if (box) box.checked = true;
   yes()?.click();
-  check(await until(async () => ((await call('GET', `/api/files/nodes/${root}`)).shares || []).some(s => s.user_id === bob.id && s.role === 'view')),
-    'the share is on the server (view)');
+  const first = await until(async () => ((await call('GET', `/api/files/nodes/${root}`)).shares || []).find(s => s.user_id === bob.id));
+  check(first?.role === 'view', 'the share is on the server (view)');
+  const ex0 = ((await call('GET', '/api/wiki/area-share?space=private')).shares || [])[0]?.excluded;
+  check(JSON.stringify(ex0) === `[${priv}]`, 'Private excluded on Bob\'s share from its first moment: ' + JSON.stringify(ex0));
   check(await until(() => /Who sees the whole knowledge area/.test(dlg.querySelector('.fsextra')?.textContent || '') && /Bob/.test(dlg.querySelector('.fsextra')?.textContent || '')),
     'the section names Bob');
   const pickBtn = await until(() => dlg.querySelector('.fsextra [data-wka-pick]'));
-  check(!!pickBtn, 'below Bob: "Exclude folders…"');
+  check(!!pickBtn, 'below Bob: "Exclude folders…" (more afterwards)');
   pickBtn?.click();
   const pq = await until(() => [...d.querySelectorAll('.cdlg, .modal')].find(m => /Bob no longer sees these folders/.test(m.textContent)));
-  check(!!pq, 'the picker says what Bob will no longer see');
-  const box = await until(() => d.querySelector(`.wkapick input[value="${priv}"]`));
-  if (box) box.checked = true;
-  yes()?.click();
-  check(await until(async () => JSON.stringify(((await call('GET', '/api/wiki/area-share?space=private')).shares || [])[0]?.excluded) === `[${priv}]`),
-    'Private excluded on Bob\'s share');
+  check(!!pq && !pq.querySelector(`.wkapick input[value="${priv}"]`) && /One/.test(pq.textContent), 'the picker says what Bob will no longer see and offers only what is still open');
+  [...d.querySelectorAll('.cdlg [data-cd="no"]')].pop()?.click();
   check(await until(() => /Excluded:\s*Private/.test(dlg.querySelector('.fsextra')?.textContent || '')), 'the dialog lists "Excluded: Private"');
   dlg.querySelector('[data-m="close"]')?.click();
   check(await until(() => [...d.querySelectorAll('#view .wkdrow')].some(a => /Private/.test(a.textContent) && /not for Bob/.test(a.textContent))),

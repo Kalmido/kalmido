@@ -106,8 +106,10 @@ def wkarea_get():
     out["shares"] = [{"id": s["id"], "agent_id": s["agent_id"], "user_id": s["user_id"] if not s["agent_id"] else None,
                       "name": s["display_name"], "role": s["role"], "expires_at": s["expires_at"],
                       "editable": _editable(c, s["agent_id"]) if s["agent_id"] else True,  # a person's: who manages the area
-                      "excluded": sorted(x for x in (dl_wiki_folders(c, s["agent_id"]) if s["agent_id"] else dl_excl_parse(s["excl"]))
-                                         if x in ids)} for s in sh]
+                      # 2.1225.0 (#5862, Fable review job/4680 3): a person's list whole -- the dialog writes it back as the
+                      # full replacement, so a folder outside the capped tree read (ids) must not drop out of it
+                      "excluded": (sorted(x for x in dl_wiki_folders(c, s["agent_id"]) if x in ids) if s["agent_id"]
+                                   else sorted(dl_excl_parse(s["excl"])))} for s in sh]
     for key in ("agent_id", "user_id"):  # 2.1160.0 (#5862): the dialog's question for a person as well
         tid = request.args.get(key)
         if tid in (None, ""):

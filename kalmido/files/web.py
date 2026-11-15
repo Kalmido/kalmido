@@ -928,6 +928,13 @@ def files_share_add(nid):
     if key == "agent_id":
         from .fslock import fsl_agent_share_guard
         fsl_agent_share_guard(c, nid)  # 2.353.0 A (#2758); 2.953 (#3348, review N13): above a locked folder too
+    exc = None
+    if "excluded" in b:  # 2.1225.0 (#5862, Fable review job/4680 1): a person's share of a whole knowledge area made WITH its
+        # excluded folders -- else every folder is open from the share until the owner keeps some out afterwards
+        chk = fs_area_root_excl(c, nid) if key == "user_id" else None
+        if chk is None:
+            return err(tr("Invalid value: {0}", "excluded"))
+        exc = chk(c, nid, b["excluded"])
     try:
         tid = int(b[key])
     except (TypeError, ValueError):
@@ -953,27 +960,32 @@ def files_share_add(nid):
         c.execute("UPDATE fs_shares SET list_role=? WHERE id=?", (lr_, sid))
     if key == "agent_id" and not old:
         _agent_event(c, tid, n, role)
+    if exc is not None:
+        c.execute("UPDATE fs_shares SET excl=? WHERE id=?", (json.dumps(exc) if exc else None, sid))
+        dl_forget()
     if key == "user_id" and not old and fs_area_root_excl(c, nid):
-        _excl_back(c, sid, nid, tid)
+        _excl_back(c, sid, nid, tid, exc or [])
     bump(c)
     c.commit()
     return jsonify(id=sid, shares=_shares(c, nid)), 201
 
 
-def _excl_back(c, sid, nid, tid):
+def _excl_back(c, sid, nid, tid, given=()):
     """2.1160.0 (#5862, Fable review 2): a person's share of a whole knowledge area made again (the dialog's Undo of "stop
     sharing", Redo of a share) takes over the excluded folders of their share of it taken last (obj_revoked, 30 days) --
-    else the Undo would open the folders kept out. Exclusions only narrow; the dialog shows them at once."""
+    else the Undo would open the folders kept out. Exclusions only narrow (joined with the ones given with the share, given);
+    the dialog shows them at once. 2.1225.0 (Fable review job/4680 2): the row of this node looked up in SQL -- a window of
+    the person's newest 50 revoked shares lost it after enough other shares of theirs ended."""
     with system_ctx(c):  # the revoked rows of this one person (their user_id), read for this node only
-        rows = c.execute("SELECT row_json FROM obj_revoked WHERE src='fs_shares' AND user_id=? ORDER BY id DESC LIMIT 50", (tid,)).fetchall()
-    for r in rows:
-        d = r[0] if isinstance(r[0], dict) else json.loads(r[0] or "{}")
-        if d.get("node_id") == nid and d.get("user_id") == tid:
-            ex = dl_excl_parse(d.get("excl"))
-            if ex:
-                c.execute("UPDATE fs_shares SET excl=? WHERE id=?", (json.dumps(ex), sid))
-                dl_forget()
-            return
+        r = c.execute("SELECT row_json FROM obj_revoked WHERE src='fs_shares' AND user_id=? AND (CAST(row_json AS JSONB)->>'node_id')=? "
+                      "AND (CAST(row_json AS JSONB)->>'user_id')=? ORDER BY id DESC LIMIT 1", (tid, str(int(nid)), str(int(tid)))).fetchone()
+    if not r:
+        return
+    d = r[0] if isinstance(r[0], dict) else json.loads(r[0] or "{}")
+    ex = list(dict.fromkeys([*given, *dl_excl_parse(d.get("excl"))]))
+    if len(ex) > len(given):
+        c.execute("UPDATE fs_shares SET excl=? WHERE id=?", (json.dumps(ex), sid))
+        dl_forget()
 
 
 def _agent_event(c, aid, n, role):
