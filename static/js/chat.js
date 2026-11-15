@@ -198,7 +198,7 @@ function tcMsgsHtml(list = S.tc.msgs, o = {}) {
     h += `<div class="cmsg ${mine ? 'me' : 'ag'}${!mine && ags.has(m.user_id) ? ' agc' : ''} ${first ? 'first' : ''}${rxShow('t' + m.id)}${!th && S.tc.th?.id === m.id ? ' tthon' : ''}" data-k="m${m.id}" data-mid="t:${m.id}"${agcol ? ` data-agid="${m.user_id}" style="--agcol:${agcol}"` : ''}>
       ${first && !mine ? `<div class="tcwho">${av(m.user_id, uname(m.user_id, U), 'avatar sm')}<b>${esc(uname(m.user_id, U))}</b>${ags.has(m.user_id) ? agentBadge(m.user_id) : ''}</div>` : ''}
       ${body}${m.task ? `<button class="runtask" data-act="open-id" data-id="${m.task.id}">${ic('arrow', 's')}<span>${esc(m.task.title)}</span></button>` : ''}
-      <div class="cmeta"><time title="${esc(fmtWhen(m.created_at))}">${fmtWhen(m.created_at)}</time>${/*html-ok*/ m.edited_at && !m.deleted ? tcEditedHtml(m) : ''}${cpnMark(m)}${rxr}${m.deleted || editing ? '' : replyBtn('chrbtn mreply')}${m.deleted ? '' : chatSavedMark(m)}${!m.deleted ? `<button data-rowmenu="cmsg" type="button" class="rx rxtog" data-act="tc-msg-menu" data-mid="${m.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button>` : ''}</div>${!th && m.thread_count ? tth_lineHtml(m) : ''}${rd === m.id ? trd_lineHtml(m, th) : ''}</div>`;
+      <div class="cmeta"><time>${fmtWhen(m.created_at)}</time>${rd === m.id ? trd_lineHtml(m, th) : ''}${/*html-ok*/ m.edited_at && !m.deleted ? tcEditedHtml(m) : ''}${cpnMark(m)}${rxr}${m.deleted || editing ? '' : replyBtn('chrbtn mreply')}${m.deleted ? '' : chatSavedMark(m)}${!m.deleted ? `<button data-rowmenu="cmsg" type="button" class="rx rxtog" data-act="tc-msg-menu" data-mid="${m.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button>` : ''}</div>${!th && m.thread_count ? tth_lineHtml(m) : ''}</div>`;  // 2.1242.0 (#6096): the time without a title of the same text; "Read" and "edited" in the time's line
   }
   return h + (o.root ? '' : csdHtml(ck, list, m => m.user_id === S.me?.id));  // 2.62.0 (#1530): "Sending…"
 }
@@ -290,11 +290,32 @@ async function tcSend() {
   if (kbd_close('team')) ta.blur();  // 2.235.0 D (#2899)
   else if (hadF || !isTouch()) ta.focus({preventScroll: true});
 }
+// 2.1242.0 (#6096): the reaction shows at once (as chatReact: rxMine, optWrite), the request behind it with what was tapped (on);
+// a refusal puts the row back. The reactions stay the core's (objreact, kind tchat): only their showing changes
 async function tcReact(mid, emoji) {
-  let r; try { r = await rawFetch('POST', `/api/team/messages/${mid}/reactions`, {emoji}); } catch (e) { toast(errText(e, tr('The reaction could not be saved'))); return; }  // 2.1211.0 (#6098)
-  tth_each(mid, m => { m.reactions = r.reactions; });  // 2.139.0 A (#2127): also in the thread
-  tcPatch(); rxRefocus(S.tc.th && !S.tc.msgs.some(x => x.id === mid) ? '.tthview' : '#tc-msgs', mid, emoji);
+  const m0 = tth_msg(mid); if (!m0) return;
+  const on = !rxHas(m0.reactions, emoji), sel = () => S.tc.th && !S.tc.msgs.some(x => x.id === mid) ? '.tthview' : '#tc-msgs';
+  const draw = () => { tcPatch(); rxRefocus(sel(), mid, emoji); };
+  const put = () => {
+    const was = []; tth_each(mid, x => was.push([x, x.reactions]));
+    const v = rxMine(tth_msg(mid)?.reactions, emoji, on); tth_each(mid, x => { x.reactions = v; });  // 2.139.0 A (#2127): also in the thread
+    return () => { for (const [x, rs] of was) x.reactions = rs; };
+  };
+  let r; try { r = await optWrite(put, () => rawFetch('POST', `/api/team/messages/${mid}/reactions`, {emoji, on}), draw); }
+  catch (e) { toast(errText(e, tr('The reaction could not be saved'))); return; }  // 2.1211.0 (#6098)
+  tth_each(mid, x => { x.reactions = r.reactions; });
+  draw();
 }
+// 2.1242.0 (#6096): on a touch screen the smiley and "…" of a team chat message wait behind a tap on the message (the agent
+// chat's rule, .rxshow; app.css hides them); another tap closes them. A tap on a button, link, file or text box keeps its job
+document.addEventListener('click', e => {
+  if (e.defaultPrevented || !isTouchUi()) return;
+  const m = e.target.closest?.('.tcmsgs .cmsg[data-mid]'); if (!m || m.classList.contains('sys')) return;
+  const hit = e.target.closest('a, button, input, textarea, select, label, img, video, audio, summary, [data-act], [role="button"], [contenteditable="true"]'); if (hit && m.contains(hit)) return;
+  const s = getSelection?.(); if (s && !s.isCollapsed && m.contains(s.anchorNode)) return;
+  if (m.classList.contains('rxshow')) { m.classList.remove('rxshow'); if (S.rxOpen === rxKey(m)) S.rxOpen = null; } else rxOpenOn(m);
+  m.querySelector('.rxrow .rxtog')?.setAttribute('aria-expanded', String(m.classList.contains('rxshow')));
+});
 function tcMsgMenu(anchor, mid) {
   const inTh = !!anchor?.closest?.('.tthview'), list = inTh ? tth_all() : S.tc.msgs;  // 2.139.0 A (#2127): a message of the thread view
   const m = list.find(x => x.id === mid); if (!m || m.deleted) return;

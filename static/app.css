@@ -5339,6 +5339,13 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 @media (hover:none),(pointer:coarse){
   #chat-msgs .cmsg:not(.rxshow):not(:focus-within) .rxrow .rx.rxtog{position:absolute;width:1px;height:1px;min-width:0;min-height:0;margin:0;padding:0;overflow:hidden;clip-path:inset(50%)}
 }
+/* 2.1242.0 (#6096): the team chat (and its thread) as the agent chat: on a touch screen the smiley and "…" wait behind a tap on
+   the message (.rxshow, chat.js); "Read" and "edited" sit in the time's line, the 44 px of "Read by" do not make it taller */
+@media (hover:none),(pointer:coarse){
+  .tcmsgs .cmsg:not(.rxshow):not(:focus-within) .rxrow .rx.rxtog,.tcmsgs .cmsg:not(.rxshow):not(:focus-within) .cmeta [data-act="tc-msg-menu"]{position:absolute;width:1px;height:1px;min-width:0;min-height:0;margin:0;padding:0;overflow:hidden;clip-path:inset(50%)}
+}
+.cmeta .trdline{min-height:1.5rem;padding:0 .25rem}
+@media (pointer:coarse){ .cmeta button.trdline{min-height:2.75rem;margin-block:-.625rem} }
 .dswpos{position:fixed;top:calc(var(--safe-t,0px) + .5rem);left:50%;transform:translate(-50%,-.5rem);z-index:70;padding:.25rem .75rem;border-radius:99rem;background:var(--bg3);border:1px solid var(--line2);color:var(--text2);font-size:var(--fs-s);box-shadow:0 .25rem 1rem rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
 .dswpos.on{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){ .dswpos{transition:none} }
