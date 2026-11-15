@@ -19,6 +19,8 @@ merge queue gets the same checks here, as a CI step on the commits of the change
               texts of a package go into static/i18n/neu/<KID>.json (kalmido/core/i18nfrag.py), so two entries of the merge
               queue never conflict at the end of the big language files (GitHub merges without the merge drivers). A key that
               stood in a fragment at the base may move into the big file (folding the fragments in).
+              2.1216.0 (#6231): a build job does not move its texts itself, the release tooling's merge queue does it for
+              every replayed commit (a job's own move commit met the queue's fragment as an add/add conflict).
   oneway      the one-way rules (destructive SQL, a schema version bump, a migration step that deletes, a sign-in route
               added / removed, the registration modes changed): a note (GitHub warning annotation), never red - a one-way
               step is a note while the switch "einbahn_braucht_ja" of the release tooling is off; --strict makes it red.
@@ -201,7 +203,9 @@ def check_i18n(base: str, head: str, files) -> list[str]:
         if new:
             more = f" and {len(new) - 3} more" if len(new) > 3 else ""
             hits.append(f"{p}: {len(new)} new key(s) ({', '.join(repr(k[:60]) for k in new[:3])}{more}) - new texts go into "
-                        f"static/i18n/neu/<KID>.json, not into the big language file (tools/i18n_neu.py auslagern --base <rev> --kid <KID>)")
+                        f"static/i18n/neu/<KID>.json, not into the big language file - a build job of the release tooling leaves "
+                        f"them where they are, its merge queue moves them commit by commit; only a pull request outside the queue "
+                        f"moves them itself (tools/i18n_neu.py auslagern --base <rev> --kid <KID>)")  # #6231: a job's own move conflicted with the queue's
     return hits
 
 
