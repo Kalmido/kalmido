@@ -18650,5 +18650,12 @@
   "This kind of file cannot be added here": "Dit soort bestand kan hier niet worden toegevoegd",
   "{0} file was not uploaded:": ["{0} bestand is niet geüpload:", "{0} bestanden zijn niet geüpload:"],
   "{0} not uploaded": ["{0} niet geüpload", "{0} niet geüpload"],
-  "Drop here - lands in “{0}”": "Hier neerzetten - komt in „{0}”"
+  "Drop here - lands in “{0}”": "Hier neerzetten - komt in „{0}”",
+  "Present": "Presenteren",
+  "Slide": "Dia",
+  "Slide {0} of {1}": "Dia {0} van {1}",
+  "Previous slide": "Vorige dia",
+  "Next slide": "Volgende dia",
+  "End presentation": "Presentatie beëindigen",
+  "Presentation: {0}": "Presentatie: {0}"
 }

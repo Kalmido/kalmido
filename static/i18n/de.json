@@ -18650,5 +18650,12 @@
   "This kind of file cannot be added here": "Diese Dateiart kann hier nicht hinzugefügt werden",
   "{0} file was not uploaded:": ["{0} Datei wurde nicht hochgeladen:", "{0} Dateien wurden nicht hochgeladen:"],
   "{0} not uploaded": ["{0} nicht hochgeladen", "{0} nicht hochgeladen"],
-  "Drop here - lands in “{0}”": "Hier ablegen - landet in „{0}“"
+  "Drop here - lands in “{0}”": "Hier ablegen - landet in „{0}“",
+  "Present": "Präsentieren",
+  "Slide": "Folie",
+  "Slide {0} of {1}": "Folie {0} von {1}",
+  "Previous slide": "Vorherige Folie",
+  "Next slide": "Nächste Folie",
+  "End presentation": "Präsentation beenden",
+  "Presentation: {0}": "Präsentation: {0}"
 }

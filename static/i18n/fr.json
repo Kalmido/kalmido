@@ -18650,5 +18650,12 @@
   "This kind of file cannot be added here": "Ce type de fichier ne peut pas être ajouté ici",
   "{0} file was not uploaded:": ["{0} fichier n'a pas été envoyé :", "{0} fichiers n'ont pas été envoyés :"],
   "{0} not uploaded": ["{0} non envoyé", "{0} non envoyés"],
-  "Drop here - lands in “{0}”": "Dépose ici - arrive dans « {0} »"
+  "Drop here - lands in “{0}”": "Dépose ici - arrive dans « {0} »",
+  "Present": "Présenter",
+  "Slide": "Diapositive",
+  "Slide {0} of {1}": "Diapositive {0} sur {1}",
+  "Previous slide": "Diapositive précédente",
+  "Next slide": "Diapositive suivante",
+  "End presentation": "Terminer la présentation",
+  "Presentation: {0}": "Présentation : {0}"
 }
