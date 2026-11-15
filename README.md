@@ -19,12 +19,11 @@
 
 ## What's new
 
-**2.1191.0** (2026-11-15):
-- **People**: invite someone without an account by a link or QR code (Find people); the new account is private and connected with you.
-- **Quotations and invoices**: tidier PDFs (discount in the totals, one payment block with the payment reference, no empty rights page); marking as rejected, extending and adjusting prices can be undone from the message.
-- **Calendar**: the week starts at your working hours; the booking page picks the time zone by city.
-- **Files and knowledge**: one message per upload with unfit files named first; knowledge pages say what failed and offer Try again.
-- **Recent steps**: say what changed in a project; view switches no longer appear.
+**2.1240.0** (2026-11-15):
+- **Quotations**: a surcharge in percent ("Mehraufwand 15 %") as its own line for everyone, taxed like its positions; invoices take one position per tax rate.
+- **Team chat**: delete your own messages without a prompt and undo it right away; chat windows show clear loading and failed states with Try again.
+- **Search and files**: Ctrl+K shows open tasks with a ring and finds commands on whole words; files and documents show clear errors and empty states.
+- **Office**: device dialog sections open as soon as a field is filled; units sit beside the field.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
