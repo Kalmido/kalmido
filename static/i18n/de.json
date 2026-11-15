@@ -18686,14 +18686,5 @@
   "Only digits, spaces and + - / ( ) here, please.": "Hier bitte nur Ziffern, Leerzeichen und + - / ( ).",
   "Please enter a web address like https://example.org.": "Bitte eine Webadresse wie https://example.org eingeben.",
   "{pct} % on the discountable positions|calc": "{pct} % auf die rabattfähigen Positionen",
-  "Fixed amount on the discountable positions|calc": "Fester Betrag auf die rabattfähigen Positionen",
-  "They get the key right away: {0}.": "Den Schlüssel bekommen gleich mit: {0}.",
-  "Still missing: {0}. They get the key once they have set up encryption in their account.": "Noch nicht dabei: {0}. Sie bekommen den Schlüssel, sobald sie in ihrem Konto die Verschlüsselung eingerichtet haben.",
-  "Only you get the key.": "Nur du bekommst den Schlüssel.",
-  "The names and files of this folder are encrypted in your browser; only people with the key can open them.": "Namen und Dateien dieses Ordners werden in deinem Browser verschlüsselt; öffnen können sie nur Personen mit dem Schlüssel.",
-  "After that the server, the operator, agents and connected apps can no longer read them: no preview, no search, no text recognition. Earlier versions of the files are removed.": "Danach können Server, Betreiber, Agenten und verbundene Apps sie nicht mehr lesen: keine Vorschau, keine Suche, keine Texterkennung. Frühere Versionen der Dateien werden dabei entfernt.",
-  "If everyone with the key forgets their encryption password (passphrase) and loses the recovery code, the content is lost permanently. Nobody can bring it back, not even the operator.": "Vergessen alle mit dem Schlüssel ihr Verschlüsselungs-Passwort (Passphrase) und verlieren den Wiederherstellungscode, ist der Inhalt für immer weg. Niemand kann ihn zurückholen, auch der Betreiber nicht.",
-  "Share with {0}?": "Mit {0} teilen?",
-  "The agent can read everything shared here right away.": "Der Agent kann sofort alles lesen, was hier geteilt ist.",
-  "Valid until {0}": "Gültig bis {0}"
+  "Fixed amount on the discountable positions|calc": "Fester Betrag auf die rabattfähigen Positionen"
 }

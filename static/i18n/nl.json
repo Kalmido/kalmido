@@ -18686,14 +18686,5 @@
   "Only digits, spaces and + - / ( ) here, please.": "Hier alleen cijfers, spaties en + - / ( ).",
   "Please enter a web address like https://example.org.": "Vul een webadres in zoals https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % op de posten met korting",
-  "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting",
-  "They get the key right away: {0}.": "Krijgen de sleutel meteen: {0}.",
-  "Still missing: {0}. They get the key once they have set up encryption in their account.": "Nog niet erbij: {0}. Zij krijgen de sleutel zodra ze in hun account de versleuteling hebben ingesteld.",
-  "Only you get the key.": "Alleen jij krijgt de sleutel.",
-  "The names and files of this folder are encrypted in your browser; only people with the key can open them.": "Namen en bestanden van deze map worden in je browser versleuteld; alleen mensen met de sleutel kunnen ze openen.",
-  "After that the server, the operator, agents and connected apps can no longer read them: no preview, no search, no text recognition. Earlier versions of the files are removed.": "Daarna kunnen de server, de beheerder, agents en gekoppelde apps ze niet meer lezen: geen voorbeeld, geen zoeken, geen tekstherkenning. Eerdere versies van de bestanden worden verwijderd.",
-  "If everyone with the key forgets their encryption password (passphrase) and loses the recovery code, the content is lost permanently. Nobody can bring it back, not even the operator.": "Als iedereen met de sleutel het versleutelingswachtwoord (wachtzin) vergeet en de herstelcode kwijtraakt, is de inhoud voorgoed weg. Niemand kan hem terughalen, ook de beheerder niet.",
-  "Share with {0}?": "Delen met {0}?",
-  "The agent can read everything shared here right away.": "De agent kan meteen alles lezen wat hier gedeeld is.",
-  "Valid until {0}": "Geldig tot {0}"
+  "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting"
 }
