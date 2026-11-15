@@ -810,6 +810,7 @@ async function propOpen(jid) {
   if (ctr_is(v) && typeof noticeWord !== 'function') await loadModule('life').catch(() => {});  // 2.70.0 C (#1359): the card uses life.js (loaded on demand since 2.65.0)
   if (['office_text', 'doc_summary', 'report', 'receipt_read', 'card_statement_read', 'sheet_tasks'].includes(v?.kind) && (typeof ast_is !== 'function' || typeof sht_is !== 'function')) await loadModule('asstprop').catch(() => {});  // 2.126.1 A (#2123 #2124): asstprop.js on demand
   if (v?.kind === 'obj_patch' && typeof objp_is !== 'function') await loadModule('objprop').catch(() => {});  // 2.623.0 (#4718): objprop.js on demand
+  if (rul_is(v) && typeof rul_draw !== 'function') await loadModule('rules').catch(() => {});  // 2.1230.0 (#4742): rules.js on demand (the card, its toast)
   if (v?.input?.assistant) v.agent = {...(v.agent || {}), name: tr('Assistant')};  // 2.75.0 (#1411): the built-in assistant, not an agent
   $('.ppm')?.remove();
   const md = modal('');
@@ -943,7 +944,7 @@ function propDraw() {
     if (aim_is(v)) ({main, foot} = aim_draw(v));  // 2.68.0 (#1839): the import preview (importprop.js)
     if (dup_is(v)) ({main, foot} = dup_draw(v));  // 2.70.0 B (#1357): one row per group (dupprop.js)
     if (ctr_is(v)) ({main, foot} = ctr_draw(v));  // 2.70.0 C (#1359): the contract, the sentence, note / remind me (contractprop.js)
-    if (rul_is(v)) ({main, foot} = rul_draw(v));  // 2.71.0 A (#1457): the rule in one sentence, 👍 / 👎 (rules.js)
+    if (rul_is(v) && typeof rul_draw === 'function') ({main, foot} = rul_draw(v));  // 2.71.0 A (#1457): the rule in one sentence, 👍 / 👎 (rules.js); 2.1230.0 (#4742): loaded by propOpen
     if (typeof ast_is === 'function' && ast_is(v)) ({main, foot} = ast_draw(v));  // 2.126.1 A (#2123 #2124): the text to edit, copy / take over (asstprop.js)
     if (typeof objp_is === 'function' && objp_is(v)) ({main, foot} = objp_draw(v));  // 2.623.0 (#4718): the object, old -> new, 👍 / 👎 (objprop.js)
   } else {
@@ -980,7 +981,7 @@ async function propApply(b) {
   if (typeof ast_is === 'function' && ast_is(v)) { ast_hist(v, e); histToast(ast_toast(v), e); ast_after(v, true); if (S.route.mod === 'agents') loadJobs(); return; }  // 2.126.1 A (#2123 #2124)
   if (typeof objp_is === 'function' && objp_is(v)) { histToast(objp_toast(v, r), e); if (S.route.mod === 'agents') loadJobs(); return; }  // 2.623.0 (#4718)
   if (proj) go('l/' + r.list_id);  // first: the toast belongs to the new list's page (2.218.0 #2801 hides an undo message on a page change)
-  histToast(dup_is(v) ? dup_toast(r) : lyp_is(v) ? lyp_toast(v, r) : rul_is(v) ? rul_toast(v) : aim_is(v) ? aim_toast(r) : pk2_is(v.kind) ? pk2_toast(v, r) : v.kind === 'cleanup' ? clnDone(r) : v.kind === 'dayplan' ? trn('{0} task planned', '{0} tasks planned', r.changed) : r.changed ? trn('{0} basket item sorted', '{0} basket items sorted', r.changed) : trn('{0} entry created', '{0} entries created', r.created), e, proj ? F8C_PROJ_TOAST_MS : undefined);
+  histToast(dup_is(v) ? dup_toast(r) : lyp_is(v) ? lyp_toast(v, r) : rul_is(v) ? rul_toast(v) : aim_is(v) ? aim_toast(r) : pk2_is(v.kind) ? pk2_toast(v, r) : v.kind === 'cleanup' ? clnDone(r) : v.kind === 'dayplan' ? trn('{0} task planned', '{0} tasks planned', r.changed) : r.changed ? trn('{0} basket item sorted', '{0} basket items sorted', r.changed) : trn('{0} entry created', '{0} entries created', r.created), e, proj ? F8C_PROJ_TOAST_MS : undefined);  // lazy-ok: 2.1230.0 (#4742): only after the rule card was drawn, propOpen loaded rules.js for it
   if (S.route.mod === 'agents') loadJobs();
 }
 async function propDiscard() {
