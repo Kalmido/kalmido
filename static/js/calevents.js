@@ -98,11 +98,16 @@ function evWhen(e) {
 }
 async function evPop(anchor, e) {
   if (e.eid < 0) return;  // 2.559.0 (#4659): the stand-in of a new event still on its way (evEditor) has nothing to open yet
-  const p = openPop(anchor, `<div class="cevpop evpop" style="--cc:${evCalColor(e)}"><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div><div class="muted">${tr('Loading…')}</div></div>`);
+  const p = openPop(anchor, `<div class="cevpop evpop" style="--cc:${evCalColor(e)}"><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div>${/*html-ok*/ loadingHtml() /* 2.1212.0 (#6159): the shared block */}</div>`);
   // 2.800.0 (#5460): placed again once the details are in (a redraw meanwhile may have taken the anchor: its place from the start)
   const r0 = anchor.getBoundingClientRect(), at = () => anchor.isConnected ? anchor : {getBoundingClientRect: () => r0};
   let ev;
-  try { ev = await api('GET', `/api/events/${e.eid}`); } catch { closePop(); return; }
+  try { ev = await api('GET', `/api/events/${e.eid}`); } catch (x) {
+    // 2.1212.0 (#6159): a failed load says so in the popover with "Try again" (it closed without a word)
+    if ($('#pop').classList.contains('hidden') || x?.message === 'auth') return;
+    p.innerHTML = `<div class="cevpop evpop" style="--cc:${evCalColor(e)}"><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div>${/*html-ok*/ errorState({size: 'row', title: tr('The event could not be loaded'), retry: () => evPop(at(), e)}) /* the shared block */}</div>`;
+    placePop(p, at(), true); return;
+  }
   if ($('#pop').classList.contains('hidden')) return;
   if (AP_EVPEND.has(ev.id)) { ev.status = AP_EVPEND.get(ev.id); e = {...e, status: ev.status}; }  // 2.144.2 B (#1811): a confirm still on its way
   const role = ev.role, w = role === 'owner' || role === 'edit', me = (ev.attendees || []).find(a => a.user_id === S.me?.id);
@@ -166,15 +171,18 @@ async function evDelete(ev, occ) {
     S.cal.items = keep; return () => { S.cal.items = its; };
   };
   const lk = mode === 'all' ? evLinkPut(ev.id, null, null) : () => null;
-  try { await evOpt(evPuts(put, lk), () => api('DELETE', `/api/events/${ev.id}` + (mode === 'one' ? `?occ=${encodeURIComponent(occ)}` : '')), render); } catch { return; }
+  let j; try { j = await evOpt(evPuts(put, lk), () => api('DELETE', `/api/events/${ev.id}` + (mode === 'one' ? `?occ=${encodeURIComponent(occ)}` : '')), render); } catch { return; }
   calInvalidate(); render();
+  // 2.1212.0 (#6159): the step goes into the history too, so Ctrl+Z (and the list "Recent steps") takes it back like the toast:
+  // the server's step of the delete (res: its group); undo / redo below only where the server recorded none
+  const re = () => { calInvalidate(); renderView(); }, lbl = tr('Delete “{0}”', ev.title || tr('(no title)'));
   const back = () => {
     const add = gone.filter(g => !S.cal.items.some(x => x.own && x.eid === g.eid && x.occ === g.occ));
     if (!add.length) return null;
     const its = S.cal.items; S.cal.items = its.concat(add); return () => { S.cal.items = its.filter(x => !add.includes(x)); };
   };
-  if (mode === 'all') toast(tr('Event deleted'), async () => { try { await evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)); } catch { return; } calInvalidate(); renderView(); });
-  else toast(tr('This date was removed'), () => evOccBack(ev, occ));  // 2.800.0 (#5466): with Undo
+  if (mode === 'all') offerUndo(tr('Event deleted'), histAdd({label: lbl, res: j, post: re, undo: () => evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)), redo: () => api('DELETE', `/api/events/${ev.id}`)}));
+  else offerUndo(tr('This date was removed'), histAdd({label: lbl, res: j, post: re, undo: () => evOccBack(ev, occ), redo: () => api('DELETE', `/api/events/${ev.id}?occ=${encodeURIComponent(occ)}`)}));  // 2.800.0 (#5466): with Undo
 }
 // 2.800.0 (#5466): the Undo of "only this date": the date leaves the left-out ones again through undoWrite (only exdates, with
 // the event's version: changed elsewhere meanwhile = "not undone"); a date with its own change gets that change back
@@ -217,7 +225,9 @@ async function evPrepTask(ev) {
 let EVU = null;  // people for attendees (GET /api/users, once per session)
 async function evPeople() {
   if (EVU) return EVU;
-  try { EVU = (await api('GET', '/api/users')).users.filter(u => !u.agent && !u.disabled && u.id !== S.me?.id); } catch { EVU = []; }
+  // 2.1212.0 (#6159): a failed load is not kept as "nobody" (the next dialog asks again); the empty answer carries err, so the
+  // dialogs say that the people could not be loaded instead of showing nobody
+  try { EVU = (await api('GET', '/api/users')).users.filter(u => !u.agent && !u.disabled && u.id !== S.me?.id); } catch (x) { return Object.assign([], {err: x}); }
   return EVU;
 }
 const evTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } };
@@ -330,6 +340,8 @@ async function evEditor(o = {}) {
     ev ? loadModule('objsave').catch(() => { /* offline without the copy: saved as before */ }) : null]);  // 2.565.0 (#4705)
   const ppl = new Map(people.map(u => [u.id, u.display_name]));
   const atts = (st.attendees || []).map(a => ({...a}));
+  // 2.1212.0 (#6159): the people field's hint; the people of this server could not be loaded = an e-mail address still works
+  const attPh = () => people.err ? tr('People could not be loaded: type an e-mail address') : atts.length ? tr('Name or e-mail') : tr('Only you so far: add a name or e-mail');
   const endDay = s => st.all_day ? addDays(s, -1) : s.slice(0, 10);  // all day: the shown end is the last day (stored exclusive)
   const repK = evRepKey(st.rrule, st.start);
   const md = modal(`<div class="lhdr"><h3>${ev || o.dvw ? tr('Edit event') : tr('New event')}</h3><span class="spacer"></span><button class="iconbtn" data-evm="close" aria-label="${tr('Close')}">${ic('x')}</button></div>
@@ -346,7 +358,7 @@ async function evEditor(o = {}) {
     <div class="row"><label for="ev-loc">${tr('Location')}</label><input id="ev-loc" maxlength="500" value="${esc(st.location || '')}" autocomplete="off"></div>
     <div class="row evrems"><span class="rlab" id="ev-rem-l">${tr('Reminders')}</span><div class="evchips" id="ev-rems" role="group" aria-labelledby="ev-rem-l"></div></div>
     <div class="row evatts"><span class="rlab" id="ev-att-l">${tr('People|event')}</span><div class="evatt-w"><div class="evchips" id="ev-atts" role="group" aria-labelledby="ev-att-l"></div>
-      <div class="evattadd"><input id="ev-attin" list="ev-attl" autocomplete="off" placeholder="${esc(atts.length ? tr('Name or e-mail') : tr('Only you so far: add a name or e-mail'))}" aria-label="${esc(tr('Add a person'))}" enterkeyhint="done"><datalist id="ev-attl"></datalist><button type="button" class="btn sm" data-evm="attadd">${ic('plus', 's')} ${tr('Add')}</button></div></div></div>
+      <div class="evattadd"><input id="ev-attin" list="ev-attl" autocomplete="off" placeholder="${esc(attPh())}" aria-label="${esc(tr('Add a person'))}" enterkeyhint="done"><datalist id="ev-attl"></datalist><button type="button" class="btn sm" data-evm="attadd">${ic('plus', 's')} ${tr('Add')}</button></div></div></div>
     <div class="row ppcol"><label for="ev-desc">${tr('Notes')}</label><textarea id="ev-desc" rows="3" maxlength="20000">${esc(st.description || '')}</textarea></div>
     <details class="evmore"><summary>${ic('chev', 's fcar')}<span>${tr('More options')}</span><span class="muted evmoreh">${tr('Time zone, status, link')}</span></summary>
       <div class="row"><label for="ev-tzq">${tr('Time zone')}</label><input type="hidden" id="ev-tz" value="${esc(st.tz || evTz())}"><input id="ev-tzq" list="ev-tzl" value="${esc(evTzLabel(st.tz || evTz()))}" autocomplete="off" placeholder="${esc(tr('Search a city'))}" enterkeyhint="done"><datalist id="ev-tzl"></datalist></div>
@@ -355,7 +367,7 @@ async function evEditor(o = {}) {
       <div class="row"><label for="ev-url">${tr('Link')}</label><input id="ev-url" type="url" inputmode="url" value="${esc(st.url || '')}" placeholder="https://…" autocomplete="off"></div>
       ${st.task_id && taskById(st.task_id) ? `<div class="row"><span class="rlab">${tr('Preparation')}</span><button type="button" class="linkbtn" data-evm="task">${ic('done', 's')} ${esc(taskById(st.task_id).title)}</button><button type="button" class="iconbtn" data-evm="untask" aria-label="${esc(tr('Remove the link to the task'))}" title="${esc(tr('Remove the link to the task'))}">${ic('x', 's')}</button></div>` : ''}
     </details>
-    ${o.err ? `<div class="calerr evsaveerr" role="alert">${ic('alert', 's')} ${esc(tr('Not saved: {0}', o.err))}</div>` : ''/* 2.1077.0 (#5461): why the editor is open again */}
+    ${o.err ? `<div class="calerr evsaveerr" role="alert">${ic('alert', 's')} ${esc(o.err)}</div>` : ''/* 2.1077.0 (#5461): why the editor is open again */}
     <div class="foot">${ev && evWrite(evCal(ev.cal_id)) ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${tr('Save')}</button></div>`);
   md.classList.add('evmodal');
   // 2.484.0 (#3945): a changed date of a series shows the rows of "Only this date" (after dvw_rows, which shows them again)
@@ -372,7 +384,7 @@ async function evEditor(o = {}) {
     $('#ev-atts', md).innerHTML = atts.length ? atts.map((a, i) => `<span class="evatp ps-${esc(a.partstat || 'needs-action')}">${a.user_id ? av(a.user_id, a.name || ppl.get(a.user_id) || '') : ic(a.contact_id ? 'user' : 'at', 's')}<span>${esc(a.name || ppl.get(a.user_id) || a.email)}</span><span class="muted evps">${esc(tr(EV_PS_WORD[a.partstat || 'needs-action']))}</span><button type="button" class="iconbtn" data-evatrm="${i}" aria-label="${esc(tr('Remove {0}', a.name || a.email || ''))}">${ic('x', 's')}</button></span>`).join('')
       : '';  // 2.846.0 (#5465): "Only you" is the placeholder of the people field, not a line above it
     $('#ev-atts', md).hidden = !atts.length;
-    const ai = $('#ev-attin', md); if (ai) ai.placeholder = atts.length ? tr('Name or e-mail') : tr('Only you so far: add a name or e-mail');
+    const ai = $('#ev-attin', md); if (ai) ai.placeholder = attPh();
     if (typeof evi_draw === 'function') evi_draw(md, atts);  // 2.111.0 B (#2056): the invitation switch (evinvite.js)
   };
   // 2.846.0 (#5465): the all-day switch keeps the reminders chosen for each kind (off and on again: the own ones are back)
@@ -494,7 +506,7 @@ async function evEditor(o = {}) {
       try { j = await evOpt(put, req, render); } catch (e) {  // nothing typed is lost (a conflict 409 too: api() said why)
         if (e?.cf) { toast(tr('Changed by someone else in the meantime')); evAgain(e.cf.raw, e.cf.mine, e.cf); return; }  // 2.565.0 (#4705)
         // 2.1077.0 (#5461): the editor that opens again says that it was not saved and why (a toast stood behind it or not at all)
-        const why = e instanceof Offline ? tr('You are offline') : String(e?.message || '') || tr('Check the connection and try again.');
+        const why = errText(e, tr('The event was not saved'));  // 2.1212.0 (#6159): what failed first, the server's text in brackets
         if (dlg) { const mine = objDiff(dlg.base, body); evAgain(srv, mine, {raw: srv, cur: srv, mine, theirs: [], both: []}, why); return; }  // lazy-ok: dlg only with objsave.js loaded; what was typed stays "changed" for the next save
         // "Only this date": what was typed comes back as that date's own change (the editor then saves only it again)
         const ov = {rid: o.occ, title: body.title, location: body.location, description: body.description, all_day: body.all_day, start: body.start, end: body.end};
@@ -576,22 +588,22 @@ function viewAgenda() {
 // the name + the folder path), hits with their folder path. In a list's own calendar view the rule does not apply (lcal_has).
 const CVF_SEARCH_MIN = 8;
 function cvf_lists(lists, hidL, hidF, tasksOn, sw, q) {
-  const ind = d => d ? `padding-left:${(1.5 + d * 1.25).toFixed(2)}rem` : '';
+  const ind = d => d > 0 ? ` cvfi${Math.min(6, d)}` : '';  // 2.1212.0 (#6159): a class per depth (calendar.css), no inline style
   const viaTxt = `<span class="muted"> · ${esc(tr('Off through the folder'))}</span>`;
   const path = f => f ? `<span class="muted cvfpath" hidden> · ${esc(fDisp(f))}</span>` : '';
   const lrow = l => {
     const via = cvxFolderOff(l.folder, hidF);
-    return `<div class="cvxrow sub" data-cvfq="${esc((lname(l) + ' ' + (l.folder || '')).toLowerCase())}" style="--cc:${cssColor(lp_col(l)) || 'var(--muted)'};${ind(fDepth(l.folder || ''))}">${sw(String(l.id), 'list', !via && !hidL.includes(l.id), !tasksOn || via, tr('Show {0} in my calendar', lname(l)))}<i class="cevdot"></i><span class="evcn">${esc(lname(l))}${path(l.folder)}${via ? viaTxt : ''}</span></div>`;
+    return `<div class="cvxrow sub${ind(fDepth(l.folder || ''))}" data-cvfq="${esc((lname(l) + ' ' + (l.folder || '')).toLowerCase())}" style="--cc:${cssColor(lp_col(l)) || 'var(--muted)'}">${sw(String(l.id), 'list', !via && !hidL.includes(l.id), !tasksOn || via, tr('Show {0} in my calendar', lname(l)))}<i class="cevdot"></i><span class="evcn">${esc(lname(l))}${path(l.folder)}${via ? viaTxt : ''}</span></div>`;
   };
   const frow = f => {
     const via = cvxFolderOff(fParent(f), hidF);
-    return `<div class="cvxrow cvfrow" data-cvfq="${esc(f.toLowerCase())}" data-folder="${esc(f)}" style="${ind(fDepth(f) - 1) || 'padding-left:1.5rem'}">${sw(esc(f), 'folder', !via && !hidF.includes(f), !tasksOn || via, tr('Show folder {0} in my calendar', fName(f)))}${ic('folder', 's')}<span class="evcn">${esc(fName(f))}${path(fParent(f))}${via ? viaTxt : ''}</span></div>`;
+    return `<div class="cvxrow cvfrow${ind(fDepth(f) - 1) || ' cvfi0'}" data-cvfq="${esc(f.toLowerCase())}" data-folder="${esc(f)}">${sw(esc(f), 'folder', !via && !hidF.includes(f), !tasksOn || via, tr('Show folder {0} in my calendar', fName(f)))}${ic('folder', 's')}<span class="evcn">${esc(fName(f))}${path(fParent(f))}${via ? viaTxt : ''}</span></div>`;
   };
   const own = lists.filter(l => !l.is_inbox);
   const rows = [...own.filter(l => !l.folder).map(lrow),
     ...folderNames().filter(f => own.some(l => fUnder(l.folder, f))).flatMap(f => [frow(f), ...own.filter(l => l.folder === f).map(lrow)]),
     ...lists.filter(l => l.is_inbox).map(lrow)];
-  const srch = lists.length >= CVF_SEARCH_MIN ? `<div class="cvxrow cvfsrch"><input type="search" data-cvfq-in value="${esc(q || '')}" placeholder="${esc(tr('Search projects and folders'))}" aria-label="${esc(tr('Search projects and folders'))}" autocomplete="off" maxlength="200" style="flex:1;min-width:0"></div>` : '';
+  const srch = lists.length >= CVF_SEARCH_MIN ? `<div class="cvxrow cvfsrch"><input type="search" data-cvfq-in value="${esc(q || '')}" placeholder="${esc(tr('Search projects and folders'))}" aria-label="${esc(tr('Search projects and folders'))}" autocomplete="off" maxlength="200" class="cvfq"></div>` : '';
   return `<div class="cvflists">${srch}${rows.join('')}<p class="muted cvfnone" hidden>${esc(tr('No project or folder found'))}</p></div>`;
 }
 function cvf_filter(md, q) {
@@ -657,7 +669,7 @@ async function evCalsModal() {
       : st.trash.items.length ? `<ul class="evclist evctrash" aria-label="${esc(tr('Trash'))}">${st.trash.items.map(c => `<li class="evcrow" style="--cc:${cssColor(c.color) || 'var(--accent)'}"><i class="cevdot"></i><span class="evcn">${esc(c.name)}<span class="muted"> · ${esc(trn('{0} event', '{0} events', c.events))} · ${esc(tr('In the trash since {0}', fmtDate((c.deleted_at || '').slice(0, 10))))}</span></span><button type="button" class="btn sm" data-evctr="${c.id}">${ic('undo', 's')} ${tr('Restore')}</button></li>`).join('')}</ul>`
       : st.trash.err ? errorState({size: 'row', retry: async () => { st.trash = await evcTrash(); draw(); }})  // 2.1077.0 (#5461): not "empty" when it failed
       : `<p class="muted">${tr('The trash is empty')}</p>`}${st.trash?.trash_days ? `<p class="muted">${esc(trashNote(tr('Calendars in the trash are deleted permanently after {0} days, with their events.', st.trash.trash_days)))}</p>` : ''}`;
-    $('#evc-body', md).innerHTML = tl + own + tr2 + sb + (typeof abc_group === 'function' ? abc_group() : '');  // 2.155.0 B (#2076)
+    $('#evc-body', md).innerHTML = tl + own + sb + (typeof abc_group === 'function' ? abc_group() : '') + tr2;  // 2.155.0 B (#2076); 2.1212.0 (#6159): the trash last
     cvf_filter(md, st.q);  // 2.624.0 (#3946)
   };
   const redraw = () => { cvxRedraw(); draw(); };
@@ -697,7 +709,7 @@ async function evCalsModal() {
       const c = evCal(+m.dataset.evcmenu); if (!c) return;
       const own = c.role === 'owner';
       menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), own && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // 2.46.2 (#1659): at once
-        own && {label: tr('Colour…'), icon: 'palette', next: 1, fn: () => calColorPop(m, LCOLORS.filter(Boolean), c.color, async col => { try { await evcPatch(c.id, {color: col}); } catch { return; } refresh(); })},
+        own && {label: tr('Colour…'), icon: 'palette', next: 1, fn: () => calColorPop(m, c.color, async col => { try { await evcPatch(c.id, {color: col}); } catch { return; } refresh(); })},
         own && wsOn() && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, c.org_id, async org => { try { await evcPatch(c.id, {org_id: org}); } catch { return; } refresh(); })},
         own && collab() && {label: tr('Share…'), icon: 'users', fn: async () => evShareModal(c, await usersP, refresh)},
         evWrite(c) && {label: tr('Import a calendar file (ICS)…'), icon: 'upload', fn: () => evImport(c, refresh)},
@@ -706,9 +718,11 @@ async function evCalsModal() {
         {label: tr('Only this calendar'), icon: 'eye', fn: async () => { await cvxOnly(`e:${c.id}`); draw(); }},  // 2.36.1 (#1127)
         {label: tr('Show all calendars'), icon: 'all', fn: async () => { await cvxAll(); draw(); }},
         !own && {label: tr('Leave this calendar'), icon: 'logout', fn: async () => { if (!await askConfirm(tr('Leave the calendar “{0}”?', c.name), '', {ok: tr('Leave'), danger: true})) return; try { await api('DELETE', `/api/evcals/${c.id}/members/${S.me.id}`); } catch { return; } refresh(); }},
-        own && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the calendar “{0}” with all its events?', c.name), tr('They can be restored from the trash.'), {ok: tr('Delete'), danger: true})) return; try { await api('DELETE', `/api/evcals/${c.id}`); } catch { return; } st.trash = null; calInvalidate(); await refresh(); renderView();
-          // 2.800.0 (#5466): the toast takes it back (the trash's restore, with its events)
-          toast(tr('Calendar “{0}” deleted', c.name), async () => { try { await api('POST', `/api/evcals/${c.id}/restore`); } catch { return; } st.trash = null; calInvalidate(); if (md.isConnected) await refresh(); else await cvxCals(true).catch(() => {}); renderView(); }); }}]);  // 2.566.0 (#4707): into the trash
+        own && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the calendar “{0}” with all its events?', c.name), tr('They can be restored from the trash.'), {ok: tr('Delete'), danger: true})) return; let j; try { j = await api('DELETE', `/api/evcals/${c.id}`); } catch { return; } st.trash = null; calInvalidate(); await refresh(); renderView();
+          // 2.800.0 (#5466): the toast takes it back (the trash's restore, with its events); 2.1212.0 (#6159): Ctrl+Z too (history)
+          const re = async () => { st.trash = null; calInvalidate(); if (md.isConnected) await refresh(); else await cvxCals(true).catch(() => {}); renderView(); };
+          offerUndo(tr('Calendar “{0}” deleted', c.name), histAdd({label: tr('Delete the calendar “{0}”', c.name), res: j, post: re,
+            undo: () => api('POST', `/api/evcals/${c.id}/restore`), redo: () => api('DELETE', `/api/evcals/${c.id}`)})); }}]);  // 2.566.0 (#4707): into the trash
       return;
     }
     const rb = e.target.closest('[data-evctr]');
@@ -782,10 +796,10 @@ function evImport(c, done, file) {  // 2.143.0 C (#2154): file = an .ics shared 
     try {
       const r = await fetch(`/api/evcals/${c.id}/import`, {method: 'POST', body: fd, headers: {'X-Requested-With': 'kalmido'}, credentials: 'same-origin'});
       const j = await r.json();
-      if (!r.ok) { toast(j.error || tr('Import failed')); return; }
+      if (!r.ok) { toast(errText(j.error || '', tr('Import failed'))); return; }  // 2.1212.0 (#6159): what failed, the server's text in brackets
       toast(tr('Imported: {0} new, {1} updated', j.created, j.updated) + (j.errors ? ' · ' + trn('{0} not readable', '{0} not readable', j.errors) : '') + (j.kept_newer ? ' · ' + trn('{0} event not overwritten, it is newer here', '{0} events not overwritten, they are newer here', j.kept_newer) : ''), null, 6000);
       done();
-    } catch { toast(tr('Import failed')); }
+    } catch (x) { toast(errText(x, tr('Import failed'))); }
   };
   if (file) return inp.onchange();  // 2.143.0 C2 (#2154): awaitable, several shared files go one after another
   inp.click();

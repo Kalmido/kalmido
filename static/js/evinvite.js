@@ -50,7 +50,7 @@ function evi_on(md) {  // the body flag send_invites of the save
 async function evf_modal(c) {
   /** @type {any} */
   const md = modal(`<div class="lhdr"><h3>${ic('link', 's')} ${esc(tr('Subscription link'))}</h3><span class="spacer"></span><button class="iconbtn" data-evf="close" aria-label="${esc(tr('Close'))}">${ic('x')}</button></div>
-    <p class="muted">${esc(c.name)}</p><div id="evf-body"><div class="muted mhint">${esc(tr('Loading…'))}</div></div>
+    <p class="muted">${esc(c.name)}</p><div id="evf-body">${/*html-ok*/ loadingHtml() /* 2.1212.0 (#6159): the shared block */}</div>
     <p class="muted mhint">${esc(tr('Anyone who has the link sees the events of this calendar. Keep it to yourself.'))}</p>
     <details class="evmore"><summary>${esc(tr('How to subscribe'))}</summary><p class="muted">${tr('<b>iPhone / iPad:</b> Settings > Apps > Calendar > Calendar Accounts > Add Account > Other > Add Subscribed Calendar, paste the link. <b>Mac:</b> Calendar > File > New Calendar Subscription.')}</p><p class="muted">${tr('<b>Outlook:</b> Add calendar > Subscribe from web.')}</p></details>
     <div class="foot"><span class="spacer"></span><button class="btn" data-evf="close">${esc(tr('Close'))}</button></div>`);
@@ -66,7 +66,9 @@ async function evf_modal(c) {
       <div class="shint keep" role="status">${esc(tr('Only visible now: copy it now. If you lose it, create a new one.'))}</div>
       <div class="row evfbtns"><a class="btn" href="${esc(j.url.replace(/^https?:/, 'webcal:'))}">${ic('cal', 's')} ${esc(tr('Open in calendar app'))}</a><button class="btn" data-evf="rotate">${ic('key', 's')} ${esc(tr('New link'))}</button><button class="btn danger" data-evf="off">${esc(tr('Turn the link off'))}</button></div>`;
   };
-  try { draw(await api('GET', `/api/evcals/${c.id}/feed`)); } catch { $('#evf-body', md).innerHTML = `<div class="muted mhint">${esc(tr('Only available online.'))}</div>`; }
+  // 2.1212.0 (#6159): a failed load says what failed with "Try again" (was "Only available online." for every error)
+  const load = async () => { try { draw(await api('GET', `/api/evcals/${c.id}/feed`)); } catch { const box = $('#evf-body', md); if (box) box.innerHTML = errorState({size: 'row', title: tr('The subscription link could not be loaded'), retry: () => { box.innerHTML = loadingHtml(); load(); }}); } };
+  await load();
   md.addEventListener('click', async e => {
     const b = /** @type {any} */ (e.target).closest('[data-evf]'); if (!b) return;
     const a = b.dataset.evf;

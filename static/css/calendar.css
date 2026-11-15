@@ -82,7 +82,7 @@
 .tpo-link input{min-height:2.5rem;font:var(--fs-xs) var(--mono)}
 .tpo-link input.tpo-off{opacity:.55}
 .tpo-qr{display:flex;justify-content:center;margin:.5rem 0}
-.tpo-qr img{width:11rem;height:11rem;border-radius:.375rem;background:var(--qr-bg)}  /* a QR code needs a light ground in every theme */
+.tpo-qr img{width:11rem;height:11rem;border-radius:.375rem;background:white}  /* a QR code needs a light ground in every theme; 2.1212.0 (#6159): the keyword, no hex value */
 .tpo-desc{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text2);margin:.5rem 0}
 .tpo-opts{list-style:none;margin:.5rem 0;padding:0;display:flex;flex-direction:column;gap:.5rem}
 .tpo-o{border:1px solid var(--line2);border-radius:var(--radius);padding:.625rem .75rem;display:flex;flex-direction:column;gap:.375rem;background:var(--bg2)}
@@ -241,7 +241,6 @@ button.cyd:hover{background:var(--bg2)}
   .wcev::before{content:'';position:absolute;left:0;right:0;top:100%;height:.75rem}
   .wcev.cgok::after{opacity:.7;height:.25rem;bottom:2px;left:30%;right:30%}
 }
-:root{--qr-bg:#fff}
 /* 2.1077.0 (#5461): loading / a failed fetch / nothing planned of the shown range (calendar.js calEvState): the shared block of
    render.js floats over the top of the grid, so the view does not jump when it comes and goes */
 .calst{position:relative;height:0;z-index:5}
@@ -250,3 +249,13 @@ button.cyd:hover{background:var(--bg2)}
 .calst>.eerr .btn{color:var(--text)}
 .calst>.calnone{pointer-events:none;color:var(--muted)}
 .calst .eacts{margin-top:0}
+/* 2.1212.0 (#6159): the "Per project" rows of the Calendars window (calevents.js cvf_lists) indent by their folder depth through
+   a class (was an inline style per row); the search fills the row */
+.cvflists .cvfi0{padding-left:1.5rem}
+.cvflists .cvfi1{padding-left:2.75rem}
+.cvflists .cvfi2{padding-left:4rem}
+.cvflists .cvfi3{padding-left:5.25rem}
+.cvflists .cvfi4{padding-left:6.5rem}
+.cvflists .cvfi5{padding-left:7.75rem}
+.cvflists .cvfi6{padding-left:9rem}
+.cvflists .cvfq{flex:1;min-width:0}

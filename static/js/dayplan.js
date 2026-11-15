@@ -20,7 +20,7 @@ function dpTimeline(rows, defer, o = {}) {
   const hgt = d => `style="min-height:${Math.min(8, 2.75 + Math.max(0, (d || 30) - 30) / 30 * 0.75).toFixed(2)}rem"`;
   const item = r => {
     const on = !o.sel || o.sel.has(r.key);
-    if (r.kind === 'event' || r.kind === 'fixed') return `<div class="dprow ${r.kind}" ${hgt(dpMin(r.end) - dpMin(r.start))}><span class="dpt">${esc(r.start)}<small>${esc(r.end)}</small></span><span class="dpb">${ic(r.kind === 'event' ? 'cal' : 'lock', 's')}<span class="dpn">${mdTitleNL(r.title)}</span><span class="muted dps">${r.kind === 'event' ? tr('Event') : tr(DP_REASON[r.reason] || 'fixed')}</span></span></div>`;
+    if (r.kind === 'event' || r.kind === 'fixed') return `<div class="dprow ${r.kind}" ${hgt(dpMin(r.end) - dpMin(r.start))}><span class="dpt">${esc(r.start)}<small>${esc(r.end)}</small></span><span class="dpb">${ic(r.kind === 'event' ? 'cal' : 'lock', 's')}<span class="dpn">${mdTitleNL(r.title)}</span><span class="muted dps">${r.kind === 'event' ? tr('Event|calendar') /* 2.1212.0 (#6159): "Termin", not "Ereignis" */ : tr(DP_REASON[r.reason] || 'fixed')}</span></span></div>`;
     return `<div class="dprow plan ppi ${on ? '' : 'off'}" data-k="${esc(r.key)}" ${hgt(r.duration)}><span class="dpt">${esc(r.start)}<small>${esc(r.end)}</small></span>
       <label class="ppcl"><input type="checkbox" class="ppc" ${on ? 'checked' : ''} aria-label="${esc(tr('Select {0}', r.title))}"></label>
       <span class="dpb"><span class="dpn">${mdTitleNL(r.title)}</span><span class="muted dps">${esc(r.list || '')}${r.list ? ' · ' : ''}${r.estimated ? '≈ ' : ''}${esc(fmtH(r.duration))}${r.reason ? ' · ' + esc(tr(DP_REASON[r.reason] || r.reason)) : ''}${r.note ? ' · ' + esc(r.note) : ''}</span></span></div>`;
