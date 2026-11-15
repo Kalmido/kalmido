@@ -22,6 +22,22 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1217.0] - 2026-11-15
+
+Package 2.1192 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Teil 1/6: Sammelpaket: Aufgaben ohne Paket (Dispatcher), CI-only rot: p2458_b_ui u. 7).
+### Fixed
+- Tests: six phone UI suites followed the phone rows of 2.1151 (#3835: row symbols hidden like screen-reader text, one "…" or a long press instead) - p2190_family_ui and p251_ui / p242_ui no longer count the hidden symbols as touch targets or overflow, p2458_b_ui accepts the hidden read-later buttons, p2150_ui opens a token's permissions through the row's "…" on a phone, p2134_ui opens a section's add sheet by a long press on its head (#4049, #6192, #6190, #5063, #5172, #4791).
+- Tests: p5787_queue_gate and p2534_c_hard_shards follow the CI change of #6063 (tests-done needs the plan, an `if:` line before the shard limit) (#5841, #6084).
+- Tests: p2162_a_api dates the payment on the invoice's own date - a CI run over midnight dated the invoice a day after the test's start and the payment was refused (#6197).
+
+Package 2.1199 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Teil 1/6: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Weich rot: v11_ui u. 8 weite).
+
+### Fixed
+- Lists: a double click on a task title opens the title field again with the caret at the click, also when the first click opened the task and the list moved under the mouse (#5428)
+- Documents: in a narrow document view (the right half of the split view) the title keeps at least 12rem and the actions wrap, the longer "Move to the trash" button left the title 0 px wide (#6032)
+- Tests: twelve UI suites red in the full CI follow the wanted changes of the polish rounds (wiki page menu always shown, wiki editor in the reading column, wiki list bar in one row, "No grouping", empty-state titles, watcher count, Scan in the files' "..." menu on phones, "Move to the trash", the kept-trash note) - v11_ui, p2138_d_ui, p2891_d_ui, p21121_a_ui, p2554_a_docside_ui, p2528_c_ui, p2473_c_ui, p299_b_ui, p2172_a_edit_ui, p2725_d_ntbar_ui (#5673 #6207 #6210 #6206 #4981 #6208 #5703 #6211 #4725 #6209)
+- Tests: p2169_a_ui closes the computer window for the offline phone part (two windows shared one offline copy with different sign-ins) and names the state when it fails (#5909)
+
 ## [2.1201.0] - 2026-11-15
 
 Package 2.1174 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -50,5 +66,6 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1201.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1217.0...HEAD
+[2.1217.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1217.0
 [2.1201.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1201.0
