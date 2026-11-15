@@ -41,6 +41,8 @@ function dcv_html(id) {
 }
 // its remove() leaves the view (the callers of the old sheet -- Close, Delete, a split, a move -- call md.remove())
 function dcv_hook(v) { if (v && !v._dv) { v._dv = true; v.remove = () => dcv_close(v); } }
+// 2.1241.0 (#6184): the open document is the open object of the documents (wso_sync; its organisation's or Private)
+wso_open('docs', () => S.route?.mod === 'docs' && typeof dc_hashId === 'function' && dc_hashId() && DC.doc?.id === dc_hashId() ? DC.doc : null);
 function dcv_fill(id) {
   const v = $('.dv-view'); if (!v || dc_hashId() !== id) return;
   // #5478 (CI red of 2.786.0 / 2.833.0, p2154_a_ui): a document this client just removed (a split) whose address comes back by a
@@ -97,6 +99,7 @@ function dcv_restore() {
 function dcv_draw(md) {
   const d = DC.doc; if (!d || !md) return;
   dcv_hook(md);
+  wso_mark(md, d); wso_sync();  // 2.1241.0 (#6184): a document of an organisation: its stripe, #main / "All" marked (docs/dev/kern.md)
   const sm = dcv_stMark(md);  // 2.940.0 (#5601): the strip's place before the body is drawn anew
   { const i = DC.navSrc ? -1 : dc_navIdx(d); if (i >= 0) DVW.sw = dcv_stWin(i); }  // the window of the strip stays while the document is in it
   const w = d.role !== 'view';
