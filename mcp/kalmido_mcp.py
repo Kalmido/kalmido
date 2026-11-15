@@ -2163,6 +2163,10 @@ TOOLS += [
      "created_at, as you read it; required (400 version_required without it); edited since = 409 conflict with error.current.",
      _obj({"message_id": S_ID, "body": {"type": "string"}, "expect_updated_at": {"type": "string"}}, ["message_id", "body", "expect_updated_at"]),
      lambda api, a: api.call("PATCH", f"/team/messages/{int(a['message_id'])}", body=_pick(a, ("body", "expect_updated_at")))),
+    ("team_message_versions", "2.1213.0 (#6166): the earlier versions of a team chat message (edited_at set), newest first: "
+     "{no, at, replaced_at, body}; an encrypted one carries no text for agents (encrypted: true). Members of the conversation.",
+     _obj({"message_id": S_ID}, ["message_id"]),
+     lambda api, a: api.call("GET", f"/team/messages/{int(a['message_id'])}/versions")),
     ("delete_team_message", "2.17.0: delete your own team chat message.", _obj({"message_id": S_ID}, ["message_id"]),
      lambda api, a: api.call("DELETE", f"/team/messages/{int(a['message_id'])}")),
     ("react_team_message", "2.17.0: toggle a reaction (up, down, heart or one emoji) on a team chat message; on=true/false sets it.",
@@ -3143,7 +3147,7 @@ TOOLSETS = {
         get_usage report_plan_usage get_plan_usage clear_plan_usage list_schedules list_rules get_me get_announcement list_news mark_news_read list_agents
         log_decision
         list_team_chats read_team_chat post_team_message list_team_channels leave_team_channel edit_team_message delete_team_message react_team_message
-        pin_team_message mark_team_chat_read
+        pin_team_message mark_team_chat_read team_message_versions
         list_objects get_object update_object propose_object_change list_links link_objects unlink_objects
         help_overview search_help read_help
     """,

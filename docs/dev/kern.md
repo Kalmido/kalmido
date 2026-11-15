@@ -397,6 +397,13 @@ c.commit()
   `tools/live_filter_baseline.json`, which only shrinks (`--update` lowers it after a clean-up).
 - Write paths that do not go through `obj_write` yet (old areas during the move) use the adapters `obj_undo_pre` /
   `obj_undo_post`, `obj_history_add` and `obj_touch`.
+- 2.1213.0 (#6166): the earlier versions of a team chat message are history rows of the tracked kind `tchat_msg`
+  (`collab/teamchat.py` `tcv_keep`, action `edit`: never merged, every version stays, `OBJ_HISTORY_MAX` per message).
+  `vals_before` holds the message as it was stored: `{"body"}` plain, `{"enc"}` the ciphertext of an end-to-end encrypted DM
+  or of a project channel with the lock (only the browser opens it, with the message's own key and AAD). Read only through
+  `GET /api/team/messages/<id>/versions` (members of the room, none for a message in the trash); the rows go with the message
+  (trigger `kalmido_oh_gone('tchat_msg')` on `tchat_msgs`, migrations.d/6166_a.py), at a lock conversion of the project
+  (`le2c_bulk`, `ctt_purge_list`) and with the deleted messages of an account that goes (`tcx_purge_user`).
 - Stage 2 (#4711, the office and the clients): their rows have no `owner_id` / `rev` and rights of their own, so they are
   no registered kinds yet. `obj_track(kind, table, ...)` names such a kind for the history and the undo only (no rights,
   no routes, no folders); `kalmido/office/owrite.py` `ow_write(...)` is the one write call of an office row: lock, version
