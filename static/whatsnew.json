@@ -1,6 +1,20 @@
 {
  "versions": [
   {
+   "version": "2.1229.0",
+   "date": "2026-11-15",
+   "items": [
+    {
+     "de": "Kalender teilst du jetzt im selben Fenster wie Projekte, und Entfernen lässt sich rückgängig machen.",
+     "en": "You now share calendars in the same window as projects, and removing someone can be undone."
+    },
+    {
+     "de": "Termine in einer anderen Zeitzone zeigen die Zone und die Uhrzeit bei dir.",
+     "en": "Events in another time zone show the zone and the time on your clock."
+    }
+   ]
+  },
+  {
    "version": "2.1226.0",
    "date": "2026-11-15",
    "items": [
@@ -1299,24 +1313,6 @@
     {
      "de": "Abnahmen gehen jetzt auch für Bilder und PDFs: Kommentare sitzen an einem Punkt im Bild oder auf der PDF-Seite.",
      "en": "Approvals now work for images and PDFs too: comments sit at a point in the image or on the PDF page."
-    }
-   ]
-  },
-  {
-   "version": "2.656.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Spalten in Software-Projekten können eine Status-Bedeutung haben, und Ansichten lassen sich je Projekt teilen.",
-     "en": "Columns in software projects can carry a status meaning, and views can be shared per project."
-    },
-    {
-     "de": "Für Dokumente gibt es eigene Mail-Adressen mit festem Zielordner und Tags, etwa für Kontoauszüge.",
-     "en": "Documents get their own mail addresses with a fixed target folder and tags, for example for bank statements."
-    },
-    {
-     "de": "Unter „Alle Arbeitsbereiche“ öffnet ein Tipp im Büro den Bereich, ohne den Arbeitsbereich umzuschalten.",
-     "en": "Under \"All workspaces\" a tap in the office opens the area without switching the workspace."
     }
    ]
   }
