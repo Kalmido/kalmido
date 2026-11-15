@@ -112,7 +112,7 @@ function ldbEntriesHtml(d) {
   return `<section class="bk-sec" aria-labelledby="ldb-enh"><div class="ofcbar"><h3 class="ofcgrp" id="ldb-enh">${tr('Entries by hand')}</h3><span class="spacer"></span>
     ${d.closed ? '' : `<button type="button" class="btn sm" data-ldb="add">${ic('plus', 's')}<span>${tr('New entry')}</span></button>`}</div>
     <p class="muted ofchint">${esc(tr('Accruals, provisions and corrections as an adjusting entry; the opening balances of the first year as opening entries against account {0}.', d.susa.find(r => r.class === 'open')?.account || '9000'))}</p>
-    ${rows ? `<ul class="ofclist" role="list">${rows}</ul>` : `<p class="muted">${tr('None')}</p>`}</section>`;
+    ${/*html-ok*/ rows ? `<ul class="ofclist" role="list">${rows}</ul>` : emptyState({title: tr('None'), size: 'row'})/* 2.1185.0 (#6151): the one empty block */}</section>`;
 }
 
 function ldbCloseHtml(d) {

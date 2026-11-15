@@ -317,17 +317,44 @@ function ofe_note(d) {
   const x = d.kind === 'offer' && d.status === 'sent' ? d.offer_exp : null; if (!x) return '';
   const when = fmtDate(x.until), txt = x.state === 'gone' ? tr('Valid until {0} - expired without an answer.', when) : +x.days > 0 ? trn('Valid until {1} - expires in {0} day.', 'Valid until {1} - expires in {0} days.', +x.days, when) : tr('Valid until {0} - expires today.', when);
   const b = (a, icon, label, more = '') => `<button type="button" class="btn sm" data-ofd="${esc(a)}"${/*html-ok*/ more}>${ic(icon, 's')}<span>${tr(label)}</span></button>`;
-  return `<div class="ofdlnote ofe-note" role="status">${ic('clock', 's')}<span>${esc(txt)}</span><span class="lacts">${/*html-ok*/ b('ofe-ext', 'cal', N_('Extend validity'))}${/*html-ok*/ ofdCanSend(d) ? b('ofe-follow', 'send', N_('Follow up')) : ''}${/*html-ok*/ b('kva-st', 'x', N_('Mark as rejected'), ' data-st="declined"')}</span></div>`;
+  const acts = ofe_can(d) ? `<span class="lacts">${/*html-ok*/ b('ofe-ext', 'cal', N_('Extend validity'))}${/*html-ok*/ ofdCanSend(d) ? b('ofe-follow', 'send', N_('Follow up')) : ''}${/*html-ok*/ b('kva-st', 'x', N_('Mark as rejected'), ' data-st="declined"')}</span>` : '';
+  return `<div class="ofdlnote ofe-note" role="status">${ic('clock', 's')}<span>${esc(txt)}</span>${/*html-ok*/ acts}</div>`;
 }
+// 2.1185.0 (#6150): the answers of the note follow the editor's rules: only with the right to edit quotations, never through a folder
+const ofe_can = d => !!d && !d.via_folder && (!ofr_grp() || ofcCan('offers', 'edit'));
+// a dialog's save: its error is said in the open dialog (ofdDlg .aerr), not in a toast behind it; null = a conflict (its bar shows)
+async function ofd_dlgSave(method, url, body) {
+  OFD_SAVEX = null;
+  const j = await ofdSave(method, url, body);
+  if (!j && OFD_SAVEX) { const x = OFD_SAVEX; OFD_SAVEX = null; throw x; }
+  return j;
+}
+// the own undo / redo of a step without a server step (undo.js histDo): a refused save ends the entry (ofdSave said why)
+const ofd_histSave = (url, body) => { OFD_SAVEX = null; return ofdSave('POST', url, body).then(j => { if (!j) throw OFD_SAVEX || Object.assign(new Error(tr('Changed in the meantime')), {shown: true}); return {}; }); };
 function ofe_extendDialog(d) {
   const t = pd(d.valid_until && d.valid_until > today() ? d.valid_until : today()); t.setDate(t.getDate() + 14);  // the proposal: two weeks on
   ofdDlg(tr('Extend validity'), `<p class="muted">${esc(tr('The quotation keeps its number and version; the PDF shows the new date. An open approval link has to be created again.'))}</p>`
     + ofdF('ofe-date', tr('Valid until'), dateIn('ofd-ofe-date', ds(t), {min: today(), label: tr('Valid until')})),
     tr('Extend validity'), async md => {
-      const v = $('#ofd-ofe-date', md).value; if (!v) return false;
-      const j = await ofdSave('POST', `/api/office/docs/${d.id}/valid-until`, {valid_until: v}); if (!j) return false;
-      ofdDraw(); toast(j.links_void ? tr('Validity extended. The open approval link no longer fits: create a new one.') : tr('Validity extended to {0}', fmtDate(v)));
+      const v = $('#ofd-ofe-date', md).value; if (!v) throw new Error(tr('Enter a date.'));
+      const old = d.valid_until || '';
+      const j = await ofd_dlgSave('POST', `/api/office/docs/${d.id}/valid-until`, {valid_until: v}); if (!j) return false;
+      ofdDraw();
+      // 2.1185.0 (#6150): one step with Undo: back to the old date (the server takes exactly that one, also a past one)
+      const set = (to, undo) => ofd_histSave(`/api/office/docs/${d.id}/valid-until`, undo ? {valid_until: to, undo: true} : {valid_until: to});
+      const label = j.links_void ? tr('Validity extended. The open approval link no longer fits: create a new one.') : tr('Validity extended to {0}', fmtDate(v));
+      histToast(label, histAdd({label: tr('Validity extended to {0}', fmtDate(v)), area: 'office', undo: () => set(old, true), redo: () => set(v, false)}));
     });
+}
+// 2.1185.0 (#6150): a quotation's answer by hand says so; "Rejected" of a sent quotation with Undo (back to "sent")
+async function kva_status(d, st) {
+  const from = d.status, j = await ofdSave('POST', `/api/office/docs/${d.id}/status`, {status: st});
+  if (!j || from === st) return;
+  const msg = {declined: tr('Quotation marked as rejected'), accepted: tr('Quotation marked as accepted'), sent: tr('Quotation marked as sent')}[st];
+  if (!msg) return;
+  if (st !== 'declined' || from !== 'sent') { toast(msg); return; }
+  const set = to => ofd_histSave(`/api/office/docs/${d.id}/status`, {status: to});
+  histToast(msg, histAdd({label: msg, area: 'office', undo: () => set(from), redo: () => set(st)}));
 }
 
 // 2.543.0 (#4473): the status label of a list row: right under the amount (ofdsr, desktop) and in the meta line (ofdst, phones)
@@ -1040,7 +1067,7 @@ async function ofdClick(e) {
   if (a === 'to-invoice') { await kvaToInvoice(OFD.doc); return; }
   if (a === 'ofe-ext') { ofe_extendDialog(d); return; }  // 2.1064.0 (#5818)
   if (a === 'ofe-follow') { if (d.trial) { toast(tr('A trial document cannot be sent by e-mail; create a real document for your client')); return; } ofdSendDialog(d, {follow: true}); return; }
-  if (a === 'kva-st') { await ofdSave('POST', `/api/office/docs/${OFD.doc.id}/status`, {status: b.dataset.st}); return; }  // 2.138.0 E (#2235): the answer updates OFD.doc
+  if (a === 'kva-st') { await kva_status(OFD.doc, b.dataset.st); return; }  // 2.138.0 E (#2235): the answer updates OFD.doc; 2.1185.0 (#6150): kva_status says it
   if (a === 'credit') {
     if (!await askConfirm(tr('Credit note for {0}?', d.number || ''), tr('A draft with all positions is made. Shorten it for a partial credit; finalised over the full amount it cancels the invoice.'), {ok: tr('Create credit note')})) return;
     try { const j = await ofdRefCall(`credit${d.id}`, ref => rawFetch('POST', `/api/office/docs/${d.id}/credit`, {client_ref: ref})); OFD.list = null; OFD.kind = 'credit'; OFD.doc = j; go(ofd_href(j.id, j.kind)); } catch (x) { ofcErr(x); } return;
@@ -1211,7 +1238,7 @@ async function absInvoiceDialog(d) {
   try { info = await api('GET', `/api/office/docs/${d.id}/progress`); } catch (x) { ofcErr(x); return; }
   const pl = info.progress || [], cur = ofcSym(d.currency);  // 2.189.0 (#2475)
   const plist = pl.length ? `<ul class="ofdpick abs-list" role="list">${pl.map(p => `<li><span class="ofcn"><b>${esc(p.number || tr('Draft'))}</b><small class="muted">${esc([p.date ? fmtDateLoc(p.date) : '', p.gross_text, !p.locked ? tr('Draft') : +p.open <= 0 ? tr('Paid') : tr('open: {0}', p.open_text || p.open)].filter(Boolean).join(' · '))}</small></span></li>`).join('')}</ul>`
-    : `<p class="muted">${tr('No progress invoices yet')}</p>`;
+    : emptyState({icon: 'receipt', title: tr('No progress invoices yet'), size: 'row'});  // 2.1185.0 (#6151): the one empty block
   const modes = [['full', tr('Full invoice')], ['progress', tr('Progress invoice')], ['final', tr('Final invoice')]];
   const hasP = pl.some(p => p.locked), pick = hasP ? 'final' : 'full';  // 2.354.0 B (#2836): with finalised progress invoices only progress / final (the server answers 409)
   const md = ofdDlg(tr('Create invoice'), `<fieldset class="tpmodes"><legend class="muted">${tr('Type of invoice')}</legend>${modes.map(([v, n]) => `<label class="tpmode"><input type="radio" name="abs-type" value="${v}" ${v === pick ? 'checked' : ''} ${hasP && v === 'full' ? 'disabled' : ''}> <span>${esc(n)}</span></label>`).join('')}</fieldset>
@@ -1274,7 +1301,8 @@ function tbill_html() {
   if (!TBL.from) Object.assign(TBL, {from: iso(new Date(today.getFullYear(), today.getMonth(), 1)), to: iso(today)});
   const key = `${OFC.info?.org_id || ''}:${TBL.from}:${TBL.to}`;
   if (TBL.key !== key) { Object.assign(TBL, {key, data: null, err: ''}); setTimeout(tbill_load, 0); }
-  const bar = `<div class="ofcbar"><h3 class="ofcgrp">${tr('Times to bill')}</h3><span class="spacer"></span>
+  // 2.1185.0 (#6151): the page's heading names it already, the bar keeps only the period (was the title a second time)
+  const bar = `<div class="ofcbar tbl-bar"><span class="spacer"></span>
     <span class="lacts">${dateIn('tbl-from', TBL.from, {label: tr('From'), clear: false})}${dateIn('tbl-to', TBL.to, {label: tr('Until'), clear: false, after: 'tbl-from'})}</span></div>`;
   if (TBL.err) return bar + ofcFail(TBL.err, () => { TBL.key = ''; });  // 2.1076.0 (#5450)
   if (!TBL.data) return bar + loadingHtml('big');
@@ -1361,19 +1389,22 @@ async function ofdSendDialog(d, o = {}) {
   if (d.client_id) rc = await get(`/api/office/docs/${d.id}/recipients`, tr('Recipients|mail')) || rc;
   const to = rc.to || '', cc = (rc.cc || []).join(', ');
   // 2.40.0 (#1368 point 10): plain words for people who do not run the server; without mail the button downloads the PDF
-  const hint = (!ms.smtp ? `<p class="ofdwarn">${esc(tr('E-mail sending is not set up: download the PDF and send it yourself.') + (S.me?.is_admin ? ' ' + ofcNoMail() : ''))}</p>` : '')  // 2.855.0 (#5451): no variable name
+  // 2.1185.0 (#6151): without mail ONE sentence and the button "Download PDF"; the mail form stays out of sight (hidden, still
+  // locked) instead of empty locked fields, and the sentence says "not set up" once (admins too)
+  const hint = (!ms.smtp ? `<p class="ofdwarn">${esc(tr('E-mail sending is not set up: download the PDF and send it yourself.'))}</p>` : '')  // 2.855.0 (#5451): no variable name
     + (miss.length ? `<p class="ofdwarn ofdmiss" role="status">${esc(tr('Could not be loaded: {0}. Check the fields before sending.', miss.join(', ')))}</p>` : '');
   const fu = !!o.follow && d.kind === 'offer';
-  const fuText = fu ? tr('Hello,\n\nwe would like to follow up on our quotation {0}. It is valid until {1}. Do you have any questions about it, or can we help you decide?', d.number || '', d.valid_until ? fmtDate(d.valid_until) : '') : '';
-  ofdDlg(fu ? tr('Follow up on {0}', d.number || '') : tr('Send {0}', d.number || ''), hint + ofdF('s-to', tr('To|mail recipient'), `<input id="ofd-s-to" type="email" value="${esc(to)}" maxlength="200" ${ms.smtp ? '' : 'disabled'}>`)
+  // 2.1185.0 (#6150): subject and text in the quotation's language from the server (offerexp.py ofe_doc_state; "was valid" once gone)
+  const fuText = fu ? d.offer_exp?.text || tr('Hello,\n\nwe would like to follow up on our quotation {0}. It is valid until {1}. Do you have any questions about it, or can we help you decide?', d.number || '', d.valid_until ? fmtDate(d.valid_until) : '') : '';
+  ofdDlg(fu ? tr('Follow up on {0}', d.number || '') : tr('Send {0}', d.number || ''), hint + `<div class="ofd-mailf"${ms.smtp ? '' : ' hidden'}>` + ofdF('s-to', tr('To|mail recipient'), `<input id="ofd-s-to" type="email" value="${esc(to)}" maxlength="200" ${ms.smtp ? '' : 'disabled'}>`)
     + ofdF('s-cc', tr('Copy to'), `<input id="ofd-s-cc" type="email" multiple value="${esc(cc)}" maxlength="1000" placeholder="${esc(tr('several: separated by commas'))}" ${ms.smtp ? '' : 'disabled'}>`)
-    + ofdF('s-subject', tr('Subject'), `<input id="ofd-s-subject" value="${esc(fu ? tr('Our quotation {0}', d.number || '') : `${ofdKindName(d.kind, true)} ${d.number || ''}`)}" maxlength="200" ${ms.smtp ? '' : 'disabled'}>`)
+    + ofdF('s-subject', tr('Subject'), `<input id="ofd-s-subject" value="${esc(fu ? d.offer_exp?.subject || tr('Our quotation {0}', d.number || '') : `${ofdKindName(d.kind, true)} ${d.number || ''}`)}" maxlength="200" ${ms.smtp ? '' : 'disabled'}>`)
     + ofdF('s-text', tr('Text'), `<textarea id="ofd-s-text" rows="4" maxlength="8000" placeholder="${esc(tr('empty = the default text'))}" ${ms.smtp ? '' : 'disabled'}>${esc(fuText)}</textarea>`)
     + (typeof ofmSendHtml === 'function' ? ofmSendHtml(prof, true, !ms.smtp) : '')
     + (d.timesheet_ok ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-s-ts"> ${tr('Attach the timesheet')}</label></div>` : '')  // 2.120.0 D (#2089)
     + (d.timesheet_ok ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-s-tsnb"> ${tr('Show non-billable entries')}</label></div>` : '')  // 2.955.0 (#5648): off = the client's sheet without them
     + (d.kind !== 'reminder' && d.kind !== 'delivery' && ms.datev_on !== false ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-s-datev" ${ms.datev_email && ms.datev_auto ? 'checked' : ''} ${ms.datev_email && ms.smtp ? '' : 'disabled'}> ${tr('Copy to the DATEV inbox')}${ms.datev_email ? ` <span class="muted">(${esc(ms.datev_email)})</span>` : ` <span class="muted">${tr('(no address in the settings)')}</span>`}</label></div>` : '')
-    + (typeof agbSendRow === 'function' ? agbSendRow(tm, ms.smtp) : ''),
+    + (typeof agbSendRow === 'function' ? agbSendRow(tm, ms.smtp) : '') + '</div>',
     ms.smtp ? tr('Send|mail') : tr('Download PDF'), async md => { if (!ms.smtp) { const a = document.createElement('a'); a.href = ofdPdfUrl(d.id); a.download = ''; document.body.appendChild(a); a.click(); a.remove(); return; } const tk = $('#ofd-s-terms', md); const j = await ofcSendTerms(x => ofdSave('POST', `/api/office/docs/${d.id}/send`, {to: $('#ofd-s-to', md).value.trim(), cc: $('#ofd-s-cc', md).value.trim(), subject: $('#ofd-s-subject', md).value, text: $('#ofd-s-text', md).value, datev: !!$('#ofd-s-datev', md)?.checked, timesheet: !!$('#ofd-s-ts', md)?.checked, nonbillable: !!$('#ofd-s-tsnb', md)?.checked, ...(tk ? {terms: tk.checked} : {}), ...(typeof ofmSendBody === 'function' ? ofmSendBody(md) : {}), ...x})); if (!j) return false; toast(j.datev_error || tr('Sent')); });  // 2.534.0 (#4339): terms only with the tick (a quotation: the server's default, its terms as pages or a separate file)  // 2.269.0 D (#3046): DATEV failed after the mail = a hint, the dialog closes
 }
 async function ofdReminderDialog() {

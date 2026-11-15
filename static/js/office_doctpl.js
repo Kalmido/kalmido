@@ -179,7 +179,7 @@ function dtNewModal(p = {}) {
   const tid = p.template_id || (p.kind ? ts.find(t => t.kind === p.kind)?.id : null) || ts[0]?.id || '';
   const md = modal(`<h3>${tr('New document')}</h3>
     ${ofcRowF('dt-tpl', tr('Template'), ofcSel('dt-tpl', tid, ts.map(t => [t.id, `${t.name} · ${t.kind_label}`]), tr('empty document')))}
-    ${!ts.length ? `<p class="muted ofchint">${esc(tr('No templates yet. Add a sample under Templates.'))}</p>` : ''}
+    ${/*html-ok*/ !ts.length ? emptyState({icon: 'file', title: tr('No templates yet. Add a sample under Templates.'), size: 'row'}) : ''/* 2.1185.0 (#6151): the one empty block */}
     ${dtRefsHtml(p.client_id || '', p.list_id || '', p.doc_id || '')}
     ${ofcRowF('dt-ntitle', tr('Title'), ofcIn('dt-ntitle', p.title || '', {max: 300, ph: tr('as the template')}))}
     <div class="aerr" role="alert"></div>

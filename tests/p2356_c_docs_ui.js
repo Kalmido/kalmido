@@ -71,8 +71,9 @@ const FEAT = 'cal,comments,collab,office,clients';
   // open the invoice now: the path line names it
   w.location.hash = '#office/offers/' + I;
   check(await until(() => /Invoice/.test(d.querySelector('.ofdhead .ofdnum')?.textContent || '')), 'the invoice opens');
-  const crumb = await until(() => { const c = d.querySelector('#view .ofmcrumb'); return c && /Invoice/.test(c.textContent) && c; });
-  check(crumb && !/Quotation/.test(crumb.textContent), '#3004: the path line names the open invoice: ' + d.querySelector('#view .ofmcrumb')?.textContent);
+  // 2.1185.0 (#6151): no path line on an open document any more - the head's back button names the invoices, no path
+  const bk = await until(() => { const c = d.querySelector('.ofdhead .ofdback'); return c && /Invoices/.test(c.getAttribute('aria-label') || '') && c; });
+  check(bk && !d.querySelector('#view .ofmcrumb'), '#3004 / #6151: the open invoice has one way back (to the invoices), no path line: ' + bk?.getAttribute('aria-label'));
   check(await until(() => d.querySelector(`.oil_link a[href="#office/offers/${Q}"]`)) && /From quotation/.test(d.querySelector('.oil_link').textContent), '#3003: the invoice names its quotation with a link');
   check(!d.querySelector('[data-sec="rights"]') && d.querySelector('[data-ofd="rights-add"]'), '#3005: an invoice without rights shows no Transfer of rights, a button instead');
   d.querySelector('[data-ofd="rights-add"]').click();
