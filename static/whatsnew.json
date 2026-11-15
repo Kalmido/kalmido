@@ -1,6 +1,16 @@
 {
  "versions": [
   {
+   "version": "2.1196.0",
+   "date": "2026-11-15",
+   "items": [
+    {
+     "de": "Unter Einstellungen > Integrationen > Beleg-Abholer kannst du den Helfer für Mac und Windows direkt herunterladen.",
+     "en": "Under Settings > Integrations > Receipt fetcher you can download the helper for Mac and Windows directly."
+    }
+   ]
+  },
+  {
    "version": "2.1191.0",
    "date": "2026-11-15",
    "items": [
@@ -1303,32 +1313,6 @@
     {
      "de": "Auf großen Bildschirmen liegt eine Wissensseite oder Notiz als Blatt da, die Kopfzeile steht bündig zur Seite.",
      "en": "On large screens a knowledge page or note lies as a sheet, with the top bar flush with the page."
-    }
-   ]
-  },
-  {
-   "version": "2.645.0",
-   "date": "2026-11-07",
-   "items": [
-    {
-     "de": "Beim ersten Schlüssel eines Server-Agenten schlägt Kalmido eine Tagesgrenze vor, damit fremde Anfragen den Schlüssel nicht unbegrenzt verbrauchen.",
-     "en": "When you add the first key to a server agent, Kalmido proposes a daily limit so other people's requests cannot use up the key without bounds."
-    },
-    {
-     "de": "Auf dem iPhone sitzt die Leiste unten jetzt näher am Rand, oben leuchtet nichts mehr hinter der Uhrzeit.",
-     "en": "On the iPhone the bottom bar now sits closer to the edge, and nothing glows behind the clock any more."
-    },
-    {
-     "de": "Belege, Dokumente und Angebotskarten lassen sich jetzt auch mit dem Finger ziehen.",
-     "en": "Receipts, documents and pipeline cards can now be dragged with the finger too."
-    },
-    {
-     "de": "Abnahmen gehen jetzt auch für Audio-Links, mit Kommentar an der Stelle im Stück.",
-     "en": "Sign-offs now work for audio links too, with comments at a point in the track."
-    },
-    {
-     "de": "Im Kalender lassen sich unter „Pro Projekt“ ganze Ordner ausblenden, ab 8 Projekten gibt es eine Suche.",
-     "en": "In the calendar, \"Per project\" can hide whole folders, and from 8 projects on there is a search."
     }
    ]
   }

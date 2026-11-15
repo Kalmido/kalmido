@@ -21,6 +21,26 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1196.0] - 2026-11-15
+
+Package 2.1188 (Bündel: Merge Queue: neue Übersetzungen ohne Konflikt auf GitHub, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Receipt fetcher: central recipes - `GET /api/v1/fetcher/recipes?api=N` (fetcher key `kbh_` only) hands out the signed recipe pairs of `kalmido/docs/fetcher_recipes/` (folder `KALMIDO_FETCHER_RECIPES`); only complete pairs whose sha256 matches the file, the helper checks the signature itself. The folder starts empty, and helper 0.3.0 accepts delivered recipes only once a public key is listed in it (#6152)
+- Settings > Integrations > Receipt fetcher: "Download the helper" with one zip for Mac and Windows and three steps (unpack, double-click Einrichten.command / Einrichten.cmd, paste the setup code) (#6152)
+
+### Changed
+- Translations: new texts of a package go into `static/i18n/neu/<KID>.json` instead of the end of `static/i18n/<code>.json`; server, language parts, code manifest and the full language file mix the fragments in. The pull request lint refuses new keys in the big language files, `tools/i18n_neu.py auslagern` moves them, `einfalten` folds them back (not wired in yet) - two packages that only add texts no longer conflict in GitHub's merge queue (#6194)
+
+Package 2.1195 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- Test selection while building (tests/stages.py --touched): a changed stylesheet now also takes the suites that name the classes, ids or data-act values of its changed rules (read from the diff), and for a changed rule inside a phone media query (max-width up to 767px) the phone suites of the client modules that render those names, at most 20 each. Before, only suites naming the file itself ran, so phone suites broken by shared phone CSS stayed red for several trains; new suite p6201_cssrules (#6201).
+
+Package 2.1196 (Bündel: CI: Queue-Push auf main fährt Volllauf, weil der Q).
+
+### Fixed
+- CI: a push on main made by the merge queue now finds the merge_group run of its commit whatever that run's overall result (a soft red part ends it as failure; GitHub merged with the gate green), only a cancelled run does not count - the queue merge no longer starts a full run that blocks the runners of the next queue entries (#6195).
+
 ## [2.1191.0] - 2026-11-15
 
 Package 2.1183 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -583,7 +603,8 @@ Not released (the CI of this version was red); its changes are listed under 2.11
 
 Not released (the CI of this version was red); its changes are listed under 2.1103.0.
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1191.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1196.0...HEAD
+[2.1196.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1196.0
 [2.1191.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1191.0
 [2.1175.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1175.0
 [2.1162.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1162.0
