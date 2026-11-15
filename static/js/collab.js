@@ -12,7 +12,7 @@ S.nf = {items: null, users: {}, sig: null, filter: LS.get('newsFilter', '') ? 'm
 function bellBtn() {
   if (!collab()) return '';
   const n = bellCount();  // 2.28.0 (#987): only what people send me (+ unread direct messages)
-  return `<button class="iconbtn bell ${S.route.mod === 'news' ? 'on' : ''}" data-act="bell-pop" aria-haspopup="dialog" title="${esc(n ? tr('Waiting for you: {0}', n) : tr('News') + ' · ' + newsWhat())}" aria-label="${esc(n ? tr('News') + ' · ' + tr('Waiting for you: {0}', n) : tr('News'))}">${ic('bell')}${n ? `<span class="nbadge">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
+  return `<button class="iconbtn bell ${S.route.mod === 'news' ? 'on' : ''}" data-act="bell-pop" aria-haspopup="dialog" title="${esc(n ? tr('Waiting for you: {0}', n) : tr('Waiting for you') + ' · ' + newsWhat())}" aria-label="${esc(n ? tr('Waiting for you: {0}', n) : tr('Waiting for you'))}">${ic('bell')}${n ? `<span class="nbadge">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
 }
 // 2.6.1 (#404): filter chips (view only, per device): which kinds of News show, in the News view and under the bell
 const NEWS_CHIPS = [['mention', 'at', N_('Mentions'), ['mention']], ['comment', 'comment', N_('Comments'), ['comment']],
@@ -83,9 +83,12 @@ function bellPopHtml() {
   const all = [...forMe, ...act];  // "For you" first, then the activity
   const kOk = all.filter(([it]) => newsKindOk(it)), kMe = kOk.filter(([it]) => !it.read && newsForMe(it));
   const dms = dmRows(), pre = dueRowsHtml() + dms.map(dmRowHtml).join('');  // 2.1037.0 (#5801): + the deadline lines
-  const head = `<div class="bphead"><button type="button" class="bphl" data-bp="news" title="${esc(tr('Show all'))}"><b id="bp-h">${tr('News')}</b><span class="bpchev" aria-hidden="true">›</span></button>${n ? `<span class="bpnew">${esc(tr('{0} for you', n))}</span>` : ''}<span class="spacer"></span>${nAll ? `<button type="button" class="btn sm bpread" data-bp="readall" title="${esc(tr('Mark all as read'))}" aria-label="${esc(tr('Mark all as read'))}">${ic('check', 's')}<span>${tr('All read')}</span></button>` : ''}<button type="button" class="iconbtn" data-bp="settings" title="${esc(tr('What shows up here'))}" aria-label="${esc(tr('What shows up here'))}">${ic('gear', 's')}</button></div>`;
+  // 2.1208.0 (#6125): one name and one number: "Waiting for you: 5" as on the start page and at the bell (was "News" + "5 for you");
+  // the heading is no second "Show all" (the button below is the one way to the whole list)
+  const head = `<div class="bphead"><h2 class="bpht" id="bp-h">${esc(n ? tr('Waiting for you: {0}', n) : tr('Waiting for you'))}</h2><span class="spacer"></span>${nAll ? `<button type="button" class="btn sm bpread" data-bp="readall" title="${esc(tr('Mark all as read'))}" aria-label="${esc(tr('Mark all as read'))}">${ic('check', 's')}<span>${tr('All read')}</span></button>` : ''}<button type="button" class="iconbtn" data-bp="settings" title="${esc(tr('What shows up here'))}" aria-label="${esc(tr('What shows up here'))}">${ic('gear', 's')}</button></div>`;
   let body;
-  if (!mine) body = `<div class="empty bpempty">${S.nf.err === 'offline' ? tr('Only available online.') : S.nf.err ? esc(S.nf.err) : tr('Loading…')}</div>`;  // 2.1211.0 (#6098): the one offline sentence
+  // 2.1208.0 (#6125): the shared blocks: loading = a quiet line, failed = errorState with "Try again" (was the raw message); offline = the one offline sentence (2.1211.0 #6098)
+  if (!mine) body = S.nf.err ? errorState({size: 'sec', cls: 'bpempty', sub: S.nf.err === 'offline' ? tr('Only available online.') : undefined, retry: () => { S.nf.err = null; loadNews().then(newsRedraw); newsRedraw(); }}) : loadingHtml('sec');
   else body = `<div class="nlist bplist nbund">${/*html-ok*/ newsBundledHtml([...kMe, ...kOk.filter(([it]) => it.read || !newsForMe(it)).slice(0, 40)], true, pre)}</div>`;  // 2.17.0 (#452); 2.1037.0 (#5807): the 40 cut only the history; 2.1052.0 (#5808): the one way
   if (!mine && pre) body = `<div class="nlist bplist nbund">${/*html-ok*/ newsBundledHtml([], true, pre)}</div>`;  // 2.1052.0 (#5808): the same For you while loading
   const grab = isMobile() ? `<div class="bpgrab" data-bpgrab role="button" tabindex="0" aria-label="${esc(tr('Drag up for more room, tap for full height'))}" title="${esc(tr('Drag up for more room, tap for full height'))}"><i></i></div>`

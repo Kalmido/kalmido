@@ -47,6 +47,8 @@ const call = async (method, url, body, ck = CK) => { const r = await fetch(B + u
     await until(`typeof sd_start === 'function' && typeof menu === 'function' && !!document.querySelector('#view')`);
 
     // ---- the "More" menu of the tab bar
+    // 2.1208.0 (#6127): More holds only what the tab bar does not show (no areas any more): pin more tabs than fit, so it has rows
+    await ev(`(() => { LS.set('tabbar', ['s:inbox', 's:today', 'search', 'lists', 's:week', 's:doable', 's:all', 's:assigned', 'm:cal', 'wiki', 'sheets']); S.settings.nav_menus = '{}'; renderTabs(); return 1; })()`);
     check(await until(`!!document.querySelector('[data-act="tabs-more"]')`), 'the tab bar has its "More" button');
     await ev(`(() => { document.querySelector('[data-act="tabs-more"]').click(); return 1; })()`);
     const m0 = await settle();

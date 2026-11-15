@@ -84,7 +84,9 @@ const FEAT = 'cal,events,comments,collab,office,agents';
   // "More" on the phone: Office & finance
   // 2.44.0 (#1187): Office & finance is part of the area Office (id a:office)
   const isOff = t => t.id === 'office' || t.id === 'a:office';
-  check(w.tabOverflow().more.some(isOff) || w.tabOverflow().shown.some(isOff), 'More offers Office & finance: ' + w.tabOverflow().more.map(t => t.id).join(','));
+  // 2.1208.0 (#6127): the areas are the drawer's (tabAreaItems), "More" no longer repeats them
+  const ai = w.eval('tabAreaItems().map(t => t.id)');
+  check(ai.some(id => isOff({id})) || w.tabOverflow().shown.some(isOff), 'the drawer offers Office & finance: ' + ai.join(','));
   // "Emoji": as before
   await call('PATCH', '/api/settings', {side_icons: 'emoji'});
   w.close();

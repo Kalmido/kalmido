@@ -125,7 +125,8 @@ function tinyPdf(text) {  // a one-page PDF with a text layer (as tests/p21148_r
     // ================= an upload the server refuses (2.1177.0 #6114 lists the refused files; #6109: said once, no toast beside it)
     await nav(B + '#ablage/docs');
     await until(`typeof dc_upload === 'function'`, {timeout: 20000});
-    const OUTL = `(() => { const e = document.querySelector('#upbars .upout'); return e ? e.textContent : ''; })()`;
+    // 2.1208.0 (#6173): each upload has its own list of refused files - the newest list is the one of the upload just made
+    const OUTL = `(() => { const e = [...document.querySelectorAll('#upbars .upout')].pop(); return e ? e.textContent : ''; })()`;
     const one = 'scan.pdf: larger than 50 MB';
     await ev(TOASTOFF);
     await ev(FAIL('/api/docs$', 400, 'POST', {ids: [], errors: [one], dups: [], error: one}));

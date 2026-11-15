@@ -34,8 +34,9 @@ const txt = (d, s) => (d.querySelector(s)?.textContent || '').replace(/\s+/g, ' 
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT});
   // a calm start: nothing due, no agent
   let w = await boot({user: 'alice', hash: 'home'}), d = w.document;
-  await until(() => d.querySelector('#view .hpsum'));
-  check(txt(d, '.hpsum') === 'Nothing due today.', '#1504: nothing open = a calm sentence: ' + txt(d, '.hpsum'));
+  // 2.1208.0 (#6125): nothing open = the card Today says it once ("Nothing left for today."), no second "Nothing due today." on top
+  await until(() => d.querySelector('#view .dc-today'));
+  check(!d.querySelector('#view .hpsum') && /Nothing left for today/.test(txt(d, '.dc-today')), '#1504: nothing open = one calm sentence: ' + txt(d, '.dash'));
   w.close();
 
   const BOB = (await call('POST', '/api/users', {username: 'bob', display_name: 'Bob Baker', password: 'password123'})).id;
@@ -90,7 +91,8 @@ const txt = (d, s) => (d.querySelector(s)?.textContent || '').replace(/\s+/g, ' 
   check(gone, '#1504: one undo step takes the new task away');
   // News compact
   const nl = [...d.querySelectorAll('.dc-news .hpnl li')];
-  check(nl.length === 5 && d.querySelector('.dc-news a.hpall[href="#news"]')?.textContent === 'All news' && !d.querySelector('.dc-news .ngroup'), '#1504: News: at most 5 lines and "All news" ' + nl.length);
+  // 2.1208.0 (#6125): the 4 entries of the box "Waiting for you" are not listed again (7 - 4 = 3 lines); "All news" in the card's head
+  check(nl.length === 3 && d.querySelector('.dc-news h3 a[href="#news"]')?.textContent === 'All news' && !d.querySelector('.dc-news .ngroup'), '#1504: News: the lines not in the box and "All news" ' + nl.length);
   // 2.1037.0 (#5801): the deadline lines (due today / overdue) come first and have no time
   check(nl.filter(li => !li.classList.contains('hpdue')).every(li => li.querySelector('time.hpt')) && nl.some(li => /Shared task/.test(li.textContent)), '#1504: one line per bundle with its time');
   // projects
@@ -124,7 +126,7 @@ const txt = (d, s) => (d.querySelector(s)?.textContent || '').replace(/\s+/g, ' 
   };
   const ready = async ev => { for (let i = 0; i < 30 && !(await ev(`document.querySelectorAll('.dc-agents .djob').length >= 2 && !!document.querySelector('.dc-news .hpnl')`).catch(() => false)); i++) await sleep(300); await sleep(900); };
   const BOX = `(() => { const r = s => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return {l: Math.round(b.left), t: Math.round(b.top), b: Math.round(b.bottom), w: Math.round(b.width)}; };
-    const tm = document.querySelector('.dc-news time'), a = document.querySelector('.dc-news a.hpall'), dt = document.querySelector('.dc-today .dt');
+    const tm = document.querySelector('.dc-news time'), a = document.querySelector('.dc-news h3 a[href="#news"]') /* 2.1208.0 (#6125): in the head */, dt = document.querySelector('.dc-today .dt');
     return {sum: r('.hpsum'), today: r('.dc-today'), agents: r('.dc-agents'), news: r('.dc-news'), projects: r('.dc-projects'), sw: document.documentElement.scrollWidth,
       font: [tm, dt].map(e => e && getComputedStyle(e).fontFamily).join('|'), ul: a && getComputedStyle(a).textDecorationLine}; })()`;
   for (const th of ['dark', 'light']) {
