@@ -451,14 +451,16 @@ def t_send_chat(api, a):
             except ValueError:
                 raise ApiError(400, f"files: {f['name']} is not valid base64") from None
             files.append((f["name"], f.get("mime") or "application/octet-stream", data))
-        fields = _pick(a, ("body", "task_id", "choices", "multi", "permission", "expires_in", "job_id", "job_parent", "job_msg", "reply_to", "offer_save", "kind", "next_step", "limit", "source", "show"))
+        fields = _pick(a, ("body", "task_id", "choices", "multi", "permission", "expires_in", "job_id", "job_parent", "job_msg", "reply_to", "offer_save", "kind", "next_step", "limit", "source", "show", "run_meta"))
+        if isinstance(fields.get("run_meta"), dict):  # 2.1239.0 (#6261): a form field carries it as JSON text
+            fields["run_meta"] = json.dumps(fields["run_meta"], ensure_ascii=False)
         if isinstance(fields.get("show"), list):  # 2.1086.0 (#5860): a form field carries the steps as JSON text
             fields["show"] = json.dumps(fields["show"], ensure_ascii=False)
         return api.call("POST", f"/agent/chats/{int(a['user_id'])}", multipart=(fields, files))  # approval: see request_chat_approval; 2.236.0 (#2909 #2911): next_step / limit
     if not a.get("body"):
         raise ApiError(400, "body (or files) is required")
     return api.call("POST", f"/agent/chats/{int(a['user_id'])}", body=_pick(a, ("body", "task_id", "choices", "multi", "permission", "expires_in", "job_id", "job_parent", "job_msg", "reply_to", "offer_save", "kind",
-                                                                              "next_step", "limit", "source", "show")))  # 2.236.0 (#2909 #2911); 2.388.0 (#3341): source; 2.1086.0 (#5860): show
+                                                                              "next_step", "limit", "source", "show", "run_meta")))  # 2.236.0 (#2909 #2911); 2.388.0 (#3341): source; 2.1086.0 (#5860): show; 2.1239.0 (#6261): run_meta
 
 
 def t_request_chat_approval(api, a):
@@ -1188,6 +1190,11 @@ TOOLS = [
                                                                      "60000 characters): folded at the top of the job's own chat, never in the whole chat, no push"},
            "next_step": {"type": "string", "minLength": 1, "maxLength": 200, "description": "2.236.0: the next step as one button at the end"},
            "limit": {"type": "boolean", "description": "2.236.0: this message reports a limit (may push with work style push 'limits')"},
+           "run_meta": {"type": "object", "description": "2.1239.0: which model wrote this message, shown small and grey under it "
+                                                         "(e.g. model 'Fable 5.2', effort 'high'); unknown keys are dropped",
+                        "properties": {"model": {"type": "string", "maxLength": 80}, "effort": {"type": "string", "maxLength": 80},
+                                       "klasse": {"type": "string", "maxLength": 80, "description": "gross | klein (klein = a short sorted run)"},
+                                       "grund": {"type": "string", "maxLength": 80, "description": "why this model (the line's tooltip)"}}},
            "show": {"type": "array", "minItems": 1, "maxItems": 8, "description": "2.1086.0: 'Show me' steps: the named places to highlight one after the other",
                     "items": {"type": "object", "properties": {"target": {"type": "string", "maxLength": 80, "description": "a key of help_overview show_targets"},
                                                                "text": {"type": "string", "maxLength": 300}}, "required": ["target"]}},

@@ -40,7 +40,7 @@ from ..agents.core import (
 from ..collab.reactions import clean_suggestion, tidy_apply
 from ..agents.chat import (
     chat_delivered, chat_dict, chat_file_access, chat_newest, jn9_chat_jobs, chat_file_delete, chat_files_of, chat_input, chat_one, chat_post,
-    chat_react_req, chat_reactions_of, chat_set_source, chat_source, chat_unlink_trimmed, cx_notice_post, APPROVAL_PUSH_HOUR,
+    chat_react_req, chat_reactions_of, chat_run_meta, chat_set_run_meta, chat_set_source, chat_source, chat_unlink_trimmed, cx_notice_post, APPROVAL_PUSH_HOUR,
 )
 from ..agents.chat import CHAT_UNSHARED_SQL  # 2.777.0 C (#5378)
 from ..agents.workstyle import ws_next_mark, ws_next_step  # 2.236.0 B (#2911)
@@ -1516,11 +1516,11 @@ def v1_agent_chat_post(uid):
     u = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     if not u or is_agent(u) or not agent_shares(c, aid, uid):
         raise Denied(404)
-    fb, files = chat_input(("body", "task_id", "choices", "multi", "permission", "expires_in", "job_id", "job_parent", "reply_to", "approval", "offer_save", "kind", "job_msg", "limit", "next_step", "source", "show"))
+    fb, files = chat_input(("body", "task_id", "choices", "multi", "permission", "expires_in", "job_id", "job_parent", "reply_to", "approval", "offer_save", "kind", "job_msg", "limit", "next_step", "source", "show", "run_meta"))
     b = fb if fb is not None else v1_json()
     # 2.28.0 (#1005): answer buttons; 2.30.0 (#1041): permission questions (permission, expires_in)
     unknown = sorted(k for k in b if k not in ("body", "task_id", "choices", "multi", "permission", "expires_in", "job_id", "job_parent", "reply_to",
-                                               "approval", "offer_save", "kind", "job_msg", "limit", "next_step", "source", "show"))  # 2.1086.0 (#5860): show; 2.388.0 (#3341): source; 2.236.0 B (#2909, #2911): limit, next_step; 2.96.0 C (#2015): job_msg; 2.33.0: reply_to; 2.35.0 (#1103): approval; 2.37.0 (#1159): offer_save
+                                               "approval", "offer_save", "kind", "job_msg", "limit", "next_step", "source", "show", "run_meta"))  # 2.1239.0 (#6261): run_meta; 2.1086.0 (#5860): show; 2.388.0 (#3341): source; 2.236.0 B (#2909, #2911): limit, next_step; 2.96.0 C (#2015): job_msg; 2.33.0: reply_to; 2.35.0 (#1103): approval; 2.37.0 (#1159): offer_save
     if unknown:
         raise UnknownFields(unknown)
     # 2.41.0 (#1206): kind = message (default) | notice (a small grey line, no push, never unread; older servers answer 400)
@@ -1528,18 +1528,19 @@ def v1_agent_chat_post(uid):
     if b.get("kind") not in (None, "", "message", "notice", "brief"):
         raise BadInput(tr("Invalid value: {0}", "kind"))
     src = chat_source(b.pop("source", None))  # 2.388.0 (#3341): who produced the message, the app can hide a source
+    rmeta = chat_run_meta(b.pop("run_meta", None))  # 2.1239.0 (#6261): which model wrote it (a grey line under the bubble)
     shw = shw_clean(b.pop("show", None))  # 2.1086.0 (#5860): "Show me" -- named places only (api/showme.py), unknown = 400
     if shw and (b.get("kind") in ("notice", "brief") or b.get("approval") not in (None, "") or b.get("permission") not in (None, False, "", "0", "false")):
         raise BadInput(tr("Invalid value: {0}", "show"))  # a plain message only: no line, brief, approval or permission question
     if b.get("kind") == "brief":  # 2.739.0 (#5216): agents/jobchat.py jcb_post
-        r = chat_set_source(c, jcb_post(c, aid, uid, b, files), src)
+        r = chat_set_run_meta(c, chat_set_source(c, jcb_post(c, aid, uid, b, files), src), rmeta)
         bump(c)
         c.commit()
         chat_unlink_trimmed()
         return jsonify(chat_one(c, r, api=True)), 201
     srvweb_body(c, aid, uid, b)  # 2.571.0 D (#4676): a server agent's run with web access names its web sources
     if b.get("kind") == "notice":
-        r = chat_set_source(c, cx_notice_post(c, aid, uid, b, files), src)
+        r = chat_set_run_meta(c, chat_set_source(c, cx_notice_post(c, aid, uid, b, files), src), rmeta)
         bump(c)
         c.commit()
         chat_unlink_trimmed()
@@ -1581,7 +1582,7 @@ def v1_agent_chat_post(uid):
     b = {k: v for k, v in b.items() if k not in ("job_id", "job_parent", "job_msg")}
     if fb is not None and isinstance(b.get("multi"), str):
         b["multi"] = b["multi"].lower() in ("1", "true", "yes")
-    r = chat_set_source(c, chat_post(c, aid, uid, "agent", b, files), src)
+    r = chat_set_run_meta(c, chat_set_source(c, chat_post(c, aid, uid, "agent", b, files), src), rmeta)
     if nid:
         r = ws_next_mark(c, r, nid)
     if shw:  # 2.1086.0 (#5860)
