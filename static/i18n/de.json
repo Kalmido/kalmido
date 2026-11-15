@@ -8793,7 +8793,6 @@
   "The page cannot be read (the key of its encryption is missing)": "Die Seite kann nicht gelesen werden (der Schlüssel ihrer Verschlüsselung fehlt)",
   "Delete page": "Seite löschen",
   "{0} page skipped: {1} (not readable)": ["{0} Seite übersprungen: {1} (nicht lesbar)", "{0} Seiten übersprungen: {1} (nicht lesbar)"],
-  "{0} for you": "{0} für dich",
   "Number schemes with more than four text building blocks: {0}. Numbering no longer continues from the numbers given under them; shorten them in Office > Settings ({1}).": "Nummernschemata mit mehr als vier Textbausteinen: {0}. Die Nummerierung zählt dort nicht mehr an den schon vergebenen Nummern weiter; bitte in Büro > Einstellungen kürzen ({1}).",
   "Date with hyphens": "Datum mit Bindestrichen",
   "This document is not finalised yet": "Dieses Dokument ist noch nicht festgeschrieben",

@@ -8812,7 +8812,6 @@
   "The page cannot be read (the key of its encryption is missing)": "De pagina kan niet worden gelezen (de sleutel van de versleuteling ontbreekt)",
   "Delete page": "Pagina verwijderen",
   "{0} page skipped: {1} (not readable)": ["{0} pagina overgeslagen: {1} (niet leesbaar)", "{0} pagina's overgeslagen: {1} (niet leesbaar)"],
-  "{0} for you": "{0} voor jou",
   "Number schemes with more than four text building blocks: {0}. Numbering no longer continues from the numbers given under them; shorten them in Office > Settings ({1}).": "Nummerschema's met meer dan vier tekstblokken: {0}. De nummering telt niet meer verder vanaf de al uitgegeven nummers; kort ze in onder Kantoor > Instellingen ({1}).",
   "Date with hyphens": "Datum met streepjes",
   "This document is not finalised yet": "Dit document is nog niet definitief gemaakt",

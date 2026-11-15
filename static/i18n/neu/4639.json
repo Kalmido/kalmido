@@ -3,30 +3,65 @@
     "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Inzwischen hat jemand anderes eine neuere Version hochgeladen, sie bleibt: {0}",
     "Organisation settings": "Einstellungen der Organisation",
     "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Eine Organisation legt der Admin dieses Servers an. Die Admins einer Organisation können dich dann per E-Mail einladen.",
-    "The organisation “{0}” is set up": "Die Organisation „{0}“ ist angelegt"
+    "The organisation “{0}” is set up": "Die Organisation „{0}“ ist angelegt",
+    "Write down your first task": "Schreib deine erste Aufgabe auf",
+    "Everything starts in the inbox; sort it later.": "Alles beginnt im Eingang; sortieren kannst du später.",
+    "Create a project": "Lege ein Projekt an",
+    "A project bundles tasks, files and notes.": "Ein Projekt bündelt Aufgaben, Dateien und Notizen.",
+    "Take the short tour": "Mach den kurzen Rundgang",
+    "Two minutes through the most important places.": "Zwei Minuten durch die wichtigsten Stellen.",
+    "The help explains every area.": "Die Hilfe erklärt jeden Bereich."
   },
   "es": {
     "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Mientras tanto otra persona subió una versión más reciente, se mantiene: {0}",
     "Organisation settings": "Ajustes de la organización",
     "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Una organización la crea el administrador de este servidor. Después, los administradores de una organización pueden invitarte por correo electrónico.",
-    "The organisation “{0}” is set up": "La organización «{0}» está creada"
+    "The organisation “{0}” is set up": "La organización «{0}» está creada",
+    "Write down your first task": "Anota tu primera tarea",
+    "Everything starts in the inbox; sort it later.": "Todo empieza en la bandeja de entrada; ordénalo después.",
+    "Create a project": "Crea un proyecto",
+    "A project bundles tasks, files and notes.": "Un proyecto agrupa tareas, archivos y notas.",
+    "Take the short tour": "Haz el recorrido breve",
+    "Two minutes through the most important places.": "Dos minutos por los lugares más importantes.",
+    "The help explains every area.": "La ayuda explica cada área."
   },
   "fr": {
     "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Entre-temps, quelqu'un d'autre a téléversé une version plus récente, elle est conservée : {0}",
     "Organisation settings": "Paramètres de l’organisation",
     "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Une organisation est créée par l’administrateur de ce serveur. Les administrateurs d’une organisation peuvent ensuite t’inviter par e-mail.",
-    "The organisation “{0}” is set up": "L’organisation « {0} » est créée"
+    "The organisation “{0}” is set up": "L’organisation « {0} » est créée",
+    "Write down your first task": "Note ta première tâche",
+    "Everything starts in the inbox; sort it later.": "Tout commence dans la boîte de réception ; trie plus tard.",
+    "Create a project": "Crée un projet",
+    "A project bundles tasks, files and notes.": "Un projet regroupe tâches, fichiers et notes.",
+    "Take the short tour": "Fais la courte visite",
+    "Two minutes through the most important places.": "Deux minutes à travers les endroits les plus importants.",
+    "The help explains every area.": "L'aide explique chaque espace."
   },
   "it": {
     "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Nel frattempo qualcun altro ha caricato una versione più recente, resta così: {0}",
     "Organisation settings": "Impostazioni dell’organizzazione",
     "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Un’organizzazione viene creata dall’amministratore di questo server. Gli amministratori di un’organizzazione possono poi invitarti via e-mail.",
-    "The organisation “{0}” is set up": "L’organizzazione «{0}» è creata"
+    "The organisation “{0}” is set up": "L’organizzazione «{0}» è creata",
+    "Write down your first task": "Annota il tuo primo compito",
+    "Everything starts in the inbox; sort it later.": "Tutto inizia nella posta in arrivo; riordina dopo.",
+    "Create a project": "Crea un progetto",
+    "A project bundles tasks, files and notes.": "Un progetto raccoglie compiti, file e note.",
+    "Take the short tour": "Fai il breve tour",
+    "Two minutes through the most important places.": "Due minuti attraverso i punti più importanti.",
+    "The help explains every area.": "La guida spiega ogni area."
   },
   "nl": {
     "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Intussen heeft iemand anders een nieuwere versie geüpload, die blijft staan: {0}",
     "Organisation settings": "Instellingen van de organisatie",
     "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van een organisatie kunnen je daarna per e-mail uitnodigen.",
-    "The organisation “{0}” is set up": "De organisatie ‘{0}’ is aangemaakt"
+    "The organisation “{0}” is set up": "De organisatie ‘{0}’ is aangemaakt",
+    "Write down your first task": "Schrijf je eerste taak op",
+    "Everything starts in the inbox; sort it later.": "Alles begint in de inbox; sorteer later.",
+    "Create a project": "Maak een project aan",
+    "A project bundles tasks, files and notes.": "Een project bundelt taken, bestanden en notities.",
+    "Take the short tour": "Volg de korte rondleiding",
+    "Two minutes through the most important places.": "Twee minuten langs de belangrijkste plekken.",
+    "The help explains every area.": "De hulp legt elk onderdeel uit."
   }
 }
