@@ -73,7 +73,11 @@ const png = (w, h, rgb) => {
 
   // ================= Scan: two pictures -> one PDF
   const scanBtn = d.querySelector('[data-ab="scan"]');
-  check(scanBtn && scanBtn.previousElementSibling?.dataset.ab === 'upload', 'Scan sits next to Upload');
+  // 2.1199.0 (#6206): #6111 (2.1163.0) wraps Scan in a .abwide span (on a phone it moves into "…" as "Scan"), the hidden
+  // file input sits between: the next visible control after Upload is still Scan, and the phone's menu names it
+  { const box = scanBtn?.closest('.abwide') || scanBtn; let prev = box?.previousElementSibling;
+    while (prev && prev.hidden) prev = prev.previousElementSibling;
+    check(scanBtn && prev?.dataset.ab === 'upload' && (box === scanBtn || box.dataset.mlab === 'Scan'), 'Scan sits next to Upload ' + (prev?.outerHTML || '').slice(0, 80)); }
   scanBtn?.click();
   const md = await until(() => d.querySelector('.abscandlg'));
   check(md && md.querySelector('[data-abs="save"]').disabled, 'the dialog opens, "Save as PDF" waits for a page');
