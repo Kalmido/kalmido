@@ -1,0 +1,17 @@
+{
+  "de": {
+    "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "Die Projekt-Kennung {0} ist in diesem Arbeitsbereich schon vergeben: Das Projekt {1} kam ohne Kennung an, seine alten Nummern finden die Aufgaben weiter"
+  },
+  "es": {
+    "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "La clave de proyecto {0} ya se usa en este espacio de trabajo: el proyecto {1} llegó sin clave, sus números antiguos siguen encontrando las tareas"
+  },
+  "fr": {
+    "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "La clé de projet {0} est déjà utilisée dans cet espace de travail : le projet {1} est arrivé sans clé, ses anciens numéros retrouvent toujours les tâches"
+  },
+  "it": {
+    "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "La chiave di progetto {0} è già usata in questo spazio di lavoro: il progetto {1} è arrivato senza chiave, i suoi vecchi numeri trovano ancora le attività"
+  },
+  "nl": {
+    "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "De projectcode {0} wordt in deze werkruimte al gebruikt: het project {1} kwam zonder code aan, de oude nummers vinden de taken nog steeds"
+  }
+}

@@ -18679,7 +18679,6 @@
   "Please enter a web address like https://example.org.": "Vul een webadres in zoals https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % op de posten met korting",
   "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting",
-  "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "De projectcode {0} wordt in deze werkruimte al gebruikt: het project {1} kwam zonder code aan, de oude nummers vinden de taken nog steeds",
   "Daily notes": "Dagnotities",
   "Write …": "Schrijf …",
   "Write … (/ for commands)": "Schrijf … (/ voor opdrachten)",
