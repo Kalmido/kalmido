@@ -42,6 +42,7 @@ from .rights import LV, NO_RIGHT, office_can, ofr_admin_or, ofr_groups_of, ofr_r
 from .invoices import ofi_ref, ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
 from .offerlink import OilExists, oil_agent_filter, oil_need_no_invoice  # 2.356.0 C (#3003)
 from .docs import MAX_ITEMS, _num, clean_items, doc_items, doc_public, DOC_KINDS, ODOC_PAGE_MAX, doc_brief, doc_row, recalc, _date  # 2.369.5 (#2517): pulled up from functions
+from .docs import prd_doc_clean  # 2.1228.0 (#6254)
 from .model import TEXT_MAX, office_gate, office_org  # 2.369.5 (#2517): pulled up from functions
 from .ledger import ofx_log, ofx_locked, ofx_diff, ofx_items_brief  # 2.369.5 (#2517): pulled up from functions
 from .packs import office_feature_on  # 2.369.5 (#2517): pulled up from functions
@@ -391,7 +392,6 @@ def ofa_match_ids(items, old):
 def ofa_surcharge(c, oid, v):
     """2.1228.0 (#6254): the agent's {pct, title?} (null = off) -> the document's markup fields (docs.prd_doc_clean: pct
     0..100, an empty title = the default "Surcharge" / the pack's)."""
-    from .docs import prd_doc_clean
     if v is None:
         return {"markup_pct": None}
     if not isinstance(v, dict) or any(k not in ("pct", "title") for k in v):
