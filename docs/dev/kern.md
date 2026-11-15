@@ -159,6 +159,21 @@ the deletion is refused as for calendars, `upg_heirless`). What goes waits 30 da
 share back (`obj_share_restore`). Retiring an organisation takes every share of the file store on its nodes for good:
 there is no way back out of the retirement, so after the 30 days those rows are gone (its export has no shares then).
 
+### Who may write: the client (2.1206.0, #6161)
+
+The browser has ONE rule for showing write entries: `canWrite(x)` in `static/js/workspace.js`. `x` is a space
+(`'private'` or `'org:<id>'`: may the person add at its top) or an object with its `role` for this person (and its
+`org_id`). Owner / admin / manage / edit write, view reads. A space: only admin / member add there (`FULL_WRITE`,
+`need_org_write`). An object: read-only members read everything of their organisation (`cap_list_role`); for guest and
+accounting the role the server sends is already capped (`obj_role`, `_fs_limited_role`), so it counts as it comes. A person without an organisation is their own admin in Private. Unknown means no.
+
+Every area asks only `canWrite` - no own `role === 'edit'` checks. When it says no, the write entries (New, plus,
+upload, drag and drop, import, finalise, save) are left out, not disabled; editor fields read; the view shows ONE read
+hint (`roHintHtml(text)`) instead of a note per button. The server stays the only lock: `obj_need`, `need_org_write`,
+`office_allowed` refuse as before and are never loosened for this; the client rule may hide more than the server
+refuses, never less. The office's document answer carries `can_edit` with the organisation role already applied, so
+the client does not compute it again.
+
 ## 4. Saving
 
 ```python
