@@ -21,6 +21,55 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1191.0] - 2026-11-15
+
+Package 2.1183 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- Phone: the small favourites grip with the star above the tab bar is gone (also its movable place from #6082, the saved place is cleared on this device). A swipe up on the tab bar still opens the favourites row; the star next to a title, the "…" menu, the row menu and the pinnable tab "Favourites" stay as they were. The help text on favourites names the swipe (#6178).
+- Calendar > Find a date: the list of polls and a poll open at once with "Loading…"; when loading fails the window says so with "Try again" instead of closing without a word; no poll and no vote show the shared empty state; the poll form asks "Discard changes?" before typed input goes (X, Cancel, Esc), its description field is as wide as the other fields, and errors say what failed first (#6157).
+- Calendar > Calendars > Booking page: opens at once with "Loading…" and "Try again" on a failed load; the time zone is searched by city like in the event editor (no "Europe/Berlin" text field); "Save" sits in the dialog's foot; closing with changed fields asks first; a failed search or reload says so; copying the link (and the calendar feed link) uses the app's shared copy; the note about e-mail and public links is in plain words (#6157).
+
+Package 2.1179 (Bündel: PDF-Gestaltung Angebot + Rechnung: leere Rechte-Se, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- Quotation and invoice PDF (#6174): no rights appendix when no rights are entered (the terms note stands small beside the totals); a discount on the whole quotation with sections sits in the totals ("Total of items / Discount / Net total"), not under the last section; the totals move down at most 25 mm on the last page and take at least the last three rows along on a page break; amounts of the overview in the text size of the names; 10 mm between introduction and table; the quotation's acceptance block stands at the bottom above the footer.
+- Invoice PDF (#6174): one "Payment" block beside the GiroCode (due date, bank, payment reference = invoice number) instead of three payment hints; "Net total" instead of "Subtotal" (also final invoice); new standard closing text "Thank you for your order and the pleasant cooperation." in all pack languages.
+- Calendar (#6155): no "N more" in a phone's month; week and day start at the working hours (07:00 or the own setting) and only an own event that day pulls the start earlier, subscribed events and the end of an event from the day before do not; the timeline groups bars too narrow for a title into "+N" (opens the day / week) and its bars open with Enter; three events at once on a computer show more of their titles; calendar names hyphenate instead of breaking mid-word.
+- Update notice and admin alert say "Back up first"; a release with an "Action needed" section is marked as needing a step by hand (#2898).
+- Server > Backup warns when the backups lie on the same disk as the data and no off-site target is set (#2898).
+### Fixed
+- A failed database update at the start ends with one plain line (what failed, nothing changed, start the previous version) and exit code 3 instead of a traceback and a restart loop (#2898).
+- Folder entries of objects that are gone for good (left by a way back to an older version) are removed at the start; objects in the trash keep theirs (#2898).
+- SELF-HOSTING menu paths for off-site backup, virus scanner and server switches (#2898).
+
+Package 2.1184 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- Recent steps: a step of a project's settings says what changed - "“Imagefilm”: Colour", "“Imagefilm”: Renamed to Imagefilm 2", several fields "“Imagefilm”: Colour, Sorting", also for a folder, time tracking or client - instead of "Settings of Imagefilm"; the arrows' own entry of the settings dialog says the same (#6137).
+- Switching a project's view (list, board, calendar ...) is no longer a step: no row in Recent steps, and a view switched since neither blocks the undo of an older settings step nor goes back with it. "Show completed" / "Hide completed" of a view is no step either (no row, no arrow entry); the message right after it still offers Undo (#6137).
+- Recent steps on the phone: the label stands whole above its button "Back up to here" instead of being cut off beside it (#6137).
+
+Package 2.1177 (Bündel: Polish Wiki: Handy-Layout - Papierkorb-Namen buchs, Polish Dateien: Hochladen - eine Rückmeldung, Prüf, Polish Kontakte: Verknüpfung).
+### Changed
+- #6114: Files and documents - uploading gives one message: the progress bar at any size (Cancel while a large upload is still sending; a small one shows the bar without Cancel), then "N files uploaded" with Undo (new versions too). Empty, too large or (documents) not allowed files are left out before sending and listed with the reason, the rest still goes up in portions; a portion the server refuses keeps the others; documents no longer stop silently at 50 files; a drop on the documents takes the button's kinds; dragging over the list shows a clear frame "Drop here - lands in <folder>".
+### Fixed
+- #6086: Knowledge pages on a phone - names in the trash no longer break letter by letter (buttons wrap below), Select keeps the page names readable (date and row menu hidden), tables in the editor scroll sideways instead of cutting headings into syllables, small targets (boxes 20 px, row menu on tablets, attachment buttons, tag arrows, history back 44 px) fit a finger.
+- #6088: Knowledge pages use the shared loading, error and empty states - a page that fails to load offers Try again and Back to the pages, a missing page says so with a way back, a failed save keeps "Not saved" in the footer until a save works, a failed text search no longer looks like "No page matches", error messages say what failed first, an empty space offers "Create the first page".
+- #6116: Contacts - the task link kind reads "Betrifft" instead of "Über Kalmido"; Save in the contact editor is locked until the look-alike check answered (a double click created two contacts); no second error toast.
+- #6135: Tax forms and the tax check could stay on "Loading…" for good when two loads overlapped; the suites setup_ui and p2467_c_ui wait for real states and are out of quarantine.
+
+Package 2.1185 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- #6150 A sent quotation past its date: the answers in its note (extend, follow up, mark as rejected) only for people who may edit quotations and never through a folder; "Mark as rejected", "Extend validity" and "Adjust prices" each say so in a toast with Undo (extend: back to the old date, also a past one); a refused date or price change is shown inside the open dialog; "Apply" in "Adjust prices" only once the preview reached the target; the dialog title without dots; the mode "Surplus" also when a quotation is opened directly; rounding names the quotation's currency.
+- #6150 "Follow up" writes subject and text in the quotation's language and says "was valid until" once the date has passed; German wording "Abnahme-Link" everywhere; the approval box calls its date "Link valid until".
+- #6151 Send dialog without mail sending: one sentence and only "Download PDF", no empty mail form; the sender note no longer says "SMTP".
+- #6151 The office start page keeps the height of its figures card while it loads (the row "Overdue" stays, also at 0); on a phone "Edit menu" is a labelled button below the menu instead of a line with only a pen.
+- #6151 An open quotation or invoice on a computer has one way back ("< Quotations"), no second path line; the receipts button says "Upload receipt" in every width, an office without receipts shows one upload button; "Times to bill" no longer repeats its heading.
+### Fixed
+- #6151 The remaining own empty states of the office (log, rights, ledger, DATEV, suppliers, templates, archive history, progress invoices, recurring providers, price positions) use the shared empty block; a refused pack step shows its error once instead of twice.
+
+Package 2.1191 (Bündel: Bündel: Büro: Drehtage, Equipment-Packliste und Soll/Ist a, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Sammelpaket: Aufgaben ohn).
+### Added
+- #4550: Find people - "Invite by link": a person creates a one-time link with QR code (valid 14 days, copy / share, an own note) for someone without an account; whoever opens it registers a private account (with e-mail: confirmed by a link; without e-mail sending: name + password, no address stored) and is connected with the inviting person, who gets a news item. A signed-in person opening the link is asked "Connect with X?". Open links are listed and can be withdrawn (undo for 24 hours). Server switch Settings > Server > Sign-in "People without an account register with an invitation link" (on by default only when anyone may register). Limits: 20 open links per account, 10 new per day, rate limits per client address; not for agents. New table conn_invites (migration fragment 4550_a, additive). Rebuilt on the current main from the single commits of the earlier package 2.1156.
+
 ## [2.1175.0] - 2026-11-15
 
 Package 2.1166 (Start pflegen: Startgröße senken).
@@ -534,7 +583,8 @@ Not released (the CI of this version was red); its changes are listed under 2.11
 
 Not released (the CI of this version was red); its changes are listed under 2.1103.0.
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1175.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1191.0...HEAD
+[2.1191.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1191.0
 [2.1175.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1175.0
 [2.1162.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1162.0
 [2.1155.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1155.0
