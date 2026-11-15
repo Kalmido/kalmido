@@ -263,8 +263,11 @@ async function firefox(fn) {
     await nav(B + 'static/icon.svg');
     const lgi = await ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`);
     check(lgi === 200, 'Firefox: login');
+    // 2.1192.0 (#6190): what a phone hides on purpose (#3835: row symbols .ms-phsr / .ms-phacts, 1 px and clipped, long press = menu)
+    // sticks out invisibly with its icon / label - not counted
     const fit = sel => ev(`(() => { const c = document.querySelector('${sel}'); if (!c) return null; const r = c.getBoundingClientRect();
-      const over = [...c.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > r.right + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('select') && !e.closest('pre') && e.getBoundingClientRect().width).length;
+      const clipped = e => { for (let x = e; x && x !== c; x = x.parentElement) if (getComputedStyle(x).clipPath === 'inset(50%)') return true; return false; };
+      const over = [...c.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > r.right + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('select') && !e.closest('pre') && e.getBoundingClientRect().width && !clipped(e)).length;
       return {doc: document.documentElement.scrollWidth - innerWidth, left: r.left, right: r.right, vw: innerWidth, bottom: r.bottom, vh: innerHeight, over}; })()`);
     const good = (m, bottom = true) => m && m.doc <= 0 && m.left >= 0 && m.right <= m.vw + 1 && (!bottom || m.bottom <= m.vh + 1) && m.over === 0;
     for (const [W, Hh] of [[390, 844], [1280, 800]]) {
