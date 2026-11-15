@@ -12,9 +12,13 @@
 // - a subscription's sync error and a refused save: what failed first, the calendar server's text in brackets
 // - the view choice is a group with a name; the Calendars window: the trash is the last row, the "Per project" rows have no
 //   inline styles
+// - #6158: an event in another time zone names the zone at its times (popover "10:00–11:00 New York · … your time", the editor
+//   next to Starts / Ends; the device's zone: no hint); the task an event prepares stands in the editor outside "More options"
+//   and is fetched when it is not in memory (popover too, it opens); an own series carries the repeat mark; an existing event
+//   without guests has no availability bar; the Calendars window: a shared calendar's row has its own line "shared with 2 people"
 const {execFileSync} = require('child_process');
 const path = require('path');
-const {boot, sleep, B, login, until: until0, histAdded} = require('./boot');
+const {boot, sleep, B, login, until: until0, histAdded, idle} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
@@ -169,6 +173,68 @@ const closeAll = d => { d.querySelectorAll('.modal').forEach(m => m.remove()); }
   const se = await until(() => d.querySelector('.modal.evmodal .evsaveerr'));
   check(se && /^The event was not saved \(Refused for the test\)/.test(txt(se)), '#6159: a refused save: what failed first ' + txt(se));
   w.__fail = null;
+  closeAll(d);
+
+  // ================= #6158: the time zone at the times
+  const NY = await call('POST', '/api/events', {title: 'Call with sales New York', cal_id: W.id, start: `${D0}T10:00`, end: `${D0}T11:00`, tz: 'America/New_York', reminders: []});
+  check(NY.id, 'set-up: an event in New York');
+  w.eval('calInvalidate(); renderView()');
+  check(await until(() => chip('Call with sales New York')), 'the month shows it');
+  click(w, chip('Call with sales New York'));
+  let when = await until(() => d.querySelector('#pop [data-evp="edit"]') && d.querySelector('#pop .cevm'));
+  check(when && /10:00\D.*11:00\D* New York · \S.* your time/.test(txt(when)), '#6158: the popover names the zone at the times and the time for you ' + txt(when));
+  w.eval('closePop()');
+  click(w, chip('Standup'));
+  when = await until(() => d.querySelector('#pop [data-evp="edit"]') && d.querySelector('#pop .cevm'));
+  check(when && !/your time/.test(txt(when)), '#6158: an event in the device\'s zone: no zone ' + txt(when));
+  w.eval('closePop()');
+  w.eval(`evEditor({ev: ${JSON.stringify(await call('GET', `/api/events/${NY.id}`))}})`);
+  md = await until(() => d.querySelector('.modal.evmodal #ev-tzh-s:not([hidden])') && d.querySelector('.modal.evmodal'));
+  check(md && /^New York · \S.* your time$/.test(txt(md.querySelector('#ev-tzh-s'))) && txt(md.querySelector('#ev-tzh-e')) === 'New York',
+    '#6158: the editor names the zone next to Starts / Ends ' + txt(md?.querySelector('#ev-tzh-s')) + ' | ' + txt(md?.querySelector('#ev-tzh-e')));
+  check(md && !md.querySelector('details.evmore #ev-tzh-s') && md.querySelector('#ev-tzh-s').closest('.evdt'), '#6158: in the rows of the times, not under "More options"');
+  const tzIn = md.querySelector('#ev-tz'); tzIn.value = w.eval('evTz()'); tzIn.dispatchEvent(new w.Event('change', {bubbles: true}));
+  check(await until(() => md.querySelector('#ev-tzh-s').hidden && md.querySelector('#ev-tzh-e').hidden), '#6158: the device\'s zone chosen: the hint goes');
+  closeAll(d);
+  // the task an event prepares, not in memory
+  const L = (await call('GET', '/api/state')).lists.find(l => l.is_inbox) || (await call('GET', '/api/state')).lists[0];
+  const T = await call('POST', '/api/tasks', {title: 'Equipment list', list_id: L.id});
+  const PR = await call('POST', '/api/events', {title: 'Shooting day', cal_id: W.id, start: `${D0}T07:00`, end: `${D0}T08:00`, task_id: T.id, reminders: []});
+  check(T.id && PR.id && PR.task_id === T.id, 'set-up: an event that prepares a task');
+  w.eval(`S.tasks.delete(${T.id}); calInvalidate(); renderView()`);
+  check(await until(() => chip('Shooting day')) && !w.eval(`!!taskById(${T.id})`), 'the task is not in memory');
+  w.eval(`evEditor({ev: ${JSON.stringify(await call('GET', `/api/events/${PR.id}`))}})`);
+  md = await until(() => d.querySelector('.modal.evmodal .evprep') && d.querySelector('.modal.evmodal'));
+  const prep = md?.querySelector('.evprep');
+  check(prep && !prep.closest('details') && !md.querySelector('details.evmore').open, '#6158: the task stands in the editor outside "More options" (closed)');
+  check(await until(() => /Equipment list/.test(txt(md.querySelector('.evprepn')))), '#6158: its title is fetched ' + txt(md.querySelector('.evprepn')));
+  closeAll(d);
+  w.eval(`S.tasks.delete(${T.id})`);
+  click(w, chip('Shooting day'));
+  const pt = await until(() => d.querySelector('#pop [data-evp="task"]'));
+  check(pt && /Preparation: Equipment list/.test(txt(pt)), '#6158: the popover names the task also when it was not in memory ' + txt(pt));
+  click(w, pt);
+  check(await until(() => w.eval(`S.sel === ${T.id}`) && !d.querySelector('#detail').classList.contains('hidden')), '#6158: and opens it');
+  w.eval("typeof closeDetail === 'function' && closeDetail()");
+  // an own series: the repeat mark (not the subscription's)
+  const rc = await until(() => chip('Rehearsal'));
+  check(rc && rc.querySelector('.cevrep[aria-label="Repeats"]') && !rc.querySelector('[aria-label="Subscribed calendar"]'), '#6158: an own series carries the repeat mark');
+  check(!chip('Standup').querySelector('.cevsub'), 'a single own event: no mark');
+  // no availability bar on an existing event without guests
+  w.eval(`evEditor({ev: ${JSON.stringify(await call('GET', `/api/events/${SU.id}`))}})`);
+  md = await until(() => d.querySelector('.modal.evmodal #ev-atts') && d.querySelector('.modal.evmodal'));
+  await until(() => w.eval(`typeof efb_draw === 'function'`)); await idle(w);
+  check(!md.querySelector('#ev-fb'), '#6158: an existing event without guests: no availability bar');
+  closeAll(d);
+  // the Calendars window: the line of a shared calendar
+  const bob = await call('POST', '/api/users', {username: 'bob', display_name: 'Bob', password: 'password123'});
+  const carol = await call('POST', '/api/users', {username: 'carol', display_name: 'Carol', password: 'password123'});
+  check((await call('PUT', `/api/evcals/${W.id}/members`, {user_id: bob.id, role: 'view'})).http < 300 && (await call('PUT', `/api/evcals/${W.id}/members`, {user_id: carol.id, role: 'edit'})).http < 300, 'set-up: Work shared with two people');
+  await w.eval('load()');
+  w.eval('evCalsModal()');
+  md = await until(() => d.querySelector(`.modal.evcmodal [data-evcmenu="${W.id}"]`) && d.querySelector('.modal.evcmodal'));
+  const wrow = md.querySelector(`[data-evcmenu="${W.id}"]`).closest('.evcrow');
+  check(txt(wrow.querySelector('.evcnm')) === 'Work' && /shared with 2 people/.test(txt(wrow.querySelector('.evcsub'))), '#6158: the name and below it "shared with 2 people" ' + txt(wrow));
   closeAll(d);
 
   // ================= #6159: the view choice is a named group

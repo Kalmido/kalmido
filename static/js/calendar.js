@@ -216,7 +216,9 @@ function cevTime(e, d) {
 }
 // 2.52.0 (#1016): cgok = may be dragged into other days (caldrag.js)
 // 2.800.0 (#5468): an event of a subscribed calendar is personal and shows in every workspace: it carries the subscription's mark
-const cevSubMark = e => e.own || abcX(e) ? '' : `<span class="cevsub" title="${esc(tr('Subscribed calendar'))}" aria-label="${esc(tr('Subscribed calendar'))}" role="img">${ic('sync', 's')}</span>`;
+// 2.1212.0 (#6158): the subscription's mark is a link (the circling arrows read like "repeats"); an own series carries the repeat mark
+const cevSubMark = e => abcX(e) ? '' : e.own ? (e.recurring ? `<span class="cevsub cevrep" title="${esc(tr('Repeats'))}" aria-label="${esc(tr('Repeats'))}" role="img">${ic('repeat', 's')}</span>` : '')
+  : `<span class="cevsub" title="${esc(tr('Subscribed calendar'))}" aria-label="${esc(tr('Subscribed calendar'))}" role="img">${ic('link', 's')}</span>`;
 const cevChip = (e, d) => `<div class="cev${cevTimed(e, d) ? '' : ' allday'}${abcX(e) ? ' cevx' : ''}${ap_draftCls(e)}${cg_canDrag(e) ? ' cgok' : ''}" data-cev="${e.id}" style="--cc:${cevColor(e)}" title="${esc(cevTitle(e))}" role="button" tabindex="0">${/*html-ok*/ cevSubMark(e)}${cevTimed(e, d) && e.d0 === d ? `<span class="muted">${fmtTimeAt(e.s)}</span> ` : ''}${esc(cevTitle(e))}</div>`;
 const cevRow = (e, d, cls = '', mark = '') => `<div class="cevrow${ap_draftCls(e)}${cls}" data-cev="${e.id}" style="--cc:${cevColor(e)}" role="button" tabindex="0"><i class="cevdot"></i><span class="cevt">${cevTime(e, d)}</span><span class="cevn">${esc(cevTitle(e))}</span>${/*html-ok*/ cevSubMark(e)}${mark}${e.location ? `<span class="cevl">${esc(e.location)}</span>` : ''}<span class="cevc">${esc(cevCal(e))}</span></div>`;
 // 2.884.0 (#5469): month / week chips and event rows (Today, day lists, home) are role=button: Enter / Space opens the event like a click
@@ -279,7 +281,7 @@ function cevPop(anchor, id) {
     ${e.location ? `<div class="cevm">${ic('mappin', 's')}<span>${esc(e.location)}</span></div>` : ''}
     <div class="cevm">${ic('cal', 's')}<span>${esc(cevCal(e))} · ${tr('read-only')}</span></div>
     ${desc ? `<div class="cevdesc">${cevLinkify(desc)}${e.description.length > 2000 ? '…' : ''}</div>` : ''}
-    ${abcX(e) ? '' : `<div class="cevact"><button class="btn sm pri" data-cevtask>${ic('plus', 's')} ${tr('Create task from event')}</button></div>`}</div>`);  // 2.155.0 B (#2076)
+    ${abcX(e) ? '' : `<div class="cevact"><button class="btn sm" data-cevtask>${ic('plus', 's')} ${tr('Create task from event')}</button></div>`}</div>`);  // 2.155.0 B (#2076)
   p.onclick = ev => { if (ev.target.closest('[data-cevtask]')) { closePop(); cevToTask(e); } };
 }
 // the task gets the event's title and start (date + time + duration), in the inbox; the panel opens to edit it
