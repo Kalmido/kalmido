@@ -388,7 +388,7 @@ async function dpm_run() {
   const xs = DPM.xs.slice(), er = $('.aerr', md), run = /** @type {any} */ ($('[data-dpm="run"]', md));
   DPM.busy = true; if (run) run.disabled = true; if (er) er.textContent = '';
   let r; try { r = await rawFetch('POST', '/api/docs/merge', {ids: xs.map(x => x.id)}); }
-  catch (x) { DPM.busy = false; if (run) run.disabled = false; if (er && DPM.md === md) er.textContent = /** @type {any} */ (x).message || tr('unknown'); return; }
+  catch (x) { DPM.busy = false; if (run) run.disabled = false; if (er && DPM.md === md) er.textContent = errText(x, tr('The documents could not be merged')); return; }  // 2.1216.0 (#6109): what failed first
   dpm_close();
   if (typeof ab_selEnd === 'function') ab_selEnd();
   if (typeof ab_relist === 'function') ab_relist();

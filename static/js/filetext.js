@@ -24,6 +24,7 @@ const ftxtBox = () => `<div class="ftxtbar" role="search">${ic('search', 's')}<i
 function ftxtResults() {
   const r = FTXT.res;
   if (!r) return `<p class="muted lempty">${tr('Searching…')}</p>`;
+  if (r.err) return errorState({title: r.err, retry: () => { FTXT.res = null; ab_draw(); ftxtRun(); }});  // 2.1216.0 (#6109): a failed search never says No results
   const items = r.items || [], lfs = r.list_files || [];
   if (!items.length && !lfs.length) return `<div class="empty abempty">${ic('search')}<span>${tr('No results.')}</span></div>`;
   const why = h => h === 'text' ? tr('Found in the text') : h === 'doc' ? tr('Found in sender, type or tags') : '';  // 2.353.0 D (#2759): doc
@@ -44,10 +45,10 @@ async function ftxtRun() {
   const q = FTXT.q.trim(), seq = ++FTXT.seq;
   if (!q) { FTXT.res = null; ab_draw(); return; }
   try {
-    const j = await api('GET', '/api/search?kind=files&q=' + encodeURIComponent(q));
+    const j = await rawFetch('GET', '/api/search?kind=files&q=' + encodeURIComponent(q));  // 2.1216.0 (#6109): rawFetch - the failure is said in the list, no toast
     if (seq !== FTXT.seq) return;
     FTXT.res = j;
-  } catch { if (seq === FTXT.seq) FTXT.res = {items: [], list_files: []}; }
+  } catch (x) { if (x?.message === 'auth') return; if (seq === FTXT.seq) FTXT.res = {items: [], list_files: [], err: errText(x, tr('The search failed'))}; }
   ab_draw();
 }
 function ftxtSet(q) {
