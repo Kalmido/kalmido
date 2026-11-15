@@ -483,7 +483,7 @@ def md_brief(text):
         ln = re.sub(r"^\s*(```|~~~)[\w+#.-]*\s*", "", ln)
         ln = re.sub(r"^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+)", "", ln)
         out.append(ln)
-    t = re.sub(r"!?\[([^\]]*)\]\([^)\s]*\)", r"\1", "\n".join(out))
+    t = re.sub(r"!?\[([^\]\[]*)\]\([^)\s]*\)", r"\1", "\n".join(out))  # 2.1169.0 (#6100): no "[" inside, linear on a run of "["
     t = re.sub(r"\*\*|__|~~|`", "", t)
     return re.sub(r"(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?!\w)", r"\1", t)
 
@@ -677,8 +677,13 @@ def tchat_post(rid):
     tchat_need_say(c, r)  # 2.607.0 (#4549): guests / read-only people of the organisation only read; 2.981.0: the core's rule
     from .teamchan import tcx_add, tcx_files_refused, tcx_input, tcx_members, tcx_store
     b, files = tcx_input(body())  # 2.113.1 (#2059): JSON, or a multipart form with files (field file, repeatable)
+    if r["kind"] == "group":  # 2.1169.0 (#6099): the Undo of "New group" archives it only while empty - serialise with that check
+        write_lock(c, f"tchat_rooms-{rid}")
+        r = c.execute("SELECT * FROM tchat_rooms WHERE id=?", (rid,)).fetchone()
     if r["kind"] == "channel" and r["archived_at"]:
         return err(tr("This channel is archived"), 409)
+    if r["kind"] == "group" and r["archived_at"]:  # 2.1169.0 (#6099): an undone group takes nothing (it is hidden from everyone)
+        return err(tr("This group was undone"), 409)
     if files:
         bad = tcx_files_refused(c, r)
         if bad:
