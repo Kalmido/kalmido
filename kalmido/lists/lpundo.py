@@ -58,7 +58,9 @@ LPU_NAMES = {"color": N_("Colour"), "kind": N_("Type"), "dep_shift": N_("Move de
              "sort_mode": N_("Sorting"), "group_field": N_("Grouping"),
              "columns": N_("Columns"), "kpis": N_("Key figures"), "props": N_("Properties"), "points_on": N_("Story points"),
              "irreversible_needs_yes": N_("One-way steps"), "two_eyes": N_("Approvals"), "tap_done": N_("Tap to complete"),
-             "nag": N_("Reminders"), "archived": N_("Archived")}
+             "nag": N_("Reminders"), "archived": N_("Archived"),
+             # the settings with side effects (lists/lpside.py)
+             "folder": N_("Folder"), "time_tracking": N_("Time tracking"), "client_id": N_("Client")}
 # what a project admin may change of them (list_update: adm, MANAGE_ROLES); the rest is the owner's
 LPU_ADMIN = frozenset({"name", "color", "archived", "archived_at", "checklist", "mail_guests", "sort_mode", "group_field",
                        "done_in_section", "tap_done", "props", "col_cfg", "tb_sums", "fx_kpis"})
@@ -136,23 +138,25 @@ def _changed(r, b):
 
 def lpu_what(r, b):
     """2.1184.0 (#6137): the step's label -- (key, *values): what of project r the body b changes."""
-    name = ua_plain(r["name"], r["id"])
-    ch = list(dict.fromkeys("checklist" if k == "done_at_bottom" else k for k in _changed(r, b)))
+    ch = ["checklist" if k == "done_at_bottom" else k for k in _changed(r, b)]
+    return lpu_named(r["name"], r["id"], ch, b.get("name")) or (LPU_LABEL, ua_plain(r["name"], r["id"]))
+
+
+def lpu_named(name, lid, keys, new_name=None):
+    """2.1184.0 (#6137): "“<project>”: Colour, Sorting" for the changed settings keys (also lists/lpside.py); None when one
+    of them has no readable name (the caller's general label then, never a raw key) or nothing is left to name."""
     parts = []
-    for k in ch:
+    for k in dict.fromkeys(k for k in keys if k not in LPU_DISPLAY):
         if k == "name":
-            new = ua_plain(b.get("name"))
-            if new == "#":  # a sealed new name (e2e): never in a label
-                parts.append([N_("Name")])
-            else:
-                parts.append([LPU_RENAMED, new])
+            new = ua_plain(new_name)
+            parts.append([N_("Name")] if new == "#" else [LPU_RENAMED, new])  # a sealed new name (e2e): never in a label
         elif k in LPU_NAMES:
             parts.append([LPU_NAMES[k]])
         else:
-            return LPU_LABEL, name  # a setting without a readable name: the label as before, never a raw key
+            return None
     if not parts:
-        return LPU_LABEL, name
-    return LPU_FIELD, [LPU_Q, name], parts[0] if len(parts) == 1 else list(stored_join(parts))
+        return None
+    return LPU_FIELD, [LPU_Q, ua_plain(name, lid)], parts[0] if len(parts) == 1 else list(stored_join(parts))
 
 
 def lpu_post(c):
