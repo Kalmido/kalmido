@@ -149,7 +149,7 @@ check(requests.post(B + f"/api/trash/lists/{LT}/restore", headers=AGH).status_co
 # the admin restores it with everything
 r = A.post(B + f"/api/trash/lists/{LT}/restore")
 check(r.ok, "the org admin restores it " + r.text[:160])
-check(sql("SELECT deleted_at, org_id, archived FROM lists WHERE id=?", (LT,))[0] == (None, ORG, 1), "back in the organisation, archived")
+check(sql("SELECT deleted_at, org_id, state FROM lists WHERE id=?", (LT,))[0] == (None, ORG, "archived"), "back in the organisation, archived")  # 2.1231.0 (#5880): state
 check(sql("SELECT deleted_at FROM tasks WHERE id=?", (T1,))[0][0] is None and sql("SELECT section_id FROM tasks WHERE id=?", (T1,))[0][0] == SEC,
       "its task is back, in its section")
 check(sql("SELECT deleted_at FROM tasks WHERE id=?", (T2,))[0][0] == T2_DEL, "the task deleted before stays in the trash")

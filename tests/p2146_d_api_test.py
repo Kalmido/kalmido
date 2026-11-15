@@ -336,7 +336,8 @@ if not os.environ.get("P2146D_NOHOSTED"):
     sql(LM, (PL, ids["bob"], "admin", "admin"), write=True)
     r = A.delete(B + f"/api/users/{PID}", params={"lists": "delete", "confirm": "paula", "retention": "waived"})
     check(r.ok and not sql("SELECT 1 FROM users WHERE id=?", (PID,)), "hosted: with the waiver the account goes " + r.text[:200])
-    row = sql("SELECT deleted_at IS NOT NULL, retain_until, archived FROM lists WHERE id=?", (PL,))
+    # 2.1231.0 (#5880): the column archived of lists is gone - archived is archived_at set
+    row = sql("SELECT deleted_at IS NOT NULL, retain_until, CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END FROM lists WHERE id=?", (PL,))
     check(row == [(True, "2035-12-31", 1)] and sql("SELECT 1 FROM budget_files WHERE list_id=?", (PL,)) and os.path.isfile(PFULL),
           f"hosted, waived: the project stays in the trash until 2035-12-31 with its receipt {row}")
     check(sql("SELECT kind FROM retention_log WHERE subject=?", (f"user:{PID}",)) == [("waiver",)], "hosted, waived: the waiver is noted")

@@ -899,6 +899,25 @@ def undo_skip(table, *cols):
     UNDO_SKIP.setdefault(table, set()).update(cols)
 
 
+UNDO_GONE = {}  # 2.1231.0 (#5880): table -> (add, back) for a column that went (undo_gone)
+
+
+def undo_gone(table, add, back):
+    """2.1231.0 (#5880): a column of table went (archived of lists), but copies written before still hold it. add(row) -> {column:
+    value} gives it back to a row of today as the copy then held it (only for the fingerprint: a step written before still
+    matches when nothing else changed); back(row) -> row turns a row of an old copy into today's columns before it is
+    written back (the value the gone column held, moved to where it lives now)."""
+    UNDO_GONE[table] = (add, back)
+
+
+def _gone_add(snap):
+    out = {}
+    for t, rows in snap.items():
+        add = (UNDO_GONE.get(t) or (None,))[0]
+        out[t] = [{**r, **add(r)} for r in rows] if add else rows
+    return out
+
+
 def _snap(c, sc):
     out = {}
     for t, where, args, _many in sc:
@@ -930,6 +949,8 @@ def _fp_is(snap, nofp, want):
         return False
     if _fp(snap, nofp) == want:
         return True
+    if any(t in UNDO_GONE for t in snap) and _fp(_gone_add(snap), nofp) == want:  # 2.1231.0 (#5880): a step of before the column went
+        return True
     return any(hasattr(x, "of_row") for x in (nofp or {}).values()) and _fp(snap, nofp, rows=False) == want
 
 
@@ -952,6 +973,8 @@ def _write_back(c, sc, snap, uid, keep=None, free=()):
     for i, (t, where, args, many) in enumerate(sc):
         cols = cols_of[t]
         rows = snap.get(t) or []
+        if t in UNDO_GONE:  # 2.1231.0 (#5880): a copy of before a column went: its value where it lives now
+            rows = [UNDO_GONE[t][1](dict(r)) for r in rows]
         if not many:
             if not rows:
                 continue

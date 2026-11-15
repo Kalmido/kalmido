@@ -54,7 +54,7 @@ from ..core.objcomments import ocm_note_cols, ocm_old_cols, ocm_video_cols  # 2.
 from ..core.objexport import oex_left, oex_nodes, oex_org  # 2.1093.0 (#5289): the export register of the core
 from ..docs.store import doc_open as _doc_open  # 2.981.0 (#5273): the notes on documents (obj_comments kind doc_note)
 from ..core.i18n import N_, lang, tr
-from ..core.access import Denied, live_sql, otr_live
+from ..core.access import Denied, list_archived, live_sql, otr_live  # 2.1231.0 (#5880): list_archived
 from ..accounts.pictures import list_icon_path, org_icon_path, org_icon_tok  # 2.363.2 (#3106)
 from ..accounts.session import me
 from ..lists.listhead import o3c_head_rel  # 2.363.2 (#3106)
@@ -217,6 +217,8 @@ OX_RX_COL = {"comment": "comment_id", "tchat": "message_id"}
 
 def _clean(c, oid, table, r):
     row = {k: v for k, v in dict(r).items() if k not in OX_SECRET_COLS}
+    if table == "lists" and "state" in row:  # 2.1231.0 (#5880): the column archived went, lists.json keeps the key (from the marker)
+        row["archived"] = list_archived(row)
     if table == "obj_reactions":
         row[OX_RX_COL[row.pop("target_kind")]] = row.pop("target_id")
     if table == "obj_tags":  # 2.947.0 (#5275): the columns of list_tags / the labels' file

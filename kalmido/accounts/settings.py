@@ -21,7 +21,7 @@ from ..core.errors import BadInput
 from ..core.numtext import user_num  # 2.263.0 (#2976)
 from ..api.common import hit_limit  # 2.367.5 (#2980)
 from .layouts import LAYOUT_KEYS
-from ..core.access import acx_lists_sql, otr_live  # 2.1029.0 (#5537); 2.1097.0 (#5949): + acx_lists_sql at module level
+from ..core.access import acx_lists_sql, list_archived, otr_live  # 2.1029.0 (#5537); 2.1097.0 (#5949): + acx_lists_sql at module level; 2.1231.0 (#5880): list_archived
 from ..core.objexport import oex_acct  # 2.1097.0 (#5949): the parts of the core's tables (the export register)
 from ..core.access import live_sql  # 2.1076.0 (#5271)
 
@@ -1181,6 +1181,8 @@ def umz_export_clean(table, row):
     """2.73.0 B (#1473): a row of "my data" as exported (the same in export.json and the account export)."""
     if table == "activity" and row.get("kind") in ("paperless", "paperless_rm", "paperless_send"):
         row["data"] = "{}"  # 2.36.0 (#1116): old entries of the removed Paperless connection carry no document data
+    if table == "lists" and "state" in row:  # 2.1231.0 (#5880): the column archived went, the file keeps the key (from the marker)
+        row["archived"] = list_archived(row)
     return row
 
 

@@ -247,7 +247,7 @@ check(r.ok and r.json() == {"shared": 0, "updated": 0, "by_email": True}, f"by a
 # review of 2.1032: an archived list of the organisation in the folder counts too (the folder's share reaches it)
 L3 = made(A.post(B + "/api/lists", json={"name": "Old client", "org_id": OF}), "an archived list of the organisation").get("id")
 check(A.patch(B + f"/api/lists/{L3}", json={"folder": "Archive", "archived": True}).ok, "setup: archived, in folder Archive")
-check(sql("SELECT archived FROM lists WHERE id=?", (L3,)) == [(1,)], "setup: the list is archived")
+check(sql("SELECT state FROM lists WHERE id=?", (L3,)) == [("archived",)], "setup: the list is archived")  # 2.1231.0 (#5880): the column archived is gone
 r = A.put(B + "/api/folders/people", json={"folder": "Archive", "email": "bob@example.com", "role": "view"})
 check(r.ok and r.json() == {"shared": 0, "updated": 0, "by_email": True} and BOB not in people(A, "Archive"),
       f"by address: an archived list of the organisation keeps the account out too {r.text[:120]} {people(A, 'Archive')}")

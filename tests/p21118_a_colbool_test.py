@@ -9,7 +9,8 @@ cb_migrate at the start), read back as 0 / 1 (core/pg.py). Own container (start.
    run changes nothing
  - reading: a CB_BOOL column comes back as the number 0 / 1 (Python and the JSON of the answers), a BOOLEAN of another table
    and a computed one as True / False; a `?` parameter 0 / 1 / True / False writes the column
- - the list state trigger (migrations.d/5537_a.py) works on the BOOLEAN lists.archived both ways
+ - a `?` parameter True / 0 writes a CB_BOOL column of lists (lists.is_inbox; 2.1231.0, #5880: lists.archived is gone - it
+   stays in CB_BOOL, so an older database turns it before core/liststate.py moves it and the fragment 5880_a drops it)
 usage: p21118_a_colbool_test.py <datadir>"""
 import json
 import os
@@ -59,10 +60,11 @@ have = {(t, col): (typ, d) for t, col, typ, d in c.execute("SELECT table_name, c
 pairs = [(t, col) for t, cs in CB_BOOL.items() for col in cs]
 print(json.dumps({"n": len(pairs), "missing": sorted(f"{t}.{col}" for t, col in pairs if (t, col) not in have)[:10],
                   "other": sorted(f"{t}.{col}={have[(t, col)][0]}" for t, col in pairs if (t, col) in have and have[(t, col)][0] != 'boolean')[:10],
-                  "dflt": {f"{t}.{col}": have[(t, col)][1] for t, col in (('lists', 'archived'), ('webhooks', 'enabled')) if (t, col) in have}}))
+                  "dflt": {f"{t}.{col}": have[(t, col)][1] for t, col in (('lists', 'is_inbox'), ('webhooks', 'enabled')) if (t, col) in have}}))
 """)
-check(ty.get("n") == 53 and ty.get("missing") == [] and ty.get("other") == [], f"a new database: every CB_BOOL column is BOOLEAN ({ty})")
-check(ty.get("dflt") == {"lists.archived": "false", "webhooks.enabled": "true"}, f"a new database: the defaults false / true {ty.get('dflt')}")
+# 2.1231.0 (#5880): lists.archived went (a new database never has it); its default checked on lists.is_inbox instead
+check(ty.get("n") == 53 and ty.get("missing") == ["lists.archived"] and ty.get("other") == [], f"a new database: every CB_BOOL column is BOOLEAN ({ty})")
+check(ty.get("dflt") == {"lists.is_inbox": "false", "webhooks.enabled": "true"}, f"a new database: the defaults false / true {ty.get('dflt')}")
 
 # ---- the turn on old values (a scratch table, rolled back)
 mig, err = py("""
@@ -107,15 +109,11 @@ c.execute("CREATE TEMP TABLE zz5952b (archived BOOLEAN NOT NULL DEFAULT true)")
 c.execute("INSERT INTO zz5952b DEFAULT VALUES")
 out['other'] = type(c.execute("SELECT archived FROM zz5952b").fetchone()[0]).__name__
 lid = c.execute("SELECT id FROM lists WHERE owner_id=? AND is_inbox", (uid,)).fetchone()[0]
-c.execute("UPDATE lists SET archived=? WHERE id=?", (True, lid))
-a1 = c.execute("SELECT archived, state FROM lists WHERE id=?", (lid,)).fetchone()
-c.execute("UPDATE lists SET archived=? WHERE id=?", (0, lid))
-a2 = c.execute("SELECT archived, state FROM lists WHERE id=?", (lid,)).fetchone()
-c.execute("UPDATE lists SET state='archived' WHERE id=?", (lid,))
-a3 = c.execute("SELECT archived, state FROM lists WHERE id=?", (lid,)).fetchone()
-c.execute("UPDATE lists SET state='live' WHERE id=?", (lid,))
-a4 = c.execute("SELECT archived, state FROM lists WHERE id=?", (lid,)).fetchone()
-out['lists'] = [list(a1), list(a2), list(a3), list(a4)]
+c.execute("UPDATE lists SET is_inbox=? WHERE id=?", (0, lid))
+a1 = c.execute("SELECT is_inbox, state FROM lists WHERE id=?", (lid,)).fetchone()
+c.execute("UPDATE lists SET is_inbox=? WHERE id=?", (True, lid))
+a2 = c.execute("SELECT is_inbox, state FROM lists WHERE id=?", (lid,)).fetchone()
+out['lists'] = [list(a1), list(a2)]
 c.rollback()
 print(json.dumps(out))
 """)
@@ -123,8 +121,8 @@ check(rd.get("admin") == [1, "int"] and rd.get("disabled") == [0, "int"] and rd.
       f"read: users.is_admin / disabled come back as the numbers 1 / 0, also under an alias {rd}")
 check(rd.get("expr") == ["bool", "bool", "bool"] and rd.get("other") == "bool",
       f"read: a computed boolean and a BOOLEAN outside the list stay True / False {rd.get('expr')} {rd.get('other')}")
-check(rd.get("lists") == [[1, "archived"], [0, "live"], [1, "archived"], [0, "live"]],
-      f"write: a parameter True / 0 sets archived, the state trigger follows; state written = archived follows {rd.get('lists')}")
+check(rd.get("lists") == [[0, "live"], [1, "live"]],
+      f"write: a parameter 0 / True sets a CB_BOOL column of lists, read back as 0 / 1 {rd.get('lists')}")
 
 st = A.get(B + "/api/state").json()
 inbox = [x for x in st.get("lists", []) if x.get("is_inbox")]

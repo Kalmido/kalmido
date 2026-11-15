@@ -4,6 +4,8 @@
 (core/access.py list_archived_sql / list_archived / list_out), not the old column archived - the column can go in a later,
 one-way step. The suite holds the trigger kalmido_list_state off for a moment and writes the old column the other way round
 than the marker: what the app shows and decides then must follow the marker. Invented names.
+2.1231.0 (#5880): the column went; the suite writes archived_at the other way round instead (the trigger keeps it with the
+marker since then) - a live / archived project still reads the marker, only one in the trash its archived_at.
  - the app's project list (/api/state) and the API v1 (GET /api/v1/lists/<id>) show archived from the marker, same shape
  - archiving a project the marker already holds archived is no change (the marker decides, not the column)
  - deleting for good only from the archive: the marker decides (a live project with archived=1 in the column: 409)
@@ -41,7 +43,8 @@ def plist(s, name, org=None):
 
 
 def row(lid):
-    r = dbx("SELECT state, archived, archived_at, deleted_at FROM lists WHERE id=?", (lid,))
+    # 2.1231.0 (#5880): the column archived is gone - the second value is "archived_at set"
+    r = dbx("SELECT state, CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END, archived_at, deleted_at FROM lists WHERE id=?", (lid,))
     return tuple(r[0]) if r else None
 
 
@@ -73,8 +76,8 @@ check(bool(TOK), "setup: an API token of the person without an organisation")
 
 trigger(False)
 try:
-    dbx("UPDATE lists SET archived=false WHERE id IN (?, ?)", (PA, PO))
-    dbx("UPDATE lists SET archived=true WHERE id=?", (PL,))
+    dbx("UPDATE lists SET archived_at=NULL WHERE id IN (?, ?)", (PA, PO))  # 2.1231.0 (#5880): archived_at, the column is gone
+    dbx("UPDATE lists SET archived_at='2026-01-02T03:04:05+00:00' WHERE id=?", (PL,))
     check(row(PA)[:2] == ("archived", 0) and row(PL)[:2] == ("live", 1), f"setup: the old column the other way round {row(PA)} {row(PL)}")
 
     # ------------------------------------------------------------ what the app and the API show
@@ -102,9 +105,9 @@ try:
     r = Fr.delete(B + f"/api/lists/{PA}")
     check(r.ok and row(PA)[0] == "archived" and row(PA)[3], f"an archived project (by the marker) goes into the trash {r.status_code} {row(PA)}")
 finally:
-    # the old column as the marker says again, then the trigger on (a write that leaves the marker reads archived)
-    dbx("UPDATE lists SET archived=true WHERE id IN (?, ?)", (PA, PO))
-    dbx("UPDATE lists SET archived=false WHERE id=?", (PL,))
+    # archived_at as the marker says again, then the trigger on (a write that leaves the marker reads archived_at)
+    dbx("UPDATE lists SET archived_at='2026-01-02T03:04:05+00:00' WHERE id IN (?, ?)", (PA, PO))
+    dbx("UPDATE lists SET archived_at=NULL WHERE id=?", (PL,))
     trigger(True)
 
 # ------------------------------------------------------------ the database value of a project in the trash
@@ -117,7 +120,7 @@ check(f"({int(PA)}, 1, 1)" in out and f"({int(PL)}, 0, 0)" in out, f"in the tras
 from_app = in_app('from kalmido.core.access import list_archived_sql\nlist_archived_sql("l; DROP")')
 check("invalid alias" in from_app, f"list_archived_sql refuses an alias that is no name {from_app[-200:]}")
 
-bad = dbx("""SELECT id, state, archived FROM lists WHERE (state='archived' AND NOT archived) OR (state='live' AND archived)""")
-check(not bad, f"the trigger on again: archived agrees with the marker {bad[:3]}")
+bad = dbx("""SELECT id, state, archived_at FROM lists WHERE (state='archived' AND archived_at IS NULL) OR (state='live' AND archived_at IS NOT NULL)""")
+check(not bad, f"the trigger on again: archived_at agrees with the marker {bad[:3]}")
 
 sys.exit(done("p21061_a_liststate3"))
