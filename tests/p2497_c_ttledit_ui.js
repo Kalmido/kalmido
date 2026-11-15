@@ -80,11 +80,14 @@ const LONG = 'Start of a really long task title that wraps over several lines in
         // the "Renamed" note of the step before may still lie over the row: the title itself under the pointer
         check(await o.until(`!!document.elementFromPoint(${pt.x}, ${pt.y})?.closest('.ttl')`, {timeout: 15000}), `${tag}: the title is free to click ` + await ev(`(e => { const a = []; for (let x = e, n = 0; x && n < 5; x = x.parentElement, n++) a.push(x.tagName + '.' + x.className); return a.join(' < ') + ' ' + (e?.textContent || '').slice(0, 60); })(document.elementFromPoint(${pt.x}, ${pt.y}))`));
         const click = [{type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}];
+        await ev(`(() => { window.__dbl = []; document.addEventListener('dblclick', e => window.__dbl.push({t: e.target.tagName + '.' + e.target.className, on: e.target.isConnected, row: !!e.target.closest?.('#view .trow'), dp: e.defaultPrevented}), true); document.addEventListener('click', e => window.__dbl.push({click: e.target.tagName + '.' + e.target.className, n: e.detail}), true); return 1; })()`);
         await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 'm1', parameters: {pointerType: 'mouse'}, actions: [{type: 'pointerMove', x: Math.round(pt.x), y: Math.round(pt.y)}, ...click, ...click]}]});
         await cmd('input.releaseActions', {context: ctx});
-        check(await o.until(`!!document.querySelector('#view .ttlin')`, {timeout: 5000}), `${tag}: a double click opens the field`);
-        const c = await ev(`(() => { const i = document.querySelector('#view .ttlin'); return {s: i.selectionStart, e: i.selectionEnd, f: document.activeElement === i}; })()`);
-        check(c.f && c.s === c.e && Math.abs(c.s - pt.at) <= 8, `${tag}: the caret stands at the double-click ` + JSON.stringify([pt, c]));
+        // 2.1199.0 (#5428): a field that did not open says why (the events, the row, the open task) instead of a TypeError below
+        const opened = await o.until(`!!document.querySelector('#view .ttlin')`, {timeout: 5000});
+        check(opened, `${tag}: a double click opens the field ` + (opened ? '' : await ev(`JSON.stringify({ev: window.__dbl, ie: S.ie, sel: S.sel, multi: S.multiMode, touch: isTouch(), detail: !!document.querySelector('#detail:not(.hidden)'), hit: (e => e ? e.tagName + '.' + e.className : null)(document.elementFromPoint(${pt.x}, ${pt.y})), row: !!${row}})`)));
+        const c = await ev(`(() => { const i = document.querySelector('#view .ttlin'); return i ? {s: i.selectionStart, e: i.selectionEnd, f: document.activeElement === i} : null; })()`);
+        check(c && c.f && c.s === c.e && Math.abs(c.s - pt.at) <= 8, `${tag}: the caret stands at the double-click ` + JSON.stringify([pt, c]));
         await ev(`(() => { inlineEditCancel(); return 1; })()`);
       }
     }, false);

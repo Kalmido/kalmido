@@ -49,7 +49,8 @@ const rowOf = (d, id, k) => dlg(d)?.querySelector(`${k ? `[data-shxk="${k}"]` : 
   check(await until(() => rowOf(d, S2.id)), 'the trash shows the deleted table');
   const t = rowOf(d, S2.id);
   check(/Old plan/.test(t?.textContent) && /Moved to the trash on/.test(t?.textContent), 'with its name and when it went there: ' + t?.textContent);
-  check(/deleted permanently after 30 days|stay in the trash until/.test(dlg(d)?.textContent || ''), 'the trash period is named');
+  // 2.1199.0 (#6208): #6112 (2.1163.0) words the kept trash without server words ("stay in the trash for now: ...")
+  check(/deleted permanently after 30 days|stay in the trash for now: emptying it automatically is not switched on/.test(dlg(d)?.textContent || ''), 'the trash period is named ' + (dlg(d)?.querySelector('p.muted')?.textContent || ''));
   click(w, t.querySelector('[data-shx="restore"]'));
   check(await until(async () => (await call('GET', `/api/sheets/${S2.id}`))._status === 200 && !rowOf(d, S2.id)), 'Restore brings the table back and it leaves the trash');
   check(await until(() => /Trash is empty/.test(dlg(d)?.textContent || '')), 'the trash is empty then');

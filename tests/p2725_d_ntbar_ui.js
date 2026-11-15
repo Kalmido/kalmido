@@ -1,6 +1,6 @@
 // kalmido-suite: fresh
 // 2.725.0 D (#5163) UI test, own container (start.sh), Firefox with touch at 412 and 600 px (a folded phone). Invented data only.
-// The bars of the wiki list and of notes (.ntbar): the search field has its own line, buttons do not overlap or shrink under
+// The bars of the wiki list and of notes (.ntbar): the search field has its own line (notes; the wiki list is one row since #6089), buttons do not overlap or shrink under
 // their text, nothing runs over the edge; the phone header's chips (#top) share one height. Shots: P2725D_SHOTS.
 const path = require('path');
 const {execFileSync} = require('child_process');
@@ -14,13 +14,13 @@ if (!process.env.P2725D_NOSTART) execFileSync('bash', [path.join(__dirname, 'sta
 const call = async (ck, method, url, body) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: ck}, body: body ? JSON.stringify(body) : undefined}); return r.json().catch(() => ({})); };
 
 // per bar: overlaps, overflow, buttons whose text is cut, the search field on its own line, the tallest/shortest header chip
-const AUDIT = `(() => { const out = {bars: 0, lap: [], over: [], cut: [], shared: [], vw: innerWidth};
+const AUDIT = `(() => { const out = {bars: 0, lap: [], over: [], cut: [], shared: [], sw: [], vw: innerWidth};
   for (const b of document.querySelectorAll('#view .ntbar')) { if (!b.offsetParent) continue; out.bars++;
     const kids = [...b.children].filter(e => e.offsetParent && e.getBoundingClientRect().width > 0), rs = kids.map(e => e.getBoundingClientRect());
     for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) { const a = rs[i], c = rs[j]; if (a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1) out.lap.push(i + '/' + j); }
     if (b.scrollWidth > b.clientWidth + 1) out.over.push(b.className + ' ' + b.scrollWidth + '/' + b.clientWidth);
     for (const e of b.querySelectorAll('.btn, .iconbtn')) if (e.offsetParent && e.scrollWidth > e.clientWidth + 1) out.cut.push((e.textContent || e.className).trim().slice(0, 20));
-    const s = b.querySelector('.ssearch, .ctsearch'); if (s) { const sr = s.getBoundingClientRect(); out.shared.push(kids.filter(e => e !== s && e.getBoundingClientRect().top < sr.bottom - 1 && e.getBoundingClientRect().bottom > sr.top + 1).length); } }
+    const s = b.querySelector('.ssearch, .ctsearch'); if (s) { const sr = s.getBoundingClientRect(); out.shared.push(kids.filter(e => e !== s && e.getBoundingClientRect().top < sr.bottom - 1 && e.getBoundingClientRect().bottom > sr.top + 1).length); const i = s.querySelector('input'); out.sw.push(Math.round((i || s).getBoundingClientRect().width)); } }
   return out; })()`;
 const CHIPS = `(() => [...document.querySelectorAll('#top .achip, #top .stchip, #top .wschip, #top .tmini, #top .cfpill')].filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().height)))()`;
 
@@ -49,7 +49,11 @@ const CHIPS = `(() => [...document.querySelectorAll('#top .achip, #top .stchip, 
         check(a && !a.lap.length, t + ': buttons of the bar do not overlap ' + JSON.stringify(a));
         check(a && !a.over.length, t + ': the bar does not overflow ' + JSON.stringify(a));
         check(a && !a.cut.length, t + ': no button text cut off ' + JSON.stringify(a));
-        check(a && a.shared.length && a.shared.every(n => n === 0), t + ': the search field has its own line ' + JSON.stringify(a));
+        // 2.1199.0 (#6209): since #6089 (1124b53b3) the knowledge list on a phone is ONE row - "Find a page" shrinks beside
+        // New page (wiki.css .wkside .ntbar .ctsearch, min 6rem). Notes keep the search field on its own line. Either way the
+        // field stays usable: at least 6rem (96 px) to type in, nothing overlaps or is cut (checked above).
+        if (name === 'wiki') check(a && a.shared.length && a.shared.every(n => n >= 1) && a.sw.every(x => x >= 95), t + ': the search field shares the one row and stays wide enough to type ' + JSON.stringify(a));
+        else check(a && a.shared.length && a.shared.every(n => n === 0) && a.sw.every(x => x >= 95), t + ': the search field has its own line ' + JSON.stringify(a));
         const h = await ev(CHIPS);
         check(!h.length || Math.max(...h) - Math.min(...h) <= 1, t + ': header chips share one height ' + JSON.stringify(h));
         await o.shot(`p2725d-${name}-${w}.png`);

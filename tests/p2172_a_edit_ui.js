@@ -36,15 +36,18 @@ const call = async (method, url, body) => { const r = await fetch(B + url.replac
     await sleep(600);
     const r = await ev(`(() => { const t = document.querySelector('#wk-cm').getBoundingClientRect(), f = document.querySelector('.ntfoot').getBoundingClientRect(), tb = document.getElementById('tabs');
       const tt = tb && tb.offsetParent !== null ? tb.getBoundingClientRect().top : innerHeight;
-      return {tt, h: t.height, top: t.top, free: Math.min(innerHeight, tt) - t.top, fb: f.bottom, ih: innerHeight, w: t.width, col: document.querySelector('.wkedwrap').getBoundingClientRect().width, vw: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth,
+      return {tt, h: t.height, top: t.top, free: Math.min(innerHeight, tt) - t.top, fb: f.bottom, ih: innerHeight, w: t.width, col: document.querySelector('.wkedwrap').getBoundingClientRect().width, gl: t.left - document.querySelector('.wkedwrap').getBoundingClientRect().left, gr: document.querySelector('.wkedwrap').getBoundingClientRect().right - t.right, vw: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth,
         les: (() => { const p = document.createElement('div'); p.style.width = 'var(--w-lesen)'; document.body.append(p); const x = p.getBoundingClientRect().width; p.remove(); return x; })()}; })()`);
     check(r.h >= 0.7 * r.free, `${vw}: field height ${Math.round(r.h)} >= 70% of the free ${Math.round(r.free)} (top ${Math.round(r.top)}, footer bottom ${Math.round(r.fb)}, tabs ${Math.round(r.tt)}, window ${r.ih})`);
     check(r.fb <= r.ih + 1, `${vw}: the footer line is visible (${Math.round(r.fb)} / ${r.ih})`);
     // 2.554.0 (#4052): the editor fills the page's reading column (2.534.0 #4551: --w-lesen on a wide screen), not the window.
     // CI red p2172_a_edit_ui (v2.549.0 / v2.551.0, "full width 736 / 1280"): 736 px IS --w-lesen (46rem) - the width comes from
     // the CSS now, not from a fixed number, so a new reading width does not make the suite red again
-    check(r.les > 0 && r.sw <= r.vw + 1 && r.w >= r.col - 1 && r.w >= Math.min(r.les, 0.85 * r.vw) - 1,
-      `${vw}: the whole reading column, nothing sticks out (editor ${Math.round(r.w)} / column ${Math.round(r.col)} / --w-lesen ${Math.round(r.les)} / window ${r.vw})`);
+    // 2.1199.0 (#4725): since #6089 (ee4bb0c51) the page scrolls as a whole: the editor wrapper (.wkedwrap) is the card's full width
+    // and the editor itself is the reading column in its middle (margin, wiki.css .wkpgo) - no longer a full-width box with padding.
+    // So: the editor is --w-lesen wide (or the whole card when that is narrower), centred in the card, nothing sticks out.
+    check(r.les > 0 && r.sw <= r.vw + 1 && r.w >= Math.min(r.les, r.col) - 1 && r.w <= r.col + 1 && Math.abs(r.gl - r.gr) <= 2 && r.w >= Math.min(r.les, 0.85 * r.vw) - 1,
+      `${vw}: the whole reading column, centred, nothing sticks out (editor ${Math.round(r.w)} / card ${Math.round(r.col)} / gaps ${Math.round(r.gl)}|${Math.round(r.gr)} / --w-lesen ${Math.round(r.les)} / window ${r.vw})`);
     await shot(`p2172_a_wiki_${vw}.png`);
   });
   console.log(`p2172_a_edit_ui: ${ok} ok, ${F.length} failed`);

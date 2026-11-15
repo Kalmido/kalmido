@@ -74,12 +74,19 @@ const FEAT = 'cal,comments,collab,agents,wiki';
     check(await ev(`(document.querySelector('#pop').textContent || '').includes('Workspace')`), '1440: #2183 under the heading "Workspace"');
     await shot('p299-b-1440-wiki-menu.png');
     await ev(`(() => { closePop(); return 1; })()`);
-    // the page menu: hidden until the title row is hovered or focused (desktop)
+    // 2.1199.0 (#6211): #6089 (999eb7e0b) made the page's "…" always visible (it is the page's only menu now, a reader's way
+    // to History / Copy link) - before it showed only on hover. Checked: in sight without hovering, still in sight on hover,
+    // and a click opens the page menu with its entries (Rename…, Copy link).
     const op0 = await ev(`getComputedStyle(document.querySelector('.wkpage [data-wk="pmenu"]')).opacity`);
     const hp = await ev(`(() => { const r = document.querySelector('.wkpage .wktitle h2').getBoundingClientRect(); return {x: Math.round(r.left + 10), y: Math.round(r.top + r.height / 2)}; })()`);
     await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 'm', parameters: {pointerType: 'mouse'}, actions: [{type: 'pointerMove', x: hp.x, y: hp.y}]}]}); await sleep(500);
     const op1 = await ev(`getComputedStyle(document.querySelector('.wkpage [data-wk="pmenu"]')).opacity`);
-    check(+op0 === 0 && +op1 === 1, `1440: #2183 the page menu shows when the title row is hovered (${op0} -> ${op1})`);
+    check(+op0 === 1 && +op1 === 1, `1440: #2183/#6089 the page menu is in sight without hovering and stays on hover (${op0} -> ${op1})`);
+    await ev(`(() => { document.querySelector('.wkpage [data-wk="pmenu"]').click(); return 1; })()`);
+    await wait(ev, `!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`);
+    const pitems = await ev(`[...document.querySelectorAll('#pop [role="menuitem"]')].map(x => x.textContent.trim())`);
+    check(pitems && pitems.some(x => x.includes('Rename')) && pitems.some(x => x.includes('Copy link')), '1440: #6089 the page menu opens with Rename and Copy link ' + JSON.stringify(pitems));
+    await ev(`(() => { closePop(); return 1; })()`);
   }, false);
   await firefox(async o => {  // a touch screen: the page menu is always there
     const {cmd, ev, ctx, shot} = o;

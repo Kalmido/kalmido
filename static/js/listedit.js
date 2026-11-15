@@ -88,9 +88,23 @@ async function inlineEditCommit(keepFocus) {
   if (keepFocus) kfocus(ie.id);
 }
 function inlineEditCancel() { const ie = S.ie; S.ie = null; renderView(); if (ie) kfocus(ie.id); }
+// 2.1199.0 (#5428): the first click of a double click opens the task (detail panel), the list lays out anew and the second
+// click lands beside the title (on the row, or not on this row at all) - the field never opened. The first click on a title
+// is kept (task, caret position at that moment); a double click right after it edits that title with that caret.
+let ttlFirst = null;
+document.addEventListener('click', e => {
+  const t = e.detail === 1 && e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey ? e.target.closest?.('#view .trow .tmain .ttl') : null;
+  ttlFirst = t ? {id: +t.closest('.trow').dataset.id, at: ttlPointPos(t, e.clientX, e.clientY), t: Date.now()} : e.detail === 1 ? null : ttlFirst;
+}, true);
 document.addEventListener('dblclick', e => {
+  const f = ttlFirst && Date.now() - ttlFirst.t < 1000 ? ttlFirst : null; ttlFirst = null;
+  if (isTouch() || S.multiMode || e.target.closest?.('button,a,input,.ttlin')) return;
   const r = e.target.closest?.('#view .trow');
-  if (!r || isTouch() || S.multiMode || !e.target.closest('.tmain') || e.target.closest('button,a,input,.ttlin')) return;
+  if (f && e.target.closest?.('#view')) {  // both clicks at one spot: the title that was under the first one
+    e.preventDefault(); window.getSelection?.()?.removeAllRanges?.();
+    inlineEditStart(f.id, f.at); return;
+  }
+  if (!r || !e.target.closest('.tmain')) return;
   const ttl = $('.ttl', r), at = ttl && e.target.closest('.ttl') ? ttlPointPos(ttl, e.clientX, e.clientY) : null;
   e.preventDefault(); window.getSelection?.()?.removeAllRanges?.();
   inlineEditStart(+r.dataset.id, at);
