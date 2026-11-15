@@ -197,7 +197,7 @@ function vtr_html() {
   const xs = (VTR.items || []).filter(x => wsObjIn({org_id: x.org_id}));
   if (!xs.length) return '';
   return `<div class="group vtrlist"><div class="ghead">${esc(tr('Approvals|sign-off'))} <span class="c">${xs.length}</span></div>`
-    + xs.map(x => { const d = vtr_left(x); return `<div class="mrow otrrow vtrrow" data-vtr="${+x.id}"><span class="n"><b>${esc(x.title || tr('Video'))}</b><small class="muted">${esc([tr('In the trash since {0}', fmtDate((x.deleted_at || '').slice(0, 10))), vtr_place(x), x.version ? 'v' + x.version : '', x.org_id && wsLabel(x.org_id), d != null ? trn('Deleted permanently in {0} day', 'Deleted permanently in {0} days', d) : ''].filter(Boolean).join(' · '))}</small></span>`
+    + xs.map(x => { const d = vtr_left(x); return `<div class="mrow otrrow vtrrow" data-vtr="${+x.id}"${wso_row(x.org_id || null) /* 2.1224.0 (#6188) */}><span class="n"><b>${esc(x.title || tr('Video'))}</b><small class="muted">${esc([tr('In the trash since {0}', fmtDate((x.deleted_at || '').slice(0, 10))), vtr_place(x), x.version ? 'v' + x.version : '', x.org_id && wsLabel(x.org_id), d != null ? trn('Deleted permanently in {0} day', 'Deleted permanently in {0} days', d) : ''].filter(Boolean).join(' · '))}</small></span>`
       + `<span class="oadmb">${x.can_restore ? `<button type="button" class="btn sm" data-vtra="restore">${ic('undo', 's')}<span>${tr('Restore')}</span></button>` : ''}</span></div>`; }).join('')
     + (VTR.days ? `<div class="muted otrnote">${esc(trashNote(trn('Approvals in the trash are deleted permanently after {0} day.', 'Approvals in the trash are deleted permanently after {0} days.', VTR.days), !VTR.purge))}</div>` : '') + '</div>';
 }
@@ -238,7 +238,7 @@ function ptr_html() {
   const xs = (PTR.items || []).filter(x => PTR_KIND[x.kind]);
   if (!xs.length) return '';
   return `<div class="group otrlists ptrlist"><div class="ghead">${esc(tr('Other deleted items'))} <span class="c">${xs.length}</span></div>`
-    + xs.map((x, i) => `<div class="mrow otrrow" data-ptr="${i}"><span class="n"><b>${esc(x.name || PTR_KIND[x.kind][0]())}</b><small class="muted">${esc([PTR_KIND[x.kind][0](), x.list, tr('Deleted {0} by {1}', fmtWhen(x.deleted_at), x.by_name || '?')].filter(Boolean).join(' · '))}</small></span>`
+    + xs.map((x, i) => `<div class="mrow otrrow" data-ptr="${i}"${x.list_id ? wso_row(listById(x.list_id)) : '' /* 2.1224.0 (#6188): its project's organisation */}><span class="n"><b>${esc(x.name || PTR_KIND[x.kind][0]())}</b><small class="muted">${esc([PTR_KIND[x.kind][0](), x.list, tr('Deleted {0} by {1}', fmtWhen(x.deleted_at), x.by_name || '?')].filter(Boolean).join(' · '))}</small></span>`
       + `<span class="oadmb"><button type="button" class="btn sm" data-ptra="restore">${ic('undo', 's')}<span>${tr('Restore')}</span></button></span></div>`).join('')
     + (PTR.days ? `<div class="muted otrnote">${esc(trashNote(trn('Deleted items are deleted permanently after {0} day.', 'Deleted items are deleted permanently after {0} days.', PTR.days)))}</div>` : '') + '</div>';
 }

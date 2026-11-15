@@ -85,10 +85,10 @@ function ftsPalItems(q, shown) {
   const tasks = (r.tasks || []).filter(h => h.task && !have.has(String(h.task.id))).map(h => {
     const t = h.task, l = listById(t.list_id), snip = h.where !== 'title' && h.snippet?.text ? msgSnip({snippet: h.snippet.text, marks: h.snippet.marks}) : '';
     const pre = [l ? lname(l) : '', t.status !== 0 ? tr('Completed') : '', {comment: tr('Comment'), field: tr('Field'), file: tr('File')}[h.where] || ''].filter(Boolean).join(' · ');
-    return {id: 'fts:' + t.id, kind: 'tasks', group: 'fts', label: t.title || '…', icon: 'check', subHtml: srchSub(pre, snip), fn: () => ftsOpen(h)};
+    return {id: 'fts:' + t.id, kind: 'tasks', group: 'fts', label: t.title || '…', icon: 'check', lid: t.list_id, subHtml: srchSub(pre, snip), fn: () => ftsOpen(h)};  // 2.1224.0 (#6188): lid = its organisation (pal_org)
   });
   const spn = sp => sp && typeof wk_spaceName === 'function' ? wk_spaceName(sp) : '';
-  const wiki = five((r.wiki || []).filter(p => !wkHave.has(String(p.id)))).map(p => ({id: 'srw:' + p.id, kind: 'view', group: 'srwiki', label: p.name || String(p.path || '').split('/').pop() || '…', icon: p.e2e ? 'lock' : 'book',
+  const wiki = five((r.wiki || []).filter(p => !wkHave.has(String(p.id)))).map(p => ({id: 'srw:' + p.id, kind: 'view', group: 'srwiki', label: p.name || String(p.path || '').split('/').pop() || '…', icon: p.e2e ? 'lock' : 'book', ws: p.space || null,
     subHtml: srchSub([spn(p.space), String(p.path || '').includes('/') ? p.path.split('/').slice(0, -1).join('/') : ''].filter(Boolean).join(' · '), srchSnip(p)), fn: () => go('wiki/' + p.id)}));
   const why = h => h === 'text' ? tr('Found in the text') : h === 'doc' ? tr('Found in sender, type or tags') : '';
   const files = five(r.files).map(n => ({id: 'srf:' + n.id, kind: 'view', group: 'srfiles', label: n.name || '…', icon: n.kind === 'folder' ? 'folder' : 'file',
@@ -98,7 +98,7 @@ function ftsPalItems(q, shown) {
   const events = five(r.events).map(e => ({id: 'sre:' + e.id, kind: 'view', group: 'srevents', label: e.title || '…', icon: 'cal',
     subHtml: srchSub([e.start ? (e.all_day ? dayLabel(String(e.start).slice(0, 10)) : fmtWhen(e.start)) : '', e.location || '', e.role === 'attendee' ? tr('Invitation') : ''].filter(Boolean).join(' · '), srchSnip(e)),
     fn: () => go('ev/' + e.id)}));
-  const notes = five(r.notes).map(n => ({id: 'srn:' + n.id, kind: 'view', group: 'srnotes', label: n.title || '…', icon: 'edit',
+  const notes = five(r.notes).map(n => ({id: 'srn:' + n.id, kind: 'view', group: 'srnotes', label: n.title || '…', icon: 'edit', lid: n.list_id,
     subHtml: srchSub(lname(listById(n.list_id)) || '', srchSnip(n)), fn: () => srchNoteGo(n)}));
   const ms = (r.messages || []).slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '') || b.id - a.id);
   const msgs = ms.slice(0, 5).map((h, i) => ({id: 'msg:' + h.art + h.id + ':' + i, kind: 'msg', group: 'msgs', label: `${h.sender?.name || '?'} · ${h.chat_name || tr(MSG_KIND[h.chat_type])}`, subHtml: msgSnip(h), icon: msgIcon(h), fn: () => msgOpen(h)}));
