@@ -393,6 +393,7 @@ ROUTES = {
     "PUT /api/v1/fetcher/status": "files",
     "PATCH /api/docs/fetchers/{}": "files",  # 2.705.0 (#5151): the address rule of a fetcher key (p2705_a_harden_test.py)
     "POST /api/v1/fetcher/documents": "files",
+    "GET /api/v1/fetcher/recipes": "files",  # 2.1188.0 (#6152): the central recipes (p21188_b_fetcherrecipes_test.py calls it as the freelancer's key)
     "POST /api/docs/{}/receipt/einvoice": "files",  # 2.185.0 A (#2583)
     "POST /api/docs/{}/area": "files",  # 2.522.0 (#4433): "Move to office" / "Wrong area" in the personal office (p4433_a_area_test.py)
     # 2.547.0 (#4434): the old receipts into the personal office once, with its undo (p4434_a_umzug_test.py)

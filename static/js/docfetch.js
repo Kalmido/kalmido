@@ -30,15 +30,24 @@ function fx_portalHtml(f, p) {
 function fx_bodyHtml(j) {
   const intro = `<p class="muted">${tr('A helper program on your computer fetches invoices from portals like Amazon and uploads them as PDFs into these documents; they are recognised like any upload. You sign in to the portals only in the helper: Kalmido never stores passwords, cookies or sign-ins.')}</p>`;
   if (!j.api) return intro + `<p class="muted">${tr('The API is switched off on this server, so there are no receipt fetchers.')}</p>`;
+  const dl = fx_dlHtml(j.download);  // 2.1188.0 (#6152): the helper to download, above the connected ones
   const one = f => `<div class="dsc-way fx-one${f.ok ? '' : ' off'}"><div class="fx-head"><span><b>${esc(f.name)}</b> <span class="muted">${esc(f.target)}</span>
       <small class="muted">${f.last_seen_at ? esc(tr('last report {0}', relTime(f.last_seen_at))) : tr('not connected yet')}${f.expires_at ? ' · ' + esc(f.expired ? tr('expired') : tr('expires {0}', fmtDateLoc(f.expires_at.slice(0, 10)))) : ''}${f.allowed_ips?.length ? ' · ' + esc(tr('only from {0}', f.allowed_ips.join(', '))) : ''}</small></span>
       <button type="button" class="iconbtn" data-fx="ips:${f.id}" aria-label="${esc(tr('Permissions of {0}', f.name))}" title="${esc(tr('Only from'))}">${ic('lock')}</button>
       <button type="button" class="iconbtn danger" data-fx="del:${f.id}" aria-label="${esc(tr('Disconnect {0}', f.name))}" title="${esc(tr('Disconnect'))}">${ic('trash')}</button></div>
     ${f.portals.length ? `<ul class="dc-rules">${f.portals.map(p => fx_portalHtml(f, p)).join('')}</ul>` : `<p class="muted">${tr('The portals appear here after the first report of the helper.')}</p>`}</div>`;
-  return `${intro}${j.fetchers.map(one).join('')}${FXS.code ? fx_codeHtml() : ''}
+  return `${intro}${dl}${j.fetchers.map(one).join('')}${FXS.code ? fx_codeHtml() : ''}
     <details class="dc-radd dsc-new fx-new"${j.fetchers.length || FXS.code ? '' : ' open'}><summary>${tr('Connect a receipt fetcher')}</summary>
       <div class="row"><label for="fx-name">${tr('Name')}</label><input id="fx-name" maxlength="60" value="${esc(tr('My computer'))}" autocomplete="off"></div>
       <div class="foot"><span class="spacer"></span><button type="button" class="btn pri" data-fx="new">${tr('Create setup code')}</button></div></details>`;
+}
+// 2.1188.0 (#6152): "Download the helper" - one zip for Mac and Windows (static/downloads, the newest version the server has)
+function fx_dlHtml(/** @type {{url: string, version: string}|null|undefined} */ d) {
+  const how = d ? `<a class="btn sm" id="fx-dl" href="${esc(d.url)}" download>${ic('download', 's')} ${esc(tr('Receipt fetcher {0} for Mac and Windows (zip)', d.version))}</a>`
+    : `<p class="muted">${tr('The download is not available on this server yet.')}</p>`;
+  return `<div class="dsc-way fx-dl"><p><b>${tr('Download the helper')}</b></p>${how}
+    <ol class="muted fx-steps"><li>${tr('Unpack the zip file.')}</li><li>${tr('Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.')}</li>
+    <li>${tr('Paste the setup code from below when the helper asks for it.')}</li></ol></div>`;
 }
 function fx_codeHtml() {
   return `<div class="dsc-code" role="status"><p><b>${tr('Setup code')}</b> <span class="muted">${tr('Only visible now')}</span></p>

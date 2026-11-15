@@ -1902,7 +1902,7 @@ server by `PUBLIC_URL`; a server without it makes no fetcher (`503`, 2.666.0 #40
 
 Its key (`kbh_…`) is a kind of its own: stored only as a hash in its own table, never an API token (it is not listed under API
 tokens and no other route knows it: every other API route answers `403` "This key may only upload receipts and report the state
-of its portals", the web app `401`). Ordinary tokens and scan inbox keys reach none of the three routes (`403`). A password
+of its portals", the web app `401`). Ordinary tokens and scan inbox keys reach none of its routes (`403`). A password
 reset or change disconnects every receipt fetcher of the person; disconnecting it in the settings stops the key at once
 (`401`). At most 10 per person, 120 requests per minute. A key runs out a year after it was made (2.674.0). Optional address rule
 (2.705.0): set in the settings, the key works only from those IPs / networks; from anywhere else every route answers `403`
@@ -1913,15 +1913,22 @@ reset or change disconnects every receipt fetcher of the person; disconnecting i
 | `GET /fetcher` | `{name, target, max_mb, portals: [{key, name, enabled}]}`: the place the receipts go (the person's own documents or an organisation's) and which portals the person switched on |
 | `PUT /fetcher/status` | body `{portals: [{key, name?, last_run?, new?, error?}]}` (`key`: `a-z 0-9 _ . -`, up to 40; `last_run` ISO time; `new` the new receipts of the last run; `error` empty = fine, e.g. `Please sign in again`; at most 50 portals) -> `{portals: [{key, name, enabled}]}`. A portal new here starts switched on; a report never switches one on or off. An error that was not there before tells the person once (News + push of the event `fetcher`, switchable in the notification settings) |
 | `POST /fetcher/documents` | multipart: `file` (a PDF, checked by its first bytes `%PDF-`; size limit as any upload), `portal` (a reported key), `order` (the order number, optional, up to 100 characters) -> `201 {id, name, duplicate: false}`. The same file, or the same order of the same portal, again answers `200` with the document that is there and `duplicate: true` |
+| `GET /fetcher/recipes?api=1` | *Since 2.1188.0.* `{recipes: [{id, version, api, sha256, key, sig, source}]}`: the central recipes for the helper's recipe interface `api` (required, `400` without), so a repaired or new portal recipe reaches every helper without a new program version. `source` is the recipe file (UTF-8 text), the other fields its signature document (Ed25519, signed outside the server). The server hands out only complete pairs `<id>.py` + `<id>.sig.json` of its recipe folder (`kalmido/docs/fetcher_recipes/`, or `KALMIDO_FETCHER_RECIPES`) whose `id` (`a-z 0-9 _`, up to 40) is the file name, whose `api` is the one asked for and whose `sha256` is the hash of the file; it never checks the signature itself. The helper checks it with the public keys built into it and takes only newer versions. An empty folder answers `recipes: []` |
 
 Errors: `401` key unknown or disconnected (or the person deactivated), `403` no office any more / the place is no longer open to
 the person (left the organisation, read-only role), `409` the portal is switched off in Kalmido, `413` too large / no space
 left, `400` not a PDF, unknown field or portal, `429` slow down. The documents arrive with the source `abholer` and
 `abholer:<portal>:<order>` as their external id and are recognised like an upload (date, amount, sender, sorting).
 
-Web routes of the settings: `GET /api/docs/fetchers?ws=private|org:<id>` -> `{api, fetchers: [{id, name, prefix, target, ok,
+The helper itself (2.1188.0): Settings > Integrations > *Receipt fetcher* offers it as one zip for Mac and Windows
+(`/static/downloads/kalmido-belegabholer-<version>.zip`, the newest file of that name on the server; without one the page says
+the download is not available yet). Unpack it, double-click `Einrichten.command` (Mac) or `Einrichten.cmd` (Windows) and paste
+the setup code.
+
+Web routes of the settings: `GET /api/docs/fetchers?ws=private|org:<id>` -> `{api, download, fetchers: [{id, name, prefix, target, ok,
 created_at, last_seen_at, expires_at, expired, allowed_ips, portals: [{key, name, enabled, last_run, new, error, error_at,
-updated_at}]}]}` (one's own only; `allowed_ips` `[]` = any address);
+updated_at}]}]}` (one's own only; `allowed_ips` `[]` = any address; `download` `{url, version}` of the helper zip or
+`null`, 2.1188.0);
 `POST /api/docs/fetchers {ws, name}` -> `201 {id, name, target, code}` (`409` while the API is off); `PATCH
 /api/docs/fetchers/{id}/portals/{key} {enabled: true|false}`; `PATCH /api/docs/fetchers/{id} {allowed_ips: ["203.0.113.0/24"]}`
 (or comma separated text; `[]` / `""` = any address; `400` a wrong address, at most 20) -> the fetcher as listed; `DELETE /api/docs/fetchers/{id}` (the documents stay). The setup

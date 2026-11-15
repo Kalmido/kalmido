@@ -1251,6 +1251,8 @@ ROUTES = {
     "PATCH /api/docs/fetchers/{}/portals/{}": "document", "GET /api/v1/fetcher": "document", "PUT /api/v1/fetcher/status": "document",
     "PATCH /api/docs/fetchers/{}": "document",  # 2.705.0 (#5151): only one's own (p2705_a_harden_test.py: another person 404)
     "POST /api/v1/fetcher/documents": "document",
+    # 2.1188.0 (#6152): the signed recipes are the same files for every fetcher (no data of a person; only a fetcher key reaches it)
+    "GET /api/v1/fetcher/recipes": "public",
     # 2.577.0 C (#4466): named document addresses (only one's own; another person / organisation sees and changes nothing,
     # every delivery checked with the rights at that moment, p2577_c_docmail_test.py)
     "GET /api/docs/mail-addresses": "document", "POST /api/docs/mail-addresses": "document",  # p2577_c_docmail_test.py
