@@ -46,6 +46,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   // ================= the list, the sections, "+"
   {
     const w = await boot({user: 'alice', hash: 'team'}), d = w.document;
+    w.__dialogs = 'manual';  // 2.1220.0 (#6101): the channel dialogs are the shared askDialog now - the bridge (boot.js) would answer them itself
     await until(() => w.eval('S.tc.rooms && S.tc.rooms.length'));
     if (!d.querySelector('.tclist .tcrow')) w.eval('renderView()');  // jsdom: the first list may still say "Loading…"
     await until(() => d.querySelector(`.tclist .tcrow[data-rid="${GEN}"]`));
@@ -87,6 +88,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   for (const mobile of [false, true]) {
     const tag = mobile ? 'phone' : 'desktop';
     const w = await boot({user: 'alice', mobile, hash: 'team/' + GEN}), d = w.document;
+    w.__dialogs = 'manual';  // 2.1220.0 (#6101): the channel dialogs are the shared askDialog now - the bridge (boot.js) would answer them itself
     await until(() => d.querySelector(`#tc-msgs .cmsg[data-mid="t:${M1.id}"] .chatts`));
     const m = d.querySelector(`#tc-msgs .cmsg[data-mid="t:${M1.id}"]`);
     check(m?.querySelector('.chatts .att.img img')?.getAttribute('src').startsWith(`/api/team/files/${M1.attachments[0].id}?v=`)
@@ -110,8 +112,8 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
       check(!d.querySelector('#tc-files .cfile'), `${tag}: the box is empty after sending`);
       // the settings
       click(w, d.querySelector('.tcrhead [data-act="tc-set"]'));
-      await until(() => d.querySelector('#tcx-set .tcxmem'));
-      const st = d.querySelector('#tcx-set');
+      await until(() => d.querySelector('.modal.tcxmd #tcx-set .tcxmem'));
+      const st = d.querySelector('.modal.tcxmd');  // 2.1220.0 (#6101): the settings on the shared askDialog - the name above #tcx-set, saved with Done (the dialog's form)
       check(/Channel settings/.test(st.textContent) && st.querySelectorAll('.tcxmem .tcxrow').length >= 2 && st.querySelector('#tcx-name')?.value === 'General'
         && st.querySelector('[data-xs="archive"]'), `${tag}: settings with name, members, archive`);
       st.querySelector('#tcx-name').value = 'General chat';

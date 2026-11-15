@@ -3995,6 +3995,19 @@ body.lcmoving{cursor:grabbing!important;user-select:none!important}  /* 2.331.0 
 .tcxn{flex:1;min-width:0;display:flex;flex-direction:column}
 .tcxn b,.tcxn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tcxmem{max-height:14rem;overflow:auto;margin-bottom:.625rem}
+/* 2.1220.0 (#6101): the channel / group dialogs on the shared askDialog: a little wider than a question, a failure in the dialog,
+   Leave / Archive as quiet links apart from Done (Archive in the warning colour), "(you)", the remove x 44 px on a finger,
+   the badge "AI agent" in the text font (was the code font) */
+.modal.cdlg.tcxmd .card{width:min(32rem,100%)}
+.tcxerr{color:var(--danger);font-size:var(--fs-m);margin-top:.5rem}
+.tcxerr:empty{display:none}
+.tcxout{display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin:.75rem 0 .25rem}
+.tcxout .linkbtn{display:inline-flex;align-items:center;gap:.375rem;color:var(--text2);text-decoration:none;min-height:2rem}
+.tcxout .linkbtn:hover{text-decoration:underline}
+.tcxout .linkbtn.tcxwarn{color:var(--warn)}
+.tcxme{font-weight:400}
+.tcxdlg .abadge{font-family:inherit}
+@media (pointer:coarse){ .tcxmem .tcxrm{min-width:2.75rem;min-height:2.75rem;justify-content:center} }
 /* 2.139.0 A (#2127): threads: the pane right of the conversation (desktop), the line under a first message, the thread view */
 .tcview.inthread{grid-template-columns:minmax(var(--w-leiste-min),var(--w-leiste)) minmax(0,1fr) minmax(18rem,24rem)}  /* 2.602.0 (#4817): --w-leiste (was 13-17rem) */
 /* 2.479.0 (#2814): the area "Chat" on a computer: its conversations are the panel, the page only the open one (and its thread) */
