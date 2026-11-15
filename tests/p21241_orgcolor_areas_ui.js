@@ -1,5 +1,5 @@
 // kalmido-suite: fresh
-// Package 2.1223.0 (#6181-#6185) UI test: the organisation colour in the areas Calendar, Wiki, Team chat, Files / Documents and
+// Package 2.1241.0 (#6181-#6185) UI test: the organisation colour in the areas Calendar, Wiki, Team chat, Files / Documents and
 // Contacts, on the core's block (wscolor.js wso_row / wso_origin / wso_open / wso_sync, docs/dev/kern.md "Organisation colour").
 // Rule (owner decision 14.11.2026): what belongs to an organisation wears its colour - its entry (a stripe) and the open object
 // (#main.wsc-on, under "All workspaces" #view.wac-loc); Private stays neutral. Each area is used as a person does: the entry is
@@ -160,6 +160,6 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(!main().classList.contains('wsc-on') && neutral(d.querySelector('article.ctcard')), 'solo: the open card neutral');
   w.close();
 
-  console.log(`p21223_orgcolor_areas_ui: ${ok} ok, ${F.length} failed`);
+  console.log(`p21241_orgcolor_areas_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

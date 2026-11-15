@@ -170,10 +170,10 @@ const wsc_rowAttr = l => l && !l.is_inbox && l.org_id ? wso_row(l.org_id) : ''; 
 const wso_ws = w => w == null || w === '' ? '' : typeof w === 'number' ? (w ? 'org:' + w : 'private') : typeof w === 'object' ? (w.is_inbox || !w.org_id ? 'private' : 'org:' + +w.org_id) : String(w);
 // (1) a row / card / entry of an organisation: data-wso + data-wsc + --wsd / --wsl = the stripe on its left edge (app.css);
 // '' for Private and without organisations (wsOn() false). The sidebar's rows keep their own stripe (#side .srow[data-wsc]).
-// 2.1223.0 (#6181): style = the element's own inline style (e.g. a calendar's --cc), kept in the one style attribute; an
+// 2.1241.0 (#6181): style = the element's own inline style (e.g. a calendar's --cc), kept in the one style attribute; an
 // entry of Private / without organisations gets it back alone (` style="…"`), so the caller writes no style attribute itself
 const wso_row = (w, style = '') => { const o = wsc_ofWs(wso_ws(w)), v = o ? wsc_vars(o) : '', st = [style, v].filter(Boolean).join(';'); return (v ? ' data-wso="1" data-wsc="1"' : '') + (st ? ` style="${st}"` : ''); };
-// 2.1223.0 (#6181): the same mark on an element that is already drawn (a dialog whose calendar changes, a popover): sets or
+// 2.1241.0 (#6181): the same mark on an element that is already drawn (a dialog whose calendar changes, a popover): sets or
 // clears data-wso / data-wsc and --wsd / --wsl, the element's other inline styles stay
 function wso_mark(el, w) {
   if (!el) return;
