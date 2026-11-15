@@ -145,12 +145,14 @@ c.commit(); c.close()`);
     await until(() => !d.querySelector('.modal.crrmodal'));
     md.remove();
     // the share dialog: the X on top closes it
+    // 2.1212.0 (#6156): the dialog is the shared frame of projects and folders (.evsmodal, the X is [data-m="close"])
     w.eval(`evShareModal(evCal(${K.id}), [], () => {})`);
-    md = await until(() => d.querySelector('.modal #evs-list') && d.querySelector('.modal #evs-list').closest('.modal'));
-    const x = md && md.querySelector('.lhdr [data-evs="close"][aria-label="Close"]');
+    md = await until(() => d.querySelector('.modal.evsmodal #evs-members'));
+    md = md && md.closest('.modal');
+    const x = md && md.querySelector('.lhdr [data-m="close"][aria-label="Close"]');
     check(x, '#5466: the share dialog has the X');
     if (x) click(w, x);
-    check(await until(() => !d.querySelector('.modal #evs-list')), '#5466: the X closes it');
+    check(await until(() => !d.querySelector('.modal.evsmodal')), '#5466: the X closes it');
     // deleting a calendar: the toast's Undo restores it (with its events)
     click(w, d.querySelector('#view [data-act="ev-cals"]'));
     md = await until(() => d.querySelector('.modal.evcmodal [data-evcmenu="' + K.id + '"]') && d.querySelector('.modal.evcmodal'));

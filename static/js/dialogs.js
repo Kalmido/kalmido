@@ -703,9 +703,11 @@ function shSecHtml(a, k, title, inner, hide = false, open = false) {
 }
 function shFrameHtml(a) {
   return `<div class="lhdr"><h3>${esc(a.title)}</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="${esc(tr('Close'))}" title="${esc(tr('Close'))}">${ic('x')}</button></div>${/*html-ok*/ a.body/* the parts */}
-    <div class="foot"><button class="btn" data-m="${esc(a.setAct)}">${ic(a.setIcon, 's')} ${esc(a.setLabel)}</button><span class="spacer"></span><button class="btn pri" data-m="close">${esc(tr('Done'))}</button></div>`;  // a dialog that saves by itself closes with "Done" (was "Back" when opened from the settings)
+    <div class="foot">${a.setAct ? `<button class="btn" data-m="${esc(a.setAct)}">${ic(a.setIcon, 's')} ${esc(a.setLabel)}</button>` : ''/* 2.1212.0 (#6156): a calendar has no settings dialog */}<span class="spacer"></span><button class="btn pri" data-m="close">${esc(tr('Done'))}</button></div>`;  // a dialog that saves by itself closes with "Done" (was "Back" when opened from the settings)
 }
-const shRoleSel = (attr, cur, lab) => `<select ${attr} aria-label="${esc(lab || tr('Role'))}">${ROLES.map(([v, n, h]) => `<option value="${v}" title="${esc(tr(h))}" ${v === cur ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>`;
+// 2.1212.0 (#6156): o.only = the roles the object knows (a calendar: edit / view, the same words); o.help = false: no task wording
+// in the options' titles
+const shRoleSel = (attr, cur, lab, o = {}) => `<select ${attr} aria-label="${esc(lab || tr('Role'))}">${ROLES.filter(([v]) => !o.only || o.only.includes(v)).map(([v, n, h]) => `<option value="${v}" ${o.help === false ? '' : `title="${esc(tr(h))}"`} ${v === cur ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>`;
 const SH_ADP = {sec: k => 'sh-sec-' + k, st: k => 'sh-st-' + k, hid: SH_HID};
 const shSec = (k, title, inner, hide = false, open = false) => shSecHtml(SH_ADP, k, title, inner, hide, open);
 // 2.550.0 (#4528): what removing a member ended (lists/membermemo.py): the numbers as text, the memos of a project, the question

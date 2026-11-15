@@ -798,39 +798,69 @@ async function evCalsModal() {
 // shared (on a computer the name took the row and the rest was cut: "Drehplanung · Gege…")
 function evcSub(c) {
   const p = [wsOn() && c.role === 'owner' ? `<span class="wslbl">${esc(wsLabel(c.org_id))}</span>` : '',
-    c.role !== 'owner' ? esc(`${c.owner_name || ''} · ${c.role === 'edit' ? tr('can edit') : tr('can view')}`)
+    c.role !== 'owner' ? esc(`${c.owner_name || ''} · ${roleLabel(c.role === 'edit' ? 'edit' : 'view')}`)  // 2.1212.0 (#6156): the role words of the Share dialog
       : c.members?.length ? esc(trn('shared with {0} person', 'shared with {0} people', c.members.length)) : ''].filter(Boolean);
   return p.length ? `<small class="muted evcsub">${/*html-ok*/ p.join(' · ') /* parts built with esc() above */}</small>` : '';
 }
 // 2.1077.0 (#5461): the calendars in the trash; a failed fetch is marked (err), the window then says so with "Try again"
 const evcTrash = () => api('GET', '/api/evcals/trash').catch(() => ({items: [], err: 1}));
+// 2.1212.0 (#6156): the Share dialog of a calendar on the shared frame of projects and folders (dialogs.js shFrameHtml / shRoleSel):
+// the cross on top and "Done", the people with the same role words (Read-only / Member, the calendar knows only these two), the
+// owner first, "Share with …" + role + "Add" with a toast; taking a person out goes without a question and the toast (and Ctrl+Z)
+// puts the share back through the core (it went into obj_revoked: POST /api/obj/evcal/<id>/shares/<rid>/restore). The people
+// that could not be loaded say so with "Try again" (were names "?"). users = evPeople()'s answer, done = the window redraws.
+const EV_ROLES = ['edit', 'view'];
 function evShareModal(c, users, done) {
-  // 2.800.0 (#5466): the X on top like every other dialog
-  const md = modal(`<div class="lhdr"><h3>${tr('Share {0}', esc(c.name))}</h3><span class="spacer"></span><button class="iconbtn" data-evs="close" aria-label="${esc(tr('Close'))}" title="${esc(tr('Close'))}">${ic('x')}</button></div><div class="shws"></div><div id="evs-list"></div>
-    <div class="row"><label for="evs-user">${tr('Person')}</label><select id="evs-user" data-sheet-av>${shWsOptions(users, c.org_id || null, c.members)}</select>
-      <select id="evs-role" aria-label="${esc(tr('Role'))}"><option value="view">${tr('can view')}</option><option value="edit">${tr('can edit')}</option></select><button class="btn sm pri" data-evs="add">${tr('Share')}</button></div>
-    <div class="shint">${tr('People with “can view” see the events, with “can edit” they also change them. In their phone the calendar appears next to their own.')}</div>
-    <div class="foot"><span class="spacer"></span><button class="btn" data-evs="close">${tr('Done')}</button></div>`);
-  const names = new Map(users.map(u => [u.id, u.display_name]));
-  const draw = () => { $('#evs-list', md).innerHTML = (c.members || []).length ? `<ul class="evclist">${c.members.map(m => `<li class="evcrow">${av(m.user_id, names.get(m.user_id) || '')}<span class="evcn">${esc(names.get(m.user_id) || '?')} <span class="muted">· ${esc(m.role === 'edit' ? tr('can edit') : tr('can view'))}</span></span><button class="iconbtn" data-evsrm="${m.user_id}" aria-label="${esc(tr('Stop sharing with {0}', names.get(m.user_id) || ''))}">${ic('x', 's')}</button></li>`).join('')}</ul>` : `<p class="muted">${tr('Not shared yet.')}</p>`; };
+  const md = modal(shFrameHtml({title: tr('Share {0}', c.name), body: `<div class="shws" id="evs-ws"></div>
+    <h4 id="evs-people-h">${tr('People')}</h4><div class="members shppl" id="evs-members" aria-labelledby="evs-people-h">${/*html-ok*/ loadingHtml()}</div>
+    <div class="shint lhint">${tr('Read-only: sees the events. Member: also changes them. On their phone the calendar appears next to their own.')}</div>`}));
+  md.classList.add('shmodal', 'evsmodal');
+  let ppl = users;
+  const roleSel = (attr, cur, lab) => shRoleSel(attr, cur, lab, {only: EV_ROLES, help: false});
+  const nm = id => ppl.find(u => u.id === id)?.display_name || '';
+  const draw = () => {
+    const box = $('#evs-members', md); if (!box) return;
+    if (ppl.err) { box.innerHTML = errorState({size: 'row', title: tr('The people could not be loaded'), retry: async () => { box.innerHTML = loadingHtml(); ppl = await evPeople(); draw(); }}); return; }
+    const mem = c.members || [], cand = ppl.filter(u => !mem.some(m => m.user_id === u.id));
+    box.innerHTML = `<div class="mrow evsowner">${/*html-ok*/ av(S.me?.id, S.me?.display_name || '') /* the avatar's markup */}<span class="n">${esc(S.me?.display_name || '')} ${tr('(me)')}</span><span class="muted">${tr('Owner')}</span></div>`
+      + mem.map(m => `<div class="mrow" data-uid="${esc(m.user_id)}">${/*html-ok*/ av(m.user_id, nm(m.user_id)) /* the avatar's markup */}<span class="n">${esc(nm(m.user_id) || tr('Unknown'))}</span>${/*html-ok*/ roleSel(`data-evsrole="${esc(m.user_id)}"`, m.role === 'edit' ? 'edit' : 'view', tr('Role of {0}', nm(m.user_id))) /* the shared role choice */}<button type="button" class="iconbtn" data-evsrm="${esc(m.user_id)}" title="${esc(tr('Stop sharing with {0}', nm(m.user_id)))}" aria-label="${esc(tr('Stop sharing with {0}', nm(m.user_id)))}">${ic('x', 's')}</button></div>`).join('')
+      + (cand.length ? `<div class="mrow madd"><select id="evs-user" data-sheet-av aria-label="${esc(tr('Invite'))}"><option value="">${tr('Share with …')}</option>${/*html-ok*/ shWsOptions(cand, c.org_id || null) /* options built with esc() */}</select>${/*html-ok*/ roleSel('id="evs-role"', 'edit') /* the shared role choice */}<button type="button" class="btn sm" data-evs="add">${ic('plus', 's')} ${tr('Add')}</button></div>`
+        : `<div class="muted mhint">${esc(ppl.length ? tr('Shared with everyone') : noPeopleTxt())}</div>`);
+  };
   const wsDraw = () => {  // 2.46.4 (#1737)
-    shWsFill($('.shws', md), c.org_id || null, a => wsMoveMenu(a, c.org_id, async org => {
+    shWsFill($('#evs-ws', md), c.org_id || null, a => wsMoveMenu(a, c.org_id, async org => {
       try { await evcPatch(c.id, {org_id: org}); } catch { return; }
-      c.org_id = org; wsDraw(); $('#evs-user', md).innerHTML = shWsOptions(users, c.org_id || null, c.members); shWsPick($('#evs-user', md)); done();
+      c.org_id = org; wsDraw(); draw(); done();
     }));
   };
-  wsDraw(); shWsPick($('#evs-user', md));
-  draw();
+  wsDraw(); draw();
+  const put = (uid, role) => api('PUT', `/api/evcals/${c.id}/members`, {user_id: uid, role}).then(j => { c.members = j.members || []; draw(); done(); return j; });
+  const rm = uid => api('DELETE', `/api/evcals/${c.id}/members/${uid}`).then(j => { c.members = (c.members || []).filter(m => m.user_id !== uid); draw(); done(); return j; });
+  md.addEventListener('change', async e => {
+    const r = e.target.closest('[data-evsrole]'); if (!r) return;
+    try { await put(+r.dataset.evsrole, r.value); } catch { draw(); return; }
+    toast(tr('Saved'));
+  });
   md.addEventListener('click', async e => {
-    const rm = e.target.closest('[data-evsrm]');
-    if (rm) { try { await api('DELETE', `/api/evcals/${c.id}/members/${rm.dataset.evsrm}`); } catch { return; } c.members = c.members.filter(m => m.user_id !== +rm.dataset.evsrm); draw(); done(); return; }
-    const b = e.target.closest('[data-evs]'); if (!b) return;
-    if (b.dataset.evs === 'close') md.remove();
-    if (b.dataset.evs === 'add' && $('#evs-user', md).value) {
-      try { const j = await api('PUT', `/api/evcals/${c.id}/members`, {user_id: +$('#evs-user', md).value, role: $('#evs-role', md).value}); c.members = j.members; } catch { return; }
-      draw(); done();
+    const x = e.target.closest('[data-evsrm]');
+    if (x) {
+      const uid = +x.dataset.evsrm, name = nm(uid), was = (c.members || []).find(m => m.user_id === uid);
+      let rev; try { rev = (await rm(uid)).revoked || []; } catch { return; }
+      // back: the core's restore of the shares taken back (the role they had); forward: taken out again (new rows in obj_revoked)
+      const back = async () => { for (const rid of rev) await api('POST', `/api/obj/evcal/${c.id}/shares/${rid}/restore`); c.members = [...(c.members || []).filter(m => m.user_id !== uid), was].filter(Boolean); draw(); done(); return {}; };
+      const fwd = async () => { rev = (await rm(uid)).revoked || []; return {}; };
+      offerUndo(tr('Stopped sharing with {0}', name), histAdd({label: tr('Stop sharing {0} with {1}', c.name, name), undo: back, redo: fwd}));
+      return;
+    }
+    const b = e.target.closest('[data-evs], [data-m]'); if (!b) return;
+    if (b.dataset.m === 'close') md.remove();
+    if (b.dataset.evs === 'add') {
+      const uid = +($('#evs-user', md)?.value || 0); if (!uid) { $('#evs-user', md)?.focus(); return; }
+      try { await put(uid, $('#evs-role', md).value); } catch { return; }
+      toast(tr('Shared'));
     }
   });
+  return md;
 }
 function evImport(c, done, file) {  // 2.143.0 C (#2154): file = an .ics shared from another app (no file picker)
   const inp = document.createElement('input');

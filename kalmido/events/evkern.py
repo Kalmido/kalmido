@@ -23,6 +23,7 @@ from ..notify.alerts import aa_now  # 2.924.0 (#5069): the admins' alert of ev_k
 from ..core.kernretire import KERN_RETIRE_LOCK, kern_retire  # 2.924.0 (#5069): stage 7's start check and DROP (part A)
 from ..collab.tcxcore import TCX_RETIRE_WAITS  # 2.924.0 (#5069): the one text of the admins' alert of stage 7
 from ..core.objects import obj_node, obj_node_follow, obj_node_person_drop, obj_node_person_put, obj_register, obj_role, obj_visible_sql
+from ..core.objects import obj_node_person_take  # 2.1212.0 (#6156)
 from ..core import objhooks
 from ..core.pg import qi, system_ctx, ts_canon, write_lock  # 2.940.0 (#5605): ts_canon
 from ..core.writes import obj_restore, obj_trash, obj_write
@@ -117,7 +118,7 @@ def _share_back(c, uid, cid, share):
 
 
 KERN.update(role=obj_role, visible=obj_visible_sql, node=obj_node, write=obj_write, follow=obj_node_follow, put=obj_node_person_put,
-            drop=obj_node_person_drop)  # 2.924.0 (#5069): put / drop = the calendar's own sharing dialog
+            drop=obj_node_person_drop, take=obj_node_person_take)  # 2.924.0 (#5069): put / drop = the calendar's own sharing dialog; 2.1212.0 (#6156): take = the owner takes a person out (restorable)
 obj_register(EV_KIND, "ev_cals", label=N_("Calendar"), fields={"name": _f_name, "color": _f_color, "description": _f_desc},
              title=lambda c, rid: (_cal(c, rid) or {"name": ""})["name"], base_role=_base, visible=_visible, area="calendar",
              scopes=("calendar", "calendar"), dl_area="calendar", routes=False, node_shares=True, on_share_back=_share_back,
