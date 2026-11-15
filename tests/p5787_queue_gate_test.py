@@ -159,7 +159,8 @@ check("actions: read" in qg and "checks: read" in qg and "tools/ci_gate.py --que
 check("if: github.event_name != 'pull_request'" in ci_job("plan"), "ci.yml: a pull request runs no plan, so no test shards")
 check("needs: plan" in ci_job("tests"), "ci.yml: the shards need the plan (skipped with it)")
 td = ci_job("tests-done")
-check("if: always() && github.event_name != 'pull_request' && github.event_name != 'merge_group'" in td and re.search(r"needs: tests\n", td),
+# 2.1192.0 (#5841): #6063 (6d181a2ae) made tests-done need the plan too (stage "none" = green) - both forms are fine
+check("if: always() && github.event_name != 'pull_request' && github.event_name != 'merge_group'" in td and re.search(r"needs: (tests|\[plan, tests\])\n", td),
       "ci.yml: tests-done stays for push / schedule / workflow_dispatch")
 pl = ci_job("plan")
 check('[ "$stage" = queue ]' in pl and "--only /tmp/push-groups.txt" in pl, "ci.yml: the plan accepts the queue stage and cuts it from its groups")
