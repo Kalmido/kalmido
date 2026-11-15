@@ -101,7 +101,7 @@ function mtGroups(hid, kb) {
 // the head of one list inside "Hidden" (render.js viewListBody, before its first task)
 function mtListHead(lid) {
   const l = listById(lid); if (!l) return '';
-  return `<div class="mthl">${licMark(l, 'lsm')}<span class="mthn">${esc(lname(l))}</span><button type="button" class="linkbtn" data-mt="show" data-id="${l.id}">${esc(tr('Show the project again'))}</button></div>`;
+  return `<div class="mthl">${licMark(l, 'lsm')}<span class="mthn">${esc(lname(l))}</span>${wso_origin(l, 'gorg', true) /* 2.1224.0 (#6188) */}<button type="button" class="linkbtn" data-mt="show" data-id="${l.id}">${esc(tr('Show the project again'))}</button></div>`;
 }
 async function mtSet(id, on, o = {}) {
   const was = mtShown(id);
