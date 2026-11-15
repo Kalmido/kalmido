@@ -806,38 +806,22 @@ function sbb_bar() {
   const nu = $('.kbacct', k); if (old && nu && old !== nu && old.innerHTML === nu.innerHTML && old.title === nu.title) nu.replaceWith(old);
   fv2_barDraw();
 }
-// the workspace menu of the bar: "Switch to", each company with its own sign (picture / symbol / initial), Private (house),
-// the shown one ticked; then "Add a company" and, while a company is shown, its settings. The switch itself is wsSet.
-function sbb_wsMenu(anchor) {
-  const cur = wsOn() ? wsCur() : 'private', all = wsOn() ? wsOptions() : ['private'];
-  const opts = [...all.filter(w => w.startsWith('org:')), ...all.filter(w => !w.startsWith('org:'))];  // the companies first (sketch)
-  const set = cur.startsWith('org:') && typeof lmOrgPaneOn === 'function' && lmOrgPaneOn();
-  const p = menu(anchor, [{head: tr('Switch to')}, ...opts.map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : ws === 'all' ? 'grid' : 'brief', on: ws === cur, cls: 'kbwsi', title: wsName(ws), fn: () => { if (ws !== wsCur()) wsSet(ws); }})),
-    '-', {label: tr('Settings'), icon: 'gear', cls: 'kbws-settings', keys: 'g s', sub: updDot() ? tr('Update available') : '', fn: () => settingsModal()},  // 2.380.2 (#3400)
-    {label: tr('Add an organisation'), icon: 'plus', cls: 'kbws-add', fn: sbb_orgAdd},
-    ...(set ? [{label: tr('Company settings'), icon: 'building', cls: 'kbws-set', fn: () => settingsModal('org')}] : [])]);
-  // each company's own sign in place of the icon: its picture or symbol, else its initial on a tile
-  opts.forEach((ws, i) => {
-    if (!ws.startsWith('org:')) return;
-    const b = p?.querySelector(`[role="menuitem"][data-i="${i + 1}"]`), o = wsOrg(ws.slice(4)), x = b?.querySelector('svg.i');
-    if (x) x.outerHTML = `<span class="kbwsic">${orgIconHtml(o, `<span class="kbini" aria-hidden="true">${esc(String(o?.name || '?').trim().charAt(0).toUpperCase())}</span>`)}</span>`;
-  });
-}
+// 2.1208.0 (#6127): the workspace menu of the bar is the one of workspace.js (wsMenu), the same on every device
 // "Add a company": an admin of the server creates one (the dialog of Administration); 2.422.0 (#2937): anybody else creates
 // a company of her own by its name (POST /api/orgs, she becomes its admin) and lands in it; where the server does not allow
 // that (not the mode workspaces, the limit reached) the answer says why
 async function sbb_orgAdd() {
   if (S.me?.is_admin && typeof orgModal !== 'function') await loadModule('settings').catch(() => {});  // 2.152.3: orgModal lives in the lazy settings module
   if (S.me?.is_admin && typeof orgModal === 'function') { orgModal(null, () => load().then(render).catch(() => {})); return; }
-  const name = ((await askPrompt(tr('Name of the new company'), '', {body: tr('Keeps your work apart from your private things. You become its admin and can invite people by e-mail.'), ok: tr('Create'), input: {max: 60}})) || '').trim();
+  const name = ((await askPrompt(tr('Name of the new organisation'), '', {body: tr('Keeps your work apart from your private things. You become its admin and can invite people by e-mail.'), ok: tr('Create'), input: {max: 60}})) || '').trim();
   if (!name) return;
   let o; try { o = await api('POST', '/api/orgs', {name}); } catch (x) {
-    await askConfirm(tr('Add an organisation'), x.status === 403 ? tr('A company is set up by the admin of this server. A company’s admin can then invite you by e-mail.') : (x.message || tr('unknown')), {ok: tr('OK')});
+    await askConfirm(tr('Add an organisation'), x.status === 403 ? tr('An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.') : (x.message || tr('unknown')), {ok: tr('OK')});
     return;
   }
   await load().catch(() => {});
   if (typeof wsSet === 'function') wsSet('org:' + o.id); else render();
-  toast(tr('The company “{0}” is set up', o.name));
+  toast(tr('The organisation “{0}” is set up', o.name));
 }
 // the panel's head: the area's name, "Fold all" / "Unfold all" (only a panel with groups that fold: Tasks, or a panel whose
 // html has sbb_head groups or a tree marked data-sbbfold) and "Hide the panel". pan = the panel's html (not Tasks)
@@ -856,7 +840,7 @@ function sbb_headHtml(id, pan = '') {
   const d = sbb_def(id), groups = id === 'tasks' || /data-act="sbb-group"|data-sbbfold/.test(pan) || /data-act="sbb-tree"/.test(pan);  // 2.198.0 B (#2764): with a tree the button always stays
   const open = groups && sbb_foldOpen(id, pan), lab = open ? tr('Fold all') : tr('Unfold all');
   const fold = groups ? `<button type="button" class="iconbtn sbbfa" data-act="sbb-foldall" aria-pressed="${!open}" title="${esc(lab)}" aria-label="${esc(lab)}">${ic(open ? 'collapse' : 'expand', 's')}</button>` : '';
-  const hide = `<button type="button" class="iconbtn sbbhide" data-act="sbb-panel" title="${esc(tr('Hide the panel'))}" aria-label="${esc(tr('Hide the panel'))}">${ic('panelhide', 's')}</button>`;
+  const hide = `<button type="button" class="iconbtn sbbhide" data-act="sbb-panel" title="${esc(tr('Hide the sidebar'))}" aria-label="${esc(tr('Hide the sidebar'))}">${ic('panelhide', 's')}</button>`;
   return `<h2 class="sbbpt">${esc(tr(d ? d[2] : 'Projects'))}</h2><span class="spacer"></span><span class="sbtools">${fold}${id === 'tasks' ? fv2_svToolBtn() /* 2.156.0 D (#2186) */ : ''}${id === 'team' ? tc_newBtnHtml() /* 2.479.0 (#2814) */ : ''}${hide}</span>`;
 }
 function sbb_foldAll() {
@@ -881,7 +865,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-act="sbb-ws"], [data-act="sbb-foldall"], [data-act="sbb-panel"]'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
   const a = b.dataset.act;
-  if (a === 'sbb-ws') sbb_wsMenu(b); else if (a === 'sbb-foldall') sbb_foldAll(); else sbb_panel();
+  if (a === 'sbb-ws') wsMenu(b); else if (a === 'sbb-foldall') sbb_foldAll(); else sbb_panel();
 }, true);
 // with the panel hidden by hand (or folded for room) a click on the open area's icon brings it back
 document.addEventListener('click', e => {

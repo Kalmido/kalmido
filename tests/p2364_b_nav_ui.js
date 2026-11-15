@@ -167,6 +167,7 @@ const feats = async ck => ((await call('GET', '/api/state', null, ck)).settings 
         check(L.mob && L.tabs && !L.rail, `#3040 ${vw}: the phone layout (tab bar, no bar of the areas) ` + JSON.stringify(L));
       }
       // "More" = the drawer's list of areas, Settings last
+      // 2.1208.0 (#6127): "More" holds only what the tab bar does not show: no group Areas (the drawer has them), Settings last
       await ev(`(() => { tabsMore(document.querySelector('#tabs [data-act="tabs-more"]') || document.querySelector('#top h1')); return 1; })()`);
       check(await wait(`!!document.querySelector('#pop [role="menuitem"]')`), '#3040 690: "More" opens');
       const M = await ev(`(() => { const g = document.querySelector('#pop .mgrp[aria-label="Areas"]'), all = [...document.querySelectorAll('#pop [role="menuitem"]')].map(b => b.textContent.trim());
@@ -178,8 +179,8 @@ const feats = async ck => ((await call('GET', '/api/state', null, ck)).settings 
       const G = await ev(`(() => { const r = document.querySelector('#side .sbmr'), bs = [...r.querySelectorAll('.srb[data-sbb]')], R = el => el.getBoundingClientRect();
         return {names: bs.map(b => b.querySelector('.srbn').textContent.trim()), rows: new Set(bs.map(b => Math.round(R(b).top))).size, swipe: r.scrollWidth > r.clientWidth + 1, inside: bs.every(b => R(b).right <= R(r).right + 1), fit: r.style.overflowX === 'auto', cut: bs.filter(b => b.querySelector('.srcut')).length, minH: Math.min(...bs.map(b => R(b).height)),
           team: (document.querySelector('#side .sbmsg .n') || {}).textContent || ''}; })()`);
-      check(M.areas.length >= 8 && M.areas.join('|') === G.names.join('|'), '#3040 690: "More" lists exactly the drawer\'s areas, same order ' + JSON.stringify({more: M.areas, drawer: G.names}));
-      check(M.areas[0] === 'Start' && M.areas.includes('Knowledge') && M.areas.includes('Tables'), '#3040 690: Start, Knowledge and Tables are in "More" ' + M.areas.join('|'));
+      check(G.names.length >= 8 && !M.areas.length && !M.all.some(x => G.names.includes(x)), '#6127 690: "More" repeats none of the drawer\'s areas ' + JSON.stringify({more: M.all, drawer: G.names}));
+      check(G.names[0] === 'Start' && G.names.includes('Knowledge') && G.names.includes('Tables'), '#3040 690: Start, Knowledge and Tables are in the drawer ' + G.names.join('|'));
       check(M.last === 'Settings', '#3040 690: Settings is the last entry of "More" ' + M.all.join('|'));
       // 2.499.0 (#4047): a name is never cut: the row scrolls only when sbb_fit found that the names cannot fit in it
       check(G.rows >= 2 && (!G.swipe && G.inside || G.fit) && !G.cut && G.minH >= 43, '#3040 690: the drawer\'s area icons as a grid of rows, to swipe only when no name would fit otherwise ' + JSON.stringify(G));

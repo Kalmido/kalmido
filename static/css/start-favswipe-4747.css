@@ -14,3 +14,11 @@
   body.kb-open #favup,body.ms-typing #favup,body.tl-typing #favup,body.kidmode #favup,html.mini #favup,html.shzfull #favup{display:none!important}
 }
 @media (max-width:767px) and (pointer:coarse){ #favup .fv2-tile{width:2.75rem;height:2.75rem} }
+/* 2.1208.0 (#6127): a favourite shows its name next to the symbol (short, cut with an ellipsis): always in the phone's row, in the
+   computer's head bar while there is room (favtiles.js fv2_fit sets .fv2-icons first when it is tight); the letter badge is not needed then */
+.fv2bar .fv2-nm{display:none}
+#kbar .fv2bar:not(.fv2-icons) .fv2-tile{width:auto;max-width:9rem;gap:.375rem;padding:0 .5rem}
+#kbar .fv2bar:not(.fv2-icons) .fv2-nm,#favup .fv2-nm{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-s);color:var(--text)}
+#kbar .fv2bar:not(.fv2-icons) .fv2-bdg,#favup .fv2-bdg{display:none}
+#kbar .fv2bar:not(.fv2-icons) .fv2-tile>.i,#kbar .fv2bar:not(.fv2-icons) .fv2-tile .sic,#kbar .fv2bar:not(.fv2-icons) .fv2-tile .lic,#kbar .fv2bar:not(.fv2-icons) .fv2-tile .fv2-av{flex:none}
+@media (max-width:767px){ #favup .fv2-tile{width:auto;min-width:2.75rem;max-width:8.5rem;flex:none;gap:.375rem;padding:0 .625rem} #favup .fv2-tile>.i,#favup .fv2-tile .sic,#favup .fv2-tile .lic,#favup .fv2-tile .fv2-av{flex:none} }
