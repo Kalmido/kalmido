@@ -181,7 +181,11 @@ async function swCheck() {
       await c.put('/sw-code-state', new Response(JSON.stringify(st), {headers: {'content-type': 'application/json'}}));
       document.querySelectorAll('.modal').forEach(m => m.remove());
       (await navigator.serviceWorker.ready).active.postMessage({type: 'code-check'}); return 1; })()`);
-    check(await pu(`!!document.querySelector('#codechg') && /changed without a new version/.test(document.querySelector('#codechg').textContent)`), 'the hint "The app\'s code changed without a new version" shows');
+    // 2.1170.0 (#6132): only server admins see the hint - bob (no admin) gets none; as an admin (S.me in the page) it shows
+    await pu(`(async () => { const ks = (await caches.keys()).filter(k => /^tasks-shell-v\\d+$/.test(k)).sort((a, b) => +b.slice(13) - +a.slice(13)); return !!(await (await caches.open(ks[0])).match('/sw-code-changed')); })()`);  // the worker has seen the change (and told the page)
+    check(await ev(`!document.querySelector('#codechg')`), '#6132: no admin: no code hint');
+    await ev(`(async () => { S.me.is_admin = true; (await navigator.serviceWorker.ready).active.postMessage({type: 'code-check'}); return 1; })()`);
+    check(await pu(`!!document.querySelector('#bars #codechg') && /changed without a new version/.test(document.querySelector('#codechg').textContent)`), 'the hint "The app\'s code changed without a new version" shows (an admin, in the bars\' stack)');
     check(await ev(`(async () => { const ks = (await caches.keys()).filter(k => /^tasks-shell-v\\d+$/.test(k)).sort((a, b) => +b.slice(13) - +a.slice(13)); return !!(await (await caches.open(ks[0])).match('/sw-code-changed')); })()`), 'the worker kept the mark');
     await shot('codechg');
     await ev(`document.querySelector('#codechg [data-ccgo]').click(), 1`);

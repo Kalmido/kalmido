@@ -1663,7 +1663,7 @@ body.tdrag .sdrop{display:flex}
 #top>:not(h1):not(.tmini){flex:none}
 #top .tmini{flex:0 1 auto}
 @container (max-width:46rem){ #top .tmini .tmt{display:none} #top .kbtn>span,#top .kbtn kbd{display:none} #top .kbtn{padding:0 .5rem} }
-@container (max-width:34rem){ #top .offline .ofl{display:none} #top .kbadge{display:none} }
+@container (max-width:34rem){ #top .kbadge{display:none} }  /* 2.1170.0 (#6132): the offline chip keeps its word */
 #top .tmore{position:relative}
 #top .tmore .pdot{position:absolute;right:.1875rem;top:.1875rem;width:.375rem;height:.375rem;border-radius:50%;background:var(--p3)}
 #top .hnew span{white-space:nowrap}
@@ -1674,7 +1674,7 @@ body.tdrag .sdrop{display:flex}
 /* U16: offline / waiting changes: icon + word (hidden when tight) + count */
 .offline{display:inline-flex;align-items:center;gap:.3125rem}
 .offline .ofn{font-weight:600}
-@media (max-width:767px){ .offline .ofl{display:none} }
+/* 2.1170.0 (#6132): a phone's offline chip keeps its word (was: the symbol alone) */
 /* U09: the running indicator is neutral with a pulsing accent dot (red stays for "overdue") */
 .tmini{background:var(--bg3)}
 .tmini [data-timer-mini]{color:var(--text)}
@@ -2708,11 +2708,11 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 #top.tl1 .achip{flex:0 1 auto;min-width:0;max-width:none;padding:.25rem .5rem;gap:.25rem}
 #top.tl1 .achip>.avatar,#top.tl1 .achip>.i,#top.tl1 .achip .act{display:none}
 #top.tl1 .achip .acn{display:inline-flex;align-items:center;gap:.25rem;font:600 var(--fs-m)/1 var(--mono)}
-#top.tl1 .tmini .tmt,#top.tl1 .kbtn>span,#top.tl1 .kbtn kbd,#top.tl1 .offline .ofl,#top.tl1 .kbadge{display:none}
+#top.tl1 .tmini .tmt,#top.tl1 .kbtn>span,#top.tl1 .kbtn kbd,#top.tl1 .kbadge{display:none}
 #top.tl1 .tmini{flex:none;min-width:0}
 #top.tl1 .kbtn{padding:0 .5rem}
 #top:is(.tl2,.tl3,.tl4) .achip,#top:is(.tl2,.tl3,.tl4) .tmini.run,#top:is(.tl2,.tl3,.tl4) .tmini .tmt,
-#top:is(.tl2,.tl3,.tl4) .kbtn>span,#top:is(.tl2,.tl3,.tl4) .kbtn kbd,#top:is(.tl2,.tl3,.tl4) .offline .ofl,#top:is(.tl2,.tl3,.tl4) .kbadge{display:none}
+#top:is(.tl2,.tl3,.tl4) .kbtn>span,#top:is(.tl2,.tl3,.tl4) .kbtn kbd,#top:is(.tl2,.tl3,.tl4) .kbadge{display:none}
 #top:is(.tl2,.tl3,.tl4) .stchip{display:inline-flex}
 #top:is(.tl2,.tl3,.tl4) .kbtn{padding:0 .5rem}
 /* only one of the two pills: it stays (shrunk), there is nothing to merge */
@@ -3041,6 +3041,24 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 #newver svg{color:var(--accent);flex:none}
 @media (max-width:767px){ #stale{bottom:calc(env(safe-area-inset-bottom,0px) + 4.75rem)} }
 @media (pointer:coarse){ #stale{min-height:2.75rem} }
+/* 2.1170.0 (#6132): ONE stack for the bars (core.js barStack): new version, code changed, changes waiting, uploads. A computer: under the
+   header (--bars-top = its bottom edge, core.js barsPos); a phone: above the tab bar AND the "+" button. One above the other, never on
+   top of each other; the stack itself lets clicks through. A phone's bar wraps its words instead of cutting them. */
+#bars{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--bars-top,3.5rem) + .5rem);z-index:95;display:flex;flex-direction:column;align-items:center;gap:.375rem;width:max-content;max-width:calc(100vw - 2rem);pointer-events:none}
+#bars:empty{display:none}
+#bars > :is(#newver,#codechg,#stale,#upbars){position:static;transform:none;top:auto;bottom:auto;left:auto;pointer-events:auto;max-width:100%}
+#bars > #newver{order:1} #bars > #codechg{order:2} #bars > #stale{order:3} #bars > #upbars{order:4}
+@media (max-width:767px){
+  #bars{top:auto;bottom:calc(var(--tabs-bot) + 4.75rem);width:calc(100vw - 1.5rem);max-width:none}
+  #bars > :is(#newver,#codechg,#stale) span{white-space:normal;overflow-wrap:anywhere}
+  #bars > :is(#newver,#codechg,#stale){border-radius:var(--r-l)}
+}
+#newver [data-nv="x"]{flex:none}
+/* the header's chip: the word in the normal font, a button (tries again) */
+#top .offline{font:inherit;font-size:var(--fs-s);background:none;cursor:pointer}
+#top .offline .ofl{display:inline}
+/* the connection dot stays for syncing; offline is said once, by the chip */
+#kbar .netdot.n-off,#side .sbhead .netdot.n-off{display:none}
 /* #417: the robot needs a little room on phones / tight headers */
 @media (max-width:767px){ #top .achip{padding:.25rem .375rem;gap:.125rem}#top .achip .abot .i{width:.875rem;height:.875rem} }
 #top:is(.tl3,.tl4) .achip{padding:.25rem .375rem;gap:.125rem}
@@ -5292,6 +5310,14 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 @media (hover:none),(pointer:coarse){
   #chat-msgs .cmsg:not(.rxshow):not(:focus-within) .rxrow .rx.rxtog{position:absolute;width:1px;height:1px;min-width:0;min-height:0;margin:0;padding:0;overflow:hidden;clip-path:inset(50%)}
 }
+/* 2.1170.0 (#6096): the team chat (and its thread) as the agent chat: on a touch screen the smiley and "…" wait behind a tap on
+   the message (.rxshow, chat.js); "Read" and "edited" sit in the time's line, the 44 px of "Read by" do not make it taller */
+@media (hover:none),(pointer:coarse){
+  .tcmsgs .cmsg:not(.rxshow):not(:focus-within) .rxrow .rx.rxtog,.tcmsgs .cmsg:not(.rxshow):not(:focus-within) .cmeta [data-act="tc-msg-menu"]{position:absolute;width:1px;height:1px;min-width:0;min-height:0;margin:0;padding:0;overflow:hidden;clip-path:inset(50%)}
+}
+.cmeta .trdline{min-height:1.5rem;padding:0 .25rem}
+.cmeta .tcedited{font-size:var(--fs-xs)}
+@media (pointer:coarse){ .cmeta button.trdline{min-height:2.75rem;margin-block:-.625rem} }
 .dswpos{position:fixed;top:calc(var(--safe-t,0px) + .5rem);left:50%;transform:translate(-50%,-.5rem);z-index:70;padding:.25rem .75rem;border-radius:99rem;background:var(--bg3);border:1px solid var(--line2);color:var(--text2);font-size:var(--fs-s);box-shadow:0 .25rem 1rem rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
 .dswpos.on{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){ .dswpos{transition:none} }
@@ -6162,6 +6188,20 @@ body.fab-on #view .hpadd{padding-right:var(--fab-safe)}  /* 2.1111.0 (#5963): th
 .lysix > .hpcol > .lh1 > :first-child{max-height:15rem;overflow:auto}
 .lysix > .hpcol > .lh3 > :first-child{min-height:28rem}
 @media (pointer:fine){ .lysix > .hpcol > .lym > .dcard > h3{cursor:grab} }
+/* 2.1170.0 (#6126): two columns (768-1099 px): a slim empty strip and the last of an odd run of narrow blocks take the whole row
+   (dashboard.js lyHtml lyfill), no hole beside them; a row of another workspace: its dot + name (hpWsMark); the phone's greeting
+   line: name and date stacked on the left, "Arrange" beside them (a long name wraps, the date stays below it) */
+@media (min-width:768px) and (max-width:1099px){ .lysix > .lyfill,.lysix > .hpcol > .lyfill{grid-column:1/-1} }
+.hpws{flex:0 1 auto;display:inline-flex;align-items:center;gap:.25rem;min-width:0;max-width:45%;color:var(--text2);font-size:var(--fs-s);font-weight:400}
+.hpws .wsp-dot{width:.5rem;height:.5rem}
+.hpws>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:767px){
+  .dash > .dashhead{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-columns:auto;column-gap:.25rem;row-gap:.125rem;align-items:center}
+  .dash > .dashhead > h2{grid-row:1;grid-column:1;overflow-wrap:anywhere}
+  .dash > .dashhead > .muted{grid-row:2;grid-column:1}
+  .dash > .dashhead > .spacer{display:none}
+  .dash > .dashhead > button{grid-row:1 / span 2}
+}
 .dash .dtile b{font-family:inherit}
 /* 2.45.0 A (#1502 #1509 #1516) sidebar: a folded group holding the open view, the messenger rows, the notes overview */
 .sgh.sgon .sgt{color:var(--text);font-weight:600}

@@ -607,7 +607,7 @@ function renderTop0() {
   const m = S.route.mod, k = S.route.key;
   const MT = {cal: N_('Calendar'), matrix: N_('Matrix'), habits: N_('Habits'), pomo: N_('Focus timer'), news: N_('News'), stats: N_('Statistics'), time: N_('Time tracking'), overview: N_('Project status'), agents: N_('Agents'), team: N_('Team chat'), home: N_('Start|home'), family: N_('Family'), contacts: N_('Contacts'), life: N_('Home & life'), review: N_('Review & journal'), clients: N_('Clients'), workload: N_('Workload & absences'), wiki: N_('Knowledge pages'), tags: N_('Tags'), sheets: N_('Tables')};  // 2.49.0 (#1199): + wiki
   let title = m === 'tasks' ? titleFor(k) : m === 'notes' ? (S.nt.lid ? (qn_isList(S.nt.lid) ? lname(listById(S.nt.lid)) : tr('Notes') + ' · ' + (lname(listById(S.nt.lid)) || '')) : tr('Notes')) : m === 'family' && S.me?.kid ? tr('My day') : MT[m] ? tr(MT[m]) : '';
-  if (m === 'home') { const tl = tabItems(), on = tabOn(tl), ti = tl.find(t => t.id === on); if (ti && ti.mod !== 'home') title = ti.label; }  // 2.1111.0 (#5963): title and the active tab have one name
+  if (m === 'home' && isMobile()) { const tl = tabItems(), on = tabOn(tl), ti = tl.find(t => t.id === on); if (ti && ti.mod !== 'home') title = ti.label; }  // 2.1111.0 (#5963): title and the active tab have one name; 2.1170.0 (#6126): only with the tab bar shown (phone) - the sidebar marks "Start", so the page is "Start" there
   if (m === 'tasks' && isRoadmap()) title = tr('Timeline');  // 2.445.0 (#3011): the heading = the name in the menu
   if (m === 'matrix' && mxTitle()) title = `${tr('Matrix')} · ${mxTitle()}`;
   if (!title && m === 'budget') title = tr('Budget');  // 2.72.0 (#1333)
@@ -654,8 +654,11 @@ function renderTop0() {
   // everything rarer sits in "…" (phones: undo / redo there too); the title keeps its room; 2.1108.0 (#5965): not on a phone's open knowledge page (its own "…" carries these)
   if (!wkPg) acts += `<button class="iconbtn tmore" data-act="top-more" aria-haspopup="menu" title="${tr('More actions')}" aria-label="${tr('More actions')}">${ic('dots')}${isMobile() && HIST.undo.length && histPending(HIST.undo[HIST.undo.length - 1]) ? '<span class="pdot"></span>' : ''}</button>`;
   const pm = '';  // focus / stopwatch are part of the running indicator (timerPill) now
-  const oflab = OUT.online ? tr('sync|pending changes') : OUT.down ? (OUT.maint ? tr('server in maintenance') : tr('server not reachable')) : tr('offline'), ofn = OUT.q.length ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : '';
-  const off = !OUT.online || OUT.q.length ? `<span class="offline" role="status" title="${esc([oflab, ofn, tr('Changes are sent as soon as the server is reachable')].filter(Boolean).join(' · '))}" aria-label="${esc([oflab, ofn].filter(Boolean).join(' · '))}">${ic(OUT.online ? 'sync' : 'cloudoff', 's')}<span class="ofl">${oflab}</span>${OUT.q.length ? `<span class="ofn">${OUT.q.length}</span>` : ''}</span>` : '';
+  // 2.1170.0 (#6132): offline / server not reachable / changes waiting = ONE sign, this chip: a word in the normal font (a phone: symbol +
+  // the short word), a click / tap tries again (core.js netRetry); the bar below only while changes wait, no grey dot at the bell
+  const oflab = OUT.online ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : OUT.down ? (OUT.maint ? tr('Server in maintenance') : tr('Server not reachable')) : tr('Offline'), ofn = OUT.q.length ? trn('{0} change waiting', '{0} changes waiting', OUT.q.length) : '';
+  const ofw = !isMobile() ? oflab : OUT.online ? tr('Syncing') : tr('Offline');
+  const off = !OUT.online || OUT.q.length ? `<button type="button" class="offline" title="${esc([oflab, OUT.online ? '' : ofn, tr('Changes are sent as soon as the server is reachable'), tapTry()].filter(Boolean).join(' · '))}" aria-label="${esc([oflab, OUT.online ? '' : ofn].filter(Boolean).join(' · '))}">${ic(OUT.online ? 'sync' : 'cloudoff', 's')}<span class="ofl">${esc(ofw)}</span>${OUT.q.length && (!OUT.online || isMobile()) ? `<span class="ofn">${OUT.q.length}</span>` : ''}</button>` : '';
   const cf = S.conflicts?.length ? `<button class="cfpill" data-act="conflicts" title="${tr('Review conflicts')}">${ic('alert', 's')}${S.conflicts.length}</button>` : '';
   // open tasks of the view next to the title (Geist Mono), task views only
   const nOpen = m === 'tasks' && !NOLIST_KEYS.includes(k) ? msvvCount(viewTasks().open.length, k) : 0;  // 2.73.0 C (#661): + other servers in Today / Basket
@@ -663,7 +666,7 @@ function renderTop0() {
   // 2.18.0 (#651, owner decision: the magnifier is always visible): Search never folds into "…" (no .tf4); the title gets cut instead (fitTop)
   const pal = `<button class="kbtn cmdbar" data-act="palette" data-ico="search" title="${esc(tr('Search and commands'))} (${kbText('Mod+K')})" aria-label="${esc(tr('Search and commands'))}">${ic('search', 's')}<span>${tr('Jump, create, ask an agent…')}</span>${kb('Mod+K')}</button>`;
   // 2.25.0 (UX-32): ONE way to add per view: where the add bar sits at the bottom, no second "New task" up here
-  const tnew = (!isMobile() || tabletDock()) && !dockView() && (m === 'tasks' || (m === 'cal' && isTouch())) && !noFab() && !S.multiMode ? `<button class="btn pri tnew tf4" data-act="new-task" data-ico="plus" title="${esc(kt(tr('New task'), 'n'))}" aria-label="${esc(tr('New task'))}">${ic('plus', 's')}<span>${tr('New task')}</span></button>` : '';
+  const tnew = (!isMobile() || tabletDock()) && !dockView() && (m === 'tasks' || (m === 'cal' && isTouch() && !feat('events') /* 2.1170.0 (#6126): the calendar's own "+ Event" is its main button */)) && !noFab() && !S.multiMode ? `<button class="btn pri tnew tf4" data-act="new-task" data-ico="plus" title="${esc(kt(tr('New task'), 'n'))}" aria-label="${esc(tr('New task'))}">${ic('plus', 's')}<span>${tr('New task')}</span></button>` : '';
   const ms = (() => {  // the next open milestone of a project list
     const l = m === 'tasks' && k.startsWith('l:') ? listById(+k.slice(2)) : null;
     const x = l && !l.is_inbox ? (l.milestones || []).filter(y => !y.done).sort((a, b) => a.day.localeCompare(b.day))[0] : null;
@@ -676,6 +679,7 @@ function renderTop0() {
   fitTop();
   sbb_bar();  // 2.152.3 A (#2619): the bell's number
   netDotDraw();  // 2.31.0 (#378): the dot at the own picture follows every change of the connection
+  barsPos();  // 2.1170.0 (#6132): the bars' stack stays under the header
 }
 // ---- 2.6.0 (K01 + K02, UX audit 2): the header has a fixed priority on every width. The title comes first: it keeps at
 // least ~12 characters (or all of it, when shorter) and is shown in full whenever any level below makes room; "…" and the

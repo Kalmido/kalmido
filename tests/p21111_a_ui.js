@@ -42,7 +42,8 @@ const txt = (d, s) => (d.querySelector(s)?.textContent || '').replace(/\s+/g, ' 
   if (fig) { fig.click(); check(fig.classList.contains('open') && fig.getAttribute('aria-expanded') === 'true', '#5963: a tap opens the quote'); fig.click(); check(!fig.classList.contains('open'), '#5963: a second tap closes it'); }
   // the Today tab is on, the title says the same
   const on = txt(d, '#tabs button.on'), title = txt(d, '#top h1 .ht');
-  check(on && on === title, `#5963: active tab and title have one name: "${on}" / "${title}"`);
+  // 2.1170.0 (#6126): a computer (no tab bar, the sidebar marks "Start"): the page is "Start"; the phone below keeps tab = title
+  check(on === 'Today' && title === 'Start', `#6126: computer: title Start (the tab bar is hidden): "${on}" / "${title}"`);
   check(d.querySelectorAll('.lycust, #top [data-act$="-custom"]').length === 1, '#5963: the arrange-blocks control (sliders) exists once: ' + d.querySelectorAll('.lycust, #top [data-act$="-custom"]').length);
   // integration failure: a sentence that says how to fix it
   const ft = w.eval(`newsText({kind: 'integfail', data: {what: 'git', text: 'Git connection Docs cannot fetch, failing since 3 Nov.'}}, [])`);

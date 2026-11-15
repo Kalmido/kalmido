@@ -1,0 +1,35 @@
+/* 2.1170.0 (#6140): lists at a middle width (820 px, or a computer with a task open): cards and bars stack instead of being squeezed.
+   Measured on the content itself (container queries), not on the window - the same rule as the contacts' card (#6118). */
+
+/* the archive card: the buttons go under the text, the name is readable (wraps up to two lines) */
+.archv{container:archv / inline-size}
+@container archv (max-width:48rem){
+  .arow{grid-template-columns:minmax(0,1fr);grid-template-areas:"name" "meta" "acts"}
+  .arow .aacts{justify-content:flex-start;margin-top:.375rem}
+  .arow .aname .n{white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
+}
+
+/* the list's calendar: month name and the view switch stay; what does not fit wraps into the next row */
+.lcal{container:lcal / inline-size}
+.lcal .calbar{display:flex;flex-wrap:wrap;align-items:center;row-gap:.375rem}
+.lcal .calbar h2{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.lcal .calbar .seg{flex:0 1 auto;max-width:100%;min-width:0;overflow-x:auto;scrollbar-width:none}
+.lcal .calbar .seg button{flex:1 0 auto;white-space:nowrap;justify-content:center}
+@container lcal (max-width:36rem){
+  .lcal .calbar h2{flex:1 1 100%}
+  .lcal .calbar .seg{flex:1 1 100%}
+  .lcal .calbar [data-act="cal-done"] .cdl{display:none}
+}
+
+/* the task panel's breadcrumb: the "section" sign stays in the breadcrumb's row (the names give way with ...) */
+.dcrumbs{flex-wrap:nowrap;overflow:hidden}
+.dcrumbs .dcb:not(.dcadd){flex:0 1 auto}
+.dcrumbs .dcb.dcadd,.dcrumbs .dcsep,.dcrumbs .dcid{flex:none}
+
+/* the selection bar: readable type (no code font, never below 13 px), room under the last row */
+#mbar .mcount,.mselbar .mcount{font:var(--fs-m) var(--sans)}
+@media (max-width:767px){ #mbar .mcount,.mselbar .mcount{font-size:var(--fs-m)} }
+body.msel #view{padding-bottom:calc(9rem + var(--tabs-bot,0px))}
+@media (min-width:768px){
+  body:has(#view) #mbar.mbfit.mbfit{left:var(--mb-l);right:auto;width:var(--mb-w);max-width:none;transform:none;justify-content:center;box-sizing:border-box}
+}
