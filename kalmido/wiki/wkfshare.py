@@ -18,7 +18,7 @@ from flask import jsonify
 from ..core.config import app
 from ..core.access import Denied, acx_of
 from ..core.db import body, bump, db, insert_id, iso_ms, now_utc
-from ..core.dlock import dl_wiki_folders  # 2.1160.0 (#5862)
+from ..core.dlock import dl_wiki_folders  # 2.1225.0 (#5862)
 from ..core.errors import BadInput
 from ..core.i18n import tr
 from ..accounts.orgroles import org_sees_all
@@ -27,7 +27,7 @@ from ..collab.comments import user_names
 from ..files.store import ROLE_RANK, _now, fs_chain, fs_deleted, fs_log_add, fs_role
 from .pages import WIKI_DEPTH, wiki_body, wiki_clean_path, wiki_dict, wiki_insert, wiki_space_key, wiki_taken
 from .wkfolder import (WKF_KIND, _cut_below, _new_folder, _root_of_chain, _share_starts, _space_locked, _subtree, _walk,
-                       wkf_base, wkf_folder_path, wkf_name, wkf_shared, wkf_shown_path)  # 2.1160.0 (#5862): _cut_below
+                       wkf_base, wkf_folder_path, wkf_name, wkf_shared, wkf_shown_path)  # 2.1225.0 (#5862): _cut_below
 
 
 def _own_space(c, uid, org_id, owner_id):
@@ -61,7 +61,7 @@ def wkfs_folders(c, uid):
         return []
     starts = _share_starts(c, uid)
     ids = {n["id"] for n, _ in starts}
-    ex = dl_wiki_folders(c, uid)  # 2.1160.0 (#5862): the folders kept out of a whole area shared with uid (as wkf_shared)
+    ex = dl_wiki_folders(c, uid)  # 2.1225.0 (#5862): the folders kept out of a whole area shared with uid (as wkf_shared)
     out, owners = [], set()
     for n, chain in starts:
         if n["kind"] != "folder" or any(x["id"] in ids and not any(y["id"] in ex for y in chain[:j]) for j, x in enumerate(chain) if j):
@@ -78,7 +78,7 @@ def wkfs_folders(c, uid):
                     "owner_id": None if top["org_id"] else top["owner_id"]})
         rows = _subtree(c, n["id"])
         fp = _walk(rows, n["id"])
-        cut = _cut_below(rows, n["id"], ex)  # 2.1160.0 (#5862)
+        cut = _cut_below(rows, n["id"], ex)  # 2.1225.0 (#5862)
         for r in rows:
             if r["id"] == n["id"] or r["kind"] != "folder" or r["id"] not in fp or fp[r["id"]][1] or r["id"] in cut:
                 continue

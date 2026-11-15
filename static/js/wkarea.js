@@ -7,7 +7,7 @@
    share" / "Include again"; the folder row shows "not for <agent>". The exclusions are the agent's data lock (wiki_folders,
    PATCH /api/agents/<id>/data-lock), the facts come from GET /api/wiki/area-share (wiki/wkarea.py). An encrypted space: a
    sentence instead of the dialog. Part of the lazily loaded knowledge module (lazyload.js).
-   2.1160.0 (#5862): a private area also with a person (an organisation's stays with its agents: guests and the accounting
+   2.1225.0 (#5862): a private area also with a person (an organisation's stays with its agents: guests and the accounting
    person never get the whole area, members read it anyway). A person's exclusions are their share's own (PATCH
    /api/files/shares/<id> {excluded}); the same "Excluded:" / "Exclude folders…" / folder menu as for an agent. */
 'use strict';
@@ -52,7 +52,7 @@ function wkar_folderItems(sp, fid) {
     : {label: one ? tr('Exclude from the area share') : tr('Exclude from the area share for {0}', s.name), icon: 'eyeoff', fn: () => wkar_setEx(sp, s, [fid], true)});
 }
 // the exclusions are the agent's data lock: read it whole, change these folders, write it back (other spaces' ids stay);
-// 2.1160.0 (#5862): a person's are their share's own (the list of this tree only)
+// 2.1225.0 (#5862): a person's are their share's own (the list of this tree only)
 async function wkar_setEx(sp, s, fids, on, quiet) {
   const ag = !!s.agent_id;
   let cur; try { cur = ag ? (await api('GET', `/api/agents/${s.agent_id}/data-lock`)).data_lock.wiki_folders.map(x => x.id) : (await api('GET', wkar_q(sp))).shares.find(x => x.id === s.id)?.excluded; } catch { return false; }
@@ -70,7 +70,7 @@ const wkar_fname = (sp, id) => (WK.idx[sp]?.folders || []).find(f => f.id === id
 function wkar_extra(box, sp) {
   const a = WKAR[sp]; if (!box || !a) return;
   const lim = a.limit ? `<div class="shint lhint keep">${ic('alert', 's')} ${esc(tr('This knowledge area is very large: not every page can be reached through the share.'))}</div>` : '';
-  const priv = sp === 'private';  // 2.1160.0 (#5862): a private area also with people
+  const priv = sp === 'private';  // 2.1225.0 (#5862): a private area also with people
   box.innerHTML = lim + `<h4>${esc(priv ? tr('Who sees the whole knowledge area') : tr('Agents with the whole knowledge area'))}</h4>` + ((a.shares || []).length ? (a.shares || []).map(s => `<div class="wkaex" data-wka-share="${esc(s.id)}">
       <div><b>${esc(s.name)}</b>${s.agent_id ? '' : ` <small class="muted">${esc(tr('Person'))}</small>`} <small class="muted">${esc(tr('{0} folders / {1} pages', a.folders, a.pages))}</small></div>
       <div class="muted">${esc(tr('Excluded:'))} ${s.excluded.length ? s.excluded.map(id => `<span class="wkaexf">${esc(wkar_fname(sp, id))}${s.editable ? ` <button type="button" class="linkbtn" data-wka-in="${esc(id)}" aria-label="${esc(tr('Include again'))}" title="${esc(tr('Include again'))}">${ic('x', 's')}</button>` : ''}</span>`).join(', ') : esc(tr('nothing'))}</div>
@@ -105,7 +105,7 @@ async function wkar_share(sp) {
   if (!a?.root) { toast(tr('Add a page first: an empty knowledge area has nothing to share.')); return; }
   if (!a.may) { toast(tr('Only who may write in this workspace can share its knowledge area.')); return; }
   let box = null;
-  const priv = sp === 'private';  // 2.1160.0 (#5862): a private area also with a person
+  const priv = sp === 'private';  // 2.1225.0 (#5862): a private area also with a person
   await fs_shareDialog(a.root, {org: false,
     hint: priv ? tr('Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.')
       : tr('Shares the whole knowledge area of this workspace with an agent: every folder and page, also the ones added later. People keep sharing single folders or pages.'),

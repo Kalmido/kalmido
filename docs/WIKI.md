@@ -270,12 +270,13 @@ folder and page of the area, also the ones added later; the agent's paths start 
 private space your own personal agent, in an organisation its agents; people keep getting single folders or pages. An
 area encrypted in the browser cannot be shared (a sentence instead of the dialog).
 
-**With a person (2.1160.0, #5862).** Your *private* area can also go to one person (the people you may share with, no
+**With a person (2.1225.0, #5862).** Your *private* area can also go to one person (the people you may share with, no
 groups), *Can view* or *Can edit*, with the same question before and the same exclusions below their name (*Who sees
-the whole knowledge area*). The person finds it under *Shared with me* as the folder "Knowledge" with your name; with
+the whole knowledge area*); the folders to keep out can be ticked right in that question, so the share never starts
+with them open. The person finds it under *Shared with me* as the folder "Knowledge" with your name; with
 *Can edit* they add pages and folders there, also at the top (the pages are yours). An organisation's area stays with
 its agents: guests and the accounting person never get the whole area, members read it anyway. A person's exclusions
-belong to their share (`PATCH /api/files/shares/<id>` `{"excluded": [folder ids]}`); ending the share ends them too.
+belong to their share (`PATCH /api/files/shares/<id>` `{"excluded": [folder ids]}`, or `excluded` with the `POST` of the share); ending the share ends them too.
 
 Single folders can be kept out for one agent: in the dialog below the agent *Excluded:* with *Exclude folders…*
 (several at once), or in a folder's menu *Exclude from the area share* / *Include again*. The folder then shows

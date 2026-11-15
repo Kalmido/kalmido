@@ -1,5 +1,5 @@
 // kalmido-suite: fresh
-// 2.1160.0 (#5862) UI test, jsdom, own container (start.sh). Invented names only. The whole private knowledge area shared with a
+// 2.1225.0 (#5862) UI test, jsdom, own container (start.sh). Invented names only. The whole private knowledge area shared with a
 // PERSON: the space's menu "…" -> "Share whole knowledge area…", the Share dialog on "Knowledge" offers Bob, the question names
 // "2 folders / 2 pages visible, 0 folders excluded" and "The person can read these pages.", the share is on the server; the
 // section "Who sees the whole knowledge area" names Bob, "Exclude folders…" picks "Private" (the share's own exclusions), the

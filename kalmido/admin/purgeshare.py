@@ -48,7 +48,7 @@ from ..contacts.orgbooks import obk_hand_on
 from ..core.access import Denied, list_role
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds whose reference node is the object's own (counted as itself)
 from ..core.db import iso, iso_ms, now_utc
-from ..core.dlock import dl_chain_cut  # 2.1160.0 (#5862)
+from ..core.dlock import dl_chain_cut  # 2.1225.0 (#5862)
 from ..core.i18n import tr
 from ..core.pg import insert_id, system_ctx
 from ..core.orgcrypt import OrgCryptError
@@ -98,7 +98,7 @@ def _folder_shares(c, uid, ref_kind, rid):
     if not chain or fs_deleted(chain):
         return []
     ids = [x["id"] for x in chain]
-    # 2.1160.0 (#5862, Fable review 1): a share above a folder kept out for that person (a whole knowledge area shared with
+    # 2.1225.0 (#5862, Fable review 1): a share above a folder kept out for that person (a whole knowledge area shared with
     # them, its exclusions) gives them nothing here -- no heir, no share of an object in an excluded folder (core/dlock.py)
     return [r[:3] for r in _node_shares(c, ids, node=True) if r[3] in dl_chain_cut(c, r[1], ids)]
 
@@ -124,7 +124,7 @@ def _item(c, uid, oid, rid, direct, folder, write, fallback=None, fits=None):
 
 def _node_shares(c, ids, node=False):
     """[(since, person, role)] of the live shares of nodes ids with people (a group: each of its members); node=True: + the
-    share's node id (2.1160.0 #5862)."""
+    share's node id (2.1225.0 #5862)."""
     if not ids:
         return []
     q = ",".join("?" * len(ids))
