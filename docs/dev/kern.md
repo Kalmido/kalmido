@@ -1443,6 +1443,9 @@ organisation's mark is the stripe, so the two never read as one.
 `<div class="myrow"${wso_row(obj.org_id)}>…</div>`
 // (2) a mixed view under "All workspaces": the workspace's dot + name (phones: its short letters), '' otherwise
 `${wso_origin(obj.org_id, 'mymeta')}`
+// (2b) a view of ONE workspace that also shows things of others (the start page's box "Waiting for you"): the mark on
+// what belongs to another workspace, '' under "All"; sub = what it is in there (title, screen readers, after a "·")
+`${wso_origin(obj.org_id, 'mymeta', {other: true, sub: roomName})}`
 // (3) the open object: once per area, at the top level of its file; null when its page is not open
 wso_open('wiki', () => S.route?.mod === 'wiki' && WK.pg ? WK.pg.org_id || 'private' : null);
 // (4) 2.1241.0 (#6181): an element with an inline style of its own (a calendar's --cc): the style goes in, one attribute out
@@ -1466,9 +1469,10 @@ tone (`wac_sync`). No header stripe (removed in 2.138.2, #2389). Do not set `wsc
 hand, and do not build a second origin mark (`ws_originHtml` of the task rows uses `wso_head` too).
 
 Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open list -> `wso_sync`, task rows under "All" ->
-`ws_originHtml`). 2.1241.0 (#6181-#6185): the calendar (event chips, rows, week blocks, popover, dialog, calendar list;
-`cevOrg`), the wiki (spaces, panel root, the open page or space), the team chat (channels / groups / project chats; direct
-messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open space / folder / document) and
-contacts (rows, card, address books, panel spaces). Still to follow as their own tasks (#6180, #6186-#6188: office and
-clients, tables, time tracking, search / trash / news / favourites). Tests: `tests/p21205_b_orgcolor_ui.js`,
+`ws_originHtml`); the start page (2.1242.0, #6234: the Projects and Notes cards under "All" -> `wso_origin`, the box "Waiting for
+you", news and team chat rows -> `hpWsMark` = `wso_origin(.., {other: true})`). 2.1241.0 (#6181-#6185): the calendar (event chips,
+rows, week blocks, popover, dialog, calendar list; `cevOrg`), the wiki (spaces, panel root, the open page or space), the team chat
+(channels / groups / project chats; direct messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open
+space / folder / document) and contacts (rows, card, address books, panel spaces). Still to follow as their own tasks (#6180,
+#6186-#6188: office and clients, tables, time tracking, search / trash / news / favourites). Tests: `tests/p21205_b_orgcolor_ui.js`,
 `tests/p21241_orgcolor_areas_ui.js`.

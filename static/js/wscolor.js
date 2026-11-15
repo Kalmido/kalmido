@@ -184,10 +184,14 @@ function wso_mark(el, w) {
 // (2) where it comes from in a mixed view ("All workspaces"): the workspace's dot + its name (phones: its short letters), with
 // the name for screen readers; '' in one workspace or without organisations. ws_originHtml (task rows) adds the project to it
 const wso_head = ws => `${/*html-ok*/ wsp_dot(ws)}<span class="wsows">${esc(wsName(ws))}</span><span class="wsoab">${esc(ws_abbr(ws))}</span>`;
-function wso_origin(w, cls = '') {
-  const ws = wso_ws(w); if (!ws || ws === 'all' || !wsOn() || wsCur() !== 'all') return '';
-  const nm = wsName(ws);
-  return `<span class="wso${cls ? ' ' + esc(cls) : ''}" title="${esc(nm)}"><span class="sr">${esc(tr('Workspace: {0}', nm))}</span><span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws)}</span></span>`;
+// 2.1242.0 (#6234) o: {other: true} = a view of ONE workspace that shows things of others too (the start page's bell box): the mark
+// on what belongs to another workspace than the shown one, none under "All"; {sub: name} = what it is in there (a project, a room)
+// after the workspace's name, also in the title and for screen readers
+function wso_origin(w, cls = '', o = {}) {
+  const ws = wso_ws(w), cur = wsCur(); if (!ws || ws === 'all' || !wsOn()) return '';
+  if (o.other ? cur === 'all' || ws === cur : cur !== 'all') return '';
+  const nm = wsName(ws), sub = o.sub || '';
+  return `<span class="wso${cls ? ' ' + esc(cls) : ''}" title="${esc(sub ? nm + ' · ' + sub : nm)}"><span class="sr">${esc(tr('Workspace: {0}', nm) + (sub ? ', ' + sub : ''))}</span><span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws)}${sub ? `<span class="wsosep">·</span><span class="wsol">${esc(sub)}</span>` : ''}</span></span>`;
 }
 // (3) the open object: every area registers once how it finds the workspace of what it shows -- wso_open(name, fn), fn() ->
 // an organisation's id / 'org:<id>' / 'private' / an object with org_id, or null when its page is not open (or shows

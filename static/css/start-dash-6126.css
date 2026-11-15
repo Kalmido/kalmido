@@ -6,6 +6,10 @@
    at the row's end; a team chat row already names its room: there only the workspace (hpwsn) */
 .dwl .hpws{flex:0 1 auto;min-width:0;max-width:45%;color:var(--text2);font-size:var(--fs-s);font-weight:400}
 .dwl .hpws.hpwsn .wsosep,.dwl .hpws.hpwsn .wsol,.dwl .hpws .lic{display:none}
+/* 2.1242.0 (#6234): the Projects card under "All workspaces": the project's name and its workspace share the name column */
+.dpl .dpnw{display:flex;align-items:center;gap:.375rem;min-width:0}
+.dpl .dpnw .dpn{flex:0 1 auto;min-width:0}
+.dpl .hpws{flex:0 1 auto;min-width:0;max-width:50%;color:var(--text2);font-size:var(--fs-s);font-weight:400}
 /* the phone's greeting line: name and date stacked on the left, "Arrange" beside them (a long name wraps, the date stays below) */
 @media (max-width:767px){
   .dash > .dashhead{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-columns:auto;column-gap:.25rem;row-gap:.125rem;align-items:center}
