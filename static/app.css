@@ -2173,6 +2173,7 @@ button.tvr-task:hover{color:var(--accent)}
 .cmsg.me .cbub{background:color-mix(in srgb,var(--accent) 20%,var(--bg3))}
 .cbub p{margin:.25rem 0}.cbub>:first-child{margin-top:0}.cbub>:last-child{margin-bottom:0}
 .cmsg time{font-size:var(--fs-xs);color:var(--faint)}
+.cmsg .crun{font-size:var(--fs-xs);color:var(--muted);overflow-wrap:anywhere}  /* 2.1239.0 (#6261): the model under an agent's answer, like the time */
 .chcomp{display:flex;gap:.5rem;align-items:flex-end;padding:.625rem .75rem;border-top:1px solid var(--line)}
 .chcomp textarea{flex:1;resize:none;max-height:10rem;min-height:2.375rem;padding:.5rem .625rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg);color:var(--text);font:inherit;font-size:var(--fs-b);line-height:var(--lh);text-align:left;box-sizing:border-box}
 .chcomp textarea:focus{outline:none;border-color:var(--accent)}

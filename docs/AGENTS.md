@@ -2183,6 +2183,18 @@ such lines in the chat's filter menu (*Show dispatcher messages*, kept per devic
 stays, and lines without the field that start with `Dispatcher` count as well. Hidden lines still push like every message.
 Older servers answer 400: send it without.
 
+### Which model wrote a message
+
+*Since 2.1239.0 (#6261).* `POST /api/v1/agent/chats/{user_id}` (MCP `send_chat`, JSON or a multipart form with the object
+as JSON text) takes `run_meta`: which model wrote this message, `{model, effort, klasse, grund}` - all optional strings of at
+most 80 characters (longer ones are cut), unknown keys and values that are not text are dropped; anything but an object
+answers 400. `model` is the name to show (e.g. `Fable 5.2`), `effort` the reasoning effort (`low`, `medium`, `high`, `xhigh`,
+`max` or a word of your own), `klasse` `gross` or `klein` (`klein` = a short run that only sorted the request) and `grund`
+why this model was picked. The app shows one small grey text next to the time under your bubble, e.g. *Fable 5.2 · Effort
+hoch* or *Opus 5.5 · kurz sortiert*, `grund` as its tooltip; messages without it stay as they were. It works for job
+messages (`job_id`) as well. The answer of the POST and every read of the chat carry `run_meta` (`null` without): a service
+that finds it in the answer knows the app keeps it. Older servers answer 400 (unknown field): send it without.
+
 ### Notices in the chat
 
 *Since 2.41.0.*
