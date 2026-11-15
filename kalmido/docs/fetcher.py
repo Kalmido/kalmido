@@ -17,6 +17,7 @@ import json
 import os
 import re
 import secrets
+import stat
 from datetime import timedelta
 
 from flask import g, jsonify, request
@@ -56,7 +57,7 @@ FX_ROUTES = {("GET", "/api/v1/fetcher"), ("PUT", "/api/v1/fetcher/status"), ("PO
              ("GET", "/api/v1/fetcher/recipes")}  # 2.1188.0 (#6152): the central recipes
 # 2.1188.0 (#6152): the signed recipes a helper fetches (<id>.py + <id>.sig.json, signed outside the server; the helper checks
 # the signature itself) and the helper's download (static/downloads/kalmido-belegabholer-<version>.zip, the newest one)
-FX_RECIPES_DIR = os.environ.get("KALMIDO_FETCHER_RECIPES", "").strip() or os.path.join(os.path.dirname(os.path.abspath(__file__)), "fetcher_recipes")
+FX_RECIPES_DIR = os.path.abspath(os.environ.get("KALMIDO_FETCHER_RECIPES", "").strip() or os.path.join(os.path.dirname(os.path.abspath(__file__)), "fetcher_recipes"))
 FX_RECIPE_ID = re.compile(r"[a-z0-9_]{1,40}")  # as the helper's verteilung.ID_RE (a file name, never a path)
 FX_RECIPE_MAX = 256 * 1024  # bytes of one recipe file (a bigger one is left out)
 FX_SIG_FIELDS = ("id", "version", "api", "sha256", "key", "sig")
@@ -133,6 +134,22 @@ def v1_fetcher_get():
     return jsonify(name=fx["name"], target=place, max_mb=MAX_FILE_MB, portals=[_portal_out(p) for p in _portals(c, fx["id"])])
 
 
+def _fx_read(path, limit):
+    """review 2.1188 (#6152): the bytes of a regular file of at most limit bytes, else None - no symlink followed (O_NOFOLLOW),
+    no FIFO / device opened blocking, size checked on the open file and the read bounded (a file growing meanwhile counts too)."""
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb") as f:
+            fd = -1
+            data = f.read(limit + 1)
+        return data if len(data) <= limit else None
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
 def fx_recipes(api, folder=None):
     """The signed recipes of the recipe folder for helpers of recipe interface api: [{id, version, api, sha256, key, sig,
     source}]. Only pairs <id>.py + <id>.sig.json whose signature document is complete, names the same id and api and whose
@@ -149,14 +166,12 @@ def fx_recipes(api, folder=None):
             continue
         py, sj = os.path.join(folder, n), os.path.join(folder, f"{rid}.sig.json")
         try:
-            if os.path.islink(py) or os.path.islink(sj) or os.path.getsize(py) > FX_RECIPE_MAX or os.path.getsize(sj) > 4096:
+            src, sjb = _fx_read(py, FX_RECIPE_MAX), _fx_read(sj, 4096)
+            if src is None or sjb is None:
                 continue
-            with open(py, "rb") as f:
-                src = f.read()
-            with open(sj, encoding="utf-8") as f:
-                sig = json.load(f)
+            sig = json.loads(sjb.decode("utf-8"))
             text = src.decode("utf-8")
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):  # review 2.1188: a deeply nested sig file skips its pair, never a 500
             continue
         if not isinstance(sig, dict) or any(not isinstance(sig.get(k), int if k == "api" else str) for k in FX_SIG_FIELDS):
             continue
