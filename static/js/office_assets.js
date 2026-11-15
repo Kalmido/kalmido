@@ -41,7 +41,7 @@ function astFields(r) {
   const tbl = plan.length ? `<table class="ast-plan"><caption>${cap}</caption>
     <thead><tr><th scope="col">${tr('Year')}</th><th scope="col">${tr('Depreciation')}</th><th scope="col">${tr('Book value')}</th></tr></thead>
     <tbody>${plan.map(p => `<tr class="${p.year === r.year ? 'cur' : ''}"><td>${p.year}</td><td>${ofcMoney(p.afa)}</td><td>${ofcMoney(p.book)}</td></tr>`).join('')}</tbody></table>` : '';
-  return `<details class="ast-sec" ${r?.purchase_net || r?.purchase_date ? 'open' : ''}><summary>${tr('Purchase and value')}</summary>
+  return `<details class="ast-sec" ${r?.purchase_net || r?.purchase_date || r?.vendor || r?.serial_no || r?.receipt_node_id || r?.life_months || r?.new_value ? 'open' : ''}><summary>${tr('Purchase and value')}</summary>
     <div class="row"><label id="of-purchase_datel">${tr('Purchase date')}</label>${dateIn('of-purchase_date', r?.purchase_date || '', {label: tr('Purchase date'), empty: tr('optional')})}</div>
     ${ofcRowF('of-purchase_net', tr('Purchase price (net)'), ofcIn('of-purchase_net', astM(r?.purchase_net), {num: true}), ofcCur())}
     <div class="row"><label>${tr('Receipt')}</label><input type="hidden" id="of-receipt_node_id" value="${esc(r?.receipt_node_id ?? '')}">

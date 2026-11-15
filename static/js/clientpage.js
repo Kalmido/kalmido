@@ -90,7 +90,7 @@ const ms_inWs = c => { const ws = typeof wsCur === 'function' ? wsCur() : 'all';
 function oim_link(area, empty, csv) {
   if (typeof officeOn !== 'function' || !officeOn() || (S.route.mod === 'office' && typeof ofcAdmin === 'function' && !ofcAdmin())) return '';
   const t = empty ? (csv ? tr('Already have a list? Import from CSV') : tr('Already have a list? Import from Excel')) : tr('Import…');
-  return `<p class="oimlink ${empty ? 'e' : ''}"><a href="#office/import/${area}" data-oim-go="${area}">${empty ? ic('upload', 's') + ' ' : ''}${esc(t)}</a></p>`;
+  return `<p class="oimlink ${empty ? 'e' : ''}"><a ${empty ? '' : 'class="btn sm" '}href="#office/import/${area}" data-oim-go="${area}">${empty ? ic('upload', 's') + ' ' : ''}${esc(t)}</a></p>`;  // 2.1211.0 (#6148): the plain "Import…" has the shape of a button
 }
 function ms_clView() {
   if (MSC.ws !== undefined && MSC.ws !== (typeof wsCur === 'function' ? wsCur() : 'all')) ms_clDirty();
