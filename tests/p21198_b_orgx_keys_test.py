@@ -9,6 +9,9 @@ by hand (list_folder_skip) along; the import writes them with the new ids. Inven
    person taken off stays off (the row on the new project)
  - a person without an organisation imports the same export privately: the old keys come along, the folder exception not
    (a private project has no folder shares of the organisation)
+ - 2.1235.0 (#6240): the same person imports the same export a second time into a THIRD organisation and once into her
+   private workspace: a copy into another workspace is wanted, the tasks come along each time (before: tt_id unique per
+   person refused all of them, the project came empty); a second run into the same organisation still adds nothing
 Starts its OWN container (start.sh) with KALMIDO_SECRET_KEY (P21198B_NOSTART=1 = the server already runs like that).
 usage: p21198_b_orgx_keys_test.py <datadir>"""
 # freelancer-matrix: lists
@@ -103,6 +106,7 @@ A.patch(B + f"/api/users/{ALICE}", json={"email": "alice@example.com"})
 A.patch(B + "/api/settings", json={"lang": "en", "tour": "done"})
 ORG = A.post(B + "/api/admin/orgs", json={"name": "Alpha Projekte", "admin_id": ALICE}).json()["id"]
 GAM = A.post(B + "/api/admin/orgs", json={"name": "Gamma Ziel", "admin_id": ALICE}).json()["id"]
+DEL = A.post(B + "/api/admin/orgs", json={"name": "Delta Kopie", "admin_id": ALICE}).json()["id"]
 
 # ---------------------------------------------------------------- the source: a project with a key, changed once
 P = A.post(B + "/api/lists", json={"name": "Bordbuch", "org_id": ORG, "kind": "project"}).json()["id"]
@@ -139,6 +143,26 @@ check(not sql("SELECT 1 FROM task_keys WHERE list_id IS NOT NULL AND list_id<>? 
 T3 = A.post(B + "/api/tasks", json={"title": "Dritter Eintrag", "list_id": GP}).json().get("id")
 check(tasks_of(GP).get(T3, (None, None))[1] == 3, f"#3642: a new task in the moved project gets NEW-3, not NEW-1 again {tasks_of(GP)}")
 check(sql("SELECT user_id FROM list_folder_skip WHERE list_id=?", (GP,)) == [(ALICE,)], "#3642: the person taken off by hand stays off on the new project")
+A.delete(B + f"/api/account/import/{iid}")
+
+# ---------------------------------------------------------------- 2.1235.0 (#6240): the same person, the same export, other targets
+for tgt, where, label in ((DEL, ("org_id=?", (DEL,)), "Delta"), ("private", ("org_id IS NULL AND owner_id=?", (ALICE,)), "private")):
+    iid = opened(A, OX, RK)
+    j = run(A, iid, tgt)
+    check(j.get("state") == "done", f"#6240 {label}: import done {j.get('error')}")
+    check(not any("task could not be imported" in str(w) for w in (j.get("result") or {}).get("warnings") or []),
+          f"#6240 {label}: no task refused {(j.get('result') or {}).get('warnings')}")
+    cp = sql(f"SELECT id FROM lists WHERE {where[0]} AND name='Bordbuch' AND deleted_at IS NULL", where[1])
+    CP = cp[0][0] if cp else 0
+    check(CP and CP not in (P, GP) and sorted(v[0] for v in tasks_of(CP).values()) == ["Erster Eintrag", "Zweiter Eintrag"],
+          f"#6240 {label}: the copy has its tasks {tasks_of(CP) if CP else cp}")
+    A.delete(B + f"/api/account/import/{iid}")
+check(sorted(v[0] for v in tasks_of(GP).values()) == ["Dritter Eintrag", "Erster Eintrag", "Zweiter Eintrag"], f"#6240: Gamma untouched {tasks_of(GP)}")
+# a second run into the same organisation (Delta) still skips what is there (run.there): no second set of tasks
+iid = opened(A, OX, RK)
+j = run(A, iid, DEL)
+dl = sql("SELECT id FROM lists WHERE org_id=? AND name='Bordbuch' AND deleted_at IS NULL", (DEL,))
+check(j.get("state") == "done" and len(dl) == 1 and len(tasks_of(dl[0][0])) == 2, f"#6240: a second run into Delta adds nothing {dl} {j.get('error')}")
 A.delete(B + f"/api/account/import/{iid}")
 
 # ---------------------------------------------------------------- a person without an organisation imports it privately
