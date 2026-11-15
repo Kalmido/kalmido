@@ -793,7 +793,7 @@ async function tcx_groupNew() {
 async function tcx_try(md, method, url, body) {
   const er = $('.tcxerr', md);
   try { const r = await rawFetch(method, url, body); if (er) er.textContent = ''; return r; }
-  catch (e) { if (er) er.textContent = e instanceof Offline ? tr('The team chat is only available online.') : e.message; else toast(e.message); return null; }
+  catch (e) { const t = errText(e, method === 'GET' ? tr('Could not be loaded') : tr('The change could not be saved')); if (er) er.textContent = t; else toast(t); return null; }  // errText as tcx_req (2.1211.0, #6098)
 }
 async function tcx_browse() {
   const j = await tcx_req('GET', '/api/team/channels'); if (!j) return;
