@@ -7140,6 +7140,17 @@ a.rfcard:hover{border-color:var(--muted);text-decoration:none}
    organisation in any area carries the 3 px stripe on its left edge (the sidebar's rows keep theirs above). The open object
    is marked as an open list is (#main.wsc-on: the frames above; "All": #view.wac-loc) - no header stripe (gone since #2389) */
 [data-wso][data-wsc]:not(#side .srow){box-shadow:inset .1875rem 0 0 var(--wsc)}
+/* 2.1223.0 (#6181-#6185): the areas on the block. A tree node of the panel (sbb_treeHtml n.wso) wears the sidebar rows' stripe;
+   a name with its dot (wso_head outside an origin mark: the calendar list) without the short letters; the origin mark in an
+   event's / a conversation's / a contact's row; the open conversation's input frame like the add field's */
+#side .sbbt[data-wso][data-wsc]{box-shadow:none;background-image:linear-gradient(var(--wsc),var(--wsc));background-size:.1875rem 60%;background-repeat:no-repeat;background-position:0 50%}
+.wslbl .wsoab{display:none}
+.wslbl .wsp-dot{display:inline-block;width:.5rem;height:.5rem;margin-inline:.125rem .25rem}
+:is(.cevo,.tco,.cto,.dco){flex:0 1 auto;min-width:0;max-width:12rem;font-size:var(--fs-s);color:var(--muted);font-weight:400}
+.tcrt .tco,.cevm .cevo{margin-inline-start:.5rem}
+.evwso:empty{display:none}
+.evwso{display:inline-flex;align-items:center;margin-inline-start:.5rem}
+.wsc-on .tccomp textarea{border-color:color-mix(in srgb,var(--wsc) 65%,var(--line2))}
 .wscpick .colors button[disabled]{cursor:default}
 /* 2.53.0 C (#1424): the bell of one task (taskbell.js): the header button, its menu and "Urgent for others" */
 .dtop .tbl-b.on{color:var(--accent)}
