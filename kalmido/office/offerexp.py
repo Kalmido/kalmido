@@ -30,7 +30,7 @@ from flask import g, jsonify
 
 from ..core.config import app, WATCHDOG_INTERVAL
 from ..core.db import body, bump, err, iso, iso_ms, local_now, now_utc, test_seconds
-from ..core.i18n import tr
+from ..core.i18n import N_, tr
 from ..core.pg import system_ctx, write_lock
 from ..core.access import Denied, live_sql
 from ..accounts.orgroles import OFFICE_READ
@@ -51,6 +51,9 @@ OFE_LATE = 14                 # a date further back than this never rings "gone"
 OFE_EVERY_TICKS = 10          # whole days matter, like the overdue invoices
 OFE_EVERY_TICKS = test_seconds("KALMIDO_TEST_DUN_TICKS", OFE_EVERY_TICKS)
 _OFE_LAST = {"at": 0.0}
+# 2.1185.0 (#6150): the text of "Follow up" (ofe_doc_state), one literal each for the translation files
+OFE_FOLLOW = N_("Hello,\n\nwe would like to follow up on our quotation {0}. It is valid until {1}. Do you have any questions about it, or can we help you decide?")
+OFE_FOLLOW_GONE = N_("Hello,\n\nwe would like to follow up on our quotation {0}, which was valid until {1}. Is it still of interest to you? We would be glad to extend it or adjust it.")
 
 
 def _j(s, default):
@@ -95,10 +98,7 @@ def ofe_doc_state(c, oid, r):
     from .pdf import pdf_date
     lg = str(dict(r).get("lang") or "de").split("-")[0]
     when, num = pdf_date(r["valid_until"], lg), r["number"] or ""
-    text = (tr("Hello,\n\nwe would like to follow up on our quotation {0}, which was valid until {1}. Is it still of interest to you? "
-               "We would be glad to extend it or adjust it.", num, when, lg=lg) if st == "gone" else
-            tr("Hello,\n\nwe would like to follow up on our quotation {0}. It is valid until {1}. Do you have any questions about it, "
-               "or can we help you decide?", num, when, lg=lg))
+    text = tr(OFE_FOLLOW_GONE if st == "gone" else OFE_FOLLOW, num, when, lg=lg)
     return {"state": st, "until": r["valid_until"], "days": (date.fromisoformat(r["valid_until"]) - date.fromisoformat(today)).days,
             "subject": tr("Our quotation {0}", num, lg=lg), "text": text}
 
