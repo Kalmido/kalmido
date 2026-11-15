@@ -1071,6 +1071,34 @@ def obj_node_person_drop(c, kind, rid, who):
     return out
 
 
+def obj_node_person_take(c, by, kind, rid, who):
+    """2.1212.0 (#6156): who manages the object takes person / agent who out in the object's own dialog (a kind with
+    node_shares: the calendars, address books): every share row of theirs on its reference node goes into obj_revoked
+    (reason 'unshare', restorable for OBJ_REVOKED_DAYS through obj_share_restore -- the dialog's Undo) instead of being deleted.
+    Returns the obj_revoked ids. The caller checked the right and commits; a person leaving on their own keeps
+    obj_node_person_drop (nothing to restore)."""
+    if not obj_reg(kind).get("node_shares"):
+        raise ValueError(f"obj_node_person_take {kind}: only for kinds registered with node_shares=True")
+    with system_ctx(c):  # the node may lie in an organisation's tree; the area checked who may
+        n = fs_ref_node(c, kind, rid)
+        if n is None:
+            return []
+        rows = c.execute("SELECT id, role, expires_at FROM fs_shares WHERE node_id=? AND (user_id=? OR agent_id=?) ORDER BY id",
+                         (n["id"], int(who), int(who))).fetchall()
+        if not rows:
+            return []
+        # fable review: only the row that counts (live, the higher role, the newest) is kept restorable; a second row of the same
+        # person (an old double, an expired one beside a live one) goes as the drop does -- one restore brings the access back
+        now = iso(now_utc())
+        best = max(rows, key=lambda r: (r[2] is None or r[2] > now, r[1] == "edit", r[0]))
+        for r in rows:
+            if r[0] != best[0]:
+                c.execute("DELETE FROM fs_shares WHERE id=?", (r[0],))
+        out = obj_node_unshare(c, by, n, best[0], kind=kind, ref_id=int(rid), org=n["org_id"] or None)
+    obj_forget()
+    return [out] if out else []
+
+
 # ---------------------------------------------------------------- revocation in one place
 def _take(c, src, sql, args, reason, by, org, who_col, kind=None):
     """Moves the rows of src matching sql into obj_revoked and deletes them. Returns their number."""

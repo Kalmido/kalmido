@@ -154,11 +154,21 @@ def op_member_remove(c, uid, cid, who):
     if who != uid and role != "owner":
         raise Denied(403, tr("Only the owner of the calendar can do this"))
     cal_touch(c, cid)  # 2.988.0 (#5604, review): the object's row first, then its share rows (the order of the put)
+    if who != uid:
+        # 2.1212.0 (#6156): the owner takes a person out: the share goes into the core's obj_revoked, restorable (the dialog's
+        # Undo: POST /api/obj/evcal/<id>/shares/<rid>/restore); a person leaving on their own is deleted as before
+        rev = KERN["take"](c, uid, EV_KIND, cid, who)
+        if not rev:
+            raise Denied(404)
+        bump(c)
+        c.commit()
+        return rev
     n = KERN["drop"](c, EV_KIND, cid, who)  # 2.924.0 (#5069): the shares of the node are the members (ev_cal_members is gone)
     if not n:
         raise Denied(404)
     bump(c)
     c.commit()
+    return []
 
 
 def op_range(c, uid, a):
@@ -391,8 +401,8 @@ def evcals_member(cid):
 @app.delete("/api/evcals/<int:cid>/members/<int:uid>")
 def evcals_member_rm(cid, uid):
     need_feat("events")
-    op_member_remove(db(), me(), cid, uid)
-    return jsonify(ok=True)
+    rev = op_member_remove(db(), me(), cid, uid)
+    return jsonify(ok=True, revoked=rev)  # 2.1212.0 (#6156): the shares taken back (restorable), [] when one left on their own
 
 
 @app.get("/api/evcals/<int:cid>/export.ics")

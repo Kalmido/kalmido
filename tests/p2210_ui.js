@@ -169,6 +169,8 @@ const ALL = 'cal,timeline,comments,collab,events,contacts';
   const share = [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => /Share/.test(b.textContent));
   check(share, 'the menu of an own calendar has Share');
   click(w, share); await until(() => d.querySelector('#evs-user'));
+  // 2.1212.0 (#6156): the shared Share frame starts on "Share with …" (as projects and folders): the person is picked
+  change(w, d.querySelector('#evs-user'), String(BOB));
   change(w, d.querySelector('#evs-role'), 'edit');
   click(w, d.querySelector('[data-evs="add"]'));
   check(await until(async () => (await call('GET', '/api/evcals')).items.find(c => c.id === W.id)?.members?.[0]?.role === 'edit'), 'Work shared with Bob (edit)');

@@ -19,7 +19,8 @@ function calsHtml(chk, hint) {
       <li>${tr('Servers in your own network (for example 10.x.x.x or a VPN address) are blocked for safety until an admin allows the host under Settings > Server > Server > Advanced.')}</li></ul></details>`;
 }
 function calStatus(x) {
-  if (x.status === 'error') return `<span class="calerr" role="alert">${esc(x.error_text || tr('Error'))}</span>` + (x.synced_at ? ' · ' + esc(tr('last synced {0}', relTime(x.synced_at))) : '');
+  // 2.1212.0 (#6159): what failed first, the calendar server's own text only in brackets (errText, core.js)
+  if (x.status === 'error') return `<span class="calerr" role="alert">${esc(errText(x.error_text || '', tr('Could not sync')))}</span>` + (x.synced_at ? ' · ' + esc(tr('last synced {0}', relTime(x.synced_at))) : '');
   if (!x.synced_at) return esc(tr('Not synced yet'));
   return esc(tr('synced {0}', relTime(x.synced_at))) + ' · ' + esc(trn('{0} event', '{0} events', x.events)) + (x.truncated ? ' ' + esc(tr('(limit reached)')) : '');
 }
@@ -69,7 +70,7 @@ function calPalHtml(cur, cls = '') {
   const k = String(cur || '').toLowerCase();
   return `<div class="cpal${/*html-ok*/ cls /* a constant class */}" role="group" aria-label="${esc(tr('Colour'))}">${CAL_PAL.map(([c, n]) => `<button type="button" data-c="${c}" style="--cc:${c}" class="${c === k ? 'on' : ''}" aria-pressed="${c === k ? 'true' : 'false'}" aria-label="${esc(tr(n))}" title="${esc(tr(n))}"></button>`).join('')}</div>`;
 }
-function calColorPop(anchor, _colors, cur, fn) {  // _colors: no longer used (the callers keep their argument)
+function calColorPop(anchor, cur, fn) {  // 2.1212.0 (#6159): the unused colours parameter is gone
   const p = openPop(anchor, calPalHtml(cur));
   p.onclick = ev => { const b = ev.target.closest('[data-c]'); if (b) { closePop(); fn(b.dataset.c); } };
 }
@@ -80,10 +81,10 @@ function calsWire(md) {
     const row = b.closest('[data-cal]'); if (!row) return;
     const box = $('#s-cals', md), id = +row.dataset.cal, x = (box._j?.subs || []).find(s => s.id === id); if (!x) return;
     const act = b.dataset.calact;
-    if (act === 'color') calColorPop(b, box._j.colors, x.color, c => calPatch(md, id, {color: c}));
+    if (act === 'color') calColorPop(b, x.color, c => calPatch(md, id, {color: c}));
     if (act === 'refresh') {
       b.disabled = true;
-      try { const r = await api('POST', `/api/calendars/${id}/refresh`); toast(r.status === 'ok' ? tr('Calendar updated') : r.error_text); } catch { /* api() showed it */ }
+      try { const r = await api('POST', `/api/calendars/${id}/refresh`); toast(r.status === 'ok' ? tr('Calendar updated') : errText(r.error_text || '', tr('Could not sync'))); } catch { /* api() showed it */ }  // 2.1212.0 (#6159): errText
       await calsDraw(md);
     }
     if (act === 'edit') calEditModal(x, box._j.colors, () => calsDraw(md));
@@ -92,7 +93,14 @@ function calsWire(md) {
       // 2.800.0 (#5466): the toast takes it back (POST /api/calendars/restore with the answer's token, within 15 minutes)
       let j; try { j = await api('DELETE', `/api/calendars/${id}`); await calsDraw(md, j); } catch { return; /* api() showed it */ }
       calInvalidate(); await cvxCals(true).catch(() => {}); renderView();
-      toast(tr('Calendar removed'), j?.undo ? async () => { let r; try { r = await api('POST', '/api/calendars/restore', {undo: j.undo}); } catch { return; } if (md.isConnected) await calsDraw(md, r); calInvalidate(); await cvxCals(true).catch(() => {}); renderView(); } : undefined);
+      // 2.1212.0 (#6159): the step goes into the history too (Ctrl+Z); a subscription is personal and has no server step, so
+      // undo / redo here: the restore with the newest token (removed again = a new token)
+      if (!j?.undo) { toast(tr('Calendar removed')); return; }
+      let tok = j.undo, last = j, sid = id;
+      const re = async () => { if (md.isConnected) await calsDraw(md, last); calInvalidate(); await cvxCals(true).catch(() => {}); renderView(); };
+      offerUndo(tr('Calendar removed'), histAdd({label: tr('Remove the calendar “{0}”', x.name), post: re,
+        undo: async () => { last = await api('POST', '/api/calendars/restore', {undo: tok}); sid = last?.restored || sid; return last; },
+        redo: async () => { last = await api('DELETE', `/api/calendars/${sid}`); tok = last?.undo || tok; return last; }}));
     }
   });
   md.addEventListener('change', e => { const i = e.target.closest('[data-calact="vis"]'); if (i) calVis(md, +i.closest('[data-cal]').dataset.cal, i); });
@@ -109,7 +117,7 @@ function calsWire(md) {
 }
 function calAddModal(done) {
   const md = modal(`<h3>${tr('Add calendar')}</h3>
-    <div class="row"><div class="seg" id="ca-kind"><button class="on" data-k="ics">${tr('Link (ICS / iCal)')}</button><button data-k="caldav">${tr('CalDAV account')}</button></div></div>
+    <div class="row"><div class="seg" id="ca-kind" role="group" aria-label="${esc(tr('Kind of calendar'))}"><button class="on" data-k="ics">${tr('Link (ICS / iCal)')}</button><button data-k="caldav">${tr('CalDAV account')}</button></div></div>
     <div id="ca-ics"><div class="row"><label for="ca-url">${tr('Link')}</label><input id="ca-url" type="url" placeholder="https://… / webcal://…" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
       <div class="row"><label for="ca-name">${tr('Name')}</label><input id="ca-name" maxlength="100" placeholder="${tr('from the calendar')}"></div></div>
     <div id="ca-dav" hidden><div class="row"><label for="ca-srv">${tr('Server')}</label><input id="ca-srv" type="url" placeholder="https://caldav.example.com" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
@@ -156,7 +164,7 @@ function calAddModal(done) {
       md.remove();
       toast(j.errors?.length ? tr('{0} added, {1} failed: {2}', j.created.length, j.errors.length, j.errors[0].error) : trn('{0} calendar added', '{0} calendars added', j.created.length));
       done && done(j);
-    } catch (x) { showErr(x.message); } finally { b.disabled = false; }
+    } catch (x) { showErr(errText(x, tr('The calendar was not added'))); } finally { b.disabled = false; }  // 2.1212.0 (#6159)
   });
   if (!isTouch()) setTimeout(() => $('#ca-url', md)?.focus(), 50);  // 2.13.0: no keyboard popping up on touch
 }
@@ -186,8 +194,8 @@ function calEditModal(x, colors, done) {
     try {
       // 2.564.0 D (#4701): against the version the dialog opened with; 409 = saved meantime elsewhere: the reason, the current state opens
       let r; try { r = await rawFetch('PATCH', `/api/calendars/${x.id}`, x.updated_at ? {...body, expect_updated_at: x.updated_at} : body); }
-      catch (e2) { if (e2.status === 409 && e2.data?.calendar) { md.remove(); toast(e2.message); done && done(); calEditModal(e2.data.calendar, colors, done); return; } throw new Error(e2 instanceof Offline ? tr('Only available online.') : e2.message); }
-      if (r.status === 'error' && (body.url || body.password || body.username)) { $('#ce-err', md).textContent = r.error_text; $('#ce-err', md).hidden = false; done && done(); return; }
+      catch (e2) { if (e2.status === 409 && e2.data?.calendar) { md.remove(); toast(e2.message); done && done(); calEditModal(e2.data.calendar, colors, done); return; } throw new Error(errText(e2, tr('The calendar was not saved'))); }  // 2.1212.0 (#6159): what failed, the server's text in brackets
+      if (r.status === 'error' && (body.url || body.password || body.username)) { $('#ce-err', md).textContent = errText(r.error_text || '', tr('Saved, but the calendar could not be synced')); $('#ce-err', md).hidden = false; done && done(); return; }  // 2.1212.0 (#6159)
       md.remove(); toast(tr('Saved')); done && done();
     } catch (err) { $('#ce-err', md).textContent = err.message; $('#ce-err', md).hidden = false; } finally { b.disabled = false; }
   });

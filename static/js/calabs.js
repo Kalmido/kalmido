@@ -113,7 +113,8 @@ function efb_draw(md, atts, ev) {
   }
   md._efb.atts = atts;
   // 2.846.0 (#5465): a new event without other people from Kalmido has no bar ("You … busy" alone says nothing new)
-  if (!ev?.id && !atts.some(a => a.user_id && a.user_id !== S.me?.id)) { md._efb.t.cancel(); md._efb.seq++; $('#ev-fb', md)?.remove(); return; }
+  // 2.1212.0 (#6158): an existing one without guests neither (was: always for an existing event)
+  if (!atts.some(a => a.user_id && a.user_id !== S.me?.id)) { md._efb.t.cancel(); md._efb.seq++; $('#ev-fb', md)?.remove(); return; }
   let box = $('#ev-fb', md);
   if (!box) {
     const w = $('#ev-atts', md)?.closest('.evatt-w'); if (!w) return;

@@ -102,14 +102,20 @@ function occSig() {
 }
 async function ensureOcc(lo, hi) {
   const key = lo + '|' + hi + '|' + occSig();
-  if (S.occ.key === key || S.occ.want === key) return;
+  if (S.occ.key === key || S.occ.want === key || S.occ.err === key) return;
   S.occ.want = key;
   try {
     const j = await api('GET', `/api/occurrences?from=${lo}&to=${hi}`);
     if (S.occ.want !== key) return;  // a newer request replaced this one
     S.occ = {key, items: j.items, want: ''};
     if (S.route.mod === 'cal' || isListCal()) renderView();  // 2.156.0 C (#2071): + a list's calendar
-  } catch { if (S.occ.want === key) S.occ.want = ''; }
+  } catch {
+    // 2.1212.0 (#6159): the repeating tasks' later dates could not be loaded: the view says so with "Try again" (calEvState),
+    // and does not fetch again by itself on every drawing
+    if (S.occ.want !== key) return;
+    S.occ.want = ''; S.occ.err = key;
+    if (S.route.mod === 'cal' || isListCal()) renderView();
+  }
 }
 // ------------------------------------------------------------------ external calendars (read-only events)
 // Events of the user's calendar subscriptions (Settings > Integrations > Calendars), synced by the server. Fetched
@@ -182,6 +188,8 @@ function calEvState(lo, hi, none = '') {
   if (on && S.cal.err === key) h = errorState({size: 'row', title: tr('Events could not be loaded'), retry});
   else if (on && S.cal.cached && S.cal.key === key) h = errorState({size: 'row', title: tr('Saved copy of the events'), retry, cls: 'calold'});
   else if (on && S.cal.loading === key && S.cal.key !== key) h = loadingHtml('row');
+  // 2.1212.0 (#6159): the later dates of repeating tasks that could not be loaded (ensureOcc) say so too
+  if (!h && S.occ?.err) h = errorState({size: 'row', title: tr('Repeating tasks could not be loaded'), retry: () => { S.occ.err = ''; renderView(); }});
   if (!h && none) h = emptyState({icon: 'cal', title: none, size: 'row', cls: 'calnone'});
   return h ? `<div class="calst" aria-live="polite">${/*html-ok*/ h /* the shared block of render.js */}</div>` : '';
 }
@@ -208,7 +216,9 @@ function cevTime(e, d) {
 }
 // 2.52.0 (#1016): cgok = may be dragged into other days (caldrag.js)
 // 2.800.0 (#5468): an event of a subscribed calendar is personal and shows in every workspace: it carries the subscription's mark
-const cevSubMark = e => e.own || abcX(e) ? '' : `<span class="cevsub" title="${esc(tr('Subscribed calendar'))}" aria-label="${esc(tr('Subscribed calendar'))}" role="img">${ic('sync', 's')}</span>`;
+// 2.1212.0 (#6158): the subscription's mark is a link (the circling arrows read like "repeats"); an own series carries the repeat mark
+const cevSubMark = e => abcX(e) ? '' : e.own ? (e.recurring ? `<span class="cevsub cevrep" title="${esc(tr('Repeats'))}" aria-label="${esc(tr('Repeats'))}" role="img">${ic('repeat', 's')}</span>` : '')
+  : `<span class="cevsub" title="${esc(tr('Subscribed calendar'))}" aria-label="${esc(tr('Subscribed calendar'))}" role="img">${ic('link', 's')}</span>`;
 const cevChip = (e, d) => `<div class="cev${cevTimed(e, d) ? '' : ' allday'}${abcX(e) ? ' cevx' : ''}${ap_draftCls(e)}${cg_canDrag(e) ? ' cgok' : ''}" data-cev="${e.id}" style="--cc:${cevColor(e)}" title="${esc(cevTitle(e))}" role="button" tabindex="0">${/*html-ok*/ cevSubMark(e)}${cevTimed(e, d) && e.d0 === d ? `<span class="muted">${fmtTimeAt(e.s)}</span> ` : ''}${esc(cevTitle(e))}</div>`;
 const cevRow = (e, d, cls = '', mark = '') => `<div class="cevrow${ap_draftCls(e)}${cls}" data-cev="${e.id}" style="--cc:${cevColor(e)}" role="button" tabindex="0"><i class="cevdot"></i><span class="cevt">${cevTime(e, d)}</span><span class="cevn">${esc(cevTitle(e))}</span>${/*html-ok*/ cevSubMark(e)}${mark}${e.location ? `<span class="cevl">${esc(e.location)}</span>` : ''}<span class="cevc">${esc(cevCal(e))}</span></div>`;
 // 2.884.0 (#5469): month / week chips and event rows (Today, day lists, home) are role=button: Enter / Space opens the event like a click
@@ -271,7 +281,7 @@ function cevPop(anchor, id) {
     ${e.location ? `<div class="cevm">${ic('mappin', 's')}<span>${esc(e.location)}</span></div>` : ''}
     <div class="cevm">${ic('cal', 's')}<span>${esc(cevCal(e))} · ${tr('read-only')}</span></div>
     ${desc ? `<div class="cevdesc">${cevLinkify(desc)}${e.description.length > 2000 ? '…' : ''}</div>` : ''}
-    ${abcX(e) ? '' : `<div class="cevact"><button class="btn sm pri" data-cevtask>${ic('plus', 's')} ${tr('Create task from event')}</button></div>`}</div>`);  // 2.155.0 B (#2076)
+    ${abcX(e) ? '' : `<div class="cevact"><button class="btn sm" data-cevtask>${ic('plus', 's')} ${tr('Create task from event')}</button></div>`}</div>`);  // 2.155.0 B (#2076)
   p.onclick = ev => { if (ev.target.closest('[data-cevtask]')) { closePop(); cevToTask(e); } };
 }
 // the task gets the event's title and start (date + time + duration), in the inbox; the panel opens to edit it
@@ -361,7 +371,7 @@ function calBar(title, done = true, extra = '') {
   const evb = (feat('events') ? `<button class="btn sm pri evnew" data-act="ev-new" title="${esc(tr('New event'))}" aria-label="${esc(tr('New event'))}">${ic('plus', 's')}<span class="cdl">${tr('Event|calendar')}</span></button>` : '')
     + (typeof tpo_on === 'function' && tpo_on() ? `<button class="btn sm" data-act="tpo-list" title="${esc(tr('Find a date'))}" aria-label="${esc(tr('Find a date'))}">${ic('users', 's')}<span class="cdl">${tr('Find a date')}</span></button>` : '')  // 2.98.0 A (#1953)
     + (feat('events') || S.calendars?.enabled ? `<button class="btn sm" data-act="ev-cals" title="${esc(tr('Calendars'))}" aria-label="${esc(tr('Calendars'))}">${ic('cal', 's')}<span class="cdl">${tr('Calendars')}</span></button>` : '');
-  return `<div class="calbar cbm"><h2>${title}</h2><div class="seg">${modes.map(([k, n]) => `<button class="${S.calMode === k ? 'on' : ''}" data-act="cal-mode" data-k="${k}" aria-pressed="${S.calMode === k ? 'true' : 'false'}">${n}</button>`).join('')}</div>${dn}${evb}${extra}
+  return `<div class="calbar cbm"><h2>${title}</h2><div class="seg" role="group" aria-label="${esc(tr('View'))}">${modes.map(([k, n]) => `<button class="${S.calMode === k ? 'on' : ''}" data-act="cal-mode" data-k="${k}" aria-pressed="${S.calMode === k ? 'true' : 'false'}">${n}</button>`).join('')}</div>${dn}${evb}${extra}
     <button class="iconbtn calmore" data-act="cal-more" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button><div class="calnav"><button class="iconbtn" data-act="cal-prev" title="${esc(tr('Previous period'))}" aria-label="${esc(tr('Previous period'))}">${ic('left')}</button><button class="btn sm" data-act="cal-today">${tr('Today')}</button><button class="iconbtn" data-act="cal-next" title="${esc(tr('Next period'))}" aria-label="${esc(tr('Next period'))}">${ic('right')}</button></div></div>`;
 }
 // 2.855.0 (#5462): phone and tablet: the head keeps the views, the period and "..."; Completed, Find a date, Calendars and the
