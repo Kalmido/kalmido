@@ -315,7 +315,7 @@ ROUTES = {
     "POST /api/auth/enrol/passkey/options": "auth", "POST /api/auth/enrol/totp": "auth",
     "POST /api/auth/enrol/totp/confirm": "auth", "POST /api/auth/forgot": "auth", "POST /api/auth/delete-cancel": "auth", "POST /api/auth/invite/accept": "auth",
     "POST /api/auth/invite/check": "auth", "POST /api/auth/link": "auth", "POST /api/auth/login": "auth",
-    # 2.1156.0 (#4550): invitation links (accounts/cinvite.py): p21156_b_cinvite_test.py as a person without an organisation
+    # 2.1191.0 (#4550): invitation links (accounts/cinvite.py): p21156_b_cinvite_test.py as a person without an organisation
     "GET /api/disc/invites": "team", "POST /api/disc/invites": "team", "DELETE /api/disc/invites/{}": "team",
     "POST /api/disc/invites/{}/restore": "team", "POST /api/auth/cinv/check": "auth", "POST /api/auth/cinv/accept": "auth",
     "POST /api/auth/logout": "auth", "POST /api/auth/passkey": "auth", "POST /api/auth/passkey/options": "auth",

@@ -1,4 +1,4 @@
-"""2.1156.0 (#4550): a person invites someone without an account by a link or a QR code -- whoever opens it creates an account
+"""2.1191.0 (#4550): a person invites someone without an account by a link or a QR code -- whoever opens it creates an account
 and is connected with the inviting person at once (the same connection as an accepted request, accounts/discover.py conn_links).
 
 - Who invites: a person (no agent, no kid account, not disabled or waiting), collaboration on, and the instance switch
@@ -89,7 +89,7 @@ def _item(r):
 def cinv_list():
     """My open invitation links (no link: only its hash is stored) + the limits."""
     c = db()
-    u = _need_inviter(c, need_on=False)  # 2.1156.0 (#4550): the list answers with the switch off too (freelancer sweep: no 403 on a GET)
+    u = _need_inviter(c, need_on=False)  # 2.1191.0 (#4550): the list answers with the switch off too (freelancer sweep: no 403 on a GET)
     rows = c.execute(f"SELECT * FROM conn_invites WHERE user_id=? AND {_open_sql()} ORDER BY id DESC", (u["id"], iso(now_utc()))).fetchall()
     return jsonify(items=[_item(r) for r in rows], limits={"open": CINV_OPEN, "day": CINV_DAY, "days": CINV_DAYS}, mail=_mail_on(), on=cinv_signup_on(c))
 

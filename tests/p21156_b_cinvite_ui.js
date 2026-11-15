@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // kalmido-suite: fresh
-// 2.1156.0 part B (#4550): inviting a person without an account by a link / QR code (cinvite.js), own container (start.sh, no
+// 2.1191.0 (#4550): inviting a person without an account by a link / QR code (cinvite.js), own container (start.sh, no
 // SMTP: the new account is active at once). jsdom, invented names only, every person without an organisation:
 // - frida: "Find people" shows "Invite by link"; the dialog makes a link: the QR code and the link are VISIBLE, the open link
 //   is listed with its note; "Take back" removes it (one undo step brings it back)
 // - a second browser without a session opens the link: the page names frida, the form (name, address, password) creates the
 //   account; the new account then sees frida under Connections in its own "Find people"
-// - 2.1156.0 (#4550, Fable F1): without e-mail the form asks for no address (name + password); the username comes from the name
+// - 2.1191.0 (#4550, Fable F1): without e-mail the form asks for no address (name + password); the username comes from the name
 // - dora (signed in) opens a link: the app starts and asks "Connect with Frida?"; yes connects
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -66,7 +66,7 @@ const wait = fn => until(fn, {timeout: 15000, step: 150});
   const card = await wait(() => d.querySelector('.authscreen #cnv-form') && d.querySelector('.authscreen'));
   check(card && /Frida invites you/.test(card.querySelector('h2')?.textContent || ''), 'the page names who invites');
   check(!/#cinv/.test(w.location.href), 'the token left the address bar');
-  // 2.1156.0 (#4550, Fable F1): no address field without e-mail
+  // 2.1191.0 (#4550, Fable F1): no address field without e-mail
   check(!card.querySelector('#cnv-mail') && card.querySelector('#cnv-pw') && card.querySelector('#cnv-pw2'), 'no e-mail: name + password, no address field');
   card.querySelector('#cnv-name').value = 'Nina Example';
   card.querySelector('#cnv-pw').value = 'password123';
