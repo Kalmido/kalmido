@@ -9,6 +9,10 @@ by hand (list_folder_skip) along; the import writes them with the new ids. Inven
    person taken off stays off (the row on the new project)
  - a person without an organisation imports the same export privately: the old keys come along, the folder exception not
    (a private project has no folder shares of the organisation)
+ - 2.1218.0 (#6202): the target workspace already has a project with the key NEW (an organisation, and a second person without
+   an organisation privately): the imported project comes without a key (never two NEW in one workspace), its numbers stay as
+   old keys (NEW-1 / NEW-2 and APP-1 / APP-2 find the moved tasks), the target's own project keeps NEW, a new task there gets
+   NEW-2 from its own counter, the import report says so
 Starts its OWN container (start.sh) with KALMIDO_SECRET_KEY (P21198B_NOSTART=1 = the server already runs like that).
 usage: p21198_b_orgx_keys_test.py <datadir>"""
 # freelancer-matrix: lists
@@ -150,6 +154,41 @@ fp = sql("SELECT id FROM lists WHERE org_id IS NULL AND owner_id=? AND name='Bor
 FP = fp[0][0] if fp else 0
 check(FP and keys_of(FP) == {("APP", 1): "Erster Eintrag", ("APP", 2): "Zweiter Eintrag"}, f"freelancer: the old keys find her private tasks {keys_of(FP) if FP else fp}")
 check(FP and not sql("SELECT 1 FROM list_folder_skip WHERE list_id=?", (FP,)), "freelancer: no folder exception on a private project")
+
+
+# ---------------------------------------------------------------- 2.1218.0 (#6202): the key is taken in the target workspace
+def clash(s, target, own_lid, owner_where, who):
+    iid = opened(s, OX, RK)
+    j = run(s, iid, target)
+    w = (j.get("result") or {}).get("warnings") or []
+    check(j.get("state") == "done", f"{who}: import done {j.get('state')} {j.get('error')} {w}")
+    rows = sql(f"SELECT id, ticket_key FROM lists WHERE {owner_where[0]} AND name='Bordbuch' AND deleted_at IS NULL", owner_where[1])
+    lid = rows[0][0] if rows else 0
+    check(lid and rows[0][1] is None, f"#6202 {who}: the imported project came without a key {rows}")
+    check(sql("SELECT ticket_key FROM lists WHERE id=?", (own_lid,)) == [("NEW",)], f"#6202 {who}: the target's own project keeps NEW")
+    check(lid and sorted(tasks_of(lid).values()) == [("Erster Eintrag", 1), ("Zweiter Eintrag", 2)], f"#6202 {who}: the numbers stay {tasks_of(lid) if lid else rows}")
+    check(lid and keys_of(lid) == {("APP", 1): "Erster Eintrag", ("APP", 2): "Zweiter Eintrag", ("NEW", 1): "Erster Eintrag", ("NEW", 2): "Zweiter Eintrag"},
+          f"#6202 {who}: NEW-1 / NEW-2 and APP-1 / APP-2 stay as old keys of the moved tasks {keys_of(lid) if lid else rows}")
+    ws = [x.get("text") if isinstance(x.get("text"), str) else " ".join(map(str, x.get("text") or [])) for x in w]
+    check(any("already used in this workspace" in t and "NEW" in t and "Bordbuch" in t for t in ws), f"#6202 {who}: the import report names the key {ws}")
+    t = s.post(B + "/api/tasks", json={"title": "Eigener Eintrag", "list_id": own_lid}).json().get("id")
+    check(tasks_of(own_lid).get(t, (None, None))[1] == 2, f"#6202 {who}: the target's own project counts on (NEW-2) {tasks_of(own_lid)}")
+    s.delete(B + f"/api/account/import/{iid}")
+
+
+# another person imports (the same person's second import of the same export loses its tasks to tasks_tt_user, an own task)
+DID, Do = freelancer(B, A, name="dora")
+DEL = A.post(B + "/api/admin/orgs", json={"name": "Delta Ziel", "admin_id": DID}).json()["id"]
+DL = Do.post(B + "/api/lists", json={"name": "Logbuch", "org_id": DEL, "kind": "project"}).json()["id"]
+Do.post(B + "/api/tasks", json={"title": "Logbuch Eintrag", "list_id": DL})
+check(Do.patch(B + f"/api/lists/{DL}", json={"ticket_key": "NEW"}).ok, "#6202 setup: the target organisation's project has NEW")
+clash(Do, DEL, DL, ("org_id=?", (DEL,)), "organisation")
+
+GID, Gr = freelancer(B, A, name="greta")
+GL = Gr.post(B + "/api/lists", json={"name": "Werkbank", "kind": "project"}).json()["id"]
+Gr.post(B + "/api/tasks", json={"title": "Werkbank Eintrag", "list_id": GL})
+check(Gr.patch(B + f"/api/lists/{GL}", json={"ticket_key": "NEW"}).ok, "#6202 setup: the freelancer's private project has NEW")
+clash(Gr, "private", GL, ("org_id IS NULL AND owner_id=?", (GID,)), "freelancer")
 
 if FAILS:
     print(subprocess.run(["docker", "logs", "--tail", "80", CT], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
