@@ -18692,12 +18692,5 @@
   "Only digits, spaces and + - / ( ) here, please.": "Qui solo cifre, spazi e + - / ( ).",
   "Please enter a web address like https://example.org.": "Inserisci un indirizzo web come https://example.org.",
   "{pct} % on the discountable positions|calc": "{pct} % sulle voci scontabili",
-  "Fixed amount on the discountable positions|calc": "Importo fisso sulle voci scontabili",
-  "Who sees the whole knowledge area": "Chi vede l’intera area della conoscenza",
-  "Nobody sees the whole knowledge area yet.": "Nessuno vede ancora l’intera area della conoscenza.",
-  "The person can change these pages.": "La persona può modificare queste pagine.",
-  "The person can read these pages.": "La persona può leggere queste pagine.",
-  "{0} no longer sees these folders and everything in them, also what is added later. A folder or page inside that you share with them on its own stays visible.": "{0} non vede più queste cartelle e tutto il loro contenuto, nemmeno ciò che verrà aggiunto. Una cartella o pagina al loro interno che condividi a parte con questa persona resta visibile.",
-  "Shares your whole knowledge area with a person or an agent: every folder and page, also the ones added later. Single folders can be kept out before or afterwards.": "Condivide tutta la tua area di conoscenza con una persona o un agente: ogni cartella e pagina, anche quelle aggiunte dopo. Puoi escludere singole cartelle prima o dopo.",
-  "Keep folders out (optional):": "Escludi cartelle (facoltativo):"
+  "Fixed amount on the discountable positions|calc": "Importo fisso sulle voci scontabili"
 }
