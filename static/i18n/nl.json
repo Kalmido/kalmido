@@ -18679,5 +18679,19 @@
   "The download is not available on this server yet.": "De download is op deze server nog niet beschikbaar.",
   "Unpack the zip file.": "Pak het zipbestand uit.",
   "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Dubbelklik op een Mac op Einrichten.command of onder Windows op Einrichten.cmd.",
-  "Paste the setup code from below when the helper asks for it.": "Plak de instelcode van hieronder als het hulpprogramma erom vraagt."
+  "Paste the setup code from below when the helper asks for it.": "Plak de instelcode van hieronder als het hulpprogramma erom vraagt.",
+  "Export…": "Exporteren…",
+  "vCard (.vcf)": "vCard (.vcf)",
+  "CSV (spreadsheet)": "CSV (spreadsheet)",
+  "You cannot add contacts to any address book here.": "Je kunt hier in geen enkel adresboek contacten toevoegen.",
+  "Create your own address book for your contacts; the others stay as they are.": "Maak een eigen adresboek voor je contacten; de andere blijven zoals ze zijn.",
+  "Create your own address book": "Eigen adresboek maken",
+  "Show imported": "Geïmporteerde tonen",
+  "An address book holds the contacts and is shared and synced with the phone as a whole; folders sort address books and contacts, groups are labels on single contacts.": "Een adresboek bevat de contacten en wordt als geheel gedeeld en met de telefoon gesynchroniseerd; mappen ordenen adresboeken en contacten, groepen zijn labels op losse contacten.",
+  "No address book yet.": "Nog geen adresboek.",
+  "Please enter an e-mail address like name@example.org.": "Vul een e-mailadres in zoals name@example.org.",
+  "Only digits, spaces and + - / ( ) here, please.": "Hier alleen cijfers, spaties en + - / ( ).",
+  "Please enter a web address like https://example.org.": "Vul een webadres in zoals https://example.org.",
+  "{pct} % on the discountable positions|calc": "{pct} % op de posten met korting",
+  "Fixed amount on the discountable positions|calc": "Vast bedrag op de posten met korting"
 }

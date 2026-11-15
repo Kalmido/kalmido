@@ -18679,5 +18679,19 @@
   "The download is not available on this server yet.": "La descarga aún no está disponible en este servidor.",
   "Unpack the zip file.": "Descomprime el archivo zip.",
   "Double-click Einrichten.command on a Mac or Einrichten.cmd on Windows.": "Haz doble clic en Einrichten.command en un Mac o en Einrichten.cmd en Windows.",
-  "Paste the setup code from below when the helper asks for it.": "Pega el código de configuración de abajo cuando el asistente lo pida."
+  "Paste the setup code from below when the helper asks for it.": "Pega el código de configuración de abajo cuando el asistente lo pida.",
+  "Export…": "Exportar…",
+  "vCard (.vcf)": "vCard (.vcf)",
+  "CSV (spreadsheet)": "CSV (hoja de cálculo)",
+  "You cannot add contacts to any address book here.": "Aquí no puedes añadir contactos a ninguna libreta de direcciones.",
+  "Create your own address book for your contacts; the others stay as they are.": "Crea tu propia libreta de direcciones para tus contactos; las demás quedan como están.",
+  "Create your own address book": "Crear tu propia libreta de direcciones",
+  "Show imported": "Mostrar los importados",
+  "An address book holds the contacts and is shared and synced with the phone as a whole; folders sort address books and contacts, groups are labels on single contacts.": "Una libreta de direcciones contiene los contactos y se comparte y sincroniza con el móvil entera; las carpetas ordenan libretas y contactos, los grupos son etiquetas en contactos sueltos.",
+  "No address book yet.": "Todavía no hay libreta de direcciones.",
+  "Please enter an e-mail address like name@example.org.": "Introduce una dirección de correo como name@example.org.",
+  "Only digits, spaces and + - / ( ) here, please.": "Aquí solo cifras, espacios y + - / ( ).",
+  "Please enter a web address like https://example.org.": "Introduce una dirección web como https://example.org.",
+  "{pct} % on the discountable positions|calc": "{pct} % sobre las posiciones con descuento",
+  "Fixed amount on the discountable positions|calc": "Importe fijo sobre las posiciones con descuento"
 }
