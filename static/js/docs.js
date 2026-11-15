@@ -299,7 +299,7 @@ const DC_ACCEPT = 'application/pdf,image/*,.pdf,.txt,.xml,application/xml,text/x
 // 2.1177.0 (#6114): the file store's one way (ablage.js ab_upCheck / ab_upParts / ab_upOut): checked before sending, portions of
 // at most 50 (the server takes 50 per request) instead of cutting silently, the progress bar for any size, ONE message at the end
 async function dc_upload(files, ws, source) {
-  const {ok, out} = ab_upCheck(files, source ? '' : DC_ACCEPT); ab_upOut(out);  // the share sheet / a scan: every kind as before
+  const {ok, out} = ab_upCheck(files, source ? '' : DC_ACCEPT); const box = ab_upOut(out);  // the share sheet / a scan: every kind as before; 2.1208.0 (#6173): its own list
   if (!ok.length) return [];
   const ids = [], dups = [], parts = ab_upParts(ok, 50);
   for (let i = 0; i < parts.length; i++) {
@@ -308,11 +308,11 @@ async function dc_upload(files, ws, source) {
     fd.append('ws', ws || dc_upWs());
     if ((ws || dc_upWs()) === 'private') fd.append('sort', '1');  // 2.522.0 (#4433): the general input sorts (office / private; no office: nothing)
     if (source) fd.append('source', source);
-    let j; try { j = await api('POST', '/api/docs', fd); } catch (x) { if (x?.data?.errors) j = x.data; else { out.push(...ab_upRest(parts, i, x)); break; } }  // a 400 with its reasons: the list names them
+    let j; try { j = await ab_upSend('/api/docs', fd); } catch (x) { if (x?.message === 'auth') return ids; if (x?.data?.errors) j = x.data; else { out.push(...ab_upRest(parts, i, x)); break; } }  // a 400 with its reasons: the list names them
     ids.push(...(j.ids || [])); dups.push(...(j.dups || []));
     out.push(...(j.errors || []).map(e => ({name: '', why: e})));  // the server's own reasons (each names its file)
   }
-  ab_upOut(out);
+  ab_upOut(out, box);
   if (ids.length) {
     const msg = trn('{0} document added', '{0} documents added', ids.length);
     histToast(ab_upMsg(dups.length ? `${msg} · ${trn('{0} file already exists', '{0} files already exist', dups.length)}` : msg, out), histAdd({label: msg,

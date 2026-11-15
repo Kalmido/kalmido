@@ -993,6 +993,7 @@
   "{0} changed something": "{0} heeft iets gewijzigd",
   "Mark all as read": "Alles als gelezen markeren",
   "News are only available online.": "Nieuws is alleen online beschikbaar.",
+  "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Intussen heeft iemand anders een nieuwere versie geüpload, die blijft staan: {0}",
   "Invalid data": "Ongeldige gegevens",
   "Row-level security is OFF: the database user bypasses it and the role kalmido_app cannot be used. Allow the database user to create roles or create the role (see SELF-HOSTING), then restart.": "Beveiliging op rijniveau staat UIT: de databasegebruiker omzeilt deze en de rol kalmido_app kan niet worden gebruikt. Sta de databasegebruiker toe rollen aan te maken of maak de rol aan (zie SELF-HOSTING) en start daarna opnieuw.",
   "no permission": "geen toestemming",

@@ -993,6 +993,7 @@
   "{0} changed something": "{0} a modifié quelque chose",
   "Mark all as read": "Tout marquer comme lu",
   "News are only available online.": "Les actualités ne sont disponibles qu'en ligne.",
+  "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Entre-temps, quelqu'un d'autre a téléversé une version plus récente, elle est conservée : {0}",
   "Invalid data": "Données non valides",
   "Row-level security is OFF: the database user bypasses it and the role kalmido_app cannot be used. Allow the database user to create roles or create the role (see SELF-HOSTING), then restart.": "La sécurité au niveau des lignes est DÉSACTIVÉE : l'utilisateur de la base de données la contourne et le rôle kalmido_app ne peut pas être utilisé. Autorisez l'utilisateur de la base de données à créer des rôles ou créez le rôle (voir SELF-HOSTING), puis redémarrez.",
   "no permission": "pas d'autorisation",
