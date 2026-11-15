@@ -105,7 +105,7 @@ function evWhen(e) {
 }
 async function evPop(anchor, e) {
   if (e.eid < 0) return;  // 2.559.0 (#4659): the stand-in of a new event still on its way (evEditor) has nothing to open yet
-  const p = openPop(anchor, `<div class="cevpop evpop" style="--cc:${evCalColor(e)}"><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div><div class="muted">${tr('Loading…')}</div></div>`);
+  const p = openPop(anchor, `<div class="cevpop evpop"${/*html-ok*/ wso_row(cevOrg(e), `--cc:${evCalColor(e)}`) /* 2.1223.0 (#6181) */}><div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b></div><div class="muted">${tr('Loading…')}</div></div>`);
   // 2.800.0 (#5460): placed again once the details are in (a redraw meanwhile may have taken the anchor: its place from the start)
   const r0 = anchor.getBoundingClientRect(), at = () => anchor.isConnected ? anchor : {getBoundingClientRect: () => r0};
   let ev;
