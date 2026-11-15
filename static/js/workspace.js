@@ -201,18 +201,26 @@ function wsChip() {
   const cur = wsCur();
   return `<button type="button" class="wschip tf5" data-act="ws-menu" data-ico="${cur === 'private' ? 'home' : 'brief'}" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', wsName(cur)) + ' · ' + tr('Only this workspace is shown'))}" aria-label="${esc(tr('Workspace: {0}', wsName(cur)))}"${wsp_attr(cur) /* 2.53.0 (#1474), 2.57.0 B (#1807) */}>${wsIcon(cur)}<span>${esc(wsName(cur))}</span></button>`;
 }
+// 2.1208.0 C (#6127): ONE menu "Switch to" for the head bar (sbb-ws), the phone's button / the brand of the drawer and the
+// workspace badges (ws-menu): the organisations (each with its own sign), Private, All workspaces, then "Add an organisation"
+// and, while an organisation is shown, its settings; Settings last (with the update hint). Start and hiding the sidebar
+// live in the account menu / the sidebar's head, no longer here.
 function wsMenu(anchor) {
-  const cur = wsOn() ? wsCur() : 'private';
-  const opts = wsOn() ? wsOptions() : ['private'];
-  // 2.161.2 A (#2607): from the brand on top of the sidebar: a heading, then Start and hiding the sidebar (the drawer on a
-  // phone closes; on a computer the sidebar folds away into the header's menu button, the same switch as side-fold)
-  const brand = !!anchor?.closest?.('.sbbrand'), fold = !!LS.get('sideFold', false), drawer = isMobile() || !!$('#app')?.classList.contains('side-rail');
-  const p = menu(anchor, [...(brand ? [{head: tr('Workspace')}] : []), ...opts.map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : ws === 'all' ? 'grid' : 'brief', on: ws === cur, fn: () => wsSet(ws)})),
-    ...(brand ? ['-', {label: tr('Start'), icon: 'start', cls: 'wsm-home', fn: () => { if (isMobile()) closeSide(); go('home'); }},
-      {label: !isMobile() && fold ? tr('Show the sidebar') : tr('Hide the sidebar'), icon: 'panel', cls: 'wsm-side', fn: () => isMobile() || (drawer && !fold) ? closeSide() : sideFold(!fold)}] : [])]);
-  // 2.57.0 B (#1807): a colour dot in front of each workspace's name (my colour or its default; neutral = a ring)
-  const off = brand ? 1 : 0;
-  opts.forEach((ws, i) => { if (ws !== 'all') p?.querySelector(`[role="menuitem"][data-i="${i + off}"] .ml`)?.insertAdjacentHTML('beforebegin', wsp_dot(ws)); });
+  const cur = wsOn() ? wsCur() : 'private', all = wsOn() ? wsOptions() : ['private'];
+  const opts = [...all.filter(w => w.startsWith('org:')), ...all.filter(w => !w.startsWith('org:'))];  // the organisations first
+  const set = cur.startsWith('org:') && typeof lmOrgPaneOn === 'function' && lmOrgPaneOn(), kid = !!S.me?.kid;
+  const p = menu(anchor, [{head: tr('Switch to')}, ...opts.map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : ws === 'all' ? 'grid' : 'brief', on: ws === cur, cls: 'kbwsi', title: wsName(ws), fn: () => { if (isMobile()) closeSide(); if (ws !== wsCur()) wsSet(ws); }})),
+    ...(kid ? [] : ['-', {label: tr('Add an organisation'), icon: 'plus', cls: 'kbws-add', fn: () => { if (isMobile()) closeSide(); sbb_orgAdd(); }},
+      ...(set ? [{label: tr('Organisation settings'), icon: 'building', cls: 'kbws-set', fn: () => { closeSide(); settingsModal('org'); }}] : []),
+      {label: tr('Settings'), icon: 'gear', cls: 'kbws-settings', keys: 'g s', sub: updDot() ? tr('Update available') : '', fn: () => { closeSide(); settingsModal(); }}])]);  // 2.380.2 (#3400)
+  // each organisation's own sign in place of the icon (its picture or symbol, else its initial on a tile); Private: my colour's dot
+  opts.forEach((ws, i) => {
+    const b = p?.querySelector(`[role="menuitem"][data-i="${i + 1}"]`);
+    if (ws === 'private') { b?.querySelector('.ml')?.insertAdjacentHTML('beforebegin', wsp_dot(ws)); return; }
+    if (!ws.startsWith('org:')) return;
+    const o = wsOrg(ws.slice(4)), x = b?.querySelector('svg.i');
+    if (x) x.outerHTML = `<span class="kbwsic">${/*html-ok*/ orgIconHtml(o, `<span class="kbini" aria-hidden="true">${esc(String(o?.name || '?').trim().charAt(0).toUpperCase())}</span>`)}</span>`;
+  });
 }
 // the default workspace of a new list: the shown one; with "All" the one of the folder's lists, else the first organisation
 // 2.364.0 D (#3033): proj = a new project: with "All" (and no folder rule) the workspace picked last for a new project, else Private

@@ -1,17 +1,32 @@
 {
   "de": {
-    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Inzwischen hat jemand anderes eine neuere Version hochgeladen, sie bleibt: {0}"
+    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Inzwischen hat jemand anderes eine neuere Version hochgeladen, sie bleibt: {0}",
+    "Organisation settings": "Einstellungen der Organisation",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Eine Organisation legt der Admin dieses Servers an. Die Admins einer Organisation können dich dann per E-Mail einladen.",
+    "The organisation “{0}” is set up": "Die Organisation „{0}“ ist angelegt"
   },
   "es": {
-    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Mientras tanto otra persona subió una versión más reciente, se mantiene: {0}"
+    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Mientras tanto otra persona subió una versión más reciente, se mantiene: {0}",
+    "Organisation settings": "Ajustes de la organización",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Una organización la crea el administrador de este servidor. Después, los administradores de una organización pueden invitarte por correo electrónico.",
+    "The organisation “{0}” is set up": "La organización «{0}» está creada"
   },
   "fr": {
-    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Entre-temps, quelqu'un d'autre a téléversé une version plus récente, elle est conservée : {0}"
+    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Entre-temps, quelqu'un d'autre a téléversé une version plus récente, elle est conservée : {0}",
+    "Organisation settings": "Paramètres de l’organisation",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Une organisation est créée par l’administrateur de ce serveur. Les administrateurs d’une organisation peuvent ensuite t’inviter par e-mail.",
+    "The organisation “{0}” is set up": "L’organisation « {0} » est créée"
   },
   "it": {
-    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Nel frattempo qualcun altro ha caricato una versione più recente, resta così: {0}"
+    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Nel frattempo qualcun altro ha caricato una versione più recente, resta così: {0}",
+    "Organisation settings": "Impostazioni dell’organizzazione",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Un’organizzazione viene creata dall’amministratore di questo server. Gli amministratori di un’organizzazione possono poi invitarti via e-mail.",
+    "The organisation “{0}” is set up": "L’organizzazione «{0}» è creata"
   },
   "nl": {
-    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Intussen heeft iemand anders een nieuwere versie geüpload, die blijft staan: {0}"
+    "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Intussen heeft iemand anders een nieuwere versie geüpload, die blijft staan: {0}",
+    "Organisation settings": "Instellingen van de organisatie",
+    "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van een organisatie kunnen je daarna per e-mail uitnodigen.",
+    "The organisation “{0}” is set up": "De organisatie ‘{0}’ is aangemaakt"
   }
 }
