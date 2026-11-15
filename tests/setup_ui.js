@@ -230,7 +230,13 @@ const feats = st => st.settings.features.split(',');
   w.close();
   // existing installs never see step 2: a normal login shows the login form, not the setup
   w = await open({}); d = w.document;
-  check(d.querySelector('.authscreen #auth-form') && !d.querySelector('#au-name') && !d.querySelector('.setupcard'), 'existing install: login only, no setup step');
+  // 2.1210.0 (#5504, CI red of 2.1191.0): open() returns once #boot fades - on a 401 main.js fades it BEFORE authScreen() has read
+  // /api/auth/info and the language, so on a loaded runner the form was not there yet; wait for the drawn screen (the login form
+  // or, wrongly, the setup), then judge it
+  await waitSel(d, '.authscreen #auth-form, #au-name, .setupcard', 15000);
+  const exist = !!d.querySelector('.authscreen #auth-form') && !d.querySelector('#au-name') && !d.querySelector('.setupcard');
+  check(exist, 'existing install: login only, no setup step');
+  if (!exist) console.log('setup_ui existing install, screen:', (d.body ? d.body.textContent : '').replace(/\s+/g, ' ').slice(0, 300));
   w.close();
   // 1.8.1: the sign-in / setup screens are centered on every width (tablets in portrait got a bottom sheet under 900 px)
   // and opaque in every theme; a tour card without a target sits in the middle of the screen
