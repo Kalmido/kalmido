@@ -180,7 +180,6 @@ def judge_soft(jobs, suites_of, pats, grp):
     stg = {m.group(2) for m, _ in shards}
     if not shards or len(stg) != 1 or not stg <= set(RELEASE_STAGES):
         return False, "not the full stage (nor the release stage)", info
-    rel = stg == {"release"}
     hard = [j for m, j in shards if m.group(3)]
     want = {int(m.group(1)) for m, _ in shards}
     tot = max((int(re.match(r"^Test suites \d+/(\d+)", j["name"]).group(1)) for _, j in shards), default=0)
@@ -189,19 +188,15 @@ def judge_soft(jobs, suites_of, pats, grp):
     if not hard:
         return False, "no hard shard in the plan (unknown = hard)", info
     for j in hard:
-        # #6253: in the release stage every shard is hard and carries the soft suites of its groups - judged by suite below
-        # (like the merge queue gate); only a hard shard that did not end as failure (cancelled, timed out) is red at once
-        if j.get("conclusion") != "success" and not (rel and j.get("conclusion") == "failure"):
+        # #6253: in the release stage every shard is a hard one: any red suite there is in a hard group (hard_suite judges by
+        # the group too), so a red or cut shard of the release stage is no image - the same rule as the hard shards of full
+        if j.get("conclusion") != "success":
             return False, "hard shard red: %s (%s)" % (j.get("name"), j.get("conclusion")), info
     for m, j in shards:
         c = j.get("conclusion")
-        if (m.group(3) and not rel) or c in ("success", "skipped"):
+        if m.group(3) or c in ("success", "skipped"):
             continue
         su = suites_of(j)
-        if rel and su is not None and STOPPED in su:  # #6253: a hard shard stopped after a red streak: hard suites untested
-            return False, "%s stopped after a red streak: its other suites did not run (unknown = hard)" % j.get("name"), info
-        if rel and su and len(su) >= ANN_MAX:  # #6253: like the queue gate - more red suites than GitHub names = unknown = hard
-            return False, "%s: %d red suites named, maybe more than GitHub shows (unknown = hard)" % (j.get("name"), len(su)), info
         if su is None:
             return False, "the red suites of %s are not readable (unknown = hard)" % j.get("name"), info
         if STOPPED in su:  # #6054: a soft shard stopped after a red streak - its other (soft) suites stay untested, like a cut one
