@@ -1427,6 +1427,9 @@ organisation's mark is the stripe, so the two never read as one.
 `<div class="myrow"${wso_row(obj.org_id)}>…</div>`
 // (2) a mixed view under "All workspaces": the workspace's dot + name (phones: its short letters), '' otherwise
 `${wso_origin(obj.org_id, 'mymeta')}`
+// (2b) a page that is mixed in every workspace (time tracking, search hits, news): mixed = true marks what belongs to another
+// organisation also inside one workspace; Private and the shown workspace itself stay without a mark (2.1224.0, #6187)
+`${wso_origin(obj.org_id, 'mymeta', true)}`
 // (3) the open object: once per area, at the top level of its file; null when its page is not open
 wso_open('wiki', () => S.route?.mod === 'wiki' && WK.pg ? WK.pg.org_id || 'private' : null);
 ```
@@ -1441,5 +1444,6 @@ hand, and do not build a second origin mark (`ws_originHtml` of the task rows us
 
 Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open list -> `wso_sync`, task rows under "All" ->
 `ws_originHtml`). The other areas follow as their own tasks (#6180-#6188: office and clients, calendar, wiki, team chat,
-files and documents, contacts, tables, time tracking, search / trash / news / favourites). Tests:
-`tests/p21205_b_orgcolor_ui.js`.
+files and documents, contacts, tables, time tracking, search / trash / news / favourites). Tables (#6186: cards, folder cards, group headings, panel, the open table via `wso_open('sheets', …)`), time tracking (#6187:
+entries, report lines, timesheet card), the palette / search hits, the trash, news, project group heads and favourite agents
+(#6188) use it since 2.1224.0. Tests: `tests/p21205_b_orgcolor_ui.js`, `tests/p21224_a_orgcolor_ui.js`.
