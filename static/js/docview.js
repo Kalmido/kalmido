@@ -337,8 +337,9 @@ async function dcv_tabLoad(md, d) {
   DVW.node = {id: d.id, n: null};
   // 2.1216.0 (#6109): a failure says so in the tab (with "Try again"), not an empty tab and a toast
   let n; try { n = await rawFetch('GET', `/api/files/nodes/${d.id}`); }
-  catch (x) { DVW.node = null; if (x?.message === 'auth' || (DC.doc && DC.doc.id !== d.id)) return; const e = errorState({title: errText(x, DVW.tab === 'share' ? tr('The shares could not be loaded') : tr('The history could not be loaded')), size: 'sec', retry: () => { const q = $(`.dv-view #dv-p-${DVW.tab}`); if (q) q.innerHTML = ''; dcv_tabLoad($('.dv-view') || md, d); }});
-    for (const t of ['hist', 'share']) { const q = $(`.dv-view #dv-p-${t}`); if (q) q.innerHTML = e; } return; }
+  catch (x) { DVW.node = null; if (x?.message === 'auth' || (DC.doc && DC.doc.id !== d.id)) return;
+    // review: each tab its own sentence and its own "Try again" (one shared block said History in the Sharing tab)
+    for (const t of ['hist', 'share']) { const q = $(`.dv-view #dv-p-${t}`); if (q) q.innerHTML = errorState({title: errText(x, t === 'share' ? tr('The shares could not be loaded') : tr('The history could not be loaded')), size: 'sec', retry: () => { for (const u of ['hist', 'share']) { const r = $(`.dv-view #dv-p-${u}`); if (r) r.innerHTML = ''; } dcv_tabLoad($('.dv-view') || md, d); }}); } return; }
   if (DVW.node?.id !== d.id) return;
   DVW.node.n = n;
   for (const t of ['hist', 'share']) { const q = $(`.dv-view #dv-p-${t}`); if (q) dcv_tabFill(q, n, t); }

@@ -116,6 +116,8 @@ function tinyPdf(text) {  // a one-page PDF with a text layer (as tests/p21148_r
     await ev(`(() => { dc_open(${DOC}, {tab: 'hist'}); return 1; })()`);
     const he = await until(`(() => { const e = document.querySelector('.dv-view #dv-p-hist .eerr'); return e ? {t: e.textContent, retry: !!e.querySelector('[data-esretry]')} : null; })()`, {timeout: 20000});
     check(he && /The history could not be loaded/.test(he.t) && he.retry, `History tab error: the block in the tab, not empty ${JSON.stringify(he)}`);
+    const sh = await ev(`document.querySelector('.dv-view #dv-p-share .eerr')?.textContent || ''`);
+    check(!sh || (/The shares could not be loaded/.test(sh) && !/history/.test(sh)), `review: the Sharing tab says its own sentence ${JSON.stringify(sh)}`);
     await ev(FAILX);
     await ev(`(() => { document.querySelector('.dv-view #dv-p-hist [data-esretry]').click(); return 1; })()`);
     check(await until(`!!document.querySelector('.dv-view #dv-p-hist .dv-hist') && !document.querySelector('.dv-view #dv-p-hist .eerr')`, {timeout: 20000}), 'History tab error: Try again shows the history');
