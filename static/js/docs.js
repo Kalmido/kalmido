@@ -286,9 +286,9 @@ function dc_card(d, o = {}) {
   const meta = [d.date ? dc_day(d.date) : '', d.type?.name || '', d.asn ? `${DC.set?.asn_prefix || tr('Archive no.') /* 2.1163.0 (#6112) */} ${d.asn}` : ''].filter(Boolean).map(esc).join(' · ');
   // 2.430.0 (#3582): a click always opens; the box (shown on hover, while choosing, or ticked) chooses, like Ctrl-/Shift-click and a long press
   const on = AB.selOn && AB.sel.has(d.id), cur = DC.lastId === d.id;  // 2.583.0 (#4835): the one looked at last; 2.768.0 (#4888): the area's one selection
-  return `<li class="dc-card${d.review ? ' rev' : ''}${on ? ' dc-on' : ''}${cur ? ' dc-cur' : ''}" data-k="dc${d.id}"${dc_dragAttr(d)}>${dc_selMark(d)}<button type="button" data-dco="${d.id}" aria-label="${esc(dc_title(d))}">
+  return `<li class="dc-card${d.review ? ' rev' : ''}${on ? ' dc-on' : ''}${cur ? ' dc-cur' : ''}" data-k="dc${d.id}"${dc_dragAttr(d)}${/*html-ok*/ wso_row(d) /* 2.1241.0 (#6184): a document of an organisation wears its stripe */}>${dc_selMark(d)}<button type="button" data-dco="${d.id}" aria-label="${esc(dc_title(d))}">
     <span class="dc-th">${thumb}</span><span class="dc-ct"><b class="dc-nm" title="${esc(dc_title(d))}">${esc(dc_title(d))}</b>${d.sender?.name ? `<span class="dc-snd" title="${esc(d.sender.name)}">${esc(d.sender.name)}</span>` : '' /* 2.583.0 (#4870): always the title, the sender below it */}
-    <span class="dc-mt">${meta}${d.amount ? ` · ${esc(dc_money(d.amount, d.currency))}` : ''}</span>
+    <span class="dc-mt">${meta}${d.amount ? ` · ${esc(dc_money(d.amount, d.currency))}` : ''}</span>${/*html-ok*/ wso_origin(d, 'dco') /* 2.1241.0 (#6184): under "All workspaces" where it comes from */}
     ${d.tags.length ? `<span class="dc-tags">${d.tags.map(t => `<span class="dc-tag">${esc(t.name)}</span>`).join('')}</span>` : ''}
     ${d.shared ? `<span class="dc-shared abbadge" title="${esc(tr('Shared'))}" aria-label="${esc(tr('Shared'))}">${ic('users', 's')}</span>` : ''}${st}${d.review ? `<span class="dc-revdot">${tr('To review')}</span>` : ''}${d.split?.stack ? `<span class="dc-revdot dsp-dot">${tr('Stack - split?')}</span>` : '' /* 2.154.0 A (#1111) */}</span></button></li>`;
 }
