@@ -73,8 +73,9 @@ const ALL = 'cal,timeline,matrix,habits,pomo,kanban,collab,stats,time,progress,d
     check(st.uShadow !== 'none' && st.uDot !== '""' && +st.rOp < 1 && +st.rW < +st.uW, `${tag}: unread stripe without dot, read muted ` + JSON.stringify(st));
     await shot(`p21381-d-${th}-${wd}-news.png`);
     await ev(`document.querySelector('[data-act="bell-pop"]').click()`); await sleep(700);
-    const bp = await ev(`(() => ({n: document.querySelectorAll('.bpop .nsect').length /* 2.1052.0 (#5808): only the bundled sections */, head: document.querySelector('.bpnew')?.textContent || ''}))()`);
-    check(bp.n >= 2 && /for you/.test(bp.head), `${tag}: bell panel has sections + "N for you" ` + JSON.stringify(bp));
+    const bp = await ev(`(() => ({n: document.querySelectorAll('.bpop .nsect').length /* 2.1052.0 (#5808): only the bundled sections */, head: document.querySelector('.bpop #bp-h')?.textContent || ''}))()`);
+    // 2.1208.0 (#6125): one name and number: the heading "Waiting for you: N" (was "News" + "N for you")
+    check(bp.n >= 2 && /Waiting for you: \d/.test(bp.head), `${tag}: bell panel has sections + "Waiting for you: N" ` + JSON.stringify(bp));
     await shot(`p21381-d-${th}-${wd}-bell.png`);
   }, touch);
 

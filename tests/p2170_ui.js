@@ -70,11 +70,12 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
   click(w, logo); await settleW(w);
   // 2.1121.0 (#5477): without a Start tab the start page carries the name of the active tab (Today, #5963)
   check(w.location.hash === '#home' && d.querySelector('#top h1')?.textContent.includes('Today'), '#475: #home, titled like the active tab Today (2.25.0, #5963) ' + d.querySelector('#top h1')?.textContent);
-  await until(() => d.querySelector('.dcard.dc-news .hpnl li'));  // 2.45.0 (#1504): News compact, one line per bundle
+  // 2.1208.0 (#6125): every entry for alice stands in the box "Waiting for you"; the card News does not list them again (no card left)
+  await until(() => d.querySelector('.dtome .dwl li') && d.querySelector('.dcard.dc-today'));
   const cards = [...d.querySelectorAll('.dgrid .dcard')].map(c => [...c.classList].find(x => x.startsWith('dc-')));
   // 2.45.0 (#1504): Search is hidden by default
   // 2.1121.0 (#5477): while the box "Waiting for you" (.dtome) stands, the mentions are in it and no empty Waiting card is drawn (#5963)
-  check(!!d.querySelector('.dtome') && !cards.includes('dc-wait') && ['dc-today', 'dc-news', 'dc-chat', 'dc-projects', 'dc-pinned', 'dc-agents', 'dc-stats'].every(c => cards.includes(c)) && !cards.includes('dc-search'), '#475: the cards ' + cards.join());
+  check(!!d.querySelector('.dtome') && !cards.includes('dc-wait') && ['dc-today', 'dc-chat', 'dc-projects', 'dc-pinned', 'dc-agents', 'dc-stats'].every(c => cards.includes(c)) && !cards.includes('dc-news') && !cards.includes('dc-search'), '#475: the cards ' + cards.join());  // 2.1208.0 (#6125): no dc-news (all in the box)
   check(!cards.includes('dc-notes'), 'no notes yet: the notes card stays away');
   check(d.querySelector('.dc-today').textContent.includes('Write the homepage text') && d.querySelector('.dc-today').textContent.includes('Call the printer'), 'today: due today and overdue');
   check(d.querySelector('.dc-pinned').textContent.includes('Pick the photos'), 'pinned tasks');

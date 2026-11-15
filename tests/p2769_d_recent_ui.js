@@ -156,7 +156,8 @@ const spaceRows = d => [...d.querySelectorAll('#view .spov [data-spov], #view .w
   check(await until(() => d.querySelector('#view .zleempty [data-wk="new"]')), '#5352: empty: one sentence and "New page"');
   w.close();
   w = await boot({user: 'erin', hash: 'home'}); d = w.document;
-  check(await until(() => /Recently edited: nothing/.test(d.querySelector('#view .dc-recent')?.textContent || '')), '#5352: Start empty: one slim line');
+  // 2.1208.0 (#6125): a new account without any project or task gets the card "Getting started" instead of the slim "…: nothing" lines
+  check(await until(() => d.querySelector('#view .dfirst')) && !d.querySelector('#view .dc-recent'), '#5352: Start empty: "Getting started", no slim line');
   w.close();
 
   // ================= a person without an organisation (freelancer-matrix: wiki)
