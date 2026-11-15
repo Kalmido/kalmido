@@ -90,7 +90,29 @@ def ofe_doc_state(c, oid, r):
     st = ofe_state(r, today, ofe_days(office_settings(c, oid)) or OFE_DAYS)
     if not st:
         return None
-    return {"state": st, "until": r["valid_until"], "days": (date.fromisoformat(r["valid_until"]) - date.fromisoformat(today)).days}
+    # 2.1185.0 (#6150): "Follow up" writes in the quotation's own language (the client reads the person's one only), with the
+    # past tense once the date is gone
+    from .pdf import pdf_date
+    lg = str(dict(r).get("lang") or "de").split("-")[0]
+    when, num = pdf_date(r["valid_until"], lg), r["number"] or ""
+    text = (tr("Hello,\n\nwe would like to follow up on our quotation {0}, which was valid until {1}. Is it still of interest to you? "
+               "We would be glad to extend it or adjust it.", num, when, lg=lg) if st == "gone" else
+            tr("Hello,\n\nwe would like to follow up on our quotation {0}. It is valid until {1}. Do you have any questions about it, "
+               "or can we help you decide?", num, when, lg=lg))
+    return {"state": st, "until": r["valid_until"], "days": (date.fromisoformat(r["valid_until"]) - date.fromisoformat(today)).days,
+            "subject": tr("Our quotation {0}", num, lg=lg), "text": text}
+
+
+def ofe_last_date(c, oid, did, cur):
+    """2.1185.0 (#6150): the date before the last "Extend validity" of quotation did, while the quotation still has the date
+    that step gave it (cur) - else None. Undo may only write back exactly that date (also one in the past or none)."""
+    row = c.execute("SELECT detail FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='valid_until' ORDER BY id DESC LIMIT 1",
+                    (oid, did)).fetchone()
+    det = _j(row["detail"] if row else None, {})
+    before, after = det.get("before") or {}, det.get("after") or {}
+    if not isinstance(before, dict) or not isinstance(after, dict) or str(after.get("valid_until") or "") != (cur or ""):
+        return None
+    return str(before.get("valid_until") or "")
 
 
 def ofe_expired(r, today):
@@ -205,7 +227,7 @@ def ofe_news_live(c, uid, data):
 # ---------------------------------------------------------------- "Extend validity"
 @app.post("/api/office/docs/<int:did>/valid-until")
 def ofe_extend(did):
-    """{valid_until: YYYY-MM-DD (today or later)} -> the quotation with its new date, links_void = open approval links that no
+    """{valid_until: YYYY-MM-DD (today or later); undo: true = back to the date before the last extension} -> the quotation with its new date, links_void = open approval links that no
     longer fit. Only a sent quotation without an answer (409 otherwise); no new version (see the module text)."""
     c, uid, oid = _ctx()
     write_lock(c, f"office_doc_{int(did)}")
@@ -215,17 +237,25 @@ def ofe_extend(did):
     if r["status"] != "sent":
         raise Denied(409, tr("Only a sent quotation without an answer can be extended"))
     b = body()
-    v = (b if isinstance(b, dict) else {}).get("valid_until")
-    if not isinstance(v, str) or not valid_date(v) or v < local_now().date().isoformat():
-        return err(tr("The date must be today or later"))
+    b = b if isinstance(b, dict) else {}
+    v = b.get("valid_until")
     old = r["valid_until"] or ""
+    # 2.1185.0 (#6150): undo = exactly the date before the last extension (also a past one or none); everything else: today or later
+    back = b.get("undo") is True and isinstance(v, str) and ofe_last_date(c, oid, did, old) == v and (v == "" or valid_date(v))
+    if not back and (not isinstance(v, str) or not valid_date(v) or v < local_now().date().isoformat()):
+        return err(tr("The date must be today or later"))
     if v != old:
         with ofx_release(c):  # a finalised quotation: this one column, deliberately (core/migrations.d/4598.py)
-            c.execute("UPDATE office_docs SET valid_until=?, updated_at=? WHERE id=? AND org_id=?", (v, iso_ms(now_utc()), did, oid))
+            c.execute("UPDATE office_docs SET valid_until=?, updated_at=? WHERE id=? AND org_id=?", (v or None, iso_ms(now_utc()), did, oid))
             if ofx_locked(r) and (r["pdf_sha256"] if "pdf_sha256" in r.keys() else ""):
                 # the stored PDF is what the app serves and mails: stored anew with the new date
                 epdf_store(c, oid, did, log_extra={"valid_until": v})
         c.execute("DELETE FROM office_dunning_marks WHERE org_id=? AND doc_id=? AND level IN (?, ?)", (oid, did, OFE_SOON, OFE_GONE))
+        if back:  # 2.1185.0 (#6150): the old date's bell entries show again (ofe_news_live); its marks too, so it does not ring twice
+            st = ofe_state({"kind": "offer", "status": "sent", "valid_until": v}, local_now().date().isoformat(), ofe_days(office_settings(c, oid)))
+            for lv in ((OFE_SOON, OFE_GONE) if st == "gone" else (OFE_SOON,) if st == "soon" else ()):
+                c.execute("INSERT INTO office_dunning_marks(org_id, doc_id, level, created_at) VALUES(?,?,?,?) ON CONFLICT(doc_id, level) DO NOTHING",
+                          (oid, did, lv, iso(now_utc())))
         ofx_log(c, oid, "valid_until", doc_id=did, detail={"before": {"valid_until": old}, "after": {"valid_until": v}})
     void = c.execute("SELECT COUNT(*) FROM office_signoffs WHERE org_id=? AND doc_id=? AND kind='offer' AND state='open' AND revoked_at IS NULL "
                      f"AND (expires_at IS NULL OR expires_at>?) AND {live_sql()}", (oid, did, iso(now_utc()))).fetchone()[0] if v != old else 0
