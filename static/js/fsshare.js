@@ -23,7 +23,9 @@ async function fs_shareDialog(id, opts = {}) {
   const roleBody = r => opts.listRole ? {role: r === 'admin' || r === 'edit' ? 'edit' : 'view', list_role: r} : {role: r};
   // the targets; 2.352.0 E (#2748): a projects folder does not offer who has a share already (as its former dialog, #1044)
   const tgtOpts = sh => {
-    const has = (k, id) => opts.listRole && sh.some(x => x[k] === id);
+    // 2.1224.0 (#6113, review): everywhere now - choosing adds at once, so choosing someone shared already would set them back
+    // to "Can view" without an end date (the server treats the same target as an update); their row beside holds role + date
+    const has = (k, id) => sh.some(x => x[k] === id);
     const grp = (lab, k, xs) => (xs = xs.filter(p => !has(k, p.id))).length ? `<optgroup label="${esc(lab)}">${xs.map(p => `<option value="${k}:${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>` : '';
     return `<option value="">${tr('Share with …')}</option>${grp(tr('People'), 'user_id', t.people)}${grp(tr('Groups'), 'group_id', t.groups)}${grp(tr('Agents'), 'agent_id', t.agents)}`;
   };
@@ -49,7 +51,7 @@ async function fs_shareDialog(id, opts = {}) {
     box.innerHTML = shares.map(s => `<div class="mrow" data-sid="${s.id}">${s.agent_id ? av(s.agent_id, s.name) : s.group_id ? ic('users') : av(s.user_id, s.name)}<span class="n">${esc(s.name)}${s.agent_id ? agentBadge(s.agent_id) : ''}</span><span class="abshctl">${roleSel(`data-absr="${s.id}"`, opts.listRole ? s.list_role || s.role : s.role, !!s.agent_id)}<span class="abexp">${/*html-ok*/ dateIn('ab-she' + s.id, s.expires_at ? ds(new Date(s.expires_at)) : '', {label: tr('Valid until (optional)'), min: today(), empty: tr('No end date'), attrs: `data-abse="${esc(s.id)}"`})}</span></span><button class="iconbtn" data-absx="${s.id}" title="${esc(tr('Stop sharing'))}" aria-label="${esc(tr('Stop sharing with {0}', s.name))}">${ic('x', 's')}</button></div>`).join('')
       + inh.map(s => `<div class="mrow abinh"><span class="n">${esc(s.name)} <small class="muted">${esc(s.area ? tr('shared via: whole knowledge area') : tr('from the folder “{0}”', s.from))}${s.excluded ? ' · ' + esc(tr('excluded here')) : ''}</small></span><span class="muted">${esc(s.excluded ? '–' : ab_role(s.role))}</span></div>`).join('')  // 2.1045.0 (#5823): s.area, s.excluded
       || `<div class="muted mhint">${tr('Not shared yet')}</div>`;
-    if (opts.listRole) { const sel = $('#ab-sht', md); if (sel) sel.innerHTML = tgtOpts(shares); }
+    { const sel = $('#ab-sht', md); if (sel) sel.innerHTML = tgtOpts(shares); }  // 2.1224.0 (#6113): who has a share is not offered
   };
   draw();
   const add = async (target, role, exp) => {
@@ -94,7 +96,7 @@ async function fs_shareDialog(id, opts = {}) {
     const ex = e.target.closest('[data-abse]');  // 2.1224.0 (#6113): the end date beside the person
     if (ex) {
       const s = shares.find(q => q.id === +ex.dataset.abse); if (!s) return;
-      const was = s.expires_at || null, v = ex.value || null, put = x => ab_req('PATCH', `/api/files/shares/${s.id}`, {expires_at: x, tz: evTz()});
+      const was = s.expires_at || null, v = ex.value || null, put = async x => { try { shares = (await api('PATCH', `/api/files/shares/${s.id}`, {expires_at: x, tz: evTz()})).shares; draw(); changed(); } catch { /* shown */ } return {}; };  // 2.1224.0 (#6113, review): the open dialog shows the date undone
       try { shares = (await api('PATCH', `/api/files/shares/${s.id}`, {expires_at: v, tz: evTz()})).shares; } catch { draw(); return; }
       draw(); changed();
       offerUndo(v ? tr('Valid until {0}', fmtDateLoc(v)) : tr('No end date'), histAdd({label: tr('Share “{0}”', n.name), undo: () => put(was), redo: () => put(v)}));
