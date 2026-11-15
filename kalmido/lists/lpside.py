@@ -27,7 +27,7 @@ from ..core.undogroups import UG_TRACKED
 from ..core.undoweb import UG_KEPT, UG_KEPT_REDO
 from ..core.undoareas import ua_plain
 from .lists import list_apply, lp_current, lp_norm
-from .lpundo import LPU_META
+from .lpundo import LPU_META, lpu_named
 
 LPS_KIND = "listside"
 LPS_AREA = "tasks"
@@ -87,7 +87,10 @@ def lps_post(c, lid, role, st0):
     if not ch:
         return None
     row = c.execute("SELECT name, org_id FROM lists WHERE id=?", (int(lid),)).fetchone()
-    label = (LPS_WS if "org_id" in ch else LPS_LABEL, [ua_plain(st0["st"].get("name") or row["name"], lid)])
+    name = st0["st"].get("name") or row["name"]
+    # 2.1184.0 (#6137): what changed ("“X”: Folder"), as the plain settings' steps (lpundo.py lpu_named); else the general label
+    named = None if "org_id" in ch else lpu_named(name, lid, [k for k in ch if k not in LPS_DERIVED], now.get("name"))
+    label = (named[0], list(named[1:])) if named else (LPS_WS if "org_id" in ch else LPS_LABEL, [ua_plain(name, lid)])
     pid = ug_diff_add(c, uid, LPS_KIND, lid, row["org_id"], LPS_AREA, label,
                       {"op": "fields", "b": {k: st0["st"].get(k) for k in ch}, "a": {k: now[k] for k in ch},
                        "own": role == "owner"})

@@ -2,7 +2,7 @@
 # kalmido-suite: fresh
 """2.1074.0 (#5493): undo across devices, stage 3c -- a project's settings WITH side effects are server steps (lists/lpside.py,
 kind listside, a diff part taken back through the project's own write path). Invented names only.
- - a person without an organisation moves her project into a folder: one step (listed, kind listside, label "Settings of"),
+ - a person without an organisation moves her project into a folder: one step (listed, kind listside, label "“X”: Folder" since 2.1184.0 #6137),
    taken back from the list (folder empty again), redone (in the folder again); the undo records no new step
  - a save with a plain and a side-effect setting (rename + time tracking off) is ONE step, both go back
  - a project into the organisation: the step is labelled "Workspace of", its undo puts it back into Private and brings back the
@@ -70,6 +70,7 @@ check(r.ok and ug and g.get("id") == ug and g.get("kind") == "listside" and g.ge
       and "Frida Projekt" in (g.get("label") or "") and g.get("undo"),
       f"into a folder: a server step of kind listside, labelled with the project {r.status_code} {r.text[:160]} {g}")
 check(lrow(Fr, FL).get("folder") == "Kunden Beispiel", "(setup) in the folder")
+check(g.get("label") == "“Frida Projekt”: Folder", f"2.1184.0 (#6137): the step says what changed {g.get('label')}")
 res = Fr.post(B + f"/api/undo/to/{ug}").json()
 check(res.get("undone") == [ug] and not res.get("stayed") and not lrow(Fr, FL).get("folder"),
       f"undo from the list: out of the folder again {res} {lrow(Fr, FL).get('folder')}")
