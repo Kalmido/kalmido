@@ -95,8 +95,10 @@ const SPLIT = `(sel => [...document.querySelectorAll(sel)].filter(n => n.getClie
       + '<div class="fday"><span class="fdl">Montag, 3.</span><span class="fdm"><span class="fmeal"><a>Linsensuppe mit Spaghetti</a><button class="iconbtn"></button></span></span><button class="iconbtn"></button></div>'
       + '<div class="lyb lym"><div class="group cevtoday"><div class="ghead"><button class="iconbtn gact cvxtm"></button></div></div><button class="iconbtn lymore"></button></div>'; return 1; })()`);
     await until(() => ev(`getComputedStyle(document.querySelector('.bmacts')).justifyContent === 'flex-end'`).catch(() => false));
-    const t = await ev(`${box}('.bmtitle')`), a = await ev(`${box}('.bmacts')`);
-    check(t.w >= 180 && a.top >= t.bottom, '#3855: read later: the buttons below the title, it keeps the width: ' + JSON.stringify({t, a}));
+    const t = await ev(`${box}('.bmtitle')`), a = await ev(`${box}('.bmacts')`), aclip = await ev(`getComputedStyle(document.querySelector('.bmacts')).clipPath`);
+    // 2.1192.0 (#5063): since #3835 (2.1151.0, bookmarks.css) a phone shows no row symbols at all (clipped like .sr, long press = menu) -
+    // the title keeps the width either way; the buttons are hidden, or (a wider rule) below the title
+    check(t.w >= 180 && (aclip === 'inset(50%)' || a.top >= t.bottom), '#3855/#3835: read later: the title keeps the width, the buttons hidden on the phone or below it: ' + JSON.stringify({t, a, aclip}));
     const m = await ev(`${box}('.fmeal a')`);
     check(m.w >= 110, '#3855: a meal gets the width: ' + JSON.stringify(m));
     check(await ev(`getComputedStyle(document.querySelector('.fmeal a')).overflowWrap`) === 'normal', '#3855: a meal breaks between words only');
