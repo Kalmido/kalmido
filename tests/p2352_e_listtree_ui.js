@@ -104,15 +104,15 @@ async function dragList(w, id, el) {
   await w.eval(`lf_share('Clients')`);
   const md = await until(() => d.querySelector('.abshdlg'));
   check(md && /at runtime/.test(md.textContent) && !md.querySelector('#ab-sho'), 'Share dialog: the runtime hint, no "Whole organisation"');
-  const roles = [...(md?.querySelectorAll('#ab-shr option') || [])].map(o => o.value).join(',');
-  check(roles === 'admin,edit,participant,view', 'Share dialog: a list role per share ' + roles);
   check(md?.querySelector(`#ab-sht option[value="user_id:${bob.id}"]`), 'Share dialog: Bob is a target');
   check(md?.querySelector('[data-m="lf-more"]'), 'Share dialog: the projects\' own parts one link away');
+  // 2.1224.0 (#6113): a choice adds at once (read only in a projects folder too), the list role beside the person
   md.querySelector('#ab-sht').value = 'user_id:' + bob.id;
-  md.querySelector('#ab-shr').value = 'view';
-  md.querySelector('[data-abs="add"]').click();
+  md.querySelector('#ab-sht').dispatchEvent(new w.Event('change', {bubbles: true}));
   check(await until(() => md.querySelector('#ab-shl .mrow[data-sid]')), 'Share dialog: the share is listed');
-  check(md.querySelector('#ab-shl [data-absr]')?.value === 'view', 'Share dialog: with its list role');
+  const roles = [...(md?.querySelectorAll('#ab-shl [data-absr] option') || [])].map(o => o.value).join(',');
+  check(roles === 'admin,edit,participant,view', 'Share dialog: a list role per share ' + roles);
+  check(md.querySelector('#ab-shl [data-absr]')?.value === 'view', 'Share dialog: added as Read-only');
   check(await until(async () => !!(await listOf(BK, WEB))), 'shared on a folder two levels above: Bob sees the project');
   check(!(await listOf(BK, OTHER)), 'a project outside the folder stays hidden from Bob');
   const m = (await listOf(AK, WEB))?.members?.find(x => x.user_id === bob.id);
@@ -155,7 +155,8 @@ async function dragList(w, id, el) {
   check(await until(async () => (await listOf(FK, PL))?.folder === fdeep), 'Frida: the project is in the folder three levels deep');
   await w.eval(`lf_share('Jobs')`);
   const fmd = await until(() => d.querySelector('.abshdlg'));
-  check(fmd && [...fmd.querySelectorAll('#ab-shr option')].map(o => o.value).join(',') === 'admin,edit,participant,view' && /at runtime/.test(fmd.textContent),
+  // 2.1224.0 (#6113): the role choice is beside each person now (no share yet): the dialog of a projects folder (lfshdlg)
+  check(fmd && fmd.classList.contains('lfshdlg') && fmd.querySelector('#ab-sht') && /at runtime/.test(fmd.textContent),
     'Frida: the Share dialog on her own folder node with list roles');
   w.close();
 
