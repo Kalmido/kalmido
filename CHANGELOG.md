@@ -22,6 +22,31 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1274.0] - 2026-11-16
+
+Package 2.1253 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6292 Office rights (audit #4741): the payment proposals of an entertainment receipt offer bank, cash book and card lines only to people with the right on that area (card holders on "own": their own cards); linking a line of another source is refused, and the linked line shows without its text. The ledger's CSV / PDF files need the special right "export", its year-end closing the special right "lock"; the ledger page hides those buttons without them. Trips, travel receipts, entertainment receipts and their bills give a person on the level "own" the core's role (links, trash, undo) only on their own rows.
+
+Package 2.1257 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Knowledge, sharing: the pictures of a public link in an organisation's knowledge space can only be switched on by the person who made the link or an admin, and a picture of the file store is shown only when the page's last editor may see the file too - a fellow editor can no longer read a colleague's pictures through the colleague's link (#6295).
+- Knowledge, offline: your own text that waits at a page ("your version waits at the page") now survives a new sign-in, the end of the session and the 14-day tidying; signing out and switching the account count it like unsent changes. The automatic reload after an update checks again right before reloading that nothing is being typed or saved, and the offline queue taken over from older storage drops only the entries it took over (#6286).
+- Recent steps: "Back up to here" and "Redo" are greyed out with the hint "A step is still running" while a step runs, instead of ignoring the click; they are active again when it is done (#6283).
+
+Package 2.1265.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6383 Backup: the scheduled backup closes its read transaction before it runs and writes the day marker on a fresh one. A backup longer than five minutes no longer starts again every minute; if the marker cannot be written, the next scheduled try waits an hour.
+- #6387 Office in the watchdog: failures of invoice series, dunning, subscriptions, payment notices, offer expiry, agent schedules and due list rules reach the admin alerts (were only in the log). An invoice series that fails three runs in a row, or whose area has no admin with the office switched on, is paused with the task "Invoice series paused" and the reason. A series invoice whose e-mail was cut off by a restart is mailed once by the next run; if that fails too, a task asks to send it by hand (never two mails).
+- #6389 Git sync and document flows: one broken connection or document no longer stops the loop for every workspace. It waits with a backoff, counts its failures, and after five in a row the owner is told through the existing integration notice.
+- #6382 Favourites bar: names and kinds of file, document and knowledge favourites are remembered on the device and drawn at once after a reload; the server's answer only reconciles. Tiles no longer appear late and push their neighbours (head bar on a computer, favourites row on a phone: swipe up on the tab bar).
+
+### Changed
+- #6287 Upgrade suite: compares the rows of every moved old table with its target (tests/upgrade_moves.py; a new move without an entry is red) and seeds one real object per core kind whose content is compared through the API after the update.
+
 ## [2.1268.0] - 2026-11-16
 
 Package 2.1238.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -284,7 +309,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1268.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1274.0...HEAD
+[2.1274.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1274.0
 [2.1268.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1268.0
 [2.1261.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1261.0
 [2.1256.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1256.0
