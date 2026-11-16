@@ -33,7 +33,7 @@ from ..api.v1 import _v1_live, PRIO_VALUES, v1_one
 from ..api.common import v1_args, v1_err, v1_json, v1_view
 from ..tasks.dayplan import dayplan_day, dayplan_events, dayplan_input, dayplan_mode, dayplan_validate, dayplan_want
 from ..agents.core import (
-    agent_active, agent_emit, agent_ids, agent_online, agent_public, agent_row, AGENT_ROW_SQL, agent_shares, AGENT_TYPING_S,
+    agent_active, agent_emit, agent_online, agent_public, agent_row, AGENT_ROW_SQL, agent_shares, AGENT_TYPING_S,
     agent_typing_to, agents_for, is_agent, need_person, job_dict, JOB_TITLE_MAX, list_sections, need_agent, need_chat_agent,
     tidy_agent_of,
 )
