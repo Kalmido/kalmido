@@ -173,6 +173,7 @@ _CHAT = "a team chat room (room_id -> tchat_rooms: a list's room or a direct cha
 _AGENT = "the agent's own rows (agent_id -> agents.org_id; its lists through list_members)"
 _FAM = "the household of a family (Family module): private by definition, never an organisation's"
 TENANT_EXEMPT = {
+    "wiki_embeds": "2.1284.0 (#6321): who embedded which file store picture into a knowledge page (page_id -> wiki_pages, which carries org_id / owner_id and moves between workspaces; read only by page id next to the page's own row, wiki/wkshare.py wsh_img_nodes; user_id only records who wrote the embed, the file's rights are asked when a picture is handed out)",
     "hub_mailbox_rules": "2.581.0 (#4804): the document rules of one workspace mailbox (box_id -> hub_mailboxes, which carries org_id; created_by only records who wrote it; the app checks the manage right of the mailbox's workspace)",
     "module_card_people": "2.575.0 (#3778): who has a module card of an organisation (the card row carries org_id; the app checks the card and that the person is a member)",
     "appt_pages": "2.94.0 B (#1929): a person's own public booking page (like ev_cals: owned by the person, no workspace; the lead goes to office_org_id, checked by the app)",

@@ -608,9 +608,10 @@ def v1_task_move(tid):
     cur = c.execute("SELECT list_id FROM tasks WHERE id=?", (tid,)).fetchone()
     if b.get("list_id") and b["list_id"] != cur["list_id"] and "section_id" not in b:
         ch["section_id"] = None  # another list: no section unless one of that list is given
-    if b.get("list_id") and b["list_id"] != cur["list_id"]:
-        from ..agents.safety import move_gate
-        move_gate(c, [(tid, b["list_id"])])  # 2.30.0 (#919): an agent moving it to other people waits for approval
+    from ..agents.safety import move_dst, move_gate
+    dst = move_dst(c, b)  # 2.1284.0 (#6453, review G1): a new parent moves the task into the parent's project
+    if dst and dst != cur["list_id"]:
+        move_gate(c, [(tid, dst)])  # 2.30.0 (#919): an agent moving it to other people waits for approval
     if ch:
         v1_call(task_update, tid, body=ch)
     t = c.execute("SELECT list_id, section_id, parent_id FROM tasks WHERE id=?", (tid,)).fetchone()

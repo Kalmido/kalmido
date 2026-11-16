@@ -274,7 +274,13 @@ Run the commands as a user with sudo unless a step says *as the agent user* (`su
    - a comment under a mention, a new task, a change - answers `409 approval_required` and waits for an approval card, so
    the first test of the checklist ("Mention") would not get its comment. For the test pick `routine` (creating tasks,
    planning them, commenting and ticking off without asking; everything else by card); `free` needs a goal and is a
-   decision for later. Deleting needs a card on every level. An agent made before 2.235.0 has no level and works without
+   decision for later. Deleting needs a card on every level. So does writing into a project more people read than the
+   agent's other places, or a public one (a public link, a client's report, a shared knowledge page) *(2.1284.0)*: on
+   `routine` and `free` too the agent asks with a card that says "Visible to more people" / "Publicly visible", and its
+   progress line shows no words there. An agent that works in one project, or only with the same people, never meets this.
+   A team agent also asks before it writes in the chat to a person who does not read everything it reads, and only a
+   person who reads all its places can say Yes to such a card.
+   An agent made before 2.235.0 has no level and works without
    this check until one is picked. The rules in step 6 already tell the agent to keep to its level.
 
 ### 2. A Linux user without sudo

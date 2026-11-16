@@ -568,7 +568,11 @@ def wk_need(c, tid):
 
 
 def wk_out(c, tid, j, code=200):
-    return jsonify(working=wk_for(c, {tid}).get(tid), job=job_dict(c, j) if j else None), code
+    w = wk_for(c, {tid}).get(tid)
+    if w and w.get("muted"):  # 2.1284.0 (#6453): the mark is shown, its words are not (agents/circle.py wk_mute) -- the agent is told so
+        return jsonify(working=w, job=job_dict(c, j) if j else None, text_shown=False,
+                       note=tr("Your progress text is not shown on this task: more people or the public see this project than other places you read. The mark shows only that you are working. For words there, write a comment (it asks with an approval card).")), code
+    return jsonify(working=w, job=job_dict(c, j) if j else None), code
 
 
 @app.get("/api/v1/tasks/<int:tid>/working")

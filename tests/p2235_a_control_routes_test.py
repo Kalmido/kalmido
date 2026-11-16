@@ -66,6 +66,7 @@ ROUTES = {
     "DELETE /api/v1/lists/{}": "one_way", "DELETE /api/v1/lists/{}/files/{}": "one_way",
     "DELETE /api/v1/lists/{}/groups/{}": "one_way", "DELETE /api/v1/lists/{}/links/{}": "one_way",
     "DELETE /api/v1/lists/{}/members/{}": "one_way", "DELETE /api/v1/lists/{}/milestones/{}": "one_way",
+    # 2.1284.0 (#6575): the table's class stays one_way; ctl_gate reads a project tag nothing carries as routine (tests/p6575_tag_unused_test.py)
     "DELETE /api/v1/lists/{}/tags/{}": "one_way", "DELETE /api/v1/me/app-passwords/{}": "one_way",
     "DELETE /api/v1/notepads/{}": "one_way", "DELETE /api/v1/notes/{}": "one_way", "DELETE /api/v1/sections/{}": "one_way",
     "DELETE /api/v1/tasks/{}": "one_way", "DELETE /api/v1/tasks/{}/contacts/{}": "one_way",

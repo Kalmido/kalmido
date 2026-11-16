@@ -2,9 +2,12 @@
 AI level, so the boundary is enforced here, not in the model's rules.
 
 PEOPLE CIRCLE of a list = its owner + its members that are persons (agents do not count), every role.
-BRIDGE = one agent in two lists whose circles are neither equal nor one inside the other (nested is fine: a private list
-and a list shared with one more person). Text of person A in list X could otherwise make the agent copy content of list
-Y (that A does not see) into X. Only the lists the agent can really use count (its list restriction, agents.list_ids).
+BRIDGE = one agent in two lists whose circles are neither equal nor one inside the other. Text of person A in list X could
+otherwise make the agent copy content of list Y (that A does not see) into X. Only the lists the agent can really use count
+(its list restriction, agents.list_ids). Nested circles (a private list and a list shared with one more person) are no
+bridge at the moment of SHARING, but they are no free way either: 2.1284.0 (#6453) the control gate lets an agent write
+without a card only towards the same or a smaller circle, over everything it reads and with public links counted
+(agents/circle.py) -- the direction private -> shared is a card.
   * Sharing a list with an agent, or adding a person to a list with an agent, that creates a bridge is refused (409,
     code agent_bridge, the lists) unless the request says bridge_ok: true and comes from a person who manages every list
     involved (owner / list admin) or owns the personal agent. The approval is stored per pair (agent_bridges) and shown in
@@ -25,17 +28,21 @@ from datetime import timedelta
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app
+from ..core import objhooks  # 2.1284.0 (#6453, review G5): START, the circles of the approvals from before
 from ..core.i18n import N_, tr, trn
 from ..core.db import connect, db, iso, local_now, now_utc
 from ..accounts.session import GATE, me
 from ..core.access import Denied, joined_lists_sql, list_role, MANAGE_ROLES, need_list, access_note, reading_sql, otr_live
 from ..core.errors import BadInput
+from ..tasks.validation import as_int  # 2.1284.0 (#6453, Fable reader #4926 F1): one reading of an id, the routes'
 from ..core.access import collab_all, ov_open  # 2.369.5 (#2517): pulled up from functions
 from ..agents.admin import agent_owner  # 2.369.5 (#2517): pulled up from functions
 from ..agents.core import agent_ids, is_agent, agent_row, agent_shares  # 2.369.5 (#2517): pulled up from functions
 from ..collab.comments import user_names  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.users import admin_sees  # 2.369.5 (#2517): pulled up from functions
 from ..api.common import v1_err  # 2.369.5 (#2517): pulled up from functions
+from ..core.pg import system_ctx
+from .circle import bridge_holds, circle_csv  # 2.1284.0 (#6453, review G5): an approval holds for the circles it was given for
 
 AGENT_ACCESS_DAYS = 30
 LIST_IDS_MAX = 500
@@ -99,9 +106,42 @@ def _pair(a, b):
     return (a, b) if a < b else (b, a)
 
 
-def bridge_ok_pair(c, aid, a, b):
+def bridge_ok_pair(c, aid, a, b, circ=None):
+    """Did a person approve the pair of lists a / b for agent aid, and does that approval still hold? 2.1284.0 (#6453,
+    review G5): only for the circles of the moment of the approval -- circ {list id: its circle now, or as it is about to
+    become} must lie inside the stored ones (agents/circle.py bridge_holds); circ None = the circles of today."""
     x, y = _pair(a, b)
-    return bool(c.execute("SELECT 1 FROM agent_bridges WHERE agent_id=? AND list_a=? AND list_b=?", (aid, x, y)).fetchone())
+    r = c.execute("SELECT list_a, list_b, circle_a, circle_b FROM agent_bridges WHERE agent_id=? AND list_a=? AND list_b=?", (aid, x, y)).fetchone()
+    if not r:
+        return False
+    circ = dict(circ or {})
+    for z in (x, y):
+        if z not in circ:
+            circ[z] = list_circle(c, z)
+    return bridge_holds(c, r, circ)
+
+
+def bridge_store(c, aid, a, b, by, circ=None):
+    """Stores the approval of person by for agent aid and the pair of lists a / b with the circles it is given for
+    (2.1284.0, #6453, review G5; circ {list id: circle} = a circle as it becomes with this request, else the one of now)."""
+    x, y = _pair(a, b)
+    cs = {z: (circ or {}).get(z) or list_circle(c, z) for z in (x, y)}
+    c.execute("""INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at,circle_a,circle_b) VALUES(?,?,?,?,?,?,?)
+                 ON CONFLICT (agent_id,list_a,list_b) DO UPDATE SET by_id=excluded.by_id, at=excluded.at,
+                 circle_a=excluded.circle_a, circle_b=excluded.circle_b""",
+              (aid, x, y, by, iso(now_utc()), circle_csv(cs[x]), circle_csv(cs[y])))
+
+
+def bridge_circles_start(c):
+    """2.1284.0 (#6453, review G5; core/objhooks.START, every start): the approvals from before the circles were kept
+    (circle_a / circle_b NULL) get the circles of this moment -- what the person saw last. Only rows still NULL."""
+    with system_ctx(c):
+        rows = c.execute("SELECT agent_id, list_a, list_b FROM agent_bridges WHERE circle_a IS NULL OR circle_b IS NULL").fetchall()
+        for r in rows:
+            c.execute("UPDATE agent_bridges SET circle_a=?, circle_b=? WHERE agent_id=? AND list_a=? AND list_b=?",
+                      (circle_csv(list_circle(c, r["list_a"])), circle_csv(list_circle(c, r["list_b"])), r["agent_id"], r["list_a"], r["list_b"]))
+    if rows:
+        print("agent bridges: circles of", len(rows), "approvals from before kept", flush=True)
 
 
 def bridge_conflicts(c, aid, lid, circle=None, joining=False):
@@ -116,7 +156,8 @@ def bridge_conflicts(c, aid, lid, circle=None, joining=False):
     circ = {l2: list_circle(c, l2) for l2 in reach}
     if any(x == circle for x in circ.values()):
         return []  # it already works for exactly these people elsewhere: no new bridge (an existing one stays as it is)
-    return [l2 for l2 in reach if not nested(circle, circ[l2]) and (joining or not bridge_ok_pair(c, aid, lid, l2))]
+    return [l2 for l2 in reach if not nested(circle, circ[l2])
+            and (joining or not bridge_ok_pair(c, aid, lid, l2, {lid: circle, l2: circ[l2]}))]  # 2.1284.0 (#6453, G5): for these circles
 
 
 def _names(c, ids, viewer):
@@ -148,6 +189,7 @@ def bridge_check(c, lid, uid, ok=False, circle_new=None):
     if not ag:
         return
     found = []  # (agent id, [other list ids])
+    new_circ = None  # 2.1284.0 (#6453, review G5): the list's circle as this request makes it -- what an approval is given for
     if uid in ag:
         if c.execute("SELECT 1 FROM list_members WHERE list_id=? AND user_id=?", (lid, uid)).fetchone():
             return  # a role change: nothing new
@@ -160,6 +202,7 @@ def bridge_check(c, lid, uid, ok=False, circle_new=None):
         if (uid in circle if circle_new is None else circle_new <= circle):
             return
         new = circle | {uid} if circle_new is None else circle_new
+        new_circ = {lid: frozenset(new)}
         o = c.execute("SELECT owner_id FROM lists WHERE id=?", (lid,)).fetchone()
         members = ({o[0]} if o else set()) | {r[0] for r in c.execute("SELECT user_id FROM list_members WHERE list_id=?", (lid,))}
         for aid in sorted(members & ag):
@@ -175,20 +218,16 @@ def bridge_check(c, lid, uid, ok=False, circle_new=None):
         j = c.execute("SELECT action_by FROM agent_jobs WHERE id=?", (g.approved_job,)).fetchone()
         by = j["action_by"] if j else None
         if by and all(may_approve_bridge(c, by, aid, [lid] + bad) for aid, bad in found):
-            ts = iso(now_utc())
             for aid, bad in found:
                 for l2 in bad:
-                    x, y = _pair(lid, l2)
-                    c.execute("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at) VALUES(?,?,?,?,?) ON CONFLICT (agent_id,list_a,list_b) DO UPDATE SET by_id=excluded.by_id, at=excluded.at", (aid, x, y, by, ts))
+                    bridge_store(c, aid, lid, l2, by, new_circ)
             print("agent bridge approved with job", g.approved_job, "list", lid, "by", by, flush=True)
             return
         raise Denied(409, tr("This would connect projects with different people through an agent; only someone who manages all of them can approve it"))
     if ok and person and all(may_approve_bridge(c, actor, aid, [lid] + bad) for aid, bad in found):
-        ts = iso(now_utc())
         for aid, bad in found:
             for l2 in bad:
-                x, y = _pair(lid, l2)
-                c.execute("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at) VALUES(?,?,?,?,?) ON CONFLICT (agent_id,list_a,list_b) DO UPDATE SET by_id=excluded.by_id, at=excluded.at", (aid, x, y, actor, ts))
+                bridge_store(c, aid, lid, l2, actor, new_circ)
         print("agent bridge approved: agents", [a for a, _ in found], "list", lid, "by", actor, flush=True)
         return
     if ok and person:
@@ -214,7 +253,8 @@ def agent_bridges_info(c, aid, viewer=None):
     circ = {x: list_circle(c, x) for x in ls}
     names = {r[0]: r[1] for r in c.execute(f"SELECT id, name FROM lists WHERE id IN ({','.join('?' * len(ls))})", ls)} if ls else {}
     out = []
-    stored = {(r["list_a"], r["list_b"]): r for r in c.execute("SELECT * FROM agent_bridges WHERE agent_id=?", (aid,))}
+    stored = {(r["list_a"], r["list_b"]): r for r in c.execute("SELECT * FROM agent_bridges WHERE agent_id=?", (aid,))
+              if bridge_holds(c, r, circ)}  # 2.1284.0 (#6453, review G5): an approval for fewer people than today is none
     # an approval covers the same two circles of people in other lists too (a list with exactly the people of another one)
     same = {frozenset((circ[x], circ[y])): r for (x, y), r in stored.items() if x in circ and y in circ}
     for i, a in enumerate(ls):
@@ -268,7 +308,7 @@ def agent_lists_set(c, aid, v, ok=False):
         lids = sorted({x for p in new for x in p})
         if ok and may_approve_bridge(c, actor, aid, lids):
             for x, y in new:
-                c.execute("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at) VALUES(?,?,?,?,?) ON CONFLICT (agent_id,list_a,list_b) DO UPDATE SET by_id=excluded.by_id, at=excluded.at", (aid, x, y, actor, iso(now_utc())))
+                bridge_store(c, aid, x, y, actor)
         elif ok:
             raise Denied(403, tr("Only someone who manages all these projects (or owns the agent) can connect them"))
         else:
@@ -302,6 +342,30 @@ def token_list_add(c, lid):
 
 
 # ---- moving content across circles waits for a person (agents only)
+def ctl_id(v):
+    """2.1284.0 (#6453, Fable reader #4926 F1): THE reading of an id from a request body for the agent gates (control.py
+    _ctl_int, move_dst below) -- the routes' own as_int (tasks/validation.py), so gate and route always mean the same row.
+    A positive id or None (None = the gate cannot place it: careful / the route answers 400)."""
+    if v is None:
+        return None
+    try:
+        n = as_int(v, "id")
+    except BadInput:
+        return None
+    return n if 0 < n < 2 ** 62 else None
+
+
+def move_dst(c, b):
+    """2.1284.0 (#6453, review G1): the project a task body {list_id?, parent_id?} moves a task into -- a new parent wins
+    (lifecycle.py apply_update: the task follows its parent's project with its notes, comments and files), else list_id.
+    None = it names none (or a parent that does not exist: the route answers)."""
+    pid = ctl_id(b.get("parent_id"))  # Fable reader #4926 F1: the same reading as the route (' 7' is 7)
+    if pid:
+        r = c.execute("SELECT list_id FROM tasks WHERE id=?", (pid,)).fetchone()
+        return r[0] if r else None
+    return ctl_id(b.get("list_id"))
+
+
 def move_gate(c, moves):
     """moves: [(task id, target list id)] an agent's API request is about to do. Moving into a list whose people circle is
     not part of the source list's circle waits for approval (202, ApprovalPending)."""
@@ -435,3 +499,5 @@ def agent_bridges_get(aid):
     if not (shared or agent_shares(c, aid, me()) or full):
         raise Denied(404)
     return jsonify(bridges=agent_bridges_info(c, aid, None if full else me()))
+
+objhooks.START.append(("agent_bridge_circles", False, bridge_circles_start))

@@ -221,7 +221,7 @@ def wiki_move_space():
             if nb != plain[r["id"]]:
                 relinked += 1
             c.execute("UPDATE wiki_pages SET body=? WHERE id=?", (wkh_seal(c, to, None if to else uid, nb), r["id"]))  # 2.123.0 A (#2105)
-            wiki_set_links(c, r["id"], nb)
+            wiki_set_links(c, r["id"], nb)  # 2.1284.0 (#6321): a move only follows, the embedders stay
             c.execute("INSERT INTO space_moves(kind,obj_id,from_org,to_org,by_id,at,detail) VALUES('wiki',?,?,?,?,?,?)",
                       (r["id"], src, to, uid, ts, json.dumps({"from": r["path"], "to": n}, ensure_ascii=False)))
         from .wkfolder import wkf_drop, wkf_sync
@@ -286,7 +286,7 @@ def wkm_place(c, oid, owner, uid, rows, new_paths, old_paths, strict=True):
     for r, n in moves:
         nb = wkm_relink(plain[r["id"]], ren)
         c.execute("UPDATE wiki_pages SET body=? WHERE id=?", (wkh_seal(c, None, uid, nb), r["id"]))
-        wiki_set_links(c, r["id"], nb)
+        wiki_set_links(c, r["id"], nb)  # 2.1284.0 (#6321): only follows
     wkf_drop(c, ids)
     return moves
 
@@ -462,8 +462,9 @@ def wkr_move(c, uid, src, to, b, dry):
         p, t = got[r["id"]]
         if tst["mode"]:
             c.execute("DELETE FROM wiki_links WHERE from_id=?", (r["id"],))
+            c.execute("DELETE FROM wiki_embeds WHERE page_id=?", (r["id"],))  # 2.1284.0 (#6321): behind the lock nobody embedded anything
         else:
-            wiki_set_links(c, r["id"], t)
+            wiki_set_links(c, r["id"], t)  # 2.1284.0 (#6321, review 1 F5): out of a locked space -- the mover did not write it: nobody's pictures
         detail = {"e2e": 1, **({"to": p} if not tst["mode"] else {})}  # no names of a locked space in the history
         c.execute("INSERT INTO space_moves(kind,obj_id,from_org,to_org,by_id,at,detail) VALUES('wiki',?,?,?,?,?,?)",
                   (r["id"], src, to, uid, ts, json.dumps(detail, ensure_ascii=False)))
