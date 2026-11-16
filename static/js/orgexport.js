@@ -61,16 +61,63 @@ function ox_pbBoxHtml(oid) {
 // 2.223.2 C (#2871): the download links carry data-sudl: the step-up first (orgcrypt.js)
 function rxBoxHtml(kind, id) {
   const url = kind === 'org' ? `/api/retention/org/${+id}/export.zip` : '/api/retention/me/export.zip';
+  setTimeout(rxWvDraw, 0);  // #6474: the state of the last export and the waiver (below)
   return `<div class="rxbox" data-rx="${esc(kind)}"><h5>${tr('Retention export')}</h5>
     <div class="shint">${tr('A readable ZIP with the records you must keep: invoices with their e-invoice, receipts with their files, cash books, bank statements and the office log, with a table of contents.')}</div>
     <div class="shint">${tr('Keep these records yourself: invoices and receipts for 8 years, sent business letters for 6 years, books (cash book, logs, bank statements) for 10 years. Kalmido does not keep them after the deletion; the duty to keep them lies with you.')}</div>
-    <div class="row"><a class="btn sm" href="${url}" download data-rxdl data-sudl>${ic('download', 's')} ${tr('Download retention export')}</a></div></div>`;
+    <div class="row"><a class="btn sm" href="${url}" download data-rxdl data-sudl>${ic('download', 's')} ${tr('Download retention export')}</a></div>
+    <div class="rxwv" data-rxwv="${esc(kind === 'org' ? 'org/' + +id : 'me')}" aria-live="polite"></div></div>`;
+}
+// #6474: why the last export does not let a deletion go (the server's export_problem: files missing / locked, newer records)
+function rxProblemText(p) {
+  if (!p) return '';
+  if (p.reason === 'incomplete') {
+    const names = [...(p.missing_names || []), ...(p.locked_names || [])];
+    return tr('The last export was not complete: {0} files could not be read or were locked. Check them and download it again.', (p.missing || 0) + (p.locked || 0))
+      + (names.length ? ' (' + names.slice(0, 10).join(', ') + (names.length > 10 ? ' …' : '') + ')' : '');
+  }
+  if (p.reason === 'newer') return tr('Records were added after the last export ({0}): download it again before the deletion.', p.newer || 0);
+  return '';
+}
+// #6474 (A6): under the download of the settings: what the last export is worth, and -- where Kalmido is hosted for you --
+// the declaration of the person / an organisation's admin that the records may be deleted without the export (only they
+// can; whoever deletes for them needs it or a finished export). Drawn again after a change.
+function rxWvHtml(j) {
+  const prob = rxProblemText(j.export_problem);
+  let h = prob ? `<div class="shint keep warn">${ic('alert', 's')} ${esc(prob)}</div>` : j.exported_at ? `<div class="shint keep">${esc(tr('Last finished export: {0}', fmtWhen(j.exported_at)))}</div>` : '';
+  if (j.hosted && j.needed && !j.state && j.may_declare) {
+    h += j.waived_at
+      ? `<div class="shint keep warn">${ic('alert', 's')} ${esc(tr('Declared on {0}: these records may be deleted without the export.', fmtWhen(j.waived_at)))}</div>
+         <div class="row"><button type="button" class="btn sm" data-rxwvact="off">${tr('Take the declaration back')}</button></div>`
+      : `<div class="row"><button type="button" class="btn sm" data-rxwvact="on">${tr('Do without the export…')}</button></div>`;
+  }
+  return h;
+}
+async function rxWvDraw() {
+  for (const box of document.querySelectorAll('.rxwv:not([data-done])')) {
+    box.dataset.done = '1';
+    const path = '/api/retention/' + box.dataset.rxwv;
+    let j; try { j = await api('GET', path); } catch { continue; }
+    box.innerHTML = rxWvHtml(j);
+    if (box._wired) continue;
+    box._wired = true;
+    box.addEventListener('click', async e => {
+      const b = e.target.closest('[data-rxwvact]'); if (!b) return;
+      const on = b.dataset.rxwvact === 'on';
+      if (on && !await askConfirm(tr('Do without the retention export?'), tr('You declare that these records may be deleted without the export. They are lost then; the duty to keep them stays with you. The declaration holds for {0} days and ends when new records are added.', j.valid_days || 7), {ok: tr('Do without the export'), danger: true})) return;
+      try { j = await api(on ? 'POST' : 'DELETE', path + '/waiver'); box.innerHTML = rxWvHtml(j); } catch { /* api() showed it */ }
+    });
+  }
 }
 // the step before a deletion: resolves 'exported' | 'waived' | null (cancelled); info = the server's retention object
 async function rxAsk(info, title) {
   const L = {documents: tr('Finalised documents'), receipts: tr('Receipts'), project_receipts: tr('Receipts of projects'), cash: tr('Cash book entries'), bank: tr('Bank transactions'), archive: tr('Archived documents'),
     drives: tr('Drives'), trip_receipts: tr('Travel receipts in DATEV'), meals: tr('Entertainment receipts'),  // 2.152.0 (#2167, review A9)
-    letters: tr('Sent letters')};  // 2.184.0 A (#2628)
+    letters: tr('Sent letters'),  // 2.184.0 A (#2628)
+    einvoices: tr('Received e-invoices')};  // #6474 (A7)
+  // #6474: the last export counts only complete and without newer records (A4, A5); hosted, only the person / an admin of
+  // the organisation does without it (A6): the choice is there once they declared it (waived_at), else the hint
+  const prob = rxProblemText(info.export_problem), nowv = info.can_waive === false && !info.waived_at;
   const counts = Object.entries(info.counts || {}).map(([k, n]) => `<li>${esc(L[k] || k)}: ${n}</li>`).join('');
   const md = modal(`<h3>${esc(tr('Retention export before deleting “{0}”', title))}</h3>
     <div class="shint keep warn">${ic('alert', 's')} ${esc(info.note)}</div>
@@ -78,9 +125,11 @@ async function rxAsk(info, title) {
     ${info.can_export ? `<div class="row"><a class="btn sm pri" href="${esc(info.url)}" download data-rxdl data-sudl>${ic('download', 's')} ${tr('Download retention export')}</a></div>`
       : `<div class="shint keep">${tr('Only the person themself (for their own office) or an admin of the organisation can download it, under Settings.')}</div>`}
     ${info.exported_at ? `<div class="shint keep">${esc(tr('Last finished export: {0}', fmtWhen(info.exported_at)))}</div>` : ''}
+    ${prob ? `<div class="shint keep warn" data-rxprob>${ic('alert', 's')} ${esc(prob)}</div>` : ''}
     <fieldset class="rxhow"><legend>${tr('Before deleting')}</legend>
       <label class="chkl"><input type="radio" name="rxhow" value="exported"> ${tr('The export is downloaded and kept')}</label>
-      <label class="chkl"><input type="radio" name="rxhow" value="waived"> ${tr('I do without the export (the records are lost)')}</label>
+      ${nowv ? `<div class="shint keep" data-rxnowv>${esc(tr('Only the person themself or an admin of the organisation can do without the export. They declare it in the settings, at the retention export.'))}</div>`
+        : `<label class="chkl"><input type="radio" name="rxhow" value="waived"> ${info.can_waive === false ? esc(tr('Delete without the export (declared on {0}; the records are lost)', fmtWhen(info.waived_at))) : tr('I do without the export (the records are lost)')}</label>`}
     </fieldset>
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn danger" data-m="go" disabled>${tr('Continue')}</button></div>`);
   const how = () => $('[name="rxhow"]:checked', md)?.value;

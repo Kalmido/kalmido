@@ -691,6 +691,9 @@ ROUTES = {
     "POST /api/orgs/{}/out-requests/{}": "orgadmin",
     # 2.223.2 C (#2871): the step-up before a download (POST -> a one-time ticket; p22232_c_offsite_test.py, freelancer too)
     "POST /api/orgs/{}/export/file": "office", "POST /api/retention/me/export.zip": "office", "POST /api/retention/org/{}/export.zip": "orgadmin",
+    # 2.1291.0 (#6474, A6): the waiver of the retention export, declared by the person / an organisation's admin (p21291_rxgate_test.py)
+    "POST /api/retention/me/waiver": "office", "DELETE /api/retention/me/waiver": "office",
+    "POST /api/retention/org/{}/waiver": "office", "DELETE /api/retention/org/{}/waiver": "office",
     "PATCH /api/admin/orgs/{}": "orgadmin", "PATCH /api/orgs/{}": "orgadmin", "PATCH /api/orgs/{}/lists/{}": "orgadmin",
     "POST /api/admin/orgs": "orgadmin", "POST /api/admin/orgs/boundary/repair": "orgadmin",
     "POST /api/orgs/{}/encryption/recovery": "orgcrypt", "POST /api/orgs/{}/encryption/recovery/passkey": "orgcrypt",  # 2.138.0 (#1972)
