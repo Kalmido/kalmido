@@ -12,8 +12,9 @@
    sender, subject, "has an attachment" and the age decide; a second run takes nothing twice (each Message-ID once per
    mailbox); without the delete switch no mail is ever marked deleted or expunged, with it exactly that mail goes
  - a person without an organisation: her private mailbox and a rule into her own folder (freelancer-matrix: hub)
- - 2.1281.0 (#6425): a mail whose sender line breaks the header parser (500 opening brackets) and one of 20.000 tiny parts are
-   remembered for good and shown at the rule; the newer mails of the folder still become documents, in the same run and after
+ - 2.1281.0 (#6425): a mail whose sender line breaks the header parser (500 opening brackets), one whose subject line raises
+   in it and one of 20.000 tiny parts are remembered for good and shown at the rule; the newer mails of the folder still
+   become documents, in the same run and after
  - 2.636.0 (#4853): a mail whose documents are all refused (the target folder in the trash) is not remembered, the rule shows
    the error; a target folder the holder cannot file into is refused on saving; the next run (folder back) takes the mail
 usage: p2581_d_mailrules_test.py <datadir>"""
@@ -335,24 +336,32 @@ HEAD = ("To: office@example.com\r\nSubject: Invoice\r\nDate: " + email.utils.for
 P1 = b"From: " + b"(" * 500 + b" billing@shop.example.com\r\nMessage-ID: <p2581d-brackets@example.org>\r\n" + HEAD + b"\r\nhi\r\n"
 P2 = (b"From: Shop <billing@shop.example.com>\r\nMessage-ID: <p2581d-parts@example.org>\r\n" + HEAD
       + b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' + b"--b\r\n\r\nx\r\n" * 20000 + b"--b--\r\n")
+# a subject line the header parser raises on (an encoded word in UTF-7 with a lone surrogate): any error of one mail, not only a refusal
+P3 = (b"From: Shop <billing@shop.example.com>\r\nMessage-ID: <p2581d-subject@example.org>\r\n"
+      + HEAD.replace(b"Subject: Invoice", b"Subject: =?utf-7?q?+2AA-?=") + b"\r\nhi\r\n")
 open(os.path.join(MB, "Gift", "1.eml"), "wb").write(P1)
 open(os.path.join(MB, "Gift", "2.eml"), "wb").write(P2)
+open(os.path.join(MB, "Gift", "3.eml"), "wb").write(P3)
 drop("Gift", "Shop <billing@shop.example.com>", "Invoice after the poison", att="Gift-3")
-K1, K2 = (hashlib.sha256(x).hexdigest() for x in (b"<p2581d-brackets@example.org>", b"<p2581d-parts@example.org>"))
+K2, K3 = (hashlib.sha256(x).hexdigest() for x in (b"<p2581d-parts@example.org>", b"<p2581d-subject@example.org>"))
+REM = "SELECT count(*) FROM hub_mailbox_docs WHERE box_id=(SELECT id FROM hub_mailboxes WHERE ws=?) AND node_id IS NULL"
+nr = dbx(REM, (WS,))[0][0]
 ng = len(docs(WS))
 check(run(Bo, WS), "#6425: the run with the two prepared mails")
 dg = until(lambda: [x for x in docs(WS) if x[1] == "Gift-3.pdf"], 30) or []
 check(len(dg) == 1 and len(docs(WS)) == ng + 1, f"#6425: the mail after the prepared ones became a document in the same run ({dg})")
-check(dbx("SELECT 1 FROM hub_mailbox_docs WHERE mid=? AND node_id IS NULL", (K1,)), "#6425: the mail with the bracket sender is remembered (never looked at again)")
+check(dbx(REM, (WS,))[0][0] == nr + 3, f"#6425: the three prepared mails are remembered (never looked at again) ({nr} -> {dbx(REM, (WS,))[0][0]})")
 check(dbx("SELECT 1 FROM hub_mailbox_docs WHERE mid=? AND node_id IS NULL", (K2,)), "#6425: the mail of 20.000 parts is remembered (never taken apart)")
+check(dbx("SELECT 1 FROM hub_mailbox_docs WHERE mid=? AND node_id IS NULL", (K3,)), "#6425: the mail with the subject line that raises is remembered")
 rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
-check(rg.get("hits") == 1 and "\\Seen" in flags().get("Gift/3", []) and not flags().get("Gift/1") and not flags().get("Gift/2"),
-      f"#6425: the rule counts its one hit, the prepared mails stay untouched (hits {rg.get('hits')}, {flags().get('Gift/3')})")
+check(rg.get("hits") == 1 and "\\Seen" in flags().get("Gift/4", []) and not any(flags().get(f"Gift/{u}") for u in (1, 2, 3)),
+      f"#6425: the rule counts its one hit, the prepared mails stay untouched (hits {rg.get('hits')}, {flags().get('Gift/4')})")
 j = Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json()
 check(not j.get("status", {}).get("error"), f"#6425: the run itself ended without an error ({j.get('status')})")
 # the error is shown at the rule until its next hit: a second pair of prepared mails without a good one after them
-open(os.path.join(MB, "Gift", "4.eml"), "wb").write(P1.replace(b"p2581d-brackets@", b"p2581d-brackets2@"))
+open(os.path.join(MB, "Gift", "5.eml"), "wb").write(P1.replace(b"p2581d-brackets@", b"p2581d-brackets2@"))
 check(run(Bo, WS), "#6425: a run with only a prepared mail")
+check(dbx(REM, (WS,))[0][0] == nr + 4, f"#6425: only the new prepared mail was added to the remembered ones ({dbx(REM, (WS,))[0][0]} of {nr + 4})")
 rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
 check(rg.get("error") == "unsafe" and "refused" in (rg.get("error_text") or ""), f"#6425: the rule shows the refused mail ({rg.get('error')!r} {rg.get('error_text')!r})")
 drop("Gift", "Shop <billing@shop.example.com>", "Invoice in a later run", att="Gift-5")

@@ -2,11 +2,13 @@
 # kalmido-suite: fresh
 """2.1281.0 (#6425): a foreign mail is counted before it is taken apart, and a documents mail has one budget.
  - core/mailguard.py mail_parse: a mail of 200.000 tiny parts (1.4 MB; the parser alone took seconds and 80 MB for it), of
-   3 million parts, with bare CR / VT line ends, an unquoted or RFC 2231 boundary, 2.000 parts inside each other (33 s in
-   the parser of Python 3.12 before; now counted on the bytes), 3.000
-   mails inside each other, a sender line of 500 opening brackets, a head of 300 KB (also folded, also of one part) is
-   refused (MailRefused with its code) fast and without building it; a normal mail, 1.999 parts, a patch of 50.000 "--" lines,
-   a head of 200 KB and 40 mails inside each other go through as before
+   3 million parts, with bare CR line ends, a boundary declared in ways only the parser follows (unquoted, RFC 2231 pieces,
+   a comment before "=", an encoded word), a delivery report of 400.000 blocks (parts without any boundary), 2.000 parts
+   inside each other (33 s in the parser of Python 3.12 before), 3.000 mails inside each other, a sender line of 500
+   opening brackets, a To line of 16 KB commas (seconds in the header parser, every time it is read), a head of 300 KB (also
+   of one part) and 4 MB of two-byte lines are refused (MailRefused with its code) fast and without building them; a normal
+   mail, 1.999 parts, a patch of 50.000 "--" lines that talks about boundaries, a head of 200 KB, 150 recipients, a digest
+   of 200 mails and 8 mails inside each other go through as before
  - the instance mailbox (mail_fetch with mail_import): the mail of 200.000 parts is refused before any token is looked up,
    marked seen, and the mail after it is still handled
  - the reading view (hub/mailview.py mh_parts, in the request thread) refuses it as well instead of taking it apart
@@ -56,54 +58,67 @@ BRACKETS = b"From: " + b"(" * 500 + b" a@example.com\r\nSubject: s\r\n\r\nhi\r\n
 GUARD = MAILS + r"""
 import json, time, tracemalloc, app
 from kalmido.core import mailguard as G
-def run(raw, top=True):
+def run(raw):
     tracemalloc.start()
     t = time.monotonic()
     try:
-        G.mail_parse(raw, top); r = "ok"
+        G.mail_parse(raw); r = "ok"
     except G.MailRefused as e:
         r = e.code
     dt = time.monotonic() - t
     peak = tracemalloc.get_traced_memory()[1]
     tracemalloc.stop()
     return [r, round(dt, 2), peak // (1024 * 1024)]
+def decl(d, n=100_000):
+    return H + b"Content-Type: multipart/mixed; " + d + b"\r\n\r\n" + b"--XYZ\r\n\r\nx\r\n" * n
 out = {}
 for name, raw in (
     ("parts 200.000", multi(200_000)), ("parts 3 million", multi(3_000_000)), ("parts bare CR", multi(20_000, b"\r")),
-    ("parts VT", multi(20_000, b"\x0b")), ("parts 2.001", multi(2_001)),
+    ("parts 2.001", multi(2_001)),
     ("parts unquoted boundary", H + b"Content-Type: multipart/mixed; boundary=--=_x\r\n\r\n" + b"----=_x\r\n\r\nx\r\n" * 20_000),
-    ("parts rfc2231 boundary", H + b"Content-Type: multipart/mixed; boundary*0=a; boundary*1=b\r\n\r\n" + b"--ab\r\n\r\nx\r\n" * 20_000),
+    ("parts rfc2231 boundary", decl(b"boundary*0=XY; boundary*1=Z")),
+    ("parts comment before the equals sign", decl(b"boundary(c)=XYZ")),
+    ("parts encoded word boundary", decl(b'boundary="=?us-ascii?q?XYZ?="')),
+    ("parts boundary cut at a comma", decl(b"boundary=XYZ,foo")),
+    ("parts delivery report of 400.000 blocks", H + b"Content-Type: message/delivery-status\r\n\r\n" + b"a:b\n\n" * 400_000),
     ("depth 2.000 parts inside each other", nested(2_000)), ("depth 300 parts inside each other", nested(300)),
-    ("depth 3.000 mails inside each other", inside(3_000)), ("depth 100 mails inside each other", inside(100)),
-    ("depth 60 parts inside each other", nested(60)),
+    ("depth 3.000 mails inside each other", inside(3_000)), ("depth 33.000 mails inside each other", inside(33_000)),
+    ("depth 25 parts inside each other", nested(25)),
+    ("head 500 brackets", BRACKETS),
+    ("head 101 brackets over folded lines", b"From: " + b"(\r\n " * 101 + b" a@example.com\r\n\r\nhi"),
+    ("head of a part 500 brackets", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Disposition: " + b"(" * 500 + b"\r\n\r\n", 1)),
+    ("head To line of 16 KB commas", b"To: " + b"," * 16_000 + b"\r\nFrom: a@example.com\r\n\r\nhi"),
+    ("head 300 KB", b"From: a@example.com\r\n" + b"X-A: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n" * 6_000 + b"\r\nhi"),
+    ("head without an empty line 300 KB", b"a" * 300_000),
+    ("head of a part one line of 9 KB", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nX-A: " + b"a" * 9_000 + b"\r\n\r\n", 1)),
+    ("lines 4 MB of two-byte lines", H + b"\r\n" + b"a\n" * 2_000_000),
+    ("ok normal", multi(3)), ("ok 1.999 parts", multi(1_999)),
+    ("ok patch of 50.000 dash lines that talks about boundaries",
+     multi(3).replace(b"x\r\n", b"-- comment\r\n--- a/f\r\n" * 25_000 + b'$boundary = "--".md5(time());\r\nboundary = make(x)\r\n' * 60, 1)),
+    ("ok the word boundary and 40 KB of blanks", H + b"\r\nboundary" + b" " * 40_000 + b"x\r\n"),
+    ("ok head 200 KB", b"From: a@example.com\r\n" + b"X-A: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n" * 4_000 + b"\r\nhi"),
+    ("ok 150 recipients", b"To: " + b", ".join(b"person%d@example.com" % i for i in range(150)) + b"\r\n\r\nhi"),
+    ("ok 8 mails inside each other", inside(8)), ("ok 18 parts inside each other", nested(18)),
     ("ok digest of 200 mails with two parts each", H + b'Content-Type: multipart/digest; boundary="d"\r\n\r\n' + b"".join(
         b'--d\r\n\r\nSubject: m\r\nContent-Type: multipart/alternative; boundary="a%d"\r\n\r\n--a%d\r\n\r\nx\r\n--a%d\r\n\r\ny\r\n--a%d--\r\n'
         % (i, i, i, i) for i in range(200)) + b"--d--\r\n"),
-    ("head 500 brackets", BRACKETS),
-    ("head of a part 500 brackets", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Disposition: " + b"(" * 500 + b"\r\n\r\n", 1)),
-    ("head 300 KB", b"From: a@example.com\r\nX-A: " + b"a" * 300_000 + b"\r\n\r\nhi"),
-    ("head 300 KB folded", b"From: a@example.com\r\nX-A: a\r\n" + b" aaaaaaaa\r\n" * 30_000 + b"\r\nhi"),
-    ("head of a part 300 KB", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nX-A: " + b"a" * 300_000 + b"\r\n\r\n", 1)),
-    ("ok normal", multi(3)), ("ok 1.999 parts", multi(1_999)),
-    ("ok patch of 50.000 dash lines", multi(3).replace(b"x\r\n", b"-- comment\r\n--- a/f\r\n" * 25_000, 1)),
-    ("ok head 200 KB", b"From: a@example.com\r\nX-A: " + b"a" * 200_000 + b"\r\n\r\nhi"),
-    ("ok 40 mails inside each other", inside(40)),
 ):
     out[name] = run(raw)
-out["limits"] = [G.MAIL_PARTS_MAX, G.MAIL_HEAD_MAX]
+out["limits"] = [G.MAIL_PARTS_MAX, G.MAIL_HEAD_MAX, G.MAIL_HLINE_MAX, G.MAIL_DEPTH_MAX, G.MAIL_LINES_MAX]
 print(json.dumps(out))
 """
 j = py(GUARD)
-check(j.get("limits") == [2000, 256 * 1024], f"the limits: 2.000 parts, 256 KB head ({j.get('limits')})")
+check(j.get("limits") == [2000, 256 * 1024, 8192, 20, 1_000_000],
+      f"the limits: 2.000 parts, 256 KB head, 8 KB per header line, 20 levels, a million lines ({j.get('limits')})")
 print("mail_parse [result, seconds, MB built]:", json.dumps(j), flush=True)
 for k, v in sorted(j.items()):
     if k == "limits":
         continue
     want = k.split(" ", 1)[0]
     # (the 3 million parts are 21 MB of bytes that are read once; nothing of a refused mail is built: under 8 MB)
-    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or "mails inside" in k or v[2] < 8),
+    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or v[2] < 8),
           f"mail_parse {k}: {v[0]} in {v[1]} s, {v[2]} MB built")
-check(len(j) == 24, f"all mails were tried ({len(j)})")
+check(len(j) == 33, f"all mails were tried ({len(j)})")
 
 # ---- 2. the instance mailbox and the reading view
 FETCH = MAILS + r"""
@@ -124,7 +139,13 @@ class FakeIMAP:
             return "OK", [(b"1 (UID %s RFC822 {%d}" % (a[0], len(MAILS_[a[0]])), MAILS_[a[0]]), b")"]
         if cmd == "STORE": ev.append([a[0].decode(), a[2]])
         return "OK", []
-seen = []
+seen, parsed = [], []
+real = M.mail_parse
+def counting(raw):
+    m = real(raw)
+    parsed.append(len(raw))
+    return m
+M.mail_parse = counting
 def importer(c, raw, pre=None):
     seen.append(len(raw))
     return M.mail_import(c, raw, pre)
@@ -141,13 +162,16 @@ try:
     V.mh_parts(BIG); view = "taken apart"
 except MailRefused as e:
     view = e.code
-print(json.dumps({"n": n, "ev": ev, "dt": round(dt, 2), "peak": peak, "log": buf.getvalue(), "seen": len(seen), "view": view,
+print(json.dumps({"n": n, "ev": ev, "once": len(parsed), "dt": round(dt, 2), "peak": peak, "log": buf.getvalue(), "seen": len(seen), "view": view,
                   "view_dt": round(time.monotonic() - t, 2)}))
 """
 j = py(FETCH)
 log = j.get("log") or ""
-check(j.get("seen") == 6 and j.get("dt", 99) < 10 and j.get("peak", 999) < 20,
-      f"mail_fetch: all three mails went to the importer, fast and without building the big one ({j.get('seen')}, {j.get('dt')} s, {j.get('peak')} MB)")
+# (the importer sees the mail of 200.000 parts twice -- the step before the transaction and the import, both refuse it --,
+# the bracket mail never: its head is refused on the bytes; the plain mail twice)
+check(j.get("seen") == 4 and j.get("dt", 99) < 10 and j.get("peak", 999) < 20,
+      f"mail_fetch: the round over the three mails is fast and builds nothing big ({j.get('seen')}, {j.get('dt')} s, {j.get('peak')} MB)")
+check(j.get("once") == 1, f"mail_fetch: a mail is taken apart once for both steps of its import ({j.get('once')})")
 check("mail: refused one mail: parts" in log, f"the mail of 200.000 parts is refused with its reason ({log[-300:]!r})")
 check("mail: refused one mail: head" in log, f"the mail with the bracket sender is refused with its reason ({log[-300:]!r})")
 check(sorted(e[0] for e in j.get("ev") or []) == ["5", "6", "7"] and all(e[1] == "(\\Seen)" for e in j.get("ev") or []),
@@ -165,10 +189,12 @@ def zipped(n, size, tag):
         for i in range(n):
             z.writestr(f"{tag}-{i}.pdf", b"%PDF-1.4 " + bytes(size))
     return b.getvalue()
+CUT, WHY = [], []
 def take(files):
     # like _docs_mail_into: the files of one attachment are used and dropped before the next attachment is asked for
     docs = total = cand = 0
-    for _i, parts in I._mail_parts(files, ei_is, "m"):
+    del CUT[:], WHY[:]
+    for _i, parts in I._mail_parts(files, ei_is, "m", WHY, CUT):
         cand += 1
         for name, mime, data, ext in parts:
             docs += 1
@@ -188,26 +214,36 @@ t = time.monotonic()
 has = I._mail_has_parts(files, ei_is)
 out["has"] = [has, tracemalloc.get_traced_memory()[1] // (1024 * 1024)]
 docs, total, cand = take(files)
-out["big"] = [docs, total // (1024 * 1024), cand, tracemalloc.get_traced_memory()[1] // (1024 * 1024), round(time.monotonic() - t, 1)]
+out["big"] = [docs, total // (1024 * 1024), cand, tracemalloc.get_traced_memory()[1] // (1024 * 1024), round(time.monotonic() - t, 1), len(CUT)]
 tracemalloc.stop()
 small = [(f"s{i}.zip", "application/zip", zipped(45, 100, f"s{i}")) for i in range(3)]
 pdfs = [(f"p{i}.pdf", "application/pdf", b"%PDF-1.4 x") for i in range(15)]
-out["many"] = list(take(small + pdfs))
-out["plain"] = list(take([("a.pdf", "application/pdf", b"%PDF-1.4 x"), ("n.txt", "text/plain", b"x"), ("i.png", "image/png", b"x")]))
+out["many"] = list(take(small + pdfs)) + [len(CUT)]
+out["plain"] = list(take([("a.pdf", "application/pdf", b"%PDF-1.4 x"), ("n.txt", "text/plain", b"x"), ("i.png", "image/png", b"x")])) + [len(CUT), len(WHY)]
+xb = io.BytesIO()
+with zipfile.ZipFile(xb, "w", zipfile.ZIP_DEFLATED) as z:
+    for i in range(3):
+        z.writestr(f"other-{i}.xml", b"<?xml version='1.0'?><note>" + bytes(1000) + b"</note>")
+out["xml"] = list(take([("x.zip", "application/zip", xb.getvalue())])) + [len(CUT), WHY[:]]
 out["none"] = I._mail_has_parts([("n.txt", "text/plain", b"x")], ei_is)
 out["limits"] = [I.MAIL_DOCS, I.MAIL_BYTES // (1024 * 1024)]
 print(json.dumps(out))
 """
 j = py(BUDGET, 400)
 check(j.get("limits") == [100, 100], f"the budget of one mail: 100 documents, 100 MB ({j.get('limits')})")
-b = j.get("big") or [0, 999, 0, 9999, 0]
+b = j.get("big") or [0, 999, 0, 9999, 0, 0]
 z = j.get("zip") or [0, 0]
 check(z[1] >= 45 and z[0] <= b[0] <= 100 and z[1] <= b[1] <= 100 and b[0] % z[0] == 0 and b[2] == 20,
       f"20 ZIPs of {z[1]} MB ({z[0]} files) each: only what fits into 100 MB becomes documents ({b[0]} files, {b[1]} MB)")
 check(b[3] < 250, f"20 ZIPs of 60 MB each: never more than one archive unpacked at a time ({b[3]} MB at most, 1.200 MB before)")
 check(j.get("has") and j["has"][0] is True and j["has"][1] < 5, f"'has the mail a file of its own' unpacks nothing ({j.get('has')})")
-m = j.get("many") or [0, 0, 0]
-check(m[0] == 100 and m[2] == 18, f"3 ZIPs of 45 files + 15 PDFs: 100 documents, the third ZIP refused whole, 5 PDFs left out ({m})")
-check(j.get("plain") == [2, 11, 2] and j.get("none") is False, f"a plain mail as before: the PDF and the image, not the text file ({j.get('plain')}, {j.get('none')})")
+check(b[5] >= 18, f"20 ZIPs: every archive the budget left out is reported, so the mail is kept in the mailbox ({b[5]})")
+m = j.get("many") or [0, 0, 0, 0]
+check(m[0] == 100 and m[2] == 18 and m[3] == 6,
+      f"3 ZIPs of 45 files + 15 PDFs: 100 documents, the third ZIP refused whole, 5 PDFs left out, all 6 reported ({m})")
+check(j.get("plain") == [2, 11, 2, 0, 0] and j.get("none") is False,
+      f"a plain mail as before: the PDF and the image, not the text file, nothing left out ({j.get('plain')}, {j.get('none')})")
+check(j.get("xml") == [0, 0, 1, 0, ["ValueError"]],
+      f"a ZIP of other XML files: no document, refused for what it is (never tried again), not a budget cut ({j.get('xml')})")
 
 sys.exit(done("p21281_a_mailguard"))

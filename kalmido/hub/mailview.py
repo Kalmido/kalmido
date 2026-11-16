@@ -214,7 +214,7 @@ def mh_clean(src, cids=None, images=False):
 def mh_parts(raw):
     """(the first text/html part that is no attachment, {content-id: data URL}) of a raw mail; html None when there is none."""
     # 2.1281.0 (#6425): counted before it is taken apart, in the request that opens the mail (MailRefused: mh_of shows the text view)
-    msg = mail_parse(raw, top=False)
+    msg = mail_parse(raw)
     src, cids, total = None, {}, 0
     for part in msg.walk():
         if part.is_multipart():

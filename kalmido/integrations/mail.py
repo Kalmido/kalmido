@@ -41,7 +41,7 @@ from ..collab.comments import lang_of  # 2.369.5 (#2517): pulled up from functio
 from ..lists.public import pub_html  # 2.369.5 (#2517): pulled up from functions
 from .mailtrim import md_trim_forward  # 2.369.5 (#2517): pulled up from functions
 from ..calendars.subscriptions import _cal_connector  # 2.369.5 (#2517): pulled up from functions
-from ..core.mailguard import MailRefused, mail_parse  # 2.1281.0 (#6425)
+from ..core.mailguard import MailRefused, mail_parse, mail_precheck  # 2.1281.0 (#6425)
 
 
 # ---------------------------------------------------------------- 2.17.0 (#443): tasks by e-mail + the daily summary by e-mail
@@ -281,6 +281,17 @@ class _MailDrop:
 
 
 MAIL_DROP = _MailDrop()
+_PARSED = threading.local()  # 2.1281.0 (#6425): the mail mail_fetch is at, taken apart once (the step before the transaction + the import)
+
+
+def _mail_msg(raw):
+    """The checked message of raw (core/mailguard.py mail_parse; raises MailRefused); the same bytes object again (mail_fetch:
+    prefetch, then the import) gives the same message instead of taking the mail apart a second time."""
+    if getattr(_PARSED, "raw", None) is not raw:
+        _PARSED.raw, _PARSED.msg = None, None
+        _PARSED.msg = mail_parse(raw)
+        _PARSED.raw = raw
+    return _PARSED.msg
 
 
 class MailKept(int):
@@ -292,7 +303,7 @@ def mail_import(c, raw, pre=None):
     when another importer (documents, hub, data protection) took nothing in (2.240.0 A, #2883: that mail stays).
     2.424.0 B2 (#3450): c None = the step before the database transaction (mail_fetch prefetch): the invoice link
     downloads of a documents mail -> pre, handed back in with the mail (docs/ingest.py docs_mail_prefetch)."""
-    msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it for good)
+    msg = _mail_msg(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it for good)
     from ..docs.ingest import docs_mail_import, docs_mail_prefetch  # 2.48.0 (#1111): a document address -> its attachments become documents
     if c is None:
         return docs_mail_prefetch(msg)
@@ -441,10 +452,16 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
             M.uid("STORE", u, "+FLAGS", "(\\Seen)")  # closed) does not come back in every round (a failed one stays seen as before)
         done = False
         pre = None
+        if raw:  # 2.1281.0 (#6425): counted on its bytes before anything reads it (the claim below reads its head, the
+            try:  # importers take it apart): a refused mail stays in the mailbox, marked seen, with its reason in the log
+                mail_precheck(raw)
+            except MailRefused as e:
+                print("mail: refused one mail:", e.code, flush=True)
+                continue
         if raw and prefetch:
             try:
                 pre = importer(None, raw)
-            except MailRefused:  # 2.1281.0 (#6425): the import below refuses it again and says so once
+            except MailRefused:  # 2.1281.0 (#6425): the import below refuses it again (from its memory) and says so once
                 pre = False
             except Exception as e:  # noqa: BLE001 -- no downloads then; the mail itself goes on
                 print("mail: prefetch failed:", type(e).__name__, flush=True)
@@ -475,6 +492,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                         pass
                 finally:
                     c.close()
+                    _PARSED.raw = _PARSED.msg = None  # 2.1281.0 (#6425): the parsed mail goes with its round
         if delete and done:
             M.uid("STORE", u, "+FLAGS", "(\\Seen \\Deleted)")
             gone.append(u)

@@ -37,7 +37,7 @@ from ..api.common import hit_limit
 from ..files.store import fs_chain, fs_deleted, fs_role, fs_roles_many
 from ..docs import store as DS
 from ..docs.ingest import docs_kick, docs_mailbox_import, _mail_has_parts, _mail_toks
-from ..core.mailguard import MailRefused, mail_parse  # 2.1281.0 (#6425)
+from ..core.mailguard import MailRefused, mail_head_ok, mail_parse  # 2.1281.0 (#6425)
 from ..docs.maillink import ml_collect, ml_links
 from . import mailbox as MB
 
@@ -56,7 +56,10 @@ MBR_RULE_ERR = {"target": N_("The mailbox's holder cannot file into the folder o
                 "refused": N_("The last e-mail of this rule became no document: its files were refused (type or content); it is not tried again"),
                 # 2.1281.0 (#6425): a mail that is not taken apart (core/mailguard.py: too many parts, parts too deep inside
                 # each other, the head too large or a header line the parser breaks on): remembered, not fetched again
-                "unsafe": N_("The last e-mail of this rule was refused: it has too many parts or a header line that cannot be read; it is not tried again")}
+                "unsafe": N_("The last e-mail of this rule was refused: it has too many parts or a header line that cannot be read; it is not tried again"),
+                # 2.1281.0 (#6425): the budget of one mail (docs/ingest.py MAIL_DOCS / MAIL_BYTES) left files out: what fitted
+                # became documents, the mail is neither moved nor deleted
+                "partly": N_("The last e-mail of this rule had more files than one e-mail may bring (100 documents, 100 MB unpacked): the rest was left out, the e-mail stays where it is")}
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _BUDGET = {}            # (box id, kind) -> [hour, used]: this process (the mailbox round runs in one process)
@@ -333,6 +336,11 @@ def _budget(box_id):
 
 
 def _mid_key(head):
+    """(the key of a mail in hub_mailbox_docs, its header lines as a message) of the lines an IMAP server gave. 2.1281.0
+    (#6425): header lines the header parser must not get (core/mailguard.py mail_head_ok: too long, too many brackets) ->
+    (a key of the bytes, None); mbr_run remembers such a mail and never reads it."""
+    if not mail_head_ok(head):
+        return hashlib.sha256(b"head:" + head).hexdigest(), None
     m = email.message_from_bytes(head, policy=email.policy.default)
     try:
         mid = str(m.get("Message-ID", "") or "").strip()
@@ -406,6 +414,9 @@ def _after(M, rule, u):
     return ""
 
 
+KEPT = "kept"  # 2.1281.0 (#6425): _take's "handled" for a mail that became documents but stays as it is in the mailbox
+
+
 def _take(box, holder, rule, key, raw, msg=None):
     """One mail -> documents of the box's workspace (as its holder); the claim of the mail (key = _mid_key of its header lines,
     the same as the look before) in the same transaction. -> (handled, documents); handled None = another process had it.
@@ -431,10 +442,10 @@ def _take(box, holder, rule, key, raw, msg=None):
         if c.execute("INSERT INTO hub_mailbox_docs(box_id, mid, rule_id, at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING RETURNING box_id",
                      (box["id"], key, rule["id"], _now())).fetchone() is None:
             return None, 0
-        why = []
+        why, cut = [], []
         first, made = docs_mailbox_import(c, holder, box["org_id"] or None, msg, raw, meta=meta, parent_id=rule["target_id"],
                                           take_files=bool(rule["take_files"]), take_mail=bool(rule["take_mail"]), budget=budget, pre=pre,
-                                          why=why)
+                                          why=why, cut=cut)
         if not made and why and all(w == "ValueError" for w in why):
             # 2.636.0 (#4853, review): refused for good (file type / content): the claim stays, else such a mail would be
             # fetched every round and fill the round's limit
@@ -448,8 +459,9 @@ def _take(box, holder, rule, key, raw, msg=None):
             c.execute("UPDATE hub_mailbox_rules SET last_error=? WHERE id=?", (code, rule["id"]))
             return False, 0
         c.execute("UPDATE hub_mailbox_docs SET node_id=? WHERE box_id=? AND mid=?", (first or None, box["id"], key))
-        c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error='' WHERE id=?", (_now(), rule["id"]))
-        return True, len(made)
+        # 2.1281.0 (#6425): the mail's budget left files out -> the rule says so and the mail stays (KEPT: no move, no delete)
+        c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error=? WHERE id=?", (_now(), "partly" if cut else "", rule["id"]))
+        return (KEPT if cut else True), len(made)
     return _bg(run)
 
 
@@ -521,10 +533,16 @@ def mbr_run(M, box):
                 if u not in keys or keys[u][0] in known:
                     continue
                 key, head = keys[u]
+                if head is None:  # 2.1281.0 (#6425): header lines that never go to the header parser (_mid_key)
+                    known.add(key)
+                    _poison(box, key, MailRefused("head"), frs)
+                    continue
                 # 2.1281.0 (#6425): every step that reads the mail's own content sits in a try of this ONE mail (the header
                 # lines here, taking it apart below); only the IMAP commands stay with the folder's try (the connection)
                 try:
                     fit = [r for r in frs if _head_fits(r, head)]
+                except MemoryError:  # (the server's state, not this mail's: the folder's try, tried again next run)
+                    raise
                 except Exception as e:  # noqa: BLE001 -- a From / Subject / Date line the header parser breaks on
                     known.add(key)
                     _poison(box, key, e, frs)
@@ -552,6 +570,8 @@ def mbr_run(M, box):
                                 continue
                         rule = r
                         break
+                except MemoryError:
+                    raise
                 except Exception as e:  # noqa: BLE001 -- 2.1281.0 (#6425): refused or broken: this mail only, for good
                     _poison(box, key, e, fit[:1])
                     continue
@@ -569,7 +589,7 @@ def mbr_run(M, box):
                     continue
                 taken += 1
                 n += got
-                if handled:
+                if handled and handled != KEPT:
                     code = _after(M, rule, u) or code
         except Exception as e:  # noqa: BLE001 -- the next folder goes on; the code is kept (never the server's words)
             code = code or MB._err_code(e)
