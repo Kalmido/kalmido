@@ -18745,6 +18745,7 @@
   "Import cancelled: {0} imported page moved to the trash": ["Import abgebrochen: {0} importierte Seite in den Papierkorb gelegt", "Import abgebrochen: {0} importierte Seiten in den Papierkorb gelegt"],
   "Click to try again": "Klicken, um es erneut zu versuchen",
   "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "Die Projekt-Kennung {0} ist in diesem Arbeitsbereich schon vergeben: Das Projekt {1} kam ohne Kennung an, seine alten Nummern finden die Aufgaben weiter",
+  "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Inzwischen hat jemand anderes eine neuere Version hochgeladen, sie bleibt: {0}",
   "They get the key right away: {0}.": "Den Schlüssel bekommen gleich mit: {0}.",
   "Still missing: {0}. They get the key once they have set up encryption in their account.": "Noch nicht dabei: {0}. Sie bekommen den Schlüssel, sobald sie in ihrem Konto die Verschlüsselung eingerichtet haben.",
   "Only you get the key.": "Nur du bekommst den Schlüssel.",
