@@ -500,6 +500,37 @@ check(r.status_code == 201 and "(reading 'id')" in cq and "\\_\\_init\\_\\_" in 
 spec = requests.get(V + "/openapi.json").json()
 check("/lists/{id}/error-hook" in spec.get("paths", {}) and set(spec["components"]["schemas"]["Repo"]["properties"]["provider"]["enum"]) == {"github", "gitea", "gitlab", "bitbucket"},
       "OpenAPI: error hook + the providers")
+# 2.1265.0 (#6389): one broken connection no longer stops the poll of every other one. Before, an error outside GitRate /
+# CalError (here: the stored ETags are a list, not an object) broke off the round, next_at stayed and ORDER BY next_at
+# took the same connection first every tick: a healthy connection of another person's project was never polled.
+BL = Bo.post(B + "/api/lists", json={"name": "Bob tool", "kind": "project"}).json()["id"]
+r = Bo.post(B + f"/api/lists/{BL}/repos", json={"provider": "gitlab", "base_url": GL, "repo": "grp/oauth", "token": GLOAUTH})
+check(r.status_code == 201, f"Bob connects a repository in his own project: {r.status_code} {r.text[:150]}")
+BOBID = r.json().get("id")
+check(until(lambda: dbq("SELECT polled_at FROM git_conns WHERE id=?", (BOBID,))[0][0], 15), "Bob's connection polled once")
+dbw("UPDATE git_conns SET next_at=? WHERE id<>? AND id<>?", (time.time() + 9999, GLID2, BOBID))  # only these two take part
+dbw("UPDATE git_conns SET etags='[1]', fails=0, next_at=0 WHERE id=?", (GLID2,))  # the broken record (ETags no object), due first
+dbw("UPDATE git_conns SET polled_at='2000-01-01T00:00:00+00:00', next_at=1 WHERE id=?", (BOBID,))  # due right after it
+check(until(lambda: not str(dbq("SELECT polled_at FROM git_conns WHERE id=?", (BOBID,))[0][0]).startswith("2000"), 15),
+      "the healthy connection of another project is polled although the broken one comes first")
+row = dbq("SELECT fails, next_at, last_error FROM git_conns WHERE id=?", (GLID2,))[0]
+check(row[0] >= 1 and row[1] > time.time() and row[2], f"the broken connection counts its failure and waits (backoff): {row}")
+
+
+def oauth_news():
+    return [x for x in A.get(B + "/api/news").json()["items"] if x["kind"] == "integfail" and "grp/oauth" in (x["data"].get("text") or "")]
+
+
+n_news = len(oauth_news())
+for k in range(row[0] + 1, 6):  # on to 5 failures in a row: the owner is told once, the way of every failing integration
+    dbw("UPDATE git_conns SET next_at=0 WHERE id=?", (GLID2,))
+    until(lambda: dbq("SELECT fails FROM git_conns WHERE id=?", (GLID2,))[0][0] >= k, 15)
+check(dbq("SELECT fails FROM git_conns WHERE id=?", (GLID2,))[0][0] == 5 and until(lambda: len(oauth_news()) == n_news + 1, 10),
+      f"5 failures in a row: the owner gets the integration notice ({len(oauth_news()) - n_news})")
+dbw("UPDATE git_conns SET etags='{}', next_at=0 WHERE id=?", (GLID2,))
+check(until(lambda: dbq("SELECT fails FROM git_conns WHERE id=?", (GLID2,))[0][0] == 0, 15), "repaired: the next poll resets its failures")
+check(Bo.delete(B + f"/api/repos/{BOBID}").ok, "Bob's repository removed")
+
 # removal cleans tags
 check(A.delete(B + f"/api/repos/{GLID2}").ok, "remove a GitLab repo")
 check(A.delete(B + f"/api/repos/{BBID}").ok and not dbq("SELECT 1 FROM git_tags WHERE conn_id=?", (BBID,)), "removed with its tags")

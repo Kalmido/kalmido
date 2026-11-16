@@ -18787,6 +18787,7 @@
   "on the marked positions and the parts": "sur les postes marqués et les sous-devis",
   "{pct} % on the marked positions and the parts|calc": "{pct} % sur les postes marqués et les sous-devis",
   "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sur les postes marqués, les sous-devis et les frais de gestion",
+  "Document flow {0} keeps failing on a document, failing since {1}.": "Le flux de documents {0} échoue de manière répétée sur un document, en erreur depuis {1}.",
   "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "La facture de la série n’a pas pu être créée {0} fois de suite. Vérifie la facture modèle et le client, puis réactive la série.",
   "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Personne ne peut créer les factures de la série : l’espace n’a aucun administrateur avec le bureau activé. Réactive la série dès qu’il y en a un.",
   "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "La facture {0} est clôturée, mais son e-mail n’est pas parti après un redémarrage du serveur. Envoie-la à la main depuis la facture.",
