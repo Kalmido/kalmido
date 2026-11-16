@@ -150,6 +150,7 @@ VARS = (
     _v("KALMIDO_IMAP_KEEP", "0", "Switch: keep imported mails in the mailbox (only marked read) instead of deleting them. Mails not taken in whole (too large, refused, an attachment not stored) always stay, marked read.", "mail"),
     _v("KALMIDO_IMAP_FOLDER", "INBOX", "IMAP folder that is read.", "mail"),
     _v("KALMIDO_IMAP_INTERVAL", "60", "Seconds between two looks into the mailbox (at least 10).", "mail"),
+    _v("KALMIDO_MAILBOX_MAIL_MAX", "52428800", "Largest mail in bytes a workspace mailbox fetches; a larger one stays in the mailbox and is counted there.", "mail"),
     _v("KALMIDO_OFFICE_MAILS_DAY_ORG", "300", "Office documents sent by mail per organisation and day.", "mail"),
     _v("KALMIDO_OFFICE_MAILS_DAY_PERSON", "150", "Office documents sent by mail per person and day.", "mail"),
     _v("KALMIDO_OFFICE_MAILS_DAY_ADDRESS", "20", "Office documents sent by mail per organisation, receiving address and day.", "mail"),
