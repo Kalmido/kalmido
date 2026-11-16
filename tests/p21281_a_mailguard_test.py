@@ -129,8 +129,9 @@ for k, v in sorted(j.items()):
     if k == "limits":
         continue
     want = k.split(" ", 1)[0]
-    # (nothing of a refused mail is built: under 20 MB, the 3 MB header line of brackets is copied a few times on the way)
-    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or v[2] < 20),
+    # (a refused mail builds next to nothing; the most is the mail of many small costly lines: it is read until the
+    # budget of the header lines is spent, 36 MB of parsed lines -- gigabytes before)
+    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or v[2] < 60),
           f"mail_parse {k}: {v[0]} in {v[1]} s, {v[2]} MB built")
 check(len(j) == 41, f"all mails were tried ({len(j)})")
 
