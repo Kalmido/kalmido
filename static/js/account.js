@@ -309,7 +309,8 @@ async function lgo_pending() {
 }
 async function logout() {
   if (kd_pinNeed()) return kd_pinAsk(logout);  // 2.49.0 (#1551): a child with the parents' PIN
-  if (OUT.q.length && !await askConfirm(trn('{0} change is not synced yet and will be lost. Sign out anyway?', '{0} changes are not synced yet and will be lost. Sign out anyway?', OUT.q.length), '', {ok: tr('Sign out'), danger: true})) return;
+  const nq = OUT.q.length + fdList('fdx').length;  // 2.1257.0 (#6286): + own knowledge page texts waiting at their pages
+  if (nq && !await askConfirm(trn('{0} change is not synced yet and will be lost. Sign out anyway?', '{0} changes are not synced yet and will be lost. Sign out anyway?', nq), '', {ok: tr('Sign out'), danger: true})) return;
   await wpDisable().catch(() => {});  // this device stops getting the pushes of the account that logs out
   await e2eForget();  // 2.42.0 (#828): keys remembered on this device go
   let gone = false;
