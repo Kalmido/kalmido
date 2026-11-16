@@ -45,6 +45,11 @@ const OFD_PAY_ONLINE = N_('Online payment');  // 2.469.0 (#3459): only the provi
 const OFD_VATN = [['', N_('select…')], ['reverse', N_('Reverse charge (recipient pays the VAT)')], ['abroad', N_('Not taxable domestically')], ['small', N_('Small business: no VAT')],
   ['eu_goods', N_('Goods to a business in the EU (tax-exempt)')], ['export', N_('Export of goods outside the EU (tax-exempt)')]];  // 2.355.0 C (#2844)
 const ofdIsInv = d => !!d && d.kind !== 'offer';
+// 2.1289.0 (#6475): the office's switch "Small business" binds the tax (finalising refuses VAT, invoices.inv_missing): its
+// own choice of VAT is hidden while the draft is without VAT and shown with the hint while it differs (a draft from before
+// the switch, so it can be set right); a correction keeps its invoice's tax (ofdBound)
+const ofdSmall = d => !!OFC.info?.settings?.small_business && !(d.kind === 'credit' && d.cancels_id);
+const ofdVatHide = d => ofdSmall(d) && d.vat_mode === 'novat';
 const ofdKindName = (k, one) => tr(one ? {offer: N_('Quotation'), invoice: N_('Invoice'), credit: N_('Credit note'), reminder: N_('Payment reminder|dunning'), delivery: N_('Delivery note')}[k] || k : OFD_KINDS.find(x => x[0] === k)?.[1] || k);
 const OFD_RAW = [['optional', N_('optional (shown, not counted)')], ['included', N_('included (counted)')], ['none', N_('no raw data line')]];
 // 2.185.0 C (#2520): the de / en source of a document's free texts (names, text blocks, pack words): nl / fr / es / it take
@@ -434,7 +439,7 @@ function ofdEditorHtml() {
     ${kind === 'invoice' ? ofdF('payment_days', tr('Payment terms'), `<span class="lacts">${ofdIn('payment_days', d.payment_days ?? '', {num: true, max: 3})}<span class="muted">${tr('days')}</span></span>`) : ''}
     ${kind === 'invoice' ? ofdF('due_date', tr('Due on'), dateIn('ofd-due_date', d.due_date || '', {label: tr('Due on'), attrs: 'data-f="due_date"'})) : ''}
     ${kind === 'invoice' ? absHeadFields(d) : ''}
-    ${d.vat_mode === 'novat' && kind !== 'delivery' ? ofdF('vat_note', tr('VAT note'), ofdBound(d, ofdSel('vat_note', d.vat_note || '', OFD_VATN.map(([v, n]) => [v, tr(n)]))), tr('printed on the invoice; required when finalising'), {keep: 1}) : ''}
+    ${d.vat_mode === 'novat' && kind !== 'delivery' ? ofdF('vat_note', tr('VAT note'), ofdBound(d, ofdSel('vat_note', d.vat_note || '', OFD_VATN.filter(([v]) => v !== 'small' || ofdSmall(d) || d.vat_note === 'small' /* 2.1289.0 (#6475) */).map(([v, n]) => [v, tr(n)]))), tr('printed on the invoice; required when finalising'), {keep: 1}) : ''}
     ${d.vat_mode === 'novat' && d.vat_note === 'reverse' && d.client_vat_id_missing ? `<p class="cdnmiss" role="status">${ic('info', 's')} ${esc(tr('The client has no VAT ID yet - reverse charge needs it; add it at the client'))}</p>` : ''}
     ${kind === 'delivery' || !ofcFeat('docs.einvoice') ? '' : ofdF('einvoice_format', tr('E-invoice format'), ofdSel('einvoice_format', d.einvoice_format || 'zugferd', ofdEinvOpts()))}` : '';  // 2.147.0 (#2460, #2461): only while e-invoices are on, the pack's formats  // 2.120.0 D (#2089): no e-invoice
   const remFields = kind === 'reminder' ? `
@@ -448,7 +453,7 @@ function ofdEditorHtml() {
   const moreF = `${ofdF('lang', tr('Document language'), ofdSel('lang', d.lang, (S.languages || []).map(L => [L.code, L.name])), langOther ? tr('Differs from your app language: the client receives the document in this language.') : '', {keep: true})}
     ${ofdF('currency', tr('Currency'), ofdBound(d, ofdSel('currency', d.currency, ofdCurOpts(d))))}
     ${d.currency !== ofcHome() ? ofdF('fx_rate', tr('Exchange rate'), ofdBound(d, ofdIn('fx_rate', ofdNumIn(d.fx_rate), {num: true, max: 12})), ofdFxHint(d)) : ''}
-    ${kind !== 'reminder' && kind !== 'delivery' ? ofdF('vat_mode', tr('VAT'), ofdBound(d, ofdSel('vat_mode', d.vat_mode, [['vat', tr('with VAT')], ['novat', tr('without VAT (reverse charge / abroad)')]]))) : ''}
+    ${kind !== 'reminder' && kind !== 'delivery' && !ofdVatHide(d) ? ofdF('vat_mode', tr('VAT'), ofdBound(d, ofdSel('vat_mode', d.vat_mode, [['vat', tr('with VAT')], ['novat', tr('without VAT (reverse charge / abroad)')]])), ofdSmall(d) ? tr('As a small business without VAT') : '', {keep: 1}) : ''}
     ${!vf && kind !== 'reminder' && kind !== 'delivery' ? ofdF('contract_id', tr('Framework contract'), ofdSel('contract_id', d.contract_id, contracts, tr('none|contract')), d.contract ? tr('presets raw data, rights and closing; special rates apply to new positions') : '') : ''}`;
   const moreSum = [(S.languages || []).find(L => L.code === d.lang)?.name || d.lang, d.currency, kind === 'reminder' || kind === 'delivery' ? '' : d.vat_mode === 'novat' ? tr('without VAT') : tr('with VAT'), d.contract?.name || ''].filter(Boolean).join(' · ');
   const headSec = ofdSec('head', tr('Head'), `

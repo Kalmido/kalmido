@@ -190,8 +190,12 @@ def invoice(s, client, lang, tag, novat=False):
         patch.update(vat_mode="novat", vat_note="small")
     r = s.patch(B + f"{D}/{did}", json=patch)
     check(r.ok, f"{tag}: invoice head " + r.text[:160])
+    if novat:  # 2.1289.0 (#6475): the section 19 note needs the office's switch at finalising
+        check(s.put(B + O + "/settings", json={"small_business": 1}).ok, f"{tag}: small business on")
     r = s.post(B + f"{D}/{did}/finalize")
     check(r.ok, f"{tag}: invoice finalised " + r.text[:200])
+    if novat:
+        s.put(B + O + "/settings", json={"small_business": 0})
     return did, render(s, did)
 
 

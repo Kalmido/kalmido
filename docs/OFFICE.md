@@ -157,7 +157,12 @@ its admin, 409 conflicts / not a private office / nothing to move).
 **Small business (section 19 UStG)**: the setting `small_business` (Settings tab, "Invoices"; a setting of every office
 area, also of an organisation): new quotations and invoices are made without VAT and with the note "Gemäß § 19 UStG
 wird keine Umsatzsteuer berechnet." (`vat_mode` `novat`, `vat_note` `small`); the e-invoice gets the tax category `E`
-with this exemption reason.
+with this exemption reason. 2.1289 (#6475): the switch also binds finalising (one check, `invoices.inv_missing`, for
+every way: editor, API, series, invoice from a quotation, an agent's draft): with the switch on an invoice with VAT is
+refused ("as a small business no VAT may be shown", section 14c UStG), without it the note `small` is refused; a correction
+(`cancels_id`) keeps the tax of its invoice. The editor hides the VAT choice while a draft is without VAT and shows it with
+the hint "As a small business without VAT" while it differs (a draft from before the switch can be set right); the note
+"Small business" is offered only with the switch (or when a draft already has it).
 
 ## The office menu (a rail on the left since 2.98.0)
 
