@@ -19,9 +19,10 @@
 
 ## What's new
 
-**2.1295.0** (2026-11-16):
-- **Files**: text recognition can no longer be stalled by one slow PDF; each document has a wall-clock limit (`KALMIDO_OCR_DOC_S`), and `KALMIDO_OCR_PARALLEL` now counts pages.
-- **Phone**: holding a calendar event to drag it works again when the view's events arrive during the hold.
+**2.1301.0** (2026-11-16):
+- **Agents**: approval cards carry the server's description of the bound step; standing rules stored by an agent need the person's confirmation; text from webhooks, git issues and account-less comments is marked untrusted.
+- **Imports**: a ZIP with more entries than the importer takes, or a JSON part with more than 3 million values, is refused before it is read into memory; new import uploads are rate limited per person (`KALMIDO_IMPORT_RATE`).
+- **Mail**: an e-mail that cannot be taken over is retried and reported instead of being lost silently.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
