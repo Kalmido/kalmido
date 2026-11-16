@@ -136,6 +136,20 @@ def run(S, who, member=None):
     ok(len(sk) == before + 60 and {x["skipped"] for x in sk[:60]} == {re_(k) for k in range(n, n + 60)} and all(x.get("reason") for x in sk[:60]),
        f"N2: every skipped archive number is logged with its reason ({len(sk) - before})")
 
+    # ---------------------------------------------------------------- N4 {isodate} / {date} of a number by hand = the document date
+    for sch, fmt in (("{seq}_{isodate}_R", "%Y-%m-%d"), ("{seq}-{date}-R", "%Y%m%d")):
+        ok(S.put(B + O + "/settings", json={"invoice_scheme": sch}).ok, f"N4: scheme {sch}")
+        inv = invoice()
+        day = date.fromisoformat(inv["date"])
+        k = nxt()
+        wrong = sch.replace("{seq}", str(k)).replace("{isodate}" if "iso" in sch else "{date}", date(2020, 1, 1).strftime(fmt))
+        r = finalize(inv["id"], {"number": wrong})
+        ok(r.status_code == 409 and "carries the date" in r.json().get("error", ""), f"N4: {wrong} for a document of {day}: 409 " + r.text[:160])
+        right = sch.replace("{seq}", str(k)).replace("{isodate}" if "iso" in sch else "{date}", day.strftime(fmt))
+        r = finalize(inv["id"], {"number": right})
+        ok(r.ok and r.json()["number"] == right, f"N4: {right} with the document's own date is taken " + r.text[:160])
+    ok(S.put(B + O + "/settings", json={"invoice_scheme": "RE-{yyyy}-{seq:03}"}).ok, "back to the yearly scheme")
+
     # ---------------------------------------------------------------- N3/S3 a number by hand only with the finalising
     inv = invoice()
     r = S.post(B + f"{D}/{inv['id']}/number", json={"number": re_(nxt())})

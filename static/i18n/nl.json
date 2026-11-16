@@ -18824,6 +18824,7 @@
   "Number of your own (optional)": "Eigen nummer (optioneel)",
   "Its number is taken in the series; finalise the draft to close the gap": "Het nummer is in de reeks bezet; leg het concept vast zodat er geen gat blijft",
   "Draft with number - please finalise": "Concept met nummer - graag vastleggen",
+  "The number carries the date {0}, the document date is {1}": "Het nummer draagt de datum {0}, de documentdatum is {1}",
   "Date / priority of the parent task adopted for {0} task": ["Datum / prioriteit van de hoofdtaak overgenomen bij {0} taak", "Datum / prioriteit van de hoofdtaak overgenomen bij {0} taken"],
   "Date and priority of {0} adopted": "Datum en prioriteit van {0} overgenomen",
   "Date of {0} adopted": "Datum van {0} overgenomen",
