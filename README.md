@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1244.0** (2026-11-16):
-- **Contacts**: the card opens full width when space is tight, arrow-key navigation, a one-row toolbar on phones.
-- **Knowledge**: deleting goes to the trash with Undo, conflicts mark the differences, wording unified.
-- **Team chat**: tap "edited" to see earlier versions (also via agent API / MCP).
-- **Files and start page**: Word, Excel and text preview right in the file view; start page marks other workspaces.
+**2.1248.0** (2026-11-16):
+- **Knowledge**: share your whole private knowledge area with a person and keep single folders out.
+- **Organisations**: calendar, wiki, team chat, files, documents and contacts show the organisation's colour.
+- **Agents**: a small grey line under an agent's answer names the model that wrote it.
+- **Start**: rules and organisation export load on demand, so the app starts with less JavaScript.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
