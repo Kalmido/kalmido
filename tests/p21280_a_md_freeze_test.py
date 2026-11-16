@@ -216,7 +216,12 @@ nest = "".join("  " * i + f"- [ ] Nest {i + 1}\n" for i in range(7)) + "  - [ ] 
 r = F.post(B + "/api/import/markdown", files={"file": ("Nest.md", nest.encode())}, data={}, timeout=LIMIT)
 check(r.ok, f"the nested list is imported {r.status_code} {r.text[:160]}")
 st = {t["title"]: t for t in F.get(B + "/api/state").json()["tasks"] if t["title"].startswith("Nest ")}
-pid = lambda k: (st.get(k) or {}).get("parent_id")
+
+
+def pid(k):
+    return (st.get(k) or {}).get("parent_id")
+
+
 check(len(st) == 8 and pid("Nest 1") is None and all(pid(f"Nest {i}") == st[f"Nest {i - 1}"]["id"] for i in range(2, 6)),
       "the nested list: five levels kept " + str({k: pid(k) for k in st}))
 check(pid("Nest 6") == st["Nest 4"]["id"] and pid("Nest 7") == st["Nest 4"]["id"] and pid("Nest Zwei") == st["Nest 1"]["id"],
