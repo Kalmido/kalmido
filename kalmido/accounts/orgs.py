@@ -1132,6 +1132,10 @@ def org_self_create():
         return jsonify(org_public(c, c.execute("SELECT * FROM orgs WHERE id=?", (oid,)).fetchone())), 201
 
 
+# 2.1294.0 (#6496): what the operator changes on a client's organisation through its support access: its name and symbol
+ORG_SUPPORT_KEYS = {"name", "icon"}
+
+
 @app.patch("/api/admin/orgs/<int:oid>")
 def org_update(oid):
     """{name?, icon?, members?: [user ids] (replaces them), domains?} -- only on an instance that kept several organisations
@@ -1141,16 +1145,10 @@ def org_update(oid):
     c, b = db(), body()
     if op_foreign_org(c, oid):  # 2.399.0 (#2687): hosted: name, members and roles of a customer's organisation are its admins' own
         op_apart_deny()
-    if isinstance(b, dict) and op_support_only(c, oid=oid):  # 2.485.0 (#3939, review F3): support access adds nobody
-        with system_ctx(c):
-            have = {r[0] for r in c.execute("SELECT user_id FROM org_members WHERE org_id=?", (oid,))}
-        new = set()
-        for k in ("members_add", "admins_add", "members", "admins"):
-            v = b.get(k)
-            if isinstance(v, list):
-                new |= {x for x in v if isinstance(x, int) and not isinstance(x, bool)} - have
-        if new:
-            op_support_deny()
+    # 2.485.0 (#3939, review F3): support access adds nobody; 2.1294.0 (#6496, audit #4800 F1): a list of what it changes instead
+    # of a check of the member lists -- the e-mail domains (whose registration joins), members and roles stay the client's
+    if isinstance(b, dict) and set(b) - ORG_SUPPORT_KEYS and op_support_only(c, oid=oid):
+        op_support_deny()
     with system_ctx(c):  # 2.37.0 (#1150): instance admin manages the organisations themselves (also ones he is not in)
         if instance_mode(c) != "workspaces":
             _no_change()
