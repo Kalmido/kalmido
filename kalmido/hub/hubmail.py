@@ -50,6 +50,7 @@ from ..accounts.orgroles import need_org_write  # 2.674.0 (#4382 finding 3)
 from ..accounts.mailtok import mtk_new, mtk_plain, mtk_row_where, mtk_where  # 2.674.0 (#4382 finding 5); 2.705.0 (#5151): mtk_row_where
 from ..files.fslock import fsl_need_plain  # 2.353.0 F (#2758)
 from ..accounts.orgs import is_org_admin
+from ..accounts.supportgrant import sga_is_support  # review of 2.1254.0 (#6294)
 from ..core.objwords import osw_match, osw_put, osw_register  # 2.1002.0 (#5279): the shared word index
 
 HBM_BODY_MAX = 200000   # characters of the plain text kept
@@ -281,7 +282,11 @@ def _client_addr_write(c, kind, uid, org_id):
 
 
 def _address_of(c, kind, uid, org_id, cid, lid):
+    """The filing address of a client / project / my hub inbox ('' = none). Review of 2.1254.0 (#6294): never for a support
+    session (a secret inbox of the account: it would outlive the grant; the filed mails stay readable)."""
     from ..integrations.mail import mail_addr
+    if sga_is_support(c):
+        return ""
     w, a = _token_where(kind, uid, org_id, cid, lid)
     r = c.execute(f"SELECT token FROM hub_tokens WHERE {w}", a).fetchone()
     return mail_addr(mtk_plain(c, r[0])) if r else ""

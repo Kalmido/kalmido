@@ -166,7 +166,12 @@ SGA_PLAIN = frozenset(("/api/auth/logout", "/api/client-errors", "/api/settings"
 SGA_GUARD_ME = {"password", "email", "username", "current_password", "new_password"}
 SGA_GUARD_SCOPE = {"org_id", "org_visibility", "org_edit"}  # review F2: a PATCH that carries contents out of the account's scope
 SGA_SECRET_READ = frozenset(("public-link", "public-links", "feed", "ext-links",  # review F1: answers with a working link: it would outlive the grant
-                             "request-mail", "mail-addresses"))  # 2.1254.0 (#6294): the secret inbox addresses (project requests, documents)
+                             "request-mail", "mail-addresses",  # 2.1254.0 (#6294): the secret inbox addresses (project requests, documents)
+                             # review of 2.1254.0 (#6294): the office's receipt address, a letter's reply address (the person's document address)
+                             "receipt-mail", "mail-info", "mail-draft"))
+# review of 2.1254.0 (#6294): a GET that answers with an inbox address and is no content to read (the address is left out of
+# the answers that are: docs settings, hub mails / inbox); tests/p21254_a_support_purge_test.py finds them in the source
+SGA_GET_REFUSED_RX = re.compile(r"/api/office/privacy-sheets/\d+/mail")  # the subject's reply code of a sheet (made on the GET)
 # 2.536.0 (#4363): the OIDC start would link a provider identity to the client's account and swap the support session for one
 # without the mark (sga_close would not end it) -- refused like a write; the callback refuses a support session itself (oidc.py)
 # review of 2.536.0: the HTTP Shortcuts ZIP makes a new drop token of the client on GET (users.py) -- it would outlive the grant
@@ -316,7 +321,7 @@ def sga_guard():
         return None
     if request.method in ("GET", "HEAD"):
         p = request.path
-        if ((p in SGA_GET_REFUSED or (p.startswith("/api/") and p.rsplit("/", 1)[-1] in SGA_SECRET_READ))
+        if ((p in SGA_GET_REFUSED or (p.startswith("/api/") and p.rsplit("/", 1)[-1] in SGA_SECRET_READ) or SGA_GET_REFUSED_RX.fullmatch(p))
                 and sga_is_support(db())):
             return jsonify(error=tr(SGA_REFUSED), code="support_session"), 403
         return None

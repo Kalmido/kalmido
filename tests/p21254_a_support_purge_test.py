@@ -14,6 +14,10 @@ tenant-matrix: support
  - the inbox addresses: GET /api/me/mail, GET /api/docs/mail-addresses, GET /api/lists/<id>/request-mail and PATCH
    request-mail (on / renew) 403 for the support session, fine for her own session; the address made by her own session
    stays unchanged
+ - review of 2.1254.0: every GET route whose function reaches an inbox address (mail_addr / rq_address, followed through the
+   functions it calls, read from the source with the imports resolved) stands in ADDR: refused for a support session (403
+   support_session) or answering with the address left empty (the rest stays readable); a route without an entry is red, an entry
+   without such a route too. Live: frida's own session makes the addresses and sees them, her support session gets 403 / ''
  - a member of an organisation (cara): a comment and an attachment on a task of the organisation's project and an edit of
    that task 403 without the organisation's grant, fine with it; her private task stays writable
 usage: p21254_a_support_purge_test.py <datadir>"""
@@ -52,6 +56,21 @@ PURGE = {
 EXEMPT = {
     "/api/office/letterhead": "the letterhead file stays as the one undo step (prev); only the older undo file goes",
 }
+# review of 2.1254.0 (#6294): GET route reaching an inbox address -> REFUSED (sga_guard) or (query, the address values of the answer)
+REFUSED = "refused"
+ADDR = {
+    "/api/me/mail": REFUSED,
+    "/api/docs/mail-addresses": REFUSED,
+    "/api/lists/<int:lid>/request-mail": REFUSED,
+    "/api/office/receipt-mail": REFUSED,
+    "/api/office/letters/mail-info": REFUSED,
+    "/api/office/letters/<int:lid>/mail-draft": REFUSED,
+    "/api/office/privacy-sheets/<int:sid>/mail": REFUSED,  # the reply code of the sheet in the subject (made on the GET)
+    "/api/docs/settings": ("?ws=private", lambda j: [j["mail"]["address"]]),
+    "/api/hubmail/mails": ("?list_id={LID}", lambda j: [j["address"]]),  # ?client_id= takes the same _address_of
+    "/api/hubmail/inbox": ("", lambda j: [x["address"] for x in j["spaces"]]),
+}
+ADDR_SEED = {("kalmido.integrations.mail", "mail_addr"), ("kalmido.integrations.reqmail", "rq_address")}
 MARK_CALL = re.compile(r"(^|_)purge($|_)")  # obj_purge, tre_purge, fsk_purge, list_purge, user_purge, client_purge ...
 MARK_ARGS = {"hard", "purge", "empty", "permanent", "forever"}
 
@@ -99,6 +118,61 @@ def purge_routes(root):
     return out
 
 
+def addr_routes(root):
+    """-> {GET route: the chain of calls to the address}: every function by module; a call by name followed into the function
+    it names (the module's own or imported, also inside a function); the GET routes whose function reaches ADDR_SEED."""
+    mods, funcs, imports, routes = {}, {}, {}, []
+    for fn in [os.path.join(root, "app.py")] + sorted(glob.glob(os.path.join(root, "kalmido", "**", "*.py"), recursive=True)):
+        if os.path.exists(fn):
+            m = os.path.relpath(fn, root)[:-3].replace(os.sep, ".").removesuffix(".__init__")
+            mods[m] = (fn.endswith("__init__.py"), ast.parse(open(fn, encoding="utf-8").read(), fn))
+    for m, (pkg, tree) in mods.items():
+        imp = imports.setdefault(m, {})
+        for n in ast.walk(tree):
+            if isinstance(n, ast.ImportFrom):
+                base = m.split(".") if pkg else m.split(".")[:-1]
+                src = ".".join(base[:len(base) - n.level + 1] + ([n.module] if n.module else [])) if n.level else n.module or ""
+                imp.update({a.asname or a.name: (src, a.name) for a in n.names})
+            elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                funcs.setdefault((m, n.name), n)
+                for d in n.decorator_list:
+                    if isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute) and d.args and isinstance(d.args[0], ast.Constant):
+                        ms = [str(e.value).upper() for kw in d.keywords if kw.arg == "methods" for e in getattr(kw.value, "elts", []) if isinstance(e, ast.Constant)]
+                        if d.func.attr == "get" or (d.func.attr == "route" and (not ms or "GET" in ms)):
+                            routes.append((d.args[0].value, (m, n.name)))
+
+    def resolve(m, name, depth=0):
+        if (m, name) in funcs:
+            return m, name
+        src = imports.get(m, {}).get(name)
+        return resolve(*src, depth + 1) if src and src[0] in mods and depth < 6 else None
+    calls = {k: {r for n in ast.walk(f) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) for r in [resolve(k[0], n.func.id)] if r}
+             for k, f in funcs.items()}
+    via, todo = {}, True
+    while todo:
+        todo = False
+        for k, cs in calls.items():
+            hit = sorted(x for x in cs if x in ADDR_SEED or x in via)
+            if hit and k not in via and k not in ADDR_SEED:
+                via[k], todo = hit[0], True
+    out = {}
+    for r, k in routes:
+        chain = [k]
+        while chain[-1] in via:
+            chain.append(via[chain[-1]])
+        if len(chain) > 1:
+            out[r] = " > ".join(x[1] for x in chain)
+    return out
+
+
+FOUND_ADDR = addr_routes(os.path.join(N, ".."))
+check(len(FOUND_ADDR) >= 8, f"the guard finds the address routes ({len(FOUND_ADDR)})")
+for r, why in sorted(FOUND_ADDR.items()):
+    check(r in ADDR, f"guard: GET {r} reaches an inbox address ({why}) - refuse it for a support session (SGA_SECRET_READ / SGA_GET_REFUSED*) "
+                     "or leave the address out for it (sga_is_support), and add it to ADDR")
+for r in sorted(ADDR):
+    check(r in FOUND_ADDR, f"guard: the entry {r} names no GET route that reaches an inbox address (stale)")
+
 FOUND = purge_routes(os.path.join(N, ".."))
 check(len(FOUND) >= 10, f"the guard finds the purge routes ({len(FOUND)})")
 for r, why in sorted(FOUND.items()):
@@ -107,7 +181,10 @@ for r in sorted(set(PURGE) | set(EXEMPT)):
     check(r in FOUND, f"guard: the entry {r} names no DELETE route that deletes for good (stale)")
 
 KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="  # a test server key (32 bytes, base64)
-kt.fresh(env={"KALMIDO_SECRET_KEY": KEY, "KALMIDO_HOSTED": "1"}, prefix="P21254A")
+# review of 2.1254.0: mail in on (an inbox address to leave out; no IMAP server: polled once an hour, failing quietly)
+kt.fresh(env={"KALMIDO_SECRET_KEY": KEY, "KALMIDO_HOSTED": "1", "KALMIDO_MAIL_ADDRESS": "tasks@example.test", "KALMIDO_IMAP_HOST": "127.0.0.1",
+              "KALMIDO_IMAP_PORT": "1143", "KALMIDO_IMAP_SSL": "0", "KALMIDO_IMAP_USER": "kalmido", "KALMIDO_IMAP_PASSWORD": "secret",
+              "KALMIDO_IMAP_INTERVAL": "3600"}, prefix="P21254A")
 assert kt.sess(None).post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice", "password": "password123"}).ok
 A = sess("alice")
 A.post(B + "/api/admin/setup", json={"org_name": "Alpha", "lang": "en", "collab_all": True, "modules": ["comments"]})
@@ -180,6 +257,20 @@ for b in ({"on": True}, {"renew": True}, {"done_mail": True}):
 check(kt.dbx("SELECT COUNT(*) FROM hub_tokens WHERE kind='ticket' AND list_id=?", (LID,)) == [(0,)], "no request address was made")
 r = Fr.patch(B + f"/api/lists/{LID}/request-mail", json={"on": True})
 check(code(r) != "support_session" and r.status_code < 500, f"frida's own session switches it {r.status_code} {r.text[:100]}")
+
+# ---------------------------------------------------------------- review of 2.1254.0: every GET route reaching an inbox address
+for body_, path in (({"ws": "private"}, "/api/docs/mail"), ({"list_id": LID}, "/api/hubmail/address"), ({"ws": "private"}, "/api/hubmail/address")):
+    r = Fr.post(B + path, json=body_)
+    check(r.ok and "@" in (r.json().get("address") or ""), f"setup: frida's own session makes the address {path} {body_} {r.status_code} {r.text[:100]}")
+for route, how in sorted(ADDR.items(), key=lambda x: x[0]):
+    if how == REFUSED:
+        r = X.get(B + sample(route))
+        check(refused(r), f"support session: GET {sample(route)} (an inbox address) 403 support_session, {r.status_code} {r.text[:100]}")
+        continue
+    url = B + route + how[0].format(LID=LID)
+    mine, theirs = Fr.get(url), X.get(url)
+    check(mine.ok and any("@" in (a or "") for a in how[1](mine.json())), f"frida's own session sees the address of {route}: {mine.status_code} {mine.text[:150]}")
+    check(theirs.ok and not any(how[1](theirs.json())), f"support session: {route} answers without the address {theirs.status_code} {theirs.text[:150]}")
 
 # ---------------------------------------------------------------- child paths of an organisation's task
 ALPHA = A.get(B + "/api/orgs").json()["orgs"][0]["id"]
