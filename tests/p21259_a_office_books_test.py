@@ -42,9 +42,9 @@ H = {"X-Requested-With": "kalmido"}
 from kt import FAILS, OKS, check, sess  # noqa: E402
 
 FEAT = "cal,comments,collab,office,clients,docs,travel,time"
-O = "/api/office"
-D = O + "/docs"
-BK = O + "/books"
+OF = "/api/office"
+D = OF + "/docs"
+BK = OF + "/books"
 TODAY = testclock.today().isoformat()
 Y = int(TODAY[:4])
 COMPANY = {"name": "Studio Beispiel GmbH", "street": "Teststraße 1", "zip": "20000", "city": "Hamburg", "country": "DE",
@@ -64,7 +64,7 @@ FID, Fr = freelancer(B, A)
 
 
 def office(s):
-    r = s.put(B + O + "/settings", json={"company": {"name": COMPANY["name"]}, "lang": "en", "currency": "EUR", "company_fields": COMPANY,
+    r = s.put(B + OF + "/settings", json={"company": {"name": COMPANY["name"]}, "lang": "en", "currency": "EUR", "company_fields": COMPANY,
                                          "payment_days": 14, "vat_basis": "ist"})
     check(r.ok, "office settings " + r.text[:200])
 
@@ -91,7 +91,7 @@ def ustva(s, period):
 
 
 def kpi_month(s):
-    return next((m["amount"] for m in s.get(B + O + "/kpi").json()["revenue"]["months"] if m["month"] == TODAY[:7]), None)
+    return next((m["amount"] for m in s.get(B + OF + "/kpi").json()["revenue"]["months"] if m["month"] == TODAY[:7]), None)
 
 
 # ---------------------------------------------------------------- #6301: the frozen tax lines
@@ -111,11 +111,11 @@ def frozen_lines(s, who):
     kz = ustva(s, "m" + TODAY[5:7]).get("kz", {})
     check(kz.get("81") == "100", f"{who}: cash basis: field 81 = 100 from the frozen bases (was 99) {kz.get('81')}")
     check(kpi_month(s) == v19.get("net"), f"{who}: key figures and income statement show the same net {kpi_month(s)} {v19.get('net')}")
-    r = s.put(B + O + "/settings", json={"vat_basis": "soll"})
+    r = s.put(B + OF + "/settings", json={"vat_basis": "soll"})
     check(r.ok, f"{who}: accrual basis " + r.text[:200])
     kz = ustva(s, "y").get("kz", {})
     check(kz.get("81") == "100" and kz.get("86") == "0", f"{who}: accrual basis: field 81 = 100 from the frozen bases (was 99) {kz}")
-    s.put(B + O + "/settings", json={"vat_basis": "ist"})
+    s.put(B + OF + "/settings", json={"vat_basis": "ist"})
 
 
 # ---------------------------------------------------------------- #6301 (several rates, old documents), #6456 (foreign currency)
@@ -197,7 +197,7 @@ def skonto_fx():
     """#6456 / #6301: a cash discount on the accrual basis in USD (an office of its own: field 81 in whole euros)."""
     _, G = freelancer(B, A, "gina")
     office(G)
-    check(G.put(B + O + "/settings", json={"vat_basis": "soll"}).ok, "Gina: accrual basis")
+    check(G.put(B + OF + "/settings", json={"vat_basis": "soll"}).ok, "Gina: accrual basis")
     cl = client(G, "Gina Kunde USA")
     # the rate in EUR: 920.4037 x 1.09 = 1003.24 USD
     did = doc(G, cl, [{"title": "Film", "qty": 1, "rate": "920.4037"}], "USD", "1.09", {"skonto_pct": 2, "skonto_days": 10, "payment_days": 14})
@@ -228,7 +228,7 @@ def reminder(s, cl, who, fee):
 
 
 def reminder_claims(s, who):
-    check(s.put(B + O + "/settings", json={"dunning_interest": 1, "dunning_flat_fee": 1, "base_rate": "1,52",
+    check(s.put(B + OF + "/settings", json={"dunning_interest": 1, "dunning_flat_fee": 1, "base_rate": "1,52",
                                            "dunning_client_kind": "business"}).ok, f"{who}: default interest + flat fee on")
     cl = client(s, f"{who} Agentur")
     rm, t, claim = reminder(s, cl, who, 5)
@@ -241,7 +241,7 @@ def reminder_claims(s, who):
     check(r.ok and r.json().get("fee_open") == "0.00", f"{who}: marked paid " + r.text[:200])
     check(fee_income(s) - fee0 == claim, f"{who}: income statement: fee + interest + flat fee {claim} (was 5.00 alone) {fee_income(s) - fee0}")
     check(Decimal(kpi_month(s)) - k0 == claim, f"{who}: key figures: + {claim} {Decimal(kpi_month(s)) - k0}")
-    cf = s.get(B + O + f"/cashflow?from={TODAY[:7]}&months=1").json()
+    cf = s.get(B + OF + f"/cashflow?from={TODAY[:7]}&months=1").json()
     ent = [e for e in cf.get("entries", []) if e.get("kind") == "fee" and e.get("doc_id") == rm]
     check(ent and Decimal(ent[0]["amount"]) == claim, f"{who}: cash flow: the whole claim came in {ent}")
     led = s.get(B + BK + f"/ledger?year={Y}&journal=1").json()

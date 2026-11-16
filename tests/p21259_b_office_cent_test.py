@@ -39,8 +39,8 @@ H = {"X-Requested-With": "kalmido"}
 from kt import FAILS, OKS, check, sess  # noqa: E402
 
 FEAT = "cal,comments,collab,office,clients,docs"
-O = "/api/office"
-D = O + "/docs"
+OF = "/api/office"
+D = OF + "/docs"
 TODAY = testclock.today()
 Y = TODAY.year
 DAY = TODAY.isoformat()
@@ -63,13 +63,13 @@ def dd(v):
 
 
 def office(s, who):
-    r = s.put(B + O + "/settings", json={"lang": "en", "currency": "EUR", "payment_days": 14,
+    r = s.put(B + OF + "/settings", json={"lang": "en", "currency": "EUR", "payment_days": 14,
                                          "datev_extf": {"advisor_no": "1234567", "client_no": "12345", "chart": "SKR03"},
                                          "company_fields": {"name": f"{who} Beispiel GmbH", "street": "Teststraße 1", "zip": "20000", "city": "Hamburg",
                                                             "country": "DE", "tax_number": "12/345/67890", "vat_id": "DE999999999",
                                                             "iban": "DE02120300000000202051", "bic": "BYLADEM1001", "bank_name": "Beispielbank"}})
     check(r.ok, f"{who}: office settings " + r.text[:200])
-    r = s.put(B + O + "/books/ledger/settings", json={"method": "balance"})
+    r = s.put(B + OF + "/books/ledger/settings", json={"method": "balance"})
     check(r.ok, f"{who}: balance sheet chosen " + r.text[:200])
     r = s.post(B + "/api/clients", json={"name": f"{who} Kunde GmbH", "street": "Weg 1", "zip": "10000", "city": "Ort", "country": "DE"})
     assert r.ok, r.text
@@ -99,7 +99,7 @@ def beleg(number):
 
 
 def extf(s, frm, to):
-    r = s.get(B + O + f"/datev/extf?from={frm}&to={to}")
+    r = s.get(B + OF + f"/datev/extf?from={frm}&to={to}")
     check(r.ok, "DATEV batch " + r.text[:200])
     rows = r.content.decode("cp1252").split("\r\n")
     cols = [x.strip('"') for x in rows[1].split(";")]
@@ -123,7 +123,7 @@ def debtor_balance(rows, number):
 
 def bx_rows(s):
     """The booking export (tax adviser) of this year as [{column: text}]."""
-    r = s.get(B + O + f"/books/export?from={Y}-01-01&to={Y}-12-31")
+    r = s.get(B + OF + f"/books/export?from={Y}-01-01&to={Y}-12-31")
     check(r.ok, "booking export " + r.text[:200])
     txt = r.content.decode("utf-8-sig")
     head = txt.split("\r\n", 1)[0]
@@ -225,12 +225,12 @@ def flow(s, who):
     tl = c["totals"]["tax_lines"]
     check(len(tl) == 1 and tl[0]["pct"] == "16" and tl[0]["amount"] == "16.00", f"{who} (c): the invoice of August 2020 carries 16 % {tl}")
     dbx("UPDATE office_docs SET date='2020-08-20' WHERE id=?", (c["id"],), write=True)
-    r = s.get(B + O + "/datev/extf?from=2020-08-01&to=2020-08-31&check=1")
+    r = s.get(B + OF + "/datev/extf?from=2020-08-01&to=2020-08-31&check=1")
     hints = r.json().get("hints") or [] if r.ok else []
     odd = [h for h in hints if h.get("key") == "odd_rate"]
     check(len(odd) == 1 and c["number"] in odd[0]["text"] and "16" in odd[0]["text"] and "16.00" in odd[0]["text"].replace(",", "."),
           f"{who} (c): the DATEV check names the rate without automatic account {hints}")
-    rep = s.get(B + O + "/books/ledger?year=2020&journal=1").json()
+    rep = s.get(B + OF + "/books/ledger?year=2020&journal=1").json()
     jr = [x for x in rep.get("journal") or [] if x.get("doc") == beleg(c["number"])]
     vat = [dd(x["amount"]) for x in jr if x.get("kind") == "vat"]
     rev = [dd(x["amount"]) for x in jr if x.get("kind") != "vat"]
