@@ -321,6 +321,16 @@ def calc_cur(doc):
     return home, cur, fx if fx > 0 else Decimal(1), True
 
 
+def calc_home_rate(amount, fx, qty=1):
+    """2.1254.0 (#6299): the home-currency rate of an amount a quotation computed in its own (foreign) currency: amount / qty
+    / fx, unrounded, so an invoice line money(qty x rate x fx) gives that amount again (like the deductions of a final invoice,
+    abschlag #4082). An invoice from a quotation in USD thus keeps the quotation's producing / surcharges / raw data / discount
+    to the cent (a second run in EUR, converted, rounded twice). fx None (home currency): the amount as before."""
+    if fx is None:
+        return amount
+    return dec(amount) / dec(qty, "1") / fx
+
+
 def calc_fx_note(pack, lang, home, cur, fx):
     """2.189.0 (#2475): the rate line of a document in a foreign currency; EUR / USD keep the words of before."""
     if (home, cur) == ("EUR", "USD"):
