@@ -146,6 +146,9 @@ def pay(s, did, *amounts):
         check(r.status_code == 201, f"payment {a} on {did} " + r.text[:200])
 
 
+USD10 = "9.1743"  # a position's rate is typed in the office currency: x 1.09 = 10.00 USD (calc.inv_calc)
+
+
 def rates_and_currency(s, who):
     cl = client(s, f"{who} Studio Übersee")
     two = [{"title": "Schnitt", "qty": 1, "rate": "10.00"}, {"title": "Buch", "qty": 1, "rate": "10.00", "tax": "reduced"}]
@@ -167,13 +170,15 @@ def rates_and_currency(s, who):
           f"{who}: an old invoice without tax lines: as before (gross as tax-free revenue) {delta(e1, e2, 'exempt')}")
     check(Decimal(kpi_month(s)) - k0 == Decimal("100.00"), f"{who}: key figures of the old invoice: net / gross as before {Decimal(kpi_month(s)) - k0}")
     # #6456: USD at 1.09, one rate, three parts
-    usd = doc(s, cl, [{"title": "Edit", "qty": 1, "rate": "10.00"}], "USD", "1.09")
+    usd = doc(s, cl, [{"title": "Edit", "qty": 1, "rate": USD10}], "USD", "1.09")
+    check(dbxm.q(DATA, "SELECT totals FROM office_docs WHERE id=?", (usd,))[0][0].count('"gross": "11.90"') == 1, f"{who}: the USD invoice is 10.00 + 1.90 = 11.90 USD")
     pay(s, usd, "3.97", "3.97", "3.96")
     e3 = euer_rows(s)
     check(delta(e2, e3, "vat19") == (Decimal("9.18"), Decimal("1.74"), Decimal("10.92")),
           f"{who}: USD 11.90 / 1.09: 9.18 + 1.74 = 10.92 = the money received (was 9.17 + 1.74 = 10.91) {delta(e2, e3, 'vat19')}")
     # #6456: two rates in USD
-    pay(s, doc(s, cl, two, "USD", "1.09"), "22.60")
+    two_usd = [dict(x, rate=USD10) for x in two]
+    pay(s, doc(s, cl, two_usd, "USD", "1.09"), "22.60")
     e4 = euer_rows(s)
     check(delta(e3, e4, "vat19") == (Decimal("9.18"), Decimal("1.74"), Decimal("10.92")) and delta(e3, e4, "vat7") == (Decimal("9.17"), Decimal("0.64"), Decimal("9.81")),
           f"{who}: USD two rates 22.60 / 1.09 = 20.73: the rest cent on the base at 19 % {delta(e3, e4, 'vat19')} {delta(e3, e4, 'vat7')}")
@@ -194,7 +199,8 @@ def skonto_fx():
     office(G)
     check(G.put(B + O + "/settings", json={"vat_basis": "soll"}).ok, "Gina: accrual basis")
     cl = client(G, "Gina Kunde USA")
-    did = doc(G, cl, [{"title": "Film", "qty": 1, "rate": "1003.24"}], "USD", "1.09", {"skonto_pct": 2, "skonto_days": 10, "payment_days": 14})
+    # the rate in EUR: 920.3853 x 1.09 = 1003.24 USD
+    did = doc(G, cl, [{"title": "Film", "qty": 1, "rate": "920.3853"}], "USD", "1.09", {"skonto_pct": 2, "skonto_days": 10, "payment_days": 14})
     t = G.get(B + f"{D}/{did}").json()["totals"]
     check(t["gross"] == "1193.86", f"Gina: gross 1193.86 USD {t.get('gross')}")
     pay(G, did, "1169.98")
