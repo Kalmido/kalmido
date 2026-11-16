@@ -121,9 +121,15 @@ const today = new Date().toISOString().slice(0, 10);
     for (const [W, Hh] of [[2560, 1440], [1440, 900], [390, 844]]) {
       await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: W, height: Hh}});
       await nav(B + 'static/icon.svg'); await nav(B + '#contacts');
-      await ready(ev, `typeof ctEditor === 'function' && !!document.querySelector('#view')`);
+      // 2.1246.0 (#6259): wait for the real state "New contact" needs - the contacts view drawn and Alice's address book "People"
+      // loaded (S.books of /api/state). On a slow CI runner ctEditor ran before it: no book -> the question "Create your own
+      // address book" instead of the form (red "2560: the contact form opens", then a crash on the missing form)
+      const booksOk = await ready(ev, `typeof ctEditor === 'function' && !!document.querySelector('#view .ctview') && (S.books || []).some(b => b.name === 'People' && b.role === 'owner')`);
+      check(booksOk, `${W}: the contacts view with the address book "People" ` + await ev(`JSON.stringify({view: !!document.querySelector('#view .ctview'), books: (S.books || []).map(b => [b.name, b.role, b.org_id]), ws: typeof wsCur === 'function' ? wsCur() : '?'})`).catch(() => '?'));
       await ev(`(() => { document.querySelectorAll('.modal').forEach(m => m.remove()); ctEditor(null); return 1; })()`);
-      check(await ready(ev, `!!document.querySelector('.modal.ctmodal #ct-given')`), `${W}: the contact form opens`);
+      const opened = await ready(ev, `!!document.querySelector('.modal.ctmodal #ct-given')`);
+      check(opened, `${W}: the contact form opens ` + await ev(`JSON.stringify({modals: [...document.querySelectorAll('.modal')].map(m => m.className + ': ' + (m.textContent || '').trim().slice(0, 80)), books: (S.books || []).length})`).catch(() => '?'));
+      if (!opened) continue;  // the detail above says what showed instead; the next width still runs
       let last = ''; for (let i = 0; i < 40; i++) { const v = await ev(CTF); if (v === last) break; last = v; await sleep(150); }
       const c = JSON.parse(await ev(CTF));
       check(!c.side && c.tab === 1, `${W}: contact form: no sideways scrolling, name before phone in the DOM ` + JSON.stringify(c));
