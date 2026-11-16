@@ -58,7 +58,7 @@ BRACKETS = b"From: " + b"(" * 500 + b" a@example.com\r\nSubject: s\r\n\r\nhi\r\n
 
 # ---- 1. mail_parse: what is refused (with its code, fast, nothing built) and what still goes through
 GUARD = MAILS + r"""
-import json, time, tracemalloc, app
+import base64, json, time, tracemalloc, app
 from kalmido.core import mailguard as G
 def run(raw):
     tracemalloc.start()
@@ -99,6 +99,9 @@ for name, raw in (
         b"--b\r\nContent-Type: text/plain; a=%d" % i + b";" * 120 + b"\r\n\r\nx\r\n" for i in range(400)) + b"--b--\r\n"),
     ("head 2.000 children under a Content-Type of 8 KB semicolons", H + b'Content-Type: multipart/mixed; boundary="b"' + b";" * 8_100
      + b"\r\n\r\n" + b"--b\r\n\r\n" * 2_000 + b"--b--\r\n"),
+    ("head 100 file names of base64 words (5.900 words each to the parser)", H + b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' + b"".join(
+        b'--b\r\nContent-Disposition: attachment; filename="=?utf-8?b?' + base64.b64encode(b"a%d " % i + b"a " * 5_900) + b'?="\r\n\r\nx\r\n'
+        for i in range(100)) + b"--b--\r\n"),
     ("head 31 To lines of 8 KB", b"".join(b"To: " + b"\\a" * 4_080 + b"\r\n" for _ in range(31)) + b"From: a@example.com\r\n\r\nhi"),
     ("lines 4 MB of two-byte lines", H + b"\r\n" + b"a\n" * 2_000_000),
     ("ok normal", multi(3)), ("ok 1.999 parts", multi(1_999)),
@@ -106,6 +109,8 @@ for name, raw in (
      multi(3).replace(b"x\r\n", b"-- comment\r\n--- a/f\r\n" * 25_000 + b'$boundary = "--".md5(time());\r\nboundary = make(x)\r\n' * 60, 1)),
     ("ok the word boundary and 40 KB of blanks", H + b"\r\nboundary" + b" " * 40_000 + b"x\r\n"),
     ("ok head 200 KB", b"From: a@example.com\r\n" + b"X-A: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n" * 4_000 + b"\r\nhi"),
+    ("ok 200 recipients with base64 names", b"To: " + b", ".join(
+        b"=?utf-8?b?" + base64.b64encode(("Jürgen Müller %d" % i).encode()) + b"?= <person%d@example.com>" % i for i in range(200)) + b"\r\n\r\nhi"),
     ("ok 300 recipients with names", b"To: " + b", ".join(b'"Person %d" <person%d@example.com>' % (i, i) for i in range(300)) + b"\r\n\r\nhi"),
     ("ok References of 30 KB", b"References: " + b" ".join(b"<%040d@mail.example.org>" % i for i in range(600)) + b"\r\nFrom: a@example.com\r\n\r\nhi"),
     ("ok a body of a million form feeds", H + b"\r\n" + b"\x0c" * 1_200_000),
@@ -119,11 +124,19 @@ for name, raw in (
 ):
     out[name] = run(raw)
 out["limits"] = [G.MAIL_PARTS_MAX, G.MAIL_HEAD_MAX, G.MAIL_HLINE_MAX, G.MAIL_DEPTH_MAX, G.MAIL_LINES_MAX]
+t = time.monotonic()
+look = [G.mail_head(b"From: Shop <a@example.com>\r\nSubject: Invoice\r\n\r\n") is not None,
+        G.mail_head(b"From: a@example.com\r\nSubject: " + b"a " * 30_000 + b"\r\n\r\n") is None,
+        G.mail_head(b"From: " + b"," * 3_000 + b"\r\nSubject: s\r\n\r\n") is None]
+out["look"] = look + [round(time.monotonic() - t, 2)]
 print(json.dumps(out))
 """
 j = py(GUARD)
-check(j.get("limits") == [2000, 256 * 1024, 16384, 30, 1_000_000],
-      f"the limits: 2.000 parts, 256 KB head, 16 KB per structured header line, 30 levels, a million lines ({j.get('limits')})")
+check(j.get("limits") == [2000, 256 * 1024, 32768, 30, 1_000_000],
+      f"the limits: 2.000 parts, 256 KB head, 32 KB per structured header line, 30 levels, a million lines ({j.get('limits')})")
+lk = j.pop("look", None) or [0, 0, 0, 99]
+check(lk[:3] == [True, True, True] and lk[3] < 1,
+      f"the look of the mailbox rules: plain lines are read, a subject of 60 KB and a sender of 3 KB commas are refused unread ({lk})")
 print("mail_parse [result, seconds, MB built]:", json.dumps(j), flush=True)
 for k, v in sorted(j.items()):
     if k == "limits":
@@ -133,7 +146,7 @@ for k, v in sorted(j.items()):
     # budget of the header lines is spent, 36 MB of parsed lines -- gigabytes before)
     check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or v[2] < 60),
           f"mail_parse {k}: {v[0]} in {v[1]} s, {v[2]} MB built")
-check(len(j) == 41, f"all mails were tried ({len(j)})")
+check(len(j) == 43, f"all mails were tried ({len(j)})")
 
 # ---- 2. the instance mailbox and the reading view
 FETCH = MAILS + r"""
@@ -236,6 +249,7 @@ pdfs = [(f"p{i}.pdf", "application/pdf", b"%PDF-1.4 x") for i in range(15)]
 out["many"] = list(take(small + pdfs)) + [len(CUT)]
 out["plain"] = list(take([("a.pdf", "application/pdf", b"%PDF-1.4 x"), ("n.txt", "text/plain", b"x"), ("i.png", "image/png", b"x")])) + [len(CUT), len(WHY)]
 out["late"] = list(take([(f"p{i}.pdf", "application/pdf", b"%PDF-1.4 x") for i in range(25)])) + [CUT[:]]
+out["late2"] = list(take([(f"n{i}.txt", "text/plain", b"x") for i in range(45)] + [("z.pdf", "application/pdf", b"%PDF-1.4 x")])) + [CUT[:]]
 bad = [("broken.zip", "application/zip", b"PK\x03\x04 no archive")]
 out["broken"] = list(take(small[:2] + bad)) + [len(CUT), WHY[:]]
 xb = io.BytesIO()
@@ -263,6 +277,8 @@ check(j.get("plain") == [2, 11, 2, 0, 0] and j.get("none") is False,
       f"a plain mail as before: the PDF and the image, not the text file, nothing left out ({j.get('plain')}, {j.get('none')})")
 check(j.get("late") == [20, 200, 20, ["more attachments"]],
       f"25 PDFs: 20 become documents as before, and the mail is reported as cut (kept in the mailbox) ({j.get('late')})")
+check(j.get("late2") == [0, 0, 0, ["more attachments"]],
+      f"a PDF as attachment 46 behind text files: not looked at as before, but the mail is reported as cut ({j.get('late2')})")
 k = j.get("broken") or []
 check(k[:1] == [90] and k[3:] == [0, ["ValueError"]],
       f"an unreadable ZIP after two full ones: refused for what it is, not reported as a budget cut ({k})")

@@ -18,18 +18,20 @@ header parser of the standard library needs seconds for 16 KB of commas -- every
       Content-*, Message-ID, date) over MAIL_HLINE_MAX or with more than MAIL_HNEST_MAX opening brackets, any other line
       over MAIL_HTEXT_MAX, and a mail whose structured lines cost more than MAIL_HCOST_MAX together. The cost of a line
       is what the header parser's time follows: its characters that are no letter or digit (each one ends a token: 120
-      semicolons in a Content-Type of 150 bytes take 11 ms), s + s * s / 1024 for s of them in one line. A structured
-      line is parsed once per mail and remembered (the standard library parses it again for every reader that asks).
+      semicolons in a Content-Type of 150 bytes take 11 ms), s + s * s / 1024 for s of them in one line, plus 3/8 of
+      the length of its base64 encoded words (letters and digits to this count, a token per decoded word to the parser).
+      Every header line is parsed once per mail and remembered (the standard library parses it again for every reader).
  3. after the parser, without recursion (mail_postcheck): parts and depth once more.
 
 Only the standard library: every reader of foreign mail uses it (integrations/mail.py, hub/mailbox.py, hub/mailrules.py,
 hub/mailview.py)."""
 import email.feedparser
 import email.policy
+import re
 
 MAIL_PARTS_MAX = 2000         # MIME parts of one mail (the decision of #6425)
 MAIL_HEAD_MAX = 256 * 1024    # bytes of the head of a mail (the decision of #6425)
-MAIL_HLINE_MAX = 16 * 1024    # bytes of one structured header line with its folded lines
+MAIL_HLINE_MAX = 32 * 1024    # bytes of one structured header line with its folded lines (its cost is the tighter limit)
 MAIL_HTEXT_MAX = 64 * 1024    # bytes of any other header line (References, Received, X-...: read in linear time)
 MAIL_HNEST_MAX = 100          # opening brackets in one structured header line (comments inside each other)
 MAIL_HCOST_MAX = 48_000       # the cost of all structured header lines of one mail together (see above): a To line of 200
@@ -56,20 +58,22 @@ class MailRefused(ValueError):
 
 
 _ALNUM = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+_B64_WORD = re.compile(rb"=\?[^?\s]{1,40}\?[bB]\?([^?\s]*)\?=")  # (no part of it can match in two ways: one pass)
 
 
-def _line_cost(name, lines, line_max):
+def _line_cost(name, lines, line_max, text_max=MAIL_HTEXT_MAX):
     """The cost of one header line (name; lines = its bytes, one entry per folded line) towards MAIL_HCOST_MAX; raises
-    MailRefused for a line over its limit."""
+    MailRefused for a line over its limit (line_max a structured line, text_max any other)."""
     n = sum(len(x) for x in lines)
     if name.strip().lower() not in _STRUCTURED:
-        if n > MAIL_HTEXT_MAX:
+        if n > text_max:
             raise MailRefused("head")
         return 0
     if n > line_max or sum(x.count(b"(") for x in lines) > MAIL_HNEST_MAX:
         raise MailRefused("head")
     s = sum(len(x.translate(None, _ALNUM)) for x in lines)
-    return s + s * s // 1024
+    b64 = sum(len(m.group(1)) for x in lines for m in _B64_WORD.finditer(x))
+    return s + s * s // 1024 + b64 * 3 // 8
 
 
 class _Guard(email.policy.EmailPolicy):
@@ -79,24 +83,26 @@ class _Guard(email.policy.EmailPolicy):
     def header_source_parse(self, sourcelines):
         st = self.__dict__["_st"]
         st["cost"] += _line_cost(sourcelines[0].split(":", 1)[0], [x.encode("utf-8", "surrogateescape") for x in sourcelines],
-                                 st["line_max"])
+                                 st["line_max"], st["text_max"])
         if st["cost"] > MAIL_HCOST_MAX:
             raise MailRefused("head")
         return super().header_source_parse(sourcelines)
 
     def header_fetch_parse(self, name, value):
-        if hasattr(value, "name") or name.lower() not in _STRUCTURED:
+        if hasattr(value, "name"):
             return super().header_fetch_parse(name, value)
-        memo = self.__dict__["_st"]["memo"]  # (what it can hold is bounded by MAIL_HCOST_MAX and MAIL_PARTS_MAX)
+        # every line a reader asks for, parsed once (the readers ask for To / Delivered-To / Subject several times); what
+        # the memo can hold is bounded by MAIL_HCOST_MAX, MAIL_PARTS_MAX and the lines the readers ask for
+        memo = self.__dict__["_st"]["memo"]
         key = (name.lower(), value)
         if key not in memo:
             memo[key] = super().header_fetch_parse(name, value)
         return memo[key]
 
 
-def _policy(line_max=MAIL_HLINE_MAX):
+def _policy(line_max=MAIL_HLINE_MAX, text_max=MAIL_HTEXT_MAX):
     p = _Guard()
-    object.__setattr__(p, "_st", {"cost": 0, "memo": {}, "line_max": line_max})
+    object.__setattr__(p, "_st", {"cost": 0, "memo": {}, "line_max": line_max, "text_max": text_max})
     return p
 
 
@@ -169,11 +175,11 @@ def mail_parse(raw):
 
 def mail_head(head, line_max=2048):
     """The message of a few header lines (bytes: what an IMAP server gave for a look at a mail: sender, subject, date,
-    Message-ID), or None when they are refused. line_max: a structured line of a look is short (one sender, one date); a
-    longer one is refused here, where a mail that fits no rule would be read again in every run."""
+    Message-ID), or None when they are refused. line_max: every line of a look is short (one sender, one date, a subject);
+    a longer one is refused here, where a mail that fits no rule would be read again in every run."""
     try:
         if len(head) > MAIL_HEAD_MAX or _lines(head) > 1000:
             return None
-        return _parse(head, _policy(line_max))
+        return _parse(head, _policy(line_max, line_max))
     except MailRefused:
         return None

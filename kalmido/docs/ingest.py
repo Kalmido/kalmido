@@ -394,7 +394,11 @@ def _mail_is_part(name, mime, data, ei_is):
 def _mail_has_parts(files, ei_is):
     """2.1281.0 (#6425): the mail has a file of its own (so its invoice links are not followed) -- what _mail_parts would
     take up, asked without unpacking anything (this question used to unpack every archive of the mail a first time)."""
-    return any(doc_is_archive(name, data) or _mail_is_part(name, mime, data, ei_is) for name, mime, data in files[:MAIL_FILES])
+    return _mail_any_part(files[:MAIL_FILES], ei_is)
+
+
+def _mail_any_part(files, ei_is):
+    return any(doc_is_archive(name, data) or _mail_is_part(name, mime, data, ei_is) for name, mime, data in files)
 
 
 def _mail_parts(files, ei_is, mid, why=None, cut=None):
@@ -415,7 +419,7 @@ def _mail_parts(files, ei_is, mid, why=None, cut=None):
             why.append("ValueError")
         if cut is not None:
             cut.append(what)
-    if cut is not None and _mail_has_parts(files[MAIL_FILES:], ei_is):
+    if cut is not None and _mail_any_part(files[MAIL_FILES:], ei_is):
         cut.append("more attachments")  # (attachment 21 and later are not looked at, as before: the mail is kept for them)
     for i, (name, mime, data) in enumerate(files[:MAIL_FILES]):
         parts = None  # (the files of the attachment before are free before the next one is unpacked)
