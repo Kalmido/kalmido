@@ -176,7 +176,7 @@ def kpi_clients(c, uid, oid, home, docs, year):
 
 # 2.525.0 (#4187): the columns the figures read (kpi_revenue, kpi_open, kpi_clients, inv_state / inv_money_fields, hc_doc_fx);
 # the texts, recipient and fields of a document stay in the database
-KPI_COLS = "id, kind, status, locked_at, client_id, date, totals, currency, fx_rate, cancels_id, due_date, skonto_pct"
+KPI_COLS = "id, kind, status, locked_at, client_id, date, totals, currency, fx_rate, cancels_id, due_date, skonto_pct, vat_mode"  # 2.1259.0 (#6301): + vat_mode (books.bk_pay_net)
 
 
 def kpi_docs(c, oid, year):
