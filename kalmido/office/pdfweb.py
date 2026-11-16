@@ -26,13 +26,14 @@ import re
 from flask import g, jsonify, request, Response, send_file
 
 from ..core.config import app, APP_VERSION, OFFICE_DIR
-from ..core.i18n import tr
+from ..core.i18n import N_, stored_join, tr
+from ..core.errors import BadKey
 from ..core.db import bump, connect, db, err
 from ..core.access import Denied
 from .model import office_feature, office_gate, office_logo_set, office_need_feature, office_org, office_settings
 from ..core.orgcrypt import oc_read_file, oc_write_file
 from .pdf import office_pdf, pdf_lang, pdf_to_8bit  # 2.296.0 D (#3172): + pdf_to_8bit, 2.357.0 D (#3183): + pdf_lang
-from .einvoice import ein_build
+from .einvoice import ein_build, ein_check_block
 from .terms import agb_offer_pdf  # 2.434.0 (#3619)
 from .packs import office_pack_for  # 2.369.5 (#2517): pulled up from functions
 
@@ -234,12 +235,17 @@ def _render(c, oid, r, model=None):
 def epdf_store(c, oid, did, log_extra=None):
     """Called at the end of ofx_finalize (office.ledger): writes the PDF/A-3 (+ XML for invoice / credit) of the now
     frozen document below the organisation's office folder, notes pdf_sha256 / xml_sha256 in office_docs and logs
-    "store". XRechnung without the client's buyer reference raises BadInput (400) -> the finalising is rolled back.
+    "store". XRechnung without the client's buyer reference raises BadInput (400) -> the finalising is rolled back;
+    2.1308.0 (#6476): so does every finding of einvoice.ein_check_block on the finished XML (the missing data in plain text).
     log_extra: more keys for the log entry (2.357.0 #3221: catch_up of the one-time catch-up)."""
     from .docs import doc_row
     from .ledger import ofx_log
     r = doc_row(c, oid, did)
     pdf, xml, fmt = _render(c, oid, r)
+    if xml is not None:  # 2.1308.0 (#6476): the own check on the finished XML, before any file is written (ZUGFeRD and XRechnung)
+        miss = ein_check_block(xml)
+        if miss:  # 400 -> ofx_finalize's transaction is rolled back: no number, no status, no file
+            raise BadKey(N_("The e-invoice ({0}) lacks: {1}"), "XRechnung" if fmt == "xrechnung" else "ZUGFeRD", stored_join(miss))
     d = os.path.join(OFFICE_DIR, str(int(oid)))
     os.makedirs(d, mode=0o700, exist_ok=True)  # 2.39.0 (#1209 audit N8)
     stem = os.path.join(d, f"doc{int(did)}-{epdf_name(r)}")
