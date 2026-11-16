@@ -3041,6 +3041,8 @@ with
   agreements), `bank/`, `expenses/`, `archive/`, `logs/` (the office log and the change logs, GoBD) as CSV; `office-files/`:
   every other file of the office folder (archived PDFs, accepted quotations, entertainment bills ...). Settings and working
   data (price lists, text blocks, cash flow, bank rules ...) stay out: a static test names each such table with its reason;
+- `received-einvoices/` (2.1291.0): received e-invoices of the documents that are no receipt, with `received-einvoices.csv`
+  (number, seller, amount as read from the invoice);
 - `00-index.txt` (contents, the retention note, files that could not be read) and `manifest.json` (SHA-256 of every file).
   A file the virus scanner locked stays out and is listed with its reason under `locked_files` (2.370.0), apart from
   `missing`; a receipt keeps its line in `receipts.csv`.
@@ -3057,6 +3059,24 @@ finished export, are noted (table `retention_log`) and land in the security log.
 first. An organisation admin can no longer delete an account whose private office holds invoices or a cash book (only the
 person can export it; a server admin deletes it after that).
 
+Since 2.1291.0 the step is checked for what it is worth:
+
+- An export counts only when it was **complete**: one in which a file could not be read or was locked by the virus scanner
+  (`missing` / `locked_files` in its manifest) does not open the deletion (`409`, `reason: "incomplete"`; the person who may
+  export sees the file names, the deleting admin only the numbers).
+- It counts only while **nothing to keep came after it** (a document finalised, a receipt, a cash book entry, a bank
+  transaction ... after the export began): then `409`, `reason: "newer"` until it is downloaded again.
+- On a hosted instance only **the person themself or an admin of the organisation** does without the export. They declare
+  it beforehand under the retention export in the settings (`POST /api/retention/me/waiver`,
+  `POST /api/retention/org/<id>/waiver`; `DELETE` takes it back; it holds 7 days and ends when records are added), or
+  delete their own account with the waiver. An instance admin's `?retention=waived` for somebody else is refused
+  (`409`, `reason: "waiver"`) without such a declaration. On your own server the deleting admin still waives directly.
+- **Received e-invoices** in the documents that nobody took over as a receipt count as records to keep (`einvoices`) and
+  are in the ZIP under `received-einvoices/` with their list.
+
+`GET /api/retention/...` also answers `export_problem` (why the last export does not count), `can_waive`, `may_declare`
+and `waived_at`.
+
 Since 2.186.0 a deletion that **retires** instead (your own server: records still under their legal period, see TEAM.md)
 needs neither step and notes no waiver: the records stay. A retired organisation is exported later only by the people who
 were its admins when it was retired (*Settings > Organisation*, section of the retired organisation), never by other
@@ -3071,7 +3091,8 @@ their files after that. On your own server they are still only handed over (rece
 
 Routes (people only, an API token 403): `GET /api/retention/me`, `GET /api/retention/me/export.zip`,
 `GET /api/retention/org/<id>` (the organisation's admins; an instance admin sees only whether records exist),
-`GET /api/retention/org/<id>/export.zip`. Since 2.223.2 the ZIP downloads ask for the password (and second factor) first:
+`GET /api/retention/org/<id>/export.zip`, `POST` / `DELETE /api/retention/me/waiver` and
+`POST` / `DELETE /api/retention/org/<id>/waiver` (2.1291.0; the organisation's admins only, everybody else 404). Since 2.223.2 the ZIP downloads ask for the password (and second factor) first:
 `POST` the same address with `password` (and `code` / `credential`) for a one-time ticket (5 minutes, this person and
 address only), then `GET ...?t=<ticket>`; a `GET` without a ticket answers 403.
 
