@@ -11,6 +11,8 @@ mailbox was fetched twice more.
  - 5 refused logins in a row: fetching stops (no more logins, "Fetch now" 409), its admins hear it by News AND mail (a member
    does not), again after 3 days, not before; the event "Integrations" switched off stops the mail; a changed sender name
    does not end the stop, the access data saved again does
+ - review F1: the mail only to a proved address (an admin with an unproved one gets the News only); saving again + 5 failures
+   within 3 days: News again, no second mail (mailed_at); "Fetch now" is limited (429)
  - an organisation mailbox nobody can receive for (no admin) is not fetched: error norecipient, its mail stays unseen
 usage: p6545_mailbox_test.py <datadir>      (P6545_NOSTART=1: the container runs already, only the stub is started)"""
 import email
@@ -92,6 +94,11 @@ def mails(to):
         return []
 
 
+def queued(uid):
+    """review F1: the integration mails queued for uid (bg_jobs, added in the same step as the News item: no waiting)."""
+    return dbx("SELECT count(*) FROM bg_jobs WHERE kind='mail:security' AND user_id=?", (uid,))[0][0]
+
+
 def news(s, what):
     return [x for x in s.get(B + "/api/news").json()["items"] if x["kind"] == "integfail" and x["data"].get("what") == what]
 
@@ -125,23 +132,25 @@ assert s0.post(B + "/api/auth/setup", json={"username": "alice", "display_name":
 A = sess("alice")
 A.post(B + "/api/admin/setup", json={"lang": "en", "collab_all": True})
 U = {}
-for u in ("bob", "carol"):
+for u in ("bob", "carol", "dave"):
     r = A.post(B + "/api/users", json={"username": u, "display_name": u.title(), "password": "password123", "email": f"{u}@example.test"})
     assert r.ok, r.text
     U[u] = r.json()["id"]
 r = A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": U["bob"]})
 assert r.status_code == 201, r.text
 ORG = r.json()["id"]
-A.patch(B + f"/api/admin/orgs/{ORG}", json={"members": [U["bob"], U["carol"]], "admins": [U["bob"]]})
+# 2.1302.0 (#6545 review F1): dave is a second admin whose address is not proved; bob's is
+A.patch(B + f"/api/admin/orgs/{ORG}", json={"members": [U["bob"], U["carol"], U["dave"]], "admins": [U["bob"], U["dave"]]})
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (U["bob"],))
 ERIN, Er = freelancer(B, A, "erin")
-Bo, Ca = sess("bob"), sess("carol")
-for s in (Bo, Ca, Er):
+Bo, Ca, Da = sess("bob"), sess("carol"), sess("dave")
+for s in (Bo, Ca, Da, Er):
     s.patch(B + "/api/settings", json={"lang": "en", "tour": "done", "features": "cal,collab,comments,events,contacts,clients", "workspace": "all"})
 WS, EWS = f"o{ORG}", f"u{ERIN}"
 BOX = {"ws": f"org:{ORG}", "imap_host": "127.0.0.1", "imap_port": 1143, "imap_ssl": False, "imap_user": "kalmido", "imap_password": "secret"}
 
 cols = {x[0] for x in dbx("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='hub_mailboxes'")}
-check({"ok_at", "told_at", "skipped", "skipped_at"} <= cols, f"migration 6545: the new columns ({sorted(cols)})")
+check({"ok_at", "told_at", "mailed_at", "skipped", "skipped_at"} <= cols, f"migration 6545: the new columns ({sorted(cols)})")
 
 # ---- a mail too large: counted at the mailbox, the small one filed, ok_at = the last success
 small, big = drop("Small one"), drop("Big one", BIG + 500)
@@ -188,6 +197,8 @@ m = until(lambda: mails("bob@example.test"), 30)
 body = email.message_from_string(m[0]["raw"], policy=email.policy.default).get_body(("plain",)).get_content() if m else ""
 check(len(m) == 1 and "fetching stopped" in body and "Settings > Notifications" in body, f"#6545: and a mail to the admin ({body[:300]})")
 check(not news(Ca, "mailbox_auth") and not mails("carol@example.test"), "#6545: a member who is no admin hears nothing")
+check(until(lambda: news(Da, "mailbox_auth"), 20), "#6545: the second admin hears it in the News")
+check(not queued(U["dave"]) and not mails("dave@example.test"), "#6545 F1: but gets no mail: the address is not proved")
 b = Bo.get(B + f"/api/hubmail/mailbox?ws=org:{ORG}").json()["box"]
 check(b["halted"] and "Save the access data again" in b["halted_text"] and b["error_at"] and b["ok_at"], f"#6545: the settings show the stop, failing since, the last success ({b})")
 r = Bo.post(B + "/api/hubmail/mailbox/poll", json={"ws": f"org:{ORG}"})
@@ -201,15 +212,25 @@ r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "from_name": "A
 check(r.ok and r.json()["box"]["halted"] and box(WS)["fails"] == 5, f"#6545: a changed sender name does not end the stop ({r.text[:200]})")
 
 # ---- again after 3 days while it lasts; the event switched off stops the mail
-dbx("UPDATE hub_mailboxes SET told_at=? WHERE ws=?", (ago(days=3, minutes=5), WS))
+dbx("UPDATE hub_mailboxes SET told_at=?, mailed_at=? WHERE ws=?", (ago(days=3, minutes=5), ago(days=3, minutes=5), WS))
 check(until(lambda: len(news(Bo, "mailbox_auth")) == 2, 40), "#6545: after 3 days the admin hears it again")
 check(until(lambda: len(mails("bob@example.test")) == 2, 30), "#6545: by mail too")
 check(Bo.patch(B + "/api/settings", json={"notify": {"integration": {"news": False, "push": False}}}).ok, "bob switches the event 'Integrations' off")
-dbx("UPDATE hub_mailboxes SET told_at=? WHERE ws=?", (ago(days=4), WS))
+dbx("UPDATE hub_mailboxes SET told_at=?, mailed_at=? WHERE ws=?", (ago(days=4), ago(days=4), WS))
 check(until(lambda: str(box(WS)["told_at"] or "")[:10] == datetime.now(timezone.utc).date().isoformat(), 40), "setup: the next notice is due and went out")
 rounds(1)
 check(len(mails("bob@example.test")) == 2 and len(news(Bo, "mailbox_auth")) == 2, f"#6545: the switched-off event stops News and mail ({len(mails('bob@example.test'))})")
 check(Bo.patch(B + "/api/settings", json={"notify": {"integration": {"news": True, "push": True}}}).ok, "setup: on again")
+
+# ---- review F1: saving again + 5 failures within 3 days: the News again, no second mail (mailed_at is not reset)
+dbx("UPDATE hub_mailboxes SET mailed_at=? WHERE ws=?", (ago(days=1), WS))  # the last mail went out yesterday
+nb, mb = len(news(Bo, "mailbox_auth")), queued(U["bob"])
+r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "imap_password": "wrong"})
+check(r.ok and not box(WS)["told_at"], f"setup: saved again, the outage starts anew ({box(WS)})")
+check(until(lambda: box(WS)["fails"] >= 1, 40), f"setup: refused again ({box(WS)})")
+dbx("UPDATE hub_mailboxes SET fails=4, polled_at=? WHERE ws=?", (ago(hours=1), WS))
+check(until(lambda: len(news(Bo, "mailbox_auth")) == nb + 1, 40), f"#6545 F1: the admin hears the new outage in the News ({box(WS)})")
+check(queued(U["bob"]) == mb, f"#6545 F1: but no second mail within 3 days ({queued(U['bob'])} vs {mb})")
 
 # ---- the access data saved again: fetching goes on
 check(Er.put(B + "/api/hubmail/mailbox", json={"ws": "private", "active": False}).ok, "setup: erin's mailbox paused (nothing else takes the mails)")
@@ -219,13 +240,17 @@ after = drop("After the stop")
 check(until(lambda: dbx("SELECT 1 FROM hub_mails WHERE ws=? AND message_id=?", (WS, f"<p6545-{after}@example.org>")), 40), "#6545: and the mailbox is fetched again")
 
 # ---- nobody to receive: not fetched at all
-dbx("UPDATE org_members SET role='member' WHERE org_id=? AND user_id=?", (ORG, U["bob"]))
+dbx("UPDATE org_members SET role='member' WHERE org_id=? AND user_id IN (?,?)", (ORG, U["bob"], U["dave"]))
 lost = drop("Nobody here")
 dbx("UPDATE hub_mailboxes SET polled_at=? WHERE ws=?", (ago(hours=1), WS))
 check(until(lambda: box(WS)["error"] == "norecipient", 40), f"#6545: no admin in the organisation: error 'no recipient' ({box(WS)})")
 check(lost not in seen_uids() and not dbx("SELECT 1 FROM hub_mails WHERE message_id=?", (f"<p6545-{lost}@example.org>",)),
       "#6545: its mail stays unseen in the mailbox (was marked seen and filed nowhere)")
 dbx("UPDATE org_members SET role='admin' WHERE org_id=? AND user_id=?", (ORG, U["bob"]))
+
+# ---- review F1: "Fetch now" is limited per person
+codes = [Er.post(B + "/api/hubmail/mailbox/poll", json={"ws": "private"}).status_code for _ in range(11)]
+check(codes[:10] == [200] * 10 and codes[10] == 429, f"#6545 F1: 'Fetch now' after the limit: 429 ({codes})")
 
 print(f"\n{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
