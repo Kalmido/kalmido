@@ -194,13 +194,14 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   w.eval(`bellPop(document.querySelector('#kbar .bell'))`); await settle(w);  // 2.152.3 (#2619): the bell moved into the head bar
   const grip = d.querySelector('#pop .bpgrip');
   check(grip && /Resize/.test(grip.getAttribute('aria-label')), 'bell dropdown: a resize grip');
-  const bh = d.querySelector('#pop .bphl[data-bp="news"]');
-  check(bh && /News/.test(bh.textContent) && bh.querySelector('.bpchev')?.textContent === '›', 'bell dropdown: the heading "News" is a link with a chevron');
+  // 2.1249.0 (#6125): the heading is "Waiting for you" and no second "Show all": the button below opens the News view
+  const bh = d.querySelector('#pop [data-bp="all"]');
+  check(bh && /Waiting for you/.test(d.querySelector('#pop #bp-h')?.textContent || '') && !d.querySelector('#pop .bphl'), 'bell dropdown: the heading "Waiting for you", one way to all');
   key(w, grip, 'ArrowLeft'); key(w, grip, 'ArrowDown', {shiftKey: true});
   const bs = JSON.parse(w.__store['tasks.bellSize'] || 'null');
   check(bs && bs.w > 0 && bs.h > 0, 'keys resize it, stored per device: ' + JSON.stringify(bs));
   click(w, bh); await settle(w);
-  check(w.eval('S.route.mod') === 'news' && d.querySelector('#pop').classList.contains('hidden'), 'the heading opens the News view');
+  check(w.eval('S.route.mod') === 'news' && d.querySelector('#pop').classList.contains('hidden'), '"Show all" opens the News view');
   w.eval(`go('today')`); await settle(w);
   check(!d.querySelector('#pop').classList.contains('bellpop') && !d.querySelector('#pop').style.width, 'closed: nothing of it stays on the popover');
   w.close();
