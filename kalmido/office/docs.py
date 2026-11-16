@@ -406,8 +406,10 @@ def _sur_legacy(r):
 
 def _mk_stale(c, oid, r):
     """2.1249.0 (#6281, review): a draft quotation with parts and a markup whose cached totals still hold the markup per part
-    (saved before 2.1249.0, no "mk_title"): recalc once when it is opened."""
-    if r["kind"] != "offer" or ofx_locked(r) or dict(r).get("markup_pct") is None or _j(r["totals"], {}).get("mk_title"):
+    (saved before 2.1249.0, no "mk_title"): recalc once when it is opened. 2.1287.0 (#6443): only a draft - a quotation
+    set to sent / accepted / declined without finalising keeps the rule it was sent with (_mk_legacy), opening it writes nothing."""
+    if r["kind"] != "offer" or ofx_locked(r) or (dict(r).get("status") or "draft") != "draft" or dict(r).get("markup_pct") is None \
+            or _j(r["totals"], {}).get("mk_title"):
         return False
     from .parts import tp_has_parts
     return bool(tp_has_parts(c, oid, r["id"]))
@@ -416,8 +418,13 @@ def _mk_stale(c, oid, r):
 def _mk_legacy(r):
     """2.1249.0 (#6281): a quotation with parts finalised while every part computed its own markup (its frozen totals lack
     "mk_title"): its invoices / progress invoices compute the markup per part as its frozen sums did. Otherwise the markup
-    is one line on the title page over its marked positions and the part lines (parts.tp_doc_totals)."""
-    if dict(r).get("kind") != "offer" or not ofx_locked(r) or dict(r).get("markup_pct") is None:
+    is one line on the title page over its marked positions and the part lines (parts.tp_doc_totals).
+    2.1287.0 (#6443): the same for a quotation that left the draft without being finalised (status sent / accepted /
+    declined, set by hand) and was last computed by the former rule: opening it, its PDF, the client's view and its
+    invoices keep the sums it was sent with. Only a draft moves to the one markup line (_mk_stale)."""
+    if dict(r).get("kind") != "offer" or dict(r).get("markup_pct") is None:
+        return 0
+    if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
         return 0
     return 0 if _j(r["totals"], {}).get("mk_title") else 1
 
