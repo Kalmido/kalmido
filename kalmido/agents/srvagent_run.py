@@ -50,6 +50,7 @@ from .srvagent import ProviderError, srv_flow_models, srv_key, srv_models, srv_o
 from .srvstarter import SRV_BRIEF_AT, SRV_FLOWS, SRV_FOLLOWUP_AT, SRV_TEXTS
 from .srvweb import SRV_VIES_TOOL, SRV_WEB_FRAME, SRV_WEB_REMIND, srv_vies_result, srv_web_on, srv_web_scan, srv_web_state, srv_web_tools  # 2.571.0 D
 from .srvteam import srv_batch, srv_member_block, srv_run_asker, srv_usage_mark, SRV_FOREIGN_SQL  # 2.569.0 B (#4675): team projects
+from .srvteam import srv_events_cut, srv_run_cut, SRV_FOR_FRAME  # 2.1287.0 (#6454): a team agent's run works with the requester's rights
 
 SRV_PARALLEL = env_int("KALMIDO_SRVAGENT_PARALLEL", 2, lo=1, hi=64)   # runs at once on this server
 SRV_RUN_S = env_int("KALMIDO_SRVAGENT_RUN_S", 300, lo=10, hi=3600)     # s of one run at most
@@ -312,6 +313,10 @@ def _run(aid, rid):
         if not work:
             return
         _db(lambda c: srv_run_asker(c, rid, who))
+        # 2.1287.0 (#6454): from here on the token reaches only what the requester may (a team agent; before the first tool call)
+        lids = _db(lambda c: srv_run_cut(c, aid, _token_hash(tok), who, work))
+        if lids is not None:
+            data = _db(lambda c: srv_events_cut(c, who, lids, data))
         asker = _asker(work)
         if asker:
             lang = _db(lambda c: usettings(c, asker)["lang"]) or lang
@@ -322,6 +327,8 @@ def _run(aid, rid):
             raise _Stop("failed", mwhy)
         prov = srv_provider(provider, key)
         system = (instructions.strip() + "\n\n" + SRV_FRAME.format(name=name, aid=aid)).strip()
+        if lids is not None and who:
+            system += "\n\n" + SRV_FOR_FRAME
         tools, allowed = _tools(mod, api)
         wst = None
         if srv_web_on(row, flow):  # 2.571.0 D (#4676): read-only web research for this routine

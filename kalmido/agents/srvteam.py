@@ -53,6 +53,10 @@ SRV_FOREIGN_SQL = """EXISTS(SELECT 1 FROM agents x WHERE x.user_id=agent_events.
                      AND COALESCE(agent_events.payload::jsonb->'actor'->>'kind', '')='person'
                      AND (agent_events.payload::jsonb->'actor'->>'id')::bigint<>x.owner_id)"""
 _UNSET = object()
+# 2.1287.0 (#6454): added to the frame of a team agent's run that works for a person (srv_run_cut)
+SRV_FOR_FRAME = ("In this run you work for one person (the one who asked). You reach only what that person may reach "
+                 "themselves, and you change only what they may change: something missing (404), refused (403) or waiting for an "
+                 "approval card is that person's own limit - say so plainly, never look for another way around it.")
 
 
 # ---------------------------------------------------------------- who asks
@@ -136,6 +140,60 @@ def srv_batch(c, aid, data, triggers):
     if a and a["owner_id"]:
         who = a["owner_id"] if work else None
     return work, cut, (None if who is _UNSET else who)
+
+
+# ---------------------------------------------------------------- the run works with the requester's rights
+def srv_run_cut(c, aid, token_hash, who, work):
+    """2.1287.0 (#6454): cuts the run token of TEAM agent aid to the rights of the person the run works for -> the set of
+    its projects, or None (a personal agent: its owner is the requester and the agent's reach is theirs already, nothing
+    changes). who = the requester (srv_batch): the token keeps only the agent's projects that person has a role in
+    (api_tokens.run_lists, core/access.py token_lists) and carries the person (api_tokens.asked_by, core/access.py act_for):
+    every role function of an area without a project answers at most that person's own role, and the control level of each
+    project is capped to their role there (agents/control.py ctl_cap). who None = a run nobody asked for (the project's own
+    automation: listening in, tidying, a follow-up day): only the projects its events name, nothing outside projects.
+    The cut is taken at the start of the run (it lasts minutes); roles and the cap are asked on every request.
+    The caller runs it in system_ctx (the worker)."""
+    from .safety import ids_parse
+    a = agent_row(c, aid)
+    if a is None or a["owner_id"]:
+        return None
+    own = ids_parse(a["list_ids"]) if "list_ids" in a.keys() and str(a["list_ids"] or "").strip() else None
+    if who:
+        base = own if own is not None else {r[0] for r in c.execute(
+            "SELECT id FROM lists WHERE owner_id=? UNION SELECT list_id FROM list_members WHERE user_id=?", (aid, aid))}
+        lids = {x for x in base if list_role(c, x, who)}
+    else:
+        lids = {x for x in (_ev_lid(e.get("data")) for e in work if isinstance(e, dict)) if x and (own is None or x in own)}
+    c.execute("UPDATE api_tokens SET asked_by=?, run_lists=? WHERE token_hash=? AND user_id=?",
+              (who or 0, ",".join(str(x) for x in sorted(lids)), token_hash, aid))
+    return lids
+
+
+def srv_events_cut(c, who, lids, data):
+    """2.1287.0 (#6454): the events of a team agent's run that the model reads (srv_run_cut gave lids): an event of a
+    project only when it is one of the run's projects; of a channel / conversation without a project only when the
+    requester reads that room themselves; any other event only when the server or the requester made it. What is left out
+    was data of other people's places -- it would reach the requester through the answer."""
+    from ..collab.teamchat import tchat_room_ok
+    out = []
+    for e in data:
+        if not isinstance(e, dict):
+            continue
+        d = e.get("data") if isinstance(e.get("data"), dict) else {}
+        lid = _ev_lid(d)
+        room = d.get("room") if isinstance(d.get("room"), dict) else None
+        if lid:
+            ok = lid in lids
+        elif room is not None:
+            rid = room.get("id")
+            r = c.execute("SELECT * FROM tchat_rooms WHERE id=?", (rid,)).fetchone() if isinstance(rid, int) and not isinstance(rid, bool) else None
+            ok = bool(who and r is not None and tchat_room_ok(c, r, who))
+        else:
+            act = e.get("actor") if isinstance(e.get("actor"), dict) else {}
+            ok = srv_requester(e) in (None, who) and (act.get("kind") != "person" or act.get("id") == who)
+        if ok:
+            out.append(e)
+    return out
 
 
 # ---------------------------------------------------------------- limits per member

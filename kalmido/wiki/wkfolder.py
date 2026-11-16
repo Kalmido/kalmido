@@ -79,7 +79,7 @@ import re
 from flask import g, has_request_context, jsonify
 
 from ..core.config import app
-from ..core.access import Denied, acx_of, collab_all
+from ..core.access import Denied, act_for, acx_of, collab_all, for_cap
 from ..core.db import body, bump, db, insert_id, iso_ms, now_utc
 from ..core.dlock import DL_WIKI_MAX, dl_wiki_folders  # 2.1045.0 (#5823); 2.1225.0 (#5862): DL_WIKI_MAX
 from ..core.errors import BadInput
@@ -120,7 +120,7 @@ def wkf_token_listed(uid):
     """2.654.0 (#5053): uid asks through its own API token limited to lists. A page belongs to no list (project), so such a
     token reaches no page -- like the calendar and the books; the app's session and unlimited tokens are unchanged."""
     from ..core.objects import obj_token_lists
-    return obj_token_lists(uid) is not None
+    return obj_token_lists(uid, own=True) is not None  # 2.1287.0 (#6454): the token's own limit; a run's cut: wkf_role's cap
 
 
 def wkf_base(c, uid, r):
@@ -145,7 +145,9 @@ def wkf_role(c, uid, r):
     if n is None:
         return base
     x = fs_ref_node_role(c, uid, n)
-    return x if ROLE_RANK[x] > ROLE_RANK[base] else base
+    x = x if ROLE_RANK[x] > ROLE_RANK[base] else base
+    # 2.1287.0 (#6454): never more than the person the request's agent acts for (core/access.py act_for)
+    return for_cap(uid, x, ROLE_RANK, lambda p: wkf_role(c, p, r))
 
 
 # ---------------------------------------------------------------- the reference kind 'wiki'
@@ -759,6 +761,11 @@ def wkf_shared(c, uid):
             continue  # 2.200.0 F (#1781, review 1): an agent gets a private page only of the person who owns it
         keep[pid] = x
         n_area += pid in area
+    who = act_for(uid) if keep else None
+    if who is not None:  # 2.1287.0 (#6454): the listing's part of wkf_role's cap -- only pages those people read themselves
+        rows = c.execute(f"SELECT * FROM wiki_pages WHERE id IN ({','.join(str(int(k)) for k in keep)})").fetchall() if who else []
+        ok = {int(r["id"]) for r in rows if all(wkf_role(c, p, r) for p in who)}
+        keep = {k: v for k, v in keep.items() if int(k) in ok}
     return keep
 
 

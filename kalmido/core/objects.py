@@ -114,7 +114,7 @@ from datetime import timedelta
 from flask import g, has_request_context, request
 
 from ..accounts.orgroles import FULL_READ, RO_MSG, org_role_key
-from .access import Denied, acx_of, acx_org_ok, collab_all, need_feat, token_lists
+from .access import Denied, act_for, acx_of, acx_org_ok, collab_all, need_feat, token_lists
 from .db import LV_AREA_KEYS, insert_id, iso, now_iso, now_utc
 from .errors import BadInput
 from .i18n import tr
@@ -375,11 +375,33 @@ def _api_way(c, uid):
     return fsr_api_way(c, uid)
 
 
-def _req_token_lists(uid):
-    """The list limit of the request's own token (None: none, or not uid's request)."""
+def _req_token_lists(uid, own=False):
+    """The list limit of the request's own token (None: none, or not uid's request). 2.1287.0 (#6454): own=True = only the
+    limit the token itself carries, without the cut of a team agent's run (core/access.py token_lists) -- for an object
+    without a project: there the run's person caps the role (_for_cap), the cut names projects only."""
     if not has_request_context() or g.get("auth_via") != "token" or not g.get("user") or g.user["id"] != uid:
         return None
-    return token_lists()
+    return token_lists(own=own)
+
+
+def _for_cap(c, uid, kind, rid, row, role):
+    """2.1287.0 (#6454): role, capped to what the people the request's agent acts for have on the object themselves
+    (core/access.py act_for: the person a team agent's run works for, the person who answered a card without a project).
+    Nobody to act for (a run without a person): only an object of one of the run's projects (the list limit let it pass)."""
+    who = act_for(uid) if role else None
+    if who is None:
+        return role
+    reg = OBJ[kind]
+    col = reg["list_col"]
+    if not who:
+        return role if col in row.keys() and row[col] else None
+    for p in who:
+        r = obj_role(c, p, kind, rid, row=row)
+        if OBJ_RANK[r] < OBJ_RANK[role]:
+            role = r
+        if not role:
+            break
+    return role
 
 
 def _gate(c, uid, reg, row):
@@ -406,7 +428,9 @@ def _gate(c, uid, reg, row):
     lim = _req_token_lists(uid)
     if lim is not None:
         col = reg["list_col"]  # 2.568.0 (#4739): a list itself is checked by its own id
-        if col not in row.keys() or row[col] not in lim:
+        if col not in row.keys() or not row[col]:  # 2.1287.0 (#6454): no project -- the token's own limit closes it (a run's cut: _for_cap)
+            return _req_token_lists(uid, own=True) is None
+        if row[col] not in lim:
             return False
     return True
 
@@ -491,6 +515,7 @@ def obj_role(c, uid, kind, rid, row=None, pre=None, own_trash=False):
         own = own_trash and row["deleted_by"] is not None and int(row["deleted_by"]) == int(uid)
         if row["deleted_at"] and out != "manage" and not own:
             out = None  # step 4: the trash only for who may restore it
+        out = _for_cap(c, uid, kind, rid, row, out)  # 2.1287.0 (#6454): never more than the person the agent acts for
     if cache is not None:
         cache[key] = out
     return out
@@ -610,9 +635,20 @@ def _visible_sql(c, uid, kind):
             extra += f" AND o.id NOT IN {sql}"
     lim = _req_token_lists(uid)
     if lim is not None:
+        own = _req_token_lists(uid, own=True)  # 2.1287.0 (#6454): without a project only the token's own limit closes
         if "list_id" not in table_columns(c, t):
-            return none
-        extra += f" AND o.list_id IN ({_ids(sorted(lim))})"
+            if own is not None:
+                return none
+        else:
+            extra += f" AND (o.list_id IN ({_ids(sorted(lim))}){' OR o.list_id IS NULL' if own is None else ''})"
+    who = act_for(uid)
+    if who is not None:  # 2.1287.0 (#6454): only what the people the agent acts for see themselves (obj_role: _for_cap)
+        if not who:
+            if "list_id" not in table_columns(c, t):
+                return none
+            extra += " AND o.list_id IS NOT NULL"
+        for p in who:
+            extra += f" AND o.id IN {_visible_sql(c, p, kind)}"
     return f"(SELECT o.id FROM {t} o WHERE o.deleted_at IS NULL AND {floor} AND ({' OR '.join(parts)}){extra})"
 
 
@@ -961,10 +997,11 @@ def obj_gate(c, uid, kind, row):
     return bool(reg and uid and row is not None and _gate(c, uid, reg, row))
 
 
-def obj_token_lists(uid):
+def obj_token_lists(uid, own=False):
     """The list limit of the request's own API token when uid asks through it (None: no limit / not uid's request) -- step 2
-    of obj_role for an area that lists its objects itself: an object without a list_id is out then."""
-    return _req_token_lists(uid)
+    of obj_role for an area that lists its objects itself: an object without a list_id is out then. 2.1287.0 (#6454): own=True
+    = the token's own limit only, without the cut of a team agent's run (there the area caps by core/access.py act_for)."""
+    return _req_token_lists(uid, own=own)
 
 
 def obj_share_rows_sql(kind, trash=False):
