@@ -17,6 +17,8 @@ comes back)
  - a subtask that went with its parent in the same run counts as deleted (the run's number is what went)
  - a hook that fails is an error the watchdog hears of (<kind>_err, the run raises after its commit), not a quiet lock,
    and it holds back no other kind (one savepoint per kind)
+ - 2.1251.0 (#6285): KALMIDO_TRASH_DAYS=0 switches the task trash run off (docs/SELF-HOSTING.md): an old task in the
+   trash stays and is not counted, with the switch on; the other kinds still run (a project after 1 day)
 usage: p2936_a_trash_core_test.py <datadir>"""
 import json
 import os
@@ -227,5 +229,22 @@ print("LAST", last[0] if last else "")""")
 check("RAISED core trash run: task " in out and "NORAISE" not in out, f"the run raises for the watchdog after its commit {out[-400:]}")
 check('"task_err": 1' in out and '"task_locked"' not in out, f"counted as an error, not as locked {out[-400:]}")
 check(exists("tasks", TE) and not exists("lists", LE), "the failing task stays, the project of the other kind went all the same")
+
+# ---------------------------------------------------------------- 2.1251.0 (#6285): KALMIDO_TRASH_DAYS=0 = the task run off
+LZ = plist(A, "Example Days Zero")
+TZ = task(A, LZ, "Task kept with days 0")
+trash(A, TZ)
+age_task(TZ)
+LZO = plist(A, "Example Days Zero Old Project")
+list_to_trash(A, LZO)
+age_list(LZO)
+out = in_app("""import os, json
+os.environ["KALMIDO_PURGE_TRASH"] = "1"
+os.environ["KALMIDO_TRASH_DAYS"] = "0"
+from kalmido.core.writes import obj_trash_tick
+n = obj_trash_tick(c, force=True)
+print("ZERO", json.dumps(sorted(k for k in n if k.startswith("task"))), n.get("list"))""")
+check('ZERO [] 1' in out, f"days 0: the task run neither counts nor deletes, the projects' run goes on {out[-400:]}")
+check(exists("tasks", TZ) and not exists("lists", LZO), "days 0: the old task stays in the trash, the old project went (1 day)")
 
 sys.exit(done("p2936_a_trash_core"))
