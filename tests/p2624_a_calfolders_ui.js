@@ -62,8 +62,9 @@ const settings = async () => (await call('GET', '/api/state')).settings;
     && order.indexOf('F:Clients/Acme') < order.indexOf('Website') && order.indexOf('Website') < order.indexOf('F:Clients/Acme/Webshop') && order.indexOf('F:Clients/Acme/Webshop') < order.indexOf('Shop')
     && order.at(-1) === w.eval(`lname(S.lists.find(l => l.is_inbox))`), 'grouped like the sidebar: own lists, folder, its lists, its subfolders, the inbox last ' + JSON.stringify(order));
   check(frows().length === 4 && frows().every(r => r.querySelector('input[data-cvx="folder"]')?.checked && r.querySelector('.sr')?.textContent), 'a switch per folder (on, with an accessible name)');
-  const pad = r => parseFloat(r.style.paddingLeft || '0');
-  check(pad(frows().find(r => r.dataset.folder === 'Clients/Acme')) > pad(frows().find(r => r.dataset.folder === 'Clients')) && pad(lrow('Shop')) > pad(lrow('Website')), 'subfolders and their lists indented');
+  // 2.1246.0 (#6268): the indent is a class per depth in calendar.css since #6159 (no inline style): the drawn padding counts
+  const pad = r => r ? parseFloat(w.getComputedStyle(r).paddingLeft) || 0 : -1;
+  check(pad(frows().find(r => r.dataset.folder === 'Clients/Acme')) > pad(frows().find(r => r.dataset.folder === 'Clients')) && pad(lrow('Shop')) > pad(lrow('Website')), 'subfolders and their lists indented ' + JSON.stringify(frows().map(r => [r.dataset.folder, pad(r)]).concat([['Website', pad(lrow('Website'))], ['Shop', pad(lrow('Shop'))]])));
 
   // ================= a folder off
   const s = fsw('Clients/Acme'); s.checked = false; change(w, s);
