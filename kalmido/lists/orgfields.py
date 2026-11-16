@@ -159,8 +159,9 @@ def of_update(ofid):
     c.execute("UPDATE org_fields SET name=?, options=? WHERE id=?", (name, o, ofid))
     # 2.1258.0 (#6296): only the linked fields of projects in the schema's own space (as orglabels.py): a project that moved to
     # another workspace or owner keeps its field as its own (kalmido_of_unlink), and even a link left over is never written here
-    for (fid,) in c.execute(f"SELECT f.id FROM list_fields f JOIN lists l ON l.id=f.list_id WHERE f.org_field_id=? AND {OF_IN_SPACE}",
-                            (ofid,)).fetchall():
+    # review F1: FOR UPDATE OF f - a move committed meanwhile (its trigger unlinks the row) waits or drops the row from the list
+    for (fid,) in c.execute(f"SELECT f.id FROM list_fields f JOIN lists l ON l.id=f.list_id WHERE f.org_field_id=? AND {OF_IN_SPACE} "
+                            "FOR UPDATE OF f", (ofid,)).fetchall():
         field_prune_opts(c, fid, r["type"], opts)
         c.execute("UPDATE list_fields SET name=?, options=? WHERE id=?", (name, o, fid))
     bump(c)
@@ -258,6 +259,10 @@ def of_list_switch(lid, ofid):
     if not r:
         raise Denied(404)  # never a field of another organisation / person
     write_lock(c, f"list-fields-{lid}")  # 2.609.0 (#3373): two switches at once never link the field twice
+    # 2.1258.0 (#6296, review F2): the project's space read again under a row lock - a move at the same time links nothing outside it
+    c.execute("SELECT id FROM lists WHERE id=? FOR SHARE", (lid,))
+    if not any(x["id"] == ofid for x in of_for_list(c, lid)):
+        raise Denied(404)
     have = c.execute("SELECT id FROM list_fields WHERE list_id=? AND org_field_id=?", (lid, ofid)).fetchone()
     fid = have[0] if have else None
     if b.get("on") and not have and not of_schema_seen(c, me(), lid, role):
