@@ -1681,13 +1681,15 @@ def odoc_items_put(did):
 def odoc_number(did):
     """{number?} sets a number by hand (unique within the organisation) or reserves the next one of the scheme.
     A finalised document: 409. 2.126.0 A (#1966): the next number of a kind numbered at finalising only comes then (409).
-    2.148.1 E (#2496): office admin / accounting only (a plain member's number comes at finalising)."""
+    2.148.1 E (#2496): office admin / accounting only (a plain member's number comes at finalising).
+    2.1264.0 (#6331): expect_updated_at (optional, the web client always sends it) not the stored one: 409 {error, doc}."""
     c, uid, oid = _ctx(admin=True)
     write_lock(c, f"office_doc_{int(did)}")  # 2.355.0 A (#2839): as finalise (doc -> num): never a number in between finalising
     r = doc_row(c, oid, did)
     ofx_need_editable(r)
     b = body()
     b = b if isinstance(b, dict) else {}
+    ofd_need_current(c, oid, r, b, office_role(c, uid, oid) == "admin")  # 2.1264.0 (#6331): the number for the draft shown, before writing
     if "number" not in b and not r["trial"] and ofx_number_at_finalize(office_settings(c, oid), r["kind"]):
         raise Denied(409, tr("the number comes only when the invoice is finalised; the series has no gaps"))
     reason = _text(b.get("reason"), "reason", 300)
@@ -1696,7 +1698,7 @@ def odoc_number(did):
         ofx_log(c, oid, "number", doc_id=did, detail={"before": {"number": r["number"]}, "after": {"number": num, **({"reason": reason} if reason else {})}})
     bump(c)
     c.commit()
-    return jsonify(id=did, number=num)
+    return jsonify(id=did, number=num, updated_at=doc_row(c, oid, did)["updated_at"])  # 2.1264.0 (#6331): + the new version for the next check
 
 
 @app.get("/api/office/docs/<int:did>/number-preview")
