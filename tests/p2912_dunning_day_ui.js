@@ -86,6 +86,12 @@ async function run(user, ck, who, booked) {
   check(JSON.stringify(feeDay(rid)) === JSON.stringify(['paid', DAY2]), `${who}: the new day is stored ${JSON.stringify(feeDay(rid))}`);
   check(await booked(rid, DAY2) && !await booked(rid, DAY1), `${who}: the booking moved to ${DAY2}`);
   w.close();
+  // 2.1259.0 (#6459): a paid reminder whose stored amount is 0.00 (a second level: the first one counted interest and flat fee)
+  // keeps its row with "Open again" (was hidden with the amount: the mark could not be taken back)
+  dbx('UPDATE office_docs SET reminder_fee_paid_amount=0 WHERE id=?', [rid]);
+  const w2 = await boot({user, hash: 'office/offers/' + rid});
+  check(await until(() => w2.document.querySelector('[data-ofd="fee"][data-st=""]')), `${who}: a paid reminder with the stored amount 0.00 still offers "Open again": ${(w2.document.querySelector('.ofdfeeinfo')?.textContent || '')}`);
+  w2.close();
 }
 
 (async () => {
