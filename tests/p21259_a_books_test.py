@@ -6,14 +6,21 @@ freelancer-matrix: office
    income statement shows 100.00 / 18.99 (was 99.99 / 19.00, recomputed from the gross), field 81 of the VAT return on
    the cash basis 100 (was 99), the key figures 100.00 net -- the same figure as the income statement; on the accrual
    basis ("soll") field 81 = 100 too (the frozen bases of the documents)
+ - #6302: a finalised reminder with fee 5.00, default interest and the flat fee (40 - 5 credited = 35.00) marked "fee paid":
+   the income statement (reminder fees), the key figures, the cash flow and the ledger count fee + interest + flat fee
+   (was 5.00 alone), the VAT return not; a reminder without a fee (only interest and 40.00 flat fee) shows them open and
+   can be marked paid (was 409), it counts the same way
  - the same for a person without an organisation (own office)
 usage: p21259_a_books_test.py <datadir>"""
 import os
 import subprocess
+from datetime import date, timedelta
+from decimal import Decimal
 import sys
 
 import requests
 
+import dbx as dbxm
 import testclock
 from freelancer_fixture import freelancer
 
@@ -100,8 +107,61 @@ def frozen_lines(s, who):
     s.put(B + O + "/settings", json={"vat_basis": "ist"})
 
 
+# ---------------------------------------------------------------- #6302: fee + interest + flat fee of a reminder
+def fee_income(s):
+    eu = s.get(B + BK + f"/euer?year={Y}").json()
+    return Decimal(next((x["net"] for x in eu["income"] if x["key"] == "fee"), "0"))
+
+
+def reminder(s, cl, who, fee):
+    inv = invoice(s, cl, 500, f"Dreh {fee}")
+    dbxm.q(DATA, "UPDATE office_docs SET due_date=? WHERE id=?", ((date.fromisoformat(TODAY) - timedelta(days=30)).isoformat(), inv))
+    r = s.post(B + D + "/reminder", json={"doc_ids": [inv], "level": 2, "fee": fee})
+    check(r.ok, f"{who}: reminder with fee {fee} " + r.text[:200])
+    rm = r.json()["id"]
+    check(s.post(B + f"{D}/{rm}/finalize").ok, f"{who}: reminder finalised")
+    t = s.get(B + f"{D}/{rm}").json()
+    claim = Decimal(t["totals"]["fee"]) + Decimal(t["totals"]["interest"]) + Decimal(t["totals"]["flat_fee"])
+    return rm, t, claim
+
+
+def reminder_claims(s, who):
+    check(s.put(B + O + "/settings", json={"dunning_interest": 1, "dunning_flat_fee": 1, "base_rate": "1,52",
+                                           "dunning_client_kind": "business"}).ok, f"{who}: default interest + flat fee on")
+    cl = client(s, f"{who} Agentur")
+    rm, t, claim = reminder(s, cl, who, 5)
+    tt = t["totals"]
+    check(tt["fee"] == "5.00" and Decimal(tt["interest"]) > 0 and tt["flat_fee"] == "35.00", f"{who}: fee 5.00, interest, flat fee 35.00 {tt.get('interest')} {tt.get('flat_fee')}")
+    check(t.get("fee_open") == str(claim), f"{who}: open: fee + interest + flat fee {t.get('fee_open')} {claim}")
+    fee0, k0 = fee_income(s), Decimal(kpi_month(s))
+    kz0 = ustva(s, "y").get("kz", {})
+    r = s.post(B + f"{D}/{rm}/fee", json={"state": "paid"})
+    check(r.ok and r.json().get("fee_open") == "0.00", f"{who}: marked paid " + r.text[:200])
+    check(fee_income(s) - fee0 == claim, f"{who}: income statement: fee + interest + flat fee {claim} (was 5.00 alone) {fee_income(s) - fee0}")
+    check(Decimal(kpi_month(s)) - k0 == claim, f"{who}: key figures: + {claim} {Decimal(kpi_month(s)) - k0}")
+    cf = s.get(B + O + f"/cashflow?from={TODAY[:7]}&months=1").json()
+    ent = [e for e in cf.get("entries", []) if e.get("kind") == "fee" and e.get("doc_id") == rm]
+    check(ent and Decimal(ent[0]["amount"]) == claim, f"{who}: cash flow: the whole claim came in {ent}")
+    led = s.get(B + BK + f"/ledger?year={Y}&journal=1").json()
+    fr = [x for x in led.get("journal", []) if x["src"] == "fee"]
+    check(sum((Decimal(x["amount"]) for x in fr), Decimal(0)) == claim, f"{who}: ledger: the paid claim as other income {fr}")
+    kz1 = ustva(s, "y").get("kz", {})
+    check(kz1.get("81") == kz0.get("81") and kz1.get("83") == kz0.get("83"), f"{who}: not in the VAT return {kz0.get('81')} {kz1.get('81')}")
+    # a reminder without a fee: only interest and the flat fee 40.00
+    rm0, t0, claim0 = reminder(s, cl, who, 0)
+    check(t0["totals"]["fee"] == "0.00" and t0["totals"]["flat_fee"] == "40.00" and t0.get("fee_open") == str(claim0),
+          f"{who}: no fee, interest + 40.00 open {t0['totals'].get('flat_fee')} {t0.get('fee_open')} {claim0}")
+    fee1 = fee_income(s)
+    r = s.post(B + f"{D}/{rm0}/fee", json={"state": "paid"})
+    check(r.ok, f"{who}: a reminder without a fee can be marked paid (was 409) {r.status_code} {r.text[:200]}")
+    check(fee_income(s) - fee1 == claim0, f"{who}: income statement: + interest + 40.00 = {claim0} {fee_income(s) - fee1}")
+    check(s.post(B + f"{D}/{rm0}/fee", json={"state": ""}).ok and fee_income(s) == fee1, f"{who}: opened again: out of the income statement")
+
+
 frozen_lines(A, "Alpha")
 frozen_lines(Fr, "Frida")
+reminder_claims(A, "Alpha")
+reminder_claims(Fr, "Frida")
 
 print(f"p21259_a_books: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

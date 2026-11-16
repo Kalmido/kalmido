@@ -519,13 +519,18 @@ def ofc_meals_euer(meals, small):
 def bk_fees_paid(c, oid, frm, to, home):
     """2.545.0 (#4387): the paid fees of finalised reminders in [frm, to] (ISO days): [{doc_id, number, date, amount (Decimal,
     home currency)}]. The day = reminder_fee_paid_at (set when a person marks the fee paid), before 2.545 the reminder's date.
-    A reminder fee is damages, not a sale: no VAT, not in the VAT return (the tax advisor checks, #1153)."""
+    A reminder fee is damages, not a sale: no VAT, not in the VAT return (the tax advisor checks, #1153). 2.1259.0 (#6302):
+    the amount = fee + default interest + flat fee of the frozen totals (invoices.inv_reminder_claim), also without a fee --
+    the one sum of the income statement, key figures, cash flow and ledger (was the fee alone)."""
+    from .invoices import inv_reminder_claim
     day = "COALESCE(NULLIF(CAST(reminder_fee_paid_at AS text), ''), date)"  # 2.1115.0 (#5951): DATE
     out = []
-    for r in c.execute(f"SELECT id, number, currency, fx_rate, reminder_fee, {day} AS day FROM office_docs WHERE org_id=? AND kind='reminder' "
-                       f"AND locked_at IS NOT NULL AND {live_sql()} AND trial=0 AND reminder_fee > 0 AND reminder_fee_state='paid' AND {day}>=? AND {day}<=? "
+    for r in c.execute(f"SELECT id, number, currency, fx_rate, reminder_fee, totals, {day} AS day FROM office_docs WHERE org_id=? AND kind='reminder' "
+                       f"AND locked_at IS NOT NULL AND {live_sql()} AND trial=0 AND reminder_fee_state='paid' AND {day}>=? AND {day}<=? "
                        f"ORDER BY {day}, id", (oid, frm, to)).fetchall():
-        out.append({"doc_id": r["id"], "number": r["number"], "date": r["day"], "amount": money(dec(r["reminder_fee"]) / _fx(r, home))})
+        claim = inv_reminder_claim(r)
+        if claim > 0:
+            out.append({"doc_id": r["id"], "number": r["number"], "date": r["day"], "amount": money(claim / _fx(r, home))})
     return out
 
 
