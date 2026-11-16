@@ -23,6 +23,7 @@ import xml.etree.ElementTree as ET
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
+from . import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from .i18n import tr
 from ..core.errors import BadInput  # 2.369.5 (#2517): pulled up from functions
 from .serializers import csv_cell as _cell  # 2.369.5 (#2517): pulled up from functions
@@ -393,6 +394,19 @@ def csv_iban_col(header):
 
 
 # ---------------------------------------------------------------- CAMT.052 / .053
+# 2.1272.0 (#6422): a statement is read by core/safexml.py (callers cap the file far below CAMT_BYTES_MAX; an entry has
+# about 60 elements)
+CAMT_BYTES_MAX = 64 * 1024 * 1024
+CAMT_ELEMENTS_MAX = 1_000_000
+CAMT_DEPTH_MAX = 64
+
+
+def camt_tree(text):
+    """The root element of a CAMT text: XmlRefused (NUL, DOCTYPE / ENTITY, too large) or ET.ParseError. The client sends
+    text (UTF-8, cp1252 fallback); the reader drops the XML declaration, whose encoding no longer holds."""
+    return safexml.sx_tree(text, max_bytes=CAMT_BYTES_MAX, max_elements=CAMT_ELEMENTS_MAX, max_depth=CAMT_DEPTH_MAX)
+
+
 def camt_is(text):
     head = (text or "")[:4000]
     return "<Document" in head and "camt.05" in head
@@ -465,12 +479,13 @@ def _money(d):
 
 def camt_rows(text, text_max=300):
     """CAMT.052 / .053 XML -> [{day, amount (signed Decimal), currency, counterpart, purpose, iban, ref, error}]. Documents
-    with a DOCTYPE or an ENTITY are refused before parsing (no entity expansion, no external references)."""
-    if re.search(r"<!\s*(DOCTYPE|ENTITY)", text, re.I):
-        raise _bad(tr("The file contains a DOCTYPE or an ENTITY and is not read"))
+    with a DOCTYPE or an ENTITY are refused by the reader (camt_tree: no entity expansion, no external references)."""
     try:
-        # the client sends text (UTF-8, cp1252 fallback): a declared encoding (ISO-8859-1 ...) would make expat decode twice
-        root = ET.fromstring(re.sub(r"^\s*<\?xml[^>]*\?>", "", text.lstrip("﻿")).encode("utf-8"))
+        root = camt_tree(text)
+    except safexml.XmlRefused as e:
+        if e.reason in ("nul", "dtd"):
+            raise _bad(tr("The file contains a DOCTYPE or an ENTITY and is not read")) from None
+        raise _bad(tr("The file cannot be read as CAMT")) from None
     except (ET.ParseError, ValueError):
         raise _bad(tr("The file cannot be read as CAMT")) from None
     out = []

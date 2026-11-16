@@ -35,6 +35,7 @@ from flask import jsonify, request
 from ..core.config import OFFICE_DIR, app
 from ..core.access import Denied
 from ..core.db import bump, iso, local_now, now_utc, parse_iso
+from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from ..core.i18n import N_, tr
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_send_file, oc_seal
 from ..core.pg import insert_id, system_ctx, write_lock
@@ -50,6 +51,8 @@ from .datevimp import _amount, _day, _person, di_decode, di_import, di_parse, di
 BA_KIND = "datev_archive"            # office_import_runs.kind
 BA_FILE_MAX = 60 * 1024 * 1024       # one booking batch / one receipt image
 BA_ROWS_MAX = 250000                 # booking lines of one batch
+BA_DOCS_ELEMENTS = 500_000           # 2.1272.0 (#6422): elements of one document.xml (a receipt has about five)
+BA_DOCS_DEPTH = 32                   # 2.1272.0 (#6422): levels of one document.xml (DATEV's has four)
 BA_TOTAL_MAX = 400 * 1024 * 1024     # all files of one ZIP, unpacked
 # 2.523.0 (#4073 c): what one upload reads into memory, all its files together (before: each file up to BA_TOTAL_MAX); a
 # longer request is refused from its length before it is read, never above the app's own request limit
@@ -182,13 +185,15 @@ def _unpack(items, with_docs, depth=0, left=None):
 
 
 def _docs_xml(data):
-    """document.xml of the DATEV XML interface -> [(guid, file name)] (no DOCTYPE / ENTITY: refused before parsing)."""
-    text = di_decode(data)
-    if re.search(r"<!\s*(DOCTYPE|ENTITY)", text, re.I):
-        raise BadInput(tr("The file contains a DOCTYPE or an ENTITY and is not read"))
-    text = re.sub(r"^\s*<\?xml[^>]*\?>", "", text)  # review F5: decoded already (a declared windows-1252 is no UTF-8 for the parser)
+    """document.xml of the DATEV XML interface -> [(guid, file name)]. 2.1272.0 (#6422): read by core/safexml.py (no NUL,
+    no DOCTYPE / ENTITY, at most BA_DOCS_ELEMENTS elements, counted while reading); the text is decoded already (review
+    F5: a declared windows-1252 is no UTF-8 for the parser), the reader drops the declaration."""
     try:
-        root = ET.fromstring(text.encode("utf-8"))
+        root = safexml.sx_tree(di_decode(data), max_bytes=3 * BA_FILE_MAX, max_elements=BA_DOCS_ELEMENTS, max_depth=BA_DOCS_DEPTH)
+    except safexml.XmlRefused as e:
+        if e.reason in ("nul", "dtd"):
+            raise BadInput(tr("The file contains a DOCTYPE or an ENTITY and is not read")) from None
+        raise BadInput(tr("The file is too large")) from None
     except ET.ParseError:
         return None
     out, seen = [], False
