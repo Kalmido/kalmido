@@ -23,6 +23,8 @@ freelancer-matrix: tasks
  (15) News of an organisation / a list / a connection stay out of an ex-member's feed; being removed stays readable
  (16) a nag cap counts over restarts (the database)
  (17) 2.540.0 (#4383): News of an organisation are judged by its number where they carry one (names repeat), the name as fallback
+ (18) 2.1299.0 (#6352): the daily mail of a person without an organisation whose address is not confirmed: no summary, once
+     the proof mail instead (with the line why, without the tasks), not twice; then confirmed (1) and (2) mail as before
 usage: p23675_notify_test.py <datadir>"""
 import json
 import os
@@ -132,8 +134,40 @@ FR, Fr = freelancer(B, A)
 FT = task(Fr, "Invoice run", due="2020-01-01")
 clear()
 
-# ---- (1) the daily mail
+# ---- (18) 2.1299.0 (#6352): an unconfirmed address gets no summary, only once the proof mail
 Fr.patch(B + "/api/settings", json={"digest_mail": "1"})
+out = in_app(f"""
+import kalmido.integrations.mailproof as MP
+MP.MAIL_OUT_ON = True
+out = {{}}
+today = "2026-10-30"
+def run():
+    with system_ctx(c):
+        return M.digest_mail_user(c, {FR}, usettings(c, {FR}), today)
+out["first"] = run()
+out["m"] = SENT[0] if SENT else None
+out["n1"] = len(SENT)
+with system_ctx(c):
+    out["sent"] = usettings(c, {FR}).get("digest_mail_sent")
+    out["hint"] = usettings(c, {FR}).get("eproof_hint")
+    uset(c, {FR}, "digest_mail_sent", "")
+    c.commit()
+out["second"] = run()
+out["n2"] = len(SENT)
+with system_ctx(c):
+    uset(c, {FR}, "digest_mail_sent", "")
+    c.execute("DELETE FROM mail_counts")
+    c.commit()
+""")
+m18 = out["m"] or {}
+check(out["first"] is False and out["n1"] == 1 and "Confirm your e-mail address" in m18.get("Subject", ""), f"(18) unconfirmed: the proof mail instead of the summary: {out}")
+check("Invoice run" not in m18.get("text", "") and "#mailproof/" in m18.get("text", "") and "Until then, e-mails with content" in m18.get("text", ""), f"(18) no tasks in it, the link and why: {m18}")
+check(out["sent"] == "2026-10-30" and (out["hint"] or "").endswith("@example.com"), f"(18) the day is done, the hint noted for this address: {out}")
+check(out["second"] is False and out["n2"] == 1, f"(18) not a second proof mail for the same address: {out}")
+check(Fr.get(B + "/api/state").json()["settings"]["digest_mail"] == "1", "(18) the setting stays on (works from the proof on)")
+dbw("UPDATE users SET email_proved=lower(email) WHERE id IN (?,?)", (FR, DAVE))  # (1), (2): confirmed addresses (a mailed link)
+
+# ---- (1) the daily mail
 out = in_app(f"""
 out = {{}}
 today = "2026-10-31"

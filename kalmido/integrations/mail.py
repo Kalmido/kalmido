@@ -107,7 +107,7 @@ def mail_info():
                    trim_fwd=s.get("mail_trim_fwd") == "1", trim_eml=s.get("mail_trim_eml") != "0",  # 2.49.0 (#971)
                    # 2.1033.0 (#5790): the own address again (a comment had swallowed it since 2.49.0: "none set" / no "Send now"),
                    # and whether it is proved - "E-mails from my own address" counts only then (#5775)
-                   email=em, email_proved=bool(em) and (u["email_proved"] or "") == em.lower(),
+                   email=em, email_proved=bool(u) and MAIL_PROOF["ok"](u),  # 2.1299.0 (#6352)
                    digest={"enabled": MAIL_OUT_ON, "on": s.get("digest_mail") == "1", "time": s.get("digest_time") or ""})
 
 
@@ -272,6 +272,7 @@ def mail_target(c, msg):
     return None, None, None
 
 
+MAIL_PROOF = {}  # 2.1299.0 (#6352): integrations/mailproof.py: ok(u) = a proved address (the one check), hint(c, uid) = the proof mail once per address
 MAIL_TASK_HOOK = {}  # 2.393.2 B (#3375): integrations/taskmail.py (take = a reply becomes a comment, keep = store a Message-ID)
 
 
@@ -903,7 +904,7 @@ def digest_mail_user(c, uid, s, today):
     The day's limit of the address counts the summary once, the person's own sending quota not at all."""
     if not MAIL_OUT_ON or s.get("digest_mail") != "1" or s.get("digest_mail_sent") == today:
         return False
-    u = c.execute("SELECT email, disabled FROM users WHERE id=?", (uid,)).fetchone()
+    u = c.execute("SELECT email, email_proved, disabled FROM users WHERE id=?", (uid,)).fetchone()
     if not u or u["disabled"] or not (u["email"] or "").strip():
         return False
     day, _, rest = str(s.get("digest_mail_try") or "").partition(":")
@@ -912,6 +913,11 @@ def digest_mail_user(c, uid, s, today):
     if tries >= DIGEST_MAIL_TRIES or (tries and time.time() - float(at or 0) < DIGEST_MAIL_GAP):
         return False
     m = digest_mail_content(c, uid, today)
+    if m and not MAIL_PROOF["ok"](u):  # 2.1299.0 (#6352): content only to a proved address - instead (once per address) the proof mail
+        uset(c, uid, "digest_mail_sent", today)
+        c.commit()
+        MAIL_PROOF["hint"](c, uid)
+        return False
     from ..admin.hosting import mail_budget
     over = bool(m) and not tries and not mail_budget(c, None, u["email"])
     if not m or over:
@@ -998,9 +1004,11 @@ def mail_test():
     c = db()
     if not MAIL_OUT_ON:
         return err(tr("E-mail sending is not set up on this server"), 409)
-    u = c.execute("SELECT email FROM users WHERE id=?", (me(),)).fetchone()
+    u = c.execute("SELECT email, email_proved FROM users WHERE id=?", (me(),)).fetchone()
     if not u or not (u["email"] or "").strip():
         return err(tr("No e-mail address is stored for you: an admin adds it (Settings > Organisation > People)"), 409)
+    if not MAIL_PROOF["ok"](u):  # 2.1299.0 (#6352): the summary only to a proved address (the button "Confirm address" is next to it)
+        return err(tr("Please confirm your e-mail address first: e-mails with content go only to a confirmed address."), 409)
     from ..admin.hosting import mail_budget
     if hit_limit(f"mailtest:{me()}", 5, 3600):  # 2.126.0 C (#1979 I6): a few tests an hour, counted in the daily e-mail limit
         return err(tr("Too many tests, please wait a few minutes"), 429)

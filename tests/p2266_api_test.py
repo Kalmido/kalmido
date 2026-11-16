@@ -5,7 +5,7 @@
    reaction, no push for the other one; the room stays readable and says closed
  - #2965 a customer's decision through a link: a News item "signoff" + an absolute push link for the active creator; a
    creator who is no longer in the office gets nothing, the office admins get it instead
- - #2963 security mails to the person: new device, password changed, e-mail changed (old + new address), deactivated,
+ - #2963 security mails to the person: new device, password changed, e-mail changed (the old address only, #6352), deactivated,
    registration approved; the first sign-in of an account only stores its browser
  - #2964 with KALMIDO_ROLE=web (no watchdog in the process) an admin alert of a request still reaches the admin_alerts
 usage: p2266_api_test.py <datadir>      (P2266_NOSTART=1: a running server, no start.sh)"""
@@ -189,8 +189,11 @@ check(m and "Firefox on Android" in m[0]["text"] and ".x" in m[0]["text"], f"#29
 check(Bo.patch(B + "/api/me", json={"password": "password456", "current_password": "password123"}).ok, "bob changes the password")
 check(mail_to("bob@example.com", "Your password was changed"), "#2963: the password mail")
 check(A.patch(B + f"/api/users/{CAROL}", json={"email": "carol.new@example.com"}).ok, "an admin changes carol's address")
-check(mail_to("carol@example.com", "e-mail address was changed") and mail_to("carol.new@example.com", "e-mail address was changed"),
-      "#2963: the old and the new address hear of it")
+# 2.1299.0 (#6352): only the old address hears of it - the new one is not confirmed yet and must not learn the old one
+m = mail_to("carol@example.com", "e-mail address was changed")
+check(m and "carol.new@example.com" in m[0]["text"], f"#2963: the old address hears of it, with the new one {m[:1]}")
+until(lambda: not sql("SELECT 1 FROM bg_jobs WHERE kind='mail:security' AND state NOT IN ('done', 'failed')"), 12)  # every queued security mail is out
+check(not [x for x in mails() if "carol.new@example.com" in x["to"]], "#6352: the new, unconfirmed address gets no mail naming the old one")
 check(A.patch(B + f"/api/users/{DAVE}", json={"disabled": True}).ok, "an admin deactivates dave")
 check(mail_to("dave@example.com", "deactivated"), "#2963: dave hears of it")
 r = A.post(B + "/api/users", json={"username": "erin", "display_name": "Erin", "password": "password123", "email": "erin@example.com"})
