@@ -299,6 +299,32 @@ tick()
 check(len(task(FID, "Invoice series Frida aus paused", "had no admin")) == 1 and row(F_AUS).get("active") is False,
       "(6629) P4: her office on again: she gets the task once, the series stays off")
 
+# ================================================================== 2.1289.0 (#6629): the other office parts of the watchdog report a failing area
+# (_wd_fail of #6387, untested so far): each part's own function for one area throws -> the admin alert names part and area
+OV = made(S_OK)[0][0]
+dbx("UPDATE office_docs SET due_date='2020-01-02' WHERE id=?", (OV,))  # an overdue open invoice: the dunning part has an area
+r = A.post(B + D, json={"kind": "offer", "lang": "de", "client_id": CL, "items": [{"title": "Dreh", "qty": 1, "rate": 900}]})
+assert r.status_code == 201, r.text
+dbx("UPDATE office_docs SET status='sent', valid_until=? WHERE id=?", (TODAY, r.json()["id"]))  # a sent quotation running out
+check(A.put(B + OFF_API + "/bank/noreceipt/reminder", json={"every": "week"}).ok, "the bank bookings reminder is on")
+check(A.put(B + OFF_API + "/cards/reminder", json={"every": "week"}).ok, "the card positions reminder is on")
+r = A.post(B + OFF_API + "/fixed-costs", json={"label": "Schnittsoftware", "amount": 50, "start": TODAY, "repeat": "yearly", "sub": 1, "notice_days": 30,
+                                                "remind_days": 14, "remind_user": ALICE})
+check(r.status_code in (200, 201), f"a subscription with its reminder {r.status_code} {r.text[:160]}")
+BOOM = "def boom(*a, **k):\n    raise RuntimeError('kaputt')\n"
+out = in_ct("import json\nimport app\nfrom kalmido.core.db import connect\nfrom kalmido.notify import alerts\n"
+            "from kalmido.office import dunning, offerexp, banknorc, cardnorc, subs\n" + BOOM +
+            "dunning.dun_area = offerexp.ofe_area = banknorc.bnr_area = cardnorc.ccn_area = subs.abo_task_new = boom\n"
+            "subs._running = lambda f, today: True\n"  # the subscription is due for its reminder today (its dates are not this test's)
+            "subs._fixed_public = lambda c, oid, r: {'cancel_by': '" + TODAY + "', 'next_renewal': '" + TODAY + "', 'remind_days': 1, 'remind_user': r['remind_user'], 'label': 'x'}\n"
+            "dunning._DUN_LAST['at'] = offerexp._OFE_LAST['at'] = -1e12\nc = connect()\n"
+            "dunning.dun_tick(c)\nofferexp.ofe_tick(c)\nbanknorc.bnr_tick(c, force=True)\ncardnorc.ccn_tick(c, force=True)\nsubs.abo_tick(c, force=True)\nc.close()\n"
+            "print('AA=' + json.dumps({k[1]: sorted(v['items']) for k, v in alerts._AA['b'].items() if k[0] == 'watchdog'}))")
+aa = json.loads([x for x in out.splitlines() if x.startswith("AA=")][-1][3:])
+for part in ("dunning suggestion of area", "quotation expiry notice of area", "bank bookings reminder of area", "card positions reminder of area"):
+    check(str(ORG) in aa.get(part + "|RuntimeError", []), f"(6629) the watchdog's alert for a failing area: {part} {aa}")
+check(len(aa.get("subscription reminder|RuntimeError", [])) == 1, f"(6629) the watchdog's alert for a failing subscription reminder {aa}")
+
 check(dbx("SELECT COUNT(*) FROM office_docs WHERE series_id IS NOT NULL GROUP BY series_id, series_period HAVING COUNT(*) > 1") == [], "never two invoices for one period")
 
 sys.exit(done("p6387_office_watchdog"))
