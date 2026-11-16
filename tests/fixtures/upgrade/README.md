@@ -10,6 +10,13 @@ current server on every dump in this folder and compares (`tests/upgrade_views.p
   without a local docker: the tag's tree + the current `tests/upgrade_seed.py` as a suite (`upgrade_seed`), run with
   `kalmido-mactest.sh shot upgrade_seed` (KMT_SRC = that tree); the dump comes back in the run's `shots` folder.
 
+Since 2.1265.0 (#6287) the suite also checks the core moves: before the start it reads, per old table a fragment of
+`kalmido/core/migrations.d` retires, the rows the move has to take, and after the start finds them in the target
+(`tests/upgrade_moves.py`; a `# drop-ok` line without an entry there is red). The seed holds one object of each core kind
+(project tag, label, reaction, review comment, document note, knowledge page with two versions, playbook, template, section
+template) and the suite compares them through the API. The two dumps here are older than that seed: the suite names what it
+does not compare for them (`SKIP` lines); a new dump brings the comparison along. Existing dumps are never rewritten.
+
 ## A new dump every quarter (#4359)
 
 Once a quarter the current release joins as a further old state, so the step from it is tested for good.
