@@ -36,6 +36,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 from flask import Response, g, jsonify, request
 
@@ -187,73 +188,88 @@ def sp_scan(data, pages, prefix):
     n = min(int(pages or 0), SP_PAGES)
     if n < 2:
         return None
-    if not O._SEM.acquire(timeout=O.OCR_PAGE_S * 2):  # one heavy reader at a time (like the text recognition)
-        return None
-    try:
-        with tempfile.TemporaryDirectory(prefix="kspl-") as tmp:
-            src = os.path.join(tmp, "in.pdf")
-            with open(src, "wb") as f:
-                f.write(data)
+    # 2.1283.0 (#6427): the tools' slot (one heavy reader at a time, like the text recognition) is taken per page in
+    # _sp_pages, no longer for the whole stack: 100 slow pages kept every recognition waiting
+    with tempfile.TemporaryDirectory(prefix="kspl-") as tmp:
+        src = os.path.join(tmp, "in.pdf")
+        with open(src, "wb") as f:
+            f.write(data)
+        try:
+            w = subprocess.Popen([sys.executable, "-I", "-c", SCAN_WORKER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                 stderr=subprocess.DEVNULL, bufsize=0, close_fds=True, env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+        except OSError:
+            return None
+        try:
+            return _sp_pages(w, tmp, src, n, prefix)
+        except O.OcrBusy:
+            return None
+        finally:
             try:
-                w = subprocess.Popen([sys.executable, "-I", "-c", SCAN_WORKER], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.DEVNULL, bufsize=0, close_fds=True, env={"PATH": os.environ.get("PATH", "/usr/bin:/bin")})
+                w.stdin.close()
             except OSError:
-                return None
-            try:
-                return _sp_pages(w, tmp, src, n, prefix)
-            finally:
-                try:
-                    w.stdin.close()
-                except OSError:
-                    pass
-                w.kill()
-                w.wait()
-    finally:
-        O._SEM.release()
+                pass
+            w.kill()
+            w.wait()
 
 
 def _sp_pages(w, tmp, src, n, prefix):
-    """The page loop of sp_scan with the reader process w; None when the reader fails or stalls."""
+    """The page loop of sp_scan with the reader process w; None when the reader fails or stalls.
+    2.1283.0 (#6427): the tools' slot is taken per page (none in time: O.OcrBusy, sp_scan answers None), and one stack has
+    the wall clock of one document (O.OCR_DOC_S), then it "cannot be read"."""
     ocr = O.ocr_available()
     out, fails = [], 0
+    end = time.monotonic() + O.OCR_DOC_S
     for i in range(1, n + 1):
-        png = os.path.join(tmp, f"p-{i}.png")
-        try:
-            O._run(["pdftoppm", "-r", str(SP_DPI), "-gray", "-f", str(i), "-l", str(i), "-singlefile", "-png", src, png[:-4]],
-                   O.OCR_PAGE_S, fsize=32 << 20)
-        except subprocess.TimeoutExpired:
-            fails += 1  # 2.154.0 E (#1111): a stack of slow pages does not hold the reader for minutes
-            if fails >= 2:
-                return None
-        try:
-            w.stdin.write((png + "\n").encode())
-            if not select.select([w.stdout], [], [], SP_WORKER_S)[0]:
-                return None
-            x = json.loads(w.stdout.readline() or b"null")
-        except (OSError, ValueError):
+        if time.monotonic() > end:
             return None
-        if not isinstance(x, dict):
+        with O._Slot(O.OCR_PAGE_S * 2):
+            x, slow = _sp_page(w, tmp, src, i, prefix, ocr, fails)
+        fails += slow
+        if x is None:
             return None
-        codes = [str(t) for t in (x.get("codes") or [])][:20]
-        ink = float(x.get("ink") or 0)
-        sep = any(t.strip().upper() == SP_SEP for t in codes)
-        asn = None if sep else S.EX.find_asn(prefix, (), codes=codes)  # 2.591.0 B (#4863): + a code of digits only
-        blank = False
-        if not sep and asn is None and ink < SP_INK:
-            if ocr:
-                try:
-                    txt = O._tess(png, O.OCR_PAGE_S)
-                    blank = len(re.sub(r"\s+", "", txt)) <= SP_TEXT
-                except (OSError, RuntimeError, subprocess.SubprocessError):
-                    blank = False
-            else:
-                blank = ink < SP_INK_SURE
-        out.append({"asn": asn, "sep": sep, "ink": round(ink, 5), "blank": blank})
-        try:
-            os.unlink(png)
-        except FileNotFoundError:
-            pass
+        out.append(x)
     return out
+
+
+def _sp_page(w, tmp, src, i, prefix, ocr, fails):
+    """One page of _sp_pages: (its row | None when the reader fails or stalls, 1 when the raster ran into the time limit else 0)."""
+    png = os.path.join(tmp, f"p-{i}.png")
+    slow = 0
+    try:
+        O._run(["pdftoppm", "-r", str(SP_DPI), "-gray", "-f", str(i), "-l", str(i), "-singlefile", "-png", src, png[:-4]],
+               O.OCR_PAGE_S, fsize=32 << 20)
+    except subprocess.TimeoutExpired:
+        slow = 1  # 2.154.0 E (#1111): a stack of slow pages does not hold the reader for minutes
+        if fails + slow >= 2:
+            return None, slow
+    try:
+        w.stdin.write((png + "\n").encode())
+        if not select.select([w.stdout], [], [], SP_WORKER_S)[0]:
+            return None, slow
+        x = json.loads(w.stdout.readline() or b"null")
+    except (OSError, ValueError):
+        return None, slow
+    if not isinstance(x, dict):
+        return None, slow
+    codes = [str(t) for t in (x.get("codes") or [])][:20]
+    ink = float(x.get("ink") or 0)
+    sep = any(t.strip().upper() == SP_SEP for t in codes)
+    asn = None if sep else S.EX.find_asn(prefix, (), codes=codes)  # 2.591.0 B (#4863): + a code of digits only
+    blank = False
+    if not sep and asn is None and ink < SP_INK:
+        if ocr:
+            try:
+                txt = O._tess(png, O.OCR_PAGE_S)
+                blank = len(re.sub(r"\s+", "", txt)) <= SP_TEXT
+            except (OSError, RuntimeError, subprocess.SubprocessError):
+                blank = False
+        else:
+            blank = ink < SP_INK_SURE
+    try:
+        os.unlink(png)
+    except FileNotFoundError:
+        pass
+    return {"asn": asn, "sep": sep, "ink": round(ink, 5), "blank": blank}, slow
 
 
 def sp_plan(pages):

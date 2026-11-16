@@ -500,8 +500,9 @@ def files_content(nid):
 
 
 FS_THUMB_MAX = 40 << 20  # 2.477.0 (#3936): a bigger picture gets no small preview (the card shows its icon)
-# 2.523.0 (#4073 d): each preview starts a worker process -> at most FS_THUMB_RATE per person and minute, one worker at a time
-# with the text recognition (docs/ocr.py _SEM); more, or waiting longer than FS_THUMB_WAIT_S: 429 (the card shows its icon)
+# 2.523.0 (#4073 d): each preview starts a worker process -> at most FS_THUMB_RATE per person and minute and
+# ocr.THUMB_PARALLEL workers at a time (2.1283.0, #6427: their own slots, docs/ocr.py THUMB_SEM -- no longer the text
+# recognition's, whose long scans answered every card with 429); more, or waiting longer than FS_THUMB_WAIT_S: 429 (the card shows its icon)
 FS_THUMB_RATE = 60
 FS_THUMB_WAIT_S = 10
 
@@ -525,14 +526,14 @@ def files_thumb(nid):
     sc_guard(c, "fs", nid, v["no"])
     if hit_limit(f"fsthumb:{me()}", FS_THUMB_RATE):
         raise Denied(429, tr("Too many requests, please slow down"))
-    from ..docs.ocr import _SEM, THUMB_W, THUMB_WL, thumb_bytes
+    from ..docs.ocr import THUMB_SEM, THUMB_W, THUMB_WL, thumb_bytes
     data = fs_read(c, nid, v["no"])
-    if not _SEM.acquire(timeout=FS_THUMB_WAIT_S):
+    if not THUMB_SEM.acquire(timeout=FS_THUMB_WAIT_S):  # 2.1283.0 (#6427): the previews' own slots
         raise Denied(429, tr("Too many requests, please slow down"))
     try:
         jpg = thumb_bytes(data, "image", THUMB_WL if request.args.get("size") == "l" else THUMB_W)  # 2.583.0 (#4812): big cards
     finally:
-        _SEM.release()
+        THUMB_SEM.release()
     if not jpg:
         raise Denied(404)
     r = Response(jpg, mimetype="image/jpeg")

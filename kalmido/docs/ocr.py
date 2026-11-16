@@ -3,9 +3,11 @@
 PDF with a text layer: the existing reader of attachments (tasks/attachtext.py: pypdf in a limited child process).
 Scanned PDF / image: text recognition (OCR) with Tesseract (German + English): pdftoppm rasters page by page (300 dpi),
 tesseract reads each page. Every tool runs as a short-lived child process with a memory / CPU / file-size limit and a
-time limit PER PAGE, at most OCR_PAGES pages, at most OCR_PARALLEL documents at a time (semaphore). A missing Tesseract
-(an older image) gives {"error": "no_ocr"} -- never an exception. Preview: the first page (pdftoppm) or the image
+time limit PER PAGE, at most OCR_PAGES pages, at most OCR_PARALLEL heavy steps at a time (semaphore, taken per page:
+#6427), at most OCR_DOC_S seconds of wall clock per document. A missing Tesseract (an older image) gives
+{"error": "no_ocr"} -- never an exception. Preview: the first page (pdftoppm) or the image
 (Pillow in a limited child process), a small JPEG."""
+import collections
 import json
 import os
 import re
@@ -32,7 +34,11 @@ def _env_int(name, default, lo, hi):
 
 OCR_PAGE_S = _env_int("KALMIDO_OCR_PAGE_S", 60, 5, 600)          # wall clock per page (raster + recognition)
 OCR_PAGES = _env_int("KALMIDO_OCR_PAGES", 30, 1, 500)            # pages recognised at most
-OCR_PARALLEL = _env_int("KALMIDO_OCR_PARALLEL", 1, 1, 8)         # documents recognised at the same time
+OCR_PARALLEL = _env_int("KALMIDO_OCR_PARALLEL", 1, 1, 8)         # pages recognised at the same time
+# 2.1283.0 (#6427): wall clock of ONE document (waiting for the slot included): a PDF from outside (form, file request, mail)
+# whose pages each stay just under the page limit no longer keeps the queue for half an hour
+OCR_DOC_S = _env_int("KALMIDO_OCR_DOC_S", 300, 10, 7200)
+OCR_FAILS = 2  # 2.1283.0 (#6427): pages cut off (time limit OR a tool killed by its CPU / memory limit) after which a document ends
 OCR_MEM = _env_int("KALMIDO_OCR_MEM_MB", 1024, 256, 8192) << 20  # address space of a tool
 OCR_DPI = 300
 OCR_LANGS = os.environ.get("KALMIDO_OCR_LANGS", "deu+eng")
@@ -40,7 +46,49 @@ TEXT_CAP = 200_000
 THUMB_W = 320
 OFFICE_KINDS = ("docx", "xlsx", "odt", "ods")  # 2.635.0 (#4807): read through files/officeprev.py
 THUMB_WL = 800  # 2.583.0 (#4812): the sharper preview of big cards (docs/store.py thumb_store, doc_meta.thumb_l)
-_SEM = threading.BoundedSemaphore(OCR_PARALLEL)
+
+
+class _FairSem:
+    """2.1283.0 (#6427): the tools' slots, handed on in the order of asking. A plain semaphore lets the thread that just
+    released take the slot again before a waiting one wakes up -- "the slot per page" would then still serve one long
+    document from its first page to its last. acquire(timeout=) / release() as threading.Semaphore."""
+
+    def __init__(self, n):
+        self._n, self._lock, self._q = n, threading.Lock(), collections.deque()
+
+    def acquire(self, blocking=True, timeout=None):
+        with self._lock:
+            if self._n > 0 and not self._q:
+                self._n -= 1
+                return True
+            if not blocking or (timeout is not None and timeout <= 0):
+                return False
+            ev = threading.Event()
+            self._q.append(ev)
+        if ev.wait(timeout):
+            return True
+        with self._lock:
+            if ev.is_set():  # handed over in this very moment
+                return True
+            self._q.remove(ev)
+            return False
+
+    def release(self):
+        with self._lock:
+            if self._q:
+                self._q.popleft().set()  # straight to the one waiting longest
+            else:
+                self._n += 1
+
+
+_SEM = _FairSem(OCR_PARALLEL)
+# 2.1283.0 (#6427): the small previews of pictures (files/web.py files_thumb) have their own slots: a long recognition no
+# longer answers every card of every organisation with 429
+THUMB_PARALLEL = 2
+THUMB_SEM = threading.BoundedSemaphore(THUMB_PARALLEL)
+# 2.1283.0 (#6427): what the recognition takes as a picture, by the first bytes (files/photometa.py pm_kind). Tesseract reads
+# an input it cannot decode as a LIST OF PATHS of pictures and recognises those -- so nothing else ever reaches it
+OCR_IMAGE_KINDS = ("jpeg", "png", "webp", "tiff", "heif")
 _AVAIL = {}
 
 
@@ -155,62 +203,114 @@ def _tess(img, timeout, langs=OCR_LANGS):
     return p.stdout.decode("utf-8", "replace")
 
 
-def ocr_bytes(data, kind, lang=None, base=None):
+def ocr_is_image(data, heif=True):
+    """2.1283.0 (#6427): True when the first bytes are a picture the recognition takes (OCR_IMAGE_KINDS) -- never the
+    declared type: a text file sent as image/tiff would be read by Tesseract as a list of picture paths. heif=False: only
+    what Tesseract itself decodes (doc_text turns a HEIF photo into a JPEG first)."""
+    k = pm_kind(bytes(data[:64])) if pm_kind is not None else ""
+    return k in OCR_IMAGE_KINDS and (heif or k != "heif")
+
+
+class OcrBusy(Exception):
+    """No free slot within the waiting time."""
+
+
+class _Slot:
+    """2.1283.0 (#6427): ONE heavy step (a page) holds the tools' slot (_SEM), not the whole document (as docs/pdfopt.py
+    _Slot): a long or slow PDF no longer keeps every other recognition waiting. No slot within wait s: OcrBusy."""
+
+    def __init__(self, wait):
+        self.wait = max(0.0, wait)
+
+    def __enter__(self):
+        if not _SEM.acquire(timeout=self.wait):
+            raise OcrBusy()
+        return self
+
+    def __exit__(self, *exc):
+        _SEM.release()
+
+
+def _ocr_page(tmp, src, i, langs, left):
+    """The text of page i of the PDF src; left() = the seconds the document still has. Raises subprocess.TimeoutExpired
+    (time limit) or RuntimeError / OSError (a tool cut off without a time limit: killed by its CPU / memory limit, damaged page)."""
+    base = os.path.join(tmp, f"p{i}")
+    try:
+        r = _run(["pdftoppm", "-r", str(OCR_DPI), "-gray", "-f", str(i), "-l", str(i), "-singlefile", "-png", src, base],
+                 max(1, min(OCR_PAGE_S, left())), fsize=256 << 20)
+        if r.returncode != 0 or not os.path.exists(base + ".png"):
+            raise RuntimeError("pdftoppm")
+        return _tess(base + ".png", max(1, min(OCR_PAGE_S, left())), langs).strip()
+    finally:
+        try:
+            os.remove(base + ".png")
+        except OSError:
+            pass
+
+
+def ocr_bytes(data, kind, lang=None, base=None, clock=time.monotonic):
     """{"text", "pages", "pages_read", "truncated"} or {"error": "no_ocr" | "busy" | "too_complex" | "unreadable"}.
-    kind = "pdf" | "image"; lang = the person's app language (2.122.0, #2101: read with its Tesseract language as well). Blocks while another document is being recognised (the caller is a background worker)."""
+    kind = "pdf" | "image"; lang = the person's app language (2.122.0, #2101: read with its Tesseract language as well).
+    2.1283.0 (#6427): the slot is taken PER PAGE (other documents, "Optimise PDF" and the page scan get their turn in
+    between); one document has OCR_DOC_S seconds of wall clock in all, then what was read so far counts (truncated);
+    after OCR_FAILS pages cut off -- by the time limit or by a tool that was killed / failed -- the document ends; a
+    picture must be one by its first bytes (ocr_is_image), else "unreadable" without Tesseract ever seeing it."""
     if not ocr_available():
         return {"error": "no_ocr"}
-    if not _SEM.acquire(timeout=OCR_PAGE_S * 2):
-        return {"error": "busy"}
+    if kind != "pdf" and not ocr_is_image(data, heif=False):
+        return {"error": "unreadable"}
     langs = ocr_langs(lang, base=base)[0]  # 2.635.0 (#4807 b): base = the area's chosen languages
-    try:
-        with tempfile.TemporaryDirectory(prefix="kocr-") as tmp:
-            src = os.path.join(tmp, "in.pdf" if kind == "pdf" else "in.img")
-            with open(src, "wb") as f:
-                f.write(data)
-            if kind != "pdf":
-                try:
+    end = clock() + OCR_DOC_S
+
+    def left():
+        return end - clock()
+
+    with tempfile.TemporaryDirectory(prefix="kocr-") as tmp:
+        src = os.path.join(tmp, "in.pdf" if kind == "pdf" else "in.img")
+        with open(src, "wb") as f:
+            f.write(data)
+        if kind != "pdf":
+            try:
+                with _Slot(OCR_PAGE_S * 2):
                     text = _tess(src, OCR_PAGE_S, langs)
-                except subprocess.TimeoutExpired:
-                    return {"error": "too_complex"}
-                except (OSError, RuntimeError):
-                    return {"error": "unreadable"}
-                return {"text": text[:TEXT_CAP].strip(), "pages": 1, "pages_read": 1, "truncated": len(text) > TEXT_CAP}
-            n = _pdf_pages(src)
-            if not n:
-                return {"error": "unreadable"}
-            out, total, timeouts = [], 0, 0
-            for i in range(1, min(n, OCR_PAGES) + 1):
-                base = os.path.join(tmp, f"p{i}")
-                try:
-                    r = _run(["pdftoppm", "-r", str(OCR_DPI), "-gray", "-f", str(i), "-l", str(i), "-singlefile", "-png", src, base],
-                             OCR_PAGE_S, fsize=256 << 20)
-                    if r.returncode != 0 or not os.path.exists(base + ".png"):
-                        out.append("")
-                        continue
-                    out.append(_tess(base + ".png", OCR_PAGE_S, langs).strip())
-                except subprocess.TimeoutExpired:
-                    timeouts += 1
-                    out.append("")
-                    if timeouts >= 2:
-                        break
-                except (OSError, RuntimeError):
-                    out.append("")
-                finally:
-                    try:
-                        os.remove(base + ".png")
-                    except OSError:
-                        pass
-                total += len(out[-1])
-                if total > TEXT_CAP:
-                    break
-            text = "\n\n".join(out)
-            if not text.strip() and timeouts:
+            except OcrBusy:
+                return {"error": "busy"}
+            except subprocess.TimeoutExpired:
                 return {"error": "too_complex"}
-            return {"text": text[:TEXT_CAP], "pages": n, "pages_read": len(out),
-                    "truncated": n > len(out) or len(text) > TEXT_CAP}
-    finally:
-        _SEM.release()
+            except (OSError, RuntimeError):
+                return {"error": "unreadable"}
+            return {"text": text[:TEXT_CAP].strip(), "pages": 1, "pages_read": 1, "truncated": len(text) > TEXT_CAP}
+        n = _pdf_pages(src)
+        if not n:
+            return {"error": "unreadable"}
+        out, total, fails, cut = [], 0, 0, False
+        for i in range(1, min(n, OCR_PAGES) + 1):
+            if left() <= 0:
+                cut = True
+                break
+            try:
+                with _Slot(min(OCR_PAGE_S * 2, left())):
+                    out.append(_ocr_page(tmp, src, i, langs, left))
+            except OcrBusy:
+                if not out:
+                    return {"error": "busy"}  # nothing read yet: the caller tries again later
+                cut = True
+                break
+            except (subprocess.TimeoutExpired, OSError, RuntimeError):
+                # 2.1283.0 (#6427): a tool killed by its CPU / memory limit counts like the time limit (it took as long)
+                fails += 1
+                out.append("")
+                if fails >= OCR_FAILS:
+                    cut = True
+                    break
+            total += len(out[-1])
+            if total > TEXT_CAP:
+                break
+        text = "\n\n".join(out)
+        if not text.strip() and (fails or cut):
+            return {"error": "too_complex"}
+        return {"text": text[:TEXT_CAP], "pages": n, "pages_read": len(out),
+                "truncated": n > len(out) or len(text) > TEXT_CAP}
 
 
 THUMB_WORKER = r"""
@@ -523,6 +623,8 @@ def doc_text(name, mime, data, owner=None, lang=None, langs=None):
     if kind not in ("pdf", "image"):
         return {"text": "", "method": "none", "kind": kind}
     if kind == "image":
+        if not ocr_is_image(data):  # 2.1283.0 (#6427): declared a picture, but not one by its bytes: never handed to Tesseract
+            return {"text": "", "method": "none", "kind": kind}
         if pm_kind(data[:64]) == "heif":  # 2.146.0 B (#2454): an iPhone photo -> JPEG first
             data, e = heif_jpeg(data)
             if e:
