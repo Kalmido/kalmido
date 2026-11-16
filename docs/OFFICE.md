@@ -1850,10 +1850,13 @@ Routes (members of the organisation; deleting needs its admin; costs and surplus
 scheme is reserved at once), `GET/PATCH/DELETE /api/office/docs/<id>` (PATCH changes the head and returns the totals;
 choosing a framework contract presets raw data, rights and closing unless `apply_contract: false`),
 `PUT /api/office/docs/<id>/items` (the whole list of positions; a `service_id` fills title, rate, tax and flags),
-`POST /api/office/docs/<id>/number` (`{number}` by hand, unique per organisation, or the next one of the scheme),
+`POST /api/office/docs/<id>/number` (`{number}` by hand, unique per organisation, or the next one of the scheme;
+`expect_updated_at` recommended, see finalize),
 `POST /api/office/docs/<id>/status`, `POST /api/office/docs/<id>/duplicate`, `GET /api/office/docs/<id>/render` (the
 print model as JSON: all texts, labels and amounts already in the document's language and format),
-`POST /api/office/docs/<id>/finalize` (2.1289: `{number, reason?}` = an invoice / correction number by hand, see number ranges), `GET /api/office/docs/<id>/log`, `GET /api/office/log?limit=` and `GET /api/office/log/chain` (2.531, the hash chain check; organisation
+`POST /api/office/docs/<id>/finalize` (2.1289: `{number, reason?}` = an invoice / correction number by hand, see number ranges; 2.1317, `{expect_updated_at?}`: the version of the draft shown, recommended and always
+sent by the web app; another one stored answers 409 `{error, doc}` with the current state and nothing is finalised or
+numbered; without it the stored state is finalised as before), `GET /api/office/docs/<id>/log`, `GET /api/office/log?limit=` and `GET /api/office/log/chain` (2.531, the hash chain check; organisation
 admins). The head also carries the period of service (`service_from`, `service_to`, dates; printed as one line).
 
 **Adjusting prices (Nachkalkulieren, 2.1041, #5812).** "Adjust prices…" in the "More" menu of a quotation draft changes the

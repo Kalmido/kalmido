@@ -30,7 +30,7 @@ from flask import g, jsonify, request, has_app_context
 
 from ..core.config import app, OFFICE_DIR
 from ..core.i18n import N_, tr
-from ..core.db import bump, gset, gsetting, iso, now_utc, ix_ensure
+from ..core.db import body, bump, gset, gsetting, iso, now_utc, ix_ensure
 from ..core.pg import write_lock
 from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_enc_fields, oc_json_store, oc_log_detail
 from ..core.access import Denied
@@ -531,9 +531,17 @@ from .model import office_ctx as _ctx  # noqa: E402  2.149.0 G (#2517): was an o
 @app.post("/api/office/docs/<int:did>/finalize")
 def ofx_finalize_post(did):
     """Members of the organisation: freezes the document (number, totals, sender, recipient, tax rates); then it can only
-    be duplicated. Returns the document."""
-    from .docs import doc_public, odoc_finalize_number
+    be duplicated. Returns the document.
+    2.1317.0 (#6331): {expect_updated_at?} the version of the draft shown (the web client always sends it; absent: as
+    before, agents / older clients); another one stored -> 409 {error, doc} with the current state, nothing finalised."""
+    from .docs import doc_public, doc_row, odoc_finalize_number, ofd_need_current
     c, uid, oid = _ctx()
+    b = body()
+    if isinstance(b, dict) and b.get("expect_updated_at"):
+        write_lock(c, f"office_doc_{int(did)}")  # the lock ofx_finalize takes too (same transaction): check and finalise in one go
+        r = doc_row(c, oid, did)
+        ofx_need_editable(r)  # already finalised: its own 409 first, as without a version
+        ofd_need_current(c, oid, r, b, office_role(c, uid, oid) == "admin")
     manual, reason = odoc_finalize_number(c, oid, did)  # 2.1289.0 (#6481 N3, S3): {number?, reason?} of the finalise dialog
     r = ofx_finalize(c, oid, uid, did, manual, reason)
     bump(c)

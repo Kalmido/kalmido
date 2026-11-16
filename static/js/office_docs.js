@@ -839,7 +839,7 @@ const ofdPdfUrl = (id, inline) => `${OFD.viaFolder.has(id) ? '/api/fsref/office_
 // 2.269.0 A (#3012): the saves run one after another (never two PUT at once); those of the document's head, positions and parts
 // carry the version they build on (expect_updated_at), a 409 shows the conflict bar instead of overwriting the other one's save.
 // src = the local positions sent: a line added by one save is sent with its new id by the next one (no double line)
-const ofd_verUrl = url => !!OFD.doc && new RegExp(`^/api/(office/docs/${OFD.doc.id}(/items|/parts(/\\d+(/items)?)?)?|fsref/office_doc/${OFD.doc.id}(/items)?)$`).test(url);  // 2.351.0 F (#2823, review M4): + the folder way
+const ofd_verUrl = url => !!OFD.doc && new RegExp(`^/api/(office/docs/${OFD.doc.id}(/items|/parts(/\\d+(/items)?)?|/finalize|/number)?|fsref/office_doc/${OFD.doc.id}(/items)?)$`).test(url);  // 2.351.0 F (#2823, review M4): + the folder way; 2.1317.0 (#6331): + finalising / the number (the draft shown, 409 = conflict bar)
 // 2.351.0 F (#2823, review M4): a document reached through a folder keeps that mark after a save / a conflict (the answers
 // of the folder way carry no folder role): read-only office menu, no delete / unlock
 const ofd_viaDoc = (j, role) => ({...j, folder_role: role, can_edit: canWrite({role}) && !j.locked && j.can_edit !== false /* 2.1238.0 (#6161): the core's rule */, can_delete: false, can_unlock: false, via_folder: true});
@@ -1122,7 +1122,7 @@ async function ofdClick(e) {
         + ofdF('fin-why', tr('Reason (needed when numbers are skipped)'), `<input id="ofd-fin-why" maxlength="300">`) + '</details>';
       const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; },
         submit: async () => { const no = ($('#ofd-fin-no', md0)?.value || '').trim(), why = ($('#ofd-fin-why', md0)?.value || '').trim();
-          j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, no ? {number: no, reason: why} : {}); return !!j; }});
+          j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, no ? {number: no, reason: why} : {}); return !!j || OFD.conflict?.id === d.id; }});  // 2.1317.0 (#6331): a conflict closes the dialog, the bar says it
       if (ok && j) toast(tr('Finalised as {0}', j.number || ''));
       return;
     }

@@ -10,6 +10,9 @@ encryption on), invented companies and people only (@example.com / .example).
    billed; with the current version and the line left out it goes and the receipt is open again; unbill by the receipt
    alone removes its kept position
  - parts of a quotation: the part's positions keep their ids, expect_updated_at of the document -> 409
+ - 2.1317.0 (#6331): finalising / the number by hand with expect_updated_at of an older state (another session changed a
+   position / the head) -> 409 with the current state, no number, still a draft; with the current version it goes; without
+   a version as before
  - a person without an organisation (freelancer-matrix: office): the same in the personal office
 usage: p2269_a_docitems_test.py <datadir>      (a fresh container; P2269A_NOSTART=1 = the server already runs)"""
 import base64
@@ -169,6 +172,37 @@ def run(S, S2, who, M=None):
     check(r.ok and r.json()["items"][0]["id"] == iv["items"][0]["id"], f"{who}: the invoice line keeps its id " + r.text[:200])
     r = S2.put(B + f"{D}/{iv['id']}/items", json={"items": body_of(iv["items"]), "expect_updated_at": iv["updated_at"]})
     check(r.status_code == 409, f"{who}: the invoice from the old state 409")
+    # ------------------------------------------------ 2.1317.0 (#6331): finalising / the number only for the draft shown
+    lap = S.get(B + f"{D}/{iv['id']}").json()  # the laptop has the draft open
+    ph = S2.get(B + f"{D}/{iv['id']}").json()  # the phone changes a position in the meantime
+    lines = body_of(ph["items"])
+    lines[0]["rate"] = 175
+    r = S2.put(B + f"{D}/{iv['id']}/items", json={"items": lines, "expect_updated_at": ph["updated_at"]})
+    check(r.ok and r.json()["updated_at"] != lap["updated_at"], f"{who}: the phone's change turns the version " + r.text[:200])
+    r = S.post(B + f"{D}/{iv['id']}/finalize", json={"expect_updated_at": lap["updated_at"]})
+    j = r.json()
+    check(r.status_code == 409 and j.get("error") and float(((j.get("doc") or {}).get("items") or [{}])[0].get("rate") or 0) == 175,
+          f"{who}: finalising the old state -> 409 with the phone's state {r.status_code} {r.text[:200]}")
+    g = S.get(B + f"{D}/{iv['id']}").json()
+    check(not g.get("number") and not g.get("locked") and g.get("status") == "draft", f"{who}: after the 409 no number, still a draft {g.get('number')} {g.get('status')}")
+    check(not kt.dbx("SELECT 1 FROM office_doc_log WHERE doc_id=? AND action='finalize'", (iv["id"],)), f"{who}: nothing finalised in the log")
+    r = S.post(B + f"{D}/{iv['id']}/finalize", json={"expect_updated_at": g["updated_at"]})
+    check(r.ok and r.json().get("number") and r.json().get("locked"), f"{who}: with the current version it is finalised " + r.text[:200])
+    # without a version (older clients): the stored state is finalised as before
+    r = S.post(B + D, json={"kind": "invoice", "client_id": cl, "items": [{"title": "Service 2", "qty": 1, "unit": "flat", "rate": 80}]})
+    r = S.post(B + f"{D}/{r.json()['id']}/finalize", json={})
+    check(r.ok and r.json().get("number"), f"{who}: finalising without a version as before " + r.text[:200])
+    # the number by hand (POST .../number) of the quotation: the same check, the answer carries the new version
+    q = S.get(B + f"{D}/{did}").json()
+    r = S2.patch(B + f"{D}/{did}", json={"project_title": "Image film phone", "expect_updated_at": q["updated_at"]})
+    check(r.ok, f"{who}: the phone changes the quotation's head " + r.text[:200])
+    r = S.post(B + f"{D}/{did}/number", json={"number": "Q-6331", "expect_updated_at": q["updated_at"]})
+    check(r.status_code == 409 and (r.json().get("doc") or {}).get("project_title") == "Image film phone", f"{who}: a number for the old state 409 " + r.text[:200])
+    q2 = S.get(B + f"{D}/{did}").json()
+    check(q2.get("number") == q.get("number"), f"{who}: the number stays after the 409 {q.get('number')} {q2.get('number')}")
+    r = S.post(B + f"{D}/{did}/number", json={"number": "Q-6331", "expect_updated_at": q2["updated_at"]})
+    check(r.ok and r.json().get("number") == "Q-6331" and r.json().get("updated_at") == S.get(B + f"{D}/{did}").json().get("updated_at"),
+          f"{who}: the number with the current version, the answer's version is the stored one " + r.text[:200])
 
 
 assert sess().post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice", "password": "password123"}).ok
