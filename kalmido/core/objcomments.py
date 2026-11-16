@@ -776,6 +776,7 @@ def ocm_move_q4b(c):
 OCM_Q4C_HOW = ("the kept texts of deleted team chat messages moved into the shared core's trash (obj_comment_trash, kind tchat, "
                "#5274) and the old table was dropped - an older version would make it again empty and lose the texts kept "
                "meanwhile; go back only with a backup from before")
+OCM_Q4C_FLOOR = "2.981.0"  # 2.1251.0 (#6284)
 
 
 def ocm_trash_key(c):
@@ -801,7 +802,8 @@ def ocm_move_q4c(c):
     if ocm_trash_key(c):
         # review 2.981 (Fable D1): the new key alone (a database without the old table, made since this version) raises the
         # back limit too - an older image would read obj_comment_trash without kind (a message's text under a comment's id)
-        kern_retire_floor(c, how=OCM_Q4C_HOW)
+        # 2.1251.0 (#6284): at the version of the step (2.981.0), not the minor of the image that makes a new database
+        kern_retire_floor(c, mine=OCM_Q4C_FLOOR, how=OCM_Q4C_HOW)
     if not c.execute("SELECT to_regclass('tchat_trash_text')").fetchone()[0]:
         return 0
     n = c.execute("""INSERT INTO obj_comment_trash(kind, comment_id, body, enc)

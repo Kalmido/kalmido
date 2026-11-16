@@ -59,24 +59,36 @@ def kern_retire_floor(c, mine=None, how=KERN_RETIRE_HOW):
     2.972.0 (#5272 / #5285): how = the reason the start check names (the comments' and following's moves pass their own).
     2.1003.0 (#5718 ff.): the floor stands on this minor already (another step of this image raised it first; since 2.981
     obj_comment_trash's key does on every fresh database, #5274): a reason not in back_floor_how yet is added to it, so the
-    start check (core/db.py appver_guard) names every step of this minor, not only the first. A newer floor stays as it is."""
+    start check (core/db.py appver_guard) names every step of this minor, not only the first. A newer floor stays as it is.
+    2.1251.0 (#6284): mine = the fixed version of a step that may find its work done on every start (a column that has its
+    type, a key already changed: core/objretype.py, coltype.py, colbool.py, objcomments.py ocm_trash_key) - the minor of the
+    running image only where this start really moved or dropped something; else every start of a newer image raised the limit
+    and the automatic rollback to the version before refused to start ("format limit"). Such a step adds its reason to
+    back_floor_how also under a higher limit and keeps the reasons of a lower one when it raises it (the start check of an
+    older image names every step it cannot read; the steps' versions differ now, they no longer meet on one minor)."""
     m = _kr_ver(APP_VERSION if mine is None else mine)
     if not m or not table_exists(c, "kalmido_meta"):
         return ""
     v = f"{m[0]}.{m[1]}.0"
     r = c.execute("SELECT value FROM kalmido_meta WHERE key='back_floor'").fetchone()
     have = _kr_ver(r[0]) if r else None
+    r = c.execute("SELECT value FROM kalmido_meta WHERE key='back_floor_how'").fetchone()
+    old = str((r[0] if r else "") or "").strip()
+    fixed = mine is not None and bool(how) and how not in old  # 2.1251.0 (#6284): a step's fixed version keeps every reason
     if have and have > (m[0], m[1], 0):
+        if fixed:  # 2.1251.0 (#6284): under a newer limit the step still names itself (an image older than it is refused too)
+            c.execute("INSERT INTO kalmido_meta(key,value) VALUES('back_floor_how',?) ON CONFLICT(key) DO UPDATE SET "
+                      "value=excluded.value", (f"{old}; {how}" if old else how,))
         return ""
     if have == (m[0], m[1], 0):
-        r = c.execute("SELECT value FROM kalmido_meta WHERE key='back_floor_how'").fetchone()
-        old = str((r[0] if r else "") or "").strip()
         if not how or how in old:
             return ""
         how = f"{old}; {how}" if old else how
         c.execute("INSERT INTO kalmido_meta(key,value) VALUES('back_floor_how',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                   (how,))
         return v
+    if fixed and old:  # 2.1251.0 (#6284): the reasons of the lower limit stay named (they hold below it as well)
+        how = f"{old}; {how}"
     for k, x in (("back_floor", v), ("back_floor_how", how)):
         c.execute("INSERT INTO kalmido_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, x))
     return v
