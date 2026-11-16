@@ -34,6 +34,7 @@ UMZ_LEFT_TABLES = {
     "time_wipes": _DERIVED,  # 2.530.0 B (#4315): the Undo copy of "Delete all times" (working data until the trash period ends)
     "list_part_trash": _DERIVED,  # 2.567.0 A (#4707): the copies of deleted sections / sprints (working data until the trash period ends); 2.783.0 (#5368): + deleted fields, "Delete all times"
     "module_card_people": _ORG,  # 2.575.0 (#3778): the module cards of an organisation a member has
+    "wiki_embeds": _DERIVED,  # 2.1284.0 (#6321): who embedded which picture into a page (read from the text; on the target the page's last editor stands in, admin/oi_store.py _finish_wiki)
     "undo_groups": _DERIVED,  # 2.747.0 (#5249): the heads of a person's undo steps (30 days, working data like obj_undo)
     "doc_views": _VIEW,  # 2.579.0 (#4802): saved views of the documents search (their filters name label ids of this server)
     "hub_mailbox_rules": _LATER, "hub_mailbox_docs": _DERIVED,  # 2.581.0 (#4804): a mailbox's document rules (the mailbox itself is exported), which mails it took (Message-ID hashes)

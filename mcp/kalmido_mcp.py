@@ -701,7 +701,10 @@ TOOLS = [
                   "not exist for you (never ask for it or work around it). "
                   "2.235.0 (#2891 #2900 #2901): control = your control level {level approve_all | routine | free | null (none chosen: as "
                   "before), goal, projects [{list_id, level, effective}], one_way {fixed, custom}, deadline (s), then}; read it again on "
-                  "control_changed. A write it does not allow answers 409 approval_required: ask with request_chat_approval step_ref (from that answer), then run_approved_step.",
+                  "control_changed. A write it does not allow answers 409 approval_required: ask with request_chat_approval step_ref (from that answer), then run_approved_step. "
+                  "2.1284.0: so does a write into a place more people or the public read than your other places (circle: wider | public), on every level "
+                  "(a subtask counts as its parent's project; a team agent: also a chat message to a person who does not read all your places; "
+                  "only a person who reads all your places can say Yes, else approval_invalid reason approver_rights).",
      _obj({}), lambda api, a: api.call("GET", "/agent")),
     ("get_queue", "2.236.0 (#2906 #2907): your queue -- the open tasks assigned to you that you see: {max_parallel, priority_rule, "
                   "items: [{task_id, title, list_id, list_name, state: active | waiting, position (1.. for the waiting ones), priority, "
@@ -1178,7 +1181,8 @@ TOOLS = [
     ("set_working", "2.407.0: you work on a task now -- people see a pulsing dot with your name, the time and your last progress "
                     "line at the task (list, board, detail). Call it when you start and again with each short progress line "
                     "(text, one line, prose, no secrets); end with end_working. Without a call for 15 minutes the mark fades. "
-                    "Needs write access to the task's list. It is your running job of the task (title / name only on the start).",
+                    "Needs write access to the task's list. It is your running job of the task (title / name only on the start). "
+                    "2.1284.0: in a project more people (or the public) read than your other places the mark shows no text (text_shown: false).",
      _obj({"task_id": S_ID, "text": {"type": "string"}, "title": {"type": "string"}, "name": {"type": "string", "maxLength": 24}}, ["task_id"]),
      lambda api, a: api.call("POST", f"/tasks/{int(a['task_id'])}/working", body=_pick(a, ("text", "title", "name")))),
     ("end_working", "2.407.0: you stop working on a task (the dot at the task disappears at once); state done (default), failed or stopped.",
@@ -1983,7 +1987,7 @@ TOOLS += [
     ("update_list_tag", "Rename / recolor a project tag.", _obj({"list_id": S_ID, "tag_id": S_ID, "name": {"type": "string"}, "color": {"type": "string"}},
                                                            ["list_id", "tag_id"]),
      lambda api, a: api.call("PATCH", f"/lists/{_id(a, 'list_id')}/tags/{_id(a, 'tag_id')}", body=_without(a, "list_id", "tag_id"))),
-    ("delete_list_tag", "Delete a project tag (it leaves every task).", _obj({"list_id": S_ID, "tag_id": S_ID}, ["list_id", "tag_id"]),
+    ("delete_list_tag", "Delete a project tag (it leaves every task; a one-way step - only a tag that no task carries, also none done or in the trash, goes without that card).", _obj({"list_id": S_ID, "tag_id": S_ID}, ["list_id", "tag_id"]),
      lambda api, a: api.call("DELETE", f"/lists/{_id(a, 'list_id')}/tags/{_id(a, 'tag_id')}")),
     # ---- templates
     ("list_templates", "Your templates (task templates and project templates; kind list).", _obj({}), lambda api, a: api.call("GET", "/templates")),

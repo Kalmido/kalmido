@@ -766,10 +766,13 @@ def _finish_wiki(c, run, oi):
         nid = run.m("wiki_pages", r.get("id"))
         if not nid:
             continue
-        p = c.execute("SELECT org_id, owner_id, updated_at FROM wiki_pages WHERE id=?", (nid,)).fetchone()
+        p = c.execute("SELECT org_id, owner_id, updated_at, updated_by FROM wiki_pages WHERE id=?", (nid,)).fetchone()
         text = _body(run, str(r.get("body") or ""))
         c.execute("UPDATE wiki_pages SET body=? WHERE id=?", (wkh_seal(c, p["org_id"], p["owner_id"], text), nid))
-        wiki_set_links(c, nid, text)
+        # 2.1284.0 (#6321): the export carries no embedders -- the page's last editor as matched on this server stands in (the
+        # rule of #6295, as for the pages of before wiki_embeds); nobody matched = rows with nobody: no picture until a person
+        # takes the embed out and puts it in again (review 1 F3: never "the next writer's")
+        wiki_set_links(c, nid, text, p["updated_by"], "")
         wks_index(c, nid, p["org_id"], p["owner_id"], text, p["updated_at"])
 
 

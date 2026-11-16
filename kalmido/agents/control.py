@@ -37,7 +37,7 @@ from flask import g, jsonify, request
 from ..core.config import API_PREFIX, app, PUBLIC_URL
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, parse_iso
-from ..core.pg import insert_id
+from ..core.pg import insert_id, system_ctx
 from ..core.access import act_for, run_person, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
 from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
@@ -49,6 +49,7 @@ from ..agents.core import agent_emit, agent_row, agent_shares, is_agent, need_ag
 from ..agents.chat import _jload, chat_choices_withdraw, choice_state
 from ..agents.workstyle import ws_need_editor
 from ..agents.steps import redact  # 2.653.0 (#5079): a decision line masks secrets like a step
+from ..agents.circle import circle_of, circle_person, circle_reader  # 2.1284.0 (#6453): writing only towards the same or a smaller circle
 from ..core.objcomments import ocm_trash  # 2.530.0 A (#4315, B11): text and files into the trash like comment_delete; 2.972.0 (#5272): the core's
 
 CTL_LEVELS = ("approve_all", "routine", "free")
@@ -299,12 +300,11 @@ CTL_OBJ = (
 
 
 def _ctl_int(v):
-    """An id from a body (int or a string of digits) or None."""
-    if isinstance(v, bool):
-        return None
-    if isinstance(v, int):
-        return v if 0 < v < 2 ** 62 else None
-    return int(v) if isinstance(v, str) and v.isdigit() and len(v) < 18 else None
+    """An id from a body or None -- 2.1284.0 (#6453, Fable reader #4926 F1): read exactly as the routes read it
+    (tasks/validation.py as_int, via agents/safety.py ctl_id): ' 7', '7 ', '07' are 7 here as there. A different reading let a
+    body name a project the route uses and the gate never checked."""
+    from .safety import ctl_id  # here: safety loads agents.admin, which loads this gate
+    return ctl_id(v)
 
 
 def _ctl_obj_lists(c, aid, va):
@@ -322,12 +322,12 @@ def _ctl_obj_lists(c, aid, va):
     return [lid], False
 
 
-def ctl_lists(c, aid, path, b):
+def ctl_lists(c, aid, path, b, va=None):
     """The projects a write request concerns (route variables and body), only those the agent sees -> (lids, unknown).
     lids None = an object of a project the agent cannot see (the route itself refuses). 2.235.0 A2 (#2891): unknown = the
     request touches an object or names a project the gate cannot place (a route not in CTL_OBJ with a variable, an object
     without a project, a list_id that is no id): the caller caps a personal agent there (ctl_gate)."""
-    va = request.view_args or {}
+    va = (request.view_args or {}) if va is None else va  # 2.1284.0 (#6453): va given = the step of an approval card (ctl_card_circle)
     lids, unknown = [], False
     if path.startswith("/agent/objects/{}/{}"):  # 2.1117.0 (#6024): the object's project; a list_id in the body is not read there
         return _ctl_obj_lists(c, aid, va)
@@ -358,12 +358,15 @@ def ctl_lists(c, aid, path, b):
             lids, unknown = [], True  # an object the agent reaches another way (a room member, its own entry): careful
     elif any(k for k in va):
         unknown = True  # an object route the gate cannot place (wiki, events, files, office ...)
-    if path == "/tasks":  # a new task: its list, or the list of its parent / section (none: the agent's own default list)
+    if path in ("/tasks", "/tasks/{}", "/tasks/{}/move"):
+        # a new task: its list, or the list of its parent / section (none: the agent's own default list). 2.1284.0 (#6453,
+        # review G1): read ALWAYS and for a change / a move too -- a parent wins over list_id (tasks.py task_create and
+        # lifecycle.py apply_update put the task into its parent's project), so the parent's project is a target as well
         for k, q in (("parent_id", "SELECT list_id FROM tasks WHERE id=?"), ("section_id", "SELECT list_id FROM sections WHERE id=?")):
-            if b.get(k) is not None and "list_id" not in b:
+            if b.get(k) is not None:
                 r = c.execute(q, (_ctl_int(b[k]),)).fetchone() if _ctl_int(b[k]) else None
-                if r and list_role(c, r[0], aid):
-                    lids.append(r[0])
+                if r and r[0] and list_role(c, r[0], aid):
+                    lids = sorted(set(lids) | {r[0]})
                 else:
                     unknown = True
     if "list_id" in b and b["list_id"] is not None:  # a body naming a project (create there, move there)
@@ -375,7 +378,13 @@ def ctl_lists(c, aid, path, b):
     return lids, unknown
 
 
-def ctl_refuse(step, level, lid, d):
+CTL_CIRCLE_TEXT = {"wider": N_("This place is visible to more people than other places you read (a wider circle of people): writing there needs a person's Yes, on every level."),
+                   "public": N_("This place is publicly visible (a public link, a client's report or a shared knowledge page): writing there needs a person's Yes, on every level."),
+                   # review G12: a team agent's message to a person who does not read everything the agent reads
+                   "person": N_("This person does not read every place you read: a message to them needs the Yes of a person who reads all of them - ask that person with the approval card.")}
+
+
+def ctl_refuse(step, level, lid, d, circle=None):
     # 2.1045.0 (#5827): the step is taken over as it stands (approval.step, never typed again) and run from the card after the Yes
     if step == "one_way":
         msg = tr("One-way step: ask with an approval card in your chat (approval.step = method, path, body and if_match exactly as in this answer), then after the Yes run it with POST /api/v1/agent/approvals/ID/run (MCP: run_approved_step) - the server sends exactly this step.")
@@ -387,8 +396,10 @@ def ctl_refuse(step, level, lid, d):
     rb = ctl_req_body()  # 2.235.0 A2 (#2891): the card binds the body too -- copy it into approval.step.body
     im = (request.headers.get("If-Match") or "").strip()[:200]  # 2.1045.0 (#5827): the version read, sent along when the card runs
     st = {"method": request.method, "path": request.path, **({"body": rb} if rb not in ({}, []) else {}), **({"if_match": im} if im else {})}
+    if circle:  # 2.1284.0 (#6453): the level would let it pass, the circle of people does not
+        msg = tr(CTL_CIRCLE_TEXT["person" if step == "meta" else circle]) + " " + msg
     return v1_err(409, msg, name="approval_required", step=step, level=level, project_id=lid,
-                  approval={**st, "header": CTL_HEADER}, **({"run": "header"} if files else {}))
+                  approval={**st, "header": CTL_HEADER}, **({"run": "header"} if files else {}), **({"circle": circle} if circle else {}))
 
 
 def ctl_req_body():
@@ -462,12 +473,17 @@ def ctl_gate():
     b = request.get_json(silent=True) if request.is_json else None
     b = b if isinstance(b, dict) else {}
     step = ctl_class(request.method, path, b)
+    if step == "one_way" and request.method == "DELETE" and path == "/lists/{}/tags/{}":
+        tag = ctl_tag_unused(c, request.view_args or {})
+        if tag:  # 2.1284.0 (#6575): a project tag nothing carries -- nothing is lost with it, routine (v1_list_tag_delete: ctl_tag_hold)
+            step, g.ctl_tag_unused = "routine", tag
     if step == "meta" and web is not None:  # its own channel too: messages only to the people of the run, rules by card
         from .srvweb import srvweb_gate_step
         step = srvweb_gate_step(web, request.method, path, b, request.view_args or {}) or step
-    if step == "meta":
+    person = ctl_chat_person(c, a, request.method, path, request.view_args or {}) if step == "meta" else None
+    if step == "meta" and not person:
         return None
-    lids, unknown = ctl_lists(c, a["user_id"], path, b)
+    lids, unknown = ([], False) if person else ctl_lists(c, a["user_id"], path, b)
     if lids is None:
         return None  # a project it cannot see: the route answers 404
     if nolevel and all(list_role(c, x, p) in WRITE_ROLES for x in lids for p in act_for(a["user_id"]) or ()):
@@ -477,18 +493,88 @@ def ctl_gate():
         level = ctl_min(level, "routine")
     lid = lids[0] if len(lids) == 1 else None
     ok = (step == "routine" and level in ("routine", "free")) or (step == "change" and level == "free")
+    circle = person  # review G12: the agent's own channel is free on every level -- but not towards a wider circle
+    if person:
+        ok = False
+    elif ok:  # 2.1284.0 (#6453): free only towards the same or a smaller circle of people; a wider or public target = a card
+        circle = circle_of(c, a, request.method, path, request.view_args or {}, b, lids)
+        ok = not circle
     mid = None
     if not ok:
         hdr = request.headers.get(CTL_HEADER, "").strip()
         if not hdr:
-            return ctl_refuse(step, level, lid, d)
-        mid, why = ctl_claim(c, a, hdr, step, lids)
+            return ctl_refuse(step, level, lid, d, circle)
+        if circle is None and not person:  # the level asks for the card: the circle still decides which card fits (ctl_claim)
+            circle = circle_of(c, a, request.method, path, request.view_args or {}, b, lids)
+        mid, why = ctl_claim(c, a, hdr, step, lids, circle)
         if not mid:  # 2.1045.0 (#5827): the 409 names what does not fit (reason + its words), never a content of the card
             return v1_err(409, tr("This approval does not fit: it needs a person's Yes, exactly this method, path and body, and works once.")
-                          + " " + ctl_reason_text(why), name="approval_invalid", step=step, level=level, project_id=lid, **why)
+                          + " " + ctl_reason_text(why), name="approval_invalid", step=step, level=level, project_id=lid,
+                          **({"circle": circle} if circle else {}), **why)
     g.ctl_note = {"step": step, "level": level, "lid": lid, "path": path, "mid": mid, "aid": a["user_id"],
                   "before": ctl_before(c, path, b), "info": ctl_info(path, b)}
     return None
+
+
+def ctl_chat_person(c, a, method, path, va):
+    """2.1284.0 (#6453, review G12): "wider" | None for a step of the agent's own channel -- a TEAM agent's chat message to a
+    person who does not read every place the agent reads (agents/circle.py circle_person). Such a message (its text, also
+    an approval card's own title and words) needs the Yes of a person who reads all of them, on every level: the agent asks
+    that person with a card whose step is this message, and runs it. A personal agent writes only to its owner: None."""
+    if method != "POST" or path != "/agent/chats/{}":
+        return None
+    return circle_person(c, a, va.get("uid"))
+
+
+def ctl_tag_unused(c, va):
+    """2.1284.0 (#6575): the id of the tag in the path when it is a tag of exactly this project (scope list, never a label of the
+    organisation) that no object carries -- no task, open, done or in the trash, and no other kind; else None. Deleting such a
+    tag loses nothing (it comes back by its name), so the gate reads the DELETE as routine instead of one_way. Read as
+    "system": a link the agent's own view would hide still counts."""
+    lid, tag = _ctl_int(va.get("lid")), _ctl_int(va.get("tag_id"))
+    if not lid or not tag:
+        return None
+    with system_ctx(c):
+        r = c.execute("""SELECT 1 FROM obj_tags ot WHERE ot.id=? AND ot.scope_kind='list' AND ot.scope_id=?
+                         AND NOT EXISTS (SELECT 1 FROM obj_tag_links k WHERE k.tag_id=ot.id)""", (tag, str(lid))).fetchone()
+        used = bool(r) and ctl_tag_named(c, lid, tag)
+    return tag if r and not used else None
+
+
+def ctl_tag_named(c, lid, tag):
+    """2.1284.0 (#6575, review G7): does something of project lid name tag by its id although no object carries it? A rule
+    (lists/rules.py: the trigger "gets the tag", an action "set the tag" -- the single one or one of the chain --, a
+    condition "only with the tag") or a client link's filter (lists/custview.py cv_show.tag). Deleting the tag would pause
+    the rule / empty the client's view: "used", so the delete stays a one-way step. The texts are read as the tags' own
+    re-key step reads them (migrations.d/5275_a.py kalmido_otg_rekey, kalmido_otg_j: a text that is no JSON names nothing)."""
+    return bool(c.execute(
+        """SELECT 1 WHERE EXISTS (SELECT 1 FROM list_rules r WHERE r.list_id=? AND (
+                 (r.trig='ltag' AND r.trig_val=CAST(? AS TEXT))
+              OR (jsonb_typeof(kalmido_otg_j(CAST(r.act_val AS text)))='object' AND kalmido_otg_j(CAST(r.act_val AS text))->'tag_id'=to_jsonb(CAST(? AS BIGINT)))
+              OR (jsonb_typeof(kalmido_otg_j(r.more_acts))='array' AND EXISTS (SELECT 1 FROM jsonb_array_elements(kalmido_otg_j(r.more_acts)) AS y(x)
+                    WHERE jsonb_typeof(y.x)='object' AND y.x->'tag_id'=to_jsonb(CAST(? AS BIGINT))))
+              OR (jsonb_typeof(kalmido_otg_j(r.conds))='object' AND kalmido_otg_j(r.conds)->'tag_id'=to_jsonb(CAST(? AS BIGINT)))))
+           OR EXISTS (SELECT 1 FROM public_links p WHERE p.list_id=? AND jsonb_typeof(kalmido_otg_j(p.cv_show))='object'
+                      AND kalmido_otg_j(p.cv_show)->'tag'=to_jsonb(CAST(? AS BIGINT)))""",
+        (lid, tag, tag, tag, tag, lid, tag)).fetchone())
+
+
+def ctl_tag_hold(c, tag_id):
+    """2.1284.0 (#6575): called by the route right before it deletes a tag the gate let through as unused (g.ctl_tag_unused):
+    locks the tag's row (a link written meanwhile waits for this transaction or is already visible) and looks again. A tag
+    that got a link since the gate's look is a one-way step after all: 409 approval_required (step one_way), nothing is
+    deleted, a card used for it is free again (ctl_after). The delete runs in this same transaction."""
+    if g.get("ctl_tag_unused") != tag_id:
+        return
+    with system_ctx(c):
+        c.execute("SELECT 1 FROM obj_tags WHERE id=? FOR UPDATE", (tag_id,)).fetchone()
+        linked = c.execute("SELECT 1 FROM obj_tag_links WHERE tag_id=? LIMIT 1", (tag_id,)).fetchone()
+        sc = c.execute("SELECT scope_id FROM obj_tags WHERE id=? AND scope_kind='list'", (tag_id,)).fetchone()
+        linked = linked or (sc and str(sc[0]).isdigit() and ctl_tag_named(c, int(sc[0]), tag_id))  # review G7: a rule / client link names it
+    if linked:
+        c.rollback()
+        note = g.get("ctl_note") or {}
+        raise V1Error(ctl_refuse("one_way", note.get("level"), note.get("lid"), None))
 
 
 def ctl_card_row(c, aid, mid):
@@ -529,8 +615,10 @@ CTL_REASON_TEXT = {"not_found": N_("No approval card with this id of yours."),
                    "rejected": N_("The card was answered No."),
                    "no_step": N_("The card names no step (method and path)."),
                    "one_way": N_("A one-way step needs a card marked one_way and the Yes of a person."),
+                   "circle": N_("Writing into a place more people or the public can see needs the Yes of a person on a card that says so: ask with a new card."),
                    "approver_rights": N_("The person who said Yes may not change this project themselves."),
                    "approver_shares": N_("The person who said Yes shares no project with you."),
+                   "approver_reads": N_("The person who said Yes does not read every place you read: ask a person who does."),
                    "format": N_("The header must be the id of the card (a number)."),
                    "nested": N_("The step of a card cannot run a card."),
                    "upload": N_("The card approves an upload: send the upload again with the same files and the header X-Kalmido-Approval: ID of the card (MCP: use_approval) - the run from the card cannot send files.")}
@@ -556,10 +644,12 @@ def ctl_reason_text(why):
         if why.get("used_at"):  # 2.1045.0 (#5827, N3): a parallel try that failed later frees the card again -- never "it ran" for sure
             return tr("The card is in use right now or has run (at {0}): check the result instead of sending it again.", why["used_at"])
         return tr("The card is in use right now or has run: check the result instead of sending it again.")
+    if r == "approver_rights" and why.get("sources") is False:  # 2.1284.0 (#6453, review G13)
+        return tr(CTL_REASON_TEXT["approver_reads"])
     return tr(CTL_REASON_TEXT.get(r, N_("The approval does not fit.")))
 
 
-def ctl_claim(c, a, hdr, step, lids):
+def ctl_claim(c, a, hdr, step, lids, circle=None):
     """Uses the approval card hdr (a message id) for this request: answered Yes, its step = this method + path + body, not
     used yet. Atomic (two requests with the same card: one wins). 2.235.0 A2 (#2891): the body is bound (step.body, none =
     an empty body); a one-way step needs a card marked one_way and the Yes of a person (never the deadline's "recommend");
@@ -591,8 +681,14 @@ def ctl_claim(c, a, hdr, step, lids):
         return None, {"reason": "unanswered"}
     if step == "one_way" and (not ap.get("one_way") or ans.get("via") == "deadline"):
         return None, {"reason": "one_way"}
+    # 2.1284.0 (#6453): a write into a wider / public place needs the Yes of a person who read that on the card (the mark the
+    # server set when the card was made; a place that became public since: a new card), never the deadline's "recommend"
+    if circle and (ap.get("circle") not in ((circle,) if circle == "public" else ("wider", "public")) or ans.get("via") == "deadline"):
+        return None, {"reason": "circle"}
     if lids and any(list_role(c, x, who) not in WRITE_ROLES for x in lids):
         return None, {"reason": "approver_rights"}
+    if circle and not circle_reader(c, aid, who):  # review G13: the Yes to "more people will see this" only from a person
+        return None, {"reason": "approver_rights", "sources": False}  # who reads every source the agent could carry there (not just the target)
     if not lids and not agent_shares(c, aid, who):
         return None, {"reason": "approver_shares"}
     if not lids and not a["owner_id"]:  # 2.1287.0 (#6454): a team agent's card without a project needs the person's own write right
@@ -909,6 +1005,9 @@ def ctl_card_extra(v):
         ctl_card_route(out["step"])  # 2.1045.0 (#5827): a step no route answers is refused here, never stored as a one-way card
         if ctl_card_one_way(out):
             out["one_way"] = True
+        cir = ctl_card_circle(out["step"])
+        if cir:  # 2.1284.0 (#6453): set by the server, never by the agent -- the person reads it on the card
+            out["circle"] = cir
     if v.get("recommend") not in (None, ""):
         if v["recommend"] not in ("yes", "no"):
             raise BadInput(tr("Invalid value: {0}", "approval.recommend"))
@@ -943,8 +1042,36 @@ def ctl_card_route(st):
     raise BadInput(tr("This route does not exist: {0} {1}. Take the step from the 409 approval_required answer.", st["method"], st["path"]))
 
 
-def ctl_card_one_way(ap):
-    """Is the step of approval card ap a one-way step (marked by the agent, or a route of class one_way with its body)?"""
+def ctl_card_circle(st):
+    """2.1284.0 (#6453): "wider" | "public" | None for the step {method, path, body?} of a new approval card of the asking
+    agent: does it write into a place more people read than the agent's other places, or a public one (agents/circle.py)?
+    Read from the step's own route and body, as the gate will read the request. No agent, or a step the agent's own channel
+    takes (meta): None."""
+    if not is_agent(g.get("user")):
+        return None
+    try:
+        rule, va = app.url_map.bind("localhost").match(st["path"], method=st["method"], return_rule=True)
+    except Exception:  # noqa: BLE001  no such route (ctl_card_route refused it before)
+        return None
+    c = db()
+    a = agent_row(c, g.user["id"])
+    path = ctl_rule_path(rule)
+    b = st.get("body") if isinstance(st.get("body"), dict) else {}
+    if a is None:
+        return None
+    if ctl_class(st["method"], path, b) == "meta":
+        return ctl_chat_person(c, a, st["method"], path, va)
+    lids, _ = ctl_lists(c, a["user_id"], path, b, va)
+    if lids is None:
+        return None
+    return circle_of(c, a, st["method"], path, va, b, lids)
+
+
+def ctl_card_one_way(ap, c=None):
+    """Is the step of approval card ap a one-way step (marked by the agent, or a route of class one_way with its body)?
+    2.1284.0 (#6575, review G8): deleting a project tag nothing carries is none (ctl_tag_unused, as the gate reads it; c =
+    the connection, in a request the request's own) -- a card for it (level approve_all) is an ordinary one. A tag that got
+    a link after the card: the gate's step is one_way again and this card no longer fits (ctl_claim, reason one_way)."""
     if ap.get("one_way"):
         return True
     st = ap.get("step") or {}
@@ -952,10 +1079,13 @@ def ctl_card_one_way(ap):
         return False
     try:
         adapter = app.url_map.bind("localhost")
-        rule, _ = adapter.match(st["path"], method=st["method"], return_rule=True)
+        rule, va = adapter.match(st["path"], method=st["method"], return_rule=True)
     except Exception:  # noqa: BLE001  no such route: careful
         return True
-    return ctl_class(st["method"], ctl_rule_path(rule), st.get("body") if isinstance(st.get("body"), dict) else {}) == "one_way"
+    path = ctl_rule_path(rule)
+    if st["method"] == "DELETE" and path == "/lists/{}/tags/{}" and ctl_tag_unused(c if c is not None else db(), va):
+        return False
+    return ctl_class(st["method"], path, st.get("body") if isinstance(st.get("body"), dict) else {}) == "one_way"
 
 
 # ---------------------------------------------------------------- #2901: the deadline of the approvals (watchdog)
@@ -1012,8 +1142,8 @@ def ctl_deadline_tick(c, users, S, LG):
                     lg = LG.get(uid, "en")
                     notify(uid, a["display_name"] or a["username"], tr("Still waiting for your approval: {0}", ap.get("title", ""), lg=lg),
                            push_prio(S[uid]), f"{PUBLIC_URL}/#agents/{a['user_id']}", s=S[uid], kind="other")
-            elif then == "recommend" and ap.get("recommend") in ("yes", "no") and not ctl_card_one_way(ap) and \
-                    not (ap["recommend"] == "yes" and ctl_deadline_warns(c, r["user_id"], ap)):  # 2.1269.0 (#6619)
+            elif then == "recommend" and ap.get("recommend") in ("yes", "no") and not ctl_card_one_way(ap, c) and not ap.get("circle") and \
+                    not (ap["recommend"] == "yes" and ctl_deadline_warns(c, r["user_id"], ap)):  # 2.1269.0 (#6619); 2.1284.0 (#6453)
                 ans = {"ids": [ap["recommend"]], "at": iso_ms(now), "user_id": None, "via": "deadline"}  # A2: ctl_claim checks the card's person
                 c.execute("UPDATE agent_chat SET choice=? WHERE id=?", (json.dumps(ans), r["id"]))
                 outcome = "approved" if ap["recommend"] == "yes" else "rejected"

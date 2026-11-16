@@ -41,6 +41,20 @@
   function Warn([string]$m) { Write-Host "Note: $m" -ForegroundColor Yellow }
   function Fail([string]$m) { Write-Host ''; Write-Host "Error: $m" -ForegroundColor Red; throw 'Kalmido installation stopped.' }
   function Test-Cmd([string]$n) { [bool](Get-Command $n -ErrorAction SilentlyContinue) }
+  # 2.1284.0 (#6606, review F9): a value of .env as Compose reads it (last line, no CR, no quotes around it, no comment at the end)
+  function Get-EnvValue([string]$text, [string]$name) {
+    $m = [regex]::Matches($text, "(?m)^$name=(.*)$")
+    if ($m.Count -eq 0) { return $null }
+    $v = $m[$m.Count - 1].Groups[1].Value.TrimEnd("`r")
+    if ($v -match '^\s*"([^"]*)"') { return $Matches[1].Trim() }
+    if ($v -match "^\s*'([^']*)'") { return $Matches[1].Trim() }
+    return ($v -replace '\s#.*$', '').Trim()
+  }
+  # does the app leave the scanner out? Read like kalmido/files/scan.py: empty, 0, off, no, false; no line = the compose default
+  function Test-ClamdOff([string]$text) {
+    $v = Get-EnvValue $text 'KALMIDO_CLAMD'
+    return ($null -ne $v -and @('', '0', 'off', 'no', 'false') -contains $v.ToLower())
+  }
 
   # Run a native command, stream its output, return the exit code (stderr does not throw in PS 5.1).
   function Invoke-Native([string]$exe, [string[]]$argv, [string]$log) {
@@ -313,7 +327,7 @@
   if ($envText -notmatch '(?m)^COMPOSE_PROFILES=') {
     $prof = @()
     if ($envText -notmatch '(?m)^DATABASE_URL=\S' -or $envText -match '(?m)^DATABASE_URL=.*@db[:/]') { $prof += 'localdb' }  # 2.149.0 review: @db = the compose database
-    if ($envText -notmatch '(?m)^KALMIDO_CLAMD=[ \t]*(""|'''')?[ \t]*$') { $prof += 'clamav' }
+    if (-not (Test-ClamdOff $envText)) { $prof += 'clamav' }
     $envText = $envText.TrimEnd("`n") + "`n`n# Optional services of docker-compose.yml: localdb (the PostgreSQL container), clamav (virus scan). Added by the installer.`nCOMPOSE_PROFILES=$($prof -join ',')`n"
     [IO.File]::WriteAllText($envFile, $envText, (New-Object Text.UTF8Encoding($false)))
     Say "Added COMPOSE_PROFILES=$($prof -join ',') to .env (which optional services run)"
@@ -463,11 +477,18 @@
       Say "Previous:   $prev  (back to it: `$env:KALMIDO_VERSION = '$prev'; then update.ps1 again$(if ($script:DbCopy) { "; the database of before: $($script:DbCopy)" }))"
     }
   }
-  Say 'Virus scan: ClamAV checks every upload (about 1-1.5 GB RAM); small server: KALMIDO_CLAMD= in .env, see docs\SELF-HOSTING.md'  # 2.61.0
+  # 2.1284.0 (#6606, review F9): "checks" only when the clamav profile runs AND the app reads KALMIDO_CLAMD as on
+  $envNow = [IO.File]::ReadAllText($envFile)
+  $profNow = @("$(Get-EnvValue $envNow 'COMPOSE_PROFILES')".Split(',') | ForEach-Object { $_.Trim() })
+  if (($profNow -contains 'clamav' -or $profNow -contains '*') -and -not (Test-ClamdOff $envNow)) {
+    Say 'Virus scan: ClamAV checks every upload (about 1-1.5 GB RAM); small server: KALMIDO_CLAMD= in .env, see docs\SELF-HOSTING.md'  # 2.61.0
+  } else {
+    Say 'Virus scan: off (COMPOSE_PROFILES / KALMIDO_CLAMD in .env); uploads are not checked. Switch it on: see docs\SELF-HOSTING.md'
+  }
   Say "Stop:       cd `"$Dir`"; docker compose down"
   $img = if ($script:Image) { $script:Image } else { 'kalmido:local' }
   # 2.538.0 (#4361): down -v also removes the named volumes; on Windows the folder (incl. pgdata) is deleted like any other
-  Say "Uninstall:  cd `"$Dir`"; docker compose --profile '*' down -v; docker image rm $img postgres:17.12 clamav/clamav:1.4"
+  Say "Uninstall:  cd `"$Dir`"; docker compose --profile '*' down -v; docker image rm $img postgres:17.12 clamav/clamav-debian:1.4 clamav/clamav:1.4"
   Say "            (images you never pulled give a harmless `"No such image`"). Then delete the folder: Remove-Item -Recurse -Force `"$Dir`""
   Say '            This deletes all your tasks and cannot be undone: copy data\backups\ and secret\kalmido.key elsewhere first if you want them.'
   Say 'Use it from other devices: put it behind a reverse proxy with HTTPS, see'
