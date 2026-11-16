@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1252.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Ein Termin aus einer Serie ändert beim Bearbeiten nur noch dieses Datum, und Speichern lässt sich rückgängig machen.",
+     "en": "Editing one date of a repeating event now changes only that date, and saving can be undone."
+    },
+    {
+     "de": "Dateien im Papierkorb lassen sich antippen und ansehen, bevor du sie wiederherstellst.",
+     "en": "Files in the trash can be tapped and previewed before you restore them."
+    },
+    {
+     "de": "Kontakte zeigen beim Laden, bei Fehlern und im leeren Adressbuch klar, was los ist und was du tun kannst.",
+     "en": "Contacts clearly show loading, errors and an empty address book with what you can do next."
+    }
+   ]
+  },
+  {
    "version": "2.1249.0",
    "date": "2026-11-16",
    "items": [
@@ -1311,16 +1329,6 @@
     {
      "de": "Die Kontaktkarte lässt sich wie die Kundenkarte in Blöcken ein- und ausblenden und zuklappen.",
      "en": "The contact card can show, hide and fold its blocks like the client card."
-    }
-   ]
-  },
-  {
-   "version": "2.681.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Die Einführungen der Bereiche zeigen jetzt Schritt für Schritt auf die echten Knöpfe, Notizen und Chat haben eine eigene.",
-     "en": "The area introductions now walk you step by step through the real buttons, and Notes and Chat have their own."
     }
    ]
   }
