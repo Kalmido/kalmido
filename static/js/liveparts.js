@@ -152,8 +152,10 @@ async function lpDelta(v, ch, n, since) {
   // 2.1264.0 (#6335 B5): two deltas on their way (the poll's and the bundled follow-up's) can overtake each other: an answer
   // that arrives after the state moved on (S.v grew meanwhile) and is not newer than it is dropped - the state has all it
   // says; a newer one keeps the copies of tasks that changed after it was read (as lzLoad)
+  // review #4816: only an answer asked from the state's own version (since >= v0) is wholly covered by the newer state; the
+  // follow-up asks from S.lpBase (older: S.v moved on without a state, lpLive / lpSkip) - its tasks are checked one by one
   const late = S.v > v0;
-  if (late && !(j.v > S.v)) { S.lpN.late = (S.lpN.late || 0) + 1; return true; }
+  if (late && (follow ? since : v0) >= v0 && !(j.v > S.v)) { S.lpN.late = (S.lpN.late || 0) + 1; return true; }
   S.lpN.delta++;
   const side = lpSideCnt() + (wside ? lpSideSig() : ''), sel = S.sel, changed = new Set();
   if (wside && j.team) lpSideTake(j);
