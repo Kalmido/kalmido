@@ -1516,6 +1516,7 @@ async function wko_cfPut(r) {
   WKO.cf[r.id] = r;
   fdKeep('fdx', r.id, r);
   if (fdGet('fdx', r.id)?.b?.at === r.at) { await wko_del(r.k); return; }
+  fdDrop('fdx', r.id);  // review: an older kept text of the page must not cover this newer one (wko_cfLoad reads fdx last)
   await wko_put(r);
 }
 async function wko_cfDel(id) { const r = WKO.cf[id]; delete WKO.cf[id]; fdDrop('fdx', id); await wko_del(r?.k || 'x:' + id); }
