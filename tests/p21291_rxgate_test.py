@@ -35,7 +35,7 @@ from freelancer_fixture import freelancer, org_join  # noqa: E402
 kt.docker_logs_on_first_fail()
 DATA = sys.argv[1] if len(sys.argv) > 1 else kt.DATA
 KEY = base64.b64encode(os.urandom(32)).decode()
-O = "/api/office"
+OFC = "/api/office"
 RX = "/api/retention"
 NOW = "2026-05-04T08:00:00+00:00"
 COMPANY = {"name": "Studio Beispiel", "street": "Teststrasse 1", "zip": "20000", "city": "Hamburg", "country": "DE",
@@ -57,15 +57,15 @@ def sql(q, args=(), write=False):
 def invoice(s, title="Schnitt"):
     r = s.post(B + "/api/clients", json={"name": "Example Client Ltd " + title, "street": "Marktstrasse 5", "zip": "50000", "city": "Koeln", "country": "DE"})
     assert r.ok, r.text
-    r = s.post(B + O + "/docs", json={"kind": "invoice", "client_id": r.json()["id"], "service_from": "2026-03-01", "service_to": "2026-03-02",
+    r = s.post(B + OFC + "/docs", json={"kind": "invoice", "client_id": r.json()["id"], "service_from": "2026-03-01", "service_to": "2026-03-02",
                                       "items": [{"title": title, "qty": 1, "rate": 120}]})
     assert r.status_code == 201, r.text
-    assert s.post(B + O + f"/docs/{r.json()['id']}/finalize").ok
+    assert s.post(B + OFC + f"/docs/{r.json()['id']}/finalize").ok
 
 
 def cash(s, text):
-    j = s.get(B + O + "/cashbooks").json()
-    r = s.post(B + f"{O}/cashbooks/{j['books'][0]['id']}/entries", json={"day": j["today"], "dir": "in", "amount": "15", "text": text, "vat_pct": "7"})
+    j = s.get(B + OFC + "/cashbooks").json()
+    r = s.post(B + f"{OFC}/cashbooks/{j['books'][0]['id']}/entries", json={"day": j["today"], "dir": "in", "amount": "15", "text": text, "vat_pct": "7"})
     assert r.status_code == 201, r.text
 
 
@@ -120,7 +120,7 @@ check(r.ok and not sql("SELECT 1 FROM users WHERE id=?", (EID,)), "A7: after the
 
 # ---------------------------------------------------------------- a person without an organisation  # freelancer-matrix: office
 FID, Fr = freelancer(B, A, "frida")
-assert Fr.put(B + O + "/settings", json={"company_fields": COMPANY}).ok
+assert Fr.put(B + OFC + "/settings", json={"company_fields": COMPANY}).ok
 invoice(Fr)
 BL = Fr.post(B + "/api/budget/lists", json={}).json().get("list_id")
 e = Fr.post(B + f"/api/budget/{BL}/entries", json={"day": "2026-09-05", "amount": 7, "kind": "out", "title": "Tape"}).json()
@@ -217,7 +217,7 @@ assert Bo.put(B + f"/api/orgs/{ALPHA}/members", json={"email": "carol@example.co
 assert org_join(B, "carol", ALPHA), "setup: carol is a member of Alpha"
 for s, o in ((Bo, ALPHA), (Ca, ALPHA), (Da, BETA)):
     s.patch(B + "/api/settings", json={"lang": "en", "tour": "done", "features": "cal,comments,collab,office,clients,docs,files", "workspace": f"org:{o}"})
-assert Bo.put(B + O + "/settings", json={"company_fields": dict(COMPANY, name="Alpha Studio GmbH")}).ok
+assert Bo.put(B + OFC + "/settings", json={"company_fields": dict(COMPANY, name="Alpha Studio GmbH")}).ok
 cash(Bo, "Kasse Alpha")
 check(Bo.get(B + RX + f"/org/{ALPHA}").json().get("counts", {}).get("cash") == 1 and Bo.get(B + RX + f"/org/{ALPHA}").json().get("may_declare") is True,
       "setup: Alpha keeps a cash book entry, its admin may declare")
