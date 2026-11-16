@@ -377,7 +377,7 @@ function accountWire(md) {
     const nAg = us.flt === 'people' && !us.q ? j.agents : 0;
     box.innerHTML = (nAg ? `<div class="mrow agsum"><span class="avatar agent">${ic('bot', 's')}</span><span class="n">${esc(trn('{0} agent', '{0} agents', nAg))}</span><button class="linkbtn" data-act="agents-go">${tr('Manage under Agents')}</button></div>` : '')
       + (users.length ? '' : `<div class="muted mhint">${tr('Nothing found')}</div>`)
-      + users.map(u => `<div class="mrow ${u.disabled ? 'off' : ''}" data-urow="${u.id}"><label class="ua8hit"><input type="checkbox" class="ua8chk" data-usel="${u.id}" aria-label="${esc(tr('Select {0}', u.display_name))}" ${us.sel.has(u.id) ? 'checked' : ''} ${u.id === S.me.id ? 'disabled' : ''}></label>${uRowAv(u)}<span class="n">${esc(u.display_name)}${u.kind === 'agent' ? ' ' + agentBadge(u.id) : ''} <span class="muted">${esc(u.username)}${u.is_admin ? ' · ' + tr('Manages the server') /* 2.364.0 C (#3041) */ : ''}${u.disabled ? ' · ' + tr('disabled') : ''}${u.proxy_login ? ' · ' + trh('SSO: {0}', u.proxy_login) : ''}${u.twofa?.length ? ' · ' + tr('2FA') : ''}${u.oidc_linked ? ' · OIDC' : ''}${u.invite === 'invited' ? ' · ' + tr('Invited') : u.invite === 'expired' ? ' · ' + tr('Invitation expired') : ''}${u.signup === 'pending' ? ' · ' + tr('waits for approval') : u.signup === 'confirm' ? ' · ' + tr('registration not confirmed') : ''}</span></span>${u.signup === 'pending' ? `<button class="btn sm pri" data-acc="user-approve" data-uid="${u.id}">${ic('check', 's')} ${tr('Approve')}</button>` : ''}${u.kind === 'agent'
+      + users.map(u => `<div class="mrow ${u.disabled ? 'off' : ''}" data-urow="${u.id}"><label class="ua8hit"><input type="checkbox" class="ua8chk" data-usel="${u.id}" aria-label="${esc(tr('Select {0}', u.display_name))}" ${us.sel.has(u.id) ? 'checked' : ''} ${u.id === S.me.id ? 'disabled' : ''}></label>${uRowAv(u)}<span class="n">${esc(u.display_name)}${u.kind === 'agent' ? ' ' + agentBadge(u.id) : ''} <span class="muted">${esc(u.username)}${u.is_admin ? ' · ' + tr('Manages the server') /* 2.364.0 C (#3041) */ : ''}${u.disabled ? ' · ' + tr('disabled') : ''}${u.delete_hold && !u.delete_hold.release ? ' · ' + tr('deletion on hold') /* 2.1298.0 (#6395) */ : ''}${u.proxy_login ? ' · ' + trh('SSO: {0}', u.proxy_login) : ''}${u.twofa?.length ? ' · ' + tr('2FA') : ''}${u.oidc_linked ? ' · OIDC' : ''}${u.invite === 'invited' ? ' · ' + tr('Invited') : u.invite === 'expired' ? ' · ' + tr('Invitation expired') : ''}${u.signup === 'pending' ? ' · ' + tr('waits for approval') : u.signup === 'confirm' ? ' · ' + tr('registration not confirmed') : ''}</span></span>${u.signup === 'pending' ? `<button class="btn sm pri" data-acc="user-approve" data-uid="${u.id}">${ic('check', 's')} ${tr('Approve')}</button>` : ''}${u.kind === 'agent'
       ? `<button class="linkbtn agmng" data-acc="agent-edit" data-uid="${u.id}" title="${esc(tr('Open the agent dialog'))}">${tr('Managed under Agents')}</button>`
       : `<button class="iconbtn" data-acc="user-edit" data-uid="${u.id}" title="${tr('Edit person')}">${ic('edit', 's')}</button>`}</div>`).join('');
     ua8_pagerDraw(md, us); ua8_selDraw(md, us);
@@ -430,6 +430,36 @@ function accountWire(md) {
     } catch { /* api() showed it */ }
   });
 }
+// 2.1298.0 (#6395): an account that asked for its own deletion (admin/selfdelete.py). Without an admin's lock: the day and
+// "Hold the deletion" (= the admin's lock, PATCH disabled); with it: held until the end of the hold (30 days from the lock;
+// without a decision it runs then) and "Release the deletion" / "Reject the deletion" (POST /api/users/<id>/deletion)
+function dh_rowHtml(u) {
+  const day = v => fmtDate(String(v || '').slice(0, 10)), h = u.delete_hold;
+  if (h?.release) return `<div class="row dhrow"><label>${tr('Own deletion')}</label><span class="muted" role="status">${esc(tr('Released: the account is deleted on {0} (or at once when that day has passed).', day(h.at)))}</span></div>`;
+  if (h) return `<div class="row dhrow"><label>${tr('Own deletion')}</label><div><div role="status">${esc(tr('Deletion on hold until {0}', day(h.until)))}</div>
+    <div class="shint keep">${tr('The person asked to delete the account and an admin locked it. Without a decision it is deleted on that day.')}</div>
+    <button type="button" class="btn sm danger" data-m="dh-release">${tr('Release the deletion')}</button> <button type="button" class="btn sm" data-m="dh-reject">${tr('Reject the deletion')}</button></div></div>`;
+  if (u.delete_own) return `<div class="row dhrow"><label>${tr('Own deletion')}</label><div><div role="status">${esc(tr('The person asked to delete the account; it is deleted on {0}.', day(u.delete_own)))}</div>
+    <button type="button" class="btn sm" data-m="dh-hold">${tr('Hold the deletion')}</button></div></div>`;
+  return '';
+}
+async function dh_act(u, m) {
+  const who = u.display_name || u.username;
+  try {
+    if (m === 'dh-hold') {
+      if (!await askConfirm(tr('Hold the deletion of “{0}”?', who), tr('The account stays locked; it is deleted only when an admin releases it, at the latest after 30 days. The person can still cancel the deletion.'), {ok: tr('Hold the deletion')})) return false;
+      await api('PATCH', '/api/users/' + u.id, {disabled: true});
+    } else if (m === 'dh-release') {
+      if (!await askConfirm(tr('Release the deletion of “{0}”?', who), tr('The account and its data are deleted permanently on the day it asked for, or at once when that day has passed.'), {ok: tr('Release the deletion'), danger: true})) return false;
+      await api('POST', `/api/users/${u.id}/deletion`, {decision: 'release'});
+    } else if (m === 'dh-reject') {
+      if (!await askConfirm(tr('Reject the deletion of “{0}”?', who), tr('The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.'), {ok: tr('Reject the deletion')})) return false;
+      await api('POST', `/api/users/${u.id}/deletion`, {decision: 'reject'});
+    } else return false;
+  } catch { return false; /* api() said it */ }
+  toast(tr('Saved'));
+  return true;
+}
 function userModal(u, done) {
   const md = modal(`<h3>${u ? tr('Edit person') : tr('New person')}</h3>
     <div class="row"><label for="u-name">${tr('Display name')}</label><input id="u-name" value="${esc(u?.display_name || '')}" maxlength="60" placeholder="${esc(tr('e.g. Alice Example'))}"></div>
@@ -442,6 +472,7 @@ function userModal(u, done) {
     ${u && S.instanceMode === 'workspaces' && (S.orgs || []).length ? `<div class="row"><label>${tr('Organisations')}</label><div class="fpeople" role="group" aria-label="${esc(tr('Organisations'))}">${S.orgs.map(o => { const on = u ? (u.orgs || []).includes(o.id) : o.members.includes(S.me.id); return `<button type="button" class="fperson ${on ? 'on' : ''}" data-uorg="${o.id}" aria-pressed="${on}" ${o.apart ? 'disabled' : ''}><span aria-hidden="true">${esc(o.icon || '🏢')}</span><span>${esc(o.name)}</span></button>`; }).join('')}</div></div>` : ''}
     ${u ? `<div class="row avrow"><label>${tr('Profile picture')}</label><div class="avpick" id="u-avpick" data-cur="${esc(u.avatar || '')}">${avPickHtml(u.avatar || '', false, u.display_name || u.username)}</div></div>` : ''}
     <div class="row"><label>${tr('Rights')}</label><label class="chkl"><input type="checkbox" id="u-admin" ${u?.is_admin ? 'checked' : ''}> ${tr('Manage the server')}</label>${''/* 2.364.0 C (#3041): the server admin, not an organisation's */}${u ? `<label class="chkl"><input type="checkbox" id="u-dis" ${u.disabled ? 'checked' : ''}> ${tr('disabled')}</label>` : ''}</div>
+    ${u ? dh_rowHtml(u) : ''}${''/* 2.1298.0 (#6395): the own deletion of a locked account: hold it / release / reject */}
     ${''/* 2.364.0 C (#3044): the special fields folded under "Advanced" (open when one of them is in use; same fields, same effect) */}<details class="sdet uadv" ${u && (u.proxy_login || u.kid || u.oidc_linked) ? 'open' : ''}><summary>${tr('Advanced')}</summary>
     <div class="row"><label for="u-proxy">${tr('SSO sign-in')}</label><input id="u-proxy" value="${esc(u?.proxy_login || '')}" autocapitalize="off" placeholder="${tr('user name at the sign-in proxy (optional)')}"></div>
     <div class="row"><label for="u-topic">${tr('ntfy topic')}</label><input id="u-topic" value="${esc(u?.ntfy_topic || '')}" autocapitalize="off" placeholder="${tr('empty = random')}"></div>
@@ -489,6 +520,7 @@ function userModal(u, done) {
     const b = e.target.closest('button[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { md.remove(); return; }
     if (b.dataset.m === 'signin') { signinLink(u.id, u.display_name); return; }  // 2.23.0 (#444)
+    if (b.dataset.m.startsWith('dh-')) { if (await dh_act(u, b.dataset.m)) { md.remove(); done && done(); } return; }  // 2.1298.0 (#6395)
     if (b.dataset.m === 'invite') {  // 2.22.0 (#697): a new one-time link (invitation / password reset)
       try { const j = await api('POST', `/api/users/${u.id}/invite`, {send: true}); inviteResult(j, u.display_name); done && done(); } catch { /* api() said it */ }
       return;

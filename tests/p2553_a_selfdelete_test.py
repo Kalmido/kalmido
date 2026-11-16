@@ -221,7 +221,9 @@ check(bool(TOK4) and TOK4 not in {cancel_token(x) for x in m4[:-1]}, "a new canc
 check(A.patch(B + f"/api/users/{FID}", json={"disabled": True}).ok, "the admin locks her account as well")
 check(json.loads(dbx("SELECT delete_plan FROM users WHERE id=?", (FID,))[0][0] or "{}").get("admin"), "the admin's lock is noted in the plan")
 r = s.post(B + "/api/auth/delete-cancel", json={"token": TOK4})
-check(r.status_code == 403 and dbx("SELECT delete_at FROM users WHERE id=?", (FID,))[0][0], f"the cancel link ended with the admin's lock ({r.status_code})")
+# 2.1298.0 (#6395): the link of before the lock now answers 409 "held" with the day (was 403); it still cancels nothing
+check(r.status_code == 409 and r.json().get("held") is True and dbx("SELECT delete_at FROM users WHERE id=?", (FID,))[0][0],
+      f"the cancel link ended with the admin's lock: it says the deletion is held ({r.status_code} {r.text[:150]})")
 n_cancelled = len([x for x in mails() if "frida@example.com" in x["to"] and "was cancelled" in x["subject"]])
 r = s.post(B + "/api/auth/delete-cancel", json={"username": "frida", "password": PW})
 check(r.ok and r.json().get("locked") is True, f"the password still cancels the deletion, the answer says the account stays locked ({r.status_code} {r.text[:150]})")

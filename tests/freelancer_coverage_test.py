@@ -60,7 +60,8 @@ KINDS = {
     "team": ("matrix", SUITE + ": the people list, direct messages and discovery without an organisation (no team rooms of "
                        "an organisation, nothing of another workspace); p2113b_b_api_test.py: a private channel with files, "
                        "rename / archive / restore as its own admin, groups only with people one works with (2.113.1); "
-                       "p21156_b_cinvite_test.py: invitation links for people without an account (2.1156.0)"),
+                       "p21156_b_cinvite_test.py: invitation links for people without an account (2.1156.0); "
+                       "p21298_b_delhold_test.py: the held own deletion of an account without an organisation, released / rejected by the admin (2.1298.0)"),
     "hub": ("matrix", SUITE + ", p2125_a_api_test.py, p2361_a_texts_test.py, p2141_a_api_test.py, p2141_b_api_test.py, p2352_d_mailtrim_test.py, p2155_b_absence_cal_test.py: absences, bookings and hub mail in the personal area (the freelancer is its own admin); "
                       "2.125.0: the own vacation account and working week, never a vacation request; 2.141.0 A: the own mailbox, reply / new e-mail; 2.141.0 B: HTML view, task / event from a private mail; 2.352.0 D: the shortened view of a private mail; p2483_a_mail_api_test.py (2.483.0): her private client's mails through the API v1 with her token and her own agent"),
     "modcards": ("matrix", "p2575_a_api_test.py: her own module cards in the private workspace (create, change, apply, delete; 2.575.0)"),
@@ -202,6 +203,7 @@ ROUTES = {
     # 2.485.0 (#3939): one customer's account by number (lock, unlock, quota, delete) and the default quota
     "POST /api/operator/accounts/find": "operator", "GET /api/operator/accounts/{}": "operator",
     "PUT /api/operator/accounts/{}": "operator", "DELETE /api/operator/accounts/{}": "operator",
+    "POST /api/operator/accounts/{}/deletion": "operator",  # 2.1298.0 (#6395): the hoster decides on a held own deletion
     "PUT /api/operator/quota-default": "operator",
     "PUT /api/admin/groups/{}/avatar": "admin", "PUT /api/admin/oidc": "admin", "PUT /api/admin/orgcrypt": "admin",
     "PUT /api/admin/related": "admin", "PUT /api/layouts/std/{}": "admin", "PUT /api/v1/admin/announcement": "admin",
@@ -1031,6 +1033,7 @@ ROUTES = {
     "POST /api/team/messages/{}/pin": "team", "POST /api/team/messages/{}/reactions": "team",
     "POST /api/team/rooms/{}/e2e": "team", "POST /api/team/rooms/{}/messages": "team", "POST /api/team/rooms/{}/read": "team",
     "POST /api/users": "team", "POST /api/users/{}/approve": "team", "POST /api/users/{}/invite": "team",
+    "POST /api/users/{}/deletion": "team",  # 2.1298.0 (#6395): an admin releases / rejects a held own deletion (p21298_b_delhold_test.py, freelancer-matrix: team)
     "POST /api/users/{}/signin-link": "team", "POST /api/v1/team/dm": "team", "POST /api/v1/team/messages/{}/pin": "team",
     "POST /api/v1/team/messages/{}/reactions": "team", "POST /api/v1/team/rooms/{}/messages": "team",
     "POST /api/v1/team/rooms/{}/read": "team", "PUT /api/disc": "team", "PUT /api/e2e/keys": "team",

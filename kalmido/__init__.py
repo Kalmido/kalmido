@@ -69,6 +69,7 @@ ORDER = (
     "accounts.pictures",
     "accounts.colors",  # 2.47.1 (#1721)
     "accounts.mailtok",  # 2.674.0 (#4382 finding 5): the plus address tokens sealed + hashed (no routes; before login: it seals lazily)
+    "accounts.delhold",  # 2.1298.0 (#6395): an admin's lock holds the own deletion (no routes; before login)
     "accounts.login",
     "accounts.bgjobs",  # 2.193.0 D (#2220): the queue of short background work (mails after an action, back up now) in the database
     "accounts.oidc",
