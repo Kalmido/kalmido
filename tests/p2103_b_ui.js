@@ -31,7 +31,8 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   const note = await until(() => d.querySelector('#view .abtrashdays'));
   // 2.223.3 (#2877): the deletion runs are off on the test server: the note says the trash keeps instead of a period
   // 2.1163.0 (#6112): the trash note without server words
-  check(note && /stay in the trash for now: emptying it automatically is not switched on/.test(note.textContent), 'Trash: the note that the trash keeps ' + (note?.textContent || ''));
+  // 2.1286.0 (#6634): 2.1178.0 (#6115) worded the note anew (ablage.js ab_trashNote); the suite still read the sentence before it
+  check(note && /^Deleted items stay here until you delete them permanently\.$/.test(note.textContent.trim()), 'Trash: the note that the trash keeps ' + (note?.textContent || ''));
   w.close();
 
   // ================= #2172 Settings > Users > Backups
