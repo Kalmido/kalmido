@@ -445,10 +445,16 @@ counted per client or project have no single series and are not listed.
 - `POST /api/office/number-ranges/<kind>` `{next, reason?}` (admin; 400 below `min_next` or without a needed reason)
 
 A draft's number can be changed in the document editor (the pencil next to the number; `POST /api/office/docs/<id>/number`
-`{number, reason?}`): unique per office area, never for a sent or finalised document (409). For invoices, credit notes,
-reminders and delivery notes the series continues from the new number (a gap needs a reason) and a draft numbered this
-way can no longer be deleted (no gaps); a quotation's own number leaves the counter as it is. The document
-list shows the new number at once. Both routes are session routes of the office (no API
+`{number, reason?}`): unique per office area, never for a sent or finalised document (409). For reminders and delivery
+notes the series continues from the new number (a gap needs a reason) and a draft numbered this way can no longer be
+deleted (no gaps); a quotation's own number leaves the counter as it is and must not follow the scheme of the invoices or
+corrections (400, 2.1289). Since 2.1289 an invoice or correction takes a number by hand only in the finalise dialog
+(`POST /api/office/docs/<id>/finalize` `{number, reason?}`, office admins / accounting, checked and given in the same
+transaction); the number route answers 409 for them. A numbered invoice / correction draft from before carries
+`number_draft` (list tag "Draft with number - please finalise") and keeps its number when it is finalised. The document
+list shows the new number at once. Every value the counter passes because a quotation or the legacy archive carries it
+is an office log line `number` (`skipped`, `reason` "taken by ..."). A number with `{date}` / `{isodate}` must carry the
+document's date (409), a correction never dates before its invoice (400). Both routes are session routes of the office (no API
 v1 / MCP tool), the same in the private office of a person without an organisation.
 
 ## Country packs
@@ -1639,6 +1645,9 @@ receipts, cash book, clients, opening balances and the office log as CSV (UTF-8,
 header line; a text starting with `= + - @` gets a leading apostrophe), described in `index.xml` in the description
 standard of the GDPdU. The DTD `gdpdu-01-03-2019.dtd` that `index.xml` names lies next to it in the ZIP (2.188). Receipts
 without a date or an amount are not in the tables; `missing.txt` names them. Admins (and the accounting role) only.
+2.1289: `invoices.csv` ends with `Importiert_am` / `Importiert_von` for a finalised document the organisation import took
+from a file (from its office log line `import`); the list and the document view show it as "imported on ... by ...", the
+customer PDF stays as it was.
 
 ## DATEV export with receipt images
 
@@ -1844,7 +1853,7 @@ choosing a framework contract presets raw data, rights and closing unless `apply
 `POST /api/office/docs/<id>/number` (`{number}` by hand, unique per organisation, or the next one of the scheme),
 `POST /api/office/docs/<id>/status`, `POST /api/office/docs/<id>/duplicate`, `GET /api/office/docs/<id>/render` (the
 print model as JSON: all texts, labels and amounts already in the document's language and format),
-`POST /api/office/docs/<id>/finalize`, `GET /api/office/docs/<id>/log`, `GET /api/office/log?limit=` and `GET /api/office/log/chain` (2.531, the hash chain check; organisation
+`POST /api/office/docs/<id>/finalize` (2.1289: `{number, reason?}` = an invoice / correction number by hand, see number ranges), `GET /api/office/docs/<id>/log`, `GET /api/office/log?limit=` and `GET /api/office/log/chain` (2.531, the hash chain check; organisation
 admins). The head also carries the period of service (`service_from`, `service_to`, dates; printed as one line).
 
 **Adjusting prices (Nachkalkulieren, 2.1041, #5812).** "Adjust prices…" in the "More" menu of a quotation draft changes the
@@ -2225,7 +2234,8 @@ becomes `issued`, the snapshot is stored like for quotations and the PDF/A-3 + e
 Numbers: one series per organisation and kind - settings `invoice_scheme` (`RE-{yyyy}-{seq:03}`), `credit_scheme`
 (`RK-{yyyy}-{seq:03}` since 2.431, before `GS-`; base pack `CN-`), `reminder_scheme` (`MA-{yyyy}-{seq:03}`); a draft has
 no number, the number comes with finalising
-(no gaps through deleted drafts). A number by hand (`POST /api/office/docs/<id>/number`) is accepted in the draft only
+(no gaps through deleted drafts). A number by hand (since 2.1289 only with the finalising: `POST /api/office/docs/<id>/finalize`
+`{number, reason?}`; before at the draft via `POST /api/office/docs/<id>/number`) is accepted only
 when it follows the scheme and lies above the series' last value; the counter then continues from it. A number more than
 one above the counter leaves a gap and needs `{number, reason}` (at least 5 characters; kept in the office log). Checking
 and writing a number run under one lock per organisation. Numbers are unique per organisation.
