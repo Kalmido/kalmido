@@ -24,6 +24,7 @@ from urllib.parse import quote, unquote
 
 from flask import jsonify, request, send_file
 
+from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from ..core.config import app, ATT_DIR
 from ..core.i18n import N_, tr as _tr_base, tr_stored
 from ..core.db import bump, db, err, insert_id, iso_ms, now_utc
@@ -144,16 +145,20 @@ def _local(n):
     return n.rsplit("}", 1)[-1].lower() if isinstance(n, str) else ""
 
 
+# 2.1272.0 (#6422): the tree of one SVG picture that is cleaned (ET.tostring recurses per level); a larger one is refused
+SVG_BYTES_MAX, SVG_ELEMENTS_MAX, SVG_DEPTH_MAX = 10 * 1024 * 1024, 300_000, 200
+
+
 def wka_svg_clean(data):
     """An SVG without scripts, event attributes, foreign content and references outside itself (only #ids and embedded
     pictures stay); no DOCTYPE / ENTITY at all. BadInput when it cannot be cleaned."""
     bad = BadKey(N_("The SVG picture could not be cleaned"))  # 2.498.0 (#3858): the import keeps key + values
-    if b"\x00" in data[:64] or re.search(rb"<!\s*(?:doctype|entity)", data, re.I):  # review L3: also UTF-16 / 32 (no DTD at all)
-        raise bad
-    try:
-        root = ET.fromstring(data)
-    except (ET.ParseError, ValueError):
-        raise bad
+    try:  # 2.1272.0 (#6422): read by core/safexml.py -- no NUL anywhere (review L3: UTF-16 / 32), no DTD at all, and the
+        # tree is limited while it is read: SVG_BYTES_MAX, elements, levels (before: up to WKA_FILE_MAX as one tree -- a tree
+        # takes ten times its file and more -- and a deep one broke the writer below)
+        root = safexml.sx_tree(data, max_bytes=SVG_BYTES_MAX, max_elements=SVG_ELEMENTS_MAX, max_depth=SVG_DEPTH_MAX)
+    except (ET.ParseError, ValueError):  # XmlRefused is a ValueError
+        raise bad from None
     if _local(root.tag) != "svg":
         raise bad
     for el in list(root.iter()):

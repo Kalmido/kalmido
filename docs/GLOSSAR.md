@@ -313,6 +313,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/reqtime.py` (`rt`) - Measuring instead of guessing
 - `kalmido/core/retention.py` (`ret`) - Deletion periods and the switch of the retention runs
 - `kalmido/core/rls.py` (`enter`) - Row-level security, stage 1
+- `kalmido/core/safexml.py` - the one reader for XML that comes from outside (e-invoice, CAMT, DATEV archive, mind map, .xlsx parts, DAV bodies and answers, RSS / OPML...
 - `kalmido/core/schema.py` - Database schema, migrations, indexes and the default settings (user + instance)
 - `kalmido/core/serializers.py` - JSON shapes of database rows (tasks, lists, users ...)
 - `kalmido/core/state.py` (`st`) - GET /api/state: everything the web client loads at start and after a change

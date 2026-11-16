@@ -9,6 +9,7 @@
 - tools/sw_lists.py rewrites / checks the lists against index.html + lazyload.js; the real tree is current"""
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -40,6 +41,12 @@ def put(repo, rel, text):
 def rd(repo, rel):
     with open(os.path.join(repo, rel), encoding="utf-8") as f:
         return f.read()
+
+
+def lst(text, name):
+    """2.1258.0 (#6199): the entries of one sw.js list (written one per line, sorted, since then)."""
+    m = re.search(r"^const " + name + r" = \[(.*?)\];", text, re.S | re.M)
+    return re.findall(r"'(/[^']*)'", m.group(1)) if m else None
 
 
 def fresh_repo():
@@ -76,9 +83,10 @@ p = git(r, "merge", "p2", ok=False)
 check(p.returncode == 0, f"two packages adding different keys / modules / skip lines merge clean: {p.stderr.strip()[-200:]}")
 # 2.549.0 (#4564): a new key of theirs follows its predecessor in theirs (P2 behind B), ours keeps its order around it
 check(list(json.loads(rd(r, "static/i18n/de.json"))) == ["_meta", "A", "B", "P2", "P1"], f"translations: both keys, theirs behind its predecessor\n{rd(r, 'static/i18n/de.json')}")
-check("const LAZY = ['/static/js/l1.js', '/static/js/p1.js', '/static/js/p2.js'];" in rd(r, "static/sw.js") and
-      "const LAZY_CSS = ['/static/css/l1.css', '/static/css/p2.css'];" in rd(r, "static/sw.js") and
-      "const SHELL = ['/', '/static/app.css', '/static/js/a.js', '/static/js/p1.js'];" in rd(r, "static/sw.js"), f"sw.js lists: entry union\n{rd(r, 'static/sw.js')}")
+# 2.1258.0 (#6199): the driver writes the lists one entry per line, sorted
+check(lst(rd(r, "static/sw.js"), "LAZY") == ['/static/js/l1.js', '/static/js/p1.js', '/static/js/p2.js'] and
+      lst(rd(r, "static/sw.js"), "LAZY_CSS") == ['/static/css/l1.css', '/static/css/p2.css'] and
+      lst(rd(r, "static/sw.js"), "SHELL") == ['/', '/static/app.css', '/static/js/a.js', '/static/js/p1.js'], f"sw.js lists: entry union\n{rd(r, 'static/sw.js')}")
 check(rd(r, "tests/skip.txt") == "x 2026-11-01 #1 ev\np1_ui 2026-11-01 #2 ev\np2_ui 2026-11-01 #3 ev\n", "skip.txt: the lines of both")
 # rebase (what the release tooling does): a third package built on the old base
 base2 = git(r, "rev-parse", "main~2").stdout.strip()
@@ -90,7 +98,7 @@ p = git(r, "rebase", "main", ok=False)
 check(p.returncode == 0, f"rebase of a third package onto main: clean: {p.stderr.strip()[-200:]}")
 t = rd(r, "static/i18n/de.json")
 check('"A": "a-new"' in t and list(json.loads(t)) == ["_meta", "A", "B", "P3", "P2", "P1"], f"rebased translations: change kept, all keys, P3 behind its predecessor B (#4564)\n{t}")
-check("const LAZY_CSS = ['/static/css/l1.css', '/static/css/p2.css', '/static/css/p3.css'];" in rd(r, "static/sw.js"), "rebased sw.js list")
+check(lst(rd(r, "static/sw.js"), "LAZY_CSS") == ['/static/css/l1.css', '/static/css/p2.css', '/static/css/p3.css'], "rebased sw.js list")  # 2.1258.0 (#6199)
 # 2.358.0 (#3394): two packages each take their fixed suites off skip.txt (neighbouring lines): all stay off - union brought them back
 skip = "".join(f"s{i} 2026-11-01 #{i} ev\n" for i in range(1, 7))
 git(r, "checkout", "-q", "-b", "s0", base2); put(r, "tests/skip.txt", skip); git(r, "commit", "-qam", "s0")
@@ -122,7 +130,7 @@ put(r, "static/index.html", '<script src="/static/js/a.js"></script>\n<script sr
 p = subprocess.run([sys.executable, os.path.join(r, "tools", "sw_lists.py"), "--check"], capture_output=True, text=True)
 check(p.returncode == 1, "sw_lists.py --check: red when index.html has a module sw.js does not")
 p = subprocess.run([sys.executable, os.path.join(r, "tools", "sw_lists.py")], capture_output=True, text=True)
-check(p.returncode == 0 and "'/static/js/n.js']" in rd(r, "static/sw.js"), "sw_lists.py rewrites the lists from the sources")
+check(p.returncode == 0 and "\n  '/static/js/n.js',\n];" in rd(r, "static/sw.js"), "sw_lists.py rewrites the lists from the sources")  # 2.1258.0 (#6199): one per line
 check(subprocess.run([sys.executable, os.path.join(r, "tools", "sw_lists.py"), "--check"]).returncode == 0, "then --check is green")
 shutil.rmtree(r, ignore_errors=True)
 # the real tree

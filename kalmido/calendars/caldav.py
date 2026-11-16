@@ -24,6 +24,7 @@ from flask import g, jsonify, redirect, request, Response
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from ..core.config import app, APP_NAME, APP_VERSION, PUBLIC_URL, TZ
+from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from ..core.pg import insert_id
 from ..core.objtags import otg_unames, otg_user_of  # 2.955.0 (#5276)
 from ..core.i18n import N_, lang, tr
@@ -318,23 +319,32 @@ def dav_multistatus(parts, extra_tail=""):
     return Response(gen(), 207, content_type="application/xml; charset=utf-8")
 
 
-class _NoDtdBuilder(ET.TreeBuilder):
-    """Refuses any DOCTYPE while parsing: entity declarations only exist inside one. The parser reports it in every
-    encoding (a byte search for "<!ENTITY" misses a UTF-16 body)."""
-
-    def doctype(self, name, pubid, system):
-        raise _DtdRefused()
-
-
 class _DtdRefused(Exception):
     pass
 
 
+XML_ELEMENTS_MAX = 500_000  # 2.1272.0 (#6422): elements of one DAV body / answer, feed or OPML file
+XML_DEPTH_MAX = 200         # 2.1272.0 (#6422): levels (an Atom entry with XHTML content nests a few dozen)
+
+
 def xml_no_dtd(data):
-    """ElementTree root of data; _DtdRefused for a DTD (no entities: billion laughs, XXE), ET.ParseError when broken."""
-    p = ET.XMLParser(target=_NoDtdBuilder())  # nosec B314
-    p.feed(data)
-    return p.close()
+    """ElementTree root of data (bytes whose length the caller has capped); _DtdRefused for a DTD (no entities: billion
+    laughs, XXE), ET.ParseError when broken or beyond XML_ELEMENTS_MAX / XML_DEPTH_MAX. 2.1272.0 (#6422): read by
+    core/safexml.py -- before, the refusal only came after expat had worked through the whole document, entities
+    unfolded (one feed). A body in UTF-16 with a byte order mark is decoded first; without the mark it is refused (NUL
+    bytes: there a DOCTYPE hides from every byte search)."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        try:
+            data = bytes(data).decode("utf-16")
+        except UnicodeDecodeError:
+            raise ET.ParseError("not UTF-16") from None
+    try:
+        return safexml.sx_tree(data, max_bytes=4 * len(data) + 1, max_elements=XML_ELEMENTS_MAX, max_depth=XML_DEPTH_MAX,
+                               strict=False)  # a calendar answer or a feed may carry the words "<!DOCTYPE html" in its content
+    except safexml.XmlRefused as e:
+        if e.reason in ("nul", "dtd"):
+            raise _DtdRefused() from None
+        raise ET.ParseError(e.reason) from None
 
 
 def dav_xml(raw):

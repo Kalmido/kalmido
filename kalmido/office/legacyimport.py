@@ -42,6 +42,7 @@ from ..core.pg import insert_id, qi, write_lock
 from ..core.db import body, bump, db, iso, local_now, now_utc, parse_iso
 from ..core.access import Denied, live_sql, trash_sql
 from ..core.errors import BadInput
+from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from .model import (MD, pb_cl_org, pb_cl_sql, office_create, office_gate, office_in_use, office_number_format, office_org, office_role, office_rows, office_scheme_period,
                     office_settings, office_update)
 from ..core.csvimport import amount_text, csv_table  # 2.149.0 G (#2517): pulled up from functions
@@ -117,40 +118,29 @@ def xl_slot():
 
 def xl_events(z, name, budget, most, events=("start", "end")):
     """2.576.0 (#4188): a part of the archive as (event, element) pairs of ET.XMLPullParser, read in XL_CHUNK pieces. The
-    unpacked size counts against budget (at most `most` for the whole file); the guards against entity tricks stay
-    (no DOCTYPE in the first 4 KB, no ENTITY anywhere, single-byte encodings only), checked on every piece BEFORE the
-    parser sees it. The caller clears what it has read; stopping early stops reading the part. Open elements nest at
-    most XL_DEPTH_MAX deep (counted here for every reader: elements that never end hold memory no end event counts)."""
+    unpacked size counts against budget (at most `most` for the whole file). 2.1272.0 (#6422): read by core/safexml.py --
+    no NUL byte (single-byte encodings only), no DOCTYPE and no ENTITY anywhere in the part (before: a DOCTYPE only in
+    the first 4 KB, and behind them an ATTLIST default made a 1 MB file fill the memory), checked on every piece BEFORE
+    the parser sees it. The caller clears what it has read; stopping early stops reading the part. Open elements nest
+    at most XL_DEPTH_MAX deep (counted for every reader: elements that never end hold memory no end event counts)."""
     info = z.getinfo(name)
     if info.file_size + budget[0] > most:
         raise BadInput(tr("The file is too large"))
     budget[0] += info.file_size
     bad = BadInput(tr("This is not a spreadsheet file (.xlsx)"))
-    p = ET.XMLPullParser(("start", "end"))
-    seen, tail, depth = 0, b"", 0
-    with z.open(name) as fh:  # ZipExtFile reads at most file_size bytes
-        while True:
-            chunk = fh.read(XL_CHUNK)
-            if not chunk:
-                break
-            if not seen and (chunk[:2] in (b"\xff\xfe", b"\xfe\xff") or b"\x00" in chunk[:4]):  # 2.148.1 G (#2496)
-                raise bad
-            probe = (tail + chunk).upper()  # a word cut between two pieces is still seen
-            if b"<!ENTITY" in probe or (seen < 4096 and b"<!DOCTYPE" in probe[:4096 - seen + len(tail)]):
-                raise bad
-            seen += len(chunk)
-            tail = chunk[-16:]
-            p.feed(chunk)
-            for ev, el in p.read_events():
-                depth += 1 if ev == "start" else -1
-                if depth > XL_DEPTH_MAX:
-                    raise bad
-                if ev in events:
-                    yield ev, el
-    p.close()
-    for ev, el in p.read_events():
-        if ev in events:
-            yield ev, el
+
+    def pieces():
+        with z.open(name) as fh:  # ZipExtFile reads at most file_size bytes
+            while True:
+                chunk = fh.read(XL_CHUNK)
+                if not chunk:
+                    return
+                yield chunk
+
+    try:
+        yield from safexml.sx_events(pieces(), max_bytes=info.file_size + 1, max_depth=XL_DEPTH_MAX, want=events)
+    except safexml.XmlRefused:
+        raise bad from None
 
 
 def _xml(z, name, budget, most=FI_XLSX_UNZIPPED_MAX):
