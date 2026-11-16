@@ -230,6 +230,36 @@ def _fx(r, t, home="EUR"):
     return f if f > 0 else Decimal(1)
 
 
+def dx_fx_pays(c, oid, r, t, fx, home, memo):
+    """2.1259.0 (#6303 b): the payments of a document in another currency in the home currency -> (by payment id, rest open in
+    its currency, rest in the home currency). Each payment is money(amount / rate); the one whose payments and credit notes reach
+    the gross carries the rest cent, so the debtor balances with the document's line (money(gross / rate), dx_rows); a reversal
+    mirrors its payment; the cash discount line takes the home rest (memo: per document, one look per export)."""
+    if r["id"] in memo:
+        return memo[r["id"]]
+    gross = money(dec(t.get("gross") or 0))
+    target = money(gross / fx)
+    cum = booked = Decimal(0)
+    for x in c.execute("SELECT currency, fx_rate, totals FROM office_docs WHERE org_id=? AND kind='credit' AND locked_at IS NOT NULL "
+                       f"AND cancels_id=? AND {live_sql()}", (oid, r["id"])).fetchall():
+        tx = _j(x["totals"])
+        g = money(dec(tx.get("gross") or 0))
+        cum, booked = cum + g, booked + money(g / _fx(x, tx, home))
+    eur = {}
+    for p in c.execute("SELECT id, amount, reverses_id FROM office_payments WHERE org_id=? AND doc_id=? ORDER BY date, id", (oid, r["id"])).fetchall():
+        a = money(dec(p["amount"] or 0))
+        cum += a
+        v = money(a / fx)
+        if p["reverses_id"] in eur:
+            v = -eur[p["reverses_id"]]
+        elif a and cum == gross and abs(target - booked - v) <= Decimal("0.05"):
+            v = target - booked
+        eur[p["id"]] = v
+        booked += v
+    memo[r["id"]] = (eur, gross - cum, target - booked)
+    return memo[r["id"]]
+
+
 def _case(r, s):
     """The tax case of a document without VAT (vat_note), else None (the tax lines decide)."""
     if (r["vat_mode"] or "vat") != "novat":
@@ -291,6 +321,7 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
                         "_date": r["date"], "_kind": r["kind"], "_doc": r["id"]})  # 2.148.0 B (#2470): _doc = its receipt image
     # 2.355.0 C (#2840): a cash discount taken = a reduction of the revenue per tax rate (section 17 UStG) on the day of the
     # payment, debtor against the discount account of that rate -- the debtor balances with the payment
+    fxm = {}  # 2.1259.0 (#6303 b): dx_fx_pays per document
     for r, sk in abs_skonto_rows(c, oid, d_from, d_to):
         t = _j(r["totals"])
         fx, case = _fx(r, t, home), _case(r, s)
@@ -301,6 +332,10 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
             if lines and tot:
                 parts = [("skonto_" + k if k in ("standard", "reduced") else "skonto_other", a / tot) for k, a in lines]
         total = money(sk["amount"] / fx)
+        if fx != 1:  # 2.1259.0 (#6303 b): the discount settles the invoice: it takes what the home currency leaves open
+            _, rest, rest_home = dx_fx_pays(c, oid, r, t, fx, home, fxm)
+            if rest == money(sk["amount"]) and abs(rest_home - total) <= Decimal("0.05"):
+                total = rest_home
         conv = [(k, money(total * sh)) for k, sh in parts]
         conv[-1] = (conv[-1][0], conv[-1][1] + total - sum((a for _, a in conv), Decimal(0)))  # the cents of the split on the last line
         name = (_j(r["recipient"]).get("name") or r["dx_client_name"] or "").strip()
@@ -324,7 +359,10 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
             outside += 1  # 2.610.0 (#4932): named as a hint below, not left out silently
             continue
         t = _j(r["totals"])
-        amount = money(dec(r["p_amount"] or 0) / _fx(r, t, home))
+        fx = _fx(r, t, home)
+        amount = money(dec(r["p_amount"] or 0) / fx)
+        if fx != 1:  # 2.1259.0 (#6303 b): the payment that settles the document carries the rest cent
+            amount = dx_fx_pays(c, oid, r, t, fx, home, fxm)[0].get(r["p_id"], amount)
         if amount == 0:
             continue
         sign = "S" if (amount > 0) == (r["kind"] != "credit") else "H"  # a payment on a credit note = money paid back
