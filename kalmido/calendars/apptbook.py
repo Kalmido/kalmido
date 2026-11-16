@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from flask import g, jsonify, redirect, request
 
-from ..core.config import app, APP_NAME, PUBLIC_URL, TZ
+from ..core.config import app, APP_NAME, EMAIL_RE, PUBLIC_URL, TZ  # 2.1297.0 (#6548): the one strict address check
 from ..core.i18n import browser_lang, LANGS, N_, short_day, tr
 from ..collab.comments import lang_of  # 2.367.5 (#2980)
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, parse_iso, usettings
@@ -66,7 +66,6 @@ SLOT_RE = re.compile(r"(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})")
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 DEFAULT_HOURS = {d: ([["09:00", "17:00"]] if i < 5 else []) for i, d in enumerate(DAYS)}
 NAME_MAX, EMAIL_MAX, PHONE_MAX, MSG_MAX, TITLE_MAX, INTRO_MAX = 120, 200, 40, 1000, 120, 1000
-EMAIL_RE = re.compile(r"[^@\s<>\"(),;:\[\]]+@[^@\s<>\"(),;:\[\]]+\.[^@\s<>\"(),;:\[\]]+")  # one address only (no list, no display name)
 PHONE_RE = re.compile(r"[0-9+()/. -]{3,40}")
 APB_PRIVACY = N_("Your details are only used to arrange this appointment. You get one e-mail to confirm the booking and one with the confirmation.")
 

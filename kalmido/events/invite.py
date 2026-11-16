@@ -24,6 +24,7 @@ from ..accounts.bgjobs import bgj_add, bgj_fn
 from ..core.access import Denied
 from ..core.errors import BadInput
 from ..core.mailframe import mail_html
+from ..core.mailbudget import mail_budget  # 2.1297.0 (#6548): invitations count per receiving address too
 from ..events.model import EV_ATT_MAX, need_event, wall
 from ..calendars.icalfeed import ics_utc  # 2.369.5 (#2517): pulled up from functions
 from ..events.ics import _pq, ev_lines, wrap  # 2.369.5 (#2517): pulled up from functions
@@ -141,6 +142,21 @@ def _count(c, uid, n):
                   (uid, _today(), n, n))
         c.execute("DELETE FROM ev_invite_day WHERE day<?", ((local_now().date() - timedelta(days=7)).isoformat(),))
     return n
+
+
+def _fit(c, uid, mails):
+    """2.1297.0 (#6548): the attendees of mails that may go today, in order: within the person's and the server's day
+    (_count) and the limit per receiving address and day every other mail has (mail_budget, without a sender - with one
+    the 30 per person of admin/hosting.py would apply on top of EVI_DAY_MAX). Books what it returns."""
+    room = max(0, min(EVI_DAY_MAX - _sent_today(c, uid), EVI_SERVER_DAY - _server_today(c)))
+    out = []
+    for a in mails:
+        if len(out) >= room:
+            break
+        if mail_budget(c, None, a["email"]):
+            out.append(a)
+    _count(c, uid, len(out))
+    return out
 
 
 # ---- the mail
@@ -274,8 +290,8 @@ def evi_after_save(c, uid, eid, snap, send, only_invited=False):
     seen = set()
     req = [a for a in req if not (a["email"].lower() in seen or seen.add(a["email"].lower()))][:EV_ATT_MAX]  # a contact + its address: one mail
     cancel = [a for a in cancel if a["email"].lower() not in seen][:EV_ATT_MAX]
-    n = _count(c, uid, len(req) + len(cancel))
-    req, cancel = req[:n], cancel[:max(0, n - len(req))]
+    go = {id(a) for a in _fit(c, uid, req + cancel)}  # 2.1297.0 (#6548): + the limit per receiving address
+    req, cancel = [a for a in req if id(a) in go], [a for a in cancel if id(a) in go]
     if not req and not cancel:
         c.commit()
         return 0
@@ -304,8 +320,7 @@ def evi_after_delete(c, uid, eid):
         return 0
     c.execute("UPDATE events SET seq=seq+1 WHERE id=?", (eid,))  # the cancellation outranks the last invitation
     r = c.execute("SELECT * FROM events WHERE id=?", (eid,)).fetchone()
-    n = _count(c, uid, len(inv))
-    mails = [evi_mail(c, uid, r, "CANCEL", a, [a]) for a in inv[:n]]
+    mails = [evi_mail(c, uid, r, "CANCEL", a, [a]) for a in _fit(c, uid, inv)]  # 2.1297.0 (#6548)
     c.commit()
     evi_send(mails)
     return len(mails)
@@ -322,7 +337,7 @@ def evi_cal_cancel(c, uid, cid):
                        (cid,)).fetchall():
         inv = [a for a in evi_ext(c, r["id"]) if a["invited_seq"] is not None][:EV_ATT_MAX]
         r = {**dict(r), "seq": (r["seq"] or 0) + 1}
-        mails += [evi_mail(c, uid, r, "CANCEL", a, [a]) for a in inv[:_count(c, uid, len(inv))]]
+        mails += [evi_mail(c, uid, r, "CANCEL", a, [a]) for a in _fit(c, uid, inv)]  # 2.1297.0 (#6548)
     return mails
 
 

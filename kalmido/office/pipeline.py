@@ -14,7 +14,7 @@ from datetime import date
 
 from flask import jsonify, request
 
-from ..core.config import app
+from ..core.config import app, EMAIL_RE  # 2.1297.0 (#6548): the one strict address check (leads.py imports it from here)
 from ..core.pg import insert_id
 from .owrite import ow_created, ow_history_answer, ow_kind, ow_uid, ow_write  # 2.567.0 (#4711): the office's write layer; 2.585.0 (#4795): + ow_created
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
@@ -30,7 +30,6 @@ PL2_PROB = {"lead": 10, "inquiry": 20, "offer": 50, "won": 100, "lost": 0}  # th
 PL2_OPEN = ("inquiry", "offer")  # the sums and the forecast; leads are open too but never counted there (2.94.0 A, #1930)
 # 2.94.0 A (#1930): where a lead came from (a key, the client translates it; "" = not given)
 LEAD_SOURCES = ("website", "referral", "event", "social", "booking", "import", "agent", "other")
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MAX_DEALS = 2000
 PL2_FIELDS = ("id", "title", "client_id", "contact", "value", "stage", "probability", "expected_date", "offer_id", "list_id",
@@ -100,7 +99,7 @@ def pl2_clean(c, oid, b, cur=None):
             out[k] = _txt(b.get(k), k, n)
     if "email" in b:  # 2.94.0 A (#1930): the lead's contact data
         out["email"] = _txt(b.get("email"), "email", 200)
-        if out["email"] and not EMAIL_RE.match(out["email"]):
+        if out["email"] and not EMAIL_RE.fullmatch(out["email"]):
             raise BadInput(tr("Invalid value: {0}", "email"))
     if "source" in b:
         v = b.get("source") or ""
