@@ -244,7 +244,8 @@ const items = async ck => JSON.parse((await call(ck, 'GET', '/api/state')).setti
       check(await ready(ev, `document.querySelectorAll('${tileSel}').length >= 5`), `${vw}: reload, all tiles there while the answer is held back`);
       if (vw === 390) {  // a phone: the row opens as a swipe up on the tab bar does (fvd_set, see above)
         await ev(`(() => { fvd_set(true); return 1; })()`);
-        check(await ready(ev, `!document.querySelector('#favup').classList.contains('hidden')`), '390: the row opens before the answer');
+        // open and at rest: the row slides in, a place read during that slide is not the answer's doing
+        check(await ready(ev, `!document.querySelector('#favup').classList.contains('hidden') && document.querySelector('#favup').getAnimations({subtree: true}).length === 0 && document.body.getAnimations().length === 0`), '390: the row opens before the answer');
       }
       check(await ready(ev, `window.__fvHeld >= 1 && !window.__fvDone`), `${vw}: the targets request is held back`);
       const before = await ev(POS);
