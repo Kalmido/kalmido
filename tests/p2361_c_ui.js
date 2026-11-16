@@ -40,6 +40,9 @@ const FEAT = 'cal,comments,collab,office,clients';
   // ================= jsdom: the empty tab, a new quotation
   let w = await boot({hash: 'office/offers'}); let d = w.document;
   await until(() => d.querySelector('.office .ofcbody .ofdbar'));
+  // 2.1254.0 (#6311): the bar is drawn before the list arrives (OFD.list null: bar + a .empty.eload spinner, New still in the bar); red in the CI
+  // of v2.1252.0 on a slow runner. Wait for the loaded list (its empty state, an error state or rows), not only the bar
+  await until(() => d.querySelector('.office .ofcbody .empty:not(.eload), .office .ofcbody .ofclist'));
   // 2.46.1 (#1637): an empty tab shows New once, as the big button in the empty state (not in the bar)
   check(d.querySelectorAll('.office [data-ofd="new"]').length === 1 && !!d.querySelector('.office .empty [data-ofd="new"]') && /No quotations yet/.test(d.querySelector('.office .ofcbody')?.textContent || ''), 'the tab shows the search bar, New and the empty hint');
   d.querySelector('.office [data-ofd="new"]').click();
