@@ -179,9 +179,12 @@ function dgAfter(put, j) {
 }
 // ---- several tasks: one patch_each batch = one history step
 // 2.559.0 (#4659): shown at once (dgItemsPut), the request behind it; an error puts the tasks back (no reload)
+// 2.1271.0 (#6436): a subtask an item makes standalone (parent_id: null) takes its parent's date / priority into its empty fields
+// (dnd.js detachPatch), in the same item; one toast for all of them with "Don't adopt"
 async function dgApply(items, lab, notes = []) {
   const ids = Object.keys(items).map(Number);
   if (!ids.length) { toast(notes.filter(Boolean).join(' · ') || tr('Nothing to move')); return null; }
+  const dt = dtMerge(items);
   const snaps = ids.flatMap(withKids), put = dgItemsPut(items);
   let j;
   try { j = await optWrite(put, () => api('POST', '/api/tasks/batch', {ids, action: 'patch_each', data: {items}})); } catch { return null; }
@@ -190,6 +193,7 @@ async function dgApply(items, lab, notes = []) {
   const e = histFields(lab, pairs, {res: j, fields: [...UNDO_FIELDS, 'sort']});
   const fail = ids.length - (j?.count ?? ids.length);
   const msg = [lab, fail ? trn('{0} task not changed', '{0} tasks not changed', fail) + (j?.errors?.[0] ? ': ' + j.errors[0] : '') : '', ...notes].filter(Boolean).join(' · ');
+  if (dtToast(msg, dtDone(dt, j))) return j;  // 2.1271.0 (#6436): the Undo of the step stays in the history
   if (e) offerUndo(msg, e); else toast(msg);
   return j;
 }

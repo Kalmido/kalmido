@@ -161,7 +161,12 @@ GF2 = r.json()["grant"]["id"]
 check(r.ok and GF2 != GF and kt.dbx("SELECT COUNT(*) FROM support_grants WHERE id=? AND ended_at IS NOT NULL", (GF,)) == [(1,)],
       "a new grant ends the open one")
 check(S["carl"].delete(B + f"/api/support-access/{GF2}").status_code == 404, "somebody else cannot end frida's grant")
-check(X.get(B + "/api/state").ok, "replaced by a longer grant: the support session lives on")
+# 2.1271.0 (#6497): a support session holds only its own grant: replaced, it ends with it (it lived on until then)
+check(X.get(B + "/api/state").status_code == 401 and S["frida"].get(B + "/api/state").ok,
+      "replaced by a longer grant: the support session of the old one ends, frida's own session stays")
+X = kt.sess(None)
+r = X.post(B + "/api/auth/link", json={"token": link(FID).json()["link"].split("#signin/")[1]})
+check(r.ok and X.get(B + "/api/state").ok, "a new link through the new grant: a support session again " + r.text[:120])
 check(S["frida"].delete(B + f"/api/support-access/{GF2}").ok, "frida ends it")
 check(X.get(B + "/api/state").status_code == 401 and S["frida"].get(B + "/api/state").ok,
       "ended early: the session started with the operator's link ends too, frida's own session stays")

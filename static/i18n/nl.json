@@ -14874,7 +14874,6 @@
   "Colour scheme: {0}": "Kleurenschema: {0}",
   "Accent colour: {0}": "Accentkleur: {0}",
   "Many failed sign-ins from IP {0}: sign-ins from there are slowed down for {1} min, right passwords still work. Behind a shared address (office, NAT) everyone there is affected.": "Veel mislukte logins vanaf IP {0}: logins vanaf daar worden {1} min vertraagd, juiste wachtwoorden werken nog. Achter een gedeeld adres (kantoor, NAT) geldt dit voor iedereen daar.",
-  "Many failed CalDAV/CardDAV sign-ins from IP {0}. Only the accounts with the wrong app password are refused there; behind a shared address (office, NAT) look for an old device.": "Veel mislukte CalDAV/CardDAV-logins vanaf IP {0}. Daar worden alleen de accounts met het verkeerde app-wachtwoord geweigerd; zoek achter een gedeeld adres (kantoor, NAT) naar een oud apparaat.",
   "Sign-in rate limit reached for user {0} (sign-ins refused for {1} min).": "Inloglimiet bereikt voor gebruiker {0} (logins geweigerd gedurende {1} min).",
   "Sign-in rate limit reached for an unknown user name (sign-ins refused for {0} min).": "Inloglimiet bereikt voor een onbekende gebruikersnaam (logins geweigerd gedurende {0} min).",
   "account settings": "gebruikersinstellingen",

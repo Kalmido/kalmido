@@ -14874,7 +14874,6 @@
   "Colour scheme: {0}": "Esquema de colores: {0}",
   "Accent colour: {0}": "Color de acento: {0}",
   "Many failed sign-ins from IP {0}: sign-ins from there are slowed down for {1} min, right passwords still work. Behind a shared address (office, NAT) everyone there is affected.": "Muchos inicios de sesión fallidos desde la IP {0}: los inicios de sesión desde allí se ralentizan durante {1} min, las contraseñas correctas siguen funcionando. Detrás de una dirección compartida (oficina, NAT) afecta a todos allí.",
-  "Many failed CalDAV/CardDAV sign-ins from IP {0}. Only the accounts with the wrong app password are refused there; behind a shared address (office, NAT) look for an old device.": "Muchos inicios de sesión CalDAV/CardDAV fallidos desde la IP {0}. Allí solo se rechazan las cuentas con la contraseña de aplicación incorrecta; detrás de una dirección compartida (oficina, NAT) busque un dispositivo antiguo.",
   "Sign-in rate limit reached for user {0} (sign-ins refused for {1} min).": "Límite de inicios de sesión alcanzado para el usuario {0} (inicios de sesión rechazados durante {1} min).",
   "Sign-in rate limit reached for an unknown user name (sign-ins refused for {0} min).": "Límite de inicios de sesión alcanzado para un nombre de usuario desconocido (inicios de sesión rechazados durante {0} min).",
   "account settings": "ajustes de usuario",

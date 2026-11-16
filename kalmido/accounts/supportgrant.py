@@ -103,36 +103,89 @@ def sga_link_exp(c, exp):
     return min(exp, r[0]) if r and r[0] else exp
 
 
+def sga_link_grant(c, uid, by):
+    """2.1271.0 (#6497): the open support access of account uid through which instance admin `by` makes a sign-in link for it
+    now (its id, stored on the link: user_invites.grant_id), else None (a parent's / an organisation admin's link, a self-hosted
+    server). The session started with the link inherits it and holds only while exactly this grant is open."""
+    if not sga_hosted() or not by or by == uid:
+        return None
+    with system_ctx(c):  # the maker's admin right and the account's grants: structure, no content
+        if not c.execute("SELECT 1 FROM users WHERE id=? AND is_admin", (by,)).fetchone():
+            return None
+    return sga_open(c, uid=uid, note=False)
+
+
+def sga_grant_ends(c, gid):
+    """The end of grant gid while it is open (not ended, end ahead), else ''."""
+    with system_ctx(c):  # support grants of other accounts (row-level security): structure, no content
+        r = c.execute("SELECT ends_at FROM support_grants WHERE id=? AND org_id IS NULL AND ended_at IS NULL AND ends_at>?",
+                      (gid, iso(now_utc()))).fetchone()
+    return r[0] if r else ""
+
+
 def sga_link_support(c, uid):
     """The end of the support access through which an instance admin made account uid's current sign-in link, or '' (a link of
-    the person's parents / organisation admins, or none)."""
+    the person's parents / organisation admins, none, or its grant is no longer open). 2.1271.0 (#6497): exactly the link's
+    grant (grant_id), not the latest planned end of any grant around the link's time."""
     if not sga_hosted():
         return ""
     with system_ctx(c):  # support grants of other accounts / organisations (row-level security): structure, no content
-        r = c.execute("SELECT i.created_at FROM user_invites i JOIN users a ON a.id=i.created_by WHERE i.user_id=? AND i.kind='login' "
-                      "AND i.created_by<>i.user_id AND a.is_admin", (uid,)).fetchone()
-        if not r:
-            return ""
-        s = c.execute("SELECT MAX(ends_at) FROM support_grants WHERE user_id=? AND org_id IS NULL AND created_at<=? AND ends_at>=?",
-                      (uid, r[0], r[0])).fetchone()
-    return s[0] if s and s[0] else ""
+        r = c.execute("SELECT grant_id FROM user_invites WHERE user_id=? AND kind='login' AND grant_id IS NOT NULL", (uid,)).fetchone()
+    return sga_grant_ends(c, r[0]) if r else ""
+
+
+def sga_link_refused(c, r):
+    """2.1271.0 (#6497): True when sign-in link row r may not sign in: its support access is no longer open (ended early, run
+    out), or it is an operator's link from before grant_id (made while a grant of the account was open, no grant_id: it would
+    start a session without the support mark). Such a link was capped to its grant's end, at most SGA_HOURS: this check can go
+    after 01.12.2026."""
+    if r["grant_id"]:
+        return not sga_grant_ends(c, r["grant_id"])
+    if not sga_hosted() or not r["created_by"] or r["created_by"] == r["user_id"]:
+        return False
+    with system_ctx(c):  # the maker's admin right and the account's grants: structure, no content
+        return bool(c.execute("SELECT 1 FROM users a JOIN support_grants s ON s.user_id=? AND s.org_id IS NULL WHERE a.id=? AND a.is_admin "
+                              "AND s.created_at<=? AND s.ends_at>=? AND (s.ended_at IS NULL OR s.ended_at>=?) LIMIT 1",
+                              (r["user_id"], r["created_by"], r["created_at"], r["created_at"], r["created_at"])).fetchone())
 
 
 def sga_session_cap(c, uid, token_hash):
     """2.485.0 (#3939): a session started with a sign-in link the operator made through the account's support access ends with
-    that access at the latest and is marked via 'support' (no credentials in it, sga_guard; ended with the access, sga_close)."""
-    end = sga_link_support(c, uid)
-    if end:
-        with system_ctx(c):  # support grants of other accounts / organisations (row-level security): structure, no content
-            c.execute("UPDATE sessions SET via='support', expires_at=LEAST(expires_at, ?) WHERE token_hash=?", (end, token_hash))
-        if has_request_context():  # 2.503.0 (#4307): the sign-in is the first entry of the log
-            g.sga_support = uid
+    that access at the latest and is marked via 'support' (no credentials in it, sga_guard; ended with the access, sga_close).
+    2.1271.0 (#6497): it carries the link's grant (sessions.grant_id): authenticate lets it in only while exactly that grant is
+    open; the mark follows from the link's grant, whatever the maker's admin right is today."""
+    if not sga_hosted():
+        return
+    with system_ctx(c):  # support grants of other accounts / organisations (row-level security): structure, no content
+        r = c.execute("SELECT i.grant_id, s.ends_at FROM user_invites i JOIN support_grants s ON s.id=i.grant_id "
+                      "WHERE i.user_id=? AND i.kind='login'", (uid,)).fetchone()
+        if not r:
+            return
+        c.execute("UPDATE sessions SET via='support', grant_id=?, expires_at=LEAST(expires_at, ?) WHERE token_hash=?",
+                  (r[0], r[1], token_hash))
+    if has_request_context():  # 2.503.0 (#4307): the sign-in is the first entry of the log
+        g.sga_support = uid
+
+
+def sga_sweep(c, uid):
+    """2.1271.0 (#6497): account uid's sign-in links and support sessions whose grant is no longer open go (and support sessions
+    from before grant_id): authenticate refuses them already, this takes them out of the session list and their push subscriptions."""
+    now = iso(now_utc())
+    with system_ctx(c):  # support grants of other accounts / organisations (row-level security): structure, no content
+        c.execute("DELETE FROM user_invites i WHERE i.user_id=? AND i.grant_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM support_grants s "
+                  "WHERE s.id=i.grant_id AND s.ended_at IS NULL AND s.ends_at>?)", (uid, now))
+        gone = [x[0] for x in c.execute("SELECT x.token_hash FROM sessions x WHERE x.user_id=? AND (x.via='support' OR x.grant_id IS NOT NULL) "
+                                        "AND NOT EXISTS (SELECT 1 FROM support_grants s WHERE s.id=x.grant_id AND s.ended_at IS NULL AND s.ends_at>?)",
+                                        (uid, now)).fetchall()]
+    if gone:
+        ses_end(c, uid, gone)
 
 
 def sga_close(c, r, now):
     """Grant row r ends now (early): the links the operator made through the account's support access and the sessions started
-    with such links end too -- since the oldest grant of the account whose planned end is still ahead (a grant replaced by a
-    longer one still caps its sessions at its own end, sga_session_cap). An organisation's grant opens no account."""
+    with such links end too. 2.1271.0 (#6497): by the grant they carry (grant_id), whoever made them and whatever their admin
+    right is today; links from before grant_id as before (the operator's links since the oldest grant still ahead). An
+    organisation's grant opens no account."""
     if r["org_id"]:
         return
     with system_ctx(c):  # support grants of other accounts / organisations (row-level security): structure, no content
@@ -140,11 +193,9 @@ def sga_close(c, r, now):
                           (r["user_id"], iso(now))).fetchone()[0] or r["created_at"]
         since = min(since, r["created_at"])
         # review F6: only the operator's sign-in links and support sessions (a parent's / an organisation admin's link stays)
-        c.execute("DELETE FROM user_invites WHERE user_id=? AND kind='login' AND created_at>=? AND created_by<>user_id "
+        c.execute("DELETE FROM user_invites WHERE user_id=? AND kind='login' AND grant_id IS NULL AND created_at>=? AND created_by<>user_id "
                   "AND created_by IN (SELECT id FROM users WHERE is_admin)", (r["user_id"], since))
-        gone = [x[0] for x in c.execute("SELECT token_hash FROM sessions WHERE user_id=? AND via='support'", (r["user_id"],)).fetchall()]
-    if gone:
-        ses_end(c, r["user_id"], gone)
+    sga_sweep(c, r["user_id"])
 
 
 # 2.500.0 (#4070, decision of 03.11.2026): a support session (via 'support', sga_session_cap) reads and edits contents, nothing
@@ -511,6 +562,8 @@ def support_access_grant():
         gid = insert_id(c, "INSERT INTO support_grants(user_id, org_id, created_at, ends_at) VALUES(?,?,?,?)",
                         (me(), oid, iso(now), iso(now + timedelta(hours=h))))
         r = c.execute("SELECT * FROM support_grants WHERE id=?", (gid,)).fetchone()
+    if oid is None:  # 2.1271.0 (#6497): the replaced grant's links and sessions end with it (each holds only its own grant)
+        sga_sweep(c, me())
     c.commit()
     print("support access granted:", "org" if oid else "account", f"#{oid or me()}", f"{h} h", flush=True)
     return jsonify(grant=sga_public(c, r))

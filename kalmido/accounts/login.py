@@ -29,7 +29,7 @@ from ..core.i18n import lang, languages, N_, tr, LANGS
 from ..core.usertz import tz_names
 from ..core.db import adopt_orphans, body, bump, create_user, db, ensure_inbox, err, gset, gsetting, iso, local_now, now_utc, parse_iso, uset, write_lock
 from ..accounts.session import (
-    _DUMMY_HASH, _peer_trusted, _rate_fail, _rate_keys, _rate_reset, _token_hash,
+    _DUMMY_HASH, _peer_trusted, _rate_fail, _rate_keys, _rate_reset, _token_hash, login_name_in,
     client_ip, FAIL_WINDOW, login_wait, proxy_login_value, rate_ip, set_cookie, start_session, user_public,
 )
 
@@ -161,7 +161,7 @@ def auth_login():
     from ..notify.alerts import aa_count, aa_now, fx2_mask_ip
     from ..agents.core import is_agent
     b = body()
-    username = (b.get("username") or "").strip().lower()
+    username = login_name_in(b.get("username"))  # 2.1271.0 (#6420): cut before anything
     keys = _rate_keys(username)
     e = login_wait(keys, username)  # 2.282.0 (#3111): a full address counter delays, only pair / name ceiling refuse
     if e:

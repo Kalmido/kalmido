@@ -41,6 +41,7 @@ FQ_KINDS = ("short", "long", "choice", "multi", "date", "number", "file", "yesno
 FQ_MAX, FQ_LABEL_MAX, FQ_HELP_MAX = 30, 300, 500
 FQ_OPTS_MAX, FQ_OPT_MAX = 20, 120
 FQ_SHORT_MAX, FQ_LONG_MAX = 500, 8000
+FQ_LINES_MAX = 200  # 2.1271.0 (#6424): lines of one answer (the rest joins the last line)
 FQ_FILES_MAX = 3  # file questions per form (each takes one file of at most FRM_FILE_MAX)
 FQ_ID_RE = re.compile(r"[a-z0-9]{6,16}")
 # the file types a questionnaire takes: pictures, PDF, office formats, text (never scripts, pages or programs; no SVG)
@@ -249,8 +250,18 @@ def fq_read(qs, form, files, lg, anon, form_id):
             if f is None or f != f or abs(f) > 1e15:
                 raise FqRefused(tr("“{0}”: please enter a number.", label, lg=lg), qid)
             v = n
-        ans[qid] = v[:FQ_LONG_MAX if kind == "long" else FQ_SHORT_MAX]
+        ans[qid] = fq_lines(v[:FQ_LONG_MAX if kind == "long" else FQ_SHORT_MAX])
     return ans, ups
+
+
+def fq_lines(v):
+    """2.1271.0 (#6424): an answer has at most FQ_LINES_MAX lines; the rest goes into the last line (blank-joined, empty
+    lines dropped) -- no typed text is lost, only the surplus breaks."""
+    ls = re.sub(r"\r\n?", "\n", v).split("\n")
+    if len(ls) <= FQ_LINES_MAX:
+        return v
+    rest = " ".join(x.strip() for x in ls[FQ_LINES_MAX - 1:] if x.strip())
+    return "\n".join(ls[:FQ_LINES_MAX - 1] + [rest])
 
 
 def fq_text_of(qs, ans):
@@ -262,8 +273,11 @@ def fq_md(v):
     """2.148.1 E (#2496): an answer from outside as plain Markdown text: no links, images, HTML, headings or lists of its own."""
     # 2.148.1 F: ( ) stay (a link needs the escaped "]" before them); a list mark only counts before a blank / the line end
     v = re.sub(r"([\\`*_\[\]<>!|~])", r"\\\1", str(v))
-    v = re.sub(r"(?m)^(\s*)(#|[+\-](?=\s|$))", r"\1\\\2", v)
-    return re.sub(r"(?m)^(\s*\d+)([.)])(?=\s|$)", r"\1\\\2", v)
+    # 2.1271.0 (#6424): a line start never runs over a line break (\s* did: quadratic on many empty lines); a lone \r is a
+    # break for Markdown, so first one \n; [^\S\n] = every blank but the break (tabs, form feeds ... as before)
+    v = re.sub(r"\r\n?", "\n", v)
+    v = re.sub(r"(?m)^([^\S\n]*)(#|[+\-](?=\s|$))", r"\1\\\2", v)
+    return re.sub(r"(?m)^([^\S\n]*\d+)([.)])(?=\s|$)", r"\1\\\2", v)
 
 
 def fq_shown(q, v, lg):

@@ -106,6 +106,7 @@ async function meApply(k, fn, lab) {
   // 2.38.0 (#1132): locked tasks keep their locked fields and are skipped, the others change (like the selection bar)
   const lk = Object.keys(items).filter(i => tlkHits(S.tasks.get(+i), items[i]));
   for (const i of lk) delete items[i];
+  const dt = dtMerge(items);  // 2.1271.0 (#6436): a subtask moved out of its parent takes its date / priority into empty fields
   const ids = Object.keys(items).map(Number);
   ME.chg.add(k);
   if (!ids.length) { if (lk.length) tlkToast(S.tasks.get(+lk[0])); meRender(); return; }
@@ -122,6 +123,7 @@ async function meApply(k, fn, lab) {
   const pairs = snaps.filter(b => ids.includes(b.id)).map(b => [b, snapTask(S.tasks.get(b.id))]);
   const e = histFields(trn('{1}: {0} task changed', '{1}: {0} tasks changed', ids.length, lab), pairs, {res: j, fields: [...UNDO_FIELDS, 'tags', 'ltags', 'fields']});
   const msg = [trn('{0} task changed', '{0} tasks changed', ids.length), lk.length ? trn('{0} locked task skipped', '{0} locked tasks skipped', lk.length) : ''].filter(Boolean).join(' · ');
+  if (dtToast(msg, dtDone(dt, j))) return;  // 2.1271.0 (#6436): "Don't adopt"; the Undo of the step stays in the history
   if (e) offerUndo(msg, e); else toast(msg);
 }
 // 2.528.0 B (#4305): {field: the value task t showed here} for the fields of change d (tags as a list, custom fields per id)

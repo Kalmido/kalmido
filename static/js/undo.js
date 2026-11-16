@@ -465,7 +465,8 @@ function tmm_msg(msg, r) {
 }
 // the few older callers: a toast with "Undo" for a step built above
 function offerUndo(msg, e) { histToast(msg, e); }
-async function patchUndoable(id, body, msg) {
+// ad (2.1271.0, #6436): the fields a detached subtask adopted from its parent (detachPatch): its toast says so with "Don't adopt"
+async function patchUndoable(id, body, msg, ad) {
   const before = snapTask(taskById(id));
   if (body?.list_id && typeof ln_moveHint === 'function') ln_moveHint(id, body.list_id);  // 2.48.0 (#1642): a locked note stays locked
   if (body?.list_id) msg = wsc_moveMsg(taskById(id)?.list_id, body.list_id, msg);  // 2.53.0 (#1474): Private -> organisation: who sees it now
@@ -474,7 +475,8 @@ async function patchUndoable(id, body, msg) {
   if (t?.shifted?.length || t?.chain?.skipped?.length) { shiftUndo(before, t, msg); return t; }  // 2.67.0 B (#1865)
   const after = snapTask(S.tasks.get(id) || t);
   const e = before && after && histFields(histLabel(before, after), [[before, after]], {res: t});
-  if (e) offerUndo(msg, e);
+  if (e && dtHas(ad) && dtToast(msg, [[id, ad, before?.parent_id]])) { /* the toast with "Don't adopt"; Undo stays in the history */ }
+  else if (e) offerUndo(msg, e);
   else if (msg) toast(msg);
   if (before) shiftLate(before, e || null, msg, t);  // 2.537.0 (#4568): the outbox's answer may still move dependent tasks along
   return t;
