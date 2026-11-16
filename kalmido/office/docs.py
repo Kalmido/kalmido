@@ -400,6 +400,15 @@ def _sur_legacy(r):
     return 0 if _j(r["totals"], {}).get("sur_split") else 1
 
 
+def _mk_stale(c, oid, r):
+    """2.1249.0 (#6281, review): a draft quotation with parts and a markup whose cached totals still hold the markup per part
+    (saved before 2.1249.0, no "mk_title"): recalc once when it is opened."""
+    if r["kind"] != "offer" or ofx_locked(r) or dict(r).get("markup_pct") is None or _j(r["totals"], {}).get("mk_title"):
+        return False
+    from .parts import tp_has_parts
+    return bool(tp_has_parts(c, oid, r["id"]))
+
+
 def _mk_legacy(r):
     """2.1249.0 (#6281): a quotation with parts finalised while every part computed its own markup (its frozen totals lack
     "mk_title"): its invoices / progress invoices compute the markup per part as its frozen sums did. Otherwise the markup
@@ -1554,6 +1563,12 @@ def odoc_create():
 def odoc_get(did):
     c, uid, oid = _ctx()
     r = doc_row(c, oid, did)
+    if _mk_stale(c, oid, r):  # 2.1249.0 (#6281, review): a draft saved before shows the one markup line at once
+        write_lock(c, f"office_doc_{int(did)}")
+        r = doc_row(c, oid, did)
+        if _mk_stale(c, oid, r):
+            recalc(c, oid, did)
+            r = doc_row(c, oid, did)
     ofx_log(c, oid, "open", doc_id=did, dedupe_min=10)
     c.commit()
     return jsonify(doc_public(c, oid, r, office_role(c, uid, oid) == "admin"))
