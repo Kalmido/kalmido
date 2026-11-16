@@ -33,6 +33,7 @@ from ..core.access import Denied, live_sql
 from ..core.objparts import part_kind  # 2.1093.0 (#5472): the core's trash run of the files deleted on their own
 from ..core.orgcrypt import OrgCryptError, oc_copy_file, oc_read_file, oc_send_file, oc_user_space, oc_write_file
 from ..core.serializers import unlink_files
+from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from ..core.errors import BadInput, BadKey, err_stored
 from ..tasks.attachments import file_ext, safe_name, send_stored
 from .pages import (WIKI_ZIP_FILES, WIKI_ZIP_FILE_MAX, wiki_clean_path, wiki_fit_paths, wiki_path_parts, wiki_frontmatter, wiki_insert, wiki_need,
@@ -63,6 +64,9 @@ def _wka_env_mb(name, dflt, hi=512):
 
 # 2.177.0 (#2685): 100 MB per file (was 25 MB; handbooks as PDF are larger), KALMIDO_WIKI_FILE_MAX_MB
 WKA_FILE_MAX = _wka_env_mb("KALMIDO_WIKI_FILE_MAX_MB", 100) * 1024 * 1024  # bytes per file (upload and import)
+# 2.1282.0 (#6426): entries of the ZIP allowed per wanted file, checked before zipfile reads the directory (a folder is an
+# entry of its own, a Mac adds __MACOSX/._name to every file)
+WKA_ENTRIES_PER_FILE = 4
 WKA_ZIP_TOTAL = 500 * 1024 * 1024  # bytes of a ZIP to import, and of everything unpacked from it (zip bombs)
 WKA_MD_TOTAL = 30_000_000  # bytes of all pages of one import together (the limit before 2.99)
 WKA_UPLOAD_FILES = 20
@@ -546,8 +550,11 @@ def wka_import_zip(c, uid, oid, replace):
             raise BadInput(tr("The archive is too large"))
         st.seek(0)
         try:
+            zip_guard(st, WIKI_ZIP_FILES * WKA_ENTRIES_PER_FILE)  # 2.1282.0 (#6426): before zipfile builds an object per entry
             z = zipfile.ZipFile(st)
             infos = [i for i in z.infolist() if not i.is_dir()]
+        except ZipOver:
+            raise BadInput(tr("Too many files (at most {0})", WIKI_ZIP_FILES))
         except (zipfile.BadZipFile, ValueError, OSError):
             raise BadInput(tr("This is not a ZIP file"))
         with z:

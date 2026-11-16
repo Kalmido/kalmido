@@ -35,6 +35,8 @@ from ..core.config import app, DB, MAX_FILE_MB, TZ
 from ..core.db import body, db, err, iso, now_utc, connect
 from ..core.i18n import N_, tr
 from ..core.access import Denied
+from ..api.common import import_upload_rate  # 2.1282.0 (#6426)
+from ..core.zipread import ZipOver, json_guard, zip_guard  # 2.1282.0 (#6426): the checks before zipfile and json.loads
 from ..accounts.session import bg_here, me
 from ..docs import store as S
 from . import ngx as P
@@ -59,6 +61,9 @@ PLH_ZIP_MAX = _env_mb("KALMIDO_PAPERLESS_ZIP_MAX_MB", 4096) * 1024 * 1024  # byt
 PLH_CHUNK = max(64 * 1024, min(_env_mb("KALMIDO_PAPERLESS_ZIP_CHUNK_KB", 8192) * 1024,  # bytes per part (tests: small parts)
                                 MAX_FILE_MB * 4 * 1024 * 1024 - 256 * 1024))  # below MAX_CONTENT_LENGTH
 PLH_MANIFEST_MAX = 64 * 1024 * 1024  # bytes of all manifests together (the documents' text lies in them: kept)
+# 2.1282.0 (#6426): values and containers of all manifests together, counted before json.loads (a manifest of tiny values took
+# 24 times its size in memory). 100 000 documents with their fields, tags and notes stay below 5 million.
+PLH_MANIFEST_NODES = 6_000_000
 PLH_ENTRIES_MAX = 300_000            # members of the ZIP (2.81.0 #1874: was 500 000; original + archive + thumbnail per document)
 PLH_DOCS_MAX = 100_000               # documents in the manifest (2.81.0 #1874: was 200 000)
 PLH_RATIO = 200                      # uncompressed / compressed of a member above 1 MB: more = a zip bomb
@@ -182,7 +187,11 @@ class _Parts(io.RawIOBase):
 
 def _open_zip(c, r):
     try:
-        return zipfile.ZipFile(io.BufferedReader(_Parts(c, r), 1024 * 1024))
+        src = io.BufferedReader(_Parts(c, r), 1024 * 1024)
+        zip_guard(src, PLH_ENTRIES_MAX)  # 2.1282.0 (#6426): the entry limit before zipfile builds an object per entry
+        return zipfile.ZipFile(src)
+    except ZipOver:
+        raise PlhError("zip_large") from None
     except (zipfile.BadZipFile, zipfile.LargeZipFile, ValueError, EOFError, OSError):
         raise PlhError("zip_bad") from None
 
@@ -267,10 +276,19 @@ def plh_scan(zf):
     parts = [mans[0]] + sorted(n for n in names if n.startswith(prefix) and n.endswith("-manifest.json"))  # --split-manifest
     if sum(names[n].file_size for n in parts) > PLH_MANIFEST_MAX:
         raise PlhError("zip_large")
-    recs = []
+    recs, nodes = [], [PLH_MANIFEST_NODES]
     for n in parts:
+        raw = _read(zf, names[n], PLH_MANIFEST_MAX, "zip_large")
         try:
-            j = json.loads(_read(zf, names[n], PLH_MANIFEST_MAX, "zip_large"))
+            json_guard(raw, PLH_MANIFEST_NODES, nodes)  # 2.1282.0 (#6426): counted before parsing, one budget for all manifests
+        except ZipOver:
+            raise PlhError("zip_large") from None
+        except ValueError:  # ZipBad: a zero byte
+            raise PlhError("zip_manifest") from None
+        try:
+            # review: decoded as UTF-8 here -- json.loads(bytes) would take UTF-16 / UTF-32 too, where the count above
+            # sees other string ends than the parser (a UnicodeDecodeError is a ValueError)
+            j = json.loads(raw.decode("utf-8-sig"))
         except (ValueError, RecursionError):
             raise PlhError("zip_manifest") from None
         if not isinstance(j, list):
@@ -620,6 +638,7 @@ def plh_zip_new():
         return err(tr("Invalid value: {0}", "size"))
     if size > PLH_ZIP_MAX:
         return err(tr("The file is larger than {0} MB", PLH_ZIP_MAX // (1024 * 1024)), 413)
+    import_upload_rate(uid)  # 2.1282.0 (#6426): rate limited like every new import upload
     q = quota_info(c, uid)
     if q and q["limit"] and q["used"] >= q["limit"]:
         raise QuotaExceeded(q)

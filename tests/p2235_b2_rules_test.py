@@ -42,7 +42,9 @@ def comment(s, tid, text):
 
 
 def agent_rule(h, rid):
-    return next(x for x in requests.get(V + "/agent/rules", headers=h).json()["data"] if x["id"] == rid)
+    j = requests.get(V + "/agent/rules", headers=h).json()
+    # 2.1269.0 (#6451): a rule the agent saved waits as a proposal (apart in "proposed") until its person confirms it
+    return next(x for x in j["data"] + j.get("proposed", []) if x["id"] == rid)
 
 
 def owner_rule(s, aid, rid):

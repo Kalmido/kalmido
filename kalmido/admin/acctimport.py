@@ -39,7 +39,7 @@ from ..core.config import app, ATT_DIR, MAX_FILE_MB, PUBLIC_URL
 from ..core.config import USERNAME_RE  # 2.278.0 B (#3094)
 from ..accounts.orgs import visible_people as umz_visible  # 2.278.0 B (#3094)
 from ..core.serializers import unlink_files  # 2.464.0 (#3865)
-from ..api.common import hit_limit  # 2.585.0 (#4350, review 2)
+from ..api.common import hit_limit, import_upload_rate  # 2.585.0 (#4350, review 2); 2.1282.0 (#6426)
 from ..core.pg import write_lock  # review 2.611 (#4866)
 from ..files.upsafe import up_after_store, up_check, UploadRefused  # 2.464.0 (#3865): pulled up from functions
 from ..lists.projects import LIST_FILES_SUB
@@ -51,6 +51,7 @@ from ..core.pg import insert_id, system_ctx, ts_canon  # 2.1095.0 (#5306): ts_ca
 from ..core.moneycol import MC_COLS, MC_FITS  # 2.765.0 (#5315): the money columns NUMERIC(14,2) and their rule
 from ..core.coltype import CT_JSON  # 2.1111.0 (#5953): the JSON columns that were TEXT (JSONB now)
 from ..core.errors import BadInput  # 2.273.0 A (#3030)
+from ..core.zipread import ZipOver, json_guard, zip_guard  # 2.1282.0 (#6426): the checks before zipfile and json.loads
 from ..accounts.settings import clean_look_pref, clean_setting  # 2.273.0 A (#3030); 2.363.4 (#3127): clean_setting
 from ..tasks.snippets import snip_clean  # 2.273.0 A (#3030)
 from ..tasks.ticketkey import TK_RE, tk_import_clash  # 2.1218.0 (#6202)
@@ -107,6 +108,13 @@ UMZ_MAX_ENTRIES = 200_000
 # review M2: the parsed rows take 5-10 times the text in memory -- a real export of 50 000 tasks stays far below these
 UMZ_JSON_MAX = 32 * 1024 * 1024  # one data/<table>.json
 UMZ_JSON_TOTAL = 96 * 1024 * 1024  # all data/*.json together (they are held in memory during the check and the run)
+# 2.1282.0 (#6426): the bytes alone do not hold the memory (measured: 24 times the text for a part of tiny values), so the
+# values and containers are counted before parsing (core/zipread.py json_guard). A real export of 50 000 tasks with 40
+# columns has 2 million nodes in its largest part.
+# Measured per node once parsed: 32 to 127 bytes, real rows of 40 columns 47 -- one part stays below about 380 MB, a file
+# below about 760 MB (it was 2.3 GB).
+UMZ_JSON_NODES = 3_000_000  # one JSON part
+UMZ_JSON_NODES_TOTAL = 6_000_000  # all JSON parts of one file together
 UMZ_MAX_ROWS = _env_mb("KALMIDO_ACCOUNT_IMPORT_MAX_ROWS", 500_000)  # rows of one table after parsing
 UMZ_MANIFEST_MAX = 32 * 1024 * 1024
 UMZ_RATIO = 200  # uncompressed / compressed of one entry above 1 MB
@@ -395,9 +403,14 @@ def _sum_entry(zf, zi, sha):
         raise UmzBad(N_("Checksum wrong: {0}. The file is damaged or was changed."), zi.filename)
 
 
-def _json(raw, what):
+def _json(raw, what, left=None):
+    """2.1282.0 (#6426): the nodes are counted before json.loads (json_guard): a part of tiny values took 24 times its
+    size in memory. left = [nodes left] of the budget of all parts of one file (umz_open)."""
     try:
+        json_guard(raw, UMZ_JSON_NODES, left)
         return json.loads(raw.decode("utf-8"))
+    except ZipOver:
+        raise UmzBad(N_("The file contains a part that is too large: {0}"), what) from None
     except (ValueError, UnicodeDecodeError, RecursionError):
         raise UmzBad(N_("The file contains a broken part: {0}"), what) from None
 
@@ -406,8 +419,13 @@ def umz_open(path, key, size, full=True):
     """-> (zipfile, manifest, files {path: entry}, data {table: rows}). UmzBad when anything is off. full: check every
     file's SHA-256 too (the preview; the run checks each file again while it reads it)."""
     try:
-        r = UmzReader(path, key, size)
+        # 2.1282.0 (#6426, review): buffered like the other readers -- the sealed reader answers at most the rest of its
+        # block, zipfile does not read on after a short answer
+        r = io.BufferedReader(UmzReader(path, key, size), UMZ_BLOCK)
+        zip_guard(r, UMZ_MAX_ENTRIES)  # 2.1282.0 (#6426): the entry limit before zipfile builds an object per entry
         zf = zipfile.ZipFile(r)
+    except ZipOver:
+        raise UmzBad(N_("The file has too many parts.")) from None
     except (zipfile.BadZipFile, ValueError, OSError, EOFError):
         raise UmzBad(N_("This is not a Kalmido export (no ZIP file).")) from None
     except Exception:  # noqa: BLE001 -- a sealed block that does not open (InvalidTag): the upload is damaged
@@ -437,12 +455,13 @@ def umz_open(path, key, size, full=True):
         if "manifest.json" not in names:
             raise UmzBad(N_("This is not a Kalmido export (manifest.json is missing)."))
         mraw = _read_entry(zf, names["manifest.json"], UMZ_MANIFEST_MAX)
+        nodes = [UMZ_JSON_NODES_TOTAL]  # 2.1282.0 (#6426): one node budget for every JSON part of the file
         if "checksum.sha256" not in names and b'"kalmido-org-export"' in mraw[:4096]:
             # an organisation export, opened with its recovery key (umz_unlock): its blocks were authenticated, every
             # entry carries its SHA-256 in the manifest
-            man = _json(mraw, "manifest.json")
+            man = _json(mraw, "manifest.json", nodes)
             if isinstance(man, dict) and man.get("format") == "kalmido-org-export":
-                return (zf, *umz_org_open(zf, names, man, mraw, full))
+                return (zf, *umz_org_open(zf, names, man, mraw, full, nodes))
         if "checksum.sha256" not in names:
             raise UmzBad(N_("This is not a Kalmido export (manifest.json is missing)."))
         sums = {}
@@ -452,7 +471,7 @@ def umz_open(path, key, size, full=True):
                 sums[m.group(2)] = m.group(1)
         if sums.get("manifest.json") != hashlib.sha256(mraw).hexdigest():
             raise UmzBad(N_("Checksum wrong: {0}. The file is damaged or was changed."), "manifest.json")
-        man = _json(mraw, "manifest.json")
+        man = _json(mraw, "manifest.json", nodes)
         if not isinstance(man, dict) or man.get("format") != UMZ_FORMAT:
             raise UmzBad(N_("This is not a Kalmido account export. An organisation export is imported by the organisation's admin."))
         if not isinstance(man.get("v"), int) or man["v"] > UMZ_V or man["v"] < 1:
@@ -490,14 +509,14 @@ def umz_open(path, key, size, full=True):
                 elif zi.file_size <= UMZ_JSON_MAX:
                     # 2.531.0 (#4317 F5): a file without the row counts (made by hand, an older writer): the part is read only to
                     # count it, never kept, so what stays on the old server is still named
-                    rows = _json(_read_entry(zf, zi, UMZ_JSON_MAX, sha), p)
+                    rows = _json(_read_entry(zf, zi, UMZ_JSON_MAX, sha), p, nodes)
                     unread[p[5:-5]] = len(rows) if isinstance(rows, list) else 0
                 else:
                     unread[p[5:-5]] = 0
                     if full:
                         _sum_entry(zf, zi, sha)
             elif p.startswith("data/") and p.endswith(".json") and "/" not in p[5:]:
-                rows = _json(_read_entry(zf, zi, UMZ_JSON_MAX, sha), p)
+                rows = _json(_read_entry(zf, zi, UMZ_JSON_MAX, sha), p, nodes)
                 if not isinstance(rows, list) or not all(isinstance(x, dict) for x in rows):
                     raise UmzBad(N_("The file contains a broken part: {0}"), p)
                 if len(rows) > UMZ_MAX_ROWS:
@@ -545,7 +564,7 @@ UMZ_ORG_SKIP = (  # archive prefix -> what the preview names as not taken over
 )
 
 
-def umz_org_open(zf, names, man, mraw, full):
+def umz_org_open(zf, names, man, mraw, full, nodes=None):
     """-> (manifest, files, data) of an opened organisation export, in the shape of an account export (2.137.0, #2344: the
     entries of admin/orgimport.py under data["oi"][entry])."""
     from .orgimport import oi_covers
@@ -566,7 +585,7 @@ def umz_org_open(zf, names, man, mraw, full):
         zi = names[p]
         files[p] = (zi, f["sha256"])
         if p in UMZ_ORG_MAP or (p.endswith(".json") and oi_covers(p)):  # 2.137.0 (#2344): + the areas of admin/orgimport.py
-            rows = _json(_read_entry(zf, zi, UMZ_JSON_MAX, f["sha256"]), p)
+            rows = _json(_read_entry(zf, zi, UMZ_JSON_MAX, f["sha256"]), p, nodes)
             if not isinstance(rows, list) or not all(isinstance(x, dict) for x in rows):
                 raise UmzBad(N_("The file contains a broken part: {0}"), p)
             if len(rows) > UMZ_MAX_ROWS:  # review M2: the same limits as the account import
@@ -580,6 +599,7 @@ def umz_org_open(zf, names, man, mraw, full):
             what = next((w for pre, w in UMZ_ORG_SKIP if p.startswith(pre)), None)
             if p.endswith(".json"):
                 try:
+                    json_guard(raw, UMZ_JSON_NODES)  # 2.1282.0 (#6426): a part that is only counted, never kept (ZipOver is a ValueError: 0)
                     x = json.loads(raw.decode("utf-8"))
                     # 2.273.0 A (#3030): a part without a name of its own keeps its technical name (rows only)
                     n = len(x) if what or isinstance(x, list) else 0
@@ -3086,6 +3106,7 @@ def umz_new():
         return err(tr("Invalid value: {0}", "size"))
     if size > UMZ_IMPORT_MAX_MB * 1024 * 1024:
         return err(tr("The file is too large (at most {0} MB)", UMZ_IMPORT_MAX_MB), 413)
+    import_upload_rate(uid)  # 2.1282.0 (#6426)
     c = db()
     from ..admin.hosting import quota_guard
     quota_guard(c, uid, size)  # the files in it will count against my storage (checked again per file in the run)

@@ -3,6 +3,7 @@ counter). They lived in api/v1.py, which re-exports them; the domain modules' v1
 imports: kalmido/__init__.py puts this module into the core layer (LAYER_OF)."""
 import base64
 import functools
+import os
 import threading
 import time
 from flask import g, has_request_context, jsonify, request, Response
@@ -20,6 +21,10 @@ V1_CODES = {400: "invalid", 401: "unauthorized", 403: "forbidden", 404: "not_fou
 
 
 _HITS, _HITS_LOCK = {}, threading.Lock()
+try:  # 2.1282.0 (#6426): the value of integrations/importers.py IMPORT_RATE, read the same way
+    IMPORT_UPLOAD_RATE = max(1, int(os.environ.get("KALMIDO_IMPORT_RATE", "") or 30))
+except ValueError:
+    IMPORT_UPLOAD_RATE = 30
 # 2.425.0 C (#3453): bearer keys of their own kind (not api_tokens rows), by prefix -> f(c, key, bad address counters):
 # an error response, or None after it set g.user (docs/fetcher.py registers the receipt fetchers' keys)
 V1_KEY_KINDS = {}
@@ -47,6 +52,15 @@ def hit_limit(key, limit, window=None):
     if window >= RATE_SHARED_MIN_S:  # 2.306.0 D1 (#2875): the long limits count for every web process (failed count: this one's)
         return bool(rate_hit(key, limit, window))
     return False
+
+
+def import_upload_rate(uid):
+    """2.1282.0 (#6426): a NEW import upload (account / organisation file, knowledge ZIP, Paperless export) is rate limited
+    like an import of tasks (KALMIDO_IMPORT_RATE per person in 10 minutes) -- every one of them ends in a check that reads a
+    whole ZIP directory and its JSON parts. An own counter (the previews of the task importers do not use it up); the
+    parts of a running upload are not counted. Lives here, not in integrations/importers.py: the wiki's layer is below."""
+    if hit_limit(f"import-upload:{uid}", IMPORT_UPLOAD_RATE, 600):
+        raise Denied(429, tr("Too many imports, please wait a few minutes"))
 
 
 def limit_state(key, limit, window=None):

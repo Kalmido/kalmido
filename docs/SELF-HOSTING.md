@@ -2592,7 +2592,7 @@ All settings are environment variables in `.env` (see [.env.example](../.env.exa
 | `KALMIDO_SETUP_CODE` | | 2.45.0: empty = while no account exists the server prints a one-time setup code into its log and the setup page asks for it. **Only for tests and automation:** a fixed code, or `off` (no code: whoever opens the page first becomes the admin) |
 | `TASKS_MAX_FILE_MB` | `50` | Maximum size per attachment (task and comment files) |
 | `KALMIDO_IMPORT_MAX_MB`, `KALMIDO_IMPORT_MAX_TASKS` | `20`, `20000` | Limits of one import (*Moving from other apps*) |
-| `KALMIDO_IMPORT_RATE` | `30` | Imports and previews per user within 10 minutes |
+| `KALMIDO_IMPORT_RATE` | `30` | Imports and previews per user within 10 minutes; new import uploads (account, knowledge, Paperless) have a counter of their own with the same value |
 | `KALMIDO_PDF_MEM_MB`, `KALMIDO_PDF_PARALLEL`, `KALMIDO_PDF_TIMEOUT_S` | `512`, `2`, `20` | 2.34.0: reading the text of a PDF (agents' *read attachment*, the briefing field) runs in its own process: its memory limit in MB, how many PDFs are read at the same time (small servers: `1`) and the seconds one PDF may take |
 | `TASKS_PUSH_GAP` | `60` | Seconds in which further comments / changes on a task are bundled into one summary push |
 | `TASKS_NEWS_DAYS` | `90` | Days a News item is kept |

@@ -654,14 +654,18 @@ TOOLS = [
      lambda api, a: api.call("GET", "/agent/queue", query={"points": a.get("points")})),
     ("get_rules", "2.235.0 (#2903): your standing rules (\"from now on always ...\" instructions you saved), active and paused: "
                   "{data: [{id, text, state: active | paused, created_at, source: {kind: chat | comment | manual, id, task_id, user_id, "
-                  "excerpt}}], max, text_max}. Follow the active ones in every run; paused ones do not apply. Your owner (an admin "
+                  "excerpt}}], proposed: [the same, waiting for the person's confirmation, not in force], max, text_max}. Follow the "
+                  "active ones in every run; paused and proposed ones do not apply. Your owner (an admin "
                   "for a team agent) rewords, pauses and deletes them in your settings (event rules_changed).",
      _obj({}), lambda api, a: api.call("GET", "/agent/rules")),
     ("add_rule", "2.235.0 (#2903): save a standing rule when the person you work for tells you \"from now on always ...\" (or "
                  "\"never again ...\", \"in future ...\"): text = the rule in one short sentence in their words (at most 500 "
                  "characters), source = the chat message (kind chat, id = its message id) or the comment (kind comment, id = the "
                  "comment id) it came from; it must be visible to you and written by a person who may address you there (else 404). The same text again returns the existing rule "
-                 "(duplicate: true). At most 100 rules. Then confirm it in ONE line (e.g. \"Saved as a standing rule: ...\").",
+                 "(duplicate: true). At most 100 rules. 2.1269.0 (#6451): a saved rule is only a proposal (state proposed, applies: "
+                 "false): it applies only after the person it came from confirms it in a card Kalmido shows in their chat with you "
+                 "(event rules_changed then); at most 5 wait at a time (429). Tell them in ONE line (e.g. \"Proposed as a standing "
+                 "rule, please confirm: ...\").",
      _obj({"text": {"type": "string", "minLength": 1, "maxLength": 500},
            "source": _obj({"kind": {"type": "string", "enum": ["chat", "comment"]}, "id": {"type": "integer"}}, ["kind", "id"])},
           ["text", "source"]),

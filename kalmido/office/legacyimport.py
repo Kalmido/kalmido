@@ -43,6 +43,7 @@ from ..core.db import body, bump, db, iso, local_now, now_utc, parse_iso
 from ..core.access import Denied, live_sql, trash_sql
 from ..core.errors import BadInput
 from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
+from ..core.zipread import zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from .model import (MD, pb_cl_org, pb_cl_sql, office_create, office_gate, office_in_use, office_number_format, office_org, office_role, office_rows, office_scheme_period,
                     office_settings, office_update)
 from ..core.csvimport import amount_text, csv_table  # 2.149.0 G (#2517): pulled up from functions
@@ -229,6 +230,7 @@ def fi_xlsx_read(raw):
     if not raw.startswith(b"PK"):
         raise BadInput(tr("This is not a spreadsheet file (.xlsx)"))
     try:
+        zip_guard(raw, 2000)  # 2.1282.0 (#6426): the limit below, before zipfile builds an object per entry (ZipOver / ZipBad: ValueError)
         z = zipfile.ZipFile(io.BytesIO(raw))
         names = set(z.namelist())
     except (zipfile.BadZipFile, ValueError):

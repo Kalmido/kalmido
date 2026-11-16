@@ -28,6 +28,7 @@ from ..accounts.orgs import is_org_admin  # 2.306.0 D3 (#2875)
 from ..core.access import Denied, task_visible
 from ..collab.comments import user_names
 from ..core.errors import BadInput, BadKey
+from ..api.common import import_upload_rate  # 2.1282.0 (#6426)
 from ..core.serializers import unlink_files  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.orgs import user_orgs  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgroles import need_org_area, org_writes, user_orgs_full, need_org_write  # 2.369.5 (#2517): pulled up from functions
@@ -949,4 +950,5 @@ def wiki_import():
     oid = wiki_space(c, uid, request.args.get("space"), write=True)
     from .wikie2e import wke_guard  # 2.64.3 A (#1817): a locked space imports in the browser
     wke_guard(c, oid, uid, kind="import")
+    import_upload_rate(uid)  # 2.1282.0 (#6426): rate limited like every new import upload
     return jsonify(wka_import_zip(c, uid, oid, request.args.get("replace") == "1"))

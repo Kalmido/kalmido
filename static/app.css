@@ -5505,6 +5505,13 @@ body.ms-typing #tabs,body.ms-typing #fab{display:none}
 .apvdet[open]>summary{margin-bottom:.25rem}
 .apvdet .wkhdiff{max-height:20rem;margin:.25rem 0}
 .apvdchg{color:var(--text);font-weight:600}
+/* 2.1269.0 (#6450): the server's words for the bound step (open, first) and the agent's own words below as a quote */
+.apvx{margin:.25rem 0;font-size:var(--fs-b);line-height:var(--lh);color:var(--text);overflow-wrap:anywhere}
+.apvxl+.apvxl{margin-top:.125rem}
+.apvxv{font-weight:600;padding:0 .1875rem;border-radius:var(--r-s);background:var(--bg3)}
+.apvq{margin:.375rem 0 .25rem;padding-left:.5rem;border-left:.125rem solid var(--line2)}
+.apvqh{font-size:var(--fs-xs);color:var(--text2)}
+.apvq .apvt{font-size:var(--fs-b);font-weight:500}
 .cmsg.apv .cbub{background:transparent;padding:.125rem 0}
 .srow .c.apvc{display:inline-flex;align-items:center;gap:.125rem;color:var(--accent);font-weight:600}
 /* 2.41.0 (#1383): the approval card / answer buttons under an agent's comment; open approvals on the task row */

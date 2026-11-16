@@ -26,6 +26,7 @@ from ..core.orgcrypt import oc_enabled, oc_list_space  # 2.369.5 (#2517): pulled
 from ..videos.vdrescue import vdr_rescue  # 2.530.0 D (#4316)
 from ..core.access import _org_list_writes, list_state_sql  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.ttypes import tt_check  # 2.609.0 (#3372)
+from ..api.common import act_via  # 2.1269.0 (#6431)
 from ..lists.seckind import sk_answer  # 2.577.0 (#3354)
 
 
@@ -260,7 +261,7 @@ def task_create():
     from ..collab.comments import task_event
     from ..tasks.dependencies import newtask_events
     from ..lists.fields import field_required_check, set_field_values
-    from ..agents.core import agent_added_events, agent_task_mentions, agent_tidy_events
+    from ..agents.core import agent_added_events, agent_task_mentions, agent_tidy_events, task_mark_origin
     from ..collab.reactions import set_ltags
     from ..family.family import is_shop, people_set, rot_apply, shop_area_of, shop_remember
     b = web_fields(field_alias(body(), "content", "notes"), WEB_TASK_NEW, "POST /api/tasks")
@@ -387,9 +388,15 @@ def task_create():
     log_act(c, cur_id, "created")
     from ..tasks.tundo import tu_op
     tu_op(c, cur_id, "create", {"at": ts})  # 2.774.0 (#5251): the server's undo step (back = to the trash)
-    agent_task_mentions(c, cur_id)
+    # 2.1269.0 (#6431): a task from the inbound webhook (integrations/hookin.py) is text from outside: marked on the task before
+    # any event goes out (origin webhook, untrusted), and an @agent in its title / notes is no mention in the owner's name
+    hook = act_via() == "webhook"
+    if hook:
+        task_mark_origin(c, cur_id, "webhook")
+    else:
+        agent_task_mentions(c, cur_id)
     agent_tidy_events(c, cur_id)
-    agent_added_events(c, cur_id)  # 2.23.0 (#795)
+    agent_added_events(c, cur_id, source="webhook" if hook else None)  # 2.23.0 (#795)
     if f.get("assignee_id"):
         task_event(c, cur_id, "assign")
     if f.get("assignee_group_id"):

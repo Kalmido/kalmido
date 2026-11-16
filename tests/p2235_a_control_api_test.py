@@ -11,7 +11,7 @@
  - each decision without a card is a line in the history; Undo: created -> trash, planned -> old date, ticked off -> open,
    comment -> gone (twice: 409); the agent gets decision_undone; every change of the settings: control_changed
  - #2901 the deadline: a card left unanswered ends by itself (reject / recommend / ask again once), the agent gets
-   approval_expired; "recommend" never on a one-way step
+   approval_expired; "recommend" never on a one-way step nor (2.1269.0, #6619) on a step whose description warns (sharing)
  - an agent from before 2.235.0 (control '') works as before (no gate) until its owner picks a level
  - the same as a team agent of an instance admin; another person gets 404 (freelancer-matrix: agents)
  - 2.1117.0 (#6024): an object of the shared core takes its own project's level (a list_id in the body does not count)
@@ -236,6 +236,14 @@ def run(who, S, UID, AID, H, L):
     ev = [e for e in events(H, "approval_expired") if e["data"]["message_id"] == mid][0]["data"]
     check(ev["outcome"] == "rejected", f"{who}: recommend never on a one-way step: rejected {ev}")
     check(api("DELETE", f"/tasks/{T4}", h={HDR: str(mid)}).status_code == 409, f"{who}: the expired one-way card approves nothing")
+    # 2.1269.0 (#6619): the recommended Yes only for a step without a warning line -- sharing the project: rejected
+    mid = card({"method": "PUT", "path": f"/lists/{L}/members/{AID}", "body": {"role": "admin"}}, recommend="yes")
+    aged(mid)
+    check(until(lambda: [e for e in events(H, "approval_expired") if e["data"]["message_id"] == mid], 10), f"{who}: share card: approval_expired")
+    ev = [e for e in events(H, "approval_expired") if e["data"]["message_id"] == mid][0]["data"]
+    check(ev["outcome"] == "rejected", f"{who}: recommend never on a step that shares: rejected {ev}")
+    check(not api("PUT", f"/lists/{L}/members/{AID}", h={HDR: str(mid)}, json={"role": "admin"}).ok,
+          f"{who}: the expired share card approves nothing")
     ctl(S, AID, {"then": "ask_again"})
     mid = card({"method": "PATCH", "path": f"/tasks/{T4}"}, recommend="yes")
     aged(mid)
