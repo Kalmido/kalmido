@@ -339,12 +339,12 @@ def fs_chains(c, ids):
     return out
 
 
-def fs_roles_many(c, ids, uid):
+def fs_roles_many(c, ids, uid, chains=None):
     """2.546.0 (#4186): {nid: (in_trash, role)} for many nodes -- fs_deleted(fs_chain) and fs_role of each, with the chains
     and what fs_role reads per node fetched once for all of them (_FsPre). Nodes that do not exist: (False, None); in the trash: (True, None).
     The rules are fs_role's own (the same function runs per node), only the reads are shared. uid falsy (0 / None): only
     the trash is looked at, role None (no default to the signed-in person: bk_receipts' uid=0 means "all, for jobs")."""
-    chains = fs_chains(c, ids)
+    chains = fs_chains(c, ids) if chains is None else chains  # 2.1284.0 (#6453): given = read once for several people (agents/circle.py)
     pre = _FsPre({r["id"] for ch in chains.values() for r in ch})
     out = {}
     for i in {int(x) for x in ids if x}:

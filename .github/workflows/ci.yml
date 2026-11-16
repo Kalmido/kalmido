@@ -1003,6 +1003,11 @@ jobs:
         run: pip install --require-hashes -r tests/requirements.lock
       - name: install.sh (last release) -> data -> update.sh (this commit) -> checks
         run: python3 tools/install_upgrade_check.py run --ref "$GITHUB_SHA" --dir "$RUNNER_TEMP/kalmido-install" --out "$RUNNER_TEMP/upgrade-fixture"
+      - name: Every image of docker-compose.yml for linux/amd64 and linux/arm64
+        if: always()  # its own verdict, also when the update check above is red
+        # 2.1284.0 (#6606): clamav/clamav was amd64 only and a Raspberry Pi / ARM server stopped there; this runner is amd64,
+        # so the manifests are read instead of pulled (tools/install_upgrade_check.py arches)
+        run: python3 tools/install_upgrade_check.py arches
       - name: The old database (quarterly fixture for tests/fixtures/upgrade/)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

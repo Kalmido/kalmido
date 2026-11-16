@@ -23,6 +23,7 @@ from ..core.access import acx_task_ok, Denied, joined_lists_sql, list_people, li
 from ..core.access import tasks_visible  # 2.674.0 B (#4194)
 from ..core.access import otr_live  # 2.777.0 (#5378): the lists' trash condition of the core
 from ..core.pg import st_ids  # 2.674.0 B (#4194)
+from ..core.serializers import WK_MUTE  # 2.1284.0 (#6453, review G4): the job list hides what the progress line hides
 from ..core.state import visible_sections
 from ..tasks.oneway import dec_list
 from ..tasks.validation import valid_hm
@@ -1403,6 +1404,12 @@ def job_dict(c, j, names=None, pre=None):
         t = None  # 2.306.0 D3 (#2875): the task's title / list only for who sees the task (the job itself stays visible)
     if t and viewer and viewer == j["agent_id"] and not _jd_sees(c, j["task_id"], t["list_id"], j["agent_id"]):
         t = None  # 2.223.7 D (#2941): the agent no longer sees the task (share withdrawn): the job stays, without its title / list
+    if j["task_id"] and viewer and viewer not in (j["agent_id"], j["user_id"]) \
+            and any(j["task_id"] in fn(c, {j["task_id"]: j["agent_id"]}) for fn in WK_MUTE):
+        # 2.1284.0 (#6453, review G4): the job of a task in a wider / public place of the agent -- its title, name and log
+        # are the agent's words (POST /tasks/<id>/working, /agent/jobs), no channel of their own there (agents/circle.py
+        # wk_mute). The agent itself and the person the job is for read them as before.
+        j = {**{k: j[k] for k in j.keys()}, "title": "", "name": None, **({"log": ""} if "log" in j.keys() else {"log_last": "", "has_log": False})}
     return {"id": j["id"], "agent_id": j["agent_id"], "agent_name": names.get(j["agent_id"], ""), "task_id": j["task_id"],
             "task_title": t["title"] if t else None, "list_id": t["list_id"] if t else None, "user_id": j["user_id"],
             "title": j["title"], "state": j["state"], "action": j["action"], "action_by": j["action_by"],
@@ -1601,6 +1608,9 @@ def agent_is_ai(a):
     return not (a is not None and "ai" in a.keys() and a["ai"] is not None and int(a["ai"]) == 0)
 
 
+ST_MUTE = []  # 2.1284.0 (#6453, review G12): fn(c, agent row, viewer) -> True = the viewer does not read the agent's status text (agents/circle.py)
+
+
 def agent_public(c, a, uid=None, pre=None):
     """An agent as the people who share lists with it see it: status + their visible running / waiting jobs + unread chat.
     2.674.0 B (#4194): pre = ag_pre() of agents_for (what is asked per agent, read for all of them at once; same answers)."""
@@ -1615,6 +1625,10 @@ def agent_public(c, a, uid=None, pre=None):
         unread = c.execute("SELECT COUNT(*) FROM agent_chat WHERE agent_id=? AND user_id=? AND sender='agent' AND read_at IS NULL",
                            (a["user_id"], uid)).fetchone()[0] if uid else 0
     p = pre or {}
+    if a["status_text"] and uid is not None and any(fn(c, a, uid) for fn in ST_MUTE):
+        # 2.1284.0 (#6453, review G12): a team agent's own words (status text, the reason of a pause) only for a person who
+        # reads everything it reads; the status itself stays
+        a = {**{k: a[k] for k in a.keys()}, "status_text": "", "status_key": "", "status_key_at": ""}
     age = p["age"].get(a["user_id"]) if pre is not None else agent_contact_age(c, a)
     may_rt = (p["may_rt"](a) if pre is not None else may_set_runtime(c, a, uid)) if uid else False
     return {"id": a["user_id"], "username": a["username"], "name": a["display_name"] or a["username"],

@@ -809,6 +809,12 @@ logic (a task's placement in lists, a mail's text, an IMAP de-duplication ...). 
 A stage that takes a table or a function down takes its line out in the same commit; a line whose table or function is gone is
 red.
 
+Decided 16.11.2026 (2.1284.0, #6321): `wiki_embeds` (who brought which file store picture into a knowledge page) has a line
+there as the knowledge area's own logic. It is derived from the page text like `wiki_links` and is a record for the share check
+(`wkshare.py` `wsh_img_nodes`), not a link people make, see or undo. `obj_links` does not fit: its rows show in the link lists
+and to agents (`list_links`), come back from the trash unchanged, and cannot hold numbers the embedder does not see or that name
+no file.
+
 ### Reactions (stage Q1, 2.763.0, #5269)
 
 One table `obj_reactions(target_kind, target_id, user_id, emoji, created_at TIMESTAMPTZ)` holds every reaction; it replaced
