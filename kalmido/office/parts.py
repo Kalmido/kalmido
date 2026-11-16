@@ -645,16 +645,17 @@ def tp_sum_title(s, lang):
     return own or tr("Services|document", lg=lang)
 
 
-def tp_flat_items(c, oid, r, title=None):
+def tp_flat_items(c, oid, r, title=None, home=False):
     """2.1041.0 (#5817): the positions of an invoice from flat price quotation r (without parts): one position per tax rate with
     the quotation's net of that rate, titled like the summary of a quotation with parts (title, else tp_sum_title), the
     purchase on the first; in the home currency like inv_items_from_offer. Net and gross equal the quotation's.
-    2.1254.0 (#6299): a foreign currency = the bases the quotation computed there / its rate (was a run in EUR: cents off)."""
+    2.1254.0 (#6299): a foreign currency = the bases the quotation computed there / its rate (was a run in EUR: cents off);
+    home = the run in the home currency anyway (inv_items_from_offer)."""
     s = office_settings(c, oid)
     pack = office_pack_for(s, calc_tax_day(dict(r)))
     d = _calc_doc(r, hc_home(s))
     _h, _c, fx, foreign = calc_cur(d)
-    fx = fx if foreign else None
+    fx = fx if foreign and not home else None
     if fx is None:
         d["currency"] = d["home"]
     t = office_calc(d, doc_items(c, r["id"], oid), pack)
@@ -672,7 +673,7 @@ def tp_flat_items(c, oid, r, title=None):
                     "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1}]
 
 
-def tp_inv_items(c, oid, r, mode=None, title=None):
+def tp_inv_items(c, oid, r, mode=None, title=None, home=False):
     """The positions of an invoice from quotation r with parts (None: it has none). mode (else the office setting
     parts_invoice_mode, app default "full"): "title" = the title page with its positions, a part line becomes a position
     with its amount (one per tax rate when the part mixes rates); "summary" = one position per tax rate titled title (default
@@ -681,7 +682,8 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
     printed stays one line. Net and gross equal the quotation's in every mode. Rates in EUR like inv_items_from_offer.
     2.1254.0 (#6299): a quotation in a foreign currency: every amount the quotation computes (a part, its producing /
     surcharges / raw data / discount, a percent position, the bases of the summary) is taken as computed in that currency and
-    turned back into a home-currency rate (calc_home_rate); was a second run in EUR, converted by the invoice: cents off."""
+    turned back into a home-currency rate (calc_home_rate); was a second run in EUR, converted by the invoice: cents off.
+    home = the run in the home currency anyway (inv_items_from_offer: the bases of progress invoices)."""
     if not tp_has_parts(c, oid, r["id"]):
         return None
     s = office_settings(c, oid)
@@ -691,7 +693,7 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
         raise BadInput(tr("Invalid value: {0}", "mode"))
     items = doc_items(c, r["id"], oid)
     _h, _c, fx, foreign = calc_cur(_doc_calc(r, False, hc_home(s)))
-    fx = fx if foreign else None  # 2.1254.0 (#6299)
+    fx = fx if foreign and not home else None  # 2.1254.0 (#6299)
     t = tp_doc_totals(c, oid, r, items, pack, eur=fx is None, home=hc_home(s))  # 2.189.0 (#2475)
     calcs = t.pop("_part_calcs")
     lang = calc_lang(r["lang"])  # 2.185.0 C (#2520)

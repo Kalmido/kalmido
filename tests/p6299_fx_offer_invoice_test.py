@@ -11,7 +11,8 @@ such line's rate = its amount / the rate (calc_home_rate, like the deductions of
    hid it)
  - flat price quotations (one position per tax rate) and quotations with parts in all three invoice forms (summary / title /
    full, part quantities with halves), in USD, HUF and the home currency
- - home currency: the positions are exactly those of before (the reference below is the code of 2.1252.0)
+ - home currency: the positions are exactly those of before (the reference below is the code of 2.1252.0); so are the
+   home-currency bases of progress invoices of a foreign quotation (home=True, abschlag.py)
 Pure Python, no server: the functions are lifted from kalmido/office/invoices.py and parts.py with fictional data.
 usage: python3 tests/p6299_fx_offer_invoice_test.py   (KALMIDO_SRC=<dir with kalmido/> to test another tree)"""
 import ast
@@ -278,5 +279,18 @@ for k in range(300):
     dev += 0 if same(o, i) else 1
 check(bad == 0, f"home currency: 300 random quotations give exactly the positions of before, {bad} differ")
 check(dev == 0, f"home currency: invoice = quotation, {dev} deviate")
+
+# 2.1254.0 (#6299, review): the home-currency bases of a chain of progress invoices (abschlag.py, home=True) stay the run in the
+# home currency for a quotation in a foreign currency (back-converted rates gave 650 x 1.0837 x 3 days = 1,950.01, not 1,950.00)
+bad = 0
+for k in range(300):
+    r = rnd_doc(rng, rng.choice(["USD", "SEK", "HUF"]), round(rng.uniform(0.8, 420), 4))
+    r["producing_on"] = rng.choice([0, 1])
+    items = rnd_items(rng)
+    DB.update(items=items, settings={})
+    now = [(x["kind"], x.get("unit"), D(str(x.get("qty") if x.get("qty") is not None else 1)), D(str(x.get("rate") or 0)), x.get("tax"))
+           for x in inv_items_from_offer(None, 1, r, home=True)]
+    bad += 0 if now == old_items(r, items) else 1
+check(bad == 0, f"progress bases (home=True): 300 foreign quotations give the home-currency positions of before, {bad} differ")
 
 sys.exit(done("p6299_fx_offer_invoice"))

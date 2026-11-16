@@ -468,36 +468,40 @@ def _f2(name):
 
 
 # ---------------------------------------------------------------- making documents
-def _offer_lines(c, oid, r):
+def _offer_lines(c, oid, r, home=False):
     """(lines, fx) of quotation r for its invoice: the automatic lines (producing, surcharges, raw data, discount) as the
     quotation computed them. 2.189.0 (#2475): home currency = the calculator run in it (fx None, as before).
     2.1254.0 (#6299): a foreign currency = the run in the quotation's own currency and its rate (calc_home_rate turns each
-    amount back into a home-currency rate); was a second run in EUR, converted by the invoice: cents off the quotation."""
+    amount back into a home-currency rate); was a second run in EUR, converted by the invoice: cents off the quotation.
+    home = the run in the home currency anyway (the home-currency bases of progress invoices, abschlag.py)."""
     from .docs import _calc_doc, doc_items
     s = office_settings(c, oid)
     pack = office_pack_for(s, calc_tax_day(dict(r)))  # 2.531.0 (#4498)
     d = _calc_doc(r, hc_home(s))
     _home, _cur, fx, foreign = calc_cur(d)
+    foreign = foreign and not home
     if not foreign:
         d["currency"] = d["home"]
     return office_calc(d, doc_items(c, r["id"], oid), pack)["lines"], (fx if foreign else None)
 
 
-def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None):
+def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None, home=False):
     """The positions of an invoice from quotation r: every quotation line becomes a plain position with its amount (the
     producing / raw data / discount automation of the quotation is condensed into positions; an uncounted raw data option
     is left out). Rates stay in EUR; the invoice converts them with its own rate (2.1254.0, #6299: an automatic line of a
-    quotation in a foreign currency = its amount there / the rate, so the invoice's sums equal the quotation's)."""
+    quotation in a foreign currency = its amount there / the rate, so the invoice's sums equal the quotation's).
+    home = the positions of the run in the home currency (as before 2.1254.0): the home-currency net a chain of progress
+    invoices bills against (abschlag.py), so a running chain keeps its figures."""
     from .docs import doc_items
     from .parts import tp_flat_items, tp_inv_items  # 2.47.0 (#1215): a quotation with parts -> title page / summary / full (office/parts.py)
     flat = bool(_col(r, "flat_print"))  # 2.1041.0 (#5817): a flat price quotation: one position per tax rate (its summary form)
-    out = tp_inv_items(c, oid, r, parts_mode or ("summary" if flat else None), parts_title)
+    out = tp_inv_items(c, oid, r, parts_mode or ("summary" if flat else None), parts_title, home=home)
     if out is not None:
         return out
     if flat:
-        return tp_flat_items(c, oid, r, parts_title)
+        return tp_flat_items(c, oid, r, parts_title, home=home)
     items = doc_items(c, r["id"], oid)
-    lines, fx = _offer_lines(c, oid, r)
+    lines, fx = _offer_lines(c, oid, r, home)
     pct = {ln.get("id"): ln for ln in lines if ln.get("kind") == "item" and ln.get("pct") is not None}
     out = []
     for it in items:
