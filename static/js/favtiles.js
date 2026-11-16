@@ -44,6 +44,8 @@ function fv2_resLoad() {
   for (const [k, o] of Object.entries(d.items)) if (fv2_isObj(k) && o && typeof o === 'object' && typeof o.name === 'string' && typeof o.to === 'string') res[k] = o;
   if (!Object.keys(FV2.res).length) FV2.res = res;
 }
+// what a tile shows of every target, in a fixed order: the stored copy and the server's answer compare equal whatever else the answer carries
+const fv2_resNorm = res => JSON.stringify(Object.keys(res || {}).sort().map(k => { const o = res[k] || {}; return [k, o.name, o.label, o.to, o.ws || '', !!o.folder]; }));
 function fv2_resSave() {
   const items = {};  // only what a tile shows: name, kind, target, workspace
   for (const [k, o] of Object.entries(FV2.res || {})) if (o && typeof o === 'object') items[k] = {name: o.name, label: o.label, to: o.to, ws: o.ws, folder: o.folder};
@@ -242,7 +244,7 @@ async function fv2_fetch(force) {
   let changed = false;
   try {
     const j = await rawFetch('GET', '/api/favorites/targets'), res = j.items || {}, gone = j.gone || [];
-    fv2_resLoad(); changed = JSON.stringify(res) !== JSON.stringify(FV2.res) || JSON.stringify(gone) !== JSON.stringify(FV2.gone);
+    fv2_resLoad(); changed = fv2_resNorm(res) !== fv2_resNorm(FV2.res) || JSON.stringify(gone) !== JSON.stringify(FV2.gone);
     FV2.res = res; FV2.gone = gone; fv2_resSave();
   } catch { /* offline or an older server: the row stays as it is */ }
   FV2.busy = false;
