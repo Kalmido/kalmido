@@ -199,8 +199,8 @@ def skonto_fx():
     office(G)
     check(G.put(B + O + "/settings", json={"vat_basis": "soll"}).ok, "Gina: accrual basis")
     cl = client(G, "Gina Kunde USA")
-    # the rate in EUR: 920.3853 x 1.09 = 1003.24 USD
-    did = doc(G, cl, [{"title": "Film", "qty": 1, "rate": "920.3853"}], "USD", "1.09", {"skonto_pct": 2, "skonto_days": 10, "payment_days": 14})
+    # the rate in EUR: 920.4037 x 1.09 = 1003.24 USD
+    did = doc(G, cl, [{"title": "Film", "qty": 1, "rate": "920.4037"}], "USD", "1.09", {"skonto_pct": 2, "skonto_days": 10, "payment_days": 14})
     t = G.get(B + f"{D}/{did}").json()["totals"]
     check(t["gross"] == "1193.86", f"Gina: gross 1193.86 USD {t.get('gross')}")
     pay(G, did, "1169.98")
