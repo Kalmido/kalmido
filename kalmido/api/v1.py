@@ -1505,11 +1505,13 @@ def v1_task_update(tid):
     if not b:
         c.commit()  # 2.392.0 C (#3370): only the mark (2.392.2, #3365: or the delivery state)
         return jsonify(v1_one(c, tid))
-    if b.get("list_id") or b.get("parent_id"):
+    if b.get("list_id") or b.get("parent_id") or b.get("section_id"):
         from ..agents.safety import move_dst, move_gate
-        dst = move_dst(c, b)  # 2.1284.0 (#6453, review G1): a new parent moves the task into the parent's project
-        if dst:
-            move_gate(c, [(tid, dst)])  # 2.30.0 (#919): an agent moving it to other people waits for approval
+        # 2.1284.0 (#6453, review G1; Fable reader #4945 F1): every project the body names (parent, list_id, section) is a
+        # target - apply_update may drop a parent as a _prev conflict after this gate and move the task to list_id
+        moves = [(tid, d) for d in move_dst(c, b)]
+        if moves:
+            move_gate(c, moves)  # 2.30.0 (#919): an agent moving it to other people waits for approval (same list: skipped there)
     r = v1_call(task_update, tid, body={**b, "shift_chain": sc, **({"_prev": prev} if prev else {})})
     if rv and b.get("list_id"):
         v1_reviewer_set(c, tid, rid)
