@@ -70,14 +70,19 @@ function ul_rows() {
 function ul_rowHtml(r) {
   const meta = [ul_time(r.at), r.area ? histAreaName(r.area) : '', r.kind === 's' ? ul_dev(r.dev) : r.kind === 'l' ? tr('only this device') : ''].filter(Boolean).join(' · ');
   const tags = [ul_api(r) ? tr('Over an API key') : '', r.why, r.pend ? tr('waiting for the connection') : ''].filter(Boolean).join(' · ');
-  const btn = r.redo ? `<button type="button" class="btn sm" data-ul-redo="${r.g.id}"${UL.busy ? ' disabled' : ''}>${esc(tr('Redo'))}</button>`
-    : r.kind === 'q' ? '' : `<button type="button" class="btn sm" data-ul-go="${esc(r.key)}"${r.off || UL.busy ? ' disabled aria-disabled="true"' : ''}>${esc(tr('Back up to here'))}</button>`;
+  // 2.1257.0 (#6283): while a step runs (this list's or the arrows' HIST.busy) the buttons are off and say so -- ul_go would drop the click
+  const busy = ul_busy(), wait = busy ? ` disabled aria-disabled="true" title="${esc(tr('A step is still running'))}"` : '';
+  const btn = r.redo ? `<button type="button" class="btn sm" data-ul-redo="${r.g.id}"${/*html-ok*/ wait}>${esc(tr('Redo'))}</button>`
+    : r.kind === 'q' ? '' : `<button type="button" class="btn sm" data-ul-go="${esc(r.key)}"${/*html-ok*/ busy ? wait : r.off ? ' disabled aria-disabled="true"' : ''}>${esc(tr('Back up to here'))}</button>`;
   return `<li class="ulrow ul-${r.kind}${r.off ? ' uloff' : ''}${r.redo ? ' ulundone' : ''}" data-ul="${esc(r.key)}"><div class="ulmain"><span class="ullab">${esc(r.label || '')}</span>`
     + `${meta ? `<small class="ulmeta">${esc(meta)}</small>` : ''}${tags ? `<small class="ultag">${esc(tags)}</small>` : ''}</div>${btn}</li>`;
 }
+const ul_busy = () => UL.busy || HIST.busy;  // 2.1257.0 (#6283)
 function ul_inner() {
   const rows = ul_rows();
-  const note = UL.note ? `<p class="ulnote" role="status">${esc(UL.note)}</p>` : '';
+  // 2.1257.0 (#6283): while a step runs that is said (the note of an earlier run waits until it is done)
+  const note = ul_busy() ? `<p class="ulnote ulbusy" role="status">${esc(tr('A step is still running'))}</p>`
+    : UL.note ? `<p class="ulnote" role="status">${esc(UL.note)}</p>` : '';
   const err = UL.err ? `<p class="muted ulerr">${esc(UL.err)}</p>` : UL.items === null && S.me?.kind !== 'agent' ? `<p class="muted lempty">${esc(tr('Loading…'))}</p>` : '';
   const hid = UL.hidden ? `<p class="muted ulhid">${esc(trn('{0} step over an API key hidden', '{0} steps over API keys hidden', UL.hidden))}</p>` : '';  // 2.1175.0 (#6165)
   if (!rows.length) return note + err + (UL.items !== null || UL.err ? `<p class="muted ulempty">${esc(tr('Nothing to undo'))}</p>` : '') + hid;
@@ -190,7 +195,7 @@ async function ul_go(key) {
   ul_draw();
 }
 async function ul_redo(gid) {
-  if (UL.busy) return;
+  if (ul_busy()) return;
   UL.busy = true; UL.note = ''; ul_draw();
   try {
     const a = await api('POST', `/api/undo/${+gid}/redo`);
