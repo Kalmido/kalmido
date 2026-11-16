@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from flask import jsonify
 
 from ..core.config import app
+from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from ..core.i18n import tr
 from ..core.db import body
 from ..core.errors import BadInput
@@ -43,13 +44,19 @@ def mm_parse_md(text):
     return root
 
 
+MM_XML_ELEMENTS, MM_XML_LEVELS = 100_000, 200  # 2.1272.0 (#6422): what the reader builds at most (the walk cuts at MM_XML_DEPTH)
+
+
 def mm_xml(text):
-    if re.search(r"<!\s*(DOCTYPE|ENTITY)", text, re.I):
-        raise BadInput(tr("This file is not allowed (DOCTYPE / ENTITY)"))
+    """2.1272.0 (#6422): read by core/safexml.py -- no NUL, no DOCTYPE / ENTITY, the limits counted while reading."""
     try:
-        return ET.fromstring(text)
+        return safexml.sx_tree(text, max_bytes=4 * MM_TEXT_MAX, max_elements=MM_XML_ELEMENTS, max_depth=MM_XML_LEVELS)
+    except safexml.XmlRefused as e:
+        if e.reason in ("nul", "dtd"):
+            raise BadInput(tr("This file is not allowed (DOCTYPE / ENTITY)")) from None
+        raise BadInput(tr("The file could not be read")) from None
     except ET.ParseError:
-        raise BadInput(tr("The file could not be read"))
+        raise BadInput(tr("The file could not be read")) from None
 
 
 MM_XML_DEPTH = 40  # 2.49.0 review L5: deeper branches of an imported file are cut (no recursion error on hostile files)

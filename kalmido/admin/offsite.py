@@ -55,6 +55,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from flask import g, jsonify, request
 
+from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from ..core.access import Denied
 from ..core.config import app, COOKIE
 from ..core.i18n import N_, tr
@@ -504,7 +505,7 @@ class S3:
             if st != 200:
                 raise _status_err(st, raw)
             try:
-                root = ET.fromstring(raw)
+                root = _listing(raw)
             except ET.ParseError:
                 raise OffsiteError("http", "ListObjectsV2") from None
             pre = self.key("")
@@ -522,6 +523,19 @@ class S3:
         st, _, raw = self.call("DELETE", self.key(name))
         if st not in (200, 204):
             raise _status_err(st, raw)
+
+
+OFFSITE_XML_ELEMENTS, OFFSITE_XML_DEPTH = 200_000, 32  # a listing page: 1000 names with a handful of elements each
+
+
+def _listing(raw):
+    """2.1272.0 (#6422): the root element of a listing the store answered (S3 ListObjectsV2, WebDAV PROPFIND), read by
+    core/safexml.py: the store is a foreign server too -- no NUL, no DOCTYPE / ENTITY, the limits counted while reading.
+    Everything refused is ET.ParseError for the callers (an answer that is no listing)."""
+    try:
+        return safexml.sx_tree(raw, max_bytes=len(raw) + 1, max_elements=OFFSITE_XML_ELEMENTS, max_depth=OFFSITE_XML_DEPTH)
+    except safexml.XmlRefused as e:
+        raise ET.ParseError(e.reason) from None
 
 
 class WebDAV:
@@ -545,7 +559,7 @@ class WebDAV:
         if st != 207:
             raise _status_err(st)
         try:
-            root = ET.fromstring(raw)
+            root = _listing(raw)
         except ET.ParseError:
             raise OffsiteError("http", "PROPFIND") from None
         out = {}

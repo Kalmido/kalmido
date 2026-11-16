@@ -24,6 +24,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from ..core import mt940 as mt  # 2.299.0 A (#3190)
+from ..core.csvimport import camt_tree
 from ..core.i18n import tr
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
 from ..core.errors import BadInput
@@ -61,11 +62,9 @@ def cfb_camt_balances(text, home):
     """CAMT.052 / .053 text -> [{account, day, amount (signed Decimal), kind open|close}] in currency home. bnk_camt has read
     (and checked) the same text before; an unreadable document gives []."""
     from .bank import _kid, _kids, _local, _txt
-    if re.search(r"<!\s*(DOCTYPE|ENTITY)", text, re.I):
-        return []
     try:
-        root = ET.fromstring(re.sub(r"^\s*<\?xml[^>]*\?>", "", text.lstrip("﻿")).encode("utf-8"))
-    except (ET.ParseError, ValueError):
+        root = camt_tree(text)  # 2.1272.0 (#6422): the same reader as bnk_camt (core/safexml.py)
+    except (ET.ParseError, ValueError):  # XmlRefused is a ValueError
         return []
     out = []
     for st in root.iter():

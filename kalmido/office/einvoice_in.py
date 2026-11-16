@@ -15,13 +15,16 @@ ei_receipt(c, node, ws, inv, vat) -> 2.153.0 (#2055): in an office's documents s
 ei_receipt_late(c, nid)         -> 2.185.0 A (#2583): an e-invoice read before (before 2.153, moved into an office) made a receipt
 ei_rc_offer(c, m) / ei_take(c, node, m, uid) -> 2.185.0 A (#2583): the button "Add as receipt" (receipts/suggest.py)
 
-Safety: at most XML_MAX bytes; a DOCTYPE or an ENTITY is refused before parsing (like core/csvimport.py camt_rows: no
-entity expansion, no external references, no new dependency); the parse runs as a pull parser that stops beyond
-DEPTH_MAX levels or ELEMENTS_MAX elements; amounts are Decimal (never float) and at most AMOUNT_MAX; texts are cleaned
+Safety: at most XML_MAX bytes; the XML is read by core/safexml.py (2.1272.0, #6422: no NUL byte, no DOCTYPE / ENTITY
+anywhere and in any encoding, piece by piece, at most DEPTH_MAX levels and ELEMENTS_MAX elements) -- no entity expansion,
+no external references, no new dependency; a document's file is read once before that in a process of its own with a
+memory limit (ei_checked, like the PDF worker), so a file the reader misjudges only kills that process; amounts are Decimal (never float) and at most AMOUNT_MAX; texts are cleaned
 of control characters and cut to TEXT_MAX; at most LINES_MAX invoice lines are kept."""
 import base64
 import html
+import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -32,6 +35,14 @@ try:  # 2.369.5 (#2517): pulled up from functions; #3506: guarded, the reader is
     from .model import office_on, pb_personal
 except ImportError:  # loaded as a single file (tests, no package): no PDF worker, no office lookup
     PDF_MEM = PDF_SECONDS = PDF_WAIT = _SEM = office_on = pb_personal = None
+
+try:  # 2.1272.0 (#6422): the one reader for foreign XML; loaded by its path when this file is loaded on its own
+    from ..core import safexml
+except ImportError:
+    _sx = importlib.util.spec_from_file_location(
+        "kalmido_safexml", os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "core", "safexml.py"))
+    safexml = importlib.util.module_from_spec(_sx)
+    _sx.loader.exec_module(safexml)
 
 try:
     from ..core.i18n import lang, N_, tr
@@ -98,33 +109,20 @@ def _tree(data):
         raise EinvoiceError(tr("The e-invoice is larger than {0} MB and is not read", XML_MAX // (1024 * 1024)))
     if not data.strip():
         raise EinvoiceError(tr("The file is not an e-invoice"))
-    text = _decode(bytes(data))
-    if re.search(r"<!\s*(DOCTYPE|ENTITY)", text, re.I):
-        raise EinvoiceError(tr("The file contains a DOCTYPE or an ENTITY and is not read"))
-    text = re.sub(r"^\s*<\?xml[^>]*\?>", "", text.lstrip("﻿"))
-    p = ET.XMLPullParser(events=("start", "end"))
-    depth = count = 0
-    root = None
     try:
-        raw = text.encode("utf-8")
-        for i in range(0, len(raw), 65536):
-            p.feed(raw[i:i + 65536])
-            for ev, el in p.read_events():
-                if ev == "start":
-                    depth += 1
-                    count += 1
-                    if root is None:
-                        root = el
-                    if depth > DEPTH_MAX or count > ELEMENTS_MAX:
-                        raise EinvoiceError(tr("The e-invoice is too large or too deeply nested and is not read"))
-                else:
-                    depth -= 1
-        p.close()
+        # the text is decoded already (BOM, declared encoding); re-encoded as UTF-8 it may be longer than the file
+        return safexml.sx_tree(_decode(bytes(data)), max_bytes=3 * XML_MAX, max_elements=ELEMENTS_MAX, max_depth=DEPTH_MAX)
+    except safexml.XmlRefused as e:
+        raise _refused(e.reason) from None
     except ET.ParseError:
         raise EinvoiceError(tr("The e-invoice cannot be read (broken XML)")) from None
-    if root is None:
-        raise EinvoiceError(tr("The file is not an e-invoice"))
-    return root
+
+
+def _refused(reason):
+    """The EinvoiceError of a reason of core/safexml.py (or of the check in its own process)."""
+    if reason in ("nul", "dtd"):  # NUL: UTF-16 / UTF-32 without a byte order mark, where a DOCTYPE hides from a text search
+        return EinvoiceError(tr("The file contains a DOCTYPE or an ENTITY and is not read"))
+    return EinvoiceError(tr("The e-invoice is too large or too deeply nested and is not read"))
 
 
 def _kid(el, *path):
@@ -419,6 +417,64 @@ print(json.dumps(out))
 """
 
 
+# 2.1272.0 (#6422): the XML is read once in a process with the limits of the PDF worker before this process builds its
+# tree: what the reader should ever misjudge (a new way to make a small file large) ends that process, not the app.
+XML_WORKER = r"""
+import importlib.util, json, resource, sys
+def lim(k, v):
+    try:
+        resource.setrlimit(k, (v, v))
+    except (ValueError, OSError):
+        pass
+MEM, CPU, CAP, ELEMENTS, DEPTH = (int(x) for x in sys.argv[1:6])
+lim(resource.RLIMIT_AS, MEM)
+lim(resource.RLIMIT_CPU, CPU)
+lim(resource.RLIMIT_FSIZE, 0)
+lim(resource.RLIMIT_CORE, 0)
+if hasattr(resource, "RLIMIT_NPROC"):
+    lim(resource.RLIMIT_NPROC, 0)
+spec = importlib.util.spec_from_file_location("safexml", sys.argv[6])
+sx = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(sx)
+try:
+    sx.sx_check(sys.stdin.buffer.read().decode("utf-8"), max_bytes=CAP, max_elements=ELEMENTS, max_depth=DEPTH)
+    out = {"ok": True}
+except sx.XmlRefused as e:
+    out = {"refused": e.reason}
+except MemoryError:
+    out = {"refused": "memory"}
+except Exception:
+    out = {"refused": "broken"}
+print(json.dumps(out))
+"""
+
+
+def ei_checked(data):
+    """Reads an e-invoice XML (bytes) once in a limited process: None when it is fine, else the reason ("nul", "dtd",
+    "size", "elements", "depth", "broken", "memory"; "worker" = the process died, ran out of time or no place was free). Loaded as
+    a single file (no worker) it answers None: the reader in this process holds the same limits."""
+    if _SEM is None:
+        return None
+    if not isinstance(data, (bytes, bytearray)) or len(data) > XML_MAX:
+        return "size"
+    text = _decode(bytes(data)).encode("utf-8", "replace")
+    if not _SEM.acquire(timeout=PDF_WAIT * 5):
+        return "worker"
+    try:
+        p = subprocess.run([sys.executable, "-I", "-c", XML_WORKER, str(PDF_MEM), str(PDF_SECONDS), str(3 * XML_MAX), str(ELEMENTS_MAX),
+                            str(DEPTH_MAX), os.path.abspath(safexml.__file__)],
+                           input=text, capture_output=True, timeout=PDF_SECONDS, close_fds=True,
+                           env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"})
+        out = json.loads(p.stdout.decode("utf-8", "replace") or "null") if p.returncode == 0 else None
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        out = None
+    finally:
+        _SEM.release()
+    if not isinstance(out, dict):
+        return "worker"
+    return None if out.get("ok") is True else str(out.get("refused") or "worker")
+
+
 def ei_from_pdf(data, owner=None):
     """The e-invoice XML embedded in a PDF (bytes) or None. Only PDFs that carry an embedded file are opened."""
     if not data or not bytes(data[:1024]).lstrip().startswith(b"%PDF") or b"/EmbeddedFile" not in data:
@@ -455,6 +511,10 @@ def ei_of_file(name, mime, data, owner=None):
         xml = data if ei_is(data) else None
         src = "xml" if xml else None
     if not xml:
+        return None
+    why = ei_checked(xml)  # 2.1272.0 (#6422): first in a process with a memory limit
+    if why:
+        print("docs: e-invoice not read:", why, flush=True)
         return None
     try:
         inv = ei_parse(xml)
