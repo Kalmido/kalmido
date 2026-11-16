@@ -20,8 +20,16 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
   const r = await fetch(B + 'api/auth/setup', {method: 'POST', headers: H, body: JSON.stringify({username: 'alice', display_name: 'Alice', password: 'password123', wizard: true, lang: 'en'})});
   check(r.ok, 'setup');
   const CA = await login('alice');  // the other device
-  await call(CA, 'POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['comments']});
-  await call(CA, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'comments,collab,cal,events'});
+  await call(CA, 'POST', '/api/admin/setup', {org_name: 'Alpha', lang: 'en', collab_all: true, modules: ['comments']});
+  await call(CA, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'comments,collab,cal,events,team'});
+  const ORG = ((await call(CA, 'GET', '/api/state')).me?.workspaces || [])[0]?.id;
+  const BOB = (await call(CA, 'POST', '/api/users', {orgs: ORG ? [ORG] : [], username: 'bob', display_name: 'Bob', password: 'password123', email: 'bob@example.com'})).id;
+  const CB = await login('bob');
+  await call(CB, 'PATCH', '/api/settings', {lang: 'en', tour: 'done'});
+  const LB = (await call(CA, 'POST', '/api/lists', {name: 'With Bob'})).id;
+  await call(CA, 'PUT', `/api/lists/${LB}/members`, {user_id: BOB, role: 'edit'});  // people who work together
+  const dm = await call(CA, 'POST', '/api/team/dm', {user_id: BOB}), DM = dm.id;
+  if (!DM) console.log('team dm:', JSON.stringify(dm), 'org', ORG, 'bob', BOB);
   const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
   const W = (await call(CA, 'POST', '/api/evcals', {name: 'Work', color: '#2dd4bf'})).id;
   const EV = (await call(CA, 'POST', '/api/events', {title: 'Standup', cal_id: W, start: `${day(0)}T09:00`, end: `${day(0)}T09:15`})).id;
@@ -160,6 +168,26 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
         check(await ready(`document.querySelector('#view')?.textContent.includes('${title}')`, 40), `B4 ${hash}: the open view shows the other device's change`);
       }
       await shot('p21264c-b4-today.png');
+    }
+
+    // ================= #6335 B6 the team chat's signal is taken only once it was handled
+    S6335B6: {
+      check(!!DM, 'B6: a direct conversation with bob'); if (!DM) break S6335B6;
+      await ev(`(() => { location.hash = '#l/${L}'; return 1; })()`);
+      await ready(`S.route.mod === 'tasks' && S.teamSig !== undefined`, 40);
+      await caught();
+      const u0 = await ev(`S.team?.unread || 0`);
+      // alice types (the task's title has the focus) while bob writes
+      await ev(`(() => { openDetail(${T}); return 1; })()`);
+      await ready(`S.sel === ${T} && !!document.querySelector('#d-title')`, 20);
+      await focus('#d-title');
+      await call(CB, 'POST', `/api/team/rooms/${DM}/messages`, {body: 'Coffee at three?'});
+      const t1 = await ev(`Date.now()`);
+      check(await ready(`editing() && S.syncOk > ${t1} && !td_polling`, 40), 'B6: a poll ran while alice types ' + await ev(`JSON.stringify({ed: editing(), act: document.activeElement?.id})`));
+      await leave('#d-title');
+      await ev(`(() => { closeDetail(); return 1; })()`);
+      // the next poll takes the waiting signal (not the bundled follow-up 15 s later)
+      check(await ready(`(S.team?.unread || 0) > ${u0}`, 28), 'B6: after typing the team chat shows the new message (unread) ' + await ev(`JSON.stringify({u: S.team?.unread, sig: S.teamSig, lpT: !!lpT})`));
     }
   }, true);
 

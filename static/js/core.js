@@ -1641,10 +1641,12 @@ setInterval(async () => {
     if (sp !== undefined && sp !== S.stepsSig) { const first = S.stepsSig === undefined; S.stepsSig = sp; if (!first) stepsChanged(); }  // 2.32.0 (#1081)
     verCheck(app);  // 2.27.0 (#968)
     if (ty !== undefined) { const sig = JSON.stringify(ty); if (sig !== S.ctypingSig) { S.ctypingSig = sig; S.ctyping = ty; if (S.sel) agentLive(); } }  // 2.22.0 (#693)
-    if (t !== undefined && t !== S.teamSig) { const first = S.teamSig === undefined && S.route?.mod !== 'team'; S.teamSig = t; if (!first && (!editing() || ['tc-in', 'ms-q'].includes(document.activeElement?.id))) teamChanged(); }  // 2.17.0 (#419); 2.82.0 (#1862): typing a new message / search still takes live changes (tcPatch leaves those fields alone; an inline edit .tc-edit would be redrawn)  // 2.145.0 B (#2424): an open conversation takes the first poll too (a message sent in the window's first seconds came only with the next one)
-    if (c !== undefined && c !== S.calSig) {  // calendar subscriptions synced / changed: fetch the shown range again
+    // 2.1264.0 (#6335 B6): a signal counts as taken only once it was handled - typing elsewhere left it set but unhandled, so the
+    // team chat (unread counts, the open conversation) waited for the next message after the typing; now the next poll takes it
+    if (t !== undefined && t !== S.teamSig) { const first = S.teamSig === undefined && S.route?.mod !== 'team'; if (first) S.teamSig = t; else if (!editing() || ['tc-in', 'ms-q'].includes(document.activeElement?.id)) { S.teamSig = t; teamChanged(); } }  // 2.17.0 (#419); 2.82.0 (#1862): typing a new message / search still takes live changes (tcPatch leaves those fields alone; an inline edit .tc-edit would be redrawn)  // 2.145.0 B (#2424): an open conversation takes the first poll too (a message sent in the window's first seconds came only with the next one)
+    if (c !== undefined && c !== S.calSig && !(S.calSig !== undefined && calEvOn() && editing())) {  // calendar subscriptions synced / changed: fetch the shown range again; 2.1264.0 (#6335 B6): while typing the signal waits (taken when handled)
       const first = S.calSig === undefined; S.calSig = c;
-      if (!first && calEvOn() && !editing()) { calInvalidate(); if (S.route.mod === 'cal' || S.route.key === 'today') renderView(); }
+      if (!first && calEvOn()) { calInvalidate(); if (S.route.mod === 'cal' || S.route.key === 'today') viewSafeRender(); }
     }
     const chg = v !== S.v || (n !== undefined && collab() && n !== S.news?.sig);
     // 2.41.0 (#1376): only light areas: their parts, the rest bundled; 2.42.0 (#1376): the tasks area: only the changed tasks (delta)
