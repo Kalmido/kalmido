@@ -171,7 +171,7 @@ def rates_and_currency(s, who):
     check(Decimal(kpi_month(s)) - k0 == Decimal("100.00"), f"{who}: key figures of the old invoice: net / gross as before {Decimal(kpi_month(s)) - k0}")
     # #6456: USD at 1.09, one rate, three parts
     usd = doc(s, cl, [{"title": "Edit", "qty": 1, "rate": USD10}], "USD", "1.09")
-    check(dbxm.q(DATA, "SELECT totals FROM office_docs WHERE id=?", (usd,))[0][0].count('"gross": "11.90"') == 1, f"{who}: the USD invoice is 10.00 + 1.90 = 11.90 USD")
+    check(json.loads(dbxm.q(DATA, "SELECT totals FROM office_docs WHERE id=?", (usd,))[0][0]).get("gross") == "11.90", f"{who}: the USD invoice is 10.00 + 1.90 = 11.90 USD")
     pay(s, usd, "3.97", "3.97", "3.96")
     e3 = euer_rows(s)
     check(delta(e2, e3, "vat19") == (Decimal("9.18"), Decimal("1.74"), Decimal("10.92")),
