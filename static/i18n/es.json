@@ -18777,5 +18777,6 @@
   "The contact could not be saved": "No se pudo guardar el contacto",
   "Contacts could not be loaded": "No se pudieron cargar los contactos",
   "No contacts yet": "Aún no hay contactos",
-  "Add one, import a vCard or CSV file, or connect the phone.": "Crea uno, importa un archivo vCard o CSV, o conecta el móvil."
+  "Add one, import a vCard or CSV file, or connect the phone.": "Crea uno, importa un archivo vCard o CSV, o conecta el móvil.",
+  "Only the person who made the link or an admin may change its pictures.": "Solo quien creó el enlace o un administrador puede cambiar sus imágenes."
 }

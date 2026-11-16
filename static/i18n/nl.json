@@ -18777,5 +18777,6 @@
   "The contact could not be saved": "Het contact kon niet worden opgeslagen",
   "Contacts could not be loaded": "De contacten konden niet worden geladen",
   "No contacts yet": "Nog geen contacten",
-  "Add one, import a vCard or CSV file, or connect the phone.": "Voeg er een toe, importeer een vCard- of CSV-bestand of koppel de telefoon."
+  "Add one, import a vCard or CSV file, or connect the phone.": "Voeg er een toe, importeer een vCard- of CSV-bestand of koppel de telefoon.",
+  "Only the person who made the link or an admin may change its pictures.": "Alleen wie de link heeft gemaakt of een beheerder kan de afbeeldingen ervan wijzigen."
 }
