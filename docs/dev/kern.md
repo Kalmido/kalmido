@@ -1474,5 +1474,6 @@ Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open lis
 messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open space / folder / document) and
 contacts (rows, card, address books, panel spaces). 2.1224.0: tables (#6186: cards, folder cards, group headings, panel, the
 open table via `wso_open('sheets', …)`), time tracking (#6187: entries, report lines, timesheet card), the palette / search
-hits, the trash, news, project group heads and favourite agents (#6188). Still to follow as its own task (#6180: office and
-clients). Tests: `tests/p21205_b_orgcolor_ui.js`, `tests/p21241_orgcolor_areas_ui.js`, `tests/p21224_a_orgcolor_ui.js`.
+hits, the trash, news, project group heads and favourite agents (#6188). 2.1254.0 (#6180): the office (badge `wsp_attr`, every page and the open quotation / invoice via
+`wso_open('office')`, the overview rows of `spo_html` for every area) and the clients (rows, origin under "All", open card).
+Tests: `tests/p21254_c_orgfarbe_ui.js`, `tests/p21205_b_orgcolor_ui.js`, `tests/p21241_orgcolor_areas_ui.js`, `tests/p21224_a_orgcolor_ui.js`.
