@@ -290,6 +290,10 @@ p = plan_of()
 check("hooked 1" in out and "Traceback" not in out, "(race) the tick ran with the lock between its read and its step " + out[-300:])
 check(bool(p.get("admin")) and not p.get("reminded") and not p.get("toks") and bool(toks0),
       f"(race) a lock between the tick's read and its reminder: the lock stays noted, no reminder, no new cancel link {p}")
+# the cancel link checked its token on the row before the lock: the link ends anyway (the deletion stays)
+out = py_in_app("print('lift', S._lift(c, FID, by_token=True))")
+check("lift (False, False)" in out and dbx("SELECT disabled, delete_at IS NOT NULL FROM users WHERE id=?", (FID,))[0] == (1, True),
+      "(race) the cancel link after the lock: refused, the deletion stays planned, the account stays locked " + out[-300:])
 # the final run reads the row, the admin locks while it runs, the run waits: its note of the try keeps the lock
 check(unlock() and login(B, "frida").post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok and not plan_of().get("admin"),
       "(race) asked again for the final run, no lock noted")
