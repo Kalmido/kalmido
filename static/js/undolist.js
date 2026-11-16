@@ -72,8 +72,8 @@ function ul_rowHtml(r) {
   const tags = [ul_api(r) ? tr('Over an API key') : '', r.why, r.pend ? tr('waiting for the connection') : ''].filter(Boolean).join(' · ');
   // 2.1257.0 (#6283): while a step runs (this list's or the arrows' HIST.busy) the buttons are off and say so -- ul_go would drop the click
   const busy = ul_busy(), wait = busy ? ` disabled aria-disabled="true" title="${esc(tr('A step is still running'))}"` : '';
-  const btn = r.redo ? `<button type="button" class="btn sm" data-ul-redo="${r.g.id}"${wait}>${esc(tr('Redo'))}</button>`
-    : r.kind === 'q' ? '' : `<button type="button" class="btn sm" data-ul-go="${esc(r.key)}"${busy ? wait : r.off ? ' disabled aria-disabled="true"' : ''}>${esc(tr('Back up to here'))}</button>`;
+  const btn = r.redo ? `<button type="button" class="btn sm" data-ul-redo="${r.g.id}"${/*html-ok*/ wait}>${esc(tr('Redo'))}</button>`
+    : r.kind === 'q' ? '' : `<button type="button" class="btn sm" data-ul-go="${esc(r.key)}"${/*html-ok*/ busy ? wait : r.off ? ' disabled aria-disabled="true"' : ''}>${esc(tr('Back up to here'))}</button>`;
   return `<li class="ulrow ul-${r.kind}${r.off ? ' uloff' : ''}${r.redo ? ' ulundone' : ''}" data-ul="${esc(r.key)}"><div class="ulmain"><span class="ullab">${esc(r.label || '')}</span>`
     + `${meta ? `<small class="ulmeta">${esc(meta)}</small>` : ''}${tags ? `<small class="ultag">${esc(tags)}</small>` : ''}</div>${btn}</li>`;
 }
