@@ -1553,10 +1553,14 @@ def _md_parse(text, plan, name, ext0, heads_as_lists=True, src="markdown"):
             body = m.group(3) if boxes else m.group(2)
             while stack and stack[-1][0] >= ind:
                 stack.pop()
-            parent = stack[-1][1] if stack else None
             title, ex = _md_title(body)
+            deep = len(stack) >= MAX_DEPTH
+            if deep:  # 2.1300.0 (#6652): deeper lines hang below the deepest allowed level -- the stack (and the chain of
+                stack.pop()  # titles below) never holds more than MAX_DEPTH levels, however deep the file is indented
+                imp_warn(plan, N_("Nested deeper than {0} levels, moved up"), title, MAX_DEPTH)
+            parent = stack[-1][1] if stack else None
             L = cur()
-            chain = "/".join(p[1]["title"] for p in stack)
+            chain = "/".join(p[1]["title"] for p in stack)  # at most MAX_DEPTH - 1 titles: the same keys as before up to that depth
             k = (L["name"], section, chain, title)
             seen[k] = seen.get(k, 0) + 1
             t = imp_task(L, imp_hash(ext0, L["name"], section, chain, title, seen[k]), title or tr("(untitled)"), section=section,
