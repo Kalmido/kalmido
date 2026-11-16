@@ -35,6 +35,8 @@ from ..core.errors import BadInput, BadKey
 from ..core.i18n import BG_LANG, N_, lang, tr_stored
 from ..core.pg import system_ctx
 from ..core.serializers import unlink_files
+from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
+from ..api.common import import_upload_rate  # 2.1282.0 (#6426)
 from ..accounts.session import me
 from ..wiki import wikiatt
 from ..wiki.pages import wiki_space
@@ -209,8 +211,13 @@ def wki_run(uid, iid):
                 last[0] = time.monotonic()
                 _set(uid, iid, progress=dict(prog))
         try:
-            z = zipfile.ZipFile(io.BufferedReader(UmzReader(path, key, st["size"]), UMZ_BLOCK))
+            src = io.BufferedReader(UmzReader(path, key, st["size"]), UMZ_BLOCK)
+            # 2.1282.0 (#6426): before zipfile builds an object per entry (folders and the packing system's files count too)
+            zip_guard(src, WKI_MAX_FILES * wikiatt.WKA_ENTRIES_PER_FILE)
+            z = zipfile.ZipFile(src)
             infos = [i for i in z.infolist() if not i.is_dir()]
+        except ZipOver:
+            raise BadKey(N_("Too many files (at most {0})"), WKI_MAX_FILES)
         except (zipfile.BadZipFile, ValueError, OSError):
             raise BadKey(N_("This is not a ZIP file"))
         prog["total"] = len(infos)
@@ -290,6 +297,7 @@ def wki_new():
     wke_guard(c, oid, uid, kind="import")
     if size > WKI_MAX_MB * 1024 * 1024:
         return err(tr("The file is too large (at most {0} MB)", WKI_MAX_MB), 413)
+    import_upload_rate(uid)  # 2.1282.0 (#6426)
     quota_guard(c, uid, size)  # the files in it count against the storage (checked again per file in the run)
     if not umz_space_ok(WKI_DIR, size * 2):
         return err(tr("There is not enough space on the server for the import. Please ask the server admin."), 507)

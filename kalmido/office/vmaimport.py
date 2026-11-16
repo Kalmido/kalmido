@@ -31,6 +31,7 @@ from ..core.i18n import N_, tr
 from ..core.orgcrypt import oc_enc_fields
 from ..core.pg import insert_id, write_lock
 from ..core.errors import BadInput
+from ..core.zipread import zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from .calc import dstr, money
 from .legacyimport import fx_run, fx_settle  # 2.363.2 (#3104)
 from .vma import VMA_HOME, VMA_NAMES, vma_dates, vma_places, vma_rate, vma_table_year, vma_trip
@@ -114,6 +115,7 @@ def vmi_xlsx(raw):
     if not raw.startswith(b"PK"):
         raise BadInput(bad)
     try:
+        zip_guard(raw, 2000)  # 2.1282.0 (#6426): the limit below, before zipfile builds an object per entry (ZipOver / ZipBad: ValueError)
         z = zipfile.ZipFile(io.BytesIO(raw))
         names = set(z.namelist())
     except (zipfile.BadZipFile, ValueError):

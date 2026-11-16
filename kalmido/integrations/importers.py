@@ -32,6 +32,7 @@ from ..tasks.validation import (
 )
 from ..tasks.tasks import set_tags
 from ..core.errors import BadInput, UnknownFields
+from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from ..api.common import act_via, hit_limit  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.listtrash import otr_trash  # 2.272.0 C (#3027)
 from ..collab.liste2e import le2e_mode
@@ -262,8 +263,11 @@ def imp_zip(data, exts, full=False, shared=None):
     """Members of a ZIP (read in memory, never extracted to disk) with the given extensions: [(name, bytes)].
     Guards: member count, total and per-member size (declared AND actually read), compression ratio."""
     try:
+        zip_guard(data, IMPORT_ZIP_MEMBERS)  # 2.1282.0 (#6426): before zipfile builds an object per entry
         zf = zipfile.ZipFile(io.BytesIO(data))
         infos = zf.infolist()
+    except ZipOver:
+        imp_fail(N_("The ZIP file contains too many files"))
     except (zipfile.BadZipFile, ValueError, OSError):
         imp_fail(N_("The ZIP file could not be read"))
     if len(infos) > IMPORT_ZIP_MEMBERS:

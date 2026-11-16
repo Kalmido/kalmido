@@ -36,6 +36,7 @@ from ..office.legacyimport import _col_index, _local, _rels, _xml, xl_events, xl
 from ..personal.timetrack import _csv_cell
 from ..core.serializers import csv_uncell  # 2.273.0 D (#3051)
 from ..core.errors import BadInput
+from ..core.zipread import zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from .shkinds import shk_export, shk_guess  # 2.124.0 B (#2110)
 from .core import (SH_COLS_MAX, SH_ROWS_MAX, ShBook, _write_cells, sh_brief, sh_create, sh_currency, sh_eval, sh_need, sh_options,
                    sh_reload, sh_to_display, sh_to_internal, sh_touch)
@@ -632,6 +633,7 @@ def _shx_first(raw):
     if not raw.startswith(b"PK"):
         raise BadInput(tr("This is not a spreadsheet file (.xlsx)"))
     try:
+        zip_guard(raw, 2000)  # 2.1282.0 (#6426): the limit below, before zipfile builds an object per entry (ZipOver / ZipBad: ValueError)
         z = zipfile.ZipFile(io.BytesIO(raw))
         names = set(z.namelist())
     except (zipfile.BadZipFile, ValueError):
