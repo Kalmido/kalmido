@@ -1725,11 +1725,14 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
     ov_hint = pdf_wrap(L["ov_hint"].format(99), FS_SMALL, PDF_CW)
     ov_hint_at = []
 
+    # 2.1299.0 (#6647): about one line of air between the rule of the row above and the hint (was 10 pt, or none without overview)
+    OV_HINT_GAP = 17
+
     def draw_ov_hint(p, y):
-        ov_hint_at.append((p, y))
+        ov_hint_at.append((p, y + OV_HINT_GAP))
     pp_on = [x["part_id"] for x in lines if x.get("part_id") in pp_ids and (x.get("kind") or "item") == "item"]
     if pp_on:
-        block(8 + len(ov_hint) * pdf_fs(8.6) * 1.45, draw_ov_hint, keep_prev=True)
+        block(OV_HINT_GAP + len(ov_hint) * pdf_fs(8.6) * 1.45, draw_ov_hint, keep_prev=True)
 
     # -- totals block (right column) + VAT note (left column); never alone on a page
     tot = m.get("totals") or {}
@@ -2300,7 +2303,7 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
                 p.line(PDF_L, y + hr - 0.5, PDF_L + PDF_CW, y + hr - 0.5, 0.5, C_RULE2)
             slots.append((hr, draw_ov_row, q == len(ov_rows) - 1))
         slots.append((sum_h, draw_sum, True))
-        slots.append((10 + len(ov_hint) * pdf_fs(8.6) * 1.45, lambda p, y: draw_ov_hint(p, y + 10), False))
+        slots.append((OV_HINT_GAP + len(ov_hint) * pdf_fs(8.6) * 1.45, draw_ov_hint, False))
         for b_, (h_, fn_, kn_) in zip(blocks[ov_first:ov_after], slots):
             b_.update(h=h_, draw=fn_, keep_next=kn_)
         blocks[ov_after]["brk"] = True
