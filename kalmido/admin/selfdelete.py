@@ -40,13 +40,15 @@ from ..accounts.bgjobs import BGJ_FNS, bgj_add
 from ..accounts.login import _reauth, rc_use, totp_match, unseal
 from ..accounts.session import _DUMMY_HASH, _rate_fail, _rate_keys, _token_hash, login_wait, rate_ip, login_name_in
 from ..accounts.sessions import ses_end
-from ..notify.push import WD_TICKS
+from ..notify.push import WD_TICKS, notify, push_prio, push_reachable  # 2.1298.0 (#6395): + the push of a held deletion
+from ..collab.comments import lang_of  # 2.1298.0 (#6395)
 from ..notify.alerts import aa_now
 from ..core.access import my_inbox
 from ..lists.lists import list_purge
 from ..accounts.orglists import _ol_people  # 2.1151.0 D (#4562)
 from ..collab.news import KIND_ROW
 from ..core.objnotify import obj_notify
+from ..core.objhooks import NOTIFY_READERS  # 2.1298.0 (#6395)
 from ..lists.ownership import owner_candidates, owner_transfer
 from ..accounts.users import _active_admins, need_admin, user_delete_run
 from ..accounts.delhold import SDL_HELD, sdl_hold_until  # 2.1298.0 (#6395)
@@ -555,28 +557,21 @@ def sdl_hold_tell(c, uid, now):
         c.rollback()
         return None
     st, until = stage[0]
-    from ..collab.news import news_add, notif_ok
-    from ..collab.comments import lang_of
-    from ..notify.push import notify, push_prio, push_reachable
-    from ..core.db import usettings
     with system_ctx(c):  # the watchdog, nobody signed in: the admins of the server and the account's name (no content)
         u = c.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
-        # the admins whose user management holds the account (users.om_admin_all): every one for an account outside all
-        # organisations, else those who share an organisation with it (its own admins decide on the others; the hoster too)
-        ops = [r[0] for r in c.execute("""SELECT a.id FROM users a WHERE a.is_admin AND NOT a.disabled AND COALESCE(a.kind, 'user')<>'agent'
-                                            AND a.id<>? AND (NOT EXISTS (SELECT 1 FROM org_members WHERE user_id=?)
-                                                 OR EXISTS (SELECT 1 FROM org_members x JOIN org_members y ON y.org_id=x.org_id
-                                                            WHERE x.user_id=a.id AND y.user_id=?)) ORDER BY a.id""", (uid, uid, uid)).fetchall()]
+        ops = [r[0] for r in c.execute("SELECT id FROM users WHERE is_admin AND NOT disabled AND COALESCE(kind, 'user')<>'agent' AND id<>? "
+                                       "ORDER BY id", (uid,)).fetchall()]
     data = {"user_id": uid, "username": u["username"] if u else "", "until": iso(until), "stage": st}
+    # the core's send decision: the reader rule below (_hold_reader: the admins whose user management holds the account), the
+    # News entry, then the row "usage" of the notification settings for the push (like a registration that waits)
+    got = obj_notify(c, "delhold", uid, ops, row="usage", push=True, news={"kind": "delhold", "data": data, "actor": uid},
+                     gate=lambda aid, s: push_reachable(c, aid, s))
     pushes = []
-    for aid in ops:
-        s = usettings(c, aid)
-        news_add(c, aid, "delhold", data=data, actor=uid, s=s)
-        if notif_ok(c, aid, s, "usage", "push") and push_reachable(c, aid, s):
-            lg = lang_of(s)
-            pushes.append((aid, tr("Account deletion on hold: {0}", data["username"], lg=lg),
-                           tr("Release or reject it by {0}; without a decision it runs then.", _when(iso(until), lg), lg=lg),
-                           push_prio(s), s))
+    for aid, s in sorted(got.items()):
+        lg = lang_of(s)
+        pushes.append((aid, tr("Account deletion on hold: {0}", data["username"], lg=lg),
+                       tr("Release or reject it by {0}; without a decision it runs then.", _when(iso(until), lg), lg=lg),
+                       push_prio(s), s))
     c.commit()
     for aid, title, msg, prio, s in pushes:
         try:
@@ -584,6 +579,20 @@ def sdl_hold_tell(c, uid, now):
         except Exception as e:  # noqa: BLE001 - a push never stops the tick
             print("account deletion hold: push not sent:", db_log_err(e), flush=True)
     return st
+
+
+def _hold_reader(c, aid, uid):
+    """2.1298.0 (#6395): who hears of the held deletion of uid (core/objnotify.py NOTIFY_READERS["delhold"]): an active server
+    admin whose user management holds the account (users.om_admin_all): every one for an account outside all organisations,
+    else one who shares an organisation with it (its own admins decide on the others; the hoster through its console)."""
+    with system_ctx(c):  # structure only: the admin right, memberships
+        return bool(c.execute("""SELECT 1 FROM users a WHERE a.id=? AND a.is_admin AND NOT a.disabled AND COALESCE(a.kind, 'user')<>'agent'
+                                   AND (NOT EXISTS (SELECT 1 FROM org_members WHERE user_id=?)
+                                        OR EXISTS (SELECT 1 FROM org_members x JOIN org_members y ON y.org_id=x.org_id
+                                                   WHERE x.user_id=a.id AND y.user_id=?))""", (aid, uid, uid)).fetchone())
+
+
+NOTIFY_READERS["delhold"] = _hold_reader
 
 
 def sdl_decide(c, uid, decision, actor):

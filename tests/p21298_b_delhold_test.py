@@ -177,7 +177,7 @@ check(Bo.get(B + "/api/news").ok and not [x for x in (Bo.get(B + "/api/news").js
 
 # ---------------------------------------------------------------- deciding: only an admin, a valid decision
 r = Bo.post(B + f"/api/users/{FID}/deletion", json={"decision": "release"})
-check(r.status_code == 403, f"bob (no admin) may not decide ({r.status_code})")
+check(r.status_code == 403 and not plan(FID).get("release"), f"bob (no admin) may not decide, nothing changed ({r.status_code})")
 r = A.post(B + f"/api/users/{FID}/deletion", json={"decision": "maybe"})
 check(r.status_code == 400, f"an invalid decision: 400 ({r.status_code})")
 r = A.post(B + f"/api/users/{BOB}/deletion", json={"decision": "release"})
