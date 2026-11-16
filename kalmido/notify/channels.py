@@ -18,6 +18,7 @@ ntfy topic) by e-mail -- per kind "off / only without a push device / always" (m
 without a push device). Collected and sent bundled by the watchdog: one mail EVM_DELAY seconds after the first event, at most one
 every EVM_GAP seconds and EVM_DAY_MAX a day per person; the content is built at sending time (only tasks the person still sees,
 the lock = a neutral word). Agents never get one (they have their events)."""
+import http.client
 import json
 import os
 import re
@@ -64,6 +65,9 @@ CH_RETRY_S = _env_int("KALMIDO_CHANNEL_RETRY", 60)  # 2.367.3 (#2971): a failed 
 CH_TIMEOUT = 8
 CH_QUEUE_MAX = 200       # waiting messages per channel (more are dropped)
 CH_BATCH = 30
+# 2.1298.0 (#6556): a taken message waits this long before another tick may take it again (only after a crash of the delivery
+# loop between taking and writing its result: then it counts as its second try)
+CH_CLAIM_S = 3600
 CH_NOTE_MAX = CH_QUEUE_MAX  # 2.306.0 D3 (#2875): list events collected per request (more would not fit a channel's queue)
 CH_TEXT_MAX = 1500
 CH_TEST_LIMIT = 20       # "Send test" per person within the rate window
@@ -216,7 +220,9 @@ def _chn_send1(kind, t, text, allow, until):
         return False, None, "tls"
     except (TimeoutError, socket.timeout):
         return False, None, "timeout"
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
+        return False, None, "network"
+    except Exception:  # noqa: BLE001 -- 2.1298.0 (#6556): whatever else a receiving server's answer raises fails this one channel only
         return False, None, "network"
 
 
@@ -271,7 +277,11 @@ def chn_tick(skip=None):
                         r["t"] = json.loads(unseal(c, f"channel:{r['channel_id']}", r["target"]) or "{}")
                     except Exception:  # noqa: BLE001  (InvalidTag, ValueError: the server key changed)
                         r["t"] = None
-                    c.execute("DELETE FROM notify_channel_queue WHERE id=?", (r["id"],))
+                # 2.1298.0 (#6556): a taken message stays in the queue until its own try is written (below); taking it only moves
+                # its retry_at past CH_CLAIM_S (was: deleted as a batch before sending, so a send that broke the loop lost the
+                # rest of the batch of every channel). Its original retry_at stays in r: the second-try rule is unchanged.
+                c.execute("UPDATE notify_channel_queue SET retry_at=? WHERE id = ANY(CAST(? AS BIGINT[]))",
+                          (time.time() + CH_CLAIM_S, st_ids([r["id"] for r in rows])))
                 allow = chn_allow(c)
             c.commit()
         finally:
@@ -281,7 +291,10 @@ def chn_tick(skip=None):
         if r["channel_id"] in skip:  # 2.539.0 (#4379): a channel that failed is not tried again in this tick: its other
             later.append(r)          # messages go back into the queue as they were (no failure counted; keep created_at = their order)
             continue
-        res.append((r, chn_send(r["kind"], r["t"], r["text"], allow) if r["t"] else (False, None, "config")))
+        try:
+            res.append((r, chn_send(r["kind"], r["t"], r["text"], allow) if r["t"] else (False, None, "config")))
+        except Exception:  # noqa: BLE001 -- 2.1298.0 (#6556): a failure of this one message, counted on its channel; the rest goes on
+            res.append((r, (False, None, "network")))
         if not res[-1][1][0] and res[-1][1][2] != "config":  # 2.665.0 (#5113): after any failure (was: only timeout / network) the rest of this channel waits; review L5: a broken setup ("config") is dropped per message as before
             skip.add(r["channel_id"])
     if res or later:
@@ -289,6 +302,9 @@ def chn_tick(skip=None):
             c = connect()
             try:
                 with system_ctx(c):  # background loop: the results of every channel
+                    # 2.1298.0 (#6556): only now the tried (and the put back) messages leave the queue, each after its own try
+                    c.execute("DELETE FROM notify_channel_queue WHERE id = ANY(CAST(? AS BIGINT[]))",
+                              (st_ids([r["id"] for r in later] + [r["id"] for r, _ in res]),))
                     for r in later:
                         c.execute("INSERT INTO notify_channel_queue(channel_id,text,created_at,retry_at) VALUES(?,?,?,?)",
                                   (r["channel_id"], r["text"], r["created_at"], r["retry_at"]))

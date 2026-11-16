@@ -2,6 +2,7 @@
 # 127.0.0.1:8097 and logs every request (path, headers, body) to /data/wh.log.
 #   /ok /anything -> 200   /fail -> 500   /redirect -> 302 to /ok   /slow -> answers after 12 s   /big -> 200 with 2 MB
 #   /code/<n> -> status n   /flap... -> 500 on the first call of the path, 200 afterwards (2.367.3, #2971)
+#   /badstatus... -> no HTTP status line at all (2.1298.0, #6556: http.client.BadStatusLine on the sender's side)
 import json
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -23,6 +24,9 @@ class H(BaseHTTPRequestHandler):
         body = self.rfile.read(n).decode('utf-8', 'replace')
         LOG.write(json.dumps({'path': self.path, 'at': time.time(), 'body': body,
                               'headers': {k: v for k, v in self.headers.items()}}) + '\n')
+        if self.path.startswith('/badstatus'):
+            self.wfile.write(b'garbage, not a status line\r\n\r\n')
+            return
         code, extra, out = 200, {}, b'{"ok": true}'
         if self.path.startswith('/fail'):
             code = 500
