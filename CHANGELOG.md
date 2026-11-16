@@ -22,6 +22,22 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1296.0] - 2026-11-16
+
+Package 2.1283 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6427: text recognition can no longer be stalled by one slow PDF from outside (form, file request, mail). The tools' slot is taken per page and handed on in the order of asking (documents, "Optimise PDF" and the stack scan take turns), one document has 5 minutes of wall clock (`KALMIDO_OCR_DOC_S`, what was read until then counts and is marked truncated), a page whose tool is killed or fails after half the page time counts like a time limit (two end the document), the files' text queue goes round the workspaces instead of by id, and the small previews of the file store have their own slots (no more 429 for every card while a scan is recognised). For the recognition a picture is only what starts as JPEG / PNG / WebP / TIFF / HEIF: a text file declared as a picture never reaches Tesseract (which would read it as a list of local picture paths). A GIF or BMP is no longer recognised.
+
+Package 2.1286 (Bündel: Weich rot: p252_a_ui, Weich rot: p2332_c_sigdraw_ui, Weich rot: p2768_a_ui u. 2 weitere).
+
+### Fixed
+- #5704: calendar on a phone - holding an event to drag it no longer fails when the view's events arrive during the 0.4 s hold: the grid is drawn after the finger lets go instead of under it (the redraw took the touched block away, the drag never started). A second finger ends a pending hold through the same path. Suite p252_a_ui sends the fetch into the hold (red without the fix).
+- #6346: suite p2332_c_sigdraw_ui waits until the phone's signature dialog has folded up before it measures the drawing field (a loaded runner measured it at the start of the 220 ms fold-up, one dialog height too low).
+- #6348: suite p2768_a_ui no longer counts the selection bar's hidden "…" (2.1168.0, #6118) as a button; it checks that the six buttons and X are there, every shown one inside the bar, and "…" shown exactly when a button went into it.
+- #6350: suite pr2489_b_ui follows the office panel's entry "Contacts" (2.1168.0, #6118; was "Address book").
+- #6634: suite p2103_b_ui follows the trash note of the files worded anew in 2.1178.0 (#6115).
+
 ## [2.1293.0] - 2026-11-16
 
 Package 2.1272 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -378,7 +394,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1293.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1296.0...HEAD
+[2.1296.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1296.0
 [2.1293.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1293.0
 [2.1285.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1285.0
 [2.1274.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1274.0
