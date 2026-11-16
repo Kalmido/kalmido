@@ -14,6 +14,7 @@ import os
 import tempfile
 import zipfile
 from datetime import date
+from decimal import Decimal
 
 from flask import Response, jsonify, request
 
@@ -128,6 +129,11 @@ def bx_rows(c, oid, frm, to, gaps=None):
             rows.append({"type": r["kind"], "date": r["date"], "number": r["number"], "counterparty": who, "text": " ".join((r["project_title"] or "").split()),  # 2.431.0 B (#3594): the subject on one line
                          "category": "", "tax_pct": pct.normalize(), "net": net, "tax": tx, "gross": net + tx, "currency": home, "file": f})
             mine.append(rows[-1])
+        if fx != 1 and mine:  # 2.1259.0 (#6303 a): the gross = money(gross / rate) like the payment, the rest cent on the last net (datev.py dx_rows)
+            diff = money(dec(t.get("gross") or 0) / fx) * sign - sum((x["gross"] for x in mine), Decimal(0))
+            if diff and abs(diff) <= Decimal("0.05"):
+                mine[-1]["net"] += diff
+                mine[-1]["gross"] += diff
         docs.append((r["id"], r, mine))
     for p, r in bk_payments(c, oid, frm, to, home):
         if inc_ids is not None and p["id"] not in inc_ids and any(a_ <= p["date"] <= b_ for a_, b_, x in segs if x):
