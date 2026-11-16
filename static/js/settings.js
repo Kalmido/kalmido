@@ -611,6 +611,7 @@ async function ad_agPolicyDraw(md) {
   mcpAdmDraw(md);  // 2.674.0 (#4028)
   try {
     const p = await api('GET', '/api/admin/agent-policy'); const sw = $('#s-uag', md), mx = $('#s-uagmax', md); if (sw) sw.checked = p.user_agents; if (mx) { mx.value = p.max_per_user; mx.disabled = !p.user_agents; }
+    const cb = $('#s-srvcapbox', md), cap = $('#s-srvcap', md); if (cb) cb.hidden = !p.server_day_cap_applies; if (cap) cap.value = p.server_day_cap || '';  // 2.1308.0 (#6568)
     const lb = $('#s-sclim', md);  // 2.15.0 (#479): the admin's limit, one grid for agents and one for personal tokens
     if (lb && p.scope_limit) lb.innerHTML = [['agents', N_('Agents')], ['tokens', N_('Personal API tokens')]].map(([k, n]) => `<fieldset class="sclim"><legend>${tr(n)}</legend><div class="scgrid">${p.scopes.filter(x => (k !== 'agents' || (x !== 'account' && x !== 'private' && x !== 'docs:upload' && x !== 'integrations')) && (k !== 'tokens' || x !== 'office')).map(x => `<label class="chkl sc"><input type="checkbox" data-sclim="${k}" data-scope="${x}" ${p.scope_limit[k].includes(x) ? 'checked' : ''} ${x === 'read' ? 'disabled' : ''}><span>${esc(tr(SCOPE_SHORT[x] || x))}</span></label>`).join('')}</div></fieldset>`).join('');
   } catch { /* offline */ }
@@ -683,6 +684,11 @@ function agSetupWire(md) {
       return;
     }
     if (e.target.id === 's-srvag') { srv_adminSwitch(e.target); return; }  // 2.557.0 C (#4670)
+    if (e.target.id === 's-srvcap') {  // 2.1308.0 (#6568): the ceiling of a server agent's day limit (hosted); empty = the default
+      const v = Math.round(+e.target.value) || 0;
+      try { const j = await api('PUT', '/api/admin/agent-policy', {server_day_cap: v > 0 ? v : null}); e.target.value = j.server_day_cap; toast(tr('Saved')); } catch { /* shown */ }
+      return;
+    }
     if (e.target.id !== 's-uag' && e.target.id !== 's-uagmax') return;
     const body = e.target.id === 's-uag' ? {user_agents: e.target.checked} : {max_per_user: Math.max(1, Math.min(20, +e.target.value || 2))};
     try { const j = await api('PUT', '/api/admin/agent-policy', body); if (j && 'user_agents' in j) S.about = {...S.about, user_agents: j.user_agents}; toast(tr('Saved')); } catch { if (e.target.type === 'checkbox') e.target.checked = !e.target.checked; }  // 2.555.0 C (#4664): the one switch

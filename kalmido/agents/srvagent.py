@@ -51,7 +51,7 @@ from ..core.errors import BadInput
 from ..core.env import env_int
 from ..accounts.session import me
 from ..accounts.supportgrant import sga_is_support  # 2.557.0 (2nd review)
-from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_DEFAULT_INSTRUCTIONS, SRV_DEFAULT_MODEL, SRV_FLOWS  # 2.557.0: the bridge of the parts is gone; 2.638.0 (#4714): + the day limit
+from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_DEFAULT_INSTRUCTIONS, SRV_DEFAULT_MODEL, SRV_FLOWS, srv_day_cap, srv_hosted  # 2.1308.0 (#6568): + hosted, ceiling; 2.557.0: the bridge of the parts is gone; 2.638.0 (#4714): + the day limit
 from ..accounts.login import seal, unseal
 from ..accounts.orgs import is_org_admin
 from ..agents.core import agent_row, need_person, RUNTIME_MODEL_MAX, RUNTIME_MODEL_RE
@@ -279,7 +279,9 @@ def srv_dict(c, a, row=None):
             "flow_models": srv_flow_models(row),  # 2.565.0 D (#4674)
             "flow_web": srv_flow_web(row),  # 2.571.0 D (#4676)
             # 2.638.0 (#4714): the agent's usage limits (None = none: the dialog says so) and the day limit it proposes with a first key
-            "limits": usage_limits(a), "day_limit_default": SRV_DAY_LIMIT_DEFAULT}
+            "limits": usage_limits(a), "day_limit_default": SRV_DAY_LIMIT_DEFAULT,
+            # 2.1308.0 (#6568): hosted - the day limit is required (changed, never emptied) and at most the operator's ceiling
+            "day_limit_required": srv_hosted(), "day_limit_max": srv_day_cap(c) if srv_hosted() else None}
 
 
 @app.get("/api/agents/<int:aid>/server")
@@ -331,12 +333,19 @@ def srv_put(aid):
     # SRV_DAY_LIMIT_DEFAULT): its hard day limit, so the runs others start stop at it. A replaced key or an agent with limits
     # (an admin's, the personal agents' default) keeps what it has.
     from .usage import USAGE_INT_MAX, usage_limits, usage_limits_clean  # at call time (usage.py imports this module)
+    from .srvteam import SRV_CAP_TEXT, SRV_NEED_LIMIT, srv_limit_fix  # 2.1308.0 (#6568): at call time (srvteam imports this module)
+    from .usage import usage_fmt
     day_limit = None
     if b.get("day_limit") is not None:
         v = b["day_limit"]
         if isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= USAGE_INT_MAX:
             return err(tr("Invalid value: {0}", "day_limit"))
         day_limit = v
+    # 2.1308.0 (#6568): on a hosted server the day limit is never emptied (missing = the default) and never above the ceiling
+    if srv_hosted() and "day_limit" in b and b["day_limit"] is None:
+        return err(tr(SRV_NEED_LIMIT))
+    if srv_hosted() and day_limit is not None and day_limit > srv_day_cap(c):
+        return err(tr(SRV_CAP_TEXT, usage_fmt(srv_day_cap(c), "tokens")))
     if b.get("flow_models") is not None:  # 2.565.0 D (#4674): checked against the live list of the key stored now
         try:
             sets["flow_models"] = srv_flow_models_in(c, aid, b["flow_models"], srv_row(c, aid))
@@ -367,6 +376,7 @@ def srv_put(aid):
             c.execute("UPDATE agent_server SET key_sealed='', key_hint='' WHERE agent_id=?", (aid,))
         c.execute("UPDATE agent_server SET updated_at=?, updated_by=? WHERE agent_id=?", (iso(now_utc()), me(), aid))
         c.execute("UPDATE agents SET provider=?, ai=1 WHERE user_id=?", (SRV_PROVIDER, aid))
+        srv_limit_fix(c, aid, day_limit if first_key else None)  # 2.1308.0 (#6568): hosted - a hard day limit always
     if key is not None or b.get("delete_key") is True:
         _MODELS.pop(aid, None)
     c.commit()
