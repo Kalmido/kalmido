@@ -201,6 +201,7 @@ APP_TO_API = {
     "POST /api/team/rooms/{}/read": ["POST /team/rooms/{}/read"], "PATCH /api/team/messages/{}": ["PATCH /team/messages/{}"],
     "DELETE /api/team/messages/{}": ["DELETE /team/messages/{}"], "POST /api/team/messages/{}/reactions": ["POST /team/messages/{}/reactions"],
     "POST /api/team/messages/{}/pin": ["POST /team/messages/{}/pin"],  # 2.62.0 (#1848)
+    "GET /api/team/messages/{}/versions": ["GET /team/messages/{}/versions"],  # 2.1269.0 (#6641): the earlier versions of a message (#6166)
     # 2.19.0 (#653): the module Family
     "GET /api/family": ["GET /family"], "POST /api/family/occasions": ["POST /family/occasions"],
     "GET /api/family/deadline-types": ["GET /family/deadline-types"], "POST /api/family/deadlines": ["POST /family/deadlines"],
@@ -725,7 +726,8 @@ APP_ONLY = [
     ("2.1045.0 (#5822): the agent dialog's 'Sees now' -- who edits an agent reads what is shared with it; the agent itself "
      "reaches exactly that through its own reads, sharing stays with people", ("=GET /api/agents/{}/sees",)),
     ("2.235.0 C (#2903): the owner / an instance admin rewords, pauses, deletes or adds an agent's standing rules in the app; "
-     "the agent has its own GET/POST /agent/rules",
+     "the agent has its own GET/POST /agent/rules; 2.1269.0 (#6451): the person of a proposed rule's source confirms it in the app "
+     "(.../rules/{id}/decide), never the agent",
      ("* /api/agents/{}/rules",)),
     ("2.312.0 D (#3266): the choice who answers an agent's permission questions is a picker in the agent's settings in the app; "
      "the value itself is runtime.perm_user (PATCH /api/admin/agents/{id}, PATCH /api/my/agents/{id}), the agent never picks it",

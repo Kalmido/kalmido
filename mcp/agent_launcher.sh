@@ -125,6 +125,7 @@ fi
 # kalmido-capability: task_git_author (2.619.0, #3467: a task run commits as the task's repo.git_author, in mcp/agent_run.py)
 # kalmido-capability: perm_channel (2.625.0, #3661: the answer to a permission question over a local connection of the runner, never a file; in mcp/agent_run.py)
 # (2.126.0: playbook names the authors of a foreign Playbook; texts marked untrusted are framed as data)
+# kalmido-capability: untrusted_comments (2.1269.0, #6431: webhook tasks and comments without a Kalmido account are framed as data, in mcp/agent_run.py)
 # (event mode: mcp/agent_run.py does them for both launchers, so .sh and .ps1 cannot drift apart)
 if [[ $EVENTS == 1 ]]; then
   RUNNER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent_run.py"
@@ -250,7 +251,7 @@ nightly_due() {
   DONE_DAY=$day
   (( STARTED < at ))  # started before tonight's time -> restart now
 }
-# kalmido-capability: standing_rules (2.235.0, #2903: the active standing rules under the rules block, in mcp/agent_run.py)
+# kalmido-capability: standing_rules (2.235.0, #2903: the active standing rules under the rules block, in mcp/agent_run.py; 2.1269.0, #6451: a rule the agent saves is only a proposal until its person confirms it, never in the block before)
 # kalmido-capability: reply_style (2.491.0, #2849: the person's wishes for the replies from the event into the prompt, in mcp/agent_run.py)
 # kalmido-capability: lang_texts (2.450.0, #3769: the texts by the agent's language, in mcp/agent_run.py)
 # kalmido-capability: job_watch (2.392.2, #3366: the watchdog hints in mcp/agent_run.py, the job chain in mcp/agent_job.py)

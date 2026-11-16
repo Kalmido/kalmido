@@ -308,6 +308,7 @@ ORDER = (
     "wiki.wkfolder",  # 2.200.0 A (#2747): knowledge pages in folders of the file store (the reference kind 'wiki', the tree)
     "wiki.wkv1",  # 2.200.0 C (#1781): knowledge pages for agents (API v1 + OpenAPI; only what is shared with them)
     "agents.apvdiff",  # 2.1068.0 (#5831): what an approval card's step changes in a text (domain layer, LAYER_OF: it reads the areas' texts)
+    "agents.apvdesc",  # 2.1269.0 (#6450): the server's words for an approval card's bound step (no routes; apvdiff's route asks it)
     "wiki.wkfshare",  # 2.200.0 B (#2747): pages reached through folder / page shares (Shared with me, new pages in a shared folder)
     "wiki.wkarea",  # 2.1045.0 (#5823): a whole knowledge area shared with an agent (the dialog's facts; the share is the file store's)
     "wiki.wkstyle",  # 2.371.3 (#3152): the reading style of a knowledge space (PUT /api/wiki/style)

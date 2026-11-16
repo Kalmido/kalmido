@@ -60,9 +60,11 @@ async function scenario(tag, user, ag, ck, lid) {
   check(w.__sent.every(x => Object.keys(JSON.parse(x)).length === 1), 'every PATCH carried one key' + T);
   // 2.235.0 A2 (#2891): the approval card names the bound step, one-way and the agent's recommendation
   const hd = typeof w.ccApvHead === 'function' ? w.ccApvHead({title: 'x', step: {method: 'POST', path: '/api/v1/tasks/batch', body: {action: 'delete', ids: [1, 2, 3]}}, one_way: true, recommend: 'no'}, true) : '';
-  check(/Step: 3 tasks, action delete/.test(hd) && /data-apv-oneway/.test(hd) && /recommends: No/.test(hd), 'the card shows step, one-way and the recommendation: ' + hd + T);
+  // 2.1269.0 (#6450): the words of the step are the server's now (p21269_d_apvdesc_*); without a card id nothing can be loaded:
+  // the card says so (data-apvx-err, Yes stays locked) instead of words made in the browser
+  check(/Step: POST \/tasks\/batch/.test(hd) && /data-apv-oneway/.test(hd) && /recommends: No/.test(hd) && /data-apvx-err/.test(hd), 'the card shows step, one-way and the recommendation: ' + hd + T);
   const hd2 = typeof w.ccApvHead === 'function' ? w.ccApvHead({title: 'x', step: {method: 'DELETE', path: '/api/v1/tasks/345'}}, true) : '';
-  check(/Step: Delete task 345/.test(hd2) && !/data-apv-oneway/.test(hd2), 'a delete step reads as words: ' + hd2 + T);
+  check(/Step: DELETE \/tasks\/345/.test(hd2) && !/data-apv-oneway/.test(hd2) && /The agent writes:/.test(hd2), 'a delete step: the technical line, the agent\'s title as its own words: ' + hd2 + T);
   w.close();
   // the agent decides itself (free), the history shows it with Undo
   const r = await v1('POST', '/tasks', {title: 'Made by the agent', list_id: lid}, ag.token);

@@ -243,8 +243,9 @@ def err_take(c, lid, r, rep, new_ok=True):
     g.user = {"id": None, "kind": "user", "username": "", "display_name": ""}  # nobody (system), like Git activity
     try:
         log_act(c, tid, "created", {"report": rep["source"]}, uid=None)
+        from ..agents.core import agent_added_events, task_mark_origin
+        task_mark_origin(c, tid, "errors")  # 2.1269.0 (#6431): text from outside, on the task before the tidy / added events
         agent_tidy_events(c, tid)
-        from ..agents.core import agent_added_events
         agent_added_events(c, tid, source="errors")  # 2.23.0 (#795)
         if not old:  # 2.18.0 (owner decision): a NEW error -> exactly one News item + push; repeats, re-opened errors, counts stay quiet
             errreport_events(c, tid, lid, rep)

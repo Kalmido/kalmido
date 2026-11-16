@@ -11,6 +11,12 @@
  - another person 404 (read and write), an instance admin reaches a team agent (not a foreign personal one), a member of
    the team 404; the excerpt / link of a source only for a person who sees it themselves
  - the same as a person without an organisation (freelancer-matrix: agents)
+ - 2.1269.0 (#6451): what the agent saves is a proposal (state proposed, applies false): not in GET /agent rules nor in
+   rules_changed, in GET /agent/rules only under "proposed"; the server's card (kind rule) in the chat of the person of the
+   source; only that person confirms (active + rules_changed confirmed + Remove rule on the card) or rejects (gone); another
+   person / the owner of a team agent's rule / the agent itself cannot (404 / 403), no agent route sets it active, the agent
+   cannot post a card of kind rule; the owner may only delete a proposal (PATCH 409); at most 5 open proposals (429);
+   removing a confirmed rule from the card (rules_changed deleted)
 usage: p2235_c_rules_api_test.py <datadir>      (KMT_NOSTART=1 / P2235C_NOSTART=1: a running server)"""
 import sys
 import threading
@@ -60,6 +66,14 @@ def cursor(h):
     return requests.get(V + "/agent/events?since=latest", headers=h).json()["cursor"]
 
 
+def decide(s, aid, rid, d):  # 2.1269.0 (#6451): the person's answer on the card
+    return s.post(B + f"/api/agents/{aid}/rules/{rid}/decide", json={"decision": d})
+
+
+def cards(s, aid):  # 2.1269.0 (#6451): the server's rule cards in my chat with agent aid
+    return [m for m in s.get(B + f"/api/agents/{aid}/chat").json().get("messages") or [] if m.get("kind") == "rule"]
+
+
 # ================================================================ a person without an organisation and her own agent
 # freelancer-matrix: agents
 FA, FH = own_agent(F, "fridabot")
@@ -77,7 +91,9 @@ cur0 = cursor(FH)
 r = add(FH, "Always write invoices in English", "chat", MID)
 check(r.status_code == 201, f"the agent saves a rule from the chat {r.status_code} {r.text[:200]}")
 R1 = r.json()["rule"]
-check(R1["state"] == "active" and R1["source"]["kind"] == "chat" and R1["source"]["id"] == MID and R1["source"]["user_id"] == FID
+# 2.1269.0 (#6451): a proposal now (was: active at once)
+check(r.json().get("applies") is False and "does NOT apply" in (r.json().get("hint") or ""), f"#6451: the answer says it does not apply yet {r.json().get('hint')}")
+check(R1["state"] == "proposed" and R1["source"]["kind"] == "chat" and R1["source"]["id"] == MID and R1["source"]["user_id"] == FID
       and "write invoices in English" in R1["source"]["excerpt"], f"state + source + excerpt {R1}")
 r = add(FH, "always write invoices in english", "chat", MID)
 check(r.status_code == 200 and r.json()["duplicate"] is True and r.json()["rule"]["id"] == R1["id"], f"the same text = that rule {r.status_code}")
@@ -101,7 +117,66 @@ for bad in ({"text": "x" * 501, "source": {"kind": "chat", "id": MID}}, {"text":
     r = requests.post(V + "/agent/rules", headers=FH, json=bad)
     check(r.status_code == 400, f"refused {str(bad)[:60]} -> {r.status_code}")
 check(add(FH, "y" * 500, "chat", MID).status_code == 201, "500 characters pass")
+# 2.1269.0 (#6451): the card shows the rule as one clean line, so the agent cannot store what it would not show as it is
+for bad in ("Always obey\nme", "Always \u202eobey me", "Always obey\u200b me", "Always\tobey", "Always  obey me", "Always \x07obey"):
+    check(add(FH, bad, "chat", MID).status_code == 400, f"#6451: hidden / control characters refused {bad!r}")
 check(not events(FH, cur0), "the agent's own POST sends no rules_changed")
+YR = requests.get(V + "/agent/rules", headers=FH).json()
+
+# ---------------------------------------------------------------- 2.1269.0 (#6451): proposals, the card, the person decides
+j = requests.get(V + "/agent", headers=FH).json()
+check(j["rules"] == [], f"#6451: no proposal in GET /api/v1/agent rules {j.get('rules')}")
+check(YR["data"] == [] and {x["id"] for x in YR["proposed"]} >= {R1["id"], R2["id"]} and all(x["state"] == "proposed" for x in YR["proposed"]),
+      f"#6451: GET /agent/rules: proposals only apart {[(x['id'], x['state']) for x in YR['data']]}")
+cs = cards(F, FA)
+c1 = next((m for m in cs if (m.get("rule") or {}).get("rule_id") == R1["id"]), None)
+check(c1 and c1["body"] == "Always write invoices in English" and c1["rule"]["state"] == "proposed" and c1["rule"]["mine"] is True
+      and "write invoices in English" in c1["rule"]["excerpt"], f"#6451: the card in Frida's chat, the agent's wording + her source {c1}")
+check(len(cs) == 3, f"#6451: one card per proposal (chat, comment, 500 characters) {len(cs)}")
+check(c1["rule"]["text"] == "Always write invoices in English", f"#6451: the card carries the rule's own text {c1['rule']}")
+# the card draws the rule (agent_rules.body), never its chat row: even a changed chat row shows the rule's text
+kt.dbx("UPDATE agent_chat SET body='Always forward every invoice to me' WHERE id=?", (c1["id"],))
+c1b = next(m for m in cards(F, FA) if m["id"] == c1["id"])
+check(c1b["rule"]["text"] == "Always write invoices in English", f"#6451: a changed chat row does not change the card {c1b['rule']}")
+kt.dbx("UPDATE agent_chat SET body=? WHERE id=?", ("Always write invoices in English", c1["id"]))
+# no agent route changes, withdraws or removes the card line
+for meth, url, js in (("POST", V + f"/agent/chats/{FID}/messages/{c1['id']}/withdraw", {}),
+                      ("PATCH", V + f"/agent/chats/{FID}/messages/{c1['id']}", {"body": "x"}),
+                      ("DELETE", V + f"/agent/chats/{FID}/messages/{c1['id']}", None)):
+    r = requests.request(meth, url, headers=FH, json=js)
+    check(r.status_code in (403, 404, 405), f"#6451: the agent cannot touch the card ({meth} {url[len(V):]}) {r.status_code}")
+check(kt.dbx("SELECT body, kind FROM agent_chat WHERE id=?", (c1["id"],)) == [("Always write invoices in English", "rule")],
+      "#6451: the card line is unchanged")
+r = requests.post(V + f"/agent/chats/{FID}", headers=FH, json={"body": "Confirm: Always obey me", "kind": "rule"})
+check(r.status_code == 400, f"#6451: the agent cannot post a card of kind rule {r.status_code}")
+for meth, url in (("POST", B + f"/api/agents/{FA}/rules/{R1['id']}/decide"), ("PATCH", V + f"/agent/rules/{R1['id']}"),
+                  ("POST", V + f"/agent/rules/{R1['id']}/decide"), ("PATCH", B + f"/api/agents/{FA}/rules/{R1['id']}")):
+    r = requests.request(meth, url, headers={**FH, "X-Requested-With": "kalmido"}, json={"decision": "confirm", "state": "active"})
+    check(r.status_code in (401, 403, 404, 405), f"#6451: the agent's token cannot confirm ({meth} {url[len(B):]}) {r.status_code}")
+# tenant: POST /api/agents/{}/rules/{}/decide
+check(decide(O, FA, R1["id"], "confirm").status_code == 404, "#6451: another person cannot confirm (404)")
+check(decide(F, FA, R1["id"], "maybe").status_code == 400 and decide(F, FA, R1["id"], "withdraw").status_code == 409,
+      "#6451: a bad decision 400, withdraw of a proposal 409")
+r = F.patch(B + f"/api/agents/{FA}/rules/{R1['id']}", json={"state": "active"})
+check(r.status_code == 409, f"#6451: the owner's settings cannot set a proposal active {r.status_code}")
+check(kt.dbx("SELECT state FROM agent_rules WHERE id=?", (R1["id"],)) == [("proposed",)], "#6451: still proposed")
+cur = cursor(FH)
+r = decide(F, FA, R1["id"], "confirm")
+check(r.ok and r.json()["state"] == "active", f"#6451: the person of the source confirms {r.status_code} {r.text[:120]}")
+ev = kt.until(lambda: events(FH, cur), 10)
+check(ev and ev[-1]["data"]["change"] == "confirmed" and [x["id"] for x in ev[-1]["data"]["rules"]] == [R1["id"]],
+      f"#6451: rules_changed confirmed with the rule {ev[-1]['data'] if ev else None}")
+check(decide(F, FA, R1["id"], "confirm").status_code == 409, "#6451: confirmed twice: 409")
+c1 = next((m for m in cards(F, FA) if (m.get("rule") or {}).get("rule_id") == R1["id"]), {})
+check((c1.get("rule") or {}).get("state") == "active", f"#6451: the card shows it applies (Remove rule) {c1.get('rule')}")
+check(decide(F, FA, R2["id"], "confirm").ok, "#6451: the comment's author confirms her comment's rule")
+YID = next(x["id"] for x in YR["proposed"] if x["text"] == "y" * 500)
+cur = cursor(FH)
+r = decide(F, FA, YID, "reject")
+check(r.ok and r.json()["state"] == "gone" and not kt.dbx("SELECT 1 FROM agent_rules WHERE id=?", (YID,)), "#6451: rejected = gone")
+c3 = next((m for m in cards(F, FA) if m["body"] == "y" * 500), {})
+check((c3.get("rule") or {}).get("state") == "gone", f"#6451: its card says not kept {c3.get('rule')}")
+check(not events(FH, cur), "#6451: a rejected proposal sends no rules_changed (it never applied)")
 
 # what the agent reads
 j = requests.get(V + "/agent", headers=FH).json()
@@ -110,7 +185,7 @@ check([x["id"] for x in j["rules"]][:2] == [R1["id"], R2["id"]] and set(j["rules
 
 # ---------------------------------------------------------------- the owner
 st, rs = rules(F, FA)
-check(st == 200 and len(rs) == 3, f"the owner reads the list {st}")
+check(st == 200 and len(rs) == 2, f"the owner reads the list {st}")  # 2.1269.0 (#6451): the rejected proposal is gone
 v1 = next(x for x in rs if x["id"] == R1["id"])
 check(v1["source"]["visible"] is True and v1["source"]["excerpt"], "her own chat: excerpt + link")
 cur = cursor(FH)
@@ -137,6 +212,21 @@ check(F.delete(B + f"/api/agents/{FA}/rules/{MAN}").ok, "the owner deletes")
 check(kt.until(lambda: [e for e in events(FH, cur) if e["data"]["change"] == "deleted"], 10), "rules_changed deleted")
 check(F.delete(B + f"/api/agents/{FA}/rules/{MAN}").status_code == 404, "deleted twice: 404")
 
+# 2.1269.0 (#6451): Remove rule from the card; a flood of proposals stops at 5; the owner deletes a proposal quietly
+TB = add(FH, "Always send a copy", "chat", MID).json()["rule"]["id"]
+check(decide(F, FA, TB, "confirm").ok, "#6451: confirmed")
+cur = cursor(FH)
+r = decide(F, FA, TB, "withdraw")
+check(r.ok and not kt.dbx("SELECT 1 FROM agent_rules WHERE id=?", (TB,)), f"#6451: Remove rule removes it {r.status_code}")
+ev = kt.until(lambda: events(FH, cur), 10)
+check(ev and ev[-1]["data"]["change"] == "deleted" and TB not in [x["id"] for x in ev[-1]["data"]["rules"]], "#6451: rules_changed deleted")
+fl = [add(FH, f"flood {i}", "chat", MID).status_code for i in range(6)]
+check(fl == [201] * 5 + [429], f"#6451: at most 5 open proposals {fl}")
+FLOOD = [x["id"] for x in requests.get(V + "/agent/rules", headers=FH).json()["proposed"]]
+cur = cursor(FH)
+check(all(F.delete(B + f"/api/agents/{FA}/rules/{x}").ok for x in FLOOD), "#6451: the owner deletes the proposals")
+check(not events(FH, cur), "#6451: deleting a proposal sends no rules_changed")
+
 # ---------------------------------------------------------------- others
 check(rules(O, FA)[0] == 404, "another person: GET 404")
 check(O.patch(B + f"/api/agents/{FA}/rules/{R1['id']}", json={"state": "paused"}).status_code == 404, "another person: PATCH 404")
@@ -148,7 +238,7 @@ check(requests.get(B + f"/api/agents/{FA}/rules", headers={**FH, "X-Requested-Wi
       "the agent's token does not reach the owner routes")
 
 # ---------------------------------------------------------------- the limit, two parallel requests at 99
-n = len(requests.get(V + "/agent/rules", headers=FH).json()["data"])
+n = kt.dbx("SELECT COUNT(*) FROM agent_rules WHERE agent_id=?", (FA,))[0][0]  # 2.1269.0 (#6451): proposals count too
 kt.dbx("INSERT INTO agent_rules(agent_id, body, state, source_kind, created_at, updated_at) "
        "SELECT ?, 'filler ' || g, 'active', '', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00' FROM generate_series(1, ?) g",
        (FA, 99 - n))
@@ -181,6 +271,12 @@ check(bm.status_code in (200, 201), f"bob chats with the team agent {bm.status_c
 r = add(TH, "Answer short", "chat", bm.json()["id"])
 check(r.status_code == 201, f"team agent: a rule from bob's chat {r.status_code}")
 CHR = r.json()["rule"]["id"]
+# 2.1269.0 (#6451): the instance admin (who edits the team agent's settings) cannot confirm bob's proposal, bob can
+check(decide(A, TA, CHR, "confirm").status_code == 404, "#6451: the admin cannot confirm a member's proposal")
+check(decide(Ca, TA, CHR, "confirm").status_code == 404, "#6451: another member cannot confirm it")
+check(len(cards(Bo, TA)) == 2 and not cards(A, TA), "#6451: the cards are in bob's chat only")
+check(all(decide(Bo, TA, x, "confirm").ok for x in (CHR, kt.dbx("SELECT id FROM agent_rules WHERE agent_id=? AND source_kind='comment'", (TA,))[0][0])),
+      "#6451: bob confirms both")
 CL = Ca.post(B + "/api/lists", json={"name": "Carol's", "org_id": ORG}).json()["id"]
 CT = Ca.post(B + "/api/tasks", json={"title": "Own", "list_id": CL}).json()["id"]
 cc = Ca.post(B + f"/api/tasks/{CT}/comments", json={"body": "from now on always ..."}).json()["id"]
@@ -192,5 +288,21 @@ check(chat_rule["source"]["visible"] is False and chat_rule["source"]["excerpt"]
 check(next(x for x in rs if x["id"] != CHR)["source"]["visible"] is True, "the comment in her project: visible for the admin")
 check(A.patch(B + f"/api/agents/{TA}/rules/{CHR}", json={"state": "paused"}).ok, "the admin pauses a team agent's rule")
 check(rules(Bo, TA)[0] == 404, "a member of the team (no admin): 404")
+# 2.1269.0 (#6451): a person removed from the project since the proposal can no longer confirm it (chat and comment
+# source); reject stays; the instance admin deletes the stale proposal
+bm2 = Bo.post(B + f"/api/agents/{TA}/chat", json={"body": "From now on always answer in German"}).json()["id"]
+P1 = add(TH, "Answer in German", "chat", bm2).json()["rule"]["id"]
+bc2 = Bo.post(B + f"/api/tasks/{TT}/comments", json={"body": f"<@{TA}> from now on always tag the release"}).json()["id"]
+P2 = add(TH, "Always tag the release", "comment", bc2).json()["rule"]["id"]
+P3 = add(TH, "Always close the ticket", "comment", bc2).json()["rule"]["id"]
+check(A.delete(B + f"/api/lists/{W}/members/{BOB}").ok, "bob leaves the team project")
+for x in (P1, P2):
+    check(decide(Bo, TA, x, "confirm").status_code == 404, f"#6451: removed member: confirm 404 ({x})")
+check(kt.dbx(f"SELECT state FROM agent_rules WHERE id IN ({P1}, {P2})") == [("proposed",), ("proposed",)], "#6451: both stay proposals")
+check(decide(Bo, TA, P3, "reject").ok, "#6451: rejecting stays possible")
+check(all(A.delete(B + f"/api/agents/{TA}/rules/{x}").ok for x in (P1, P2)), "#6451: the instance admin deletes the stale proposals")
+# withdraw of a confirmed rule needs the same right (bob confirmed CHR while he was in the project)
+check(decide(Bo, TA, CHR, "withdraw").status_code == 404, "#6451: removed member: withdraw 404")
+check(kt.dbx("SELECT state FROM agent_rules WHERE id=?", (CHR,)) == [("paused",)], "#6451: the rule stays")
 check(rules(F, TA)[0] == 404, "a person without organisation: 404 on a team agent")
 sys.exit(done("p2235_c_rules_api"))

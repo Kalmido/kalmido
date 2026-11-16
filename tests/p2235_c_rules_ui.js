@@ -6,6 +6,9 @@
 //   added by hand (POST); every step waits for the server state / the toast, never a fixed time
 // - the source link jumps to the message (msgJump art a)
 // - the same for a person without an organisation (freelancer-matrix: agents)
+// - 2.1269.0 (#6451): what the agent saves is a proposal: the server's card in the person's chat with the agent (the agent's
+//   wording, Confirm / Reject), Confirm makes it apply (server state, toast, the card then offers Remove rule); a proposal
+//   in the settings is marked Proposed, without the switch
 const path = require('path');
 const {execFileSync} = require('child_process');
 const {boot, sleep, B, login} = require('./boot');
@@ -40,15 +43,34 @@ async function scenario(tag, user, ck) {
   check(r.status === 201, 'the agent saved a rule ' + r.status + T);
   const rid = r.rule?.id;
   const rules = async () => (await call('GET', `/api/agents/${ag.id}/rules`, null, ck)).rules || [];
+  // 2.1269.0 (#6451): a proposal, confirmed in the chat card
+  check(r.applies === false && r.rule?.state === 'proposed', 'the saved rule is a proposal ' + r.rule?.state + T);
+  const m3 = await call('POST', `/api/agents/${ag.id}/chat`, {body: 'From now on never call before 9'}, ck);
+  const r3 = await call('POST', '/api/v1/agent/rules', {text: 'Never call before 9', source: {kind: 'chat', id: m3.id}}, null, ag.token);
+  const pid = r3.rule?.id;
 
   const w = await boot({user, hash: 'agents'}), d = w.document;
   await until(() => d.querySelector('.agcard'));
+  w.eval(`chatOpen(${ag.id})`);
+  const card = await until(() => d.querySelector(`.awrcard [data-awr-dec="confirm"][data-awr-rule="${rid}"]`)?.closest('.awrcard'));
+  check(card && /Invoices always in English/.test(card.textContent) && /wants to keep this as a standing rule/.test(card.textContent)
+        && /wording is the agent/.test(card.textContent) && card.querySelector('[data-awr-dec="reject"]'), 'the card: the agent\'s wording, Confirm / Reject' + T);
+  check(!(await rules()).find(x => x.id === rid && x.state === 'active'), 'not in force before the confirmation' + T);
+  if (card) click(w, card.querySelector('[data-awr-dec="confirm"]'));
+  check(await until(async () => (await rules()).find(x => x.id === rid)?.state === 'active'), 'Confirm makes it apply on the server' + T);
+  check(await until(() => toasted(d, 'Rule confirmed')), 'the toast "Rule confirmed"' + T);
+  check(await until(() => d.querySelector(`.awrcard [data-awr-dec="withdraw"][data-awr-rule="${rid}"]`)), 'the card now offers Remove rule' + T);
+  check(d.querySelector(`.awrcard [data-awr-dec="confirm"][data-awr-rule="${pid}"]`), 'the second proposal still waits in the chat' + T);
+  w.eval('chatClose()');
   const md = await openDlg(w, d, ag.id);
   check(md, 'the dialog opens' + T);
   if (!md) { w.close(); return; }
   const row = await until(() => md.querySelector(`#aw-rules [data-awr-id="${rid}"]`));
   check(row && /Invoices always in English/.test(row.textContent) && /from the chat/.test(row.textContent), 'the rule with its source' + T);
   check(md.querySelector('#awr-h')?.textContent === 'Standing rules', 'the section heading' + T);
+  const prow = md.querySelector(`#aw-rules [data-awr-id="${pid}"]`);
+  check(prow && /Proposed/.test(prow.textContent) && !prow.querySelector('[data-awr-on]') && prow.querySelector(`[data-awr-del="${pid}"]`),
+        'a proposal in the settings: marked Proposed, no switch, only Delete' + T);
   // pause
   const sw = row.querySelector(`[data-awr-on="${rid}"]`);
   sw.checked = false; sw.dispatchEvent(new w.Event('change', {bubbles: true}));

@@ -374,7 +374,42 @@ def v1_task(d):
         out["file_hit"] = d["file_hit"]
     if d.get("sub_snapshot"):  # 2.556.0 C (#4583): the completed copy of a recurring task: its subtasks then (serializers.task_dict; never for an agent's token)
         out["sub_snapshot"] = d["sub_snapshot"]
+    o = tt_origin(d.get("tt_id"))
+    if o:  # 2.1269.0 (#6431): as in the events (task_for): title and notes came from outside Kalmido
+        out.update(origin=o, untrusted=True)
     return out
+
+
+ORIGIN_EXT = ("mail", "form", "errors", "webhook", "git")  # 2.1269.0 (#6431): where a task's title and notes come from outside Kalmido
+ORIGIN_TT_GIT = ("github:", "gitlab:")  # 2.1269.0 (#6431): the issue import's own source key (importers.py "<source>:<conn>:<no>")
+
+
+def tt_origin(tt_id):
+    """2.1269.0 (#6431): the outside origin a task keeps in its source key (tasks.tt_id): 'mail:<message id>' (an e-mail,
+    2.126.0), 'github:' / 'gitlab:' (an imported issue, integrations/git_issues.py) or 'origin:<origin>:<task id>' (agents/core.py
+    task_mark_origin; a synced new issue: 'origin:git:...'); None = written in Kalmido."""
+    s = str(tt_id or "")
+    if s.startswith("mail:"):
+        return "mail"
+    if s.startswith(ORIGIN_TT_GIT):  # an issue imported from GitHub / GitLab (the key stays: the import finds it again by it)
+        return "git"
+    if s.startswith("origin:"):
+        o = s.split(":", 2)[1]
+        return o if o in ORIGIN_EXT else None
+    return None
+
+
+def comment_origin(k):
+    """2.1269.0 (#6431): a comment without a Kalmido account (author_id null) is text from outside: 'git' (synced from the git
+    host), 'mail' (a reply by e-mail to a ticket), 'portal' (the reporter on the status page) or 'public_link' (a customer
+    through the public link). None = a person's or an agent's comment."""
+    ks = k.keys()
+    if k["user_id"] is not None:
+        return None
+    src = k["source"] if "source" in ks else None
+    if src in ("git", "mail"):
+        return src
+    return "portal" if "portal" in ks and k["portal"] else "public_link"
 
 
 def task_for(c, row, uid):
@@ -397,8 +432,9 @@ def task_for(c, row, uid):
         out["encrypted_note"] = True  # 2.42.0 (#828): agents learn only that there is an encrypted note
     if c.execute("SELECT 1 FROM task_note_locks WHERE task_id=?", (row["id"],)).fetchone():
         out["note_locked"] = True  # 2.48.0 (#1642): the note is locked with its owner's password (never readable here)
-    if str(row["tt_id"] or "").startswith("mail:"):  # 2.126.0 B (#1978): title and notes came from an e-mail
-        out.update(origin="mail", untrusted=True)
+    o = tt_origin(row["tt_id"])
+    if o:  # 2.126.0 B (#1978): title and notes came from an e-mail; 2.1269.0 (#6431): or a webhook, a form, an error report
+        out.update(origin=o, untrusted=True)
     # 2.556.0 C review (#4583, finding 1): no sub_snapshot here -- events go to agents (their data lock hides subtasks the
     # snapshot would name) and webhooks go outside; only people read it (serializers.rsn_shown)
     return out
@@ -1768,7 +1804,8 @@ def v1_comment(c, d, names):
             "reply_to": d.get("reply_to"), "reply": d.get("reply"),  # 2.33.0 (#1076)
             # 2.41.0 (#1383): answer buttons / approval card of an agent's comment, the answer and its state
             "choices": d.get("choices"), "choice": d.get("choice"), "choice_state": d.get("choice_state"),
-            "portal": bool(d.get("portal"))}  # 2.63.0 B (#1513): the customer sees it (public answer / their own comment)
+            "portal": bool(d.get("portal")),  # 2.63.0 B (#1513): the customer sees it (public answer / their own comment)
+            **({"origin": o, "untrusted": True} if (o := comment_origin(d)) else {})}  # 2.1269.0 (#6431): no Kalmido account
 
 
 @app.get("/api/v1/tasks/<int:tid>/comments")

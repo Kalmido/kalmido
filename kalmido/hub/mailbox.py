@@ -644,6 +644,20 @@ def _bg(fn):
             c.close()
 
 
+def _mbx_owners(c, box):
+    """Who hears about a mailbox's trouble: the organisation's admins, else the person whose mailbox it is."""
+    return integ_org_admins(c, box["org_id"]) if box["org_id"] else [box["owner_id"] or box["created_by"]]
+
+
+def _mbx_lost(box, k):
+    """2.1269 (#6386): k mails of the mailbox were given up after their last attempt (integrations/mail.py MAIL_TRIES): they
+    stay in the mailbox; its owners hear it once per round that gave some up (News + push of the event "integration")."""
+    def tell(c):
+        integ_tell(c, _mbx_owners(c, box), "maillost", box["imap_user"] or box["imap_host"], str(k), ws=box["ws"])
+        c.commit()
+    _bg(tell)
+
+
 def mbx_poll_one(box, hold=None):
     """Fetch one mailbox (a row as dict); stores polled_at / the error code. Returns how many mails were filed.
     hold (2.148.1 D, #2485): a list that gets the open connection, so the round can close it after its time."""
@@ -656,7 +670,7 @@ def mbx_poll_one(box, hold=None):
             hold.append(M)
         try:
             n = mail_fetch(M, _folder_arg(box["imap_folder"] or "INBOX"), lambda c2, raw: mbx_import(c2, box, raw), max_bytes=MBX_MAIL_MAX,
-                           box=f"mbx:{box['id']}")  # 2.193.0 D (#2220)
+                           box=f"mbx:{box['id']}", lost=lambda k: _mbx_lost(box, k))  # 2.193.0 D (#2220), 2.1269 (#6386)
             for f in MBX_AFTER_POLL:  # 2.581.0 (#4804): the document rules; their errors are their own (docs_error)
                 try:
                     f(M, box)
@@ -680,7 +694,7 @@ def mbx_poll_one(box, hold=None):
                              fails=CASE WHEN ?='' THEN 0 ELSE fails+1 END WHERE id=? RETURNING fails, error_at""",
                           (_now(), code, code, _now(), code, box["id"])).fetchone()
             if r and r["fails"] == INTEG_FAILS:
-                integ_tell(c, integ_org_admins(c, box["org_id"]) if box["org_id"] else [box["owner_id"] or box["created_by"]], "mailbox",
+                integ_tell(c, _mbx_owners(c, box), "mailbox",
                            box["imap_user"] or box["imap_host"], (r["error_at"] or "")[:10], ws=box["ws"])
         c.commit()
     _bg(done)

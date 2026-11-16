@@ -1228,6 +1228,7 @@ ROUTES = {
     # 2.235.0 C (#2903): the standing rules of an agent (the agent itself; owner / instance admin, else 404; p2235_c_rules_api_test.py)
     "GET /api/v1/agent/rules": "agents", "POST /api/v1/agent/rules": "agents", "GET /api/agents/{}/rules": "agents",
     "POST /api/agents/{}/rules": "agents", "PATCH /api/agents/{}/rules/{}": "agents", "DELETE /api/agents/{}/rules/{}": "agents",
+    "POST /api/agents/{}/rules/{}/decide": "agents",  # 2.1269.0 (#6451): the person of a proposed rule's source (p2235_c_rules_api_test.py)
     # 2.235.0 B (#2902): the data lock of an agent (owner / instance admin, else 404; p2235_b_datalock_test.py)
     "GET /api/agents/{}/data-lock": "agents", "PATCH /api/agents/{}/data-lock": "agents",
     "GET /api/agents/{}/sees": "agents",  # 2.1045.0 (#5822): what an agent sees (p21045_c_sees_test.py)

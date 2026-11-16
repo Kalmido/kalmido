@@ -30,7 +30,7 @@ from ..tasks.watchers import wat_users  # 2.473.0 (#3357)
 from ..collab.comments import comment_plain, user_names
 from ..core.errors import BadInput
 from ..notify.alerts import _env_int
-from ..api.v1 import task_for, WH_ON
+from ..api.v1 import comment_origin, ORIGIN_EXT, task_for, WH_ON
 from ..api.common import act_via
 from ..integrations.webhooks import wh_actor, wh_diff_out, wh_log, WH_QUEUE_MAX  # wh_diff_out: 2.959.0 (#4030)
 from ..collab.replies import reply_of  # 2.369.5 (#2517): pulled up from functions
@@ -443,6 +443,9 @@ def agent_event_comments(c, tid):
             d["author"].update(name=r["ext_name"], customer=True)
         if "portal" in r.keys() and r["portal"]:  # 2.63.0 B (#1513): the customer of a customer report sees it
             d["portal"] = True
+        o = comment_origin(r)
+        if o:  # 2.1269.0 (#6431)
+            d.update(origin=o, untrusted=True)
         if r["suggestion"]:
             d["suggestion"] = json.loads(r["suggestion"])
         out.append(d)
@@ -475,13 +478,23 @@ def agent_task_data(c, tid, aid, full=None, **extra):
     return {"task": task, "list": lst, **extra}
 
 
+def task_mark_origin(c, tid, origin):
+    """2.1269.0 (#6431): a task whose title and notes come from outside Kalmido keeps that in its source key (tasks.tt_id
+    'origin:<origin>:<id>', read by api/v1.py tt_origin), so every later event and get_task carry origin + untrusted, not
+    only the first task_added. A task with a source key already (an e-mail's 'mail:...') keeps it."""
+    if origin in ORIGIN_EXT:  # an e-mail turned into a task by a person (hub/mailview.py) gets 'origin:mail:...', not 'mail:'
+        c.execute("UPDATE tasks SET tt_id=? WHERE id=? AND tt_id IS NULL", (f"origin:{origin}:{int(tid)}", int(tid)))
+
+
 def agent_comment(c, k):
     rt, rq = reply_of(c, "c", k)  # 2.33.0 (#1076): the comment answers this one (a short quote)
+    o = comment_origin(k)
     return {"id": k["id"], "author_id": k["user_id"], "text": comment_plain(c, k["body"]), "body": k["body"], "created_at": k["created_at"],
             "suggestion": json.loads(k["suggestion"]) if k["suggestion"] else None, "reply_to": rt, "reply": rq,
             # 2.63.0 B (#1513): portal = the customer sees it (a public answer, or the customer's own: author_id null + ext_name)
             "portal": bool(k["portal"]) if "portal" in k.keys() else False,
             **({"ext_name": k["ext_name"]} if "ext_name" in k.keys() and k["ext_name"] else {}),
+            **({"origin": o, "untrusted": True} if o else {}),  # 2.1269.0 (#6431): no Kalmido account = text from outside
             **_lv_comment_choices(k)}
 
 
@@ -752,6 +765,8 @@ def agent_added_events(c, tid, from_lid=None, source=None, info=None):
     {id, name} only when the agent may see the list it came from; source: 'form' / 'mail' / 'errors' / 'capture' ...
     2.30.0 (#1034): only to the agents that listen in (listen_agents_of; software lists by default); a moved task also gets
     the list's tidy event (a created one gets it from agent_tidy_events at its creation)."""
+    if source in ORIGIN_EXT and not from_lid:
+        task_mark_origin(c, tid, source)  # 2.1269.0 (#6431): the mark stays with the task (later events, get_task)
     ag = agent_ids(c)
     if not ag:
         return
@@ -776,7 +791,7 @@ def agent_added_events(c, tid, from_lid=None, source=None, info=None):
             extra["moved_from"] = {"id": from_lid, "name": lst_brief(c, from_lid)["name"]}
         if source:
             extra["source"] = source
-            if source in ("mail", "form", "errors"):  # 2.126.0 B (#1978): text from outside Kalmido
+            if source in ORIGIN_EXT:  # 2.126.0 B (#1978): text from outside Kalmido; 2.1269.0 (#6431): + webhook
                 extra.update(origin=source, untrusted=True)
         extra.update(info or {})  # 2.63.0 (#1513): a form's report: portal, ttype
         agent_emit(c, aid, "task_added", agent_task_data(c, tid, aid, **extra))
@@ -1764,3 +1779,10 @@ def ag_pre(c, rows, uid):
             "tvis": tasks_visible(c, [a["status_task"] for a in rows if a["status_task"]], uid, full=True),
             "cost": usage_cost_sums(c, ids), "pending": agent_pending_ages(c, ids),  # 2.826.0 (#5509)
             "may_rt": lambda a: a["owner_id"] == uid if a["owner_id"] else bool(u and u["is_admin"])}  # = may_set_runtime
+
+
+# 2.1269.0 (#6431): a task made from a new GitHub / GitLab issue (integrations/git_sync.py) is text from outside: it keeps
+# origin git (+ untrusted) for every later event and get_task (registered from here: the integrations layer imports no agent
+# code). No task_added for it, as before: an issue anyone can open on the git host does not wake the listening agents.
+from ..integrations import git_sync as _gsy  # noqa: E402 -- at the end: every name above exists for the modules it loads
+_gsy.GSY_NEW_TASK_HOOKS.append(lambda c, tid: task_mark_origin(c, tid, "git"))
