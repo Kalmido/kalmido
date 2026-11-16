@@ -203,13 +203,14 @@ async function lpDelta(v, ch, n, since) {
 function lpDetail(sel, changed, busy) {
   if (!sel || !changed.has(sel) || S.sel !== sel) return;
   if (!S.tasks.has(sel)) { if (!busy && !(S.extra || []).some(t => t.id === sel)) closeDetail(); return; }
+  if ($('#detail .cfbar')) { S.detailStale = sel; return; }  // review #4816: an open conflict bar keeps the panel (and the draft in its field) until it is answered
   lpDetailDraw();
   const a = document.activeElement;
   if (a && editFocused() && $('#detail')?.contains(a)) S.detailStale = sel;
 }
 function lpDetailLeft() {
   const id = S.detailStale, a = document.activeElement;
-  if (!id || (a && editFocused() && $('#detail')?.contains(a))) return;  // another field of the panel took the focus: its turn when left
+  if (!id || (a && editFocused() && $('#detail')?.contains(a)) || $('#detail .cfbar')) return;  // another field of the panel took the focus: its turn when left
   S.detailStale = 0;
   if (S.sel === id && S.tasks.has(id)) lpDetailDraw();
 }
