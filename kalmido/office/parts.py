@@ -238,11 +238,22 @@ def f8b_fix_cents(rows, want, lang="de", currency="EUR", fx=None):
         v = calc_line_amount(dec(x.get("qty"), "1"), conv(dec(x.get("rate"))), x.get("discount_pct") if x["kind"] == "service" else 0)[2]  # 2.354.0 A (#2831): like inv_calc, the exact rate; 2.1042.0 (#5815): after its own discount
         have[x.get("tax")] = have.get(x.get("tax"), D0) + (-v if x["kind"] == "discount" else v)
     adjust = []
-    for k in list(want) + [k for k in have if k not in want]:
+    # (review) positions of a rate the part line does not name (without VAT everything counts as standard, _bases; the
+    # positions keep their rate): compare the whole part once, not rate by rate - else the rates would be "settled" against
+    # each other with amounts that are no rounding rest
+    whole = any(v and k not in want for k, v in have.items())
+    if whole:
+        wk = _dominant(want)
+        want, have = {wk: sum((money(dec(v)) for v in want.values()), D0)}, {wk: sum(have.values(), D0)}
+    for k in list(want):
         diff = money(dec(want.get(k))) - have.get(k, D0)
         if not diff:
             continue
-        svc = [x for x in rows if x.get("kind") == "service" and x.get("tax") == k]
+        svc = [x for x in rows if x.get("kind") == "service" and (whole or x.get("tax") == k)]
+        if abs(diff) > max(Decimal("0.05") * max(len(svc), 1), abs(dec(want.get(k))) / 1000):
+            # no rounding rest any more (a rest is at most half a cent per position and part qty): still settled, so the
+            # invoice equals the quotation, but said in the log - a computation fault must not hide in this line
+            app.logger.warning("f8b_fix_cents: rest %s on %s position(s) of rate %s (wanted %s)", diff, len(svc), k, want.get(k))
         if len(svc) == 1 and svc[0].get("unit") != "percent":
             last = svc[0]
             q, rate = dec(last.get("qty"), "1"), dec(last.get("rate"))  # 2.354.0 A (#2831): the exact rate
@@ -684,7 +695,7 @@ def tp_flat_items(c, oid, r, title=None, home=False):
                     "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1}]
 
 
-def tp_inv_items(c, oid, r, mode=None, title=None, home=False):
+def tp_inv_items(c, oid, r, mode=None, title=None, home=False, fix=True):
     """The positions of an invoice from quotation r with parts (None: it has none). mode (else the office setting
     parts_invoice_mode, app default "full"): "title" = the title page with its positions, a part line becomes a position
     with its amount (one per tax rate when the part mixes rates); "summary" = one position per tax rate titled title (default
@@ -694,7 +705,9 @@ def tp_inv_items(c, oid, r, mode=None, title=None, home=False):
     2.1254.0 (#6299): a quotation in a foreign currency: every amount the quotation computes (a part, its producing /
     surcharges / raw data / discount, a percent position, the bases of the summary) is taken as computed in that currency and
     turned back into a home-currency rate (calc_home_rate); was a second run in EUR, converted by the invoice: cents off.
-    home = the run in the home currency anyway (inv_items_from_offer: the bases of progress invoices)."""
+    home = the run in the home currency anyway (inv_items_from_offer: the bases of progress invoices).
+    2.1287.0 (#6300, review): fix=False = without the cent settlement of mode "full" (a delivery note has no prices: its
+    positions keep their quantities and get no "Rounding adjustment" line)."""
     if not tp_has_parts(c, oid, r["id"]):
         return None
     s = office_settings(c, oid)
@@ -813,7 +826,8 @@ def tp_inv_items(c, oid, r, mode=None, title=None, home=False):
             out += auto(raw_lines + [dl], qty)
         else:
             out += auto(pc["lines"], qty)
-        out[start:] = f8b_fix_cents(out[start:], ln.get("taxes"), lang, hc_home(s), fx)
+        if fix:
+            out[start:] = f8b_fix_cents(out[start:], ln.get("taxes"), lang, hc_home(s), fx)
     out += auto(t["lines"])
     return out
 

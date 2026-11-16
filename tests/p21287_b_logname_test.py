@@ -116,6 +116,19 @@ gp = gobd_person(A, INV)
 check(("finalize", "Bea Beispiel") in gp, f"the tax auditor's export (log.csv) names Bea: {sorted(gp)}")
 ch = A.get(B + O + "/log/chain").json()
 check(ch.get("ok") and not ch.get("first_bad"), f"the hash chain of the finalised documents stays intact: {ch}")
+# review: the name frozen with the sender is read on its own (was: read after the sender had left the row - only the log
+# entry answered): without the name in the finalise entry the invoice still names Bea
+keep = kt.dbx("SELECT id, user_name FROM office_doc_log WHERE doc_id=? AND action='finalize'", (INV,))
+kt.dbx("UPDATE office_doc_log SET user_name='' WHERE doc_id=? AND action='finalize'", (INV,))
+check(A.get(B + f"{D}/{INV}").json().get("locked_by_name") == "Bea Beispiel", "locked_by_name comes from the sender frozen at finalising, without the log entry's name")
+for x in keep:
+    kt.dbx("UPDATE office_doc_log SET user_name=? WHERE id=?", (x["user_name"], x["id"]))
+# review: the retention export (the organisation's records before it is deleted) names her too (was: the stored name
+# was overwritten by the lookup of the missing account)
+rz = kt.su_get(A, B + f"/api/retention/org/{ORG}/export.zip")
+zn = zipfile.ZipFile(io.BytesIO(rz.content)) if rz.ok and rz.content[:2] == b"PK" else None
+lg = zn.read("logs/office-log.csv").decode("utf-8-sig") if zn is not None and "logs/office-log.csv" in zn.namelist() else ""
+check("finalize" in lg and "Bea Beispiel" in lg, f"the retention export's office log names Bea ({rz.status_code}): {lg[:300]}")
 
 # ---------------------------------------------------------------- entries from before 2.1287: filled once at the start
 OF = invoice(Ca, CL, "Angebot", kind="offer")
