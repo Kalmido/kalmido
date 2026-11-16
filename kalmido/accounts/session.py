@@ -400,12 +400,31 @@ def acx_bind():
         acx()
 
 
+RATE_NAME_MAX = 64  # 2.1271.0 (#6420): a user name has at most 32 characters (USERNAME_RE); DAV cut at 64 already
+
+
+def rate_name(username):
+    """2.1271.0 (#6420): the user name part of a counter key: the first RATE_NAME_MAX characters, kept as a short hash only,
+    so a name of megabytes (POST /api/auth/login takes 10 MB of JSON) never sits in the counters (_fails, _known,
+    core/ratedb.py). Every key with a name goes through here (_rate_keys, _rate_reset, login_known, h6a_uall_exempt)."""
+    n = str(username or "")[:RATE_NAME_MAX]
+    return hashlib.sha256(("kalmido-rate-name:" + n).encode()).hexdigest()[:24]
+
+
+def login_name_in(v):
+    """2.1271.0 (#6420): a user name as a sign-in form sent it, cut before anything else (trimmed, lower case, at most
+    RATE_NAME_MAX characters): a name of megabytes reaches neither the counters nor the database look-up, logs or alerts."""
+    return (v if isinstance(v, str) else "")[:RATE_NAME_MAX * 4].strip().lower()[:RATE_NAME_MAX]
+
+
 def _rate_keys(username, pre="", lim=(5, 20, 100)):
     """2.10.0 (#445): failed logins count per user name AND address ("u:name@ip", 5), per address ("ip:", 20) and, as a
     ceiling against slow attacks from many addresses, per user name alone ("uall:", 100). One attacker (one address) can
-    no longer lock a person out: only the pair name + attacker's address and the attacker's address are blocked."""
+    no longer lock a person out: only the pair name + attacker's address and the attacker's address are blocked.
+    2.1271.0 (#6420): "name" is rate_name(username) (cut, hashed); alerts take the readable name from their own variable."""
     ip = rate_ip()  # 2.126.0 C (#1976): IPv6 per /64
-    return [(pre + "u:" + username + "@" + ip, lim[0]), (pre + "ip:" + ip, lim[1]), (pre + "uall:" + username, lim[2])]
+    n = rate_name(username)
+    return [(pre + "u:" + n + "@" + ip, lim[0]), (pre + "ip:" + ip, lim[1]), (pre + "uall:" + n, lim[2])]
 
 
 _known = {}       # 2.86.0 (N2): "<pre>uall:<name>" -> {address: time of the last successful login from there}
@@ -415,15 +434,16 @@ KNOWN_DAYS = 30
 def _rate_reset(username, pre=""):
     """A successful login clears the counter of the pair user name + this address and remembers the address as known."""
     ip = rate_ip()  # 2.126.0 C (#1976)
-    rate_clear(pre + "u:" + username + "@" + ip)  # 2.306.0 D1 (#2875)
+    n = rate_name(username)  # 2.1271.0 (#6420)
+    rate_clear(pre + "u:" + n + "@" + ip)  # 2.306.0 D1 (#2875)
     with _fail_lock:
-        _fails.pop(pre + "u:" + username + "@" + ip, None)
-        seen = _known.setdefault(pre + "uall:" + username, {})
+        _fails.pop(pre + "u:" + n + "@" + ip, None)
+        seen = _known.setdefault(pre + "uall:" + n, {})
         seen[ip] = time.time()
         if len(seen) > 20:  # a handful of addresses per account is enough (home, phone, office)
             for old in sorted(seen, key=seen.get)[:len(seen) - 20]:
                 seen.pop(old, None)
-    rate_known_add(pre + "uall:" + username, ip, KNOWN_DAYS)  # 2.312.0 C (#3265): every process knows it
+    rate_known_add(pre + "uall:" + n, ip, KNOWN_DAYS)  # 2.312.0 C (#3265): every process knows it
 
 
 def h6a_uall_exempt(k, now):
@@ -437,7 +457,7 @@ def h6a_uall_exempt(k, now):
     if (now - _known.get(k, {}).get(ip, 0)) < KNOWN_DAYS * 86400:
         return True
     u = getattr(g, "user", None)
-    if u is not None and k == "uall:" + (u["username"] or ""):
+    if u is not None and k == "uall:" + rate_name(u["username"] or ""):  # 2.1271.0 (#6420)
         return True
     at = rate_known_at(k, ip)  # only for a key over its ceiling: rare
     if at and now - at < KNOWN_DAYS * 86400:
@@ -487,7 +507,7 @@ def login_known(username, pre=""):
     request is signed in as this name already."""
     if not username:
         return False
-    if (time.time() - _known.get(pre + "uall:" + username, {}).get(rate_ip(), 0)) < KNOWN_DAYS * 86400:
+    if (time.time() - _known.get(pre + "uall:" + rate_name(username), {}).get(rate_ip(), 0)) < KNOWN_DAYS * 86400:
         return True
     u = getattr(g, "user", None)
     return bool(not pre and u is not None and (u["username"] or "") == username)
@@ -558,6 +578,7 @@ def login_wait(keys, username, pre=""):
 
 
 _FAILS_MAX, _FAILS_ARR = 20000, 500  # 2.126.0 C (#1976): idle keys are forgotten above this many; per key the newest 500
+_FAILS_SWEEP_S = 60  # 2.1271.0 (#6420): idle keys are forgotten at least this often, however few there are
 _fails_swept = [0.0]
 
 
@@ -575,7 +596,8 @@ def _rate_fail(keys):
                 out.append(k)
             if len(arr) > _FAILS_ARR:
                 del arr[:len(arr) - _FAILS_ARR]
-        if len(_fails) > _FAILS_MAX and now - _fails_swept[0] > 30:  # 2.126.0 C (#1976): forget keys idle for a window
+        # 2.126.0 C (#1976): forget keys idle for a window; 2.1271.0 (#6420): by time too, not only above _FAILS_MAX keys
+        if now - _fails_swept[0] > _FAILS_SWEEP_S or (len(_fails) > _FAILS_MAX and now - _fails_swept[0] > 30):
             _fails_swept[0] = now
             for k in [k for k, v in _fails.items() if not v or now - v[-1] >= FAIL_WINDOW]:
                 _fails.pop(k, None)

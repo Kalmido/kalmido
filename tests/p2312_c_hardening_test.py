@@ -80,8 +80,10 @@ from kalmido.accounts import session as S
 out = []
 for ip, what in {steps}:
     with fl.test_request_context("/", environ_base={{"REMOTE_ADDR": ip}}):
-        out.append(S._rate_reset("{name}") if what == "ok" else S._rate_fail([("uall:{name}", 3)]) if what == "fail"
-                   else S._rate_blocked([("uall:{name}", 3)]))
+        # 2.1271.0 (#6420): the name part of a key is rate_name (cut + hashed), as _rate_keys builds it
+        k = "uall:" + S.rate_name("{name}")
+        out.append(S._rate_reset("{name}") if what == "ok" else S._rate_fail([(k, 3)]) if what == "fail"
+                   else S._rate_blocked([(k, 3)]))
 print(json.dumps(out))
 """
 HOME, OTHER, ATT = "203.0.113.20", "198.51.100.8", "198.51.100.7"
