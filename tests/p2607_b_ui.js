@@ -158,8 +158,8 @@ const type = (w, el, v) => { el.value = v; el.dispatchEvent(new w.Event('input',
   const row = [...d.querySelectorAll('#view .ctrow[data-ctopen]')].find(x => /Erika/.test(x.textContent));
   const cm = new w.MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: 10, clientY: 10}); row.dispatchEvent(cm);
   const its = await until(() => { const x = [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"] .ml')].map(b => b.textContent); return x.length && x; });
-  check(cm.defaultPrevented && its && its[0] === 'Erika Example' && its[1] === 'Select' && its.includes('Open') && its.includes('Delete') && d.querySelector('#pop .mhead[disabled]'),
-    '#4612: right click = the name as head, "Select", Open, Delete ' + its);
+  check(cm.defaultPrevented && its && its[0] === 'Erika Example' && its[1] === 'Select' && its.includes('Open') && its.includes('Move to the trash') && d.querySelector('#pop .mhead[disabled]'),  // 2.1292.0 (#6124): "Move to the trash" (was Delete)
+    '#4612: right click = the name as head, "Select", Open, Move to the trash ' + its);
   [...d.querySelectorAll('#pop [role="menuitem"]')].find(x => x.textContent.trim() === 'Select').click();
   check(await until(() => d.querySelector('#ct-sbar') && w.eval('CT.pick && CT.pick.size === 1')), '#4612: "Select" starts the selection with this row');
   w.close();
