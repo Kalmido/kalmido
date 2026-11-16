@@ -166,7 +166,7 @@ const LD_CALL = {settings: ['settingsModal', 'setApply', 'settingsSync', 'modCou
   sectpl: ['sct_open', 'ticketTplModal'],  // 2.156.0 C (#2073); 2.609.0 (#3372): ticketTplModal
   orgschema: ['ofs_mount', 'ofs_manage', 'rqf_ask', 'olb_manage'],  // 2.609.0 (#3373)
   hubmailbox: ['hmb_dialog', 'hmb_compose'],  // 2.141.0 A (#2141, #2138)
-  listprint: ['lexPrint'], evinvite: ['evf_modal'], projtime: ['tz_open'], dayplan: ['dayplanModal'], gitrepo: ['repoWire', 'folderRepoModal'], hubmail: ['hbm_open'],
+  listprint: ['lexPrint', 'lexTaskPrint'], evinvite: ['evf_modal'], projtime: ['tz_open'], dayplan: ['dayplanModal'], gitrepo: ['repoWire', 'folderRepoModal'], hubmail: ['hbm_open'],
   sprints: ['spr_assign', 'spr_pick', 'spr_cfgModal', 'spr_cfgSet', 'spr_closeModal', 'spr_moreMenu'],  // 2.149.0 F (#2518)
   undolist: ['ul_open'],  // 2.773.0 (#5250): the window of the ← button
   ofwalk: ['wlk_open'],  // 2.778.0 (#5383)
