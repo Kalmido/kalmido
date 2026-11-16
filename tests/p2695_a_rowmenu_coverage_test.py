@@ -34,6 +34,8 @@ RM_LEFT = {
     ("budget.js", 'data-bg="more"'): (1, "the page menu of a budget"),
     ("feeds.js", 'data-rss="omenu"'): (1, "the page menu of the feeds (OPML import / export)"),
     # 2.1151.0 (#3835): settings / dialog rows get ONE "…" on a phone instead of their symbols, no long press (the decision of #3835)
+    # 2.1213.0 (#6118): the selection bar's "…" holds the actions that do not fit the bar on a phone (a bar menu), no row
+    ("multisel.js", 'data-msmore'): (1, "the \"More\" of the selection bar on a phone (actions that do not fit), no row"),
     ("multisel.js", 'data-msdots="${esc(btns)}"'): (1, "ms_dots: the phone \"…\" of a settings / dialog row (#3835: settings rows open their menu by this button, not by a long press)"),
     # 2.997.0 (#5354): the merge dialog's drag handle (#4805, 0642f884bd) shows the dots icon; it is no button and opens no menu
     ("docpages.js", 'class="dpm-grip"'): (1, "the drag handle of a row in Merge PDFs (aria-hidden, a press drags the row), no menu"),
@@ -59,6 +61,9 @@ RM_LEFT = {
     ("office_books.js", 'data-m="more"'): (1, "the foot of a receipt sheet on a phone (Open document / Bill on), no row"),
     ("office_docs.js", 'data-ofd="more"'): (1, "the bar of an open office document"),
     ("office_receipts.js", 'data-rcl="menu"'): (1, "the tool bar of the receipts page on a phone (kinds, CSV, ZIP, Select), no row"),
+    # 2.1180.0 (#6147): the bank bar on a phone and the walk-through dialog get "More" (one main step, the rest in the menu)
+    ("office_bank.js", 'data-bnk="menu"'): (1, "the bar of the bank page on a phone (Go through, Fetch from bank, Imports, Bank accounts), no row"),
+    ("office_walk.js", 'data-wlk="more"'): (1, "the actions of the one booking in the walk-through dialog (upload, marks, split), no list row"),
     ("office_doctpl.js", 'data-dt="more"'): (1, "the bar of an open document from a template"),
     ("office_letters.js", 'data-lt="more"'): (1, "the bar of an open letter"),
     ("polls.js", 'data-tpo="menu"'): (1, "the head of the poll dialog"),

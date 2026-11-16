@@ -63,7 +63,7 @@ async function tab(user, lid) {
   const nm = await until(() => d.querySelector('.modal #pcs-day') && d.querySelector('.modal #pcs-day').closest('.modal'));
   check(nm && /New call sheet/.test(txt(nm.querySelector('h3'))), 'the dialog "New call sheet" with a day');
   if (nm) nm.querySelector('#pcs-day').value = D;
-  nm?.querySelector('[data-pcs="make"]')?.click();
+  nm?.querySelector('[data-cd="yes"]')?.click();
   let md = await until(() => d.querySelector('.modal.csmd #cs-loc_name') && d.querySelector('.modal.csmd'));
   check(md && /Call sheet: Kinospot Winter/.test(txt(md.querySelector('h3'))) && !d.querySelector('.modal #pcs-day'), 'the call sheet of the new shoot day opened: ' + txt(md?.querySelector('h3')));
   check(md?.querySelector('#cs-day_no')?.value === '1', 'its shoot day number 1');

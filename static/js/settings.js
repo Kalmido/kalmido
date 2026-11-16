@@ -8,11 +8,12 @@ function wpState(md, j = md._wp) {
   const ch = $('#s-pushch', md)?.value || j.channel, n = j.subs.length;
   // 2.499.0 (#4215): on Web Push the public ntfy.sh gets no fallback, the message stays in the app
   const noFb = j.ntfy_public && ch !== 'both';
-  el.textContent = ch === 'ntfy' ? tr('Everything goes to ntfy.')
-    : !n ? (j.ntfy && !noFb ? tr('No device subscribed for push yet. Until then, notifications go to your ntfy topic.') : tr('No device subscribed for push yet. Switch on “Notify on this device” below.'))
-    : ch === 'both' ? trn('Web Push to {0} device and ntfy.', 'Web Push to {0} devices and ntfy.', n)
-    : noFb ? trn('Web Push to {0} device.', 'Web Push to {0} devices.', n)
-    : trn('Web Push to {0} device. ntfy only if no device accepts a push.', 'Web Push to {0} devices. ntfy only if no device accepts a push.', n);
+  // 2.1180.0 (#6130): everyday words - Browser notification (Web Push) and Notification app (ntfy); the technical words stay under "For advanced users"
+  el.textContent = ch === 'ntfy' ? tr('Everything goes to the notification app.')
+    : !n ? (j.ntfy && !noFb ? tr('No device switched on yet. Until then, notifications go to the notification app.') : tr('No device subscribed for push yet. Switch on “Notify on this device” below.'))
+    : ch === 'both' ? trn('Browser notification on {0} device and the notification app.', 'Browser notification on {0} devices and the notification app.', n)
+    : noFb ? trn('Browser notification on {0} device.', 'Browser notification on {0} devices.', n)
+    : trn('Browser notification on {0} device. The notification app only if no device accepts it.', 'Browser notification on {0} devices. The notification app only if no device accepts it.', n);
   el.classList.remove('warn');  // 2.5.2 (K04): a neutral hint, not a red warning
 }
 async function wpDraw(md) {
@@ -27,9 +28,9 @@ async function wpDraw(md) {
   const top = !!$('#s-pushnow', md);
   if (shellIOS()) h += top ? '' : hintK(tr('Notifications are not available in the iPhone app yet.'));  // 2.435.0 B (#3578)
   else if (isIOS() && !isStandalone()) h += hintK(tr('Add Kalmido to your Home Screen to get notifications on iPhone: Share > Add to Home Screen (iOS 16.4 or newer), then open it from there and switch it on here.'));
-  else if (!wpSupported()) h += top ? '' : hintK(tr('This browser does not support Web Push'));
+  else if (!wpSupported()) h += top ? '' : hintK(tr('This browser cannot show notifications'));  // 2.1180.0 (#6130)
   else {
-    h += `<div class="row"><label>${tr('Web Push')}</label><label class="chkl"><input type="checkbox" id="s-wpdev" ${mine ? 'checked' : ''}> ${tr('Notify on this device')}</label>${mine && !top ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test to this device')}</button>` : ''}</div>`;  // 2.555.0 C (#4664): the device test once
+    h += `<div class="row"><label>${tr('Browser notification')}</label><label class="chkl"><input type="checkbox" id="s-wpdev" ${mine ? 'checked' : ''}> ${tr('Notify on this device')}</label>${mine && !top ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test to this device')}</button>` : ''}</div>`;  // 2.555.0 C (#4664): the device test once
     if (Notification.permission === 'denied') h += hintK(tr('Notifications are blocked for this site. Allow them in the browser or system settings.'));
     else if (!mine) h += hint(tr('Your browser asks for permission once. Pushes arrive even when Kalmido is closed.'));
   }
@@ -43,7 +44,7 @@ async function wpDraw(md) {
   if (now) {
     const can = wpSupported() && !shellIOS() && !(isIOS() && !isStandalone()) && Notification.permission !== 'denied';
     now.className = 'pushnow ' + (mine ? 'on' : 'off');
-    now.innerHTML = `${ic(mine ? 'bellring' : 'belloff', 's')}<span><b>${mine ? tr('This device gets notifications') : tr('This device gets no notifications')}</b>${mine ? '' : `<small>${esc(shellIOS() ? tr('Notifications are not available in the iPhone app yet.') : !wpSupported() ? tr('This browser does not support Web Push') : isIOS() && !isStandalone() ? tr('Add Kalmido to the Home Screen first') : Notification.permission === 'denied' ? tr('Blocked in the browser or system settings') : j.subs.length ? trn('{0} other device does', '{0} other devices do', j.subs.length) : tr('No device is switched on yet'))}</small>`}</span>`
+    now.innerHTML = `${ic(mine ? 'bellring' : 'belloff', 's')}<span><b>${mine ? tr('This device gets notifications') : tr('This device gets no notifications')}</b>${mine ? '' : `<small>${esc(shellIOS() ? tr('Notifications are not available in the iPhone app yet.') : !wpSupported() ? tr('This browser cannot show notifications') : isIOS() && !isStandalone() ? tr('Add Kalmido to the Home Screen first') : Notification.permission === 'denied' ? tr('Blocked in the browser or system settings') : j.subs.length ? trn('{0} other device does', '{0} other devices do', j.subs.length) : tr('No device is switched on yet'))}</small>`}</span>`
       + (mine ? `<button class="btn sm" data-m="wp-test" data-sub="${mine.id}">${ic('bell', 's')} ${tr('Send test')}</button>` : can ? `<button class="btn sm pri" data-m="wp-on">${tr('Switch on')}</button>` : '');
   }
 }
@@ -866,7 +867,8 @@ function settingsModal(focus) {
       agents: S.me.is_admin ? ad_agentsHtml(hint) : '',  // 2.46.6 (#1710); 2.555.0 C (#4664): one switch for user_agents (s-uag), no second one
       odata: (lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin') ? wsDataHtml(hint) : '') + (S.me.is_admin ? ocAdminHtml(hint, !(lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin'))) : '')}, ad_admFocus(focus)) : '',  // 2.582.0 (#4827): backups + storage check under Server > Backup
     // 2.418.0 (#3560): the editor of every area's menu and the tab bar (navmenu.js nav_pageDraw)
-    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus"><div class="muted mhint">${tr('Loading…')}</div></div>`,
+    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus and bottom bar')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus"><div class="muted mhint">${tr('Loading…')}</div></div>
+      <div class="row" style="margin-top:.5rem"><button type="button" class="btn sm tabaddb" id="s-tabadd" data-m="tab-add" style="flex:1" aria-haspopup="dialog">${tr('+ Add tab …')}</button><button class="btn sm" data-m="tab-reset">${tr('Default')}</button></div>`,
     look: `<div id="s-lookin">${lookHtml()}</div>
       ${typeof spl_can === 'function' && spl_can() ? `<h4 id="s-split-h">${tr('Split view')}</h4><div class="row">${chk('s-split', LS.get('split', false) === true, tr('A second view of the app on the right'))}</div>
       <div class="row splminrow"><label for="s-splmin">${tr('Split from window width')}</label><input type="number" id="s-splmin" class="aanum wide" inputmode="numeric" min="${esc(String(spl_lo()))}" max="${esc(String(SPL_MAX_PX))}" placeholder="${esc(String(spl_def()))}" value="${esc(+LS.get('splMin', 0) > 0 ? String(spl_from()) : '')}"> <span class="muted">px</span> <button type="button" class="btn sm" data-m="s-splmin-std">${tr('Default')}</button></div>
@@ -876,16 +878,21 @@ function settingsModal(focus) {
       ${hint(tr('Main buttons, the active navigation, ticks, progress and focus take the colour of the workspace shown; Private keeps the accent colour. In “All workspaces” tasks and lists show the colour of their workspace, everything else the accent colour. Off: always the accent colour.')) /* 2.490.0 B (#4026) */}
       <h4 id="s-lemo-h">${tr('New projects')}</h4><div class="row">${chk('s-lemo', s.list_emoji !== '0', tr('Suggest icons for new projects'))}</div>
       ${hint(tr('A new project gets an icon matching its name; existing projects keep theirs.')) /* 2.555.0 C (#4664): each hint under its own switch */}
-      <div class="row">${chk('s-sdn', s.show_done_new !== '0', tr('Hide completed tasks in new projects'))}</div>
-      ${hint(tr('A new project hides its completed tasks; its “…” menu shows them again. A folder default goes first.'))}
       <h4 id="s-sdd-h">${tr('Completed tasks')}</h4><div class="row"><label for="s-sdd">${tr('In projects and views')}</label><select id="s-sdd"><option value="1">${tr('Show completed')}</option><option value="0" ${s.show_done_default === '0' ? 'selected' : ''}>${tr('Hide completed')}</option></select></div>
       ${hint(tr('The default for every project and view; a folder or a single project can choose otherwise.'))}
+      <div class="row">${chk('s-sdn', s.show_done_new !== '0', tr('Hide completed tasks in new projects'))}</div>
+      ${hint(tr('A new project hides its completed tasks; its “…” menu shows them again. A folder default goes first.'))}
       <h4 id="s-tips-h">${tr('Tips')}</h4><div class="row"><label>${tr('Hints')}</label><button class="btn sm" data-m="hints-reset">${ic('undo', 's')} ${tr('Show tips again')}</button></div>
       ${hint(tr('Brings back the one-time hints on this device (touch screens show helper texts once).'))}
+      ${S.me?.kid ? `
       <h4 id="s-tabbar-h">${tr('Tab bar')}</h4>
       ${hint(tr('This device fits {0} tabs, the rest goes under “More”.', tabMax()))}
       <div class="navlist" id="s-tabbar"></div>
       <div class="row" style="margin-top:.5rem"><button type="button" class="btn sm tabaddb" id="s-tabadd" data-m="tab-add" style="flex:1" aria-haspopup="dialog">${tr('+ Add tab …')}</button><button class="btn sm" data-m="tab-reset">${tr('Default')}</button></div>
+      ` : `
+      <h4 id="s-tabbar-h">${tr('Tab bar')}</h4>
+      <div class="row tabbarlink"><span class="muted">${tr('The bottom bar is edited under Navigation.')}</span><button type="button" class="btn sm" data-m="go-nav">${tr('Open Navigation')}</button></div>
+      `}
       <h4 id="s-prbg-h">${tr('Task rows')}</h4>
       <div class="row"><label for="s-prbg">${tr('Priority as background')}</label><select id="s-prbg">${[['', N_('Off')], ['soft', N_('Subtle')], ['strong', N_('Strong')]].map(([v, n]) => `<option value="${v}" ${(s.prio_bg || '') === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select></div>
       ${hint(tr('A light background in the priority colour; the bar at the edge stays.'))}
@@ -929,7 +936,7 @@ function settingsModal(focus) {
       ${typeof wt_setHtml === 'function' ? wt_setHtml(s, hint) : ''}`,
     modules: modulesHtml(hint),
     notify: `${S.webpush?.enabled ? `<div class="pushnow" id="s-pushnow" role="status" aria-live="polite"></div>` : ''}${S.webpush?.enabled ? `<h4>${tr('Delivery')}</h4>
-      <div class="row"><label for="s-pushch">${tr('Channel|push')}</label><select id="s-pushch">${[['webpush', N_('Web Push')], ['ntfy', 'ntfy'], ['both', N_('Both')]].map(([v, n]) => `<option value="${v}" ${(s.push_channel || 'webpush') === v ? 'selected' : ''}>${v === 'ntfy' ? n : tr(n)}</option>`).join('')}</select><button class="btn sm" data-m="ptest">${ic('bell', 's')} ${tr('Test all channels')}</button></div>
+      <div class="row"><label for="s-pushch">${tr('Channel|push')}</label><select id="s-pushch">${[['webpush', N_('Browser notification')], ['ntfy', N_('Notification app')], ['both', N_('Both')]].map(([v, n]) => `<option value="${v}" ${(s.push_channel || 'webpush') === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select>${''/* 2.1180.0 (#6130): everyday words */}<button class="btn sm" data-m="ptest">${ic('bell', 's')} ${tr('Test all channels')}</button></div>
       ${prio}
       <div class="shint wpstate" id="s-wpstate"></div>
       ${hint(tr('No extra app needed. Switch it on below on every device that should ring.'))}
@@ -938,10 +945,11 @@ function settingsModal(focus) {
       <h4>${tr('In the app')}</h4>
       <div class="row">${/*html-ok*/ chk('s-msgpop', LS.get('msgPop', '1') !== '0', tr('Pop-up for new messages'))}</div>
       ${/*html-ok*/ hint(tr('A new message from a person or a finished answer of an agent shows briefly at the top edge, wherever you are in Kalmido. Only on this device; while the app is open, this device gets no extra push for it.'))}
-      <div id="s-ntfy"><h4>${S.webpush?.enabled ? 'ntfy' : tr('Notifications (ntfy)')}</h4>
-      <div class="row"><label>${tr('Topic')}</label><code class="topic">${esc(s.ntfy_topic)}</code>${S.webpush?.enabled ? '' : `<button class="btn sm" data-m="test">${ic('bell', 's')} ${tr('Send test')}</button>`}</div>${''/* 2.555.0 C (#4664): with Web Push "Test all channels" above covers ntfy */}
+      <div id="s-ntfy"><h4>${tr('Notification app')}</h4>${''/* 2.1180.0 (#6130): no "ntfy" / "Topic" in the heading and the label */}
+      <div class="row"><label>${tr('Channel name')}</label><code class="topic">${esc(s.ntfy_topic)}</code>${S.webpush?.enabled ? '' : `<button class="btn sm" data-m="test">${ic('bell', 's')} ${tr('Send test')}</button>`}</div>${''/* 2.555.0 C (#4664): with Web Push "Test all channels" above covers ntfy */}
       ${S.webpush?.enabled ? '' : prio}
-      ${hint(`${tr('Subscribe in the ntfy app: server {0}, topic as above', esc(S.ntfyUrl))}. <a href="${esc(topicUrl)}" target="_blank" rel="noopener">${tr('Web view')}</a>`)}</div>
+      ${/*html-ok*/ hint(tr('Install the free app “ntfy” on your phone and subscribe there to the channel name above.'))}
+      <details class="acadv"><summary>${tr('For advanced users')}</summary>${hint(`${tr('Subscribe in the ntfy app: server {0}, topic as above', esc(S.ntfyUrl))}. <a href="${esc(topicUrl)}" target="_blank" rel="noopener">${tr('Web view')}</a>`)}</details></div>
       <div id="s-chn"></div>${''/* 2.142.0 A (#2145, #2146): channels + e-mail for single events (integrations.js chn_meDraw) */}
       ${notifMatrixHtml(s, hint)}${bl9SetHtml(s, hint)}${typeof tbl_setHtml === 'function' ? tbl_setHtml(chk, hint) : ''}
       ${typeof trd_setHtml === 'function' ? trd_setHtml(s, chk, hint) : ''}${typeof kbd_setHtml === 'function' ? kbd_setHtml(s, chk, hint) : ''}
@@ -976,8 +984,7 @@ function settingsModal(focus) {
       + intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()) + intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()) + intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // 2.365.2 B (#2789): integrations.js
       + intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
       + intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))
-      + intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html())
-      + acz_linkHtml(S.webhooks?.enabled),  // 2.166.0 (#2633): the webhooks moved to Access
+      + intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html()),  // 2.1178.0 (#6129): the link to Access stands once, under the cards at the top (integrCardsHtml)
     access: acz_html(),  // 2.166.0 (#2633): API tokens, webhooks and agent tokens in one place
     data: `<h4 id="s-imp-h">${tr('Import')}</h4>
       ${hint(tr('You see a preview first; an import can be undone for 24 hours. Nothing inside the file is fetched from the internet.'))}${nwls_impLinkHtml()}
@@ -1043,7 +1050,7 @@ function settingsModal(focus) {
   pane.data += biz_dataHtml(); pane.integr += intr_row('pep', 'building', N_('E-invoice (Peppol)'), biz_integrHtml());  // 2.365.2 D (#2789): the office's data and its Peppol access (both live in Company & office)
   pane.help += aboutHtml(chk, hint);
   const secs = SET_SECS.filter(([k]) => pane[k]);
-  let cur = {tabbar: 'look', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'access', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'access', apppw: 'account', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // 2.364.0 C (#3041): people, groups, agent rules under Organisation; 2.582.0 (#4827): backup / old odata of a server admin = Server > Backup
+  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'access', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'access', apppw: 'account', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // 2.364.0 C (#3041): people, groups, agent rules under Organisation; 2.582.0 (#4827): backup / old odata of a server admin = Server > Backup
   if (focus === 'codecheck') cur = 'help';  // 2.766.0 (#5220): the hint of the service worker (upbar.js)
   if (/^biz-/.test(focus || '')) { S.bizJump = focus.slice(4); cur = 'biz'; }  // 2.365.2 D (#2789): a part of Company & office (office.js biz_jump scrolls there)
   if (!secs.some(([k]) => k === cur)) cur = LS.get('settingsSec', 'general');
@@ -1080,7 +1087,7 @@ function settingsModal(focus) {
     LS.set(k === 'side' ? 'densSideV' : 'densRowsV', v); applyDensity(); e.target.setAttribute('aria-valuetext', v + ' %'); const o = $(`#s-dens-${k}-v`, md); if (o) o.textContent = v + ' %'; });
   md.addEventListener('input', e => { if (e.target.id !== 's-fsize') return; const v = +e.target.value; if (v === 100) LS.del('fsize'); else LS.set('fsize', v); applyLook(); fsLabel(v); });
   md.addEventListener('change', e => { if (e.target.id === 's-fsize' && S.settings) render(); });
-  if (focus === 'tabbar') setTimeout(() => $('#s-tabbar-h', md)?.scrollIntoView({block: 'start'}), 0);
+  if (focus === 'tabbar') setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) d.open = true; ($('#s-tabbar-h', md) || d)?.scrollIntoView({block: 'start'}); }, 50);  // sprung-ok: the person asked for this place  // 2.1178.0 (#6129)
   if (focus === 'sidebar') setTimeout(() => $('#s-side-h', md)?.scrollIntoView({block: 'start'}), 0);  // 2.25.0 (UX-03)
   if (focus === 'newskinds' || focus === 'share') setTimeout(() => intr_open(md, focus === 'share' ? '#s-share-h' : '#s-news-h')?.scrollIntoView({block: 'start'}), 0);
   if (focus === 'agentdots') setTimeout(() => $('#s-agdots-h', md)?.scrollIntoView({block: 'start'}), 0);
@@ -1219,7 +1226,7 @@ function settingsModal(focus) {
   // Agents) or a folded section opens it; nothing found hides the panes behind one clear line
   const sres = $('#s-search', md) && $('#s-sres', md);
   const SYN = [[['logout', 'log out', 'sign out', 'abmelden', 'ausloggen', 'déconnexion', 'cerrar sesión', 'esci', 'uitloggen'], '[data-acc="logout"]'], [['push', 'benachrichtigung', 'notification', 'glocke', 'bell', 'notificación', 'notifica', 'melding', 'cloche', 'campana', 'campanella'], '[data-pane="notify"] h4'],
-    [['freigabe', 'freigaben', 'externe links', 'datei-anfrage', 'dateianfrage', 'gültigkeit', 'sharing', 'external link', 'file request', 'partage', 'compartir', 'condivisione', 'delen'], '#s-xlstd-h'], [['sidebar', 'seitenleiste', 'barre latérale', 'barra lateral', 'zijbalk'], '#s-side-h'], [['navigation', 'menü anpassen', 'ausblenden', 'reihenfolge'], '#s-nav-h'], [['menü', 'menu', 'tab bar', 'tab-leiste'], '#s-tabbar-h'], [['wartet', 'waiting', 'warten', 'extern'], '[data-modrow="deps"]'], [['passwort', 'password', 'kennwort', 'mot de passe', 'contraseña', 'wachtwoord'], '#a-cur'],
+    [['freigabe', 'freigaben', 'externe links', 'datei-anfrage', 'dateianfrage', 'gültigkeit', 'sharing', 'external link', 'file request', 'partage', 'compartir', 'condivisione', 'delen'], '#s-xlstd-h'], [['sidebar', 'seitenleiste', 'barre latérale', 'barra lateral', 'zijbalk'], '#s-side-h'], [['navigation', 'menü anpassen', 'ausblenden', 'reihenfolge'], '#s-nav-h'], [['menü', 'menu', 'tab bar', 'tab-leiste'], '#s-nav-h'], [['wartet', 'waiting', 'warten', 'extern'], '[data-modrow="deps"]'], [['passwort', 'password', 'kennwort', 'mot de passe', 'contraseña', 'wachtwoord'], '#a-cur'],
     [['speicher', 'storage', 'quota', 'kontingent', 'stockage', 'almacenamiento', 'archiviazione', 'opslag'], '#s-storage-h'], [['dunkel', 'dark', 'hell', 'light', 'theme', 'sombre', 'oscuro', 'scuro', 'donker', 'thème', 'tema', 'thema'], '#s-lookin h4'], [['sprache', 'language', 'langue', 'idioma', 'lingua', 'taal'], '#s-lang-h'], [['region', 'région', 'regione', 'wochenstart', 'week start', 'uhrzeit', '12 h', '24 h'], '#s-fmt-h']];
   const shown = el => !el.closest('[hidden]') || el.closest('[data-admp], [data-aisp]');
   // 2.46.2 (#1651): readonly until focus keeps password managers out; a value nobody typed is cleared
@@ -1377,6 +1384,7 @@ function settingsModal(focus) {
     if (b.dataset.m === 'keys') { md.remove(); shortcutsModal(); return; }
     if (b.dataset.m === 'hints-reset') { LS.del('hintsSeen'); toast(tr('Done')); render(); return; }
     if (b.dataset.m === 'ag-guide') { aiSubShow(md, 'setup', true); return; }  // 2.4.2 (#392); 2.7.2 (#420): the Set up tab
+    if (b.dataset.m === 'go-nav') { $('.snav [data-sec="nav"]', md)?.click(); setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) { d.open = true; d.scrollIntoView?.({block: 'start'}); } }, 50); return; }  // sprung-ok: the person asked for this place  // 2.1178.0 (#6129): the bottom bar lives under Navigation only
     if (b.dataset.m === 'go-access') { $('.snav [data-sec="access"]', md)?.click(); return; }  // 2.166.0 (#2633)
     if (b.dataset.m === 'go-share') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, '#s-share-h')?.scrollIntoView?.({block: 'start'}), 50); return; }  // 2.7.0 (#405 S3)
     if (b.dataset.m === 'go-modules') { $('.snav [data-sec="modules"]', md)?.click(); setTimeout(() => $('[data-pane="modules"] [data-modrow="agents"]', md)?.scrollIntoView?.({block: 'center'}), 50); return; }  // 2.6.0 (K09)

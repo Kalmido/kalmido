@@ -53,6 +53,8 @@ function cs_logoCt(cs, k, md) {
   if (!id) return null;
   return (a.contacts || []).find(x => x.id === id) || [a.client_contact, a.agency_contact, a.agency_default].find(x => x && x.id === id) || null;
 }
+/** askDialog without its typed optional parts (2.1180.0, #6149) */
+const cs_ask = /** @type {(o: any) => Promise<any>} */ (askDialog);
 /** the inner part of the logo place k */
 function cs_logoCell(cs, k, md) {
   const ver = cs._lv || {};
@@ -60,7 +62,7 @@ function cs_logoCell(cs, k, md) {
   const ct = cs_logoCt(cs, k, md);
   if (ct?.photo) return `<img src="${esc(cs_url(cs.job, cs.org_id, '/photo/' + ct.id))}&v=${esc(String(ver[ct.id] || 0))}" alt="${esc(tr(CS_LOGO_ALT[k]))}">`;  // sprung-ok: fixed logo box (.cslogo)
   const can = cs.can_edit && (ct ? ct.can_photo : (cs.auto?.contacts || []).some(x => x.can_photo));
-  return can ? `<button type="button" class="btn sm ghost" data-cs="logo" data-k="${esc(k)}" aria-label="${esc(tr(CS_LOGO_ALT[k]))}">${ic('upload', 's')} ${tr('Add logo')}</button>` : '';
+  return can ? `<button type="button" class="btn sm ghost" data-cs="logo" data-k="${esc(k)}" aria-label="${esc(tr('Add logo') + ': ' + tr(CS_LOGO_ALT[k]))}">${ic('upload', 's')} ${tr('Add logo')}</button>` : '';
 }
 function cs_logosHtml(cs, md) {
   return `<div class="cslogos">${['production', 'agency', 'client'].map(k => `<div class="cslogo" data-logo="${esc(k)}">${/*html-ok*/ cs_logoCell(cs, k, md)}</div>`).join('')}</div>`;
@@ -196,21 +198,24 @@ async function cs_open(job, org) {
       toast(tr('The logo is saved as the photo of the contact.'));
     } catch { /* api() said it */ }
   };
-  const cs_logoAsk = k => {  // no contact chosen yet: the choice first (the contacts the person may change)
+  const cs_logoAsk = async k => {  // no contact chosen yet: the choice first (the contacts the person may change); 2.1180.0 (#6149): askDialog (Enter, focus, error in the dialog)
     const list = (cs.auto?.contacts || []).filter(x => x.can_photo);
-    const m = modal(`<h3>${esc(tr(CS_LOGO_ALT[k]))}</h3><p class="muted cshint">${tr('The logo is saved as the photo of the contact.')}</p>
+    let v = '';
+    const ok = await cs_ask({title: tr(CS_LOGO_ALT[k]), ok: tr('Select picture'),
+      html: `<p class="muted cshint">${tr('The logo is saved as the photo of the contact.')}</p>
       <div class="row"><label for="cs-logoct">${tr('Contact')}</label><select id="cs-logoct">${list.map(x => `<option value="${esc(String(x.id))}">${esc(cs_ctLabel(x))}</option>`).join('')}</select></div>
-      <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-csl="cancel">${tr('Cancel')}</button><button type="button" class="btn pri" data-csl="ok">${ic('upload', 's')} ${tr('Select picture')}</button></div>`);
-    m.addEventListener('click', e => {
-      const b = /** @type {any} */ (e.target).closest?.('[data-csl]'); if (!b) return;
-      const v = cs_one('#cs-logoct', m)?.value;
-      m.remove();
-      if (b.dataset.csl !== 'ok' || !v) return;
-      const sel = cs_one(`#cs-${k}_contact`, md);
-      if (sel) { sel.value = v; sel.dispatchEvent(new Event('change', {bubbles: true})); }
-      toast(tr('Save the call sheet to keep the contact chosen.'));
-      cs_logoPick(k);
-    });
+      <p class="cserr" role="alert" hidden></p>`,
+      submit: () => {
+        v = /** @type {any} */ (document.querySelector('.cdlg #cs-logoct'))?.value || '';
+        if (v) return true;
+        const e = document.querySelector('.cdlg .cserr'); if (e) { e.textContent = tr('Please select a contact'); /** @type {any} */ (e).hidden = false; }
+        return false;
+      }});
+    if (!ok || !v) return;
+    const sel = cs_one(`#cs-${k}_contact`, md);
+    if (sel) { sel.value = v; sel.dispatchEvent(new Event('change', {bubbles: true})); }
+    toast(tr('Save the call sheet to keep the contact chosen.'));
+    cs_logoPick(k);
   };
   md.addEventListener('change', async e => {
     const t = /** @type {any} */ (e.target);
@@ -266,7 +271,7 @@ async function cs_open(job, org) {
 // distribution -- crew, agency, client, each recipient ticked and can be left out one by one; before sending ALWAYS the
 // preview with the recipients, the subject, the text (with the signature) and the PDF; no link. The server only takes
 // addresses of the distribution (hub/callsheet.py cs_mail_post) and sends each recipient a mail of their own.
-const CS_MAIL_GROUPS = [['crew', N_('Crew')], ['agency', N_('Agency')], ['client', N_('Client')]];
+const CS_MAIL_GROUPS = [['crew', N_('Crew|mail group')], ['agency', N_('Agency')], ['client', N_('Client')]];
 /** one recipient of the choice (a checkbox, ticked) */
 function cs_rcptHtml(x, on) {
   return `<label class="csrcpt"><input type="checkbox" data-csm-to="${esc(x.email)}"${on ? ' checked' : ''}><span class="csrn">${esc(x.name)}${x.role ? ` <span class="muted">${esc(x.role)}</span>` : ''}</span><span class="csre muted">${esc(x.email)}</span></label>`;
@@ -306,7 +311,12 @@ function cs_mailPreviewHtml(p, pdfUrl) {
 async function cs_mail(job, org) {
   let m;
   try { m = await api('GET', cs_url(job, org, '/mail')); } catch { return; /* api() said it */ }
-  if (!m.sender?.way) { toast(tr('E-mail sending is not set up on this server yet: whoever runs the server sets it up.')); return; }
+  if (!m.sender?.way) {  // 2.1180.0 (#6149): a dialog with the way out (the PDF), not only a toast
+    if (await cs_ask({title: tr('Send the call sheet'), body: tr('E-mail sending is not set up on this server yet: whoever runs the server sets it up.'), ok: tr('Download PDF'), cancel: tr('Close')})) {
+      const x = document.createElement('a'); x.href = cs_url(job, org, '/pdf'); x.download = ''; document.body.append(x); x.click(); x.remove();
+    }
+    return;
+  }
   const st = {to: new Set(m.recipients.map(x => x.email)), subject: m.subject, text: m.text, step: 'form'};
   const md = /** @type {any} */ (modal('')), card = cs_one('.card', md);
   md.classList.add('csmd', 'csmail');
@@ -318,7 +328,8 @@ async function cs_mail(job, org) {
     st.text = cs_one('#csm-text', md)?.value ?? st.text;
   };
   const sync = () => { const b = cs_one('[data-csm="preview"]', md); if (b && m.recipients.length) b.disabled = !cs_all('[data-csm-to]', md).some(x => x.checked); };
-  const form = () => { st.step = 'form'; setHtml(card, cs_mailFormHtml(m, st)); sync(); };
+  const head = () => { const h = cs_one('h3', card); if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); } };  // 2.1180.0 (#6149): after every step the focus is on the heading
+  const form = () => { st.step = 'form'; setHtml(card, cs_mailFormHtml(m, st)); sync(); head(); };
   const req = preview => ({to: [...st.to], subject: st.subject, text: st.text, ...(preview ? {preview: true} : {})});
   form();
   md.addEventListener('change', e => { if (/** @type {any} */ (e.target).dataset?.csmTo !== undefined) sync(); });
@@ -334,20 +345,21 @@ async function cs_mail(job, org) {
       try {
         const p = await api('POST', cs_url(job, org, '/mail'), req(true));
         st.step = 'preview';
-        setHtml(card, cs_mailPreviewHtml(p, cs_url(job, org, '/pdf') + '&inline=1'));
+        setHtml(card, cs_mailPreviewHtml(p, cs_url(job, org, '/pdf') + '&inline=1')); head();
       } catch { b.disabled = false; /* api() said it */ }
       return;
     }
     if (k === 'send') {
-      b.disabled = true; b.textContent = tr('Sending…');
+      b.disabled = true; setHtml(b, `${ic('send', 's')} ${esc(tr('Sending…'))}`);
       try {
         const r = await api('POST', cs_url(job, org, '/mail'), req(false));
         if (r.failed?.length) {
           setHtml(card, `<h3>${tr('Send the call sheet')}</h3><p>${trh('Sent to {0} of {1} recipients.', r.sent.length, r.sent.length + r.failed.length)}</p>
             <p class="lbl">${tr('Not sent')}</p><ul class="csprev">${/*html-ok*/ r.failed.map(x => `<li><b>${esc(x.email)}</b> <span class="muted">${esc(x.error)}</span></li>`).join('')}</ul>
             <div class="foot"><span class="spacer"></span><button type="button" class="btn pri" data-csm="cancel">${tr('Close')}</button></div>`);
+          head();
         } else { md.remove(); toast(trn('Call sheet sent to {0} recipient', 'Call sheet sent to {0} recipients', r.sent.length)); }
-      } catch { b.disabled = false; b.textContent = tr('Send'); /* api() said it */ }
+      } catch (e) { b.disabled = false; setHtml(b, `${ic('send', 's')} ${esc(tr('Send'))}`); err(errText(e)); /* 2.1180.0 (#6149): the symbol stays; the reason also in the dialog */ }
     }
   });
 }
@@ -381,38 +393,41 @@ function viewProjCs() {
   const l = routeList(), d = S.pcsD[l.id];
   if (!d || (!d.busy && d.v !== S.v)) setTimeout(() => pcs_load(l.id), 0);
   const head = listHead(l, {noPill: true});
-  if (!d?.j) return `<div class="pov pcs">${/*html-ok*/ head}<div class="muted mhint">${d?.err ? esc(errText(d.err, tr('The call sheets could not be loaded'))) : tr('Loading…')}</div></div>`;
+  // 2.1180.0 (#6149): loading / error (with "Try again") / locked / empty from the shared blocks (render.js)
+  if (!d?.j) {
+    const retry = () => { const x = S.pcsD[l.id]; if (x) x.err = ''; pcs_load(l.id, true); viewSafeRender(); };
+    return `<div class="pov pcs">${/*html-ok*/ head}${/*html-ok*/ d?.err ? errorState({title: tr('The call sheets could not be loaded'), sub: d.err === 'offline' ? undefined : errText(d.err), size: 'sec', retry}) : loadingHtml('sec')}</div>`;
+  }
   const j = d.j, can = !!j.can_add && !l.archived;
   const bar = `<div class="pcsbar"><h3>${tr('Call sheets')}</h3><span class="spacer"></span>${can ? `<button type="button" class="btn sm pri" data-pcs="new">${ic('plus', 's')}<span>${tr('New call sheet')}</span></button>` : ''}</div>`;
   const rows = j.callsheets || [];
-  const body = j.locked ? `<p class="muted pcsempty">${tr('This project is locked: its call sheets are not shown here.')}</p>`
+  const body = j.locked ? noAccessState({title: tr('This project is locked: its call sheets are not shown here.'), sub: '', size: 'sec'})
     : rows.length ? `<div class="pcslist">${/*html-ok*/ rows.map(pcs_rowHtml).join('')}</div>`
-      : `<p class="muted pcsempty">${can ? tr('No call sheets yet. "New call sheet" makes one for a shoot day.') : tr('No call sheets yet.')}</p>`;
+      : emptyState({icon: 'file', title: can ? tr('No call sheets yet. "New call sheet" makes one for a shoot day.') : tr('No call sheets yet.'), size: 'sec',
+        action: can ? `<div class="eacts"><button type="button" class="btn pri" data-pcs="new">${ic('plus', 's')} ${esc(tr('New call sheet'))}</button></div>` : ''});
   return `<div class="pov pcs">${/*html-ok*/ head}${/*html-ok*/ bar}${/*html-ok*/ body}</div>`;
 }
 /** "New call sheet": the day, then the shoot day in the background and the call sheet opens */
-function pcs_new(l) {
-  const md = modal(`<h3>${tr('New call sheet')}</h3><div class="row"><label for="pcs-day">${tr('Shoot day')}</label>${/*html-ok*/ dateIn('pcs-day', today())}</div>
-    <p class="muted cshint">${tr('The shoot day is added to the disposition with an open place for the crew.')}</p>
-    <div class="foot"><span class="spacer"></span><button type="button" class="btn" data-pcs="cancel">${tr('Cancel')}</button><button type="button" class="btn pri" data-pcs="make">${ic('check', 's')} ${tr('Create')}</button></div>`);
-  md.addEventListener('click', async e => {
-    const b = /** @type {any} */ (e.target).closest?.('[data-pcs]'); if (!b) return;
-    if (b.dataset.pcs === 'cancel') { md.remove(); return; }
-    if (b.dataset.pcs !== 'make' || b.disabled) return;
-    const day = /** @type {any} */ (cs_one('#pcs-day', md))?.value || '';
-    if (!day) { toast(tr('Please select a date')); return; }
-    b.disabled = true;
-    try {
-      const r = await api('POST', '/api/team/dispo/callsheets', {list_id: l.id, date: day});
-      md.remove();
-      let ids = [r.booking_id];
-      histAdd({label: tr('Call sheet created'), srv: true,
-        undo: async () => { try { ids = (await api('DELETE', `/api/team/dispo/bookings/${ids[0]}?all=1`)).ids || ids; } catch { /* api() said it */ } pcs_load(l.id, true); },
-        redo: async () => { try { await api('POST', '/api/team/dispo/bookings/restore', {ids}); } catch { /* api() said it */ } pcs_load(l.id, true); }});
-      await pcs_load(l.id, true);
-      if (r.callsheet) cs_open(r.callsheet.job, r.callsheet.org_id);
-    } catch { b.disabled = false; /* api() said it */ }
-  });
+async function pcs_new(l) {  // 2.1180.0 (#6149): askDialog (Enter creates, focus back afterwards, an error stays in the dialog)
+  /** @type {any} */ let r;
+  const ok = await cs_ask({title: tr('New call sheet'), ok: tr('Create'),
+    html: `<div class="row"><label for="pcs-day">${tr('Shoot day')}</label>${/*html-ok*/ dateIn('pcs-day', today())}</div>
+      <p class="muted cshint">${tr('The shoot day is added to the disposition with an open place for the crew.')}</p><p class="cserr" role="alert" hidden></p>`,
+    submit: async () => {
+      const say = t => { const e = document.querySelector('.cdlg .cserr'); if (e) { e.textContent = t; /** @type {any} */ (e).hidden = !t; } };
+      const day = /** @type {any} */ (document.querySelector('.cdlg #pcs-day'))?.value || '';
+      if (!day) { say(tr('Please select a date')); return false; }
+      say('');
+      try { r = await api('POST', '/api/team/dispo/callsheets', {list_id: l.id, date: day}); return true; }
+      catch (e) { say(errText(e)); return false; }
+    }});
+  if (!ok || !r) return;
+  let ids = [r.booking_id];
+  histAdd({label: tr('Call sheet created'), srv: true,
+    undo: async () => { try { ids = (await api('DELETE', `/api/team/dispo/bookings/${ids[0]}?all=1`)).ids || ids; } catch { /* api() said it */ } pcs_load(l.id, true); },
+    redo: async () => { try { await api('POST', '/api/team/dispo/bookings/restore', {ids}); } catch { /* api() said it */ } pcs_load(l.id, true); }});
+  await pcs_load(l.id, true);
+  if (r.callsheet) cs_open(r.callsheet.job, r.callsheet.org_id);
 }
 document.addEventListener('click', e => {
   const b = /** @type {any} */ (e.target).closest?.('#view [data-pcs]'); if (!b) return;
