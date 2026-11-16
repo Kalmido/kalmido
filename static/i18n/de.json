@@ -18795,5 +18795,9 @@
   "Document flow {0} keeps failing on a document, failing since {1}.": "Der Dokument-Ablauf {0} scheitert wiederholt an einem Dokument, Fehler seit {1}.",
   "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "Die Rechnung der Serie ließ sich {0}-mal in Folge nicht erstellen. Prüfe die Vorlage-Rechnung und den Kunden und schalte die Serie dann wieder ein.",
   "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Niemand darf die Rechnungen der Serie erstellen: Der Bereich hat keinen Admin mit eingeschaltetem Büro. Schalte die Serie wieder ein, sobald es einen gibt.",
-  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "Rechnung {0} ist festgeschrieben, ihre E-Mail ging nach einem Neustart des Servers aber nicht raus. Sende sie von Hand aus der Rechnung."
+  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "Rechnung {0} ist festgeschrieben, ihre E-Mail ging nach einem Neustart des Servers aber nicht raus. Sende sie von Hand aus der Rechnung.",
+  "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "Die Löschung deines Kontos {0} ist abgebrochen. Ein Admin hat das Konto gesperrt; nur ein Admin kann es wieder freigeben.",
+  "An admin has locked your account; only an admin can unlock it.": "Ein Admin hat dein Konto gesperrt; nur ein Admin kann es wieder freigeben.",
+  "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Rechnung {0}: Der Steuersatz {1} % hat kein DATEV-Automatikkonto; sie wird auf Konto {2} exportiert - die Umsatzsteuer von {3} bitte von Hand buchen",
+  "Reminder fee, interest and flat fee {0}: {1}": "Mahngebühr, Zinsen und Pauschale {0}: {1}"
 }
