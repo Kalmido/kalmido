@@ -26,7 +26,7 @@ from ..core.config import app, USERNAME_RE
 from ..core.pg import system_ctx, write_lock
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, iso, now_utc, uset, usettings
-from ..core.access import Denied, list_role, list_roles, WRITE_ROLES, FULL_ROLES  # 2.1287.0 review F3: FULL_ROLES
+from ..core.access import Denied, joined_lists_sql, list_role, list_roles, WRITE_ROLES, FULL_ROLES  # 2.1287.0 review F3: FULL_ROLES
 from ..core.errors import BadInput
 from ..accounts.session import me
 from ..accounts.orgs import is_org_admin
@@ -160,7 +160,7 @@ def srv_run_cut(c, aid, token_hash, who, work):
     own = ids_parse(a["list_ids"]) if "list_ids" in a.keys() and str(a["list_ids"] or "").strip() else None
     if who:
         base = own if own is not None else {r[0] for r in c.execute(
-            "SELECT id FROM lists WHERE owner_id=? UNION SELECT list_id FROM list_members WHERE user_id=?", (aid, aid))}
+            f"SELECT id FROM lists WHERE id IN {joined_lists_sql()}", (aid, aid))}  # the agent's own projects
         # review F3: only a FULL role of the person counts -- a participant sees just their own tasks (core/access.py pvis),
         # the agent's role would show them the whole project; their projects stay out of the run
         lids = {x for x in base if list_role(c, x, who) in FULL_ROLES}

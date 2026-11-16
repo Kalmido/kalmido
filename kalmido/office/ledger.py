@@ -131,7 +131,7 @@ def ofx_user_label(c, uid):
 
 
 def ofx_log_name(c, oid, uid):
-    """2.1287.0 (#6470): office_doc_log.user_name of a new entry by uid in organisation oid, sealed like the detail
+    """2.1287.0 (#6470): office_doc_log.user_name of a new entry by uid in the organisation, sealed like the detail
     (core/orgcrypt.py FIELDS): the name stays when the account is deleted (user_id ON DELETE SET NULL)."""
     return oc_enc(c, oid, "office_doc_log.user_name", ofx_user_label(c, uid)) or ""
 

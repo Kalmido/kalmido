@@ -440,7 +440,7 @@ def _section(c, lid):
     return s[0] if s else None
 
 
-GSY_NEW_TASK_HOOKS = []  # 2.1269.0 (#6431): fn(c, task id) after a new issue became a task (agents/core.py: origin git)
+GSY_NEW_TASK_HOOKS = []  # 2.1269.0 (#6431): fn(c, task id) after a new issue became a task (agents/chat.py: origin git)
 
 
 def gsy_new_task(c, r, n, lg):
@@ -461,7 +461,7 @@ def gsy_new_task(c, r, n, lg):
     c.execute("""INSERT INTO git_issue_links(conn_id,issue_no,task_id,remote_updated_at,local_updated_at,created_at,snap)
                  VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING""", (r["id"], n["no"], tid, n["updated_at"], ts, ts, json.dumps(snap, ensure_ascii=False)))
     # 2.1269.0 (#6431): title and text are the issue's (outside Kalmido): the task keeps origin git (+ untrusted) for agents
-    # (agents/core.py registers it; this layer imports no agent code); no task_added, an @name in the issue is no mention
+    # (agents/chat.py registers it; this layer imports no agent code); no task_added, an @name in the issue is no mention
     for h in GSY_NEW_TASK_HOOKS:
         h(c, tid)
     return tid
