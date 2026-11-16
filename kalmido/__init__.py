@@ -34,6 +34,7 @@ ORDER = (
     "core.i18nfrag",  # 2.1188.0 (#6194): the new texts of the packages (static/i18n/neu/<KID>.json), read by core.i18n
     "core.i18n",
     "core.mailframe",  # 2.420.0 B (#3499): the one HTML frame of every mail
+    "core.mailguard",  # 2.1281.0 (#6425): a foreign mail is counted before it is taken apart (standard library only)
     "core.numtext",  # 2.263.0 (#2976): one reader for typed numbers
     "core.pg",  # 2.37.0 (#1150): the Postgres layer (core.db re-exports it)
     "core.reqtime",  # 2.149.0 B (#2504): request timing (Server-Timing, slow log); first hooks = whole request measured
