@@ -67,6 +67,7 @@ def kpi_revenue(c, oid, home, docs, year, today):
     st = office_settings(c, oid)
     strict = {y: eb_basis_of(st, y) == "bank" for y in (year - 1, year)}
     inc_ids = eb_income_payment_ids(c, oid) if any(strict.values()) else None
+    rest = {}
     for p in c.execute(f"SELECT p.id, p.doc_id, {BK_PAY_DAY} AS date, p.amount FROM office_payments p LEFT JOIN office_payments o "
                        f"ON o.id=p.reverses_id AND o.org_id=p.org_id WHERE p.org_id=? AND {BK_PAY_DAY}>=? AND {BK_PAY_DAY}<?",
                        (oid, f"{year - 1}-01-01", f"{year + 1}-01-01")):
@@ -78,7 +79,7 @@ def kpi_revenue(c, oid, home, docs, year, today):
         # 2.1259.0 (#6301): the net share of the frozen tax lines, the same figure as the books (books.bk_pay_net, a refund on a
         # credit note negative); a document without tax lines keeps net / gross of its totals
         if _j(r["totals"]).get("tax_lines") and (r["vat_mode"] or "vat") != "novat":
-            a = bk_pay_net(p["amount"], r, home)
+            a = bk_pay_net(c, oid, p, r, home, rest)  # 2.1292.0 (#6478): + the finalised credit notes, as the books
         else:
             a = dec(p["amount"]) * _net_share(r) / _fx(r, home)
             if r["kind"] == "credit":
