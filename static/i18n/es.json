@@ -18795,6 +18795,7 @@
   "An admin has locked your account; only an admin can unlock it.": "Un administrador ha bloqueado tu cuenta; solo un administrador puede desbloquearla.",
   "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Factura {0}: el tipo de IVA del {1} % no tiene cuenta automática DATEV; se exporta a la cuenta {2}; contabilice a mano su IVA de {3}",
   "Reminder fee, interest and flat fee {0}: {1}": "Tasa de recordatorio, intereses y cantidad fija {0}: {1}",
+  "Rounding adjustment": "Ajuste de redondeo",
   "Date / priority of the parent task adopted for {0} task": ["Fecha / prioridad de la tarea principal adoptada en {0} tarea", "Fecha / prioridad de la tarea principal adoptada en {0} tareas"],
   "Date and priority of {0} adopted": "Fecha y prioridad de {0} adoptadas",
   "Date of {0} adopted": "Fecha de {0} adoptada",

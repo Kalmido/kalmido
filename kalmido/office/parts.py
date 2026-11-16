@@ -217,33 +217,44 @@ def f8b_qty_bases(bases, qty):
 
 def f8b_fix_cents(rows, want, lang="de", currency="EUR", fx=None):
     """2.58.0 (#1759): invoice positions made from a part (x a fractional qty) round every position on its own; per tax
-    rate their sum must equal the part line's amount on the title page (want: {rate key: amount}). The rest cent goes
-    on the last position of that rate, which then becomes one flat amount (its qty x rate stays in the detail).
+    rate their sum must equal the part line's amount on the title page (want: {rate key: amount}).
     2.368.0 C (#2983): the detail's rate in the office's home currency (the rates' one), not always EUR.
     2.1254.0 (#6299): fx = a quotation in a foreign currency: want is in that currency, a position counts with rate x fx (as
-    inv_calc), the rest cent's flat rate goes back by calc_home_rate."""
+    inv_calc), the rest's flat rate goes back by calc_home_rate.
+    2.1287.0 (#6300): the rest per rate is always settled, of any size and with percent positions in the part (they come
+    here as their amount, unit flat): with exactly one position of that rate it becomes that position's flat amount (its
+    qty x rate stays in the detail, as before); with several (or none) the part gets its own position "Rounding
+    adjustment" (qty 1, flat) at its end - no hour position silently turns into a flat amount. So the invoice hits the
+    quotation's net and gross in every mode (was: only up to 0.05, and nothing at all with a percent position)."""
     def conv(rate):
         return rate * fx if fx is not None else rate
 
+    if not want:
+        return rows
     have = {}
     for x in rows:
         if x.get("kind") not in ("service", "discount"):
             continue
-        if x.get("unit") == "percent":
-            return rows  # its amount depends on the whole invoice: leave as before
         v = calc_line_amount(dec(x.get("qty"), "1"), conv(dec(x.get("rate"))), x.get("discount_pct") if x["kind"] == "service" else 0)[2]  # 2.354.0 A (#2831): like inv_calc, the exact rate; 2.1042.0 (#5815): after its own discount
         have[x.get("tax")] = have.get(x.get("tax"), D0) + (-v if x["kind"] == "discount" else v)
-    for k, w in (want or {}).items():
-        diff = money(dec(w)) - have.get(k, D0)
-        last = next((x for x in reversed(rows) if x.get("kind") == "service" and x.get("tax") == k), None)
-        if not diff or last is None or abs(diff) > Decimal("0.05"):
+    adjust = []
+    for k in list(want) + [k for k in have if k not in want]:
+        diff = money(dec(want.get(k))) - have.get(k, D0)
+        if not diff:
             continue
-        q, rate = dec(last.get("qty"), "1"), dec(last.get("rate"))  # 2.354.0 A (#2831): the exact rate
-        # 2.1042.0 (#5815): a discounted position becomes its net after the discount (the flat amount carries it, no percent left)
-        amt = calc_line_amount(q, conv(rate), last.get("discount_pct"))[2] + diff
-        last.update(qty=_num(1), unit="flat", rate=_num(amt) if fx is None else calc_home_rate(amt, fx), discount_pct=0,
-                    detail=" · ".join(t for t in (f"{fmt_qty(q, lang)} × {fmt_rate(rate, lang, currency)}", last.get("detail") or "") if t))
-    return rows
+        svc = [x for x in rows if x.get("kind") == "service" and x.get("tax") == k]
+        if len(svc) == 1 and svc[0].get("unit") != "percent":
+            last = svc[0]
+            q, rate = dec(last.get("qty"), "1"), dec(last.get("rate"))  # 2.354.0 A (#2831): the exact rate
+            # 2.1042.0 (#5815): a discounted position becomes its net after the discount (the flat amount carries it, no percent left)
+            amt = calc_line_amount(q, conv(rate), last.get("discount_pct"))[2] + diff
+            last.update(qty=_num(1), unit="flat", rate=_num(amt) if fx is None else calc_home_rate(amt, fx), discount_pct=0,
+                        detail=" · ".join(t for t in (f"{fmt_qty(q, lang)} × {fmt_rate(rate, lang, currency)}", last.get("detail") or "") if t))
+            continue
+        adjust.append({"kind": "service", "service_id": None, "title": tr("Rounding adjustment", lg=lang), "detail": "", "qty": _num(1),
+                       "unit": "flat", "rate": _num(diff) if fx is None else calc_home_rate(diff, fx), "tax": k if k in TAX_KEYS else "standard",
+                       "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+    return rows + adjust
 
 
 def _dominant(bases):
