@@ -188,6 +188,7 @@ ORDER = (
     "admin.bkstore",  # 2.432.0 (#3584): the shared store of the backups (standard library only)
     "admin.backup",
     "admin.offsite",  # 2.143.0 B (#2152): the off-site target of the backups (S3, WebDAV, SFTP)
+    "api.runfor",  # 2.1287.0 (#6454, review): a team agent's run for a person -- the one table of /api/v1 routes (api_authenticate)
     "api.v1",
     "notify.caps",  # 2.33.0 (#927)
     "notify.taskbell",  # 2.53.0 C (#1424): the bell of one task per person

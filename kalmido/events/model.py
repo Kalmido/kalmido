@@ -16,6 +16,7 @@ from ..core.usertz import hm_text, tz_gap, tz_of_s
 from ..core.retention import ret_due, ret_on, ret_report, ret_trash_cut  # 2.272.0 A (#3026)
 from ..accounts.session import me
 from ..core.access import acx_org_ok, collab_all, Denied, live_sql, task_visible, trash_sql  # 2.947.0 (#5367): trash_sql; 2.1026.0: live_sql
+from ..core.access import act_for  # 2.1287.0 (#6454, review F7)
 from ..core.dlock import dl_area_locked, dl_of, dl_tasks_locked  # 2.560.0 B (#4699)
 from ..core.objsearch import osr_ids_sql  # 2.1026.0 (#5280)
 from ..core.pages import valid_url
@@ -163,8 +164,10 @@ def my_cal_ids(c, uid, hidden=True):
     """{calendar id: role} of the calendars uid sees (hidden=False: without the ones uid hid)."""
     if dl_area_locked(c, uid, "calendar"):  # 2.560.0 B (#4699): the agent's data lock leaves the calendars out
         return {}
-    out = {r[0]: "owner" for r in c.execute("SELECT id, org_id FROM ev_cals WHERE owner_id=? AND deleted_at IS NULL", (uid,))
-           if acx_org_ok(c, uid, r[1])}
+    own = [r for r in c.execute("SELECT * FROM ev_cals WHERE owner_id=? AND deleted_at IS NULL", (uid,)) if acx_org_ok(c, uid, r["org_id"])]
+    if act_for(uid) is not None:  # 2.1287.0 (#6454, review F7): a team agent's run for a person: its own calendars too only
+        own = [r for r in own if ev_role(c, uid, r)]  # where that person has a role (ev_role ends with the person cap)
+    out = {r["id"]: "owner" for r in own}
     if collab_all():
         out.update(_ev_core_ids(c, uid, set(out)))  # 2.924.0 (#5069): the shares of the core only (no member rows any more)
     if "readonly" in org_roles_of(c, uid).values():  # 2.143.0 A (#2151): read-only in an organisation -> its calendars view
@@ -747,7 +750,11 @@ def ev_role_of(c, uid, r, cals=None):
         if cal is None:
             cal = c.execute("SELECT * FROM ev_cals WHERE id=?", (r["cal_id"],)).fetchone()
         if cal is not None and ev_att_ok(c, uid, cal["org_id"]):  # 2.87.0 (#1983)
-            return "attendee"
+            # 2.1287.0 (#6454, review F7): the agent's invitation opens the event in a run only when the person it works
+            # for reaches the event themselves (their calendar role or their own invitation)
+            who = act_for(uid)
+            if who is None or (who and all(ev_role_of(c, p, r) for p in who)):
+                return "attendee"
     return None
 
 
@@ -828,6 +835,8 @@ def ev_range(c, uid, lo, hi, cal=None):
         if gone:
             rows = [r for r in rows if r["task_id"] not in gone]
             inv = [r for r in inv if r["task_id"] not in gone]
+    if inv and act_for(uid) is not None:  # 2.1287.0 (#6454, review F7): a run for a person: an invitation only as ev_role_of
+        inv = [r for r in inv if ev_role_of(c, uid, r)]
     out, seen = [], set()
     nat, occ_mine = {}, {}
     ids = [r["id"] for r in rows] + [r["id"] for r in inv]
@@ -874,7 +883,7 @@ def ev_find(c, uid, raw, limit=20):
         for r in c.execute(f"""SELECT e.*, k.org_id AS cal_org FROM events e JOIN event_attendees a ON a.event_id=e.id AND a.user_id=?
                                JOIN ev_cals k ON k.id=e.cal_id WHERE e.id IN {ids} AND {live_sql('e')}
                                ORDER BY e.start DESC, e.id DESC LIMIT ?""", [uid, *args, int(limit)]).fetchall():
-            if r["cal_id"] not in cals and ev_att_ok(c, uid, r["cal_org"]):  # 2.87.0 (#1983)
+            if r["cal_id"] not in cals and ev_att_ok(c, uid, r["cal_org"]) and (act_for(uid) is None or ev_role_of(c, uid, r)):  # 2.87.0 (#1983); #6454 F7
                 rows.append((r, "attendee"))
     if dl_of(c, uid):
         gone = dl_tasks_locked(c, uid, [r["task_id"] for r, _ in rows])

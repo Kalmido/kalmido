@@ -337,7 +337,18 @@ def need_xroom(c, rid):
     from ..core.objects import obj_gate  # 2.633.0 (#4779, review): the core's floor as in tcx_channels / need_room - a token limited
     if not obj_gate(c, me(), "tchat_room", r):  # to lists renames, archives or adds members to no channel by a known id
         raise Denied(404)
+    if not tcx_run_ok(c, r, me()):
+        raise Denied(404)
     return r
+
+
+def tcx_run_ok(c, r, uid):
+    """2.1287.0 (#6454, review P2): in a team agent's run for a person a channel / group exists only when that person has a
+    role in it too (obj_role ends with the person cap, core/access.py act_for); everybody else: True."""
+    if act_for(uid) is None:
+        return True
+    from ..core.objects import obj_role
+    return bool(obj_role(c, uid, "tchat_room", r["id"], row=r))
 
 
 def tcx_out(c, r, uid=None, mem=None):
@@ -361,7 +372,7 @@ def tcx_channels():
                          OR created_by=? {('OR org_id IN (' + ','.join('?' * len(orgs)) + ')') if orgs else ''}) ORDER BY lower(name), id""",
                      (uid, *orgs)).fetchall()  # 2.924.0 (#5069): the core alone
     from ..core.objects import obj_gate  # 2.633.0 (#4779): the core's floor per row, as need_room (a token limited to lists sees none)
-    rows = [r for r in rows if obj_gate(c, uid, "tchat_room", r)]
+    rows = [r for r in rows if obj_gate(c, uid, "tchat_room", r) and tcx_run_ok(c, r, uid)]
     mm = tcx_members_of(c, rows)  # 2.281.0 B (#3110): the members of every channel at once
     who = {"uid": uid, "orgs": set(orgs)}  # 2.369.3 (#3199): the organisations read above, once for every channel
     chans = [tcx_out(c, r, uid, mm[r["id"]]) for r in rows

@@ -55,6 +55,8 @@ from ..agents.chat import chat_is_final  # 2.1130.0 (#6057): only a finished ans
 from ..agents.chatnews import acn_news  # 2.1039.0 (#5804 #5805)
 from ..accounts.orgs import ws_apply_default, ws_member_problem  # 2.369.5 (#2517): pulled up from functions
 from ..core.access import list_other_agent, list_archived  # 2.369.5 (#2517): pulled up from functions
+from ..core.access import run_person  # 2.1287.0 (#6454, review)
+from ..api.runfor import run_job_ok  # 2.1287.0 (#6454, review F1)
 
 
 # ---- 2.3.0 (#260 #261 #262 #263): agent PROPOSALS. Kalmido never runs a model itself and an agent must not silently create
@@ -1347,7 +1349,7 @@ def v1_agent_job_get(jid):
     aid = need_agent()
     c = db()
     j = c.execute("SELECT * FROM agent_jobs WHERE id=? AND agent_id=?", (jid, aid)).fetchone()
-    if not j:
+    if not j or not run_job_ok(c, j):  # 2.1287.0 (#6454, review F1): a run for a person: that person's jobs
         raise Denied(404)
     d = job_dict(c, j)
     if j["kind"]:
@@ -1365,7 +1367,7 @@ def v1_agent_job_proposal(jid):
     aid = need_agent()
     c = db()
     j = c.execute("SELECT * FROM agent_jobs WHERE id=? AND agent_id=?", (jid, aid)).fetchone()
-    if not j:
+    if not j or not run_job_ok(c, j):  # 2.1287.0 (#6454, review F1): a run for a person: that person's jobs
         raise Denied(404)
     if not j["kind"]:
         raise BadInput(tr("This job did not ask for a proposal"))
@@ -1475,6 +1477,10 @@ def v1_agent_chats():
     if a.get("user_id"):
         q += " AND user_id=?"
         args.append(as_int(a["user_id"], "user_id", 1))
+    by = run_person()
+    if by is not None:  # 2.1287.0 (#6454, review F1): a run for a person reads only the conversation with that person
+        q += " AND user_id=?"
+        args.append(by or -1)
     rows = c.execute(q + " ORDER BY id LIMIT ?", (*args, limit + 1)).fetchall()
     more = len(rows) > limit
     rows = rows[:limit]

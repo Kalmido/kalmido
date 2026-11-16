@@ -38,7 +38,7 @@ from ..core.config import API_PREFIX, app, PUBLIC_URL
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, parse_iso
 from ..core.pg import insert_id
-from ..core.access import act_for, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
+from ..core.access import act_for, run_person, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
 from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
 from ..accounts.session import me
@@ -599,6 +599,8 @@ def ctl_claim(c, a, hdr, step, lids):
         if not ctl_obj_write(c, who):
             return None, {"reason": "approver_rights"}
         g.ctl_for = who  # every role function of this request answers at most this person's role (core/access.py act_for)
+    elif lids and not a["owner_id"] and run_person() is not None:
+        g.ctl_for = who  # review (F6): a run's card in a project: the person who said Yes counts, not the reader who asked
     n = c.execute("""UPDATE agent_chat SET choices=jsonb_set(choices, '{approval,used_at}', to_jsonb(CAST(? AS TEXT)))
                      WHERE id=? AND agent_id=? AND choices->'approval'->>'used_at' IS NULL""",
                   (iso_ms(now_utc()), int(hdr), aid)).rowcount

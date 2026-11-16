@@ -26,7 +26,7 @@ from ..core.config import app, USERNAME_RE
 from ..core.pg import system_ctx, write_lock
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, iso, now_utc, uset, usettings
-from ..core.access import Denied, list_role, list_roles, WRITE_ROLES
+from ..core.access import Denied, list_role, list_roles, WRITE_ROLES, FULL_ROLES  # 2.1287.0 review F3: FULL_ROLES
 from ..core.errors import BadInput
 from ..accounts.session import me
 from ..accounts.orgs import is_org_admin
@@ -161,12 +161,20 @@ def srv_run_cut(c, aid, token_hash, who, work):
     if who:
         base = own if own is not None else {r[0] for r in c.execute(
             "SELECT id FROM lists WHERE owner_id=? UNION SELECT list_id FROM list_members WHERE user_id=?", (aid, aid))}
-        lids = {x for x in base if list_role(c, x, who)}
+        # review F3: only a FULL role of the person counts -- a participant sees just their own tasks (core/access.py pvis),
+        # the agent's role would show them the whole project; their projects stay out of the run
+        lids = {x for x in base if list_role(c, x, who) in FULL_ROLES}
     else:
         lids = {x for x in (_ev_lid(e.get("data")) for e in work if isinstance(e, dict)) if x and (own is None or x in own)}
-    c.execute("UPDATE api_tokens SET asked_by=?, run_lists=? WHERE token_hash=? AND user_id=?",
-              (who or 0, ",".join(str(x) for x in sorted(lids)), token_hash, aid))
+    n = c.execute("UPDATE api_tokens SET asked_by=?, run_lists=? WHERE token_hash=? AND user_id=?",
+                  (who or 0, ",".join(str(x) for x in sorted(lids)), token_hash, aid)).rowcount
+    if n != 1:  # review F8: no token row cut = the run would go on with the agent's whole reach -- it ends instead
+        raise SrvCutFailed()
     return lids
+
+
+class SrvCutFailed(Exception):
+    """srv_run_cut could not cut the run's token (the row is gone): the run must not start."""
 
 
 def srv_events_cut(c, who, lids, data):

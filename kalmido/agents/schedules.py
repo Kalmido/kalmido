@@ -23,6 +23,7 @@ from ..core.pg import insert_id, st_ids, system_ctx
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, now_utc, parse_iso
 from ..core.access import Denied, list_role, reading_ids
+from ..api.runfor import run_chat_ok  # 2.1287.0 (#6454, review F1)
 from ..accounts.session import me
 from ..collab.comments import user_names
 from ..core.errors import BadInput
@@ -512,6 +513,7 @@ def v1_agent_schedules():
     aid = need_agent()
     c = db()
     rows = c.execute("SELECT * FROM agent_schedules WHERE agent_id=? ORDER BY id", (aid,)).fetchall()
+    rows = [r for r in rows if run_chat_ok(r["user_id"])]  # 2.1287.0 (#6454, review F1): a run for a person: that person's plans
     names = user_names(c, [aid] + [r["user_id"] for r in rows])
     out = []
     for r in rows:

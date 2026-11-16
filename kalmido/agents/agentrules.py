@@ -25,6 +25,7 @@ from ..core.i18n import tr
 from ..core.db import body, bump, db, iso, iso_ms, now_utc
 from ..core.pg import insert_id, write_lock
 from ..core.access import Denied, task_visible
+from ..api.runfor import run_chat_ok  # 2.1287.0 (#6454, review F1)
 from ..core.errors import BadInput, UnknownFields
 from ..core.conflict import ccf_check  # 2.564.0 D (#4701)
 from ..api.common import v1_args, v1_json, v1_view
@@ -100,7 +101,7 @@ def _source_of_agent(c, aid, src):
     if src["kind"] == "chat":
         m = c.execute("SELECT id, user_id, sender, body FROM agent_chat WHERE id=? AND agent_id=?", (sid, aid)).fetchone()
         # a message of a person to this agent (its own answers are no instruction), in a conversation it still has
-        if not m or m["sender"] != "user" or not agent_shares(c, aid, m["user_id"]):
+        if not m or m["sender"] != "user" or not agent_shares(c, aid, m["user_id"]) or not run_chat_ok(m["user_id"]):
             raise Denied(404)
         return ("chat", sid, None, m["user_id"], _excerpt(m["body"]))
     m = c.execute("""SELECT k.id, k.ref_id AS task_id, k.user_id, k.body, k.ext_name, u.kind, t.list_id FROM obj_comments k
@@ -162,7 +163,7 @@ def _src_seen(c, r, aid):
     has, the comment on a task it may see in full)?"""
     if r["source_kind"] == "chat":
         m = c.execute("SELECT user_id FROM agent_chat WHERE id=? AND agent_id=?", (r["source_id"], aid)).fetchone()
-        return bool(m) and agent_shares(c, aid, m["user_id"])
+        return bool(m) and agent_shares(c, aid, m["user_id"]) and run_chat_ok(m["user_id"])
     if r["source_kind"] == "comment":
         return _comment_alive(c, r["source_id"]) and task_visible(c, r["source_task_id"], aid, full=True)
     return True

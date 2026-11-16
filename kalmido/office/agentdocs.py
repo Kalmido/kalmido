@@ -27,6 +27,7 @@ from ..core.config import app
 from ..core.db import body, bump, db, err, iso, local_now, now_utc
 from ..core.i18n import N_, tr
 from ..core.access import Denied, list_role, live_sql
+from ..core.access import run_person  # 2.1287.0 (#6454, review)
 from ..core.pg import insert_id, system_ctx, ts_canon, write_lock  # 2.1095.0 (#5306): ts_canon
 from ..core.orgcrypt import oc_log_detail
 from ..accounts.session import me
@@ -188,6 +189,8 @@ def _v1ctx(c, rb=None, write=False, target="office", area=None):
         uid = a["owner_id"]
     else:
         raise BadInput(tr("requested_by is needed: the person this is for"))
+    if run_person() not in (None, uid):  # 2.1287.0 (#6454, review F2): in a run for a person the office works for that person only
+        raise Denied(403, tr(OFA_NOT_ASKED))
     if office_role(c, uid, oid) not in ("admin", "member") or not office_on(c, uid):
         raise Denied(403, tr("This person does not work in this office"))
     if area and not office_can(c, uid, oid, area, level):  # 2.223.2 B (#2862): previous access too (a member: no bank)
