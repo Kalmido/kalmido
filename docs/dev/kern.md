@@ -557,6 +557,10 @@ organisations + a private person, read-only, guest, a group, an agent, an expire
 `tenant-matrix:` / `freelancer-matrix:` of its routes. The core itself is tested with the test kind `objprobe`
 (`KALMIDO_TEST_OBJ=1`, tests/obj_probe.py).
 
+A move of old rows into the core (a MOVE step, then a `# drop-ok` DROP in AFTER) needs its entry in `tests/upgrade_moves.py`:
+the old table, the target, the move's own condition as key tuples on both sides (or, in OTHER, why no row check applies).
+p2192_c_upgrade compares the rows before and after the start and is red for a drop-ok line without an entry (#6287).
+
 ## Stage 3: calendars and address books (2.566.0, #4712)
 
 - `evcal` (ev_cals, events/evkern.py) and `address_book` (books, contacts/ctkern.py) are kinds without the generic routes

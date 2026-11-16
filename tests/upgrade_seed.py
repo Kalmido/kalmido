@@ -14,12 +14,18 @@ requests and docker (no kt.py: that came later).
 Data (invented, addresses @example.com): instance admin alice with the organisation "Nordwind Studio", member bob, frida
 without an organisation (her own private workspace and personal office); an org project and a private list with tasks (due
 date + time, repeat rule, subtasks, a done task), comments of two people, an attachment, an org office (client, quotation
-with items, invoice from it, finalized), frida's personal office (client + quotation), time entries, a personal agent."""
+with items, invoice from it, finalized), frida's personal office (client + quotation), time entries, a personal agent.
+2.1265.0 (#6287): one real object of each kind the shared core took over (KERN): a project tag and an organisation label on a
+task, a reaction, a review comment, a document note, a knowledge page with two versions, a playbook with two versions, a
+template and a section template. The script also runs in an older release's tree (the upgrade probe copies it into the live
+tag): a step whose route that release lacks (404 / 405) is skipped and named in <version>.json "kern_skipped" -- the suite
+then compares exactly what was seeded and says what it leaves out."""
 import gzip
 import json
 import os
 import subprocess
 import sys
+import time
 
 import requests
 
@@ -78,7 +84,7 @@ T3 = ok(A.post(B + "/api/tasks", json={"list_id": TEAM, "title": "Angebot schick
 ok(A.post(B + f"/api/tasks/{T3}/complete", json={}), "t3 done")
 for t in ("Steuerunterlagen sortieren", "Zahnarzt anrufen"):
     ok(A.post(B + "/api/tasks", json={"list_id": PRIV, "title": t, "repeat": "FREQ=MONTHLY" if t[0] == "S" else ""}), "private task")
-ok(A.post(B + f"/api/tasks/{T1}/comments", json={"body": "Erste Fassung bis Freitag"}), "comment alice")
+C1 = ok(A.post(B + f"/api/tasks/{T1}/comments", json={"body": "Erste Fassung bis Freitag"}), "comment alice").get("id")  # #6287
 ok(Bo.post(B + f"/api/tasks/{T1}/comments", json={"body": "Ton kommt am Donnerstag"}), "comment bob")
 ok(A.post(B + f"/api/tasks/{T1}/attachments", files={"file": ("briefing.txt", b"Briefing Imagefilm\n" * 10, "text/plain")}), "attachment")
 FL = ok(Fr.post(B + "/api/lists", json={"name": "Frida Kunden", "kind": "project", "time_tracking": True}), "frida list")["id"]
@@ -108,6 +114,148 @@ ok(Fr.post(B + "/api/time/entries", json={"list_id": FL, "start": "2026-02-12T08
 ok(A.put(B + "/api/admin/agent-policy", json={"user_agents": True}), "agent policy")
 AG = ok(A.post(B + "/api/my/agents", json={"username": "nordbot", "display_name": "Nordwind Bot", "scopes": ["read", "tasks:write"]}), "agent")["id"]
 ok(A.put(B + f"/api/lists/{TEAM}/members", json={"user_id": AG, "role": "edit"}), "agent in team")
+
+
+# 2.1265.0 (#6287): the kinds of the shared core (KERN_ITEMS, the same names in tests/upgrade_views.py)
+KERN_ITEMS = ("project_tag", "label", "reaction", "review_comment", "doc_note", "wiki", "playbook", "template", "section_template")
+KERN_IDS, KERN_SKIP = {}, {}
+
+
+class Missing(Exception):
+    """The release has no such route: the step is skipped, not failed."""
+
+
+def kok(r, what):
+    if r.status_code in (404, 405):
+        raise Missing(f"{what}: {r.status_code} {r.text[:120]}")
+    return ok(r, what)
+
+
+def kern(name, fn):
+    try:
+        KERN_IDS[name] = fn()
+    except Missing as e:
+        KERN_SKIP[name] = str(e)
+        print(f"upgrade_seed: {name} skipped, this release lacks the route ({e})")
+
+
+def wait_doc(nid):
+    """The document's processing has finished (its state, not a fixed time)."""
+    end = time.time() + 120
+    while time.time() < end:
+        r = A.get(B + f"/api/docs/{nid}")
+        if r.ok and r.json().get("state") in ("done", "failed"):
+            return
+        time.sleep(0.5)
+    raise AssertionError(f"document {nid} not processed within 120 s")
+
+
+def seed_project_tag():
+    kok(A.post(B + f"/api/lists/{TEAM}/tags", json={"name": "Schnitt", "color": "#3b82f6"}), "project tag")
+    ok(A.patch(B + f"/api/tasks/{T2}", json={"ltags": ["Schnitt"]}), "project tag on a task")
+    return {"list": TEAM, "task": T2}
+
+
+def seed_label():
+    kok(A.post(B + "/api/org-labels", json={"org_id": ORG, "name": "Dringend", "color": "#f87171"}), "label")
+    ok(A.patch(B + f"/api/tasks/{T2}", json={"ltags": (["Schnitt"] if "project_tag" in KERN_IDS else []) + ["Dringend"]}), "label on a task")
+    return {"org": ORG, "task": T2}
+
+
+def seed_reaction():
+    kok(Bo.post(B + f"/api/comments/{C1}/reactions", json={"emoji": "heart", "on": True}), "reaction")
+    return {"task": T1, "comment": C1}
+
+
+def seed_review_comment():
+    ok(A.patch(B + "/api/settings", json={"features": FEATURES + ",videos"}), "alice: reviews on")
+    vid = kok(A.post(B + "/api/videos", json={"title": "Imagefilm Rohschnitt", "url": "https://vimeo.com/123456789", "list_id": TEAM}),
+              "review")["id"]
+    kok(A.post(B + f"/api/videos/{vid}/comments", json={"body": "Bei Sekunde zwölf heller", "at_sec": 12}), "review comment")
+    return {"video": vid}
+
+
+def seed_doc_note():
+    r = kok(A.post(B + "/api/docs", data={"ws": "private"}, files=[("files", ("lieferschein.txt", b"Lieferschein Nordwind\n" * 5, "text/plain"))]),
+            "document")
+    nid = r["ids"][0]
+    wait_doc(nid)
+    kok(A.post(B + f"/api/docs/{nid}/notes", json={"text": "Geprüft, liegt im Ordner Belege"}), "document note")
+    return {"doc": nid}
+
+
+def seed_wiki():
+    pid = kok(A.post(B + "/api/wiki/pages", json={"space": f"org:{ORG}", "path": "Handbuch/Abläufe", "body": "Schnitt vor Ton."}),
+              "knowledge page")["id"]
+    ok(A.patch(B + f"/api/wiki/pages/{pid}", json={"body": "Schnitt vor Ton. Farbe zuletzt."}), "page, version 1")
+    ok(Bo.patch(B + f"/api/wiki/pages/{pid}", json={"body": "Schnitt vor Ton. Farbe zuletzt. Abnahme mit dem Kunden."}), "page, version 2 (bob)")
+    vs = kok(A.get(B + f"/api/wiki/pages/{pid}/versions"), "page versions").get("versions") or []
+    assert len(vs) >= 2, f"knowledge page: two versions expected, {vs}"
+    return {"page": pid}
+
+
+def seed_playbook():
+    kok(A.put(B + f"/api/lists/{TEAM}/playbook", json={"text": "Kunden binnen eines Tages antworten."}), "playbook")
+    ok(A.put(B + f"/api/lists/{TEAM}/playbook", json={"text": "Kunden binnen eines Tages antworten. Freitags kein Versand."}), "playbook, version 2")
+    return {"list": TEAM}
+
+
+def seed_template():
+    return {"template": kok(A.post(B + "/api/templates", json={"list_id": PRIV, "name": "Privat-Vorlage"}), "template")["id"]}
+
+
+def seed_section_template():
+    return {"template": kok(A.post(B + "/api/section-templates", json={"name": "Schnittphasen", "sections": ["Rohschnitt", "Feinschnitt"]}),
+                            "section template")["id"]}
+
+
+for _name in KERN_ITEMS:
+    kern(_name, globals()["seed_" + _name])
+
+
+def kern_view(name, ids):
+    """What the release shows of a KERN item -- the same as tests/upgrade_views.py kern_view (keep both alike)."""
+    if name in ("project_tag", "label"):
+        st = A.get(B + "/api/state").json()
+        task = next((t for t in st["tasks"] if t["id"] == ids["task"]), {})
+        if name == "project_tag":
+            lst = next((x for x in st["lists"] if x["id"] == ids["list"]), {})
+            return {"list": sorted(t["name"] for t in lst.get("tags") or [] if t["name"] == "Schnitt"), "task": sorted(task.get("ltags") or [])}
+        labels = kok(A.get(B + "/api/org-labels", params={"org_id": ids["org"]}), "labels")["labels"]
+        return {"labels": sorted(x["name"] for x in labels), "task": sorted(task.get("ltags") or [])}
+    if name == "reaction":
+        cs = kok(A.get(B + f"/api/tasks/{ids['task']}/timeline"), "timeline")["comments"]
+        c = next((x for x in cs if x["id"] == ids["comment"]), {})
+        return sorted([x["emoji"], x["count"], sorted(u["name"] for u in x["users"])] for x in c.get("reactions") or [])
+    if name == "review_comment":
+        v = kok(A.get(B + f"/api/videos/{ids['video']}"), "review")
+        return {"title": v["title"], "comments": sorted([c["body"], c.get("at_sec"), c.get("author_id")] for c in v["comments"])}
+    if name == "doc_note":
+        return [n["text"] for n in kok(A.get(B + f"/api/docs/{ids['doc']}/notes"), "notes")["notes"]]
+    if name == "wiki":
+        base = B + f"/api/wiki/pages/{ids['page']}"
+        vs = sorted(kok(A.get(base + "/versions"), "versions")["versions"], key=lambda v: v["no"])
+        return {"body": kok(A.get(base), "page")["body"], "versions": [kok(A.get(base + f"/versions/{v['id']}"), "version")["body"] for v in vs]}
+    if name == "playbook":
+        base = B + f"/api/lists/{ids['list']}/playbook"
+        vs = sorted(v["version"] for v in kok(A.get(base + "/versions"), "playbook versions")["versions"])
+        return {"text": kok(A.get(base), "playbook")["text"], "versions": [kok(A.get(base + f"/versions/{v}"), "version")["text"] for v in vs]}
+    if name == "template":
+        ts = kok(A.get(B + "/api/templates"), "templates")["templates"]
+        return sorted([t["kind"], t["name"], t.get("count")] for t in ts if t["id"] == ids["template"])
+    if name == "section_template":
+        ts = kok(A.get(B + "/api/section-templates"), "section templates")["templates"]
+        return sorted([t["name"], t["sections"]] for t in ts if t["id"] == ids["template"])
+    raise AssertionError(name)
+
+
+KERN = {}
+for _name, _ids in KERN_IDS.items():
+    try:
+        KERN[_name] = kern_view(_name, _ids)
+    except Missing as e:
+        KERN_SKIP[_name] = f"read back: {e}"
+print(f"upgrade_seed: core kinds seeded {sorted(KERN)}, skipped {sorted(KERN_SKIP)}")
 
 
 # what this release shows: the suite compares the upgraded server's answers with it
@@ -150,6 +298,7 @@ EXP = {
                 "frida": sorted(c["name"] for c in Fr.get(B + "/api/clients").json()["clients"])},
     "minutes": {"alice": minutes(A), "frida": minutes(Fr)},
     "agents": sorted(a["username"] for a in A.get(B + "/api/my/agents").json()["agents"]),
+    "kern": KERN, "kern_ids": KERN_IDS, "kern_skipped": KERN_SKIP,  # 2.1265.0 (#6287)
 }
 assert EXP["docs"]["alice"] and EXP["docs"]["frida"] and EXP["minutes"]["alice"], EXP
 

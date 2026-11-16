@@ -14,6 +14,7 @@ from ..core.pg import system_ctx
 from ..accounts.session import GATE
 from ..api.v1 import WH_ON
 from ..docs import flows as FL
+from ..notify.alerts import aa_count
 from .webhooks import WH_BACKOFF, wh_allow, wh_send, wh_url_check
 
 DFH_TICK = 5                                         # s between two looks at the waiting webhook calls
@@ -40,12 +41,19 @@ def dfh_hooks():
                                  (time.time(), DFH_BATCH)).fetchall()
                 allow = wh_allow(c)
                 for r in rows:
-                    p = FL.fl_hook_payload(c, r) if WH_ON else None
-                    if p:
-                        try:
-                            dfh_check(c, p[0])
-                        except BadInput:
-                            p = "blocked"
+                    try:  # 2.1265.0 (#6389): a run whose payload raises waits like a failed call; the others of the batch go out
+                        with c.savepoint():
+                            p = FL.fl_hook_payload(c, r) if WH_ON else None
+                            if p:
+                                try:
+                                    dfh_check(c, p[0])
+                                except BadInput:
+                                    p = "blocked"
+                    except Exception as e:  # noqa: BLE001
+                        print(f"docflows: webhook of run {r['id']} could not be prepared:", type(e).__name__, flush=True)
+                        aa_count("watchdog", f"docflows|hook|{type(e).__name__}", "docflows")
+                        dfh_retry(c, r["id"], int(r["hook_attempt"] or 0) + 1, type(e).__name__, 0)
+                        continue
                     if p is None or p == "blocked":
                         c.execute("UPDATE doc_flow_runs SET hook=? WHERE id=?", ("blocked" if p else "gone", r["id"]))
                         continue
@@ -62,16 +70,24 @@ def dfh_hooks():
                 with system_ctx(c):  # document flows: the result of one call
                     if ok:
                         c.execute("UPDATE doc_flow_runs SET hook='done', hook_attempt=? WHERE id=? AND hook='wait'", (att, r["id"]))
-                    elif att > len(WH_BACKOFF):
-                        c.execute("UPDATE doc_flow_runs SET hook='failed', hook_attempt=? WHERE id=? AND hook='wait'", (att, r["id"]))
-                        print(f"docflows: webhook of run {r['id']} given up after {att} attempts ({errc} {status or ''})", flush=True)
                     else:
-                        c.execute("UPDATE doc_flow_runs SET hook_attempt=?, hook_next=? WHERE id=? AND hook='wait'",
-                                  (att, time.time() + WH_BACKOFF[att - 1], r["id"]))
+                        dfh_retry(c, r["id"], att, errc, status)
                 c.commit()
             finally:
                 c.close()
     return len(todo)
+
+
+def dfh_retry(c, rid, att, errc, status):
+    """A failed attempt `att` of run rid's webhook: the next one after WH_BACKOFF, or given up ('failed') after the last. 2.1265.0
+    (#6389): a given-up call is counted for the admin alerts (aa_count) too, not only a log line."""
+    if att > len(WH_BACKOFF):
+        c.execute("UPDATE doc_flow_runs SET hook='failed', hook_attempt=? WHERE id=? AND hook='wait'", (att, rid))
+        print(f"docflows: webhook of run {rid} given up after {att} attempts ({errc} {status or ''})", flush=True)
+        aa_count("watchdog", "docflows|webhook_failed", rid)
+    else:
+        c.execute("UPDATE doc_flow_runs SET hook_attempt=?, hook_next=? WHERE id=? AND hook='wait'",
+                  (att, time.time() + WH_BACKOFF[att - 1], rid))
 
 
 def dfh_sched():
@@ -97,3 +113,4 @@ def dfh_loop():
             dfh_hooks()
         except Exception as e:  # noqa: BLE001 -- the loop never dies
             print("docflows:", type(e).__name__, e, iso(now_utc()), flush=True)
+            aa_count("watchdog", f"docflows|{type(e).__name__}", "docflows")  # 2.1265.0 (#6389): not only a log line

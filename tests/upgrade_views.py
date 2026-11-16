@@ -94,6 +94,67 @@ def same(got, exp, what):
         print("   got:     ", json.dumps(got, ensure_ascii=False)[:1500])
 
 
+# 2.1265.0 (#6287): the kinds of the shared core upgrade_seed.py seeds (KERN_ITEMS there) and how they are read back -- the
+# same as upgrade_seed.py kern_view (keep both alike); the rows of each moved from old tables at some start (tests/upgrade_moves.py)
+KERN_ITEMS = ("project_tag", "label", "reaction", "review_comment", "doc_note", "wiki", "playbook", "template", "section_template")
+
+
+def _get(s, url, **kw):
+    r = s.get(B + url, **kw)
+    assert r.ok, f"GET {url}: {r.status_code} {r.text[:200]}"
+    return r.json()
+
+
+def kern_view(A, name, ids):
+    if name in ("project_tag", "label"):
+        st = _get(A, "/api/state")
+        task = next((t for t in st["tasks"] if t["id"] == ids["task"]), {})
+        if name == "project_tag":
+            lst = next((x for x in st["lists"] if x["id"] == ids["list"]), {})
+            return {"list": sorted(t["name"] for t in lst.get("tags") or [] if t["name"] == "Schnitt"), "task": sorted(task.get("ltags") or [])}
+        labels = _get(A, "/api/org-labels", params={"org_id": ids["org"]})["labels"]
+        return {"labels": sorted(x["name"] for x in labels), "task": sorted(task.get("ltags") or [])}
+    if name == "reaction":
+        c = next((x for x in _get(A, f"/api/tasks/{ids['task']}/timeline")["comments"] if x["id"] == ids["comment"]), {})
+        return sorted([x["emoji"], x["count"], sorted(u["name"] for u in x["users"])] for x in c.get("reactions") or [])
+    if name == "review_comment":
+        v = _get(A, f"/api/videos/{ids['video']}")
+        return {"title": v["title"], "comments": sorted([c["body"], c.get("at_sec"), c.get("author_id")] for c in v["comments"])}
+    if name == "doc_note":
+        return [n["text"] for n in _get(A, f"/api/docs/{ids['doc']}/notes")["notes"]]
+    if name == "wiki":
+        base = f"/api/wiki/pages/{ids['page']}"
+        vs = sorted(_get(A, base + "/versions")["versions"], key=lambda v: v["no"])
+        return {"body": _get(A, base)["body"], "versions": [_get(A, base + f"/versions/{v['id']}")["body"] for v in vs]}
+    if name == "playbook":
+        base = f"/api/lists/{ids['list']}/playbook"
+        vs = sorted(v["version"] for v in _get(A, base + "/versions")["versions"])
+        return {"text": _get(A, base)["text"], "versions": [_get(A, base + f"/versions/{v}")["text"] for v in vs]}
+    if name == "template":
+        return sorted([t["kind"], t["name"], t.get("count")] for t in _get(A, "/api/templates")["templates"] if t["id"] == ids["template"])
+    if name == "section_template":
+        return sorted([t["name"], t["sections"]] for t in _get(A, "/api/section-templates")["templates"] if t["id"] == ids["template"])
+    raise AssertionError(name)
+
+
+def kern_checks(E, tag, A):
+    """2.1265.0 (#6287): every KERN item the fixture's release could seed reads the same through the API now; what it could not
+    seed (an older release without the route) or a fixture made before #6287 is named, never passed in silence."""
+    if "kern" not in E:
+        print(f"   SKIP {tag}: core kinds not compared ({', '.join(KERN_ITEMS)}): the fixture of {E['version']} was made before #6287")
+        return
+    for name in KERN_ITEMS:
+        if name not in E["kern"]:
+            print(f"   SKIP {tag}: {name} not compared: {E.get('kern_skipped', {}).get(name, 'not seeded by this fixture')}")
+            continue
+        try:
+            got = kern_view(A, name, E["kern_ids"][name])
+        except AssertionError as e:
+            check(False, f"{tag}: {name} readable after the update: {str(e)[:300]}")
+            continue
+        same(json.loads(json.dumps(got)), E["kern"][name], f"{tag}: {name} as before")
+
+
 def data_checks(E, tag):
     users = {u: sess(u, E["password"], soft=True) for u in ("alice", "bob", "frida")}
     if not check(all(users.values()), f"{tag}: the old accounts sign in with their passwords"):
@@ -113,6 +174,7 @@ def data_checks(E, tag):
         same(sorted(c["name"] for c in s.get(B + "/api/clients").json()["clients"]), E["clients"][u], f"{tag}: {u}'s clients")
         same(minutes(s), E["minutes"][u], f"{tag}: {u}'s time entries")
     same(sorted(a["username"] for a in A.get(B + "/api/my/agents").json()["agents"]), E["agents"], f"{tag}: the personal agent")
+    kern_checks(E, tag, A)  # 2.1265.0 (#6287)
     # the boundary between the organisation, alice's private workspace and frida (no organisation)
     check(Fr.get(B + f"/api/tasks/{ids['t1']}").status_code in (403, 404), f"{tag}: frida cannot read the org task")
     check(Fr.get(B + f"/api/office/docs/{ids['invoice']}").status_code in (403, 404), f"{tag}: frida cannot read the org invoice")

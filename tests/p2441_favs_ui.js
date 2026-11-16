@@ -225,6 +225,49 @@ const items = async ck => JSON.parse((await call(ck, 'GET', '/api/state')).setti
     await shot('p2441-page.png');
   }, true);
 
+  // 2.1265.0 (#6382): the names of object favourites are remembered on the device: the tile is there, with its name and clickable, BEFORE the
+  // answer of /api/favorites/targets (held back by a preload script); the neighbours keep their place; the answer redraws nothing
+  await call(CA, 'PATCH', '/api/settings', {fav_items: ['v:today', `r:wiki:${PG2}`, `r:office_doc:${OFA}`, 'sep:1', 'm:matrix', `l:${LS[0]}`], fav_lists: String(LS[0])});
+  for (const [vw, bar, tileSel] of [[1440, '#kbar .fv2bar', '#kbar .fv2-tile'], [390, '#favup', '#favup .fv2-tile']]) {
+    await firefox(async o => {
+      const {ev, cmd, ctx} = o;
+      await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: vw, height: 900}});
+      await signIn(o, 'alice', '#today');
+      check(await ready(ev, `document.querySelectorAll('${tileSel}[data-fv2^="r:"]').length === 2`), `${vw}: first load draws the object tiles`);
+      check(await ready(ev, `!!localStorage.getItem('tasks.favres')`), `${vw}: names are kept in localStorage`);
+      const POS = `(() => JSON.stringify([...document.querySelectorAll('${tileSel}')].map(t => [t.dataset.fv2, Math.round(t.getBoundingClientRect().left), Math.round(t.getBoundingClientRect().top)])))()`;
+      // the answer waits behind a gate the test opens (window.__fvGo); __fvHeld proves the app really asked and was held back
+      await cmd('script.addPreloadScript', {functionDeclaration: `() => { const f = window.fetch; let go; const gate = new Promise(r => { go = r; }); window.__fvHeld = 0; window.__fvDone = false; window.__fvGo = () => go();
+        window.fetch = function (u) { if (String(u && u.url || u).indexOf('api/favorites/targets') < 0) return f.apply(this, arguments); window.__fvHeld++; const t = this, a = arguments; return gate.then(() => f.apply(t, a)).finally(() => { setTimeout(() => { window.__fvDone = true; }, 0); }); }; }`});
+      await o.nav(B + 'static/icon.svg');  // away first: the same address with only the hash would not load the page again
+      await o.nav(B + '#today');
+      check(await ready(ev, `document.querySelectorAll('${tileSel}').length >= 5`), `${vw}: reload, all tiles there while the answer is held back`);
+      if (vw === 390) {  // a phone: the row opens as a swipe up on the tab bar does (fvd_set, see above)
+        await ev(`(() => { fvd_set(true); return 1; })()`);
+        // open and at rest: the row slides in, a place read during that slide is not the answer's doing
+        check(await ready(ev, `!document.querySelector('#favup').classList.contains('hidden') && document.querySelector('#favup').getAnimations({subtree: true}).length === 0 && document.body.getAnimations().length === 0`), '390: the row opens before the answer');
+      }
+      check(await ready(ev, `window.__fvHeld >= 1 && !window.__fvDone`), `${vw}: the targets request is held back`);
+      const before = await ev(POS);
+      check(/r:wiki:/.test(before) && /r:office_doc:/.test(before), `${vw}: object tiles drawn before the answer ` + before);
+      check(await ev(`/Team handbook/.test(document.querySelector('${tileSel}[data-fv2="r:wiki:${PG2}"]').getAttribute('aria-label') + document.querySelector('${tileSel}[data-fv2="r:wiki:${PG2}"]').title)`), `${vw}: the tile has its name`);
+      check(await ev(`(() => { const r = document.querySelector('${tileSel}[data-fv2="r:wiki:${PG2}"]').getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.left >= 0 && r.right <= innerWidth + 1; })()`), `${vw}: the tile is visible on the screen ` + before);
+      // the answer arrives: the same tiles at the same places, the node itself is not drawn again (calm view)
+      await ev(`(() => { document.querySelector('${tileSel}[data-fv2="r:wiki:${PG2}"]').__kept = 1; window.__fvGo(); return 1; })()`);
+      check(await ready(ev, `window.__fvDone && !FV2.busy`), `${vw}: the answer came`);
+      const after = await ev(POS);
+      check(before === after, `${vw}: no tile moved when the answer came ` + before + ' / ' + after);
+      check(await ev(`document.querySelector('${tileSel}[data-fv2="r:wiki:${PG2}"]').__kept === 1`), `${vw}: an unchanged answer draws nothing again`);
+      await ev(`(() => { document.querySelector('${tileSel}[data-fv2="r:wiki:${PG2}"]').click(); return 1; })()`);
+      check(await ready(ev, `location.hash === '#wiki/${PG2}'`), `${vw}: clickable before the answer ` + await ev('location.hash'));
+      // broken JSON = empty, no crash
+      await ev(`(() => { localStorage.setItem('tasks.favres', '{broken'); return 1; })()`);
+      await o.nav(B + 'static/icon.svg');  // away first: the same address with only the hash would not load the page again
+      await o.nav(B + '#today');
+      check(await ready(ev, `document.querySelectorAll('${tileSel}[data-fv2="v:today"]').length === 1`), `${vw}: broken JSON in the store = like empty`);
+    }, vw === 390);
+  }
+
   console.log(`${ok} passed, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
 })().catch(e => { console.log('CRASH', e); process.exit(1); });

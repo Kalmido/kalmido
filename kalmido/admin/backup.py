@@ -851,7 +851,7 @@ def bk_run(kind):
         try:
             c = connect()
             if os.environ.get("KALMIDO_TEST") == "1" and os.environ.get("KALMIDO_TEST_BK_IDLE_TX_MS"):  # tests only (2.281.0 D, #3118)
-                c.execute("SET idle_in_transaction_session_timeout=%d" % int(os.environ["KALMIDO_TEST_BK_IDLE_TX_MS"]))
+                bk_test_idle_tx(c)
                 c.commit()  # a SET survives only a committed transaction
             name = bk_create(kind, c)
             bk_prune(c)
@@ -920,6 +920,29 @@ def bkr_daily_prune(c):
         _BK_LOCK.release()
 
 
+def bk_mark_day(c, day):
+    """2.1265.0 (#6383): the day marker of a scheduled backup on a fresh transaction. If it cannot be written although the
+    backup is there, the next scheduled try waits an hour (never more than one scheduled backup per hour)."""
+    try:
+        if os.environ.get("KALMIDO_TEST") == "1" and os.path.exists(os.environ.get("KALMIDO_TEST_BK_MARK_FAIL") or ""):  # tests only
+            raise RuntimeError("test: day marker fails")
+        gset(c, "bk_last_day", day)
+        c.commit()
+    except Exception as e:  # noqa: BLE001 -- the backup is written; only the marker is missing
+        with contextlib.suppress(Exception):
+            c.rollback()
+        _BK["next_try"] = time.time() + 3600
+        print("backup: day marker not written, next scheduled try in an hour:", db_log_err(e), flush=True)
+        aa_count("watchdog", f"backup|mark|{type(e).__name__}", "backup")
+
+
+def bk_test_idle_tx(c):
+    """Tests only (2.281.0 D, #3118; 2.1265.0 #6383 also the loop's own connection): a short idle-transaction limit for the
+    session (not SET LOCAL: the loop may commit on the way, e.g. the daily rotation, and the limit must outlive that)."""
+    if os.environ.get("KALMIDO_TEST") == "1" and os.environ.get("KALMIDO_TEST_BK_IDLE_TX_MS"):
+        c.execute("SET idle_in_transaction_session_timeout=%d" % int(os.environ["KALMIDO_TEST_BK_IDLE_TX_MS"]))
+
+
 def backup_tick(c):
     if BK_ON_ENV and (gsetting(c, "bk_on") == "1" or ret_on("backups")):
         bkr_daily_prune(c)  # 2.152.0 B (#2172); review F3: with the schedule off only with the switch (manual backups stay)
@@ -934,9 +957,11 @@ def backup_tick(c):
     at = gsetting(c, "bk_time")
     at = at if valid_hm(at) else "03:30"
     if gsetting(c, "bk_last_day") != now.date().isoformat() and now.strftime("%H:%M") >= at and time.time() >= _BK["next_try"]:
+        # 2.1265.0 (#6383): the read transaction of this loop ends before the backup - a backup over 5 minutes let Postgres cut the
+        # idle connection (idle_in_transaction_session_timeout), the day marker below failed and the next tick backed up again
+        c.rollback()
         if bk_run("auto"):
-            gset(c, "bk_last_day", now.date().isoformat())
-            c.commit()
+            bk_mark_day(c, now.date().isoformat())
     if time.time() - _BK["stale_at"] >= 3600:  # "no backup for 2 days" at most hourly (+ the alert cooldown)
         _BK["stale_at"] = time.time()
         ref = max(gsetting(c, "bk_last_ok") or "", gsetting(c, "bk_enabled_at") or "")  # 2.81.0 (#1627): switched on again = the clock starts then (ISO text sorts by time)
@@ -978,6 +1003,7 @@ def backup_loop():
             with GATE.bg():
                 c = connect()
                 try:
+                    bk_test_idle_tx(c)  # tests only (#6383): the schedule's path with a short limit
                     backup_tick(c)
                 finally:
                     c.close()

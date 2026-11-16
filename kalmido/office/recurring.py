@@ -20,6 +20,8 @@ from datetime import date, timedelta
 from flask import g, jsonify, request
 
 from ..core.config import PUBLIC_URL, app, WATCHDOG_INTERVAL
+from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
+from ..notify.alerts import aa_count  # 2.1265.0 (#6387)
 from ..core.db import IntegrityError, body, bump, db, iso, local_now, now_utc, uset, usettings
 from ..core.access import Denied, live_sql, my_inbox
 from ..core.i18n import LANGS, N_, lang, short_day, tr, tr_stored, trn
@@ -45,6 +47,14 @@ RIN_MONTHS = {"de": ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli
 RIN_TASK_DRAFT = N_("Check and send the invoice draft of series {0}")
 RIN_TASK_FAIL = N_("Invoice of series {0} not sent")
 RIN_TASK_PAUSED = N_("Invoice series {0} paused")
+# 2.1265.0 (#6387): a series whose watchdog run fails RIN_FAIL_MAX times in a row (fail_count, migrations.d/6387.py) or that has
+# nobody to act for it is paused with the task RIN_TASK_PAUSED and one of these reasons (was: the log only, every run again)
+RIN_FAIL_MAX = 3
+RIN_WHY_FAILS = N_("The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.")
+# 2.1265.0 (#6387): the customer mail of a series invoice that never went out (the process stopped between the invoice's commit and
+# its mail, e.g. an update): office_inv_series.mail_doc marks it in the invoice's commit, the next run tries once more (mail_try)
+RIN_HAND = N_("Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.")
+RIN_WHY_NOBODY = N_("Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.")
 
 
 from .model import office_ctx_admin as _ctx  # noqa: E402  2.149.0 G (#2517): was an own copy
@@ -442,10 +452,14 @@ def rin_step(c, oid, uid, s, period, people, missed=()):
     ts = iso(now_utc())
     act = 0 if s["until"] and nxt > s["until"] else int(s["active"] or 0)
     did = rin_make(c, oid, uid, s, period)
-    c.execute("UPDATE office_inv_series SET next_date=?, active=?, updated_at=? WHERE id=? AND org_id=?", (nxt, act, ts, s["id"], oid))
+    # 2.1265.0 (#6387): a period made = the run worked: the count of failed runs starts again
+    c.execute("UPDATE office_inv_series SET next_date=?, active=?, fail_count=0, updated_at=? WHERE id=? AND org_id=?", (nxt, act, ts, s["id"], oid))
     if did is None:
         return None, False, False, "", None
     sent, why, datev, m = (rin_send(c, oid, uid, did) if s["auto_send"] else (False, "", False, None))
+    if m:  # 2.1265.0 (#6387): "mail still due" in the invoice's own commit; held by this connection until post() is through
+        c.execute("UPDATE office_inv_series SET mail_doc=?, mail_try=0 WHERE id=? AND org_id=?", (did, s["id"], oid))
+        rin_mail_hold(c, did)
     name = _name(c, oid, s)
     pt = lambda lg: _period_txt(period, nxt, lg)  # noqa: E731
     gone = (lambda lg: "\n" + tr("Missed periods without an invoice: {0}", ", ".join(_period_txt(p, n, lg) for p, n in missed), lg=lg)) if missed else (lambda lg: "")
@@ -455,15 +469,90 @@ def rin_step(c, oid, uid, s, period, people, missed=()):
         _tell(c, people, RIN_TASK_DRAFT, name, lambda lg: tr("Period {0}. Open the draft, check it and send it like any invoice.", pt(lg), lg=lg) + gone(lg), did)
 
     def post():  # 2.269.0 D (#3046): the mail after the number's commit, then its task
-        ok, why2 = rin_mail(c, oid, uid, m)
-        if not ok:
-            _tell(c, people, RIN_TASK_FAIL, name, lambda lg: tr("Period {0}. The invoice is finalised, the e-mail did not go out: {1}", pt(lg), tr_stored(why2, lg), lg=lg) + gone(lg), did)
-        elif missed:
-            _tell(c, people, RIN_TASK_DRAFT, name, lambda lg: tr("Period {0} was sent.", pt(lg), lg=lg) + gone(lg), did)
+        try:
+            ok, why2 = rin_mail(c, oid, uid, m)
+            if not ok:
+                _tell(c, people, RIN_TASK_FAIL, name, lambda lg: tr("Period {0}. The invoice is finalised, the e-mail did not go out: {1}", pt(lg), tr_stored(why2, lg), lg=lg) + gone(lg), did)
+            elif missed:
+                _tell(c, people, RIN_TASK_DRAFT, name, lambda lg: tr("Period {0} was sent.", pt(lg), lg=lg) + gone(lg), did)
+            # 2.1265.0 (#6387): sent or told: nothing left for the next run (only this invoice's mark, a newer one stays)
+            c.execute("UPDATE office_inv_series SET mail_doc=NULL, mail_try=0 WHERE id=? AND org_id=? AND mail_doc=?", (s["id"], oid, did))
+            bump(c)
+            c.commit()
+            return ok, why2
+        finally:
+            rin_mail_free(c, did)
+    return did, sent, datev, why, (post if m else None)
+
+
+def rin_mail_hold(c, did):
+    """2.1265.0 (#6387): while this connection sends the mail of series invoice did, rin_catchup leaves it alone (a lock of the
+    session: it outlives the invoice's commit and ends with rin_mail_free or with the process / connection)."""
+    c.execute("SELECT pg_advisory_lock(hashtext(?))", (f"office_series_mail_{int(did)}",)).fetchone()
+
+
+def rin_mail_free(c, did):
+    try:
+        c.execute("SELECT pg_advisory_unlock(hashtext(?))", (f"office_series_mail_{int(did)}",)).fetchone()
+    except Exception:  # noqa: BLE001 -- a broken connection let go of it anyway
+        pass
+
+
+def rin_catchup(c, oid, uid, sid, people):
+    """2.1265.0 (#6387): the customer mail of series invoice office_inv_series.mail_doc that the run which made it did not finish
+    (it stopped between the invoice's commit and its mail). Once: the try is committed as used BEFORE the mail goes out, so a
+    second stop leaves no mail and the task RIN_HAND, never two mails. Nothing is mailed for an invoice that is gone, cancelled
+    or sent in the meantime. The invoice itself (number, finalising) is not touched. Runs as the area's admin uid (_rin_as)."""
+    write_lock(c, f"office_series_{int(sid)}")
+    s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=?", (sid, oid)).fetchone()
+    did = s["mail_doc"] if s is not None else None
+    if not did:
+        c.rollback()
+        return
+    if not c.execute("SELECT pg_try_advisory_lock(hashtext(?))", (f"office_series_mail_{int(did)}",)).fetchone()[0]:
+        c.rollback()  # the run that made it is still sending (rin_mail_hold): its own post() ends the mark
+        return
+    try:
+        _rin_catchup(c, oid, uid, s, did, people)
+    finally:
+        rin_mail_free(c, did)
+
+
+def _rin_catchup(c, oid, uid, s, did, people):
+    r = c.execute(f"SELECT * FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (did, oid)).fetchone()
+    name = _name(c, oid, s)
+
+    def end(why=None):  # the mark goes; why not None = the people send it by hand (why: a stored reason or "")
+        c.execute("UPDATE office_inv_series SET mail_doc=NULL, mail_try=0 WHERE id=? AND org_id=? AND mail_doc=?", (s["id"], oid, did))
+        if why is not None:
+            num = r["number"] if r is not None else ""
+            _tell(c, people, RIN_TASK_FAIL, name, lambda lg: tr(RIN_HAND, num, lg=lg) + (("\n" + tr_stored(why, lg)) if why else ""), did)
         bump(c)
         c.commit()
-        return ok, why2
-    return did, sent, datev, why, (post if m else None)
+
+    if r is None or r["sent_at"] or r["status"] != "issued":
+        return end()  # gone, cancelled, paid or sent by hand in the meantime: nothing to mail
+    if s["mail_try"]:
+        return end("")  # the one more try began and did not end: maybe it went out, so no second mail
+    to = rin_client_mail(c, oid, r["client_id"])
+    if not to:
+        return end([N_("The client has no e-mail address for invoices")])
+    try:
+        with c.savepoint():
+            _files, datev, m = inv_send(c, oid, uid, r, {"to": to, "cc": ", ".join(fk_send_rcpts(c, r["client_id"], oid, "invoice")["cc"])},
+                                        later=True, auto=True)
+    except (BadInput, Denied) as e:
+        return end(err_stored(e) or [N_("unknown")])
+    except Exception as e:  # noqa: BLE001 -- a broken file / check: the raw error only in the log
+        print("invoice series: mail of", did, "again failed:", type(e).__name__, e, flush=True)
+        return end([N_("The e-mail server refused the e-mail or could not be reached")])
+    c.execute("UPDATE office_inv_series SET mail_try=1 WHERE id=? AND org_id=?", (s["id"], oid))
+    bump(c)
+    c.commit()  # the try is used before anything goes out (with the day's counters of inv_send)
+    ok, why = rin_mail(c, oid, uid, m)
+    end(None if ok else why)
+    if ok and datev:
+        rin_datev(c, oid, did)
 
 
 # ---------------------------------------------------------------- the watchdog
@@ -475,15 +564,80 @@ def rin_tick(c, now=None):
     _RIN_LAST["at"] = time.monotonic()
     today = (now or local_now()).date().isoformat()
     with system_ctx(c):  # the due series of every office area; each is then made in its admin's own context below
-        due = c.execute("SELECT id, org_id FROM office_inv_series WHERE deleted_at IS NULL AND active AND next_date<>'' AND next_date<=? "
-                        "ORDER BY next_date, id LIMIT 500", (today,)).fetchall()
+        # 2.1265.0 (#6387): + the series with a mail still due (rin_catchup), also paused or deleted ones: the invoice exists
+        due = c.execute("SELECT id, org_id FROM office_inv_series WHERE (deleted_at IS NULL AND active AND next_date<>'' AND next_date<=?) "
+                        "OR mail_doc IS NOT NULL ORDER BY next_date, id LIMIT 500", (today,)).fetchall()
     c.commit()
     for d in due:
         try:
             _rin_one(c, d["org_id"], d["id"], today)
         except Exception as e:  # noqa: BLE001 -- one broken series never stops the others
-            c.rollback()
-            print("invoice series", d["id"], "failed:", e, flush=True)
+            _wd_fail(c, "invoice series", d["id"], e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
+            try:
+                rin_failed(c, d["org_id"], d["id"])
+            except Exception as e2:  # noqa: BLE001
+                _wd_fail(c, "invoice series pause", d["id"], e2)
+
+
+def rin_failed(c, oid, sid):
+    """2.1265.0 (#6387): one more failed watchdog run of series sid; the RIN_FAIL_MAX-th in a row pauses it (rin_pause)."""
+    with system_ctx(c):  # the watchdog's own count, before anyone's context
+        c.execute("UPDATE office_inv_series SET fail_count=fail_count+1 WHERE id=? AND org_id=?", (sid, oid))
+        n = c.execute("SELECT fail_count FROM office_inv_series WHERE id=? AND org_id=?", (sid, oid)).fetchone()
+    c.commit()
+    if n is not None and int(n[0] or 0) >= RIN_FAIL_MAX:
+        rin_pause(c, oid, sid, lambda lg: tr(RIN_WHY_FAILS, RIN_FAIL_MAX, lg=lg))
+
+
+def rin_pause(c, oid, sid, text):
+    """2.1265.0 (#6387): switches series sid off (its failure count back to 0) and gives its people (rin_people) the task
+    RIN_TASK_PAUSED with text(lg), the same way a deleted template does. Without anyone to tell: the admin alert of the
+    server's operator (never silent). Only a running series: paused once, told once."""
+    with system_ctx(c):
+        s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=? AND (active OR mail_doc IS NOT NULL)", (sid, oid)).fetchone()
+        people = rin_people(c, oid, s) if s is not None else []
+        if s is not None and not people:
+            c.execute("UPDATE office_inv_series SET active=false, fail_count=0, mail_doc=NULL, mail_try=0, updated_at=? WHERE id=? AND org_id=?",
+                      (iso(now_utc()), sid, oid))
+    c.commit()
+    if s is None:
+        return
+    if not people:
+        aa_count("watchdog", "invoice series without an admin|paused", f"{oid}:{sid}")
+        return
+    _rin_ctx(c, people[0], lambda: _rin_pause_as(c, oid, sid, people, text))
+
+
+def _rin_pause_as(c, oid, sid, people, text):
+    write_lock(c, f"office_series_{int(sid)}")
+    s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=? AND (active OR mail_doc IS NOT NULL)", (sid, oid)).fetchone()
+    if s is None:
+        c.rollback()
+        return
+    # 2.1265.0 (#6387): a mail still due goes with it: nobody may send it now, the task says so (the series is not selected again)
+    d = c.execute(f"SELECT number FROM office_docs WHERE id=? AND org_id=? AND sent_at IS NULL AND status='issued' AND {live_sql()}",
+                  (s["mail_doc"], oid)).fetchone() if s["mail_doc"] else None
+    c.execute("UPDATE office_inv_series SET active=false, fail_count=0, mail_doc=NULL, mail_try=0, updated_at=? WHERE id=? AND org_id=?",
+              (iso(now_utc()), sid, oid))
+    hand = (lambda lg: "\n" + tr(RIN_HAND, d["number"], lg=lg)) if d is not None else (lambda lg: "")
+    if s["active"]:
+        _tell(c, people, RIN_TASK_PAUSED, _name(c, oid, s), lambda lg: text(lg) + hand(lg))
+    elif d is not None:
+        _tell(c, people, RIN_TASK_FAIL, _name(c, oid, s), lambda lg: hand(lg).lstrip("\n"), s["mail_doc"])
+    bump(c)
+    c.commit()
+
+
+def _rin_ctx(c, uid, fn):
+    """fn() in the context of person uid (an admin of the area: the log, the tasks), then the watchdog's own context again."""
+    prev = c.ctx
+    try:
+        with app.test_request_context("/api/office/series"):
+            g.user = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+            return fn()
+    finally:
+        c.rollback()  # whatever is left open; then the watchdog's own context ("system") again (the hook followed g.user)
+        c.set_ctx(*prev)
 
 
 def rin_webhooks(c):
@@ -505,53 +659,51 @@ def _rin_one(c, oid, sid, today):
         s0 = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=?", (sid, oid)).fetchone()
         people = rin_people(c, oid, s0) if s0 else []
     c.commit()
-    if not s0 or not people:
+    if not s0:
         return
-    actor = people[0]
-    prev = c.ctx
-    try:
-        _rin_as(c, oid, sid, today, actor, people)
-    finally:
-        c.rollback()  # whatever is left open; then the watchdog's own context ("system") again (the hook followed g.user)
-        c.set_ctx(*prev)
+    # 2.1265.0 (#6387): nobody to act for the series (no admin with the office on): paused + told, was a silent return every run
+    if not people or not _rin_ctx(c, people[0], lambda: _rin_as(c, oid, sid, today, people[0], people)):
+        rin_pause(c, oid, sid, lambda lg: tr(RIN_WHY_NOBODY, lg=lg))
 
 
 def _rin_as(c, oid, sid, today, actor, people):
-    with app.test_request_context("/api/office/series"):
-        g.user = c.execute("SELECT * FROM users WHERE id=?", (actor,)).fetchone()  # the area's admin: the log, the mail's sender name
-        if g.user is None or office_role(c, actor, oid) != "admin" or not office_on(c, actor):
-            return
-        write_lock(c, f"office_series_{int(sid)}")
-        s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=? AND deleted_at IS NULL AND active", (sid, oid)).fetchone()
-        if s is None or not s["next_date"] or s["next_date"] > today:
-            c.rollback()
-            return
-        t = c.execute(f"SELECT kind, status FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
-        if t is None or t["kind"] != "invoice" or t["status"] == "cancelled":
-            c.execute("UPDATE office_inv_series SET active=false, updated_at=? WHERE id=? AND org_id=?", (iso(now_utc()), sid, oid))
-            name = _name(c, oid, s)
-            _tell(c, people, RIN_TASK_PAUSED, name, lambda lg: tr("The template invoice of the series was deleted or cancelled. Select another one and switch the series on again.", lg=lg))
-            bump(c)
-            c.commit()
-            return
-        if s["until"] and s["next_date"] > s["until"]:
-            c.execute("UPDATE office_inv_series SET active=false, updated_at=? WHERE id=? AND org_id=?", (iso(now_utc()), sid, oid))
-            bump(c)
-            c.commit()
-            return
-        due = rin_periods(s, s["next_date"], today, limit=1000)
-        missed = []
-        period = s["next_date"]
-        if len(due) > RIN_MAX_MISSED:
-            period, missed = due[-1], due[:-1]
-        did, sent, datev, _why, post = rin_step(c, oid, actor, s, period, people, [(p, rin_after(s["start"], s["every"], p)) for p in missed[-12:]])
+    """One due series as its admin actor (inside _rin_ctx: the log, the mail's sender name). False = actor may not act for it."""
+    if g.user is None or office_role(c, actor, oid) != "admin" or not office_on(c, actor):
+        return False
+    if (c.execute("SELECT mail_doc FROM office_inv_series WHERE id=? AND org_id=?", (sid, oid)).fetchone() or [None])[0]:
+        rin_catchup(c, oid, actor, sid, people)  # 2.1265.0 (#6387): first the mail the last run left, then the due period
+    write_lock(c, f"office_series_{int(sid)}")
+    s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=? AND deleted_at IS NULL AND active", (sid, oid)).fetchone()
+    if s is None or not s["next_date"] or s["next_date"] > today:
+        c.rollback()
+        return True
+    t = c.execute(f"SELECT kind, status FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
+    if t is None or t["kind"] != "invoice" or t["status"] == "cancelled":
+        c.execute("UPDATE office_inv_series SET active=false, fail_count=0, updated_at=? WHERE id=? AND org_id=?", (iso(now_utc()), sid, oid))
+        name = _name(c, oid, s)
+        _tell(c, people, RIN_TASK_PAUSED, name, lambda lg: tr("The template invoice of the series was deleted or cancelled. Select another one and switch the series on again.", lg=lg))
         bump(c)
         c.commit()
-        if post:  # 2.269.0 D (#3046): number committed, now the mail
-            sent = post()[0]
-        rin_webhooks(c)
-        if sent and datev:
-            rin_datev(c, oid, did)
+        return True
+    if s["until"] and s["next_date"] > s["until"]:
+        c.execute("UPDATE office_inv_series SET active=false, updated_at=? WHERE id=? AND org_id=?", (iso(now_utc()), sid, oid))
+        bump(c)
+        c.commit()
+        return True
+    due = rin_periods(s, s["next_date"], today, limit=1000)
+    missed = []
+    period = s["next_date"]
+    if len(due) > RIN_MAX_MISSED:
+        period, missed = due[-1], due[:-1]
+    did, sent, datev, _why, post = rin_step(c, oid, actor, s, period, people, [(p, rin_after(s["start"], s["every"], p)) for p in missed[-12:]])
+    bump(c)
+    c.commit()
+    if post:  # 2.269.0 D (#3046): number committed, now the mail
+        sent = post()[0]
+    rin_webhooks(c)
+    if sent and datev:
+        rin_datev(c, oid, did)
+    return True
 
 
 # ---------------------------------------------------------------- the cash flow

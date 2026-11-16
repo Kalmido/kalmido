@@ -29,6 +29,7 @@ from datetime import date, timedelta
 from flask import g, jsonify
 
 from ..core.config import app, WATCHDOG_INTERVAL
+from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..core.db import body, bump, err, iso, iso_ms, local_now, now_utc, test_seconds
 from ..core.i18n import N_, tr
 from ..core.pg import system_ctx, write_lock
@@ -155,8 +156,7 @@ def ofe_tick(c, now=None):
         try:
             ofe_area(c, oid, day.isoformat())
         except Exception as e:  # noqa: BLE001 -- one broken area never stops the others
-            c.rollback()
-            print("quotation expiry notice", oid, "failed:", e, flush=True)
+            _wd_fail(c, "quotation expiry notice of area", oid, e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
 
 
 def ofe_area(c, oid, today):
