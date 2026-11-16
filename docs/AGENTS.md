@@ -172,7 +172,8 @@ per document with *Insert label* ("Created with AI support"); nothing is blocked
   ```
 
   `limits` has the same shape as `limits` in `PATCH /api/admin/agents/{id}` ([Usage and limits](#usage-and-limits)),
-  `null` = none. Changing the policy never touches existing agents.
+  `null` = none. Changing the policy never touches existing agents. `server_day_cap` (2.1294.0): the ceiling of a server
+  agent's day limit on a hosted server (see the server agents below).
 - **A person creates their agent** in *Settings > Agents > Set up > Your personal agents > Create agent*. The token is shown once.
 
   ```
@@ -465,6 +466,19 @@ coding agents, building files, own tools.
   organisation or an instance admin; tokens only, a server agent reports no costs; a personal agent answers 400). A member
   at the limit gets "Your usage limit for this agent is reached; the requests of the others still run" in their chat, no
   model call is made for them, and the agent does not pause; its own limits and its owner's budget hold on top.
+- **On a hosted server** (`KALMIDO_HOSTED=1`, 2.1294.0): a server agent never runs without a hard day limit in tokens.
+  `GET /api/agents/server/defaults` and `GET /api/agents/<id>/server` say `day_limit_required: true` and `day_limit_max`
+  (the operator's ceiling per agent). `PUT /api/agents/<id>/server` with the first key: `day_limit` missing = the default
+  (2,000,000), `null` or above the ceiling 400. `PATCH /api/my/agents/<id>` / `PATCH /api/admin/agents/<id>` `limits` of a
+  server agent: only `{period: "day", metric: "tokens", hard ≤ ceiling, soft?}`; `null`, a month or cost limit or a soft
+  limit alone answer 400 (changed, never removed). The ceiling is the instance setting `server_day_cap` of
+  `PUT /api/admin/agent-policy {server_day_cap: <tokens> | null}` (null = the default 10,000,000; `GET` says
+  `server_day_cap` and `server_day_cap_applies`); an agent without a valid limit (set up before) or above a lowered
+  ceiling gets one at the start of its next run. Runs nobody asked for (all their events without a person: a public form,
+  the mail inbox, an incoming webhook, listening in; `agent_runs.no_person`, `agent_usage.no_person`) may use a quarter of
+  the day limit a day; beyond that such a run ends with "Today's share for runs nobody asked for … is used up" (in the
+  owner's chat for a personal agent), people's own requests still run and the agent does not pause. A self-hosted server
+  keeps the optional limit as before.
 - **The circle limit** of `agents/safety.py` holds unchanged: a team agent in two projects with different people is a
   bridge (`409 agent_bridge`), see [Who may address an agent](#who-may-address-an-agent).
 - **Proposals in a team project** (kinds `subtasks`, `extract`, `cleanup` of the project, made by a TEAM server agent):

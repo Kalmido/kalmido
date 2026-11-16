@@ -18,6 +18,7 @@ The circle limit (agents/safety.py) and the approvals hold unchanged: they are c
 Proposals of a server agent in a team project (SRV_TEAM_PROP_KINDS with the project's list_id) are seen by every person with
 write rights in that project (srv_prop_team_ok: list_role of core/access.py, no own share table); readers and other people never.
 """
+import json
 from datetime import timezone
 
 from flask import g, jsonify
@@ -37,8 +38,9 @@ from ..collab.comments import user_names
 from ..api.scopes import agent_scopes_set
 from .core import AGENT_GATED, agent_row, agent_shares, agent_usable, is_agent, need_person
 from .admin import _agent_name, agent_org_set, make_agent
-from .usage import USAGE_SUM, usage_limits, usage_limits_clean, usage_period, usage_totals
+from .usage import USAGE_SUM, usage_fmt, usage_limits, usage_limits_clean, usage_period, usage_totals
 from .srvagent import srv_need, srv_off, SRV_PROVIDER
+from .srvstarter import SRV_DAY_LIMIT_DEFAULT, SRV_NOBODY_PART, srv_day_cap, srv_hosted  # 2.1294.0 (#6568)
 
 SRV_PROV = SRV_PROVIDER
 SRV_TEAM_MAX = 5             # team server agents of one organisation that its admins create themselves
@@ -156,13 +158,16 @@ def srv_member_state(c, aid, uid, lim):
             "resets_at": iso(end.astimezone(timezone.utc))}
 
 
-def srv_member_block(c, aid, uid, rid=None):
+def srv_member_block(c, aid, uid, rid=None, nobody=False):
     """The reason (an i18n key) when member uid (rid: the requester of run rid) used up their limit of team agent aid, else ''.
-    Never for a personal agent's owner (its own limits are the agent's) nor for the server's own events (uid None)."""
+    Never for a personal agent's owner (its own limits are the agent's) nor for the server's own events (uid None).
+    2.1294.0 (#6568): a run nobody asked for (nobody / agent_runs.no_person) meets the share of such runs (srv_nobody_block)."""
     with system_ctx(c):  # the worker's own read of the agent's settings, its run and usage numbers
         if rid is not None:
-            r = c.execute("SELECT asked_by FROM agent_runs WHERE id=? AND agent_id=?", (rid, aid)).fetchone()
-            uid = r[0] if r else None
+            r = c.execute("SELECT asked_by, no_person FROM agent_runs WHERE id=? AND agent_id=?", (rid, aid)).fetchone()
+            uid, nobody = (r[0], bool(r[1])) if r else (None, False)
+        if nobody:
+            return srv_nobody_block(c, aid)
         if not uid:
             return ""
         a = agent_row(c, aid)
@@ -176,10 +181,11 @@ def srv_member_block(c, aid, uid, rid=None):
             if srv_member_state(c, aid, uid, lim)["reached"] else ""
 
 
-def srv_run_asker(c, rid, uid):
-    """The run rid works for person uid (agent_runs.asked_by): its usage rows get the same (srv_usage_mark)."""
+def srv_run_asker(c, rid, uid, nobody=False):
+    """The run rid works for person uid (agent_runs.asked_by): its usage rows get the same (srv_usage_mark).
+    2.1294.0 (#6568): nobody = no person asked for any of its events (agent_runs.no_person, on its usage rows too)."""
     with system_ctx(c):  # the worker's own run row
-        c.execute("UPDATE agent_runs SET asked_by=? WHERE id=?", (uid, rid))
+        c.execute("UPDATE agent_runs SET asked_by=?, no_person=? WHERE id=?", (uid, bool(nobody), rid))
 
 
 def srv_usage_mark(c, aid, rid, usage_id):
@@ -187,8 +193,61 @@ def srv_usage_mark(c, aid, rid, usage_id):
     if not isinstance(usage_id, int) or isinstance(usage_id, bool):
         return
     with system_ctx(c):  # the usage row the run's own token just reported
-        c.execute("""UPDATE agent_usage SET asked_by=(SELECT asked_by FROM agent_runs WHERE id=? AND agent_id=?)
-                     WHERE id=? AND agent_id=?""", (rid, aid, usage_id, aid))
+        c.execute("""UPDATE agent_usage u SET asked_by=r.asked_by, no_person=r.no_person FROM agent_runs r
+                     WHERE r.id=? AND r.agent_id=? AND u.id=? AND u.agent_id=?""", (rid, aid, usage_id, aid))
+
+
+# ---------------------------------------------------------------- 2.1294.0 (#6568): the hard day limit on a hosted server
+
+SRV_NEED_LIMIT = N_("On this server an agent on the Kalmido server always keeps a hard daily limit in tokens: it can be changed, not removed")
+SRV_CAP_TEXT = N_("On this server the daily limit of an agent on the Kalmido server can be at most {0}")
+SRV_NOBODY_TEXT = N_("Today's share for runs nobody asked for (forms, e-mail, webhooks, listening in) is used up; requests of people still run")
+
+
+def srv_limits_check(c, a, lim_json):
+    """BadInput when stored limits lim_json (usage_limits_clean) would leave server agent a on a hosted server without a hard day
+    limit in tokens or above the operator's ceiling. Nothing on a self-hosted server or for another kind of agent."""
+    if not srv_hosted() or not a or (a["provider"] or "") != SRV_PROVIDER:
+        return
+    lim = json.loads(lim_json) if lim_json else None
+    if not lim or lim.get("hard") is None or lim.get("period") != "day" or lim.get("metric") != "tokens":
+        raise BadInput(tr(SRV_NEED_LIMIT))
+    cap = srv_day_cap(c)
+    if lim["hard"] > cap:
+        raise BadInput(tr(SRV_CAP_TEXT, usage_fmt(cap, "tokens")))
+
+
+def srv_limit_fix(c, aid, want=None):
+    """On a hosted server: server agent aid gets a hard day limit in tokens when it has none (want, else SRV_DAY_LIMIT_DEFAULT) and
+    at most the operator's ceiling (a lowered ceiling takes effect at its next run). -> the new limits, None = unchanged.
+    The caller runs it in system_ctx and commits (srv_put with a key, srvagent_run._claim for agents from before 2.1294.0)."""
+    if not srv_hosted():
+        return None
+    a = agent_row(c, aid)
+    if not a or (a["provider"] or "") != SRV_PROVIDER:
+        return None
+    lim, cap = usage_limits(a), srv_day_cap(c)
+    ok = bool(lim) and lim["period"] == "day" and lim["metric"] == "tokens" and lim["hard"] is not None
+    if ok and lim["hard"] <= cap:
+        return None
+    hard = min(lim["hard"] if ok else (want or SRV_DAY_LIMIT_DEFAULT), cap)
+    soft = lim["soft"] if ok and lim["soft"] is not None and lim["soft"] <= hard else None
+    val = usage_limits_clean({"period": "day", "metric": "tokens", "soft": soft, "hard": hard})
+    c.execute("UPDATE agents SET usage_limits=?, usage_alerted='' WHERE user_id=?", (val, aid))
+    print("server agent", aid, "hosted: hard day limit", hard, flush=True)
+    return json.loads(val)
+
+
+def srv_nobody_block(c, aid):
+    """The reason (an i18n key) when agent aid on a hosted server used up the share of its day limit for runs nobody asked for
+    (SRV_NOBODY_PART: a quarter), else ''. Its day limit is there (srv_limit_fix before every run)."""
+    if not srv_hosted():
+        return ""
+    lim = usage_limits(agent_row(c, aid))
+    hard = lim["hard"] if lim and lim["period"] == "day" and lim["metric"] == "tokens" and lim["hard"] else SRV_DAY_LIMIT_DEFAULT
+    _, first, _ = usage_period("day")
+    r = c.execute(f"SELECT {USAGE_SUM} FROM agent_usage WHERE agent_id=? AND no_person AND day>=?", (aid, first)).fetchone()
+    return SRV_NOBODY_TEXT if usage_totals(r)["tokens"] >= max(1, hard // SRV_NOBODY_PART) else ""
 
 
 def _need_team(c, aid):
