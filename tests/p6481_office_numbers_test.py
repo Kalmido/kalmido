@@ -204,6 +204,27 @@ def run(S, who, member=None):
     ok(r.status_code == 409 and "new invoice" in e and "cancel it" not in e, "S3: a numbered correction draft: kept, the text names a way that exists " + e[:200])
     ok(finalize(cr["id"]).ok, "S3: ... and it can be finalised")
 
+    # ---------------------------------------------------------------- U4 imported finalised documents are marked
+    inv = invoice()
+    num = finalize(inv["id"]).json()["number"]
+    dbx("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail) VALUES(?,?,?,?,?,?,?)",
+        (oid, inv["id"], me["id"], "2026-11-01T10:00:00Z", "import", "doc", '{"source": "file"}'))
+    row = [x for x in S.get(B + D + "?kind=invoice").json()["docs"] if x["id"] == inv["id"]]
+    ok(row and (row[0].get("imported") or {}).get("at", "").startswith("2026-11-01") and row[0]["imported"].get("by") == me["display_name"],
+       f"U4: the list row is marked imported (at, by) {row[:1]}")
+    ok(not [x for x in S.get(B + D + "?kind=invoice").json()["docs"] if x.get("imported") and x["id"] != inv["id"]], "U4: no other row is marked imported")
+    d = S.get(B + f"{D}/{inv['id']}").json()
+    ok((d.get("imported") or {}).get("by") == me["display_name"], f"U4: the view is marked imported {d.get('imported')}")
+    r = S.get(B + O + f"/gobd/export?from={Y}-01-01&to={date.fromisoformat(d['date']).isoformat()}")
+    ok(r.ok, f"U4: auditor's export {r.status_code}")
+    if r.ok:
+        z = zipfile.ZipFile(io.BytesIO(r.content))
+        rows = list(csv.reader(io.StringIO(z.read("invoices.csv").decode("utf-8")), delimiter=";"))
+        mine = [x for x in rows if x[2] == num]
+        ok(mine and mine[0][-2:] == ["01.11.2026", me["display_name"]], f"U4: invoices.csv names import day and person {mine[:1]}")
+        ok(all(x[-2:] == ["", ""] for x in rows if x[2] != num), "U4: the other invoices carry no import mark")
+        ok(b"Importiert_am" in z.read("index.xml"), "U4: index.xml names the columns")
+
 
 run(Fr, "freelancer")
 run(A, "organisation", member=Bo)
