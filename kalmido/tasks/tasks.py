@@ -28,6 +28,7 @@ from ..core.access import _org_list_writes, list_state_sql  # 2.369.5 (#2517): p
 from ..tasks.ttypes import tt_check  # 2.609.0 (#3372)
 from ..api.common import act_via  # 2.1269.0 (#6431)
 from ..lists.seckind import sk_answer  # 2.577.0 (#3354)
+from ..api.common import act_via  # 2.1294.0 (#6523)
 
 
 # ---- 2.18.0 (#430): milestones. A milestone is a task with ms = 1 (top level, no subtasks, a date is optional); a task
@@ -365,7 +366,6 @@ def task_create():
     f["created_by"] = me()
     # 2.1294.0 (#6523, review F1): the creator wrote it -- in the app or with their own token; a webhook (its creator's rights,
     # act_via "webhook"), a public link or CalDAV leaves the origin empty (another hand wrote the text)
-    from ..api.common import act_via
     f["origin"] = "person" if me() and act_via() in (None, "api") else None
     if ref and me():
         f["client_ref"] = ref
