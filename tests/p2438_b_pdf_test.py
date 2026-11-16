@@ -78,6 +78,16 @@ def texts(pages, s):
     return [n for n, p in enumerate(pages, 1) for t in p["texts"] if t["s"] == s]
 
 
+def hint_air(page, s):
+    """2.1299.0 (#6647): the room between the hint s and the lowest rule or text above it on the page (pt; None = no hint)."""
+    t = next((t for t in page["texts"] if t["s"] == s), None)
+    if t is None:
+        return None
+    above = [max(r[1], r[3]) for r in page["rules"] if max(r[1], r[3]) <= t["y"] + 0.1 and r[2] > t["x"]]
+    above += [u["y"] + u["size"] for u in page["texts"] if u is not t and u["y"] + u["size"] <= t["y"] + 0.1]
+    return t["y"] - max(above) if above else None
+
+
 def overview_ok(data, label, parts, net, first=2):
     """parts = {name: heading text as printed}: the overview on page 1 names every part with the right page and link."""
     pages = pdfcheck.layout(data)
@@ -85,6 +95,8 @@ def overview_ok(data, label, parts, net, first=2):
     check(pdfcheck.problems(data) == [], f"{label}: the layout is clean {pdfcheck.problems(data)[:3]}")
     check(texts(pages, "ÜBERSICHT") == [1], f"{label}: the overview on page 1")
     check(texts(pages, f"Die Einzelpositionen je Teil stehen ab Seite {first}.") == [1], f"{label}: the hint below it")
+    air = hint_air(pages[0], f"Die Einzelpositionen je Teil stehen ab Seite {first}.")
+    check(air is not None and air >= 15, f"{label}: the hint stands clear of the rule above it (#6647, {air})")
     lk = links(data)
     tg = tags(pages)
     check(len(tg) == len(lk[0]) >= len(parts) and all(n == 1 for n, _ in tg) and not any(lk[1:]), f"{label}: one tag + link per row, all on page 1 ({len(tg)}, {[len(x) for x in lk]})")
@@ -203,6 +215,8 @@ starts = {t: next(n for n in texts(p4, t) if n > 1) for t in ("Dreh", "Schnitt")
 check(not texts(p4, "ÜBERSICHT") and [t["s"] for _, t in tags(p4)] == [f"SEITE {starts['Dreh']}", f"SEITE {starts['Schnitt']}"], f"printed parts: the rows carry the tag {[t['s'] for _, t in tags(p4)]}")
 check([x[3] for x in l4[0]] == [starts["Dreh"], starts["Schnitt"]], f"printed parts: the links go to the parts' pages {l4[0]}")
 check(texts(p4, f"Die Einzelpositionen je Teil stehen ab Seite {starts['Dreh']}.") == [1], "printed parts: the hint on the title page")
+air4 = hint_air(p4[0], f"Die Einzelpositionen je Teil stehen ab Seite {starts['Dreh']}.")
+check(air4 is not None and air4 >= 15, f"printed parts: the hint stands clear of the rule above it (#6647, {air4})")
 check(pdfcheck.problems(d4) == [], f"printed parts: clean layout {pdfcheck.problems(d4)[:3]}")
 # review: the title page may name the parts in another order than they are printed: the hint names the first part printed
 pr = dict(pt, lines=list(reversed(pt["lines"][:2])) + pt["lines"][2:])
