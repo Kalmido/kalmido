@@ -57,13 +57,14 @@ async function run(user, ck, tag) {
   const p = w.ofdPdfAsk();
   const pa = await until(() => d.querySelector('.modal.ofdpa'), 30);
   const pf = pa.querySelector('.foot');
-  check(labels(pf).join('|') === 'Cancel|Show as draft|Finalise now', `${tag}: PDF question order ` + labels(pf));
-  check(pf.querySelector('[data-cd="yes"]').matches('.pri') && d.activeElement !== pf.querySelector('[data-pa="draft"]'), `${tag}: main button Finalise now, focus not on the draft button`);
+  // 2.1302.0 (#6532): the main button is Show as draft (never the step that cannot be undone), Finalise now the plain middle one
+  check(labels(pf).join('|') === 'Cancel|Finalise now|Show as draft', `${tag}: PDF question order ` + labels(pf));
+  check(pf.querySelector('[data-cd="yes"]').matches('.pri') && !pf.querySelector('[data-pa="final"]').matches('.pri'), `${tag}: main button Show as draft, Finalise now plain`);
   click(w, pf.querySelector('[data-cd="no"]'));
   check(await p === null && q.http === 201, `${tag}: Cancel gives null`);
-  const p2 = w.ofdPdfAsk(); click(w, (await until(() => d.querySelector('.modal.ofdpa [data-pa="draft"]'), 30)));
+  const p2 = w.ofdPdfAsk(); click(w, (await until(() => d.querySelector('.modal.ofdpa [data-cd="yes"]'), 30)));  // 2.1302.0 (#6532)
   check(await p2 === 'draft', `${tag}: Show as draft gives "draft"`);
-  const p3 = w.ofdPdfAsk(); click(w, (await until(() => d.querySelector('.modal.ofdpa [data-cd="yes"]'), 30)));
+  const p3 = w.ofdPdfAsk(); click(w, (await until(() => d.querySelector('.modal.ofdpa [data-pa="final"]'), 30)));  // 2.1302.0 (#6532)
   check(await p3 === 'final', `${tag}: Finalise now gives "final"`);
 
   // a destructive confirmation is a danger dialog (Cancel focused, solid red main button)

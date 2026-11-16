@@ -408,6 +408,14 @@ def pb_cl_org(c, oid):
     return None if pb_owner(c, oid) is not None else oid
 
 
+def office_first_invoice(c, oid):
+    """2.1302.0 (#6532): True while office area oid has finalised no real invoice (drafts and trial documents, #3445, do not
+    count): the finalise dialog then says that the first one can no longer be deleted and points to the test mode and the
+    number ranges; the number ranges prefill the reason of a jump. Also a personal office (freelancer, no organisation)."""
+    return c.execute("SELECT 1 FROM office_docs WHERE org_id=? AND kind='invoice' AND trial=0 AND locked_at IS NOT NULL LIMIT 1",
+                     (oid,)).fetchone() is None
+
+
 # ---------------------------------------------------------------- settings
 def office_settings(c, oid):
     """The module's settings of organisation oid (dict with every key, defaults from the country pack)."""
