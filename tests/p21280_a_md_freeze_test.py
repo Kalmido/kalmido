@@ -12,6 +12,8 @@ thread of the process. Invented names only.
    line of dashes, a list stays a list, the import names its lists and sections after the headings
  - the snippet of a long page is cut around the hit first and cleaned then: plain text, "…" on both sides, the word marked;
    a word that stands only in a link's address gives no snippet from there (the next hit does)
+ - 2.1299.0 (#6653): the Word and the PDF export of a full page of open emphasis marks ("**_a " repeated, 25 paragraphs of
+   20,000 characters) answer within MARKS_LIMIT (about 7 s before: 500-character spans and no page budget)
  - freelancer-matrix: wiki, tasks (a person without an organisation: her private pages, her link, her export, her import)
 usage: p21280_a_md_freeze_test.py <datadir>"""
 import io
@@ -191,6 +193,27 @@ else:
     check(r is not None and r.status_code == 200 and "vielwort" in r.text and r.text.count("<h2>x ") == 50, "they are 50 headings")
     r = timed("the Word export of that page", lambda: docx(pm))
     check(r is not None and r.status_code == 200, "the Word file comes")
+
+# ================================================================ 2.1299.0 (#6653): a full page of open emphasis marks
+MARKS_LIMIT = LIMIT  # seconds (the Mac: 2.6 / 3.1 s before, 0.3 / 0.8 s after; the deterministic proof is below)
+pk = page("Frost/Marken", "\n\n".join("**_a " * 3990 for _ in range(25)) + "\n\nEnde markwort **fett**\n")
+for fmt in ("docx", "pdf"):
+    t0 = time.monotonic()
+    r = F.get(B + f"/api/wiki/pages/{pk}/export", params={"format": fmt}, timeout=LIMIT * 3)
+    secs = time.monotonic() - t0
+    check(r.status_code == 200 and secs < MARKS_LIMIT, f"#6653: the {fmt} export of a page of open marks within {MARKS_LIMIT} s ({secs:.1f} s, {r.status_code})")
+    if fmt == "docx" and r.status_code == 200:
+        check("markwort" in doc_text(r), "#6653: the Word file holds the end of the page (past the budget: plain text)")
+P1 = page("Lesen/Fett", "Einleitung mit **fett** und *schräg*.\n")
+check("<w:b/>" in doc_text(docx(P1)) and "<w:i/>" in doc_text(docx(P1)), "#6653: a short page keeps its bold and italic")
+# the page budget: past 200,000 characters read as Markdown the rest stays plain text (12 paragraphs of 18,000 first)
+pb = page("Lesen/Budget", "\n\n".join("**fett** " * 2000 for _ in range(12)) + "\n\nZum Schluss **spaetwort**\n")
+d = doc_text(docx(pb))
+check("**spaetwort**" in d and 0 <= d.find("<w:b/>") < d.find("**fett**"), "#6653: past the page budget the marks stay as typed, before it they are bold")
+# the emphasis spans: at most 150 characters (a longer bold stays as typed)
+pl = page("Lesen/Spanne", "**" + "b" * 140 + "** und **" + "c" * 200 + "**\n")
+d = doc_text(docx(pl))
+check("**" + "b" * 140 not in d and "**" + "c" * 200 + "**" in d, "#6653: a bold of 140 characters stays bold, one of 200 stays as typed")
 
 # the server still answers everybody
 check(requests.get(B + "/api/health", timeout=LIMIT).ok and A.get(B + "/api/state", timeout=LIMIT).ok, "the server answers afterwards")
