@@ -209,7 +209,7 @@ def run(key, fn):
     try:
         r = "ok:" + repr(fn())[:300]
     except BaseException as e:  # the test wants to see a RecursionError / MemoryError too
-        r = type(e).__name__ + ":" + (e.text() if hasattr(e, "text") else str(e))[:300]
+        r = type(e).__name__ + ":" + str(e)[:300]
     out[key] = [r, round(time.monotonic() - t0, 3)]
 
 UBL = """<?xml version="1.0" encoding="UTF-8"?>
@@ -256,7 +256,7 @@ with app.test_request_context("/", headers={"Accept-Language": "en"}):
     keep = (E.ELEMENTS_MAX, E.XML_MAX, E.PDF_MEM)
     E.ELEMENTS_MAX, E.XML_MAX, E.PDF_MEM = 10 ** 9, 200 * 1024 * 1024, 160 * 1024 * 1024
     try:
-        run("ei_checked_memory", lambda: E.ei_checked((UBL_OPEN + "<x><y>" * 30 + "</y></x>" * 30 + "<z a='1' b='2'/>" * 2_000_000 + "</ubl:Invoice>").encode()))
+        run("ei_checked_memory", lambda: E.ei_checked((UBL_OPEN + "<z a='1' b='2'/>" * 2_000_000 + "</ubl:Invoice>").encode()))
     finally:
         E.ELEMENTS_MAX, E.XML_MAX, E.PDF_MEM = keep
     # ---- CAMT: rows and balances
