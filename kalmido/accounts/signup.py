@@ -17,7 +17,7 @@ from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.serializers import unlink_files  # 2.149.0 G (#2517): pulled up from functions
 from ..core.schema import USER_DEFAULTS  # 2.149.0 G (#2517): pulled up from functions
 from .orgs import op_apart_deny, op_foreign_account  # 2.399.0 (#2687)
-from .supportgrant import sga_link_support  # 2.485.0 (#3939)
+from .supportgrant import sga_link_refused, sga_link_support  # 2.485.0 (#3939), 2.1271.0 (#6497)
 from ..accounts.orgs import instance_mode, ORG_NAME_ENV, org_member_add  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.users import user_purge, user_admin_dict, om_admin_all as admin_sees  # 2.369.5 (#2517): pulled up from functions
 from ..core.access import org_admin_people  # 2.369.5 (#2517): pulled up from functions
@@ -337,6 +337,9 @@ def auth_link():
         _rate_fail(keys)
         return err(tr("This link is invalid or has expired. Ask for a new one."), 404)
     r, u = hit
+    if sga_link_refused(c, r):  # 2.1271.0 (#6497): an operator's link whose support access is no longer open
+        c.rollback()
+        return err(tr("This link is invalid or has expired. Ask for a new one."), 404)
     if g.user and g.user["id"] != u["id"] and body().get("switch") is not True:
         # 2.190.0 A (#2496): someone else is signed in here: the page asks first (the link stays unused until then)
         c.rollback()

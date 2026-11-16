@@ -346,9 +346,15 @@ def authenticate():
             # row-level policy, so it sees the same rows as "anon"): the transaction goes on with the membership lookup of the
             # person (also "system") without a switch in between
             with system_ctx(c):
+                # 2.1271.0 (#6497): a support session (grant_id) holds only while exactly its grant is open; one from before
+                # grant_id (via 'support' without it) no longer holds. One query: the grant joins on its key, NULL for the rest.
+                now = iso(now_utc())
                 r = c.execute("""SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id
-                                 WHERE s.token_hash=? AND s.expires_at>? AND NOT u.disabled AND u.kind!='agent'""",
-                              (_token_hash(tok), iso(now_utc()))).fetchone()
+                                 LEFT JOIN support_grants sg ON sg.id=s.grant_id AND sg.user_id=s.user_id AND sg.org_id IS NULL
+                                 WHERE s.token_hash=? AND s.expires_at>? AND NOT u.disabled AND u.kind!='agent'
+                                 AND (CASE WHEN s.grant_id IS NULL THEN COALESCE(s.via, '')<>'support'
+                                      ELSE sg.ended_at IS NULL AND sg.ends_at>? END)""",
+                              (_token_hash(tok), now, now)).fetchone()
                 if r:
                     g.user, g.auth_via = r, "session"
                     from ..accounts.sessions import ses_touch
