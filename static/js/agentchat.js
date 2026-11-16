@@ -170,7 +170,7 @@ function chatRowHtml(m, a) {
   if (a?.shared === false) a = {...a, enabled: false};
   // 2.7.2 (#422): my messages say Sent / Delivered (the agent fetched it); (#421) reactions, quick 👍 👎 ❤️ on the agent's
   const dlvT = m.delivered_at ? tr('Delivered') + ' · ' + fmtWhen(m.delivered_at) : tr('Sent');  // 2.437.0 A (#3318): ticks only, the word as title / aria-label
-  const dlv = mine ? `<span class="cdlv ${m.delivered_at ? 'on' : ''}" role="img" title="${esc(dlvT)}" aria-label="${esc(dlvT)}">${ic('check', 's')}${m.delivered_at ? ic('check', 's') : ''}</span>` : '';
+  const dlv = mine ? `<span class="cdlv ${m.delivered_at ? 'on' : ''}" role="img" title="${esc(dlvT)}" aria-label="${esc(dlvT)}">${ic('check', 's')}${m.delivered_at ? ic('check', 's') : ''}</span>` : chatRunMetaHtml(m);  // 2.1239.0 (#6261): the agent's side: its model
   const ap = !mine && apvKind(m), apo = ap && chatChoiceSt(m) === 'open', ed = mine && S.chat.edit === m.id;  // 2.39.0 (#1179): my message in edit mode
   const jb = !mine && ux_jobOf(m), jcol = jb ? jn9_jobColor(jb) : '';  // 2.47.3 (#1764), 2.59.0 (#1827): from the name
   return `<div class="cmsg ${mine ? 'me' : 'ag agc'}${jb ? ' jobm' + (jn9_part(jb) ? ' jpart' : '') : ''}${rxShow('c' + m.id)}${chatPerm(m) ? ' perm' : ''}${ap ? ' apv' + (apo ? ' apvopen' : '') : ''}" data-k="m${m.id}${m.choice ? 'a' : ''}${ap ? chatChoiceSt(m)[0] : ''}${m.edited_at ? 'e' + m.edited_at : ''}${ed ? 'E' : ''}" data-mid="a:${m.id}" ${ap ? `id="apv-${m.id}"` : ''}${jb ? ` style="--jcol:${jcol}"` : ''}>${!mine && stepsAlwaysOn() ? chatStepsKept(m) : ''}${replyQuoteHtml(m, 'a')}${ap ? apvHead(m, apo) : ''}${jb ? jc_tagHtml(jb, m) : ''}${ed ? chatEditHtml(m) : m.body && !(ap === 'a' && m.body.trim() === m.choices.approval.title) ? `<div class="cbub">${jb ? jc_bodyHtml(commentBody(m.body, {}), jb) : commentBody(m.body, {})}</div>` : ''}${chatAttHtml(m)}${tlkChSug(m) ? '' : chatChoicesHtml(m)}${!mine && m.job_id && m.job_steps ? jobStepsHtml(m.job_id, m.job_steps) : ''}${t ? `<button class="runtask" data-act="open-id" data-id="${t.id}">${ic('arrow', 's')}<span>${esc(t.title)}</span></button>` : ''}${!mine && m.offer_save && !m.saved_task_id ? `<div class="csoffer"><button type="button" class="btn sm" data-act="chat-save" data-mid="${m.id}">${ic('bookmark', 's')} ${tr('Save as task')}</button></div>` : ''}<div class="cmeta"><time>${fmtWhen(m.created_at)}</time>${dlv}${cpnMark(m)}${mine && m.edited_at ? chatEditedHtml(m) : ''}${chatRxHtml(m, a)}${a?.enabled ? replyBtn('chrbtn mreply') : ''}${chatSavedMark(m)}<button data-rowmenu="cmsg" type="button" class="rx rxtog" data-act="chat-msg-menu" data-mid="${m.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button></div>${tlkChSug(m) ? chatChoicesHtml(m) : ''}</div>`;
@@ -224,6 +224,17 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { clearTimeout(chs_st); if (box) { chs_save(box, true); S.chat.back = true; } return; }  // the place as left
   if (box && S.chat.back) chatPatch();
 });
+// 2.1239.0 (#6261): which model wrote an agent's message (run_meta of POST /api/v1/agent/chats): one small grey text in the
+// line under the bubble, next to the time ("Fable 5.2 · Effort hoch", a short sorted run "Opus 5.5 · kurz sortiert"); the
+// reason as its title. Without run_meta (older messages, people) nothing changes.
+const RUN_EFFORT = {low: () => tr('Effort low'), medium: () => tr('Effort medium'), high: () => tr('Effort high'), xhigh: () => tr('Effort very high'), max: () => tr('Effort max')};
+function chatRunMetaHtml(m) {
+  const r = m.run_meta;
+  if (!r || typeof r !== 'object') return '';
+  const ef = !r.effort ? '' : Object.hasOwn(RUN_EFFORT, r.effort.toLowerCase()) ? RUN_EFFORT[r.effort.toLowerCase()]() : tr('Effort {0}', r.effort);
+  const txt = [r.model, r.klasse === 'klein' ? tr('briefly sorted') : ef].filter(Boolean).join(' · ');
+  return txt ? `<span class="crun"${r.grund ? ` title="${esc(r.grund)}"` : ''}>${esc(txt)}</span>` : '';
+}
 // 2.41.0 (#1206): a notice of the agent ("New session, summary taken over (22:10)"): one grey line in the middle, no bubble,
 // no menu or reactions; with a file (the summary) the line opens it like a file in the chat (text files in the viewer)
 function chatNoticeHtml(m) {
