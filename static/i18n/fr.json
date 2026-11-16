@@ -18776,5 +18776,15 @@
   "No contacts yet": "Pas encore de contacts",
   "Add one, import a vCard or CSV file, or connect the phone.": "Ajoute-en un, importe un fichier vCard ou CSV, ou connecte le téléphone.",
   "The groups could not be loaded": "Les groupes n’ont pas pu être chargés",
-  "The contact could not be saved": "Le contact n’a pas pu être enregistré"
+  "The contact could not be saved": "Le contact n’a pas pu être enregistré",
+  "Write down your first task": "Note ta première tâche",
+  "Everything starts in the inbox; sort it later.": "Tout commence dans la boîte de réception ; trie plus tard.",
+  "Create a project": "Crée un projet",
+  "A project bundles tasks, files and notes.": "Un projet regroupe tâches, fichiers et notes.",
+  "Take the short tour": "Fais la courte visite",
+  "Two minutes through the most important places.": "Deux minutes à travers les endroits les plus importants.",
+  "The help explains every area.": "L'aide explique chaque espace.",
+  "on the marked positions and the parts": "sur les postes marqués et les sous-devis",
+  "{pct} % on the marked positions and the parts|calc": "{pct} % sur les postes marqués et les sous-devis",
+  "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sur les postes marqués, les sous-devis et les frais de gestion"
 }

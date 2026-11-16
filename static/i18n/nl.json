@@ -18776,5 +18776,15 @@
   "The contact could not be saved": "Het contact kon niet worden opgeslagen",
   "Contacts could not be loaded": "De contacten konden niet worden geladen",
   "No contacts yet": "Nog geen contacten",
-  "Add one, import a vCard or CSV file, or connect the phone.": "Voeg er een toe, importeer een vCard- of CSV-bestand of koppel de telefoon."
+  "Add one, import a vCard or CSV file, or connect the phone.": "Voeg er een toe, importeer een vCard- of CSV-bestand of koppel de telefoon.",
+  "Write down your first task": "Schrijf je eerste taak op",
+  "Everything starts in the inbox; sort it later.": "Alles begint in de inbox; sorteer later.",
+  "Create a project": "Maak een project aan",
+  "A project bundles tasks, files and notes.": "Een project bundelt taken, bestanden en notities.",
+  "Take the short tour": "Volg de korte rondleiding",
+  "Two minutes through the most important places.": "Twee minuten langs de belangrijkste plekken.",
+  "The help explains every area.": "De hulp legt elk onderdeel uit.",
+  "on the marked positions and the parts": "op de gemarkeerde posities en de deelofferten",
+  "{pct} % on the marked positions and the parts|calc": "{pct} % op de gemarkeerde posities en de deelofferten",
+  "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % op de gemarkeerde posities, de deelofferten en de handlingkosten"
 }
