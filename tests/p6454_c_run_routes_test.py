@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# kalmido-suite: after=freelancer_coverage nodata
 """2.1287.0 (#6454, review P2): every route of /api/v1 is named in kalmido/api/runfor.py RUN_ROUTES -- how it is held in a
 team agent's run for a person (cut, cap, mine, pin:<parameter>, send, org, closed, own, noagent, safe). A new route fails
 here until somebody decides; until then run_gate closes it in such a run. No container needed: reads kalmido/.
