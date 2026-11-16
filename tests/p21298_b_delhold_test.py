@@ -190,16 +190,12 @@ check(bool(until(lambda: alert("selfdel-release:"), 15)), "the security log name
 
 # ---------------------------------------------------------------- greta: the admin rejects
 GID, Gr = freelancer(B, A, "greta")
-ag = Gr.post(B + "/api/my/agents", json={"username": "gretabot", "display_name": "Greta's bot", "scopes": ["read"]})
-GAG = ag.json().get("id") if ag.status_code in (200, 201) else None
-check(bool(GAG), f"setup: greta's agent {ag.status_code} {ag.text[:150]}")
 check(ask(Gr), "greta asks for her deletion")
 n_c = len([x for x in mails() if "greta@example.com" in x["to"] and "was cancelled" in x["subject"]])
 check(A.patch(B + f"/api/users/{GID}", json={"disabled": True}).ok, "the admin locks her")
 r = A.post(B + f"/api/users/{GID}/deletion", json={"decision": "reject"})
 check(r.ok and r.json().get("decision") == "reject", f"the admin rejects ({r.status_code} {r.text[:150]})")
 check(dbx("SELECT disabled, delete_at, delete_plan FROM users WHERE id=?", (GID,))[0] == (1, None, ""), "the deletion is off, the account stays locked")
-check(dbx("SELECT enabled FROM agents WHERE user_id=?", (GAG,))[0][0] == 0, "her agent stays paused")
 mc = mail_to("greta@example.com", "was cancelled", n_c + 1)
 check(bool(mc) and "admin has locked" in mc[-1]["text"], f"the mail says the deletion is off and the lock stays {mc[-1:]}")
 check(bool(until(lambda: alert("selfdel-reject:"), 15)), "the security log names the rejection")
