@@ -47,15 +47,19 @@ MDE_FENCE_RX = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 # knowledge link, the Word export, the Markdown / Notion import). Their own pattern "^(#{1,6})\s+(.*?)\s*#*\s*$" took cubic
 # time on one heading line with a long run of blanks and held the whole server. This one succeeds or fails in one pass.
 MD_LINE_MAX = 10000  # a longer line is never a block (heading, list item, rule, table line): it stays plain text
-MD_HEAD_LINE_RX = re.compile(r"^\s{0,3}(#{1,6})\s+(.*)$")
+MD_HEAD_LINE_RX = re.compile(r"(#{1,6})\s+(.*)$")  # matched from the line's first sign that is no blank
 
 
-def md_head_line(line):
-    """(level, text) when line is a Markdown heading ("## Plan", "## Plan ##"), else None. Linear in the line's length; a line
-    over MD_LINE_MAX is never a heading."""
+def md_head_line(line, indent=3):
+    """(level, text) when line is a Markdown heading ("## Plan", "## Plan ##"), else None; at most indent blanks before the
+    hashes (the import: none, an indented line there is a task's note). Linear in the line's length; a line over MD_LINE_MAX
+    is never a heading."""
     if len(line) > MD_LINE_MAX:
         return None
-    m = MD_HEAD_LINE_RX.match(line)
+    n = 0
+    while n < indent and line[n:n + 1] == " ":
+        n += 1
+    m = MD_HEAD_LINE_RX.match(line, n)
     return (len(m.group(1)), _htext(m)) if m else None
 
 

@@ -106,6 +106,10 @@ def attack(tag, blanks, long_line, run, lines):
     check(r is not None and r.status_code == 200 and "kopfwort" in doc_text(r), f"{tag}: the Word file holds its text")
     r = timed(f"{tag}: the Markdown import's preview of such a heading", lambda: imp("markdown", "frost.md", (head + "\n- [ ] Aufgabe eins\n").encode()))
     check(r is not None and r.status_code == 200, f"{tag}: the preview comes ({r is not None and r.status_code})")
+    # review: a run of half pictures / links (the Word export's inline pattern started 2000 characters again at every "[")
+    pi = page(f"Frost/{tag}/Bilder", "\n\n".join("![![a](" * 2857 for _ in range(8 if tag == "klein" else 24)) + "\n\nEnde bildwort\n")
+    r = timed(f"{tag}: the Word export of a page of half pictures", lambda: docx(pi))
+    check(r is not None and r.status_code == 200 and "bildwort" in doc_text(r), f"{tag}: the Word file holds its text")
     pt = page(f"Frost/{tag}/Tabelle", "| a | b |\n" + " " * long_line + "x\n\nEnde tabwort\n")
     ut = link(pt)
     r = timed(f"{tag}: the public link of a table row above a line of {long_line} blanks", lambda: anon(ut))
@@ -146,8 +150,16 @@ check(r.ok and "Kasten eins" in r.text, f"the Notion import: a page with check b
 
 # ================================================================ the snippet of a long page: cut around the hit, then cleaned
 FILL = " ".join(f"wort{i % 150:03d}" for i in range(3500))  # about 28,000 characters in one line, few distinct words (the index keeps 4000)
+# review: an empty table cell leaves no pipe, a word between underscores is found on a long page too
+PT = page("Lesen/Zellen", "| zellwort |  | zwei |\n|---|---|---|\n| a |  | b |\n")
+sn = (hit(search("zellwort"), PT) or {}).get("snippet") or ""
+check(sn == "zellwort zwei a b", "a table with empty cells: the snippet has no pipe " + repr(sn))
+r = imp("markdown", "notiz.md", "# Liste\n- [ ] Aufgabe\n  # Schritt eins\n  mehr Text\n- [ ] Zweite\n".encode())
+check(r.ok and "Schritt eins" in r.text and r.text.count("Liste") >= 1 and '"section": "Schritt eins"' not in r.text,
+      f"the Markdown import: an indented '# ...' below a task is its note, no section {r.status_code} {r.text[:300]}")
 LONG = ("---\ntags: [frontwort]\n---\n# Lang\n\n" + FILL + "\n\n[Verweis](https://example.com/linkwort) davor\n\n" + FILL.replace("wort", "satz")
-        + "\n\n## Ziel\n\n- Hier steht das **Zielwort** in einer [[Ordner/Seite|Liste]] und linkwort als Text.\n\n" + FILL.replace("wort", "rest"))
+        + "\n\n## Ziel\n\n- Hier steht das **Zielwort** in einer [[Ordner/Seite|Liste]] und linkwort als Text.\n\n" + FILL.replace("wort", "rest")
+        + "\n\nGanz hinten das _Strichziel_ im Satz.\n")
 PL = page("Lesen/Lang", LONG)
 p = hit(search("zielwort"), PL)
 sn = (p or {}).get("snippet") or ""
@@ -158,6 +170,8 @@ check(len(sn) <= 200, f"a long page: about two lines ({len(sn)})")
 p = hit(search("linkwort"), PL)
 sn = (p or {}).get("snippet") or ""
 check("linkwort als Text" in sn and "example.com" not in sn, "a word in a link's address gives no snippet there, its next place does " + sn[:200])
+sn = (hit(search("strichziel"), PL) or {}).get("snippet") or ""
+check("das Strichziel im Satz" in sn, "a long page: a word between underscores has its snippet " + sn[:200])
 p = hit(search("frontwort"), PL)
 check(not (p or {}).get("snippet"), "a word of the frontmatter only: no snippet " + str(p)[:160])
 p = hit(search("wort001"), PL)
