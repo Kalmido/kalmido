@@ -18789,6 +18789,7 @@
   "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % op de gemarkeerde posities, de deelofferten en de handlingkosten",
   "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "De factuur van de reeks kon {0} keer op rij niet worden gemaakt. Controleer de sjabloonfactuur en de klant en zet de reeks daarna weer aan.",
   "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Niemand mag de facturen van de reeks maken: het gebied heeft geen beheerder met het kantoor ingeschakeld. Zet de reeks weer aan zodra er een is.",
+  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "Factuur {0} is definitief, maar de mail ging na een herstart van de server niet uit. Verstuur hem met de hand vanuit de factuur.",
   "You can only read this document": "Je kunt dit document alleen lezen",
   "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Intussen heeft iemand anders een nieuwere versie geüpload, die blijft staan: {0}",
   "(you)": "(jij)"
