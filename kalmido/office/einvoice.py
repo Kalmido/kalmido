@@ -331,29 +331,17 @@ def ein_build(model, fmt="zugferd"):
     line_sum = Decimal("0")
     by_rate = {}
     n = 0
-    for ln in m.get("lines") or []:
-        if not isinstance(ln, dict) or ln.get("kind") not in ("item", "discount", "producing", "surcharge", "raw"):  # 2.113.1 (#2252): + surcharge
-            continue
-        if ln.get("kind") == "raw" and ln.get("optional"):
-            continue
-        n += 1
-        net = _d(ln.get("net") if ln.get("net") not in (None, "") else ln.get("total")).quantize(Q2, rounding=ROUND_HALF_UP)
-        pct = _d(ln.get("tax_pct")) if cat == "S" else Decimal("0")
-        qty = _d(ln.get("qty"), "1") if ln.get("qty") not in (None, "") else Decimal("1")
-        rate = _d(ln.get("rate")) if ln.get("rate") not in (None, "") else net
-        if qty == 0:
-            qty, rate = Decimal("1"), net
-        if rate < 0:  # BR-27: the net price is never negative; a discount line is a negative quantity
-            rate, qty = -rate, -qty
-        elif net < 0 and qty > 0:  # 2.38.0 review: inv_calc's discount position (rate and qty positive, net negative)
-            qty = -qty
+    # 2.1259.0 (#6303 e): price and quantity as in the UBL (_ubl_lines: kinds, BR-27 signs, a sub-cent price with up to six
+    # places, else net / qty and the rounding gap as a line charge / allowance) -- PEPPOL-EN16931-R120 in the CII too (was
+    # the price cut to four places: 1000 x 0.1355 = 135.50 against the line amount 135.46)
+    for ln, n, net, pct, qty, rate, charge in _ubl_lines(m, cat):
         li = _e(tx, "ram:IncludedSupplyChainTradeLineItem")
         _e(_e(li, "ram:AssociatedDocumentLineDocument"), "ram:LineID", str(ln.get("pos") or n))
         pr = _e(li, "ram:SpecifiedTradeProduct")
         _e(pr, "ram:Name", str(ln.get("title") or "")[:200] or ("Position " + str(n)))
         if ln.get("detail"):
             _e(pr, "ram:Description", str(ln["detail"])[:1000])
-        _e(_e(_e(li, "ram:SpecifiedLineTradeAgreement"), "ram:NetPriceProductTradePrice"), "ram:ChargeAmount", _m(rate) if rate == rate.quantize(Q2) else format(rate.quantize(Decimal("0.0001")), "f"))
+        _e(_e(_e(li, "ram:SpecifiedLineTradeAgreement"), "ram:NetPriceProductTradePrice"), "ram:ChargeAmount", _uprice(rate))
         _e(_e(li, "ram:SpecifiedLineTradeDelivery"), "ram:BilledQuantity", _qty(qty), unitCode=UNIT_CODES.get(str(ln.get("unit") or ""), "C62"))
         st = _e(li, "ram:SpecifiedLineTradeSettlement")
         t = _e(st, "ram:ApplicableTradeTax")
@@ -362,8 +350,8 @@ def ein_build(model, fmt="zugferd"):
         _e(t, "ram:CategoryCode", lcat)
         if lcat != "O":  # BR-O-05: no rate for "not subject to VAT"
             _e(t, "ram:RateApplicablePercent", _pct(pct))
-        lac = _line_allowance(ln)
-        if lac:  # 2.1042.0 (#5815): the position's own discount as a line allowance (BG-27: BT-136 .. BT-140, schema order before BG-30's sum)
+        lac = _line_allowance(ln) if charge < 0 else None
+        if lac and -charge == lac[0]:  # 2.1042.0 (#5815): the position's own discount as a line allowance (BG-27: BT-136 .. BT-140, schema order before BG-30's sum)
             ac = _e(st, "ram:SpecifiedTradeAllowanceCharge")
             _e(_e(ac, "ram:ChargeIndicator"), "udt:Indicator", "false")
             _e(ac, "ram:CalculationPercent", _pct(lac[2]))
@@ -371,6 +359,11 @@ def ein_build(model, fmt="zugferd"):
             _e(ac, "ram:ActualAmount", _m(lac[0]))
             _e(ac, "ram:ReasonCode", "95")  # UNTDID 5189: discount
             _e(ac, "ram:Reason", "Discount")
+        elif charge:  # 2.1259.0 (#6303 e): the rounding gap of a sub-cent price (BG-27 / BG-28 like the UBL)
+            ac = _e(st, "ram:SpecifiedTradeAllowanceCharge")
+            _e(_e(ac, "ram:ChargeIndicator"), "udt:Indicator", "true" if charge > 0 else "false")
+            _e(ac, "ram:ActualAmount", _m(abs(charge)))
+            _e(ac, "ram:Reason", "Rounding")  # BR-41 / BR-42: a reason or a reason code
         _e(_e(st, "ram:SpecifiedTradeSettlementLineMonetarySummation"), "ram:LineTotalAmount", _m(net))
         line_sum += net
         by_rate[(lcat, pct)] = by_rate.get((lcat, pct), Decimal("0")) + net

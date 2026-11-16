@@ -12,6 +12,7 @@
    negative quantity with a positive price
  - ein_check sees a broken sum and a missing mandatory term
  - 2.296.0 B (#3169, #3173): a tax-exempt position = category E with the reason; vat note "abroad" = category O without VAT ids
+ - 2.1259.0 (#6303 e): a sub-cent USD price in the CII (ZUGFeRD + XRechnung) as in the UBL: quantity x price = line amount
  - writes the files to tests/.data/einvoice/ for the validators (tools/einvoice_validate.sh: veraPDF + KoSIT in CI)
 usage: office_einvoice_test.py            (KALMIDO_SRC = the source tree, default ../ next to tests/)"""
 import importlib.util
@@ -305,6 +306,48 @@ xo = ein.ein_build(mo, "zugferd")
 check(b"<ram:CategoryCode>O</ram:CategoryCode>" in xo and b'schemeID="VA"' not in xo and ein.ein_check(xo) == [], f"abroad: category O, no VAT ids {ein.ein_check(xo)}")
 with open(os.path.join(OUT, "invoice-abroad-RE-2026-663.xml"), "wb") as fh:
     fh.write(xo)
+
+# ---------------------------------------------------------------- 2.1259.0 (#6303 e): a sub-cent price in the CII like the UBL
+# 1000 x 0.125 EUR at 1.0837 USD = 135.46: the price was cut to four places (0.1355 -> 1000 x 0.1355 = 135.50, KoSIT
+# PEPPOL-EN16931-R120); now six places (0.135460, as in the UBL); a price that fits no six places keeps its quantity, the gap is a line charge
+calc = load("calc")
+PACK = {"tax": {"standard": 19, "reduced": 7, "exempt": 0}}
+ts = calc.inv_calc({"lang": "de", "currency": "USD", "fx_rate": "1.0837", "home": "EUR"},
+                   [{"kind": "service", "title": "Minuten", "qty": 1000, "rate": "0.125", "tax": "standard", "unit": "piece"},
+                    {"kind": "service", "title": "Abrufe", "qty": 100000000, "rate": "0.00000001135", "tax": "standard", "unit": "piece"}], PACK)
+ms = fixture(currency="USD")
+ms.update(lines=ts["lines"], totals={**ts, "paid": "0.00", "open": ts["gross"], "fx_rate": "1.0837"})
+check(ts["lines"][0]["net"] == "135.46" and ts["lines"][1]["net"] == "1.23", f"#6303 e: the lines 135.46 / 1.23 {ts['lines'][0]['net']} {ts['lines'][1]['net']}")
+
+
+def r120(x):
+    """[(line amount, quantity x price + charges - allowances)] of the CII lines (PEPPOL-EN16931-R120)."""
+    from xml.etree import ElementTree as ET
+    ns = {"ram": "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100",
+          "udt": "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100"}
+    from decimal import Decimal, ROUND_HALF_UP
+    out = []
+    for li in ET.fromstring(x).iter("{%s}IncludedSupplyChainTradeLineItem" % ns["ram"]):
+        price = Decimal(li.find("ram:SpecifiedLineTradeAgreement/ram:NetPriceProductTradePrice/ram:ChargeAmount", ns).text)
+        qty = Decimal(li.find("ram:SpecifiedLineTradeDelivery/ram:BilledQuantity", ns).text)
+        st = li.find("ram:SpecifiedLineTradeSettlement", ns)
+        ac = sum(((1 if a.find("ram:ChargeIndicator/udt:Indicator", ns).text == "true" else -1) * Decimal(a.find("ram:ActualAmount", ns).text)
+                  for a in st.findall("ram:SpecifiedTradeAllowanceCharge", ns)), Decimal(0))
+        out.append((Decimal(st.find("ram:SpecifiedTradeSettlementLineMonetarySummation/ram:LineTotalAmount", ns).text),
+                    (qty * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) + ac))
+    return out
+
+
+for fmt in ("zugferd", "xrechnung"):
+    xs = ein.ein_build(dict(ms, einvoice_format=fmt), fmt)
+    check(b"<ram:ChargeAmount>0.135460</ram:ChargeAmount>" in xs and b"<ram:ChargeAmount>0.1355</ram:ChargeAmount>" not in xs,
+          f"#6303 e {fmt}: the price with the places that give 135.46 (was 0.1355)")
+    check(all(a == b for a, b in r120(xs)) and len(r120(xs)) == 2, f"#6303 e {fmt}: quantity x price (+ charge) = line amount (R120) {r120(xs)}")
+    check(b"<ram:Reason>Rounding</ram:Reason>" in xs and b"<ram:BilledQuantity unitCode=\"C62\">100000000</ram:BilledQuantity>" in xs,
+          f"#6303 e {fmt}: the price that fits no six places: its quantity, the gap as a rounding charge")
+    check(ein.ein_check(xs) == [], f"#6303 e {fmt}: ein_check clean {ein.ein_check(xs)}")
+    with open(os.path.join(OUT, f"{'xrechnung' if fmt == 'xrechnung' else 'invoice'}-subcent-usd-6303.xml"), "wb") as fh:
+        fh.write(xs)
 
 # ---------------------------------------------------------------- 6. ein_check sees broken files
 broken = xml.replace(b"<ram:GrandTotalAmount>40963.25</ram:GrandTotalAmount>", b"<ram:GrandTotalAmount>40963.26</ram:GrandTotalAmount>")
