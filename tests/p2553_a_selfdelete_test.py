@@ -205,7 +205,10 @@ check(r.ok and not dbx("SELECT delete_at FROM users WHERE id=?", (FID,))[0][0], 
 
 # an admin who enables the account again ends the deletion too
 Fr = login(B, "frida")
+n3 = len([x for x in mails() if "frida@example.com" in x["to"] and "will be deleted" in x["subject"]])
 check(Fr.post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok, "asked a third time")
+# 2.1298.0 (#6395): its mail is in before the count of the fourth round (a late one was taken for the fourth's link below)
+check(bool(mail_to("frida@example.com", "will be deleted", n3 + 1)), "the third request's mail went out")
 check(A.patch(B + f"/api/users/{FID}", json={"disabled": False}).ok, "the admin enables her again")
 check(bool(until(lambda: not dbx("SELECT delete_at FROM users WHERE id=?", (FID,))[0][0], 15)), "the next tick lifts the deletion")
 
