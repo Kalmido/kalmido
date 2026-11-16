@@ -1,0 +1,54 @@
+/* Kalmido web client: the styles of the module "team" (2.1305.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.50.0 A (#1195) absences: tabs of the workload view, month grid (away = dimmed accent), list, sheet */
+.ab2mon{margin:0;font-size:var(--fs-l);font-weight:600}
+.ab2table{table-layout:fixed;min-width:44rem}
+.ab2table th:first-child{width:11rem}
+.ab2table thead th{text-align:center;padding:.25rem 0;font-size:var(--fs-xs)}
+.ab2table thead th:first-child{text-align:left}
+.ab2table td.ab2c{padding:0;height:2rem;border-left:1px solid var(--line);position:relative}
+.ab2b{position:absolute;inset:0;width:100%;height:100%;background:none;border:0;cursor:pointer}
+.ab2h{margin:1rem 0 .375rem;font-size:var(--fs-m);font-weight:600}
+.ab2list,.ab2hol{list-style:none;margin:0;padding:0}
+.ab2li{display:flex;align-items:center;gap:.625rem;width:100%;min-height:2.75rem;padding:.375rem .25rem;border-bottom:1px solid var(--line);text-align:left;background:none}
+.ab2hol li{padding:.25rem 0;font-size:var(--fs-s)}
+.ab2foot{margin-top:1rem}
+.ab2st{display:inline-flex;align-items:center;gap:.5rem}
+.ab2md .ab2kinds button{min-height:2.25rem}
+.ab2md .ab2dates label{display:flex;flex-direction:column;gap:.25rem;flex:1}
+/* 2.125.0 A (#2117): vacation requests (striped = requested), the account line, the admins' accounts */
+.lvacc{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .75rem;margin:.5rem 0;padding:.5rem .75rem;border:1px solid var(--line);border-radius:var(--radius)}
+.lvt{font-weight:600}
+.lvnums{display:flex;flex-wrap:wrap;gap:.125rem .75rem;font-size:var(--fs-s)}
+.lvneg b{color:var(--danger)}
+.lvreq{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;padding:.375rem .25rem;border-bottom:1px solid var(--line)}
+.lvbtns{display:flex;gap:.375rem;flex-wrap:wrap}
+.lvbox{margin:.75rem 0}
+.lvbox>summary{cursor:pointer;font-weight:600;min-height:2.25rem;display:flex;align-items:center}
+.lvsw{margin-top:.5rem}
+.wtdays{flex-wrap:wrap}
+.wtdays button{min-width:2.75rem;min-height:2.75rem}  /* 2.144.2 A (#2375): 44 px high */
+/* 2.50.0 A (#1194) disposition: week grid (firm = accent, option = outlined), warnings, day list on phones, booking sheet */
+.dptable th:first-child{width:12rem}
+.dptable thead th{text-align:center;font-size:var(--fs-xs)}
+.dptable thead th:first-child{text-align:left}
+.dptable .dpgrp th{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:.75rem;border-bottom:0}
+.dptable td.dpc{padding:.125rem;vertical-align:top;border-left:1px solid var(--line)}
+.dpic{display:inline-flex;width:1.5rem;justify-content:center;color:var(--muted)}
+.dpbk{display:flex;align-items:center;gap:.25rem;width:100%;min-height:1.75rem;margin:.0625rem 0;padding:.125rem .375rem;border-radius:var(--r-s);font-size:var(--fs-xs);text-align:left;overflow:hidden;white-space:nowrap;cursor:pointer}
+.dpbk span{overflow:hidden;text-overflow:ellipsis}
+.dpdays h4{margin:.75rem 0 .375rem;font-size:var(--fs-m)}
+.dpjob{display:flex;flex-direction:column;align-items:flex-start;gap:.125rem;width:100%;min-height:2.75rem;padding:.5rem .625rem;margin-bottom:.375rem;border:1px solid var(--line2);border-radius:var(--radius);text-align:left;background:none}
+.dpres{display:flex;flex-wrap:wrap;gap:.25rem .625rem;font-size:var(--fs-s)}
+.dpfreebox{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .25rem}
+.dpfree p{margin:.25rem 0}
+.dpmine{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .75rem;min-height:2.75rem;padding:.375rem .25rem;border-bottom:1px solid var(--line)}
+.dpst{margin-left:auto;font-size:var(--fs-xs);padding:.125rem .5rem;border-radius:99rem}
+.dpmd .dppicks{max-height:40vh;overflow:auto;margin:.5rem 0}
+.dpmd .dppick legend{font-size:var(--fs-s);color:var(--muted);padding:0;margin-bottom:.25rem}
+.dpmd .dpopt{display:flex;align-items:center;gap:.5rem;min-height:2.5rem}
+.dpmd .dpstat button{min-height:2.25rem}
+.dpjobres{list-style:none;margin:.5rem 0;padding:0}
+.dpjobres li{display:flex;align-items:center;gap:.5rem;min-height:2.5rem;border-bottom:1px solid var(--line)}
+.dpjobres li span{flex:1;display:flex;align-items:center;gap:.25rem}
+.dpjobres li small{color:var(--danger);font-size:var(--fs-xs)}

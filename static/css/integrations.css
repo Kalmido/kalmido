@@ -1,5 +1,17 @@
 /* Kalmido web client: the styles of the module "integrations" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.9.0 (#435 / #438): CalDAV address rows (copyable), the OIDC provider form */
+.davrow input{flex:1;font:var(--fs-s) var(--mono);min-width:0}
+/* 2.30.0 (#919 / #920): Settings > Agents > Use safely, the list restriction of agents / tokens, bridges, the access log */
+.lcap{flex:1;min-width:0}
+.lcap summary{min-height:2.75rem;display:flex;align-items:center;cursor:pointer}
+/* 2.30.0 (#1036): the workspace of a new calendar / address book (askDialog) */
+.lcaphint{margin:.25rem 0 .5rem;font-size:var(--fs-b)}
+/* 2.115.0 A (#2061) inbound webhooks of a list (hookin.js): the URL shown once, the curl example */
+.whevg{margin:.5rem 0}
+.whevg > b{display:block;font-size:var(--fs-xs);margin-bottom:.25rem}
+/* the rules of this file */
 .mrow.tokrow .n,.mrow.whrow .n,.whlog .mrow .n{white-space:normal}
 .mrow.tokrow small,.mrow.whrow small,.whlog small{display:block;font-size:var(--fs-s)}
 .whlog{max-height:60vh;overflow:auto}
