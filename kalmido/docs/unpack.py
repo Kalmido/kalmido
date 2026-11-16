@@ -83,15 +83,18 @@ def doc_is_archive(name, data):
     return bool(zr.is_zip(name, data) or is_tnef(name, data))
 
 
-def doc_unpack(name, data, files_max=DOC_FILES_MAX, total_max=DOC_UNPACKED_MAX):
+def doc_unpack(name, data, files_max=DOC_FILES_MAX, total_max=DOC_UNPACKED_MAX, over=None):
     """(items, errors) of a ZIP / winmail.dat; None when data is neither (the caller stores it as it is).
-    2.1281.0 (#6425): total_max = the bytes all its files may have together (a mail hands in what is left of its budget)."""
+    2.1281.0 (#6425): total_max = the bytes all its files may have together (a mail hands in what is left of its budget);
+    over = a list that gets an entry when the archive was refused for one of its limits (files, bytes, entries)."""
     name = zr.base_name(name) or "file"
     items, errors = [], []
     if zr.is_zip(name, data):
         try:
             z = zr.zip_read(data, DOC_EXTS, DOC_FILE_MAX, total_max, zr.ZIP_ENTRIES_MAX, files_max)
         except zr.ZipLimit as x:
+            if over is not None:
+                over.append("limit")
             return [], [f"{name}: {x}"]
         items = [(n, b, _mime(n, b)) for n, b in z.files]
         errors = [f"{name}: {e['file']}: {e['error']}" if e["file"] else f"{name}: {e['error']}" for e in z.errors]
@@ -100,6 +103,8 @@ def doc_unpack(name, data, files_max=DOC_FILES_MAX, total_max=DOC_UNPACKED_MAX):
         try:
             got = tnef_files(data, total_max)
         except zr.ZipLimit as x:
+            if over is not None:
+                over.append("limit")
             return [], [f"{name}: {x}"]
         except (ValueError, struct.error):
             return [], [tr("{0}: the Outlook attachment (winmail.dat) cannot be read", name)]

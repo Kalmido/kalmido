@@ -356,14 +356,16 @@ check(dbx("SELECT 1 FROM hub_mailbox_docs WHERE mid=? AND node_id IS NULL", (K3,
 rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
 check(rg.get("hits") == 1 and "\\Seen" in flags().get("Gift/4", []) and not any(flags().get(f"Gift/{u}") for u in (1, 2, 3)),
       f"#6425: the rule counts its one hit, the prepared mails stay untouched (hits {rg.get('hits')}, {flags().get('Gift/4')})")
+check(rg.get("error") == "unsafe" and "refused" in (rg.get("error_text") or ""),
+      f"#6425: the rule shows the refused mail, also after a hit in the same run ({rg.get('error')!r} {rg.get('error_text')!r})")
 j = Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json()
 check(not j.get("status", {}).get("error"), f"#6425: the run itself ended without an error ({j.get('status')})")
-# the error is shown at the rule until its next hit: a second pair of prepared mails without a good one after them
+# the error is shown at the rule until a hit in a later run: a run with one more prepared mail and no good one
 open(os.path.join(MB, "Gift", "5.eml"), "wb").write(P1.replace(b"p2581d-brackets@", b"p2581d-brackets2@"))
 check(run(Bo, WS), "#6425: a run with only a prepared mail")
 check(dbx(REM, (WS,))[0][0] == nr + 4, f"#6425: only the new prepared mail was added to the remembered ones ({dbx(REM, (WS,))[0][0]} of {nr + 4})")
 rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
-check(rg.get("error") == "unsafe" and "refused" in (rg.get("error_text") or ""), f"#6425: the rule shows the refused mail ({rg.get('error')!r} {rg.get('error_text')!r})")
+check(rg.get("error") == "unsafe", f"#6425: the rule still shows the refused mail of the run before ({rg.get('error')!r})")
 drop("Gift", "Shop <billing@shop.example.com>", "Invoice in a later run", att="Gift-5")
 check(run(Bo, WS), "#6425: a later run")
 check(until(lambda: [x for x in docs(WS) if x[1] == "Gift-5.pdf"], 30), "#6425: a mail that arrives later is taken as well (the folder is not held)")

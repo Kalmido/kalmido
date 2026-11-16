@@ -288,9 +288,13 @@ def _mail_msg(raw):
     """The checked message of raw (core/mailguard.py mail_parse; raises MailRefused); the same bytes object again (mail_fetch:
     prefetch, then the import) gives the same message instead of taking the mail apart a second time."""
     if getattr(_PARSED, "raw", None) is not raw:
-        _PARSED.raw, _PARSED.msg = None, None
-        _PARSED.msg = mail_parse(raw)
-        _PARSED.raw = raw
+        _PARSED.raw, _PARSED.msg = raw, None
+        try:
+            _PARSED.msg = mail_parse(raw)
+        except MailRefused as e:
+            _PARSED.msg = e  # (refused once: the second step gets the same answer without parsing again)
+    if isinstance(_PARSED.msg, MailRefused):
+        raise _PARSED.msg
     return _PARSED.msg
 
 
@@ -454,6 +458,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
             M.uid("STORE", u, "+FLAGS", "(\\Seen)")  # closed) does not come back in every round (a failed one stays seen as before)
         done = False
         pre = None
+        _PARSED.raw = _PARSED.msg = None  # 2.1281.0 (#6425): nothing of the mail before stays
         if raw:  # 2.1281.0 (#6425): counted on its bytes before anything reads it (the claim below reads its head, the
             try:  # importers take it apart): a refused mail stays in the mailbox, marked seen, with its reason in the log
                 mail_precheck(raw)
@@ -463,7 +468,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
         if raw and prefetch:
             try:
                 pre = importer(None, raw)
-            except MailRefused:  # 2.1281.0 (#6425): the import below refuses it again (from its memory) and says so once
+            except MailRefused:  # 2.1281.0 (#6425): the import below gets the same refusal (_mail_msg remembers it) and says so once
                 pre = False
             except Exception as e:  # noqa: BLE001 -- no downloads then; the mail itself goes on
                 print("mail: prefetch failed:", type(e).__name__, flush=True)

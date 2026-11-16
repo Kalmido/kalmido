@@ -415,6 +415,8 @@ def _mail_parts(files, ei_is, mid, why=None, cut=None):
             why.append("ValueError")
         if cut is not None:
             cut.append(what)
+    if cut is not None and _mail_has_parts(files[MAIL_FILES:], ei_is):
+        cut.append("more attachments")  # (attachment 21 and later are not looked at, as before: the mail is kept for them)
     for i, (name, mime, data) in enumerate(files[:MAIL_FILES]):
         parts = None  # (the files of the attachment before are free before the next one is unpacked)
         if doc_is_archive(name, data):
@@ -424,11 +426,12 @@ def _mail_parts(files, ei_is, mid, why=None, cut=None):
                 continue
             # 2.146.0 B (#2453): a ZIP / winmail.dat -> its files
             small = docs_left < MAIL_UNPACKED or bytes_left < DOC_UNPACKED_MAX  # (narrower than an archive's own limits)
-            got, errors = doc_unpack(name, data, min(MAIL_UNPACKED, docs_left), min(DOC_UNPACKED_MAX, bytes_left))
+            over = []
+            got, errors = doc_unpack(name, data, min(MAIL_UNPACKED, docs_left), min(DOC_UNPACKED_MAX, bytes_left), over)
             for e in errors:
                 print("docs: mail attachment", e[:200], flush=True)
-            if not got and errors and small and cut is not None:
-                cut.append("an archive")  # (it may have fitted without the mail's budget: the mail is kept)
+            if over and small and cut is not None:
+                cut.append("an archive")  # (over a limit the mail's budget narrowed: it may have fitted, the mail is kept)
             # what was unpacked counts, also the files that are left out below (a ZIP full of other XML costs its bytes)
             docs_left -= len(got)
             bytes_left -= sum(len(b) for _n, b, _m in got)

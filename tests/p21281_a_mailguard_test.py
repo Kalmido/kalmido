@@ -5,10 +5,12 @@
    3 million parts, with bare CR line ends, a boundary declared in ways only the parser follows (RFC 2231 pieces,
    a comment before "=", an encoded word), a delivery report of 400.000 blocks (parts without any boundary), 2.000 parts
    inside each other (33 s in the parser of Python 3.12 before), 3.000 mails inside each other, a sender line of 500
-   opening brackets, a To line of 16 KB commas (seconds in the header parser, every time it is read), a head of 300 KB (also
-   of one part) and 4 MB of two-byte lines are refused (MailRefused with its code) fast and without building them; a normal
-   mail, 1.999 parts, a patch of 50.000 "--" lines that talks about boundaries, a head of 200 KB, 150 recipients, a digest
-   of 200 mails and 8 mails inside each other go through as before
+   opening brackets, a To line of 16 KB commas (seconds in the header parser, every time it is read), header lines of a
+   part that the parser itself reads while it takes the mail apart (a Content-Type of 32 KB semicolons: 84 s; 3 MB of
+   brackets: 2.8 GB), many small costly lines (200 parts with 120 semicolons each), a head of 300 KB and 4 MB of two-byte
+   lines are refused (MailRefused with its code) fast and without building them; a normal mail, 1.999 parts, a patch of
+   50.000 "--" lines that talks about boundaries, a head of 200 KB, 300 recipients, 300 attachments, a digest of 200 mails
+   and 8 mails inside each other go through as before
  - the instance mailbox (mail_fetch with mail_import): the mail of 200.000 parts is refused before any token is looked up,
    marked seen, and the mail after it is still handled
  - the reading view (hub/mailview.py mh_parts, in the request thread) refuses it as well instead of taking it apart
@@ -83,21 +85,33 @@ for name, raw in (
     ("parts delivery report of 400.000 blocks", H + b"Content-Type: message/delivery-status\r\n\r\n" + b"a:b\n\n" * 400_000),
     ("depth 2.000 parts inside each other", nested(2_000)), ("depth 300 parts inside each other", nested(300)),
     ("depth 3.000 mails inside each other", inside(3_000)), ("depth 33.000 mails inside each other", inside(33_000)),
-    ("depth 25 parts inside each other", nested(25)),
+    ("depth 40 parts inside each other", nested(40)),
     ("head 500 brackets", BRACKETS),
     ("head 101 brackets over folded lines", b"From: " + b"(\r\n " * 101 + b" a@example.com\r\n\r\nhi"),
     ("head of a part 500 brackets", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Disposition: " + b"(" * 500 + b"\r\n\r\n", 1)),
     ("head To line of 16 KB commas", b"To: " + b"," * 16_000 + b"\r\nFrom: a@example.com\r\n\r\nhi"),
     ("head 300 KB", b"From: a@example.com\r\n" + b"X-A: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n" * 6_000 + b"\r\nhi"),
     ("head without an empty line 300 KB", b"a" * 300_000),
-    ("head of a part one line of 9 KB", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nX-A: " + b"a" * 9_000 + b"\r\n\r\n", 1)),
+    ("head of a part Content-Type of 32 KB semicolons", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Type: text/plain" + b";" * 32_000 + b"\r\n\r\n", 1)),
+    ("head of a part 3 MB of brackets", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Type: text/plain " + b"(" * 3_000_000 + b"\r\n\r\n", 1)),
+    ("head of a part one plain line of 70 KB", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nX-A: " + b"a" * 70_000 + b"\r\n\r\n", 1)),
+    ("head 200 parts with 120 semicolons in each Content-Type", H + b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' + b"".join(
+        b"--b\r\nContent-Type: text/plain; a=%d" % i + b";" * 120 + b"\r\n\r\nx\r\n" for i in range(200)) + b"--b--\r\n"),
+    ("head 2.000 children under a Content-Type of 8 KB semicolons", H + b'Content-Type: multipart/mixed; boundary="b"' + b";" * 8_100
+     + b"\r\n\r\n" + b"--b\r\n\r\n" * 2_000 + b"--b--\r\n"),
+    ("head 31 To lines of 8 KB", b"".join(b"To: " + b"\\a" * 4_080 + b"\r\n" for _ in range(31)) + b"From: a@example.com\r\n\r\nhi"),
     ("lines 4 MB of two-byte lines", H + b"\r\n" + b"a\n" * 2_000_000),
     ("ok normal", multi(3)), ("ok 1.999 parts", multi(1_999)),
     ("ok patch of 50.000 dash lines that talks about boundaries",
      multi(3).replace(b"x\r\n", b"-- comment\r\n--- a/f\r\n" * 25_000 + b'$boundary = "--".md5(time());\r\nboundary = make(x)\r\n' * 60, 1)),
     ("ok the word boundary and 40 KB of blanks", H + b"\r\nboundary" + b" " * 40_000 + b"x\r\n"),
     ("ok head 200 KB", b"From: a@example.com\r\n" + b"X-A: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n" * 4_000 + b"\r\nhi"),
-    ("ok 150 recipients", b"To: " + b", ".join(b"person%d@example.com" % i for i in range(150)) + b"\r\n\r\nhi"),
+    ("ok 300 recipients with names", b"To: " + b", ".join(b'"Person %d" <person%d@example.com>' % (i, i) for i in range(300)) + b"\r\n\r\nhi"),
+    ("ok References of 30 KB", b"References: " + b" ".join(b"<%040d@mail.example.org>" % i for i in range(600)) + b"\r\nFrom: a@example.com\r\n\r\nhi"),
+    ("ok a body of a million form feeds", H + b"\r\n" + b"\x0c" * 1_200_000),
+    ("ok 300 attachments", H + b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' + b"".join(
+        b'--b\r\nContent-Type: application/pdf; name="file%d.pdf"\r\nContent-Disposition: attachment; filename="file%d.pdf"\r\n'
+        b"Content-Transfer-Encoding: base64\r\n\r\nJVBERi0=\r\n" % (i, i) for i in range(300)) + b"--b--\r\n"),
     ("ok 8 mails inside each other", inside(8)), ("ok 18 parts inside each other", nested(18)),
     ("ok digest of 200 mails with two parts each", H + b'Content-Type: multipart/digest; boundary="d"\r\n\r\n' + b"".join(
         b'--d\r\n\r\nSubject: m\r\nContent-Type: multipart/alternative; boundary="a%d"\r\n\r\n--a%d\r\n\r\nx\r\n--a%d\r\n\r\ny\r\n--a%d--\r\n'
@@ -108,8 +122,8 @@ out["limits"] = [G.MAIL_PARTS_MAX, G.MAIL_HEAD_MAX, G.MAIL_HLINE_MAX, G.MAIL_DEP
 print(json.dumps(out))
 """
 j = py(GUARD)
-check(j.get("limits") == [2000, 256 * 1024, 8192, 20, 1_000_000],
-      f"the limits: 2.000 parts, 256 KB head, 8 KB per header line, 20 levels, a million lines ({j.get('limits')})")
+check(j.get("limits") == [2000, 256 * 1024, 16384, 30, 1_000_000],
+      f"the limits: 2.000 parts, 256 KB head, 16 KB per structured header line, 30 levels, a million lines ({j.get('limits')})")
 print("mail_parse [result, seconds, MB built]:", json.dumps(j), flush=True)
 for k, v in sorted(j.items()):
     if k == "limits":
@@ -118,7 +132,7 @@ for k, v in sorted(j.items()):
     # (the 3 million parts are 21 MB of bytes that are read once; nothing of a refused mail is built: under 8 MB)
     check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or v[2] < 8),
           f"mail_parse {k}: {v[0]} in {v[1]} s, {v[2]} MB built")
-check(len(j) == 33, f"all mails were tried ({len(j)})")
+check(len(j) == 41, f"all mails were tried ({len(j)})")
 
 # ---- 2. the instance mailbox and the reading view
 FETCH = MAILS + r"""
@@ -220,6 +234,9 @@ small = [(f"s{i}.zip", "application/zip", zipped(45, 100, f"s{i}")) for i in ran
 pdfs = [(f"p{i}.pdf", "application/pdf", b"%PDF-1.4 x") for i in range(15)]
 out["many"] = list(take(small + pdfs)) + [len(CUT)]
 out["plain"] = list(take([("a.pdf", "application/pdf", b"%PDF-1.4 x"), ("n.txt", "text/plain", b"x"), ("i.png", "image/png", b"x")])) + [len(CUT), len(WHY)]
+out["late"] = list(take([(f"p{i}.pdf", "application/pdf", b"%PDF-1.4 x") for i in range(25)])) + [CUT[:]]
+bad = [("broken.zip", "application/zip", b"PK\x03\x04 no archive")]
+out["broken"] = list(take(small[:2] + bad)) + [len(CUT), WHY[:]]
 xb = io.BytesIO()
 with zipfile.ZipFile(xb, "w", zipfile.ZIP_DEFLATED) as z:
     for i in range(3):
@@ -243,6 +260,11 @@ check(m[0] == 100 and m[2] == 18 and m[3] == 6,
       f"3 ZIPs of 45 files + 15 PDFs: 100 documents, the third ZIP refused whole, 5 PDFs left out, all 6 reported ({m})")
 check(j.get("plain") == [2, 11, 2, 0, 0] and j.get("none") is False,
       f"a plain mail as before: the PDF and the image, not the text file, nothing left out ({j.get('plain')}, {j.get('none')})")
+check(j.get("late") == [20, 200, 20, ["more attachments"]],
+      f"25 PDFs: 20 become documents as before, and the mail is reported as cut (kept in the mailbox) ({j.get('late')})")
+k = j.get("broken") or []
+check(k[:1] == [90] and k[3:] == [0, ["ValueError"]],
+      f"an unreadable ZIP after two full ones: refused for what it is, not reported as a budget cut ({k})")
 check(j.get("xml") == [0, 0, 1, 0, ["ValueError"]],
       f"a ZIP of other XML files: no document, refused for what it is (never tried again), not a budget cut ({j.get('xml')})")
 
