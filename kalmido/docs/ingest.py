@@ -20,7 +20,7 @@ from ..accounts.mailtok import mtk_where  # 2.674.0 (#4382 finding 5)
 from ..core.pg import system_ctx
 from ..files.store import fs_add_hooks, fs_on_delete, fs_put, fs_role
 from . import store as S
-from .unpack import doc_unpack
+from .unpack import DOC_UNPACKED_MAX, doc_is_archive, doc_unpack
 from ..core.access import acx_of, Denied  # 2.149.0 G (#2517): pulled up from functions
 from ..core.i18n import lang, tr  # 2.353.0 (#2769)
 from ..office.lettermail import ltm_token_space  # 2.312.0 C (#3265)
@@ -36,6 +36,10 @@ RUN_STALE = 30       # min after which a run that was cut off (restart) is taken
 TRIES = 3            # runs of one document at most
 MAIL_FILES = 20      # attachments of one mail at most
 MAIL_UNPACKED = 50   # 2.146.0 B (#2453): files out of one ZIP / winmail.dat of a mail at most
+# 2.1281.0 (#6425): the budget of ONE mail over all its attachments (20 ZIPs of 60 MB unpacked each were 1.2 GB at once and
+# up to 1.000 documents): documents at most, and their bytes (unpacked) together
+MAIL_DOCS = 100
+MAIL_BYTES = 100 * 1024 * 1024
 # 2.360.0 B (#2496): recent = workspaces served, longest ago first; 2.521.0 E (#4475): lost = the node whose run broke off
 # with the database, first = this process has not taken up the cut-off runs yet (docs_take_up)
 _Q = {"thread": None, "scan": 0.0, "recent": [], "lost": None, "first": True}
@@ -382,26 +386,77 @@ def _mail_toks(msg):
     return MAIL_TOKEN_RE.findall(hdrs), mail_text, ei_is
 
 
-def _mail_parts(files, ei_is, mid):
-    """The files of a documents mail that become documents: [(index, [(name, mime, bytes, ext_id)])]. A receipt candidate
-    is a PDF, an e-invoice XML, an archive (ZIP / winmail.dat, 2.146.0 B #2453) or an image attached as a file (2.424.0 B2,
-    #3450: mail_text att_images -- an inline logo is none)."""
-    out = []
+def _mail_is_part(name, mime, data, ei_is):
+    """A single attachment (no archive) that becomes a document: a PDF, an image attached as a file, an e-invoice XML."""
+    return mime.startswith("image/") or mime == "application/pdf" or name.lower().endswith(".pdf") or ei_is(data)
+
+
+def _mail_has_parts(files, ei_is):
+    """2.1281.0 (#6425): the mail has a file of its own (so its invoice links are not followed) -- what _mail_parts would
+    take up, asked without unpacking anything (this question used to unpack every archive of the mail a first time)."""
+    return _mail_any_part(files[:MAIL_FILES], ei_is)
+
+
+def _mail_any_part(files, ei_is):
+    return any(doc_is_archive(name, data) or _mail_is_part(name, mime, data, ei_is) for name, mime, data in files)
+
+
+def _mail_parts(files, ei_is, mid, why=None, cut=None):
+    """The files of a documents mail that become documents, one attachment at a time: yields (index, [(name, mime, bytes,
+    ext_id)]). A receipt candidate is a PDF, an e-invoice XML, an archive (ZIP / winmail.dat, 2.146.0 B #2453) or an image
+    attached as a file (2.424.0 B2, #3450: mail_text att_images -- an inline logo is none).
+    2.1281.0 (#6425): a generator -- an archive is unpacked only when the caller asks for the next attachment, after it
+    stored the files of the one before (never all archives of a mail in memory together), and one budget for the whole
+    mail: MAIL_DOCS documents and MAIL_BYTES bytes (unpacked). An archive over what is left is refused whole, a single file
+    over it is left out (both logged); why (a list) gets "ValueError" for each one and for an archive without a usable
+    file: refused for what it is, like a file type that is not taken. cut (a list) gets an entry for everything the budget
+    left out: the caller keeps such a mail in the mailbox (its other files became documents, the rest is still there)."""
+    docs_left, bytes_left = MAIL_DOCS, MAIL_BYTES
+
+    def out_of_budget(what):
+        print("docs: mail attachment left out,", what, "- the limit of one mail is reached", flush=True)
+        if why is not None:
+            why.append("ValueError")
+        if cut is not None:
+            cut.append(what)
+    if cut is not None and _mail_any_part(files[MAIL_FILES:], ei_is):
+        cut.append("more attachments")  # (attachment 21 and later are not looked at, as before: the mail is kept for them)
     for i, (name, mime, data) in enumerate(files[:MAIL_FILES]):
-        parts = doc_unpack(name, data, MAIL_UNPACKED)  # 2.146.0 B (#2453): a ZIP / winmail.dat -> its files
-        if parts is not None:
-            for e in parts[1]:
+        parts = None  # (the files of the attachment before are free before the next one is unpacked)
+        if doc_is_archive(name, data):
+            if docs_left <= 0 or bytes_left <= 0:
+                out_of_budget("an archive")
+                yield i, []
+                continue
+            # 2.146.0 B (#2453): a ZIP / winmail.dat -> its files
+            small = docs_left < MAIL_UNPACKED or bytes_left < DOC_UNPACKED_MAX  # (narrower than an archive's own limits)
+            over = []
+            got, errors = doc_unpack(name, data, min(MAIL_UNPACKED, docs_left), min(DOC_UNPACKED_MAX, bytes_left), over)
+            for e in errors:
                 print("docs: mail attachment", e[:200], flush=True)
+            if over and small and cut is not None:
+                cut.append("an archive")  # (over a limit the mail's budget narrowed: it may have fitted, the mail is kept)
+            # what was unpacked counts, also the files that are left out below (a ZIP full of other XML costs its bytes)
+            docs_left -= len(got)
+            bytes_left -= sum(len(b) for _n, b, _m in got)
             # 2.146.0 A (#2451): an XML in it only when it is an e-invoice, like a single attachment
-            parts = [(n, m2, b, f"mail:{mid}:{i}:{j}") for j, (n, b, m2) in enumerate(parts[0])
+            parts = [(n, m2, b, f"mail:{mid}:{i}:{j}") for j, (n, b, m2) in enumerate(got)
                      if not n.casefold().endswith(".xml") or ei_is(b)]
-        # 2.146.0 A (#2451): an e-invoice XML (XRechnung UBL / CII) goes in too, any other XML does not
-        elif mime.startswith("image/") or mime == "application/pdf" or name.lower().endswith(".pdf") or ei_is(data):
-            parts = [(name, mime, data, f"mail:{mid}:{i}")]
-        else:
+            got = None
+            if not parts and why is not None:
+                why.append("ValueError")  # nothing usable in it (over a limit, unreadable, no PDF or picture): never tried again
+            yield i, parts
             continue
-        out.append((i, parts))
-    return out
+        # 2.146.0 A (#2451): an e-invoice XML (XRechnung UBL / CII) goes in too, any other XML does not
+        elif _mail_is_part(name, mime, data, ei_is):
+            if docs_left <= 0 or len(data) > bytes_left:
+                out_of_budget("a file")
+                yield i, []
+                continue
+            parts = [(name, mime, data, f"mail:{mid}:{i}")]
+            docs_left -= 1
+            bytes_left -= len(data)
+            yield i, parts
 
 
 def _doc_mail_row(c, toks):
@@ -423,7 +478,7 @@ def docs_mail_prefetch(msg):
     docs_mail_import(pre=...); ([], []) = nothing fetched."""
     toks, mail_text, ei_is = _mail_toks(msg)
     links = ml_links(msg) if toks else []
-    if not links or _mail_parts(mail_text(msg, att_images=True)[1], ei_is, ""):
+    if not links or _mail_has_parts(mail_text(msg, att_images=True)[1], ei_is):  # 2.1281.0 (#6425): nothing unpacked for the question
         return [], []
     k = 0
     with GATE.bg():
@@ -440,6 +495,11 @@ def docs_mail_prefetch(msg):
     if not k:
         return [], []  # 2.424.0 (#3450): budget spent -> no links counted, so the mail is not tagged "needs a login"
     return ml_collect(msg, limit=k, links=links)
+
+
+class DocsMailKept(int):
+    """2.1281.0 (#6425): the first node id of a documents mail whose mail stays in the mailbox (its budget left files out);
+    integrations/mail.py mail_import hands it on as its MailKept."""
 
 
 def docs_mail_import(c, msg, raw, pre=None):
@@ -481,11 +541,14 @@ def docs_mail_import(c, msg, raw, pre=None):
             if dest:
                 fixed["folder"] = str(dest)
         budget = (lambda kind, n=1: ml_budget(c, r["token"], kind, n)) if r else None
+        cut = []
         first, _made = _docs_mail_into(c, msg, raw, uid, org, sort=sort, letter=letter, budget=budget, pre=pre,
-                                       meta_add=fixed, parent_id=dest)
+                                       meta_add=fixed, parent_id=dest, cut=cut)
     c.commit()
     if first:
         docs_kick()
+    if first and cut:  # 2.1281.0 (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
+        return DocsMailKept(first)
     return first
 
 
@@ -495,7 +558,7 @@ def _mail_mid(msg, raw):
 
 
 def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, pre=None, take_files=True, take_mail=False,
-                    meta_add=None, parent_id=None, source="mail", why=None):
+                    meta_add=None, parent_id=None, source="mail", why=None, cut=None):
     """2.581.0 (#4804): the one documents input of a mail (pulled out of docs_mail_import, unchanged for the document address):
     its files (ZIP / winmail unpacked, e-invoice XML, images as files), else its invoice links, else the mail itself; the same
     bytes / the same ext_id already in the workspace are linked, not stored twice. Called inside system_ctx; the caller commits.
@@ -503,7 +566,8 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
     take_files False = no files / links / fallback (only the mail itself, take_mail); take_mail = the mail itself as .eml
     too; meta_add = given fields for every document (tags, sender); parent_id = a target folder (fs_put checks uid's right);
     source = doc_meta.source ("mail", "mailbox"); why = a list that gets the kind of every refusal ("ValueError", "Denied",
-    "QuotaExceeded"; 2.636.0 #4853). -> (first node id or 0, [node ids])."""
+    "QuotaExceeded"; 2.636.0 #4853); cut = a list that gets an entry for every file the budget of one mail left out
+    (2.1281.0 #6425, _mail_parts). -> (first node id or 0, [node ids])."""
     from ..admin.hosting import QuotaExceeded
     _toks, mail_text, ei_is = _mail_toks(msg)
     mid = _mail_mid(msg, raw)
@@ -523,10 +587,12 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
             return 0
     _text, files = mail_text(msg, att_images=True)
     made, cand, eml_done = [], False, False
-    for _i, parts in (_mail_parts(files, ei_is, mid) if take_files else []):
+    # 2.1281.0 (#6425): attachment by attachment -- the files of one archive are stored before the next one is unpacked
+    for _i, parts in (_mail_parts(files, ei_is, mid, why, cut) if take_files else []):
         cand = True
         for pname, pmime, pdata, pext in parts:
             put(pname, pdata, pmime, pext)
+        parts = pname = pmime = pdata = pext = None
     if take_files and not cand and letter is None:
         # 2.424.0 B (#3450): no file attached -> the invoice download links of the mail (docs/maillink.py: https, SSRF
         # guard, limits, PDF only); a link that gives no PDF (a login page) -> the mail itself, tagged "needs a login"; no
@@ -557,7 +623,7 @@ def _docs_mail_into(c, msg, raw, uid, org, sort=None, letter=None, budget=None, 
 
 
 def docs_mailbox_import(c, uid, org, msg, raw, meta=None, parent_id=None, take_files=True, take_mail=False, budget=None, pre=None,
-                        why=None):
+                        why=None, cut=None):
     """2.581.0 (#4804): a mail a rule of a workspace mailbox took (hub/mailrules.py) -> documents of that workspace as uid (the
     mailbox's holder), through the same input as the document address (_docs_mail_into), doc_meta.source 'mailbox'. Checks
     that uid is active and (an organisation) still a member; the private space without a target folder sorts like the own
@@ -568,4 +634,4 @@ def docs_mailbox_import(c, uid, org, msg, raw, meta=None, parent_id=None, take_f
             return 0, []
         sort = "sort" if not org and not parent_id else None
         return _docs_mail_into(c, msg, raw, uid, org, sort=sort, budget=budget, pre=pre, take_files=take_files, take_mail=take_mail,
-                               meta_add=meta, parent_id=parent_id, source="mailbox", why=why)
+                               meta_add=meta, parent_id=parent_id, source="mailbox", why=why, cut=cut)

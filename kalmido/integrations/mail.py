@@ -42,6 +42,7 @@ from ..collab.comments import lang_of  # 2.369.5 (#2517): pulled up from functio
 from ..lists.public import pub_html  # 2.369.5 (#2517): pulled up from functions
 from .mailtrim import md_trim_forward  # 2.369.5 (#2517): pulled up from functions
 from ..calendars.subscriptions import _cal_connector  # 2.369.5 (#2517): pulled up from functions
+from ..core.mailguard import MailRefused, mail_parse, mail_precheck  # 2.1281.0 (#6425)
 
 
 # ---------------------------------------------------------------- 2.17.0 (#443): tasks by e-mail + the daily summary by e-mail
@@ -281,6 +282,21 @@ class _MailDrop:
 
 
 MAIL_DROP = _MailDrop()
+_PARSED = threading.local()  # 2.1281.0 (#6425): the mail mail_fetch is at, taken apart once (the step before the transaction + the import)
+
+
+def _mail_msg(raw):
+    """The checked message of raw (core/mailguard.py mail_parse; raises MailRefused); the same bytes object again (mail_fetch:
+    prefetch, then the import) gives the same message instead of taking the mail apart a second time."""
+    if getattr(_PARSED, "raw", None) is not raw:
+        _PARSED.raw, _PARSED.msg = raw, None
+        try:
+            _PARSED.msg = mail_parse(raw)
+        except MailRefused as e:
+            _PARSED.msg = e  # (refused once: the second step gets the same answer without parsing again)
+    if isinstance(_PARSED.msg, MailRefused):
+        raise _PARSED.msg
+    return _PARSED.msg
 
 
 class MailKept(int):
@@ -292,8 +308,8 @@ def mail_import(c, raw, pre=None):
     when another importer (documents, hub, data protection) took nothing in (2.240.0 A, #2883: that mail stays).
     2.424.0 B2 (#3450): c None = the step before the database transaction (mail_fetch prefetch): the invoice link
     downloads of a documents mail -> pre, handed back in with the mail (docs/ingest.py docs_mail_prefetch)."""
-    msg = email.message_from_bytes(raw, policy=email.policy.default)
-    from ..docs.ingest import docs_mail_import, docs_mail_prefetch  # 2.48.0 (#1111): a document address -> its attachments become documents
+    msg = _mail_msg(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it for good)
+    from ..docs.ingest import DocsMailKept, docs_mail_import, docs_mail_prefetch  # 2.48.0 (#1111): a document address -> its attachments become documents
     if c is None:
         return docs_mail_prefetch(msg)
     from ..office.privacy import dsb_mail_import  # 2.154.0 C (#2192): a reply with the code of a mailed data protection sheet
@@ -302,6 +318,8 @@ def mail_import(c, raw, pre=None):
         return p or None
     d = docs_mail_import(c, msg, raw, pre)
     if d is not None:
+        if isinstance(d, DocsMailKept):  # 2.1281.0 (#6425): files left out by the mail's budget: the mail is not deleted
+            return MailKept(d)
         return d or None
     from ..hub.hubmail import hbm_mail_import  # 2.84.0 (#1198): a hub address (client / project / hub inbox) -> a filed mail
     h = hbm_mail_import(c, msg, raw)
@@ -536,6 +554,16 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                 else:  # 2.549.0 (#4378): a mail without content is marked seen right here
                     M.uid("STORE", u, "+FLAGS", "(\\Seen)")
                 continue
+            _PARSED.raw = _PARSED.msg = None  # 2.1281.0 (#6425): nothing of the mail before stays
+            try:  # 2.1281.0 (#6425): counted on its bytes before anything reads it (the attempt key below reads its head, the
+                mail_precheck(raw)  # importers take it apart): a refused mail stays in the mailbox, marked seen, with its reason in the log
+            except MailRefused as e:
+                print("mail: refused one mail:", e.code, flush=True)
+                M.uid("STORE", u, "+FLAGS", "(\\Seen)")
+                if retry:  # (an open attempt of it from before: refused for good, never tried again)
+                    with GATE.bg():
+                        mail_try_gone(box, u)
+                continue
             key, tries = None, None
             if box:
                 key = mail_seen_key(raw, u)
@@ -554,6 +582,8 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
             if prefetch:
                 try:
                     pre = importer(None, raw)
+                except MailRefused:  # 2.1281.0 (#6425): the import below gets the same refusal (_mail_msg remembers it) and says so once
+                    pre = False
                 except Exception as e:  # noqa: BLE001 -- no downloads then; the mail itself goes on
                     print("mail: prefetch failed:", type(e).__name__, flush=True)
                     pre = False
@@ -574,14 +604,22 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                         c.commit()
                     done = res is MAIL_DROP or bool(res) and not isinstance(res, MailKept)  # 2.240.0 A (#2883)
                 except Exception as e:  # noqa: BLE001 - 2.126.0 review: one mail that fails never blocks the rest
-                    print("mail: skipped one mail:", type(e).__name__, f"(attempt {tries})" if tries else "", flush=True)  # no message text
-                    failed = True
+                    # no message text (addresses). 2.1281.0 (#6425): a refused mail with its reason (too many parts / too deep /
+                    # the head) is refused for good: its attempt ends here, it stays in the mailbox marked seen
+                    refused = isinstance(e, MailRefused)
+                    print("mail: refused one mail:" if refused else "mail: skipped one mail:", e.code if refused else type(e).__name__,
+                          f"(attempt {tries})" if tries and not refused else "", flush=True)
+                    failed = not refused
                     try:
                         c.rollback()
+                        if refused and box:
+                            mail_try_done(c, box, key, tries)
+                            c.commit()
                     except Exception:  # noqa: BLE001 -- rollback after an error: the next mail starts fresh
                         pass
                 finally:
                     c.close()
+                    _PARSED.raw = _PARSED.msg = None  # 2.1281.0 (#6425): the parsed mail goes with its round
             if failed and box:  # 2.1269 (#6386): open for the next round, given up after the last attempt
                 try:
                     with GATE.bg():

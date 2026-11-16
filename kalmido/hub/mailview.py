@@ -17,8 +17,6 @@ title = the subject without Re / Fwd, description = the start of the text + the 
 subject or id); the mail shows its tasks / events to who may see them. Agents never reach these routes (the hub gate), the
 task itself is a normal task (its events as ever), the mail stays invisible for them."""
 import base64
-import email
-import email.policy
 import html
 import re
 from html.parser import HTMLParser
@@ -32,6 +30,7 @@ from ..core.db import body, bump, db, err, iso, now_utc
 from ..core.access import Denied, WRITE_ROLES, acx_lists_sql, list_role, need_task, need_feat, list_state_sql, list_archived_sql
 from ..accounts.session import me
 from .hubmail import _gate, _need_mail, _open, hbm_can
+from ..core.mailguard import mail_parse  # 2.1281.0 (#6425)
 from ..files.store import fs_read  # 2.369.5 (#2517): pulled up from functions
 from ..events.model import can_write, my_cal_ids, need_event, need_evcal  # 2.369.5 (#2517): pulled up from functions
 from ..collab.liste2eguard import le2b_list_locked  # 2.369.5 (#2517): pulled up from functions
@@ -308,7 +307,8 @@ def mh_clean(src, cids=None, images=False):
 
 def mh_parts(raw):
     """(the first text/html part that is no attachment, {content-id: data URL}) of a raw mail; html None when there is none."""
-    msg = email.message_from_bytes(raw, policy=email.policy.default)
+    # 2.1281.0 (#6425): counted before it is taken apart, in the request that opens the mail (MailRefused: mh_of shows the text view)
+    msg = mail_parse(raw)
     src, cids, total = None, {}, 0
     for part in msg.walk():
         if part.is_multipart():

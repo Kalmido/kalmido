@@ -37,6 +37,7 @@ from ..collab.replies import reply_of  # 2.369.5 (#2517): pulled up from functio
 from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import user_orgs  # 2.777.0 C (#5378)
 from ..accounts.orgroles import user_orgs_full  # 2.777.0 C (#5378)
+from ..accounts.orgroles import org_role_key, SAY_NO  # 2.1287.0 (#6454)
 
 
 # ---------------------------------------------------------------- 2.0.0: agents, reactions, shared list tags, tidy
@@ -384,6 +385,12 @@ def agent_emit(c, aid, event, data, actor="auto", via=None):
         if actor.get("kind") == "agent" or event in AGENT_GATED:
             if not agent_usable(c, aid, actor["id"], lid):
                 return None
+    # 2.1287.0 (#6454): the same question without a project (a channel, a group conversation, a place of no project): a
+    # person reaches the agent there only when it is open to them somewhere (agent_shares: a personal agent its owner, a
+    # team agent a project that opens it to them) -- a channel member alone gives it no orders
+    elif actor and not lid and event in AGENT_GATED and actor.get("kind") == "person":
+        if not agent_shares(c, aid, actor["id"]):
+            return None
     if lid and isinstance(lid, int) and "playbook" not in data:  # 2.39.0 (#1168): the list's effective Playbook comes along
         from ..lists.playbook import pb_event, pb_for_agent
         pb = pb_event(c, lid)
@@ -1189,6 +1196,15 @@ _OPEN_SQL = """(l.owner_id=? OR l.owner_id=? OR EXISTS(SELECT 1 FROM list_member
                WHERE m.list_id=l.id AND m.user_id=? AND (l.agent_members=1 OR m.role IN ('owner','admin'))))"""
 
 
+def agent_org_say(c, aid, uid):
+    """2.1287.0 (#6454, audit #4818): may person uid give team agent aid orders by their role in the agent's organisation?
+    Not a guest and not a read-only person there (accounts/orgroles.py SAY_NO: "no agents" / "changes nothing"); an agent
+    without an organisation, or a person who is no member of it: the projects decide as before."""
+    with system_ctx(c):  # structure: the agent's workspace
+        r = c.execute("SELECT org_id FROM agents WHERE user_id=?", (aid,)).fetchone()
+    return not (r and r[0] and org_role_key(c, uid, r[0]) in SAY_NO)
+
+
 def agent_usable(c, aid, uid, lid):
     """2.26.0 (#928): may uid (a person or another agent) address agent aid in list lid (mention, assign, comment to it,
     chat about it)? A personal agent: only its owner. Another agent: only with lists.agent_peers on. A person: an instance
@@ -1205,6 +1221,8 @@ def agent_usable(c, aid, uid, lid):
     o = agent_owner(c, aid)
     if o is not None:
         return o == uid
+    if not agent_org_say(c, aid, uid):
+        return False  # 2.1287.0 (#6454): a guest / read-only person of the team agent's organisation gives it no orders
     # 2.28.0 (#965): an instance admin is no exception any more -- only the list's owner / admins and open lists
     return bool(c.execute(f"SELECT 1 FROM lists l WHERE l.id=? AND {_OPEN_SQL}", (lid, uid, aid, uid)).fetchone())
 
@@ -1218,6 +1236,8 @@ def agent_shares(c, aid, uid):
     o = agent_owner(c, aid)
     if o is not None:
         return o == uid
+    if not agent_org_say(c, aid, uid):
+        return False  # 2.1287.0 (#6454)
     return bool(c.execute(f"""SELECT 1 FROM lists l WHERE l.id IN {vis_sql()} AND {_OPEN_SQL} AND l.id IN {joined_lists_sql()} LIMIT 1""",
                               (aid, aid, uid, aid, uid, uid, uid)).fetchone())
 
@@ -1503,9 +1523,28 @@ def job_vis_sql(c, uid):
     return "(" + " OR ".join(cond) + ")", args
 
 
+def job_approve_write(c, j, uid):
+    """2.1287.0 (#6454): may person uid change, right now, what approval job j would change? Its project (the task's, else the
+    job's list): a write role there (list_role: read-only in the organisation = view). No project: no guest / read-only
+    person of the agent's organisation (agent_org_say) -- the same for the agent's own project (it owns it: nobody else's
+    content; an admin answers for it as before)."""
+    lid = None
+    if j["task_id"]:
+        t = c.execute("SELECT list_id FROM tasks WHERE id=?", (j["task_id"],)).fetchone()
+        lid = t[0] if t else None
+    lid = lid or (j["list_id"] if "list_id" in j.keys() else None)
+    if lid and not c.execute("SELECT 1 FROM lists WHERE id=? AND owner_id=?", (lid, j["agent_id"])).fetchone():
+        return list_role(c, lid, uid) in WRITE_ROLES
+    return agent_org_say(c, j["agent_id"], uid)
+
+
 def job_may_act(c, j, uid, action):
     u = c.execute("SELECT is_admin, kind FROM users WHERE id=?", (uid,)).fetchone()
     if not u or u["kind"] == "agent":
+        return False
+    # 2.1287.0 (#6454, audit #4818): the Yes on an approval job needs the write right at that moment -- the person named in
+    # the job too (an owner set to read-only since approves nothing; stopping and writing to the job stay)
+    if action == "approve" and j["approval"] and not job_approve_write(c, j, uid):
         return False
     if j["user_id"] == uid or (u["is_admin"] and agent_shares(c, j["agent_id"], uid)):
         return True
@@ -1530,7 +1569,7 @@ def jobs_may_act(c, rows, uid):
     out, memo = {}, {}
     for j in rows:
         if j["user_id"] == uid or j["agent_id"] in sh:
-            out[j["id"]] = (True, True)
+            out[j["id"]] = (not j["approval"] or job_approve_write(c, j, uid), True)  # 2.1287.0 (#6454): as job_may_act
         elif not j["task_id"]:
             out[j["id"]] = (False, False)
         else:  # the rest depends on the task, whether it is an approval job and (then) its agent only: once per such key
@@ -1779,10 +1818,3 @@ def ag_pre(c, rows, uid):
             "tvis": tasks_visible(c, [a["status_task"] for a in rows if a["status_task"]], uid, full=True),
             "cost": usage_cost_sums(c, ids), "pending": agent_pending_ages(c, ids),  # 2.826.0 (#5509)
             "may_rt": lambda a: a["owner_id"] == uid if a["owner_id"] else bool(u and u["is_admin"])}  # = may_set_runtime
-
-
-# 2.1269.0 (#6431): a task made from a new GitHub / GitLab issue (integrations/git_sync.py) is text from outside: it keeps
-# origin git (+ untrusted) for every later event and get_task (registered from here: the integrations layer imports no agent
-# code). No task_added for it, as before: an issue anyone can open on the git host does not wake the listening agents.
-from ..integrations import git_sync as _gsy  # noqa: E402 -- at the end: every name above exists for the modules it loads
-_gsy.GSY_NEW_TASK_HOOKS.append(lambda c, tid: task_mark_origin(c, tid, "git"))

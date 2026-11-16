@@ -38,7 +38,7 @@ from ..core.config import API_PREFIX, app, PUBLIC_URL
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, parse_iso
 from ..core.pg import insert_id
-from ..core.access import Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
+from ..core.access import act_for, run_person, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
 from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
 from ..accounts.session import me
@@ -220,11 +220,18 @@ def ctl_value(k, v):
 
 
 def ctl_cap(c, a, lid):
-    """The highest level the agent may have in project lid: its owner's own rights there (a team agent: no cap)."""
-    if not a["owner_id"] or not lid:
+    """The highest level the agent may have in project lid: its owner's own rights there. 2.1287.0 (#6454): a team agent in a
+    run for a person (core/access.py act_for: the run token's asked_by): that person's own rights there -- a reader or a
+    participant gets every write as an approval card, which only a person with write rights there can answer (ctl_claim).
+    A team agent outside such a run (a person's settings request, a run of the project's own automation): no cap."""
+    if not lid:
         return "free"
-    role = list_role(c, lid, a["owner_id"])
-    return "free" if role in ("owner", "admin") else "routine" if role == "edit" else "approve_all"
+    who = (a["owner_id"],) if a["owner_id"] else (act_for(a["user_id"]) or ())
+    cap = "free"
+    for p in who:
+        role = list_role(c, lid, p)
+        cap = ctl_min(cap, "free" if role in ("owner", "admin") else "routine" if role == "edit" else "approve_all")
+    return cap
 
 
 def ctl_min(*levels):
@@ -439,12 +446,16 @@ def ctl_gate():
     c = db()
     a = agent_row(c, g.user["id"])
     d = ctl_get(a)
-    web = None
+    web, nolevel = None, False
     if a is not None and (a["provider"] or "") == "kalmido-server":  # 2.571.0 D (#4676): a server agent's run with web access is on
         from .srvweb import srvweb_state
         web = srvweb_state(c, a["user_id"])
     if d is None and web is None:
-        return None  # no level chosen: works as before
+        if a is None or a["owner_id"] or not act_for(a["user_id"]):
+            return None  # no level chosen: works as before
+        # 2.1287.0 (#6454): a team agent's run for a person, no level chosen: free where that person writes themselves
+        # (as before), an approval card for everything in a project they only read (nolevel below)
+        d, nolevel = {**CTL_DEFAULTS, "level": "free", "projects": {}}, True
     if web is not None:  # decision 05.11.2026: with the web, every change by card - whatever the level (also none chosen)
         d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}
     path = ctl_rule_path(request.url_rule)
@@ -459,6 +470,8 @@ def ctl_gate():
     lids, unknown = ctl_lists(c, a["user_id"], path, b)
     if lids is None:
         return None  # a project it cannot see: the route answers 404
+    if nolevel and all(list_role(c, x, p) in WRITE_ROLES for x in lids for p in act_for(a["user_id"]) or ()):
+        return None  # 2.1287.0 (#6454): the requester writes there themselves (outside projects: the role functions cap)
     level = ctl_min(*[ctl_level(c, a, d, x) for x in lids]) if lids else d["level"]
     if unknown and a["owner_id"]:  # 2.235.0 A2 (#2891): a place the gate cannot check the owner's rights for: at most routine
         level = ctl_min(level, "routine")
@@ -582,6 +595,12 @@ def ctl_claim(c, a, hdr, step, lids):
         return None, {"reason": "approver_rights"}
     if not lids and not agent_shares(c, aid, who):
         return None, {"reason": "approver_shares"}
+    if not lids and not a["owner_id"]:  # 2.1287.0 (#6454): a team agent's card without a project needs the person's own write right
+        if not ctl_obj_write(c, who):
+            return None, {"reason": "approver_rights"}
+        g.ctl_for = who  # every role function of this request answers at most this person's role (core/access.py act_for)
+    elif lids and not a["owner_id"] and run_person() is not None:
+        g.ctl_for = who  # review (F6): a run's card in a project: the person who said Yes counts, not the reader who asked
     n = c.execute("""UPDATE agent_chat SET choices=jsonb_set(choices, '{approval,used_at}', to_jsonb(CAST(? AS TEXT)))
                      WHERE id=? AND agent_id=? AND choices->'approval'->>'used_at' IS NULL""",
                   (iso_ms(now_utc()), int(hdr), aid)).rowcount
@@ -590,6 +609,18 @@ def ctl_claim(c, a, hdr, step, lids):
         m, ch, ans = ctl_card_row(c, aid, int(hdr))
         return None, ctl_card_state(m, ch, ans) or {"reason": "used"}
     return int(hdr), {}
+
+
+def ctl_obj_write(c, who):
+    """2.1287.0 (#6454): may person who change the object of this request themselves? Checked here for an object of the shared
+    core (/agent/objects/<kind>/<id>: obj_role edit / manage); every other route without a project is checked by its own
+    role function, capped to this person through g.ctl_for (ctl_claim) -- it answers 403 / 404 as for the person."""
+    va = request.view_args or {}
+    rule = request.url_rule.rule if request.url_rule else ""
+    if "/agent/objects/<kind>/<int:rid>" not in rule and "/agent/objects/<kind>/<rid>" not in rule:
+        return True
+    from ..core.objects import obj_role
+    return obj_role(c, who, va.get("kind"), va.get("rid")) in ("edit", "manage")
 
 
 CTL_RUN_TIMEOUT = 120  # 2.1045.0 (#5827): seconds the run of an approved step may take (as api/scopes.py approval_replay)

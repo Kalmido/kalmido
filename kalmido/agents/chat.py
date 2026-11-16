@@ -17,6 +17,7 @@ from ..core.db import ag_cursor, ag_cursor_parse, ag_limit, body, bump, db, err,
 from ..core.retention import ret_days, ret_on, ret_report  # 2.272.0 A (#3026)
 from ..accounts.session import me
 from ..core.access import Denied, need_task, task_visible
+from ..api.runfor import run_chat_ok  # 2.1287.0 (#6454, review F1)
 from ..core.serializers import unlink_files
 from ..tasks.validation import as_int, log_act
 from ..tasks.deliver import dv_job_ended  # 2.392.2 (#3365)
@@ -815,7 +816,7 @@ def chat_file_access(c, fid, write=False):
     r = chat_file_row(c, fid)
     uid = me()
     if is_agent(g.user):
-        if r["agent_id"] != uid:
+        if r["agent_id"] != uid or not run_chat_ok(r["user_id"]):  # 2.1287.0 (#6454, review F1): a run: the requester's chat only
             raise Denied(404)
         side = "agent"
     else:
@@ -1632,3 +1633,13 @@ def v1_task_typing(tid):
     v1_args(())
     c = db()
     return jsonify(task_typing_set(c, tid, me()))
+
+
+# 2.1269.0 (#6431): a task made from a new GitHub / GitLab issue (integrations/git_sync.py) is text from outside: it keeps
+# origin git (+ untrusted) for every later event and get_task. No task_added, as before: an issue anyone can open on the git
+# host does not wake the listening agents. 2.1287.0 (p2369_5_layers): registered here, not at the end of agents/core.py -
+# that closed the import cycle agents.core -> integrations.git_sync -> integrations.git -> agents.core (git.py imports
+# agents.core); nothing under the agents layer imports agents.chat at module level.
+from ..integrations.git_sync import GSY_NEW_TASK_HOOKS  # noqa: E402
+from .core import task_mark_origin  # noqa: E402
+GSY_NEW_TASK_HOOKS.append(lambda c, tid: task_mark_origin(c, tid, "git"))

@@ -544,7 +544,8 @@ def _tables(c, z, sub):
             w = ox_live(c, table, own or RX_WHERE.get(table) or where[table])
             rows = _rows(c, oid, table, w, (oid,) * w.count("?"))
         rows = [{k: v for k, v in r.items() if k not in RX_DROP.get(table, ())} for r in rows]
-        rows = [dict(r, user_name=name(r.get("user_id") or r.get("by_user"))) if ("user_id" in r or "by_user" in r) else r for r in rows]
+        # 2.1287.0 (#6470, review): a row that kept its person's name (office_doc_log.user_name) shows it when the account is gone
+        rows = [dict(r, user_name=name(r.get("user_id") or r.get("by_user")) or r.get("user_name") or "") if ("user_id" in r or "by_user" in r) else r for r in rows]
         if not rows:
             continue
         text, _n = _csv(rows)

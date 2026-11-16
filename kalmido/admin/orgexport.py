@@ -65,7 +65,7 @@ from ..accounts.orgretain import odl_ids  # 2.278.0 A (#3093)
 from ..hub.hubmail import hbm_can  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import _need_org_admin, org_role  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgretain import odl_admin_export  # 2.369.5 (#2517): pulled up from functions
-from ..office.ledger import ofx_log  # 2.369.5 (#2517): pulled up from functions
+from ..office.ledger import ofx_log, ofx_log_name  # 2.369.5 (#2517): pulled up from functions; 2.1287.0 (#6470): + ofx_log_name
 from ..accounts.bgjobs import bgj_add, bgj_busy, bgj_drop, bgj_fn  # 2.370.3 (#2760)
 
 EXPORT_DIR = os.environ.get("TASKS_EXPORT_DIR", os.path.join(os.path.dirname(DB), "exports"))
@@ -1246,8 +1246,8 @@ def ox_run(oid, uid):
                              "done_at": iso(done), "expires_at": iso(done + timedelta(hours=OX_KEEP_H)), "file": name, "bytes": size, "plain": plain,
                              "files": sum(1 for k in man["files"] if k.startswith("files/")), "rows": sum(man["counts"].values()),
                              "missing": len(man["missing"])})
-            c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail) VALUES(?,?,?,?,?,?,?)",
-                      (oid, None, uid, iso(done), "export", "org", json.dumps({"bytes": size, "file": name})))
+            c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,?,?,?,?,?,?)",
+                      (oid, None, uid, iso(done), "export", "org", json.dumps({"bytes": size, "file": name}), ofx_log_name(c, oid, uid)))  # 2.1287.0 (#6470)
             c.commit()
     except Exception as e:  # noqa: BLE001 -- the state says it failed; never a key or content in the message
         try:

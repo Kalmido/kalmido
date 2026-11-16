@@ -16,7 +16,7 @@ from ..core.i18n import lang, N_, tr
 from ..core.pg import insert_id, like_escape, st_ids, system_ctx
 from ..core.db import bump, iso, iso_ms, local_now, now_utc, usettings
 from ..accounts.session import me
-from ..core.access import acx_org_ok, collab_all, Denied, list_role, org_trips_hidden, task_visible, WRITE_ROLES
+from ..core.access import act_for, acx_org_ok, collab_all, Denied, for_cap, list_role, org_trips_hidden, task_visible, WRITE_ROLES
 from ..core.dlock import dl_area_locked  # 2.560.0 B (#4699)
 from ..tasks.validation import DATE_MIN_Y
 from ..collab.comments import user_names
@@ -104,7 +104,8 @@ def book_role(c, uid, b, trash=False, fold=True):
         fr = ctf_node_role(c, uid, CTF_BOOK, b["id"])
         if BOOK_RANK.get(fr, 0) > BOOK_RANK.get(role, 0):
             role = fr
-    return role
+    # 2.1287.0 (#6454): never more than the person the request's agent acts for (core/access.py act_for)
+    return for_cap(uid, role, BOOK_RANK, lambda p: book_role(c, p, b, trash, fold))
 
 
 def _bk_ro(c, uid, oid, role):
@@ -215,6 +216,13 @@ def my_book_ids(c, uid, fold=True):
         for k, v in ctf_reached(c, uid, CTF_BOOK).items():
             if BOOK_RANK.get(v, 0) > BOOK_RANK.get(out.get(k), 0):
                 out[k] = v
+    who = act_for(uid) if out else None
+    if who is not None:  # 2.1287.0 (#6454): only the books of the people the agent acts for, at most with their role
+        for p in who:
+            theirs = my_book_ids(c, p, fold)
+            out = {k: (v if BOOK_RANK.get(v, 0) <= BOOK_RANK.get(theirs[k], 0) else theirs[k]) for k, v in out.items() if theirs.get(k)}
+        if not who:
+            out = {}
     return out
 
 
@@ -349,7 +357,14 @@ def _ct_fold(c, uid, r):
     if r["deleted_at"]:
         return None
     from .ctfolder import CTF_CONTACT, ctf_node_role
-    return ctf_node_role(c, uid, CTF_CONTACT, r["id"])
+    role = ctf_node_role(c, uid, CTF_CONTACT, r["id"])
+    if not role or act_for(uid) is None:
+        return role
+
+    def theirs(p):  # 2.1287.0 (#6454): what the person has on the contact: the higher one of its book's and its own folder's role
+        b = c.execute("SELECT * FROM books WHERE id=?", (r["book_id"],)).fetchone()
+        return max(book_role(c, p, b), _ct_fold(c, p, r), key=lambda x: BOOK_RANK.get(x, 0))
+    return for_cap(uid, role, BOOK_RANK, theirs)
 
 
 def need_contact(c, cid, write=False, uid=None, trash=False, own=False):
@@ -1047,6 +1062,9 @@ def contacts_query(c, uid, q="", book=None, group=None, limit=500, offset=0, tra
     if book is None and not trash:
         from .ctfolder import CTF_CONTACT, ctf_reached
         one = [int(k) for k in ctf_reached(c, uid, CTF_CONTACT)]
+        if one and act_for(uid) is not None:  # 2.1287.0 (#6454): only those the person the agent acts for reaches too (_ct_fold)
+            rows = c.execute(f"SELECT * FROM contacts WHERE id IN ({','.join(str(k) for k in one)})").fetchall()
+            one = [int(x["id"]) for x in rows if _ct_fold(c, uid, x)]
     if folder is not None:
         ids = {k: v for k, v in ids.items() if k in set(folder[0])}
         mine = set(folder[1])

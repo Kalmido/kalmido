@@ -33,6 +33,7 @@ from .pdf import pdf_paper  # 2.357.0 A (#3156)
 from .oubar import OUB_SENT, oub_barrier, oub_doc_name  # 2.747.0 (#5252): a document marked sent is a barrier of the undo steps
 from .ledger import (ofx_release, ofx_company, ofx_company_print, ofx_sender_line, ofx_diff, ofx_items_brief, ofx_locked, ofx_log, ofx_logo_path, ofx_need_editable,
                      ofx_number_at_finalize, ofx_snapshot_pack, OFX_LOCKED)
+from .ledger import ofx_user_label  # 2.1287.0 (#6470)
 from .ledger import ofx_unlink, ofx_unlock  # 2.1005.0 (#5415): a finalised quotation never sent goes as a draft
 from .countries import fk_country_label  # 2.296.0 B (#3168)
 from .invoices import (INV_KINDS, INV_STATUSES, STATE_TXT, inv_apply_client, inv_manual_number, inv_money_fields, inv_new_row, inv_paid_map, inv_payments,
@@ -405,8 +406,10 @@ def _sur_legacy(r):
 
 def _mk_stale(c, oid, r):
     """2.1249.0 (#6281, review): a draft quotation with parts and a markup whose cached totals still hold the markup per part
-    (saved before 2.1249.0, no "mk_title"): recalc once when it is opened."""
-    if r["kind"] != "offer" or ofx_locked(r) or dict(r).get("markup_pct") is None or _j(r["totals"], {}).get("mk_title"):
+    (saved before 2.1249.0, no "mk_title"): recalc once when it is opened. 2.1287.0 (#6443): only a draft - a quotation
+    set to sent / accepted / declined without finalising keeps the rule it was sent with (_mk_legacy), opening it writes nothing."""
+    if r["kind"] != "offer" or ofx_locked(r) or (dict(r).get("status") or "draft") != "draft" or dict(r).get("markup_pct") is None \
+            or _j(r["totals"], {}).get("mk_title"):
         return False
     from .parts import tp_has_parts
     return bool(tp_has_parts(c, oid, r["id"]))
@@ -415,10 +418,18 @@ def _mk_stale(c, oid, r):
 def _mk_legacy(r):
     """2.1249.0 (#6281): a quotation with parts finalised while every part computed its own markup (its frozen totals lack
     "mk_title"): its invoices / progress invoices compute the markup per part as its frozen sums did. Otherwise the markup
-    is one line on the title page over its marked positions and the part lines (parts.tp_doc_totals)."""
-    if dict(r).get("kind") != "offer" or not ofx_locked(r) or dict(r).get("markup_pct") is None:
+    is one line on the title page over its marked positions and the part lines (parts.tp_doc_totals).
+    2.1287.0 (#6443): the same for a quotation that left the draft without being finalised (status sent / accepted /
+    declined, set by hand) and was last computed by the former rule: opening it, its PDF, the client's view and its
+    invoices keep the sums it was sent with. Only a draft moves to the one markup line (_mk_stale)."""
+    if dict(r).get("kind") != "offer" or dict(r).get("markup_pct") is None:
         return 0
-    return 0 if _j(r["totals"], {}).get("mk_title") else 1
+    if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
+        return 0
+    t = _j(r["totals"], {})
+    if not ofx_locked(r) and not t.get("parts"):
+        return 0  # (review) it had no parts when it was last computed: nothing was sent by the former rule, its first part takes the new one
+    return 0 if t.get("mk_title") else 1
 
 
 def doc_totals(c, oid, r, items=None):
@@ -479,6 +490,20 @@ def ofd_role_edit(c, oid):
         uid = u["id"]
         memo[key] = not office_allowed(c, uid, oid, write=True) and (ofr_rights(c, uid, oid) is None or office_can(c, uid, oid, "offers", "edit"))
     return memo[key]
+
+
+def odoc_locked_by_name(c, oid, r, d):
+    """2.1287.0 (#6470): who finalised document r (d = its decrypted row): the account's name now; when the account is
+    gone, the name frozen with the sender (finalised since 2.1287), else the one the office log kept of its finalising."""
+    n = ofx_user_label(c, r["locked_by"])
+    if n:
+        return n
+    n = (_j(d.get("sender"), {}) or {}).get("locked_by_name") or ""
+    if n:
+        return n
+    lg = c.execute("SELECT * FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='finalize' ORDER BY id DESC LIMIT 1",
+                   (oid, r["id"])).fetchone()
+    return (oc_dec_fields(c, oid, "office_doc_log", lg).get("user_name") or "") if lg else ""
 
 
 def doc_public(c, oid, r, admin, items=True):
@@ -548,15 +573,13 @@ def doc_public(c, oid, r, admin, items=True):
     locked = ofx_locked(r)
     if items and r["kind"] == "offer":  # 2.114.4 B (#2270): what the PDF prints (a finalised quotation: its frozen value)
         d["accept_print"] = bwb_accept_on(r, office_settings(c, oid), _j(d.get("sender"), {}) if locked else None)
+    locked_by_name = odoc_locked_by_name(c, oid, r, d) if locked else ""  # 2.1287.0 (#6470, review): before the frozen sender leaves d
     for k in ("sender", "recipient_snapshot", "tax_snapshot"):
         d.pop(k, None)  # the frozen copies stay on the server (the print model shows them)
     d["locked"] = locked
     if items and not locked:  # 2.460.0 (#3767): own texts missing in the document's language
         d["lang_gaps"] = fd_lang_gaps(c, oid, r, d.get("items") or [])
-    d["locked_by_name"] = ""
-    if locked and r["locked_by"]:
-        u = c.execute("SELECT display_name, username FROM users WHERE id=?", (r["locked_by"],)).fetchone()
-        d["locked_by_name"] = (u["display_name"] or u["username"]) if u else ""
+    d["locked_by_name"] = locked_by_name
     d["can_edit"] = not locked and r["status"] != "sent" and ofd_role_edit(c, oid)  # 2.38.0: sent documents are locked as well; 2.1238.0 (#6161, Stufe 3): + the role
     d["can_unlock"] = bool(admin) and locked and not bga_offer_block(c, oid, r)  # 2.114.2 A (#2263): back to a draft
     d["trial"] = bool(r["trial"])  # 2.144.10 A (#2576)

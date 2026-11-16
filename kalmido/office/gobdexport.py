@@ -24,7 +24,7 @@ from ..core.access import live_sql  # 2.1005.0 (#5415)
 from ..core.config import app
 from ..core.i18n import tr
 from ..core.db import db, local_day, local_now
-from ..core.orgcrypt import oc_dec_fields
+from ..core.orgcrypt import oc_dec, oc_dec_fields
 from ..collab.comments import user_names
 from ..personal.timetrack import BadInput
 from .books import bk_gaps_text
@@ -217,10 +217,12 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False):
 
     t = _T("log.csv", "Protokoll", "Aenderungsprotokoll des Bueros (GoBD), ohne Inhalte der Aenderungen",
              [("ID", A), ("Zeitpunkt", A), ("Person", A), ("Aktion", A), ("Ziel", A), ("Dokument_ID", A)])
-    for r in c.execute("SELECT l.id, l.at, l.action, l.target, l.doc_id, u.display_name, u.username FROM office_doc_log l "
+    for r in c.execute("SELECT l.id, l.at, l.action, l.target, l.doc_id, l.user_name, u.display_name, u.username FROM office_doc_log l "
                        "LEFT JOIN users u ON u.id=l.user_id WHERE l.org_id=? AND l.at>=? AND l.at<? ORDER BY l.id",
                        (oid, frm, _next_day(to))).fetchall():
-        t.add(r["id"], r["at"], r["display_name"] or r["username"] or "", r["action"], r["target"], r["doc_id"] or "")
+        # 2.1287.0 (#6470): a deleted account's name as the entry kept it
+        who = r["display_name"] or r["username"] or oc_dec(c, oid, "office_doc_log.user_name", r["user_name"]) or ""
+        t.add(r["id"], r["at"], who, r["action"], r["target"], r["doc_id"] or "")
     out.append(t)
 
     # 2.187.0 B (#2476): every change of the office rights (groups, memberships) with the state before and after

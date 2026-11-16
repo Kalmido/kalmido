@@ -22,6 +22,7 @@ from ..core.i18n import tr
 from ..core.db import db
 from ..accounts.session import me
 from ..core.access import collab_all, Denied, FULL_ROLES, list_role, live_sql, tvis, vis_search_lids, vis_sql
+from ..core.access import run_person  # 2.1287.0 (#6454, review)
 from ..tasks.validation import as_int
 from ..core.errors import BadInput
 from ..collab.comments import comment_plain, user_names
@@ -33,6 +34,7 @@ from ..api.v1 import API_PAGE_MAX
 from ..api.common import cursor_dec, cursor_enc, v1_args, v1_view
 from ..core.srchreg import srch_register  # 2.1026.0 (#5280)
 from ..collab.teamchan import tcx_group_name  # 2.369.5 (#2517): pulled up from functions
+from .teamchan import tcx_run_ok  # 2.1287.0 (#6454, review P2)
 
 ARTS = {"c": 1, "t": 2, "a": 3}
 CHAT_TYPES = ("task", "list", "dm", "agent", "channel", "group")  # 2.113.1 (#2059): + channel, group
@@ -165,6 +167,8 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
                 ok[r["room_id"]] = tchat_room_ok(c, rr, uid) and (r["kind"] != "list" or role(r["list_id"]) in FULL_ROLES)  # 2.113.1 (#2059)
                 if ok[r["room_id"]] and r["kind"] in ("channel", "group"):  # 2.654.0 (#5053): the core's floor as need_room / tcx_channels
                     ok[r["room_id"]] = obj_gate(c, uid, "tchat_room", rr)  # (a token limited to lists finds no channel's messages)
+                    if ok[r["room_id"]]:  # 2.1287.0 (#6454, review P2): a run for a person: only the rooms that person reads
+                        ok[r["room_id"]] = tcx_run_ok(c, rr, uid)
             if not ok[r["room_id"]]:
                 continue
             d = {"art": "t", "chat_type": r["kind"] if r["kind"] in ("dm", "channel", "group") else "list", "id": r["id"], "room_id": r["room_id"],
@@ -185,6 +189,9 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
             if agent is not None:  # an agent filters by the person it talks to
                 cond += " AND m.user_id=?"
                 a2.append(agent)
+            if run_person() is not None:  # 2.1287.0 (#6454, review P2): a run for a person: only the conversation with that person
+                cond += " AND m.user_id=?"
+                a2.append(run_person() or -1)
         else:
             cond, a2 = "m.user_id=?", [uid]
             if agent is not None:

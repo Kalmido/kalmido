@@ -462,6 +462,30 @@ coding agents, building files, own tools.
   organisation or an instance admin; tokens only, a server agent reports no costs; a personal agent answers 400). A member
   at the limit gets "Your usage limit for this agent is reached; the requests of the others still run" in their chat, no
   model call is made for them, and the agent does not pause; its own limits and its owner's budget hold on top.
+- **A run works with the requester's rights** (2.1287.0, #6454): in the run of a team server agent the server applies the
+  intersection of what the agent reaches and what the person who asked may do themselves. The run's token is cut to the
+  agent's projects that person has a role in (other projects answer 404, their events are not shown to the model); a
+  folder, file, knowledge page, table, calendar, address book, channel or other object without a project answers at most
+  with that person's own role (none = 404, read-only = no write); in each project the control level is capped to the
+  person's role there (owner / project admin: free, edit: routine, reader / participant: every change is an approval
+  card that only a person with write rights there can answer) -- also when no level was chosen for the agent. A run
+  nobody asked for (the project's own automation: listening in, tidying, a follow-up day) reaches only the projects its
+  events name and nothing outside projects. A planned job runs for the person who made it. The model is told so in its
+  frame. A personal agent is unchanged: its owner is the requester and its reach is theirs.
+  In such a run (review of 2.1287.0) the agent's own channel answers only the requester's rows: its conversation, jobs,
+  planned jobs, chat files, events and direct messages with that person, never what other people told the agent. A
+  project counts only while the person has a full role in it (a participant's run gets no project; the role is asked on
+  every request, so a person taken out of a project takes the agent out with them; a project the run made itself stays).
+  Every route of the API is listed with how it is held in such a run; a route that names a person (`user_id`,
+  `requested_by` ...) accepts only the requester (`403 run_person`), a route over the organisation as a whole only for a
+  full member, a route over all the agent's projects only for an admin of its organisation (`403 run_closed`). With a
+  valid approval card the person who said Yes counts instead of the requester.
+  **Limit:** a team agent that runs elsewhere with its own token (your own runner, the hosted MCP access) has no run the
+  server could bind to a person: the server does not know who asked, so none of the above applies there -- only the rules
+  on the token itself hold (*Members may see and use the agent*, the channel rule, the approver's write right). Use a
+  server agent, or a personal agent, when people with different rights give the agent orders.
+- **Guests and read-only people** of the agent's organisation give a team agent no orders (2.1287.0): their chat message,
+  mention or assignment does not reach it (the role's own words: a guest uses no agents, a read-only person changes nothing).
 - **The circle limit** of `agents/safety.py` holds unchanged: a team agent in two projects with different people is a
   bridge (`409 agent_bridge`), see [Who may address an agent](#who-may-address-an-agent).
 - **Proposals in a team project** (kinds `subtasks`, `extract`, `cleanup` of the project, made by a TEAM server agent):
@@ -891,6 +915,9 @@ Three rules decide whether an action of someone reaches an agent as an event:
   agent is refused ("The project owner has not opened this agent to members"). Members still see what the agent does in
   the project. The chat lists an agent only for people it is open to in at least one project (`agents_open` per project in the
   state). API: `PATCH /api/v1/lists/{id}` `{"agent_members": true}`.
+  2.1287.0 (#6454): the same holds where there is no project -- a mention in a channel, a group conversation or another
+  place without a project reaches the agent only from a person it is open to in at least one project (a personal agent:
+  its owner). Being a member of the same channel is not enough: such a mention sends **no event**.
 - **Agents never address each other** (2.40.0, fixed off): an agent's mention, comment or assignment never reaches another
   agent as an event, also in older projects with two agents. The former switch *Agents may address each other* is gone;
   `agent_peers` is still accepted by `PATCH /api/v1/lists/{id}` and `PUT /api/folders/props`, ignored, and always `false`
@@ -3408,6 +3435,11 @@ run it from the card after the Yes:
    on a run: the target changed since the card - read it again, ask with a new card), `used` (the card is in use right now or
    has run, `used_at` when it ran - check the result instead of reporting a failure), `unanswered`, `rejected`, `withdrawn`, `no_step`,
    `one_way`, `approver_rights`, `approver_shares`, `not_found` (run: 404), `format`, `nested`, `upload` (2.1085.0: an upload's card runs only the header way).
+   2.1287.0 (#6454): the Yes on a card **without a project** (a contact, a calendar, a knowledge page, a table, a file) of a
+   team agent counts only from a person who may change that object themselves: an object of
+   `/agent/objects/<kind>/<id>` answers `approver_rights`, every other route answers as it would for that person (`403` /
+   `404`, the card stays unused) -- ask a person who works with that object. The Yes on an approval job
+   (`POST /api/agents/jobs/<id>/action approve`) needs the person's write right at that moment too.
 4. **Uploads (2.1078.0, #5866):** the run from the card sends JSON only. A refused upload (multipart with files) says so with
    `error.run: "header"`: ask with the card as above, then after the Yes send the same upload again with the files and the
    header `X-Kalmido-Approval: <id of the card>` (MCP: `use_approval`, then the call). The MCP server keeps a refused step

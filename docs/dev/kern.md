@@ -159,6 +159,23 @@ the deletion is refused as for calendars, `upg_heirless`). What goes waits 30 da
 share back (`obj_share_restore`). Retiring an organisation takes every share of the file store on its nodes for good:
 there is no way back out of the retirement, so after the 30 days those rows are gone (its export has no shares then).
 
+### An agent acting for a person (2.1287.0, #6454)
+
+`act_for(uid)` in `core/access.py` names the people whose own rights cap what the request's agent may do: the person a
+team agent's run works for (the run token's `api_tokens.asked_by`; `0` = a run without a person = nothing outside its
+projects) and the person who answered an approval card without a project (`g.ctl_for`, agents/control.py `ctl_claim`).
+`None` = no cap (a person's request, a personal agent, an ordinary token). Projects are cut by the token itself
+(`token_lists()`: `api_tokens.run_lists`; `token_lists(own=True)` is the limit the token carries on its own, the one
+that closes whole areas without a project). Every role function of an area without a project ends with this cap and
+answers at most the role those people have themselves: `obj_role` / `obj_visible_sql` (`_for_cap`), the file store's
+`fs_role` / `fs_visible_sql`, `book_role` / `my_book_ids`, `wkf_role` / `wkf_shared`, `sh_may`, `tcx_rooms_of`; the
+helper is `for_cap(uid, role, rank, theirs)`. A new area on `obj_need` gets it for free; an area with its own role
+function must end with `for_cap` -- no second way to ask "for whom".
+Every route of `/api/v1` stands in `kalmido/api/runfor.py` `RUN_ROUTES` with how it is held in such a run (cut, cap,
+mine, pin:<parameter>, send, org, closed, own, noagent, safe); `run_gate` in `api_authenticate` refuses the rest, a new
+route is closed in a run until it is listed (`tests/p6454_c_run_routes_test.py`). Rows of the agent's own channel ask
+`run_person()` (the requester; `0` = nobody).
+
 ### Who may write: the client (2.1238.0, #6161)
 
 The browser has ONE rule for showing write entries: `canWrite(x)` in `static/js/workspace.js`. `x` is a space

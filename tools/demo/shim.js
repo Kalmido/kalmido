@@ -415,6 +415,8 @@
     'GET /api/me/channels': () => ({enabled: false, channels: [], mail: {}}),
     'GET /api/account/export': () => ({state: 'none'}), 'GET /api/account/import': () => ({current: null}), 'GET /api/videos/signoffs/orphaned': () => ({signoffs: []}),
     'GET /api/hubmail/mailboxes': () => ({spaces: []}),
+    // 2.1287.0 (#6474 in main, 2d85668b56): Office > Settings draws the state of the last retention export (orgexport.js rxWvDraw): the demo has no export, no waiver
+    'GET /api/retention/me': () => ({needed: false, hosted: false, exported_at: null, export_problem: null, waived_at: null, may_declare: false}),
     // 2.649.0 (#5039): core.js loads the own ticket types at the start (ttypes.js tty_load) - the demo has none. 2.651.0 (#5037):
     // Settings > Ticket types asks the same path with ?space= and reads space / can_edit / max / suggestions (settings.js
     // tty_draw: j.space.slice crashed office/settings) - one answer for both (the key has no query); Office > Receipts asks for

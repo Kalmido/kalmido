@@ -289,6 +289,12 @@ def token_list_add(c, lid):
         return
     t = g.token
     raw = (t["list_ids"] if "list_ids" in t.keys() else "") or ""
+    run = t["run_lists"] if "run_lists" in t.keys() else None
+    if run is not None:  # 2.1287.0 (#6454): the run token of a team agent: the new project belongs to this run too (its cut only)
+        # review F8: marked "+" -- made in this run, it stays in the cut without a role of the person (core/access.py token_lists)
+        c.execute("UPDATE api_tokens SET run_lists=? WHERE id=?", (",".join([x for x in str(run).split(",") if x.strip()] + [f"+{int(lid)}"]), t["id"]))
+        g.token = c.execute("SELECT * FROM api_tokens WHERE id=?", (t["id"],)).fetchone()
+        g.pop("token_lists", None)
     if not raw.strip():
         return
     new = ",".join(str(x) for x in sorted(ids_parse(raw) | {lid}))
@@ -299,6 +305,7 @@ def token_list_add(c, lid):
         c.execute("UPDATE api_tokens SET list_ids=? WHERE id=?", (new, t["id"]))
     g.token = c.execute("SELECT * FROM api_tokens WHERE id=?", (t["id"],)).fetchone()  # this request sees the list too
     g.pop("token_lists", None)
+    g.pop("token_lists_own", None)
 
 
 # ---- moving content across circles waits for a person (agents only)

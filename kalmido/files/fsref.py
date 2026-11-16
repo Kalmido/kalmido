@@ -69,7 +69,7 @@ import re
 from ..accounts.orgroles import org_role_key
 from flask import g, has_request_context
 
-from ..core.access import Denied, acx_of
+from ..core.access import Denied, acx_of, for_cap
 from ..core.db import insert_id
 from ..core.i18n import tr
 from ..core.pg import qi, system_ctx, table_columns, table_names
@@ -190,7 +190,8 @@ def fs_ref_node_role(c, uid, n, chain=None, pre=None, sp=None, hidden=None):
     if r and reg["cap"]:  # 2.238.0 A (#2863): a folder share gives at most what the area allows the role
         top = _role_of(reg["cap"](c, uid, n["ref_id"]))
         r = r if ROLE_RANK[r] <= ROLE_RANK[top] else top
-    return r
+    # 2.1287.0 (#6454, review P2): an agent acting for a person gets through the folders at most that person's role on the object
+    return for_cap(uid, r, ROLE_RANK, lambda p: fs_ref_role(c, p, n["ref_kind"], n["ref_id"]))
 
 
 def fs_ref_role(c, uid, ref_kind, ref_id):
@@ -201,13 +202,11 @@ def fs_ref_role(c, uid, ref_kind, ref_id):
     if _api_way(c, uid) and _hidden(c, uid, reg, ref_id):
         return None  # 2.351.0 F (#3246, review M2): an agent / a token: what a folder never opens, the base role does not either
     base = _role_of(reg["base_role"](c, uid, int(ref_id)))
-    if base == "edit":
-        return base
-    n = fs_ref_node(c, ref_kind, ref_id)
-    if not n:
-        return base
-    r = fs_ref_node_role(c, uid, n)
-    return r if ROLE_RANK[r] > ROLE_RANK[base] else base
+    n = fs_ref_node(c, ref_kind, ref_id) if base != "edit" else None
+    r = fs_ref_node_role(c, uid, n) if n else None
+    out = r if ROLE_RANK[r] > ROLE_RANK[base] else base
+    # 2.1287.0 (#6454, review P2): ... and the same for the object as a whole (the area's base role is capped by its own function)
+    return for_cap(uid, out, ROLE_RANK, lambda p: fs_ref_role(c, p, ref_kind, ref_id))
 
 
 def _folder_ok(c, uid, pid):

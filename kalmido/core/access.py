@@ -117,18 +117,80 @@ def health_hidden(c=None, uid=None):
 # 2.30.0 (#919): least privilege. An API token (an agent's tokens carry the agent's choice) may be limited to selected lists
 # (api_tokens.list_ids, csv; '' = all): on every /api/v1 request the other lists do not exist for it -- list_role answers
 # None (404), vis_sql / wr_sql leave them out. Only the token's own user is limited (other people's roles stay).
-def token_lists():
-    """frozenset of the list ids the current request's token is limited to, or None (no limit / not a token request)."""
+def token_lists(own=False):
+    """frozenset of the list ids the current request's token is limited to, or None (no limit / not a token request).
+    2.1287.0 (#6454): the run token of a team agent is cut to the projects of the person it works for (api_tokens.run_lists,
+    agents/srvteam.py srv_run_cut) -- that cut is the answer here. own=True: only the limit the token (the agent) itself
+    carries (api_tokens.list_ids), for the areas a list limit closes as a whole (pages, calendars, channels): there the
+    run's person caps each object instead (act_for)."""
     if not has_request_context() or g.get("auth_via") != "token":
         return None
-    if "token_lists" in g:
-        return g.token_lists
+    key = "token_lists_own" if own else "token_lists"
+    if key in g:
+        return g.get(key)
     t, out = g.get("token"), None
     raw = (t["list_ids"] if t is not None and "list_ids" in t.keys() else "") or ""
     if raw.strip():
         out = frozenset(int(x) for x in raw.split(",") if x.strip().isdigit())
-    g.token_lists = out
+    run = t["run_lists"] if not own and t is not None and "run_lists" in t.keys() else None
+    if run is not None:
+        parts = [x.strip() for x in str(run).split(",")]
+        made = {int(x[1:]) for x in parts if x[:1] == "+" and x[1:].isdigit()}  # made in this run (agents/safety.py token_list_add)
+        cut = {int(x) for x in parts if x.isdigit()}
+        by = t["asked_by"] if "asked_by" in t.keys() else None
+        if by and cut:  # review F8: the person's role is asked on every request -- a person taken out of a project during
+            setattr(g, key, frozenset())  # the run takes the agent out of it with them (no recursion: other uid, see list_role)
+            cut = {x for x in cut if list_role(db(), x, int(by)) in FULL_ROLES}
+        cut = frozenset(cut | made)
+        out = cut if out is None else out & cut
+    setattr(g, key, out)
     return out
+
+
+def act_for(uid):
+    """2.1287.0 (#6454): the people whose own rights cap what account uid may do in this request, or None (no cap).
+    uid = the request's own agent and (a) its token is the run token of a team agent working for a person
+    (api_tokens.asked_by; 0 = a run without a person: the empty tuple = nothing outside the run's projects) and / or (b) the
+    request uses an approval card that a person answered (g.ctl_for, agents/control.py ctl_claim): then that person alone.
+    Every role function of an area without a project asks this and answers at most the role these people have themselves
+    (core/objects.py obj_role, files/store.py fs_role, contacts book_role, wiki wkf_role, sheets sh_may) -- the pattern
+    of the office (office/agentdocs.py _v1ctx): an agent never gets more than the person it acts for."""
+    u = getattr(g, "user", None) if uid and has_request_context() else None
+    if u is None or not u["id"] or str(u["id"]) != str(uid):  # a stand-in actor (id None / 0: a public link, a hook) is nobody's agent
+        return None
+    ap = g.get("ctl_for")
+    if ap:  # review (F6): with a valid card the person who said Yes counts instead of the requester (a reader's order a writer approved)
+        return (int(ap),)
+    by = run_person()
+    return None if by is None else ((by,) if by else ())
+
+
+def run_person():
+    """2.1287.0 (#6454, review): the person the request's run token works for (api_tokens.asked_by: the run of a team agent,
+    agents/srvteam.py srv_run_cut) -- 0 = a run without a person, None = no such run (a person, a personal agent, an ordinary
+    token). The agent's own channel answers only this person's rows with it (chats, jobs, events, plans: api/runfor.py)."""
+    if not has_request_context() or g.get("auth_via") != "token":
+        return None
+    t = g.get("token")
+    by = t["asked_by"] if t is not None and "asked_by" in t.keys() else None
+    return None if by is None else int(by)
+
+
+def for_cap(uid, role, rank, theirs):
+    """2.1287.0 (#6454): role of account uid, capped by act_for: at most the role theirs(person) answers for each person the
+    request's agent acts for (rank: {role: number}); nobody to act for = None. The areas' role functions end with it."""
+    who = act_for(uid) if role else None
+    if who is None:
+        return role
+    if not who:
+        return None
+    for p in who:
+        r = theirs(p)
+        if rank.get(r, 0) < rank.get(role, 0):
+            role = r
+        if not role:
+            return None
+    return role
 
 
 def access_note(lid, write=False):

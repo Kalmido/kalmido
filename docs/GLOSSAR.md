@@ -175,6 +175,7 @@ The REST API v1: shared helpers, scopes (token rights) and the OpenAPI descripti
 - `kalmido/api/helpuser.py` (`uh`) - The help for people in the app: the "How to" sections per area in the person's language, one section, the web side of search kind help (2.1086.0)
 - `kalmido/api/openapi.py` - The OpenAPI 3.1 document of /api/v1 (served at /api/v1/openapi.json, built once)
 - `kalmido/api/projects.py` (`v1`) - The project overview in the token API
+- `kalmido/api/runfor.py` - the run of a team agent for a person -- the one gate over every route of /api/v1
 - `kalmido/api/scopes.py` (`v1`) - Token scopes, approvals and the complete agent API (the routes the web client has)
 - `kalmido/api/showme.py` (`shw`) - "Show me": the named places of the app an agent's chat message may point at (docs/help-targets.json) (2.1086.0)
 - `kalmido/api/v1.py` (`v1`) - REST API /api/v1 with personal access tokens
@@ -280,6 +281,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/kernretire.py` - Stage 7 of the shared core: the start check and DROP of an area's old member table once the core alone decides (2.924.0, #5069)
 - `kalmido/core/liststate.py` - the old column archived of lists goes
 - `kalmido/core/mailframe.py` - The one HTML frame of every Kalmido mail (invitation, findability, appointment booking, portal, event invitation, security, notification and daily mails)
+- `kalmido/core/mailguard.py` - the one way a foreign mail (bytes) becomes an email.message object
 - `kalmido/core/merges.py` (`mg`) - Merging duplicate records by hand (contacts: contacts/merge.py, clients: team/clientmerge.py)
 - `kalmido/core/moneycol.py` - Moves the plain office money columns from TEXT to NUMERIC(14,2) at start when every value fits, and reads them back as two-place text
 - `kalmido/core/mt940.py` - SWIFT MT940 / MT942 statements (the German bank dialects: Sparkasse, Volksbank, Deutsche Bank, Commerzbank ...)

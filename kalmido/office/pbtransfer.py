@@ -36,7 +36,7 @@ from ..core.config import OFFICE_DIR, app
 from ..core.access import Denied, acx_drop, live_sql
 from ..core.db import body, bump, db, err, iso, now_utc, uset
 from ..core.i18n import N_, tr, trn
-from ..core.orgcrypt import FIELDS, JSON_KEYS, oc_dec_fields, oc_log_detail, oc_read_file, oc_write_file
+from ..core.orgcrypt import FIELDS, JSON_KEYS, oc_dec_fields, oc_enc, oc_log_detail, oc_read_file, oc_write_file
 from ..core.pg import IntegrityError, qi, system_ctx, table_columns, write_lock  # 2.1111.0 (#5953): qi
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from .ledger import ofx_log, ofx_release  # 2.542.0 (#4598): + ofx_release
@@ -301,7 +301,9 @@ def pbt_check():
 
 def pbt_reseal(c, t, r, src, dst):
     if t == "office_doc_log":  # the log stays plain where it carries no protected key (the daily mail count reads it)
-        return {"detail": oc_log_detail(c, dst, oc_dec_fields(c, src, t, r)["detail"])}
+        d = oc_dec_fields(c, src, t, r)
+        return {"detail": oc_log_detail(c, dst, d["detail"]),
+                "user_name": oc_enc(c, dst, "office_doc_log.user_name", d.get("user_name") or "") or ""}  # 2.1287.0 (#6470)
     return ofm_reseal(c, t, r, src, dst)
 
 

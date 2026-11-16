@@ -19,6 +19,7 @@ from ..core.access import (
     _pset_sql, Denied, health_hidden, list_role, need_feat, need_list, need_task, need_time, plists,
     pvis, task_visible, time_all, vis_sql,
 )
+from ..core.access import run_person  # 2.1287.0 (#6454, review)
 from ..core.state import visible_lists
 from ..tasks.validation import DAY_HOURS_DEFAULT
 from ..personal.habits import pomo_elapsed
@@ -222,6 +223,8 @@ def entry_out(r, uid, vis, ref, rm):
     hid = "l_life" in r.keys() and r["l_life"] in HIDDEN_LIFE and health_hidden()  # #476 M6 (e.g. my running timer)
     if seen and r["task_id"] and isinstance(vis, VisIds):  # 1.10.0: a task a participant no longer sees
         seen = vis.task_ok(r["task_id"], r["list_id"], full=True)
+    if not seen and r["list_id"] and not hid:
+        hid = run_person() is not None  # (#6454 P2) an entry of a project outside the run's cut answers without the title copy and the note
     title = "" if hid else r["t_title"] if seen and r["t_title"] is not None else r["task_title"]
     from ..collab.liste2e import le2e_is_cipher, le2e_neutral
     e2e = le2e_is_cipher(title)  # 2.64.1 B (#1817): a title of a list with the lock: the neutral word, the app resolves it
