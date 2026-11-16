@@ -12,6 +12,8 @@
    sender, subject, "has an attachment" and the age decide; a second run takes nothing twice (each Message-ID once per
    mailbox); without the delete switch no mail is ever marked deleted or expunged, with it exactly that mail goes
  - a person without an organisation: her private mailbox and a rule into her own folder (freelancer-matrix: hub)
+ - 2.1281.0 (#6425): a mail whose sender line breaks the header parser (500 opening brackets) and one of 20.000 tiny parts are
+   remembered for good and shown at the rule; the newer mails of the folder still become documents, in the same run and after
  - 2.636.0 (#4853): a mail whose documents are all refused (the target folder in the trash) is not remembered, the rule shows
    the error; a target folder the holder cannot file into is refused on saving; the next run (folder back) takes the mail
 usage: p2581_d_mailrules_test.py <datadir>"""
@@ -103,7 +105,7 @@ def run(s, ws):
 docker_logs_on_first_fail()
 # ---- setup: alice (instance admin), Alpha = bob (admin) + carol, Beta = dave, erin without an organisation
 fresh(ENV)
-for d in ("INBOX", "Rechnungen", "Archiv", "Belege", "Markiert", "Weg", "Erin", "Ziel"):  # 2.636.0 (#4853): + Ziel
+for d in ("INBOX", "Rechnungen", "Archiv", "Belege", "Markiert", "Weg", "Erin", "Ziel", "Gift"):  # 2.636.0 (#4853): + Ziel; 2.1281.0 (#6425): + Gift
     os.makedirs(os.path.join(MB, d), exist_ok=True)
 shutil.copy(os.path.join(N, "stub_imap_folders.py"), DATA)
 subprocess.run(["docker", "exec", "-d", CT, "python", "/data/stub_imap_folders.py"], check=True)
@@ -322,5 +324,41 @@ check(dbx("SELECT 1 FROM hub_mailbox_docs WHERE mid=?", (KE,)), "#4853: a refuse
 check(len(docs(WS)) == ne, f"#4853: no document from the empty file ({len(docs(WS))} vs {ne})")
 rz = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RZ.get("id")), {})
 check(rz.get("error") == "refused" and rz.get("error_text"), f"#4853: the rule shows the refusal ({rz.get('error')!r} {rz.get('error_text')!r})")
+
+# ---- 2.1281.0 (#6425): a prepared mail never stops the rules of its folder. Before: the sender line of 500 opening brackets
+# ended the run of the folder (RecursionError outside the try of one mail) at the same mail every 10 minutes, so no newer mail
+# of the folder ever reached the rules; a mail of 20.000 tiny parts was taken apart whole
+r = Bo.post(B + "/api/hubmail/mailbox/rules", json={"ws": f"org:{ORG}", "name": "Poison", "folder": "Gift", "need_att": True, "after": "seen"})
+check(r.status_code == 201, f"#6425: a rule on the folder Gift ({r.status_code} {r.text[:200]})")
+RG = (r.json() or {}).get("rule") or {}
+HEAD = ("To: office@example.com\r\nSubject: Invoice\r\nDate: " + email.utils.formatdate(time.time(), localtime=False) + "\r\nMIME-Version: 1.0\r\n").encode()
+P1 = b"From: " + b"(" * 500 + b" billing@shop.example.com\r\nMessage-ID: <p2581d-brackets@example.org>\r\n" + HEAD + b"\r\nhi\r\n"
+P2 = (b"From: Shop <billing@shop.example.com>\r\nMessage-ID: <p2581d-parts@example.org>\r\n" + HEAD
+      + b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' + b"--b\r\n\r\nx\r\n" * 20000 + b"--b--\r\n")
+open(os.path.join(MB, "Gift", "1.eml"), "wb").write(P1)
+open(os.path.join(MB, "Gift", "2.eml"), "wb").write(P2)
+drop("Gift", "Shop <billing@shop.example.com>", "Invoice after the poison", att="Gift-3")
+K1, K2 = (hashlib.sha256(x).hexdigest() for x in (b"<p2581d-brackets@example.org>", b"<p2581d-parts@example.org>"))
+ng = len(docs(WS))
+check(run(Bo, WS), "#6425: the run with the two prepared mails")
+dg = until(lambda: [x for x in docs(WS) if x[1] == "Gift-3.pdf"], 30) or []
+check(len(dg) == 1 and len(docs(WS)) == ng + 1, f"#6425: the mail after the prepared ones became a document in the same run ({dg})")
+check(dbx("SELECT 1 FROM hub_mailbox_docs WHERE mid=? AND node_id IS NULL", (K1,)), "#6425: the mail with the bracket sender is remembered (never looked at again)")
+check(dbx("SELECT 1 FROM hub_mailbox_docs WHERE mid=? AND node_id IS NULL", (K2,)), "#6425: the mail of 20.000 parts is remembered (never taken apart)")
+rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
+check(rg.get("hits") == 1 and "\\Seen" in flags().get("Gift/3", []) and not flags().get("Gift/1") and not flags().get("Gift/2"),
+      f"#6425: the rule counts its one hit, the prepared mails stay untouched (hits {rg.get('hits')}, {flags().get('Gift/3')})")
+j = Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json()
+check(not j.get("status", {}).get("error"), f"#6425: the run itself ended without an error ({j.get('status')})")
+# the error is shown at the rule until its next hit: a second pair of prepared mails without a good one after them
+open(os.path.join(MB, "Gift", "4.eml"), "wb").write(P1.replace(b"p2581d-brackets@", b"p2581d-brackets2@"))
+check(run(Bo, WS), "#6425: a run with only a prepared mail")
+rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
+check(rg.get("error") == "unsafe" and "refused" in (rg.get("error_text") or ""), f"#6425: the rule shows the refused mail ({rg.get('error')!r} {rg.get('error_text')!r})")
+drop("Gift", "Shop <billing@shop.example.com>", "Invoice in a later run", att="Gift-5")
+check(run(Bo, WS), "#6425: a later run")
+check(until(lambda: [x for x in docs(WS) if x[1] == "Gift-5.pdf"], 30), "#6425: a mail that arrives later is taken as well (the folder is not held)")
+rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
+check(rg.get("error") == "" and rg.get("hits") == 2, f"#6425: the error is gone after the next document ({rg.get('error')!r}, hits {rg.get('hits')})")
 
 sys.exit(done("p2581_d_mailrules"))

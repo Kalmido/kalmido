@@ -41,6 +41,7 @@ from ..collab.comments import lang_of  # 2.369.5 (#2517): pulled up from functio
 from ..lists.public import pub_html  # 2.369.5 (#2517): pulled up from functions
 from .mailtrim import md_trim_forward  # 2.369.5 (#2517): pulled up from functions
 from ..calendars.subscriptions import _cal_connector  # 2.369.5 (#2517): pulled up from functions
+from ..core.mailguard import MailRefused, mail_parse  # 2.1281.0 (#6425)
 
 
 # ---------------------------------------------------------------- 2.17.0 (#443): tasks by e-mail + the daily summary by e-mail
@@ -291,7 +292,7 @@ def mail_import(c, raw, pre=None):
     when another importer (documents, hub, data protection) took nothing in (2.240.0 A, #2883: that mail stays).
     2.424.0 B2 (#3450): c None = the step before the database transaction (mail_fetch prefetch): the invoice link
     downloads of a documents mail -> pre, handed back in with the mail (docs/ingest.py docs_mail_prefetch)."""
-    msg = email.message_from_bytes(raw, policy=email.policy.default)
+    msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it for good)
     from ..docs.ingest import docs_mail_import, docs_mail_prefetch  # 2.48.0 (#1111): a document address -> its attachments become documents
     if c is None:
         return docs_mail_prefetch(msg)
@@ -443,6 +444,8 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
         if raw and prefetch:
             try:
                 pre = importer(None, raw)
+            except MailRefused:  # 2.1281.0 (#6425): the import below refuses it again and says so once
+                pre = False
             except Exception as e:  # noqa: BLE001 -- no downloads then; the mail itself goes on
                 print("mail: prefetch failed:", type(e).__name__, flush=True)
                 pre = False
@@ -462,7 +465,10 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                         c.commit()
                     done = res is MAIL_DROP or bool(res) and not isinstance(res, MailKept)  # 2.240.0 A (#2883)
                 except Exception as e:  # noqa: BLE001 - 2.126.0 review: one mail that fails is skipped (marked seen), never blocks the rest
-                    print("mail: skipped one mail:", type(e).__name__, flush=True)  # 2.240.0 A (#2883): no message text (addresses)
+                    # 2.240.0 A (#2883): no message text (addresses). 2.1281.0 (#6425): a refused mail with its reason
+                    # (too many parts / too deep / the head), it stays in the mailbox marked seen
+                    print("mail: refused one mail:" if isinstance(e, MailRefused) else "mail: skipped one mail:",
+                          e.code if isinstance(e, MailRefused) else type(e).__name__, flush=True)
                     try:
                         c.rollback()
                     except Exception:  # noqa: BLE001 -- rollback after an error: the next mail starts fresh

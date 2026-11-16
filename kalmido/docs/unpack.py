@@ -48,7 +48,7 @@ def _sniff_ext(name, data):
     return name
 
 
-def tnef_files(data):
+def tnef_files(data, total_max=DOC_UNPACKED_MAX):
     """[(name, bytes)] of the attachments of a TNEF stream; raises ValueError when it is no TNEF / broken."""
     if len(data) < 6 or struct.unpack_from("<I", data)[0] != TNEF_SIG:
         raise ValueError("no tnef")
@@ -71,19 +71,26 @@ def tnef_files(data):
             cur["name"] = zr.base_name(val.split(b"\x00", 1)[0].decode("cp1252", "replace"))
         elif cur is not None and attr == _ATT_DATA:
             total += len(val)
-            if total > DOC_UNPACKED_MAX:
-                raise zr.ZipLimit(tr("The files are too large together (at most {0} MB)", DOC_UNPACKED_MAX // (1024 * 1024)))
+            if total > total_max:
+                raise zr.ZipLimit(tr("The files are too large together (at most {0} MB)", total_max // (1024 * 1024)))
             cur["data"] = val
     return [(_sniff_ext(a["name"], a["data"]), a["data"]) for a in out if a["data"]]
 
 
-def doc_unpack(name, data, files_max=DOC_FILES_MAX):
-    """(items, errors) of a ZIP / winmail.dat; None when data is neither (the caller stores it as it is)."""
+def doc_is_archive(name, data):
+    """2.1281.0 (#6425): doc_unpack would open it (a ZIP / winmail.dat) -- asked without unpacking anything."""
+    name = zr.base_name(name) or "file"
+    return bool(zr.is_zip(name, data) or is_tnef(name, data))
+
+
+def doc_unpack(name, data, files_max=DOC_FILES_MAX, total_max=DOC_UNPACKED_MAX):
+    """(items, errors) of a ZIP / winmail.dat; None when data is neither (the caller stores it as it is).
+    2.1281.0 (#6425): total_max = the bytes all its files may have together (a mail hands in what is left of its budget)."""
     name = zr.base_name(name) or "file"
     items, errors = [], []
     if zr.is_zip(name, data):
         try:
-            z = zr.zip_read(data, DOC_EXTS, DOC_FILE_MAX, DOC_UNPACKED_MAX, zr.ZIP_ENTRIES_MAX, files_max)
+            z = zr.zip_read(data, DOC_EXTS, DOC_FILE_MAX, total_max, zr.ZIP_ENTRIES_MAX, files_max)
         except zr.ZipLimit as x:
             return [], [f"{name}: {x}"]
         items = [(n, b, _mime(n, b)) for n, b in z.files]
@@ -91,7 +98,7 @@ def doc_unpack(name, data, files_max=DOC_FILES_MAX):
         skipped = len(z.skipped)
     elif is_tnef(name, data):
         try:
-            got = tnef_files(data)
+            got = tnef_files(data, total_max)
         except zr.ZipLimit as x:
             return [], [f"{name}: {x}"]
         except (ValueError, struct.error):
