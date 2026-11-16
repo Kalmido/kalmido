@@ -92,7 +92,7 @@ const online = w => { w.__offline = false; w.eval('OUT.retryAt = 0'); w.dispatch
   // the queued copy goes at the next start under the same key: applied once, nothing in the conflicts dialog
   ww = await boot(wopt);
   check(await until(() => ww.eval('OUT.q.length') === 0 && !ww.eval('OUT.flushing'), {timeout: 20000}), 'A2: the queued copy went at the next start');
-  check((await call('GET', '/api/wiki/pages/' + W1, null, CF)).body === 'Plan typed in the last second' && !ww.eval('S.conflicts.length') && !store.db.has('x:' + W1), 'A2: applied once, no conflict');
+  check((await call('GET', '/api/wiki/pages/' + W1, null, CF)).body === 'Plan typed in the last second' && !ww.eval('S.conflicts.length') && !store.db.has('x:' + W1) && !wopt.shared.store[`tasks.fdx.${stf.me.id}.${W1}`], 'A2: applied once, no conflict');  // 2.1257.0 (#6286): + the kept input
 
   // an encrypted space (the lock stood in for: the cipher is a marked text): the pagehide takes the cipher made while typing
   check(await until(() => ww.eval(`WK.pg?.id === ${W1}`)), 'A2 e2e: the page is open');
@@ -119,10 +119,11 @@ const online = w => { w.__offline = false; w.eval('OUT.retryAt = 0'); w.dispatch
   await edit(ww, 'A very long plan');
   await ww.eval('wk_flush()');
   check(wc.some(([m, p]) => m === 'PATCH' && p === '/api/wiki/pages/' + W1), 'A18: the save was tried');
-  const dr = await until(() => store.db.get('x:' + W1));
+  // 2.1257.0 (#6286): the draft is kept input of the account (localStorage, core.js fdKeep 'fdx'), no more the copy's record
+  const dr = await until(() => { const v = wopt.shared.store[`tasks.fdx.${stf.me.id}.${W1}`]; return v && JSON.parse(v).b; });
   check(dr && dr.mine === 'A very long plan' && /too large/i.test(dr.why || ''), 'A18: the refused text is kept as a draft of the page ' + JSON.stringify(dr));
   // the page opened again (a reload keeps the sign-in; a boot here would be a new sign-in, which empties the copy on purpose):
-  // the draft comes from the copy's store, not from memory
+  // the draft comes from the kept input (2.1257.0 #6286; before: the copy's store), not from memory
   ww.eval(`WKO.cf = {}; WK.edit = false; WK.dirty = false; 1`);
   await ww.eval(`wk_loadPage(${W1}, true)`);
   check(ww.eval(`WKO.cf[${W1}]?.mine`) === 'A very long plan', 'A18: opened again, the draft is read from the copy');

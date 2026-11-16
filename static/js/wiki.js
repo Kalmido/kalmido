@@ -852,7 +852,7 @@ async function wk_flush(hide) {
     const r = await wkeApi('PATCH', url, patch, p.space);  // 2.501.0 (#4198): wikie2e.js runs first in this module, no way around it  // 2.64.3 B (#1817)
     Object.assign(p, r, {backlinks: p.backlinks, _v: S.v});
     wko_keep(p.space, r);
-    if (WKO.cf[p.id]?.why) { wko_del(WKO.cf[p.id].k); delete WKO.cf[p.id]; }  // 2.527.0 (#4304 A18): saved now, the draft goes
+    if (WKO.cf[p.id]?.why) wko_cfDel(p.id);  // 2.527.0 (#4304 A18): saved now, the draft goes
     wk_savedHint(tr('Saved'));
   } catch (e) {
     if (e.status === 409 && e.data?.page) { wk_conflict(p, e.data.page, patch); return; }
@@ -865,8 +865,7 @@ async function wk_flush(hide) {
 // copy's waiting record, wko_cfHtml, kept over a reload of the page), not only in the field: an encrypted space keeps its cipher
 async function wko_draft(p, body, why) {
   const mine = wk_e2e(p.space) ? (await wkeSeal(p.space, {body}, p.id)).body : body;
-  WKO.cf[p.id] = {k: 'x:' + p.id, id: p.id, sp: p.space, mine, why, at: new Date().toISOString()};
-  await wko_put(WKO.cf[p.id]);
+  await wko_cfPut({k: 'x:' + p.id, id: p.id, sp: p.space, mine, why, at: new Date().toISOString(), ...(wk_e2e(p.space) ? {} : {title: p.title || ''})});
 }
 function wk_savedHint(t) { WK.unsaved = 0; const s = $('#wk-saved'); if (s) { s.classList.remove('wkunsaved'); s.textContent = t; setTimeout(() => { if (s.isConnected && !s.classList.contains('wkunsaved')) s.textContent = ''; }, 2500); } }  // 2.1177.0 (#6088): a later "Not saved" stays
 // 2.1177.0 (#6088): a save that failed: "Not saved" stays in the footer (with Try again) until a save of the page works - before,
@@ -1385,7 +1384,8 @@ async function wko_all() { try { return (await wko_st()?.all()) || []; } catch {
 // 2.169.1 (#2672): the records of one kind (x: = waiting conflicts) without reading the whole copy; a store without pre() filters all()
 async function wko_pre(x) { try { const st = wko_st(); return (st?.pre ? await st.pre(x) : (await st?.all() || []).filter(r => r.k.startsWith(x))) || []; } catch { return []; } }
 // 2.238.0 B (#2872): another sign-in or too old (core.js sessGuard): everything out, a new copy may follow
-async function wko_reset() { WKO.cf = {}; try { await wko_st()?.clear(); await wko_st()?.fclear?.(); } catch { /* gone */ } }  // 2.637.0 (#4745): clear() empties the files too (fclear: a test's stand-in)
+// 2.1257.0 (#6286): the waiting own texts kept as input of the account (wko_cfPut) stay
+async function wko_reset() { WKO.cf = Object.fromEntries(Object.entries(WKO.cf).filter(([id]) => fdGet('fdx', id))); try { await wko_st()?.clear(); await wko_st()?.fclear?.(); } catch { /* gone */ } }  // 2.637.0 (#4745): clear() empties the files too (fclear: a test's stand-in)
 // logout (icons.js clearLocal): everything out, the database closed (clearLocal deletes it then)
 async function wko_wipe() { const st = WKO.st; WKO.cf = {}; WKO.dead = true; if (typeof WKOF !== 'undefined') WKOF.run?.ac.abort('off'); if (!st) return; try { await st.clear(); await st.fclear?.(); } catch { /* gone */ } try { await st.close?.(); } catch { /* closed */ } WKO.st = null; }
 const wko_sig = e => e?.mode ? `${e.mode}:${e.gen || 0}:${e.reenc || 0}` : '';
@@ -1500,13 +1500,25 @@ async function wkoReject(e, err) {
   const pg = err?.status === 409 ? err.data?.page : null, id = +((e.url.match(/^\/api\/wiki\/pages\/(\d+)$/) || [])[1]);
   if (!pg || !id || typeof e.body?.body !== 'string') return false;
   if (pg.body === e.body.body) { await wkoSent(e, pg); return true; }  // sent twice (the first answer got lost): saved already
-  WKO.cf[id] = {k: 'x:' + id, id, sp: pg.space, mine: e.body.body, at: new Date().toISOString()};
-  await wko_put(WKO.cf[id]);
+  await wko_cfPut({k: 'x:' + id, id, sp: pg.space, mine: e.body.body, at: new Date().toISOString(), ...(wk_e2e(pg.space) ? {} : {title: pg.title || ''})});
   if (WK.pg?.id === id) WK.pg._v = -1;
   setTimeout(() => toast(tr('A knowledge page was changed elsewhere in the meantime: your version waits at the page')), 400);
   return true;
 }
-async function wko_cfLoad(sp) { for (const r of await wko_pre('x:')) if (r.sp === sp && r.uid === S.me?.id) WKO.cf[r.id] = r; }
+async function wko_cfLoad(sp) {
+  for (const r of await wko_pre('x:')) if (r.sp === sp && r.uid === S.me?.id) WKO.cf[r.id] = r;
+  for (const {b} of fdList('fdx')) if (b?.sp === sp && b.id) WKO.cf[b.id] = b;  // 2.1257.0 (#6286): the kept ones of this account
+}
+// 2.1257.0 (#6286): an own text waiting at its page is kept input of the account (core.js fdKeep 'fdx', localStorage per account):
+// a new sign-in, an ended session, 14 days without a sync and a space missing from the list empty the copy, not it; logout and
+// another account count it (and download it at the switch). Too large for localStorage: in the copy as before
+async function wko_cfPut(r) {
+  WKO.cf[r.id] = r;
+  fdKeep('fdx', r.id, r);
+  if (fdGet('fdx', r.id)?.b?.at === r.at) { await wko_del(r.k); return; }
+  await wko_put(r);
+}
+async function wko_cfDel(id) { const r = WKO.cf[id]; delete WKO.cf[id]; fdDrop('fdx', id); await wko_del(r?.k || 'x:' + id); }
 function wko_cfHtml(p) {
   if (!WKO.cf[p.id]) return '';
   const why = WKO.cf[p.id].why;  // 2.527.0 (#4304 A18): refused by the server (wko_draft)
@@ -1519,7 +1531,7 @@ async function wko_cfShow(p) {
   const cur = WK.pg; if (!cur || cur.id !== p.id || cur._off) return;
   let mine = r.mine;
   if (typeof wkeIs === 'function' && wkeIs(mine)) { mine = await wkeDec(cur.space, 'body', mine, cur.id).catch(() => null); if (mine == null) { toast(tr('Unlock first: this workspace is encrypted in the browser.')); return; } }
-  if (await wk_conflict(cur, {...cur}, {body: mine, expect_updated_at: cur.updated_at}) === true) { delete WKO.cf[p.id]; await wko_del(r.k); renderView(); }  // closed without a choice: mine keeps waiting
+  if (await wk_conflict(cur, {...cur}, {body: mine, expect_updated_at: cur.updated_at}) === true) { await wko_cfDel(p.id); renderView(); }  // closed without a choice: mine keeps waiting
 }
 // 2.169.1 (#2672): a space with more pages than the index holds says that only the first ones are kept here
 const wko_offHtml = (at, more) => `<div class="muted mhint wkoff" role="status">${ic('sync', 's')}${esc(tr('Offline · as of {0}', fmtWhen(at)))}${more ? ' · ' + esc(tr('only the first {0} pages', 5000)) : ''}</div>`;
