@@ -560,10 +560,10 @@ def _rest_upto(st, x):
     if x < 0:  # more taken back than received: the first segment, linear
         add(x / segs[0][0], segs[0][1])
         return out
-    for i, (g, lines) in enumerate(segs):
-        take = x if i == len(segs) - 1 else min(x, g)
+    for i, (seg, lines) in enumerate(segs):
+        take = x if i == len(segs) - 1 else min(x, seg)
         if take > 0:
-            add(take / g, lines)
+            add(take / seg, lines)
         x -= take
     return out
 
@@ -581,7 +581,7 @@ def bk_pay_parts(c, oid, p, r, home, memo):
     x0 = st["before"].get(p["id"], st["total"])
     lo, hi = _rest_upto(st, x0), _rest_upto(st, x0 + a)
     z = [Decimal(0)] * 3
-    return [(k, *(h - l for h, l in zip(hi.get(k, z), lo.get(k, z)))) for k in dict.fromkeys([*hi, *lo])]
+    return [(k, *(up - down for up, down in zip(hi.get(k, z), lo.get(k, z)))) for k in dict.fromkeys([*hi, *lo])]
 
 
 def bk_pay_net(c, oid, p, r, home, memo):
