@@ -18,6 +18,7 @@ from ..core.config import app, TZ
 from ..core.pg import insert_id, qi, write_lock
 from ..core.schema import MAX_DEPTH, USER_DEFAULTS
 from ..core.i18n import lang, N_, tr
+from ..core.mdedit import MD_LINE_MAX, md_head_line  # 2.1280.0 (#6423)
 from ..core.db import bump, db, err, iso, iso_ms, local_now, now_utc, parse_iso, usettings
 from ..accounts.session import me
 from ..lists.lists import list_created
@@ -1457,9 +1458,10 @@ def parse_csv(data, fname, opts, plan):
 
 
 # ---- Markdown checklists
-_MD_HEAD = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+# 2.1280.0 (#6423): headings through core/mdedit.py md_head_line (the pattern here took cubic time on a long run of blanks)
 _MD_BOX = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+\[([ xX/\-])\]\s+(.*)$")
-_MD_ANYBOX = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[[ xX/\-]\]\s", re.M)
+# 2.1280.0 (#6423): blanks of the line only ("\s" ran over the following empty lines again from every line start: quadratic)
+_MD_ANYBOX = re.compile(r"^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[[ xX/\-]\]\s", re.M)
 _MD_ITEM = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+(.*)$")
 _MD_DATE = re.compile(r"(?:(📅|⏳|🛫|✅|due:?|fällig:?|start:?|@due\(|@start\()\s*)?(\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{4})"
                       r"(?:[ T](\d{1,2}:\d{2}))?\)?", re.I)
@@ -1509,10 +1511,10 @@ def _md_parse(text, plan, name, ext0, heads_as_lists=True, src="markdown"):
     for x in lines:
         if x.lstrip().startswith(("```", "~~~")):
             fence = not fence
-        elif not fence:
-            h = _MD_HEAD.match(x)
+        elif not fence and len(x) <= MD_LINE_MAX:  # 2.1280.0 (#6423): a longer line is never a heading or a task
+            h = md_head_line(x)
             if h:
-                heads.append(len(h.group(1)))
+                heads.append(h[0])
             elif _MD_BOX.match(x):
                 boxes = True
     top = min(heads) if heads and heads_as_lists else None
@@ -1529,17 +1531,18 @@ def _md_parse(text, plan, name, ext0, heads_as_lists=True, src="markdown"):
             if last is not None:
                 last["_md"].append(x.strip())
             continue
-        h = None if fence else _MD_HEAD.match(x)
+        long = len(x) > MD_LINE_MAX  # 2.1280.0 (#6423): such a line is text (a task's notes), no block pattern runs over it
+        h = None if fence else md_head_line(x)
         if h:
-            txt = imp_line(re.sub(r"[*_`]", "", h.group(2)), LIST_NAME_MAX)
-            if top and len(h.group(1)) == top:
+            txt = imp_line(re.sub(r"[*_`]", "", h[1]), LIST_NAME_MAX)
+            if top and h[0] == top:
                 state.update(list=None, name=txt or name)
                 section = None
             else:
                 section = txt or None
             stack, last = [], None
             continue
-        m = None if fence else (_MD_BOX.match(x) or (None if boxes else _MD_ITEM.match(x)))
+        m = None if fence or long else (_MD_BOX.match(x) or (None if boxes else _MD_ITEM.match(x)))
         if m:
             ind = len(m.group(1).expandtabs(4))
             mark = m.group(2) if boxes else " "
