@@ -222,7 +222,10 @@ function histSrvRes(a, dir) {
 // one entry back or forth: its outbox entries first, then its server groups, then (areas without server steps) its own functions
 // exact (2.1005.0, #5637): only the entry's own groups (POST /api/undo/<id>/undo: the toast, "exactly this step"); else undo
 // takes back everything of the person down to the entry (POST /api/undo/to/<id>: the arrow and Ctrl/Cmd+Z on the newest step)
+// 2.1246.0 (#6267): e.at_once = {undo, redo}: run => the step shown at once while its way back / forth runs (a server group
+// too, which skips the entry's own functions) - e.g. the calendar's evOpt: a refusal takes the shown state back again
 async function histDo(e, dir, exact = false) {
+  if (e.at_once?.[dir] && !e.at_once.busy) { e.at_once.busy = true; try { return await e.at_once[dir](() => histDo(e, dir, exact)); } finally { e.at_once.busy = false; } }
   const out = {skipped: [], queued: false, note: '', none: false, srv: false, undone: []};
   const parts = e.parts ? (dir === 'undo' ? [...e.parts].reverse() : e.parts) : [e];
   let cut = 0;

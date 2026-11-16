@@ -222,7 +222,9 @@ async function evDelete(ev, occ) {
     if (!add.length) return null;
     const its = S.cal.items; S.cal.items = its.concat(add); return () => { S.cal.items = its.filter(x => !add.includes(x)); };
   };
-  if (mode === 'all') offerUndo(tr('Event deleted'), histAdd({label: lbl, res: j, post: re, undo: () => evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)), redo: () => api('DELETE', `/api/events/${ev.id}`)}));
+  // 2.1246.0 (#6267): the toast's Undo goes through the server's step since #6159 (not the restore below): at_once shows the
+  // event back at once there as well (#4659), Redo takes it out at once; a refusal draws the calendar as it was
+  if (mode === 'all') offerUndo(tr('Event deleted'), histAdd({label: lbl, res: j, post: re, at_once: {undo: run => evOpt(back, run), redo: run => evOpt(evPuts(put, lk), run)}, undo: () => evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)), redo: () => api('DELETE', `/api/events/${ev.id}`)}));
   else offerUndo(tr('This date was removed'), histAdd({label: lbl, res: j, post: re, undo: () => evOccBack(ev, occ), redo: () => api('DELETE', `/api/events/${ev.id}?occ=${encodeURIComponent(occ)}`)}));  // 2.800.0 (#5466): with Undo
 }
 // 2.800.0 (#5466): the Undo of "only this date": the date leaves the left-out ones again through undoWrite (only exdates, with
