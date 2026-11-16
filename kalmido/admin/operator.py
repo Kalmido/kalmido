@@ -43,6 +43,7 @@ from ..accounts.secmail import sec_mail  # 2.485.0 (#3939): earlier in the load 
 from ..accounts.sessions import ses_end
 from ..accounts.users import _active_admins, sdl_admin_locked, user_delete_run
 from ..accounts.delhold import sdl_hold_dict  # 2.1298.0 (#6395)
+from .selfdelete import sdl_decide  # 2.1298.0 (#6395)
 from .hosting import ANN_TEXT_MAX, _mb, _user_bytes, announce_get, announce_set, hosted, hosting_settings, quota_default_mb
 from .retexport import RX_NEEDED, rx_counts, rx_subject
 from ..accounts.orgs import instance_mode  # 2.369.5 (#2517): pulled up from functions
@@ -367,7 +368,6 @@ def operator_account_deletion(uid):
     lock holds, as the user management does (admin/selfdelete.sdl_decide: the security log with the actor "operator").
     404 unknown or an agent, 409 (code no_hold) when none waits for a decision."""
     op_gate(f"account-deletion #{uid}")
-    from .selfdelete import sdl_decide
     b = body()
     c = db()
     code, out = sdl_decide(c, uid, str((b if isinstance(b, dict) else {}).get("decision") or ""), "operator")

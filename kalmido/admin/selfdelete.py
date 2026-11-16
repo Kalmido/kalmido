@@ -50,7 +50,7 @@ from ..collab.news import KIND_ROW
 from ..core.objnotify import obj_notify
 from ..core.objhooks import NOTIFY_READERS  # 2.1298.0 (#6395)
 from ..lists.ownership import owner_candidates, owner_transfer
-from ..accounts.users import _active_admins, need_admin, user_delete_run
+from ..accounts.users import _active_admins, need_admin, om_admin_all, user_delete_run
 from ..accounts.delhold import SDL_HELD, sdl_hold_until  # 2.1298.0 (#6395)
 from ..accounts.useradmin import ua8_foreign, ua8_list_info, ua8_owned
 from ..accounts.orgretain import UPG_NO_HEIR, upg_heirless, upg_info
@@ -635,7 +635,6 @@ def sdl_admin_decide(uid):
     """2.1298.0 (#6395): {"decision": "release" | "reject"} -- the server admin decides on the own deletion of an account an
     admin's lock holds (Settings > Users, the row of the account). 409 when none waits for a decision."""
     need_admin()
-    from ..accounts.users import om_admin_all
     c = db()
     if uid == g.user["id"] or not om_admin_all(c, uid):
         return err(tr("unknown person"), 404)
