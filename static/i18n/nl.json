@@ -18798,5 +18798,12 @@
   "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "De verwijdering van je account {0} is geannuleerd. Een beheerder heeft het account geblokkeerd; alleen een beheerder kan het weer vrijgeven.",
   "An admin has locked your account; only an admin can unlock it.": "Een beheerder heeft je account geblokkeerd; alleen een beheerder kan het weer vrijgeven.",
   "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Factuur {0}: het btw-tarief {1} % heeft geen DATEV-automatische rekening; ze wordt op rekening {2} geëxporteerd - boek de btw van {3} handmatig",
-  "Reminder fee, interest and flat fee {0}: {1}": "Aanmaningskosten, rente en vaste vergoeding {0}: {1}"
+  "Reminder fee, interest and flat fee {0}: {1}": "Aanmaningskosten, rente en vaste vergoeding {0}: {1}",
+  "Date / priority of the parent task adopted for {0} task": ["Datum / prioriteit van de hoofdtaak overgenomen bij {0} taak", "Datum / prioriteit van de hoofdtaak overgenomen bij {0} taken"],
+  "Date and priority of {0} adopted": "Datum en prioriteit van {0} overgenomen",
+  "Date of {0} adopted": "Datum van {0} overgenomen",
+  "Priority of {0} adopted": "Prioriteit van {0} overgenomen",
+  "Don’t adopt": "Niet overnemen",
+  "Not adopted for {0} task": ["Niet overgenomen bij {0} taak", "Niet overgenomen bij {0} taken"],
+  "Many failed CalDAV/CardDAV sign-ins from IP {0}. Devices that synced from there before go on; new ones are refused there for {1} min. Behind a shared address (office, NAT) look for an old device.": "Veel mislukte CalDAV/CardDAV-logins vanaf IP {0}. Apparaten die daar al eerder synchroniseerden, gaan door; nieuwe worden daar {1} min. geweigerd. Zoek achter een gedeeld adres (kantoor, NAT) naar een oud apparaat."
 }
