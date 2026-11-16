@@ -709,7 +709,9 @@ def _rin_as(c, oid, sid, today, actor, people):
         rin_catchup(c, oid, actor, sid, people)  # 2.1265.0 (#6387): first the mail the last run left, then the due period
     write_lock(c, f"office_series_{int(sid)}")
     s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=? AND deleted_at IS NULL AND active", (sid, oid)).fetchone()
-    if s is None or not s["next_date"] or s["next_date"] > today:
+    # 2.1289.0 (#6629): a mail still due that rin_catchup could not take (another connection still sends it): this run waits, the
+    # next period's invoice would overwrite its mark (finalised, never mailed, nobody told)
+    if s is None or not s["next_date"] or s["next_date"] > today or s["mail_doc"]:
         c.rollback()
         return True
     t = c.execute(f"SELECT kind, status FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
@@ -881,8 +883,12 @@ def rin_run(sid):
     """"Make now": the invoice of the next period at once (also before its day); next_date moves on. One period per call.
     -> {series, doc_id, sent, error?}; 409 after the end, without a template or when the period has its invoice already."""
     c, uid, oid = _ctx()
+    if rin_row(c, oid, sid)["mail_doc"]:  # 2.1289.0 (#6629): first the mail the last run left (its mark is not overwritten)
+        rin_catchup(c, oid, uid, sid, rin_people(c, oid, rin_row(c, oid, sid)))
     write_lock(c, f"office_series_{int(sid)}")
     s = rin_row(c, oid, sid)
+    if s["mail_doc"]:  # another connection still sends it
+        raise Denied(409, tr("The last invoice of the series is still being sent; try again in a moment."))
     if not s["next_date"] or (s["until"] and s["next_date"] > s["until"]):
         raise Denied(409, tr("The series has ended; set a later end first"))
     t = c.execute(f"SELECT kind, status FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (s["template_id"], oid)).fetchone() if s["template_id"] else None
