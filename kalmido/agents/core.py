@@ -1818,10 +1818,3 @@ def ag_pre(c, rows, uid):
             "tvis": tasks_visible(c, [a["status_task"] for a in rows if a["status_task"]], uid, full=True),
             "cost": usage_cost_sums(c, ids), "pending": agent_pending_ages(c, ids),  # 2.826.0 (#5509)
             "may_rt": lambda a: a["owner_id"] == uid if a["owner_id"] else bool(u and u["is_admin"])}  # = may_set_runtime
-
-
-# 2.1269.0 (#6431): a task made from a new GitHub / GitLab issue (integrations/git_sync.py) is text from outside: it keeps
-# origin git (+ untrusted) for every later event and get_task (registered from here: the integrations layer imports no agent
-# code). No task_added for it, as before: an issue anyone can open on the git host does not wake the listening agents.
-from ..integrations import git_sync as _gsy  # noqa: E402 -- at the end: every name above exists for the modules it loads
-_gsy.GSY_NEW_TASK_HOOKS.append(lambda c, tid: task_mark_origin(c, tid, "git"))

@@ -1633,3 +1633,13 @@ def v1_task_typing(tid):
     v1_args(())
     c = db()
     return jsonify(task_typing_set(c, tid, me()))
+
+
+# 2.1269.0 (#6431): a task made from a new GitHub / GitLab issue (integrations/git_sync.py) is text from outside: it keeps
+# origin git (+ untrusted) for every later event and get_task. No task_added, as before: an issue anyone can open on the git
+# host does not wake the listening agents. 2.1287.0 (p2369_5_layers): registered here, not at the end of agents/core.py -
+# that closed the import cycle agents.core -> integrations.git_sync -> integrations.git -> agents.core (git.py imports
+# agents.core); nothing under the agents layer imports agents.chat at module level.
+from ..integrations.git_sync import GSY_NEW_TASK_HOOKS  # noqa: E402
+from .core import task_mark_origin  # noqa: E402
+GSY_NEW_TASK_HOOKS.append(lambda c, tid: task_mark_origin(c, tid, "git"))
