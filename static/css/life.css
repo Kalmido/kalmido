@@ -1,5 +1,43 @@
 /* Kalmido web client: the styles of the module "life" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+.lcare{flex-wrap:nowrap}
+.lpre{display:flex;flex-wrap:wrap;gap:.375rem;margin:0 0 .75rem}
+.lmore{margin:.25rem 0 .5rem}
+.lmore>summary{cursor:pointer;color:var(--muted);font-size:var(--fs-s);padding:.25rem 0}
+.rvjdays{display:flex;gap:.25rem;flex-wrap:wrap;margin:0 0 .5rem}
+.rvjdays button{min-height:2.25rem;padding:0 .5rem;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-size:var(--fs-s);cursor:pointer}
+.rvjdays button:disabled{opacity:.45;cursor:default}
+/* 2.140.0 C (#2133): journal history, search, mood statistics */
+.jhd{display:flex;gap:.5rem;align-items:center}
+/* 2.72.0 B (#1333) the household budget (budget.js): view, card on Home & life, dialogs; phone first, one accent */
+.bgmonth{display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap}
+.bg-saldo b{color:var(--accent)}
+.bgtm{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:.25rem;min-width:0;height:100%}
+.bgtm small{font-size:var(--fs-xs);color:var(--muted)}
+.bgtb{flex:1 1 auto;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:.125rem}
+.bgtb i{display:block;width:40%;max-width:.875rem;border-radius:.1875rem .1875rem 0 0;min-height:.0625rem}
+.bgcat{padding:.375rem 0}
+.bgcl{display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap;font-size:var(--fs-b)}
+.bgbar{height:.5rem;border-radius:99rem;background:var(--bg3);overflow:hidden;margin-top:.25rem}
+.bgbar i{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.bgel b{font-weight:500;overflow-wrap:anywhere}
+.bgel small{font-size:var(--fs-xs)}
+.bgamt{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.bgdlg .bgkind button{min-height:2.25rem;padding:.25rem .875rem}
+.bgcr{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center;padding:.375rem 0;border-bottom:1px solid var(--line2)}
+/* 2.140.0 B (#2134) the month comparison of the budget: cards per category (phone first), small bars per month */
+.bgcd{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bgcmpm{flex:1 1 0;height:100%;display:flex;align-items:flex-end;min-width:0}
+.bgcmpm i{display:block;width:100%;height:100%;border-radius:.1875rem .1875rem 0 0;background:var(--muted);opacity:.45;transform-origin:bottom}
+.bgcnew{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center;margin-top:.75rem}
+.bgcnew #bg-cnew{flex:1 1 9rem;min-width:0}
+.bgpr{display:flex;align-items:flex-start;gap:.5rem;padding:.375rem 0;border-bottom:1px solid var(--line2);min-width:0}
+.bgpr select{max-width:100%;margin-top:.25rem}
+/* 2.146.0 C (#2455 #2469): the household import -- the last imports, pending bookings, file messages */
+.bgrun,.bgpendl li{display:flex;align-items:center;gap:.5rem;padding:.375rem 0;border-bottom:1px solid var(--line2);min-width:0}
+.bgpendl li{opacity:.7}
+/* the rules of this file */
 .lsum{display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap;margin:0 0 .5rem;padding:.5rem .625rem;border-radius:var(--radius);background:var(--bg3)}
 .lsum b{font-size:var(--fs-m);font-variant-numeric:tabular-nums}
 .lsum .muted{font-size:var(--fs-s);font-variant-numeric:tabular-nums}

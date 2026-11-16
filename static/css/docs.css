@@ -1,5 +1,14 @@
 /* Kalmido web client: the styles of the module "docs" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.69.0 B (#1847) Paperless-ngx: matching rules in the import preview */
+.pll-rules{margin:.75rem 0 0}
+.pll-bad ul{margin:.25rem 0 0 1rem;padding:0}
+/* 2.69.0 A (#1846) Paperless-ngx: the two ways (address / export ZIP), the storage hint of the preview */
+.plh-zip { margin-top: .75rem; }
+.plh-zip code { font-family: var(--mono, monospace); font-size: .9em; overflow-wrap: anywhere; }
+.pl-warn { margin: .375rem 0; padding: .375rem .625rem; border-radius: .375rem; background: var(--bg3, rgba(127,127,127,.12)); }
+/* the rules of this file */
 .dc-view{position:relative;padding:0}  /* 2.580.0 (#4815): the width is the shell's (.dc-wrap = --w-seite, start-breite.css), no own 68.75rem; head, filters and tiles share its edges (#4814); no own padding (#4818) */
 .dc-up,.dc-acts2 [data-dc="scan"]{min-height:2.75rem}
 .dc-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.75rem 0 .25rem}

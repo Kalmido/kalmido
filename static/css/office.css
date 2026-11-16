@@ -1,5 +1,48 @@
 /* Kalmido web client: the styles of the module "office" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.40.0 (#1379): the fields of producing / raw data only while their switch is on (also while unsaved) */
+/* 2.40.0 (#1382): building blocks of a number scheme (buttons, insert at the caret) and its preview */
+/* 2.36.1 C: Office & finance (#1021) -- quotations: the list, the editor (head, positions, automatic lines, totals, rights) */
+.ofdbar select{min-height:2.25rem}
+.ofdit input,.ofdit select,.ofdit textarea{min-height:var(--fld-h)}  /* 2.99.0 (#2025): the shared field height (44 px on touch screens) */
+.ofdit .ofdnums select{max-width:8rem}
+/* 2.114.3 (#2266): producing visible -- the ticked producing flag, the hint at the switch, a part's source, the note on a part line */
+.tpprodsrc{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.375rem}
+.ofdit .ofdcost input{width:5rem;margin-left:.25rem}
+.pptile,.kptile{display:flex;flex-direction:column;gap:.125rem;padding:.625rem .75rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg2);text-align:left;font:inherit;color:var(--text);min-height:2.75rem}
+.pptile b,.kptile b{font-size:var(--fs-xl);font-variant-numeric:tabular-nums}
+button.kptile{cursor:pointer}
+button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
+.ppfcl li{display:flex;flex-direction:column;padding:.375rem .5rem;border:1px solid var(--line2);border-radius:var(--radius);font-variant-numeric:tabular-nums}
+.pipcol header{display:flex;align-items:center;gap:.375rem;padding:.25rem .25rem .5rem}
+.kpm{display:flex;flex-direction:column;align-items:center;gap:.25rem;background:none;border:0;padding:0;color:var(--muted);font:inherit;cursor:pointer;min-height:2.75rem}
+.kpm small{font-size:var(--fs-xs)}
+.kpb{display:flex;align-items:flex-end;justify-content:center;gap:2px;height:6rem;width:100%}
+.kpb i{display:block;width:40%;max-width:.75rem;height:100%;border-radius:.25rem .25rem 0 0;transform-origin:bottom center;transition:transform .2s ease}
+.kpbud{display:block;width:5rem;height:.375rem;border-radius:.1875rem;background:var(--line2);overflow:hidden}
+.kpbud i{display:block;height:100%;background:var(--accent);transform-origin:left center;transition:transform .2s ease}
+/* 2.51.0 A (#1348, #1350): agents in the office -- marked positions, "drafted by", suggested payments, chat link buttons */
+.oa_flags{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.25rem;font-size:var(--fs-s)}
+.oa_ppb{display:flex;gap:.375rem}
+/* 2.138.4 A (#2359): rows never shrink in the scrolling column (amount line overflowed on phones) */
+.fcichk select{min-height:2.75rem}
+/* 2.76.0 B (#1023) Office settings > Packs: search bar, cards one below the other (phone first), badges */
+.pkc{margin-top:1rem}
+.pkc-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem 0}
+.pkc-bar #pkc-q{flex:1 1 12rem;min-width:0;min-height:2.75rem}
+.pkc-kinds{display:inline-flex;gap:.25rem;flex-wrap:wrap}
+.pkc-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.0625rem .5rem;border-radius:99rem;font-size:var(--fs-xs);border:1px solid var(--line2);color:var(--text2);background:var(--bg3)}
+.pkc-badge svg{width:var(--ic-s);height:var(--ic-s)}
+.pkc-desc{font-size:var(--fs-s);color:var(--text2);overflow-wrap:anywhere;white-space:pre-line}
+.pkc-st{display:flex;flex-wrap:wrap;gap:.5rem;align-items:baseline;font-size:var(--fs-s)}
+.pkc-acts{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.25rem}
+/* 2.81.0 B (#1834) correct an archived document: tax lines, client filter, history */
+.r81b-dlg .r81b-ln select{flex:0 0 auto;min-height:2.75rem;max-width:55%}
+.r81b-dlg .r81b-hist summary{min-height:2.75rem;display:flex;align-items:center;cursor:pointer}
+.r81b-dlg .r81b-hist ul{list-style:none;margin:0;padding:0}
+.r81b-dlg .r81b-hist li{display:flex;flex-direction:column;padding:.375rem 0;border-top:1px solid var(--line, rgba(127,127,127,.2))}
+/* the rules of this file */
 .office .ofcorg{font-size:var(--fs-s)}
 .office .ofcws.wsbadge{margin-left:0;margin-right:.25rem}  /* 2.356.0 B (#2932): the area in the office header */
 .office span.ofcws{font-size:var(--fs-s);color:var(--muted)}

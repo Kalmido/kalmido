@@ -1,5 +1,17 @@
 /* Kalmido web client: the styles of the module "agentchat" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.0.8 (#321) Settings > AI colleague: lists at a glance */
+.airow:first-child{border-top:0}
+.airow .aitd select{width:100%}
+/* 2.4.2 (#392): setup guide */
+/* 2.5.1 (#393): Settings > AI colleague in sub-tabs; agent cards; lists table; usage cards; the log's summary and filters */
+.airow .aitd select{flex:1;min-width:0;width:auto}
+.rxhint,.rxok{display:inline-flex;align-items:center;gap:.25rem;font-size:var(--fs-xs);color:var(--muted);margin-left:.25rem}
+/* 2.70.0 A (#1354) a meeting becomes tasks: the photos in the request dialog, the cards of ready proposals in the agent chat */
+.mtgcards{display:flex;flex-direction:column;gap:.5rem;padding:0 .75rem;max-height:45vh;overflow:auto}
+.mtgcards:empty{display:none}
+/* the rules of this file */
 .chn{display:flex;flex-direction:column;min-width:0}
 .chn .muted{font-size:var(--fs-s);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chst{display:flex;align-items:center;gap:.375rem;min-width:0;font-size:var(--fs-s);color:var(--text2)}

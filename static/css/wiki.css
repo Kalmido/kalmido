@@ -1,5 +1,24 @@
 /* Kalmido web client: the styles of the module "wiki" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.49.0 C (#1199, #1201): knowledge pages (wiki.js) and the mind map (mindmap.js) */
+.wkitem span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 2.123.0 B (#2104): shares of knowledge pages (wkshare.js): the mark, "Shared with me", the read-only page */
+.wshmark{display:inline-flex;align-items:center;margin-left:.375rem;color:var(--accent);vertical-align:middle}
+/* 2.1045.0 (#5823): a folder excluded from an agent's share of the whole knowledge area; the dialog's section (wkarea.js) */
+.wshside{margin-top:1rem;padding-top:.5rem;border-top:1px solid var(--line)}
+.wshside h4{display:flex;align-items:center;gap:.375rem;margin:.75rem .5rem .375rem;font-size:var(--fs-b);font-weight:600;color:var(--muted)}
+.wshside .wkitem small{margin-left:auto;flex:none;font-size:var(--fs-s)}
+.wshfh{cursor:default}
+.wshmd img{max-width:100%;height:auto}
+.wshmd input[type=checkbox]{margin:0 .375rem 0 0;vertical-align:middle;accent-color:var(--accent)}
+/* 2.64.3 B (#1817) the lock per knowledge space: mark at the space switch, lock box instead of the tree / page, bars, dialog */
+.wkebar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem .75rem}
+.wkedlg h4{margin:.875rem 0 .375rem;font-size:var(--fs-m);font-weight:600}
+.wkemem{list-style:none;margin:0;padding:0}
+.wkemem li{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.375rem 0;border-bottom:1px solid var(--line)}
+.wkemem li>span:first-child{flex:1;min-width:8rem}
+/* the rules of this file */
 .wkside .ntbar select{flex:1;min-width:0}
 /* 2.1163.0 (#6089): the phone's list in one row - Find a page takes what New page and "…" leave (its basis was its own width) */
 .wkside .ntbar .ctsearch{flex:1 1 0;min-width:6rem}

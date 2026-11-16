@@ -1025,8 +1025,6 @@ button.whob:hover .who.none{opacity:1;border-color:var(--accent);color:var(--acc
 .tpoutline{width:100%;font:var(--fs-m)/var(--lh) var(--mono);resize:vertical;tab-size:2}
 .tpmodal .card{max-width:38.75rem}
 .icalrow input{flex:1;font:var(--fs-s) var(--mono);min-width:0}
-/* 2.9.0 (#435 / #438): CalDAV address rows (copyable), the OIDC provider form */
-.davrow input{flex:1;font:var(--fs-s) var(--mono);min-width:0}
 @media (pointer:coarse){ .davrow .btn,.oidcform .btn,[data-apw],#s-apws .iconbtn{min-height:2.75rem;min-width:2.75rem;justify-content:center} }
 .oidcform .row input{flex:1;min-width:0}
 details.sdet{margin:.25rem 0 .625rem}
@@ -1582,7 +1580,6 @@ div.calerr{font-size:var(--fs-s);padding:.25rem 0}
 .rm-gname .c{font-size:var(--fs-xs);color:var(--faint);font-family:var(--mono)}
 .rm-gname .sw{width:.5rem;height:.5rem;border-radius:2px;flex:none;background:var(--faint)}
 .rm-gname:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.rm-go{padding:.1875rem;opacity:0;flex:none}
 .rm-gname:hover .rm-go,.rm-go:focus-visible{opacity:1}
 /* summary bar: a bracket (thick outline, end caps hanging down), filled by the progress, in the list colour */
 .rm-sum{--lc:var(--accent);position:absolute;top:calc(50% - .4375rem);height:.875rem;border:2px solid var(--lc);border-radius:.25rem .25rem 0 0;background:color-mix(in srgb,var(--lc) 16%,var(--bg2));cursor:grab;touch-action:pan-x pan-y;z-index:2;box-sizing:border-box}
@@ -1594,10 +1591,7 @@ div.calerr{font-size:var(--fs-s);padding:.25rem 0}
 .rm-sum:hover{background:color-mix(in srgb,var(--lc) 26%,var(--bg2))}
 .rm-sum:focus-visible{outline:2px solid var(--text);outline-offset:.1875rem}
 .rm-sum.drag{cursor:grabbing;box-shadow:0 .375rem 1.125rem rgba(0,0,0,.35)}
-.rm-lbl{position:absolute;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:.375rem;font-size:var(--fs-s);color:var(--text2);white-space:nowrap;pointer-events:none;z-index:2}
-.rm-lbl b{font-family:var(--mono);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
 .rm-lbl .rm-dt{color:var(--faint);font-size:var(--fs-xs)}
-.rm-lbl .rm-delta{font-family:var(--sans);color:var(--accent)}
 .rm-none{position:sticky;left:calc(var(--tl-name) + .625rem);display:inline-block;margin-left:.625rem;line-height:var(--rh);font-size:var(--fs-s);color:var(--faint)}
 .tl-bar.done{opacity:.5}.tl-bar.done span{text-decoration:line-through}
 .tl-deps .agg .ln{stroke-width:2}
@@ -1734,10 +1728,7 @@ body.tdrag .sdrop{display:flex}
 .lhdr h3{margin:0}
 .linkbtn{color:var(--accent);text-decoration:underline;text-underline-offset:2px;font:inherit;padding:0 .125rem}
 .sdev{margin:1.25rem 0 .5rem;border:1px solid var(--line);border-radius:var(--radius);padding:.25rem .75rem}
-.sdev>summary{cursor:pointer;display:flex;align-items:center;gap:.5rem;padding:.5rem 0;color:var(--text2);font-size:var(--fs-m);font-weight:500;list-style:none}
-.sdev>summary::-webkit-details-marker{display:none}
 .sdev>summary::after{content:"";margin-left:auto;border:.25rem solid transparent;border-top-color:currentColor;border-bottom:0;transform:translateY(1px)}
-.sdev[open]>summary::after{transform:rotate(180deg)}
 .sdev[open]{padding-bottom:.75rem}
 /* U04: modules as one list with a sentence each; admins: "for everyone" next to collaboration / time */
 .modlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius)}
@@ -2062,7 +2053,6 @@ button.tvr-task:hover{color:var(--accent)}
 .tl-addb:hover{color:var(--accent)}
 .tl-new{position:absolute;top:.25rem;left:max(0rem,min(var(--x),calc(100% - 21rem)));width:21rem;max-width:100%;height:2.25rem;display:flex;align-items:center;gap:.25rem;padding:0 .25rem 0 .125rem;border:1px solid var(--accent);border-radius:.4375rem;background:var(--bg2);box-shadow:0 .25rem .875rem rgba(0,0,0,.25);z-index:5;cursor:default}
 .tl-new input{flex:1;min-width:0;height:100%;border:0;background:none;color:var(--text);font:inherit;font-size:var(--fs-m);padding:0 .375rem;outline:none}
-.tl-new:focus-within{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent),0 .25rem .875rem rgba(0,0,0,.25)}
 /* 2.18.0 review (R2): touch: tab bar and "+" step aside while the new-task field has the focus (keyboard up) */
 .tl-new .iconbtn{flex:none;padding:.25rem;min-width:1.75rem;min-height:1.75rem;justify-content:center}
 /* milestone tasks: a diamond at the date (like the markers), the name next to it */
@@ -2390,13 +2380,10 @@ body.fab-on #view .chcomp.tccomp{padding-right:calc(var(--fab-safe) + .75rem)}  
 @container dthumb (min-width:36rem){ .dthumb .dtproj{flex:0 1 auto;max-width:14rem} .dthumb .dq[data-d="0"] .dql{display:inline;font-size:var(--fs-s);white-space:nowrap} .dthumb .dq[data-d="0"]{padding:0 .625rem} }
 .meta .crd{opacity:.75}
 /* 2.0.8 (#321) Settings > AI colleague: lists at a glance */
-.aitbl{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden}
 .airow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) 12.5rem;gap:.5rem;align-items:center;padding:.375rem .625rem;border-top:1px solid var(--line)}
-.airow:first-child{border-top:0}
 .airow.aihead{font-size:var(--fs-xs);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--bg2)}
 .airow .ailn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .airow .aiag{display:flex;flex-wrap:wrap;gap:.25rem}
-.airow .aitd select{width:100%}
 .aichip{display:inline-flex;align-items:center;gap:.25rem;min-height:1.75rem;padding:0 .5rem;border:1px solid var(--line2);border-radius:99rem;background:none;color:var(--text2);font:inherit;font-size:var(--fs-s);cursor:pointer}
 .aichip.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .aichip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -2618,7 +2605,6 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 .agsrow .agfacts .adot{position:static;flex:none;border:0;width:.5rem;height:.5rem}
 .agsrow .agacts{display:flex;flex:none;align-self:center}
 .airow .aitd{display:flex;gap:.375rem;min-width:0}
-.airow .aitd select{flex:1;min-width:0;width:auto}
 .aitbl.two .airow{grid-template-columns:minmax(0,1.2fr) minmax(0,1.6fr) 19rem}
 .aimore{display:flex;justify-content:center;padding:.5rem;border-top:1px solid var(--line)}
 @media (max-width:767px){
@@ -3202,7 +3188,6 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 .gchip.me{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
 button.gchip:hover{color:var(--text)}
 .avatar.gav{display:inline-grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:var(--bg4);color:var(--text2);flex:none}
-.grpmem{display:flex;flex-direction:column;gap:.125rem;max-height:16rem;overflow:auto;padding:.25rem 0}
 .grpmem .chkl{min-height:2rem;display:flex;align-items:center;gap:.5rem}
 .dtake{margin-left:.5rem}
 #side .sgrp>svg{color:var(--text2)}
@@ -3270,7 +3255,6 @@ button.gchip:hover{color:var(--text)}
 .chrxq.open{position:static;opacity:1;pointer-events:auto;background:none;border:0;box-shadow:none;padding:0;margin-top:.25rem;flex-wrap:wrap}
 .chrxq .rx.add{opacity:1;border-style:solid;filter:none;border-color:transparent}
 .chrxq.open .rx.add{border-color:var(--line2)}
-.rxhint,.rxok{display:inline-flex;align-items:center;gap:.25rem;font-size:var(--fs-xs);color:var(--muted);margin-left:.25rem}
 .rxok{color:var(--accent)}.rxok .i{width:.75rem;height:.75rem}
 @media (pointer:coarse){ .chrxq .rx{min-width:2.75rem;min-height:2.75rem;justify-content:center} }
 /* P11: the phone chat: its header replaces the page header, "back" on the left */
@@ -4356,38 +4340,22 @@ a.frow:hover,.frow a:hover{background:var(--bg3)}
 /* 2.87.9 (#1913): an organisation's own picture as its symbol (orgIconHtml): the size of the emoji it replaces */
 .orgic{width:1.125rem;height:1.125rem;border-radius:.25rem;object-fit:cover;flex:none;vertical-align:middle}
 .mrow .orgic,summary .orgic,.wsicprev .orgic{width:1.5rem;height:1.5rem}
-.wsicprev{display:inline-flex;align-items:center;min-width:1.5rem}
 .fwhen{font:var(--fs-s) var(--mono);color:var(--muted);white-space:nowrap;flex:none}
 .fwhen.soon{color:var(--accent)}.fwhen.over{color:var(--danger)}
 .fwhen.rvwhen{font-family:var(--sans);color:var(--muted)}  /* 2.223.0 B (#2822): review dates in plain type like the task list, not red / monospace */
-.fweek{display:flex;flex-direction:column;gap:.125rem}
 .fday{display:flex;align-items:center;gap:.5rem;min-height:2.5rem;padding:.125rem .25rem;border-radius:var(--radius)}
 .fday.today{background:var(--accent-soft)}
 .fdl{flex:none;width:5.5rem;font-size:var(--fs-s);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fday.today .fdl{color:var(--accent);font-weight:600}
 .fdm{flex:1;display:flex;flex-wrap:wrap;gap:.25rem;min-width:0}
 .fmeal{display:inline-flex;align-items:center;gap:.125rem;background:var(--bg3);border-radius:1rem;padding:0 .125rem 0 .625rem;max-width:100%;min-width:0}
-.fmeal a{color:var(--text);text-decoration:none;min-width:0;overflow:hidden;padding:.25rem 0;line-height:var(--lh-tight)}  /* 2.458.0 (#3855): breaks between words only */
 @media (max-width:30rem){ .fday{flex-wrap:wrap;padding-block:.25rem}.fdl{width:100%}.fdm{flex-basis:0} }  /* 2.458.0 (#3855): the day above its meals, the meals get the width */
 .fmeal.done a{color:var(--muted);text-decoration:line-through}
 .fmeal .iconbtn{width:2rem;height:2rem}
 .fwnav{display:inline-flex;gap:.125rem}
-.fshop{flex-wrap:wrap}
 .fshop .btn .i{color:inherit}
-.fpack{display:flex;flex-wrap:wrap;gap:.375rem}
-.kidc{border-top:1px solid var(--line);padding:.5rem 0}
-.kidc:first-of-type{border-top:0;padding-top:0}
-.kidh{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-.kstars{font:600 var(--fs-b) var(--mono);color:var(--p3)}
-.kreq{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin-top:.375rem;padding:.375rem .5rem;border-radius:var(--radius);background:var(--wait-soft);font-size:var(--fs-m)}
-.kreqt{flex:1 1 12rem;min-width:0}
-.kreqb{display:flex;gap:.375rem;margin-left:auto}
-.kgive{display:flex;flex-wrap:wrap;gap:.375rem;margin:.25rem 0 .75rem}
-.ocdate{display:flex;gap:.375rem;flex-wrap:wrap;flex:1;min-width:0}
 .ocdate #oc-day{width:4.5rem}.ocdate #oc-year{width:8rem}.ocdate select{flex:1;min-width:7rem}
 .famdlg .seg{margin-bottom:.5rem}
-.dltypes{margin-bottom:.5rem}
-.fage{font-size:var(--fs-s);color:var(--accent);white-space:nowrap}
 .fpeople{display:flex;flex-wrap:wrap;gap:.375rem;flex:1;min-width:0}
 .fperson{display:inline-flex;align-items:center;gap:.375rem;padding:.125rem .625rem .125rem .1875rem;border-radius:1.25rem;border:1px solid var(--line2);background:var(--bg2);min-height:2rem;max-width:100%}
 .fperson span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -4398,7 +4366,6 @@ a.frow:hover,.frow a:hover{background:var(--bg3)}
 .occm,.rotm{display:inline-flex;align-items:center;gap:.1875rem;color:var(--accent)}
 .fambar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.25rem 0 .5rem}
 .fambar .muted{font-size:var(--fs-s)}
-.shopgo{font-weight:600}
 .purposes{grid-template-columns:repeat(auto-fill,minmax(12rem,1fr));margin-bottom:.75rem}
 .purposes .ptcard{cursor:pointer}
 .tpurp{margin:.5rem 0}
@@ -4418,70 +4385,33 @@ a.frow:hover,.frow a:hover{background:var(--bg3)}
 /* the kid view: big, calm, one column */
 body.kidmode #side,body.kidmode #tabs,body.kidmode #fab,body.kidmode #top .menu,body.kidmode #top .cmdbar,body.kidmode #top .tnew,body.kidmode #top .hist{display:none!important}
 body.kidmode #app{grid-template-columns:1fr}
-.kidv{max-width:var(--w-form);margin:0 auto;padding:.5rem 0 2rem}
-.kidtop{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin:.5rem 0 1rem}
-.kidtop h2{flex:1;margin:0}
-.kidbal{display:inline-flex;align-items:center;gap:.375rem;padding:.375rem 1rem;border-radius:2rem;background:var(--bg3);font:700 1.5rem var(--mono);color:var(--p3)}
-.kidsec{font-size:var(--fs-l);margin:1.25rem 0 .5rem}
-.kidtasks,.kidrw{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5rem}
-.kidtasks li,.kidrw li{display:flex;align-items:center;gap:.875rem;padding:.75rem;border-radius:var(--r-l);background:var(--bg2);border:1px solid var(--line2);min-height:4rem}
 .kidtasks li.done{opacity:.6}.kidtasks li.done .kidt b{text-decoration:line-through}
-.kidchk{flex:none;width:3.25rem;height:3.25rem;border-radius:50%;border:.1875rem solid var(--accent);display:grid;place-items:center;color:var(--accent-ink)}
 .kidchk .i{width:1.75rem;height:1.75rem}
 .kidtasks li.done .kidchk{background:var(--accent)}
-.kidt{flex:1;display:flex;flex-direction:column;min-width:0;font-size:var(--fs-l)}
-.kidt b{overflow-wrap:anywhere}
-.kidst{color:var(--p3);font-size:var(--fs-h);letter-spacing:.0625rem;flex:none}
-.kre{font-size:2rem;flex:none}
 .kre svg.i{width:2rem;height:2rem;color:var(--muted)}
-.kidbtn{min-height:2.75rem;padding:0 1rem}
-.kwait{font-size:var(--fs-m);color:var(--st-wait-t);flex:none}
-.kidyay{font-size:var(--fs-l);color:var(--accent);text-align:center}
 /* shopping mode: the whole screen, big ticks, grouped by shop area */
 .modal.shopmode{padding:0;align-items:stretch;justify-content:stretch}
 .shopmode .shopcard{width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0;display:flex;flex-direction:column;padding:0;overflow:hidden}
-.shophead{display:flex;align-items:center;gap:.75rem;padding:calc(.5rem + var(--safe-t)) .75rem .5rem 1rem;border-bottom:1px solid var(--line)}
-.shophead h2{display:flex;align-items:center;gap:.5rem;margin:0;min-width:0}
-.shophead h2 span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .shophead h2 .i{color:var(--accent);flex:none}
-.shopn{font:var(--fs-m) var(--mono);color:var(--muted);white-space:nowrap}
-.shopx{width:2.75rem;height:2.75rem}
-.shopadd{display:flex;gap:.5rem;padding:.625rem 1rem}
-.shopadd input{flex:1;min-height:2.75rem;font-size:var(--fs-l)}
 .shopadd .btn{min-width:2.75rem;min-height:2.75rem;justify-content:center}
-.shopbody{flex:1;overflow:auto;padding:0 1rem calc(1.5rem + var(--safe-b));-webkit-overflow-scrolling:touch}
-.shopg h3{font-size:var(--fs-b);font-weight:600;color:var(--muted);margin:.75rem 0 .375rem}
-.shopg ul{list-style:none;margin:0;padding:0}
-.shopi{display:flex;align-items:center;gap:.875rem;min-height:3.5rem;border-bottom:1px solid var(--line)}
-.shopchk{flex:none;width:2.75rem;height:2.75rem;border-radius:50%;border:.1875rem solid var(--accent);display:grid;place-items:center;color:var(--accent-ink)}
 .shopchk .i{width:1.5rem;height:1.5rem}
 .shopi.done .shopchk{background:var(--accent)}
 .shopi.done .shopt{color:var(--muted);text-decoration:line-through}
-.shopt{flex:1;cursor:pointer;align-self:stretch;display:flex;align-items:center;font-size:var(--fs-l);overflow-wrap:anywhere;min-width:0}
 .shoparea{width:2.75rem;height:2.75rem;color:var(--muted)}
-.shopdone h3{margin-top:1.5rem}
 /* 2.140.0 A (#2131): the amount of an item (big in shopping mode, quiet in the row), the price sums, the offline hint */
 .shopq{flex:none;min-width:2.75rem;min-height:2.75rem;padding:0 .625rem;border-radius:1.375rem;background:var(--bg3);color:var(--text);font:600 var(--fs-l) var(--mono);white-space:nowrap}
 .shopq.none{background:none;color:var(--muted);font-weight:400}
 .shopi.done .shopq{color:var(--muted);background:none}
 .shoppr{margin-left:.5rem;color:var(--muted);font:var(--fs-s) var(--mono);white-space:nowrap}
-.shopsum{display:flex;gap:1.25rem;justify-content:flex-end;padding:.625rem 1rem calc(.625rem + var(--safe-b));border-top:1px solid var(--line);font-size:var(--fs-m);color:var(--muted)}
-.shopsum b{color:var(--text);font-family:var(--mono)}
-.shopoff{display:flex;align-items:center;gap:.5rem;margin:0;padding:.5rem 1rem;background:var(--bg3);color:var(--muted);font-size:var(--fs-s)}
 .qtym{font-family:var(--mono);color:var(--muted)}
 /* 2.140.0 A (#2132): the ingredients choice, the recipes of the meal dialog, the week button */
-.fingr{list-style:none;margin:.25rem 0;padding:0;max-height:50dvh;overflow:auto}
 .fingr .chkl{display:flex;align-items:center;gap:.5rem;min-height:2.75rem;border-bottom:1px solid var(--line)}
 .fingr .fiq{min-width:4.5rem;font-family:var(--mono);color:var(--muted)}
 .fingr .fin{flex:1;min-width:0;overflow-wrap:anywhere}
-.fmrh{margin:.75rem 0 .375rem;font-size:var(--fs-s);color:var(--muted);font-weight:500}
-.fmrecipes{display:flex;flex-wrap:wrap;gap:.375rem;max-height:40dvh;overflow:auto}
-.fwpick span{font-family:var(--mono);font-size:var(--fs-s)}
 /* 2.140.1 (#2132): on a narrow phone the meal plan week nav wraps under the title and the range shortens, the next-week arrow stays on screen */
 .fc-meals h2{flex-wrap:wrap;row-gap:.25rem}
 .fwnav{max-width:100%;min-width:0}
 .fwpick{min-width:0}
-.fwpick span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .famf .fhint{margin:.125rem 0 .375rem;font-size:var(--fs-s)}
 /* 2.19.0 (owner, #655): the search button next to the open drawer (phones) */
 #scrim .sidesearch{display:none}
@@ -4496,7 +4426,6 @@ body.kidmode #app{grid-template-columns:1fr}
 .famf .row>label:first-child{width:8.5rem;flex:none;color:var(--muted);font-size:var(--fs-s)}
 .famf .row>input:not([type=checkbox]),.famf .row>.dpf{flex:1;min-width:6rem}
 .famf .row>input.numin{flex:none;width:5rem}
-.kneed{font-size:var(--fs-m);color:var(--muted);flex:none;text-align:right}
 body.kidmode #top{padding-left:1rem}
 @media (max-width:599px){ .famf .row>label:first-child{width:100%} }
 /* ---------- 2.21.0 (#659 / #658): events and contacts ---------- */
@@ -4558,9 +4487,7 @@ button.lkchip:hover{border-color:var(--accent)}
 /* 2.122.2 (#2329): the sheet "Add tab" (settings.js tabAddSheet): search, folded sections, lists below their folder */
 .tapick .card{width:min(28rem,100%)}
 .tapick .ctsearch{flex:none;margin:.25rem 0 .5rem}
-.tapick-gh{display:flex;align-items:center;gap:.5rem;width:100%;min-height:2.75rem;padding:0 .25rem;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .tapick-gh .muted{font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
-.tapick-ic{display:inline-flex;align-items:center;justify-content:center;width:1.375rem;flex:none;color:var(--muted)}
 .tapick-ic .i{width:1.125rem;height:1.125rem}
 /* 2.138.0 E (#2234): the magnifier sits inside the field and there is one frame only (no second ring around the input on focus) */
 .ctsearch>svg,.ctsearch>.ic{flex:none}
@@ -4637,22 +4564,13 @@ button.lkchip:hover{border-color:var(--accent)}
 /* 2.22.0 (#663): Home & life (the cards reuse the Family view's .fcard / .flist / .frow), the review + journal, the
    contract / device / health / trip dialogs (.lifedlg = .famdlg), staying in touch on a contact's card */
 .life .lempty{padding:1rem}
-.lcare{flex-wrap:nowrap}
 .lcare .btn{flex:none}
 .lcard .fcfoot{display:flex;flex-wrap:wrap;gap:.375rem}
 .lcard .fcfoot .btn .i{color:var(--accent)}
 .lacts{display:inline-flex;align-items:center;gap:.5rem;flex-wrap:wrap}
-.lpre{display:flex;flex-wrap:wrap;gap:.375rem;margin:0 0 .75rem}
 .lpre .tagchip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
-.lmore{margin:.25rem 0 .5rem}
-.lmore>summary{cursor:pointer;color:var(--muted);font-size:var(--fs-s);padding:.25rem 0}
-.rvjdays{display:flex;gap:.25rem;flex-wrap:wrap;margin:0 0 .5rem}
-.rvjdays button{min-height:2.25rem;padding:0 .5rem;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-size:var(--fs-s);cursor:pointer}
 .rvjdays button.has{border-color:var(--accent)}
 .rvjdays button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.rvjdays button:disabled{opacity:.45;cursor:default}
-/* 2.140.0 C (#2133): journal history, search, mood statistics */
-.jhd{display:flex;gap:.5rem;align-items:center}
 @media (pointer:coarse){
   .lcare .btn,.lcard .fcfoot .btn,.lpre .tagchip,.rvjdays button,.lmore>summary,.lacts .btn{min-height:2.75rem}
 }
@@ -4878,9 +4796,6 @@ button.lkchip:hover{border-color:var(--accent)}
 .annbar .iconbtn{flex:none}
 @media (max-width:767px){ .annbar{margin:calc(.375rem + var(--safe-t)) .5rem 0} .annbar + #top{padding-top:.375rem} }
 /* #910: storage meter in Settings > Account */
-.stoq{display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;min-width:0}
-.stobar{display:inline-block;width:9rem;height:.5rem;border-radius:99rem;background:var(--bg3);overflow:hidden;flex:none}
-.stobar i{display:block;height:100%;background:var(--accent);border-radius:inherit}
 .stoq.warn .stobar i{background:var(--p3)}
 .stoq.high .stobar i,.stoq.full .stobar i{background:var(--p5)}
 /* #906: the person card's "Message" is the first, full-width action */
@@ -5290,14 +5205,11 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 .agsafe-rules li b{display:block}
 .agsafe-rules li span{color:var(--text2)}
 .agsafe-admin{margin:.25rem 0 .75rem;padding-left:1.25rem;display:grid;gap:.375rem}
-.lcap{flex:1;min-width:0}
-.lcap summary{min-height:2.75rem;display:flex;align-items:center;cursor:pointer}
 .agbridges ul{margin:.375rem 0;padding-left:1.25rem}
 
 /* 2.30.0 (#1036): the workspace of a new calendar / address book (askDialog) */
 .cdlg .wsnew{display:flex;gap:.625rem;align-items:center;margin:2px 0 .625rem}
 .cdlg .wsnew select{flex:1;min-width:0}
-.lcaphint{margin:.25rem 0 .5rem;font-size:var(--fs-b)}
 /* 2.31.0 (#1056): menu groups: a small heading per group (role="group"), a hairline between groups, the second level ("More list
    options…") with a chevron; arrow keys skip headings and lines (only menu items take the focus) */
 .menu-list .mgrp{display:flex;flex-direction:column}
@@ -5670,7 +5582,6 @@ body.lydragging,body.lydragging *{cursor:grabbing!important;-webkit-user-select:
 /* 2.40.0 (#1379): the fields of producing / raw data only while their switch is on (also while unsaved) */
 /* 2.40.0 (#1382): building blocks of a number scheme (buttons, insert at the caret) and its preview */
 /* 2.36.1 C: Office & finance (#1021) -- quotations: the list, the editor (head, positions, automatic lines, totals, rights) */
-.ofdbar select{min-height:2.25rem}
 .rotag.st-sent{color:var(--accent)} .rotag.st-accepted{color:var(--ok,#2a8a4a)} .rotag.st-declined,.rotag.st-superseded{color:var(--muted);text-decoration:line-through}
 .ofdsec{border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg2);padding:.5rem .75rem}
 .ofdsec>summary{cursor:pointer;display:flex;align-items:center;gap:.5rem;min-height:2.5rem;list-style:none}
@@ -5682,22 +5593,18 @@ section.ofdsec h3{min-height:2.5rem;display:flex;align-items:center}
 .ofdit{display:flex;align-items:flex-start;gap:.5rem;padding:.5rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg)}
 .ofdit .ofdpos{flex:0 0 1.75rem;min-height:2.25rem;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums;color:var(--muted)}
 .ofdit .ofditb{flex:1;min-width:0;display:flex;flex-direction:column;gap:.375rem}
-.ofdit input,.ofdit select,.ofdit textarea{min-height:var(--fld-h)}  /* 2.99.0 (#2025): the shared field height (44 px on touch screens) */
 .ofdit .ofdtt{font-weight:500;width:100%}
 .ofdit .ofddt{width:100%;font-size:var(--fld-fs)}  /* 2.99.0 (#2025): 16 px on touch screens like every field */
 .ofdit .ofdnums{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap}
 .ofdit .ofdnums input.numin{width:5rem;flex:0 0 5rem}
 .ofdit .ofdnums input.ofdrate{width:6.5rem;flex-basis:6.5rem}
-.ofdit .ofdnums select{max-width:8rem}
 .ofdit .ofdlt{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:6rem;text-align:right}
 .ofdit .ofdflags{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;font-size:var(--fs-s)}
 .ofdit .ofdflags .chkl{display:inline-flex;align-items:center;gap:.25rem;min-height:1.75rem}
 /* 2.114.3 (#2266): producing visible -- the ticked producing flag, the hint at the switch, a part's source, the note on a part line */
 .ofdit .ofdflags .chkl.ofdprodf.on{color:var(--accent);background:var(--accent-soft);border-radius:99rem;padding:0 .5rem;font-weight:600}
-.tpprodsrc{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.375rem}
 .tpprodsrc.own .rotag{color:var(--accent)}
 .tppl .tpprod{font-size:var(--fs-s)}
-.ofdit .ofdcost input{width:5rem;margin-left:.25rem}
 .ofdit .ofdmv{display:flex;flex-direction:column;gap:.125rem;flex:0 0 auto}
 .ofdit .ofdmv .ib{min-width:1.75rem;min-height:1.75rem}
 @media (max-width:599px){
@@ -6644,16 +6551,13 @@ body.kidmode .smodal .snav [data-sec="org"],body.kidmode .smodal .snav [data-sec
 body.kidmode .smodal .snav [data-sec="ai"],body.kidmode .smodal .snav [data-sec="data"],body.kidmode .smodal .snav [data-sec="users"],
 body.kidmode .smodal .snav [data-sec="help"]{display:none!important}
 /* 2.49.0 B (#1551) the parents' PIN: a big number field (phone keypad), a calm message line */
-.kd_pinin{font-size:1.75rem;letter-spacing:.5em;text-align:center;min-height:3.25rem;width:100%;max-width:14rem}
 .kdpin .card>.kd_pinin{display:block;margin:.75rem auto}
-.kd_pinmsg{min-height:1.5em;text-align:center;color:var(--muted)}
 /* 2.49.0 B (#1533) a child's welcome tour: bigger cards and buttons */
 body.kidmode .tour .tcard h3{font-size:var(--fs-l)}
 body.kidmode .tour .tcard p{font-size:var(--fs-h);line-height:var(--lh)}
 body.kidmode .tour .tfoot .btn{min-height:2.75rem;padding-inline:1rem}
 /* 2.49.0 C (#1199, #1201): knowledge pages (wiki.js) and the mind map (mindmap.js) */
 .wkitem{display:flex;align-items:center;gap:.375rem;min-height:2.25rem;padding:0 .5rem;border-radius:var(--r-s);color:var(--text2);text-decoration:none;min-width:0}
-.wkitem span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 a.wkitem:hover{background:var(--bg3)}
 .wkitem.on{background:var(--accent-soft);color:var(--text);font-weight:600}
 .mmoi{display:flex;align-items:center;gap:.375rem;min-height:2.5rem;padding:0 .25rem;border-radius:var(--r-s);cursor:pointer}
@@ -6662,26 +6566,19 @@ a.wkitem:hover{background:var(--bg3)}
 .mmoi.done .mmot{text-decoration:line-through}
 @media (pointer:coarse){.wkitem,.mmoi{min-height:2.75rem}}
 /* 2.123.0 B (#2104): shares of knowledge pages (wkshare.js): the mark, "Shared with me", the read-only page */
-.wshmark{display:inline-flex;align-items:center;margin-left:.375rem;color:var(--accent);vertical-align:middle}
 .wkitem .wshmark{margin-left:auto;flex:none}
 /* 2.1045.0 (#5823): a folder excluded from an agent's share of the whole knowledge area; the dialog's section (wkarea.js) */
-.wshside{margin-top:1rem;padding-top:.5rem;border-top:1px solid var(--line)}
-.wshside h4{display:flex;align-items:center;gap:.375rem;margin:.75rem .5rem .375rem;font-size:var(--fs-b);font-weight:600;color:var(--muted)}
-.wshside .wkitem small{margin-left:auto;flex:none;font-size:var(--fs-s)}
 .wshread .card{max-width:var(--w-lesen)}
-.wshfh{cursor:default}
 .wshfh .iconbtn{flex:none;width:1.75rem;height:1.75rem}
 .wshfold>.wktree{margin-left:1rem}
 .fsextra{margin-top:1rem;padding-top:.5rem;border-top:1px solid var(--line)}
 .fsextra .wshleg{display:flex;align-items:center;gap:.375rem}
-.wshmd img{max-width:100%;height:auto}
 .wshmd img.wshph{width:100%;max-height:24rem;aspect-ratio:4 / 3;object-fit:contain;background:var(--bg3)}  /* #5227: size unknown -> fixed 4:3 box (wiki/wkshare.py wsh_wh) */
 .wshmd .wktbl{overflow-x:auto}
 .wshmd li.task{list-style:none}
 .wshmd li.d1{margin-left:1rem}
 .wshmd li.d2{margin-left:2rem}
 .wshmd li.d3,.wshmd li.d4,.wshmd li.d5,.wshmd li.d6{margin-left:3rem}
-.wshmd input[type=checkbox]{margin:0 .375rem 0 0;vertical-align:middle;accent-color:var(--accent)}
 /* 2.49.0 C (#1199): a task's "Mentioned in" (knowledge pages) */
 
 /* 2.49.0 E (#1106) Find people: the search row, result / request rows, the link in the share dialog */
@@ -6752,7 +6649,6 @@ button.lnph:hover{border-color:var(--accent)}
 .abcrumbs .abccur{color:var(--text2)}
 .abccur{font-weight:600;padding:0 .25rem}
 .abcsep{color:var(--muted)}
-.abtools{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-bottom:.75rem}
 .ablist{display:flex;flex-direction:column;border:1px solid var(--line2);border-radius:var(--r-l);overflow:hidden}
 .abrow{display:flex;align-items:center;gap:.5rem;min-height:3rem;padding:0 .25rem 0 0;border-top:1px solid var(--line)}
 .abrow:first-child{border-top:0}
@@ -6779,15 +6675,10 @@ button.lnph:hover{border-color:var(--accent)}
 .abshsum{display:flex;flex-wrap:wrap;gap:.375rem;margin-bottom:.5rem}
 .abshp{display:inline-flex;align-items:center;gap:.25rem;padding:.25rem .625rem;border:1px solid var(--line);border-radius:99rem;font-size:var(--fs-b)}
 /* 2.112.1 B (#2058): external share links in the details of a file / folder (ablinks.js) */
-.xl-row{display:flex;align-items:center;gap:.5rem;min-height:2.75rem;padding:0 .25rem;border-bottom:1px solid var(--line)}
 .xl-row .iconbtn{min-width:2.75rem;min-height:2.75rem}
 .xl-row.xl-dead .xl-name{color:var(--muted);text-decoration:line-through}
 .xl-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.xl-form{display:grid;gap:.375rem;margin:.75rem 0}
-.xl-form label,.xl-out label{font-size:var(--fs-m);color:var(--muted)}
-.xl-form input,.xl-form select,.xl-out input{min-height:2.75rem}
 .xl-out .row{display:flex;gap:.5rem;align-items:center}
-.xl-out input{flex:1;min-width:0}
 .abshadd{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.75rem 0}
 .abshadd select{flex:1 1 12rem;min-height:2.5rem}
 .abexp{display:inline-flex;align-items:center;gap:.375rem}
@@ -6812,7 +6703,6 @@ button.lnph:hover{border-color:var(--accent)}
 .att:focus-within .attlink{opacity:1}
 .povf .povlk{position:relative}
 @media (pointer:coarse){.povf .povlk{min-width:2.75rem;min-height:2.75rem}}
-.abtree{padding-left:calc(.75rem + var(--ablvl,1) * .75rem);font-size:var(--fs-l)}
 .abtree.abdrop{background:var(--accent-soft)}
 @media (max-width:767px){.abtree{display:none}}
 .abtxt{display:flex;flex-direction:column;min-width:0}
@@ -6861,20 +6751,14 @@ button.lnph:hover{border-color:var(--accent)}
    figures (tiles, revenue per month, budget per client) in the office */
 .pptiles,.kptiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(11rem,1fr));gap:.5rem;margin:.5rem 0}
 .kptiles{grid-template-columns:repeat(3,minmax(0,1fr))}
-.pptile,.kptile{display:flex;flex-direction:column;gap:.125rem;padding:.625rem .75rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg2);text-align:left;font:inherit;color:var(--text);min-height:2.75rem}
-.pptile b,.kptile b{font-size:var(--fs-xl);font-variant-numeric:tabular-nums}
-button.kptile{cursor:pointer}
-button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 .kptile.warn b{color:var(--danger,#c0392b)}
 .kpdelta{color:var(--accent);font-variant-numeric:tabular-nums}.kpdelta.neg{color:var(--muted)}
 .ppfcl{display:grid;grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr));gap:.375rem;list-style:none;margin:0;padding:0}
-.ppfcl li{display:flex;flex-direction:column;padding:.375rem .5rem;border:1px solid var(--line2);border-radius:var(--radius);font-variant-numeric:tabular-nums}
 .ppfcl li.next{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .ppseg{display:none;margin:.5rem 0}
 .pipcols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.5rem;align-items:start;margin:.5rem 0}
 .pipcol{border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg2);padding:.375rem;min-height:6rem;transition:border-color .15s ease}
 .pipcol.over{border-color:var(--accent)}
-.pipcol header{display:flex;align-items:center;gap:.375rem;padding:.25rem .25rem .5rem}
 .ppcard{display:flex;flex-direction:column;gap:.125rem;padding:.5rem .625rem;border:1px solid var(--line2);border-radius:var(--radius);background:var(--bg);cursor:pointer;min-height:2.75rem;user-select:none;transition:transform .15s ease,opacity .15s ease}
 .ppcard:hover,.ppcard:focus-visible{border-color:var(--accent)}
 .ppcard.dragging{opacity:.5}
@@ -6892,14 +6776,8 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
   .ppfcl li{padding:.25rem .375rem;font-size:var(--fs-b)}
   .ppfcl li .rotag{display:none}
 }
-.kpm{display:flex;flex-direction:column;align-items:center;gap:.25rem;background:none;border:0;padding:0;color:var(--muted);font:inherit;cursor:pointer;min-height:2.75rem}
 .kpm.cur small{color:var(--accent);font-weight:600}
-.kpm small{font-size:var(--fs-xs)}
-.kpb{display:flex;align-items:flex-end;justify-content:center;gap:2px;height:6rem;width:100%}
-.kpb i{display:block;width:40%;max-width:.75rem;height:100%;border-radius:.25rem .25rem 0 0;transform-origin:bottom center;transition:transform .2s ease}
 .kprow{display:grid;grid-template-columns:minmax(6rem,auto) 1fr auto auto;gap:.5rem;align-items:center;font-size:var(--fs-b);margin-top:.25rem;font-variant-numeric:tabular-nums}
-.kpbud{display:block;width:5rem;height:.375rem;border-radius:.1875rem;background:var(--line2);overflow:hidden}
-.kpbud i{display:block;height:100%;background:var(--accent);transform-origin:left center;transition:transform .2s ease}
 .kpbud i.warn{opacity:.7}.kpbud i.over,.kppct.over{background:var(--danger,#c0392b);color:var(--danger,#c0392b)}
 .kppct.over{background:none}
 @media (max-width:767px){ .kprow{grid-template-columns:1fr auto} .kprow .kpbud{display:none} }
@@ -6909,47 +6787,21 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 /* 2.50.0 A (#1195) absences: tabs of the workload view, month grid (away = dimmed accent), list, sheet */
 .ab2tabs{margin:0 0 .5rem}
 .ab2tabs button{min-height:2.25rem}
-.ab2mon{margin:0;font-size:var(--fs-l);font-weight:600}
-.ab2table{table-layout:fixed;min-width:44rem}
-.ab2table th:first-child{width:11rem}
-.ab2table thead th{text-align:center;padding:.25rem 0;font-size:var(--fs-xs)}
-.ab2table thead th:first-child{text-align:left}
-.ab2table td.ab2c{padding:0;height:2rem;border-left:1px solid var(--line);position:relative}
 .ab2table .we{background:color-mix(in srgb,var(--muted) 7%,transparent)}
 .ab2table .hol{background:color-mix(in srgb,var(--muted) 14%,transparent)}
 .ab2table thead .tdy{color:var(--accent);font-weight:600}
 .ab2table td.off{background:color-mix(in srgb,var(--accent) 34%,transparent)}
 .ab2table td.off.half{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 34%,transparent) 50%,transparent 50%)}
-.ab2b{position:absolute;inset:0;width:100%;height:100%;background:none;border:0;cursor:pointer}
-.ab2h{margin:1rem 0 .375rem;font-size:var(--fs-m);font-weight:600}
-.ab2list,.ab2hol{list-style:none;margin:0;padding:0}
-.ab2li{display:flex;align-items:center;gap:.625rem;width:100%;min-height:2.75rem;padding:.375rem .25rem;border-bottom:1px solid var(--line);text-align:left;background:none}
 .ab2lt{display:flex;flex-direction:column;flex:1;min-width:0}
 .ab2lt .muted{font-size:var(--fs-s);overflow:hidden;text-overflow:ellipsis}
-.ab2hol li{padding:.25rem 0;font-size:var(--fs-s)}
-.ab2foot{margin-top:1rem}
-.ab2st{display:inline-flex;align-items:center;gap:.5rem}
 .holsel{display:inline-flex;flex-wrap:wrap;gap:.5rem}  /* 2.461 (#3773): country, then region */
 .holsel select[hidden]{display:none}
 .ab2md .ab2kinds{flex-wrap:wrap}
-.ab2md .ab2kinds button{min-height:2.25rem}
 .ab2md .ab2dates{display:flex;gap:.75rem}
-.ab2md .ab2dates label{display:flex;flex-direction:column;gap:.25rem;flex:1}
 .ab2hint{margin:.5rem 0}
 /* 2.125.0 A (#2117): vacation requests (striped = requested), the account line, the admins' accounts */
 .ab2table td.off.req{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--accent) 30%,transparent) 0 .25rem,transparent .25rem .5rem)}
-.lvacc{display:flex;flex-wrap:wrap;align-items:baseline;gap:.25rem .75rem;margin:.5rem 0;padding:.5rem .75rem;border:1px solid var(--line);border-radius:var(--radius)}
-.lvt{font-weight:600}
-.lvnums{display:flex;flex-wrap:wrap;gap:.125rem .75rem;font-size:var(--fs-s)}
-.lvneg b{color:var(--danger)}
-.lvreq{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;padding:.375rem .25rem;border-bottom:1px solid var(--line)}
-.lvbtns{display:flex;gap:.375rem;flex-wrap:wrap}
 .lvbtns .btn{min-height:2.25rem}
-.lvbox{margin:.75rem 0}
-.lvbox>summary{cursor:pointer;font-weight:600;min-height:2.25rem;display:flex;align-items:center}
-.lvsw{margin-top:.5rem}
-.wtdays{flex-wrap:wrap}
-.wtdays button{min-width:2.75rem;min-height:2.75rem}  /* 2.144.2 A (#2375): 44 px high */
 .row .chkl.wtfocus{min-width:0;flex:1 1 12rem;align-items:flex-start;overflow-wrap:anywhere}  /* 2.144.2 A (#2375): wraps instead of being cut off */
 @media (max-width:599px){.lvreq{flex-wrap:wrap}.lvbtns{width:100%}.lvbtns .btn{flex:1;justify-content:center}}
 .wlc.ab2wl .wlbar{outline:1px dashed color-mix(in srgb,var(--accent) 60%,transparent);outline-offset:1px}
@@ -6957,51 +6809,28 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 
 /* 2.50.0 A (#1194) disposition: week grid (firm = accent, option = outlined), warnings, day list on phones, booking sheet */
 .dptable{table-layout:fixed;min-width:48rem}
-.dptable th:first-child{width:12rem}
-.dptable thead th{text-align:center;font-size:var(--fs-xs)}
-.dptable thead th:first-child{text-align:left}
 .dptable thead .tdy{color:var(--accent);font-weight:600}
-.dptable .dpgrp th{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding-top:.75rem;border-bottom:0}
-.dptable td.dpc{padding:.125rem;vertical-align:top;border-left:1px solid var(--line)}
 .dptable td.we{background:color-mix(in srgb,var(--muted) 7%,transparent)}
 .dptable td.hol{background:color-mix(in srgb,var(--muted) 14%,transparent)}
 .dptable td.away{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 18%,transparent) 0 .25rem,transparent .25rem .5rem)}
-.dpic{display:inline-flex;width:1.5rem;justify-content:center;color:var(--muted)}
-.dpbk{display:flex;align-items:center;gap:.25rem;width:100%;min-height:1.75rem;margin:.0625rem 0;padding:.125rem .375rem;border-radius:var(--r-s);font-size:var(--fs-xs);text-align:left;overflow:hidden;white-space:nowrap;cursor:pointer}
-.dpbk span{overflow:hidden;text-overflow:ellipsis}
 .dpbk.firm{background:var(--accent);color:var(--accent-ink)}
 .dpbk.option{background:var(--accent-soft);color:var(--text);border:1px dashed var(--accent)}
 .dpbk.warn{box-shadow:inset 0 0 0 2px var(--danger)}
 .dpbk .i,.dpres .i,.dpjobres .i{color:var(--danger);flex:none}
 .dpbk.firm .i{color:var(--accent-ink)}
 .dpdays{display:none;list-style:none;margin:.5rem 0;padding:0}
-.dpdays h4{margin:.75rem 0 .375rem;font-size:var(--fs-m)}
-.dpjob{display:flex;flex-direction:column;align-items:flex-start;gap:.125rem;width:100%;min-height:2.75rem;padding:.5rem .625rem;margin-bottom:.375rem;border:1px solid var(--line2);border-radius:var(--radius);text-align:left;background:none}
 .dpjob.warn{border-color:var(--danger)}
-.dpres{display:flex;flex-wrap:wrap;gap:.25rem .625rem;font-size:var(--fs-s)}
 .dpres .warn{color:var(--danger)}
 .dplegend{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem}
 .dpk{display:inline-block;width:.875rem;height:.875rem;border-radius:.1875rem;margin-left:.5rem}
 .dpk.firm{background:var(--accent)}
 .dpk.option{background:var(--accent-soft);border:1px dashed var(--accent)}
 .dpk.away{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 30%,transparent) 0 .1875rem,transparent .1875rem .375rem)}
-.dpfreebox{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:1rem 0 .25rem}
-.dpfree p{margin:.25rem 0}
-.dpmine{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .75rem;min-height:2.75rem;padding:.375rem .25rem;border-bottom:1px solid var(--line)}
 .dpmine .muted{font-size:var(--fs-s)}
-.dpst{margin-left:auto;font-size:var(--fs-xs);padding:.125rem .5rem;border-radius:99rem}
 .dpst.firm{background:var(--accent);color:var(--accent-ink)}
 .dpst.option{border:1px dashed var(--accent)}
-.dpmd .dppicks{max-height:40vh;overflow:auto;margin:.5rem 0}
 .dpmd .dppick{border:0;margin:0 0 .5rem;padding:0}
-.dpmd .dppick legend{font-size:var(--fs-s);color:var(--muted);padding:0;margin-bottom:.25rem}
-.dpmd .dpopt{display:flex;align-items:center;gap:.5rem;min-height:2.5rem}
 .dpmd .dpbusy{margin-left:auto;color:var(--danger);font-size:var(--fs-xs)}
-.dpmd .dpstat button{min-height:2.25rem}
-.dpjobres{list-style:none;margin:.5rem 0;padding:0}
-.dpjobres li{display:flex;align-items:center;gap:.5rem;min-height:2.5rem;border-bottom:1px solid var(--line)}
-.dpjobres li span{flex:1;display:flex;align-items:center;gap:.25rem}
-.dpjobres li small{color:var(--danger);font-size:var(--fs-xs)}
 .dp .clhead{flex-wrap:wrap;gap:.5rem}
 @media (max-width:599px){.dpgrid{display:none}.dpdays{display:block}}
 @media (max-width:599px){.dp .clhead>.seg{display:flex;width:100%}.dp .clhead>.seg button{flex:1;justify-content:center;min-height:2.25rem}.dp .clhead>.spacer{flex:1}}
@@ -7030,9 +6859,7 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 .ppl .pk2hint{margin-top:.5rem}
 /* 2.51.0 A (#1348, #1350): agents in the office -- marked positions, "drafted by", suggested payments, chat link buttons */
 .ofdit.oa_flag{box-shadow:inset .1875rem 0 0 var(--accent);background:var(--accent-soft)}
-.oa_flags{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.25rem;font-size:var(--fs-s)}
 .oa_flags .btn{min-height:2.25rem}
-.oa_ppb{display:flex;gap:.375rem}
 .oa_ppb .btn{min-height:2.5rem}
 .cchoices.oa_links a.cchb{text-decoration:none;display:inline-flex;align-items:center;gap:.375rem}
 .oa_sw .chkl{min-height:2.5rem}
@@ -7067,19 +6894,14 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 .wcev.cgok:hover::after{opacity:1}
 @media (hover:hover){.wcev.cgok,.cev.cgok{cursor:grab}.wcev.cgok:active,.cev.cgok:active{cursor:grabbing}}
 .cev.cgsrc{opacity:.35}
-body.cgdrag,body.cgdrag *{user-select:none;-webkit-user-select:none}
-body.cgdrag #wbody{touch-action:none}
 body.cgdrag .week,body.cgdrag .cal{cursor:grabbing}
 .wcev.cgsrc{opacity:.35}
 .wcev.cgghost{z-index:3;pointer-events:none;box-shadow:0 .25rem .875rem color-mix(in srgb,var(--text) 25%,transparent);border-color:var(--cc);background:color-mix(in srgb,var(--cc) 28%,var(--bg2))}
-.cgsaving{opacity:.6}
 .wad.cgsel,.cal .cell.cgsel{background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .week .wallday,.cal{position:relative}
 .cgnew{position:absolute;left:2px;right:2px;z-index:4;display:flex;flex-wrap:wrap;align-items:center;gap:.125rem .25rem;min-height:2.75rem;padding:2px .3125rem;
   background:color-mix(in srgb,var(--accent) 22%,var(--bg2));border:1px solid var(--accent);border-radius:.3125rem;box-shadow:0 .25rem .875rem rgba(0,0,0,.2);overflow:hidden;align-content:flex-start}
-.cgnew.cgday{right:auto;min-height:0;flex-wrap:nowrap}
 .cgnew .cgtm{font:var(--fs-xs) var(--mono);color:var(--muted);flex:1 1 100%}
-.cgnew.cgday .cgtm{flex:0 0 auto}
 .cgnew .cgin{flex:1 1 6rem;min-width:0;background:transparent;border:0;outline:0;padding:1px 0;font:inherit;font-size:var(--fs-s);font-weight:600;color:var(--text)}
 .cgnew .cgin::placeholder{color:var(--muted);font-weight:400}
 .cgnew .cgdet{flex:0 0 auto}
@@ -7089,7 +6911,6 @@ body.cgdrag .week,body.cgdrag .cal{cursor:grabbing}
 /* 2.164.0 (#2625): swipe / pinch in the calendar (calgest.js): the grid keeps up / down for scrolling, sideways and two
    fingers are the app's; a pinch that changes the view on release dims a little; the new view grows / shrinks in */
 #view .cal,#view .week,#view #cyear{touch-action:pan-y}
-.cgs-arm{opacity:.75;transition:opacity .12s}
 #view.cgs-zi>.calbar~*{transform-origin:var(--cgs-o);animation:cgs_zi .22s ease-out}#view.cgs-zo>.calbar~*{transform-origin:var(--cgs-o);animation:cgs_zo .22s ease-out}
 @keyframes cgs_zi{from{opacity:.2;transform:scale(.9)}to{opacity:1;transform:none}}
 @keyframes cgs_zo{from{opacity:.2;transform:scale(1.1)}to{opacity:1;transform:none}}
@@ -7234,7 +7055,6 @@ a.rfcard:hover{border-color:var(--muted);text-decoration:none}
 /* 2.55.0 E (#1455) the newsletter connection (newsletter.js): the sheet in Contacts > More, the consent in the contact card */
 .nwl-md .nwl-body, .nwl-smd { display: flex; flex-direction: column; gap: .5rem; }
 .nwl-md { max-width: 40rem; }
-.nwl-sn { flex: 1; min-width: 0; }
 .nwl-sn .muted { font-size: var(--fs-b); overflow-wrap: anywhere; }
 .nwl-chips { flex-wrap: wrap; }
 .nwl-st-yes { color: var(--accent); }
@@ -7458,7 +7278,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .envnote{font-size:var(--fs-s);margin-top:.25rem}
 .envhb{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
 #env-urlin{width:100%;box-sizing:border-box;margin:.5rem 0 .25rem}
-.rm-env{position:absolute;top:50%;transform:translateY(-50%);font-size:var(--fs-xs);color:var(--accent);white-space:nowrap;pointer-events:none;z-index:2}
 /* 2.60.0 C (#1512) review step: the bar in the task panel (shape of the approval bar), its states */
 .apbar.rvwbar.rvw-none{background:var(--bg2);border:.0625rem dashed var(--line2)}
 .apbar.rvwbar.rvw-approved{background:color-mix(in srgb,var(--ok) 14%,transparent)}
@@ -7621,7 +7440,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .dsb-reply blockquote{margin:.25rem 0 0;padding-left:.5rem;border-left:.125rem solid var(--line2);white-space:pre-line;max-height:7.5rem;overflow:auto;overflow-wrap:anywhere}
 /* 2.66.0 A (#1835) contacts: the merge history on a contact's card (one line per merge, Undo while possible) */
 .ctmsec .ctmrow{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap}
-.ctmsec .ctmrow>span{min-width:0;overflow-wrap:anywhere}
 .ctmsec .ctmrow .btn{min-height:2.5rem}
 
 /* 2.64.1 D (#1817) lock per list: marks, placeholders, the bar, the list dialog section, member key state */
@@ -7678,13 +7496,8 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .le2usl.chg > b{color:var(--danger, var(--text))}
 
 /* 2.64.3 B (#1817) the lock per knowledge space: mark at the space switch, lock box instead of the tree / page, bars, dialog */
-.wkebar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem .75rem}
 .wkebar .btn{margin-left:auto}
-.wkedlg h4{margin:.875rem 0 .375rem;font-size:var(--fs-m);font-weight:600}
 .wkedlg .le2unote li{margin:.25rem 0}
-.wkemem{list-style:none;margin:0;padding:0}
-.wkemem li{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.375rem 0;border-bottom:1px solid var(--line)}
-.wkemem li>span:first-child{flex:1;min-width:8rem}
 .wkemem .e2ewarn{flex-basis:100%}
 /* 2.67.0 A (#1838): fixed costs: categories, net + gross, the import from a spreadsheet, the monthly check */
 .fcidlg .card{max-width:42rem;width:100%}
@@ -7702,7 +7515,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .fciamt select{min-height:2.25rem}
 .fcichk .chkl{display:flex;align-items:center;gap:.5rem;min-height:2.75rem}
 .fcichk .row{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem}
-.fcichk select{min-height:2.75rem}
 @media (max-width:599px){.fcirow{flex-wrap:wrap}.fciamt{flex-direction:row;align-items:center;margin-left:auto}}
 /* 2.122.2 (#2323): on a phone the amount and the VAT rate get a second line below the name (beside it they overflowed the row) */
 @media (max-width:599px){.fcirow .ofcn{flex:1 1 0}.fcirow>.fciamt{flex:1 1 100%;min-width:0;justify-content:space-between;gap:.5rem;margin-left:0;padding-left:2.125rem}.fcirow>.fciamt select{width:auto;flex:0 0 auto}}
@@ -7719,21 +7531,14 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 @media (max-width:599px){.ppm .card:has(.aim-l)>.foot{flex-wrap:wrap;row-gap:.5rem}.ppm .card:has(.aim-l)>.foot [data-pp="apply"]{flex:1 1 100%;min-height:2.75rem}}
 
 /* 2.69.0 B (#1847) Paperless-ngx: matching rules in the import preview */
-.pll-rules{margin:.75rem 0 0}
 .pll-rules .muted{margin:.25rem 0 0}
-.pll-bad ul{margin:.25rem 0 0 1rem;padding:0}
 /* 2.69.0 A (#1846) Paperless-ngx: the two ways (address / export ZIP), the storage hint of the preview */
 .pl-slot .plh-way { margin: 1rem 0 .375rem; font-size: var(--fs-s); }
-.plh-zip { margin-top: .75rem; }
-.plh-zip code { font-family: var(--mono, monospace); font-size: .9em; overflow-wrap: anywhere; }
-.pl-warn { margin: .375rem 0; padding: .375rem .625rem; border-radius: .375rem; background: var(--bg3, rgba(127,127,127,.12)); }
 /* 2.70.0 A (#1354) a meeting becomes tasks: the photos in the request dialog, the cards of ready proposals in the agent chat */
 .mtgreq .mtgimgrow{align-items:center;gap:.5rem}
 .mtgreq .mtgadd{min-height:2.75rem;display:inline-flex;align-items:center;gap:.375rem;cursor:pointer}
 .mtgreq .mtgadd.dis{opacity:.5;pointer-events:none}
 .mtgreq .mtgimgs{display:flex;flex-wrap:wrap;gap:.375rem;margin:-.25rem 0 .5rem}
-.mtgcards{display:flex;flex-direction:column;gap:.5rem;padding:0 .75rem;max-height:45vh;overflow:auto}
-.mtgcards:empty{display:none}
 .mtgcard{border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line2));background:var(--accent-soft);border-radius:var(--radius);padding:.5rem .625rem}
 .mtgcard .mtgh{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin-bottom:.375rem}
 .mtgcard .mtgh .muted{font-size:var(--fs-s)}
@@ -7804,33 +7609,18 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .rul-dlg #rul-text{width:100%;box-sizing:border-box;resize:vertical}
 /* 2.72.0 B (#1333) the household budget (budget.js): view, card on Home & life, dialogs; phone first, one accent */
 .bgview{max-width:var(--w-seite);margin:0 auto;padding:0;display:flex;flex-direction:column;gap:.875rem;min-width:0}
-.bgmonth{display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap}
 .bgmonth .iconbtn{min-width:2.75rem;min-height:2.75rem}
 .bgtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}
-.bg-saldo b{color:var(--accent)}
 .bgneg,.bg-saldo b.bgneg{color:var(--danger)}
-.bgtm{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:.25rem;min-width:0;height:100%}
-.bgtm small{font-size:var(--fs-xs);color:var(--muted)}
 .bgtm.on small{color:var(--text);font-weight:600}
-.bgtb{flex:1 1 auto;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:.125rem}
-.bgtb i{display:block;width:40%;max-width:.875rem;border-radius:.1875rem .1875rem 0 0;min-height:.0625rem}
 .bgtb i.in{background:var(--accent)}
 .bgtb i.out{background:var(--muted);opacity:.6}
 .bgtm.on .bgtb i.out{opacity:1}
-.bgcat{padding:.375rem 0}
-.bgcl{display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap;font-size:var(--fs-b)}
-.bgbar{height:.5rem;border-radius:99rem;background:var(--bg3);overflow:hidden;margin-top:.25rem}
-.bgbar i{display:block;height:100%;background:var(--accent);border-radius:inherit}
 .bgbar.over i{background:var(--danger)}
 .bgcat.over .bgcl .muted{color:var(--danger)}
 .bgel{display:flex;flex-direction:column;min-width:0;flex:1 1 auto;gap:.125rem}
-.bgel b{font-weight:500;overflow-wrap:anywhere}
-.bgel small{font-size:var(--fs-xs)}
-.bgamt{flex:0 0 auto;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .bgamt.in{color:var(--accent)}
-.bgdlg .bgkind button{min-height:2.25rem;padding:.25rem .875rem}
 .bgdlg .seg button.on{background:var(--accent);color:#fff}
-.bgcr{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center;padding:.375rem 0;border-bottom:1px solid var(--line2)}
 .bgcr .bgcn{flex:1 1 9rem;min-width:0}
 .bgcr .numin,.bgcnew .numin{width:6.5rem}
 /* 2.140.0 B (#2136) a private device <-> office equipment: the link line in the task panel (devlink.js) and the equipment editor */
@@ -7839,25 +7629,16 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .dllink small{display:block;font-size:var(--fs-xs)}
 .dlhint{display:inline-flex;align-items:center;gap:.25rem}
 /* 2.140.0 B (#2134) the month comparison of the budget: cards per category (phone first), small bars per month */
-.bgcd{font-variant-numeric:tabular-nums;white-space:nowrap}
 .bgcd.worse{color:var(--danger)}
 .bgcd.better{color:var(--accent)}
-.bgcmpm{flex:1 1 0;height:100%;display:flex;align-items:flex-end;min-width:0}
-.bgcmpm i{display:block;width:100%;height:100%;border-radius:.1875rem .1875rem 0 0;background:var(--muted);opacity:.45;transform-origin:bottom}
 .bgcmpm.on i{background:var(--accent);opacity:1}
-.bgcnew{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center;margin-top:.75rem}
-.bgcnew #bg-cnew{flex:1 1 9rem;min-width:0}
 .bgtblw{overflow-x:auto;max-width:100%;margin-top:.5rem;border:1px solid var(--line2);border-radius:var(--r-s)}
 .bgtbl{border-collapse:collapse;font-size:var(--fs-xs)}
 .bgtbl th,.bgtbl td{padding:.25rem .5rem;white-space:nowrap;border-bottom:1px solid var(--line2);text-align:left}
-.bgpr{display:flex;align-items:flex-start;gap:.5rem;padding:.375rem 0;border-bottom:1px solid var(--line2);min-width:0}
 .bgpr.dup,.bgpr.err{opacity:.7}
-.bgpr select{max-width:100%;margin-top:.25rem}
 /* 2.146.0 C (#2455 #2469): the household import -- the last imports, pending bookings, file messages */
 .bgrunl,.bgpendl,.bgcsv .bnk-files{list-style:none;margin:.25rem 0;padding:0;display:flex;flex-direction:column;gap:.25rem}
-.bgrun,.bgpendl li{display:flex;align-items:center;gap:.5rem;padding:.375rem 0;border-bottom:1px solid var(--line2);min-width:0}
 .bgrun .bgel,.bgpendl .bgel{flex:1;min-width:0}
-.bgpendl li{opacity:.7}
 .bgcsv .bnk-files li{display:flex;gap:.5rem;align-items:flex-start;min-width:0;overflow-wrap:anywhere}
 @media (max-width:30rem){.bgtiles{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.bg-saldo{grid-column:1/-1}.bgview{padding:.5rem .5rem 5rem}}
 /* 2.73.0 A (#661) Settings > Account > Servers: the short-name badge of a server (solid in the settings; the combined views use C's muted badge), the account rows */
@@ -7867,11 +7648,8 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .msvrow .n{display:flex;flex-direction:column;min-width:0;gap:.125rem}
 .msvrow .n small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msvrow.off .msvb{opacity:.6}
-.msvst{font-size:var(--fs-xs)}
 .msvst.ok{color:var(--ok)}
 .msvst.bad{color:var(--danger);white-space:normal}
-.msvbtns{flex-wrap:wrap;gap:.5rem}
-.msvmodal textarea{width:100%;box-sizing:border-box;font-family:var(--mono,ui-monospace,monospace);font-size:var(--fs-s);word-break:break-all}
 .msvmodal .msvshort{width:4.5rem;text-transform:uppercase}
 .msvmodal .msvhead{align-items:center;gap:.625rem}
 .msvmodal .msvhead .msvb{min-width:2.5rem;height:2rem;font-size:var(--fs-s)}
@@ -7926,7 +7704,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 /* 2.73.0 B (#1473) move and export everything (Settings > Data, move.js) */
 .umzbar { display: grid; gap: .375rem; margin: .5rem 0; }
 .umzbar progress { width: 100%; height: .5rem; accent-color: var(--accent); }
-.umzp { align-items: center; gap: .5rem; }
 @media (max-width: 599px) { .umzp { flex-wrap: wrap; } }
 
 /* 2.74.0 A (#338): the supporter licence (badge in About + Account, the yearly hint for admins) */
@@ -7957,20 +7734,11 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 .assttext{max-height:55vh;overflow:auto;padding:.75rem;border-radius:var(--r-s);background:var(--bg2);line-height:var(--lh);white-space:normal}
 [data-asst].asstbusy{opacity:.55;pointer-events:none}
 /* 2.76.0 B (#1023) Office settings > Packs: search bar, cards one below the other (phone first), badges */
-.pkc{margin-top:1rem}
-.pkc-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem 0}
-.pkc-bar #pkc-q{flex:1 1 12rem;min-width:0;min-height:2.75rem}
-.pkc-kinds{display:inline-flex;gap:.25rem;flex-wrap:wrap}
 .pkc-bar .btn{min-height:2.75rem}
 .pkc-kinds .btn.on{border-color:var(--accent);color:var(--accent)}
-.pkc-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.0625rem .5rem;border-radius:99rem;font-size:var(--fs-xs);border:1px solid var(--line2);color:var(--text2);background:var(--bg3)}
 .pkc-badge.ok{border-color:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
-.pkc-badge svg{width:var(--ic-s);height:var(--ic-s)}
-.pkc-desc{font-size:var(--fs-s);color:var(--text2);overflow-wrap:anywhere;white-space:pre-line}
 .pkc-desc.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.pkc-st{display:flex;flex-wrap:wrap;gap:.5rem;align-items:baseline;font-size:var(--fs-s)}
 .pkc-st .muted{font-size:var(--fs-xs)}
-.pkc-acts{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.25rem}
 .pkc-acts .btn{min-height:2.75rem}
 /* 2.80.0 C (#1897) phone: the toast's action button 44 px also where the device reports a fine pointer (emulators, styluses) -
    same test as isTouch()/isMobile(); the contacts' selection bar never scrolls sideways: the count gets its own line, the
@@ -8083,14 +7851,10 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 /* 2.81.0 B (#1834) correct an archived document: tax lines, client filter, history */
 .r81b-dlg .r81b-ln{display:flex;gap:.5rem;align-items:center;margin-bottom:.375rem}
 .r81b-dlg .r81b-ln .numin{flex:1;min-width:0;min-height:2.75rem}
-.r81b-dlg .r81b-ln select{flex:0 0 auto;min-height:2.75rem;max-width:55%}
 .r81b-dlg .r81b-ln .ib{min-width:2.75rem;min-height:2.75rem}
 .r81b-dlg .r81b-lbl{display:block;font-weight:600;margin-bottom:.25rem}
 .r81b-dlg .r81b-sum{margin:.375rem 0 0}
 .r81b-dlg .r81b-paid{min-height:2.75rem;display:flex;align-items:center;gap:.5rem}
-.r81b-dlg .r81b-hist summary{min-height:2.75rem;display:flex;align-items:center;cursor:pointer}
-.r81b-dlg .r81b-hist ul{list-style:none;margin:0;padding:0}
-.r81b-dlg .r81b-hist li{display:flex;flex-direction:column;padding:.375rem 0;border-top:1px solid var(--line, rgba(127,127,127,.2))}
 /* 2.82.0 B (#1880) review bar: 44 px targets for Approve / Back on phones */
 @media (pointer:coarse){.apbar.rvwbar .apacts .btn{min-height:2.75rem}}
 /* 2.96.0 (#1941): "Move to another workspace" -- one dialog for files, wiki pages, tables (spacemove.js) */
@@ -8134,8 +7898,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 /* 2.115.0 A (#2061) inbound webhooks of a list (hookin.js): the URL shown once, the curl example */
 .whi-url code{overflow-wrap:anywhere;word-break:break-all}
 .whi-ex{margin-top:.375rem}
-.whevg{margin:.5rem 0}
-.whevg > b{display:block;font-size:var(--fs-xs);margin-bottom:.25rem}
 
 /* 2.138.0 B (#2161): search docked at the bottom of the sidebar; head = logo + avatar, then workspace button + fold-all */
 #side{display:flex;flex-direction:column;padding-bottom:0}
@@ -8164,12 +7926,6 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 :root #side .wsbar,:root:is([data-sdensity="compact"],[data-sbase="compact"]) #side .wsbar{width:auto;min-height:2rem}
 @media (pointer:coarse){ :root #side .wsbar,:root:is([data-sdensity="compact"],[data-sbase="compact"]) #side .wsbar{width:auto;min-height:2.75rem} }
 :root #side .sbsrch,:root:is([data-sdensity="compact"],[data-sbase="compact"]) #side .sbsrch{margin-bottom:.5rem}  /* room above the first group heading */
-/* 2.143.0 D (#2156): activity per organisation (Administration > Organisation) */
-.actwrap{overflow-x:auto}
-.acttbl{border-collapse:collapse;width:100%;font-size:var(--fs-s)}
-.acttbl th,.acttbl td{padding:.375rem .5rem;text-align:right;border-bottom:1px solid var(--line2);white-space:nowrap}
-.acttbl th:first-child{text-align:left;font-weight:500}
-.acttbl thead th{color:var(--muted);font-weight:500;font-size:var(--fs-xs)}
 /* 2.143.0 A (#2151): read-only / accounting in an organisation's office: no create or delete buttons (the server refuses them) */
 .dash.office[data-ofcro] :is([data-ofc="new"], [data-ofd^="new"], .iconbtn.danger, .btn.danger) { display: none; }
 /* 2.139.0 B (#2128): voice messages in the team chat (voice.js): the recording bar over the composer, the player of an audio file */
