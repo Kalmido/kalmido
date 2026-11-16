@@ -291,7 +291,8 @@ def token_list_add(c, lid):
     raw = (t["list_ids"] if "list_ids" in t.keys() else "") or ""
     run = t["run_lists"] if "run_lists" in t.keys() else None
     if run is not None:  # 2.1287.0 (#6454): the run token of a team agent: the new project belongs to this run too (its cut only)
-        c.execute("UPDATE api_tokens SET run_lists=? WHERE id=?", (",".join(str(x) for x in sorted(ids_parse(run) | {lid})), t["id"]))
+        # review F8: marked "+" -- made in this run, it stays in the cut without a role of the person (core/access.py token_lists)
+        c.execute("UPDATE api_tokens SET run_lists=? WHERE id=?", (",".join([x for x in str(run).split(",") if x.strip()] + [f"+{int(lid)}"]), t["id"]))
         g.token = c.execute("SELECT * FROM api_tokens WHERE id=?", (t["id"],)).fetchone()
         g.pop("token_lists", None)
     if not raw.strip():

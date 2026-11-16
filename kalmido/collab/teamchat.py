@@ -13,6 +13,7 @@ from ..accounts.orgs import may_see
 from ..core.access import collab_all, Denied, FULL_ROLES, list_role, MANAGE_ROLES, task_visible, vis_sql, WRITE_ROLES, list_state_sql
 from ..core.access import access_note, health_hidden, org_trips_hidden, ov_open, reading_sql, token_lists  # 2.281.0 B (#3110)
 from ..core.access import live_sql  # 2.783.0 (#5368): the trash filter of the core
+from ..core.access import act_for  # 2.1287.0 (#6454, review F1)
 from ..accounts.orgroles import FULL_READ, org_say_refusal, role_known
 from ..accounts.orgs import INSTANCE_ENV
 from ..tasks.validation import as_int
@@ -171,7 +172,9 @@ def tchat_room_ok(c, r, uid):
     if not r:
         return False
     if r["kind"] == "dm":
-        return uid in (r["a"], r["b"])
+        # 2.1287.0 (#6454, review F1): a team agent's run for a person reads only its direct conversation with that person
+        who = act_for(uid)
+        return uid in (r["a"], r["b"]) and (who is None or any(p in (r["a"], r["b"]) for p in who))
     if r["kind"] in TCX_KINDS:  # 2.113.1 (#2059)
         from .teamchan import tcx_room_ok
         return tcx_room_ok(c, r, uid)

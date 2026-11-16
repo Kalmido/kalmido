@@ -13,6 +13,8 @@ from ..core.i18n import tr
 from ..core.db import bump, connect, db, iso, now_utc, parse_iso, usettings
 from ..accounts.session import GATE
 from ..core.access import Denied, task_visible, acx_task_ok, list_role
+from ..api.runfor import run_job_ok  # 2.1287.0 (#6454, review F1)
+from ..core.access import run_person, token_lists  # 2.1287.0 (#6454, review F1)
 from ..tasks.validation import as_int
 from ..collab.comments import collab_user, lang_of, user_names
 from ..collab.news import news_add, notif_ok
@@ -187,6 +189,16 @@ def _agent_events_after(c, aid, since, n):
                            (aid, since, n - len(out))).fetchall()
 
 
+def run_events(c, aid, data):
+    """2.1287.0 (#6454, review F1): the events GET /agent/events answers in a team agent's run for a person: as the run's
+    first batch (agents/srvteam.py srv_events_cut) -- never what other people told the agent elsewhere."""
+    by = run_person()
+    if by is None:
+        return data
+    from .srvteam import srv_events_cut
+    return srv_events_cut(c, by or None, token_lists() or frozenset(), data)
+
+
 def h6e_events_visible(c, aid, envs):
     """2.86.0 (N32): queued events of a list the agent no longer sees (removed, limited by list_ids, list deleted) or of a task
     it can no longer see are left out when read (the cursor still moves past them)."""
@@ -280,6 +292,7 @@ def v1_agent_events():
     more = len(rows) > limit
     rows = rows[:limit]
     data = h6e_events_visible(db(), aid, [json.loads(r["payload"]) for r in rows])  # 2.86.0 (N32)
+    data = run_events(db(), aid, data)  # 2.1287.0 (#6454, review F1): a run for a person reads only that person's events
     from ..agents.safety import access_events
     access_events(data)  # 2.30.0 (#919): the lists these events come from count as read in the access log
     mids = chat_event_mids(data)
@@ -380,7 +393,7 @@ def v1_agent_jobs():
     q = "SELECT * FROM agent_jobs WHERE agent_id=?" + \
         ("" if st == "all" else " AND state IN ('running','waiting')" if st == "open" else " AND state=?")
     rows = c.execute(q + " ORDER BY id DESC LIMIT 200", (aid,) if st in ("all", "open") else (aid, st)).fetchall()
-    return jsonify(data=[job_dict(c, j) for j in rows], next_cursor=None)
+    return jsonify(data=[job_dict(c, j) for j in rows if run_job_ok(c, j)], next_cursor=None)
 
 
 # ---------------------------------------------------------------- 2.392.0 A (#3367): the hard limits of starting work
@@ -504,7 +517,7 @@ def v1_agent_job_update(jid):
     aid = need_agent()
     c = db()
     j = c.execute("SELECT * FROM agent_jobs WHERE id=? AND agent_id=?", (jid, aid)).fetchone()
-    if not j:
+    if not j or not run_job_ok(c, j):  # 2.1287.0 (#6454, review F1)
         raise Denied(404)
     if j["approval"]:  # 2.15.0 (#479): a request waiting for approval: its title and state belong to the server
         raise Denied(409, tr("A request waiting for approval cannot be changed"))

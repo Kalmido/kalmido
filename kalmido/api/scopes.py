@@ -20,6 +20,7 @@ from ..accounts.session import me
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from ..core.access import Denied, need_list, need_task, need_time, ROLES, task_visible, token_lists, tvis, vis_sql, list_role, list_roles, MANAGE_ROLES, list_archived_sql
 from ..core.access import qn_private  # 2.477.0 (#3881)
+from ..core.access import run_person  # 2.1287.0 (#6454, review)
 from ..core.serializers import load_tasks
 from ..core.state import visible_lists
 from ..lists.lists import list_delete, member_remove, member_set
@@ -422,9 +423,15 @@ def approval_replay_token(c, header):
     c.execute("UPDATE agent_jobs SET approval=? WHERE id=?", (json.dumps({**ap, "ran": 1}), j["id"]))
     c.commit()
     g.approved_job = j["id"]
+    # 2.1287.0 (#6454, review F4): the replay passes the control gate, so the person who said Yes caps it here -- a team
+    # agent's approved request reaches outside projects only what that person may (core/access.py act_for)
+    a = agent_row(c, j["agent_id"])
+    if a is not None and not a["owner_id"] and j["action_by"]:
+        g.ctl_for = j["action_by"]
     if ap.get("tok"):  # 2.360.0 C (#2496): the token that asked (its lists / scopes), gone = no replay; older jobs: the newest
         return c.execute("SELECT * FROM api_tokens WHERE id=? AND user_id=?", (ap["tok"], j["agent_id"])).fetchone()
-    return c.execute("SELECT * FROM api_tokens WHERE user_id=? ORDER BY id DESC LIMIT 1", (j["agent_id"],)).fetchone()
+    # ... the newest of its own tokens: never the run token of a run for somebody else (asked_by, agents/srvteam.py)
+    return c.execute("SELECT * FROM api_tokens WHERE user_id=? AND asked_by IS NULL ORDER BY id DESC LIMIT 1", (j["agent_id"],)).fetchone()
 
 
 def approval_replay(jid, spec):
@@ -1252,7 +1259,8 @@ def v1_news():
         raise BadInput(tr("Invalid value: {0}", "filter"))
     j = v1_call(news_list)
     tl = token_lists()  # 2.30.0 (#919): a token limited to selected lists sees only their News (and News without a list)
-    items = [x for x in j["items"] if tl is None or not x.get("list_id") or x["list_id"] in tl]
+    run = run_person() is not None  # 2.1287.0 (#6454, review P2): a team agent's run for a person: only News of its projects
+    items = [x for x in j["items"] if tl is None or (not x.get("list_id") and not run) or x.get("list_id") in tl]
     return jsonify(data=items, unread=j["unread"] if tl is None else sum(1 for x in items if not x.get("read")), next_cursor=None)
 
 
