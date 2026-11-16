@@ -66,6 +66,7 @@ MBX_SEND_HOUR = 30      # mails one person sends from the filing in an hour
 MBX_RCPT = 20           # recipients of one mail (To + Cc)
 MBX_TEXT_MAX = 100000   # characters of a mail's text
 MBX_STALE_S = 600       # a mail still "sending" after this was never confirmed: shown as failed
+MBX_POLL_LIMIT = 10      # review F1 (#6545): "Fetch now" per person in 10 minutes
 MBX_TELL_AGAIN_S = 3 * 86400  # 2.1302.0 (#6545): an outage that lasts is told again after so long (News, push and mail)
 MBX_HALTED = N_("Fetching stopped: the server refused the sign-in several times in a row. Save the access data again.")
 MBX_TWICE = N_("This mailbox is also fetched by another workspace: its e-mails would go to either one at random.")
@@ -578,6 +579,10 @@ def mbx_poll_now():
     r = mbx_row(c, ws)
     if not r or not r["imap_host"]:
         raise Denied(404, tr("No mailbox is set up"))
+    # review F1 (#6545): every "Fetch now" is a login at the mailbox's server (and a failed one counts towards the notice):
+    # limited per person like the check
+    if hit_limit(f"mbxpoll:{me()}", MBX_POLL_LIMIT, 600):
+        return err(tr("Too many attempts, please wait a few minutes"), 429)
     if mbx_halted(r):  # 2.1302.0 (#6545): only new access data (or a check that logs in) lets it fetch again
         return err(tr(MBX_HALTED), 409)
     _DUE.add(ws)
@@ -740,14 +745,19 @@ def mbx_due(box, now, interval):
 
 def _mbx_trouble(c, box):
     """2.1302.0 (#6545): from INTEG_FAILS failures in a row the owners hear of the outage (News, push and mail), again every
-    MBX_TELL_AGAIN_S while it lasts (was once, News + push only). The caller commits."""
+    MBX_TELL_AGAIN_S while it lasts (was once, News + push only); the mail at most once per mailbox in MBX_TELL_AGAIN_S
+    (review F1, mailed_at). The caller commits."""
     from datetime import timedelta
     with system_ctx(c):
         r = c.execute("UPDATE hub_mailboxes SET told_at=? WHERE id=? AND fails>=? AND error<>'' AND (told_at IS NULL OR told_at<?) "
                       "RETURNING error, error_at", (_now(), box["id"], INTEG_FAILS, iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone()
         if r:
+            # review F1: the mail has a clock of its own (mailed_at) that saving, a check or a success never reset: told_at
+            # starts anew with new access data, so "save + 5 failed fetches" would else mail again and again
+            mail = bool(c.execute("UPDATE hub_mailboxes SET mailed_at=? WHERE id=? AND (mailed_at IS NULL OR mailed_at<?) RETURNING id",
+                                  (_now(), box["id"], iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone())
             integ_tell(c, _mbx_owners(c, box), "mailbox_auth" if r["error"] == "auth" else "mailbox",
-                       box["imap_user"] or box["imap_host"], str(r["error_at"] or "")[:10], click="mailhub", mail=True, ws=box["ws"])
+                       box["imap_user"] or box["imap_host"], str(r["error_at"] or "")[:10], click="mailhub", mail=mail, ws=box["ws"])
 
 
 def mbx_poll_one(box, hold=None):

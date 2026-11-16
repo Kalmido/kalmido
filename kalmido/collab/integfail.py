@@ -55,8 +55,9 @@ def integ_tell(c, uids, what, name, detail="", click="", mail=False, **data):
     """What went wrong (a key of INTEG_TEXT) with the thing called name, for each of uids once. click = where to repair it:
     the page after # (a push); data = what the News item needs to open it. name: a text, or f(language) when it needs
     translating. detail: a date, or a text marked with N_. The caller commits; never fails its caller's work.
-    mail (2.1302.0, #6545): an e-mail too (the background mail queue, only with outgoing mail and an address), for whoever
-    has the event "integration" on in the News or as a push -- switching the event off stops the mail as well."""
+    mail (2.1302.0, #6545): an e-mail too (the background mail queue, only with outgoing mail and a proved address), for
+    whoever has the event "integration" on in the News or as a push -- switching the event off stops the mail as well. The
+    caller limits how often (review F1: hub/mailbox.py mailed_at, at most one mail per mailbox in MBX_TELL_AGAIN_S)."""
     pushes, mails = [], []
     try:
         with c.savepoint(), system_ctx(c):  # the recipients' settings and News, whoever or whatever noticed it
@@ -75,8 +76,12 @@ def integ_tell(c, uids, what, name, detail="", click="", mail=False, **data):
                 if push_on:
                     pushes.append((uid, tr("Integration problem", lg=lg), text, f"{PUBLIC_URL}/#{click or 'settings'}", push_prio(s)))
                 if mail and (news_on or push_on):
-                    to = (c.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone()["email"] or "").strip()
-                    if to:
+                    # 2.1302.0 (#6545 review F1): only a proved address (users.email_proved, like integrations/mail.py and
+                    # core/access.py): the profile address is free text, so an unproved one would let anyone have the server
+                    # send mails with their own text (the mailbox user name) to a stranger
+                    em = c.execute("SELECT email, email_proved FROM users WHERE id=?", (uid,)).fetchone()
+                    to = (em["email"] or "").strip()
+                    if to and (em["email_proved"] or "") == to.lower():
                         mails.append((uid, to, lg, text))
     except Exception as e:  # noqa: BLE001
         print("integration notice failed:", what, type(e).__name__, flush=True)
