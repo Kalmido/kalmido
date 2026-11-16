@@ -19,6 +19,7 @@ from datetime import date, timedelta
 from flask import Response, jsonify
 
 from ..core.config import PUBLIC_URL, app, WATCHDOG_INTERVAL
+from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..core.db import iso, local_now, now_utc
 from ..core.i18n import N_, lang, short_day, tr
 from ..core.pg import insert_id
@@ -347,5 +348,4 @@ def abo_tick(c, now=None, force=False):
             c.execute("UPDATE office_sub_reminders SET task_id=? WHERE fixed_id=? AND due=?", (tid, r["id"], due))
             c.commit()
         except Exception as e:  # noqa: BLE001
-            c.rollback()
-            print("subscription reminder", r["id"], "failed:", e, flush=True)
+            _wd_fail(c, "subscription reminder", r["id"], e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)

@@ -13,6 +13,7 @@ from flask import jsonify
 
 from ..core.access import live_sql, my_inbox
 from ..core.config import PUBLIC_URL, WATCHDOG_INTERVAL, app
+from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..core.db import body, bump, iso, local_now, now_utc
 from ..core.errors import BadInput
 from ..core.i18n import N_, lang, tr, trn
@@ -129,8 +130,7 @@ def ccn_tick(c, now=None, force=False):
             with system_ctx(c):
                 ccn_area(c, oid, today)
         except Exception as e:  # noqa: BLE001 -- one broken area never stops the others
-            c.rollback()
-            print("card positions reminder", oid, "failed:", e, flush=True)
+            _wd_fail(c, "card positions reminder of area", oid, e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
 
 
 def _public(c, oid, s):
