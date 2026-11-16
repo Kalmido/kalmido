@@ -40,6 +40,7 @@ from .invoices import (INV_KINDS, INV_STATUSES, STATE_TXT, inv_apply_client, inv
 from .invoices import ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
 from .invoices import inv_credit_pack, inv_refund_open  # 2.354.0 D (#2837, #2838)
 from .invoices import inv_number_year, inv_pay_add  # 2.355.0 A (#2839, #2847)
+from .invoices import inv_manual_seq  # 2.1289.0 (#6481 N2)
 
 DOC_KINDS = ("offer",) + INV_KINDS + ("delivery",)  # 2.120.0 D (#2089): delivery notes / proofs of service (office/delivery.py); 2.38.0 (#1021, F1): invoices, credit notes, reminders live in office/invoices.py
 STATUSES = ("draft", "sent", "accepted", "declined", "superseded")  # 2.437.0 B (#3621): superseded = replaced by a newer quotation (replaces_id)
@@ -1065,6 +1066,8 @@ def _assign_number(c, oid, did, s=None, manual=None, reason=""):
             raise BadInput(tr("Invalid value: {0}", "number"))
         if r["kind"] != "offer":  # 2.38.0: only above the series' last value (no back-dating), the counter follows
             inv_manual_number(c, oid, r, s, num, reason)
+        elif num != (r["number"] or ""):  # 2.1289.0 (#6481 N2): a quotation never takes a number of the invoice / correction series
+            odoc_offer_num_check(s, num)
     else:
         num = doc_next_number(c, oid, r, s)
     if c.execute("SELECT 1 FROM office_docs WHERE org_id=? AND number=? AND id!=?", (oid, num, did)).fetchone() or fi_number_taken(c, oid, num):
@@ -1078,21 +1081,63 @@ def _assign_number(c, oid, did, s=None, manual=None, reason=""):
 def doc_next_number(c, oid, r, s, peek=False):
     """The number of the scheme that document row r (no number yet, not a trial) gets from settings s; the counter moves.
     2.431.0 B (#3605): peek = the same choice (scheme, counter, project / client / initials / date / version) only looked
-    at, for the finalise dialog (odoc_number_preview) -- a later change of the choice lands in both."""
-    from .legacyimport import fi_number_taken
+    at, for the finalise dialog (odoc_number_preview) -- a later change of the choice lands in both.
+    2.1289.0 (#6481 N2): every value it passes because another document or the legacy archive carries it is an office log
+    line number ("taken by ..."); it counts on to the next free value (up to ODOC_NEXT_MAX), a scheme that cannot give
+    another value (no {seq}) or a longer run of taken values is a clear 409, never "already used"."""
     rec = _j(r["recipient"], {})
     d = date.fromisoformat(r["date"]) if r["date"] else local_now().date()
     # 2.118.0 A (#2265): a quotation's duplicate keeps the first one's running number with the next {version};
     # quotations count per organisation, client or project (onc_next)
     ver, num = onc_version(c, oid, r, inv_scheme(s, r["kind"]), lambda x: {"project": x["project_title"], "client": _j(x["recipient"], {}).get("name") or "",
                                                                          "initials": _initials(c, x["created_by"]), "kuerzel": _client_code(c, x)})
-    for i in range(0 if num else 50):  # a scheme without {seq} uniqueness (e.g. only {date}): keep counting until free
+    if num:
+        return num
+    seen = set()
+    for i in range(ODOC_NEXT_MAX):  # a scheme without {seq} uniqueness (e.g. only {date}): keep counting until free
         num, _seq = onc_next(c, oid, s, r, inv_scheme(s, r["kind"]), d, peek=peek, ahead=i if peek else 0, project=r["project_title"],
                              client=rec.get("name") or "", initials=_initials(c, r["created_by"]), version=ver, kuerzel=_client_code(c, r))
-        if not c.execute("SELECT 1 FROM office_docs WHERE org_id=? AND number=? AND id!=?", (oid, num, r["id"])).fetchone() \
-                and not fi_number_taken(c, oid, num):  # 2.39.1 (#1182): nor a number of the legacy archive
+        by = odoc_number_taken_by(c, oid, num, r["id"])  # 2.39.1 (#1182): also a number of the legacy archive
+        if by is None:
+            return num
+        if peek:
+            continue
+        if num in seen:  # the scheme gives this value again (no {seq}): no free one will come
             break
-    return num
+        seen.add(num)
+        ofx_log(c, oid, "number", doc_id=r["id"], detail={"skipped": num, "reason": by})
+    if peek:
+        return num
+    raise DeniedKey(409, N_("The next number {0} of the series is already taken and the scheme gives no free one soon; set the next number under number ranges"), num)
+
+
+ODOC_NEXT_MAX = 1000  # 2.1289.0 (#6481 N2): taken values doc_next_number counts past (each one logged) before it gives up
+
+
+def odoc_number_taken_by(c, oid, num, did):
+    """2.1289.0 (#6481 N2): None when number num is free for document did of office oid, else the reason it is not, for
+    the office log ("taken by document #12 (quotation)", "taken by the legacy archive")."""
+    from .legacyimport import fi_number_taken
+    x = c.execute("SELECT id, kind FROM office_docs WHERE org_id=? AND number=? AND id!=? LIMIT 1", (oid, num, did)).fetchone()
+    if x is not None:
+        return tr("taken by document #{0} ({1})", x["id"], tr(ODOC_KIND_WORDS.get(x["kind"], x["kind"])))
+    if fi_number_taken(c, oid, num):
+        return tr("taken by the legacy archive")
+    return None
+
+
+ODOC_KIND_WORDS = {"offer": N_("Quotation"), "invoice": N_("Invoice"), "credit": N_("Credit note"), "reminder": N_("Payment reminder|dunning"),
+                   "delivery": N_("Delivery note")}
+
+
+def odoc_offer_num_check(s, num):
+    """2.1289.0 (#6481 N2): a hand-set quotation number must not follow the scheme of the invoice or correction series (it
+    would take a value of that gap-free series); a scheme the quotations share with it is no conflict. BadKey otherwise."""
+    own = inv_scheme(s, "offer")
+    for k in ("invoice", "credit"):
+        sch = inv_scheme(s, k)
+        if sch and sch != own and inv_manual_seq(sch, num) is not None:
+            raise BadKey(N_("The number {0} follows the scheme {1} of the invoices or corrections; a quotation needs a number of its own"), num, sch)
 
 
 def _client_code(c, r):
