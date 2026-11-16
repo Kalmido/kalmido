@@ -411,12 +411,17 @@ function dashCard(k) {
   const tasksList = (ts, n = 6) => ts.length ? `<ul class="dtl">${/*html-ok*/ ts.slice(0, n).map(t => { const l = listById(t.list_id); return `<li><button type="button" class="chk p${t.priority}" data-act="toggle" data-id="${t.id}" role="checkbox" aria-checked="false" aria-label="${esc(tr('Complete: {0}', mdPlain(t.title)))}"></button><a href="#t/${t.id}" class="dtt">${mdTitleNL(t.title)}</a>${hpSubc(t)}${/*html-ok*/ l && !l.is_inbox ? (ws_isOrigin(l) ? ws_originHtml(l, lname(l), 'hpll') /* 2.1213.0 (#6126): under "All" workspace · project */ : `<span class="hpll">${esc(lname(l))}</span>`) : ''}${t.due ? `<span class="dt ${dueClass(t)}">${esc(hpDue(t))}</span>` : ''}</li>`; }).join('')}</ul>${ts.length > n ? `<p class="muted dmore">${trh('{0} more', ts.length - n)}</p>` : ''}` : '';
   // 2.45.0 (#1504): an empty card is one slim line ("Waiting for you: nothing"), still a named section
   const slim = (txt = tr('{0}: nothing', tr(name))) => `<section class="dcard dempty dc-${k}" aria-labelledby="dh-${k}"><h3 id="dh-${k}"><span>${esc(txt)}</span></h3></section>`;
+  // 2.1249.0 (#6125): the three states of a card from the shared blocks (render.js): loading = a quiet placeholder of fixed
+  // height under the card's title (never the empty sentence first), failed = errorState with "Try again"
+  const loading = (more = '') => card(`<div class="dcload">${/*html-ok*/ loadingHtml('row')}</div>`, more);
+  const failed = (retry, more = '') => card(errorState({size: 'row', retry}), more);
   if (k === 'wait') {
     // 2.1111.0 (#5963): while the box "Waiting for you" stands, the mentions are in it: here only the agent lines, nothing when empty
-    const boxed = collab() && bellCount() > 0, js = waitJobs ? waitJobs() : [], ments = boxed ? [] : (S.nf.items || []).filter(it => !it.read && ['mention', 'assign', 'approval', 'proposal'].includes(it.kind));
+    const boxed = collab() && bellCount() > 0, js = waitJobs ? waitJobs() : [], ments = boxed ? [] : hpWaitMents();
     const rows = [...js.map(j => `<li><a href="#agents">${hdot('waiting')}<span class="dwt">${esc(tr('{0} waits for you', j.agent_name))}: ${esc(j.title)}</span></a></li>`),
-      ...ments.slice(0, 5).map(it => `<li><a href="${it.task_id ? '#t/' + it.task_id : '#news'}">${ic(NEWS_ICON[it.kind] || 'bell', 's')}<span class="dwt">${newsText(it, S.nf.users)}${it.task_title ? ' · ' + esc(it.task_title) : ''}</span>${/*html-ok*/ hpWsMark(hpItemWs(it), hpItemNm(it)) /* 2.1213.0 (#6126) */}</a></li>`)];
-    return rows.length ? card(`<ul class="dwl">${rows.join('')}</ul>`, '', rows.length) : (boxed ? '' : slim());
+      ...ments.map(([it]) => `<li><a href="${it.task_id ? '#t/' + it.task_id : '#news'}">${ic(NEWS_ICON[it.kind] || 'bell', 's')}<span class="dwt">${newsText(it, S.nf.users)}${it.task_title ? ' · ' + esc(it.task_title) : ''}</span>${/*html-ok*/ hpWsMark(hpItemWs(it), hpItemNm(it)) /* 2.1213.0 (#6126) */}</a></li>`)];
+    // 2.1249.0 (#6125): empty = no card while the card News says "Nothing waits for you" (was a second "Waiting for you: nothing")
+    return rows.length ? card(`<ul class="dwl">${rows.join('')}</ul>`, '', rows.length) : boxed || hpShown('news') ? '' : slim(tr('Nothing waits for you'));
   }
   if (k === 'today') {
     const ts = openTasks().filter(t => !t.parent_id && t.due && t.due <= t0).sort((a, b) => dueKey(a).localeCompare(dueKey(b)) || b.priority - a.priority);
@@ -431,24 +436,32 @@ function dashCard(k) {
     return card(add + evh + (tasksList(ts, lyo_get('home', 'today', 'n', 8)) || (evs.length ? '' : `<p class="muted">${tr('Nothing left for today.')}</p>`)), '', (ts.length + evs.length) || '');  // 2.45.0 (#1504): no "Open" (the draft; Today is in the sidebar)
   }
   if (k === 'news') {
-    if (S.nf.items === null || S.nf.sig !== (S.news?.sig ?? '')) { if (!S.nf.loading) loadNews().then(() => { if (S.route.mod === 'home') renderView(); }); }
-    const vis = (S.nf.items || []).map((it, i) => [it, i]).filter(([it]) => !it.read);
+    hpNewsLoad();
+    // 2.1249.0 (#6125): "All news" is the link in the card's head (was a button below); loading / failed = the shared blocks
+    const allA = `<a class="linkbtn" href="#news">${tr('All news')}</a>`;
+    if (S.nf.items === null) return S.nf.err ? failed(hpNewsRetry, allA) : loading(allA);
+    // 2.1249.0 (#6125): what the box "Waiting for you" (or the card Waiting for you) above shows is not listed here again
+    const above = new Set([...hpBoxItems(), ...(collab() && bellCount() > 0 ? [] : hpWaitMents())].map(([, i]) => i));
+    const vis = (S.nf.items || []).map((it, i) => [it, i]).filter(([it, i]) => !it.read && !above.has(i));
     // 2.45.0 (#1504): compact, at most 5, a bundle is one line, "All news" below. 2.1037.0 (#5807): only what waits for me (For you:
     // the deadline lines, then the bundles for me); empty: "Nothing waits for you" -- the rest is the history of the News view
     const boxed = collab() && bellCount() > 0, due = boxed ? [] : hpDueRows(), gs = newsGroups(vis).filter(g => g.needs).slice(0, Math.max(0, lyo_get('home', 'news', 'n', 5) - due.length));  // 2.55.0 (#1065)
     if (!gs.length && !due.length) return boxed ? '' : slim(tr('Nothing waits for you'));  // 2.1111.0 (#5963): the deadline lines stand once, in the box "Waiting for you" above
     const dueLi = ([k, n, ws, nm]) => `<li class="needs hpdue"><a href="#today"><span class="dwt">${esc(k === 'today' ? trn('{0} task due today', '{0} tasks due today', n) : trn('{0} task overdue', '{0} tasks overdue', n))}</span>${/*html-ok*/ hpWsMark(ws, nm) /* 2.1213.0 (#6126) */}</a></li>`;
-    return card(`<ul class="dwl hpnl">${/*html-ok*/ due.map(dueLi).join('')}${gs.map(hpNewsRow).join('')}</ul><a class="linkbtn hpall" href="#news">${tr('All news')}</a>`, '', bellCount() || '');
+    return card(`<ul class="dwl hpnl">${/*html-ok*/ due.map(dueLi).join('')}${gs.map(hpNewsRow).join('')}</ul>`, allA, boxed ? '' : bellCount() || '');  // 2.1249.0 (#6125): the number stands once, in the box
   }
   if (k === 'kpi') return typeof kp_tile === 'function' ? kp_tile(card) : '';  // 2.50.0 (#1197)
   // 2.769.0 (#5352): "Recently edited" over Knowledge, Files and Reading (recent.js, loaded on demand; a placeholder of 8 rows until then)
   if (k === 'recent') return typeof zle_homeHtml === 'function' ? zle_homeHtml(card, slim) : (ld_later('recent'), card('<div class="zleph" style="--zlen:8" aria-busy="true"></div>'));
   if (k === 'chat') {
     if (!teamOn()) return '';
-    if (S.tc.rooms === null && !S.tc.loading) { S.tc.loading = true; loadTeam().then(() => { S.tc.loading = false; if (S.route.mod === 'home') renderView(); }); }
+    // 2.1249.0 (#6125): a failed load is said with "Try again" (it loaded again on every draw, the card read "Team chat: nothing")
+    if (S.tc.rooms === null && !S.tc.loading && !S.tc.err) { S.tc.loading = true; loadTeam().then(() => { S.tc.loading = false; if (S.route.mod === 'home') renderView(); }); }
+    const openA = `<a class="linkbtn" href="#team">${tr('Open')}</a>`;
+    if (S.tc.rooms === null) return S.tc.err && !S.tc.loading ? failed(() => { S.tc.err = null; renderView(); }, openA) : loading(openA);
     const rs = (S.tc.rooms || []).filter(r => r.last).slice(0, 4);
     if (!rs.length) return slim();
-    return card(`<ul class="dwl">${rs.map(r => `<li><a href="#team/${r.id}">${roomIcon(r)}<span class="dwt"><b>${esc(roomName(r))}</b> ${esc(r.last.text)}</span>${/*html-ok*/ hpWsMark(hpRoomWs(r), roomName(r), 'hpwsn') /* 2.1213.0 (#6126) */}${r.unread ? `<span class="nbadge">${r.unread}</span>` : ''}</a></li>`).join('')}</ul>`, `<a class="linkbtn" href="#team">${tr('Open')}</a>`, S.team?.unread || '');
+    return card(`<ul class="dwl">${rs.map(r => `<li><a href="#team/${r.id}">${roomIcon(r)}<span class="dwt"><b>${esc(roomName(r))}</b> ${esc(r.last.text)}</span>${/*html-ok*/ hpWsMark(hpRoomWs(r), roomName(r), 'hpwsn') /* 2.1213.0 (#6126) */}${r.unread ? `<span class="nbadge">${r.unread}</span>` : ''}</a></li>`).join('')}</ul>`, openA, S.team?.unread || '');
   }
   if (k === 'projects') {
     // 2.45.0 (#1504): only active projects (not complete, not on hold), at most 5; none at all = no card
@@ -464,7 +477,7 @@ function dashCard(k) {
     const prog = l => { const x = pn.get(l.id); return x ? x.dn / x.n : 0; };
     if (srt === 'name') ps.sort((a, b) => lname(a).localeCompare(lname(b), LOCALE())); else if (srt === 'progress') ps.sort((a, b) => prog(b) - prog(a));
     return card(`<ul class="dpl">${ps.slice(0, lyo_get('home', 'projects', 'n', 5)).map(l => { const pc = Math.round(prog(l) * 100);
-      return `<li><a href="#l/${l.id}"><span class="dpn">${esc(lname(l))}</span><span class="dpb" role="img" aria-label="${esc(tr('{0} % done', pc))}"><i style="width:${pc}%"></i></span><span class="dpp">${pc} %</span></a></li>`; }).join('')}</ul>${overviewOn() ? `<a class="linkbtn hpall" href="#overview">${tr('All projects')}</a>` : ''}`, '', ps.length, act ? tr('Active projects') : tr('Projects'));
+      return `<li><a href="#l/${l.id}"><span class="dpn">${esc(lname(l))}</span><span class="dpb" role="img" aria-label="${esc(tr('{0} % done', pc))}"><i style="width:${pc}%"></i></span><span class="dpp">${pc} %</span></a></li>`; }).join('')}</ul>`, overviewOn() ? `<a class="linkbtn" href="#overview">${tr('All projects')}</a>` : '', ps.length, act ? tr('Active projects') : tr('Projects'));  // 2.1249.0 (#6125): the link in the head
   }
   if (k === 'pinned') {
     const ts = openTasks().filter(t => t.pinned && !t.parent_id);
@@ -507,13 +520,27 @@ function dashCard(k) {
   }
   return '';
 }
+// 2.1249.0 (#6125): the feed for the start page, loaded once per change (a failed load waits for "Try again", it no longer
+// loaded again on every draw)
+function hpNewsLoad() {
+  if (S.nf.loading || (S.nf.items === null ? S.nf.err : S.nf.sig === (S.news?.sig ?? ''))) return;
+  loadNews().then(() => { if (S.route.mod === 'home') renderView(); });
+}
+function hpNewsRetry() { S.nf.err = null; hpNewsLoad(); renderView(); }
+// 2.1249.0 (#6125): the entries the box "Waiting for you" shows ([item, index]; every workspace, 2.1213.0 #6126); the card News leaves them out
+const hpBoxItems = () => collab() && bellCount() > 0 ? (S.nf.items || []).map((it, i) => [it, i]).filter(([it]) => !it.read && newsForMe(it)).slice(0, 4) : [];
+// the mentions / assignments the card Waiting for you lists while the box is not there
+const hpWaitMents = () => (S.nf.items || []).map((it, i) => [it, i]).filter(([it]) => !it.read && ['mention', 'assign', 'approval', 'proposal'].includes(it.kind)).slice(0, 5);
+const hpShown = k => !lyPref('home').hidden.has(k);
 // 2.28.0 (#987): "N messages for you" above everything on the start page while something from people is unread
 function forMeBanner() {
   if (!collab()) return '';
   const n = bellCount(); if (!n) return '';
-  if (S.nf.items === null || S.nf.sig !== (S.news?.sig ?? '')) { if (!S.nf.loading) loadNews().then(() => { if (S.route.mod === 'home') renderView(); }); }
-  const its = (S.nf.items || []).map((it, i) => [it, i]).filter(([it]) => !it.read && newsForMe(it)).slice(0, 4), dms = dmRows().slice(0, 3);  // 2.1213.0 (#6126): every workspace like the box's number, another one with its mark (was: only the shown one)
-  return `<section class="dtome" aria-labelledby="dtome-h"><h3 id="dtome-h">${ic('at', 's')}<span>${esc(tr('Waiting for you: {0}', n)) /* 2.1037.0 (#5807): the bell's number, deadlines included */}</span><span class="spacer"></span><a class="linkbtn" href="#news">${tr('Show all')}</a></h3>
+  hpNewsLoad();
+  const its = hpBoxItems(), dms = dmRows().slice(0, 3);
+  // 2.1249.0 (#6125): while the entries load a quiet placeholder of the same height, failed = errorState with "Try again"
+  const st = S.nf.items !== null ? '' : S.nf.err ? errorState({size: 'row', retry: hpNewsRetry}) : `<div class="dcload">${/*html-ok*/ loadingHtml('row')}</div>`;
+  return `<section class="dtome" aria-labelledby="dtome-h"><h3 id="dtome-h">${ic('at', 's')}<span>${esc(tr('Waiting for you: {0}', n)) /* 2.1037.0 (#5807): the bell's number, deadlines included */}</span><span class="spacer"></span><a class="linkbtn" href="#news">${tr('Show all')}</a></h3>${/*html-ok*/ st}
     <ul class="dwl">${hpDueRows().map(([k, n, ws, nm]) => `<li><a href="#today">${ic(k === 'today' ? 'cal' : 'alarm', 's')}<span class="dwt">${esc(k === 'today' ? trn('{0} task due today', '{0} tasks due today', n) : trn('{0} task overdue', '{0} tasks overdue', n))}</span>${/*html-ok*/ hpWsMark(ws, nm)}</a></li>`).join('')}${dms.map(r => `<li><a href="#team/${r.id}">${av(r.user_id, r.name, 'avatar')}<span class="dwt"><b>${esc(r.name)}</b> ${esc(r.last ? mdBrief(r.last.text) : '')}</span>${/*html-ok*/ hpWsMark(hpRoomWs(r), r.name, 'hpwsn')}<span class="nbadge">${r.unread}</span></a></li>`).join('')}${its.map(([it, i]) => `<li><button type="button" class="dwb" data-act="news-open" data-i="${i}">${av(it.actor_id, uname(it.actor_id, S.nf.users), 'avatar')}<span class="dwt">${newsText(it, S.nf.users)}${it.task_title ? ' · ' + esc(it.task_title) : ''}</span>${/*html-ok*/ hpWsMark(hpItemWs(it), hpItemNm(it))}</button></li>`).join('')}</ul></section>`;
 }
 // ---- 2.45.0 (#1504) the start page: one sentence on top, compact news lines, "since HH:MM" of a running job
@@ -523,7 +550,7 @@ function hpEvents() {
   const t0 = today(); ensureCalEv(t0, t0);
   return cevOn(t0).filter(cvxTodayOn).sort(cevSort);
 }
-function hpSummary() {
+function hpSummary(todayCard) {
   const t0 = today(), ts = openTasks().filter(t => !t.parent_id && t.due && t.due <= t0);  // 2.1111.0 (#5963): the sentence names only today (the card's number); "overdue" stands once, in the box "Waiting for you"
   const wa = agentsOn() ? (S.agents || []).filter(a => agentHst(a) === 'working') : [], ag = wa.length;
   // 2.144.0 C (#2418): the running jobs behind the working agents ("1 agent working (10 jobs)"; the number only when > 0)
@@ -535,7 +562,7 @@ function hpSummary() {
   const parts = [ts.length && trn('{0} task for today', '{0} tasks for today', ts.length),
     ows.length && (owsN.size === 1 ? trn('{0} overdue in {1}', '{0} overdue in {1}', ows.length, wsName([...owsN][0])) : trn('{0} overdue in other workspaces', '{0} overdue in other workspaces', ows.length)),
     ag && (nj ? trn('{0} agent working', '{0} agents working', ag) + ' ' + trn('({0} job)', '({0} jobs)', nj) : trn('{0} agent working', '{0} agents working', ag))].filter(Boolean);
-  if (!parts.length) return `<p class="hpsum">${esc(tr('Nothing due today.'))}</p>`;
+  if (!parts.length) return todayCard ? '' : `<p class="hpsum">${esc(tr('Nothing due today.'))}</p>`;  // 2.1249.0 (#6125): the card Today says it once
   const x = parts.join(', ');
   return `<p class="hpsum">${esc(x.charAt(0).toUpperCase() + x.slice(1) + '.').replace(/\d+/g, '<b>$&</b>')}</p>`;
 }
@@ -566,9 +593,27 @@ function viewHome() {
   const greet = (() => { const h = new Date().getHours(); return h < 11 ? tr('Good morning, {0}', S.me?.display_name || '') : h < 18 ? tr('Hello, {0}', S.me?.display_name || '') : tr('Good evening, {0}', S.me?.display_name || ''); })();
   const parts = Object.fromEntries(lyBlocks('home').map(b => [b[0], dashCard(b[0])]));
   if (S.ly.view === 'home') return `<div class="dash">${lyEditor('home', {parts})}</div>`;  // 2.35.0 (#1097): with the cards
+  // 2.1249.0 (#6125): a new, empty account gets the card "Getting started" instead of a row of grey "…: nothing" lines
+  const first = hpFirstOn();
+  if (first) for (const k in parts) if (/^<section class="dcard dempty/.test(parts[k] || '')) parts[k] = '';
   return `<div class="dash"><div class="dashhead"><h2>${esc(greet)}</h2><span class="muted">${esc(fmtDateLoc(today()))}</span><span class="spacer"></span>${lyCustomBtn('home')}</div>
-    ${/*html-ok*/ qd_slot('dashq')}${''/* 2.955.0 (#5239): the Dada quote of the day */}${hpSummary()}${forMeBanner()}${lyHtml('home', parts, {cols: true, empty: `<p class="muted">${tr('Every block is hidden. “+ Block” brings them back.')}</p>`})}</div>`;
+    ${/*html-ok*/ qd_slot('dashq')}${''/* 2.955.0 (#5239): the Dada quote of the day */}${/*html-ok*/ hpSummary(!!parts.today && hpShown('today'))}${forMeBanner()}${/*html-ok*/ first ? hpFirstHtml() : ''}${lyHtml('home', parts, {cols: true, empty: `<p class="muted">${tr('Every block is hidden. “+ Block” brings them back.')}</p>`})}</div>`;
 }
+// 2.1249.0 (#6125): "Getting started" while the account has no project and no task yet (the practice project of a new
+// account counts as one: then the cards themselves show it); each step leads into an area that is already there
+const hpFirstOn = () => !S.tasks.size && !S.lists.some(l => !l.is_inbox && !l.archived);
+function hpFirstHtml() {
+  const st = [[`<a href="#inbox">`, '</a>', 'inbox', tr('Write down your first task'), tr('Everything starts in the inbox; sort it later.')],
+    ['<button type="button" class="dwb" data-hpfirst="project">', '</button>', 'list', tr('Create a project'), tr('A project bundles tasks, files and notes.')],
+    ['<button type="button" class="dwb" data-hpfirst="tour">', '</button>', 'arrow', tr('Take the short tour'), tr('Two minutes through the most important places.')],
+    [`<a href="#help">`, '</a>', 'help', tr('How it works'), tr('The help explains every area.')]];
+  return `<section class="dcard dfirst" aria-labelledby="dh-first"><h3 id="dh-first">${ic('star', 's')}<span>${esc(tr('Getting started'))}</span></h3>
+    <ol class="dwl dfsteps">${st.map(([a, z, icon, t, sub]) => `<li>${/*html-ok*/ a}${ic(icon, 's')}<span class="dwt"><b>${esc(t)}</b> <span class="muted">${esc(sub)}</span></span>${/*html-ok*/ z}</li>`).join('')}</ol></section>`;
+}
+document.addEventListener('click', e => {
+  const b = /** @type {HTMLElement} */ (e.target).closest?.('[data-hpfirst]'); if (!b) return;
+  if (b.getAttribute('data-hpfirst') === 'project') listModal(); else tourStart();
+});
 document.addEventListener('submit', e => {
   if (!e.target.matches?.('[data-dsearch]')) return;
   e.preventDefault();

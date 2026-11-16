@@ -8800,7 +8800,6 @@
   "This page cannot be read: the key of its encryption is missing. It opens again once the server key of this installation is restored; otherwise it can only be deleted.": "Cette page ne peut pas être lue : la clé de son chiffrement est manquante. Elle se rouvre dès que la clé serveur de cette installation est restaurée ; sinon, elle ne peut qu'être supprimée.",
   "The page cannot be read (the key of its encryption is missing)": "La page ne peut pas être lue (la clé de son chiffrement est manquante)",
   "{0} page skipped: {1} (not readable)": ["{0} page ignorée : {1} (illisible)", "{0} pages ignorées : {1} (illisibles)"],
-  "{0} for you": "{0} pour toi",
   "Number schemes with more than four text building blocks: {0}. Numbering no longer continues from the numbers given under them; shorten them in Office > Settings ({1}).": "Schémas de numérotation avec plus de quatre blocs de texte : {0}. La numérotation ne reprend plus à partir des numéros déjà attribués ; raccourcissez-les dans Bureau > Paramètres ({1}).",
   "Date with hyphens": "Date avec tirets",
   "This document is not finalised yet": "Ce document n'est pas encore finalisé",

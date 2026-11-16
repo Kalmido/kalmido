@@ -366,6 +366,9 @@ def ofx_finalize(c, oid, uid, did):
     if r["kind"] == "credit":
         from .invoices import inv_credit_pack
         pack = inv_credit_pack(c, oid, r, pack)  # 2.354.0 D (#2838): its snapshot freezes the invoice's rates too
+    if r["kind"] == "offer":  # 2.1249.0 (#6281, review): the parts' cached totals (printed when locked) by today's rules, not the last save's
+        from .parts import tp_recalc
+        tp_recalc(c, oid, r)
     t = doc_totals(c, oid, r)
     lines = {ln.get("id"): ln for ln in t["lines"] if ln.get("kind") in ("item", "discount")}
     for it in doc_items(c, did, oid):

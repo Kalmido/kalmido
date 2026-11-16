@@ -1,0 +1,62 @@
+{
+  "de": {
+    "Write down your first task": "Schreib deine erste Aufgabe auf",
+    "Everything starts in the inbox; sort it later.": "Alles beginnt im Eingang; sortieren kannst du später.",
+    "Create a project": "Lege ein Projekt an",
+    "A project bundles tasks, files and notes.": "Ein Projekt bündelt Aufgaben, Dateien und Notizen.",
+    "Take the short tour": "Mach den kurzen Rundgang",
+    "Two minutes through the most important places.": "Zwei Minuten durch die wichtigsten Stellen.",
+    "The help explains every area.": "Die Hilfe erklärt jeden Bereich.",
+    "on the marked positions and the parts": "auf die markierten Positionen und die Teilangebote",
+    "{pct} % on the marked positions and the parts|calc": "{pct} % auf die markierten Positionen und die Teilangebote",
+    "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % auf die markierten Positionen, die Teilangebote und die Handlungskosten"
+  },
+  "es": {
+    "Write down your first task": "Anota tu primera tarea",
+    "Everything starts in the inbox; sort it later.": "Todo empieza en la bandeja de entrada; ordénalo después.",
+    "Create a project": "Crea un proyecto",
+    "A project bundles tasks, files and notes.": "Un proyecto agrupa tareas, archivos y notas.",
+    "Take the short tour": "Haz el recorrido breve",
+    "Two minutes through the most important places.": "Dos minutos por los lugares más importantes.",
+    "The help explains every area.": "La ayuda explica cada área.",
+    "on the marked positions and the parts": "sobre las partidas marcadas y los presupuestos parciales",
+    "{pct} % on the marked positions and the parts|calc": "{pct} % sobre las partidas marcadas y los presupuestos parciales",
+    "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sobre las partidas marcadas, los presupuestos parciales y los gastos de gestión"
+  },
+  "fr": {
+    "Write down your first task": "Note ta première tâche",
+    "Everything starts in the inbox; sort it later.": "Tout commence dans la boîte de réception ; trie plus tard.",
+    "Create a project": "Crée un projet",
+    "A project bundles tasks, files and notes.": "Un projet regroupe tâches, fichiers et notes.",
+    "Take the short tour": "Fais la courte visite",
+    "Two minutes through the most important places.": "Deux minutes à travers les endroits les plus importants.",
+    "The help explains every area.": "L'aide explique chaque espace.",
+    "on the marked positions and the parts": "sur les postes marqués et les sous-devis",
+    "{pct} % on the marked positions and the parts|calc": "{pct} % sur les postes marqués et les sous-devis",
+    "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sur les postes marqués, les sous-devis et les frais de gestion"
+  },
+  "it": {
+    "Write down your first task": "Annota il tuo primo compito",
+    "Everything starts in the inbox; sort it later.": "Tutto inizia nella posta in arrivo; riordina dopo.",
+    "Create a project": "Crea un progetto",
+    "A project bundles tasks, files and notes.": "Un progetto raccoglie compiti, file e note.",
+    "Take the short tour": "Fai il breve tour",
+    "Two minutes through the most important places.": "Due minuti attraverso i punti più importanti.",
+    "The help explains every area.": "La guida spiega ogni area.",
+    "on the marked positions and the parts": "sulle voci contrassegnate e sui preventivi parziali",
+    "{pct} % on the marked positions and the parts|calc": "{pct} % sulle voci contrassegnate e sui preventivi parziali",
+    "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sulle voci contrassegnate, sui preventivi parziali e sulle spese di gestione"
+  },
+  "nl": {
+    "Write down your first task": "Schrijf je eerste taak op",
+    "Everything starts in the inbox; sort it later.": "Alles begint in de inbox; sorteer later.",
+    "Create a project": "Maak een project aan",
+    "A project bundles tasks, files and notes.": "Een project bundelt taken, bestanden en notities.",
+    "Take the short tour": "Volg de korte rondleiding",
+    "Two minutes through the most important places.": "Twee minuten langs de belangrijkste plekken.",
+    "The help explains every area.": "De hulp legt elk onderdeel uit.",
+    "on the marked positions and the parts": "op de gemarkeerde posities en de deelofferten",
+    "{pct} % on the marked positions and the parts|calc": "{pct} % op de gemarkeerde posities en de deelofferten",
+    "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % op de gemarkeerde posities, de deelofferten en de handlingkosten"
+  }
+}

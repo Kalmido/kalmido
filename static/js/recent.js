@@ -95,8 +95,9 @@ function zle_homeHtml(card, slim) {
   const sp = all ? 'all' : ws, n = !all && ZLE.more ? ZLE_N : ZLE_HOME_N, d = zle_data(sp, n);
   if (d?.items && !d.items.length) return slim(tr('Recently edited: nothing'));
   const ovr = ['wiki', 'ablage', 'reading'].find(m => m === 'wiki' ? feat('wiki') : m === 'ablage' ? typeof ab_on === 'function' && ab_on() : feat('reading'));
-  const more = d?.items?.length >= ZLE_HOME_N ? (all ? (ovr ? `<a class="linkbtn hpall" href="#${ovr}/recent">${esc(tr('More'))}</a>` : '') : !ZLE.more ? `<button type="button" class="linkbtn hpall" data-act="zle-more">${esc(tr('More'))}</button>` : '') : '';
-  return card(zle_listHtml(d, n, all && wsOn(), '') + more);
+  // 2.1249.0 (#6125): "More" is the link in the card's head, as every card of the start page (was below the list)
+  const more = d?.items?.length >= ZLE_HOME_N ? (all ? (ovr ? `<a class="linkbtn zlemore" href="#${ovr}/recent">${esc(tr('More'))}</a>` : '') : !ZLE.more ? `<button type="button" class="linkbtn zlemore" data-act="zle-more">${esc(tr('More'))}</button>` : '') : '';
+  return card(zle_listHtml(d, n, all && wsOn(), ''), more);
 }
 document.addEventListener('click', e => {
   const fb = /** @type {any} */ (e.target).closest?.('[data-zlef]');
