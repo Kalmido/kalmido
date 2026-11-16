@@ -48,6 +48,8 @@ LPU_KEYS = {"name": "name", "color": "color", "view": "view", "kind": "kind", "d
             "def_ttype": "def_ttype", "ttypes": "ttypes"}
 LPU_META = ("_prev", "expect_updated_at", "folder_adopt")
 LPU_DISPLAY = ("view",)  # 2.1184.0 (#6137): display switches -- never a step of their own, never part of one
+# 2.1231.0 (#5880): "archived" is no column any more -- the archive is archived_at (the marker lists.state follows it on the
+# step back, lists/lmcore.py undo_skip / undo_gone); the key stays for the body and list_out's value
 LPU_COLS = frozenset(v for k, v in LPU_KEYS.items() if k not in LPU_DISPLAY) | {"archived_at"}
 LPU_RENAMED = N_("Renamed to {0}")  # the key exists
 LPU_FIELD = N_("{0}: {1}")  # the key exists

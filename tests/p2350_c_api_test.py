@@ -117,29 +117,30 @@ for m, u, b in (("GET", f"/api/orgs/{ORG}/lists", None), ("POST", f"/api/orgs/{O
                 ("DELETE", f"/api/orgs/{ORG}/lists/{TEAM}", {"confirm": "Bob Team"})):
     r = requests.request(m, B + u, headers=AGH, json=b)
     check(r.status_code in (401, 403), f"#1101: an agent with admin rights gets no access ({m} {u}): {r.status_code}")
-check(dbx("SELECT archived FROM lists WHERE id=?", (TEAM,))[0][0] == 0, "#1101: the agent changed nothing")
+# 2.1231.0 (#5880): the column archived of lists is gone - archived is archived_at set
+check(dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END FROM lists WHERE id=?", (TEAM,))[0][0] == 0, "#1101: the agent changed nothing")
 
 # private list, inbox, a list id of nothing: 404 (never 403 with something in it)
 for lid in (PRIV, BINBOX, 99999):
     check(A.post(B + f"/api/orgs/{ORG}/lists/{lid}/archive", json={"archived": True}).status_code == 404, f"#1101: archive list {lid} (private / inbox / none): 404")
     check(A.delete(B + f"/api/orgs/{ORG}/lists/{lid}", json={"confirm": "x"}).status_code == 404, f"#1101: delete list {lid}: 404")
     check(A.post(B + f"/api/orgs/{ORG}/lists/{lid}/owner", json={"user_id": CAROL}).status_code == 404, f"#1101: hand over list {lid}: 404")
-check(dbx("SELECT archived FROM lists WHERE id=?", (PRIV,))[0][0] == 0, "#1101: the private list is untouched")
+check(dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END FROM lists WHERE id=?", (PRIV,))[0][0] == 0, "#1101: the private list is untouched")
 
 # ---- archive, the owner restores, archive again
 check(A.delete(B + f"/api/orgs/{ORG}/lists/{TEAM}", json={"confirm": "Bob Team"}).status_code == 409, "#1101: deleting needs the archive first (409)")
 check(A.post(B + f"/api/orgs/{ORG}/lists/{TEAM}/archive", json={"archived": "yes"}).status_code == 400, "#1101: archived must be true / false")
 r = A.post(B + f"/api/orgs/{ORG}/lists/{TEAM}/archive", json={"archived": True})
 check(r.ok and {x["id"]: x for x in r.json()["lists"]}[TEAM]["archived"] is True, "#1101: the admin archives a list of another person")
-check(dbx("SELECT archived, archived_at IS NOT NULL FROM lists WHERE id=?", (TEAM,))[0] == (1, 1), "#1101: archived with its time")
+check(dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END, archived_at IS NOT NULL FROM lists WHERE id=?", (TEAM,))[0] == (1, 1), "#1101: archived with its time")
 nb = news(Bo)
 check(nb and nb[0]["data"]["action"] == "archive" and nb[0]["data"]["name"] == "Bob Team" and nb[0]["actor_id"] == 1, "#1101: the owner is told (News) " + json.dumps(nb[:1]))
 check(any(x["data"]["action"] == "archive" for x in news(Ca)), "#1101: the members are told")
 check(not news(Da), "#1101: nobody outside the list is told")
-check(Bo.patch(B + f"/api/lists/{TEAM}", json={"archived": False}).ok and dbx("SELECT archived FROM lists WHERE id=?", (TEAM,))[0][0] == 0, "#1101: the owner restores it from the archive")
+check(Bo.patch(B + f"/api/lists/{TEAM}", json={"archived": False}).ok and dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END FROM lists WHERE id=?", (TEAM,))[0][0] == 0, "#1101: the owner restores it from the archive")
 check(A.post(B + f"/api/orgs/{ORG}/lists/{TEAM}/archive", json={"archived": True}).ok, "#1101: archived again")
 r = A.post(B + f"/api/orgs/{ORG}/lists/{TEAM}/archive", json={"archived": False})
-check(r.ok and dbx("SELECT archived, archived_at FROM lists WHERE id=?", (TEAM,))[0] == (0, None), "#1101: the admin restores it")
+check(r.ok and dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END, archived_at FROM lists WHERE id=?", (TEAM,))[0] == (0, None), "#1101: the admin restores it")
 check(any(x["data"]["action"] == "restore" for x in news(Bo)), "#1101: restore told")
 A.post(B + f"/api/orgs/{ORG}/lists/{TEAM}/archive", json={"archived": True})
 
@@ -167,7 +168,7 @@ check(not any(x["id"] == TEAM for x in Ca.get(B + "/api/trash/lists").json()["li
       "#1988: a member (no admin) neither sees nor restores nor purges it")
 r = requests.post(B + f"/api/trash/lists/{TEAM}/restore", headers=AGH)
 check(r.status_code in (401, 403, 404), f"#1988: an agent with admin rights cannot restore it: {r.status_code}")
-check(A.post(B + f"/api/trash/lists/{TEAM}/restore").ok and dbx("SELECT deleted_at, org_id, archived FROM lists WHERE id=?", (TEAM,))[0] == (None, ORG, 1)
+check(A.post(B + f"/api/trash/lists/{TEAM}/restore").ok and dbx("SELECT deleted_at, org_id, CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END FROM lists WHERE id=?", (TEAM,))[0] == (None, ORG, 1)
       and not dbx("SELECT 1 FROM tasks WHERE id IN (?, ?) AND deleted_at IS NOT NULL", (T1, T2)), "#1988: restored into the organisation (archived) with both tasks")
 check(any(x["action"] == "undelete" for x in A.get(B + f"/api/orgs/{ORG}/lists").json()["log"]), "#1988: the history names the restore")
 
@@ -249,7 +250,7 @@ check(Da.get(B + f"/api/orgs/{ORG}/lists").status_code == 404, "workspaces: anot
 check(Da.post(B + f"/api/orgs/{ORG}/lists/{KEEP}/archive", json={"archived": True}).status_code == 404, "workspaces: ... and for its lists")
 check(Da.post(B + f"/api/orgs/{BETA}/lists/{KEEP}/archive", json={"archived": True}).status_code == 404, "workspaces: our list through Beta: 404")
 check(Da.delete(B + f"/api/orgs/{BETA}/lists/{KEEP}", json={"confirm": "Bob Keep"}).status_code == 404, "workspaces: deleting our list through Beta: 404")
-check(dbx("SELECT archived FROM lists WHERE id=?", (KEEP,))[0][0] == 0, "workspaces: nothing changed across the boundary")
+check(dbx("SELECT CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END FROM lists WHERE id=?", (KEEP,))[0][0] == 0, "workspaces: nothing changed across the boundary")
 check(A.get(B + f"/api/orgs/{BETA}/lists").status_code == 404, "workspaces: an instance admin who is not in Beta: 404")
 check(A.get(B + f"/api/orgs/{ORG}/lists").ok, "workspaces: alice (organisation admin role) still manages her organisation")
 check(Bo.get(B + f"/api/orgs/{ORG}/lists").status_code == 403, "workspaces: a plain member: 403")

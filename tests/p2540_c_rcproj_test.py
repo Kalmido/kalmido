@@ -91,7 +91,8 @@ HEALTH, BUDGET, LOCKED, ARCH = (project(Fr, n) for n in ("Health notes", "Budget
 dbx("UPDATE lists SET life='health' WHERE id=?", (HEALTH,), write=True)
 dbx("UPDATE lists SET life='budget' WHERE id=?", (BUDGET,), write=True)
 dbx("UPDATE lists SET e2e='x' WHERE id=?", (LOCKED,), write=True)
-dbx("UPDATE lists SET archived=true WHERE id=?", (ARCH,), write=True)
+# 2.1231.0 (#5880): the column archived of lists is gone - archived = archived_at set, written through state
+dbx("UPDATE lists SET state='archived' WHERE id=?", (ARCH,), write=True)
 INBOX = [x[0] for x in dbx("SELECT id FROM lists WHERE owner_id=? AND is_inbox", (FID,))]
 
 D1, D2, D3, D4 = (upload(Fr, f"receipt-{i}.pdf", f"Receipt {i} total 10.00 EUR") for i in range(1, 5))

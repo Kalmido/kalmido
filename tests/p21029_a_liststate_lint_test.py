@@ -142,7 +142,9 @@ check(steps == [("lists", "state", "ALTER TABLE lists ADD COLUMN IF NOT EXISTS s
 sch = frag.get("SCHEMA", "")
 check("BEFORE INSERT OR UPDATE ON lists FOR EACH ROW" in sch and " UPDATE OF " not in sch and "GENERATED" not in sch.upper(),
       "the trigger runs before every insert and update, without a column list (SCHEMA runs before the column exists; no generated column)")
-for want in ("'trash'", "'archived'", "'live'", "j->>'deleted_at'", "j->>'archived'", "IF NOT j ? 'state' THEN RETURN NEW"):
+# 2.1231.0 (#5880): the archive is archived_at (the column archived is gone), never the old column
+check("j->>'archived'," not in sch and "j ? 'archived' " not in sch, "the trigger no longer reads the old column archived")
+for want in ("'trash'", "'archived'", "'live'", "j->>'deleted_at'", "j->>'archived_at'", "IF NOT j ? 'state' THEN RETURN NEW"):
     check(want in sch, f"the trigger's rule names {want}")
 # 2.1054.0 (#5794): the rule of the final marker is its own line (the marker written on purpose names 'archived' before it)
 rule = next((x for x in sch.splitlines() if "NEW.state := CASE" in x), "")

@@ -26,12 +26,20 @@ live_sql); a write of state='trash' decides nothing. Still additive: CREATE OR R
 before puts its own back on its start and finds archived written by this one.
 
 2.1118.0 (#5952): lists.archived is BOOLEAN (core/colbool.py); the function reads 'true' / 'false' from the JSON of the row
-as well and writes the column in its own type."""
+as well and writes the column in its own type.
+
+2.1231.0 (#5880, stage 3b, one-way): the old column archived is gone (migrations.d/5880_a.py drops it after the start's
+move, core/liststate.py lst_move). The trigger is one-sided again, as in stage 1, but from archived_at: 'trash' while
+deleted_at is set, else 'archived' while archived_at is set, else 'live' -- a write that changes state to 'live' /
+'archived' on purpose (core/access.py list_set_archived; an INSERT that names 'archived') decides, and the trigger keeps
+archived_at with it (set when it is missing, cleared on 'live'), so marker and archived_at never part. A project in the
+trash keeps its archive in archived_at (core/access.py list_archived_sql). A write that leaves state as it was (the undo of
+the settings writes archived_at back, never the marker -- lists/lmcore.py undo_skip) sets the marker from archived_at."""
 SCHEMA = """
 CREATE OR REPLACE FUNCTION kalmido_list_state() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
   j JSONB := to_jsonb(NEW);
-  a BOOLEAN := COALESCE(j->>'archived', '0') NOT IN ('0', '', 'false');  -- 2.1118.0 (#5952): BIGINT 0/1 or BOOLEAN
+  a BOOLEAN := COALESCE(j->>'archived_at', '') <> '';  -- 2.1231.0 (#5880): the archive is archived_at (the column archived is gone)
 BEGIN
   IF NOT j ? 'state' THEN RETURN NEW; END IF;  -- an older database during its first start (a step before the column, e.g. tap_done)
   IF NEW.state IN ('live', 'archived') THEN  -- 2.1054.0 (#5794): the marker written on purpose decides the archive
@@ -41,8 +49,8 @@ BEGIN
       a := NEW.state = 'archived';
     END IF;
   END IF;
-  IF j ? 'archived' THEN  -- the way back: archived follows the marker (2.1118.0, #5952: BOOLEAN since then, BIGINT before)
-    IF pg_typeof(NEW.archived) = 'boolean'::regtype THEN NEW.archived := a; ELSE NEW.archived := CASE WHEN a THEN 1 ELSE 0 END; END IF;
+  IF j ? 'archived_at' THEN  -- 2.1231.0 (#5880): archived_at goes with the marker (when it went into the archive, kept while there)
+    IF NOT a THEN NEW.archived_at := NULL; ELSIF NEW.archived_at IS NULL THEN NEW.archived_at := CURRENT_TIMESTAMP; END IF;
   END IF;
   NEW.state := CASE WHEN COALESCE(j->>'deleted_at', '') <> '' THEN 'trash' WHEN a THEN 'archived' ELSE 'live' END;
   RETURN NEW;

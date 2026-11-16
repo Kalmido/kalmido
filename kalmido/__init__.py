@@ -49,6 +49,7 @@ ORDER = (
     "core.ephem",  # 2.622.0 (#3891): short-lived state for every web process (sign-in steps, tickets)
     "core.pgbus",  # 2.622.0 (#3891): signals between the processes of an instance (pg_notify)
     "core.kernretire",  # 2.924.0 (#5069): stage 7 of the shared core, the start check and DROP of an old member table
+    "core.liststate",  # 2.1231.0 (#5880): the move before the old column archived of lists goes (core/db.py init_db)
     "api.common",  # 2.149.0 G (#2517): the /api/v1 route helpers (core layer, see LAYER_OF)
     "core.srchreg",  # 2.1026.0 (#5280): the one registry of the searches + the routes /api/search and /api/v1/search
     "core.tokenhash",  # 2.138.0 C (#1907): upload / calendar tokens as hashes

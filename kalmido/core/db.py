@@ -1027,6 +1027,10 @@ def init_db(guard=True):
             for f in list(objhooks.MOVE):  # 2.972.0 (#5272): comments / comment_trash_text into obj_comments (core/objcomments.py
                 f(c)                       # ocm_move), before the fragment 5272_a drops them
         clk("objhooks_move")
+        from .liststate import lst_move
+        with pg_system_ctx(c):  # every organisation's projects (row-level security)
+            lst_move(c)  # 2.1231.0 (#5880): archived_at / the marker from the old column archived of lists, before the fragment 5880_a drops it
+        clk("lst_move")
         # review 2.972: after the comments' move - an upgrade from before 2.763 finds the old comment_reactions' targets in
         # obj_comments only once ocm_move ran (orx_move joins the parent table; before, they were lost)
         from .objreact import orx_move
@@ -1536,12 +1540,14 @@ def init_db(guard=True):
             # kalmido_offer_link_list (migrations.d/4586_a.py) follow their task's list once
             c.execute("UPDATE task_offer_links l SET list_id=t.list_id FROM tasks t WHERE t.id=l.task_id AND l.list_id<>t.list_id")
             gset(c, "migr_offerlist4586", "1")
-        # 2.1029.0 (#5537, migr_liststate5537): every start, the projects' state marker agrees with archived / deleted_at
-        # (migrations.d/5537_a.py; the trigger kalmido_list_state keeps it so; this reconcile covers the rows of before, a
-        # restored dump and a rollback that dropped the trigger -- review of 2.1029; touches only rows that differ)
+        # 2.1029.0 (#5537): every start, the projects' state marker agrees with archived_at / deleted_at (migrations.d/5537_a.py; the
+        # trigger kalmido_list_state keeps it so; this reconcile covers a rollback that dropped the trigger -- review of 2.1029; touches
+        # only rows that differ). 2.1231.0 (#5880): archived_at, the old column archived is gone; review 2.1231: a row marked archived
+        # without its moment (the trigger off, hand-made SQL) gets one first, so it keeps its archive (flag migr_liststate5537)
         with pg_system_ctx(c):  # every organisation's projects (row-level security)
+            c.execute("UPDATE lists SET archived_at=CURRENT_TIMESTAMP WHERE state='archived' AND archived_at IS NULL")
             c.execute("UPDATE lists SET state=state WHERE state IS DISTINCT FROM (CASE WHEN deleted_at IS NOT NULL THEN 'trash'"
-                      " WHEN archived THEN 'archived' ELSE 'live' END)")
+                      " WHEN archived_at IS NOT NULL THEN 'archived' ELSE 'live' END)")
         gset(c, "migr_liststate5537", "1")
         from .fkeys import fk_ensure
         fk_ensure(c)  # 2.152.0 C (#2174): the missing foreign keys (orphans cleaned first), every start, idempotent
