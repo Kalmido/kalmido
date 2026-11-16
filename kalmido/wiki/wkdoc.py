@@ -58,19 +58,27 @@ _INLINE = re.compile(
     r"|<(?P<auto>(?:https?://|mailto:)[^>\s]{1,2000})>"
     r"|(?P<bare>https?://[^\s<>()\[\]]{0,2000}[^\s<>()\[\].,;:!?'\"])"
     r"|(?P<br><br\s{0,10}/?>)"
-    r"|\*\*(?=\S)(?P<b1>.{1,500}?)(?<=\S)\*\*"
-    r"|(?<!\w)__(?=\S)(?P<b2>.{1,500}?)(?<=\S)__(?!\w)"
-    r"|~~(?=\S)(?P<st>.{1,500}?)(?<=\S)~~"
-    r"|\*(?=[^\s*])(?P<i1>.{1,500}?)(?<=[^\s*])\*"
-    r"|(?<!\w)_(?=[^\s_])(?P<i2>.{1,500}?)(?<=[^\s_])_(?!\w)")
+    r"|\*\*(?=\S)(?P<b1>.{1,150}?)(?<=\S)\*\*"
+    r"|(?<!\w)__(?=\S)(?P<b2>.{1,150}?)(?<=\S)__(?!\w)"
+    r"|~~(?=\S)(?P<st>.{1,150}?)(?<=\S)~~"
+    r"|\*(?=[^\s*])(?P<i1>.{1,150}?)(?<=[^\s*])\*"
+    r"|(?<!\w)_(?=[^\s_])(?P<i2>.{1,150}?)(?<=[^\s_])_(?!\w)")
+# 2.1299.0 (#6653): the emphasis spans above were 500 characters: "**_a " repeated cost 0.27 s per 20,000 characters, about
+# 7 s for a full page; with 150 and the page budget below a page of open marks is read in well under a second
 WKD_INLINE_MAX = 20000  # characters of one paragraph read as Markdown; the rest of a longer one stays plain text
+WKD_PAGE_INLINE = 200000  # 2.1299.0 (#6653): characters of one page read as Markdown (wkd_blocks); the rest stays plain text
 
 
-def wkd_inline(s, style=frozenset(), href=""):
-    """The runs of one line / paragraph of Markdown."""
+def wkd_inline(s, style=frozenset(), href="", budget=None):
+    """The runs of one line / paragraph of Markdown. budget = [characters left] of the page (wkd_blocks): what is read here
+    is taken off; at 0 the text stays plain."""
     out, pos = [], 0
     s = str(s or "")
-    for m in _INLINE.finditer(s, 0, WKD_INLINE_MAX):
+    end = WKD_INLINE_MAX
+    if budget is not None:
+        end = min(len(s), WKD_INLINE_MAX, max(budget[0], 0))
+        budget[0] -= end
+    for m in _INLINE.finditer(s, 0, end):
         if m.start() > pos:
             out.append((s[pos:m.start()], style, href))
         pos = m.end()
@@ -133,10 +141,14 @@ def wkd_blocks(text):
     if m:
         text = text[m.end():]
     lines, out, para, i = text.split("\n"), [], [], 0
+    budget = [WKD_PAGE_INLINE]  # 2.1299.0 (#6653)
+
+    def inl(s):
+        return wkd_inline(s, budget=budget)
 
     def flush():
         if para:
-            out.append(("p", wkd_inline(" ".join(x.strip() for x in para))))
+            out.append(("p", inl(" ".join(x.strip() for x in para))))
             para.clear()
     while i < len(lines):
         ln = lines[i]
@@ -165,7 +177,7 @@ def wkd_blocks(text):
         h = md_head_line(ln)  # 2.1280.0 (#6423): linear (the pattern _HEAD took cubic time on a long run of blanks)
         if h:
             flush()
-            out.append(("h", h[0], wkd_inline(h[1])))
+            out.append(("h", h[0], inl(h[1])))
             i += 1
             continue
         if _HR.match(ln) and not (para and set(ln.strip()) == {"-"}):
@@ -174,7 +186,7 @@ def wkd_blocks(text):
             i += 1
             continue
         if para and set(ln.strip()) <= {"=", "-"} and len(ln.strip()) >= 2:  # a Setext heading
-            out.append(("h", 1 if ln.strip()[0] == "=" else 2, wkd_inline(" ".join(x.strip() for x in para))))
+            out.append(("h", 1 if ln.strip()[0] == "=" else 2, inl(" ".join(x.strip() for x in para))))
             para.clear()
             i += 1
             continue
@@ -189,7 +201,7 @@ def wkd_blocks(text):
             if n > WKD_TCOLS or n * len(rows) > WKD_TCELLS:  # review (job/4457): padding a huge table ran out of memory
                 out.append(("code", "\n".join(lines[i - len(rows) - 1:i])))
                 continue
-            out.append(("table", [[wkd_inline(c) for c in r + [""] * (n - len(r))] for r in rows], True))
+            out.append(("table", [[inl(c) for c in r + [""] * (n - len(r))] for r in rows], True))
             continue
         if ln.lstrip().startswith(">"):
             flush()
@@ -199,7 +211,7 @@ def wkd_blocks(text):
                 i += 1
             for part in re.split(r"\n\s*\n", "\n".join(q)):
                 if part.strip():
-                    out.append(("quote", wkd_inline(" ".join(x.strip().lstrip(">").strip() for x in part.split("\n")))))
+                    out.append(("quote", inl(" ".join(x.strip().lstrip(">").strip() for x in part.split("\n")))))
             continue
         li = _LI.match(ln)
         if li:
@@ -214,7 +226,7 @@ def wkd_blocks(text):
             t = _TASK.match(txt)
             num = li.group(2)
             out.append(("li", num[0].isdigit(), min(3, ind // 2), int(num[:-1]) if num[0].isdigit() else 0,
-                        (t.group(1) != " ") if t else None, wkd_inline(t.group(2) if t else txt)))
+                        (t.group(1) != " ") if t else None, inl(t.group(2) if t else txt)))
             continue
         im = _IMG_LINE.match(ln)
         if im:
