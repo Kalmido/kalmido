@@ -34,7 +34,8 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   const book = d.querySelector('#side [data-ofmg="book"]'), sell = d.querySelector('#side [data-ofmg="sell"]');
   check(book && !book.querySelector('.shead') && book.querySelectorAll('[data-ofm]').length === 1, '#2647: an entry of its own, no heading');
   check(sell && !sell.querySelector('[data-ofm="contacts"]'), '#2647: not a point of Sell any more ' + pts());
-  check(/^Address book$/.test(book?.querySelector('[data-ofm="contacts"] .n')?.textContent || ''), '#2647: it says Address book');
+  // 2.1286.0 (#6350): since 2.1168.0 (#6118) the entry is called Contacts (areas.js; "Address book" is a book inside it)
+  check(/^Contacts$/.test(book?.querySelector('[data-ofm="contacts"] .n')?.textContent || ''), '#2647 / #6118: it says Contacts: ' + book?.querySelector('[data-ofm="contacts"] .n')?.textContent);
   check(/^Letters & contracts$/.test(d.querySelector('#side [data-ofm="gendocs"] .n')?.textContent || ''), '#2646: gendocs says Letters & contracts: ' + d.querySelector('#side [data-ofm="gendocs"]')?.textContent);
   check(w.eval("tr(LY_CL_BLOCKS.find(b => b[0] === 'gendocs')[1])") === 'Letters & contracts', '#2646: the client card block too');
   // the address book page keeps its point lit in the panel
