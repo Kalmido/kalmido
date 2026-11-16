@@ -18745,8 +18745,6 @@
   "Import cancelled: {0} imported page moved to the trash": ["Import geannuleerd: {0} geïmporteerde pagina naar de prullenbak verplaatst", "Import geannuleerd: {0} geïmporteerde pagina’s naar de prullenbak verplaatst"],
   "Click to try again": "Klik om het opnieuw te proberen",
   "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "De projectcode {0} wordt in deze werkruimte al gebruikt: het project {1} kwam zonder code aan, de oude nummers vinden de taken nog steeds",
-  "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Intussen heeft iemand anders een nieuwere versie geüpload, die blijft staan: {0}",
-  "(you)": "(jij)",
   "They get the key right away: {0}.": "Krijgen de sleutel meteen: {0}.",
   "Still missing: {0}. They get the key once they have set up encryption in their account.": "Nog niet erbij: {0}. Zij krijgen de sleutel zodra ze in hun account de versleuteling hebben ingesteld.",
   "Only you get the key.": "Alleen jij krijgt de sleutel.",
