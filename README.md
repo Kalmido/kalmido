@@ -19,10 +19,10 @@
 
 ## What's new
 
-**2.1301.0** (2026-11-16):
-- **Agents**: approval cards carry the server's description of the bound step; standing rules stored by an agent need the person's confirmation; text from webhooks, git issues and account-less comments is marked untrusted.
-- **Imports**: a ZIP with more entries than the importer takes, or a JSON part with more than 3 million values, is refused before it is read into memory; new import uploads are rate limited per person (`KALMIDO_IMPORT_RATE`).
-- **Mail**: an e-mail that cannot be taken over is retried and reported instead of being lost silently.
+**2.1307.0** (2026-11-16):
+- **Office**: invoices and corrections take a number of your own in the finalise dialog; a small business cannot finalise an invoice that shows VAT.
+- **Imports**: imported invoice series and office reminders arrive paused, so nothing reaches clients twice.
+- **Office series**: a paused invoice series tells the admin once there is one again and keeps its pause reason.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 

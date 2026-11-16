@@ -23,6 +23,20 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1307.0] - 2026-11-16
+
+Package 2.1289 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #6481: an invoice or correction takes a hand-set number only in the finalise dialog ("Number of your own (optional)", office admins), checked and given in the same transaction as the finalising; `POST /api/office/docs/<id>/number` refuses it for invoices and corrections (409), `POST /api/office/docs/<id>/finalize` takes `{number, reason}`. Drafts that already carry a number show "Draft with number - please finalise" in the list and the view.
+- #6576: an organisation import (also a personal office imported into the private workspace) never arms anything: invoice series arrive paused (reason "paused by the import", their mail mark, try and failure count emptied), the office switches for reminder suggestions, overdue notices, quotation expiry notices and the bank / card receipt reminders arrive off, subscription reminders without their person; each with a warning in the import result and a hint in the preview.
+
+### Fixed
+- #6473: the procedure documentation derives the agents' office access from the office switches (which agents, drafts only, only a person finalises, log lines agent_read / agent_write) instead of "no access" unconditionally; the retention text names what happens when the organisation or account is deleted and at the end of the period; "Gutschrift" is "Rechnungskorrektur" / "Teilkorrektur"; a finalised correction is final, a mistake is billed with a new invoice (also in docs/OFFICE.md).
+- #6475: with the switch "Small business" an invoice that shows VAT cannot be finalised (section 14c UStG), and the VAT note "small business" (section 19) cannot be finalised without the switch; a correction keeps the tax of its invoice. The editor hides the VAT choice for a small business unless a draft differs (then with the hint "As a small business without VAT").
+- #6481: every number the counter passes because a document or the legacy archive carries it is an office log line with the reason, and the counter counts on to the next free number instead of ending with "already used"; a quotation cannot take a hand-set number of the invoice or correction scheme; `{date}` / `{isodate}` in a hand-set number must be the document date; a correction never dates before its invoice; the delete message of a numbered correction draft no longer names cancelling; finalised documents taken by an organisation import are marked "imported on ... by ..." in the list, the view and the auditor's export (`invoices.csv`: new columns `Importiert_am`, `Importiert_von` at the end; the PDF is unchanged).
+- #6629: an invoice series paused because its area had no office admin tells the admin once there is one again (task "series paused" with the reason; it stays off until a person switches it on) and keeps its reason (new nullable column `office_inv_series.pause_why`, shown in the series list); the mail lock of a series invoice no longer stays on the connection after a database error; a mail still due is never overwritten by the next invoice ("Make now" sends it first); failed runs count strictly in a row.
+
 ## [2.1304.0] - 2026-11-16
 
 Package 2.1291.0 (Retention export: only a complete, current export or the owner's own waiver lets records go).
@@ -58,6 +72,7 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1304.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1307.0...HEAD
+[2.1307.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1307.0
 [2.1304.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1304.0
 [2.1301.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1301.0
