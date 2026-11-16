@@ -18802,6 +18802,7 @@
   "Don’t adopt": "Niet overnemen",
   "Not adopted for {0} task": ["Niet overgenomen bij {0} taak", "Niet overgenomen bij {0} taken"],
   "Many failed CalDAV/CardDAV sign-ins from IP {0}. Devices that synced from there before go on; new ones are refused there for {1} min. Behind a shared address (office, NAT) look for an old device.": "Veel mislukte CalDAV/CardDAV-logins vanaf IP {0}. Apparaten die daar al eerder synchroniseerden, gaan door; nieuwe worden daar {1} min. geweigerd. Zoek achter een gedeeld adres (kantoor, NAT) naar een oud apparaat.",
+  "It builds only tasks you created yourself, never tasks of other members or tasks without a creator; comments of others reach the job only as information, never as an order.": "Hij bouwt alleen taken die je zelf hebt aangemaakt; taken van andere leden of zonder maker bouwt hij nooit, en opmerkingen van anderen bereiken de job alleen als informatie, nooit als opdracht.",
   "Proposed": "Voorgesteld",
   "Proposed by the agent: applies only when the person it came from confirms it in their chat.": "Voorgesteld door de agent: geldt pas als de persoon van wie hij komt hem in zijn chat bevestigt.",
   "No standing rules yet. Tell the agent in the chat or in a comment \"from now on always ...\" - it proposes the rule and you confirm it in your chat with the agent.": "Nog geen vaste regels. Zeg de agent in de chat of in een opmerking \"vanaf nu altijd ...\" - hij stelt de regel voor en jij bevestigt hem in je chat met de agent.",
