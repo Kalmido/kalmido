@@ -18826,6 +18826,7 @@
   "Its number is taken in the series; finalise the draft to close the gap": "Il suo numero è occupato nella serie; chiudi la bozza per non lasciare un vuoto",
   "Draft with number - please finalise": "Bozza con numero - da chiudere",
   "The number carries the date {0}, the document date is {1}": "Il numero porta la data {0}, la data del documento è {1}",
+  "The date of the correction must not lie before the date of its invoice {0} ({1})": "La data della correzione non può precedere la data della sua fattura {0} ({1})",
   "Date / priority of the parent task adopted for {0} task": ["Data / priorità dell'attività principale adottata per {0} attività", "Data / priorità dell'attività principale adottata per {0} attività"],
   "Date and priority of {0} adopted": "Data e priorità di {0} adottate",
   "Date of {0} adopted": "Data di {0} adottata",

@@ -150,6 +150,18 @@ def run(S, who, member=None):
         ok(r.ok and r.json()["number"] == right, f"N4: {right} with the document's own date is taken " + r.text[:160])
     ok(S.put(B + O + "/settings", json={"invoice_scheme": "RE-{yyyy}-{seq:03}"}).ok, "back to the yearly scheme")
 
+    # ---------------------------------------------------------------- S2 a correction never dates before its invoice
+    inv = invoice()
+    r = finalize(inv["id"])
+    ok(r.ok, "S2: invoice finalised " + r.text[:120])
+    num, day = r.json()["number"], date.fromisoformat(r.json()["date"])
+    cr = S.post(B + f"{D}/{inv['id']}/credit").json()
+    ok(S.patch(B + f"{D}/{cr['id']}", json={"date": (day - timedelta(days=1)).isoformat()}).ok, "S2: correction draft dated the day before")
+    r = finalize(cr["id"])
+    ok(r.status_code == 400 and "before the date of its invoice" in r.json().get("error", "") and num in r.json().get("error", ""),
+       f"S2: a correction before its invoice {num}: 400 naming it " + r.text[:200])
+    ok(S.patch(B + f"{D}/{cr['id']}", json={"date": day.isoformat()}).ok and finalize(cr["id"]).ok, "S2: with the invoice's date it is finalised")
+
     # ---------------------------------------------------------------- N3/S3 a number by hand only with the finalising
     inv = invoice()
     r = S.post(B + f"{D}/{inv['id']}/number", json={"number": re_(nxt())})
