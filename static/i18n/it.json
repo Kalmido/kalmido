@@ -18799,5 +18799,12 @@
   "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "L’eliminazione del tuo account {0} è stata annullata. Un amministratore ha bloccato l’account; solo un amministratore può sbloccarlo.",
   "An admin has locked your account; only an admin can unlock it.": "Un amministratore ha bloccato il tuo account; solo un amministratore può sbloccarlo.",
   "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Fattura {0}: l'aliquota IVA del {1} % non ha un conto automatico DATEV; viene esportata sul conto {2} - registrare a mano la sua IVA di {3}",
-  "Reminder fee, interest and flat fee {0}: {1}": "Commissione di sollecito, interessi e forfait {0}: {1}"
+  "Reminder fee, interest and flat fee {0}: {1}": "Commissione di sollecito, interessi e forfait {0}: {1}",
+  "Date / priority of the parent task adopted for {0} task": ["Data / priorità dell'attività principale adottata per {0} attività", "Data / priorità dell'attività principale adottata per {0} attività"],
+  "Date and priority of {0} adopted": "Data e priorità di {0} adottate",
+  "Date of {0} adopted": "Data di {0} adottata",
+  "Priority of {0} adopted": "Priorità di {0} adottata",
+  "Don’t adopt": "Non adottare",
+  "Not adopted for {0} task": ["Non adottato per {0} attività", "Non adottato per {0} attività"],
+  "Many failed CalDAV/CardDAV sign-ins from IP {0}. Devices that synced from there before go on; new ones are refused there for {1} min. Behind a shared address (office, NAT) look for an old device.": "Molti accessi CalDAV/CardDAV non riusciti dall'IP {0}. I dispositivi che si sono già sincronizzati da lì continuano; quelli nuovi vengono rifiutati lì per {1} min. Dietro un indirizzo condiviso (ufficio, NAT) cerca un vecchio dispositivo."
 }

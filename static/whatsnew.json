@@ -1,6 +1,16 @@
 {
  "versions": [
   {
+   "version": "2.1293.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Wird eine Unteraufgabe eigenständig, übernimmt sie Fälligkeit und Priorität der Elternaufgabe in leere Felder - mit dem Knopf „Nicht übernehmen“ in der Meldung.",
+     "en": "A subtask that becomes a task of its own takes the parent's due date and priority into empty fields - with the button \"Don't adopt\" in the message."
+    }
+   ]
+  },
+  {
    "version": "2.1285.0",
    "date": "2026-11-16",
    "items": [
@@ -1307,20 +1317,6 @@
     {
      "de": "Wischen in Dokumenten blättert jetzt wie eine Seite: das nächste Dokument gleitet gleich mit.",
      "en": "Swiping in documents now turns pages: the next document glides in along with your finger."
-    }
-   ]
-  },
-  {
-   "version": "2.719.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Beim Import eines CSV-Kontoauszugs fragt Kalmido jetzt, zu welchem Bankkonto er gehört, wenn du mehrere Konten hast.",
-     "en": "When you import a CSV bank statement and have several bank accounts, Kalmido now asks which account it belongs to."
-    },
-    {
-     "de": "Beleg-Abholer lassen sich auf bestimmte IP-Adressen beschränken (Schloss-Knopf beim Abholer).",
-     "en": "Receipt fetchers can be limited to certain IP addresses (lock button next to the fetcher)."
     }
    ]
   }

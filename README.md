@@ -19,9 +19,10 @@
 
 ## What's new
 
-**2.1291.0** (2026-11-16):
+**2.1292.0** (2026-11-16):
 - **Tasks**: a subtask that becomes a task of its own takes the parent's due date and priority into empty fields, with a "Don't adopt" button.
 - **Security**: every XML from outside (e-invoices, bank statements, DATEV, spreadsheets, calendar and feed answers, SVG) goes through one strict reader.
+- **Knowledge**: one long Markdown line can no longer hold the server (headings, tables, export, import, search snippets).
 - **Sync**: CalDAV/CardDAV app passwords get an id in front; addresses with many failed sign-ins are refused early.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
