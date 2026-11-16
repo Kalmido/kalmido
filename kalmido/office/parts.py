@@ -704,7 +704,8 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
         return v if fx is None else calc_home_rate(money(dec(v) * dec(q)), fx, q)
 
     def pos(title, qty, unit, rate, tax, detail="", cost=0, kind="service"):
-        # 2.1254.0 (#6299): a foreign rate unrounded (4 places x a large rate would miss the cent)
+        # 2.1254.0 (#6299): a foreign rate unrounded; office_doc_items.rate keeps 12 places (migrations.d/6299.py, was 4: x qty x a
+        # large rate that missed the cent)
         return {"kind": kind, "service_id": None, "title": title, "detail": detail, "qty": _num(dec(qty)), "unit": unit, "rate": _num(dec(rate)) if fx is None else dec(rate),
                 "tax": tax, "intext": "intern", "cost": _num(dec(cost)), "raw_fee": 0, "producing": 0, "discountable": 1}
 
