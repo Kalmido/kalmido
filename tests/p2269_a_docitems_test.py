@@ -173,6 +173,8 @@ def run(S, S2, who, M=None):
     r = S2.put(B + f"{D}/{iv['id']}/items", json={"items": body_of(iv["items"]), "expect_updated_at": iv["updated_at"]})
     check(r.status_code == 409, f"{who}: the invoice from the old state 409")
     # ------------------------------------------------ 2.1264.0 (#6331): finalising / the number only for the draft shown
+    SP = {"service_from": "2030-03-01", "service_to": "2030-03-02"}  # an invoice needs its period of service to be finalised
+    check(S.patch(B + f"{D}/{iv['id']}", json=SP).ok, f"{who}: the period of service")
     lap = S.get(B + f"{D}/{iv['id']}").json()  # the laptop has the draft open
     ph = S2.get(B + f"{D}/{iv['id']}").json()  # the phone changes a position in the meantime
     lines = body_of(ph["items"])
@@ -189,7 +191,7 @@ def run(S, S2, who, M=None):
     r = S.post(B + f"{D}/{iv['id']}/finalize", json={"expect_updated_at": g["updated_at"]})
     check(r.ok and r.json().get("number") and r.json().get("locked"), f"{who}: with the current version it is finalised " + r.text[:200])
     # without a version (older clients): the stored state is finalised as before
-    r = S.post(B + D, json={"kind": "invoice", "client_id": cl, "items": [{"title": "Service 2", "qty": 1, "unit": "flat", "rate": 80}]})
+    r = S.post(B + D, json={"kind": "invoice", "client_id": cl, **SP, "items": [{"title": "Service 2", "qty": 1, "unit": "flat", "rate": 80}]})
     r = S.post(B + f"{D}/{r.json()['id']}/finalize", json={})
     check(r.ok and r.json().get("number"), f"{who}: finalising without a version as before " + r.text[:200])
     # the number by hand (POST .../number) of the quotation: the same check, the answer carries the new version
