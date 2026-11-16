@@ -9,6 +9,11 @@
 //   task's printable page (title, project, description, subtasks) that closes again, History leads to the task's history
 //   in the panel; the list row's context menu is the same read menu. In the folder's Share dialog she sees the people with
 //   their role as text: no share by address, no invitations, no role choice, no remove, no add; the owner keeps all of it.
+// - #6139: a refused write of the lists names what was not saved (a section, a task's move through the outbox), the server's
+//   text only in brackets; the open invitations and the folder's people: a failed load shows the error with "Try again"
+//   (not an empty list = "not shared"), "Try again" shows them; removing an invitation offers Undo, Undo brings it back
+//   (visible and on the server, same role); the board in lanes without tasks says "No tasks"; a sprint filter that hides
+//   every task says a filter is active and "Show all" shows them again
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, sleep, B, login} = require('./boot');
@@ -106,6 +111,78 @@ const hints = d => d.querySelectorAll('.cwro').length;  // the core's ONE read h
   (await until(() => d.querySelector('#detail .dtop [data-act="task-menu"]')))?.click();
   pop = await until(() => d.querySelector('#pop [role^="menuitem"]') && d.querySelector('#pop'));
   check(pop && !pop.querySelector('[data-act="tro-print"]') && /Delete|Duplicate/.test(txt(pop)), '#6136: the owner gets the writing task menu: ' + txt(pop).slice(0, 120));
+  w.close();
+
+  // ================= #6139 what was not saved (alice, the owner, without an organisation)
+  const SID = (await call(CA, 'POST', '/api/sections', {list_id: P, name: 'Beds'})).id;
+  const inv = await call(CA, 'PUT', `/api/lists/${P}/members`, {email: 'nobody@example.com', role: 'view'});
+  const openRows = async () => (await call(CA, 'GET', `/api/addr-shares?kind=list&ref=${P}`)).open || [];
+  check(SID && inv.status === 200 && (await openRows()).some(x => x.email === 'nobody@example.com'), 'set-up: a section, an open invitation (role view)');
+  const BOARD = (await call(CA, 'POST', '/api/lists', {name: 'Orchard', kind: 'project'})).id;
+  await call(CA, 'PATCH', `/api/lists/${BOARD}`, {view: 'kanban'});
+  const SPR = (await call(CA, 'POST', '/api/lists', {name: 'Vineyard', kind: 'project'})).id;
+  await call(CA, 'POST', '/api/tasks', {title: 'Prune the vines', list_id: SPR});
+  await call(CA, 'PATCH', `/api/lists/${SPR}`, {view: 'kanban'});
+  const sp = await call(CA, 'PUT', `/api/lists/${SPR}/sprint-settings`, {on: true});
+  check(BOARD && SPR && sp.status === 200, 'set-up: an empty board, a board with sprints on');
+  w = await boot({user: 'alice', hash: `l/${P}`}); d = w.document;
+  await until(() => w.eval(`!!listById(${P})`));
+  check(w.eval(`apiWhat('PATCH', '/api/tasks/5', {section_id: 2})`) === 'The move was not saved' && w.eval(`apiWhat('PATCH', '/api/tasks/5', {title: 'x'})`) === 'The change to the task was not saved'
+    && w.eval(`apiWhat('PATCH', '/api/sections/3', {name: 'x'})`) === 'The section was not saved' && w.eval(`apiWhat('POST', '/api/lists/3/sections/order', {})`) === 'The order of the sections was not saved'
+    && w.eval(`apiWhat('DELETE', '/api/addr-shares/4')`) === 'The invitation was not removed' && w.eval(`apiWhat('GET', '/api/lists/3/members')`) === '', '#6139: apiWhat names the list writes (a read names nothing)');
+  const toastT = () => txt(d.querySelector('#toast'));
+  // a section's rename refused by the server: the sentence first, the server's words in brackets
+  w.eval(`window.__rf = rawFetch; rawFetch = (m, u, b, ...r) => m === 'PATCH' && /^\\/api\\/sections\\//.test(u) ? Promise.reject(Object.assign(new Error('boom-sec'), {status: 422})) : window.__rf(m, u, b, ...r)`);
+  w.eval(`api('PATCH', '/api/sections/${SID}', {name: 'Hedges'}).catch(() => 0)`);
+  check(await until(() => /The section was not saved \(boom-sec\)/.test(toastT())), '#6139: a refused section write says what was not saved: ' + toastT());
+  // a task's move sent online through the outbox and refused: the same sentence (was the server's raw text)
+  w.eval(`rawFetch = (m, u, b, ...r) => m === 'PATCH' && u === '/api/tasks/${T}' ? Promise.reject(Object.assign(new Error('boom-move'), {status: 422})) : window.__rf(m, u, b, ...r)`);
+  w.eval(`patchTask(${T}, {section_id: ${SID}}).catch(() => 0)`);
+  check(await until(() => /The move was not saved \(boom-move\)/.test(toastT())), '#6139: a refused move of the outbox says what was not saved: ' + toastT());
+  w.eval(`rawFetch = window.__rf`);
+  check(await until(async () => !(await call(CA, 'GET', `/api/tasks/${T}`)).section_id), '#6139: ... and the move did not happen on the server');
+
+  // ================= #6139 the open invitations: load error with "Try again", Undo of a removed one
+  w.eval(`S.peopleVis = 'contacts'; shareModal(${P})`);
+  let irow = await until(() => [...d.querySelectorAll('#sh-open .mrow')].find(r => /nobody@example\.com/.test(txt(r))));
+  check(irow && d.querySelector('#sh-email'), '#6139: the owner sees the invitation and the share by address');
+  w.eval(`rawFetch = (m, u, ...r) => m === 'GET' && /^\\/api\\/addr-shares/.test(u) ? Promise.reject(new Error('boom-ads')) : window.__rf(m, u, ...r); adsFill(document.querySelector('#sh-open'), 'kind=list&ref=${P}')`);
+  let er = await until(() => d.querySelector('#sh-open .eerr'));
+  check(er && /The invitations could not be loaded/.test(txt(er)) && er.querySelector('[data-esretry]') && !/nobody@example/.test(txt(d.querySelector('#sh-open'))), '#6139: a failed load of the invitations says so with "Try again": ' + txt(er));
+  w.eval(`rawFetch = window.__rf`);
+  er?.querySelector('[data-esretry]')?.click();
+  irow = await until(() => [...d.querySelectorAll('#sh-open .mrow')].find(r => /nobody@example\.com/.test(txt(r))));
+  check(irow && !d.querySelector('#sh-open .eerr'), '#6139: "Try again" shows the invitation');
+  irow?.querySelector('[data-adsrm]')?.click();
+  check(await until(async () => !d.querySelector('#sh-open .mrow') && !(await openRows()).length), '#6139: the invitation is removed (dialog and server)');
+  const ub = await until(() => /Invitation removed/.test(toastT()) && [...d.querySelectorAll('#toast button')].find(b => /Undo/.test(txt(b))));
+  check(ub, '#6139: "Invitation removed" offers Undo: ' + toastT());
+  ub?.click();
+  irow = await until(() => [...d.querySelectorAll('#sh-open .mrow')].find(r => /nobody@example\.com/.test(txt(r))));
+  const back = await until(async () => (await openRows()).find(x => x.email === 'nobody@example.com'));
+  check(irow && back && back.role === 'view', '#6139: Undo brings the invitation back, visible and on the server with its role: ' + JSON.stringify(back || null));
+  d.querySelectorAll('.modal').forEach(m => m.remove());
+
+  // ================= #6139 the folder's people: a failed load is no "not shared"
+  // (__usersDone: the accounts of the server have arrived - they draw the part again, the error has to stay)
+  w.eval(`window.__api0 = api; window.__usersDone = 0; api = (m, u, b) => m === 'GET' && /^\\/api\\/folders\\/people/.test(u) ? Promise.reject(new Error('boom-fp')) : window.__api0(m, u, b).then(r => { if (/^\\/api\\/users/.test(u)) window.__usersDone = 1; return r; }); S.peopleVis = 'contacts'; folderShareModal('Clients')`);
+  er = await until(() => w.eval('window.__usersDone') && !d.querySelector('#fsh-members .eload') && d.querySelector('#fsh-members .eerr'));
+  check(er && /The people could not be loaded/.test(txt(er)) && er.querySelector('[data-esretry]') && !d.querySelector('#fsh-members [data-uid]'), '#6139: the folder\'s people failed: the error with "Try again", no empty list: ' + txt(d.querySelector('#fsh-members')));
+  w.eval(`api = window.__api0`);
+  er?.querySelector('[data-esretry]')?.click();
+  const dr = await until(() => d.querySelector(`#fsh-members .mrow[data-uid="${UD.id}"]`));
+  check(dr && /Dora/.test(txt(dr)) && !d.querySelector('#fsh-members .eerr'), '#6139: "Try again" shows the people of the folder: ' + txt(dr));
+  d.querySelectorAll('.modal').forEach(m => m.remove());
+
+  // ================= #6139 the board in lanes without tasks; a sprint filter that hides every task
+  w.eval(`LS.set('swl', {${BOARD}: 'prio'}); go('l/${BOARD}')`);
+  let ke = await until(() => d.querySelector('#view .kanban.swl') && d.querySelector('#view .kempty'));
+  check(ke && /No tasks/.test(txt(ke)), '#6139: the board in lanes without tasks says so: ' + txt(ke));
+  w.eval(`LS.set('swl', {}); LS.set('sprFlt', {${SPR}: 'cur'}); go('l/${SPR}')`);
+  ke = await until(() => w.eval(`S.route.key === 'l:${SPR}'`) && d.querySelector('#view .kempty.efilt'));
+  check(ke && /No tasks match the filter/.test(txt(ke)) && /A filter is active: Current sprint/.test(txt(ke)) && !/Prune the vines/.test(txt(d.querySelector('#view'))), '#6139: the sprint filter hides every task: says a filter is active: ' + txt(ke));
+  ke?.querySelector('[data-spr="flt"]')?.click();
+  check(await until(() => /Prune the vines/.test(txt(d.querySelector('#view .kanban'))) && !d.querySelector('#view .kempty')), '#6139: "Show all" shows the tasks again');
   w.close();
 
   console.log(`p21292_d_lists_states_ui: ${ok} passed, ${F.length} failed`);
