@@ -188,11 +188,12 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_FORM_FILES_MB_HOUR` | `200` | MB of files sent through public forms per hour. |
 | `KALMIDO_FS_GC_EVERY` | `86400` | Seconds between two clean-ups of moved files. |
 | `KALMIDO_MIME_SWEEP` | `on` | Switch: give older files the type their content shows (once, a few per minute), 2.209.0. |
+| `KALMIDO_OCR_DOC_S` | `300` | Seconds of wall clock per document at most (2.1283.0, #6427). |
 | `KALMIDO_OCR_LANGS` | `deu+eng` | Languages of the text recognition (tesseract codes). |
 | `KALMIDO_OCR_MEM_MB` | `1024` | Memory in MB of one recognition tool. |
 | `KALMIDO_OCR_PAGES` | `30` | Pages recognised per document at most. |
 | `KALMIDO_OCR_PAGE_S` | `60` | Seconds per page at most. |
-| `KALMIDO_OCR_PARALLEL` | `1` | Documents recognised at the same time. |
+| `KALMIDO_OCR_PARALLEL` | `1` | Pages recognised at the same time. |
 | `KALMIDO_OFFICE_STORE_FILL` | `on` | Switch: store the files of old finalised office documents once (GoBD). |
 | `KALMIDO_PAPERLESS_ZIP_CHUNK_KB` | `8192` | Size in KB of one upload part of a Paperless export. |
 | `KALMIDO_PAPERLESS_ZIP_DIR` | `<data dir>/paperless-zip` | Folder of the Paperless export uploads while they are imported. |
