@@ -712,7 +712,8 @@ def fd_back(c, r):
         s.update(pinned=1 if s.get("pinned") and fields_pinned_ok(c, lid) else 0, options=s.get("options") or "{}",
                  sort=float(s.get("sort") or 0), created_at=s.get("created_at") or iso(now_utc()), name=str(s.get("name") or ""),
                  type=ftype)
-        if s.get("org_field_id") and not c.execute("SELECT 1 FROM org_fields WHERE id=?", (s["org_field_id"],)).fetchone():
+        from .orgfields import of_for_list  # 2.1258.0 (#6296): and only a field of the project's space today (it may have moved)
+        if s.get("org_field_id") and s["org_field_id"] not in {r["id"] for r in of_for_list(c, lid)}:
             s["org_field_id"] = None
     vals = [v[:2] for v in held.get("vals") or [] if isinstance(v, list) and len(v) > 1]
     if ftype == "text" and vals:  # #5565: only values that fit the project's lock now (a 409 while it switches keeps the copy)
