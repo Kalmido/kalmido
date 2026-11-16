@@ -18778,8 +18778,6 @@
   "Contacts could not be loaded": "Non è stato possibile caricare i contatti",
   "No contacts yet": "Ancora nessun contatto",
   "Add one, import a vCard or CSV file, or connect the phone.": "Aggiungine uno, importa un file vCard o CSV o collega il telefono.",
-  "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Fattura {0}: l'aliquota IVA del {1} % non ha un conto automatico DATEV; viene esportata sul conto {2} - registrare a mano la sua IVA di {3}",
-  "Reminder fee, interest and flat fee {0}: {1}": "Commissione di sollecito, interessi e forfait {0}: {1}",
   "Write down your first task": "Annota il tuo primo compito",
   "Everything starts in the inbox; sort it later.": "Tutto inizia nella posta in arrivo; riordina dopo.",
   "Create a project": "Crea un progetto",

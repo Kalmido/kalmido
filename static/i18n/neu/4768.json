@@ -1,0 +1,22 @@
+{
+  "de": {
+    "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Rechnung {0}: Der Steuersatz {1} % hat kein DATEV-Automatikkonto; sie wird auf Konto {2} exportiert - die Umsatzsteuer von {3} bitte von Hand buchen",
+    "Reminder fee, interest and flat fee {0}: {1}": "Mahngebühr, Zinsen und Pauschale {0}: {1}"
+  },
+  "es": {
+    "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Factura {0}: el tipo de IVA del {1} % no tiene cuenta automática DATEV; se exporta a la cuenta {2}; contabilice a mano su IVA de {3}",
+    "Reminder fee, interest and flat fee {0}: {1}": "Tasa de recordatorio, intereses y cantidad fija {0}: {1}"
+  },
+  "fr": {
+    "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Facture {0} : le taux de TVA de {1} % n'a pas de compte automatique DATEV ; elle est exportée sur le compte {2} - comptabilisez sa TVA de {3} à la main",
+    "Reminder fee, interest and flat fee {0}: {1}": "Frais de relance, intérêts et forfait {0} : {1}"
+  },
+  "it": {
+    "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Fattura {0}: l'aliquota IVA del {1} % non ha un conto automatico DATEV; viene esportata sul conto {2} - registrare a mano la sua IVA di {3}",
+    "Reminder fee, interest and flat fee {0}: {1}": "Commissione di sollecito, interessi e forfait {0}: {1}"
+  },
+  "nl": {
+    "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Factuur {0}: het btw-tarief {1} % heeft geen DATEV-automatische rekening; ze wordt op rekening {2} geëxporteerd - boek de btw van {3} handmatig",
+    "Reminder fee, interest and flat fee {0}: {1}": "Aanmaningskosten, rente en vaste vergoeding {0}: {1}"
+  }
+}
