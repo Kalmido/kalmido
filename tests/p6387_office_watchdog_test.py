@@ -279,6 +279,15 @@ hl = made(S_LOCK)
 check(len(hl) == 2 and all(x[2] == "sent" for x in hl) and len(mails("rechnung@halte.example")) == 2,
       f"(6629 b) then the mail still due goes out and the next period is made and mailed {hl}")
 
+# ================================================================== 2.1289.0 (#6629 c): failed runs strictly in a row
+CLC = client(A, "Zaehl Medien AG", "rechnung@zaehl.example")
+S_CNT = series(A, CLC, "Zaehlt")
+tick("x.rin_mail = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('kurze Stoerung'))")  # fails after the invoice's commit
+check(row(S_CNT) == {"active": True, "fails": 1}, f"(6629 c) the failure after the commit is counted {row(S_CNT)}")
+tick()  # the mail still due goes out, nothing else is due: the run worked
+check(len(mails("rechnung@zaehl.example")) == 1 and row(S_CNT) == {"active": True, "fails": 0},
+      f"(6629 c) a run that works sets the count back (was: kept until the next period) {row(S_CNT)}")
+
 # ================================================================== 2.1289.0 (#6629): the freelancer switches her office off and on
 F_AUS = series(Fr, CLF, "Frida aus")
 assert Fr.patch(B + "/api/settings", json={"features": ",".join(x for x in FEATURES.split(",") if x != "office")}).ok
