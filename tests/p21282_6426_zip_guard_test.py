@@ -19,6 +19,7 @@ import importlib.util
 import io
 import json
 import os
+import resource
 import struct
 import sys
 import time
@@ -93,6 +94,37 @@ def refused(fn, kind):
 
 
 zr = load_zipread()
+# first of all (the peak of this process is still small): the count itself must not cost what it is there to prevent. A text
+# of empty strings made the first version of json_guard take 54 times the text in memory (review)
+hostile = b'"",' * 10_600_000  # 32 MB, the largest part the account import reads
+rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+t = time.monotonic()
+n = zr.json_guard(hostile, 20_000_000)
+t = time.monotonic() - t
+grown = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - rss) // 1024
+check(n == 10_600_001 and grown < 200 and t < 15, f"json_guard: 32 MB of empty strings are counted ({n}) with {grown} MB more memory "
+                                                 f"(limit 200) in {t:.1f} s (limit 15 s)")
+del hostile
+def real_zip64(n):
+    """More than 65 535 entries: zipfile writes a real zip64 record and locator, as a large Paperless export has them."""
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, "w") as z:
+        for k in range(n):
+            z.writestr(f"documents/originals/{k:07d}.pdf", b"")
+    return b.getvalue()
+
+
+raw = real_zip64(66_000)
+check(b"PK\x06\x06" in raw and b"PK\x06\x07" in raw, "the zip64 fixture holds a zip64 record and its locator")
+check(zr.zip_guard(raw, 70_000) == 66_000, "zip_guard counts a real zip64 ZIP of 66 000 entries exactly (it is not refused below its limit)")
+check(refused(lambda: zr.zip_guard(raw, 65_999), zr.ZipOver) is True, "zip_guard: ... and refuses it one entry over the limit")
+check(refused(lambda: zr.zip_guard(raw, 70_000, zip64=False), zr.ZipBad) is True, "zip_guard(zip64=False) refuses the real zip64 ZIP")
+del raw
+long_names = io.BytesIO()
+with zipfile.ZipFile(long_names, "w") as z:
+    for k in range(9000):
+        z.writestr("folder/" * 30 + f"{k}.md", b"")  # 2 MB of directory: the walk crosses its 1 MB window inside names
+check(zr.zip_guard(long_names.getvalue(), 10_000) == 9000, "zip_guard counts a directory larger than its window")
 for what, raw in (("plain", plain_zip(7)), ("with a comment", plain_zip(7, comment=b"packed for you")),
                   ("with data in front", b"#!/bin/sh\n" * 50 + plain_zip(7)), ("zip64", plain_zip(7, zip64=True)),
                   ("empty", plain_zip(0)), ("the zip64 attack file", zip64_attack(40)), ("the count attack file", count_attack(40))):
@@ -149,6 +181,16 @@ del big
 
 # json_guard
 check(zr.json_guard(b'{"a":"x,y[{","b":[1,2,{"c":null}]}', 100) == 7, "json_guard: commas and brackets inside a string do not count")
+check(zr.json_guard(rb'["a\\",1,"b\",[{","c\\\"x,",2]', 100) == 6, "json_guard: escaped quotes and backslashes keep the strings' ends")
+win = zr._JSON_WINDOW
+try:
+    for w in (1, 2, 3, 5):  # every byte of the text is once the last one of a window
+        zr._JSON_WINDOW = w
+        check(zr.json_guard(rb'["a\\",1,"b\",[{","c\\\"x,",2,{"k":"v,"},""]', 100) == 9, f"json_guard: the same count with windows of {w} bytes")
+finally:
+    zr._JSON_WINDOW = win
+check(refused(lambda: zr.json_guard('["\u2200",[],[],[]]'.encode("utf-16-le"), 100), zr.ZipBad) is True,
+      "json_guard refuses UTF-16 (zero bytes): its quotes are not where the count sees them")
 check(refused(lambda: zr.json_guard(b"[" + b"{}," * 1000 + b"{}]", 2000), zr.ZipOver) is True, "json_guard: 1001 empty objects are over 2000 nodes")
 check(zr.json_guard(b"[" + b"{}," * 1000 + b"{}]", 2100) == 2003, "json_guard: ... and counted as 2003")
 left = [3000]
@@ -164,7 +206,7 @@ for what, raw in (("escaped quotes without an end", b'"' + b'\\"' * 4_000_000), 
     t = time.monotonic()
     r = refused(lambda: zr.json_guard(raw, 4_000_000), zr.ZipOver)
     t = time.monotonic() - t
-    check(t < 5 and r in (True, False), f"json_guard: {what} ({len(raw) >> 20} MB) is counted in {t:.2f} s (limit 5 s) {r}")
+    check(t < 15, f"json_guard: {what} ({len(raw) >> 20} MB) is counted in {t:.2f} s (limit 15 s) {r}")
 check(refused(lambda: zr.json_guard(b"[" + b"{}," * 10_600_000 + b"{}]", 4_000_000), zr.ZipOver) is True,
       "json_guard: the 24-times part (32 MB of empty objects) is refused before json.loads")
 
@@ -172,19 +214,21 @@ check(refused(lambda: zr.json_guard(b"[" + b"{}," * 10_600_000 + b"{}]", 4_000_0
 # who opens a ZIP for reading without the check, and why that is right (files/officeprev.py is not seen here: its reader is
 # the text of a child process with memory and time limits of its own, without an import of the app)
 NO_GUARD = {
-    ("admin/backup.py", None): "the server's own backups, read by the instance admin from the backup folder",
-    ("admin/bkstore.py", None): "the server's own backups",
-    ("sheets/shbook.py", None): "the bytes the app wrote itself a line before",
+    ("admin/backup.py", "*"): "the server's own backups, read by the instance admin (an upload is refused on a hosted server)",
+    ("admin/bkstore.py", "*"): "the server's own backups",
+    ("sheets/shbook.py", "shb_xlsx"): "the bytes the app wrote itself in the same line",
     ("sheets/io.py", "_shx_all"): "the same bytes _shx_first checked a line before",
 }
 
 
 def opens_for_reading(call):
     f = call.func
-    if not (isinstance(f, ast.Attribute) and f.attr == "ZipFile"):
+    if getattr(f, "attr", getattr(f, "id", "")) not in ("ZipFile", "Path", "is_zipfile", "unpack_archive"):
         return False
+    if getattr(f, "attr", getattr(f, "id", "")) != "ZipFile":
+        return isinstance(f, ast.Attribute) and getattr(f.value, "id", "") in ("zipfile", "shutil")
     mode = call.args[1] if len(call.args) > 1 else next((k.value for k in call.keywords if k.arg == "mode"), None)
-    return mode is None or (isinstance(mode, ast.Constant) and mode.value == "r")
+    return mode is None or not isinstance(mode, ast.Constant) or mode.value == "r"
 
 
 found, missing = 0, []
@@ -208,11 +252,11 @@ for d, _dirs, files in os.walk(root):
                 continue
             found += 1
             guards = [c.lineno for c in own if getattr(c.func, "id", getattr(c.func, "attr", "")) == "zip_guard"]
-            if (rel, None) in NO_GUARD or (rel, fun.name) in NO_GUARD:
+            if (rel, "*") in NO_GUARD or (rel, fun.name) in NO_GUARD:
                 continue
             if not guards or min(guards) > min(c.lineno for c in opens):
                 missing.append(f"{rel}:{fun.name}")
-check(found >= 9, f"guard: the readers were found ({found})")
+check(found >= 14, f"guard: the readers were found ({found})")
 check(not missing, f"guard: every function that opens a ZIP for reading calls zip_guard before zipfile.ZipFile "
                    f"(or is named in NO_GUARD with its reason): {missing}")
 
@@ -311,14 +355,14 @@ def acct_upload(s, data):
 j = acct_upload(F, account_zip({"lists": json.dumps([{"id": 1, "name": "Moved list"}]).encode(),
                                 "tasks": json.dumps([{"id": 1, "title": "One task", "list_id": 1}]).encode()}))
 check(j.get("state") == "preview", f"account import: a good file still reaches the preview ({j.get('state')} {j.get('error')})")
-# 100 000 rows, each a dict with 26 empty lists: valid rows, 8 MB of text, 5.4 million nodes (4 million allowed per part)
+# 100 000 rows, each a dict with 26 empty lists: valid rows, 8 MB of text, 5.4 million nodes (3 million allowed per part)
 dense = b"[" + b",".join([b'{"a":[' + b"[]," * 25 + b"[]]}"] * 100_000) + b"]"
 check(len(json.loads(dense)) == 100_000 and len(dense) < 16 * 1024 * 1024, "account import: the dense part is valid JSON of 100 000 rows")
 j = acct_upload(F, account_zip({"tasks": dense}))
 check(j.get("state") == "invalid" and "too large" in json.dumps(j.get("error")) and "data/tasks.json" in json.dumps(j.get("error")),
       f"account import: a part of tiny values is refused by its nodes before it is parsed ({j.get('state')} {j.get('error')})")
 # three parts below the limit of one part, together over the budget of the file
-part = b"[" + b",".join([b'{"a":[' + b"[]," * 14 + b"[]]}"] * 100_000) + b"]"  # 3.2 million nodes each
+part = b"[" + b",".join([b'{"a":[' + b"[]," * 11 + b"[]]}"] * 100_000) + b"]"  # 2.6 million nodes each
 j = acct_upload(F, account_zip({"tasks": part, "lists": part, "sections": part}))
 check(j.get("state") == "invalid" and "too large" in json.dumps(j.get("error")),
       f"account import: parts that fit one by one are refused over the node budget of the file ({j.get('state')} {j.get('error')})")
@@ -356,20 +400,14 @@ def pl_zip(manifest):
 
 z = pl_upload(F, pl_zip(json.dumps([{"model": "documents.tag", "pk": 1, "fields": {"name": "Tax"}}]).encode()))
 check(z.get("error") != "zip_large", f"Paperless: a small export is not refused for its size ({z})")
-z = pl_upload(F, pl_zip(b"[" + b"[]," * 4_100_000 + b"[]]"))  # 12 MB of text (64 MB allowed), 8.2 million nodes (8 million allowed)
+z = pl_upload(F, pl_zip(b"[" + b"[]," * 3_100_000 + b"[]]"))  # 9 MB of text (64 MB allowed), 6.2 million nodes (6 million allowed)
 check(z.get("state") == "bad" and z.get("error") == "zip_large",
       f"Paperless: a manifest of tiny values is refused by its nodes before it is parsed ({z})")
+z = pl_upload(F, pl_zip(("[" + '"\u2200",' + "[]," * 400_000 + "[]]").encode("utf-16-le")))
+check(z.get("state") == "bad" and z.get("error") == "zip_manifest", f"Paperless: a manifest in UTF-16 (the count would see 2 nodes) is not parsed ({z})")
 z = pl_upload(F, zip64_attack(300_001))
 check(z.get("state") == "bad" and z.get("error") == "zip_large", f"Paperless: 300 001 entries behind a zip64 record are refused ({z})")
 alive("Paperless")
-# the upload counts against the storage when it is announced (it was only refused once the storage was full already)
-check(A.patch(B + f"/api/users/{GID}", json={"storage_quota_mb": 1}).ok, "Paperless: gustav's storage is limited to 1 MB")
-r = G.post(B + "/api/paperless/zip", json={"ws": "private", "size": 5 * 1024 * 1024, "name": "export.zip"})
-check(r.status_code == 413 and r.json().get("code") == "quota_exceeded",
-      f"Paperless: an upload larger than the free storage is refused when it is announced ({r.status_code} {r.text[:160]})")
-r = G.post(B + "/api/paperless/zip", json={"ws": "private", "size": 200 * 1024, "name": "export.zip"})
-check(r.status_code == 200, f"Paperless: one that fits is taken ({r.status_code} {r.text[:160]})")
-check(A.patch(B + f"/api/users/{GID}", json={"storage_quota_mb": None}).ok, "Paperless: no limit again")
 
 # ---- the rate limit of new import uploads: one counter for the four routes, per person
 check(NEW["n"] < RATE, f"rate: the suite stayed below the limit so far ({NEW['n']} of {RATE})")

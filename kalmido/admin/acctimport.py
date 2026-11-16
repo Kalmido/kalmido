@@ -111,8 +111,10 @@ UMZ_JSON_TOTAL = 96 * 1024 * 1024  # all data/*.json together (they are held in 
 # 2.1282.0 (#6426): the bytes alone do not hold the memory (measured: 24 times the text for a part of tiny values), so the
 # values and containers are counted before parsing (core/zipread.py json_guard). A real export of 50 000 tasks with 40
 # columns has 2 million nodes in its largest part.
-UMZ_JSON_NODES = 4_000_000  # one JSON part
-UMZ_JSON_NODES_TOTAL = 8_000_000  # all JSON parts of one file together
+# Measured per node once parsed: 32 to 127 bytes, real rows of 40 columns 47 -- one part stays below about 380 MB, a file
+# below about 760 MB (it was 2.3 GB).
+UMZ_JSON_NODES = 3_000_000  # one JSON part
+UMZ_JSON_NODES_TOTAL = 6_000_000  # all JSON parts of one file together
 UMZ_MAX_ROWS = _env_mb("KALMIDO_ACCOUNT_IMPORT_MAX_ROWS", 500_000)  # rows of one table after parsing
 UMZ_MANIFEST_MAX = 32 * 1024 * 1024
 UMZ_RATIO = 200  # uncompressed / compressed of one entry above 1 MB
@@ -417,7 +419,9 @@ def umz_open(path, key, size, full=True):
     """-> (zipfile, manifest, files {path: entry}, data {table: rows}). UmzBad when anything is off. full: check every
     file's SHA-256 too (the preview; the run checks each file again while it reads it)."""
     try:
-        r = UmzReader(path, key, size)
+        # 2.1282.0 (#6426, review): buffered like the other readers -- the sealed reader answers at most the rest of its
+        # block, zipfile does not read on after a short answer
+        r = io.BufferedReader(UmzReader(path, key, size), UMZ_BLOCK)
         zip_guard(r, UMZ_MAX_ENTRIES)  # 2.1282.0 (#6426): the entry limit before zipfile builds an object per entry
         zf = zipfile.ZipFile(r)
     except ZipOver:
