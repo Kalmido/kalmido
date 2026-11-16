@@ -23,6 +23,15 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1304.0] - 2026-11-16
+
+Package 2.1291.0 (Retention export: only a complete, current export or the owner's own waiver lets records go).
+
+### Fixed
+- #6474: the retention export before deleting an account or an organisation counts only when it was complete (a file that could not be read or was locked by the virus scanner keeps the deletion closed, 409 with the names for who may export) and while no record to keep came after it (a new invoice, receipt, cash book entry ... asks for a new export).
+- #6474: on a hosted instance only the person themself or an admin of the organisation does without the retention export; they declare it beforehand in the settings (`POST`/`DELETE /api/retention/me/waiver`, `/api/retention/org/<id>/waiver`, 7 days, ends with new records). An instance admin's `?retention=waived` for somebody else is refused without that declaration.
+- #6474: received e-invoices nobody took over as a receipt count as records to keep on every instance and are in the ZIP under `received-einvoices/` with their list.
+
 ## [2.1301.0] - 2026-11-16
 
 Package 2.1269 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Sicherheit Agenten: Freigabe-Karte zeigt bei Teile, Sicherheit Agenten: Agent speiche).
@@ -49,5 +58,6 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1301.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1304.0...HEAD
+[2.1304.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1304.0
 [2.1301.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1301.0
