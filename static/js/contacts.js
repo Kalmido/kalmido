@@ -13,6 +13,10 @@ const CT_TYPES = {emails: [['home', N_('Home')], ['work', N_('Work')], ['other',
   addresses: [['home', N_('Home')], ['work', N_('Work')], ['other', N_('Other')]], urls: [['home', N_('Home')], ['work', N_('Work')], ['other', N_('Other')]]};
 const ctTypeWord = (k, it) => { const t = (it.type || [])[0], o = (CT_TYPES[k] || []).find(x => x[0] === t); return it.label && !/^_\$!</.test(it.label) ? it.label : o ? tr(o[1]) : t ? t : ''; };
 const ctBook = id => (S.books || []).find(b => b.id === id);
+// 2.1241.0 (#6185): the organisation colour (docs/dev/kern.md): a contact of an organisation's address book wears its stripe
+// (row, card, the book in "Address books"; the book's own colour stays its dot) and, under "All workspaces", where it comes
+// from; the open card is the open object (wso_sync). A book of Private, no book: neutral
+wso_open('contacts', () => S.route?.mod === 'contacts' && CT.card && (!isMobile() || CT.sel) ? ctBook(CT.card.book_id) || null : null);
 const ctWrite = b => !!b && (b.role === 'owner' || b.role === 'edit');
 // 2.53.0 (#1410): ctAv lives in ctlinks.js
 // 2.1177.0 (#6116): an error after api() is said there already (e.shown): no second toast; rawFetch's own error in plain words
@@ -101,7 +105,7 @@ async function ct_live() {
   if (lpBusy()) { S.viewStale = true; return; }  // a field / form in use: drawn once it is left (the poll)
   S.lpN.ctDraw = (S.lpN.ctDraw || 0) + 1; ctDraw();
 }
-function ctDraw() { if (S.route.mod === 'contacts') { const el = $('#view'); if (el) { const ck = ct_scrollKeep(el); keepFocus(el, () => setHtml(el, mg_wrap('contacts', viewContacts()))); ck(); vl_after(); } } }  // 2.65.0 (#1825): vl_after; 2.431.0 C (#3598): + the columns' scroll
+function ctDraw() { if (S.route.mod === 'contacts') { const el = $('#view'); if (el) { const ck = ct_scrollKeep(el); keepFocus(el, () => setHtml(el, mg_wrap('contacts', viewContacts()))); ck(); vl_after(); wso_sync(); /* 2.1241.0 (#6185): the open card's organisation (a redraw without renderView) */ } } }  // 2.65.0 (#1825): vl_after; 2.431.0 C (#3598): + the columns' scroll
 function viewContacts() {
   if (CT.trash) return ctt_html();  // 2.272.0 E1 (#3038)
   if (CT.items === null && !CT.loading) setTimeout(ctLoad, 0);
@@ -116,7 +120,7 @@ function viewContacts() {
     ${!books.length || books.some(ctWrite) ? `<input type="file" id="ct-impfile" accept="${CT_IMP_ACCEPT}" multiple hidden>` : ''}<button class="iconbtn" data-ct="menu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>`;
   const list = items === null ? `<div class="muted ctempty">${tr('Loading…')}</div>` : !items.length
     ? `<div class="empty">${ic('users')}${CT.q || CT.group ? tr('No contact matches.') : tr('No contacts yet. Add one, import a vCard file, or connect the phone.')}</div>`
-    : `<ul class="ctlist" role="list" aria-label="${esc(tr('Contacts'))}">${ctRows(items, (c, vl) => `<li${vl}><button type="button" class="ctrow ${c.id === CT.sel ? 'on' : ''} ${bk_rowCls(c)}" data-ctopen="${c.id}" ${CT.pick ? `aria-pressed="${CT.pick.has(c.id)}"` : `aria-current="${c.id === CT.sel}"`}>${CT.pick ? bk_chk(c) : ''}${ctAv(c)}<span class="ctn"><b>${esc(c.fn || c.org || '?')}</b><small class="muted">${esc([c.org !== c.fn ? c.org : '', c.email || c.phone].filter(Boolean).join(' · '))}</small></span>${(books.length > 1 && ctBook(c.book_id)) ? `<i class="cevdot" style="--cc:${cssColor(ctBook(c.book_id).color) || 'var(--accent)'}" title="${esc(ctBook(c.book_id).name)}"></i>` : ''}</button></li>`)}</ul>
+    : `<ul class="ctlist" role="list" aria-label="${esc(tr('Contacts'))}">${ctRows(items, (c, vl) => `<li${vl}><button type="button" class="ctrow ${c.id === CT.sel ? 'on' : ''} ${bk_rowCls(c)}" data-ctopen="${c.id}" ${CT.pick ? `aria-pressed="${CT.pick.has(c.id)}"` : `aria-current="${c.id === CT.sel}"`}${/*html-ok*/ wso_row(ctBook(c.book_id) || null) /* 2.1241.0 (#6185) */}>${CT.pick ? bk_chk(c) : ''}${ctAv(c)}<span class="ctn"><b>${esc(c.fn || c.org || '?')}</b><small class="muted">${esc([c.org !== c.fn ? c.org : '', c.email || c.phone].filter(Boolean).join(' · '))}</small>${/*html-ok*/ wso_origin(ctBook(c.book_id) || null, 'cto')}</span>${(books.length > 1 && ctBook(c.book_id)) ? `<i class="cevdot" style="--cc:${cssColor(ctBook(c.book_id).color) || 'var(--accent)'}" title="${esc(ctBook(c.book_id).name)}"></i>` : ''}</button></li>`)}</ul>
       ${CT.total > CT.items.length ? `<div class="muted ctmore">${trh('{0} of {1} loaded', CT.items.length, CT.total)} <button type="button" class="linkbtn" data-ctxmore ${CT.more ? 'disabled' : ''}>${tr('Show more')}</button></div>` : ''}`;  // 2.119.1 A (#2081): the next page comes when scrolling near the end
   const fbar = typeof ctf_barHtml === 'function' && !(mob && showCard) ? ctf_barHtml() : '';  // 2.351.0 B (#2749): the folder filter
   return CT.html = `<div class="ctview ${showCard ? 'withcard' : ''} ${CT.pick ? 'ctpicking' : ''} ${CT.fOpen ? 'ctfopen' : ''}"><h2 class="sr">${tr('Contacts')}</h2>${CT.pick && !(mob && showCard) ? bk_barHtml() : ''}${mob && showCard ? '' : bar}${fbar}<div class="ctcols lsd2 lsdfill">${mob && showCard ? '' : `<div class="ctlistw lsdl" data-vlsc>${/*html-ok*/ ct18_show(items) ? ct18_hintHtml() : ''}${list}</div>`}${showCard ? ctCardHtml(CT.card) : mob ? '' : `<div class="ctcard ctnone muted">${ic('user')}${tr('Select a contact')}</div>`}</div></div>`;
@@ -234,7 +238,7 @@ function ctCardHtml(c) {
     return `<div class="ctf">${ic('mappin', 's')}<span class="ctfl muted">${esc(ctTypeWord('addresses', a))}</span>${ctk_mapLink(t)}</div>`; }).join('');  // 2.119.1 B (#2086): a map link
   const kinds = Object.fromEntries(CT_LINK);
   const hist0 = ctk_histHtml(c), hist = CTK.items.length ? hist0 : '';  // starts the load of a newly opened card
-  return `<article class="ctcard" aria-labelledby="ct-h" data-ck="${c.id}">
+  return `<article class="ctcard" aria-labelledby="ct-h" data-ck="${c.id}"${/*html-ok*/ wso_row(b || null) /* 2.1241.0 (#6185): a contact of an organisation's address book */}>
     <div class="cthead">${lsd_one() ? `<button class="iconbtn" data-ct="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>` : ''}${ctAv(c, 'avatar ctav big')}<div class="cthn"><h3 id="ct-h" tabindex="-1">${esc(c.fn || c.org || '?')}</h3>${feat('clients') ? `<div class="mstags">${ms_tag('contact')}</div>` : ''}${/*html-ok*/ ctp_sub(c)/* 2.1174.0 (#6119): the company as a link to its card */}</div>
       <span class="ctacts">${w ? `<button class="btn sm" data-ct="edit">${ic('edit', 's')} ${tr('Edit')}</button>` : `<span class="rotag">${ic('eye', 's')}${tr('Read-only')}</span>`}<button class="iconbtn" data-ct="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>
     <div class="ctly">${/*html-ok*/ S.ly.view === 'contacts' ? '' : ct_lyBar()}${lyHtml('contacts', ct_foldAll(c, {  // 2.666.0 D (#3624): the card's sections are blocks of the view builder
@@ -1162,7 +1166,7 @@ async function ctBooksModal() {
   const draw = () => {
     const bs = S.books || [];
     // 2.1174.0 (#6123): the name on top, what it holds and who shares it in a second line that wraps (was cut off after "shared with …")
-    $('#cb-body', md).innerHTML = bs.length ? `<ul class="evclist">${bs.map(b => `<li class="evcrow ctbrow" style="--cc:${cssColor(b.color) || 'var(--accent)'}"><span class="ctbic" aria-hidden="true">${ic('book', 's')}</span><span class="evcn ctbn"><span class="ctbt">${esc(b.name)}</span><small class="muted ctbm">${esc(trn('{0} contact', '{0} contacts', b.count))}${wsOn() && b.role === 'owner' ? ' · ' + esc(wsLabel(b.org_id)) : ''}${b.org_owned ? ' · ' + esc(tr('Belongs to {0}', wsLabel(b.org_id))) : ''}${/*html-ok*/ b.role !== 'owner' ? (b.org_owned ? '' : ' · ' + esc(b.owner_name || '')) + ' · ' + esc(b.role === 'edit' ? tr('can edit') : tr('can view')) : b.members?.length ? ' · ' + esc(ct_sharedWith(b, names)) : ''}${b.imported ? ' · ' + esc(tr('imported')) : ''}</small></span>
+    $('#cb-body', md).innerHTML = bs.length ? `<ul class="evclist">${bs.map(b => `<li class="evcrow ctbrow"${/*html-ok*/ wso_row(b, `--cc:${cssColor(b.color) || 'var(--accent)'}`) /* 2.1241.0 (#6185) */}><span class="ctbic" aria-hidden="true">${ic('book', 's')}</span><span class="evcn ctbn"><span class="ctbt">${esc(b.name)}</span><small class="muted ctbm">${esc(trn('{0} contact', '{0} contacts', b.count))}${wsOn() && b.role === 'owner' ? ' · ' + esc(wsLabel(b.org_id)) : ''}${b.org_owned ? ' · ' + esc(tr('Belongs to {0}', wsLabel(b.org_id))) : ''}${/*html-ok*/ b.role !== 'owner' ? (b.org_owned ? '' : ' · ' + esc(b.owner_name || '')) + ' · ' + esc(b.role === 'edit' ? tr('can edit') : tr('can view')) : b.members?.length ? ' · ' + esc(ct_sharedWith(b, names)) : ''}${b.imported ? ' · ' + esc(tr('imported')) : ''}</small></span>
       <button data-rowmenu="evcrow" class="iconbtn" data-cbmenu="${b.id}" aria-haspopup="menu" aria-label="${esc(tr('More for {0}', b.name))}" title="${esc(tr('More'))}">${ic('dots')}</button></li>`).join('')}</ul>` : `<p class="muted">${tr('No address book yet.')}</p>`;  // 2.1174.0 (#6122): a new contact no longer creates one quietly
   };
   draw();
