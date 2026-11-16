@@ -15,8 +15,6 @@ the target folder's rights are the file store's (fs_put). The rules run in the m
 connection after the e-mail filing, at most every MBR_EVERY seconds, and at once with "Fetch now". Errors are codes
 (MBX_ERR), never a server's words; the passwords stay in hub/mailbox.py (sealed, never in an answer or a log line).
 Source of the documents: doc_meta.source = 'mailbox'. Agents and kid accounts get nothing (people only, like the mailbox)."""
-import email
-import email.policy
 import email.utils
 import hashlib
 import json
@@ -36,7 +34,8 @@ from ..accounts.session import GATE, me
 from ..api.common import hit_limit
 from ..files.store import fs_chain, fs_deleted, fs_role, fs_roles_many
 from ..docs import store as DS
-from ..docs.ingest import docs_kick, docs_mailbox_import, _mail_parts, _mail_toks
+from ..docs.ingest import docs_kick, docs_mailbox_import, _mail_has_parts, _mail_toks
+from ..core.mailguard import MailRefused, mail_head, mail_parse  # 2.1281.0 (#6425)
 from ..docs.maillink import ml_collect, ml_links
 from . import mailbox as MB
 
@@ -52,7 +51,13 @@ MBR_NO_HOLDER = N_("Nobody can receive documents for this mailbox (no admin of t
 MBR_RULE_ERR = {"target": N_("The mailbox's holder cannot file into the folder of this rule"),
                 "nodoc": N_("The last e-mail of this rule became no document (storage full, a locked folder or the hour's limit); it is tried again"),
                 # 2.636.0 (#4853, review): every file of the mail refused for what it is (type, content): kept, not fetched again
-                "refused": N_("The last e-mail of this rule became no document: its files were refused (type or content); it is not tried again")}
+                "refused": N_("The last e-mail of this rule became no document: its files were refused (type or content); it is not tried again"),
+                # 2.1281.0 (#6425): a mail that is not taken apart (core/mailguard.py: too many parts, parts too deep inside
+                # each other, the head too large or a header line the parser breaks on): remembered, not fetched again
+                "unsafe": N_("The last e-mail of this rule was refused: it has too many parts or a header line that cannot be read; it is not tried again"),
+                # 2.1281.0 (#6425): the budget of one mail (docs/ingest.py MAIL_DOCS / MAIL_BYTES) left files out: what fitted
+                # became documents, the mail is neither moved nor deleted
+                "partly": N_("The last e-mail of this rule had more files than one e-mail may bring (100 documents, 100 MB unpacked): the rest was left out, the e-mail stays where it is")}
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _BUDGET = {}            # (box id, kind) -> [hour, used]: this process (the mailbox round runs in one process)
@@ -329,8 +334,17 @@ def _budget(box_id):
 
 
 def _mid_key(head):
-    m = email.message_from_bytes(head, policy=email.policy.default)
-    mid = str(m.get("Message-ID", "") or "").strip()
+    """(the key of a mail in hub_mailbox_docs, its header lines as a message) of the lines an IMAP server gave. 2.1281.0
+    (#6425): the lines go through core/mailguard.py mail_head (a sender, date or Message-ID line over 2 KB or with too many
+    brackets is refused; a line that is read is parsed once, not once per rule): refused -> (a key of the bytes, None), and
+    mbr_run remembers such a mail without reading it."""
+    m = mail_head(head)
+    if m is None:
+        return hashlib.sha256(b"head:" + head).hexdigest(), None
+    try:
+        mid = str(m.get("Message-ID", "") or "").strip()
+    except Exception:  # noqa: BLE001 -- a Message-ID line the header parser breaks on: keyed by its header lines
+        mid = ""
     return hashlib.sha256(mid.encode() if mid else b"head:" + head).hexdigest(), m
 
 
@@ -399,16 +413,20 @@ def _after(M, rule, u):
     return ""
 
 
-def _take(box, holder, rule, key, raw):
+KEPT = "kept"  # 2.1281.0 (#6425): _take's "handled" for a mail that became documents but stays as it is in the mailbox
+
+
+def _take(box, holder, rule, key, raw, msg=None):
     """One mail -> documents of the box's workspace (as its holder); the claim of the mail (key = _mid_key of its header lines,
-    the same as the look before) in the same transaction. -> (handled, documents); handled None = another process had it."""
-    msg = email.message_from_bytes(raw, policy=email.policy.default)
+    the same as the look before) in the same transaction. -> (handled, documents); handled None = another process had it.
+    msg (2.1281.0, #6425): the message mbr_run parsed already (never taken apart twice); raises MailRefused without it."""
+    msg = msg if msg is not None else mail_parse(raw)
     budget = _budget(box["id"])
     pre = None
     if rule["take_files"]:
         _t, mail_text, ei_is = _mail_toks(msg)
         links = ml_links(msg)
-        if links and not _mail_parts(mail_text(msg, att_images=True)[1], ei_is, ""):
+        if links and not _mail_has_parts(mail_text(msg, att_images=True)[1], ei_is):  # 2.1281.0 (#6425): nothing unpacked for it
             k = budget("links", len(links))
             pre = ml_collect(msg, limit=k, links=links) if k else ([], [])
     meta = {}
@@ -423,10 +441,10 @@ def _take(box, holder, rule, key, raw):
         if c.execute("INSERT INTO hub_mailbox_docs(box_id, mid, rule_id, at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING RETURNING box_id",
                      (box["id"], key, rule["id"], _now())).fetchone() is None:
             return None, 0
-        why = []
+        why, cut = [], []
         first, made = docs_mailbox_import(c, holder, box["org_id"] or None, msg, raw, meta=meta, parent_id=rule["target_id"],
                                           take_files=bool(rule["take_files"]), take_mail=bool(rule["take_mail"]), budget=budget, pre=pre,
-                                          why=why)
+                                          why=why, cut=cut)
         if not made and why and all(w == "ValueError" for w in why):
             # 2.636.0 (#4853, review): refused for good (file type / content): the claim stays, else such a mail would be
             # fetched every round and fill the round's limit
@@ -440,14 +458,40 @@ def _take(box, holder, rule, key, raw):
             c.execute("UPDATE hub_mailbox_rules SET last_error=? WHERE id=?", (code, rule["id"]))
             return False, 0
         c.execute("UPDATE hub_mailbox_docs SET node_id=? WHERE box_id=? AND mid=?", (first or None, box["id"], key))
-        c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error='' WHERE id=?", (_now(), rule["id"]))
-        return True, len(made)
+        # 2.1281.0 (#6425): the mail's budget left files out -> the rule says so and the mail stays (KEPT: no move, no delete).
+        # What this run wrote to the rule about another mail (partly, unsafe) is not wiped by a hit of the same run.
+        sticky = box.setdefault("_mbr_marked", set())
+        if cut:
+            sticky.add(rule["id"])
+            c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error='partly' WHERE id=?", (_now(), rule["id"]))
+        elif rule["id"] in sticky:
+            c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=? WHERE id=?", (_now(), rule["id"]))
+        else:
+            c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error='' WHERE id=?", (_now(), rule["id"]))
+        return (KEPT if cut else True), len(made)
     return _bg(run)
 
 
 def _skip(box, key):
     """A mail no rule takes after it was fetched whole (too large, no attachment, failed): remembered, never fetched again."""
     _bg(lambda c: c.execute("INSERT INTO hub_mailbox_docs(box_id, mid, at) VALUES(?,?,?) ON CONFLICT DO NOTHING", (box["id"], key, _now())))
+
+
+def _poison(box, key, e, rules):
+    """2.1281.0 (#6425): a mail that broke its own handling (refused by core/mailguard.py, a header line the parser ends on
+    with a RecursionError, anything else a prepared mail raises): remembered in the database, so no later run looks at it
+    again -- before, the run of its folder ended at this mail every 10 minutes and no newer mail reached the rules. The
+    rules it was for show it (last_error "unsafe") when the mail itself was the reason."""
+    print("mailbox docs: one mail refused:" if isinstance(e, MailRefused) else "mailbox docs: one mail failed:",
+          e.code if isinstance(e, MailRefused) else type(e).__name__, flush=True)
+    ids = [r["id"] for r in rules] if isinstance(e, (MailRefused, RecursionError)) else []
+    box.setdefault("_mbr_marked", set()).update(ids)
+
+    def run(c):
+        c.execute("INSERT INTO hub_mailbox_docs(box_id, mid, at) VALUES(?,?,?) ON CONFLICT DO NOTHING", (box["id"], key, _now()))
+        if ids:
+            c.execute(f"UPDATE hub_mailbox_rules SET last_error='unsafe' WHERE id IN ({','.join('?' * len(ids))})", ids)
+    _bg(run)
 
 
 def mbr_due(box):
@@ -497,7 +541,20 @@ def mbr_run(M, box):
                 if u not in keys or keys[u][0] in known:
                     continue
                 key, head = keys[u]
-                fit = [r for r in frs if _head_fits(r, head)]
+                if head is None:  # 2.1281.0 (#6425): header lines that never go to the header parser (_mid_key). No rule
+                    known.add(key)  # is marked: nobody knows whether the mail was for one of them
+                    _poison(box, key, MailRefused("head"), [])
+                    continue
+                # 2.1281.0 (#6425): every step that reads the mail's own content sits in a try of this ONE mail (the header
+                # lines here, taking it apart below); only the IMAP commands stay with the folder's try (the connection)
+                try:
+                    fit = [r for r in frs if _head_fits(r, head)]
+                except MemoryError:  # (the server's state, not this mail's: the folder's try, tried again next run)
+                    raise
+                except Exception as e:  # noqa: BLE001 -- a From / Subject / Date line the header parser breaks on
+                    known.add(key)
+                    _poison(box, key, e, frs)
+                    continue
                 if not fit:
                     continue  # its header lines fit no rule: looked at again next time (a new rule may take it)
                 known.add(key)
@@ -508,23 +565,30 @@ def mbr_run(M, box):
                 raw = next((p[1] for p in parts or [] if isinstance(p, tuple) and len(p) > 1), None)
                 if typ != "OK" or not raw:
                     continue
-                msg = email.message_from_bytes(raw, policy=email.policy.default)
+                try:
+                    msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused)
+                    files = None
+                    rule = None
+                    for r in fit:
+                        if r["need_att"]:
+                            if files is None:
+                                _t, mail_text, _ei = _mail_toks(msg)
+                                files = mail_text(msg, att_images=True)[1]
+                            if not files:
+                                continue
+                        rule = r
+                        break
+                except MemoryError:
+                    raise
+                except Exception as e:  # noqa: BLE001 -- 2.1281.0 (#6425): refused or broken: this mail only, for good
+                    _poison(box, key, e, fit[:1])
+                    continue
                 files = None
-                rule = None
-                for r in fit:
-                    if r["need_att"]:
-                        if files is None:
-                            _t, mail_text, _ei = _mail_toks(msg)
-                            files = mail_text(msg, att_images=True)[1]
-                        if not files:
-                            continue
-                    rule = r
-                    break
                 if rule is None:
                     _skip(box, key)
                     continue
                 try:
-                    handled, got = _take(box, holder, rule, key, raw)
+                    handled, got = _take(box, holder, rule, key, raw, msg)
                 except Exception as e:  # noqa: BLE001 -- one mail never stops the others; it is not taken again
                     print("mailbox docs: one mail failed:", type(e).__name__, flush=True)
                     _skip(box, key)
@@ -533,7 +597,7 @@ def mbr_run(M, box):
                     continue
                 taken += 1
                 n += got
-                if handled:
+                if handled and handled != KEPT:
                     code = _after(M, rule, u) or code
         except Exception as e:  # noqa: BLE001 -- the next folder goes on; the code is kept (never the server's words)
             code = code or MB._err_code(e)

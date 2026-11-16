@@ -23,8 +23,6 @@ then sent; a failure leaves it "failed" with a note (never a sent mail that was 
 the client / the project (hbm_can). Per person 30 mails an hour (through the server's SMTP also its daily e-mail limit). Agents and kid
 accounts get nothing (no v1 route, no MCP tool in 2.141.0)."""
 import base64
-import email
-import email.policy
 import email.utils
 import imaplib
 import json
@@ -53,6 +51,7 @@ from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from func
 from ..accounts.session import GATE  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_folder, fs_put  # 2.369.5 (#2517): pulled up from functions
 from ..files.upsafe import UploadRefused  # 2.369.5 (#2517): pulled up from functions
+from ..core.mailguard import mail_parse  # 2.1281.0 (#6425)
 
 MBX_TLS = ("starttls", "ssl", "none")
 MBX_MAIL_MAX = 50 * 1024 * 1024  # review: a larger mail of a workspace's own server is not fetched (marked seen)
@@ -594,7 +593,7 @@ def mbx_import(c, box, raw):
     """One mail of workspace mailbox box -> the e-mail filing of box's workspace (never another one). Returns the mail id,
     0 when it was not filed (a double, nobody to receive)."""
     from ..integrations.mail import MAIL_TOKEN_RE, mail_text
-    msg = email.message_from_bytes(raw, policy=email.policy.default)
+    msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it)
     org, ws = box["org_id"] or None, box["ws"]
     with system_ctx(c):  # the background round: the rights are checked here (holder, workspace), like hbm_mail_import
         holder = mbx_holder(c, box)
