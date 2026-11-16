@@ -299,6 +299,21 @@ for r, why in ((requests.post(V + f"/tasks/{T_MV}/move", headers=H, json={"paren
                (requests.patch(V + f"/tasks/{T_MV}", headers=H, json={"parent_id": T_SH, "expect_updated_at": upd(H, T_MV)}), "PATCH")):
     check(r.status_code == 202 and kt.dbx("SELECT list_id FROM tasks WHERE id=?", (T_MV,))[0][0] == PRIV,
           f"G1: no level, {why} by parent into the shared project waits for approval ({r.status_code} {r.text[:160]})")
+# 2.1284.0 (#6453, Fable reader #4945 F1): a body naming a parent in the private project AND list_id = the shared one, with a
+# _prev that makes apply_update drop the parent as a conflict: the task went to list_id while the gate only looked at the
+# parent's project. Every project the body names is a target now (safety.move_dst), with no level and on "free"
+T_PP = task(PRIV, "Private parent")
+for lvl in ("", "free"):
+    if lvl:
+        ctl(FA, {"level": lvl})
+    else:
+        kt.dbx("UPDATE agents SET control='' WHERE user_id=?", (FA,))
+    T_PV = task(PRIV, f"Prev trick {lvl or 'no level'}")
+    r = requests.patch(V + f"/tasks/{T_PV}", headers=H, json={"parent_id": T_PP, "list_id": SHARED,
+                                                               "_prev": {"parent_id": T_SH, "list_id": PRIV}})
+    ok = (r.status_code == 202) if not lvl else (r.status_code == 409 and err(r).get("code") == "approval_required")
+    check(ok and kt.dbx("SELECT list_id FROM tasks WHERE id=?", (T_PV,))[0][0] == PRIV,
+          f"#4945 F1 ({lvl or 'no level'}): parent private + list_id shared + _prev dropping the parent waits, the task stays private ({r.status_code} {r.text[:200]})")
 ctl(FA, {"level": "routine"})
 
 # 2.1284.0 (#6453, Fable reader #4926 F1): the gate reads an id exactly as the route does (tasks/validation.py as_int strips
