@@ -7,7 +7,9 @@ line built for it (a sender with 500 opening brackets) or 2.000 parts inside eac
 
  1. before the parser, on the raw bytes: the head (up to the first empty line) at most MAIL_HEAD_MAX; the lines that can be
     a part boundary (they start with "--") at most MAIL_PARTS_MAX. Only a mail with more such lines (a text with many "--"
-    lines: a patch, an SQL file) is counted exactly: the lines that are one of the boundaries the mail declares.
+    lines: a patch, an SQL file) is counted exactly: the lines that are one of the boundaries the mail declares. A mail
+    that declares more than MAIL_DEPTH_MAX boundaries (a digest does) is followed line by line: how deep its boundaries
+    open inside each other (the parser of Python 3.12 took 33 s for 2.000 of them before it gave up).
  2. after the parser, exactly and without recursion: parts, depth, the header size of every part; the header lines are read
     once here, so one that breaks the header parser refuses the mail in one place (never somewhere in an importer).
 
@@ -60,22 +62,35 @@ def _declared(raw):
 
 
 def mail_precheck(raw):
-    """Step 1 (see above): raises MailRefused for a head over MAIL_HEAD_MAX or more than MAIL_PARTS_MAX boundary lines.
-    One pass over the bytes; nothing is built."""
+    """Step 1 (see above): raises MailRefused for a head over MAIL_HEAD_MAX, more than MAIL_PARTS_MAX boundary lines or
+    boundaries that open more than MAIL_DEPTH_MAX deep inside each other. Passes over the bytes; nothing is built."""
     if len(raw) > MAIL_HEAD_MAX and not _HEAD_END.search(raw, 0, MAIL_HEAD_MAX + 4):
         raise MailRefused("head")
-    if sum(1 for _ in islice(_DELIM.finditer(raw), MAIL_PARTS_MAX + 1)) <= MAIL_PARTS_MAX:
-        return
+    few_lines = sum(1 for _ in islice(_DELIM.finditer(raw), MAIL_PARTS_MAX + 1)) <= MAIL_PARTS_MAX
+    few_bounds = sum(1 for _ in islice(_BOUND_ANY.finditer(raw), MAIL_DEPTH_MAX + 1)) <= MAIL_DEPTH_MAX
+    if few_lines and few_bounds:
+        return  # (every part needs a boundary line, every level a boundary of its own)
     bounds = _declared(raw)
     if bounds is None:
-        raise MailRefused("parts")
-    n = 0
+        raise MailRefused("parts" if not few_lines else "depth")
+    n, open_ = 0, []
     for m in _DELIM.finditer(raw):
         ln = m.group(1).rstrip(b" \t")
-        if ln in bounds or (ln.endswith(b"--") and ln[:-2] in bounds):
-            n += 1
-            if n > MAIL_PARTS_MAX:
-                raise MailRefused("parts")
+        end = ln not in bounds and ln.endswith(b"--") and ln[:-2] in bounds
+        if end:
+            ln = ln[:-2]
+        elif ln not in bounds:
+            continue
+        n += 1
+        if n > MAIL_PARTS_MAX:
+            raise MailRefused("parts")
+        # the boundaries open at this line: one that is open already closes everything opened after it
+        if ln in open_:
+            del open_[open_.index(ln) + (0 if end else 1):]
+        elif not end:
+            open_.append(ln)
+            if len(open_) > MAIL_DEPTH_MAX:
+                raise MailRefused("depth")
 
 
 def mail_postcheck(msg, top=True):

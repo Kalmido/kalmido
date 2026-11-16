@@ -2,7 +2,8 @@
 # kalmido-suite: fresh
 """2.1281.0 (#6425): a foreign mail is counted before it is taken apart, and a documents mail has one budget.
  - core/mailguard.py mail_parse: a mail of 200.000 tiny parts (1.4 MB; the parser alone took seconds and 80 MB for it), of
-   3 million parts, with bare CR / VT line ends, an unquoted or RFC 2231 boundary, 2.000 parts inside each other, 3.000
+   3 million parts, with bare CR / VT line ends, an unquoted or RFC 2231 boundary, 2.000 parts inside each other (33 s in
+   the parser of Python 3.12 before; now counted on the bytes), 3.000
    mails inside each other, a sender line of 500 opening brackets, a head of 300 KB (also folded, also of one part) is
    refused (MailRefused with its code) fast and without building it; a normal mail, 1.999 parts, a patch of 50.000 "--" lines,
    a head of 200 KB and 40 mails inside each other go through as before
@@ -74,6 +75,10 @@ for name, raw in (
     ("parts rfc2231 boundary", H + b"Content-Type: multipart/mixed; boundary*0=a; boundary*1=b\r\n\r\n" + b"--ab\r\n\r\nx\r\n" * 20_000),
     ("depth 2.000 parts inside each other", nested(2_000)), ("depth 300 parts inside each other", nested(300)),
     ("depth 3.000 mails inside each other", inside(3_000)), ("depth 100 mails inside each other", inside(100)),
+    ("depth 60 parts inside each other", nested(60)),
+    ("ok digest of 200 mails with two parts each", H + b'Content-Type: multipart/digest; boundary="d"\r\n\r\n' + b"".join(
+        b'--d\r\n\r\nSubject: m\r\nContent-Type: multipart/alternative; boundary="a%d"\r\n\r\n--a%d\r\n\r\nx\r\n--a%d\r\n\r\ny\r\n--a%d--\r\n'
+        % (i, i, i, i) for i in range(200)) + b"--d--\r\n"),
     ("head 500 brackets", BRACKETS),
     ("head of a part 500 brackets", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Disposition: " + b"(" * 500 + b"\r\n\r\n", 1)),
     ("head 300 KB", b"From: a@example.com\r\nX-A: " + b"a" * 300_000 + b"\r\n\r\nhi"),
@@ -90,14 +95,15 @@ print(json.dumps(out))
 """
 j = py(GUARD)
 check(j.get("limits") == [2000, 256 * 1024], f"the limits: 2.000 parts, 256 KB head ({j.get('limits')})")
+print("mail_parse [result, seconds, MB built]:", json.dumps(j), flush=True)
 for k, v in sorted(j.items()):
     if k == "limits":
         continue
     want = k.split(" ", 1)[0]
     # (the 3 million parts are 21 MB of bytes that are read once; nothing of a refused mail is built: under 8 MB)
-    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or k.startswith("depth") or v[2] < 8),
+    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or "mails inside" in k or v[2] < 8),
           f"mail_parse {k}: {v[0]} in {v[1]} s, {v[2]} MB built")
-check(len(j) == 22, f"all mails were tried ({len(j)})")
+check(len(j) == 24, f"all mails were tried ({len(j)})")
 
 # ---- 2. the instance mailbox and the reading view
 FETCH = MAILS + r"""
@@ -170,7 +176,7 @@ def take(files):
         parts = name = mime = data = ext = None
     return docs, total, cand
 out = {}
-big = zipped(6, 10 * 1024 * 1024, "big")  # 60 MB unpacked, a few KB packed
+big = zipped(6, 9_900_000, "big")  # just under 60 MB unpacked (the limit of one archive), a few KB packed
 files = [(f"b{i}.zip", "application/zip", big) for i in range(20)]
 tracemalloc.start()
 t = time.monotonic()
