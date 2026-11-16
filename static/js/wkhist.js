@@ -109,7 +109,9 @@ const WKS_PLAIN = [[/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, ' '], [/
   [/!\[([^\[\]]*)\]\([^()\s]*\)/g, '$1'], [/\[\[([^\[\]|#\n]*)(?:#[^\[\]|\n]*)?\|([^\[\]\n]+)\]\]/g, '$2'],
   [/\[\[([^\[\]|#\n]+)(?:#[^\[\]\n]*)?\]\]/g, (m, a) => a.split('/').pop()], [/\[([^\[\]]+)\]\([^()\s]*\)/g, '$1'], [/<[^<>\n]{1,200}>/g, ' '],
   [/^[ \t]*(?:[-*_][ \t]*){3,}$/gm, ' '], [/^[ \t]*(?:>[ \t]?)*(?:#{1,6}[ \t]+|[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d{1,9}[.)][ \t]+)?/gm, ''],
-  [/[*~`]+|(?<![\p{L}\p{N}_])_+|_+(?![\p{L}\p{N}_])|\\(?=[!-/:-@[-`{-~])/gu, ''], [/[ \t]*\|[ \t]*/g, ' '], [/\s+/g, ' ']];
+  // 2.1280.0 (#6423): the underscore rule looks at a run from its first character only, the table cell rule starts at the pipe
+  // (both started again at every character of a long run: quadratic, a colleague's page froze the tab of whoever searched)
+  [/[*~`]+|(?<![\p{L}\p{N}_])_+|(?<=[\p{L}\p{N}])_+(?![\p{L}\p{N}_])|\\(?=[!-/:-@[-`{-~])/gu, ''], [/\|[ \t]*/g, ' '], [/\s+/g, ' ']];
 const wks_plain = text => WKS_PLAIN.reduce((s, [rx, to]) => s.replace(rx, to), String(text || '').slice(0, 200000)).trim();
 const wks_fold = s => s.toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '').replace(/ß/g, 'ss');  // docs/rules.py fold
 const wks_words = q => [...new Set(wks_fold(String(q || '')).match(/[\p{L}\p{N}_]+/gu) || [])].filter(w => w.length >= 2 && w.length <= 40).slice(0, 8);

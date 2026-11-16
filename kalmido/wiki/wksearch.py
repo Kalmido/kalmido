@@ -16,6 +16,7 @@ page shared with the person, wkf_shared_ids) are searched by name and text too, 
 the text (wks_snippets): opened in memory only, never stored, indexed or logged; spaces with the lock cut theirs in the
 browser (wkhist.js wks_snip, same rules).
 """
+import bisect
 import re
 
 from ..accounts.bgjobs import bgj_add, bgj_fn
@@ -244,8 +245,11 @@ _WKP = ((re.compile(r"\A---[ \t]*\r?\n.*?\r?\n---[ \t]*(?:\r?\n|\Z)", re.S), " "
         (re.compile(r"<[^<>\n]{1,200}>"), " "),                                                  # html tags
         (re.compile(r"^[ \t]*(?:[-*_][ \t]*){3,}$", re.M), " "),                                 # rules
         (re.compile(r"^[ \t]*(?:>[ \t]?)*(?:#{1,6}[ \t]+|[-*+][ \t]+(?:\[[ xX]\][ \t]+)?|\d{1,9}[.)][ \t]+)?", re.M), ""),  # quote, heading, list
-        (re.compile(r"[*~`]+|(?<!\w)_+|_+(?!\w)|\\(?=[!-/:-@\[-`{-~])"), ""),                     # emphasis marks, escapes
-        (re.compile(r"[ \t]*\|[ \t]*"), " "),                                                     # table cells
+        # 2.1280.0 (#6423): both linear now -- "_+(?!\w)" and "[ \t]*\|" started again at every character of a long run of
+        # underscores / blanks (quadratic: minutes for one snippet); a run of underscores is now looked at from its first
+        # character only, the cell rule takes the pipe and the blanks behind it (the ones before fall to the last rule)
+        (re.compile(r"[*~`]+|(?<!\w)_+|(?<=[^\W_])_+(?!\w)|\\(?=[!-/:-@\[-`{-~])"), ""),          # emphasis marks, escapes
+        (re.compile(r"\|[ \t]*"), " "),                                # table cells (the blanks before: the last rule)
         (re.compile(r"\s+"), " "))
 
 
@@ -268,12 +272,16 @@ def _folded(text):
     return "".join(out), pos
 
 
-def wks_snippet(text, words, size=WKS_SNIP):
-    """(snippet, [[start, end], ...] relative to it, in code points) around the first word of words (folded query words) in
-    the plain text of a page -- at the beginning of a word (2.1002.0 #5279: any length, like the index); None when no
-    word is in the text."""
-    t = wks_plain(text)
-    if not t or not words:
+WKS_PLAIN_MAX = 20000  # 2.1280.0 (#6423): a text up to this size is cleaned as a whole
+WKS_WIN = 2000         # a longer one: this much of the stored text before and after a hit is cut out first, then cleaned
+WKS_WINS = 16          # hits tried (one inside a link's address or another mark is gone after cleaning)
+_WKS_CUT = "\ufffc"    # stands before a piece cut in the middle of a line (the line patterns must not take it for a line start)
+
+
+def _wks_cut(t, words, size, before=False, after=False):
+    """(snippet, marks) around the first word of words in the plain text t | None; before / after: the page's text goes on
+    before / behind t."""
+    if not t:
         return None
     ft, pos = _folded(t)
     marks = []
@@ -304,9 +312,45 @@ def wks_snippet(text, words, size=WKS_SNIP):
         if end < len(t):
             sp = t.rfind(" ", max(start + 1, merged[0][1]), end + 1)
             end = sp if sp > 0 else end
-    pre, post = ("…" if start > 0 else ""), ("…" if end < len(t) else "")
+    pre, post = ("…" if start > 0 or before else ""), ("…" if end < len(t) or after else "")
     sh = len(pre) - start
     return pre + t[start:end] + post, [[a + sh, min(b, end) + sh] for a, b in merged if start <= a < end]
+
+
+def wks_snippet(text, words, size=WKS_SNIP):
+    """(snippet, [[start, end], ...] relative to it, in code points) around the first word of words (folded query words) in
+    the plain text of a page -- at the beginning of a word (2.1002.0 #5279: any length, like the index); None when no
+    word is in the text. 2.1280.0 (#6423): of a long text only the surroundings of a hit are cleaned (cut out first, then
+    cleaned), so the work for one snippet no longer grows with the page."""
+    if not words:
+        return None
+    raw = _WKP[0][0].sub(" ", str(text or "")[:200_000])  # without the frontmatter (anchored at the start: one pass)
+    if len(raw) <= WKS_PLAIN_MAX:
+        return _wks_cut(wks_plain(raw), words, size)
+    fr, pos = _folded(raw)
+    # an underscore before the word counts as its start here ("_Wort_": the mark is gone once cleaned, _wks_cut checks again)
+    rx = re.compile("|".join(r"(?<![^\W_])" + re.escape(wd) for wd in words))
+    at = 0
+    for _ in range(WKS_WINS):
+        m = rx.search(fr, at)
+        if not m:
+            break
+        p = pos[m.start()]
+        a, b = max(0, p - WKS_WIN), min(len(raw), p + WKS_WIN)
+        mid = False
+        if a > 0:  # from a line start on where there is one before the hit, else from the middle of its (long) line
+            nl = raw.find("\n", a - 1, p)
+            a, mid = (nl + 1, False) if nl >= 0 else (a, True)
+        if mid and not re.search(r"\s", raw[a:p]):  # inside one long word (a picture's data address): the next hit
+            at = bisect.bisect_left(pos, b)
+            continue
+        sn = _wks_cut(wks_plain((_WKS_CUT if mid else "") + raw[a:b]).lstrip(_WKS_CUT).lstrip(), words, size, a > 0, b < len(raw))
+        if sn:
+            return sn
+        at = bisect.bisect_left(pos, b)
+    # no hit in the stored text as it is (a word that only shows once the marks are gone, "foo**bar**"): only the beginning
+    # of the page is looked at then
+    return _wks_cut(wks_plain(raw[:WKS_PLAIN_MAX]), words, size, False, True)
 
 
 def wks_snippets(c, rows, q):

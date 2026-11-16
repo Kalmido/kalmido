@@ -56,6 +56,7 @@ from ..accounts.login import addr_key, unseal  # 2.1138.0 (#6027)
 from ..accounts.session import _accept_lang, _rate_blocked, _rate_fail, _token_hash, me, rate_ip
 from ..collab.comments import user_names
 from ..core.errors import BadInput
+from ..core.mdedit import MD_LINE_MAX, md_head_line  # 2.1280.0 (#6423)
 from .pages import wiki_clean_path, wiki_dict, wiki_need, wiki_space, wiki_space_key
 from ..core.orgcrypt import oc_send_file  # 2.149.0 G (#2517): pulled up from functions
 from ..core.orgcrypt import oc_read_file  # 2.674.0 (#4382 finding 2)
@@ -1444,6 +1445,14 @@ def wsh_inline(s, link, file, depth=0, node=None):
     return "".join(out)
 
 
+def _tsep(line):
+    """Is line the separator line of a table ("|---|:--:|")? At least two dashes in its first cell, as before; the whole line
+    must be one now (the Word export's rule), "|-- text" is none."""
+    from .wkdoc import _TSEP
+    st = line.strip()
+    return len(line) <= MD_LINE_MAX and bool(_TSEP.match(st)) and st.lstrip("|").lstrip().lstrip(":").startswith("--")
+
+
 def wsh_md(text, link, file, depth=0, node=None):
     """HTML of a page's Markdown: headings, paragraphs, lists (with check boxes, shown only), quotes, code blocks, rules,
     simple tables; link(path) -> address | None, file(id) -> (address, is picture) | None."""
@@ -1461,6 +1470,13 @@ def wsh_md(text, link, file, depth=0, node=None):
     while i < len(lines):
         ln = lines[i]
         st = ln.strip()
+        if len(ln) > MD_LINE_MAX:  # 2.1280.0 (#6423): a line this long is never a block, no block pattern runs over it
+            if st:
+                para.append(st)
+            else:
+                flush()
+            i += 1
+            continue
         fence = re.match(r"^\s*(```|~~~)\s*([\w-]*)", ln)
         if fence:
             flush()
@@ -1487,11 +1503,11 @@ def wsh_md(text, link, file, depth=0, node=None):
             flush()
             i += 1
             continue
-        h = re.match(r"^(#{1,6})\s+(.*?)\s*#*\s*$", st)
+        h = md_head_line(st)  # 2.1280.0 (#6423): linear (the pattern here took cubic time on a long run of blanks)
         if h:
             flush()
-            n = min(len(h.group(1)) + 1, 6)  # the page title is the h1
-            out.append(f"<h{n}>{il(h.group(2))}</h{n}>")
+            n = min(h[0] + 1, 6)  # the page title is the h1
+            out.append(f"<h{n}>{il(h[1])}</h{n}>")
             i += 1
             continue
         if re.match(r"^(\*\s*\*\s*\*|-\s*-\s*-|_\s*_\s*_)[\s*_-]*$", st):
@@ -1507,7 +1523,8 @@ def wsh_md(text, link, file, depth=0, node=None):
                 i += 1
             out.append(f"<blockquote>{wsh_md(chr(10).join(q), link, file, depth + 1, node)}</blockquote>")
             continue
-        if st.startswith("|") and i + 1 < len(lines) and re.match(r"^\s*\|?\s*:?-{2,}", lines[i + 1]):
+        # 2.1280.0 (#6423): the separator line through the Word export's linear pattern (two "\s*" in a row were quadratic)
+        if st.startswith("|") and i + 1 < len(lines) and _tsep(lines[i + 1]):
             flush()
             cells = lambda r: [x.strip() for x in r.strip().strip("|").split("|")]  # noqa: E731
             head = cells(ln)
@@ -1525,7 +1542,7 @@ def wsh_md(text, link, file, depth=0, node=None):
             ordered = lm.group(2)[0].isdigit()
             items = []
             while i < len(lines):
-                m2 = re.match(r"^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$", lines[i])
+                m2 = None if len(lines[i]) > MD_LINE_MAX else re.match(r"^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$", lines[i])
                 if not m2 or m2.group(2)[0].isdigit() != ordered:
                     break
                 items.append((len(m2.group(1).expandtabs(4)), m2.group(3)))

@@ -24,6 +24,7 @@ from ..core.config import app, ATT_DIR
 from ..core.access import live_sql
 from ..core.i18n import tr
 from ..core.errors import BadInput
+from ..core.mdedit import MD_LINE_MAX, md_head_line  # 2.1280.0 (#6423)
 from ..accounts.session import me
 from ..core.db import db, now_utc
 from ..core.orgcrypt import oc_read_file
@@ -49,9 +50,11 @@ WKD_FILE_RE = re.compile(r"^/api/wiki/files/(\d{1,15})(?:/|$)")
 _INLINE = re.compile(
     r"(?P<esc>\\[\\`*_{}\[\]()#+\-.!|~>])"
     r"|(?P<code>`{1,20})(?P<codet>.{1,500}?)(?P=code)"
-    r"|!\[(?P<ialt>[^\]\n]{0,300})\]\((?P<isrc>[^)\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
-    r"|\[\[(?P<wl>[^\]|\n]{1,300})(?:\|(?P<wlt>[^\]\n]{1,300}))?\]\]"
-    r"|\[(?P<lt>[^\]\n]{1,300})\]\((?P<lh>[^)\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
+    # 2.1280.0 (#6423, review): labels without "[" and addresses without "(" (as the public page's WSH_INLINE) -- with them a
+    # run of "![a](" started the 2000 characters again at every "[": seconds per paragraph, a minute for a full page
+    r"|!\[(?P<ialt>[^\[\]\n]{0,300})\]\((?P<isrc>[^()\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
+    r"|\[\[(?P<wl>[^\[\]|\n]{1,300})(?:\|(?P<wlt>[^\[\]\n]{1,300}))?\]\]"
+    r"|\[(?P<lt>[^\[\]\n]{1,300})\]\((?P<lh>[^()\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
     r"|<(?P<auto>(?:https?://|mailto:)[^>\s]{1,2000})>"
     r"|(?P<bare>https?://[^\s<>()\[\]]{0,2000}[^\s<>()\[\].,;:!?'\"])"
     r"|(?P<br><br\s{0,10}/?>)"
@@ -107,7 +110,6 @@ def wkd_plain(runs):
 _LI = re.compile(r"^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$")
 _TASK = re.compile(r"^\[([ xX])\]\s+(.*)$")
 _HR = re.compile(r"^ {0,3}([-*_])(?:\s*\1){2,}\s*$")
-_HEAD = re.compile(r"^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
 _FENCE = re.compile(r"^ {0,3}(```+|~~~+)\s*([\w+-]*)")
 _TSEP = re.compile(r"^\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?$")  # on the stripped line (review job/4457: no two \s* in a row)
 WKD_TCOLS, WKD_TCELLS = 40, 20000  # a table wider or larger is written as its text (a code block), never padded out
@@ -138,6 +140,13 @@ def wkd_blocks(text):
             para.clear()
     while i < len(lines):
         ln = lines[i]
+        if len(ln) > MD_LINE_MAX:  # 2.1280.0 (#6423): a line this long is never a block, no block pattern runs over it
+            if ln.strip():
+                para.append(ln)
+            else:
+                flush()
+            i += 1
+            continue
         f = _FENCE.match(ln)
         if f:
             flush()
@@ -153,10 +162,10 @@ def wkd_blocks(text):
             flush()
             i += 1
             continue
-        h = _HEAD.match(ln)
+        h = md_head_line(ln)  # 2.1280.0 (#6423): linear (the pattern _HEAD took cubic time on a long run of blanks)
         if h:
             flush()
-            out.append(("h", len(h.group(1)), wkd_inline(h.group(2))))
+            out.append(("h", h[0], wkd_inline(h[1])))
             i += 1
             continue
         if _HR.match(ln) and not (para and set(ln.strip()) == {"-"}):
@@ -198,8 +207,8 @@ def wkd_blocks(text):
             ind = len(li.group(1).replace("\t", "    "))
             txt = li.group(3)
             i += 1
-            while i < len(lines) and lines[i].strip() and not _LI.match(lines[i]) and lines[i].startswith((" ", "\t")) \
-                    and not _FENCE.match(lines[i]):
+            while i < len(lines) and lines[i].strip() and len(lines[i]) <= MD_LINE_MAX and not _LI.match(lines[i]) \
+                    and lines[i].startswith((" ", "\t")) and not _FENCE.match(lines[i]):
                 txt += " " + lines[i].strip()
                 i += 1
             t = _TASK.match(txt)
