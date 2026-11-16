@@ -426,28 +426,38 @@ def bk_payments(c, oid, frm, to, home):
     return out
 
 
+def bk_fx_lines(tax_lines, gross, fx):
+    """2.1259.0 (#6456): the frozen tax lines of a document in the office currency -- the one rule of the books, the tax
+    advisor's export and DATEV: the gross = money(gross / fx), each line's tax = money(tax / fx), each line's base =
+    money(base / fx) and the rest cent to the gross on the base of the largest rate (the largest base on a tie), so the
+    lines add up to exactly the converted gross the payment brings. tax_lines = totals.tax_lines (dicts with pct / base /
+    amount, rate_key kept), gross = the document's gross in its currency (None = the sum of the lines), fx = the rate
+    (amount / fx = office currency; 1 = unchanged). -> [{rate_key, pct, base, amount}] (Decimal), in the order given."""
+    out = [{"rate_key": tl.get("rate_key"), "pct": dec(tl.get("pct") or 0).normalize(), "base": dec(tl.get("base") or 0),
+            "amount": dec(tl.get("amount") or 0)} for tl in tax_lines or [] if isinstance(tl, dict)]
+    if not out or fx == 1:
+        return out
+    total = money((dec(gross) if gross not in (None, "") else sum((x["base"] + x["amount"] for x in out), Decimal(0))) / fx)
+    for x in out:
+        x["base"], x["amount"] = money(x["base"] / fx), money(x["amount"] / fx)
+    big = max(out, key=lambda x: (x["pct"], abs(x["base"])))
+    big["base"] += total - sum((x["base"] + x["amount"] for x in out), Decimal(0))
+    return out
+
+
 def bk_doc_lines(r, home):
     """2.1259.0 (#6301): ([(group, base, tax)] in the office currency, gross in the document's currency) of an invoice / credit
     note with VAT from its frozen tax lines (totals.tax_lines), the truth of the document: a full payment gives exactly its
-    base and tax. A foreign currency: each line by the document's rate, the rest cent to the converted sums on the largest
-    rate. None without VAT or without tax lines (an old document keeps the share way of bk_doc_parts)."""
+    base and tax. A foreign currency by bk_fx_lines (#6456: the lines add up to the converted gross, as the payment). None
+    without VAT or without tax lines (an old document keeps the share way of bk_doc_parts)."""
     if (r["vat_mode"] or "vat") == "novat":
         return None
-    rows = []
-    for tl in _j(r["totals"]).get("tax_lines") or []:
-        pct = dec(tl.get("pct") or 0).normalize()
-        rows.append(("vat" + format(pct, "f") if pct > 0 else "exempt", pct, dec(tl.get("base") or 0), dec(tl.get("amount") or 0)))
-    if not rows:
+    tls = _j(r["totals"]).get("tax_lines") or []
+    lines = bk_fx_lines(tls, None, _fx(r, home))
+    if not lines:
         return None
-    gross = sum((b + t for _, _, b, t in rows), Decimal(0))
-    fx = _fx(r, home)
-    if fx == 1:
-        return [(k, b, t) for k, _, b, t in rows], gross
-    out = [[k, money(b / fx), money(t / fx)] for k, _, b, t in rows]
-    big = max(range(len(rows)), key=lambda i: (rows[i][1], abs(rows[i][2])))
-    out[big][1] += money(sum((x[2] for x in rows), Decimal(0)) / fx) - sum((x[1] for x in out), Decimal(0))
-    out[big][2] += money(sum((x[3] for x in rows), Decimal(0)) / fx) - sum((x[2] for x in out), Decimal(0))
-    return [tuple(x) for x in out], gross
+    gross = sum((dec(tl.get("base") or 0) + dec(tl.get("amount") or 0) for tl in tls if isinstance(tl, dict)), Decimal(0))
+    return [("vat" + format(x["pct"], "f") if x["pct"] > 0 else "exempt", x["base"], x["amount"]) for x in lines], gross
 
 
 def bk_amount_parts(amount, r, home):
