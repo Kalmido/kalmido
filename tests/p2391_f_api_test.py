@@ -394,7 +394,7 @@ INV = r.json()["id"]
 dbx("UPDATE office_docs SET number='' WHERE id=?", (INV,), write=True)
 src = open(os.path.join(os.environ.get("KALMIDO_SRC") or os.path.join(N, ".."), "kalmido", "office", "docs.py"), encoding="utf-8").read()
 check("fi_number_taken" in src, "docs._assign_number checks the archive numbers")
-r = A.post(B + f"/api/office/docs/{INV}/number", json={"number": "665_R"})
+r = A.post(B + f"/api/office/docs/{INV}/number", json={"number": "665_R"})  # 2.1289.0 (#6481): the draft route refuses any number by hand of an invoice (409); the archive check at finalising: p6481
 check(r.status_code in (400, 409), "a manual invoice number that is in the archive = refused " + r.text[:120])
 
 # ---------------------------------------------------------------- undo

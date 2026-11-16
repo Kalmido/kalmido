@@ -166,10 +166,13 @@ check(A.post(B + f"{D}/{IID}/status", json={"status": "issued"}).status_code == 
 check(A.post(B + f"{D}/{IID}/status", json={"status": "sent"}).status_code == 409, "draft invoice cannot be sent by status (409)")
 check(A.post(B + f"{D}/{IID}/status", json={"status": "accepted"}).status_code == 400, "quotation statuses are not invoice statuses (400)")
 # manual numbers: scheme + above the series' last value
-r = A.post(B + f"{D}/{IID}/number", json={"number": "X-1"})
+# 2.1289.0 (#6481): a number by hand of an invoice comes with the finalising ({number, reason}); the draft route refuses it (409)
+check(A.post(B + f"{D}/{IID}/number", json={"number": "RE-2026-005"}).status_code == 409, "#6481: no number by hand at the invoice draft (409)")
+r = A.post(B + f"{D}/{IID}/finalize", json={"number": "X-1"})
 check(r.status_code == 400 and "scheme" in r.json().get("error", ""), "manual invoice number must follow the scheme " + r.text[:120])
-r = A.post(B + f"{D}/{IID}/number", json={"number": "RE-2026-000"})
+r = A.post(B + f"{D}/{IID}/finalize", json={"number": "RE-2026-000"})
 check(r.status_code == 400 and "above" in r.json().get("error", ""), "manual invoice number must be above the last one " + r.text[:120])
+check(not A.get(B + f"{D}/{IID}").json()["locked"], "#6481: a refused number leaves the invoice a draft")
 # required fields: an empty invoice draft
 r = A.post(B + D, json={"kind": "invoice"})
 check(r.status_code == 201 and r.json()["kind"] == "invoice" and r.json()["number"] == "" and r.json()["raw_mode"] == "none", "an empty invoice draft " + r.text[:120])
@@ -193,10 +196,12 @@ check(rd["vat_note_key"] == "reverse" and "Reverse" in rd["vat_note_text"] and r
       f"novat render: VAT note text, no tax lines: {rd.get('vat_note_text')}")
 
 # ---------------------------------------------------------------- finalising the parity invoice
-r = A.post(B + f"{D}/{IID}/number", json={"number": "RE-2026-005", "reason": "numbers 2-4 used in the old program"})  # 2.39.1 (#1210 N2): a gap needs a reason
-check(r.ok and r.json()["number"] == "RE-2026-005", "manual number above the last one accepted " + r.text[:120])
-r = Bo.post(B + f"{D}/{IID}/finalize")
-check(r.ok and r.json()["number"] == "RE-2026-005" and r.json()["status"] == "issued" and r.json()["state"] == "issued" and r.json()["locked"] is True, "member finalises the invoice " + r.text[:160])
+# 2.1289.0 (#6481): the number by hand comes with the finalising, by whom the number route allowed it (not a plain member: 403)
+check(Bo.post(B + f"{D}/{IID}/finalize", json={"number": "RE-2026-005", "reason": "numbers 2-4 used in the old program"}).status_code == 403,
+      "#6481: a member finalises with a number by hand: 403")
+r = A.post(B + f"{D}/{IID}/finalize", json={"number": "RE-2026-005", "reason": "numbers 2-4 used in the old program"})  # 2.39.1 (#1210 N2): a gap needs a reason
+check(r.ok and r.json()["number"] == "RE-2026-005" and r.json()["status"] == "issued" and r.json()["state"] == "issued" and r.json()["locked"] is True,
+      "manual number above the last one accepted, the invoice finalised " + r.text[:160])
 check(r.json()["due_date"] == "2027-06-07", "finalised invoice keeps its due date")
 for what, rr in (("PATCH", A.patch(B + f"{D}/{IID}", json={"order_ref": "x"})), ("PUT items", A.put(B + f"{D}/{IID}/items", json={"items": []})),
                  ("number", A.post(B + f"{D}/{IID}/number", json={"number": "RE-2026-009"})), ("delete", A.delete(B + f"{D}/{IID}"))):
@@ -237,8 +242,8 @@ check(Ca.post(B + f"{D}/from-time", json={"client_id": CL, "from": "2026-01-01",
 check(requests.get(B + f"{D}?kind=invoice", headers=AGH).status_code == 403, "agent: no invoice list")
 check(len(Ca.get(B + D + "?kind=invoice").json()["docs"]) == 1, "second organisation lists only its own invoice")
 # UNIQUE per organisation: a manual number that exists already
-r = A.post(B + D, json={"kind": "invoice"})
-check(A.post(B + f"{D}/{r.json()['id']}/number", json={"number": "RE-2026-005"}).status_code == 400, "a used number is refused (400)")
+r = A.post(B + D, json={"kind": "invoice", "client_id": CL, "service_from": "2026-05-01", "items": [{"title": "Beratung", "qty": 1, "rate": 100}]})
+check(A.post(B + f"{D}/{r.json()['id']}/finalize", json={"number": "RE-2026-005"}).status_code == 400, "a used number is refused (400)")  # 2.1289.0 (#6481): at finalising
 A.delete(B + f"{D}/{r.json()['id']}")
 
 # ---------------------------------------------------------------- payments

@@ -117,17 +117,21 @@ check(nul and nul[0][0] == "NO", f"N5: office_doc_items.org_id is NOT NULL {nul}
 check(dbx("SELECT COUNT(*) FROM office_doc_items WHERE org_id IS NULL")[0][0] == 0, "N5: no position without organisation")
 
 # ---------------------------------------------------------------- N2: manual numbers
+# 2.1289.0 (#6481): a number by hand of an invoice comes with the finalising (POST .../finalize {number, reason}); the draft route refuses it (409)
 r = A.post(B + f"{D}/{I1}/number", json={"number": f"RE-{Y}-001"})
-check(r.ok and r.json()["number"] == f"RE-{Y}-001", "N2: the next number by hand needs no reason " + r.text[:120])
-r = A.post(B + f"{D}/{I1}/finalize")
-check(r.ok and r.json()["number"] == f"RE-{Y}-001", "finalised with the manual number " + r.text[:120])
+check(r.status_code == 409 and "finalise" in r.json().get("error", ""), "#6481: no number by hand at an invoice draft (409) " + r.text[:120])
+r = A.post(B + f"{D}/{I1}/finalize", json={"number": f"RE-{Y}-001"})
+check(r.ok and r.json()["number"] == f"RE-{Y}-001", "N2: finalised with the next number by hand, no reason needed " + r.text[:120])
 I2 = draft()
-r = A.post(B + f"{D}/{I2}/number", json={"number": f"RE-{Y}-005"})
+r = A.post(B + f"{D}/{I2}/finalize", json={"number": f"RE-{Y}-005"})
 check(r.status_code == 400 and "reason" in r.json().get("error", "") and "3" in r.json().get("error", ""), "N2: a gap of 3 numbers without a reason: 400 " + r.text[:160])
-r = A.post(B + f"{D}/{I2}/number", json={"number": f"RE-{Y}-005", "reason": "abc"})
+r = A.post(B + f"{D}/{I2}/finalize", json={"number": f"RE-{Y}-005", "reason": "abc"})
 check(r.status_code == 400, "N2: a too short reason: 400")
+check(A.get(B + f"{D}/{I2}").json()["number"] == "" and not A.get(B + f"{D}/{I2}").json()["locked"], "#6481: the refused finalising left no number and no lock")
 # 2.148.1 (#2496): a number by hand is for office admins / accounting only (was: bob as a plain member)
-r = A.post(B + f"{D}/{I2}/number", json={"number": f"RE-{Y}-005", "reason": "Nummern 2 bis 4 im Altprogramm vergeben"})
+check(Bo.post(B + f"{D}/{I2}/finalize", json={"number": f"RE-{Y}-005", "reason": "Nummern 2 bis 4 im Altprogramm vergeben"}).status_code == 403,
+      "#6481: a plain member finalises with a number by hand: 403")
+r = A.post(B + f"{D}/{I2}/finalize", json={"number": f"RE-{Y}-005", "reason": "Nummern 2 bis 4 im Altprogramm vergeben"})
 check(r.ok and r.json()["number"] == f"RE-{Y}-005", "N2: with a reason the gap is accepted " + r.text[:120])
 lg = dbx("SELECT detail FROM office_doc_log WHERE action='number' AND doc_id=? ORDER BY id DESC LIMIT 1", (I2,))
 check(lg and "Altprogramm" in lg[0][0], f"N2: the reason is in the office log {lg}")
@@ -137,7 +141,7 @@ res = {}
 
 
 def put_num(did):
-    res[did] = A.post(B + f"{D}/{did}/number", json={"number": f"RE-{Y}-006"}).status_code
+    res[did] = A.post(B + f"{D}/{did}/finalize", json={"number": f"RE-{Y}-006"}).status_code
 
 
 ths = [threading.Thread(target=put_num, args=(d,)) for d in (I3, I4)]

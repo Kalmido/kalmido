@@ -162,13 +162,16 @@ def part_numranges():
         check(r.ok, f"{who}: quotation sent " + r.text[:120])
         r = s.post(B + f"{D}/{o1}/number", json={"number": "A-901"})
         check(r.status_code == 409, f"{who}: a sent quotation keeps its number (409, {r.status_code})")
-        # an invoice draft by hand: a gap needs a reason, the series follows
-        i2 = draft(s, "invoice")
-        r = s.post(B + f"{D}/{i2}/number", json={"number": f"RE-{Y}-1010"})
-        check(r.status_code == 400, f"{who}: an invoice draft number with a gap and no reason = 400")
+        # an invoice by hand: a gap needs a reason, the series follows. 2.1289.0 (#6481): the number by hand comes with the
+        # finalising (the draft route refuses it, 409)
+        i2 = draft(s, "invoice", client=True)
         r = s.post(B + f"{D}/{i2}/number", json={"number": f"RE-{Y}-1010", "reason": "Lücke für Altbestand"})
-        check(r.ok and ranges(s)["invoice"]["next"] == 1011, f"{who}: with reason ok, the series continues from it " + r.text[:120])
-        check(s.delete(B + f"{D}/{i2}").status_code == 409, f"{who}: an invoice draft numbered by hand is kept (no gaps)")
+        check(r.status_code == 409 and ranges(s)["invoice"]["next"] == 1002, f"{who}: #6481 no number by hand at the invoice draft (409) " + r.text[:120])
+        r = s.post(B + f"{D}/{i2}/finalize", json={"number": f"RE-{Y}-1010"})
+        check(r.status_code == 400, f"{who}: an invoice number with a gap and no reason = 400")
+        r = s.post(B + f"{D}/{i2}/finalize", json={"number": f"RE-{Y}-1010", "reason": "Lücke für Altbestand"})
+        check(r.ok and r.json()["number"] == f"RE-{Y}-1010" and ranges(s)["invoice"]["next"] == 1011, f"{who}: with reason ok, the series continues from it " + r.text[:120])
+        check(s.delete(B + f"{D}/{i2}").status_code == 409, f"{who}: the invoice numbered by hand is kept (no gaps)")
         # 2.138.0 D (#2256): quotations counted per client (2.118.0 A, #2265) have no single series
         check(s.put(B + O + "/settings", json={"offer_counter": "client"}).ok, f"{who}: quotation counter per client")
         check("offer" not in ranges(s), f"{who}: no quotation series while it counts per client {sorted(ranges(s))}")

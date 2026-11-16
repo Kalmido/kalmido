@@ -568,6 +568,8 @@ def doc_public(c, oid, r, admin, items=True):
     else:  # 2.417.0 C (#2604): the test phase rules for quotations (#2573) and invoices (#2603) are gone - finalised or sent stays (GoBD)
         d["can_delete"] = d["can_unlock"] if locked else bool(admin) and r["status"] != "sent" and not odoc_seq_numbered(r)
     d["number_at_finalize"] = ofx_number_at_finalize(office_settings(c, oid), r["kind"])
+    if not ofx_locked(r) and odoc_seq_numbered(r) and not r["trial"]:
+        d["number_draft"] = True  # 2.1289.0 (#6481 N3): a numbered draft from before 2.1289 -- finalise it
     if r["kind"] == "invoice":  # 2.120.0 D (#2089): "attach timesheet" is offered when the invoice has a client and a period
         d["timesheet_ok"] = bool(r["client_id"] and r["service_from"] and r["service_to"])
     from .agentdocs import ofa_doc_extra
@@ -611,6 +613,13 @@ def doc_brief(r, pm=None, lg=None, today=None):
         d["open_text"] = fmt_money(d["open"], r["lang"], r["currency"])
     return d
 
+
+def odoc_list_marks(c, oid, rows):
+    """2.1289.0 (#6481 N3): the list rows' marks -- an invoice / correction draft that already carries a number of its series
+    (given before 2.1289 at the draft): number_draft, finalise it, the gap stays open until then."""
+    for b in rows:
+        if b["kind"] in ODOC_SEQ_KINDS and b["number"] and not b["locked"] and not b["trial"]:
+            b["number_draft"] = True
 
 # ---------------------------------------------------------------- cleaning
 def _rights_clean(c, oid, v, lang, cur):
@@ -1566,6 +1575,7 @@ def odoc_list():
     lg = lang()
     day = local_now().date().isoformat()  # 2.1064.0 (#5818): one day for the whole list (the mark "expired")
     rows = [doc_brief(r, pm, lg, day) for r in raw]
+    odoc_list_marks(c, oid, rows)  # 2.1289.0 (#6481 N3, U4)
     if kind == "offer":
         from .offerlink import oil_list_marks
         oil_list_marks(c, oid, rows)  # 2.356.0 C (#3005)
@@ -1740,6 +1750,8 @@ def odoc_number(did):
     b = b if isinstance(b, dict) else {}
     if "number" not in b and not r["trial"] and ofx_number_at_finalize(office_settings(c, oid), r["kind"]):
         raise Denied(409, tr("the number comes only when the invoice is finalised; the series has no gaps"))
+    if "number" in b and r["kind"] in ODOC_SEQ_KINDS and not r["trial"]:  # 2.1289.0 (#6481 N3, S3): a hand-set number only when finalising
+        raise DeniedKey(409, ODOC_HAND_AT_FINAL)
     reason = _text(b.get("reason"), "reason", 300)
     num = _assign_number(c, oid, did, manual=b.get("number") if "number" in b else None, reason=reason)
     if num != r["number"]:
@@ -1747,6 +1759,25 @@ def odoc_number(did):
     bump(c)
     c.commit()
     return jsonify(id=did, number=num)
+
+
+# 2.1289.0 (#6481 N3, S3): an invoice / correction gets a hand-set number only in the finalise dialog, checked and given in
+# the same transaction as the finalising (no numbered draft that stays a draft while later numbers are finalised)
+ODOC_HAND_AT_FINAL = N_("An invoice or correction gets a number of your own only when it is finalised: enter it in the finalise dialog")
+
+
+def odoc_finalize_number(c, oid, did):
+    """2.1289.0 (#6481 N3, S3): (number or None, reason) of the finalise request's body {number?, reason?}: only for an
+    invoice / correction (400 otherwise) and only for whom POST .../number allowed it (the office admin / accounting, 403)."""
+    b = body()
+    b = b if isinstance(b, dict) else {}
+    num = b.get("number")
+    if num is None or (isinstance(num, str) and not num.strip()):
+        return None, ""
+    if doc_row(c, oid, did)["kind"] not in ODOC_SEQ_KINDS:
+        raise BadKey(N_("Only an invoice or correction takes a number when it is finalised"))
+    _ctx(admin=True)  # the same check as POST /api/office/docs/<did>/number (403)
+    return _text(num, "number", 80), _text(b.get("reason"), "reason", 300)
 
 
 @app.get("/api/office/docs/<int:did>/number-preview")
@@ -1920,6 +1951,9 @@ def odoc_duplicate(did):
 ODOC_SEQ_KINDS = ("invoice", "credit")
 ODOC_SEQ_KEPT = N_("This draft already has a number of the invoice series and is kept. Finalise it and cancel it if it is not needed.")
 
+# 2.1289.0 (#6481 S3): a correction cannot be cancelled -- its text names the way that exists
+ODOC_SEQ_KEPT_CREDIT = N_("This correction draft already has a number of the series and is kept. Finalise it; if it is not needed, bill the amount again with a new invoice.")
+
 
 def odoc_seq_numbered(r):
     return r["kind"] in ODOC_SEQ_KINDS and bool(r["number"])
@@ -2013,7 +2047,7 @@ def odoc_delete(did):
     else:
         ofx_need_editable(r)
         if odoc_seq_numbered(r):  # 2.126.0 A (#1966)
-            raise Denied(409, tr(ODOC_SEQ_KEPT))
+            raise Denied(409, tr(ODOC_SEQ_KEPT_CREDIT if r["kind"] == "credit" else ODOC_SEQ_KEPT))  # 2.1289.0 (#6481 S3)
     if c.execute("SELECT 1 FROM office_signoffs WHERE doc_id=? AND org_id=? AND state <> 'open' LIMIT 1", (did, oid)).fetchone():
         raise Denied(409, tr("The client has signed this quotation; the record is kept"))  # 2.50.0 (#1200 review)
     ofx_log(c, oid, "delete", doc_id=did, detail={"number": r["number"], "status": r["status"], "net": _j(r["totals"], {}).get("net"),
