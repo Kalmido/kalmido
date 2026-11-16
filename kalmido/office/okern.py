@@ -89,8 +89,19 @@ def _base_of(kind):
         if office_role(c, uid, oid) is None:
             return None  # not of this organisation at all
         k = OFK[kind]
+        if k["need"] == "own" and not office_can(c, uid, oid, k["area"], "view"):
+            # 2.1253.0 (#6292): the level "own" gives a role only on the person's own rows (who entered it: k["owner"]), as
+            # the area's routes; else links, the trash and the undo of the core would open everybody else's rows
+            return "manage" if office_can(c, uid, oid, k["area"], "own") and _owner(c, kind, oid, row) == uid else None
         return "manage" if office_can(c, uid, oid, k["area"], k["need"]) else None
     return base
+
+
+def _owner(c, kind, oid, row):
+    """2.1253.0 (#6292): the person a row of a kind with need="own" belongs to: owner(c, oid, row) of ofk_register, else the
+    row's created_by (None = nobody's: no role on the level "own")."""
+    fn = OFK[kind].get("owner")
+    return fn(c, oid, row) if fn else row.get("created_by")
 
 
 def _visible_of(table, personal=None):
@@ -113,7 +124,7 @@ def _space_of(table):
 
 
 def ofk_register(kind, table, label, area, need="manage", children=(), base=None, view=None, step=True, trash_keep=None,
-                 personal=None, limit=None):
+                 personal=None, limit=None, owner=None):
     """Registers an office kind on the core's trash (module docstring); area = its rights area (office/rights.py), need =
     the level its route needs to delete a row (an "own" level: the route checks the row is the person's own).
     2.905.0 (#5414): base(c, uid, row) -> 'manage' | None replaces the area's level (the rights groups: who manages the
@@ -130,9 +141,11 @@ def ofk_register(kind, table, label, area, need="manage", children=(), base=None
     exact check stays the kind's obj_on_purge hook, Denied = kept).
     2.1004.0 (#5494): personal = the column naming the person of a row without an organisation (ofk_office_of); limit =
     fn(c, oid, row) after a restore (ofk_restore, the office trash, the toast's undo and - for a kind with a step - the
-    person's undo list): raises Denied(409) when the row back would pass the kind's maximum (delete, add anew, restore)."""
+    person's undo list): raises Denied(409) when the row back would pass the kind's maximum (delete, add anew, restore).
+    2.1253.0 (#6292): owner = fn(c, oid, row) -> the person a row of a kind with need="own" belongs to (default: its
+    created_by); a person on the level "own" gets the core's role only on such own rows (_base_of)."""
     OFK[kind] = {"table": table, "area": area, "need": need, "base": base, "view": view, "step": step, "personal": personal,
-                 "limit": limit}
+                 "limit": limit, "owner": owner}
     if limit and step:  # 2.1004.0 (#5494): the person's undo list takes a trash step back through the limit too
         undo_trash_reg(kind, lambda c, uid, rid: _restored(c, uid, kind, rid, undo=True, step=False),
                        lambda c, uid, rid: obj_trash(c, uid, kind, rid, step=False))
