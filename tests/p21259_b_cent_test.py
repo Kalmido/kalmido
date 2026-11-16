@@ -142,6 +142,24 @@ def flow(s, who):
               f"{who} (a): the invoice row's gross = money(11.90 / 1.09) = 10.92 like its payment (was 10.91) {inv[0]} {pm[0]}")
         check(dd(inv[0]["Net"]) + dd(inv[0]["VAT"]) == dd(inv[0]["Gross"]) and dd(inv[0]["VAT"]) == D2("1.74"),
               f"{who} (a): net + VAT = gross, the VAT as converted (1.74), the rest cent on the net {inv[0]}")
+    # ---- (b) DATEV: 100.00 USD paid in three parts
+    b = invoice(s, cl, "77.0917", "USD", "1.09")
+    check(b["totals"]["gross"] == "100.00", f"{who} (b): USD 84.03 + 15.97 = 100.00 {b['totals'].get('gross')}")
+    for x in ("33.33", "33.33", "33.34"):
+        pay(s, b["id"], x)
+    rows = extf(s, f"{Y}-01-01", f"{Y}-12-31")
+    bal, mine = debtor_balance(rows, b["number"])
+    amounts = sorted(dd(x["Umsatz (ohne Soll/Haben-Kz)"]) for x in mine if x["Buchungstext"].startswith("Zahlung"))
+    check(bal == 0 and amounts == [D2("30.58")] * 3, f"{who} (b): the settling payment carries the rest cent, the debtor balances (was -0.01) {bal} {amounts}")
+    # ---- (b) the same with a cash discount: 12.05 USD, 2 % = 0.24, paid 11.81 in time
+    k = invoice(s, cl, "9.2936", "USD", "1.09", extra={"skonto_pct": 2, "skonto_days": 10, "payment_days": 14})
+    check(k["totals"]["gross"] == "12.05", f"{who} (b): USD 10.13 + 1.92 = 12.05 {k['totals'].get('gross')}")
+    pay(s, k["id"], "11.81")
+    check(s.get(B + f"{D}/{k['id']}").json()["status"] == "paid", f"{who} (b): paid less 2 % = paid")
+    rows = extf(s, f"{Y}-01-01", f"{Y}-12-31")
+    bal, mine = debtor_balance(rows, k["number"])
+    sk = [dd(x["Umsatz (ohne Soll/Haben-Kz)"]) for x in mine if x["Buchungstext"].startswith("Skonto")]
+    check(bal == 0 and sk == [D2("0.23")], f"{who} (b): the discount line takes the rest (0.23, was 0.22), the debtor balances {bal} {sk} {mine}")
 
 
 subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], check=True, stdout=subprocess.DEVNULL)
