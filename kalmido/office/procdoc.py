@@ -124,6 +124,41 @@ def _count(c, sql, args):
     return int(r[0] or 0) if r else 0
 
 
+def _pd_agents(c, oid, s, t):
+    """2.1289.0 (#6473): the access of AI agents to office area oid, from its switches (office/agentdocs.py): the area's
+    "Agents may read office data" (s["agents_read"]) and each agent's office switch / office groups (ofa_agent_on). Only
+    what the agents' routes allow (agentdocs, agentinvoice, letteragent, leads, agentdeals); names only."""
+    from .agentdocs import ofa_agent_ok, ofa_area_agents
+    if not s.get("agents_read"):
+        return t("KI-Agenten haben keinen Zugriff auf das Büro: der Schalter „Agenten dürfen Büro-Daten lesen“ ist aus.",
+                 "AI agents have no access to the office: the switch \"Agents may read office data\" is off.")
+    names = []
+    for aid, _on in ofa_area_agents(c, oid):
+        with system_ctx(c):  # the agent's name and whether it is active (structure, as agents.core agent_active), whoever asks
+            a = c.execute("SELECT u.display_name, u.username FROM agents a JOIN users u ON u.id=a.user_id "
+                          "WHERE a.user_id=? AND u.kind='agent' AND a.enabled AND NOT COALESCE(u.disabled, FALSE)", (aid,)).fetchone()
+        if a and ofa_agent_ok(c, aid, oid, area=None, level="view"):
+            names.append((a["display_name"] or a["username"] or "").strip())
+    who = (t("Derzeit für das Büro freigeschaltet: ", "Currently enabled for the office: ") + ", ".join(sorted(names, key=str.lower)) + ".") if names \
+        else t("Derzeit ist kein KI-Agent für das Büro freigeschaltet.", "Currently no AI agent is enabled for the office.")
+    return " ".join([
+        t("Der Schalter „Agenten dürfen Büro-Daten lesen“ ist an. KI-Agenten erreichen das Büro nur, wenn zusätzlich ihr eigener "
+          "Schalter „Darf Büro-Entwürfe anlegen“ bzw. ihre Büro-Gruppen es erlauben.",
+          "The switch \"Agents may read office data\" is on. AI agents reach the office only when their own switch \"May draft "
+          "office documents\" or their office groups allow it as well."),
+        who,
+        t("Ein Agent handelt immer für eine Person, die im Büro arbeitet, und nie mit mehr Rechten als diese. Er liest Büro-Daten "
+          "(Kunden, Leistungen, Dokumente; nie Einkaufspreise), legt nur Entwürfe an und ändert nur Entwürfe (Angebote, Rechnungen, "
+          "Mahnungen, Briefe), schlägt Zahlungen nur vor und legt im Vertrieb Anfragen und Verkaufschancen an bzw. ändert deren Stand (ohne Löschen). Nummer vergeben, "
+          "festschreiben, versenden, stornieren und löschen kann nur eine Person; eine vorgeschlagene Zahlung bucht erst eine Person. "
+          "Jede Anfrage eines Agenten steht ohne Inhalte im Büro-Protokoll (agent_read / agent_write).",
+          "An agent always acts for a person who works in the office and never with more rights than that person. It reads office "
+          "data (clients, services, documents; never purchase prices), only creates and changes drafts (quotations, invoices, "
+          "reminders, letters), only suggests payments and in sales adds inquiries and deals or changes their state (no deleting). Only a person can give a "
+          "number, finalise, send, cancel and delete; a suggested payment is booked only by a person. Every request of an agent "
+          "is one line in the office log without contents (agent_read / agent_write).")])
+
+
 def pd_auto(c, oid, L):
     """{field: the prefilled text} in language L ("de" | "en"), from the settings and what the office holds."""
     gap = PD_GAP[L]
@@ -216,7 +251,12 @@ def pd_auto(c, oid, L):
         t("Festschreiben gilt pro Monat und lässt sich nicht zurücknehmen. In einem festgeschriebenen Monat lehnt Kalmido jede Änderung "
           "mit Datum ab; Korrekturen werden in einem offenen Monat gebucht (z. B. Rechnungskorrektur mit heutigem Datum).",
           "Locking works per month and cannot be taken back. In a locked month Kalmido refuses every change with a date in it; "
-          "corrections are booked in an open month (e.g. a credit note dated today).")])
+          "corrections are booked in an open month (e.g. an invoice correction dated today)."),
+        # 2.1289.0 (#6473): the way after a correction finalised by mistake (invoices.py: a correction only on an invoice)
+        t("Eine festgeschriebene Rechnungskorrektur ist endgültig und lässt sich selbst nicht korrigieren oder stornieren. "
+          "War sie ein Irrtum, wird der richtige Betrag mit einer neuen Rechnung mit neuer Nummer in Rechnung gestellt.",
+          "A finalised invoice correction is final and cannot itself be corrected or cancelled. If it was a mistake, the right "
+          "amount is billed with a new invoice with a new number.")])
     dx = s.get("datev_extf") or {}
     out["advisor"] = "\n".join([
         t("Export des Buchungsstapels im DATEV-Format (EXTF) und als CSV; Einnahmen-Überschuss-Rechnung als CSV/PDF.",
@@ -241,12 +281,12 @@ def pd_auto(c, oid, L):
     out["log"] = t("Das Büro-Protokoll hält fest, wer wann welche Dokumente und Stammdaten geändert oder exportiert hat, bei Änderungen mit "
                    "dem Wert davor und danach. Kassenbuch und Fahrtenbuch führen eigene Änderungsprotokolle. Das Protokoll sehen nur Admins. "
                    # 2.531.0 (#4497): the promise of the hash chain (office/chain.py)
-                   "Festgeschriebene Rechnungen, Gutschriften, Mahnungen und Lieferscheine sind je Nummernkreis in einer Hash-Kette "
+                   "Festgeschriebene Rechnungen, Rechnungskorrekturen, Mahnungen und Lieferscheine sind je Nummernkreis in einer Hash-Kette "
                    "verbunden (SHA-256 über den Hash des vorigen Dokuments und die unveränderlichen Daten des Dokuments); die Prüfung "
                    "„Kette intakt“ im Büro-Protokoll rechnet sie neu und nennt das erste abweichende Dokument.",
                    "The office log records who changed or exported which documents and master data when, for changes with the value "
                    "before and after. Cash book and logbook keep their own change logs. Only admins see the log. "
-                   "Finalised invoices, credit notes, reminders and delivery notes are linked per number series in a hash chain "
+                   "Finalised invoices, invoice corrections, reminders and delivery notes are linked per number series in a hash chain "
                    "(SHA-256 over the hash of the document before and the document's unchangeable data); the check \"Chain intact\" "
                    "in the office log recomputes it and names the first document that differs.")
 
@@ -267,14 +307,22 @@ def pd_auto(c, oid, L):
               "(section 147 AO, section 257 HGB), each from the end of the calendar year.") if (s.get("pack") or "DE").upper() == "DE"
             else t("Aufbewahrungsfristen des Landes: ", "Retention periods of the country: ") + gap)
     out["retention"] = "\n".join([keep, t(
-        "Finalisierte Rechnungen und Rechnungskorrekturen lassen sich in Kalmido nicht löschen; Kasseneinträge werden nie gelöscht; genehmigte "
-        "Bewirtungsbelege bleiben 8 Jahre nach Ende ihres Jahres erhalten.",
-        "Finalised invoices and credit notes cannot be deleted in Kalmido; cash entries are never deleted; approved entertainment "
-        "receipts are kept for 8 years after the end of their year.")])
+        "Finalisierte Rechnungen und Rechnungskorrekturen lassen sich in Kalmido einzeln nicht löschen; Kasseneinträge werden nie einzeln gelöscht; genehmigte "
+        "Bewirtungsbelege bleiben 8 Jahre nach Ende ihres Jahres erhalten. "
+        # 2.1289.0 (#6473): the two ways the data do go: the whole area deleted, and the end of the retention period
+        "Löscht eine berechtigte Person die Organisation bzw. das Konto mit dem persönlichen Büro, solange solche Daten aufzubewahren sind, "
+        "wird das Büro stillgelegt statt gelöscht: in der App sehen es nur noch die Administratoren der Instanz (nur Export), endgültig "
+        "entfernt wird es erst nach Ablauf der Aufbewahrungsfrist (mit dem Schalter „Sperre verlängern (Betriebsprüfung)“ auch später).",
+        "Finalised invoices and invoice corrections cannot be deleted one by one in Kalmido; cash entries are never deleted one by one; "
+        "approved entertainment receipts are kept for 8 years after the end of their year. "
+        "If a person entitled to deletes the organisation or the account with the personal office while such data must be kept, the "
+        "office is retired instead of deleted: in the app only the administrators of the instance see it (export only); it is removed "
+        "for good only after the end of the retention period (later with the switch \"Extend the lock (tax audit)\").")])
     out["access"] = "\n".join([
         t("Jede Person meldet sich mit eigenem Konto an. Zweiter Faktor für alle Konten mit Passwort vorgeschrieben (laut Einstellung des Betreibers): ",
           "Every person signs in with their own account. Second factor required for all accounts with a password (as set by the operator): ") + _yn(L, gsetting(c, "twofa_required") == "1") + ".",
-        t("KI-Agenten und Kinderkonten haben keinen Zugriff auf das Büro.", "AI agents and kid accounts have no access to the office.")])
+        t("Kinderkonten haben keinen Zugriff auf das Büro.", "Kid accounts have no access to the office."),
+        _pd_agents(c, oid, s, t)])  # 2.1289.0 (#6473): from the area's switches, was "AI agents have no access" unconditionally
 
     # 5 internal control system
     out["roles"] = "\n".join([
