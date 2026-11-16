@@ -458,7 +458,8 @@ def read_comments(api, bundle):
         try:
             r = api.req("GET", f"/tasks/{int(t['id'])}/comments") or {}
             out[int(t["id"])] = [x for x in (r.get("data", []) if isinstance(r, dict) else r) or [] if isinstance(x, dict)]
-        except Exception:
+        except Exception as e:  # noqa: BLE001 - an unreadable comment list never stops the round (the job reads them itself)
+            log(f"comments #{int(t['id'])}: {type(e).__name__}")
             out[int(t["id"])] = []
     return out
 
