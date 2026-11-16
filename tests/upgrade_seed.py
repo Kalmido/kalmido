@@ -10,6 +10,7 @@ requests and docker (no kt.py: that came later).
     # 2.589.0 (#4359): UPG_SETUP_CODE = the one-time setup code of a server that asks for one (an installation by install.sh;
     # the test container runs without), UPG_VERSION = the old server's version when the script does not run inside its tree
     # (tools/install_upgrade_check.py runs the candidate's copy against the release before it)
+    # 2.1258.0 (#6290): tests/upgrade_vorspann.sql next to it (put there by the upgrade probe) is played in before the dump
 
 Data (invented, addresses @example.com): instance admin alice with the organisation "Nordwind Studio", member bob, frida
 without an organisation (her own private workspace and personal office); an org project and a private list with tasks (due
@@ -155,6 +156,18 @@ assert EXP["docs"]["alice"] and EXP["docs"]["frida"] and EXP["minutes"]["alice"]
 
 with open(os.path.join(DATA, ".kalmido-db"), encoding="utf-8") as f:
     DBC, DBN = f.read().split()
+# 2.1258.0 (#6290): the upgrade probe puts the remnants of the grown live database next to this file (old triggers, foreign
+# keys, columns, indexes that a fresh install of this release lacks; definitions only, made by the monthly restore test with
+# kalmido-schema-reste.py). Played in before the dump, each block on its own: one that does not fit the invented data is
+# counted, the rest stands - the candidate then starts on a database that looks like live.
+VOR = os.path.join(HERE, "upgrade_vorspann.sql")
+if os.path.isfile(VOR):
+    with open(VOR, encoding="utf-8") as f:
+        blocks = [b.strip() for b in f.read().split("\n-- @@\n")]
+    blocks = [b for b in blocks if b and not all(ln.startswith("--") for ln in b.splitlines())]
+    bad = sum(subprocess.run(["docker", "exec", "-i", DBC, "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-U", "kalmido", "-d", DBN],
+                             input=b.encode(), capture_output=True).returncode != 0 for b in blocks)
+    print(f"upgrade_seed: live remnants (upgrade_vorspann.sql) {len(blocks)} statements, {bad} did not fit the invented data")
 r = subprocess.run(["docker", "exec", DBC, "pg_dump", "-U", "kalmido", "-d", DBN, "--no-owner", "--no-privileges"],
                    capture_output=True, check=True)
 os.makedirs(OUT, exist_ok=True)
