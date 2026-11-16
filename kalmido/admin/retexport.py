@@ -14,7 +14,13 @@ documents space and of its lists -- only its admins. Nobody else (an instance ad
 The ZIP is streamed (built while it is sent, nothing on the disk); only a download that ran to its end is noted in
 retention_log. Deleting the account (DELETE /api/users/<id>) or the organisation (DELETE /api/admin/orgs/<id>) while it has
 such records needs ?retention=exported (a finished export of the subject within RX_VALID_DAYS) or ?retention=waived (the
-deleting admin says so; noted too); both land in the security log (useradmin.ua8_audit style, notify.alerts)."""
+deleting admin says so; noted too); both land in the security log (useradmin.ua8_audit style, notify.alerts).
+
+#6474 (audit #4791, A4 to A7): an export counts only when it was complete (no file missing or locked: rx_export_check
+names them) and nothing to keep came after it (rx_counts since); on the hosted instance only the person themself / an admin
+of the organisation does without the export (declared before: POST /api/retention/.../waiver, or their own deletion), an
+instance admin deletes after an export only; received e-invoices that are no receipt count and go into the ZIP
+(received-einvoices/)."""
 import csv
 import hashlib
 import io
@@ -22,6 +28,7 @@ import json
 import os
 import time
 import zipfile
+from datetime import timedelta
 
 from flask import Response, g, jsonify, request, stream_with_context
 
@@ -50,6 +57,7 @@ from ..office.pdfweb import _render, _stored, epdf_name  # 2.369.5 (#2517): pull
 from ..office.cashbook import cb_csv_text, cb_export_data, cb_pdf_bytes  # 2.369.5 (#2517): pulled up from functions
 
 RX_VALID_DAYS = 7  # a finished export counts this long as "exported" for the deletion
+RX_NAMES_MAX = 50  # #6474: so many names of unreadable / locked files the export's log row keeps (until the deletion: _rx_scrub)
 RX_YEARS = {"documents": 8, "books": 10, "letters": 6}  # what the hint says (invoices / receipts 8, sent letters 6 (2.184.0 #2628), books 10 years)
 RX_NOTE = N_("Keep these records yourself: invoices and receipts for 8 years, sent business letters for 6 years, books (cash book, logs, bank statements) for 10 years. Kalmido does not keep them after the deletion; the duty to keep them lies with you.")
 RX_NEEDED = N_("This account or organisation has records you must keep (invoices, receipts, cash book, sent letters). Download the retention export first and confirm it, or say explicitly that you do without it.")
@@ -142,41 +150,89 @@ def rx_subject(c, kind, sid):
             "lists": ("SELECT id FROM lists WHERE org_id=? AND NOT is_inbox", (sid,))}
 
 
+def _rx_person():
+    """A signed-in person acts (a session / the proxy sign-in), never an agent or an API token."""
+    from ..agents.core import is_agent
+    return bool(g.user) and not is_agent(g.user) and getattr(g, "auth_via", None) in ("session", "proxy")
+
+
 def rx_may_export(c, sub):
     """Only the person themself (user) or an admin of the organisation (org); people only, never an API token."""
-    from ..agents.core import is_agent
-    if not g.user or is_agent(g.user) or getattr(g, "auth_via", None) not in ("session", "proxy"):
+    if not _rx_person():
         return False
     if sub["kind"] == "user":
         return sub["id"] == me()
     return org_role(c, me(), sub["id"]) == "admin" or odl_admin_export(c, sub["id"], retention=True)  # 2.186.0 A (#2599): a retired one: its former admins (2.239.0 C #2943: or the instance admins when none is left)
 
 
-def rx_counts(c, sub, along=True):
-    """How many records of each kind the subject has (along = with the receipts of its lists: they go with the deletion only
-    when the lists are deleted along)."""
+def _rx_kinds(c, sub, along):
+    """#6474: (key, its COUNT query, the arguments, the time a row became a record to keep) of every kind rx_counts counts."""
     oid = sub["office"]
-    q, a = sub["lists"]
+    out = []
+    if oid:
+        o = (oid,)
+        new = "GREATEST(x.created_at, COALESCE(x.{0}, x.created_at))"
+        out += [
+            # 2.144.10 B (#2576): trial documents are no records to keep
+            ("documents", "SELECT COUNT(*) FROM office_docs x WHERE x.org_id=? AND x.locked_at IS NOT NULL AND x.trial=0 AND " + live_sql("x"), o, "x.locked_at"),  # 2.1005.0 (#5415)
+            ("archive", "SELECT COUNT(*) FROM office_archive x WHERE x.org_id=?", o, "x.created_at"),
+            ("cash", "SELECT COUNT(*) FROM office_cash_entries x WHERE x.org_id=?", o, "x.created_at"),
+            ("bank", "SELECT COUNT(*) FROM office_bank_tx x WHERE x.org_id=?", o, "x.created_at"),
+            # 2.152.0 (#2167, review A9): the logbook, travel receipts in DATEV and approved entertainment receipts (all in RX_TABLES)
+            ("drives", "SELECT COUNT(*) FROM office_drives x WHERE x.org_id=?", o, "x.created_at"),
+            ("trip_receipts", "SELECT COUNT(*) FROM office_trip_items x WHERE x.org_id=? AND x.datev=1", o, new.format("updated_at")),
+            ("meals", "SELECT COUNT(*) FROM office_meals x WHERE x.org_id=? AND x.status<>'draft'", o, new.format("approved_at")),
+        ]
+        if "office_letters" in _rx_have(c):  # 2.184.0 A (#2628): sent letters (drafts are no records)
+            out.append(("letters", "SELECT COUNT(*) FROM office_letters x WHERE x.org_id=? AND x.status<>'draft'", o, new.format("sent_at")))
+    if sub["ws"]:
+        out.append(("receipts", "SELECT COUNT(*) FROM rc_receipts x JOIN doc_meta d ON d.node_id=x.node_id WHERE d.ws=?", (sub["ws"],), "x.set_at"))
+    if along:
+        q, a = sub["lists"]
+        out.append(("project_receipts", f"SELECT COUNT(*) FROM budget_files x WHERE x.list_id IN ({q})", tuple(a), "x.created_at"))
+    return out
+
+
+def rx_counts(c, sub, along=True, since=None):
+    """How many records of each kind the subject has (along = with the receipts of its lists: they go with the deletion only
+    when the lists are deleted along). #6474: since (ISO) = only those that became a record to keep at or after that moment;
+    einvoices = received e-invoices of the documents space nobody took over as a receipt (as orgretain.odl_einvoice_years)."""
     out = {}
     with system_ctx(c):  # counts only (no content): the deleting admin may not see the records themselves
-        if oid:
-            # 2.144.10 B (#2576): trial documents are no records to keep
-            out["documents"] = c.execute(f"SELECT COUNT(*) FROM office_docs WHERE org_id=? AND locked_at IS NOT NULL AND trial=0 AND {live_sql()}",  # 2.1005.0 (#5415)
-                                         (oid,)).fetchone()[0]
-            out["archive"] = c.execute("SELECT COUNT(*) FROM office_archive WHERE org_id=?", (oid,)).fetchone()[0]
-            out["cash"] = c.execute("SELECT COUNT(*) FROM office_cash_entries WHERE org_id=?", (oid,)).fetchone()[0]
-            out["bank"] = c.execute("SELECT COUNT(*) FROM office_bank_tx WHERE org_id=?", (oid,)).fetchone()[0]
-            # 2.152.0 (#2167, review A9): the logbook, travel receipts in DATEV and approved entertainment receipts (all in RX_TABLES)
-            out["drives"] = c.execute("SELECT COUNT(*) FROM office_drives WHERE org_id=?", (oid,)).fetchone()[0]
-            out["trip_receipts"] = c.execute("SELECT COUNT(*) FROM office_trip_items WHERE org_id=? AND datev=1", (oid,)).fetchone()[0]
-            out["meals"] = c.execute("SELECT COUNT(*) FROM office_meals WHERE org_id=? AND status<>'draft'", (oid,)).fetchone()[0]
-            if "office_letters" in _rx_have(c):  # 2.184.0 A (#2628): sent letters (drafts are no records)
-                out["letters"] = c.execute("SELECT COUNT(*) FROM office_letters WHERE org_id=? AND status<>'draft'", (oid,)).fetchone()[0]
-        out["receipts"] = c.execute("SELECT COUNT(*) FROM rc_receipts r JOIN doc_meta d ON d.node_id=r.node_id WHERE d.ws=?",
-                                    (sub["ws"],)).fetchone()[0]
-        if along:
-            out["project_receipts"] = c.execute(f"SELECT COUNT(*) FROM budget_files WHERE list_id IN ({q})", a).fetchone()[0]
+        for key, q, args, at in _rx_kinds(c, sub, along):
+            if since:  # at: one of the fixed column expressions of _rx_kinds
+                q, args = q + " AND " + at + " >= CAST(? AS timestamptz)", args + (since,)
+            out[key] = c.execute(q, args).fetchone()[0]
+        out["einvoices"] = len(_rx_einvoices(c, sub, since))
     return {k: int(v) for k, v in out.items() if v}
+
+
+def _rx_einvoices(c, sub, since=None):
+    """#6474 (A7): [(doc_meta + file row, the invoice dict | None)] of the received e-invoices in the subject's documents space
+    that are no receipt: kept by law also when nobody took them over (2.239.0 C #2874 counts them for self-hosting,
+    orgretain.odl_einvoice_years; the hosted way did not, so they went without the export). The invoice data is sealed per
+    space (doc_meta.extracted); one that cannot be opened counts (the careful side). Also those in the trash: they go with
+    the deletion. The caller runs as system."""
+    from ..docs.store import doc_open_as
+    if not sub.get("ws"):
+        return []
+    q = ("SELECT m.node_id, m.ws, m.extracted, m.doc_date, m.created_at, n.name, n.deleted_at FROM doc_meta m JOIN fs_nodes n ON n.id=m.node_id "
+         "WHERE m.ws=? AND m.extracted<>'' AND n.kind='file' AND NOT EXISTS (SELECT 1 FROM rc_receipts r WHERE r.node_id=m.node_id)")
+    args = (sub["ws"],)
+    if since:  # read as an e-invoice after the upload (done_at) = a record from then on
+        q += " AND GREATEST(m.created_at, COALESCE(m.done_at, m.created_at)) >= CAST(? AS timestamptz)"
+        args += (since,)
+    out = []
+    for m in c.execute(q + " ORDER BY m.node_id", args).fetchall():
+        try:
+            v = json.loads(doc_open_as(c, m["ws"], "doc_meta.extracted", m["extracted"])[0] or "null")  # as docs/store.meta_json
+            if not isinstance(v, dict) or v.get("_einv") is None:
+                continue
+            inv = v["_einv"] if isinstance(v["_einv"], dict) else {}
+        except Exception:  # noqa: BLE001 -- not readable: kept
+            inv = None
+        out.append((m, inv))
+    return out
 
 
 def _rx_have(c):
@@ -185,9 +241,24 @@ def _rx_have(c):
 
 def rx_last(c, sub, kind="export"):
     """When the subject's last finished export (or waiver) was (ISO) or None."""
+    r = _rx_last_row(c, sub, (kind,))
+    return r["at"] if r else None
+
+
+def _rx_last_row(c, sub, kinds):
+    """#6474: {kind, at, by, detail (dict)} of the subject's newest log row of one of kinds, or None."""
     with system_ctx(c):  # the log of the subject (the deleting admin and the exporting person may differ)
-        r = c.execute("SELECT at FROM retention_log WHERE subject=? AND kind=? ORDER BY id DESC LIMIT 1", (sub["key"], kind)).fetchone()
-    return r[0] if r else None
+        r = c.execute(f"SELECT kind, at, by_user, detail FROM retention_log WHERE subject=? AND kind IN ({','.join('?' * len(kinds))}) "
+                      "ORDER BY id DESC LIMIT 1", (sub["key"],) + tuple(kinds)).fetchone()
+    if not r:
+        return None
+    d = r[3]
+    if isinstance(d, str):
+        try:
+            d = json.loads(d or "{}")
+        except ValueError:
+            d = {}
+    return {"kind": r[0], "at": r[1], "by": r[2], "detail": d if isinstance(d, dict) else {}}
 
 
 def rx_fresh(at):
@@ -201,19 +272,103 @@ def rx_fresh(at):
     return (now_utc() - t).total_seconds() < RX_VALID_DAYS * 86400
 
 
+def _rx_int(v):
+    try:
+        return int(v or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def rx_export_check(c, sub, along=True):
+    """#6474 (A4, A5): whether the subject's last finished export lets the deletion go -> (at, None) when it does, else
+    (at | None, {"reason": ...}): "none" = no finished export within RX_VALID_DAYS; "incomplete" = files could not be read
+    or were locked by the virus scanner (missing / locked: how many; missing_names / locked_names only for who may export:
+    the deleting admin never sees what the records are); "newer" = records to keep came after the export began (newer: how
+    many) -- they are not in the ZIP, so it is downloaded again."""
+    row = _rx_last_row(c, sub, ("export",))
+    if not row or not rx_fresh(row["at"]):
+        return None, {"reason": "none"}
+    d = row["detail"]
+    miss, lock = _rx_int(d.get("missing")), _rx_int(d.get("locked"))
+    if miss or lock:
+        prob = {"reason": "incomplete", "missing": miss, "locked": lock}
+        if rx_may_export(c, sub):
+            prob["missing_names"] = [str(x) for x in (d.get("missing_names") or [])][:RX_NAMES_MAX]
+            prob["locked_names"] = [str(x) for x in (d.get("locked_names") or [])][:RX_NAMES_MAX]
+        return row["at"], prob
+    newer = sum(rx_counts(c, sub, along, since=d.get("started") or row["at"]).values())  # a row of before #6474: its end
+    if newer:
+        return row["at"], {"reason": "newer", "newer": newer}
+    return row["at"], None
+
+
+def rx_owner(c, sub):
+    """#6474 (A6): the acting person is whose records these are: the person themself (user) or an admin of the organisation
+    (org); people only, never an API token. Not: an instance admin as such, the former admins of a retired organisation."""
+    if not _rx_person():
+        return False
+    if sub["kind"] == "user":
+        return sub["id"] == me()
+    return sub["kind"] == "org" and org_role(c, me(), sub["id"]) == "admin"
+
+
+def rx_may_waive(c, sub):
+    """#6474 (A6): may the acting person do without the export while deleting? Self-hosting: whoever may delete (as before:
+    the server's admin answers for its records). Hosted: only whose records these are (rx_owner) -- the hosting operator
+    never waives for a customer (the console never did, admin/operator.py; the old routes took ?retention=waived from any
+    instance admin, and the purge then drops the receipt locks, OLK_BYPASS)."""
+    return not hosted() or rx_owner(c, sub)
+
+
+def rx_waiver_declared(c, sub, along=True):
+    """#6474 (A6): the waiver the person / an admin of the organisation declared beforehand (POST .../waiver) while it holds:
+    {at, by} or None. It holds RX_VALID_DAYS, until it is taken back, and while no kind of record grew since (the numbers
+    it was declared for, as the own deletion's check: selfdelete review M2)."""
+    row = _rx_last_row(c, sub, ("waiver_declared", "waiver_revoked"))
+    if not row or row["kind"] != "waiver_declared" or not rx_fresh(row["at"]):
+        return None
+    old = row["detail"].get("counts") if isinstance(row["detail"].get("counts"), dict) else {}
+    if any(n > _rx_int(old.get(k)) for k, n in rx_counts(c, sub, along).items()):
+        return None
+    return {"at": row["at"], "by": row["by"]}
+
+
 def rx_info(c, sub, along=True):
     """What the delete dialogs and the settings show: needed (records exist), can_export, exported_at (a finished export within
-    RX_VALID_DAYS), the counts (only to who may export), the years of the hint, hosted."""
+    RX_VALID_DAYS that lets the deletion go, #6474: complete and nothing newer; else export_problem says why, rx_export_check),
+    the counts (only to who may export), the years of the hint, hosted; #6474: can_waive (the acting person may do without
+    it while deleting), may_declare + waived_at (the waiver declared beforehand)."""
     counts = rx_counts(c, sub, along)
     can = rx_may_export(c, sub)
-    at = rx_last(c, sub)
-    d = {"needed": bool(counts), "can_export": can, "exported_at": at if rx_fresh(at) else None, "years": RX_YEARS,
+    at, prob = rx_export_check(c, sub, along) if counts else (None, None)
+    w = rx_waiver_declared(c, sub, along) if counts else None
+    d = {"needed": bool(counts), "can_export": can, "exported_at": at if at and not prob else None, "years": RX_YEARS,
          "note": tr(RX_NOTE), "hosted": hosted(), "valid_days": RX_VALID_DAYS,
+         "export_problem": prob if prob and prob["reason"] != "none" else None,
+         "can_waive": rx_may_waive(c, sub), "may_declare": rx_owner(c, sub), "waived_at": w["at"] if w else None,
          "state": rx_state(c, sub) if counts else None}  # 2.186.0 A (#2599): retire / expired = no export step on deletion
     if can:
         d["counts"] = counts
         d["url"] = "/api/retention/me/export.zip" if sub["kind"] == "user" else f"/api/retention/org/{sub['id']}/export.zip"
     return d
+
+
+def _rx_scrub(c, sub):
+    """#6474: the names of unreadable / locked files leave the subject's log rows when it is deleted (the log outlives the
+    account / organisation; the numbers stay)."""
+    with system_ctx(c):  # the subject's log rows
+        c.execute("UPDATE retention_log SET detail = detail - 'missing_names' - 'locked_names' WHERE subject=? AND kind='export'", (sub["key"],))
+
+
+def rx_problem_text(prob):
+    """#6474: the sentence of a 409 for the export problem prob (rx_export_check)."""
+    if prob["reason"] == "incomplete":
+        names = (prob.get("missing_names") or []) + (prob.get("locked_names") or [])
+        msg = tr("The last retention export was not complete: {0} files could not be read, {1} were locked by the virus scanner. Check them in Kalmido and download the export again.", prob["missing"], prob["locked"])
+        return msg + (" (" + ", ".join(names[:10]) + (" ..." if len(names) > 10 else "") + ")" if names else "")
+    if prob["reason"] == "newer":
+        return tr("Records to keep were added after the last retention export (number: {0}). Download it again.", prob["newer"])
+    return tr("No finished retention export of the last {0} days was found. Download it again or do without it.", RX_VALID_DAYS)
 
 
 def rx_log(c, sub, kind, detail=None):
@@ -247,7 +402,7 @@ def rx_lists_how():
 
 def rx_gate(c, sub, along=True, how=None):
     """Before the deletion of sub: None = it may go (no records, a fresh export, or ?retention=waived -- noted), else the 409
-    answer. The caller deletes in the same transaction (a waiver row goes away with a failed deletion). 2.186.0 A (#2599):
+    answer (#6474: with reason = needed | none | incomplete | newer | waiver; rx_export_check, rx_may_waive). The caller deletes in the same transaction (a waiver row goes away with a failed deletion). 2.186.0 A (#2599):
     records that are retired need neither (no waiver is noted); after the period of a retired organisation it goes as such.
     #3939: how = the caller's choice instead of the request's ?retention= ("" = neither export nor waiver: the hosting
     operator's console, which never waives)."""
@@ -264,18 +419,33 @@ def rx_gate(c, sub, along=True, how=None):
         how = request.args.get("retention") or ""
         how = "" if how == "requested" else how  # 2.553.0 (#1413): never from a request (below: only the background run passes it)
     if how == "requested":  # 2.553.0 (#1413): the person's own deletion: the export / waiver passed this gate when it was asked for
+        _rx_scrub(c, sub)
         return None, (N_("{0} deleted {1}: the retention step was done when the deletion was asked for."), "exported")
+    prob = None
     if how == "waived":
-        rx_log(c, sub, "waiver", {"counts": counts})
-        return None, (N_("{0} deleted {1} without the retention export (waived explicitly)."), "waiver")
-    if how == "exported" and rx_fresh(rx_last(c, sub)):
-        return None, (N_("{0} deleted {1} after the retention export."), "exported")
+        if rx_may_waive(c, sub):
+            rx_log(c, sub, "waiver", {"counts": counts})
+            _rx_scrub(c, sub)
+            return None, (N_("{0} deleted {1} without the retention export (waived explicitly)."), "waiver")
+        w = rx_waiver_declared(c, sub, along)  # #6474 (A6): hosted, somebody else deletes: the waiver was declared by whose records these are
+        if w:
+            rx_log(c, sub, "waiver", {"counts": counts, "declared_by": w["by"], "declared_at": w["at"]})
+            _rx_scrub(c, sub)
+            return None, (N_("{0} deleted {1} without the retention export (waived explicitly)."), "waiver")
+        prob = {"reason": "waiver"}
+    elif how == "exported":
+        _at, prob = rx_export_check(c, sub, along)  # #6474 (A4, A5): complete, and nothing to keep came after it
+        if prob is None:
+            _rx_scrub(c, sub)
+            return None, (N_("{0} deleted {1} after the retention export."), "exported")
     info = rx_info(c, sub, along)
-    if how == "exported":
-        msg = tr("No finished retention export of the last {0} days was found. Download it again or do without it.", RX_VALID_DAYS)
+    if prob and prob["reason"] == "waiver":
+        msg = tr("Only the person themself or an admin of the organisation can do without the retention export (Settings, at the retention export). Delete after a finished export, or ask them to declare it.")
+    elif prob:
+        msg = rx_problem_text(prob)
     else:
         msg = tr(RX_NEEDED)
-    return (jsonify(error=msg, code="retention", retention=info), 409), None
+    return (jsonify(error=msg, code="retention", reason=prob["reason"] if prob else "needed", retention=info), 409), None
 
 
 # ---------------------------------------------------------------- the ZIP
@@ -451,6 +621,33 @@ def _receipts(c, z, sub):
         yield z.put("receipts/receipts.csv", _csv(out)[0])
 
 
+def _einvoices(c, z, sub):
+    """#6474 (A7): the received e-invoices of the documents space that are no receipt (those are under receipts/), with
+    their files + received-einvoices.csv (number, seller, amount as read from the invoice)."""
+    out = []
+    for m, inv in _rx_einvoices(c, sub):
+        inv = inv or {}
+        fn = f"received-einvoices/{int(m['node_id'])}-{_safe_part(m['name'], 100)}"
+        try:
+            if _fs_locked(c, z, m["node_id"], m["name"]):
+                data, fn = None, ""
+            else:
+                data = fs_read(c, m["node_id"])
+        except Exception as e:  # noqa: BLE001 -- a file without content: named in the index
+            print("retention export: e-invoice", m["node_id"], "not readable:", type(e).__name__, flush=True)
+            z.missing.append(fn)
+            data, fn = None, ""
+        if data is not None:
+            yield z.put(fn, data, "received-einvoices")
+        seller = inv.get("seller")
+        out.append({"node_id": m["node_id"], "file": fn, "name": m["name"], "doc_date": m["doc_date"] or inv.get("date") or "",
+                    "number": inv.get("number") or "", "seller": (seller.get("name") if isinstance(seller, dict) else seller) or "",
+                    "gross": inv.get("gross") or inv.get("payable") or "", "currency": inv.get("currency") or "",
+                    "in_trash": 1 if m["deleted_at"] else 0})
+    if out:
+        yield z.put("received-einvoices/received-einvoices.csv", _csv(out)[0])
+
+
 def _project_receipts(c, z, sub):
     """The receipt files of the lists (budget_files) + project-receipts.csv."""
     q, a = sub["lists"]
@@ -560,6 +757,7 @@ def _office_files(c, z, sub, done):
 RX_SECTIONS = (
     ("invoices", N_("Invoices, credit notes and other finalised documents (PDF, e-invoice XML) and their lists (CSV)")),
     ("receipts", N_("Receipts with their files and receipts.csv")),
+    ("received-einvoices", N_("Received e-invoices that are no receipt, with their files and received-einvoices.csv")),  # #6474 (A7)
     ("project-receipts", N_("Receipts of projects")),
     ("project-bookings", N_("Bookings of projects (CSV)")),  # 2.186.1 (#2732): a kept project's export (rx_list_download)
     ("books", N_("Procedure documentation, number ranges, opening balances, locked periods, equipment (CSV)")),  # 2.362.2 (#3105)
@@ -597,6 +795,14 @@ def rx_stream(sub, uid, by, title, lg):
     z = _Zip()
     done = set()
     ok = False
+    # #6474 (A5): what becomes a record from `started` on is "newer than this export" (rx_export_check). Many rows carry whole
+    # seconds, so the export begins at the next full second: a row of this second is before it and is read below, one after
+    # it compares as newer -- nothing falls between (up to one second before the first byte).
+    t0 = now_utc()
+    if t0.microsecond:
+        time.sleep(1 - t0.microsecond / 1e6)
+        t0 = t0.replace(microsecond=0) + timedelta(seconds=1)
+    started = iso(t0)
     try:
         with system_ctx(c):  # the subject's records only (every query names its office / documents space / lists); checked by rx_may_export
             z.lk = _ox_locked(c, sub["office"], z)  # 2.370.0 (#2781): files the virus scanner locked stay out, listed in the manifest
@@ -604,6 +810,7 @@ def rx_stream(sub, uid, by, title, lg):
                 yield from _invoices(c, z, sub, done)
             if sub["kind"] != "list":  # 2.186.1 (#2732): a kept project has no documents space of its own
                 yield from _receipts(c, z, sub)
+                yield from _einvoices(c, z, sub)  # #6474 (A7)
             yield from _project_receipts(c, z, sub)
             if sub["kind"] == "list":
                 yield from _project_bookings(c, z, sub)
@@ -627,7 +834,11 @@ def rx_stream(sub, uid, by, title, lg):
             try:
                 with system_ctx(c):  # the subject's log row + the office log
                     c.execute("INSERT INTO retention_log(subject, kind, by_user, at, detail) VALUES(?,?,?,?,?)",
-                              (sub["key"], "export", uid, iso(now_utc()), json.dumps({"files": len(z.files), "missing": len(z.missing), "locked": len(z.locked)})))
+                              (sub["key"], "export", uid, iso(now_utc()), json.dumps({
+                                  "files": len(z.files), "missing": len(z.missing), "locked": len(z.locked), "started": started,
+                                  # #6474 (A4): which ones, for the 409 of the deletion (only who may export sees them)
+                                  "missing_names": [str(m)[:200] for m in z.missing[:RX_NAMES_MAX]],
+                                  "locked_names": [str(m.get("name") or "")[:200] for m in z.locked[:RX_NAMES_MAX]]}, ensure_ascii=False)))
                     if sub["office"]:
                         from ..office.ledger import ofx_log
                         ofx_log(c, sub["office"], "export", target="retention", detail={"files": len(z.files), "missing": len(z.missing)})
@@ -722,6 +933,45 @@ def rx_org_zip(oid):
     with system_ctx(c):  # the organisation's name for the index (the right is checked in _download)
         name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
     return _download(sub, name)
+
+
+def _rx_declare(sub, title, on):
+    """#6474 (A6): the person / an admin of the organisation declares (on) or takes back that the records may be deleted
+    without the retention export. Noted with the numbers it was declared for (it ends when more come), in the security log."""
+    c = db()
+    if not rx_owner(c, sub):
+        raise Denied(404 if sub["kind"] == "org" else 403)
+    if on:
+        counts = rx_counts(c, sub)
+        if not counts:
+            return jsonify(error=tr("There are no records to keep."), code="nothing"), 409
+        rx_log(c, sub, "waiver_declared", {"counts": counts})
+    elif rx_waiver_declared(c, sub):
+        rx_log(c, sub, "waiver_revoked")
+    c.commit()
+    if on:
+        rx_alert(N_("{0} declared that {1} may be deleted without the retention export."), [g.user["username"], title])
+    return jsonify(rx_info(c, sub))
+
+
+@app.post("/api/retention/me/waiver")
+@app.delete("/api/retention/me/waiver")
+def rx_me_waiver():
+    """#6474 (A6): the own records may go without the export (POST) / the declaration is taken back (DELETE). People only."""
+    return _rx_declare(rx_subject(db(), "user", me()), g.user["display_name"] or g.user["username"], request.method == "POST")
+
+
+@app.post("/api/retention/org/<int:oid>/waiver")
+@app.delete("/api/retention/org/<int:oid>/waiver")
+def rx_org_waiver(oid):
+    """#6474 (A6): the same for an organisation, by one of its admins (everybody else 404, an instance admin too)."""
+    c = db()
+    sub = rx_subject(c, "org", oid)
+    if not rx_owner(c, sub):
+        raise Denied(404)
+    with system_ctx(c):  # the organisation's name for the security log
+        name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
+    return _rx_declare(sub, name, request.method == "POST")
 
 
 def rx_user_info(c, uid, along=True):
