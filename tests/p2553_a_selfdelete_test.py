@@ -246,6 +246,60 @@ check(bool(until(lambda: not dbx("SELECT delete_at FROM users WHERE id=?", (FID,
 check(dbx("SELECT disabled FROM users WHERE id=?", (FID,))[0][0] == 0 and dbx("SELECT enabled FROM agents WHERE user_id=?", (AGID,))[0][0] == 0,
       "the account is open, the agent the admin's lock stopped stays paused")
 
+
+# ---------------------------------------------------------------- review of 2.1254.0 (#6293): an admin's lock in the middle of the watchdog's step
+# deterministic: the step runs in the app container (no watchdog of its own there), the admin's lock goes in through a hook exactly
+# between the step's read of the row and its write - the race of the tick (reminder, the final run's note) and of the cancel link
+
+
+def py_in_app(code):
+    """Python in the app container; LOCK() = the admin's lock (users.py: disabled + sdl_admin_locked) on a second connection."""
+    head = ("import app\nimport json\nfrom datetime import timedelta\nfrom kalmido.core.db import connect\nfrom kalmido.core.pg import system_ctx\n"
+            "from kalmido.accounts.users import sdl_admin_locked\nimport kalmido.admin.selfdelete as S\nc = connect()\n"
+            f"FID = {FID}\n"
+            "def LOCK():\n    c2 = connect()\n    with system_ctx(c2):\n"
+            "        c2.execute('UPDATE users SET disabled=true WHERE id=?', (FID,))\n        sdl_admin_locked(c2, FID)\n"
+            "    c2.commit()\n    c2.close()\n")
+    for _ in range(4):  # "import app" runs init_db next to the running server: now and then a Postgres deadlock of this helper
+        r = subprocess.run(["docker", "exec", "-w", "/app", "-e", "TASKS_WATCHDOG=0", CT, "python", "-c", head + code + "\nc.commit()\nc.close()"],
+                           capture_output=True, text=True)
+        if "deadlock detected" not in r.stderr:
+            break
+    return (r.stdout + r.stderr).strip()
+
+
+def plan_of():
+    return json.loads(dbx("SELECT delete_plan FROM users WHERE id=?", (FID,))[0][0] or "{}")
+
+
+def unlock():
+    """The deletion off (the password; the account stays locked), the admin enables her."""
+    s.post(B + "/api/auth/delete-cancel", json={"username": "frida", "password": PW})
+    return A.patch(B + f"/api/users/{FID}", json={"disabled": False}).ok
+
+
+Fr = login(B, "frida")
+check(Fr.post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok, "(race) asked again")
+toks0 = plan_of().get("toks") or []
+# the tick reads the row (no admin yet), the admin locks, the tick's reminder step follows: no new cancel link, the lock stays noted
+# (SDL_REMIND widened in this process only: the deletion is days away, the server's own watchdog leaves it alone)
+out = py_in_app("S.SDL_REMIND = timedelta(days=30)\nplan0 = S.sdl_plan\nhit = []\n"
+                "def hook(u):\n    if u['id'] == FID and not hit:\n        hit.append(1)\n        LOCK()\n    return plan0(u)\n"
+                "S.sdl_plan = hook\nS.sdl_tick(c)\nprint('hooked', len(hit))")
+p = plan_of()
+check("hooked 1" in out and "Traceback" not in out, "(race) the tick ran with the lock between its read and its step " + out[-300:])
+check(bool(p.get("admin")) and not p.get("reminded") and not p.get("toks") and bool(toks0),
+      f"(race) a lock between the tick's read and its reminder: the lock stays noted, no reminder, no new cancel link {p}")
+# the final run reads the row, the admin locks while it runs, the run waits: its note of the try keeps the lock
+check(unlock() and login(B, "frida").post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok and not plan_of().get("admin"),
+      "(race) asked again for the final run, no lock noted")
+out = py_in_app("def run(c, uid, *a, **k):\n    LOCK()\n    return 'busy', None, 0\n"
+                "S.user_delete_run = run\nprint('ran', S.sdl_run(c, FID))")
+p = plan_of()
+check("ran False" in out and bool(p.get("tried")) and bool(p.get("admin")) and not p.get("toks"),
+      f"(race) a lock during the final run: the run's note of the try keeps the lock (no cancel link back) {p} " + out[-300:])
+check(unlock() and dbx("SELECT disabled, delete_at FROM users WHERE id=?", (FID,))[0] == (0, None), "(race) cleared: open, nothing planned")
+
 # ---------------------------------------------------------------- the final run (no waiting: delete_at in the past)
 Fr = login(B, "frida")
 check(Fr.post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok, "asked for the last time")

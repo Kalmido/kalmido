@@ -471,9 +471,7 @@ def sdl_run(c, uid):
     if not why:
         sdl_mail(c, None, "done", addr=addr, username=username, lg=lg)
         return True
-    plan["tried"] = iso(now_utc())
-    with system_ctx(c):
-        c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(plan), uid))
+    _plan_note(c, uid, lambda p: {**p, "tried": iso(now_utc())})  # review of 2.1254.0 (#6293): an admin's lock meanwhile stays
     c.commit()
     aa_now("security", f"selfdel-fail:{uid}", N_("The deletion the account {0} asked for could not run yet ({1}); it is tried again every hour."),
            [f"#{uid}", str(why)[:200]])
@@ -505,14 +503,36 @@ def sdl_tick(c, *_):
             sdl_run(c, u["id"])
             continue
         if at - SDL_REMIND <= now and not plan.get("reminded") and not plan.get("admin"):
-            # 2.1254.0 (#6293): an account an admin locked gets no new cancel link (the password still cancels)
-            tok = secrets.token_urlsafe(24)
-            plan["toks"] = (plan.get("toks") or [])[-3:] + [tkh_hash(tok)]
-            plan["reminded"] = iso(now)
-            with system_ctx(c):  # the watchdog notes the reminder in the person's own row (no request, nobody signed in)
-                c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(plan), u["id"]))
-            c.commit()
-            sdl_mail(c, u["id"], "remind", f"{u['id']}.{tok}")
+            sdl_remind(c, u["id"], now)
+
+
+def _plan_note(c, uid, change):
+    """Review of 2.1254.0 (#6293): the watchdog's note in the plan of uid, made on the plan as it is now (read again under a
+    row lock, never the row read at the tick's start: an admin's lock noted meanwhile stays). change(plan) -> the plan to
+    write, None = nothing to note. -> the plan written, None = nothing written (no deletion waits any more, or change said so)."""
+    with system_ctx(c):  # the person's own row (no request, nobody signed in)
+        u = c.execute("SELECT * FROM users WHERE id=? AND delete_at IS NOT NULL FOR UPDATE", (uid,)).fetchone()
+        plan = change(sdl_plan(u)) if u else None
+        if plan is not None:
+            c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(plan), uid))
+    return plan
+
+
+def sdl_remind(c, uid, now):
+    """The reminder one day before with a new cancel link. Nothing when an admin locked the account (2.1254.0, #6293: the
+    password still cancels) or it was reminded already, both as the row is now (_plan_note). -> the mail went"""
+    tok = secrets.token_urlsafe(24)
+
+    def add(p):
+        if p.get("admin") or p.get("reminded"):
+            return None
+        return {**p, "toks": (p.get("toks") or [])[-3:] + [tkh_hash(tok)], "reminded": iso(now)}
+    if _plan_note(c, uid, add) is None:
+        c.rollback()
+        return False
+    c.commit()
+    sdl_mail(c, uid, "remind", f"{uid}.{tok}")
+    return True
 
 
 WD_TICKS.append(("own account deletions", sdl_tick))
