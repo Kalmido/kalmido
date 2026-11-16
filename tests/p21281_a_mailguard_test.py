@@ -2,7 +2,7 @@
 # kalmido-suite: fresh
 """2.1281.0 (#6425): a foreign mail is counted before it is taken apart, and a documents mail has one budget.
  - core/mailguard.py mail_parse: a mail of 200.000 tiny parts (1.4 MB; the parser alone took seconds and 80 MB for it), of
-   3 million parts, with bare CR line ends, a boundary declared in ways only the parser follows (unquoted, RFC 2231 pieces,
+   3 million parts, with bare CR line ends, a boundary declared in ways only the parser follows (RFC 2231 pieces,
    a comment before "=", an encoded word), a delivery report of 400.000 blocks (parts without any boundary), 2.000 parts
    inside each other (33 s in the parser of Python 3.12 before), 3.000 mails inside each other, a sender line of 500
    opening brackets, a To line of 16 KB commas (seconds in the header parser, every time it is read), a head of 300 KB (also
@@ -73,9 +73,9 @@ def decl(d, n=100_000):
     return H + b"Content-Type: multipart/mixed; " + d + b"\r\n\r\n" + b"--XYZ\r\n\r\nx\r\n" * n
 out = {}
 for name, raw in (
-    ("parts 200.000", multi(200_000)), ("parts 3 million", multi(3_000_000)), ("parts bare CR", multi(20_000, b"\r")),
+    ("parts 200.000", multi(200_000)), ("lines 3 million parts", multi(3_000_000)), ("parts bare CR", multi(20_000, b"\r")),
     ("parts 2.001", multi(2_001)),
-    ("parts unquoted boundary", H + b"Content-Type: multipart/mixed; boundary=--=_x\r\n\r\n" + b"----=_x\r\n\r\nx\r\n" * 20_000),
+    ("ok an unquoted boundary the parser itself does not follow (one part)", H + b"Content-Type: multipart/mixed; boundary=--=_x\r\n\r\n" + b"----=_x\r\n\r\nx\r\n" * 20_000),
     ("parts rfc2231 boundary", decl(b"boundary*0=XY; boundary*1=Z")),
     ("parts comment before the equals sign", decl(b"boundary(c)=XYZ")),
     ("parts encoded word boundary", decl(b'boundary="=?us-ascii?q?XYZ?="')),
