@@ -5,7 +5,9 @@ docker and id on the PATH; install.ps1 (no PowerShell in the test environment) i
   installer loses the line on the next run, a clear message names the two ways out.
 - #4355: the latest version comes from the forward of github.com (no API limit); no answer = a clear stop, main only when named.
 - #4356: over SSH the ready ssh -L command instead of "Open it now"; KALMIDO_URL sets PUBLIC_URL in a new and an existing .env, a
-  wrong one stops before anything changes; the note names what the links use; the docs no longer advise editing docker-compose.yml."""
+  wrong one stops before anything changes; the note names what the links use; the docs no longer advise editing docker-compose.yml.
+- #6606 (2.1284.0): as root the app keeps user 1000 (data/ + secret/ chowned to it, no user 0:0); under about 3 GB of memory
+  a new installation leaves the virus scanner out and says so, KALMIDO_CLAMAV=1/0 decides it, an update never changes it."""
 # kalmido-suite: nodata
 import os
 import re
@@ -213,6 +215,182 @@ for name, txt in (("install.sh", SH), ("install.ps1", PS)):
     check("down -v" in txt and "docker image rm" in txt and f" {PGIMG} " in txt and "cannot be undone" in txt, f"#4361: {name} uninstall text: volumes, images ({PGIMG}), folder, warning")
     check("an Kalmido" not in txt, f"#4361: {name} says 'a Kalmido'")
 check("sudo rm -rf" in SH and "sudo" not in PS, "#4361: Linux/macOS need sudo for pgdata (written by the database user), Windows does not")
+
+# ------------------------------------------------------------------ 2.1284.0 (#6606): the installer as root
+# user "0:0" in the override lifted the image's own user 1000: the app ran as root. As root the app keeps 1000 and data/ +
+# secret/ (with what an older run left to root) go to 1000; any other user than 1000 still gets its own user line.
+LINUX = 'uname() { echo Linux; }\nCOMPOSE=plugin; IMAGE=""\n'
+CHOWN = 'chown() { echo "chown $*" >> "%s"; }\n' % CALLS
+
+
+def as_user(uid, port=3040, override=None, chown=CHOWN):
+    d = folder(override)
+    os.makedirs(os.path.join(d, "data"))
+    os.makedirs(os.path.join(d, "secret"))
+    rc, out, err = run(LINUX + chown + 'id() { case "$1" in -g) echo %s ;; *) echo %s ;; esac; }\nDIR="%s"; PORT=%s; write_override'
+                       % (uid, uid, d, port))
+    return rc, out + err, read_ovr(d), calls(), d
+
+
+rc, out, o, cl, d = as_user(0)
+check(rc == 0 and o is None, f"#6606: as root on the standard port no override is written (no user 0:0) ({rc} {out[:200]} {o})")
+# 2.1284.0 (#6606, review F10): chown -hR, one call per folder
+check(cl.strip() == 'chown -hR 1000:1000 %s/data\nchown -hR 1000:1000 %s/secret' % (d, d), f"#6606: as root data/ and secret/ go to 1000 ({cl})")
+rc, out, o, cl, d = as_user(0, port=3050, override=OLD.replace("network_mode: bridge", 'user: "0:0"'))
+check(rc == 0 and o and "user:" not in o and '"127.0.0.1:3050:3040"' in o, f"#6606: an older installer's user 0:0 goes, the port stays ({o})")
+check("chown -hR 1000:1000" in cl, "#6606: ... and the folders of the root run go to 1000")  # 2.1284.0 (#6606, review F10): -hR
+rc, out, o, cl, d = as_user(0, override="services:\n  kalmido:\n    user: \"0:0\"\n")
+check(rc == 0 and "chown" not in cl and 'user: "0:0"' in o, f"#6606: an own override is left alone, the folders too ({cl})")
+rc, out, o, cl, d = as_user(0, chown='chown() { return 1; }\n')
+check(rc == 1 and "Could not give" in out and "user 1000" in out, f"#6606: a failed chown stops with a clear message ({rc} {out[:200]})")
+rc, out, o, cl, d = as_user(1001)
+check(rc == 0 and o and 'user: "1001:1001"' in o and "chown" not in cl, f"#6606: another user than 1000 keeps its user line ({o})")
+rc, out, o, cl, d = as_user(1000)
+check(rc == 0 and o is None and "chown" not in cl, "#6606: user 1000: nothing to write, nothing to chown")
+
+# ------------------------------------------------------------------ 2.1284.0 (#6606): the virus scanner under about 3 GB
+# decided 16.11.2026: a new installation leaves ClamAV out under about 3 GB of memory and says so (end of the
+# installation, admin view via KALMIDO_CLAMAV_OFF); above it stays on; KALMIDO_CLAMAV=1/0 decides; an update never changes it.
+ENVC = "TZ=UTC\nPUBLIC_URL=http://localhost:3040\nCOMPOSE_PROFILES=localdb,clamav\n"
+
+
+def mem_docker(mb):
+    stub("docker", 'case "$1" in info) echo %s ;; *) exit 0 ;; esac' % (mb * 1048576 if mb else ""))
+
+
+def clamav_env(env_text, mb, new=True, **env):
+    """write_env on a new (.env.example) or existing .env, with docker info answering MB of memory -> (rc, output, .env)."""
+    mem_docker(mb)
+    d = folder()
+    with open(os.path.join(d, ".env.example" if new else ".env"), "w", encoding="utf-8") as f:
+        f.write(env_text)
+    if not new:
+        with open(os.path.join(d, ".env"), "a", encoding="utf-8") as f:
+            f.write("POSTGRES_PASSWORD=x\n")
+    rc, out, err = run('DIR="%s"; PORT=3040; check_url; check_clamav_opt; write_env; echo "<<NOTE"; clamav_note' % d, **env)
+    if not os.path.exists(os.path.join(d, ".env")):
+        return rc, out + err, None
+    with open(os.path.join(d, ".env"), encoding="utf-8") as f:
+        return rc, out + err, f.read()
+
+
+def profiles(t):
+    return re.findall(r"^COMPOSE_PROFILES=(.*)$", t, re.M)[-1]
+
+
+rc, out, t = clamav_env(ENVC, 1900)
+check(rc == 0 and profiles(t) == "localdb" and re.search(r"^KALMIDO_CLAMD=$", t, re.M) and "\nKALMIDO_CLAMAV_OFF=low_memory\n" in t,
+      f"#6606: new installation with 1.9 GB: scanner out, KALMIDO_CLAMD empty, the reason left in .env ({rc} {out[-300:]} {t})")
+note = out.split("<<NOTE", 1)[-1]
+check("about 1900 MB of memory: the virus scanner (ClamAV, 1-1.5 GB of its own) is left out" in out and "Virus scan: OFF." in note and "about 1900 MB of memory" in note and "not checked for malware" in note
+      and 'KALMIDO_CLAMAV=1 "' in note and "update.sh" in note, f"#6606: ... said during the installation and loudly at its end: {out[-600:]}")
+rc, out, t = clamav_env(ENVC, 2799)
+check(profiles(t) == "localdb" and "KALMIDO_CLAMAV_OFF=low_memory" in t, f"#6606: just under the limit (2799 MB): out ({t})")
+for mb in (2800, 3900, 16000):
+    rc, out, t = clamav_env(ENVC, mb)
+    check(rc == 0 and profiles(t) == "localdb,clamav" and "KALMIDO_CLAMD" not in t and "CLAMAV_OFF" not in t
+          and "Virus scan: ClamAV checks every upload" in out, f"#6606: {mb} MB: the scanner stays the standard ({t} {out[-300:]})")
+rc, out, t = clamav_env(ENVC, 1900, KALMIDO_CLAMAV="1")
+check(rc == 0 and profiles(t) == "localdb,clamav" and "CLAMAV_OFF" not in t and "KALMIDO_CLAMD" not in t, f"#6606: KALMIDO_CLAMAV=1 keeps it on with 1.9 GB ({t})")
+rc, out, t = clamav_env(ENVC, 16000, KALMIDO_CLAMAV="0")
+check(rc == 0 and profiles(t) == "localdb" and re.search(r"^KALMIDO_CLAMD=$", t, re.M) and "CLAMAV_OFF" not in t
+      and "Virus scan: off (COMPOSE_PROFILES" in out, f"#6606: KALMIDO_CLAMAV=0 switches it off without the memory reason ({t})")
+rc, out, t = clamav_env(ENVC, None)
+check(rc == 0 and profiles(t) == "localdb,clamav", f"#6606: memory unknown: the scanner stays on (no guessing) ({t})")
+rc, out, t = clamav_env(ENVC, 1900, KALMIDO_CLAMAV="yes")
+check(rc == 1 and "KALMIDO_CLAMAV must be 1" in out and t is None, f"#6606: another value stops before anything changes ({rc})")
+# an update: the existing choice stays, both ways
+rc, out, t = clamav_env(ENVC, 1900, new=False)
+check(rc == 0 and profiles(t) == "localdb,clamav" and "CLAMAV_OFF" not in t, f"#6606: an update with little memory leaves a running scanner alone ({t})")
+OFFENV = ENVC.replace("localdb,clamav", "localdb") + "KALMIDO_CLAMD=\n"
+rc, out, t = clamav_env(OFFENV, 16000, new=False)
+check(rc == 0 and profiles(t) == "localdb" and "KALMIDO_CLAMD=" in t, f"#6606: an update with much memory leaves a switched-off scanner off ({t})")
+rc, out, t = clamav_env(ENVC, 1900)
+rc, out, t2 = clamav_env(t.replace("POSTGRES_PASSWORD=x\n", ""), 1900, new=False)
+check(rc == 0 and profiles(t2) == "localdb" and t2.count("KALMIDO_CLAMAV_OFF=low_memory") == 1 and "Virus scan: OFF." in out and "less than about 3 GB" in out,
+      f"#6606: the update of a small installation keeps it out and says so again ({t2} {out[-300:]})")
+rc, out, t3 = clamav_env(t2.replace("POSTGRES_PASSWORD=x\n", ""), 1900, new=False, KALMIDO_CLAMAV="1")
+check(rc == 0 and profiles(t3) == "localdb,clamav" and "KALMIDO_CLAMAV_OFF" not in t3 and "left out by the installer" not in t3
+      and not re.search(r"^KALMIDO_CLAMD=", t3, re.M) and "Virus scan: ClamAV checks" in out, f"#6606: KALMIDO_CLAMAV=1 ./update.sh switches it on and removes the trace ({t3})")
+rc, out, t4 = clamav_env("COMPOSE_PROFILES=localdb\nKALMIDO_CLAMD=scanner.example.com:3310\n", 1900, new=False, KALMIDO_CLAMAV="1")
+check("KALMIDO_CLAMD=scanner.example.com:3310" in t4, f"#6606: an own scanner address is never removed ({t4})")
+mem_docker(None)
+check("check_clamav_opt" in main_body and main_body.index("check_clamav_opt") < main_body.index("check_docker"), "#6606: KALMIDO_CLAMAV is checked before anything changes")
+check("KALMIDO_CLAMAV" in SH[:SH.index("set -eu")], "#6606: the option is named in the head of install.sh")
+check("--profile clamav rm -sf clamav" in SH, "#6606: a scanner switched off on an update is stopped (up leaves services of an inactive profile alone)")
+
+# ------------------------------------------------------------------ 2.1284.0 (#6606): Fable review F7-F10
+with open(os.path.join(ROOT, "docker-compose.yml"), encoding="utf-8") as f:
+    COMPOSE_YML = f.read()
+
+
+def env_case(env_text, code, **env):
+    """An installation folder with this .env (bytes as given) and the real docker-compose.yml; CODE runs there."""
+    mem_docker(16000)
+    d = folder()
+    with open(os.path.join(d, ".env"), "w", encoding="utf-8", newline="") as f:
+        f.write(env_text)
+    with open(os.path.join(d, "docker-compose.yml"), "w", encoding="utf-8") as f:
+        f.write(COMPOSE_YML)
+    rc, out, err = run('cd "%s"; DIR="%s"; PORT=3040; COMPOSE=plugin; IMAGE=""; check_url\n%s' % (d, d, code), **env)
+    with open(os.path.join(d, ".env"), encoding="utf-8", newline="") as f:
+        return rc, out + err, f.read(), calls()
+
+
+# F7: an update (no KALMIDO_CLAMAV) never removes the scanner, however .env writes the line; Compose reads all of these as "on"
+for name, line in (("quotes", 'COMPOSE_PROFILES="localdb,clamav"\n'), ("CRLF", "COMPOSE_PROFILES=localdb,clamav\r\n"),
+                   ("comment", "COMPOSE_PROFILES=localdb,clamav # both\n"), ("star", "COMPOSE_PROFILES=*\n"),
+                   ("spaces", "COMPOSE_PROFILES=localdb, clamav\n"), ("single quotes", "COMPOSE_PROFILES='localdb,clamav'\n")):
+    rc, out, t, cl = env_case("TZ=UTC\n" + line, "compose_up")
+    check(rc == 0 and "up -d" in cl and "rm -sf clamav" not in cl, f"#6606 F7: an update keeps the running scanner ({name}: {rc} {cl})")
+rc, out, t, cl = env_case("TZ=UTC\nCOMPOSE_PROFILES=localdb\n", "compose_up")
+check(rc == 0 and "rm -sf clamav" not in cl, f"#6606 F7: without KALMIDO_CLAMAV=0 nothing is removed, also with clamav out of .env ({cl})")
+rc, out, t, cl = env_case("TZ=UTC\nCOMPOSE_PROFILES=localdb,clamav\n", "write_env; compose_up", KALMIDO_CLAMAV="0")
+check(rc == 0 and "--profile clamav rm -sf clamav" in cl and profiles(t) == "localdb",
+      f"#6606 F7: KALMIDO_CLAMAV=0 on this run stops the scanner ({cl} {t})")
+
+# F7/F8: the value as Compose reads it; * = every profile; no shell globbing, no sed specials
+for name, line, want in (("quotes", 'COMPOSE_PROFILES="localdb,clamav"', "localdb"), ("CRLF", "COMPOSE_PROFILES=localdb,clamav\r", "localdb"),
+                         ("comment", "COMPOSE_PROFILES=localdb,clamav # both", "localdb"), ("star", "COMPOSE_PROFILES=*", "localdb,embed"),
+                         ("specials", "COMPOSE_PROFILES=a&b|c\\d,clamav", "a&b|c\\d")):
+    rc, out, t, cl = env_case("TZ=UTC\n%s\nPOSTGRES_PASSWORD=x\n" % line, "write_env", KALMIDO_CLAMAV="0")
+    check(rc == 0 and profiles(t).rstrip("\r") == want and re.search(r"^KALMIDO_CLAMD=$", t, re.M),
+          f"#6606 F8: KALMIDO_CLAMAV=0 takes clamav out ({name}: {rc} {profiles(t)!r} want {want!r} {out[-200:]})")
+rc, out, t, cl = env_case("TZ=UTC\nCOMPOSE_PROFILES=*\nPOSTGRES_PASSWORD=x\n", "write_env", KALMIDO_CLAMAV="1")
+check(rc == 0 and "clamav" in profiles(t).split(",") and "localdb" in profiles(t).split(","), f"#6606 F8: * stays every profile with the scanner on ({profiles(t)!r})")
+rc, out, t, cl = env_case("TZ=UTC\nPUBLIC_URL=old\n", "env_set PUBLIC_URL 'http://a|b&c\\d'")
+check(rc == 0 and "PUBLIC_URL=http://a|b&c\\d\n" in t, f"#6606 F8: env_set writes | & \\ as they are ({rc} {t!r} {out[-200:]})")
+
+# F9: installer and app read "off" alike (kalmido/files/scan.py: empty, 0, off, no, false); the end never says "checks" then
+for v in ("", "0", "off", "No", "FALSE", '""'):
+    rc, out, t, cl = env_case("TZ=UTC\nCOMPOSE_PROFILES=localdb,clamav\nKALMIDO_CLAMD=%s\n" % v, "clamav_note")
+    check(rc == 0 and "ClamAV checks every upload" not in out and "Virus scan: off" in out and "not checked" in out,
+          f"#6606 F9: KALMIDO_CLAMD={v} with the profile on: the end says off ({out[-200:]})")
+rc, out, t, cl = env_case('TZ=UTC\nCOMPOSE_PROFILES="localdb,clamav"\r\n', "clamav_note")
+check("ClamAV checks every upload" in out, f"#6606 F9: a quoted CRLF line with clamav reads as on ({out[-200:]})")
+rc, out, t, cl = env_case("TZ=UTC\nKALMIDO_CLAMD=off\nPOSTGRES_PASSWORD=x\n", "write_env")
+check(rc == 0 and profiles(t) == "localdb", f"#6606 F9: an old .env with KALMIDO_CLAMD=off gets no clamav profile ({t})")
+rc, out, t, cl = env_case("TZ=UTC\nCOMPOSE_PROFILES=localdb\nKALMIDO_CLAMD=false\nPOSTGRES_PASSWORD=x\n", "write_env; clamav_note", KALMIDO_CLAMAV="1")
+check(rc == 0 and profiles(t) == "localdb,clamav" and "KALMIDO_CLAMD" not in t and "ClamAV checks every upload" in out,
+      f"#6606 F9: KALMIDO_CLAMAV=1 also removes KALMIDO_CLAMD=false ({t})")
+check("Test-ClamdOff $envNow" in PS and "'off', 'no', 'false'" in PS, "#6606 F9: install.ps1 says 'checks' only when the app reads the scanner as on")
+
+# F10: data/ or secret/ itself a link: its target goes to 1000; a link to / or nowhere stops
+tgt = tempfile.mkdtemp(dir=TMP)
+d = folder()
+os.symlink(tgt, os.path.join(d, "data"))
+os.makedirs(os.path.join(d, "secret"))
+rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+cl = calls()
+check(rc == 0 and "chown -hR 1000:1000 %s\n" % os.path.realpath(tgt) in cl and "chown -hR 1000:1000 %s/data\n" % d not in cl
+      and "is a link" in out, f"#6606 F10: data/ a link: its target goes to 1000 ({rc} {cl} {out})")
+for bad in ("/", os.path.join(TMP, "gone")):
+    d = folder()
+    os.symlink(bad, os.path.join(d, "secret"))
+    os.makedirs(os.path.join(d, "data"))
+    rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+    check(rc == 1 and "/secret is a link" in out + err and "secret" not in calls(), f"#6606 F10: secret/ a link to {bad} stops ({rc} {out + err} {calls()})")
+check("`chown -hR`" in open(os.path.join(ROOT, "docs", "SELF-HOSTING.md"), encoding="utf-8").read(), "#6606 F10: SELF-HOSTING.md names chown -hR and links")
 
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"p2513_installer: {OKS[0]} ok, {len(FAILS)} failed")

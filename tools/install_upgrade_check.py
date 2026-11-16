@@ -13,6 +13,10 @@
 
   python3 tools/install_upgrade_check.py prev                  the start before the candidate: "<ref> (release|tag)" (stdout)
   python3 tools/install_upgrade_check.py setup-code CONTAINER  the newest one-time setup code in the container's log
+  python3 tools/install_upgrade_check.py arches [--compose FILE]
+                                                               2.1284.0 (#6606): every pulled image of docker-compose.yml is
+                                                               published for linux/amd64 AND linux/arm64 (red with the image
+                                                               and what it lacks; needs docker and network to the registries)
   python3 tools/install_upgrade_check.py run [--prev TAG] [--ref REF] [--dir DIR] [--out DIR] [--port N]
                                                                steps 1-4 (needs docker + compose, git, curl, network to GitHub)
 
@@ -149,6 +153,76 @@ def compose_id(d, service):
     return ids[0]
 
 
+# ---------------------------------------------------------------- 2.1284.0 (#6606): both architectures for every image
+# clamav/clamav:1.4 was published for linux/amd64 only: on a Raspberry Pi or an ARM server the standard installation stopped at
+# "no matching manifest for linux/arm64". The prebuilt Kalmido image is amd64 + arm64, so every image the compose file pulls must be too.
+ARCHES = ("linux/amd64", "linux/arm64")
+IMAGE_RE = re.compile(r"^\s*image:\s*[\"']?([^\s\"'#]+)", re.M)
+
+
+def compose_images(text):
+    """The images of a compose file in their order, each once."""
+    out = []
+    for m in IMAGE_RE.finditer(text or ""):
+        if m.group(1) not in out:
+            out.append(m.group(1))
+    return out
+
+
+def built_here(image):
+    """True for an image the machine builds itself (kalmido:local, kalmido-embed:local, a ${VARIABLE}): it is built for the
+    machine's own architecture, there is no manifest to read."""
+    return "${" in image or image.endswith(":local")
+
+
+def platforms(manifest):
+    """{'linux/amd64', ...} of a manifest list / OCI index (docker manifest inspect); the attestation entries
+    (unknown/unknown) do not count. A single image manifest (no list) gives an empty set: it serves one platform only."""
+    out = set()
+    for m in (manifest or {}).get("manifests") or []:
+        p = m.get("platform") or {}
+        if p.get("os") and p.get("architecture") and "unknown" not in (p["os"], p["architecture"]):
+            out.add(p["os"] + "/" + p["architecture"])
+    return out
+
+
+def arch_missing(manifest, need=ARCHES):
+    """The architectures of NEED the manifest lacks ([] = all there)."""
+    have = platforms(manifest)
+    return [a for a in need if a not in have]
+
+
+def arches(argv):
+    import json
+    ap = argparse.ArgumentParser(prog="install_upgrade_check.py arches")
+    ap.add_argument("--compose", default=os.path.join(ROOT, "docker-compose.yml"))
+    a = ap.parse_args(argv)
+    with open(a.compose, encoding="utf-8") as f:
+        images = compose_images(f.read())
+    bad = 0
+    for img in images:
+        if built_here(img):
+            print(f"{img}: built on the machine itself (its own architecture)")
+            continue
+        r = subprocess.run(["docker", "manifest", "inspect", img], capture_output=True, text=True)
+        try:
+            miss = arch_missing(json.loads(r.stdout)) if r.returncode == 0 else None
+        except ValueError:
+            miss = None
+        if miss is None:
+            bad += 1
+            print(f"RED {img}: the manifest could not be read ({(r.stderr or r.stdout).strip()[:300]})")
+        elif miss:
+            bad += 1
+            print(f"RED {img}: not published for {', '.join(miss)} - an installation there stops at 'no matching manifest'")
+        else:
+            print(f"{img}: " + ", ".join(ARCHES))
+    if not images:
+        print(f"RED {a.compose}: no image found")
+        return 1
+    return 1 if bad else 0
+
+
 def run(argv):
     tmp = tempfile.gettempdir()
     ap = argparse.ArgumentParser(prog="install_upgrade_check.py run")
@@ -222,6 +296,8 @@ def main(argv):
         return 0 if c else 1
     if cmd == "run":
         return run(argv[2:])
+    if cmd == "arches":
+        return arches(argv[2:])
     print(__doc__, file=sys.stderr)
     return 2
 

@@ -36,6 +36,7 @@ from ..agents.core import (
 from ..collab.reactions import clean_emoji, comment_rx_on, ltag_create, ltag_delete, ltag_update, ltags_of_lists, react, with_reactions
 from ..agents.chat import CHAT_FILES_MAX
 from ..agents.safety import access_cleanup
+from ..agents.control import ctl_tag_hold  # 2.1284.0 (#6575)
 from ..agents.admin import need_agent_admin, need_own_agent
 from ..agents.workstyle import ws_get
 from ..agents.workqueue import wq_spec
@@ -997,6 +998,7 @@ def v1_list_tag_delete(lid, tag_id):
     tag_id = as_int(tag_id, "tag_id", 1)
     c = db()
     _v1_ltag_of(c, lid, tag_id)
+    ctl_tag_hold(c, tag_id)  # 2.1284.0 (#6575): an agent's delete of an unused tag stays one of an unused tag (same transaction)
     v1_call(ltag_delete, tag_id, lid, body={})
     return Response(status=204)
 
@@ -1135,7 +1137,9 @@ def agent_spec(paths, schemas, op, ok, errs, ref, q, pid, nul, page):
     AG, W = "Agents", "write"
     wkr = {"type": "object", "properties": {  # 2.407.0 A (#3513)
         "working": nul("object", description="{agent_id, agent, name, text, at, ttl}: what people see on the task (null = not shown)"),
-        "job": nul("object", description="Your running job of the task (the Job schema)")}}
+        "job": nul("object", description="Your running job of the task (the Job schema)"),
+        "text_shown": {"type": "boolean", "description": "2.1284.0 (#6453): false = the mark is set but shows no text -- more people (or the public) read this project than your other places"},
+        "note": {"type": "string", "description": "2.1284.0 (#6453): with text_shown false, why"}}}
     lp = pid("id", "List id")
     paths.update({
         "/agent": {"get": op("The agent itself: status, jobs, event cursor (agent tokens only)", AG, ok(ref("Agent")) | errs("403"))},

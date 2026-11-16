@@ -222,7 +222,7 @@ function ofdOffersTab(el) {
   if (typeof ofr_fade === 'function') ofr_fade(el);  // 2.936.0 (#5448): the kind tabs of a narrow screen fade at a cut edge
   if (!id) ofd_navSync();  // 2.1004.0 (#5572)
   const sl = id && $('.lsdl', el); if (sl && OFD.lsdTop) sl.scrollTop = OFD.lsdTop;  // 2.557.0 A (#4553): the list keeps its place when the next document opens
-  if (id) el.querySelectorAll('textarea[data-grow-min]').forEach(t => ofcGrow(t, +t.dataset.grow || 3));  // 2.431.0 (#3594 review): a long subject wrapped by the field's width fits at once
+  if (id) ofcGrowAll(el);  // 2.431.0 (#3594 review): a long subject wrapped by the field's width fits at once; 2.1284.0 (#6597): every multi-line field, watched for its width
   // 2.308.0 (#3251): the listeners sit on the tab body, not on a box inside it (the body and the box in it were both wired depending on timing: one click opened two dialogs)
   const host = el.closest('.ofcbody') || el;
   if (!host._ofd) { host._ofd = true; host.addEventListener('contextmenu', ofdCtx); if (!OFD.lp && typeof ms_longPress === 'function') OFD.lp = ms_longPress('#view .ofdrow', () => false, r => ofdRowMenu(r.dataset.id, r)); host.addEventListener('click', ofdClick); host.addEventListener('change', ofdChange); host.addEventListener('input', ofdInput); host.addEventListener('keydown', ofdKey); }
@@ -378,7 +378,7 @@ const ofdSec = (key, title, body, extra = '') => `<details class="ofdsec" ${OFD.
 // 2.298.0 A1 (#3186): the help is a .shint behind the (i) of the label (o.keep = stays visible: units, follow-ups); with an
 // (i) text of its own the help joins it (one (i) per label)
 const ofdF = (k, label, field, hint, o) => { const ii = typeof OFC_II === 'object' && OFC_II['ed_' + k] && hint && !o?.keep;
-  return `<div class="row"><label for="ofd-${k}">${esc(label)}</label>${field}${ii ? '' : ofcHint(hint, o)}</div>${typeof ofcII === 'function' ? ofcII('ed_' + k, ii ? hint : '') : ''}`; };  // 2.47.3 (#1382): (i) per field
+  return `<div class="row${field.startsWith('<textarea') ? ' ofdml' : '' /* 2.1284.0 (#6597): a multi-line field under its label, full width */}"><label for="ofd-${k}">${esc(label)}</label>${field}${ii ? '' : ofcHint(hint, o)}</div>${typeof ofcII === 'function' ? ofcII('ed_' + k, ii ? hint : '') : ''}`; };  // 2.47.3 (#1382): (i) per field
 // 2.354.0 D (#2838): a credit note keeps currency, rate, client and VAT of its invoice (the server refuses a change)
 const ofdBound = (d, h) => d.kind === 'credit' && d.cancels_id ? h.replace(/^<(select|input) /, `<$1 disabled title="${esc(tr('Taken from the invoice'))}" `) : h;
 const ofdSel = (k, cur, opts, empty) => `<select id="ofd-${k}" data-f="${k}">${empty != null ? `<option value="">${esc(empty)}</option>` : ''}${opts.map(([v, n]) => `<option value="${esc(v)}" ${String(v) === String(cur ?? '') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
@@ -400,7 +400,10 @@ const prd_slotName = (d, k) => { const l = prd_lbl(d[k + '_label'] || prd_opts()
   return l === 'Markup' && ofdLang(d) !== 'en' ? tr('Markup') : l || (k === 'handling' ? tr('Handling costs') : tr('Surcharge')); };  // 2.1228.0 (#6254): 'Zuschlag' without a pack  // 2.1175.0 (#6146): the film pack's old German label 'Markup' (documents made before) reads 'Aufschlag'
 const ofdIn = (k, v, o = {}) => `<input id="ofd-${k}" data-f="${k}" value="${esc(v ?? '')}" maxlength="${o.max || 200}" ${o.num ? 'inputmode="decimal" class="numin"' : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.ro ? 'readonly' : ''}>`;
 // 2.431.0 B (#3594): o.grow = the field grows with its text from `rows` up to o.grow rows (ofcGrow)
-const ofdTa = (k, v, rows = 3, o = {}) => `<textarea id="ofd-${k}" data-f="${k}" rows="${o.grow ? Math.min(o.grow, Math.max(rows, String(v ?? '').split('\n').length)) : rows}" maxlength="${o.max || 8000}" ${o.grow ? `data-grow="${o.grow}" data-grow-min="${rows}"` : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''}>${esc(v ?? '')}</textarea>`;
+// 2.1284.0 (#6597): every multi-line field of the editor grows (up to 10 rows unless o.grow says otherwise): a fixed 2 or 3 rows cut
+// a longer note, introduction or address
+const ofdTa = (k, v, rows = 3, o = {}) => { const g = o.grow || 10;
+  return `<textarea id="ofd-${k}" data-f="${k}" rows="${Math.min(g, Math.max(rows, String(v ?? '').split('\n').length))}" maxlength="${o.max || 8000}" data-grow="${Math.min(g, 50)}" data-grow-min="${rows}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''}>${esc(v ?? '')}</textarea>`; };
 // 2.435.0 B (#3618): the send button's condition, shared by the editor bar and the list row menu
 const ofdCanSend = d => !!d && !!d.locked && !d.via_folder && !ofr_noSp('offers', 'release');
 function ofdEditorHtml() {
@@ -556,7 +559,7 @@ function ofdItemsHtml(d, adm) {
 function ofd_itRow(d, adm, it, i, its, inv, taxes, gp) {
     const mv = ofd_readOnly(OFD.doc) ? '' /* 2.1238.0 (#6161): a reader moves / removes nothing */ : `<span class="ofdmv">${rowd_arrows(`<button type="button" class="ib" data-ofd="it-up" data-i="${i}" ${i === 0 ? 'disabled' : ''} aria-label="${esc(tr('Move up'))}">${ic('up', 's')}</button><button type="button" class="ib" data-ofd="it-down" data-i="${i}" ${i === its.length - 1 ? 'disabled' : ''} aria-label="${esc(tr('Move down'))}">${ic('down', 's')}</button>`)}<button type="button" class="ib" data-ofd="it-del" data-i="${i}" aria-label="${esc(tr('Remove'))}">${ic('x', 's')}</button></span>`;
     if (it.kind === 'heading') return `<li class="ofdit ofdhd"><span class="ofdpos muted rowgrip" ${gp}>${ic('list', 's')}</span><input data-i="${i}" data-k="title" value="${esc(it.title)}" maxlength="500" placeholder="${esc(tr('Heading (category)'))}" aria-label="${esc(tr('Heading'))}">${mv}</li>`;
-    if (it.kind === 'text') return `<li class="ofdit ofdtx"><span class="ofdpos muted rowgrip" ${gp}>${ic('note', 's')}</span><textarea data-i="${i}" data-k="detail" rows="2" maxlength="4000" placeholder="${esc(tr('Text block'))}" aria-label="${esc(tr('Text block'))}">${esc(it.detail)}</textarea>${mv}</li>`;
+    if (it.kind === 'text') return `<li class="ofdit ofdtx"><span class="ofdpos muted rowgrip" ${gp}>${ic('note', 's')}</span><textarea data-i="${i}" data-k="detail" rows="${Math.min(10, Math.max(2, String(it.detail ?? '').split('\n').length))}" data-grow="10" data-grow-min="2" maxlength="4000" placeholder="${esc(tr('Text block'))}" aria-label="${esc(tr('Text block'))}">${esc(it.detail)}</textarea>${mv}</li>`;
     const line = (d.totals?.lines || []).find(l => (l.kind === 'item' || l.kind === 'discount') && l.id === it.id);
     if (it.kind === 'part' && typeof tpItemRow === 'function') return tpItemRow(it, i, d, line, mv);  // 2.47.0 (#1215): a part on the title page
     if (it.kind === 'discount') return `<li class="ofdit ofddisc"><span class="ofdpos rowgrip" ${gp}>${line?.pos || ''}</span>

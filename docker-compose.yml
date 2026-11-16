@@ -132,7 +132,11 @@ services:
     # signatures by itself. Not reachable (e.g. still loading after a start): uploads are taken, marked "Unchecked" and
     # checked once it runs. Without it: KALMIDO_CLAMD= in .env and leave "clamav" out of COMPOSE_PROFILES there
     # (2.149.0 D, #2510: a profile instead of deleting this block - updates replace this file and kept bringing it back).
-    image: clamav/clamav:1.4
+    # 2.1284.0 (#6606): the Debian build of ClamAV, published for linux/amd64 and linux/arm64 (clamav/clamav is amd64 only, a
+    # Raspberry Pi or an ARM server stopped at "no matching manifest"). Same paths, port 3310 and health check; its start gives
+    # /var/lib/clamav to its own clamav user, so the volume clamav-db of an older installation is taken over as it is.
+    # tools/install_upgrade_check.py arches (nightly CI) is red when an image of this file lacks one of the two.
+    image: clamav/clamav-debian:1.4
     container_name: kalmido-clamav
     logging: *logging
     profiles: ["clamav"]

@@ -568,8 +568,9 @@ def wke_bulk():
                 raise bad("path") from None
             if enc:
                 c.execute("DELETE FROM wiki_links WHERE from_id=?", (pid,))
+                c.execute("DELETE FROM wiki_embeds WHERE page_id=?", (pid,))  # 2.1284.0 (#6321): behind the lock nobody embedded anything
             elif "body" in upd:
-                wiki_set_links(c, pid, plain)
+                wiki_set_links(c, pid, plain)  # 2.1284.0 (#6321, review 1 F5): who takes the lock off did not write the texts: nobody's pictures
     except BadInput as x:
         c.rollback()
         return err(str(x))
@@ -609,6 +610,8 @@ def wke_finish():
     w, a = wke_space_sql(sp["org_id"], sp["owner_id"])
     if mode == "encrypting":  # copies of the plain texts: links (backlinks, mentions) and the frontmatter cache
         c.execute(f"DELETE FROM wiki_links WHERE from_id IN (SELECT id FROM wiki_pages WHERE {w})", a)
+        from .wkembed import wem_embeds_drop
+        wem_embeds_drop(c, w, a)  # 2.1284.0 (#6321): behind the lock nobody embedded anything
         c.execute(f"UPDATE wiki_pages SET attrs='{{}}' WHERE {w} AND attrs<>'{{}}'", a)
     else:
         c.execute("UPDATE wiki_spaces SET e2e_rotate=0, e2e_reenc=0 WHERE id=?", (sp["id"],))

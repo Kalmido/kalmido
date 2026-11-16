@@ -130,6 +130,7 @@ Connected agents: the agent API, proposals, quotas, locks, schedules, chat and t
 - `kalmido/agents/chat.py` (`chat`) - What people see of agents: state, chat (files, reactions)
 - `kalmido/agents/chatprefs.py` (`cp`) - The chat settings of a person for one agent
 - `kalmido/agents/chatnews.py` (`acn`) - Approval cards and questions of the agent chat in the bell's "For you"
+- `kalmido/agents/circle.py` - an agent writes freely only towards the same or a smaller circle of people
 - `kalmido/agents/cleanup.py` (`cln`) - "Tidy up this list" -- the list
 - `kalmido/agents/contractprop.py` (`ctr`) - Contracts in view -- an agent reminds a person of a notice deadline, the person decides
 - `kalmido/agents/control.py` (`ctl`) - The control level of an agent (Kontrolle)

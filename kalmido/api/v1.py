@@ -1505,9 +1505,11 @@ def v1_task_update(tid):
     if not b:
         c.commit()  # 2.392.0 C (#3370): only the mark (2.392.2, #3365: or the delivery state)
         return jsonify(v1_one(c, tid))
-    if b.get("list_id"):
-        from ..agents.safety import move_gate
-        move_gate(c, [(tid, b["list_id"])])  # 2.30.0 (#919): an agent moving it to other people waits for approval
+    if b.get("list_id") or b.get("parent_id"):
+        from ..agents.safety import move_dst, move_gate
+        dst = move_dst(c, b)  # 2.1284.0 (#6453, review G1): a new parent moves the task into the parent's project
+        if dst:
+            move_gate(c, [(tid, dst)])  # 2.30.0 (#919): an agent moving it to other people waits for approval
     r = v1_call(task_update, tid, body={**b, "shift_chain": sc, **({"_prev": prev} if prev else {})})
     if rv and b.get("list_id"):
         v1_reviewer_set(c, tid, rid)

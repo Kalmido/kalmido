@@ -161,6 +161,7 @@ VARS = (
     _v("KALMIDO_CLAMD_MAX_MB", "100", "Largest file in MB the scanner checks.", "files"),
     _v("KALMIDO_CLAMD_TIMEOUT", "60", "Seconds one scan may take.", "files"),
     _v("KALMIDO_CLAMD_DOWN_S", "30", "Seconds a failed scanner is not asked again.", "files"),
+    _v("KALMIDO_CLAMAV_OFF", "", "Why the installer left the virus scanner out (low_memory = under about 3 GB of memory), 2.1284.0; written by install.sh into .env, shown in the admin view. Removed when the scanner is switched on (KALMIDO_CLAMAV=1 ./update.sh).", "files"),
     _v("KALMIDO_WIKI_FILE_MAX_MB", "100", "Largest PDF or picture in MB of a knowledge page (upload and ZIP import), 2.177.0.", "files"),
     _v("KALMIDO_WIKI_IMPORT_MAX_MB", "4096", "Size in MB of a ZIP of knowledge pages that can be imported (and of everything unpacked from it), 2.177.0.", "files"),
     _v("KALMIDO_WIKI_IMPORT_MAX_FILES", "10000", "Entries of a ZIP of knowledge pages at most, 2.177.0.", "files"),

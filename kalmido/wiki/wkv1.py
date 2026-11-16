@@ -386,7 +386,7 @@ def _new_in_folder(c, uid, agent, b):
     text = wiki_body(b)
     ts = iso_ms(now_utc())
     with c.savepoint():
-        pid = wiki_insert(c, oid, owner or uid, path, text, ts)
+        pid = wiki_insert(c, oid, owner or uid, path, text, ts, by=uid)  # 2.1284.0 (#6321): the agent embedded, not the owner
         if pid is None:
             raise Denied(409, tr("A page with this name already exists"))
         if owner and owner != uid:  # a private page made by its person's agent: the agent made it, the page stays the person's

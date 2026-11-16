@@ -665,7 +665,8 @@ def wkh_put_text(c, r, text, uid):
     pid, ts, prev = r["id"], iso_ms(now_utc()), wkh_prev(c, r)
     c.execute("UPDATE wiki_pages SET body=?, attrs=?, updated_by=?, updated_at=? WHERE id=?",
               (wkh_seal(c, r["org_id"], r["owner_id"], text), json.dumps(wiki_frontmatter(text), ensure_ascii=False), uid, ts, pid))
-    wiki_set_links(c, pid, text)
+    wiki_set_links(c, pid, text)  # 2.1284.0 (#6321, review 1 F4): only follows -- a picture the old text brings back is nobody's (who
+    # embedded it then is not kept; the one who restores or undoes did not write it)
     wkh_note(c, pid, uid, ts, prev=prev, fresh=True)
     from .wksearch import wks_index
     wks_index(c, pid, r["org_id"], r["owner_id"], text, ts)

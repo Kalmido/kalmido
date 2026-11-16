@@ -592,7 +592,7 @@ def wkf_repath(c, uid, oid, owner, refs, old_folder=None, new_folder=None):
     for p, new in moves:
         c.execute("UPDATE wiki_pages SET path=?, updated_by=?, updated_at=? WHERE id=?", (new, uid, ts, p["id"]))
     for p, new in moves:
-        wiki_relink(c, p, p["path"], new, owner or uid, ts)
+        wiki_relink(c, p, p["path"], new, uid, ts)  # 2.1284.0 (#6321, review 1 F2): who moved it (was: in the owner's name); a relink claims no picture
         wsh_repath(c, oid, owner, p["path"], new, False)  # a page share (one inside the folder followed above already)
     return len(moves)
 
