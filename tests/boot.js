@@ -85,8 +85,8 @@ exports.meId = async cookie => {
   if (!r.ok) throw new Error('/api/me: HTTP ' + r.status);
   return (await r.json()).id;
 };
-// 2.65.0 (#1824): the app's whole CSS = app.css + the module stylesheets (static/css/, LAZY_CSS of sw.js, in that order: they
-// come later in the cascade); the suites that read rules use this, a rule may have moved into a module's stylesheet
+// 2.65.0 (#1824): the app's whole CSS = app.css + the module stylesheets (static/css/, LAZY_CSS of sw.js, sorted since 2.1236.0
+// #6199 - in the app they load on demand: they come later in the cascade); the suites that read rules use this, a rule may have moved into a module's stylesheet
 const cssList = sw => [...((sw.match(/const LAZY_CSS = \[(.*?)\];/s) || [, ''])[1]).matchAll(/'\/static\/css\/([\w-]+\.css)'/g)].map(m => m[1]);
 // 2.168.3 (CI): the server sends CSS without comments since 2.191.0 B (#1824), the suites find rules by their version
 // comments, so they read the files themselves (the same bytes before the strip); over HTTP only without a static/ beside tests/
