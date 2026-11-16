@@ -35,7 +35,8 @@ from .ledger import (ofx_release, ofx_company, ofx_company_print, ofx_sender_lin
                      ofx_number_at_finalize, ofx_snapshot_pack, OFX_LOCKED)
 from .ledger import ofx_user_label  # 2.1287.0 (#6470)
 from .ledger import ofx_unlink, ofx_unlock  # 2.1005.0 (#5415): a finalised quotation never sent goes as a draft
-from .countries import fk_country_label  # 2.296.0 B (#3168)
+from .ledger import ofx_company_from_free  # 2.1308.0 (#6477): free recipient lines read like the company's
+from .countries import fk_country_code, fk_country_label  # 2.296.0 B (#3168); 2.1308.0 (#6477): + fk_country_code
 from .invoices import (INV_KINDS, INV_STATUSES, STATE_TXT, inv_apply_client, inv_manual_number, inv_money_fields, inv_new_row, inv_paid_map, inv_payments,
                        inv_reminder_totals, inv_render, inv_scheme, inv_state)
 from .invoices import ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
@@ -742,9 +743,28 @@ def _fields_clean(v):
     return out
 
 
-def _recipient_clean(v):
+# 2.1308.0 (#6477): the fixed address fields of a recipient without a client (the client's fields: street, extra line,
+# postcode, city, country) and their lengths
+REC_FIELDS = {"street": 200, "extra": 200, "zip": 20, "city": 120, "country": 2}
+
+
+def _recipient_clean(v, home="DE"):
+    """{name, lines} or {name, street, extra, zip, city, country} -> the stored recipient of a document without a client.
+    2.1308.0 (#6477): with the fixed fields (any of REC_FIELDS given) they are the address and the printed lines are made
+    from them (name, street, extra line, postcode city, the country when it is not home); free lines alone keep the lines and
+    get the fields only when they are a plain address (street + postcode city, maybe a country: ledger.ofx_company_from_free,
+    the same reading as the company's), else none -- an invoice / correction without them is not finalised (invoices.inv_missing)."""
     if not isinstance(v, dict):
         raise BadInput(tr("Invalid value: {0}", "recipient"))
+    name = _text(v.get("name"), "recipient", NAME_MAX)
+    if any(k in v for k in REC_FIELDS):
+        from .countries import fk_country
+        f = {k: re.sub(r"\s+", " ", _text(v.get(k), "recipient." + k, mx)).strip() for k, mx in REC_FIELDS.items() if k != "country"}
+        f["country"] = fk_country(v.get("country") or "", "recipient.country") or ""
+        country = f["country"] if f["country"] != (home or "DE").upper() else ""
+        lines = [x for x in (name, f["street"], f["extra"], " ".join(x for x in (f["zip"], f["city"]) if x),
+                             fk_country_label(country, home or "DE") if country else "") if x]
+        return {"name": name, "lines": lines[:12], **f}
     lines = v.get("lines") or []
     if isinstance(lines, str):
         lines = lines.replace("\r", "").split("\n")
@@ -752,7 +772,12 @@ def _recipient_clean(v):
         raise BadInput(tr("Invalid value: {0}", "recipient"))
     lines = [_text(x, "recipient", 200) for x in lines]
     lines = [x for x in lines if x]
-    return {"name": _text(v.get("name"), "recipient", NAME_MAX), "lines": lines}
+    out = {"name": name, "lines": lines}
+    addr = [x for x in lines if x.strip().lower() != name.strip().lower()]
+    sp = ofx_company_from_free({"name": name, "country": ""}, addr) if addr else {}
+    if all(sp.get(k) for k in ("street", "zip", "city")):
+        out.update({"street": sp["street"], "extra": "", "zip": sp["zip"], "city": sp["city"], "country": fk_country_code(sp.get("country")) or ""})
+    return out
 
 
 def _rights_from_contract(c, oid, ct, lang):
@@ -852,7 +877,7 @@ def clean_doc(c, oid, b, cur, admin):
             rec.pop("missing", None)
             f["recipient"] = json.dumps(rec, ensure_ascii=False)
     elif "recipient" in b and b.get("recipient") is not None:
-        f["recipient"] = json.dumps(_recipient_clean(b["recipient"]), ensure_ascii=False)
+        f["recipient"] = json.dumps(_recipient_clean(b["recipient"], cdn_home(c, oid)), ensure_ascii=False)
     for k, mx in (("project_title", PT_MAX), ("project_ref", 80), ("intro", TEXT_MAX), ("closing", TEXT_MAX), ("order_ref", 80)):
         if k in b:
             f[k] = pt_text(b.get(k), k) if k == "project_title" else _text(b.get(k), k, mx)  # 2.431.0 B (#3594)

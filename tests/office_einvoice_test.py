@@ -13,6 +13,8 @@
  - ein_check sees a broken sum and a missing mandatory term
  - 2.296.0 B (#3169, #3173): a tax-exempt position = category E with the reason; vat note "abroad" = category O without VAT ids
  - 2.1259.0 (#6303 e): a sub-cent USD price in the CII (ZUGFeRD + XRechnung) as in the UBL: quantity x price = line amount
+ - 2.1308.0 (#6476): ein_check_block (what stops finalising): XRechnung without seller contact, e-mails, buyer postcode in
+   plain words (BR-DE-9 found by ein_check); ZUGFeRD asks none of them; an empty element does not stop it, a wrong sum does
  - writes the files to tests/.data/einvoice/ for the validators (tools/einvoice_validate.sh: veraPDF + KoSIT in CI)
 usage: office_einvoice_test.py            (KALMIDO_SRC = the source tree, default ../ next to tests/)"""
 import importlib.util
@@ -358,6 +360,27 @@ check(any("BR-CO-17" in x for x in f2), f"a wrong tax amount is found: {f2}")
 f3 = ein.ein_check(re.sub(rb"<ram:SellerTradeParty>\s*<ram:Name>[^<]*</ram:Name>", b"<ram:SellerTradeParty><ram:Name></ram:Name>", xml))
 check(any("BT-27" in x for x in f3), f"a missing seller name is found: {f3}")
 check(ein.ein_check(b"<nope") and ein.ein_check(b"<a/>"), "junk gives findings, no exception")
+
+# ---------------------------------------------------------------- 7. 2.1308.0 (#6476): what stops finalising (ein_check_block)
+check(ein.ein_check_block(xml) == [] and ein.ein_check_block(xx) == [], f"#6476: a clean ZUGFeRD / XRechnung stops nothing {ein.ein_check_block(xx)}")
+mb = fixture(fmt="xrechnung")
+mb["sender_fields"] = {**SENDER, "phone": "", "email": ""}
+mb["recipient"] = {**RECIPIENT, "email_invoice": "", "zip": ""}
+xb = ein.ein_build(mb, "xrechnung")
+fb = ein.ein_check(xb)
+check(any(f.startswith("BR-DE-9 ") for f in fb) and any(f.startswith("BT-41/42/43 ") for f in fb) and any(f.startswith("BT-49 ") for f in fb)
+      and any(f.startswith("BT-34 ") for f in fb), f"#6476: XRechnung without seller contact, buyer e-mail and postcode: found {fb}")
+bb = ein.ein_check_block(xb)
+check(["postcode of the recipient"] in bb and ["phone and e-mail of your company (office settings, company; XRechnung)"] in bb
+      and ["the client's invoice e-mail (XRechnung)"] in bb and ["e-mail of your company (office settings, company; XRechnung)"] in bb,
+      f"#6476: the plain words of the block {bb}")
+check(not any(x[0] == "e-invoice check: {0}" for x in bb), f"#6476: no technical leftovers for missing data {bb}")
+xz = ein.ein_build({**mb, "recipient": {**RECIPIENT, "email_invoice": "", "zip": "", "buyer_reference": ""}}, "zugferd")
+check(ein.ein_check_block(xz) == [], f"#6476: ZUGFeRD asks none of the XRechnung data (contact, e-mails, postcode) {ein.ein_check_block(xz)}")
+check(ein.ein_check_block(re.sub(rb"<ram:BuyerOrderReferencedDocument>", b"<ram:Empty></ram:Empty><ram:BuyerOrderReferencedDocument>", xml)) == [],
+      "#6476: an empty element (deprecated in ZUGFeRD 2.4+) does not stop finalising")
+bs = ein.ein_check_block(broken)
+check(["e-invoice check: {0}", next((x for x in ein.ein_check(broken) if "BR-CO-15" in x), "")] in bs, f"#6476: a wrong sum stops it, named as found {bs}")
 print("files for the validators:", sorted(os.listdir(OUT)))
 print(f"office_einvoice: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

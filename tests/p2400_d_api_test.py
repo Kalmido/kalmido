@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """2.40.0 API tests, part D (office documents and invoices), own container (start.sh). Invented companies, people and the
 test IBAN only.
- - #1368 1: the buyer address of the e-invoice XML from free address lines (2, 3 and 4 lines): the last line with a
-   postcode = PostcodeCode + CityName, the line before = LineOne, the lines before that LineTwo / LineThree
+ - #1368 1: the buyer address of the e-invoice XML: a plain address in free lines (street + postcode city) or the fixed
+   fields (2.1308.0 #6477: the extra line = LineTwo; free lines with an attention line are refused)
  - #1368 2: the standard invoice closing says nothing about the due date; credit notes have their own closing; the
    credit note XML has no "payable on receipt" terms
  - #1368 4 + 6: reminder intro / closing per level 1-3; the reminder's last sum row is "Gesamtbetrag"; English
@@ -79,16 +79,22 @@ def buyer(xml):
 
 
 # ---------------------------------------------------------------- #1368 1: the buyer address from free lines
+# 2.1308.0 (#6477): an invoice without a client is finalised only with the recipient's fixed fields; free lines count when
+# they are a plain address (street + postcode city, maybe a country: read into the fields), lines with an attention line
+# are refused (were guessed into LineTwo / LineThree) -- the extra line is the field "extra" now
 for lines, want in ((["Schröderstr. 513", "12952 Berlin"], {"LineOne": "Schröderstr. 513", "PostcodeCode": "12952", "CityName": "Berlin"}),
-                    (["Frau Test", "Schröderstr. 513", "12952 Berlin"], {"LineOne": "Schröderstr. 513", "LineTwo": "Frau Test", "PostcodeCode": "12952", "CityName": "Berlin"}),
-                    (["z. Hd. Buchhaltung", "Frau Test", "Schröderstr. 513", "12952 Berlin"],
-                     {"LineOne": "Schröderstr. 513", "LineTwo": "z. Hd. Buchhaltung", "LineThree": "Frau Test", "PostcodeCode": "12952", "CityName": "Berlin"}),
+                    ({"street": "Schröderstr. 513", "extra": "Frau Test", "zip": "12952", "city": "Berlin"},
+                     {"LineOne": "Schröderstr. 513", "LineTwo": "Frau Test", "PostcodeCode": "12952", "CityName": "Berlin"}),
                     (["Bahnhofstrasse 1", "CH-8000 Zürich"], {"LineOne": "Bahnhofstrasse 1", "PostcodeCode": "8000", "CityName": "Zürich", "CountryID": "CH"})):
-    d = inv(lines)
+    d = inv(lines) if isinstance(lines, list) else inv(recipient={"name": "Beispiel GmbH", **lines})
     fin(d["id"])
     got = buyer(A.get(B + f"{D}/{d['id']}/xml").text)
-    check(all(got.get(k) == v for k, v in want.items()) and ("LineTwo" in want or "LineTwo" not in got), f"#1368 1: address of {len(lines)} lines {lines}: {got}")
+    check(all(got.get(k) == v for k, v in want.items()) and ("LineTwo" in want or "LineTwo" not in got), f"#1368 1: address {lines}: {got}")
 LAST = d
+for lines in (["Frau Test", "Schröderstr. 513", "12952 Berlin"], ["z. Hd. Buchhaltung", "Frau Test", "Schröderstr. 513", "12952 Berlin"]):
+    d = inv(lines)
+    r = A.post(B + f"{D}/{d['id']}/finalize")
+    check(r.status_code == 400 and "street of the recipient" in r.text, f"#6477: free lines with an attention line are refused {lines}: {r.status_code} {r.text[:160]}")
 
 # ---------------------------------------------------------------- #1368 2: closing texts, credit note
 d = inv()
