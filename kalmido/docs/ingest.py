@@ -490,6 +490,11 @@ def docs_mail_prefetch(msg):
     return ml_collect(msg, limit=k, links=links)
 
 
+class DocsMailKept(int):
+    """2.1281.0 (#6425): the first node id of a documents mail whose mail stays in the mailbox (its budget left files out);
+    integrations/mail.py mail_import hands it on as its MailKept."""
+
+
 def docs_mail_import(c, msg, raw, pre=None):
     """A mail to a document address (plus address with a doc_mail token): its attachments become documents of that
     person / organisation. None = not a document address (the task import goes on); else the first node id or 0.
@@ -536,8 +541,7 @@ def docs_mail_import(c, msg, raw, pre=None):
     if first:
         docs_kick()
     if first and cut:  # 2.1281.0 (#6425): the budget of one mail left files out: the mail stays in the mailbox (not deleted)
-        from ..integrations.mail import MailKept
-        return MailKept(first)
+        return DocsMailKept(first)
     return first
 
 

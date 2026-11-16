@@ -304,7 +304,7 @@ def mail_import(c, raw, pre=None):
     2.424.0 B2 (#3450): c None = the step before the database transaction (mail_fetch prefetch): the invoice link
     downloads of a documents mail -> pre, handed back in with the mail (docs/ingest.py docs_mail_prefetch)."""
     msg = _mail_msg(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it for good)
-    from ..docs.ingest import docs_mail_import, docs_mail_prefetch  # 2.48.0 (#1111): a document address -> its attachments become documents
+    from ..docs.ingest import DocsMailKept, docs_mail_import, docs_mail_prefetch  # 2.48.0 (#1111): a document address -> its attachments become documents
     if c is None:
         return docs_mail_prefetch(msg)
     from ..office.privacy import dsb_mail_import  # 2.154.0 C (#2192): a reply with the code of a mailed data protection sheet
@@ -313,6 +313,8 @@ def mail_import(c, raw, pre=None):
         return p or None
     d = docs_mail_import(c, msg, raw, pre)
     if d is not None:
+        if isinstance(d, DocsMailKept):  # 2.1281.0 (#6425): files left out by the mail's budget: the mail is not deleted
+            return MailKept(d)
         return d or None
     from ..hub.hubmail import hbm_mail_import  # 2.84.0 (#1198): a hub address (client / project / hub inbox) -> a filed mail
     h = hbm_mail_import(c, msg, raw)
