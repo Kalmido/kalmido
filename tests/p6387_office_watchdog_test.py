@@ -253,6 +253,32 @@ po = made(S_POST)
 check(len(po) == 1 and po[0][2] == "sent" and len(mails("rechnung@postfehler.example")) == 1,
       f"(6629 a) no lock left on the connection: the other connection's run mails it {po}")
 
+# ================================================================== 2.1289.0 (#6629 b): a mail still due is never overwritten
+CLR = client(A, "Jetzt Medien AG", "rechnung@jetzt.example")
+S_RUN = series(A, CLR, "Jetzt")
+tick(CRASH)  # the first invoice: finalised, its mail still due
+r = A.post(B + S + f"/{S_RUN}/run", json={})
+check(r.ok, f"(6629 b) make now {r.status_code} {r.text[:200]}")
+rr = made(S_RUN)
+check(len(rr) == 2 and all(x[2] == "sent" for x in rr) and len(mails("rechnung@jetzt.example")) == 2,
+      f"(6629 b) 'make now' first mails the invoice still due, then the new one (was: its mark overwritten, never mailed) {rr}")
+check(dbx("SELECT mail_doc FROM office_inv_series WHERE id=?", (S_RUN,)) == [(None,)], "(6629 b) no mark left")
+
+CLL = client(A, "Halte Medien AG", "rechnung@halte.example")
+_t = date.today()
+past = date(_t.year - (_t.month <= 2), (_t.month - 3) % 12 + 1, min(_t.day, 28)).isoformat()  # two months back: three periods due
+S_LOCK = series(A, CLL, "Halte", past)
+tick(CRASH)  # period 1: finalised, mail still due; the next periods are due as well
+h1 = made(S_LOCK)
+assert len(h1) == 1, h1
+# another connection still sends it (holds the lock): this run must not make the next period over its mark
+tick(f"_h = connect()\n_h.execute('SELECT pg_advisory_lock(hashtext(?))', ('office_series_mail_{h1[0][0]}',)).fetchone()")
+check(len(made(S_LOCK)) == 1, f"(6629 b) the run waits while the mail still due is being sent {made(S_LOCK)}")
+tick()
+hl = made(S_LOCK)
+check(len(hl) == 2 and all(x[2] == "sent" for x in hl) and len(mails("rechnung@halte.example")) == 2,
+      f"(6629 b) then the mail still due goes out and the next period is made and mailed {hl}")
+
 # ================================================================== 2.1289.0 (#6629): the freelancer switches her office off and on
 F_AUS = series(Fr, CLF, "Frida aus")
 assert Fr.patch(B + "/api/settings", json={"features": ",".join(x for x in FEATURES.split(",") if x != "office")}).ok
