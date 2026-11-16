@@ -31,7 +31,7 @@ from ..core.db import (
     body, bump, db, gset, gsetting, inbox_default, iso, iso_ms, local_now, now_utc, parse_iso, usettings,
 )
 from ..accounts.session import (
-    _DUMMY_HASH, _rate_blocked, _rate_fail, _rate_keys, _rate_reset, client_ip, FAIL_WINDOW, me,
+    _DUMMY_HASH, _rate_fail, _rate_keys, _rate_over, _rate_reset, client_ip, FAIL_WINDOW, login_known, me,
 )
 from ..accounts.login import login_log_ip, login_log_name, RC_ALPHABET
 from ..core.access import acx_lists_sql, collab_all, Denied, ov_role, plists, pvis, task_visible, tvis, WRITE_ROLES, list_state_sql
@@ -91,6 +91,7 @@ DAV_TAGS_MAX = 50
 APPPW_MAX = 20                    # per person
 APPPW_USED_EVERY = 60             # s between two last_used_at updates
 APPPW_CACHE_S = 900               # s a verified app password skips the KDF (revoking it still stops it at once)
+APPPW_ID_LEN, APPPW_SECRET_LEN = 8, 20  # 2.1271.0 (#6552): "<id>-<secret in groups of 5>"; the id finds the one row
 DAVS_PFX = {"DAV:": "D", "urn:ietf:params:xml:ns:caldav": "C", "http://calendarserver.org/ns/": "CS",
           "http://apple.com/ns/ical/": "A", "urn:ietf:params:xml:ns:carddav": "CR"}
 D_, C_, CS_, A_ = "{DAV:}", "{urn:ietf:params:xml:ns:caldav}", "{http://calendarserver.org/ns/}", "{http://apple.com/ns/ical/}"
@@ -424,8 +425,19 @@ def apppw_norm(s):
 
 
 def apppw_new():
-    raw = "".join(secrets.choice(RC_ALPHABET) for _ in range(20))  # 20 x 31 symbols ~ 99 bits
-    return "-".join(raw[i:i + 5] for i in range(0, 20, 5))
+    """2.1271.0 (#6552): an id of APPPW_ID_LEN symbols in front (stored in clear, app_passwords.pw_ident) and the secret
+    (20 x 31 symbols ~ 99 bits); the hash covers both. The sign-in then checks one row: one hash per request."""
+    pid = "".join(secrets.choice(RC_ALPHABET) for _ in range(APPPW_ID_LEN))
+    raw = "".join(secrets.choice(RC_ALPHABET) for _ in range(APPPW_SECRET_LEN))
+    return pid + "-" + "-".join(raw[i:i + 5] for i in range(0, APPPW_SECRET_LEN, 5))
+
+
+def apppw_ident(pw):
+    """2.1271.0 (#6552): the id of a normalized app password (apppw_norm) of the form with an id, else None (a password
+    made before 2.1271: 20 symbols, no id; those still work, checked against the person's rows without an id)."""
+    if len(pw) == APPPW_ID_LEN + APPPW_SECRET_LEN and all(ch in RC_ALPHABET for ch in pw):
+        return pw[:APPPW_ID_LEN]
+    return None
 
 
 def apppw_public(r):
@@ -461,8 +473,8 @@ def apppw_create(c, u, name):
     if c.execute("SELECT COUNT(*) FROM app_passwords WHERE user_id=?", (u["id"],)).fetchone()[0] >= APPPW_MAX:
         raise Denied(409, tr("At most {0} app passwords", APPPW_MAX))
     pw = apppw_new()
-    pid = insert_id(c, "INSERT INTO app_passwords(user_id,name,pw_hash,created_at) VALUES(?,?,?,?)",
-                    (u["id"], name, generate_password_hash(apppw_norm(pw)), iso(now_utc())))
+    pid = insert_id(c, "INSERT INTO app_passwords(user_id,name,pw_hash,created_at,pw_ident) VALUES(?,?,?,?,?)",
+                    (u["id"], name, generate_password_hash(apppw_norm(pw)), iso(now_utc()), apppw_ident(apppw_norm(pw))))
     c.commit()
     print("app password", pid, "created for user", u["id"], flush=True)
     return apppw_public(c.execute("SELECT * FROM app_passwords WHERE id=?", (pid,)).fetchone()), pw
@@ -530,14 +542,22 @@ def dav_login():
     pw = apppw_norm(a.password)[:100]
     keys = _rate_keys(username, "dav:", (10, 30, 150))
     # 2.126.0 C (#1977): the per-name ceiling ("dav:uall:") only raises an alert; the lock is per name + address.
-    # 2.282.0 (#3111): the address counter ("dav:ip:") only raises an alert too: DAV takes app passwords only (20 characters,
-    # guessing is hopeless) and one old phone behind an office address locked out every colleague there
-    if _rate_blocked([k for k in keys if k[0].startswith("dav:u:")]):
+    # 2.282.0 (#3111): one old phone behind an office address must not lock out every colleague there, so
+    # 2.1271.0 (#6552): the address counter ("dav:ip:", 30 in FAIL_WINDOW) refuses, before any hash, only names that never
+    # synced from this address (login_known: a successful DAV sign-in there in the last KNOWN_DAYS days); the pair always
+    over = _rate_over([k for k in keys if not k[0].startswith("dav:uall:")])
+    if any(k.startswith("dav:u:") for k in over) or (over and not login_known(username, "dav:")):
         raise DavError(429, "Too many failed sign-ins, please wait a few minutes")
     c = db()
     u = c.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
-    rows = c.execute("SELECT * FROM app_passwords WHERE user_id=? ORDER BY id DESC", (u["id"],)).fetchall() \
-        if u and not u["disabled"] and not is_agent(u) and not u["kid"] and pw else []  # 2.79.0 (#476 M5): no CalDAV for kids
+    ident = apppw_ident(pw)
+    if not (u and not u["disabled"] and not is_agent(u) and not u["kid"] and pw):  # 2.79.0 (#476 M5): no CalDAV for kids
+        rows = []
+    elif ident:  # 2.1271.0 (#6552): a password with an id: its one row, so one hash (known name or not)
+        rows = c.execute("SELECT * FROM app_passwords WHERE user_id=? AND pw_ident=? ORDER BY id DESC LIMIT 1",
+                         (u["id"], ident)).fetchall()
+    else:  # made before 2.1271 (no id): the person's rows without an id, as before
+        rows = c.execute("SELECT * FROM app_passwords WHERE user_id=? AND pw_ident IS NULL ORDER BY id DESC", (u["id"],)).fetchall()
     hit, ph, now = None, hashlib.sha256(pw.encode()).hexdigest(), time.monotonic()
     for r in rows:
         k = (r["id"], r["pw_hash"], ph)
@@ -557,9 +577,9 @@ def dav_login():
             if k.startswith("dav:uall:"):
                 aa_now("security", "ratelimit:" + k, N_("Many failed CalDAV/CardDAV sign-ins for user {0} from different addresses."),
                        [username])
-            elif k.startswith("dav:ip:"):  # 2.282.0 (#3111): nothing refused per address any more
-                aa_now("security", "ratelimit:" + k, N_("Many failed CalDAV/CardDAV sign-ins from IP {0}. Only the accounts with the wrong app password are refused there; behind a shared address (office, NAT) look for an old device."),
-                       [fx2_mask_ip(client_ip())])
+            elif k.startswith("dav:ip:"):  # 2.1271.0 (#6552): refused for names that never synced from there (#3111)
+                aa_now("security", "ratelimit:" + k, N_("Many failed CalDAV/CardDAV sign-ins from IP {0}. Devices that synced from there before go on; new ones are refused there for {1} min. Behind a shared address (office, NAT) look for an old device."),
+                       [fx2_mask_ip(client_ip()), FAIL_WINDOW // 60])
             elif u:
                 aa_now("security", "ratelimit:" + k, N_("Sign-in rate limit reached for user {0} (sign-ins refused for {1} min)."),
                        [username, FAIL_WINDOW // 60])
