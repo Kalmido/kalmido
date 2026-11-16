@@ -22,6 +22,49 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1249.0] - 2026-11-16
+
+Package 2.1225 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Added
+- #5862: A private knowledge area can be shared as a whole with a person too (until now agents only): *Can view* or *Can edit*, the same question before (which folders and pages they will see) with the folders to keep out ticked right there, and single folders kept out per person afterwards (*Who sees the whole knowledge area*, *Exclude folders…*, "not for <name>" on the folder). The person finds it under *Shared with me* as the folder "Knowledge" with the owner's name; with *Can edit* they add pages and folders there, also at the top. An organisation's area stays with its agents (guests and the accounting person never get the whole area). Ending the share and making it again (Undo) keeps the exclusions; deleting an account hands on only what the person sees. New column fs_shares.excl (migration 5862, new column only).
+
+Package 2.1230 (Start pflegen: Startgröße senken).
+### Changed
+- Start care (#4742): the rules of a list (`rules.js`) and the export of an organisation or the own office (`orgexport.js`) load on demand; the start loads 10.8 KB less JavaScript (gzip), 2.2 KB less of the language core and two scripts less. The start ceilings in `tools/perf_budget.json` are lowered by the same amount.
+
+Package 2.1231 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #5880: Projects: the old column `lists.archived` is gone (stage 3b of the state marker, one-way). A project's archive is its state marker plus `archived_at`; before the drop every start fills `archived_at` for projects archived without a moment (before 1.6.1), clears a stale one and sets the marker once more (`core/liststate.py`); the trigger `kalmido_list_state` reads `archived_at` now. Exports ("my data", account and organisation export) still give the key `archived`, the import takes it from older files, and undo steps from before the change still go back. The database's back limit rises to this version: going back needs a backup from before.
+
+Package 2.1239.0 (Bündel: Chat: kleine graue Fußzeile mit Modell/Effort/Klas).
+
+### Added
+- Agent chat: an agent's answer may name the model that wrote it - `run_meta` `{model, effort, klasse, grund}` on `POST /api/v1/agent/chats/{user_id}` (JSON or multipart, MCP `send_chat`); short texts, unknown keys dropped, not an object = 400; given back in the answer and every read of the chat (#6261)
+- The app shows it as a small grey text next to the time under the agent's bubble, e.g. "Fable 5.2 · Effort hoch" or "Opus 5.5 · kurz sortiert", the reason as its tooltip; messages without it stay as they were (#6261)
+
+Package 2.1241 (Bündel: Org-Farbe: Kalender und Termine, Org-Farbe: Wiki-Bereiche und Seiten, Org-Farbe: Team-Chat u. 2 weitere).
+
+### Changed
+- Organisation colour in the calendar: events of an organisation's calendar wear its stripe next to the calendar colour (month, week, day lists, Today), the event popover and the edit dialog show it, under "All workspaces" event rows say where they come from; the calendar list shows the organisation's dot and name for every member, not only the owner (#6181).
+- Organisation colour in the wiki: an organisation's space wears its stripe in the panel, the list of spaces and the overview; the open page of an organisation is marked (stripe, input frames, its tone under "All workspaces") (#6182).
+- Organisation colour in the team chat: channels, groups and project chats of an organisation wear its stripe in the panel and the list, with their origin under "All workspaces"; the open conversation's head and input frame are marked; direct messages stay neutral (#6183).
+- Organisation colour in files and documents: an organisation's space wears its stripe in the panel and on the phone's space buttons, document cards of an organisation carry the stripe and their origin under "All workspaces", the open space, folder or document is marked (#6184).
+- Organisation colour in contacts: contacts of an organisation's address book wear its stripe (the address book's own dot stays) with their origin under "All workspaces", the open card is marked, address books and the panel's spaces carry the stripe (#6185).
+- Core: `wso_row(w, style)` keeps an element's own inline style, `wso_mark(el, w)` marks an element already drawn, `sbb_treeHtml` nodes take `wso`, the "All workspaces" overview rows carry their space's stripe (docs/dev/kern.md "Organisation colour").
+
+Package 2.1244 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Calendar: the popover of an event in another time zone shows the date of that zone next to its times (22:00 New York on Sunday no longer says Monday); when your own day differs, your time carries your date (#6263).
+
+Package 2.1224 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- Tables wear the organisation colour: table and folder cards of an organisation carry its stripe, the group headings its dot, the panel entries their stripe, and an open table marks the page like an open project (#6186).
+- Time tracking shows the organisation of each entry and report line (dot + name; other organisations also inside one workspace), the timesheet card wears its colour (#6187).
+- Command palette and search hits, the trash, news and the bell (now also under "All workspaces"), project group heads and favourite agents show their organisation's colour (#6188). The core block `wso_origin` has a mixed mode for pages that are mixed in every workspace.
+- Files: one "Move to" picker with tree and search for a row, the selection and the file view (no cut after 60 folders, title once, current folder ticked); Share adds a person at once with "Can view", role and end date beside each person, one sentence of explanation, people shared already are not offered again; the file view's Shares tab manages public links (copy, new address, switch off, create); the lock dialog explains in three short sentences (#6113).
+
 ## [2.1245.0] - 2026-11-16
 
 Package 2.1214 (Bündel: Kern Stufe 3 Nachlauf: alte Tabellen-Leser von Kal, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Polish Wiki: Wortwahl vereinheitl).
@@ -179,7 +222,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1245.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1249.0...HEAD
+[2.1249.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1249.0
 [2.1245.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1245.0
 [2.1240.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1240.0
 [2.1229.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1229.0
