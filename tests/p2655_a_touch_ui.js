@@ -96,7 +96,7 @@ const FEAT = 'cal,comments,collab,time,progress,wiki,reading,feeds';
     // ================= #5084 keyboard hints
     await ev(`(() => { settingsModal('help'); return 1; })()`);
     await until(ev, `!!document.querySelector('.smodal [data-m="tour"]')`);
-    const kh = JSON.parse(await ev(`JSON.stringify({btn: !!document.querySelector('.smodal [data-m="keys"]'), txt: [...document.querySelectorAll('.smodal .shelp')].some(e => /j \\/ k move/.test(e.textContent))})`));
+    const kh = JSON.parse(await ev(`JSON.stringify({btn: !!document.querySelector('.smodal [data-m="keys"]'), txt: [...document.querySelectorAll('.smodal .shelp')].some(e => /All keys are listed in the overview/.test(e.textContent))})`));  // 2.1246.0 (#6278): since 2.1211.0 (#6128) the help points to the one key overview instead of listing j / k itself
     check(tablet ? !kh.btn && !kh.txt : kh.btn && kh.txt, `${tag}: Help ${tablet ? 'without' : 'with'} the shortcut button and text ${JSON.stringify(kh)}`);
     await ev(`(() => { document.querySelector('.smodal [data-m="close"], .smodal .sclose')?.click(); document.querySelector('.modal-bg, .smodal')?.remove(); return 1; })()`);
     await ev(`(() => { menu(document.body, [{label: 'Probe', icon: 'edit', keys: 'Mod+K', fn() {}}]); return 1; })()`); await sleep(300);
