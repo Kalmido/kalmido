@@ -113,7 +113,8 @@ const v1 = async (method, url, body) => { const r = await fetch(B + 'api/v1' + u
     const n1 = await ev('BN.i');  // the app's view index: since #5235 the bar's Back is history.back(), so history.length no longer grows here
     await ev(`(${openBtn(JA)}.click(), 1)`);
     check(await ready(ev, inJob(JA), 40), `${wd} px: "Open chat" opens the running job's history`);
-    check(await ev(`!document.getElementById('chat-in').disabled && /Clara/.test(document.getElementById('chat-in').placeholder)`), `${wd} px: the box writes to the running job`);
+    // 2.1246.0 (#6279): the box opens once the job's chat has loaded (2.1211.0, #6098) - wait for that state, not the first draw
+    check(await ready(ev, `!document.getElementById('chat-in')?.disabled && /Clara/.test(document.getElementById('chat-in')?.placeholder || '')`, 40), `${wd} px: the box writes to the running job ${await ev(`JSON.stringify({dis: document.getElementById('chat-in')?.disabled, ph: document.getElementById('chat-in')?.placeholder, loaded: S.chat.loaded, err: String(S.chat.err)})`).catch(e => String(e))}`);
     check(await ev(`BN.i === ${n1} + 1 && !history.state?.jc`), `${wd} px: one step in the history (the chat page), no extra job entry`);
     await ev('(history.back(), 1)');
     check(await ready(ev, onAgents, 40), `${wd} px: the phone's Back leads to the Agents page`);
