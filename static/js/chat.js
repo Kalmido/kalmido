@@ -166,14 +166,14 @@ function tcRoomHtml() {
   // 2.139.0 B (#2128): the microphone takes room in the composer: the placeholder's name gets shorter beside it
   // 2.147.2 (#2523): the touch button "Insert reference" takes the same room again: the name gets shorter once more ("Web…" beside the microphone)
   const rfb = typeof rf_btnHtml === 'function' ? rf_btnHtml('tc-in') : '';
-  const mic = typeof tvc_micHtml === 'function' ? tvc_micHtml(room, rid) : '', ph = isMobile(), cut = tc_mid() ? 18 : (mic ? 14 : 18) - (rfb ? 10 : 0);  // 2.213.0 (#2788): phones: the tools sit in the plus menu
+  const mic = typeof tvc_micHtml === 'function' ? tvc_micHtml(room, rid) : '', ph = isMobile();  // 2.213.0 (#2788): phones: the tools sit in the plus menu
   const head = `<div class="tcrhead"${/*html-ok*/ wso_row(tc_org(r || room)) /* 2.1241.0 (#6183): an organisation's conversation */}><button type="button" class="iconbtn tcback" data-act="tc-back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>
     ${r ? roomIcon(r) : ''}<div class="tcrt"><b>${esc(name)}${/*html-ok*/ wso_origin(tc_org(r || room), 'tco')}</b>${room && room.kind !== 'dm' ? `<span class="muted">${esc(room.members.map(m => m.name).slice(0, 6).join(', '))}${room.members.length > 6 ? ' +' + (room.members.length - 6) : ''}</span>` : ''}</div>
     <span class="spacer"></span>${msgSearchBtn('t', rid)}${!ph && room && room.kind === 'list' ? `<button type="button" class="iconbtn" data-act="tc-list" data-id="${room.list_id}" title="${esc(tr('Open the project'))}" aria-label="${esc(tr('Open the project'))}">${ic('list')}</button>` : ''}
     ${ph ? '' : `${typeof dw_winBtn === 'function' ? dw_winBtn('team', rid) : ''}${o3b_splitBtn(room, rid)}${tcx_headBtn(room)}${e2eRoomBtns(room)}`}${isTouch() ? `<button type="button" class="iconbtn" data-act="tc-more" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button>` : ''}${ph ? '' : `<button type="button" class="iconbtn ${room?.muted ? 'on' : ''}" data-act="tc-mute" aria-pressed="${!!room?.muted}" title="${esc(room?.muted ? tr('Muted: only mentions notify you') : tr('Mute (only mentions notify you)'))}" aria-label="${esc(tr('Mute|button'))}">${ic(room?.muted ? 'belloff' : 'bell')}</button>`}${typeof cw_headBtns === 'function' ? cw_headBtns('t:' + rid) : ''}</div>`;
   return `${typeof cw_switchHtml === 'function' ? cw_switchHtml('t:' + rid) : ''}${head}${e2eRoomNotice(room)}${le2eChanNotice(room)}${cpnBarHtml('t:' + rid)}${msBarHtml('t', rid)}<div class="chmsgs tcmsgs" id="tc-msgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="${esc(tr('Messages'))}">${tcMsgsHtml()}</div>
     <button type="button" class="chnew hidden" id="tc-new">${tr('New message')} <span aria-hidden="true">↓</span></button>
-    ${/*html-ok*/ room?.archived ? tcx_archivedHtml(room) /* 2.1211.0 (#6098): helpers of escaped markup, the composer's template is checked on its own */ : room?.closed ? tcx_closedHtml() /* 2.266.0 (#2970) */ : room?.say_no ? tcx_sayNoHtml(room) /* 2.607.0 (#4549) */ : `${replyBarHtml('t:' + rid)}${tcx_filesBarHtml(room, rid)}<div class="chcomp tccomp">${chToolsHtml([tcx_clipHtml(room), mic, rfb /* 2.147.1 A (#2523) */])}${typeof tvc_barSlot === 'function' ? tvc_barSlot(rid) : ''}<div class="mpick hidden" role="listbox" aria-label="${esc(tr('Mention someone'))}"></div><textarea id="tc-in" rows="1" name="kalmido-team-message" autocomplete="off" data-form-type="other" data-lpignore="true" placeholder="${esc(name.length > cut ? tr('Message to {0}', name.slice(0, cut - 1).trimEnd() + '…') : tr('Message to {0}…', name))}" aria-label="${esc(tr('Message to {0}…', name))}" enterkeyhint="enter" maxlength="8000"${room ? '' : ' disabled' /* 2.1211.0 (#6098) */}>${esc(S.drafts['team:' + rid] || '')}</textarea>
+    ${/*html-ok*/ room?.archived ? tcx_archivedHtml(room) /* 2.1211.0 (#6098): helpers of escaped markup, the composer's template is checked on its own */ : room?.closed ? tcx_closedHtml() /* 2.266.0 (#2970) */ : room?.say_no ? tcx_sayNoHtml(room) /* 2.607.0 (#4549) */ : `${replyBarHtml('t:' + rid)}${tcx_filesBarHtml(room, rid)}<div class="chcomp tccomp">${chToolsHtml([tcx_clipHtml(room), mic, rfb /* 2.147.1 A (#2523) */])}${typeof tvc_barSlot === 'function' ? tvc_barSlot(rid) : ''}<div class="mpick hidden" role="listbox" aria-label="${esc(tr('Mention someone'))}"></div><textarea id="tc-in" rows="1" name="kalmido-team-message" autocomplete="off" data-form-type="other" data-lpignore="true" placeholder="${esc(tr('Message to {0}…', name))}" aria-label="${esc(tr('Message to {0}…', name))}" enterkeyhint="enter" maxlength="8000"${room ? '' : ' disabled' /* 2.1211.0 (#6098) */}>${esc(S.drafts['team:' + rid] || '')}</textarea>
     <span class="muted chkh">${esc(chatKeyHintVis())}</span><button type="button" class="btn pri" data-act="tc-send" title="${esc(chatKeyHint())}" aria-label="${esc(tr('Send'))}"${csdBusy('t:' + rid) || !room ? ' disabled' : ''}>${ic('send', 's')}<span>${tr('Send')}</span></button></div>`}`;
 }
 // 2.139.0 A (#2127): list = the messages to draw; o.th = inside the thread view (o.root: its first message, o.older: the
@@ -364,7 +364,10 @@ async function tcMute() {
   const rid = S.tc.rid, on = !S.tc.room?.muted;
   try { await rawFetch('POST', `/api/team/rooms/${rid}/read`, {muted: on}); } catch (e) { toast(errText(e, tr('The change could not be saved'))); return; }  // 2.1211.0 (#6098)
   S.tc.room.muted = on; const r = (S.tc.rooms || []).find(x => x.id === rid); if (r) r.muted = on;
-  toast(on ? tr('Muted: only mentions notify you') : tr('Notifications on')); renderView();
+  toast(on ? tr('Muted: only mentions notify you') : tr('Notifications on'));
+  // 2.1247.0 (#6102): only the head's bell changes (the box, the draft and the focus stay), no renderView
+  const b = $('.tcrhead [data-act="tc-mute"]');
+  if (b) { const t = on ? tr('Muted: only mentions notify you') : tr('Mute (only mentions notify you)'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.title = t; b.innerHTML = ic(on ? 'belloff' : 'bell'); }
 }
 function tcNewMenu(anchor) {
   // 2.27.0 (#986): people (a direct message) and the chats of shared lists nobody has written in yet
@@ -402,6 +405,8 @@ function teamRoute(rid) {
   if (typeof cw_route === 'function' && cw_route(rid)) return;  // 2.47.1 (#1720): the phone's row of open chats / a conversation live in the chat panel
   if (S.tc.rid !== rid) { S.tc.rid = rid; S.tc.newAt = null; S.tc.room = null; S.tc.msgs = []; S.tc.more = false; S.tc.edit = null; S.tc.th = null; if (rid) loadRoom(rid).then(() => { if (S.route.mod === 'team' && S.tc.rid === rid) { renderView(); teamFit(); } }); }
 }
+// 2.1247.0 (#6102): like the agent chat: a tap on Send / the clip does not take the focus from the box (the phone keyboard stays up)
+for (const ev of ['pointerdown', 'mousedown']) document.addEventListener(ev, e => { if (['tc-in', 'tth-in'].includes(document.activeElement?.id) && /** @type {any} */ (e.target).closest?.('[data-act="tc-send"], [data-act="tth-send"], .tccomp .chclip')) e.preventDefault(); });
 document.addEventListener('keydown', e => {
   if (e.target.id === 'tc-in' && e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing)  // 2.94.0 (#2024): Enter = new line, Ctrl/Cmd+Enter sends
     { e.preventDefault(); tcSend(); }
@@ -663,7 +668,21 @@ S.tc.files = {};
 const tcx_sayNoHtml = room => `<div class="tcarch sayno" role="status">${ic('lock', 's')}<span>${esc(room.say_no)}</span></div>`;
 const tcx_closedHtml = () => `<div class="tcarch" role="status">${ic('lock', 's')}<span>${tr('You no longer work together - this conversation is read-only')}</span></div>`;
 const tcx_filesOk = room => !!room && !room.e2e && !(typeof le2eChanOn === 'function' && le2eChanOn(room)) && !room.archived;
-const tcx_chipsHtml = rid => (S.tc.files[rid] || []).map((f, i) => `<span class="cfile">${ic(/^image\//.test(f.type) ? 'clip' : 'file', 's')}<span>${esc(f.name || tr('Image'))}</span><button type="button" data-act="tc-file-rm" data-i="${i}" title="${esc(tr('Remove'))}" aria-label="${esc(tr('Remove') + ': ' + (f.name || tr('Image')))}">${ic('x', 's')}</button></span>`).join('');
+// 2.1247.0 (#6102): an image shows its preview: a small JPEG drawn once into a canvas and kept on the file as a data: URL (the
+// page's CSP allows img-src data:, not blob:); until it is ready (or where the browser cannot draw it) the chip shows its icon.
+// On a phone the files are small tiles in one row (app.css .tcfiles)
+const tcx_thumb = f => {
+  if (f._u || f._ut || !/^image\/(png|jpe?g|gif|webp|avif|bmp)$/.test(f.type || '') || typeof createImageBitmap !== 'function') return f._u || '';
+  f._ut = 1;
+  createImageBitmap(f).then(b => {
+    const k = Math.min(1, 128 / Math.max(b.width, b.height)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(b.width * k)); c.height = Math.max(1, Math.round(b.height * k));
+    c.getContext('2d')?.drawImage(b, 0, 0, c.width, c.height); b.close?.();
+    f._u = c.toDataURL('image/jpeg', 0.8); tcx_chipsSync();
+  }).catch(() => { /* no preview: the icon stays */ });
+  return '';
+};
+const tcx_chipsHtml = rid => (S.tc.files[rid] || []).map((f, i) => `<span class="cfile">${tcx_thumb(f) ? `<img src="${esc(f._u)}" alt="" width="64" height="64">` : ''}${ic(/^image\//.test(f.type) ? 'clip' : 'file', 's')}<span>${esc(f.name || tr('Image'))}</span><button type="button" data-act="tc-file-rm" data-i="${i}" title="${esc(tr('Remove'))}" aria-label="${esc(tr('Remove') + ': ' + (f.name || tr('Image')))}">${ic('x', 's')}</button></span>`).join('');
 // 2.213.0 (#2788): phones: the composer's tools (attach, meeting, reference, microphone) sit behind ONE plus button so the
 // box keeps the width; the desktop shows them in the row as before (CSS: .chplus hidden, .chtools display:contents)
 // 2.1011.0 (#5689): the plus opens the shared menu() (a sheet with the title "More" on a phone); each entry clicks its tool
