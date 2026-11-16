@@ -169,5 +169,43 @@ check(Da.get(B + P + "?version=1").json()["viewing"] == 1 and "Sole trader" not 
 r = A.get(B + P + "?lang=de")
 check(r.ok and r.json()["sections"][0]["title"] == "Allgemeine Beschreibung" and r.json()["gap_marker"] == "[ ... ausfüllen ]", "German template")
 
+# ---------------------------------------------------------------- 2.1289.0 (#6473): agents' access from the switches, deleting, correction way
+OFF_API = "/api/office"
+
+
+def de_auto(s, key):
+    return field(s.get(B + P + "?lang=de").json(), key)["auto"]
+
+
+for who, s in (("org", A), ("freelancer", Fr)):  # freelancer-matrix: office (the personal office with its own agent)
+    acc = de_auto(s, "access")
+    check("KI-Agenten haben keinen Zugriff auf das Büro" in acc and "ist aus" in acc and "Kinderkonten haben keinen Zugriff" in acc,
+          f"#6473 {who}: privacy switch off: no agent access " + acc)
+    ret = de_auto(s, "retention")
+    check("stillgelegt statt gelöscht" in ret and "Ablauf der Aufbewahrungsfrist" in ret, f"#6473 {who}: deleting names the organisation / account and the period " + ret)
+    per = de_auto(s, "periods")
+    check("Rechnungskorrektur ist endgültig" in per and "neuen Rechnung mit neuer Nummer" in per, f"#6473 {who}: the way after a wrong correction " + per)
+    txt = s.get(B + P + ".md?lang=de").text
+    check("Gutschrift" not in txt and "Rechnungskorrekturen, Mahnungen" in txt, f"#6473 {who}: no 'Gutschrift' in the document")
+A.put(B + "/api/admin/agent-policy", json={"user_agents": True})
+r = A.post(B + "/api/my/agents", json={"username": "procbot", "display_name": "Proc Bot", "scopes": ["read", "office"], "org_id": ORG})
+assert r.status_code == 201, r.text
+PAG = r.json()["id"]
+check(A.put(B + OFF_API + "/settings", json={"agents_read": 1}).ok, "#6473 setup: agents may read office data")
+acc = de_auto(A, "access")
+check("ist an" in acc and "kein KI-Agent für das Büro freigeschaltet" in acc and "Proc Bot" not in acc, "#6473 org: switch on, the agent's own switch off: none " + acc)
+check(A.patch(B + f"{OFF_API}/agents/{PAG}", json={"office_drafts": True}).ok, "#6473 setup: the agent's office switch")
+acc = de_auto(A, "access")
+check("freigeschaltet: Proc Bot." in acc and "nur Entwürfe" in acc and "festschreiben" in acc and "nur eine Person" in acc
+      and "agent_read / agent_write" in acc and "keinen Zugriff auf das Büro: " not in acc, "#6473 org: both switches: the agent and what it may " + acc)
+check("Proc Bot" in field(A.get(B + P).json(), "access")["auto"] and "May draft office documents" in field(A.get(B + P).json(), "access")["auto"], "#6473 org: English text too")
+r = Fr.post(B + "/api/my/agents", json={"username": "erinbot", "display_name": "Erin Bot", "scopes": ["read", "office"]})
+assert r.status_code == 201, r.text
+check(Fr.patch(B + f"{OFF_API}/agents/{r.json()['id']}", json={"office_drafts": True}).ok and Fr.put(B + OFF_API + "/settings", json={"agents_read": 1}).ok,
+      "#6473 freelancer setup: both switches")
+acc = de_auto(Fr, "access")
+check("freigeschaltet: Erin Bot." in acc and "Proc Bot" not in acc, "#6473 freelancer: her own agent only " + acc)
+check("Erin Bot" not in de_auto(A, "access"), "#6473 org: not the freelancer's agent")
+
 print(f"{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

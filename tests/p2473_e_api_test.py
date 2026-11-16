@@ -117,7 +117,10 @@ def make(kind, client, items, date, extra=None, src=None):
 I1, N1 = make("invoice", C1, [{"title": "Schnitt", "qty": 2, "rate": 500}, {"title": "Fachbuch", "qty": 1, "rate": 100, "tax": "reduced"}], "2026-03-05")
 I2, N2 = make("invoice", C2, [{"title": "Beratung", "qty": 1, "rate": 1000}], "2026-03-10")
 I3, N3 = make("invoice", C3, [{"title": "Animation", "qty": 1, "rate": 2000}], "2026-03-12", {"vat_mode": "novat", "vat_note": "reverse"})
+# 2.1289.0 (#6475): the section 19 note needs the office's switch at finalising -> on for this one invoice, off again
+assert A.put(B + O + "/settings", json={"small_business": 1}).ok
 I4, N4 = make("invoice", C1, [{"title": "Kleinauftrag", "qty": 1, "rate": 300}], "2026-03-20", {"vat_mode": "novat", "vat_note": "small"})
+assert A.put(B + O + "/settings", json={"small_business": 0}).ok
 CR, NCR = make("credit", None, None, "2026-03-25", src=I2)
 I5, N5 = make("invoice", C1, [{"title": "April", "qty": 1, "rate": 50}], "2026-04-02")  # outside the period
 DRAFT = A.post(B + D, json={"kind": "invoice", "client_id": C1, "items": [{"title": "Entwurf", "qty": 1, "rate": 999}]}).json()["id"]

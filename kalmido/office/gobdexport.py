@@ -34,6 +34,7 @@ from .ledger import ofx_company, ofx_log
 from .gdpdudtd import GX_DTD, GX_DTD_NAME
 from .rights import ofr_log_rows
 from .datev import dx_rows  # 2.369.5 (#2517): pulled up from functions
+from .docs import odoc_imported  # 2.1289.0 (#6481 U4)
 from ..files.bulk import abm_drop, abm_send_zip, abm_slot  # 2.674.0 (#4190): temporary files + the shared place of the large exports
 
 GX_MAX_DAYS = 11 * 366  # one call covers at most eleven years (ten years of keeping + the current one)
@@ -128,11 +129,14 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False):
                      f"AND d.trial=0 AND {live_sql('d')} ORDER BY d.date, d.number", (oid, frm, to)).fetchall()
     t = _T("invoices.csv", "Rechnungen", "Festgeschriebene Rechnungen und Rechnungskorrekturen",
              [("ID", A), ("Art", A), ("Nummer", A), ("Datum", D), ("Kunde", A), ("Kundennummer", A), ("Netto", N), ("Steuer", N),
-              ("Brutto", N), ("Waehrung", A), ("Status", A), ("Festgeschrieben", D), ("Storno_von", A)])
+              ("Brutto", N), ("Waehrung", A), ("Status", A), ("Festgeschrieben", D), ("Storno_von", A),
+              ("Importiert_am", D), ("Importiert_von", A)])  # 2.1289.0 (#6481 U4): taken from a file by the organisation import
+    imp = odoc_imported(c, oid, None) if docs else {}
     for r in docs:
         tt = _j(r["totals"])
+        im = imp.get(r["id"]) or {}
         t.add(r["id"], r["kind"], r["number"], r["date"], r["cl_name"] or "", r["cl_no"] or "", tt.get("net"), tt.get("tax_total"),
-              tt.get("gross"), r["currency"], r["status"], r["locked_at"], r["cancels_id"] or "")
+              tt.get("gross"), r["currency"], r["status"], r["locked_at"], r["cancels_id"] or "", im.get("at") or "", im.get("by") or "")
     out.append(t)
 
     t = _T("positions.csv", "Positionen", "Positionen der Rechnungen und Rechnungskorrekturen",

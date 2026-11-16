@@ -12,6 +12,14 @@ Invented companies, people and figures only. Its own container with the SMTP stu
  - the mail after the invoice's commit: the process stops in between (os._exit in the container's process, like an update) ->
    the next run mails it once, a third run mails nothing; stopped again in that one try -> no second mail, a task "send it by hand"
  - a person without an organisation (freelancer, own admin of the personal office): her series run and fail the same way
+2.1289.0 (#6629):
+ - paused for nobody: the series stays off, but once the area has an admin with the office on again, that admin gets the task
+   "Invoice series ... paused" with the reason, once (also the freelancer who switches her office off and on again)
+ - (a) a database error in post() (after the invoice's commit) leaves no session lock on the connection: another connection's
+   run mails the invoice
+ - (b) a mail still due is never overwritten by the next period's invoice ("make now", a run while another connection still sends)
+ - (c) the failed runs are counted strictly in a row: a run that works after a failure in post() sets the count back
+ - a paused series with a mail still due: the mail goes out, the series stays paused
 usage: p6387_office_watchdog_test.py <datadir>"""
 import json
 import os
@@ -40,12 +48,13 @@ def in_ct(code):
     return r.stdout
 
 
-def tick(before=""):
-    """One run of the series watchdog in its own process; before = code run first (a hook of this test). -> the watchdog
-    alerts it counted ({key: [ids]}), printed by the process when it got to the end."""
+def tick(before="", after=""):
+    """One run of the series watchdog in its own process; before = code run first (a hook of this test), after = code run
+    after it while its connection c is still open (2.1289.0 #6629). -> the watchdog alerts it counted ({key: [ids]}),
+    printed by the process when it got to the end."""
     out = in_ct("import json, os\nimport app\nfrom kalmido.core.db import connect\nfrom kalmido.office import recurring as x\n"
                 "from kalmido.notify import alerts\nx._RIN_LAST['at'] = -1e12\n" + before +
-                "\nc = connect()\nx.rin_tick(c)\nc.close()\n"
+                "\nc = connect()\nx.rin_tick(c)\n" + after + "\nc.close()\n"
                 "print('AA=' + json.dumps({k[1]: sorted(v['items']) for k, v in alerts._AA['b'].items() if k[0] == 'watchdog'}))")
     line = [x for x in out.splitlines() if x.startswith("AA=")]
     return json.loads(line[-1][3:]) if line else None
@@ -72,11 +81,11 @@ def client(s, name, mail):
     return r.json()["id"]
 
 
-def series(s, cl, title):
+def series(s, cl, title, start=TODAY):
     r = s.post(B + D, json={"kind": "invoice", "lang": "de", "client_id": cl, "project_title": title + " {month}",
                             "items": [{"title": "Betreuung", "qty": 1, "rate": 500}]})
     assert r.status_code == 201, r.text
-    r = s.post(B + S, json={"template_id": r.json()["id"], "every": "monthly", "start": TODAY, "auto_send": 1, "title": title})
+    r = s.post(B + S, json={"template_id": r.json()["id"], "every": "monthly", "start": start, "auto_send": 1, "title": title})
     assert r.status_code == 201, r.text
     return r.json()["id"]
 
@@ -96,6 +105,11 @@ def made(sid):
 def task(uid, *parts):
     like = "%" + "%".join(parts) + "%"
     return dbx("SELECT id FROM tasks WHERE assignee_id=? AND deleted_at IS NULL AND (title || ' ' || COALESCE(content, '')) LIKE ?", (uid, like))
+
+
+def why(sid):
+    r = dbx("SELECT pause_why FROM office_inv_series WHERE id=?", (sid,))
+    return r[0][0] if r else "?"
 
 
 def broken(sid):
@@ -168,6 +182,25 @@ aa = tick() or {}
 check(str(S_BAD) not in aa.get("invoice series|ValueError", []), f"(2) a paused series is left alone (no alert every run) {aa}")
 check(len(task(ALICE, "Invoice series Kaputt paused")) == 1, "(2) and told once")
 
+# ================================================================== 2.1289.0 (#6629): the admin comes back and is told, once
+check(why(S_NOBODY) == "nobody", f"(6629) the reason is kept: nobody {why(S_NOBODY)}")
+check(not task(BOB, "Invoice series Ohne Admin paused"), "(6629) nobody with the office on yet: no task")
+assert Bo.patch(B + "/api/settings", json={"features": FEATURES}).ok  # Beta's admin switches the office on again
+tick()
+check(len(task(BOB, "Invoice series Ohne Admin paused", "had no admin with the office switched on")) == 1,
+      "(6629) the admin who is back gets the task 'paused' with the reason")
+check(row(S_NOBODY).get("active") is False and not made(S_NOBODY) and not mails("rechnung@beta.example"),
+      f"(6629) the series does not start again by itself {row(S_NOBODY)}")
+tick()
+check(len(task(BOB, "Invoice series Ohne Admin paused")) == 1, "(6629) told once")
+li = Bo.get(B + S).json()["items"]
+check([x.get("pause_why") for x in li if x["id"] == S_NOBODY] == ["nobody_told"], f"(6629) the series list names the reason {li}")
+r = Bo.patch(B + S + f"/{S_NOBODY}", json={"active": 1})
+check(r.ok and r.json().get("active") == 1 and r.json().get("pause_why") is None and why(S_NOBODY) is None,
+      f"(6629) switched on by the person: the reason is gone {r.text[:200]}")
+tick()
+check(len(made(S_NOBODY)) == 1 and len(mails("rechnung@beta.example")) == 1, f"(6629) and it runs again {made(S_NOBODY)}")
+
 # ================================================================== (3) the mail after the invoice's commit
 CLM = client(A, "Nachhol Medien AG", "rechnung@nachhol.example")
 S_MAIL = series(A, CLM, "Neustart")
@@ -195,6 +228,103 @@ check(bool(task(ALICE, "Invoice of series Zweimal not sent", f"Invoice {h[0][1] 
 check(dbx("SELECT mail_doc FROM office_inv_series WHERE id=?", (S_HAND,)) == [(None,)], "(3) the mark is gone")
 tick()
 check(not mails("rechnung@zweimal.example"), "(3) and later runs mail nothing")
+
+# ================================================================== 2.1289.0 (#6629): a paused series with a mail still due
+CLQ = client(A, "Pause Post AG", "rechnung@pausepost.example")
+S_PM = series(A, CLQ, "Pausepost")
+tick(CRASH)
+assert A.patch(B + S + f"/{S_PM}", json={"active": 0}).ok  # the person pauses it while its mail is still due
+tick()
+pm = made(S_PM)
+check(len(pm) == 1 and pm[0][2] == "sent" and len(mails("rechnung@pausepost.example")) == 1 and row(S_PM).get("active") is False,
+      f"(6629) a paused series still mails the invoice it made, once, and stays paused {pm} {row(S_PM)}")
+
+# ================================================================== 2.1289.0 (#6629 a): a database error in post() keeps no lock
+CLP = client(A, "Post Fehler AG", "rechnung@postfehler.example")
+S_POST = series(A, CLP, "Postfehler")
+# the mail is refused and the task about it hits a database error (the transaction is aborted); then, with this connection
+# still open, another connection's run: it must mail the invoice (was: the lock stayed, "still being sent", silent every run)
+aa = tick("_m, _b = x.rin_mail, x.rin_bundle\nx.rin_mail = lambda *a, **k: (False, ['unknown'])\n"
+          "x.rin_bundle = lambda c, *a, **k: c.execute('SELECT 1/0').fetchone()",
+          "x.rin_mail, x.rin_bundle = _m, _b\nx._RIN_LAST['at'] = -1e12\nc2 = connect()\nx.rin_tick(c2)\nc2.close()") or {}
+check(any(str(S_POST) in v for k, v in aa.items() if k.startswith("invoice series|")),
+      f"(6629 a) the error in post() is the watchdog's alert {aa}")
+po = made(S_POST)
+check(len(po) == 1 and po[0][2] == "sent" and len(mails("rechnung@postfehler.example")) == 1,
+      f"(6629 a) no lock left on the connection: the other connection's run mails it {po}")
+
+# ================================================================== 2.1289.0 (#6629 b): a mail still due is never overwritten
+CLR = client(A, "Jetzt Medien AG", "rechnung@jetzt.example")
+S_RUN = series(A, CLR, "Jetzt")
+tick(CRASH)  # the first invoice: finalised, its mail still due
+r = A.post(B + S + f"/{S_RUN}/run", json={})
+check(r.ok, f"(6629 b) make now {r.status_code} {r.text[:200]}")
+rr = made(S_RUN)
+check(len(rr) == 2 and all(x[2] == "sent" for x in rr) and len(mails("rechnung@jetzt.example")) == 2,
+      f"(6629 b) 'make now' first mails the invoice still due, then the new one (was: its mark overwritten, never mailed) {rr}")
+check(dbx("SELECT mail_doc FROM office_inv_series WHERE id=?", (S_RUN,)) == [(None,)], "(6629 b) no mark left")
+
+CLL = client(A, "Halte Medien AG", "rechnung@halte.example")
+_t = date.today()
+past = date(_t.year - (_t.month <= 2), (_t.month - 3) % 12 + 1, min(_t.day, 28)).isoformat()  # two months back: three periods due
+S_LOCK = series(A, CLL, "Halte", past)
+tick(CRASH)  # period 1: finalised, mail still due; the next periods are due as well
+h1 = made(S_LOCK)
+assert len(h1) == 1, h1
+# another connection still sends it (holds the lock): this run must not make the next period over its mark
+tick(f"_h = connect()\n_h.execute('SELECT pg_advisory_lock(hashtext(?))', ('office_series_mail_{h1[0][0]}',)).fetchone()")
+check(len(made(S_LOCK)) == 1, f"(6629 b) the run waits while the mail still due is being sent {made(S_LOCK)}")
+tick()
+hl = made(S_LOCK)
+check(len(hl) == 2 and all(x[2] == "sent" for x in hl) and len(mails("rechnung@halte.example")) == 2,
+      f"(6629 b) then the mail still due goes out and the next period is made and mailed {hl}")
+
+# ================================================================== 2.1289.0 (#6629 c): failed runs strictly in a row
+CLC = client(A, "Zaehl Medien AG", "rechnung@zaehl.example")
+S_CNT = series(A, CLC, "Zaehlt")
+tick("x.rin_mail = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('kurze Stoerung'))")  # fails after the invoice's commit
+check(row(S_CNT) == {"active": True, "fails": 1}, f"(6629 c) the failure after the commit is counted {row(S_CNT)}")
+tick()  # the mail still due goes out, nothing else is due: the run worked
+check(len(mails("rechnung@zaehl.example")) == 1 and row(S_CNT) == {"active": True, "fails": 0},
+      f"(6629 c) a run that works sets the count back (was: kept until the next period) {row(S_CNT)}")
+
+# ================================================================== 2.1289.0 (#6629): the freelancer switches her office off and on
+F_AUS = series(Fr, CLF, "Frida aus")
+assert Fr.patch(B + "/api/settings", json={"features": ",".join(x for x in FEATURES.split(",") if x != "office")}).ok
+tick()
+check(row(F_AUS).get("active") is False and why(F_AUS) == "nobody" and not made(F_AUS), f"(6629) P4: her office off: paused for nobody {row(F_AUS)}")
+assert Fr.patch(B + "/api/settings", json={"features": FEATURES}).ok
+tick()
+tick()
+check(len(task(FID, "Invoice series Frida aus paused", "had no admin")) == 1 and row(F_AUS).get("active") is False,
+      "(6629) P4: her office on again: she gets the task once, the series stays off")
+
+# ================================================================== 2.1289.0 (#6629): the other office parts of the watchdog report a failing area
+# (_wd_fail of #6387, untested so far): each part's own function for one area throws -> the admin alert names part and area
+OV = made(S_OK)[0][0]
+dbx("UPDATE office_docs SET due_date='2020-01-02' WHERE id=?", (OV,))  # an overdue open invoice: the dunning part has an area
+r = A.post(B + D, json={"kind": "offer", "lang": "de", "client_id": CL, "items": [{"title": "Dreh", "qty": 1, "rate": 900}]})
+assert r.status_code == 201, r.text
+dbx("UPDATE office_docs SET status='sent', valid_until=? WHERE id=?", (TODAY, r.json()["id"]))  # a sent quotation running out
+check(A.put(B + OFF_API + "/bank/noreceipt/reminder", json={"every": "week"}).ok, "the bank bookings reminder is on")
+check(A.put(B + OFF_API + "/cards/reminder", json={"every": "week"}).ok, "the card positions reminder is on")
+r = A.post(B + OFF_API + "/fixed-costs", json={"label": "Schnittsoftware", "amount": 50, "start": TODAY, "repeat": "yearly", "sub": 1, "notice_days": 30,
+                                                "remind_days": 14, "remind_user": ALICE})
+check(r.status_code in (200, 201), f"a subscription with its reminder {r.status_code} {r.text[:160]}")
+BOOM = "def boom(*a, **k):\n    raise RuntimeError('kaputt')\n"
+out = in_ct("import json\nimport app\nfrom kalmido.core.db import connect\nfrom kalmido.notify import alerts\n"
+            "from kalmido.office import dunning, offerexp, banknorc, cardnorc, subs\n" + BOOM +
+            "dunning.dun_area = offerexp.ofe_area = banknorc.bnr_area = cardnorc.ccn_area = subs.abo_task_new = boom\n"
+            "subs._running = lambda f, today: True\n"  # the subscription is due for its reminder today (its dates are not this test's)
+            "subs._fixed_public = lambda c, oid, r: {'cancel_by': '" + TODAY + "', 'next_renewal': '" + TODAY + "', 'remind_days': 1, 'remind_user': r['remind_user'], 'label': 'x'}\n"
+            "dunning._DUN_LAST['at'] = offerexp._OFE_LAST['at'] = -1e12\nc = connect()\n"
+            "dunning.dun_tick(c)\nofferexp.ofe_tick(c)\nbanknorc.bnr_tick(c, force=True)\ncardnorc.ccn_tick(c, force=True)\nsubs.abo_tick(c, force=True)\nc.close()\n"
+            "print('AA=' + json.dumps({k[1]: sorted(v['items']) for k, v in alerts._AA['b'].items() if k[0] == 'watchdog'}))")
+aa = json.loads([x for x in out.splitlines() if x.startswith("AA=")][-1][3:])
+for part in ("dunning suggestion of area", "quotation expiry notice of area", "bank bookings reminder of area", "card positions reminder of area"):
+    check(str(ORG) in aa.get(part + "|RuntimeError", []), f"(6629) the watchdog's alert for a failing area: {part} {aa}")
+check(len(aa.get("subscription reminder|RuntimeError", [])) == 1, f"(6629) the watchdog's alert for a failing subscription reminder {aa}")
+
 check(dbx("SELECT COUNT(*) FROM office_docs WHERE series_id IS NOT NULL GROUP BY series_id, series_period HAVING COUNT(*) > 1") == [], "never two invoices for one period")
 
 sys.exit(done("p6387_office_watchdog"))

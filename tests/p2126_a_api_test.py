@@ -108,7 +108,12 @@ def numbers_case(S, who, cl):
     # 2.354.0 (#2838): a credit note only from a finalised invoice (the numbers of its draft: below, after F5)
     check(S.post(B + D, json={"kind": "credit"}).status_code == 409, f"{who}: no credit note without an invoice (409)")
     r = S.post(B + f"{D}/{inv['id']}/number", json={"number": f"RE-{time.localtime().tm_year}-001"})
-    check(r.ok, f"{who}: a manual number is still possible " + r.text[:160])
+    # 2.1289.0 (#6481 N3): a number by hand comes only with the finalising (was: still possible at the draft)
+    check(r.status_code == 409 and "finalise" in r.json().get("error", ""), f"{who}: no manual number at the invoice draft (409) " + r.text[:160])
+    # a numbered invoice draft from before 2.1289 (the number route) stays as it was: made in the database
+    sql("UPDATE office_docs SET number=? WHERE id=?", (f"RE-{time.localtime().tm_year}-001", inv["id"]), write=True)
+    sql("INSERT INTO office_numbers(org_id, kind, period, last) SELECT org_id, 'invoice', ?, 1 FROM office_docs WHERE id=? "
+        "ON CONFLICT(org_id, kind, period) DO UPDATE SET last=1", (str(time.localtime().tm_year), inv["id"]), write=True)
     d = S.get(B + f"{D}/{inv['id']}").json()
     # 2.417.0 C (#2604): the test phase deletion (#2603) is gone - a numbered invoice draft stays (ODOC_SEQ_KEPT), also with its number
     check(d["can_delete"] is False and "delete_confirm" not in d, f"{who}: a numbered invoice draft cannot be deleted")

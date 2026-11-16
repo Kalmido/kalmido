@@ -127,6 +127,31 @@ def inv_number_year(scheme, num):
     return None
 
 
+def inv_number_dates(scheme, num):
+    """2.1289.0 (#6481 N4): the dates a number carries under the scheme ({date} 20261116 / {isodate} 2026-11-16, as
+    office_number_format writes them), [] without one or when it does not follow it; a value that is no date is kept as
+    its text (it never equals a document date)."""
+    for sv in scheme_variants(scheme):
+        pos, pat, n = 0, "", 0
+        for m in SCHEME_RE.finditer(sv):
+            pat += re.escape(sv[pos:m.start()])
+            t = m.group(1)
+            pat += r"(\d{8})" if t == "date" else r"(\d{4}-\d{2}-\d{2})" if t == "isodate" else r"\d+" if t.startswith("seq") else r".+?"
+            n += t in ("date", "isodate")
+            pos = m.end()
+        pat += re.escape(sv[pos:])
+        m = re.fullmatch(pat, num or "")
+        if m and n:
+            out = []
+            for v in m.groups():
+                try:
+                    out.append(date.fromisoformat(v if "-" in v else f"{v[:4]}-{v[4:6]}-{v[6:]}").isoformat())
+                except ValueError:
+                    out.append(v)
+            return out
+    return []
+
+
 INV_SKIP_REASON_MIN = 5  # 2.39.1 (#1210 N2): characters of the reason a skipped number needs
 
 
@@ -144,6 +169,9 @@ def inv_manual_number(c, oid, r, s, num, reason=""):
     y = inv_number_year(scheme, num)
     if period and y is not None and y != d.year:  # 2.355.0 A (#2839): never another year's number (nor its counter)
         raise Denied(409, tr("The number carries the year {0}, the invoice date is in {1}", y, d.year))
+    bad = [x for x in inv_number_dates(scheme, num) if x != d.isoformat()]
+    if bad:  # 2.1289.0 (#6481 N4): {date} / {isodate} are the document's date as well (like the year above)
+        raise DeniedKey(409, N_("The number carries the date {0}, the document date is {1}"), bad[0], d.isoformat())
     row = c.execute("SELECT last FROM office_numbers WHERE org_id=? AND kind=? AND period=?", (oid, kind, period)).fetchone()
     last = row["last"] if row else 0
     if seq < last or (seq == last and num != (r["number"] or "")):  # 2.38.0 review: re-setting its own number is fine
@@ -321,6 +349,14 @@ def inv_missing(c, oid, r, s, pack, items):
             days = None
         if days is not None and int(_col(r, "skonto_days")) > days:
             miss.append([N_("a cash discount period no longer than the payment terms ({0} days)"), days])
+    # 2.1289.0 (#6475): the switch "Small business" binds the tax at finalising, not only as the default of a new draft
+    # (section 14c UStG: VAT shown is owed; section 19 note only for a small business); a correction (cancels_id) keeps the
+    # tax of its invoice, also of one from before the switch
+    if not _col(r, "cancels_id"):
+        if s.get("small_business") and r["vat_mode"] != "novat":
+            miss.append([N_("as a small business no VAT may be shown")])
+        elif not s.get("small_business") and r["vat_mode"] == "novat" and _col(r, "vat_note") == "small":
+            miss.append([N_("the VAT note small business only with the switch Small business in the office settings")])
     if r["vat_mode"] == "novat" and (_col(r, "vat_note") or "") not in INV_VAT_NOTES:
         miss.append([N_("VAT note (reverse charge / not taxable / small business)")])
     if r["vat_mode"] == "novat" and _col(r, "vat_note") == "reverse":  # 2.296.0 B (#3168): both VAT ids (section 14a (1) UStG, BR-AE-02)
@@ -414,6 +450,10 @@ def inv_check_date(c, oid, r, s):
     due = _col(r, "due_date")
     if due and due < d:
         raise BadKey(N_("The due date must not lie before the date"))
+    if r["kind"] == "credit" and _col(r, "cancels_id"):  # 2.1289.0 (#6481 S2): a correction never dates before its invoice (own RK counter)
+        inv_ = c.execute("SELECT number, date FROM office_docs WHERE id=? AND org_id=?", (r["cancels_id"], oid)).fetchone()
+        if inv_ is not None and inv_["date"] and d < inv_["date"]:
+            raise BadKey(N_("The date of the correction must not lie before the date of its invoice {0} ({1})"), inv_["number"] or "", inv_["date"])
     scheme = num_scheme(s, r["kind"])
     period = office_scheme_period(scheme, date.fromisoformat(d))
     kinds = [k for k in ("invoice", "credit") if num_kind(s, k) == num_kind(s, r["kind"])]

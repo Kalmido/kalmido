@@ -340,8 +340,10 @@ def ofx_logo_path(oid, name):
     return p if os.path.isfile(p) else None
 
 
-def ofx_finalize(c, oid, uid, did):
-    """Finalises document did of organisation oid (see the module text). 409 when it already is."""
+def ofx_finalize(c, oid, uid, did, manual=None, reason=""):
+    """Finalises document did of organisation oid (see the module text). 409 when it already is.
+    2.1289.0 (#6481 N3, S3): manual = a hand-set number of an invoice / correction, checked and given in the same transaction
+    (docs._assign_number, reason = why it skips numbers); the caller checked the right (the office admin's)."""
     from .docs import _assign_number, _j, doc_items, doc_row, doc_totals
     from .invoices import inv_before_finalize, inv_after_finalize
     write_lock(c, f"office_doc_{int(did)}")  # 2.39.0 (#1209 audit M1): two parallel finalise calls -> the second gets 409, no lost number
@@ -358,6 +360,12 @@ def ofx_finalize(c, oid, uid, did):
         r = doc_row(c, oid, did)
         from .periodlock import period_need_open
         period_need_open(c, oid, r["date"])  # 2.148.0 A (#2471): no new booking in a locked month
+    if manual is not None and manual != r["number"]:  # 2.1289.0 (#6481 N3, S3)
+        if r["number"]:
+            raise DeniedKey(409, N_("This draft already has the number {0}"), r["number"])
+        num = _assign_number(c, oid, did, s, manual=manual, reason=reason)
+        ofx_log(c, oid, "number", doc_id=did, detail={"before": {"number": ""}, "after": {"number": num, **({"reason": reason} if reason else {})}})
+        r = doc_row(c, oid, did)
     if not r["number"]:
         _assign_number(c, oid, did, s)
         r = doc_row(c, oid, did)
@@ -489,9 +497,10 @@ from .model import office_ctx as _ctx  # noqa: E402  2.149.0 G (#2517): was an o
 def ofx_finalize_post(did):
     """Members of the organisation: freezes the document (number, totals, sender, recipient, tax rates); then it can only
     be duplicated. Returns the document."""
-    from .docs import doc_public
+    from .docs import doc_public, odoc_finalize_number
     c, uid, oid = _ctx()
-    r = ofx_finalize(c, oid, uid, did)
+    manual, reason = odoc_finalize_number(c, oid, did)  # 2.1289.0 (#6481 N3, S3): {number?, reason?} of the finalise dialog
+    r = ofx_finalize(c, oid, uid, did, manual, reason)
     bump(c)
     c.commit()
     return jsonify(doc_public(c, oid, r, office_role(c, uid, oid) == "admin"))

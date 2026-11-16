@@ -40,6 +40,7 @@ from .invoices import (INV_KINDS, INV_STATUSES, STATE_TXT, inv_apply_client, inv
 from .invoices import ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
 from .invoices import inv_credit_pack, inv_refund_open  # 2.354.0 D (#2837, #2838)
 from .invoices import inv_number_year, inv_pay_add  # 2.355.0 A (#2839, #2847)
+from .invoices import inv_manual_seq  # 2.1289.0 (#6481 N2)
 
 DOC_KINDS = ("offer",) + INV_KINDS + ("delivery",)  # 2.120.0 D (#2089): delivery notes / proofs of service (office/delivery.py); 2.38.0 (#1021, F1): invoices, credit notes, reminders live in office/invoices.py
 STATUSES = ("draft", "sent", "accepted", "declined", "superseded")  # 2.437.0 B (#3621): superseded = replaced by a newer quotation (replaces_id)
@@ -567,6 +568,12 @@ def doc_public(c, oid, r, admin, items=True):
     else:  # 2.417.0 C (#2604): the test phase rules for quotations (#2573) and invoices (#2603) are gone - finalised or sent stays (GoBD)
         d["can_delete"] = d["can_unlock"] if locked else bool(admin) and r["status"] != "sent" and not odoc_seq_numbered(r)
     d["number_at_finalize"] = ofx_number_at_finalize(office_settings(c, oid), r["kind"])
+    if locked:  # 2.1289.0 (#6481 U4): "imported on ... by ..." in the document view
+        imp = odoc_imported(c, oid, [r["id"]]).get(r["id"])
+        if imp:
+            d["imported"] = imp
+    elif odoc_seq_numbered(r) and not r["trial"]:
+        d["number_draft"] = True  # 2.1289.0 (#6481 N3): a numbered draft from before 2.1289 -- finalise it
     if r["kind"] == "invoice":  # 2.120.0 D (#2089): "attach timesheet" is offered when the invoice has a client and a period
         d["timesheet_ok"] = bool(r["client_id"] and r["service_from"] and r["service_to"])
     from .agentdocs import ofa_doc_extra
@@ -609,6 +616,33 @@ def doc_brief(r, pm=None, lg=None, today=None):
         d.update(inv_money_fields(r, pm))
         d["open_text"] = fmt_money(d["open"], r["lang"], r["currency"])
     return d
+
+
+def odoc_imported(c, oid, ids):
+    """2.1289.0 (#6481 U4): {doc_id: {"at", "by"}} of the finalised documents among ids that the organisation import took
+    from a file (its office log line import / doc, admin/oi_office._oi_mark): when and by whom ("" when the account is gone).
+    Derived from the log line, no column of its own; the document itself (its PDF) stays as it was. ids None = every one
+    of the office (the auditor's export: no list of thousands of ids)."""
+    ids = None if ids is None else [int(x) for x in ids if x]
+    if ids == []:
+        return {}
+    out = {}
+    for x in c.execute("SELECT l.doc_id, l.at, u.display_name, u.username FROM office_doc_log l JOIN office_docs d ON d.id=l.doc_id AND d.org_id=l.org_id "
+                       "LEFT JOIN users u ON u.id=l.user_id WHERE l.org_id=? AND l.action='import' AND l.target='doc' AND d.locked_at IS NOT NULL"
+                       + (f" AND l.doc_id IN ({','.join('?' * len(ids))})" if ids is not None else "") + " ORDER BY l.id", (oid, *(ids or ()))):
+        out.setdefault(x["doc_id"], {"at": x["at"], "by": x["display_name"] or x["username"] or ""})
+    return out
+
+
+def odoc_list_marks(c, oid, rows):
+    """2.1289.0 (#6481): the list rows' marks -- imported (U4) and, for an invoice / correction draft that already carries a
+    number of its series (given before 2.1289 at the draft), number_draft: finalise it, the gap stays open until then (N3)."""
+    imp = odoc_imported(c, oid, [b["id"] for b in rows if b["locked"]])
+    for b in rows:
+        if b["id"] in imp:
+            b["imported"] = imp[b["id"]]
+        if b["kind"] in ODOC_SEQ_KINDS and b["number"] and not b["locked"] and not b["trial"]:
+            b["number_draft"] = True
 
 
 # ---------------------------------------------------------------- cleaning
@@ -1065,6 +1099,8 @@ def _assign_number(c, oid, did, s=None, manual=None, reason=""):
             raise BadInput(tr("Invalid value: {0}", "number"))
         if r["kind"] != "offer":  # 2.38.0: only above the series' last value (no back-dating), the counter follows
             inv_manual_number(c, oid, r, s, num, reason)
+        elif num != (r["number"] or ""):  # 2.1289.0 (#6481 N2): a quotation never takes a number of the invoice / correction series
+            odoc_offer_num_check(s, num)
     else:
         num = doc_next_number(c, oid, r, s)
     if c.execute("SELECT 1 FROM office_docs WHERE org_id=? AND number=? AND id!=?", (oid, num, did)).fetchone() or fi_number_taken(c, oid, num):
@@ -1078,21 +1114,63 @@ def _assign_number(c, oid, did, s=None, manual=None, reason=""):
 def doc_next_number(c, oid, r, s, peek=False):
     """The number of the scheme that document row r (no number yet, not a trial) gets from settings s; the counter moves.
     2.431.0 B (#3605): peek = the same choice (scheme, counter, project / client / initials / date / version) only looked
-    at, for the finalise dialog (odoc_number_preview) -- a later change of the choice lands in both."""
-    from .legacyimport import fi_number_taken
+    at, for the finalise dialog (odoc_number_preview) -- a later change of the choice lands in both.
+    2.1289.0 (#6481 N2): every value it passes because another document or the legacy archive carries it is an office log
+    line number ("taken by ..."); it counts on to the next free value (up to ODOC_NEXT_MAX), a scheme that cannot give
+    another value (no {seq}) or a longer run of taken values is a clear 409, never "already used"."""
     rec = _j(r["recipient"], {})
     d = date.fromisoformat(r["date"]) if r["date"] else local_now().date()
     # 2.118.0 A (#2265): a quotation's duplicate keeps the first one's running number with the next {version};
     # quotations count per organisation, client or project (onc_next)
     ver, num = onc_version(c, oid, r, inv_scheme(s, r["kind"]), lambda x: {"project": x["project_title"], "client": _j(x["recipient"], {}).get("name") or "",
                                                                          "initials": _initials(c, x["created_by"]), "kuerzel": _client_code(c, x)})
-    for i in range(0 if num else 50):  # a scheme without {seq} uniqueness (e.g. only {date}): keep counting until free
+    if num:
+        return num
+    seen = set()
+    for i in range(ODOC_NEXT_MAX):  # a scheme without {seq} uniqueness (e.g. only {date}): keep counting until free
         num, _seq = onc_next(c, oid, s, r, inv_scheme(s, r["kind"]), d, peek=peek, ahead=i if peek else 0, project=r["project_title"],
                              client=rec.get("name") or "", initials=_initials(c, r["created_by"]), version=ver, kuerzel=_client_code(c, r))
-        if not c.execute("SELECT 1 FROM office_docs WHERE org_id=? AND number=? AND id!=?", (oid, num, r["id"])).fetchone() \
-                and not fi_number_taken(c, oid, num):  # 2.39.1 (#1182): nor a number of the legacy archive
+        by = odoc_number_taken_by(c, oid, num, r["id"])  # 2.39.1 (#1182): also a number of the legacy archive
+        if by is None:
+            return num
+        if num in seen:  # the scheme gives this value again (no {seq}): no free one will come (the preview stops here too)
             break
-    return num
+        seen.add(num)
+        if peek:
+            continue
+        ofx_log(c, oid, "number", doc_id=r["id"], detail={"skipped": num, "reason": by})
+    if peek:
+        return num
+    raise DeniedKey(409, N_("The next number {0} of the series is already taken and the scheme gives no free one soon; set the next number under number ranges"), num)
+
+
+ODOC_NEXT_MAX = 1000  # 2.1289.0 (#6481 N2): taken values doc_next_number counts past (each one logged) before it gives up
+
+
+def odoc_number_taken_by(c, oid, num, did):
+    """2.1289.0 (#6481 N2): None when number num is free for document did of office oid, else the reason it is not, for
+    the office log ("taken by document #12 (quotation)", "taken by the legacy archive")."""
+    from .legacyimport import fi_number_taken
+    x = c.execute("SELECT id, kind FROM office_docs WHERE org_id=? AND number=? AND id!=? LIMIT 1", (oid, num, did)).fetchone()
+    if x is not None:
+        return tr("taken by document #{0} ({1})", x["id"], tr(ODOC_KIND_WORDS.get(x["kind"], x["kind"])))
+    if fi_number_taken(c, oid, num):
+        return tr("taken by the legacy archive")
+    return None
+
+
+ODOC_KIND_WORDS = {"offer": N_("Quotation"), "invoice": N_("Invoice"), "credit": N_("Credit note"), "reminder": N_("Payment reminder|dunning"),
+                   "delivery": N_("Delivery note")}
+
+
+def odoc_offer_num_check(s, num):
+    """2.1289.0 (#6481 N2): a hand-set quotation number must not follow the scheme of the invoice or correction series (it
+    would take a value of that gap-free series); a scheme the quotations share with it is no conflict. BadKey otherwise."""
+    own = inv_scheme(s, "offer")
+    for k in ("invoice", "credit"):
+        sch = inv_scheme(s, k)
+        if sch and sch != own and inv_manual_seq(sch, num) is not None:
+            raise BadKey(N_("The number {0} follows the scheme {1} of the invoices or corrections; a quotation needs a number of its own"), num, sch)
 
 
 def _client_code(c, r):
@@ -1521,6 +1599,7 @@ def odoc_list():
     lg = lang()
     day = local_now().date().isoformat()  # 2.1064.0 (#5818): one day for the whole list (the mark "expired")
     rows = [doc_brief(r, pm, lg, day) for r in raw]
+    odoc_list_marks(c, oid, rows)  # 2.1289.0 (#6481 N3, U4)
     if kind == "offer":
         from .offerlink import oil_list_marks
         oil_list_marks(c, oid, rows)  # 2.356.0 C (#3005)
@@ -1695,6 +1774,8 @@ def odoc_number(did):
     b = b if isinstance(b, dict) else {}
     if "number" not in b and not r["trial"] and ofx_number_at_finalize(office_settings(c, oid), r["kind"]):
         raise Denied(409, tr("the number comes only when the invoice is finalised; the series has no gaps"))
+    if "number" in b and r["kind"] in ODOC_SEQ_KINDS and not r["trial"]:  # 2.1289.0 (#6481 N3, S3): a hand-set number only when finalising
+        raise DeniedKey(409, ODOC_HAND_AT_FINAL)
     reason = _text(b.get("reason"), "reason", 300)
     num = _assign_number(c, oid, did, manual=b.get("number") if "number" in b else None, reason=reason)
     if num != r["number"]:
@@ -1702,6 +1783,25 @@ def odoc_number(did):
     bump(c)
     c.commit()
     return jsonify(id=did, number=num)
+
+
+# 2.1289.0 (#6481 N3, S3): an invoice / correction gets a hand-set number only in the finalise dialog, checked and given in
+# the same transaction as the finalising (no numbered draft that stays a draft while later numbers are finalised)
+ODOC_HAND_AT_FINAL = N_("An invoice or correction gets a number of your own only when it is finalised: enter it in the finalise dialog")
+
+
+def odoc_finalize_number(c, oid, did):
+    """2.1289.0 (#6481 N3, S3): (number or None, reason) of the finalise request's body {number?, reason?}: only for an
+    invoice / correction (400 otherwise) and only for whom POST .../number allowed it (the office admin / accounting, 403)."""
+    b = body()
+    b = b if isinstance(b, dict) else {}
+    num = b.get("number")
+    if num is None or (isinstance(num, str) and not num.strip()):
+        return None, ""
+    if doc_row(c, oid, did)["kind"] not in ODOC_SEQ_KINDS:
+        raise BadKey(N_("Only an invoice or correction takes a number when it is finalised"))
+    _ctx(admin=True)  # the same check as POST /api/office/docs/<did>/number (403)
+    return _text(num, "number", 80), _text(b.get("reason"), "reason", 300)
 
 
 @app.get("/api/office/docs/<int:did>/number-preview")
@@ -1875,6 +1975,9 @@ def odoc_duplicate(did):
 ODOC_SEQ_KINDS = ("invoice", "credit")
 ODOC_SEQ_KEPT = N_("This draft already has a number of the invoice series and is kept. Finalise it and cancel it if it is not needed.")
 
+# 2.1289.0 (#6481 S3): a correction cannot be cancelled -- its text names the way that exists
+ODOC_SEQ_KEPT_CREDIT = N_("This correction draft already has a number of the series and is kept. Finalise it; if it is not needed, bill the amount again with a new invoice.")
+
 
 def odoc_seq_numbered(r):
     return r["kind"] in ODOC_SEQ_KINDS and bool(r["number"])
@@ -1968,7 +2071,7 @@ def odoc_delete(did):
     else:
         ofx_need_editable(r)
         if odoc_seq_numbered(r):  # 2.126.0 A (#1966)
-            raise Denied(409, tr(ODOC_SEQ_KEPT))
+            raise Denied(409, tr(ODOC_SEQ_KEPT_CREDIT if r["kind"] == "credit" else ODOC_SEQ_KEPT))  # 2.1289.0 (#6481 S3)
     if c.execute("SELECT 1 FROM office_signoffs WHERE doc_id=? AND org_id=? AND state <> 'open' LIMIT 1", (did, oid)).fetchone():
         raise Denied(409, tr("The client has signed this quotation; the record is kept"))  # 2.50.0 (#1200 review)
     ofx_log(c, oid, "delete", doc_id=did, detail={"number": r["number"], "status": r["status"], "net": _j(r["totals"], {}).get("net"),

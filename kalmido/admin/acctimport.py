@@ -780,6 +780,7 @@ def umz_areas_tr(rows):
 
 def umz_preview(c, uid, man, data, can_invite):
     from .orgimport import oi_counts
+    from .oi_office import oi_auto_preview  # 2.1289.0 (#6576)
     tables = {k: len(v) for k, v in data.items()}
     lists = [{"name": _txt(L.get("name"), 200), "folder": _txt(L.get("folder"), 300), "inbox": bool(L.get("is_inbox")),
               "tasks": sum(1 for t in data.get("tasks", []) if t.get("list_id") == L.get("id") and not t.get("deleted_at"))}
@@ -831,7 +832,9 @@ def umz_preview(c, uid, man, data, can_invite):
         "encrypted": {"attachments": len(ce.get("attachments") or []) if isinstance(ce.get("attachments"), list) else 0,
                       "locked_notes": ce.get("locked_notes") if isinstance(ce.get("locked_notes"), int) else 0,
                       **umz_enc_preview(c, uid, data, org_kind)},  # 2.278.0 C (#3091)
-        "not_taken": skipped, "taken_areas": oi_counts(data) if org_kind else [], "again": bool(earlier), "earlier": earlier, "office_copy": bool(not org_kind and office), "export_id": eid, "src": skey, "kind": "org" if org_kind else "account",
+        "not_taken": skipped, "taken_areas": oi_counts(data) if org_kind else [], "again": bool(earlier), "earlier": earlier, "office_copy": bool(not org_kind and office),
+        "auto_paused": bool(org_kind and oi_auto_preview(data)),  # 2.1289.0 (#6576): invoice series and office reminders arrive paused
+        "export_id": eid, "src": skey, "kind": "org" if org_kind else "account",
         "targets": umz_targets(c, uid),  # 2.96.0 D (#1941): an organisation export may go into the private space too
     }
 
