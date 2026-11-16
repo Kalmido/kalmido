@@ -245,6 +245,7 @@
 .ofx-l{-webkit-mask-image:linear-gradient(to left,#000 calc(100% - 2.5rem),transparent);mask-image:linear-gradient(to left,#000 calc(100% - 2.5rem),transparent)}
 .ofx-l.ofx-r{-webkit-mask-image:linear-gradient(to right,transparent,#000 2.5rem,#000 calc(100% - 2.5rem),transparent);mask-image:linear-gradient(to right,transparent,#000 2.5rem,#000 calc(100% - 2.5rem),transparent)}
 .ofdstat.st-overdue{color:var(--danger)}
+.cdlg-b .ofdfirst{margin-top:.75rem;color:var(--text)}.cdlg-b .ofdfirst p{margin:.25rem 0}.ofdfirstgo .linkbtn{font-size:inherit} /* 2.1302.0 (#6532): the first real invoice: the line in the finalise dialogs */
 .ofdpaysum{display:flex;gap:1rem;flex-wrap:wrap;justify-content:flex-end;margin:.5rem 0;font-variant-numeric:tabular-nums}
 .ofdpay .ib,.ofdref .ofdlt{margin-left:auto}
 ul.ofdpick{list-style:none;margin:0 0 .75rem;padding:0;max-height:40vh;overflow:auto;display:flex;flex-direction:column;gap:.25rem}  /* 2.39.1 (#1220): the list only, never the service picker's .modal */
