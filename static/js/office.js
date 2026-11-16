@@ -997,6 +997,7 @@ function biz_paint() {
   }
   biz_lvl(t.content);
   keepFocus(box, () => setHtml(box, t.innerHTML));
+  ofcGrowAll(box);  // 2.1284.0 (#6597): the company name fits its text when drawn, not only after typing
   if (!box._bizLvl) { box._bizLvl = new MutationObserver(() => biz_lvl(box)); box._bizLvl.observe(box, {childList: true, subtree: true}); }
   if (S.bizJump) biz_jump(box);
 }
@@ -1247,13 +1248,29 @@ document.addEventListener('focusin', e => { if (e.target.closest?.('#ofc-set')) 
 document.addEventListener('focusout', e => { if (e.target.closest?.('#ofc-set')) setTimeout(ofcBbFocus, 0); });
 document.addEventListener('focusout', e => { const t = e.target; if (/^(INPUT|TEXTAREA)$/.test(t.tagName) && !/^(checkbox|radio|file|hidden)$/.test(t.type) && t.closest('#ofc-set') && t.value !== t.defaultValue) ost_save(t); });
 // 2.138.2 B (#2395): a short multi-line field (company name) grows with its text up to `max` rows, no inner scrollbar
+// 2.1284.0 (#6597): the rows come from the text alone, measured at a height of 0 (scrollHeight = text + padding). The counting
+// loop before (rows++ while scrollHeight > clientHeight) trusted the height to follow the rows: where the layout pressed the field
+// it counted up to `max` (a short subject ten rows high) or a field without width kept rows that cut its text. A field without
+// width (in a closed section, not drawn yet) gets the rows of its lines; the observer below measures it once it has one.
 function ofcGrow(ta, max = 3) {
   const lo = Math.max(1, +ta.dataset.growMin || 1);  // 2.431.0 B (#3594): a field may start with more than one row
-  ta.rows = lo;
-  const n = Math.max(lo, String(ta.value).split('\n').length);
-  ta.rows = Math.min(max, n);
-  while (ta.rows < max && ta.scrollHeight > ta.clientHeight + 1) ta.rows++;
+  if (!ta.clientWidth) { ta.rows = Math.min(max, Math.max(lo, String(ta.value).split('\n').length)); return; }
+  const cs = getComputedStyle(ta), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2, pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const h = ta.style.height, ov = ta.style.overflow;
+  ta.style.height = '0px'; ta.style.overflow = 'hidden';
+  const need = Math.ceil((ta.scrollHeight - pad) / lh - 0.1);
+  ta.style.height = h; ta.style.overflow = ov;
+  ta.rows = Math.min(max, Math.max(lo, need || 1));
+  ta._growW = ta.clientWidth;
 }
+// 2.1284.0 (#6597): a growing field measures again when its width changes - a section that opens, a narrower window, the
+// list opening beside the document; the rows change only the height, so the observer never calls itself
+const OFC_GROW_RO = typeof ResizeObserver === 'function' ? new ResizeObserver(es => es.forEach(({target: t}) => {
+  if (!t.isConnected) { OFC_GROW_RO.unobserve(t); return; }
+  if (t.clientWidth && t.clientWidth !== t._growW) ofcGrow(t, +t.dataset.grow || 3);
+})) : null;
+// every growing field below root measured now and watched
+function ofcGrowAll(root) { if (root) root.querySelectorAll('textarea[data-grow]').forEach(t => { ofcGrow(t, +t.dataset.grow || 3); OFC_GROW_RO?.observe(t); }); }
 // 2.296.0 D (#3172): true when a brand colour is too light for text on white (contrast < 4.5, as the PDF writer judges it)
 function ofcColorLight(c) {
   const m = /^#([0-9a-fA-F]{6})$/.exec(String(c || '').trim());

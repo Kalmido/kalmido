@@ -652,6 +652,8 @@ def sc_admin_state():
     with system_ctx(c):  # counts over every organisation for the server admin (no content)
         cnt = {r[0]: r[1] for r in c.execute("SELECT state, COUNT(*) FROM upload_scan GROUP BY state")}
     state = "off" if not t else ("ok" if sc_ping() else "down")
-    return jsonify(state=state, unchecked=cnt.get("unchecked", 0) if t else 0, infected=cnt.get("infected", 0),
+    # 2.1284.0 (#6606): the installer leaves the scanner out under about 3 GB of memory and leaves that reason in .env
+    why = (os.environ.get("KALMIDO_CLAMAV_OFF") or "").strip() if state == "off" else ""
+    return jsonify(state=state, off_why=why if why == "low_memory" else "", unchecked=cnt.get("unchecked", 0) if t else 0, infected=cnt.get("infected", 0),
                    strict=bool(t) and sc_strict(),  # 2.79.0 (#476 M7)
                    max_mb=sc_max_bytes() // (1024 * 1024), last_ok=_SC["last_ok"], last_error=_SC["last_err"] if state == "down" else "")

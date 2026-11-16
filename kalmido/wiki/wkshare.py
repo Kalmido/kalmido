@@ -65,7 +65,7 @@ from ..files.fslock import fl_is_locked
 from ..files.scan import sc_guard
 from ..files.store import fs_version_row
 from ..files.store import FS_NOT_ADDR  # 2.1145.0 (#6062)
-from .wkembed import wem_visible
+from .wkembed import WEM_MAX, wem_embedders, wem_img_ids, wem_visible
 from .wkhist import WikiUnreadable
 from .wikie2e import wke_mode, wke_open_sql  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.validation import valid_date  # 2.369.5 (#2517): pulled up from functions
@@ -474,33 +474,35 @@ def wsh_images(v):
     return 1 if v else 0
 
 
-# 2.380 H (#2356): a picture of the file store embedded in a shared page: ![label](/api/files/nodes/<id>/content)
+# 2.380 H (#2356): a picture of the file store embedded in a shared page: ![label](/api/files/nodes/<id>/content) -- what counts
+# as embedded is read once, in wkembed.py (wem_img_ids; 2.1284.0 #6321)
 WSH_NODE_RE = re.compile(r"/api/files/nodes/(\d{1,15})/content$")
-WSH_NODE_IMG_RE = re.compile(r"!\[[^\[\]\n]*\]\(\s*<?/api/files/nodes/(\d{1,15})/content>?")
-# 2.380 (#2356 review): code shows as text -- a picture named in a fenced block or in `code` is not embedded
-WSH_CODE_RE = re.compile(r"^[ \t]*(```|~~~).*?(?:^[ \t]*\1[^\n]*$|\Z)|`[^`\n]*`", re.S | re.M)
 
 
 def wsh_img_nodes(c, shares, page, text, only=None):
     """2.380 H (#2356): {node id: (node, version)} of the file store pictures a share may show in a page -- only with the switch
     (images) of one of the shares, only pictures embedded in the page's text, of the page's own space (wem_visible), that
-    the person who made that share may still see now, an image type, never in a locked (end-to-end encrypted) folder."""
+    the person who made that share AND the person who embedded the picture (2.1284.0 #6321) may still see now, an image
+    type, never in a locked (end-to-end encrypted) folder."""
     makers = sorted({s["created_by"] for s in shares if s["images"] and s["created_by"]})
-    # 2.1257.0 (#6295, audit #4741 Z6-F1): the person who wrote the page last must see the picture too -- otherwise a fellow
-    # editor embeds a file only the share's maker sees into a covered page and reads it through the maker's link
-    editor = page["updated_by"]  # review: no fallback to created_by (an editor's account deleted = no pictures)
-    ids = sorted({int(m.group(1)) for m in WSH_NODE_IMG_RE.finditer(WSH_CODE_RE.sub("", text or "")) if int(m.group(1)) < 2 ** 62})[:200]
+    ids = wem_img_ids(text)[:WEM_MAX]
     if only is not None:  # one picture asked for: check just that one (review: not up to 200 nodes per fetch)
         ids = [i for i in ids if i == only]
     out = {}
-    if not makers or not ids or not editor:
+    if not makers or not ids:
         return out
+    # 2.1257.0 (#6295, audit #4741 Z6-F1): the share's maker alone is not enough -- otherwise a fellow editor embeds a file only
+    # the maker sees into a covered page and reads it through the maker's link. 2.1284.0 (#6321, Fable review of #6295): the
+    # second person is who brought THIS picture into the text (wiki_embeds, kept per page and file at every write of the
+    # text), no longer the page's last editor: a rename, a move or a relink by someone who sees the file opened it, and one
+    # by someone who does not see it took the pictures of others away. No row or nobody (account gone) = no picture.
+    who = wem_embedders(c, page["id"])
     from ..files.extlinks import XL_IMG
     # the share's guest / the public link reads as somebody else: the maker's rights on the file store decide (deliberately
     # across the reader's context, for the pictures embedded in this shared page only)
     with system_ctx(c):
         for nid in ids:
-            if not any(wem_visible(c, u, nid, page) for u in makers) or not wem_visible(c, editor, nid, page) or fl_is_locked(c, nid):
+            if not who.get(nid) or not wem_visible(c, who[nid], nid, page) or not any(wem_visible(c, u, nid, page) for u in makers) or fl_is_locked(c, nid):
                 continue
             n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
             v = fs_version_row(c, nid, None)

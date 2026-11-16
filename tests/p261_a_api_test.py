@@ -40,7 +40,8 @@ def dbx(sql, args=(), write=False):
 
 
 def start(clamd=True):
-    extra = ["-e KALMIDO_CLAMD_TICK_S=1", "-e KALMIDO_CLAMD_DOWN_S=1"] + (["-e KALMIDO_CLAMD=127.0.0.1:3310"] if clamd else [])
+    # 2.1284.0 (#6606): both containers carry the installer's trace KALMIDO_CLAMAV_OFF=low_memory (only "off" names it)
+    extra = ["-e KALMIDO_CLAMD_TICK_S=1", "-e KALMIDO_CLAMD_DOWN_S=1", "-e KALMIDO_CLAMAV_OFF=low_memory"] + (["-e KALMIDO_CLAMD=127.0.0.1:3310"] if clamd else [])
     r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=dict(os.environ, EXTRA=" ".join(extra)), capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
     if clamd:
@@ -88,6 +89,7 @@ T = A.post(B + "/api/tasks", json={"title": "Files", "list_id": L}).json()["id"]
 
 st = A.get(B + "/api/admin/upload-scan")
 check(st.ok and st.json().get("state") == "ok", f"admin: scanner state ok ({st.status_code} {st.text[:200]})")
+check(st.json().get("off_why") == "", f"#6606: a running scanner names no reason for off ({st.text[:200]})")
 check(Bo.get(B + "/api/admin/upload-scan").status_code == 403, "scanner state: admins only")
 
 # ---- a find refuses the upload everywhere
@@ -212,6 +214,7 @@ check(r.ok and "up" not in fs.get("eicar.txt", {"up": 1}), f"scanner off: taken 
 check(not dbx("SELECT 1 FROM upload_scan"), "scanner off: no unchecked rows")
 st = A.get(B + "/api/admin/upload-scan").json()
 check(st.get("state") == "off" and st.get("unchecked") == 0 and st.get("strict") is False, f"admin: state off, no strict mode ({st})")
+check(st.get("off_why") == "low_memory", f"#6606: off because the installer found too little memory: the admin view gets the reason ({st})")
 r = up_task(A, T, "page.png", b"<!DOCTYPE html><html></html>", "image/png")
 check(task_files(A, T).get("page.png", {}).get("mime") == "application/octet-stream", "scanner off: the type from the content still applies")
 

@@ -56,18 +56,22 @@ next to PostgreSQL 17.
 | CPU | 1 core | 2 cores or more (backups, imports and full-text search are quicker) |
 | Disk | 1.5 GB for the images (kalmido about 420 MB, postgres:17.12 about 650 MB) plus the data | an SSD; room for the backups (below) |
 | System | 64-bit Linux, macOS or Windows with Docker and Compose v2 | Linux with Docker Engine |
-| Architecture | linux/amd64 or linux/arm64 (prebuilt images for both) | |
+| Architecture | linux/amd64 or linux/arm64 (prebuilt images for both; every image of `docker-compose.yml` is published for both, the nightly CI checks it) | |
 
 - **Virus scanner.** The installer and `.env.example` switch the virus scanner ClamAV on (`COMPOSE_PROFILES=localdb,clamav`).
-  It needs 1-1.5 GB of memory and up to five minutes on its first start (it downloads its signatures). On a small server
-  remove `clamav` from `COMPOSE_PROFILES` and set `KALMIDO_CLAMD=` empty in `.env`; see [Virus scan of uploads](#virus-scan-of-uploads).
+  It needs 1-1.5 GB of memory and up to five minutes on its first start (it downloads its signatures). 2.1284.0: on a server
+  with **less than about 3 GB** of memory (what Docker reports; Docker Desktop: its VM) a new installation leaves it out,
+  says so at the end and in *Settings > Server > Backup*. `KALMIDO_CLAMAV=1` in front of the install command (or of
+  `./update.sh` later) switches it on anyway, `KALMIDO_CLAMAV=0` off; an update without it keeps your choice. See
+  [Virus scan of uploads](#virus-scan-of-uploads).
 - **Backups take room.** Each automatic backup holds the database and the small files; files from 64 KiB on
   (`KALMIDO_BACKUP_SHARED_MIN`) are kept only once for all backups in the hidden folder `backups/.store` (2.432.0). Plan
   about the size of the attachments once plus 22 times the database (default retention 14 daily, 8 weekly). When you
   copy the backup folder somewhere else, copy it **with `.store`** (`rsync -a backups/ …`, not only `*.zip*`): a backup
   of 2.432 or later needs its shared files. The *Download* button always gives one complete file.
 - **Raspberry Pi.** A Pi 4 or 5 with 4 GB or more and a 64-bit OS (Raspberry Pi OS 64-bit, Debian or Ubuntu arm64)
-  runs Kalmido well for a household or a small team. Boot or at least keep `pgdata/` and `data/` on an **SSD** (USB 3
+  runs Kalmido well for a household or a small team; every image, the virus scanner included, exists for arm64 (2.1284.0).
+  A Pi with 2 GB runs it without the virus scanner (the installer leaves it out under about 3 GB, see above). Boot or at least keep `pgdata/` and `data/` on an **SSD** (USB 3
   or NVMe on the Pi 5): PostgreSQL writes constantly in small pieces, which is slow on an SD card and wears it out. A
   32-bit OS (armv7) is not supported. Use a good power supply: a power cut while writing is the usual way an SD card
   or a cheap USB adapter loses data.
@@ -140,6 +144,11 @@ listed with its default in [ENV.md](ENV.md).
 `kalmido-tmp`: text recognition, ZIP downloads, database dumps; on disk, not in memory). An own setup can do the same with
 `read_only: true` (`docker run --read-only`) plus a writable `/tmp`. An installation that ran the container as root
 before: give the folders to user 1000 once (`sudo chown -R 1000:1000 data secret`) or keep your own `user:` line.
+The installer run as root (usual on a rented server, 2.1284.0) keeps the app on user 1000: it gives `data/` and `secret/`
+to user 1000 (`chown -hR`, also files an older run left to root; links inside are changed, never what they point to) and
+writes no `user: "0:0"` any more; as any other user than 1000 on Linux it writes that user into `docker-compose.override.yml`.
+Is `data/` or `secret/` itself a link (to another disk), the installer gives the folder it points to to user 1000 (the
+container writes there) and says so; a link to `/` or to a missing folder stops it.
 
 ### Organisations and private spaces
 
@@ -1460,6 +1469,10 @@ mail and the share sheet) goes to [ClamAV](https://www.clamav.net/) before it is
 service `clamav` along; Kalmido talks to its daemon over the internal network (`KALMIDO_CLAMD=clamav:3310`, no port is
 published). ClamAV needs **about 1 to 1.5 GB of RAM**; `freshclam` inside the container keeps the signatures up to date
 (volume `clamav-db`). After a start it needs a few minutes to load them (`docker compose ps` shows *healthy* when it is ready).
+The image is `clamav/clamav-debian:1.4` (2.1284.0: linux/amd64 and linux/arm64; before, `clamav/clamav:1.4` was amd64 only and
+a Raspberry Pi or an ARM server stopped at "no matching manifest"). An update takes the volume `clamav-db` over as it is: same
+path, port and health check, and the container gives `/var/lib/clamav` to its own `clamav` user on every start. The old image
+stays on disk until you remove it: `docker image rm clamav/clamav:1.4`.
 
 - **A find**: the upload is refused with the name of the signature ("file.pdf: malware found (...), not uploaded").
 - **Scanner not reachable** (still loading, stopped, crashed) or a file larger than `KALMIDO_CLAMD_MAX_MB`: the upload is
@@ -1486,7 +1499,18 @@ published). ClamAV needs **about 1 to 1.5 GB of RAM**; `freshclam` inside the co
 | `KALMIDO_CLAMD_TIMEOUT` | `60` | seconds one scan may take |
 | `KALMIDO_CLAMD_STRICT` | on when `KALMIDO_CLAMD` is set | 2.79.0: `1` = unchecked files are held back until the later scan (not those too large for the scanner), `0` = they stay readable (as up to 2.78) |
 
-**Switch it off** on a small server (e.g. a Raspberry Pi with 1 GB): set `KALMIDO_CLAMD=` (empty) in `.env` and remove
+**Left out under about 3 GB (2.1284.0).** A new installation on a server with less than about 3 GB of memory (2,800 MB as
+Docker reports it; a 3 GB server stays above) runs without the scanner: ClamAV alone needs 1-1.5 GB and pushed small servers
+into the out-of-memory killer. The installer says so at the end, writes `KALMIDO_CLAMD=`, `clamav` stays out of
+`COMPOSE_PROFILES` and `KALMIDO_CLAMAV_OFF=low_memory` (with a comment line) records why; *Settings > Server > Backup*
+shows "off", the reason and the way to switch it on. When the memory cannot be read, the scanner stays on.
+
+**Switch it on or off with the installer:** `KALMIDO_CLAMAV=1 ./update.sh` in the installation folder (on, also under
+3 GB; the trace goes) or `KALMIDO_CLAMAV=0 ./update.sh` (off, the container is stopped). The same works in front of the
+install command for a new installation (install.sh, macOS and Linux; install.ps1 on Windows keeps the scanner on, switch it
+by hand as below). Without `KALMIDO_CLAMAV` an update never changes what `.env` says.
+
+**Switch it off by hand** on a small server (e.g. a Raspberry Pi with 1 GB): set `KALMIDO_CLAMD=` (empty) in `.env` and remove
 `clamav` from `COMPOSE_PROFILES` there (2.149, e.g. `COMPOSE_PROFILES=localdb`), then `docker compose up -d --remove-orphans`.
 Updates keep it off (before 2.149 the `clamav:` block had to be deleted from `docker-compose.yml`, and every update
 brought it back). The installer adds the `COMPOSE_PROFILES` line to an older `.env` once: `clamav` only when

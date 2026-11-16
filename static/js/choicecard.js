@@ -100,6 +100,8 @@ function ccApvStep(ap, src = '') {
     + (fs.length > 3 ? ' ' + trn('and {0} more', 'and {0} more', fs.length - 3) : ''))}</div>` : '';
   return files + fold
     + (ap.one_way ? `<div class="apvw" data-apv-oneway><b>${esc(tr('One-way step – cannot be undone'))}</b></div>` : '')
+    // 2.1284.0 (#6453): the step writes into a place more people (or the public) read than the agent's other places -- set by the server
+    + (ap.circle ? `<div class="apvw" data-apv-circle="${ap.circle === 'public' ? 'public' : 'wider'}"><b>${esc(ap.circle === 'public' ? tr('Publicly visible – people without an account read what is written here') : tr('Visible to more people – people read here who do not see the agent’s other places'))}</b></div>` : '')
     + (ap.recommend ? `<div class="apvw" data-apv-rec>${esc(tr('The agent recommends: {0}', ap.recommend === 'yes' ? tr('Yes') : tr('No')))}</div>` : '');
 }
 const ccApvLbl = (ch, id) => { const ap = ch.approval, c = (ch.choices || []).find(x => x.id === id); return ap?.std || !c ? (id === 'yes' ? tr('Yes, go ahead') : tr('No')) : c.label; };

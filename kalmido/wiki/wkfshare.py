@@ -127,7 +127,7 @@ def wkfs_page_new():
     if wiki_clean_path(path) != path:
         raise BadInput(tr("Invalid value: {0}", "name"))
     ts = iso_ms(now_utc())
-    pid = wiki_insert(c, oid, owner or uid, path, wiki_body(b), ts)  # the space's page: a private one is its owner's
+    pid = wiki_insert(c, oid, owner or uid, path, wiki_body(b), ts, by=uid)  # 2.1284.0 (#6321): the guest embedded, not the owner; the space's page: a private one is its owner's
     if pid is None:
         return wiki_taken()
     if owner and owner != uid:

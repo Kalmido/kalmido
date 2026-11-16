@@ -196,6 +196,11 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 .ofdgrid .row input.numin{flex:0 0 6rem}
 .ofdgrid .row .ofchint{flex-basis:100%;font-size:var(--fs-s);margin-left:9.5rem}
 .ofdgrid .row>.shint.keep{margin-left:9.5rem}  /* 2.298.0 A1 (#3186) */
+/* 2.1284.0 (#6597): a multi-line field (subject, address lines, note) stands under its label in the column's full width, the label
+   on top - beside a 9rem label it was only about 150 px wide and the label sat in the middle of a tall field */
+.ofdsecb .row.ofdml{align-items:flex-start}
+.ofdsecb .row.ofdml>textarea{flex:1 1 100%;min-width:0}
+.ofdsecb .row.ofdml .ofchint,.ofdsecb .row.ofdml>.shint.keep{margin-left:0}
 .ofdits{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.375rem}
 .ofdhd input{flex:1;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .ofdtx textarea{flex:1;resize:vertical}
