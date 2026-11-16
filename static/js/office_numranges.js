@@ -20,7 +20,12 @@ function onumFmt(scheme, seq) {
 async function onumLoad() {
   if (ONUM.loading) return;
   ONUM.loading = true;
-  try { const j = await api('GET', '/api/office/number-ranges'); ONUM.ranges = j.ranges || []; ONUM.err = ''; }
+  try {
+    const j = await api('GET', '/api/office/number-ranges'); ONUM.ranges = j.ranges || []; ONUM.err = '';
+    // 2.1302.0 (#6532): an empty invoice / credit note series while no real invoice is finalised: the reason of a jump (GoBD)
+    // is prefilled - the usual case is continuing the previous program; it can be changed before "Apply"
+    if (j.first_invoice) for (const r of ONUM.ranges) if (r.reason_needed && !r.shared && !+r.last) ONUM['w' + r.kind] ??= tr('Taken over from the previous program');
+  }
   catch (x) { ONUM.ranges = []; ONUM.err = ofcErrHere(x); }
   ONUM.loading = false;
   onumRedraw();

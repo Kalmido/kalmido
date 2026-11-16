@@ -239,6 +239,8 @@ ws = dbx("SELECT ws FROM hub_mailboxes WHERE owner_id=?", (FID,))[0][0]
 check(until(lambda: news(Fi, "mailbox"), 30), "#2971: a mailbox at 5 failures in a row: its person is told")
 it = news(Fi, "mailbox")
 check(it and "frida@example.test" in it[0]["data"]["text"] and "2026-10-01" in it[0]["data"]["text"] and it[0]["data"]["ws"] == ws, f"#2971: since when it fails {it}")
+# 2.1302.0 (#6545): a mailbox that keeps failing waits longer each time: the clock set back so the next failure is due now
+dbx("UPDATE hub_mailboxes SET polled_at=? WHERE ws=?", (now, ws))
 check(until(lambda: list(dbx("SELECT fails FROM hub_mailboxes WHERE ws=?", (ws,))[0])[0] >= 6, 30) and len(news(Fi, "mailbox")) == 1, "#2971: the next failure tells nobody again")
 
 dbx("INSERT INTO git_conns(list_id,provider,base_url,owner,repo,fails,polled_at,next_at,created_by,created_at) VALUES(?,'gitea','http://127.0.0.1:9/','acme','tool',4,?,0,?,?)",
