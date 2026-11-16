@@ -262,7 +262,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_HOOK_IN_PER_MIN` | `60` | Incoming webhook calls per hook and minute. |
 | `KALMIDO_IMPORT_MAX_MB` | `20` | Size in MB of an import file (other task apps). |
 | `KALMIDO_IMPORT_MAX_TASKS` | `20000` | Tasks per import at most. |
-| `KALMIDO_IMPORT_RATE` | `30` | Imports and previews per person in 10 minutes. |
+| `KALMIDO_IMPORT_RATE` | `30` | Imports and previews per person in 10 minutes; new import uploads (account, knowledge, Paperless) have a counter of their own with the same value. |
 | `KALMIDO_PAYONLINE_GO_RATE` | `10` | Checkouts one address may start per minute on the public pay page (2.469.0). |
 | `KALMIDO_PEPPOL_ALLOW_HOSTS` | `(empty)` | Internal hosts the own Peppol endpoint of any office area may reach (the calendar allow list counts only when an instance admin sets the endpoint, 2.306.0). |
 | `KALMIDO_PUBLIC_LINKS` | `1` | Switch: public read-only links of lists. |

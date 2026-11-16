@@ -2178,6 +2178,8 @@ fresh; run p2233_a_chatsugg "$PY" p2233_a_chatsugg_test.py "$KALMIDO_TEST_DATA"
 fresh; run p2233_a_chatsugg_ui node p2233_a_chatsugg_ui.js "$KALMIDO_TEST_DATA"
 # 2.238.0 C (#2873): importer task limit while parsing, one ZIP budget, zipread discard budget
 fresh; run p2238_c_import_limits "$PY" p2238_c_import_limits_test.py "$KALMIDO_TEST_DATA"
+# 2.1282.0 (#6426): the entry limit before zipfile (zip_guard, zip64), JSON nodes before json.loads, rate limit of new import uploads; freelancer-matrix: import
+fresh; run p21282_6426_zip_guard "$PY" p21282_6426_zip_guard_test.py "$KALMIDO_TEST_DATA"
 # 2.238.0 A (#2863): the folder way keeps the area's locks (content gate, role cap, passing on, expiry, restore); freelancer-matrix: office
 fresh; run p2238_a_fsref_gate "$PY" p2238_a_fsref_gate_test.py "$KALMIDO_TEST_DATA"
 # 2.238.0 B (#2872): the sign-in mark me.sgen (session, password, organisations); freelancer-matrix: wiki
