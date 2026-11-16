@@ -6,12 +6,20 @@ freelancer-matrix: office
    income statement shows 100.00 / 18.99 (was 99.99 / 19.00, recomputed from the gross), field 81 of the VAT return on
    the cash basis 100 (was 99), the key figures 100.00 net -- the same figure as the income statement; on the accrual
    basis ("soll") field 81 = 100 too (the frozen bases of the documents)
+ - #6301: two rates (10.00 at 19 % + 10.00 at 7 %, EUR) paid in three parts: exactly 10.00 / 1.90 and 10.00 / 0.70; an old
+   invoice without frozen tax lines keeps the old way (books: its gross as tax-free revenue, key figures: net / gross)
+ - #6456: a foreign currency (USD, rate 1.09) follows one rule (books.bk_fx_lines): gross = money(gross / rate), tax per
+   rate converted, the rest cent on the base of the largest rate: 10.00 + 1.90 USD paid in three parts = 9.18 + 1.74 =
+   10.92 EUR (was 9.17 + 1.74 = 10.91, the money received is 10.92); two rates 22.60 USD = 9.18 / 1.74 + 9.17 / 0.64 =
+   20.73; a credit note refunded in full takes exactly the same back; a cash discount on the accrual basis: 1003.24 USD
+   net, 2 % = field 81 901 (base 920.40 less its share of the discount; was 902)
  - #6302: a finalised reminder with fee 5.00, default interest and the flat fee (40 - 5 credited = 35.00) marked "fee paid":
    the income statement (reminder fees), the key figures, the cash flow and the ledger count fee + interest + flat fee
    (was 5.00 alone), the VAT return not; a reminder without a fee (only interest and 40.00 flat fee) shows them open and
    can be marked paid (was 409), it counts the same way
  - the same for a person without an organisation (own office)
 usage: p21259_a_books_test.py <datadir>"""
+import json
 import os
 import subprocess
 from datetime import date, timedelta
@@ -107,6 +115,91 @@ def frozen_lines(s, who):
     s.put(B + O + "/settings", json={"vat_basis": "ist"})
 
 
+# ---------------------------------------------------------------- #6301 (several rates, old documents), #6456 (foreign currency)
+def euer_rows(s):
+    eu = s.get(B + BK + f"/euer?year={Y}").json()
+    return {x["key"]: (Decimal(x["net"]), Decimal(x["vat"]), Decimal(x["gross"])) for x in eu["income"]}
+
+
+def delta(before, after, key):
+    z = (Decimal(0),) * 3
+    return tuple(a - b for a, b in zip(after.get(key, z), before.get(key, z)))
+
+
+def doc(s, cl, items, cur=None, fx=None, extra=None):
+    b = {"kind": "invoice", "client_id": cl, "project_title": "Fremd", "service_from": TODAY, "items": items, **(extra or {})}
+    if cur:
+        b.update(currency=cur, fx_rate=fx)
+    r = s.post(B + D, json=b)
+    assert r.status_code == 201, r.text
+    did = r.json()["id"]
+    check(s.post(B + f"{D}/{did}/finalize").ok, f"document {did} finalised")
+    return did
+
+
+def pay(s, did, *amounts):
+    for a in amounts:
+        r = s.post(B + f"{D}/{did}/payments", json={"date": TODAY, "amount": a, "method": "transfer"})
+        check(r.status_code == 201, f"payment {a} on {did} " + r.text[:200])
+
+
+def rates_and_currency(s, who):
+    cl = client(s, f"{who} Studio Übersee")
+    two = [{"title": "Schnitt", "qty": 1, "rate": "10.00"}, {"title": "Buch", "qty": 1, "rate": "10.00", "tax": "reduced"}]
+    # #6301: two rates in EUR, paid in three parts
+    e0 = euer_rows(s)
+    pay(s, doc(s, cl, two), "7.53", "7.53", "7.54")
+    e1 = euer_rows(s)
+    check(delta(e0, e1, "vat19") == (Decimal("10.00"), Decimal("1.90"), Decimal("11.90")) and delta(e0, e1, "vat7") == (Decimal("10.00"), Decimal("0.70"), Decimal("10.70")),
+          f"{who}: two rates in three parts: exactly 10.00 / 1.90 and 10.00 / 0.70 {delta(e0, e1, 'vat19')} {delta(e0, e1, 'vat7')}")
+    # #6301: an old invoice without frozen tax lines keeps the old way
+    old = doc(s, cl, [{"title": "Alt", "qty": 1, "rate": 100}])
+    t = json.loads(dbxm.q(DATA, "SELECT totals FROM office_docs WHERE id=?", (old,))[0][0])
+    check(t.pop("tax_lines", None), f"{who}: the old invoice had tax lines before")
+    dbxm.q(DATA, "UPDATE office_docs SET totals=? WHERE id=?", (json.dumps(t), old))
+    k0 = Decimal(kpi_month(s))
+    pay(s, old, "119.00")
+    e2 = euer_rows(s)
+    check(delta(e1, e2, "exempt") == (Decimal("119.00"), Decimal("0.00"), Decimal("119.00")) and delta(e1, e2, "vat19") == (Decimal(0),) * 3,
+          f"{who}: an old invoice without tax lines: as before (gross as tax-free revenue) {delta(e1, e2, 'exempt')}")
+    check(Decimal(kpi_month(s)) - k0 == Decimal("100.00"), f"{who}: key figures of the old invoice: net / gross as before {Decimal(kpi_month(s)) - k0}")
+    # #6456: USD at 1.09, one rate, three parts
+    usd = doc(s, cl, [{"title": "Edit", "qty": 1, "rate": "10.00"}], "USD", "1.09")
+    pay(s, usd, "3.97", "3.97", "3.96")
+    e3 = euer_rows(s)
+    check(delta(e2, e3, "vat19") == (Decimal("9.18"), Decimal("1.74"), Decimal("10.92")),
+          f"{who}: USD 11.90 / 1.09: 9.18 + 1.74 = 10.92 = the money received (was 9.17 + 1.74 = 10.91) {delta(e2, e3, 'vat19')}")
+    # #6456: two rates in USD
+    pay(s, doc(s, cl, two, "USD", "1.09"), "22.60")
+    e4 = euer_rows(s)
+    check(delta(e3, e4, "vat19") == (Decimal("9.18"), Decimal("1.74"), Decimal("10.92")) and delta(e3, e4, "vat7") == (Decimal("9.17"), Decimal("0.64"), Decimal("9.81")),
+          f"{who}: USD two rates 22.60 / 1.09 = 20.73: the rest cent on the base at 19 % {delta(e3, e4, 'vat19')} {delta(e3, e4, 'vat7')}")
+    # #6456: a credit note on the USD invoice, refunded in full: exactly the same back
+    r = s.post(B + f"{D}/{usd}/credit")
+    check(r.status_code == 201, f"{who}: credit note draft " + r.text[:200])
+    cr = r.json()["id"]
+    check(s.post(B + f"{D}/{cr}/finalize").ok, f"{who}: credit note finalised")
+    pay(s, cr, "11.90")
+    e5 = euer_rows(s)
+    check(delta(e4, e5, "vat19") == (Decimal("-9.18"), Decimal("-1.74"), Decimal("-10.92")),
+          f"{who}: the refund takes back exactly 9.18 + 1.74 {delta(e4, e5, 'vat19')}")
+
+
+def skonto_fx():
+    """#6456 / #6301: a cash discount on the accrual basis in USD (an office of its own: field 81 in whole euros)."""
+    _, G = freelancer(B, A, "gina")
+    office(G)
+    check(G.put(B + O + "/settings", json={"vat_basis": "soll"}).ok, "Gina: accrual basis")
+    cl = client(G, "Gina Kunde USA")
+    did = doc(G, cl, [{"title": "Film", "qty": 1, "rate": "1003.24"}], "USD", "1.09", {"skonto_pct": 2, "skonto_days": 10, "payment_days": 14})
+    t = G.get(B + f"{D}/{did}").json()["totals"]
+    check(t["gross"] == "1193.86", f"Gina: gross 1193.86 USD {t.get('gross')}")
+    pay(G, did, "1169.98")
+    check(G.get(B + f"{D}/{did}").json()["status"] == "paid", "Gina: paid in time less 2 % = paid")
+    kz = ustva(G, "y").get("kz", {})
+    check(kz.get("81") == "901", f"Gina: field 81 = 920.40 less 18.41 of the discount = 901 (was 902) {kz.get('81')}")
+
+
 # ---------------------------------------------------------------- #6302: fee + interest + flat fee of a reminder
 def fee_income(s):
     eu = s.get(B + BK + f"/euer?year={Y}").json()
@@ -160,6 +253,9 @@ def reminder_claims(s, who):
 
 frozen_lines(A, "Alpha")
 frozen_lines(Fr, "Frida")
+rates_and_currency(A, "Alpha")
+rates_and_currency(Fr, "Frida")
+skonto_fx()
 reminder_claims(A, "Alpha")
 reminder_claims(Fr, "Frida")
 
