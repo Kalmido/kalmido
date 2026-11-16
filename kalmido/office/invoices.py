@@ -1865,7 +1865,7 @@ def fd_reminder_extra(c, oid, rows):
     if rems:
         ids = [d["id"] for d in rems]
         meta = {x["id"]: x for x in c.execute(
-            f"SELECT id, ref_doc_ids, reminder_fee, reminder_fee_state, reminder_fee_paid_at, locked_at, currency, lang, totals FROM office_docs WHERE org_id=? AND {live_sql()} AND id IN ("
+            f"SELECT id, ref_doc_ids, reminder_fee, reminder_fee_state, reminder_fee_paid_at, reminder_fee_paid_amount, locked_at, currency, lang, totals FROM office_docs WHERE org_id=? AND {live_sql()} AND id IN ("
             + ",".join("?" * len(ids)) + ")", [oid] + ids)}
         refs = sorted({int(i) for x in meta.values() for i in _j(x["ref_doc_ids"] or "[]", []) if str(i).isdigit()})
         pm = inv_paid_map(c, oid, refs) if refs else {}
@@ -1883,6 +1883,8 @@ def fd_reminder_extra(c, oid, rows):
             d["fee_paid_at"] = (x["reminder_fee_paid_at"] or "") if d["fee_state"] == "paid" else ""  # 2.912.0 (#5419): the day it counts on
             d["fee"] = dstr(fee)
             claim = inv_reminder_claim(x) if x["locked_at"] else fee  # 2.1259.0 (#6302): fee + interest + flat fee
+            if d["fee_state"] == "paid":  # 2.1259.0 (#6459): paid = what the books count (stored; a mark of before 2.1259: the fee)
+                claim = money(dec(x["reminder_fee_paid_amount"])) if x["reminder_fee_paid_amount"] is not None else fee
             d["claim"] = dstr(claim)
             d["fee_open"] = dstr(claim) if x["locked_at"] and claim > 0 and not d["fee_state"] else "0.00"
             d["fee_open_text"] = fmt_money(d["fee_open"], x["lang"], x["currency"])

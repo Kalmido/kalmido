@@ -252,6 +252,7 @@ def reminder_claims(s, who):
     check(st_amt is not None and Decimal(str(st_amt)) == claim, f"{who}: the paid amount is stored on the reminder {st_amt} {claim}")
     dbxm.q(DATA, "UPDATE office_docs SET reminder_fee_paid_amount=NULL WHERE id=?", (rm,))
     check(fee_income(s) - fee0 == Decimal("5.00"), f"{who}: a reminder marked paid before 2.1259: its fee alone, the old year stays {fee_income(s) - fee0}")
+    check(s.get(B + f"{D}/{rm}").json().get("claim") == "5.00", f"{who}: the view of such a reminder shows the 5.00 the books count {s.get(B + f'{D}/{rm}').json().get('claim')}")
     dbxm.q(DATA, "UPDATE office_docs SET reminder_fee_paid_amount=? WHERE id=?", (str(claim), rm))
     kz1 = ustva(s, "y").get("kz", {})
     check(kz1.get("81") == kz0.get("81") and kz1.get("83") == kz0.get("83"), f"{who}: not in the VAT return {kz0.get('81')} {kz1.get('81')}")
@@ -279,6 +280,7 @@ def reminder_claims(s, who):
     check(s.post(B + f"{D}/{lv[0][0]}/fee", json={"state": "paid"}).ok and fee_income(s) - f0 == lv[0][1], f"{who}: level 2 paid: + {lv[0][1]} {fee_income(s) - f0}")
     f1 = fee_income(s)
     check(s.post(B + f"{D}/{lv[1][0]}/fee", json={"state": "paid"}).ok, f"{who}: level 3 paid")
+    check(s.get(B + f"{D}/{lv[1][0]}").json().get("claim") == "10.00", f"{who}: the paid level 3 shows the 10.00 the books count {s.get(B + f'{D}/{lv[1][0]}').json().get('claim')}")
     check(fee_income(s) - f1 == Decimal("10.00"), f"{who}: level 3 adds its fee 10.00 only, interest and flat fee were counted with level 2 (claim {lv[1][1]}) {fee_income(s) - f1}")
 
 
