@@ -362,13 +362,21 @@ def _public(c, ws, org, r=None, check=None):
 def _mbx_state(c, r, lg):
     """2.1302.0 (#6545): what the settings show about the fetching: the last success (ok_at), failing since (error_at, in
     the row), stopped after refused logins (halted + its text), the mails left as too large (skipped, skipped_at), and
-    whether another workspace fetches the same mailbox (twice: its e-mails would go to either one)."""
+    whether another workspace fetches the same mailbox (twice: its e-mails would go to either one).
+    review F2: "another workspace" = one the viewing person manages (their private space, the organisations they are admin
+    of: whose mailbox settings they see anyway) -- was over every customer of the instance (system_ctx), which let anyone
+    ask with any password which mailboxes other customers have connected."""
     out = {"ok_at": r["ok_at"], "halted": mbx_halted(r), "halted_text": tr(MBX_HALTED, lg=lg) if mbx_halted(r) else "",
            "skipped": int(r["skipped"] or 0), "skipped_at": r["skipped_at"], "twice": ""}
     if r["imap_host"] and r["active"]:
-        with system_ctx(c):  # only whether one exists: never which workspace
-            other = c.execute("SELECT 1 FROM hub_mailboxes WHERE ws<>? AND active AND imap_host=? AND lower(imap_user)=lower(?) "
-                              "AND lower(imap_folder)=lower(?) LIMIT 1", (r["ws"], r["imap_host"], r["imap_user"], r["imap_folder"] or "INBOX")).fetchone()
+        uid = me()
+        mine = [H._ws(None, uid)] + [H._ws(oid, uid) for oid in sorted(acx_of(c, uid).org_ids) if is_org_admin(c, uid, oid)]
+        mine = [w for w in mine if w != r["ws"]]
+        # review F2: no system_ctx -- only the workspaces listed above, in the person's own context
+        q = ",".join("?" * len(mine))
+        other = mine and c.execute(f"SELECT 1 FROM hub_mailboxes WHERE ws IN ({q}) AND active AND imap_host=? "
+                                   "AND lower(imap_user)=lower(?) AND lower(imap_folder)=lower(?) LIMIT 1",
+                                   (*mine, r["imap_host"], r["imap_user"], r["imap_folder"] or "INBOX")).fetchone()
         out["twice"] = tr(MBX_TWICE, lg=lg) if other else ""
     return out
 
@@ -519,6 +527,10 @@ def mbx_put():
                   (*[v[k] for k in cols], sealed, ts, r["id"]))
         if fresh:
             c.execute("UPDATE hub_mailboxes SET error='', error_at=NULL, fails=0, told_at=NULL WHERE id=?", (r["id"],))
+        # review F2 / N1: "last successful fetch" belongs to the mailbox it was fetched from: another server, port, user or
+        # folder is another mailbox (a new password or switching it on again is not). mailed_at stays (review F1).
+        if any(v[k] != (int(r[k] or 0) if k in ("imap_port", "imap_ssl") else r[k]) for k in ("imap_host", "imap_port", "imap_ssl", "imap_user", "imap_folder")):
+            c.execute("UPDATE hub_mailboxes SET ok_at=NULL WHERE id=?", (r["id"],))
     else:
         c.execute(f"INSERT INTO hub_mailboxes(org_id, owner_id, ws, {', '.join(cols)}, secret, created_by, created_at, updated_at) "
                   f"VALUES(?,?,?,{','.join('?' * len(cols))},?,?,?,?)", (org, None if org else me(), ws, *[v[k] for k in cols], sealed, me(), ts, ts))

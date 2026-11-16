@@ -13,6 +13,8 @@ mailbox was fetched twice more.
    does not end the stop, the access data saved again does
  - review F1: the mail only to a proved address (an admin with an unproved one gets the News only); saving again + 5 failures
    within 3 days: News again, no second mail (mailed_at); "Fetch now" is limited (429)
+ - review F2: the warning "fetched twice" only among the workspaces the person manages (their private one + the
+   organisations they are admin of), never about another customer's mailbox; ok_at goes with a changed server
  - an organisation mailbox nobody can receive for (no admin) is not fetched: error norecipient, its mail stays unseen
 usage: p6545_mailbox_test.py <datadir>      (P6545_NOSTART=1: the container runs already, only the stub is started)"""
 import email
@@ -166,14 +168,22 @@ sp = {x["ws"]: x for x in Bo.get(B + "/api/hubmail/mailboxes").json()["spaces"]}
 check(sp[f"org:{ORG}"].get("skipped") == 1 and sp[f"org:{ORG}"].get("ok_at"), f"#6545: the list of workspaces too ({sp})")
 check(not [x for x in Ca.get(B + "/api/hubmail/mailboxes").json()["spaces"] if "skipped" in x], "a member who does not manage it sees no details")
 
-# ---- the same mailbox in a second workspace: both are warned, without saying which
-r = Er.put(B + "/api/hubmail/mailbox", json={**BOX, "ws": "private"})
-check(r.ok and "another workspace" in (r.json()["box"].get("twice") or ""), f"#6545: saving the same mailbox elsewhere warns ({r.text[:300]})")
+# ---- the same mailbox in a second workspace of the same person: both are warned
+# 2.1302.0 (#6545 review F2): was erin's private space (another customer) -- the warning must not tell about other customers
+r = Bo.put(B + "/api/hubmail/mailbox", json={**BOX, "ws": "private"})
+check(r.ok and "another workspace" in (r.json()["box"].get("twice") or ""), f"#6545: saving the same mailbox in bob's private space warns ({r.text[:300]})")
 tw = Bo.get(B + f"/api/hubmail/mailbox?ws=org:{ORG}").json()["box"]["twice"]
-check("another workspace" in tw and "Erin" not in tw and "erin" not in tw, f"#6545: the first one is warned too, no name ({tw})")
-r = Er.put(B + "/api/hubmail/mailbox", json={"ws": "private", "imap_folder": "Archive"})
+check("another workspace" in tw, f"#6545: the organisation's mailbox is warned too ({tw})")
+r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": "private", "imap_folder": "Archive"})
 check(r.ok and not r.json()["box"]["twice"], f"#6545: another folder is another mailbox ({r.text[:300]})")
 check(not Bo.get(B + f"/api/hubmail/mailbox?ws=org:{ORG}").json()["box"]["twice"], "#6545: and the warning is gone for Alpha")
+check(Bo.delete(B + "/api/hubmail/mailbox?ws=private").ok, "setup: bob's private mailbox goes again")
+# review F2: another customer (erin, not in Alpha) saves the same mailbox: neither side learns of the other
+r = Er.put(B + "/api/hubmail/mailbox", json={**BOX, "ws": "private"})
+check(r.ok and not r.json()["box"]["twice"], f"#6545 F2: the same mailbox of another organisation is not told ({r.text[:300]})")
+check(not Bo.get(B + f"/api/hubmail/mailbox?ws=org:{ORG}").json()["box"]["twice"], "#6545 F2: nor to Alpha about erin's")
+r = Er.put(B + "/api/hubmail/mailbox", json={"ws": "private", "imap_folder": "Archive"})
+check(r.ok, f"setup: erin's mailbox on another folder ({r.text[:300]})")
 check(until(lambda: box(EWS).get("ok_at"), 40), "setup: erin's mailbox (the round marker) works")
 
 # ---- failures: a longer wait each time
@@ -251,6 +261,11 @@ dbx("UPDATE org_members SET role='admin' WHERE org_id=? AND user_id=?", (ORG, U[
 # ---- review F1: "Fetch now" is limited per person
 codes = [Er.post(B + "/api/hubmail/mailbox/poll", json={"ws": "private"}).status_code for _ in range(11)]
 check(codes[:10] == [200] * 10 and codes[10] == 429, f"#6545 F1: 'Fetch now' after the limit: 429 ({codes})")
+
+# ---- review F2 / N1: the last success belongs to the mailbox it came from: another server clears it
+check(box(WS)["ok_at"], "setup: Alpha's mailbox had a successful fetch")
+r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "imap_host": "localhost", "imap_password": "secret"})
+check(r.ok and not r.json()["box"]["ok_at"] and not box(WS)["ok_at"], f"#6545 F2: ok_at is empty after a change of the server ({r.text[:300]})")
 
 print(f"\n{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
