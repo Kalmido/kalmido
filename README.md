@@ -19,10 +19,10 @@
 
 ## What's new
 
-**2.1307.0** (2026-11-16):
-- **Office**: invoices and corrections take a number of your own in the finalise dialog; a small business cannot finalise an invoice that shows VAT.
-- **Imports**: imported invoice series and office reminders arrive paused, so nothing reaches clients twice.
-- **Office series**: a paused invoice series tells the admin once there is one again and keeps its pause reason.
+**2.1309.0** (2026-11-17):
+- **Agents**: a team agent answers and acts only with the rights of the person who asked.
+- **Office**: invoices from quotations with parts always match the quotation; cent rests become a "Rounding adjustment" line.
+- **Mail**: incoming mail is limited (2,000 MIME parts, 256 KB head, 100 documents / 100 MB per mail) so crafted mails cannot stall the server.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
