@@ -382,9 +382,19 @@ def _fence_task(api, task):
             for f in ("text", "excerpt", "body"):
                 if isinstance(q.get(f), str):
                     q[f] = _data_fence(q[f], "a quoted comment")
-        if k.get("author_id") in ids and k.get("author_id") is not None:
+        # the shape of GET /tasks/{id}/comments (api/v1.py v1_comment): author {id, name, agent, customer, source}; review
+        # (job/4905, Fable F1): it was read as a top-level author_id, which fenced the owner's comments, too
+        au = k.get("author") if isinstance(k.get("author"), dict) else {}
+        aid = au.get("id")
+        outside = bool(au.get("customer") or au.get("source"))  # a customer through the public link, a text synced from git / mail
+        if aid is not None and aid in ids and not outside:
             continue
-        who = f"account {k['author_id']}" if k.get("author_id") is not None else (f"{k.get('ext_name')} (outside Kalmido)" if k.get("ext_name") else "an unknown author")
+        if outside or aid is None:  # N1: the typed name on one line, no fence characters, short
+            nm = " ".join(str(au.get("name") or "").split()).replace("<<<", "< < <").replace(">>>", "> > >")[:80]
+            src = au.get("source") or ("the public link" if au.get("customer") else "")
+            who = (nm or "an unknown author") + (f" (outside Kalmido: {src})" if src else "")
+        else:
+            who = f"account {aid}"
         for f in ("text", "body"):
             if isinstance(k.get(f), str):
                 k[f] = _data_fence(k[f], who)
