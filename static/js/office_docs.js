@@ -806,7 +806,7 @@ function ofdPdfOpen(d, dl) {
 async function ofdPdfAsk(pv) {
   let pick = '';
   const txt = tr('Finalise it now: number, positions, sums, sender and tax rates are frozen. Or look at it as a draft: every page is marked DRAFT.');
-  const r = await askDialog({title: tr('This document is not finalised yet'), ...(pv?.first ? {html: `<p>${esc(txt)}</p>${ofd_firstHtml()}`} : {body: txt}),
+  const r = await askDialog({title: tr('This document is not finalised yet'), ...(pv?.first ? {html: `<p>${esc(txt)}</p>${/*html-ok*/ ofd_firstHtml()}`} : {body: txt}),
     ok: tr('Show as draft'), after: md => {
       md.classList.add('ofdpa');
       const yes = md.querySelector('[data-cd="yes"]');
