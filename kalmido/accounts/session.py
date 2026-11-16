@@ -56,7 +56,7 @@ PT_PREFIXES = ("/p/", "/portal/", "/mail/off/")  # 2.63.0 B (#1513): a customer 
 
 OPERATOR_PATHS = frozenset(("/api/operator/status", "/api/operator/setup-code", "/api/operator/notice",  # 2.144.0 D2 (#797)
                             "/api/operator/accounts/find", "/api/operator/quota-default"))  # #3939
-OPERATOR_ACCOUNT_RE = re.compile(r"/api/operator/accounts/[1-9][0-9]{0,17}")  # #3939: one account by number (fullmatch)
+OPERATOR_ACCOUNT_RE = re.compile(r"/api/operator/accounts/[1-9][0-9]{0,17}(?:/deletion)?")  # #3939: one account by number (fullmatch); 2.1298.0 (#6395): + its held deletion
 
 
 def _token_hash(t):
