@@ -18768,5 +18768,14 @@
   "Effort very high": "Effort très élevé",
   "Effort max": "Effort maximal",
   "Effort {0}": "Effort {0}",
-  "briefly sorted": "tri rapide"
+  "briefly sorted": "tri rapide",
+  "Deleted items stay here until you delete them permanently.": "Les éléments supprimés restent ici jusqu'à ce que tu les supprimes définitivement.",
+  "Deleted items stay here for {0} day, then they are deleted permanently.": ["Les éléments supprimés restent ici {0} jour, puis disparaissent définitivement.", "Les éléments supprimés restent ici {0} jours, puis disparaissent définitivement."],
+  "In the trash": "Dans la corbeille",
+  "Deleted on {0}": "Supprimé le {0}",
+  "Contacts could not be loaded": "Les contacts n’ont pas pu être chargés",
+  "No contacts yet": "Pas encore de contacts",
+  "Add one, import a vCard or CSV file, or connect the phone.": "Ajoute-en un, importe un fichier vCard ou CSV, ou connecte le téléphone.",
+  "The groups could not be loaded": "Les groupes n’ont pas pu être chargés",
+  "The contact could not be saved": "Le contact n’a pas pu être enregistré"
 }

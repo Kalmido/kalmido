@@ -22,7 +22,18 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
-## [2.1249.0] - 2026-11-16
+## [2.1252.0] - 2026-11-16
+
+Package 2.1233 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Polish Kalender 2: Serien-Datum bearbeiten ändert , Handy: Felder-Fenster der Projekt).
+
+### Changed
+- Calendar: a date opened from a repeating event presets "Only this date" (its own times shown, repeat / people / reminders hidden); "All dates" is chosen on purpose. Saving a changed event shows "Event saved" with Undo (the server's step, Ctrl+Z / Recent steps) (#6153)
+- Project settings, Fields window on a phone: one "..." per row instead of three symbols; the computer keeps the symbols (#6083)
+- Files trash: Delete in the file view keeps its "moved to the trash" message with Undo; a deleted file's address and a tap on a trash row open read-only details ("In the trash", Restore for who may write, picture shown, PDF / text through Preview; no new version, no sharing); "Files" opens the workspace again after the trash; "Empty trash" only with something you may delete; the note in plain words (#6115)
+- Contacts: list, card, trash, groups dialog and the link window in the task panel use the shared loading / error / empty blocks - a failed load says so with Try again instead of "No contact matches", an empty address book offers New contact and Import, one hint only on wide screens; server texts in plain words (#6121)
+
+### Security
+- Files: GET /api/files/nodes/<id>/content?trash=1 serves a plain file in the trash read-only to a signed-in person in the web app (no token, no agent) who may restore it - the owner, or an editor who deleted every trashed node above it; everybody else 404, without trash=1 unchanged (#6115)
 
 Package 2.1225 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Added
@@ -64,6 +75,10 @@ Package 2.1224 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 - Time tracking shows the organisation of each entry and report line (dot + name; other organisations also inside one workspace), the timesheet card wears its colour (#6187).
 - Command palette and search hits, the trash, news and the bell (now also under "All workspaces"), project group heads and favourite agents show their organisation's colour (#6188). The core block `wso_origin` has a mixed mode for pages that are mixed in every workspace.
 - Files: one "Move to" picker with tree and search for a row, the selection and the file view (no cut after 60 folders, title once, current folder ticked); Share adds a person at once with "Can view", role and end date beside each person, one sentence of explanation, people shared already are not offered again; the file view's Shares tab manages public links (copy, new address, switch off, create); the lock dialog explains in three short sentences (#6113).
+
+## [2.1249.0] - 2026-11-16
+
+Not released (the CI of this version was red); its changes are listed under 2.1252.0.
 
 ## [2.1245.0] - 2026-11-16
 
@@ -222,7 +237,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1249.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1252.0...HEAD
+[2.1252.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1252.0
 [2.1249.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1249.0
 [2.1245.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1245.0
 [2.1240.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1240.0
