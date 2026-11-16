@@ -670,7 +670,7 @@ def _rin_as(c, oid, sid, today, actor, people):
     """One due series as its admin actor (inside _rin_ctx: the log, the mail's sender name). False = actor may not act for it."""
     if g.user is None or office_role(c, actor, oid) != "admin" or not office_on(c, actor):
         return False
-    if c.execute("SELECT mail_doc FROM office_inv_series WHERE id=? AND org_id=?", (sid, oid)).fetchone()[0]:
+    if (c.execute("SELECT mail_doc FROM office_inv_series WHERE id=? AND org_id=?", (sid, oid)).fetchone() or [None])[0]:
         rin_catchup(c, oid, actor, sid, people)  # 2.1265.0 (#6387): first the mail the last run left, then the due period
     write_lock(c, f"office_series_{int(sid)}")
     s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=? AND deleted_at IS NULL AND active", (sid, oid)).fetchone()
