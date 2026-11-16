@@ -18787,6 +18787,7 @@
   "An admin has locked your account; only an admin can unlock it.": "Een beheerder heeft je account geblokkeerd; alleen een beheerder kan het weer vrijgeven.",
   "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Factuur {0}: het btw-tarief {1} % heeft geen DATEV-automatische rekening; ze wordt op rekening {2} geëxporteerd - boek de btw van {3} handmatig",
   "Reminder fee, interest and flat fee {0}: {1}": "Aanmaningskosten, rente en vaste vergoeding {0}: {1}",
+  "All places for server agents are busy right now. I start as soon as one is free.": "Alle plekken voor serveragents zijn nu bezet. Ik begin zodra er een vrij is.",
   "Move to the trash…": "Naar de prullenbak…",
   "Move the address book “{0}” with all its contacts to the trash?": "Adresboek ‘{0}’ met alle contacten naar de prullenbak verplaatsen?",
   "{0} contact moved to the trash": ["{0} contact naar de prullenbak verplaatst", "{0} contacten naar de prullenbak verplaatst"],
