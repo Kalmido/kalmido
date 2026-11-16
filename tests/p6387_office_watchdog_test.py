@@ -239,6 +239,20 @@ pm = made(S_PM)
 check(len(pm) == 1 and pm[0][2] == "sent" and len(mails("rechnung@pausepost.example")) == 1 and row(S_PM).get("active") is False,
       f"(6629) a paused series still mails the invoice it made, once, and stays paused {pm} {row(S_PM)}")
 
+# ================================================================== 2.1289.0 (#6629 a): a database error in post() keeps no lock
+CLP = client(A, "Post Fehler AG", "rechnung@postfehler.example")
+S_POST = series(A, CLP, "Postfehler")
+# the mail is refused and the task about it hits a database error (the transaction is aborted); then, with this connection
+# still open, another connection's run: it must mail the invoice (was: the lock stayed, "still being sent", silent every run)
+aa = tick("_m, _b = x.rin_mail, x.rin_bundle\nx.rin_mail = lambda *a, **k: (False, ['unknown'])\n"
+          "x.rin_bundle = lambda c, *a, **k: c.execute('SELECT 1/0').fetchone()",
+          "x.rin_mail, x.rin_bundle = _m, _b\nx._RIN_LAST['at'] = -1e12\nc2 = connect()\nx.rin_tick(c2)\nc2.close()") or {}
+check(any(str(S_POST) in v for k, v in aa.items() if k.startswith("invoice series|")),
+      f"(6629 a) the error in post() is the watchdog's alert {aa}")
+po = made(S_POST)
+check(len(po) == 1 and po[0][2] == "sent" and len(mails("rechnung@postfehler.example")) == 1,
+      f"(6629 a) no lock left on the connection: the other connection's run mails it {po}")
+
 # ================================================================== 2.1289.0 (#6629): the freelancer switches her office off and on
 F_AUS = series(Fr, CLF, "Frida aus")
 assert Fr.patch(B + "/api/settings", json={"features": ",".join(x for x in FEATURES.split(",") if x != "office")}).ok

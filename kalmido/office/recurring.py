@@ -500,8 +500,13 @@ def rin_mail_hold(c, did):
 
 
 def rin_mail_free(c, did):
+    """2.1289.0 (#6629): first the rollback of whatever is left open: after a database error the transaction is aborted and the
+    unlock in it failed (swallowed), the session's lock stayed on the pooled connection and rin_catchup kept waiting for good.
+    Everything of the mail is committed by then (post / _rin_catchup commit themselves)."""
     try:
+        c.rollback()
         c.execute("SELECT pg_advisory_unlock(hashtext(?))", (f"office_series_mail_{int(did)}",)).fetchone()
+        c.commit()
     except Exception:  # noqa: BLE001 -- a broken connection let go of it anyway
         pass
 
