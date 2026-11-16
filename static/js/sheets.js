@@ -172,6 +172,14 @@ function viewSheets() {
   if (sh.kind === 'pivot') { if (typeof spv_html === 'function') return spv_html(sh); ld_later('sheetpivot'); return `<p class="muted lempty" role="status">${tr('Loading…')}</p>`; }  // 2.671.0 (#3463 b): sheetpivot.js
   return shvSheetHtml(sh);
 }
+// 2.1224.0 (#6186): the open table (its folder, a project's tables) marks the page in its organisation's colour (wso_sync)
+wso_open('sheets', () => {
+  const r = S.route; if (r?.mod !== 'sheets') return null;
+  if (r.sh) return SHV.sh && SHV.sh.id === r.sh ? SHV.sh.space || 'private' : null;
+  if (r.shf) return typeof shf_folder === 'function' ? shf_folder(r.shf)?.space || null : null;
+  if (r.shl) return listById(r.shl) || null;
+  return null;
+});
 function shvOverview(lid) {
   const key = lid ? 'l:' + lid : 'all', d = SHV.idx[key];
   if (!d || d.v !== S.v) shvLoadIdx(key);
@@ -191,10 +199,13 @@ function shvOverview(lid) {
   const groups = [...shvSpaces(), 'shared'].map(sp => [sp, items.filter(x => sp === 'shared' ? x.shared_in : x.space === sp && !x.shared_in), fold(sp)])
     .map(g => [g[0], lid ? g[1] : shf_topItems(g[1], g[0]), g[2]]).filter(g => g[1].length || g[2]);  // 2.124.0 C (#2113): + shared with me
   const many = groups.length > 1 || (!lid && shvSpaces().length > 1);
-  return `<div class="shvwrap shvov">${head}${groups.map(([sp, xs, fs]) => `<section class="shvgrp" aria-label="${esc(shvSpaceName(sp))}">${many ? `<h3>${esc(shvSpaceName(sp))}</h3>` : ''}<ul class="shvcards">${fs}${xs.map(card).join('')}</ul></section>`).join('')}</div>`;
+  return `<div class="shvwrap shvov">${head}${groups.map(([sp, xs, fs]) => `<section class="shvgrp" aria-label="${esc(shvSpaceName(sp))}">${many ? `<h3>${/*html-ok*/ shvSpaceDot(sp)}${esc(shvSpaceName(sp))}</h3>` : ''}<ul class="shvcards">${fs}${xs.map(card).join('')}</ul></section>`).join('')}</div>`;
 }
+// 2.1224.0 (#6186): the organisation colour (docs/dev/kern.md "Organisation colour"): a group heading of an organisation wears its
+// dot, a card of an organisation's table the stripe on its left edge (wso_row); Private stays neutral
+const shvSpaceDot = sp => String(sp || '').startsWith('org:') && wsOn() ? wsp_dot(sp) : '';
 function shvCardHtml(x, lid) {
-  return `<li class="shvcard" data-id="${x.id}"><a href="#sheets/${x.id}" class="shvcl">${ic('sheet')}<span class="shvct"><b>${esc(x.title || tr('Untitled table'))}</b>
+  return `<li class="shvcard" data-id="${x.id}"${/*html-ok*/ wso_row(x.space)}><a href="#sheets/${x.id}" class="shvcl">${ic('sheet')}<span class="shvct"><b>${esc(x.title || tr('Untitled table'))}</b>
       <span class="muted">${x.list_title && !lid ? esc(x.list_title) + ' · ' : ''}${x.updated_at ? esc(relTime(x.updated_at)) : ''}${x.updated_by_name ? ' · ' + esc(x.updated_by_name) : ''}${x.agent ? ' · ' + esc(tr('changed by an agent')) : ''}${x.sheets > 1 ? ' · ' + esc(trn('{0} sheet', '{0} sheets', x.sheets)) : ''}${x.shared && !x.shared_in ? ` · <span class="shs-mark">${ic('users', 's')}${tr('Shared')}</span>` : ''}</span></span></a>
     <button data-rowmenu="shvcard" type="button" class="iconbtn" data-shv="cmenu" data-id="${x.id}" aria-haspopup="menu" title="${esc(tr('More'))}" aria-label="${esc(tr('More') + ': ' + (x.title || ''))}">${ic('dots')}</button></li>`;
 }

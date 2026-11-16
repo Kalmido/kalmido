@@ -1443,6 +1443,9 @@ organisation's mark is the stripe, so the two never read as one.
 `<div class="myrow"${wso_row(obj.org_id)}>…</div>`
 // (2) a mixed view under "All workspaces": the workspace's dot + name (phones: its short letters), '' otherwise
 `${wso_origin(obj.org_id, 'mymeta')}`
+// (2b) a page that is mixed in every workspace (time tracking, search hits, news): mixed = true marks what belongs to another
+// organisation also inside one workspace; Private and the shown workspace itself stay without a mark (2.1224.0, #6187)
+`${wso_origin(obj.org_id, 'mymeta', true)}`
 // (3) the open object: once per area, at the top level of its file; null when its page is not open
 wso_open('wiki', () => S.route?.mod === 'wiki' && WK.pg ? WK.pg.org_id || 'private' : null);
 // (4) 2.1241.0 (#6181): an element with an inline style of its own (a calendar's --cc): the style goes in, one attribute out
@@ -1469,6 +1472,7 @@ Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open lis
 `ws_originHtml`). 2.1241.0 (#6181-#6185): the calendar (event chips, rows, week blocks, popover, dialog, calendar list;
 `cevOrg`), the wiki (spaces, panel root, the open page or space), the team chat (channels / groups / project chats; direct
 messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open space / folder / document) and
-contacts (rows, card, address books, panel spaces). Still to follow as their own tasks (#6180, #6186-#6188: office and
-clients, tables, time tracking, search / trash / news / favourites). Tests: `tests/p21205_b_orgcolor_ui.js`,
-`tests/p21241_orgcolor_areas_ui.js`.
+contacts (rows, card, address books, panel spaces). 2.1224.0: tables (#6186: cards, folder cards, group headings, panel, the
+open table via `wso_open('sheets', …)`), time tracking (#6187: entries, report lines, timesheet card), the palette / search
+hits, the trash, news, project group heads and favourite agents (#6188). Still to follow as its own task (#6180: office and
+clients). Tests: `tests/p21205_b_orgcolor_ui.js`, `tests/p21241_orgcolor_areas_ui.js`, `tests/p21224_a_orgcolor_ui.js`.

@@ -50,8 +50,8 @@ const FEAT = 'cal,comments,collab,wiki,files';
   check(opts.includes(`user_id:${bob.id}`), 'Bob is offered ' + JSON.stringify(opts));
   check(await until(() => /Nobody sees the whole knowledge area yet/.test(dlg.querySelector('.fsextra')?.textContent || '')), 'the section: nobody yet');
   dlg.querySelector('#ab-sht').value = `user_id:${bob.id}`;
-  dlg.querySelector('#ab-shr').value = 'view';
-  dlg.querySelector('[data-abs="add"]').click();
+  // 2.1224.0 (#6113): the choice adds at once with "Can view" (no Add button, no role before the choice)
+  dlg.querySelector('#ab-sht').dispatchEvent(new w.Event('change', {bubbles: true}));
   const q = await until(() => [...d.querySelectorAll('.cdlg')].find(m => /visible/.test(m.textContent)));
   check(/2 folders \/ 2 pages visible, 0 folders excluded\./.test(q?.textContent || '') && /The person can read these pages/.test(q?.textContent || ''),
     'the question names what Bob will see: ' + (q?.textContent || '').trim().slice(0, 200));

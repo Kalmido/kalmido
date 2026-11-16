@@ -345,7 +345,7 @@ function palAll() {
   pg_settingParts(add);
   // tasks (open ones + the recently completed that are in the state)
   for (const x of S.tasks.values()) if (x.status === 0 && x.id > 0 && !archivedTask(x)) add('t:' + x.id, 'tasks', x.title, typeof le2eOn === 'function' && le2eOn(x.list_id) ? 'lock' : 'check', () => { const r = $(`#view .trow[data-id="${x.id}"]`); if (!r && x.list_id) go(x.list_id === inbox()?.id ? 'inbox' : 'l/' + x.list_id); setTimeout(() => openDetail(x.id), 30); },
-    {sub: [lname(listById(x.list_id)), x.due ? dayLabel(x.due) : ''].filter(Boolean).join('  ·  '), ...(typeof le2eOn === 'function' && le2eOn(x.list_id) ? {} : {sw: '', cls: 'ptask'})});  // 2.1211.0 (#6128): an open task = a neutral ring (the .psw box), not the tick of a done one
+    {sub: [lname(listById(x.list_id)), x.due ? dayLabel(x.due) : ''].filter(Boolean).join('  ·  '), lid: x.list_id, ...(typeof le2eOn === 'function' && le2eOn(x.list_id) ? {} : {sw: '', cls: 'ptask'})});  // 2.1211.0 (#6128): an open task = a neutral ring (the .psw box), not the tick of a done one
   return it;
 }
 // 2.250.0 B (#2993): waits for an element (state, not time) and runs fn on it; gives up after ~3 s
@@ -484,7 +484,7 @@ function palItems() {
   const boost = {action: 30, task: 40, view: 25, list: 20, note: 18, filter: 15, tag: 10, setting: 5, tasks: 0};
   // 2.13.0: "#447" or "447" jumps straight to that task (only one this person can see)
   const nm = q.match(/^#?(\d{1,9})$/), hit = (nm && taskById(+nm[1])) || tkFind(q);  // 2.390.0 (#3353): + "APP-12"
-  const jump = hit ? [{id: 'tid:' + hit.id, kind: 'tasks', label: `${tkOf(hit) || '#' + hit.id} ${hit.title}`, sub: lname(listById(hit.list_id)) || '', icon: 'hash', fn: () => openDetail(hit.id)}] : [];
+  const jump = hit ? [{id: 'tid:' + hit.id, kind: 'tasks', label: `${tkOf(hit) || '#' + hit.id} ${hit.title}`, sub: lname(listById(hit.list_id)) || '', lid: hit.list_id, icon: 'hash', fn: () => openDetail(hit.id)}] : [];
   const hits = jump.concat(all.map(x => ({...x, score: Math.max(palFz(x, q, x.label), x.sub ? palFz(x, q, x.sub) * 0.3 : 0, x.kw ? palFz(x, q, x.kw) * 0.6 : 0)}))  // 2.250.0 B (#2993): kw = more words of the entry
     .filter(x => x.score > 0).map(x => ({...x, score: x.score + boost[x.kind] + lc_favBoost(x)})).sort((a, b) => b.score - a.score).slice(0, 60));
   // 2.16.0 (#644): what the field can do with the text itself: ask an agent (the text goes to its chat) and create a task
@@ -510,6 +510,9 @@ async function palAsk(aid, text) {
 const lc_favBoost = x => x.kind === 'list' && favIs(String(x.id).replace(/^(l|mv):/, '')) ? 15 : 0;
 const lc_palFavs = all => favIds().map(id => all.find(x => x.id === 'l:' + id)).filter(Boolean).slice(0, 8).map(x => ({...x, group: 'fav'}));
 const PAL_GROUP = {fav: N_('Favourites'), viewed: N_('Recently viewed'), recent: N_('Recent'), task: N_('Selected task'), action: N_('Actions'), view: N_('Go to'), msgs: N_('Messages')};
+// 2.1224.0 (#6188): a hit of an organisation shows its dot + name (wso_origin, mixed: also inside another workspace; Private and
+// the shown workspace stay without). x.ws: a workspace key; x.lid: the project of a task / note; a project item: its own list
+const pal_org = x => { const o = x.ws !== undefined ? x.ws : x.lid ? listById(x.lid) : x.kind === 'list' && x.lic ? x.lic : null; return o ? wso_origin(o, 'porg', true) : ''; };
 function palDraw() {
   const el = $('.palette'); if (!el) return;
   PAL.items = palItems();
@@ -520,7 +523,7 @@ function palDraw() {
     h += `<button class="pitem ${i === PAL.i ? 'on' : ''} ${x.cls || ''}" data-pi="${i}" role="option" aria-selected="${i === PAL.i}" id="pi-${i}">
       <span class="pic">${x.lic && listIconHtml(x.lic, {cls: 'pli'}) ? listIconHtml(x.lic, {cls: 'pli'}) : x.img ? `<img class="picon" src="${esc(x.img)}" alt="">` : x.sw !== undefined ? `<span class="psw" style="${x.sw ? 'background:' + x.sw : ''}"></span>` : ic(x.icon, 's')}</span>
       <span class="pl"><span class="plt">${esc(x.label)}</span>${x.subHtml ? `<span class="pls pmsg">${x.subHtml}</span>` : x.sub ? `<span class="pls">${esc(x.sub)}</span>` : ''}</span>
-      ${x.keys ? kb(x.keys) : ''}${x.kind === 'action' || x.kind === 'setting' || x.kind === 'view' || x.kind === 'msg' ? '' : `<span class="pk">${esc(tr(PAL_KIND[x.kind] || x.kind))}</span>`}</button>`;
+      ${/*html-ok*/ pal_org(x)}${x.keys ? kb(x.keys) : ''}${x.kind === 'action' || x.kind === 'setting' || x.kind === 'view' || x.kind === 'msg' ? '' : `<span class="pk">${esc(tr(PAL_KIND[x.kind] || x.kind))}</span>`}</button>`;
   });
   // 2.16.0 (#644): an empty field says what it can do (only what exists; no key hints on touch)
   const ags = (S.agents || []).filter(x => x.enabled);

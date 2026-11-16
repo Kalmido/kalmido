@@ -416,10 +416,13 @@ function news_body() {
   return bar + chips + `<div class="nbund">${/*html-ok*/ newsBundledHtml(shown, false, pre, tab === 'act')}</div>` + newsMoreHtml();
 }
 // 2.331.0 A (#3300): bell and list both cover ALL workspaces; an item from another workspace than the current one gets a small label
+// 2.1224.0 (#6188): an organisation's item shows its dot + name (wso_origin) also under "All"; inside one workspace the others'
+// items (as before); Private inside an organisation's workspace keeps its plain label (Private stays neutral)
 function newsWsLabel(it) {
-  if (!wsOn() || wsCur() === 'all' || !it.list_id) return '';
-  const l = listById(it.list_id);
-  return l && !inWs(l) ? `<span class="nws">${esc(wsName(wsOf(l)))}</span>` : '';
+  if (!wsOn() || !it.list_id) return '';
+  const l = listById(it.list_id); if (!l) return '';
+  const o = wso_origin(l, 'nws', true); if (o) return o;
+  return wsCur() !== 'all' && !inWs(l) ? `<span class="nws">${esc(wsName(wsOf(l)))}</span>` : '';
 }
 async function loadNews() {
   if (S.nf.loading) return;

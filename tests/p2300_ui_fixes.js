@@ -90,7 +90,7 @@ const NOOVER = sel => `(() => { const box = document.querySelector('${sel}'); if
         check(fp && fp.cut === 0 && /Bob/.test(fp.txt) && fp.wide <= 390, `${tag}: #1044 (a) the name is not cut ` + JSON.stringify(fp));
         check(fp && !fp.opts.includes('user_id:' + BOB) && fp.opts.includes('user_id:' + CAR), `${tag}: #1044 (b) Bob (has the folder) is not offered again, Carol is ` + JSON.stringify(fp && fp.opts));
         await shot('p2300-390-share-folder.png');
-        await ev(`(() => { const md = document.querySelector('.abshdlg'); md.querySelector('#ab-sht').value = 'user_id:${CAR}'; md.querySelector('[data-abs="add"]').click(); return 1; })()`);
+        await ev(`(() => { const md = document.querySelector('.abshdlg'); md.querySelector('#ab-sht').value = 'user_id:${CAR}'; md.querySelector('#ab-sht').dispatchEvent(new Event('change', {bubbles: true})); return 1; /* 2.1224.0 (#6113): a choice adds at once */ })()`);
         check(await wait(ev, `document.querySelectorAll('.abshdlg #ab-shl .mrow[data-sid]').length === 2 && !document.querySelector('.abshdlg #ab-sht option[value="user_id:${CAR}"]')`),
           `${tag}: #1044 (b) Carol added: no longer offered`);
       } else await shot('p2300-390-folder-settings.png');
