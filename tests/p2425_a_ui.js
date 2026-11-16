@@ -48,10 +48,12 @@ const V = B + 'api/v1';
   check(d.activeElement?.matches?.('details.jobv > summary'), '#3575: the own click on History puts the focus on the row');
   // the chat window with typed text and a selection in its box
   w.eval(`chatOpen(${AG})`);
-  await until(() => d.querySelector('#achat #chat-in'));
+  // 2.1246.0 (#6276): since 2.1211.0 (#6098) the box stays shut until the chat has loaded (no typing into a "Loading…" chat);
+  // the test typed right as the box appeared, a disabled box takes no focus - type once it is open, as a person can
+  await until(() => d.querySelector('#achat #chat-in') && !d.querySelector('#achat #chat-in').disabled);
   const typed = () => { const ci = d.querySelector('#chat-in'); ci.value = 'Please check the'; ci.focus(); ci.setSelectionRange(7, 12); return ci; };
   typed();
-  check(d.activeElement?.id === 'chat-in', '#3575: the chat box has the focus');
+  check(d.activeElement?.id === 'chat-in', `#3575: the chat box has the focus ${JSON.stringify({act: d.activeElement?.id || d.activeElement?.tagName, dis: d.querySelector('#chat-in')?.disabled, loaded: w.eval('S.chat.loaded'), err: String(w.eval('S.chat.err'))})}`);
   const kept = () => { const a = d.activeElement; return a?.id === 'chat-in' && a.value === 'Please check the' && a.selectionStart === 7 && a.selectionEnd === 12; };
   // a new step arrives: history and list redraw, the chat loads again
   await v1('POST', '/agent/progress', {text: 'Running the suites', job_id: job.id});
