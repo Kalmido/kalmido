@@ -189,6 +189,29 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       // the next poll takes the waiting signal (not the bundled follow-up 15 s later)
       check(await ready(`(S.team?.unread || 0) > ${u0}`, 28), 'B6: after typing the team chat shows the new message (unread) ' + await ev(`JSON.stringify({u: S.team?.unread, sig: S.teamSig, lpT: !!lpT})`));
     }
+
+    // ================= #6335 B8 the open file store folder follows a change elsewhere; the day's change redraws Today
+    S6335B8: {
+      const st0 = await call(CA, 'GET', '/api/state');
+      const feats = [...new Set([...(st0.settings?.features || '').split(',').filter(Boolean), 'files', 'docs'])].join(',');
+      await call(CA, 'PATCH', '/api/settings', {features: feats, workspace: 'private'});
+      const on = await ready(`typeof feat === 'function' && feat('files') && S.settings.workspace === 'private'`, 80);
+      check(on, 'B8: the file store is switched on (taken from the other device)'); if (!on) break S6335B8;
+      await ev(`(() => { location.hash = '#ablage'; return 1; })()`);
+      const shown = await ready(`S.route.mod === 'ablage' && !AB.loading && !!AB.data`, 60);
+      check(shown, 'B8: the file store is open'); if (!shown) break S6335B8;
+      await caught();
+      const FD = (await call(CA, 'POST', '/api/files/folders', {space: 'private', name: 'Holiday pictures'})).id;
+      check(!!FD, 'B8: the other device made a folder');
+      // the change is "other" (the whole state): a full load may wait for the server's brake (8 s after the last one, core/state.py)
+      check(await ready(`(document.querySelector('#view')?.textContent || '').includes('Holiday pictures')`, 100), 'B8: the open file store shows the folder made on the other device ' + JSON.stringify(await ev(`({items: (AB.data?.items || []).map(n => n.name), key: AB.key, dkey: AB.dkey, sp: ab_curSpace(), v: S.v, vNow: S.vNow, route: location.hash, lp: S.lpN, txt: (document.querySelector('#view')?.textContent || '').slice(0, 200)})`).catch(e => String(e))) + ' fd ' + FD);
+      await shot('p21264c-b8-ablage.png');
+      // the day changes while the app stays open (here: the day it noted is set back): the shown view and the sidebar are drawn
+      await ev(`(() => { location.hash = '#today'; return 1; })()`);
+      await ready(`S.route.key === 'today'`, 20);
+      await ev(`(() => { window.__rv = 0; const R0 = renderView; renderView = function () { window.__rv++; return R0.apply(this, arguments); }; S.dayNow = '2000-01-01'; return 1; })()`);
+      check(await ready(`S.dayNow === today() && window.__rv > 0`, 300), 'B8: the day change redraws the open Today view (the minute tick)');
+    }
   }, true);
 
   console.log(`p21264_c_live_ui: ${ok} ok, ${F.length} failed`);

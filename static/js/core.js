@@ -1485,6 +1485,7 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
   if (S.booted && S.route?.mod === 'office' && typeof onumListFresh === 'function') onumListFresh();  // 2.138.0 D (#2256): the document list follows changes made elsewhere
   if (S.booted && S.route?.mod === 'clients') ms_clLive();  // a change elsewhere: the client's sums again; 2.431.0 C (#3602): quietly, drawn only when changed
   if (S.booted && S.route?.mod === 'contacts' && typeof ct_live === 'function') ct_live();  // 2.431.0 C (#3602)
+  if (S.booted && S.route?.mod === 'ablage' && typeof ab_reload === 'function') ab_reload();  // 2.1264.0 (#6335 B8): the open folder follows a change elsewhere (its own fetch, drawn morphed when it is there; was: the old content until it was opened again)
   // 2.50.0 (#1195, #1194); 2.50.1: the shown tab loads again and keeps its rows until the new ones are there (a null
   // without a redraw left absence and booking rows that no longer opened on a tap)
   if (S.booted && S.route?.mod === 'workload') { const t = WLV.tab === 'dispo' && !dp_on() ? 'wl' : WLV.tab, ld = typeof AB2 !== 'undefined'; if (ld && t !== 'abs') AB2.data = null; if (ld && t !== 'dispo') DPV.data = null; if (t !== 'wl') WLV.data = null; if (t === 'wl') wlLoad(); else if (ld) { if (t === 'abs') ab2_load(); else dp_load(); } }  // 2.149.0 F (#2518): absence.js / dispo.js load on demand (not there yet: their stand-in loads and fetches); lazy-ok: ld = the module is loaded
@@ -1661,6 +1662,18 @@ setInterval(async () => {
     S.syncOk = Date.now(); staleDraw();
   } catch { staleDraw(); /* offline */ } finally { td_polling = false; }
 }, 4000);
+// 2.1264.0 (#6335 B8): the day changed (midnight with the app open, a phone woken the next morning without a reload): Today, the
+// calendar's today, the counts of the sidebar and the header follow - was: "Today" of the day before until something else
+// redrew. Checked every minute while the page is shown; a busy field / form holds the view back as for any live change.
+S.dayNow = today();
+function dayTick() {
+  const d = today(); if (d === S.dayNow || !S.booted) return;
+  S.dayNow = d;
+  if (typeof calInvalidate === 'function') calInvalidate();
+  renderSide(); renderTop(); renderTabs(); badgeSync(); viewSafeRender();
+}
+setInterval(() => { if (!document.hidden) dayTick(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) dayTick(); });
 // 2.7.2 (#433): instead of a refresh button in the header of shared lists, a small hint once the change check has failed
 // for more than 30 s: "Offline – last update N min ago"; a tap tries again (refreshNow). "…" keeps "Refresh".
 S.syncOk = Date.now();
