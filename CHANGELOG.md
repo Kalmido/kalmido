@@ -22,6 +22,13 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1256.0] - 2026-11-16
+
+Package 2.1235 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Account / organisation import: the same person importing the same export into a second workspace (another organisation or the private one) now gets the tasks too; before, all tasks were refused and the project arrived empty. A second run into the same workspace still adds nothing, and the tasks of the inbox are never taken twice (#6240).
+
 ## [2.1252.0] - 2026-11-16
 
 Package 2.1233 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Polish Kalender 2: Serien-Datum bearbeiten ändert , Handy: Felder-Fenster der Projekt).
@@ -237,7 +244,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1252.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1256.0...HEAD
+[2.1256.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1256.0
 [2.1252.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1252.0
 [2.1249.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1249.0
 [2.1245.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1245.0
