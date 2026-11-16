@@ -21,10 +21,10 @@ counts the directory's entries without building anything and refuses before zipf
 
   zip_guard(f, entries_max, zip64=True) -> the number of entries   raises ZipOver (too many entries / directory too large)
                                                                     or ZipBad (no readable ZIP; zip64=False: any zip64 mark)
-  json_guard(raw, nodes_max, left=None) -> the number of nodes of a JSON text (bytes), counted BEFORE json.loads; raises
-                                           ZipOver above nodes_max (left = [nodes left] of a budget over several parts)"""
+  json_guard(raw, nodes_max, left=None) -> the number of nodes of a JSON text (UTF-8 bytes), counted BEFORE json.loads;
+                                           raises ZipOver above nodes_max (left = [nodes left] of a budget over several
+                                           parts), ZipBad for a zero byte (UTF-16 / UTF-32)"""
 import io
-import re
 import struct
 import unicodedata
 import zipfile
@@ -58,7 +58,10 @@ def _at(f, pos, n):
     if pos < 0:
         return b""
     f.seek(pos)
-    out = bytearray()
+    out = f.read(n) or b""
+    if len(out) >= n or not out:
+        return out
+    out = bytearray(out)
     while len(out) < n:
         b = f.read(n - len(out))
         if not b:
@@ -67,24 +70,42 @@ def _at(f, pos, n):
     return bytes(out)
 
 
+_CD_WINDOW = 1024 * 1024
+
+
 def _cd_count(f, start, size, stop):
     """The entries of a central directory of `size` bytes at `start`, walked the way zipfile walks it (46 bytes + name +
-    extra + comment each, until `size` bytes are used) without building an object. None when it is not a clean directory
-    (zipfile would refuse it too, if it starts there); stops counting above `stop`."""
+    extra + comment each, until `size` bytes are used) without building an object, in windows of 1 MB (the directory is
+    never held as a whole). None when it is not a clean directory (zipfile would refuse it too, if it starts there);
+    stops counting above `stop`."""
     if start < 0:
         return None
-    data = _at(f, start, size)
-    if len(data) != size:
-        return None
-    n = pos = 0
-    while pos < size:
-        if pos + 46 > size or data[pos:pos + 4] != _CDH:
+    n = done = 0  # done: bytes of the directory walked so far
+    buf, i = b"", 0
+    while done < size:
+        if len(buf) - i < 46:
+            want = min(size - done - (len(buf) - i), _CD_WINDOW)
+            if want <= 0:
+                return None  # fewer than 46 bytes are left
+            more = _at(f, start + done + (len(buf) - i), want)
+            if len(more) != want:
+                return None
+            buf, i = buf[i:] + more, 0
+            continue
+        if buf[i:i + 4] != _CDH:
             return None
-        a, b, c = struct.unpack_from("<HHH", data, pos + 28)
-        pos += 46 + a + b + c
+        a, b, c = struct.unpack_from("<HHH", buf, i + 28)
+        step = 46 + a + b + c
+        if done + step > size:
+            return None
+        done += step
         n += 1
         if n > stop:
             return n
+        if i + step <= len(buf):
+            i += step
+        else:
+            buf, i = b"", 0  # the name runs over the window: the next read starts behind it
     return n
 
 
@@ -121,10 +142,15 @@ def zip_guard(f, entries_max, zip64=True):
                 if len(rec) == 56 and rec[:4] == _REC64:
                     c1, c2, sz = struct.unpack_from("<QQQ", rec, 24)
                     found.append((max(c1, c2), sz, p))
+                    if p == e - 20 - 56:
+                        # a zip64 record right in front of the locator: every Python takes a zip64 record then, never the end
+                        # record's own values (a writer leaves 0xFFFF there, or the size of a directory that ends 76 bytes
+                        # earlier -- walked from the end record it would count as "the most that fits")
+                        found[0] = None
         elif not zip64 and (cnt == 0xFFFF or cnt_disk == 0xFFFF or size == 0xFFFFFFFF or off == 0xFFFFFFFF):
             raise ZipBad()
         most = 0
-        for said, sz, stop_at in found:
+        for said, sz, stop_at in [x for x in found if x]:
             if said > entries_max or sz > entries_max * ZIP_CD_ENTRY + ZIP_CD_SLACK:
                 raise ZipOver()
             n = _cd_count(f, stop_at - sz, sz, entries_max)
@@ -139,21 +165,37 @@ def zip_guard(f, entries_max, zip64=True):
         raise ZipBad() from None
 
 
-# a string from its opening quote to its closing one -- or to the end of the text when it never closes. Possessive, and it
-# cannot fail once it has started: a text of quotes and backslashes is walked once (no start is tried a second time)
-_JSON_STR = re.compile(rb'"(?:[^"\\]++|\\.)*+(?:"|\\?\Z)', re.S)
+_JSON_WINDOW = 1024 * 1024
 
 
 def json_guard(raw, nodes_max, left=None):
-    """The nodes (values and containers) json.loads would build from the JSON bytes: commas + opening brackets, counted
-    outside of strings, + 1. A text of tiny values takes over 20 times its size in memory once it is parsed (an empty
-    object: 3 bytes of text, 72 of memory), so a byte limit alone does not hold the memory. Raises ZipOver above
-    nodes_max or above what is left of the caller's budget (left[0] is lowered by the count)."""
-    bare = _JSON_STR.sub(b"", raw)
-    n = bare.count(b",") + bare.count(b"[") + bare.count(b"{") + 1
-    del bare
-    if n > nodes_max or (left is not None and n > left[0]):
-        raise ZipOver()
+    """The nodes (values and containers) json.loads would build from the JSON bytes (UTF-8): commas + opening brackets,
+    counted outside of strings, + 1. A text of tiny values takes over 20 times its size in memory once it is parsed (an
+    empty object: 3 bytes of text, 72 of memory), so a byte limit alone does not hold the memory. Raises ZipOver above
+    nodes_max or above what is left of the caller's budget (left[0] is lowered by the count), ZipBad for a text with a
+    zero byte (no JSON in UTF-8: json.loads would read it as UTF-16 / UTF-32, where this count means nothing).
+    The text is walked in windows of 1 MB with bytes methods only (no pattern, nothing kept per string): the count itself
+    costs a few MB and stops at the limit, whatever the text is made of."""
+    if b"\0" in raw:
+        raise ZipBad()
+    cap = nodes_max if left is None else min(nodes_max, left[0])
+    n, inside, carry = 1, False, False  # inside: in a string; carry: the window before ended in an escaping backslash
+    view = memoryview(raw)
+    for o in range(0, len(view), _JSON_WINDOW):
+        c = bytes(view[o:o + _JSON_WINDOW])
+        if carry:
+            c, carry = c[1:], False  # the escaped byte
+        if (len(c) - len(c.rstrip(b"\\"))) % 2:
+            c, carry = c[:-1], True
+        # escaped backslashes go first (pairs from the left of every run), then what is left in front of a quote escapes it
+        # (an empty string, two quotes in a row, changes nothing and goes too: a text of quotes costs one pass)
+        segs = c.replace(b"\\\\", b"").replace(b'\\"', b"").replace(b'""', b"").split(b'"')
+        out = b"".join(segs[1 if inside else 0::2])
+        if not len(segs) % 2:
+            inside = not inside
+        n += out.count(b",") + out.count(b"[") + out.count(b"{")
+        if n > cap:
+            raise ZipOver()
     if left is not None:
         left[0] -= n
     return n
