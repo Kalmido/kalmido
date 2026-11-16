@@ -5,8 +5,14 @@
    with its link when the contact moves (and stays when it is deleted)
  - #1759: a part on the title page x 1.5 with two tax rates: the title line is exactly rate x qty and the sum of its tax
    amounts; invoices from the quotation (full / title / summary) give the quotation's net, gross and tax bases per rate
+ - 2.1287.0 (#6300): a rest of more than 5 cents (20 positions 0.5 x 33.33, the part 3 times: 1,000.20) and a negative
+   one (20 x 0.3 x 10.01, 3 times: 180.00) in the form "full": the invoice = the quotation, the part gets one position
+   "Rundungsausgleich" (German document), the positions stay days; the finalised invoice's e-invoice XML carries it as a
+   normal line (quantity -1 / price 0.20 for the negative one, never a negative price); in an organisation and for a
+   person without an organisation (freelancer fixture)
 usage: p258_b_api_test.py <datadir>"""
 import os
+import re
 import subprocess
 import sys
 from decimal import ROUND_HALF_UP, Decimal
@@ -20,6 +26,8 @@ DATA = sys.argv[1]
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 H = {"X-Requested-With": "kalmido"}
 from kt import FAILS, OKS, check, sess  # 2.192.0 (#2514): shared helpers (tests/kt.py)
+from freelancer_fixture import freelancer  # 2.1287.0 (#6300)
+# freelancer-matrix: office
 
 
 def dbx(sql, args=()):
@@ -161,6 +169,62 @@ for mode in ("full", "title", "summary"):
     if mode == "full":
         flat = [x for x in r.json()["items"] if x.get("unit") == "flat" and "1.5 ×" in (x.get("detail") or "")]
         check(len(flat) == 1, f"#1759: full: the rest cent sits on one position (qty x rate in its detail) {[(x['title'], x['qty'], x['unit'], x.get('detail')) for x in r.json()['items']]}")
+
+
+
+# ================================================================== 2.1287.0 (#6300): the rest of any size, its own position
+def cents_6300(S, who):
+    def ok(cond, what):
+        check(cond, f"#6300 {who}: {what}")
+
+    ok(S.put(B + "/api/office/settings", json={"company_fields": {"name": "Studio Beispiel", "street": "Hafenweg 2", "zip": "12345",
+                                                                   "city": "Musterstadt", "country": "DE", "iban": "DE02120300000000202051",
+                                                                   "tax_number": "12/345/67890"}, "lang": "de", "currency": "EUR"}).ok, "office settings")
+    r = S.post(B + "/api/clients", json={"name": "Kundin Muster", "email": "kundin@example.com", "street": "Musterweg 1", "zip": "12345",
+                                         "city": "Musterstadt", "country": "DE"})
+    ok(r.status_code == 201, "client " + r.text[:200])
+    cl = r.json().get("id")
+    for qty, rate, net, gross, adj in ((0.5, 33.33, "1000.20", "1190.24", "0.20"), (0.3, 10.01, "180.00", "214.20", "-0.20")):
+        r = S.post(B + D, json={"kind": "offer", "lang": "de", "client_id": cl, "project_title": f"Cents {rate}", "items": [],
+                                "service_from": "2026-05-01"})
+        ok(r.status_code == 201, "quotation " + r.text[:200])
+        doc = r.json()["id"]
+        pid = S.post(B + f"{D}/{doc}/parts", json={"title": "Drehtage"}).json()["part"]["id"]
+        S.put(B + f"{D}/{doc}/parts/{pid}/items", json={"items": [svc(f"Tag {n}", qty, rate) for n in range(20)]})
+        items = S.get(B + f"{D}/{doc}").json()["items"]
+        for x in items:
+            if x.get("ref_part_id") == pid:
+                x["qty"] = 3
+        off = S.put(B + f"{D}/{doc}/items", json={"items": items}).json()["totals"]
+        ok(money(off["net"]) == Decimal(net) and money(off["gross"]) == Decimal(gross), f"the quotation {net} / {gross}: {off['net']} / {off['gross']}")
+        for mode in ("full", "title", "summary"):
+            r = S.post(B + f"{D}/{doc}/invoice", json={"parts_mode": mode, "force": True})
+            ok(r.status_code == 201, f"invoice {mode} " + r.text[:200])
+            t = r.json().get("totals", {})
+            ok(money(t.get("net", 0)) == Decimal(net) and money(t.get("gross", 0)) == Decimal(gross),
+               f"invoice {mode} = the quotation {net} / {gross}: {t.get('net')} / {t.get('gross')}")
+            if mode != "full":
+                continue
+            inv = r.json()
+            a = [x for x in inv["items"] if x.get("title") == "Rundungsausgleich"]
+            ok(len(a) == 1 and a[0]["unit"] == "flat" and float(a[0]["qty"]) == 1 and money(a[0]["rate"]) == Decimal(adj),
+               f"full: one position 'Rundungsausgleich' 1 x {adj} flat: {[(x['title'], x['qty'], x['unit'], x['rate']) for x in a]}")
+            days = [x for x in inv["items"] if (x.get("title") or "").startswith("Tag ")]
+            ok(len(days) == 20 and all(x["unit"] == "day" for x in days), "full: the 20 positions stay days")
+            r = S.post(B + f"{D}/{inv['id']}/finalize")
+            ok(r.ok and r.json().get("locked"), f"full: the invoice finalises (strict fields) {r.status_code} {r.text[:300]}")
+            x = S.get(B + f"{D}/{inv['id']}/xml")
+            ok(x.ok and b"Rundungsausgleich" in x.content, f"full: the e-invoice XML has the line {x.status_code}")
+            prices = [Decimal(v.decode()) for v in re.findall(rb"<ram:NetPriceProductTradePrice>\s*<ram:ChargeAmount>([-0-9.]+)<", x.content)]
+            ok(prices and min(prices) >= 0, f"full: no negative net price (BR-27) {prices[:5]}")
+            if adj.startswith("-"):
+                ok(re.search(rb"<ram:BilledQuantity unitCode=\"[A-Z0-9]+\">-1(\.0+)?</ram:BilledQuantity>", x.content) is not None,
+                   "full: the negative rest as quantity -1")
+
+
+cents_6300(A, "organisation")
+FID, Fr = freelancer(B, A)
+cents_6300(Fr, "freelancer")
 
 print(f"p258_b_api: {OKS[0]} ok, {len(FAILS)} failed", flush=True)
 sys.exit(1 if FAILS else 0)

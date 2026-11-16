@@ -18795,6 +18795,7 @@
   "An admin has locked your account; only an admin can unlock it.": "Een beheerder heeft je account geblokkeerd; alleen een beheerder kan het weer vrijgeven.",
   "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Factuur {0}: het btw-tarief {1} % heeft geen DATEV-automatische rekening; ze wordt op rekening {2} geëxporteerd - boek de btw van {3} handmatig",
   "Reminder fee, interest and flat fee {0}: {1}": "Aanmaningskosten, rente en vaste vergoeding {0}: {1}",
+  "Rounding adjustment": "Afrondingscorrectie",
   "Date / priority of the parent task adopted for {0} task": ["Datum / prioriteit van de hoofdtaak overgenomen bij {0} taak", "Datum / prioriteit van de hoofdtaak overgenomen bij {0} taken"],
   "Date and priority of {0} adopted": "Datum en prioriteit van {0} overgenomen",
   "Date of {0} adopted": "Datum van {0} overgenomen",
