@@ -84,6 +84,10 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check((await srvUntil(x => x.content !== 'Bread only', 8)).content === 'Bread only', '#6326: the save on the old text does not overwrite the other device\'s change silently ' + (await srv()).content);
       check(await ready(`(S.conflicts || []).some(c => c.field === 'content') && document.querySelector('#d-content').value.endsWith(', butter')`, 20), '#6326: a conflict, the typed text stays in the field');
       await shot('p21264c-6326-conflict.png');
+      // review #4816: the next change of the task (here its title) does not take the bar and the draft away
+      await call(CA, 'PATCH', `/api/tasks/${T}`, {title: 'Shopping (bar)'});
+      await ev(`lpDelta(S.v, ['tasks']).then(() => 1)`);
+      check(await ev(`!!document.querySelector('#detail .cfbar[data-f="content"]') && document.querySelector('#d-content').value.endsWith(', butter')`), '#6326: the conflict bar and the draft stay through the next change of the task');
       // the bar's "Keep mine" saves the typed text on top of the other one (one goes on from here)
       await ev(`(() => { document.querySelector('#detail .cfbar[data-f="content"] [data-cfi="mine"]')?.click(); return 1; })()`);
       check(await ready(`!document.querySelector('#detail .cfbar')`, 20) && /butter$/.test((await srvUntil(x => /butter$/.test(x.content || ''))).content || ''), '#6326: "Keep mine" saves the typed text ' + (await srv()).content);
@@ -123,6 +127,20 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(await ev(`lpDelta(S.v, ['tasks']).then(() => S.tasks.get(${T5})?.title)`) === 'B5 new', 'B5: the second delta brings the newest title');
       await ev(`(() => { window.__gate(); return window.__p1.then(() => 1); })()`);
       check(await ev(`S.tasks.get(${T5})?.title`) === 'B5 new' && /B5 new/.test(await ev(`document.querySelector('#view .trow[data-id="${T5}"]')?.textContent || ''`)), 'B5: the late answer of the first delta does not take the older title back ' + JSON.stringify(await ev(`({t: S.tasks.get(${T5})?.title, row: document.querySelector('#view .trow[data-id="${T5}"]')?.textContent, stale: S.viewStale, busy: lpBusy(), ed: editing(), act: document.activeElement?.id || document.activeElement?.tagName, route: S.route.mod + '/' + S.route.key, late: S.lpN.late})`).catch(e => String(e))));
+      // review #4816: the bundled follow-up asks from an older version (S.lpBase) while S.v moved on without a state (a light
+      // change, lpLive): its late answer still brings the tasks of that range
+      const T6 = (await call(CA, 'POST', '/api/tasks', {title: 'F start', list_id: L})).id;
+      await ev(`lpDelta(S.v, ['tasks']).then(() => 1)`);
+      const base = await ev(`S.v`);
+      await call(CA, 'PATCH', `/api/tasks/${T6}`, {title: 'F changed'});
+      const vnow = (await call(CA, 'GET', '/api/version')).v;
+      await ev(`(() => { window.__got = 0; window.__gate = null; const a0 = window.__api0; api = function (m, u) { const p = a0.apply(this, arguments); if (!String(u).includes('/api/state/delta')) return p; api = a0; p.then(() => { window.__got = 1; }, () => {}); return new Promise(res => { window.__gate = () => p.then(res, () => res(null)); }); };
+        S.v = ${vnow}; window.__pf = lpDelta(S.v, ['tasks'], undefined, ${base}); return 1; })()`);
+      check(await ready(`window.__got === 1`, 40), 'B5: the follow-up\'s delta is answered (held in the page)');
+      await call(CA, 'PATCH', `/api/tasks/${T5}`, {title: 'B5 newer'});
+      await ev(`lpDelta(S.v, ['tasks']).then(() => 1)`);
+      await ev(`(() => { window.__gate(); return window.__pf.then(() => 1); })()`);
+      check(await ev(`S.tasks.get(${T6})?.title`) === 'F changed', 'B5: the late follow-up (asked from an older version) still brings its tasks ' + await ev(`S.tasks.get(${T6})?.title`));
       await ev(`(() => { api = window.__api0; td_polling = false; return 1; })()`);
     }
 
@@ -146,6 +164,11 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       const nb = async () => (await call(CA, 'GET', `/api/lists/${L}/notes`)).notes?.find(n => n.id === NID)?.body;
       let body = ''; for (let i = 0; i < 40 && body !== 'Eggs, milk, bread'; i++) { body = await nb(); if (body !== 'Eggs, milk, bread') await sleep(250); }
       check(body === 'Eggs, milk, bread' && !(await ev(`!!document.querySelector('.modal')`)), 'B3: writing on saves on top of the other device\'s text, no conflict question ' + body);
+      // review #4816: typing begun while the reload is on its way: the notes are not replaced (the next save keeps its base)
+      await call(CA, 'PATCH', `/api/notes/${NID}`, {body: 'Race text'});
+      const race = await ev(`(async () => { S.nt.dirty = false; const p = lpNotes(); S.nt.dirty = true; await p; const n = (S.nt.notes || []).find(x => x.id === ${NID}); return {live: S.nt.live, body: n && n.body}; })()`);
+      check(race.live === true && race.body !== 'Race text', 'B3: typing begun during the reload keeps the notes as they were ' + JSON.stringify(race));
+      await ev(`(() => { S.nt.dirty = false; return 1; })()`);
       // typed and not saved yet: a change from elsewhere waits, the typed text stays
       await caught();
       await ev(`(() => { const b = document.querySelector('#nt-body'); b.value += ' and tea'; b.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);

@@ -83,7 +83,7 @@ function lpNotes() {
   S.nt.live = false;
   const lid = S.nt.lid;
   if (!lid) { if (lpT) lpFollow(); return; }  // the overview: S.notes with the follow-up, drawn by lpDraw
-  loadNotes(lid).then(() => { if (S.route.mod === 'notes' && S.nt.lid === lid && !S.nt.dirty) lpViewSafe(); });
+  return loadNotes(lid, true).then(ok => { if (ok !== false && S.route.mod === 'notes' && S.nt.lid === lid && !S.nt.dirty) lpViewSafe(); });
 }
 // what the sidebar and the rows show of the light areas (a change of it is drawn, nothing else)
 const lpSideSig = () => JSON.stringify([(S.agents || []).map(x => [x.id, x.chat_unread, x.approvals_open, x.waiting, x.status]), S.team, S.news?.unread, S.news?.unread_me]);
