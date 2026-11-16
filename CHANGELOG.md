@@ -22,6 +22,14 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1261.0] - 2026-11-16
+
+Package 2.1255 (Bündel: Angebot mit Teilangeboten: Zuschlag als eine Zeile, Startseite ehrlich, Datum-Fenster).
+### Changed
+- A quotation with parts has its surcharge ("Zuschlag") as one line on the title page: the percent of the title page's marked positions plus every part line (net x qty, the part's handling costs included); the parts show no surcharge line and the part editor no surcharge switch; handling costs stay per part. Quotations finalised before keep their per-part surcharge, also in invoices made from them (#6281).
+- Start page: every tile shows a placeholder while loading, an error with "Try again" when loading failed and one sentence when empty; the "Waiting for you" box and the News tile no longer show the same entries; an empty account gets a "First steps" card instead of grey "nothing" strips; bell, bell window and start page all say "Waiting for you"; "All news", "All projects" and "More" sit in the tile heads (#6125).
+- Date dialog of a task: "Repeat" sits right under the quick picks (Today / Tomorrow / Next week), reminders have their own block that is shut until a reminder is set, "Repeat reminder" has the bell icon, choices are no longer cut off (#6138).
+
 ## [2.1256.0] - 2026-11-16
 
 Package 2.1235 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -244,7 +252,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1256.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1261.0...HEAD
+[2.1261.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1261.0
 [2.1256.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1256.0
 [2.1252.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1252.0
 [2.1249.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1249.0
