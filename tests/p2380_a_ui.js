@@ -51,6 +51,7 @@ const TEST_IBAN = 'DE02120300000000202051';
   await until(() => d.querySelector('.ofdkinds [data-kind="archive"]'), 60);
   // 2.120.0 (#2089): + delivery notes; 2.380.0 (#3409): Quotations (+ Archive) and Invoices (+ credit notes, reminders, delivery notes, Archive) are two areas
   check(d.querySelectorAll('.ofdkinds [data-ofd="kind"]').length === 2 && d.querySelector('.ofdkinds [data-kind="offer"]')?.getAttribute('aria-selected') === 'true', 'quotations: two kind chips (quotations, archive), quotations first');
+  await until(() => d.querySelector('.ofdlist .ofdrow .rotag'), 60);  // 2.1259.0: the rows are drawn after the chips (red once under load: the check ran before the list)
   check(d.querySelectorAll('.ofdlist .ofdrow').length === 1 && /Draft/.test(d.querySelector('.ofdlist .rotag')?.textContent || ''), 'quotation list as before');
   w.eval(`go('office/invoices')`);  // 2.380.0 (#3409)
   await until(() => d.querySelectorAll('.ofdkinds [data-ofd="kind"]').length === 5 && d.querySelectorAll('.ofdlist .ofdrow').length === 2, 60);
