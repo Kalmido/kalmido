@@ -202,6 +202,14 @@ def flow(s, who):
     amounts = sorted(dd(x["Umsatz (ohne Soll/Haben-Kz)"]) for x in mine if x["Buchungstext"].startswith(z["number"]))
     check(bal == 0 and amounts == [D2("9.81"), D2("10.92")],
           f"{who} #6456: DATEV: 10.92 on the 19 % account, 9.81 on the 7 % account, the debtor balances {bal} {amounts}")
+    # ---- #6456: the booking export's payment rows: 11.90 USD in three parts = 10.92 like the invoice row (was 3.64 + 3.64 + 3.63 = 10.91)
+    y = invoice(s, cl, "9.1743", "USD", "1.09")
+    for x in ("3.97", "3.97", "3.96"):
+        pay(s, y["id"], x)
+    rows = [x for x in bx_rows(s) if x.get("Number") == y["number"]]
+    pm = sorted(dd(x["Gross"]) for x in rows if x.get("Type") == "Payment")
+    check(pm == [D2("3.64"), D2("3.64"), D2("3.64")] and [dd(x["Gross"]) for x in rows if x.get("Type") == "Invoice"] == [D2("10.92")],
+          f"{who} #6456: booking export: three part payments add up to the invoice row 10.92, the settling one carries the rest cent {pm}")
     # ---- (b) DATEV: 100.00 USD paid in three parts
     b = invoice(s, cl, "77.0917", "USD", "1.09")
     check(b["totals"]["gross"] == "100.00", f"{who} (b): USD 84.03 + 15.97 = 100.00 {b['totals'].get('gross')}")
