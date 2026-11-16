@@ -1133,11 +1133,11 @@ def doc_next_number(c, oid, r, s, peek=False):
         by = odoc_number_taken_by(c, oid, num, r["id"])  # 2.39.1 (#1182): also a number of the legacy archive
         if by is None:
             return num
-        if peek:
-            continue
-        if num in seen:  # the scheme gives this value again (no {seq}): no free one will come
+        if num in seen:  # the scheme gives this value again (no {seq}): no free one will come (the preview stops here too)
             break
         seen.add(num)
+        if peek:
+            continue
         ofx_log(c, oid, "number", doc_id=r["id"], detail={"skipped": num, "reason": by})
     if peek:
         return num
