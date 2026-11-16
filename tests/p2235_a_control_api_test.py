@@ -295,8 +295,14 @@ ctl(F, FA, {"projects": {str(OL): "routine"}})
 ctl(F, FA, {"level": "free"})
 r = requests.patch(V + f"/tasks/{OT}", headers=FAH, json={"title": "Changed by the agent"})
 check(r.status_code == 409 and r.json()["error"]["level"] == "routine", f"free agent, edit owner: capped to routine in that list {r.status_code}")
-check(requests.post(V + "/tasks", headers=FAH, json={"title": "Routine in Otto's", "list_id": OL}).status_code == 201, "routine passes there")
-check(requests.patch(V + f"/tasks/{OT}", headers=FAH, json={"due": "2026-12-24", "expect_updated_at": requests.get(V + f"/tasks/{OT}", headers=FAH).json()["updated_at"]}).ok, "planning passes there")  # 2.564.0 (#4702): an agent sends the version it read
+# 2.1284.0 (#6453): Otto reads this list, but not Frida's own one the agent reads too -- a wider circle of people. The level
+# (routine) would let these steps pass, the circle asks for a card: 409 with circle "wider" (was: 201 / 200 without a card)
+r = requests.post(V + "/tasks", headers=FAH, json={"title": "Routine in Otto's", "list_id": OL})
+check(r.status_code == 409 and r.json()["error"].get("circle") == "wider" and r.json()["error"]["level"] == "routine" and r.json()["error"]["step"] == "routine",
+      f"routine is the level there; the wider circle asks for a card {r.status_code} {r.text[:200]}")
+r = requests.patch(V + f"/tasks/{OT}", headers=FAH, json={"due": "2026-12-24", "expect_updated_at": requests.get(V + f"/tasks/{OT}", headers=FAH).json()["updated_at"]})  # 2.564.0 (#4702): an agent sends the version it read
+check(r.status_code == 409 and r.json()["error"].get("circle") == "wider" and r.json()["error"]["step"] == "routine",
+      f"planning is routine there; the wider circle asks for a card {r.status_code} {r.text[:200]}")
 
 # ================================================================== a team agent of the instance admin
 r = A.post(B + "/api/admin/agents", json={"username": "teambot", "display_name": "Team", "scopes": SCOPES})

@@ -267,10 +267,13 @@ async function scnStatus(md) {
   box.dataset.done = '1';
   retStatus(md);  // 2.223.3 A (#2877)
   let j; try { j = await api('GET', '/api/admin/upload-scan'); } catch { box.dataset.done = ''; return; }
-  const st = j.state === 'off' ? tr('Virus scanner: off (KALMIDO_CLAMD is not set). Uploads are not checked.')
+  // 2.1284.0 (#6606): off because the installer found too little memory: say so, and for every "off" the way to switch it on
+  const st = j.state === 'off' ? (j.off_why === 'low_memory' ? tr('Virus scanner: off. The installer left it out because this server has less than about 3 GB of memory (ClamAV needs 1-1.5 GB of its own). Uploads are not checked for malware.')
+    : tr('Virus scanner: off (KALMIDO_CLAMD is not set). Uploads are not checked.'))
     : j.state === 'ok' ? tr('Virus scanner: active.') : tr('Virus scanner: not reachable. Uploads are taken and marked “Unchecked”; the check follows once it runs again.');
+  const how = j.state === 'off' ? tr('Switch it on: in the installation folder run KALMIDO_CLAMAV=1 ./update.sh (without the installer: add clamav to COMPOSE_PROFILES in .env and remove KALMIDO_CLAMD=).') : '';
   const n = [j.unchecked ? trn('{0} file waits for the check', '{0} files wait for the check', j.unchecked) : '', j.infected ? trn('{0} locked file (malware found)', '{0} locked files (malware found)', j.infected) : ''].filter(Boolean);
-  box.innerHTML = `<div class="shint${j.state === 'down' || j.infected ? ' cnote' : ''}">${esc(st)}${n.length ? ' ' + esc(n.join(' · ')) : ''}</div>`;
+  box.innerHTML = `<div class="shint${j.state === 'down' || j.infected || j.off_why ? ' cnote' : ''}">${esc(st)}${n.length ? ' ' + esc(n.join(' · ')) : ''}${how ? `<br><span class="muted">${esc(how)}</span>` : ''}</div>`;
 }
 // 2.223.3 A (#2877): the deletion runs of the server (GET /api/admin/retention): per kind whether they delete or only count,
 // what their last pass deleted or would have deleted (numbers only) and the switch in .env

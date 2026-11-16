@@ -25,6 +25,8 @@
 #   KALMIDO_BUILD=1  always build locally instead of pulling the prebuilt image
 #   KALMIDO_URL      the address people open, https://...  (goes into PUBLIC_URL of .env, new or existing;
 #                                                           default: a new .env says http://localhost:<port>)
+#   KALMIDO_CLAMAV   1 = virus scanner on, 0 = off           (default: a new installation runs it from about 3 GB of
+#                                                           memory on; an update keeps the choice of .env)
 #
 # The script never uses sudo. Source: https://github.com/Gegenschuss/kalmido (AGPL-3.0)
 
@@ -304,12 +306,151 @@ ensure_compose_profiles() {
   if ! grep -q '^DATABASE_URL=.' "$DIR/.env" 2>/dev/null || grep -Eq '^DATABASE_URL=.*@db(:|/)' "$DIR/.env" 2>/dev/null; then
     prof="localdb"
   fi
-  if ! grep -Eq '^KALMIDO_CLAMD=[[:space:]]*("")?[[:space:]]*$' "$DIR/.env" 2>/dev/null; then
+  if ! clamd_off; then
     prof="${prof:+$prof,}clamav"
   fi
   printf '\n# Optional services of docker-compose.yml: localdb (the PostgreSQL container), clamav (virus scan). Added by the installer.\nCOMPOSE_PROFILES=%s\n' "$prof" >> "$DIR/.env"
   chmod 600 "$DIR/.env"
   say "Added COMPOSE_PROFILES=$prof to .env (which optional services run)"
+}
+
+# 2.1284.0 (#6606): the virus scanner (ClamAV) needs 1-1.5 GB of memory of its own; on a server with less than about 3 GB it
+# pushed the system into the out-of-memory killer. A NEW installation leaves it out there and leaves the reason in .env
+# (KALMIDO_CLAMAV_OFF=low_memory, the admin view shows it); KALMIDO_CLAMAV=1 / 0 decides it on any run, also an update.
+# Without KALMIDO_CLAMAV an update never changes the choice of an existing .env.
+CLAMAV_MIN_MB=2800  # "about 3 GB": a 3 GB server reports a little less (the kernel keeps some), 2.5 GB is below it
+CLAMAV_COMMENT="# Virus scanner left out by the installer"
+
+check_clamav_opt() {
+  case "${KALMIDO_CLAMAV:-}" in
+    ""|0|1) ;;
+    *) die "KALMIDO_CLAMAV must be 1 (virus scanner on) or 0 (off)." ;;
+  esac
+}
+
+# memory in MB that Docker can use (Docker Desktop: its VM), else the machine's; empty when unknown
+mem_mb() {
+  b=$(docker info --format '{{.MemTotal}}' 2>/dev/null || true)
+  case "$b" in
+    ""|*[!0-9]*) b="" ;;
+  esac
+  if [ -n "$b" ] && [ "$b" -gt 0 ]; then
+    echo $((b / 1048576))
+    return
+  fi
+  kb=$(sed -n 's/^MemTotal: *\([0-9]*\) kB$/\1/p' /proc/meminfo 2>/dev/null | head -n 1)
+  [ -z "$kb" ] || echo $((kb / 1024))
+}
+
+env_set() {  # NAME VALUE: the line NAME=VALUE in .env (replaced, else added)
+  if grep -q "^$1=" "$DIR/.env"; then
+    # 2.1284.0 (#6606, review F8): \ | & of the value stay themselves in the sed replacement
+    v=$(printf '%s' "$2" | sed 's/[\\|&]/\\&/g')
+    sed -i.bak "s|^$1=.*|$1=$v|" "$DIR/.env" && rm -f "$DIR/.env.bak"
+  else
+    printf '%s=%s\n' "$1" "$2" >> "$DIR/.env"
+  fi
+}
+
+env_drop() {  # PATTERN: the lines that match it go
+  sed -i.bak "/$1/d" "$DIR/.env" && rm -f "$DIR/.env.bak"
+}
+
+# 2.1284.0 (#6606, review F7-F9): NAME's value in .env as Compose reads it - the last line, without CR, without the quotes
+# around it, without a comment at the end (" #..." after a value without quotes); never expanded by the shell
+env_get() {
+  v=$(sed -n "s/^$1=//p" "$DIR/.env" 2>/dev/null | tail -n 1 | tr -d '\r')
+  case "$v" in
+    \"*) v=${v#\"}; v=${v%%\"*} ;;
+    \'*) v=${v#\'}; v=${v%%\'*} ;;
+    *) v=$(printf '%s' "$v" | sed 's/[[:space:]]#.*$//') ;;
+  esac
+  printf '%s' "$v" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+# the profiles Compose runs, one per line; * = every profile named in docker-compose.yml
+profile_names() {
+  { env_get COMPOSE_PROFILES; echo; } | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | while IFS= read -r n; do
+    if [ "$n" = '*' ]; then
+      all=$(sed -n 's/^[[:space:]]*profiles:[[:space:]]*\[\(.*\)\].*/\1/p' "$DIR/docker-compose.yml" 2>/dev/null | tr -d "\"' " | tr '\n' ',')
+      printf '%s\n' "${all:-localdb,clamav}" | tr ',' '\n'
+    elif [ -n "$n" ]; then
+      printf '%s\n' "$n"
+    fi
+  done | awk 'NF && !s[$0]++'
+}
+
+clamav_profile() {  # is the profile clamav on in .env?
+  profile_names | grep -qx clamav
+}
+
+# does the app leave the scanner out? Read like kalmido/files/scan.py: empty, 0, off, no, false. No line = the compose default
+# (clamav:3310) = it checks.
+clamd_off() {
+  grep -q '^KALMIDO_CLAMD=' "$DIR/.env" 2>/dev/null || return 1
+  case "$(env_get KALMIDO_CLAMD | tr 'A-Z' 'a-z')" in
+    ""|0|off|no|false) return 0 ;;
+  esac
+  return 1
+}
+
+# the profile names of COMPOSE_PROFILES without clamav (ADD=1: with it)
+profiles_with() {
+  profile_names | awk -v add="$1" '$0 != "clamav" { o = o (o == "" ? "" : ",") $0 } END { if (add == 1) o = o (o == "" ? "" : ",") "clamav"; printf "%s", o }'
+}
+
+clamav_off() {  # REASON (low_memory or empty) MB
+  env_set COMPOSE_PROFILES "$(profiles_with 0)"
+  env_set KALMIDO_CLAMD ""
+  env_drop "^$CLAMAV_COMMENT"
+  env_drop '^KALMIDO_CLAMAV_OFF='
+  if [ -n "$1" ]; then
+    printf '%s: about %s MB of memory, under 3 GB (ClamAV needs 1-1.5 GB of its own). Switch it on: KALMIDO_CLAMAV=1 ./update.sh\nKALMIDO_CLAMAV_OFF=%s\n' \
+      "$CLAMAV_COMMENT" "$2" "$1" >> "$DIR/.env"
+  fi
+  chmod 600 "$DIR/.env"
+}
+
+clamav_on() {
+  env_set COMPOSE_PROFILES "$(profiles_with 1)"
+  # a KALMIDO_CLAMD the app reads as "off" goes (the compose default clamav:3310 applies); an own scanner address stays
+  if clamd_off; then env_drop '^KALMIDO_CLAMD='; fi
+  env_drop "^$CLAMAV_COMMENT"
+  env_drop '^KALMIDO_CLAMAV_OFF='
+  chmod 600 "$DIR/.env"
+}
+
+# NEW = 1 for a .env written on this run. Sets CLAMAV_SAID (the line for the end of the installation).
+choose_clamav() {
+  CLAMAV_SAID=""
+  case "${KALMIDO_CLAMAV:-}" in
+    1) clamav_on; say "Virus scanner on (KALMIDO_CLAMAV=1)"; return ;;
+    0) clamav_off "" ""; say "Virus scanner off (KALMIDO_CLAMAV=0)"; return ;;
+  esac
+  [ "$1" = 1 ] || return 0
+  mb=$(mem_mb)
+  if [ -n "$mb" ] && [ "$mb" -lt "$CLAMAV_MIN_MB" ]; then
+    clamav_off low_memory "$mb"
+    CLAMAV_SAID=$mb
+    warn "This server has about $mb MB of memory: the virus scanner (ClamAV, 1-1.5 GB of its own) is left out. Uploads are not checked for malware."
+  fi
+}
+
+# the line about the virus scanner at the end of the installation (from .env: what really runs)
+clamav_note() {
+  if clamav_profile && ! clamd_off; then
+    say "Virus scan: ClamAV checks every upload (about 1-1.5 GB RAM); switch it off: KALMIDO_CLAMAV=0 \"$DIR/update.sh\" (docs/SELF-HOSTING.md)"  # 2.61.0
+  elif grep -q '^KALMIDO_CLAMAV_OFF=low_memory' "$DIR/.env"; then
+    if [ -n "${CLAMAV_SAID:-}" ]; then m="about $CLAMAV_SAID MB of memory, under 3 GB"; else m="less than about 3 GB of memory"; fi
+    printf '\033[1;33mVirus scan: OFF.\033[0m This server has %s; ClamAV alone needs 1-1.5 GB.\n' "$m"
+    say "            Uploads are not checked for malware (Settings > Server > Backup says so too)."
+    say "            Switch it on anyway (with more memory, or when you accept the risk): KALMIDO_CLAMAV=1 \"$DIR/update.sh\""
+  elif clamav_profile; then
+    # 2.1284.0 (#6606, review F9): the container runs, but the app reads KALMIDO_CLAMD as off - uploads are not checked
+    say "Virus scan: off (KALMIDO_CLAMD in .env); uploads are not checked. Switch it on: KALMIDO_CLAMAV=1 \"$DIR/update.sh\""
+  else
+    say "Virus scan: off (COMPOSE_PROFILES in .env); switch it on: KALMIDO_CLAMAV=1 \"$DIR/update.sh\" (about 1-1.5 GB RAM)"
+  fi
 }
 
 # 2.513.0 (#4356): KALMIDO_URL, checked before anything changes: links in mails, push messages and password resets are built from it
@@ -350,6 +491,7 @@ write_env() {
     follow_port_url
     ensure_pg_password
     ensure_compose_profiles
+    choose_clamav 0
     return
   fi
   tz=$(detect_tz)
@@ -362,6 +504,7 @@ write_env() {
   say "Created .env (TZ=$tz, PUBLIC_URL=${URL:-http://localhost:$PORT})"
   ensure_pg_password
   ensure_compose_profiles
+  choose_clamav 1
 }
 
 # The tracked docker-compose.yml publishes 127.0.0.1:3040. Anything else goes into a generated
@@ -380,7 +523,21 @@ write_override() {
   fi
   # 2.513.0 (#4358): this file is written anew on every run, so the network_mode line of an older installer goes away with it
   uidline=""
-  if [ "$(uname -s)" = Linux ] && [ "$(id -u)" != 1000 ]; then
+  if [ "$(uname -s)" = Linux ] && [ "$(id -u)" = 0 ]; then
+    # 2.1284.0 (#6606): run as root (usual on a rented server): the app keeps its own user 1000 instead of running as root
+    # (user 0:0 lifted the image's own user); data/ and secret/ go to 1000, also what an older run left to root
+    # 2.1284.0 (review F10): -h changes a link inside, never what it points to; data/ or secret/ itself a link (another disk):
+    # the container writes into its target, so the target goes to 1000 - never the root of the system
+    for f in data secret; do
+      p="$DIR/$f"
+      if [ -L "$p" ]; then
+        p=$(cd -P "$p" 2>/dev/null && pwd -P) || die "$DIR/$f is a link to a folder that does not exist."
+        [ "$p" != / ] || die "$DIR/$f is a link to / - point it to a folder of its own."
+        say "$DIR/$f is a link: giving its target $p to user 1000"
+      fi
+      chown -hR 1000:1000 "$p" || die "Could not give $DIR/data and $DIR/secret to user 1000 (chown)."
+    done
+  elif [ "$(uname -s)" = Linux ] && [ "$(id -u)" != 1000 ]; then
     # the image runs as 1000:1000 by default; use your own user so it can write ./data
     uidline="    user: \"$(id -u):$(id -g)\""
   fi
@@ -437,6 +594,11 @@ and restart Docker. Then run this installer again."
   fi
   [ "$rc" = 0 ] || die "docker compose up failed (see above, log in $log)."
   rm -f "$log"
+  # 2.1284.0 (#6606): a scanner switched off (KALMIDO_CLAMAV=0) keeps running otherwise - up leaves services of an inactive profile alone.
+  # Only when switched off on THIS run (review F7): an update never removes a running scanner because of how .env is written
+  if [ "${KALMIDO_CLAMAV:-}" = 0 ]; then
+    (cd "$DIR" && dc --profile clamav rm -sf clamav >/dev/null 2>&1) || true
+  fi
 }
 
 # 2.149.0 D (#2510): the server answers only after its database migration; a big one can take minutes. Keep waiting
@@ -511,6 +673,7 @@ main() {
   [ -n "${HOME:-}" ] || die "HOME is not set."
   DIR="${KALMIDO_DIR:-$HOME/kalmido}"
   check_url
+  check_clamav_opt
   resolve_version
   release_assets
   detect_port
@@ -578,11 +741,11 @@ main() {
   if [ -n "$UPDATE" ] && [ -n "$prev" ] && [ "$prev" != "$VERSION" ]; then
     say "Previous:   $prev  (back to it: KALMIDO_VERSION=$prev \"$DIR/update.sh\"${DBCOPY:+; the database of before: $DBCOPY})"
   fi
-  say "Virus scan: ClamAV checks every upload (about 1-1.5 GB RAM); small server: KALMIDO_CLAMD= in .env, see docs/SELF-HOSTING.md"  # 2.61.0
+  clamav_note  # 2.1284.0 (#6606): on, off for little memory (loud), or off by choice; each with the command to switch
   say "Stop:       cd \"$DIR\" && docker compose down"
   # 2.538.0 (#4361): down -v also removes the named volumes (virus-scan database, temp); pgdata/ is a folder written by the
   # database container (user 999 inside the postgres image), so on Linux a plain rm fails on it
-  say "Uninstall:  cd \"$DIR\" && docker compose --profile '*' down -v && docker image rm ${IMAGE:-kalmido:local} postgres:17.12 clamav/clamav:1.4"
+  say "Uninstall:  cd \"$DIR\" && docker compose --profile '*' down -v && docker image rm ${IMAGE:-kalmido:local} postgres:17.12 clamav/clamav-debian:1.4 clamav/clamav:1.4"
   say "            (images you never pulled give a harmless \"No such image\"). Then delete the folder: sudo rm -rf \"$DIR\""
   say "            This deletes all your tasks and cannot be undone: copy data/backups/ and secret/kalmido.key elsewhere first if you want them."
   say "Use it from other devices: put it behind a reverse proxy with HTTPS, see"

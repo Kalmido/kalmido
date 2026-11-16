@@ -269,10 +269,17 @@ def wiki_dict(r, full=True, names=None):
     return d
 
 
-def wiki_set_links(c, pid, text):
+def wiki_set_links(c, pid, text, by=None, old=None):
+    """What follows a page's text at EVERY write of it (new page, save, relink, move, restore, import): wiki_links, and
+    2.1284.0 (#6321) who embedded which file store picture (wiki_embeds, wkembed.py wem_embeds_set). by + old ONLY where a
+    person or an agent saves a text they wrote themselves (by = that account, old = the page's text before, "" for a new
+    page): a picture this save embeds is theirs. Every other write (relink, move, restore, undo, out of a lock ...) passes
+    neither: it follows the text and claims nothing. A new place that writes wiki_pages.body calls this
+    (tests/p2380r_h_api_test.py reads the sources for it and for the places that may claim)."""
     paths, tasks = wiki_links_of(text)
     c.execute("DELETE FROM wiki_links WHERE from_id=?", (pid,))
-    from .wkembed import wem_set_links
+    from .wkembed import wem_embeds_set, wem_set_links
+    wem_embeds_set(c, pid, text, by, old)  # before the early return below: a text behind the lock has no rows
     wem_set_links(c, pid, text)  # 2.123.0 C (#2103, #2107): the files of the file store and the tables it shows / links
     if (text or "").startswith("e2e1:"):  # 2.64.3 A (#1817): a locked space keeps no links on the server
         return
@@ -291,8 +298,12 @@ def wiki_body(b):
     return v
 
 
-def wiki_insert(c, oid, uid, path, text, ts, pid=None):
-    """A new page; None when the path is taken in that space. pid (2.640.0, #3388): the id reserved for it (e2eresv)."""
+def wiki_insert(c, oid, uid, path, text, ts, pid=None, by=None, tpl=None):
+    """A new page; None when the path is taken in that space. pid (2.640.0, #3388): the id reserved for it (e2eresv).
+    by (2.1284.0, #6321): who writes the text when that is not uid (a private page made in its owner's name by a guest of
+    a folder share or by the owner's agent) -- the pictures embedded in it are theirs, never the owner's.
+    tpl (2.1284.0, #6321 review 1 F4): the page whose text this one starts with (a template) -- its pictures keep the
+    persons who embedded them there; who makes the page from it claims none."""
     from .wkhist import wkh_seal  # 2.123.0 A (#2105, #2106): the text sealed at rest, the word index
     from .wksearch import wks_index
     try:
@@ -303,7 +314,12 @@ def wiki_insert(c, oid, uid, path, text, ts, pid=None):
                              json.dumps(wiki_frontmatter(text), ensure_ascii=False), uid, uid, ts, ts))
     except IntegrityError:
         return None
-    wiki_set_links(c, pid, text)
+    if tpl:
+        from .wkembed import wem_embeds_copy
+        wiki_set_links(c, pid, text)
+        wem_embeds_copy(c, tpl, pid, by or uid)
+    else:
+        wiki_set_links(c, pid, text, by or uid, "")
     wks_index(c, pid, oid, None if oid else uid, text, ts)  # 2.123.0 A (#2106)
     return pid
 
@@ -451,13 +467,14 @@ def wiki_create():
     else:
         path = wiki_clean_path(b.get("path"))
         text = wiki_body(b)
+    tpl = None
     if b.get("template_id") and not text:
         from .wkhist import wkh_body
         t = wiki_need(c, int(b["template_id"]))
-        text = wkh_body(c, t)  # 2.123.0 A (#2105)
+        text, tpl = wkh_body(c, t), t["id"]  # 2.123.0 A (#2105); 2.1284.0 (#6321): its embedders come along (wiki_insert)
         if text.startswith("e2e1:"):  # 2.64.3 (#1817, review M1): a template of an encrypted space opens only in the browser
             raise BadInput(tr("Invalid value: {0}", "template_id"))
-    pid = wiki_insert(c, oid, uid, path, text, iso_ms(now_utc()), pid=pre)
+    pid = wiki_insert(c, oid, uid, path, text, iso_ms(now_utc()), pid=pre, tpl=tpl)
     if pid is None:
         return wiki_taken()
     from .wkfolder import wkf_sync
@@ -518,7 +535,7 @@ def wiki_relink(c, r, old, new, uid, ts, only_edit=False):
         if nb != ob:
             c.execute("UPDATE wiki_pages SET body=?, updated_by=?, updated_at=? WHERE id=?",
                       (wkh_seal(c, p["org_id"], p["owner_id"], nb), uid, ts, p["id"]))
-            wiki_set_links(c, p["id"], nb)
+            wiki_set_links(c, p["id"], nb)  # 2.1284.0 (#6321): a relink only follows -- an embed it makes appear is nobody's
             n += 1
     return n
 
@@ -554,7 +571,7 @@ def wiki_relink_many(c, oid, uid, renames, ts):
         if nb != ob:
             c.execute("UPDATE wiki_pages SET body=?, updated_by=?, updated_at=? WHERE id=?",
                       (wkh_seal(c, p["org_id"], p["owner_id"], nb), uid, ts, p["id"]))
-            wiki_set_links(c, p["id"], nb)
+            wiki_set_links(c, p["id"], nb)  # 2.1284.0 (#6321): a relink only follows -- an embed it makes appear is nobody's
     return n
 
 
@@ -617,7 +634,7 @@ def wiki_update(pid):
         if not hit:  # someone saved between the read above and this write
             return conflict(wiki_need(c, pid))
         if "body" in f:
-            wiki_set_links(c, pid, plain)
+            wiki_set_links(c, pid, plain, uid, prev[0])  # 2.1284.0 (#6321): the person's own save: what it embeds is theirs
         if "path" in f:
             wkh_rename(c, r, f["path"], uid)  # 2.571.0 (#4766): the new name in the core's history (obj_history)
         if not locked:  # 2.123.0 A (#2102, #2106): the history and the word index

@@ -365,6 +365,23 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
 - Kalmido enforces this too: an agent in projects with different people circles needs an approved "bridge", and moving a
   task into a project with other people waits for a person's approval (202; under a control level its card comes first
   as `409 approval_required`, then the 202). Do not try to get around either.
+- **Writing is free only towards the same or a smaller circle of people** (2.1284.0): into a project that more people
+  read than your other places (a private project and one shared with one more person; a knowledge folder, calendar or
+  channel shared with you counts too), and into anything public (a project with a public link, a task with a client's
+  report, a shared knowledge page) every write answers `409 approval_required` with `circle: "wider"` or `"public"` - on
+  `routine` and `free` too. Ask with the card as always; Kalmido marks it "visible to more people" / "publicly visible"
+  for the person. Your progress line (`set_working`, a job's log) shows no words in such a project: the mark says only
+  that you work (`text_shown: false` in the answer), and other people see such a job without its title, name and log.
+  Never carry content there another way.
+- What counts as writing there (2.1284.0): a subtask lives in its parent's project, so `parent_id` (create, change, move)
+  is a write into the parent's project, whatever `list_id` says. A place whose readers Kalmido cannot name (office,
+  documents, polls, a table without a project ...) needs the card as soon as you read more than one place.
+- A team agent (not a personal one): a chat message to a person who does not read every place you read answers the same
+  `409 approval_required` (`circle: "wider"`, `step: "meta"`) - also an approval card to that person. Ask a person who
+  reads all your places with a card whose step is that message, then run it. Your status text is shown only to people who
+  read all your places; the others see only that you work.
+- The Yes on such a card counts only from a person who reads every place you read; else the run answers
+  `409 approval_invalid`, reason `approver_rights`. Ask such a person, do not ask around.
 
 ### Files and screenshots
 - When someone asks about a screenshot, image or file, **read it**: chat files come with the chat message

@@ -50,6 +50,7 @@
   "task_offer_links": "own logic: the quotation position a task came from (offer data)",
   "task_people": "own logic: the people of a task (assignees)",
   "tchat_msgs": "own logic: the team chat's message stream (stage Q4 keeps it)",
+  "wiki_embeds": "own logic: derived from the page text like wiki_links (which file store pictures it embeds), plus who brought each into the text - a record for the share check (wkshare.py wsh_img_nodes), not a link people make, see or undo; it must hold numbers the person cannot see or that name no file (#6321)",
   "wiki_links": "own logic: derived from the page text (backlinks), rebuilt on save",
   "wiki_pages": "own logic: a page's text (body)",
   "wiki_shares": "public page links only (kind link, token_hash) - the area's share links without an account; person shares are core shares since stage 7c (#5244)"

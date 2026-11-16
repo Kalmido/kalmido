@@ -1867,6 +1867,8 @@ GET    /api/v1/tasks/{id}/working                                 -> {working, j
 ```
 
 The first `POST` starts it (201), every further `POST` adds the next progress line (200); MCP `set_working` / `end_working`.
+*(2.1284.0, #6453)* In a project more people (or the public) read than your other places the mark is set but shows no text:
+the answer carries `text_shown: false` and a `note`, `working.text` is empty for everybody (see [Control level](#control-level)).
 It is your running job of that task (`GET /agent/jobs`): a job you already run with `task_id` (`POST /agent/jobs`) shows the
 same way. Without an update for 15 minutes the dot fades on its own (send a line at least that often, or `PATCH` without
 `text` to say "still working"). Needs the scope `tasks:write` and write access to the task's list (a task you cannot see:
@@ -3392,7 +3394,7 @@ capability `data_lock_info`).
 404). It applies to agents only; people keep their roles and the approvals of takeover and release. **The server enforces
 it**: every write of the agent's token under `/api/v1/` has a class - `meta` (its own channel `/agent/...`: status,
 typing, chat and approval cards, jobs, proposals; always allowed), `routine` (create tasks and subtasks, plan them = only
-`due` / `due_time` / `start`, comment, take a task's lock off (`locked: false`, needed before ticking off a locked task; setting a lock stays `change`), tick off / reopen / skip, reactions, team chat messages, watching a task and ending it, linking two objects and removing such a link *(2.1112.2, #5975: `/agent/objects/{kind}/{id}/links`, before always allowed as `meta`)*), `one_way` (every `DELETE` except those listed here, and the delete actions:
+`due` / `due_time` / `start`, comment, take a task's lock off (`locked: false`, needed before ticking off a locked task; setting a lock stays `change`), tick off / reopen / skip, reactions, team chat messages, watching a task and ending it, linking two objects and removing such a link *(2.1112.2, #5975: `/agent/objects/{kind}/{id}/links`, before always allowed as `meta`)*, deleting a project tag that nothing carries *(2.1284.0, #6575: `DELETE /lists/{id}/tags/{tag_id}` of a tag of that project on no task - open, done or in the trash; nothing is lost, the tag comes back by its name. A tag on at least one task and every label of the organisation stay `one_way`)*), `one_way` (every `DELETE` except those listed here, and the delete actions:
 emptying the trash, deleting folders, undoing an import, a batch with `action: delete`) or `change` (everything else; also the `DELETE` that only stops a timer or ends waiting, `DELETE /time/timer` and `DELETE /tasks/{id}/waiting`). Marking a task as being worked on (`/tasks/{id}/working`) belongs to `meta`.
 
 | Level | Allowed without a card |
@@ -3409,7 +3411,47 @@ project's level (capped by the owner's rights), no longer the general cap at `ro
 than its owner's own rights there (owner / admin = `free`, member who edits = `routine`, reading / commenting =
 `approve_all`). One-way steps (`one_way.fixed`: deleting, anything that costs money, login and registration, migrations
 without a way back; plus the owner's own items, `one_way.custom`) need a card on **every** level; Kalmido enforces deleting,
-the others happen outside Kalmido and are the agent's rule. **An agent made before 2.235.0** has no level (`control.level`
+the others happen outside Kalmido and are the agent's rule.
+
+**Only towards the same or a smaller circle of people** *(2.1284.0, #6453)*: a write the level would let pass (`routine`,
+`free`) still needs a card when its target is read by a person who does not read everything else the agent reads, or by the
+public. The answer is the same `409 approval_required` with one more field, `circle`:
+
+| `circle` | The target | Examples |
+|---|---|---|
+| `wider` | At least one person reads the target who does not read one of the agent's other places | A private project and one shared with a colleague: writing into the shared one. A knowledge folder, a calendar, a channel shared with the agent that a member of the project does not see. A knowledge page shared with a person outside its space. |
+| `public` | People without an account read it | A project with a live public link; a task with a client's report (the portal: its title, state, an answer marked for the client - an internal comment stays free); a knowledge page a public link covers. |
+
+What counts: the people (never agents) of each project the agent can really use, and every live share of a folder, page,
+calendar, address book, table or channel with exactly this agent; the agent's chat with its person does not count (that is
+where its orders come from). The direction matters: shared -> private is free, two places with the same people are free, an
+agent with one project gets no card from this rule. Who reads a source: the people with a full role in a project (a
+participant, who sees only the own tasks, is none; nor a member whose share ran out) - on the target side everybody counts.
+A subtask lives in its parent's project: `parent_id` in `POST /tasks`, `PATCH /tasks/{id}` and `POST /tasks/{id}/move` is a
+write into the parent's project, whatever `list_id` says. A pair of projects a person approved as a bridge stays approved
+for the people of that moment: once one more person reads one of the two, the way between them needs a card again (and
+adding a person there asks for the approval again). A target without a project is checked the same way where Kalmido can
+name its readers - a calendar and its entries, an address book and its contacts, a file or folder, a knowledge page, a chat
+room without a project: every person who reads it must read all the agent's places. A target whose readers it cannot name
+(office, documents, polls, clients, a table without a project; an object the agent does not see answers like one that does
+not exist) needs a card as soon as the agent has more than one place (projects with people + shares). The card is made as always (`approval.step` from the answer); Kalmido itself stores
+`circle` on it and shows the person "Visible to more people" / "Publicly visible" - the agent cannot set or drop the mark.
+Such a card needs a person's Yes (never the deadline's recommended answer), and a card made before the target became wider
+or public no longer fits (`409 approval_invalid`, reason `circle`): ask again. The Yes counts only from a person who reads
+every place the agent reads (not just the target; else `409 approval_invalid`, reason `approver_rights`). `approve_all` is
+unchanged for the routes it already asks for.
+A **team agent's own channel** is part of the rule (a personal agent writes only to its owner and stays free): `POST
+/agent/chats/{user_id}` to a person who does not read every place the agent reads answers `409 approval_required` with
+`step: "meta"` and `circle: "wider"` on every level - a plain message and an approval card alike. The agent asks a person
+who reads all its places with a card whose `step` is that message and runs it after the Yes. Its status text
+(`PUT /agent/status` `text`, the reason of a pause) is shown only to people who read all its places; the others see the
+status without words.
+The progress line of a task (`/tasks/{id}/working`, a job's `log` / `append_log`) is no way around it: in such a project the
+mark shows that the agent works, its text stays empty (`working.text: ""`, `working.muted: true`; the answer of `POST` /
+`PATCH .../working` adds `text_shown: false` and a `note`). The job behind the mark is listed for other people without its
+`title`, `name` and `log` (`GET /api/agents/jobs`); the agent itself and the person the job is for read them as before.
+
+**An agent made before 2.235.0** has no level (`control.level`
 null, `chosen: false`): it works as before, without any of these checks, until its owner picks one.
 
 A write the level does not allow answers `409`:
@@ -3443,7 +3485,7 @@ run it from the card after the Yes:
    differ), `stale` (only a state field such as `expect_updated_at` / `prev` differs, or the route answered `409 conflict`
    on a run: the target changed since the card - read it again, ask with a new card), `used` (the card is in use right now or
    has run, `used_at` when it ran - check the result instead of reporting a failure), `unanswered`, `rejected`, `withdrawn`, `no_step`,
-   `one_way`, `approver_rights`, `approver_shares`, `not_found` (run: 404), `format`, `nested`, `upload` (2.1085.0: an upload's card runs only the header way).
+   `one_way`, `circle` *(2.1284.0: the target is read by more people or the public and the card does not say so)*, `approver_rights` *(2.1284.0: also when the person who said Yes to a `circle` card does not read every place the agent reads)*, `approver_shares`, `not_found` (run: 404), `format`, `nested`, `upload` (2.1085.0: an upload's card runs only the header way).
    2.1287.0 (#6454): the Yes on a card **without a project** (a contact, a calendar, a knowledge page, a table, a file) of a
    team agent counts only from a person who may change that object themselves: an object of
    `/agent/objects/<kind>/<id>` answers `approver_rights`, every other route answers as it would for that person (`403` /
