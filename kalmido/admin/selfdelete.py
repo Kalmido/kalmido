@@ -31,7 +31,7 @@ from ..core.pg import system_ctx
 from ..core.tokenhash import tkh_hash, tkh_match
 from ..accounts.bgjobs import BGJ_FNS, bgj_add
 from ..accounts.login import _reauth, rc_use, totp_match, unseal
-from ..accounts.session import _DUMMY_HASH, _rate_fail, _rate_keys, _token_hash, login_wait, rate_ip
+from ..accounts.session import _DUMMY_HASH, _rate_fail, _rate_keys, _token_hash, login_wait, rate_ip, login_name_in
 from ..accounts.sessions import ses_end
 from ..notify.push import WD_TICKS
 from ..notify.alerts import aa_now
@@ -310,7 +310,7 @@ def sdl_cancel():
         # 2.1254.0 (#6293): an admin locked the account while it waited: the link ended (users.sdl_admin_locked)
         ok = bool(u and secret and not sdl_plan(u).get("admin") and any(tkh_match(secret, h) for h in sdl_plan(u).get("toks") or []))
     else:
-        username = str(b.get("username") or "").strip().lower()
+        username = login_name_in(b.get("username"))  # 2.1271.0 (#6420): cut before anything
         keys = _rate_keys(username)
         e = login_wait(keys, username)
         if e:
