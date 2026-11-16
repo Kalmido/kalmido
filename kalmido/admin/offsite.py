@@ -525,7 +525,7 @@ class S3:
             raise _status_err(st, raw)
 
 
-OFFSITE_XML_ELEMENTS, OFFSITE_XML_DEPTH = 200_000, 32  # a listing page: 1000 names with a handful of elements each
+OFFSITE_XML_ELEMENTS, OFFSITE_XML_DEPTH = 500_000, 32  # a listing: the answer is cut at 8 MB, a file has about eight elements
 
 
 def _listing(raw):
@@ -533,7 +533,7 @@ def _listing(raw):
     core/safexml.py: the store is a foreign server too -- no NUL, no DOCTYPE / ENTITY, the limits counted while reading.
     Everything refused is ET.ParseError for the callers (an answer that is no listing)."""
     try:
-        return safexml.sx_tree(raw, max_bytes=len(raw) + 1, max_elements=OFFSITE_XML_ELEMENTS, max_depth=OFFSITE_XML_DEPTH)
+        return safexml.sx_tree(raw, max_bytes=len(raw) + 1, max_elements=OFFSITE_XML_ELEMENTS, max_depth=OFFSITE_XML_DEPTH, strict=False)
     except safexml.XmlRefused as e:
         raise ET.ParseError(e.reason) from None
 

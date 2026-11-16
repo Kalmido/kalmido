@@ -10,7 +10,9 @@ back) costs seconds and some hundred MB, not the machine.
       refuses it (NUL) as bytes and as decoded text
     - a DOCTYPE anywhere: behind 100 KB of comment, cut between two read pieces, with ATTLIST only (no ENTITY)
     - the parser's own check: a DOCTYPE the byte search is made blind for is still refused, at the declaration
-    - limits while reading: a document of a million elements is left after a few thousand; depth; size
+    - limits while reading: a document of a million elements is left at the limit; depth; size; also behind a long
+      comment or attribute (expat puts that region off); a namespace address that is too long
+    - strict=False (DAV answers, feeds): the words inside the content are read, a real DOCTYPE is not
     - what stays readable: declared encodings, a UTF-8 byte order mark, decoded text with a stale declaration, a stream
  B. inside the app container, the app's own functions, each with its hostile file and a time limit: e-invoice (reader,
     the check in its own process with the memory limit, a whole file), CAMT rows and balances, DATEV document.xml, mind
@@ -145,7 +147,46 @@ check(len(root) == 20000 and root[12345].text == "ä€𝄞 12345", "#6422 ... a
 got = [el.get("n") for ev, el in SX.sx_events(iter([big.encode()[:70001], big.encode()[70001:]]), max_bytes=10_000_000, want=("end",))
        if el.tag == "i"]
 check(len(got) == 20000 and got[-1] == "19999", "#6422 a stream of pieces gives every element once")
-check(SX.sx_check(big.encode(), max_bytes=10_000_000, max_elements=30000) is None, "#6422 sx_check reads an ordinary document to its end")
+
+# review: the limits hold at the very element, also behind a long unfinished token (expat puts the region off and then
+# hands over everything at once, the last part only when the parser is closed)
+for what, lead in (("comment", b"<r><!--" + b"c" * 300_000 + b"-->"), ("attribute", b'<r a="' + b"c" * 150_000 + b'">')):
+    built = {"n": 0}
+
+    def burst(body, **kw):
+        built["n"] = 0
+        try:
+            for _ev, _el in SX.sx_events(lead + body + b"</r>", max_bytes=10_000_000, want=("start",), **kw):
+                built["n"] += 1
+        except SX.XmlRefused as e:
+            return e.reason
+        return None
+
+    r = burst(b"<i/>" * 20_000, max_elements=1000)
+    check(r == "elements" and built["n"] <= 1000, f"#6422 20 000 elements behind a long {what}: refused, none over the limit built ({r}, {built['n']})")
+    r = burst(b"<i>" * 20_000 + b"</i>" * 20_000, max_elements=10 ** 6, max_depth=40)
+    check(r == "depth" and built["n"] <= 40, f"#6422 20 000 levels behind a long {what}: refused, none over the limit built ({r}, {built['n']})")
+# review: the search sees a word again after a piece of one byte (decoded text: a two-byte character moves the cut)
+keep = SX._Guard.feed
+SX._Guard.feed = lambda self, piece, final=False: None  # the guard off: the byte search alone
+try:
+    d = "<!--ä" + "c" * (SX.SX_CHUNK - 16) + "--><!DOCTYPE a [<!ATTLIST a d CDATA 'zz'>]><a/>"
+    assert d[:SX.SX_CHUNK].endswith("<!DOCTYP"), d[SX.SX_CHUNK - 12:SX.SX_CHUNK]
+    check(reason(d) == "dtd", f"#6422 a DOCTYPE cut around a piece of one byte is seen by the search alone ({reason(d)})")
+finally:
+    SX._Guard.feed = keep
+# review: no DTD at all -- one long namespace address, written by ElementTree into every distinct name
+names = '<r xmlns:a="urn:' + "u" * 20_000 + '">' + "".join(f"<a:b{i}/>" for i in range(1500)) + "</r>"
+r, secs = timed(lambda: reason(names.encode()))
+check(r == "names" and secs < 1, f"#6422 a namespace address of 20 000 characters is refused ({r}, {secs:.2f} s)")
+ok_ns = '<r xmlns:a="urn:' + "u" * 200 + '"><a:b/></r>'
+check(reason(ok_ns.encode()) == 2, "#6422 a namespace address of 200 characters is read")
+# strict=False (DAV answers, feeds): the words inside the content are read, a real DOCTYPE is refused all the same
+cdata = b"<a><![CDATA[<!DOCTYPE html><p>x</p>]]><!-- <!ENTITY --></a>"
+check(reason(cdata) == "dtd" and reason(cdata, strict=False) == 1, "#6422 strict=False reads the words DOCTYPE / ENTITY inside the content")
+check(reason(doc.encode(), strict=False) == "dtd" and reason(late.encode(), strict=False) == "dtd" and reason(u16, strict=False) == "nul",
+      "#6422 strict=False still refuses a real DOCTYPE and UTF-16 without a mark")
+check(reason(b"<a><!DOCTYPE x [<!ENTITY e 'y'>]>&e;</a>", strict=False) == "broken", "#6422 a DOCTYPE behind the first element is broken XML")
 
 # ---------------------------------------------------------------- B. inside the app container: every place that reads XML
 PROBE = GEN + r'''
@@ -200,7 +241,6 @@ with app.test_request_context("/", headers={"Accept-Language": "en"}):
     out["ei_old_blind"] = OLD.search(E._decode(hostile)) is None
     run("ei_parse_u16", lambda: E.ei_parse(hostile))
     run("ei_checked_u16", lambda: E.ei_checked(hostile))
-    run("ei_file_u16", lambda: E.ei_of_file("rechnung.xml", "application/xml", hostile))
     run("ei_checked_dtd", lambda: E.ei_checked(laughs(UBL_OPEN, "</ubl:Invoice>").encode()))
     many = (UBL_OPEN + "<x/>" * (E.ELEMENTS_MAX + 10) + "</ubl:Invoice>").encode()
     run("ei_parse_many", lambda: E.ei_parse(many))
@@ -294,6 +334,21 @@ with app.test_request_context("/", headers={"Accept-Language": "en"}):
     run("rss_ok", lambda: [rss.rss_parse(FEED.replace("UTF-16", "UTF-8").encode(), "https://example.test/feed")[0]["title"], len(rss.rss_parse(FEED.replace("UTF-16", "UTF-8").encode(), "https://example.test/feed")[1])])
     run("rss_ok_u16_bom", lambda: rss.rss_parse(FEED.encode("utf-16"), "https://example.test/feed")[1][0]["title"])
     run("xml_no_dtd_deep", lambda: caldav.xml_no_dtd(b"<a>" * 5000 + b"</a>" * 5000))
+    HTML_ICS = '<?xml version="1.0"?><D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:response><D:href>/cal/1.ics</D:href><D:propstat><D:prop><C:calendar-data><![CDATA[BEGIN:VCALENDAR\nX-ALT-DESC;FMTTYPE=text/html:<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"><html/>\nEND:VCALENDAR]]></C:calendar-data></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus>'
+    run("dav_answer_html", lambda: len(subs._dav_responses(subs._dav_xml(HTML_ICS.encode()), "https://example.test/cal/")))
+    run("rss_html", lambda: len(rss.rss_parse(FEED.replace("UTF-16", "UTF-8").replace("</item>", "<description><![CDATA[<!DOCTYPE html><p>Text</p>]]></description></item>").encode(), "https://example.test/feed")[1]))
+    run("dav_names", lambda: subs._dav_xml(('<D:multistatus xmlns:D="DAV:" xmlns:a="urn:' + "u" * 20_000 + '">' + "".join(f"<a:b{i}/>" for i in range(1500)) + "</D:multistatus>").encode()))
+    run("dav_burst", lambda: caldav.xml_no_dtd(b"<r><!--" + b"c" * 300_000 + b"-->" + b"<i>" * 20_000 + b"</i>" * 20_000 + b"</r>"))
+    run("ei_odd_u16", lambda: E.ei_of_file("rechnung.xml", "application/xml", UBL.encode("utf-16") + b"x"))
+    run("ei_undefined", lambda: E.ei_of_file("rechnung.xml", "application/xml", UBL.replace("UTF-8", "undefined").encode()))
+    E._SEM.acquire(); E._SEM.acquire()
+    keep_wait = E.PDF_WAIT
+    E.PDF_WAIT = 0.05
+    try:
+        run("ei_busy", lambda: E.ei_of_file("rechnung.xml", "application/xml", UBL.encode()))
+    finally:
+        E.PDF_WAIT = keep_wait
+        E._SEM.release(); E._SEM.release()
     run("dav_body_ok", lambda: caldav.dav_xml(b'<?xml version="1.0" encoding="utf-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:getetag/></D:prop></D:propfind>').tag)
     run("dav_answer_ok", lambda: len(subs._dav_responses(subs._dav_xml(b'<?xml version="1.0"?><D:multistatus xmlns:D="DAV:"><D:response><D:href>/cal/1.ics</D:href><D:propstat><D:prop><D:getetag>"1"</D:getetag></D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus>'), "https://example.test/cal/")))
     # ---- the listing of an off-site store (it had no guard at all)
@@ -306,7 +361,8 @@ with app.test_request_context("/", headers={"Accept-Language": "en"}):
     run("svg_deep", lambda: len(wikiatt.wka_svg_clean(('<svg xmlns="http://www.w3.org/2000/svg">' + "<g>" * 20000 + "</g>" * 20000 + "</svg>").encode())))
     run("svg_deep_ok", lambda: wikiatt.wka_svg_clean(('<svg xmlns="http://www.w3.org/2000/svg">' + "<g>" * 150 + "</g>" * 150 + "</svg>").encode()).count(b"<g"))
     run("svg_dtd_late", lambda: wikiatt.wka_svg_clean(("<!--" + "c" * 100_000 + "-->" + laughs('<svg xmlns="http://www.w3.org/2000/svg">', "</svg>").split("?>", 1)[1]).encode()))
-    run("svg_u16", lambda: wikiatt.wka_svg_clean(b" " * 80 + laughs('<svg xmlns="http://www.w3.org/2000/svg">', "</svg>").split("?>", 1)[1].encode("utf-16-le")))
+    run("svg_large", lambda: wikiatt.wka_svg_clean(('<svg xmlns="http://www.w3.org/2000/svg"><!--' + "c" * wikiatt.SVG_BYTES_MAX + "--></svg>").encode()))
+    run("svg_names", lambda: wikiatt.wka_svg_clean(('<svg xmlns="http://www.w3.org/2000/svg" xmlns:a="urn:' + "u" * 20_000 + '">' + "".join(f"<a:b{i}/>" for i in range(1500)) + "</svg>").encode()))
     keep = wikiatt.SVG_ELEMENTS_MAX
     wikiatt.SVG_ELEMENTS_MAX = 1000
     try:
@@ -338,7 +394,6 @@ def got(key, want, fast=True):
 check(P.get("ei_old_blind") is True, "#6422 reference: the e-invoice's old text search saw no DOCTYPE in that file")
 check("DOCTYPE" in got("ei_parse_u16", "EinvoiceError:"), "#6422 e-invoice in UTF-16 without a mark: refused with the DOCTYPE text")
 got("ei_checked_u16", "ok:'nul'")
-got("ei_file_u16", "ok:None")
 got("ei_checked_dtd", "ok:'dtd'")
 check("too large" in got("ei_parse_many", "EinvoiceError:"), "#6422 e-invoice with too many elements: refused")
 got("ei_checked_many", "ok:'elements'")
@@ -386,6 +441,13 @@ got("rss_u16", "CalError:dtd")
 got("rss_ok", "ok:['Grüße', 1]")
 got("rss_ok_u16_bom", "ok:'Erster Beitrag'")
 got("xml_no_dtd_deep", "ParseError:")
+got("dav_answer_html", "ok:1")  # review: calendar data with an HTML description is read as before
+got("rss_html", "ok:1")
+got("dav_names", "CalError:parse")
+got("dav_burst", "ParseError:")
+got("ei_odd_u16", "ok:None")  # review: no error out of the decoding
+got("ei_undefined", "ok:")
+got("ei_busy", "EinvoiceBusy:")  # review: no free place = read again later, not "no e-invoice"
 got("dav_body_ok", "ok:'{DAV:}propfind'")
 got("dav_answer_ok", "ok:1")
 # off-site listing
@@ -398,7 +460,8 @@ check("<rect" in svg and "onclick" not in svg and "script" not in svg, "#6422 an
 got("svg_deep", "BadKey:")  # before: RecursionError out of the writer
 got("svg_deep_ok", "ok:150")
 got("svg_dtd_late", "BadKey:")
-got("svg_u16", "BadKey:")
+got("svg_large", "BadKey:")
+got("svg_names", "BadKey:")
 got("svg_many", "BadKey:")
 
 sys.exit(kt.done("p21272_a_xml"))

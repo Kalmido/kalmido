@@ -145,7 +145,8 @@ def _local(n):
     return n.rsplit("}", 1)[-1].lower() if isinstance(n, str) else ""
 
 
-SVG_ELEMENTS_MAX, SVG_DEPTH_MAX = 500_000, 200  # 2.1272.0 (#6422): the tree of one SVG picture (ET.tostring recurses per level)
+# 2.1272.0 (#6422): the tree of one SVG picture that is cleaned (ET.tostring recurses per level); a larger one is refused
+SVG_BYTES_MAX, SVG_ELEMENTS_MAX, SVG_DEPTH_MAX = 10 * 1024 * 1024, 300_000, 200
 
 
 def wka_svg_clean(data):
@@ -153,8 +154,9 @@ def wka_svg_clean(data):
     pictures stay); no DOCTYPE / ENTITY at all. BadInput when it cannot be cleaned."""
     bad = BadKey(N_("The SVG picture could not be cleaned"))  # 2.498.0 (#3858): the import keeps key + values
     try:  # 2.1272.0 (#6422): read by core/safexml.py -- no NUL anywhere (review L3: UTF-16 / 32), no DTD at all, and the
-        # tree is limited while it is read (before: up to WKA_FILE_MAX as one tree, a deep one broke the writer below)
-        root = safexml.sx_tree(data, max_bytes=len(data) + 1, max_elements=SVG_ELEMENTS_MAX, max_depth=SVG_DEPTH_MAX)
+        # tree is limited while it is read: SVG_BYTES_MAX, elements, levels (before: up to WKA_FILE_MAX as one tree -- a tree
+        # takes ten times its file and more -- and a deep one broke the writer below)
+        root = safexml.sx_tree(data, max_bytes=SVG_BYTES_MAX, max_elements=SVG_ELEMENTS_MAX, max_depth=SVG_DEPTH_MAX)
     except (ET.ParseError, ValueError):  # XmlRefused is a ValueError
         raise bad from None
     if _local(root.tag) != "svg":
