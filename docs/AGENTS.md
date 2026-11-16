@@ -367,9 +367,12 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
   (`…abcd`) with *Replace* and *Delete*.
 - **Runs**: in the background queue of the worker, never in the web process; at most `KALMIDO_SRVAGENT_PARALLEL` (default
   2) at once per server and one per agent; a run ends after `KALMIDO_SRVAGENT_STEPS` model calls (default 25) or
-  `KALMIDO_SRVAGENT_RUN_S` seconds (default 300); one model call may take `KALMIDO_SRVAGENT_CALL_S` seconds (default 120)
-  and answer with `KALMIDO_SRVAGENT_MAX_TOKENS` tokens (default 4096); the model list waits `KALMIDO_SRVAGENT_MODELS_S`
-  seconds (default 15). `KALMIDO_SRVAGENT_ANTHROPIC_URL` is the provider's address (tests point it at a stand-in); a
+  `KALMIDO_SRVAGENT_RUN_S` seconds (default 900); one model call may take `KALMIDO_SRVAGENT_CALL_S` seconds (default 300)
+  and answer with `KALMIDO_SRVAGENT_MAX_TOKENS` tokens (default 16000, at most 32000 - the model's thinking counts against
+  them); the model list waits `KALMIDO_SRVAGENT_MODELS_S` seconds (default 15). Every block of a model answer goes back
+  into the conversation unchanged (thinking blocks with their signature too). An answer the provider rejects
+  (`refusal`) or cuts off at the token limit (`max_tokens`) ends the run with a neutral reason; a paused turn of the
+  provider's own tools (`pause_turn`) is resumed. `KALMIDO_SRVAGENT_ANTHROPIC_URL` is the provider's address (tests point it at a stand-in); a
   redirect is never followed. *Stop* (Shift+Esc or the menu, `POST /api/agents/<id>/abort`) ends a running one within a
   second. Usage is counted in tokens only (input and output of every model call, no cost): the usage ring, *Usage*, its
   usage limits (day / month) and its owner's budget, which pause it with the reason; after the limit allows it, the next

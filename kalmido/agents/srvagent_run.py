@@ -52,10 +52,12 @@ from .srvweb import SRV_VIES_TOOL, SRV_WEB_FRAME, SRV_WEB_REMIND, srv_vies_resul
 from .srvteam import srv_batch, srv_member_block, srv_run_asker, srv_usage_mark, SRV_FOREIGN_SQL  # 2.569.0 B (#4675): team projects
 
 SRV_PARALLEL = env_int("KALMIDO_SRVAGENT_PARALLEL", 2, lo=1, hi=64)   # runs at once on this server
-SRV_RUN_S = env_int("KALMIDO_SRVAGENT_RUN_S", 300, lo=10, hi=3600)     # s of one run at most
+SRV_RUN_S = env_int("KALMIDO_SRVAGENT_RUN_S", 900, lo=10, hi=3600)     # s of one run at most (2.1294.0 #6573: 300 -> 900)
 SRV_STEPS = env_int("KALMIDO_SRVAGENT_STEPS", 25, lo=1, hi=200)         # model calls of one run at most
-SRV_MAX_TOKENS = env_int("KALMIDO_SRVAGENT_MAX_TOKENS", 4096, lo=256, hi=64000)  # output tokens of one model call
-SRV_CALL_S = env_int("KALMIDO_SRVAGENT_CALL_S", 120, lo=5, hi=600)     # s of one model call at most
+# 2.1294.0 (#6573): output tokens of one model call - thinking counts against them, so 4096 cut answers of thinking models off.
+# 16000 is the provider's advice for a call without streaming; above that a call may run past the HTTP time limits (hi 32000)
+SRV_MAX_TOKENS = env_int("KALMIDO_SRVAGENT_MAX_TOKENS", 16000, lo=1024, hi=32000)
+SRV_CALL_S = env_int("KALMIDO_SRVAGENT_CALL_S", 300, lo=5, hi=600)     # s of one model call at most (#6573: 120 -> 300, fits 16000)
 SRV_BUSY_S = 5             # s a run waits for a free place before it tries again
 SRV_LOST_S = SRV_CALL_S + 120  # a run without a beat for this long was lost (its process is gone)
 SRV_LOST_TEXT = N_("The server agent was interrupted")  # agent_runs.error of a lost run (srvweb.srvweb_state reads it)
@@ -489,9 +491,13 @@ def _loop(aid, rid, api, mod, prov, model, system, tools, allowed, messages, dea
             _db(lambda c: c.execute("UPDATE agent_runs SET web=? WHERE id=?", (json.dumps(wst), rid)))
         uses = [b for b in r["content"] if b.get("type") == "tool_use"]
         text = "\n".join(b.get("text") or "" for b in r["content"] if b.get("type") == "text").strip()
-        if r["stop"] == "pause_turn" and wst is not None:  # the provider's own web loop paused: its answer back as it came
+        if r["stop"] == "pause_turn":  # the provider's own loop of server tools paused: its answer back as it came
             messages.append({"role": "assistant", "content": r["content"]})
             continue
+        if r["stop"] == "refusal":  # 2.1294.0 (#6573): the provider rejected it; its partial text is not passed on
+            return "failed", N_("The model rejected this request"), sent
+        if r["stop"] == "max_tokens":  # 2.1294.0 (#6573): cut off - a tool call may be incomplete, the text unfinished
+            return "failed", N_("The answer of the model was cut off at its length limit"), sent
         if r["stop"] != "tool_use" or not uses:
             return "done", text, sent
         messages.append({"role": "assistant", "content": r["content"]})

@@ -282,10 +282,10 @@ VARS = (
     # 2.557.0 B (#4670): server agents (agents/srvagent.py, srvagent_run.py): Kalmido calls the model itself with the owner's key
     _v("KALMIDO_SRVAGENT_ANTHROPIC_URL", "https://api.anthropic.com", "Base address of the Anthropic API for server agents (the tests point it at a local stand-in).", "agents"),
     _v("KALMIDO_SRVAGENT_PARALLEL", "2", "Server agent runs at once on this server (one per agent).", "agents"),
-    _v("KALMIDO_SRVAGENT_RUN_S", "300", "Seconds one server agent run may take at most.", "agents"),
+    _v("KALMIDO_SRVAGENT_RUN_S", "900", "Seconds one server agent run may take at most.", "agents"),
     _v("KALMIDO_SRVAGENT_STEPS", "25", "Model calls of one server agent run at most.", "agents"),
-    _v("KALMIDO_SRVAGENT_MAX_TOKENS", "4096", "Answer tokens of one model call of a server agent.", "agents"),
-    _v("KALMIDO_SRVAGENT_CALL_S", "120", "Seconds one model call of a server agent may take at most.", "agents"),
+    _v("KALMIDO_SRVAGENT_MAX_TOKENS", "16000", "Answer tokens of one model call of a server agent (thinking included; 1024-32000, calls without streaming).", "agents"),
+    _v("KALMIDO_SRVAGENT_CALL_S", "300", "Seconds one model call of a server agent may take at most.", "agents"),
     _v("KALMIDO_SRVAGENT_MODELS_S", "15", "Seconds for the model list of the provider.", "agents"),
     _v("KALMIDO_SRVAGENT_TOOLSETS", "tickets,chat,calendar,wiki,life,office", "Tool packages of mcp/kalmido_mcp.py a server agent gets (within the scopes of its token; chat always).", "agents"),
     # 2.571.0 D (#4676): read-only web research of server agents (agents/srvweb.py)

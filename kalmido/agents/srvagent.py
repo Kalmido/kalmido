@@ -155,10 +155,11 @@ class AnthropicProvider:
         u = out.get("usage") if isinstance(out.get("usage"), dict) else {}
         num = lambda k, d=u: int(d.get(k) or 0) if isinstance(d.get(k), int) and d.get(k) >= 0 else 0  # noqa: E731
         st = u.get("server_tool_use") if isinstance(u.get("server_tool_use"), dict) else {}
-        # 2.571.0 D (#4676): the blocks of the provider's own web tools stay in the conversation as they came (server_tool_use and
-        # its *_tool_result: the provider needs them back unchanged); usage.server_tool_use counts searches and fetched pages
-        return {"content": [b for b in content if isinstance(b, dict) and (b.get("type") in ("text", "tool_use", "server_tool_use")
-                                                                          or str(b.get("type") or "").endswith("_tool_result"))],
+        # 2.571.0 D (#4676): the blocks of the provider's own web tools stay in the conversation as they came; usage.server_tool_use
+        # counts searches and fetched pages. 2.1294.0 (#6573): every block of the answer goes back unchanged - thinking and
+        # redacted_thinking with their signature too (current models always think; a history without them can be refused or
+        # loses the reasoning between tool calls); the readers below pick only text and tool_use
+        return {"content": [b for b in content if isinstance(b, dict) and isinstance(b.get("type"), str)],
                 "stop": str(out.get("stop_reason") or ""),
                 "usage": {"input": num("input_tokens"), "output": num("output_tokens"),
                           "cache_read": num("cache_read_input_tokens"), "cache_write": num("cache_creation_input_tokens"),
