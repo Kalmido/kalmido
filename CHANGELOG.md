@@ -22,6 +22,53 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1293.0] - 2026-11-16
+
+Package 2.1272 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6422 Security, XML from outside (audit #4780): one reader (`kalmido/core/safexml.py`) for every foreign XML - e-invoice (alone or inside a PDF), CAMT statements and balances, DATEV `document.xml`, mind map import (OPML, FreeMind), `.xlsx` parts (table import, legacy import, VMA import), DAV request bodies, CalDAV answers, feeds and OPML, the listings of an off-site store, SVG pictures of the wiki. A file in UTF-16 without a byte order mark no longer hides a DOCTYPE from the check (NUL bytes are refused), a DOCTYPE or ENTITY is refused anywhere in the document and once more by the parser itself at the declaration, and element, depth and size limits are counted at the very element while reading (before: after a whole piece or the whole document). A namespace address over 256 characters is refused (it made 30 KB take 100 MB without any DTD). The `.xlsx` reader refused a DOCTYPE only in the first 4 KB; `xml_no_dtd` (DAV, feeds, calendar subscriptions) refused only after the whole document was worked through; off-site listings had no check. An e-invoice is read once before in a process of its own with a memory limit; when no place is free the document is read again with the next run. DATEV `document.xml` is read as a stream. An SVG to clean is at most 10 MB, 300 000 elements and 200 levels deep (a deeply nested one ended in a server error before).
+
+Package 2.1258 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Merge Queue: LAZY-Listen in static/sw.js kollidier).
+
+### Fixed
+- #6296: a field linked to an organisation's (or a person's own) field schema now lets go of the link when its project moves
+  to another workspace or changes hands - on every path (move, hand-over, leaving an organisation, import), by the trigger
+  `kalmido_of_unlink` on `lists`. The field stays in the project as its own, with its values, and its owner may rename it.
+  A change of the schema field reaches only the projects in the schema's space (as the organisation's labels), so a former
+  owner or an admin of the former organisation no longer renames the field or clears its values. Every start lets go of
+  links an earlier move left behind. New suite `p6296_orgfield_space_api`.
+
+### Changed
+- #6199: the precache lists of `static/sw.js` (`SHELL`, `LAZY`, `LAZY_CSS`) stand one entry per line, sorted, each with a
+  comma (`tools/sw_lists.py` writes them, `tools/check_layout.py` checks the form): GitHub's merge queue merges without the
+  local merge drivers, and two packages adding different modules now touch different lines. The first line of `SHELL`
+  (`sw_lists.SHELL_HEAD`) stays as it was: it stands right below the `CACHE` line of the release cut, and a change on that
+  line collided with every version cut. New suite `p6199_swlists`; `p253_a_ui`, `p265_b_ui`, `p2102_c_ui`,
+  `p2321_b_merge` compare the sorted lists.
+- #6290: `tests/upgrade_seed.py` plays `tests/upgrade_vorspann.sql` (when the release tooling puts it there: the remnants
+  of a grown database that a fresh install lacks, definitions only) into the database before its dump, each statement on
+  its own.
+
+Package 2.1271 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Tasks: a subtask that becomes a task of its own (dragged out of its parent, onto a list, a section or a board column, "Out of the parent task", "Outdent", "Make it a main task", the mind map, moving a selection) takes the date with its time and the priority of its former parent - only into fields that are empty, never over a value of its own; assignee and tags are not taken. The message says what was adopted and has the button "Don't adopt", which empties just those fields again (the task stays on its own); for several tasks there is one message for all (#6436).
+
+### Fixed
+- Security, sign-in: the user name of a sign-in (also "cancel the deletion of my account") is cut to 64 characters before anything else and the failure counters keep only a short hash of it; idle counters are forgotten every minute, not only above 20,000 keys. A name of megabytes could fill the server's memory without an account (#6420).
+- Security, questionnaires: an answer with thousands of line breaks no longer holds the server for seconds to minutes (the Markdown escaping ran quadratic over empty lines); an answer keeps at most 200 lines, the text of further lines joins the last one (#6424).
+- Security, support access: a support session and the operator's sign-in link now belong to exactly the support access they were made through and end with it - when it runs out by itself, when it is ended early, and when a new access replaces it (the operator then needs a new link). Before, a session could be capped at the planned end of an older, early ended access, a natural end closed nothing, and a link redeemed after the maker lost the admin right started a full session. Support sessions and operator links from before this version no longer work (#6497).
+- Security, CalDAV/CardDAV: an address with 30 failed sign-ins in 15 minutes is refused (429) before any password hash is computed - except for accounts that synced from that address in the last 30 days, so one old phone in an office still locks out nobody there. New app passwords start with an 8-character id, so a request costs one hash whether the user name exists or not; app passwords made before keep working (#6552).
+
+Package 2.1280.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6423 Security, knowledge and import: one line of Markdown can no longer hold the server. The heading pattern of the public knowledge link, the Word / PDF export and the Markdown / Notion import took cubic time on a heading line with a long run of blanks; the public link's table line, the Notion import's checkbox probe, the export's link / picture patterns and two rules of the search snippet (server and browser) took quadratic time. All of them now read a line in one pass (`core/mdedit.py` `md_head_line`), a line of more than 10,000 characters is never a heading, list item, rule or table line (it stays text), and the snippet of a long page is cut around the hit first and cleaned then.
+
+### Changed
+- #6423 `# C#` keeps its closing hash on the public page and in the export; a table on the public page needs a complete separator line; in the Word / PDF export a link address with a bracket inside is shown as text (as on the public page).
+
 ## [2.1285.0] - 2026-11-16
 
 Package 2.1254 (Bündel: Weich rot: p2361_c_ui, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -331,7 +378,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1285.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1293.0...HEAD
+[2.1293.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1293.0
 [2.1285.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1285.0
 [2.1274.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1274.0
 [2.1268.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1268.0
