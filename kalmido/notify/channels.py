@@ -845,10 +845,11 @@ def evm_wanted(c, uid, s, kind):
 
 
 def evm_info(c, uid):
-    from ..integrations.mail import MAIL_OUT_ON
+    from ..integrations.mail import MAIL_OUT_ON, MAIL_PROOF
     s = usettings(c, uid)
-    u = c.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone()
+    u = c.execute("SELECT email, email_proved FROM users WHERE id=?", (uid,)).fetchone()
     return {"enabled": MAIL_OUT_ON, "address": bool(u and (u["email"] or "").strip()), "device": evm_device(c, uid, s),
+            "proved": bool(u) and MAIL_PROOF["ok"](u),  # 2.1264.0 (#6352): event mails go only to a proved address
             "assign": evm_choice(s, "assign"), "mention": evm_choice(s, "mention")}
 
 
@@ -897,7 +898,7 @@ def evm_line(kind, who, title, lg):
 def evm_user(c, uid, s, lg, now):
     from ..admin.hosting import mail_budget
     from ..collab.liste2e import le2e_mode, le2e_neutral
-    from ..integrations.mail import MAIL_OUT_ON, MAIL_TASK_HOOK, mail_off_url, mail_send
+    from ..integrations.mail import MAIL_OUT_ON, MAIL_PROOF, MAIL_TASK_HOOK, mail_off_url, mail_send
     if time.time() - float(s.get("evmail_at") or 0) < EVM_GAP:
         return
     q = c.execute("SELECT * FROM notify_mail_queue WHERE user_id=? ORDER BY id", (uid,)).fetchall()
@@ -907,7 +908,7 @@ def evm_user(c, uid, s, lg, now):
     day = now.date().isoformat()
     d, _, k = str(s.get("evmail_day") or "").partition(":")
     sent_today = int(k) if d == day and k.isdigit() else 0
-    u = c.execute("SELECT email, kind, disabled FROM users WHERE id=?", (uid,)).fetchone()
+    u = c.execute("SELECT email, email_proved, kind, disabled FROM users WHERE id=?", (uid,)).fetchone()
     to = (u["email"] or "").strip() if u else ""
     if not MAIL_OUT_ON or not to or u["kind"] == "agent" or u["disabled"] or sent_today >= EVM_DAY_MAX:
         drop()
@@ -939,6 +940,11 @@ def evm_user(c, uid, s, lg, now):
     if not lines:
         drop()
         c.commit()
+        return
+    if not MAIL_PROOF["ok"](u):  # 2.1264.0 (#6352): content only to a proved address - the entries go, the proof mail once per address
+        drop()
+        c.commit()
+        MAIL_PROOF["hint"](c, uid)
         return
     if not mail_budget(c, None, to):  # 2.142.0 review: the mail budget is used up - the entries wait for the next round
         c.commit()

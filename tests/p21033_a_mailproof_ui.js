@@ -4,6 +4,8 @@
 // - the button sends the proof mail (the SMTP stub gets it) and the hint says where to open the link
 // - the link opened while signed out: the token leaves the address bar, the sign-in page shows; after the sign-in the app
 //   asks (naming the address) and confirms it (message "Address confirmed"), the account row then says "confirmed" without a button
+// - 2.1264.0 (#6352): Settings > Notifications shows at the event mails and the daily summary that they wait for the
+//   confirmation, its button sends the proof mail; confirmed: the hints are gone
 // freelancer-matrix: own (frida has no organisation, P4)
 // P21033A_NOSTART=1 = the server already runs. Screenshots: P21033A_SHOTS.
 const fs = require('fs');
@@ -61,6 +63,19 @@ const proofs = () => { try { return JSON.parse(execFileSync('python3', ['-I', '-
     check(await signIn(ev) === 200, 'frida signs in');
     await nav(B);
     check(await ready(ev, `typeof S !== 'undefined' && S.booted === true`, 80), 'the app is there');
+    // ---- 2.1264.0 (#6352): Settings > Notifications says where the mails are switched on that they wait for the confirmation,
+    // and its button sends the proof mail from there
+    await ev(`(settingsModal('notify'), 1)`);
+    check(await ready(ev, `!!document.querySelector('#s-evm-proof') && !!document.querySelector('#s-digmail-h')`, 80), '#6352: the hint at the event mails and at the daily summary');
+    check(await ev(`['#s-evm-proof', '#s-digmail-h'].every(q => { const x = document.querySelector(q); return x.textContent.includes('only after you confirm it') && x.offsetParent !== null && !!x.querySelector('[data-mail="proof"]'); })`), '#6352: visible, says why, with "Confirm address"');
+    await shot('p21033a-notify.png');
+    await ev(`(document.querySelector('#s-evm-proof [data-mail="proof"]').click(), 1)`);
+    check(await ready(ev, `(document.querySelector('#toast')?.textContent || '').includes('frida@example.com')`, 40), '#6352: the button sends the proof mail ("Sent to …")');
+    let toks0 = [];
+    for (let i = 0; i < 80 && !toks0.length; i++) { toks0 = proofs(); if (!toks0.length) await sleep(250); }
+    check(toks0.length === 1, '#6352: the proof mail went out from Notifications');
+    await nav(B);  // a fresh app for the account part (the settings dialog of Notifications closed)
+    check(await ready(ev, `typeof S !== 'undefined' && S.booted === true`, 80), 'the app is there again');
     // ---- Settings > Account: the address, not confirmed, the button and why
     await ev(`(settingsModal('account'), 1)`);
     check(await ready(ev, `document.querySelector('#a-epv')?.textContent.includes('frida@example.com')`, 80), 'Account shows the own address');
@@ -71,7 +86,9 @@ const proofs = () => { try { return JSON.parse(execFileSync('python3', ['-I', '-
     // ---- the button sends the mail
     await ev(`(document.querySelector('#a-epv [data-epv="send"]').click(), 1)`);
     let toks = [];
-    for (let i = 0; i < 80 && !toks.length; i++) { toks = proofs(); if (!toks.length) await sleep(250); }
+    // 2.1264.0 (#6352): the second proof mail (the first came from Notifications); its link replaced the older one
+    for (let i = 0; i < 80 && toks.length < 2; i++) { toks = proofs(); if (toks.length < 2) await sleep(250); }
+    toks = toks.slice(1);
     check(toks.length === 1 && toks[0], 'the proof mail went to frida@example.com');
     check(await ready(ev, `(document.querySelector('#a-epv-h')?.textContent || '').includes('Open the link in the e-mail')`, 40), 'the hint says where to open the link');
     // ---- the link while signed out: the sign-in first, then the app confirms
@@ -94,6 +111,8 @@ const proofs = () => { try { return JSON.parse(execFileSync('python3', ['-I', '-
     await ev(`(settingsModal('account'), 1)`);
     check(await ready(ev, `!!document.querySelector('#a-epv .epvok') && document.querySelector('#a-epv .epvok').textContent.includes('confirmed') && !document.querySelector('#a-epv').textContent.includes('not confirmed')`, 80), 'Account says "confirmed"');
     check(await ev(`!document.querySelector('#a-epv [data-epv="send"]') && !document.querySelector('#a-epv-h')`), 'no button, no hint any more');
+    await ev(`(settingsModal('notify'), 1)`);
+    check(await ready(ev, `!!document.querySelector('#s-evm-assign') && !!document.querySelector('#s-digmail')`, 80) && await ev(`!document.querySelector('#s-evm-proof') && !document.querySelector('#s-digmail-h')`), '#6352: confirmed: no hint in Notifications');
     await shot('p21033a-confirmed.png');
   });
   console.log(`p21033_a_mailproof_ui: ${ok} ok, ${F.length} failed`);
