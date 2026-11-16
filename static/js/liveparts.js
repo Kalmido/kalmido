@@ -68,8 +68,11 @@ function lpLive(v, ch, n, inDelta) {
   if (ch.includes('wiki') && S.route.mod === 'wiki') td_renderSoon();  // 2.280.0 A (#3109): drawn as after the full reload before
   if (!lpT && !inDelta) lpT = setTimeout(lpFollow, LP_DEFER_MS);
   if (ch.includes('notes')) lpNotes();  // 2.1264.0 (#6335 B3)
+  if (ch.includes('calendar') && lpCalShown() && lpT) lpFollow();  // 2.1264.0 (#6335 B4): an open calendar takes the events' signature now (lpSideTake draws), not after LP_DEFER_MS
   return true;
 }
+// 2.1264.0 (#6335 B4): the views that show the events of the shown range (calendar.js ensureCalEv draws these after a fetch)
+const lpCalShown = () => S.route.mod === 'cal' || (S.route.mod === 'tasks' && S.route.key === 'today') || S.route.mod === 'home';
 // 2.1264.0 (#6335 B3): a note changed (on another device, by someone else): the open notes view loads the list's notes again
 // (the open note shows the new text; its base updated_at moves along, so writing on is no false conflict); with unsaved
 // typing it waits (S.nt.live) until the note is saved - the poll tries again. The overview of all notes (S.notes) and the
@@ -225,7 +228,9 @@ function lpSideTake(j) {
   S.news = j.news || {unread: 0, sig: ''};
   S.evcals = j.evcals || [];
   if (j.notes) S.notes = j.notes;  // 2.1264.0 (#6335 B3)
-  if (j.evsig !== undefined && j.evsig !== S.evsig) { S.evsig = j.evsig; if (S.booted) calInvalidate(); }
+  // 2.1264.0 (#6335 B4): an open calendar / Today view is drawn (it fetches its range again); was only invalidated - the change
+  // of another device showed only after leaving the view
+  if (j.evsig !== undefined && j.evsig !== S.evsig) { S.evsig = j.evsig; if (S.booted) { calInvalidate(); if (lpCalShown()) lpViewSafe(); } }
 }
 // the view redrawn by morphing unless a field / form in it is busy (then marked stale, drawn later like viewSafeRender)
 function lpViewSafe() { if (lpHold() || (editing() && $('#view')?.contains(document.activeElement)) || lpFormBusy($('#view'))) { S.viewStale = true; return; } lpMorphView(); }

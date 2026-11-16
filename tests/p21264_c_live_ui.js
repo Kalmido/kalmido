@@ -21,7 +21,10 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
   check(r.ok, 'setup');
   const CA = await login('alice');  // the other device
   await call(CA, 'POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['comments']});
-  await call(CA, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'comments,collab'});
+  await call(CA, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'comments,collab,cal,events'});
+  const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const W = (await call(CA, 'POST', '/api/evcals', {name: 'Work', color: '#2dd4bf'})).id;
+  const EV = (await call(CA, 'POST', '/api/events', {title: 'Standup', cal_id: W, start: `${day(0)}T09:00`, end: `${day(0)}T09:15`})).id;
   const L = (await call(CA, 'POST', '/api/lists', {name: 'Household'})).id;
   const T = (await call(CA, 'POST', '/api/tasks', {title: 'Shopping', content: 'Milk', list_id: L})).id;
   const other = (body, prev) => call(CA, 'PATCH', `/api/tasks/${T}`, {...body, _prev: prev});
@@ -143,6 +146,20 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(await ev(`document.querySelector('#nt-body').value.endsWith(' and tea') && S.nt.live === true`), 'B3: unsaved typing stays, the reload waits');
       await ev(`(() => { clearTimeout(S.nt.saveT); S.nt.dirty = false; S.nt.edit = false; location.hash = '#l/${L}'; return 1; })()`);
       await ready(`S.route.mod === 'tasks'`, 20);
+    }
+
+    // ================= #6335 B4 the open calendar / Today view draws an event changed on the other device
+    S6335B4: {
+      check(!!EV, 'B4: the event exists'); if (!EV) break S6335B4;
+      for (const [hash, title] of [['#cal', 'Standup moved'], ['#today', 'Standup again']]) {
+        await ev(`(() => { S.collapsed.add('cev-past'); location.hash = '${hash}'; return 1; })()`);  // Today: past events unfolded (the suite may run after 09:15)
+        const shown = await ready(`/Standup/.test(document.querySelector('#view')?.textContent || '')`, 60);
+        check(shown, `B4 ${hash}: the event is shown`); if (!shown) continue;
+        await caught();
+        await call(CA, 'PATCH', `/api/events/${EV}`, {title});
+        check(await ready(`document.querySelector('#view')?.textContent.includes('${title}')`, 40), `B4 ${hash}: the open view shows the other device's change`);
+      }
+      await shot('p21264c-b4-today.png');
     }
   }, true);
 
