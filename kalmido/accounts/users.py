@@ -27,6 +27,7 @@ from ..core.errors import BadInput
 from ..core.orgcrypt import oc_drop_key, oc_list_org, oc_send_file, oc_write_file, rck_admin_gone, rck_admin_orgs  # 2.149.0 G (#2517): pulled up from functions; 2.539.0 (#4373): rck_*
 from ..core.tokenhash import tkh_set_drop  # 2.149.0 G (#2517): pulled up from functions
 from ..core.schema import USER_DEFAULTS  # 2.369.5 (#2517): pulled up from functions
+from .delhold import sdl_hold_dict  # 2.1298.0 (#6395)
 from .colors import ac_valid  # 2.369.5 (#2517): pulled up from functions
 from ..core.errors import BadInput as _BadInput  # 2.369.5 (#2517): pulled up from functions
 
@@ -96,7 +97,6 @@ def _user_admin_full(c, u, kid_parents):
 def _delete_hold(u):
     """2.1298.0 (#6395): {delete_hold: {until, at, release}} of an account whose own deletion an admin's lock holds (the
     admins decide on it in the user management; accounts/delhold.py), else {}."""
-    from .delhold import sdl_hold_dict
     h = sdl_hold_dict(u)
     if h:
         return {"delete_hold": h}

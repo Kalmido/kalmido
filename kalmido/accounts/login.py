@@ -27,6 +27,7 @@ from ..core.pg import insert_id
 from ..core.ephem import eph_count_up, eph_drop, eph_get, eph_put, eph_set, eph_take  # 2.622.0 (#3891)
 from ..core.i18n import lang, languages, N_, short_day, tr, LANGS
 from ..core.usertz import tz_names
+from .delhold import SDL_HELD, sdl_held  # 2.1298.0 (#6395)
 from ..core.db import adopt_orphans, body, bump, create_user, db, ensure_inbox, err, gset, gsetting, iso, local_now, now_utc, parse_iso, uset, write_lock
 from ..accounts.session import (
     _DUMMY_HASH, _peer_trusted, _rate_fail, _rate_keys, _rate_reset, _token_hash, login_name_in,
@@ -178,7 +179,6 @@ def auth_login():
     if not ok and u and pw_ok and u["password_hash"] and u["disabled"] and u["delete_at"]:
         # 2.553.0 (#1413): the right password of an account whose deletion was asked for: it offers only the cancelling
         # (admin/selfdelete.py, POST /api/auth/delete-cancel); the account stays locked
-        from .delhold import SDL_HELD, sdl_held
         by = sdl_held(u)  # 2.1298.0 (#6395): an admin's lock holds it: by when it happens at the latest (still cancellable)
         if by:
             lg = lang(c, u["id"])
