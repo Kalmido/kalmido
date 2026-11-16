@@ -18789,5 +18789,11 @@
   "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % auf die markierten Positionen, die Teilangebote und die Handlungskosten",
   "You can only read this document": "Du kannst dieses Dokument nur lesen",
   "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Inzwischen hat jemand anderes eine neuere Version hochgeladen, sie bleibt: {0}",
-  "(you)": "(du)"
+  "(you)": "(du)",
+  "Only the person who made the link or an admin may change its pictures.": "Bilder am Link kann nur ändern, wer den Link angelegt hat, oder ein Admin.",
+  "A step is still running": "Ein Schritt läuft noch",
+  "Document flow {0} keeps failing on a document, failing since {1}.": "Der Dokument-Ablauf {0} scheitert wiederholt an einem Dokument, Fehler seit {1}.",
+  "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "Die Rechnung der Serie ließ sich {0}-mal in Folge nicht erstellen. Prüfe die Vorlage-Rechnung und den Kunden und schalte die Serie dann wieder ein.",
+  "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Niemand darf die Rechnungen der Serie erstellen: Der Bereich hat keinen Admin mit eingeschaltetem Büro. Schalte die Serie wieder ein, sobald es einen gibt.",
+  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "Rechnung {0} ist festgeschrieben, ihre E-Mail ging nach einem Neustart des Servers aber nicht raus. Sende sie von Hand aus der Rechnung."
 }
