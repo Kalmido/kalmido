@@ -20,9 +20,12 @@ function viewKanban() {
   const add = (c, sw, swn) => ro ? '' : `<div class="kadd"><input placeholder="${tr('+ Task')}" aria-label="${esc(tr('New task in {0}', sw == null ? c.name : c.name + ' · ' + swn))}" data-kadd="${c.id ?? ''}"${sw == null ? '' : ` data-swl="${esc(sw)}"`} enterkeyhint="done"></div>`;
   const knew = ro ? '' : `<div class="knew"><button class="btn sm" data-act="section-new">${ic('plus', 's')} ${tr('Column')}</button></div>`;
   const swm = swlMode(lid), sht = listById(lid)?.ptype === 'shoot' && indOn('film');  // 2.636.0 (#4565): a shoot = the storyboard (shoot.js)
-  if (swm) return `${listHead(listById(lid))}${swlBar(lid)}${swlBoard(lid, swm, cols, tasks, {head, add, knew})}`;
   // 2.891.0 (#5440): an empty board says so (the shared block) above its columns, which stay as the place to add
-  const kempty = tasks.length || cols.some(c => c.done?.length) ? '' : emptyState({icon: 'kanban', title: tr('No tasks'), sub: ro ? '' : tr('Add the first one in a column with “+ Task”.'), size: 'sec', cls: 'kempty'});
+  // 2.1292.0 (#6139): the board in lanes too; a filter that hides every task (a view, the sprint) says so and leads to it
+  const kflt = tasks.length || cols.some(c => c.done?.length) ? null : lst_emptyFilter(listById(lid), true);
+  const kempty = tasks.length || cols.some(c => c.done?.length) ? '' : kflt ? emptyState({icon: 'filter', title: tr('No tasks match the filter.'), sub: tr('A filter is active: {0}', kflt.name), action: `<div class="eacts">${/*html-ok*/ kflt.btn/* lst_emptyFilter */}</div>`, size: 'sec', cls: 'kempty efilt'})
+    : emptyState({icon: 'kanban', title: tr('No tasks'), sub: ro ? '' : tr('Add the first one in a column with “+ Task”.'), size: 'sec', cls: 'kempty'});
+  if (swm) return `${listHead(listById(lid))}${swlBar(lid)}${/*html-ok*/ kempty/* emptyState */}${swlBoard(lid, swm, cols, tasks, {head, add, knew})}`;
   return `${listHead(listById(lid))}${swlBar(lid)}${sht ? sht_bar(lid) : ''}${/*html-ok*/ kempty/* emptyState */}<div class="kanban${sht ? ' shtboard' : ''}">${cols.map(c => `
     <div class="kcol" data-kcol="${c.id ?? ''}">
       ${head(c)}

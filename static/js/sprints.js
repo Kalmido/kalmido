@@ -39,7 +39,11 @@ function sprKeep(t, rk = S.route.key) {
   return !t.sprint_id || !spr_open(l).some(s => s.id === t.sprint_id);  // backlog: no open sprint
 }
 
-// ---- the sprint header above the list / Kanban (projects.js listHead)
+// 2.1292.0 (#6139): the sprint filter as the filter that hides every task (render.js lst_emptyFilter): its name and "Show all"
+function spr_emptyFlt(l) {
+  const f = spr_on(l) && spr_flt(l.id);
+  return f ? {name: tr(f === 'cur' ? 'Current sprint' : 'Backlog|sprint'), btn: `<button type="button" class="btn" data-spr="flt" data-v="" data-lid="${esc(l.id)}">${ic('filter', 's')} ${esc(tr('Show all'))}</button>`} : null;
+}
 function sprHead(l) {
   if (!spr_on(l)) return '';
   const a = spr_active(l), ed = canEditList(l.id), f = spr_flt(l.id), open = spr_opened(l.id);
