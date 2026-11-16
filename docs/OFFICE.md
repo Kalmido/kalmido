@@ -2078,7 +2078,13 @@ there. Kalmido itself never runs a language model for this: the agent connected 
   missing - add it at the client". A document without a client offers "Add client" (name + address), which then becomes
   its client. Drafts always read the client's current address; finalising (or sending) freezes it, later changes at the
   client leave issued documents alone. Old documents with free address lines keep them. With the clients module off the
-  free recipient fields stay.
+  free recipient fields stay for quotations, reminders and delivery notes.
+- 2.1308.0 (#6477), documents without a client: an invoice or correction has the client's fixed address fields
+  (Recipient, Street, Address extra, Postcode, City, Country; the country empty = the company's) instead of the free
+  "Address lines" and is finalised only with street, postcode and city ("postcode of the recipient" ...). Free lines sent
+  through the API count when they are a plain address (street + postcode city, maybe a country: read into the fields, as
+  for the company); lines with an attention line are refused. A correction of an invoice finalised with free lines keeps
+  them. The sender is only the company's fixed fields (no fallback to the free lines of the settings).
 - 2.99.0: a client may have a **name addition** (field under the name, e.g. "Berg, Tal & Partner GbR" under
   "NORDLICHT"). Quotations and invoices print it as its own line under the name, the e-invoice joins it to the buyer
   name with " - ", lists and the search show "name - addition" on one line. The buyer e-mail of the e-invoice is the
@@ -3226,9 +3232,18 @@ default:
   without it, finalising answers `400` with the reason. The seller contact (phone and e-mail of the company) and the
   electronic addresses (seller e-mail, the client's invoice e-mail) are part of it.
 
-Buyer address without client data (only free address lines, 2.40.0): the last line with a postcode ("12345 Town",
-"1010 Wien", "CH-8000 Zürich") gives postcode and city, the line before it the street (LineOne), the lines before that
-LineTwo / LineThree (attention, department). Without a postcode line (e.g. UK) the last line is the city.
+2.1308.0 (#6476): finalising checks the finished XML with the module's own check (`einvoice.ein_check_block`, both
+formats) before any file is written; a finding answers `400` "The e-invoice (XRechnung) lacks: ..." with the missing data
+in plain words and nothing is finalised (no number, status or file). An empty element does not stop it. For XRechnung the
+list of missing fields names beforehand the client's Leitweg ID, phone and e-mail of the company and the client's invoice
+e-mail (else its e-mail); the check adds postcode and city of seller and buyer (BR-DE-3/4, BR-DE-8/9). The contact person
+is the managing director, else the company name.
+
+Buyer address without a client: since 2.1308.0 (#6477) the recipient's fixed fields (street, address extra = LineTwo,
+postcode, city, country; see "Documents without a client"). Older finalised documents with free address lines only (2.40.0):
+the last line with a postcode ("12345 Town", "1010 Wien", "CH-8000 Zürich") gives postcode and city, the line before it the
+street (LineOne), the lines before that LineTwo / LineThree (attention, department). Without a postcode line (e.g. UK) the
+last line is the city.
 
 Tax categories follow the document: `S` for taxed documents (one breakdown per rate, the tax of a rate computed from the
 rounded base; a line at 0 % of a taxed document is `Z` on the standard or reduced rate, `E` on the rate *exempt* with the

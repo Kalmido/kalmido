@@ -363,6 +363,9 @@ def task_create():
         f["locked"] = 1  # 2.36.0 (#1118, decision 09.10.2026): a task an agent creates starts locked in the app
     ts = iso(now_utc())
     f["created_by"] = me()
+    # 2.1308.0 (#6523, review F1): the creator wrote it -- in the app or with their own token; a webhook (its creator's rights,
+    # act_via "webhook"), a public link or CalDAV leaves the origin empty (another hand wrote the text)
+    f["origin"] = "person" if me() and act_via() in (None, "api") else None
     if ref and me():
         f["client_ref"] = ref
     if f.get("assignee_id") or f.get("assignee_group_id"):
