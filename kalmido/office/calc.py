@@ -21,6 +21,8 @@ office_calc(doc, items, pack) -> dict reproduces the rules of the spreadsheet te
    (calc_spread, line["by_tax"]; a key whose marked positions add up to zero or less takes no share); a document whose
    marked positions are all at the standard rate computes as before. doc["sur_standard"] (a quotation finalised before,
    docs._calc_doc) = all on the standard rate as then; a surcharge is never negative (a negative base = no line)
+   2.1249.0 (#6281): doc["mk_extra"] {tax key: amount in the document's currency} = more base of the markup that is no
+   position here (a quotation's part lines: parts.tp_doc_totals); the line then says "... and the parts"
  - raw data: the sum of the totals of the positions flagged raw_fee times doc["raw_factor"]; raw_mode "optional" shows
    the line without counting it (net_incl_raw next to net), "included" counts it (net_excl_raw next to net), "none" omits it
  - discount: doc["discount_pct"] on the positions flagged discountable, one negative line; 2.1042.0 (#5815): or
@@ -100,6 +102,9 @@ LABELS = {
     "share_detail": N_("{amount} / {rate} x {factor} = {days} days, rounded to half days|calc"),  # 2.113.1 (#2251)
     "handling": N_("Handling costs|calc"), "markup": N_("Surcharge|calc"), "surcharge_detail": N_("{pct} % on the marked positions|calc"),  # 2.113.1 (#2252)
     "surcharge_detail_stacked": N_("{pct} % on the marked positions and the handling costs|calc"),
+    # 2.1249.0 (#6281): the one markup of a quotation with parts (title page positions + part lines)
+    "surcharge_detail_parts": N_("{pct} % on the marked positions and the parts|calc"),
+    "surcharge_detail_parts_stacked": N_("{pct} % on the marked positions, the parts and the handling costs|calc"),
     "raw_detail": N_("{pct} % of the positions with raw data|calc"), "discount": N_("Discount|calc"),
     # 2.1201.0 (#6175): "discountable" (was "marked": the PDF marks nothing)
     "discount_detail": N_("{pct} % on the discountable positions|calc"),
@@ -497,6 +502,12 @@ def office_calc(doc, items, pack=None):
                       "tax_pct": _num(rates["standard"]), "total": _num(prod_total), "detail": detail})
 
     # 2.113.1 (#2252): handling costs, then the markup (stacked: also on the handling costs); the discount takes in neither
+    mk_parts = False
+    for k, v in (doc.get("mk_extra") or {}).items():  # 2.1249.0 (#6281): the part lines of a quotation's title page
+        if k in TAX_KEYS and dec(v):
+            mk_base += dec(v)
+            mk_by[k] += dec(v)
+            mk_parts = True
     hu_total = max(money(hu_base * hu_pct / 100), Decimal(0)) if hu_pct > 0 else Decimal(0)  # 2.1228.0 (#6254, review): never negative (was in the net without a line)
     stacked = _flag(doc.get("markup_stacked"))
     mk_total = max(money((mk_base + (hu_total if stacked else 0)) * mk_pct / 100), Decimal(0)) if mk_pct > 0 else Decimal(0)
@@ -506,7 +517,7 @@ def office_calc(doc, items, pack=None):
     hu_split = calc_spread(hu_by, hu_total)
     mk_src = {k: mk_by.get(k, Decimal(0)) + (hu_split.get(k, Decimal(0)) if stacked else 0) for k in TAX_KEYS}
     for slot, amt, pct_, det, split in (("handling", hu_total, hu_pct, "surcharge_detail", hu_split),
-                                        ("markup", mk_total, mk_pct, "surcharge_detail_stacked" if stacked and hu_total > 0 else "surcharge_detail",
+                                        ("markup", mk_total, mk_pct, ("surcharge_detail_parts" if mk_parts else "surcharge_detail") + ("_stacked" if stacked and hu_total > 0 else ""),
                                          calc_spread(mk_src, mk_total))):
         if amt <= 0:
             continue

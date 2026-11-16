@@ -178,6 +178,8 @@ def tp_part_calc(c, oid, r, p, pack, eur=False, home=None, items=None):
     # the document's values unless the part has its own; not its discount: that one applies to the part lines of the title page
     home = _tp_home(c, oid, home)
     doc = {**_doc_calc(r, eur, home), "discount_pct": 0, "discount_amount": 0, **(p.get("settings") or {})}  # 2.1042.0 (#5815): the title page's amount stays there
+    if not _flag(doc.get("mk_per_part")):  # 2.1249.0 (#6281): the markup is one line on the title page, over the part lines too
+        doc["markup_pct"] = None
     novat = str(doc.get("vat_mode") or "vat") == "novat"
     if p["kind"] == "shoot":
         fn = _dk("dk_sheet_calc")
@@ -259,14 +261,20 @@ def tp_doc_totals(c, oid, r, items, pack, eur=False, home=None, part_items=None)
     novat = str(doc.get("vat_mode") or "vat") == "novat"
     rates = {k: (D0 if novat else pack_tax(pack, k)) for k in TAX_KEYS}
     ph, refs = [], {}
+    mk_extra = {k: D0 for k in TAX_KEYS}  # 2.1249.0 (#6281): every part line with its full net x qty (incl. the part's handling costs)
     for n, it in enumerate(items or []):
         if (it.get("kind") or "service") == "part":
             key = f"tp{n}"
             refs[key] = it
-            ph.append({**it, "kind": "service", "id": key, "rate": 0, "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 0})
+            ph.append({**it, "kind": "service", "id": key, "rate": 0, "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 0,
+                       "in_handling": 0, "in_markup": 0})
+            if it.get("ref_part_id") in pmap:
+                for tk, v in f8b_qty_bases(calcs[it["ref_part_id"]].get("bases") or {}, dec(it.get("qty"), "1")).items():
+                    mk_extra[tk] += v
         else:
             ph.append(it)
-    t = office_calc({**doc, "subtotals": None}, ph, pack)  # 2.1041.0 (#5816): the subtotals below, with the parts' amounts
+    mk = {} if _flag(doc.get("mk_per_part")) else {"mk_extra": {k: v for k, v in mk_extra.items() if v}}
+    t = office_calc({**doc, "subtotals": None, **mk}, ph, pack)  # 2.1041.0 (#5816): the subtotals below, with the parts' amounts
     base = {k: D0 for k in TAX_KEYS}
     disc_base = {k: D0 for k in TAX_KEYS}
     items_net, costs = D0, dec(t["costs"])
@@ -366,6 +374,8 @@ def tp_doc_totals(c, oid, r, items, pack, eur=False, home=None, part_items=None)
                net_incl_raw=_num(net + raw_opt) if raw_opt > 0 else None, net_excl_raw=_num(net - raw_inc) if raw_inc > 0 else None,
                costs=_num(costs), margin=_num(net - costs), currency=currency,
                parts={str(pid): {"net": pc["net"], "bases": pc["bases"]} for pid, pc in calcs.items()})
+    if not _flag(doc.get("mk_per_part")):
+        out["mk_title"] = 1  # 2.1249.0 (#6281): the markup is the title page's one line (docs._mk_legacy reads it on finalised ones)
     out["_part_calcs"] = calcs  # for the callers in this module; doc_totals pops it
     return out
 

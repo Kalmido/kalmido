@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+# kalmido-suite: fresh
+"""2.1249.0 API tests (#6281): a quotation with parts has its surcharge ("Zuschlag", markup) as ONE line on the title page:
+the percent of the title page's marked positions plus the part lines (each with its full net x qty, the part's handling
+costs included); the parts show no surcharge line of their own; the handling costs stay per part and on the title page.
+Once in the personal office of a person without an organisation (freelancer fixture; freelancer-matrix: office) and once
+in an organisation's office (its admin). Invented companies, people and figures only.
+ - the calculator alone (calc.office_calc with doc["mk_extra"]): the extra base joins the marked positions, the line is
+   spread over the tax keys and says "... und die Teilangebote"; stacked on the handling costs it says so too
+ - a quotation (title page "Regie" 1000.00 at 19 %, part A "Schnitt" 2 x 500.00 at 19 %, part B "Buchlizenz" 400.00 at
+   7 % twice on the title page), 15 %: one line 420.00 (300.00 at 19 %, 120.00 at 7 %), the parts have none, net 3220.00
+ - with handling costs of 10 % (per part and on the title page as before): the markup takes the parts' nets including
+   their handling costs: 15 % of (1000 + 1100 + 2 x 440) = 447.00
+ - the invoice from the quotation (as the quotation: the parts' positions) has the surcharge once per tax rate and the
+   quotation's net; a finalised quotation keeps the one line
+usage: p21249_zuschlag_teile_test.py <datadir>"""
+import importlib.util
+import os
+import sys
+from decimal import Decimal
+
+N = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, N)
+from freelancer_fixture import FEATURES, freelancer  # noqa: E402
+from kt import FAILS, OKS, check, sess  # noqa: E402
+import requests  # noqa: E402
+
+SRC = os.environ.get("KALMIDO_SRC") or os.path.join(N, "..")
+B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
+H = {"X-Requested-With": "kalmido"}
+OFC = "/api/office"
+D = OFC + "/docs"
+COMPANY = {"name": "Studio Nordlicht", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE",
+           "email": "hallo@nordlicht.example", "phone": "+49 40 000000", "tax_number": "12/345/67890", "vat_id": "DE999999999",
+           "iban": "DE02120300000000202051", "bic": "BYLADEM1001", "bank_name": "Beispielbank"}
+
+
+def load(name):
+    spec = importlib.util.spec_from_file_location("p21249_" + name, os.path.join(SRC, "kalmido", "office", name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# ---------------------------------------------------------------- the calculator alone
+calc = load("calc")
+PACK = {"tax": {"standard": 19, "reduced": 7, "exempt": 0}}
+ITS = [{"title": "Regie", "qty": 1, "rate": 1000, "unit": "flat", "in_markup": 1}]
+t = calc.office_calc({"lang": "de", "markup_pct": 15, "mk_extra": {"standard": Decimal(1000), "reduced": Decimal(800)}}, ITS, PACK)
+sur = [x for x in t["lines"] if x["kind"] == "surcharge"]
+check(len(sur) == 1 and sur[0]["total"] == 420 and sur[0]["by_tax"] == {"standard": 300, "reduced": 120},
+      f"calc: one line 15 % of 2800.00 = 420.00 (300.00 + 120.00): {sur}")
+check(sur and sur[0]["detail"] == "15 % auf die markierten Positionen und die Teilangebote", f"calc: the detail names the parts: {sur and sur[0]['detail']}")
+check(t["net"] == 1420 and t["items_net"] == 1000, f"calc: the extra base is no position (net 1000 + 420): {t['net']} {t['items_net']}")
+t0 = calc.office_calc({"lang": "de", "markup_pct": 15}, ITS, PACK)
+check([x["detail"] for x in t0["lines"] if x["kind"] == "surcharge"] == ["15 % auf die markierten Positionen"], "calc: without parts as before")
+t2 = calc.office_calc({"lang": "de", "markup_pct": 10, "handling_pct": 10, "markup_stacked": 1, "mk_extra": {"standard": Decimal(500)}},
+                      [dict(ITS[0], in_handling=1)], PACK)
+s2 = {x["slot"]: x for x in t2["lines"] if x["kind"] == "surcharge"}
+check(s2["handling"]["total"] == 100 and s2["markup"]["total"] == 160
+      and s2["markup"]["detail"] == "10 % auf die markierten Positionen, die Teilangebote und die Handlungskosten",
+      f"calc: stacked: 10 % of (1000 + 500 + 100) = 160.00, the detail says so: {s2}")
+
+
+def surs(totals):
+    return [x for x in (totals or {}).get("lines") or [] if x.get("kind") == "surcharge"]
+
+
+def run(S, who):
+    def ok(cond, what):
+        check(cond, f"{who}: {what}")
+
+    r = S.put(B + OFC + "/settings", json={"company": {"name": COMPANY["name"]}, "lang": "de", "currency": "EUR", "payment_days": 14,
+                                         "company_fields": COMPANY, "industry_packs": []})
+    ok(r.ok, "office settings " + r.text[:200])
+    r = S.post(B + "/api/clients", json={"name": "Beispielkunde AG", "street": "Marktstraße 5", "zip": "50667", "city": "Köln", "country": "DE"})
+    assert r.status_code == 201, r.text
+    r = S.post(B + D, json={"client_id": r.json()["id"], "project_title": "Imagefilm", "raw_mode": "none", "producing_on": 0,
+                            "service_from": "2026-10-01", "service_to": "2026-10-20"})
+    assert r.status_code == 201, r.text
+    OF = r.json()["id"]
+    pids = []
+    for title in ("Modul A", "Modul B"):
+        r = S.post(B + f"{D}/{OF}/parts", json={"kind": "items", "title": title})
+        ok(r.status_code in (200, 201), f"part {title} created {r.status_code} {r.text[:160]}")
+        pids.append((r.json().get("part") or {}).get("id"))
+    PA, PB = pids
+    ok(S.put(B + f"{D}/{OF}/parts/{PA}/items", json={"items": [{"title": "Schnitt", "qty": 2, "rate": 500, "unit": "day"}]}).ok, "part A: its position")
+    ok(S.put(B + f"{D}/{OF}/parts/{PB}/items", json={"items": [{"title": "Buchlizenz", "qty": 1, "rate": 400, "unit": "flat", "tax": "reduced"}]}).ok,
+       "part B: its position")
+    d = S.get(B + f"{D}/{OF}").json()
+    title = [{k: x.get(k) for k in ("id", "kind", "title", "qty", "unit", "ref_part_id")} for x in d.get("items") or []]
+    for x in title:
+        if x.get("ref_part_id") == PB:
+            x["qty"] = 2
+    r = S.put(B + f"{D}/{OF}/items", json={"items": [{"title": "Regie", "qty": 1, "rate": 1000, "unit": "flat"}] + title,
+                                            "parts_known": [PA, PB]})
+    ok(r.ok, "title page: Regie + the two part lines (B twice) " + r.text[:200])
+    r = S.patch(B + f"{D}/{OF}", json={"markup_pct": 15})
+    ok(r.ok, "the surcharge 15 % on " + r.text[:200])
+    d = S.get(B + f"{D}/{OF}").json()
+    t = d.get("totals") or {}
+    sl = surs(t)
+    ok(len(sl) == 1 and sl[0]["total"] == 420 and sl[0]["by_tax"] == {"standard": 300, "reduced": 120},
+       f"one surcharge line on the title page: 15 % of 2800.00 = 420.00 (300.00 at 19 %, 120.00 at 7 %): {sl}")
+    ok(not any(surs(p.get("totals")) for p in d.get("parts") or []), f"the parts show no surcharge line: {[surs(p.get('totals')) for p in d.get('parts') or []]}")
+    tl = {x["rate_key"]: x["base"] for x in t.get("tax_lines") or []}
+    ok(t.get("net") == 3220 and tl == {"standard": 2300, "reduced": 920}, f"net 3220.00, bases per rate: {t.get('net')} {tl}")
+    rd = S.get(B + f"{D}/{OF}/render").json()
+    ok(len([x for x in rd.get("lines") or [] if x.get("kind") == "surcharge"]) == 1, "the print model has the one line")
+    ok(not any(x.get("kind") == "surcharge" for p in rd.get("parts") or [] for x in p.get("lines") or []), "the printed parts have none")
+    p = S.get(B + f"{D}/{OF}/pdf")
+    ok(p.ok and p.content.startswith(b"%PDF-"), f"the PDF of the quotation {p.status_code}")
+
+    # handling costs stay per part and on the title page; the markup takes the parts' nets with them
+    r = S.patch(B + f"{D}/{OF}", json={"handling_pct": 10})
+    ok(r.ok, "handling costs 10 % " + r.text[:200])
+    d = S.get(B + f"{D}/{OF}").json()
+    t = d.get("totals") or {}
+    by = {x.get("slot"): x for x in surs(t)}
+    ok(set(by) == {"handling", "markup"} and by["handling"]["total"] == 100 and by["markup"]["total"] == 447,
+       f"title page: handling 100.00 on Regie, markup 15 % of (1000 + 1100 + 2 x 440) = 447.00: {by}")
+    pt = {p["id"]: [x.get("slot") for x in surs(p.get("totals"))] for p in d.get("parts") or []}
+    ok(pt == {PA: ["handling"], PB: ["handling"]}, f"each part keeps its handling line, no markup: {pt}")
+    ok(t.get("net") == 3527, f"net 1000 + 100 + 1100 + 880 + 447 = 3527.00: {t.get('net')}")
+    r = S.patch(B + f"{D}/{OF}", json={"handling_pct": None})
+    ok(r.ok and r.json()["totals"]["net"] == 3220, "handling off again: net 3220.00")
+
+    # the invoice from the quotation: the surcharge once per tax rate, the quotation's sums
+    r = S.post(B + f"{D}/{OF}/invoice", json={"force": True, "parts_mode": "full"})
+    ok(r.status_code == 201, "invoice from the quotation " + r.text[:200])
+    if r.status_code == 201:
+        iv = r.json()
+        sp = sorted((x["tax"], float(x["rate"])) for x in iv.get("items") or [] if x.get("title") == "Zuschlag")
+        ok(sp == [("reduced", 120.0), ("standard", 300.0)], f"the surcharge as one position per rate: {sp}")
+        ok((iv.get("totals") or {}).get("net") == "3220.00", f"the invoice's net = the quotation's: {(iv.get('totals') or {}).get('net')}")
+        S.delete(B + f"{D}/{iv['id']}")
+    r = S.post(B + f"{D}/{OF}/finalize")
+    ok(r.ok, "the quotation finalised " + r.text[:200])
+    d = S.get(B + f"{D}/{OF}").json()
+    ok(len(surs(d.get("totals"))) == 1 and d["totals"].get("net") == 3220, "finalised: still the one line, net 3220.00")
+    r = S.post(B + f"{D}/{OF}/invoice", json={"force": True, "parts_mode": "title"})
+    ok(r.status_code == 201 and (r.json().get("totals") or {}).get("net") == "3220.00", f"invoice from the finalised quotation: net 3220.00 {r.text[:200]}")
+
+
+s0 = requests.Session()
+s0.headers.update(H)
+assert s0.post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice Admin", "password": "password123"}).ok
+A = sess("alice")
+A.post(B + "/api/admin/setup", json={"lang": "en"})
+FEAT = FEATURES if "office" in FEATURES else FEATURES + ",office"
+A.patch(B + "/api/settings", json={"lang": "en", "features": FEAT, "tour": "done"})
+ALICE = A.get(B + "/api/state").json()["me"]["id"]
+r = A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": ALICE})
+assert r.status_code == 201, r.text
+A.patch(B + "/api/settings", json={"workspace": f"org:{r.json()['id']}"})
+FID, Fr = freelancer(B, A)
+
+run(Fr, "freelancer")
+run(A, "organisation")
+print(f"p21249_zuschlag_teile: {OKS[0]} ok, {len(FAILS)} failed")
+sys.exit(1 if FAILS else 0)
