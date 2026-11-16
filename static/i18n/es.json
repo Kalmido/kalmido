@@ -18787,6 +18787,8 @@
   "on the marked positions and the parts": "sobre las partidas marcadas y los presupuestos parciales",
   "{pct} % on the marked positions and the parts|calc": "{pct} % sobre las partidas marcadas y los presupuestos parciales",
   "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sobre las partidas marcadas, los presupuestos parciales y los gastos de gestión",
+  "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "La factura de la serie no se pudo crear {0} veces seguidas. Revisa la factura plantilla y el cliente y vuelve a activar la serie.",
+  "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Nadie puede crear las facturas de la serie: el área no tiene ningún administrador con la oficina activada. Vuelve a activar la serie en cuanto haya uno.",
   "You can only read this document": "Solo puedes leer este documento",
   "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Mientras tanto otra persona subió una versión más reciente, se mantiene: {0}",
   "(you)": "(tú)"
