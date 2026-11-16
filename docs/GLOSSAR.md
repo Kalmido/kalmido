@@ -281,6 +281,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/kernretire.py` - Stage 7 of the shared core: the start check and DROP of an area's old member table once the core alone decides (2.924.0, #5069)
 - `kalmido/core/liststate.py` - the old column archived of lists goes
 - `kalmido/core/mailframe.py` - The one HTML frame of every Kalmido mail (invitation, findability, appointment booking, portal, event invitation, security, notification and daily mails)
+- `kalmido/core/mailguard.py` - the one way a foreign mail (bytes) becomes an email.message object
 - `kalmido/core/merges.py` (`mg`) - Merging duplicate records by hand (contacts: contacts/merge.py, clients: team/clientmerge.py)
 - `kalmido/core/moneycol.py` - Moves the plain office money columns from TEXT to NUMERIC(14,2) at start when every value fits, and reads them back as two-place text
 - `kalmido/core/mt940.py` - SWIFT MT940 / MT942 statements (the German bank dialects: Sparkasse, Volksbank, Deutsche Bank, Commerzbank ...)
