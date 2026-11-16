@@ -23,8 +23,8 @@ from kt import FAILS, OKS, check, sess  # noqa: E402
 DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(N, ".data")
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 H = {"X-Requested-With": "kalmido"}
-O = "/api/office"
-D = O + "/docs"
+OFF_API = "/api/office"
+D = OFF_API + "/docs"
 FEAT = "cal,comments,collab,office,clients"
 NO_VAT = "as a small business no VAT may be shown"
 NO_NOTE = "the VAT note small business only with the switch Small business"
@@ -53,7 +53,7 @@ def err(r):
 
 
 def run(who, s):
-    check(s.put(B + O + "/settings", json={"small_business": 0, "lang": "de", "currency": "EUR", "payment_days": 14,
+    check(s.put(B + OFF_API + "/settings", json={"small_business": 0, "lang": "de", "currency": "EUR", "payment_days": 14,
                                            "company_fields": dict(COMPANY, name=f"Studio {who}")}).ok, f"{who}: office settings")
     r = s.post(B + "/api/clients", json={"name": "Beispielkunde AG", "street": "Marktstraße 5", "zip": "50667", "city": "Köln", "country": "DE"})
     assert r.status_code == 201, r.text
@@ -76,7 +76,7 @@ def run(who, s):
     check(r.status_code == 400 and NO_NOTE in err(r), f"{who} (2): switch off + section 19 note: refused " + r.text[:200])
     check(s.get(B + f"{D}/{ds}").json()["status"] == "draft", f"{who} (2): still a draft")
 
-    check(s.put(B + O + "/settings", json={"small_business": 1}).ok, f"{who}: small business on")
+    check(s.put(B + OFF_API + "/settings", json={"small_business": 1}).ok, f"{who}: small business on")
     r = fin(dv)
     check(r.status_code == 400 and NO_VAT in err(r), f"{who} (1): switch on + a draft with VAT: refused " + r.text[:200])
     nd = invoice()
@@ -98,14 +98,14 @@ def run(who, s):
     check(c["vat_mode"] == "vat", f"{who} (3): the correction keeps the invoice's VAT {c['vat_mode']}")
     r = fin(cr)
     check(r.ok, f"{who} (3): the correction with VAT finalises with the switch on " + r.text[:200])
-    check(s.put(B + O + "/settings", json={"small_business": 0}).ok, f"{who}: small business off again")
+    check(s.put(B + OFF_API + "/settings", json={"small_business": 0}).ok, f"{who}: small business off again")
 
 
 run("org", A)
 # the organisation's switch does not reach the personal office: on in the organisation, off in the personal office
-check(A.put(B + O + "/settings", json={"small_business": 1}).ok, "setup: the organisation is a small business")
+check(A.put(B + OFF_API + "/settings", json={"small_business": 1}).ok, "setup: the organisation is a small business")
 run("freelancer", Fr)
-check(A.get(B + O + "/settings").json()["settings"]["small_business"] == 1 and Fr.get(B + O + "/settings").json()["settings"]["small_business"] == 0,
+check(A.get(B + OFF_API + "/settings").json()["settings"]["small_business"] == 1 and Fr.get(B + OFF_API + "/settings").json()["settings"]["small_business"] == 0,
       "the switch stays per office area")
 
 print(f"p21289_6475_small: {OKS[0]} ok, {len(FAILS)} failed")

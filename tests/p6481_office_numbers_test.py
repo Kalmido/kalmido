@@ -31,8 +31,8 @@ import requests  # noqa: E402
 
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 H = {"X-Requested-With": "kalmido"}
-O = "/api/office"
-D = O + "/docs"
+OFF_API = "/api/office"
+D = OFF_API + "/docs"
 COMPANY = {"name": "Studio Nordlicht", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE",
            "email": "hallo@nordlicht.example", "tax_number": "12/345/67890", "vat_id": "DE999999999",
            "iban": "DE02120300000000202051", "bic": "BYLADEM1001", "bank_name": "Beispielbank"}
@@ -75,7 +75,7 @@ def run(S, who, member=None):
     def ok(cond, what):
         check(cond, f"{who}: {what}")
 
-    r = S.put(B + O + "/settings", json={"company": {"name": COMPANY["name"]}, "lang": "de", "currency": "EUR", "payment_days": 14,
+    r = S.put(B + OFF_API + "/settings", json={"company": {"name": COMPANY["name"]}, "lang": "de", "currency": "EUR", "payment_days": 14,
                                          "company_fields": COMPANY, "offer_scheme": "KVA-{yyyy}-{seq:03}",
                                          "invoice_scheme": "RE-{yyyy}-{seq:03}", "credit_scheme": "RK-{yyyy}-{seq:03}"})
     ok(r.ok, "office settings " + r.text[:200])
@@ -94,10 +94,10 @@ def run(S, who, member=None):
         return S.post(B + f"{D}/{did}/finalize", json=body or {})
 
     def nxt(kind="invoice"):
-        return {x["kind"]: x for x in S.get(B + O + "/number-ranges").json()["ranges"]}[kind]["next"]
+        return {x["kind"]: x for x in S.get(B + OFF_API + "/number-ranges").json()["ranges"]}[kind]["next"]
 
     def skipped():
-        return [x["detail"] for x in S.get(B + O + "/log?limit=500").json().get("log", []) if x["action"] == "number" and "skipped" in (x.get("detail") or {})]
+        return [x["detail"] for x in S.get(B + OFF_API + "/log?limit=500").json().get("log", []) if x["action"] == "number" and "skipped" in (x.get("detail") or {})]
 
     Y = date.fromisoformat(invoice()["date"]).year
     re_ = lambda n: f"RE-{Y}-{n:03d}"  # noqa: E731
@@ -138,7 +138,7 @@ def run(S, who, member=None):
 
     # ---------------------------------------------------------------- N4 {isodate} / {date} of a number by hand = the document date
     for sch, fmt in (("{seq}_{isodate}_R", "%Y-%m-%d"), ("{seq}-{date}-R", "%Y%m%d")):
-        ok(S.put(B + O + "/settings", json={"invoice_scheme": sch}).ok, f"N4: scheme {sch}")
+        ok(S.put(B + OFF_API + "/settings", json={"invoice_scheme": sch}).ok, f"N4: scheme {sch}")
         inv = invoice()
         day = date.fromisoformat(inv["date"])
         k = nxt()
@@ -148,7 +148,7 @@ def run(S, who, member=None):
         right = sch.replace("{seq}", str(k)).replace("{isodate}" if "iso" in sch else "{date}", day.strftime(fmt))
         r = finalize(inv["id"], {"number": right})
         ok(r.ok and r.json()["number"] == right, f"N4: {right} with the document's own date is taken " + r.text[:160])
-    ok(S.put(B + O + "/settings", json={"invoice_scheme": "RE-{yyyy}-{seq:03}"}).ok, "back to the yearly scheme")
+    ok(S.put(B + OFF_API + "/settings", json={"invoice_scheme": "RE-{yyyy}-{seq:03}"}).ok, "back to the yearly scheme")
 
     # ---------------------------------------------------------------- S2 a correction never dates before its invoice
     inv = invoice()
@@ -176,7 +176,7 @@ def run(S, who, member=None):
     ok(not S.get(B + f"{D}/{inv['id']}").json()["locked"] and nxt() == k, "N3: the refusal finalised nothing, no counter moved")
     r = finalize(inv["id"], {"number": re_(k + 2), "reason": "Zwei Nummern im Altprogramm vergeben"})
     ok(r.ok and r.json()["number"] == re_(k + 2) and r.json()["locked"] and nxt() == k + 3, "N3: finalised with the number by hand, the series follows " + r.text[:160])
-    lg = [x for x in S.get(B + O + "/log?limit=50").json()["log"] if x["action"] == "number" and x.get("doc_id") == inv["id"]]
+    lg = [x for x in S.get(B + OFF_API + "/log?limit=50").json()["log"] if x["action"] == "number" and x.get("doc_id") == inv["id"]]
     ok(lg and lg[0]["detail"]["after"]["number"] == re_(k + 2) and "Altprogramm" in lg[0]["detail"]["after"].get("reason", ""), f"N3: the number and its reason are in the office log {lg[:1]}")
     cr = S.post(B + f"{D}/{inv['id']}/credit").json()
     r = S.post(B + f"{D}/{cr['id']}/number", json={"number": f"RK-{Y}-050"})
@@ -215,7 +215,7 @@ def run(S, who, member=None):
     ok(not [x for x in S.get(B + D + "?kind=invoice").json()["docs"] if x.get("imported") and x["id"] != inv["id"]], "U4: no other row is marked imported")
     d = S.get(B + f"{D}/{inv['id']}").json()
     ok((d.get("imported") or {}).get("by") == me["display_name"], f"U4: the view is marked imported {d.get('imported')}")
-    r = S.get(B + O + f"/gobd/export?from={Y}-01-01&to={date.fromisoformat(d['date']).isoformat()}")
+    r = S.get(B + OFF_API + f"/gobd/export?from={Y}-01-01&to={date.fromisoformat(d['date']).isoformat()}")
     ok(r.ok, f"U4: auditor's export {r.status_code}")
     if r.ok:
         z = zipfile.ZipFile(io.BytesIO(r.content))
