@@ -302,7 +302,9 @@ def _may_link(c, uid):
         raise Denied(404)
     if not (g.user["is_admin"] or parent_of(c, me(), uid)):
         raise Denied(403)
-    if not parent_of(c, me(), uid) and op_foreign_account(c, uid):  # 2.399.0 (#2687): hosted: no sign-in as a client by the operator
+    # 2.399.0 (#2687): hosted: no sign-in as a client by the operator; 2.1294.0 (#6496): also not as the client's kid's parent
+    # (an instance admin passes only through the client's support access, the link then ends with it)
+    if (g.user["is_admin"] or not parent_of(c, me(), uid)) and op_foreign_account(c, uid):
         op_apart_deny()
     if t["is_admin"]:
         raise Denied(409, tr("Admins sign in with their password"))
