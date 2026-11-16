@@ -27,7 +27,7 @@ from ..core.pg import insert_id, system_ctx, write_lock
 from ..core.i18n import N_, tr
 from ..core.db import body, db, err, fresh_within, iso, iso_ms, now_utc
 from ..core.retention import ret_days, ret_on, ret_report  # 2.272.0 A (#3026)
-from ..core.access import Denied
+from ..core.access import act_for, Denied
 from ..core.serializers import unlink_files
 from ..accounts.session import me
 from ..accounts.orgs import instance_mode, is_org_admin, user_orgs
@@ -168,15 +168,18 @@ def tcx_rooms_of(c, uid, mems=None):
     a dict that gets {room id: tcx_members} of these rooms."""
     from .tcxcore import tcx_core_rooms_sql
     from ..core.objects import obj_token_lists
-    if obj_token_lists(uid) is not None:
+    if obj_token_lists(uid, own=True) is not None:
         return []  # 2.565.0 (#4719): the core's floor (obj_role): a token limited to lists reaches no channel / group
+    forp = act_for(uid)  # 2.1287.0 (#6454): only the rooms of the people the request's agent acts for (obj_role caps the room itself)
+    if forp is not None and not forp:
+        return []
     rows = c.execute(f"""SELECT r.* FROM tchat_rooms r WHERE r.id IN ({tcx_core_rooms_sql(uid)})
                          AND r.kind IN ('channel','group') AND r.archived_at IS NULL""").fetchall()  # 2.924.0 (#5069): the core alone
     mm = tcx_members_of(c, rows)
     if mems is not None:
         mems.update(mm)
     who = {}  # 2.369.3 (#3199): uid's organisations once, not per room
-    return [r for r in rows if tcx_room_ok(c, r, uid, mm[r["id"]], who)]
+    return [r for r in rows if tcx_room_ok(c, r, uid, mm[r["id"]], who) and all(tcx_room_ok(c, r, p, mm[r["id"]]) for p in forp or ())]
 
 
 def tcx_group_name(c, r, uid, mem=None):

@@ -32,7 +32,7 @@ from ..core.config import ATT_DIR, MAX_FILE_MB
 from ..core.i18n import N_, tr
 from ..core.db import insert_id, iso, now_utc, write_lock, db
 from ..core.dlock import dl_chain_cut, dl_wiki_folders, dl_wiki_step_sql  # 2.1045.0 (#5823)
-from ..core.access import Denied, acx_of, collab_all
+from ..core.access import Denied, act_for, acx_of, collab_all
 from ..core.orgcrypt import oc_read_file, oc_write_file, oc_user_space
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds of the shared core (fs_org_live)
@@ -66,6 +66,10 @@ def _uid():
 
 def _best(a, b):
     return a if ROLE_RANK[a] >= ROLE_RANK[b] else b
+
+
+def _least(a, b):
+    return a if ROLE_RANK[a] <= ROLE_RANK[b] else b
 
 
 def fs_chain(c, nid):
@@ -136,7 +140,16 @@ def fs_role(c, nid, uid=None, chain=None, pre=None):
     from .fslock import fsl_of_chain, fsl_token_request
     if (pre is None or pre.locks(c)) and fsl_of_chain(c, chain) is not None and (acx_of(c, uid).role == "agent" or fsl_token_request()):
         return None  # 2.353.0 A (#2758): agents never reach a locked folder (not even shared or their own); F (review M3): API tokens neither
-    return _fs_role(c, uid, chain, pre)
+    role = _fs_role(c, uid, chain, pre)
+    who = act_for(uid) if role and chain[0]["kind"] != "ref" else None
+    if who is not None:  # 2.1287.0 (#6454): never more than the person the agent acts for (a reference node: its area's own role function caps)
+        if not who:
+            return None
+        for p in who:
+            role = _least(role, fs_role(c, nid, p, chain=chain))
+            if not role:
+                break
+    return role
 
 
 def _fs_role(c, uid, chain, pre=None):
@@ -477,7 +490,18 @@ def fs_visible_sql_c(c, uid):
             f"fd(id) AS (SELECT id FROM fs_nodes WHERE deleted_at IS NOT NULL "
             f"UNION SELECT n.id FROM fs_nodes n JOIN fd ON n.parent_id = fd.id) "
             f"SELECT id FROM fv WHERE id NOT IN (SELECT id FROM fd){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
-            f"{_ref_hidden(c, uid)}{_lock_hidden(c, agent)})")
+            f"{_ref_hidden(c, uid)}{_lock_hidden(c, agent)}{_for_sql(c, uid)})")
+
+
+def _for_sql(c, uid):
+    """2.1287.0 (#6454): the listing's part of fs_role's cap -- only nodes the people the request's agent acts for see
+    themselves (core/access.py act_for); nobody to act for = nothing."""
+    who = act_for(uid)
+    if who is None:
+        return ""
+    if not who:
+        return " AND FALSE"
+    return "".join(f" AND id IN {fs_visible_sql_c(c, p)}" for p in who)
 
 
 def _lock_hidden(c, agent):

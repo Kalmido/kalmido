@@ -19,7 +19,7 @@ import time
 
 from flask import g, has_request_context
 
-from ..core.access import MANAGE_ROLES, Denied, WRITE_ROLES, acx_org_ok, list_role, list_roles
+from ..core.access import MANAGE_ROLES, Denied, WRITE_ROLES, act_for, acx_org_ok, list_role, list_roles
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..core.dlock import dl_of, dl_sheet_locked  # 2.560.0 B (#4699)
 from ..core.db import bump, iso_ms, now_utc
@@ -114,12 +114,19 @@ def sh_may(c, uid, r, write=False, share=True, fold=True):
     2.560.0 B (#4699): a table bound to a list the agent's data lock leaves out gives it nothing, not by a share nor a folder."""
     if uid and dl_of(c, uid) and dl_sheet_locked(c, uid, shb_rights_row(c, r)):
         return False
-    if _sh_may(c, uid, r, write, share):
-        return True
-    if not (share and fold and uid):
-        return False
-    from .shfolder import shf_folder_may  # a later module (ORDER)
-    return shf_folder_may(c, uid, r, write)
+    ok = _sh_may(c, uid, r, write, share)
+    if not ok and share and fold and uid:
+        from .shfolder import shf_folder_may  # a later module (ORDER)
+        ok = shf_folder_may(c, uid, r, write)
+    who = act_for(uid) if ok else None
+    if who is None:
+        return bool(ok)
+    # 2.1287.0 (#6454): never more than the people the request's agent acts for (core/access.py act_for); nobody to act
+    # for (a run without a person): only a table bound to a project (the run's own projects: list_role, the token's cut)
+    rr = shb_rights_row(c, r)
+    if not who:
+        return rr is not None and sh_list_bound(c, rr) is not None
+    return all(sh_may(c, p, r, write, share, fold) for p in who)
 
 
 def _sh_may(c, uid, r, write, share):
