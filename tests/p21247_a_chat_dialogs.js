@@ -138,6 +138,17 @@ const roomOf = async (ck, lid) => ((await call(ck, 'GET', '/api/team')).rooms ||
     check(await wait(`!document.querySelector('.modal.tcxmd')`, {timeout: 10000}), 'settings: Done closes');
     const rn = await (async () => { for (let i = 0; i < 50; i++) { const c = ((await call(CA, 'GET', '/api/team/channels')).channels || []).find(x => x.id === crew?.id); if (c?.name === 'Crew room') return c; await sleep(200); } return null; })();
     check(!!rn, 'settings: the name saved with Done');
+    // Fable review: someone else renames while the settings are open, then the dialog redraws (Open switched): the untouched
+    // name field takes the new name and "Done" does not put the old one back over it
+    await ev(`(tcx_settings(), 1)`);
+    check(await wait(`document.querySelector('.modal.tcxmd #tcx-name')?.value === 'Crew room' && !!document.querySelector('.modal #tcx-open')`), 'rename meanwhile: the settings again, with Open');
+    check((await call(CA, 'PATCH', `/api/team/rooms/${crew?.id}`, {name: 'Crew of Bob'})).http < 300, 'rename meanwhile: renamed from another device');
+    await ev(`(() => { const c = document.querySelector('.modal #tcx-open'); c.checked = !c.checked; c.dispatchEvent(new Event('change', {bubbles: true})); return 1; })()`);
+    check(await wait(`document.querySelector('.modal.tcxmd #tcx-name')?.value === 'Crew of Bob'`, {timeout: 10000}), 'rename meanwhile: the untouched field shows the new name ' + await ev(`document.querySelector('.modal #tcx-name')?.value || ''`));
+    await ev(`(${OKB}.click(), 1)`);
+    check(await wait(`!document.querySelector('.modal.tcxmd')`, {timeout: 10000}), 'rename meanwhile: Done closes (nothing to save)');
+    await sleep(800);
+    check(((await call(CA, 'GET', '/api/team/channels')).channels || []).find(x => x.id === crew?.id)?.name === 'Crew of Bob', 'rename meanwhile: the other name stays (not overwritten)');
 
     // ===== 4. Browse channels
     await ev(`(tcx_browse(), 1)`);

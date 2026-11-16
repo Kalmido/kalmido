@@ -844,10 +844,18 @@ async function tcx_settings() {
   const step = (label, undo, redo) => offerUndo(label, histAdd({label, undo: () => undo().then(() => tcx_refresh(rid)), redo: () => redo().then(() => tcx_refresh(rid))}));
   const patch = b => rawFetch('PATCH', `/api/team/rooms/${rid}`, b);
   const nameOf = r => r.kind === 'group' ? r.custom_name || '' : r.name || '';
+  const nameIn = () => md && $('#tcx-name', md);
+  const dirty = () => !!nameIn() && nameIn().value.trim() !== base;
   const r0 = S.tc.room || room;
   let ver = null;  // 2.564.0 D (#4701): the version the dialog shows; a save against an older one = 409, the reason and the current state
+  // 2.1247.0 (#6101, Fable review): the name field lies outside the redrawn part: base = the name it started from, verName = the
+  // version the name is saved against. Someone else renamed meanwhile: an untouched field takes the new name; an edited one keeps
+  // the old version, so "Done" gets the 409 with its reason instead of overwriting the other name silently
+  let base = nameOf(r0), verName = r0.updated_at || null;
   const draw = () => {
     const r = S.tc.room || room, mem = r.members || [], ids = new Set(mem.map(m => m.id)); ver = r.updated_at || null;
+    const inp = nameIn(), nn = nameOf(r);
+    if (inp) { const untouched = inp.value.trim() === base; if (nn !== base && untouched) { inp.value = nn; base = nn; } if (untouched || nn === base) verName = ver; }
     const add = man && cand ? [...cand.people, ...cand.agents].filter(id => !ids.has(id) && id !== S.me.id) : [];
     const out = [ids.has(S.me.id) ? `<button type="button" class="linkbtn" data-xs="leave">${ic('logout', 's')}${tr('Leave')}</button>` : '', ch && man ? `<button type="button" class="linkbtn tcxwarn" data-xs="archive">${ic('archive', 's')}${tr('Archive')}</button>` : ''].filter(Boolean);
     $('#tcx-set', md).innerHTML = `${ch && man && r.org_id ? `<div class="row"><label class="chkl"><input type="checkbox" id="tcx-open" ${r.open ? 'checked' : ''}> ${tr('Open to the whole organisation')}</label></div>` : ch ? `<p class="muted tcxhint">${r.open ? tr('Open to the whole organisation') : tr('Invited people only')}</p>` : ''}
@@ -856,15 +864,13 @@ async function tcx_settings() {
       ${out.length ? `<div class="tcxout">${/*html-ok*/ out.join('')}</div>` : ''}`;  // out: the two buttons above, from tr() only
   };
   const after = async () => { await tcx_refresh(rid); if (md?.isConnected) draw(); };
-  const nameIn = () => md && $('#tcx-name', md);
-  const dirty = () => !!nameIn() && nameIn().value.trim() !== nameOf(S.tc.room || room);
   const save = async () => {  // "Done": the name, if it changed
     if (!dirty()) return true;
-    const inp = nameIn(), was = nameOf(S.tc.room || room), v = inp.value.trim();
+    const inp = nameIn(), was = base, v = inp.value.trim();
     if (ch && !v) { need(inp, tr('Give the channel a name')); return false; }
-    const rn = await tcx_try(md, 'PATCH', `/api/team/rooms/${rid}`, {name: v, ...(ver ? {expect_updated_at: ver} : {})});
-    if (!rn) { after(); return false; }
-    if (rn.updated_at) ver = rn.updated_at;  // review 2.564.0: the next save sends the new version
+    const rn = await tcx_try(md, 'PATCH', `/api/team/rooms/${rid}`, {name: v, ...(verName ? {expect_updated_at: verName} : {})});
+    if (!rn) { await after(); verName = ver; return false; }  // the reason stands in the dialog; a second "Done" is a choice made knowingly
+    base = v; if (rn.updated_at) ver = verName = rn.updated_at;  // review 2.564.0: the next save sends the new version
     step(tr('Renamed to “{0}”', v || tr('the members')), () => patch({name: was}), () => patch({name: v})); tcx_refresh(rid);
     return true;
   };
@@ -883,8 +889,8 @@ async function tcx_settings() {
         step(tr('{0} added', S.tc.users[uid] || '?'), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${uid}`), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: uid})); after(); }
     });
     m.addEventListener('click', async e => {
-      const b = e.target.closest('[data-xs]'); if (!b) return;
-      const a = b.dataset.xs;
+      const b = e.target.closest('[data-xs]'); if (!b || b.disabled) return;
+      const a = b.dataset.xs; b.disabled = true; setTimeout(() => { if (b.isConnected) b.disabled = false; }, 1500);  // 2.1247.0 (#6101): no second request (or Undo step) by a double tap
       if (a === 'rm') { const uid = +b.dataset.uid, nm = (S.tc.room.members.find(x => x.id === uid) || {}).name || '?';
         if (!await tcx_try(md, 'DELETE', `/api/team/rooms/${rid}/members/${uid}`)) return;
         step(tr('{0} removed', nm), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: uid}), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${uid}`)); after(); }
