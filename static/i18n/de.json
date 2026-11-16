@@ -18777,6 +18777,7 @@
   "Contacts could not be loaded": "Die Kontakte konnten nicht geladen werden",
   "No contacts yet": "Noch keine Kontakte",
   "Add one, import a vCard or CSV file, or connect the phone.": "Lege einen an, importiere eine vCard- oder CSV-Datei oder verbinde das Handy.",
+  "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Rechnung {0}: Der Steuersatz {1} % hat kein DATEV-Automatikkonto; sie wird auf Konto {2} exportiert - die Umsatzsteuer von {3} bitte von Hand buchen",
   "Reminder fee, interest and flat fee {0}: {1}": "Mahngebühr, Zinsen und Pauschale {0}: {1}",
   "Write down your first task": "Schreib deine erste Aufgabe auf",
   "Everything starts in the inbox; sort it later.": "Alles beginnt im Eingang; sortieren kannst du später.",

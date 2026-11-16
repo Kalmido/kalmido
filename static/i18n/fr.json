@@ -18777,6 +18777,7 @@
   "Add one, import a vCard or CSV file, or connect the phone.": "Ajoute-en un, importe un fichier vCard ou CSV, ou connecte le téléphone.",
   "The groups could not be loaded": "Les groupes n’ont pas pu être chargés",
   "The contact could not be saved": "Le contact n’a pas pu être enregistré",
+  "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Facture {0} : le taux de TVA de {1} % n'a pas de compte automatique DATEV ; elle est exportée sur le compte {2} - comptabilisez sa TVA de {3} à la main",
   "Reminder fee, interest and flat fee {0}: {1}": "Frais de relance, intérêts et forfait {0} : {1}",
   "Write down your first task": "Note ta première tâche",
   "Everything starts in the inbox; sort it later.": "Tout commence dans la boîte de réception ; trie plus tard.",
