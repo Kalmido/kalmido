@@ -2946,13 +2946,6 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 .bpop .bplist{min-height:0}
 /* #405 S3: the account's link to "Share from your phone" */
 [data-pane="account"] [data-m="go-share"] .i{margin-right:.25rem}
-/* 2.7.0: the dropdown's heading "News" is a link to the News view (chevron + hover) */
-.bphl{display:inline-flex;align-items:center;gap:.25rem;background:none;border:0;padding:.25rem .375rem;margin-left:-.375rem;border-radius:var(--r-s);color:var(--text);cursor:pointer;font:inherit}
-.bphl .bpchev{color:var(--muted);font-size:var(--fs-h);line-height:1;transition:transform .12s}
-.bphl:hover,.bphl:focus-visible{background:var(--bg3)}
-.bphl:hover .bpchev,.bphl:focus-visible .bpchev{color:var(--accent);transform:translateX(.125rem)}
-@media (pointer:coarse){ .bphl{min-height:2.75rem;min-width:2.75rem} }
-@media (prefers-reduced-motion:reduce){ .bphl .bpchev{transition:none} }
 /* 2.7.1 (#410): the overview of a project list */
 .pov{max-width:var(--w-seite)}
 .povc{min-width:0}
@@ -4945,8 +4938,8 @@ button.lkchip:hover{border-color:var(--accent)}
 .ngt .ngtt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .ngt .ngtt b{font-weight:inherit}
 .ngroup .ngex.ngq{font-weight:400;-webkit-line-clamp:3;color:var(--text2)}
-/* UX-48: the head of the bell's panel stays on one line: "4 new" and a small "All read" */
-.bphead .bpnew{white-space:nowrap;color:var(--muted);font-size:var(--fs-m)}
+/* UX-48: the head of the bell's panel stays on one line: "Waiting for you: 4" and a small "All read" */
+.bphead .bpht{margin:0;font-size:var(--fs-b);font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}  /* 2.1249.0 (#6125): "Waiting for you: n" */
 .bphead .bpread{flex:none;white-space:nowrap}
 .bpempty small{display:block;margin-top:.375rem;max-width:22rem;text-align:center}
 /* UX-17: settings on a phone start with an overview of the areas; inside one, ‹ goes back to it */
@@ -5187,6 +5180,11 @@ a.nitem.ndm{text-decoration:none;color:inherit}
 .dtome .dwl{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.125rem}
 .dwl .dwb{display:flex;align-items:center;gap:.5rem;min-height:2.25rem;width:100%;text-align:left;color:var(--text2);border-radius:var(--r-s);padding:0 .25rem;background:none;border:0;font:inherit;cursor:pointer}
 .dwl .dwb:hover{background:var(--bg3)}
+/* 2.1249.0 (#6125): a card that loads keeps a fixed height (no flash of its empty sentence); the card "Getting started" */
+.dcload{min-height:4.5rem;display:flex;align-items:flex-start}
+.dash>.dfirst{margin:0 0 1rem}
+.dfsteps .dwt{white-space:normal}
+.dfsteps a,.dfsteps .dwb{min-height:2.75rem}
 @media (pointer:coarse){ .ntabs button{min-height:2.75rem} .dtome .dwl .dwb,.dwl .dwb{min-height:2.75rem} }
 /* 2.28.0 (#1005): answer buttons under an agent's chat message */
 .cchoices{display:flex;flex-wrap:wrap;gap:.375rem;margin:.375rem 0 .125rem;align-items:center}
