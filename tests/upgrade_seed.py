@@ -165,9 +165,16 @@ if os.path.isfile(VOR):
     with open(VOR, encoding="utf-8") as f:
         blocks = [b.strip() for b in f.read().split("\n-- @@\n")]
     blocks = [b for b in blocks if b and not all(ln.startswith("--") for ln in b.splitlines())]
-    bad = sum(subprocess.run(["docker", "exec", "-i", DBC, "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-U", "kalmido", "-d", DBN],
-                             input=b.encode(), capture_output=True).returncode != 0 for b in blocks)
-    print(f"upgrade_seed: live remnants (upgrade_vorspann.sql) {len(blocks)} statements, {bad} did not fit the invented data")
+    blocks = [b for b in blocks if not any(ln.lstrip().startswith("\\") for ln in b.splitlines())]  # review: SQL only, no psql meta commands
+    bad = []
+    for b in blocks:
+        p = subprocess.run(["docker", "exec", "-i", DBC, "psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-U", "kalmido", "-d", DBN],
+                           input=b.encode(), capture_output=True)
+        if p.returncode != 0:
+            bad.append((p.stderr.decode(errors="replace").strip().splitlines() or ["?"])[0][:160])
+    print(f"upgrade_seed: live remnants (upgrade_vorspann.sql) {len(blocks)} statements, {len(bad)} did not fit the invented data")
+    for e in bad[:10]:
+        print("   remnant not applied:", e)
 r = subprocess.run(["docker", "exec", DBC, "pg_dump", "-U", "kalmido", "-d", DBN, "--no-owner", "--no-privileges"],
                    capture_output=True, check=True)
 os.makedirs(OUT, exist_ok=True)
