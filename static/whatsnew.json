@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1261.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Bei Angeboten mit Teilangeboten steht der Zuschlag nur noch einmal auf der Titelseite, über alle Positionen und Teilangebote.",
+     "en": "In quotations with parts the surcharge now appears once on the title page, over all positions and parts."
+    },
+    {
+     "de": "Die Startseite zeigt beim Laden Platzhalter statt kurz \"nichts\", nichts mehr doppelt, und ein neues Konto bekommt \"Erste Schritte\".",
+     "en": "The start page shows placeholders while loading instead of a brief \"nothing\", nothing twice, and a new account gets \"First steps\"."
+    },
+    {
+     "de": "Im Datum-Fenster einer Aufgabe steht \"Wiederholen\" jetzt direkt unter Heute/Morgen, Erinnerungen sind ein eigener Block.",
+     "en": "In a task's date dialog \"Repeat\" now sits right under Today/Tomorrow, reminders are a block of their own."
+    }
+   ]
+  },
+  {
    "version": "2.1252.0",
    "date": "2026-11-16",
    "items": [
@@ -1307,28 +1325,6 @@
     {
      "de": "Die Bilanz bucht jetzt auch Bewirtungen, die Kilometerpauschale und Mahngebühren und führt jedes Bankkonto einzeln.",
      "en": "The balance sheet now also books entertainment, the mileage allowance and reminder fees and keeps every bank account separately."
-    }
-   ]
-  },
-  {
-   "version": "2.682.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "In einer Abnahme hochgeladene Bilder und PDFs sehen jetzt auch die Kolleginnen und Kollegen im Projekt.",
-     "en": "Images and PDFs uploaded in an approval are now visible to your project colleagues too."
-    },
-    {
-     "de": "In privaten Listen lässt sich die Aktivität anderer zwischen den Kommentaren jetzt über „…“ > „Mit Aktivität“ ausblenden.",
-     "en": "In private lists you can now hide the activity of others between the comments with \"…\" > \"With activity\"."
-    },
-    {
-     "de": "Für GmbH und UG gibt es neben der EÜR jetzt die Bilanz mit Summen- und Saldenliste, GuV und Jahresabschluss.",
-     "en": "Companies with a balance sheet duty get double-entry bookkeeping with trial balance, P&L, balance sheet and year-end closing."
-    },
-    {
-     "de": "Die Kontaktkarte lässt sich wie die Kundenkarte in Blöcken ein- und ausblenden und zuklappen.",
-     "en": "The contact card can show, hide and fold its blocks like the client card."
     }
    ]
   }
