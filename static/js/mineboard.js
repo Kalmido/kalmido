@@ -59,7 +59,8 @@ async function mb_drop(t, el) {
     if (!canEditList(lid)) { roToast(); return true; }
     if (tlkHits(t, {list_id: lid})) { tlkToast(t); render(); return true; }
     if (!await mv_ask([t.id], listById(lid))) return true;  // 2.455.0 (#3848)
-    await patchUndoable(t.id, {list_id: lid, section_id: null, ...(t.parent_id ? {parent_id: null} : {})}, t.parent_id ? tr('Standalone in {0}', lname(listById(lid))) : tr('Moved to {0}', lname(listById(lid)))).catch(() => {});
+    const ad = detachPatch(t);  // 2.1271.0 (#6436): a subtask takes its parent's date / priority into empty fields
+    await patchUndoable(t.id, {list_id: lid, section_id: null, ...(t.parent_id ? {parent_id: null, ...ad} : {})}, t.parent_id ? tr('Standalone in {0}', lname(listById(lid))) : tr('Moved to {0}', lname(listById(lid))), ad).catch(() => {});
     return true;
   }
   const t0 = today(), we = mb_weekEnd(t0), tm = addDays(t0, 1);
