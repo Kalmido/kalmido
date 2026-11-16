@@ -18824,6 +18824,7 @@
   "Number of your own (optional)": "Número propio (opcional)",
   "Its number is taken in the series; finalise the draft to close the gap": "Su número está ocupado en la serie; cierra el borrador para que no quede un hueco",
   "Draft with number - please finalise": "Borrador con número - ciérralo",
+  "The number carries the date {0}, the document date is {1}": "El número lleva la fecha {0}, la fecha del documento es {1}",
   "Date / priority of the parent task adopted for {0} task": ["Fecha / prioridad de la tarea principal adoptada en {0} tarea", "Fecha / prioridad de la tarea principal adoptada en {0} tareas"],
   "Date and priority of {0} adopted": "Fecha y prioridad de {0} adoptadas",
   "Date of {0} adopted": "Fecha de {0} adoptada",

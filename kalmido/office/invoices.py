@@ -127,6 +127,31 @@ def inv_number_year(scheme, num):
     return None
 
 
+def inv_number_dates(scheme, num):
+    """2.1289.0 (#6481 N4): the dates a number carries under the scheme ({date} 20261116 / {isodate} 2026-11-16, as
+    office_number_format writes them), [] without one or when it does not follow it; a value that is no date is kept as
+    its text (it never equals a document date)."""
+    for sv in scheme_variants(scheme):
+        pos, pat, n = 0, "", 0
+        for m in SCHEME_RE.finditer(sv):
+            pat += re.escape(sv[pos:m.start()])
+            t = m.group(1)
+            pat += r"(\d{8})" if t == "date" else r"(\d{4}-\d{2}-\d{2})" if t == "isodate" else r"\d+" if t.startswith("seq") else r".+?"
+            n += t in ("date", "isodate")
+            pos = m.end()
+        pat += re.escape(sv[pos:])
+        m = re.fullmatch(pat, num or "")
+        if m and n:
+            out = []
+            for v in m.groups():
+                try:
+                    out.append(date.fromisoformat(v if "-" in v else f"{v[:4]}-{v[4:6]}-{v[6:]}").isoformat())
+                except ValueError:
+                    out.append(v)
+            return out
+    return []
+
+
 INV_SKIP_REASON_MIN = 5  # 2.39.1 (#1210 N2): characters of the reason a skipped number needs
 
 
@@ -144,6 +169,9 @@ def inv_manual_number(c, oid, r, s, num, reason=""):
     y = inv_number_year(scheme, num)
     if period and y is not None and y != d.year:  # 2.355.0 A (#2839): never another year's number (nor its counter)
         raise Denied(409, tr("The number carries the year {0}, the invoice date is in {1}", y, d.year))
+    bad = [x for x in inv_number_dates(scheme, num) if x != d.isoformat()]
+    if bad:  # 2.1289.0 (#6481 N4): {date} / {isodate} are the document's date as well (like the year above)
+        raise DeniedKey(409, N_("The number carries the date {0}, the document date is {1}"), bad[0], d.isoformat())
     row = c.execute("SELECT last FROM office_numbers WHERE org_id=? AND kind=? AND period=?", (oid, kind, period)).fetchone()
     last = row["last"] if row else 0
     if seq < last or (seq == last and num != (r["number"] or "")):  # 2.38.0 review: re-setting its own number is fine
