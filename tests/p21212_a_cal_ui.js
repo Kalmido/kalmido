@@ -188,6 +188,13 @@ const closeAll = d => { d.querySelectorAll('.modal').forEach(m => m.remove()); }
   let when = await until(() => d.querySelector('#pop [data-evp="edit"]') && d.querySelector('#pop .cevm'));
   check(when && /10:00\D.*11:00\D* New York · \S.* your time/.test(txt(when)), '#6158: the popover names the zone at the times and the time for you ' + txt(when));
   w.eval('closePop()');
+  // 2.1244.0 (#6263): 22:00 New York on Sunday 15 Nov is Monday for a viewer east of it: the zone's day next to the zone's
+  // times, the viewer's day next to "your time" (it said "Mon 16 Nov, 22:00–23:00 New York")
+  const late = w.eval(`evWhen(cevPrep({start: '2026-11-16T03:00:00Z', end: '2026-11-16T04:00:00Z', all_day: false}), {tz: 'America/New_York'})`);
+  const zDay = w.eval(`fmtDayAbs('2026-11-15')`), vDay = w.eval(`fmtDayAbs(ds(new Date('2026-11-16T03:00:00Z')))`);
+  const vOther = w.eval(`ds(new Date('2026-11-16T03:00:00Z'))`) !== '2026-11-15';  // the viewer is past New York's Sunday
+  check(late.startsWith(`${zDay}, `) && late.includes(`, ${w.eval(`evTimeIn(new Date('2026-11-16T03:00:00Z'), 'America/New_York')`)}–`) && (!vOther || (late.includes(`${vDay}, `) && /your time$/.test(late))),
+    `#6263: the zone's day at the zone's times (${zDay}), the viewer's day at "your time" (${vDay}): ` + late);
   click(w, chip('Standup'));
   when = await until(() => d.querySelector('#pop [data-evp="edit"]') && d.querySelector('#pop .cevm'));
   check(when && !/your time/.test(txt(when)), '#6158: an event in the device\'s zone: no zone ' + txt(when));
