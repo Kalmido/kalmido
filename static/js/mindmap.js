@@ -292,7 +292,7 @@ async function mm_commit(value) {
 async function mm_outdent() {
   const n = mm_node(MM.sel); if (!n || n.kind !== 'task' || mm_ro(listById(MM.lid))) return;
   const t = n.t;
-  if (t.parent_id) { const p = taskById(t.parent_id); await patchTask(t.id, p?.parent_id ? {parent_id: p.parent_id} : {parent_id: null, section_id: p?.section_id || null}).catch(() => {}); }
+  if (t.parent_id) { const p = taskById(t.parent_id); await (p?.parent_id ? patchTask(t.id, {parent_id: p.parent_id}) : dtPatch(t.id, {section_id: p?.section_id || null})).catch(() => {}); }  // 2.1271.0 (#6436)
   else if (t.section_id) await patchTask(t.id, {section_id: null}).catch(() => {});
   mm_draw();
 }
@@ -327,7 +327,7 @@ async function mm_rehang(id, onto) {  // drag and drop: id hangs at onto (a task
   const body = o.kind === 'task' ? {parent_id: o.t.id} : o.kind === 'sec' ? {parent_id: null, section_id: o.sec.id} : {parent_id: null, section_id: null};
   if (o.kind === 'task' && !dgFits(o.t.id, n.t.id)) { mm_deepHint(); mm_draw(); return; }  // 2.156.0 A (#1949)
   if (o.kind === 'task') { MM.fold.delete(o.id); mm_foldSave(); }
-  await patchTask(n.t.id, body).catch(() => {});
+  await (o.kind === 'task' || !n.t.parent_id ? patchTask(n.t.id, body) : dtPatch(n.t.id, body)).catch(() => {});  // 2.1271.0 (#6436): out of the parent
   MM.sel = id; mm_draw();
 }
 // ---- export / import

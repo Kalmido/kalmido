@@ -984,8 +984,8 @@ function taskMenu(anchor, id, o = {}) {
     '-',
     ...(isMs(t) || (!t.parent_id && !children(t.id).length && t.id > 0) ? [{label: isMs(t) ? tr('Make it a normal task') : tr('Make it a milestone'), icon: 'flag', fn: () => msToggle(id)}] : []),  // 2.18.0 (#430)
     ...(i > 0 && depthOf(sib[i - 1]) < maxDepth() - 1 && !isMs(t) && !isMs(sib[i - 1]) ? [{label: tr('Indent'), icon: 'indent', fn: () => patchTask(id, {parent_id: sib[i - 1].id})}] : []),
-    ...(t.parent_id ? [{label: tr('Outdent'), icon: 'outdent', fn: () => patchTask(id, {parent_id: S.tasks.get(t.parent_id)?.parent_id || null})}] : []),
-    ...(t.parent_id && S.tasks.get(t.parent_id)?.parent_id ? [{label: tr('Make it a main task'), icon: 'arrow', fn: () => patchTask(id, {parent_id: null})}] : []),
+    ...(t.parent_id ? [{label: tr('Outdent'), icon: 'outdent', fn: () => S.tasks.get(t.parent_id)?.parent_id ? patchTask(id, {parent_id: S.tasks.get(t.parent_id).parent_id}) : dtPatch(id, {})}] : []),  // 2.1271.0 (#6436): out of the top level = standalone
+    ...(t.parent_id && S.tasks.get(t.parent_id)?.parent_id ? [{label: tr('Make it a main task'), icon: 'arrow', fn: () => dtPatch(id, {})}] : []),
     ...(propBreakOk(t) ? [{label: propWith(N_('Break down with {0}…'), N_('Break down with an agent…')), icon: 'bot', fn: () => propRequest('subtasks', {tid: id})}] : []),  // 2.3.0 (#261)
     ...(t.id > 0 && !t.context && listRepos(t.list_id).length && !codeShown(t) && pz_on(t.list_id, 'repo') ? [{label: tr('Link code…'), icon: 'git', title: tr('Copies a branch name for this task; commits and pull requests that name #{0} are linked too', t.id), fn: () => gitCopyBranch(t)}] : []),  // 2.4.2 (#387)
     ...msvvMoveItem(t),  // 2.73.0 C (#661): "Move to another server…"

@@ -141,7 +141,7 @@ function dropTask(id, el, clientY) { return histGroup(async () => { if (await sw
 async function dropTask0(id, el, clientY) {
   const t = S.tasks.get(id); if (!t || !el) return;
   // 2.579.0 (#4798): as this device saw it before the drop - a patchTask below changes t at once (outbox, #4568): undo, _prev, lock move
-  const before = snapTask(t);
+  let before = snapTask(t), dt = null;  // dt: a subtask dragged out of its parent and what it adopted (2.1271.0, #6436)
   if (!canEdit(t) && !ml_in(t, ml_viewList())) { roToast(); return; }  // 2.71.0 B (#1459): a further list's writer moves the link
   const side = el.closest('.srow[data-drop]');
   const row = el.closest('.trow');
@@ -176,7 +176,8 @@ async function dropTask0(id, el, clientY) {
     else return;
     if (item.list_id && !await mv_ask([id], listById(item.list_id))) return;  // 2.455.0 (#3848): under All the sidebar has other workspaces' projects
     if (item.list_id && t.parent_id) {
-      try { await patchUndoable(id, {parent_id: null, list_id: item.list_id, section_id: null}, tr('Standalone in {0}', lname(listById(item.list_id)))); } catch { return; }
+      const ad = detachPatch(t);  // 2.1271.0 (#6436)
+      try { await patchUndoable(id, {parent_id: null, list_id: item.list_id, section_id: null, ...ad}, tr('Standalone in {0}', lname(listById(item.list_id))), ad); } catch { return; }
       return;
     }
     if (item.list_id && item.list_id !== t.list_id) item.section_id = null;
@@ -191,7 +192,12 @@ async function dropTask0(id, el, clientY) {
     if (mxQuad(t) !== +quad.dataset.quad) item.priority = +quad.dataset.quad;  // 2.574.0 (#3376): Urgent stays Urgent in its quadrant
   } else {
     if (kcol) item.section_id = kcol.dataset.kcol ? +kcol.dataset.kcol : null;
-    if (kcol && t.parent_id && !row) { try { await patchTask(id, {parent_id: null, section_id: item.section_id}); } catch { return; } toast(tr('Subtask is now standalone')); return; }
+    if (kcol && t.parent_id && !row) {
+      const ad = detachPatch(t), pid = t.parent_id;  // 2.1271.0 (#6436)
+      try { await patchTask(id, {parent_id: null, section_id: item.section_id, ...ad}); } catch { return; }
+      if (!dtToast(tr('Subtask is now standalone'), [[id, ad, pid]])) toast(tr('Subtask is now standalone'));
+      return;
+    }
     if (row && moActive() && await moDrop(t, row, dropAfter(row, clientY))) return;  // 2.40.0 (#1344): My tasks = the own order
     if (row && +row.dataset.id !== id) {
       const target = S.tasks.get(+row.dataset.id);
@@ -206,7 +212,8 @@ async function dropTask0(id, el, clientY) {
       item.sort = dndSortAt(rows, target, dropAfter(row, clientY));
       if (target.list_id !== t.list_id) item.list_id = target.list_id;
       if (target.parent_id !== t.parent_id) {
-        try { await patchTask(id, {parent_id: target.parent_id, ...(target.list_id !== t.list_id ? {list_id: target.list_id} : {})}); } catch { return; }
+        if (!target.parent_id) { const ad = detachPatch(t); if ('priority' in item) delete ad.priority; dt = [[id, ad, t.parent_id]]; }  // 2.1271.0 (#6436): out of the parent (not under another one); a priority block's own priority wins
+        try { await patchTask(id, {parent_id: target.parent_id, ...(target.list_id !== t.list_id ? {list_id: target.list_id} : {}), ...(dt ? dt[0][1] : {})}); } catch { return; }
         if (!target.parent_id) toast(tr('Subtask is now standalone'));
       }
       if (!kcol) { const g = row.closest('.group')?.querySelector('.ghead[data-section]'); if (g) item.section_id = g.dataset.section ? +g.dataset.section : null; }
@@ -223,12 +230,16 @@ async function dropTask0(id, el, clientY) {
   if (!xe2e && res?.conflicts?.length) addConflicts(id, res.conflicts, t.title);  // 2.270.0 D (#3028): changed elsewhere meanwhile: kept; 2.528.0 B (#4305): the PATCH one api() adds itself
   await load(); render();
   if (sk_moved(res, id)) return;  // 2.577.0 (#3354)
+  // 2.1271.0 (#6436): the adopted date / priority are the detach's own step (patchTask above), not the drop's; its toast offers "Don't adopt"
+  if (dt && dtHas(dt[0][1])) before = {...before, ...dt[0][1]};
+  const dtSay = (m, e) => { if (!(dt && dtToast(m, dt))) { if (e) offerUndo(m, e); else toast(m); } };
   // a move to another list or day can be undone (plain reordering not)
   const after = snapTask(S.tasks.get(id)), rev = after && (before.list_id !== after.list_id || before.due !== after.due || (before.due_time || null) !== (after.due_time || null) || (before.section_id || null) !== (after.section_id || null) || before.priority !== after.priority) && reverseOf(before, after);
   if (res?.shifted?.length) { shiftUndo(before, {...after, shifted: res.shifted}, after?.due ? tr('Date: {0}', dayLabel(after.due)) : ''); return; }
   { const wn = rev && before.list_id !== after.list_id && wsc_moveMsg(before.list_id, after.list_id, ''); if (wn) { offerUndo(wn, histFields(histLabel(before, after), [[before, after, UNDO_FIELDS]], {res})); return; } }  // 2.53.0 (#1474): Private -> organisation
   if (rev && dnd_kindStayed(before, after)) { toast(wip_msg(tr('Moved to section {0}', secName(after.section_id)), after.section_id)); return; }  // 2.958.0 (#3911)
-  if (rev) offerUndo(before.list_id !== after.list_id ? tr('Moved to {0}', lname(listById(after.list_id))) : (before.section_id || null) !== (after.section_id || null) && before.due === after.due ? wip_msg(tr('Moved to section {0}', secName(after.section_id)), after.section_id) : before.priority !== after.priority && before.due === after.due ? tr('Priority: {0}', tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][after.priority] || N_('None'))) : after.due ? tr('Date: {0}', dayLabel(after.due)) : tr('Date removed'),
+  if (dt && !rev) { dtSay(tr('Subtask is now standalone')); return; }
+  if (rev) dtSay(before.list_id !== after.list_id ? tr('Moved to {0}', lname(listById(after.list_id))) : (before.section_id || null) !== (after.section_id || null) && before.due === after.due ? wip_msg(tr('Moved to section {0}', secName(after.section_id)), after.section_id) : before.priority !== after.priority && before.due === after.due ? tr('Priority: {0}', tr([N_('None'), N_('Low'), '', N_('Medium'), '', N_('High'), '', N_('Urgent')][after.priority] || N_('None'))) : after.due ? tr('Date: {0}', dayLabel(after.due)) : tr('Date removed'),
     histFields(histLabel(before, after), [[before, after, UNDO_FIELDS]], {res}));
 }
 
@@ -243,6 +254,69 @@ function dndSortAt(rows, target, after) {
 }
 // 2.270.0 D (#3028): the values the drop changes as this device saw them (server: reorder _prev; the position is never one)
 const dndPrev = (before, item) => Object.fromEntries(Object.keys(item).filter(k => k !== 'id' && k !== 'sort').map(k => [k, before?.[k] ?? null]));
+
+// ---- 2.1271.0 (#6436): a subtask made standalone (any way: dragged out, a kanban column, a section, a list of the sidebar, the
+// board of My tasks, the selection's "Out of the parent task", outdent / "Make it a main task", the mind map) takes the date
+// (with its time) and the priority of its former parent - only into its own EMPTY fields, never over a value of its own;
+// assignee and tags stay. The fields join the write that drops parent_id (one request, one history step, the outbox when
+// offline). dtToast says so with "Don't adopt", which sets back only those fields (the task stays standalone) through the
+// usual batch write (dgApply: history, outbox, every device). A read-only or locked task, or a parent this person does not see
+// (not in S.tasks), adopts nothing.
+function detachPatch(t) {
+  const p = t?.parent_id && S.tasks.get(t.parent_id), o = {};
+  if (!p || !canEdit(t) || tlkIs(t)) return o;
+  if (!t.due && p.due && !(t.start && t.start > p.due)) { o.due = p.due; if (p.due_time) o.due_time = p.due_time; }  // a time only with its date; a start after it keeps the task without
+  if (!(+t.priority) && +p.priority) o.priority = +p.priority;  // 0 = no priority
+  return o;
+}
+const dtHas = ad => !!ad && Object.keys(ad).length > 0;
+// several tasks in one write (items = {id: fields}, patch_each): every item that makes a subtask standalone gets what it adopts
+// (only fields the item does not set itself); answers [[id, adopted, parent id]] for dtToast
+function dtMerge(items) {
+  const dt = [];
+  for (const [id, it] of Object.entries(items)) {
+    const t = S.tasks.get(+id);
+    if (!t?.parent_id || !it || !('parent_id' in it) || it.parent_id) continue;
+    const ad = Object.fromEntries(Object.entries(detachPatch(t)).filter(([k]) => !(k in it)));
+    if (dtHas(ad)) { Object.assign(it, ad); dt.push([+id, ad, t.parent_id]); }
+  }
+  return dt;
+}
+// the ones a batch's answer did not change (skipped, conflicts, or still under a parent) drop out of the toast
+const dtDone = (dt, j) => { const kept = new Set([...(j?.skipped || []), ...(j?.conflicts || []).map(c => c.id)]); return dt.filter(([id]) => !kept.has(id) && S.tasks.get(id) && !S.tasks.get(id).parent_id); };
+// one task out of its parent through a plain PATCH (outdent, "Make it a main task", the mind map): body plus parent_id null and
+// what it adopts; the step in the history as patchTask records it, the toast with "Don't adopt" when something was adopted
+async function dtPatch(id, body) {
+  const t = S.tasks.get(id), pid = t?.parent_id, ad = detachPatch(t);
+  const r = await patchTask(id, {...body, parent_id: null, ...ad});
+  dtToast(tr('Subtask is now standalone'), [[id, ad, pid]]);
+  return r;
+}
+// the toast after a detach: got = [[task id, adopted fields, former parent id], ...] (the ones without adopted fields drop out).
+// Something adopted: msg plus what was adopted, button "Don't adopt" (the Undo of the step stays in the history: ← / Recent
+// steps); nothing adopted: msg as before (shown = false, the caller keeps its own toast)
+function dtToast(msg, got) {
+  got = (got || []).filter(([, ad]) => dtHas(ad));
+  if (!got.length) return false;
+  const [, ad, pid] = got[0], pt = qn(toastClip(S.tasks.get(pid)?.title || ''));
+  const what = got.length > 1 ? trn('Date / priority of the parent task adopted for {0} task', 'Date / priority of the parent task adopted for {0} tasks', got.length)
+    : 'due' in ad && 'priority' in ad ? tr('Date and priority of {0} adopted', pt) : 'due' in ad ? tr('Date of {0} adopted', pt) : tr('Priority of {0} adopted', pt);
+  toast([msg, what].filter(Boolean).join(' · '), () => dtUndo(got), 8000, tr('Don’t adopt'));
+  return true;
+}
+// "Don't adopt": only fields that still hold the adopted value go back (empty); one batch step (_prev: changed elsewhere meanwhile = kept)
+function dtUndo(got) {
+  const items = {};
+  for (const [id, ad] of got) {
+    const t = S.tasks.get(rid(id)); if (!t) continue;
+    const b = {}, prev = {};
+    for (const [k, v] of Object.entries(ad)) if (k === 'priority' ? +t.priority === +v : nv(t[k]) === nv(v)) { b[k] = k === 'priority' ? 0 : null; prev[k] = v; }
+    if ('due' in b && t.due_time && !('due_time' in b)) { b.due_time = null; prev.due_time = t.due_time; }  // no time without its date
+    if (dtHas(b)) items[t.id] = {...b, _prev: prev};
+  }
+  if (!dtHas(items)) return null;
+  return dgApply(items, trn('Not adopted for {0} task', 'Not adopted for {0} tasks', Object.keys(items).length));
+}
 
 // ---- sections (D3): drop a task onto a section header or into an empty section, reorder sections by their handle
 // (list view + kanban columns, mouse), long-press on a task = "Move to section…", on a section header = move up / down
@@ -266,7 +340,8 @@ async function taskToSection0(id, sid) {
   const inSec = [...S.tasks.values()].filter(x => x.list_id === t.list_id && !x.parent_id && x.status === 0 && x.id !== id && (sid ? x.section_id === sid : !S.sections.some(z => z.id === x.section_id)));
   const item = {id, section_id: sid, sort: inSec.length ? Math.min(...inSec.map(x => x.sort)) - 1 : 0};
   if (['date', 'title', 'creator', 'flow', 'created', 'created_asc'].includes(sortMode()) || sortByCol(sortMode())) LS.set('sort2.' + S.route.key, 'prio');  // a manual drop switches to prio + manual
-  if (t.parent_id) { try { await patchTask(id, {parent_id: null}); } catch { return; } }
+  const dt = t.parent_id ? [[id, detachPatch(t), t.parent_id]] : null;  // 2.1271.0 (#6436)
+  if (t.parent_id) { try { await patchTask(id, {parent_id: null, ...dt[0][1]}); } catch { return; } }
   Object.assign(t, item); render();
   let res;
   try { res = await api('POST', '/api/tasks/reorder', {items: [{...item, _prev: dndPrev(before, item)}]}); } catch { await load().catch(() => {}); render(); return; }
@@ -275,8 +350,10 @@ async function taskToSection0(id, sid) {
   if (sk_moved(res, id)) return;  // 2.577.0 (#3354)
   const after = snapTask(S.tasks.get(id)), rev = after && reverseOf(before, after, ['section_id', 'parent_id']);
   const msg = wip_msg(before.parent_id ? tr('Subtask is now standalone') + ' · ' + tr('Moved to section {0}', secName(sid)) : tr('Moved to section {0}', secName(sid)), sid);  // 2.60.0 (#1510): + over the WIP limit
-  if (rev && dnd_kindStayed(before, after)) { toast(msg); return; }  // 2.958.0 (#3911): a done task into the done column: the status did not change, nothing to undo
-  if (rev) offerUndo(msg, histFields(tr('Moved {0} to section {1}', qn(t.title.slice(0, 40)), secName(sid)), [[before, after, ['section_id']]], {res})); else toast(msg);
+  if (rev && dnd_kindStayed(before, after)) { if (!dtToast(msg, dt)) toast(msg); return; }  // 2.958.0 (#3911): a done task into the done column: the status did not change, nothing to undo
+  const e = rev && histFields(tr('Moved {0} to section {1}', qn(t.title.slice(0, 40)), secName(sid)), [[before, after, ['section_id']]], {res});
+  if (dtToast(msg, dt)) return;  // 2.1271.0 (#6436): "Don't adopt"; the Undo of the step stays in the history
+  if (e) offerUndo(msg, e); else toast(msg);
 }
 // 2.41.2 (#1501): the sections of list lid in the order ids, locally (S.sections keeps its slots; the server's sort follows)
 const secPut = (lid, ids) => () => {
@@ -400,14 +477,15 @@ async function taskToNewSection(id) {
   if (!canEdit(t) || !canEditList(t.list_id)) { roToast(); return; }
   const name = (await askPrompt(tr('New section'), tr('New section'), {ok: tr('Create'), input: {max: 100}}))?.trim();
   if (!name) return;
-  const before = {section_id: t.section_id ?? null, sort: t.sort, parent_id: t.parent_id ?? null};
+  const before = {section_id: t.section_id ?? null, sort: t.sort, parent_id: t.parent_id ?? null}, ad = detachPatch(t);
   let s; try { s = await api('POST', '/api/sections', {list_id: t.list_id, name}); } catch { return; }
   try {
-    if (t.parent_id) await patchTask(id, {parent_id: null});
+    if (t.parent_id) await patchTask(id, {parent_id: null, ...ad});  // 2.1271.0 (#6436): + the parent's date / priority into empty fields
     await api('POST', '/api/tasks/reorder', {items: [{id, section_id: s.id, sort: 0, _prev: {section_id: before.section_id}}]});  // 2.270.0 D (#3028)
   } catch { await load().catch(() => {}); render(); return; }
   if (['date', 'title', 'creator', 'flow', 'created', 'created_asc'].includes(sortMode()) || sortByCol(sortMode())) LS.set('sort2.' + S.route.key, 'prio');
   await load(); render();
+  if (dtToast(tr('New section {0}', qn(name)), [[id, ad, before.parent_id]])) return;  // 2.1271.0 (#6436): "Don't adopt" first; the new section stays (it can be deleted)
   toast(tr('New section {0}', qn(name)), async () => {
     try {
       if (before.parent_id) await patchTask(id, {parent_id: before.parent_id});
