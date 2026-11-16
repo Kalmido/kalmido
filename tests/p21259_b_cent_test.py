@@ -176,6 +176,36 @@ def flow(s, who):
     rev = [dd(x["amount"]) for x in jr if x.get("kind") != "vat"]
     check(vat == [D2("16.00")] and rev == [D2("100.00")], f"{who} (c): the balance sheet books 100.00 + 16.00 (was 97.48 + 18.52) {jr}")
     check(any(h.get("key") == "odd_rate" for h in rep.get("hints") or []), f"{who} (c): the balance sheet names it as well {rep.get('hints')}")
+    # ---- (d) the final invoice after a partial credit note
+    r = s.post(B + D, json={"project_title": "Imagefilm", "client_id": cl, "service_from": DAY, "service_to": DAY})
+    assert r.status_code == 201, r.text
+    q = r.json()["id"]
+    assert s.put(B + f"{D}/{q}/items", json={"items": [{"title": "Dreh", "qty": 1, "unit": "flat", "rate": 200, "tax": "standard"}]}).ok
+    r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "progress", "amount": "100.03"})
+    check(r.status_code == 201, f"{who} (d): progress 100.03 " + r.text[:200])
+    P = r.json()["id"]
+    check(s.post(B + f"{D}/{P}/finalize").ok, f"{who} (d): progress finalised")
+    p = s.get(B + f"{D}/{P}").json()
+    check(p["totals"]["net"] == "100.03" and p["totals"]["tax"] == "19.01", f"{who} (d): progress 100.03 + 19.01 {p['totals'].get('tax')}")
+    r = s.post(B + f"{D}/{P}/credit")
+    check(r.status_code == 201, f"{who} (d): credit draft " + r.text[:200])
+    CR = r.json()["id"]
+    check(s.put(B + f"{D}/{CR}/items", json={"items": [{"title": "Teilgutschrift", "qty": 1, "unit": "flat", "rate": "50.02", "tax": "standard"}]}).ok
+          and s.post(B + f"{D}/{CR}/finalize").ok, f"{who} (d): partial credit note 50.02 finalised")
+    check(s.get(B + f"{D}/{CR}").json()["totals"]["tax"] == "9.50", f"{who} (d): credit 50.02 + 9.50")
+    r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "final"})
+    check(r.status_code == 201, f"{who} (d): final draft " + r.text[:200])
+    F = r.json()["id"]
+    t = s.get(B + f"{D}/{F}").json()["totals"]
+    check(t["net"] == "149.99" and t["tax"] == "28.49" and t["gross"] == "178.48",
+          f"{who} (d): the deduction takes off 9.51 VAT as its text says: 149.99 + 28.49 = 178.48 (was 28.50 / 178.49) {t.get('net')} {t.get('tax')} {t.get('gross')}")
+    ded = [x for x in t["lines"] if x.get("kind") == "discount"]
+    check(len(ded) == 1 and ded[0].get("abs_tax") == "9.51" and dd(ded[0].get("net")) == D2("-50.01"),
+          f"{who} (d): the deduction line 50.01 carries the billed VAT 9.51 {ded}")
+    r = s.post(B + f"{D}/{F}/finalize")
+    check(r.ok, f"{who} (d): the final invoice finalises " + r.text[:200])
+    t = s.get(B + f"{D}/{F}").json()["totals"]
+    check(t["gross"] == "178.48", f"{who} (d): finalised 178.48 {t.get('gross')}")
 
 
 subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], check=True, stdout=subprocess.DEVNULL)

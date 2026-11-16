@@ -720,6 +720,7 @@ def inv_calc(doc, items, pack=None):
     net = Decimal(0)
     costs = Decimal(0)
     base = {k: Decimal(0) for k in TAX_KEYS}
+    fixed_net, fixed_tax = {k: Decimal(0) for k in TAX_KEYS}, {k: Decimal(0) for k in TAX_KEYS}  # 2.1259.0 (#6303 d)
     ext_base = Decimal(0)  # 2.47.0 (#1649): the base of positions of unit "percent", like office_calc
     for it in items or []:
         if (it.get("kind") or "service") == "service" and it.get("unit") != "percent" and it.get("intext") == "extern":
@@ -746,6 +747,12 @@ def inv_calc(doc, items, pack=None):
         pos += 1
         net += total
         base[tax] += total
+        # 2.1259.0 (#6303 d): a final invoice's deduction carries the VAT its progress invoice billed (abschlag.abs_tax_items,
+        # section 14 (5) UStG): that VAT comes off, the rest of the rate is computed on the base without the deduction
+        fixed = money(dec(it.get("abs_tax"))) if kind == "discount" and it.get("abs_tax") not in (None, "") else None
+        if fixed is not None:
+            fixed_net[tax] += total
+            fixed_tax[tax] += abs(fixed)
         if kind != "discount":
             costs += money(dec(it.get("cost")) * qty * (fx if foreign else 1))
         unit = it.get("unit") or "day"
@@ -756,6 +763,7 @@ def inv_calc(doc, items, pack=None):
                       **({"pct": _num(pct), "base": _num(ext_base)} if pct is not None else {}),
                       "rate": _num(rate), "rate_text": fmt_rate(rate, lang, currency) if pct is None else fmt_money(rate, lang, currency), "tax": tax, "tax_pct": _num(rates[tax]),
                       "total": _num(total), "total_text": fmt_money(total, lang, currency), "net": dstr(total), "intext": it.get("intext") or "intern",
+                      **({"abs_tax": dstr(abs(fixed))} if fixed is not None else {}),  # 2.1259.0 (#6303 d)
                       # 2.1042.0 (#5815): the position's own discount; the e-invoice writes it as a line allowance (BG-27)
                       **({"discount_pct": _num(min(dec(it.get("discount_pct")), Decimal(100))), "list_total": _num(lst), "line_discount": _num(ldisc),
                           "allowance": dstr(ldisc), "list_net": dstr(lst)} if ldisc else {})})
@@ -764,7 +772,7 @@ def inv_calc(doc, items, pack=None):
         for k in TAX_KEYS:
             if base[k] == 0:
                 continue
-            amt = money(base[k] * rates[k] / 100)
+            amt = money((base[k] - fixed_net[k]) * rates[k] / 100) - fixed_tax[k]  # 2.1259.0 (#6303 d): without deductions as before
             tax_sum += amt
             tax_lines.append({"rate_key": k, "pct": format(rates[k].normalize(), "f"), "base": dstr(base[k]), "amount": dstr(amt),
                               "base_text": fmt_money(base[k], lang, currency), "amount_text": fmt_money(amt, lang, currency),
