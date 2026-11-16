@@ -568,7 +568,11 @@ def doc_public(c, oid, r, admin, items=True):
     else:  # 2.417.0 C (#2604): the test phase rules for quotations (#2573) and invoices (#2603) are gone - finalised or sent stays (GoBD)
         d["can_delete"] = d["can_unlock"] if locked else bool(admin) and r["status"] != "sent" and not odoc_seq_numbered(r)
     d["number_at_finalize"] = ofx_number_at_finalize(office_settings(c, oid), r["kind"])
-    if not ofx_locked(r) and odoc_seq_numbered(r) and not r["trial"]:
+    if locked:  # 2.1289.0 (#6481 U4): "imported on ... by ..." in the document view
+        imp = odoc_imported(c, oid, [r["id"]]).get(r["id"])
+        if imp:
+            d["imported"] = imp
+    elif odoc_seq_numbered(r) and not r["trial"]:
         d["number_draft"] = True  # 2.1289.0 (#6481 N3): a numbered draft from before 2.1289 -- finalise it
     if r["kind"] == "invoice":  # 2.120.0 D (#2089): "attach timesheet" is offered when the invoice has a client and a period
         d["timesheet_ok"] = bool(r["client_id"] and r["service_from"] and r["service_to"])
@@ -614,12 +618,32 @@ def doc_brief(r, pm=None, lg=None, today=None):
     return d
 
 
+def odoc_imported(c, oid, ids):
+    """2.1289.0 (#6481 U4): {doc_id: {"at", "by"}} of the finalised documents among ids that the organisation import took
+    from a file (its office log line import / doc, admin/oi_office._oi_mark): when and by whom ("" when the account is gone).
+    Derived from the log line, no column of its own; the document itself (its PDF) stays as it was. ids None = every one
+    of the office (the auditor's export: no list of thousands of ids)."""
+    ids = None if ids is None else [int(x) for x in ids if x]
+    if ids == []:
+        return {}
+    out = {}
+    for x in c.execute("SELECT l.doc_id, l.at, u.display_name, u.username FROM office_doc_log l JOIN office_docs d ON d.id=l.doc_id AND d.org_id=l.org_id "
+                       "LEFT JOIN users u ON u.id=l.user_id WHERE l.org_id=? AND l.action='import' AND l.target='doc' AND d.locked_at IS NOT NULL"
+                       + (f" AND l.doc_id IN ({','.join('?' * len(ids))})" if ids is not None else "") + " ORDER BY l.id", (oid, *(ids or ()))):
+        out.setdefault(x["doc_id"], {"at": x["at"], "by": x["display_name"] or x["username"] or ""})
+    return out
+
+
 def odoc_list_marks(c, oid, rows):
-    """2.1289.0 (#6481 N3): the list rows' marks -- an invoice / correction draft that already carries a number of its series
-    (given before 2.1289 at the draft): number_draft, finalise it, the gap stays open until then."""
+    """2.1289.0 (#6481): the list rows' marks -- imported (U4) and, for an invoice / correction draft that already carries a
+    number of its series (given before 2.1289 at the draft), number_draft: finalise it, the gap stays open until then (N3)."""
+    imp = odoc_imported(c, oid, [b["id"] for b in rows if b["locked"]])
     for b in rows:
+        if b["id"] in imp:
+            b["imported"] = imp[b["id"]]
         if b["kind"] in ODOC_SEQ_KINDS and b["number"] and not b["locked"] and not b["trial"]:
             b["number_draft"] = True
+
 
 # ---------------------------------------------------------------- cleaning
 def _rights_clean(c, oid, v, lang, cur):

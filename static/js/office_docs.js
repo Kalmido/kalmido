@@ -1185,9 +1185,13 @@ function tri_meta(j) {
   OFD.trialCount = +j.trial_count || 0;
   TRI.count = OFD.trialCount; TRI.office = String(OFD.office ?? '');  // 2.417.0 C (#3445): the settings' "Delete all" count
 }
-// 2.1289.0 (#6481 N3): an invoice / correction draft that carries a number of its series (given before 2.1289): finalise it
-function ofd_marks(r) {
-  return r?.number_draft ? `<small class="tri-tag ofd-numdraft" title="${esc(tr('Its number is taken in the series; finalise the draft to close the gap'))}">${esc(tr('Draft with number - please finalise'))}</small>` : '';
+// 2.1289.0 (#6481): U4 a finalised document the organisation import took from a file ("imported on ... by ..."; the PDF stays
+// as it was), N3 an invoice / correction draft that carries a number of its series (given before 2.1289): finalise it
+function ofd_marks(r, full) {
+  const im = r?.imported, day = im?.at ? fmtDateLoc(String(im.at).slice(0, 10)) : '';
+  const imTxt = im ? (im.by ? tr('Imported on {0} by {1}', day, im.by) : tr('Imported on {0}', day)) : '';
+  return (im ? `<small class="tri-tag ofd-imp" title="${esc(imTxt)}">${esc(full ? imTxt : tr('imported on {0}', day))}</small>` : '')
+    + (r?.number_draft ? `<small class="tri-tag ofd-numdraft" title="${esc(tr('Its number is taken in the series; finalise the draft to close the gap'))}">${esc(tr('Draft with number - please finalise'))}</small>` : '');
 }
 const tri_tag = r => r?.trial ? `<small class="tri-tag" data-trial="1">${esc(tr('Trial|document'))}</small>` : '';
 const tri_office = () => String(OFC.info?.org_id ?? OFD.office ?? '');
