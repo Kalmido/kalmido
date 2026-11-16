@@ -90,7 +90,8 @@ async function onumApplyAll() {
 }
 
 // ---- the draft's number in the document editor (office_docs.js: the head calls onumDocHtml, a click on the number opens it)
-const onumDocCan = d => !!d && !d.locked && d.can_edit && d.status === 'draft' && ofcAdmin();  // 2.148.1 (#2496): numbers by office admins only
+const onumDocCan = d => !!d && !d.locked && d.can_edit && d.status === 'draft' && ofcAdmin()  // 2.148.1 (#2496): numbers by office admins only
+  && !['invoice', 'credit'].includes(d.kind);  // 2.1289.0 (#6481 N3, S3): an invoice / correction takes its own number in the finalise dialog
 function onumDocHtml(d) {
   if (!onumDocCan(d)) return '';
   const e = ONUM.doc && ONUM.doc.id === d.id ? ONUM.doc : null;

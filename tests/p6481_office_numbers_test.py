@@ -136,6 +136,48 @@ def run(S, who, member=None):
     ok(len(sk) == before + 60 and {x["skipped"] for x in sk[:60]} == {re_(k) for k in range(n, n + 60)} and all(x.get("reason") for x in sk[:60]),
        f"N2: every skipped archive number is logged with its reason ({len(sk) - before})")
 
+    # ---------------------------------------------------------------- N3/S3 a number by hand only with the finalising
+    inv = invoice()
+    r = S.post(B + f"{D}/{inv['id']}/number", json={"number": re_(nxt())})
+    ok(r.status_code == 409 and "finalise dialog" in r.json().get("error", ""), "N3: no number by hand at an invoice draft (409) " + r.text[:160])
+    ok(S.get(B + f"{D}/{inv['id']}").json()["number"] == "", "N3: the draft stays without a number")
+    if member is not None:
+        r = member.post(B + f"{D}/{inv['id']}/finalize", json={"number": re_(nxt())})
+        ok(r.status_code == 403 and not S.get(B + f"{D}/{inv['id']}").json()["locked"], "N3: a plain member finalises with a number by hand: 403 " + r.text[:120])
+    k = nxt()
+    r = finalize(inv["id"], {"number": re_(k + 2)})
+    ok(r.status_code == 400 and "reason" in r.json().get("error", ""), "N3: a gap without a reason at finalising: 400 " + r.text[:160])
+    ok(not S.get(B + f"{D}/{inv['id']}").json()["locked"] and nxt() == k, "N3: the refusal finalised nothing, no counter moved")
+    r = finalize(inv["id"], {"number": re_(k + 2), "reason": "Zwei Nummern im Altprogramm vergeben"})
+    ok(r.ok and r.json()["number"] == re_(k + 2) and r.json()["locked"] and nxt() == k + 3, "N3: finalised with the number by hand, the series follows " + r.text[:160])
+    lg = [x for x in S.get(B + O + "/log?limit=50").json()["log"] if x["action"] == "number" and x.get("doc_id") == inv["id"]]
+    ok(lg and lg[0]["detail"]["after"]["number"] == re_(k + 2) and "Altprogramm" in lg[0]["detail"]["after"].get("reason", ""), f"N3: the number and its reason are in the office log {lg[:1]}")
+    cr = S.post(B + f"{D}/{inv['id']}/credit").json()
+    r = S.post(B + f"{D}/{cr['id']}/number", json={"number": f"RK-{Y}-050"})
+    ok(r.status_code == 409 and "finalise dialog" in r.json().get("error", ""), "S3: no number by hand at a correction draft (409) " + r.text[:160])
+    ok(S.delete(B + f"{D}/{cr['id']}").ok, "S3: the correction draft without a number may go")
+    r = finalize(off["id"], {"number": "KVA-FREI-9"})
+    ok(r.status_code == 400, "N3: a quotation takes no number at finalising (400) " + r.text[:120])
+    # a numbered draft from before 2.1289: marked in the list and the view, kept, finalisable with its number
+    inv = invoice()
+    old = re_(nxt())
+    dbx("UPDATE office_docs SET number=? WHERE id=?", (old, inv["id"]))
+    row = [x for x in S.get(B + D + "?kind=invoice").json()["docs"] if x["id"] == inv["id"]]
+    ok(row and row[0].get("number_draft") is True, f"N3: the list marks the numbered invoice draft {row[:1]}")
+    ok(S.get(B + f"{D}/{inv['id']}").json().get("number_draft") is True, "N3: the view marks it too")
+    ok(not [x for x in S.get(B + D + "?kind=invoice").json()["docs"] if x.get("number_draft") and x["id"] != inv["id"]], "N3: no other row marked")
+    ok(S.delete(B + f"{D}/{inv['id']}").status_code == 409, "N3: the numbered draft is kept")
+    r = finalize(inv["id"], {"number": re_(nxt() + 5), "reason": "eine andere Nummer"})
+    ok(r.status_code == 409 and old in r.json().get("error", ""), "N3: it keeps its number (another one at finalising: 409) " + r.text[:160])
+    r = finalize(inv["id"])
+    ok(r.ok and r.json()["number"] == old and not r.json().get("number_draft"), "N3: it is finalised with its number " + r.text[:160])
+    cr = S.post(B + f"{D}/{inv['id']}/credit").json()
+    dbx("UPDATE office_docs SET number=? WHERE id=?", (f"RK-{Y}-{nxt('credit'):03d}", cr["id"]))
+    r = S.delete(B + f"{D}/{cr['id']}")
+    e = r.json().get("error", "")
+    ok(r.status_code == 409 and "new invoice" in e and "cancel it" not in e, "S3: a numbered correction draft: kept, the text names a way that exists " + e[:200])
+    ok(finalize(cr["id"]).ok, "S3: ... and it can be finalised")
+
 
 run(Fr, "freelancer")
 run(A, "organisation", member=Bo)

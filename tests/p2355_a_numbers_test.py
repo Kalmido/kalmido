@@ -22,6 +22,7 @@ N = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, N)
 from freelancer_fixture import freelancer  # noqa: E402
 from kt import FAILS, OKS, check, sess  # noqa: E402
+import dbx as dbxm  # noqa: E402
 
 DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(N, ".data")
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
@@ -29,6 +30,16 @@ H = {"X-Requested-With": "kalmido"}
 O = "/api/office"
 D = O + "/docs"
 TEST_IBAN = "DE02120300000000202051"
+
+
+def dbx(sql, args=()):
+    """2.1289.0 (#6481): a numbered invoice draft (from before 2.1289) is made in the database."""
+    c = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+    try:
+        c.execute(sql, args)
+        c.commit()
+    finally:
+        c.close()
 
 if os.environ.get("P2355A_NOSTART") != "1":
     env = dict(os.environ, EXTRA=os.environ.get("EXTRA", "") + " -e KALMIDO_SMTP_HOST=127.0.0.1 -e KALMIDO_SMTP_PORT=1025 -e KALMIDO_SMTP_TLS=none"
@@ -121,12 +132,16 @@ check(Fr.post(B + f"{D}/{I}/finalize").ok, "finalised")
 check(Fr.post(B + f"{D}/{I}/number", json={"number": num(last_seq() + 1)}).status_code == 409, "#2839: a finalised invoice: no new number (409)")
 
 # ---------------------------------------------------------------- #2839 the year of a manual number
-I = invoice(date=f"{YEAR}-01-15")
+I = invoice()  # 2.1289.0 (#6481): today (was 15.01.): finalising checks the date against the series before the number's year
 before = last_seq()
-r = Fr.post(B + f"{D}/{I}/number", json={"number": num(before + 1, 1999)})  # the next counter value, only the year is wrong
+# 2.1289.0 (#6481): a number by hand of an invoice comes with the finalising (the draft route refuses it)
+r = Fr.post(B + f"{D}/{I}/finalize", json={"number": num(before + 1, 1999)})  # the next counter value, only the year is wrong
 check(r.status_code == 409 and "1999" in r.text, f"#2839: a number of 1999 on a draft of {YEAR}: 409 naming the year {r.status_code} {r.text[:160]}")
-r = Fr.post(B + f"{D}/{I}/number", json={"number": num(before + 1)})
-check(r.ok and r.json().get("number") == num(before + 1), f"#2839: ... no counter moved, the next number of {YEAR} still fits {r.text[:160]}")
+check(Fr.post(B + f"{D}/{I}/number", json={"number": num(before + 1)}).status_code == 409, "#6481: no number by hand at the invoice draft (409)")
+# 2.1289.0 (#6481): a numbered invoice draft only comes from before 2.1289 (the number route): made in the database
+dbx("UPDATE office_docs SET number=? WHERE id=?", (num(before + 1), I))
+dbx("INSERT INTO office_numbers(org_id, kind, period, last) SELECT org_id, 'invoice', ?, ? FROM office_docs WHERE id=? "
+    "ON CONFLICT(org_id, kind, period) DO UPDATE SET last=excluded.last", (str(YEAR), before + 1, I))
 
 # ---------------------------------------------------------------- #2839 a numbered draft keeps its date within the year
 r = Fr.patch(B + f"{D}/{I}", json={"date": f"{YEAR - 1}-12-30"})
@@ -141,11 +156,11 @@ check(r.ok, "#2839: a draft without a number moves freely " + r.text[:120])
 TOK = "ab2355" + "0" * 10
 I2 = invoice()
 n1 = num(last_seq() + 1)
-check(Fr.post(B + f"{D}/{I2}/number", json={"number": n1}).ok, "a first number by hand")
+dbx("UPDATE office_docs SET number=? WHERE id=?", (n1, I2))  # 2.1289.0 (#6481): a numbered draft from before 2.1289 (see above)
 r = Fr.patch(B + f"{D}/{I2}", json={"project_title": "Vorher"}, headers={"X-Kalmido-Undo": TOK})
 check(r.ok, "an undo step " + r.text[:120])
 n2 = num(last_seq() + 1)
-check(Fr.post(B + f"{D}/{I2}/number", json={"number": n2}).ok, "number set by hand after the step")
+dbx("UPDATE office_docs SET number=? WHERE id=?", (n2, I2))  # 2.1289.0 (#6481): the number changed after the step (was the number route)
 r = Fr.post(B + f"{O}/undo/doc/{I2}", json={"sess": TOK, "op": "all"})
 d = doc(I2)
 check(r.ok and d.get("project_title") != "Vorher" and d.get("number") == n2,
