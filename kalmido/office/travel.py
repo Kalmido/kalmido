@@ -750,7 +750,13 @@ RK_TRIP_KIND = "otrip"  # 2.1005.0 (#5415): a trip in the core's trash (with its
 RK_ITEM_KIND = "otripitem"  # a travel receipt deleted on its own
 ofk_register(RK_TRIP_KIND, "office_trips", N_("Trip"), "travel", need="own", children=(("office_trip_items", "trip_id"),),
              view={"kind": "trip", "label": _rk_trip_label, "ctx": _ctx, "back": _rk_trip_back}, step=False)
-ofk_register(RK_ITEM_KIND, "office_trip_items", N_("Travel receipt"), "travel", need="own",
+def _rk_item_owner(c, oid, row):
+    """2.1253.0 (#6292): a travel receipt is the person's who entered its trip (okern.py _owner)."""
+    t = c.execute("SELECT created_by FROM office_trips WHERE id=? AND org_id=?", (row["trip_id"], oid)).fetchone() if row["trip_id"] else None
+    return t[0] if t else None
+
+
+ofk_register(RK_ITEM_KIND, "office_trip_items", N_("Travel receipt"), "travel", need="own", owner=_rk_item_owner,
              view={"kind": "trip_item", "label": _rk_item_label, "ctx": _ctx, "back": _rk_item_back,
                    # the receipts that went into the trash with their trip are the trip's entry, not entries of their own
                    "where": f"NOT EXISTS (SELECT 1 FROM office_trips t WHERE t.id=office_trip_items.trip_id AND {trash_sql('t')})"}, step=False)

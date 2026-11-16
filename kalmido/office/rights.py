@@ -128,6 +128,10 @@ SPECIAL_ROUTES = {
     "GET /api/office/books/taxform/euer.csv": "export", "GET /api/office/books/taxform/euer.pdf": "export",
     "GET /api/office/books/taxform/ust.csv": "export", "GET /api/office/books/taxform/ust.pdf": "export",
     "GET /api/office/books/archive/files/<int:fid>": "export",
+    # 2.1253.0 (#6292): the double-entry ledger's files (journal, trial balance, P&L, balance sheet) like the income statement's,
+    # and its year-end closing locks every month up to December
+    "GET /api/office/books/ledger/<what>.csv": "export", "GET /api/office/books/ledger/<what>.pdf": "export",
+    "POST /api/office/books/ledger/close": "lock",
 }
 # "METHOD rule" of the areas with AREA_OWN that filter to the person's own entries when the level is "own" (g.ofr_own);
 # every other route of such an area needs "view" / "edit" (fail closed: a route that does not filter never sees "own").
