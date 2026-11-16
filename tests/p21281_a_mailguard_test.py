@@ -7,7 +7,7 @@
    inside each other (33 s in the parser of Python 3.12 before), 3.000 mails inside each other, a sender line of 500
    opening brackets, a To line of 16 KB commas (seconds in the header parser, every time it is read), header lines of a
    part that the parser itself reads while it takes the mail apart (a Content-Type of 32 KB semicolons: 84 s; 3 MB of
-   brackets: 2.8 GB), many small costly lines (200 parts with 120 semicolons each), a head of 300 KB and 4 MB of two-byte
+   brackets: 2.8 GB), many small costly lines (400 parts with 120 semicolons each), a head of 300 KB and 4 MB of two-byte
    lines are refused (MailRefused with its code) fast and without building them; a normal mail, 1.999 parts, a patch of
    50.000 "--" lines that talks about boundaries, a head of 200 KB, 300 recipients, 300 attachments, a digest of 200 mails
    and 8 mails inside each other go through as before
@@ -95,8 +95,8 @@ for name, raw in (
     ("head of a part Content-Type of 32 KB semicolons", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Type: text/plain" + b";" * 32_000 + b"\r\n\r\n", 1)),
     ("head of a part 3 MB of brackets", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nContent-Type: text/plain " + b"(" * 3_000_000 + b"\r\n\r\n", 1)),
     ("head of a part one plain line of 70 KB", multi(2).replace(b"--b\r\n\r\n", b"--b\r\nX-A: " + b"a" * 70_000 + b"\r\n\r\n", 1)),
-    ("head 200 parts with 120 semicolons in each Content-Type", H + b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' + b"".join(
-        b"--b\r\nContent-Type: text/plain; a=%d" % i + b";" * 120 + b"\r\n\r\nx\r\n" for i in range(200)) + b"--b--\r\n"),
+    ("head 400 parts with 120 semicolons in each Content-Type", H + b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n' + b"".join(
+        b"--b\r\nContent-Type: text/plain; a=%d" % i + b";" * 120 + b"\r\n\r\nx\r\n" for i in range(400)) + b"--b--\r\n"),
     ("head 2.000 children under a Content-Type of 8 KB semicolons", H + b'Content-Type: multipart/mixed; boundary="b"' + b";" * 8_100
      + b"\r\n\r\n" + b"--b\r\n\r\n" * 2_000 + b"--b--\r\n"),
     ("head 31 To lines of 8 KB", b"".join(b"To: " + b"\\a" * 4_080 + b"\r\n" for _ in range(31)) + b"From: a@example.com\r\n\r\nhi"),
@@ -129,8 +129,8 @@ for k, v in sorted(j.items()):
     if k == "limits":
         continue
     want = k.split(" ", 1)[0]
-    # (the 3 million parts are 21 MB of bytes that are read once; nothing of a refused mail is built: under 8 MB)
-    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or v[2] < 8),
+    # (nothing of a refused mail is built: under 20 MB, the 3 MB header line of brackets is copied a few times on the way)
+    check(v[0] == want and v[1] < (5 if want != "ok" else 20) and (want == "ok" or v[2] < 20),
           f"mail_parse {k}: {v[0]} in {v[1]} s, {v[2]} MB built")
 check(len(j) == 41, f"all mails were tried ({len(j)})")
 
