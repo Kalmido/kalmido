@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import g, jsonify
 
 from ..core.config import app, TZ
+from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..core.pg import insert_id, st_ids, system_ctx
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, now_utc, parse_iso
@@ -362,8 +363,7 @@ def sched_tick(c):
         if sched_wait_wake(c):
             c.commit()
     except Exception as e:  # noqa: BLE001 -- the due plans below still run
-        c.rollback()
-        print("agent schedules: waking waiting plans failed:", type(e).__name__, flush=True)
+        _wd_fail(c, "agent schedules waking", "all", e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
     rows = c.execute("SELECT * FROM agent_schedules WHERE enabled AND next_at IS NOT NULL AND next_at<=? ORDER BY next_at LIMIT ?",
                      (iso(now), SCHED_TICK_MAX)).fetchall()
     for r in rows:
@@ -372,8 +372,7 @@ def sched_tick(c):
                 _sched_set_next(c, r["id"], now)
             c.commit()
         except Exception as e:  # noqa: BLE001 -- one broken plan must not hold up the others (nor fire every tick)
-            c.rollback()
-            print("agent schedule", r["id"], "failed:", type(e).__name__, e, flush=True)
+            _wd_fail(c, "agent schedule", r["id"], e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
             c.execute("UPDATE agent_schedules SET next_at=? WHERE id=?", (iso(now + timedelta(hours=1)), r["id"]))
             c.commit()
 

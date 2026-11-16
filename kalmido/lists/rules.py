@@ -31,6 +31,7 @@ from datetime import timedelta
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app
+from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..core.pg import insert_id, system_ctx as pg_system
 from ..core.objtags import otg_in_list, otg_task_ids  # 2.947.0 (#5275): the project tags and labels of the core
 from .orglabels import olb_full  # 2.947.0 (#5275, review F4)
@@ -1012,8 +1013,7 @@ def rul_due_tick(c):
                 c.commit()
                 send_pushes(g.pop("pushes", None))
             except Exception as e:  # noqa: BLE001  review N3: one failing row never blocks the others; its marker stays
-                c.rollback()
-                print("list rule", r["id"], "due run failed:", type(e).__name__, e, flush=True)
+                _wd_fail(c, "due run of list rule", r["id"], e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
                 with pg_system(c):  # 2.71.0 (#1457): system on purpose: only the run marker of this rule and task
                     c.execute("INSERT INTO list_rule_runs(rule_id,task_id,key,at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING",
                               (r["id"], tid, key, iso(now_utc())))

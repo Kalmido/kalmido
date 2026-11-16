@@ -32,7 +32,7 @@ from .fixedimport import fci_people  # 2.369.5 (#2517): pulled up from functions
 from .model import office_on, office_role, office_settings, pb_personal  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.modcards import mc_private_office_off  # 2.794.0 (#5392)
-from ..notify.push import push_prio, push_reachable  # 2.369.5 (#2517): pulled up from functions
+from ..notify.push import _wd_fail, push_prio, push_reachable  # 2.369.5 (#2517): pulled up from functions
 from .docs import recalc  # 2.369.5 (#2517): pulled up from functions
 from .invoices import inv_make_reminder  # 2.369.5 (#2517): pulled up from functions
 from .ledger import ofx_log  # 2.369.5 (#2517): pulled up from functions
@@ -69,8 +69,7 @@ def dun_tick(c, now=None):
         try:
             dun_area(c, oid, today)
         except Exception as e:  # noqa: BLE001 -- one broken area never stops the others
-            c.rollback()
-            print("dunning suggestion", oid, "failed:", e, flush=True)
+            _wd_fail(c, "dunning suggestion of area", oid, e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
 
 
 def dun_area(c, oid, today):

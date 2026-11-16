@@ -482,8 +482,8 @@ def rin_tick(c, now=None):
         try:
             _rin_one(c, d["org_id"], d["id"], today)
         except Exception as e:  # noqa: BLE001 -- one broken series never stops the others
-            c.rollback()
-            print("invoice series", d["id"], "failed:", e, flush=True)
+            from ..notify.push import _wd_fail
+            _wd_fail(c, "invoice series", d["id"], e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
 
 
 def rin_webhooks(c):
