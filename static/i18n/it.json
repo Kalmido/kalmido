@@ -18787,5 +18787,8 @@
   "The help explains every area.": "La guida spiega ogni area.",
   "on the marked positions and the parts": "sulle voci contrassegnate e sui preventivi parziali",
   "{pct} % on the marked positions and the parts|calc": "{pct} % sulle voci contrassegnate e sui preventivi parziali",
-  "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sulle voci contrassegnate, sui preventivi parziali e sulle spese di gestione"
+  "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sulle voci contrassegnate, sui preventivi parziali e sulle spese di gestione",
+  "You can only read this document": "Puoi solo leggere questo documento",
+  "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Nel frattempo qualcun altro ha caricato una versione più recente, resta così: {0}",
+  "(you)": "(tu)"
 }
