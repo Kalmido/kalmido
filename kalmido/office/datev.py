@@ -57,6 +57,10 @@ DX_NEED_EUR = N_("The DATEV export is in EUR only; this office keeps its books i
 # 2.610.0 (#4932): a year "bank and cash": an invoice payment without its bank / cash booking does not count
 DX_PAY_OUTSIDE = N_("{0} invoice payments without a bank or cash booking are not exported (basis bank and cash): match them under Office > Bank")
 DX_PAY_OUTSIDE_1 = N_("1 invoice payment without a bank or cash booking is not exported (basis bank and cash): match it under Office > Bank")
+# 2.1259.0 (#6303 c): a frozen tax line whose rate no automatic revenue account has (16 / 5 % in the second half of 2020, a
+# future change): the line stays on the account of its key, the hint asks to book its VAT by hand
+DX_ODD_RATE = N_("Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand")
+DX_AUTO_PCT = {"standard": Decimal(19), "reduced": Decimal(7)}  # the rates DATEV's automatic accounts add (ledger_dbl.LD_CASE_VAT)
 DX_FY_SPAN = N_("The period must lie within one fiscal year (DATEV): {0} to {1}")
 
 # the header line: 31 fields, the column line: 125 fields (DATEV format 700, booking batch format version 13)
@@ -260,6 +264,19 @@ def dx_fx_pays(c, oid, r, t, fx, home, memo):
     return memo[r["id"]]
 
 
+def dx_rate_key(tl):
+    """2.1259.0 (#6303 c): (key, odd rate) of a frozen tax line: the key by its frozen rate (19 % standard, 7 % reduced), else
+    its rate_key; odd rate = the frozen rate (Decimal) when the key's automatic account adds another one, else None."""
+    k = tl.get("rate_key") or "standard"
+    if k not in DX_AUTO_PCT or tl.get("pct") in (None, ""):
+        return k, None
+    pct = dec(tl.get("pct"))
+    for key, p in DX_AUTO_PCT.items():
+        if pct == p:
+            return key, None
+    return k, pct
+
+
 def _case(r, s):
     """The tax case of a document without VAT (vat_note), else None (the tax lines decide)."""
     if (r["vat_mode"] or "vat") != "novat":
@@ -294,12 +311,14 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
         case = _case(r, s)
         if case == "reverse":
             case = bk_reverse_key(c, oid, r, memo)  # 2.355.0 C (#2844): section 13b at home; 2.502.0 (#4081): a third country = not taxable
-        parts = []  # (case, gross amount in the document's currency)
+        parts, odd = [], []  # (case, gross amount in the document's currency); odd: (frozen rate, its tax) or None per part
         if case:
             parts.append((case, dec(t.get("gross") or 0)))
         else:
             for tl in t.get("tax_lines") or []:
-                parts.append((tl.get("rate_key") or "standard", dec(tl.get("base") or 0) + dec(tl.get("amount") or 0)))
+                k, pct = dx_rate_key(tl)  # 2.1259.0 (#6303 c): the frozen rate decides, not 19 / 7 % of the key
+                parts.append((k, dec(tl.get("base") or 0) + dec(tl.get("amount") or 0)))
+                odd.append(None if pct is None else (pct, dec(tl.get("amount") or 0)))
             if not parts:  # a document without positions or tax lines: the gross on the standard account
                 parts.append(("standard", dec(t.get("gross") or 0)))
         # 2.47.3 (review S1): in USD every line is rounded on its own -> the rounding difference to the document's gross in
@@ -309,11 +328,18 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
             diff = money(dec(t.get("gross") or 0) / fx) - sum((a for _, a in conv), Decimal(0))
             if diff and abs(diff) <= Decimal("0.05"):
                 conv[-1] = (conv[-1][0], conv[-1][1] + diff)
-        for k, amount in conv:
+        for i, (k, amount) in enumerate(conv):
             if amount == 0:
                 continue
             sign = "S" if (amount > 0) == (r["kind"] == "invoice") else "H"
-            out.append({"Umsatz (ohne Soll/Haben-Kz)": _amt(amount), "Soll/Haben-Kennzeichen": sign, "WKZ Umsatz": home,
+            o = odd[i] if i < len(odd) else None
+            if o:  # 2.1259.0 (#6303 c): the frozen rate and VAT go with the line (the ledger splits by them), the hint names it
+                tax = money(o[1] / fx)
+                o = {"_pct": format(o[0].normalize(), "f"), "_tax": tax if amount > 0 else -tax}
+                if hints_out is not None:
+                    hints_out.append({"key": "odd_rate", "doc": r["id"], "text": tr(DX_ODD_RATE, r["number"], o["_pct"].replace(".", ","),
+                                                                                   _acct(st, k if k in DX_CASES else "standard"), _amt(tax))})
+            out.append({**(o or {}), "Umsatz (ohne Soll/Haben-Kz)": _amt(amount), "Soll/Haben-Kennzeichen": sign, "WKZ Umsatz": home,
                         "Konto": debtor, "Gegenkonto (ohne BU-Schlüssel)": _acct(st, k if k in DX_CASES else "standard"),
                         "BU-Schlüssel": st["bu"].get(k, "") if k not in ("small",) else "",
                         "Belegdatum": _ddmm(r["date"]), "Belegfeld 1": dx_beleg(r["number"]),
@@ -325,24 +351,30 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
     for r, sk in abs_skonto_rows(c, oid, d_from, d_to):
         t = _j(r["totals"])
         fx, case = _fx(r, t, home), _case(r, s)
-        parts = [("skonto_other", Decimal(1))]
+        parts = [("skonto_other", Decimal(1), None)]
         if not case:
-            lines = [(tl.get("rate_key") or "standard", dec(tl.get("base") or 0) + dec(tl.get("amount") or 0)) for tl in t.get("tax_lines") or []]
-            tot = sum((a for _, a in lines), Decimal(0))
+            lines = [(*dx_rate_key(tl), dec(tl.get("base") or 0) + dec(tl.get("amount") or 0)) for tl in t.get("tax_lines") or []]  # 2.1259.0 (#6303 c)
+            tot = sum((a for _, _, a in lines), Decimal(0))
             if lines and tot:
-                parts = [("skonto_" + k if k in ("standard", "reduced") else "skonto_other", a / tot) for k, a in lines]
+                parts = [("skonto_" + k if k in ("standard", "reduced") else "skonto_other", a / tot, p) for k, p, a in lines]
         total = money(sk["amount"] / fx)
         if fx != 1:  # 2.1259.0 (#6303 b): the discount settles the invoice: it takes what the home currency leaves open
             _, rest, rest_home = dx_fx_pays(c, oid, r, t, fx, home, fxm)
             if rest == money(sk["amount"]) and abs(rest_home - total) <= Decimal("0.05"):
                 total = rest_home
-        conv = [(k, money(total * sh)) for k, sh in parts]
-        conv[-1] = (conv[-1][0], conv[-1][1] + total - sum((a for _, a in conv), Decimal(0)))  # the cents of the split on the last line
+        conv = [(k, money(total * sh), p) for k, sh, p in parts]
+        conv[-1] = (conv[-1][0], conv[-1][1] + total - sum((a for _, a, _ in conv), Decimal(0)), conv[-1][2])  # the cents of the split on the last line
         name = (_j(r["recipient"]).get("name") or r["dx_client_name"] or "").strip()
-        for k, amount in conv:
+        for k, amount, p in conv:
             if amount == 0:
                 continue
-            out.append({"Umsatz (ohne Soll/Haben-Kz)": _amt(amount), "Soll/Haben-Kennzeichen": "H", "WKZ Umsatz": home,
+            o = {}
+            if p is not None:  # 2.1259.0 (#6303 c): a discount at a rate without automatic account: the rate for the ledger + the hint
+                o = {"_pct": format(p.normalize(), "f")}
+                if hints_out is not None:
+                    hints_out.append({"key": "odd_rate", "doc": r["id"], "text": tr(DX_ODD_RATE, r["number"], o["_pct"].replace(".", ","), _acct(st, k),
+                                                                                   _amt(money(amount * p / (100 + p))))})
+            out.append({**o, "Umsatz (ohne Soll/Haben-Kz)": _amt(amount), "Soll/Haben-Kennzeichen": "H", "WKZ Umsatz": home,
                         "Konto": dx_debtor(st, r81b_customer_no(r)), "Gegenkonto (ohne BU-Schlüssel)": _acct(st, k), "BU-Schlüssel": st["bu"].get(k, ""),
                         "Belegdatum": _ddmm(sk["day"]), "Belegfeld 1": dx_beleg(r["number"]),
                         "Buchungstext": ("Skonto " + (r["number"] or "") + " " + name).strip()[:60], "Festschreibung": "0",

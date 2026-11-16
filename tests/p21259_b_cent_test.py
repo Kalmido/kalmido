@@ -160,6 +160,22 @@ def flow(s, who):
     bal, mine = debtor_balance(rows, k["number"])
     sk = [dd(x["Umsatz (ohne Soll/Haben-Kz)"]) for x in mine if x["Buchungstext"].startswith("Skonto")]
     check(bal == 0 and sk == [D2("0.23")], f"{who} (b): the discount line takes the rest (0.23, was 0.22), the debtor balances {bal} {sk} {mine}")
+    # ---- (c) 16 % in the second half of 2020
+    c = invoice(s, cl, 100, service_to="2020-08-15")
+    tl = c["totals"]["tax_lines"]
+    check(len(tl) == 1 and tl[0]["pct"] == "16" and tl[0]["amount"] == "16.00", f"{who} (c): the invoice of August 2020 carries 16 % {tl}")
+    dbx("UPDATE office_docs SET date='2020-08-20' WHERE id=?", (c["id"],), write=True)
+    r = s.get(B + O + "/datev/extf?from=2020-08-01&to=2020-08-31&check=1")
+    hints = r.json().get("hints") or [] if r.ok else []
+    odd = [h for h in hints if h.get("key") == "odd_rate"]
+    check(len(odd) == 1 and c["number"] in odd[0]["text"] and "16" in odd[0]["text"] and "16.00" in odd[0]["text"].replace(",", "."),
+          f"{who} (c): the DATEV check names the rate without automatic account {hints}")
+    rep = s.get(B + O + "/books/ledger?year=2020&journal=1").json()
+    jr = [x for x in rep.get("journal") or [] if x.get("doc") == beleg(c["number"])]
+    vat = [dd(x["amount"]) for x in jr if x.get("kind") == "vat"]
+    rev = [dd(x["amount"]) for x in jr if x.get("kind") != "vat"]
+    check(vat == [D2("16.00")] and rev == [D2("100.00")], f"{who} (c): the balance sheet books 100.00 + 16.00 (was 97.48 + 18.52) {jr}")
+    check(any(h.get("key") == "odd_rate" for h in rep.get("hints") or []), f"{who} (c): the balance sheet names it as well {rep.get('hints')}")
 
 
 subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], check=True, stdout=subprocess.DEVNULL)
