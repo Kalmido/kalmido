@@ -1394,3 +1394,5 @@ button.dma-open:hover .dma-n,button.dma-open:focus-visible .dma-n{color:var(--ac
 .pkc-changes{font-size:var(--fs-xs);white-space:pre-line}
 .pkc-home{font-size:var(--fs-xs);align-self:flex-start}
 .r81b-clf select{min-height:2.75rem;max-width:100%}
+/* 2.1254.0 (#6180): the origin of a client under "All workspaces" */
+.ctrow .ctorg{display:block;margin-top:.125rem}
