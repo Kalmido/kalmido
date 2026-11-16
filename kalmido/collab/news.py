@@ -8,6 +8,7 @@ from flask import g, jsonify, request
 
 from ..core.config import app, PUBLIC_URL
 from ..core.pg import system_ctx  # 2.367.5 (#2980)
+from ..accounts.delhold import sdl_held  # 2.1298.0 (#6395)
 from ..core.pg import st_ids  # 2.674.0 B (#4194)
 from ..core.schema import USER_DEFAULTS
 from ..core.i18n import tr
@@ -493,7 +494,6 @@ def list_push(c, uid, row, lid, title_fn, msg_fn, click=None):
 
 def news_delhold_live(c, du):
     """2.1298.0 (#6395): the deletion of account du still waits for an admin's decision (accounts/delhold.sdl_held)."""
-    from ..accounts.delhold import sdl_held
     with system_ctx(c):  # the account's state, across organisations (the reader is an admin)
         u = c.execute("SELECT disabled, delete_at, delete_plan FROM users WHERE id=?", (du,)).fetchone() if du else None
     return bool(u and sdl_held(u))
