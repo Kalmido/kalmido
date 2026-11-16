@@ -156,8 +156,10 @@ check(res == json.dumps(["ok", "format", "format", "ok", "format", "ok"]), f"app
 fl = dict(dbx("SELECT key, value FROM kalmido_meta WHERE key IN ('back_floor','back_floor_how')"))
 # 2.1003.0 (#5718): since 2.981 (#5274, review D1) a fresh database starts on this image's minor (obj_comment_trash's key, its
 # reason names #5274); before that only the line of BACK_LIMITS (2.149.0, docs/UPGRADING.md)
+# 2.1251.0 (#6284): since then the fixed version of the newest format step whose work the start found done (2.1115 time
+# columns / 2.1118 yes / no columns, docs/UPGRADING.md), never the minor of this image (it blocked the automatic rollback)
 check((fl.get("back_floor") == "2.149.0" and "UPGRADING" in fl.get("back_floor_how", ""))
-      or (fl.get("back_floor") == f"{MAJ}.{MIN}.0" and "#5274" in fl.get("back_floor_how", "")), f"the database keeps the format limit {fl}")
+      or (fl.get("back_floor") in ("2.1115.0", "2.1118.0") and fl.get("back_floor_how")), f"the database keeps the format limit {fl}")
 set_meta("back_floor", "99.0.0")
 set_meta("back_floor_how", "run the tool xyz")
 ok = start()

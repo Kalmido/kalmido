@@ -29,6 +29,7 @@ SQL `archived = 0` fails; a backup restores the old state."""
 import re
 import sys
 
+from .kernretire import kern_retire_floor  # 2.1251.0 (#6284)
 from .pg import qi, system_ctx
 
 CB_BOOL = {  # table -> the yes / no columns that were BIGINT / INTEGER 0/1 (the bool lines of tools/coltypes_baseline.txt)
@@ -53,6 +54,12 @@ CB_INTS = ("bigint", "integer", "smallint")
 CB_SHOW = 5  # ids named in the log per column
 CB_ID = "type:{0}.{1}"  # its row in kalmido_migrations (as core/coltype.py)
 
+
+# 2.1251.0 (#6284): the back limit of this step (one way, module text) - its fixed version, never the minor of the image that
+# starts; until now only the raise of other steps to the running minor kept a version before 2.1118 out.
+CB_FLOOR = "2.1118.0"
+CB_HOW = ("the yes / no columns of the areas are BOOLEAN (#5952) - an older version compares them with 0 / 1 and fails; go back "
+          "only with a backup from before")
 
 def cb_types(c):
     """{(table, column): (data_type, default)} of the CB_BOOL columns that exist."""
@@ -110,7 +117,10 @@ def cb_migrate(c, at):
     System context: the check must see every organisation's rows
     (the ALTER rewrites all of them, row security or not), as core/coltype.py ct_migrate."""
     with system_ctx(c):
-        return _cb_run(c, at)
+        out = _cb_run(c, at)
+    if any(v in ("done", "present") for v in out.values()):  # 2.1251.0 (#6284): the step's fixed version (module text)
+        kern_retire_floor(c, mine=CB_FLOOR, how=CB_HOW)
+    return out
 
 
 def _cb_run(c, at):

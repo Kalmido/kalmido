@@ -55,7 +55,7 @@ from .objparts import PART_KINDS, part_trash_due, part_trash_purge  # 2.783.0 (#
 from .objects import OBJ_COLS, obj_need, obj_node_follow, obj_public, obj_reg, obj_row, obj_title, obj_forget
 from .objects import obj_reg_node  # 2.754.0 (#5268): the write paths refuse a light kind
 from .pg import qi, system_ctx, table_columns, ts_canon, write_lock  # 2.755.0 (#5296): qi; 2.760.0 (#5311): ts_canon
-from .retention import ret_due, ret_on, ret_report, ret_trash_cut  # 2.773.0 (#5292): the trash's retention run
+from .retention import ret_days, ret_due, ret_on, ret_report, ret_trash_cut  # 2.773.0 (#5292): the trash's retention run
 from ..collab.comments import user_names
 from .serializers import unlink_files  # 2.809.0 (#5365): obj_trash_tick, after the commit
 from ..accounts.orgroles import need_org_write, org_role_key
@@ -811,14 +811,17 @@ def obj_trash_prune(c, kind, cut=None, purge=None, ids=None, paths=None):
 def obj_trash_tick(c, force=False):
     """2.773.0 (#5292): the watchdog's hourly run over the kinds registered with trash_prune=True (the others keep their
     area's run until their stage moves them onto the core). 2.936.0 (#5364): + <kind>_kept (trash_keep, kept by law); tasks
-    and projects run here too (the runs ttp_tick / otr_prune went)."""
+    and projects run here too (the runs ttp_tick / otr_prune went).
+    2.1251.0 (#6285): KALMIDO_TRASH_DAYS=0 switches the run of the kind task off again (it neither counts nor deletes; until
+    2.935 the run ttp_tick did so, docs/SELF-HOSTING.md); every other kind keeps the floor of 1 day (ret_trash_cut)."""
     if not ret_due("obj_trash", force=force):
         return {}
     purge, cut, out = ret_on("trash"), ret_trash_cut(), {}
+    skip = {"task"} if ret_days("trash") < 1 else set()  # 2.1251.0 (#6285)
     paths = []
     with obj_purge_after(keep_locked=True) as box:  # 2.809.0 (#5365): the areas' stored files after the commit, receipts locked
         for kind, reg in sorted(OBJ.items()):
-            if reg.get("trash_prune"):
+            if reg.get("trash_prune") and kind not in skip:
                 n0, a0, e0, t0 = box["locked"], len(box["after"]), len(box["err"]), dict(box["tally"])
                 try:  # 2.936.0 (#5364, review): one savepoint per kind -- a kind that fails holds back no other one
                     with c.savepoint():

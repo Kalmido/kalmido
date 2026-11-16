@@ -168,7 +168,15 @@ def ct_migrate(c, at):
     -> {"table.col": "done" | "kept" | "present" | "missing"}. System context: the check must see every organisation's rows
     (the ALTER rewrites all of them, row security or not), as core/moneycol.py mc_migrate."""
     with system_ctx(c):
-        return _ct_run(c, at)
+        out = _ct_run(c, at)
+    # 2.1251.0 (#6284): the back limit at the version of the step whose columns have their type (turned now or before; a new
+    # database once) - never the minor of this image
+    more = {f"{t}.{x}" for t, x in CT_MORE}
+    if any(v in ("done", "present") for k, v in out.items() if k in more):
+        kern_retire_floor(c, mine=CT_MORE_FLOOR, how=CT_HOW)
+    elif any(v in ("done", "present") for k, v in out.items() if k not in more):
+        kern_retire_floor(c, mine=CT_FLOOR, how=CT_HOW)
+    return out
 
 
 def _ct_run(c, at):
@@ -407,7 +415,7 @@ def _ct_more_kept(c, table, col, drop_default, drop_not_null, empty_null):
 # numbers; JSONB would turn -0.0 into 0.0 and 1e+16 into 10000000000000000) and budget_meta.mappings (its key order is the
 # age of an entry, life/budget.py _meta_put drops the oldest).
 # One way (the leader's --einbahn): a version before would run its text operators on JSONB (ILIKE on contacts' e-mails, the
-# search index trigger): the back limit rises to this minor (core/kernretire.py kern_retire_floor); a backup restores the old state.
+# search index trigger): the back limit rises to 2.1111.0 (CTJ_FLOOR, #6284; core/kernretire.py kern_retire_floor); a backup restores the old state.
 CT_JSON = {  # table -> ((column, default), ...): the json lines of tools/coltypes_baseline.txt before 2.1111 that move
     "admin_alerts": (("tmpl", "[]"),),
     "agent_events": (("payload", "{}"),),
@@ -480,6 +488,13 @@ def ctj_fixed(q):
 
 CTJ_HOW = ("the JSON columns of the areas are JSONB (#5953) - an older version would search and write them as text; go back "
            "only with a backup from before")
+# 2.1251.0 (#6284): the back limits are the fixed versions of the steps, not the minor of the image that starts: a later image
+# that turned nothing leaves the limit where it is (the automatic rollback / the one step back start as "back").
+CTJ_FLOOR = "2.1111.0"
+CT_FLOOR = "2.1095.0"
+CT_MORE_FLOOR = "2.1115.0"
+CT_HOW = ("the time columns of the areas are TIMESTAMPTZ / DATE (#5306, #5951) - an older version would compare and write them "
+          "as text; go back only with a backup from before")
 
 
 def ctj_types(c):
@@ -564,5 +579,5 @@ def _ctj_run(c, at):
     if n:
         print(f"migrations: 5953: {n} JSON column(s) are JSONB now", flush=True)
     if any(v in ("done", "present") for v in out.values()):
-        kern_retire_floor(c, how=CTJ_HOW)
+        kern_retire_floor(c, mine=CTJ_FLOOR, how=CTJ_HOW)  # 2.1251.0 (#6284): the step's fixed version
     return out

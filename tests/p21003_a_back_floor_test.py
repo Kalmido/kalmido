@@ -6,6 +6,11 @@ Since 2.981 (#5274, review D1) the key of obj_comment_trash raises the limit on 
 later in the same start (or a later start of the same image: a stage's move, a DROP) found the limit on this minor already and
 their reason was lost - the start check of an older image named only the trash.
  - a fresh database: back_floor = the minor of this image, the reason names #5274
+   2.1251.0 (#6284): a fresh database gets the fixed versions of the steps whose work is done at once (2.1101 / 2.1111 /
+   2.1115 / 2.1118, 2.981 for obj_comment_trash's key), never the minor of the image - else every start of a newer image
+   raised the limit and the automatic rollback refused to start
+ - 2.1251.0 (#6284): a start of the next minor that turns nothing (the steps of init_db that find their work done) leaves
+   back_floor where it is, and the image of this minor starts again on that database as "back" (the one step back)
  - the limit on this minor: a new reason is added (both named), the same reason a second time is not added again, an empty
    reason changes nothing; the function answers the minor when it added a reason, "" when nothing changed
  - a newer limit stays as it is (never lowered, its reason untouched); an older limit is raised and gets the new reason alone
@@ -50,11 +55,16 @@ from kalmido.core.config import APP_VERSION, DATABASE_URL
 from kalmido.core.pg import connect_direct
 from kalmido.core.kernretire import kern_retire_floor
 from kalmido.core import db as kdb
+from kalmido.core import kernretire
+from kalmido.core.colbool import cb_migrate
+from kalmido.core.coltype import ct_json_migrate, ct_migrate
+from kalmido.core.objcomments import ocm_move_q4c
+from kalmido.core.objretype import obj_retype
 
 x = APP_VERSION.split(".")
 MINOR = f"{x[0]}.{x[1]}.0"
 NEWER = f"{x[0]}.{int(x[1]) + 1}.0"
-out = {"minor": MINOR}
+out = {"minor": MINOR, "newer_minor": NEWER}
 c = connect_direct(DATABASE_URL)
 
 
@@ -69,6 +79,24 @@ def put(floor, how):
 
 try:
     out["fresh"] = meta()
+    # 2.1251.0 (#6284): the next minor starts on this database and finds every format step done (first a start of this
+    # image: the steps that ran before the schema on a new database, cb_migrate, find their columns from the second start on)
+    def steps(ver):
+        kernretire.APP_VERSION = ver
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                cb_migrate(c, "2026-11-16T00:00:00Z")
+                obj_retype(c)
+                ct_migrate(c, "2026-11-16T00:00:00Z")
+                ct_json_migrate(c, "2026-11-16T00:00:00Z")
+                ocm_move_q4c(c)
+        finally:
+            kernretire.APP_VERSION = APP_VERSION
+    steps(APP_VERSION)
+    before = meta()
+    steps(NEWER)
+    after = meta()
+    out["next"] = [before, after, kdb.appver_check(NEWER, MINOR, mine=MINOR, floor=after.get("back_floor"))]
     put(MINOR, "reason A (#1)")
     out["add"] = [kern_retire_floor(c, how="reason B (#2)"), meta()]
     out["again"] = [kern_retire_floor(c, how="reason B (#2)"), kern_retire_floor(c, how="reason A (#1)"), kern_retire_floor(c, how=""), meta()]
@@ -98,9 +126,15 @@ r = in_app(CASES)
 check("error" not in r, f"the cases ran {r}")
 MINOR = r.get("minor")
 fr = r.get("fresh") or {}
-check(fr.get("back_floor") == MINOR and "#5274" in (fr.get("back_floor_how") or ""),
-      f"a fresh database: the limit is this minor, its reason names #5274 (obj_comment_trash's key) {fr}")
-check((fr.get("back_floor_how") or "").count("#5274") == 1, f"a fresh database: the reason stands once {fr}")
+# 2.1251.0 (#6284): before, a fresh database had this minor as its limit (obj_comment_trash's key, #5274); now the highest
+# fixed step version whose work its start found done
+FIXED = ("2.981.0", "2.1095.0", "2.1101.0", "2.1111.0", "2.1115.0", "2.1118.0")
+check(fr.get("back_floor") in FIXED and fr.get("back_floor") != MINOR and (fr.get("back_floor_how") or "").strip(),
+      f"a fresh database: the limit is a fixed step version (not this minor {MINOR}), with its reason {fr}")
+nx = r.get("next") or [{}, {}, ""]
+check(nx[1] == nx[0] and nx[1].get("back_floor") != r.get("newer_minor"),
+      f"a start of the next minor that turns nothing leaves the limit where it was (#6284) {nx}")
+check(nx[2] == "back", f"after it the image of this minor starts as the one step back, not 'format' (#6284) {nx}")
 add = r.get("add") or ["", {}]
 check(add[0] == MINOR and add[1].get("back_floor") == MINOR and add[1].get("back_floor_how") == "reason A (#1); reason B (#2)",
       f"the limit on this minor: a second step's reason is added, the first one stays {add}")
