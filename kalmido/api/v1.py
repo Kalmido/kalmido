@@ -140,7 +140,7 @@ def api_scopes(csv_):
 
 def api_authenticate():
     """before_request for /api/v1/*: the bearer token -> g.user (auth_via 'token'), scope and rate checks."""
-    from ..agents.core import agent_active, agent_row, is_agent
+    from ..agents.core import agent_active, agent_owner_locked, agent_row, is_agent
     from ..agents.usage import usage_refused
     from ..api.scopes import agent_ro_refused, approval_replay_token, SCOPE_LABELS, scopes_effective, token_ip_ok, v1_scope_need
     if not API_ON:
@@ -187,7 +187,12 @@ def api_authenticate():
                       {"WWW-Authenticate": 'Bearer realm="kalmido"'})
     if is_agent(u):
         g.user = u  # 2.37.0 (#1150): from here on the agent's own context (its workspace): its row is read under it
-    if is_agent(u) and not agent_active(agent_row(c, u["id"])):
+    arow = agent_row(c, u["id"]) if is_agent(u) else None
+    if is_agent(u) and not agent_active(arow):
+        # 2.1264.0 (#6351): a locked account locks its personal agents too (agents/core.py agent_active); the answer names
+        # the reason and nothing else (not who, not why)
+        if agent_owner_locked(arow):
+            return v1_err(403, tr("The account this agent belongs to is locked"), name="owner_locked")
         return v1_err(403, tr("This agent is paused"))
     if is_agent(u):  # 2.1.1 (#326): over its hard usage limit -> 429 (reporting usage + the status still work)
         refused = usage_refused(c, u["id"])

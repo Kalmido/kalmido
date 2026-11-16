@@ -56,7 +56,7 @@ from ..core.errors import BadInput
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip, me, rate_ip
 from ..accounts.login import seal, unseal, WA_ORIGINS_ENV
 from ..accounts.orgs import op_foreign_account
-from ..agents.core import agent_row, is_agent, need_person
+from ..agents.core import agent_owner_locked, agent_row, is_agent, need_person
 from ..agents.admin import agent_policy, agent_token_new, agent_ws_allowed_any, my_agent_make
 from ..api.common import hit_limit
 from ..api.v1 import API_ON
@@ -803,7 +803,7 @@ def mcpr_mcp():
     ip = rate_ip()
     if not tok:
         return _unauth()
-    gr = c.execute("""SELECT g.id, g.last_used_at, t.expires_at FROM oauth_grants g JOIN api_tokens t ON t.id=g.token_id
+    gr = c.execute("""SELECT g.id, g.last_used_at, g.agent_id, g.user_id, t.expires_at FROM oauth_grants g JOIN api_tokens t ON t.id=g.token_id
                       WHERE t.token_hash=? AND g.revoked_at IS NULL""", (_token_hash(tok),)).fetchone()
     if not gr or not gr["expires_at"] or parse_iso(gr["expires_at"]) <= now_utc():
         if not gr:  # as /api/v1: only an unknown token counts (and is limited), an expired one asks for the refresh
@@ -812,6 +812,14 @@ def mcpr_mcp():
             _rate_fail(_mcp_bad(ip))
             c.commit()
         return _unauth("invalid_token")
+    # 2.1264.0 (#6351): a locked account stops the accesses it gave and those of its personal agents while they run, not only
+    # at the next refresh (the tools' calls are refused by api_authenticate anyway; this also covers initialize / tools/list).
+    # 403, not 401: the client must not refresh (that would end the access for good) - unlocking lets it go on.
+    with system_ctx(c):  # the agent's owner state only
+        ag = agent_row(c, gr["agent_id"])
+    giver = c.execute("SELECT disabled FROM users WHERE id=?", (gr["user_id"],)).fetchone()
+    if agent_owner_locked(ag) or not giver or giver["disabled"]:
+        return jsonify(error="the account this access belongs to is locked"), 403
     if request.method != "POST":  # no server-initiated stream, no sessions
         return jsonify(error="use POST"), 405, {"Allow": "POST"}
     if (request.content_length or 0) > MCPR_MAX_BODY:

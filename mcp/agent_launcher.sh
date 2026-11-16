@@ -142,7 +142,8 @@ RESTART_DELAY=${KALMIDO_RESTART_DELAY:-10}
 
 # GET /api/v1/agent -> one tab-separated line: model autocompact pct nightly reset_seq timezone enabled working resumes_at
 # git_name git_mail coauthor (2.236.0: the work window of the work style, 1 = inside or none set; 2.396.0 #3386: the git author,
-# "-" = not sent). A paused agent's token is refused (403): that prints
+# "-" = not sent). A paused agent's token is refused (403; 2.1264.0, #6351: also while its owner's account is locked,
+# code owner_locked - the same answer here, the agent goes on once the account is unlocked): that prints
 # "- - - - - - 0 1 - - - -" (stop the agent). The token goes to curl on stdin, never on its
 # command line. Exit 1: Kalmido not reachable (or another error); exit 2 (2.157.0, #1517): the token is revoked (401).
 # 2.443.0 (#2940): the JSON goes through KALMIDO_PYTHON too, not a fixed python3.

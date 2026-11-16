@@ -33,7 +33,7 @@ from ..api.v1 import _v1_live, PRIO_VALUES, v1_one
 from ..api.common import v1_args, v1_err, v1_json, v1_view
 from ..tasks.dayplan import dayplan_day, dayplan_events, dayplan_input, dayplan_mode, dayplan_validate, dayplan_want
 from ..agents.core import (
-    agent_active, agent_emit, agent_ids, agent_online, agent_public, agent_row, agent_shares, AGENT_TYPING_S,
+    agent_active, agent_emit, agent_ids, agent_online, agent_public, agent_row, AGENT_ROW_SQL, agent_shares, AGENT_TYPING_S,
     agent_typing_to, agents_for, is_agent, need_person, job_dict, JOB_TITLE_MAX, list_sections, need_agent, need_chat_agent,
     tidy_agent_of,
 )
@@ -125,8 +125,7 @@ def prop_agents(c, uid):
     from ..agents.usage import usage_block
     if not collab_all() or not uid:
         return []
-    rows = c.execute("""SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u ON u.id=a.user_id
-                        WHERE u.kind='agent' ORDER BY u.id""").fetchall()
+    rows = c.execute(AGENT_ROW_SQL + " WHERE u.kind='agent' ORDER BY u.id").fetchall()
     out = []
     # 2.674.0 B (#4194): prop_agent_ok for all agents with the account read once and agent_shares for all at once
     me_u = c.execute("SELECT kind, disabled FROM users WHERE id=?", (uid,)).fetchone()

@@ -18774,6 +18774,7 @@
   "on the marked positions and the parts": "sobre las partidas marcadas y los presupuestos parciales",
   "{pct} % on the marked positions and the parts|calc": "{pct} % sobre las partidas marcadas y los presupuestos parciales",
   "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sobre las partidas marcadas, los presupuestos parciales y los gastos de gestión",
+  "The account this agent belongs to is locked": "La cuenta a la que pertenece este agente está bloqueada",
   "You can only read this document": "Solo puedes leer este documento",
   "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Mientras tanto otra persona subió una versión más reciente, se mantiene: {0}",
   "(you)": "(tú)",
