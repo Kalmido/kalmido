@@ -381,7 +381,8 @@ const prd_lbl = (l, d) => l ? l[(d || OFD.doc)?.lang] || (ofdLang(d) === 'en' ? 
 const prd_prodShown = d => (d.producing_on != null && d.producing_on !== 0) || (d.producing_on == null && d.kind === 'offer') || (d.producing_mode === 'amount' && !!prd_opts().share)
   || (d.kind === 'offer' && !d.locked && !!prd_opts().share);  // 2.380.0 (#3420): also a quotation made before the pack was on
 // 2.1228.0 (#6254): the markup ("Zuschlag") is a core function of every quotation (no pack needed); handling costs stay a pack option
-const prd_slotShown = (d, k) => d.kind === 'offer' && (k === 'markup' || d[k + '_pct'] != null || !!prd_opts()[k]);
+// 2.1249.0 (#6281): inside a part no markup (switch, ticks): the title page computes it once over its positions and the part lines
+const prd_slotShown = (d, k) => d.kind === 'offer' && !(k === 'markup' && d.tpPart) && (k === 'markup' || d[k + '_pct'] != null || !!prd_opts()[k]);
 const prd_slotName = (d, k) => { const l = prd_lbl(d[k + '_label'] || prd_opts()[k]?.label, d);
   return l === 'Markup' && ofdLang(d) !== 'en' ? tr('Markup') : l || (k === 'handling' ? tr('Handling costs') : tr('Surcharge')); };  // 2.1228.0 (#6254): 'Zuschlag' without a pack  // 2.1175.0 (#6146): the film pack's old German label 'Markup' (documents made before) reads 'Aufschlag'
 const ofdIn = (k, v, o = {}) => `<input id="ofd-${k}" data-f="${k}" value="${esc(v ?? '')}" maxlength="${o.max || 200}" ${o.num ? 'inputmode="decimal" class="numin"' : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.ro ? 'readonly' : ''}>`;
@@ -634,7 +635,7 @@ function ofdAutoHtml(d, t) {
     ${ofdF('producing_rate', tr('Producing rate'), ofdIn('producing_rate', ofdNumIn(d.producing_rate), {num: true, max: 12}), ofcSym(ofcHome()), {keep: 1})}` : ''}
     ${slots.map(k => `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-${k}_on" data-f="${k}_on" ${d[k + '_pct'] != null ? 'checked' : ''}> ${esc(tr('Calculate {0}', prd_slotName(d, k)))}</label></div>
     ${d[k + '_pct'] != null ? `${ofdF(k + '_label', tr('Line title'), ofdIn(k + '_label', prd_slotName(d, k), {max: 80}))}
-    ${ofdF(k + '_pct', tr('Percent'), ofdIn(k + '_pct', ofdNumIn(d[k + '_pct']), {num: true, max: 8}), tr('on the marked positions'))}
+    ${/*html-ok*/ ofdF(k + '_pct', tr('Percent'), ofdIn(k + '_pct', ofdNumIn(d[k + '_pct']), {num: true, max: 8}), k === 'markup' && (d.parts || []).length ? tr('on the marked positions and the parts') : tr('on the marked positions'))}
     ${k === 'markup' && prd_slotShown(d, 'handling') ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-markup_stacked" data-f="markup_stacked" ${d.markup_stacked ? 'checked' : ''}> ${esc(tr('Also on the handling costs'))}</label></div>` : ''}` : ''}`).join('')}
     ${/*html-ok*/ ofdDiscHtml(d)}
     </div>`;
