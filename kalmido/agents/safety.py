@@ -356,14 +356,23 @@ def ctl_id(v):
 
 
 def move_dst(c, b):
-    """2.1284.0 (#6453, review G1): the project a task body {list_id?, parent_id?} moves a task into -- a new parent wins
-    (lifecycle.py apply_update: the task follows its parent's project with its notes, comments and files), else list_id.
-    None = it names none (or a parent that does not exist: the route answers)."""
-    pid = ctl_id(b.get("parent_id"))  # Fable reader #4926 F1: the same reading as the route (' 7' is 7)
-    if pid:
-        r = c.execute("SELECT list_id FROM tasks WHERE id=?", (pid,)).fetchone()
-        return r[0] if r else None
-    return ctl_id(b.get("list_id"))
+    """2.1284.0 (#6453, review G1; Fable reader #4945 F1): EVERY project a task body {list_id?, section_id?, parent_id?} may
+    move a task into -- the parent's project, list_id and the section's project, each one (a sorted list, maybe empty).
+    Not just "a new parent wins": lifecycle.py apply_update may still drop parent_id as a _prev conflict after the gate,
+    and the task then goes to list_id -- so the gate checks every target the body names, whatever the route applies.
+    Ids read like the route (ctl_id: ' 7' is 7, Fable reader #4926 F1); a parent / section that does not exist names none
+    (the route answers)."""
+    out = set()
+    for k, q in (("parent_id", "SELECT list_id FROM tasks WHERE id=?"), ("section_id", "SELECT list_id FROM sections WHERE id=?")):
+        i = ctl_id(b.get(k))
+        if i:
+            r = c.execute(q, (i,)).fetchone()
+            if r and r[0]:
+                out.add(r[0])
+    lid = ctl_id(b.get("list_id"))
+    if lid:
+        out.add(lid)
+    return sorted(out)
 
 
 def move_gate(c, moves):
@@ -382,11 +391,11 @@ def move_gate(c, moves):
         return
     from ..api.scopes import need_approval
     dname = (c.execute("SELECT name FROM lists WHERE id=?", (cross[0][2],)).fetchone() or [""])[0]
-    if len(cross) == 1:
+    if len({x[0] for x in cross}) == 1:  # one task (maybe with several targets, #4945 F1): the first wider target names it
         sname = (c.execute("SELECT name FROM lists WHERE id=?", (cross[0][1],)).fetchone() or [""])[0]
         need_approval(c, N_("Move the task “{0}” from “{1}” to “{2}”: other people see it there"), (cross[0][3][:80], sname, dname),
                       list_id=cross[0][1], task_id=cross[0][0])
-    need_approval(c, N_("Move {0} tasks to “{1}”: other people see them there"), (len(cross), dname), list_id=cross[0][1])
+    need_approval(c, N_("Move {0} tasks to “{1}”: other people see them there"), (len({x[0] for x in cross}) or len(cross), dname), list_id=cross[0][1])
 
 
 # ---- the access log
