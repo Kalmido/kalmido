@@ -1,0 +1,47 @@
+{
+  "de": {
+    "Effort low": "Effort niedrig",
+    "Effort medium": "Effort mittel",
+    "Effort high": "Effort hoch",
+    "Effort very high": "Effort sehr hoch",
+    "Effort max": "Effort maximal",
+    "Effort {0}": "Effort {0}",
+    "briefly sorted": "kurz sortiert"
+  },
+  "es": {
+    "Effort low": "Esfuerzo bajo",
+    "Effort medium": "Esfuerzo medio",
+    "Effort high": "Esfuerzo alto",
+    "Effort very high": "Esfuerzo muy alto",
+    "Effort max": "Esfuerzo máximo",
+    "Effort {0}": "Esfuerzo {0}",
+    "briefly sorted": "clasificado breve"
+  },
+  "fr": {
+    "Effort low": "Effort faible",
+    "Effort medium": "Effort moyen",
+    "Effort high": "Effort élevé",
+    "Effort very high": "Effort très élevé",
+    "Effort max": "Effort maximal",
+    "Effort {0}": "Effort {0}",
+    "briefly sorted": "tri rapide"
+  },
+  "it": {
+    "Effort low": "Impegno basso",
+    "Effort medium": "Impegno medio",
+    "Effort high": "Impegno alto",
+    "Effort very high": "Impegno molto alto",
+    "Effort max": "Impegno massimo",
+    "Effort {0}": "Impegno {0}",
+    "briefly sorted": "smistato in breve"
+  },
+  "nl": {
+    "Effort low": "Inspanning laag",
+    "Effort medium": "Inspanning gemiddeld",
+    "Effort high": "Inspanning hoog",
+    "Effort very high": "Inspanning zeer hoog",
+    "Effort max": "Inspanning maximaal",
+    "Effort {0}": "Inspanning {0}",
+    "briefly sorted": "kort gesorteerd"
+  }
+}
