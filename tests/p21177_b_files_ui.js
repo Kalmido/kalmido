@@ -136,7 +136,8 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   check(!w.__toasts.some(t => /Uploading/.test(t)), 'documents: no second message');
   // a drop takes the same kinds as the button
   dragFiles(w, d.querySelector('.dc-view'), 'drop', [new w.File(['PK'], 'liste.xlsx', {type: 'application/vnd.ms-excel'})]);
-  check(await until(() => /liste\.xlsx This kind of file cannot be added here/.test(txt(d.querySelector('#upbars .upout')))), 'a drop: the same kinds as the button (the .xlsx stays out, named)');
+  // 2.1247.0 (#6173): each upload its own list - the drop's list stands beside the one before (no longer replaces it)
+  check(await until(() => [...d.querySelectorAll('#upbars .upout')].some(x => /liste\.xlsx This kind of file cannot be added here/.test(txt(x)))), 'a drop: the same kinds as the button (the .xlsx stays out, named)');
   const many = await w.eval(`dc_upload(Array.from({length: 52}, (_, i) => new File(['Beleg Nummer ' + i], 'beleg-' + i + '.txt', {type: 'text/plain'})))`);
   check(Array.isArray(many) && many.length === 52, '52 documents at once: all 52 added (portions of 50, nothing cut) ' + (many && many.length));
   w.close();
