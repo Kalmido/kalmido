@@ -10,7 +10,7 @@
 // 2.682.0 (#5155): "With activity" also in a private list once a change of someone else shows there
 // #318 a menu opened inside a dialog (Settings > AI colleague; 2.4.2: the share button is gone, a menu anchored there) shows above it
 const fs = require('fs'), path = require('path');
-const {boot, errs, sleep, B, login} = require('./boot');
+const {boot, errs, sleep, B, login, until} = require('./boot');  // 2.1297.0 (#6129): + until
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
@@ -152,7 +152,8 @@ const TABLET = {'(min-width:600px) and (min-height:600px)': true};
   // settings: the add select offers agents / stats / time / overview / search / settings
   w.eval(`settingsModal('tabbar')`); await sleep(300);
   md = d.querySelector('.modal.smodal');
-  check(/This device fits \d+ tabs/.test(md.querySelector('[data-pane="look"]').textContent), 'tab bar hint: how many tabs fit on this device');  // 2.477.0 (#3938): the number of this device  // 2.298.0 (#3187): shorter hint
+  await until(() => md.querySelector('[data-pane="nav"] [data-navsec="tabbar"]'));
+  check(/This device fits \d+ tabs/.test(md.querySelector('[data-pane="nav"]').textContent), 'tab bar hint: how many tabs fit on this device');  // 2.1297.0 (#6129): the bottom bar is edited under Navigation  // 2.477.0 (#3938): the number of this device  // 2.298.0 (#3187): shorter hint
   md.remove();
   w.close();
 

@@ -23,7 +23,8 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   await sleep(300);
   check(md.querySelectorAll('#a-users .mrow').length >= 4, 'users pane lists users');
   // 2.418.0 (#3560): the tab bar is the person's (setting nav_menus), no "This device" tag any more; Settings > Navigation is a section
-  check(md.querySelector('[data-pane="look"] #s-tabbar') && !md.querySelector('[data-pane="look"] #s-tabbar-h .devtag') && md.querySelector('[data-pane="nav"] #s-navmenus'), 'tab bar under Appearance (per person), Navigation section');
+  // 2.1297.0 (#6129): the bottom bar is edited under Navigation only, Appearance keeps its heading and a link there
+  check(md.querySelector('[data-pane="look"] [data-m="go-nav"]') && !md.querySelector('#s-tabbar') && !md.querySelector('[data-pane="look"] #s-tabbar-h .devtag') && md.querySelector('[data-pane="nav"] #s-navmenus') && md.querySelector('[data-pane="nav"] #s-tabadd'), 'tab bar edited under Navigation only, Appearance links there, Navigation section');
   // 2.152.2 (#2624): project instead of list
   check(md.querySelector('[data-pane="modules"] [data-feat="collab"]') && /Share projects, assign tasks, @mentions/.test(md.querySelector('[data-pane="modules"]').textContent) && md.querySelector('[data-pane="modules"] [data-feat="comments"]'), 'collab switch with explanation under Modules');
   check(md.querySelector('[data-pane="modules"] #s-collaball')?.checked === true, 'admin: instance switch shown next to it (Modules), on');
@@ -40,7 +41,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   d.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); await sleep(50);
   check(!d.querySelector('.modal'), 'Escape closes');
   w.eval(`settingsModal('tabbar')`); await sleep(200); md = d.querySelector('.smodal');
-  check(md.querySelector('.snav .on').dataset.sec === 'look' && md.querySelector('#s-tabadd'), 'settingsModal(tabbar) -> Appearance (tab bar)');
+  check(md.querySelector('.snav .on').dataset.sec === 'nav' && md.querySelector('#s-tabadd'), 'settingsModal(tabbar) -> Navigation (tab bar)');  // 2.1297.0 (#6129): no longer Appearance
   md.remove();
   w.eval(`settingsModal('account')`); await sleep(200); md = d.querySelector('.smodal');
   check(md.querySelector('.snav .on').dataset.sec === 'account', 'settingsModal(account) -> Account');
