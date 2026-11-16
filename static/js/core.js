@@ -515,15 +515,20 @@ async function outOpen() {
   })();
 }
 // entries an earlier version left in localStorage: into IndexedDB (before anything new), then out of localStorage
+// 2.1257.0 (#6286 C3): once written, only the adopted entries leave localStorage - what outStash put there meanwhile (its
+// write still on the way) stays until its own adoption is written. An entry without a key gets it in localStorage first,
+// so a second adoption before the write knows it
 function obxAdopt() {
-  const old = LS.get('outbox', null);
+  let old = LS.get('outbox', null);
   if (!Array.isArray(old) || !old.length) return;
+  if (old.some(x => !x.k)) { old = old.map(x => x.k ? x : {...x, k: outKey()}); LS.set('outbox', old); }
   const have = new Set(OUT.q.map(x => x.k)), n0 = Math.min(obxSeq(), ...OUT.q.map(x => x.n));
-  const add = old.map((x, i) => ({...x, k: x.k || outKey(), n: x.n ?? n0 - old.length + i})).filter(x => !have.has(x.k));
+  const add = old.map((x, i) => ({...x, n: x.n ?? n0 - old.length + i})).filter(x => !have.has(x.k));
   // 2.359.0 (#3024, review): what outStash put there carries its number (a newer change): after the queue, never before it
   const late = add.filter(x => x.n > n0);
   OUT.q = [...add.filter(x => !late.includes(x)), ...OUT.q, ...late.sort((a, b) => a.n - b.n)];
-  obxWrite(add.map(obxRec), []).then(() => LS.del('outbox'), () => {});
+  const ks = new Set(old.map(x => x.k));
+  obxWrite(add.map(obxRec), []).then(ok => { if (!ok) return; const rest = LS.get('outbox', []).filter(x => !ks.has(x.k)); if (rest.length) LS.set('outbox', rest); else LS.del('outbox'); }, () => {});
 }
 function obxSave(fn) {
   obxAdopt();
@@ -540,8 +545,8 @@ function obxSave(fn) {
   if (put.length || before.size) obxWrite(put, [...before.keys()]);
 }
 function obxWrite(put, del) {
-  return OBX.st.write(put, del).then(() => { try { OBX.ch?.postMessage({put, del}); } catch { /* closed */ } },
-    e => { console.warn('outbox: IndexedDB write failed', e); LS.set('outbox', OUT.q.map(obxRec)); });  // the next start takes it over
+  return OBX.st.write(put, del).then(() => { try { OBX.ch?.postMessage({put, del}); } catch { /* closed */ } return true; },
+    e => { console.warn('outbox: IndexedDB write failed', e); LS.set('outbox', OUT.q.map(obxRec)); return false; });  // the next start takes it over (2.1257.0 #6286: false = obxAdopt leaves it there)
 }
 // what another tab (or the service worker) wrote: the same merge as outSync (an entry keeps its object; gone elsewhere = done)
 function obxRecv(d) {

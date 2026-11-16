@@ -150,6 +150,25 @@ const lsj = (br, k) => { const v = br.shared.store['tasks.' + k]; return v == nu
   await until(() => typeof w.__srv === 'function'); w.__srv(true);
   check(await until(() => w.eval(`sessionStorage.getItem('kalmido-reloaded') === S.serverVer`)), 'C2: quiet: it reloads');
 
+  // ================= C3: the old localStorage queue: only the adopted entries leave it
+  check(await until(() => w.eval('OBX.on')), 'C3 setup: the outbox runs on its store');
+  w.__offline = true;  // nothing is sent meanwhile
+  b2.hold = true;
+  const e1 = {method: 'PATCH', url: '/api/tasks/999001', body: {title: 'First kept'}, uid: me, k: 'k6286a'};
+  const e2 = {method: 'PATCH', url: '/api/tasks/999002', body: {title: 'Second kept'}, uid: me};  // without a key: gets one in localStorage
+  w.eval(`LS.set('outbox', [${JSON.stringify(e1)}]); obxAdopt(); 1`);
+  check(b2.held.length === 1, 'C3 setup: the first adoption writes');
+  w.eval(`outStash([${JSON.stringify(e2)}]); 1`);
+  const k2 = (lsj(b2, 'outbox') || []).find(x => x.body?.title === 'Second kept')?.k;
+  check(!!k2, 'C3: the entry without a key got one in localStorage ' + JSON.stringify(lsj(b2, 'outbox')));
+  b2.held.shift()();
+  await until(() => !(lsj(b2, 'outbox') || []).some(x => x.k === 'k6286a'));
+  const left = lsj(b2, 'outbox') || [];
+  check(!left.some(x => x.k === 'k6286a') && left.some(x => x.k === k2), 'C3: after the first write only its entry left localStorage ' + JSON.stringify(left));
+  while (b2.held.length) b2.held.shift()();
+  check(await until(() => lsj(b2, 'outbox') === null), 'C3: after the second write localStorage holds no queue');
+  check(b2.ops.has('k6286a') && b2.ops.has(k2) && w.eval(`OUT.q.filter(x => x.k === '${k2}').length`) === 1, 'C3: both in the store, the second once in the queue');
+  b2.hold = false;
   w.close();
 
   console.log(`\n${ok} ok, ${F.length} failed`);
