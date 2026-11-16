@@ -19,11 +19,10 @@
 
 ## What's new
 
-**2.1248.0** (2026-11-16):
-- **Knowledge**: share your whole private knowledge area with a person and keep single folders out.
-- **Organisations**: calendar, wiki, team chat, files, documents and contacts show the organisation's colour.
-- **Agents**: a small grey line under an agent's answer names the model that wrote it.
-- **Start**: rules and organisation export load on demand, so the app starts with less JavaScript.
+**2.1291.0** (2026-11-16):
+- **Tasks**: a subtask that becomes a task of its own takes the parent's due date and priority into empty fields, with a "Don't adopt" button.
+- **Security**: every XML from outside (e-invoices, bank statements, DATEV, spreadsheets, calendar and feed answers, SVG) goes through one strict reader.
+- **Sync**: CalDAV/CardDAV app passwords get an id in front; addresses with many failed sign-ins are refused early.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
