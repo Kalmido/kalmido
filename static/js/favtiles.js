@@ -33,6 +33,22 @@ const FV2_REF = {office_doc: ['receipt', 'office'], office_letter: ['file', 'off
   docview: ['filter', 'docs']};  // 2.579.0 (#4802): a saved view of the documents search (docviews.js)
 const FV2_ICONS = [['star', N_('Star')], ['flag', N_('Flag')], ['pin', N_('Pin')], ['zap', N_('Flash')], ['tag', N_('Tag')], ['book', N_('Book')], ['folder', N_('Folder')], ['file', N_('Document')],
   ['receipt', N_('Receipt')], ['sheet', N_('Table')], ['user', N_('Person')], ['home', N_('Home')], ['brief', N_('Briefcase')], ['cal', N_('Calendar')], ['chart', N_('Chart')], ['note', N_('Note')]];
+// 2.1265.0 (#6382): names and kinds of the object favourites are kept on this device (tasks.favres, wiped with the rest at logout /
+// another user: icons.js clearLocal), drawn at once; the server's answer only reconciles. Old or broken JSON = empty.
+function fv2_resLoad() {
+  if (FV2.lsDone || !S.me) return;
+  FV2.lsDone = true;
+  const d = LS.get('favres', null), uid = S.me.id;
+  if (!d || typeof d !== 'object' || d.u !== uid || !d.items || typeof d.items !== 'object' || Array.isArray(d.items)) return;
+  const res = {};
+  for (const [k, o] of Object.entries(d.items)) if (fv2_isObj(k) && o && typeof o === 'object' && typeof o.name === 'string' && typeof o.to === 'string') res[k] = o;
+  if (!Object.keys(FV2.res).length) FV2.res = res;
+}
+function fv2_resSave() {
+  const items = {};  // only what a tile shows: name, kind, target, workspace
+  for (const [k, o] of Object.entries(FV2.res || {})) if (o && typeof o === 'object') items[k] = {name: o.name, label: o.label, to: o.to, ws: o.ws, folder: o.folder};
+  if (Object.keys(items).length && S.me) LS.set('favres', {u: S.me.id, items}); else LS.del('favres');
+}
 const fv2_isObj = key => /^(?:r|file|doc):/.test(key);
 const fv2_meta = () => { try { const d = JSON.parse(S.settings?.fav_meta || '{}'); return d && typeof d === 'object' ? d : {}; } catch { return {}; } };
 
@@ -86,6 +102,7 @@ function fv2_tile(key, ctx) {
   if (p === 'sep') return {key, sep: true};
   if (p === 'sv') { const x = (() => { try { return JSON.parse(S.settings?.side_views || '[]'); } catch { return []; } })().find(y => y.id === v); return x ? {key, name: x.name, place: tr('Sidebar views'), icon: ic('panel'), attrs: `data-sv="tile" data-svid="${esc(v)}"`, on: false} : null; }
   if (fv2_isObj(key)) {
+    fv2_resLoad();
     const o = FV2.res[key], d = p === 'r' ? FV2_REF[v.split(':')[0]] : [o?.folder ? 'folder' : 'file', p === 'doc' ? 'docs' : 'ablage']; if (!o || !d) return null;
     if (p === 'r' && !feat(d[1])) return null;
     return {key, name: o.name, place: o.label, ws: o.ws, icon: ic(d[0]), attrs: `data-fv2-go="${esc(o.to)}" data-fv2-ws="${esc(o.ws || '')}"`, on: location.hash.slice(1) === String(o.to || '').replace(/^docs\//, 'ablage/') || location.hash.slice(1) === o.to};  // 2.752.0 (#4887): #docs/… is #ablage/… now
@@ -220,11 +237,17 @@ function viewFavPage() {
 async function fv2_fetch(force) {
   if (!force && Date.now() - FV2.at < 300000) return;
   if (FV2.busy) { FV2.again = FV2.again || !!force; return; }
-  if (!fv2_stored().some(fv2_isObj)) { FV2.res = {}; FV2.gone = []; FV2.at = Date.now(); return; }
+  if (!fv2_stored().some(fv2_isObj)) { FV2.res = {}; FV2.gone = []; FV2.at = Date.now(); fv2_resSave(); return; }
   FV2.busy = true; FV2.at = Date.now();
-  try { const j = await rawFetch('GET', '/api/favorites/targets'); FV2.res = j.items || {}; FV2.gone = j.gone || []; } catch { /* offline or an older server: the row stays as it is */ }
+  let changed = false;
+  try {
+    const j = await rawFetch('GET', '/api/favorites/targets'), res = j.items || {}, gone = j.gone || [];
+    fv2_resLoad(); changed = JSON.stringify(res) !== JSON.stringify(FV2.res) || JSON.stringify(gone) !== JSON.stringify(FV2.gone);
+    FV2.res = res; FV2.gone = gone; fv2_resSave();
+  } catch { /* offline or an older server: the row stays as it is */ }
   FV2.busy = false;
   if (FV2.again) { FV2.again = false; fv2_fetch(true); return; }
+  if (!changed) return;  // 2.1265.0 (#6382): nothing new, nothing is drawn again (calm view)
   fv2_barDraw();
   if (S.route.key === 'favorites') render();
 }
