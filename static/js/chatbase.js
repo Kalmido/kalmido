@@ -45,7 +45,7 @@ const apvCount = n => trn('{0} approval open', '{0} approvals open', n);
 S.rxOpen = null;
 const rxTog = (key = null) => `<button type="button" class="rx rxtog" data-act="rx-tog" aria-expanded="${!!key && S.rxOpen === key}" title="${esc(tr('React'))}" aria-label="${esc(tr('React'))}">${ic('smile', 's')}</button>`;
 const rxShow = key => S.rxOpen === key ? ' rxshow' : '';
-const rxKey = host => host.classList.contains('cm') ? 'k' + host.dataset.cid : (host.closest('#tc-msgs') ? 't' : 'c') + String(host.dataset.mid).split(':').pop();
+const rxKey = host => host.classList.contains('cm') ? 'k' + host.dataset.cid : (host.closest('.tcmsgs') ? 't' : 'c') + String(host.dataset.mid).split(':').pop();  // 2.1251.0 (#6096): .tcmsgs = a thread's messages too
 // 2.18.0 (#651, owner decision: reactions not hidden behind a smiley, too many taps): the quick reactions 👍 👎 ❤️ sit visibly in the
 // meta line of every chat message (agent chat and team chat, my own messages too); one tap toggles mine, the number says
 // how many reacted. Calm: an unused chip is only its muted emoji. Touch: 44 px targets through negative margins (the line
