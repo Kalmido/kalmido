@@ -70,7 +70,8 @@ function umzPreviewHtml(j) {
     p.encrypted.locked_folders_lost ? hintK(`${trn('{0} locked folder arrives without its encrypted content, its key does not fit your encryption keys here: unlock it on the old server before the export.', '{0} locked folders arrive without their encrypted content, their keys do not fit your encryption keys here: unlock them on the old server before the export.', p.encrypted.locked_folders_lost)} ${(p.encrypted.locked_folders_lost_names || []).map(esc).join(', ')}`) : '',
     (p.taken_areas || []).length ? hintK(tr('Also imported: {0}', p.taken_areas.map(x => `${esc(x.what)} (${x.count})`).join(', '))) : '',  // 2.137.0 (#2344)
     p.not_taken.length ? hintK(tr('These areas stay on the old server: {0}', p.not_taken.map(x => `${esc(x.what)} (${x.count})`).join(', '))) : '',  // 2.273.0 A (#3030)
-    p.office_copy ? hintK(tr(UMZ_OFFICE_COPY)) : ''].join('');  // 2.362.2 (#3099)
+    p.office_copy ? hintK(tr(UMZ_OFFICE_COPY)) : '',  // 2.362.2 (#3099)
+    p.auto_paused ? hintK(tr('Invoice series and the automatic reminders of the office arrive paused: check them after the import and switch them on again.')) : ''].join('');  // 2.1289.0 (#6576)
   const tgt = p.targets.length > 1 || org ? `<div class="row"><label for="s-umz-tgt">${tr('Into')}</label><select id="s-umz-tgt">${p.targets.map(t => `<option value="${esc(String(t.id))}">${esc(t.id === 'private' ? tr('Private|workspace') : t.name)}</option>`).join('')}</select></div>` : '';
   const none = org && !p.targets.length;  // 2.73.0 B (part 4): an organisation export needs an organisation I administer here
   return `<div class="impbox umzbox" role="status"><div class="imphead"><b>${org ? tr('Organisation export of {0}', esc(p.user.name)) : tr('Export of {0}', esc(p.user.name || p.user.email))}</b></div>

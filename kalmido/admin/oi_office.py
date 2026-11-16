@@ -225,6 +225,7 @@ def _p_settings(c, run, src, d, ctx):
     if not isinstance(j, dict):
         return None
     j = _oi_ids(run, j)
+    _oi_auto_off(run, j)  # 2.1289.0 (#6576)
     if j.get("logo"):
         j["logo"] = _oi_put(ctx, os.path.basename(str(j["logo"])), LOGO_FILE, seal=False, mime="image/png") or ""
     lh = j.get("letterhead")
@@ -635,6 +636,64 @@ def _p_offer_link(c, run, src, d, ctx):
     return d
 
 
+# 2.1289.0 (#6576): nothing an import brings acts by itself in the target (the source may still run: a trial move, both servers
+# in parallel, an import into a test organisation). What the watchdog's office parts would start from the archive arrives off,
+# each with a warning of the result (never silent) and the hint of the preview (oi_auto_preview):
+#  rin_tick  office_inv_series active -> active false, pause_why 'import' (no "admin is back" task); mail_doc / mail_try /
+#            fail_count emptied (mail_doc is a raw invoice id of the source: rin_catchup would mail another invoice)
+#  dun_tick  office settings dunning_suggest / overdue_notice -> 0 (office_dunning_marks come along: no level twice)
+#  ofe_tick  office settings offer_exp_notice -> 0
+#  bnr_tick  office settings bank_norc.every -> off (its user / task are ids of the source)
+#  ccn_tick  office settings card_norc.every -> off (same)
+#  abo_tick  office_fixed_costs.remind_user -> NULL (only the importing person was kept; the days stay for switching it on again)
+#  sched_tick  agent_schedules never come along (admin/orgexport.py: an agent's part; acctimport.py UMZ_LEFT_OWN "Planned agent jobs")
+# Office settings the target keeps (_p_settings) stay as they are: the target's own switches.
+OI_AUTO_SWITCHES = (("dunning_suggest", N_("Payment reminder suggestions")), ("overdue_notice", N_("Notices of overdue invoices")),
+                    ("offer_exp_notice", N_("Notices of expiring quotations")))
+OI_AUTO_NORC = (("bank_norc", N_("Reminder of bank bookings without a receipt")), ("card_norc", N_("Reminder of card positions without a receipt")))
+OI_AUTO_OFF = N_("Switched off by the import, check it and switch it on again in the office settings: {0}")
+OI_SERIES_OFF = N_("Invoice series arrive paused: check them and switch them on again")
+
+
+def _oi_auto_off(run, j):
+    """2.1289.0 (#6576): the office settings j of the archive with every automatic run switched off, a warning each."""
+    for k, label in OI_AUTO_SWITCHES:
+        if str(j.get(k, 1)) not in ("0", "False", "false", ""):  # on by default (office/model.py)
+            j[k] = 0
+            run.warning(OI_AUTO_OFF, (label,), must=True)
+    for k, label in OI_AUTO_NORC:
+        v = j.get(k)
+        if isinstance(v, dict) and v.get("every") in ("week", "month"):
+            run.warning(OI_AUTO_OFF, (label,), must=True)
+        if isinstance(v, dict):
+            j[k] = {**v, "every": "off", "user": None, "task": None, **({"tasks": {}} if k == "card_norc" else {})}
+
+
+def _p_series(c, run, src, d, ctx):
+    """2.1289.0 (#6576): an invoice series arrives paused (reason 'import', no task) and without the source's mail still due."""
+    if d.get("active") and not d.get("deleted_at"):
+        run.warning(OI_SERIES_OFF, must=True)
+        d["pause_why"] = "import"
+    else:
+        d["pause_why"] = None
+    d.update(active=False, mail_doc=None, mail_try=0, fail_count=0)
+    return d
+
+
+def _p_fixed(c, run, src, d, ctx):
+    """2.1289.0 (#6576): the reminder of a subscription arrives without its person (abo_tick needs one): chosen again by hand."""
+    if src.get("remind_user") is not None and isinstance(src.get("remind_days"), int) and src["remind_days"] > 0:
+        run.warning(OI_AUTO_OFF, (N_("Subscription reminders"),), must=True)
+    d["remind_user"] = None
+    return d
+
+
+def oi_auto_preview(data):
+    """2.1289.0 (#6576): True when the archive brings an invoice series or office settings (the preview's hint: they arrive paused)."""
+    oi = data.get("oi") if isinstance(data.get("oi"), dict) else {}
+    return bool(oi.get("office/invoice_series.json") or oi.get("office/settings.json"))
+
+
 _P = {"created_by": "null"}
 SPECS = [
     OiT("office/import_runs.json", "office_import_runs", people={**_P, "undone_by": "null"}, private="office"),
@@ -669,7 +728,8 @@ SPECS = [
     OiT("tasks/offer_links.json", "task_offer_links", refs={"task_id": "tasks", "list_id": "lists", "doc_id": "office_docs"},
         need=("task_id", "list_id"), space=(), private="user", enc=False, rid=False, prep=_p_offer_link),
     OiT("office/purchases.json", "office_purchases", refs={"doc_id": "office_docs"}, need=("doc_id",), private="office", prep=_p_purchase),
-    OiT("office/invoice_series.json", "office_inv_series", refs={"template_id": "office_docs"}, need=("template_id",), people=_P, private="office"),
+    OiT("office/invoice_series.json", "office_inv_series", refs={"template_id": "office_docs"}, need=("template_id",), people=_P, private="office",
+        prep=_p_series),  # 2.1289.0 (#6576): paused, no mail still due
     OiT("office/payments.json", "office_payments", refs={"doc_id": "office_docs"}, need=("doc_id",), people=_P, private="office"),
     OiT("office/pay-props.json", "office_pay_props", refs={"doc_id": "office_docs", "payment_id": "office_payments"}, need=("doc_id",),
         people={"agent_id": "null", "requested_by": "null", "decided_by": "null"}, private="office"),
@@ -739,7 +799,8 @@ SPECS = [
         prep=_p_meal_file),
     OiT("office/meal_log.json", "office_meal_log", refs={"meal_id": "office_meals"}, need=("meal_id",), people={"user_id": "null"},
         private="office"),
-    OiT("office/fixed_costs.json", "office_fixed_costs", refs={"import_run_id": "office_import_runs"}, people={**_P, "remind_user": "null"}, private="office"),
+    OiT("office/fixed_costs.json", "office_fixed_costs", refs={"import_run_id": "office_import_runs"}, people={**_P, "remind_user": "null"}, private="office",
+        prep=_p_fixed),  # 2.1289.0 (#6576)
     OiT("office/sub_reminders.json", "office_sub_reminders", refs={"fixed_id": "office_fixed_costs", "task_id": "tasks"}, need=("fixed_id",),
         people={"user_id": "null"}, private="office"),
     OiT("office/dunning_marks.json", "office_dunning_marks", refs={"doc_id": "office_docs", "reminder_id": "office_docs"}, need=("doc_id",),
