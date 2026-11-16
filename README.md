@@ -19,11 +19,9 @@
 
 ## What's new
 
-**2.1292.0** (2026-11-16):
-- **Tasks**: a subtask that becomes a task of its own takes the parent's due date and priority into empty fields, with a "Don't adopt" button.
-- **Security**: every XML from outside (e-invoices, bank statements, DATEV, spreadsheets, calendar and feed answers, SVG) goes through one strict reader.
-- **Knowledge**: one long Markdown line can no longer hold the server (headings, tables, export, import, search snippets).
-- **Sync**: CalDAV/CardDAV app passwords get an id in front; addresses with many failed sign-ins are refused early.
+**2.1295.0** (2026-11-16):
+- **Files**: text recognition can no longer be stalled by one slow PDF; each document has a wall-clock limit (`KALMIDO_OCR_DOC_S`), and `KALMIDO_OCR_PARALLEL` now counts pages.
+- **Phone**: holding a calendar event to drag it works again when the view's events arrive during the hold.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
