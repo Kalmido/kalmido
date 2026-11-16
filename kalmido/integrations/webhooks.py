@@ -516,8 +516,11 @@ def wh_tick():
     with GATE.bg():
         c = connect()
         try:
+            # 2.1264.0 (#6351): ... and what waits for the webhook of a personal agent whose owner's account is locked
+            # (agent_emit queues nothing new meanwhile; nothing is written to the agent, unlocking lets new events through)
             c.execute("""DELETE FROM webhook_queue WHERE webhook_id IN (SELECT w.id FROM webhooks w JOIN users u ON u.id=w.user_id
-                         WHERE NOT w.enabled OR u.disabled)""")
+                         WHERE NOT w.enabled OR u.disabled OR (w.agent=1 AND EXISTS (SELECT 1 FROM agents a JOIN users o
+                         ON o.id=a.owner_id WHERE a.user_id=w.user_id AND o.disabled)))""")
             c.commit()
             # 2.658.0 (#4193): the batch takes the waiting deliveries in turns over the webhooks (the first of each, then the
             # second of each, ...; in its own order within one webhook), so 500 waiting ones of a dead webhook no longer stand
