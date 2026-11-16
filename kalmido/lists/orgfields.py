@@ -14,9 +14,10 @@ import re
 from flask import g, has_request_context, jsonify
 
 from ..core.config import app
-from ..core.pg import insert_id, write_lock
+from ..core import objhooks
+from ..core.pg import insert_id, system_ctx, write_lock
 from ..core.i18n import tr
-from ..core.db import body, bump, db, err, iso, now_utc
+from ..core.db import body, bump, db, err, iso, now_utc, trigger_skip_present
 from ..accounts.session import me
 from ..core.access import MANAGE_ROLES, Denied, need_list
 from ..core.errors import BadInput
@@ -74,7 +75,8 @@ def of_out(c, uid, r):
     return {"id": r["id"], "space": f"org:{r['org_id']}" if r["org_id"] else "private", "org_id": r["org_id"], "key": r["key"],
             "name": r["name"], "type": r["type"], "options": json.loads(r["options"] or "{}"), "sort": r["sort"],
             "can_edit": of_may_write(c, uid, r),
-            "lists": c.execute("SELECT COUNT(*) FROM list_fields WHERE org_field_id=?", (r["id"],)).fetchone()[0]}
+            "lists": c.execute(f"SELECT COUNT(*) FROM list_fields f JOIN lists l ON l.id=f.list_id WHERE f.org_field_id=? AND {OF_IN_SPACE}",
+                               (r["id"],)).fetchone()[0]}  # 2.1258.0 (#6296): the projects the field reaches
 
 
 def of_key(c, oid, uid, v, name):
@@ -155,7 +157,10 @@ def of_update(ofid):
             return err(tr("Invalid data"))
     o = json.dumps(opts, ensure_ascii=False)
     c.execute("UPDATE org_fields SET name=?, options=? WHERE id=?", (name, o, ofid))
-    for (fid,) in c.execute("SELECT id FROM list_fields WHERE org_field_id=?", (ofid,)).fetchall():
+    # 2.1258.0 (#6296): only the linked fields of projects in the schema's own space (as orglabels.py): a project that moved to
+    # another workspace or owner keeps its field as its own (kalmido_of_unlink), and even a link left over is never written here
+    for (fid,) in c.execute(f"SELECT f.id FROM list_fields f JOIN lists l ON l.id=f.list_id WHERE f.org_field_id=? AND {OF_IN_SPACE}",
+                            (ofid,)).fetchall():
         field_prune_opts(c, fid, r["type"], opts)
         c.execute("UPDATE list_fields SET name=?, options=? WHERE id=?", (name, o, fid))
     bump(c)
@@ -174,6 +179,40 @@ def of_delete(ofid):
     bump(c)
     c.commit()
     return jsonify(ok=True, unlinked=n)
+
+
+# 2.1258.0 (#6296): a linked field (list_fields f of project l) belongs to the schema only while l lies in the schema's space -
+# the organisation's projects, or (a schema without one) the owner's projects without an organisation
+OF_IN_SPACE = """EXISTS (SELECT 1 FROM org_fields o WHERE o.id = f.org_field_id
+  AND CASE WHEN l.org_id IS NOT NULL THEN o.org_id = l.org_id ELSE o.org_id IS NULL AND o.owner_id = l.owner_id END)"""
+# a project that changes its workspace or owner (any path: the move, the hand-over, leaving an organisation, an import, the
+# custodian of a deleted account) lets go of the links outside its new space; the field stays in it as a plain one, with its
+# values (as of_delete). The function reads and writes as "system" inside the function only (core/orgrows.py).
+OF_TRIGGERS = """CREATE OR REPLACE FUNCTION kalmido_of_unlink() RETURNS trigger LANGUAGE plpgsql AS $fn$
+DECLARE prev text := current_setting('app.role', true);
+BEGIN
+  IF to_regclass('org_fields') IS NULL THEN RETURN NULL; END IF;
+  PERFORM set_config('app.role', 'system', true);
+  UPDATE list_fields f SET org_field_id = NULL FROM lists l
+   WHERE l.id = NEW.id AND f.list_id = l.id AND f.org_field_id IS NOT NULL AND NOT """ + OF_IN_SPACE + """;
+  PERFORM set_config('app.role', COALESCE(prev, ''), true);
+  RETURN NULL;
+END $fn$;
+CREATE OR REPLACE TRIGGER kalmido_of_unlink AFTER UPDATE OF org_id, owner_id ON lists FOR EACH ROW
+  WHEN (NEW.org_id IS DISTINCT FROM OLD.org_id OR NEW.owner_id IS DISTINCT FROM OLD.owner_id) EXECUTE FUNCTION kalmido_of_unlink();"""
+
+
+def of_setup(c):
+    """core/db.py init_db through core/objhooks.START (every start, after the migrations: list_fields.org_field_id is one): the
+    trigger (idempotent) and the links a move before 2.1258 left behind (#6296; the partial index ix3373 keeps it a short look
+    at every start). -> links let go."""
+    c.executescript(trigger_skip_present(c, OF_TRIGGERS))
+    with system_ctx(c):  # every organisation's projects and fields
+        return c.execute(f"""UPDATE list_fields f SET org_field_id = NULL FROM lists l
+                             WHERE l.id = f.list_id AND f.org_field_id IS NOT NULL AND NOT {OF_IN_SPACE}""").rowcount
+
+
+objhooks.START.append(("of_setup", False, of_setup))  # 2.1258.0 (#6296): every start (no flag)
 
 
 def of_for_list(c, lid):
