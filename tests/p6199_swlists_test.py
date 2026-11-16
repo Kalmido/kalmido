@@ -105,8 +105,14 @@ def wrapped(name, urls, width=150):
 
 SHELL_REAL = list(sw_lists.SHELL_HEAD) + ["/static/icon-512.png", "/static/icon.svg", "/static/badge-96.png"] + [f"/static/js/{m}.js" for m in MODS]
 LAZY_REAL = [f"/static/js/l{m}.js" for m in reversed(MODS)]
-old_sw = (lambda c: f"// head\nconst CACHE = 'tasks-shell-v{c}';  // app 1.{c}.0\n" + wrapped("SHELL", SHELL_REAL) + "\n// x\n"
-          + wrapped("LAZY", LAZY_REAL) + "\n" + wrapped("LAZY_CSS", ["/static/css/a.css"]) + "\nself.x = 1;\n")
+
+
+def old_sw(c):
+    """sw.js in the wrapped form before 2.1258, CACHE version c"""
+    return (f"// head\nconst CACHE = 'tasks-shell-v{c}';  // app 1.{c}.0\n" + wrapped("SHELL", SHELL_REAL) + "\n// x\n"
+            + wrapped("LAZY", LAZY_REAL) + "\n" + wrapped("LAZY_CSS", ["/static/css/a.css"]) + "\nself.x = 1;\n")
+
+
 switched = sw_lists.rebuild(old_sw(1), ([u for u in SHELL_REAL if u.startswith("/static/js/")], LAZY_REAL, ["/static/css/a.css"]))[0]
 check(switched.split("\n")[2] == old_sw(1).split("\n")[2], f"the switch keeps the SHELL line below CACHE: {switched.split(chr(10))[2]}")
 ok, t = merge(old_sw(2), switched, old_sw(1))
