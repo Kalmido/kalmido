@@ -112,6 +112,8 @@ const ofc_sp = () => { const sp = ofc_spOpen(); return sp && ofc_spaces().includ
 const ofc_allOvr = () => wsOn() && wsCur() === 'all' && ofc_spaces().length > 1 && !ofc_sp();
 const ofc_allUpHtml = () => ofc_sp() ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';
 const ofc_wsKey = () => (typeof wsCur === 'function' ? wsCur() : '') + (ofc_sp() ? '>' + ofc_sp() : '');  // OFC.ws: the shown office (a workspace, or "All" + an area)
+// 2.1222.0 (#6180): every page of the office (and an open quotation / invoice / receipt / template) reports its organisation (wscolor.js)
+wso_open('office', () => S.route?.mod === 'office' && OFC.info && !OFC.infoErr && !ofc_allOvr() ? ofcWs() : null);
 // the office header: the area, the company, the role (2.936.0, #5448: without an area no leading dot, nothing = no line)
 function ofc_headHtml(ro) {
   if (isMobile() && !wsOn()) return '';  // 2.1004.0 (#5572): a phone with one office: no line for the company and the role (the menu row is the only line)
@@ -122,7 +124,7 @@ function ofc_headHtml(ro) {
 // the office's area in its header (Private / the organisation), with organisations the workspace switch itself
 function ofcAreaHtml() {
   const ws = ofcWs(), nm = OFC.info.personal ? tr('Private|workspace') : (orgLabelOf(OFC.info.org_id) || wsName(ws));
-  return wsOn() ? `<button type="button" class="wsbadge ofcws" data-act="ws-menu" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', nm))}" aria-label="${esc(tr('Workspace: {0}', nm))}">${wsIcon(ws)}<span>${esc(nm)}</span></button>`
+  return wsOn() ? `<button type="button" class="wsbadge ofcws" data-act="ws-menu" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', nm))}" aria-label="${esc(tr('Workspace: {0}', nm))}"${/*html-ok*/ wsp_attr(ws) /* 2.1222.0 (#6180): the badge in the organisation's colour (Private neutral) */}>${wsIcon(ws)}<span>${esc(nm)}</span></button>`
     : '';  // 2.936.0 (#5448): one office only: no area name (was the text "Private")
 }
 async function ofcLoad(kind, force) {
@@ -136,7 +138,7 @@ async function ofcLoad(kind, force) {
   OFC.loading[kind] = false;
   ofcDraw();
 }
-function ofcDraw() { if ($('#s-biz')) biz_paint(); if (S.route.mod !== 'office') return; const el = $('#view'); if (el) keepFocus(el, () => ofcPaint(el)); ost_markBack(); }
+function ofcDraw() { if ($('#s-biz')) biz_paint(); if (S.route.mod !== 'office') return; const el = $('#view'); if (el) keepFocus(el, () => ofcPaint(el)); ost_markBack(); wso_sync(); /* 2.1222.0 (#6180): the page's organisation after a load */ }
 // 2.122.2 (#2327): a reload of the same office view (save, archive switch, year) keeps the old content until the new data
 // is there -- no short "Loading…" page that made the browser lose the scroll position -- and the scroll position stays.
 // A view that is still loading after 4 s is drawn anyway (a part that never loads must not freeze the old page).

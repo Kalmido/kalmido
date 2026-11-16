@@ -175,6 +175,8 @@ const ROUND = '---\ntags: demo\n---\n# Title  \n\nSome **bold** word and `code`.
     check(await until(`!!document.querySelector('#wk-md') && document.querySelector('#wk-md').textContent.includes('Read me')`), 'no right: the page is read');
     // 2.1151.0 (#5524): a reader's "…" holds the downloads (PDF / Word) and nothing that changes the page (was: no menu)
     check(await ev(`!document.querySelector('#wk-cm') && !document.querySelector('[data-wk="pen"]')`), 'no right: no editor, no pen');
+    // 2.1222.0 (#5525): who may only read can present the page too (first under "Page")
+    check(await ev(`wk_pmenuItems(WK.pg).filter(x => x && x.label)[0]?.label === 'Present'`), 'no right: the "…" offers Present first');
     await click(`document.querySelector('[data-wk="pmenu"]')`);
     check(await until(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`), 'no right: the "…" opens');
     const roItems = await ev(`[...document.querySelectorAll('#pop [role="menuitem"]')].map(x => x.textContent.trim())`);
