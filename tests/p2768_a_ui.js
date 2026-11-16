@@ -199,9 +199,13 @@ const face = (d, id) => card(d, id)?.querySelector('[data-dco], [data-ab="open"]
         await ev(`(ab_selPick(${D1}), ab_selPick(${SUB}), 1)`);
         check(await wait(`/2 selected/.test(document.querySelector('#ab-sbar .mcount')?.textContent || '')`), `${wd}: the bar with 2 selected`);
         await sleep(400);
-        const m = await ev(`(() => { const b = document.querySelector('#ab-sbar'), r = b.getBoundingClientRect(), bs = [...b.querySelectorAll('.mbb, .mbx')].map(x => x.getBoundingClientRect());
-          return {l: Math.round(r.left), r: Math.round(r.right), n: bs.length, inside: bs.every(x => x.width > 0 && x.left >= r.left - 1 && x.right <= r.right + 1 && x.bottom <= innerHeight + 1), over: document.documentElement.scrollWidth > innerWidth + 1}; })()`);
-        check(m && m.n === 7 && m.l >= 0 && m.r <= wd + 1 && m.inside && !m.over, `${wd}: all six buttons and X inside the bar, the bar inside the screen ` + JSON.stringify(m));
+        // 2.1286.0 (#6348): since 2.1168.0 (#6118) every selection bar carries a hidden "…" (multisel.js ms_barHtml .mbdots) that
+        // takes what does not fit on the bar's line (ms_fit). The suite counted it as an eighth button of width 0. Now: the six
+        // buttons and X are there, every shown one lies inside the bar, and "…" shows exactly when a button went into it
+        const m = await ev(`(() => { const b = document.querySelector('#ab-sbar'), r = b.getBoundingClientRect(), all = [...b.querySelectorAll('.mbb:not(.mbdots), .mbx')], dots = b.querySelector('.mbdots'),
+          bs = [...all, dots].filter(x => x && !x.hidden).map(x => x.getBoundingClientRect());
+          return {l: Math.round(r.left), r: Math.round(r.right), n: all.length, hid: all.filter(x => x.hidden).length, dots: !!dots && !dots.hidden, inside: bs.every(x => x.width > 0 && x.left >= r.left - 1 && x.right <= r.right + 1 && x.bottom <= innerHeight + 1), over: document.documentElement.scrollWidth > innerWidth + 1}; })()`);
+        check(m && m.n === 7 && m.l >= 0 && m.r <= wd + 1 && m.inside && !m.over && m.dots === (m.hid > 0), `${wd}: all six buttons and X inside the bar (or behind its "…"), the bar inside the screen ` + JSON.stringify(m));
         await shot(`p2768-a-${wd}-bar.png`);
         await ev(`(ab_selEnd(), ab_draw(), 1)`);
       }
