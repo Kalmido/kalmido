@@ -127,16 +127,21 @@ async function lpDelta(v, ch, n, since) {
   if (S.lpOff || S.v == null || !ch || ch.some(k => !LP_DELTA.has(k)) || OUT.q.length) return false;
   if (ch.includes('time') && LP_TIMEVIEW.has(S.route.mod)) return false;
   const light = ch.filter(k => LP_LIGHT.has(k)), follow = since !== undefined, wside = follow || light.length > 0;
-  const w0 = S.wseq || 0;
+  const w0 = S.wseq || 0, v0 = S.v;
   let j;
   try { j = await api('GET', `/api/state/delta?since=${follow ? since : S.v}&lean=1${wside ? '&side=1' : ''}${S.lz ? '&lz=1' : ''}&tt=1`); } catch { return false; }  // 2.369.2 (#3136): + lz
   if (!j || j.full !== false || (S.wseq || 0) !== w0 || OUT.q.length) return false;  // a write of mine overtook it: the full way
   if (light.length && !follow) lpLive(v, light, n, true);  // comments of the open task, the open chat, news (their own fetches)
+  // 2.1264.0 (#6335 B5): two deltas on their way (the poll's and the bundled follow-up's) can overtake each other: an answer
+  // that arrives after the state moved on (S.v grew meanwhile) and is not newer than it is dropped - the state has all it
+  // says; a newer one keeps the copies of tasks that changed after it was read (as lzLoad)
+  const late = S.v > v0;
+  if (late && !(j.v > S.v)) { S.lpN.late = (S.lpN.late || 0) + 1; return true; }
   S.lpN.delta++;
   const side = lpSideCnt() + (wside ? lpSideSig() : ''), sel = S.sel, changed = new Set();
   if (wside && j.team) lpSideTake(j);
   tdFill(j.tasks);  // 2.575.0 B (#3966): the delta sends whole tasks; filled all the same (one way in)
-  for (const t of j.tasks || []) { S.tasks.set(t.id, t); changed.add(t.id); }
+  for (const t of j.tasks || []) { const o = late && S.tasks.get(t.id); if (o?.updated_at && t.updated_at && o.updated_at > t.updated_at) continue; S.tasks.set(t.id, t); changed.add(t.id); }
   for (const id of j.gone || []) if (S.tasks.delete(id)) changed.add(id);
   _kidsIx = null;
   const pr = j.progress || {};

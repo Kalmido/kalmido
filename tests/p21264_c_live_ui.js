@@ -92,6 +92,28 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(await ready(`document.querySelector('#d-title')?.value === 'Shopping Saturday'`, 20), '#6326: left untouched, the title shows the newest text ' + JSON.stringify(await dbg()));
       check((await srvUntil(x => x.title !== 'Shopping Saturday', 8)).title === 'Shopping Saturday', '#6326: leaving the field saved nothing over it');
     }
+
+    // ================= #6335 B5 a late delta answer does not overwrite a newer one
+    S6335B5: {
+      await ev(`(() => { closeDetail(); return 1; })()`);
+      await caught();
+      const T5 = (await call(CA, 'POST', '/api/tasks', {title: 'B5 start', list_id: L})).id;
+      check(await ready(`!!document.querySelector('#view .trow[data-id="${T5}"]')`, 60), 'B5: the new row is shown');
+      await caught();
+      const held = await ready(`(() => { if (td_polling) return false; td_polling = true; return true; })()`, 120);
+      check(held, 'B5: the poll held'); if (!held) break S6335B5;
+      // the first delta reads the old change, its answer is held back until the second one is through
+      await ev(`(() => { const a0 = api; window.__gate = null; window.__api0 = a0; api = function (m, u) { const p = a0.apply(this, arguments); if (!String(u).includes('/api/state/delta')) return p; api = a0; p.then(() => { window.__got = 1; }, () => {}); return new Promise(res => { window.__gate = () => p.then(res, () => res(null)); }); }; return 1; })()`);
+      await call(CA, 'PATCH', `/api/tasks/${T5}`, {title: 'B5 old'});
+      await ev(`(() => { window.__p1 = lpDelta(S.v, ['tasks']); return 1; })()`);
+      check(await ready(`typeof window.__gate === 'function'`, 20), 'B5: the first delta is on its way');
+      check(await ready(`window.__got === 1`, 40), 'B5: the server answered the first delta (the answer waits in the page)');
+      await call(CA, 'PATCH', `/api/tasks/${T5}`, {title: 'B5 new'});
+      check(await ev(`lpDelta(S.v, ['tasks']).then(() => S.tasks.get(${T5})?.title)`) === 'B5 new', 'B5: the second delta brings the newest title');
+      await ev(`(() => { window.__gate(); return window.__p1.then(() => 1); })()`);
+      check(await ev(`S.tasks.get(${T5})?.title`) === 'B5 new' && /B5 new/.test(await ev(`document.querySelector('#view .trow[data-id="${T5}"]')?.textContent || ''`)), 'B5: the late answer of the first delta does not take the older title back ' + JSON.stringify(await ev(`({t: S.tasks.get(${T5})?.title, row: document.querySelector('#view .trow[data-id="${T5}"]')?.textContent, stale: S.viewStale, busy: lpBusy(), ed: editing(), act: document.activeElement?.id || document.activeElement?.tagName, route: S.route.mod + '/' + S.route.key, late: S.lpN.late})`).catch(e => String(e))));
+      await ev(`(() => { api = window.__api0; td_polling = false; return 1; })()`);
+    }
   }, true);
 
   console.log(`p21264_c_live_ui: ${ok} ok, ${F.length} failed`);
