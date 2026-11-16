@@ -132,21 +132,21 @@ check(Fr.post(B + f"{D}/{I}/finalize").ok, "finalised")
 check(Fr.post(B + f"{D}/{I}/number", json={"number": num(last_seq() + 1)}).status_code == 409, "#2839: a finalised invoice: no new number (409)")
 
 # ---------------------------------------------------------------- #2839 the year of a manual number
-I = invoice()  # 2.1289.0 (#6481): today (was 15.01.): finalising checks the date against the series before the number's year
+INV_Y = invoice()  # 2.1289.0 (#6481): today (was 15.01.): finalising checks the date against the series before the number's year
 before = last_seq()
 # 2.1289.0 (#6481): a number by hand of an invoice comes with the finalising (the draft route refuses it)
-r = Fr.post(B + f"{D}/{I}/finalize", json={"number": num(before + 1, 1999)})  # the next counter value, only the year is wrong
+r = Fr.post(B + f"{D}/{INV_Y}/finalize", json={"number": num(before + 1, 1999)})  # the next counter value, only the year is wrong
 check(r.status_code == 409 and "1999" in r.text, f"#2839: a number of 1999 on a draft of {YEAR}: 409 naming the year {r.status_code} {r.text[:160]}")
-check(Fr.post(B + f"{D}/{I}/number", json={"number": num(before + 1)}).status_code == 409, "#6481: no number by hand at the invoice draft (409)")
+check(Fr.post(B + f"{D}/{INV_Y}/number", json={"number": num(before + 1)}).status_code == 409, "#6481: no number by hand at the invoice draft (409)")
 # 2.1289.0 (#6481): a numbered invoice draft only comes from before 2.1289 (the number route): made in the database
-dbx("UPDATE office_docs SET number=? WHERE id=?", (num(before + 1), I))
+dbx("UPDATE office_docs SET number=? WHERE id=?", (num(before + 1), INV_Y))
 dbx("INSERT INTO office_numbers(org_id, kind, period, last) SELECT org_id, 'invoice', ?, ? FROM office_docs WHERE id=? "
-    "ON CONFLICT(org_id, kind, period) DO UPDATE SET last=excluded.last", (str(YEAR), before + 1, I))
+    "ON CONFLICT(org_id, kind, period) DO UPDATE SET last=excluded.last", (str(YEAR), before + 1, INV_Y))
 
 # ---------------------------------------------------------------- #2839 a numbered draft keeps its date within the year
-r = Fr.patch(B + f"{D}/{I}", json={"date": f"{YEAR - 1}-12-30"})
+r = Fr.patch(B + f"{D}/{INV_Y}", json={"date": f"{YEAR - 1}-12-30"})
 check(r.status_code == 409 and num(before + 1) in r.text, f"#2839: numbered draft, date into {YEAR - 1}: 409 {r.status_code} {r.text[:160]}")
-r = Fr.patch(B + f"{D}/{I}", json={"date": f"{YEAR}-01-10"})
+r = Fr.patch(B + f"{D}/{INV_Y}", json={"date": f"{YEAR}-01-10"})
 check(r.ok and r.json().get("date") == f"{YEAR}-01-10", "#2839: ... within the year the date may change " + r.text[:120])
 U = invoice()
 r = Fr.patch(B + f"{D}/{U}", json={"date": f"{YEAR - 1}-12-30"})

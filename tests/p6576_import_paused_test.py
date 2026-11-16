@@ -28,7 +28,7 @@ from freelancer_fixture import FEATURES, freelancer  # noqa: E402
 from kt import B, DATA, check, dbx, done, fresh, setup, su_get  # noqa: E402
 
 CT = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")
-O, D, S = "/api/office", "/api/office/docs", "/api/office/series"
+OFF_API, D, S = "/api/office", "/api/office/docs", "/api/office/series"
 TODAY = date.today().isoformat()
 KEY = base64.b64encode(os.urandom(32)).decode()
 COMPANY = {"name": "Beispiel Film GmbH", "street": "Musterweg 1", "zip": "12345", "city": "Musterstadt", "country": "DE", "email": "hallo@beispiel.example",
@@ -108,7 +108,7 @@ def warns(j):
 
 
 def office(s, name):
-    assert s.put(B + O + "/settings", json={"lang": "de", "company_fields": {**COMPANY, "name": name}}).ok
+    assert s.put(B + OFF_API + "/settings", json={"lang": "de", "company_fields": {**COMPANY, "name": name}}).ok
 
 
 def client(s, name, mail):
@@ -154,8 +154,8 @@ office(A, "Quelle GmbH")
 CL = client(A, "Muster Medien AG", "rechnung@muster.example")
 SID, TID = series(A, CL, "Betreuung")
 dbx("UPDATE office_inv_series SET mail_doc=?, mail_try=1, fail_count=2 WHERE id=?", (TID, SID))  # a mark and failures of the source
-check(A.put(B + O + "/bank/noreceipt/reminder", json={"every": "week"}).ok, "the bank bookings reminder is on in the source")
-r = A.post(B + O + "/fixed-costs", json={"label": "Schnittsoftware", "amount": 50, "start": TODAY, "repeat": "yearly", "sub": 1, "notice_days": 30,
+check(A.put(B + OFF_API + "/bank/noreceipt/reminder", json={"every": "week"}).ok, "the bank bookings reminder is on in the source")
+r = A.post(B + OFF_API + "/fixed-costs", json={"label": "Schnittsoftware", "amount": 50, "start": TODAY, "repeat": "yearly", "sub": 1, "notice_days": 30,
                                           "remind_days": 14, "remind_user": ALICE})
 check(r.status_code in (200, 201), f"a subscription with its reminder {r.status_code} {r.text[:160]}")
 OX, RK = export(A, ORG)
@@ -174,11 +174,11 @@ for what in ("Payment reminder suggestions", "Notices of overdue invoices", "Not
 rt = rows(ORG_T)
 check(len(rt) == 1 and not rt[0][1] and rt[0][2] == "import" and rt[0][3] is None and rt[0][4] == 0 and rt[0][5] == 0,
       f"the series arrives paused (reason import), no mark, no failures {rt}")
-st = A.get(B + O + "/settings").json()
+st = A.get(B + OFF_API + "/settings").json()
 st = st.get("settings", st)
 check(not st.get("dunning_suggest") and not st.get("overdue_notice") and not st.get("offer_exp_notice"),
       f"the target's office switches are off {[st.get(k) for k in ('dunning_suggest', 'overdue_notice', 'offer_exp_notice')]}")
-check(A.get(B + O + "/bank/noreceipt/reminder").json().get("every") == "off", "the bank bookings reminder is off in the target")
+check(A.get(B + OFF_API + "/bank/noreceipt/reminder").json().get("every") == "off", "the bank bookings reminder is off in the target")
 check(dbx("SELECT COUNT(*) FROM office_fixed_costs WHERE org_id=? AND remind_user IS NOT NULL", (ORG_T,)) == [(0,)], "the subscription reminder has no person in the target")
 n0 = len(mails("rechnung@muster.example"))
 tick()
