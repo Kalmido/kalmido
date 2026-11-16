@@ -18943,5 +18943,10 @@
   "The date of the correction must not lie before the date of its invoice {0} ({1})": "De datum van de correctie mag niet vóór de datum van haar factuur {0} ({1}) liggen",
   "Imported on {0} by {1}": "Geïmporteerd op {0} door {1}",
   "Imported on {0}": "Geïmporteerd op {0}",
-  "imported on {0}": "geïmporteerd op {0}"
+  "imported on {0}": "geïmporteerd op {0}",
+  "The last e-mail of this rule was refused: it has too many parts or a header line that cannot be read; it is not tried again": "De laatste e-mail van deze regel is geweigerd: hij heeft te veel delen of een kopregel die niet kan worden gelezen; hij wordt niet opnieuw geprobeerd",
+  "The last e-mail of this rule had more files than one e-mail may bring (100 documents, 100 MB unpacked): the rest was left out, the e-mail stays where it is": "De laatste e-mail van deze regel had meer bestanden dan één e-mail mag meebrengen (100 documenten, 100 MB uitgepakt): de rest is weggelaten, de e-mail blijft waar hij is",
+  "Rounding adjustment": "Afrondingscorrectie",
+  "In this run you work for one person: only that person can be named here": "In deze run werk je voor één persoon: alleen die persoon kan hier worden genoemd",
+  "Not available in this run: the person you work for does not reach this themselves": "Niet beschikbaar in deze run: de persoon voor wie je werkt, bereikt dit zelf niet"
 }

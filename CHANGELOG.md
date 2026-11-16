@@ -23,6 +23,36 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1310.0] - 2026-11-17
+
+Package 2.1281.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6425 Security, incoming mail: a mail is counted before and while it is taken apart (`kalmido/core/mailguard.py`, used by the
+  instance mailbox, the workspace mailboxes, their document rules and the reading view). More than 2,000 MIME parts, parts more
+  than 30 deep, a head over 256 KB, more than a million lines or header lines built to stall the header parser are refused in
+  milliseconds instead of costing gigabytes and minutes; the refusal is logged with its reason and the mail stays in the
+  mailbox, marked seen.
+- #6425 Document rules of a workspace mailbox: a mail that breaks its own handling (a prepared header line, too many parts) is
+  remembered for good and shown at the rule ("refused: too many parts or a header line that cannot be read"); it no longer
+  ends the run of its folder every 10 minutes, so newer mails of the folder reach the rules again.
+- #6425 Documents by mail (document address and mailbox rules): one budget per mail over all attachments (100 documents,
+  100 MB unpacked), archives are unpacked and stored one after the other instead of all at once. A mail whose budget left
+  files out is kept in the mailbox (not deleted or moved) and the rule says so; a ZIP without any usable file is no longer
+  fetched again in every run.
+
+Package 2.1287 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Security
+- #6454: a team agent answers and writes with the rights of the person who asked: the run token is cut to that person's projects, the control level per project is capped to their role, contacts, calendars, wiki, sheets, files and channels outside projects answer at most with their own role; a channel mention reaches the agent only when it may be used by that person; an approval card without a project and an approval job need the approver's write right at the moment of the yes; organisation guests and read-only members cannot instruct a team agent.
+- #6454 (review): one gate over every `/api/v1` route in a team agent's run for a person (`api/runfor.py`, `RUN_ROUTES`): events, chats, jobs, schedules, direct messages and message search show only the requester's own; routes naming another person answer 403 `run_person`; folders, groups and mails only in a run for an organisation admin (403 `run_closed`); projects where the requester is only a participant are left out of the run; an approved replay counts the person who said yes; a new route without an entry is closed in the run and fails the coverage test.
+
+### Fixed
+- #6470: the office log keeps the person's name (`office_doc_log.user_name`, sealed like `detail`) and a finalised document the finaliser's name in its sender snapshot, so after an account is deleted the log, "finalised by", the tax auditor's export and the retention export still name who finalised and booked; existing entries are filled once at start.
+- #6300: a full invoice from a quotation with parts always settles the rest per tax rate (no 5-cent limit, also with percent positions): one position of that rate takes it as before, several get their own position "Rounding adjustment"; without VAT the part is compared as a whole; a delivery note keeps its quantities.
+- #6443: a quotation with parts and markup that left the draft without being finalised (sent / accepted by hand) keeps the former markup per part when opened, printed and invoiced; opening writes only drafts; a quotation that had no parts before keeps the new rule.
+- #6336: nightly CI red `p2695_a_rowmenu_coverage` - the selection bar's More (`data-msmore`) is a bar menu in RM_LEFT.
+
 ## [2.1307.0] - 2026-11-16
 
 Package 2.1289 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -72,7 +102,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1307.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1310.0...HEAD
+[2.1310.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1310.0
 [2.1307.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1307.0
 [2.1304.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1304.0
 [2.1301.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1301.0

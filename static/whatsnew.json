@@ -1,6 +1,20 @@
 {
  "versions": [
   {
+   "version": "2.1310.0",
+   "date": "2026-11-17",
+   "items": [
+    {
+     "de": "Rechnungen aus Angeboten mit Teilen treffen jetzt immer den Angebotsbetrag; nötige Cent-Reste stehen als eigene Zeile „Rundungsausgleich“.",
+     "en": "Invoices from quotations with parts now always match the quotation; any cent rest is its own line \"Rounding adjustment\"."
+    },
+    {
+     "de": "Der Team-Agent antwortet und handelt nur noch mit deinen eigenen Rechten.",
+     "en": "The team agent now answers and acts only with your own rights."
+    }
+   ]
+  },
+  {
    "version": "2.1307.0",
    "date": "2026-11-16",
    "items": [
@@ -1275,44 +1289,6 @@
     {
      "de": "Freigegebene Bewirtungsbelege landen im DATEV-Buchungsstapel, aufgeteilt in 70 % abziehbar und 30 % nicht abziehbar.",
      "en": "Approved entertainment receipts go into the DATEV booking batch, split into 70 % deductible and 30 % not deductible."
-    }
-   ]
-  },
-  {
-   "version": "2.756.0",
-   "date": "2026-11-09",
-   "items": [
-    {
-     "de": "Unter Einstellungen > Integrationen ist jede Anbindung jetzt eine zugeklappte Zeile mit ihrem Stand.",
-     "en": "Under Settings > Integrations every integration is now a folded row showing its state."
-    },
-    {
-     "de": "Newsletter-Segmente wählst du jetzt über Bedingungszeilen mit Suche, auch mit „ist nicht“.",
-     "en": "You now build newsletter segments with condition rows and a search, including \"is not\"."
-    },
-    {
-     "de": "Wissensbereiche lassen sich im Bereichsmenü ganz offline halten, samt aller Dateien.",
-     "en": "Knowledge spaces can be kept fully offline from the space menu, files included."
-    },
-    {
-     "de": "Projektregeln können jetzt Tage vor der Fälligkeit oder bei Überfälligkeit auslösen.",
-     "en": "Project rules can now fire days before a due date or when a task is overdue."
-    },
-    {
-     "de": "Eine Regel kann bis zu fünf Aktionen nacheinander ausführen und Bedingungen haben.",
-     "en": "A rule can run up to five actions in a row and have conditions."
-    },
-    {
-     "de": "Beim Wischen zwischen Dokumenten steht das nächste Dokument sofort ganz da, ohne Nachladen.",
-     "en": "Swiping between documents shows the next one complete at once, without loading."
-    },
-    {
-     "de": "Zurück führt in den Einstellungen zum vorigen Bereich, erst das letzte Zurück schließt sie.",
-     "en": "Back in the settings goes to the previous area; only the last Back closes them."
-    },
-    {
-     "de": "Für eine Abnahme kannst du jetzt mehrere Kunden-Links mit Ablaufdatum anlegen; neue Versionen erscheinen beim Kunden unter demselben Link.",
-     "en": "You can now create several client links with an expiry date for a sign-off; new versions show up for the client at the same link."
     }
    ]
   }

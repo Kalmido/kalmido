@@ -18943,5 +18943,10 @@
   "The date of the correction must not lie before the date of its invoice {0} ({1})": "La date de la correction ne doit pas précéder la date de sa facture {0} ({1})",
   "Imported on {0} by {1}": "Importé le {0} par {1}",
   "Imported on {0}": "Importé le {0}",
-  "imported on {0}": "importé le {0}"
+  "imported on {0}": "importé le {0}",
+  "The last e-mail of this rule was refused: it has too many parts or a header line that cannot be read; it is not tried again": "Le dernier e-mail de cette règle a été refusé : il comporte trop de parties ou une ligne d'en-tête illisible ; il ne sera pas réessayé",
+  "The last e-mail of this rule had more files than one e-mail may bring (100 documents, 100 MB unpacked): the rest was left out, the e-mail stays where it is": "Le dernier e-mail de cette règle contenait plus de fichiers qu'un e-mail ne peut en apporter (100 documents, 100 Mo décompressés) : le reste a été laissé de côté, l'e-mail reste où il est",
+  "Rounding adjustment": "Ajustement d'arrondi",
+  "In this run you work for one person: only that person can be named here": "Dans cette exécution, tu travailles pour une personne : seule elle peut être indiquée ici",
+  "Not available in this run: the person you work for does not reach this themselves": "Indisponible dans cette exécution : la personne pour qui tu travailles n'y a pas accès elle-même"
 }
