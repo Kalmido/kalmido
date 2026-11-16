@@ -22,6 +22,28 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1285.0] - 2026-11-16
+
+Package 2.1254 (Bündel: Weich rot: p2361_c_ui, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- #6180: Office and clients wear the organisation's colour - the office badge and every office page (also an open quotation, invoice, receipt or template) mark the organisation, the area overview shows each organisation's stripe (also wiki, files and reading), client rows carry the stripe and their origin under "All" ("Private" for private clients), the open client card is marked. Private stays neutral.
+- #6299: Invoice line rates keep 12 decimal places (office_doc_items.rate NUMERIC(14,4) -> NUMERIC(22,12), fragment migrations.d/6299.py, only wider: no stored value changes, the previous version reads and writes the column as before). tools/check_migrations.py allows such a widening with `# widen-ok`; core/db.py skips it once the column is wide enough.
+### Fixed
+- #6293: Security - cancelling one's own account deletion no longer lifts an admin's lock: an admin locking an account that waits for its deletion is noted in the deletion plan, the cancel links end, paused agents stay off, no reminder mail with a new link; cancelling by password only ends the deletion and says the account stays locked. The watchdog and the cancel link read the row afresh, so a lock set meanwhile is kept.
+- #6294: Security - a support session can no longer delete for good on any way (office trash `trash/core/<kind>/<id>`, `DELETE /api/tasks/<id>?hard`, `/api/files/nodes/<id>?purge`, `/api/notes/<id>?empty`), neither reads nor creates inbox mail addresses (request-mail, docs mail addresses, `/api/me/mail`, receipt mail, letter mail info/draft, privacy sheet mail; the address is blanked in docs settings and the hub mail views), and writes on tasks, attachments and lists are checked against the organisation of the parent object. A guard test matches every DELETE route that deletes for good and every GET route that reaches an inbox address against the block lists.
+- #6299: An invoice (also a final invoice) from a quotation in a foreign currency now equals the quotation to the cent: the automatic lines (producing, handling, surcharges, raw data, discount per tax key) are taken as the quotation computed them in its currency. Progress invoices keep billing against the home-currency run of the quotation.
+- #6311: Test p2361_c_ui waits for the loaded quotation list instead of only its bar (red on a slow CI runner).
+
+Package 2.1259 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Merge Queue: statische Wächter-Suiten (parity, row).
+
+### Fixed
+- #6301: the VAT return and the income statement take base and tax per rate from the frozen tax lines of the invoice (accrual basis and cash discount directly, cash basis and income statement in proportion to the payment) instead of recomputing the net from the gross; a fully paid invoice gives exactly its base and its tax, and the key figures count the same net as the books.
+- #6302, #6459: "Fee paid" of a finalised payment reminder covers fee + default interest + flat fee of its frozen totals (also a reminder without a fee) and counts on the day of payment without VAT in the income statement, key figures, cash flow and ledger. The amount is stored on the reminder when it is marked (new nullable column `office_docs.reminder_fee_paid_amount`); a reminder marked paid before this version keeps its fee alone, so old and locked years stay as they were; two paid reminder levels over the same invoice never count interest and flat fee twice.
+- #6303: (a) booking export in a foreign currency: gross = money(gross / rate) like the payment; (b) DATEV in a foreign currency: the payment or cash discount that settles the document carries the rest cent, the debtor balances; (c) DATEV and ledger split by the frozen rate and tax of the line, a rate without automatic account gives a hint instead of 19 %; (d) final invoice: a deduction takes off the VAT its progress invoice billed less credit notes, as its text says; (e) CII e-invoice: price and quantity as in the UBL, a sub-cent price no longer breaks quantity x price = line amount (PEPPOL-EN16931-R120).
+- #6445: the credit note of a final invoice takes the VAT the final invoice froze for its deductions, so a full credit note is the final invoice to the cent.
+- #6602: test only: p2380_a_ui waits for the quotation row before it checks the list.
+- #6456: one rule for the gross of a foreign-currency document in the books, the booking export and DATEV (`books.bk_fx_lines`): gross = money(gross / rate), tax per rate converted, the rest cent on the base of the largest rate; the payment that settles the document carries the rest cent in the booking export too. DATEV's automatic accounts and the ledger keep deriving the VAT of a 19 / 7 % line from the home gross (the automatic of the account), which can differ by a cent from the books.
+
 ## [2.1274.0] - 2026-11-16
 
 Package 2.1253 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -309,7 +331,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1274.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1285.0...HEAD
+[2.1285.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1285.0
 [2.1274.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1274.0
 [2.1268.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1268.0
 [2.1261.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1261.0

@@ -18796,5 +18796,9 @@
   "Document flow {0} keeps failing on a document, failing since {1}.": "Il flusso di documenti {0} continua a non riuscire su un documento, con errori dal {1}.",
   "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "Non è stato possibile creare la fattura della serie per {0} volte di seguito. Controlla la fattura modello e il cliente, poi riattiva la serie.",
   "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Nessuno può creare le fatture della serie: l’area non ha un amministratore con l’ufficio attivo. Riattiva la serie appena ce n’è uno.",
-  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "La fattura {0} è emessa, ma la sua mail non è partita dopo un riavvio del server. Inviala a mano dalla fattura."
+  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "La fattura {0} è emessa, ma la sua mail non è partita dopo un riavvio del server. Inviala a mano dalla fattura.",
+  "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "L’eliminazione del tuo account {0} è stata annullata. Un amministratore ha bloccato l’account; solo un amministratore può sbloccarlo.",
+  "An admin has locked your account; only an admin can unlock it.": "Un amministratore ha bloccato il tuo account; solo un amministratore può sbloccarlo.",
+  "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Fattura {0}: l'aliquota IVA del {1} % non ha un conto automatico DATEV; viene esportata sul conto {2} - registrare a mano la sua IVA di {3}",
+  "Reminder fee, interest and flat fee {0}: {1}": "Commissione di sollecito, interessi e forfait {0}: {1}"
 }

@@ -18795,5 +18795,9 @@
   "Document flow {0} keeps failing on a document, failing since {1}.": "El flujo de documentos {0} falla repetidamente en un documento, con errores desde {1}.",
   "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "La factura de la serie no se pudo crear {0} veces seguidas. Revisa la factura plantilla y el cliente y vuelve a activar la serie.",
   "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Nadie puede crear las facturas de la serie: el área no tiene ningún administrador con la oficina activada. Vuelve a activar la serie en cuanto haya uno.",
-  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "La factura {0} está emitida, pero su correo no se envió tras un reinicio del servidor. Envíala a mano desde la factura."
+  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "La factura {0} está emitida, pero su correo no se envió tras un reinicio del servidor. Envíala a mano desde la factura.",
+  "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "Se ha cancelado la eliminación de tu cuenta {0}. Un administrador ha bloqueado la cuenta; solo un administrador puede desbloquearla.",
+  "An admin has locked your account; only an admin can unlock it.": "Un administrador ha bloqueado tu cuenta; solo un administrador puede desbloquearla.",
+  "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Factura {0}: el tipo de IVA del {1} % no tiene cuenta automática DATEV; se exporta a la cuenta {2}; contabilice a mano su IVA de {3}",
+  "Reminder fee, interest and flat fee {0}: {1}": "Tasa de recordatorio, intereses y cantidad fija {0}: {1}"
 }
