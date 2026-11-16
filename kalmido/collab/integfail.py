@@ -23,6 +23,8 @@ INTEG_TEXT = {
     "hookin": N_("Inbound webhook {0} is paused: {1}"),
     "mailbox": N_("Mailbox {0} cannot fetch e-mail, failing since {1}."),
     "git": N_("Git connection {0} cannot fetch, failing since {1}."),
+    "gitowner": N_("Git connection {0} is paused: the person whose access token it uses has no access to the project any more."),  # 2.1306.0 (#6554)
+    "gitcap": N_("Git connection {0} reached its daily limit of new issues or comments ({1}); the rest goes out tomorrow."),  # 2.1306.0 (#6554)
     "maillost": N_("Mailbox {0}: e-mails could not be taken over ({1}); they are still in the mailbox."),  # 2.1269 (#6386)
     "docflow": N_("Document flow {0} keeps failing on a document, failing since {1}."),  # 2.1265.0 (#6389): a scheduled flow
     "backup": N_("Backup failed: {0}"),

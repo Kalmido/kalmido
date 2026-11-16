@@ -98,3 +98,7 @@ p21269_c_fremd
 p21269_d_apvdesc*
 p2235_a_control*
 p2235_c_rules_api
+
+# 2.1306.0 (#6554): the issue sync's way out - only what a person creates, daily limits, no @mentions, http(s) links, the
+# token's person may remove its connection and it pauses when that person leaves the project
+p6554_git_sync_guard

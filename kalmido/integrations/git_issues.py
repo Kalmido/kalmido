@@ -62,6 +62,17 @@ def _gis_s(v, n=300):
     return str(v if v is not None else "")[:n]
 
 
+def _gis_url(v):
+    """2.1306.0 (#6554 D9): an issue's address becomes the task's link only as http(s) -- the answer comes from the
+    repository's server, a javascript: / data: address there would be a link in Kalmido's UI."""
+    s = _gis_s(v, 500).strip()
+    try:
+        u = urllib.parse.urlsplit(s)
+    except ValueError:
+        return ""
+    return s if u.scheme.lower() in ("http", "https") and u.netloc and not any(ch.isspace() or ord(ch) < 32 for ch in s) else ""
+
+
 def gis_api(k, what, no=None, page=1, since=None):
     """The API path of one request: what = issues (the list, newest first; since = updated since, then by update) | comments
     (of issue no, oldest first). k = git_ctx(...)."""
@@ -102,7 +113,7 @@ def gis_norm_issue(prov, j):
     return {"no": no, "title": _gis_s(j.get("title"), 1000), "body": _gis_s(j.get("body") if gh else j.get("description"), 200000),
             "state": "closed" if st == "closed" else "open", "labels": [x for x in labels if x],
             "assignees": [x for x in (login(u) for u in who) if x], "author": login(j.get("user") if gh else j.get("author")),
-            "url": _gis_s(j.get("html_url") if gh else j.get("web_url"), 500), "created_at": _gis_ts(j.get("created_at")),
+            "url": _gis_url(j.get("html_url") if gh else j.get("web_url")), "created_at": _gis_ts(j.get("created_at")),
             "updated_at": _gis_ts(j.get("updated_at")), "closed_at": _gis_ts(j.get("closed_at")),
             "comments": cnt if isinstance(cnt, int) and not isinstance(cnt, bool) and cnt > 0 else 0,
             "pr": bool(gh and j.get("pull_request"))}
