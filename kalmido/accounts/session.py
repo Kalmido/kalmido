@@ -523,11 +523,18 @@ def login_known(username, pre=""):
     if not pre and u is not None and (u["username"] or "") == username:
         return True
     at = rate_known_at(k, ip)
-    if at and now - at < KNOWN_DAYS * 86400:
-        with _fail_lock:
-            _known.setdefault(k, {})[ip] = at
-        return True
-    return False
+    if not (at and now - at < KNOWN_DAYS * 86400):
+        # 2.1271.0 (#6552, review): the shared table kept the key with the name in clear before 2.1271 ("<pre>uall:<name>");
+        # read it (never written again) and carry a hit over to the new key, so an office address with a full address
+        # counter does not lock out every colleague right after the update (#3111). Can go after 20.12.2026 (KNOWN_DAYS).
+        old = rate_known_at(pre + "uall:" + str(username)[:RATE_NAME_MAX], ip)
+        if not (old and now - old < KNOWN_DAYS * 86400):
+            return False
+        rate_known_add(k, ip, KNOWN_DAYS)
+        at = old
+    with _fail_lock:
+        _known.setdefault(k, {})[ip] = at
+    return True
 
 
 def login_gate(keys, username, pre=""):
