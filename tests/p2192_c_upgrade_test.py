@@ -15,6 +15,8 @@ and starts the current image on it:
 - a write works (a new task + comment in the org project, frida edits her own task)
 - the boundary holds: frida (no organisation) sees no org task / office document, bob not alice's private list
 - a second start is idempotent: no migration step runs again, schema and data stay the same
+- 2.1265.0 (#6287): the rows of the old tables a core move retires arrive in their target (tests/upgrade_moves.py: before the
+  start the rows each move has to take, after it the target; a drop-ok line of migrations.d without an entry there is red)
 Replaces the group's database (own group with `fresh` in run_all.sh). P2192C_NOSTART / KMT_NOSTART: not supported (the
 suite restarts the container itself)."""
 import glob
@@ -27,6 +29,7 @@ import sys
 
 import kt
 from kt import B, DATA, check, sess
+import upgrade_moves  # 2.1265.0 (#6287)
 from upgrade_views import data_checks, schema as schema_base, schema_gaps as gaps_base  # 2.510.0 (#4286): shared with p4286_restore
 
 N = os.path.dirname(os.path.abspath(__file__))
@@ -160,6 +163,10 @@ FILL_FIRST = (("users", ()), ("orgs", ()), ("lists", ("owner_id",)), ("tasks", (
 
 
 DUMPS = sorted(glob.glob(os.path.join(FIX, "*.sql.gz")))
+# 2.1265.0 (#6287): every old table / column a fragment drops has its entry in tests/upgrade_moves.py (rows compared or why not)
+MISSING, STALE = upgrade_moves.guard()
+check(not MISSING, f"every drop-ok of kalmido/core/migrations.d has an entry in tests/upgrade_moves.py (MOVES or OTHER): {MISSING}")
+check(not STALE, f"every entry of tests/upgrade_moves.py names a drop-ok of migrations.d: {STALE}")
 check(DUMPS, "at least one dump in tests/fixtures/upgrade")
 kt.fresh()  # the current server on an empty database: the reference schema of a fresh install
 REF = schema()
@@ -172,6 +179,7 @@ for dump in DUMPS:
     empty = fill_old_tables()  # 2.509.0 (#4285)
     check(not empty, f"{tag}: every old table has a row before the start: {empty}")
     before = kt.dbx(OLD_TASKS)[0][0]
+    moves = upgrade_moves.before(kt.dbx)  # 2.1265.0 (#6287): the rows each core move has to take
     # 2.1084.0 (#5916): the recorded steps before the start; a dump before 2.102.0 (2.101.0) has no kalmido_migrations yet
     has_migs = int(kt.dbx("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='kalmido_migrations'")[0][0]) > 0
     mig_before = {r[0]: tuple(r[1:]) for r in kt.dbx("SELECT id, applied_at, note FROM kalmido_migrations WHERE id NOT LIKE 'flag:%'")} if has_migs else {}
@@ -221,6 +229,16 @@ for dump in DUMPS:
     # office's inbox tasks of the first ticks aside as well (upgrade_views.OFFICE_INBOX - the dumps hold none)
     after = kt.dbx(OLD_TASKS + " AND COALESCE(url, '') NOT LIKE '%/#office/%'")[0][0]
     check(after == before, f"{tag}: no task lost by the migrations: {before} -> {after}")
+    # 2.1265.0 (#6287): the old tables' rows arrived in their targets (the move's own condition; a merge counts once)
+    if not moves:
+        print(f"   info: {tag}: no old table of a core move in this dump (the moves ran before it)")
+    for label, n, miss in upgrade_moves.after(kt.dbx, moves):
+        if isinstance(miss, str):
+            check(False, f"{tag}: move {label}: {miss}")
+            continue
+        check(not miss, f"{tag}: move {label}: {n - len(miss)} of {n} row(s) arrived" + (f", missing {miss[:5]}" if miss else ""))
+        if not n:
+            print(f"   info: {tag}: move {label}: the dump holds no row the move has to take (checked empty)")
     users = data_checks(E, tag)
     A, Fr = users["alice"], users["frida"]
     ids = E["ids"]
