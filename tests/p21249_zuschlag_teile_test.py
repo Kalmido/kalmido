@@ -139,6 +139,10 @@ def run(S, who):
     ok(r.ok, "the quotation finalised " + r.text[:200])
     d = S.get(B + f"{D}/{OF}").json()
     ok(len(surs(d.get("totals"))) == 1 and d["totals"].get("net") == 3220, "finalised: still the one line, net 3220.00")
+    ok(d["totals"].get("mk_title") == 1 and not any(x.get("slot") == "markup" for p in d.get("parts") or [] for x in surs(p.get("totals"))),
+       "finalised: the frozen totals say one markup line (mk_title), the frozen parts have none")
+    rd = S.get(B + f"{D}/{OF}/render").json()
+    ok(not any(x.get("kind") == "surcharge" for p in rd.get("parts") or [] for x in p.get("lines") or []), "finalised: the printed parts have none")
     r = S.post(B + f"{D}/{OF}/invoice", json={"force": True, "parts_mode": "title"})
     ok(r.status_code == 201 and (r.json().get("totals") or {}).get("net") == "3220.00", f"invoice from the finalised quotation: net 3220.00 {r.text[:200]}")
 
