@@ -255,6 +255,19 @@ const ALL = 'cal,events,comments';
     await touch(b.x, b.y, 600, b.H);
     const ca = await until(async () => { const x = await get(CA.eid); return x.start !== `${W3}T13:00` ? x : null; });
     check(ca && ca.start === `${W3}T14:00` && ca.end === `${W3}T15:30`, 'phone: hold and drag an event: moved by an hour ' + JSON.stringify(ca && [ca.start, ca.end]));
+    // 2.1286.0 (#5704): CI red "hold and drag an event: moved by an hour null" - the answer of the view's own fetch of the events
+    // fell into the 0.4 s hold, the grid was drawn anew and took the touched block out of the page: the finger's moves went to the
+    // removed block, no drag. Here the fetch is sent 150 ms after the finger went down, so its answer lands in the hold
+    await until(() => e(`[...document.querySelectorAll('#view .wcev')].some(x => x.textContent.includes('Call')) && !S.cal.loading && !CG.st`));
+    await e(`(() => { const of = window.fetch; window.__p252n = 0;
+      window.fetch = (u, ...a) => String(u?.url || u).includes('calendars/events') ? new Promise(r => document.addEventListener('touchstart', () => setTimeout(r, 150), {once: true, capture: true})).then(() => { window.__p252n++; return of(u, ...a); }) : of(u, ...a);
+      calInvalidate(); renderView(); return 1; })()`);
+    const b2 = await e(`(() => { const wb = document.querySelector('#wbody'); wb.scrollTop = 12 * weekH(); const x = [...document.querySelectorAll('#view .wcev')].find(x => x.textContent.includes('Call')), r = x.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + 6, H: weekH(), load: S.cal.loading}; })()`);
+    check(b2.load, 'phone: the fetch of the events is on its way while the finger goes down');
+    await touch(b2.x, b2.y, 600, -b2.H);
+    const cb = await until(async () => { const x = await get(CA.eid); return x.start !== `${W3}T14:00` ? x : null; });
+    check(cb && cb.start === `${W3}T13:00` && cb.end === `${W3}T14:30`, 'phone: the events arrive while the finger holds: the drag still moves it (back by an hour) ' + JSON.stringify(cb && [cb.start, cb.end]));
+    check(await until(() => e(`window.__p252n > 0 && !S.cal.loading && !CG.st && !CG.redraw && [...document.querySelectorAll('#view .wcev')].some(x => x.textContent.includes('Call'))`)), 'phone: the fetched events are drawn after the drop');
   }, true);
 
   console.log(`${ok} ok, ${F.length} failed`);
