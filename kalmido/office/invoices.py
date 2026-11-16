@@ -321,6 +321,14 @@ def inv_missing(c, oid, r, s, pack, items):
             days = None
         if days is not None and int(_col(r, "skonto_days")) > days:
             miss.append([N_("a cash discount period no longer than the payment terms ({0} days)"), days])
+    # 2.1289.0 (#6475): the switch "Small business" binds the tax at finalising, not only as the default of a new draft
+    # (section 14c UStG: VAT shown is owed; section 19 note only for a small business); a correction (cancels_id) keeps the
+    # tax of its invoice, also of one from before the switch
+    if not _col(r, "cancels_id"):
+        if s.get("small_business") and r["vat_mode"] != "novat":
+            miss.append([N_("as a small business no VAT may be shown")])
+        elif not s.get("small_business") and r["vat_mode"] == "novat" and _col(r, "vat_note") == "small":
+            miss.append([N_("the VAT note small business only with the switch Small business in the office settings")])
     if r["vat_mode"] == "novat" and (_col(r, "vat_note") or "") not in INV_VAT_NOTES:
         miss.append([N_("VAT note (reverse charge / not taxable / small business)")])
     if r["vat_mode"] == "novat" and _col(r, "vat_note") == "reverse":  # 2.296.0 B (#3168): both VAT ids (section 14a (1) UStG, BR-AE-02)
