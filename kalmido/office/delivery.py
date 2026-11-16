@@ -39,7 +39,7 @@ def ls_items(c, oid, src):
     """The positions of source document src without prices: titles, details, quantities and units (headings / texts as they
     are; automatic lines, discounts and percent positions have no meaning without prices and are left out)."""
     from .parts import tp_inv_items
-    rows = tp_inv_items(c, oid, src, "full", None) if src["kind"] == "offer" else None
+    rows = tp_inv_items(c, oid, src, "full", None, fix=False) if src["kind"] == "offer" else None
     if rows is None:
         rows = doc_items(c, src["id"], oid)
     out = []

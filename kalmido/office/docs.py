@@ -426,7 +426,10 @@ def _mk_legacy(r):
         return 0
     if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
         return 0
-    return 0 if _j(r["totals"], {}).get("mk_title") else 1
+    t = _j(r["totals"], {})
+    if not ofx_locked(r) and not t.get("parts"):
+        return 0  # (review) it had no parts when it was last computed: nothing was sent by the former rule, its first part takes the new one
+    return 0 if t.get("mk_title") else 1
 
 
 def doc_totals(c, oid, r, items=None):
@@ -570,12 +573,13 @@ def doc_public(c, oid, r, admin, items=True):
     locked = ofx_locked(r)
     if items and r["kind"] == "offer":  # 2.114.4 B (#2270): what the PDF prints (a finalised quotation: its frozen value)
         d["accept_print"] = bwb_accept_on(r, office_settings(c, oid), _j(d.get("sender"), {}) if locked else None)
+    locked_by_name = odoc_locked_by_name(c, oid, r, d) if locked else ""  # 2.1287.0 (#6470, review): before the frozen sender leaves d
     for k in ("sender", "recipient_snapshot", "tax_snapshot"):
         d.pop(k, None)  # the frozen copies stay on the server (the print model shows them)
     d["locked"] = locked
     if items and not locked:  # 2.460.0 (#3767): own texts missing in the document's language
         d["lang_gaps"] = fd_lang_gaps(c, oid, r, d.get("items") or [])
-    d["locked_by_name"] = odoc_locked_by_name(c, oid, r, d) if locked else ""
+    d["locked_by_name"] = locked_by_name
     d["can_edit"] = not locked and r["status"] != "sent" and ofd_role_edit(c, oid)  # 2.38.0: sent documents are locked as well; 2.1238.0 (#6161, Stufe 3): + the role
     d["can_unlock"] = bool(admin) and locked and not bga_offer_block(c, oid, r)  # 2.114.2 A (#2263): back to a draft
     d["trial"] = bool(r["trial"])  # 2.144.10 A (#2576)

@@ -654,7 +654,7 @@ function ofdAutoHtml(d, t) {
     ${ofdF('producing_rate', tr('Producing rate'), ofdIn('producing_rate', ofdNumIn(d.producing_rate), {num: true, max: 12}), ofcSym(ofcHome()), {keep: 1})}` : ''}
     ${slots.map(k => `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-${k}_on" data-f="${k}_on" ${d[k + '_pct'] != null ? 'checked' : ''}> ${esc(tr('Calculate {0}', prd_slotName(d, k)))}</label></div>
     ${d[k + '_pct'] != null ? `${ofdF(k + '_label', tr('Line title'), ofdIn(k + '_label', prd_slotName(d, k), {max: 80}))}
-    ${/*html-ok*/ ofdF(k + '_pct', tr('Percent'), ofdIn(k + '_pct', ofdNumIn(d[k + '_pct']), {num: true, max: 8}), k === 'markup' && (d.parts || []).length && (!d.locked || d.totals?.mk_title) ? tr('on the marked positions and the parts') : tr('on the marked positions'))}
+    ${/*html-ok*/ ofdF(k + '_pct', tr('Percent'), ofdIn(k + '_pct', ofdNumIn(d[k + '_pct']), {num: true, max: 8}), k === 'markup' && (d.parts || []).length && (d.totals?.mk_title || (!d.locked && (d.status || 'draft') === 'draft')) ? tr('on the marked positions and the parts') : tr('on the marked positions'))}
     ${k === 'markup' && prd_slotShown(d, 'handling') ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-markup_stacked" data-f="markup_stacked" ${d.markup_stacked ? 'checked' : ''}> ${esc(tr('Also on the handling costs'))}</label></div>` : ''}` : ''}`).join('')}
     ${/*html-ok*/ ofdDiscHtml(d)}
     </div>`;

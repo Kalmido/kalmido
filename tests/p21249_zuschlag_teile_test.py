@@ -222,6 +222,19 @@ def legacy_6443(S, who):
         t = (r.json().get("totals") or {}) if r.status_code == 201 else {}
         ok(r.status_code == 201 and Decimal(str(t.get("net"))) == 20600 and Decimal(str(t.get("gross"))) == Decimal(str(d["totals"]["gross"])),
            f"finalised: invoice {mode} = the frozen net / gross: {t.get('net')} / {t.get('gross')} {r.text[:120] if r.status_code != 201 else ''}")
+    # (review) a NEW quotation that had no parts when it was accepted by hand: its first part takes the new rule (its totals
+    # carried no mk_title only because it had no parts - nothing was ever sent by the former rule)
+    r = S.post(B + D, json={"client_id": cl, "project_title": "Neu ohne Teile", "raw_mode": "none", "producing_on": 0, "service_from": "2026-10-01"})
+    assert r.status_code == 201, r.text
+    ON = r.json()["id"]
+    ok(S.patch(B + f"{D}/{ON}", json={"markup_pct": 15}).ok, "new without parts: markup 15 %")
+    dbx("UPDATE office_docs SET status='accepted' WHERE id=?", (ON,))
+    pid = (S.post(B + f"{D}/{ON}/parts", json={"kind": "items", "title": "Teil 1"}).json().get("part") or {}).get("id")
+    ok(pid and S.put(B + f"{D}/{ON}/parts/{pid}/items", json={"items": [
+        {"title": "Technik", "qty": 1, "rate": 8000, "unit": "flat", "in_markup": 0},
+        {"title": "Regie", "qty": 1, "rate": 2000, "unit": "flat", "in_markup": 1}]}).ok, "new without parts: accepted by hand, then its first part")
+    d = S.get(B + f"{D}/{ON}").json()
+    ok(net(d) == 11500 and d["totals"].get("mk_title") == 1, f"new, accepted before its first part: the one markup line (11500.00), not the former rule (10300.00): {net(d)}")
     # a draft from before moves to the one line when it is opened
     OD = offer("Alt Entwurf")
     strip(OD)

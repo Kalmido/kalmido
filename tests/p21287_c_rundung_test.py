@@ -175,6 +175,33 @@ one = [x for x in rows if x.get("title") == "Schnitt"]
 check(same(o, i) and not [x for x in rows if x.get("title") == "Rounding adjustment"] and len(one) == 1 and one[0]["unit"] == "flat"
       and D(str(one[0]["rate"])) == D("30.39") and "3 × " in (one[0].get("detail") or ""), f"one position: the rest on it as before, no extra line: {one} {o} {i}")
 
+# review: without VAT the part line names one base ("standard") while the positions keep their rates - the rates must not
+# be "settled" against each other (was: the standard position turned into a flat 1500 plus "Rounding adjustment" -500)
+PITN = {7: [{"id": 100, "kind": "service", "title": "Dreh", "qty": 1, "unit": "day", "rate": 1000, "tax": "standard", "discountable": 1},
+            {"id": 101, "kind": "service", "title": "Buch A", "qty": 1, "unit": "piece", "rate": 250, "tax": "reduced", "discountable": 1},
+            {"id": 102, "kind": "service", "title": "Buch B", "qty": 1, "unit": "piece", "rate": 250, "tax": "reduced", "discountable": 1}]}
+ITEMS1 = [{"id": 1, "kind": "part", "ref_part_id": 7, "qty": 1, "unit": "piece", "title": "Teil A", "discountable": 1}]
+o, i = compare(row(vat_mode="novat"), ITEMS1, PARTS, PITN, "full")
+rows = inv_items_from_offer(None, 1, row(vat_mode="novat"), "full")
+dreh = [x for x in rows if x.get("title") == "Dreh"]
+check(o[0] == i[0] == D("1500.00") and not [x for x in rows if x.get("title") == "Rounding adjustment"] and len(dreh) == 1
+      and dreh[0]["unit"] == "day" and D(str(dreh[0]["rate"])) == 1000,
+      f"without VAT, mixed rates in the part: no adjustment line, the positions stay as they are: {[(x.get('title'), x.get('unit'), x.get('rate')) for x in rows]}")
+PITM = {7: [dict(x, tax="reduced" if n % 2 else "standard") for n, x in enumerate(PIT[7])]}
+o, i = compare(row(vat_mode="novat"), ITEMS, PARTS, PITM, "full")
+rows = inv_items_from_offer(None, 1, row(vat_mode="novat"), "full")
+adj = [x for x in rows if x.get("title") == "Rounding adjustment"]
+check(o[0] == i[0] == D("1000.20") and len(adj) == 1 and D(str(adj[0]["rate"])) == D("0.20"),
+      f"without VAT, a real rest over mixed rates: one adjustment 0.20 for the whole part, invoice = quotation: {o[0]} / {i[0]} {adj}")
+# review: a delivery note takes the positions of the form "full" without prices - no settlement there (fix=False)
+DB.update(items=ITEMS, parts=PARTS, part_items=PIT, settings={})
+rows = P.tp_inv_items(None, 1, row(), "full", None, fix=False)
+days = [x for x in rows if (x.get("title") or "").startswith("Tag")]
+check(not [x for x in rows if x.get("title") == "Rounding adjustment"] and len(days) == 20 and all(x["unit"] == "day" for x in days),
+      "fix=False (delivery note): no 'Rounding adjustment' line, the positions keep their quantities")
+check('tp_inv_items(c, oid, src, "full", None, fix=False)' in open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "kalmido", "office", "delivery.py")).read(),
+      "the delivery note asks for its positions without the cent settlement")
+
 
 # ---------------------------------------------------------------- 2. seeded random quotations with parts
 def rnd_doc(rng, cur, fx):
