@@ -487,7 +487,7 @@ def wsh_img_nodes(c, shares, page, text, only=None):
     makers = sorted({s["created_by"] for s in shares if s["images"] and s["created_by"]})
     # 2.1257.0 (#6295, audit #4741 Z6-F1): the person who wrote the page last must see the picture too -- otherwise a fellow
     # editor embeds a file only the share's maker sees into a covered page and reads it through the maker's link
-    editor = page["updated_by"] or page["created_by"]
+    editor = page["updated_by"]  # review: no fallback to created_by (an editor's account deleted = no pictures)
     ids = sorted({int(m.group(1)) for m in WSH_NODE_IMG_RE.finditer(WSH_CODE_RE.sub("", text or "")) if int(m.group(1)) < 2 ** 62})[:200]
     if only is not None:  # one picture asked for: check just that one (review: not up to 200 nodes per fetch)
         ids = [i for i in ids if i == only]
