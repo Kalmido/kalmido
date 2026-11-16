@@ -331,8 +331,8 @@ check(LH and not [t for t in (*(b["url"][-4:] for _, b, _ in H4516.values() if "
 # its own channel only: a message of another person waiting in the same batch is still delivered (was: the batch had left the
 # queue before sending, the exception ended the loop and the rest was gone), and the broken channel counts the failure
 BAD6556, GOOD6556 = "/badstatus-6556", "/b6556-good"
-r = Bo.post(B + "/api/me/channels", json={"kind": "slack", "name": "bad6556", "url": STUB + BAD6556, "events": ["digest"]})
-check(r.status_code == 201, f"#6556 setup: bob's channel to a broken server {r.text[:200]}")
+r = Ca.post(B + "/api/me/channels", json={"kind": "slack", "name": "bad6556", "url": STUB + BAD6556, "events": ["digest"]})
+check(r.status_code == 201, f"#6556 setup: carol's channel to a broken server {r.text[:200]}")
 cb6556 = r.json().get("id") if r.status_code == 201 else 0
 r = Fi.post(B + "/api/me/channels", json={"kind": "slack", "name": "good6556", "url": STUB + GOOD6556, "events": ["digest"]})
 check(r.status_code == 201, f"#6556 setup: frida's (no organisation) good channel {r.text[:200]}")
