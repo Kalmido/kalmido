@@ -29,8 +29,8 @@ from freelancer_fixture import FEATURES, freelancer  # noqa: E402
 from kt import B, check, done, sess  # noqa: E402
 
 KEY = base64.b64encode(os.urandom(32)).decode()
-O = "/api/office"
-D = O + "/docs"
+OFF = "/api/office"
+D = OFF + "/docs"
 FEAT = FEATURES if "office" in FEATURES else FEATURES + ",office"
 COMPANY = {"name": "Studio Beispiel", "street": "Hafenweg 2", "zip": "12345", "city": "Musterstadt", "country": "DE",
            "iban": "DE02120300000000202051", "tax_number": "12/345/67890"}
@@ -42,7 +42,7 @@ def one(sql, args=()):
 
 
 def office(s):
-    check(s.put(B + O + "/settings", json={"company_fields": COMPANY, "lang": "en", "currency": "EUR"}).ok, "office settings")
+    check(s.put(B + OFF + "/settings", json={"company_fields": COMPANY, "lang": "en", "currency": "EUR"}).ok, "office settings")
     r = s.post(B + "/api/clients", json={"name": "Kundin Muster", "email": "kundin@example.com", "street": "Musterweg 1",
                                          "zip": "12345", "city": "Musterstadt", "country": "DE"})
     check(r.status_code == 201, "client " + r.text[:200])
@@ -60,13 +60,13 @@ def invoice(s, cl, title, kind="invoice"):
 
 
 def log_names(s, did):
-    r = s.get(B + O + "/log", params={"limit": 500})
+    r = s.get(B + OFF + "/log", params={"limit": 500})
     check(r.ok, "the office log " + r.text[:200])
     return {(x["action"], x.get("user_id"), x.get("user_name")) for x in r.json().get("log") or [] if x.get("doc_id") == did}
 
 
 def gobd_person(s, did):
-    r = s.get(B + O + "/gobd/export", params={"from": (date.today() - timedelta(days=30)).isoformat(), "to": date.today().isoformat()})
+    r = s.get(B + OFF + "/gobd/export", params={"from": (date.today() - timedelta(days=30)).isoformat(), "to": date.today().isoformat()})
     check(r.ok, f"the tax auditor's export {r.status_code}")
     if not r.ok:
         return set()
@@ -114,7 +114,7 @@ d = A.get(B + f"{D}/{INV}").json()
 check(d.get("locked_by_name") == "Bea Beispiel", f"the invoice's locked_by_name (frozen with the sender): {d.get('locked_by_name')!r}")
 gp = gobd_person(A, INV)
 check(("finalize", "Bea Beispiel") in gp, f"the tax auditor's export (log.csv) names Bea: {sorted(gp)}")
-ch = A.get(B + O + "/log/chain").json()
+ch = A.get(B + OFF + "/log/chain").json()
 check(ch.get("ok") and not ch.get("first_bad"), f"the hash chain of the finalised documents stays intact: {ch}")
 # review: the name frozen with the sender is read on its own (was: read after the sender had left the row - only the log
 # entry answered): without the name in the finalise entry the invoice still names Bea
@@ -147,7 +147,7 @@ check(A.delete(B + f"/api/users/{U['carl']}").ok, "Carl's account is deleted")
 d = A.get(B + f"{D}/{OF}").json()
 check(d.get("locked_by_name") == "Carl Muster", f"an older quotation: locked_by_name from its finalise entry: {d.get('locked_by_name')!r}")
 check(("finalize", None, "Carl Muster") in log_names(A, OF), "the log names Carl")
-ch = A.get(B + O + "/log/chain").json()
+ch = A.get(B + OFF + "/log/chain").json()
 check(ch.get("ok") and not ch.get("first_bad"), f"the hash chain stays intact after the fill: {ch}")
 
 # ---------------------------------------------------------------- a person without an organisation (parity)
