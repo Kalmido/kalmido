@@ -14,6 +14,9 @@ freelancer-matrix: office) and once in an organisation's office (its admin). Inv
    of the net including the surcharge
  - an agent's quotation draft (POST / PATCH /api/v1/office/offers) sets the surcharge with {pct, title}, null switches it
    off, a title alone keeps the percent, unknown keys / a title that is no text are refused (400)
+ - 2.1299.0 (#6661): a quotation from before (cached totals without "sur_split": the surcharge all at 19 %, tax 324.75 /
+   gross 2349.75 instead of 315.75 / 2340.75) that left the draft without being finalised (accepted / sent by hand): a
+   change, opening it (writes nothing), its print model and its invoice keep the former tax; a draft moves to the split
 usage: p6254_zuschlag_test.py <datadir>"""
 import importlib.util
 import os
@@ -25,6 +28,7 @@ sys.path.insert(0, N)
 from freelancer_fixture import FEATURES, freelancer  # noqa: E402
 from kt import FAILS, OKS, check, sess  # noqa: E402
 import requests  # noqa: E402
+import dbx as dbxm  # noqa: E402  2.1299.0 (#6661)
 
 SRC = os.environ.get("KALMIDO_SRC") or os.path.join(N, "..")
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
@@ -200,7 +204,74 @@ def run(S, who):
         ok(r.status_code == 400, f"a title that is no text is refused: {r.status_code}")
 
 
+
+
+def dbx(sql, args=()):
+    return dbxm.connect(sys.argv[1]).execute(sql, args).fetchall()
+
+
+def legacy_6661(S, who):
+    """2.1299.0 (#6661): a quotation from before #6254 that is no draft any more keeps the surcharge on the standard rate."""
+    def ok(cond, what):
+        check(cond, f"#6661 {who}: {what}")
+
+    def strip(did, status=None):  # the state a quotation saved before 2.1228 has: its totals without sur_split
+        dbx("UPDATE office_docs SET totals=(totals::jsonb - 'sur_split')::text" + (", status=?" if status else "") + " WHERE id=?",
+            ((status,) if status else ()) + (did,))
+
+    def tg(t):
+        return (str(t.get("net")), str(t.get("tax_total")), str(t.get("gross")))
+
+    r = S.post(B + "/api/clients", json={"name": "Altkunde GmbH", "street": "Altweg 1", "zip": "50667", "city": "Köln", "country": "DE"})
+    cl = r.json()["id"]
+
+    def offer(title):
+        r = S.post(B + D, json={"client_id": cl, "project_title": title, "raw_mode": "none", "producing_on": 0, "service_from": "2026-10-01"})
+        assert r.status_code == 201, r.text
+        did = r.json()["id"]
+        ok(S.put(B + f"{D}/{did}/items", json={"items": [{"title": "Regie", "qty": 1, "rate": 1000, "unit": "flat"},
+                                                          {"title": "Buchlizenz", "qty": 1, "rate": 500, "unit": "flat", "tax": "reduced"},
+                                                          {"title": "Hotel", "qty": 1, "rate": 300, "unit": "flat", "in_markup": 0}]}).ok, "positions")
+        t = S.patch(B + f"{D}/{did}", json={"markup_pct": 15, "markup_label": "Mehraufwand"}).json().get("totals") or {}
+        ok(float(t.get("gross")) == 2340.75 and t.get("sur_split") == 1, f"a new quotation: the split, gross 2340.75: {t.get('gross')}")
+        return did
+
+    old = (2025.0, 324.75, 2349.75)  # 225.00 all at 19 %: (1000 + 300 + 225) x 19 % + 500 x 7 %
+
+    def is_old(t):
+        return tuple(float(t.get(k) or 0) for k in ("net", "tax_total", "gross")) == old
+
+    # accepted by hand, never finalised: a change keeps the former split
+    OA = offer("Alt angenommen")
+    strip(OA, "accepted")
+    ok(S.patch(B + f"{D}/{OA}", json={"project_title": "Alt angenommen (geändert)"}).ok, "a change of the accepted quotation")
+    d = S.get(B + f"{D}/{OA}").json()
+    ok(is_old(d["totals"]) and not d["totals"].get("sur_split"), f"accepted: the surcharge stays at 19 % after a change: {tg(d['totals'])}")
+    # sent by hand: opening writes nothing, the print model and the invoice keep the tax
+    dbx("UPDATE office_docs SET status='sent' WHERE id=?", (OA,))
+    before = dbx("SELECT totals, updated_at FROM office_docs WHERE id=?", (OA,))[0]
+    d = S.get(B + f"{D}/{OA}").json()
+    after = dbx("SELECT totals, updated_at FROM office_docs WHERE id=?", (OA,))[0]
+    ok(is_old(d["totals"]) and tuple(before) == tuple(after), f"sent: opening shows the former tax and writes nothing: {tg(d['totals'])}")
+    rd = S.get(B + f"{D}/{OA}/render").json()
+    ok(is_old(rd.get("totals") or {}), f"sent: the print model (PDF, client's view) keeps it: {tg(rd.get('totals') or {})}")
+    ok(S.get(B + f"{D}/{OA}/pdf").content.startswith(b"%PDF-"), "sent: the PDF")
+    r = S.post(B + f"{D}/{OA}/invoice", json={"force": True})
+    ok(r.status_code == 201, "sent: the invoice " + r.text[:200])
+    if r.status_code == 201:
+        ok(is_old(r.json().get("totals") or {}), f"sent: the invoice = the quotation as sent: {tg(r.json().get('totals') or {})}")
+        S.delete(B + f"{D}/{r.json()['id']}")
+    # a draft from before moves to the split with its next change
+    OD = offer("Alt Entwurf")
+    strip(OD)
+    r = S.patch(B + f"{D}/{OD}", json={"project_title": "Alt Entwurf (geändert)"})
+    t = r.json().get("totals") or {}
+    ok(r.ok and float(t.get("gross")) == 2340.75 and t.get("sur_split") == 1, f"a draft from before: a change moves it to the split: {tg(t)}")
+
+
 run(Fr, "freelancer")
 run(A, "organisation")
+legacy_6661(Fr, "freelancer")
+legacy_6661(A, "organisation")
 print(f"p6254_zuschlag: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
