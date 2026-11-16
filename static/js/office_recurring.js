@@ -30,7 +30,10 @@ const rinReload = () => { RIN.items = null; RIN.err = null; rinLoad(); };
 // 2.979.0 (#5667): an undo / redo the server did: the invoice series come again
 histReloader('recurring', () => { if (!RIN.items) return; if (S.route.mod === 'office') return rinLoad(); RIN.items = null; });
 const rinById = id => (RIN.items || []).find(s => s.id === +id) || (RIN.bin || []).find(s => s.id === +id);
-const rinWhen = s => !s.active ? (s.until && s.next_date > s.until ? tr('ended') : tr('paused')) : s.next_date ? tr('next on {0}', fmtDateLoc(s.next_date)) : '';
+// 2.1289.0 (#6629, #6576): why the watchdog or an import switched it off (pause_why); switched off by a person: only "paused"
+const RIN_WHY = {import: () => tr('paused by the import'), nobody: () => tr('paused: no office admin'), nobody_told: () => tr('paused: no office admin'),
+  fails: () => tr('paused after failed runs'), template: () => tr('paused: template invoice gone')};
+const rinWhen = s => !s.active ? (s.until && s.next_date > s.until ? tr('ended') : (RIN_WHY[s.pause_why] || (() => tr('paused')))()) : s.next_date ? tr('next on {0}', fmtDateLoc(s.next_date)) : '';
 const rinPeriodTxt = (p, s) => { const n = rinNext(p, s); return `${fmtDateLoc(p)} – ${fmtDateLoc(rinDay(n, -1))}`; };
 function rinDay(iso, add) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + add); return ds(d); }
 function rinNext(p, s) {  // the next period start after p (the day of the series' start kept, the 31st = the month's last day)
