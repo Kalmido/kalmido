@@ -36,6 +36,7 @@ while a send runs is never lost (dirty is merged with the row under its lock), a
 after GSY_FAIL_MAX equal errors in a row a link is given up (history "git_sync_fail") until the task changes again.
 A deleted task or one moved to another project: its link goes (git_issue_gone), nothing is deleted in the repository."""
 import json
+import re
 import time
 import urllib.parse
 from datetime import timedelta
@@ -54,7 +55,8 @@ from ..collab.reactions import clean_ltag_name, ltag_names, set_ltags
 from ..collab.comments import user_names
 from ..core.errors import BadInput
 from ..tasks.validation import ACT_NOTES, log_act
-from .git import GIT_SYNC, GitRate, git_ctx, git_err_text, git_http
+from ..collab.integfail import integ_tell
+from .git import GIT_SYNC, GitRate, git_ctx, git_err_text, git_http, git_token_owner, git_token_paused
 from .gitfolder import gf_row
 from .git_issues import _gis_day, GIS_PAGE, GIS_PROVIDERS, gis_norm_comment, gis_norm_issue, gis_snap
 from .importers import imp_line, imp_textblock
@@ -69,6 +71,15 @@ GSY_FIELDS = ("title", "body", "state", "labels")
 GSY_TITLE_MAX = 255                                  # 2.394.0 D: GitHub takes 256 characters, GitLab 255 (Kalmido 2000)
 GSY_FAIL_MAX = 5                                     # 2.394.0 D: equal send errors of one link in a row before it is given up
 GSY_RETRY_S = 300                                    # s before a failed send is tried again
+# 2.1306.0 (#6554 D2, audit #4804): what the sync may create in a repository per connection and UTC day -- the token acts in
+# its person's name, a flood would get that account blocked by the provider. Past it the rest waits for the next day and the
+# connecting person is told once a day (integfail "gitcap").
+GSY_DAY_ISSUES = 60
+GSY_DAY_COMMENTS = 300
+# 2.1306.0 (#6554 D2): an @name in what goes out would notify that account on the provider; a zero-width space after the @
+# keeps it readable and is taken out again when the text comes back (_remote), so the sync sees no change
+GSY_AT_RE = re.compile(r"(?<![\w/`.@-])@(?=[A-Za-z0-9])")
+GSY_AT_OFF = "@\u200b"
 # 2.394.0 D (#3377 review 3): GitHub issue events that date a field (GitLab: resource_state_events / resource_label_events)
 GSY_GH_EVENTS = {"renamed": "title", "closed": "state", "reopened": "state", "labeled": "labels", "unlabeled": "labels"}
 # what a history entry means for the sync: a field, "-" = the link may go (deleted / moved), "+" = a new task
@@ -100,8 +111,17 @@ def _eq(f, a, b):
     return str(a).strip() == str(b).strip()
 
 
+def gsy_defang(v):
+    """2.1306.0 (#6554 D2): text that goes to the repository without working @mentions."""
+    return GSY_AT_RE.sub(GSY_AT_OFF, v) if isinstance(v, str) else v
+
+
+def _refang(v):
+    return v.replace(GSY_AT_OFF, "@") if isinstance(v, str) else v
+
+
 def _remote(n, f):
-    return {"title": (n["title"] or "").strip(), "body": _norm_body(n["body"]), "state": n["state"],
+    return {"title": _refang((n["title"] or "").strip()), "body": _norm_body(_refang(n["body"])), "state": n["state"],
             "labels": sorted(dict.fromkeys(n["labels"]), key=str.casefold)}[f]
 
 
@@ -149,6 +169,8 @@ def gsy_block(c, r):
         return "folder"
     if le2e_mode(c, r["list_id"]):
         return "e2e"
+    if git_token_paused(c, r):  # 2.1306.0 (#6554 D5): nothing in the name of someone who left the project
+        return "owner"
     if c.execute(f"""SELECT 1 FROM lists l WHERE l.id=? AND (l.life IN ('health', 'budget') OR (l.life='travel' AND l.org_id IS NOT NULL)
                      OR {reading_sql()})""", (r["list_id"],)).fetchone():
         return "private"
@@ -545,9 +567,9 @@ def _out_fields(k, vals):
     gh, d = k["provider"] == "github", {}
     for f, v in vals.items():
         if f == "title":
-            d["title"] = (v or "?")[:GSY_TITLE_MAX]  # 2.394.0 D: longer ones are refused (422) by both providers
+            d["title"] = gsy_defang((v or "?")[:GSY_TITLE_MAX])  # 2.394.0 D: longer ones are refused (422) by both providers
         elif f == "body":
-            d["body" if gh else "description"] = v
+            d["body" if gh else "description"] = gsy_defang(v)  # 2.1306.0 (#6554 D2)
         elif f == "state":
             if gh:
                 d["state"] = v
@@ -563,7 +585,8 @@ def _comment_text(c, row):
     name = (u["display_name"] or u["username"]) if u else "?"
     text = row["body"] or ""
     names = user_names(c, [int(x) for x in MENTION_RE.findall(text)])
-    return f"{name} (Kalmido):\n\n" + MENTION_RE.sub(lambda m: "@" + names.get(int(m.group(1)), "?"), text)
+    # 2.1306.0 (#6554 D2): no @name of the text (a Kalmido mention as its plain name too) notifies anyone on the provider
+    return gsy_defang(f"{name} (Kalmido):\n\n" + MENTION_RE.sub(lambda m: "@" + names.get(int(m.group(1)), "?"), text))
 
 
 def _fresh_dirty(c, cid, no, seen, mine):
@@ -602,11 +625,45 @@ def _created_before(r, k, mark, title):
     if not isinstance(j, list):
         raise CalError("parse")
     for n in (gis_norm_issue(r["provider"], y) for y in j):
-        if n and not n["pr"] and n["created_at"] and _eq("title", (n["title"] or "").strip(), title) and _newer(n["created_at"], since):
+        if n and not n["pr"] and n["created_at"] and _eq("title", _remote(n, "title"), title) and _newer(n["created_at"], since):
             return n
     if len(j) >= GIS_PAGE:
         raise CalError("error")
     return None
+
+
+def _day():
+    return iso(now_utc())[:10]
+
+
+def _tomorrow():
+    """The epoch second the next UTC day starts (+ a minute), when what waited for the daily limit goes out."""
+    t = now_utc()
+    return (t.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1, minutes=1)).timestamp()
+
+
+def gsy_out_take(c, r, what):
+    """2.1306.0 (#6554 D2): counts one new issue (what "issues") or comment ("comments") of connection r for today and
+    commits -> True; False when today's limit (GSY_DAY_ISSUES / GSY_DAY_COMMENTS) is reached -- then the connecting person
+    hears it once a day. Counted before the request: a send that fails still counts (never more than the limit goes out)."""
+    day, iss = _day(), what == "issues"
+    # one counter goes up, the other one starts anew on a new day
+    ok = c.execute("""UPDATE git_conns SET
+                          out_issues=CASE WHEN out_day=? THEN out_issues ELSE 0 END + ?,
+                          out_comments=CASE WHEN out_day=? THEN out_comments ELSE 0 END + ?, out_day=?
+                       WHERE id=? AND (out_day<>? OR (CASE WHEN ? THEN out_issues < ? ELSE out_comments < ? END)) RETURNING id""",
+                   (day, 1 if iss else 0, day, 0 if iss else 1, day, r["id"], day, iss, GSY_DAY_ISSUES, GSY_DAY_COMMENTS)).fetchone()
+    if not ok and c.execute("UPDATE git_conns SET out_told=? WHERE id=? AND out_told<>? RETURNING id", (day, r["id"], day)).fetchone():
+        integ_tell(c, [git_token_owner(r) or r["created_by"]], "gitcap", f"{r['owner']}/{r['repo']}",
+                   N_("at most 60 issues and 300 comments a day"), click=f"l/{r['list_id']}", list=r["list_id"])
+    c.commit()
+    return bool(ok)
+
+
+def _wait_day(c, r, L):
+    """2.1306.0 (#6554 D2): link L waits for the next day (the daily limit), nothing is lost."""
+    c.execute("UPDATE git_issue_links SET push_due=? WHERE conn_id=? AND task_id=?", (_tomorrow(), r["id"], L["task_id"]))
+    c.commit()
 
 
 def gsy_create_issue(c, r, k, L):
@@ -625,6 +682,9 @@ def gsy_create_issue(c, r, k, L):
     n = _created_before(r, k, mark, vals["title"]) if mark else None
     adopted = n is not None
     if not adopted:
+        if not gsy_out_take(c, r, "issues"):  # 2.1306.0 (#6554 D2)
+            _wait_day(c, r, L)
+            return False
         c.execute("UPDATE git_issue_links SET snap=? WHERE conn_id=? AND issue_no=?",
                   (json.dumps({"creating": iso(now_utc())}), r["id"], L["issue_no"]))
         c.commit()
@@ -700,7 +760,8 @@ def _push_comments(c, r, k, no):
     (2.394.0 D, #3377 review 1: an error with the next one never sends it twice).
     2.665.0 (#5113): each one is marked (send_at, committed) before its POST; a marked one whose answer was not stored (the
     store broke off after the POST) is looked for among the issue's comments first (_sent_before): at most one more POST,
-    only when the repository has no such comment."""
+    only when the repository has no such comment.
+    2.1306.0 (#6554 D2): -> False when the daily comment limit stopped it (the rest waits for the next day)."""
     got = {}
     for row in c.execute("""SELECT x.id, x.send_at, m.body, m.user_id, m.deleted_at FROM git_issue_comments x JOIN obj_comments m ON m.id=x.comment_id
                             WHERE x.conn_id=? AND x.issue_no=? AND x.remote_id IS NULL ORDER BY x.id""", (r["id"], no)).fetchall():
@@ -714,6 +775,8 @@ def _push_comments(c, r, k, no):
             c.execute("UPDATE git_issue_comments SET remote_id=? WHERE id=?", (rid, row["id"]))
             c.commit()
             continue
+        if not gsy_out_take(c, r, "comments"):  # 2.1306.0 (#6554 D2)
+            return False
         c.execute("UPDATE git_issue_comments SET send_at=? WHERE id=?", (iso(now_utc()), row["id"]))
         c.commit()
         j = _send(k, "POST", _issue_path(k, no, "comments"), {"body": text})
@@ -723,6 +786,7 @@ def _push_comments(c, r, k, no):
         else:
             c.execute("DELETE FROM git_issue_comments WHERE id=?", (row["id"],))
         c.commit()
+    return True
 
 
 def gsy_push_one(c, r, k, L):
@@ -762,8 +826,10 @@ def gsy_push_one(c, r, k, L):
     c.execute("""UPDATE git_issue_links SET snap=?, dirty=?, remote_updated_at=?, local_updated_at=? WHERE conn_id=? AND issue_no=?""",
               (json.dumps(snap, ensure_ascii=False), json.dumps(d) if d else "", rts, iso_ms(now_utc()), r["id"], n["no"]))
     c.commit()
-    _push_comments(c, r, k, n["no"])
-    _settle(c, r["id"], n["no"])
+    if _push_comments(c, r, k, n["no"]):
+        _settle(c, r["id"], n["no"])
+    else:
+        _wait_day(c, r, L)
     return changed
 
 
@@ -842,12 +908,24 @@ def gsy_push(c):
 
 
 # ---- noting local changes (per request, queued after a successful answer)
+def gsy_by_person():
+    """2.1306.0 (#6554 D2, audit #4804): the request is a signed-in person in the app (session / proxy login, no agent) --
+    the only source whose new tasks become issues. Not: an inbound webhook (hook_in), an error report, a mail, a form or
+    public link, an agent or an API token (also a person's own); an agent's suggestion a person accepts runs in that
+    person's session and counts as theirs."""
+    u = getattr(g, "user", None)
+    return bool(u) and g.get("auth_via") in ("session", "proxy") and bool(u["id"]) and \
+        ("kind" not in u.keys() or (u["kind"] or "user") != "agent")
+
+
 def gsy_note(c, tid, kind, cid=None, data=None):
     """ACT_NOTES: a change of task tid that may go to its issue (log_act / a new comment)."""
     if not has_request_context() or (kind not in GSY_KINDS and kind != "comment"):
         return
     if kind == "created" and isinstance(data, dict) and (data.get("from") or data.get("gsy")):
         return  # an import never floods the repository with new issues
+    if kind == "created" and not gsy_by_person():
+        return  # 2.1306.0 (#6554 D2): only what a signed-in person created in the app becomes an issue
     n = g.setdefault("gsy", {})
     e = n.setdefault(tid, {"f": {}, "cids": [], "x": set()})
     ts = iso_ms(now_utc())

@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, APP_NAME, APP_VERSION, PUBLIC_URL, SECRET_KEY
-from ..core.pg import insert_id, st_ids, ts_canon  # 2.1115.0 (#5951): ts_canon
+from ..core.pg import insert_id, st_ids, system_ctx, ts_canon  # 2.1115.0 (#5951): ts_canon
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, connect, db, err, iso, now_utc, parse_iso
 from ..accounts.session import GATE, me
@@ -94,7 +94,9 @@ GIT_TAGS_KEEP = 500                                     # tag names remembered p
 GIT_ERR = {"auth": N_("Access denied: check the token (it needs read access to the repository)"),
            "not_found": N_("Repository not found, or the token cannot see it"),
            "rate": N_("Rate limit of the Git server reached, polling pauses until it resets"),
-           "parse": N_("Unexpected answer from the Git server")}
+           "parse": N_("Unexpected answer from the Git server"),
+           # 2.1306.0 (#6554 D5): the token's person lost the project (git_token_paused)
+           "owner": N_("Paused: the person whose access token this connection uses has no access to the project any more. Store a new token or remove the repository.")}
 GIT_HASH_RE = re.compile(r"(?<![\w/&#])#(\d{1,9})\b")
 GIT_KEY_RE = re.compile(r"(?<![\w-])(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?|erledigt)\s*:?\s+#(\d{1,9})\b", re.I)
 GIT_BRANCH_RE = re.compile(r"^(?:(?:kalmido|task)[-_](\d{1,9})(?:[-_].*)?|(\d{1,9})-[a-z].*)$", re.I)
@@ -311,12 +313,34 @@ def git_public(c, r, manage=False):
          "author_name": r["author_name"], "author_email": r["author_email"],  # 2.396.0 A (#3386): '' = the agent's git author
          # 2.394.0 B (#3377): the switches of the issue sync (C: integrations/git_sync.py), off by default
          "issue_sync": bool(r["issue_sync"]) if "issue_sync" in r.keys() else False,
-         "issue_create": bool(r["issue_create"]) if "issue_create" in r.keys() else False}
+         "issue_create": bool(r["issue_create"]) if "issue_create" in r.keys() else False,
+         # 2.1306.0 (#6554 D5): the caller's own token: may remove the connection without being a project admin
+         "mine": bool(has_request_context() and getattr(g, "user", None) and not is_agent(g.user) and git_token_owner(r) == me())}
     if manage:
         d.update(token=bool(r["token"]), hook=bool(r["hook_secret"]), hook_url=f"{PUBLIC_URL.rstrip('/')}/api/hooks/git/{r['id']}")
         if "public" in GIT_SYNC:  # 2.394.0 C (#3377): the sync's state (read only, last round, error, why it is locked)
             d["issue_state"] = GIT_SYNC["public"](c, r)
     return d
+
+
+def git_token_owner(r):
+    """2.1306.0 (#6554 D5): the account whose access token connection r uses (token_by; rows from before: the person who
+    connected it), None without a token."""
+    if not r["token"]:
+        return None
+    return (r["token_by"] if "token_by" in r.keys() else None) or r["created_by"]
+
+
+def git_token_paused(c, r):
+    """2.1306.0 (#6554 D5): True while the token's person has no access to the connection's project any more (left it, was
+    removed, the account is disabled or gone): the connection then neither reads nor writes in that person's name until
+    someone stores a new token or it is removed. Without a token (public repository) nothing pauses."""
+    uid = git_token_owner(r)
+    if not uid:
+        return False
+    with system_ctx(c):  # the token's person, whoever asks (the poll, a project admin's settings)
+        u = c.execute("SELECT disabled FROM users WHERE id=?", (uid,)).fetchone()
+        return not u or bool(u["disabled"]) or not list_role(c, r["list_id"], uid)
 
 
 def git_ctx(c, r):
@@ -789,6 +813,14 @@ def git_poll(c, cid):
         c.execute("UPDATE git_conns SET next_at=? WHERE id=?", (now + GIT_POLL_S * 4, cid))
         c.commit()
         return
+    if git_token_paused(c, r):  # 2.1306.0 (#6554 D5): nothing in the name of someone who left the project
+        if r["last_error"] != "owner":
+            lo = c.execute("SELECT owner_id FROM lists WHERE id=?", (r["list_id"],)).fetchone()
+            integ_tell(c, [lo["owner_id"] if lo else None, git_token_owner(r)], "gitowner", f"{r['owner']}/{r['repo']}",
+                       click=f"l/{r['list_id']}", list=r["list_id"])
+        c.execute("UPDATE git_conns SET last_error='owner', next_at=? WHERE id=?", (now + GIT_POLL_S * 4, cid))
+        c.commit()
+        return
     k, gh = git_ctx(c, r), r["provider"] == "github"
     # 2.658.0 (#4193): fetching and storing apart, like calendars/subscriptions.py cal_sync: every call to the provider
     # (git_http, also those of gitbuild / the issue sync below) first commits what the poll has stored so far, so no row
@@ -1191,8 +1223,8 @@ def git_connect(c, lid, provider, base, owner, name, token, folder=None):
                                                          me(), iso(now_utc())))
     if folder:
         c.execute("INSERT INTO git_folders(conn_id,owner_id,folder,created_at) VALUES(?,?,?,?)", (cid, me(), folder, iso(now_utc())))
-    if token:
-        c.execute("UPDATE git_conns SET token=? WHERE id=?", (git_seal(cid, "token", token), cid))
+    if token:  # 2.1306.0 (#6554 D5): token_by = whose token it is
+        c.execute("UPDATE git_conns SET token=?, token_by=? WHERE id=?", (git_seal(cid, "token", token), me(), cid))
     bump(c)
     c.commit()
     _GIT_WAKE.set()
@@ -1238,8 +1270,9 @@ def git_update(cid):
         if t and not SECRET_KEY:
             return err(git_key_error(), 409)
         # 2.394.0 C (#3377): issue_rw -1 = the new token's write access is checked again with the next round
-        c.execute("UPDATE git_conns SET token=?, etags='{}', fails=0, last_error='', next_at=0, issue_rw=-1 WHERE id=?",
-                  (git_seal(cid, "token", t) if t else "", cid))
+        # 2.1306.0 (#6554 D5): token_by = the person who stored it (a paused connection runs again with a new token)
+        c.execute("UPDATE git_conns SET token=?, token_by=?, etags='{}', fails=0, last_error='', next_at=0, issue_rw=-1 WHERE id=?",
+                  (git_seal(cid, "token", t) if t else "", me() if t else None, cid))
         r = c.execute("SELECT * FROM git_conns WHERE id=?", (cid,)).fetchone()  # 2.394.0 D (#3377 review 6): the sync checks the new one
     if "hash_ids" in b:  # 2.390.0 (#3353)
         if b["hash_ids"] not in (True, False, 0, 1) or isinstance(b["hash_ids"], float):
@@ -1269,9 +1302,24 @@ def git_update(cid):
 
 @app.delete("/api/repos/<int:cid>")
 def git_delete(cid):
-    """Removes the connection with its stored pull requests, commits and links (completed tasks stay completed)."""
+    """Removes the connection with its stored pull requests, commits and links (completed tasks stay completed).
+    2.1306.0 (#6554 D5): the person whose access token it uses may always remove it, also without the admin role of the
+    project or after leaving it (the token acts in that person's name)."""
     c = db()
-    r = git_need_conn(c, cid)
+    try:
+        r = git_need_conn(c, cid)
+    except Denied:
+        need_person(404)
+        with system_ctx(c):
+            r = c.execute("SELECT * FROM git_conns WHERE id=?", (cid,)).fetchone()
+        if not r or not git_token_owner(r) or git_token_owner(r) != me():
+            raise
+        with system_ctx(c):  # the rows of a project this person may no longer see
+            return _git_delete_rows(c, cid, r)
+    return _git_delete_rows(c, cid, r)
+
+
+def _git_delete_rows(c, cid, r):
     c.execute("DELETE FROM git_links WHERE conn_id=?", (cid,))
     c.execute("DELETE FROM git_prs WHERE conn_id=?", (cid,))
     c.execute("DELETE FROM git_commits WHERE conn_id=?", (cid,))
