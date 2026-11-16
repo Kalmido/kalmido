@@ -270,17 +270,21 @@ def sdl_notify(c, uid, choice, at):
                              "data": {"action": "acctdel", "name": lr["name"], "day": day, "member": 1}})
 
 
-def _lift(c, uid, enabled=False):
+def _lift(c, uid, enabled=False, by_token=False):
     """Cancels the deletion of uid (the caller commits): unlocked, the paused agents run again. 2.1254.0 (#6293): read again
     under a row lock (the row the caller saw may be old); an account an admin locked while it waited (plan "admin",
     users.sdl_admin_locked) stays locked and its agents stay paused -- the cancelling lifts only the lock of the deletion.
     enabled: the watchdog's call for an account an admin enabled again (it does nothing when it is locked again meanwhile).
+    by_token: the cancel link's call -- the token was checked on the row without a lock: an admin's lock noted meanwhile ends
+    the link here (review of 2.1254.0, #6293; the password still cancels).
     -> (the account was cancelled, it stays locked by an admin)"""
     with system_ctx(c):  # the agents may work in an organisation; the cancel link comes without a session
         u = c.execute("SELECT * FROM users WHERE id=? AND delete_at IS NOT NULL FOR UPDATE", (uid,)).fetchone()
         if not u or (enabled and u["disabled"]):
             return False, False
         p = sdl_plan(u)
+        if by_token and p.get("admin"):
+            return False, False
         held = bool(p.get("admin")) and bool(u["disabled"])
         if not p.get("admin"):
             for aid in p.get("agents") or []:
@@ -319,7 +323,7 @@ def sdl_cancel():
         _rate_fail(keys)
         c.rollback()
         return err(tr("This link is no longer valid") if tok else tr("Wrong username or password"), 403 if tok else 401)
-    done, held = _lift(c, u["id"])
+    done, held = _lift(c, u["id"], by_token=bool(tok))
     if not done:  # the deletion ran or was cancelled meanwhile
         c.rollback()
         return err(tr("This link is no longer valid") if tok else tr("Wrong username or password"), 403 if tok else 401)
