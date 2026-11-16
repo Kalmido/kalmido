@@ -80,8 +80,9 @@ function ul_rowHtml(r) {
 const ul_busy = () => UL.busy || HIST.busy;  // 2.1257.0 (#6283)
 function ul_inner() {
   const rows = ul_rows();
-  const note = UL.note ? `<p class="ulnote" role="status">${esc(UL.note)}</p>`
-    : ul_busy() ? `<p class="ulnote ulbusy" role="status">${esc(tr('A step is still running'))}</p>` : '';  // 2.1257.0 (#6283)
+  // 2.1257.0 (#6283): while a step runs that is said (the note of an earlier run waits until it is done)
+  const note = ul_busy() ? `<p class="ulnote ulbusy" role="status">${esc(tr('A step is still running'))}</p>`
+    : UL.note ? `<p class="ulnote" role="status">${esc(UL.note)}</p>` : '';
   const err = UL.err ? `<p class="muted ulerr">${esc(UL.err)}</p>` : UL.items === null && S.me?.kind !== 'agent' ? `<p class="muted lempty">${esc(tr('Loading…'))}</p>` : '';
   const hid = UL.hidden ? `<p class="muted ulhid">${esc(trn('{0} step over an API key hidden', '{0} steps over API keys hidden', UL.hidden))}</p>` : '';  // 2.1175.0 (#6165)
   if (!rows.length) return note + err + (UL.items !== null || UL.err ? `<p class="muted ulempty">${esc(tr('Nothing to undo'))}</p>` : '') + hid;
