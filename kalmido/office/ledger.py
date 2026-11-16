@@ -30,7 +30,7 @@ from flask import g, jsonify, request, has_app_context
 
 from ..core.config import app, OFFICE_DIR
 from ..core.i18n import N_, tr
-from ..core.db import body, bump, db, iso, now_utc, ix_ensure
+from ..core.db import body, bump, iso, now_utc, ix_ensure
 from ..core.pg import write_lock
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_json_store, oc_log_detail
 from ..core.access import Denied
