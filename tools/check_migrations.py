@@ -30,6 +30,11 @@ trash (`deleted_at IS NOT NULL` or `deleted_at < ...`), a cut-off on live rows (
 the WHERE must hold a fixed cut-off (a quoted date, not in the future): after the first start it finds nothing new, and rows put into the trash
 later keep their trash period (and their undo) until the regular purge run takes them.
 
+2.1254.0 (#6299): AFTER may widen a NUMERIC column (ALTER TABLE t ALTER COLUMN c TYPE NUMERIC(p,s)) with the line
+`# widen-ok <table>.<column>: <why>`: only when its CREATE TABLE in schema.py has NUMERIC(p0,s0) with
+s >= s0 and p - s >= p0 - s0, so no stored value changes and none can fail; the version before reads and writes the column as
+it did. core/db.py col_present skips it once the column has that type (no ACCESS EXCLUSIVE lock at every start).
+
 2.771.0 (#5333): a column DEFAULT that calls a function the backup does not know (kalmido/admin/backup.py _CALL_HEADS, read from
 there, not copied) is a finding: pg_dump prints it into every dump, and the restore refuses a dump with such a call (2.763: DEFAULT now()
 in a fragment made every backup unrestorable). CURRENT_TIMESTAMP instead of now() (pg_dump prints it without brackets).
@@ -64,6 +69,10 @@ DEFAULT_END = re.compile(r"(?:NOT|NULL|REFERENCES|CHECK|PRIMARY|UNIQUE|CONSTRAIN
 # rows, so it needs the line # nullable-ok <table>.<column>: <why the version before copes>; runs at every start (a no-op then)
 DROP_NN = re.compile(r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)\s+ALTER\s+COLUMN\s+(\w+)\s+DROP\s+NOT\s+NULL", re.I)
 NULLABLE_OK = re.compile(r"^[ \t]*#[ \t]*nullable-ok[ \t]+(\w+\.\w+)[ \t]*:[ \t]*\S", re.M)
+# 2.1254.0 (#6299): a NUMERIC column made wider (more places, the same digits before the point), with a reason
+WIDEN = re.compile(r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(\w+)\s+ALTER\s+COLUMN\s+(\w+)\s+(?:SET\s+DATA\s+)?TYPE\s+(.+)", re.I | re.S)
+WIDEN_OK = re.compile(r"^[ \t]*#[ \t]*widen-ok[ \t]+(\w+\.\w+)[ \t]*:[ \t]*\S", re.M)
+NUMERIC_T = re.compile(r"NUMERIC\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)", re.I)
 
 
 def fragments(root=ROOT):
@@ -83,6 +92,38 @@ def column_made(src, table, col):
         if any(re.match(rf"\s*\"?{col}\"?\s", part + " ") for part in body.split(",")):
             return True
     return False
+
+
+def column_numeric(src, table, col):
+    """2.1254.0 (#6299): (precision, scale) of column table.col as its CREATE TABLE in src declares it as NUMERIC(p,s), else None."""
+    for m in re.finditer(rf"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?{table}\s*\(", src, re.I):
+        depth, i, body = 1, m.end(), ""
+        while i < len(src) and depth:
+            depth += (src[i] == "(") - (src[i] == ")")
+            body += src[i] if depth >= 1 else ""
+            i += 1
+        t = re.search(rf"(?:^|[(,\s])\"?{col}\"?\s+NUMERIC\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)", body, re.I)
+        if t:
+            return int(t.group(1)), int(t.group(2))
+    return None
+
+
+def widen_finding(table, col, typ, ok, root=ROOT):
+    """2.1254.0 (#6299): why ALTER COLUMN table.col TYPE typ is not a plain widening (None: it is); ok = the columns the fragment
+    vouches for (# widen-ok)."""
+    new = NUMERIC_T.fullmatch(typ.strip())
+    if not new:
+        return "only a NUMERIC(p,s) column made wider (TYPE NUMERIC(p,s), no USING)"
+    with open(os.path.join(root, "kalmido", "core", "schema.py"), encoding="utf-8") as f:
+        old = column_numeric(f.read(), table, col)
+    if old is None:
+        return f"{table}.{col} is no NUMERIC(p,s) column of schema.py"
+    p, s = int(new.group(1)), int(new.group(2))
+    if s < old[1] or p - s < old[0] - old[1]:
+        return f"NUMERIC({old[0]},{old[1]}) -> NUMERIC({p},{s}) is not wider (fewer places or digits before the point change values or fail)"
+    if f"{table}.{col}" not in ok:
+        return f"a column type changes: needs a line # widen-ok {table}.{col}: <why the version before copes>"
+    return None
 
 
 def schema_src(root=ROOT):
@@ -242,6 +283,7 @@ def content_findings(n, values, src):
         dcol = DROP_COLUMN.fullmatch(sql_bare(x).strip().rstrip(";").strip())
         purge = PURGE.fullmatch(sql_bare(x).strip().rstrip(";").strip())
         dnn = DROP_NN.fullmatch(sql_bare(x).strip().rstrip(";").strip())  # 2.985.0 (#4922)
+        widen = WIDEN.fullmatch(sql_bare(x).strip().rstrip(";").strip())  # 2.1254.0 (#6299)
         if col:  # a column on a table made after the steps (#4300): AFTER runs at every start, so IF NOT EXISTS
             why = step_finding(col.group(1), col.group(2), x)
             if not why and not re.search(r"ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b", x, re.I):
@@ -268,6 +310,8 @@ def content_findings(n, values, src):
             key = f"{dnn.group(1)}.{dnn.group(2)}"
             why = None if key in set(NULLABLE_OK.findall(src)) else \
                 f"DROP NOT NULL lets the version before meet empty values: needs a line # nullable-ok {key}: <why it copes>"
+        elif widen:  # 2.1254.0 (#6299): a NUMERIC column made wider, with a reason
+            why = widen_finding(widen.group(1), widen.group(2), widen.group(3), set(WIDEN_OK.findall(src)))
         else:
             why = index_finding(x, own, ok)
         why = why or default_call_finding(x)  # 2.771.0 (#5333)

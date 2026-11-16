@@ -6,7 +6,9 @@ in its own currency; the invoice took them from a second run in the home currenc
 (rounded twice: 1 x 80.00 EUR, rate 1.0837, 5 % discount -> quotation 82.36 / 98.01 USD, invoice 82.37 / 98.02). Now each
 such line's rate = its amount / the rate (calc_home_rate, like the deductions of a final invoice #4082).
  - a fixed example (the audit's) and a seeded random comparison of some hundred quotations in USD (and a few in a currency
-   with a large rate): net, every tax line and gross of the invoice (rates stored as floats like _put_rows) = the quotation's
+   with a large rate): net, every tax line and gross of the invoice (rates stored as the column keeps them: stored()) = the
+   quotation's; USD, SEK, JPY and HUF with quantities up to 200 (review: NUMERIC(14,4) cut the cent, the old float stored()
+   hid it)
  - flat price quotations (one position per tax rate) and quotations with parts in all three invoice forms (summary / title /
    full, part quantities with halves), in USD, HUF and the home currency
  - home currency: the positions are exactly those of before (the reference below is the code of 2.1252.0)
@@ -17,9 +19,10 @@ import importlib.util
 import json
 import os
 import random
+import re
 import sys
 import types
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 N = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.abspath(os.environ.get("KALMIDO_SRC") or os.path.join(N, ".."))
@@ -85,9 +88,39 @@ def row(**kw):
     return r
 
 
+def col_scale(table, col):
+    """The decimal places of NUMERIC column table.col as the database has it: its CREATE TABLE in core/schema.py, widened by a
+    fragment's ALTER COLUMN .. TYPE NUMERIC(p,s) (core/migrations.d) - read from the source, so the test follows the column."""
+    scale = None
+    with open(os.path.join(SRC, "kalmido", "core", "schema.py"), encoding="utf-8") as f:
+        m = re.search(rf"CREATE TABLE IF NOT EXISTS {table} \((.*?)\);", f.read(), re.S)
+    m = m and re.search(rf"\b{col} NUMERIC\((\d+),(\d+)\)", m.group(1))
+    if m:
+        scale = int(m.group(2))
+    mig = os.path.join(SRC, "kalmido", "core", "migrations.d")
+    for n in sorted(os.listdir(mig)):
+        if n.endswith(".py"):
+            with open(os.path.join(mig, n), encoding="utf-8") as f:
+                for m in re.finditer(rf"ALTER TABLE {table} ALTER COLUMN {col} TYPE NUMERIC\((\d+),(\d+)\)", f.read()):
+                    scale = int(m.group(2))
+    return scale
+
+
+RATE_SCALE, QTY_SCALE = col_scale("office_doc_items", "rate"), col_scale("office_doc_items", "qty")
+
+
+def pg_numeric(v, scale):
+    """What a NUMERIC(p, scale) column keeps of v sent as a float (invoices._put_rows: float(...); Postgres turns a float8 into
+    numeric with 15 significant digits, then rounds to the column's places, half away from zero)."""
+    return D(format(float(D(str(v))), ".15g")).quantize(D(1).scaleb(-scale), rounding=ROUND_HALF_UP)
+
+
 def stored(items):
-    """The positions as the database keeps them (invoices._put_rows: qty / rate / cost as float)."""
-    return [{**x, "qty": float(D(str(x.get("qty") if x.get("qty") is not None else 1))), "rate": float(D(str(x.get("rate") or 0)))} for x in items]
+    """The positions as the database keeps them (invoices._put_rows: qty / rate as float into office_doc_items, read back as
+    a float again by core/pg.py). 2.1254.0 (#6299, review): with the column's places - was the float itself, which hid that
+    NUMERIC(14,4) cut the rate a foreign line needs (49,984.02 HUF -> rate 126.3818 -> 49,984.00)."""
+    return [{**x, "qty": float(pg_numeric(x.get("qty") if x.get("qty") is not None else 1, QTY_SCALE)),
+             "rate": float(pg_numeric(x.get("rate") or 0, RATE_SCALE))} for x in items]
 
 
 def offer_totals(r, items, parts=None, part_items=None):
@@ -153,6 +186,24 @@ for k in range(400):
         bad += 1
         worst = max(worst, abs(o[0] - i[0]), abs(o[1] - i[1]))
 check(bad == 0, f"{n} random quotations in USD / HUF: the invoice equals the quotation (net, tax per rate, gross): {bad} deviate (worst {worst})")
+
+# 2.1254.0 (#6299, review): large quantities x a large rate - the stored rate must carry the cent (with NUMERIC(14,4) USD at
+# qty 150 missed it in about a third, JPY / HUF already at qty 1); USD, SEK, JPY and HUF, quantities up to 200
+FX = {"USD": (0.8, 1.4, 4), "SEK": (10.5, 12.5, 4), "JPY": (150, 175, 3), "HUF": (380, 420, 2)}
+for cur, (lo, hi, nd) in FX.items():
+    bad, worst = 0, D(0)
+    for k in range(150):
+        r = rnd_doc(rng, cur, round(rng.uniform(lo, hi), nd))
+        r["producing_on"] = rng.choice([0, 1, 1])
+        items = rnd_items(rng)
+        for it in items:
+            if it.get("unit") != "percent":
+                it["qty"] = rng.choice([1, 1, 3, 17.5, 60, 120, 150, 180, 199, 200])
+        o, i = compare(r, items)
+        if not same(o, i):
+            bad += 1
+            worst = max(worst, abs(o[0] - i[0]), abs(o[1] - i[1]))
+    check(bad == 0, f"150 quotations in {cur} with quantities up to 200: invoice = quotation (net, tax per rate, gross), {bad} deviate (worst {worst})")
 
 # flat price quotations (#5817): one position per tax rate
 bad = 0
