@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1285.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Büro und Kunden tragen die Farbe ihrer Organisation.",
+     "en": "Office and clients wear their organisation's colour."
+    },
+    {
+     "de": "Schlussrechnung: der Abzug einer Abschlagsrechnung nimmt genau die dort berechnete Umsatzsteuer; nach vollständig abgerechneten Abschlägen kann deshalb ein Rest von 1 Cent Umsatzsteuer stehen bleiben.",
+     "en": "Final invoice: a deducted progress invoice takes off exactly the VAT it billed; after progress invoices over the full amount a rest of 1 cent VAT can remain."
+    },
+    {
+     "de": "Mahnung: \"Gebühr bezahlt\" umfasst jetzt Mahngebühr, Verzugszinsen und Pauschale und geht auch ohne Mahngebühr.",
+     "en": "Payment reminder: \"Fee paid\" now covers the fee, default interest and the flat fee, also without a reminder fee."
+    }
+   ]
+  },
+  {
    "version": "2.1268.0",
    "date": "2026-11-16",
    "items": [
@@ -1303,16 +1321,6 @@
     {
      "de": "Beleg-Abholer lassen sich auf bestimmte IP-Adressen beschränken (Schloss-Knopf beim Abholer).",
      "en": "Receipt fetchers can be limited to certain IP addresses (lock button next to the fetcher)."
-    }
-   ]
-  },
-  {
-   "version": "2.710.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Unter Einstellungen > Organisation > Agenten siehst du die verbundenen Apps deiner Team-Agenten und kannst sie trennen.",
-     "en": "Settings > Organisation > Agents shows the connected apps of your team agents and lets you disconnect them."
     }
    ]
   }
