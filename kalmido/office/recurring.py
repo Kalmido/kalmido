@@ -460,8 +460,9 @@ def rin_step(c, oid, uid, s, period, people, missed=()):
     ts = iso(now_utc())
     act = 0 if s["until"] and nxt > s["until"] else int(s["active"] or 0)
     did = rin_make(c, oid, uid, s, period)
-    # 2.1265.0 (#6387): a period made = the run worked: the count of failed runs starts again
-    c.execute("UPDATE office_inv_series SET next_date=?, active=?, fail_count=0, updated_at=? WHERE id=? AND org_id=?", (nxt, act, ts, s["id"], oid))
+    # 2.1289.0 (#6629): fail_count is no longer set back here (was: in the invoice's commit, so a failure of its mail after that stayed
+    # counted until the next period): the watchdog sets it back once its whole run of the series worked (_rin_one, rin_ok)
+    c.execute("UPDATE office_inv_series SET next_date=?, active=?, updated_at=? WHERE id=? AND org_id=?", (nxt, act, ts, s["id"], oid))
     if did is None:
         return None, False, False, "", None
     sent, why, datev, m = (rin_send(c, oid, uid, did) if s["auto_send"] else (False, "", False, None))
@@ -685,6 +686,16 @@ def _rin_one(c, oid, sid, today):
     # 2.1265.0 (#6387): nobody to act for the series (no admin with the office on): paused + told, was a silent return every run
     if not people or not _rin_ctx(c, people[0], lambda: _rin_as(c, oid, sid, today, people[0], people)):
         rin_pause(c, oid, sid, lambda lg: tr(RIN_WHY_NOBODY, lg=lg), "nobody")
+    else:
+        rin_ok(c, oid, sid)
+
+
+def rin_ok(c, oid, sid):
+    """2.1289.0 (#6629): the watchdog's whole run of series sid worked (the invoice, its mail, the mail still due): the count of
+    failed runs starts again -- strictly "in a row" (rin_failed)."""
+    with system_ctx(c):
+        c.execute("UPDATE office_inv_series SET fail_count=0 WHERE id=? AND org_id=? AND fail_count<>0", (sid, oid))
+    c.commit()
 
 
 def _rin_back_as(c, oid, sid, people):
