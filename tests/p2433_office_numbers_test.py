@@ -143,12 +143,16 @@ def run(S, who):
     r = S.post(B + f"{D}/{i6}/credit")
     ok(r.status_code == 201, "#4080: correction draft " + r.text[:160])
     late = r.json()["id"]
+    # 2.1289.0 (#6481 S2): a correction never dates before its own invoice -- that one (i6) moves two days back, so the day
+    # before is only before the last invoice of the shared series (i4)
+    dbx("UPDATE office_docs SET date=? WHERE id=?", ((day - timedelta(days=2)).isoformat(), i6))
     ok(S.patch(B + f"{D}/{late}", json={"date": (day - timedelta(days=1)).isoformat()}).ok, "#4080: older date set")
     r = S.post(B + f"{D}/{late}/finalize")
     ok(r.status_code == 400 and "last finalised document" in r.text, f"#4080: a correction before the last invoice: 400 {r.status_code} {r.text[:160]}")
     ok(S.patch(B + f"{D}/{late}", json={"date": day.isoformat()}).ok, "#4080: date set back")
     nl = finalize(late)
     ok(re.fullmatch(r"7_TNP_\S+_RK", nl), f"#4080: with the right date the next number, the refusal used none: {nl}")
+    dbx("UPDATE office_docs SET date=? WHERE id=?", (day.isoformat(), i6))  # 2.1289.0 (#6481): i6 back to its day
     dbx("UPDATE office_docs SET date=? WHERE id=?", ((day + timedelta(days=1)).isoformat(), late))  # the only later document of the series is the correction
     i0 = invoice(tnp["id"])
     r = S.post(B + f"{D}/{i0}/finalize")

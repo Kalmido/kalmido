@@ -450,6 +450,10 @@ def inv_check_date(c, oid, r, s):
     due = _col(r, "due_date")
     if due and due < d:
         raise BadKey(N_("The due date must not lie before the date"))
+    if r["kind"] == "credit" and _col(r, "cancels_id"):  # 2.1289.0 (#6481 S2): a correction never dates before its invoice (own RK counter)
+        inv_ = c.execute("SELECT number, date FROM office_docs WHERE id=? AND org_id=?", (r["cancels_id"], oid)).fetchone()
+        if inv_ is not None and inv_["date"] and d < inv_["date"]:
+            raise BadKey(N_("The date of the correction must not lie before the date of its invoice {0} ({1})"), inv_["number"] or "", inv_["date"])
     scheme = num_scheme(s, r["kind"])
     period = office_scheme_period(scheme, date.fromisoformat(d))
     kinds = [k for k in ("invoice", "credit") if num_kind(s, k) == num_kind(s, r["kind"])]

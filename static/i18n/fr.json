@@ -18825,6 +18825,7 @@
   "Its number is taken in the series; finalise the draft to close the gap": "Son numéro est pris dans la série ; validez le brouillon pour ne pas laisser de trou",
   "Draft with number - please finalise": "Brouillon avec numéro - à valider",
   "The number carries the date {0}, the document date is {1}": "Le numéro porte la date {0}, la date du document est {1}",
+  "The date of the correction must not lie before the date of its invoice {0} ({1})": "La date de la correction ne doit pas précéder la date de sa facture {0} ({1})",
   "Date / priority of the parent task adopted for {0} task": ["Date / priorité de la tâche parente reprise pour {0} tâche", "Date / priorité de la tâche parente reprise pour {0} tâches"],
   "Date and priority of {0} adopted": "Date et priorité de {0} reprises",
   "Date of {0} adopted": "Date de {0} reprise",
