@@ -22,6 +22,7 @@ from ..core.access import Denied, acx_of
 from ..core.orgcrypt import OrgCryptError
 from ..accounts.session import me
 from ..accounts.mailtok import mtk_plain  # 2.674.0 (#4382 finding 5)
+from ..accounts.supportgrant import sga_is_support  # review of 2.1254.0 (#6294)
 from ..files.scan import sc_guard  # 2.306.0: pulled up from functions (layers budget)
 from ..files.store import fs_chain, fs_deleted, fs_log_add, fs_role, fs_roles_many, fs_visible_ids, fs_visible_sql, fs_version_row, need_node
 from . import store as S
@@ -967,7 +968,9 @@ def _settings_json(c, ws, uid):
             "rules": _rules_v(c, ws) if can else [], **_flow_extra(c, ws, can), **_settings_labels(c, ws, uid, can), "folders": folders,
             "root_id": root, "inbox_path": S.inbox_path(c, root, uid), "ocr": ocr_available(), "ocr_missing": _ocr_missing(c, uid), "ocr_langs": _ocr_view(cfg), "asn_prefix": cfg["asn_prefix"], "asn_next": S.asn_next(c, ws),
             "title_pattern": cfg["title_pattern"], "title_auto": cfg["title_auto"], "title_pattern_default": S.TITLE_PATTERN,  # 2.783.0 (#4882)
-            "mail": {"enabled": MAIL_IN_ON, "address": mail_addr(mtk_plain(c, tok[0])) if (tok and MAIL_IN_ON) else ""},
+            # review of 2.1254.0 (#6294): never the address for a support session (a secret inbox of the account: it would
+            # outlive the grant; the rest of the settings stays readable)
+            "mail": {"enabled": MAIL_IN_ON, "address": mail_addr(mtk_plain(c, tok[0])) if (tok and MAIL_IN_ON and not sga_is_support(c)) else ""},
             "scan": _scan_json(c, uid, oid)}  # 2.207.0 A (#2763): scan inboxes, folder watcher downloads, the mail note
 
 

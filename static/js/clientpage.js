@@ -58,7 +58,7 @@ async function ms_clLtLoad(id, q) {
   MSC.ltLoading = false;
   if (!q) ms_clDraw();
 }
-function ms_clDraw() { if (S.route.mod === 'clients') { const el = $('#view'); if (el) { const ck = ct_scrollKeep(el); keepFocus(el, () => setHtml(el, mg_wrap('clients', viewClients()))); ck(); } } }  // 2.431.0 C (#3598): + the columns' scroll
+function ms_clDraw() { if (S.route.mod === 'clients') { const el = $('#view'); if (el) { const ck = ct_scrollKeep(el); keepFocus(el, () => setHtml(el, mg_wrap('clients', viewClients()))); ck(); wso_sync(); } } }  // 2.431.0 C (#3598): + the columns' scroll
 const ms_clDirty = () => { MSC.items = null; MSC.inv = null; };
 // 2.979.0 (#5667): an undo / redo the server did (a move into another workspace taken back): the clients come again
 histReloader('clients', () => { if (!MSC.items) return; if (S.route.mod === 'clients') return ms_clLoad(); ms_clDirty(); });
@@ -83,6 +83,8 @@ const ms_tag = (kind) => kind === 'client' ? `<span class="mstag mstag-cl">${ic(
 
 // 2.47.3 (#1360): the page follows the workspace of the sidebar like the office (Private = the private clients, an
 // organisation = its clients, All = every client one sees)
+// 2.1254.0 (#6180): the open client card reports its organisation (wscolor.js); no card open = nothing
+wso_open('clients', () => { const id = S.route?.mod === 'clients' ? S.route.client : null; if (!id || id === 'mailhub') return null; const c = (MSC.items || []).find(x => x.id === id) || (CLV.data && CLV.id === id ? CLV.data : null); return c ? {org_id: c.org_id ?? null} : null; });
 const ms_inWs = c => { const ws = typeof wsCur === 'function' ? wsCur() : 'all'; return ws === 'all' || (ws === 'private' ? c.org_id == null : 'org:' + c.org_id === ws); };
 // 2.122.3 A (#2335): the way from a list of the office to its section of Settings > Import legacy data (#office/import/<area>):
 // an empty list says "Already have a list? Import from Excel", a filled one ends with a quiet "Import…" (office admins only;
@@ -119,7 +121,7 @@ function ms_clView() {
   const list = MSC.trash ? ms_clTrashHtml() : items === null ? `<div class="muted ctempty">${tr('Loading…')}</div>`
     : !MSC.items.length ? `<div class="empty nempty eact msclempty">${ic('brief')}<span>${tr('Clients are everyone you write quotations and invoices for: companies or private people.')}</span><button class="btn pri" data-act="client-new">${ic('plus', 's')} ${tr('New client')}</button>${feat('contacts') ? `<a class="btn" href="#contacts">${ic('users', 's')} ${tr('Contacts')}</a>` : ''}${oim_link('master', true)}</div>`
     : !items.length ? `<div class="empty">${ic('brief')}${tr('No client matches.')}</div>`
-    : `<ul class="ctlist" role="list" aria-label="${esc(tr('Clients'))}">${items.map(c => `<li><button type="button" class="ctrow ${c.id === id ? 'on' : ''} ${MSC.pick?.has(c.id) ? 'picked' : ''} ${c.archived ? 'msarch' : ''}" data-clopen="${c.id}" ${MSC.pick ? `aria-pressed="${MSC.pick.has(c.id)}"` : `aria-current="${c.id === id}"`}>${MSC.pick ? `<span class="ctchk ${MSC.pick.has(c.id) ? 'on' : ''}" aria-hidden="true">${MSC.pick.has(c.id) ? ic('check', 's') : ''}</span>` : ''}${ms_clAv(c)}<span class="ctn"><b>${esc(cdn_label(c))}</b><small class="muted">${esc([cdn_label(c) !== c.name ? c.name : '', c.archived ? tr('archived') : '', c.contact, c.email].filter(Boolean).join(' · '))}</small></span>${c.budget && c.budget.level !== 'none' ? `<i class="msbud lv-${c.budget.level}" title="${esc(tr(BUDGET_TXT[c.budget.level]))}"></i>` : ''}</button></li>`).join('')}</ul>`;
+    : `<ul class="ctlist" role="list" aria-label="${esc(tr('Clients'))}">${items.map(c => `<li><button type="button"${/*html-ok*/ wso_row(c) /* 2.1254.0 (#6180) */} class="ctrow ${c.id === id ? 'on' : ''} ${MSC.pick?.has(c.id) ? 'picked' : ''} ${c.archived ? 'msarch' : ''}" data-clopen="${c.id}" ${MSC.pick ? `aria-pressed="${MSC.pick.has(c.id)}"` : `aria-current="${c.id === id}"`}>${MSC.pick ? `<span class="ctchk ${MSC.pick.has(c.id) ? 'on' : ''}" aria-hidden="true">${MSC.pick.has(c.id) ? ic('check', 's') : ''}</span>` : ''}${ms_clAv(c)}<span class="ctn"><b>${esc(cdn_label(c))}</b><small class="muted">${esc([cdn_label(c) !== c.name ? c.name : '', c.archived ? tr('archived') : '', c.contact, c.email].filter(Boolean).join(' · '))}</small>${/*html-ok*/ wso_origin(c, 'ctorg') /* 2.1254.0 (#6180): "All": the origin */}</span>${c.budget && c.budget.level !== 'none' ? `<i class="msbud lv-${c.budget.level}" title="${esc(tr(BUDGET_TXT[c.budget.level]))}"></i>` : ''}</button></li>`).join('')}</ul>`;
   return MSC.html = `<div class="ctview msclients ${id ? 'withcard' : ''} ${MSC.pick ? 'ctpicking' : ''}">${mob && id ? '' : head}${MSC.pick && !(mob && id) ? ms_clBar() : ''}${mob && id ? '' : bar}<div class="ctcols lsd2 lsdfill">${mob && id ? '' : `<div class="ctlistw lsdl">${list}${MSC.items?.length && !MSC.pick ? oim_link('master') : ''}</div>`}${card}</div></div>`;
 }
 // 2.435.0 A (#3600): the blocks of the client card like the blocks of a list: the office admin switches blocks off for the
@@ -146,7 +148,7 @@ function ms_clCard(c) {
   const bud = [c.budget_h ? `${fmtNum(c.budget_h, 1)} h` : '', c.budget_amount ? curMoney(c.budget_amount, cur) : ''].filter(Boolean).join(' · ');
   const inv = (MSC.inv || []).filter(x => x.client_id === c.id && x.open > 0 && !['draft', 'cancelled'].includes(x.status));
   const ks = (c.contacts || []).filter(k => k.name);
-  return `<article class="ctcard msclcard" aria-labelledby="mscl-h" data-ck="${c.id}">
+  return `<article class="ctcard msclcard" aria-labelledby="mscl-h" data-ck="${c.id}"${/*html-ok*/ wso_row(c) /* 2.1254.0 (#6180) */}>
     <div class="cthead">${lsd_one() ? `<button class="iconbtn" data-mscl="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>` : ''}${ms_clAv(c, true)}<div class="cthn"><h3 id="mscl-h">${esc(cdn_label(c))}</h3>${cdn_label(c) !== c.name ? `<small class="muted cdnlegal">${esc(c.name)}</small>` : ''}<div class="mstags">${ms_tag('client')}${c.archived ? `<span class="rotag">${tr('Archived')}</span>` : ''}${c.org_name ? `<span class="muted">${esc(c.org_name)}</span>` : ''}</div></div>
       <span class="ctacts"><button class="btn sm" data-act="client-edit" data-id="${c.id}">${ic('edit', 's')} ${tr('Edit')}</button><button class="iconbtn" data-mscl="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>
     <div class="mscly msclstats cldetail">${S.ly.view === 'clients' ? '' : `<div class="lybar"><span class="spacer"></span>${lyCustomBtn('clients')}</div>`}${lyHtml('clients', ms_clFoldAll(c, ks, inv, {  // 2.55.0 (#1067): the card's sections are blocks of the view builder

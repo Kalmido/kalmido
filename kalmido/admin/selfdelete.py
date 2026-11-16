@@ -12,7 +12,10 @@ project over: one nobody else uses goes, else the first other member gets it) an
 accounts/users.user_delete_run (the same path as the admin's deletion: retention gate, user_purge, files after the commit,
 security log), then a last mail confirms it. Refused: agents, child accounts, the last active server admin, the last
 admin of an organisation, an account whose organisation things nobody could take over (orgretain.upg_heirless).
-An admin who enables the account again ends the deletion as well (the next tick lifts it)."""
+An admin who enables the account again ends the deletion as well (the next tick lifts it).
+2.1254.0 (#6293): an admin who locks an account while it waits is noted in its plan ("admin", users.sdl_admin_locked): the
+cancel links end, the paused agents stay paused, no reminder with a new link; the password still cancels the deletion, but
+the account stays locked until an admin enables it (then the agents stay paused: their owner turns them on again)."""
 import json
 import secrets
 from datetime import timedelta
@@ -267,13 +270,27 @@ def sdl_notify(c, uid, choice, at):
                              "data": {"action": "acctdel", "name": lr["name"], "day": day, "member": 1}})
 
 
-def _lift(c, u):
-    """Cancels the deletion of u (the caller commits): unlocked, the paused agents run again."""
-    p = sdl_plan(u)
+def _lift(c, uid, enabled=False, by_token=False):
+    """Cancels the deletion of uid (the caller commits): unlocked, the paused agents run again. 2.1254.0 (#6293): read again
+    under a row lock (the row the caller saw may be old); an account an admin locked while it waited (plan "admin",
+    users.sdl_admin_locked) stays locked and its agents stay paused -- the cancelling lifts only the lock of the deletion.
+    enabled: the watchdog's call for an account an admin enabled again (it does nothing when it is locked again meanwhile).
+    by_token: the cancel link's call -- the token was checked on the row without a lock: an admin's lock noted meanwhile ends
+    the link here (review of 2.1254.0, #6293; the password still cancels).
+    -> (the account was cancelled, it stays locked by an admin)"""
     with system_ctx(c):  # the agents may work in an organisation; the cancel link comes without a session
-        for aid in p.get("agents") or []:
-            c.execute("UPDATE agents SET enabled=true WHERE user_id=? AND owner_id=?", (int(aid), u["id"]))
-        c.execute("UPDATE users SET disabled=false, delete_at=NULL, delete_plan='' WHERE id=?", (u["id"],))
+        u = c.execute("SELECT * FROM users WHERE id=? AND delete_at IS NOT NULL FOR UPDATE", (uid,)).fetchone()
+        if not u or (enabled and u["disabled"]):
+            return False, False
+        p = sdl_plan(u)
+        if by_token and p.get("admin"):
+            return False, False
+        held = bool(p.get("admin")) and bool(u["disabled"])
+        if not p.get("admin"):
+            for aid in p.get("agents") or []:
+                c.execute("UPDATE agents SET enabled=true WHERE user_id=? AND owner_id=?", (int(aid), uid))
+        c.execute("UPDATE users SET disabled=?, delete_at=NULL, delete_plan='' WHERE id=?", (held, uid))
+    return True, held
 
 
 @app.post("/api/auth/delete-cancel")  # SDL_CANCEL (a plain string: the route guards read it)
@@ -290,7 +307,8 @@ def sdl_cancel():
             return e
         uid, _, secret = tok.partition(".")
         u = c.execute("SELECT * FROM users WHERE id=? AND delete_at IS NOT NULL", (int(uid),)).fetchone() if uid.isdigit() and len(uid) <= 18 else None  # review N1: no BIGINT overflow
-        ok = bool(u and secret and any(tkh_match(secret, h) for h in sdl_plan(u).get("toks") or []))
+        # 2.1254.0 (#6293): an admin locked the account while it waited: the link ended (users.sdl_admin_locked)
+        ok = bool(u and secret and not sdl_plan(u).get("admin") and any(tkh_match(secret, h) for h in sdl_plan(u).get("toks") or []))
     else:
         username = str(b.get("username") or "").strip().lower()
         keys = _rate_keys(username)
@@ -305,11 +323,14 @@ def sdl_cancel():
         _rate_fail(keys)
         c.rollback()
         return err(tr("This link is no longer valid") if tok else tr("Wrong username or password"), 403 if tok else 401)
-    _lift(c, u)
+    done, held = _lift(c, u["id"], by_token=bool(tok))
+    if not done:  # the deletion ran or was cancelled meanwhile
+        c.rollback()
+        return err(tr("This link is no longer valid") if tok else tr("Wrong username or password"), 403 if tok else 401)
     bump(c)
     c.commit()
-    sdl_mail(c, u["id"], "cancelled")
-    return jsonify(ok=True, username=u["username"])
+    sdl_mail(c, u["id"], "cancelled_held" if held else "cancelled")
+    return jsonify(ok=True, username=u["username"], locked=held)
 
 
 # ---------------------------------------------------------------- mails
@@ -329,6 +350,7 @@ SDL_MAILS = {
     "asked": N_("Your account will be deleted"),
     "remind": N_("Your account will be deleted tomorrow"),
     "cancelled": N_("The deletion of your account was cancelled"),
+    "cancelled_held": N_("The deletion of your account was cancelled"),
     "done": N_("Your account was deleted"),
 }
 
@@ -346,12 +368,14 @@ def sdl_content(c, kind, username, lg, at=None, tok=None):
     elif kind == "cancelled":
         lines = [t(N_("The deletion of your account {0} was cancelled. You can sign in again."), username)]
         link, button = f"{PUBLIC_URL}/", t(N_("Open {0}"), APP_NAME)
+    elif kind == "cancelled_held":  # 2.1254.0 (#6293): an admin locked the account as well; that lock stays
+        lines = [t(N_("The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it."), username)]
     else:
         lines = [t(N_("Your account {0} and its data were deleted permanently."), username)]
     if kind in ("asked", "done"):
         lines.append(_backup_line(c, lg))
-    if kind in ("asked", "remind", "cancelled"):
-        lines.append(t(N_("If that was not you: cancel the deletion and change your password right away.")) if kind != "cancelled"
+    if kind in ("asked", "remind", "cancelled", "cancelled_held"):
+        lines.append(t(N_("If that was not you: cancel the deletion and change your password right away.")) if kind not in ("cancelled", "cancelled_held")
                      else t(N_("If that was not you: change your password right away and tell an admin.")))
     subject = f"{APP_NAME}: {t(SDL_MAILS[kind])}"
     text = "\n\n".join(lines) + (f"\n\n{link}\n" if link else "\n")
@@ -451,9 +475,7 @@ def sdl_run(c, uid):
     if not why:
         sdl_mail(c, None, "done", addr=addr, username=username, lg=lg)
         return True
-    plan["tried"] = iso(now_utc())
-    with system_ctx(c):
-        c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(plan), uid))
+    _plan_note(c, uid, lambda p: {**p, "tried": iso(now_utc())})  # review of 2.1254.0 (#6293): an admin's lock meanwhile stays
     c.commit()
     aa_now("security", f"selfdel-fail:{uid}", N_("The deletion the account {0} asked for could not run yet ({1}); it is tried again every hour."),
            [f"#{uid}", str(why)[:200]])
@@ -475,8 +497,7 @@ def sdl_tick(c, *_):
             at = now
         plan = sdl_plan(u)
         if not u["disabled"]:  # an admin enabled the account again: the deletion is off
-            with system_ctx(c):
-                _lift(c, u)
+            _lift(c, u["id"], enabled=True)
             c.commit()
             continue
         if at <= now:
@@ -485,14 +506,37 @@ def sdl_tick(c, *_):
                 continue
             sdl_run(c, u["id"])
             continue
-        if at - SDL_REMIND <= now and not plan.get("reminded"):
-            tok = secrets.token_urlsafe(24)
-            plan["toks"] = (plan.get("toks") or [])[-3:] + [tkh_hash(tok)]
-            plan["reminded"] = iso(now)
-            with system_ctx(c):  # the watchdog notes the reminder in the person's own row (no request, nobody signed in)
-                c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(plan), u["id"]))
-            c.commit()
-            sdl_mail(c, u["id"], "remind", f"{u['id']}.{tok}")
+        if at - SDL_REMIND <= now and not plan.get("reminded") and not plan.get("admin"):
+            sdl_remind(c, u["id"], now)
+
+
+def _plan_note(c, uid, change):
+    """Review of 2.1254.0 (#6293): the watchdog's note in the plan of uid, made on the plan as it is now (read again under a
+    row lock, never the row read at the tick's start: an admin's lock noted meanwhile stays). change(plan) -> the plan to
+    write, None = nothing to note. -> the plan written, None = nothing written (no deletion waits any more, or change said so)."""
+    with system_ctx(c):  # the person's own row (no request, nobody signed in)
+        u = c.execute("SELECT * FROM users WHERE id=? AND delete_at IS NOT NULL FOR UPDATE", (uid,)).fetchone()
+        plan = change(sdl_plan(u)) if u else None
+        if plan is not None:
+            c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(plan), uid))
+    return plan
+
+
+def sdl_remind(c, uid, now):
+    """The reminder one day before with a new cancel link. Nothing when an admin locked the account (2.1254.0, #6293: the
+    password still cancels) or it was reminded already, both as the row is now (_plan_note). -> the mail went"""
+    tok = secrets.token_urlsafe(24)
+
+    def add(p):
+        if p.get("admin") or p.get("reminded"):
+            return None
+        return {**p, "toks": (p.get("toks") or [])[-3:] + [tkh_hash(tok)], "reminded": iso(now)}
+    if _plan_note(c, uid, add) is None:
+        c.rollback()
+        return False
+    c.commit()
+    sdl_mail(c, uid, "remind", f"{uid}.{tok}")
+    return True
 
 
 WD_TICKS.append(("own account deletions", sdl_tick))

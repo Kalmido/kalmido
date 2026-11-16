@@ -226,6 +226,22 @@ def _active_admins(c, without=None):
     return c.execute("SELECT COUNT(*) FROM users WHERE is_admin AND NOT disabled AND id IS DISTINCT FROM ?", (without,)).fetchone()[0]
 
 
+def sdl_admin_locked(c, uid):
+    """2.1254.0 (#6293): an admin (user management / the hoster) locked uid. When the account waits for its own deletion
+    (admin/selfdelete.py), the lock is noted in its plan: its cancel links stop working, its paused agents are no longer turned on
+    again, and cancelling the deletion leaves the account locked. Call after the UPDATE of disabled (the row is locked)."""
+    r = c.execute("SELECT delete_plan FROM users WHERE id=? AND delete_at IS NOT NULL", (uid,)).fetchone()
+    if not r:
+        return
+    try:
+        p = json.loads(r[0] or "{}")
+    except (TypeError, ValueError):
+        p = {}
+    p = p if isinstance(p, dict) else {}
+    p.update(admin=iso(now_utc()), toks=[], agents=[])
+    c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(p), uid))
+
+
 @app.post("/api/users")
 def user_create():
     from ..notify.push import NTFY_TOPIC_RE
@@ -393,6 +409,7 @@ def user_update(uid):
         c.execute("UPDATE users SET disabled=? WHERE id=?", (1 if b["disabled"] else 0, uid))
         if b["disabled"]:
             ses_end(c, uid)  # 2.190.0 A (#1991): with the push subscriptions made in them
+            sdl_admin_locked(c, uid)  # 2.1254.0 (#6293): a pending own deletion no longer unlocks it
             if not u["disabled"]:  # 2.539.0 (#4373): a locked admin who saw an organisation's recovery key
                 for o in rck_admin_orgs(c, uid):
                     rck_admin_gone(c, o, uid)

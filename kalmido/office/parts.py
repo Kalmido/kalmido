@@ -20,7 +20,7 @@ from ..core.i18n import N_, tr
 from ..core.pg import insert_id, write_lock
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_item_store, oc_json_load, oc_json_store
 from ..core.errors import BadInput
-from .calc import RAW_MODES, TAX_KEYS, calc_cur, calc_discount_split, calc_line_amount, calc_subtotals, calc_tax_day, calc_lang, dec, fmt_money, fmt_qty, fmt_rate, label, money, office_calc, opt_label_under, pack_tax, _num
+from .calc import RAW_MODES, TAX_KEYS, calc_cur, calc_discount_split, calc_home_rate, calc_line_amount, calc_subtotals, calc_tax_day, calc_lang, dec, fmt_money, fmt_qty, fmt_rate, label, money, office_calc, opt_label_under, pack_tax, _num
 from .homecur import hc_home  # 2.189.0 (#2475)
 from .doclang import doc_txt
 from .model import PARTS_TITLE_FILM, UNITS, office_role, office_settings
@@ -215,18 +215,23 @@ def f8b_qty_bases(bases, qty):
     return pb
 
 
-def f8b_fix_cents(rows, want, lang="de", currency="EUR"):
+def f8b_fix_cents(rows, want, lang="de", currency="EUR", fx=None):
     """2.58.0 (#1759): invoice positions made from a part (x a fractional qty) round every position on its own; per tax
     rate their sum must equal the part line's amount on the title page (want: {rate key: amount}). The rest cent goes
     on the last position of that rate, which then becomes one flat amount (its qty x rate stays in the detail).
-    2.368.0 C (#2983): the detail's rate in the office's home currency (the rates' one), not always EUR."""
+    2.368.0 C (#2983): the detail's rate in the office's home currency (the rates' one), not always EUR.
+    2.1254.0 (#6299): fx = a quotation in a foreign currency: want is in that currency, a position counts with rate x fx (as
+    inv_calc), the rest cent's flat rate goes back by calc_home_rate."""
+    def conv(rate):
+        return rate * fx if fx is not None else rate
+
     have = {}
     for x in rows:
         if x.get("kind") not in ("service", "discount"):
             continue
         if x.get("unit") == "percent":
             return rows  # its amount depends on the whole invoice: leave as before
-        v = calc_line_amount(dec(x.get("qty"), "1"), dec(x.get("rate")), x.get("discount_pct") if x["kind"] == "service" else 0)[2]  # 2.354.0 A (#2831): like inv_calc, the exact rate; 2.1042.0 (#5815): after its own discount
+        v = calc_line_amount(dec(x.get("qty"), "1"), conv(dec(x.get("rate"))), x.get("discount_pct") if x["kind"] == "service" else 0)[2]  # 2.354.0 A (#2831): like inv_calc, the exact rate; 2.1042.0 (#5815): after its own discount
         have[x.get("tax")] = have.get(x.get("tax"), D0) + (-v if x["kind"] == "discount" else v)
     for k, w in (want or {}).items():
         diff = money(dec(w)) - have.get(k, D0)
@@ -235,7 +240,8 @@ def f8b_fix_cents(rows, want, lang="de", currency="EUR"):
             continue
         q, rate = dec(last.get("qty"), "1"), dec(last.get("rate"))  # 2.354.0 A (#2831): the exact rate
         # 2.1042.0 (#5815): a discounted position becomes its net after the discount (the flat amount carries it, no percent left)
-        last.update(qty=_num(1), unit="flat", rate=_num(calc_line_amount(q, rate, last.get("discount_pct"))[2] + diff), discount_pct=0,
+        amt = calc_line_amount(q, conv(rate), last.get("discount_pct"))[2] + diff
+        last.update(qty=_num(1), unit="flat", rate=_num(amt) if fx is None else calc_home_rate(amt, fx), discount_pct=0,
                     detail=" · ".join(t for t in (f"{fmt_qty(q, lang)} × {fmt_rate(rate, lang, currency)}", last.get("detail") or "") if t))
     return rows
 
@@ -639,14 +645,19 @@ def tp_sum_title(s, lang):
     return own or tr("Services|document", lg=lang)
 
 
-def tp_flat_items(c, oid, r, title=None):
+def tp_flat_items(c, oid, r, title=None, home=False):
     """2.1041.0 (#5817): the positions of an invoice from flat price quotation r (without parts): one position per tax rate with
     the quotation's net of that rate, titled like the summary of a quotation with parts (title, else tp_sum_title), the
-    purchase on the first; in the home currency like inv_items_from_offer. Net and gross equal the quotation's."""
+    purchase on the first; in the home currency like inv_items_from_offer. Net and gross equal the quotation's.
+    2.1254.0 (#6299): a foreign currency = the bases the quotation computed there / its rate (was a run in EUR: cents off);
+    home = the run in the home currency anyway (inv_items_from_offer)."""
     s = office_settings(c, oid)
     pack = office_pack_for(s, calc_tax_day(dict(r)))
     d = _calc_doc(r, hc_home(s))
-    d["currency"] = d["home"]
+    _h, _c, fx, foreign = calc_cur(d)
+    fx = fx if foreign and not home else None
+    if fx is None:
+        d["currency"] = d["home"]
     t = office_calc(d, doc_items(c, r["id"], oid), pack)
     lang = calc_lang(r["lang"])
     ttl = (title or "").strip()[:500] or tp_sum_title(s, lang)
@@ -656,19 +667,23 @@ def tp_flat_items(c, oid, r, title=None):
         if k not in bases or not dec(bases[k]):
             continue
         det = label(pack, lang, "tax_" + k, pct=fmt_qty(pack_tax(pack, k, calc_tax_day(dict(r))), lang)) if len(bases) > 1 else ""
-        out.append({"kind": "service", "service_id": None, "title": ttl, "detail": det, "qty": 1, "unit": "flat", "rate": bases[k], "tax": k,
-                    "intext": "intern", "cost": t["costs"] if not out else 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+        out.append({"kind": "service", "service_id": None, "title": ttl, "detail": det, "qty": 1, "unit": "flat", "rate": calc_home_rate(bases[k], fx), "tax": k,
+                    "intext": "intern", "cost": calc_home_rate(t["costs"], fx) if not out else 0, "raw_fee": 0, "producing": 0, "discountable": 1})
     return out or [{"kind": "service", "service_id": None, "title": ttl, "detail": "", "qty": 1, "unit": "flat", "rate": 0, "tax": "standard",
                     "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1}]
 
 
-def tp_inv_items(c, oid, r, mode=None, title=None):
+def tp_inv_items(c, oid, r, mode=None, title=None, home=False):
     """The positions of an invoice from quotation r with parts (None: it has none). mode (else the office setting
     parts_invoice_mode, app default "full"): "title" = the title page with its positions, a part line becomes a position
     with its amount (one per tax rate when the part mixes rates); "summary" = one position per tax rate titled title (default
     from the settings, else the word "Services" in the document's language: tp_sum_title); "full" = the title page's direct positions plus, per printed
     part, a heading and its positions (qty x part qty, producing / raw data / discount as positions); a part that is not
-    printed stays one line. Net and gross equal the quotation's in every mode. Rates in EUR like inv_items_from_offer."""
+    printed stays one line. Net and gross equal the quotation's in every mode. Rates in EUR like inv_items_from_offer.
+    2.1254.0 (#6299): a quotation in a foreign currency: every amount the quotation computes (a part, its producing /
+    surcharges / raw data / discount, a percent position, the bases of the summary) is taken as computed in that currency and
+    turned back into a home-currency rate (calc_home_rate); was a second run in EUR, converted by the invoice: cents off.
+    home = the run in the home currency anyway (inv_items_from_offer: the bases of progress invoices)."""
     if not tp_has_parts(c, oid, r["id"]):
         return None
     s = office_settings(c, oid)
@@ -677,14 +692,23 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
     if mode not in INVOICE_MODES:
         raise BadInput(tr("Invalid value: {0}", "mode"))
     items = doc_items(c, r["id"], oid)
-    t = tp_doc_totals(c, oid, r, items, pack, eur=True, home=hc_home(s))  # 2.189.0 (#2475)
+    _h, _c, fx, foreign = calc_cur(_doc_calc(r, False, hc_home(s)))
+    fx = fx if foreign and not home else None  # 2.1254.0 (#6299)
+    t = tp_doc_totals(c, oid, r, items, pack, eur=fx is None, home=hc_home(s))  # 2.189.0 (#2475)
     calcs = t.pop("_part_calcs")
     lang = calc_lang(r["lang"])  # 2.185.0 C (#2520)
     pmap = {p["id"]: p for p in tp_parts(c, oid, r["id"])}
     pct = {k: pack_tax(pack, k) for k in TAX_KEYS}
 
+    def h(v, q=1):
+        """2.1254.0 (#6299): v = an amount per unit the quotation computed, q units -> the home-currency rate whose q x rate x fx
+        is the whole cent money(v x q) (never a half cent a float rate could round either way); v itself in the home currency."""
+        return v if fx is None else calc_home_rate(money(dec(v) * dec(q)), fx, q)
+
     def pos(title, qty, unit, rate, tax, detail="", cost=0, kind="service"):
-        return {"kind": kind, "service_id": None, "title": title, "detail": detail, "qty": _num(dec(qty)), "unit": unit, "rate": _num(dec(rate)),
+        # 2.1254.0 (#6299): a foreign rate unrounded; office_doc_items.rate keeps 12 places (migrations.d/6299.py, was 4: x qty x a
+        # large rate that missed the cent)
+        return {"kind": kind, "service_id": None, "title": title, "detail": detail, "qty": _num(dec(qty)), "unit": unit, "rate": _num(dec(rate)) if fx is None else dec(rate),
                 "tax": tax, "intext": "intern", "cost": _num(dec(cost)), "raw_fee": 0, "producing": 0, "discountable": 1}
 
     def tax_word(k):
@@ -695,7 +719,7 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
         out = []
         bases = {tl["rate_key"]: tl["base"] for tl in t["tax_lines"]} if t["vat_mode"] != "novat" else {"standard": t["net"]}
         for n, (k, b) in enumerate((k, bases[k]) for k in TAX_KEYS if k in bases and dec(bases[k])):
-            out.append(pos(ttl, 1, "flat", b, k, detail=tax_word(k) if len(bases) > 1 else "", cost=t["costs"] if n == 0 else 0))
+            out.append(pos(ttl, 1, "flat", h(b), k, detail=tax_word(k) if len(bases) > 1 else "", cost=h(t["costs"]) if n == 0 else 0))
         return out or [pos(ttl, 1, "flat", 0, "standard")]
 
     def part_line(ln, it):
@@ -705,25 +729,25 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
         bs = pc.get("bases") or {}
         res = []
         for n, k in enumerate(k for k in TAX_KEYS if k in bs):
-            res.append(pos(ln["title"], qty, it.get("unit") or "piece", bs[k], k, detail=tax_word(k) if len(bs) > 1 else (it.get("detail") or ""),
-                           cost=pc.get("costs") if n == 0 else 0))
-        return f8b_fix_cents(res, ln.get("taxes"), lang, hc_home(s)) or [pos(ln["title"], qty, it.get("unit") or "piece", 0, "standard")]
+            res.append(pos(ln["title"], qty, it.get("unit") or "piece", h(bs[k], qty), k, detail=tax_word(k) if len(bs) > 1 else (it.get("detail") or ""),
+                           cost=h(pc.get("costs") or 0) if n == 0 else 0))
+        return f8b_fix_cents(res, ln.get("taxes"), lang, hc_home(s), fx) or [pos(ln["title"], qty, it.get("unit") or "piece", 0, "standard")]
 
     def auto(lines, factor=Decimal(1), with_disc=True):
         res = []
         for ln in lines:
             if ln["kind"] == "producing":  # 2.113.1 (#2251): without its calculation (internal)
-                res.append(pos(ln["title"], dec(ln["qty"]) * factor, "day", ln["rate"], "standard", ""))
+                res.append(pos(ln["title"], dec(ln["qty"]) * factor, "day", ln["rate"] if fx is None else h(dec(ln["total"]) / dec(ln["qty"]), dec(ln["qty"]) * factor), "standard", ""))
             elif ln["kind"] == "surcharge":  # 2.1228.0 (#6254): one position per tax key (was all at "standard")
                 for tk, v in (ln.get("by_tax") or {"standard": ln["total"]}).items():
-                    res.append(pos(ln["title"], factor, "flat", v, tk if tk in TAX_KEYS else "standard", ""))
+                    res.append(pos(ln["title"], factor, "flat", h(v, factor), tk if tk in TAX_KEYS else "standard", ""))
             elif ln["kind"] == "raw" and not ln.get("optional"):
-                res.append(pos(ln["title"], factor, "flat", ln["total"], "standard", ln.get("detail") or ""))
+                res.append(pos(ln["title"], factor, "flat", h(ln["total"], factor), "standard", ln.get("detail") or ""))
             elif ln["kind"] == "discount" and with_disc:
                 taxes = ln.get("taxes") or {"standard": abs(dec(ln["total"]))}
                 for k in TAX_KEYS:
                     if dec(taxes.get(k)):
-                        res.append(pos(ln["title"], factor, "flat", abs(dec(taxes[k])), k, ln.get("detail") or "", kind="discount"))
+                        res.append(pos(ln["title"], factor, "flat", h(abs(dec(taxes[k])), factor), k, ln.get("detail") or "", kind="discount"))
         return res
 
     by_id = {it["id"]: it for it in items}
@@ -740,7 +764,7 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
             row = {kk: it.get(kk) for kk in ("kind", "service_id", "title", "detail", "qty", "unit", "rate", "tax", "intext", "cost", "discount_pct")}  # 2.1042.0 (#5815): + its own discount
             row.update(raw_fee=0, producing=0, discountable=1)
             if ln.get("pct") is not None:  # 2.47.0 (#1649): a percent position becomes its amount (as invoices.inv_items_from_offer)
-                row.update(qty=1, unit="flat", rate=ln["total"])
+                row.update(qty=1, unit="flat", rate=h(ln["total"]))
             out.append(row)
             continue
         p = pmap.get(ln["part_id"])
@@ -763,7 +787,7 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
             if pit.get("unit") == "percent" and pit.get("id") in pct_lines:
                 # 2.47.0 (#1649): a percent position (artists' social insurance) is its amount in the part x the part's qty;
                 # the invoice would otherwise take the percentage of all its extern positions
-                out.append({**pos(pit.get("title") or "", qty, "flat", pct_lines[pit["id"]]["total"], pit.get("tax") or "standard",
+                out.append({**pos(pit.get("title") or "", qty, "flat", h(pct_lines[pit["id"]]["total"], qty), pit.get("tax") or "standard",
                                   pit.get("detail") or "", cost=pit.get("cost") or 0), "service_id": pit.get("service_id")})
                 continue
             out.append({"kind": "service", "service_id": pit.get("service_id"), "title": pit.get("title") or "", "detail": pit.get("detail") or "",
@@ -778,7 +802,7 @@ def tp_inv_items(c, oid, r, mode=None, title=None):
             out += auto(raw_lines + [dl], qty)
         else:
             out += auto(pc["lines"], qty)
-        out[start:] = f8b_fix_cents(out[start:], ln.get("taxes"), lang, hc_home(s))
+        out[start:] = f8b_fix_cents(out[start:], ln.get("taxes"), lang, hc_home(s), fx)
     out += auto(t["lines"])
     return out
 

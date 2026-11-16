@@ -41,7 +41,7 @@ from ..accounts.login import login_log_ip  # 2.239.0 B (#2888)
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.secmail import sec_mail  # 2.485.0 (#3939): earlier in the load order, at module level
 from ..accounts.sessions import ses_end
-from ..accounts.users import _active_admins, user_delete_run
+from ..accounts.users import _active_admins, sdl_admin_locked, user_delete_run
 from .hosting import ANN_TEXT_MAX, _mb, _user_bytes, announce_get, announce_set, hosted, hosting_settings, quota_default_mb
 from .retexport import RX_NEEDED, rx_counts, rx_subject
 from ..accounts.orgs import instance_mode  # 2.369.5 (#2517): pulled up from functions
@@ -310,6 +310,7 @@ def operator_account_put(uid):
             c.execute("UPDATE users SET disabled=? WHERE id=?", (1 if b["disabled"] else 0, uid))
             if b["disabled"]:
                 ses_end(c, uid)  # 2.190.0 A (#1991): with the push subscriptions made in them
+                sdl_admin_locked(c, uid)  # 2.1254.0 (#6293): a pending own deletion no longer unlocks it
                 locked = not u["disabled"] and not u["signup"]
         if "storage_quota_mb" in b:  # null = the server's default, 0 = unlimited
             c.execute("UPDATE users SET storage_quota_mb=? WHERE id=?", (q, uid))

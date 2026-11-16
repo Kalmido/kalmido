@@ -251,7 +251,7 @@ def abs_offer_info(c, oid, offer):
     from .docs import doc_items
     from .invoices import inv_items_from_offer, inv_money_fields, inv_paid_map
     s, pack = _pack(c, oid)
-    net = sum(_eur_bases(inv_items_from_offer(c, oid, offer), pack).values(), Decimal(0))
+    net = sum(_eur_bases(inv_items_from_offer(c, oid, offer, home=True), pack).values(), Decimal(0))  # 2.1254.0 (#6299): home run
     rows = abs_progress_of(c, oid, offer["id"])
     pm = inv_paid_map(c, oid, [x["id"] for x in rows])
     out, billed = [], Decimal(0)
@@ -287,7 +287,9 @@ def abs_progress(c, oid, uid, offer, amount=None, pct=None):
     write_lock(c, f"office_abschlag_{int(oid)}_{int(offer['id'])}")  # 2.360.0 B (#2496): two at once never pass the cap together
     abs_final_done(c, oid, offer["id"])
     s, pack = _pack(c, oid)
-    bases = {k: v for k, v in _eur_bases(inv_items_from_offer(c, oid, offer), pack).items() if v != 0}
+    # 2.1254.0 (#6299): the home-currency run, as before (the invoice's rates of a foreign quotation are amount / qty / rate now:
+    # 650 x 1.0837 x 3 days gave 1,950.01 instead of 1,950.00 - a running chain's "left" or a 100 % progress off by a cent)
+    bases = {k: v for k, v in _eur_bases(inv_items_from_offer(c, oid, offer, home=True), pack).items() if v != 0}
     net = sum(bases.values(), Decimal(0))
     if net <= 0:
         raise BadInput(tr("The quotation has no net amount to bill"))
@@ -304,7 +306,9 @@ def abs_progress(c, oid, uid, offer, amount=None, pct=None):
         if a.is_nan() or a <= 0:
             raise BadInput(tr("Invalid value: {0}", "amount"))
         fx = dec(offer["fx_rate"], "1") if hc_code(offer["currency"]) not in ("", hc_home(s)) else Decimal(1)  # 2.189.0 (#2475)
-        total = (a / fx).quantize(Decimal("0.0001")) if fx not in (0, 1) else money(a)  # rates are stored in the home currency
+        # rates are stored in the home currency; 2.1254.0 (#6299): with the 12 places of the column (was 4: 1,000,000 HUF / a rate
+        # of 395.5 x 4 places missed the amount by up to 2 cents)
+        total = (a / fx).quantize(Decimal("1e-12")) if fx not in (0, 1) else money(a)
         detail = ""
     if total > dec(info["remaining"]):
         raise BadInput(tr("The progress invoices would exceed the quotation's net ({0} left)", info["remaining_text"]))

@@ -1,0 +1,22 @@
+{
+  "de": {
+    "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "Die Löschung deines Kontos {0} ist abgebrochen. Ein Admin hat das Konto gesperrt; nur ein Admin kann es wieder freigeben.",
+    "An admin has locked your account; only an admin can unlock it.": "Ein Admin hat dein Konto gesperrt; nur ein Admin kann es wieder freigeben."
+  },
+  "es": {
+    "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "Se ha cancelado la eliminación de tu cuenta {0}. Un administrador ha bloqueado la cuenta; solo un administrador puede desbloquearla.",
+    "An admin has locked your account; only an admin can unlock it.": "Un administrador ha bloqueado tu cuenta; solo un administrador puede desbloquearla."
+  },
+  "fr": {
+    "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "La suppression de ton compte {0} a été annulée. Un administrateur a verrouillé le compte ; seul un administrateur peut le déverrouiller.",
+    "An admin has locked your account; only an admin can unlock it.": "Un administrateur a verrouillé ton compte ; seul un administrateur peut le déverrouiller."
+  },
+  "it": {
+    "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "L’eliminazione del tuo account {0} è stata annullata. Un amministratore ha bloccato l’account; solo un amministratore può sbloccarlo.",
+    "An admin has locked your account; only an admin can unlock it.": "Un amministratore ha bloccato il tuo account; solo un amministratore può sbloccarlo."
+  },
+  "nl": {
+    "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "De verwijdering van je account {0} is geannuleerd. Een beheerder heeft het account geblokkeerd; alleen een beheerder kan het weer vrijgeven.",
+    "An admin has locked your account; only an admin can unlock it.": "Een beheerder heeft je account geblokkeerd; alleen een beheerder kan het weer vrijgeven."
+  }
+}

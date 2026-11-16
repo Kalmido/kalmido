@@ -25,7 +25,7 @@ from ..core.i18n import N_, stored_join, tr
 from ..core.db import body, bump, db, err, iso, local_now, now_utc
 from ..core.access import Denied, live_sql
 from ..core.errors import BadInput, BadKey, DeniedKey
-from .calc import INV_VAT_NOTES, TAX_KEYS, dec, dstr, fmt_money, inv_calc, inv_open, money, pack_tax
+from .calc import INV_VAT_NOTES, TAX_KEYS, calc_cur, calc_home_rate, dec, dstr, fmt_money, inv_open, money, pack_tax
 from .homecur import hc_code, hc_home, hc_office_rate, hc_rate_missing  # 2.189.0 (#2475); 2.355.0 C (#2844): hc_rate_missing
 from .packs import office_pack_for
 from .doclang import doc_lg, doc_pack  # 2.185.0 C (#2520)
@@ -468,31 +468,40 @@ def _f2(name):
 
 
 # ---------------------------------------------------------------- making documents
-def _lines_eur(c, oid, r):
-    """The automatic lines of a quotation (producing, raw data, discount) in EUR: the calculator run in EUR.
-    2.189.0 (#2475): in the home currency of the office (EUR for every office of before)."""
+def _offer_lines(c, oid, r, home=False):
+    """(lines, fx) of quotation r for its invoice: the automatic lines (producing, surcharges, raw data, discount) as the
+    quotation computed them. 2.189.0 (#2475): home currency = the calculator run in it (fx None, as before).
+    2.1254.0 (#6299): a foreign currency = the run in the quotation's own currency and its rate (calc_home_rate turns each
+    amount back into a home-currency rate); was a second run in EUR, converted by the invoice: cents off the quotation.
+    home = the run in the home currency anyway (the home-currency bases of progress invoices, abschlag.py)."""
     from .docs import _calc_doc, doc_items
     s = office_settings(c, oid)
     pack = office_pack_for(s, calc_tax_day(dict(r)))  # 2.531.0 (#4498)
     d = _calc_doc(r, hc_home(s))
-    d["currency"] = d["home"]
-    return office_calc(d, doc_items(c, r["id"], oid), pack)["lines"]
+    _home, _cur, fx, foreign = calc_cur(d)
+    foreign = foreign and not home
+    if not foreign:
+        d["currency"] = d["home"]
+    return office_calc(d, doc_items(c, r["id"], oid), pack)["lines"], (fx if foreign else None)
 
 
-def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None):
+def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None, home=False):
     """The positions of an invoice from quotation r: every quotation line becomes a plain position with its amount (the
     producing / raw data / discount automation of the quotation is condensed into positions; an uncounted raw data option
-    is left out). Rates stay in EUR; the invoice converts them with its own rate."""
+    is left out). Rates stay in EUR; the invoice converts them with its own rate (2.1254.0, #6299: an automatic line of a
+    quotation in a foreign currency = its amount there / the rate, so the invoice's sums equal the quotation's).
+    home = the positions of the run in the home currency (as before 2.1254.0): the home-currency net a chain of progress
+    invoices bills against (abschlag.py), so a running chain keeps its figures."""
     from .docs import doc_items
     from .parts import tp_flat_items, tp_inv_items  # 2.47.0 (#1215): a quotation with parts -> title page / summary / full (office/parts.py)
     flat = bool(_col(r, "flat_print"))  # 2.1041.0 (#5817): a flat price quotation: one position per tax rate (its summary form)
-    out = tp_inv_items(c, oid, r, parts_mode or ("summary" if flat else None), parts_title)
+    out = tp_inv_items(c, oid, r, parts_mode or ("summary" if flat else None), parts_title, home=home)
     if out is not None:
         return out
     if flat:
-        return tp_flat_items(c, oid, r, parts_title)
+        return tp_flat_items(c, oid, r, parts_title, home=home)
     items = doc_items(c, r["id"], oid)
-    lines = _lines_eur(c, oid, r)
+    lines, fx = _offer_lines(c, oid, r, home)
     pct = {ln.get("id"): ln for ln in lines if ln.get("kind") == "item" and ln.get("pct") is not None}
     out = []
     for it in items:
@@ -501,23 +510,24 @@ def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None):
         row = {k: it.get(k) for k in ("kind", "service_id", "title", "detail", "qty", "unit", "rate", "tax", "intext", "cost", "discount_pct")}  # 2.1042.0 (#5815): + its own discount
         row.update(raw_fee=0, producing=0, discountable=1)
         if it.get("unit") == "percent" and it.get("id") in pct:  # 2.47.0 (#1649): a percent position becomes its amount
-            row.update(qty=1, unit="flat", rate=pct[it["id"]]["total"], discount_pct=0)
+            row.update(qty=1, unit="flat", rate=calc_home_rate(pct[it["id"]]["total"], fx), discount_pct=0)
         out.append(row)
     for ln in lines:
         if ln["kind"] == "producing":  # 2.113.1 (#2251): without its calculation (internal)
             out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": "", "qty": ln["qty"], "unit": "day",
-                        "rate": ln["rate"], "tax": "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+                        "rate": ln["rate"] if fx is None else calc_home_rate(ln["total"], fx, ln["qty"]),  # 2.1254.0 (#6299): its total, not days x the EUR rate
+                        "tax": "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
         elif ln["kind"] == "surcharge":  # 2.1228.0 (#6254): one position per tax key, as the quotation computed it (was all at "standard")
             for k, v in (ln.get("by_tax") or {"standard": ln["total"]}).items():
                 out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": "", "qty": 1, "unit": "flat",
-                            "rate": dec(v), "tax": k if k in TAX_KEYS else "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+                            "rate": calc_home_rate(dec(v), fx), "tax": k if k in TAX_KEYS else "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
         elif ln["kind"] == "raw" and not ln.get("optional"):
             out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": ln.get("detail") or "", "qty": 1, "unit": "flat",
-                        "rate": ln["total"], "tax": "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+                        "rate": calc_home_rate(ln["total"], fx), "tax": "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
         elif ln["kind"] == "discount":  # 2.354.0 A (#2835): one position per tax key, as the quotation computed it (was all at "standard")
             for k, v in (ln.get("by_tax") or {"standard": abs(dec(ln["total"]))}).items():
                 out.append({"kind": "discount", "service_id": None, "title": ln["title"], "detail": ln.get("detail") or "", "qty": 1, "unit": "flat",
-                            "rate": abs(dec(v)), "tax": k if k in TAX_KEYS else "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+                            "rate": calc_home_rate(abs(dec(v)), fx), "tax": k if k in TAX_KEYS else "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
     return out
 
 
