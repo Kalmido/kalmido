@@ -47,7 +47,7 @@ def mp_may(c, oid, src, kind, lid):
         return False
     if kind == "card" and src["card"] is not None:
         return bool(c.execute("SELECT 1 FROM office_cc_lines l JOIN office_cc_statements s ON s.id=l.statement_id JOIN office_cc_cards k "
-                              "ON k.id=s.card_id WHERE l.id=? AND l.org_id=? AND k.holder_id=?", (lid, oid, src["card"])).fetchone())
+                              f"ON k.id=s.card_id WHERE l.id=? AND l.org_id=? AND k.holder_id=? AND {live_sql('k')}", (lid, oid, src["card"])).fetchone())
     return True
 
 
@@ -98,7 +98,7 @@ def mp_candidates(c, oid, m, src):
         for r in c.execute("SELECT id FROM office_cash_entries WHERE org_id=? AND dir='out' AND storno_of IS NULL AND day>=? AND day<=? ORDER BY day", (oid, d0, d1)).fetchall():
             out.append(("cash", r[0]))
     if "card" in src:
-        own = "" if src["card"] is None else " AND s.card_id IN (SELECT id FROM office_cc_cards WHERE org_id=? AND holder_id=?)"
+        own = "" if src["card"] is None else f" AND s.card_id IN (SELECT id FROM office_cc_cards WHERE org_id=? AND holder_id=? AND {live_sql()})"
         for r in c.execute("SELECT l.id FROM office_cc_lines l JOIN office_cc_statements s ON s.id=l.statement_id WHERE l.org_id=? AND s.deleted_at IS NULL "
                            f"AND {live_sql('l')} AND l.day>=? AND l.day<=?{own} ORDER BY l.day",
                            (oid, d0, d1) + (() if src["card"] is None else (oid, src["card"]))).fetchall():  # 2.1005.0 (#5415): not the trash
@@ -148,7 +148,12 @@ def mp_put(mid):
     m = _meal(c, oid, mid, mode="read")
     kind = b.get("kind")
     old_day = None
+    src = mp_sources(c, uid, oid)
+    if kind not in (None, "") and kind in MP_KINDS and kind not in src:
+        raise Denied(403, tr(NO_RIGHT))  # 2.1253.0 (#6292 review): before the line's lookup (no 404 / 403 oracle of its ids)
     if m["pay_kind"] and m["pay_id"]:
+        if not mp_may(c, oid, src, m["pay_kind"], m["pay_id"]):  # 2.1253.0 (#6292 review): taking off / replacing the link
+            raise Denied(403, tr(NO_RIGHT))                       # of a source the person may not read: the bookkeeping's
         try:
             old_day = mp_line(c, oid, m["pay_kind"], m["pay_id"])[0]
         except Denied:
@@ -163,7 +168,7 @@ def mp_put(mid):
         if not isinstance(lid, int) or isinstance(lid, bool):
             raise BadInput(tr("Invalid value: {0}", "id"))
         day = mp_line(c, oid, kind, lid)[0]
-        if not mp_may(c, oid, mp_sources(c, uid, oid), kind, lid):  # 2.1253.0 (#6292): only a line of a source the person may read
+        if not mp_may(c, oid, src, kind, lid):  # 2.1253.0 (#6292): only a line of a source the person may read
             raise Denied(403, tr(NO_RIGHT))
         if (kind, lid) in _taken(c, oid, mid):
             raise Denied(409, tr("This booking is the proof of another entertainment receipt"))

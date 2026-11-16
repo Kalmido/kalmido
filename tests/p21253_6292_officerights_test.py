@@ -108,7 +108,11 @@ check(r.ok and r.json()["current"]["text"], f"alice links the bank line, with it
 r = Bo.get(B + f"{O}/meals/{MID}/payment?candidates=0")
 cur = r.json().get("current") if r.ok else None
 check(cur and cur["amount"] == "150.40" and cur["text"] == "", f"#6292 bob: the linked line without its text {r.status_code} {cur}")
-check(Bo.put(B + f"{O}/meals/{MID}/payment", json={"kind": None}).ok, "bob may take the link off his own meal")
+r = Bo.put(B + f"{O}/meals/{MID}/payment", json={"kind": None})
+check(r.status_code == 403, f"#6292 review: bob may not take the bookkeeping's bank link off ({r.status_code})")
+r = Bo.put(B + f"{O}/meals/{MID}/payment", json={"kind": "bank", "id": 99999999})
+check(r.status_code == 403, f"#6292 review: bob gets 403 (not 404) for a bank id that does not exist ({r.status_code})")
+check(A.put(B + f"{O}/meals/{MID}/payment", json={"kind": None}).ok, "alice takes the link off")
 
 # ---------------------------------------------------------------- (2) the ledger's files and closing need their specials
 L = O + "/books/ledger"
@@ -141,6 +145,9 @@ check(r.status_code in (403, 404), f"#6292 dave (travel own): alice's trip's lin
 r = De.post(B + f"/api/obj/omeal/{DMID}/links", json={"kind": "omeal", "id": AMID, "note": "probe"})
 check(r.status_code in (403, 404), f"#6292 dave: no link from his meal to alice's ({r.status_code} {r.text[:200]})")
 check(A.get(B + f"/api/obj/omeal/{DMID}/links").status_code == 200, "alice (admin) still reads the links of dave's meal")
+check(Ca.get(B + f"/api/obj/omeal/{AMID}/links").status_code == 200, "carol (read-only: meals view) reads the links of alice's meal")
+r = Ca.post(B + f"/api/obj/omeal/{AMID}/links", json={"kind": "otrip", "id": ATID, "note": "probe"})
+check(r.status_code in (403, 404), f"#6292 review: carol (read-only) links nothing to alice's meal ({r.status_code} {r.text[:200]})")
 
 # ---------------------------------------------------------------- a person without an organisation (freelancer-matrix: office)
 _, F = freelancer(B, A, features=FEAT)

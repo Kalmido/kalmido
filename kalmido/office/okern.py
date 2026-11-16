@@ -93,6 +93,8 @@ def _base_of(kind):
             # 2.1253.0 (#6292): the level "own" gives a role only on the person's own rows (who entered it: k["owner"]), as
             # the area's routes; else links, the trash and the undo of the core would open everybody else's rows
             return "manage" if office_can(c, uid, oid, k["area"], "own") and _owner(c, kind, oid, row) == uid else None
+        if k["need"] == "own" and not office_can(c, uid, oid, k["area"], "edit"):
+            return "view"  # 2.1253.0 (#6292 review): the level "view" reads (the links), it changes nothing
         return "manage" if office_can(c, uid, oid, k["area"], k["need"]) else None
     return base
 
