@@ -175,6 +175,7 @@ The REST API v1: shared helpers, scopes (token rights) and the OpenAPI descripti
 - `kalmido/api/helpuser.py` (`uh`) - The help for people in the app: the "How to" sections per area in the person's language, one section, the web side of search kind help (2.1086.0)
 - `kalmido/api/openapi.py` - The OpenAPI 3.1 document of /api/v1 (served at /api/v1/openapi.json, built once)
 - `kalmido/api/projects.py` (`v1`) - The project overview in the token API
+- `kalmido/api/runfor.py` - the run of a team agent for a person -- the one gate over every route of /api/v1
 - `kalmido/api/scopes.py` (`v1`) - Token scopes, approvals and the complete agent API (the routes the web client has)
 - `kalmido/api/showme.py` (`shw`) - "Show me": the named places of the app an agent's chat message may point at (docs/help-targets.json) (2.1086.0)
 - `kalmido/api/v1.py` (`v1`) - REST API /api/v1 with personal access tokens
