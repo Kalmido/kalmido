@@ -33,6 +33,7 @@ from .pdf import pdf_paper  # 2.357.0 A (#3156)
 from .oubar import OUB_SENT, oub_barrier, oub_doc_name  # 2.747.0 (#5252): a document marked sent is a barrier of the undo steps
 from .ledger import (ofx_release, ofx_company, ofx_company_print, ofx_sender_line, ofx_diff, ofx_items_brief, ofx_locked, ofx_log, ofx_logo_path, ofx_need_editable,
                      ofx_number_at_finalize, ofx_snapshot_pack, OFX_LOCKED)
+from .ledger import ofx_user_label  # 2.1287.0 (#6470)
 from .ledger import ofx_unlink, ofx_unlock  # 2.1005.0 (#5415): a finalised quotation never sent goes as a draft
 from .countries import fk_country_label  # 2.296.0 B (#3168)
 from .invoices import (INV_KINDS, INV_STATUSES, STATE_TXT, inv_apply_client, inv_manual_number, inv_money_fields, inv_new_row, inv_paid_map, inv_payments,
@@ -481,6 +482,20 @@ def ofd_role_edit(c, oid):
     return memo[key]
 
 
+def odoc_locked_by_name(c, oid, r, d):
+    """2.1287.0 (#6470): who finalised document r (d = its decrypted row): the account's name now; when the account is
+    gone, the name frozen with the sender (finalised since 2.1287), else the one the office log kept of its finalising."""
+    n = ofx_user_label(c, r["locked_by"])
+    if n:
+        return n
+    n = (_j(d.get("sender"), {}) or {}).get("locked_by_name") or ""
+    if n:
+        return n
+    lg = c.execute("SELECT * FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='finalize' ORDER BY id DESC LIMIT 1",
+                   (oid, r["id"])).fetchone()
+    return (oc_dec_fields(c, oid, "office_doc_log", lg).get("user_name") or "") if lg else ""
+
+
 def doc_public(c, oid, r, admin, items=True):
     d = oc_dec_fields(c, oid, "office_docs", r)  # 2.42.0 (#828)
     for k, dflt in (("recipient", {}), ("rights", {}), ("fields", []), ("totals", {})):
@@ -553,10 +568,7 @@ def doc_public(c, oid, r, admin, items=True):
     d["locked"] = locked
     if items and not locked:  # 2.460.0 (#3767): own texts missing in the document's language
         d["lang_gaps"] = fd_lang_gaps(c, oid, r, d.get("items") or [])
-    d["locked_by_name"] = ""
-    if locked and r["locked_by"]:
-        u = c.execute("SELECT display_name, username FROM users WHERE id=?", (r["locked_by"],)).fetchone()
-        d["locked_by_name"] = (u["display_name"] or u["username"]) if u else ""
+    d["locked_by_name"] = odoc_locked_by_name(c, oid, r, d) if locked else ""
     d["can_edit"] = not locked and r["status"] != "sent" and ofd_role_edit(c, oid)  # 2.38.0: sent documents are locked as well; 2.1238.0 (#6161, Stufe 3): + the role
     d["can_unlock"] = bool(admin) and locked and not bga_offer_block(c, oid, r)  # 2.114.2 A (#2263): back to a draft
     d["trial"] = bool(r["trial"])  # 2.144.10 A (#2576)
