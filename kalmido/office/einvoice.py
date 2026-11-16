@@ -5,6 +5,7 @@ sector), built from the print model of office.docs (odoc_render), which for a fi
 ein_build(model, fmt)      -> bytes: the XML from a print model (pure, no database; tests use it with a fixture)
 ein_xml(c, oid, did, fmt)  -> bytes: the XML of document did of organisation oid (locked invoice / credit note)
 ein_check(xml_bytes)       -> [findings]: the module's own plausibility check without a validator (mandatory BTs, sums)
+ein_check_block(xml_bytes) -> [[key, *args]]: the findings that stop finalising (2.1308.0 #6476, pdfweb.epdf_store)
 
 Amounts are Decimal strings all the way (never float): the totals of the print model carry two-place strings, the line
 totals are read as text. Tax categories: S (standard / reduced rate; a line at 0 % of a taxed document Z or E, _line_cat), and
@@ -538,6 +539,11 @@ def ein_check(xml_bytes):
             out.append("BT-34 seller electronic address missing (XRechnung)")
         if not _text(tx, "ram:ApplicableHeaderTradeAgreement/ram:BuyerTradeParty/ram:URIUniversalCommunication/ram:URIID"):
             out.append("BT-49 buyer electronic address missing (XRechnung)")
+        # 2.1308.0 (#6476): postcode and city of seller and buyer are mandatory in XRechnung (BR-DE-3/4, BR-DE-8/9)
+        for who, nos, base in (("seller", ("BR-DE-4", "BR-DE-3"), "SellerTradeParty"), ("buyer", ("BR-DE-9", "BR-DE-8"), "BuyerTradeParty")):
+            for no, (tag, what) in zip(nos, (("PostcodeCode", "postcode"), ("CityName", "city"))):
+                if not _text(tx, f"ram:ApplicableHeaderTradeAgreement/ram:{base}/ram:PostalTradeAddress/ram:{tag}"):
+                    out.append(f"{no} {who} {what} missing (XRechnung)")
     lines = tx.findall("ram:IncludedSupplyChainTradeLineItem", NS)
     if not lines:
         out.append("BG-25 no invoice lines")
@@ -626,6 +632,33 @@ def ein_check(xml_bytes):
         out.append("BR-CO-25: due date or payment terms missing")
     if not se.findall("ram:SpecifiedTradeSettlementPaymentMeans", NS):
         out.append("BG-16 payment means missing")
+    return out
+
+
+# 2.1308.0 (#6476): the findings of ein_check that finalising refuses, as plain texts for the person (stored: [key, args]).
+# Every finding blocks except the empty element (ZUGFeRD 2.4+ only deprecates it, the EN 16931 / XRechnung rules do not
+# reject it); a finding without a plain text is named as it is (a sum the module itself got wrong).
+EIN_PLAIN = (("BT-10 ", N_("the client's Leitweg ID (buyer reference, XRechnung)")),
+             ("BT-41/42/43 ", N_("phone and e-mail of your company (office settings, company; XRechnung)")),
+             ("BT-34 ", N_("e-mail of your company (office settings, company; XRechnung)")),
+             ("BT-49 ", N_("the client's invoice e-mail (XRechnung)")),
+             ("BR-DE-3 ", N_("city of your company")), ("BR-DE-4 ", N_("postcode of your company")),
+             ("BR-DE-8 ", N_("city of the recipient")), ("BR-DE-9 ", N_("postcode of the recipient")),
+             ("BT-27 ", N_("company name")), ("BT-44 ", N_("recipient name")),
+             ("BT-31/BT-32/BT-30 ", N_("tax number or VAT ID")), ("BG-25 ", N_("at least one position")),
+             ("BR-CO-25", N_("due date or payment days")))
+
+
+def ein_check_block(xml_bytes):
+    """2.1308.0 (#6476): what stops finalising an e-invoice: [[key, *args], ...] (stored texts, tr(*x)), empty = fine."""
+    out = []
+    for f in ein_check(xml_bytes):
+        if f.startswith("empty element"):
+            continue
+        hit = next((k for p, k in EIN_PLAIN if f.startswith(p)), None)
+        x = [hit] if hit else [N_("e-invoice check: {0}"), f]
+        if x not in out:
+            out.append(x)
     return out
 
 
