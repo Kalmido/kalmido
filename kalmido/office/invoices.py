@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from flask import g, jsonify, request
 
-from ..core.config import app
+from ..core.config import app, EMAIL_RE  # 2.1297.0 (#6548)
 from .calc import calc_tax_day  # 2.531.0 (#4498)
 from .oubar import OUB_DATEV, OUB_PAID, OUB_PAY_BACK, OUB_SENT, oub_barrier, oub_doc_name  # 2.747.0 (#5252): barriers of the undo steps
 from ..core.pg import insert_id, write_lock
@@ -1260,12 +1260,12 @@ def inv_send(c, oid, uid, r, b, later=False, auto=False):
         raise DeniedKey(409, INV_TRIAL_NO_MAIL)
     to = (b.get("to") or "").strip() if isinstance(b.get("to"), str) else ""
     cc = (b.get("cc") or "").strip() if isinstance(b.get("cc"), str) else ""
-    mail_re = r"[^@\s,]+@[^@\s,]+\.[^@\s,]+"
+    mail_re = EMAIL_RE  # 2.1297.0 (#6548): the one strict check (was its own pattern that let '<a@x.de>' through)
     # 2.433.0 (#3599): several copy addresses, comma separated (the send dialog fills the contact persons in); each once
     ccs = list(dict.fromkeys(x.strip() for x in cc.replace(";", ",").split(",") if x.strip() and x.strip().lower() != to.lower()))
-    if not re.fullmatch(mail_re, to):
+    if not mail_re.fullmatch(to):
         raise BadKey(N_("Invalid value: {0}"), "to")
-    if len(ccs) > INV_CC_MAX or any(not re.fullmatch(mail_re, x) for x in ccs):
+    if len(ccs) > INV_CC_MAX or any(not mail_re.fullmatch(x) for x in ccs):
         raise BadKey(N_("Invalid value: {0}"), "cc")
     cc = ", ".join(ccs)
     s = office_settings(c, oid)

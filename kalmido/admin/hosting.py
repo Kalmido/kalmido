@@ -19,6 +19,7 @@ from ..api.scopes import need_scope  # 2.360.0 A (#2496)
 from ..core.env import env_bool
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
+from ..core.mailbudget import MAIL_DAY_RCPT, MAIL_DAY_SENDER, mail_budget, mail_day_limit, mail_rcpt_key  # noqa: F401  2.1297.0 (#6548): moved to core
 from ..files.store import fs_bytes_of  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.users import need_admin  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
@@ -433,32 +434,7 @@ def announce_cli(args):
         c.close()
 
 
-# ---- #899 (part): daily e-mail limits. Mails a person makes the server send (invitations, new links) count per sender and
-# per receiving address and day; over the limit the mail is not sent (the link still works and can be copied).
-MAIL_DAY_SENDER = 30   # per account and day (admin setting mail_day_limit)
-MAIL_DAY_RCPT = 5      # per receiving address and day
-
-
-def mail_day_limit(c):
-    v = _mb(gsetting(c, "mail_day_limit"))
-    return v if v else MAIL_DAY_SENDER
-
-
-def mail_budget(c, sender, rcpt):
-    """True and counted if one more mail from sender to rcpt fits today; False otherwise (caller commits)."""
-    day = now_utc().strftime("%Y-%m-%d")
-    c.execute("DELETE FROM mail_counts WHERE day<?", (day,))
-    keys = [(f"r:{(rcpt or '').strip().lower()}", MAIL_DAY_RCPT)]
-    if sender:
-        keys.append((f"s:{sender}", mail_day_limit(c)))
-    for k, lim in keys:
-        r = c.execute("SELECT n FROM mail_counts WHERE k=? AND day=?", (k, day)).fetchone()
-        if r and r[0] >= lim:
-            return False
-    for k, _ in keys:
-        c.execute("""INSERT INTO mail_counts(k,day,n) VALUES(?,?,1) ON CONFLICT(k) DO UPDATE SET
-                     n=CASE WHEN mail_counts.day=excluded.day THEN mail_counts.n+1 ELSE 1 END, day=excluded.day""", (k, day))
-    return True
+# ---- #899 (part): daily e-mail limits - 2.1297.0 (#6548): in core/mailbudget.py (imported above, the names stay importable here)
 
 
 # ---- admin settings (PATCH /api/admin/settings) and what the admin sees (about_info)

@@ -12,7 +12,8 @@ Invented names only, addresses @example.com. freelancer-matrix: wiki
    person outside; the freelancer sets her own)
  - kid stars: a repeating task ticked twice on one day earns its stars once; reopening the done copy takes them back
  - invitations: the calendar file names only its recipient (not the other external guest); the server's daily limit -> 429;
-   an event title from an .ics file is one line
+   an event title from an .ics file is one line; 2.1297.0 (#6548): the limit per receiving address and day holds for
+   invitations too, an address with brackets, a comma, a semicolon or quotes is refused
  - a video sign-off: who only views the task does not answer the customer's comment (403), the editor does
 usage: p2360_0_d_hardening_test.py <datadir>"""
 import email as _em
@@ -24,7 +25,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 
 import requests
 
@@ -241,6 +242,26 @@ r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Zu viel", "start": 
                                     "send_invites": True, "attendees": [{"email": "gast.drei@example.com"}]})
 check(r.status_code == 429 and "server" in r.text, f"#2496: the server's daily limit of invitation mails (R: KALMIDO_INVITE_MAIL_DAY=1500) ({r.status_code} {r.text[:120]})")
 dbx("DELETE FROM mail_counts WHERE k='i:evinvite'")
+# 2.1297.0 (#6548): invitations count against the limit per receiving address and day like every other mail; the
+# address is one plain address in one form (no '<...>', no list) for every counter
+uday = tnow().astimezone(timezone.utc).date().isoformat()  # mail_budget's day (UTC)
+dbx("INSERT INTO mail_counts(k,day,n) VALUES('r:gast.vier@example.com',?,5) ON CONFLICT(k) DO UPDATE SET n=5, day=excluded.day", (uday,))
+r = A.post(B + "/api/events", json={"cal_id": CAL, "title": "Grenze", "start": f"{D}T14:00", "end": f"{D}T15:00", "tz": "Europe/Berlin",
+                                    "send_invites": True, "attendees": [{"email": "Gast.Vier@example.com"}, {"email": "gast.fuenf@example.com"}]})
+check(r.status_code == 201, "#6548: an event with a guest whose day is used up " + r.text[:200])
+EV6548 = r.json().get("id") if r.ok else None
+check(bool(until(lambda: mails("gast.fuenf@example.com"), 10)), "#6548: the other guest gets the invitation")
+check(not mails("gast.vier@example.com") and not mails("Gast.Vier@example.com"),
+      "#6548: no invitation to an address whose 5 mails of the day are used up (also in other case)")
+iv = dbx("SELECT lower(email), invited_seq FROM event_attendees WHERE event_id=? ORDER BY id", (EV6548,))
+check([x[1] is None for x in iv] == [True, False], f"#6548: the refused guest stays uninvited (gets it with the next change) {iv}")
+dbx("DELETE FROM mail_counts WHERE k='r:gast.vier@example.com'")
+for bad in ("<bob.neu@example.com>", "bob.neu@example.com,1.a", "bob.neu@example.com;x@example.com", '"bob"@example.com', "Bob <bob.neu@example.com>"):
+    r = A.patch(B + f"/api/users/{uid['bob']}", json={"email": bad})
+    check(r.status_code == 400, f"#6548: {bad!r} is no single plain address ({r.status_code})")
+r = A.patch(B + f"/api/users/{uid['bob']}", json={"email": "bob.o'neil@example.com"})
+check(r.ok, f"#6548: an apostrophe before the @ stays a valid address ({r.status_code} {r.text[:120]})")
+A.patch(B + f"/api/users/{uid['bob']}", json={"email": "bob@example.com"})
 ICS = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example//EN\r\nBEGIN:VEVENT\r\nUID:p2360d-1@example.com\r\nDTSTAMP:20261001T000000Z\r\n"
        f"DTSTART:{D.replace('-', '')}T090000Z\r\nDTEND:{D.replace('-', '')}T100000Z\r\nSUMMARY:Zeile eins\\nZeile zwei\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
 r = A.post(B + f"/api/evcals/{CAL}/import", files={"file": ("x.ics", ICS.encode(), "text/calendar")})
