@@ -176,7 +176,12 @@ def take(files):
         parts = name = mime = data = ext = None
     return docs, total, cand
 out = {}
-big = zipped(6, 9_900_000, "big")  # just under 60 MB unpacked (the limit of one archive), a few KB packed
+# one archive just under its own limits (60 MB unpacked, the server's file size limit, 50 files), a few KB packed
+from kalmido.docs.unpack import DOC_FILE_MAX, DOC_UNPACKED_MAX
+size = min(DOC_FILE_MAX - 16, 9_900_000)
+k = min(I.MAIL_UNPACKED, (DOC_UNPACKED_MAX - 1024 * 1024) // (size + 16))
+out["zip"] = [k, k * (size + 9) // (1024 * 1024)]
+big = zipped(k, size, "big")
 files = [(f"b{i}.zip", "application/zip", big) for i in range(20)]
 tracemalloc.start()
 t = time.monotonic()
@@ -196,7 +201,9 @@ print(json.dumps(out))
 j = py(BUDGET, 400)
 check(j.get("limits") == [100, 100], f"the budget of one mail: 100 documents, 100 MB ({j.get('limits')})")
 b = j.get("big") or [0, 999, 0, 9999, 0]
-check(b[0] == 6 and b[1] <= 100 and b[2] == 20, f"20 ZIPs of 60 MB each: only what fits into 100 MB becomes documents ({b[0]} files, {b[1]} MB)")
+z = j.get("zip") or [0, 0]
+check(z[1] >= 45 and z[0] <= b[0] <= 100 and z[1] <= b[1] <= 100 and b[0] % z[0] == 0 and b[2] == 20,
+      f"20 ZIPs of {z[1]} MB ({z[0]} files) each: only what fits into 100 MB becomes documents ({b[0]} files, {b[1]} MB)")
 check(b[3] < 250, f"20 ZIPs of 60 MB each: never more than one archive unpacked at a time ({b[3]} MB at most, 1.200 MB before)")
 check(j.get("has") and j["has"][0] is True and j["has"][1] < 5, f"'has the mail a file of its own' unpacks nothing ({j.get('has')})")
 m = j.get("many") or [0, 0, 0]
