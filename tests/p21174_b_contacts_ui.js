@@ -95,7 +95,7 @@ const FEAT = 'comments,collab,contacts';
     check(await ready(ev, `!document.querySelector('.modal')`), '#6122: Cancel closes it');
     check(await bobBooks() === 1, '#6122: Cancel created no address book');
     let mi = await cardMenu(ev, VV.id);
-    check(mi.length > 0 && !mi.includes('Delete'), '#6122: a contact Bob may only read: no "Delete" in its menu ' + mi.join('|'));
+    check(mi.length > 0 && !mi.includes('Delete') && !mi.includes('Move to the trash'), '#6122: a contact Bob may only read: no "Move to the trash" in its menu ' + mi.join('|'));  // 2.1292.0 (#6124): "Move to the trash" (was Delete)
     await ev(`(closePop(), 1)`);
     await click(ev, '#view [data-ct="new"]');
     await ready(ev, `!!document.querySelector('.modal [data-cd="yes"]')`);
@@ -106,9 +106,9 @@ const FEAT = 'comments,collab,contacts';
     check((await call(CA, 'PUT', `/api/books/${BE}/members`, {user_id: bob.id, role: 'edit'})).http === 200, 'Alice shares "Team edit" with Bob (edit)');
     await signIn(ev, nav, 'bob');
     mi = await cardMenu(ev, EE.id);
-    check(mi[mi.length - 1] === 'Delete', '#6122 #6123: a contact Bob may change: "Delete" is the last entry ' + mi.join('|'));
+    check(mi[mi.length - 1] === 'Move to the trash', '#6122 #6123: a contact Bob may change: "Move to the trash" is the last entry ' + mi.join('|'));  // 2.1292.0 (#6124): was "Delete"
     mi = await cardMenu(ev, VV.id);
-    check(!mi.includes('Delete'), '#6122: the read-only one still has none ' + mi.join('|'));
+    check(!mi.includes('Delete') && !mi.includes('Move to the trash'), '#6122: the read-only one still has none ' + mi.join('|'));  // 2.1292.0 (#6124)
     await ev(`(closePop(), 1)`);
 
     // ================= #6123 Carol: one Import, one Export; Export asks book + format and hands over the file
