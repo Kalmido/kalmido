@@ -97,7 +97,7 @@ def nzip(text, more=""):
 def attack(tag, blanks, long_line, run, lines):
     """Every way in with one size: blanks = the run of blanks in a heading line (cubic before), long_line = a line of blanks
     below a table row (quadratic), run = a run of underscores / blanks in a searched text, lines = empty lines of a Notion page."""
-    head = "# " + " " * blanks + "x"
+    head = "# x" + " " * blanks + "y"  # the blanks between two words: the old pattern tried every split of them
     pid = page(f"Frost/{tag}/Kopf", "Anfang\n\n" + head + "\n\nEnde kopfwort\n")
     url = link(pid)
     r = timed(f"{tag}: the public link of a page with a heading line of {blanks} blanks", lambda: anon(url))
@@ -165,18 +165,18 @@ sn = (p or {}).get("snippet") or ""
 check(sn.startswith("Lang wort000 wort001") and sn.endswith("…"), "a hit at the beginning of a long page: from the start on " + sn[:80])
 
 # ================================================================ the sizes the old patterns needed many seconds for
-attack("klein", 1500, 60000, 30000, 40000)
+attack("klein", 3000, 60000, 150000, 40000)
 # ================================================================ the largest texts (only when the small ones were quick)
 if SLOW:
     check(False, "the largest sizes were skipped: " + "; ".join(SLOW))
 else:
     attack("gross", 450000, 450000, 190000, 400000)
     # many such lines in one page: the time grows with the text, not faster
-    many = "\n".join("# " + " " * 9000 + "x" for _ in range(50)) + "\nEnde vielwort\n"
+    many = "\n".join("# x" + " " * 9000 + "y" for _ in range(50)) + "\nEnde vielwort\n"
     pm = page("Frost/Viele", many)
     um = link(pm)
     r = timed("the public link of a page with 50 heading lines of 9000 blanks", lambda: anon(um))
-    check(r is not None and r.status_code == 200 and "vielwort" in r.text and r.text.count("<h2>x</h2>") == 50, "they are 50 headings")
+    check(r is not None and r.status_code == 200 and "vielwort" in r.text and r.text.count("<h2>x ") == 50, "they are 50 headings")
     r = timed("the Word export of that page", lambda: docx(pm))
     check(r is not None and r.status_code == 200, "the Word file comes")
 
