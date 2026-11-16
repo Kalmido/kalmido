@@ -18787,6 +18787,7 @@
   "An admin has locked your account; only an admin can unlock it.": "Ein Admin hat dein Konto gesperrt; nur ein Admin kann es wieder freigeben.",
   "Invoice {0}: the VAT rate {1} % has no DATEV automatic account; it is exported on account {2} - book its VAT of {3} by hand": "Rechnung {0}: Der Steuersatz {1} % hat kein DATEV-Automatikkonto; sie wird auf Konto {2} exportiert - die Umsatzsteuer von {3} bitte von Hand buchen",
   "Reminder fee, interest and flat fee {0}: {1}": "Mahngebühr, Zinsen und Pauschale {0}: {1}",
+  "All places for server agents are busy right now. I start as soon as one is free.": "Alle Plätze für Server-Agenten sind gerade belegt. Ich fange an, sobald einer frei ist.",
   "Move to the trash…": "In den Papierkorb…",
   "Move the address book “{0}” with all its contacts to the trash?": "Adressbuch „{0}“ mit allen Kontakten in den Papierkorb legen?",
   "{0} contact moved to the trash": ["{0} Kontakt in den Papierkorb gelegt", "{0} Kontakte in den Papierkorb gelegt"],

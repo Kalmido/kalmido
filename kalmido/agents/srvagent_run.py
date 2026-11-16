@@ -4,7 +4,10 @@ An event that asks for work (SRV_TRIGGERS: chat, @mention, assignment, listening
 background queue (accounts/bgjobs.py, kind srvagent:run, one waiting row per agent): the worker runs it, never the web process.
 The run:
  1. takes a place: at most SRV_PARALLEL runs on the server and one per agent at once (an advisory lock makes the check and the
-    new agent_runs row one step); no place = the row waits SRV_BUSY_S s and tries again. Nothing runs while the instance switch
+    new agent_runs row one step); no place = the row waits SRV_BUSY_S s and tries again. 2.1292.0 (#6569): the places are shared
+    fairly (_turn): the agent waiting longest goes first, and an organisation (or a person without one) holds at most one place
+    while someone else waits; alone it may use them all. Who waits longer than SRV_WAIT_NOTE_S s is told once in the chat that
+    the agent waits for a free place (never who holds them). Nothing runs while the instance switch
     server_agents_off is on, the agent is paused / switched off or has no key; at its usage limit (agents/usage.py usage_block:
     the limits of the admins, its owner's budget) it pauses with the reason (agents.status paused) and goes on with the next event
     once the limit allows it again.
@@ -41,7 +44,7 @@ from ..core.pg import system_ctx
 from ..core.i18n import LANGS, N_, tr
 from ..core.db import connect, iso, now_utc, usettings
 from ..core.env import env_int
-from ..accounts.bgjobs import bgj_add, bgj_fn
+from ..accounts.bgjobs import _now as bgj_now, bgj_add, bgj_fn, bgj_kick
 from ..accounts.session import _token_hash
 from ..agents.core import agent_active, agent_row, CHAT_MAX
 from ..agents.admin import agent_token_new
@@ -57,6 +60,8 @@ SRV_STEPS = env_int("KALMIDO_SRVAGENT_STEPS", 25, lo=1, hi=200)         # model 
 SRV_MAX_TOKENS = env_int("KALMIDO_SRVAGENT_MAX_TOKENS", 4096, lo=256, hi=64000)  # output tokens of one model call
 SRV_CALL_S = env_int("KALMIDO_SRVAGENT_CALL_S", 120, lo=5, hi=600)     # s of one model call at most
 SRV_BUSY_S = 5             # s a run waits for a free place before it tries again
+SRV_WAIT_NOTE_S = 25       # 2.1292.0 (#6569): s of waiting for a place before the people who asked are told (once per wait)
+SRV_WAIT_TEXT = N_("All places for server agents are busy right now. I start as soon as one is free.")
 SRV_LOST_S = SRV_CALL_S + 120  # a run without a beat for this long was lost (its process is gone)
 SRV_LOST_TEXT = N_("The server agent was interrupted")  # agent_runs.error of a lost run (srvweb.srvweb_state reads it)
 SRV_EVENTS = 20            # events one run reads at most (the rest: the next run)
@@ -133,12 +138,14 @@ class _Stop(Exception):
 def srv_run_job(aid, again=0):
     """The queue row: a place, then the run; afterwards the next run when more events came meanwhile. again = a kick from outside
     a request (review 2.557.0): its caller may not have committed the event yet, so nothing found = one more look later."""
-    c = connect()
+    c, out = connect(), {}
     try:
-        got = _claim(c, aid)
+        got = _claim(c, aid, out=out)
     finally:
         c.close()
     if got == "busy":
+        if out.get("note"):  # 2.1292.0 (#6569): the people waiting for this agent hear it once
+            _wait_say(aid, out["note"])
         _add(aid, SRV_BUSY_S)
         return
     if got is None and again:
@@ -157,18 +164,117 @@ def srv_run_job(aid, again=0):
             c.close()
         if more:
             _add(aid, 0.0)
+        _nudge()  # 2.1292.0 (#6569): a place is free - the waiting rows look now (_turn decides whose it is), not up to SRV_BUSY_S later
+
+
+_WORK_SQL = f"""event IN ({','.join('?' * len(SRV_TRIGGERS))}) AND COALESCE(payload::jsonb->'actor'->>'kind', '')<>'agent'
+                AND NOT {SRV_FOREIGN_SQL}"""  # an event of agent_events that asks for work (not made by another agent)
 
 
 def _pending(c, aid, cursor):
     """The first event after cursor that asks for work (not made by another agent: srvagent.srv_event), or None."""
-    return c.execute(f"""SELECT id, event FROM agent_events WHERE agent_id=? AND id>? AND event IN ({','.join('?' * len(SRV_TRIGGERS))})
-                         AND COALESCE(payload::jsonb->'actor'->>'kind', '')<>'agent' AND NOT {SRV_FOREIGN_SQL} ORDER BY id LIMIT 1""",
+    return c.execute(f"SELECT id, event FROM agent_events WHERE agent_id=? AND id>? AND {_WORK_SQL} ORDER BY id LIMIT 1",
                      (aid, cursor, *SRV_TRIGGERS)).fetchone()
 
 
-def _claim(c, aid, probe=False):
+def _holder(org_id, owner_id, aid):
+    """2.1292.0 (#6569): whose place a run takes: the agent's organisation, else the person without one, else the agent itself."""
+    return ("o", org_id) if org_id else ("u", owner_id) if owner_id else ("a", aid)
+
+
+def _turn(c, aid, a, first):
+    """2.1292.0 (#6569): True when a free place goes to agent aid (its first waiting event: first). The free places go one by one
+    to the waiting agent whose holder (_holder) has the fewest places, among those the one waiting longest (the oldest event:
+    agent_events.id grows), so a holder keeps at most one place while another one waits, but uses them all when alone. Waiting =
+    a server agent that may run, with work after its cursor, no run and a queued row (a row is the proof that it will come:
+    an agent left without one never holds a place back). Runs under the lock of _claim."""
+    runs = c.execute("""SELECT r.agent_id, x.org_id, x.owner_id FROM agent_runs r JOIN agents x ON x.user_id=r.agent_id
+                        WHERE r.state='run'""").fetchall()
+    free = SRV_PARALLEL - len(runs)
+    if free <= 0:
+        return False
+    held = {}
+    for r in runs:
+        h = _holder(r["org_id"], r["owner_id"], r["agent_id"])
+        held[h] = held.get(h, 0) + 1
+    waiting = [(first, aid, _holder(a["org_id"], a["owner_id"], aid))]
+    for r in c.execute(f"""SELECT s.agent_id, x.org_id, x.owner_id, x.status, s.paused,
+                             (SELECT MIN(id) FROM agent_events WHERE agent_events.agent_id=s.agent_id AND id>s.cursor AND {_WORK_SQL}) AS first
+                           FROM agent_server s JOIN agents x ON x.user_id=s.agent_id JOIN users u ON u.id=s.agent_id
+                           WHERE s.agent_id<>? AND s.key_sealed<>'' AND x.provider=? AND x.enabled AND NOT u.disabled
+                             AND EXISTS(SELECT 1 FROM bg_jobs b WHERE b.kind='srvagent:run' AND b.state='wait' AND b.user_id=s.agent_id)
+                             AND NOT EXISTS(SELECT 1 FROM agent_runs q WHERE q.agent_id=s.agent_id AND q.state='run')""",
+                        (*SRV_TRIGGERS, aid, SRV_PROVIDER)).fetchall():
+        if r["first"] is None or (r["status"] == "paused" and not r["paused"]):  # nothing to do / paused by a person
+            continue
+        if r["status"] == "paused" and _usage_blocked(c, r["agent_id"]):  # at its limit: it waits for the limit, not a place
+            continue
+        waiting.append((r["first"], r["agent_id"], _holder(r["org_id"], r["owner_id"], r["agent_id"])))
+    for _ in range(free):
+        pick = min(waiting, key=lambda w: (held.get(w[2], 0), w[0]))
+        if pick[1] == aid:
+            return True
+        waiting.remove(pick)
+        held[pick[2]] = held.get(pick[2], 0) + 1
+    return False
+
+
+def _usage_blocked(c, aid):
+    from ..agents.usage import usage_block
+    return bool(usage_block(c, aid))
+
+
+def _wait_note(c, aid, row, first):
+    """2.1292.0 (#6569): the people (chat, chat_choice, planned job) to tell that agent aid waits for a place, once per wait: when
+    its first waiting event is older than SRV_WAIT_NOTE_S and came after the last note (agent_server.wait_note = the newest
+    event of that note; a new wait starts when a run took all of them). Marks the note; the caller commits."""
+    if first <= (row["wait_note"] or 0) or not c.execute("SELECT 1 FROM agent_events WHERE id=? AND created_at<?", (
+            first, iso(now_utc() - timedelta(seconds=SRV_WAIT_NOTE_S)))).fetchone():
+        return []
+    rows = c.execute(f"""SELECT id, event, payload::jsonb->'data' AS d FROM agent_events WHERE agent_id=? AND id>? AND {_WORK_SQL}
+                         ORDER BY id""", (aid, row["cursor"], *SRV_TRIGGERS)).fetchall()
+    c.execute("UPDATE agent_server SET wait_note=? WHERE agent_id=?", (max(r["id"] for r in rows), aid))
+    who = []
+    for r in rows:
+        d = r["d"] if isinstance(r["d"], dict) else json.loads(r["d"] or "{}") if isinstance(r["d"], str) else {}
+        u = _asker([{"event": r["event"], "data": d}])
+        if u and u not in who:
+            who.append(u)
+    return who[:5]
+
+
+def _wait_say(aid, who):
+    """2.1292.0 (#6569): the wait note in the chat of each person in who (their language), through the agent's own chat like an
+    answer (a token for this note only)."""
+    tok = None
+    try:
+        mod = mcpr_module()
+        if mod is None:
+            return
+        tok = _token(aid)
+        api = _api(mod, tok, time.time() + 30)
+        for u in who:
+            _say(api, u, tr(SRV_WAIT_TEXT, lg=_db(lambda c: usettings(c, u)["lang"]) or "en"))
+    except Exception as e:  # noqa: BLE001 -- a note only; the run comes all the same
+        print("server agent", aid, "wait note:", type(e).__name__, flush=True)
+    finally:
+        if tok:
+            _db(lambda c: c.execute("DELETE FROM api_tokens WHERE token_hash=?", (_token_hash(tok),)))
+
+
+def _nudge():
+    """2.1292.0 (#6569): the waiting rows of server agents look for a place now (the free place goes by _turn, not by who asks first)."""
+    try:
+        t = iso(bgj_now())  # the queue's own real clock, never the test clock of now_utc
+        _db(lambda c: c.execute("UPDATE bg_jobs SET run_after=? WHERE kind='srvagent:run' AND state='wait' AND run_after>?", (t, t)))
+        bgj_kick()
+    except Exception as e:  # noqa: BLE001 -- they look on their own SRV_BUSY_S later
+        print("server agent: nudge:", type(e).__name__, flush=True)
+
+
+def _claim(c, aid, probe=False, out=None):
     """(run id, trigger) of a new run of agent aid, "busy" (no free place now), or None (nothing to do / may not run).
-    probe = only whether a run would be due (no row)."""
+    probe = only whether a run would be due (no row). out (a dict): "note" = the people to tell that it waits (_wait_note)."""
     from ..agents.usage import usage_block
     with system_ctx(c):  # the queue's own rows: the run acts only through the agent's token afterwards
         c.execute("SELECT pg_advisory_xact_lock(hashtext(?))", ("srvagent:places",)).fetchone()
@@ -190,8 +296,12 @@ def _claim(c, aid, probe=False):
             if not row["paused"] or usage_block(c, aid):
                 c.commit()
                 return None
-        if c.execute("SELECT 1 FROM agent_runs WHERE agent_id=? AND state='run'", (aid,)).fetchone() or \
-                c.execute("SELECT COUNT(*) FROM agent_runs WHERE state='run'").fetchone()[0] >= SRV_PARALLEL:
+        if c.execute("SELECT 1 FROM agent_runs WHERE agent_id=? AND state='run'", (aid,)).fetchone():
+            c.commit()
+            return "busy"
+        if not _turn(c, aid, a, ev["id"]):  # 2.1292.0 (#6569): fair places (the oldest wait first, one per holder while others wait)
+            if out is not None:
+                out["note"] = _wait_note(c, aid, row, ev["id"])
             c.commit()
             return "busy"
         rid = c.execute("""INSERT INTO agent_runs(agent_id, cause, state, started, beat_at, model) VALUES(?,?,'run',?,?,?)

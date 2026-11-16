@@ -366,7 +366,9 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
 - **The key**: stored encrypted, never returned, never written to a log. The app shows only its last four characters
   (`…abcd`) with *Replace* and *Delete*.
 - **Runs**: in the background queue of the worker, never in the web process; at most `KALMIDO_SRVAGENT_PARALLEL` (default
-  2) at once per server and one per agent; a run ends after `KALMIDO_SRVAGENT_STEPS` model calls (default 25) or
+  2) at once per server and one per agent, shared fairly: the agent waiting longest goes first, and an organisation (or a
+  person without one) holds at most one place while others wait (alone it may use them all); who waits longer than about
+  25 seconds gets one line in the chat that the agent waits for a free place; a run ends after `KALMIDO_SRVAGENT_STEPS` model calls (default 25) or
   `KALMIDO_SRVAGENT_RUN_S` seconds (default 300); one model call may take `KALMIDO_SRVAGENT_CALL_S` seconds (default 120)
   and answer with `KALMIDO_SRVAGENT_MAX_TOKENS` tokens (default 4096); the model list waits `KALMIDO_SRVAGENT_MODELS_S`
   seconds (default 15). `KALMIDO_SRVAGENT_ANTHROPIC_URL` is the provider's address (tests point it at a stand-in); a

@@ -307,7 +307,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_SRVAGENT_CALL_S` | `120` | Seconds one model call of a server agent may take at most. |
 | `KALMIDO_SRVAGENT_MAX_TOKENS` | `4096` | Answer tokens of one model call of a server agent. |
 | `KALMIDO_SRVAGENT_MODELS_S` | `15` | Seconds for the model list of the provider. |
-| `KALMIDO_SRVAGENT_PARALLEL` | `2` | Server agent runs at once on this server (one per agent). |
+| `KALMIDO_SRVAGENT_PARALLEL` | `2` | Server agent runs at once on this server (one per agent; shared fairly: the longest waiting first, one per organisation or person while others wait). |
 | `KALMIDO_SRVAGENT_RUN_S` | `300` | Seconds one server agent run may take at most. |
 | `KALMIDO_SRVAGENT_STEPS` | `25` | Model calls of one server agent run at most. |
 | `KALMIDO_SRVAGENT_TOOLSETS` | `tickets,chat,calendar,wiki,life,office` | Tool packages of mcp/kalmido_mcp.py a server agent gets (within the scopes of its token; chat always). |
