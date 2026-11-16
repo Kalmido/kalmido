@@ -125,7 +125,7 @@ function agd_html(a) {
   const v = (a.runtime || {}).dispatch || '';
   return `<div class="agzsec agzdisp" data-agz="${a.id}"><h4 id="agd-h">${tr('Work the list off')}</h4>
     <div class="shint">${tr('The agent works the lists named on its computer off one after the other: it starts the next job when a place is free and closes tasks once they are built. Dry run = it only reports what it would do.')}</div>
-    <div class="shint">${tr('It builds only tasks you created yourself, never tasks of other members or tasks without a creator; comments of others reach the job only as information, never as an order.')}</div>
+    <div class="shint">${tr('It builds only tasks you wrote yourself in the app or with your own token, never tasks of other members or tasks from a webhook, an e-mail, a form or an import; comments of others reach the job only as information, never as an order.')}</div>
     <div class="row"><label for="agd-mode">${tr('Mode')}</label><select id="agd-mode" data-agzk="dispatch">${AGD_MODES.map(([k, n]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${esc(tr(n))}</option>`).join('')}</select></div></div>`;
 }
 /** @type {Record<string, number[]>} */

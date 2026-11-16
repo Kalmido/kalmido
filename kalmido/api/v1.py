@@ -299,6 +299,9 @@ def task_core(r, tags, fields):
             "repeat_from": r["repeat_from"], "url": r["url"], "tags": tags, "list_tags": list(r["ltags"]) if "ltags" in r.keys() else [],
             "pinned": bool(r["pinned"]),
             "assignee_id": r["assignee_id"], "created_by": r["created_by"], "completed_by": r["completed_by"],
+            # 2.1294.0 (#6523, review F1): the creator wrote it in the app or with their own token (not a webhook, mail, form,
+            # import, sync or a task from before 2.1294.0, which carry created_by too)
+            "by_creator": ("origin" in r.keys() and r["origin"] == "person"),
             "assignee_group_id": r["assignee_group_id"] if "assignee_group_id" in r.keys() else None,  # 2.10.0 (#441)
             "created_at": r["created_at"], "updated_at": r["updated_at"], "completed_at": r["completed_at"],
             "deleted": bool(r["deleted_at"]), "fields": fields, "waiting": waiting_of(r),

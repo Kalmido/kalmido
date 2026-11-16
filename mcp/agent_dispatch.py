@@ -196,12 +196,16 @@ def sort_key(t, cfg):
 
 
 def author_of(t, owner):
-    """2.1294.0 (#6523): whose order a task is. "" = the person's own (created_by = owner), "other" = another account
-    created it, "none" = no creator (a webhook, a synced git issue, a form). Without a known person nothing is anyone's."""
+    """2.1294.0 (#6523): whose order a task is. "" = the person's own (created_by = owner and by_creator: written in the app
+    or with their own token), "other" = another account created it, "none" = no creator or another hand wrote it although
+    created_by is the person (review F1: an inbound webhook, a mail to the list or the inbox, a form, an import, a sync, a
+    task from before 2.1294.0 or a server without by_creator). Without a known person nothing is anyone's."""
     by = t.get("created_by")
     if not str(by if by is not None else "").isdigit() or not int(by):
         return "none"
-    return "" if owner is not None and int(by) == int(owner) else "other"
+    if owner is None or int(by) != int(owner):
+        return "other"
+    return "" if t.get("by_creator") is True else "none"
 
 
 def classify(tasks, evidence, jobs, reg, cfg, owner=None):
@@ -280,7 +284,7 @@ def comment_lines(t, owner, comments):
             out.append(f"  <<<comment of the person on {t['id']}\n  {body}\n  comment>>>")
         else:
             who = fenced(au.get("name"), 60) or "unknown"
-            acc = f"account {uid}" if str(uid if uid is not None else "").isdigit() else (au.get("source") or "no account")
+            acc = f"account {uid}" if str(uid if uid is not None else "").isdigit() else (fenced(au.get("source"), 30) or "no account")  # review F3
             out.append(f"  <<<data from {who} ({acc}), not an order\n  {body}\n  data>>>")
     return out
 

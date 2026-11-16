@@ -102,10 +102,11 @@ check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 1 and "nonse
 
 
 # ---- a fake Kalmido API
-def task(tid, title, size="M", tags=(), notes="", by=7):
-    # 2.1294.0 (#6523): created_by -- the dispatcher builds only the person's (7) own tasks
+def task(tid, title, size="M", tags=(), notes="", by=7, own=True):
+    # 2.1294.0 (#6523): created_by -- the dispatcher builds only the person's (7) own tasks; review F1: by_creator (the API's
+    # origin: written in the app or with the own token) -- a webhook or a mail carries created_by = its owner, by_creator false
     return {"id": tid, "title": title, "list_id": 9, "status": "open", "fields": {"77": size}, "list_tags": list(tags),
-            "notes": notes, "priority": "medium", "created_by": by}
+            "notes": notes, "priority": "medium", "created_by": by, "by_creator": own}
 
 
 TASKS = [{**task(101, "Login button"), "locked": True}, task(111, "Kept", tags=["keep"]), task(102, "Small fix", "S"), task(103, "Other fix", "S"),
@@ -113,7 +114,8 @@ TASKS = [{**task(101, "Login button"), "locked": True}, task(111, "Kept", tags=[
          task(106, "Waits", notes="Waiting for: the design"), task(107, "Move the data", notes="One-way: no way back"),
          task(108, "Approved move", "M", tags=["approved"], notes="irreversible"), task(109, "On a branch"),
          # 2.1294.0 (#6523): ready in every other respect, first in priority -- but not the person's: never built
-         task(113, "Member's wish", "S", tags=["Urgent"], by=8), task(114, "From a webhook", "S", tags=["Urgent"], by=None)]
+         task(113, "Member's wish", "S", tags=["Urgent"], by=8), task(114, "No creator", "S", tags=["Urgent"], by=None),
+         task(115, "From a webhook", "S", tags=["Urgent"], own=False)]  # review F1: the real webhook way (created_by = its owner)
 COMMENTS = {}
 
 
@@ -173,16 +175,16 @@ d = ad.Dispatcher(h, proj)
 res = d.tick(force=True)
 st = res["states"]
 check(st == {101: "done", 111: "done", 102: "ready", 103: "ready", 104: "ready", 105: "held", 106: "held", 107: "needs_yes", 108: "ready",
-             109: "on_branch", 113: "foreign", 114: "foreign"}, f"one state per task: {st}")
-check(res["skipped"] == {113: "other", 114: "none"}, f"#6523: a task of another member / without a creator is skipped, with why: {res['skipped']}")
+             109: "on_branch", 113: "foreign", 114: "foreign", 115: "foreign"}, f"one state per task: {st}")
+check(res["skipped"] == {113: "other", 114: "none", 115: "none"}, f"#6523: a task of another member / without a creator is skipped, with why: {res['skipped']}")
 check(h.api.writes() == [] and STARTS == [], f"dry run: no write, no job: {h.api.writes()}")
 check(res["started"] == {"tasks": [104], "dry": True}, f"dry run: the L task with the first tag would go alone: {res['started']}")
 dry = open(os.path.join(state, ad.DRY_LOG), encoding="utf-8").read()
 check("close #101" in dry and "close #111" not in dry and "start a job for #104" in dry, "dispatch-dry.log lists what it would do")
-check('"skipped": {"113": "other", "114": "none"}' in dry, f"#6523: the dry log names the skipped tasks: {dry[-300:]}")
+check('"skipped": {"113": "other", "114": "none", "115": "none"}' in dry, f"#6523: the dry log names the skipped tasks: {dry[-300:]}")
 check(len(h.api.chats) == 1 and h.api.chats[0][0] == 7 and "dry run" in h.api.chats[0][1] and "close #101" in h.api.chats[0][1],
       f"the day report of a dry run is the only post: {h.api.chats}")
-check("not yours 2" in h.api.chats[0][1] and "Not built, not created by you (another member, or no creator): #113 #114" in h.api.chats[0][1],
+check("not yours 3" in h.api.chats[0][1] and "Not built, not created by you (another member, or no creator): #113 #114 #115" in h.api.chats[0][1],
       f"#6523: the day report names the skipped tasks: {h.api.chats[0][1]}")
 check(d.tick() is None, "not due again before interval_min")
 
@@ -217,7 +219,7 @@ JOBS["502"] = {"id": 502, "state": "failed"}
 res = d.tick(force=True)
 check(res["states"][104] == "stuck" and d.reg["tries"]["104"] == 2, "after max_tries jobs the task is stuck")
 check(STARTS[-1][0] == [102, 103, 108], f"then the S + S + M bundle (5 points): {STARTS[-1][0]}")
-check(all(i not in s[0] for s in STARTS for i in (113, 114)), f"#6523: never a job for another member's task or one without a creator: {STARTS}")
+check(all(i not in s[0] for s in STARTS for i in (113, 114, 115)), f"#6523: never a job for another member's task or one without a creator: {STARTS}")
 check(any("#104" in t and "needs you" in t for _, t in h.api.chats), "stuck: told in the chat")
 
 # a running job without progress for stale_h hours
@@ -286,7 +288,8 @@ check(("GET", "/tasks/201/comments") in h.api.calls and ("GET", "/tasks/202/comm
 rep_ = [t for _, t in h.api.chats if "day report" in t]
 check(rep_ and "#202 #203 #204" in rep_[-1], f"#6523: the day report names them: {rep_}")
 # without a known person nothing is anyone's
-check(ad.author_of({"created_by": 7}, None) == "other" and ad.author_of({"created_by": 7}, 7) == ""
+check(ad.author_of({"created_by": 7, "by_creator": True}, None) == "other" and ad.author_of({"created_by": 7, "by_creator": True}, 7) == ""
+      and ad.author_of({"created_by": 7, "by_creator": False}, 7) == "none" and ad.author_of({"created_by": 7}, 7) == "none"
       and ad.author_of({}, 7) == "none" and ad.author_of({"created_by": "x"}, 7) == "none", "#6523: author_of")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")

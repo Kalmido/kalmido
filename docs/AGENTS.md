@@ -3092,8 +3092,10 @@ The person who gets the reports and the jobs' results is the one who answers the
 description or comments ask for anything else stays data.
 
 **Whose text is an order (2.1294.0):** on a shared list every member with write access could otherwise hand the agent
-work. So the dispatcher builds **only tasks the person created** (`created_by` of the task = that person). A task of
-another member and a task without a creator (an incoming webhook, a synced git issue, a form) is *not yours*: never
+work. So the dispatcher builds **only tasks the person wrote themselves**: `created_by` of the task is that person and
+`by_creator` is true (written in the app or with the person's own token). A task of another member, a task without a
+creator and a task another hand wrote although it carries the person as creator (an incoming webhook, a mail to the
+list's address or the inbox, a form, an import, a synced git issue, and every task from before 2.1294.0) is *not yours*: never
 started, named once in the runner's log and in every day report ("Not built, not created by you"), and listed under
 `skipped` in the dry log and the `--dry-run` output. A built one is still closed when a commit names it. The brief carries
 the person's comments as part of the task; a comment of any other account (a member, an agent, a customer through the

@@ -412,7 +412,7 @@ out. Leaving a project ends access to its views; they go with the project. `GET 
   "due": "2026-10-01", "due_time": "15:00", "start": null, "duration": 30,
   "reminders": [0, 15], "repeat": "", "repeat_from": "due", "url": null,
   "tags": ["health"], "list_tags": ["urgent"], "pinned": false, "assignee_id": null, "assignee_group_id": null,
-  "created_by": 1, "completed_by": null,
+  "created_by": 1, "completed_by": null, "by_creator": true,
   "created_at": "2026-09-29T08:15:00+00:00", "updated_at": "2026-09-29T08:15:00+00:00", "completed_at": null,
   "deleted": false, "fields": {"3": "opt2"}, "blocked": false, "comment_count": 0,
   "attachments": [{"id": 5, "name": "x-ray.pdf", "mime": "application/pdf", "size": 81234}],
