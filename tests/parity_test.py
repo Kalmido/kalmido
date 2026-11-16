@@ -201,6 +201,7 @@ APP_TO_API = {
     "POST /api/team/rooms/{}/read": ["POST /team/rooms/{}/read"], "PATCH /api/team/messages/{}": ["PATCH /team/messages/{}"],
     "DELETE /api/team/messages/{}": ["DELETE /team/messages/{}"], "POST /api/team/messages/{}/reactions": ["POST /team/messages/{}/reactions"],
     "POST /api/team/messages/{}/pin": ["POST /team/messages/{}/pin"],  # 2.62.0 (#1848)
+    "GET /api/team/messages/{}/versions": ["GET /team/messages/{}/versions"],  # 2.1213.0 (#6166)
     # 2.19.0 (#653): the module Family
     "GET /api/family": ["GET /family"], "POST /api/family/occasions": ["POST /family/occasions"],
     "GET /api/family/deadline-types": ["GET /family/deadline-types"], "POST /api/family/deadlines": ["POST /family/deadlines"],
