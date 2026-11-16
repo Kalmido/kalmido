@@ -171,6 +171,10 @@ answers at most the role those people have themselves: `obj_role` / `obj_visible
 `fs_role` / `fs_visible_sql`, `book_role` / `my_book_ids`, `wkf_role` / `wkf_shared`, `sh_may`, `tcx_rooms_of`; the
 helper is `for_cap(uid, role, rank, theirs)`. A new area on `obj_need` gets it for free; an area with its own role
 function must end with `for_cap` -- no second way to ask "for whom".
+Every route of `/api/v1` stands in `kalmido/api/runfor.py` `RUN_ROUTES` with how it is held in such a run (cut, cap,
+mine, pin:<parameter>, send, org, closed, own, noagent, safe); `run_gate` in `api_authenticate` refuses the rest, a new
+route is closed in a run until it is listed (`tests/p6454_c_run_routes_test.py`). Rows of the agent's own channel ask
+`run_person()` (the requester; `0` = nobody).
 
 ### Who may write: the client (2.1238.0, #6161)
 

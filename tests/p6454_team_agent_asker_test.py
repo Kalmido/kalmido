@@ -15,6 +15,8 @@ tenant-matrix: agent (the cut is the requester's own rights: a person of another
  (c) a reader of the project asks the agent to comment: no comment (409 approval_required); a writer's order comments
  (d) a card without a project (a contact into an address book): the Yes of a person who shares a project with the agent but
      cannot write into the book does not count (404, the card is free again), the Yes of a person who can does
+ review A2 (2.1287.0): the run gate (api/runfor.py) -- another person's chat, job, briefing, office closed in a run;
+     a participant's run and a person who left the project mid-run reach no task of it; an admin's run keeps the folders
  audit #4818: a read-only person of the organisation gives the team agent no orders (chat, mention); the owner of an
      approval job who is read-only now approves nothing
 usage: p6454_team_agent_asker_test.py <datadir>      (KMT_NOSTART=1 / P6454_NOSTART=1: a running server)"""
@@ -198,6 +200,50 @@ check(xget(f"/wiki/pages/{WP}").status_code == 404, "(b) ... no knowledge page e
 run_for(0, [])
 check(xget(f"/tasks/{TX}").status_code == 404, "(b) a run cut to no project reaches no task (the empty cut is not 'all')")
 
+# ================================================================ review A2 (job 4879): the run gate and the agent's own channel
+# 2.1287.0 (#6454, review): each check is red without its fix (F1 chats / jobs, P1 / F2 a named person, F3 / F8 the cut
+# per request, P2 a route over all the agent's projects); the person's own rows and an admin's run keep working
+check(Bo.post(B + f"/api/agents/{XT}/chat", json={"body": "BOB-PRIVATE heron salary"}).status_code == 201, "review: bob writes to the team agent")
+check(Ca.post(B + f"/api/agents/{XT}/chat", json={"body": "CARL-OWN hello"}).status_code == 201, "review: carl writes to the team agent")
+run_for(None, ())
+r = requests.post(V + "/agent/jobs", headers=XH, json={"title": "Bob heron job", "user_id": uid["bob"]}, timeout=30)
+check(r.status_code == 201, f"review: a job of the agent for bob {r.status_code} {r.text[:160]}")
+JB = r.json().get("id")
+run_for(uid["carl"], [X1])
+r = xget("/agent/chats")
+check(r.ok and "BOB-PRIVATE" not in r.text and "CARL-OWN" in r.text, f"review F1: run for carl reads his own conversation, never bob's {r.status_code}")
+check("BOB-PRIVATE" not in xget("/agent/chats", params={"user_id": uid["bob"]}).text, "review F1: ... also not with ?user_id=bob")
+check("BOB-PRIVATE" not in xget("/agent/events", params={"since": 0, "limit": 500}).text, "review F1: ... nor bob's chat event")
+check(xget(f"/agent/jobs/{JB}").status_code == 404 and JB not in [j["id"] for j in xget("/agent/jobs").json().get("data", [])],
+      "review F1: bob's job is not there in carl's run")
+r = xget("/briefing", params={"user_id": uid["bob"]})
+check(r.status_code == 403 and err(r).get("code") == "run_person", f"review P1: bob's briefing in carl's run 403 {r.status_code} {r.text[:160]}")
+r = xget("/briefing", params={"user_id": uid["carl"]})
+check(err(r).get("code") != "run_person", f"review P1: carl's own briefing is not refused by the gate {r.status_code}")
+r = xget("/me/waiting", params={"user_id": uid["bob"]})
+check(r.status_code == 403 and err(r).get("code") == "run_person", f"review P1: what waits for bob, in carl's run 403 {r.status_code} {r.text[:160]}")
+# F2 (the office's requested_by) is the same gate (pin:requested_by) plus office/agentdocs.py _v1ctx; this agent has no office scope
+r = xget("/folders")
+check(r.status_code == 403 and err(r).get("code") == "run_closed", f"review P2: the folders over all the agent's projects closed for carl {r.status_code}")
+run_for(uid["bob"], [X1, X2])
+check(xget("/folders").ok, "review P2: ... open in a run for bob (an admin of the organisation reaches all of it)")
+check("BOB-PRIVATE" in xget("/agent/chats").text and xget(f"/agent/jobs/{JB}").ok, "review F1: bob's run reads his own conversation and job")
+run_for(None, ())
+check("BOB-PRIVATE" in xget("/agent/chats").text and "CARL-OWN" in xget("/agent/chats").text and xget("/folders").ok,
+      "review: the ordinary token of the team agent keeps its whole channel")
+# F3 / F8: a participant gets no project into the cut; a person taken out of the project during the run takes the agent out
+check(Bo.put(B + f"/api/lists/{X1}/members", json={"user_id": uid["eve"], "role": "participant"}).ok, "setup: eve is a participant of project one")
+run_for(uid["eve"], [X1])
+check(xget(f"/tasks/{TX}").status_code == 404, "review F3: run for a participant: a task not hers is 404 (the agent's role does not open the project)")
+check(Bo.delete(B + f"/api/lists/{X1}/members/{uid['eve']}").ok, "setup: eve out of project one again")
+run_for(uid["carl"], [X1])
+check(xget(f"/tasks/{TX}").ok, "review F8: run for carl reads the task of project one")
+check(Bo.delete(B + f"/api/lists/{X1}/members/{uid['carl']}").ok, "setup: carl leaves project one during the run")
+check(xget(f"/tasks/{TX}").status_code == 404, "review F8: ... the next request of the same run token: 404")
+check(Bo.put(B + f"/api/lists/{X1}/members", json={"user_id": uid["carl"], "role": "edit"}).ok, "setup: carl back in project one")
+check(xget(f"/tasks/{TX}").ok, "review F8: ... and back with him")
+run_for(None, ())
+
 # ================================================================ (c) a reader's order does not write
 run_for(uid["rita"], [X1])
 r = requests.post(V + f"/tasks/{TX}/comments", headers=XH, json={"body": "for rita"}, timeout=30)
@@ -280,6 +326,8 @@ check(requests.get(V + f"/tasks/{FT}", headers=FH, timeout=30).status_code == 20
       "freelancer: her agent reaches her project, the folder and the address book")
 r = requests.post(V + f"/tasks/{FT}/comments", headers=FH, json={"body": "from her agent"}, timeout=30)
 check(r.status_code == 201, f"freelancer: her agent comments in her project {r.status_code} {r.text[:160]}")
+check(requests.get(V + "/folders", headers=FH, timeout=30).ok and requests.get(V + "/agent/chats", headers=FH, timeout=30).ok,
+      "freelancer: her personal agent's routes are not touched by the run gate (no requester on its token)")
 check(Fr.patch(B + f"/api/agents/{FA}/control", json={"level": "approve_all"}).ok, "freelancer: her agent asks for everything")
 r = requests.post(V + "/contacts", headers=FH, json={"book_id": FB, "fn": "Frida Card Contact"}, timeout=30)
 check(r.status_code == 409, f"freelancer: a new contact needs her card {r.status_code}")

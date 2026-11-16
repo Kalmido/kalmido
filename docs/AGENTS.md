@@ -471,9 +471,19 @@ coding agents, building files, own tools.
   card that only a person with write rights there can answer) -- also when no level was chosen for the agent. A run
   nobody asked for (the project's own automation: listening in, tidying, a follow-up day) reaches only the projects its
   events name and nothing outside projects. A planned job runs for the person who made it. The model is told so in its
-  frame. A personal agent is unchanged: its owner is the requester and its reach is theirs. A team agent that runs
-  elsewhere with its own token has no run the server could bind to a person: there the rules above the token hold
-  (*Members may see and use the agent*, the channel rule, the approver's write right).
+  frame. A personal agent is unchanged: its owner is the requester and its reach is theirs.
+  In such a run (review of 2.1287.0) the agent's own channel answers only the requester's rows: its conversation, jobs,
+  planned jobs, chat files, events and direct messages with that person, never what other people told the agent. A
+  project counts only while the person has a full role in it (a participant's run gets no project; the role is asked on
+  every request, so a person taken out of a project takes the agent out with them; a project the run made itself stays).
+  Every route of the API is listed with how it is held in such a run; a route that names a person (`user_id`,
+  `requested_by` ...) accepts only the requester (`403 run_person`), a route over the organisation as a whole only for a
+  full member, a route over all the agent's projects only for an admin of its organisation (`403 run_closed`). With a
+  valid approval card the person who said Yes counts instead of the requester.
+  **Limit:** a team agent that runs elsewhere with its own token (your own runner, the hosted MCP access) has no run the
+  server could bind to a person: the server does not know who asked, so none of the above applies there -- only the rules
+  on the token itself hold (*Members may see and use the agent*, the channel rule, the approver's write right). Use a
+  server agent, or a personal agent, when people with different rights give the agent orders.
 - **Guests and read-only people** of the agent's organisation give a team agent no orders (2.1287.0): their chat message,
   mention or assignment does not reach it (the role's own words: a guest uses no agents, a read-only person changes nothing).
 - **The circle limit** of `agents/safety.py` holds unchanged: a team agent in two projects with different people is a
