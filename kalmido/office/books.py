@@ -486,17 +486,108 @@ def bk_amount_parts(amount, r, home):
     return out
 
 
-def bk_pay_net(amount, r, home):
-    """2.1259.0 (#6301): the net share in the office currency of a payment of amount on document r (a refund on a credit note
-    negative) -- the key figures count the same net as the books (bk_amount_parts)."""
-    a = dec(amount)
-    return sum((x[2] for x in bk_amount_parts(-a if r["kind"] == "credit" else a, r, home)), Decimal(0))
+def _rate_lines(tls):
+    """{pct: [base, tax]} of tax lines (dicts with pct / base / amount), merged per rate as inv_credit_rates keys them."""
+    out = {}
+    for tl in tls or []:
+        if isinstance(tl, dict):
+            x = out.setdefault(dec(tl.get("pct") or 0).normalize(), [Decimal(0), Decimal(0)])
+            x[0], x[1] = x[0] + dec(tl.get("base") or 0), x[1] + dec(tl.get("amount") or 0)
+    return out
 
 
-def _pay_parts(p, r, home):
-    """[(group, gross, net, vat)] of one payment in the office currency (a refund on a credit note negative)."""
+def _seg(lines, home_fx):
+    """(gross in the document's currency, [(group, base, tax)] in the office currency) of {pct: [base, tax]} (bk_fx_lines)."""
+    tls = [{"pct": k, "base": b, "amount": t} for k, (b, t) in lines.items()]
+    conv = bk_fx_lines(tls, None, home_fx)
+    return (sum((b + t for b, t in lines.values()), Decimal(0)),
+            [("vat" + format(x["pct"], "f") if x["pct"] > 0 else "exempt", x["base"], x["amount"]) for x in conv])
+
+
+def bk_credit_rest(c, oid, r, home, memo):
+    """2.1292.0 (#6478): the cash-basis split of the payments on invoice r after finalised credit notes (kind credit,
+    cancels_id = r): None without one (bk_amount_parts as before); else {"segs": [(gross, lines)], "before": {payment id:
+    the sum paid on r before it}}. The segments of the money received, in this order: the rest per rate = the frozen tax
+    lines of the invoice less those of its finalised credit notes (the amounts inv_credit_rates / inv_credit_check hold
+    per rate), then the credited part (it is refunded on the credit note, which takes back its own lines), then the whole
+    invoice again (an overpayment beyond the invoice). The payments fill them in the order they were entered (id), so
+    partial payments add up to exactly the rest per rate. Old data a credit note exceeds per rate or without tax lines
+    keeps the share way (None)."""
+    if r["id"] in memo:
+        return memo[r["id"]]
+    memo[r["id"]] = None
+    if r["kind"] != "invoice" or (r["vat_mode"] or "vat") == "novat":
+        return None
+    full = _rate_lines(_j(r["totals"]).get("tax_lines"))
+    if not full:
+        return None
+    crd = {}
+    for x in c.execute(f"SELECT totals FROM office_docs WHERE org_id=? AND kind='credit' AND cancels_id=? AND locked_at IS NOT NULL AND {live_sql()}",
+                       (oid, r["id"])).fetchall():
+        tl = _rate_lines(_j(x["totals"]).get("tax_lines"))
+        if not tl and money(dec(_j(x["totals"]).get("gross") or 0)) != 0:
+            return None
+        for k, (b, t) in tl.items():
+            y = crd.setdefault(k, [Decimal(0), Decimal(0)])
+            y[0], y[1] = y[0] + b, y[1] + t
+    if not crd:
+        return None
+    rest = {k: [b - crd.get(k, [0, 0])[0], t - crd.get(k, [0, 0])[1]] for k, (b, t) in full.items()}
+    if set(crd) - set(full) or any(money(b + t) < 0 for b, t in rest.values()):
+        return None
+    fx = _fx(r, home)
+    segs = [s for s in (_seg(rest, fx), _seg(crd, fx), _seg(full, fx)) if s[0] != 0]
+    if not segs:
+        return None
+    before, run = {}, Decimal(0)
+    for p in c.execute("SELECT id, amount FROM office_payments WHERE org_id=? AND doc_id=? ORDER BY id", (oid, r["id"])).fetchall():
+        before[p["id"]] = run
+        run += dec(p["amount"])
+    st = memo[r["id"]] = {"segs": segs, "before": before, "total": run}
+    return st
+
+
+def _rest_upto(st, x):
+    """{group: [gross, net, vat]} of the money received up to x on an invoice with credit notes (bk_credit_rest)."""
+    out = {}
+
+    def add(q, lines):
+        for k, b, t in lines:
+            y = out.setdefault(k, [Decimal(0)] * 3)
+            y[0], y[1], y[2] = y[0] + q * (b + t), y[1] + q * b, y[2] + q * t
+
+    segs = st["segs"]
+    if x < 0:  # more taken back than received: the first segment, linear
+        add(x / segs[0][0], segs[0][1])
+        return out
+    for i, (g, lines) in enumerate(segs):
+        take = x if i == len(segs) - 1 else min(x, g)
+        if take > 0:
+            add(take / g, lines)
+        x -= take
+    return out
+
+
+def bk_pay_parts(c, oid, p, r, home, memo):
+    """[(group, gross, net, vat)] of one payment p (id, amount) on document r in the office currency (a refund on a credit
+    note negative). 2.1292.0 (#6478): on an invoice with finalised credit notes by the rest per rate (bk_credit_rest), was
+    the shares of the whole invoice -- a partial credit of the 7 % position left too little at 19 %. memo: one dict per run."""
     a = dec(p["amount"])
-    return bk_amount_parts(-a if r["kind"] == "credit" else a, r, home)
+    if r["kind"] == "credit":
+        return bk_amount_parts(-a, r, home)
+    st = bk_credit_rest(c, oid, r, home, memo)
+    if st is None:
+        return bk_amount_parts(a, r, home)
+    x0 = st["before"].get(p["id"], st["total"])
+    lo, hi = _rest_upto(st, x0), _rest_upto(st, x0 + a)
+    z = [Decimal(0)] * 3
+    return [(k, *(h - l for h, l in zip(hi.get(k, z), lo.get(k, z)))) for k in dict.fromkeys([*hi, *lo])]
+
+
+def bk_pay_net(c, oid, p, r, home, memo):
+    """2.1259.0 (#6301): the net share in the office currency of payment p on document r (a refund on a credit note
+    negative) -- the key figures count the same net as the books (bk_pay_parts; 2.1292.0 #6478: + the credit notes)."""
+    return sum((x[2] for x in bk_pay_parts(c, oid, p, r, home, memo)), Decimal(0))
 
 
 OFC_MEAL_TWICE = N_("Entertainment receipts count from Office > Entertainment receipts. A restaurant bill that also lies under Receipts counts twice: keep it in one place only.")
@@ -570,11 +661,12 @@ def bk_euer(c, oid, year):
     pay_outside = 0
     # 2.534.0 (#4333): the approved entertainment receipts (office/meals.py); 2.603.0 (#4927): strict = through their line only
     meals = bk_meals_strict(c, oid, flows, y0, y1, s) if strict else bk_meals_receipts(c, oid, y0, y1, s)  # 2.764.0 (#5313): + the edge
+    rest = {}  # 2.1292.0 (#6478): bk_credit_rest per invoice
     for p, r in bk_payments(c, oid, y0, y1, home):
         if strict and p["id"] not in inc_ids:
             pay_outside += 1  # (6) a payment typed by hand without its bank / cash booking does not count
             continue
-        for k, gross, net, vat in _pay_parts(p, r, home):
+        for k, gross, net, vat in bk_pay_parts(c, oid, p, r, home, rest):
             k = "exempt" if k in ("reverse", "abroad", "eu_goods", "export") else k  # 2.355.0 C (#2844): + goods
             x = inc.setdefault(k, [Decimal(0)] * 3)
             x[0], x[1], x[2] = x[0] + net, x[1] + vat, x[2] + gross
@@ -819,11 +911,12 @@ def bk_ustva(c, oid, year, period):
         x[0], x[1] = x[0] + net, x[1] + vat
 
     if basis == "ist":
+        rest = {}  # 2.1292.0 (#6478): bk_credit_rest per invoice
         for p, r in bk_payments(c, oid, frm, to, home):
             if inc_ids is not None and p["id"] not in inc_ids:
                 continue  # 2.603.0 (#4927): (6) only payments of a bank / cash booking
             gross_all = Decimal(0)
-            for k, gross, net, vat in _pay_parts(p, r, home):
+            for k, gross, net, vat in bk_pay_parts(c, oid, p, r, home, rest):
                 add(k, net, vat, r)
                 gross_all += gross
             items.append({"kind": r["kind"], "doc_id": r["id"], "number": r["number"], "date": p["date"], "gross": dstr(money(gross_all)),
