@@ -188,25 +188,27 @@ def _docs_xml(data):
     """document.xml of the DATEV XML interface -> [(guid, file name)]. 2.1272.0 (#6422): read by core/safexml.py (no NUL,
     no DOCTYPE / ENTITY, at most BA_DOCS_ELEMENTS elements, counted while reading); the text is decoded already (review
     F5: a declared windows-1252 is no UTF-8 for the parser), the reader drops the declaration."""
+    out, seen = [], False
     try:
-        root = safexml.sx_tree(di_decode(data), max_bytes=3 * BA_FILE_MAX, max_elements=BA_DOCS_ELEMENTS, max_depth=BA_DOCS_DEPTH)
+        # read as a stream: every <document> is taken and emptied when it ends, so a large file never stands as a whole
+        # tree in the app (a tree takes ten times its file and more)
+        for _ev, el in safexml.sx_events(di_decode(data), max_bytes=3 * BA_FILE_MAX, max_elements=BA_DOCS_ELEMENTS,
+                                         max_depth=BA_DOCS_DEPTH, want=("end",)):
+            if el.tag.rsplit("}", 1)[-1] != "document":
+                continue
+            seen = True
+            g = _GUID.search(el.get("guid") or "")
+            if g:
+                for x in el.iter():
+                    if x.tag.rsplit("}", 1)[-1] == "extension" and x.get("name"):
+                        out.append((g.group(0).lower(), base_name(x.get("name"))))
+            el.clear()
     except safexml.XmlRefused as e:
         if e.reason in ("nul", "dtd"):
             raise BadInput(tr("The file contains a DOCTYPE or an ENTITY and is not read")) from None
         raise BadInput(tr("The file is too large")) from None
     except ET.ParseError:
         return None
-    out, seen = [], False
-    for el in root.iter():
-        if el.tag.rsplit("}", 1)[-1] != "document":
-            continue
-        seen = True
-        g = _GUID.search(el.get("guid") or "")
-        if not g:
-            continue
-        for x in el.iter():
-            if x.tag.rsplit("}", 1)[-1] == "extension" and x.get("name"):
-                out.append((g.group(0).lower(), base_name(x.get("name"))))
     return out if seen else None  # review F10: an XML without <document> is no document.xml
 
 
