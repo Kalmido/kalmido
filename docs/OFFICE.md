@@ -1920,7 +1920,7 @@ Routes: `GET` / `POST /api/office/docs/<id>/tasks` (web session).
 `kalmido_office_locked` on `office_docs` (`core/migrations.d/4598.py`) refuses every `UPDATE` of a finalised row
 (`locked_at` set) that changes anything but its free columns, and every `DELETE` of one -- so no row drifts away from
 the PDF / XML it was sent as, whatever path writes. Free: `status` (never back to `draft`), `sent_at`, `paid_at`,
-`updated_at`, `datev_sent_at`, `reminder_fee_state` / `reminder_fee_paid_at`, `cashflow`, `list_id`, `client_id` (client
+`updated_at`, `datev_sent_at`, `reminder_fee_state` / `reminder_fee_paid_at` / `reminder_fee_paid_amount`, `cashflow`, `list_id`, `client_id` (client
 merge, a deleted client), `contract_id`, `replaces_id`, `version_of`; `pdf_sha256` / `xml_sha256` / `producing_on` only
 while still empty; the hash chain columns (`chain_key`, `chain_seq`, `chain_prev`, `chain_hash`) while the row has no
 place in its chain yet (its linking right after the finalising, the start's catch-up; freeing a copied place runs

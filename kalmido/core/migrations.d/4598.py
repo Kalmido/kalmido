@@ -4,7 +4,7 @@ drifts silently away from the PDF / XML it was mailed as (a forgotten check, a n
 
 What may still change on a finalised row (the app's write paths of 2.542, docs/OFFICE.md "Finalised documents in the database"):
 status (payments, sending, cancellation, a quotation's answer; never back to 'draft'), sent_at, paid_at, updated_at,
-datev_sent_at, reminder_fee_state / reminder_fee_paid_at, cashflow (planning flag), list_id (project), client_id (client merge / a deleted client),
+datev_sent_at, reminder_fee_state / reminder_fee_paid_at / reminder_fee_paid_amount (2.1259.0, #6459), cashflow (planning flag), list_id (project), client_id (client merge / a deleted client),
 contract_id (a deleted contract), replaces_id / version_of (the quotation chain), producing_on and pdf_sha256 / xml_sha256
 only while still empty (the start's fill, storing the files), the hash chain columns chain_key / chain_seq / chain_prev /
 chain_hash while the row has no place yet (office/chain.py hch_append right after the finalising, hch_migrate), and on a trial document source_doc_id / cancels_id emptied
@@ -24,7 +24,7 @@ JSON, so a column that does not exist yet (an older database during its first st
 SCHEMA = """
 CREATE OR REPLACE FUNCTION kalmido_office_locked() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE
-  free TEXT[] := ARRAY['status', 'sent_at', 'paid_at', 'updated_at', 'datev_sent_at', 'reminder_fee_state', 'reminder_fee_paid_at', 'cashflow',
+  free TEXT[] := ARRAY['status', 'sent_at', 'paid_at', 'updated_at', 'datev_sent_at', 'reminder_fee_state', 'reminder_fee_paid_at', 'reminder_fee_paid_amount', 'cashflow',
                        'list_id', 'client_id', 'contract_id', 'replaces_id', 'version_of'];
   o JSONB := to_jsonb(OLD);
   n JSONB;
