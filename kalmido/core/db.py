@@ -1777,12 +1777,14 @@ def bump(c, area=None):
         # 2.1264.0 (#6335 B3): a change counted for an area the clients take by the delta (tasks, comments, time) that left
         # not one row in dl_changes (a note, a folder's properties, a notepad, a public link ...) is no task change the delta
         # could bring: the delta answered "nothing changed" and the other device kept the old state. It counts as "other"
-        # (the whole state) - unless a bump of the same request stamped rows already (a route that bumps twice)
+        # (the whole state) - unless a bump of the same request stamped rows already (a route that bumps twice). Only for the
+        # writer's own devices (version:u:<id>): who else such a write concerns is not known, and "version:all" made every
+        # device of the instance load the whole state (review of the leader); a write without an account stays as before
         if n:
             if has_request_context():
                 g.lv_dl_rows = True
-        elif area in LV_DELTA and not (has_request_context() and getattr(g, "lv_dl_rows", False)):
-            area = "other"
+        elif area in LV_DELTA and u is not None and u["id"] is not None and not getattr(g, "lv_dl_rows", False):
+            area, sk = "other", [f"version:u:{int(u['id'])}"]
         c.execute("INSERT INTO settings(key,value) VALUES" + ",".join("(?, ?)" for _ in sk)
                   + " ON CONFLICT(key) DO UPDATE SET value=excluded.value", tuple(x for k in sk for x in (k, r[0])))
         # 2.191.0 C (#2507): the last version this account wrote (GET /api/state/delta?lean=1); F1: a write without a real
