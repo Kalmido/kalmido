@@ -13,6 +13,11 @@ in an organisation's office (its admin). Invented companies, people and figures 
    their handling costs: 15 % of (1000 + 1100 + 2 x 440) = 447.00
  - the invoice from the quotation (as the quotation: the parts' positions) has the surcharge once per tax rate and the
    quotation's net; a finalised quotation keeps the one line
+ - 2.1287.0 (#6443): a quotation from before (cached totals without "mk_title", 2 parts of 10,000.00 with 2,000.00 marked
+   each, 15 %: 20,600.00 by the former rule, 23,000.00 by the one line) that left the draft without being finalised
+   (status accepted / sent by hand): a change, opening it (GET writes nothing), its print model and its invoices (all three
+   forms) keep 20,600.00; finalised, its invoice = the frozen net / gross; a draft from before moves to the one line
+   (23,000.00, mk_title) when it is opened
 usage: p21249_zuschlag_teile_test.py <datadir>"""
 import importlib.util
 import os
@@ -24,6 +29,7 @@ sys.path.insert(0, N)
 from freelancer_fixture import FEATURES, freelancer  # noqa: E402
 from kt import FAILS, OKS, check, sess  # noqa: E402
 import requests  # noqa: E402
+import dbx as dbxm  # noqa: E402  2.1287.0 (#6443)
 
 SRC = os.environ.get("KALMIDO_SRC") or os.path.join(N, "..")
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
@@ -147,6 +153,82 @@ def run(S, who):
     ok(r.status_code == 201 and (r.json().get("totals") or {}).get("net") == "3220.00", f"invoice from the finalised quotation: net 3220.00 {r.text[:200]}")
 
 
+def dbx(sql, args=()):
+    return dbxm.connect(sys.argv[1]).execute(sql, args).fetchall()
+
+
+def legacy_6443(S, who):
+    """2.1287.0 (#6443): a quotation from before #6281 that is no draft any more keeps the markup per part."""
+    def ok(cond, what):
+        check(cond, f"#6443 {who}: {what}")
+
+    def strip(did, status=None):  # the state a quotation saved before 2.1249 has: its totals without mk_title
+        dbx("UPDATE office_docs SET totals=(totals::jsonb - 'mk_title')::text" + (", status=?" if status else "") + " WHERE id=?",
+            ((status,) if status else ()) + (did,))
+
+    def net(d):
+        return Decimal(str((d.get("totals") or {}).get("net")))
+
+    r = S.post(B + "/api/clients", json={"name": "Altkunde GmbH", "street": "Altweg 1", "zip": "50667", "city": "Köln", "country": "DE"})
+    cl = r.json()["id"]
+
+    def offer(title):
+        r = S.post(B + D, json={"client_id": cl, "project_title": title, "raw_mode": "none", "producing_on": 0, "service_from": "2026-10-01"})
+        assert r.status_code == 201, r.text
+        did = r.json()["id"]
+        pids = [(S.post(B + f"{D}/{did}/parts", json={"kind": "items", "title": t}).json().get("part") or {}).get("id") for t in ("Teil 1", "Teil 2")]
+        for pid in pids:
+            ok(S.put(B + f"{D}/{did}/parts/{pid}/items", json={"items": [
+                {"title": "Technik", "qty": 1, "rate": 8000, "unit": "flat", "in_markup": 0},
+                {"title": "Regie", "qty": 1, "rate": 2000, "unit": "flat", "in_markup": 1}]}).ok, "part positions")
+        ok(S.patch(B + f"{D}/{did}", json={"markup_pct": 15}).ok, "markup 15 %")
+        d = S.get(B + f"{D}/{did}").json()
+        ok(net(d) == 23000 and d["totals"].get("mk_title") == 1, f"a new quotation: the one line, 23000.00: {net(d)}")
+        return did
+
+    # accepted by hand, never finalised: a change keeps the former rule
+    OA = offer("Alt angenommen")
+    strip(OA, "accepted")
+    ok(S.patch(B + f"{D}/{OA}", json={"project_title": "Alt angenommen (geändert)"}).ok, "a change of the accepted quotation")
+    d = S.get(B + f"{D}/{OA}").json()
+    ok(net(d) == 20600 and not d["totals"].get("mk_title"), f"accepted: the markup per part stays (20600.00): {net(d)}")
+    ok(not any(x.get("kind") == "surcharge" for x in d["totals"].get("lines") or []), "accepted: no markup line on the title page")
+    # sent by hand: opening writes nothing, the print model and the invoices keep the sum
+    dbx("UPDATE office_docs SET status='sent' WHERE id=?", (OA,))
+    before = dbx("SELECT totals, updated_at FROM office_docs WHERE id=?", (OA,))[0]
+    d = S.get(B + f"{D}/{OA}").json()
+    after = dbx("SELECT totals, updated_at FROM office_docs WHERE id=?", (OA,))[0]
+    ok(net(d) == 20600 and tuple(before) == tuple(after), f"sent: opening shows 20600.00 and writes nothing: {net(d)}")
+    rd = S.get(B + f"{D}/{OA}/render").json()
+    ok(Decimal(str(rd["totals"]["net"])) == 20600, f"sent: the print model (PDF, client's view) 20600.00: {rd['totals']['net']}")
+    ok(S.get(B + f"{D}/{OA}/pdf").content.startswith(b"%PDF-"), "sent: the PDF")
+    gross = Decimal(str(rd["totals"]["gross"]))
+    for mode in ("full", "title", "summary"):
+        r = S.post(B + f"{D}/{OA}/invoice", json={"force": True, "parts_mode": mode})
+        ok(r.status_code == 201, f"sent: invoice {mode} " + r.text[:200])
+        if r.status_code == 201:
+            t = r.json().get("totals") or {}
+            ok(Decimal(str(t.get("net"))) == 20600 and Decimal(str(t.get("gross"))) == gross,
+               f"sent: invoice {mode} = the quotation 20600.00 / {gross}: {t.get('net')} / {t.get('gross')}")
+            S.delete(B + f"{D}/{r.json()['id']}")
+    # finalised: the frozen sums, its invoice the same
+    dbx("UPDATE office_docs SET status='accepted' WHERE id=?", (OA,))
+    r = S.post(B + f"{D}/{OA}/finalize")
+    ok(r.ok, "the old quotation finalised " + r.text[:200])
+    d = S.get(B + f"{D}/{OA}").json()
+    ok(net(d) == 20600 and not d["totals"].get("mk_title"), f"finalised: frozen by the former rule, 20600.00: {net(d)}")
+    for mode in ("full", "title", "summary"):
+        r = S.post(B + f"{D}/{OA}/invoice", json={"force": True, "parts_mode": mode})
+        t = (r.json().get("totals") or {}) if r.status_code == 201 else {}
+        ok(r.status_code == 201 and Decimal(str(t.get("net"))) == 20600 and Decimal(str(t.get("gross"))) == Decimal(str(d["totals"]["gross"])),
+           f"finalised: invoice {mode} = the frozen net / gross: {t.get('net')} / {t.get('gross')} {r.text[:120] if r.status_code != 201 else ''}")
+    # a draft from before moves to the one line when it is opened
+    OD = offer("Alt Entwurf")
+    strip(OD)
+    d = S.get(B + f"{D}/{OD}").json()
+    ok(net(d) == 23000 and d["totals"].get("mk_title") == 1, f"a draft from before: opening moves it to the one line (23000.00): {net(d)}")
+
+
 s0 = requests.Session()
 s0.headers.update(H)
 assert s0.post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice Admin", "password": "password123"}).ok
@@ -162,5 +244,7 @@ FID, Fr = freelancer(B, A)
 
 run(Fr, "freelancer")
 run(A, "organisation")
+legacy_6443(Fr, "freelancer")
+legacy_6443(A, "organisation")
 print(f"p21249_zuschlag_teile: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
