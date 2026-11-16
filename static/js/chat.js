@@ -749,18 +749,15 @@ async function tcx_req(method, url, body) {
 async function tcx_refresh(rid) { await loadTeam(); if (rid && S.tc.rid === rid) await loadRoom(rid); if (S.route.mod === 'team') renderView(); renderSide(); }
 const tcx_pick = (ids, users, agents = [], on = []) => ids.length || agents.length ? `<div class="tcxpick" role="group" aria-label="${esc(tr('Members'))}">${[...ids.map(id => [id, false]), ...agents.map(id => [id, true])].map(([id, ag]) => `<label class="tcxp"><input type="checkbox" value="${id}" ${on.includes(id) ? 'checked' : ''}>${av(id, users[id] || '?', 'avatar sm')}<span>${esc(users[id] || '?')}</span>${ag ? agentBadge(id) : ''}</label>`).join('')}</div>` : `<p class="muted">${tr('Nobody to add yet.')}</p>`;
 const tcx_checked = md => $$('.tcxpick input:checked', md).map(x => +x.value);
+// 2.1247.0 (#6101): the dialogs New channel / New group build on the shared askDialog (dialogs.js): a missing name or too few
+// people say so at their field (need(), events.js) and the dialog stays; was an own form with a toast
 function tcx_dlg(title, inner, ok, wire) {
-  return new Promise(res => {
-    let done = false;
-    const md = modal(`<form class="tcxdlg" novalidate><h3>${esc(title)}</h3>${inner}<div class="foot"><span class="spacer"></span><button type="button" class="btn" data-x="no">${tr('Cancel')}</button><button type="submit" class="btn pri">${esc(ok)}</button></div></form>`);
-    modalA11y(md);
-    const fin = v => { if (done) return; done = true; res(v); if (md.isConnected) md.remove(); };
-    md.querySelector('form').addEventListener('submit', e => { e.preventDefault(); const v = wire.submit(md); if (v) fin(v); });
-    md.addEventListener('click', e => { if (e.target.closest('[data-x="no"]')) fin(null); });
-    if (wire.init) wire.init(md);
-    onRemove(md, () => fin(null));
-    setTimeout(() => $('input[type="text"]', md)?.focus(), 30);
-  });
+  let md = null, v = null;
+  return askDialog({title, html: inner, ok, after: m => {
+    md = m; m.querySelector('form').classList.add('tcxdlg'); m.classList.add('tcxmd'); queueMicrotask(() => m.setAttribute('role', 'dialog'));  // fields inside: a dialog, no alert
+    if (wire.init) wire.init(m);
+    setTimeout(() => $('input[type="text"]', m)?.focus(), 40);  // after askDialog's own focus on OK
+  }, submit: () => { v = wire.submit(md); return v ? true : false; }}).then(r => r ? v : null);
 }
 async function tcx_chanNew() {
   const j = await tcx_req('GET', '/api/team/channels'); if (!j) return;
@@ -774,7 +771,7 @@ async function tcx_chanNew() {
     <div class="row"><label class="chkl"><input type="checkbox" id="tcx-open" ${cur.id ? 'checked' : ''}> ${tr('Open to the whole organisation')}</label></div><p class="muted tcxhint" id="tcx-oh"></p>
     <div class="tcxsec"><b>${tr('Invite')}</b><div id="tcx-mem"></div></div>`, tr('Create'), {
     init: md => { draw(md); $('#tcx-sp', md)?.addEventListener('change', () => draw(md)); },
-    submit: md => { const name = $('#tcx-name', md).value.trim(); if (!name) { toast(tr('Give the channel a name')); $('#tcx-name', md).focus(); return null; }
+    submit: md => { const name = $('#tcx-name', md).value.trim(); if (!name) { need($('#tcx-name', md), tr('Give the channel a name')); return null; }
       const s = sp(md); return {name, org_id: s.id || null, open: !!s.id && $('#tcx-open', md).checked, members: tcx_checked(md)}; }});
   if (!v) return;
   const r = await tcx_req('POST', '/api/team/channels', v); if (!r) return;
@@ -796,7 +793,7 @@ async function tcx_groupNew() {
   const v = await tcx_dlg(tr('New group'), `<p class="muted tcxhint">${tr('With at least two people who all work with each other.')}</p>
     <div class="tcxsec"><b>${tr('Members')}</b>${tcx_pick(ppl.map(p => p.id), U)}</div>
     <div class="row"><label for="tcx-name">${tr('Name (optional)')}</label><input type="text" id="tcx-name" maxlength="80" autocomplete="off"></div>`, tr('Create'), {
-    submit: md => { const m = tcx_checked(md); if (m.length < 2) { toast(tr('A group needs at least two other people')); return null; } return {members: m, name: $('#tcx-name', md).value.trim()}; }});
+    submit: md => { const m = tcx_checked(md); if (m.length < 2) { const pk = $('.tcxpick', md); if (pk) { need(pk, tr('A group needs at least two other people')); $('input:not(:checked)', pk)?.focus(); } else toast(tr('A group needs at least two other people')); return null; } return {members: m, name: $('#tcx-name', md).value.trim()}; }});
   if (!v) return;
   const r = await tcx_req('POST', '/api/team/groups', v); if (!r) return;
   // 2.1211.0 (#6099): Undo as for a new channel (the server archives a group only for its creator while nobody wrote in it)
@@ -804,86 +801,107 @@ async function tcx_groupNew() {
   await loadTeam(); go('team/' + r.id);  // first the new page, then its Undo (see tcx_chanNew)
   tcx_afterGo('#team/' + r.id, tr('Group “{0}” created', gn), histAdd({label: tr('New group “{0}”', gn), undo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: true}).then(() => { if (S.tc.rid === r.id && S.route.mod === 'team') go('team'); return tcx_refresh(); }), redo: () => rawFetch('PATCH', `/api/team/rooms/${r.id}`, {archived: false}).then(() => tcx_refresh())}));
 }
+// 2.1247.0 (#6101): on the shared askDialog; it closes only after the joining (or restoring) worked - a failure stays in the
+// dialog with its reason next to the buttons
+async function tcx_try(md, method, url, body) {
+  const er = $('.tcxerr', md);
+  try { const r = await rawFetch(method, url, body); if (er) er.textContent = ''; return r; }
+  catch (e) { const t = errText(e, method === 'GET' ? tr('Could not be loaded') : tr('The change could not be saved')); if (er) er.textContent = t; else toast(t); return null; }  // errText as tcx_req (2.1211.0, #6098)
+}
 async function tcx_browse() {
   const j = await tcx_req('GET', '/api/team/channels'); if (!j) return;
   const open = j.channels.filter(c => !c.joined && !c.archived && c.open), arch = j.channels.filter(c => c.archived && c.manage);
   const row = (c, act, lbl) => `<div class="tcxrow">${tcx_icon(c)}<span class="tcxn"><b>${esc(c.name)}</b><span class="muted">${esc(trn('{0} member', '{0} members', c.members))}</span></span><button type="button" class="btn sm" data-xb="${act}" data-rid="${c.id}">${lbl}</button></div>`;
-  const md = modal(`<h3>${tr('Browse channels')}</h3>${open.length ? open.map(c => row(c, 'join', tr('Join'))).join('') : `<p class="muted">${tr('No open channels to join.')}</p>`}
-    ${arch.length ? `<h4>${tr('Archived')}</h4>${arch.map(c => row(c, 'restore', tr('Restore'))).join('')}` : ''}<div class="foot"><span class="spacer"></span><button type="button" class="btn" data-xb="close">${tr('Close')}</button></div>`);
-  modalA11y(md);
-  md.addEventListener('click', async e => {
-    const b = e.target.closest('[data-xb]'); if (!b) return;
-    if (b.dataset.xb === 'close') { md.remove(); return; }
-    const rid = +b.dataset.rid; md.remove();
-    if (b.dataset.xb === 'join') { if (await tcx_req('POST', `/api/team/rooms/${rid}/members`, {user_id: S.me.id})) { await loadTeam(); go('team/' + rid); } }
-    else tcx_restore(rid);
-  });
+  const html = `${open.length ? open.map(c => row(c, 'join', tr('Join'))).join('') : `<p class="muted">${tr('No open channels to join.')}</p>`}
+    ${arch.length ? `<h4>${tr('Archived')}</h4>${arch.map(c => row(c, 'restore', tr('Restore'))).join('')}` : ''}<div class="tcxerr" id="tcx-berr" role="alert"></div>`;
+  askDialog({title: tr('Browse channels'), html, ok: tr('Close'), after: md => {
+    md.querySelector('[data-cd="no"]')?.remove(); md.querySelector('form').classList.add('tcxdlg', 'tcxbrowse'); md.classList.add('tcxmd'); queueMicrotask(() => md.setAttribute('role', 'dialog'));
+    md.addEventListener('click', async e => {
+      const b = e.target.closest('[data-xb]'); if (!b || b.disabled) return;
+      const rid = +b.dataset.rid; b.disabled = true;
+      if (b.dataset.xb === 'join') { if (!await tcx_try(md, 'POST', `/api/team/rooms/${rid}/members`, {user_id: S.me.id})) { b.disabled = false; return; } md.remove(); await loadTeam(); go('team/' + rid); }
+      else if (!await tcx_restore(rid, md)) b.disabled = false;
+    });
+  }});
 }
-async function tcx_restore(rid) {
-  if (!await tcx_req('PATCH', `/api/team/rooms/${rid}`, {archived: false})) return;
+async function tcx_restore(rid, md = null) {
+  if (!await (md ? tcx_try(md, 'PATCH', `/api/team/rooms/${rid}`, {archived: false}) : tcx_req('PATCH', `/api/team/rooms/${rid}`, {archived: false}))) return false;
+  if (md) md.remove();
   offerUndo(tr('Channel restored'), histAdd({label: tr('Channel restored'), undo: () => rawFetch('PATCH', `/api/team/rooms/${rid}`, {archived: true}).then(() => tcx_refresh(rid)), redo: () => rawFetch('PATCH', `/api/team/rooms/${rid}`, {archived: false}).then(() => tcx_refresh(rid))}));
-  await tcx_refresh(rid); go('team/' + rid);
+  await tcx_refresh(rid); go('team/' + rid); return true;
 }
 // the settings of a channel / group: name, open, members, archive, leave (each change at once, one undo step each)
+// 2.1247.0 (#6101): on the shared askDialog with ONE save: a changed name is kept with "Done" (or Enter; no own Save button
+// any more), closing otherwise asks before dropping it; Leave / Archive are quiet links under the members, apart from Done
+// (Archive in the warning colour); I stand in the members with "(you)"; a failure stays in the dialog with its reason
 async function tcx_settings() {
   const rid = S.tc.rid, room = S.tc.room; if (!tcx_isX(room)) return;
   const ch = room.kind === 'channel', man = !!room.manage;
   let cand = null;
   if (man) { const j = await tcx_req('GET', '/api/team/channels'); if (!j) return; S.tc.users = {...S.tc.users, ...j.users};
     cand = ch ? (room.org_id ? (j.orgs.find(o => o.id === room.org_id) || {people: [], agents: []}) : {people: j.people, agents: j.agents}) : {people: j.people, agents: []}; }
-  const md = modal('<div id="tcx-set"></div>');
-  modalA11y(md);
+  let md = null;
   const step = (label, undo, redo) => offerUndo(label, histAdd({label, undo: () => undo().then(() => tcx_refresh(rid)), redo: () => redo().then(() => tcx_refresh(rid))}));
   const patch = b => rawFetch('PATCH', `/api/team/rooms/${rid}`, b);
+  const nameOf = r => r.kind === 'group' ? r.custom_name || '' : r.name || '';
+  const r0 = S.tc.room || room;
   let ver = null;  // 2.564.0 D (#4701): the version the dialog shows; a save against an older one = 409, the reason and the current state
   const draw = () => {
     const r = S.tc.room || room, mem = r.members || [], ids = new Set(mem.map(m => m.id)); ver = r.updated_at || null;
     const add = man && cand ? [...cand.people, ...cand.agents].filter(id => !ids.has(id) && id !== S.me.id) : [];
-    $('#tcx-set', md).innerHTML = `<h3>${esc(ch ? tr('Channel settings') : tr('Group settings'))}</h3>
-      ${man ? `<form class="tcxname row"><label for="tcx-name">${tr('Name')}</label><input type="text" id="tcx-name" maxlength="80" value="${esc(r.kind === 'group' ? r.custom_name || '' : r.name || '')}" ${ch ? '' : `placeholder="${esc(r.name || '')}"`}><button type="submit" class="btn sm">${tr('Save')}</button></form>` : `<p><b>${esc(r.name || '')}</b></p>`}
-      ${ch && man && r.org_id ? `<div class="row"><label class="chkl"><input type="checkbox" id="tcx-open" ${r.open ? 'checked' : ''}> ${tr('Open to the whole organisation')}</label></div>` : ch ? `<p class="muted tcxhint">${r.open ? tr('Open to the whole organisation') : tr('Invited people only')}</p>` : ''}
-      <h4>${tr('Members')} <span class="muted">${mem.length}</span></h4><div class="tcxmem">${mem.map(m => `<div class="tcxrow">${av(m.id, m.name, 'avatar sm')}<span class="tcxn">${esc(m.name)}${m.agent ? agentBadge(m.id) : ''}</span>${ch && man && m.id !== S.me.id ? `<button type="button" class="iconbtn" data-xs="rm" data-uid="${m.id}" title="${esc(tr('Remove'))}" aria-label="${esc(tr('Remove') + ': ' + m.name)}">${ic('x', 's')}</button>` : ''}</div>`).join('')}</div>
+    const out = [ids.has(S.me.id) ? `<button type="button" class="linkbtn" data-xs="leave">${ic('logout', 's')}${tr('Leave')}</button>` : '', ch && man ? `<button type="button" class="linkbtn tcxwarn" data-xs="archive">${ic('archive', 's')}${tr('Archive')}</button>` : ''].filter(Boolean);
+    $('#tcx-set', md).innerHTML = `${ch && man && r.org_id ? `<div class="row"><label class="chkl"><input type="checkbox" id="tcx-open" ${r.open ? 'checked' : ''}> ${tr('Open to the whole organisation')}</label></div>` : ch ? `<p class="muted tcxhint">${r.open ? tr('Open to the whole organisation') : tr('Invited people only')}</p>` : ''}
+      <h4>${tr('Members')} <span class="muted">${mem.length}</span></h4><div class="tcxmem">${mem.map(m => `<div class="tcxrow">${av(m.id, m.name, 'avatar sm')}<span class="tcxn"><span>${esc(m.name)}${m.id === S.me.id ? ` <span class="muted tcxme">${esc(tr('(you)'))}</span>` : ''}</span>${m.agent ? agentBadge(m.id) : ''}</span>${ch && man && m.id !== S.me.id ? `<button type="button" class="iconbtn tcxrm" data-xs="rm" data-uid="${m.id}" title="${esc(tr('Remove'))}" aria-label="${esc(tr('Remove') + ': ' + m.name)}">${ic('x', 's')}</button>` : ''}</div>`).join('')}</div>
       ${add.length ? `<div class="row"><label for="tcx-add">${tr('Add someone')}</label><select id="tcx-add"><option value="">${tr('Select')}</option>${add.map(id => `<option value="${id}">${esc(S.tc.users[id] || '?')}</option>`).join('')}</select></div>` : ''}
-      <div class="foot">${ids.has(S.me.id) ? `<button type="button" class="btn" data-xs="leave">${ic('logout', 's')}${tr('Leave')}</button>` : ''}${ch && man ? `<button type="button" class="btn" data-xs="archive">${ic('archive', 's')}${tr('Archive')}</button>` : ''}<span class="spacer"></span><button type="button" class="btn pri" data-xs="close">${tr('Done')}</button></div>`;
+      ${out.length ? `<div class="tcxout">${/*html-ok*/ out.join('')}</div>` : ''}`;  // out: the two buttons above, from tr() only
   };
-  const after = async () => { await tcx_refresh(rid); if (md.isConnected) draw(); };
-  draw();
-  md.addEventListener('submit', async e => {
-    e.preventDefault(); const was = room.kind === 'group' ? S.tc.room.custom_name || '' : S.tc.room.name, v = $('#tcx-name', md).value.trim();
-    if (v === was || (ch && !v)) return;
-    const rn = await tcx_req('PATCH', `/api/team/rooms/${rid}`, {name: v, ...(ver ? {expect_updated_at: ver} : {})});
-    if (!rn) { after(); return; }
-    if (rn.updated_at) ver = rn.updated_at;  // review 2.564.0: the next save in the same dialog sends the new version at once
-    step(tr('Renamed to “{0}”', v || tr('the members')), () => patch({name: was}), () => patch({name: v})); after();
-  });
-  md.addEventListener('change', async e => {
-    if (e.target.id === 'tcx-open') { const on = e.target.checked; const ro = await tcx_req('PATCH', `/api/team/rooms/${rid}`, {open: on, ...(ver ? {expect_updated_at: ver} : {})}); if (!ro) { e.target.checked = !on; after(); return; }
-      if (ro.updated_at) ver = ro.updated_at;
-      step(on ? tr('Open to the whole organisation') : tr('Invited people only'), () => patch({open: !on}), () => patch({open: on})); after(); }
-    else if (e.target.id === 'tcx-add' && e.target.value) { const uid = +e.target.value;
-      if (!await tcx_req('POST', `/api/team/rooms/${rid}/members`, {user_id: uid})) { e.target.value = ''; return; }
-      step(tr('{0} added', S.tc.users[uid] || '?'), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${uid}`), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: uid})); after(); }
-  });
-  md.addEventListener('click', async e => {
-    const b = e.target.closest('[data-xs]'); if (!b) return;
-    const a = b.dataset.xs;
-    if (a === 'close') { md.remove(); return; }
-    if (a === 'rm') { const uid = +b.dataset.uid, nm = (S.tc.room.members.find(m => m.id === uid) || {}).name || '?';
-      if (!await tcx_req('DELETE', `/api/team/rooms/${rid}/members/${uid}`)) return;
-      step(tr('{0} removed', nm), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: uid}), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${uid}`)); after(); }
-    else if (a === 'archive') { if (!await tcx_req('PATCH', `/api/team/rooms/${rid}`, {archived: true})) return;
-      md.remove(); step(tr('Channel archived'), () => patch({archived: false}), () => patch({archived: true})); await tcx_refresh(rid); }
-    else if (a === 'leave') {
-      const back = ch && room.open && room.org_id;  // an open channel: joining again is the undo
-      // 2.1211.0 (#6099): only asks where I cannot come back by myself (a group, a closed channel), and says so
-      if (!back && !await askConfirm(ch ? tr('Leave this channel?') : tr('Leave this group?'), tr('You can only come back when someone adds you again.'), {ok: tr('Leave'), danger: true})) return;
-      if (!await tcx_req('DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`)) return;
-      md.remove();
-      if (back) step(tr('Left the channel'), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: S.me.id}), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`));
-      else toast(tr('You left the conversation'));
-      await loadTeam(); go('team');
-    }
-  });
+  const after = async () => { await tcx_refresh(rid); if (md?.isConnected) draw(); };
+  const nameIn = () => md && $('#tcx-name', md);
+  const dirty = () => !!nameIn() && nameIn().value.trim() !== nameOf(S.tc.room || room);
+  const save = async () => {  // "Done": the name, if it changed
+    if (!dirty()) return true;
+    const inp = nameIn(), was = nameOf(S.tc.room || room), v = inp.value.trim();
+    if (ch && !v) { need(inp, tr('Give the channel a name')); return false; }
+    const rn = await tcx_try(md, 'PATCH', `/api/team/rooms/${rid}`, {name: v, ...(ver ? {expect_updated_at: ver} : {})});
+    if (!rn) { after(); return false; }
+    if (rn.updated_at) ver = rn.updated_at;  // review 2.564.0: the next save sends the new version
+    step(tr('Renamed to “{0}”', v || tr('the members')), () => patch({name: was}), () => patch({name: v})); tcx_refresh(rid);
+    return true;
+  };
+  const html = `${man ? `<div class="row tcxname"><label for="tcx-name">${tr('Name')}</label><input type="text" id="tcx-name" maxlength="80" autocomplete="off" value="${esc(nameOf(r0))}" ${ch ? '' : `placeholder="${esc(r0.name || '')}"`}></div>` : `<p><b>${esc(r0.name || '')}</b></p>`}
+    <div id="tcx-set"></div><div class="tcxerr" id="tcx-serr" role="alert"></div>`;
+  askDialog({title: ch ? tr('Channel settings') : tr('Group settings'), html, ok: tr('Done'), submit: save, after: m => {
+    md = m; m.querySelector('[data-cd="no"]')?.remove(); m.querySelector('form').classList.add('tcxdlg', 'tcxsetdlg'); m.classList.add('tcxmd'); queueMicrotask(() => m.setAttribute('role', 'dialog'));
+    modalGuard(m, dirty);  // Esc / the backdrop with a changed name: "Discard changes?"
+    draw();
+    m.addEventListener('change', async e => {
+      if (e.target.id === 'tcx-open') { const on = e.target.checked; const ro = await tcx_try(md, 'PATCH', `/api/team/rooms/${rid}`, {open: on, ...(ver ? {expect_updated_at: ver} : {})}); if (!ro) { e.target.checked = !on; after(); return; }
+        if (ro.updated_at) ver = ro.updated_at;
+        step(on ? tr('Open to the whole organisation') : tr('Invited people only'), () => patch({open: !on}), () => patch({open: on})); after(); }
+      else if (e.target.id === 'tcx-add' && e.target.value) { const uid = +e.target.value;
+        if (!await tcx_try(md, 'POST', `/api/team/rooms/${rid}/members`, {user_id: uid})) { e.target.value = ''; return; }
+        step(tr('{0} added', S.tc.users[uid] || '?'), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${uid}`), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: uid})); after(); }
+    });
+    m.addEventListener('click', async e => {
+      const b = e.target.closest('[data-xs]'); if (!b) return;
+      const a = b.dataset.xs;
+      if (a === 'rm') { const uid = +b.dataset.uid, nm = (S.tc.room.members.find(x => x.id === uid) || {}).name || '?';
+        if (!await tcx_try(md, 'DELETE', `/api/team/rooms/${rid}/members/${uid}`)) return;
+        step(tr('{0} removed', nm), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: uid}), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${uid}`)); after(); }
+      else if (a === 'archive') { if (!await tcx_try(md, 'PATCH', `/api/team/rooms/${rid}`, {archived: true})) return;
+        md.remove(); step(tr('Channel archived'), () => patch({archived: false}), () => patch({archived: true})); await tcx_refresh(rid); }
+      else if (a === 'leave') {
+        const back = ch && room.open && room.org_id;  // an open channel: joining again is the undo
+        // 2.1211.0 (#6099): only asks where I cannot come back by myself (a group, a closed channel), and says so
+        if (!back && !await askConfirm(ch ? tr('Leave this channel?') : tr('Leave this group?'), tr('You can only come back when someone adds you again.'), {ok: tr('Leave'), danger: true})) return;
+        if (!await tcx_try(md, 'DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`)) return;
+        md.remove();
+        if (back) step(tr('Left the channel'), () => rawFetch('POST', `/api/team/rooms/${rid}/members`, {user_id: S.me.id}), () => rawFetch('DELETE', `/api/team/rooms/${rid}/members/${S.me.id}`));
+        else toast(tr('You left the conversation'));
+        await loadTeam(); go('team');
+      }
+    });
+  }});
 }
 // a shared list's own chat, from its header / menu
 async function listChat(lid) {

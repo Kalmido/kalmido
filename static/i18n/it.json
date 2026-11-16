@@ -18747,6 +18747,7 @@
   "Click to try again": "Fai clic per riprovare",
   "The project key {0} is already used in this workspace: the project {1} came without a key, its old numbers still find the tasks": "La chiave di progetto {0} è già usata in questo spazio di lavoro: il progetto {1} è arrivato senza chiave, i suoi vecchi numeri trovano ancora le attività",
   "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Nel frattempo qualcun altro ha caricato una versione più recente, resta così: {0}",
+  "(you)": "(tu)",
   "They get the key right away: {0}.": "Ricevono subito la chiave: {0}.",
   "Still missing: {0}. They get the key once they have set up encryption in their account.": "Mancano ancora: {0}. Ricevono la chiave appena hanno configurato la crittografia nel loro account.",
   "Only you get the key.": "Solo tu ricevi la chiave.",
