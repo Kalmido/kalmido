@@ -674,7 +674,7 @@ const tcx_filesOk = room => !!room && !room.e2e && !(typeof le2eChanOn === 'func
 const tcx_thumb = f => {
   if (f._u || f._ut || !/^image\/(png|jpe?g|gif|webp|avif|bmp)$/.test(f.type || '') || typeof createImageBitmap !== 'function') return f._u || '';
   f._ut = 1;
-  createImageBitmap(f).then(b => {
+  createImageBitmap(f, {resizeWidth: 128, resizeQuality: 'low'}).catch(() => createImageBitmap(f)).then(b => {  // decoded small where the browser can (a 48 MP photo)
     const k = Math.min(1, 128 / Math.max(b.width, b.height)), c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(b.width * k)); c.height = Math.max(1, Math.round(b.height * k));
     c.getContext('2d')?.drawImage(b, 0, 0, c.width, c.height); b.close?.();
