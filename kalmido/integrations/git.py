@@ -745,6 +745,37 @@ def git_ci_of(k, sha, gh):
     return "failure" if "failure" in states else "pending" if "pending" in states else "success" if states else ""
 
 
+def git_backoff(fails):
+    """Seconds until the next poll after `fails` failures in a row (doubling, at most GIT_BACKOFF_MAX)."""
+    return min(GIT_POLL_S * 2 ** min(fails, 5), GIT_BACKOFF_MAX)
+
+
+def git_fail_tell(c, r, fails):
+    """2.367.3 (#2971): at INTEG_FAILS failures in a row the person who connected it and the project's owner are told once."""
+    if fails == INTEG_FAILS:
+        lo = c.execute("SELECT owner_id FROM lists WHERE id=?", (r["list_id"],)).fetchone()
+        integ_tell(c, [r["created_by"], lo["owner_id"] if lo else None], "git", f"{r['owner']}/{r['repo']}",
+                   (r["polled_at"] or r["created_at"] or "")[:10], click=f"l/{r['list_id']}", list=r["list_id"])
+
+
+def git_poll_failed(c, cid, e):
+    """2.1265.0 (#6389): an unexpected error in the poll of connection cid (gf_rehome, git_ctx, a store step, ...) costs only
+    this connection: its transaction is rolled back, next_at moves on with the backoff of a provider error and its failures
+    count up (told at INTEG_FAILS) - before, next_at stayed, ORDER BY next_at took the same connection first every 15 s and
+    every other git connection of the instance stood."""
+    c.rollback()
+    print("git: poll of connection", cid, "failed:", type(e).__name__, flush=True)  # never the token or the URL
+    aa_count("watchdog", f"git|{type(e).__name__}", "git")
+    r = c.execute("SELECT * FROM git_conns WHERE id=?", (cid,)).fetchone()
+    if not r:
+        return
+    fails = (r["fails"] or 0) + 1
+    c.execute("UPDATE git_conns SET fails=?, last_error=?, next_at=? WHERE id=?",
+              (fails, CalError("error", type(e).__name__).stored(), time.time() + git_backoff(fails), cid))
+    git_fail_tell(c, r, fails)
+    c.commit()
+
+
 def git_poll(c, cid):
     """One poll of connection cid (the background thread). Never raises for provider problems (stored in last_error)."""
     from ..integrations.gitfolder import gf_rehome
@@ -841,11 +872,8 @@ def git_poll(c, cid):
     except CalError as e:
         fails = (r["fails"] or 0) + 1
         c.execute(f"UPDATE git_conns SET etags=?, fails=?, last_error=?, next_at=? WHERE {same}",
-                  (json.dumps(keep), fails, e.stored(), time.time() + min(GIT_POLL_S * 2 ** min(fails, 5), GIT_BACKOFF_MAX), *same_args))
-        if fails == INTEG_FAILS:  # 2.367.3 (#2971): the person who connected it and the project's owner
-            lo = c.execute("SELECT owner_id FROM lists WHERE id=?", (r["list_id"],)).fetchone()
-            integ_tell(c, [r["created_by"], lo["owner_id"] if lo else None], "git", f"{r['owner']}/{r['repo']}",
-                       (r["polled_at"] or r["created_at"] or "")[:10], click=f"l/{r['list_id']}", list=r["list_id"])
+                  (json.dumps(keep), fails, e.stored(), time.time() + git_backoff(fails), *same_args))
+        git_fail_tell(c, r, fails)
     if changed:
         bump(c)
     c.commit()
@@ -876,8 +904,11 @@ def git_loop():
                     c.commit()
                 for (cid,) in rows:
                     with GATE.bg():
-                        git_poll(c, cid)
-                        c.commit()
+                        try:  # 2.1265.0 (#6389): one broken connection no longer stops the others
+                            git_poll(c, cid)
+                            c.commit()
+                        except Exception as e:  # noqa: BLE001
+                            git_poll_failed(c, cid, e)
                 if "push" in GIT_SYNC:  # 2.394.0 C (#3377): the collected local changes of linked tasks that are due
                     with GATE.bg():
                         GIT_SYNC["push"](c)

@@ -20,13 +20,14 @@ tenant-matrix: document
 usage: p2581_c_flows_test.py <datadir>      (a fresh container; P2581C_NOSTART=1 / KMT_NOSTART=1: it runs already)"""
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kt  # noqa: E402
 from kt import B, check, dbx, sess, until  # noqa: E402
 from freelancer_fixture import FEATURES, freelancer, org_join  # noqa: E402
 
-kt.fresh(env={"KALMIDO_DOCFLOW_TICK_S": "1"}, prefix="P2581C")
+kt.fresh(env={"KALMIDO_DOCFLOW_TICK_S": "1", "KALMIDO_TEST_FL_FAIL_DOC": "kaputt.pdf"}, prefix="P2581C")
 A = kt.setup()
 
 
@@ -188,5 +189,20 @@ rid = runs(Bo, o1)[0]["id"]
 check(Gi.post(B + f"/api/docs/flowruns/{rid}/undo").status_code == 404, "rights: a stranger cannot undo")
 check(Fr.post(B + f"/api/docs/flowruns/{rid}/undo").status_code == 404, "rights: frida cannot undo the organisation's run")
 check(Bo.post(B + f"/api/docs/flowruns/{rid}/undo").ok and "Geprueft" not in tags(doc(Bo, o1)), "rights: the admin takes A's run back")
+
+# ---- 2.1265.0 (#6389): a document a scheduled flow raises on no longer stops the tick for every workspace. Before, the error
+# rolled the tick back and the same document came first again in the next one: the scheduled flows of every other workspace
+# stood. The organisation's workspace comes first in the tick (ORDER BY ws), frida's private one after it.
+r = flow(Bo, OWS, name="Org-Frist", trigger="scheduled", days=0, **{"from": "added"}, tags=["OrgFrist"])
+check(r.status_code == 201, f"a scheduled flow of the organisation {r.status_code} {r.text[:200]}")
+ob = upload(Bo, "kaputt.pdf", ["Kaputt", "Seite 1"], ws=OWS)  # the flow raises on it (KALMIDO_TEST_FL_FAIL_DOC)
+done(Bo, ob)
+d6 = upload(Fr, "frist3.pdf", ["Dritte Mahnung", "Zahlungsfrist"])
+done(Fr, d6)
+check(until(lambda: "Frist" in tags(doc(Fr, d6)), 30), "a healthy document of another workspace runs in the same ticks")
+row = until(lambda: dbx("SELECT fails, retry_at FROM doc_flow_runs WHERE node_id=? AND trig='scheduled' AND state='error'", (ob,)), 15)
+check(row and row[0][0] >= 1 and row[0][1] > time.time(), f"the broken document keeps an error run with its failures and waits (backoff) {row}")
+check("OrgFrist" not in tags(doc(Bo, ob)) and until(lambda: "OrgFrist" in tags(doc(Bo, o1)), 30),
+      "the other documents of the organisation got their run")
 
 sys.exit(kt.done("p2581_c_flows"))

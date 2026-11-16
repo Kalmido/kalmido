@@ -29,8 +29,10 @@ notification already shown and a webhook already sent cannot be taken back.
 No loops: the actions of a flow never go through doc_update, so they trigger no "changed" flow (depth 1); a thread-local mark
 guards it besides."""
 import json
+import os
 import secrets
 import threading
+import time
 from datetime import date, datetime, time as dtime, timedelta
 
 from flask import g, has_request_context, jsonify
@@ -44,8 +46,10 @@ from ..core.pages import new_inbox_task
 from ..tasks.validation import log_act
 from ..accounts.session import me
 from ..collab.comments import collab_user
+from ..collab.integfail import INTEG_FAILS, integ_org_admins, integ_tell  # 2.1265.0 (#6389)
 from ..collab.news import notif_ok
 from ..files.store import fs_log_add, fs_role
+from ..notify.alerts import aa_count  # 2.1265.0 (#6389)
 from ..files.fsroots import fs_area_share  # 2.635.0 (#4856)
 from ..files.web import _share_targets  # 2.635.0 (#4856): the file store's share pool
 from . import rules as RU
@@ -408,11 +412,54 @@ def _midnight_utc(day):
     return iso(datetime.combine(day, dtime(0), tzinfo=TZ))
 
 
+FL_RETRY_S = 300  # 2.1265.0 (#6389): the first wait of a document a scheduled flow failed on (the scheduled tick's default)
+
+
+def fl_backoff(fails):
+    """Seconds until the next try after `fails` failures in a row: the backoff of the calendar subscriptions
+    (calendars/subscriptions.py cal_due): the interval doubled per failure up to 8x, at most 6 h."""
+    return min(FL_RETRY_S * 2 ** min(fails, 3), max(FL_RETRY_S, 6 * 3600))
+
+
+def _fl_claim(c, ws, nid, r, stamp):
+    """(run id, failures so far) of the scheduled run of flow r on document nid for stamp, or (None, 0) when another process
+    has it. A new run is claimed as 'skip'; an 'error' run whose wait is over is taken again."""
+    row = c.execute("""INSERT INTO doc_flow_runs(org_id, ws, node_id, rule_id, trig, stamp, state, created_at)
+                       VALUES(?,?,?,?,'scheduled',?,'skip',?) ON CONFLICT DO NOTHING RETURNING id""",
+                    (S.ws_org(ws), ws, nid, r["id"], stamp, _ts())).fetchone()
+    if row:
+        return row[0], 0
+    row = c.execute("""UPDATE doc_flow_runs SET state='skip' WHERE trig='scheduled' AND rule_id=? AND node_id=? AND stamp=?
+                       AND state='error' AND retry_at<=? RETURNING id, fails""", (r["id"], nid, stamp, time.time())).fetchone()
+    return (row[0], row[1]) if row else (None, 0)
+
+
+def _fl_failed(c, ws, nid, r, stamp, e):
+    """2.1265.0 (#6389): flow r raised on document nid (its savepoint is rolled back): the run is kept as 'error' with one more
+    failure and the next try after the backoff; at INTEG_FAILS in a row the flow's author (else the workspace's owner or the
+    organisation's admins) is told once, the way of every other integration that keeps failing (Settings > Notifications)."""
+    print("docflows: flow", r.get("id"), "failed on document", nid, type(e).__name__, flush=True)  # never the document's text
+    aa_count("watchdog", f"docflows|{type(e).__name__}", "docflows")
+    row = c.execute("""UPDATE doc_flow_runs SET state='error', fails=fails+1 WHERE trig='scheduled' AND rule_id=? AND node_id=?
+                       AND stamp=? RETURNING fails, created_at""", (r["id"], nid, stamp)).fetchone()
+    if not row:
+        row = c.execute("""INSERT INTO doc_flow_runs(org_id, ws, node_id, rule_id, trig, stamp, state, fails, created_at)
+                           VALUES(?,?,?,?,'scheduled',?,'error',1,?) RETURNING fails, created_at""",
+                        (S.ws_org(ws), ws, nid, r["id"], stamp, _ts())).fetchone()
+    fails = row[0]
+    c.execute("UPDATE doc_flow_runs SET retry_at=? WHERE trig='scheduled' AND rule_id=? AND node_id=? AND stamp=?",
+              (time.time() + fl_backoff(fails), r["id"], nid, stamp))
+    if fails == INTEG_FAILS:
+        oid, uid = S.ws_org(ws), S.ws_user(ws)
+        who = [r.get("_by")] if r.get("_by") else [uid] if uid else integ_org_admins(c, oid) if oid else []
+        integ_tell(c, who, "docflow", str(r.get("name") or "").strip() or f"#{r.get('id')}", str(row[1] or "")[:10])
+
+
 def fl_tick(c):
     """One look at every scheduled flow (caller: system_ctx, commits). -> the number of runs made."""
     today = local_now().date()
     n = 0
-    for (ws,) in c.execute("SELECT DISTINCT ws FROM doc_rules").fetchall():
+    for (ws,) in c.execute("SELECT DISTINCT ws FROM doc_rules ORDER BY ws").fetchall():  # 2.1265.0 (#6389): a fixed order
         for r in _fl_rules(c, ws):
             if RU.trigger_of(r) != "scheduled" or r.get("off") or r.get("from") not in SCHED_COL:
                 continue
@@ -430,26 +477,36 @@ def fl_tick(c):
                 rows = c.execute("""SELECT d.node_id, d.created_at AS base FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id
                                     WHERE d.ws=? AND n.deleted_at IS NULL AND d.state IN ('done', 'failed') AND d.created_at IS NOT NULL
                                       AND d.created_at<? AND d.created_at>=? AND NOT EXISTS (SELECT 1 FROM doc_flow_runs x
-                                      WHERE x.trig='scheduled' AND x.rule_id=? AND x.node_id=d.node_id) ORDER BY d.created_at, d.node_id LIMIT ?""",
-                                 (ws, _midnight_utc(last + timedelta(days=1)), _midnight_utc(first), r["id"], FL_TICK_DOCS)).fetchall()
+                                      WHERE x.trig='scheduled' AND x.rule_id=? AND x.node_id=d.node_id AND NOT (x.state='error' AND x.retry_at<=?))
+                                    ORDER BY d.created_at, d.node_id LIMIT ?""",
+                                 (ws, _midnight_utc(last + timedelta(days=1)), _midnight_utc(first), r["id"], time.time(), FL_TICK_DOCS)).fetchall()
             else:
                 rows = c.execute(f"""SELECT d.node_id, {col} AS base FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id
                                      WHERE d.ws=? AND n.deleted_at IS NULL AND d.state IN ('done', 'failed') AND {col} IS NOT NULL AND {col}<>''
                                        AND {col}<=? AND {col}>=? AND NOT EXISTS (SELECT 1 FROM doc_flow_runs x WHERE x.trig='scheduled'
-                                       AND x.rule_id=? AND x.node_id=d.node_id AND x.stamp={col}) ORDER BY {col}, d.node_id LIMIT ?""",
-                                 (ws, last.isoformat(), first.isoformat(), r["id"], FL_TICK_DOCS)).fetchall()
+                                       AND x.rule_id=? AND x.node_id=d.node_id AND x.stamp={col} AND NOT (x.state='error' AND x.retry_at<=?))
+                                     ORDER BY {col}, d.node_id LIMIT ?""",
+                                 (ws, last.isoformat(), first.isoformat(), r["id"], time.time(), FL_TICK_DOCS)).fetchall()
             for row in rows:
                 nid = row["node_id"]
                 stamp = (local_day(str(row["base"])) or today).isoformat() if r["from"] == "added" else str(row["base"])[:10]
-                claim = c.execute("""INSERT INTO doc_flow_runs(org_id, ws, node_id, rule_id, trig, stamp, state, created_at)
-                                     VALUES(?,?,?,?,'scheduled',?,'skip',?) ON CONFLICT DO NOTHING RETURNING id""",
-                                  (S.ws_org(ws), ws, nid, r["id"], stamp, _ts())).fetchone()
-                if not claim:
-                    continue  # another process took it
-                m = S.meta_row(c, nid)
-                node = c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
-                if _hits(c, m, node, [r]) and fl_run(c, nid, r, "scheduled", stamp, claim[0]):
-                    n += 1
+                # 2.1265.0 (#6389): each document in a savepoint of its own - one that raises no longer rolls back the tick and
+                # comes first again in the next one (every scheduled flow of every workspace stood); it waits with a backoff
+                try:
+                    with c.savepoint():
+                        claim, fails = _fl_claim(c, ws, nid, r, stamp)
+                        if not claim:
+                            continue  # another process took it
+                        m = S.meta_row(c, nid)
+                        node = c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
+                        if os.environ.get("KALMIDO_TEST") == "1" and node and node["name"] == os.environ.get("KALMIDO_TEST_FL_FAIL_DOC"):
+                            raise RuntimeError("test: a document the flow cannot run on")  # tests only (#6389)
+                        if _hits(c, m, node, [r]) and fl_run(c, nid, r, "scheduled", stamp, claim):
+                            n += 1
+                        if fails:  # a success ends the streak
+                            c.execute("UPDATE doc_flow_runs SET fails=0, retry_at=0 WHERE id=?", (claim,))
+                except Exception as e:  # noqa: BLE001 -- only this document waits; the others of this tick run on
+                    _fl_failed(c, ws, nid, r, stamp, e)
             c.commit()
     return n
 
