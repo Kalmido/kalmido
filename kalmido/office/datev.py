@@ -294,7 +294,7 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
     from .bankacc import bka_datev
     st = bka_datev(c, oid, dx_settings(s))  # 2.470.0 (#3596): the ledger account of the default bank account, when it has one
     home = hc_home(s)  # 2.189.0 B (#2475): lines in the home currency (DATEV itself only for EUR, dx_need_eur)
-    from .books import bk_reverse_key  # 2.355.0 C (#2844)
+    from .books import bk_reverse_key, bk_fx_lines, bk_fx_gross  # 2.355.0 C (#2844); 2.1259.0 (#6456)
     out, memo = [], {}
     docs = c.execute("SELECT d.*, cl.customer_no AS dx_customer_no, cl.name AS dx_client_name FROM office_docs d "
                      "LEFT JOIN clients cl ON cl.id=d.client_id WHERE d.org_id=? AND d.kind IN ('invoice','credit') "
@@ -312,6 +312,7 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
         if case == "reverse":
             case = bk_reverse_key(c, oid, r, memo)  # 2.355.0 C (#2844): section 13b at home; 2.502.0 (#4081): a third country = not taxable
         parts, odd = [], []  # (case, gross amount in the document's currency); odd: (frozen rate, its tax) or None per part
+        home_lines = None
         if case:
             parts.append((case, dec(t.get("gross") or 0)))
         else:
@@ -319,12 +320,17 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
                 k, pct = dx_rate_key(tl)  # 2.1259.0 (#6303 c): the frozen rate decides, not 19 / 7 % of the key
                 parts.append((k, dec(tl.get("base") or 0) + dec(tl.get("amount") or 0)))
                 odd.append(None if pct is None else (pct, dec(tl.get("amount") or 0)))
+            if parts and fx != 1 and bk_fx_gross(t) is not None:  # 2.1259.0 (#6456): the lines in the home currency by the one rule of the books (bk_fx_lines)
+                home_lines = bk_fx_lines([tl for tl in t.get("tax_lines") or [] if isinstance(tl, dict)], bk_fx_gross(t), fx)
             if not parts:  # a document without positions or tax lines: the gross on the standard account
                 parts.append(("standard", dec(t.get("gross") or 0)))
         # 2.47.3 (review S1): in USD every line is rounded on its own -> the rounding difference to the document's gross in
         # EUR goes onto the last line, so the debtor balances with the payment
         conv = [(k, money(a / fx)) for k, a in parts]
-        if fx != 1 and conv:
+        if home_lines is not None and len(home_lines) == len(parts):
+            # 2.1259.0 (#6456): base + tax per line as the books and the tax adviser's export, the rest cent on the largest rate
+            conv = [(k, x["base"] + x["amount"]) for (k, _), x in zip(parts, home_lines)]
+        elif fx != 1 and conv:
             diff = money(dec(t.get("gross") or 0) / fx) - sum((a for _, a in conv), Decimal(0))
             if diff and abs(diff) <= Decimal("0.05"):
                 conv[-1] = (conv[-1][0], conv[-1][1] + diff)

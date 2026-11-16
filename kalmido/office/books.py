@@ -444,6 +444,16 @@ def bk_fx_lines(tax_lines, gross, fx):
     return out
 
 
+def bk_fx_gross(t):
+    """2.1259.0 (#6456): the gross of frozen totals t for bk_fx_lines: totals.gross when the tax lines add up to it (every
+    document of the calculator), else None = the sum of the lines (a hand-made or old totals object keeps its lines)."""
+    g = t.get("gross")
+    if g in (None, ""):
+        return None
+    lines = sum((dec(tl.get("base") or 0) + dec(tl.get("amount") or 0) for tl in t.get("tax_lines") or [] if isinstance(tl, dict)), Decimal(0))
+    return g if money(dec(g)) == money(lines) else None
+
+
 def bk_doc_lines(r, home):
     """2.1259.0 (#6301): ([(group, base, tax)] in the office currency, gross in the document's currency) of an invoice / credit
     note with VAT from its frozen tax lines (totals.tax_lines), the truth of the document: a full payment gives exactly its
