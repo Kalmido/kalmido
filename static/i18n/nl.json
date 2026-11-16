@@ -18777,8 +18777,6 @@
   "Contacts could not be loaded": "De contacten konden niet worden geladen",
   "No contacts yet": "Nog geen contacten",
   "Add one, import a vCard or CSV file, or connect the phone.": "Voeg er een toe, importeer een vCard- of CSV-bestand of koppel de telefoon.",
-  "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "De verwijdering van je account {0} is geannuleerd. Een beheerder heeft het account geblokkeerd; alleen een beheerder kan het weer vrijgeven.",
-  "An admin has locked your account; only an admin can unlock it.": "Een beheerder heeft je account geblokkeerd; alleen een beheerder kan het weer vrijgeven.",
   "Write down your first task": "Schrijf je eerste taak op",
   "Everything starts in the inbox; sort it later.": "Alles begint in de inbox; sorteer later.",
   "Create a project": "Maak een project aan",
