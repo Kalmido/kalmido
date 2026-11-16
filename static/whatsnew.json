@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1301.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Freigabe-Karten von Agenten zeigen jetzt in Klartext, was ein Ja wirklich tut - mit Warnzeile beim Teilen, Einladen, Verschieben und Senden nach außen.",
+     "en": "Approval cards of agents now say in plain words what a Yes really does - with a warning line for sharing, inviting, moving and sending data out."
+    },
+    {
+     "de": "Regeln, die ein Agent sich merkt, gelten erst, wenn du sie im Chat mit ihm bestätigst.",
+     "en": "Rules an agent stores apply only once you confirm them in your chat with it."
+    },
+    {
+     "de": "Kann eine Mail nicht übernommen werden, versucht Kalmido es erneut und meldet es, statt sie still zu verlieren.",
+     "en": "When an e-mail cannot be taken over, Kalmido tries again and tells you instead of losing it silently."
+    }
+   ]
+  },
+  {
    "version": "2.1293.0",
    "date": "2026-11-16",
    "items": [
@@ -1303,20 +1321,6 @@
     {
      "de": "Postfach-Regeln zeigen jetzt an, wenn aus einer Mail kein Dokument entstand, und versuchen es beim nächsten Lauf erneut.",
      "en": "Mailbox rules now show when a mail produced no document and try again on the next run."
-    }
-   ]
-  },
-  {
-   "version": "2.734.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Tabellen zeigen unten immer die Blatt-Leiste mit „Blatt 1“ und „+“ für ein neues Blatt.",
-     "en": "Tables always show the sheet bar with \"Sheet 1\" and \"+\" for a new sheet."
-    },
-    {
-     "de": "Wischen in Dokumenten blättert jetzt wie eine Seite: das nächste Dokument gleitet gleich mit.",
-     "en": "Swiping in documents now turns pages: the next document glides in along with your finger."
     }
    ]
   }
