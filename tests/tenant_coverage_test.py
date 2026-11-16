@@ -1464,6 +1464,7 @@ ROUTES = {
     # 2.235.0 C (#2903): the standing rules of an agent (the agent itself; owner / instance admin, else 404; p2235_c_rules_api_test.py)
     "GET /api/v1/agent/rules": "agent", "POST /api/v1/agent/rules": "agent", "GET /api/agents/{}/rules": "agent",
     "POST /api/agents/{}/rules": "agent", "PATCH /api/agents/{}/rules/{}": "agent", "DELETE /api/agents/{}/rules/{}": "agent",
+    "POST /api/agents/{}/rules/{}/decide": "agent",  # 2.1269.0 (#6451): only the person of the source (p2235_c_rules_api_test.py)
     # 2.557.0 C (#4670): the setup of a server agent: the defaults (no stored data of anybody) and its starter pack (owner / instance admin)
     "GET /api/agents/server/defaults": "public", "POST /api/agents/{}/server/starter": "agent",  # p2557_c_srvstarter_test.py
     "GET /api/agents/{}/server/starter": "agent",  # 2.777.0 C (#5378): as the POST (p2777_c_srvagent_test.py, tenant-matrix: agent)

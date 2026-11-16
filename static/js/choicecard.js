@@ -3,10 +3,31 @@
 // style?}], multi, approval?: {title, what, std?}, expires_at?, withdrawn_at?, outcome?}, choice = the answer {ids, at,
 // user_id, user_name?, via}, choice_state open | answered | expired | withdrawn (#1037: only the newest question is live,
 // an approval card stays open until answered). attrs(id) = the data attributes of a button (who handles the press).
+// 2.1269.0 (#6450): the server's words for the bound step stand open first (ccApvDesc), the agent's title and text below as a
+// quote ("The agent writes:") -- the agent may write anything there, the server describes what a Yes really does
 function ccApvHead(ap, open, src = '') {
+  const s = src && !open ? src + '|d' : src;  // a decided card: its own entry (the state at the answer)
   return (open ? `<div class="apvh">${ic('lock', 's')}<span>${esc(tr('Approval needed'))}</span></div>` : '')
-    + (ap ? `<div class="apvt">${esc(ap.title)}</div>${ap.what ? `<div class="apvw">${esc(tr('If yes: {0}', ap.what))}</div>` : ''}${/*html-ok*/ /* escaped inside */ ccApvStep(ap, src && !open ? src + '|d' : src)}` : '');  // a decided card: its own entry (the state at the answer)
+    + (ap ? `${/*html-ok*/ /* escaped inside */ ccApvDesc(ap, s)}<div class="apvq" data-apv-agent><div class="apvqh">${esc(tr('The agent writes:'))}</div><div class="apvt">${esc(ap.title)}</div>${ap.what ? `<div class="apvw">${esc(tr('If yes: {0}', ap.what))}</div>` : ''}</div>${/*html-ok*/ /* escaped inside */ ccApvStep(ap, s)}` : '');
 }
+// 2.1269.0 (#6450): desc = the server's description of the bound step (GET /api/approvals/diff -> desc, agents/apvdesc.py):
+// lines of parts [t = the server's words | v = a value (foreign text, cleaned by the server, set apart here)], a warning line
+// (share / invite / export / move / hidden) in the style of the one-way line. Until it is there Yes stays locked (ccApvReady).
+function ccApvxHtml(x) {
+  if (x === undefined) return `<div class="apvxl muted" data-apvx-wait>${esc(tr('Loading…'))}</div>`;
+  if (!x || !Array.isArray(x.lines)) return `<div class="apvw" data-apvx-err><b>${esc(tr('The step could not be described - Yes stays locked'))}</b></div>`;
+  const part = p => Array.isArray(p) && p[0] === 'v' ? `<span class="apvxv">${esc(String(p[1] ?? ''))}</span>` : esc(String((p || [])[1] ?? ''));
+  return x.lines.map(l => `<div class="apvxl">${/*html-ok*/ /* each part escaped in part() */ (Array.isArray(l) ? l : []).map(part).join('')}</div>`).join('')
+    + (Array.isArray(x.warns) ? x.warns : []).map(([k, t]) => `<div class="apvw" data-apvx-warn="${esc(String(k))}"><b>${esc(String(t || ''))}</b></div>`).join('');
+}
+function ccApvDesc(ap, src = '') {
+  if (!ap.step) return `<div class="apvx" data-apvx-none>${esc(tr('No step is bound: Yes only gives your answer to the agent'))}</div>`;
+  const c = src ? S.apvd[src] : null;
+  if (src && (!c || (c.x === undefined && !c.busy) || (c.err && !c.busy && Date.now() - c.at > 5000))) setTimeout(() => ccApvdLoad(src), 0);
+  return `<div class="apvx" role="group" aria-label="${esc(tr('What Yes does'))}" ${src ? `data-apvx="${esc(src)}"` : ''}>${/*html-ok*/ /* escaped inside */ ccApvxHtml(c ? c.x : src ? undefined : null)}</div>`;
+}
+// may Yes be pressed? a card without a step: yes; with a step: only once the server's description is shown
+const ccApvReady = (ch, src) => !ch.approval?.step || !!(src && S.apvd[src]?.x?.lines);
 // 2.1068.0 (#5831): a line diff as rows [[op, line]] (op ' ' / '+' / '-' / '…' = a gap) -- one rendering for the knowledge
 // history (wkhist.js) and the approval card; + / − in front, not only the colour
 function txtDiffHtml(rows) {
@@ -35,15 +56,20 @@ function ccApvdBody(d, src) {
     d.no_heading ? `<div class="apvdchg">${esc(tr('The heading {0} is no longer on the page', d.no_heading))}</div>` : ''].join('');
   return note + (d.rows?.length ? txtDiffHtml(d.rows) : '') + (d.more && !d.decided ? `<button type="button" class="btn sm" data-act="apvd-all" data-apvd-src="${esc(src)}">${esc(tr('Show everything'))}</button>` : '');
 }
-// fetched once per card (src = chat:<id> | comment:<id>), then every element of that card is filled in
+// fetched once per card (src = chat:<id> | comment:<id>), then every element of that card is filled in.
+// 2.1269.0 (#6450): + desc (x) for every card with a step; a failed fetch keeps Yes locked and tries again on the next drawing
 async function ccApvdLoad(src, full = false) {
-  const e = S.apvd[src]; if (e && (e.busy || (e.d !== undefined && !full))) return;
+  const e = S.apvd[src]; if (e && (e.busy || (e.d !== undefined && e.x !== undefined && !e.err && !full))) return;
   S.apvd[src] = {...(e || {}), busy: true};
   const [k, id] = src.split('|')[0].split(':');
-  let d = null;
-  try { d = (await api('GET', `/api/approvals/diff?${k}=${id}${full ? '&full=1' : ''}`)).diff; } catch (err) { d = e?.d ?? null; }
-  S.apvd[src] = {d, busy: false};
+  let d = null, x = null, err = false;
+  try { const j = await api('GET', `/api/approvals/diff?${k}=${id}${full ? '&full=1' : ''}`); d = j.diff ?? null; x = j.desc ?? null; }
+  catch (er) { d = e?.d ?? null; x = e?.x?.lines ? e.x : null; err = !x; }
+  S.apvd[src] = {d, x, err, at: Date.now(), busy: false};
   for (const n of document.querySelectorAll(`[data-apvd="${CSS.escape(src)}"]`)) ccApvdFill(n, d, src);
+  for (const n of document.querySelectorAll(`[data-apvx="${CSS.escape(src)}"]`)) n.innerHTML = ccApvxHtml(x);
+  const ok = !!x?.lines;
+  for (const b of document.querySelectorAll(`[data-apvx-gate="${CSS.escape(src)}"]`)) { b.disabled = !ok; b.toggleAttribute('aria-disabled', !ok); }
 }
 function ccApvdFill(n, d, src) {
   const sm = n.querySelector('summary [data-apvd-words]'), bd = n.querySelector('[data-apvd-body]');
@@ -54,21 +80,19 @@ function ccApvdFill(n, d, src) {
 // 2.1068.0 (#5831): a step that replaces or adds to a text (a knowledge page, a task's notes, a project's description, a
 // comment) shows the change itself (the server reckons it, collapsed one line in words, open: the changed lines); the
 // technical line "Step: …" is inside the fold for every step; src = chat:<message id> | comment:<comment id>
+// 2.1269.0 (#6450): what the step does in words is the server's (ccApvDesc, open above); the fold keeps the diff and the technical line
 function ccApvStep(ap, src = '') {
   const st = ap.step, b = st && st.body && typeof st.body === 'object' && !Array.isArray(st.body) ? st.body : null;
-  let t = '', w = '';
+  let t = '';
   if (st) {
-    const p = String(st.path || '').replace(/^\/api\/v1(?=\/)/, ''), m = p.match(/^\/tasks\/(\d+)$/);
-    w = st.method === 'DELETE' && m ? tr('Delete task {0}', m[1])
-      : p === '/tasks/batch' && b && Array.isArray(b.ids) ? tr('{0} tasks, action {1}', b.ids.length, String(b.action || '')) : '';
+    const p = String(st.path || '').replace(/^\/api\/v1(?=\/)/, '');
     t = `${st.method} ${p}` + (b && Object.keys(b).length ? ' · ' + tr('Fields: {0}', Object.keys(b).join(', ')) : '');
   }
   let fold = '';
   if (st) {
     const dv = !!src && ccApvTextStep(st), c = dv ? S.apvd[src] : null, d = c?.d;
-    const sum = dv ? (d ? ccApvdWords(d) : d === null ? tr('Step details') : tr('Loading…')) : w ? tr('Step: {0}', w) : tr('Step details');
+    const sum = dv ? (d ? ccApvdWords(d) : d === null ? tr('Step details') : tr('Loading…')) : tr('Step details');
     fold = `<details class="apvdet" ${dv ? `data-apvd="${esc(src)}"` : ''}><summary><span data-apvd-words>${esc(sum)}</span></summary>${dv ? `<div data-apvd-body>${/*html-ok*/ /* escaped inside */ d ? ccApvdBody(d, src) : ''}</div>` : ''}<div class="apvw" data-apv-step>${esc(tr('Step: {0}', t))}</div></details>`;
-    if (dv && (!c || c.d === undefined)) setTimeout(() => ccApvdLoad(src), 0);
   }
   // 2.1088.0 (#5937): an upload's card names the files it binds (body._files, #5936): count + the first 3 names, no hash
   const fs = b && Array.isArray(b._files) ? b._files.filter(x => x && typeof x === 'object') : [];
@@ -81,8 +105,10 @@ function ccApvStep(ap, src = '') {
 const ccApvLbl = (ch, id) => { const ap = ch.approval, c = (ch.choices || []).find(x => x.id === id); return ap?.std || !c ? (id === 'yes' ? tr('Yes, go ahead') : tr('No')) : c.label; };
 // 2.46.6 (#1711): pen = the attributes of the pen next to "Yes" ('' = none): "Yes, but: <card text>" into the message box
 const ccApvEditText = ch => tr('Yes, but:') + ' ' + (ch.approval?.title || '');
-function ccApvBtns(ch, attrs, pen = '') {
-  const yes = `<button type="button" class="cchb st-primary cpermb" ${attrs('yes')}>${thumbIc(true)}<span>${esc(ccApvLbl(ch, 'yes'))}</span></button>`;
+// 2.1269.0 (#6450): src = the card's entry (chat:<id> | comment:<id>): with a step Yes is locked until the server's description is there
+function ccApvBtns(ch, attrs, pen = '', src = '') {
+  const ok = ccApvReady(ch, src), gate = ch.approval?.step ? ` data-apvx-gate="${esc(src)}"${ok ? '' : ' disabled aria-disabled="true"'}` : '';
+  const yes = `<button type="button" class="cchb st-primary cpermb" ${attrs('yes')}${/*html-ok*/ /* attributes built with esc() above */ gate}>${thumbIc(true)}<span>${esc(ccApvLbl(ch, 'yes'))}</span></button>`;
   const pb = pen ? `<button type="button" class="cchpen" ${pen} title="${esc(tr('Edit before sending'))}" aria-label="${esc(tr('Edit before sending: {0}', ccApvLbl(ch, 'yes')))}">${ic('edit', 's')}</button>` : '';
   return `<div class="cchoices cperm apvbtns" role="group" aria-label="${esc(tr('Approval needed'))}">${pen ? `<span class="cchw">${yes}${pb}</span>` : yes}<button type="button" class="cchb cpermb" ${attrs('no')}>${thumbIc(false)}<span>${esc(ccApvLbl(ch, 'no'))}</span></button></div>`;
 }
@@ -126,7 +152,7 @@ function ccCommentHtml(c, ro = false) {
     const t = ans ? ((ans.ids || []).includes('yes') ? tr('{0} from {1}, {2}', ccApvLbl(ch, 'yes'), who, ccWhen(ans.at)) : tr('{0} from {1}, {2}', ccApvLbl(ch, 'no'), who, ccWhen(ans.at))) : '';
     // 2.144.5 A (#2001): only an approver decides (the server's choice_can: a manager of the list, the assignee, an admin)
     const dec = can && c.choice_can !== false, wait = can ? tr('Waiting for a decision by the project’s managers, the assignee or an admin') : tr('Waiting for an answer');
-    return `<div class="cccard apv${open ? ' apvopen' : ''}" role="group" aria-label="${esc(tr('Approval needed'))}">${/*html-ok*/ /* the card's head, its texts escaped inside */ ccApvHead(ch.approval, open, 'comment:' + c.id)}${open ? (dec ? ccApvBtns(ch, attrs, `data-ccpen="${c.id}" data-ch="yes"`) : `<div class="cpermst exp"><span>${esc(wait)}</span></div>`) : ccApvState(ch, ans, st, t)}</div>`;
+    return `<div class="cccard apv${open ? ' apvopen' : ''}" role="group" aria-label="${esc(tr('Approval needed'))}">${/*html-ok*/ /* the card's head, its texts escaped inside */ ccApvHead(ch.approval, open, 'comment:' + c.id)}${/*html-ok*/ /* the buttons and lines escape inside */ open ? (dec ? ccApvBtns(ch, attrs, `data-ccpen="${c.id}" data-ch="yes"`, 'comment:' + c.id) : `<div class="cpermst exp"><span>${esc(wait)}</span></div>`) : ccApvState(ch, ans, st, t)}</div>`;
   }
   if (st !== 'open' && st !== 'answered') return '';  // expired / withdrawn: gone, as in the chat
   if (st === 'open' && !can) return '';

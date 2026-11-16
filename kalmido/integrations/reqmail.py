@@ -196,7 +196,7 @@ def rq_comment(c, msg, mid, p, l, verified):
         return 0
     name = (p["name"] or "").strip() or email.utils.parseaddr(str(msg.get("From", "")))[0].strip()[:120] or tr("Client", lg=lg)
     tid = p["task_id"]
-    cid = ocm_add(c, "task", tid, None, (text or "—")[:P.PT_CMT_MAX], ext_name=name[:120], extra={"portal": True})  # 2.972.0 (#5272)
+    cid = ocm_add(c, "task", tid, None, (text or "—")[:P.PT_CMT_MAX], ext_name=name[:120], extra={"portal": True, "source": "mail"})  # 2.972.0 (#5272); 2.1269.0 (#6431): source mail (origin for agents)
     whole = _files(c, tid, files, l["owner_id"], top_comment=cid)
     _keep(c, tid, mid, "in")
     t = c.execute("SELECT t.*, l.owner_id AS l_owner FROM tasks t JOIN lists l ON l.id=t.list_id WHERE t.id=?", (tid,)).fetchone()

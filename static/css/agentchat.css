@@ -252,6 +252,7 @@ button.chmode:hover{color:var(--text);border-color:var(--muted)}
 .apvgo b{color:var(--accent);font-size:var(--fs-xs);white-space:nowrap}
 .apvgo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .apvpin .cchoices{margin:0}
+.apvpin .apvx{flex-basis:100%;margin:0;font-size:var(--fs-m)}  /* 2.1269.0 (#6450): the pinned card names its step too */
 .chsteps{padding:0 .875rem .25rem calc(3.0625rem - 2px)}
 .chstepl{border-left:2px solid color-mix(in srgb,var(--accent) 35%,transparent);padding-left:.5rem}
 .chsteps.off{padding-left:3.5625rem}

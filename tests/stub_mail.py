@@ -51,6 +51,9 @@ class Imap(socketserver.StreamRequestHandler):
                 self.w(f"* SEARCH {' '.join(map(str, ids))}\r\n{tag} OK SEARCH done\r\n".replace("SEARCH \r\n", "SEARCH\r\n"))
             elif cmd == "UID" and args and args[0].upper() == "FETCH":
                 u = int(args[1])
+                if u not in msgs():  # 2.1269 (#6386): a UID that is gone: OK without data, like a real server (RFC 3501 UID FETCH)
+                    self.w(f"{tag} OK FETCH done\r\n")
+                    continue
                 data = open(os.path.join(D, "in", f"{u}.eml"), "rb").read()
                 seq = msgs().index(u) + 1
                 if "RFC822.SIZE" in " ".join(args[2:]).upper():  # 2.141.0 A (#2141, review): the size asked before a workspace mailbox fetches

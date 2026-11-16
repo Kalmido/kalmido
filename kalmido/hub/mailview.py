@@ -58,11 +58,54 @@ _DROP = frozenset("""script style title iframe frame frameset object embed apple
 option audio video canvas portal noembed noframes xml meta link base input button area map param source track""".split())
 _ATTRS = frozenset("""align valign width height border cellpadding cellspacing bgcolor color face size colspan rowspan dir lang title alt
 start type summary nowrap id name class style span headers scope abbr cite datetime reversed""".split())
-_URL_RE = re.compile(r"url\s*\(\s*(['\"]?)(.*?)\1\s*\)", re.I | re.S)
-_CSS_AT = re.compile(r"@import[^;]*;?|@namespace[^;]*;?|@charset[^;]*;?|@font-face\s*\{[^}]*\}", re.I)
-# a declaration that could run code or hide a word behind CSS escapes goes as a whole
-_CSS_BAD = re.compile(r"[^;{}]*(?:expression\s*\(|javascript\s*:|vbscript\s*:|behavior\s*:|-moz-binding|image-set\s*\(|url\s*\((?![^)]*\))|\\)[^;{}]*", re.I)
+# 2.1269.0 (#6421): the CSS of a mail is cleaned in linear time -- a crafted mail must not hold the server (the old single
+# regexes retried a leading [^;{}]* / a lazy .*? from every character: quadratic, minutes for 60 kB). Every pattern here
+# starts with a literal and consumes what it matched; the runs between ; { } are looked at one by one.
+MH_CSS_MAX = 20000  # characters of one style attribute / style block; a longer one goes whole (real mail CSS is far shorter)
+_CSS_AT = re.compile(r"@import[^;]*;?|@namespace[^;]*;?|@charset[^;]*;?|@font-face\s*\{[^}]*(?:\}|\Z)", re.I)
+# a run (between ; { }) holding one of these could run code or hide a word behind CSS escapes: it goes as a whole
+_CSS_BAD = re.compile(r"expression\s*\(|javascript\s*:|vbscript\s*:|behavior\s*:|-moz-binding|image-set\s*\(|\\", re.I)
+_CSS_DELIM = re.compile(r"[;{}]")
+_URL_OPEN = re.compile(r"url\s*\(\s*", re.I)
+_URL_PAREN = re.compile(r"url\s*\(", re.I)
+_URL_QEND = {"'": re.compile(r"'\s*\)"), '"': re.compile(r'"\s*\)')}
 _LINK_OK = re.compile(r"^(https?:|mailto:|tel:|#)", re.I)
+
+
+def _css_nocomment(s):
+    """2.1269.0 (#6421): s without /* comments */ (an open one runs to the end, as in CSS)."""
+    out, i = [], 0
+    while True:
+        j = s.find("/*", i)
+        if j < 0:
+            out.append(s[i:])
+            break
+        out.append(s[i:j])
+        k = s.find("*/", j + 2)
+        if k < 0:
+            break
+        i = k + 2
+    return "".join(out)
+
+
+def _css_runs(s):
+    """2.1269.0 (#6421): s without every run between ; { } that holds something of _CSS_BAD or an url( with no ) anywhere after
+    it (as the old lookahead (?![^)]*\\))) -- each run is looked at once."""
+    last, out, a = s.rfind(")"), [], 0
+    for d in [*_CSS_DELIM.finditer(s), None]:
+        b = d.start() if d else len(s)
+        run = s[a:b]
+        bad = _CSS_BAD.search(run) is not None
+        if not bad:
+            u = None
+            for u in _URL_PAREN.finditer(run):
+                pass
+            bad = u is not None and last < a + u.end()  # the last url( of the run has no ) after its "("
+        out.append("" if bad else run)
+        if d:
+            out.append(d.group())
+            a = d.end()
+    return "".join(out)
 
 
 class _Cleaner(HTMLParser):
@@ -70,7 +113,9 @@ class _Cleaner(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.cids, self.images, self.out, self.css, self.ext = cids, images, [], [], 0
         self.skip = []      # the dropped elements we are inside of (their content goes too)
+        self.skip_n = {}    # 2.1269.0 (#6421): tag -> how often it is in skip (no list scan per end tag: deep nesting stays linear)
         self.in_style = False
+        self.style, self.style_len = [], 0  # 2.1269.0 (#6421): the text of the open style block (cleaned once, at its end)
 
     # a URL of a picture: data:image / cid: (embedded) / https (after "Load images") -- else nothing
     def _img(self, v):
@@ -87,11 +132,57 @@ class _Cleaner(HTMLParser):
         return ""
 
     def _css(self, s):
-        """A style value / block without what could load or run code; url() follows the picture rules."""
-        def url(m):
-            u = self._img(m.group(2))
-            return "url('" + re.sub(r"[\s'\"()\\<>]", lambda ch: "%%%02X" % ord(ch.group()), u) + "')" if u else "none"
-        return _URL_RE.sub(url, _CSS_BAD.sub("", _CSS_AT.sub("", s.replace("<", " "))))
+        """A style value / block without what could load or run code; url() follows the picture rules. 2.1269.0 (#6421): linear
+        time; comments go first (expr/**/ession is caught as expression), more than MH_CSS_MAX characters go whole."""
+        if len(s) > MH_CSS_MAX:
+            return ""
+        return self._css_urls(_css_runs(_CSS_AT.sub("", _css_nocomment(s.replace("<", " ")))))
+
+    def _css_urls(self, s):
+        """Every url(...) of s through the picture rules (data:image / cid: / https after "Load images", else none) -- the
+        same matches as the regex url\\s*\\(\\s*(['"]?)(.*?)\\1\\s*\\) before, found with forward searches only; an url( without
+        a closing ) drops the rest (it would swallow it in the browser anyway)."""
+        out, i, n, qend = [], 0, len(s), {}
+        while True:
+            m = _URL_OPEN.search(s, i)
+            if not m:
+                break
+            p = m.end()
+            val = end = None
+            q = s[p] if p < n and s[p] in "'\"" else ""
+            if q:  # 'quoted': up to the first quote followed by ) -- remembered, the searches only move forward
+                h = qend.get(q)
+                if h is None or (h and h.start() < p + 1):
+                    h = qend[q] = _URL_QEND[q].search(s, p + 1) or False
+                if h:
+                    val, end = s[p + 1:h.start()], h.end()
+            if end is None:
+                c = s.find(")", p)
+                if c < 0:
+                    out.append(s[i:m.start()] + "none")
+                    return "".join(out)
+                val, end = s[p:c].rstrip(), c + 1
+            u = self._img(val)
+            out += [s[i:m.start()], "url('" + re.sub(r"[\s'\"()\\<>]", lambda ch: "%%%02X" % ord(ch.group()), u) + "')" if u else "none"]
+            i = end
+        out.append(s[i:])
+        return "".join(out)
+
+    def _push(self, tag):
+        self.skip.append(tag)
+        self.skip_n[tag] = self.skip_n.get(tag, 0) + 1
+
+    def _pop(self):
+        tag = self.skip.pop()
+        self.skip_n[tag] -= 1
+        return tag
+
+    def style_end(self):
+        """2.1269.0 (#6421): the collected style block cleaned as one (the parser may hand it over in pieces); a block longer
+        than MH_CSS_MAX goes whole."""
+        if self.style:
+            self.css.append(self._css("".join(self.style)) if self.style_len <= MH_CSS_MAX else "")
+        self.style, self.style_len, self.in_style = [], 0, False
 
     def handle_starttag(self, tag, attrs):
         self._start(tag, attrs, False)
@@ -102,16 +193,16 @@ class _Cleaner(HTMLParser):
     def _start(self, tag, attrs, closed):
         if self.skip:
             if tag not in _VOID_ALL and not closed:
-                self.skip.append(tag)
+                self._push(tag)
             return
         if tag == "style":
             if not closed:
                 self.in_style = True
-                self.skip.append(tag)
+                self._push(tag)
             return
         if tag in _DROP:
             if tag not in _VOID_ALL and not closed:
-                self.skip.append(tag)
+                self._push(tag)
             return
         if tag not in _TAGS:
             return  # unknown / unwanted tags go, their text stays (html, body, form, o:p ...)
@@ -147,21 +238,23 @@ class _Cleaner(HTMLParser):
     def handle_endtag(self, tag):
         if self.skip:
             if tag == self.skip[-1]:
-                self.skip.pop()
+                self._pop()
                 if tag == "style" and not self.skip:
-                    self.in_style = False
-            elif tag in self.skip:  # badly nested: close up to it
-                while self.skip and self.skip.pop() != tag:
+                    self.style_end()
+            elif self.skip_n.get(tag):  # badly nested: close up to it
+                while self.skip and self._pop() != tag:
                     pass
-                self.in_style = bool(self.skip and "style" in self.skip)
+                if self.in_style and not self.skip_n.get("style"):
+                    self.style_end()
             return
         if tag in _TAGS and tag not in _VOID:
             self.out.append(f"</{tag}>")
 
     def handle_data(self, data):
         if self.skip:
-            if self.in_style and self.skip == ["style"]:
-                self.css.append(self._css(data))
+            if self.in_style and len(self.skip) == 1 and self.style_len <= MH_CSS_MAX:
+                self.style.append(data)
+                self.style_len += len(data)
             return
         self.out.append(html.escape(data, quote=False))
 
@@ -206,6 +299,7 @@ def mh_clean(src, cids=None, images=False):
         p.close()
     except Exception:  # noqa: BLE001 -- the parser gives up on strange input: what was cleaned so far stays
         pass
+    p.style_end()  # 2.1269.0 (#6421): a style block left open at the end (its text was collected, as before)
     css = "".join(p.css)
     doc = ('<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><base target="_blank">'
            f"<style>{_BASE_CSS}</style>" + (f"<style>{css}</style>" if css.strip() else "") + "</head><body>" + "".join(p.out) + "</body></html>")

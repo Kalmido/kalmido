@@ -27,6 +27,7 @@ from ..core.access import list_role, need_list, vis_sql, WRITE_ROLES, list_state
 from ..core.pages import new_inbox_task, save_attachment_bytes, split_link, valid_url
 from ..tasks.validation import as_int, log_act
 from ..collab.news import news_unread
+from ..collab.integfail import integ_tell  # 2.1269 (#6386)
 from ..accounts.users import need_admin
 from ..notify.alerts import aa_count, aa_err, aa_fail, aa_ok
 from ..agents.core import agent_added_events, agent_comment_events, need_person  # 2.553.0 B (#3460): the events also for integrations/reqmail.py
@@ -382,17 +383,96 @@ def mail_cap_literals(M, limit):
 
 MAIL_SEEN_DAYS = 30  # 2.193.0 D (#2220): how long the taken messages of a mailbox are remembered
 _SEEN_PRUNE = [0.0]
+MAIL_TRIES = 4  # 2.1269 (#6386): attempts per mail (the first + 3 more); a mail whose import broke off or failed that often stays in the mailbox
 
 
-def mail_seen_claim(c, box, u, raw):
-    """2.193.0 D (#2220): claims one message of a mailbox in c's transaction (committed with its import): False when
-    another process took it already (a second process after a lost loop lock). Key = a hash of the Message-ID (else of the
-    head) and the IMAP UID, so two copies of one mail (two addresses) stay two mails as before."""
+def mail_seen_key(raw, u):
+    """2.193.0 D (#2220): the claim key of one message of a mailbox: a hash of the Message-ID (else of the head) and the
+    IMAP UID, so two copies of one mail (two addresses) stay two mails."""
     head = re.split(rb"\r?\n\r?\n", raw, maxsplit=1)[0]
-    mid = str(email.parser.BytesHeaderParser(policy=email.policy.default).parsebytes(head).get("Message-ID", "") or "").strip()
-    key = hashlib.sha256((mid.encode() if mid else b"head:" + head) + b"|" + (u if isinstance(u, bytes) else str(u).encode())).hexdigest()
-    return c.execute("INSERT INTO mail_in_seen(box, mid, seen_at) VALUES(?,?,?) ON CONFLICT DO NOTHING RETURNING box",
-                     (box, key, iso(now_utc()))).fetchone() is not None
+    try:
+        mid = str(email.parser.BytesHeaderParser(policy=email.policy.default).parsebytes(head).get("Message-ID", "") or "").strip()
+    except Exception:  # noqa: BLE001 -- 2.1269 (#6386): a head the parser gives up on still gets its key (the attempts count it)
+        mid = ""
+    return hashlib.sha256((mid.encode() if mid else b"head:" + head) + b"|" + (u if isinstance(u, bytes) else str(u).encode())).hexdigest()
+
+
+def mail_try_open_uids(box):
+    """2.1269 (#6386): the UIDs of box with an attempt that was not finished (the round after a cut-off, a restart, a failure)."""
+    c = connect()
+    try:
+        out = [r[0].encode() for r in c.execute("SELECT imap_uid FROM mail_in_seen WHERE box=? AND state='open' AND imap_uid IS NOT NULL "
+                                                "ORDER BY seen_at", (box,)).fetchall()]
+        c.commit()
+        return out
+    finally:
+        c.close()
+
+
+def mail_try_start(box, key, u, again):
+    """2.1269 (#6386): starts one attempt of a mail, committed before the import (a cut-off leaves it open, not final).
+    Returns (n, gave): n = the number of this attempt (None = not to be tried: done, given up or taken by another process),
+    gave = this call gave the mail up (its last attempt broke off). again = the UID came from an open attempt only: no new
+    claim then (after a UIDVALIDITY change the UID may name another, already handled mail)."""
+    c = connect()
+    try:
+        u = (u.decode() if isinstance(u, bytes) else str(u))[:40]
+        n = None if again else c.execute("INSERT INTO mail_in_seen(box, mid, seen_at, tries, state, imap_uid) VALUES(?,?,?,1,'open',?) "
+                                         "ON CONFLICT DO NOTHING RETURNING tries", (box, key, iso(now_utc()), u)).fetchone()
+        if n is None:
+            n = c.execute("UPDATE mail_in_seen SET tries=tries+1, seen_at=?, imap_uid=? WHERE box=? AND mid=? AND state='open' AND tries<? "
+                          "RETURNING tries", (iso(now_utc()), u, box, key, MAIL_TRIES)).fetchone()
+        gave = n is None and c.execute("UPDATE mail_in_seen SET state='gave' WHERE box=? AND mid=? AND state='open' RETURNING 1",
+                                       (box, key)).fetchone() is not None
+        c.commit()
+        return (n[0] if n else None), gave
+    finally:
+        c.close()
+
+
+def mail_try_done(c, box, key, n):
+    """2.1269 (#6386): attempt n of the mail ends in c's transaction (committed with its import): False when it is no longer
+    this attempt's (another process took it over, or it is done). The row lock holds a second taker until c ends."""
+    return c.execute("UPDATE mail_in_seen SET state='done' WHERE box=? AND mid=? AND state='open' AND tries=? RETURNING 1",
+                     (box, key, n)).fetchone() is not None
+
+
+def mail_try_failed(box, key, n):
+    """2.1269 (#6386): attempt n failed: the last one gives the mail up (True), else it stays open for the next round."""
+    if n < MAIL_TRIES:
+        return False
+    c = connect()
+    try:
+        r = c.execute("UPDATE mail_in_seen SET state='gave' WHERE box=? AND mid=? AND state='open' AND tries=? RETURNING 1",
+                      (box, key, n)).fetchone()
+        c.commit()
+        return r is not None
+    finally:
+        c.close()
+
+
+def mail_try_lost(box, u):
+    """2.1269 (#6386): an open attempt whose UID names another mail now (UIDVALIDITY changed, the folder was rebuilt): its own
+    mail cannot be fetched again and may lie there read without ever being taken in -- it counts as given up (-> how many),
+    so the owners hear of it."""
+    c = connect()
+    try:
+        n = len(c.execute("UPDATE mail_in_seen SET state='gave' WHERE box=? AND imap_uid=? AND state='open' RETURNING 1",
+                          (box, u.decode() if isinstance(u, bytes) else str(u))).fetchall())
+        c.commit()
+        return n
+    finally:
+        c.close()
+
+
+def mail_try_gone(box, u):
+    """2.1269 (#6386): an open attempt whose mail is not in the folder any more (moved or deleted by hand): nothing to try."""
+    c = connect()
+    try:
+        c.execute("UPDATE mail_in_seen SET state='done' WHERE box=? AND imap_uid=? AND state='open'", (box, u.decode()))
+        c.commit()
+    finally:
+        c.close()
 
 
 def mail_seen_prune():
@@ -409,73 +489,118 @@ def mail_seen_prune():
         c.close()
 
 
-def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefetch=False):
+def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefetch=False, lost=None):
     """2.141.0 A (#2141): the unseen mails of folder (a logged-in IMAP connection) -> importer(c, raw), each one marked \\Seen
-    afterwards (also when it was for nobody or failed: it is never looked at again). Returns how many were taken in.
+    before its import (2.519.0 B, #4378: a mail that breaks the import does not come back as unseen). Returns how many were taken in.
     max_bytes (review): a mail whose RFC822.SIZE is larger is not fetched (marked seen) -- a workspace's own server.
-    box (2.193.0 D, #2220): the mailbox's key for mail_seen_claim (a message is handled once, also by two processes).
+    box (2.193.0 D, #2220): the mailbox's key in mail_in_seen (a message is handled once, also by two processes).
+    2.1269 (#6386): with box each mail has attempts there: one committed before the import, finished in the import's
+    transaction. An attempt cut off (time over, restart, database) or failed stays open, its UID is fetched again in the next
+    round, up to MAIL_TRIES attempts; then the mail is given up and stays in the mailbox. lost(n) hears how many mails this
+    round gave up (once per mail).
     delete (2.240.0 A, #2883): a mail taken in whole (or MAIL_DROP: for nobody / a double) is deleted (\\Deleted + UID EXPUNGE);
     one that failed, was taken in only in part (MailKept), was refused by an importer (None / 0) or skipped as too large
     stays (marked \\Seen).
     prefetch (2.424.0 B2, #3450): importer(None, raw) runs first, outside the gate and any database transaction (the
     invoice link downloads, up to 40 s), its result goes in as importer(c, raw, pre)."""
-    n, gone = 0, []
+    n, gone, gave = 0, [], 0
     max_bytes = max_bytes or MAIL_LITERAL_MAX  # 2.148.1 G (#2485): a too large mail is skipped (seen), never fetched again
     mail_cap_literals(M, max_bytes + 1024 * 1024)  # 2.148.1 D (#2485)
     typ, _ = M.select(folder)
     if typ != "OK":
         raise imaplib.IMAP4.error("could not select the folder")
     typ, data = M.uid("SEARCH", None, "UNSEEN")
-    for u in (data[0] or b"").split()[:200]:
-        if max_bytes:
-            typ, sz = M.uid("FETCH", u, "(RFC822.SIZE)")
-            got = re.search(rb"RFC822\.SIZE (\d+)", b" ".join(x if isinstance(x, bytes) else b"" for x in (sz or [])))
-            if not got or int(got.group(1)) > max_bytes:
-                print("mail: skipped one mail: too large or no size", flush=True)
-                M.uid("STORE", u, "+FLAGS", "(\\Seen)")
+    new = (data[0] or b"").split()
+    again = []
+    if box:  # 2.1269 (#6386): the open attempts after the new mails (one that breaks the connection never holds the new ones up)
+        with GATE.bg():
+            again = [u for u in mail_try_open_uids(box) if u not in set(new)]
+    try:  # 2.1269 (#6386): the notice also when the round breaks off later (each given-up mail counts once)
+        for u in (new + again)[:200]:
+            retry = u in again
+            if max_bytes and not retry:
+                typ, sz = M.uid("FETCH", u, "(RFC822.SIZE)")
+                got = re.search(rb"RFC822\.SIZE (\d+)", b" ".join(x if isinstance(x, bytes) else b"" for x in (sz or [])))
+                if not got or int(got.group(1)) > max_bytes:
+                    print("mail: skipped one mail: too large or no size", flush=True)
+                    M.uid("STORE", u, "+FLAGS", "(\\Seen)")
+                    continue
+            # 2.1269 (#6386): BODY.PEEK[] does not mark the mail seen; it is marked once its attempt is noted (a restart in
+            # between leaves it unseen, never seen without an attempt)
+            typ, parts = M.uid("FETCH", u, "(BODY.PEEK[])")
+            raw = next((p[1] for p in parts if isinstance(p, tuple) and len(p) > 1), None)
+            if not raw:
+                if retry:  # moved away or deleted by hand since the last attempt
+                    with GATE.bg():
+                        mail_try_gone(box, u)
+                else:  # 2.549.0 (#4378): a mail without content is marked seen right here
+                    M.uid("STORE", u, "+FLAGS", "(\\Seen)")
                 continue
-        typ, parts = M.uid("FETCH", u, "(RFC822)")
-        raw = next((p[1] for p in parts if isinstance(p, tuple) and len(p) > 1), None)
-        if raw:  # 2.519.0 B (#4378): seen before it is handled: a mail whose import is cut off (time over, the connection
-            M.uid("STORE", u, "+FLAGS", "(\\Seen)")  # closed) does not come back in every round (a failed one stays seen as before)
-        done = False
-        pre = None
-        if raw and prefetch:
-            try:
-                pre = importer(None, raw)
-            except Exception as e:  # noqa: BLE001 -- no downloads then; the mail itself goes on
-                print("mail: prefetch failed:", type(e).__name__, flush=True)
-                pre = False
-        if raw:
+            key, tries = None, None
+            if box:
+                key = mail_seen_key(raw, u)
+                with GATE.bg():  # (no database: the round ends here, the mail stays unseen and comes again)
+                    tries, out = mail_try_start(box, key, u, retry)
+                gave += out
+                if tries is None and retry and not out:  # the UID names another mail now: the old attempt is lost
+                    with GATE.bg():
+                        gave += mail_try_lost(box, u)
+            # 2.519.0 B (#4378): seen before it is handled: a mail whose import is cut off does not come back as unseen
+            M.uid("STORE", u, "+FLAGS", "(\\Seen)")
+            if box and tries is None:  # done, given up, or another process has it (2.193.0 D, #2220)
+                continue
+            done, failed = False, False
+            pre = None
+            if prefetch:
+                try:
+                    pre = importer(None, raw)
+                except Exception as e:  # noqa: BLE001 -- no downloads then; the mail itself goes on
+                    print("mail: prefetch failed:", type(e).__name__, flush=True)
+                    pre = False
             with GATE.bg():
                 c = connect()
                 try:
                     res = None
-                    if box and not mail_seen_claim(c, box, u, raw):  # 2.193.0 D (#2220): another process had it
+                    if box and not mail_try_done(c, box, key, tries):  # another process took the attempt over
                         c.rollback()
                     elif (res := (importer(c, raw, pre) if prefetch else importer(c, raw))):
                         n += 1
-                        c.commit()  # (the importer committed; the claim went with it)
-                    elif box:  # for nobody: nothing of it stays but the claim
+                        if box:  # (the importer committed; the end of the attempt went with it -- again if it rolled back)
+                            mail_try_done(c, box, key, tries)
+                        c.commit()
+                    elif box:  # for nobody: nothing of it stays but the finished attempt
                         c.rollback()
-                        mail_seen_claim(c, box, u, raw)
+                        mail_try_done(c, box, key, tries)
                         c.commit()
                     done = res is MAIL_DROP or bool(res) and not isinstance(res, MailKept)  # 2.240.0 A (#2883)
-                except Exception as e:  # noqa: BLE001 - 2.126.0 review: one mail that fails is skipped (marked seen), never blocks the rest
-                    print("mail: skipped one mail:", type(e).__name__, flush=True)  # 2.240.0 A (#2883): no message text (addresses)
+                except Exception as e:  # noqa: BLE001 - 2.126.0 review: one mail that fails never blocks the rest
+                    print("mail: skipped one mail:", type(e).__name__, f"(attempt {tries})" if tries else "", flush=True)  # no message text
+                    failed = True
                     try:
                         c.rollback()
                     except Exception:  # noqa: BLE001 -- rollback after an error: the next mail starts fresh
                         pass
                 finally:
                     c.close()
-        if delete and done:
-            M.uid("STORE", u, "+FLAGS", "(\\Seen \\Deleted)")
-            gone.append(u)
-        elif not raw:  # 2.549.0 (#4378): a fetched mail was marked seen before it was handled, once is enough
-            M.uid("STORE", u, "+FLAGS", "(\\Seen)")
-    if gone:
-        mail_expunge(M, gone)
+            if failed and box:  # 2.1269 (#6386): open for the next round, given up after the last attempt
+                try:
+                    with GATE.bg():
+                        gave += mail_try_failed(box, key, tries)
+                except Exception as e:  # noqa: BLE001 -- no database: the attempt stays open, the next round counts it
+                    print("mail: attempt not noted:", type(e).__name__, flush=True)
+            if delete and done:
+                M.uid("STORE", u, "+FLAGS", "(\\Seen \\Deleted)")
+                gone.append(u)
+        if gone:
+            mail_expunge(M, gone)
+    finally:
+        if gave:
+            print("mail: gave up", gave, "mail(s), they stay in the mailbox", flush=True)  # 2.1269 (#6386): a count, no subject / sender
+            if lost:
+                try:  # (the callee enters the background gate itself: never nested)
+                    lost(gave)
+                except Exception as e:  # noqa: BLE001 -- the notice never stops the round
+                    print("mail: lost notice failed:", type(e).__name__, flush=True)
     if box:
         with GATE.bg():
             mail_seen_prune()  # 2.193.0 D (#2220)
@@ -502,6 +627,20 @@ def mail_expunge(M, uids):
         print("mail: expunge failed:", type(e).__name__, flush=True)
 
 
+def mail_lost_instance(n):
+    """2.1269 (#6386): n mails of the instance address were given up after MAIL_TRIES attempts: the instance admins hear it
+    once (News + push of the event "integration", collab/integfail.py)."""
+    with GATE.bg():
+        c = connect()
+        try:
+            with system_ctx(c):
+                uids = [r[0] for r in c.execute("SELECT id FROM users WHERE is_admin AND NOT disabled AND kind<>'agent' ORDER BY id").fetchall()]
+            integ_tell(c, uids, "maillost", IMAP["user"] or IMAP["host"], str(n), click="settings")
+            c.commit()
+        finally:
+            c.close()
+
+
 def mail_poll_once():
     """One round: the unseen mails of the folder -> tasks; each one is marked \\Seen afterwards (also when it was for
     nobody: it is never looked at again) and deleted unless KALMIDO_IMAP_KEEP=1 (2.240.0 A, #2883)."""
@@ -509,7 +648,7 @@ def mail_poll_once():
     M = imaplib.IMAP4_SSL(IMAP["host"], port, timeout=60, ssl_context=_admin_tls_ctx()) if IMAP["ssl"] else imaplib.IMAP4(IMAP["host"], port, timeout=60)
     try:
         M.login(IMAP["user"], IMAP["password"])
-        return mail_fetch(M, IMAP["folder"], mail_import, box="instance", delete=not IMAP_KEEP, prefetch=True)
+        return mail_fetch(M, IMAP["folder"], mail_import, box="instance", delete=not IMAP_KEEP, prefetch=True, lost=mail_lost_instance)
     finally:
         try:
             M.logout()

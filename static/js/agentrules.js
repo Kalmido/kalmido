@@ -14,6 +14,12 @@ const awr_src = (r, aid) => {
 };
 function awr_row(r, aid, max) {
   const on = r.state === 'active';
+  // 2.1269.0 (#6451): a rule the agent proposed waits for the person it came from (the card in their chat); here only Delete
+  if (r.state === 'proposed') return `<div class="mrow awr paused awrprop" data-awr-id="${esc(r.id)}">
+    <span class="n"><span class="awrt" id="awr-t-${esc(r.id)}">${esc(r.text)}</span>${/*html-ok*/ awr_src(r, aid)}<small class="muted awrmeta">${esc(tr('Proposed by the agent: applies only when the person it came from confirms it in their chat.'))}</small></span>
+    <span class="tag awrst">${esc(tr('Proposed'))}</span>
+    <button type="button" class="iconbtn danger" data-awr-del="${esc(r.id)}" title="${esc(tr('Delete'))}" aria-label="${esc(tr('Delete'))}">${ic('trash', 's')}</button>
+  </div>`;
   return `<div class="mrow awr ${on ? '' : 'paused'}" data-awr-id="${r.id}">
     <span class="n"><span class="awrt" id="awr-t-${r.id}">${esc(r.text)}</span>${awr_src(r, aid)}</span>
     <label class="chkl swl" title="${esc(on ? tr('Active') : tr('Paused'))}"><span class="swc"><input type="checkbox" role="switch" data-awr-on="${r.id}" ${on ? 'checked' : ''} aria-label="${esc(tr('Rule active'))}" aria-describedby="awr-t-${r.id}"><span class="swt" aria-hidden="true"></span></span></label>
@@ -25,7 +31,7 @@ function awr_html(j, aid) {
   const rules = j.rules || [], full = rules.length >= j.max;
   return `<h4 id="awr-h">${tr('Standing rules')}</h4>
     ${rules.length ? `<div class="awrl" role="list" aria-labelledby="awr-h">${rules.map(r => awr_row(r, aid, j.text_max)).join('')}</div>`
-    : `<div class="muted mhint" id="awr-empty">${tr('No standing rules yet. Tell the agent in the chat or in a comment "from now on always ..." - it saves the rule here and confirms it in one line.')}</div>`}
+    : `<div class="muted mhint" id="awr-empty">${tr('No standing rules yet. Tell the agent in the chat or in a comment "from now on always ..." - it proposes the rule and you confirm it in your chat with the agent.')}</div>`}
     <div class="row awradd"><input id="awr-new" maxlength="${j.text_max}" autocomplete="off" placeholder="${esc(tr('Add a rule by hand'))}" aria-label="${esc(tr('Add a rule by hand'))}" ${full ? 'disabled' : ''}><button type="button" class="btn sm" data-awr-add="1" ${full ? 'disabled' : ''}>${tr('Add')}</button></div>
     <div class="shint">${tr('Paused rules stay here but the agent does not follow them.')}</div>
     <div class="calerr" role="alert" id="awr-err" hidden></div>`;
@@ -84,3 +90,37 @@ function awr_mount(md, agent) {
     if (src) { const d = src.dataset; md.remove(); msgJump({art: d.awrArt, id: +d.awrMid, task: +d.awrTask || undefined, agent: +d.awrAgent}); }
   });
 }
+
+// ---- 2.1269.0 (#6451): the server's card of a rule the agent proposed, in the chat of the person it came from (agent_chat kind
+// 'rule', m.rule = {rule_id, state, text, excerpt, mine}; agentchat.js chatRowHtml draws it). The text is the agent's wording; only
+// this person confirms or rejects it (POST /api/agents/<id>/rules/<rid>/decide), a confirmed one can be removed here again.
+/** @param {any} m @param {any} a */
+function awr_cardHtml(m, a) {
+  const r = m.rule || {state: 'gone'}, st = r.state, open = st === 'proposed' && r.mine, name = a?.name || tr('The agent');
+  const said = r.text || '';  // the rule itself (agent_rules.body, one clean line from the server), never the chat row's text; plain, escaped
+  const head = st === 'proposed' ? tr('{0} wants to keep this as a standing rule:', name)
+    : st === 'active' ? tr('Standing rule confirmed - it applies now:') : st === 'paused' ? tr('Standing rule (paused in the settings):') : tr('Standing rule not kept:');
+  const btn = (d, cls, label) => `<button type="button" class="btn sm${esc(cls)}" data-awr-dec="${esc(d)}" data-awr-agent="${esc(m.agent_id)}" data-awr-rule="${esc(r.rule_id)}" data-awr-mid="${esc(m.id)}">${esc(label)}</button>`;
+  const btns = open ? btn('confirm', ' pri', tr('Confirm')) + btn('reject', '', tr('Reject'))
+    : (st === 'active' || st === 'paused') && r.mine ? btn('withdraw', '', tr('Remove rule')) : '';
+  return `<div class="cmsg ag awrcard awr-${esc(st)}" role="group" aria-label="${esc(tr('Standing rule'))}" data-k="m${esc(m.id)}r${esc(st)}" data-mid="a:${esc(m.id)}">
+    <div class="awrc-h">${ic('bookmark', 's')} <span>${esc(head)}</span></div>
+    ${said ? `<blockquote class="awrc-t">${esc(said)}</blockquote>` : ''}
+    ${r.excerpt ? `<small class="muted awrc-src">${esc(tr('Source'))}: “${esc(r.excerpt)}”</small>` : ''}
+    ${open ? `<small class="muted awrc-note">${esc(tr('The wording is the agent\'s. Confirm only if you asked for this; until then it does not apply.'))}</small>` : ''}
+    ${btns ? `<div class="row awrc-b">${/*html-ok*/ btns}</div>` : ''}
+    <div class="cmeta"><time>${esc(fmtWhen(m.created_at))}</time></div>
+  </div>`;
+}
+document.addEventListener('click', async e => {
+  const b = /** @type {any} */ (e.target).closest?.('[data-awr-dec]'); if (!b) return;
+  e.preventDefault();
+  const d = b.dataset, dec = d.awrDec;
+  if (dec === 'withdraw' && !await askConfirm(tr('Remove this rule?'), '', {ok: tr('Remove rule'), danger: true})) return;
+  b.disabled = true;
+  try {
+    await api('POST', `/api/agents/${d.awrAgent}/rules/${d.awrRule}/decide`, {decision: dec});
+    toast(dec === 'confirm' ? tr('Rule confirmed') : dec === 'reject' ? tr('Rule rejected') : tr('Rule removed'));
+  } catch (x) { toast(x instanceof Offline ? tr('Only available online.') : x.message); }
+  if (typeof chatLoad === 'function') chatLoad();
+});
