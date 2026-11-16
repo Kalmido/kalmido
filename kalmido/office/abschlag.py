@@ -251,7 +251,7 @@ def abs_offer_info(c, oid, offer):
     from .docs import doc_items
     from .invoices import inv_items_from_offer, inv_money_fields, inv_paid_map
     s, pack = _pack(c, oid)
-    net = sum(_eur_bases(inv_items_from_offer(c, oid, offer), pack).values(), Decimal(0))
+    net = sum(_eur_bases(inv_items_from_offer(c, oid, offer, home=True), pack).values(), Decimal(0))  # 2.1254.0 (#6299): home run
     rows = abs_progress_of(c, oid, offer["id"])
     pm = inv_paid_map(c, oid, [x["id"] for x in rows])
     out, billed = [], Decimal(0)
@@ -287,7 +287,9 @@ def abs_progress(c, oid, uid, offer, amount=None, pct=None):
     write_lock(c, f"office_abschlag_{int(oid)}_{int(offer['id'])}")  # 2.360.0 B (#2496): two at once never pass the cap together
     abs_final_done(c, oid, offer["id"])
     s, pack = _pack(c, oid)
-    bases = {k: v for k, v in _eur_bases(inv_items_from_offer(c, oid, offer), pack).items() if v != 0}
+    # 2.1254.0 (#6299): the home-currency run, as before (the invoice's rates of a foreign quotation are amount / qty / rate now:
+    # 650 x 1.0837 x 3 days gave 1,950.01 instead of 1,950.00 - a running chain's "left" or a 100 % progress off by a cent)
+    bases = {k: v for k, v in _eur_bases(inv_items_from_offer(c, oid, offer, home=True), pack).items() if v != 0}
     net = sum(bases.values(), Decimal(0))
     if net <= 0:
         raise BadInput(tr("The quotation has no net amount to bill"))

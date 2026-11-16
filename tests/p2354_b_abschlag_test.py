@@ -14,6 +14,8 @@ freelancer-matrix: office
    credit note of 200 on another invoice still counts 800
  - 2.523.0 (#4082) final invoice in a foreign currency: the deduction = what the progress invoice billed in that currency
    (its own rate), also after the final draft's rate changed
+ - 2.1254.0 (#6299): an invoice from a quotation in HUF with a discount equals it to the cent (the rate column keeps 12 places,
+   also after an editor save); the net a chain of progress invoices bills against stays the home run's (USD quotation)
  Each flow runs for an organisation's admin and for a person without organisation (personal office).
 usage: p2354_b_abschlag_test.py <datadir>      (P2354B_NOSTART=1: a running server on KALMIDO_TEST_PORT, no start.sh)"""
 import base64
@@ -105,6 +107,42 @@ def fx_final(s, cl, label):
     check(r.ok, f"{label} #4082: the final draft with a changed rate finalises (no stale-deduction 400) {r.status_code} " + r.text[:200])
 
 
+def fx_cents(s, cl, label):
+    """2.1254.0 (#6299, review): a quotation in a foreign currency with a document discount.
+    A) HUF at 395.5, 3 x 333.33 less 10 %: the invoice takes the discount as 39,549.61 HUF / 395.5 = 99.99901... per unit; the
+       database kept 4 places (99.9990 -> 39,549.60, net 355,946.45 instead of 355,946.44). Now office_doc_items.rate keeps 12
+       places: the invoice's net / gross equal the quotation's, also after a save of the editor with the positions as read.
+    B) USD at 0.9139, 2 x 1,250 less 10 %: a chain of progress invoices bills against the home-currency net of the run in the
+       home currency (2,250.00); the back-converted rates of the invoice gave 2,249.99 (228.48 USD / 0.9139 = 250.01)."""
+    def quote(cur, fx, rate, qty):
+        r = s.post(B + D, json={"project_title": "Fremd", "client_id": cl, "service_from": TODAY.replace(day=1).isoformat(), "service_to": TODAY.isoformat()})
+        assert r.status_code == 201, r.text
+        q = r.json()["id"]
+        assert s.put(B + f"{D}/{q}/items", json={"items": [{"title": "Dreh", "qty": qty, "unit": "day", "rate": rate, "tax": "standard"}]}).ok
+        r = s.patch(B + f"{D}/{q}", json={"currency": cur, "fx_rate": fx, "discount_pct": 10})
+        assert r.ok, r.text
+        return q, r.json()["totals"]
+    q, qt = quote("HUF", "395.5", 333.33, 3)
+    want = (dd(qt["net"]), dd(qt["gross"]))
+    check(want == (Decimal("355946.44"), Decimal("423576.26")), f"{label} #6299 A: the quotation 355,946.44 / 423,576.26 HUF {want}")
+    r = s.post(B + f"{D}/{q}/invoice", json={})
+    check(r.status_code == 201, f"{label} #6299 A: invoice from the HUF quotation " + r.text[:200])
+    inv = r.json()
+    it = inv["totals"]
+    check((dd(it["net"]), dd(it["gross"])) == want, f"{label} #6299 A: the invoice equals it (4 places: 355,946.45) {it['net']} / {it['gross']}")
+    doc = s.get(B + f"{D}/{inv['id']}").json()
+    keep = ("id", "kind", "service_id", "title", "detail", "qty", "unit", "rate", "tax", "intext", "discountable")
+    r = s.put(B + f"{D}/{inv['id']}/items", json={"items": [{k: x.get(k) for k in keep} for x in doc["items"]], "expect_updated_at": doc["updated_at"]})
+    it = (r.json().get("totals") or {}) if r.ok else {}
+    check(r.ok and (dd(it.get("net")), dd(it.get("gross"))) == want, f"{label} #6299 A: saved again as the editor read it: the same {r.status_code} {it.get('net')}")
+    q, _qt = quote("USD", "0.9139", 1250, 2)
+    pr = s.get(B + f"{D}/{q}/progress").json()
+    check(pr.get("net") == "2250.00", f"{label} #6299 B: the progress chain's net is the home run's 2,250.00 (was 2,249.99) {pr.get('net')}")
+    r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "progress", "pct": 100})
+    got = sum((dd(x["rate"]) for x in r.json().get("items", []) if x["kind"] == "service"), Decimal(0)) if r.status_code == 201 else None
+    check(got == Decimal("2250.00"), f"{label} #6299 B: a progress invoice of 100 % bills 2,250.00 EUR in rates {r.status_code} {got}")
+
+
 def flow(s, label):
     cl = client(s, "Kunde " + label + " GmbH")
     # ---- #2836 2: a progress draft does not block the full invoice, a finalised one does
@@ -156,6 +194,7 @@ def flow(s, label):
     check(r.status_code == 409, f"{label} #2836 3: an older credit draft is not finalised either {r.status_code} " + r.text[:200])
     check(s.get(B + f"{D}/{P}").json()["status"] != "cancelled", f"{label} #2836 3: the progress invoice stays")
     fx_final(s, cl, label)
+    fx_cents(s, cl, label)  # 2.1254.0 (#6299)
     # ---- #2842 revenue per client
     year = TODAY.year
     for name, credit in (("Voll", None), ("Teil", 200)):
