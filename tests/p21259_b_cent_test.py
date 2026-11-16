@@ -159,7 +159,7 @@ def flow(s, who):
     rows = extf(s, f"{Y}-01-01", f"{Y}-12-31")
     bal, mine = debtor_balance(rows, k["number"])
     sk = [dd(x["Umsatz (ohne Soll/Haben-Kz)"]) for x in mine if x["Buchungstext"].startswith("Skonto")]
-    check(bal == 0 and sk == [D2("0.23")], f"{who} (b): the discount line takes the rest (0.23, was 0.22), the debtor balances {bal} {sk} {mine}")
+    check(bal == 0 and sk == [D2("0.23")], f"{who} (b): the discount line takes the rest (0.23, was 0.22), the debtor balances {bal} {sk} {[(x['Buchungstext'], x['Umsatz (ohne Soll/Haben-Kz)'], x['Soll/Haben-Kennzeichen']) for x in mine]}")
     # ---- (c) 16 % in the second half of 2020
     c = invoice(s, cl, 100, service_to="2020-08-15")
     tl = c["totals"]["tax_lines"]
