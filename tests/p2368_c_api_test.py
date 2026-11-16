@@ -59,7 +59,7 @@ check(out == '"3 × $33.33"|"3 × 33,33 €"|"3 × €33.33"', "the rest-cent de
 out = box("""from decimal import Decimal
 import kalmido.office.abschlag as m
 import kalmido.office.invoices as inv
-inv.inv_items_from_offer = lambda c, oid, offer: []
+inv.inv_items_from_offer = lambda c, oid, offer, **kw: []  # 2.1254.0 (#6299): called with home=True
 inv.inv_paid_map = lambda c, oid, ids: {}
 m.abs_progress_of = lambda c, oid, offer_id, locked_only=False: []
 m._eur_bases = lambda items, pack: {"standard": Decimal("1234.50")}

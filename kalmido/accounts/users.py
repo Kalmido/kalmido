@@ -228,7 +228,7 @@ def _active_admins(c, without=None):
 
 def sdl_admin_locked(c, uid):
     """2.1254.0 (#6293): an admin (user management / the hoster) locked uid. When the account waits for its own deletion
-    (admin/selfdelete.py), the lock is noted in its plan: its cancel links end, its paused agents are no longer turned on
+    (admin/selfdelete.py), the lock is noted in its plan: its cancel links stop working, its paused agents are no longer turned on
     again, and cancelling the deletion leaves the account locked. Call after the UPDATE of disabled (the row is locked)."""
     r = c.execute("SELECT delete_plan FROM users WHERE id=? AND delete_at IS NOT NULL", (uid,)).fetchone()
     if not r:
