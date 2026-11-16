@@ -52,6 +52,11 @@ const FEAT = 'cal,comments,collab,office,clients,docs';
     check(await ready(ev, `!!document.querySelector('.modal [data-m="draw"]')`), 'the signature dialog offers "Draw"');
     await ev(clk('.modal [data-m="draw"]'));
     check(await ready(ev, `!!document.querySelector('.modal canvas.lt-pad') && !document.querySelector('.modal [data-m="padclr"]').hidden`), 'Draw: a canvas and "Clear"');
+    // 2.1286.0 (#6346): CI red again with the canvas at y 1150 of 844 - not a taller dialog (#3506 guessed so): on a phone the
+    // dialog folds up from the bottom (app.css an_up, 220 ms, translate 0 100% at its start), and a loaded runner measured the
+    // canvas before the first frame of that, one dialog height below its place (scrolling does not move a translated sheet).
+    // A finger draws on the dialog that has arrived: wait until its fold-up is over
+    check(await ready(ev, `document.querySelector('.modal .card').getAnimations().every(a => a.playState === 'finished')`), 'Draw: the dialog has arrived (its fold-up is over)');
     return ev(pad);
   };
   const saved = async (ev, what) => {
