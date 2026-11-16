@@ -801,7 +801,7 @@ function ofdPdfOpen(d, dl) {
 async function ofdPdfAsk(pv) {
   let pick = '';
   const txt = tr('Finalise it now: number, positions, sums, sender and tax rates are frozen. Or look at it as a draft: every page is marked DRAFT.');
-  const r = await askDialog({title: tr('This document is not finalised yet'), ...(pv?.first ? {html: `<p>${esc(txt)}</p>${ofd_firstHtml()}`} : {body: txt}),
+  const r = await askDialog({title: tr('This document is not finalised yet'), ...(pv?.first ? {html: `<p>${esc(txt)}</p>${/*html-ok*/ ofd_firstHtml()}`} : {body: txt}),
     ok: tr('Show as draft'), after: md => {
       md.classList.add('ofdpa');
       const yes = md.querySelector('[data-cd="yes"]');
@@ -1135,7 +1135,7 @@ async function ofdClick(e) {
     const fin = tr('Number, positions, sums, sender and tax rates are frozen. Afterwards it can only be duplicated.');
     // 2.1302.0 (#6532): the first real invoice of the office adds its line with the ways to the test mode and the number ranges
     const no = pv?.number ? `<p class="ofdfinno">${esc(tr('Will be finalised as {0}', '\u0000')).replace('\u0000', `<b>${esc(pv.number)}</b>`)}</p>` : '';
-    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(no || pv?.first ? {html: `${no}<p>${esc(fin)}</p>${pv?.first ? ofd_firstHtml() : ''}`} : {}),
+    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(no || pv?.first ? {html: `${/*html-ok*/ no}<p>${esc(fin)}</p>${/*html-ok*/ pv?.first ? ofd_firstHtml() : ''}`} : {}),
       ...(pv?.first ? {after: ofd_firstWire} : {})})) return;
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, {}); if (j) toast(tr('Finalised as {0}', j.number || ''));
     return;
