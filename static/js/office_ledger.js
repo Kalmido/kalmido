@@ -72,9 +72,10 @@ function ldbHtml() {
   return bar + state + hints + ldbBsHtml(d) + ldbPlHtml(d) + ldbSusaHtml(d) + ldbEntriesHtml(d) + ldbCloseHtml(d) + `<p class="muted bk-note">${esc(d.note)}</p>`;
 }
 
-const ldbCsv = (what, y) => `<a class="btn sm ghost" href="${ldbBase()}/${what}.csv?year=${y}" download>${ic('download', 's')}<span>CSV</span></a>`;
+// 2.1253.0 (#6292): the files need the special "export", the year-end closing "lock" (office/rights.py SPECIAL_ROUTES): hidden without it
+const ldbCsv = (what, y) => ofr_noSp('books', 'export') ? '' : `<a class="btn sm ghost" href="${ldbBase()}/${what}.csv?year=${y}" download>${ic('download', 's')}<span>CSV</span></a>`;
 // 2.685.0 (#5128): the balance sheet / the profit and loss account as PDF (the way of the income statement's PDF)
-const ldbPdf = (what, y) => `<a class="btn sm ghost" href="${ldbBase()}/${what}.pdf?year=${y}" download data-ldb-pdf="${what}">${ic('download', 's')}<span>PDF</span></a>`;
+const ldbPdf = (what, y) => ofr_noSp('books', 'export') ? '' : `<a class="btn sm ghost" href="${ldbBase()}/${what}.pdf?year=${y}" download data-ldb-pdf="${what}">${ic('download', 's')}<span>PDF</span></a>`;
 
 function ldbBsHtml(d) {
   const side = s => {
@@ -116,7 +117,7 @@ function ldbEntriesHtml(d) {
 }
 
 function ldbCloseHtml(d) {
-  if (d.closed || d.year >= new Date().getFullYear()) return '';
+  if (d.closed || d.year >= new Date().getFullYear() || ofr_noSp('books', 'lock')) return '';
   return `<section class="bk-sec" aria-labelledby="ldb-clh"><div class="ofcbar"><h3 class="ofcgrp" id="ldb-clh">${trh('Year-end closing {0}', d.year)}</h3><span class="spacer"></span>
     <button type="button" class="btn sm" data-ldb="close">${ic('lock', 's')}<span>${tr('Close year…')}</span></button></div>
     <p class="muted ofchint">${esc(tr('Carries the balances into {0}, the result onto the profit / loss carried forward, and locks every month of {1} (GoBD).', d.year + 1, d.year))}</p></section>`;

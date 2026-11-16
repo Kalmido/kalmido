@@ -467,7 +467,13 @@ def _bw_label(c, oid, row):
 
 ofk_register(BW_KIND, "office_meals", N_("Entertainment receipt"), "meals", need="own",
              view={"kind": BW_TRASH, "label": _bw_label, "ctx": _ctx}, step=False, trash_keep=bw_keep_sql)
-ofk_register(BW_FILE_KIND, "office_meal_files", N_("Restaurant bill"), "meals", need="own", step=False,
+def _bw_file_owner(c, oid, row):
+    """2.1253.0 (#6292): a restaurant bill is the person's who entered its meal (okern.py _owner)."""
+    m = c.execute("SELECT created_by FROM office_meals WHERE id=? AND org_id=?", (row["meal_id"], oid)).fetchone()
+    return m[0] if m else None
+
+
+ofk_register(BW_FILE_KIND, "office_meal_files", N_("Restaurant bill"), "meals", need="own", step=False, owner=_bw_file_owner,
              trash_keep=lambda a: bw_keep_sql(a, files=True))
 # step=False: no step in the person's undo list -- a redo through /api/undo would skip the approval lock of the routes (409)
 obj_on_purge(BW_KIND, bw_meal_purge)

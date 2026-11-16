@@ -4,7 +4,10 @@ that paid the meal (office_meals.pay_kind / pay_id). With the basis "bank and ca
 expense. One meal per line; the link is bookkeeping, so it may change on an approved (locked) meal, but not while the line lies
 in a locked month (GoBD).
 Every route: the office admin (office_ctx_admin, like the bank) and the meal readable for the person (meals._meal); a line of
-another office area 404."""
+another office area 404.
+2.1253.0 (#6292): the area Entertainment receipts alone opens no bank, cash book or card: each source is offered, linked and
+shown with its text only with the person's right on its area (ofr_allows like taxcheck.py / cards.py: bank, cashbook, cards;
+cards on the level "own" = the lines of the cards the person holds), else the source is left out (mp_sources)."""
 from datetime import date, timedelta
 
 from flask import jsonify, request
@@ -21,10 +24,31 @@ from .ledger import ofx_log
 from .meals import _meal, bw_calc, _j
 from .model import office_ctx_admin as _ctx
 from .periodlock import period_need_open
+from .rights import NO_RIGHT, ofr_allows
 
 MP_KINDS = ("bank", "cash", "card")
 MP_WINDOW = 45  # days around the meal for the offered lines
 MP_MAX = 30
+MP_AREA = {"bank": "bank", "cash": "cashbook", "card": "cards"}  # 2.1253.0 (#6292): the office area that rules each source
+
+
+def mp_sources(c, uid, oid):
+    """2.1253.0 (#6292): {kind: None (every line) | holder uid (only the lines of the person's own cards)} of the sources the
+    person may read; a source without the right is missing."""
+    out = {k: None for k in MP_KINDS if ofr_allows(c, uid, oid, MP_AREA[k], "view")}
+    if "card" not in out and ofr_allows(c, uid, oid, "cards", "own"):
+        out["card"] = uid
+    return out
+
+
+def mp_may(c, oid, src, kind, lid):
+    """The person may see line lid of source kind (src = mp_sources)."""
+    if kind not in src:
+        return False
+    if kind == "card" and src["card"] is not None:
+        return bool(c.execute("SELECT 1 FROM office_cc_lines l JOIN office_cc_statements s ON s.id=l.statement_id JOIN office_cc_cards k "
+                              f"ON k.id=s.card_id WHERE l.id=? AND l.org_id=? AND k.holder_id=? AND {live_sql('k')}", (lid, oid, src["card"])).fetchone())
+    return True
 
 
 def mp_line(c, oid, kind, lid):
@@ -56,8 +80,9 @@ def _taken(c, oid, mid=None):
                                             (oid, mid or 0))}
 
 
-def mp_candidates(c, oid, m):
-    """The lines that may have paid meal row m: money out within MP_WINDOW days, not taken by another meal, closest amount first."""
+def mp_candidates(c, oid, m, src):
+    """The lines that may have paid meal row m: money out within MP_WINDOW days, not taken by another meal, closest amount first;
+    only the sources of src (mp_sources, #6292)."""
     x = oc_dec_fields(c, oid, "office_meals", {"amounts": m["amounts"], "tip": m["tip"]})  # encrypted at rest
     gross = dec(bw_calc(_j(x.get("amounts"), []), x.get("tip"))["gross"])
     try:
@@ -66,13 +91,18 @@ def mp_candidates(c, oid, m):
         d = local_now().date()
     d0, d1 = (d - timedelta(days=MP_WINDOW)).isoformat(), (d + timedelta(days=MP_WINDOW)).isoformat()
     taken, out = _taken(c, oid, m["id"]), []
-    for r in c.execute("SELECT id FROM office_bank_tx WHERE org_id=? AND deleted_at IS NULL AND day>=? AND day<=? ORDER BY day", (oid, d0, d1)).fetchall():
-        out.append(("bank", r[0]))
-    for r in c.execute("SELECT id FROM office_cash_entries WHERE org_id=? AND dir='out' AND storno_of IS NULL AND day>=? AND day<=? ORDER BY day", (oid, d0, d1)).fetchall():
-        out.append(("cash", r[0]))
-    for r in c.execute("SELECT l.id FROM office_cc_lines l JOIN office_cc_statements s ON s.id=l.statement_id WHERE l.org_id=? AND s.deleted_at IS NULL "
-                       f"AND {live_sql('l')} AND l.day>=? AND l.day<=? ORDER BY l.day", (oid, d0, d1)).fetchall():  # 2.1005.0 (#5415): not the trash
-        out.append(("card", r[0]))
+    if "bank" in src:
+        for r in c.execute("SELECT id FROM office_bank_tx WHERE org_id=? AND deleted_at IS NULL AND day>=? AND day<=? ORDER BY day", (oid, d0, d1)).fetchall():
+            out.append(("bank", r[0]))
+    if "cash" in src:
+        for r in c.execute("SELECT id FROM office_cash_entries WHERE org_id=? AND dir='out' AND storno_of IS NULL AND day>=? AND day<=? ORDER BY day", (oid, d0, d1)).fetchall():
+            out.append(("cash", r[0]))
+    if "card" in src:
+        own = "" if src["card"] is None else f" AND s.card_id IN (SELECT id FROM office_cc_cards WHERE org_id=? AND holder_id=? AND {live_sql()})"
+        for r in c.execute("SELECT l.id FROM office_cc_lines l JOIN office_cc_statements s ON s.id=l.statement_id WHERE l.org_id=? AND s.deleted_at IS NULL "
+                           f"AND {live_sql('l')} AND l.day>=? AND l.day<=?{own} ORDER BY l.day",
+                           (oid, d0, d1) + (() if src["card"] is None else (oid, src["card"]))).fetchall():  # 2.1005.0 (#5415): not the trash
+            out.append(("card", r[0]))
     rows = []
     for k, i in out:
         if (k, i) in taken:
@@ -86,14 +116,15 @@ def mp_candidates(c, oid, m):
     return [{k: v for k, v in x.items() if k[0] != "_"} for x in rows[:MP_MAX]]
 
 
-def mp_current(c, oid, m):
+def mp_current(c, oid, m, src):
+    """The linked line; without the right on its source (#6292) only day and amount (the meal's own payment), not its text."""
     if not m["pay_kind"] or not m["pay_id"]:
         return None
     try:
         day, a, txt = mp_line(c, oid, m["pay_kind"], m["pay_id"])
     except Denied:
         return {"kind": m["pay_kind"], "id": m["pay_id"], "gone": True}
-    return {"kind": m["pay_kind"], "id": m["pay_id"], "day": day, "amount": dstr(a), "text": txt}
+    return {"kind": m["pay_kind"], "id": m["pay_id"], "day": day, "amount": dstr(a), "text": txt if mp_may(c, oid, src, m["pay_kind"], m["pay_id"]) else ""}
 
 
 @app.get("/api/office/meals/<int:mid>/payment")
@@ -101,7 +132,8 @@ def mp_get(mid):
     """Office admin. -> {current: {kind, id, day, amount, text} | {kind, id, gone} | None, candidates: [...]}."""
     c, uid, oid = _ctx()
     m = _meal(c, oid, mid, mode="read")
-    return jsonify({"current": mp_current(c, oid, m), "candidates": mp_candidates(c, oid, m) if request.args.get("candidates") != "0" else []})
+    src = mp_sources(c, uid, oid)
+    return jsonify({"current": mp_current(c, oid, m, src), "candidates": mp_candidates(c, oid, m, src) if request.args.get("candidates") != "0" else []})
 
 
 @app.put("/api/office/meals/<int:mid>/payment")
@@ -116,7 +148,12 @@ def mp_put(mid):
     m = _meal(c, oid, mid, mode="read")
     kind = b.get("kind")
     old_day = None
+    src = mp_sources(c, uid, oid)
+    if kind not in (None, "") and kind in MP_KINDS and kind not in src:
+        raise Denied(403, tr(NO_RIGHT))  # 2.1253.0 (#6292 review): before the line's lookup (no 404 / 403 oracle of its ids)
     if m["pay_kind"] and m["pay_id"]:
+        if not mp_may(c, oid, src, m["pay_kind"], m["pay_id"]):  # 2.1253.0 (#6292 review): taking off / replacing the link
+            raise Denied(403, tr(NO_RIGHT))                       # of a source the person may not read: the bookkeeping's
         try:
             old_day = mp_line(c, oid, m["pay_kind"], m["pay_id"])[0]
         except Denied:
@@ -131,6 +168,8 @@ def mp_put(mid):
         if not isinstance(lid, int) or isinstance(lid, bool):
             raise BadInput(tr("Invalid value: {0}", "id"))
         day = mp_line(c, oid, kind, lid)[0]
+        if not mp_may(c, oid, src, kind, lid):  # 2.1253.0 (#6292): only a line of a source the person may read
+            raise Denied(403, tr(NO_RIGHT))
         if (kind, lid) in _taken(c, oid, mid):
             raise Denied(409, tr("This booking is the proof of another entertainment receipt"))
         period_need_open(c, oid, old_day, day)
@@ -139,4 +178,4 @@ def mp_put(mid):
     bump(c)
     c.commit()
     m = _meal(c, oid, mid, mode="read")
-    return jsonify({"current": mp_current(c, oid, m)})
+    return jsonify({"current": mp_current(c, oid, m, mp_sources(c, uid, oid))})
