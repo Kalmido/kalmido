@@ -1,6 +1,16 @@
 {
  "versions": [
   {
+   "version": "2.1304.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Beim Aufbewahrungs-Export zeigt Kalmido, ob der letzte Export vollständig und aktuell ist, und du kannst selbst erklären, dass du auf ihn verzichtest.",
+     "en": "The retention export now shows whether your last export is complete and current, and you can declare yourself that you do without it."
+    }
+   ]
+  },
+  {
    "version": "2.1301.0",
    "date": "2026-11-16",
    "items": [
@@ -1303,24 +1313,6 @@
     {
      "de": "Einstellungen stehen wieder in einer Spalte, Seltenes liegt unter „Weitere Optionen“.",
      "en": "Settings are one column again, rarely used ones sit under \"Further options\"."
-    }
-   ]
-  },
-  {
-   "version": "2.740.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Mit der Branche Film gibt es die Projektvorlage Dreh: Einstellungen als Karten, Drehtage als Spalten, Bild-Kacheln als Storyboard und die Shotlist als PDF.",
-     "en": "With the industry Film & Video there is the project type Shoot: shots as cards, shooting days as columns, picture tiles as a storyboard and the shot list as a PDF."
-    },
-    {
-     "de": "Neue Branche Agentur und Dienstleistung mit eigenen Vorgaben für Kalkulation und Import.",
-     "en": "New industry Agency and services with its own defaults for calculation and import."
-    },
-    {
-     "de": "Postfach-Regeln zeigen jetzt an, wenn aus einer Mail kein Dokument entstand, und versuchen es beim nächsten Lauf erneut.",
-     "en": "Mailbox rules now show when a mail produced no document and try again on the next run."
     }
    ]
   }
