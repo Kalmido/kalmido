@@ -17,6 +17,9 @@ freelancer-matrix: office
    the income statement (reminder fees), the key figures, the cash flow and the ledger count fee + interest + flat fee
    (was 5.00 alone), the VAT return not; a reminder without a fee (only interest and 40.00 flat fee) shows them open and
    can be marked paid (was 409), it counts the same way
+ - #6459: the paid amount is stored on the reminder when it is marked paid; a reminder marked paid before 2.1259 (nothing
+   stored) keeps its fee alone; two levels over the same invoice, both paid: the second adds only its fee (interest and
+   flat fee were counted with the first)
  - the same for a person without an organisation (own office)
 usage: p21259_a_books_test.py <datadir>"""
 import json
@@ -238,6 +241,12 @@ def reminder_claims(s, who):
     led = s.get(B + BK + f"/ledger?year={Y}&journal=1").json()
     fr = [x for x in led.get("journal", []) if x["src"] == "fee"]
     check(sum((Decimal(x["amount"]) for x in fr), Decimal(0)) == claim, f"{who}: ledger: the paid claim as other income {fr}")
+    # #6459: the amount is stored when marked paid; a mark of before 2.1259 (nothing stored) keeps its fee alone
+    st_amt = dbxm.q(DATA, "SELECT reminder_fee_paid_amount FROM office_docs WHERE id=?", (rm,))[0][0]
+    check(st_amt is not None and Decimal(str(st_amt)) == claim, f"{who}: the paid amount is stored on the reminder {st_amt} {claim}")
+    dbxm.q(DATA, "UPDATE office_docs SET reminder_fee_paid_amount=NULL WHERE id=?", (rm,))
+    check(fee_income(s) - fee0 == Decimal("5.00"), f"{who}: a reminder marked paid before 2.1259: its fee alone, the old year stays {fee_income(s) - fee0}")
+    dbxm.q(DATA, "UPDATE office_docs SET reminder_fee_paid_amount=? WHERE id=?", (str(claim), rm))
     kz1 = ustva(s, "y").get("kz", {})
     check(kz1.get("81") == kz0.get("81") and kz1.get("83") == kz0.get("83"), f"{who}: not in the VAT return {kz0.get('81')} {kz1.get('81')}")
     # a reminder without a fee: only interest and the flat fee 40.00
@@ -249,6 +258,22 @@ def reminder_claims(s, who):
     check(r.ok, f"{who}: a reminder without a fee can be marked paid (was 409) {r.status_code} {r.text[:200]}")
     check(fee_income(s) - fee1 == claim0, f"{who}: income statement: + interest + 40.00 = {claim0} {fee_income(s) - fee1}")
     check(s.post(B + f"{D}/{rm0}/fee", json={"state": ""}).ok and fee_income(s) == fee1, f"{who}: opened again: out of the income statement")
+    check(dbxm.q(DATA, "SELECT reminder_fee_paid_amount FROM office_docs WHERE id=?", (rm0,))[0][0] is None, f"{who}: opened again: the stored amount is gone")
+    # #6459: two reminder levels over the same invoice, both paid: interest and flat fee count once
+    inv = invoice(s, cl, 500, "Zwei Stufen")
+    dbxm.q(DATA, "UPDATE office_docs SET due_date=? WHERE id=?", ((date.fromisoformat(TODAY) - timedelta(days=30)).isoformat(), inv))
+    lv = []
+    for level, fee in ((2, 5), (3, 10)):
+        r = s.post(B + D + "/reminder", json={"doc_ids": [inv], "level": level, "fee": fee})
+        check(r.ok, f"{who}: reminder level {level} " + r.text[:200])
+        check(s.post(B + f"{D}/{r.json()['id']}/finalize").ok, f"{who}: reminder level {level} finalised")
+        t = s.get(B + f"{D}/{r.json()['id']}").json()["totals"]
+        lv.append((r.json()["id"], Decimal(t["fee"]) + Decimal(t["interest"]) + Decimal(t["flat_fee"])))
+    f0 = fee_income(s)
+    check(s.post(B + f"{D}/{lv[0][0]}/fee", json={"state": "paid"}).ok and fee_income(s) - f0 == lv[0][1], f"{who}: level 2 paid: + {lv[0][1]} {fee_income(s) - f0}")
+    f1 = fee_income(s)
+    check(s.post(B + f"{D}/{lv[1][0]}/fee", json={"state": "paid"}).ok, f"{who}: level 3 paid")
+    check(fee_income(s) - f1 == Decimal("10.00"), f"{who}: level 3 adds its fee 10.00 only, interest and flat fee were counted with level 2 (claim {lv[1][1]}) {fee_income(s) - f1}")
 
 
 frozen_lines(A, "Alpha")

@@ -62,7 +62,6 @@ from ..core.serializers import csv_cell  # 2.369.5 (#2517): pulled up from funct
 from .ledger import ofx_log  # 2.369.5 (#2517): pulled up from functions
 from .years import ofc_years, ofc_years_join, ofc_years_sql  # 2.593.0 (#4891): the years with data
 from .euerbasis import EB_NORC_LABEL, eb_basis_of, eb_flows, eb_income_payment_ids, eb_map, eb_segments  # noqa: E402 - 2.603.0 (#4927): the basis of the EUeR per year
-from .invoices import inv_reminder_claim  # noqa: E402 - 2.1259.0 (#6302): fee + interest + flat fee of a paid reminder
 # 2.755.0 (#5241): eb_map -- an office that never chose "bank and cash" has no edge between two bases
 
 
@@ -530,15 +529,17 @@ def ofc_meals_euer(meals, small):
 def bk_fees_paid(c, oid, frm, to, home):
     """2.545.0 (#4387): the paid fees of finalised reminders in [frm, to] (ISO days): [{doc_id, number, date, amount (Decimal,
     home currency)}]. The day = reminder_fee_paid_at (set when a person marks the fee paid), before 2.545 the reminder's date.
-    A reminder fee is damages, not a sale: no VAT, not in the VAT return (the tax advisor checks, #1153). 2.1259.0 (#6302):
-    the amount = fee + default interest + flat fee of the frozen totals (invoices.inv_reminder_claim), also without a fee --
-    the one sum of the income statement, key figures, cash flow and ledger (was the fee alone)."""
+    A reminder fee is damages, not a sale: no VAT, not in the VAT return (the tax advisor checks, #1153). 2.1259.0 (#6302,
+    #6459): the amount = the one stored when it was marked paid (reminder_fee_paid_amount: fee + default interest + flat fee,
+    invoices.inv_reminder_paid_claim), also without a fee -- the one sum of the income statement, key figures, cash flow and
+    ledger; a mark of before 2.1259 stored nothing and keeps its fee alone (old and locked years stay as they were)."""
     day = "COALESCE(NULLIF(CAST(reminder_fee_paid_at AS text), ''), date)"  # 2.1115.0 (#5951): DATE
     out = []
-    for r in c.execute(f"SELECT id, number, currency, fx_rate, reminder_fee, totals, {day} AS day FROM office_docs WHERE org_id=? AND kind='reminder' "
+    for r in c.execute(f"SELECT id, number, currency, fx_rate, reminder_fee, reminder_fee_paid_amount, {day} AS day FROM office_docs WHERE org_id=? AND kind='reminder' "
                        f"AND locked_at IS NOT NULL AND {live_sql()} AND trial=0 AND reminder_fee_state='paid' AND {day}>=? AND {day}<=? "
                        f"ORDER BY {day}, id", (oid, frm, to)).fetchall():
-        claim = inv_reminder_claim(r)
+        v = r["reminder_fee_paid_amount"]
+        claim = money(dec(v if v is not None else r["reminder_fee"] or 0))
         if claim > 0:
             out.append({"doc_id": r["id"], "number": r["number"], "date": r["day"], "amount": money(claim / _fx(r, home))})
     return out

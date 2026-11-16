@@ -806,6 +806,25 @@ def inv_reminder_claim(r):
     return money(dec(_col(r, "reminder_fee") or 0)) + money(dec(t.get("interest") or 0)) + money(dec(t.get("flat_fee") or 0))
 
 
+def inv_reminder_paid_claim(c, oid, r):
+    """2.1259.0 (#6459): the amount "fee paid" stores on reminder r (office_docs.reminder_fee_paid_amount, the books count it):
+    its fee + the part of its interest and flat fee (inv_reminder_claim) that no other paid reminder over one of the same
+    invoices counted already -- a later reminder level repeats the interest up to its own day and the flat fee, so two paid
+    levels never count them twice. What another reminder counted beyond its fee = its stored amount - its fee (a mark of
+    before 2.1259 stored nothing: its fee alone)."""
+    fee = money(dec(_col(r, "reminder_fee") or 0))
+    extra = inv_reminder_claim(r) - fee
+    ids = {int(i) for i in _j(_col(r, "ref_doc_ids") or "[]", []) if str(i).isdigit()}
+    done = Decimal(0)
+    if extra > 0 and ids:
+        for x in c.execute(f"SELECT ref_doc_ids, reminder_fee, reminder_fee_paid_amount FROM office_docs WHERE org_id=? AND kind='reminder' AND id<>? "
+                           f"AND locked_at IS NOT NULL AND {live_sql()} AND reminder_fee_state='paid' AND reminder_fee_paid_amount IS NOT NULL",
+                           (oid, r["id"])).fetchall():
+            if ids & {int(i) for i in _j(x["ref_doc_ids"] or "[]", []) if str(i).isdigit()}:
+                done += max(money(dec(x["reminder_fee_paid_amount"])) - money(dec(x["reminder_fee"] or 0)), Decimal(0))
+    return fee + max(extra - done, Decimal(0))
+
+
 def inv_reminder_extra_rows(t, lang, cur):
     """2.355.0 D (#2846): the rows of the reminder's totals for the default interest (one per invoice: rate, days) and
     the flat fee; the same in the PDF and (as data) in the editor."""
@@ -1924,9 +1943,14 @@ def fd_fee_post(did):
             # 2.990.0 (#5484): a fee paid before 2.545 has no day and counts on the reminder's date (books.bk_fees_paid)
             period_need_open(c, oid, _col(r, "reminder_fee_paid_at") or r["date"])
         # 2.545.0 (#4387): the day it was paid -- the income statement, key figures and cash flow count it then (books.bk_fees_paid)
-        c.execute("UPDATE office_docs SET reminder_fee_state=?, reminder_fee_paid_at=? WHERE id=? AND org_id=?", (st, paid_day, did, oid))
+        # 2.1259.0 (#6459): and the amount, stored when it becomes paid (a new day keeps it; any other state empties it)
+        amount = _col(r, "reminder_fee_paid_amount") if before == "paid" else None
+        if st == "paid" and before != "paid":
+            amount = dstr(inv_reminder_paid_claim(c, oid, r))
+        c.execute("UPDATE office_docs SET reminder_fee_state=?, reminder_fee_paid_at=?, reminder_fee_paid_amount=? WHERE id=? AND org_id=?",
+                  (st, paid_day, amount if st == "paid" else None, did, oid))
         ofx_log(c, oid, "reminder_fee", doc_id=did, detail={"before": before, "after": st, "fee": dstr(money(dec(_col(r, "reminder_fee") or 0))),
-                                                          "claim": dstr(inv_reminder_claim(r)),  # 2.1259.0 (#6302)
+                                                          **({"amount": dstr(dec(amount))} if st == "paid" and amount is not None else {}),  # 2.1259.0 (#6459)
                                                           **({"day": paid_day} if paid_day else {})})
         bump(c)
     c.commit()
