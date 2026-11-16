@@ -21,7 +21,7 @@ freelancer-matrix: office
    stored) keeps its fee alone; two levels over the same invoice, both paid: the second adds only its fee (interest and
    flat fee were counted with the first)
  - the same for a person without an organisation (own office)
-usage: p21259_a_books_test.py <datadir>"""
+usage: p21259_a_office_books_test.py <datadir>"""
 import json
 import os
 import subprocess
@@ -292,5 +292,5 @@ skonto_fx()
 reminder_claims(A, "Alpha")
 reminder_claims(Fr, "Frida")
 
-print(f"p21259_a_books: {OKS[0]} ok, {len(FAILS)} failed")
+print(f"p21259_a_office_books: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

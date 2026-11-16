@@ -17,7 +17,7 @@ freelancer-matrix: office
    the deduction takes off the VAT its text names (19.01 - 9.50 = 9.51, gross 59.52), the final invoice 200.00 net is
    149.99 + 28.49 = 178.48 (was 28.50 / 178.49: one cent too much)
  Each flow runs for an organisation's admin and for a person without organisation (personal office).
-usage: p21259_b_cent_test.py <datadir>"""
+usage: p21259_b_office_cent_test.py <datadir>"""
 import csv
 import io
 import os
@@ -181,6 +181,27 @@ def flow(s, who):
               f"{who} (a): the invoice row's gross = money(11.90 / 1.09) = 10.92 like its payment (was 10.91) {inv[0]} {pm[0]}")
         check(dd(inv[0]["Net"]) + dd(inv[0]["VAT"]) == dd(inv[0]["Gross"]) and dd(inv[0]["VAT"]) == D2("1.74"),
               f"{who} (a): net + VAT = gross, the VAT as converted (1.74), the rest cent on the net {inv[0]}")
+    # ---- #6456: two rates in USD (10.00 + 1.90 and 10.00 + 0.70 = 22.60 USD at 1.09 = 20.73): the booking export and DATEV
+    # follow the rule of the books (books.bk_fx_lines): the rest cent on the base of the largest rate -> 9.18 + 1.74 at 19 %,
+    # 9.17 + 0.64 at 7 % (was (a): on the last line, 9.17 + 1.74 and 9.18 + 0.64 -- one cent off the income statement per rate)
+    r = s.post(B + D, json={"kind": "invoice", "client_id": cl, "project_title": "Job zwei Sätze", "service_from": DAY, "service_to": DAY,
+                            "currency": "USD", "fx_rate": "1.09",
+                            "items": [{"title": "Schnitt", "qty": 1, "rate": "9.1743", "unit": "flat", "tax": "standard"},
+                                      {"title": "Buch", "qty": 1, "rate": "9.1743", "unit": "flat", "tax": "reduced"}]})
+    assert r.status_code == 201, r.text
+    check(s.post(B + f"{D}/{r.json()['id']}/finalize").ok, f"{who} #6456: two rates finalised")
+    z = s.get(B + f"{D}/{r.json()['id']}").json()
+    check(z["totals"]["gross"] == "22.60", f"{who} #6456: USD two rates 22.60 {z['totals'].get('gross')}")
+    pay(s, z["id"], "22.60")
+    rows = [x for x in bx_rows(s) if x.get("Number") == z["number"]]
+    inv = sorted(((dd(x["Net"]), dd(x["VAT"]), dd(x["Gross"])) for x in rows if x.get("Type") == "Invoice"), key=lambda x: x[1])
+    pm = sum((dd(x["Gross"]) for x in rows if x.get("Type") == "Payment"), D2(0))
+    check(inv == [(D2("9.17"), D2("0.64"), D2("9.81")), (D2("9.18"), D2("1.74"), D2("10.92"))] and pm == D2("20.73"),
+          f"{who} #6456: booking export: 9.18 + 1.74 at 19 %, 9.17 + 0.64 at 7 %, together the payment 20.73 {inv} {pm}")
+    bal, mine = debtor_balance(extf(s, f"{Y}-01-01", f"{Y}-12-31"), z["number"])
+    amounts = sorted(dd(x["Umsatz (ohne Soll/Haben-Kz)"]) for x in mine if x["Buchungstext"].startswith(z["number"]))
+    check(bal == 0 and amounts == [D2("9.81"), D2("10.92")],
+          f"{who} #6456: DATEV: 10.92 on the 19 % account, 9.81 on the 7 % account, the debtor balances {bal} {amounts}")
     # ---- (b) DATEV: 100.00 USD paid in three parts
     b = invoice(s, cl, "77.0917", "USD", "1.09")
     check(b["totals"]["gross"] == "100.00", f"{who} (b): USD 84.03 + 15.97 = 100.00 {b['totals'].get('gross')}")
