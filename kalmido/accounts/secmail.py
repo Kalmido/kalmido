@@ -1,6 +1,6 @@
 """2.266.0 (#2963): security mails to the person whose account changed - so a taken-over account does not stay unnoticed.
 Until 2.266 only the instance admins heard of such events (admin alerts); the person got nothing. Now a short mail goes
-to the account's address (the old AND the new one when the address changes), in the person's language, without a way to
+to the account's address (when the address changes: the old one only - 2.1264.0, #6352: the new one is not proved yet), in the person's language, without a way to
 unsubscribe (like the password reset), with a link to Settings > Account (password, two-factor sign-in):
   password        the person changed their password             password_admin  an admin set / removed it
   password_reset  a password was set through a reset link        email           the address was changed (old + new)

@@ -949,8 +949,10 @@ async function listChat(lid) {
 S.nt = {lid: null, id: null, notes: null, mayWrite: false, q: '', edit: false, saveT: null, dirty: false, err: null};
 const notesOf = lid => (S.notes || []).filter(n => n.list_id === lid);
 const notesOn = l => !!l && !l.is_inbox && !(l.role === 'participant');
-async function loadNotes(lid) {
-  try { const j = await rawFetch('GET', `/api/lists/${lid}/notes`); if (S.nt.lid !== lid) return; S.nt.notes = j.notes; S.nt.mayWrite = j.may_write; S.nt.err = null; ntKeep(lid, j); qn_heal(lid); }  // 2.477.0 (#3881): qn_heal
+// live: 2.1264.0 (#6335 B3, review #4816) a reload after a change elsewhere - typing begun while it was on its way keeps the notes
+// as they were (else the next save sent the old text with the new base: the other change gone without a word); tried again later
+async function loadNotes(lid, live) {
+  try { const j = await rawFetch('GET', `/api/lists/${lid}/notes`); if (S.nt.lid !== lid) return; if (live && S.nt.dirty) { S.nt.live = true; return false; } S.nt.notes = j.notes; S.nt.mayWrite = j.may_write; S.nt.err = null; ntKeep(lid, j); qn_heal(lid); }  // 2.477.0 (#3881): qn_heal
   catch (e) {
     const c = e instanceof Offline && ntKept(lid);  // 2.143.0 C (#2153): offline: the notes as last seen (and written on)
     if (c) { if (S.nt.lid === lid) { S.nt.notes = c.notes; S.nt.mayWrite = c.may_write; S.nt.err = null; for (const o of OUT.q) if (/^\/api\/(notes\/-?\d+|lists\/\d+\/notes)$/.test(o.url)) ntLocal(o); } return; }

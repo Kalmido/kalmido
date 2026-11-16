@@ -13,13 +13,18 @@ registration or a verified OIDC claim - an account the admin typed in (the first
    only while the account still has the address the mail went to. Then the silent organisation invitations of exactly this
    address (org_joins.silent with org_joins.email, #5775 / #4922) wake up as ordinary ones (orginvite.ojn_proved): the person
    hears of them now, unless the rule of a company of its own (#3570) keeps one silent.
-Never for an agent (its address is its owner's business); a person without an organisation proves the address the same way."""
+Never for an agent (its address is its owner's business); a person without an organisation proves the address the same way.
+
+2.1264.0 (#6352): mails with content (the daily summary, the event mails, the test mail) go only to a proved address
+(eproof_ok, the one check). A content mail that would go to an unproved address becomes, once per address (setting
+eproof_hint = the address it went to), this proof mail with one line more (eproof_hint); the setting stays on and works from
+the proof on. Security, invitation, reset and proof mails stay as they are."""
 import secrets
 
 from flask import g, jsonify
 
 from ..core.config import app, APP_NAME, PUBLIC_URL
-from ..core.db import body, bump, db, err
+from ..core.db import body, bump, db, err, uset, usettings
 from ..core.ephem import eph_put, eph_take
 from ..core.i18n import lang, N_, tr
 from ..core.mailframe import mail_html
@@ -30,12 +35,13 @@ from ..admin.hosting import mail_budget
 from ..api.common import hit_limit
 from ..core.addrshare import ads_mark  # 2.1071.0 (#5658)
 from ..sheets.shshare import shs_redeem  # 2.1071.0 (#5658)
-from ..integrations.mail import MAIL_OUT_ON, mail_send
+from ..integrations.mail import MAIL_OUT_ON, MAIL_PROOF, mail_send
 
 EPF_NS = "eproof"
 EPF_HOURS = 48  # the link works this long (and once)
 EPF_PER_HOUR = 3  # proof mails per account and hour (each counts in the daily mail budget, too)
 EPF_TRIES = 10  # wrong / old links per account and hour
+EPF_HINT = "eproof_hint"  # 2.1264.0 (#6352): the address the one proof hint went to (not in USER_DEFAULTS: no client sets it)
 
 
 def _person():
@@ -51,6 +57,12 @@ def _addr(u):
     return (u["email"] or "").strip().lower()
 
 
+def eproof_ok(u):
+    """2.1264.0 (#6352): u (a row with email, email_proved) has a proved address - the one check before a mail with content."""
+    em = _addr(u)
+    return bool(em) and (u["email_proved"] or "") == em
+
+
 @app.get("/api/me/email")
 def eproof_get():
     e = _person()
@@ -58,11 +70,10 @@ def eproof_get():
         return e
     c = db()
     u = c.execute("SELECT email, email_proved FROM users WHERE id=?", (me(),)).fetchone()
-    em = _addr(u)
-    return jsonify(email=u["email"] or "", proved=bool(em) and (u["email_proved"] or "") == em, mail_out=bool(MAIL_OUT_ON))
+    return jsonify(email=u["email"] or "", proved=eproof_ok(u), mail_out=bool(MAIL_OUT_ON))
 
 
-def eproof_mail(c, u, link):
+def eproof_mail(c, u, link, held=False):
     """(subject, text, html) of the proof mail in the person's language (the shared mail frame)."""
     lg = lang(c, u["id"])
     t = lambda s, *a: tr(s, *a, lg=lg)  # noqa: E731
@@ -70,6 +81,8 @@ def eproof_mail(c, u, link):
     head = t(N_("Hello {0},"), u["display_name"] or u["username"])
     intro = t(N_("please confirm that {0} is your address: open the link while you are signed in to {1} as {2}."), u["email"], APP_NAME, u["username"])
     why = t(N_("Then invitations of organisations to this address reach you, and e-mails you send from it can become tasks for you."))
+    if held:  # 2.1264.0 (#6352): a content mail was held back for this address
+        why += " " + t(N_("Until then, e-mails with content (the daily summary, notifications) are not sent to it."))
     button = t(N_("Confirm my address"))
     valid = t(N_("The link works once and for {0} days."), EPF_HOURS // 24)
     foot = t(N_("Did you not ask for this? Then ignore this e-mail: nothing changes."))
@@ -89,29 +102,60 @@ def eproof_send():
     em = _addr(u)
     if not em:
         return err(tr("No e-mail address is stored for you: an admin adds it (Settings > Organisation > People)"), 409)
-    if (u["email_proved"] or "") == em:
+    if eproof_ok(u):
         return jsonify(ok=True, proved=True, email=u["email"])
     if not MAIL_OUT_ON:
         return err(tr("E-mail sending is not set up on this server"), 409)
     if hit_limit(f"eproof:{me()}", EPF_PER_HOUR, 3600):
         return err(tr("Too many attempts, please wait a few minutes"), 429)
-    if not mail_budget(c, me(), em):
-        c.rollback()
+    e = _eproof_out(c, u, em, me())
+    if e == "budget":
         return err(tr("Today's e-mail limit is reached. Try again tomorrow."), 429)
+    if e:
+        return err(tr("The e-mail could not be sent. Try again later."), 503 if e == "store" else 502)
+    return jsonify(ok=True, sent=True, email=u["email"])
+
+
+def _eproof_out(c, u, em, budget_uid):
+    """The proof mail to u's address em: None = sent, else "budget" / "mail" / "store". budget_uid: whose own sending quota
+    counts (the person asking; None in the background, like the daily summary). Commits; no transaction stays open."""
+    if not mail_budget(c, budget_uid, em):
+        c.rollback()
+        return "budget"
     tok = secrets.token_urlsafe(32)
-    sealed = seal(c, f"eproof:{me()}", em)
+    sealed = seal(c, f"eproof:{u['id']}", em)
     c.commit()  # the mail count; no transaction stays open while the mail server is asked
-    subject, text, body_html = eproof_mail(c, u, f"{PUBLIC_URL}/#mailproof/{tok}")
+    subject, text, body_html = eproof_mail(c, u, f"{PUBLIC_URL}/#mailproof/{tok}", held=budget_uid is None)
     try:
         mail_send(u["email"], subject, text, body_html, from_name=APP_NAME)
     except Exception as x:  # noqa: BLE001 -- the mail server said no: the person may try again
         print("address proof mail failed:", type(x).__name__, flush=True)
-        return err(tr("The e-mail could not be sent. Try again later."), 502)
+        return "mail"
     # review F5: stored once the mail is out - a failed mail leaves the link of an earlier one working (one link per account)
-    if not eph_put(EPF_NS, tok, sealed, EPF_HOURS * 3600, uid=me(), caps={"uid": 1}):
-        return err(tr("The e-mail could not be sent. Try again later."), 503)
-    print("address proof mail sent to account", me(), flush=True)
-    return jsonify(ok=True, sent=True, email=u["email"])
+    if not eph_put(EPF_NS, tok, sealed, EPF_HOURS * 3600, uid=u["id"], caps={"uid": 1}):
+        return "store"
+    print("address proof mail sent to account", u["id"], flush=True)
+    return None
+
+
+def eproof_hint(c, uid):
+    """2.1264.0 (#6352): a mail with content for uid is held back (unproved address): instead, once per address, the proof
+    mail with the line why. True = it went out. The background (daily summary, event mails); commits."""
+    if not MAIL_OUT_ON:
+        return False
+    u = c.execute("SELECT id, username, display_name, email, email_proved, kind, disabled FROM users WHERE id=?", (uid,)).fetchone()
+    em = _addr(u) if u else ""
+    if not em or eproof_ok(u) or u["disabled"] or (u["kind"] or "user") == "agent" or (usettings(c, uid).get(EPF_HINT) or "") == em:
+        return False
+    uset(c, uid, EPF_HINT, em)  # committed with the mail count (a used-up budget rolls both back: the next content mail tries again)
+    e = _eproof_out(c, u, em, None)
+    if e in ("mail", "store"):  # the mail server said no, or the link could not be stored (the mail carries a dead one): the next content mail tries again
+        uset(c, uid, EPF_HINT, "")
+        c.commit()
+    return e is None
+
+
+MAIL_PROOF.update(ok=eproof_ok, hint=eproof_hint)  # 2.1264.0 (#6352): for the daily summary (mail.py) and the event mails (notify/channels.py)
 
 
 @app.post("/api/me/email/proof/confirm")

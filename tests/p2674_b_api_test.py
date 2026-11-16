@@ -171,7 +171,8 @@ def strip(xs):
 
 
 def old_agents():
-    rows = c.execute("SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u ON u.id=a.user_id "
+    rows = c.execute("SELECT a.*, u.username, u.display_name, u.avatar, u.disabled, COALESCE(o.disabled, false) AS owner_locked "  # 2.1264.0 (#6351)
+                     "FROM agents a JOIN users u ON u.id=a.user_id LEFT JOIN users o ON o.id=a.owner_id "
                      "WHERE u.kind='agent' ORDER BY u.id").fetchall()
     # 2.777.0 (#5378): + a team agent of an organisation the person is a member / admin of, also without a shared list ("shared":
     # false, "projects", nothing of its work) - written out as plain SQL here, not with agents_for's helpers
@@ -200,7 +201,8 @@ def old_agents():
 
 
 def old_prop():
-    rows = c.execute("SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u ON u.id=a.user_id "
+    rows = c.execute("SELECT a.*, u.username, u.display_name, u.avatar, u.disabled, COALESCE(o.disabled, false) AS owner_locked "  # 2.1264.0 (#6351)
+                     "FROM agents a JOIN users u ON u.id=a.user_id LEFT JOIN users o ON o.id=a.owner_id "
                      "WHERE u.kind='agent' ORDER BY u.id").fetchall()
     return [{"id": a["user_id"], "name": a["display_name"] or a["username"],
              "avatar": avatar_url(c.execute("SELECT * FROM users WHERE id=?", (a["user_id"],)).fetchone()),

@@ -8,7 +8,7 @@
 // keep the full reload. S.lpOff = true switches it off (the old way, used by the measurement in the tests).
 // 2.280.0 A (#3109): the bundled follow-up takes the delta since the version before the light changes + the sidebar's parts
 // (agents, team chat, News, calendars: ?side=1) instead of the whole state; the knowledge pages are light (not in the state).
-const LP_LIGHT = new Set(['comments', 'agentchat', 'team', 'news', 'calendar', 'budget', 'sheets', 'wiki', 'undo']);  // 2.72.0 (#1333): + the household budget (its own fetch); 2.89.0 (#1916): + tables
+const LP_LIGHT = new Set(['comments', 'agentchat', 'team', 'news', 'calendar', 'budget', 'sheets', 'wiki', 'undo', 'notes']);  // 2.1264.0 (#6335 B3): + notes (lpNotes)  // 2.72.0 (#1333): + the household budget (its own fetch); 2.89.0 (#1916): + tables
 const LP_KEEP = new Set(['office', 'clients', 'contacts']);  // views a change of someone else never redraws (2.431.0 C, #3602: + contacts; clients / contacts follow with ms_clLive / ct_live)
 const LP_DEFER_MS = 15000;
 S.lpN = {render: 0, state: 0, light: 0};  // counters for the measurement (render() calls, full state loads, light updates)
@@ -67,7 +67,23 @@ function lpLive(v, ch, n, inDelta) {
   if (ch.includes('sheets') && typeof shvLive === 'function') shvLive();  // 2.89.0 (#1916): the open table (sheets.js)
   if (ch.includes('wiki') && S.route.mod === 'wiki') td_renderSoon();  // 2.280.0 A (#3109): drawn as after the full reload before
   if (!lpT && !inDelta) lpT = setTimeout(lpFollow, LP_DEFER_MS);
+  if (ch.includes('notes')) lpNotes();  // 2.1264.0 (#6335 B3)
+  if (ch.includes('calendar') && lpCalShown() && lpT) lpFollow();  // 2.1264.0 (#6335 B4): an open calendar takes the events' signature now (lpSideTake draws), not after LP_DEFER_MS
   return true;
+}
+// 2.1264.0 (#6335 B4): the views that show the events of the shown range (calendar.js ensureCalEv draws these after a fetch)
+const lpCalShown = () => S.route.mod === 'cal' || (S.route.mod === 'tasks' && S.route.key === 'today') || S.route.mod === 'home';
+// 2.1264.0 (#6335 B3): a note changed (on another device, by someone else): the open notes view loads the list's notes again
+// (the open note shows the new text; its base updated_at moves along, so writing on is no false conflict); with unsaved
+// typing it waits (S.nt.live) until the note is saved - the poll tries again. The overview of all notes (S.notes) and the
+// sidebar take the notes with the bundled follow-up (delta ?side=1), here at once.
+function lpNotes() {
+  if (S.route.mod !== 'notes' || typeof loadNotes !== 'function') { S.nt && (S.nt.live = false); return; }
+  if (S.nt.dirty || lpBusy()) { S.nt.live = true; return; }
+  S.nt.live = false;
+  const lid = S.nt.lid;
+  if (!lid) { if (lpT) lpFollow(); return; }  // the overview: S.notes with the follow-up, drawn by lpDraw
+  return loadNotes(lid, true).then(ok => { if (ok !== false && S.route.mod === 'notes' && S.nt.lid === lid && !S.nt.dirty) lpViewSafe(); });
 }
 // what the sidebar and the rows show of the light areas (a change of it is drawn, nothing else)
 const lpSideSig = () => JSON.stringify([(S.agents || []).map(x => [x.id, x.chat_unread, x.approvals_open, x.waiting, x.status]), S.team, S.news?.unread, S.news?.unread_me]);
@@ -95,6 +111,7 @@ async function lpFollow() {
 function lpDraw(side, rows, areas) {
   if (lpSideSig() !== side) { renderSide(); badgeSync(); renderTabs(); }
   if (LP_KEEP.has(S.route.mod)) return;
+  if (areas?.has('notes') && S.route.mod === 'notes' && !S.nt?.lid) lpViewSafe();  // 2.1264.0 (#6335 B3): the overview of all notes
   if (lpRowSig() !== rows && (S.route.mod === 'tasks' || S.route.mod === 'home')) lpViewSafe();  // 2.42.0 (#1376): morphed
 }
 // the full way also counts (measurement); a full load ends a pending light follow-up
@@ -127,16 +144,23 @@ async function lpDelta(v, ch, n, since) {
   if (S.lpOff || S.v == null || !ch || ch.some(k => !LP_DELTA.has(k)) || OUT.q.length) return false;
   if (ch.includes('time') && LP_TIMEVIEW.has(S.route.mod)) return false;
   const light = ch.filter(k => LP_LIGHT.has(k)), follow = since !== undefined, wside = follow || light.length > 0;
-  const w0 = S.wseq || 0;
+  const w0 = S.wseq || 0, v0 = S.v;
   let j;
   try { j = await api('GET', `/api/state/delta?since=${follow ? since : S.v}&lean=1${wside ? '&side=1' : ''}${S.lz ? '&lz=1' : ''}&tt=1`); } catch { return false; }  // 2.369.2 (#3136): + lz
   if (!j || j.full !== false || (S.wseq || 0) !== w0 || OUT.q.length) return false;  // a write of mine overtook it: the full way
   if (light.length && !follow) lpLive(v, light, n, true);  // comments of the open task, the open chat, news (their own fetches)
+  // 2.1264.0 (#6335 B5): two deltas on their way (the poll's and the bundled follow-up's) can overtake each other: an answer
+  // that arrives after the state moved on (S.v grew meanwhile) and is not newer than it is dropped - the state has all it
+  // says; a newer one keeps the copies of tasks that changed after it was read (as lzLoad)
+  // review #4816: only an answer asked from the state's own version (since >= v0) is wholly covered by the newer state; the
+  // follow-up asks from S.lpBase (older: S.v moved on without a state, lpLive / lpSkip) - its tasks are checked one by one
+  const late = S.v > v0;
+  if (late && (follow ? since : v0) >= v0 && !(j.v > S.v)) { S.lpN.late = (S.lpN.late || 0) + 1; return true; }
   S.lpN.delta++;
   const side = lpSideCnt() + (wside ? lpSideSig() : ''), sel = S.sel, changed = new Set();
   if (wside && j.team) lpSideTake(j);
   tdFill(j.tasks);  // 2.575.0 B (#3966): the delta sends whole tasks; filled all the same (one way in)
-  for (const t of j.tasks || []) { S.tasks.set(t.id, t); changed.add(t.id); }
+  for (const t of j.tasks || []) { const o = late && S.tasks.get(t.id); if (o?.updated_at && t.updated_at && o.updated_at > t.updated_at) continue; S.tasks.set(t.id, t); changed.add(t.id); }
   for (const id of j.gone || []) if (S.tasks.delete(id)) changed.add(id);
   _kidsIx = null;
   const pr = j.progress || {};
@@ -166,14 +190,38 @@ async function lpDelta(v, ch, n, since) {
     if (timeOn() && S.te.tid === sel) loadTaskTime(sel);
     if (S.dp.id === sel) loadDeps(sel);
   }
-  if (lpBusy()) { S.viewStale = true; return true; }  // unsaved input: drawn once it is saved or dropped
+  if (lpBusy()) { S.viewStale = true; lpDetail(sel, changed, true); return true; }  // unsaved input: drawn once it is saved or dropped (the open task's panel: lpDetail)
   td_rcRun(() => { if (lpSideCnt() + (wside ? lpSideSig() : '') !== side) { renderSide(); renderTop(); renderTabs(); badgeSync(); } });  // 2.579.0 (#4199): one counting for the check and the draw
   if (!LP_KEEP.has(S.route.mod) && !LP_NOTASKS.has(S.route.mod)) lpMorphView();
-  if (sel && changed.has(sel)) {
-    if (S.tasks.has(sel)) { if (!$('#detail')?.contains(document.activeElement)) renderDetail(); }
-    else if (!(S.extra || []).some(t => t.id === sel)) closeDetail();
-  }
+  lpDetail(sel, changed);
   return true;
+}
+// 2.1264.0 (#6326): the open task changed elsewhere: its panel is drawn at once, also when the focus is in it (on a phone the
+// panel itself holds the focus, on a computer maybe one of its buttons) - the morph keeps a focused field with what it shows
+// and its caret; that field (S.detailStale) is drawn once it is left (events.js focusout -> lpDetailLeft). Before, a focus
+// anywhere in the panel left the old text on the screen, and typing on sent it over the other device's change.
+function lpDetail(sel, changed, busy) {
+  if (!sel || !changed.has(sel) || S.sel !== sel) return;
+  if (!S.tasks.has(sel)) { if (!busy && !(S.extra || []).some(t => t.id === sel)) closeDetail(); return; }
+  if ($('#detail .cfbar')) { S.detailStale = sel; return; }  // review #4816: an open conflict bar keeps the panel (and the draft in its field) until it is answered
+  lpDetailDraw();
+  const a = document.activeElement;
+  if (a && editFocused() && $('#detail')?.contains(a)) S.detailStale = sel;
+}
+function lpDetailLeft() {
+  const id = S.detailStale, a = document.activeElement;
+  if (!id || (a && editFocused() && $('#detail')?.contains(a)) || $('#detail .cfbar')) return;  // another field of the panel took the focus: its turn when left
+  S.detailStale = 0;
+  if (S.sel === id && S.tasks.has(id)) lpDetailDraw();
+}
+// morphed (renderDetail alone builds the panel anew while a text field in it has the focus: the field, its caret and the
+// keyboard would go); a focused field not typed in yet would follow its new default text (the browser's untouched field):
+// setting its value pins what it shows (same text: the caret stays). _kb / _kf (events.js): the text it shows is the base of
+// the next save, and left untouched from here it takes the newest text
+function lpDetailDraw() {
+  const d = $('#detail'), a = document.activeElement, pm = morphRoot;
+  if (d && a && d.contains(a) && editFocused() && 'value' in a) { a.value = a.value; a._kb = a._kf = a.value; }
+  morphRoot = d; try { renderDetail(); } finally { morphRoot = pm; }
 }
 // 2.280.0 A (#3109): the sidebar's parts of the delta (?side=1), taken as applyState takes them from the whole state; the
 // agents come from their own route
@@ -182,7 +230,10 @@ function lpSideTake(j) {
   S.team = j.team || {enabled: false, unread: 0};
   S.news = j.news || {unread: 0, sig: ''};
   S.evcals = j.evcals || [];
-  if (j.evsig !== undefined && j.evsig !== S.evsig) { S.evsig = j.evsig; if (S.booted) calInvalidate(); }
+  if (j.notes) S.notes = j.notes;  // 2.1264.0 (#6335 B3)
+  // 2.1264.0 (#6335 B4): an open calendar / Today view is drawn (it fetches its range again); was only invalidated - the change
+  // of another device showed only after leaving the view
+  if (j.evsig !== undefined && j.evsig !== S.evsig) { S.evsig = j.evsig; if (S.booted) { calInvalidate(); if (lpCalShown()) lpViewSafe(); } }
 }
 // the view redrawn by morphing unless a field / form in it is busy (then marked stale, drawn later like viewSafeRender)
 function lpViewSafe() { if (lpHold() || (editing() && $('#view')?.contains(document.activeElement)) || lpFormBusy($('#view'))) { S.viewStale = true; return; } lpMorphView(); }

@@ -5,6 +5,8 @@
 // - someone else saved in between: the next change of the editor gets 409, the bar "Changed in the meantime" with
 //   "Reload" shows, the other one's state stays on the server; Reload shows it and the bar goes
 // - a status change in between (its answer has no version): the next edit still saves (no false conflict)
+// - 2.1264.0 (#6331): Finalise while another session changed a price: the conflict bar, nothing finalised; Reload shows the
+//   new price, then Finalise works
 // freelancer-matrix: office  (the person without an organisation uses the same editor code)
 const path = require('path');
 const {execFileSync} = require('child_process');
@@ -58,6 +60,26 @@ async function editor(user) {
   change(w, d.querySelector('.ofdits [data-i="0"][data-k="qty"]'), '5');
   s = await until(async () => { const x = await call('GET', `/api/office/docs/${doc.id}`); return +x.items?.[0]?.qty === 5 ? x : null; });
   check(s && s.items[1].title === 'Editing (phone)' && !d.querySelector('.ofdcf'), 'after Reload the next edit saves on the current state' + tag);
+  // ---- 2.1264.0 (#6331): finalising the shown draft while the phone changed a position -> the bar, nothing finalised
+  await until(() => w.eval('OFD.saving') === 0);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  const ph = s.items.map(x => ({id: x.id, kind: x.kind, title: x.title, qty: x.qty, unit: x.unit, rate: x.rate, tax: x.tax}));
+  ph[0].rate = 950;
+  check((await call('PUT', `/api/office/docs/${doc.id}/items`, {items: ph, expect_updated_at: s.updated_at})).status === 200, '#6331: the phone changes a price' + tag);
+  const shown = d.querySelector('.ofdits [data-i="0"][data-k="rate"]')?.value;
+  w.confirm = () => true;
+  click(w, d.querySelector('[data-ofd="finalize"]'));
+  check(await until(() => d.querySelector('.ofdcf [data-ofd="cf-reload"]')), '#6331: Finalise on the old state shows the conflict bar' + tag);
+  s = await call('GET', `/api/office/docs/${doc.id}`);
+  check(!s.locked && +s.items[0].rate === 950, `#6331: nothing finalised, the phone's price stays (${s.locked}, ${s.items[0].rate})` + tag);
+  check(!/950/.test(shown || ''), '#6331: the editor showed the old price before ' + shown + tag);
+  click(w, d.querySelector('[data-ofd="cf-reload"]'));
+  check(await until(() => !d.querySelector('.ofdcf') && /950/.test(d.querySelector('.ofdits [data-i="0"][data-k="rate"]')?.value || '')), '#6331: Reload shows the new price' + tag);
+  await until(() => !w.eval('OFD.docLoading'));
+  await until(() => d.querySelector('[data-ofd="finalize"]'));
+  click(w, d.querySelector('[data-ofd="finalize"]'));
+  const fin = await until(async () => { const x = await call('GET', `/api/office/docs/${doc.id}`); return x.locked && x; });
+  check(fin && +fin.items[0].rate === 950 && !d.querySelector('.ofdcf'), '#6331: after Reload Finalise works on the shown state' + tag);
   check(!errs.length, 'no script errors ' + errs.join(' | ') + tag); errs.splice(0);
   w.close();
 }

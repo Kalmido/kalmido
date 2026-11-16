@@ -30,7 +30,7 @@ from ..notify.alerts import _env_int
 from ..api.v1 import PRIO_VALUES, v1_comment
 from ..api.common import v1_args, v1_call, v1_err, v1_feature, v1_json, v1_view
 from ..agents.core import (
-    agent_active, AGENT_EVENTS, agent_row, agent_shares, AGENT_STATUSES, AGENT_TYPING_S, AGENT_WAIT_MAX, need_person,
+    agent_active, AGENT_EVENTS, agent_row, AGENT_ROW_SQL, agent_shares, AGENT_STATUSES, AGENT_TYPING_S, AGENT_WAIT_MAX, need_person,
     JOB_ACTIONS, JOB_STATES, need_agent, TIDY_MODES,
 )
 from ..collab.reactions import clean_emoji, comment_rx_on, ltag_create, ltag_delete, ltag_update, ltags_of_lists, react, with_reactions
@@ -808,8 +808,7 @@ def agents_usage_get():
     adm = is_admin_id(c, uid)
     days = as_int(request.args.get("days", 30), "days", 7, 90)
     sel = as_int(request.args["agent_id"], "agent_id", 1) if request.args.get("agent_id") else None
-    ags = [a for a in c.execute("""SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u
-                                   ON u.id=a.user_id WHERE u.kind='agent' ORDER BY u.id""").fetchall()
+    ags = [a for a in c.execute(AGENT_ROW_SQL + " WHERE u.kind='agent' ORDER BY u.id").fetchall()
            if adm or agent_shares(c, a["user_id"], uid)]
     ids = [a["user_id"] for a in ags]
     today = local_now().date()

@@ -64,6 +64,13 @@ empty status = not tracked (start page card *Projects*, *Where is it stuck?*). T
   - its webhook stops and the pending deliveries are dropped.
 
   Turning Enabled on again resumes from new events.
+- **A locked account locks its personal agents (2.1264.0).** While the account of the person a personal agent belongs to
+  is locked (by an admin or the hoster), the agent is stopped like with the kill switch: its token answers `403`
+  `{"error": {"code": "owner_locked", "message": "The account this agent belongs to is locked"}}` (REST and the tools of
+  the hosted MCP server; `/mcp` itself answers `403`), no new events are recorded, its webhook gets nothing and pending
+  deliveries are dropped. Nothing is changed on the agent: once the account is unlocked it works again at once, with the
+  same token. Team agents (no owner) are not affected. An agent treats it like *paused*: wait and try again later, do not
+  ask for a new token.
 - **Everything is visible.** The agent's comments, changes, jobs and approvals appear in the task history and in the Agents tab like anyone else's.
 
 <a id="permissions-2150"></a>
