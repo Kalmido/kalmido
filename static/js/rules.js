@@ -16,7 +16,7 @@ const RUL_ACT = [['assign', N_('Assign to')], ['due', N_('Set the due date')], [
   ['done', N_('Mark it as done')], ['reopen', N_('Open it again')]];  // 2.633.0 (#4781)
 const RX_PRIO = [['none', N_('None')], ['low', N_('Low')], ['medium', N_('Medium')], ['high', N_('High')], ['urgent', N_('Urgent')]];
 const RUL_DAYS = [0, 1, 2, 3, 7, 14, 30];
-const rul_on = l => !!l && !l.is_inbox && l.life !== 'health' && canManage(l);
+// 2.1230.0 (#4742): rul_on, rul_boxHtml, rul_cmtTag and rul_is stay at start (lazyload.js), this file loads on demand (module rules)
 const rul_secs = lid => S.sections.filter(s => s.list_id === lid);
 const rul_q = s => tr('“{0}”', s);
 const rul_gone = () => tr('(deleted)');
@@ -96,11 +96,7 @@ function rxActValHtml(l, fid, cur) {  // the fixed value, as the field type asks
 }
 const rul_sentence = r => { const c = rul_condText(r); return c ? tr('When {0} and {1}, then {2}.', rul_trigText(r), c, rul_actText(r)) : tr('When {0}, then {1}.', rul_trigText(r), rul_actText(r)); };
 
-// ---- the section in the list settings (dialogs.js listModal)
-function rul_boxHtml(l) {
-  if (!rul_on(l)) return '';
-  return `<h4 title="${esc(tr('Automatic steps for the tasks of this project'))}">${tr('Rules')}</h4><div class="members rul-box" id="l-rules"><div class="muted mhint">${tr('Loading…')}</div></div>`;
-}
+// ---- the section in the list settings (dialogs.js listModal; its empty box rul_boxHtml is in lazyload.js since 2.1230.0, #4742)
 function rul_rowsHtml(lid) {
   const d = RUL[lid]; if (!d) return `<div class="muted mhint">${tr('Loading…')}</div>`;
   if (!d.available) return `<div class="muted mhint">${tr('Rules are not available in this project')}</div>`;
@@ -268,11 +264,8 @@ function rul_dialog(lid, r, done) {
   setTimeout(() => $('#rul-name', md)?.focus(), 50);
 }
 
-// ---- comments written by a rule (collab.js commentHtml)
-const rul_cmtTag = c => c?.rule_name ? `<span class="rul-tag">${ic('zap', 's')}${esc(tr('Rule {0}', c.rule_name))}</span>` : '';
-
-// ---- the proposal card (agents.js): an agent proposes a rule, the person accepts (👍) or declines (👎)
-const rul_is = v => v?.kind === 'rule';
+// ---- the proposal card (agents.js): an agent proposes a rule, the person accepts (👍) or declines (👎); rul_is is in
+// lazyload.js since 2.1230.0 (#4742), propOpen loads this file first
 function rul_draw(v) {
   const p = v.proposal || {}, rv = v.rule_view;
   const main = `<div class="lyp-head"><span class="lyp-by">${esc(tr('Proposal by {0}', v.agent.name))}</span> · ${esc(v.list_name || '')}</div>

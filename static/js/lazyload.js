@@ -112,13 +112,15 @@ const LD_MODS = {
   // 2.1030.0 (#5785): the quote's own texts of one interface language (after quotes, LD_NEED); only that language loads
   quotes_es: ['quotes_dada_es'], quotes_fr: ['quotes_dada_fr'], quotes_it: ['quotes_dada_it'], quotes_nl: ['quotes_dada_nl'],
   helpview: ['helpview'],  // 2.1086.0 (#5820): the view "Help" (#help), the user's how-to sections
+  orgexport: ['orgexport'],  // 2.1230.0 (#4742): the export / retention export of an organisation or the own office (Settings, Office > Settings, deleting the account); settings and office load it first (LD_NEED)
+  rules: ['rules'],  // 2.1230.0 (#4742): the rules of a list (the section of the list settings, a rule's dialog, the proposal card); the start keeps rul_on, rul_boxHtml, rul_cmtTag, rul_is (below)
   meetprop: ['meetprop'],  // 2.1166.0 (#4742): "Tasks from notes" (the request dialog, the chat's proposal cards); the agent chat loads it first (LD_NEED), the list menu through mtg_request (LD_CALL)
   cinvite: ['cinvite'],  // 2.1191.0 (#4550): invitation links for people without an account ("Find people", the page /#cinv/<token>)
 };
 // 2.65.0 (#1823): modules a module needs before its own files (their globals are used while it draws): the settings dialog
 // draws the agent panes (agentchat.js), the calendars (calview.js) and the tokens / webhooks (integrations.js), the agent chat
 // uses the token dialogs, a knowledge page embeds mind maps; 2.87.9 (#1936): Paperless-ngx (paperless.js) is in Integrations
-const LD_NEED = {pdf: ['swipenav'], settings: ['agentchat', 'calendar', 'integrations', 'playbook', 'docs', 'timesheet', 'team', 'family'], agentchat: ['integrations', 'meetprop'] /* 2.1166.0 (#4742) */, wiki: ['mindmap'], docs: ['ablage', 'tagsel', 'asstprop', 'swipenav'], office: ['asstprop', 'ofundo', 'ablage', 'clientpage'], contacts: ['clientpage'], trashui: ['clientpage'], sheets: ['ofundo'], fsshare: ['ablage'], filereq: ['ablage'], tagsel: ['ablage'], fslock: ['ablage'],
+const LD_NEED = {pdf: ['swipenav'], settings: ['agentchat', 'calendar', 'integrations', 'playbook', 'docs', 'timesheet', 'team', 'family', 'orgexport'] /* 2.1230.0 (#4742) */, agentchat: ['integrations', 'meetprop'] /* 2.1166.0 (#4742) */, wiki: ['mindmap'], docs: ['ablage', 'tagsel', 'asstprop', 'swipenav'], office: ['asstprop', 'ofundo', 'ablage', 'clientpage', 'orgexport'] /* 2.1230.0 (#4742) */, contacts: ['clientpage'], trashui: ['clientpage'], sheets: ['ofundo'], fsshare: ['ablage'], filereq: ['ablage'], tagsel: ['ablage'], fslock: ['ablage'],
   quotes_es: ['quotes'], quotes_fr: ['quotes'], quotes_it: ['quotes'], quotes_nl: ['quotes']};  // 2.1030.0 (#5785): a language's quote texts fill QD_TR of quotes_dada.js  // 2.122.0 B: docs -> tagsel; 2.126.1 A (#2123): docs / office -> asstprop; 2.652.0 (#5071): pdf -> swipenav (the swipe of the full screen); 2.882.0 (#5557): docs -> swipenav (the swipe of the document view)
 // 2.599.0 (#4907): settings no longer name ablage: their sharing defaults load it themselves (settings.js); docs still needs it
 // 2.501.0 (#4198): module ablage: docs (the folder tree, moves, menus), office (FS_REF_ICON, requests) and the parts of the file store use its globals
@@ -154,6 +156,7 @@ const LD_CALL = {settings: ['settingsModal', 'setApply', 'settingsSync', 'modCou
   undolist: ['ul_open'],  // 2.773.0 (#5250): the window of the ← button
   ofwalk: ['wlk_open'],  // 2.778.0 (#5383)
   callsheet: ['cs_open'],  // 2.855.0 (#1956): the button "Call sheet" (dispo.js)
+  rules: ['rul_mount'],  // 2.1230.0 (#4742): the list settings fill the rules box (dialogs.js listModal)
   meetprop: ['mtg_request']};  // 2.1166.0 (#4742): "Tasks from notes" of the list menu / the proposal kind extract (agents.js propRequest)
 // 2.65.0 (#1823): functions that only update what the module drew: before it is loaded there is nothing to update (no loading)
 const LD_NOP = {agentchat: ['chatLoad', 'chatPatch', 'chatFit', 'stepsChanged', 'chatTypers', 'chatStHtml'], timeline: ['tlKbSync', 'tlAfterRender', 'rmAfterRender'],
@@ -409,6 +412,20 @@ window.wk_palAdd = () => { if (feat('wiki')) loadModule('wiki').catch(() => {});
 // the module when they are drawn and draw again once it is there
 window.vdr_taskHtml = t => { if (t?.id > 0) loadModule('videos').then(() => { if (S.sel === t.id && vdr_rows('task_id', t.id, () => vdr_redrawTask(t.id))) vdr_redrawTask(t.id); }, () => {}); return ''; };  // 2.96.3: one redraw, focus kept
 window.vdr_projHtml = window.vdr_clientHtml = () => { ld_later('videos'); return ''; };
+// 2.1230.0 (#4742) the rules of a list (rules.js, module rules) load on demand: what the start files ask before it is loaded
+// stays here (moved here unchanged from rules.js, 2.71.0 A #1457): whether the list settings show the section and its empty
+// box (dialogs.js listModal; rul_mount is a stand-in of LD_CALL that loads the module and fills it), the mark of a comment
+// written by a rule (collab.js commentHtml) and the kind of a proposal (agents.js; propOpen loads the module for its card)
+const rul_on = l => !!l && !l.is_inbox && l.life !== 'health' && canManage(l);
+// ---- the section in the list settings (dialogs.js listModal)
+function rul_boxHtml(l) {
+  if (!rul_on(l)) return '';
+  return `<h4 title="${esc(tr('Automatic steps for the tasks of this project'))}">${tr('Rules')}</h4><div class="members rul-box" id="l-rules"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+}
+// ---- comments written by a rule (collab.js commentHtml)
+const rul_cmtTag = c => c?.rule_name ? `<span class="rul-tag">${ic('zap', 's')}${esc(tr('Rule {0}', c.rule_name))}</span>` : '';
+// ---- the proposal card (agents.js): an agent proposes a rule, the person accepts (👍) or declines (👎)
+const rul_is = v => v?.kind === 'rule';
 // 2.563.0 (#4742) the client page (clientpage.js, module clientpage) loads on demand: the start part of the e-mail filing that
 // lived there stays at start (moved here unchanged from clientpage.js, 2.149.0 F #2518): the link to the mail a task / an event
 // was made from, its click, the stand-ins of the client's card and the project page

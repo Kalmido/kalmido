@@ -1,6 +1,7 @@
 // ---- 2.42.0 (#833): Settings > Organisation > "Export the organisation" (admins of the organisation). The server builds an
 // encrypted archive in the background (kalmido/admin/orgexport.py); here: start, state (polled while it runs), download,
 // delete. The archive opens with the organisation's recovery key and tools/kalmido_export_decrypt.py (SELF-HOSTING.md).
+// 2.1230.0 (#4742): loaded on demand (module orgexport in lazyload.js): the settings and the office load it first (LD_NEED).
 const OX = {timer: 0};
 function oxBoxHtml(o) {
   return `<div class="oxbox" data-oxorg="${o.id}"><h5>${tr('Export the organisation')}</h5>
