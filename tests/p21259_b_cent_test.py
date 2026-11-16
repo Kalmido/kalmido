@@ -10,6 +10,9 @@ freelancer-matrix: office
    discount (12.05 USD, 2 % = 0.24, paid 11.81: the discount line takes 0.23, was 0.22 -> the debtor kept -0.01)
  - (c) an invoice of the second half of 2020 (100.00 at 16 %): the DATEV check names the rate without automatic account,
    the balance sheet books 100.00 revenue + 16.00 VAT (was split at 19 %: 97.48 + 18.52) and names it too
+ - #6445 the final invoice's full credit note takes its VAT (178.48, was 178.49 -> 409); a partial credit note keeping the
+   deduction (49.99 + 9.49) plus the rest (119.00) credit it in full; a rate billed in full by two progress invoices keeps
+   the tax line with base 0 and -0.01 in the final invoice and its credit note (was left out)
  - (d) a final invoice after a partial credit note on its progress invoice (100.03 net / 19.01 VAT, credit 50.02 / 9.50):
    the deduction takes off the VAT its text names (19.01 - 9.50 = 9.51, gross 59.52), the final invoice 200.00 net is
    149.99 + 28.49 = 178.48 (was 28.50 / 178.49: one cent too much)
@@ -127,6 +130,42 @@ def bx_rows(s):
     return list(csv.DictReader(io.StringIO(txt), delimiter=";" if ";" in head else ","))
 
 
+def abs_final(s, cl, who):
+    """(d) quotation 200.00, progress invoice 100.03 (+ 19.01), partial credit note 50.02 (+ 9.50), the final invoice finalised
+    -> its id (178.48)."""
+    r = s.post(B + D, json={"project_title": "Imagefilm", "client_id": cl, "service_from": DAY, "service_to": DAY})
+    assert r.status_code == 201, r.text
+    q = r.json()["id"]
+    assert s.put(B + f"{D}/{q}/items", json={"items": [{"title": "Dreh", "qty": 1, "unit": "flat", "rate": 200, "tax": "standard"}]}).ok
+    r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "progress", "amount": "100.03"})
+    check(r.status_code == 201, f"{who} (d): progress 100.03 " + r.text[:200])
+    P = r.json()["id"]
+    check(s.post(B + f"{D}/{P}/finalize").ok, f"{who} (d): progress finalised")
+    p = s.get(B + f"{D}/{P}").json()
+    check(p["totals"]["net"] == "100.03" and p["totals"]["tax"] == "19.01", f"{who} (d): progress 100.03 + 19.01 {p['totals'].get('tax')}")
+    r = s.post(B + f"{D}/{P}/credit")
+    check(r.status_code == 201, f"{who} (d): credit draft " + r.text[:200])
+    CR = r.json()["id"]
+    check(s.put(B + f"{D}/{CR}/items", json={"items": [{"title": "Teilgutschrift", "qty": 1, "unit": "flat", "rate": "50.02", "tax": "standard"}]}).ok
+          and s.post(B + f"{D}/{CR}/finalize").ok, f"{who} (d): partial credit note 50.02 finalised")
+    check(s.get(B + f"{D}/{CR}").json()["totals"]["tax"] == "9.50", f"{who} (d): credit 50.02 + 9.50")
+    r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "final"})
+    check(r.status_code == 201, f"{who} (d): final draft " + r.text[:200])
+    F = r.json()["id"]
+    t = s.get(B + f"{D}/{F}").json()["totals"]
+    check(t["net"] == "149.99" and t["tax"] == "28.49" and t["gross"] == "178.48",
+          f"{who} (d): the deduction takes off 9.51 VAT as its text says: 149.99 + 28.49 = 178.48 (was 28.50 / 178.49) {t.get('net')} {t.get('tax')} {t.get('gross')}")
+    ded = [x for x in t["lines"] if x.get("kind") == "discount"]
+    check(len(ded) == 1 and ded[0].get("abs_tax") == "9.51" and dd(ded[0].get("net")) == D2("-50.01"),
+          f"{who} (d): the deduction line 50.01 carries the billed VAT 9.51 {ded}")
+    r = s.post(B + f"{D}/{F}/finalize")
+    check(r.ok, f"{who} (d): the final invoice finalises " + r.text[:200])
+    t = s.get(B + f"{D}/{F}").json()["totals"]
+    check(t["gross"] == "178.48", f"{who} (d): finalised 178.48 {t.get('gross')}")
+
+    return F
+
+
 def flow(s, who):
     cl = office(s, who)
     # ---- (a) the tax adviser's booking export: 10.00 + 1.90 USD at 1.09
@@ -177,36 +216,54 @@ def flow(s, who):
     check(vat == [D2("16.00")] and rev == [D2("100.00")], f"{who} (c): the balance sheet books 100.00 + 16.00 (was 97.48 + 18.52) {jr}")
     check(any(h.get("key") == "odd_rate" for h in rep.get("hints") or []), f"{who} (c): the balance sheet names it as well {rep.get('hints')}")
     # ---- (d) the final invoice after a partial credit note
-    r = s.post(B + D, json={"project_title": "Imagefilm", "client_id": cl, "service_from": DAY, "service_to": DAY})
-    assert r.status_code == 201, r.text
+    F = abs_final(s, cl, who)
+    # ---- #6445 its full credit note is the final invoice to the cent (was net x rate again: 28.50 / 178.49 -> 409)
+    r = s.post(B + f"{D}/{F}/credit")
+    check(r.status_code == 201, f"{who} #6445: credit draft of the final invoice " + r.text[:200])
+    C1 = r.json()["id"]
+    ct = s.get(B + f"{D}/{C1}").json()["totals"]
+    check(ct["tax"] == "28.49" and ct["gross"] == "178.48", f"{who} #6445: the full credit note takes the final invoice's VAT {ct.get('tax')} {ct.get('gross')}")
+    r = s.post(B + f"{D}/{C1}/finalize")
+    check(r.ok and s.get(B + f"{D}/{F}").json()["status"] == "cancelled", f"{who} #6445: full credit note finalised, the final invoice cancelled {r.status_code} " + r.text[:200])
+    # ---- #6445 a partial credit note keeping the deduction (service 100.00), then the rest (service 100.00) = the final invoice
+    F3 = abs_final(s, cl, who + " 2")
+    fi = s.get(B + f"{D}/{F3}").json()["items"]
+    keep = [{k: x.get(k) for k in ("kind", "title", "detail", "qty", "unit", "rate", "tax")} for x in fi]
+    r = s.post(B + f"{D}/{F3}/credit")
+    C2 = r.json()["id"]
+    r = s.put(B + f"{D}/{C2}/items", json={"items": [dict(x, rate=100) if x["kind"] == "service" else x for x in keep]})
+    check(r.ok, f"{who} #6445: partial credit: service 100.00 and the deduction " + r.text[:200])
+    ct = s.get(B + f"{D}/{C2}").json()["totals"]
+    check(ct["net"] == "49.99" and ct["tax"] == "9.49" and ct["gross"] == "59.48",
+          f"{who} #6445: partial credit 49.99 + (19.00 - 9.51) = 59.48 (was 9.50 / 59.49) {ct.get('net')} {ct.get('tax')} {ct.get('gross')}")
+    check(s.post(B + f"{D}/{C2}/finalize").ok and s.get(B + f"{D}/{F3}").json()["status"] != "cancelled", f"{who} #6445: partial credit finalised, the invoice stays")
+    C3 = s.post(B + f"{D}/{F3}/credit").json()["id"]
+    r = s.put(B + f"{D}/{C3}/items", json={"items": [dict(x, rate=100) for x in keep if x["kind"] == "service"]})
+    ct = s.get(B + f"{D}/{C3}").json()["totals"]
+    check(r.ok and ct["gross"] == "119.00", f"{who} #6445: the rest 100.00 + 19.00 {ct.get('gross')}")
+    r = s.post(B + f"{D}/{C3}/finalize")
+    check(r.ok and s.get(B + f"{D}/{F3}").json()["status"] == "cancelled",
+          f"{who} #6445: 59.48 + 119.00 = 178.48 credits the final invoice in full (was 409: 59.49 + 119.00 > 178.48) {r.status_code} " + r.text[:200])
+    # ---- #6445 a rate billed in full by two progress invoices (1.03 + 0.20, 48.98 + 9.31 = 9.51 VAT of 50.01 x 19 % = 9.50):
+    # the final invoice keeps the tax line with base 0 and -0.01 (was left out), its full credit note the same
+    r = s.post(B + D, json={"project_title": "Kurzfilm", "client_id": cl, "service_from": DAY, "service_to": DAY})
     q = r.json()["id"]
-    assert s.put(B + f"{D}/{q}/items", json={"items": [{"title": "Dreh", "qty": 1, "unit": "flat", "rate": 200, "tax": "standard"}]}).ok
-    r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "progress", "amount": "100.03"})
-    check(r.status_code == 201, f"{who} (d): progress 100.03 " + r.text[:200])
-    P = r.json()["id"]
-    check(s.post(B + f"{D}/{P}/finalize").ok, f"{who} (d): progress finalised")
-    p = s.get(B + f"{D}/{P}").json()
-    check(p["totals"]["net"] == "100.03" and p["totals"]["tax"] == "19.01", f"{who} (d): progress 100.03 + 19.01 {p['totals'].get('tax')}")
-    r = s.post(B + f"{D}/{P}/credit")
-    check(r.status_code == 201, f"{who} (d): credit draft " + r.text[:200])
-    CR = r.json()["id"]
-    check(s.put(B + f"{D}/{CR}/items", json={"items": [{"title": "Teilgutschrift", "qty": 1, "unit": "flat", "rate": "50.02", "tax": "standard"}]}).ok
-          and s.post(B + f"{D}/{CR}/finalize").ok, f"{who} (d): partial credit note 50.02 finalised")
-    check(s.get(B + f"{D}/{CR}").json()["totals"]["tax"] == "9.50", f"{who} (d): credit 50.02 + 9.50")
+    assert s.put(B + f"{D}/{q}/items", json={"items": [{"title": "Schnitt", "qty": 1, "unit": "flat", "rate": "50.01", "tax": "standard"}]}).ok
+    for amt in ("1.03", "48.98"):
+        r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "progress", "amount": amt})
+        check(r.status_code == 201 and s.post(B + f"{D}/{r.json()['id']}/finalize").ok, f"{who} #6445: progress {amt} finalised " + r.text[:200])
     r = s.post(B + f"{D}/{q}/invoice", json={"inv_type": "final"})
-    check(r.status_code == 201, f"{who} (d): final draft " + r.text[:200])
-    F = r.json()["id"]
-    t = s.get(B + f"{D}/{F}").json()["totals"]
-    check(t["net"] == "149.99" and t["tax"] == "28.49" and t["gross"] == "178.48",
-          f"{who} (d): the deduction takes off 9.51 VAT as its text says: 149.99 + 28.49 = 178.48 (was 28.50 / 178.49) {t.get('net')} {t.get('tax')} {t.get('gross')}")
-    ded = [x for x in t["lines"] if x.get("kind") == "discount"]
-    check(len(ded) == 1 and ded[0].get("abs_tax") == "9.51" and dd(ded[0].get("net")) == D2("-50.01"),
-          f"{who} (d): the deduction line 50.01 carries the billed VAT 9.51 {ded}")
-    r = s.post(B + f"{D}/{F}/finalize")
-    check(r.ok, f"{who} (d): the final invoice finalises " + r.text[:200])
-    t = s.get(B + f"{D}/{F}").json()["totals"]
-    check(t["gross"] == "178.48", f"{who} (d): finalised 178.48 {t.get('gross')}")
-
+    check(r.status_code == 201, f"{who} #6445: final draft over a rate billed in full " + r.text[:200])
+    F4 = r.json()["id"]
+    t = s.get(B + f"{D}/{F4}").json()["totals"]
+    tl = t.get("tax_lines") or []
+    check(t["net"] == "0.00" and t["tax"] == "-0.01" and len(tl) == 1 and tl[0]["base"] == "0.00" and tl[0]["amount"] == "-0.01",
+          f"{who} #6445: base 0, the tax line -0.01 stays (was left out: 0.00) {t.get('tax')} {tl}")
+    r = s.post(B + f"{D}/{F4}/finalize")
+    check(r.ok, f"{who} #6445: that final invoice finalises " + r.text[:200])
+    r = s.post(B + f"{D}/{F4}/credit")
+    ct = s.get(B + f"{D}/{r.json()['id']}").json()["totals"] if r.status_code == 201 else {}
+    check(ct.get("tax") == "-0.01" and ct.get("gross") == "-0.01", f"{who} #6445: its full credit note the same -0.01 {r.status_code} {ct.get('tax')} {ct.get('gross')}")
 
 subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], check=True, stdout=subprocess.DEVNULL)
 s0 = requests.Session()

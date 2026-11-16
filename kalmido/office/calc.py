@@ -770,9 +770,11 @@ def inv_calc(doc, items, pack=None):
     tax_lines, tax_sum = [], Decimal(0)
     if not novat:
         for k in TAX_KEYS:
-            if base[k] == 0:
+            if base[k] == 0 and not fixed_tax[k]:
                 continue
             amt = money((base[k] - fixed_net[k]) * rates[k] / 100) - fixed_tax[k]  # 2.1259.0 (#6303 d): without deductions as before
+            if base[k] == 0 and amt == 0:  # 2.1259.0 (#6445): a rate billed in full keeps the cent its deductions leave (base 0)
+                continue
             tax_sum += amt
             tax_lines.append({"rate_key": k, "pct": format(rates[k].normalize(), "f"), "base": dstr(base[k]), "amount": dstr(amt),
                               "base_text": fmt_money(base[k], lang, currency), "amount_text": fmt_money(amt, lang, currency),

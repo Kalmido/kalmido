@@ -388,20 +388,39 @@ def abs_deductions(c, oid, offer, lang, cur, fin=None):
 def abs_tax_items(c, oid, r, items):
     """2.1259.0 (#6303 d): the positions of final invoice draft r for the calculator: a deduction abs_deductions wrote (title,
     tax key and amount unchanged) gets abs_tax = the VAT its progress invoice billed less its credit notes, so the final
-    invoice deducts that VAT (section 14 (5) UStG, the figure its text names) instead of net x rate (one cent off)."""
-    if r["kind"] != "invoice" or _col(r, "inv_type") != "final" or not _col(r, "source_doc_id"):
+    invoice deducts that VAT (section 14 (5) UStG, the figure its text names) instead of net x rate (one cent off).
+    2.1259.0 (#6445): credit note r of a finalised final invoice: a deduction it kept (title, tax key, amount) gets the VAT
+    that final invoice froze for it, so the full credit note is the final invoice to the cent (inv_credit_check)."""
+    if r["kind"] == "credit" and _col(r, "cancels_id"):
+        want = _abs_tax_frozen(c, oid, r["cancels_id"])
+    elif r["kind"] == "invoice" and _col(r, "inv_type") == "final" and _col(r, "source_doc_id"):
+        _ids, ded = abs_deductions(c, oid, {"id": r["source_doc_id"]}, r["lang"], r["currency"], r)
+        want = {(x["title"], x["tax"], money(dec(x["rate"]))): x["abs_tax"] for x in ded if x.get("abs_tax") is not None}
+    else:
         return items
-    _ids, ded = abs_deductions(c, oid, {"id": r["source_doc_id"]}, r["lang"], r["currency"], r)
-    want = {(x["title"], x["tax"]): x for x in ded if x.get("abs_tax") is not None}
     if not want:
         return items
     out = []
     for it in items:
-        x = want.get((it.get("title"), it.get("tax"))) if it.get("kind") == "discount" else None
-        if x is not None and dec(it.get("qty"), "1") == 1 and money(dec(it.get("rate"))) == money(dec(x["rate"])):
-            it = dict(it, abs_tax=x["abs_tax"])
+        x = want.get((it.get("title"), it.get("tax"), money(dec(it.get("rate"))))) if it.get("kind") == "discount" else None
+        if x is not None and dec(it.get("qty"), "1") == 1:
+            it = dict(it, abs_tax=x)
         out.append(it)
     return out
+
+
+def _abs_tax_frozen(c, oid, fid):
+    """2.1259.0 (#6445): {(title, tax key, amount): VAT} of the deductions finalised final invoice fid froze (its totals' lines
+    carry abs_tax by position id), {} for any other document."""
+    f = c.execute(f"SELECT id, totals, inv_type, locked_at FROM office_docs WHERE id=? AND org_id=? AND kind='invoice' AND {live_sql()}", (fid, oid)).fetchone()
+    if f is None or not f["locked_at"] or _col(f, "inv_type") != "final":
+        return {}
+    taxed = {ln.get("id"): ln["abs_tax"] for ln in _j(f["totals"], {}).get("lines") or []
+             if isinstance(ln, dict) and ln.get("kind") == "discount" and ln.get("abs_tax") not in (None, "")}
+    if not taxed:
+        return {}
+    return {(it["title"], it["tax"], money(dec(it["rate"]))): taxed[it["id"]] for it in c.execute(
+        "SELECT id, title, tax, rate FROM office_doc_items WHERE doc_id=? AND org_id=? AND kind='discount'", (f["id"], oid)).fetchall() if it["id"] in taxed}
 
 
 def abs_refx(c, oid, r):
