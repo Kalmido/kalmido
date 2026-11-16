@@ -18778,5 +18778,6 @@
   "Add one, import a vCard or CSV file, or connect the phone.": "Ajoute-en un, importe un fichier vCard ou CSV, ou connecte le téléphone.",
   "The groups could not be loaded": "Les groupes n’ont pas pu être chargés",
   "The contact could not be saved": "Le contact n’a pas pu être enregistré",
-  "Only the person who made the link or an admin may change its pictures.": "Seule la personne qui a créé le lien ou un administrateur peut modifier ses images."
+  "Only the person who made the link or an admin may change its pictures.": "Seule la personne qui a créé le lien ou un administrateur peut modifier ses images.",
+  "A step is still running": "Une étape est encore en cours"
 }

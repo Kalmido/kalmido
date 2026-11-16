@@ -18778,5 +18778,6 @@
   "Contacts could not be loaded": "Die Kontakte konnten nicht geladen werden",
   "No contacts yet": "Noch keine Kontakte",
   "Add one, import a vCard or CSV file, or connect the phone.": "Lege einen an, importiere eine vCard- oder CSV-Datei oder verbinde das Handy.",
-  "Only the person who made the link or an admin may change its pictures.": "Bilder am Link kann nur ändern, wer den Link angelegt hat, oder ein Admin."
+  "Only the person who made the link or an admin may change its pictures.": "Bilder am Link kann nur ändern, wer den Link angelegt hat, oder ein Admin.",
+  "A step is still running": "Ein Schritt läuft noch"
 }

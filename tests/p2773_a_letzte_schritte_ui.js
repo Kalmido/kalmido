@@ -105,6 +105,17 @@ const rate = async (ck, sv) => (await call(ck, 'GET', `/api/office/services/${sv
   check(await until(() => /Stayed as it is: Changed: Schnitt Alpha: Changed elsewhere/.test(d.querySelector('#pop .ulnote')?.textContent || '')), `a conflict: the window names what stayed (${d.querySelector('#pop .ulnote')?.textContent})`);
   await w.eval('api = window.__api0, 1');
 
+  // ---- 2.1257.0 (#6283): while a step runs (the arrows' HIST.busy) the buttons are off and the window says so, then on again
+  await until(() => !w.eval('UL.busy || HIST.busy'));
+  await w.eval(`(() => { window.__fs0 = flushSaves; window.__fsGo = null; flushSaves = () => new Promise(r => { window.__fsGo = r; }); window.__hs = histStep('undo'); return 1; })()`);
+  const gos = () => [...d.querySelectorAll('#pop .ulbody [data-ul-go]')];
+  check(await until(() => w.eval('HIST.busy') && gos().length && gos().every(b => b.disabled && b.title === 'A step is still running')),
+    `a step runs: every "Back up to here" is off with its hint ${JSON.stringify(gos().map(b => [b.disabled, b.title]))}`);
+  check(/A step is still running/.test(d.querySelector('#pop .ulbusy')?.textContent || ''), `the window says a step is still running (${d.querySelector('#pop .ulnote')?.textContent})`);
+  await w.eval(`(() => { flushSaves = window.__fs0; window.__fsGo(); return window.__hs.then(() => 1); })()`);
+  check(await until(() => !w.eval('HIST.busy') && !d.querySelector('#pop .ulbusy') && gos().some(b => !b.disabled && !b.title)),
+    `the step done: the buttons are on again ${JSON.stringify(gos().map(b => [b.disabled, b.title]))}`);
+
   // ---- this browser: its own write ("This device"), a task step not on the server ("only this device"), a waiting change
   await w.eval(`api('PATCH', '/api/office/services/${SV}', {daily_rate: 860}).then(() => 1)`);
   const own = (await call(CA, 'GET', '/api/undo')).items[0];

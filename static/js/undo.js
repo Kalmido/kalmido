@@ -362,6 +362,8 @@ function renderHist() {  // in place: keeps the keyboard focus on the button
     const lab = b.list ? tr('Recent steps') : b.lab;  // 2.773.0 (#5250)
     el.disabled = b.off && !b.list; el.title = b.list ? lab : b.tip; el.setAttribute('aria-label', lab); el.classList.toggle('pend', b.p);
   }
+  // 2.1257.0 (#6283): an open "Recent steps" shows at once whether a step runs (its buttons off) and when it is done
+  if (typeof ul_draw === 'function' && document.querySelector('.ulbody')) ul_draw();  // lazy-ok: undolist.js
 }
 function histMenu(anchor, dir) {
   if (dir === 'undo' && S.me?.kind !== 'agent') { $('#toast')?.classList.add('hidden'); ul_open(anchor); return; }  // 2.773.0 (#5250): the list "Recent steps" (undolist.js, loaded on demand)
