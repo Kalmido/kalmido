@@ -26,9 +26,9 @@ from freelancer_fixture import FEATURES, freelancer  # noqa: E402
 from kt import B, DATA, check, dbx, done, fresh, sess, setup  # noqa: E402
 
 CT = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")
-O = "/api/office"
-D = O + "/docs"
-S = O + "/series"
+OFF_API = "/api/office"
+D = OFF_API + "/docs"
+S = OFF_API + "/series"
 TODAY = date.today().isoformat()
 COMPANY = {"name": "Beispiel Film GmbH", "street": "Musterweg 1", "zip": "12345", "city": "Musterstadt", "country": "DE", "email": "hallo@beispiel.example",
            "vat_id": "DE123456789", "iban": "DE02120300000000202051", "bic": "BYLADEM1001", "bank_name": "Beispielbank"}
@@ -63,7 +63,7 @@ def mails(to):
 
 
 def office(s, name):
-    assert s.put(B + O + "/settings", json={"lang": "de", "company_fields": {**COMPANY, "name": name}}).ok
+    assert s.put(B + OFF_API + "/settings", json={"lang": "de", "company_fields": {**COMPANY, "name": name}}).ok
 
 
 def client(s, name, mail):
