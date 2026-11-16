@@ -339,7 +339,7 @@ jobs:
         run: python tools/check_call_arity.py -v
       - name: ruff (E, F, BLE without E501; ruff.toml) red for new code only - tools/ruff_baseline.json (2.755.0, #5294)
         run: |
-          pip install ruff==0.17.4
+          pip install --require-hashes -r tools/ci/lint.lock  # 2.1297.0 (#6509): ruff with hashes (tools/ci/lint.in)
           ruff check --output-format json --exit-zero . > /tmp/ruff.json
           python tools/ruff_baseline.py /tmp/ruff.json
       - name: Every module and script has a line in docs/GLOSSAR.md (2.757.0, #5295)
@@ -362,7 +362,7 @@ jobs:
       - name: Pinned dependencies stay pinned
         run: python tools/pins.py --osv
       - name: Install scanners
-        run: pip install bandit==1.9.4 pip-audit==2.10.1
+        run: pip install --require-hashes -r tools/ci/scan.lock  # 2.1297.0 (#6509): bandit + pip-audit with hashes (tools/ci/scan.in)
       - name: bandit (fails on high severity only)
         run: bandit -q --severity-level high -r app.py kalmido tools
       # 2.360.3 (#2915): the lock files are the complete lists (sub-packages and tzdata too), nothing read from the Dockerfile any more
@@ -374,7 +374,7 @@ jobs:
       # 2.360.3 (#2915): nothing of tests/ ships, so a finding there is reported without stopping the build
       - name: pip-audit of the test tools (informational)
         continue-on-error: true
-        run: pip-audit --strict -r tests/requirements.txt
+        run: pip-audit --strict --disable-pip --require-hashes -r tests/requirements.lock  # 2.1297.0 (#6509): the sub-packages too
       - name: npm audit of the test tools (informational)
         continue-on-error: true
         run: npm audit --omit=optional --prefix tests
@@ -404,7 +404,7 @@ jobs:
           path: ~/.cache/kalmido-validators
           key: kalmido-validators-${{ hashFiles('tools/einvoice_validate.sh') }}
       - name: Test dependencies
-        run: pip install -r tests/requirements.txt
+        run: pip install --require-hashes -r tests/requirements.lock
       # 2.546.0 B (#4289): the image of the job "image" (same key) when it is in the cache, else built here (as the shards)
       - name: Image key
         id: imgkey
@@ -540,7 +540,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Time zone data (Windows has none for zoneinfo; tests/kt.py needs it)
-        run: python -m pip install tzdata==2025.2
+        run: python -m pip install --require-hashes -r tools/ci/tzdata.lock  # 2.1297.0 (#6509)
       - name: PowerShell 7 (pwsh)
         env:
           PWSH: pwsh
@@ -615,7 +615,9 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - run: pip install semgrep==1.183.0
+      # 2.1297.0 (#6509): semgrep with hashes (tools/ci/semgrep.in); the version after --installed is checked against what the
+      # lock installed and is where the Mac runner (kalmido-semgrep.py) reads the semgrep version - keep both on this line
+      - run: pip install --require-hashes -r tools/ci/semgrep.lock && python3 tools/pins.py --installed semgrep==1.183.0
       - name: semgrep scan
         run: semgrep scan --config p/python --config p/flask --config p/javascript --config .semgrep/sql_ident.yml --metrics=off --exclude tests --exclude static/vendor --json --output /tmp/semgrep.json app.py kalmido static tools
       - name: New findings against the exception list
@@ -688,7 +690,7 @@ jobs:
           cache-dependency-path: tests/package-lock.json
       - name: Test dependencies
         run: |
-          pip install -r tests/requirements.txt
+          pip install --require-hashes -r tests/requirements.lock
           npm ci --prefix tests
       # 2.180.0 A (#2692): the image of the job "image" (same key) when it is in the cache, else built here
       - name: Image key
@@ -723,8 +725,8 @@ jobs:
       - name: Coverage tools (nightly full run)
         if: needs.plan.outputs.stage == 'full' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
-          # the target folder as PIP_TARGET: tools/pins.py reads every word after "pip install" as a pinned package
-          PIP_TARGET="$RUNNER_TEMP/cov/lib" pip install coverage==7.17.2
+          # the target folder as PIP_TARGET: tools/pins.py wants every pip install as --require-hashes -r <lock> (2.1297.0, #6509)
+          PIP_TARGET="$RUNNER_TEMP/cov/lib" pip install --require-hashes -r tools/ci/coverage.lock
           cp tools/cov_boot.py "$RUNNER_TEMP/cov/lib/"
           mkdir -p "$RUNNER_TEMP/cov/data"
           echo "KALMIDO_TEST_COVERAGE=$RUNNER_TEMP/cov" >> "$GITHUB_ENV"
@@ -796,7 +798,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Coverage tool
-        run: pip install coverage==7.17.2
+        run: pip install --require-hashes -r tools/ci/coverage.lock  # 2.1297.0 (#6509)
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-shard-*
@@ -998,7 +1000,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Test dependencies (requests for the seed and the checks)
-        run: pip install -r tests/requirements.txt
+        run: pip install --require-hashes -r tests/requirements.lock
       - name: install.sh (last release) -> data -> update.sh (this commit) -> checks
         run: python3 tools/install_upgrade_check.py run --ref "$GITHUB_SHA" --dir "$RUNNER_TEMP/kalmido-install" --out "$RUNNER_TEMP/upgrade-fixture"
       - name: The old database (quarterly fixture for tests/fixtures/upgrade/)
