@@ -8612,3 +8612,7 @@ time,.meta .dt,.dpbtn,.remchips button,.dprow .dpt,.dprow .dps,.fwhen{font-famil
    narrow phone: the symbols alone, never a cut word ("Verschi…"); the word stays in title / aria-label */
 @media (max-width:480px){ .mselbar.ms4 .mbb .mbl{display:none} .mselbar.ms4 .mbb{min-width:2.75rem;justify-content:center} }
 @media (max-width:599px){ .mselbar.ms5 .mbb .mbl{display:none} .mselbar.ms5 .mbb{min-width:2.75rem;justify-content:center} }
+/* 2.1249.0 (#6138): reminders in their own block of the date dialog; the selects never cut their text */
+.remblk>summary{cursor:pointer;display:flex;align-items:center;gap:.5rem;font-size:var(--fs-s);color:var(--muted);padding:.375rem 0}
+.pnagl{white-space:normal}
+#p-nag,#p-rep{min-width:0;max-width:100%;text-overflow:clip}
