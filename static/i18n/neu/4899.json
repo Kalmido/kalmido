@@ -1,0 +1,32 @@
+{
+  "de": {
+    "Open Navigation": "Navigation öffnen",
+    "App server": "Server dieser App",
+    "Menus and bottom bar": "Menüs und Leiste unten",
+    "The bottom bar is edited under Navigation.": "Die Leiste unten stellst du unter Navigation ein."
+  },
+  "es": {
+    "Open Navigation": "Abrir Navegación",
+    "App server": "Servidor de esta app",
+    "Menus and bottom bar": "Menús y barra inferior",
+    "The bottom bar is edited under Navigation.": "La barra inferior se ajusta en Navegación."
+  },
+  "fr": {
+    "Open Navigation": "Ouvrir Navigation",
+    "App server": "Serveur de cette app",
+    "Menus and bottom bar": "Menus et barre du bas",
+    "The bottom bar is edited under Navigation.": "La barre du bas se règle sous Navigation."
+  },
+  "it": {
+    "Open Navigation": "Apri Navigazione",
+    "App server": "Server di questa app",
+    "Menus and bottom bar": "Menu e barra in basso",
+    "The bottom bar is edited under Navigation.": "La barra in basso si imposta in Navigazione."
+  },
+  "nl": {
+    "Open Navigation": "Navigatie openen",
+    "App server": "Server van deze app",
+    "Menus and bottom bar": "Menu’s en onderbalk",
+    "The bottom bar is edited under Navigation.": "De onderbalk stel je in onder Navigatie."
+  }
+}
