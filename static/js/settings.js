@@ -880,7 +880,7 @@ function settingsModal(focus) {
       <h4 id="s-sdd-h">${tr('Completed tasks')}</h4><div class="row"><label for="s-sdd">${tr('In projects and views')}</label><select id="s-sdd"><option value="1">${tr('Show completed')}</option><option value="0" ${s.show_done_default === '0' ? 'selected' : ''}>${tr('Hide completed')}</option></select></div>
       ${hint(tr('The default for every project and view; a folder or a single project can choose otherwise.'))}
       <div class="row">${chk('s-sdn', s.show_done_new !== '0', tr('Hide completed tasks in new projects'))}</div>
-      ${hint(tr('A new project hides its completed tasks; its “…” menu shows them again. A folder default goes first.')) /* 2.1297.0 (#6129): both switches for completed tasks in one section */}
+      ${hint(tr('A new project hides its completed tasks; its “…” menu shows them again. A folder default goes first.'))}${''/* 2.1297.0 (#6129): both switches for completed tasks in one section */}
       <h4 id="s-tips-h">${tr('Tips')}</h4><div class="row"><label>${tr('Hints')}</label><button class="btn sm" data-m="hints-reset">${ic('undo', 's')} ${tr('Show tips again')}</button></div>
       ${hint(tr('Brings back the one-time hints on this device (touch screens show helper texts once).'))}
       <h4 id="s-tabbar-h">${tr('Tab bar')}</h4>
