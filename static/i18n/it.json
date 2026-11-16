@@ -18778,6 +18778,8 @@
   "Contacts could not be loaded": "Non è stato possibile caricare i contatti",
   "No contacts yet": "Ancora nessun contatto",
   "Add one, import a vCard or CSV file, or connect the phone.": "Aggiungine uno, importa un file vCard o CSV o collega il telefono.",
+  "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "L’eliminazione del tuo account {0} è stata annullata. Un amministratore ha bloccato l’account; solo un amministratore può sbloccarlo.",
+  "An admin has locked your account; only an admin can unlock it.": "Un amministratore ha bloccato il tuo account; solo un amministratore può sbloccarlo.",
   "Write down your first task": "Annota il tuo primo compito",
   "Everything starts in the inbox; sort it later.": "Tutto inizia nella posta in arrivo; riordina dopo.",
   "Create a project": "Crea un progetto",
