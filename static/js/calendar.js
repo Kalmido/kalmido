@@ -173,7 +173,11 @@ async function ensureCalEv(lo, hi) {
   }
   // 2.1102.0 (#5704): not under a running drag of the calendar (caldrag.js): a grid drawn anew took the grabbed event / column away
   // (the drag measured a detached column, the browser sent no click after the drop, the next real click was eaten); drawn at the drop
-  if (typeof CG !== 'undefined' && CG.st?.active) { CG.redraw = 1; return; }
+  // 2.1286.0 (#5704): nor under a finger that still holds (the 0.4 s before the drag lifts, CG.st not active yet): the touch
+  // belongs to the block it began on, a grid drawn anew takes that block out of the page and the browser sends the finger's
+  // moves and its end to the removed block only - the drag never came (CI: "hold and drag an event" moved nothing, the answer
+  // of the view's own fetch fell into the hold). Every end of a press runs cg_clear, which draws
+  if (typeof CG !== 'undefined' && (CG.st?.active || (CG.st?.touch && typeof drg_cur !== 'undefined' && drg_cur?.d === CG.st))) { CG.redraw = 1; return; }
   if (S.route.mod === 'cal' || (S.route.mod === 'tasks' && S.route.key === 'today') || S.route.mod === 'home') renderView();  // 2.144.0 C (#2418): + the start page
 }
 function calInvalidate() { S.cal.key = ''; S.cal.loading = ''; S.cal.err = ''; S.cal.seq = (S.cal.seq || 0) + 1; }

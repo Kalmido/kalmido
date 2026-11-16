@@ -60,7 +60,8 @@ RUN_STALE = 45
 TRIES = 3
 SEARCH_MAX = 100     # hits of the Ablage search
 BF_KEY = "ts_backfill"  # settings: {kind: lowest id queued so far, "done": [kinds]}
-_Q = {"thread": None, "bf": 0.0}
+# 2.1283.0 (#6427): recent = the workspaces served, longest ago first (round robin as docs/ingest.py DOCS_NEXT)
+_Q = {"thread": None, "bf": 0.0, "recent": []}
 _WAKE = threading.Event()
 _LOCK = threading.Lock()
 _HAS = {}
@@ -269,10 +270,16 @@ def ts_run_once():
             stale = iso(now_utc() - timedelta(minutes=max(RUN_STALE, OCR_PAGES * OCR_PAGE_S // 60 + 15)))
             c.execute("UPDATE file_text SET state='wait' WHERE state='run' AND updated_at < ?", (stale,))
             c.execute("UPDATE file_text SET state='error', error='failed' WHERE state='wait' AND tries >= ?", (TRIES,))
+            # 2.1283.0 (#6427): one workspace after the other (one not served lately first, then the one served longest
+            # ago), no longer ORDER BY id over all of them: a pile of files of one (a public form takes six a minute) never
+            # holds up the others
             r = c.execute("""UPDATE file_text SET state='run', tries=tries+1, updated_at=? WHERE id=(
-                               SELECT id FROM file_text WHERE state='wait' ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED)
-                             RETURNING id, kind, ref_id, ws""", (_now(),)).fetchone()
-            if not r:
+                               SELECT id FROM file_text WHERE state='wait'
+                               ORDER BY array_position(CAST(? AS TEXT[]), ws) NULLS FIRST, id LIMIT 1 FOR UPDATE SKIP LOCKED)
+                             RETURNING id, kind, ref_id, ws""", (_now(), "{" + ",".join(_Q["recent"]) + "}")).fetchone()
+            if r:
+                _Q["recent"] = [w for w in _Q["recent"] if w != r["ws"]][-63:] + [r["ws"]]
+            else:
                 _backfill(c)
         c.commit()
         if not r:
@@ -354,7 +361,7 @@ def _process(c, row):
     if not "".join(text.split()):
         return _set(c, fid, "none", method=r.get("method") or "", pages=r.get("pages") or 0, sha256=sha)
     _set(c, fid, "found", text=S.doc_seal(c, row["ws"], "file_text.text", text), method=r.get("method") or "",
-         pages=r.get("pages") or 0, truncated=int(len(r.get("text") or "") >= TEXT_CAP), sha256=sha)
+         pages=r.get("pages") or 0, truncated=int(bool(r.get("truncated")) or len(r.get("text") or "") >= TEXT_CAP), sha256=sha)  # 2.1283.0 (#6427): + pages not read
     _index(c, fid, row["ws"], text)
 
 

@@ -38,7 +38,8 @@ const cgs_still = () => { try { return matchMedia('(prefers-reduced-motion: redu
 const cgs_busy = () => !!CG.st?.active || !!CG.nw || document.body.classList.contains('cgdrag') || document.body.classList.contains('tdrag');
 function cgs_dropHolds() {  // a second finger: the pending long presses of caldrag.js / dnd.js are off
   // 2.193.0 (#2219): the holds live in drag.js now - cancel the press there too
-  if (CG.st && !CG.st.active) { if (drg_cur?.d === CG.st) drg_cancel(); clearTimeout(CG.st.timer); CG.st = null; }
+  // 2.1286.0 (#5704): through cg_cancel, which also draws the events a fetch brought while the finger held (CG.redraw)
+  if (CG.st && !CG.st.active) { if (drg_cur?.d === CG.st) drg_cancel(); if (CG.st) cg_cancel(); }
   if (lp && !lp.active) { if (drg_cur?.d === lp) drg_cancel(); lp = null; }
 }
 
