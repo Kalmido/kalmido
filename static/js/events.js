@@ -907,14 +907,21 @@ document.addEventListener('touchend', () => swp_end(false));
 document.addEventListener('touchcancel', () => swp_end(true));
 $('#fab').addEventListener('click', () => { if (typeof QN_FAB === 'object' && ms_lpRecent(QN_FAB)) return; if (typeof calFabEv === 'function' && calFabEv()) { const d = S.calSel || today(); evEditor({start: `${d}T${pad(Math.min(22, new Date().getHours() + 1))}:00`}); return; } openQuickSheet(); });  // 2.477.0 (#3881): the click ending a hold opens no task
 
+// 2.1264.0 (#6326): the base of the conflict guard (_prev) is the text the field showed before this input, not the task in
+// S.tasks - a change of another device may have reached S.tasks while the focused field kept the old text (the redraw leaves
+// a focused field alone): with S.tasks as base the server saw no conflict and the other device's text was gone without a word.
+// _kb = the text before the next input (set when the field gets the focus and when the panel is drawn around it, liveparts.js
+// lpDetailDraw), _kf = the text it showed when a change arrived (left untouched from there: it takes the newest text)
+document.addEventListener('focusin', e => { const t = e.target; if (t.id === 'd-title' || t.id === 'd-content') t._kb = t.value; });
+function dtBase(t) { const b = t._kb; t._kb = t.value; return b; }
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'qinput' || t.id === 'qsheet') updateChips(t);
-  if (t.id === 'd-title') { autosize(t); queueSave(S.sel, 'title', t.value.replace(/\n/g, ' ')); }
+  if (t.id === 'd-title') { autosize(t); queueSave(S.sel, 'title', t.value.replace(/\n/g, ' '), dtBase(t)?.replace(/\n/g, ' ')); }
   if (t.id === 'c-input' && t.value) commentTyping();  // 2.22.0 (#693)
   if (t.id === 'c-input') { autosize(t); if (typeof cmtKeep === 'function') cmtKeep(S.sel, t.value); else S.drafts[S.sel] = t.value; mentionUpdate(t); t.closest('.ccomp')?.classList.toggle('used', !!t.value || !!(S.cfiles[S.sel] || []).length); }
   if (t.classList?.contains('c-edit-input')) { autosize(t); mentionUpdate(t); }
-  if (t.id === 'd-content') { autosize(t); queueSave(S.sel, 'content', t.value); }
+  if (t.id === 'd-content') { autosize(t); queueSave(S.sel, 'content', t.value, dtBase(t)); }
   if (t.id === 'searchq') doSearch(t.value);
 });
 document.addEventListener('change', async e => {
@@ -1041,7 +1048,14 @@ function ev_escGlobal(/** @type {KeyboardEvent} */ e) {
 }
 document.addEventListener('focusout', e => {
   if (e.target.id === 'c-input' || e.target.classList?.contains('c-edit-input')) setTimeout(() => { if (S.mp && document.activeElement !== S.mp.ta) mentionClose(); }, 150);
+  // 2.1264.0 (#6326): a field left untouched while the task changed elsewhere shows the newest text (the redraw kept it as it was)
+  if (e.target.id === 'd-title' || e.target.id === 'd-content') {
+    const f = e.target;
+    if (f._kf !== undefined && f.value === f._kf && f.defaultValue !== f.value && !saveTimers[S.sel + ':' + (f.id === 'd-title' ? 'title' : 'content')]) f.value = f.defaultValue;
+    delete f._kf; delete f._kb;
+  }
   if (e.target.id === 'd-title' || e.target.id === 'd-content') flushSaves();
+  if (S.detailStale && $('#detail')?.contains(e.target)) setTimeout(lpDetailLeft, 0);  // 2.1264.0 (#6326): the panel follows once the field is left (liveparts.js)
   if (e.target.id === 'd-content' && e.target.value.trim()) {  // back to the rendered markdown
     const t = taskById(S.sel); if (t) t.content = e.target.value;
     S.editContent = false;

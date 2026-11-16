@@ -166,14 +166,37 @@ async function lpDelta(v, ch, n, since) {
     if (timeOn() && S.te.tid === sel) loadTaskTime(sel);
     if (S.dp.id === sel) loadDeps(sel);
   }
-  if (lpBusy()) { S.viewStale = true; return true; }  // unsaved input: drawn once it is saved or dropped
+  if (lpBusy()) { S.viewStale = true; lpDetail(sel, changed, true); return true; }  // unsaved input: drawn once it is saved or dropped (the open task's panel: lpDetail)
   td_rcRun(() => { if (lpSideCnt() + (wside ? lpSideSig() : '') !== side) { renderSide(); renderTop(); renderTabs(); badgeSync(); } });  // 2.579.0 (#4199): one counting for the check and the draw
   if (!LP_KEEP.has(S.route.mod) && !LP_NOTASKS.has(S.route.mod)) lpMorphView();
-  if (sel && changed.has(sel)) {
-    if (S.tasks.has(sel)) { if (!$('#detail')?.contains(document.activeElement)) renderDetail(); }
-    else if (!(S.extra || []).some(t => t.id === sel)) closeDetail();
-  }
+  lpDetail(sel, changed);
   return true;
+}
+// 2.1264.0 (#6326): the open task changed elsewhere: its panel is drawn at once, also when the focus is in it (on a phone the
+// panel itself holds the focus, on a computer maybe one of its buttons) - the morph keeps a focused field with what it shows
+// and its caret; that field (S.detailStale) is drawn once it is left (events.js focusout -> lpDetailLeft). Before, a focus
+// anywhere in the panel left the old text on the screen, and typing on sent it over the other device's change.
+function lpDetail(sel, changed, busy) {
+  if (!sel || !changed.has(sel) || S.sel !== sel) return;
+  if (!S.tasks.has(sel)) { if (!busy && !(S.extra || []).some(t => t.id === sel)) closeDetail(); return; }
+  lpDetailDraw();
+  const a = document.activeElement;
+  if (a && editFocused() && $('#detail')?.contains(a)) S.detailStale = sel;
+}
+function lpDetailLeft() {
+  const id = S.detailStale, a = document.activeElement;
+  if (!id || (a && editFocused() && $('#detail')?.contains(a))) return;  // another field of the panel took the focus: its turn when left
+  S.detailStale = 0;
+  if (S.sel === id && S.tasks.has(id)) lpDetailDraw();
+}
+// morphed (renderDetail alone builds the panel anew while a text field in it has the focus: the field, its caret and the
+// keyboard would go); a focused field not typed in yet would follow its new default text (the browser's untouched field):
+// setting its value pins what it shows (same text: the caret stays). _kb / _kf (events.js): the text it shows is the base of
+// the next save, and left untouched from here it takes the newest text
+function lpDetailDraw() {
+  const d = $('#detail'), a = document.activeElement, pm = morphRoot;
+  if (d && a && d.contains(a) && editFocused() && 'value' in a) { a.value = a.value; a._kb = a._kf = a.value; }
+  morphRoot = d; try { renderDetail(); } finally { morphRoot = pm; }
 }
 // 2.280.0 A (#3109): the sidebar's parts of the delta (?side=1), taken as applyState takes them from the whole state; the
 // agents come from their own route
