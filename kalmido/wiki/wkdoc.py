@@ -50,9 +50,11 @@ WKD_FILE_RE = re.compile(r"^/api/wiki/files/(\d{1,15})(?:/|$)")
 _INLINE = re.compile(
     r"(?P<esc>\\[\\`*_{}\[\]()#+\-.!|~>])"
     r"|(?P<code>`{1,20})(?P<codet>.{1,500}?)(?P=code)"
-    r"|!\[(?P<ialt>[^\]\n]{0,300})\]\((?P<isrc>[^)\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
-    r"|\[\[(?P<wl>[^\]|\n]{1,300})(?:\|(?P<wlt>[^\]\n]{1,300}))?\]\]"
-    r"|\[(?P<lt>[^\]\n]{1,300})\]\((?P<lh>[^)\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
+    # 2.1280.0 (#6423, review): labels without "[" and addresses without "(" (as the public page's WSH_INLINE) -- with them a
+    # run of "![a](" started the 2000 characters again at every "[": seconds per paragraph, a minute for a full page
+    r"|!\[(?P<ialt>[^\[\]\n]{0,300})\]\((?P<isrc>[^()\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
+    r"|\[\[(?P<wl>[^\[\]|\n]{1,300})(?:\|(?P<wlt>[^\[\]\n]{1,300}))?\]\]"
+    r"|\[(?P<lt>[^\[\]\n]{1,300})\]\((?P<lh>[^()\s]{1,2000})(?:\s+\"[^\"\n]{0,500}\")?\)"
     r"|<(?P<auto>(?:https?://|mailto:)[^>\s]{1,2000})>"
     r"|(?P<bare>https?://[^\s<>()\[\]]{0,2000}[^\s<>()\[\].,;:!?'\"])"
     r"|(?P<br><br\s{0,10}/?>)"
@@ -139,7 +141,10 @@ def wkd_blocks(text):
     while i < len(lines):
         ln = lines[i]
         if len(ln) > MD_LINE_MAX:  # 2.1280.0 (#6423): a line this long is never a block, no block pattern runs over it
-            para.append(ln)
+            if ln.strip():
+                para.append(ln)
+            else:
+                flush()
             i += 1
             continue
         f = _FENCE.match(ln)

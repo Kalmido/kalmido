@@ -1446,7 +1446,8 @@ def wsh_inline(s, link, file, depth=0, node=None):
 
 
 def _tsep(line):
-    """Is line the separator line of a table ("|---|:--:|")? At least two dashes in its first cell, as before."""
+    """Is line the separator line of a table ("|---|:--:|")? At least two dashes in its first cell, as before; the whole line
+    must be one now (the Word export's rule), "|-- text" is none."""
     from .wkdoc import _TSEP
     st = line.strip()
     return len(line) <= MD_LINE_MAX and bool(_TSEP.match(st)) and st.lstrip("|").lstrip().lstrip(":").startswith("--")
@@ -1470,7 +1471,10 @@ def wsh_md(text, link, file, depth=0, node=None):
         ln = lines[i]
         st = ln.strip()
         if len(ln) > MD_LINE_MAX:  # 2.1280.0 (#6423): a line this long is never a block, no block pattern runs over it
-            para.append(st)
+            if st:
+                para.append(st)
+            else:
+                flush()
             i += 1
             continue
         fence = re.match(r"^\s*(```|~~~)\s*([\w-]*)", ln)

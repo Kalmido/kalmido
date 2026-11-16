@@ -1512,7 +1512,7 @@ def _md_parse(text, plan, name, ext0, heads_as_lists=True, src="markdown"):
         if x.lstrip().startswith(("```", "~~~")):
             fence = not fence
         elif not fence and len(x) <= MD_LINE_MAX:  # 2.1280.0 (#6423): a longer line is never a heading or a task
-            h = md_head_line(x)
+            h = md_head_line(x, 0)
             if h:
                 heads.append(h[0])
             elif _MD_BOX.match(x):
@@ -1532,7 +1532,7 @@ def _md_parse(text, plan, name, ext0, heads_as_lists=True, src="markdown"):
                 last["_md"].append(x.strip())
             continue
         long = len(x) > MD_LINE_MAX  # 2.1280.0 (#6423): such a line is text (a task's notes), no block pattern runs over it
-        h = None if fence else md_head_line(x)
+        h = None if fence else md_head_line(x, 0)
         if h:
             txt = imp_line(re.sub(r"[*_`]", "", h[1]), LIST_NAME_MAX)
             if top and h[0] == top:
