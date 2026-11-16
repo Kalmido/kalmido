@@ -518,13 +518,16 @@ async function ab_upload(files, target) {
   // newer version meanwhile stays as it is, is named and leaves this step (also for Redo)
   const cur = new Map(vers.map(x => [x.id, x.version]));
   const verSteps = async back => {
-    const kept = [];
+    const kept = [], failed = []; let done = 0;
     for (const x of vers) {
       if (!cur.has(x.id)) continue;
       const r = await ab_upVerStep(x, back ? x.version - x.n : x.version, cur.get(x.id));
-      if (r === null) { cur.delete(x.id); kept.push(x.name); } else if (r?.version) cur.set(x.id, r.version);
+      if (r === null) { cur.delete(x.id); kept.push(x.name); } else if (r === undefined) failed.push(x.name); else { done++; if (r?.version) cur.set(x.id, r.version); }
     }
-    return kept.length ? {note: tr('Meanwhile someone else uploaded a newer version, it stays as it is: {0}', kept.slice(0, 4).join(', ') + (kept.length > 4 ? ' …' : '')), none: !created.length && !cur.size} : {};
+    // Fable review: a file whose step failed otherwise (said by ab_upVerStep) is named as not done; nothing done at all = the step stays
+    const none = !created.length && !done;
+    if (!kept.length && !failed.length) return {};
+    return {skipped: failed, note: kept.length ? tr('Meanwhile someone else uploaded a newer version, it stays as it is: {0}', kept.slice(0, 4).join(', ') + (kept.length > 4 ? ' …' : '')) : '', none};
   };
   offerUndo(msg, histAdd({label: tr('Upload'), undo: async () => { for (const x of created) await ab_req('DELETE', `/api/files/nodes/${x.id}`); return verSteps(true); },
     redo: async () => { for (const x of created) await ab_req('POST', `/api/files/nodes/${x.id}/restore`); return verSteps(false); }}));
