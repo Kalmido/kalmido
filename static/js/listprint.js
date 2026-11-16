@@ -89,3 +89,30 @@ function lexPrint(lid) {
   document.title = lname(l);
   if (!l.is_inbox) rawFetch('GET', `/api/lists/${lid}/overview`).then(j => { head = j; if (el.isConnected) draw(); }, () => {});  // offline / no right: the page without head
 }
+// 2.1292.0 (#6136): one task as a printable page (the task menu's "Print", also for who may only view): its project, date,
+// priority, tags, the description and the subtasks; the same sheet as the list's (print / save as PDF, close)
+async function lexTaskPrint(id) {
+  const t = taskById(id); if (!t) return;
+  let note = t.note_locked ? '' : t.content || '';
+  if (!t.note_locked && tkNoteMissing(t)) { try { note = await tkNoteLoad(id) || ''; } catch { toast(tr('Only available online.')); return; } }
+  const l = listById(t.list_id), kids = [], walk = (pid, d) => { for (const k of children(pid).sort((a, b) => (a.sort || 0) - (b.sort || 0) || a.id - b.id)) { if (k.deleted_at) continue; kids.push({t: k, depth: d}); walk(k.id, d + 1); } };
+  walk(id, 0);
+  const meta = [l ? lname(l) : '', t.due ? fmtDateLoc(t.due) + (t.due_time ? ' ' + fmtTimeLoc(t.due_time) : '') : '', t.priority ? tr(PRIO_NAMES[t.priority] || '') : '',
+    (t.tags || []).map(g => '#' + g).join(' '), t.status === 2 ? tr('Completed') : ''].filter(Boolean);
+  const sub = ({t: k, depth}) => `<li class="lxr ${k.status ? 'done' : ''}" style="margin-left:${esc(depth * 1.5)}rem"><span class="lxbox" aria-hidden="true">${k.status === 2 ? '&#10003;' : ''}</span><div class="lxt"><b>${esc(k.title)}</b></div></li>`;
+  $('.tsheet')?.remove();
+  /** @type {any} */
+  const el = document.createElement('div');
+  el.className = 'tsheet';
+  el.innerHTML = `<div class="tsbar"><button class="btn pri" data-ts="print">${ic('download', 's')} ${esc(tr('Print / save as PDF'))}</button><span class="spacer"></span><button class="btn" data-ts="close">${esc(tr('Close'))}</button></div>
+    <div class="tspage lexpage lextask"><h1>${esc(t.title)}</h1><div class="tssub">${esc([tkOf(t) || '#' + t.id, ...meta].join(' · '))}</div>${note ? `<div class="md lxdesc">${/*html-ok*/ renderMd(note, true, {lid: t.list_id})/* the description, rendered as in the panel */}</div>` : ''}
+    ${kids.length ? `<h2>${esc(tr('Subtasks'))}</h2><ul class="lxl">${/*html-ok*/ kids.map(sub).join('')/* escaped above */}</ul>` : ''}</div>`;
+  document.body.appendChild(el);
+  kb_push('dialog', el, {close: () => $('[data-ts="close"]', el)?.click()});
+  document.body.classList.add('tsprint');
+  const close = () => { el.remove(); document.body.classList.remove('tsprint'); document.title = APP_NAME; };
+  el.addEventListener('click', ev => { const b = ev.target.closest('[data-ts]'); if (!b) return; if (b.dataset.ts === 'close') close(); else window.print(); });
+  el.addEventListener('keydown', ev => { if (ev.key === 'Escape') close(); });
+  document.title = t.title;
+  $('[data-ts="print"]', el)?.focus();
+}

@@ -437,6 +437,14 @@ function crumbsHtml(t, l, parent) {
   // 2.13.0: the task number, a tap copies the link; 2.218.0 A (#2799): only in the task's "…" menu now ("Copy link · #18"), also on a desktop
   return `<nav class="dcrumbs" aria-label="${esc(tr('Where this task is'))}">${parts.join(`<span class="dcsep" aria-hidden="true">›</span>`)}</nav>`;
 }
+// 2.1292.0 (#6136): "History" of the task menu (also for who may only view): the panel of the task, scrolled to its history
+// (the folded "History", opened) or to its comments with the changes (a shared list)
+function taskHistGo(id) {
+  if (S.sel !== id) openDetail(id);
+  const h = $('#detail #d-hist'), el = h || $('#detail #d-tl');
+  if (h) h.open = true;
+  if (el) el.scrollIntoView?.({block: 'start'}); else toast(tr('Nothing yet'));  // sprung-ok: the person asked for the history
+}
 async function copyTaskLink(id) {
   const url = `${location.origin}/#t/${id}`;
   const k = tkOf(taskById(id)) || '#' + id;  // 2.390.0 (#3353): the key when the project has one
@@ -746,8 +754,8 @@ function renderDetail0(D = $('#detail')) {
       ${thumb ? '' : dChk}
       ${thumb ? '' : dDate}
       ${''/* 2.218.0 A (#2799): "Today" is left out when the task is due today (the date chip says it); "Tomorrow" stays, a further click adds a day */}${ck || thumb ? '' : '<span class="dbr" aria-hidden="true"></span>'}<span class="spacer"></span>
-      ${ro ? (t.context ? `<span class="rotag" title="${esc(tr('The main task of a subtask assigned to you: read-only, without notes, files and comments'))}">${ic('sub', 's')}${tr('Context')}</span>`
-        : '' /* 2.1238.0 (#6161, Stufe 2): the read hint is ONE (roDet below / the list head), not a tag here too */) : `${ck ? '' : `<button class="iconbtn ${t.pinned ? 'on' : ''}" data-act="pin" data-id="${t.id}" title="${t.pinned ? tr('Unpin') : tr('Pin')}" aria-label="${tr('Pin')}" aria-pressed="${!!t.pinned}">${ic(t.pinned ? 'pinf' : 'pin')}<span class="dpw dpin">${esc(t.pinned ? tr('Pinned') : tr('Pin'))}</span></button>
+      ${/*html-ok*/ ro ? (t.context ? `<span class="rotag" title="${esc(tr('The main task of a subtask assigned to you: read-only, without notes, files and comments'))}">${ic('sub', 's')}${tr('Context')}</span>`
+        : '' /* 2.1238.0 (#6161, Stufe 2): the read hint is ONE (roDet below / the list head), not a tag here too */) + `<button class="iconbtn" data-act="task-menu" data-id="${esc(t.id)}" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button>`/* 2.1292.0 (#6136): the read functions (Copy link, Print, History) */ : `${ck ? '' : `<button class="iconbtn ${t.pinned ? 'on' : ''}" data-act="pin" data-id="${t.id}" title="${t.pinned ? tr('Unpin') : tr('Pin')}" aria-label="${tr('Pin')}" aria-pressed="${!!t.pinned}">${ic(t.pinned ? 'pinf' : 'pin')}<span class="dpw dpin">${esc(t.pinned ? tr('Pinned') : tr('Pin'))}</span></button>
       <button class="iconbtn ${t.priority ? 'flag-' + t.priority : ''}" data-act="prio" data-id="${t.id}" aria-haspopup="menu" title="${esc(tr('Priority') + ': ' + prioWord(t.priority))}" aria-label="${esc(tr('Priority') + ': ' + prioWord(t.priority))}">${ic('flag')}<span class="dpw">${esc(t.priority ? prioWord(t.priority) : tr('Priority'))}</span></button>`}
       ${''/* 2.364.0 D (#3036): Lock lives in "…"; here only a set lock (to unlock) - else "Time" when the module is on */}${ck || !(t.id > 0) ? '' : !tlkL ? (tFor(t) ? ((run) => `<button class="iconbtn dtime ${run ? 'on' : ''}" data-act="timer-toggle" data-id="${t.id}" title="${esc(run ? tr('Stop timer') : tr('Start time tracking'))}" aria-label="${esc(run ? tr('Stop timer') : tr('Start time tracking'))}" aria-pressed="${run}">${ic(run ? 'stop' : 'clock')}<span class="dpw">${esc(tr('Time|menu'))}</span></button>`)(!!S.timer && S.timer.task_id === t.id) : '') : `<button class="iconbtn tlkb ${tlkL ? 'on' : ''}" data-act="tlk-toggle" data-id="${t.id}" title="${esc(tlkL ? tr('Locked: tap to unlock') : tr('Lock: title, description, date and more stay as they are'))}" aria-label="${esc(tr('Lock'))}" aria-pressed="${tlkL}">${ic('lock')}<span class="dpw">${esc(tlkL ? tr('Locked') : tr('Lock'))}</span></button>`}
       <button class="iconbtn" data-act="task-menu" data-id="${t.id}" title="${tr('More')}" aria-label="${tr('More')}">${ic('dots')}</button>`}
