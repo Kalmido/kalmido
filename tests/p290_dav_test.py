@@ -156,8 +156,9 @@ check(st["caldav"]["enabled"] and st["caldav"]["url"] == "https://kalmido.exampl
 r = A.post(B + "/api/me/app-passwords", json={"name": ""})
 check(r.status_code == 400, "app password without a name: 400")
 r = A.post(B + "/api/me/app-passwords", json={"name": "iPhone"})
-check(r.status_code == 201 and re.fullmatch(r"[a-z2-9]{5}(-[a-z2-9]{5}){3}", r.json().get("password", "")),
-      "new app password: 201, 4 groups of 5 characters")
+# 2.1271.0 (#6552): an id of 8 characters in front (the sign-in checks that one row: one hash), then 4 groups of 5
+check(r.status_code == 201 and re.fullmatch(r"[a-z2-9]{8}(-[a-z2-9]{5}){4}", r.json().get("password", "")),
+      "new app password: 201, an id of 8 characters + 4 groups of 5 characters")
 PW, PWID = r.json()["password"], r.json()["id"]
 row = db("SELECT pw_hash FROM app_passwords WHERE id=?", (PWID,))[0][0]
 check(PW not in row and PW.replace("-", "") not in row and row.startswith(("scrypt:", "pbkdf2:")), "only a KDF hash is stored")

@@ -8,7 +8,8 @@
  - the second factor after a right password and a password change of a signed-in person: not 429, not delayed there
  - a person without an organisation signs in from the delayed address too
  - CalDAV/CardDAV: 30+ wrong app passwords of several accounts from one address do not lock another account there
-   (207); the pair stays locked after 10
+   that synced from there before (207); 2.1271.0 (#6552): names new at that address get 429 then; the pair stays
+   locked after 10
 freelancer-matrix: n/a (area auth)
 usage: p2282_a_api_test.py <datadir>      (a fresh container)"""
 import base64
@@ -156,13 +157,17 @@ PW = {}
 for u in ("w0", "w1", "w2", "w3", "dan"):
     PW[u] = sess_at(u, "192.0.2.9").post(B + "/api/me/app-passwords", json={"name": "Phone"}).json()["password"]
 DAVIP = "203.0.113.90"
-n = sum(dav(u, "wrong-app-password", DAVIP) == 401 for u in ("w0", "w1", "w2", "w3") for _ in range(8))
-check(n == 32, f"#3111: 32 wrong app passwords of 4 accounts from one address: all 401 ({n})")
-check(dav("dan", PW["dan"], DAVIP) == 207, "#3111: another account still syncs from that address (no address lock)")
-for _ in range(2):
-    dav("w0", "wrong-app-password", DAVIP)
-check(dav("w0", PW["w0"], DAVIP) == 429, "#3111: w0 (10 failures there) stays locked at that address (pair)")
+# 2.1271.0 (#6552): the address counter (30) refuses again, before any hash - but not the names that synced from there
+check(dav("dan", PW["dan"], DAVIP) == 207, "#3111: dan syncs from the office address (known there from now on)")
+n = [dav(u, "wrong-app-password", DAVIP) for u in ("w0", "w1", "w2", "w3") for _ in range(8)]
+check(n == [401] * 30 + [429] * 2, f"#6552: 32 wrong app passwords of 4 accounts from one address: 30 x 401, then 429 {n}")
+check(dav("dan", PW["dan"], DAVIP) == 207, "#3111: an account that synced from that address before still syncs there")
+check(dav("w1", PW["w1"], DAVIP) == 429, "#6552: an account that never synced from there waits at that address")
+for _ in range(10):
+    dav("dan", "wrong-app-password", DAVIP)
+check(dav("dan", PW["dan"], DAVIP) == 429, "#3111: dan (10 failures there) is locked at that address (pair), known or not")
 check(dav("w0", PW["w0"], "198.51.100.90") == 207, "#3111: w0 syncs from another address")
+check(dav("frida", "wrong-app-password", DAVIP) == 429, "#6552: a person without an organisation is refused there like anyone new")
 
 subprocess.run(["docker", "rm", "-f", os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")], capture_output=True)
 sys.exit(done("p2282_a_api"))

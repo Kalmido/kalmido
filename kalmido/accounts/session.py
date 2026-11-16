@@ -468,6 +468,13 @@ def h6a_uall_exempt(k, now):
 
 
 def _rate_blocked(keys):
+    return bool(_rate_over(keys))
+
+
+def _rate_over(keys):
+    """The keys at or above their limit (the per-name ceiling skipped for the account's own addresses, h6a_uall_exempt).
+    2.1271.0 (#6552): split from _rate_blocked, so a caller learns which counter is full (DAV: the address counter refuses
+    only a name that never signed in from there) with one look-up."""
     shared = rate_counts([k for k, _ in keys], FAIL_WINDOW) or {}  # 2.306.0 D1 (#2875): every process's failures (failed: this one's)
     now = time.time()
     over = []
@@ -480,7 +487,7 @@ def _rate_blocked(keys):
                 _fails.pop(k, None)
             if max(len(arr), shared.get(k, 0)) >= limit:
                 over.append(k)
-    return any(not h6a_uall_exempt(k, now) for k in over)  # 2.312.0 C (#3265): outside the lock (it may ask the database)
+    return [k for k in over if not h6a_uall_exempt(k, now)]  # 2.312.0 C (#3265): outside the lock (it may ask the database)
 
 
 # 2.282.0 (#3111): sign-ins behind one shared address (office NAT). The address counter ("ip:", 20 failures) no longer
@@ -504,13 +511,23 @@ _slow, _slow_lock = {}, threading.Lock()
 
 def login_known(username, pre=""):
     """2.282.0 (#3111): this name signed in successfully from this address (IPv6: /64) in the last KNOWN_DAYS days, or the
-    request is signed in as this name already."""
+    request is signed in as this name already.
+    2.1271.0 (#6552): a sign-in another process saw counts too (core/ratedb.py rate_known, as h6a_uall_exempt): asked only
+    when a counter is full, so the look-up is rare."""
     if not username:
         return False
-    if (time.time() - _known.get(pre + "uall:" + rate_name(username), {}).get(rate_ip(), 0)) < KNOWN_DAYS * 86400:
+    k, ip, now = pre + "uall:" + rate_name(username), rate_ip(), time.time()
+    if (now - _known.get(k, {}).get(ip, 0)) < KNOWN_DAYS * 86400:
         return True
     u = getattr(g, "user", None)
-    return bool(not pre and u is not None and (u["username"] or "") == username)
+    if not pre and u is not None and (u["username"] or "") == username:
+        return True
+    at = rate_known_at(k, ip)
+    if at and now - at < KNOWN_DAYS * 86400:
+        with _fail_lock:
+            _known.setdefault(k, {})[ip] = at
+        return True
+    return False
 
 
 def login_gate(keys, username, pre=""):
