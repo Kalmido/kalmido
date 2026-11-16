@@ -1,6 +1,32 @@
 {
  "versions": [
   {
+   "version": "2.1268.0",
+   "date": "2026-11-16",
+   "items": [
+    {
+     "de": "Wo du nur lesen darfst, siehst du keine Knöpfe zum Anlegen oder Ändern mehr, sondern einen Hinweis \"Hier kannst du nur lesen\".",
+     "en": "Where you may only read, you no longer see buttons for adding or changing, just one note that you can only read here."
+    },
+    {
+     "de": "Die App startet etwas schneller: selten genutzte Dialoge laden erst, wenn du sie öffnest.",
+     "en": "The app starts a little faster: rarely used dialogs load only when you open them."
+    },
+    {
+     "de": "Im Team-Chat sind Kanal anlegen, Durchsuchen und Einstellungen ruhiger, mit einem Fertig-Knopf und Fehlern direkt am Feld.",
+     "en": "In team chat, creating, browsing and channel settings are calmer, with one Done button and errors right at the field."
+    },
+    {
+     "de": "Angehängte Bilder im Team-Chat stehen am Handy als kleine Vorschau-Kacheln, und die Tastatur bleibt beim Senden offen.",
+     "en": "Attached images in team chat show as small preview tiles on a phone, and the keyboard stays open when sending."
+    },
+    {
+     "de": "Im Team-Chat erscheinen Smiley und Menü am Handy erst nach Antippen der Nachricht, Lesehaken und „bearbeitet“ stehen neben der Uhrzeit.",
+     "en": "In team chat the smiley and menu appear on a phone after a tap on the message, read ticks and \"edited\" sit next to the time."
+    }
+   ]
+  },
+  {
    "version": "2.1261.0",
    "date": "2026-11-16",
    "items": [
@@ -1287,44 +1313,6 @@
     {
      "de": "Unter Einstellungen > Organisation > Agenten siehst du die verbundenen Apps deiner Team-Agenten und kannst sie trennen.",
      "en": "Settings > Organisation > Agents shows the connected apps of your team agents and lets you disconnect them."
-    }
-   ]
-  },
-  {
-   "version": "2.693.0",
-   "date": "2026-11-08",
-   "items": [
-    {
-     "de": "Dokumente aus einem Ablage-Ordner lassen sich am Handy jetzt durchblättern, auch in verschlüsselten Ordnern.",
-     "en": "Documents opened from a file store folder can now be leafed through on the phone, in encrypted folders too."
-    },
-    {
-     "de": "Tabellen lassen sich nach einer Spalte gruppieren, mit auf- und zuklappbaren Gruppen und Zwischensummen.",
-     "en": "Tables can be grouped by one column, with collapsible groups and subtotals."
-    },
-    {
-     "de": "Ein Pivot-Blatt fasst ein anderes Blatt der Mappe zusammen und bleibt immer aktuell.",
-     "en": "A pivot sheet summarises another sheet of the workbook and always stays current."
-    },
-    {
-     "de": "Langes Drücken oder Rechtsklick öffnet das Menü jetzt auch bei Postfach-Adressen, Repositories, Webhooks, Datei-Anfragen, Tabellen-Ordnern und Datei-Karten.",
-     "en": "A long press or right click now opens the menu for mailbox addresses, repositories, webhooks, file requests, table folders and file cards too."
-    },
-    {
-     "de": "Mitglieder ohne Büro-Gruppe können ihre eigene Reise aus der Reiseplanung ins Büro übernehmen.",
-     "en": "Members without an office group can take their own trip from the trip planning into the office."
-    },
-    {
-     "de": "Im Menü „…“ der Kommentare wählst du jetzt zwischen nur Kommentaren, Änderungen anderer und allen Änderungen.",
-     "en": "In the comments' \"…\" menu you now choose between comments only, changes of others and all changes."
-    },
-    {
-     "de": "Bilanz und GuV gibt es jetzt auch als PDF, und Buchungen von Hand lassen sich bearbeiten.",
-     "en": "The balance sheet and the profit and loss account are now also available as PDF, and entries made by hand can be edited."
-    },
-    {
-     "de": "Die Bilanz bucht jetzt auch Bewirtungen, die Kilometerpauschale und Mahngebühren und führt jedes Bankkonto einzeln.",
-     "en": "The balance sheet now also books entertainment, the mileage allowance and reminder fees and keeps every bank account separately."
     }
    ]
   }

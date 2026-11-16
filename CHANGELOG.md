@@ -22,6 +22,38 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1268.0] - 2026-11-16
+
+Package 2.1238.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Added
+- #6161: shared core block "write right in the client": `canWrite(x)` and `roHintHtml()` in static/js/workspace.js (docs/dev/kern.md, "Who may write: the client"); lint tools/check_canwrite.py keeps own role checks per file from growing (baseline only shrinks).
+### Changed
+- #6161: calendar, contacts, files and documents, lists and tasks and the office ask only `canWrite`: write entries (New, plus, upload, drag, import, finalise, add item, discount, follow-up, more-menu actions) are left out for people who only read, editor fields read, and one read hint replaces the notes per button. The server stays the only lock (nothing loosened).
+- #6161: office documents: `can_edit` in the app's document answer now also follows the person's office rights (organisation role, office groups); on the folder way (`/api/fsref/office_doc/<id>`) it carries the folder role and is always false for agents. The agent API v1 is unchanged.
+- #6161: a new calendar or address book offers only workspaces the person may add to; a reader of shared calendars keeps "New event" in a space of their own (like contacts).
+- #4280: rarely used dialogs and modules load on first use (project, share and folder dialogs, client form, field dialog, organisation admin, schedules, proposal cards, habit dialog, tag view, signoff, organisation export, photo metadata, encryption scope): start JS gzip 1,013 -> 936 KB, start scripts 137 -> 130, start language core 195 -> 176 KB.
+
+Package 2.1247 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Changed
+- #6101: Team chat channel dialogs (New channel, New group, Browse channels, Channel settings) use the shared app dialog - a missing name is shown at the field instead of a toast; the settings have one "Done" that saves the name (no second Save button); Leave and Archive are quiet links apart from Done, Archive in the warning colour; you are marked "(you)" in the members; the remove x is 44 px on touch; Browse closes only after joining worked and shows the reason in the dialog otherwise.
+- #6102: Calmer team chat composer - tapping Send keeps the phone keyboard open, muting only switches the bell (the draft stays), clip and microphone stay while typing, attachments on a phone are one row of small tiles with an image preview, the placeholder is cut by width instead of by characters.
+- #6103: Agent chat on a phone - the pinned approval bar shows only while its card is out of view, "Allow" has the same colour in the bar and the card, the chat switcher tabs shrink with "…" inside the screen.
+### Fixed
+- #6173: File store uploads - Undo / Redo of an upload's new version sends expect_version: a newer version someone else uploaded meanwhile stays and is named; each upload keeps its own list of files that stayed out; a logged-out upload is not listed as failed.
+- #6233: Contact editor at 320 px - the phone / e-mail row stays inside the sheet, its remove x is reachable again.
+
+Package 2.1246 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Bündel: Sammelpaket: A).
+### Fixed
+- #6267: Calendar: *Undo* in the toast after deleting an event shows the event back at once again (since #6159 the step went through the shared history and the event only came back after the server answered); *Redo* takes it away at once, a refused step restores the previous view. New general history hook `at_once` in undo.js.
+- #4992, #6274, #6276, #6279, #6259, #6278, #6268, #6280: tests that turned red in the full CI follow the current app - the documents' inboxes error text is no old basket name, the agent chat box is used only once it is unlocked, "Back up to here" is clicked once no step is running, the contact form waits for the loaded address book (a missing form is a FAIL with detail instead of a crash), Help names the key overview, the calendar folder indent is read from the drawn padding, the full day's button says "N more".
+
+Package 2.1251 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Polish Chat: Nachrichtenzeile ruhiger - Smiley und).
+### Changed
+- Team chat: the message line is calmer - on a touch screen the smiley and the "..." menu appear after a tap on the message (another tap hides them, threads too); read ticks and "edited" sit in the time row instead of a row of their own; the time has no duplicate tooltip; a reaction shows at once and is taken back if the server refuses (#6096).
+### Fixed
+- Updates: the database's back limit no longer rises to the running version on every start. The format steps of 2.1095-2.1118 (time, JSON and yes / no columns) and the comment trash key keep their own fixed version, so the automatic rollback after a failed update and the one step back start again instead of stopping at "format limit" (#6284).
+- Trash: `KALMIDO_TRASH_DAYS=0` switches the task trash run off again as documented; since 2.936 tasks in the trash were deleted for good after one day (#6285).
+
 ## [2.1261.0] - 2026-11-16
 
 Package 2.1255 (Bündel: Angebot mit Teilangeboten: Zuschlag als eine Zeile, Startseite ehrlich, Datum-Fenster).
@@ -252,7 +284,8 @@ Package 2.1201 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Changed
 - Quotation PDF: the discount note reads "5 % on the discountable positions" (was "marked positions", the PDF marks nothing); an optional or alternative position below a section heading that already says so ("Optionen", "Alternativen") prints without the prefix "Optional:" / "Alternative:", also on the approval page; section headings of the positions table one step larger (as strong as the subtotals) with a little more air above them (#6175)
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1261.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1268.0...HEAD
+[2.1268.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1268.0
 [2.1261.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1261.0
 [2.1256.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1256.0
 [2.1252.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1252.0
