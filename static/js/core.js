@@ -1715,17 +1715,23 @@ const VER_DRAFT_SEL = 'textarea, input:not([type]), input[type="text"], input[ty
 const verDraft = () => ['#c-input', '#tc-in', '#chat-in', '#qinput', '#qsheet', '#d-sub'].some(s => ($(s)?.value || '').trim())
   || Object.values(S.drafts || {}).some(v => typeof v === 'string' && v.trim() !== '')
   || [...document.querySelectorAll(VER_DRAFT_SEL)].some(e => !e.readOnly && !e.disabled && e.value !== e.defaultValue && e.value.trim() !== '');
-const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft();
+// 2.1257.0 (#6286 C2): + unsaved input the form guard knows (formguard.js fgAny: the import preview, a project dialog's save
+// waiting, a typing timer of a locked project)
+const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny());
+const verCalm = () => verQuiet() && (document.hidden || Date.now() - verIdle > 20000);
 let verBusy = false;
-async function verReload() {
+// auto = the reload by itself (verCheck): the wait for the server below takes up to 90 s, so it asks for quiet once more right
+// before it reloads and gives up otherwise (2.1257.0 #6286 C2; the bar with "Reload" stays, the next poll tries again)
+async function verReload(auto = false) {
   if (verBusy) return;
   verBusy = true;
   try { if (OUT.q.length) await flush(); } catch { /* offline: the outbox stays in this browser and is sent after the reload */ }
   try { if (typeof flushSaves === 'function') await flushSaves(); } catch { /* nothing waiting */ }
   // 2.45.0 (#1529): only reload once the page and the stylesheet are really served (the container may still be restarting)
   if (typeof rl_waitServer === 'function' && !await rl_waitServer()) { verBusy = false; const b = $('#newver [data-nv]'); if (b) b.disabled = false; return; }
-  try { sessionStorage.setItem('kalmido-reloaded', S.serverVer); } catch { /* private mode */ }
   try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch { /* no service worker */ }
+  if (auto && !verCalm()) { verBusy = false; return; }
+  try { sessionStorage.setItem('kalmido-reloaded', S.serverVer); } catch { /* private mode */ }
   location.reload();
 }
 // 2.35.0 (#1094): the automatic reload waits until /api/version reported the new version twice in a row (not in the middle of
@@ -1744,7 +1750,7 @@ function verCheck(app) {
   let el = $('#newver');
   if (!verStale()) { if (el) el.remove(); if (typeof I18N !== 'undefined' && I18N.stale) i18nRetry(); return; }
   let once = ''; try { once = sessionStorage.getItem('kalmido-reloaded') || ''; } catch { /* private mode */ }
-  if (once !== S.serverVer && S.verSeen.n >= 2 && verQuiet() && (document.hidden || Date.now() - verIdle > 20000) && verSpreadDue()) { verReload(); return; }  // 2.619.0 (#3890): + the spread
+  if (once !== S.serverVer && S.verSeen.n >= 2 && verCalm() && verSpreadDue()) { verReload(true); return; }  // 2.619.0 (#3890): + the spread
   if (S.verShut === S.serverVer) { if (el) el.remove(); return; }  // 2.1170.0 (#6132): closed for this version (the reload by itself stays)
   if (!el) {
     el = document.createElement('div'); el.id = 'newver'; el.setAttribute('role', 'status');

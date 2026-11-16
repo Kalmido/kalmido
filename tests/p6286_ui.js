@@ -130,6 +130,28 @@ const lsj = (br, k) => { const v = br.shared.store['tasks.' + k]; return v == nu
   check(await until(() => !Object.keys(br.shared.store).some(k => k.startsWith('tasks.fdx.'))), 'C1: after the switch it is gone from this browser');
   w.close();
 
+  // ================= C2: the reload by itself asks for quiet right before it reloads
+  const b2 = browser();
+  w = await win(b2, 'frida', {ck: CK, hash: ''});
+  await until(() => w.eval('!!S.me && S.booted'));
+  w.eval(`document.activeElement?.blur?.(); verIdle = Date.now() - 60000; window.__dirty = false; fgWatch(() => window.__dirty);
+    rl_waitServer = () => new Promise(ok => { window.__srv = ok; }); sessionStorage.removeItem('kalmido-reloaded'); 1`);
+  check(w.eval('verCalm()') === true, `C2 setup: the window is quiet ${w.eval('JSON.stringify({q: verQuiet(), e: editing(), f: editFocused(), d: verDraft(), n: OUT.q.length})')}`);
+  w.eval('verReload(true); 1');
+  check(await until(() => typeof w.__srv === 'function'), 'C2: the reload waits for the server');
+  w.__dirty = true;  // input the form guard knows comes up during the wait
+  check(w.eval('verQuiet()') === false, 'C2: unsaved input of the form guard holds the reload back (verQuiet)');
+  w.__srv(true);
+  check(await until(() => w.eval('!verBusy')), 'C2: the reload gives up');
+  check(!w.eval(`sessionStorage.getItem('kalmido-reloaded')`), 'C2: input during the wait: no reload by itself');
+  // quiet again: the next one reloads (the reload of jsdom is a no-op; the mark is set right before it)
+  w.__dirty = false; w.__srv = null;
+  w.eval('verReload(true); 1');
+  await until(() => typeof w.__srv === 'function'); w.__srv(true);
+  check(await until(() => w.eval(`sessionStorage.getItem('kalmido-reloaded') === S.serverVer`)), 'C2: quiet: it reloads');
+
+  w.close();
+
   console.log(`\n${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
 })().catch(e => { console.log('FAIL: crash', e); process.exit(1); });
