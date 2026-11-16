@@ -1,0 +1,4 @@
+# 2.1297.0 (#6509): the scanners of the CI lint job; tools/ci/scan.lock is generated from it with
+# uv pip compile tools/ci/scan.in --universal --python-version 3.12 --generate-hashes -o tools/ci/scan.lock
+bandit==1.9.4
+pip-audit==2.10.1
