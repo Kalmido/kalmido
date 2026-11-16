@@ -45,6 +45,12 @@ this limit (`back_floor` in the table `kalmido_meta`), and every version from 2.
 of its database and names the step (emergency only: `KALMIDO_ALLOW_DOWNGRADE=1`). A later limit is added to this list and
 to `BACK_LIMITS` in `kalmido/core/db.py` in the same release.
 
+**Column types (2.1095, 2.1101, 2.1111, 2.1115, 2.1118):** these releases turned old text and number columns into real time,
+JSON and yes / no types. Each one sets the database's limit to its own version (the highest is 2.1118). Since 2.1251 a later
+version that changes nothing in the data leaves the limit where it is, so the one step back (also the automatic rollback
+after a failed update) starts again. Before 2.1251 every start raised the limit to the version that started; such a raised
+limit stays (a limit never goes down), from the next update on the step back works.
+
 **Shared core, stage 7 (team chat, calendars, address books):** the first start of the version with this step copies the old
 member rows into the shared core and then deletes the old member tables. From then on the database refuses every older
 version (its limit is the version that deleted them, it names the reason): an older version would create the tables empty

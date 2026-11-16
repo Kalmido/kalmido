@@ -15,7 +15,7 @@ canonical ISO in UTC, ts_canon), so json.loads and the ISO comparisons stay. Wha
 VALUES list typed text (core/writes.py obj_history_add_many) and a regex on snap (collab/liste2eguard.py le2b_undo_copies).
 
 One way (the leader's --einbahn): once a column has its type the database's back limit (kalmido_meta back_floor, core/kernretire.py
-kern_retire_floor) rises to this minor -- a version before would send its text-typed values / text operators into the new
+kern_retire_floor) rises to 2.1101.0 (ORT_FLOOR; until 2.1251 to the minor of every image that started, #6284) -- a version before would send its text-typed values / text operators into the new
 columns (obj_history_add_many fails, the list guard's regex fails). A backup from before restores the old state.
 Python standard library + the driver layer only (layer core)."""
 import sys
@@ -31,6 +31,9 @@ ORT_NAMES = {*ORT_TABLES, *(x for _, x, _ in ORT_COLS)}  # the allowlist of qi()
 ORT_TYPE = {"time": "timestamp with time zone", "json": "jsonb"}
 ORT_HOW = ("the shared core's history, undo steps and taken-back shares keep their times as TIMESTAMPTZ and their copies as JSONB "
            "(#5954) - an older version would write and search them as text; go back only with a backup from before")
+# 2.1251.0 (#6284): the back limit is the version of this step, not the minor of the image that starts (a later image that
+# moved nothing must not raise it: the automatic rollback and the one step back would refuse to start, "format limit").
+ORT_FLOOR = "2.1101.0"
 
 
 def ort_types(c):
@@ -69,5 +72,5 @@ def obj_retype(c):
         print("the core's history / undo / revoked onto real types (#5954):", out, flush=True)
         have = ort_types(c)
     if any(have.get((t, x)) == ORT_TYPE[how] for t, x, how in ORT_COLS):
-        kern_retire_floor(c, how=ORT_HOW)
+        kern_retire_floor(c, mine=ORT_FLOOR, how=ORT_HOW)  # 2.1251.0 (#6284): the step's fixed version
     return out
