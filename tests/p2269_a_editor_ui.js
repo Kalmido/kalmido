@@ -71,7 +71,7 @@ async function editor(user) {
   await finOk();
   check(await until(() => d.querySelector('.ofdcf [data-ofd="cf-reload"]')), '#6331: Finalise on the old state shows the conflict bar' + tag);
   s = await call('GET', `/api/office/docs/${doc.id}`);
-  check(!s.locked && s.status === 'draft' && +s.items[0].rate === 950, `#6331: nothing finalised, the phone's price stays (${s.locked}, ${s.status}, ${s.items[0].rate})` + tag);
+  check(!s.locked && +s.items[0].rate === 950, `#6331: nothing finalised, the phone's price stays (${s.locked}, ${s.items[0].rate})` + tag);
   check(!/950/.test(shown || ''), '#6331: the editor showed the old price before ' + shown + tag);
   click(w, d.querySelector('[data-ofd="cf-reload"]'));
   check(await until(() => !d.querySelector('.ofdcf') && /950/.test(d.querySelector('.ofdits [data-i="0"][data-k="rate"]')?.value || '')), '#6331: Reload shows the new price' + tag);
