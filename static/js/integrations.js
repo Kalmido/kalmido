@@ -454,6 +454,7 @@ function chn_mailHtml(m) {
   return `<h4 id="s-evmail-h">${tr('E-mail for single events')}</h4>
     <div class="row"><label for="s-evm-assign">${tr('Assigned to me')}</label>${chn_mailSel('s-evm-assign', m.assign)}</div>
     <div class="row"><label for="s-evm-mention">${tr('Mentioned')}</label>${chn_mailSel('s-evm-mention', m.mention)}</div>
+    ${/*html-ok*/ m.address && m.proved === false && typeof mailProofHint === 'function' ? mailProofHint('s-evm-proof') : ''}${''/* 2.1299.0 (#6352): only to a confirmed address; the button: dashboard.js mailWire */}
     <div class="shint">${!m.address ? setLinkHtml(tr('No e-mail address is stored for you: an admin adds it (Settings > Organisation > People)')) : esc(m.device ? tr('You have a push device, so “Only without a push device” sends nothing at the moment.') : tr('Collected and sent as one e-mail at most every 10 minutes, with links to the tasks.') + ' ' + tr('The e-mail leaves Kalmido through the e-mail server of this instance.'))}</div>`;  // 2.306.0 C (#2889)
 }
 async function chn_meDraw(md) {  // Settings > Notifications (settings.js: the box #s-chn)

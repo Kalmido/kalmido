@@ -470,7 +470,8 @@ def user_update(uid):
     if "password" in b and b["password"]:  # review: removing the built-in login is no "changed"
         sec_mail(c, uid, "password_admin")
     if u["email"] and u["email"] != (nu["email"] or ""):  # live train fix: a first address is no change (no "from -" mail)
-        sec_mail(c, uid, "email", u["email"] or "-", nu["email"] or "-", to=u["email"] or "", also=nu["email"])
+        # 2.1299.0 (#6352): the warning to the OLD address only - the new one is not proved yet (a typo would tell a stranger the old address)
+        sec_mail(c, uid, "email", u["email"] or "-", nu["email"] or "-", to=u["email"] or "")
     if reset:
         sec_mail(c, uid, "2fa_reset")
     if nu["disabled"] and not u["disabled"] and not u["signup"]:
