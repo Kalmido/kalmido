@@ -806,6 +806,16 @@ def inv_reminder_totals(c, oid, r, pack=None):
             "deadline_days": int(_col(r, "reminder_deadline_days") or 0), "raw_amount": "0.00", "producing_days": 0, "discount": "0.00"}}
 
 
+def inv_reminder_claim(r):
+    """2.1259.0 (#6302): what "fee paid" of a finalised reminder row r (reminder_fee, totals) covers: its fee + the default
+    interest + the flat fee (section 288 (5) BGB, less the fee credited) of its frozen totals -- the sums inv_reminder_totals
+    adds to the open invoices. Decimal in the reminder's currency; 0 = nothing to mark (books.bk_fees_paid and every reader
+    of a paid fee count this sum)."""
+    t = _j(_col(r, "totals") or "", {})
+    t = t if isinstance(t, dict) else {}
+    return money(dec(_col(r, "reminder_fee") or 0)) + money(dec(t.get("interest") or 0)) + money(dec(t.get("flat_fee") or 0))
+
+
 def inv_reminder_extra_rows(t, lang, cur):
     """2.355.0 D (#2846): the rows of the reminder's totals for the default interest (one per invoice: rate, days) and
     the flat fee; the same in the PDF and (as data) in the editor."""
@@ -1812,11 +1822,12 @@ def inv_cancel_fees(c, oid, did):
     """2.355.0 D (#2846): invoice did was just cancelled: the open fee of every finalised reminder naming it is cancelled
     with it once all invoices of that reminder are cancelled (a reminder over a second, still open invoice keeps its fee).
     The reminder document stays unchanged (GoBD); the change is logged like a person's (reminder_fee, auto 1)."""
-    for x in c.execute(f"SELECT id, ref_doc_ids, reminder_fee FROM office_docs WHERE org_id=? AND kind='reminder' AND locked_at IS NOT NULL AND {live_sql()} "
-                       "AND reminder_fee > 0 AND COALESCE(reminder_fee_state, '') = '' AND ref_doc_ids LIKE ?",  # pg-ok: digits only
+    # 2.1259.0 (#6302): also a reminder without a fee that claims interest / the flat fee (inv_reminder_claim)
+    for x in c.execute(f"SELECT id, ref_doc_ids, reminder_fee, totals FROM office_docs WHERE org_id=? AND kind='reminder' AND locked_at IS NOT NULL AND {live_sql()} "
+                       "AND COALESCE(reminder_fee_state, '') = '' AND ref_doc_ids LIKE ?",  # pg-ok: digits only
                        (oid, f"%{int(did)}%")).fetchall():
         ids = [int(i) for i in _j(x["ref_doc_ids"] or "[]", []) if str(i).isdigit()]
-        if int(did) not in ids:
+        if int(did) not in ids or inv_reminder_claim(x) <= 0:
             continue
         if c.execute(f"SELECT COUNT(*) FROM office_docs WHERE org_id=? AND {live_sql()} AND id IN (" + ",".join("?" * len(ids)) + ") AND status<>'cancelled'",
                      [oid] + ids).fetchone()[0]:
@@ -1835,7 +1846,7 @@ def fd_reminder_extra(c, oid, rows):
     if rems:
         ids = [d["id"] for d in rems]
         meta = {x["id"]: x for x in c.execute(
-            f"SELECT id, ref_doc_ids, reminder_fee, reminder_fee_state, reminder_fee_paid_at, locked_at, currency, lang FROM office_docs WHERE org_id=? AND {live_sql()} AND id IN ("
+            f"SELECT id, ref_doc_ids, reminder_fee, reminder_fee_state, reminder_fee_paid_at, locked_at, currency, lang, totals FROM office_docs WHERE org_id=? AND {live_sql()} AND id IN ("
             + ",".join("?" * len(ids)) + ")", [oid] + ids)}
         refs = sorted({int(i) for x in meta.values() for i in _j(x["ref_doc_ids"] or "[]", []) if str(i).isdigit()})
         pm = inv_paid_map(c, oid, refs) if refs else {}
@@ -1852,17 +1863,22 @@ def fd_reminder_extra(c, oid, rows):
             d["fee_state"] = x["reminder_fee_state"] or ""
             d["fee_paid_at"] = (x["reminder_fee_paid_at"] or "") if d["fee_state"] == "paid" else ""  # 2.912.0 (#5419): the day it counts on
             d["fee"] = dstr(fee)
-            d["fee_open"] = dstr(fee) if x["locked_at"] and fee > 0 and not d["fee_state"] else "0.00"
+            claim = inv_reminder_claim(x) if x["locked_at"] else fee  # 2.1259.0 (#6302): fee + interest + flat fee
+            d["claim"] = dstr(claim)
+            d["fee_open"] = dstr(claim) if x["locked_at"] and claim > 0 and not d["fee_state"] else "0.00"
             d["fee_open_text"] = fmt_money(d["fee_open"], x["lang"], x["currency"])
             if d["settled"]:
                 d["state"] = "done"
                 d["status_text"] = settled_txt
     if invs:
         open_fees = {}
-        for x in c.execute(f"SELECT id, number, ref_doc_ids, reminder_fee FROM office_docs WHERE org_id=? AND kind='reminder' AND locked_at IS NOT NULL AND {live_sql()} "
-                           "AND reminder_fee > 0 AND COALESCE(reminder_fee_state, '') = ''", (oid,)):
+        for x in c.execute(f"SELECT id, number, ref_doc_ids, reminder_fee, totals FROM office_docs WHERE org_id=? AND kind='reminder' AND locked_at IS NOT NULL AND {live_sql()} "
+                           "AND COALESCE(reminder_fee_state, '') = ''", (oid,)):
+            claim = inv_reminder_claim(x)  # 2.1259.0 (#6302): fee + interest + flat fee, also without a fee
+            if claim <= 0:
+                continue
             for i in _j(x["ref_doc_ids"] or "[]", []):
-                open_fees.setdefault(str(i), []).append({"id": x["id"], "number": x["number"], "fee": dstr(money(dec(x["reminder_fee"])))})
+                open_fees.setdefault(str(i), []).append({"id": x["id"], "number": x["number"], "fee": dstr(claim)})
         for d in invs:
             fl = open_fees.get(str(d["id"])) or []
             if fl:
@@ -1901,7 +1917,8 @@ def fd_fee_post(did):
     if not _ofr_pay(c, uid, oid):
         raise Denied(403, tr("Only an admin of this workspace can do this"))
     r = doc_row(c, oid, did)
-    if r["kind"] != "reminder" or not ofx_locked(r) or money(dec(_col(r, "reminder_fee") or 0)) <= 0:
+    # 2.1259.0 (#6302): fee + interest + flat fee (inv_reminder_claim), also a reminder without a fee (was reminder_fee > 0)
+    if r["kind"] != "reminder" or not ofx_locked(r) or inv_reminder_claim(r) <= 0:
         raise Denied(409, tr("Only the fee of a finalised payment reminder can be waived or marked as paid"))
     b = body()
     st = b.get("state") if isinstance(b, dict) else None
@@ -1918,7 +1935,8 @@ def fd_fee_post(did):
             period_need_open(c, oid, _col(r, "reminder_fee_paid_at") or r["date"])
         # 2.545.0 (#4387): the day it was paid -- the income statement, key figures and cash flow count it then (books.bk_fees_paid)
         c.execute("UPDATE office_docs SET reminder_fee_state=?, reminder_fee_paid_at=? WHERE id=? AND org_id=?", (st, paid_day, did, oid))
-        ofx_log(c, oid, "reminder_fee", doc_id=did, detail={"before": before, "after": st, "fee": dstr(money(dec(r["reminder_fee"]))),
+        ofx_log(c, oid, "reminder_fee", doc_id=did, detail={"before": before, "after": st, "fee": dstr(money(dec(_col(r, "reminder_fee") or 0))),
+                                                          "claim": dstr(inv_reminder_claim(r)),  # 2.1259.0 (#6302)
                                                           **({"day": paid_day} if paid_day else {})})
         bump(c)
     c.commit()
