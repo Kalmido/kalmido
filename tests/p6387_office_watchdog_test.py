@@ -168,4 +168,33 @@ aa = tick() or {}
 check(str(S_BAD) not in aa.get("invoice series|ValueError", []), f"(2) a paused series is left alone (no alert every run) {aa}")
 check(len(task(ALICE, "Invoice series Kaputt paused")) == 1, "(2) and told once")
 
+# ================================================================== (3) the mail after the invoice's commit
+CLM = client(A, "Nachhol Medien AG", "rechnung@nachhol.example")
+S_MAIL = series(A, CLM, "Neustart")
+tick(CRASH)  # the invoice is committed (number, finalised), the process ends before its mail
+m1 = made(S_MAIL)
+check(len(m1) == 1 and m1[0][1] and m1[0][2] == "issued" and not mails("rechnung@nachhol.example"),
+      f"(3) stopped between the commit and the mail: a finalised invoice with its number, no mail yet {m1}")
+check(dbx("SELECT mail_doc FROM office_inv_series WHERE id=?", (S_MAIL,)) == [(m1[0][0],)] if m1 else False, "(3) the mail is marked as still due")
+tick()
+m2 = made(S_MAIL)
+check(len(mails("rechnung@nachhol.example")) == 1 and len(m2) == 1 and m2[0][2] == "sent", f"(3) the next run mails it once {m2}")
+check(dbx("SELECT mail_doc, mail_try FROM office_inv_series WHERE id=?", (S_MAIL,)) == [(None, 0)], "(3) the mark is gone")
+tick()
+check(len(mails("rechnung@nachhol.example")) == 1 and len(made(S_MAIL)) == 1, "(3) a third run mails nothing again, no second invoice")
+
+CLH = client(A, "Zweimal Weg AG", "rechnung@zweimal.example")
+S_HAND = series(A, CLH, "Zweimal")
+tick(CRASH)
+tick(CRASH)  # the one more try stops as well
+tick()
+h = made(S_HAND)
+check(len(h) == 1 and h[0][2] == "issued" and not mails("rechnung@zweimal.example"), f"(3) stopped in the one more try too: no second try, no mail {h}")
+check(bool(task(ALICE, "Invoice of series Zweimal not sent", f"Invoice {h[0][1] if h else '?'} is finalised", "Send it by hand")),
+      "(3) a task: send it by hand")
+check(dbx("SELECT mail_doc FROM office_inv_series WHERE id=?", (S_HAND,)) == [(None,)], "(3) the mark is gone")
+tick()
+check(not mails("rechnung@zweimal.example"), "(3) and later runs mail nothing")
+check(dbx("SELECT COUNT(*) FROM office_docs WHERE series_id IS NOT NULL GROUP BY series_id, series_period HAVING COUNT(*) > 1") == [], "never two invoices for one period")
+
 sys.exit(done("p6387_office_watchdog"))
