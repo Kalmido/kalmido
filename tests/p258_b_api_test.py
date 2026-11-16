@@ -20,13 +20,13 @@ from decimal import ROUND_HALF_UP, Decimal
 import requests
 
 import dbx as dbxm
+from freelancer_fixture import freelancer  # 2.1287.0 (#6300)
 
 N = os.path.dirname(os.path.abspath(__file__))
 DATA = sys.argv[1]
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 H = {"X-Requested-With": "kalmido"}
 from kt import FAILS, OKS, check, sess  # 2.192.0 (#2514): shared helpers (tests/kt.py)
-from freelancer_fixture import freelancer  # 2.1287.0 (#6300)
 # freelancer-matrix: office
 
 
