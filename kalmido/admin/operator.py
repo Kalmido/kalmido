@@ -341,8 +341,10 @@ def operator_account_delete(uid):
             c.rollback()
             return jsonify(error=tr("Invalid value: {0}", "is_admin"), code="admin"), 409
         # review F8: a finished retention export of the last days lets it go (as in the app); a waiver never
-        code, _answer, n = user_delete_run(c, uid, "operator", how="exported")
+        code, answer, n = user_delete_run(c, uid, "operator", how="exported")
+        why = ""
         if code == "retention":
+            why = ((answer[0].get_json(silent=True) or {}).get("reason") or "") if isinstance(answer, tuple) else ""  # #6474: none | incomplete | newer
             kept = sum(rx_counts(c, rx_subject(c, "user", uid), False).values())
             c.rollback()
     if code == "projects":
@@ -350,7 +352,7 @@ def operator_account_delete(uid):
                                  "The user still owns {0} projects. Delete them or disable the user instead.", n),
                        code="projects", projects=n), 409
     if code == "retention":
-        return jsonify(error=tr(RX_NEEDED), code="retention", records=kept), 409
+        return jsonify(error=tr(RX_NEEDED), code="retention", records=kept, reason=why), 409
     if code:
         return jsonify(error=tr("Invalid value: {0}", code), code=code), 409
     return jsonify(ok=True, deleted=uid)

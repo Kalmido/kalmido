@@ -366,6 +366,11 @@ if os.environ.get("P2103A_NOSTART") != "1":
     HR = booked(Hr, "private", "beleg-privat.txt")
     p = A.get(B + f"/api/users/{HID}/delete-info").json().get("purge") or {}
     check(p.get("office") != "keep" and not p.get("kept_until") and not p.get("kept"), f"hosted A3: delete-info keeps nothing {p}")
+    # 2.1291.0 (#6474): hosted, an instance admin no longer waives for somebody else: the person declares it first
+    r = A.delete(B + f"/api/users/{HID}", params={"retention": "waived"})
+    check(r.status_code == 409 and r.json().get("reason") == "waiver" and sql("SELECT 1 FROM users WHERE id=?", (HID,)),
+          "#6474 hosted: the admin's own waiver for another person is refused " + r.text[:200])
+    check(Hr.post(B + "/api/retention/me/waiver").ok, "#6474 hosted: hanna declares the waiver herself")
     r = A.delete(B + f"/api/users/{HID}", params={"retention": "waived"})
     check(r.ok and not sql("SELECT 1 FROM users WHERE id=?", (HID,)) and not sql("SELECT 1 FROM fs_nodes WHERE id=?", (HR,))
           and not sql("SELECT 1 FROM orgs WHERE retired_personal=1 AND name=?", ("Hanna",)),

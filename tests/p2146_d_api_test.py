@@ -334,13 +334,20 @@ if not os.environ.get("P2146D_NOHOSTED"):
     # review M1: paula had shared it with bob as a project admin
     LM = "INSERT INTO list_members(list_id,user_id,role,own_role,sort,added_at) VALUES(?,?,?,?,0,'2026-01-01T00:00:00+00:00')"
     sql(LM, (PL, ids["bob"], "admin", "admin"), write=True)
+    # 2.1291.0 (#6474, A6): hosted, the instance admin cannot do without the export for paula; she declares it herself
+    r = A.delete(B + f"/api/users/{PID}", params={"lists": "delete", "confirm": "paula", "retention": "waived"})
+    check(r.status_code == 409 and r.json().get("reason") == "waiver" and sql("SELECT 1 FROM users WHERE id=?", (PID,))
+          and not sql("SELECT 1 FROM retention_log WHERE subject=?", (f"user:{PID}",)), "#6474 hosted: the admin's waiver for paula is refused, nothing noted " + r.text[:200])
+    r = Pa.post(B + "/api/retention/me/waiver")
+    check(r.ok and r.json().get("waived_at"), "#6474 hosted: paula declares the waiver " + r.text[:200])
     r = A.delete(B + f"/api/users/{PID}", params={"lists": "delete", "confirm": "paula", "retention": "waived"})
     check(r.ok and not sql("SELECT 1 FROM users WHERE id=?", (PID,)), "hosted: with the waiver the account goes " + r.text[:200])
     # 2.1231.0 (#5880): the column archived of lists is gone - archived is archived_at set
     row = sql("SELECT deleted_at IS NOT NULL, retain_until, CASE WHEN archived_at IS NOT NULL THEN 1 ELSE 0 END FROM lists WHERE id=?", (PL,))
     check(row == [(True, "2035-12-31", 1)] and sql("SELECT 1 FROM budget_files WHERE list_id=?", (PL,)) and os.path.isfile(PFULL),
           f"hosted, waived: the project stays in the trash until 2035-12-31 with its receipt {row}")
-    check(sql("SELECT kind FROM retention_log WHERE subject=?", (f"user:{PID}",)) == [("waiver",)], "hosted, waived: the waiver is noted")
+    check(sql("SELECT kind FROM retention_log WHERE subject=? ORDER BY id", (f"user:{PID}",)) == [("waiver_declared",), ("waiver",)],
+          "hosted, waived: paula's declaration and the waiver are noted")
 
     # 2.186.1 (#2732): the custodian (the deleting instance admin) owns the kept private project, resealed for her account
     check(sql("SELECT owner_id FROM lists WHERE id=?", (PL,)) == [(ALICE,)], "hosted, waived: alice (custodian) owns the kept project")
@@ -397,6 +404,7 @@ if not os.environ.get("P2146D_NOHOSTED"):
     Qu.post(B + f"/api/budget/entries/{e['id']}/files", files=[("file", ("tape.txt", b"tape", "text/plain"))])
     QFULL = os.path.join(DATA, "attachments", sql("SELECT path FROM budget_files WHERE list_id=?", (QL,))[0][0])
     QNAME = sql("SELECT name FROM lists WHERE id=?", (QL,))[0][0]
+    check(Qu.post(B + "/api/retention/me/waiver").ok, "#6474 hosted: quinn declares the waiver")  # 2.1291.0 (#6474, A6)
     check(A.delete(B + f"/api/users/{QID}", params={"lists": "delete", "confirm": "quinn", "retention": "waived"}).ok, "quinn deleted with the waiver")
     r = A.delete(B + f"/api/trash/lists/{QL}", params={"confirm": QNAME})
     check(r.ok and not sql("SELECT 1 FROM lists WHERE id=?", (QL,)) and not sql("SELECT 1 FROM budget_files WHERE list_id=?", (QL,))

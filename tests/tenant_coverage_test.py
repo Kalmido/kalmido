@@ -867,6 +867,9 @@ ROUTES = {
     "POST /api/orgs/{}/export": "org", "DELETE /api/orgs/{}/export": "org", "GET /api/orgs/{}/export/file": "org",
     # 2.223.2 C (#2871): the step-up before the download (POST -> a one-time ticket, after the same checks as the GET)
     "POST /api/orgs/{}/export/file": "org", "POST /api/retention/org/{}/export.zip": "org", "POST /api/retention/me/export.zip": "own",
+    # 2.1291.0 (#6474, A6): the declared waiver of the retention export (another organisation's admin, a member and an instance admin 404)
+    "POST /api/retention/org/{}/waiver": "org", "DELETE /api/retention/org/{}/waiver": "org",  # p21291_rxgate_test.py, tenant-matrix: org
+    "POST /api/retention/me/waiver": "own", "DELETE /api/retention/me/waiver": "own",
     # ---- own (119)
     "GET /api/favorites/targets": "favtarget",  # 2.441.0 (#3592): stored keys can name anything, each target is checked
     "GET /api/recent": "recent",  # 2.769.0 (#5352): "Recently edited" over Knowledge, Files and Reading
