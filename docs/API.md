@@ -412,7 +412,7 @@ out. Leaving a project ends access to its views; they go with the project. `GET 
   "due": "2026-10-01", "due_time": "15:00", "start": null, "duration": 30,
   "reminders": [0, 15], "repeat": "", "repeat_from": "due", "url": null,
   "tags": ["health"], "list_tags": ["urgent"], "pinned": false, "assignee_id": null, "assignee_group_id": null,
-  "created_by": 1, "completed_by": null,
+  "created_by": 1, "completed_by": null, "by_creator": true,
   "created_at": "2026-09-29T08:15:00+00:00", "updated_at": "2026-09-29T08:15:00+00:00", "completed_at": null,
   "deleted": false, "fields": {"3": "opt2"}, "blocked": false, "comment_count": 0,
   "attachments": [{"id": 5, "name": "x-ray.pdf", "mime": "application/pdf", "size": 81234}],
@@ -1315,7 +1315,11 @@ of `street`, `zip`, `city` empty) it is split into those fields once; filled fie
 their recipient from the client (name, attn. line, street, `address_extra`, postcode + city, the country when it is not the
 company's) until they are finalised or sent; a `recipient` sent for such a draft is ignored (the answer shows the client's)
 and `recipient_missing` is `true` while street, postcode or city is missing. A document without a client keeps the
-`recipient` it is given. Finalising freezes the recipient with the fixed fields; the e-invoice takes them directly
+`recipient` it is given. 2.1308.0 (#6477): `recipient` takes the fixed fields `{name, street, extra, zip, city, country}`
+(ISO code, empty = the company's; `lines` are then made from them); `{name, lines}` alone gets the fields only when the
+lines are a plain address (street + postcode city). An invoice / correction without a client is finalised only with
+street, postcode and city (`400` "Missing before finalising: postcode of the recipient" ...); quotations, reminders and
+delivery notes keep the free lines. Finalising freezes the recipient with the fixed fields; the e-invoice takes them directly
 (`address_extra` = LineTwo), older documents with free lines only are parsed as before.
 2.99.0 (#2188): `name_extra` (up to 120 characters, empty = none) is a second name line of the client (e.g. the legal form
 or the partners): documents print it as its own line under the name, the e-invoice joins it to the buyer name (BT-44,

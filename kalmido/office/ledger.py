@@ -445,6 +445,10 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason=""):
             from .docs import fk_doc_contact
             k = fk_doc_contact(c, r["client_id"], r["contact_id"] if "contact_id" in r.keys() else None)  # 2.40.0 (#1380)
             rsnap["contact"] = {"name": k["name"], "email": k["email"], "phone": k["phone"]} if k else None
+    else:  # 2.1308.0 (#6477): without a client the fixed address fields of the recipient are frozen too (the e-invoice reads them)
+        for k in ("street", "extra", "zip", "city", "country"):
+            if rec.get(k):
+                rsnap[k] = rec[k]
     tax = pack.get("tax") or {}
     tsnap = {"pack": pack.get("code") or "", "version": str(pack.get("version") or ""),
              "rates": {k: tax.get(k) for k in ("standard", "reduced", "exempt")}, "tax": tax,

@@ -53,6 +53,7 @@ from .srvagent import ProviderError, srv_flow_models, srv_key, srv_models, srv_o
 from .srvstarter import SRV_BRIEF_AT, SRV_FLOWS, SRV_FOLLOWUP_AT, SRV_TEXTS
 from .srvweb import SRV_VIES_TOOL, SRV_WEB_FRAME, SRV_WEB_REMIND, srv_vies_result, srv_web_on, srv_web_scan, srv_web_state, srv_web_tools  # 2.571.0 D
 from .srvteam import srv_batch, srv_member_block, srv_run_asker, srv_usage_mark, SRV_FOREIGN_SQL  # 2.569.0 B (#4675): team projects
+from .srvteam import srv_limit_fix, srv_requester  # 2.1308.0 (#6568): hosted - the hard day limit, runs nobody asked for
 from .srvteam import srv_events_cut, srv_run_cut, SRV_FOR_FRAME  # 2.1287.0 (#6454): a team agent's run works with the requester's rights
 
 SRV_PARALLEL = env_int("KALMIDO_SRVAGENT_PARALLEL", 2, lo=1, hi=64)   # runs at once on this server
@@ -293,6 +294,7 @@ def _claim(c, aid, probe=False, out=None):
         if probe:
             c.commit()
             return True
+        srv_limit_fix(c, aid)  # 2.1308.0 (#6568): hosted - an agent from before gets its hard day limit before it runs
         if a["status"] == "paused":  # paused by its owner, or by its limit (then it goes on once the limit allows it)
             if not row["paused"] or usage_block(c, aid):
                 c.commit()
@@ -422,7 +424,8 @@ def _run(aid, rid):
         _db(lambda c: c.execute("UPDATE agent_server SET cursor=GREATEST(cursor, ?) WHERE agent_id=?", (new_cursor, aid)))
         if not work:
             return
-        _db(lambda c: srv_run_asker(c, rid, who))
+        nobody = all(srv_requester(e) is None for e in work)  # 2.1308.0 (#6568): a form, mail, a webhook, listening in
+        _db(lambda c: srv_run_asker(c, rid, who, nobody))
         # 2.1287.0 (#6454): from here on the token reaches only what the requester may (a team agent; before the first tool call)
         lids = _db(lambda c: srv_run_cut(c, aid, _token_hash(tok), who, work))
         if lids is not None:
@@ -430,7 +433,7 @@ def _run(aid, rid):
         asker = _asker(work)
         if asker:
             lang = _db(lambda c: usettings(c, asker)["lang"]) or lang
-        mwhy = _db(lambda c: srv_member_block(c, aid, who))  # 2.569.0 B (#4675): this member's limit; the others go on
+        mwhy = _db(lambda c: srv_member_block(c, aid, who, nobody=nobody))  # 2.569.0 B (#4675): this member's limit; the others go on
         if mwhy:
             asker = asker or who
             lang = _db(lambda c: usettings(c, asker)["lang"]) or lang
