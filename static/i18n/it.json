@@ -18788,10 +18788,6 @@
   "on the marked positions and the parts": "sulle voci contrassegnate e sui preventivi parziali",
   "{pct} % on the marked positions and the parts|calc": "{pct} % sulle voci contrassegnate e sui preventivi parziali",
   "{pct} % on the marked positions, the parts and the handling costs|calc": "{pct} % sulle voci contrassegnate, sui preventivi parziali e sulle spese di gestione",
-  "Document flow {0} keeps failing on a document, failing since {1}.": "Il flusso di documenti {0} continua a non riuscire su un documento, con errori dal {1}.",
-  "The invoice of the series could not be made {0} times in a row. Check the template invoice and the client, then switch the series on again.": "Non è stato possibile creare la fattura della serie per {0} volte di seguito. Controlla la fattura modello e il cliente, poi riattiva la serie.",
-  "Nobody may make the invoices of the series: the area has no admin with the office switched on. Switch the series on again once there is one.": "Nessuno può creare le fatture della serie: l’area non ha un amministratore con l’ufficio attivo. Riattiva la serie appena ce n’è uno.",
-  "Invoice {0} is finalised, but its e-mail did not go out after a restart of the server. Send it by hand from the invoice.": "La fattura {0} è emessa, ma la sua mail non è partita dopo un riavvio del server. Inviala a mano dalla fattura.",
   "You can only read this document": "Puoi solo leggere questo documento",
   "Meanwhile someone else uploaded a newer version, it stays as it is: {0}": "Nel frattempo qualcun altro ha caricato una versione più recente, resta così: {0}",
   "(you)": "(tu)"
