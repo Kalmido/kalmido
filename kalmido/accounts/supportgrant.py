@@ -160,15 +160,18 @@ SGA_NOT_CONTENT = frozenset((
     "public-link", "public-links", "regenerate", "members", "people", "groups", "owner", "org", "shares", "ext-links", "portal-link",
     "requests", "signoff", "signoffs", "agent", "agents", "ask-agent", "hooks-in", "error-hook", "repos", "folder-repo", "envs", "rules",
     "forms", "e2e", "keys", "lock", "scan-keys", "feed", "fetchers", "rights", "settings", "payonline", "peppol", "mail", "mail-notice",
-    "mail-profile", "receipt-mail", "mail-addresses", "notify-template", "send", "send-mail", "purge", "anonymize", "pay-online", "move-space"))
+    "mail-profile", "receipt-mail", "mail-addresses", "notify-template", "send", "send-mail", "purge", "anonymize", "pay-online", "move-space",
+    "request-mail"))  # 2.1254.0 (#6294): a project's request address is a mail inbox of the account: it would outlive the grant
 SGA_PLAIN = frozenset(("/api/auth/logout", "/api/client-errors", "/api/settings", "/api/me"))  # /api/me: never SGA_GUARD_ME
 SGA_GUARD_ME = {"password", "email", "username", "current_password", "new_password"}
 SGA_GUARD_SCOPE = {"org_id", "org_visibility", "org_edit"}  # review F2: a PATCH that carries contents out of the account's scope
-SGA_SECRET_READ = frozenset(("public-link", "public-links", "feed", "ext-links"))  # review F1: answers with a working link: it would outlive the grant
+SGA_SECRET_READ = frozenset(("public-link", "public-links", "feed", "ext-links",  # review F1: answers with a working link: it would outlive the grant
+                             "request-mail", "mail-addresses"))  # 2.1254.0 (#6294): the secret inbox addresses (project requests, documents)
 # 2.536.0 (#4363): the OIDC start would link a provider identity to the client's account and swap the support session for one
 # without the mark (sga_close would not end it) -- refused like a write; the callback refuses a support session itself (oidc.py)
 # review of 2.536.0: the HTTP Shortcuts ZIP makes a new drop token of the client on GET (users.py) -- it would outlive the grant
-SGA_GET_REFUSED = frozenset(("/api/auth/oidc/start", "/api/me/share/httpshortcuts.zip"))
+# 2.1254.0 (#6294): /api/me/mail answers with the secret addresses for new tasks by mail (personal, per project)
+SGA_GET_REFUSED = frozenset(("/api/auth/oidc/start", "/api/me/share/httpshortcuts.zip", "/api/me/mail"))
 SGA_REFUSED = N_("Support access does not hand out sign-in data or add people: the client does that")
 # 2.538.0 (#4365, decision of 04.11.2026): a support session books nothing in the office; editing contents is neither
 # booking nor changing the account's structure. Refused besides SGA_NOT_CONTENT, whatever the area: finalising, cancelling,
@@ -179,7 +182,8 @@ SGA_NO_WRITE = tuple((m, re.compile(p)) for m, p in (
     (None, r"/api/office/(cashbooks|cash-entries|bank|datev|books|legacy|periods|move)(/.*)?"),
     (None, r"/api/office/(logbook/close|trial/delete-all|series/\d+/run|gen-docs/\d+/final)"),
     (None, r"/api/office/(meals/\d+/(approve|unlock)|cards/statements/\d+/(confirm|reopen)|cards/lines/\d+/(match|unmatch))"),
-    (("DELETE",), r"/api/office/trash/\d+"),
+    # 2.1254.0 (#6294): the office trash's delete for good is /api/office/trash/core/<kind>/<id> since 2.1067 (the old form stays)
+    (("DELETE",), r"/api/office/trash/(\d+|core/[^/]+/\d+)"),
     (None, r"/api/tasks/purge-done|/api/lists/\d+/time/delete-all"),
     # 2.538.0 (#4365): the master data import changes the office's structure; the import undos delete for good
     (None, r"/api/office/(import|fixed-costs/delete|trips/delete)"),
@@ -188,6 +192,14 @@ SGA_NO_WRITE = tuple((m, re.compile(p)) for m, p in (
     (("DELETE",), r"/api/office/(trips|fixed-costs)/\d+"),
     # 2.538.0 (#4365, review F6): the next running number (a gap in the invoice series) is the bookkeeping's structure
     (None, r"/api/office/number-ranges/[^/]+"),
+))
+# 2.1254.0 (#6294): routes that delete for good only with a query parameter (the guard never saw the query before): refused
+# whenever the parameter is there at all, whatever its value. tests/p21254_a_support_purge_test.py checks every DELETE route that
+# deletes for good against SGA_NO_WRITE / SGA_PURGE_ARGS.
+SGA_PURGE_ARGS = tuple((m, re.compile(p), a) for m, p, a in (
+    (("DELETE",), r"/api/tasks/\d+", "hard"),  # tasks/lifecycle.py task_delete
+    (("DELETE",), r"/api/files/nodes/\d+", "purge"),  # files/web.py files_node_delete
+    (("DELETE",), r"/api/notes/\d+", "empty"),  # collab/notes.py note_delete: an empty quick note, never into the trash
 ))
 SGA_BOOKING = N_("A support session books nothing in the office and deletes nothing permanently: the client does that")
 SGA_FOREIGN = N_("A support session puts nothing into an organisation that has not granted support access")
@@ -201,10 +213,12 @@ def sga_may_write(path):
     return len(seg) > 2 and seg[1] == "api" and seg[2] in SGA_CONTENT and not SGA_NOT_CONTENT.intersection(seg)
 
 
-def sga_no_write(method, path, b):
+def sga_no_write(method, path, b, args=None):
     """2.538.0 (#4365): True when a support session may not make this write (SGA_NO_WRITE; a status change to / from paid is
-    a payment)."""
+    a payment). 2.1254.0 (#6294): args = the query parameters (SGA_PURGE_ARGS: a delete for good by parameter)."""
     if any((m is None or method in m) and rx.fullmatch(path) for m, rx in SGA_NO_WRITE):
+        return True
+    if args and any(method in m and a in args and rx.fullmatch(path) for m, rx, a in SGA_PURGE_ARGS):
         return True
     return bool(re.fullmatch(r"/api/office/docs/\d+/status", path)) and isinstance(b, dict) and b.get("status") == "paid"
 
@@ -246,15 +260,20 @@ def sga_list_foreign(c, lid):
 
 
 # 2.538.0 (#4365, review F5): a new event / contact / note goes into the organisation of its container: the calendar (cal_id),
-# the address book (book_id, an organisation's own book first) or the project in the path (its notes, notepads, checks, files,
-# links, milestones)
+# the address book (book_id, an organisation's own book first) or the project in the path
 SGA_BOX_ORG = {"cal_id": "SELECT org_id FROM ev_cals WHERE id=?", "book_id": "SELECT COALESCE(owner_org_id, org_id) FROM books WHERE id=?"}
-SGA_LIST_NEW = re.compile(r"/api/lists/(\d+)/(notes|notepads|checklist|checks|files|links|milestones)")
+# 2.1254.0 (#6294): a write on an object in the path (and its child paths: a task's comments, attachments, subtasks ...) goes
+# into the organisation of the object's project -- every write method; was only the new items of a project (POST)
+SGA_PATH_ORG = tuple((re.compile(p), q) for p, q in (
+    (r"/api/tasks/(\d+)(?:/.*)?", "SELECT l.org_id FROM tasks t JOIN lists l ON l.id=t.list_id WHERE t.id=?"),
+    (r"/api/attachments/(\d+)(?:/.*)?", "SELECT l.org_id FROM attachments a JOIN tasks t ON t.id=a.task_id JOIN lists l ON l.id=t.list_id WHERE a.id=?"),
+    (r"/api/lists/(\d+)(?:/.*)?", "SELECT org_id FROM lists WHERE id=?"),
+))
 
 
 def sga_box_foreign(c, method, path, b):
     """2.538.0 (#4365, review F5): True when a support session's write puts contents into an organisation without its own
-    support access through a container: cal_id / book_id in the body or a new item of the project in the path (POST)."""
+    support access through a container: cal_id / book_id in the body or the object in the path (SGA_PATH_ORG)."""
     if not sga_is_support(c):
         return False
     for k, q in SGA_BOX_ORG.items():
@@ -265,8 +284,13 @@ def sga_box_foreign(c, method, path, b):
             r = c.execute(q, (int(v),)).fetchone()
         if r and sga_org_foreign(c, r[0]):
             return True
-    m = SGA_LIST_NEW.fullmatch(path) if method == "POST" else None
-    return bool(m) and sga_list_foreign(c, m.group(1))
+    for rx, q in SGA_PATH_ORG:
+        m = rx.fullmatch(path)
+        if m:
+            with system_ctx(c):  # only the parent's organisation id: structure, no content
+                r = c.execute(q, (int(m.group(1)),)).fetchone()
+            return bool(r) and sga_org_foreign(c, r[0])
+    return False
 
 
 def sga_scope_check(c, oid):
@@ -311,7 +335,7 @@ def sga_guard():
         hit = isinstance(b, dict) and bool(set(b) & (SGA_GUARD_ME if p == "/api/me" else SGA_GUARD_SCOPE))
     if hit:
         return jsonify(error=tr(SGA_REFUSED), code="support_session"), 403
-    if sga_no_write(request.method, p, b):  # 2.538.0 (#4365): no booking, nothing deleted for good
+    if sga_no_write(request.method, p, b, request.args):  # 2.538.0 (#4365): no booking, nothing deleted for good
         return jsonify(error=tr(SGA_BOOKING), code="support_session"), 403
     # 2.538.0 (#4365): contents go into no organisation without its own support access (a new object's org_id, a list_id)
     if (isinstance(b, dict) and (sga_org_foreign(c, b.get("org_id")) or sga_list_foreign(c, b.get("list_id")))) \
