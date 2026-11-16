@@ -2236,6 +2236,9 @@ answer 409 (credit notes made before stay readable). It keeps the invoice's curr
 VAT note (a change in the draft: 409; the editor shows the fields locked) and the VAT rates frozen with the invoice
 (`tax_snapshot`), even after the country pack changed. Finalising checks the credit notes of an invoice per VAT rate:
 together never more than the invoice at that rate (409).
+2.1289 (#6473): a finalised credit note (invoice correction) is final: `/credit` answers 409 on anything but a finalised
+invoice, so a credit note itself is never corrected or cancelled. A correction finalised by mistake is set right with a
+new invoice with a new number (the procedure documentation says so, field "Locking of periods").
 
 **Changing the language of a draft** (2.40.0): `PATCH /api/office/docs/<id> {lang}` sets intro, closing (settings, pack or
 framework contract), the rights texts, the rights note and the titles of catalogue positions anew in the new language,

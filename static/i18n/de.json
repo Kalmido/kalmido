@@ -6006,7 +6006,7 @@
   "From time entries…": "Aus Zeiteinträgen…",
   "Invoice draft created": "Rechnungsentwurf erstellt",
   "Credit note for {0}?": "Rechnungskorrektur zu {0}?",
-  "A draft with all positions is made. Shorten it for a partial credit; finalised over the full amount it cancels the invoice.": "Es entsteht ein Entwurf mit allen Positionen. Für eine Teilgutschrift kürzen; über den vollen Betrag festgeschrieben storniert sie die Rechnung.",
+  "A draft with all positions is made. Shorten it for a partial credit; finalised over the full amount it cancels the invoice.": "Es entsteht ein Entwurf mit allen Positionen. Für eine Teilkorrektur kürzen; über den vollen Betrag festgeschrieben storniert sie die Rechnung.",
   "Create credit note": "Rechnungskorrektur erstellen",
   "E-invoice XML": "E-Rechnung (XML)",
   "Send to the DATEV inbox": "Ans DATEV-Postfach senden",
