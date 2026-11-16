@@ -65,12 +65,17 @@ def invite_new(c, uid, by, send=True, kind=None, days=None, bg=False):
     now = now_utc()
     days = days or INVITE_DAYS
     exp = iso(now + timedelta(days=days))
-    from .supportgrant import sga_link_exp
+    from .supportgrant import sga_grant_ends, sga_link_exp, sga_link_grant
     exp = sga_link_exp(c, exp)  # 2.485.0 (#3939): made through the client's support access: it ends with that access
-    c.execute("""INSERT INTO user_invites(user_id,token_hash,kind,created_by,created_at,expires_at) VALUES(?,?,?,?,?,?)
+    # 2.1271.0 (#6497): an operator's sign-in link carries the support access it is made through; it and its session hold only
+    # while exactly that grant is open
+    gid = sga_link_grant(c, uid, by) if kind == "login" else None
+    if gid:
+        exp = min(exp, sga_grant_ends(c, gid) or exp)
+    c.execute("""INSERT INTO user_invites(user_id,token_hash,kind,created_by,created_at,expires_at,grant_id) VALUES(?,?,?,?,?,?,?)
                  ON CONFLICT(user_id) DO UPDATE SET token_hash=excluded.token_hash, kind=excluded.kind, created_by=excluded.created_by,
-                 created_at=excluded.created_at, expires_at=excluded.expires_at, sent_at=NULL, used_at=NULL""",
-              (uid, _hash(tok), kind, by, iso(now), exp))
+                 created_at=excluded.created_at, expires_at=excluded.expires_at, sent_at=NULL, used_at=NULL, grant_id=excluded.grant_id""",
+              (uid, _hash(tok), kind, by, iso(now), exp, gid))
     link = f"{PUBLIC_URL}/#{'signin' if kind == 'login' else 'invite'}/{tok}"
     out = {"link": link, "expires_at": exp, "sent": False, "kind": kind, "email": u["email"] or ""}
     if send and MAIL_OUT_ON and u["email"] and kind != "login":
