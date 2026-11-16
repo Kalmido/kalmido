@@ -163,8 +163,13 @@ const FEAT = 'collab,comments';
     await ev(`(location.hash = '#steps', 1)`);
     check(await wait(`[...document.querySelectorAll('.ulrow .ullab')].some(x => x.textContent.trim() === 'Message deleted')`, {timeout: 15000}), '#6099: "Message deleted" under Recent steps ' + await ev(`[...document.querySelectorAll('.ulrow .ullab')].map(x => x.textContent).join(' | ')`));
     await shot('p21211b-letzte-schritte.png');
-    await ev(`(() => { const r = [...document.querySelectorAll('.ulrow')].find(x => x.querySelector('.ullab')?.textContent.trim() === 'Message deleted'); r.querySelector('[data-ul-go]').click(); return 1; })()`);
-    check(await wait(async () => { const m = await msgOf(CA, room.id, mine2.id); return m && !m.deleted; }, {timeout: 15000}), '#6099: Recent steps: Back up to here restores it');
+    // 2.1246.0 (#6274): ul_go drops a click while a step is still on its way (HIST.busy / UL.busy, the delete still waiting for
+    // the connection); the CI clicked right as the row appeared and nothing happened - click once the list is settled
+    const ulRow = `[...document.querySelectorAll('.ulrow')].find(x => x.querySelector('.ullab')?.textContent.trim() === 'Message deleted' && x.querySelector('[data-ul-go]'))`;
+    const ulDiag = () => ev(`JSON.stringify({busy: [HIST.busy, UL.busy], note: UL.note, rows: [...document.querySelectorAll('.ulrow')].map(x => [x.dataset.ul, x.querySelector('.ullab')?.textContent.trim(), x.querySelector('[data-ul-go]') ? (x.querySelector('[data-ul-go]').disabled ? 'off' : 'go') : x.querySelector('[data-ul-redo]') ? 'redo' : '-'])})`).catch(e => String(e));
+    check(await wait(`(() => { const r = ${ulRow}, b = r?.querySelector('[data-ul-go]'); return !!b && !b.disabled && !/waiting for the connection/.test(r.textContent) && !histPending(HIST.undo.find(e => 'l:' + e.ulk === r.dataset.ul)) && !HIST.busy && !UL.busy; })()`, {timeout: 15000}), '#6099: the step is sent, "Back up to here" can be pressed ' + await ulDiag());
+    await ev(`(${ulRow}.querySelector('[data-ul-go]').click(), 1)`);
+    check(await wait(async () => { const m = await msgOf(CA, room.id, mine2.id); return m && !m.deleted; }, {timeout: 15000}), '#6099: Recent steps: Back up to here restores it ' + await ulDiag());
     await ev(`(location.hash = '#team/${room.id}', 1)`);
     check(await wait(`[...document.querySelectorAll('#tc-msgs .cmsg[data-mid="t:${mine2.id}"] .cbub')].some(b => b.textContent.includes('Note 26 from Alice'))`, {timeout: 15000}), '#6099: the restored message reads in the log');
 
