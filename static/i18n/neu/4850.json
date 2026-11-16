@@ -1,0 +1,27 @@
+{
+  "de": {
+    "Rounding adjustment": "Rundungsausgleich",
+    "In this run you work for one person: only that person can be named here": "In diesem Lauf arbeitest du für eine Person: nur sie kann hier genannt werden",
+    "Not available in this run: the person you work for does not reach this themselves": "In diesem Lauf nicht verfügbar: die Person, für die du arbeitest, erreicht das selbst nicht"
+  },
+  "es": {
+    "Rounding adjustment": "Ajuste de redondeo",
+    "In this run you work for one person: only that person can be named here": "En esta ejecución trabajas para una persona: solo esa persona puede indicarse aquí",
+    "Not available in this run: the person you work for does not reach this themselves": "No disponible en esta ejecución: la persona para la que trabajas no tiene acceso a esto"
+  },
+  "fr": {
+    "Rounding adjustment": "Ajustement d'arrondi",
+    "In this run you work for one person: only that person can be named here": "Dans cette exécution, tu travailles pour une personne : seule elle peut être indiquée ici",
+    "Not available in this run: the person you work for does not reach this themselves": "Indisponible dans cette exécution : la personne pour qui tu travailles n'y a pas accès elle-même"
+  },
+  "it": {
+    "Rounding adjustment": "Arrotondamento",
+    "In this run you work for one person: only that person can be named here": "In questa esecuzione lavori per una persona: solo lei può essere indicata qui",
+    "Not available in this run: the person you work for does not reach this themselves": "Non disponibile in questa esecuzione: la persona per cui lavori non vi accede direttamente"
+  },
+  "nl": {
+    "Rounding adjustment": "Afrondingscorrectie",
+    "In this run you work for one person: only that person can be named here": "In deze run werk je voor één persoon: alleen die persoon kan hier worden genoemd",
+    "Not available in this run: the person you work for does not reach this themselves": "Niet beschikbaar in deze run: de persoon voor wie je werkt, bereikt dit zelf niet"
+  }
+}
