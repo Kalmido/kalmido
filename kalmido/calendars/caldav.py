@@ -339,7 +339,8 @@ def xml_no_dtd(data):
         except UnicodeDecodeError:
             raise ET.ParseError("not UTF-16") from None
     try:
-        return safexml.sx_tree(data, max_bytes=4 * len(data) + 1, max_elements=XML_ELEMENTS_MAX, max_depth=XML_DEPTH_MAX)
+        return safexml.sx_tree(data, max_bytes=4 * len(data) + 1, max_elements=XML_ELEMENTS_MAX, max_depth=XML_DEPTH_MAX,
+                               strict=False)  # a calendar answer or a feed may carry the words "<!DOCTYPE html" in its content
     except safexml.XmlRefused as e:
         if e.reason in ("nul", "dtd"):
             raise _DtdRefused() from None

@@ -42,7 +42,7 @@ from .ocr import thumb_bytes, doc_text, qr_codes, OCR_PAGES, QR_DOC_S, THUMB_WL 
 from .ocr import OCR_LANG_MAX, ocr_choices  # 2.635.0 (#4807 b)
 from .scanmark import scan_of  # 2.836.0 (#5390): the scan mark
 from .pagesize import PgBusy, pg_of  # 2.905.0 (#5393): the first page's size; 2.990.0 (#5571): PgBusy
-from ..office.einvoice_in import ei_of_file, ei_text, ei_amount, ei_details, ei_compact, ei_receipt  # 2.369.5 (#2517): pulled up from functions
+from ..office.einvoice_in import EinvoiceBusy, ei_of_file, ei_text, ei_amount, ei_details, ei_compact, ei_receipt  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.attachtext import file_kind  # 2.369.5 (#2517): pulled up from functions
 
 STATES = ("wait", "run", "done", "failed")
@@ -1365,7 +1365,10 @@ def process(c, nid):
         return "failed"
     ei = None
     if not given.get("text"):
-        ei = ei_of_file(node["name"], node["mime"], data, m["created_by"])  # 2.146.0 A (#2451): an e-invoice (XML / in a PDF)
+        try:
+            ei = ei_of_file(node["name"], node["mime"], data, m["created_by"])  # 2.146.0 A (#2451): an e-invoice (XML / in a PDF)
+        except EinvoiceBusy:  # 2.1272.0 (#6422): no place free for its check in an own process: again with the next run
+            return "wait"
     if given.get("text"):
         res = {"text": str(given["text"])[:200_000], "method": "import", "kind": file_kind(node["name"], node["mime"], data[:2048])}
     elif ei and ei["source"] == "xml":       # 2.146.0 A (#2451): the readable text of the invoice, not the XML

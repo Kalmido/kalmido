@@ -77,18 +77,22 @@ class EinvoiceError(ValueError):
     pass
 
 
+class EinvoiceBusy(Exception):
+    """2.1272.0 (#6422): no place free for the check in its own process; the file is read again later."""
+
+
 # ---- reading the XML ------------------------------------------------------------------------------------------------------
 def _decode(data):
     """Text of the XML bytes (BOM, the declared encoding, else UTF-8 with a cp1252 fallback)."""
     if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
-        return data.decode("utf-16")
+        return data.decode("utf-16", "replace")  # 2.1272.0 (#6422 review): an odd length is broken XML, not an error
     if data[:3] == b"\xef\xbb\xbf":
         data = data[3:]
     m = re.match(rb"\s*<\?xml[^>]*encoding\s*=\s*[\"']([A-Za-z0-9._-]{1,40})[\"']", data[:200])
     for enc in ([m.group(1).decode("ascii")] if m else []) + ["utf-8", "cp1252"]:
         try:
             return data.decode(enc)
-        except (LookupError, UnicodeDecodeError):
+        except (LookupError, UnicodeError):  # 2.1272.0 (#6422 review): a codec like "undefined" raises a plain UnicodeError
             continue
     return data.decode("latin-1")
 
@@ -437,7 +441,7 @@ spec = importlib.util.spec_from_file_location("safexml", sys.argv[6])
 sx = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sx)
 try:
-    sx.sx_check(sys.stdin.buffer.read().decode("utf-8"), max_bytes=CAP, max_elements=ELEMENTS, max_depth=DEPTH)
+    sx.sx_tree(sys.stdin.buffer.read().decode("utf-8"), max_bytes=CAP, max_elements=ELEMENTS, max_depth=DEPTH)  # the whole tree, as the app builds it
     out = {"ok": True}
 except sx.XmlRefused as e:
     out = {"refused": e.reason}
@@ -451,7 +455,8 @@ print(json.dumps(out))
 
 def ei_checked(data):
     """Reads an e-invoice XML (bytes) once in a limited process: None when it is fine, else the reason ("nul", "dtd",
-    "size", "elements", "depth", "broken", "memory"; "worker" = the process died, ran out of time or no place was free). Loaded as
+    "size", "elements", "depth", "names", "broken", "memory"; "worker" = the process died or ran out of time). No free
+    place within the waiting time raises EinvoiceBusy: the caller tries again later (docs/store.py answers "wait"). Loaded as
     a single file (no worker) it answers None: the reader in this process holds the same limits."""
     if _SEM is None:
         return None
@@ -459,7 +464,7 @@ def ei_checked(data):
         return "size"
     text = _decode(bytes(data)).encode("utf-8", "replace")
     if not _SEM.acquire(timeout=PDF_WAIT * 5):
-        return "worker"
+        raise EinvoiceBusy()
     try:
         p = subprocess.run([sys.executable, "-I", "-c", XML_WORKER, str(PDF_MEM), str(PDF_SECONDS), str(3 * XML_MAX), str(ELEMENTS_MAX),
                             str(DEPTH_MAX), os.path.abspath(safexml.__file__)],
@@ -501,7 +506,8 @@ def ei_from_pdf(data, owner=None):
 
 def ei_of_file(name, mime, data, owner=None):
     """The parsed e-invoice of a document's file (an e-invoice XML, or a PDF with one embedded) or None. A broken or refused
-    XML is no e-invoice here (the file stays an ordinary document); its reason is logged without content."""
+    XML is no e-invoice here (the file stays an ordinary document); its reason is logged without content. EinvoiceBusy
+    when the check process has no free place (2.1272.0, #6422): the caller reads the file again later."""
     head = bytes(data[:1024]) if data else b""
     src = None
     if head.lstrip().startswith(b"%PDF"):
