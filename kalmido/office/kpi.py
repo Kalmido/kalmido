@@ -62,7 +62,7 @@ def kpi_revenue(c, oid, home, docs, year, today):
     by_id = {r["id"]: r for r in docs}
     to_date = year == int(today[:4])
     sums, ytd = {}, {}
-    from .books import BK_PAY_DAY  # 2.355.0 C (#2841): a reversal line on the day of its payment, as the books
+    from .books import BK_PAY_DAY, bk_pay_net  # 2.355.0 C (#2841): a reversal line on the day of its payment, as the books
     # 2.603.0 (#4927): a year with the basis "bank and cash" counts only payments of a bank / cash booking (office/euerbasis.py)
     st = office_settings(c, oid)
     strict = {y: eb_basis_of(st, y) == "bank" for y in (year - 1, year)}
@@ -75,9 +75,14 @@ def kpi_revenue(c, oid, home, docs, year, today):
             continue
         if inc_ids is not None and strict.get(int(p["date"][:4])) and p["id"] not in inc_ids:
             continue
-        a = dec(p["amount"]) * _net_share(r) / _fx(r, home)
-        if r["kind"] == "credit":
-            a = -a  # a refund paid on a credit note
+        # 2.1259.0 (#6301): the net share of the frozen tax lines, the same figure as the books (books.bk_pay_net, a refund on a
+        # credit note negative); a document without tax lines keeps net / gross of its totals
+        if _j(r["totals"]).get("tax_lines") and (r["vat_mode"] or "vat") != "novat":
+            a = bk_pay_net(p["amount"], r, home)
+        else:
+            a = dec(p["amount"]) * _net_share(r) / _fx(r, home)
+            if r["kind"] == "credit":
+                a = -a  # a refund paid on a credit note
         y, mo = p["date"][:4], p["date"][:7]
         sums[mo] = sums.get(mo, dec(0)) + a
         if not to_date or p["date"][5:10] <= today[5:10]:

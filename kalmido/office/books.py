@@ -425,17 +425,58 @@ def bk_payments(c, oid, frm, to, home):
     return out
 
 
-def _pay_parts(p, r, home):
-    """[(group, gross, net, vat)] of one payment in the office currency (a refund on a credit note negative)."""
-    a = dec(p["amount"]) / _fx(r, home)
-    if r["kind"] == "credit":
-        a = -a
+def bk_doc_lines(r, home):
+    """2.1259.0 (#6301): ([(group, base, tax)] in the office currency, gross in the document's currency) of an invoice / credit
+    note with VAT from its frozen tax lines (totals.tax_lines), the truth of the document: a full payment gives exactly its
+    base and tax. A foreign currency: each line by the document's rate, the rest cent to the converted sums on the largest
+    rate. None without VAT or without tax lines (an old document keeps the share way of bk_doc_parts)."""
+    if (r["vat_mode"] or "vat") == "novat":
+        return None
+    rows = []
+    for tl in _j(r["totals"]).get("tax_lines") or []:
+        pct = dec(tl.get("pct") or 0).normalize()
+        rows.append(("vat" + format(pct, "f") if pct > 0 else "exempt", pct, dec(tl.get("base") or 0), dec(tl.get("amount") or 0)))
+    if not rows:
+        return None
+    gross = sum((b + t for _, _, b, t in rows), Decimal(0))
+    fx = _fx(r, home)
+    if fx == 1:
+        return [(k, b, t) for k, _, b, t in rows], gross
+    out = [[k, money(b / fx), money(t / fx)] for k, _, b, t in rows]
+    big = max(range(len(rows)), key=lambda i: (rows[i][1], abs(rows[i][2])))
+    out[big][1] += money(sum((x[2] for x in rows), Decimal(0)) / fx) - sum((x[1] for x in out), Decimal(0))
+    out[big][2] += money(sum((x[3] for x in rows), Decimal(0)) / fx) - sum((x[2] for x in out), Decimal(0))
+    return [tuple(x) for x in out], gross
+
+
+def bk_amount_parts(amount, r, home):
+    """[(group, gross, net, vat)] in the office currency of an amount in document r's currency (a payment, a cash discount;
+    the sign as given). 2.1259.0 (#6301): split by base / gross and tax / gross of the frozen tax lines (bk_doc_lines), was
+    net = share x 100 / (100 + rate) recomputed from the gross; without tax lines the shares of bk_doc_parts as before."""
+    lines = bk_doc_lines(r, home)
+    if lines is not None and lines[1] != 0:
+        q = dec(amount) / lines[1]
+        return [(k, q * (b + t), q * b, q * t) for k, b, t in lines[0]]
+    a = dec(amount) / _fx(r, home)
     out = []
     for k, share, pct in bk_doc_parts(r):
         part = a * share
         net = part * 100 / (100 + pct) if pct > 0 else part
         out.append((k, part, net, part - net))
     return out
+
+
+def bk_pay_net(amount, r, home):
+    """2.1259.0 (#6301): the net share in the office currency of a payment of amount on document r (a refund on a credit note
+    negative) -- the key figures count the same net as the books (bk_amount_parts)."""
+    a = dec(amount)
+    return sum((x[2] for x in bk_amount_parts(-a if r["kind"] == "credit" else a, r, home)), Decimal(0))
+
+
+def _pay_parts(p, r, home):
+    """[(group, gross, net, vat)] of one payment in the office currency (a refund on a credit note negative)."""
+    a = dec(p["amount"])
+    return bk_amount_parts(-a if r["kind"] == "credit" else a, r, home)
 
 
 OFC_MEAL_TWICE = N_("Entertainment receipts count from Office > Entertainment receipts. A restaurant bill that also lies under Receipts counts twice: keep it in one place only.")
@@ -767,19 +808,22 @@ def bk_ustva(c, oid, year, period):
             t = _j(r["totals"])
             fx, sign = _fx(r, home), (-1 if r["kind"] == "credit" else 1)
             gross = dec(t.get("gross") or 0) / fx * sign
-            for k, share, pct in bk_doc_parts(r):
-                part = gross * share
-                net = part * 100 / (100 + pct) if pct > 0 else part
-                add(k, net, part - net, r)
+            lines = bk_doc_lines(r, home)
+            if lines is not None:  # 2.1259.0 (#6301): base and tax of the frozen tax lines, was recomputed from the gross
+                for k, b, v in lines[0]:
+                    add(k, b * sign, v * sign, r)
+            else:
+                for k, share, pct in bk_doc_parts(r):
+                    part = gross * share
+                    net = part * 100 / (100 + pct) if pct > 0 else part
+                    add(k, net, part - net, r)
             items.append({"kind": r["kind"], "doc_id": r["id"], "number": r["number"], "date": r["date"], "gross": dstr(money(gross)),
                           "source": "document"})
         # 2.355.0 C (#2840): a cash discount taken reduces the base (section 17 UStG) per tax rate, in the period of its payment
         for r, sk in abs_skonto_rows(c, oid, frm, to):
             minus = -sk["amount"] / _fx(r, home)
-            for k, share, pct in bk_doc_parts(r):
-                part = minus * share
-                net = part * 100 / (100 + pct) if pct > 0 else part
-                add(k, net, part - net, r)
+            for k, part, net, vat in bk_amount_parts(-sk["amount"], r, home):  # 2.1259.0 (#6301): by the frozen tax lines
+                add(k, net, vat, r)
             items.append({"kind": "skonto", "doc_id": r["id"], "number": r["number"], "date": sk["day"], "gross": dstr(money(minus)),
                           "source": "skonto"})
     kz66, missing = Decimal(0), 0
