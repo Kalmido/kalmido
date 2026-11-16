@@ -27,6 +27,8 @@ let CK;
 const call = async (method, url, body, ck = CK) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: ck}, body: body ? JSON.stringify(body) : undefined}); const j = await r.json().catch(() => ({})); j.http = r.status; return j; };
 const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 15000, step: 150});  // 2.358.0 (#3286): the shared wait of tests/boot.js (default at least 15 s); an explicit n/ms keeps its window
 const clone = v => v === undefined ? v : JSON.parse(JSON.stringify(v));
+// 2.1257.0 (#6286): an own text waiting at its page is kept input of the account in localStorage (core.js fdKeep 'fdx'), not in the copy
+const fdx = (br, uid, id) => { const v = br.shared.store[`tasks.fdx.${uid}.${id}`]; return v ? JSON.parse(v).b : undefined; };
 
 // one browser: the copy's store and localStorage, shared by its windows
 function browser() {
@@ -133,8 +135,8 @@ function browser() {
   await w.eval(`flush()`);
   await until(() => !w.eval(`OUT.q.length`), 40);
   check((await call('GET', `/api/wiki/pages/${P1}`)).body === 'Theirs online', 'conflict: the other version stays on the server');
-  const cf = br.db.get('x:' + P1);
-  check(cf && cf.mine === 'Mine offline' && cf.sp === 'private', 'conflict: my version waits in the copy ' + JSON.stringify(cf));
+  const cf = fdx(br, w.eval('S.me.id'), P1);  // 2.1257.0 (#6286): kept input of the account, no more the copy's record
+  check(cf && cf.mine === 'Mine offline' && cf.sp === 'private' && !br.db.has('x:' + P1), 'conflict: my version waits (kept input of the account) ' + JSON.stringify(cf));
   check(!w.eval(`S.conflicts.some(c => c.mine === 'Mine offline')`), 'conflict: not as a rejected change in the conflicts dialog');
   w.eval(`WK.edit = false; 1`);
   await w.eval(`wk_loadPage(${P1}, true)`);
@@ -151,7 +153,7 @@ function browser() {
   check(/Keep your version or take theirs/.test(asked) && /Mine offline/.test(asked) && /Theirs online/.test(asked), 'conflict: "Compare" shows both versions ' + asked.slice(0, 300));
   const kept = await until(async () => (await call('GET', `/api/wiki/pages/${P1}`)).body === 'Mine offline', 40);
   check(kept, 'conflict: "Keep mine" saves my version');
-  check(await until(() => !br.db.has('x:' + P1) && !d.querySelector('#view .wkocf'), 40), 'conflict: decided = the bar and the waiting version are gone');
+  check(await until(() => !br.db.has('x:' + P1) && !fdx(br, w.eval('S.me.id'), P1) && !d.querySelector('#view .wkocf'), 40), 'conflict: decided = the bar and the waiting version are gone');  // 2.1257.0 (#6286): + the kept input
 
   // ================= 2.169.1 (#949): a phone: the same offline mark and text search in its list
   // 2.1199.0 (#5909): CI red v2.1175.0 (phone offline mark + search, green on the Mac): each boot() is its own sign-in
@@ -214,7 +216,7 @@ function browser() {
   check(!br.db.has('s:org:9999') && !br.db.has('s:private-other') && br.db.has('s:private'), 'sync: a space no longer mine and another account\'s record leave the copy');
   // review: my own text sent twice (the first answer got lost) is no conflict
   const twice = await w.eval(`wkoReject({url: '/api/wiki/pages/${P1}', method: 'PATCH', body: {body: 'Same text'}}, {status: 409, data: {page: {id: ${P1}, space: 'private', body: 'Same text', updated_at: '2030-01-01T00:00:00Z'}}})`);
-  check(twice === true && !br.db.has('x:' + P1), 'a text sent twice: saved already, no waiting conflict');
+  check(twice === true && !br.db.has('x:' + P1) && !fdx(br, st0.me.id, P1), 'a text sent twice: saved already, no waiting conflict');
   await w.eval(`clearLocal()`);
   check(br.db.size === 0, 'logout: the copy is empty');
   await w.eval(`wko_put({k: 's:private', sp: 'private', pages: [{id: 1, path: 'Late', body: 'late'}]})`);

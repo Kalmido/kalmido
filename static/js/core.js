@@ -932,16 +932,19 @@ function outOrgDrop(oid) {
 // it: it survives the sign-in page of an ended session (401 -> reload), a closed tab and a failed save. The pattern of the
 // letters (2.269.0 C #3017, office_letters.js). kind names the form ('ltpend' letters, 'fdf' dialogs (formguard.js fdDialog),
 // 'fdc' comment drafts, 'fdw' kept writes), id the record; base = the server's updated_at the input builds on.
-const FD_KINDS = ['ltpend', 'fdf', 'fdc', 'fdw'];
+// 2.1257.0 (#6286): 'fdx' = an own knowledge page text waiting at its page (wiki.js wko_cfPut: refused with 409/403/413); kept
+// here, not in the page copy (IndexedDB kalmido-wiki), which a new sign-in, an ended session and 14 days without a sync empty
+const FD_KINDS = ['ltpend', 'fdf', 'fdc', 'fdw', 'fdx'];
 // review (#4304): before /api/me answered (a 401 at the start) the account of this browser (uid), else authGone found nothing and wiped
-const FD_KEY = (kind, id) => `tasks.${kind}.${S.me?.id || LS.get('uid', 0) || 0}.${id}`;
+// 2.1257.0 (#6286): uid = another account's records (the previous account at a switch, cfDownload)
+const FD_KEY = (kind, id, uid) => `tasks.${kind}.${uid || S.me?.id || LS.get('uid', 0) || 0}.${id}`;
 function fdKeep(kind, id, b, base = '') { try { localStorage.setItem(FD_KEY(kind, id), JSON.stringify({base: base || '', b, at: Date.now()})); } catch { /* full or private mode */ } }
-function fdGet(kind, id) { try { return JSON.parse(localStorage.getItem(FD_KEY(kind, id)) || 'null'); } catch { return null; } }
+function fdGet(kind, id, uid) { try { return JSON.parse(localStorage.getItem(FD_KEY(kind, id, uid)) || 'null'); } catch { return null; } }
 function fdDrop(kind, id) { try { localStorage.removeItem(FD_KEY(kind, id)); } catch { /* private mode */ } }
-// the kept records of a kind of this account: [{id, base, b, at}]
-function fdList(kind) {
-  const pre = FD_KEY(kind, ''), out = [];
-  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith(pre)) { const r = fdGet(kind, k.slice(pre.length)); if (r) out.push({...r, id: k.slice(pre.length)}); } } } catch { /* no storage */ }
+// the kept records of a kind of this account (or of the account uid): [{id, base, b, at}]
+function fdList(kind, uid) {
+  const pre = FD_KEY(kind, '', uid), out = [];
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith(pre)) { const r = fdGet(kind, k.slice(pre.length), uid); if (r) out.push({...r, id: k.slice(pre.length)}); } } } catch { /* no storage */ }
   return out;
 }
 const fdAny = () => FD_KINDS.some(k => fdList(k).length > 0);
@@ -1377,19 +1380,22 @@ async function userSwitchAsk(id, n) {
   try { await i18nLoad(uiLang()); } catch { /* English */ }
   const ok = await askConfirm(trn('{0} change of the previous account on this device is not synced yet', '{0} changes of the previous account on this device are not synced yet', n),
     tr('Signing in with another account deletes them from this device, a copy is downloaded as a text file first. Cancel signs out again: the previous account can then sign in and send them.'), {ok: tr('Delete and continue'), danger: true});
-  if (ok) { try { cfDownload(id); } catch (e) { console.warn('conflict copies: download failed', e); } userSwitch(id); return; }  // 2.527.0 (#4304 A20)
+  if (ok) { try { cfDownload(id, LS.get('uid', 0)); } catch (e) { console.warn('conflict copies: download failed', e); } userSwitch(id); return; }  // 2.527.0 (#4304 A20)
   try { await fetch('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}}); } catch { /* offline */ }
   location.reload();
 }
 // 2.527.0 (#4304 A20): the conflict copies and the changes still waiting of the previous account are not deleted silently at
 // the switch: they leave as a text file (downloaded) first - each with its task, field, the saved and the own version
-function cfDownload(uid) {
+// 2.1257.0 (#6286): prev = the previous account: its knowledge page texts waiting at their pages (kept input 'fdx') go along
+function cfDownload(uid, prev) {
   for (const e of outSync().filter(x => x.uid !== uid && !x.done)) outReject(e, {message: tr('Not synced yet')});
-  const list = S.conflicts || []; if (!list.length) return false;
+  const list = S.conflicts || [], wx = prev ? fdList('fdx', prev).map(r => r.b).filter(b => b && typeof b.mine === 'string') : [];
+  if (!list.length && !wx.length) return false;
   const val = (f, v) => { try { return fmtVal(f, v); } catch { return typeof v === 'object' ? JSON.stringify(v) : String(v ?? ''); } };
   const txt = [`${APP_NAME} · ${new Date().toLocaleString()}`, ''].concat(...list.map(c => c.field === 'rejected'
     ? [`== ${c.title || '?'} · ${tr('Offline change not saved')}`, `${tr('reason')}: ${c.server || ''}`, `${tr('your version')}:`, String(c.mine ?? ''), '']
-    : [`== ${c.title || '?'} · ${histFieldName(c.field)}`, `${tr('saved')}: ${val(c.field, c.server)}`, `${tr('your version')}: ${val(c.field, c.mine)}`, ''])).join('\n');
+    : [`== ${c.title || '?'} · ${histFieldName(c.field)}`, `${tr('saved')}: ${val(c.field, c.server)}`, `${tr('your version')}: ${val(c.field, c.mine)}`, '']),
+  ...wx.map(b => [`== ${b.title || '#' + b.id} · ${tr('Knowledge page')}`, ...(b.why ? [`${tr('reason')}: ${b.why}`] : []), `${tr('your version')}:`, b.mine, ''])).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], {type: 'text/plain'}));
   a.download = `${APP_NAME.toLowerCase()}-conflicts-${today()}.txt`;
   document.body.appendChild(a); a.click(); a.remove();
@@ -1413,7 +1419,7 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
     if (last !== null && last !== j.me.id) {
       // 2.359.0 A (#3023): changes of the previous account still wait on this device: asked first (only their number shows);
       // "Cancel" signs out again, so the previous person can sign in and send them
-      const n = outSync().filter(x => x.uid !== j.me.id).length + (S.conflicts || []).length;  // 2.359.0 A (#3023)
+      const n = outSync().filter(x => x.uid !== j.me.id).length + (S.conflicts || []).length + fdList('fdx', last).length;  // 2.359.0 A (#3023); 2.1257.0 (#6286): + waiting knowledge page texts
       if (!n) userSwitch(j.me.id); else if (!OUT.switchAsk) OUT.switchAsk = userSwitchAsk(j.me.id, n);  // 2.359.0 (review): one question, not one per poll
       throw new Error('auth');
     }
