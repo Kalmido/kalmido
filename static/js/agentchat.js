@@ -337,12 +337,16 @@ function apvWatch() {
     apvIO?.disconnect(); APV_VIS.clear();
     apvIO = new IntersectionObserver(es => {
       let ch = false;
-      for (const e of es) { const id = +String(e.target.id).replace('apv-', ''), was = APV_VIS.has(id); if (e.isIntersecting) APV_VIS.add(id); else APV_VIS.delete(id); if (was !== e.isIntersecting) ch = true; }
+      // seen = 60 % of the card, or a card taller than the box filling 60 % of it (a long question on a phone)
+      for (const e of es) { const id = +String(e.target.id).replace('apv-', ''), was = APV_VIS.has(id), on = e.isIntersecting && (e.intersectionRatio >= 0.6 || e.intersectionRect.height >= 0.6 * (e.rootBounds?.height || Infinity)); if (on) APV_VIS.add(id); else APV_VIS.delete(id); if (was !== on) ch = true; }
       if (ch) apvPinSync();
-    }, {root: box, threshold: 0.6});
-    apvIO._root = box;
+    }, {root: box, threshold: [0, 0.3, 0.6, 1]});
+    apvIO._root = box; apvIO._ns = new Set();
   }
-  for (const m of apvOpen()) { const n = $('#apv-' + m.id); if (n && !n._apvO) { n._apvO = 1; apvIO.observe(n); } }
+  // Fable review: a replaced or answered card is let go (no node kept by the observer)
+  const open = new Set(apvOpen().map(m => m.id));
+  for (const n of [...apvIO._ns]) if (!n.isConnected || !open.has(+String(n.id).replace('apv-', ''))) { apvIO.unobserve(n); apvIO._ns.delete(n); APV_VIS.delete(+String(n.id).replace('apv-', '')); }
+  for (const id of open) { const n = $('#apv-' + id); if (n && !apvIO._ns.has(n)) { apvIO._ns.add(n); apvIO.observe(n); } }
 }
 function apvPinHtml() {
   const ms = apvOpen().filter(m => !APV_VIS.has(m.id)); if (!ms.length) return '';
