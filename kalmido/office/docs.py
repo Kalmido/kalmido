@@ -434,7 +434,12 @@ def doc_totals(c, oid, r, items=None):
         if t is not None:
             t.pop("_part_calcs", None)
             return t
-    return calc(_calc_doc(r, hc_home(s)), items if items is not None else doc_items(c, r["id"], oid), pack)
+    items = items if items is not None else doc_items(c, r["id"], oid)
+    if (r["kind"] == "invoice" and dict(r).get("inv_type") == "final") or (r["kind"] == "credit" and dict(r).get("cancels_id")):
+        # 2.1259.0 (#6303 d): the deductions take off their billed VAT; #6445: a credit note of a final invoice the VAT it froze
+        from .abschlag import abs_tax_items
+        items = abs_tax_items(c, oid, r, items)
+    return calc(_calc_doc(r, hc_home(s)), items, pack)
 
 
 def recalc(c, oid, did):
@@ -1799,7 +1804,7 @@ DUP_SKIP = {"id", "number", "status", "created_at", "updated_at", "sent_at", "cr
             "chain_key", "chain_seq", "chain_prev", "chain_hash",  # 2.531.0 (#4497): a copy joins a chain only when it is finalised itself
             "version_of", "cashflow",  # 2.88.0 (#1915): set below (a quotation's copy = its next version, cash flow auto)
             "series_id", "series_period", "abs_refs",  # 2.120.0 A (#2087): abs_refs  # 2.91.0 A (#1923): a copy is no invoice of the series (office/recurring.py sets them itself)
-            "reminder_fee_state", "reminder_fee_paid_at", "agent_id", "list_id", "dup_times_from",  # 2.355.0 A (#2839): inv_type -- a copy of a final invoice is a plain one
+            "reminder_fee_state", "reminder_fee_paid_at", "reminder_fee_paid_amount", "agent_id", "list_id", "dup_times_from",  # 2.355.0 A (#2839): inv_type -- a copy of a final invoice is a plain one
             "client_ref", "inv_type"}  # 2.269.0 D (#3046): the device's id of the request that made the original  # 2.126.0 A (#1979 F6): a fresh fee state, made by the person copying
 DUP_SKIP |= {"deleted_at", "deleted_by", "rev", "updated_by", "trash_refs"}  # 2.1005.0 (#5415): the core's trash columns stay the original's
 DUP_ITEM_SKIP = {"id", "tax_pct", "net", "tax_amount"}

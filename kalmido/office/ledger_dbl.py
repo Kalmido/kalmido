@@ -417,14 +417,14 @@ def _cat_names(c, oid):
     return {k: ", ".join(sorted(v, key=str.casefold))[:80] for k, v in out.items()}
 
 
-def _doc_side(c, oid, j, st, s, y0, y1, banks=None):
+def _doc_side(c, oid, j, st, s, y0, y1, banks=None, hints_out=None):
     """Invoices, credit notes, cash discounts and invoice payments of the DATEV export, revenue split into net and VAT."""
     small = bool(s.get("small_business"))
     case_of = {}
     for k in DX_CASES:
         case_of.setdefault(_acct(st, k), k)
     s2 = {**s, "euer_basis": {}}  # every payment counts in the balance sheet, whatever the basis of the income statement
-    for r in dx_rows(c, oid, y0, y1, s2, inside=False):
+    for r in dx_rows(c, oid, y0, y1, s2, inside=False, hints_out=hints_out):
         a = _amt(r["Umsatz (ohne Soll/Haben-Kz)"])
         konto, gegen = r["Konto"], r["Gegenkonto (ohne BU-Schlüssel)"]
         if r.get("Soll/Haben-Kennzeichen") == "H":
@@ -441,7 +441,10 @@ def _doc_side(c, oid, j, st, s, y0, y1, banks=None):
             j.label(gegen, tr(LD_CASE_LABELS[case]))
         vat = None if small else LD_CASE_VAT.get(case)
         if vat:
-            net, tax = _vat_split(a, vat[0])
+            net, tax = _vat_split(a, r.get("_pct") or vat[0])  # 2.1259.0 (#6303 c): the frozen rate of the line, not 19 / 7 % of its account
+            if r.get("_tax") is not None:  # 2.1259.0 (#6303 c): the frozen VAT of the invoice line
+                tax = r["_tax"] if a > 0 else -r["_tax"]
+                net = a - tax
             j.add(r["_date"], doc, r.get("Buchungstext"), konto, gegen, net, "skonto" if kind == "skonto" else "invoice")
             j.add(r["_date"], doc, r.get("Buchungstext"), konto, ld_acct(st, vat[1]), tax, "skonto" if kind == "skonto" else "invoice", kind="vat")
         else:
@@ -668,9 +671,11 @@ def ld_journal(c, oid, year):
     j = _J(st)
     banks = _Banks(c, oid, st)  # 2.685.0 (#5128): an account per bank account
     opening = _opening(c, oid, j, st, year)
-    _doc_side(c, oid, j, st, s, y0, y1, banks)
+    doc_hints = []  # 2.1259.0 (#6303 c): a VAT rate without automatic account (DX_ODD_RATE)
+    _doc_side(c, oid, j, st, s, y0, y1, banks, doc_hints)
     meal_nodes = _meal_nodes(c, oid)  # 2.702.0 (#5183): a bill that is an entertainment receipt counts once
     card_nodes, hints = _receipt_side(c, oid, j, st, s, y0, y1, banks, meal_nodes)
+    hints = [h for h in doc_hints if h.get("key") != "pay_outside"] + hints
     _money_side(c, oid, j, st, s, y0, y1, card_nodes, banks, meal_nodes)
     _afa_side(c, oid, j, st, s, year)
     _meal_side(c, oid, j, st, s, y0, y1)  # 2.685.0 (#5128): entertainment, mileage allowance, reminder fees as in bk_euer

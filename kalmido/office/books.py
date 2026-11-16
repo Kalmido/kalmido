@@ -425,17 +425,78 @@ def bk_payments(c, oid, frm, to, home):
     return out
 
 
-def _pay_parts(p, r, home):
-    """[(group, gross, net, vat)] of one payment in the office currency (a refund on a credit note negative)."""
-    a = dec(p["amount"]) / _fx(r, home)
-    if r["kind"] == "credit":
-        a = -a
+def bk_fx_lines(tax_lines, gross, fx):
+    """2.1259.0 (#6456): the frozen tax lines of a document in the office currency -- the one rule of the books, the tax
+    advisor's export and DATEV: the gross = money(gross / fx), each line's tax = money(tax / fx), each line's base =
+    money(base / fx) and the rest cent to the gross on the base of the largest rate (the largest base on a tie), so the
+    lines add up to exactly the converted gross the payment brings. tax_lines = totals.tax_lines (dicts with pct / base /
+    amount, rate_key kept), gross = the document's gross in its currency (None = the sum of the lines), fx = the rate
+    (amount / fx = office currency; 1 = unchanged). -> [{rate_key, pct, base, amount}] (Decimal), in the order given."""
+    out = [{"rate_key": tl.get("rate_key"), "pct": dec(tl.get("pct") or 0).normalize(), "base": dec(tl.get("base") or 0),
+            "amount": dec(tl.get("amount") or 0)} for tl in tax_lines or [] if isinstance(tl, dict)]
+    if not out or fx == 1:
+        return out
+    total = money((dec(gross) if gross not in (None, "") else sum((x["base"] + x["amount"] for x in out), Decimal(0))) / fx)
+    for x in out:
+        x["base"], x["amount"] = money(x["base"] / fx), money(x["amount"] / fx)
+    big = max(out, key=lambda x: (x["pct"], abs(x["base"])))
+    big["base"] += total - sum((x["base"] + x["amount"] for x in out), Decimal(0))
+    return out
+
+
+def bk_fx_gross(t):
+    """2.1259.0 (#6456): the gross of frozen totals t for bk_fx_lines: totals.gross when the tax lines add up to it (every
+    document of the calculator), else None = the sum of the lines (a hand-made or old totals object keeps its lines)."""
+    g = t.get("gross")
+    if g in (None, ""):
+        return None
+    lines = sum((dec(tl.get("base") or 0) + dec(tl.get("amount") or 0) for tl in t.get("tax_lines") or [] if isinstance(tl, dict)), Decimal(0))
+    return g if money(dec(g)) == money(lines) else None
+
+
+def bk_doc_lines(r, home):
+    """2.1259.0 (#6301): ([(group, base, tax)] in the office currency, gross in the document's currency) of an invoice / credit
+    note with VAT from its frozen tax lines (totals.tax_lines), the truth of the document: a full payment gives exactly its
+    base and tax. A foreign currency by bk_fx_lines (#6456: the lines add up to the converted gross, as the payment). None
+    without VAT or without tax lines (an old document keeps the share way of bk_doc_parts)."""
+    if (r["vat_mode"] or "vat") == "novat":
+        return None
+    tls = _j(r["totals"]).get("tax_lines") or []
+    lines = bk_fx_lines(tls, None, _fx(r, home))
+    if not lines:
+        return None
+    gross = sum((dec(tl.get("base") or 0) + dec(tl.get("amount") or 0) for tl in tls if isinstance(tl, dict)), Decimal(0))
+    return [("vat" + format(x["pct"], "f") if x["pct"] > 0 else "exempt", x["base"], x["amount"]) for x in lines], gross
+
+
+def bk_amount_parts(amount, r, home):
+    """[(group, gross, net, vat)] in the office currency of an amount in document r's currency (a payment, a cash discount;
+    the sign as given). 2.1259.0 (#6301): split by base / gross and tax / gross of the frozen tax lines (bk_doc_lines), was
+    net = share x 100 / (100 + rate) recomputed from the gross; without tax lines the shares of bk_doc_parts as before."""
+    lines = bk_doc_lines(r, home)
+    if lines is not None and lines[1] != 0:
+        q = dec(amount) / lines[1]
+        return [(k, q * (b + t), q * b, q * t) for k, b, t in lines[0]]
+    a = dec(amount) / _fx(r, home)
     out = []
     for k, share, pct in bk_doc_parts(r):
         part = a * share
         net = part * 100 / (100 + pct) if pct > 0 else part
         out.append((k, part, net, part - net))
     return out
+
+
+def bk_pay_net(amount, r, home):
+    """2.1259.0 (#6301): the net share in the office currency of a payment of amount on document r (a refund on a credit note
+    negative) -- the key figures count the same net as the books (bk_amount_parts)."""
+    a = dec(amount)
+    return sum((x[2] for x in bk_amount_parts(-a if r["kind"] == "credit" else a, r, home)), Decimal(0))
+
+
+def _pay_parts(p, r, home):
+    """[(group, gross, net, vat)] of one payment in the office currency (a refund on a credit note negative)."""
+    a = dec(p["amount"])
+    return bk_amount_parts(-a if r["kind"] == "credit" else a, r, home)
 
 
 OFC_MEAL_TWICE = N_("Entertainment receipts count from Office > Entertainment receipts. A restaurant bill that also lies under Receipts counts twice: keep it in one place only.")
@@ -478,13 +539,19 @@ def ofc_meals_euer(meals, small):
 def bk_fees_paid(c, oid, frm, to, home):
     """2.545.0 (#4387): the paid fees of finalised reminders in [frm, to] (ISO days): [{doc_id, number, date, amount (Decimal,
     home currency)}]. The day = reminder_fee_paid_at (set when a person marks the fee paid), before 2.545 the reminder's date.
-    A reminder fee is damages, not a sale: no VAT, not in the VAT return (the tax advisor checks, #1153)."""
+    A reminder fee is damages, not a sale: no VAT, not in the VAT return (the tax advisor checks, #1153). 2.1259.0 (#6302,
+    #6459): the amount = the one stored when it was marked paid (reminder_fee_paid_amount: fee + default interest + flat fee,
+    invoices.inv_reminder_paid_claim), also without a fee -- the one sum of the income statement, key figures, cash flow and
+    ledger; a mark of before 2.1259 stored nothing and keeps its fee alone (old and locked years stay as they were)."""
     day = "COALESCE(NULLIF(CAST(reminder_fee_paid_at AS text), ''), date)"  # 2.1115.0 (#5951): DATE
     out = []
-    for r in c.execute(f"SELECT id, number, currency, fx_rate, reminder_fee, {day} AS day FROM office_docs WHERE org_id=? AND kind='reminder' "
-                       f"AND locked_at IS NOT NULL AND {live_sql()} AND trial=0 AND reminder_fee > 0 AND reminder_fee_state='paid' AND {day}>=? AND {day}<=? "
+    for r in c.execute(f"SELECT id, number, currency, fx_rate, reminder_fee, reminder_fee_paid_amount, {day} AS day FROM office_docs WHERE org_id=? AND kind='reminder' "
+                       f"AND locked_at IS NOT NULL AND {live_sql()} AND trial=0 AND reminder_fee_state='paid' AND {day}>=? AND {day}<=? "
                        f"ORDER BY {day}, id", (oid, frm, to)).fetchall():
-        out.append({"doc_id": r["id"], "number": r["number"], "date": r["day"], "amount": money(dec(r["reminder_fee"]) / _fx(r, home))})
+        v = r["reminder_fee_paid_amount"]
+        claim = money(dec(v if v is not None else r["reminder_fee"] or 0))
+        if claim > 0:
+            out.append({"doc_id": r["id"], "number": r["number"], "date": r["day"], "amount": money(claim / _fx(r, home))})
     return out
 
 
@@ -767,19 +834,22 @@ def bk_ustva(c, oid, year, period):
             t = _j(r["totals"])
             fx, sign = _fx(r, home), (-1 if r["kind"] == "credit" else 1)
             gross = dec(t.get("gross") or 0) / fx * sign
-            for k, share, pct in bk_doc_parts(r):
-                part = gross * share
-                net = part * 100 / (100 + pct) if pct > 0 else part
-                add(k, net, part - net, r)
+            lines = bk_doc_lines(r, home)
+            if lines is not None:  # 2.1259.0 (#6301): base and tax of the frozen tax lines, was recomputed from the gross
+                for k, b, v in lines[0]:
+                    add(k, b * sign, v * sign, r)
+            else:
+                for k, share, pct in bk_doc_parts(r):
+                    part = gross * share
+                    net = part * 100 / (100 + pct) if pct > 0 else part
+                    add(k, net, part - net, r)
             items.append({"kind": r["kind"], "doc_id": r["id"], "number": r["number"], "date": r["date"], "gross": dstr(money(gross)),
                           "source": "document"})
         # 2.355.0 C (#2840): a cash discount taken reduces the base (section 17 UStG) per tax rate, in the period of its payment
         for r, sk in abs_skonto_rows(c, oid, frm, to):
             minus = -sk["amount"] / _fx(r, home)
-            for k, share, pct in bk_doc_parts(r):
-                part = minus * share
-                net = part * 100 / (100 + pct) if pct > 0 else part
-                add(k, net, part - net, r)
+            for k, part, net, vat in bk_amount_parts(-sk["amount"], r, home):  # 2.1259.0 (#6301): by the frozen tax lines
+                add(k, net, vat, r)
             items.append({"kind": "skonto", "doc_id": r["id"], "number": r["number"], "date": sk["day"], "gross": dstr(money(minus)),
                           "source": "skonto"})
     kz66, missing = Decimal(0), 0

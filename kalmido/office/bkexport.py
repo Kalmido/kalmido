@@ -27,10 +27,11 @@ from .books import bk_meals_receipts, bk_meals_strict, bk_receipts_basis  # 2.61
 from .euerbasis import EB_NORC_LABEL, eb_income_payment_ids, eb_segments  # 2.610.0 (#4932)
 from .calc import dec, dstr, money
 from .model import office_gate, office_need_feature, office_org, office_settings
-from .books import _fx as bk_fx, _home, _split, bk_payments, bk_csv_cell  # 2.369.5 (#2517): pulled up from functions
+from .books import _fx as bk_fx, _home, _split, bk_payments, bk_csv_cell, bk_fx_lines, bk_fx_gross  # 2.369.5 (#2517): pulled up from functions
 from .pdfweb import epdf_name, epdf_doc_files  # 2.369.5 (#2517): pulled up from functions
 from .travel import rk_cat_label, rk_trips  # 2.369.5 (#2517): pulled up from functions
 from ..files.bulk import abm_zip_name, abm_send_zip, ABM_BUSY, ABM_ZIP_MAX_FILES, ABM_ZIP_MAX_MB, abm_too_big, abm_unique  # 2.369.5 (#2517): pulled up from functions
+from .datev import dx_fx_pays  # 2.1259.0 (#6456)
 from .packs import office_pack_for  # 2.369.5 (#2517): pulled up from functions
 from .ledger import ofx_log  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_read  # 2.369.5 (#2517): pulled up from functions
@@ -119,21 +120,30 @@ def bx_rows(c, oid, frm, to, gaps=None):
         f = "documents/" + epdf_name(r) + ".pdf"
         parts, mine = [], []
         if (r["vat_mode"] or "vat") != "novat":
-            for tl in t.get("tax_lines") or []:
-                parts.append((dec(tl.get("pct") or 0), dec(tl.get("base") or 0), dec(tl.get("amount") or 0)))
+            # 2.1259.0 (#6456): the one rule of the books (books.bk_fx_lines): the lines in the office currency add up to
+            # money(gross / rate) like the payment, the rest cent on the base of the largest rate (was #6303 a: the last line)
+            for tl in bk_fx_lines(t.get("tax_lines"), bk_fx_gross(t), fx):
+                parts.append((tl["pct"], tl["base"], tl["amount"]))
+            conv = bool(parts)
         if not parts:
             parts.append((dec(0), dec(t.get("gross") or 0), dec(0)))
+            conv = False
         for pct, base, tax in parts:
-            net, tx = money(base / fx) * sign, money(tax / fx) * sign
+            net, tx = (base * sign, tax * sign) if conv else (money(base / fx) * sign, money(tax / fx) * sign)
             rows.append({"type": r["kind"], "date": r["date"], "number": r["number"], "counterparty": who, "text": " ".join((r["project_title"] or "").split()),  # 2.431.0 B (#3594): the subject on one line
                          "category": "", "tax_pct": pct.normalize(), "net": net, "tax": tx, "gross": net + tx, "currency": home, "file": f})
             mine.append(rows[-1])
         docs.append((r["id"], r, mine))
+    fxm = {}  # dx_fx_pays per document
     for p, r in bk_payments(c, oid, frm, to, home):
         if inc_ids is not None and p["id"] not in inc_ids and any(a_ <= p["date"] <= b_ for a_, b_, x in segs if x):
             gx.setdefault("outside", []).append(f"{p['date']} {r['number']}")  # 2.610.0 (#4932): typed by hand, no bank / cash booking
             continue
-        a = money(dec(p["amount"]) / _fx(r, home)) * (-1 if r["kind"] == "credit" else 1)
+        pfx = _fx(r, home)
+        a = money(dec(p["amount"]) / pfx)
+        if pfx != 1:  # 2.1259.0 (#6456): the payment that settles the document carries the rest cent, as DATEV (datev.dx_fx_pays)
+            a = dx_fx_pays(c, oid, r, _j(r["totals"]), pfx, home, fxm)[0].get(p["id"], a)
+        a *= -1 if r["kind"] == "credit" else 1
         rows.append({"type": "payment", "date": p["date"], "number": r["number"], "counterparty": (_j(r["recipient"]).get("name") or "").strip(),
                      "text": "", "category": "", "tax_pct": "", "net": "", "tax": "", "gross": a, "currency": home, "file": ""})
     opened = []

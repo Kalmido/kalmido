@@ -503,11 +503,12 @@ function ofdRefsHtml(d, t) {
 // 2.40.0 (#1368 point 8): the fee of a finalised reminder is an own open item (stays after the invoice is paid); admins waive it or mark it paid
 function ofdFeeHtml(d, adm) {
   if (d.kind === 'invoice') return (d.fee_reminders || []).length ? `<p class="ofdfeeinfo muted">${esc(tr('Reminder fee still open: {0}', d.fee_reminders.map(f => `${f.number} (${ofdMoney(f.fee, d)})`).join(', ')))}</p>` : '';
-  if (d.kind !== 'reminder' || !d.locked || !(+d.fee > 0)) return '';
+  const claim = d.claim ?? d.fee;  // 2.1259.0 (#6302): fee + default interest + flat fee, also a reminder without a fee
+  if (d.kind !== 'reminder' || !d.locked || (!(+claim > 0) && !d.fee_state)) return '';  // a marked one stays (a second level's stored amount may be 0.00): "Open again" must be reachable
   const st = d.fee_state || '', txt = {'': N_('open'), waived: N_('waived'), paid: N_('paid|fee'), cancelled: N_('cancelled with the invoice')}[st] || st;  // 2.355.0 D (#2846): + cancelled (final)
   const btn = (v, label) => `<button type="button" class="btn sm" data-ofd="fee" data-st="${v}">${esc(tr(label))}</button>`;
   const day = st === 'paid' && d.fee_paid_at ? ` · ${tr('Paid on')} ${fmtDateLoc(d.fee_paid_at)}` : '';  // 2.912.0 (#5419): the day it counts on
-  return `<div class="ofdfeeinfo"><span>${esc(tr('Reminder fee {0}: {1}', ofdMoney(d.fee, d), tr(txt)) + day)}</span>${/*html-ok*/ adm && st !== 'cancelled' ? (st ? (st === 'paid' ? btn('paid', N_('Change date')) : '') + btn('', N_('Open again')) : btn('waived', N_('Waive fee')) + btn('paid', N_('Fee paid'))) : ''}</div>`;
+  return `<div class="ofdfeeinfo"><span>${esc((+claim !== +d.fee ? tr('Reminder fee, interest and flat fee {0}: {1}', ofdMoney(claim, d), tr(txt)) : tr('Reminder fee {0}: {1}', ofdMoney(d.fee, d), tr(txt))) + day)}</span>${/*html-ok*/ adm && st !== 'cancelled' ? (st ? (st === 'paid' ? btn('paid', N_('Change date')) : '') + btn('', N_('Open again')) : btn('waived', N_('Waive fee')) + btn('paid', N_('Fee paid'))) : ''}</div>`;
 }
 function ofdPayList(d, adm) {  // 2.354.0 D (#2837): also the refunds of a credit note
   const ps = d.payments || [];
