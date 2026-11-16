@@ -298,11 +298,11 @@ def made():
     return dbx("SELECT COUNT(*) FROM contacts WHERE book_id=? AND fn='Card Made Contact' AND deleted_at IS NULL", (BK,))[0][0]
 
 
-M1 = card(uid["carl"])
-check(Ca.post(B + f"/api/agents/{XT}/chat/{M1}/choice", json={"choice_ids": ["yes"]}).ok, "(d) carl (no right on the address book) says Yes")
-r = requests.post(V + f"/agent/approvals/{M1}/run", headers=XH, timeout=60)
-check(r.status_code in (403, 404) and made() == 0, f"(d) carl's Yes writes nothing into the address book {r.status_code} {r.text[:200]}")
-check(not dbx("SELECT 1 FROM agent_chat WHERE id=? AND choices->'approval'->>'used_at' IS NOT NULL", (M1,)), "(d) the refused run does not use the card")
+# 2.1284.0 (#6453, review G12): carl does not read every source of the agent (the board-only folder, the address book), so the
+# team agent cannot even ask him -- its message to him is a wider circle and needs a card itself. That guard comes first now.
+m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Add the contact?", "step": STEP}}, timeout=30)
+check(m.status_code == 409 and err(m).get("circle") == "wider" and made() == 0,
+      f"(d) the card to carl (no right on the address book, not every source) is itself held: a wider circle {m.status_code} {m.text[:200]}")
 M2 = card(uid["bob"])
 check(Bo.post(B + f"/api/agents/{XT}/chat/{M2}/choice", json={"choice_ids": ["yes"]}).ok, "(d) bob (owns the address book) says Yes")
 r = requests.post(V + f"/agent/approvals/{M2}/run", headers=XH, timeout=60)
@@ -348,6 +348,15 @@ r = Bo.put(B + f"/api/lists/{P3}/members", json={"user_id": XT, "role": "edit", 
 check(r.ok, f"setup: the agent in project three {r.status_code} {r.text[:160]}")
 TM = Bo.post(B + "/api/tasks", json={"title": "Move me", "list_id": X2}).json()["id"]
 r = requests.patch(V + f"/tasks/{TM}", headers=XH, json={"list_id": P3}, timeout=30)
+if r.status_code == 409 and err(r).get("circle") == "wider":
+    # 2.1284.0 (#6453): a project with more people is a wider circle -- first a card (bob reads every source and says Yes),
+    # its run then meets the bridge rule of 2.30.0 and waits as an approval job for the target's owner
+    ap = err(r).get("approval") or {}
+    m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, timeout=30,
+                      json={"approval": {"title": "Move?", "step": {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}}})
+    check(m.status_code == 201 and Bo.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json={"choice_ids": ["yes"]}).ok,
+          f"#4818: the move into a wider project asks bob with a card {m.status_code} {m.text[:200]}")
+    r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
 J = (r.json().get("job") or {}).get("id") if r.status_code == 202 else None
 check(J, f"#4818: the agent's move into a project with more people waits for a person {r.status_code} {r.text[:200]}")
 ev0 = dbx("SELECT COUNT(*) FROM agent_events WHERE agent_id=?", (TK,))[0][0]
