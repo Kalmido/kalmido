@@ -31,6 +31,7 @@ from .books import _fx as bk_fx, _home, _split, bk_payments, bk_csv_cell, bk_fx_
 from .pdfweb import epdf_name, epdf_doc_files  # 2.369.5 (#2517): pulled up from functions
 from .travel import rk_cat_label, rk_trips  # 2.369.5 (#2517): pulled up from functions
 from ..files.bulk import abm_zip_name, abm_send_zip, ABM_BUSY, ABM_ZIP_MAX_FILES, ABM_ZIP_MAX_MB, abm_too_big, abm_unique  # 2.369.5 (#2517): pulled up from functions
+from .datev import dx_fx_pays  # 2.1259.0 (#6456)
 from .packs import office_pack_for  # 2.369.5 (#2517): pulled up from functions
 from .ledger import ofx_log  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_read  # 2.369.5 (#2517): pulled up from functions
@@ -133,11 +134,16 @@ def bx_rows(c, oid, frm, to, gaps=None):
                          "category": "", "tax_pct": pct.normalize(), "net": net, "tax": tx, "gross": net + tx, "currency": home, "file": f})
             mine.append(rows[-1])
         docs.append((r["id"], r, mine))
+    fxm = {}  # dx_fx_pays per document
     for p, r in bk_payments(c, oid, frm, to, home):
         if inc_ids is not None and p["id"] not in inc_ids and any(a_ <= p["date"] <= b_ for a_, b_, x in segs if x):
             gx.setdefault("outside", []).append(f"{p['date']} {r['number']}")  # 2.610.0 (#4932): typed by hand, no bank / cash booking
             continue
-        a = money(dec(p["amount"]) / _fx(r, home)) * (-1 if r["kind"] == "credit" else 1)
+        pfx = _fx(r, home)
+        a = money(dec(p["amount"]) / pfx)
+        if pfx != 1:  # 2.1259.0 (#6456): the payment that settles the document carries the rest cent, as DATEV (datev.dx_fx_pays)
+            a = dx_fx_pays(c, oid, r, _j(r["totals"]), pfx, home, fxm)[0].get(p["id"], a)
+        a *= -1 if r["kind"] == "credit" else 1
         rows.append({"type": "payment", "date": p["date"], "number": r["number"], "counterparty": (_j(r["recipient"]).get("name") or "").strip(),
                      "text": "", "category": "", "tax_pct": "", "net": "", "tax": "", "gross": a, "currency": home, "file": ""})
     opened = []

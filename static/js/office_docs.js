@@ -504,7 +504,7 @@ function ofdRefsHtml(d, t) {
 function ofdFeeHtml(d, adm) {
   if (d.kind === 'invoice') return (d.fee_reminders || []).length ? `<p class="ofdfeeinfo muted">${esc(tr('Reminder fee still open: {0}', d.fee_reminders.map(f => `${f.number} (${ofdMoney(f.fee, d)})`).join(', ')))}</p>` : '';
   const claim = d.claim ?? d.fee;  // 2.1259.0 (#6302): fee + default interest + flat fee, also a reminder without a fee
-  if (d.kind !== 'reminder' || !d.locked || !(+claim > 0)) return '';
+  if (d.kind !== 'reminder' || !d.locked || (!(+claim > 0) && !d.fee_state)) return '';  // a marked one stays (a second level's stored amount may be 0.00): "Open again" must be reachable
   const st = d.fee_state || '', txt = {'': N_('open'), waived: N_('waived'), paid: N_('paid|fee'), cancelled: N_('cancelled with the invoice')}[st] || st;  // 2.355.0 D (#2846): + cancelled (final)
   const btn = (v, label) => `<button type="button" class="btn sm" data-ofd="fee" data-st="${v}">${esc(tr(label))}</button>`;
   const day = st === 'paid' && d.fee_paid_at ? ` · ${tr('Paid on')} ${fmtDateLoc(d.fee_paid_at)}` : '';  // 2.912.0 (#5419): the day it counts on
