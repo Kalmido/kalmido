@@ -10,7 +10,9 @@ of a page, a task's notes and a project's description; core/mdedit.py) show the 
 ("append" / "section" in the answer). Every other step: none (the card keeps its line).
 
   GET /api/approvals/diff?chat=<message id> | ?comment=<comment id> [&full=1]
-    -> {diff: null} (no text step) | {diff: {kind, name, ref, added, removed, rows, more, changed, hidden?, decided?, at?}}
+    -> {diff: null, desc} (no text step) | {diff: {kind, name, ref, added, removed, rows, more, changed, hidden?, decided?, at?}, desc}
+       desc (2.1269.0, #6450): the server's words for EVERY bound step (agents/apvdesc.py), null for a card without a step;
+       the card shows it open above its buttons and keeps Yes locked until it is there.
        rows = [[op, line]]: op " " (context, two lines around each change), "+" added, "-" removed, "…" (a gap);
        more = rows were cut (full=1: all, up to APVD_FULL_ROWS); changed = the target changed since the card was made;
        hidden = encrypted | no_access | gone (no rows, no text of the target); decided = the snapshot stored with the
@@ -48,6 +50,7 @@ APVD_SNAP_ROWS = 60  # rows kept with the answer (short: a record of what was ap
 APVD_LINE_MAX = 500  # characters of one line in the answer
 APVD_LCS_MAX = 100000  # lines x lines of the changed middle; above: the middle as removed + added (review F2: difflib is
 # not linear - 1,200 x 1,200 repeating lines took 20 s; the agent controls both sides)
+APVD_DESC = [lambda c, uid, st, decided=False: None]  # 2.1269.0 (#6450): agents/apvdesc.py puts its describer here (a higher layer)
 APVD_STEPS = (  # (method, path below /api/v1, kind, the body's field with the new text)
     ("PATCH", re.compile(r"^wiki/pages/(\d+)$"), "wiki", "body"),
     ("POST", re.compile(r"^wiki/pages/(\d+)/append$"), "wiki_append", "text"),
@@ -279,17 +282,27 @@ def apvd_route():
             raise Denied(404)
         snap = _jl(c.execute("SELECT extra->'apvdiff' FROM obj_comments WHERE id=?", (int(a["comment"]),)).fetchone()[0])
     ap = ch.get("approval") or {}
-    if ans is not None or ch.get("withdrawn_at"):  # decided / closed: the state at the answer, never the target now
+    decided = ans is not None or bool(ch.get("withdrawn_at"))
+    try:  # 2.1269.0 (#6450): the server's words for every bound step; false = could not be described (the card keeps Yes locked)
+        with c.savepoint():
+            desc = APVD_DESC[0](c, uid, ap.get("step"), decided=decided)
+    except Exception as e:  # noqa: BLE001  the diff still answers
+        print("apvx_describe failed", type(e).__name__, flush=True)
+        desc = False
+
+    def answer(d):
+        return jsonify(diff=d, desc=desc)
+    if decided:  # decided / closed: the state at the answer, never the target now
         if not isinstance(snap, dict):
-            return jsonify(diff=None)
+            return answer(None)
         hit = apvd_step(ap.get("step"))  # the viewer's rights NOW decide whether the stored lines may be shown
         t = apvd_target(c, uid, hit[0], hit[1], hit[2], hit[3]) if hit else {"hidden": "gone"}
         why = snap.get("hidden") or t.get("hidden")
         if why == "gone" and not snap.get("hidden") and (ans or {}).get("user_id") == uid:
             why = None  # review F1: a target gone since -- only the person who answered still sees what they approved
         if why:  # review F3: nothing of the target, not its name either
-            return jsonify(diff={"kind": snap.get("kind"), "append": snap.get("append"), "hidden": why, "name": "", "ref": "",
-                                 "added": 0, "removed": 0, "rows": [], "more": False, "changed": False, "decided": True,
-                                 "at": (ans or {}).get("at")})
-        return jsonify(diff={**snap, "decided": True, "at": (ans or {}).get("at")})
-    return jsonify(diff=apvd_build(c, uid, ap, at, APVD_FULL_ROWS if full else APVD_SHORT_ROWS))
+            return answer({"kind": snap.get("kind"), "append": snap.get("append"), "hidden": why, "name": "", "ref": "",
+                           "added": 0, "removed": 0, "rows": [], "more": False, "changed": False, "decided": True,
+                           "at": (ans or {}).get("at")})
+        return answer({**snap, "decided": True, "at": (ans or {}).get("at")})
+    return answer(apvd_build(c, uid, ap, at, APVD_FULL_ROWS if full else APVD_SHORT_ROWS))

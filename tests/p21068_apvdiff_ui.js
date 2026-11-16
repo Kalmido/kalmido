@@ -65,8 +65,10 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   check(card()?.querySelector('.wkhd.gap'), 'the first line is folded into a gap');
   const st = det?.querySelector('[data-apv-step]');
   check(st && /^Step: PATCH \/wiki\/pages\/\d+ · Fields: body, expect_updated_at$/.test(st.textContent.trim()), 'the technical line is inside the fold ' + (st?.textContent || ''));
-  const del = d.querySelector(`#chat-msgs .cmsg[data-mid="a:${c2.id}"] details.apvdet > summary`);
-  check(del && /Step: Delete task 345/.test(del.textContent), 'a step without text keeps its words ' + (del?.textContent || ''));
+  // 2.1269.0 (#6450): a step without a text: the server's words stand open above (here: a task nobody sees), the fold keeps the technical line
+  const del = await until(() => { const n = d.querySelector(`#chat-msgs .cmsg[data-mid="a:${c2.id}"] [data-apvx]`); return n && /something you cannot see/.test(n.textContent) && n; });
+  check(del && /^Deletes something you cannot see/.test(del.textContent.trim()) && !del.closest('details'), 'a step without text: the server\'s words, open ' + (del?.textContent || ''));
+  check(/Step details/.test(d.querySelector(`#chat-msgs .cmsg[data-mid="a:${c2.id}"] details.apvdet > summary`)?.textContent || ''), 'its fold: Step details');
   const upl = await until(() => d.querySelector(`#chat-msgs .cmsg[data-mid="a:${c3.id}"] [data-apv-files]`));
   check(upl && upl.textContent.trim() === '5 files: plan.txt, shot list.pdf, cast.xlsx and 2 more' && !upl.closest('details'), '#5937: the upload card names its files, visible without unfolding ' + (upl?.textContent || ''));
   check(!/0{64}|1{64}/.test(d.querySelector(`#chat-msgs .cmsg[data-mid="a:${c3.id}"]`)?.textContent || ''), '#5937: no hash on the card');

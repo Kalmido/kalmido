@@ -253,6 +253,25 @@ def chat_dict(r, rx=None, files=None, api=False, newest=None, edits=False):
                             for f in (files or {}).get(r["id"], [])]}
 
 
+def chat_rule_cards(c, ids, uid):
+    """{chat message id: {rule_id, state: proposed | active | paused | gone, text, excerpt, mine}} of the rule cards ids (kind
+    'rule') in the conversation of person uid -- what the app draws.
+    2.1269.0 (#6451): agents/agentrules.py posts them. text = the rule itself (agent_rules.body as one clean line), never the
+    chat row's body: what the person confirms is what the card shows."""
+    if not ids:
+        return {}
+    from ..agents.apvdesc import apvx_clean
+    from ..agents.agentrules import AR_TEXT_MAX
+    rows = c.execute(f"SELECT * FROM agent_rules WHERE card_id IN ({','.join('?' * len(ids))})", list(ids)).fetchall()
+    out = {i: {"rule_id": None, "state": "gone"} for i in ids}
+    for r in rows:
+        out[r["card_id"]] = {"rule_id": r["id"], "state": r["state"], "text": apvx_clean(r["body"] or "", AR_TEXT_MAX),
+                             "source_kind": r["source_kind"] or "manual",
+                             "excerpt": r["source_excerpt"] or "", "task_id": r["source_task_id"],
+                             "mine": r["source_user_id"] == uid}
+    return out
+
+
 def chat_run_meta_out(r):
     v = r["run_meta"] if "run_meta" in r.keys() and r["sender"] == "agent" else None
     v = v if isinstance(v, dict) else _jload(v)
@@ -976,6 +995,10 @@ def agent_chat_get(aid):
         if r["job_id"]:
             d["job_steps"] = jc.get(r["job_id"], 0)
         msgs.append(d)
+    rc = chat_rule_cards(c, [d["id"] for d in msgs if d["kind"] == "rule"], me())
+    for d in msgs:
+        if d["kind"] == "rule":  # 2.1269.0 (#6451): the server's card of a proposed standing rule (its state now)
+            d["rule"] = rc.get(d["id"])
     jn9_chat_jobs(c, msgs, me())  # 2.59.0 (#1827)
     # 2.7.2 (#422): the server's clock, so the app can tell how long ago a message was delivered
     # 2.35.0 (#1103): the open approval requests (pinned at the top, also when older than this page)

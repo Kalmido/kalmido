@@ -90,3 +90,11 @@ p2501_a_nosham
 *trivy*
 *zap*
 *owasp*
+
+# 2.1269.0 (#6421, #6431, #6450, #6451): what reaches agents from outside and what a person approves for an agent -
+# hostile mail markup, the mark "untrusted", the server's words on an approval card, the control of an agent, its rules
+p21269_a_mailredos
+p21269_c_fremd
+p21269_d_apvdesc*
+p2235_a_control*
+p2235_c_rules_api

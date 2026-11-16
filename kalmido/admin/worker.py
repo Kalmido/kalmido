@@ -14,7 +14,7 @@ the worker picks new rows up on its next round.
 starts (mails after an action, "Back up now", "Upload now", the organisation keys' passes after a move) is a row of bg_jobs
 (accounts/bgjobs.py, loop "bgjobs"); the health shows its rows per state ("queue"). The agents' log writers (agent-audit,
 agent-access) flush the rows of their own process, so they run in every web process; their cleanups are the watchdog's.
-Incoming mail is claimed per mailbox (integrations/mail.py mail_seen_claim): two processes never handle one twice.
+Incoming mail is claimed per mailbox (integrations/mail.py mail_try_start / mail_try_done): two processes never handle one twice.
 
 2.370.3 (#2760): the exports / imports a person starts, the pushes after a request, "check for updates now" and the bookmark
 previews of a web process are rows of bg_jobs as well (accounts/bgjobs.py, long slots for the exports / imports); on SIGTERM

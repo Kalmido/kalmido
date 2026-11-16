@@ -1004,7 +1004,7 @@ Since 2.0.8 every task event (`mention`, `comment`, `assigned`, `reaction`, `tid
 | `wake` | `POST …/wake` ([Wake endpoint](#wake-endpoint-for-agents-without-an-event-loop)) | `task` and `list` (or none), `user`, `source`: `task` or `chat` |
 | `runtime_changed` | 2.4.1: an admin changed the agent's [runtime settings](#runtime-settings) | `runtime` |
 | `work_style_changed` | 2.236.0: the owner (an admin for a team agent) changed the agent's [work style](#work-style) | `work_style` (with `state`) |
-| `rules_changed` | 2.235.0: the owner (an admin for a team agent) added, reworded, paused, resumed or deleted one of the agent's [standing rules](#standing-rules) (never for the agent's own `add_rule`) | `change` (`added` / `edited` / `paused` / `resumed` / `deleted`), `rules` (the active ones) |
+| `rules_changed` | 2.235.0: the owner (an admin for a team agent) added, reworded, paused, resumed or deleted one of the agent's [standing rules](#standing-rules) (never for the agent's own `add_rule`); 2.1269.0: the person of a proposed rule's source confirmed it or took it back | `change` (`added` / `edited` / `paused` / `resumed` / `deleted` / `confirmed`), `rules` (the active ones) |
 | `data_lock_changed` | 2.235.0: the owner (an admin for a team agent) changed [what the agent never sees](#data-the-agent-never-sees) | `data_lock` |
 | `control_changed` | 2.235.0: the owner (an admin for a team agent) changed the agent's [control level](#control-level) | `control` |
 | `approval_expired` | 2.235.0: an approval card of the agent passed the [deadline for approvals](#control-level) | `message_id`, `user_id`, `outcome` (`rejected` / `approved` / `asked_again`), `then`, `approval_request` `{title, what, step}` |
@@ -1013,7 +1013,7 @@ Since 2.0.8 every task event (`mention`, `comment`, `assigned`, `reaction`, `tid
 | `ping` | the "Send test" button in the admin settings | `message` |
 | `team_message` | 2.17.0: someone @mentions the agent in a project's team chat (the agent is a member of the channel of every project shared with it); 2.46.1: in a project where the agent listens in, every message of a person in its channel, without an @mention (`mentioned` false; never a message of an agent) | `room` `{id, kind, list_id}`, `mentioned`, `listening` (2.46.1), `message` `{id, text, user_id, task_id, created_at, reply_to, reply, attachments, thread_of}` (2.139.0: an attachment with `voice: true` is a voice message, `duration_ms` its length; Kalmido does not transcribe), `user` `{id, name}`; 2.33.0: also when someone answers one of the agent's channel messages (`reply_to`, see [Replies](#replies-to-one-message)); answer with `POST /team/rooms/{id}/messages` (MCP `post_team_message`); 2.139.0 (#2127): `thread_of` set = the message answers in a thread: answer in that thread (`thread_of`) |
 | `job_request` | 2.3.0: a person asks the agent for a proposal ([Proposals](#proposals)) | `job` (kind, `proposal_state`), `kind`, `input` (exactly what the person sent), `limits`, `requested_by` `{id, name}`; 2.39.0 kind `cleanup` ([Tidy up a project](#tidy-up-a-project)): + `list_id` (and the project's `playbook`); 2.70.0 kind `extract`: `input.images` = photos of the meeting ([A meeting becomes tasks](#a-meeting-becomes-tasks)); 2.126.1 kind `triage` from a [planned *Sort the basket*](#planned-jobs): + `scheduled: true`, `schedule_id`, `due_at`, `late`, `manual`, `hint` (`input.schedule_id` too) |
-| `task_added` | 2.23.0 (#795): a top-level task was created in, or moved into, a project shared with the agent (not for its own tasks); 2.30.0: only when the agent [listens in](#agent-listens-in) there | `task`, `list`, `how`: `created` or `moved`, `moved_from` `{id, name}` (only when the agent sees that project), `source`: `form`, `mail`, `errors`, `proposal` (when not made in the app); 2.63.0: a form's report also carries `ttype` (when the form sets one) and `portal: true` (the sender has a status link and sees only the answers meant for them, never internal comments); 2.553.0 (#3460): a request by e-mail to a project's request address comes with `source: mail` and `portal: true` as well (its replies by mail arrive as `comment` events with `portal: true` and no author); 2.98.0: a questionnaire's task has the answers in its description (a Markdown heading per question) and, when the form matches clients, a last line naming the client or "client unknown" |
+| `task_added` | 2.23.0 (#795): a top-level task was created in, or moved into, a project shared with the agent (not for its own tasks); 2.30.0: only when the agent [listens in](#agent-listens-in) there | `task`, `list`, `how`: `created` or `moved`, `moved_from` `{id, name}` (only when the agent sees that project), `source`: `form`, `mail`, `errors`, `webhook`, `proposal` (when not made in the app; 2.1269.0: `webhook` with `origin` and `untrusted: true`); 2.63.0: a form's report also carries `ttype` (when the form sets one) and `portal: true` (the sender has a status link and sees only the answers meant for them, never internal comments); 2.553.0 (#3460): a request by e-mail to a project's request address comes with `source: mail` and `portal: true` as well (its replies by mail arrive as `comment` events with `portal: true` and no author); 2.98.0: a questionnaire's task has the answers in its description (a Markdown heading per question) and, when the form matches clients, a last line naming the client or "client unknown" |
 | `chat_choice` | 2.28.0 (#1005): the person pressed an answer button of one of the agent's chat messages (see *Answer buttons*); 2.30.0: also a 👍 / 👎 on a permission question (2.87.9: no longer, only the buttons) | `message_id`, `choice_ids`, `labels`, `message`, `user` `{id, name}`; + `task`, `list` when the message was about a task; permission questions: `permission: true`, `approval`, `via`: `button` or `reaction`; 2.35.0 approval requests (`request_chat_approval`): `approval`, `approval_request` `{title, what}`, `via`; 2.233.0: `collected: true` when the person answered an older, collected suggestion; 2.491.0: `reply_style` of the person who pressed, when set |
 | `followup_due` | 2.1.0: the follow-up day of a task *waiting on someone* (at the all-day reminder time of the person it is for), once per date, to every agent that follows the task (assigned, creator, commented) | `task` (with `task.waiting`), `list`, `waiting` `{note, until, since, by}` |
 | `stale_tasks` | 2.34.0 (#266): once a day (from 09:00 server time), the [tasks lying idle](#tasks-lying-idle) of the projects shared with the agent that have *Agent follows up* on (off by default); one bundled event per agent and day, at most 30 tasks | `tasks` `[{id, title, list_id, list_name, idle_days, reason, since, due, assignee_id, wait_note}]`, `count`, `default_days`, `lists` `[{id, name}]`, `hint` |
@@ -3270,25 +3270,37 @@ keeps it with its date and source, the owner sees it in the agent's settings (*W
 such instructions (it calls no language model): the agent recognises them itself, saves the rule and confirms it in
 one line.
 
-- `POST /api/v1/agent/rules {"text": "...", "source": {"kind": "chat" | "comment", "id": N}}` (MCP `add_rule`) saves a
-  rule. The source must be a chat message of a person to the agent (in a conversation it still has) or a comment it can
+*Since 2.1269.0 (#6451):* a rule the agent saves is only a **proposal** (`state: proposed`) on every control level: it
+never applies and is not in `GET /api/v1/agent` `rules` until the person of its source (the person who wrote the chat
+message, the author of the comment) confirms it. Kalmido itself posts a card into that person's chat with the agent: the
+rule's text as the agent's words, the start of the source, *Confirm* / *Reject*. Only that person decides (an agent never
+can, through no route); confirmed, the rule applies, the agent gets `rules_changed` (`change: confirmed`) and the same card
+offers *Remove rule*. The owner / an instance admin see proposed rules in the settings marked *Proposed* and may delete
+them, not confirm them. At most 5 proposals of one agent wait at a time (429 beyond).
+
+- `POST /api/v1/agent/rules {"text": "...", "source": {"kind": "chat" | "comment", "id": N}}` (MCP `add_rule`) proposes a
+  rule (2.1269.0: `applies: false` and a `hint` line for the person). The source must be a chat message of a person to the agent (in a conversation it still has) or a comment it can
   see, written by a person who may address the agent in that project (never its own, another agent's or a guest's through
   an approval link); anything else = 404. The same text as an existing rule returns that rule (200,
-  `duplicate: true`), a new one 201. At most 100 rules per agent, 500 characters each (400 beyond).
-- `GET /api/v1/agent/rules` (MCP `get_rules`) lists all rules with `state` `active` / `paused` and `source`
+  `duplicate: true`), a new one 201. At most 100 rules per agent, 500 characters each (400 beyond). 2.1269.0: the text is
+  one plain line as the person sees it on the card - no line breaks, tabs, runs of spaces or invisible / control characters (400).
+- `GET /api/v1/agent/rules` (MCP `get_rules`) lists the rules in `data` with `state` `active` / `paused` (2.1269.0: the
+  proposals waiting for a confirmation apart in `proposed`, never in `data`) and `source`
   `{kind, id, task_id, user_id, excerpt}` (`kind` `manual` = added by a person). The `excerpt` is empty once the source
   was deleted (the stored copy goes too) or the agent no longer sees it (e.g. a data lock); the rule itself stays.
 - `GET /api/v1/agent` carries `rules`: only the **active** ones `[{id, text, created_at, source}]`, oldest first. A
   person's change sends the event `rules_changed` with the same list.
 - Owner routes (the owner of a personal agent, an instance admin for a team agent, everyone else 404):
-  `GET` / `POST /api/agents/{id}/rules`, `PATCH /api/agents/{id}/rules/{rule}` (`text`, `state`), `DELETE ...`.
+  `GET` / `POST /api/agents/{id}/rules`, `PATCH /api/agents/{id}/rules/{rule}` (`text`, `state`; a proposed rule: 409),
+  `DELETE ...`. The person of a proposed rule's source: `POST /api/agents/{id}/rules/{rule}/decide`
+  `{"decision": "confirm" | "reject" | "withdraw"}` (everyone else 404, an agent 403).
   The settings show the excerpt and the link to the source only to a person who may see it themselves.
 
 ```
 POST /api/v1/agent/rules {"text": "Always write invoices in English", "source": {"kind": "chat", "id": 812}}
--> 201 {"rule": {"id": 3, "text": "Always write invoices in English", "state": "active", "source": {"kind": "chat",
+-> 201 {"rule": {"id": 3, "text": "Always write invoices in English", "state": "proposed", "source": {"kind": "chat",
    "id": 812, "task_id": null, "user_id": 2, "excerpt": "From now on always write invoices in English"}, ...},
-   "duplicate": false}
+   "duplicate": false, "applies": false, "hint": "Saved as a proposal only: ..."}
 ```
 
 The reference starters put the active rules under their fixed rules block in every prompt (capability
@@ -3370,6 +3382,12 @@ A write the level does not allow answers `409`:
 {"error": {"code": "approval_required", "message": "...", "step": "change", "level": "routine", "project_id": 12,
            "approval": {"method": "PATCH", "path": "/api/v1/tasks/345", "body": {"title": "New title"}, "header": "X-Kalmido-Approval"}}}
 ```
+
+**What the person sees (2.1269.0, #6450):** a card with a step shows Kalmido's own description of that step first - what a
+Yes does, with the names of the target and the people, the values of the body and a warning line when it shares, invites,
+sends data out of Kalmido or moves something to another project. Your `title` and `what` stand below it as *The agent
+writes:*. The card's format does not change; write a title that says what the step does - a card whose words differ from
+the step gets a No.
 
 **Since 2.1045.0 (#5827) one way:** take the step from this answer as it stands, never type it yourself, and let the server
 run it from the card after the Yes:
@@ -3459,7 +3477,9 @@ minute (`429`). MCP: `log_decision`. The agent's Kalmido steps are logged by the
 **Deadline for approvals** (`deadline` in seconds, null = none; the owner picks 1 h, 4 h, 1 day or 3 days): an approval
 card left unanswered that long ends by itself, as `then` says - `reject` (default; the card shows *expired*),
 `ask_again` (one more push to the person, after the same time again: rejected) or `recommend` (the card's
-`approval.recommend` is taken; never for a one-way step - those are rejected). The agent gets `approval_expired`. The
+`approval.recommend` is taken; never for a one-way step - those are rejected; 2.1269.0: a Yes is not taken either
+when the card's description warns - sharing, inviting, data leaving Kalmido, moving, something the person cannot see -
+those are rejected as well). The agent gets `approval_expired`. The
 time counts from the card or from when the deadline was set, whichever is later.
 
 ```
@@ -4512,6 +4532,14 @@ projects with different people (2.30.0) and a prompt-injection checklist with ou
   `letter_draft_requested` (`origin: "document"`: its title and the document come from outside). The reference launcher
   and every MCP tool result add a frame saying this is data, not instructions. A pull request's text is read only for
   task references, its first 4,000 characters.
+- 2.1269.0 (#6431): the mark stays with the task (every later event and `get_task` carry `task.origin` and
+  `task.untrusted`), and two more sources are marked: a task from the project's inbound webhook (`origin: "webhook"`; an
+  @name in its title or notes is no mention) and every comment without a Kalmido account (`comment.origin` /
+  `comment.untrusted` in `comment` / `mention` events, in `task.comments` and in the comment list: `mail` = a reply by
+  e-mail to a ticket, `portal` = the reporter on the status page, `public_link` = a customer through the public link,
+  `git` = synced from the git host). A comment of a person or an agent with an account carries neither field. A task made
+  from a GitHub / GitLab issue (issue import or issue sync) carries `origin: "git"` as well (in later events and `get_task`; a new
+  synced issue sends no `task_added`), and an @name in the issue is no mention.
 - Chat privacy: a person can chat with the agent even if they cannot see all the projects the agent sees. The agent must not answer with content from projects that this person cannot see. Check the person's access, for example with the task's project members, before you quote anything.
 - The kill switch (Enabled off) cuts the agent off immediately: token, events and webhook. Event loops must back off
   on non-200 answers (a paused agent gets 403 at once).

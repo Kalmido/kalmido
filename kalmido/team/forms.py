@@ -428,7 +428,7 @@ def form_page(token):
 
 @app.post("/f/<token>")
 def form_send(token):
-    from ..agents.core import agent_added_events, agent_tidy_events
+    from ..agents.core import agent_added_events, agent_tidy_events, task_mark_origin
     c = db()
     f = _find(c, token)
     if not f:
@@ -522,6 +522,7 @@ def form_send(token):
     uid = g.user["id"] if g.user else None
     tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,content,sort,created_at,updated_at,created_by,ttype) VALUES(?,?,?,?,?,?,?,?,?)""",
                     (lid, sec, subject, content, srt, ts, ts, uid, f["ttype"] or ""))
+    task_mark_origin(c, tid, "form")  # 2.1269.0 (#6431): text from outside, on the task before the tidy / added events
     c.execute("UPDATE forms SET count=count+1, last_at=? WHERE id=?", (ts, f["id"]))
     if upload:
         save_attachment_bytes(c, tid, *upload, owner=None if uid else f["l_owner"])

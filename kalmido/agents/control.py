@@ -24,7 +24,8 @@ plan -> the old dates, comment -> deleted).
 
 #2901: an approval card left unanswered for the deadline (off | 1h | 4h | 1d | 3d) ends by itself (ctl_deadline_tick,
 watchdog): reject (default), ask_again (one more push, then reject) or recommend (the card's recommended answer; never on a
-one-way step -- there reject). The result is a line in the history and the event approval_expired."""
+one-way step -- there reject; 2.1269.0 (#6619): nor on a step whose server description warns -- sharing, inviting, data
+leaving Kalmido, moving, something the person cannot see -- or cannot be reckoned: rejected as well). The result is a line in the history and the event approval_expired."""
 import json
 import os
 import re
@@ -927,6 +928,23 @@ def ctl_card_one_way(ap):
 
 
 # ---------------------------------------------------------------- #2901: the deadline of the approvals (watchdog)
+CTL_DESC = [None]  # 2.1269.0 (#6619): agents/apvdesc.py puts its describer here (a higher layer: never imported from here)
+
+
+def ctl_deadline_warns(c, uid, ap):
+    """True when the deadline may not take the agent's recommendation for card ap of person uid: its step's description
+    (agents/apvdesc.py, with uid's rights) carries a warning line, or cannot be reckoned (no describer, an error)."""
+    st = ap.get("step") if isinstance(ap, dict) else None
+    if not st:
+        return False  # no bound step: nothing runs on the Yes but the agent's own next request (gated again)
+    try:
+        with c.savepoint():  # a failed read inside must not break the tick's transaction
+            d = CTL_DESC[0](c, uid, st) if CTL_DESC[0] else None
+    except Exception:  # noqa: BLE001  careful: a description that fails reads as a warning
+        return True
+    return not isinstance(d, dict) or d.get("warn") is not None
+
+
 def ctl_deadline_tick(c, users, S, LG):
     """Ends the approval cards of agents with a deadline that were not answered in time (see the module text)."""
     now = now_utc()
@@ -963,7 +981,8 @@ def ctl_deadline_tick(c, users, S, LG):
                     lg = LG.get(uid, "en")
                     notify(uid, a["display_name"] or a["username"], tr("Still waiting for your approval: {0}", ap.get("title", ""), lg=lg),
                            push_prio(S[uid]), f"{PUBLIC_URL}/#agents/{a['user_id']}", s=S[uid], kind="other")
-            elif then == "recommend" and ap.get("recommend") in ("yes", "no") and not ctl_card_one_way(ap):
+            elif then == "recommend" and ap.get("recommend") in ("yes", "no") and not ctl_card_one_way(ap) and \
+                    not (ap["recommend"] == "yes" and ctl_deadline_warns(c, r["user_id"], ap)):  # 2.1269.0 (#6619)
                 ans = {"ids": [ap["recommend"]], "at": iso_ms(now), "user_id": None, "via": "deadline"}  # A2: ctl_claim checks the card's person
                 c.execute("UPDATE agent_chat SET choice=? WHERE id=?", (json.dumps(ans), r["id"]))
                 outcome = "approved" if ap["recommend"] == "yes" else "rejected"
