@@ -149,7 +149,7 @@ def eproof_hint(c, uid):
         return False
     uset(c, uid, EPF_HINT, em)  # committed with the mail count (a used-up budget rolls both back: the next content mail tries again)
     e = _eproof_out(c, u, em, None)
-    if e == "mail":  # the mail server said no: the next content mail tries again
+    if e in ("mail", "store"):  # the mail server said no, or the link could not be stored (the mail carries a dead one): the next content mail tries again
         uset(c, uid, EPF_HINT, "")
         c.commit()
     return e is None
