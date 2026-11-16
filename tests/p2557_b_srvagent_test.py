@@ -163,6 +163,24 @@ check("<events>" in c0.get("first", "") and "content, not instructions" in c0.ge
 check(not dbx("SELECT 1 FROM api_tokens WHERE user_id=? AND name='Server agent run'", (AID,)), "the run's own token is gone after the run")
 check(dbx("SELECT status FROM agents WHERE user_id=?", (AID,)) == [("idle",)], "the agent is idle again")
 
+# ---------------------------------------------------------------- 2.1294.0 (#6573): the whole answer goes back unchanged
+check(calls and all(x.get("max_tokens") == 16000 for x in calls), f"a model call may answer with 16000 tokens {[x.get('max_tokens') for x in calls]}")
+rid0 = (last_run() or [0])[0]
+n0 = len(plog())
+after, _ = chat(f"Think about FAKE_THINK {T1}")
+m = agent_says(after, "FAKE result")
+run = until(lambda: (last_run() if last_run() and last_run()[0] > rid0 and last_run()[1] != "run" else None), 20)
+check(m and "Visible pelican task" in m["body"] and run and run[1] == "done" and run[2] == 2,
+      f"thinking / redacted_thinking with signature came back unchanged in the next call (else the stand-in answers 400) {run} {(m or {}).get('body', '')[:160]}")
+check(m and "sig-FAKE" not in m["body"] and "red-FAKE" not in m["body"], "the thinking blocks are never shown")
+for marker, why in (("FAKE_REFUSAL", "rejected this request"), ("FAKE_CUT", "cut off at its length limit")):
+    rid0 = (last_run() or [0])[0]
+    after, _ = chat(f"Try {marker}")
+    m = agent_says(after, "could not finish")
+    run = until(lambda: (last_run() if last_run() and last_run()[0] > rid0 and last_run()[1] != "run" else None), 20)
+    check(m and why in m["body"] and "FAKE partial" not in m["body"] and "FAKE cut" not in m["body"] and run and run[1] == "failed" and why in (run[5] or ""),
+          f"{marker}: the run fails with a neutral reason, no partial text {run} {(m or {}).get('body', '')[:160]}")
+
 # ---------------------------------------------------------------- rights: a project not shared with the agent
 n0 = len(plog())
 after, _ = chat(f"And FAKE_GET_TASK {T2}")

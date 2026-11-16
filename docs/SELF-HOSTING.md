@@ -2277,8 +2277,12 @@ access* (shown on hosted servers only). A person grants it for the own account (
 without an organisation); an organisation admin grants it for each organisation they administer. A grant runs 1 hour,
 1 day, 3 days or 7 days, ends by itself and can be ended at any time (by the person, or by any admin of the
 organisation). While it is open, the instance admin's ways into exactly that account or organisation work as on a
-self-hosted server (sign-in link, password link, members and roles, its projects and agents); the instance admin's
-account list shows the end time. The sign-in link ends with the grant, and so does the session it starts; the password
+self-hosted server (sign-in link, password link, its projects and agents); the instance admin's
+account list shows the end time. *Since 2.1294:* what the instance admin changes through a grant is a fixed list: an
+account's lock and storage quota, an agent's on / off switch, an organisation's name and symbol. Never a kid account or
+its parents, the admin right, an agent's owner, webhook, scopes or projects, an organisation's e-mail domains, members or
+roles (each would outlive the grant). On a hosted server an instance admin listed as a parent of a customer's kid makes
+its sign-in link only through an open grant and never sets its PIN. The sign-in link ends with the grant, and so does the session it starts; the password
 link goes to the customer's own address only. *Since 2.500:* a session started with such a sign-in link (a support session)
 reads everything the person reads and edits contents (projects, tasks, documents, files, wiki, tables, contacts, office
 records), and nothing else: no credentials, agents, app connections (OAuth), public links, shares, members, invitations,

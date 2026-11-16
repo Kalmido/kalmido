@@ -156,6 +156,12 @@ a = dbx("SELECT data FROM activity WHERE task_id=? AND kind='created'", (T1,))
 ad = a[0][0] if a else {}
 ad = json.loads(ad) if isinstance(ad, str) else ad
 check(ad.get("via") == "webhook" and ad.get("hook") == HK["id"], f"activity via webhook + hook id: {ad}")
+# 2.1294.0 (#6523, review F1): the webhook's text is no order of its creator -- created_by is bob, but the origin stays empty
+# (GET /api/v1 by_creator false; the agent dispatcher of the app never builds it); a task bob writes in the app is 'person'
+check(dbx("SELECT origin FROM tasks WHERE id=?", (T1,))[0][0] is None, "#6523: a webhook's task has no origin 'person'")
+r = Bo.post(B + "/api/tasks", json={"list_id": LID, "title": "Bob writes it himself"})
+check(r.status_code in (200, 201) and dbx("SELECT origin FROM tasks WHERE id=?", (r.json().get("id"),))[0][0] == "person",
+      f"#6523: a task written in the app is the person's: {r.status_code} {r.text[:120]}")
 r = post_in(URL, json={"title": "With id field", "fields": {str(FLD): 7}, "due": f"{D}T14:30:00"})
 check(r.status_code == 201, f"a field by its id, a date-time: {r.status_code} {r.text[:200]}")
 t = Bo.get(B + f"/api/tasks/{r.json().get('id')}").json()

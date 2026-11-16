@@ -1011,6 +1011,9 @@ TEXTS = {
     "dispatch_state_needs_yes": {"en": "waiting for a yes", "de": "warten auf ein Ja", "fr": "attendent un oui", "es": "esperan un sí", "it": "attendono un sì", "nl": "wachten op een ja"},
     "dispatch_state_stuck": {"en": "need you", "de": "brauchen dich", "fr": "ont besoin de toi", "es": "te necesitan", "it": "serve il tuo aiuto", "nl": "hebben jou nodig"},
     "dispatch_state_ready": {"en": "ready", "de": "bereit", "fr": "prêtes", "es": "listas", "it": "pronte", "nl": "klaar"},
+    # 2.1294.0 (#6523): a task the person did not create (another member's, or none: webhook / git / form) is never built
+    "dispatch_state_foreign": {"en": "not yours", "de": "nicht von dir", "fr": "pas de toi", "es": "no tuyas", "it": "non tue", "nl": "niet van jou"},
+    "dispatch_skipped": {"en": "Not built, not created by you (another member, or no creator): {0}", "de": "Nicht gebaut, weil nicht von dir angelegt (anderes Mitglied oder ohne Ersteller): {0}", "fr": "Non réalisées, pas créées par toi (autre membre ou sans créateur) : {0}", "es": "No hechas, no las creaste tú (otro miembro o sin creador): {0}", "it": "Non fatte, non create da te (altro membro o senza autore): {0}", "nl": "Niet gebouwd, niet door jou aangemaakt (ander lid of zonder maker): {0}"},
     "status_plan_limit": {"en": "Plan limit reached", "de": "Tarifgrenze erreicht", "fr": "Limite de l'abonnement atteinte",
                           "es": "Límite del plan alcanzado", "it": "Limite del piano raggiunto", "nl": "Limiet van het abonnement bereikt"},
     "status_plan_limit_at": {"en": "Plan limit reached, back at {0}", "de": "Tarifgrenze erreicht, zurück um {0}",

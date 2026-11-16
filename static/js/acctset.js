@@ -320,7 +320,9 @@ async function orgModal(o, done) {
           const m0 = new Set(o.members || []), a0 = new Set(o.admins || []), a1 = new Set([...adm].filter(id => mem.has(id)));
           const df = (x, y) => [...x].filter(id => !y.has(id));
           const ch = Object.fromEntries(Object.entries(body).filter(([k, v]) => v !== (o[k] || '')));
-          await api('PATCH', `/api/admin/orgs/${o.id}`, {...ch, members_add: df(mem, m0), members_remove: df(m0, mem), admins_add: df(a1, a0), admins_remove: df(a0, a1).filter(id => !df(m0, mem).includes(id))});
+          // 2.1294.0 (#6496): empty lists stay out (through a client's support access only name and symbol may be sent)
+          const ops = Object.entries({members_add: df(mem, m0), members_remove: df(m0, mem), admins_add: df(a1, a0), admins_remove: df(a0, a1).filter(id => !df(m0, mem).includes(id))}).filter(([, v]) => v.length);
+          await api('PATCH', `/api/admin/orgs/${o.id}`, {...ch, ...Object.fromEntries(ops)});
         } else await api('POST', '/api/admin/orgs', body);
       }
       md.remove(); done && done(); await load(); render();

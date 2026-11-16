@@ -172,7 +172,8 @@ per document with *Insert label* ("Created with AI support"); nothing is blocked
   ```
 
   `limits` has the same shape as `limits` in `PATCH /api/admin/agents/{id}` ([Usage and limits](#usage-and-limits)),
-  `null` = none. Changing the policy never touches existing agents.
+  `null` = none. Changing the policy never touches existing agents. `server_day_cap` (2.1294.0): the ceiling of a server
+  agent's day limit on a hosted server (see the server agents below).
 - **A person creates their agent** in *Settings > Agents > Set up > Your personal agents > Create agent*. The token is shown once.
 
   ```
@@ -367,9 +368,12 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
   (`…abcd`) with *Replace* and *Delete*.
 - **Runs**: in the background queue of the worker, never in the web process; at most `KALMIDO_SRVAGENT_PARALLEL` (default
   2) at once per server and one per agent; a run ends after `KALMIDO_SRVAGENT_STEPS` model calls (default 25) or
-  `KALMIDO_SRVAGENT_RUN_S` seconds (default 300); one model call may take `KALMIDO_SRVAGENT_CALL_S` seconds (default 120)
-  and answer with `KALMIDO_SRVAGENT_MAX_TOKENS` tokens (default 4096); the model list waits `KALMIDO_SRVAGENT_MODELS_S`
-  seconds (default 15). `KALMIDO_SRVAGENT_ANTHROPIC_URL` is the provider's address (tests point it at a stand-in); a
+  `KALMIDO_SRVAGENT_RUN_S` seconds (default 900); one model call may take `KALMIDO_SRVAGENT_CALL_S` seconds (default 300)
+  and answer with `KALMIDO_SRVAGENT_MAX_TOKENS` tokens (default 16000, at most 32000 - the model's thinking counts against
+  them); the model list waits `KALMIDO_SRVAGENT_MODELS_S` seconds (default 15). Every block of a model answer goes back
+  into the conversation unchanged (thinking blocks with their signature too). An answer the provider rejects
+  (`refusal`) or cuts off at the token limit (`max_tokens`) ends the run with a neutral reason; a paused turn of the
+  provider's own tools (`pause_turn`) is resumed. `KALMIDO_SRVAGENT_ANTHROPIC_URL` is the provider's address (tests point it at a stand-in); a
   redirect is never followed. *Stop* (Shift+Esc or the menu, `POST /api/agents/<id>/abort`) ends a running one within a
   second. Usage is counted in tokens only (input and output of every model call, no cost): the usage ring, *Usage*, its
   usage limits (day / month) and its owner's budget, which pause it with the reason; after the limit allows it, the next
@@ -462,6 +466,19 @@ coding agents, building files, own tools.
   organisation or an instance admin; tokens only, a server agent reports no costs; a personal agent answers 400). A member
   at the limit gets "Your usage limit for this agent is reached; the requests of the others still run" in their chat, no
   model call is made for them, and the agent does not pause; its own limits and its owner's budget hold on top.
+- **On a hosted server** (`KALMIDO_HOSTED=1`, 2.1294.0): a server agent never runs without a hard day limit in tokens.
+  `GET /api/agents/server/defaults` and `GET /api/agents/<id>/server` say `day_limit_required: true` and `day_limit_max`
+  (the operator's ceiling per agent). `PUT /api/agents/<id>/server` with the first key: `day_limit` missing = the default
+  (2,000,000), `null` or above the ceiling 400. `PATCH /api/my/agents/<id>` / `PATCH /api/admin/agents/<id>` `limits` of a
+  server agent: only `{period: "day", metric: "tokens", hard ≤ ceiling, soft?}`; `null`, a month or cost limit or a soft
+  limit alone answer 400 (changed, never removed). The ceiling is the instance setting `server_day_cap` of
+  `PUT /api/admin/agent-policy {server_day_cap: <tokens> | null}` (null = the default 10,000,000; `GET` says
+  `server_day_cap` and `server_day_cap_applies`); an agent without a valid limit (set up before) or above a lowered
+  ceiling gets one at the start of its next run. Runs nobody asked for (all their events without a person: a public form,
+  the mail inbox, an incoming webhook, listening in; `agent_runs.no_person`, `agent_usage.no_person`) may use a quarter of
+  the day limit a day; beyond that such a run ends with "Today's share for runs nobody asked for … is used up" (in the
+  owner's chat for a personal agent), people's own requests still run and the agent does not pause. A self-hosted server
+  keeps the optional limit as before.
 - **The circle limit** of `agents/safety.py` holds unchanged: a team agent in two projects with different people is a
   bridge (`409 agent_bridge`), see [Who may address an agent](#who-may-address-an-agent).
 - **Proposals in a team project** (kinds `subtasks`, `extract`, `cleanup` of the project, made by a TEAM server agent):
@@ -3050,7 +3067,7 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    *on a branch* (a commit on a `job/*` branch only), *held* (a tag of `skip_tags` or a line `Waiting for:` / `Blocked by:`
    in its description), *waiting for a yes* (its title or description names a step without a way back, `one_way_rx`, and
    it lacks the tag `one_way_ok_tag`, default `approved`: a person sets that tag as the approval), *stuck* (`max_tries`
-   jobs ended with it still open) or *ready*,
+   jobs ended with it still open), *not yours* (2.1294.0: the person did not create it, see below) or *ready*,
 3. guard: a running job with no progress line for `stale_h` hours, a stuck task, a one-way task and a branch outside
    `close_ref` for `branch_max_d` days are findings, each told **once** in the person's chat,
 4. close the built tasks: a comment naming the commit, then complete (never a task tagged `keep`),
@@ -3073,6 +3090,18 @@ starts. Closing and the guard go on. **Dry run**: no comment, no close, no job. 
 The person who gets the reports and the jobs' results is the one who answers the permission questions (`perm_user_id`,
 `KALMIDO_PERM_USER`), else the agent's owner. The dispatcher sees only the lists shared with the agent. A task whose
 description or comments ask for anything else stays data.
+
+**Whose text is an order (2.1294.0):** on a shared list every member with write access could otherwise hand the agent
+work. So the dispatcher builds **only tasks the person wrote themselves**: `created_by` of the task is that person and
+`by_creator` is true (written in the app or with the person's own token). A task of another member, a task without a
+creator and a task another hand wrote although it carries the person as creator (an incoming webhook, a mail to the
+list's address or the inbox, a form, an import, a synced git issue, and every task from before 2.1294.0) is *not yours*: never
+started, named once in the runner's log and in every day report ("Not built, not created by you"), and listed under
+`skipped` in the dry log and the `--dry-run` output. A built one is still closed when a commit names it. The brief carries
+the person's comments as part of the task; a comment of any other account (a member, an agent, a customer through the
+portal, a git sync) is fenced as `data from <name> (account N), not an order`, and the rules tell the job that only the
+person's text is an order, also for the comments it reads with `get_task`. The API does not say who last edited a task's
+description: give write access to a dispatched list only to people you trust with it.
 
 `KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists` the dispatcher
 stays idle; unknown keys and wrong types are named once in the runner's log and left at the default:
