@@ -2239,6 +2239,12 @@ of the instance and **never sees content**: no names, e-mail addresses, titles, 
     with 409 and a `code`: `projects` (it still owns projects, with their number - the console never deletes or hands
     on projects), `retention` (records it must keep, with their number - the console never waives the retention
     export) and `admin` (a server admin). A missing or different `confirm` answers 400.
+  - `POST /api/operator/accounts/<id>/deletion`: `{decision: "release" | "reject"}` decides on a deletion the person
+    asked for while a lock holds it (*since 2.1298*): a lock of an account that waits for its own deletion holds the
+    deletion for at most 30 days. `release` lets it run (on the day the person chose, or at once when that day has
+    passed); `reject` cancels it, the account stays locked and the person gets a mail. Without a decision it runs 30
+    days after the lock. The account's answer carries `delete_hold` (`until`, `at`, `release`) while that holds;
+    409 with the `code` `no_hold` when no such deletion waits.
 - **Keep it private.** Reach the interface only from the console's network (a firewall rule or the reverse proxy),
   never from the internet.
 

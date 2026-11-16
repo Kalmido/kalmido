@@ -377,7 +377,7 @@ async function authScreen(j) {
       try {
         const r = await fetch(setup ? '/api/auth/setup' : '/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify(body)});
         const res = await r.json().catch(() => ({}));
-        if (!r.ok && res.deleting) { lg_delScreen(el, logo, {username: body.username, password: body.password, at: res.delete_at}); return; }  // 2.553.0 (#1413)
+        if (!r.ok && res.deleting) { lg_delScreen(el, logo, {username: body.username, password: body.password, at: res.delete_at, by: res.held ? res.delete_by : ''}); return; }  // 2.553.0 (#1413); 2.1298.0 (#6395): by = held
         if (!r.ok) { errEl.textContent = res.error || httpErrText(r.status); return; }
         if (setup) { await setupChoices(el, logo); return; }
         if (res.twofa) { await authTwofa(el, logo, res.methods || ['totp']); return; }
@@ -589,7 +589,7 @@ document.addEventListener('change', async e => {
 function lg_delScreen(el, logo, o) {
   el.innerHTML = `<div class="card">${logo}
     <h2 class="invh">${tr('Your account will be deleted')}</h2>
-    <p role="status">${esc(o.at ? tr('Your account will be deleted permanently on {0}. It is locked until then.', fmtDate(String(o.at).slice(0, 10))) : tr('Cancel the deletion of your account? It can be used again afterwards.'))}</p>
+    <p role="status">${esc(o.by ? tr('The deletion of your account is on hold for a review. It happens by {0} at the latest.', fmtDate(String(o.by).slice(0, 10))) : o.at ? tr('Your account will be deleted permanently on {0}. It is locked until then.', fmtDate(String(o.at).slice(0, 10))) : tr('Cancel the deletion of your account? It can be used again afterwards.'))}</p>
     <div class="aerr" role="alert" id="dc-err"></div>
     <button class="btn pri" type="button" data-dc="go">${tr('Cancel the deletion')}</button>
     <button class="linkbtn" type="button" data-au="back">${tr('Back to sign-in')}</button></div>`;
@@ -599,7 +599,10 @@ function lg_delScreen(el, logo, o) {
       const j = await authPost('/api/auth/delete-cancel', o.token ? {token: o.token} : {username: o.username, password: o.password});
       // 2.1254.0 (#6293): an admin locked the account as well: that lock stays
       $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('The deletion was cancelled')}</h2><p role="status">${j.locked ? tr('An admin has locked your account; only an admin can unlock it.') : tr('Your account can be used again. Please sign in.')}</p><button class="btn pri" type="button" data-au="back">${tr('Go to sign-in')}</button>`;
-    } catch (x) { $('#dc-err', el).textContent = x.message; b.disabled = false; }
+    } catch (x) {  // 2.1298.0 (#6395): a link of before an admin's lock: the deletion is held (409 held), the link ends here
+      if (x.j?.held) { $('[role="status"]', el).textContent = tr('The deletion of your account is on hold for a review. It happens by {0} at the latest.', fmtDate(String(x.j.delete_by).slice(0, 10))); b.hidden = true; return; }
+      $('#dc-err', el).textContent = x.message; b.disabled = false;
+    }
   });
 }
 function lg_forgotScreen(el, logo, pre = '') {

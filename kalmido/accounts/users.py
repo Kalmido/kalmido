@@ -64,7 +64,8 @@ def user_admin_dict(c, u):
 # 2.539.0 (#4374, audit #2482 F4 + F8): what the operator of a hosted instance (an instance admin) sees of a client's account
 # (users._op_foreign: apart) -- the states it manages and a number, never the client's e-mail address, name, photo, sign-in
 # methods, organisation ids, parents or invitation (the operator console's promise). Self-hosted: never apart, unchanged.
-OP_BRIEF_KEYS = ("id", "username", "kind", "is_admin", "disabled", "signup", "storage", "apart")
+OP_BRIEF_KEYS = ("id", "username", "kind", "is_admin", "disabled", "signup", "storage", "apart",
+                 "delete_hold", "delete_own")  # 2.1298.0 (#6395): states with days (the operator decides on a held deletion too)
 
 
 def op_account_brief(d):
@@ -88,7 +89,19 @@ def _user_admin_full(c, u, kid_parents):
             "kid": bool(u["kid"]),
             **_admin_struct(c, u),  # 2.22.0 (#752) orgs, 2.28.0 (#935) org_id of an agent, number of lists
             "storage": _storage(c, u["id"]),  # 2.24.0 (#910): {used, quota_mb}
+            **_delete_hold(u),  # 2.1298.0 (#6395)
             **_op_foreign(c, u["id"])}  # 2.399.0 (#2687): hosted, a customer's account (lock / quota only)
+
+
+def _delete_hold(u):
+    """2.1298.0 (#6395): {delete_hold: {until, at, release}} of an account whose own deletion an admin's lock holds (the
+    admins decide on it in the user management; accounts/delhold.py), else {}."""
+    from .delhold import sdl_hold_dict
+    h = sdl_hold_dict(u)
+    if h:
+        return {"delete_hold": h}
+    # an own deletion that waits without an admin's lock: the day (the dialog offers to hold it = the admin's lock)
+    return {"delete_own": str(u["delete_at"])} if u["delete_at"] and u["disabled"] else {}
 
 
 def _op_foreign(c, uid):
@@ -238,7 +251,12 @@ def sdl_admin_locked(c, uid):
     except (TypeError, ValueError):
         p = {}
     p = p if isinstance(p, dict) else {}
-    p.update(admin=iso(now_utc()), toks=[], agents=[])
+    # 2.1298.0 (#6395): the lock holds the final deletion (accounts/delhold.py); the cancel links end but are kept apart
+    # (held_toks): the person who follows one hears that the deletion is held and until when (admin/selfdelete.sdl_cancel).
+    # A second lock keeps the first time (the hold's 30 days count from the first lock), the links kept then and an admin's
+    # release (a decision; the bulk "disable" of an account already locked does not take it back).
+    held = (p.get("held_toks") or []) + (p.get("toks") or [])
+    p.update(admin=p.get("admin") or iso(now_utc()), toks=[], agents=[], held_toks=held[-5:])
     c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(p), uid))
 
 
