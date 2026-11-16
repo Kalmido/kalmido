@@ -30,9 +30,9 @@ from flask import g, jsonify, request, has_app_context
 
 from ..core.config import app, OFFICE_DIR
 from ..core.i18n import N_, tr
-from ..core.db import bump, db, iso, now_utc, ix_ensure
+from ..core.db import bump, db, gset, gsetting, iso, now_utc, ix_ensure
 from ..core.pg import write_lock
-from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_json_store, oc_log_detail
+from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_enc_fields, oc_json_store, oc_log_detail
 from ..core.access import Denied
 from ..core.errors import BadInput, DeniedKey
 from .model import ofx_release  # noqa: F401  2.542.0 (#4598): moved to model, chain needs it at module level
@@ -119,8 +119,21 @@ def ofx_log(c, oid, action, target="doc", doc_id=None, detail=None, dedupe_min=0
         args = [oid, action, target, since] + ([doc_id] if doc_id is not None else []) + ([uid] if uid is not None else [])
         if c.execute(sql + " LIMIT 1", args).fetchone():
             return
-    c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail) VALUES(?,?,?,?,?,?,?)",
-              (oid, doc_id, uid, iso(at), action, target, oc_log_detail(c, oid, _cap(detail))))  # 2.42.0 (#828)
+    c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,?,?,?,?,?,?)",
+              (oid, doc_id, uid, iso(at), action, target, oc_log_detail(c, oid, _cap(detail)), ofx_log_name(c, oid, uid)))  # 2.42.0 (#828)
+
+
+def ofx_user_label(c, uid):
+    """2.1287.0 (#6470): the name an office log entry / a finalised document keeps of person uid (display name, else the
+    user name); '' without an account."""
+    u = c.execute("SELECT display_name, username FROM users WHERE id=?", (uid,)).fetchone() if uid else None
+    return ((u["display_name"] or u["username"]) or "") if u else ""
+
+
+def ofx_log_name(c, oid, uid):
+    """2.1287.0 (#6470): office_doc_log.user_name of a new entry by uid in organisation oid, sealed like the detail
+    (core/orgcrypt.py FIELDS): the name stays when the account is deleted (user_id ON DELETE SET NULL)."""
+    return oc_enc(c, oid, "office_doc_log.user_name", ofx_user_label(c, uid)) or ""
 
 
 def ofx_diff(before, after):
@@ -154,8 +167,8 @@ def _log_public(c, r):
         d["detail"] = json.loads(d.get("detail") or "{}")
     except ValueError:
         d["detail"] = {}
-    u = c.execute("SELECT display_name, username FROM users WHERE id=?", (r["user_id"],)).fetchone() if r["user_id"] else None
-    d["user_name"] = (u["display_name"] or u["username"]) if u else ""
+    # 2.1287.0 (#6470): the account's name now; the name kept with the entry when the account is gone
+    d["user_name"] = ofx_user_label(c, r["user_id"]) or d.get("user_name") or ""
     return d
 
 
@@ -383,7 +396,8 @@ def ofx_finalize(c, oid, uid, did):
     color = s.get("color") or ""
     fields = ofx_company(c, oid)
     sender = {"company": ofx_company_print(fields, s.get("company") or {}, lang, pack), "fields": fields, "color": color,
-              "logo": logo, "logo_sha256": sha, "pack": pack.get("code") or s["pack"]}
+              "logo": logo, "logo_sha256": sha, "pack": pack.get("code") or s["pack"],
+              "locked_by_name": ofx_user_label(c, uid)}  # 2.1287.0 (#6470): who finalised it, kept when the account is deleted
     sender["company"]["sender_line"] = ofx_sender_line(sender["company"])  # 2.97.1 (#2224): frozen with the rest
     sender["logo_size"], sender["logo_pos"] = s.get("logo_size") or "m", s.get("logo_pos") or "r"  # 2.406.0 (#3501): frozen
     sender["girocode"] = 1 if int(s.get("girocode", 1) or 0) else 0  # 2.147.1 B (#2054): the GiroCode decision, frozen (girocode.py)
@@ -479,6 +493,27 @@ def ofx_migrate(c):
         c.execute("ALTER TABLE office_doc_items ALTER COLUMN org_id SET NOT NULL")
     ix_ensure(c, "CREATE INDEX IF NOT EXISTS office_doc_items_org ON office_doc_items(org_id, doc_id)")
     hch_migrate(c)  # 2.531.0 (#4497): finalised documents not chained yet (before 2.531, an imported office) join their chain
+    ofx_log_names_fill(c)  # 2.1287.0 (#6470)
+
+
+def ofx_log_names_fill(c):
+    """2.1287.0 (#6470): once (marker migr_odl6470) the entries of the office log from before get the name of their person
+    (office_doc_log.user_name, sealed per organisation). An organisation whose key cannot be read now is left for the next
+    start (the marker waits). Entries whose account was deleted before stay without a name (nothing to fill from)."""
+    if gsetting(c, "migr_odl6470") == "1":
+        return
+    done = True
+    pairs = c.execute("SELECT DISTINCT l.org_id, l.user_id FROM office_doc_log l JOIN users u ON u.id=l.user_id "
+                      "WHERE l.user_name='' ORDER BY l.org_id, l.user_id").fetchall()
+    for oid, uid in pairs:
+        try:
+            with c.savepoint():
+                c.execute("UPDATE office_doc_log SET user_name=? WHERE org_id=? AND user_id=? AND user_name=''",
+                          (ofx_log_name(c, oid, uid), oid, uid))
+        except Exception:  # noqa: BLE001 -- never stop the start for this (decryption key not readable now)
+            done = False
+    if done:
+        gset(c, "migr_odl6470", "1")
 
 
 # ---------------------------------------------------------------- routes

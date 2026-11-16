@@ -43,6 +43,7 @@ from .invoices import ofi_ref, ofi_ref_doc, ofi_ref_keep  # 2.269.0 D (#3046)
 from .offerlink import OilExists, oil_agent_filter, oil_need_no_invoice  # 2.356.0 C (#3003)
 from .docs import MAX_ITEMS, _num, clean_items, doc_items, doc_public, DOC_KINDS, ODOC_PAGE_MAX, doc_brief, doc_row, recalc, _date  # 2.369.5 (#2517): pulled up from functions
 from .docs import prd_doc_clean  # 2.1228.0 (#6254)
+from .ledger import ofx_log_name  # 2.1287.0 (#6470)
 from .model import TEXT_MAX, office_gate, office_org  # 2.369.5 (#2517): pulled up from functions
 from .ledger import ofx_log, ofx_locked, ofx_diff, ofx_items_brief  # 2.369.5 (#2517): pulled up from functions
 from .packs import office_feature_on  # 2.369.5 (#2517): pulled up from functions
@@ -135,8 +136,9 @@ def ofa_area_agents(c, oid):
 def ofa_log(c, oid, aid, write, target, doc_id=None, uid=None):
     """One line of the office log for one request of agent aid (no contents: what kind of thing, which document)."""
     detail = json.dumps({"agent": aid, "for": uid, "what": target}, ensure_ascii=False)
-    g.ofa_log = (oid, insert_id(c, "INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail) VALUES(?,?,?,?,?,?,?)",
-                                (oid, doc_id, aid, iso(now_utc()), "agent_write" if write else "agent_read", target, oc_log_detail(c, oid, detail))))
+    g.ofa_log = (oid, insert_id(c, "INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,?,?,?,?,?,?)",
+                                (oid, doc_id, aid, iso(now_utc()), "agent_write" if write else "agent_read", target, oc_log_detail(c, oid, detail),
+                                 ofx_log_name(c, oid, aid))))  # 2.1287.0 (#6470): the agent's name, kept when it is deleted
 
 
 def _log_doc(c, did):

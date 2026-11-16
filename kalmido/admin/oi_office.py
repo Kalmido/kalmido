@@ -20,11 +20,11 @@ from .orgimport import OiFix, OiT, _txt  # noqa: F401
 from .orgimport import _oid  # 2.654.0 (#4585)
 from .orgimport import _BAD, _coerce  # 2.1115.0 (#5951)
 from ..core.orgcrypt import oc_item_store, oc_json_store, oc_log_detail  # 2.149.0 G (#2517): pulled up from functions
-from ..core.orgcrypt import oc_dec_fields  # 2.188.0 A (#2498)
+from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_plain_safe  # 2.188.0 A (#2498); 2.1287.0 (#6470): + oc_enc, oc_plain_safe
 from ..core.orgcrypt import OrgCryptError  # 2.516.0 (#4364)
 from ..core.pg import system_ctx, write_lock  # 2.516.0 (#4364); 2.977.0 (#5282): + write_lock
 from ..office.procdoc import PD_KIND, pd_head  # 2.977.0 (#5282): the head of the procedure documentation
-from ..office.ledger import ofx_release  # 2.542.0 (#4598)
+from ..office.ledger import ofx_log_name, ofx_release  # 2.542.0 (#4598); 2.1287.0 (#6470): + ofx_log_name
 from ..office.calc import dec  # 2.188.0 A (#2498)
 from ..core.db import insert_id, iso, now_utc  # 2.149.0 G (#2517): pulled up from functions
 from .orgexport import _safe_part  # 2.369.5 (#2517): pulled up from functions
@@ -306,8 +306,9 @@ def _oi_mark(c, run, ctx, target, doc_id=None, detail=None):
     if not isinstance(ctx.space, int):
         return
     det = {"source": "file", **{k: v for k, v in (detail or {}).items() if v not in (None, "")}}
-    lid = insert_id(c, "INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail) VALUES(?,?,?,?,?,?,?)",
-                    (ctx.space, doc_id, ctx.uid, iso(now_utc()), "import", target, oc_log_detail(c, ctx.space, json.dumps(det, ensure_ascii=False))))
+    lid = insert_id(c, "INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,?,?,?,?,?,?)",
+                    (ctx.space, doc_id, ctx.uid, iso(now_utc()), "import", target, oc_log_detail(c, ctx.space, json.dumps(det, ensure_ascii=False)),
+                     ofx_log_name(c, ctx.space, ctx.uid)))  # 2.1287.0 (#6470)
     run.created["oi"].append(["office_doc_log", lid, ctx.space])
 
 
@@ -519,6 +520,8 @@ def _p_bank_balance(c, run, src, d, ctx):
 def _p_log(c, run, src, d, ctx):
     if d.get("detail"):
         d["detail"] = oc_log_detail(c, ctx.space, d["detail"])  # like the app: only entries with protected keys sealed
+    if d.get("user_name"):  # 2.1287.0 (#6470): the person's name from the file stays (user_id becomes empty), sealed like the app
+        d["user_name"] = oc_enc(c, ctx.space, "office_doc_log.user_name", oc_plain_safe(str(d["user_name"])))
     return d
 
 
