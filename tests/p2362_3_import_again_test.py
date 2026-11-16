@@ -126,6 +126,8 @@ BK = ok(F.post(B + "/api/books", json={"name": "Meine Kontakte"}), "an address b
 ok(F.post(B + "/api/contacts", json={"book_id": BK, "fn": "Kim Kontakt"}), "a contact")
 CAL = ok(F.post(B + "/api/evcals", json={"name": "Mein Kalender"}), "a calendar")["id"]
 ok(F.post(B + "/api/events", json={"cal_id": CAL, "title": "Termin Probe", "start": "2026-11-02T10:00", "end": "2026-11-02T11:00"}), "an event")
+# 2.1235.0 (#6240): a task of the inbox - the inbox of a file always goes into my private inbox, whatever the target
+ok(F.post(B + "/api/tasks", json={"title": "Eingang Probe"}), "an inbox task")
 FILE1 = export(F)
 base = counts(FID)
 check(all(v == 1 for v in base.values()), f"the data as it starts {base}")
@@ -174,10 +176,16 @@ check(now == first, f"a row deleted since comes back, nothing else {now}")
 F.post(B + "/api/orgs", json={"name": "Frida Studio"})
 FORG = one("SELECT org_id FROM org_members WHERE user_id=?", (FID,))
 if FORG:
+    inbox_n = one("SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Eingang Probe' AND deleted_at IS NULL", (FID,))
     iid, j = upload(F, FILE1)
     j = run(F, iid, target=FORG)
     check(j.get("state") == "done" and counts(FID)["lists"] == first["lists"] + 1, f"into another workspace it is a copy {counts(FID)}")
     check(one("SELECT COUNT(*) FROM lists WHERE org_id=? AND name='Umzug Probe'", (FORG,)) == 1, "the copy is in the organisation")
+    # 2.1235.0 (#6240): the copy has its tasks (tt_id carries the workspace), the private inbox task is not taken twice
+    check(one("SELECT COUNT(*) FROM tasks t JOIN lists l ON l.id=t.list_id WHERE l.org_id=? AND t.title='Erste Aufgabe' AND t.deleted_at IS NULL",
+              (FORG,)) == 1, "#6240: the task came along into the copy")
+    check(one("SELECT COUNT(*) FROM tasks WHERE created_by=? AND title='Eingang Probe' AND deleted_at IS NULL", (FID,)) == inbox_n,
+          f"#6240: the inbox task is not doubled by the copy {inbox_n}")
     dbxm.connect(DATA).execute("DELETE FROM lists WHERE org_id=?", (FORG,))
 
 # review: the imported project went to somebody else: nothing more is written into it; a project in the trash is not there
