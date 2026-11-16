@@ -361,7 +361,7 @@ def _process(c, row):
     if not "".join(text.split()):
         return _set(c, fid, "none", method=r.get("method") or "", pages=r.get("pages") or 0, sha256=sha)
     _set(c, fid, "found", text=S.doc_seal(c, row["ws"], "file_text.text", text), method=r.get("method") or "",
-         pages=r.get("pages") or 0, truncated=int(len(r.get("text") or "") >= TEXT_CAP), sha256=sha)
+         pages=r.get("pages") or 0, truncated=int(bool(r.get("truncated")) or len(r.get("text") or "") >= TEXT_CAP), sha256=sha)  # 2.1283.0 (#6427): + pages not read
     _index(c, fid, row["ws"], text)
 
 

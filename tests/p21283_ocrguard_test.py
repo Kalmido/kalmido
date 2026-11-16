@@ -8,8 +8,9 @@ freelancer-matrix: n/a (no route new or changed in its answer; the preview route
    the slot right after page 1 (not after the last page); the slot is held while a page is read
  - the wall clock of one document (OCR_DOC_S, a clock handed in): 30 pages of 50 s each end after 6 pages / 300 s, the
    result is marked truncated, no tool gets more time than the document has left
- - pages cut off WITHOUT a time limit count (a tool killed by its CPU limit): 30 failing pages end after 2, "too_complex";
-   one good page before them keeps its text
+ - pages cut off WITHOUT a time limit count (a tool killed by its CPU limit, a failure that took half the page time): 30
+   such pages end after 2, "too_complex"; one good page before them keeps its text; pages that fail at once (damaged) do
+   not count, the pages after them are still read; a cut document says "truncated" (doc_text)
  - no slot at all -> "busy" (the caller tries again)
  - a picture only by its first bytes: path lines declared image/tiff -> ocr_bytes "unreadable", doc_text no text, Tesseract
    never started; with the real tools the text of a local picture named in such a list does not come back, a real PNG is read
@@ -116,7 +117,7 @@ out["budget"] = {"pages_read": r.get("pages_read"), "truncated": r.get("truncate
 
 # ---- pages cut off without a time limit count
 reset(30, lambda img, timeout, langs=None: "nie")
-st["raster_rc"] = 137
+st["raster_rc"] = -24  # SIGXCPU: the tool ran into its CPU limit
 r = O.ocr_bytes(b"%PDF-1.4 invented", "pdf")
 out["abort"] = {"error": r.get("error"), "raster": sum(1 for a in st["calls"] if a[0] == "pdftoppm")}
 
@@ -124,13 +125,31 @@ out["abort"] = {"error": r.get("error"), "raster": sum(1 for a in st["calls"] if
 def tess_kill(img, timeout, langs=None):
     st["tess"] += 1
     if st["tess"] > 1:
-        raise RuntimeError("tesseract")
+        now[0] += 40  # a failure after 40 s of work (no time limit, no signal)
+        raise RuntimeError("tesseract", 1)
     return "erste seite"
 
 
 reset(30, tess_kill)
-r = O.ocr_bytes(b"%PDF-1.4 invented", "pdf")
+r = O.ocr_bytes(b"%PDF-1.4 invented", "pdf", clock=lambda: now[0])
 out["abort2"] = {"text": r.get("text", "").strip(), "pages_read": r.get("pages_read"), "truncated": r.get("truncated"), "tess": st["tess"]}
+
+
+def tess_damaged(img, timeout, langs=None):
+    st["tess"] += 1
+    if st["tess"] in (3, 5, 7):
+        raise RuntimeError("tesseract", 1)  # fails at once
+    return "seite %d" % st["tess"]
+
+
+reset(10, tess_damaged)
+r = O.ocr_bytes(b"%PDF-1.4 invented", "pdf")
+out["damaged"] = {"pages_read": r.get("pages_read"), "truncated": r.get("truncated"), "last": r.get("text", "")[-8:], "tess": st["tess"]}
+reset(O.OCR_PAGES + 5, lambda img, timeout, langs=None: "seite")  # more pages than are read
+real_pdf_text, O.pdf_text = O.pdf_text, lambda data: {"no_text_layer": True}
+r = O.doc_text("scan.pdf", "application/pdf", b"%PDF-1.4 invented")
+O.pdf_text = real_pdf_text
+out["doc_trunc"] = [r.get("method"), r.get("truncated")]
 
 # ---- no slot at all: busy
 reset(3, lambda img, timeout, langs=None: "x")
@@ -156,6 +175,7 @@ open("/tmp/k6427.png", "wb").write(PNG)
 LIST = b"/tmp/k6427.png\n"
 reset(1, lambda img, timeout, langs=None: st.__setitem__("tess", st["tess"] + 1) or "gelesen")
 a = O.ocr_bytes(LIST, "image")
+out["short"] = [O.ocr_is_image(b"\xff\xd8\xff\n/a.png"), O.ocr_bytes(b"\xff\xd8\xff\n/a.png", "image")]
 d = O.doc_text("scan.tif", "image/tiff", LIST)
 g = O.doc_text("bild.gif", "image/gif", b"GIF89a" + b"\0" * 64)
 n0 = st["tess"]
@@ -165,8 +185,9 @@ O._run, O._tess = real_run, real_tess
 O._AVAIL.clear()
 if O.ocr_available():
     d = O.doc_text("scan.tif", "image/tiff", LIST)
+    t = O.doc_text("scan.tif", "image/tiff", b"II*\x00" + LIST * 3)  # a TIFF by its first bytes, path lines behind them
     p = O.doc_text("bild.png", "image/png", PNG)
-    out["image_real"] = {"list": d, "png": (p.get("text") or "")[:200], "png_err": p.get("error")}
+    out["image_real"] = {"list": d, "tiff": t, "png": (p.get("text") or "")[:200], "png_err": p.get("error")}
 else:
     out["image_real"] = None
 os.unlink("/tmp/k6427.png")
@@ -240,7 +261,12 @@ a = u.get("abort") or {}
 check(a == {"error": "too_complex", "raster": 2}, f"30 pages whose tool is killed (no time limit): the document ends after 2 pages {a}")
 a = u.get("abort2") or {}
 check(a.get("text") == "erste seite" and a.get("pages_read") == 3 and a.get("truncated") is True and a.get("tess") == 3,
-      f"a good page before two cut-off ones keeps its text, the rest is not tried {a}")
+      f"a good page before two that fail after 40 s keeps its text, the rest is not tried {a}")
+a = u.get("damaged") or {}
+check(a == {"pages_read": 10, "truncated": False, "last": "seite 10", "tess": 10},
+      f"three damaged pages that fail at once do not end the document: all 10 pages are tried {a}")
+check(u.get("doc_trunc") == ["ocr", True], f"doc_text says when not every page was read (truncated) {u.get('doc_trunc')}")
+check(u.get("short") == [False, {"error": "unreadable"}], f"a 'JPEG' of a few bytes (too short for a header) never reaches Tesseract {u.get('short')}")
 
 check(u.get("busy") == {"error": "busy"}, f"no slot within the waiting time -> busy (the caller tries again) {u.get('busy')}")
 check(u.get("split_busy") == [None, True], f"the page scan of a stack asks for the slot per page: none free -> no plan, no long wait {u.get('split_busy')}")
@@ -255,6 +281,7 @@ if i is None:
     print("  .. no Tesseract in this image: the check with the real tools is skipped")
 else:
     check("ananenkiste" not in json.dumps(i.get("list")), f"real tools: the text of a local picture named in a 'TIFF' of path lines does not come back {i.get('list')}")
+    check("ananenkiste" not in json.dumps(i.get("tiff")), f"real tools: TIFF bytes at the start and path lines behind them read no local picture either {i.get('tiff')}")
     check("ananenkiste" in (i.get("png") or ""), f"real tools: the PNG itself is read {i}")
 
 check(u.get("thumb") == [200, True], f"with the recognition's slot taken the preview of a picture still answers a JPEG (was 429) {u.get('thumb')}")

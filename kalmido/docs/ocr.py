@@ -38,7 +38,9 @@ OCR_PARALLEL = _env_int("KALMIDO_OCR_PARALLEL", 1, 1, 8)         # pages recogni
 # 2.1283.0 (#6427): wall clock of ONE document (waiting for the slot included): a PDF from outside (form, file request, mail)
 # whose pages each stay just under the page limit no longer keeps the queue for half an hour
 OCR_DOC_S = _env_int("KALMIDO_OCR_DOC_S", 300, 10, 7200)
-OCR_FAILS = 2  # 2.1283.0 (#6427): pages cut off (time limit OR a tool killed by its CPU / memory limit) after which a document ends
+# 2.1283.0 (#6427): pages cut off after which a document ends: the time limit, a tool killed by a signal (its CPU limit),
+# or a failure that took at least half the page time. A damaged page that fails at once costs nothing and does not count
+OCR_FAILS = 2
 OCR_MEM = _env_int("KALMIDO_OCR_MEM_MB", 1024, 256, 8192) << 20  # address space of a tool
 OCR_DPI = 300
 OCR_LANGS = os.environ.get("KALMIDO_OCR_LANGS", "deu+eng")
@@ -199,7 +201,7 @@ def _pdf_pages(path):
 def _tess(img, timeout, langs=OCR_LANGS):
     p = _run(["tesseract", img, "stdout", "-l", langs, "--psm", "3"], timeout)
     if p.returncode != 0:
-        raise RuntimeError("tesseract")
+        raise RuntimeError("tesseract", p.returncode)
     return p.stdout.decode("utf-8", "replace")
 
 
@@ -207,6 +209,8 @@ def ocr_is_image(data, heif=True):
     """2.1283.0 (#6427): True when the first bytes are a picture the recognition takes (OCR_IMAGE_KINDS) -- never the
     declared type: a text file sent as image/tiff would be read by Tesseract as a list of picture paths. heif=False: only
     what Tesseract itself decodes (doc_text turns a HEIF photo into a JPEG first)."""
+    if len(data) < 16:  # review: Leptonica calls a header this short "truncated", and Tesseract then reads a list of paths
+        return False
     k = pm_kind(bytes(data[:64])) if pm_kind is not None else ""
     return k in OCR_IMAGE_KINDS and (heif or k != "heif")
 
@@ -239,7 +243,7 @@ def _ocr_page(tmp, src, i, langs, left):
         r = _run(["pdftoppm", "-r", str(OCR_DPI), "-gray", "-f", str(i), "-l", str(i), "-singlefile", "-png", src, base],
                  max(1, min(OCR_PAGE_S, left())), fsize=256 << 20)
         if r.returncode != 0 or not os.path.exists(base + ".png"):
-            raise RuntimeError("pdftoppm")
+            raise RuntimeError("pdftoppm", r.returncode)
         return _tess(base + ".png", max(1, min(OCR_PAGE_S, left())), langs).strip()
     finally:
         try:
@@ -288,21 +292,30 @@ def ocr_bytes(data, kind, lang=None, base=None, clock=time.monotonic):
             if left() <= 0:
                 cut = True
                 break
+            t0 = clock()
             try:
-                with _Slot(min(OCR_PAGE_S * 2, left())):
+                # nothing read yet: no slot within two page times = busy (the caller tries again later); after the first
+                # page the document's own clock bounds the wait (review: a slow neighbour must not cut an honest document)
+                with _Slot(left() if out else min(OCR_PAGE_S * 2, left())):
+                    t0 = clock()
                     out.append(_ocr_page(tmp, src, i, langs, left))
             except OcrBusy:
                 if not out:
-                    return {"error": "busy"}  # nothing read yet: the caller tries again later
+                    return {"error": "busy"}
                 cut = True
                 break
-            except (subprocess.TimeoutExpired, OSError, RuntimeError):
-                # 2.1283.0 (#6427): a tool killed by its CPU / memory limit counts like the time limit (it took as long)
+            except subprocess.TimeoutExpired:
                 fails += 1
                 out.append("")
-                if fails >= OCR_FAILS:
-                    cut = True
-                    break
+            except (OSError, RuntimeError) as e:
+                # 2.1283.0 (#6427): a tool killed by a signal (its CPU limit: about as long as the time limit) or a failure
+                # that took half the page time counts like the time limit; a page that fails at once does not (review)
+                killed = len(e.args) > 1 and isinstance(e.args[1], int) and e.args[1] < 0
+                fails += int(killed or clock() - t0 >= OCR_PAGE_S / 2)
+                out.append("")
+            if fails >= OCR_FAILS:
+                cut = True
+                break
             total += len(out[-1])
             if total > TEXT_CAP:
                 break
@@ -632,7 +645,8 @@ def doc_text(name, mime, data, owner=None, lang=None, langs=None):
     o = ocr_bytes(data, kind, lang, langs)
     if o.get("error"):
         return {"error": o["error"], "kind": kind}
-    return {"text": o["text"], "method": "ocr", "pages": o.get("pages"), "kind": kind}
+    # 2.1283.0 (#6427, review): truncated = not every page was read (page count, the document's clock, cut-off pages)
+    return {"text": o["text"], "method": "ocr", "pages": o.get("pages"), "kind": kind, "truncated": bool(o.get("truncated"))}
 
 
 if __name__ == "__main__":  # a manual check: python -m kalmido.docs.ocr FILE

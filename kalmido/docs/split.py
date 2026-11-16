@@ -215,10 +215,10 @@ def sp_scan(data, pages, prefix):
 def _sp_pages(w, tmp, src, n, prefix):
     """The page loop of sp_scan with the reader process w; None when the reader fails or stalls.
     2.1283.0 (#6427): the tools' slot is taken per page (none in time: O.OcrBusy, sp_scan answers None), and one stack has
-    the wall clock of one document (O.OCR_DOC_S), then it "cannot be read"."""
+    a wall clock (that of one document, O.OCR_DOC_S, or 10 s per page when that is more), then it "cannot be read"."""
     ocr = O.ocr_available()
     out, fails = [], 0
-    end = time.monotonic() + O.OCR_DOC_S
+    end = time.monotonic() + max(O.OCR_DOC_S, 10 * n)
     for i in range(1, n + 1):
         if time.monotonic() > end:
             return None
