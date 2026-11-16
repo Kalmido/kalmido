@@ -434,7 +434,11 @@ def doc_totals(c, oid, r, items=None):
         if t is not None:
             t.pop("_part_calcs", None)
             return t
-    return calc(_calc_doc(r, hc_home(s)), items if items is not None else doc_items(c, r["id"], oid), pack)
+    items = items if items is not None else doc_items(c, r["id"], oid)
+    if r["kind"] == "invoice" and dict(r).get("inv_type") == "final":  # 2.1259.0 (#6303 d): the deductions take off their billed VAT
+        from .abschlag import abs_tax_items
+        items = abs_tax_items(c, oid, r, items)
+    return calc(_calc_doc(r, hc_home(s)), items, pack)
 
 
 def recalc(c, oid, did):

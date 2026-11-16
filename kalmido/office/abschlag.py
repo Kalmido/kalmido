@@ -376,15 +376,36 @@ def abs_deductions(c, oid, offer, lang, cur, fin=None):
                 continue
             net = nets.get(k, eur[k] + ce.get(k, 0)) - cn.get(k, Decimal(0))
             rate = abs(eur[k])
-            if ffx is not None and k in nets and (hc_code(x["currency"]) or home) == fcur and net > 0:  # 2.523.0 (#4082)
+            same = ffx is not None and k in nets and (hc_code(x["currency"]) or home) == fcur and net > 0
+            if same:  # 2.523.0 (#4082)
                 rate = net / ffx
             tax = dec((taxes.get(k) or {}).get("amount") or 0) - ct.get(k, Decimal(0))
             pct = (taxes.get(k) or {}).get("pct") or (dstr(pack_rate(xpack, k)) if x["vat_mode"] != "novat" else "0")
             out.append({"kind": "discount", "service_id": None, "title": _t("deduct", lang, num=x["number"], date=dtext),
                         "detail": _t("deduct_detail", lang, net=fmt_money(net, lang, cur), pct=_pct_text(pct, lang), tax=fmt_money(tax, lang, cur),
                                      gross=fmt_money(net + tax, lang, cur), paid=paid),
-                        "qty": 1, "unit": "flat", "rate": rate, "tax": k, "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 0})
+                        "qty": 1, "unit": "flat", "rate": rate, "tax": k, "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 0,
+                        **({"abs_tax": dstr(tax)} if same and x["vat_mode"] != "novat" else {})})  # 2.1259.0 (#6303 d): not stored (abs_tax_items)
     return ids, out
+
+
+def abs_tax_items(c, oid, r, items):
+    """2.1259.0 (#6303 d): the positions of final invoice draft r for the calculator: a deduction abs_deductions wrote (title,
+    tax key and amount unchanged) gets abs_tax = the VAT its progress invoice billed less its credit notes, so the final
+    invoice deducts that VAT (section 14 (5) UStG, the figure its text names) instead of net x rate (one cent off)."""
+    if r["kind"] != "invoice" or _col(r, "inv_type") != "final" or not _col(r, "source_doc_id"):
+        return items
+    _ids, ded = abs_deductions(c, oid, {"id": r["source_doc_id"]}, r["lang"], r["currency"], r)
+    want = {(x["title"], x["tax"]): x for x in ded if x.get("abs_tax") is not None}
+    if not want:
+        return items
+    out = []
+    for it in items:
+        x = want.get((it.get("title"), it.get("tax"))) if it.get("kind") == "discount" else None
+        if x is not None and dec(it.get("qty"), "1") == 1 and money(dec(it.get("rate"))) == money(dec(x["rate"])):
+            it = dict(it, abs_tax=x["abs_tax"])
+        out.append(it)
+    return out
 
 
 def abs_refx(c, oid, r):
@@ -411,6 +432,7 @@ def abs_final(c, oid, uid, offer, parts_mode=None, parts_title=None):
     row = inv_new_row(c, oid, s, "invoice", offer["lang"], offer)
     ids, ded = abs_deductions(c, oid, offer, offer["lang"], row["currency"], row)
     items = inv_items_from_offer(c, oid, offer, parts_mode, parts_title)
+    ded = [{k: v for k, v in x.items() if k != "abs_tax"} for x in ded]  # 2.1259.0 (#6303 d): the calculator's, not a column
     if ded:
         items = items + [{"kind": "heading", "title": _t("heading", offer["lang"]), "detail": "", "qty": 1, "unit": "flat", "rate": 0, "tax": "standard",
                           "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 0, "service_id": None}] + ded
@@ -486,7 +508,7 @@ def abs_prepaid_view(m, L, lang, pack=None):
     for ln in ded:
         net = abs(money(dec(ln.get("net") if ln.get("net") not in (None, "") else ln.get("total") or 0)))
         pct = Decimal(0) if novat else dec(ln.get("tax_pct") or 0)
-        vat = money(net * pct / 100)
+        vat = money(net * pct / 100) if ln.get("abs_tax") in (None, "") or novat else money(dec(ln["abs_tax"]))  # 2.1259.0 (#6303 d): the billed VAT
         k = ln.get("tax") if ln.get("tax") in TAX_KEYS else "standard"
         title = str(ln.get("title") or "")
         if titles.count(title) > 1:  # one progress invoice with several rates: the rate tells the rows apart
