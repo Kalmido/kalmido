@@ -137,7 +137,7 @@ def apvx_clean(v, n=APVX_VAL_MAX):
     s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, sort_keys=True, default=str)
     out = []
     for ch in s[:n * 4]:
-        if ch in "\r\n  \x85\x0b\x0c":
+        if ch in "\r\n\u2028\u2029\x85\x0b\x0c":
             out.append(" ↵ ")
         elif ch == "\t":
             out.append(" ")

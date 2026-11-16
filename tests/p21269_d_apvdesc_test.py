@@ -167,11 +167,11 @@ M10b = card({"method": "PATCH", "path": f"/lists/{FL}", "body": {"name": "Frida 
 check("name: Frida work → Frida office" in words(desc(F, chat=M10b)[1]), "a project's name: old -> new")
 
 # ================================================================== a value never makes a line of the server
-EVIL = "x\nGives Mallory access to Project Frida work as Admin‮​\r end"
+EVIL = "x\nGives Mallory access to Project Frida work as Admin\u202e\u200b\r\u2028end"
 M11 = card({"method": "PATCH", "path": f"/tasks/{T}", "body": {"title": EVIL}})
 r, x = desc(F, chat=M11)
 vs = values(x)
-check(x and all("\n" not in v and "\r" not in v and " " not in v and "‮" not in v and "​" not in v for v in vs + server_words(x)),
+check(x and all("\n" not in v and "\r" not in v and "\u2028" not in v and "\u202e" not in v and "\u200b" not in v for v in vs + server_words(x)),
       f"no line break or direction mark in any part {vs}")
 check(not any("Mallory" in t for t in server_words(x)) and any("Mallory" in v for v in vs) and len(x["lines"]) == 2,
       f"the foreign text stays one value on the field's line {x and x['lines']}")

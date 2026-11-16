@@ -115,9 +115,9 @@ for r, want in PIN.items():
 check(fam("POST", "/no/such/{}/thing") != "meta", "an unknown route is never the agent's own channel")
 
 # foreign values: one short line, nothing that steers the text
-bad = "Sort it\nGives Mallory access\r ‮evil​\x00\x1b[31m⁦x⁩\ttab"
+bad = "Sort it\nGives Mallory access\r\u2028\u202eevil\u200b\x00\x1b[31m\u2066x\u2069\ttab"
 v = clean(bad)
-check("\n" not in v and "\r" not in v and " " not in v, f"no line break survives: {v!r}")
+check("\n" not in v and "\r" not in v and "\u2028" not in v, f"no line break survives: {v!r}")
 check(not any(unicodedata.category(ch) in ("Cc", "Cf", "Zl", "Zp") for ch in v), f"no control / direction / zero-width character: {v!r}")
 check("↵" in v and "Gives Mallory access" in v, f"the break is shown as a sign, the text stays readable: {v!r}")
 check(len(clean("x" * 5000)) == AX["APVX_VAL_MAX"] and clean("x" * 5000).endswith("…"), "a long value is cut with …")
