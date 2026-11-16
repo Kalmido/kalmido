@@ -8,7 +8,7 @@
 // keep the full reload. S.lpOff = true switches it off (the old way, used by the measurement in the tests).
 // 2.280.0 A (#3109): the bundled follow-up takes the delta since the version before the light changes + the sidebar's parts
 // (agents, team chat, News, calendars: ?side=1) instead of the whole state; the knowledge pages are light (not in the state).
-const LP_LIGHT = new Set(['comments', 'agentchat', 'team', 'news', 'calendar', 'budget', 'sheets', 'wiki', 'undo']);  // 2.72.0 (#1333): + the household budget (its own fetch); 2.89.0 (#1916): + tables
+const LP_LIGHT = new Set(['comments', 'agentchat', 'team', 'news', 'calendar', 'budget', 'sheets', 'wiki', 'undo', 'notes']);  // 2.1264.0 (#6335 B3): + notes (lpNotes)  // 2.72.0 (#1333): + the household budget (its own fetch); 2.89.0 (#1916): + tables
 const LP_KEEP = new Set(['office', 'clients', 'contacts']);  // views a change of someone else never redraws (2.431.0 C, #3602: + contacts; clients / contacts follow with ms_clLive / ct_live)
 const LP_DEFER_MS = 15000;
 S.lpN = {render: 0, state: 0, light: 0};  // counters for the measurement (render() calls, full state loads, light updates)
@@ -67,7 +67,20 @@ function lpLive(v, ch, n, inDelta) {
   if (ch.includes('sheets') && typeof shvLive === 'function') shvLive();  // 2.89.0 (#1916): the open table (sheets.js)
   if (ch.includes('wiki') && S.route.mod === 'wiki') td_renderSoon();  // 2.280.0 A (#3109): drawn as after the full reload before
   if (!lpT && !inDelta) lpT = setTimeout(lpFollow, LP_DEFER_MS);
+  if (ch.includes('notes')) lpNotes();  // 2.1264.0 (#6335 B3)
   return true;
+}
+// 2.1264.0 (#6335 B3): a note changed (on another device, by someone else): the open notes view loads the list's notes again
+// (the open note shows the new text; its base updated_at moves along, so writing on is no false conflict); with unsaved
+// typing it waits (S.nt.live) until the note is saved - the poll tries again. The overview of all notes (S.notes) and the
+// sidebar take the notes with the bundled follow-up (delta ?side=1), here at once.
+function lpNotes() {
+  if (S.route.mod !== 'notes' || typeof loadNotes !== 'function') { S.nt && (S.nt.live = false); return; }
+  if (S.nt.dirty || lpBusy()) { S.nt.live = true; return; }
+  S.nt.live = false;
+  const lid = S.nt.lid;
+  if (!lid) { if (lpT) lpFollow(); return; }  // the overview: S.notes with the follow-up, drawn by lpDraw
+  loadNotes(lid).then(() => { if (S.route.mod === 'notes' && S.nt.lid === lid && !S.nt.dirty) lpViewSafe(); });
 }
 // what the sidebar and the rows show of the light areas (a change of it is drawn, nothing else)
 const lpSideSig = () => JSON.stringify([(S.agents || []).map(x => [x.id, x.chat_unread, x.approvals_open, x.waiting, x.status]), S.team, S.news?.unread, S.news?.unread_me]);
@@ -95,6 +108,7 @@ async function lpFollow() {
 function lpDraw(side, rows, areas) {
   if (lpSideSig() !== side) { renderSide(); badgeSync(); renderTabs(); }
   if (LP_KEEP.has(S.route.mod)) return;
+  if (areas?.has('notes') && S.route.mod === 'notes' && !S.nt?.lid) lpViewSafe();  // 2.1264.0 (#6335 B3): the overview of all notes
   if (lpRowSig() !== rows && (S.route.mod === 'tasks' || S.route.mod === 'home')) lpViewSafe();  // 2.42.0 (#1376): morphed
 }
 // the full way also counts (measurement); a full load ends a pending light follow-up
@@ -210,6 +224,7 @@ function lpSideTake(j) {
   S.team = j.team || {enabled: false, unread: 0};
   S.news = j.news || {unread: 0, sig: ''};
   S.evcals = j.evcals || [];
+  if (j.notes) S.notes = j.notes;  // 2.1264.0 (#6335 B3)
   if (j.evsig !== undefined && j.evsig !== S.evsig) { S.evsig = j.evsig; if (S.booted) calInvalidate(); }
 }
 // the view redrawn by morphing unless a field / form in it is busy (then marked stale, drawn later like viewSafeRender)

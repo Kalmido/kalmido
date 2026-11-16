@@ -114,6 +114,36 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(await ev(`S.tasks.get(${T5})?.title`) === 'B5 new' && /B5 new/.test(await ev(`document.querySelector('#view .trow[data-id="${T5}"]')?.textContent || ''`)), 'B5: the late answer of the first delta does not take the older title back ' + JSON.stringify(await ev(`({t: S.tasks.get(${T5})?.title, row: document.querySelector('#view .trow[data-id="${T5}"]')?.textContent, stale: S.viewStale, busy: lpBusy(), ed: editing(), act: document.activeElement?.id || document.activeElement?.tagName, route: S.route.mod + '/' + S.route.key, late: S.lpN.late})`).catch(e => String(e))));
       await ev(`(() => { api = window.__api0; td_polling = false; return 1; })()`);
     }
+
+    // ================= #6335 B3 notes: a light area of their own; the open notes and the open note follow
+    S6335B3: {
+      await ev(`(() => { location.hash = '#notes/${L}'; return 1; })()`);
+      const nv = await ready(`S.route.mod === 'notes' && S.nt.lid === ${L} && Array.isArray(S.nt.notes)`, 40);
+      check(nv, 'B3: the notes of the list are open'); if (!nv) break S6335B3;
+      await caught();
+      const NID = (await call(CA, 'POST', `/api/lists/${L}/notes`, {title: 'Phone list', body: 'Eggs'})).id;
+      check(await ready(`/Phone list/.test(document.querySelector('#view')?.textContent || '')`, 40), 'B3: a note made on the other device shows in the open notes ' + await ev(`S.nt.notes?.length`));
+      check(await ready(`(S.notes || []).some(n => n.id === ${NID})`, 80), 'B3: ... and in the notes the app knows (search, overview)');
+      await ev(`(() => { location.hash = '#note/${NID}'; return 1; })()`);
+      check(await ready(`S.nt.id === ${NID} && /Eggs/.test(document.querySelector('#nt-md')?.textContent || '')`, 40), 'B3: the note is open (read)');
+      await caught();
+      await call(CA, 'PATCH', `/api/notes/${NID}`, {body: 'Eggs, milk'});
+      check(await ready(`/milk/.test(document.querySelector('#nt-md')?.textContent || '')`, 40), 'B3: the open note shows the other device\'s text ' + await ev(`document.querySelector('#nt-md')?.textContent`));
+      await shot('p21264c-b3-note.png');
+      // writing on builds on the new text: no conflict question
+      await ev(`(() => { S.nt.edit = true; renderView(); const b = document.querySelector('#nt-body'); b.value += ', bread'; b.dispatchEvent(new Event('input', {bubbles: true})); return noteFlush().then(() => 1); })()`);
+      const nb = async () => (await call(CA, 'GET', `/api/lists/${L}/notes`)).notes?.find(n => n.id === NID)?.body;
+      let body = ''; for (let i = 0; i < 40 && body !== 'Eggs, milk, bread'; i++) { body = await nb(); if (body !== 'Eggs, milk, bread') await sleep(250); }
+      check(body === 'Eggs, milk, bread' && !(await ev(`!!document.querySelector('.modal')`)), 'B3: writing on saves on top of the other device\'s text, no conflict question ' + body);
+      // typed and not saved yet: a change from elsewhere waits, the typed text stays
+      await caught();
+      await ev(`(() => { const b = document.querySelector('#nt-body'); b.value += ' and tea'; b.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
+      await call(CA, 'PATCH', `/api/notes/${NID}`, {body: 'Only coffee'});
+      await ev(`(() => { lpNotes(); return 1; })()`);
+      check(await ev(`document.querySelector('#nt-body').value.endsWith(' and tea') && S.nt.live === true`), 'B3: unsaved typing stays, the reload waits');
+      await ev(`(() => { clearTimeout(S.nt.saveT); S.nt.dirty = false; S.nt.edit = false; location.hash = '#l/${L}'; return 1; })()`);
+      await ready(`S.route.mod === 'tasks'`, 20);
+    }
   }, true);
 
   console.log(`p21264_c_live_ui: ${ok} ok, ${F.length} failed`);

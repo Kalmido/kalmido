@@ -1654,6 +1654,7 @@ setInterval(async () => {
     else if (chg && editing() && S.chat.aid && collab() && S.chatPollV !== `${v}/${n}`) { S.chatPollV = `${v}/${n}`; chatLoad(); agentPoll(); }  // 2.12.2 (#451): typing, the chat still updates (patched)
     else if (S.viewStale && !editing()) viewSafeRender();
     if (v !== S.v && editing() && S.route.mod === 'agents' && S.jobs.items !== null && S.jobsPollV !== v) { S.jobsPollV = v; loadJobs(); }  // 2.37.0 (#1161)
+    if (S.nt?.live && !editing()) lpNotes();  // 2.1264.0 (#6335 B3): a note change that waited for unsaved typing
     lpSettle(v);  // 2.280.0 F (#3109)
     S.syncOk = Date.now(); staleDraw();
   } catch { staleDraw(); /* offline */ } finally { td_polling = false; }
