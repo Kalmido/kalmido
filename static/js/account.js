@@ -596,8 +596,9 @@ function lg_delScreen(el, logo, o) {
   $('[data-dc="go"]', el).addEventListener('click', async e => {
     const b = e.currentTarget; b.disabled = true;
     try {
-      await authPost('/api/auth/delete-cancel', o.token ? {token: o.token} : {username: o.username, password: o.password});
-      $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('The deletion was cancelled')}</h2><p role="status">${tr('Your account can be used again. Please sign in.')}</p><button class="btn pri" type="button" data-au="back">${tr('Go to sign-in')}</button>`;
+      const j = await authPost('/api/auth/delete-cancel', o.token ? {token: o.token} : {username: o.username, password: o.password});
+      // 2.1254.0 (#6293): an admin locked the account as well: that lock stays
+      $('.card', el).innerHTML = `${logo}<h2 class="invh">${tr('The deletion was cancelled')}</h2><p role="status">${j.locked ? tr('An admin has locked your account; only an admin can unlock it.') : tr('Your account can be used again. Please sign in.')}</p><button class="btn pri" type="button" data-au="back">${tr('Go to sign-in')}</button>`;
     } catch (x) { $('#dc-err', el).textContent = x.message; b.disabled = false; }
   });
 }

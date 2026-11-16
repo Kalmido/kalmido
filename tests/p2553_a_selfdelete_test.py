@@ -8,6 +8,8 @@
    refused), the member keeps using the shared project, a mail with the cancel link went out
  - the cancel link lifts all of it (sign-in, token, agent back); asked again, the reminder one day before carries a new
    link; the sign-in with the password cancels too; an admin who enables the account again ends the deletion
+ - 2.1254.0 (#6293): an admin locks the waiting account: the cancel link ends, the password cancels the deletion but the
+   account stays locked (the sign-in refused like any locked account), the agent stays paused; enabled by the admin it opens, the agent stays paused
  - the final run (delete_at set into the past, no waiting): the project went to the member, the other one is gone, the
    attachment files are gone from the disk, the last mail says so
  - refused: the last admin of an organisation, the only server admin
@@ -206,6 +208,43 @@ Fr = login(B, "frida")
 check(Fr.post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok, "asked a third time")
 check(A.patch(B + f"/api/users/{FID}", json={"disabled": False}).ok, "the admin enables her again")
 check(bool(until(lambda: not dbx("SELECT delete_at FROM users WHERE id=?", (FID,))[0][0], 15)), "the next tick lifts the deletion")
+
+# ---------------------------------------------------------------- 2.1254.0 (#6293): an admin locks the account while it waits
+# the cancelling lifts only the lock of the deletion: an account an admin locked stays locked, its link ends, its agent stays paused
+Fr = login(B, "frida")
+check(dbx("SELECT enabled FROM agents WHERE user_id=?", (AGID,))[0][0] == 1, "setup: her agent runs again")
+n_asked = len([x for x in mails() if "frida@example.com" in x["to"] and "will be deleted" in x["subject"]])
+check(Fr.post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok, "asked a fourth time")
+m4 = mail_to("frida@example.com", "will be deleted", n_asked + 1)
+TOK4 = cancel_token(m4[-1]) if m4 else ""
+check(bool(TOK4) and TOK4 not in {cancel_token(x) for x in m4[:-1]}, "a new cancel link")
+check(A.patch(B + f"/api/users/{FID}", json={"disabled": True}).ok, "the admin locks her account as well")
+check(json.loads(dbx("SELECT delete_plan FROM users WHERE id=?", (FID,))[0][0] or "{}").get("admin"), "the admin's lock is noted in the plan")
+r = s.post(B + "/api/auth/delete-cancel", json={"token": TOK4})
+check(r.status_code == 403 and dbx("SELECT delete_at FROM users WHERE id=?", (FID,))[0][0], f"the cancel link ended with the admin's lock ({r.status_code})")
+n_cancelled = len([x for x in mails() if "frida@example.com" in x["to"] and "was cancelled" in x["subject"]])
+r = s.post(B + "/api/auth/delete-cancel", json={"username": "frida", "password": PW})
+check(r.ok and r.json().get("locked") is True, f"the password still cancels the deletion, the answer says the account stays locked ({r.status_code} {r.text[:150]})")
+check(dbx("SELECT disabled, delete_at, delete_plan FROM users WHERE id=?", (FID,))[0] == (1, None, ""), "the deletion is off, the account stays locked")
+r = s.post(B + "/api/auth/login", json={"username": "frida", "password": PW})
+check(r.status_code in (401, 403) and not r.json().get("deleting") and s.get(B + "/api/state").status_code == 401,
+      f"the sign-in stays refused like any locked account (no cancelling offered, no session) ({r.status_code} {r.text[:120]})")
+check(api(TOK).status_code == 401 and api(AGTOK).status_code in (401, 403) and dbx("SELECT enabled FROM agents WHERE user_id=?", (AGID,))[0][0] == 0,
+      "her token stays refused, her agent stays paused")
+mc = mail_to("frida@example.com", "was cancelled", n_cancelled + 1)
+check(bool(mc) and "admin has locked" in mc[-1]["text"], f"the mail says the admin's lock stays {mc[-1:]}")
+# the admin enables her again: the account opens, the agent stays paused (its owner turns it on again)
+check(A.patch(B + f"/api/users/{FID}", json={"disabled": False}).ok, "the admin enables her again")
+Fr = login(B, "frida")
+check(Fr.get(B + "/api/state").ok and dbx("SELECT enabled FROM agents WHERE user_id=?", (AGID,))[0][0] == 0, "she signs in, her agent stays paused")
+# asked again, the admin locks and enables her again before the cancelling: the deletion ends (as before), the agent stays paused
+write("UPDATE agents SET enabled=true WHERE user_id=?", (AGID,))
+check(Fr.post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok, "asked a fifth time")
+check(A.patch(B + f"/api/users/{FID}", json={"disabled": True}).ok and A.patch(B + f"/api/users/{FID}", json={"disabled": False}).ok,
+      "the admin locks and enables her")
+check(bool(until(lambda: not dbx("SELECT delete_at FROM users WHERE id=?", (FID,))[0][0], 15)), "the next tick lifts the deletion")
+check(dbx("SELECT disabled FROM users WHERE id=?", (FID,))[0][0] == 0 and dbx("SELECT enabled FROM agents WHERE user_id=?", (AGID,))[0][0] == 0,
+      "the account is open, the agent the admin's lock stopped stays paused")
 
 # ---------------------------------------------------------------- the final run (no waiting: delete_at in the past)
 Fr = login(B, "frida")

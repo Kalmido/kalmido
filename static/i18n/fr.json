@@ -18777,6 +18777,8 @@
   "Add one, import a vCard or CSV file, or connect the phone.": "Ajoute-en un, importe un fichier vCard ou CSV, ou connecte le téléphone.",
   "The groups could not be loaded": "Les groupes n’ont pas pu être chargés",
   "The contact could not be saved": "Le contact n’a pas pu être enregistré",
+  "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "La suppression de ton compte {0} a été annulée. Un administrateur a verrouillé le compte ; seul un administrateur peut le déverrouiller.",
+  "An admin has locked your account; only an admin can unlock it.": "Un administrateur a verrouillé ton compte ; seul un administrateur peut le déverrouiller.",
   "Write down your first task": "Note ta première tâche",
   "Everything starts in the inbox; sort it later.": "Tout commence dans la boîte de réception ; trie plus tard.",
   "Create a project": "Crée un projet",

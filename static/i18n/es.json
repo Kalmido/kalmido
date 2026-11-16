@@ -18777,6 +18777,8 @@
   "Contacts could not be loaded": "No se pudieron cargar los contactos",
   "No contacts yet": "Aún no hay contactos",
   "Add one, import a vCard or CSV file, or connect the phone.": "Crea uno, importa un archivo vCard o CSV, o conecta el móvil.",
+  "The deletion of your account {0} was cancelled. An admin has locked the account; only an admin can unlock it.": "Se ha cancelado la eliminación de tu cuenta {0}. Un administrador ha bloqueado la cuenta; solo un administrador puede desbloquearla.",
+  "An admin has locked your account; only an admin can unlock it.": "Un administrador ha bloqueado tu cuenta; solo un administrador puede desbloquearla.",
   "Write down your first task": "Anota tu primera tarea",
   "Everything starts in the inbox; sort it later.": "Todo empieza en la bandeja de entrada; ordénalo después.",
   "Create a project": "Crea un proyecto",
