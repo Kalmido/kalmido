@@ -296,6 +296,42 @@ check(Fr.delete(B + f"/api/files/nodes/{IMG}").ok, "the picture goes to the tras
 check(requests.get(B + f"/s/w/{T1}/img/{PID}/{IMG}").status_code == 404 and Bo.get(B + f"/api/wiki/shared/pages/{PID}/img/{IMG}").status_code == 404,
       "#2356: a picture in the trash is never shown")
 
+# ================================================================== 2.1257.0 (#6295): a fellow editor and the pictures of a colleague's link
+# (audit #4741 Z6-F1) carol makes a link with pictures of an organisation page; bob (member, writes the wiki) may neither switch
+# the pictures of her link nor read a picture only carol sees by embedding it into the page; alice (admin) may switch them
+A.patch(B + "/api/admin/settings", json={"public_links": True})
+for u in ("bob", "carol"):
+    assert A.put(B + f"/api/orgs/{ORG}/members", json={"email": f"{u}@example.com", "role": "member"}).ok, u
+CIMG = upload(Ca, "nur-carol.png", png(4, 4), "image/png", space=f"org:{ORG}")
+OIMG = upload(Ca, "fuer-alle.png", png(5, 5), "image/png", space=f"org:{ORG}")
+dbx("UPDATE fs_nodes SET org_access='' WHERE id=?", (CIMG,))
+dbx("UPDATE fs_nodes SET org_access='view' WHERE id=?", (OIMG,))
+check(Bo.get(B + f"/api/files/nodes/{CIMG}").status_code in (403, 404), "#6295 setup: bob does not see carol's picture")
+check(Bo.get(B + f"/api/files/nodes/{OIMG}").ok, "#6295 setup: bob sees the picture open to the organisation")
+r = Ca.post(B + "/api/wiki/pages", json={"space": f"org:{ORG}", "path": "Team/Galerie", "body": f"# Galerie\n\n![Offen](/api/files/nodes/{OIMG}/content)\n"})
+assert r.status_code == 201, r.text
+GP = r.json()["id"]
+r = Ca.post(B + "/api/wiki/shares", json={"page_id": GP, "kind": "link"})
+check(r.status_code == 201 and r.json().get("images") is False, "#6295: carol's link without pictures " + r.text[:200])
+GS, GT = r.json().get("id"), r.json().get("url", "").rsplit("/", 1)[-1]
+r = Bo.patch(B + f"/api/wiki/shares/{GS}", json={"images": True})
+check(r.status_code == 403, f"#6295: bob may not switch on the pictures of carol's link ({r.status_code} {r.text[:120]})")
+check(requests.get(B + f"/s/w/{GT}/img/{GP}/{OIMG}").status_code == 404, "#6295: the pictures stay off")
+check(Bo.patch(B + f"/api/wiki/shares/{GS}", json={"expires": D}).ok, "#6295: bob still may change the link's date")
+check(A.patch(B + f"/api/wiki/shares/{GS}", json={"images": True}).ok, "#6295: alice (admin) may switch on the pictures")
+check(requests.get(B + f"/s/w/{GT}/img/{GP}/{OIMG}").ok, "#6295: carol's own embed of an open picture comes")
+# bob embeds carol's picture into the page the link covers: bob (the last editor) does not see it -> nothing
+pg = Bo.get(B + f"/api/wiki/pages/{GP}").json()
+r = Bo.patch(B + f"/api/wiki/pages/{GP}", json={"body": pg["body"] + f"\n![Fremd](/api/files/nodes/{CIMG}/content)\n", "expect_updated_at": pg.get("updated_at")})
+check(r.ok, "#6295: bob writes the page " + r.text[:160])
+check(requests.get(B + f"/s/w/{GT}/img/{GP}/{CIMG}").status_code == 404, "#6295: the picture only carol sees never comes through her link")
+check(f"/img/{GP}/{CIMG}" not in requests.get(B + f"/s/w/{GT}/p/{GP}").text, "#6295: and the public page does not show it")
+# carol saves the page herself (she sees the picture): now it comes
+pg = Ca.get(B + f"/api/wiki/pages/{GP}").json()
+check(Ca.patch(B + f"/api/wiki/pages/{GP}", json={"body": pg["body"] + "\nOK\n", "expect_updated_at": pg.get("updated_at")}).ok, "#6295: carol saves the page")
+q = requests.get(B + f"/s/w/{GT}/img/{GP}/{CIMG}")
+check(q.ok and q.content == png(4, 4), f"#6295: carol's own embed comes through her link ({q.status_code})")
+
 # ================================================================== #2398: polls and bookmarks move with the organisation
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 put_feed("pic.png", PNG)

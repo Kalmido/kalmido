@@ -73,6 +73,7 @@ from ..accounts.login import seal  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.login import auth_key  # 2.1115.0 (#5967): the key of the ids of shares by address (wsh_eid)
 from ..notify.push import _b64u, _b64u_dec  # 2.1115.0 (#5967)
 from ..accounts.orgs import may_see  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgs import is_org_admin  # 2.1257.0 (#6295)
 from ..tasks.attachments import send_stored  # 2.369.5 (#2517): pulled up from functions
 from .wikiatt import SVG  # 2.369.5 (#2517): pulled up from functions
 from ..lists.custview import CV_FILE_RATE  # 2.369.5 (#2517): pulled up from functions
@@ -484,18 +485,21 @@ def wsh_img_nodes(c, shares, page, text, only=None):
     (images) of one of the shares, only pictures embedded in the page's text, of the page's own space (wem_visible), that
     the person who made that share may still see now, an image type, never in a locked (end-to-end encrypted) folder."""
     makers = sorted({s["created_by"] for s in shares if s["images"] and s["created_by"]})
+    # 2.1257.0 (#6295, audit #4741 Z6-F1): the person who wrote the page last must see the picture too -- otherwise a fellow
+    # editor embeds a file only the share's maker sees into a covered page and reads it through the maker's link
+    editor = page["updated_by"] or page["created_by"]
     ids = sorted({int(m.group(1)) for m in WSH_NODE_IMG_RE.finditer(WSH_CODE_RE.sub("", text or "")) if int(m.group(1)) < 2 ** 62})[:200]
     if only is not None:  # one picture asked for: check just that one (review: not up to 200 nodes per fetch)
         ids = [i for i in ids if i == only]
     out = {}
-    if not makers or not ids:
+    if not makers or not ids or not editor:
         return out
     from ..files.extlinks import XL_IMG
     # the share's guest / the public link reads as somebody else: the maker's rights on the file store decide (deliberately
     # across the reader's context, for the pictures embedded in this shared page only)
     with system_ctx(c):
         for nid in ids:
-            if not any(wem_visible(c, u, nid, page) for u in makers) or fl_is_locked(c, nid):
+            if not any(wem_visible(c, u, nid, page) for u in makers) or not wem_visible(c, editor, nid, page) or fl_is_locked(c, nid):
                 continue
             n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
             v = fs_version_row(c, nid, None)
@@ -957,6 +961,11 @@ def wsh_update(sid):
     b = body()
     if r["revoked_at"]:
         raise Denied(404)
+    # 2.1257.0 (#6295, audit #4741 Z6-F1): the pictures of a link of an organisation's space only by its maker or an admin
+    # (the other editors still see the link and may end it or change its date)
+    if "images" in b and r["kind"] != "person" and r["org_id"] is not None and r["created_by"] != me() \
+            and not is_org_admin(c, me(), r["org_id"]):
+        raise Denied(403, tr("Only the person who made the link or an admin may change its pictures."))
     if "expires" in b or "images" in b:
         exp = wsh_expiry(b.get("expires")) if "expires" in b else None
         imgs = wsh_images(b["images"]) if "images" in b else None  # 2.380 H (#2356)
