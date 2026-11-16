@@ -276,7 +276,9 @@ the whole knowledge area*); the folders to keep out can be ticked right in that 
 with them open. The person finds it under *Shared with me* as the folder "Knowledge" with your name; with
 *Can edit* they add pages and folders there, also at the top (the pages are yours). An organisation's area stays with
 its agents: guests and the accounting person never get the whole area, members read it anyway. A person's exclusions
-belong to their share (`PATCH /api/files/shares/<id>` `{"excluded": [folder ids]}`, or `excluded` with the `POST` of the share); ending the share ends them too.
+belong to their share (`PATCH /api/files/shares/<id>` `{"excluded": [folder ids]}`, or `excluded` with the `POST` of the share); ending the share ends them too. Known limit: who has
+*Can edit* on the whole area cannot take a name already used by a folder kept out for them (the app says the name
+exists), so the name of an excluded folder can be guessed - never its pages or content.
 
 Single folders can be kept out for one agent: in the dialog below the agent *Excluded:* with *Exclude folders…*
 (several at once), or in a folder's menu *Exclude from the area share* / *Include again*. The folder then shows

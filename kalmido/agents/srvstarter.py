@@ -41,6 +41,7 @@ from ..core.config import app, TZ
 from ..core.i18n import LANGS, N_, tr
 from ..core.db import body, bump, db, err, gsetting, iso, now_utc, usettings
 from ..core.pg import insert_id
+from ..core.env import env_bool  # 2.1308.0 (#6568)
 from ..core.errors import BadInput, UnknownFields
 from ..accounts.session import me
 from ..accounts.orgs import is_org_admin, user_orgs
@@ -69,6 +70,27 @@ SRV_FOLLOWUP_DAYS = 5
 # 2.638.0 (#4714): the daily limit in tokens the dialog proposes with the first key of an agent without limits (Fable 2.557 F7:
 # everyone who reaches a server agent starts runs on its owner's key); stored as the agent's hard day limit when kept
 SRV_DAY_LIMIT_DEFAULT = 2_000_000
+# 2.1308.0 (#6568): on a hosted server (KALMIDO_HOSTED) a server agent always has a hard day limit in tokens (default above; it
+# can be changed, never removed) and at most the operator's ceiling per agent (instance setting srv_day_cap, admin view Agents;
+# default five times the proposal: room for a busy team without an open end - the height is the operator's choice). Runs nobody
+# asked for (a form, the mail inbox, a webhook, listening in: no person) count against their own share of the day limit
+SRV_DAY_CAP_KEY = "srv_day_cap"
+SRV_DAY_CAP_DEFAULT = 5 * SRV_DAY_LIMIT_DEFAULT
+SRV_NOBODY_PART = 4  # the share of runs without a person: a quarter of the day limit
+
+
+def srv_hosted():
+    """2.1308.0 (#6568): a hosted server (the same switch as admin.hosting.hosted(), read here at call time)."""
+    return env_bool("KALMIDO_HOSTED", False)
+
+
+def srv_day_cap(c):
+    """2.1308.0 (#6568): the operator's ceiling of a server agent's day limit in tokens (instance setting, else the default)."""
+    try:
+        v = int(gsetting(c, SRV_DAY_CAP_KEY) or 0)
+    except ValueError:
+        v = 0
+    return v if v > 0 else SRV_DAY_CAP_DEFAULT
 SRV_FOLLOWUP_MAX = 60
 SRV_BRIEF_AT, SRV_TIDY_AT, SRV_FOLLOWUP_AT = "07:30", "07:00", "09:00"
 # 2.777.0 C (#5378): why a plan of the pack waits (a calm hint, no error): it starts on its own once a project is shared
@@ -305,7 +327,8 @@ def srv_defaults():
     return jsonify(docs_scopes=ws, enabled_instance=not srv_off(c), provider=SRV_PROVIDER, default_name=tr(SRV_DEFAULT_NAME),
                    default_model=SRV_DEFAULT_MODEL, default_instructions=tr(SRV_DEFAULT_INSTRUCTIONS),
                    starter=list(SRV_STARTER), flows=list(SRV_FLOWS), followup_days=SRV_FOLLOWUP_DAYS, followup_max=SRV_FOLLOWUP_MAX,
-                   day_limit_default=SRV_DAY_LIMIT_DEFAULT)  # 2.638.0 (#4714)
+                   day_limit_default=SRV_DAY_LIMIT_DEFAULT,  # 2.638.0 (#4714)
+                   day_limit_required=srv_hosted(), day_limit_max=srv_day_cap(c) if srv_hosted() else None)  # 2.1308.0 (#6568)
 
 
 @app.post("/api/agents/<int:aid>/server/starter")

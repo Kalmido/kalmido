@@ -69,8 +69,8 @@ function srv_fieldsHtml(j, isNew) {
   const model = j.model || j.default_model || '';
   // 2.638.0 (#4714): without limits a day limit is proposed with the first key (kept = the agent's hard day limit); a key that is there: a hint
   const limRow = j.limits ? '' : isNew || !j.has_key
-    ? `<div class="row"><label for="srv-daylim">${tr('Daily limit')}</label><input id="srv-daylim" type="number" inputmode="numeric" class="numin" min="1" step="1" value="${+j.day_limit_default || 2000000}"><span class="muted">${tr('tokens')}</span></div>
-      <div class="shint keep">${esc(tr('Proposed with the first key: the agent pauses for the day once its runs used this many tokens, also the runs other people start through chat, mentions or assignments. Empty = no limit.'))}</div>`
+    ? `<div class="row"><label for="srv-daylim">${tr('Daily limit')}</label><input id="srv-daylim" type="number" inputmode="numeric" class="numin" min="1" step="1" ${j.day_limit_required ? 'required' : ''} ${+j.day_limit_max ? `max="${esc(String(+j.day_limit_max))}"` : ''} value="${+j.day_limit_default || 2000000}"><span class="muted">${tr('tokens')}</span></div>
+      <div class="shint keep">${esc(j.day_limit_required ? tr('Required on this server: the agent pauses for the day once its runs used this many tokens, also the runs other people start. Runs nobody asked for (forms, e-mail, webhooks) get a quarter of it. You can change it later, not remove it.') : tr('Proposed with the first key: the agent pauses for the day once its runs used this many tokens, also the runs other people start through chat, mentions or assignments. Empty = no limit.'))}</div>`
     : `<div class="shint keep srvnolim" role="note">${ic('alert', 's')} ${esc(tr('No usage limit: every run, also those other people start through chat, mentions or assignments, is billed to this key without a cap. Set one under “Usage limit” in the agent’s settings.'))}</div>`;
   return `<div class="row"><label for="srv-prov">${tr('Provider')}</label><select id="srv-prov"><option value="anthropic" selected>Anthropic (Claude)</option></select></div>
     ${keyRow}
@@ -365,7 +365,9 @@ function srv_guideHtml() {
 function srv_adminHtml(hint) {
   return `<h4 id="s-srvag-h">${tr('Agents on the Kalmido server')}</h4>
     <div class="row"><label class="chkl swl"><span class="swc"><input type="checkbox" id="s-srvag" ${S.about?.server_agents_off ? '' : 'checked'}><span class="swt" aria-hidden="true"></span></span><span>${tr('Allow server agents')}</span></label></div>
-    ${hint(tr('On: people may set up an agent that runs on this server with their own API key of a model provider. Off: the kind is not offered and no server agent runs.'))}`;
+    ${hint(tr('On: people may set up an agent that runs on this server with their own API key of a model provider. Off: the kind is not offered and no server agent runs.'))}
+    <div id="s-srvcapbox" hidden><div class="row"><label for="s-srvcap">${tr('Daily limit per agent at most')}</label><input id="s-srvcap" type="number" inputmode="numeric" class="numin" min="1" step="1"><span class="muted">${tr('tokens')}</span></div>
+    ${/*html-ok*/ hint(tr('Hosted server: every agent on the Kalmido server keeps a hard daily limit; its owner can set it up to this value. A lower value applies to every agent from its next run.'))}</div>`;
 }
 async function srv_adminSwitch(el) {
   const on = el.checked;

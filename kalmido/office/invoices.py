@@ -301,8 +301,20 @@ def inv_missing(c, oid, r, s, pack, items):
     if not (rec.get("name") or "").strip():
         miss.append([N_("recipient name")])
     addr_ok = cl is not None and all((cl[k] if k in cl.keys() else "") for k in ("street", "zip", "city"))
+    from .countries import fk_country_code  # 2.40.0 (#1372): an unknown country code stops here, never silently DE
+    # 2.1308.0 (#6477): an invoice / correction without a client needs the fixed fields (street, postcode, city; the country
+    # empty = home), as a client; a correction of an invoice finalised with free lines inherits them (no fields) and stays
+    # possible; reminders and delivery notes keep the two free lines
+    fixed = not r["client_id"] and r["kind"] in ("invoice", "credit") and not (
+        _col(r, "cancels_id") and not any(str(rec.get(k) or "").strip() for k in ("street", "zip", "city", "country")))
+    if fixed:
+        for k, word in (("street", N_("street of the recipient")), ("zip", N_("postcode of the recipient")), ("city", N_("city of the recipient"))):
+            if not str(rec.get(k) or "").strip():
+                miss.append([word])
+        if rec.get("country") and fk_country_code(rec["country"]) is None:
+            miss.append([N_("valid country of the client (ISO code, now {0})"), rec["country"]])
     # 2.97.0 B (#1951): with a client only its fields count (its name + attn. line are no address)
-    if not addr_ok and (cl is not None or len([x for x in (rec.get("lines") or []) if x.strip()]) < 2):
+    elif not addr_ok and (cl is not None or len([x for x in (rec.get("lines") or []) if x.strip()]) < 2):
         miss.append([N_("recipient address (street, postcode and city)")])
     if not r["date"]:
         miss.append([N_("date")])
@@ -322,13 +334,13 @@ def inv_missing(c, oid, r, s, pack, items):
     free = s.get("company") or {}
     if not (co.get("name") or free.get("name")):
         miss.append([N_("company name")])
-    if not ((co.get("street") and co.get("zip") and co.get("city")) or free.get("lines")):
+    # 2.1308.0 (#6477): only the fixed company fields count (ledger.ofx_company already reads plain free lines into them)
+    if not (co.get("street") and co.get("zip") and co.get("city")):
         miss.append([N_("company address")])
     if not (co.get("tax_number") or co.get("vat_id")):
         miss.append([N_("tax number or VAT ID")])
     if not co.get("iban"):
         miss.append([N_("IBAN")])
-    from .countries import fk_country_code  # 2.40.0 (#1372): an unknown country code stops here, never silently DE
     if co.get("country") and fk_country_code(co["country"]) is None:
         miss.append([N_("valid country of the company (ISO code, now {0})"), co["country"]])
     elif not co.get("country") and (pack or {}).get("neutral"):  # 2.147.0 (#2461): the base pack assumes no country (the e-invoice needs one)
@@ -392,6 +404,16 @@ def inv_missing(c, oid, r, s, pack, items):
             miss.append([N_("your VAT ID")])
         if eu and not (cl is not None and "vat_id" in cl.keys() and str(cl["vat_id"] or "").strip()):
             miss.append([N_("the client's VAT ID")])
+    # 2.1308.0 (#6476): XRechnung asks for more than ZUGFeRD -- named here, before finalising builds the XML (pdfweb.epdf_store
+    # checks the finished XML once more with einvoice.ein_check_block); the contact person is the managing director or the company
+    if r["kind"] in ("invoice", "credit") and not _col(r, "trial") and office_feature(c, oid, "docs.einvoice", s) and epdf_format(c, oid, r) == "xrechnung":
+        cget = (lambda k: str((cl[k] if k in cl.keys() else "") or "").strip()) if cl is not None else (lambda k: "")
+        if not cget("buyer_reference"):
+            miss.append([N_("the client's Leitweg ID (buyer reference, XRechnung)")])
+        if not (str(co.get("phone") or "").strip() and str(co.get("email") or "").strip()):
+            miss.append([N_("phone and e-mail of your company (office settings, company; XRechnung)")])
+        if not (cget("email_invoice") or cget("email")):
+            miss.append([N_("the client's invoice e-mail (XRechnung)")])
     # 2.296.0 B (#3169): a 0 % position of a taxed invoice needs the reason of its exemption (section 14 (4) no. 8 UStG, BT-120)
     if r["vat_mode"] != "novat" and not str(s.get("exempt_reason") or "").strip() and any(
             it.get("kind") in ("service", "discount") and it.get("tax") == "exempt" and pack_tax(pack, "exempt") == 0 for it in items):  # 2.357.0 (#3217): a 0 % standard / reduced rate is zero rated (Z), no reason
@@ -1077,6 +1099,9 @@ def inv_render(c, oid, r, m, t, pack, L, lang, fmt_date):
             rec = {k: (cl[k] if k in cl.keys() else "") for k in ("street", "zip", "city", "country", "vat_id", "customer_no", "buyer_reference", "email_invoice")}
             rec["extra"] = cl["address_extra"] if "address_extra" in cl.keys() else ""  # 2.97.0 B (#1951): the extra address line
             rec["email_invoice"] = rec["email_invoice"] or cl["email"] or ""  # 2.99.0 D (#2188): BT-49 falls back to the client's e-mail
+    if not rec and not r["client_id"]:  # 2.1308.0 (#6477): a draft without a client: its own fixed address fields
+        own = _j(r["recipient"], {})
+        rec = {k: own.get(k) or "" for k in ("street", "extra", "zip", "city", "country")}
     for k in ("street", "extra", "zip", "city", "country", "vat_id", "customer_no", "buyer_reference", "email_invoice"):
         m["recipient"][k] = rec.get(k) or ""
     if m["vat_note_key"] == "reverse":  # 2.296.0 B (#3168): section 13b UStG at home, Art. 196 VAT Directive for a client abroad

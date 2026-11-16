@@ -303,6 +303,8 @@ def admin_agent_update(aid):
             c.execute("UPDATE users SET avatar=? WHERE id=?", (f"p:{p}" if p else None, aid))
         if "limits" in b:
             lim = usage_limits_clean(b["limits"])
+            from ..agents.srvteam import srv_limits_check  # 2.1308.0 (#6568): hosted - a server agent keeps a hard day limit
+            srv_limits_check(c, a0, lim)
             c.execute("UPDATE agents SET usage_limits=?, usage_alerted='' WHERE user_id=?", (lim, aid))
             print("agent", aid, "usage limits", lim or "none", "by", login_log_who(g.user), flush=True)
         if a0["owner_id"] and a0["owner_id"] != me():  # 2.28.0 (#965): somebody else's personal agent: the kill switch and "Belongs to" only
@@ -478,6 +480,7 @@ USER_AGENTS_MAX_DEFAULT, USER_AGENTS_MAX_CAP = 2, 20
 
 def agent_policy(c):
     from ..api.scopes import scope_cap
+    from ..agents.srvstarter import srv_day_cap, srv_hosted  # 2.1308.0 (#6568)
     try:
         mx = int(gsetting(c, "user_agents_max") or USER_AGENTS_MAX_DEFAULT)
     except ValueError:
@@ -487,7 +490,9 @@ def agent_policy(c):
             "limits": json.loads(lim) if lim else None,
             # 2.15.0 (#479): the admin's limit: what agents / personal tokens may get at all
             "scope_limit": {"agents": scope_cap(c, "agents"), "tokens": scope_cap(c, "tokens")},
-            "scopes": [s for s in SCOPES if s != "admin-read"]}
+            "scopes": [s for s in SCOPES if s != "admin-read"],
+            # 2.1308.0 (#6568): the operator's ceiling of a server agent's day limit (tokens; it holds on a hosted server)
+            "server_day_cap": srv_day_cap(c), "server_day_cap_applies": srv_hosted()}
 
 
 def agent_ws_allowed(c, uid, oid):
@@ -640,17 +645,24 @@ def admin_agent_policy_get():
 
 @app.put("/api/admin/agent-policy")
 def admin_agent_policy_put():
-    """{user_agents?: bool, max_per_user?: 1..20, limits?: usage limits or null} -- who may create personal agents."""
-    from ..agents.usage import usage_limits_clean
+    """{user_agents?: bool, max_per_user?: 1..20, limits?: usage limits or null} -- who may create personal agents.
+    2.1308.0 (#6568): {server_day_cap?: tokens or null (= the default)} -- the ceiling of a server agent's day limit on a hosted server."""
+    from ..agents.usage import USAGE_INT_MAX, usage_limits_clean
+    from ..agents.srvstarter import SRV_DAY_CAP_KEY
     need_admin()
     b, c = body(), db()
-    unknown = sorted(k for k in b if k not in ("user_agents", "max_per_user", "limits", "scope_limit"))
+    unknown = sorted(k for k in b if k not in ("user_agents", "max_per_user", "limits", "scope_limit", "server_day_cap"))
     if unknown:
         return err(tr("Invalid value: {0}", ", ".join(unknown)))
     if "user_agents" in b:
         if not isinstance(b["user_agents"], bool):
             return err(tr("Invalid value: {0}", "user_agents"))
         gset(c, "user_agents", "1" if b["user_agents"] else "0")
+    if "server_day_cap" in b:  # 2.1308.0 (#6568): agents above a lowered ceiling get it as their limit at their next run
+        v = b["server_day_cap"]
+        if v is not None and (isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= USAGE_INT_MAX):
+            return err(tr("Invalid value: {0}", "server_day_cap"))
+        gset(c, SRV_DAY_CAP_KEY, "" if v is None else str(v))
     if "max_per_user" in b:
         v = b["max_per_user"]
         if isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= USER_AGENTS_MAX_CAP:
@@ -679,6 +691,18 @@ def admin_agent_policy_put():
     c.commit()
     print("agent policy", json.dumps(agent_policy(c)), "by", login_log_who(g.user), flush=True)
     return jsonify(agent_policy(c))
+
+
+def _own_cap_for(c, a):
+    """2.1308.0 (#6568): the admin's ceiling for personal agents that applies to agent a. A server agent on a hosted server keeps a
+    hard day limit in tokens (agents/srvteam.py srv_limits_check, with the operator's ceiling): a ceiling of another period or
+    measure would leave its owner no valid value, so only a day / tokens ceiling applies to it there."""
+    from ..agents.srvagent import SRV_PROVIDER
+    from ..agents.srvstarter import srv_hosted
+    cap = agent_policy(c)["limits"]
+    if cap and srv_hosted() and (a["provider"] or "") == SRV_PROVIDER and (cap.get("period") != "day" or cap.get("metric") != "tokens"):
+        return None
+    return cap
 
 
 def _own_limits_capped(cap, lim):
@@ -817,7 +841,9 @@ def my_agent_update(aid):
     if "limits" in b:
         try:
             lim = usage_limits_clean(b["limits"])
-            _own_limits_capped(agent_policy(c)["limits"], json.loads(lim) if lim else None)
+            _own_limits_capped(_own_cap_for(c, a), json.loads(lim) if lim else None)
+            from ..agents.srvteam import srv_limits_check  # 2.1308.0 (#6568): hosted - a server agent keeps a hard day limit
+            srv_limits_check(c, a, lim)
         except BadInput:
             c.rollback()
             raise
