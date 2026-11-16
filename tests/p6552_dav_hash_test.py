@@ -10,6 +10,8 @@ check_password_hash of calendars/caldav.py wrapped by a counter), not by the clo
    (made before 2.1271, pw_ident NULL) still signs in
  - 30 failures from one address with changing invented names: from then on 429 there without a hash; a name that synced
    from that address before still signs in there (#3111, office address with an old phone); another address is free
+ - right after the update: a name known at that address under the old key of the shared table (name in clear, before
+   2.1271) still signs in there (the known addresses are read under the old key until 20.12.2026)
  - a person without an organisation (freelancer fixture) signs in with an app password with an id
 freelancer-matrix: n/a (area auth; the freelancer's app password is checked here too)
 usage: p6552_dav_hash_test.py <datadir>"""
@@ -51,11 +53,11 @@ assert A.post(B + "/api/auth/setup", json={"username": "alice", "display_name": 
 A = sess("alice")
 A.post(B + "/api/admin/setup", json={"org_name": "Alpha", "lang": "en", "modules": ["comments"]})
 PW = {}
-for u in ("hana", "ivo", "kai"):
+for u in ("hana", "ivo", "kai", "lena"):
     r = A.post(B + "/api/users", json={"username": u, "display_name": u.title(), "password": "password123"})
     assert r.ok, r.text
 FID, Fr = freelancer(B, A)
-for u, n in (("hana", 3), ("kai", 1), ("frida", 1)):
+for u, n in (("hana", 3), ("kai", 1), ("lena", 1), ("frida", 1)):
     s_ = Fr if u == "frida" else sess(u)
     for i in range(n):
         r = s_.post(B + "/api/me/app-passwords", json={"name": f"Phone {i}"})
@@ -64,7 +66,7 @@ for u, n in (("hana", 3), ("kai", 1), ("frida", 1)):
 check(all(re.fullmatch(r"[a-z2-9]{8}(-[a-z2-9]{5}){4}", p) for ps in PW.values() for p in ps),
       f"#6552: a new app password: an id of 8 characters + 4 groups of 5 {PW['hana'][0]}")
 ids = kt.dbx("SELECT pw_ident FROM app_passwords ORDER BY id")
-check(len(ids) == 5 and all(x[0] and len(x[0]) == 8 for x in ids) and [x[0] for x in ids] == [p[:8] for u in ("hana", "kai", "frida") for p in PW[u]],
+check(len(ids) == 6 and all(x[0] and len(x[0]) == 8 for x in ids) and [x[0] for x in ids] == [p[:8] for u in ("hana", "kai", "lena", "frida") for p in PW[u]],
       f"#6552: the id is stored in clear (pw_ident), the rest only as a hash {ids}")
 
 RUN = """
@@ -109,10 +111,15 @@ out["old_pw"] = go("ivo", "ABCDE-abcde-abcde-abcde", H1)
 out["freelancer"] = go("frida", P["frida"][0], H1)
 FLOOD = "203.0.113.62"
 out["kai_before"] = go("kai", P["kai"][0], FLOOD)
+# lena synced from FLOOD before the update: the shared table holds that under the key of 2.1270 (the name in clear)
+from kalmido.core.ratedb import rate_known_add
+from kalmido.accounts.session import rate_key_ip
+rate_known_add("dav:uall:lena", rate_key_ip(FLOOD), 30)
 out["flood"] = [go("inv%d" % i, "wrong-app-password", FLOOD) for i in range(30)]
 out["after_unknown"] = go("inv-new", "wrong-app-password", FLOOD)
 out["after_hana_right"] = go("hana", P["hana"][1], FLOOD)
 out["after_kai"] = go("kai", P["kai"][0], FLOOD)
+out["after_lena_old_key"] = go("lena", P["lena"][0], FLOOD)
 out["other_address"] = go("hana", P["hana"][1], "198.51.100.62")
 print(json.dumps(out))
 """
@@ -133,6 +140,8 @@ check(q.get("after_unknown") == [429, 0], f"#6552: then a new name from there: 4
 check(q.get("after_hana_right") == [429, 0],
       f"#6552: ... also a real name with its right password that never synced from there {q.get('after_hana_right')}")
 check(q.get("after_kai") == [207, 0], f"#3111: a name that synced from there before goes on (cached: no hash) {q.get('after_kai')}")
+check(q.get("after_lena_old_key") == [207, 1],
+      f"#6552 review: a name known there under the key from before 2.1271 (name in clear) still signs in {q.get('after_lena_old_key')}")
 check(q.get("other_address") == [207, 1], f"#6552: another address is not affected {q.get('other_address')}")
 
 subprocess.run(["docker", "rm", "-f", CT], capture_output=True)
