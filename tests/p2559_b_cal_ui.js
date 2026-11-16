@@ -147,7 +147,9 @@ const noState = (w, i) => !(w.__loads || []).slice(i).includes('own');
   check(await until(() => !chip('Dentist') && !w.eval(`!!${item('Dentist')}`)), 'delete: gone at once');
   w.__held[0].fail(500);
   check(await until(() => chip('Dentist')), 'delete: a refusal brings it back');
-  hold(w, /^(DELETE \/api\/events\/\d+|POST \/api\/events\/\d+\/restore)$/);
+  // 2.1246.0 (#6267): the toast's Undo takes back the server's step (POST /api/undo/<group>/undo, since #6159); the restore
+  // stays the way of a delete without a server step
+  hold(w, /^(DELETE \/api\/events\/\d+|POST \/api\/events\/\d+\/restore|POST \/api\/undo\/\d+\/undo)$/);
   await del();
   check(await until(() => w.__held.length === 1 && !chip('Dentist')), 'delete again: gone at once');
   w.__held[0].go();
@@ -155,9 +157,9 @@ const noState = (w, i) => !(w.__loads || []).slice(i).includes('own');
   await until(() => (w.__log || []).slice(w.__goAt).some(k => /^GET \/api\/calendars\/events/.test(k)));  // the follow-up after the answer ran (the old way: load() first)
   check(noState(w, i0), 'delete: no GET /api/state');
   check(await undoToast(w, 'Event deleted'), 'delete: the toast offers Undo');
-  check(await until(() => w.__held.length === 2), 'undo: the restore is held');
+  check(await until(() => w.__held.length === 2), 'undo: the restore is held ' + JSON.stringify((w.__log || []).slice(-6)));
   check(await until(() => chip('Dentist')), 'undo: the event is back at once');
-  w.__held[1].go();
+  w.__held[1]?.go();
   check(await until(async () => (await call('GET', `/api/events?from=${D0}&to=${D0}`)).items?.some(x => x.title === 'Dentist')), 'undo: restored on the server');
   check(await until(() => chip('Dentist')), 'undo: it stays after the range came again');
 

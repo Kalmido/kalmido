@@ -17,7 +17,15 @@ const ctBook = id => (S.books || []).find(b => b.id === id);
 // (row, card, the book in "Address books"; the book's own colour stays its dot) and, under "All workspaces", where it comes
 // from; the open card is the open object (wso_sync). A book of Private, no book: neutral
 wso_open('contacts', () => S.route?.mod === 'contacts' && CT.card && (!isMobile() || CT.sel) ? ctBook(CT.card.book_id) || null : null);
-const ctWrite = b => !!b && (b.role === 'owner' || b.role === 'edit');
+// 2.1238.0 (#6161, Stufe 1): may I change this address book's contacts - the shared core's canWrite (workspace.js) decides, from
+// the book's role (owner/edit/view) and the organisation role; no own role check here any more
+const ctWrite = b => !!b && canWrite(b);
+// may I change this contact: its own role (through a folder, 2.351.0 B #2749) or its address book's; the card and its "..." ask this
+const ctCardW = c => { const b = ctBook(c.book_id); return c.role ? canWrite({role: c.role, org_id: b?.org_id}) : ctWrite(b); };
+// may a new contact be made here: an address book I may write in the shown workspace, or the space lets me add (then
+// ct_ownBook asks first and creates my own book, 2.1174.0 #6122 - nothing quiet). A reader of the space (an organisation's
+// read-only role) gets no New, no Import; who only reads a book shared into his own Private keeps them (his own book)
+const ctCanNew = (bs = (S.books || []).filter(b => wsObjIn(b))) => bs.some(ctWrite) || canWrite(wsNewOrg() ? 'org:' + wsNewOrg() : 'private');
 // 2.53.0 (#1410): ctAv lives in ctlinks.js
 // 2.1177.0 (#6116): an error after api() is said there already (e.shown): no second toast; rawFetch's own error in plain words
 const ct_errToast = (x, what) => { if (x && !x.shown && x.message !== 'auth') toast(errText(x, what)); };
@@ -123,17 +131,21 @@ function viewContacts() {
   const books = (S.books || []).filter(b => wsObjIn(b));  // 2.30.0 (#1036): the address books of the shown workspace
   const items = CT.items === null ? null : CT.items.filter(c => !ctBook(c.book_id) || wsObjIn(ctBook(c.book_id)));
   const mob = lsd_one(), cardLd = !CT.card && CT.cardLd && CT.cardLd === CT.sel, showCard = (CT.card || cardLd) && (!mob || CT.sel);  // 2.1168.0 (#6117): lsd_one() (render.js) = a phone or a content area too narrow for list + card
+  // 2.1238.0 (#6161, Stufe 1): the write entries only where canWrite says yes; ONE read hint under the bar when no book of the
+  // shown workspace may be written (the card's own "Read-only" stays away then; a phone's open card hides the bar: it keeps its own)
+  const cw = ctCanNew(books), anyW = books.some(ctWrite);
+  CT.roHint = books.length && !anyW ? roHintHtml() : '';
   const bar = `<div class="ctbar"><div class="ctsearch">${ic('search', 's')}<input id="ct-q" type="search" value="${esc(CT.q)}" placeholder="${esc(tr('Search contacts'))}" aria-label="${esc(tr('Search contacts'))}" autocomplete="off" enterkeyhint="search"></div>
-    ${CT.groups.length ? `<select id="ct-group" aria-label="${esc(tr('Group'))}"><option value="">${tr('All groups')}</option>${CT.groups.map(g => `<option value="${esc(g)}" ${g === CT.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}<option value="${CTX_MANAGE}">${tr('Manage groups…')}</option></select>` : ''}
+    ${CT.groups.length ? `<select id="ct-group" aria-label="${esc(tr('Group'))}"><option value="">${tr('All groups')}</option>${CT.groups.map(g => `<option value="${esc(g)}" ${g === CT.group ? 'selected' : ''}>${esc(g)}</option>`).join('')}${anyW ? `<option value="${CTX_MANAGE}">${tr('Manage groups…')}</option>` : ''}</select>` : ''}
     ${books.length > 1 ? `<select id="ct-book" aria-label="${esc(tr('Address book'))}"><option value="">${tr('All address books')}</option>${books.map(b => `<option value="${b.id}" ${String(b.id) === String(CT.book) ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select>` : ''}
-    ${/*html-ok*/ ct_filtBtn(books)}<span class="spacer"></span>${books.some(ctWrite) ? `<button class="iconbtn ${CT.pick ? 'on' : ''}" data-ct="pick" aria-pressed="${!!CT.pick}" aria-label="${esc(tr(CT.pick ? 'End selection' : 'Select'))}" title="${esc(tr(CT.pick ? 'End selection' : 'Select'))}">${ic('select')}</button>` : ''}<button class="btn sm pri" data-ct="new">${ic('plus', 's')}<span class="cdl">${tr('New contact')}</span></button>
-    ${!books.length || books.some(ctWrite) ? `<input type="file" id="ct-impfile" accept="${CT_IMP_ACCEPT}" multiple hidden>` : ''}<button class="iconbtn" data-ct="menu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>`;
+    ${/*html-ok*/ ct_filtBtn(books)}<span class="spacer"></span>${anyW ? `<button class="iconbtn ${CT.pick ? 'on' : ''}" data-ct="pick" aria-pressed="${!!CT.pick}" aria-label="${esc(tr(CT.pick ? 'End selection' : 'Select'))}" title="${esc(tr(CT.pick ? 'End selection' : 'Select'))}">${ic('select')}</button>` : ''}${cw ? `<button class="btn sm pri" data-ct="new">${ic('plus', 's')}<span class="cdl">${tr('New contact')}</span></button>` : ''}
+    ${cw ? `<input type="file" id="ct-impfile" accept="${CT_IMP_ACCEPT}" multiple hidden>` : ''}<button class="iconbtn" data-ct="menu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></div>${/*html-ok*/ CT.roHint /* 2.1238.0 (#6161, Stufe 1): the ONE read hint */}`;
   // 2.1178.0 (#6121): loading / failed / empty from the shared blocks (render.js); empty without contacts: "New contact" + "Import…"
-  const canW = !books.length || books.some(ctWrite), filt = CT.q || CT.group || CT.book || CT.folder;
+  const canW = cw, filt = CT.q || CT.group || CT.book || CT.folder;
   const list = items === null ? `<div class="ctempty">${/*html-ok*/ loadingHtml('sec')}</div>`
     : CT.err ? errorState({title: tr('Contacts could not be loaded'), size: 'sec', retry: () => { CT.err = null; CT.items = null; CT.loading = false; ctLoad(); ctDraw(); }})
     : !items.length ? (filt ? emptyState({icon: 'search', title: tr('No contact matches.'), size: 'sec'})
-      : emptyState({icon: 'users', title: tr('No contacts yet'), sub: tr('Add one, import a vCard or CSV file, or connect the phone.'), size: 'sec', cls: 'ctnoitems',
+      : emptyState({icon: 'users', title: canW ? tr('No contacts yet') : tr('Nothing here yet.'), sub: canW ? tr('Add one, import a vCard or CSV file, or connect the phone.') : '', size: 'sec', cls: 'ctnoitems',  // 2.1238.0 (#6161, Stufe 1): canW = ctCanNew (canWrite); a reader gets no invitation to add
         action: canW ? `<div class="eacts"><button type="button" class="btn pri" data-ct="new">${ic('plus', 's')}<span>${esc(tr('New contact'))}</span></button><button type="button" class="btn" data-ct="imp">${ic('upload', 's')}<span>${esc(tr('Import…'))}</span></button></div>` : ''}))
     : `<ul class="ctlist" role="list" aria-label="${esc(tr('Contacts'))}">${ctRows(items, (c, vl) => `<li${vl}><button type="button" class="ctrow ${c.id === CT.sel ? 'on' : ''} ${bk_rowCls(c)}" data-ctopen="${c.id}" ${CT.pick ? `aria-pressed="${CT.pick.has(c.id)}"` : `aria-current="${c.id === CT.sel}"`}${/*html-ok*/ wso_row(ctBook(c.book_id) || null) /* 2.1241.0 (#6185) */}>${CT.pick ? bk_chk(c) : ''}${ctAv(c)}<span class="ctn"><b>${esc(c.fn || c.org || '?')}</b><small class="muted">${esc([c.org !== c.fn ? c.org : '', c.email || c.phone].filter(Boolean).join(' · '))}</small>${/*html-ok*/ wso_origin(ctBook(c.book_id) || null, 'cto')}</span>${(books.length > 1 && ctBook(c.book_id)) ? `<i class="cevdot" style="--cc:${cssColor(ctBook(c.book_id).color) || 'var(--accent)'}" title="${esc(ctBook(c.book_id).name)}"></i>` : ''}</button></li>`)}</ul>
       ${CT.total > CT.items.length ? `<div class="muted ctmore">${trh('{0} of {1} loaded', CT.items.length, CT.total)} <button type="button" class="linkbtn" data-ctxmore ${CT.more ? 'disabled' : ''}>${tr('Show more')}</button></div>` : ''}`;  // 2.119.1 A (#2081): the next page comes when scrolling near the end
@@ -253,7 +265,7 @@ function ctRows(items, row) {
 // 2.1168.0 (#6118): above the card's blocks only the switch of saved arrangements (when there are any); Arrange blocks… is in More
 function ct_lyBar() { const v = typeof lyv_btn === 'function' ? lyv_btn('contacts') : ''; return v ? `<div class="lybar"><span class="spacer"></span>${/*html-ok*/ v}</div>` : ''; }
 function ctCardHtml(c) {
-  const b = ctBook(c.book_id), w = c.role ? c.role === 'owner' || c.role === 'edit' : ctWrite(b);  // 2.351.0 B (#2749): also through a folder
+  const b = ctBook(c.book_id), w = ctCardW(c);  // 2.351.0 B (#2749): also through a folder; 2.1238.0 (#6161, Stufe 1): canWrite
   const it = (k, icon, href) => (c[k] || []).map(x => `<div class="ctf">${ic(icon, 's')}<span class="ctfl muted">${esc(ctTypeWord(k, x))}</span>${href(x)}</div>`).join('');
   const adr = (c.addresses || []).map(a => { const t = [a.street, [a.code, a.city].filter(Boolean).join(' '), a.region, a.country].filter(Boolean).join(', ');
     return `<div class="ctf">${ic('mappin', 's')}<span class="ctfl muted">${esc(ctTypeWord('addresses', a))}</span>${ctk_mapLink(t)}</div>`; }).join('');  // 2.119.1 B (#2086): a map link
@@ -261,7 +273,7 @@ function ctCardHtml(c) {
   const hist0 = ctk_histHtml(c), hist = CTK.items.length ? hist0 : '';  // starts the load of a newly opened card
   return `<article class="ctcard" aria-labelledby="ct-h" data-ck="${c.id}"${/*html-ok*/ wso_row(b || null) /* 2.1241.0 (#6185): a contact of an organisation's address book */}>
     <div class="cthead">${lsd_one() ? `<button class="iconbtn" data-ct="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>` : ''}${ctAv(c, 'avatar ctav big')}<div class="cthn"><h3 id="ct-h" tabindex="-1">${esc(c.fn || c.org || '?')}</h3>${feat('clients') ? `<div class="mstags">${ms_tag('contact')}</div>` : ''}${/*html-ok*/ ctp_sub(c)/* 2.1174.0 (#6119): the company as a link to its card */}</div>
-      <span class="ctacts">${w ? `<button class="btn sm" data-ct="edit">${ic('edit', 's')} ${tr('Edit')}</button>` : `<span class="rotag">${ic('eye', 's')}${tr('Read-only')}</span>`}<button class="iconbtn" data-ct="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>
+      <span class="ctacts">${w ? `<button class="btn sm" data-ct="edit">${ic('edit', 's')} ${tr('Edit')}</button>` : CT.roHint && !lsd_one() ? '' : `<span class="rotag">${ic('eye', 's')}${tr('Read-only')}</span>`}<button class="iconbtn" data-ct="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>
     <div class="ctly">${/*html-ok*/ S.ly.view === 'contacts' ? '' : ct_lyBar()}${lyHtml('contacts', ct_foldAll(c, {  // 2.666.0 D (#3624): the card's sections are blocks of the view builder
       details: `<div class="ctfields">
       ${it('phones', 'phone', x => `<a href="tel:${esc(x.value.replace(/[^\d+]/g, ''))}">${esc(x.value)}</a>`)}
@@ -449,8 +461,8 @@ document.addEventListener('click', async e => {
     const bk = b.dataset.k; lyOptSet('contacts', bk, 'open', !ct_open(bk)); ctDraw();
     setTimeout(() => $(`#view [data-ct="fold"][data-k="${bk}"]`)?.focus({preventScroll: true}), 0); return;
   }
-  if (k === 'new') ctEditor(null);
-  else if (k === 'imp') { const f = $('#ct-impfile'); if (f) f.click(); else ctImport(); }  // 2.1178.0 (#6121): the empty list's "Import…" (vCard, ZIP or CSV by its ending)
+  if (k === 'new') { if (ctCanNew()) ctEditor(null); }  // 2.1238.0 (#6161, Stufe 1)
+  else if (k === 'imp' && ctCanNew()) { const f = $('#ct-impfile'); if (f) f.click(); else ctImport(); }  // 2.1178.0 (#6121): the empty list's "Import…" (vCard, ZIP or CSV by its ending)
   else if (k === 'edit' && CT.card) ctEditor(CT.card);
   else if (k === 'back') { CT.sel = null; CT.card = null; navUp('contacts'); }  // 2.743.0 (#5235)
   else if (k === 'menu') {
@@ -459,13 +471,13 @@ document.addEventListener('click', async e => {
       {label: tr('Trash'), icon: 'trash', fn: () => { CT.trash = {}; CT.pick = null; f8d_viewStep('ctt', ctt_close); ctDraw(); }},  // 2.272.0 E1 (#3038); 2.963.0 (#5233): a step of the page
       ...ct_ioItems(),  // 2.1174.0 (#6123): one "Import…" and one "Export…" (asking for the address book and the format), not two lines per book
       {label: tr('On the phone…'), icon: 'phone', fn: () => settingsModal('caldav')},  // 2.365.2 B (#2789)
-      CT.groups.length && {label: tr('Manage groups…'), icon: 'tag', fn: ctx_groupsModal},  // 2.119.1 A (#2085)
+      CT.groups.length && (S.books || []).some(b => wsObjIn(b) && ctWrite(b)) && {label: tr('Manage groups…'), icon: 'tag', fn: ctx_groupsModal},  // 2.119.1 A (#2085); 2.1238.0 (#6161): writers only
       typeof nwl_open === 'function' && {label: tr('Newsletter…'), icon: 'mail', fn: nwl_open},  // 2.55.0 (#1455)
       typeof dup_open === 'function' && propOn() && dup_books().length && {label: tr('Find duplicates with an agent…'), icon: 'bot', fn: () => dup_open()}]);  // 2.70.0 B (#1357)
   } else if (k === 'cmenu' && CT.card) {
-    const c = CT.card, w = ctWrite(ctBook(c.book_id));
+    const c = CT.card, w = ctCardW(c);  // 2.1238.0 (#6161, Stufe 1): the same rule as the card's Edit (was the book's role only)
     menu(b, [...fv2_menuRow('r:contact:' + c.id) /* 2.441.0 (#3592): opened beside the list a contact has no address of its own */,
-      feat('events') && {label: tr('Invite to a new event'), icon: 'cal', fn: () => evEditor({attendees: [{contact_id: c.id, name: c.fn, email: c.emails?.[0]?.value || '', partstat: 'needs-action'}]})},
+      evCanNew() && {label: tr('Invite to a new event'), icon: 'cal',  /* 2.1238.0 (#6161, Stufe 1): only where an event may be made */ fn: () => evEditor({attendees: [{contact_id: c.id, name: c.fn, email: c.emails?.[0]?.value || '', partstat: 'needs-action'}]})},
       typeof nwl_ctItem === 'function' && nwl_ctItem(c, w, b),  // 2.55.0 (#1455): the newsletter consent
       ctk_clientItem(c, ctBook(c.book_id)),  // 2.119.1 B (#2082): create a client from the contact / open its client
       ...(typeof ctf_cardItems === 'function' ? ctf_cardItems(c) : []),  // 2.351.0 B (#2749): into a folder, share it there
@@ -663,6 +675,7 @@ async function ctEditor(c, cf, draft) {  // draft: 2.576.0 (#4764) the input of 
   if (c && !cf) await loadModule('objsave').catch(() => { /* offline without the copy: saved as before */ });
   const books = (S.books || []).filter(b => ctWrite(b) && (wsObjIn(b) || (c && b.id === c.book_id)));  // 2.30.0 (#1036): of the shown workspace (+ the contact's own)
   const fold = !!c && !ctWrite(ctBook(c.book_id));  // 2.351.0 B (#2749): changed through its folder: stays in its address book
+  if (!c && !ctCanNew()) { toast(tr('You can only read this address book')); return; }  // 2.1238.0 (#6161, Stufe 1): no book for a reader
   if (!books.length && !fold) { const bk = await ct_ownBook(); if (!bk) return; books.push(bk); }  // 2.1174.0 (#6122): asks first, no quiet book
   const st = c ? JSON.parse(JSON.stringify(c)) : {book_id: +(CT.book || LS.get('ctBook', 0)) || books[0].id, kind: 'individual', given: '', family: '', fn: '', org: '', title: '', dept: '', nickname: '',
     emails: [{value: '', type: ['home']}], phones: [{value: '', type: ['cell']}], addresses: [], urls: [], bday: '', anniversary: '', note: '', groups: [], photo: '', ...Object.fromEntries(Object.entries(draft || {}).filter(([, v]) => Array.isArray(v) ? v.length : v))};
@@ -985,14 +998,14 @@ function ct_expGo(url) { location.href = url; }  // the server sends the file as
 function ct_ioItems() {
   const bs = (S.books || []).filter(b => wsObjIn(b)), wr = bs.filter(ctWrite);
   return [wr.length > 1 ? {label: tr('Import…'), icon: 'upload', more: wr.map(b => ({label: b.name, icon: 'book', fn: () => ct_impFile(b.id)}))}
-    : {label: tr('Import…'), icon: 'upload', fn: () => { if (wr.length) ct_impFile(wr[0].id); else ct_ownBook().then(b => { if (b) ct_impFile(b.id); }); }},
+    : ctCanNew(bs) && {label: tr('Import…'), icon: 'upload', fn: () => { if (wr.length) ct_impFile(wr[0].id); else ct_ownBook().then(b => { if (b) ct_impFile(b.id); }); }},  // 2.1238.0 (#6161, Stufe 1): not for a reader
   bs.length && {label: tr('Export…'), icon: 'download', more: bs.length > 1 ? bs.map(b => ({label: b.name, icon: 'book', more: ct_fmtItems(b)})) : ct_fmtItems(bs[0])}];
 }
 // 2.1174.0 (#6122): nobody gets a quietly created address book "Contacts" any more (New contact, Import): who may write in
 // no address book of the shown workspace reads one sentence and creates an own one with the button, then it goes on
 async function ct_ownBook() {
   if (!await askConfirm(tr('You cannot add contacts to any address book here.'), tr('Create your own address book for your contacts; the others stay as they are.'), {ok: tr('Create your own address book')})) return null;
-  try { const bk = await api('POST', '/api/books', {name: tr('Contacts'), org_id: wsDefaultOrg()}); await load(); return bk; } catch { return null; }
+  try { const bk = await api('POST', '/api/books', {name: tr('Contacts'), org_id: wsNewOrg() /* 2.1238.0 (#6161): never into a space read only */}); await load(); return bk; } catch { return null; }
 }
 // 2.1174.0 (#6122, #6123): "Delete" of the card's menu, last: with the address book's own right (also through the book's folder,
 // S.books). The contact's own folder alone opens editing but never deleting (the server: need_contact own=True)
@@ -1024,6 +1037,7 @@ function ctImport(bookId, kind, file) {  // 2.143.0 C (#2154): file = a .vcf sha
   };
   if (bookId) { run(bookId); return; }
   if (books.length === 1) { run(books[0].id); return; }
+  if (!books.length && !ctCanNew()) return;  // 2.1238.0 (#6161, Stufe 1): a reader's import makes no book
   if (!books.length) { ct_ownBook().then(b => { if (b) run(b.id); }); return; }  // 2.1174.0 (#6122): asks, no quiet book
   menu($('#view [data-ct="menu"]') || $('#view'), books.map(b => ({label: tr('Into {0}', b.name), icon: 'book', fn: () => run(b.id)})));
 }
@@ -1198,21 +1212,22 @@ async function ctBooksModal() {
     const m = e.target.closest('[data-cbmenu]');
     if (m) {
       const b = ctBook(+m.dataset.cbmenu); if (!b) return;
-      const own = b.role === 'owner';
-      menu(m, [own && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the address book'), b.name, {input: {max: 100}}); if (n && n.trim()) { const nm = n.trim(); optWrite(optSet(() => ctBook(b.id), {name: nm}), () => api('PATCH', `/api/books/${b.id}`, {name: nm}), () => { draw(); ctDraw(); }).catch(() => {}); } }},  // 2.46.2 (#1659): at once
-        own && wsOn() && !b.org_owned && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, b.org_id, async org => { try { await api('PATCH', `/api/books/${b.id}`, {org_id: org}); } catch { return; } refresh(); })},
-        own && collab() && {label: tr('Share…'), icon: 'users', fn: () => ctShareModal(b, users, names, refresh)},
+      // 2.1238.0 (#6161, Stufe 1): the owner's entries only where canWrite says yes (an organisation's reader changes nothing)
+      const own = b.role === 'owner', mng = own && ctWrite(b);
+      menu(m, [mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the address book'), b.name, {input: {max: 100}}); if (n && n.trim()) { const nm = n.trim(); optWrite(optSet(() => ctBook(b.id), {name: nm}), () => api('PATCH', `/api/books/${b.id}`, {name: nm}), () => { draw(); ctDraw(); }).catch(() => {}); } }},  // 2.46.2 (#1659): at once
+        mng && wsOn() && !b.org_owned && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, b.org_id, async org => { try { await api('PATCH', `/api/books/${b.id}`, {org_id: org}); } catch { return; } refresh(); })},
+        mng && collab() && {label: tr('Share…'), icon: 'users', fn: () => ctShareModal(b, users, names, refresh)},
         ...(typeof ctf_bookItems === 'function' ? ctf_bookItems(b, m) : []),  // 2.351.0 B (#2749): into a folder of the address book
         b.can_org && {label: tr('Hand over to the organisation…'), icon: 'building', fn: () => ob_take(b, refresh)},  // 2.52.0 (#1438)
-        own && b.org_owned && {label: tr('Members of the organisation'), icon: 'building', more: ob_roleItems(b, refresh)},
-        own && b.org_owned && {label: tr('Move to Private…'), icon: 'home', fn: () => ob_drop(b, refresh)},
-        own && famOn() && !b.imported && {label: tr('Birthdays as tasks…'), icon: 'cake', fn: () => ctBdayModal(b, refresh)},
+        mng && b.org_owned && {label: tr('Members of the organisation'), icon: 'building', more: ob_roleItems(b, refresh)},
+        mng && b.org_owned && {label: tr('Move to Private…'), icon: 'home', fn: () => ob_drop(b, refresh)},
+        mng && famOn() && !b.imported && {label: tr('Birthdays as tasks…'), icon: 'cake', fn: () => ctBdayModal(b, refresh)},
         // 2.1174.0 (#6123): one "Import…" (vCard, ZIP or CSV by its ending) and one "Export…" (the format on the second level)
         ctWrite(b) && {label: tr('Import…'), icon: 'upload', fn: () => ct_impFile(b.id)},
         {label: tr('Export…'), icon: 'download', more: ct_fmtItems(b)},
         !own && {label: tr('Leave this address book'), icon: 'logout', fn: async () => { try { await api('DELETE', `/api/books/${b.id}/members/${S.me.id}`); } catch { return; } refresh(); }},
         // 2.272.0 E1 (#3038): the question names the number; the book goes to the trash with its contacts (Undo, Contacts > More > Trash)
-        own && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the address book “{0}” with all its contacts?', b.name), trn('Its {0} contact goes to the trash with it and is removed from the phones.', 'Its {0} contacts go to the trash with it and are removed from the phones.', b.count || 0), {ok: tr('Delete'), danger: true})) return; try { await api('DELETE', `/api/books/${b.id}`); } catch { return; } refresh(); toast(tr('“{0}” moved to the trash', b.name), async () => { try { await api('POST', `/api/books/${b.id}/restore`); } catch (x) { ct_errToast(x); return; } refresh(); }); }}]);
+        mng && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the address book “{0}” with all its contacts?', b.name), trn('Its {0} contact goes to the trash with it and is removed from the phones.', 'Its {0} contacts go to the trash with it and are removed from the phones.', b.count || 0), {ok: tr('Delete'), danger: true})) return; try { await api('DELETE', `/api/books/${b.id}`); } catch { return; } refresh(); toast(tr('“{0}” moved to the trash', b.name), async () => { try { await api('POST', `/api/books/${b.id}/restore`); } catch (x) { ct_errToast(x); return; } refresh(); }); }}]);
       return;
     }
     const k = e.target.closest('[data-cb]')?.dataset.cb; if (!k) return;

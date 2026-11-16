@@ -338,6 +338,10 @@ ERR += check_menu_next.errors()
 # (tools/check_menu_own.py); runs here so the CI lint and the Mac lint both have it
 import check_menu_own  # noqa: E402
 ERR += check_menu_own.errors()
+# 2.1238.0 (#6161): write entries ask canWrite() of static/js/workspace.js, no own role checks beyond the baseline
+# (tools/check_canwrite.py, tools/canwrite_baseline.json)
+import check_canwrite  # noqa: E402
+ERR += check_canwrite.errors()
 
 for e in ERR:
     print("ERROR:", e)

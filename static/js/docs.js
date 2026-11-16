@@ -23,7 +23,9 @@ const dc_ws = () => (typeof wsCur === 'function' ? wsCur() : 'all');
 const dc_upWs = () => { const w = dc_ws(); return w.startsWith('org:') ? w : 'private'; };
 // 2.1162.0 (#6108): may the person add documents where they go (dc_upWs)? Private: yes; an organisation: not as read-only / guest
 // (accounting uploads receipts: docs/store.py root_add_ok). Only the view follows the server's rule.
-const dc_upOk = () => { const w = dc_upWs(); return w === 'private' || !['readonly', 'guest'].includes(wsOrg(w.slice(4))?.role); };
+// 2.1238.0 (#6161, Stufe 2): the shared core's canWrite (workspace.js) decides; the one exception of the server stays: accounting
+// adds receipts here (docs/web.py), so that role keeps "Add documents" though canWrite says no for it
+const dc_upOk = () => { const w = dc_upWs(); return canWrite(w) || (w.startsWith('org:') && wsOrg(w.slice(4))?.role === 'accounting'); };
 const dc_hashId = () => { try { const m = location.hash.match(/^#(docs|ablage)\/(\d+)/); return m && (m[1] === 'docs' || AB_FILEIDS.has(+m[2])) ? +m[2] : null; } catch { return null; } };  // the sheet may close after its window is gone; 2.752.0 (#4887): #ablage/<id> of a file (core.js AB_FILEIDS)
 const dc_money = (a, cur) => curMoney(a, cur);  // 2.189.0 (#2475): + £; 2.368.0 C (#2983): one money format (i18n.js curMoney)
 const dc_day = d => { const s = String(d || '').slice(0, 10); return /^\d{4}-\d\d-\d\d$/.test(s) ? fmtDateNum(pd(s)) : ''; };  // 2.583.0 (#4877): always the whole date with the year (06.11.2026), no Today / weekday
@@ -275,7 +277,7 @@ const dc_selMark = d => { const on = AB.selOn && AB.sel.has(d.id); return `<butt
 function dc_dragAttr(d) {
   if (typeof ab_canWrite !== 'function' || (S.route.mod === 'ablage' && !S.route.nid && typeof ab_curSpace === 'function' && ab_curSpace() === 'trash')) return '';
   const n = typeof ab_item === 'function' ? ab_item(d.id) : null;
-  return ab_canWrite(n?.role || d.role) ? (typeof rowd_touch === 'function' && rowd_touch() ? ' data-abmv="1"' : ' draggable="true"') : '';
+  return ab_canWrite(n || d) ? (typeof rowd_touch === 'function' && rowd_touch() ? ' data-abmv="1"' : ' draggable="true"') : '';
 }
 function dc_card(d, o = {}) {
   const f = o.file;
@@ -299,7 +301,7 @@ const DC_ACCEPT = 'application/pdf,image/*,.pdf,.txt,.xml,application/xml,text/x
 // 2.1177.0 (#6114): the file store's one way (ablage.js ab_upCheck / ab_upParts / ab_upOut): checked before sending, portions of
 // at most 50 (the server takes 50 per request) instead of cutting silently, the progress bar for any size, ONE message at the end
 async function dc_upload(files, ws, source) {
-  const {ok, out} = ab_upCheck(files, source ? '' : DC_ACCEPT); ab_upOut(out);  // the share sheet / a scan: every kind as before
+  const {ok, out} = ab_upCheck(files, source ? '' : DC_ACCEPT); const box = ab_upOut(out);  // the share sheet / a scan: every kind as before; 2.1247.0 (#6173): its own list
   if (!ok.length) return [];
   const ids = [], dups = [], parts = ab_upParts(ok, 50);
   for (let i = 0; i < parts.length; i++) {
@@ -309,11 +311,11 @@ async function dc_upload(files, ws, source) {
     if ((ws || dc_upWs()) === 'private') fd.append('sort', '1');  // 2.522.0 (#4433): the general input sorts (office / private; no office: nothing)
     if (source) fd.append('source', source);
     // 2.1216.0 (#6109): rawFetch - the refused files are said once, in the list (ab_upOut), not a toast "Error 400" beside it
-    let j; try { j = await rawFetch('POST', '/api/docs', fd); } catch (x) { if (x?.data?.errors) j = x.data; else { out.push(...ab_upRest(parts, i, x)); break; } }  // a 400 with its reasons: the list names them
+    let j; try { j = await rawFetch('POST', '/api/docs', fd); } catch (x) { if (x?.message === 'auth') return ids;  /* 2.1247.0 (#6173): logged out - the login says it */ if (x?.data?.errors) j = x.data; else { out.push(...ab_upRest(parts, i, x)); break; } }  // a 400 with its reasons: the list names them
     ids.push(...(j.ids || [])); dups.push(...(j.dups || []));
     out.push(...(j.errors || []).map(e => ({name: '', why: e})));  // the server's own reasons (each names its file)
   }
-  ab_upOut(out);
+  ab_upOut(out, box);
   if (ids.length) {
     const msg = trn('{0} document added', '{0} documents added', ids.length);
     histToast(ab_upMsg(dups.length ? `${msg} · ${trn('{0} file already exists', '{0} files already exist', dups.length)}` : msg, out), histAdd({label: msg,

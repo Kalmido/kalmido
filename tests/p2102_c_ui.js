@@ -67,7 +67,8 @@ const loaded = (d, f) => [...d.querySelectorAll('script[src*="/static/js/"]')].s
   check(FQ.id > 0, 'a questionnaire');
   w = await boot({user: 'alice', hash: `l/${P}`, lazy: true}); d = w.document;
   check(!loaded(d, 'formq'), 'the list view: formq.js not loaded');
-  w.eval(`listModal(${P})`); await sleep(300);
+  // 2.1238.0 (#4280): the project dialog loads on demand (listmodal.js): wait for it, not for a fixed time
+  w.eval(`listModal(${P})`); await until(() => d.querySelector('.modal [data-act="forms-open"]'));
   click(w, d.querySelector('.modal [data-act="forms-open"]'));
   const fm = await until(() => d.querySelector('.modal [data-fm="edit"]'));
   check(fm && loaded(d, 'formq'), 'the forms dialog loads formq.js');

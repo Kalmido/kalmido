@@ -14,6 +14,30 @@ const inWs = (l, ws = wsCur()) => ws === 'all' || !l || !!l.is_inbox || wsOf(l) 
 // 2.49.0 (#1770): no exception for the open list any more -- a list is only shown inside its own workspace (wsFollow)
 const wsHidden = t => wsCur() !== 'all' && !!t && !inWs(listById(t.list_id));
 const wsOrg = id => (S.me?.workspaces || []).find(w => w.id === +id);
+// 2.1238.0 (#6161): the shared core's "write right in the client" (docs/dev/kern.md, "Who may write: the client"). ONE rule
+// for every area: may this person change this object / add in this space? From the organisation role (S.me.workspaces[].role,
+// like accounts/orgroles.py FULL_WRITE / cap_list_role) and the object's own role (owner/admin/manage/edit write, view reads).
+// The areas ask only canWrite and LEAVE OUT their write entries (New, plus, upload, drag, import, finalise, save) when it
+// says no; fields in editors read. The server stays the one lock and refuses as before - this only decides what is shown,
+// and it never allows more than the server: unknown = no.
+const CW_ORG_WRITE = ['admin', 'member'];  // accounts/orgroles.py FULL_WRITE
+const CW_OBJ_WRITE = ['owner', 'admin', 'manage', 'edit', 'write'];
+// the organisation role caps an object's own role like the server: read-only reads everything there (accounts/orgroles.py
+// cap_list_role, files/store.py fs_roles_many); for guest / accounting the server already sends the capped role (a personal
+// share's 'edit', a list's admin / owner stays, obj_role / _fs_limited_role cap an owner's), so their object role counts as
+// it comes; no organisation (private, a person without one is their own admin) or one the person is not in = the role alone
+const cwOrgOk = oid => !oid || wsOrg(oid)?.role !== 'readonly';
+// x: a space ('private' | 'org:<id>': may add at its top, the server's need_org_write) or an object {role, org_id}
+// (role = the object's role for this person; an object without one: no - unknown means no, who means the space passes the
+// space's text; 2.1238.0 review fund 2)
+function canWrite(x) {
+  if (x == null) return false;
+  if (typeof x === 'string') return x === 'private' || (x.startsWith('org:') && CW_ORG_WRITE.includes(wsOrg(x.slice(4))?.role));
+  if (x.role == null) return false;
+  return CW_OBJ_WRITE.includes(x.role) && cwOrgOk(x.org_id);
+}
+// the ONE read hint of a view the person only reads (instead of a note per button); txt optional
+const roHintHtml = (txt = '') => `<div class="rohint cwro" role="note">${ic('eye', 's')}<span>${esc(txt || tr('You can only read here'))}</span></div>`;
 const wsName = ws => ws === 'all' ? tr('All workspaces') : ws === 'private' ? tr('Private|workspace') : (wsOrg(ws.slice(4))?.name || tr('Organisation'));
 // 2.87.9 (#1913): an organisation's symbol -- its own picture, else its emoji, else fb (the workspace switch, Settings, the admin list)
 const orgIconHtml = (o, fb = ic('brief', 's')) => o?.icon_url ? `<img class="orgic" src="${esc(o.icon_url)}" alt="" loading="lazy" decoding="async">`
@@ -216,6 +240,9 @@ function wsMenu(anchor) {
 }
 // the default workspace of a new list: the shown one; with "All" the one of the folder's lists, else the first organisation
 // 2.364.0 D (#3033): proj = a new project: with "All" (and no folder rule) the workspace picked last for a new project, else Private
+// 2.1238.0 (#6161): the organisation a NEW calendar / address book goes into: wsDefaultOrg, but under "All workspaces" not
+// one the person may not add to (read-only, guest, accounting) - then Private (null)
+const wsNewOrg = () => { const o = wsDefaultOrg(); return o && wsCur() === 'all' && !canWrite('org:' + o) ? null : o; };
 function wsDefaultOrg(folder = '', proj = false) {
   const cur = wsCur();
   if (cur === 'private') return null;
@@ -242,15 +269,17 @@ function ws_originHtml(l, lst, cls) {
     + `<span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws) /* 2.1205.0 (#6179): the shared origin (wscolor.js) */}<span class="wsosep">·</span>${licMark(l, 'lsm')}<span class="wsol">${esc(lst)}</span></span></span>`;
 }
 // the <select> of a list's workspace (list dialog); only when the person has an organisation
-function wsSelectHtml(id, cur, dis = '') {
+// 2.1238.0 (#6161): wr = only the spaces the person may add to (canWrite), the current one stays
+function wsSelectHtml(id, cur, dis = '', wr = false) {
   if (!wsOn()) return '';
-  return `<select id="${id}" ${dis}>${wsOptions().filter(w => w !== 'all').map(ws => `<option value="${ws === 'private' ? '' : ws.slice(4)}" ${(cur ? 'org:' + cur : 'private') === ws ? 'selected' : ''}>${esc(wsName(ws))}</option>`).join('')}</select>`;
+  return `<select id="${id}" ${dis}>${wsOptions().filter(w => w !== 'all' && (!wr || canWrite(w) || (cur ? 'org:' + cur : 'private') === w)).map(ws => `<option value="${ws === 'private' ? '' : ws.slice(4)}" ${(cur ? 'org:' + cur : 'private') === ws ? 'selected' : ''}>${esc(wsName(ws))}</option>`).join('')}</select>`;
 }
 // 2.30.0 (#1036): "New calendar / address book": the name and (with an organisation) its workspace -> {name, org_id} or null
 async function wsAskNew(title) {
   let org = wsDefaultOrg();
+  if (org && !canWrite('org:' + org)) org = null;  // 2.1238.0 (#6161): not into a space the person only reads (the select offers only writable ones)
   const p = askPrompt(title, '', {input: {max: 100, placeholder: tr('Name')}, ok: tr('Create'),
-    html: wsOn() ? `<label class="wsnew"><span>${esc(tr('Workspace'))}</span>${wsSelectHtml('ws-new', org)}</label>` : ''});
+    html: wsOn() ? `<label class="wsnew"><span>${esc(tr('Workspace'))}</span>${/*html-ok*/ wsSelectHtml('ws-new', org, '', true) /* options from esc() */}</label>` : ''});
   const sel = $('#ws-new');
   if (sel) sel.addEventListener('change', () => { org = sel.value ? +sel.value : null; });
   const n = await p;
@@ -258,7 +287,7 @@ async function wsAskNew(title) {
 }
 // the menu "Workspace" of an own calendar / address book: Private | <organisations>, the current one ticked; fn(org_id)
 function wsMoveMenu(anchor, cur, fn) {
-  menu(anchor, wsOptions().filter(w => w !== 'all').map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : 'brief',
+  menu(anchor, wsOptions().filter(w => w !== 'all' && (canWrite(w) || (cur ? 'org:' + cur : 'private') === w)).map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : 'brief',
     on: (cur ? 'org:' + cur : 'private') === ws, fn: () => fn(ws === 'private' ? null : +ws.slice(4))})));
 }
 // 2.28.0 (#985): a small robot on an agent's picture wherever people appear; a tooltip for everyone, the text for screen readers

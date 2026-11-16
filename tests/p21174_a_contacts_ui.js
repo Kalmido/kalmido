@@ -189,6 +189,15 @@ const K = {ctrl: '', enter: '', esc: ''};
     }
     await ev(`document.querySelector('.modal [data-ctm="phones"] .ctmi').scrollIntoView({block: 'center'})`);
     await shot('p21174-a-phone-editor.png');
+    // 2.1247.0 (#6233): at 320 px the fieldset of the phone / e-mail rows must not grow past the sheet (min-content width)
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 320, height: 640}});
+    check(await until(`(() => { const m = document.querySelector('.modal'); if (!m) return false; const c = m.querySelector('.card').getBoundingClientRect();
+      return ['phones', 'emails'].every(k => { const r = m.querySelector('[data-ctm="' + k + '"] .ctmi'); return r && r.querySelector('[data-ctrm]').getBoundingClientRect().right <= c.right + 0.5; }); })()`), '#6233: 320 px: the remove x of phone and e-mail stays inside the sheet');
+    const w320 = await ev(`(() => { const m = document.querySelector('.modal'); const f = m.querySelector('[data-ctm="phones"]'), col = f.parentElement;
+      return {f: Math.round(f.getBoundingClientRect().width), col: Math.round(col.getBoundingClientRect().width), sw: document.documentElement.scrollWidth, iw: innerWidth}; })()`);
+    console.log('320', JSON.stringify(w320));
+    check(w320 && w320.f <= w320.col && w320.sw <= w320.iw, `#6233: 320 px: the fieldset is not wider than its column, the page does not scroll sideways ${JSON.stringify(w320)}`);
+    await shot('p21174-a-phone-editor-320.png');
   });
 
   console.log(`p21174_a_contacts_ui: ${ok} ok, ${F.length} failed`);

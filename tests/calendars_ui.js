@@ -20,10 +20,11 @@ const STUB = 'http://127.0.0.1:8095';
   await until(() => d.querySelector('.cal .cev'));
   const chips = [...d.querySelectorAll('.cal .cev')];
   check(chips.length > 5, 'month: event chips ' + chips.length);
+  // 2.1246.0 (#6280): the button says "{0} more" since #5463, not "+N" - the check takes the number
   // on some weekdays (Mondays: "Ancient weekly", "Weekly planning") today's cell is full ("+3"): then the agenda row of the day
   const inCell = chips.find(c => /Lunch with Sam/.test(c.textContent));
   const lunch = inCell || [...d.querySelectorAll('.agenda .cevrow')].find(c => /Lunch with Sam/.test(c.textContent));
-  check(lunch && (inCell ? inCell.closest('.cell')?.dataset.day === w.eval('today()') : /\+\d/.test(d.querySelector(`.cal .cell[data-day="${w.eval('today()')}"] .more`)?.textContent || '')) && lunch.textContent.includes(w.eval(`fmtTimeLoc('13:00')`)), 'month: event on its day with the time');  // 2.368.0 (#2982): as the app shows times
+  check(lunch && (inCell ? inCell.closest('.cell')?.dataset.day === w.eval('today()') : /\d/.test(d.querySelector(`.cal .cell[data-day="${w.eval('today()')}"] .more`)?.textContent || '')) && lunch.textContent.includes(w.eval(`fmtTimeLoc('13:00')`)), 'month: event on its day with the time');  // 2.368.0 (#2982): as the app shows times
   check(lunch && lunch.style.getPropertyValue('--cc') === '#2dd4bf', 'month: chip in the calendar colour');
   check(!d.querySelector('.cal .cev[draggable]') && !d.querySelector('.cal .cev.ev'), 'events are not task chips (no drag, no task class)');
   check(w.__xss === undefined && !d.querySelector('#view img') && [...d.querySelectorAll('.agenda .cevrow')].some(c => c.textContent.includes('<img src=x')),

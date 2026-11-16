@@ -29,8 +29,21 @@ function evCalRename(id, name, draw) {
   };
   return optWrite(put, () => evcPatch(id, {name}), draw).then(() => cvxCals(true).then(draw), () => {});
 }
-const evWrite = c => !!c && (c.role === 'owner' || c.role === 'edit');
+// 2.1238.0 (#6161, Stufe 1): may I change this calendar's events - the shared core's canWrite (workspace.js) decides, from the
+// calendar's role (owner/edit/view) and the organisation role; no own role check here any more
+const evWrite = c => !!c && canWrite(c);
 const evWritable = () => (S.evcals || []).filter(c => evWrite(c) && !c.hidden && wsObjIn(c));  // 2.30.0 (#1036): of the shown workspace
+// 2.1238.0 (#6161, Stufe 1): may a new event be made here: a calendar I may write in the shown workspace, or no calendar there
+// at all yet and the space the editor would make one in (wsNewOrg) lets me add (like the contacts' ctCanNew). No = every
+// "new event" entry is left out (button, round +, dragging over free time, the quick sheet's "Event", "Schedule as an
+// event"): a reader of shared calendars gets no calendar made behind her back
+const evNewSpace = () => { const o = wsNewOrg(); return o ? 'org:' + o : 'private'; };
+const evShown = () => (S.evcals || []).some(c => !c.hidden && wsObjIn(c));
+// 2.1238.0 (#6161, review fund 3): like the contacts (F8): a reader of shared calendars whose own space lets them add (their
+// Private, an organisation as member) keeps the entries - the event goes into a calendar of their own; an organisation's reader does not
+const evCanNew = () => evOn() && (evWritable().length > 0 || canWrite(evNewSpace()));
+// the calendar's ONE read hint (roHintHtml): calendars of the shown workspace there, but none to write in
+const evRoHint = () => evOn() && !evCanNew() && evShown() ? roHintHtml() : '';
 const EV_PS = [['accepted', N_('Accept'), 'check'], ['tentative', N_('Maybe'), 'help'], ['declined', N_('Reject'), 'x']];
 const EV_PS_WORD = {accepted: N_('Accepted'), tentative: N_('Maybe'), declined: N_('Rejected'), 'needs-action': N_('No answer yet')};
 // all-day reminders: minutes before the day's midnight (-540 = 9:00 on the day)
@@ -148,7 +161,8 @@ async function evPop(anchor, e) {
   }
   if ($('#pop').classList.contains('hidden')) return;
   if (AP_EVPEND.has(ev.id)) { ev.status = AP_EVPEND.get(ev.id); e = {...e, status: ev.status}; }  // 2.144.2 B (#1811): a confirm still on its way
-  const role = ev.role, w = role === 'owner' || role === 'edit', me = (ev.attendees || []).find(a => a.user_id === S.me?.id);
+  // 2.1238.0 (#6161, Stufe 1): Edit / Delete / Confirm only where canWrite says yes (the event's role + the organisation role)
+  const w = evWrite({role: ev.role, org_id: evCal(ev.cal_id)?.org_id}), me = (ev.attendees || []).find(a => a.user_id === S.me?.id);
   const att = ev.attendees || [];
   const t = ev.task_id ? taskById(ev.task_id) || await evTaskOf(ev.task_id) : null;  // 2.1212.0 (#6158): fetched when not in memory
   if ($('#pop').classList.contains('hidden')) return;
@@ -222,7 +236,9 @@ async function evDelete(ev, occ) {
     if (!add.length) return null;
     const its = S.cal.items; S.cal.items = its.concat(add); return () => { S.cal.items = its.filter(x => !add.includes(x)); };
   };
-  if (mode === 'all') offerUndo(tr('Event deleted'), histAdd({label: lbl, res: j, post: re, undo: () => evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)), redo: () => api('DELETE', `/api/events/${ev.id}`)}));
+  // 2.1246.0 (#6267): the toast's Undo goes through the server's step since #6159 (not the restore below): at_once shows the
+  // event back at once there as well (#4659), Redo takes it out at once; a refusal draws the calendar as it was
+  if (mode === 'all') offerUndo(tr('Event deleted'), histAdd({label: lbl, res: j, post: re, at_once: {undo: run => evOpt(back, run), redo: run => evOpt(evPuts(put, lk), run)}, undo: () => evOpt(back, () => api('POST', `/api/events/${ev.id}/restore`)), redo: () => api('DELETE', `/api/events/${ev.id}`)}));
   else offerUndo(tr('This date was removed'), histAdd({label: lbl, res: j, post: re, undo: () => evOccBack(ev, occ), redo: () => api('DELETE', `/api/events/${ev.id}?occ=${encodeURIComponent(occ)}`)}));  // 2.800.0 (#5466): with Undo
 }
 // 2.800.0 (#5466): the Undo of "only this date": the date leaves the left-out ones again through undoWrite (only exdates, with
@@ -357,9 +373,21 @@ function evField(md, k) {
   const d = el?.closest('details'); if (d) d.open = true;
   return el || null;
 }
+// 2.1238.0 (#6161, Stufe 1): the editor of an event I only read: every field reads, the add / remove buttons are left out, ONE
+// read hint under the head (roHintHtml); the server refuses a change anyway (need_evcal write)
+function evRoEditor(md) {
+  md.classList.add('evro');
+  md.querySelectorAll('.evattadd, [data-evatrm], [data-evm="untask"], [data-evsc]').forEach(x => x.remove());
+  md.querySelectorAll('input, select, textarea, [data-evrem]').forEach(x => { x.disabled = true; });
+  $('.lhdr', md)?.insertAdjacentHTML('afterend', roHintHtml(tr('You can only read this calendar')));
+}
 async function evEditor(o = {}) {
   const ev = o.ev || null, cals = evWritable().concat(ev && !evWritable().some(c => c.id === ev.cal_id) && evCal(ev.cal_id) ? [evCal(ev.cal_id)] : []);
-  if (!cals.length && !o.dvw) { try { const c = await api('POST', '/api/evcals', {name: tr('Calendar'), org_id: wsDefaultOrg()}); await load(); cals.push(c); } catch { return; } }
+  // 2.1238.0 (#6161, Stufe 1): an event of a calendar I only read opens read-only (fields read, no Save / Delete, one read
+  // hint); a new event where I may not add opens nothing (the entries are left out; this catches a stale one)
+  const ro = !!ev && !o.dvw && !evWrite(evCal(ev.cal_id) || {role: ev.role});
+  if (!ev && !o.dvw && !evCanNew()) { toast(tr('You can only read this calendar')); return; }
+  if (!cals.length && !o.dvw) { try { const c = await api('POST', '/api/evcals', {name: tr('Calendar'), org_id: wsNewOrg()}); await load(); cals.push(c); } catch { return; } }
   const t0 = today();
   const st = ev ? {...ev} : {title: o.title || '', all_day: !!o.all_day, start: o.start || `${S.calSel || t0}T09:00`, end: o.end || '', location: o.location || '',
     description: o.description || '', rrule: '', reminders: o.all_day ? [-540] : [15], attendees: [], cal_id: o.cal_id || +LS.get('evCal', 0) || cals[0].id,
@@ -388,7 +416,7 @@ async function evEditor(o = {}) {
   const endDay = s => st.all_day ? addDays(s, -1) : s.slice(0, 10);  // all day: the shown end is the last day (stored exclusive)
   const vS = scope === 'one' && st.occStart ? st.occStart : st.start, vE = scope === 'one' && st.occEnd ? st.occEnd : st.end;  // 2.1178.0 (#6153): the times shown
   const repK = evRepKey(st.rrule, st.start);
-  const md = modal(`<div class="lhdr"><h3>${ev || o.dvw ? tr('Edit event') : tr('New event')}</h3><span class="spacer"></span><button class="iconbtn" data-evm="close" aria-label="${tr('Close')}">${ic('x')}</button></div>
+  const md = modal(`<div class="lhdr"><h3>${ro ? tr('Event|calendar') : ev || o.dvw ? tr('Edit event') : tr('New event')}</h3><span class="spacer"></span><button class="iconbtn" data-evm="close" aria-label="${tr('Close')}">${ic('x')}</button></div>
     ${o.occ && !single ? `<div class="row"><span class="rlab">${tr('Change')}</span><div class="seg" role="radiogroup" aria-label="${esc(tr('Change'))}"><button type="button" role="radio" data-evsc="one" ${scope === 'one' ? 'class="on" aria-checked="true"' : 'aria-checked="false"'}>${tr('Only this date')}</button><button type="button" role="radio" data-evsc="all" ${scope === 'all' ? 'class="on" aria-checked="true"' : 'aria-checked="false"'}>${tr('All dates')}</button></div></div>` : ''}
     <div class="row"><label for="ev-title">${tr('Title')}</label><input id="ev-title" maxlength="500" value="${esc(st.title)}" autocomplete="off" enterkeyhint="done"></div>
     <div class="row"><label for="ev-cal">${tr('Calendar')}</label><select id="ev-cal" data-sheet-ico="cal">${o.dvw ? '' : cals.map(c => `<option value="${c.id}" ${c.id === st.cal_id ? 'selected' : ''}>${esc(c.name)}${c.role !== 'owner' ? ' · ' + esc(c.owner_name || '') : ''}</option>`).join('')}${dvw_options(o, st.cal_id)}</select><span class="evwso">${/*html-ok*/ wso_origin(evCal(st.cal_id), 'cevo')}</span></div>
@@ -412,7 +440,7 @@ async function evEditor(o = {}) {
       <div class="row"><label for="ev-url">${tr('Link')}</label><input id="ev-url" type="url" inputmode="url" value="${esc(st.url || '')}" placeholder="https://…" autocomplete="off"></div>
     </details>
     ${o.err ? `<div class="calerr evsaveerr" role="alert">${ic('alert', 's')} ${esc(o.err)}</div>` : ''/* 2.1077.0 (#5461): why the editor is open again */}
-    <div class="foot">${ev && evWrite(evCal(ev.cal_id)) ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span><button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${tr('Save')}</button></div>`);
+    <div class="foot">${ev && !ro ? `<button class="btn danger" data-evm="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}<span class="spacer"></span>${ro ? `<button class="btn" data-evm="close">${tr('Close')}</button>` : `<button class="btn" data-evm="close">${tr('Cancel')}</button><button class="btn pri" data-evm="save">${tr('Save')}</button>`}</div>`);
   md.classList.add('evmodal');
   evDlgWs(md, st.cal_id);  // 2.1241.0 (#6181)
   // 2.484.0 (#3945): a changed date of a series shows the rows of "Only this date" (after dvw_rows, which shows them again)
@@ -435,6 +463,7 @@ async function evEditor(o = {}) {
   // 2.846.0 (#5465): the all-day switch keeps the reminders chosen for each kind (off and on again: the own ones are back)
   const remMem = {[st.all_day ? 'day' : 'timed']: (st.reminders || []).map(Number)};
   drawRems(); drawAtts(); rows(); if (typeof evi_init === 'function') evi_init(md, ev, atts);
+  if (ro) evRoEditor(md);  // 2.1238.0 (#6161, Stufe 1)
   // 2.1212.0 (#6158): the zone at the times when it is not the device's (with the start on the device's clock)
   const drawTz = () => {
     const tz = val('ev-tz'), ad = $('#ev-allday', md).checked, s0 = evWallAt(`${val('ev-sd')}T${val('ev-stm') || '09:00'}`, tz);
@@ -543,7 +572,7 @@ async function evEditor(o = {}) {
     else if (k === 'task') { await md._close(); if (!md.isConnected) evOpenTask(st.task_id); }  // 2.1212.0 (#6158)
     else if (k === 'untask') { st.task_id = null; b.closest('.row').remove(); }
     else if (k === 'del') { md.remove(); evDelete(ev, o.occ); }
-    else if (k === 'save') {
+    else if (k === 'save' && !ro) {  // 2.1238.0 (#6161, Stufe 1): a read-only editor saves nothing
       const sub = dvw_isSub(val('ev-cal')), body = form(scope === 'one' || sub ? 'one' : 'all');  // 2.565.0 (#4705): one reader of the form (form)
       if (!body.all_day && body.end < body.start) { toast(tr('The end must be after the start')); return; }
       if (typeof evi_on === 'function' && evi_on(md)) body.send_invites = true;  // 2.111.0 B (#2056)
@@ -623,14 +652,14 @@ function evAddMin(s, m) { const d = new Date(s.length === 10 ? s + 'T00:00' : s)
 
 // ---- creating: the "+ Event" button of the calendar bar, the quick sheet ("Event")
 function evNewAt(day, hm, endHm) {
-  if (!evOn()) return;
+  if (!evCanNew()) return;  // 2.1238.0 (#6161, Stufe 1)
   if (!hm) { evEditor({all_day: true, start: day, end: addDays(day, 1)}); return; }
   evEditor({start: `${day}T${hm}`, end: endHm ? `${day}T${endHm}` : ''});
 }
 // 2.52.0 (#1016): dragging over free time (and moving / resizing events) lives in caldrag.js: a block "New event" in the grid
 // the quick sheet opened from a free slot of the calendar: "Event" turns what was typed into an event at that time
 function evSheetBtn(preset) {
-  const q = $('.qadd.sheet'); if (!q || !evOn() || !preset?.due || q.querySelector('.qevbtn') || isListCal()) return;  // 2.156.0 C (#2071): a list's calendar makes tasks only
+  const q = $('.qadd.sheet'); if (!q || !evCanNew() || !preset?.due || q.querySelector('.qevbtn') || isListCal()) return;  // 2.156.0 C (#2071): a list's calendar makes tasks only
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'btn sm qevbtn'; b.innerHTML = `${ic('cal', 's')}<span>${esc(tr('Event|calendar'))}</span>`;
   b.title = tr('Create an event at this time instead'); b.setAttribute('aria-label', tr('Create an event at this time instead'));
@@ -784,18 +813,19 @@ async function evCalsModal() {
     const m = e.target.closest('[data-evcmenu]');
     if (m) {
       const c = evCal(+m.dataset.evcmenu); if (!c) return;
-      const own = c.role === 'owner';
-      menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), own && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // 2.46.2 (#1659): at once
-        own && {label: tr('Colour…'), icon: 'palette', next: 1, fn: () => calColorPop(m, c.color, async col => { try { await evcPatch(c.id, {color: col}); } catch { return; } refresh(); })},
-        own && wsOn() && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, c.org_id, async org => { try { await evcPatch(c.id, {org_id: org}); } catch { return; } refresh(); })},
-        own && collab() && {label: tr('Share…'), icon: 'users', fn: async () => evShareModal(c, await usersP, refresh)},
+      // 2.1238.0 (#6161, Stufe 1): renaming, colour, workspace, sharing, importing and deleting only where canWrite says yes
+      const own = c.role === 'owner', mng = own && evWrite(c);
+      menu(m, [...cvxNarrowItems(`e:${c.id}`, !c.hidden), mng && {label: tr('Rename…'), icon: 'edit', fn: async () => { const n = await askPrompt(tr('Rename the calendar'), c.name, {input: {max: 100}}); if (n && n.trim()) evCalRename(c.id, n.trim(), redraw); }},  // 2.46.2 (#1659): at once
+        mng && {label: tr('Colour…'), icon: 'palette', next: 1, fn: () => calColorPop(m, c.color, async col => { try { await evcPatch(c.id, {color: col}); } catch { return; } refresh(); })},
+        mng && wsOn() && {label: tr('Workspace…'), icon: 'brief', next: 1, fn: () => wsMoveMenu(m, c.org_id, async org => { try { await evcPatch(c.id, {org_id: org}); } catch { return; } refresh(); })},
+        mng && collab() && {label: tr('Share…'), icon: 'users', fn: async () => evShareModal(c, await usersP, refresh)},
         evWrite(c) && {label: tr('Import a calendar file (ICS)…'), icon: 'upload', fn: () => evImport(c, refresh)},
         {label: tr('Export (ICS)'), icon: 'download', fn: () => { location.href = `/api/evcals/${c.id}/export.ics`; }},
         {label: tr('Subscription link…'), icon: 'link', fn: () => evf_modal(c)},  // 2.111.0 B (#2056): evinvite.js
         {label: tr('Only this calendar'), icon: 'eye', fn: async () => { await cvxOnly(`e:${c.id}`); draw(); }},  // 2.36.1 (#1127)
         {label: tr('Show all calendars'), icon: 'all', fn: async () => { await cvxAll(); draw(); }},
         !own && {label: tr('Leave this calendar'), icon: 'logout', fn: async () => { if (!await askConfirm(tr('Leave the calendar “{0}”?', c.name), '', {ok: tr('Leave'), danger: true})) return; try { await api('DELETE', `/api/evcals/${c.id}/members/${S.me.id}`); } catch { return; } refresh(); }},
-        own && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the calendar “{0}” with all its events?', c.name), tr('They can be restored from the trash.'), {ok: tr('Delete'), danger: true})) return; let j; try { j = await api('DELETE', `/api/evcals/${c.id}`); } catch { return; } st.trash = null; calInvalidate(); await refresh(); renderView();
+        mng && {label: tr('Delete…'), icon: 'trash', cls: 'danger', fn: async () => { if (!await askConfirm(tr('Delete the calendar “{0}” with all its events?', c.name), tr('They can be restored from the trash.'), {ok: tr('Delete'), danger: true})) return; let j; try { j = await api('DELETE', `/api/evcals/${c.id}`); } catch { return; } st.trash = null; calInvalidate(); await refresh(); renderView();
           // 2.800.0 (#5466): the toast takes it back (the trash's restore, with its events); 2.1212.0 (#6159): Ctrl+Z too (history)
           const re = async () => { st.trash = null; calInvalidate(); if (md.isConnected) await refresh(); else await cvxCals(true).catch(() => {}); renderView(); };
           offerUndo(tr('Calendar “{0}” deleted', c.name), histAdd({label: tr('Delete the calendar “{0}”', c.name), res: j, post: re,
@@ -983,7 +1013,7 @@ function evTaskHtml(t, ro) {  // the events a task prepares + "Schedule as an ev
   const evs = (S.evlinks || {})[t.id] || [];
   const when = e => e.all_day ? fmtDayAbs(e.start.slice(0, 10)) : `${fmtDayAbs(e.start.slice(0, 10))} ${fmtTimeLoc(e.start.slice(11, 16))}`;
   return `<div class="lkgrp"><span class="lklab">${tr('Events')}</span><div class="lkitems">${evs.map(e => `<button type="button" class="lkchip" data-evopen="${e.id}">${ic('cal', 's')}<span>${esc(e.title)}</span><span class="muted">${esc(when(e))}</span></button>`).join('')}
-    ${ro ? '' : `<button type="button" class="attadd" data-act="ev-from-task">${ic('plus', 's')}<span>${tr('Schedule as an event')}</span></button>`}
+    ${ro || !evCanNew() ? '' : `<button type="button" class="attadd" data-act="ev-from-task">${ic('plus', 's')}<span>${tr('Schedule as an event')}</span></button>`}
     ${ro || typeof tpo_on !== 'function' || !tpo_on() ? '' : `<button type="button" class="attadd" data-act="tpo-task">${ic('users', 's')}<span>${tr('Find a date')}</span></button>`}</div></div>`;  // 2.98.0 A (#1953)
 }
 document.addEventListener('click', e => {

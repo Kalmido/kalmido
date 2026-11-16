@@ -272,12 +272,19 @@ function listById(id) {
 // sharing: role of the logged-in user in a list. 1.10.0: owner | admin | edit ("Member") | participant | view ("Viewer").
 // admin / edit change the whole list; a participant sees and changes only the tasks assigned to them (the server sends
 // no others) and may add tasks there; the parents of their subtasks come as read-only context (t.context).
-const WRITE_ROLES = ['owner', 'admin', 'edit'];
 const listRole = id => listById(id)?.role || 'owner';
-const canEditList = id => WRITE_ROLES.includes(listRole(id));              // sections, moving tasks in, list-wide actions
+// 2.1238.0 (#6161, Stufe 2): the list's role through the shared core's canWrite (workspace.js): owner / admin / edit write, and
+// the organisation role caps it (read-only = no, like cap_list_role); the own WRITE_ROLES are gone - the server still decides
+const canEditList = id => canWrite({role: listRole(id), org_id: listById(id)?.org_id});  // sections, moving tasks in, list-wide actions
 const isPart = id => listRole(id) === 'participant';
-const canAddTo = id => canEditList(id) || isPart(id);                     // new tasks (a participant's become theirs)
-const canEdit = t => !!t && (canEditList(t.list_id) || (isPart(t.list_id) && !t.context));
+// 2.1238.0 (#6161, Stufe 2): the words of the ONE read hint of a list the person only reads (the list head, or the task panel
+// when the list is not beside it): the organisation role's own text (say_no of /api/state) or who shared it; no list = ''
+const lst_roTxt = l => l ? l.say_no || tr('Read-only, shared by {0}', l.owner_name || '') : '';
+// 2.1238.0 (#6161, review fund 1): a participant writes only where the organisation role lets them (read-only, guest,
+// accounting do not: the server's _org_list_writes refuses) - the same core rule canWrite, no own role check
+const partOk = id => { const o = listById(id)?.org_id; return isPart(id) && (!o || !wsOrg(o) || canWrite('org:' + o)); };
+const canAddTo = id => canEditList(id) || partOk(id);                     // new tasks (a participant's become theirs)
+const canEdit = t => !!t && (canEditList(t.list_id) || (partOk(t.list_id) && !t.context));
 // 2.36.0 (#1118): the lock of a task (t.locked = 1, stored at the server, the same on every device and for everybody sharing
 // the list). Locked: title, notes, date / time, priority, list, tags, repeat, assignee; free: comments, checkboxes in the
 // notes, subtasks, sort order, pin (2.542.0, #4609: completing / reopening only after unlocking, tlkDone). Whoever may change the task may lock / unlock it. tlkHits =
