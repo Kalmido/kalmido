@@ -438,30 +438,18 @@ choose_clamav() {
   fi
 }
 
-# 2.1345.0 (#6658): may chown -hR run on this link target (already resolved)? $2 = data or secret. No for / , a system folder
-# itself (etc usr var home root bin sbin lib* boot opt srv mnt media tmp run under the root) and an ancestor of the
-# installation folder. Review F3: a folder right under one of var usr home tmp run srv opt etc root boot mnt media lib lib64 only when it is
-# empty or carries the Kalmido marker (.kalmido-target, written after the first run; an older run's backups/ with a
-# kalmido-*.dump in data, kalmido.key in secret count too).
+# 2.1345.0 (#6658, decision 17.11.2026 after three readers): ONE rule for every link target of data/ or secret/, whatever
+# its depth or folder: chown -hR runs only on a folder that is empty or carries the Kalmido marker directory .kalmido-target
+# (a real directory, never a link). / is refused outright. An older run's marker FILE (a regular file, no link) is the known
+# old form: accepted and turned into the directory. The marker is made with mkdir, which follows no link and fails cleanly.
 LINK_MARK=".kalmido-target"
 link_target_ok() {
-  case "$1" in
-    /|/etc|/usr|/var|/home|/root|/bin|/sbin|/lib|/lib32|/lib64|/libx32|/boot|/opt|/srv|/mnt|/media|/tmp|/run) return 1 ;;
-  esac
-  d=$(cd -P "$DIR" 2>/dev/null && pwd -P) || d="$DIR"
-  case "$d/" in "$1"/*) return 1 ;; esac
-  for s in var usr home tmp run srv opt etc root boot mnt media lib lib64; do  # Fable reader #5194 F2: + etc root boot mnt media lib lib64
-    rest=${1#/"$s"/}
-    [ "$rest" != "$1" ] || continue
-    case "$rest" in */*) return 0 ;; esac  # deeper: a folder of its own
-    [ -e "$1/$LINK_MARK" ] && return 0
-    # Fable reader #5194 F2: backups/ alone is no proof (a home may have one): only with a Kalmido dump in it
-    [ "${2:-}" = data ] && ls "$1"/backups/kalmido-*.dump >/dev/null 2>&1 && return 0
-    [ "${2:-}" = secret ] && [ -f "$1/kalmido.key" ] && return 0
-    [ -z "$(ls -A "$1" 2>/dev/null)" ] && return 0
-    return 1
-  done
-  return 0
+  [ "$1" != / ] || return 1
+  m="$1/$LINK_MARK"
+  if [ -L "$m" ]; then return 1; fi
+  if [ -d "$m" ]; then return 0; fi
+  if [ -f "$m" ]; then rm -f "$m" && mkdir "$m" && return 0; return 1; fi  # the old form (a file): becomes the directory
+  [ -z "$(ls -A "$1" 2>/dev/null)" ]
 }
 
 # the line about the virus scanner at the end of the installation (from .env: what really runs)
@@ -579,10 +567,11 @@ write_override() {
       p="$DIR/$f"
       if [ -L "$p" ]; then
         p=$(cd -P "$p" 2>/dev/null && pwd -P) || die "$DIR/$f is a link to a folder that does not exist."
-        # 2.1345.0 (#6658): not only /: a system folder (depth 1), the root of a data disk, or an ancestor of the installation folder
-        link_target_ok "$p" "$f" || die "$DIR/$f is a link to $p (a system folder, a parent of $DIR, or a folder right under a system folder that is not empty); chown would hit everything in it. Point it to a folder of its own: mkdir -p \"$p/kalmido-$f\" && ln -sfn \"$p/kalmido-$f\" \"$DIR/$f\" && re-run the installer"
+        # 2.1345.0 (#6658): only an empty folder or one with the Kalmido marker directory (link_target_ok)
+        link_target_ok "$p" || die "$DIR/$f is a link to $p, which is neither empty nor marked as Kalmido's folder (a directory $LINK_MARK in it); chown would hit everything in it. Is it Kalmido's own $f folder: mkdir \"$p/$LINK_MARK\" and re-run the installer. Otherwise point the link to an empty folder of its own: mkdir -p \"$p/kalmido-$f\" && ln -sfn \"$p/kalmido-$f\" \"$DIR/$f\" && re-run the installer"
+        [ -d "$p/$LINK_MARK" ] && [ ! -L "$p/$LINK_MARK" ] || mkdir "$p/$LINK_MARK" 2>/dev/null \
+          || die "Could not create the marker $p/$LINK_MARK (a link or a file is in the way); remove it and re-run the installer."
         say "$DIR/$f is a link: giving its target $p to user 1000"
-        : > "$p/$LINK_MARK" 2>/dev/null || true  # review F3: the marker, so a later run knows the folder as Kalmido's
       fi
       chown -hR 1000:1000 "$p" || die "Could not give $DIR/data and $DIR/secret to user 1000 (chown)."
     done

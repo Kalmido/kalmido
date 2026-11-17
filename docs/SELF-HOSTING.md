@@ -148,7 +148,10 @@ The installer run as root (usual on a rented server, 2.1284.0) keeps the app on 
 to user 1000 (`chown -hR`, also files an older run left to root; links inside are changed, never what they point to) and
 writes no `user: "0:0"` any more; as any other user than 1000 on Linux it writes that user into `docker-compose.override.yml`.
 Is `data/` or `secret/` itself a link (to another disk), the installer gives the folder it points to to user 1000 (the
-container writes there) and says so; a link to `/` or to a missing folder stops it.
+container writes there) and says so; a link to `/` or to a missing folder stops it. Since 2.1345.0 (#6658) that folder
+must be empty or carry the marker directory `.kalmido-target` (the installer makes it on the first run); any other folder
+stops the installer with two ready commands: `mkdir "<folder>/.kalmido-target"` when it is Kalmido's own folder, or a link
+to an empty folder of its own. An older run's marker file is turned into the directory.
 
 ### Organisations and private spaces
 
