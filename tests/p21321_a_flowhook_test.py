@@ -142,7 +142,7 @@ check(until(lambda: "Totgelesen" in tags(Bo, d2), 30), "failures: the flow's oth
 time.sleep(3)  # a few ticks of the webhook loop (1 s backoff): nothing may go out
 check(len(calls("/fail")) == 3, f"failures: no call goes out while the webhook is off {len(calls('/fail'))}")
 check(dbx("SELECT hook FROM doc_flow_runs WHERE node_id=?", (d2,))[0][0] == "off", "failures: the run's call is marked off")
-check(Ca.patch(B + f"/api/docs/rules/{f['id']}", json={"hook_state": "", "hook_fails": 0}).status_code in (200, 400) and
+check(Ca.patch(B + f"/api/docs/rules/{f['id']}", json={"hook_state": "", "hook_fails": 0}).status_code == 200 and
       rule(Bo, OWS, "Tot").get("hook_state") == "failures", "failures: the state cannot be set from outside")
 r = patch(Bo, rule(Bo, OWS, "Tot"))
 check(r.ok and rule(Bo, OWS, "Tot").get("hook_state") == "" and rule(Bo, OWS, "Tot").get("hook_fails") == 0,
