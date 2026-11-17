@@ -27,7 +27,7 @@ from ..personal.timetrack import _csv_cell
 from ..core.errors import BadInput
 from .calc import CALC_LOCALE, calc_lang, dec, dstr, fmt_point, money
 from ..core.access import live_sql, my_inbox  # 2.149.0 G (#2517): pulled up from functions
-from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from .model import pb_owner  # 2.369.5 (#2517): pulled up from functions
 from .fixedimport import fci_people  # 2.369.5 (#2517): pulled up from functions
 from .cashflow import rk_fixed, _fixed_public  # 2.369.5 (#2517): pulled up from functions

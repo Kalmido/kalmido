@@ -19,7 +19,7 @@ from ..core.errors import BadInput
 from ..core.i18n import N_, lang, tr, trn
 from ..core.orgcrypt import oc_dec_fields
 from ..core.pg import insert_id, system_ctx
-from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..tasks.validation import log_act
 from .banknorc import BNR_EVERY, _alive, _next
 from .calc import dec, money
