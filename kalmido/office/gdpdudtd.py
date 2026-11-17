@@ -1,5 +1,5 @@
 """2.188.0 A (#2498): the official DTD of the GDPdU / GoBD description standard (version 1.6, 01.03.2019), text unchanged.
-It travels as a module because the package carries only code and a few data types; gobdexport.py writes it into the
+It travels as a module because the package carries only code and a few data types; admin/gobdexport.py writes it into the
 auditor's ZIP next to index.xml (some auditor software wants it there)."""
 
 GX_DTD_NAME = "gdpdu-01-03-2019.dtd"

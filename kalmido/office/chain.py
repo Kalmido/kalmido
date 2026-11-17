@@ -17,17 +17,32 @@ the positions, the totals (without the internal purchase prices / margin) and th
 finalising on purpose stay out: status, paid / paid_at, due date, reminder level / fee state, sent_at, DATEV mark, the stored
 files' checksums, notes, project / list links, cash flow, terms.
 
-hch_check recomputes every chain of an office: {ok, count, pending, first_bad: {id, number, chain} | None}. A document that was
+2.1309.0 (#6467): the canonical data has a version, kept per link in office_docs.chain_ver (NULL = 1). Version 1 = the fields
+above. Version 2 (HCH_VER, every link made since) adds what an audit (#4791) found missing: the stored PDF's and XML's
+checksums (pdf_sha256 / xml_sha256: ledger.ofx_finalize stores the files in inv_after_finalize BEFORE hch_append, and the
+database lets them change only while empty) and the head fields vat_mode, vat_note, fx_rate, cancels_id, inv_type, abs_refs,
+due_date, skonto_pct / skonto_days, intro / closing and order_ref (all held by the trigger of core/migrations.d/4598.py once
+finalised). A document whose PDF checksum is still empty when it is linked (no stored file: an import, a version without the
+file writer) is linked with version 1 -- the catch-up of office/storefill.py fills the checksums later and would break a
+version-2 link. Old links keep their version and stay valid; hch_check reads each with its own.
+
+hch_check recomputes every chain of an office: {ok, count, pending, first_bad: {id, number, chain, seq, reason} | None}
+(reason gap / link / unlocked / data, or unreadable: the office's key cannot open a value now -- no proof of a change). A document that was
 changed, removed from the middle, moved to another chain or unlocked in the database is the first bad one of its chain;
 pending = finalised documents not chained yet (an import of a whole office, a start before the next one chains them).
 Removing the newest document of a chain leaves no trace in the chain itself (the office log keeps its finalise entry)."""
 import hashlib
 import json
+import time
 from decimal import Decimal
 
+from ..core.config import app
+from ..core.db import gset, gsetting, iso, now_utc  # 2.1309.0 (#6467): the daily check
 from ..core.moneycol import mc_fields  # 2.755.0 (#5293)
-from ..core.orgcrypt import oc_dec_fields
-from ..core.pg import write_lock
+from ..core.orgcrypt import OrgCryptError, oc_dec_fields, oc_log_detail
+from ..core.i18n import N_  # 2.1309.0 (#6467)
+from ..notify.alerts import aa_now  # 2.1309.0 (#6467)
+from ..core.pg import system_ctx, write_lock
 from ..core.access import live_sql  # 2.1005.0 (#5415)
 from .model import num_kind, office_settings, ofx_release  # 2.542.0 (#4598): freeing a copied place passes the trigger
 
@@ -36,6 +51,10 @@ HCH_JSON_FIELDS = {"recipient_snapshot": "recipient", "sender": "sender", "total
 HCH_TOTALS_SKIP = ("costs", "margin")  # internal (purchase side), encrypted on their own, never printed
 HCH_TAX_KEYS = ("rates", "tax")  # of tax_snapshot
 HCH_ITEM_FIELDS = ("kind", "title", "detail", "qty", "unit", "rate", "tax", "tax_pct", "net", "tax_amount")
+HCH_VER = 2  # 2.1309.0 (#6467): the version new links are made with (see above)
+HCH_V2_FIELDS = ("pdf_sha256", "xml_sha256", "vat_mode", "vat_note", "fx_rate", "cancels_id", "inv_type", "due_date", "skonto_pct",
+                 "skonto_days", "intro", "closing", "order_ref")
+HCH_V2_JSON = ("abs_refs",)
 
 
 def hch_chained(r):
@@ -63,10 +82,33 @@ def _json(v, dflt):
     return x
 
 
-def hch_canon(c, oid, r):
-    """The canonical text of document row r (a raw or decrypted office_docs row) of office oid."""
+def hch_ver(r):
+    """The canonical version of document row r's link (2.1309.0, #6467: NULL / no column = 1)."""
+    v = r["chain_ver"] if "chain_ver" in r.keys() else None
+    return int(v or 1)
+
+
+def _v2(v):
+    """A head field of version 2 as one value whatever its column type becomes (an empty text = NULL, a date = its ISO day)."""
+    if v is None or v == "":
+        return None
+    if hasattr(v, "isoformat"):
+        return v.isoformat()
+    return v
+
+
+def hch_canon(c, oid, r, ver=None):
+    """The canonical text of document row r (a raw or decrypted office_docs row) of office oid in version ver (None = the
+    version of r's link, hch_ver)."""
+    ver = hch_ver(r) if ver is None else int(ver)
     d = oc_dec_fields(c, oid, "office_docs", r)
     out = {k: d.get(k) for k in HCH_DOC_FIELDS}
+    if ver >= 2:  # 2.1309.0 (#6467)
+        out["v"] = 2
+        for k in HCH_V2_FIELDS:
+            out[k] = _v2(d.get(k))
+        for k in HCH_V2_JSON:
+            out[k] = _json(d.get(k), [])
     for col, key in HCH_JSON_FIELDS.items():
         out[key] = _json(d.get(col), {})
     if isinstance(out["totals"], dict):
@@ -89,11 +131,17 @@ def _tail(c, oid, key):
     return (int(t["chain_seq"]), t["chain_hash"] or "") if t else (0, "")
 
 
+def hch_link_ver(r):
+    """2.1309.0 (#6467): the version a new link of document row r gets: HCH_VER once its stored PDF's checksum is noted, else 1."""
+    return HCH_VER if (r["pdf_sha256"] if "pdf_sha256" in r.keys() else "") else 1
+
+
 def _link(c, oid, r, key):
     seq, prev = _tail(c, oid, key)
-    h = hch_hash(prev, hch_canon(c, oid, r))
-    c.execute("UPDATE office_docs SET chain_key=?, chain_seq=?, chain_prev=?, chain_hash=? WHERE id=? AND org_id=?",
-              (key, seq + 1, prev, h, r["id"], oid))
+    ver = hch_link_ver(r)
+    h = hch_hash(prev, hch_canon(c, oid, r, ver))
+    c.execute("UPDATE office_docs SET chain_key=?, chain_seq=?, chain_prev=?, chain_hash=?, chain_ver=? WHERE id=? AND org_id=?",
+              (key, seq + 1, prev, h, ver, r["id"], oid))
     return h
 
 
@@ -130,7 +178,9 @@ def hch_check(c, oid):
             if not why:
                 try:
                     why = "" if hch_hash(prev, hch_canon(c, oid, r)) == (r["chain_hash"] or "") else "data"
-                except Exception:  # noqa: BLE001 -- a value that cannot be read (decryption) is a break as well
+                except OrgCryptError:  # 2.1309.0 (#6467): a value the key cannot open now is a break as well, named apart (no alarm)
+                    why = "unreadable"
+                except Exception:  # noqa: BLE001 -- a value that cannot be read is a break as well
                     why = "data"
             if why:
                 bad.append({"id": r["id"], "number": r["number"] or "", "chain": key, "seq": int(r["chain_seq"]), "reason": why})
@@ -140,6 +190,15 @@ def hch_check(c, oid):
     return {"ok": not bad, "count": count, "pending": len(hch_pending(c, oid)), "first_bad": first}
 
 
+def hch_heads(c, oid):
+    """2.1309.0 (#6467): the head (newest link) of every chain of office oid, by chain key -> [{chain, seq, id, number, date, hash, ver}]
+    (the prüfer export names them; a later link would have to start from that hash)."""
+    return [{"chain": r["chain_key"], "seq": int(r["chain_seq"]), "id": r["id"], "number": r["number"] or "", "date": r["date"], "hash": r["chain_hash"] or "",
+             "ver": hch_ver(r)} for r in c.execute(
+        "SELECT DISTINCT ON (chain_key) * FROM office_docs WHERE org_id=? AND chain_seq IS NOT NULL ORDER BY chain_key, chain_seq DESC, id DESC",
+        (oid,)).fetchall()]
+
+
 def hch_migrate(c):
     """Every start (core/db.py init_db through ledger.ofx_migrate): offices with finalised documents not chained yet (documents
     from before 2.531, an imported office) get them chained in the order they were finalised. Idempotent (only rows without a
@@ -147,7 +206,7 @@ def hch_migrate(c):
     # review job/2606: a place copied by an older version (rollback: duplicate / recurring invoice took the chain columns along)
     # is no place - a draft, or the later of two rows on one place, gets chained anew when it is finalised / at this start
     with ofx_release(c):
-        c.execute("UPDATE office_docs SET chain_key='', chain_seq=NULL, chain_prev='', chain_hash='' WHERE chain_seq IS NOT NULL AND "
+        c.execute("UPDATE office_docs SET chain_key='', chain_seq=NULL, chain_prev='', chain_hash='', chain_ver=NULL WHERE chain_seq IS NOT NULL AND "
                   "(locked_at IS NULL OR EXISTS (SELECT 1 FROM office_docs o WHERE o.org_id=office_docs.org_id AND o.chain_key=office_docs.chain_key "
                   "AND o.chain_seq=office_docs.chain_seq AND o.chain_hash=office_docs.chain_hash AND o.id<office_docs.id))")
     for (oid,) in c.execute("SELECT DISTINCT org_id FROM office_docs WHERE locked_at IS NOT NULL AND chain_seq IS NULL AND kind<>'offer' "
@@ -157,3 +216,55 @@ def hch_migrate(c):
                 hch_append(c, oid)
         except Exception:  # noqa: BLE001 -- never stop the start for this
             continue
+
+
+# ---------------------------------------------------------------- the daily check (2.1309.0, #6467)
+HCH_WATCH = {"at": 0.0}
+HCH_WATCH_EVERY = 86400  # s: once after the start, then daily (watchdog)
+HCH_WATCH_KEY = "office_chain_watch"  # global settings: {office id: "chain:seq:id:reason"} of the breaks already reported
+
+
+def hch_watch_tick(c, force=False):
+    """2.1309.0 (#6467): daily in the watchdog (notify/push.py): hch_check for every office with a chain. A break found the first
+    time -> one admin alert (kind "security", switchable in the admin alert settings) and one line "chain_broken" in that
+    office's log on the first bad document; the same break the next days says nothing again (HCH_WATCH_KEY), a chain intact
+    again forgets it. A value the key cannot open now (reason "unreadable") is no proof of a change: server log only.
+    Returns the number of new breaks."""
+    if not force and time.time() - HCH_WATCH["at"] < HCH_WATCH_EVERY:
+        return 0
+    HCH_WATCH["at"] = time.time()
+    try:
+        seen = json.loads(gsetting(c, HCH_WATCH_KEY) or "{}")
+    except ValueError:
+        seen = {}
+    seen = seen if isinstance(seen, dict) else {}
+    new = 0
+    with system_ctx(c):  # every office's chain (row-level security); reads only, its own line per new break
+        oids = [r[0] for r in c.execute("SELECT DISTINCT org_id FROM office_docs WHERE chain_seq IS NOT NULL ORDER BY org_id").fetchall()]
+        for oid in oids:
+            try:
+                res = hch_check(c, oid)
+            except Exception as e:  # noqa: BLE001 -- one office never stops the others
+                c.rollback()
+                app.logger.warning("office chain check: office %s failed: %s", oid, type(e).__name__)
+                continue
+            fb, k = res["first_bad"], str(oid)
+            if fb is None:
+                seen.pop(k, None)
+                continue
+            if fb["reason"] == "unreadable":
+                app.logger.warning("office chain check: office %s, document %s cannot be read now", oid, fb["id"])
+                continue
+            mark = f"{fb['chain']}:{fb['seq']}:{fb['id']}:{fb['reason']}"
+            if seen.get(k) == mark:
+                continue
+            seen[k] = mark
+            det = {"chain": fb["chain"], "seq": fb["seq"], "reason": fb["reason"], "number": fb["number"], "count": res["count"]}
+            c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,NULL,?,?,'doc',?,'')",
+                      (oid, fb["id"], iso(now_utc()), "chain_broken", oc_log_detail(c, oid, json.dumps(det, ensure_ascii=False))))  # ledger.ofx_log without a person
+            aa_now("security", f"office_chain:{oid}", N_("Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it."),
+                   (oid, fb["id"], fb["chain"], fb["seq"], fb["reason"]))
+            new += 1
+        gset(c, HCH_WATCH_KEY, json.dumps(seen, sort_keys=True))
+    c.commit()
+    return new

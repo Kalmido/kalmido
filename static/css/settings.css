@@ -1,5 +1,36 @@
 /* Kalmido web client: the styles of the module "settings" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 1.5.1: the list dialog saves itself: title, "Saved · Undo", close */
+.sdev>summary{cursor:pointer;display:flex;align-items:center;gap:.5rem;padding:.5rem 0;color:var(--text2);font-size:var(--fs-m);font-weight:500;list-style:none}
+.sdev>summary::-webkit-details-marker{display:none}
+.sdev[open]>summary::after{transform:rotate(180deg)}
+/* 2.0.8 (#321) Settings > AI colleague: lists at a glance */
+.aitbl{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-s);overflow:hidden}
+/* ---------------------------------------------------------------- 2.10.0 (#441): groups */
+.grpmem{display:flex;flex-direction:column;gap:.125rem;max-height:16rem;overflow:auto;padding:.25rem 0}
+/* 2.87.9 (#1913): an organisation's own picture as its symbol (orgIconHtml): the size of the emoji it replaces */
+.wsicprev{display:inline-flex;align-items:center;min-width:1.5rem}
+/* 2.122.2 (#2329): the sheet "Add tab" (settings.js tabAddSheet): search, folded sections, lists below their folder */
+.tapick-gh{display:flex;align-items:center;gap:.5rem;width:100%;min-height:2.75rem;padding:0 .25rem;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.tapick-ic{display:inline-flex;align-items:center;justify-content:center;width:1.375rem;flex:none;color:var(--muted)}
+/* #910: storage meter in Settings > Account */
+.stoq{display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;min-width:0}
+.stobar{display:inline-block;width:9rem;height:.5rem;border-radius:99rem;background:var(--bg3);overflow:hidden;flex:none}
+.stobar i{display:block;height:100%;background:var(--accent);border-radius:inherit}
+/* 2.73.0 A (#661) Settings > Account > Servers: the short-name badge of a server (solid in the settings; the combined views use C's muted badge), the account rows */
+.msvst{font-size:var(--fs-xs)}
+.msvbtns{flex-wrap:wrap;gap:.5rem}
+.msvmodal textarea{width:100%;box-sizing:border-box;font-family:var(--mono,ui-monospace,monospace);font-size:var(--fs-s);word-break:break-all}
+/* 2.73.0 B (#1473) move and export everything (Settings > Data, move.js) */
+.umzp { align-items: center; gap: .5rem; }
+/* 2.143.0 D (#2156): activity per organisation (Administration > Organisation) */
+.actwrap{overflow-x:auto}
+.acttbl{border-collapse:collapse;width:100%;font-size:var(--fs-s)}
+.acttbl th,.acttbl td{padding:.375rem .5rem;text-align:right;border-bottom:1px solid var(--line2);white-space:nowrap}
+.acttbl th:first-child{text-align:left;font-weight:500}
+.acttbl thead th{color:var(--muted);font-weight:500;font-size:var(--fs-xs)}
+/* the rules of this file */
 .navrow{display:flex;align-items:center;gap:.625rem;padding-inline:.625rem .25rem;border-radius:var(--radius)}
 .navrow:hover{background:var(--bg3)}
 .navrow span{flex:1}

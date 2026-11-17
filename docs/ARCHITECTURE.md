@@ -401,7 +401,7 @@ registering the ones of its area.
 | `lysets.js` | 2.55.0 (#1069, #1068): several saved arrangements per view (switch in the header, manage, save as; server `kalmido/accounts/layoutsets.py`, table `view_layouts`) and arrangements sent to people as templates (`view_layout_offers`, News item `lytpl`). |
 | `projtime.js` | 2.43.0 (#1434): tracked time of a project in a window (by person and task, period, CSV) and deleting all of its times with Undo. |
 | `dashboard.js` | News bundled per task, the view builder (2.32.0: blocks per view, "Customize", project page standard + own arrangement; server side `kalmido/accounts/layouts.py`), the start page (dashboard) and Settings > Integrations > Tasks by e-mail. |
-| `family.js` | The module "Family". |
+| `family.js` | The module "Family" (its styles in `css/family.css` since 2.1305.0, #4742). |
 | `calevents.js` | Events (module "events"): the editor and popover, the agenda, creating in the week grid, calendars, the phone setup. |
 | `contacts.js` | Contacts (module "contacts"): the view, the editor, the card, import / export. Loaded on demand (2.53.0). |
 | `clients.js` | Clients, the workload view, approvals in the task panel, forms of a list, sign-in links with a QR code. |
@@ -743,7 +743,7 @@ settings sections), `ctlinks.js` (the contacts in the task panel) and `officeOn`
 | `clientdlg`, `fieldmodal`, `orgadmin`, `sched`, `habitdlg` | one file each | 2.1238.0 (#4280): the client / forms dialogs (`clients.js`), the custom field dialog (`projects.js`), an organisation's projects (`account.js`), an agent's plans (`agents.js`), the habit dialog (`habits.js`); stand-ins in `LD_CALL` |
 | `propcards`, `signoff`, `tagsview` | `importprop.js`, `contractprop.js`, `propcards.js`; one file each | 2.1238.0 (#4280): the card of an agent's proposal (`propOpen`, split off `agents.js`, stand-in in `LD_CALL`), approval links (`office`, `integrations` need it), the tags overview (`LD_VIEW viewTags`) |
 | `timesheet` | `timesheet.js` | 2.149.0 F: the time page's card, Settings (`LD_NEED`); News texts / lock mark in `time.js` |
-| `team` | `absence.js`, `leave.js`, `dispo.js` | 2.149.0 F: the tabs Absences / Disposition, vacation, Settings (`LD_NEED`); tabs, `dp_on`, day hint in `clients.js` |
+| `team` | `absence.js`, `leave.js`, `dispo.js` (+ `css/team.css`, 2.1305.0 #4742) | 2.149.0 F: the tabs Absences / Disposition, vacation, Settings (`LD_NEED`); tabs, `dp_on`, day hint in `clients.js` |
 | `listprint`, `evinvite`, `projtime`, `envs` | one file each | 2.149.0 F: "Print", the event editor, the "Tracked" figure (its click stays in `projects.js`), a project's environments (row texts in `quickadd.js`) |
 | `dayplan`, `gitrepo`, `sprints` | `dpmodal.js`, `gitrepo.js`, `sprints2.js` | 2.149.0 F: the dialogs split off `dayplan.js`, `git.js`, `sprints.js` (what rows, the task panel and Today draw stays there) |
 | `calendar` (+ `listcal.js`), `mineboard`, `sectpl` | `listcal.js`, `mineboard.js`, `sectpl.js` | 2.156.0 C (#2071 #2072 #2073): a list's calendar view, "My tasks" as a board, the section templates dialog of a list |

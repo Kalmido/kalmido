@@ -1,5 +1,11 @@
 /* Kalmido web client: the styles of the module "contacts" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 2.55.0 E (#1455) the newsletter connection (newsletter.js): the sheet in Contacts > More, the consent in the contact card */
+.nwl-sn { flex: 1; min-width: 0; }
+/* 2.66.0 A (#1835) contacts: the merge history on a contact's card (one line per merge, Undo while possible) */
+.ctmsec .ctmrow>span{min-width:0;overflow-wrap:anywhere}
+/* the rules of this file */
 /* 2.122.4 C (#2348): the import notice sits below the dialogs (.modal = 70), it no longer covers them */
 .ctimp{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(1.5rem + var(--tabs-bot));z-index:69;background:var(--bg3);border-radius:var(--radius);padding:.625rem .5rem .625rem .875rem;display:flex;flex-wrap:wrap;gap:.375rem .75rem;align-items:center;box-shadow:var(--shadow);font-size:var(--fs-m);width:min(24rem,calc(100vw - 2rem))}
 .ctimp .ctimp-t{flex:1 1 0;min-width:0}

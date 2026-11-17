@@ -515,7 +515,7 @@ def ofx_log_names_fill(c):
                       "WHERE l.user_name='' ORDER BY l.org_id, l.user_id").fetchall()
     for oid, uid in pairs:
         try:
-            with c.savepoint():
+            with c.savepoint(), ofx_release(c, "office_doc_log"):  # 2.1309.0 (#6467): the log is held by the database (6467.py)
                 c.execute("UPDATE office_doc_log SET user_name=? WHERE org_id=? AND user_id=? AND user_name=''",
                           (ofx_log_name(c, oid, uid), oid, uid))
         except Exception:  # noqa: BLE001 -- never stop the start for this (decryption key not readable now)

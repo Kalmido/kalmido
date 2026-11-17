@@ -7,7 +7,7 @@ status (payments, sending, cancellation, a quotation's answer; never back to 'dr
 datev_sent_at, reminder_fee_state / reminder_fee_paid_at / reminder_fee_paid_amount (2.1259.0, #6459), cashflow (planning flag), list_id (project), client_id (client merge / a deleted client),
 contract_id (a deleted contract), replaces_id / version_of (the quotation chain), producing_on and pdf_sha256 / xml_sha256
 only while still empty (the start's fill, storing the files), the hash chain columns chain_key / chain_seq / chain_prev /
-chain_hash while the row has no place yet (office/chain.py hch_append right after the finalising, hch_migrate), and on a trial document source_doc_id / cancels_id emptied
+chain_hash (2.1309.0, #6467: + chain_ver) while the row has no place yet (office/chain.py hch_append right after the finalising, hch_migrate), and on a trial document source_doc_id / cancels_id emptied
 (a trial document it pointed at was deleted). Everything else: the PDF's content, the number, the date, the snapshots.
 
 A DELETE goes through for a trial document (deleted at any time, #2576) and for the database's own reference actions
@@ -47,7 +47,7 @@ BEGIN
     IF COALESCE(o->>k, '') = '' THEN free := free || k; END IF;
   END LOOP;
   IF o->>'chain_seq' IS NULL THEN
-    free := free || ARRAY['chain_key', 'chain_seq', 'chain_prev', 'chain_hash'];
+    free := free || ARRAY['chain_key', 'chain_seq', 'chain_prev', 'chain_hash', 'chain_ver'];
   END IF;
   IF COALESCE(o->>'trial', '0') NOT IN ('0', '') THEN
     FOREACH k IN ARRAY ARRAY['source_doc_id', 'cancels_id'] LOOP

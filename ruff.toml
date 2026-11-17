@@ -2,7 +2,7 @@
 # (rule, file, code line - no line number); tools/ruff_baseline.py compares. Pinned version: the CI step installs ruff==0.17.4.
 line-length = 130
 target-version = "py312"
-extend-exclude = ["static", "embed/models", "tests/node_modules"]
+extend-exclude = ["static", "embed/models", "tests/node_modules", "tests/.data*"]  # 2.1309.0 (#6763): test data left by a run, never code
 
 [lint]
 select = ["E", "F", "BLE"]

@@ -13,7 +13,7 @@ The archive is a world of its own: nothing here flows into the EUeR, the VAT fig
 (office/books.py, kpi.py, cashflow.py never read these tables; a test checks it), nothing can be changed, nothing is booked
 anew. 2.603.0 (#4921): ba_euer_year sums an archived year for the comparison with the year before (office/euercmp.py), shown
 beside the EUeR only and marked as the archive's. The view: years, bookings with filters (account, counter account, either side, period, amount, receipt field, text),
-sums per account and year, the receipt image of a booking, the original files. The GoBD export (office/gobdexport.py) takes
+sums per account and year, the receipt image of a booking, the original files. The GoBD export (admin/gobdexport.py) takes
 the bookings of the chosen period along.
 
 Flow like the other imports: POST .../check = the preview (counts per year, debit = credit control, nothing written), POST

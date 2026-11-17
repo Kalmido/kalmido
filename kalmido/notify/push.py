@@ -735,7 +735,7 @@ def _wd_settings(c, users):
 # 2.38.0 (#1155): the office log keeps every write for good (GoBD); reads (opening, the print view, the PDF) go after
 # FX2_LOG_READ_DAYS days. Once after the start, then at most every six hours.
 FX2_LOG_READ_DAYS = 90
-FX2_LOG_READS = ("open", "render", "pdf", "xml")
+FX2_LOG_READS = ("open", "render", "pdf", "xml")  # 2.1309.0 (#6467): the same list in kalmido_office_log_locked (core/migrations.d/6467.py)
 FX2_PRUNE = {"at": 0.0}
 
 
@@ -779,6 +779,8 @@ def _watchdog_tick(c):
     _wd_section(c, "dismiss pushes", push_dismiss_tick)
     _wd_section(c, "news cleanup", news_cleanup)
     _wd_section(c, "office log prune", fx2_office_log_prune)  # 2.38.0 (#1155)
+    from ..office.chain import hch_watch_tick
+    _wd_section(c, "office hash chains", hch_watch_tick)  # 2.1309.0 (#6467): daily, a new break -> admin alert + office log line
     _wd_section(c, "usage cleanup", usage_cleanup)  # 2.1.1 (#326)
     _wd_section(c, "audit cleanup", audit_cleanup)  # 2.2.1 (#358)
     _wd_section(c, "proposal cleanup", prop_cleanup)  # 2.3.0

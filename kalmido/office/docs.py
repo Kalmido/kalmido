@@ -393,7 +393,8 @@ def _calc_doc(r, home="EUR"):  # 2.189.0 (#2475): home = the office's home curre
             "subtotals": dict(r).get("subtotals"),  # 2.1041.0 (#5816): the subtotal lines per section
             "date": dict(r).get("date"), "service_to": dict(r).get("service_to"),  # 2.531.0 (#4498): the rates of the day of service
             "sur_standard": _sur_legacy(r),  # 2.1228.0 (#6254, review)
-            "mk_per_part": _mk_legacy(r)}  # 2.1249.0 (#6281)
+            "mk_per_part": _mk_legacy(r),  # 2.1249.0 (#6281)
+            "mk_flat_line": _mk_flat(r)}  # 2.1309.0 (#6490)
 
 
 def _sur_legacy(r):
@@ -402,6 +403,19 @@ def _sur_legacy(r):
     if not ofx_locked(r) or not (dict(r).get("markup_pct") is not None or dict(r).get("handling_pct") is not None):
         return 0
     return 0 if _j(r["totals"], {}).get("sur_split") else 1
+
+
+def _mk_flat(r):
+    """2.1309.0 (#6490): 1 = the markup line of quotation row r stays "1 flat" | amount | amount as it was sent: r left the
+    draft (finalised, or set to sent / accepted / declined) and was last computed before the line showed "15 %" | base |
+    amount (its cached / frozen totals lack "mk_pct_line"). Its PDF, the client's view (and the hash of an open approval
+    link: signoff.sig_doc_hash) and its invoices keep that line. A draft takes the new line (odoc_set_status computes it once
+    more before it leaves the draft)."""
+    if dict(r).get("kind") != "offer" or dict(r).get("markup_pct") is None:
+        return 0
+    if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
+        return 0
+    return 0 if _j(r["totals"], {}).get("mk_pct_line") else 1
 
 
 def _mk_stale(c, oid, r):
@@ -1391,6 +1405,8 @@ def odoc_render(c, doc_id, oid, keep_detail=False):
             ln["total_text"] = fmt_money(ln["total"], lang, cur)
             if ln.get("rate") is not None:
                 ln["rate_text"] = fmt_rate(ln["rate"], lang, cur)  # 2.354.0 A (#2831): up to 4 places
+            if ln.get("sur_base") is not None:  # 2.1309.0 (#6490): a markup "15 %" shows its base as the unit price
+                ln["rate_text"] = fmt_money(ln["sur_base"], lang, cur)
         if ln.get("opt") in OPT_KINDS:  # 2.1041.0 (#5814): "Optional:" / "Alternative:" before the title, in the document's language
             ln["opt_label"] = opt_label_under(label(pack, lang, "opt_" + ln["opt"]), sec)  # 2.1201.0 (#6175): not below "Optionen"
     rec = _j(r["recipient_snapshot"] if locked and r["recipient_snapshot"] else r["recipient"], {})
@@ -1878,6 +1894,8 @@ def odoc_set_status(c, oid, did, st, uid, r=None):
                 inv_pay_add(c, oid, uid, did, {"amount": str(rest), "note": tr("Marked as paid by hand")})  # sets paid / paid_at, invoice.paid
                 ofx_log(c, oid, "status", doc_id=did, detail={"before": {"status": r["status"]}, "after": {"status": "paid"}})
                 return
+    if r["kind"] == "offer" and r["status"] == "draft" and st != "draft" and not ofx_locked(r) and dict(r).get("markup_pct") is not None:
+        recalc(c, oid, did)  # 2.1309.0 (#6490): its totals as the draft shows them (mk_pct_line), so it keeps that line once sent
     c.execute("UPDATE office_docs SET status=?, updated_at=?, sent_at=COALESCE(sent_at, ?) WHERE id=? AND org_id=?",
               (st, iso_ms(now_utc()), ts if st in ("sent", "accepted", "declined", "superseded") else None, did, oid))  # 2.571.0 (#4776): updated_at in ms
     if r["kind"] != "offer":
@@ -1924,7 +1942,7 @@ DUP_SKIP = {"id", "number", "status", "created_at", "updated_at", "sent_at", "cr
             "cancels_id", "ref_doc_ids", "source_doc_id",  # 2.38.0 review: a copy is a fresh document, bound to nothing
             "terms",  # 2.113.2 (#2253): a copy takes the terms when it is finalised itself
             "replaces_id",  # 2.437.0 B (#3621): set below, only when asked for
-            "chain_key", "chain_seq", "chain_prev", "chain_hash",  # 2.531.0 (#4497): a copy joins a chain only when it is finalised itself
+            "chain_key", "chain_seq", "chain_prev", "chain_hash", "chain_ver",  # 2.531.0 (#4497): a copy joins a chain only when it is finalised itself; 2.1309.0 (#6467): + chain_ver
             "version_of", "cashflow",  # 2.88.0 (#1915): set below (a quotation's copy = its next version, cash flow auto)
             "series_id", "series_period", "abs_refs",  # 2.120.0 A (#2087): abs_refs  # 2.91.0 A (#1923): a copy is no invoice of the series (office/recurring.py sets them itself)
             "reminder_fee_state", "reminder_fee_paid_at", "reminder_fee_paid_amount", "agent_id", "list_id", "dup_times_from",  # 2.355.0 A (#2839): inv_type -- a copy of a final invoice is a plain one

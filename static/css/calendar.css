@@ -1,5 +1,13 @@
 /* Kalmido web client: the styles of the module "calendar" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+body.cgdrag,body.cgdrag *{user-select:none;-webkit-user-select:none}
+body.cgdrag #wbody{touch-action:none}
+.cgsaving{opacity:.6}
+.cgnew.cgday{right:auto;min-height:0;flex-wrap:nowrap}
+.cgnew.cgday .cgtm{flex:0 0 auto}
+.cgs-arm{opacity:.75;transition:opacity .12s}
+/* the rules of this file */
 .wlbl{font-size:var(--fs-xxs);color:var(--muted);padding:.375rem .25rem;text-align:right}
 .wgutter{position:relative;height:calc(24 * var(--h))}
 .wtime{position:absolute;right:.375rem;font-size:var(--fs-xxs);color:var(--muted);transform:translateY(-.375rem)}

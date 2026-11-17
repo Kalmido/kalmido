@@ -261,6 +261,16 @@ def pd_auto(c, oid, L):
     out["advisor"] = "\n".join([
         t("Export des Buchungsstapels im DATEV-Format (EXTF) und als CSV; Einnahmen-Überschuss-Rechnung als CSV/PDF.",
           "Export of the booking batch in DATEV format (EXTF) and as CSV; income/expense statement as CSV/PDF."),
+        # 2.1309.0 (#6471): what the auditor's export (admin/gobdexport.py) carries
+        t("Export für die Betriebsprüfung (Datenträgerüberlassung, Beschreibungsstandard mit index.xml) je Zeitraum: Buchungen, Rechnungen, "
+          "Positionen, Zahlungen, Mahnungen, Belege, Kassenbuch, Bankumsätze, Kreditkarten, Fahrtenbuch, Bewirtung, Reisen, Anlagenverzeichnis, "
+          "Hauptbuch-Buchungen, Kunden, Protokolle mit den Werten davor und danach sowie das Ergebnis der Hash-Kettenprüfung; dazu die "
+          "gespeicherten PDF- und E-Rechnungs-Dateien und die Belegdateien unverändert mit SHA-256. Einträge im Papierkorb und "
+          "zurückgenommene Einlesungen sind gekennzeichnet enthalten.",
+          "Export for a tax audit (data carrier, description standard with index.xml) per period: bookings, invoices, positions, "
+          "payments, reminders, receipts, cash book, bank lines, credit cards, logbook, entertainment, trips, asset register, ledger "
+          "bookings, clients, logs with the values before and after and the result of the hash chain check; with the stored PDF and "
+          "e-invoice files and the receipt files unchanged with SHA-256. Entries in the trash and imports taken back are included, marked."),
         t("Beraternummer hinterlegt: ", "Advisor number on file: ") + _yn(L, dx.get("advisor_no")) + "; "
         + t("Mandantennummer hinterlegt: ", "Client number on file: ") + _yn(L, dx.get("client_no")) + "; "
         + t("Kontenrahmen: ", "Chart of accounts: ") + str(dx.get("chart") or "SKR03")])

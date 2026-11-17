@@ -1,5 +1,16 @@
 /* Kalmido web client: the styles of the module "timeline" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* ---- roadmap (D3): "All" as a timeline. Rows are absolutely placed (virtualised) at a fixed height (--rh) */
+.rm-go{padding:.1875rem;opacity:0;flex:none}
+/* summary bar: a bracket (thick outline, end caps hanging down), filled by the progress, in the list colour */
+.rm-lbl{position:absolute;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:.375rem;font-size:var(--fs-s);color:var(--text2);white-space:nowrap;pointer-events:none;z-index:2}
+.rm-lbl b{font-family:var(--mono);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.rm-lbl .rm-delta{font-family:var(--sans);color:var(--accent)}
+/* 2.18.0 (#462): sections inside a list of the timeline / roadmap; (#431) drawing a new task into a list / section row */
+.tl-new:focus-within{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent),0 .25rem .875rem rgba(0,0,0,.25)}
+.rm-env{position:absolute;top:50%;transform:translateY(-50%);font-size:var(--fs-xs);color:var(--accent);white-space:nowrap;pointer-events:none;z-index:2}
+/* the rules of this file */
 .tl-scroll{overflow-x:auto;position:relative}
 .tl-inner{position:relative;width:calc(var(--tl-name) + var(--days) * var(--dw))}
 .tl-headrow{height:3.25rem;position:sticky;top:0;z-index:4;background:var(--bg2)}

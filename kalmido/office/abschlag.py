@@ -238,12 +238,36 @@ def _credited(c, oid, pid, pack, doc_items):
         t = _j(cr["totals"], {})
         for k, v in _bases(t.get("lines")).items():
             nets[k] = nets.get(k, Decimal(0)) + v
-        for k, v in _eur_bases(doc_items(c, cr["id"], oid), pack).items():
+        for k, v in (_eur_bases(doc_items(c, cr["id"], oid), pack) if doc_items is not None else {}).items():  # 2.1309.0 (#6463): None = nets only
             eur[k] = eur.get(k, Decimal(0)) + v
         for tl in t.get("tax_lines") or []:
             k = tl.get("rate_key")
             tax[k] = tax.get(k, Decimal(0)) + dec(tl.get("amount") or 0)
     return nets, eur, tax
+
+
+def _fx_rest(c, oid, offer, s, pack):
+    """2.1309.0 (#6463): {tax key: net left to bill in the document currency} of a quotation in a foreign currency = its net
+    per rate there (the invoice from it, #6299: equal to the cent) less what its progress invoices (not cancelled, less their
+    credit notes) billed in that currency. None in the home currency, or when a progress invoice is in another currency
+    (then the home-currency chain alone counts, as before). The last progress invoice ("rest") bills exactly this, so the
+    progress invoices and the final invoice add up to the quotation on the cent in its currency (the home-currency chain
+    rounds each progress invoice on its own: 2 x 50 % of 2,056.27 USD gave 2 x 1,028.14 and a final invoice of -0.01)."""
+    home = hc_home(s)
+    cur = hc_code(offer["currency"]) or home
+    fx = hc_doc_fx(offer, home)
+    if cur == home or fx == 1:
+        return None
+    doc = {"home": home, "currency": cur, "fx_rate": offer["fx_rate"], "vat_mode": "vat"}
+    rest = _bases(inv_calc(doc, _inv.inv_items_from_offer(c, oid, offer), pack)["lines"])
+    for x in abs_progress_of(c, oid, offer["id"]):
+        if (hc_code(x["currency"]) or home) != cur:
+            return None
+        for k, v in _bases(_j(x["totals"], {}).get("lines")).items():
+            rest[k] = rest.get(k, Decimal(0)) - v
+        for k, v in _credited(c, oid, x["id"], pack, None)[0].items():
+            rest[k] = rest.get(k, Decimal(0)) + v
+    return {k: v for k, v in rest.items() if v != 0}
 
 
 def abs_offer_info(c, oid, offer):
@@ -265,6 +289,9 @@ def abs_offer_info(c, oid, offer):
                     **inv_money_fields(x, pm)})
         out[-1]["open_text"] = fmt_money(out[-1]["open"], x["lang"], x["currency"])  # 2.123.0 (#2351): German number format
     home = hc_home(s)  # 2.368.0 C (#2983): the net is in the rates' currency (the office's home one), not always EUR
+    rest = _fx_rest(c, oid, offer, s, pack) if out else None
+    if rest is not None and sum(rest.values(), Decimal(0)) <= 0 < net - billed:
+        billed = net  # 2.1309.0 (#6463): the rest in the quotation's currency is billed (the home run may still show a cent)
     return {"net": dstr(net), "net_text": fmt_money(net, offer["lang"], home), "progress": out, "billed": dstr(billed),
             "remaining": dstr(net - billed), "remaining_text": fmt_money(net - billed, offer["lang"], home)}
 
@@ -310,20 +337,31 @@ def abs_progress(c, oid, uid, offer, amount=None, pct=None):
         # of 395.5 x 4 places missed the amount by up to 2 cents)
         total = (a / fx).quantize(Decimal("1e-12")) if fx not in (0, 1) else money(a)
         detail = ""
-    if total > dec(info["remaining"]):
+    row = inv_new_row(c, oid, s, "invoice", lang, offer)
+    # 2.1309.0 (#6463): the last progress invoice (the whole rest: by percent, or the amount left in the quotation's currency)
+    # bills the rest in that currency per rate, so progress + final invoice = the quotation on the cent there
+    rest = _fx_rest(c, oid, offer, s, pack)
+    if rest is not None and (min(rest.values(), default=Decimal(0)) <= 0 or hc_code(row["currency"]) != hc_code(offer["currency"])):
+        rest = None  # a rate billed beyond its share, or another currency: the home-currency split as before
+    if rest is not None and not (total == dec(info["remaining"]) or (pct in (None, "") and money(a) == sum(rest.values(), Decimal(0)))):
+        rest = None
+    if rest is None and total > dec(info["remaining"]):
         raise BadInput(tr("The progress invoices would exceed the quotation's net ({0} left)", info["remaining_text"]))
     n = len(info["progress"]) + 1
-    keys = sorted(bases, key=lambda k: TAX_KEYS.index(k))
+    rfx = hc_doc_fx(row, hc_home(s)) if rest is not None else None
+    keys = sorted(rest if rest is not None else bases, key=lambda k: TAX_KEYS.index(k))
     rows, left = [], total
     for i, k in enumerate(keys):
-        part = left if i == len(keys) - 1 else money(total * bases[k] / net)
-        left -= part
+        if rest is not None:
+            part = (rest[k] / rfx).quantize(Decimal("1e-12"))  # money(1 x part x rate) = the rest of this rate (#6299: 12 places)
+        else:
+            part = left if i == len(keys) - 1 else money(total * bases[k] / net)
+            left -= part
         d = detail
         if len(keys) > 1:
             d = (detail + " · " if detail else "") + _t("share", lang, pct=_pct_text(pack_rate(pack, k), lang))
         rows.append({"kind": "service", "service_id": None, "title": _t("progress", lang, n=n, num=offer["number"] or "-"), "detail": d,
                      "qty": 1, "unit": "flat", "rate": part, "tax": k, "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 0})
-    row = inv_new_row(c, oid, s, "invoice", lang, offer)
     row.update(source_doc_id=offer["id"], inv_type="progress")
     did = _insert_doc(c, oid, uid, row)
     _put_rows(c, oid, did, rows)

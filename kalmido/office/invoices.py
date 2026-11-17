@@ -25,7 +25,7 @@ from ..core.i18n import N_, stored_join, tr
 from ..core.db import body, bump, db, err, iso, local_now, now_utc
 from ..core.access import Denied, live_sql
 from ..core.errors import BadInput, BadKey, DeniedKey
-from .calc import INV_VAT_NOTES, TAX_KEYS, calc_cur, calc_home_rate, dec, dstr, fmt_money, inv_open, money, pack_tax
+from .calc import INV_VAT_NOTES, TAX_KEYS, calc_cur, calc_home_rate, dec, dstr, inv_sur_fields, fmt_money, inv_open, money, pack_tax
 from .homecur import hc_code, hc_home, hc_office_rate, hc_rate_missing  # 2.189.0 (#2475); 2.355.0 C (#2844): hc_rate_missing
 from .packs import office_pack_for
 from .doclang import doc_lg, doc_pack  # 2.185.0 C (#2520)
@@ -560,7 +560,8 @@ def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None, home=Fals
         elif ln["kind"] == "surcharge":  # 2.1228.0 (#6254): one position per tax key, as the quotation computed it (was all at "standard")
             for k, v in (ln.get("by_tax") or {"standard": ln["total"]}).items():
                 out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": "", "qty": 1, "unit": "flat",
-                            "rate": calc_home_rate(dec(v), fx), "tax": k if k in TAX_KEYS else "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})
+                            "rate": calc_home_rate(dec(v), fx), "tax": k if k in TAX_KEYS else "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1,
+                            **inv_sur_fields(ln, k, fx)})  # 2.1309.0 (#6490): shown as "15 %" | base | amount
         elif ln["kind"] == "raw" and not ln.get("optional"):
             out.append({"kind": "service", "service_id": None, "title": ln["title"], "detail": ln.get("detail") or "", "qty": 1, "unit": "flat",
                         "rate": calc_home_rate(ln["total"], fx), "tax": "standard", "intext": "intern", "cost": 0, "raw_fee": 0, "producing": 0, "discountable": 1})

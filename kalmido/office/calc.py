@@ -534,12 +534,15 @@ def office_calc(doc, items, pack=None):
         for k, v in split.items():
             base[k] += v
         tk = max(split, key=lambda k: split[k]) if split else "standard"  # the line's own key: its largest share
+        # 2.1309.0 (#6490): the markup shows "15 %" | its base | its amount (qty 1 x rate = amount stays the number, for the
+        # e-invoice and every sum); a quotation that left the draft with "1 flat" keeps it (doc["mk_flat_line"], docs._mk_flat)
+        shown = sur_pct_fields(pct_, mk_base + (hu_total if stacked else 0), amt, split, mk_src, lang) if slot == "markup" and not _flag(doc.get("mk_flat_line")) else {}
         lines.append({"kind": "surcharge", "slot": slot, "pos": pos + 1 + sum(1 for x in lines if x["kind"] in ("producing", "surcharge")),
                       "title": prd_label(doc.get(slot + "_label"), lang) or label(pack, lang, slot),
                       "qty": 1, "qty_text": "1", "unit": "flat", "unit_text": unit_text(pack, lang, "flat", 1), "pct": _num(pct_), "rate": _num(amt),  # 2.296.0 B (#3173): was "" (printed "1 flat")
                       "tax": tk, "tax_pct": _num(rates[tk]) if len(split) < 2 else None, "total": _num(amt), "by_tax": {k: _num(v) for k, v in split.items()},
                       **({"mixed_tax": True} if len(split) > 1 else {}),  # review: no single rate printed for a mixed one (like a part line)
-                      "detail": label(pack, lang, det, pct=fmt_qty(pct_, lang))})
+                      "detail": label(pack, lang, det, pct=fmt_qty(pct_, lang)), **shown})
 
     # raw data
     raw_amount = money(raw_base * raw_factor) if raw_mode != "none" else Decimal(0)
@@ -601,11 +604,50 @@ def office_calc(doc, items, pack=None):
     }
     if not novat:
         out["vat_note"] = bwa_vat_note(out["vat_note"], [rates[k] for k in TAX_KEYS if base[k] != 0 and rates[k] > 0], lang)
+    if not _flag(doc.get("mk_flat_line")):
+        out["mk_pct_line"] = 1  # 2.1309.0 (#6490): computed with the markup as "15 %" | base | amount (docs._mk_flat reads it)
     if any(x.get("opt") for x in lines):  # 2.1041.0 (#5814): only then (the totals of every other document stay as they were)
         out["opt_note"] = label(pack, lang, "opt_note")
     if _flag(doc.get("subtotals")):  # 2.1041.0 (#5816)
         calc_subtotals(lines, pack, lang, currency)
     return out
+
+
+def sur_pct_fields(pct, base, amt, split, src, lang="de"):
+    """2.1309.0 (#6490): the display of a markup line on customer documents: quantity "15 %", unit price = the base it is
+    computed on, total = its amount. -> {qty_text, unit_text, sur_pct, sur_base, by_base}; {} when base x percent does not give
+    the amount on the cent (then "1 flat" as before). by_base = the base per tax key of split (an invoice from the quotation
+    takes one position per key: inv_sur_fields); empty when a key's share is not its base x percent (the invoice then shows
+    "1 flat" on every one of them, never a mix)."""
+    pct, base, amt = dec(pct), dec(base), dec(amt)
+    if pct <= 0 or base <= 0 or money(base * pct / 100) != amt:
+        return {}
+    by = {k: (base if len(split) == 1 else dec(src.get(k))) for k in split}
+    ok = all(b > 0 and money(b * pct / 100) == dec(split[k]) for k, b in by.items())
+    return {"qty_text": fmt_qty(pct, lang) + " %", "unit_text": "", "sur_pct": _num(pct), "sur_base": _num(base),
+            "by_base": {k: _num(b) for k, b in by.items()} if ok else {}}
+
+
+def inv_sur_fields(ln, key, fx=None):
+    """2.1309.0 (#6490): the columns sur_pct / sur_base of the invoice position made from tax key key of quotation line ln (a
+    markup shown as "15 %"); sur_base in the home currency like a rate (calc_home_rate). {} = a plain "1 flat" position."""
+    b = (ln.get("by_base") or {}).get(key) if ln.get("sur_pct") is not None else None
+    if b is None:
+        return {}
+    return {"sur_pct": _num(ln["sur_pct"]), "sur_base": _num(b) if fx is None else calc_home_rate(dec(b), fx)}  # unrounded like a rate (#6299)
+
+
+def inv_sur_display(it, total, conv, lang="de", currency="EUR"):
+    """2.1309.0 (#6490): the display keys of an invoice position that came from a quotation's markup (columns sur_pct /
+    sur_base): "15 %" | base | amount, while the position is still 1 flat at that amount (an edited one prints as it is)."""
+    if it.get("sur_pct") in (None, "") or it.get("sur_base") in (None, "") or (it.get("kind") or "service") != "service":
+        return {}
+    pct, base = dec(it["sur_pct"]), money(conv(it["sur_base"]))
+    if (it.get("unit") or "day") != "flat" or dec(it.get("qty"), "1") != 1 or dec(it.get("discount_pct")) or pct <= 0 \
+            or money(base * pct / 100) != total:
+        return {}
+    return {"qty_text": fmt_qty(pct, lang) + " %", "unit_text": "", "sur_pct": _num(pct), "sur_base": _num(base),
+            "rate_text": fmt_money(base, lang, currency)}
 
 
 def calc_opt(it):
@@ -766,6 +808,7 @@ def inv_calc(doc, items, pack=None):
         if kind != "discount":
             costs += money(dec(it.get("cost")) * qty * (fx if foreign else 1))
         unit = it.get("unit") or "day"
+        shown = inv_sur_display(it, total, conv, lang, currency) if pct is None and not ldisc and kind == "service" else {}  # 2.1309.0 (#6490)
         lines.append({"kind": "discount" if kind == "discount" else "item", "pos": pos, "id": it.get("id"), "service_id": it.get("service_id"),
                       "title": it.get("title") or (label(pack, lang, "discount") if kind == "discount" else ""), "detail": it.get("detail") or "",
                       "qty": _num(qty), "qty_text": fmt_qty(qty, lang) if pct is None else fmt_qty(pct, lang) + " %", "unit": unit,
@@ -776,7 +819,7 @@ def inv_calc(doc, items, pack=None):
                       **({"abs_tax": dstr(abs(fixed))} if fixed is not None else {}),  # 2.1259.0 (#6303 d)
                       # 2.1042.0 (#5815): the position's own discount; the e-invoice writes it as a line allowance (BG-27)
                       **({"discount_pct": _num(min(dec(it.get("discount_pct")), Decimal(100))), "list_total": _num(lst), "line_discount": _num(ldisc),
-                          "allowance": dstr(ldisc), "list_net": dstr(lst)} if ldisc else {})})
+                          "allowance": dstr(ldisc), "list_net": dstr(lst)} if ldisc else {}), **shown})
     tax_lines, tax_sum = [], Decimal(0)
     if not novat:
         for k in TAX_KEYS:
