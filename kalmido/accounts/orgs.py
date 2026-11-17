@@ -26,6 +26,7 @@ from .pictures import org_icon_tok, org_icon_url, AVATAR_MAX_MB, LIST_ICON_DIR, 
 from ..core.i18n import trn  # 2.369.5 (#2517): pulled up from functions
 from ..core.serializers import unlink_files  # 2.369.5 (#2517): pulled up from functions
 from ..core.retention import ret_need_unheld  # 2.545.0 (#4595)
+from ..core.movelock import mv_allow, mv_info  # 2.1337.0 (#6600)
 
 
 # ---------------------------------------------------------------- 2.22.0 (#752): organisations
@@ -384,8 +385,10 @@ def workspaces_for(c, uid):
     return [{"id": r["id"], "name": r["name"], **org_icon_fields(r), "color": r["color"] or "", "role": org_role(c, uid, r["id"]) or "member",
              "areas_off": [x for x in (r["areas_off"] or "").split(",") if x],
              "nav_off": nav_org_off(r),  # 2.418.0 (#3560): menu points its admins switched off
-             "mods_cap": mc_cap_list(c, uid, r["id"])}  # 2.575.0 (#3778): the modules of my cards there (None = no cap)
-            for r in c.execute(f"SELECT id, name, icon, color, areas_off, nav_off FROM orgs WHERE id IN ({q}) ORDER BY id", oids)]
+             "mods_cap": mc_cap_list(c, uid, r["id"]),  # 2.575.0 (#3778): the modules of my cards there (None = no cap)
+             **({"moving": mi} if (mi := mv_info(r)) else {})}  # 2.1337.0 (#6600): it is moving (read only): the bar of every member
+            for r in c.execute(f"SELECT id, name, icon, color, areas_off, nav_off, moving_at, moving_by, moving_by_name, moving_why FROM orgs "
+                               f"WHERE id IN ({q}) ORDER BY id", oids)]
 
 
 def org_peers(c, uid):
@@ -1237,6 +1240,7 @@ def org_delete(oid):
     retirement) answer 409 with the numbers until ?confirm=1; a retired one goes only after its period."""
     _need_admin()
     c = db()
+    mv_allow(c)  # 2.1337.0 (#6600): an organisation that is moving may be deleted (its admins asked for it, #2956)
     from .orgretain import odl_dismantle, odl_retire, odl_retired
     with system_ctx(c):  # 2.37.0 (#1150): instance admin manages the organisations themselves (also ones he is not in)
         if instance_mode(c) != "workspaces":
@@ -1422,7 +1426,8 @@ def org_mine_dict(c, r, uid):
                          **({"pending": True} if admin and m["signup"] == "pending" else {})} for m in mem],  # 2.464.0 (#3882)
             "lists": c.execute(f"SELECT COUNT(*) FROM lists WHERE org_id=? AND {otr_live('')}", (r["id"],)).fetchone()[0] if full else 0,
             "limited": not full or not org_writes(c, uid, r["id"]),  # 2.143.0 A (#2151): guest / read-only / accounting
-            "roles": roles_public(c)}  # 2.143.0 A (#2151): the roles an admin hands out, with their explanation
+            "roles": roles_public(c),  # 2.143.0 A (#2151): the roles an admin hands out, with their explanation
+            "moving": mv_info(r)}  # 2.1337.0 (#6600): the move (read only) or None
 
 
 @app.get("/api/orgs")
