@@ -196,9 +196,9 @@ def osr_scope_sql(scope, alias="s"):
 def osr_ids_sql(kind, raw, names=False, scope=None):
     """(SQL "ref_id IN (...)" sub-select of the objects of kind matching raw, its parameters), or (None, []).
     2.1321.0 (#6397): scope (osr_scope_nodes / osr_scope_owner / osr_scope_org) narrows the rows over an index before the
-    words are tested. names=True no longer hands Postgres "tsv @@ q OR names LIKE" (the OR made the GIN index useless: every
+    words are tested. names=True no longer hands Postgres "tsv @@ q OR names like ..." (the OR made the GIN index useless: every
     row of the kind was read): two arms instead -- the words through the GIN index, and the rows that have names at all
-    (index ix6397_obj_search_names) with the whole condition. The same rows: a row with empty names matches the LIKE of no
+    (index ix6397_obj_search_names) with the whole condition. The same rows: a row with empty names matches the like pattern of no
     word, so it matches exactly when all its groups match in tsv (the AND of the groups' tsqueries)."""
     groups = osr_groups(raw)
     tsq = " & ".join(p for p in (osr_group_query(ws) for ws in groups) if p)
