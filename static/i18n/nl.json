@@ -18935,8 +18935,6 @@
   "Imported on {0} by {1}": "Geïmporteerd op {0} door {1}",
   "Imported on {0}": "Geïmporteerd op {0}",
   "imported on {0}": "geïmporteerd op {0}",
-  "hash chain broken here (daily check)": "hashketen hier verbroken (dagelijkse controle)",
-  "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hashketen van het kantoor verbroken: kantoor {0}, document-ID {1} (reeks {2}, plaats {3}, {4}). Het kantoorlogboek noemt het.",
   "The last e-mail of this rule was refused: it has too many parts or a header line that cannot be read; it is not tried again": "De laatste e-mail van deze regel is geweigerd: hij heeft te veel delen of een kopregel die niet kan worden gelezen; hij wordt niet opnieuw geprobeerd",
   "The last e-mail of this rule had more files than one e-mail may bring (100 documents, 100 MB unpacked): the rest was left out, the e-mail stays where it is": "De laatste e-mail van deze regel had meer bestanden dan één e-mail mag meebrengen (100 documenten, 100 MB uitgepakt): de rest is weggelaten, de e-mail blijft waar hij is",
   "Rounding adjustment": "Afrondingscorrectie",
