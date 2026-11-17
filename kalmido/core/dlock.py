@@ -88,17 +88,18 @@ def dl_wiki_folders(c, uid):
 def _dl_person_wkf(c, uid):
     """2.1225.0 (#5862): the knowledge folders kept out of the shares of whole knowledge areas made for person uid (fs_shares.excl
     on the area's root, set in its Share dialog) -- the same rule as an agent's (dl_chain_cut). An expired share's exclusions
-    still count: they only ever narrow, and the share itself gives nothing any more. Cached per request; read as system (ids only,
-    the share rows of this one account, also when the asker is someone else: the Share dialog's inherited shares)."""
+    still count: they only ever narrow, and the share itself gives nothing any more. Cached per request; the share rows of this
+    one account, also when the asker is someone else (the Share dialog's inherited shares).
+    2.1329.0 (#5137): read in the asker's context, no system_ctx - fs_shares has no row-level security (tests/p2369_6_api_test.py
+    asserts it), so the result is the same, and the system block cost every /api/state a set_config pair (6 instead of 4)."""
     if not uid:
         return frozenset()
     cache = g.setdefault("_dl_wkp", {}) if has_request_context() else None
     if cache is not None and uid in cache:
         return cache[uid]
     out = set()
-    with system_ctx(c):  # ids only: the share rows of this one account, whoever asks (the Share dialog names other people)
-        for r in c.execute("SELECT excl FROM fs_shares WHERE user_id=? AND excl IS NOT NULL", (int(uid),)):
-            out.update(dl_excl_parse(r[0]))
+    for r in c.execute("SELECT excl FROM fs_shares WHERE user_id=? AND excl IS NOT NULL", (int(uid),)):  # no RLS on fs_shares (#5137)
+        out.update(dl_excl_parse(r[0]))
     out = frozenset(out)
     if cache is not None:
         cache[uid] = out
