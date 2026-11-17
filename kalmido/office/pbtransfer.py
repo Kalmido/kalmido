@@ -28,7 +28,9 @@ organisation's documents like POST /api/files/move-space (files/fsmove.py), so i
 One entry "move" in the target's office log.
 2.1327.0 (#6591): the moved finalised documents leave the hash chain places of the personal office and join the target's
 chains in the order they were finalised (ledger.ofx_rechain, one log line "chain_moved" each); the answer carries the
-target's chain check (chain), the log of the move the personal office's own check before (chain_before)."""
+target's chain check (chain), the log of the move the personal office's own check before (chain_before).
+2.1360.0 (#6882): a broken or unreadable chain of the personal office is a conflict (preview and 409): never chained anew;
+the answer's chain names the broken document only to a person with a role in the target's office."""
 import os
 import re
 from datetime import timedelta
@@ -44,7 +46,7 @@ from ..core.pg import IntegrityError, qi, system_ctx, table_columns, write_lock 
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from .ledger import ofx_log, ofx_rechain, ofx_release  # 2.542.0 (#4598): + ofx_release; 2.1327.0 (#6591): + ofx_rechain
 from .chain import hch_check  # 2.1327.0 (#6591)
-from .model import office_gate, office_org, pb_owner
+from .model import office_gate, office_org, office_role, pb_owner  # 2.1360.0 (#6882): + office_role
 from .officemove import ofm_reseal
 from .procdoc import PD_WAITING, pd_waiting  # 2.977.0 (#5282)
 from .payonline import POL_EXPIRE_S
@@ -250,7 +252,16 @@ def pbt_plan(c, uid, src, dst):
     total = sum(v for t, v in counts.items() if t != "office_texts") + len(cl) + len(files)
     if not total:
         conflicts.append(tr("Your private office is empty: there is nothing to move"))
-    return {"counts": counts, "clients": cl, "files": files, "receipts": rcs, "moves": moves, "keeps": keeps, "notes": notes, "conflicts": conflicts,
+    # 2.1360.0 (#6882): a broken (or unreadable) hash chain of the personal office refuses the move: joining the target's
+    # chains would hash the finalised documents anew and make a changed document valid again (GoBD)
+    before = _pbt_chain_check(c, src)
+    if before is None:
+        conflicts.append(tr("The hash chain of your private office cannot be checked right now: finalised documents are not moved unchecked"))
+    elif not before["ok"]:
+        fb = before["first_bad"] or {}
+        conflicts.append(tr("The hash chain of your private office is broken at document {0}: finalised documents are not chained anew",
+                            fb.get("number") or "#" + str(fb.get("id") or "")))
+    return {"chain_before": before, "counts": counts, "clients": cl, "files": files, "receipts": rcs, "moves": moves, "keeps": keeps, "notes": notes, "conflicts": conflicts,
             "numbers": taken, "viewers": {"people": who["n"], "admins": who["a"]}, "total": total, "tables": tables}
 
 
@@ -466,7 +477,7 @@ def pbt_post():
         pbt_empty_heads(c, dst)  # 2.977.0 (#5282): one head per area (unique), an empty one of the target makes room
         # 2.1327.0 (#6591): the hash chain: the personal office's own check before (noted in the log of the move), its
         # documents then join the target's chains (ofx_rechain), the target's check after goes into the answer
-        before = _pbt_chain_check(c, src)
+        before = p["chain_before"]  # 2.1360.0 (#6882): intact, otherwise pbt_plan refused (conflicts) above
         docs = [r[0] for r in c.execute("SELECT id FROM office_docs WHERE org_id=?", (src,)).fetchall()]
         counts = pbt_rows(c, src, dst, p["tables"])
         chain = ofx_rechain(c, dst, docs, "move")
@@ -514,7 +525,15 @@ def pbt_post():
     acx_drop()
     print("personal office", src, "moved into organisation", dst, "by", login_log_who(g.user), flush=True)
     return jsonify(ok=True, org_id=dst, name=name, clients=len(p["clients"]), files=len(p["files"]), letter_links=unlinked,
-                   rows=sum(counts.values()), chain=chain)  # 2.1327.0 (#6591): the check of the target's hash chain after the move
+                   rows=sum(counts.values()), chain=pbt_chain_public(c, uid, dst, chain))  # 2.1327.0 (#6591): the check of the target's hash chain after the move
+
+
+def pbt_chain_public(c, uid, dst, chain):
+    """2.1360.0 (#6882): the target's chain check for the move's answer: ok / count / pending; the broken document (number)
+    only for a person with a role in the target's office."""
+    out = {k: chain.get(k) for k in ("ok", "count", "pending")}
+    out["first_bad"] = chain.get("first_bad") if office_role(c, uid, dst) else None
+    return out
 
 
 def _pbt_chain_check(c, oid):

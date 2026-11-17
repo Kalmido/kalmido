@@ -1,0 +1,22 @@
+{
+  "de": {
+    "The hash chain of your private office cannot be checked right now: finalised documents are not moved unchecked": "Die Hash-Kette deines privaten Büros lässt sich gerade nicht prüfen: festgeschriebene Dokumente werden nicht ungeprüft umgezogen",
+    "The hash chain of your private office is broken at document {0}: finalised documents are not chained anew": "Die Hash-Kette deines privaten Büros ist bei Dokument {0} gebrochen: festgeschriebene Dokumente werden nicht neu verkettet"
+  },
+  "es": {
+    "The hash chain of your private office cannot be checked right now: finalised documents are not moved unchecked": "La cadena hash de tu oficina privada no se puede comprobar ahora: los documentos cerrados no se trasladan sin comprobar",
+    "The hash chain of your private office is broken at document {0}: finalised documents are not chained anew": "La cadena hash de tu oficina privada está rota en el documento {0}: los documentos cerrados no se encadenan de nuevo"
+  },
+  "fr": {
+    "The hash chain of your private office cannot be checked right now: finalised documents are not moved unchecked": "La chaîne de hachage de ton bureau privé ne peut pas être vérifiée pour l'instant : les documents finalisés ne sont pas déplacés sans vérification",
+    "The hash chain of your private office is broken at document {0}: finalised documents are not chained anew": "La chaîne de hachage de ton bureau privé est rompue au document {0} : les documents finalisés ne sont pas rechaînés"
+  },
+  "it": {
+    "The hash chain of your private office cannot be checked right now: finalised documents are not moved unchecked": "La catena hash del tuo ufficio privato non può essere verificata ora: i documenti finalizzati non vengono spostati senza verifica",
+    "The hash chain of your private office is broken at document {0}: finalised documents are not chained anew": "La catena hash del tuo ufficio privato è interrotta al documento {0}: i documenti finalizzati non vengono concatenati di nuovo"
+  },
+  "nl": {
+    "The hash chain of your private office cannot be checked right now: finalised documents are not moved unchecked": "De hashketen van je privékantoor kan nu niet worden gecontroleerd: definitieve documenten worden niet ongecontroleerd verplaatst",
+    "The hash chain of your private office is broken at document {0}: finalised documents are not chained anew": "De hashketen van je privékantoor is verbroken bij document {0}: definitieve documenten worden niet opnieuw gekoppeld"
+  }
+}
