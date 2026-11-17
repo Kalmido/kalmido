@@ -1273,6 +1273,14 @@ An agent account must say which version it read whenever it changes content a pe
 the app are unchanged). Without one the write answers `400` with
 `{"error": {"code": "version_required", "message": "...", "fields": [the keys that would do]}}` and nothing changes;
 with an old one it answers `409` `conflict` with the state now under `current` (read it, decide anew, never just resend).
+
+**An organisation that is moving** (2.1337.0, #6600): an admin of an organisation can start its move (Settings > Organisation >
+Data, *Move the organisation*) before exporting it to another server. Until an admin ends the move, every write into the
+organisation answers `423` - in the REST API `{"error": {"code": "org_moving", "message": "The organisation is moving: it is
+read only."}}`, in the app's own routes `{"error": "...", "code": "org_moving"}` - for people, agents, API tokens, public forms,
+booking pages, file requests and incoming hooks alike; reading, downloads and the organisation's export stay possible. Its
+background work rests (invoice series, payment reminders, mailboxes, webhooks, plans of agents about its projects), mail for it
+waits on the mail server. An agent stops writing there, tells its person once and does not retry until the move has ended.
 Undo steps (2.747.0): an agent's writes record no undo steps of a person, and the routes of a person's last steps
 (`/api/undo`) answer `403` to an agent; they are not part of the REST API or MCP. A person takes an agent's change back
 through its proposal, batch or decision instead.
