@@ -8,6 +8,8 @@ freelancer-matrix: office  tenant-matrix: office
    (in the order they were finalised, places 3 and 4, no two documents on one place), the organisation's chain check is
    intact with four documents and nothing pending -- in the answer of the move and in GET /api/office/log/chain; each moved
    invoice has the office log line "chain_moved"; the log of the move notes the personal office's own check before
+ - 2.1360.0 (#6882): before that, one of the personal office's invoices changed in the database: the preview names it as a
+   conflict and the move refuses (409, its number named) -- nothing moved, nothing chained anew
  - a project of the organisation with two time entries, one billed on the organisation's finalised invoice (which names
    the project): the project goes into the private workspace -> the billed entry no longer points at that invoice but stays
    billed ("billed in an earlier organisation": billed_at kept, not billable; GET shows billed with earlier, a change of
@@ -119,8 +121,22 @@ check(r.ok, f"#6591: its note still changes {r.status_code} {r.text[:200]}")
 check(sql("SELECT list_id FROM office_docs WHERE id=?", (A1,)) == [(None,)] and not sql("SELECT 1 FROM office_doc_items WHERE doc_id=? AND list_id=?", (A1, LID)),
       "#6591: the organisation's invoice no longer names the project")
 
-# ---------------------------------------------------------------- a) the personal office moves into the organisation
+# ---------------------------------------------------------------- 2.1360.0 (#6882): a broken chain refuses the move
 ws(Fr, "private")
+dt = sql("SELECT date FROM office_docs WHERE id=?", (P2,))[0][0]
+sql("UPDATE office_docs SET date=? WHERE id=?", ("2026-01-02" if str(dt) != "2026-01-02" else "2026-01-03", P2), write=True)  # changed in the database
+NO2 = sql("SELECT number FROM office_docs WHERE id=?", (P2,))[0][0]
+r = Fr.get(B + OFC + f"/move/check?org={ALPHA}")
+pv = r.json() if r.ok else {}
+check(pv.get("ok") is False and any(NO2 in x for x in pv.get("conflicts") or []),
+      f"#6882: the preview names the broken document of the personal office as a conflict {r.status_code} {r.text[:300]}")
+r = Fr.post(B + OFC + "/move/org", json={"org": ALPHA, "confirm": True})
+check(r.status_code == 409 and NO2 in r.text, f"#6882: the move refuses (409) and names the document {r.status_code} {r.text[:300]}")
+check(chain(P1)[0] == PB and chain(P2)[0] == PB and [chain(P1)[2], chain(P2)[2]] == [1, 2] and chain(A2)[2] == 2,
+      f"#6882: nothing moved, nothing chained anew {[chain(x) for x in (P1, P2, A2)]}")
+sql("UPDATE office_docs SET date=? WHERE id=?", (dt, P2), write=True)  # taken back: intact again
+
+# ---------------------------------------------------------------- a) the personal office moves into the organisation
 r = Fr.get(B + OFC + f"/move/check?org={ALPHA}")
 check(r.ok and r.json().get("ok") is True, f"setup: the preview has no conflict {r.text[:300]}")
 r = Fr.post(B + OFC + "/move/org", json={"org": ALPHA, "confirm": True})
