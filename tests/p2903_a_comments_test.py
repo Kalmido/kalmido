@@ -116,8 +116,11 @@ check(row[0] == "" and row[1] and row[2] == ALICE, f"the row looks deleted, dele
 check(not any(x["id"] == C2 for x in Bo.get(B + f"/api/tasks/{TID}/timeline").json()["comments"]), "the timeline does not show it")
 r = Do.post(B + f"/api/comments/{C2}/restore")
 check(r.status_code == 403, f"another editor may not restore it either {r.status_code}")
+# 2.1364.0 (#6297 3): the author does not undo a delete of the project's owner (was: the author restored it); the owner does
 r = Bo.post(B + f"/api/comments/{C2}/restore")
-check(r.ok, f"the author restores it {r.status_code} {r.text[:200]}")
+check(r.status_code == 403, f"the author does not restore what the owner deleted {r.status_code} {r.text[:200]}")
+r = A.post(B + f"/api/comments/{C2}/restore")
+check(r.ok, f"the owner (manage) restores it {r.status_code} {r.text[:200]}")
 check(any(x["id"] == C2 and x["body"] == "Erster Schnitt fertig (v2)" for x in Bo.get(B + f"/api/tasks/{TID}/timeline").json()["comments"]),
       "back with its text")
 check(not dbx("SELECT 1 FROM obj_comment_trash WHERE comment_id=?", (C2,)), "the kept text is gone after the restore")
