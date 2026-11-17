@@ -52,6 +52,13 @@ def req_issue(c, aid, who, work):
     return tok, exp, srv_run_cut(c, aid, _token_hash(tok), who, work)
 
 
+def req_drop(c, aid):
+    """Review F2: a long-lived token of agent aid went (a computer removed, the setup's uninstall, the agent revoking it):
+    every request token of aid goes with it -- a request token is never shown in a list nor revoked on its own, so it must
+    not outlive the token that may have fetched it (the starters still connected simply ask again). The caller commits."""
+    c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=?", (aid, REQ_TOKEN_NAME))
+
+
 def _main(row):
     """Is token row the agent's own long-lived token (no request, no run of the server, no MCP access of a person)?"""
     return (row is not None and ("asked_by" not in row.keys() or row["asked_by"] is None)

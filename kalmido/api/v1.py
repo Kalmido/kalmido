@@ -687,8 +687,12 @@ def token_update(tid):
 @app.delete("/api/me/tokens/<int:tid>")
 def token_delete(tid):
     c = db()
-    if not c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=?", (tid, me())).rowcount:
+    r = c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=? RETURNING name", (tid, me())).fetchone()
+    if not r:
         raise Denied(404)
+    if (g.user["kind"] or "user") == "agent" and str(r["name"] or "") != "Agent request":  # = agents/reqtoken.py REQ_TOKEN_NAME
+        from ..agents.reqtoken import req_drop  # a later module; 2.1325.0 (#6668, review F2): an agent revoking its own token
+        req_drop(c, me())
     c.commit()
     return jsonify(ok=True)
 
