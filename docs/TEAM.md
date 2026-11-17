@@ -1004,7 +1004,8 @@ Someone who gets no pushes still learns when a task is assigned to them or they 
 - Needs e-mail sending on the server (`KALMIDO_SMTP_*`) and an e-mail address of the account.
 - **Only to a confirmed address** (since 2.1299.0): these e-mails and the daily summary by e-mail go out only once the address
   is confirmed (*Settings > Account > E-mail address*, or the button *Confirm address* next to the setting). Until then the
-  address gets, once, the mail *Confirm your e-mail address* instead - without titles or names; the setting stays on and works
+  address gets, once, the mail *Confirm your e-mail address* instead - without task titles or other people's names (it greets
+  you with your own name and account; 2.1333.0, #6731); the setting stays on and works
   from the confirmation on. A typo in the address never sends your tasks to a stranger.
 - **Bundled:** the first event waits 10 minutes for more, then one e-mail lists them all with links; at most one e-mail every
   10 minutes and 20 a day per person. The text names who did what and the project - never the words of the comment; a task you
