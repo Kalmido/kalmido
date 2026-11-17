@@ -19056,6 +19056,8 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "mit Passwort verschlüsselt (Ende-zu-Ende): der Server hat es nur als Geheimtext",
   "shared with you: only the projects you own are exported": "mit dir geteilt: exportiert werden nur deine eigenen Projekte",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte.",
+  "Move to section of {0}…": "In Abschnitt von {0} verschieben…",
+  "Section of {0}": "Abschnitt von {0}",
   "Only the agent's own token can ask for a request token": "Nur das eigene Token des Agenten kann ein Anfrage-Token holen",
   "One request works for one person: these events come from several": "Eine Anfrage arbeitet für eine Person: Diese Ereignisse kommen von mehreren",
   "This person gives the agent no orders (any more)": "Diese Person kann dem Agenten keine Aufträge (mehr) geben",
