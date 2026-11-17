@@ -6,7 +6,7 @@
 
 <p align="center"><a href="https://kalmido.com"><b>kalmido.com</b></a> · <a href="#quick-start">Quick start</a> · <a href="#updating">Updating</a> · <a href="TRANSLATING.md">Translate</a> · <a href="CHANGELOG.md">Changelog</a></p>
 
-<p align="center"><a href="https://github.com/Kalmido/kalmido/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Kalmido/kalmido?label=version"></a> <a href="https://github.com/Kalmido/kalmido/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Kalmido/kalmido/actions/workflows/ci.yml/badge.svg"></a> <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue"></a></p>
+<p align="center"><a href="https://github.com/Gegenschuss/kalmido/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Gegenschuss/kalmido?label=version"></a> <a href="https://github.com/Gegenschuss/kalmido/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Gegenschuss/kalmido/actions/workflows/ci.yml/badge.svg"></a> <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue"></a></p>
 
 <p align="center"><img src="docs/today.png" alt="Today view with the morning briefing, today's event, overdue tasks with their assignees and the project sidebar"></p>
 
@@ -76,7 +76,7 @@ If the port is busy, the installer prints the command to retry with another one,
 The same without the website:
 
 ```sh
-curl -fsSL https://github.com/Kalmido/kalmido/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/Gegenschuss/kalmido/releases/latest/download/install.sh | sh
 ```
 
 `KALMIDO_URL=https://... ` in front of `sh` sets `PUBLIC_URL`; on a server over SSH the installer prints the tunnel command
@@ -88,9 +88,9 @@ curl -fsSL https://github.com/Kalmido/kalmido/releases/latest/download/install.s
 **By hand:**
 
 ```sh
-git clone https://github.com/Kalmido/kalmido.git
+git clone https://github.com/Gegenschuss/kalmido.git
 cd kalmido
-git checkout "$(curl -fsSIL -o /dev/null -w '%{url_effective}' https://github.com/Kalmido/kalmido/releases/latest | sed 's#.*/##')"   # the latest release (same as the installer)
+git checkout "$(curl -fsSI -o /dev/null -w '%{redirect_url}' https://github.com/Gegenschuss/kalmido/releases/latest | sed 's#.*/##')"   # the latest release (same as the installer)
 cp .env.example .env        # set TZ, PUBLIC_URL and POSTGRES_PASSWORD at least
 mkdir -p data secret        # create them yourself, so the container (user 1000) may write them
 docker compose up -d --build
@@ -98,7 +98,7 @@ docker compose logs kalmido | grep "Setup code"
 ```
 
 Instead of building, you can use the prebuilt image (linux/amd64 and linux/arm64): put
-`KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:X.Y.Z` into `.env` (X.Y.Z = the release you checked out, `git describe
+`KALMIDO_IMAGE=ghcr.io/gegenschuss/kalmido:X.Y.Z` into `.env` (X.Y.Z = the release you checked out, `git describe
 --tags` without the `v`), then `docker compose pull && docker compose up -d`. On Linux with a user other than 1000,
 give the folders to the container's user (`sudo chown 1000:1000 data secret`). The image runs as uid 1000 and read-only:
 [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md) *User and read-only image*.
@@ -239,7 +239,7 @@ The pictures on this page show the light design; here are a few views in dark.
 ## Updating
 
 Every release is listed in [CHANGELOG.md](CHANGELOG.md)
-and on the [releases page](https://github.com/Kalmido/kalmido/releases). *Settings > Help* shows the running version
+and on the [releases page](https://github.com/Gegenschuss/kalmido/releases). *Settings > Help* shows the running version
 and, since 2.27.0, the version of the app in that window. A window that was open across an update shows *New version
 available – Reload* and reloads by itself once nothing is being typed.
 
@@ -249,7 +249,7 @@ How to update depends on how you installed:
 |---|---|
 | the installer | `~/kalmido/update.sh` (Windows: `update.ps1`): backs up the database to `data/backups/` (from 2.37 a `pg_dump`; Windows: `update.ps1` also makes a `pg_dump` into `data/backups/`; only while the `db` service of this installation runs: with an external `DATABASE_URL`, or with Kalmido stopped, it warns and goes on without a copy), adds a database password to `.env` if missing, then fetches the latest release and restarts |
 | prebuilt image (`KALMIDO_IMAGE`) | set the new version in `KALMIDO_IMAGE` (pin the version), then `docker compose pull && docker compose up -d` (2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`) |
-| git + local build | `git fetch --tags && git checkout "$(curl -fsSIL -o /dev/null -w '%{url_effective}' https://github.com/Kalmido/kalmido/releases/latest \| sed 's#.*/##')" && docker compose up -d --build` (takes the latest release, the same one the installer takes; a newer `v*` tag may have no release yet; 2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`, and Docker Compose 2.20+; the installer adds it) |
+| git + local build | `git fetch --tags && git checkout "$(curl -fsSI -o /dev/null -w '%{redirect_url}' https://github.com/Gegenschuss/kalmido/releases/latest \| sed 's#.*/##')" && docker compose up -d --build` (takes the latest release, the same one the installer takes; a newer `v*` tag may have no release yet; 2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`, and Docker Compose 2.20+; the installer adds it) |
 
 A version number alone does not tell you whether an update needs a step from you: read [docs/UPGRADING.md](docs/UPGRADING.md) first.
 
@@ -258,7 +258,7 @@ Back up first (*Back up now*, see *Backups and restore*). The database migrates 
 **Installing a specific version** (vX.Y.Z = a tag from the releases page): with the installer
 `curl -fsSL https://kalmido.com/install.sh | KALMIDO_VERSION=vX.Y.Z sh` (the same variable pins updates:
 `KALMIDO_VERSION=vX.Y.Z ~/kalmido/update.sh`); by hand `git checkout vX.Y.Z` or
-`KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:X.Y.Z`.
+`KALMIDO_IMAGE=ghcr.io/gegenschuss/kalmido:X.Y.Z`.
 
 <details>
 <summary><b>Updating from a version before 2.45, and the update check</b></summary>
