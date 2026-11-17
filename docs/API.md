@@ -814,7 +814,7 @@ same (source `github` / `gitlab`). The token needs read access to issues (GitHub
 **Issue sync** (2.394.0): per GitHub / GitLab repository connection two switches, off by default, set in the app by the
 project owner / project admins (`PATCH /api/repos/{id}` with `{issue_sync: bool, issue_create: bool}`; people only, not
 through `/api/v1`, never agents). `GET /api/lists/{id}/repos` carries `issue_sync`, `issue_create` and, for those who
-manage the repository, `issue_state`: `available`, `block` (`e2e`, `private`, `provider`, `folder` or `null`) with
+manage the repository, `issue_state`: `available`, `block` (`e2e`, `private`, `provider`, `folder`, `owner` or `null`) with
 `block_text`, `rw` (`write`, `read` = the token cannot write issues, the sync only reads, or `null` = not checked yet),
 `synced_at`, `error`. Synced both ways: title, text (the notes; the reference line the import / the sync added stays in
 Kalmido), open / closed, labels <-> project tags, comments (only added, never changed or deleted; nothing comes back as an
@@ -826,12 +826,23 @@ issue}`); the repository's time is the field's own one where the provider dates 
 labels; GitLab state / label events), else the issue's last change. A title goes out cut to 255 characters; a change the
 repository refuses five times in a row is given up (history entry `git_sync_fail` `{gsy, error, n}`) until the task changes
 again. Changes the sync makes carry `gsy` in their history data. New issues (opened after the switch went on) become tasks in the section "Backlog" (else the
-first section); with `issue_create` a new main task becomes an issue. A deleted task or one moved to another project loses
+first section); with `issue_create` a new main task becomes an issue - 2.1306.0 (#6554): only one a signed-in person created in
+the app (not from an inbound webhook, an error report, an e-mail, a form, an agent or an API token). Per connection and UTC day
+at most 60 new issues and 300 comments go out; past that the rest waits for the next day and the person who stored the token
+is told once (News / push, notification "integration"). An @name in a title, text or comment that goes out gets a zero-width
+space after the @, so it notifies nobody on the provider (taken out again when the text comes back). An issue address that is
+no http(s) is not taken over as the task's link. A deleted task or one moved to another project loses
 its link (nothing is deleted in the repository). Never sent: a locked note, attachments, custom fields, personal tags.
 While the sync is on, `#123` in that repository's pull requests and commits is its issue, not task 123 (ticket keys
 `APP-123` still work). Not for end-to-end encrypted projects, lists whose data never leaves the server, folder
 repositories, Gitea / Forgejo or Bitbucket (409 with the reason). Token: GitHub *Issues: read and write*, GitLab `api`
 (Reporter or more).
+
+**Whose token** (2.1306.0, #6554): the person who stored a connection's access token (`mine: true` in
+`GET /api/lists/{id}/repos` for that person) may remove the connection (`DELETE /api/repos/{id}`) without being a project admin,
+also after leaving the project. While that person has no access to the project (left it, removed, account disabled) the
+connection pauses: no poll, no sync (`error` "Paused: ...", `block` `owner`), and the project owner is told once; a new token
+stored by an admin or the removal ends it.
 
 ## Examples
 
