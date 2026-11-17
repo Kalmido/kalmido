@@ -18971,6 +18971,7 @@
   "at most 60 issues and 300 comments a day": "hoogstens 60 issues en 300 reacties per dag",
   "hash chain broken here (daily check)": "hashketen hier verbroken (dagelijkse controle)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hashketen van het kantoor verbroken: kantoor {0}, document-ID {1} (reeks {2}, plaats {3}, {4}). Het kantoorlogboek noemt het.",
+  "Office hash chain cannot be checked: office {0}, document id {1} (series {2}, place {3}) cannot be read with the office's key for {4} days. The check goes on behind it.": "Hashketen van het kantoor niet te controleren: kantoor {0}, document-ID {1} (reeks {2}, plaats {3}) is al {4} dagen niet te lezen met de sleutel van het kantoor. De controle gaat erachter verder.",
   "Mailbox {0}: fetching stopped, the server refused the sign-in several times in a row (failing since {1}). Save the access data again.": "Postvak {0}: ophalen gestopt, de server weigerde de aanmelding meerdere keren achter elkaar (mislukt sinds {1}). Sla de toegangsgegevens opnieuw op.",
   "You get this e-mail because Integrations is switched on in Settings > Notifications.": "Je krijgt deze mail omdat Integraties aan staat in Instellingen > Meldingen.",
   "Nobody can receive the e-mails: the organisation has no admin, so the mailbox is not fetched": "Niemand kan de mails ontvangen: de organisatie heeft geen beheerder, daarom wordt het postvak niet opgehaald",
