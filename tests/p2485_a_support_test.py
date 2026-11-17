@@ -101,10 +101,10 @@ for body in ({"email": "ops@example.com"}, {"password": "taken-over-1"}, {"reset
     r = A.patch(B + f"/api/users/{FID}", json=body)
     check(r.status_code == 403, f"with the grant: no sign-in data {list(body)} -> 403 " + r.text[:100])
 check(kt.dbx("SELECT email FROM users WHERE id=?", (FID,)) == [("frida@example.com",)], "frida's address is unchanged")
-# 2.1294.0 (#6496): through support access only lock / unlock and the quota (was: anything but sign-in data, also her name)
+# 2.1317.0 (#6496): through support access only lock / unlock and the quota (was: anything but sign-in data, also her name)
 r = A.patch(B + f"/api/users/{FID}", json={"display_name": "Frida F"})
 check(r.status_code == 403, "with the grant: her display name stays hers " + r.text[:100])
-# ---- 2.1294.0 (#6496, audit #4800 F1): a list of what support access changes -- no lasting door for the operator
+# ---- 2.1317.0 (#6496, audit #4800 F1): a list of what support access changes -- no lasting door for the operator
 AL = kt.dbx("SELECT id FROM users WHERE username='alice'")[0][0]
 for body in ({"kid": True, "parents": [AL]}, {"kid": True}, {"parents": [AL]}, {"is_admin": True}, {"orgs": []}, {"disabled": False, "kid": True}):
     r = A.patch(B + f"/api/users/{FID}", json=body)
@@ -226,7 +226,7 @@ OPS = r.json()["id"]
 for body in ({"members_add": [OPS]}, {"admins_add": [OPS]}):
     r = A.patch(B + f"/api/admin/orgs/{CO}", json=body)
     check(r.status_code == 403, f"with the grant: nobody new into the organisation {list(body)} " + r.text[:100])
-# 2.1294.0 (#6496): name and symbol only -- no e-mail domain (the operator's registration would join), no member or role change
+# 2.1317.0 (#6496): name and symbol only -- no e-mail domain (the operator's registration would join), no member or role change
 for body in ({"domains": "ops.example.com"}, {"name": "Client Studio GmbH", "domains": "ops.example.com"}, {"members_remove": [uid["cara"]]},
              {"admins_add": [uid["cara"]]}, {"members_add": []}):
     r = A.patch(B + f"/api/admin/orgs/{CO}", json=body)
@@ -254,7 +254,7 @@ kt.fresh(env={"KALMIDO_SECRET_KEY": KEY}, keep=True)
 F2 = login(B, "frida")
 check(F2.get(B + "/api/support-access").json()["hosted"] is False, "self-hosted: hosted=false (the section stays hidden)")
 check(F2.post(B + "/api/support-access", json={"hours": 1}).status_code == 409, "self-hosted: no grant (409)")
-# 2.1294.0 (#6496): self-hosted the admin keeps the whole account dialog (kid / parents, a parent's sign-in link, the PIN)
+# 2.1317.0 (#6496): self-hosted the admin keeps the whole account dialog (kid / parents, a parent's sign-in link, the PIN)
 A = sess("alice")
 r = A.patch(B + f"/api/users/{FID}", json={"kid": True, "parents": [AL]})
 check(r.ok and kt.dbx("SELECT 1 FROM kid_parents WHERE kid_id=? AND parent_id=?", (FID, AL)), "self-hosted: the admin makes frida a kid with parents " + r.text[:100])
