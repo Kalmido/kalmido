@@ -20,7 +20,7 @@ tenant-matrix: agent (only the agent's own events; the token reaches only what t
  (f) static: the reference starter asks before every run and gives only the request token to the run (child_env), the
      dispatcher works with the chosen person's token; both launchers name the capability
  (i) review F3: the step of a card run with the agent's own token always checks the card and the rights of the person who
-     said Yes (a reader's Yes changes nothing), a read through a card needs the request token
+     said Yes (a reader's Yes changes nothing)
  (c) review F4: an event older than 24 hours gives no request token any more (404 event_gone)
  (h) review F2: removing a computer of the agent (its long-lived token) ends the request tokens too (401)
  (g) review F1, no server: no request token for a team agent (403 no_order, 400, 404 event_gone, the network) = the run, the
@@ -49,10 +49,10 @@ def read(*p):
 
 # ---------------------------------------------------------------- (f) static: the starter and both launchers
 RUN, DISP = read("mcp", "agent_run.py"), read("mcp", "agent_dispatch.py")
-check("def run_request" in RUN and "self.run_request(evs)" in RUN, "(f) agent_run.py asks for the request token of every run")
+check("def run_request" in RUN and "self.run_request(evs, uid)" in RUN, "(f) agent_run.py asks for the request token of every run")
 check('env["KALMIDO_TOKEN"] = ra.token' in RUN, "(f) agent_run.py: the run's environment carries only the request token")
 check("self.run_api = self.api" in RUN, "(f) agent_run.py: the request token is forgotten after the run")
-check("def data_api" in DISP and "read_tasks(self.data_api(), cfg)" in DISP and 'env["KALMIDO_TOKEN"] = self.data_api().token' in DISP,
+check("def data_api" in DISP and "api = self.data_api()" in DISP and "read_tasks(api, cfg)" in DISP and 'env["KALMIDO_TOKEN"] = api.token' in DISP and "if api is not self.host.api" in DISP,
       "(f) agent_dispatch.py: the list work and its jobs with the chosen person's token")
 for name in ("agent_launcher.sh", "agent_launcher.ps1"):
     check("kalmido-capability: request_token" in read("mcp", name), f"(f) {name} names request_token")
@@ -249,7 +249,7 @@ check(r.status_code == 201 and dbx("SELECT COUNT(*) FROM obj_comments WHERE kind
       f"(e) the approved step runs with the agent's own token (the replay) {r.status_code} {r.text[:200]}")
 
 # ---- (i) review F3: the step of a card with the own token always checks the person who said Yes (no control level chosen)
-# Without the fix a Yes of a reader (or a card step that reads) ran with the agent's whole reach.
+# Without the fix a Yes of a reader ran with the agent's whole reach (a card's step is always a change: approval.step).
 m = requests.post(V + f"/agent/chats/{uid['rita']}", headers=XH, json={"approval": {"title": "Comment by Rita's Yes?", "step":
                   {"method": "POST", "path": f"/api/v1/tasks/{TX}/comments", "body": {"body": "RITA-SAID-YES"}}}}, timeout=30)
 check(m.status_code == 201, f"(i) a card to rita {m.status_code} {m.text[:200]}")
@@ -258,12 +258,6 @@ r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, 
 check(r.status_code == 409 and err(r).get("reason") in ("approver_rights", None) and err(r).get("code") == "approval_invalid",
       f"(i) the reader's Yes runs no change in project one {r.status_code} {r.text[:200]}")
 check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='RITA-SAID-YES'", (TX,)), "(i) ... nothing written")
-m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Read the crane budget?", "step":
-                  {"method": "GET", "path": f"/api/v1/tasks/{SX}"}}}, timeout=30)
-check(m.status_code == 201, f"(i) a card that reads {m.status_code} {m.text[:200]}")
-check(Ca.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json={"choice_ids": ["yes"]}).ok, "(i) carl says Yes")
-r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
-check(r.status_code != 200 and "Secret crane" not in r.text, f"(i) a read through a card needs the request token {r.status_code} {r.text[:200]}")
 
 # ================================================================ (c) an event without a person
 payload = {"id": str(uuid.uuid4()), "event": "followup_due", "agent_id": XT, "actor": None, "via": "web",
