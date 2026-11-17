@@ -23,6 +23,40 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1361.0] - 2026-11-17
+
+Package 2.1345 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- #6943 The surcharge of a quotation can be a fixed net amount instead of a percent (switch % / currency next to the field, like the discount; `markup_amount`, migration 6943): its own line "1 flat" with the amount and no percent, spread over the tax rates of the marked positions, one line on the title page of a quotation with parts, taken into the invoice from the quotation and the e-invoice per tax rate; repricing to a target sum keeps it fixed; without marked positions it is spread over all positions by their tax rates (like the fixed discount). Agents: `surcharge {amount, title?}` instead of `{pct}` (not both). Handling costs stay in percent.
+
+### Changed
+- #6532 The first real invoice of an office: the finalise dialog says it can no longer be deleted afterwards, only corrected, with the ways to the test mode and (admins) the number ranges; "Download" on a draft has *Show as draft* as its main button (Enter never finalises); an empty invoice series prefills the reason of a jump of its starting number ("Taken over from the previous program").
+
+### Fixed
+- #6736 Agent bridges approved before 2.1284: the first start no longer counts the people of today as approved, only the circle the history proves for the moment of the approval (members added before it, the owner unless ownership changed since, nothing for an approval older than the log period; keeping a deleted person's project for its custodian now writes that change into the project history); a person who came since makes the bridge ask once anew. The ClamAV image stays pinned by tag on purpose.
+- #6658 Installer as root: a `data/` or `secret/` link is followed only into a folder that is empty or carries the marker directory `.kalmido-target` (made with `mkdir` on the first run, never written through a link; an older marker file becomes the directory); any other target, and `/`, stops with ready commands instead of handing it to user 1000; `.env` values with blanks before the quote are read right; a scanner of your own (`KALMIDO_CLAMD`) is named as such; `install.ps1` gets the 3 GB rule and `KALMIDO_CLAMAV=1|0` and adds a missing `COMPOSE_PROFILES` line.
+
+Package 2.1340.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Security, organisation roles: the accounting role reads in the organisation's documents only the receipts and its own uploads, no longer every member's documents (list, content, thumbnail, ZIP) (#6613)
+- Security, approval links: the address of a quotation's / generated document's approval link and the signer's e-mail, address and device only for people who may change the document; read-only and accounting see state and dates (#6613)
+- Security, office: the accounting role no longer reads the pipeline, generated documents, templates, privacy sheets, correspondence and the whole office log; its menu hides them (#6613)
+
+Package 2.1350 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- #6502 New notification kind "Support access" (bell and push, can be switched off in the notification settings): co-admins learn of an organisation's support grant and its early end, the client (or all org admins) of the first use; the person granting access gets a security mail.
+
+### Changed
+- #6502 A support session reads only the person's private space, own office and organisations whose admins granted support access themselves (`core/access.py` `_ctx_support`, built per request, never cached per account); reads through an org grant are logged in that grant's log. Changes made in a support session carry `via='support'` in the history and show "(support access)"; the grant log keeps write entries up to 3000 (the 300 cap is for reads only), counts what drops out and shows it, and a log entry hit by a lock or error is retried in the background instead of lost. A support sign-in no longer counts as a known device or address of the client (migration `6502`: two added columns).
+- #6721 Organisation colours: tone 2 of the palette is an olive instead of a petrol that looked like Kalmido's accent; organisations that had chosen the petrol show the olive.
+- #6933 Installers (`install.sh`, `install.ps1`): an old `KALMIDO_IMAGE` line with a pinned version or digest is switched to `ghcr.io/kalmido/kalmido` only when the new name has that image (`docker manifest inspect`); otherwise it stays and a warning says what to set.
+
+### Fixed
+- #6933 `/api/state` no longer translates the names of the "not included" list into every language on each call (once per process).
+
 ## [2.1355.0] - 2026-11-17
 
 Package 2.1343 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -406,7 +440,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1355.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1361.0...HEAD
+[2.1361.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1361.0
 [2.1355.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1355.0
 [2.1351.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1351.0
 [2.1346.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1346.0
