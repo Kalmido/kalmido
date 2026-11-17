@@ -159,6 +159,13 @@ the deletion is refused as for calendars, `upg_heirless`). What goes waits 30 da
 share back (`obj_share_restore`). Retiring an organisation takes every share of the file store on its nodes for good:
 there is no way back out of the retirement, so after the 30 days those rows are gone (its export has no shares then).
 
+Whether a person's module (calendar, contacts, time ...) is switched on has one reading too (2.1327.0, #6823):
+`feat_has(c, uid, f)` in `core/access.py` (own switch plus an agent's data lock `DL_FEAT_AREA`), `feat_in(s, f)` for
+settings already loaded (loops over many people), `feat_list(s)` / `feats(c, uid)` for the list. `need_feat` (web, 409),
+`v1_feature` (API v1, 403) and `life/model.feat_on` build on it. No area splits `usettings(...)["features"]` itself:
+`tools/check_feat_split.py` refuses it (only `core/access.py` and the migration in `core/db.py`). Office packs
+(`office/packs.py`) are an organisation's switches and a different thing.
+
 ### An agent acting for a person (2.1287.0, #6454)
 
 `act_for(uid)` in `core/access.py` names the people whose own rights cap what the request's agent may do: the person a
