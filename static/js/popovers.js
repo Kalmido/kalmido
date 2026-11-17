@@ -287,13 +287,16 @@ function datePop(anchor, id) {
     I.done = true; clearTimeout(I.timer);
     await I.chain; await I.later;  // 2.537.0 (#4568): + the answers of the outbox (the dependent tasks to put back)
     if (!I.saved) return;
-    // 2.905.0 (#5255): the visit's own server groups go back (POST /api/undo/to, the dependent tasks with them), so no new
-    // step is recorded that a later Ctrl+Z would take back (the date came again); without a group (offline) as before
-    const gids = [...I.gids, ...[...I.qs].map(q => q.res?._ugid)].filter(g => g > 0);
+    // 2.905.0 (#5255): the visit's own server groups go back (the dependent tasks with them), so no new step is recorded
+    // that a later Ctrl+Z would take back (the date came again); without a group (offline) as before.
+    // 2.1358.0 (#6328): each own group on its own, newest first (undo.js histDo: POST /api/undo/<id>/undo), never
+    // /api/undo/to/<oldest> - that took the person's newer steps of another device / tab with it; what stayed is said
+    const gids = [...new Set([...I.gids, ...[...I.qs].map(q => q.res?._ugid)].filter(g => g > 0))];
     if (gids.length) {
-      try { await api('POST', `/api/undo/to/${Math.min(...gids)}`); } catch { return; }
-      if (typeof histMark === 'function') histMark(gids, 'undo');
-      await load().catch(() => {}); render(); toast(tr('Changes undone')); return;
+      let r; try { r = await histDo({label: msgOf(), gids, lids: []}, 'undo'); } catch { return; }
+      histMark(r.undone, 'undo');
+      await load().catch(() => {}); render();
+      toast(r.note || (r.none ? tr('Changed elsewhere, not undone: {0}', msgOf()) : tr('Changes undone')), null, r.note ? 10000 : undefined); return;
     }
     const back = {}; for (const k of ['due', 'due_time', 'reminders', 'repeat', 'repeat_from', 'start', 'duration', 'deadline', 'nag', 'remind_at']) back[k] = before[k] ?? (k === 'reminders' || k === 'repeat' || k === 'nag' ? '' : k === 'deadline' ? 0 : null);
     try { await patchTask(id, back, true); } catch { return; }

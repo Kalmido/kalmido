@@ -1073,7 +1073,15 @@ function morphKids(a, b) {
       if (n.nodeType === 1 && FL.added) FL.added.push(n);
       continue;
     }
-    if (o === cur) cur = cur.nextSibling; else a.insertBefore(o, cur);
+    if (o === cur) cur = cur.nextSibling;
+    else {
+      // 2.1356.0 (#6326): a node that holds the focus is not moved (a moved field loses the focus, the caret and the phone's
+      // keyboard): when it stands later, the nodes before it move behind it (a box around a neighbour gone: the task panel's
+      // note field after its markdown box on a phone)
+      const mv = []; let x = cur;
+      if (cur && o.contains(document.activeElement)) for (; x && x !== o; x = x.nextSibling) mv.push(x);
+      if (x === o && mv.length) { o.after(...mv); cur = o.nextSibling; } else a.insertBefore(o, cur);
+    }
     if (o.nodeType !== 1) { if (o.data !== n.data) o.data = n.data; continue; }
     if (fl_hold(o)) continue;
     // 2.46.2 (#1718): a field with typed, unsaved text keeps it unless its saved value changed (the view's own restore after a

@@ -49,7 +49,7 @@ QUAL_L = re.compile(r"\bl\.deleted_at\s+IS\b", re.I)
 FROM_LISTS = re.compile(r"\b(?:FROM|JOIN)\s+lists\b(?!_)", re.I)
 FROM_LISTS_L = re.compile(r"\b(?:FROM|JOIN)\s+lists\s+(?:AS\s+)?l\b", re.I)
 BARE = re.compile(r"(?<![.\w])(?:archived\s*(?:=|<>|!=)\s*[01]\b|deleted_at\s+IS\s+(?:NOT\s+)?NULL\b)", re.I)
-FILL = "migr_liststate5537"  # the start's one-off fill (core/db.py) names the old columns on purpose
+FILL = "migr_liststate5537"  # the start's one-off fill (core/oncesteps.py since 2.1356.0, #6824) names the old columns on purpose
 FILL_LINES = 5  # its statement stands within these lines after the flag
 # 2.1054.0 (#5794): a handwritten write of the old archive column of lists (list_set_archived writes the marker)
 WRITE = re.compile(r"\bUPDATE\s+lists\s+SET\b(?!_)[^\"']*?(?<![.\w])archived\s*=", re.I)

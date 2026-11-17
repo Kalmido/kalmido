@@ -13,6 +13,7 @@ from flask import g, jsonify, request
 
 from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.pg import insert_id, system_ctx
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
 from ..core.i18n import browser_lang, lang, N_, tr
 from ..core.db import body, bump, db, err, iso, now_utc
@@ -516,12 +517,10 @@ def form_send(token):
         cid, cnote, typed = fq_client(c, f, email, name, olg) if f["client_match"] else (None, "", False)  # 2.98.0 B (#1954): only the list's space
     if cnote:
         content += "\n\n" + cnote
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
     ts = iso(now_utc())
     sec = f["section_id"] if f["section_id"] and c.execute("SELECT 1 FROM sections WHERE id=? AND list_id=?", (f["section_id"], lid)).fetchone() else None
     uid = g.user["id"] if g.user else None
-    tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,content,sort,created_at,updated_at,created_by,ttype) VALUES(?,?,?,?,?,?,?,?,?)""",
-                    (lid, sec, subject, content, srt, ts, ts, uid, f["ttype"] or ""))
+    tid = task_insert(c, uid, lid, section_id=sec, title=subject, content=content, ts=ts, ttype=f["ttype"] or "")  # 2.1358.0 (#6825): on top (sort TOP)
     task_mark_origin(c, tid, "form")  # 2.1269.0 (#6431): text from outside, on the task before the tidy / added events
     c.execute("UPDATE forms SET count=count+1, last_at=? WHERE id=?", (ts, f["id"]))
     if upload:

@@ -6,6 +6,7 @@ from flask import g, jsonify
 
 from ..core.config import app
 from ..core.pg import insert_id, write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825)
 from ..core.schema import MAX_DEPTH
 from ..core.i18n import lang, N_, tr
 from ..core.db import body, bump, db, err, inbox_default, iso, local_now, now_utc, uset
@@ -704,10 +705,8 @@ def tpl_insert(c, n, lid, sec, parent, base, sort, uid, fmap=None, scale=1.0, ma
             pass
     if f["repeat"] and (rr_problem(rr_norm(f["repeat"]), True) or not rr_feasible(rr_norm(f["repeat"]), due)):
         f["repeat"] = ""
-    ts = iso(now_utc())
-    cols = list(f) + ["created_at", "updated_at"]
-    tid = insert_id(c, f"INSERT INTO tasks({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
-                    [f[k] for k in f] + [ts, ts])
+    # 2.1358.0 (#6825): the one way into tasks (tasks/repo.py); the node's own sort, the columns are unchanged
+    tid = task_insert(c, f.pop("created_by"), f.pop("list_id"), title=f.pop("title"), **f)
     if n.get("tags"):
         set_tags(c, tid, n["tags"], uid)
     for k, v in (n.get("fv") or {}).items() if fmap else ():

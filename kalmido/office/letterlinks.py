@@ -9,7 +9,8 @@ from datetime import date, timedelta
 from flask import jsonify, request
 
 from ..core.config import PUBLIC_URL, app
-from ..core.pg import insert_id, system_ctx
+from ..core.pg import system_ctx
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.db import body, bump, iso, local_now, now_utc
 from ..core.access import Denied, live_sql
 from ..core.i18n import N_, lang, tr
@@ -679,11 +680,10 @@ def ltl_followup_tick(c, force=False):
                 lg = lang(c, pid)
                 inbox = my_inbox(c, pid)
                 ts = iso(now_utc())
-                srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (inbox,)).fetchone()[0]
                 title = tr("Follow-up: {0}", subject[:150] or tr("Letter", lg=lg), lg=lg)
                 text = tr("No answer to the letter yet.", lg=lg) + f"\n\n[{subject[:150] or tr('Letter', lg=lg)}](#office/letters/{r['id']})"
-                tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,sort,created_at,updated_at,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                                (inbox, title[:300], text, today, srt, ts, ts, pid, PUBLIC_URL.rstrip("/") + f"/#office/letters/{r['id']}", pid))
+                tid = task_insert(c, pid, inbox, title=title[:300], content=text, due=today, ts=ts,
+                                  url=PUBLIC_URL.rstrip("/") + f"/#office/letters/{r['id']}", assignee_id=pid)  # 2.1358.0 (#6825): on top (sort TOP)
                 log_act(c, tid, "created", uid=pid)
                 c.execute("UPDATE office_letters SET followup_task_id=? WHERE id=?", (tid, r["id"]))
                 bump(c)

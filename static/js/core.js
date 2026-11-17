@@ -643,31 +643,33 @@ const ofc_spFetch = (url, opt = {}) => { const sp = ofc_spHdr(url); if (sp) opt 
   const a = e.target?.closest?.('a[href^="/api/office/"]'), h = a?.getAttribute('href'); if (!h) return;
   const u = ofc_spUrl(h); if (u !== h) a.setAttribute('href', u);
 }, true));
-async function rawFetch(method, url, body, key, osp) {  // key: 2.270.0 C (#3022) the outbox entry's idempotency key; osp: 2.577.0 (#4638) its office area
+async function rawFetch(method, url, body, key, osp, oq) {  // key: 2.270.0 C (#3022) the outbox entry's idempotency key; osp: 2.577.0 (#4638) its office area; oq: 2.1358.0 (#6328) the outbox entry sent again
   // 2.64.1 (#1817): texts of a locked list leave encrypted, ciphers in answers become plain texts in memory (liste2e.js)
   if (typeof le2eOut === 'function') body = await le2eOut(method, url, body);
   const in_ = j => typeof le2eIn === 'function' ? le2eIn(j, url) : j;
-  if (method === 'GET') return in_(await rawFetch0(method, url, body, undefined, osp));
+  if (method === 'GET') return in_(await rawFetch0(method, url, body, undefined, osp, oq));
   S.wseq = (S.wseq || 0) + 1;
-  try { return in_(await rawFetch0(method, url, body, key, osp)); }
+  try { return in_(await rawFetch0(method, url, body, key, osp, oq)); }
   catch (e) {  // 2.64.1 (#1817): a move missed texts (a subtask in the trash): fetched, converted, sent once more
     const b2 = e.data?.code === 'list_e2e_move' && e.data.need && typeof le2eFix === 'function' ? await le2eFix(url, body, e.data.need).catch(() => null) : null;
     if (!b2) throw e;
-    return in_(await rawFetch0(method, url, b2, key, osp));
+    return in_(await rawFetch0(method, url, b2, key, osp, oq));
   } finally { S.wseq++; }
 }
 // 2.298.0 C (#3187): a status code in words when the server sent no text (413 / 429 / 5xx; any other stays "Error 404").
 function httpErrText(st) {
   return st === 413 ? tr('File too large') : st === 429 ? tr('Too many requests, wait a moment') : st >= 500 ? tr('Server error, please try again later') : tr('Error {0}', st);
 }
-async function rawFetch0(method, url, body, key, osp) {
+async function rawFetch0(method, url, body, key, osp, oq) {
   const opt = {method, headers: {'X-Requested-With': 'kalmido'}, redirect: 'manual'};
   const sp = osp !== undefined ? osp : ofc_spHdr(url); if (sp) opt.headers['X-Kalmido-Office-Space'] = sp;  // 2.577.0 (#4638)
   if (key) opt.headers['Idempotency-Key'] = key;  // 2.270.0 C (#3022): a replay the server already applied comes back as its first answer
   const dev = wpDevHeader(url); if (dev) opt.headers['X-Kalmido-Device'] = dev;
   if (method !== 'GET' && S.me && S.me.kind !== 'agent') opt.headers['X-Kalmido-Device-Name'] = histDevice();  // 2.773.0 (#5250): the device of a step in the list "Recent steps" (undo.js)
-  if (method !== 'GET' && HIST.gtok) opt.headers['X-Kalmido-Undo-Group'] = HIST.gtok;  // 2.905.0 (#5255): the writes of one step (undo.js histGroup) are one server group
-  if (method !== 'GET' && HIST.own > 0) opt.headers['X-Kalmido-Undo-Own'] = '1';  // 2.1074.0 (#5493): this device's own undo / redo of a step without a server group (undo.js histDo) is no new server step
+  // 2.1358.0 (#6328 C5, C8): an outbox entry sent again carries what it was written with (enqueue), not what runs now
+  const gtok = oq ? oq.gtok || '' : HIST.gtok, own = oq ? !!oq.own : HIST.own > 0;
+  if (method !== 'GET' && gtok) opt.headers['X-Kalmido-Undo-Group'] = gtok;  // 2.905.0 (#5255): the writes of one step (undo.js histGroup) are one server group
+  if (method !== 'GET' && own) opt.headers['X-Kalmido-Undo-Own'] = '1';  // 2.1074.0 (#5493): this device's own undo / redo of a step without a server group (undo.js histDo) is no new server step
   if (body instanceof FormData) opt.body = body;
   else if (body !== undefined) { opt.body = JSON.stringify(body); opt.headers['Content-Type'] = 'application/json'; }
   let r;
@@ -1069,6 +1071,7 @@ function enqueue(method, url, body) {
   if (mo) { outSave(() => { mo.body = {...mo.body, ids: body.ids}; }); return {ok: true}; }
   const e = {method, url, body, uid: S.me?.id, k: oxaKey(body) || outKey()};  // 2.528.0 (#4305 B1): the key the press chose
   const osp = ofc_spHdr(url); if (osp) e.osp = osp;  // 2.577.0 (#4638): a change sent later lands in the office it was made in
+  if (HIST.own > 0) e.own = 1; if (HIST.gtok) e.gtok = HIST.gtok;  // 2.1358.0 (#6328 C5, C8): its undo headers go with it (rawFetch0 oq)
   if (method === 'POST' && (url === '/api/tasks' || /^\/api\/lists\/\d+\/notes$/.test(url))) e.tmp = -Date.now() - Math.floor(Math.random() * 1000);  // 2.143.0 C (#2153): + a note
   outSave(() => OUT.q.push(e));  // 2.126.0 D (#1989)
   obxSyncReg();  // 2.143.0 C (#2153)
@@ -1166,14 +1169,14 @@ async function outFlush() {
       if (wiki && typeof wkoSent !== 'function' && typeof loadModule === 'function') await loadModule('wiki').catch(() => {});
       if (wiki && typeof wkoReseal === 'function') body = await wkoReseal(e).catch(() => body);  // 2.577.0 (#4708 9): the current key generation
       try {
-        let j = await rawFetch(e.method, url, body, e.ik || e.k, e.osp || '');  // 2.577.0 (#4638): + its office area (never the one open now)  // 2.270.0 C (#3022): the same key as the service worker's send; 2.551.0 (#4646): ik = the rebased send's own
+        let j = await rawFetch(e.method, url, body, e.ik || e.k, e.osp || '', e);  // 2.577.0 (#4638): + its office area (never the one open now)  // 2.270.0 C (#3022): the same key as the service worker's send; 2.551.0 (#4646): ik = the rebased send's own
         sent++; OUT.tries = 0; OUT.retryAt = 0;
         if (ntU(e.url)) sentNt++;  // 2.536.0 (#4567): a note's change (they go out online too now)
         if (wiki && typeof wkoSent === 'function') await wkoSent(e, j).catch(() => {});
         if (typeof ntSent === 'function' && NT_URL.test(e.url)) ntSent(e, j);  // 2.143.0 C (#2153): notes (chat.js)
         if (e.tmp) { idmap[e.tmp] = j.id; HIST.ids[e.tmp] = j.id; LS.set('idmap', idmap); obxMeta('idmap', idmap); if (S.sel === e.tmp) S.sel = j.id; }  // 2.143.0 C (#2153): the service worker maps with it too
         if (j && j.conflicts?.length && e.url === '/api/tasks/batch' && body?.action === 'complete') { skipped++; j.conflicts = []; }  // 2.270.0 C (#3022): already ticked = not advanced twice
-        if (j && j.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(e.method, url, b2));  // 2.543.0 (#4632): a key change is no conflict
+        if (j && j.conflicts?.length && typeof le2eRekeyConflicts === 'function') j = await le2eRekeyConflicts(url, body, j, b2 => rawFetch(e.method, url, b2, undefined, undefined, e));  // 2.543.0 (#4632): a key change is no conflict
         if (j && j.conflicts?.length) {
           // 2.13.0: a "conflict" with a text this device sent itself (its answer got lost) is replayed on top of it
           const own = j.conflicts.filter(c => ownVal(cfTid(c, j.id) + ':' + c.field, c.server) && body && c.field in body);  // 2.527.0 (#4304): the entry's task

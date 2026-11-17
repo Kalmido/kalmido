@@ -787,7 +787,11 @@ Since 2.37.0 Kalmido runs on PostgreSQL 17 only (`DATABASE_URL`); SQLite is gone
   gets a stable id from table + column (`tasks.pinned`, a second step for the same column `lists.tap_done#2`), so its
   place in the list does not matter. `init_db` (`mig_apply`) runs the steps whose column is missing and records every step
   in the table `kalmido_migrations` (applied / present / again, with the time). The one-shot data migrations keep their
-  settings flag (`migr_*`, read by older versions after a rollback) and are recorded there as `flag:migr_*`.
+  settings flag (`migr_*`, read by older versions after a rollback) and are recorded there as `flag:migr_*`. 2.1356 (#6824):
+  they stand in one ordered list, `core/oncesteps.py` `STEPS` (phase, key, once, function); `init_db` calls `run_phase` at the
+  places the blocks stood, the same runner (`run_steps`) also runs the areas' start hooks (`core/objhooks.START`). A new
+  one-shot is one function + one entry there (`tools/check_migrations.py` rejects a `migr_*` flag elsewhere, except the
+  area functions it names).
   `SCHEMA_VERSION` only gates restores of newer backups.
 - **Migration fragments (2.475).** New tables, columns and indexes no longer go into `core/schema.py`: each task adds one
   file `core/migrations.d/<task id>.py` with up to three plain values: `SCHEMA` (idempotent `CREATE TABLE` / `CREATE INDEX`

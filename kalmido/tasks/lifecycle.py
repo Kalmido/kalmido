@@ -8,6 +8,7 @@ from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app
 from ..core.pg import insert_id, system_ctx, write_lock, st_ids, ts_canon  # 2.1115.0 (#5951): + ts_canon
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825)
 from ..core.objparts import part_merge  # 2.610.0 (#4762): the core's merge of a list sent whole against _prev
 from ..core.objcomments import ocm_trash  # 2.972.0 (#5272)
 from ..core.schema import MAX_DEPTH
@@ -544,8 +545,9 @@ def do_complete(c, tid, status=2, undo=None):
         vals.update(status=2, repeat="", completed_at=ts, updated_at=ts, reminded="[]", completed_by=who, rotation="")
         if "sub_snapshot" in vals:  # 2.556.0 C (#4583): the round's subtasks, read before they are reset below (a birthday's keep their ticks)
             vals["sub_snapshot"] = "" if (_jparse(t["fam"]) or {}).get("kind") in FAM_OCC else rsn_take(c, tid)
-        cur_id = insert_id(c, f"INSERT INTO tasks({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
-                        [vals[k] for k in cols])
+        # 2.1358.0 (#6825): the one way into tasks (tasks/repo.py); the copy keeps every column of the original (its sort,
+        # created_by, created_at; updated_at = now), only ticket_no is the trigger's
+        cur_id = task_insert(c, vals.pop("created_by"), vals.pop("list_id"), title=vals.pop("title"), **vals)
         # 2.602.0 D (#4508): one INSERT ... SELECT instead of one INSERT per tag
         # 2.955.0 (#5276): everyone's personal tags (the core's scope user; were task_tags rows)
         c.execute("""INSERT INTO obj_tag_links(tag_id,kind,obj_id,src,created_by,created_at) SELECT k.tag_id, 'task', ?, k.src, k.created_by, k.created_at

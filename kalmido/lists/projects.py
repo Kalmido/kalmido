@@ -10,6 +10,7 @@ from ..core.config import app, ATT_DIR, INLINE_TYPES, MAX_FILE_MB, TZ
 from ..core.objhooks import obj_rows_drop  # 2.578.0 (#4796)
 from ..core.objfollow import ofl_bell_put, ofl_bell_rest  # 2.981.0 (#5287): a project's bell is a row of the core's obj_follow
 from ..core.pg import insert_id, ts_canon  # 2.1115.0 (#5951)
+from ..tasks.repo import END, task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, iso_ms, local_now, now_utc, parse_iso
 from ..accounts.session import me
@@ -199,15 +200,14 @@ def ms_migrate(c):
     stays (old backups restore into it). Returns the number migrated; the caller commits."""
     rows = c.execute("""SELECT m.*, l.owner_id FROM list_milestones m JOIN lists l ON l.id=m.list_id ORDER BY m.list_id, m.day, m.id""").fetchall()
     for r in rows:
-        srt = c.execute("SELECT COALESCE(MAX(sort), 0) + 1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (r["list_id"],)).fetchone()[0]
         who = r["created_by"] if r["created_by"] and c.execute("SELECT 1 FROM users WHERE id=?", (r["created_by"],)).fetchone() \
             else r["owner_id"]
         ts, done = r["created_at"] or iso(now_utc()), 2 if r["done"] else 0
         day = r["day"] if valid_date(r["day"]) else None
-        tid = insert_id(c, """INSERT INTO tasks(list_id,title,due,status,ms,sort,created_by,completed_by,completed_at,created_at,updated_at)
-                           VALUES(?,?,?,?,1,?,?,?,?,?,?)""",
-                        (r["list_id"], (r["name"] or "?")[:TITLE_MAX], day, done, srt, who, who if done else None,
-                         iso(now_utc()) if done else None, ts, iso(now_utc())))
+        # 2.1358.0 (#6825): at the end of the list (sort END), created_at = the milestone's, updated_at = now
+        tid = task_insert(c, who, r["list_id"], title=(r["name"] or "?")[:TITLE_MAX], due=day, status=done, ms=1, sort=END,
+                          completed_by=who if done else None, completed_at=iso(now_utc()) if done else None, created_at=ts,
+                          updated_at=iso(now_utc()))
         c.execute("INSERT INTO activity(task_id,user_id,kind,data,created_at) VALUES(?,?,?,?,?)",
                   (tid, who, "created", "{}", ts))
     c.execute("DELETE FROM list_milestones")  # also orphan rows of lists that no longer exist

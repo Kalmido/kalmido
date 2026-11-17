@@ -27,6 +27,7 @@ from ..core.access import Denied, WRITE_ROLES, list_role, live_sql, need_feat, t
 from ..core.db import body, bump, db, iso, iso_ms, now_utc
 from ..core.i18n import N_, tr
 from ..core.pg import insert_id
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..accounts.session import me
 from ..collab.comments import user_names
 from ..core.errors import BadInput
@@ -213,8 +214,7 @@ def sh2_to_tasks(c, sheet, uid, b, titles=None, dues=None, via=None):
     base = c.execute("SELECT COALESCE(MIN(sort),0) FROM tasks WHERE list_id=? AND parent_id IS NULL", (l["id"],)).fetchone()[0] - len(items) - 1
     out = []
     for i, (rid, title, due, notes) in enumerate(items):
-        tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?,?)",
-                        (l["id"], title, notes, due, base + i, ts, ts, uid))
+        tid = task_insert(c, uid, l["id"], title=title, content=notes, due=due, sort=base + i, ts=ts)  # 2.1358.0 (#6825)
         # the history: "carried over from a table" + link (no table name); 2.126.1 B (#2125): + "from a proposal by <agent>"
         log_act(c, tid, "created", {"sheet": sheet["id"], **({"agent": via["agent_id"], "proposal": True} if via else {})})
         agent_added_events(c, tid, source="proposal" if via else None)

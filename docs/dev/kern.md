@@ -396,6 +396,12 @@ c.commit()
   ttp_manual(own)`: the hook `ttp_core_purge` then takes any task in the trash (no period), detaches subtasks outside `own`
   (the lists the person may empty) and keeps a project kept by law (409 with its date). The routes' own `hard_delete` /
   `tre_kept` check went; the task's history / undo rows of the core go with it.
+- 2.1358.0 (#6825): a new task is written in one place, `tasks/repo.py task_insert(c, uid, list_id, title=..., sort=TOP|END|n,
+  ts=None, **columns)`: required columns (list_id, title, created_by = uid or None, created_at / updated_at), the sort among
+  its siblings, the rest as given; ticket number (trigger) and search stay in the database. The rights stay with the caller
+  and the core (`core/objlight.py`, kind `task`). Every way that makes a task (the route, templates, mail, agents, office,
+  family, onboarding, imports, the done copy of a repeating task) calls it; `tools/check_task_insert.py` (in check_layout)
+  keeps new own `INSERT INTO tasks` out (baseline `tools/task_insert_baseline.json`, empty).
 - 2.1031.0 (#5538, small findings of the Fable review of 2.851): the trash period (`KALMIDO_TRASH_DAYS`, `ret_days("trash")`)
   has the floor of 1 day for every kind (`core/retention.py ret_trash_days`, `ret_trash_cut`): 0 or a broken value never
   means "delete everything at once", it means one day. `obj_purge` checks the kind's `trash_keep` under its lock as the
@@ -410,7 +416,7 @@ c.commit()
 - 2.1029.0 (#5537, stage 1): a project (lists) carries ONE state marker `lists.state` = `live` | `archived` | `trash`
   (`migrations.d/5537_a.py`). The trigger `kalmido_list_state` keeps it equal to `archived` / `deleted_at` on every INSERT and
   every UPDATE naming them, so the write paths stay as they are and a copy of all columns cannot write a wrong marker; the
-  rows of before got theirs once at the start (`core/db.py`, flag `migr_liststate5537`). Reads ask through
+  rows of before got theirs once at the start (`core/oncesteps.py`, flag `migr_liststate5537`). Reads ask through
   `list_state_sql(alias, *states)` of `core/access.py` (no state = `live`: neither archived nor in the trash);
   `otr_live(alias)` = live or archived. A handwritten `archived=0` / `deleted_at IS NULL` on lists is red in
   `tools/check_list_state.py` (baseline `tools/list_state_baseline.json`, only shrinks; it reads line by line). Reading the

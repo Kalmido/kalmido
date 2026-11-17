@@ -24,6 +24,7 @@ LAYER_OF = {"api.common": "core", "accounts.orgback": "domain",
             "core.undoweb": "domain",  # 2.747.0 (#5249): the step groups' routes stand on the write path
             "core.undoareas": "domain",  # 2.777.0 (#5254): the areas' undo steps stand on the write path
             "core.addrshare": "domain",  # 2.1071.0 (#5658): the open shares by address replay the areas' share routes
+            "tasks.repo": "core",  # 2.1358.0 (#6825): the one way into tasks; core, onboarding and every area create tasks with it
             "docs.mailnamed": "integrations", "agents.apvdiff": "domain"}  # 2.1034.0 (#5304): admin.migrate (the move from SQLite) is gone; 2.149.0 G (#2517): the v1 helpers are infrastructure; 2.365.1 (#3395): orgback calls every area; 2.558.0 (#4709): the shared core stands on the file store and accounts, its routes on the API
 
 ORDER = (
@@ -39,6 +40,7 @@ ORDER = (
     "core.pg",  # 2.37.0 (#1150): the Postgres layer (core.db re-exports it)
     "core.reqtime",  # 2.149.0 B (#2504): request timing (Server-Timing, slow log); first hooks = whole request measured
     "core.db",
+    "core.oncesteps",  # 2.1356.0 (#6824): the one-shot data steps of init_db (migr_*) in one ordered list
     "core.usertz",  # 2.368.3 (#2985): the person's clock (time zone, time format)
     "core.errors",  # 2.149.0 G (#2517): BadInput, Denied, UnknownFields (re-exported at the old places)
     "core.jsonlimit",  # 2.674.0 (#4190): JSON bodies at most 10 MB (a few routes larger on purpose); before every hook that reads a body
@@ -511,6 +513,7 @@ ORDER = (
     "team.approvals",
     "tasks.review",  # 2.60.0 C (#1512): review step (reviewer, gate, list setting, API v1)
     "tasks.ticketkey",  # 2.390.0 (#3353): ticket keys APP-123 (no routes)
+    "tasks.repo",  # 2.1358.0 (#6825): task_insert, the one way a new task is written (no routes; core layer, LAYER_OF)
     "tasks.ttypes",  # 2.609.0 (#3372): own ticket types per workspace (epic, story, ...), API v1
     "team.forms",
     "team.formq",  # 2.98.0 B (#1954): questionnaires (own questions in forms, answers become a task at the customer)

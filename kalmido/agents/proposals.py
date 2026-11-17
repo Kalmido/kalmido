@@ -7,6 +7,7 @@ from flask import g, jsonify, request
 
 from ..core.config import app, PUBLIC_URL
 from ..core.pg import insert_id, write_lock  # 2.528.0 (#4305 A8): write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.pg import st_ids  # 2.674.0 B (#4194)
 from ..core.undogroups import ug_own  # 2.934.0 (#5596)
 from ..agents.core import agents_shared  # 2.674.0 B (#4194)
@@ -720,10 +721,9 @@ def prop_insert(c, aid, lid, ts, title, notes="", section_id=None, parent_id=Non
     if le2b_list_locked(c, lid):  # 2.64.1 B (#1817): a proposal never writes plain texts into a list with the lock
         raise Denied(409, le2b_off())
     uid = me()
-    tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,parent_id,title,content,priority,due,start,duration,sort,created_at,updated_at,
-                       created_by,assignee_id,assigned_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (lid, section_id, parent_id, title[:TITLE_MAX], notes or "", priority or 0, due, start if due else None, duration,
-                     sort, ts, ts, uid, assignee_id, uid if assignee_id else None))
+    tid = task_insert(c, uid, lid, section_id=section_id, parent_id=parent_id, title=title[:TITLE_MAX], content=notes or "",
+                      priority=priority or 0, due=due, start=start if due else None, duration=duration, sort=sort, ts=ts,
+                      assignee_id=assignee_id, assigned_by=uid if assignee_id else None)
     log_act(c, tid, "created", {"agent": aid, "proposal": True})
     from ..tasks.tundo import tu_op
     tu_op(c, tid, "create", {"at": ts})  # 2.997.0 (#5611): the server's undo step of an idea taken over (none inside a proposal's apply: ug_own)
