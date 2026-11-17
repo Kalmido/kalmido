@@ -469,6 +469,9 @@ def _run(aid, rid):
 
 
 def _finish(aid, rid, tok, state, text, asker, lang):
+    # 2.1364.0 (#6297 (10)): the row ends first - the model is done, so the run's own closing words (a pause with its reason on
+    # the avatar) are no longer held by the web gate, which since then asks a card for a status text of the model
+    _end(rid, state, text if state != "done" else "")
     api = _api(mcpr_module(), tok, time.time() + 30) if tok else None
     if api is not None:
         try:
@@ -487,7 +490,6 @@ def _finish(aid, rid, tok, state, text, asker, lang):
                 _say(api, asker, tr("Stopped.", lg=lang))
         except Exception as e:  # noqa: BLE001 -- the run's row says what happened
             print("server agent", aid, "run", rid, "status:", type(e).__name__, flush=True)
-    _end(rid, state, text if state != "done" else "")
 
     def tidy(c):
         if tok:
