@@ -16,6 +16,8 @@ Invented companies, people and figures only.
  - the chain: a new link has version 2 and covers pdf_sha256 (a changed checksum breaks it, reason data); a link made with
    version 1 stays valid (and does not cover the checksum); hch_heads names the head of every series
  - the watchdog (hch_watch_tick): a new break -> one admin alert and one office log line "chain_broken"; the next day nothing again
+ - 2.1319.0 (#6770): an unreadable link no longer hides a later break (the check goes on behind it); found on 3 days in a row
+   it gets one admin alert of its own; an office whose check fails (own savepoint) keeps the log line of the office before it
 usage: p21309_b_office_gobd_test.py <datadir>      (P21309B_NOSTART=1: a running server on KALMIDO_TEST_PORT)"""
 import json
 import os
@@ -293,6 +295,97 @@ check(any(x.get("action") == "chain_broken" for x in log), "#6467: the admin see
 free("UPDATE office_docs SET pdf_sha256=? WHERE id=?", (sha, INV))
 w3 = py(WD)
 check(w3.get("n") == 0 and A.get(B + OFC + "/log/chain").json().get("ok") is True, f"#6467: intact again, nothing new {w3}")
+
+# ---------------------------------------------------------------- 2.1319.0 (#6770): unreadable link, 3 days, savepoint
+# the key cannot open the first invoice of its chain now (OrgCryptError, as a key from another backup); a later link of the same
+# chain is changed in the database (reason link) -- before #6770 the check stopped at the unreadable one and never saw it
+ch_inv = one("SELECT chain_key, chain_seq FROM office_docs WHERE id=?", (INV,))
+LAST = one("SELECT id, chain_prev FROM office_docs WHERE org_id=? AND chain_key=? AND chain_seq>? ORDER BY chain_seq DESC LIMIT 1",
+           (OA, ch_inv["chain_key"], ch_inv["chain_seq"]))
+check(LAST is not None, f"#6770: the chain of the invoice has a later link {ch_inv}")
+LAST = LAST or {"id": 0, "chain_prev": ""}
+UNREAD = f"""
+from kalmido.office import chain
+from kalmido.core.orgcrypt import OrgCryptError
+from kalmido.notify.alerts import _AA
+_dec = chain.oc_dec_fields
+def dec(c2, oid, table, r):
+    if r['id'] == {INV}:
+        raise OrgCryptError('test: the key cannot open it now')
+    return _dec(c2, oid, table, r)
+chain.oc_dec_fields = dec
+"""
+free("UPDATE office_docs SET chain_prev=? WHERE id=?", ("f" * 64, LAST["id"]))
+u1 = py(UNREAD + """
+res = chain.hch_check(c, %d)
+n = chain.hch_watch_tick(c, force=True)
+print(json.dumps({'res': res, 'n': n, 'q': [x[1] for x in _AA['q'] if x[0] == 'security']}))
+""" % OA)
+res = u1.get("res") or {}
+check((res.get("first_bad") or {}).get("id") == LAST["id"] and (res.get("first_bad") or {}).get("reason") == "link"
+      and (res.get("unreadable") or {}).get("id") == INV and res.get("ok") is False,
+      f"#6770: the check goes on behind the unreadable invoice and names the later break {u1}")
+check(u1.get("n") == 1 and u1.get("q") == [f"office_chain:{OA}"], f"#6770: ... the watchdog reports that break (no unreadable alert on day 1) {u1}")
+lines = free("SELECT doc_id FROM office_doc_log WHERE org_id=? AND action='chain_broken' ORDER BY id", (OA,)).fetchall()
+check([x["doc_id"] for x in lines][-1:] == [LAST["id"]], f"#6770: ... with a log line on the later document {[dict(x) for x in lines]}")
+free("UPDATE office_docs SET chain_prev=? WHERE id=?", (LAST["chain_prev"], LAST["id"]))
+# day 2 (the mark says: first seen yesterday) -> still quiet; day 3 -> one alert of its own; again the same day -> quiet
+DAYS = UNREAD + """
+from datetime import timedelta
+from kalmido.core.db import gset, gsetting, local_now
+t = local_now().date()
+m = json.loads(gsetting(c, chain.HCH_UNREAD_KEY) or '{}')
+e = m.get('%d') or {}
+e.update({'since': (t - timedelta(days=%d)).isoformat(), 'last': (t - timedelta(days=%d)).isoformat()})
+m['%d'] = e
+gset(c, chain.HCH_UNREAD_KEY, json.dumps(m))
+c.commit()
+_AA['q'].clear()
+n = chain.hch_watch_tick(c, force=True)
+print(json.dumps({'n': n, 'q': [x[1] for x in _AA['q'] if x[0] == 'security'], 'mark': json.loads(gsetting(c, chain.HCH_UNREAD_KEY) or '{}')}))
+"""
+d2 = py(DAYS % (OA, 1, 1, OA))
+check(d2.get("n") == 0 and not d2.get("q"), f"#6770: the second day in a row: no alert yet {d2}")
+d3 = py(DAYS % (OA, 2, 1, OA))
+check(d3.get("q") == [f"office_chain_unreadable:{OA}"] and (d3.get("mark") or {}).get(str(OA), {}).get("told") is True,
+      f"#6770: the third day in a row: one admin alert of its own {d3}")
+d4 = py(DAYS % (OA, 3, 1, OA))
+check(not d4.get("q"), f"#6770: ... and only once {d4}")
+d5 = py(DAYS % (OA, 9, 4, OA))  # last seen 4 days ago: a gap
+m5 = (d5.get("mark") or {}).get(str(OA)) or {}
+check(not d5.get("q") and m5.get("since") and m5.get("since") == m5.get("last") and m5.get("told") is False,
+      f"#6770: a gap of days starts the count anew {d5}")
+ok_again = py("""
+from kalmido.office import chain
+from kalmido.core.db import gsetting
+n = chain.hch_watch_tick(c, force=True)
+print(json.dumps({'n': n, 'mark': json.loads(gsetting(c, chain.HCH_UNREAD_KEY) or '{}'), 'ok': chain.hch_check(c, %d)['ok']}))
+""" % OA)
+check(ok_again.get("ok") is True and str(OA) not in (ok_again.get("mark") or {"x": 1}), f"#6770: readable again: the mark is gone {ok_again}")
+# the savepoint: the first office reports a break, the second one's check fails -- the first one's log line stays
+SP = """
+from kalmido.office import chain
+lo, hi = sorted([%d, %d])
+did = c.execute("SELECT id FROM office_docs WHERE org_id=? AND chain_seq IS NOT NULL ORDER BY chain_seq LIMIT 1", (lo,)).fetchone()[0]
+_check = chain.hch_check
+def fake(c2, oid):
+    if oid == hi:
+        c2.execute("SELECT 1/0")  # a failing statement inside the transaction (Postgres aborts it without a savepoint)
+    if oid == lo:
+        return {'ok': False, 'count': 1, 'pending': 0, 'unreadable': None,
+                'first_bad': {'id': did, 'number': '', 'chain': 'savepoint-test', 'seq': 1, 'reason': 'data'}}
+    return _check(c2, oid)
+chain.hch_check = fake
+n = chain.hch_watch_tick(c, force=True)
+print(json.dumps({'n': n, 'lo': lo, 'did': did}))
+""" % (OA, OF)
+BROKEN = "SELECT count(*) AS n FROM office_doc_log WHERE action='chain_broken'"
+before = one(BROKEN)["n"]
+sp = py(SP)
+kept = one(BROKEN)["n"] - before
+check(sp.get("n") == 1 and kept == 1, f"#6770: the failing check of one office keeps the other office's log line (savepoint) {sp} {kept}")
+w4 = py(WD)
+check(w4.get("n") == 0, f"#6770: the real check afterwards: nothing new, the test mark forgotten {w4}")
 
 # ---------------------------------------------------------------- an organisation going for good takes its rows along
 r = A.post(B + "/api/admin/orgs", json={"name": "Beta", "admin_id": ALICE})
