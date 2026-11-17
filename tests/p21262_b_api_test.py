@@ -176,6 +176,9 @@ names = []
 if r.ok and r.content[:2] == b"PK":
     names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
 check(r.ok and "Lost/Other.md" in names and "Lost/Page.md" not in names, f"#2358: the export leaves the unreadable page out {r.status_code} {names}")
+# 2.1324.0 (#6589): ... and names it with its reason in "not included.txt" (nothing left out silently)
+notin = zipfile.ZipFile(io.BytesIO(r.content)).read("not included.txt").decode() if "not included.txt" in names else ""
+check("Lost/Page.md - The page cannot be read" in notin, f"#6589: the unreadable page is named in not included.txt {notin[:300]}")
 r = share(A, page_id=lost, kind="link")
 if r.status_code == 201:
     check(anon("/s/w/" + r.json()["url"].rsplit("/", 1)[-1]).status_code == 404, "#2358: the public link of an unreadable page answers 404, not 500")
