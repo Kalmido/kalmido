@@ -8,9 +8,9 @@
 // keyboard (Ctrl/Cmd+Z back, Ctrl/Cmd+Shift+Z or Ctrl+Y forward), the toasts' "Undo" and the short list of this window's
 // own steps: an entry (histAdd) is a label plus the group(s) the server recorded for it (gids: the header X-Kalmido-Undo-Gid
 // of the write's answer, core.js rawFetch0 -> histUgid) or the outbox entries still on their way (qs); no copies, no
-// functions of their own. Undo takes back the person's newest step (ul: the server's newest group, any device) with POST
-// /api/undo/to/<id>; the toast's "Undo" exactly its own entry (2.1005.0, #5637: POST /api/undo/<id>/undo, newer steps of the
-// person stay); redo POST /api/undo/<id>/redo. A change still waiting in the
+// functions of their own. Undo takes back the person's newest step (ul: the server's newest group, any device), the toast's
+// "Undo" exactly its own entry, both with POST /api/undo/<id>/undo per group of the entry (2.1005.0, #5637; 2.1358.0, #6328:
+// the arrow / Ctrl+Z no longer /api/undo/to/<id>, newer steps of the person stay); redo POST /api/undo/<id>/redo. A change still waiting in the
 // outbox is taken out of the queue (never sent); the server checks rights, conflicts and barriers and names what stayed.
 // Areas whose writes record no server step yet keep their own undo / redo functions in the entry (label "only this device"
 // in the list) until their area records steps (#5255: named in the result, a task for the rest).
@@ -220,12 +220,14 @@ function histSrvRes(a, dir) {
   return {skipped: [], note, none: !moved && !!(stayed.length || a?.stopped), undone: [...(a?.undone || []), ...(a?.partial || [])]};
 }
 // one entry back or forth: its outbox entries first, then its server groups, then (areas without server steps) its own functions
-// exact (2.1005.0, #5637): only the entry's own groups (POST /api/undo/<id>/undo: the toast, "exactly this step"); else undo
-// takes back everything of the person down to the entry (POST /api/undo/to/<id>: the arrow and Ctrl/Cmd+Z on the newest step)
+// 2.1358.0 (#6328): undo takes back exactly the entry's own groups, newest first (POST /api/undo/<id>/undo, as the toast since
+// #5637), for the toast, the arrow and Ctrl/Cmd+Z alike; never /api/undo/to/<id> - that took every newer step of the person
+// with it (another device's, a second tab's, a calendar sync's), also when the entry was an older own one or no server list
+// was there (offline, a child's account). Only the list "Recent steps" ("Undo up to here", undolist.js, #5250) uses /to/.
 // 2.1246.0 (#6267): e.at_once = {undo, redo}: run => the step shown at once while its way back / forth runs (a server group
 // too, which skips the entry's own functions) - e.g. the calendar's evOpt: a refusal takes the shown state back again
-async function histDo(e, dir, exact = false) {
-  if (e.at_once?.[dir] && !e.at_once.busy) { e.at_once.busy = true; try { return await e.at_once[dir](() => histDo(e, dir, exact)); } finally { e.at_once.busy = false; } }
+async function histDo(e, dir) {
+  if (e.at_once?.[dir] && !e.at_once.busy) { e.at_once.busy = true; try { return await e.at_once[dir](() => histDo(e, dir)); } finally { e.at_once.busy = false; } }
   const out = {skipped: [], queued: false, note: '', none: false, srv: false, undone: []};
   const parts = e.parts ? (dir === 'undo' ? [...e.parts].reverse() : e.parts) : [e];
   let cut = 0;
@@ -235,8 +237,7 @@ async function histDo(e, dir, exact = false) {
   const gids = histGids(e).sort((a, b) => a - b);
   if (gids.length) {
     out.srv = true;
-    if (dir === 'undo' && !exact) Object.assign(out, histSrvRes(await api('POST', `/api/undo/to/${gids[0]}`), dir), {srv: true});
-    else if (dir === 'undo') {  // 2.1005.0 (#5637): exactly the entry's own groups, newest first; newer steps of the person stay
+    if (dir === 'undo') {  // 2.1005.0 (#5637): exactly the entry's own groups, newest first; newer steps of the person stay (2.1358.0, #6328: always)
       let n = 0;
       for (const g of [...gids].reverse()) {
         try { const r = histSrvRes(await api('POST', `/api/undo/${g}/undo`), dir); if (!r.none) n++; out.note = out.note || r.note; out.undone.push(...r.undone); } catch (x) { if (x?.status !== 409) throw x; }
@@ -262,7 +263,8 @@ async function histDo(e, dir, exact = false) {
   return out;
 }
 // the person's newest step: this window's newest entry, unless the server has a newer group (another device, a write
-// without an entry here) -> an entry or {label, gids, row} of that group
+// without an entry here) -> an entry or {label, gids, row} of that group. 2.1358.0 (#6328): whichever it is, histDo takes back
+// only its own groups; without the server's list (offline, a child's account) the top entry alone
 async function histNext() {
   const top = HIST.undo[HIST.undo.length - 1];
   if (top && histPending(top)) return top;  // just made, its change still on its way: it is the newest
@@ -313,7 +315,7 @@ async function histStep(dir, n = 1, only = null) {
         break;
       }
       let r;
-      try { r = await histDo(e, dir, !!only); } catch (x) {  // 2.1005.0 (#5637): only = exactly these entries (no server group in a local run of "Recent steps")
+      try { r = await histDo(e, dir); } catch (x) {  // 2.1358.0 (#6328): every run takes exactly the entry's own groups (was: only = exact)
         if (!(x instanceof Offline) && x.message !== 'auth') { out(e); dropped = e; }  // gone or no rights: api() said why
         stop = true; break;
       }
