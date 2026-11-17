@@ -236,13 +236,14 @@ def wkh_renames(c, r, uid, info=None, limit=100):
     """2.571.0 (#4766): the renames of page row r, newest first: [{at, by_name, agent, from, to}] -- the paths as uid sees
     them (through a share from the shared node down, wkfolder.wkf_shown_path)."""
     from .wkfolder import wkf_shown_path
+    from ..core.writes import obj_hist_name  # 2.1350.0 (#6502): a change in a support session is marked
     rows = c.execute("SELECT * FROM obj_history WHERE kind=? AND ref_id=? ORDER BY id DESC LIMIT ?", (WKH_KIND, r["id"], int(limit))).fetchall()
     names = user_names(c, {x["user_id"] for x in rows if x["user_id"]})
     out = []
     for x in rows:
         a, z = json.loads(x["vals_before"] or "{}").get("path"), json.loads(x["vals_after"] or "{}").get("path")
         if a and z:
-            out.append({"at": x["updated_at"], "by_name": names.get(x["user_id"], ""), "agent": bool(x["agent"]),
+            out.append({"at": x["updated_at"], "by_name": obj_hist_name(x, names), "agent": bool(x["agent"]),
                         "from": wkf_shown_path(c, uid, r, info, a), "to": wkf_shown_path(c, uid, r, info, z)})
     return out
 

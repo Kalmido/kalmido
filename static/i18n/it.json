@@ -19056,5 +19056,21 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Un file per progetto in un ZIP: CSV di Todoist per l'importazione in Todoist, Markdown come checklist per qualsiasi app di note. Entrano solo i tuoi progetti: i progetti condivisi con te e quelli bloccati con password restano fuori, un elenco nello ZIP li nomina.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "bloccato con password (crittografato end-to-end): il server lo conserva solo cifrato",
   "shared with you: only the projects you own are exported": "condiviso con te: vengono esportati solo i tuoi progetti",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Progetti condivisi non inclusi: {0}. In questa esportazione ci sono solo i tuoi progetti."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Progetti condivisi non inclusi: {0}. In questa esportazione ci sono solo i tuoi progetti.",
+  "{0} (support access)": "{0} (accesso del supporto)",
+  "Support access opened": "Accesso del supporto aperto",
+  "Support access to your account {0} was opened until {1}. You can end it at any time under Settings > Account.": "L’accesso del supporto al tuo account {0} è stato aperto fino al {1}. Puoi terminarlo in qualsiasi momento in Impostazioni > Account.",
+  "Your account {0} opened support access to the organisation {1} until {2}. Any admin of the organisation can end it at any time.": "Il tuo account {0} ha aperto l’accesso del supporto all’organizzazione {1} fino al {2}. Ogni admin dell’organizzazione può terminarlo in qualsiasi momento.",
+  "{0} opened support access to the organisation {1}": "{0} ha aperto l’accesso del supporto all’organizzazione {1}",
+  "Support started working in your account": "Il supporto ha iniziato a lavorare nel tuo account",
+  "Support started working in the organisation {1}": "Il supporto ha iniziato a lavorare nell’organizzazione {1}",
+  "Support access to your account ended": "L’accesso del supporto al tuo account è terminato",
+  "Support access to the organisation {1} ended": "L’accesso del supporto all’organizzazione {1} è terminato",
+  "via support access": "tramite accesso del supporto",
+  "{0} opened support access to the organisation {1} until {2}": "{0} ha aperto l’accesso del supporto all’organizzazione {1} fino al {2}",
+  "Support started working in the organisation {0} (access until {1})": "Il supporto ha iniziato a lavorare nell’organizzazione {0} (accesso fino al {1})",
+  "Support started working in your account (access until {0})": "Il supporto ha iniziato a lavorare nel tuo account (accesso fino al {0})",
+  "{0} ended the support access to the organisation {1}": "{0} ha terminato l’accesso del supporto all’organizzazione {1}",
+  "support access to your account or your organisation: opened by another admin, first used, ended": "accesso del supporto al tuo account o alla tua organizzazione: aperto da un altro admin, usato per la prima volta, terminato",
+  "{0} older entry is no longer listed": ["{0} voce precedente non è più elencata", "{0} voci precedenti non sono più elencate"]
 }
