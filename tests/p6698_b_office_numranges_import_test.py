@@ -162,7 +162,7 @@ check(ch.get("ok") is True and ch.get("pending") == 0, f"the target's chain inta
 # ---------------------------------------------------------------- Fable F3: the scheme is taken in the target -> imported closed
 ws(A, f"org:{DEL}")
 CD = setup_office(A)
-r = A.post(B + "/api/office/num-ranges", json={"code": "XY", "scheme": f"GT-{{yyyy}}-{{seq:03}}"})
+r = A.post(B + "/api/office/num-ranges", json={"code": "XY", "scheme": "GT-{yyyy}-{seq:03}"})
 check(r.status_code == 201, "delta: its own range XY holds the scheme GT-{yyyy}-{seq:03} " + r.text[:160])
 iid = opened(A, OX, RK)
 j = run(A, iid, DEL)
