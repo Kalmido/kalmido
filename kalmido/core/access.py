@@ -13,7 +13,7 @@ from ..core.i18n import N_, tr
 from ..core.db import db, ensure_inbox, err, now_iso, trigger_ensure, usettings
 from ..core.ctx import me  # 2.149.0 G (#2517): was accounts.session
 from ..core.errors import Denied  # noqa: F401  2.149.0 G (#2517): moved to core/errors.py, re-exported here
-from .pg import set_ctx_hook, st_ids, system_ctx as pg_system  # 2.149.0 G (#2517): pulled up from functions
+from .pg import qi, set_ctx_hook, st_ids, system_ctx as pg_system, table_columns, table_names  # 2.149.0 G (#2517): pulled up from functions
 from .dlock import DL_FEAT_AREA, dl_area_locked, dl_list_hidden, dl_lists_sql, dl_task_hidden, dl_task_sql  # 2.235.0 B (#2902): an agent's data lock
 from .dlock import dl_tasks_locked  # 2.674.0 B (#4194)
 from ..core.pg import system_ctx as _sys, LOOKUP  # 2.369.5 (#2517): pulled up from functions
@@ -398,6 +398,49 @@ def _ctx_support(c, uid):
     ctx = _ctx_build(c, uid)
     fn = ACX_SUPPORT_ORGS[0]
     return ctx._replace(org_ids=tuple(fn(c, uid, ctx.org_ids)) if fn else ())
+
+
+# 2.1364.0 (#6320, decision: one check in the core instead of a table of paths): a support session writes into no organisation
+# of the person that has not opened support access itself. The narrowed context (_ctx_support, #6502) already hides such an
+# organisation's rows; the core's need_* functions (need_list, need_task, obj_need, files/store.need_node) say it plainly before
+# the role check: 403 code support_session, the same answer as accounts/supportgrant.sga_guard. "Writing" = the caller asks for
+# write access or the request itself writes (a comment on a task needs only reading rights on it, but is a write).
+ACX_SUP_FOREIGN = N_("A support session puts nothing into an organisation that has not granted support access")
+
+
+def acx_sup_writing(write=False):
+    """The account id of the current request's support session when it writes (write or a writing method), else None."""
+    if not has_request_context():
+        return None
+    s = g.get("acx_sup_uid")
+    u = getattr(g, "user", None)
+    if not s or u is None or u["id"] != s:
+        return None
+    return s if write or request.method not in ("GET", "HEAD", "OPTIONS") else None
+
+
+def acx_sup_write(c, org_id, write=False):
+    """2.1364.0 (#6320): Denied 403 code support_session when a support session writes in organisation org_id that is one of
+    the person's organisations but outside the narrowed context (no support access of its own). An organisation the person is
+    not in stays with the normal rules (404: no hint about others' objects)."""
+    uid = acx_sup_writing(write)
+    if not uid or not org_id:
+        return
+    oid = int(org_id)
+    if oid in acx(c).org_ids:
+        return
+    if oid in _ctx_build(c, uid).org_ids:
+        raise Denied(403, tr(ACX_SUP_FOREIGN), data={"code": "support_session"})
+
+
+def acx_sup_write_row(c, table, rid, write=False, col="org_id"):
+    """acx_sup_write for the organisation of row rid of table (read past row-level security: the narrowed context hides it)."""
+    if not acx_sup_writing(write) or not rid:
+        return
+    with pg_system(c):  # only the row's organisation id: structure, no content
+        r = c.execute(f"SELECT {qi(col, table_columns(c, table))} FROM {qi(table, table_names(c))} WHERE id=?", (int(rid),)).fetchone()
+    if r:
+        acx_sup_write(c, r[0], write)
 
 
 def acx(c=None):
@@ -1040,6 +1083,7 @@ def _list_role(c, lid, uid, r=_LR_NO, m=_LR_NO, gone=_LR_NO):
 def need_list(c, lid, write=True, owner=False, manage=False):
     """Role of the current user in list lid; 404 when they cannot see it, 403 when the action needs more:
     write = change the list as a whole (participants and viewers cannot), manage = members / roles."""
+    acx_sup_write_row(c, "lists", lid, write)  # 2.1364.0 (#6320): a support session, an organisation without its grant
     role = list_role(c, lid) if lid else None
     if not role:
         raise Denied(404)
@@ -1069,6 +1113,7 @@ def need_task(c, tid, write=True, full=False):
     """Role of the current user in the task's list; 404 when they cannot see the task, 403 when they cannot change it.
     Participants: only their tasks (and subtasks); the parent chain of an assigned subtask is context -- readable with
     full=False only (no notes, comments, files, history)."""
+    acx_sup_write_row(c, "tasks", tid, write)  # 2.1364.0 (#6320): a support session, an organisation without its grant
     r = c.execute("SELECT list_id FROM tasks WHERE id=?", (tid,)).fetchone()
     if not r or dl_task_hidden(c, tid, me()):  # 2.235.0 B (#2902): a task the agent's data lock leaves out
         raise Denied(404)

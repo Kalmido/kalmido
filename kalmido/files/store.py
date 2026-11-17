@@ -32,7 +32,7 @@ from ..core.config import ATT_DIR, MAX_FILE_MB
 from ..core.i18n import N_, tr
 from ..core.db import insert_id, iso, now_utc, write_lock, db
 from ..core.dlock import dl_chain_cut, dl_wiki_folders, dl_wiki_step_sql  # 2.1045.0 (#5823)
-from ..core.access import Denied, act_for, acx_of, collab_all
+from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all
 from ..core.orgcrypt import oc_read_file, oc_write_file, oc_user_space
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds of the shared core (fs_org_live)
@@ -415,6 +415,7 @@ def need_node(c, nid, write=False, trash=False, manage=False):
     """The node row for the signed-in account: 404 when it may not see it (or it is in the trash and trash=False), 403
     when write / manage (shares, organisation access: owners only) needs more. Reading a link also needs the rights on
     its original (task / project file). The row carries the role as row["role"] (a dict)."""
+    acx_sup_write_row(c, "fs_nodes", nid, write or manage)  # 2.1364.0 (#6320): a support session, an organisation without its grant
     chain = fs_chain(c, nid) if nid else []
     role = fs_role(c, nid, chain=chain) if chain else None
     if not role:
