@@ -73,6 +73,7 @@ from .acctexport import (UMZ_BLOCK, UMZ_FORMAT, UMZ_HEAD, UMZ_V, UmzReader, UmzW
                          umz_user_conn, umz_write_state)
 from ..core.orgcrypt import OrgCryptError, oc_user_space, oc_write_file, rck_parse, rck_resolve  # 2.149.0 G (#2517); 2.531.0: + OrgCryptError, rck_resolve pulled up (layer budget)
 from ..core.schema import MAX_DEPTH  # 2.149.0 G (#2517): pulled up from functions
+from ..office.model import pb_personal  # 2.1316.0 (#6577): umz_office_space
 from ..life.model import JOURNAL_MAX, jr_open, jr_seal  # 2.306.0 A (#2885); 2.531.0 (#4317): + JOURNAL_MAX, jr_open
 from ..accounts.orginvite import ojn_drop_later, ojn_invite, ojn_later  # 2.278.0 A (#3095)
 from ..collab.e2e import _pub, e2e_has_keys, e2e_import_keys, e2e_same_keys  # 2.278.0 C (#3091)
@@ -790,7 +791,6 @@ def umz_office_there(c, uid, src, eid, org):
 def umz_office_space(c, uid, org):
     """2.1316.0 (#6577): the office an organisation export's office parts go into: the organisation, else my personal office
     (None while I have none: nothing in it to collide with)."""
-    from ..office.model import pb_personal
     return org if org else pb_personal(c, uid, create=False)
 
 
