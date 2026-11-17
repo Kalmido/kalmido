@@ -10,6 +10,8 @@
  3 restoring a deleted task comment / team chat message: the author does not undo a project admin's delete; not in a frozen
    DM; not as a read-only person of the organisation (each was 200 before)
  4 a mail reply through the own address token of a read-only member with a colleague's forged From: no comment, a note
+ 5 another person's own ticket types: only the ones their private project I see offers, without note template, switched off
+   ones or id (was: every own type of that person)
 usage: p21364_c_haertung_test.py <datadir>"""
 import base64
 import os
@@ -197,5 +199,22 @@ check(dbx("SELECT COUNT(*) FROM obj_comments WHERE kind='task' AND ref_id=?", (T
 out = py_in_app("import email\nfrom kalmido.integrations.taskmail import tmr_take\n"
                 f"print('TAKE', tmr_take(c, email.message_from_string({MAIL!r}), None, {BOB}, 'token')[0])")
 check("TAKE comment" in out, f"(4) bob's own token: still a comment ({out[-200:]})")
+
+# ==== 5: another person's own ticket types
+TT = {}
+for name, on in (("Offered", True), ("Unpicked", True), ("Switched off", False)):
+    r = Bo.post(B + "/api/ticket-types", json={"space": "private", "name": name, "template": f"secret {name}", "enabled": on})
+    check(r.status_code in (200, 201), f"(5) setup: bob's own type {name} {r.text[:120]}")
+    TT[name] = r.json().get("key")
+P = Bo.post(B + "/api/lists", json={"name": "Bob private", "org_id": None}).json().get("id")
+check(Bo.patch(B + f"/api/lists/{P}", json={"ttypes": ["bug", TT["Offered"], TT["Switched off"]]}).ok, "(5) setup: the project offers one of the own types")
+r = Bo.put(B + f"/api/lists/{P}/members", json={"user_id": CARL, "role": "view"})
+check(r.ok, f"(5) setup: carl sees bob's private project {r.text[:120]}")
+seen = [x for x in Ca.get(B + "/api/ticket-types").json().get("types", []) if x.get("owner_id") == BOB]
+check([x["key"] for x in seen] == [TT["Offered"]], f"(5) carl meets only the type the project offers ({[x.get('name') for x in seen]})")
+check(seen and "template" not in seen[0] and "id" not in seen[0] and seen[0].get("enabled") is True,
+      f"(5) without note template and id ({sorted(seen[0]) if seen else None})")
+own = [x for x in Bo.get(B + "/api/ticket-types").json().get("types", []) if x.get("owner_id") == BOB]
+check(len(own) == 3 and all("template" in x for x in own), "(5) bob still sees all his own types with templates")
 
 sys.exit(kt.done("p21364_c_haertung"))
