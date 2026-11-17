@@ -195,5 +195,20 @@ if r.ok:
 else:
     print("p242_api: collab_all switch route not found, skipped:", r.status_code)
 
+# 2.1356.0 (#6326): two devices of one person - the second device's change reaches the first by the delta, and a save of the
+# first device whose _prev is the text it showed (not the newest) is a conflict: the other device's text stays
+A2 = sess("alice")
+TL = A.post(B + "/api/lists", json={"name": "Two devices"}).json()["id"]
+TT = A.post(B + "/api/tasks", json={"title": "Shopping", "content": "Milk", "list_id": TL}).json()["id"]
+v0 = version(A)
+check(A2.patch(B + f"/api/tasks/{TT}", json={"content": "Milk, eggs, bread", "_prev": {"content": "Milk"}}).ok, "#6326: the second device saves")
+dl = A.get(B + f"/api/state/delta?since={v0}&lean=1&tt=1").json()
+check(dl.get("full") is False and any(t["id"] == TT and t.get("content") == "Milk, eggs, bread" for t in dl.get("tasks", [])), f"#6326: the delta brings the new text {dl.get('full')}")
+r = A.patch(B + f"/api/tasks/{TT}", json={"content": "Milk cheese", "_prev": {"content": "Milk"}}).json()
+check(any(c.get("field") == "content" and c.get("server") == "Milk, eggs, bread" for c in r.get("conflicts") or []), f"#6326: the first device's save on the old text is a conflict {r.get('conflicts')}")
+check(A.get(B + f"/api/tasks/{TT}").json().get("content") == "Milk, eggs, bread", "#6326: the second device's text stays")
+r = A.patch(B + f"/api/tasks/{TT}", json={"content": "Milk, eggs, bread, cheese", "_prev": {"content": "Milk, eggs, bread"}}).json()
+check(not r.get("conflicts") and r.get("content") == "Milk, eggs, bread, cheese", "#6326: a save on the shown newest text goes through")
+
 print(f"p242_api: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

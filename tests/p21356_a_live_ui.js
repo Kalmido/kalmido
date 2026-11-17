@@ -1,0 +1,104 @@
+// kalmido-suite:
+// 2.1356.0 UI test (Teil A: live updates on a second device), own container (start.sh), Firefox, phone width (390 x 844, touch).
+// The browser is one device of alice, the suite's own fetches with a second login of alice are her other device. Invented data only.
+// - #6326: the open task changed on the other device: the panel (it holds the focus on a phone) shows the new text at once;
+//   a focused field keeps what it shows while the change arrives, a save typed on it is a conflict (the other device's text
+//   stays on the server), a field left untouched shows the newest text
+const path = require('path');
+const {execFileSync} = require('child_process');
+const {sleep, B, login} = require('./boot');
+const F = []; let ok = 0;
+const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
+const firefox = require('./ff')({tag: 'p21356_a_live_ui', check, shots: 'P21356A_SHOTS'});
+const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
+const DATA = process.argv[2] || path.join(__dirname, '.data');
+execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
+const call = async (ck, method, url, body) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, ...(ck ? {Cookie: ck} : {})}, body: body ? JSON.stringify(body) : undefined}); const j = await r.json().catch(() => ({})); return {...j, http: r.status}; };
+
+(async () => {
+  await sleep(600);
+  const r = await fetch(B + 'api/auth/setup', {method: 'POST', headers: H, body: JSON.stringify({username: 'alice', display_name: 'Alice', password: 'password123', wizard: true, lang: 'en'})});
+  check(r.ok, 'setup');
+  const CA = await login('alice');  // the other device
+  await call(CA, 'POST', '/api/admin/setup', {lang: 'en', collab_all: true, modules: ['comments']});
+  await call(CA, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: 'comments,collab'});
+  const L = (await call(CA, 'POST', '/api/lists', {name: 'Household'})).id;
+  const T = (await call(CA, 'POST', '/api/tasks', {title: 'Shopping', content: 'Milk', list_id: L})).id;
+  const other = (body, prev) => call(CA, 'PATCH', `/api/tasks/${T}`, {...body, _prev: prev});
+  const srv = async () => call(CA, 'GET', `/api/tasks/${T}`);
+  // the server's task once fn holds (a save goes out through the outbox: it lands a moment after flushSaves)
+  const srvUntil = async (fn, n = 40) => { let x; for (let i = 0; i < n; i++) { x = await srv(); if (fn(x)) return x; await sleep(250); } return x; };
+
+  await firefox(async o => {
+    const {ev, nav, shot, cmd, ctx} = o;
+    const ready = async (expr, n = 40) => { for (let i = 0; i < n; i++) { if (await ev(expr).catch(() => false)) return true; await sleep(250); } return false; };
+    // a background window gets no focus events (tests/p2170_ui.js): sent by hand, as a browser in front sends them
+    const focus = sel => ev(`(() => { const x = document.querySelector('${sel}'); x.focus(); x.dispatchEvent(new FocusEvent('focusin', {bubbles: true})); return 1; })()`);
+    const leave = sel => ev(`(() => { const x = document.querySelector('${sel}'); x.blur(); x.dispatchEvent(new FocusEvent('focusout', {bubbles: true})); return 1; })()`);
+    const caught = () => ready(`fetch('/api/version', {headers: {'X-Requested-With': 'kalmido'}}).then(r => r.json()).then(j => j.v === S.v && !td_polling)`, 120);
+    await nav(B + 'static/icon.svg');
+    await ev(`(() => { localStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`);
+    await ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`);
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
+    await nav(B + '#l/' + L);
+    check(await ready(`typeof lpDelta === 'function' && isMobile() && !!document.querySelector('#view [data-id="${T}"]') && !!S.lpA`, 60), 'the list on a phone, the poll runs');
+
+    // ================= #6326 the open task changed on the other device
+    S6326: {
+      await ev(`(() => { openDetail(${T}); return 1; })()`);
+      const open = await ready(`S.sel === ${T} && document.activeElement === document.querySelector('#detail')`, 40);
+      check(open, '#6326: the panel is open and holds the focus (phone)'); if (!open) break S6326;
+      const shown = `(() => { const ta = document.querySelector('#d-content'), md = document.querySelector('#d-md'); return md && !md.classList.contains('hidden') ? md.textContent : ta?.value; })()`;
+      check(/Milk/.test(await ev(shown)), '#6326: the panel shows the note');
+      await other({content: 'Milk, eggs, bread'}, {content: 'Milk'});
+      check(await ready(`S.tasks.get(${T})?.content === 'Milk, eggs, bread'`, 60), '#6326: the change arrives (delta)');
+      check(await ready(`/eggs, bread/.test(${shown})`, 20), '#6326: the panel shows the other device\'s text at once (the focus was in the panel) ' + JSON.stringify(await ev(shown)));
+      await shot('p21356a-6326-panel.png');
+      // typed on: the text builds on what the panel shows
+      await ev(`(() => { editContent(); const ta = document.querySelector('#d-content'); ta.dispatchEvent(new FocusEvent('focusin', {bubbles: true})); ta.value += ', cheese'; ta.dispatchEvent(new Event('input', {bubbles: true})); return flushSaves().then(() => 1); })()`);
+      check((await srvUntil(x => /cheese/.test(x.content || ''))).content === 'Milk, eggs, bread, cheese', '#6326: typing on keeps the other device\'s text ' + (await srv()).content);
+      await caught();
+      await leave('#d-content');
+      await caught();
+
+      // the field holds the focus while the change arrives (the delta's answer came after the tap): it keeps what it shows,
+      // a save typed on it is a conflict, the other device's text stays
+      await ev(`(() => { editContent(); document.querySelector('#d-content').dispatchEvent(new FocusEvent('focusin', {bubbles: true})); return 1; })()`);
+      check(await ready(`document.activeElement?.id === 'd-content'`, 20), '#6326: the note field has the focus');
+      await other({content: 'Bread only'}, {content: 'Milk, eggs, bread, cheese'});
+      await ev(`lpDelta(S.v, ['tasks']).then(() => 1)`);
+      check(await ev(`S.tasks.get(${T})?.content === 'Bread only' && document.querySelector('#d-content').value === 'Milk, eggs, bread, cheese'`), '#6326: the focused field keeps what it shows (calm view) ' + JSON.stringify(await ev(`(() => { const x = document.querySelector('#d-content'); return {v: x?.value, dv: x?.defaultValue, hid: x?.classList.contains('hidden'), st: S.tasks.get(${T})?.content, act: document.activeElement?.id, q: OUT.q.length, ed: editing()}; })()`).catch(e => String(e))));
+      await ev(`(() => { const ta = document.querySelector('#d-content'); ta.value += ', butter'; ta.dispatchEvent(new Event('input', {bubbles: true})); return flushSaves().then(() => 1); })()`);
+      check(await ready(`(S.conflicts || []).some(c => c.field === 'content') || !OUT.q.length`, 40), '#6326: the save is answered');
+      check((await srvUntil(x => x.content !== 'Bread only', 8)).content === 'Bread only', '#6326: the save on the old text does not overwrite the other device\'s change silently ' + (await srv()).content);
+      check(await ready(`(S.conflicts || []).some(c => c.field === 'content') && document.querySelector('#d-content').value.endsWith(', butter')`, 20), '#6326: a conflict, the typed text stays in the field');
+      await shot('p21356a-6326-conflict.png');
+      // review #4816: the next poll brings another change of the task: the open conflict bar and the draft in the field stay
+      await other({title: 'Shopping list'}, {title: 'Shopping'});
+      await ev(`lpDelta(S.v, ['tasks']).then(() => 1)`);
+      check(await ready(`S.tasks.get(${T})?.title === 'Shopping list'`, 20), '#6326: the next change arrives while the bar is open');
+      check(await ev(`!!document.querySelector('#detail .cfbar[data-f="content"]') && document.querySelector('#d-content').value.endsWith(', butter')`), '#6326: an open conflict bar keeps the panel and the draft after the next poll');
+      // the bar's "Keep mine" saves the typed text on top of the other one (one goes on from here)
+      await ev(`(() => { document.querySelector('#detail .cfbar[data-f="content"] [data-cfi="mine"]')?.click(); return 1; })()`);
+      check(await ready(`!document.querySelector('#detail .cfbar')`, 20) && /butter$/.test((await srvUntil(x => /butter$/.test(x.content || ''))).content || ''), '#6326: "Keep mine" saves the typed text ' + (await srv()).content);
+      await leave('#d-content');
+      await caught();
+
+      // a field left untouched shows the newest text once it is left (and saves nothing over it)
+      await ev(`(() => { closeDetail(); openDetail(${T}); return 1; })()`);
+      await ready(`S.sel === ${T} && !!document.querySelector('#d-title')`, 20);
+      await focus('#d-title');
+      const t0 = await ev(`document.querySelector('#d-title').value`);
+      await other({title: 'Shopping Saturday'}, {title: t0});
+      const dbg = () => ev(`(() => { const x = document.querySelector('#d-title'); return {v: x?.value, dv: x?.defaultValue, kf: x?._kf, st: S.tasks.get(${T})?.title, stale: S.detailStale, q: OUT.q.length, act: document.activeElement?.id}; })()`).catch(e => String(e));
+      check(await ready(`document.activeElement?.id === 'd-title' && lpDelta(S.v, ['tasks']).then(() => S.tasks.get(${T})?.title === 'Shopping Saturday')`, 20), '#6326: the title change arrives while the title has the focus ' + JSON.stringify(await dbg()));
+      check(await ev(`document.querySelector('#d-title').value === ${JSON.stringify(t0)}`), '#6326: the focused title keeps what it shows');
+      await leave('#d-title');
+      check(await ready(`document.querySelector('#d-title')?.value === 'Shopping Saturday'`, 20), '#6326: left untouched, the title shows the newest text ' + JSON.stringify(await dbg()));
+      check((await srvUntil(x => x.title !== 'Shopping Saturday', 8)).title === 'Shopping Saturday', '#6326: leaving the field saved nothing over it');
+    }
+  }, true);
+
+  console.log(`p21356_a_live_ui: ${ok} ok, ${F.length} failed`);
+  process.exit(F.length ? 1 : 0);
+})().catch(e => { console.log('FAIL:', e.stack || e); process.exit(1); });
