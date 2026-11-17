@@ -18983,6 +18983,7 @@
   "at most 60 issues and 300 comments a day": "como máximo 60 issues y 300 comentarios al día",
   "hash chain broken here (daily check)": "cadena hash rota aquí (comprobación diaria)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Cadena hash de la oficina rota: oficina {0}, documento ID {1} (serie {2}, posición {3}, {4}). El registro de la oficina lo indica.",
+  "Office hash chain cannot be checked: office {0}, document id {1} (series {2}, place {3}) cannot be read with the office's key for {4} days. The check goes on behind it.": "No se puede comprobar la cadena hash de la oficina: oficina {0}, documento ID {1} (serie {2}, posición {3}) no se puede leer con la clave de la oficina desde hace {4} días. La comprobación continúa después.",
   "Mailbox {0}: fetching stopped, the server refused the sign-in several times in a row (failing since {1}). Save the access data again.": "Buzón {0}: recepción detenida, el servidor rechazó el inicio de sesión varias veces seguidas (falla desde {1}). Guarda de nuevo los datos de acceso.",
   "You get this e-mail because Integrations is switched on in Settings > Notifications.": "Recibes este correo porque Integraciones está activado en Ajustes > Notificaciones.",
   "Nobody can receive the e-mails: the organisation has no admin, so the mailbox is not fetched": "Nadie puede recibir los correos: la organización no tiene administrador, por eso el buzón no se consulta",
