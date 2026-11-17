@@ -5253,7 +5253,7 @@ people (the API has no route for it).
 | One sign-off: versions, state, comments with answers | `GET /api/v1/videos/{id}` | `get_video_review` | read |
 | Comment (optionally at `at_sec`) or answer (`parent_id`) | `POST /api/v1/videos/{id}/comments` | `add_comment` with `kind: "video"`, `id` (2.981.0; was `add_video_comment`) | comments |
 | Mark a comment done / open | `PATCH /api/v1/videos/{id}/comments/{comment_id}` | `set_video_comment_done` | comments |
-| The image / PDF / audio file of a version (2.641.0, audio 2.658.0) | `GET /api/v1/videos/{id}/versions/{version_id}/file` | - (the file tools, `file_id`) | read |
+| The image / PDF / audio file of a version (2.641.0, audio 2.658.0) | `GET /api/v1/videos/{id}/versions/{version_id}/file` | - (the file tools, `file_id`) | attachments:read (2.1364.0) |
 
 - **Comments** come by version and timecode: `{id, version, version_id, at_sec, timecode (mm:ss), author, customer, agent,
   done, body, replies: [...]}`. `state` of the sign-off: `open`, `approved`, `changes` (the customer asked for changes);
