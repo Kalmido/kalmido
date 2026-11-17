@@ -8678,11 +8678,9 @@
   "Sending (SMTP)": "Envío (SMTP)",
   "Sending is not set up: an admin of the workspace enters the mailbox's SMTP access (E-mail filing > Mailbox).": "El envío no está configurado: un administrador del espacio de trabajo introduce el acceso SMTP del buzón (Archivo de correos > Buzón).",
   "Suggested recipients": "Destinatarios sugeridos",
-  "The encrypted connection failed (check SSL / TLS and the port)": "La conexión cifrada ha fallado (revisa SSL / TLS y el puerto)",
   "The folder does not exist on the server": "La carpeta no existe en el servidor",
   "The mailbox is fetched now": "El buzón se está consultando ahora",
   "The password is missing": "Falta la contraseña",
-  "The server answered with an error": "El servidor respondió con un error",
   "The server cannot be reached (address or port wrong, or the server is down)": "No se puede acceder al servidor (dirección o puerto incorrectos, o el servidor no funciona)",
   "The server refused the user name or the password": "El servidor rechazó el nombre de usuario o la contraseña",
   "To {0}": "Para {0}",
@@ -13937,7 +13935,6 @@
   "Workspace boundary check: {0} memberships cross the boundary between organisations / private ({1}). Settings > Organisation > People": "Comprobación de límites de los espacios de trabajo: {0} membresías cruzan el límite entre organizaciones / privado ({1}). Ajustes > Organización > Personas",
   "Workspace boundary check: {0} memberships across the boundary between organisations were removed ({1}). Settings > Organisation > People": "Comprobación de límites de los espacios de trabajo: se eliminaron {0} membresías que cruzaban el límite entre organizaciones ({1}). Ajustes > Organización > Personas",
   "Your account has no e-mail address yet. An admin can add it under Settings > Organisation > People.": "Tu cuenta aún no tiene dirección de correo. Un admin puede añadirla en Ajustes > Organización > Personas.",
-  "This server is in the local network: an admin has to allow it first (Settings > Server > Server > Advanced, allowed internal hosts)": "Este servidor está en la red local: primero un administrador tiene que permitirlo (Ajustes > Servidor > Servidor > Avanzado, hosts internos permitidos)",
   "Server|settings": "Servidor",
   "Open under Server": "Abrir en Servidor",
   "Organisation data": "Datos de la organización",
@@ -18986,5 +18983,8 @@
   "Reject the deletion of “{0}”?": "¿Rechazar la eliminación de «{0}»?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "La eliminación se cancela; la cuenta sigue bloqueada hasta que un admin la desbloquee. La persona recibe un correo.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} pidió eliminar su cuenta y fue bloqueada: la eliminación espera tu decisión, a más tardar hasta el {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decide sobre la eliminación en pausa de {0}: sin decisión se realiza el {1}"
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decide sobre la eliminación en pausa de {0}: sin decisión se realiza el {1}",
+  "Sending needs the user name and the password of the SMTP server": "Para enviar se necesitan el nombre de usuario y la contraseña del servidor SMTP",
+  "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Envío solo por el puerto 465 o 587 (el puerto 25 solo para un servidor que un administrador haya permitido)",
+  "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Solo se envía con el nombre de usuario y la contraseña del servidor SMTP, por el puerto 465 o 587."
 }

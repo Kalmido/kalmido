@@ -402,8 +402,9 @@ def _cal_cut(conns, cut):
     cut.set()
     for conn in list(conns):
         # 2.539.0 (#4379): also the socket of the response (urllib closes conn.sock after the headers, the response keeps
-        # reading from it: a body sent drop by drop)
-        for sk in {id(x): x for x in (conn.sock, getattr(conn, "_cal_sock", None)) if x is not None}.values():
+        # reading from it: a body sent drop by drop); 2.1312.0 (#6540): also an SMTP / IMAP session of a workspace's mailbox
+        # (its .sock, after STARTTLS the wrapped one; none before it connected)
+        for sk in {id(x): x for x in (getattr(conn, "sock", None), getattr(conn, "_cal_sock", None)) if x is not None}.values():
             try:
                 sk.shutdown(socket.SHUT_RDWR)
             except OSError:

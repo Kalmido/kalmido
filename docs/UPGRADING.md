@@ -26,6 +26,7 @@ version you pass, and make a backup first. There is no need to stop at each vers
 | 2.239 | The server log shortens IP addresses and names accounts by number: fail2ban and the like need `KALMIDO_LOG_FULL_IP=1`. | CHANGELOG 2.239.0 |
 | 2.240 | The mail server is reached with a checked certificate: an own certificate or an IP address as host needs `KALMIDO_SMTP_INSECURE=1`, otherwise no mail goes out. Mails taken in from the instance mailbox are deleted there (`KALMIDO_IMAP_KEEP=1`: only marked read). An embedding service on another host needs `KALMIDO_EMBED_EXTERNAL=1`. | CHANGELOG 2.240.0 |
 | 2.499 | On the channel *Web Push* nothing goes to the public `ntfy.sh` any more. If you had subscribed to your random topic there as a backup, for example for reminders, switch to the channel *ntfy* under *Settings > Notifications*. An own ntfy server changes nothing. | [Installed app and push](SELF-HOSTING.md#installed-app-pwa-and-push) |
+| 2.1312 | A workspace mailbox sends only with an SMTP user name and password and only through port 465 / 587 (25 or another port: a `host:port` of the allowed internal hosts). A mailbox stored without a login or on another port sends nothing until an admin fixes it (the dialog says why). The admin's allowed internal hosts for *mail* now count only for the workspaces of the server's admins, and an entry without a port only for the mail ports; `KALMIDO_CALENDAR_ALLOW_HOSTS` still counts for every workspace. | CHANGELOG 2.1312.0 |
 
 ## Format limits: going back
 

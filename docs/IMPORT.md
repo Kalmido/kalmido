@@ -55,7 +55,12 @@ are fetched every `KALMIDO_IMAP_INTERVAL` seconds and filed in that workspace on
 to a filed mail; otherwise *Not assigned*). Passwords are stored encrypted and never shown again; the servers are reached
 only with a valid certificate, and hosts in the local network only when listed under *allowed internal hosts*
 (`KALMIDO_CALENDAR_ALLOW_HOSTS`). With SMTP set up, *Reply* and *New e-mail* send plain-text mails that are filed as
-*Sent*. HTML mails are shown cleaned in a sandboxed frame; external images load only on request.
+*Sent*. Since 2.1312 the SMTP access needs its user name and password (Kalmido never delivers without a login) and uses
+port 465 or 587; port 25 or another port only for a `host:port` of the allowed internal hosts. That list's *mail* entries
+count for the workspaces of the server's admins only (`KALMIDO_CALENDAR_ALLOW_HOSTS` for every workspace), and an entry
+without a port opens the mail ports 25, 143, 465, 587 and 993 only. Through an own SMTP one person sends at most 30 mails
+an hour and 20 a day to the same address (invoices, reminders and letters are not limited); saving a connection, *Check
+connection* and *Fetch now* share one limit, and an error only says "cannot be reached" or "login refused". HTML mails are shown cleaned in a sandboxed frame; external images load only on request.
 
 ## Share from your phone
 
