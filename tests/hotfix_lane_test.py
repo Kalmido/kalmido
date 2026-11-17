@@ -99,8 +99,12 @@ st, why, base = ci_base(qpush)
 check(st == "none" and "43560000001" in why and base is None, "a push from the merge queue = stage none (%s, %s)" % (st, why))
 st, why, _ = ci_base(dict(qpush, CI_QUEUE_RUN=""))
 check(st is None, "a push on main without a merge_group run keeps the push stage (%s, %s)" % (st, why))
+# 2.1352.0 (#6873): the train's version commit that came through the queue (its merge_group run: stage release) lands
+# with none; without a merge_group run (a direct push) it keeps release
 st, why, _ = ci_base(dict(qpush, CI_MESSAGE=zug))
-check(st != "none", "the train's release push never gets stage none (%s, %s)" % (st, why))
+check(st == "none", "the train's version commit landed by the queue = stage none (%s, %s)" % (st, why))
+st, why, _ = ci_base(dict(qpush, CI_MESSAGE=zug, CI_QUEUE_RUN=""))
+check(st == "release", "the train's direct release push keeps stage release (%s, %s)" % (st, why))
 st, why, _ = ci_base(dict(qpush, CI_MESSAGE="#1: fix [full]"))
 check(st == "full", "[full] in the message wins over the queue (%s)" % st)
 st, why, _ = ci_base(dict(qpush, GITHUB_REF="refs/heads/hotfix/2.1.1"))
