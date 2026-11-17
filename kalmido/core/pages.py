@@ -23,6 +23,7 @@ from ..core.db import GLOBAL_DEFAULTS, lv_versions_fmt, lv_versions_q  # 2.149.0
 from ..core.strip import start_css_files  # 2.191.0 B (#1824), 2.476.0 (#3487)
 from ..core.i18nfrag import fragment_paths  # 2.1188.0 (#6194)
 from ..core.codemanifest import CM_ASSET_RE, CM_LANG_FILE, CM_SW_LIST_RE, cm_index, cm_json, cm_ld_metas, cm_served, cm_sha, cm_static_rels  # 2.742.0 (#5217)
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from .access import feat_has  # 2.1327.0 (#6823): the one reading of the module switches
 
 
@@ -279,12 +280,10 @@ def new_inbox_task(c, uid, title, content="", tt_id=None, url=None):
     from ..tasks.validation import log_act
     inbox = my_inbox(c, uid)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (inbox,)).fetchone()[0]
     # 2.27.0 (#1001): what lands in your own inbox (mail, the share sheet, /drop) is yours: assigned to you,
     # so it also shows in "My tasks"
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,sort,created_at,updated_at,tt_id,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (inbox, (title or tr("Shared", lg=lang(c, uid)))[:300], content or "", srt, ts, ts, tt_id, uid,
-                     url if valid_url(url) else None, uid))
+    tid = task_insert(c, uid, inbox, title=(title or tr("Shared", lg=lang(c, uid)))[:300], content=content or "", ts=ts, tt_id=tt_id,
+                      url=url if valid_url(url) else None, assignee_id=uid)  # 2.1358.0 (#6825): on top of the inbox (sort TOP)
     log_act(c, tid, "created", uid=uid)
     return tid
 

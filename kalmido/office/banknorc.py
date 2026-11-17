@@ -24,7 +24,8 @@ from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of
 from ..core.db import body, bump, iso, local_now, now_utc
 from ..core.errors import BadInput
 from ..core.i18n import N_, lang, tr, trn
-from ..core.pg import insert_id, system_ctx
+from ..core.pg import system_ctx
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..tasks.validation import log_act
 from .bank import BNK_LIST_MAX, BNK_KINDS, _ctx, _home, _receipts, _shift, _tx_dec
 from .bankvend import bv_key, bv_missing, bv_noreceipt_keys, bv_task_lines  # 2.425.0 B (#3451)
@@ -188,9 +189,7 @@ def _task_new(c, oid, person, n, today):
     url, content = _content(c, oid, person, today)
     lid = my_inbox(c, person)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,sort,created_at,updated_at,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (lid, _title(n, lg), content, today, srt, ts, ts, person, url, person))
+    tid = task_insert(c, person, lid, title=_title(n, lg), content=content, due=today, ts=ts, url=url, assignee_id=person)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=person)
     return tid
 

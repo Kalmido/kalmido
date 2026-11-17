@@ -17,7 +17,8 @@ from datetime import date, timedelta
 from flask import g, jsonify, request
 
 from ..core.config import app, APP_NAME, MAX_FILE_MB, PUBLIC_URL
-from ..core.pg import insert_id, system_ctx, table_exists
+from ..core.pg import system_ctx, table_exists
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.i18n import browser_lang, lang, md_plain, tr, trn
 from ..core.db import body, bump, connect, db, err, inbox_default, iso, local_now, now_utc, uset, usettings
 from ..accounts.session import GATE, me
@@ -372,9 +373,8 @@ def mail_import(c, raw, pre=None):
     title, content, url = split_link(title, content)
     if lid:
         ts = iso(now_utc())
-        srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-        tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,sort,created_at,updated_at,tt_id,created_by,url) VALUES(?,?,?,?,?,?,?,?,?)",
-                        (lid, title[:300], content, srt, ts, ts, "mail:" + mid, uid, url if valid_url(url) else None))
+        tid = task_insert(c, uid, lid, title=title[:300], content=content, ts=ts, tt_id="mail:" + mid,
+                          url=url if valid_url(url) else None)  # 2.1358.0 (#6825): on top (sort TOP)
         log_act(c, tid, "created", uid=uid)
         agent_added_events(c, tid, source="mail")  # 2.23.0 (#795)
     else:

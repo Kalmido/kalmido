@@ -6,6 +6,7 @@ from flask import g, has_request_context
 
 from ..core.config import PUBLIC_URL
 from ..core.pg import insert_id, st_ids, system_ctx
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.i18n import lang, LANGS, N_, tr
 from ..core.numtext import parse_num, user_dec
 from ..core.db import iso, local_now, now_utc, uset, usettings
@@ -656,18 +657,14 @@ def occ_create(c, uid, b, check=True):
     ts = iso(now_utc())
     rem = ",".join(dict.fromkeys(str(x) for x in ([lead * 1440] if lead else []) + [0]))
     title = tr("Birthday: {0}", name, lg=lg) if kind == "birthday" else tr("Anniversary: {0}", name, lg=lg)
-    tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,due,reminders,repeat,sort,created_at,updated_at,created_by,fam)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                    (lid, sid, title[:TITLE_MAX], due.isoformat(), rem, occ_rule(mo, dy),
-                     c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0],
-                     ts, ts, uid, json.dumps(fam, ensure_ascii=False, separators=(",", ":"))))
+    tid = task_insert(c, uid, lid, section_id=sid, title=title[:TITLE_MAX], due=due.isoformat(), reminders=rem, repeat=occ_rule(mo, dy),
+                      ts=ts, fam=json.dumps(fam, ensure_ascii=False, separators=(",", ":")))  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=uid)
     gifts = b.get("gifts") or []
     if not isinstance(gifts, list) or len(gifts) > 50 or not all(isinstance(x, str) for x in gifts):
         raise BadInput(tr("Invalid value: {0}", "gifts"))
     for i, gft in enumerate(x.strip()[:TITLE_MAX] for x in gifts if x.strip()):
-        c.execute("INSERT INTO tasks(list_id,section_id,parent_id,title,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?,?)",
-                  (lid, sid, tid, gft, i + 1, ts, ts, uid))
+        task_insert(c, uid, lid, section_id=sid, parent_id=tid, title=gft, sort=i + 1, ts=ts)
     return tid
 
 
@@ -712,11 +709,8 @@ def deadline_create(c, uid, b):
     ts = iso(now_utc())
     fam = {"kind": "deadline", "type": k, "who": who, "expires": exp, "notice": notice, "lead": lead}
     rem = ",".join(dict.fromkeys(str(x) for x in ([lead * 1440] if lead else []) + [0]))
-    tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,due,reminders,repeat,deadline,priority,sort,created_at,updated_at,created_by,fam)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (lid, sid, title.strip()[:TITLE_MAX], due.isoformat(), rem, rep, 2, 3,
-                     c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0],
-                     ts, ts, uid, json.dumps(fam, ensure_ascii=False, separators=(",", ":"))))
+    tid = task_insert(c, uid, lid, section_id=sid, title=title.strip()[:TITLE_MAX], due=due.isoformat(), reminders=rem, repeat=rep,
+                      deadline=2, priority=3, ts=ts, fam=json.dumps(fam, ensure_ascii=False, separators=(",", ":")))  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=uid)
     return tid
 
@@ -963,8 +957,7 @@ def to_shopping(c, uid, items, lid=None, source=None):
             continue
         srt += 1
         fam = shop_fam(q, u)
-        tid = insert_id(c, "INSERT INTO tasks(list_id,section_id,title,sort,created_at,updated_at,created_by,fam) VALUES(?,?,?,?,?,?,?,?)",
-                        (lid, shop_area_of(c, lid, name), name, srt, ts, ts, uid, fam))
+        tid = task_insert(c, uid, lid, section_id=shop_area_of(c, lid, name), title=name, sort=srt, ts=ts, fam=fam)
         log_act(c, tid, "created", {"from": source} if source else None, uid=uid)
         have[k] = {"id": tid, "title": name, "fam": _jparse(fam) or {}}
         added.append({"id": tid, "title": name, "qty": q, "unit": u})
@@ -1006,8 +999,7 @@ def packing_create(c, uid, key, name=None):
         sid = insert_id(c, "INSERT INTO sections(list_id,name,sort) VALUES(?,?,?)", (lid, tr(s, lg=lg), si + 1)) if s else None
         for it in its:
             srt += 1
-            c.execute("INSERT INTO tasks(list_id,section_id,title,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?)",
-                      (lid, sid, tr(it, lg=lg), srt, ts, ts, uid))
+            task_insert(c, uid, lid, section_id=sid, title=tr(it, lg=lg), sort=srt, ts=ts)
     return lid
 
 
@@ -1090,8 +1082,7 @@ def family_examples(c, uid, tasks=True):
             secs = {r["name"]: r["id"] for r in c.execute("SELECT id, name FROM sections WHERE list_id=?", (lid,))}
             for i, (it, area) in enumerate(zip(FAM_SHOP_EXAMPLES, (SHOP_AREAS[0], SHOP_AREAS[1], SHOP_AREAS[2]))):
                 sid = secs.get(tr(area, lg=lg))
-                c.execute("INSERT INTO tasks(list_id,section_id,title,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?)",
-                          (lid, sid, tr(it, lg=lg), i + 1, ts, ts, uid))
+                task_insert(c, uid, lid, section_id=sid, title=tr(it, lg=lg), sort=i + 1, ts=ts)
                 shop_remember(c, lid, tr(it, lg=lg), sid)
     if not any(fam_list(c, uid, k, create=False) for k in ("family", "household", "birthdays", "meals")):
         lid = pm_family_list(c, uid, folder)
@@ -1101,13 +1092,10 @@ def family_examples(c, uid, tasks=True):
             for i, (t, rep) in enumerate(FAM_CHORES):
                 rule = rr_rule(rep, day.isoformat())
                 nxt = rule.after(datetime(day.year, day.month, day.day), inc=True).date() if rule else day
-                c.execute("""INSERT INTO tasks(list_id,section_id,title,due,repeat,sort,created_at,updated_at,created_by)
-                             VALUES(?,?,?,?,?,?,?,?,?)""", (lid, hs, tr(t, lg=lg), nxt.isoformat(), rep, i + 1, ts, ts, uid))
-            c.execute("""INSERT INTO tasks(list_id,section_id,title,content,due,sort,created_at,updated_at,created_by,fam)
-                         VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                      (lid, pm_fam_section(c, lid, "meals", lg), tr("Spaghetti with tomato sauce", lg=lg),
-                       "\n".join("- " + tr(x, lg=lg) for x in (N_("Spaghetti"), N_("Tomatoes"), N_("Onion"), N_("Parmesan"))),
-                       day.isoformat(), len(FAM_CHORES) + 1, ts, ts, uid, '{"kind":"meal"}'))
+                task_insert(c, uid, lid, section_id=hs, title=tr(t, lg=lg), due=nxt.isoformat(), repeat=rep, sort=i + 1, ts=ts)
+            task_insert(c, uid, lid, section_id=pm_fam_section(c, lid, "meals", lg), title=tr("Spaghetti with tomato sauce", lg=lg),
+                        content="\n".join("- " + tr(x, lg=lg) for x in (N_("Spaghetti"), N_("Tomatoes"), N_("Onion"), N_("Parmesan"))),
+                        due=day.isoformat(), sort=len(FAM_CHORES) + 1, ts=ts, fam='{"kind":"meal"}')
     if made:
         fl = json.loads(usettings(c, uid).get("folders") or "[]")
         if folder and folder not in fl:

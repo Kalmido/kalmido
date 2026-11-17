@@ -15,6 +15,7 @@ from flask import g, jsonify, request
 
 from ..core.config import app, PUBLIC_URL
 from ..core.pg import insert_id, st_ids, system_ctx, write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.objtags import otg_list_sql  # 2.947.0 (#5275)
 from ..core.i18n import lang, N_, tr
 from ..core.db import body, bump, db, err, iso, now_utc
@@ -198,18 +199,16 @@ def env_acceptance(c, e, version, closed, uid):
     lg = lang(c, owner)
     sec = c.execute("SELECT id FROM sections WHERE list_id=? ORDER BY sort, id LIMIT 1", (lid,)).fetchone()
     sec = sec[0] if sec else None
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
     now = iso(now_utc())
     name = "v" + version if re.match(r"^\d", version) else version
     more = len(closed) - ENV_ACCEPT_MAX
-    tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,content,sort,created_at,updated_at,created_by,assignee_id,acceptance_of)
-                       VALUES(?,?,?,?,?,?,?,NULL,?,?)""",
-                    (lid, sec, tr("Accept {0}", name, lg=lg)[:300], tr("{0} more tasks closed with this version", more, lg=lg) if more > 0 else "",
-                     srt, now, now, owner, key))
+    # 2.1358.0 (#6825): on top (sort TOP); no creator - the deploy made it
+    tid = task_insert(c, None, lid, section_id=sec, title=tr("Accept {0}", name, lg=lg)[:300],
+                      content=tr("{0} more tasks closed with this version", more, lg=lg) if more > 0 else "", ts=now,
+                      assignee_id=owner, acceptance_of=key)
     titles = {r["id"]: r["title"] for r in c.execute("SELECT id, title FROM tasks WHERE id = ANY(CAST(? AS BIGINT[]))", (st_ids(closed),))}
     for i, cid in enumerate(closed[:ENV_ACCEPT_MAX]):
-        sub = insert_id(c, """INSERT INTO tasks(list_id,section_id,parent_id,title,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?,NULL)""",
-                        (lid, sec, tid, titles.get(cid, ""), i, now, now))
+        sub = task_insert(c, None, lid, section_id=sec, parent_id=tid, title=titles.get(cid, ""), sort=i, ts=now)
         task_inherit(c, sub, cid)  # 2.392.0 (#3370 review): a title stays behind the data lock of its task; the tag deploy would refill the checklist
         c.execute(f"""DELETE FROM obj_tag_links WHERE kind='task' AND obj_id=? AND tag_id IN (SELECT ot.id FROM obj_tags ot JOIN lists l ON l.id=?
                       WHERE {otg_list_sql()} AND lower(ot.name)=lower(?))""", (sub, lid, DEPLOY_TAG))  # 2.947.0 (#5275)

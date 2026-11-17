@@ -11,7 +11,8 @@ from datetime import timedelta
 from flask import g, jsonify, request
 
 from ..core.config import app, APP_VERSION, PUBLIC_URL
-from ..core.pg import insert_id, system_ctx
+from ..core.pg import system_ctx
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
 from ..core.i18n import N_, lang, tr
 from ..core.db import body, bump, db, err, gset, gsetting, iso, iso_ms, now_utc
@@ -261,12 +262,10 @@ def err_take(c, lid, r, rep, new_ok=True):
         return jsonify(ok=True, limited=True), 202
     lg = lang(c, r["owner_id"])
     sec = c.execute("SELECT id FROM sections WHERE list_id=? ORDER BY sort, id LIMIT 1", (lid,)).fetchone()
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
     content = err_content(c, lid, rep, lg)[:CONTENT_MAX]
-    tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,content,sort,created_at,updated_at,created_by,url,ttype)
-                       VALUES(?,?,?,?,?,?,?,NULL,?,?)""",
-                    (lid, sec[0] if sec else None, rep["title"][:300], content, srt, now, now, rep["url"] or None,
-                     "bug" if r["tickets"] else ""))
+    # 2.1358.0 (#6825): on top (sort TOP); no creator - the report comes from the app of anyone
+    tid = task_insert(c, None, lid, section_id=sec[0] if sec else None, title=rep["title"][:300], content=content, ts=now,
+                      url=rep["url"] or None, ttype="bug" if r["tickets"] else "")
     c.execute("""INSERT INTO issue_reports(list_id,fp,task_id,count,first_at,last_at) VALUES(?,?,?,1,?,?)
                  ON CONFLICT(list_id,fp) DO UPDATE SET task_id=excluded.task_id, count=1, first_at=excluded.first_at,
                  last_at=excluded.last_at""", (lid, rep["fp"], tid, now, now))

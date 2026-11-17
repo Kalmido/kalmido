@@ -30,6 +30,7 @@ from ..core.i18n import LANGS, tr
 from ..core.access import WRITE_ROLES, Denied, _list_role, list_role, live_sql, need_list  # 2.1005.0 (#5415): live_sql
 from ..core.errors import BadInput
 from ..core.pg import insert_id, write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..collab.liste2eguard import le2b_list_locked, le2b_off
 from ..lists.fields import FIELD_MAX, field_act, field_value, fields_pinned_ok, tb_fields_module_on
 from ..lists.lists import COL_MAX, columns_out
@@ -343,8 +344,8 @@ def otk_apply(did):
         h = hin[x["key"]] if x["key"] in hin else x["hours"]
         if x["state"] == "new":
             srt += 1
-            tid = insert_id(c, "INSERT INTO tasks(list_id,section_id,title,content,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?,?)",
-                            (lid, _section(c, lid, x["section"], secs), x["title"], x["text"], srt, ts, ts, uid))
+            tid = task_insert(c, uid, lid, section_id=_section(c, lid, x["section"], secs), title=x["title"], content=x["text"], sort=srt,
+                              ts=ts)  # 2.1358.0 (#6825)
             log_act(c, tid, "created", {"offer": True})
             if h is not None:
                 v = field_value(c, f, h, lid)

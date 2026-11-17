@@ -19,6 +19,7 @@ from ..core.orgcrypt import oc_json_store  # 2.578.0 (#4573)
 from ..core.rls import rls_org_open  # 2.602.0 (#4729)
 from ..tasks.validation import log_act
 from ..tasks.tasks import set_tags
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 
 
 # ---------------------------------------------------------------- onboarding (v1.1)
@@ -99,12 +100,10 @@ def onboarding():
     ws_apply_default(c, uid, lid)  # 2.28.0 (#935): the default workspace
     for i, (title, content, prio, due, subs) in enumerate(onboarding_tasks(feats, touch, mac)):
         t = tr(title, "⌘K" if mac else "Ctrl+K", lg=lg) if "{0}" in title else tr(title, lg=lg)
-        tid = insert_id(c, """INSERT INTO tasks(list_id,title,content,priority,due,sort,created_at,updated_at,created_by)
-                           VALUES(?,?,?,?,?,?,?,?,?)""", (lid, t, tr(content, lg=lg), prio, day if due else None, i, ts, ts, uid))
+        tid = task_insert(c, uid, lid, title=t, content=tr(content, lg=lg), priority=prio, due=day if due else None, sort=i, ts=ts)
         log_act(c, tid, "created", uid=uid)
         for j, st in enumerate(subs):
-            c.execute("""INSERT INTO tasks(list_id,parent_id,title,sort,created_at,updated_at,created_by)
-                         VALUES(?,?,?,?,?,?,?)""", (lid, tid, tr(st, lg=lg), j, ts, ts, uid))
+            task_insert(c, uid, lid, parent_id=tid, title=tr(st, lg=lg), sort=j, ts=ts)
     uset(c, uid, "onboard", "done")
     bump(c)
     c.commit()
@@ -268,22 +267,22 @@ def sample_create(c, uid):
         if due == "tue":  # the next Tuesday (today, if it is one)
             due = (1 - today.weekday()) % 7
         done = x.get("done")
-        tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,content,priority,status,due,due_time,repeat,sort,created_at,
-                           updated_at,completed_at,start,duration,created_by,completed_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                        (lid, secs[sec] if sec is not None else None, tr(title, lg=lg), tr(x["content"], lg=lg) if x.get("content") else "",
-                         prio, 2 if done is not None else 0, day(due), x.get("time"), x.get("repeat") or "", i + 1, ts, ts,
-                         iso(datetime.combine(today + timedelta(days=done), datetime.min.time().replace(hour=16), TZ).astimezone(timezone.utc))
-                         if done is not None else None,
-                         day(start), x.get("dur") if x.get("time") else None, uid, uid if done is not None else None))
+        tid = task_insert(c, uid, lid, section_id=secs[sec] if sec is not None else None, title=tr(title, lg=lg),
+                          content=tr(x["content"], lg=lg) if x.get("content") else "", priority=prio,
+                          status=2 if done is not None else 0, due=day(due), due_time=x.get("time"), repeat=x.get("repeat") or "",
+                          sort=i + 1, ts=ts,
+                          completed_at=iso(datetime.combine(today + timedelta(days=done), datetime.min.time().replace(hour=16), TZ)
+                                           .astimezone(timezone.utc)) if done is not None else None,
+                          start=day(start), duration=x.get("dur") if x.get("time") else None,
+                          completed_by=uid if done is not None else None)
         ids[key] = tid
         track("task", tid)
         if x.get("tags"):
             set_tags(c, tid, [tr(t, lg=lg) for t in x["tags"]], uid)
         for j, (st, sdone) in enumerate(x.get("subs") or []):
-            sid = insert_id(c, """INSERT INTO tasks(list_id,section_id,parent_id,title,status,sort,created_at,updated_at,completed_at,
-                               created_by,completed_by) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                            (lid, secs[sec] if sec is not None else None, tid, tr(st, lg=lg), 2 if sdone else 0, j + 1, ts, ts,
-                             ts if sdone else None, uid, uid if sdone else None))
+            sid = task_insert(c, uid, lid, section_id=secs[sec] if sec is not None else None, parent_id=tid, title=tr(st, lg=lg),
+                              status=2 if sdone else 0, sort=j + 1, ts=ts, completed_at=ts if sdone else None,
+                              completed_by=uid if sdone else None)
             track("task", sid)
         for fk in ("budget", "effort"):
             if fk in fields and x.get(fk) is not None:
@@ -318,8 +317,7 @@ def sample_create(c, uid):
     ws_apply_default(c, uid, cl)  # 2.28.0 (#935): the default workspace
     track("list", cl)
     for i, n in enumerate(var["check"]):
-        track("task", insert_id(c, "INSERT INTO tasks(list_id,title,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?)",
-                                (cl, tr(n, lg=lg), i + 1, ts, ts, uid)))
+        track("task", task_insert(c, uid, cl, title=tr(n, lg=lg), sort=i + 1, ts=ts))
     uset(c, uid, "sample_ask", "0")
     return lid
 

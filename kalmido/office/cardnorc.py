@@ -18,7 +18,8 @@ from ..core.db import body, bump, iso, local_now, now_utc
 from ..core.errors import BadInput
 from ..core.i18n import N_, lang, tr, trn
 from ..core.orgcrypt import oc_dec_fields
-from ..core.pg import insert_id, system_ctx
+from ..core.pg import system_ctx
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..tasks.validation import log_act
 from .banknorc import BNR_EVERY, _alive, _next
 from .calc import dec, money
@@ -66,9 +67,8 @@ def _task_new(c, person, n, today):
     url = PUBLIC_URL.rstrip("/") + "/#office/cards"
     lid = my_inbox(c, person)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,sort,created_at,updated_at,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (lid, _title(n, lg), f"{tr(CCN_TASK_TEXT, lg=lg)}\n\n[{tr(CCN_TASK_HELP, lg=lg)}]({url})", today, srt, ts, ts, person, url, person))
+    tid = task_insert(c, person, lid, title=_title(n, lg), content=f"{tr(CCN_TASK_TEXT, lg=lg)}\n\n[{tr(CCN_TASK_HELP, lg=lg)}]({url})",
+                      due=today, ts=ts, url=url, assignee_id=person)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=person)
     return tid
 

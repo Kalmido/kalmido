@@ -8,6 +8,7 @@ from flask import g, has_request_context
 
 from ..core.config import TZ, PUBLIC_URL
 from ..core.pg import insert_id, system_ctx, ts_canon, write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core import orgcrypt as oc  # 2.306.0 A (#2885)
 from ..core.conflict import Conflict  # 2.269.0 C (#3017)
 from ..core.i18n import csv_dialect, lang, N_, tr
@@ -268,11 +269,8 @@ def _target_list(c, uid, b, kind):
 
 def _insert(c, uid, lid, title, due=None, due_time=None, rem="", rep="", fam=None, deadline=0, prio=0, url=None, content=""):
     ts = iso(now_utc())
-    tid = insert_id(c, """INSERT INTO tasks(list_id,title,content,due,due_time,reminders,repeat,deadline,priority,sort,created_at,updated_at,
-                                         created_by,fam,url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (lid, title.strip()[:TITLE_MAX], content, due, due_time, rem, rep, deadline, prio,
-                     c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0],
-                     ts, ts, uid, _dump(fam) if fam else "", url))
+    tid = task_insert(c, uid, lid, title=title.strip()[:TITLE_MAX], content=content, due=due, due_time=due_time, reminders=rem, repeat=rep,
+                      deadline=deadline, priority=prio, ts=ts, fam=_dump(fam) if fam else "", url=url)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=uid)
     return tid
 
@@ -448,8 +446,7 @@ def trip_create(c, uid, b):
         sid = None
         for title, due in items:
             srt += 1
-            c.execute("INSERT INTO tasks(list_id,section_id,title,due,sort,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?,?)",
-                      (lid, sid, title, max(due, today) if due else None, srt, ts, ts, uid))
+            task_insert(c, uid, lid, section_id=sid, title=title, due=max(due, today) if due else None, sort=srt, ts=ts)
     eid = None
     if b.get("event") and feat_on(c, uid, "events"):
         f = ev_fields(c, uid, {"title": name, "all_day": True, "start": trip["from"],

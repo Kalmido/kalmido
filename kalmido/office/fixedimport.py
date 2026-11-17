@@ -27,6 +27,7 @@ from ..core.i18n import N_, lang, tr
 from ..core.csvimport import amount_text
 from ..core.orgcrypt import oc_enc_fields
 from ..core.pg import insert_id
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.errors import BadInput
 from .calc import dec, dstr, money
 from .cashflow import MAX_FIXED, _ctx, fci_gross, rk_fixed, rk_fixed_clean
@@ -439,11 +440,9 @@ def fci_task_new(c, person):
     lid = my_inbox(c, person)
     lg = lang(c, person)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,repeat,sort,created_at,updated_at,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                    (lid, tr(FCI_TASK_TITLE, lg=lg), tr("Compare the cash flow in the office with the bank account.", lg=lg),
-                     _first_of_next(local_now().date().isoformat()), "FREQ=MONTHLY;BYMONTHDAY=1", srt, ts, ts, person,
-                     PUBLIC_URL.rstrip("/") + "/#office/cashflow", person))
+    tid = task_insert(c, person, lid, title=tr(FCI_TASK_TITLE, lg=lg), content=tr("Compare the cash flow in the office with the bank account.", lg=lg),
+                      due=_first_of_next(local_now().date().isoformat()), repeat="FREQ=MONTHLY;BYMONTHDAY=1", ts=ts,
+                      url=PUBLIC_URL.rstrip("/") + "/#office/cashflow", assignee_id=person)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=person)
     return tid
 
