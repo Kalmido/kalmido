@@ -19057,5 +19057,7 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "bloccato con password (crittografato end-to-end): il server lo conserva solo cifrato",
   "shared with you: only the projects you own are exported": "condiviso con te: vengono esportati solo i tuoi progetti",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Progetti condivisi non inclusi: {0}. In questa esportazione ci sono solo i tuoi progetti.",
-  "Still open from today": "Ancora aperto da oggi"
+  "Still open from today": "Ancora aperto da oggi",
+  "Move to section of {0}…": "Sposta in una sezione di {0}…",
+  "Section of {0}": "Sezione di {0}"
 }
