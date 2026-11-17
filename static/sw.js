@@ -437,21 +437,34 @@ async function swManifest() {
 // 2.660.0 (#4197): the current version of every language part (sw-manifest.json "i18n"), for swKeepI18n
 let SW_I18N = new Set();
 // one precached file: an unchanged copy from an old cache, else from the network (non-2xx = an error, like addAll)
-async function swPrecache(c, url, files) {
+// 2.1313.0 (#6367): net false = only an unchanged copy from an old cache, nothing from the network (data saver)
+async function swPrecache(c, url, files, net = true) {
   const h = files[url];
-  if (!SW_HASH.test(h || '')) { await c.add(url); return; }
+  if (!SW_HASH.test(h || '')) { if (net) await c.add(url); return; }
   const key = `${url}?v=${h}`, old = await caches.match(key);
   if (old) { await c.put(key, old); return; }
+  if (!net) return;
   const r = await fetch(key, {credentials: 'same-origin'});
   if (!r.ok || r.redirected) throw new TypeError(`precache ${url}: ${r.status}`);
   // the server confirms the hash with an immutable answer; else (an update in between) the copy is kept without a hash
   await c.put(/immutable/.test(r.headers.get('cache-control') || '') ? key : url, r);
 }
+// 2.1313.0 (#6367): the modules on demand (LAZY + LAZY_CSS, some 240 files) come at most SW_LAZY_PAR at a time instead of all
+// at once (they no longer take every worker thread of the server while the first clicks wait); with the data saver or a slow
+// mobile connection (like netLite in i18n.js) none comes from the network - they load on their first use (swShell keeps them)
+const SW_LAZY_PAR = 6;
+const swLite = () => { const n = self.navigator && self.navigator.connection; return !!(n && (n.saveData || /2g/.test(n.effectiveType || ''))); };
+// fn for every url, n at a time; a failure of one is no failure of the others
+async function swPool(urls, fn, n = SW_LAZY_PAR) {
+  const q = urls.slice();
+  const lane = async () => { while (q.length) { const u = q.shift(); await fn(u).catch(() => 0); } };
+  await Promise.all(Array.from({length: Math.min(n, q.length)}, lane));
+}
 async function swInstall() {
-  const c = await caches.open(CACHE), files = await swManifest();
-  if (!files) return c.addAll(SHELL).then(() => c.addAll(LAZY.concat(LAZY_CSS)).catch(() => 0)).then(() => swDone(c));
+  const c = await caches.open(CACHE), files = await swManifest(), lazy = LAZY.concat(LAZY_CSS), net = !swLite();
+  if (!files) return c.addAll(SHELL).then(() => net ? swPool(lazy, u => c.add(u)) : 0).then(() => swDone(c));
   await Promise.all(SHELL.map(u => swPrecache(c, u, files)));  // a failure drops this install (the old worker and cache stay)
-  await Promise.all(LAZY.concat(LAZY_CSS).map(u => swPrecache(c, u, files).catch(() => 0)));
+  await swPool(lazy, u => swPrecache(c, u, files, net));  // data saver: unchanged copies of an old cache only (no network)
   await swKeepI18n(c, new Set([...SW_I18N, files['/static/i18n/de.core.json']])).catch(() => 0);
   await swCodeNote(SW_MAN, true).then(d => d && swCodeTell(d)).catch(() => 0);  // 2.766.0 (#5220)
   await swDone(c);
