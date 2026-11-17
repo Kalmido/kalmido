@@ -52,6 +52,7 @@ from ..core.db import connect, db, err, iso, now_utc
 from ..core.pg import qi, system_ctx, table_names
 from ..core.objcomments import ocm_note_cols, ocm_old_cols, ocm_video_cols  # 2.972.0 (#5272); 2.981.0 (#5273): + video / note
 from ..core.objexport import oex_left, oex_nodes, oex_org  # 2.1093.0 (#5289): the export register of the core
+from ..core.objhooks import OLNK_AREA_RELS  # 2.1334.0 (#6585): the free links (links.json) are every other relation
 from ..docs.store import doc_open as _doc_open  # 2.981.0 (#5273): the notes on documents (obj_comments kind doc_note)
 from ..core.i18n import N_, lang, tr
 from ..core.access import Denied, list_archived, live_sql, otr_live  # 2.1231.0 (#5880): list_archived
@@ -257,6 +258,9 @@ def ox_link_row(row):
     books/contact_tasks.json those of contact_tasks (contact_id, task_id, kind, added_by, added_at), office/letter_links.json
     those of office_letter_links (id, org_id, letter_id, node_id, kind, created_by, agent_id, created_at). The import
     (admin/oi_team.py, admin/oi_store.py) writes them into obj_links again."""
+    if row.get("rel") not in OLNK_AREA_RELS:  # 2.1334.0 (#6585): a free link (links.json) keeps the core's columns
+        return {k: row.get(k) for k in ("id", "org_id", "src_kind", "src_id", "dst_kind", "dst_id", "rel", "note", "created_by", "agent_id",
+                                         "created_at", "updated_at")}
     ex = row.get("extra")
     if isinstance(ex, str):
         try:
@@ -368,6 +372,10 @@ OX_AREAS = (
     # 2.905.0 (#5288, rest of #4031): the organisation's templates -- task, project and section templates, one kind of the core
     # (was lists/section_templates.json, 2.362.0 #3096; an older archive's file is still read by the import), not the trash
     ("lists/templates.json", "templates", f"org_id=? AND {live_sql()}"),
+    # 2.1334.0 (#6585, audit #4808 T13 4): the file copies of these templates (the bytes under files/templates/), the rules the
+    # organisation's agents learned (the agents themselves are connected anew) and the document rules of the workspace mailbox
+    ("lists/template_files.json", "template_files", f"template_id IN (SELECT id FROM templates WHERE org_id=? AND {live_sql()})"),
+    ("agents/rules.json", "agent_rules", "agent_id IN (SELECT id FROM agents WHERE org_id=?)"),
     ("lists/ticket_types.json", "ticket_types", "org_id=?"),  # 2.609.0 (#3372): the organisation's own ticket types
     # 2.959.0 (#4031): the organisation's field schema (lists/orgfields.py; list_fields.org_field_id names a row of it), a plain
     # part (OX_PART_COLS: no table internals)
@@ -539,6 +547,7 @@ OX_AREAS = (
     ("hub/leave_quota.json", "hub_leave_quota", "org_id=?"),  # 2.125.0 A (#2117): vacation accounts
     ("hub/mails.json", "hub_mails", "org_id=?"),  # 2.84.0 A (#1198): filed e-mails (texts decrypted; not the addresses, not the word index)
     ("hub/mailbox.json", "hub_mailboxes", "org_id=?"),  # 2.144.5 B (#2410): the workspace mailbox (servers, user names, sender; never "secret")
+    ("hub/mailbox_rules.json", "hub_mailbox_rules", "box_id IN (SELECT id FROM hub_mailboxes WHERE org_id=?)"),  # 2.1334.0 (#6359): its document rules
     # 2.380 H (#2398): the organisation's scheduling polls (options, votes; never the link: the import makes a new one) and
     # bookmarks (their pictures under files/bookmarks/); a person's own ones (no organisation) go with the account export
     ("polls.json", "sched_polls", "org_id=?"),
@@ -553,6 +562,18 @@ OX_AREAS = (
     ("settings/module_cards.json", "module_cards", "org_id=?"),
     ("settings/module_card_people.json", "module_card_people", "card_id IN (SELECT id FROM module_cards WHERE org_id=?)"),
 )
+# 2.1334.0 (#6585, audit #4808 T13 5): files of the archive that no import takes over (the manifest's not_imported says it, so
+# "in the export" never reads as "moves along"): the record of who changed what, the free links, the agents' rules, the files of
+# the templates (a template comes along without its file copies)
+OX_NOT_IMPORTED = (("history/changes.json", N_("History")), ("links.json", N_("Links")), ("agents/rules.json", N_("Agents")),
+                   ("lists/template_files.json", N_("Templates")))
+
+
+def ox_not_imported(files, lg):
+    """-> the lines of the manifest's not_imported: "<name>: <file>" for each file of OX_NOT_IMPORTED in the archive."""
+    return [f"{tr(w, lg=lg)}: {f}" for f, w in OX_NOT_IMPORTED if f in files]
+
+
 OX_NOT_INCLUDED = (
     N_("private lists and private sharing of the members (lists without the organisation), other organisations"),
     # 2.223.3 B (#2880): the same rule as in the app (accounts/orglists.py ol_shared)
@@ -581,6 +602,7 @@ _PERSONAL = "a person's own data (their account export)"
 _DERIVED = "derived or working data, rebuilt on the target"
 _SERVER = "state of this server (keys, jobs, scanner, queues)"
 _AGENT = "agents and their logs (never in the organisation export)"
+_SHARE = "who shares what with whom (a share is made anew on the target)"  # 2.1334.0 (#6359): = admin/exportleft.py _SHARE
 _ONLINEPAY = "the online provider's working data (the payments themselves are in the export)"
 OX_LEFT = {
     # organisation column
@@ -614,11 +636,41 @@ OX_LEFT = {
     "list_paperless": _SECRET, "mail_tokens": _SECRET, "notifications": _PERSONAL, "playbook_proposals": _AGENT, "public_links": _SECRET,
     "agent_schedules": _AGENT, "budget_meta": _PERSONAL, "issue_hooks": _SECRET, "issue_reports": "not yet in the export",  # 2.362.4 (#3107)
     "shop_memory": _PERSONAL, "list_ticket_seq": _DERIVED,
+    # 2.1334.0 (#6359): every other table, as the account export's guard (tools/check_export_tables.py): no organisation or list
+    # column, so a person's, this server's or derived from the rest
+    "agent_chat": _PERSONAL, "agent_chat_prefs": _PERSONAL, "agent_steps": _PERSONAL, "chat_files": _PERSONAL,
+    "chat_saves": _PERSONAL, "conn_links": _PERSONAL, "conn_requests": _PERSONAL, "contact_care": _PERSONAL,
+    "e2e_keys": _PERSONAL, "folder_heads": _PERSONAL, "folder_props": _PERSONAL, "git_folders": _PERSONAL,
+    "habit_logs": _PERSONAL, "habits": _PERSONAL, "journal": _PERSONAL, "kid_parents": _PERSONAL, "kid_rewards": _PERSONAL,
+    "kid_stars": _PERSONAL, "login_ips": _PERSONAL, "pomos": _PERSONAL, "user_mine_rule_runs": _PERSONAL,
+    "user_mine_rules": _PERSONAL, "user_mine_sections": _PERSONAL, "user_settings": _PERSONAL, "user_task_order": _PERSONAL,
+    "view_layout_offers": _PERSONAL, "view_layouts": _PERSONAL, "wait_hidden": _PERSONAL,
+    "abs_cal_feeds": _SECRET, "agent_setup_codes": _SECRET, "api_tokens": _SECRET, "app_passwords": _SECRET, "cal_subs": _SECRET,
+    "conn_invites": _SECRET, "disc_profiles": _SECRET, "disc_tokens": _SECRET, "ev_cal_feeds": _SECRET, "kid_pin_open": _SECRET,
+    "kid_pins": _SECRET, "msv_links": _SECRET, "pl_conn_users": _SECRET, "pl_conns": _SECRET, "pl_tokens": _SECRET,
+    "push_subs": _SECRET, "recovery_codes": _SECRET, "sessions": _SECRET, "user_invites": _SECRET, "user_keys": _SECRET,
+    "webauthn_creds": _SECRET, "wiki_key_pending": _SECRET, "wiki_keys": _SECRET,
+    "admin_login_ips": _SERVER, "agent_push_held": _SERVER, "conn_blocks": _SERVER, "deleted_accounts": _SERVER,
+    "disc_quota": _SERVER, "eph_state": _SERVER, "ev_invite_day": _SERVER, "ev_reminded": _SERVER, "idem_keys": _SERVER,
+    "imports": _SERVER, "notify_channel_queue": _SERVER, "notify_mail_queue": _SERVER, "push_gate": _SERVER, "push_tags": _SERVER,
+    "quiet_push_held": _SERVER, "sample_items": _SERVER, "space_moves": _SERVER, "task_mail": _SERVER, "task_push": _SERVER,
+    "tidy_pending": _SERVER, "webhook_log": _SERVER, "webhook_queue": _SERVER,
+    "cal_dav_res": _DERIVED, "cal_events": _DERIVED, "contact_links": _DERIVED, "contact_occ": _DERIVED, "dav_meta": _DERIVED,
+    "dav_sync2": _DERIVED, "doc_office_moves": _DERIVED, "git_branches": _DERIVED, "git_closes": _DERIVED,
+    "git_commits": _DERIVED, "git_issue_comments": _DERIVED, "git_issue_gone": _DERIVED, "git_issue_links": _DERIVED,
+    "git_links": _DERIVED, "git_prs": _DERIVED, "git_tags": _DERIVED, "hub_mailbox_docs": _DERIVED, "list_rule_runs": _DERIVED,
+    "rss_items": _DERIVED, "sheet_lastvals": _DERIVED, "wiki_links": _DERIVED,
+    "agent_bridges": _AGENT, "agent_events": _AGENT, "agent_job_tasks": _AGENT, "agent_runs": _AGENT, "agent_server": _AGENT,
+    "folder_agents": _AGENT, "job_watch": _AGENT, "oauth_codes": _AGENT, "oauth_grants": _AGENT, "sheet_changes": _AGENT,
+    "group_members": _SHARE, "groups": _SHARE, "wiki_share_cards": _SHARE,
+    "fs_lock_keys": _PERSONAL,  # a person's own copies of folder keys (store/lock_keys.json carries the exporting person's)
 }
 
 # 2.1093.0 (#5289, stage Q11): the tables of the core say where their rows go themselves (core/objexport.py, the export register);
 # OX_AREAS / OX_LEFT above hold only the old tables. OX_FMT fills the placeholders of the register's where clauses.
-OX_FMT = {"LSQ": LSQ, "TSQ": TSQ, "RSQ": RSQ, "LIVE": live_sql(), "LETTER_LINKS": OX_LETTER_LINKS}
+# 2.1334.0 (#6585): + AREA_RELS, the areas' own link relations (links.json: every other one, the free links)
+OX_FMT = {"LSQ": LSQ, "TSQ": TSQ, "RSQ": RSQ, "LIVE": live_sql(), "LETTER_LINKS": OX_LETTER_LINKS,
+          "AREA_RELS": "(" + ", ".join(f"'{r}'" for r in OLNK_AREA_RELS) + ")"}
 
 
 def ox_areas():
@@ -932,6 +984,10 @@ def ox_build(c, oid, out, by=None):
                 full = _under(ATT_DIR, r.get("path"))
                 if not lk("wiki", r, r.get("name")):
                     _put_file(c, zf, man, f"files/wiki/{int(r['id'])}-{_safe_part(r.get('name'))}", full)
+        if "template_files" in have:  # 2.1334.0 (#6585 T13 4): the file copies of the templates (a file that is gone: missing)
+            for r in _rows(c, oid, "template_files", f"template_id IN (SELECT id FROM templates WHERE org_id=? AND {live_sql()})", (oid,)):
+                if not lk("tpl", r, r.get("name")):
+                    _put_file(c, zf, man, f"files/templates/{int(r['id'])}-{_safe_part(r.get('name'))}", _under(ATT_DIR, r.get("path")))
         if "sheet_files" in have:  # 2.124.0 B (#2110): the files of table cells (decrypted like the attachments)
             for r in _rows(c, oid, "sheet_files", ox_live(c, "sheet_files", "org_id=?"), (oid,)):
                 full = _under(ATT_DIR, r.get("path"))
@@ -1015,6 +1071,7 @@ def ox_build(c, oid, out, by=None):
             "not_included": [*ox_not_included(c, by, OX_NOT_INCLUDED), *left_lines(ox_left(), ox_lang(c, by))],  # 2.449.0 (#3768), 2.362.4 (#3107), 2.464.0 (#3841)
             "locked_files": man.locked,  # 2.209.0 D (#1856)
             "missing": man.missing,  # 2.363.2 (#3106)
+            "not_imported": ox_not_imported(man.files, ox_lang(c, by)),  # 2.1334.0 (#6585)
         }
         _put_bytes(zf, man, "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1, default=_jdef).encode())
     return manifest
@@ -1084,18 +1141,10 @@ def ox_pb_store(c, zf, man, lk, oid, owner, have, pre=""):
     for name, table, where, args in (
             ("store/nodes.json", "fs_nodes", f"id IN ({t})", ()),
             ("store/area_roots.json", "fs_area_roots", f"ws=? AND node_id IN ({t})", (ws,)),
-            ("store/versions.json", "fs_versions", f"node_id IN ({k})", ()),
-            ("documents/senders.json", "doc_senders", "ws=?", (ws,)),
-            ("documents/types.json", "doc_types", "ws=?", (ws,)),
-            ("documents/fields.json", "doc_fields", "ws=?", (ws,)),
-            ("documents/field_values.json", "doc_field_values", f"node_id IN ({k})", ()),
-            ("documents/meta.json", "doc_meta", f"node_id IN ({k})", ()),
-            ("documents/receipts.json", "rc_receipts", f"node_id IN ({k})", ()),
-            # 2.1097.0 (#5949): + the core's tables from the export register (documents/notes.json: the notes on the documents;
-            # 2.1119.0 #5277: documents/tags.json + document_tags.json, the tags on these files)
-            *((a, tb, w, ()) for a, tb, w in oex_nodes({"NODES": k, "LIVE": live_sql()}))):
+            ("store/versions.json", "fs_versions", f"node_id IN ({k})", ())):
         if table in have:
             _put_json(zf, man, pre + name, _rows(c, oid, table, where, args))
+    ox_doc_parts(c, zf, man, oid, ws, k, have, pre)
     names = {r[0]: r[1] for r in c.execute(f"SELECT id, name FROM fs_nodes WHERE id IN ({k})")}
     for r in _rows(c, oid, "fs_versions", f"node_id IN ({k})", ()):
         full, nm = _under(ATT_DIR, r.get("path")), names.get(r["node_id"])
@@ -1103,6 +1152,49 @@ def ox_pb_store(c, zf, man, lk, oid, owner, have, pre=""):
             data = ox_pb_read(c, man, "fs", r["node_id"], nm, full)
             if data is not None:
                 _put_bytes(zf, man, f"{pre}files/store/{int(r['node_id'])}-v{int(r['no'])}-{_safe_part(nm)}", data)
+
+
+def ox_doc_parts(c, zf, man, oid, ws, k, have, pre="", rules=False):
+    """The details of the documents k (node ids, comma separated) of workspace ws in the shape of an organisation's documents/
+    files: senders, types, fields of the workspace, the documents' field values, details, receipts; rules (2.1334.0, #6585): +
+    the workspace's rules. 2.1097.0 (#5949): + the core's tables from the export register (documents/notes.json: the notes on
+    the documents; 2.1119.0 #5277: documents/tags.json + document_tags.json, the tags on these files)."""
+    for name, table, where, args in (
+            ("documents/senders.json", "doc_senders", "ws=?", (ws,)),
+            ("documents/types.json", "doc_types", "ws=?", (ws,)),
+            ("documents/fields.json", "doc_fields", "ws=?", (ws,)),
+            *((("documents/rules.json", "doc_rules", "ws=?", (ws,)),) if rules else ()),
+            ("documents/field_values.json", "doc_field_values", f"node_id IN ({k})", ()),
+            ("documents/meta.json", "doc_meta", f"node_id IN ({k})", ()),
+            ("documents/receipts.json", "rc_receipts", f"node_id IN ({k})", ()),
+            *((a, tb, w, ()) for a, tb, w in oex_nodes({"NODES": k, "LIVE": live_sql()}))):
+        if table in have:
+            _put_json(zf, man, pre + name, _rows(c, oid, table, where, args))
+
+
+def ox_private_docs(c, zf, man, owner, have, pre):
+    """2.1334.0 (#6585, audit #4808 T13 1): the details of every document of a person's private document store (the files
+    themselves are in the account export: private_files) below pre -- what the store knows of them (title, date, sender, type,
+    fields, text, receipts, notes, tags) and the rules of the store. Nothing of the trash, nothing below a browser-locked folder
+    (only its key holders read it). -> the number of documents."""
+    from ..docs.store import doc_ws
+    rs = c.execute("SELECT id, parent_id, kind, deleted_at FROM fs_nodes WHERE owner_id=? AND org_id IS NULL", (owner,)).fetchall()
+    nodes = {r["id"]: r for r in rs}
+    locked = {r[0] for r in c.execute("SELECT node_id FROM fs_locks WHERE org_id IS NULL AND e2e IS NOT NULL")} if "fs_locks" in have else set()
+
+    def ok(nid):
+        seen = set()
+        while nid in nodes and nid not in seen:
+            seen.add(nid)
+            if nodes[nid]["deleted_at"] or nid in locked:
+                return False
+            nid = nodes[nid]["parent_id"]
+        return True
+    files = sorted(n for n, r in nodes.items() if r["kind"] == "file" and ok(n))
+    if not files:
+        return 0
+    ox_doc_parts(c, zf, man, None, doc_ws(None, owner), ",".join(str(int(x)) for x in files), have, pre, rules=True)
+    return len(files)
 
 
 def ox_pb_parts(c, zf, man, oid, owner, have, pre=""):

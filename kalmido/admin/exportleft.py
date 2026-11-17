@@ -22,8 +22,10 @@ _RX_WORK = "working data of the office (balances, plans, locks, undo steps, the 
 _RX_FILES = "costs and choices behind documents and receipts: the documents and receipts themselves are in the export"
 _RX_MASTER = "settings and master data of the office, no record with a duty to keep"
 
-# the tables umz_build reads beyond its queries: the budgets (life/budget.py bud_export), the current version of my files
-UMZ_BUILD_TABLES = ('budget_cats', 'budget_entries', 'budget_recurring', 'fs_versions')
+# the tables umz_build reads beyond its queries: the budgets (life/budget.py bud_export), the current version of my files;
+# 2.1334.0 (#6585, audit #4808 T13 1): the details of my private documents (private-documents/, admin/orgexport.py ox_private_docs)
+UMZ_BUILD_TABLES = ('budget_cats', 'budget_entries', 'budget_recurring', 'fs_versions',
+                    'doc_senders', 'doc_types', 'doc_fields', 'doc_field_values', 'doc_meta', 'doc_rules', 'rc_receipts')
 
 # every table with a person, organisation, list or task column that is not in the account export
 UMZ_LEFT_TABLES = {
@@ -37,7 +39,7 @@ UMZ_LEFT_TABLES = {
     "wiki_embeds": _DERIVED,  # 2.1284.0 (#6321): who embedded which picture into a page (read from the text; on the target the page's last editor stands in, admin/oi_store.py _finish_wiki)
     "undo_groups": _DERIVED,  # 2.747.0 (#5249): the heads of a person's undo steps (30 days, working data like obj_undo)
     "doc_views": _VIEW,  # 2.579.0 (#4802): saved views of the documents search (their filters name label ids of this server)
-    "hub_mailbox_rules": _LATER, "hub_mailbox_docs": _DERIVED,  # 2.581.0 (#4804): a mailbox's document rules (the mailbox itself is exported), which mails it took (Message-ID hashes)
+    "hub_mailbox_docs": _DERIVED,  # 2.581.0 (#4804): which mails a mailbox's document rules took (Message-ID hashes); 2.1334.0 (#6359): the rules themselves are exported
     "doc_office_moves": _DERIVED,  # 2.547.0 (#4434): the undo of the receipts move into the office (30 days, ids and folders only)
     "field_trash": _DERIVED, "member_memos": _DERIVED,  # 2.550.0 (#4528): deleted fields / a removed member's ways back (until the trash period ends)
     "task_mail": _SERVER,  # 2.393.2 B (#3375): Message-IDs of tasks (the reply addresses are signed with this server's key)
@@ -46,19 +48,16 @@ UMZ_LEFT_TABLES = {
     "list_activity": _DERIVED, "list_ticket_seq": _DERIVED,
     "rc_suggest": _DERIVED, "rss_items": _DERIVED, "sheet_lastvals": _DERIVED, "task_vectors": _DERIVED,
     "budget_files": _FILES,
-    "chat_saves": _LATER, "contact_links": _LATER, "ctr_notices": _LATER, "folder_heads": _LATER, "folder_props": _LATER,
-    "fs_log": _LATER, "git_branches": _LATER, "git_folders": _LATER, "issue_reports": _LATER, "kid_rewards": _LATER, "life_trip_costs": _LATER,
-    "list_rule_runs": _LATER, "sheet_links": _LATER, "shop_memory": _LATER,
-    "wiki_spaces": _LATER,
-    # 2.531.0 (#4317 F12): the tables without a person, organisation, list or task column that still hold a person's data
-    "chat_files": _LATER, "kid_pins": _SECRET, "kid_pin_open": _SECRET, "conn_requests": _ASK,
+    "contact_links": _LATER, "ctr_notices": _LATER, "folder_heads": _LATER, "folder_props": _LATER,
+    "fs_log": _LATER, "git_branches": _LATER, "git_folders": _LATER, "issue_reports": _LATER,     "list_rule_runs": _LATER,         # 2.531.0 (#4317 F12): the tables without a person, organisation, list or task column that still hold a person's data
+    "kid_pins": _SECRET, "kid_pin_open": _SECRET, "conn_requests": _ASK,
     "agent_bridges": _AGENT, "agent_events": _AGENT, "sheet_changes": _AGENT,
     "cal_events": _DERIVED, "cal_dav_res": _DERIVED, "git_commits": _DERIVED, "git_issue_comments": _DERIVED, "git_issue_gone": _DERIVED,
     "git_prs": _DERIVED, "git_tags": _DERIVED, "wiki_links": _DERIVED,
     "space_moves": _SERVER, "push_tags": _SERVER, "notify_channel_queue": _SERVER,
     "webhook_queue": _SERVER, "webhook_log": _SERVER,
-    "clients": _ORG, "doc_cfg": _ORG, "doc_fetch_portals": _ORG, "doc_field_values": _ORG, "doc_fields": _ORG, "doc_meta": _ORG, "doc_rules": _ORG, "doc_flow_runs": _DERIVED,
-    "doc_senders": _ORG, "doc_types": _ORG, "hub_bookings": _ORG, "hub_callsheets": _ORG, "nl_consent_log": _ORG,
+    "clients": _ORG, "doc_cfg": _ORG, "doc_fetch_portals": _ORG, "doc_flow_runs": _DERIVED,
+    "hub_bookings": _ORG, "hub_callsheets": _ORG, "nl_consent_log": _ORG,
     "nl_members": _ORG, "nl_suppress": _ORG, "office_agreements": _ORG, "office_archive": _ORG, "office_archive_log": _ORG, "office_bank_balances": _ORG,
     "office_bank_accounts": _ORG, "office_bank_imports": _ORG, "office_bank_rule_nos": _ORG, "office_bank_rules": _ORG, "office_bank_tx": _ORG, "office_bank_vendors": _ORG,
     "office_bookarch": _ORG, "office_bookarch_accts": _ORG, "office_bookarch_docs": _ORG, "office_bookarch_files": _ORG, "office_cash_closings": _ORG,
@@ -75,7 +74,7 @@ UMZ_LEFT_TABLES = {
     "office_procdocs": _ORG, "office_purchases": _ORG, "office_rgroup_members": _ORG, "office_rgroups": _ORG, "office_rights_log": _ORG, "office_roles":
     _ORG, "office_services": _ORG, "office_sets": _ORG, "office_settings": _ORG, "office_signoffs": _ORG, "office_sub_reminders": _ORG,
     "office_suppliers": _ORG, "office_texts": _ORG, "office_trip_items": _ORG, "office_trip_purposes": _ORG, "office_trips": _ORG,
-    "office_vehicles": _ORG, "org_joins": _ORG, "support_grants": _SERVER, "org_members": _ORG, "rc_receipts": _ORG, "reading_orgs": _ORG, "tchat_files": _ORG,
+    "office_vehicles": _ORG, "org_joins": _ORG, "support_grants": _SERVER, "reading_orgs": _ORG, "tchat_files": _ORG,
     "tchat_rooms": _ORG,
     "abs_cal_feeds": _SECRET, "agent_setup_codes": _SECRET, "app_passwords": _SECRET, "contact_srcs": _SECRET, "conn_invites": _SECRET, "disc_profiles": _SECRET, "disc_tokens":
     _SECRET, "doc_fetchers": _SECRET, "doc_mail": _SECRET, "ev_cal_feeds": _SECRET, "fs_ext_links": _SECRET,
@@ -85,7 +84,7 @@ UMZ_LEFT_TABLES = {
     "pl_tokens": _SECRET, "pl_uploads": _SECRET, "portal_logins": _SECRET, "recovery_codes": _SECRET, "task_keys": _SECRET, "user_invites": _SECRET,
     "user_keys": _SECRET, "webauthn_creds": _SECRET, "wiki_key_pending": _SECRET, "wiki_keys": _SECRET, "wiki_shares": _SECRET,
     "admin_login_ips": _SERVER, "agent_push_held": _SERVER, "bg_jobs": _SERVER, "conn_blocks": _SERVER, "deleted_accounts": _SERVER, "disc_quota":
-    _SERVER, "ev_invite_day": _SERVER, "ev_reminded": _SERVER, "idem_keys": _SERVER, "imports": _SERVER, "login_ips": _SERVER, "notify_mail_queue":
+    _SERVER, "ev_invite_day": _SERVER, "ev_reminded": _SERVER, "idem_keys": _SERVER, "imports": _SERVER, "notify_mail_queue":
     _SERVER, "org_keys": _SERVER, "org_out_requests": _SERVER, "push_gate": _SERVER, "quiet_push_held": _SERVER, "sample_items": _SERVER, "task_push": _SERVER, "tidy_pending": _SERVER, "upload_scan":
     _SERVER,
     "fs_shares": _SHARE, "group_members": _SHARE,  # 2.958.0 (#5245): folder_people, group_shares are gone
@@ -101,13 +100,10 @@ UMZ_LEFT_TABLES = {
 # 2.531.0 (#4317 F12): the readable name of every table that is not yet in the account export (_LATER): the export page names
 # these areas (acctexport.umz_not_included_view), tools/check_export_tables.py checks that each _LATER table has one
 UMZ_LATER_NAMES = {
-    "hub_mailbox_rules": "document rules of mailboxes",  # 2.581.0 (#4804)
-    "chat_files": "files of agent chats", "chat_saves": "chat messages saved as tasks", "contact_links": "birthday tasks of contacts",
+    "contact_links": "birthday tasks of contacts",
     "ctr_notices": "notices of contracts", "folder_heads": "header strips of folders",
     "folder_props": "defaults of folders", "fs_log": "access history of private files", "git_branches": "branches of connected repositories",
-    "git_folders": "repositories connected to folders", "issue_reports": "error reports of projects", "kid_rewards": "rewards of the family",
-    "life_trip_costs": "costs of trips", "list_rule_runs": "runs of project rules",
-    "sheet_links": "links between tables and tasks", "shop_memory": "remembered shopping items", "wiki_spaces": "spaces of knowledge pages",
+    "git_folders": "repositories connected to folders", "issue_reports": "error reports of projects", "list_rule_runs": "runs of project rules",
 }
 
 # 2.531.0 (#4317 F12): the tables that hold nobody's data (no person, organisation, list or task column and no row that belongs

@@ -98,11 +98,14 @@ mine = umz_mine_queries(uid)
 out = {"acct": same(umz_export_queries(uid), OLD), "more": same(umz_extra_queries(uid), OLD_MORE),
        "missing": sorted(set(OLD) - set(umz_export_queries(uid)) | set(OLD_MORE) - set(umz_extra_queries(uid))),
        "mine_hand": sorted(set(OLD_MORE) & set(mine))}
-OLD_LEFT = {"Shared with me": ("shared_lists", "shared_comments"), "Notifications": ("list_notif", "folder_notif"),
-            "Comments in other projects": ("written_comments",), "Reactions": ("reactions",)}
+# 2.1334.0 (#6585): + the bells of my projects (list_bell), what I wrote in organisations (org_video_comments, org_doc_notes), the
+# history of my changes (my_history, under the old "History") and my links (private_links, a name of its own)
+OLD_LEFT = {"Shared with me": ("shared_lists", "shared_comments"), "Notifications": ("list_notif", "folder_notif", "list_bell"),
+            "Comments in other projects": ("written_comments", "org_video_comments", "org_doc_notes"), "Reactions": ("reactions",)}
 left = dict(UMZ_LEFT)
 out["left"] = {w: left.get(w) == ps for w, ps in OLD_LEFT.items()}
-out["left_rest"] = [e for e in UMZ_LEFT if e[0] not in OLD_LEFT] == [e for e in UMZ_LEFT_OWN if e[0] not in OLD_LEFT]
+out["left_rest"] = [e for e in UMZ_LEFT if e[0] not in OLD_LEFT] == [
+    (w, ps + (("my_history",) if w == "History" else ())) for w, ps in UMZ_LEFT_OWN if w not in OLD_LEFT] + [("Links", ("private_links",))]
 out["left_own"] = sorted(p for _w, ps in UMZ_LEFT_OWN for p in ps if p in {x for v in OLD_LEFT.values() for x in v} - {"shared_lists"})
 # 2.1119.0 (#5277): + the file store's tags on these nodes (rows of the core since the move), wanted
 out["nodes"] = oex_nodes({"NODES": "11,12", "LIVE": live_sql()}) == (

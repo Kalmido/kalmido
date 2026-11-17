@@ -40,6 +40,7 @@ OEX_PERSON = ("?", "{OWN}", "{TASKS}", "{SHARED}", "{PRIVATE}")  # 2.1097.0 (#59
 _DERIVED = "derived or working data, rebuilt on the target"
 _SHARE = "who shares what with whom (a share is made anew on the target)"
 _VIEW = "what a person has seen or hidden, the order of their rows"
+_PERSONAL = "a person's own data (their account export)"  # 2.1334.0 (#6359): = admin/orgexport.py _PERSONAL
 
 
 def obj_export(table, *, org=(), org_left=None, acct_left=None, acct_later=None, rx=(), read=(), acct=(), acct_more=(), nodes=(),
@@ -141,16 +142,21 @@ def oex_read():
 
 # ---- the cross-cutting tables of the core (moved here from the hand lists, 2.1093.0 #5289; where clauses unchanged)
 obj_export("obj_addr_shares", org_left="invitations (not_included)", acct_left=_SHARE)  # 2.1071.0 (#5658)
-# 2.558.0 (#4709): the core's change history / undo steps (the areas export their objects), revoked shares; 2.747.0 (#5249): 30 days
-obj_export("obj_history", org_left=_DERIVED, acct_left=_DERIVED)
+# 2.558.0 (#4709): the core's undo steps (the areas export their objects), revoked shares; 2.747.0 (#5249): 30 days
+# 2.1334.0 (#6585, audit #4808 T13 5): the change history is no "rebuilt on the target" -- it is lost on a move. It goes along
+# (an organisation's: history/changes.json; mine: my changes in my private space) and the manifests say that no import takes it
+# over (OEX_NOT_IMPORTED, admin/orgexport.py / acctexport.py not_imported)
+obj_export("obj_history", org=(("history/changes.json", "org_id=?"),),
+           acct_more=(("my_history", "SELECT id, kind, ref_id, action, agent, vals_before, vals_after, created_at, updated_at FROM obj_history "
+                                     "WHERE user_id=? AND org_id IS NULL", "History"),))
 obj_export("obj_undo", org_left="undo steps of 30 days", acct_left=_DERIVED)
 obj_export("obj_revoked", org_left="shares removed (not_included)", acct_left=_SHARE)
-obj_export("obj_comment_trash", acct_left=_DERIVED)  # 2.972.0 (#5272), 2.981.0 (#5274): the comments' and the team chat's trash texts
-obj_export("obj_search", acct_left=_DERIVED)  # 2.981.0 (#5278): the shared search index, rebuilt from the imported rows by its triggers
-obj_export("obj_search_words", acct_left=_DERIVED)  # 2.1002.0 (#5279): the shared word index
-obj_export("obj_seen", acct_left=_VIEW)  # 2.905.0 (#5284): the core's read marks (was task_seen), a personal view state
+obj_export("obj_comment_trash", org_left=_DERIVED, acct_left=_DERIVED)  # 2.972.0 (#5272), 2.981.0 (#5274): the comments' and the team chat's trash texts
+obj_export("obj_search", org_left=_DERIVED, acct_left=_DERIVED)  # 2.981.0 (#5278): the shared search index, rebuilt from the imported rows by its triggers
+obj_export("obj_search_words", org_left=_DERIVED, acct_left=_DERIVED)  # 2.1002.0 (#5279): the shared word index
+obj_export("obj_seen", org_left=_VIEW, acct_left=_VIEW)  # 2.905.0 (#5284): the core's read marks (was task_seen), a personal view state
 # 2.972.0 (#5285): only the account export's parts list_notif / folder_notif (its queries), which the import leaves behind (UMZ_LEFT)
-obj_export("obj_notif_cap", acct=(  # 2.1097.0 (#5949): the parts keep their old columns (2.981.0 #5287)
+obj_export("obj_notif_cap", org_left=_PERSONAL, acct=(  # 2.1097.0 (#5949): the parts keep their old columns (2.981.0 #5287)
     ("list_notif", "SELECT ref_id AS list_id, user_id, tpl, custom::text AS custom, updated_at FROM obj_notif_cap "
                    "WHERE kind='list' AND ref_id IN {OWN}", "Notifications"),
     ("folder_notif", "SELECT ref_id AS owner_id, path AS folder, user_id, tpl, custom::text AS custom, updated_at FROM obj_notif_cap "
@@ -179,7 +185,10 @@ obj_export("obj_tag_links", org=(("tasks/tags.json", """kind='task' AND obj_id I
            acct_more=(("task_list_tags", """SELECT k.obj_id AS task_id, k.tag_id FROM obj_tag_links k JOIN obj_tags ot ON ot.id=k.tag_id AND ot.scope_kind='list'
                                WHERE k.kind='task' AND k.obj_id IN (SELECT id FROM tasks WHERE list_id IN {OWN})"""),))
 # 2.473.0 (#3357); 2.972.0 (#5285): mode watch, tasks/watchers.json keeps its columns
+# 2.1334.0 (#6585): + the bells of my projects (kind list), named as staying behind on an import like the other notifications
 obj_export("obj_follow", org=(("tasks/watchers.json", "kind='task' AND mode='watch' AND ref_id IN ({TSQ})"),), read=("task_bell", "task_watchers"),
+           acct_more=(("list_bell", "SELECT ref_id AS list_id, mode AS level, until::text AS until, set_by, created_at, updated_at FROM obj_follow "
+                                    "WHERE user_id=? AND kind='list'", "Notifications"),),
            acct=(("task_bell", "SELECT ref_id AS task_id, mode AS level, until::text AS until, set_by, created_at, updated_at FROM obj_follow "
                                "WHERE user_id=? AND kind='task' AND mode<>'watch'"),  # 2.1097.0 (#5949): the parts keep their old columns
                  ("task_watchers", "SELECT ref_id AS task_id, created_at FROM obj_follow WHERE user_id=? AND kind='task' AND mode='watch'")))
@@ -208,7 +217,13 @@ obj_export("obj_comments", org=(("comments.json", "kind='task' AND ref_id IN ({T
                                  to_char(c.created_at AT TIME ZONE 'UTC', '{OCM_TS}') AS created_at,
                                  to_char(c.edited_at AT TIME ZONE 'UTC', '{OCM_TS}') AS edited_at
                                  FROM obj_comments c JOIN tasks t ON t.id=c.ref_id AND c.kind='task' WHERE c.user_id=? AND {LIVE_C}
-                                 AND t.list_id NOT IN {OWN} AND t.list_id NOT IN {SHARED} ORDER BY c.id""", "Comments in other projects")))
+                                 AND t.list_id NOT IN {OWN} AND t.list_id NOT IN {SHARED} ORDER BY c.id""", "Comments in other projects"),
+               # 2.1334.0 (#6585 T13 7): Art. 15 -- what I wrote on the video sign-offs and documents of organisations (the notes
+               # opened with their workspace key: acctexport.py _umz_plain)
+               ("org_video_comments", "SELECT {OCM_VIDEO} FROM obj_comments k WHERE k.kind='video' AND k.user_id=? AND k.org_id IS NOT NULL "
+                                      "AND {LIVE_K} ORDER BY k.id", "Comments in other projects"),
+               ("org_doc_notes", "SELECT {OCM_NOTE} FROM obj_comments WHERE kind='doc_note' AND user_id=? AND org_id IS NOT NULL AND {LIVE} "
+                                 "ORDER BY id", "Comments in other projects")))
 # 2.763.0 (#5269): the files keep their columns (comment_id / message_id)
 obj_export("obj_reactions", org=(("comments/reactions.json", "target_kind='comment' AND target_id IN (SELECT id FROM obj_comments WHERE kind='task' AND ref_id IN ({TSQ}) AND {LIVE})"),
                                  ("chat/reactions.json", "target_kind='tchat' AND target_id IN (SELECT id FROM tchat_msgs WHERE room_id IN ({RSQ}) AND {LIVE})")),
@@ -217,9 +232,19 @@ obj_export("obj_reactions", org=(("comments/reactions.json", "target_kind='comme
                          to_char(created_at AT TIME ZONE 'UTC', '{OCM_TS}') AS created_at
                          FROM obj_reactions WHERE user_id=? ORDER BY obj_reactions.created_at, target_kind, target_id""", "Reactions"),))
 # 2.1076.0 (#5271): the old files and columns (admin/orgexport.py ox_link_row); the links of a draft letter stay out of the retention export
+# 2.1334.0 (#6585 T13 2 / 4): + the free links people and agents make (every relation but the areas' {AREA_RELS}): an organisation's
+# in links.json; mine (my private space: the links of my private contacts and filed mails, the free links I made) in private_links
 obj_export("obj_links", org=(("books/contact_tasks.json", "src_kind='contact' AND dst_kind='task' AND rel='contact' AND src_id IN (SELECT id FROM contacts WHERE book_id IN (SELECT id FROM books WHERE org_id=?)) AND dst_id IN ({TSQ})"),
                              ("office/letter_links.json", "org_id=? AND {LETTER_LINKS}"),
-                             ("hub/mail_links.json", "org_id=? AND src_kind='hub_mail' AND rel='made' AND src_id NOT IN (SELECT id FROM hub_mails WHERE deleted_at IS NOT NULL)")),
+                             ("hub/mail_links.json", "org_id=? AND src_kind='hub_mail' AND rel='made' AND src_id NOT IN (SELECT id FROM hub_mails WHERE deleted_at IS NOT NULL)"),
+                             ("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE}")),
+           acct_more=(("private_links", """SELECT id, src_kind, src_id, dst_kind, dst_id, rel, note, extra::text AS extra, created_by, agent_id,
+                          created_at, updated_at FROM obj_links WHERE org_id IS NULL AND {LIVE} AND (
+                          (rel='contact' AND src_kind='contact' AND src_id IN (SELECT id FROM contacts WHERE book_id IN
+                              (SELECT id FROM books WHERE owner_id=? AND owner_org_id IS NULL AND {LIVE})))
+                          OR (rel='made' AND src_kind='hub_mail' AND src_id IN (SELECT id FROM hub_mails WHERE owner_id=? AND org_id IS NULL
+                              AND {LIVE}))
+                          OR (rel NOT IN {AREA_RELS} AND created_by=?)) ORDER BY id""", "Links"),),
            rx=(("letters/letter-links.csv", "org_id=? AND {LETTER_LINKS} AND src_id IN (SELECT id FROM office_letters WHERE org_id=? AND status<>'draft')"),))
 # 2.958.0 (#5281) / 2.977.0 (#5282): the versions of knowledge pages, Playbooks and the procedure documentation (old columns: ox_objv_row)
 obj_export("obj_versions", org=(("lists/playbooks.json", "kind='playbook' AND ref_id IN (SELECT id FROM playbooks WHERE list_id IN ({LSQ}))"),
