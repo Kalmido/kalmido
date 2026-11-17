@@ -22,7 +22,7 @@ from flask import g, jsonify, request
 from ..core.config import PUBLIC_URL, app, WATCHDOG_INTERVAL
 from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..notify.alerts import aa_count  # 2.1265.0 (#6387)
-from ..core.db import IntegrityError, body, bump, connect, db, iso, local_now, now_utc, uset, usettings
+from ..core.db import IntegrityError, body, bump, db, iso, local_now, now_utc, uset, usettings
 from ..core.access import Denied, live_sql, my_inbox
 from ..core.i18n import LANGS, N_, lang, short_day, tr, tr_stored, trn
 from .doclang import doc_lg  # 2.185.0 C (#2520)
@@ -74,8 +74,9 @@ from .mailsig import ofm_sender  # 2.369.5 (#2517): pulled up from functions
 from .fixedimport import fci_people  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.validation import log_act  # 2.369.5 (#2517): pulled up from functions
 from .cashflow import _fx  # 2.369.5 (#2517): pulled up from functions
-from ..core.movelock import mv_sql  # 2.1337.0 (#6600)
-from ..accounts.bgjobs import bgj_fn  # 2.1337.0 (#6600)
+from ..core.movelock import mv_sql  # noqa: E402  2.1337.0 (#6600)
+from ..accounts.bgjobs import bgj_fn  # noqa: E402  2.1337.0 (#6600)
+from ..core.db import connect  # noqa: E402  2.1337.0 (#6600)
 from .owrite import ow_history_answer, ow_kind, ow_write  # 2.567.0 D (#4711): the saves go through the core's write layer
 
 ow_kind("office_inv_series", "office_inv_series")

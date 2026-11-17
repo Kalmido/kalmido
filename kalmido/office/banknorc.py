@@ -25,7 +25,7 @@ from ..core.db import body, bump, iso, local_now, now_utc
 from ..core.errors import BadInput
 from ..core.i18n import N_, lang, tr, trn
 from ..core.pg import insert_id, system_ctx
-from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..tasks.validation import log_act
 from .bank import BNK_LIST_MAX, BNK_KINDS, _ctx, _home, _receipts, _shift, _tx_dec
 from .bankvend import bv_key, bv_missing, bv_noreceipt_keys, bv_task_lines  # 2.425.0 B (#3451)
