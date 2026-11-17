@@ -79,6 +79,57 @@ const FEAT = 'cal,comments,collab,contacts,office,clients,docs';
   check(await until(() => d.querySelector('.msclcard') && !d.querySelector('.msclcard[data-wsc]') && !main().classList.contains('wsc-on')), '#6180 the open private client: neutral');
   w.close();
 
+  // ---- 2.1319.0 (#6697): "All" while office, clients and time tracking are switched off in Private -- the modules belong to the
+  // organisation alone, so the whole frame wears its colour: :root's accent (rail, panel, header, tab bar), the stripe on top of the
+  // sidebar (#app --wbl), the office's header names the organisation. Desktop and phone. Without the fix :root stays Kalmido's accent.
+  const S_mod = w2 => w2.eval('S.route.mod');
+  await call('PATCH', '/api/settings', {workspace: 'all', features: FEAT + ',time', ws_mods_off: JSON.stringify({private: ['office', 'clients', 'time']})});
+  const frame = (w2, wt) => { const de = w2.document.documentElement, app = w2.document.querySelector('#app');
+    return {root: de.classList.contains('wac-on') && de.style.getPropertyValue('--wal') === wt[2] && de.style.getPropertyValue('--wad') === wt[0], stripe: app?.style.getPropertyValue('--wbl') === want.l && app?.style.getPropertyValue('--wbd') === want.d,
+      scope: w2.eval('wso_scope()'), ws: w2.eval('wsCur()')}; };
+  for (const mobile of [false, true]) {
+    const tag = mobile ? 'phone' : 'desktop';
+    w = await boot({hash: 'office', mobile, allWs: true}); d = w.document;  // allWs: stay on "All" (boot would switch into the office's workspace)
+    const wt = w.eval(`wac_tone('org:${ORG}')`);
+    check(await until(() => d.querySelector('.ofcws')), `#6697 ${tag}: the office opens under "All" (only the organisation has one)`);
+    check(await until(() => frame(w, wt).root && frame(w, wt).stripe), `#6697 ${tag}: office under "All" with one office - accent and stripe in the organisation colour ` + JSON.stringify(frame(w, wt)));
+    check(/Studio/.test(d.querySelector('.ofcws')?.textContent || ''), `#6697 ${tag}: the office header names the organisation`);
+    check(w.eval('wsCur()') === 'all', `#6697 ${tag}: the switch itself stays on "All"`);
+    if (mobile) {  // the drawer and the tab bar: the same :root accent, nothing local overrides it
+      w.eval(`document.querySelector('#top [data-act="side"]')?.click()`);
+      check(await until(() => d.querySelector('#side.open')) && !d.querySelector('#side .wac-loc') && frame(w, wt).root, '#6697 phone: the drawer follows the organisation accent');
+    } else {
+      check(!!d.querySelector('#srail .srb.on, #side .srow.on') && !d.querySelector('#srail .wac-loc'), '#6697 desktop: the active office entry takes the accent of :root (no local Kalmido tone)');
+    }
+    w.eval(`go('clients')`);
+    check(await until(() => d.querySelector(`.ctrow[data-clopen="${CO}"]`) && frame(w, wt).root && frame(w, wt).stripe), `#6697 ${tag}: clients under "All", only in the organisation - its colour ` + JSON.stringify(frame(w, wt)));
+    w.eval(`go('time')`);
+    check(await until(() => S_mod(w) === 'time' && frame(w, wt).root && frame(w, wt).stripe), `#6697 ${tag}: time tracking under "All", only in the organisation - its colour ` + JSON.stringify(frame(w, wt)));
+    w.eval(`go('today')`);
+    check(await until(() => S_mod(w) === 'tasks' && !d.documentElement.classList.contains('wac-on') && !frame(w, wt).scope), `#6697 ${tag}: back on a page of every workspace - Kalmido's accent again`);
+    w.close();
+  }
+  // the module on in both workspaces again: the office is a page of two workspaces, the frame stays Kalmido's accent (rule #4222)
+  await call('PATCH', '/api/settings', {workspace: 'all', ws_mods_off: '{}'});
+  w = await boot({hash: 'clients'}); d = w.document;
+  check(await until(() => d.querySelector(`.ctrow[data-clopen="${CO}"]`)), 'clients in both workspaces: the list is there');
+  check(!d.documentElement.classList.contains('wac-on') && w.eval('wso_scope()') === '', '#6697 clients of two workspaces under "All": the frame stays Kalmido\'s accent');
+  // a mixed page with an open object of the organisation: the active sidebar row wears its tone (wac-loc), a private one does not
+  const LO = (await call('POST', '/api/lists', {name: 'Orgproject', org_id: ORG})).id, LP = (await call('POST', '/api/lists', {name: 'Ownproject', org_id: null})).id;
+  w.close();
+  for (const mobile of [false, true]) {
+    const tag = mobile ? 'phone' : 'desktop';
+    w = await boot({hash: 'l/' + LO, mobile}); d = w.document;
+    const wt = w.eval(`wac_tone('org:${ORG}')`);
+    if (mobile) w.eval(`document.querySelector('#top [data-act="side"]')?.click()`);
+    const row = id => d.querySelector(`#side .srow[data-list="${id}"]`);
+    check(await until(() => row(LO)?.classList.contains('on') && row(LO).classList.contains('wac-loc') && row(LO).style.getPropertyValue('--wal') === wt[2]), `#6697 ${tag}: open project of the organisation under "All" - its active sidebar row in the organisation tone ` + (row(LO)?.outerHTML || '').slice(0, 300));
+    check(!d.documentElement.classList.contains('wac-on'), `#6697 ${tag}: a mixed page keeps Kalmido's accent on :root`);
+    w.eval(`go('l/${LP}')`);
+    check(await until(() => row(LP)?.classList.contains('on') && !d.querySelector('#side .wac-loc')), `#6697 ${tag}: the private project - no organisation tone left in the sidebar`);
+    w.close();
+  }
+
   // ---- a person without an organisation: nothing coloured, nothing broken
   await call('POST', '/api/users', {username: 'solo', display_name: 'Solo', password: 'password123', email: 'solo@example.com', orgs: []});
   const CS = await login('solo');
