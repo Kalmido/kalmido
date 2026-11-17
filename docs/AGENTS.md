@@ -495,7 +495,7 @@ coding agents, building files, own tools.
   agent that lasts 8 hours and reaches only what the person of these events reaches themselves (their projects, outside
   projects at most their own role, writes capped to their role -- a reader's order becomes an approval card). Events of
   two people in one call: `400 several_people` (one request = one person); a person who may no longer give the agent
-  orders: `403 no_order`; an event that is gone: `404 event_gone`. Events without a person (the project's own automation):
+  orders: `403 no_order`; an event that is gone or older than 24 hours: `404 event_gone`. Events without a person (the project's own automation):
   only the projects of these events, nothing outside them, and **every change is an approval card**.
   `{"operator": true}` gives the token for the person chosen in the agent's settings (*who answers its permission
   questions*, `perm_user_id`) for the agent's own list work (the starter's dispatcher); none chosen: `409 no_operator`.
