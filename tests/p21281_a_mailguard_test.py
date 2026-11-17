@@ -257,6 +257,16 @@ with zipfile.ZipFile(xb, "w", zipfile.ZIP_DEFLATED) as z:
     for i in range(3):
         z.writestr(f"other-{i}.xml", b"<?xml version='1.0'?><note>" + bytes(1000) + b"</note>")
 out["xml"] = list(take([("x.zip", "application/zip", xb.getvalue())])) + [len(CUT), WHY[:]]
+# 2.1322.0 (#6560 9): the server's log gets no file name of a customer's mail
+import contextlib
+nb = io.BytesIO()
+with zipfile.ZipFile(nb, "w", zipfile.ZIP_DEFLATED) as z:
+    z.writestr("Kuendigung-Erika-Musterfrau.txt", b"x")
+    z.writestr("beleg.pdf", b"%PDF-1.4 x")
+buf = io.StringIO()
+with contextlib.redirect_stdout(buf):
+    out["named"] = list(take([("Rechnung-Musterfirma.zip", "application/zip", nb.getvalue())]))
+out["log"] = buf.getvalue()
 out["none"] = I._mail_has_parts([("n.txt", "text/plain", b"x")], ei_is)
 out["limits"] = [I.MAIL_DOCS, I.MAIL_BYTES // (1024 * 1024)]
 print(json.dumps(out))
@@ -284,5 +294,8 @@ check(k[:1] == [90] and k[3:] == [0, ["ValueError"]],
       f"an unreadable ZIP after two full ones: refused for what it is, not reported as a budget cut ({k})")
 check(j.get("xml") == [0, 0, 1, 0, ["ValueError"]],
       f"a ZIP of other XML files: no document, refused for what it is (never tried again), not a budget cut ({j.get('xml')})")
+lg = j.get("log")
+check(isinstance(lg, str) and "problem" in lg and "Musterfirma" not in lg and "Musterfrau" not in lg and (j.get("named") or [0])[0] == 1,
+      f"a ZIP with a file of another type: the PDF is taken, the log names neither the archive nor its files ({lg!r}, {j.get('named')})")
 
 sys.exit(done("p21281_a_mailguard"))
