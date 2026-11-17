@@ -256,7 +256,6 @@ def task_inherit(c, tid, src):
 FREQ_ENDPOINTS = ("task_create", "v1_task_create")
 
 
-@app.post("/api/tasks")
 @contextmanager
 def task_no_origin():
     """2.1363.0 (#6728, N2): task_create inside it leaves tasks.origin empty -- the text was written by another hand (a copy of a
@@ -269,6 +268,7 @@ def task_no_origin():
         g.no_origin = was
 
 
+@app.post("/api/tasks")
 def task_create():
     from ..tasks.lifecycle import repeat_problem
     from ..collab.comments import task_event
