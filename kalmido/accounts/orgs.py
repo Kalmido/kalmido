@@ -1265,17 +1265,26 @@ def org_delete(oid):
         # #3090: its documents locked before the deletion's first write (no deadlock with a recognition run, users.user_delete)
         c.execute("SELECT node_id FROM doc_meta WHERE org_id=? ORDER BY node_id FOR UPDATE", (oid,)).fetchall()
         from ..admin.retexport import rx_alert, rx_gate, rx_subject
+        from .orgretain import ODL_DOCS_OK, odl_docs_block
         bad, retained = rx_gate(c, rx_subject(c, "org", oid))  # 2.146.0 D (#2468): the retention export (or its waiver) first
         if bad:
             return bad
+        # 2.1327.0 (#1969): finalised documents in their period block it (409 with the day and the way), a waiver too; the
+        # operator's way (this route is the instance admins') goes only after a finished retention export (rx_gate "exported")
+        blk = odl_docs_block(c, oid)
+        if blk and not (retained and retained[1] == "exported"):
+            c.rollback()
+            raise blk
         oname = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
         from ..admin.hosting import hosted
         from ..office.olock import OLK_BYPASS
         olv_gone_news(c, oid, oname)  # 2.361.0 (#2920): every member learns it, with what of theirs goes along
         tok = OLK_BYPASS.set(hosted())  # 2.152.0 (#2167, review A2): the hosted instance keeps no booked receipts (rx_gate passed)
+        dtok = ODL_DOCS_OK.set(bool(blk) and bool(retained) and retained[1] == "exported")  # #1969: the operator after the export
         try:
             todo = odl_dismantle(c, oid)  # 2.152.0 A: the steps shared with the account deletion and the retention run
         finally:
+            ODL_DOCS_OK.reset(dtok)
             OLK_BYPASS.reset(tok)
         bump(c)
         c.commit()

@@ -51,6 +51,7 @@ from ..core.objnotify import obj_notify
 from ..core.objhooks import NOTIFY_READERS  # 2.1298.0 (#6395)
 from ..lists.ownership import owner_candidates, owner_transfer
 from ..accounts.users import _active_admins, need_admin, om_admin_all, user_delete_run
+from ..accounts.orgretain import odl_docs_block  # 2.1327.0 (#1969)
 from ..accounts.delhold import SDL_HELD, sdl_hold_until  # 2.1298.0 (#6395)
 from ..accounts.useradmin import ua8_foreign, ua8_list_info, ua8_owned
 from ..accounts.orgretain import UPG_NO_HEIR, upg_heirless, upg_info
@@ -234,6 +235,12 @@ def sdl_request():
         if not to or to not in {x["id"] for x in _heirs(c, lr["id"], uid)}:
             return jsonify(error=tr("Choose for every project: hand it over to a member or delete it along."), lists=[lr["id"]]), 409
         choice[str(lr["id"])] = {"to": to}
+    with system_ctx(c):  # the own personal office
+        poid = (c.execute("SELECT id FROM orgs WHERE personal_of=?", (uid,)).fetchone() or [None])[0]
+    blk = odl_docs_block(c, poid, user=True)  # 2.1327.0 (#1969): finalised documents in their period: not before their end
+    if blk:
+        c.rollback()
+        raise blk
     keep, _retained = rx_gate(c, rx_subject(c, "user", uid), along=along, how=how)  # records to keep: the export or its waiver now
     if keep:
         c.rollback()
