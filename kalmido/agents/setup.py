@@ -29,7 +29,7 @@ AINS_FOLDER_MAX = 300
 AINS_HOST_MAX = 80
 AINS_RATE = 10  # failed redeems per address in the login window (15 min)
 # where the setup script fetches the starter files (mcp/starter_files.txt lists them); {version} = this instance's version
-AINS_STARTER_BASE = os.environ.get("KALMIDO_STARTER_BASE", "https://github.com/Gegenschuss/kalmido/raw/v{version}/mcp/")
+AINS_STARTER_BASE = os.environ.get("KALMIDO_STARTER_BASE", "https://github.com/Kalmido/kalmido/raw/v{version}/mcp/")
 _AINS_BAD = re.compile(r"[\x00-\x1f\x7f]")
 # 2.670.0 (#5127): without PUBLIC_URL no setup code (503), like the receipt fetcher / scan inbox (#4074 5): the default
 # http://localhost:3040 would land in the agent's config, and the request's Host header is no address to trust

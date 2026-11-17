@@ -295,7 +295,7 @@ check('gh release create "$tag"' in pub and "--verify-tag --latest " in pub and 
 check(pub.index('imagetools create -t "$image:latest" "$image@$digest"') < pub.index("gh release create"),
       "first :latest, then the mark the installers read")
 # 2.995.0 (#5686): GitHub move of the repository (#4007 package A) - no workflow names the image by hand; the name comes from
-# github.repository in lower case, so ghcr.io/gegenschuss/kalmido today and ghcr.io/kalmido/kalmido after the move
+# github.repository in lower case, so ghcr.io/kalmido/kalmido since the move (2.1336.0, #6505: the old name is gone everywhere)
 for wf in ("release.yml", "promote.yml", "weekly-release.yml"):
     t = code(read(".github", "workflows", wf))
     check("ghcr.io/" in t and re.search(r"ghcr\.io/(?!\$\{GITHUB_REPOSITORY,,\})", t) is None, f"#5686: {wf} names no fixed image")

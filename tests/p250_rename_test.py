@@ -51,7 +51,7 @@ check("'X-Requested-With': 'kalmido'" in sw, "service worker: CSRF header value 
 js = "\n".join(requests.get(B + "/static/js/" + f).text
                 for f in re.findall(r'<script src="/static/js/([\w-]+\.js)(?:\?v=\w+)?"(?: defer)?></script>', requests.get(B + "/").text))
 check("const APP_NAME = 'Kalmido';" in js, "app.js: APP_NAME")
-check("github.com/Gegenschuss/kalmido" in js, "app.js: repository links")
+check("github.com/Kalmido/kalmido" in js, "app.js: repository links")
 de = requests.get(B + "/static/i18n/de.json").json()
 check(any("Kalmido" in k for k in de) and any("Kalmido" in v for v in de.values()), "de.json: Kalmido in keys and values")
 

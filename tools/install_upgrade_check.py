@@ -34,7 +34,7 @@ import tempfile
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GH = "https://github.com/Gegenschuss/kalmido"
+GH = "https://github.com/Kalmido/kalmido"
 CODE_RE = re.compile(r"Setup code: *([a-z0-9-]+)")  # the same pattern as setup_code() of install.sh
 
 

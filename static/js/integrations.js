@@ -123,7 +123,7 @@ function tokModal(done, offer) {
   if (!isTouch()) setTimeout(() => $('#tk-name', md)?.focus(), 50);  // 2.13.0: no keyboard popping up on touch
 }
 // ------------------------------------------------------------------ 2.9.0 (#435): calendar apps (CalDAV) + app passwords
-const DAV_DOCS = 'https://github.com/Gegenschuss/kalmido/blob/main/docs/CALDAV.md';
+const DAV_DOCS = 'https://github.com/Kalmido/kalmido/blob/main/docs/CALDAV.md';
 const apwHtml = () => S.caldav?.enabled ? `<h4 id="s-apw-h">${tr('App passwords')}</h4>
   <div class="shint keep">${tr('For calendar apps (CalDAV): one password per device, shown only once. Your Kalmido password never goes into a calendar app. If a device gets lost, revoke its password; the other devices keep working.')}</div>
   <div class="members" id="s-apws"><div class="muted mhint">${tr('Loading…')}</div></div>

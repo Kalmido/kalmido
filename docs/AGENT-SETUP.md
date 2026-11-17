@@ -135,7 +135,7 @@ chat. Then copy this prompt, replace the placeholders and paste it into Claude C
   `<KALMIDO_URL>/api/me` in the browser while signed in as that person: the field `id`)
 
 ```text
-Set up a Kalmido agent on this Linux machine, following the Kalmido guides docs/AGENT-SETUP.md (path B, "Do it yourself") and docs/AGENT-SECURITY.md (host sandbox recipe) from https://github.com/Gegenschuss/kalmido. Read both guides first and follow them exactly; where this prompt and the guides differ, the guides win.
+Set up a Kalmido agent on this Linux machine, following the Kalmido guides docs/AGENT-SETUP.md (path B, "Do it yourself") and docs/AGENT-SECURITY.md (host sandbox recipe) from https://github.com/Kalmido/kalmido. Read both guides first and follow them exactly; where this prompt and the guides differ, the guides win.
 
 My values:
 - Kalmido address: <KALMIDO_URL>
@@ -374,7 +374,7 @@ them over from the env file, so the token is neither in Claude Code's configurat
 
 ```sh
 sudo -iu kalmido-agent
-git clone --depth 1 https://github.com/Gegenschuss/kalmido.git ~/kalmido
+git clone --depth 1 https://github.com/Kalmido/kalmido.git ~/kalmido
 cat > ~/kalmido/mcp/run.sh <<'EOF'
 #!/bin/sh
 # starts the Kalmido MCP server with the token from the env file (never on a command line)

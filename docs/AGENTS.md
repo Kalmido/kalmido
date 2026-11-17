@@ -561,7 +561,7 @@ sudo nft -f /etc/nftables.d/kalmido-agent.nft      # + a oneshot unit that loads
 sudo -iu kalmido-agent
 mkdir -p ~/.config/kalmido && ( umask 077; nano ~/.config/kalmido/agent.env )   # KALMIDO_URL=… KALMIDO_TOKEN=…
 curl -fsSL https://claude.ai/install.sh | bash && claude          # log in once
-git clone --depth 1 https://github.com/Gegenschuss/kalmido.git ~/kalmido
+git clone --depth 1 https://github.com/Kalmido/kalmido.git ~/kalmido
 # ~/kalmido/mcp/run.sh (AGENT-SETUP.md step 5), then in ~/agent: claude mcp add -s local kalmido -- "$HOME/kalmido/mcp/run.sh"
 # the launcher as a systemd user service (AGENT-SETUP.md step 9):
 sudo loginctl enable-linger kalmido-agent
@@ -645,7 +645,7 @@ Windows (`winget install Git.Git`), PowerShell 7 (`winget install Microsoft.Powe
 (`irm https://claude.ai/install.ps1 | iex`, log in once). Then, as the agent user:
 
 ```powershell
-git clone --depth 1 https://github.com/Gegenschuss/kalmido.git $HOME\kalmido
+git clone --depth 1 https://github.com/Kalmido/kalmido.git $HOME\kalmido
 New-Item -ItemType Directory -Force $HOME\.config\kalmido, $HOME\agent | Out-Null
 notepad $HOME\.config\kalmido\agent.env          # KALMIDO_URL=… and KALMIDO_TOKEN=…, two lines
 icacls $HOME\.config\kalmido\agent.env /inheritance:r /grant:r "kalmido-agent:(R,W)" "Administrators:F"
@@ -720,7 +720,7 @@ standard account (as in guide A) is safer if it should run unattended.
 
 ```sh
 curl -fsSL https://claude.ai/install.sh | bash && claude          # log in once
-git clone --depth 1 https://github.com/Gegenschuss/kalmido.git ~/kalmido
+git clone --depth 1 https://github.com/Kalmido/kalmido.git ~/kalmido
 mkdir -p ~/.config/kalmido ~/agent && ( umask 077; nano ~/.config/kalmido/agent.env )
 # ~/kalmido/mcp/run.sh as in AGENT-SETUP.md step 5, then:
 cd ~/agent && claude mcp add -s local kalmido -- "$HOME/kalmido/mcp/run.sh"
@@ -734,7 +734,7 @@ Usage hook: `"command": "python3 ~/kalmido/mcp/claude_usage_hook.py ~/.config/ka
 ```sh
 curl -fsSL https://claude.ai/install.sh | bash && claude          # log in once
 xcode-select --install                                           # Python 3 + git, if missing
-git clone --depth 1 https://github.com/Gegenschuss/kalmido.git ~/kalmido
+git clone --depth 1 https://github.com/Kalmido/kalmido.git ~/kalmido
 mkdir -p ~/.config/kalmido ~/agent && ( umask 077; nano ~/.config/kalmido/agent.env )
 # ~/kalmido/mcp/run.sh as on Linux, then:
 cd ~/agent && claude mcp add -s local kalmido -- "$HOME/kalmido/mcp/run.sh"
@@ -753,7 +753,7 @@ Usage hook: `"command": "python3 ~/kalmido/mcp/claude_usage_hook.py ~/.config/ka
 ```powershell
 winget install Python.Python.3.12 Git.Git Microsoft.PowerShell
 irm https://claude.ai/install.ps1 | iex; claude                  # log in once
-git clone --depth 1 https://github.com/Gegenschuss/kalmido.git $HOME\kalmido
+git clone --depth 1 https://github.com/Kalmido/kalmido.git $HOME\kalmido
 New-Item -ItemType Directory -Force $HOME\.config\kalmido, $HOME\agent | Out-Null
 notepad $HOME\.config\kalmido\agent.env                          # KALMIDO_URL=… KALMIDO_TOKEN=…
 icacls $HOME\.config\kalmido\agent.env /inheritance:r /grant:r "${env:USERNAME}:(R,W)"
