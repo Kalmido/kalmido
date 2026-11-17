@@ -587,4 +587,27 @@ except (ValueError, IndexError):
 got_f = j.get("b") if LG_F > LG_A else j.get("a")
 check(j.get("rows") == 1 and got_f == "", f"#6736 F1: a project kept for its custodian has the history row 'owner', the custodian is not proved: {j}")
 
+# Fable reader #5196 F2 (decision 17.11.2026): an approval older than the log period (ret_days("logs"), list_activity is kept
+# that long) proves no owner: empty circle, the bridge asks once anew
+LG_G, LG_H = project("Legacy very old own"), project("Legacy very old shared")
+kt.dbx("INSERT INTO list_members(list_id,user_id,role,added_at) VALUES(?,?,'edit',?)", (LG_H, OID, ts(-24 * 900)))
+GX, GY = min(LG_G, LG_H), max(LG_G, LG_H)
+kt.dbx("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at) VALUES(?,?,?,?,?)", (aid, GX, GY, FID, ts(-24 * 500)))
+out = subprocess.run(["docker", "exec", kt.CT, "python", "-c", f"""import json, app
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.agents.safety import bridge_circles_start
+c = connect()
+with system_ctx(c):
+    bridge_circles_start(c)
+    c.commit()
+    r = c.execute("SELECT * FROM agent_bridges WHERE agent_id=? AND list_a=? AND list_b=?", ({aid}, {GX}, {GY})).fetchone()
+    print(json.dumps({{"a": r["circle_a"], "b": r["circle_b"]}}))
+c.close()"""], capture_output=True, text=True)
+try:
+    j = json.loads(out.stdout.strip().splitlines()[-1])
+except (ValueError, IndexError):
+    j = {"error": (out.stdout + out.stderr)[-600:]}
+check(j.get("a") == "" and j.get("b") == "", f"#6736 F2: an approval older than the log period proves nobody (asks anew): {j}")
+
 sys.exit(done("p6453_circle"))
