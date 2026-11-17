@@ -69,6 +69,12 @@ const FEAT = 'collab,comments,clients,contacts';
   if (md) { const ih = md.querySelector('#hmb-iu'); ih.value = ''; ih.dispatchEvent(new w.Event('change', {bubbles: true})); }
   check(await until(async () => /Not saved yet/.test(md.querySelector('.hmb-err').textContent), 4000), 'an incomplete set is not saved, the reason shows');
   if (md) { const ih = md.querySelector('#hmb-iu'); ih.value = 'kalmido'; ih.dispatchEvent(new w.Event('change', {bubbles: true})); }
+  // 2.1312.0 (#6540): with a server for sending its user name and password are marked required, an empty user name is refused with the reason
+  check(md && md.querySelector('#hmb-su').required && md.querySelector('#hmb-sw').getAttribute('aria-required') === 'true' && md.querySelector('.hmbreq'),
+    'mailbox dialog: SMTP user name and password marked required');
+  if (md) { const su = md.querySelector('#hmb-su'); su.value = ''; su.dispatchEvent(new w.Event('change', {bubbles: true})); }
+  check(await until(async () => /user name and the password of the SMTP server/.test(md.querySelector('.hmb-err').textContent), 4000), 'an SMTP without its user name is not saved, the reason shows');
+  if (md) { const su = md.querySelector('#hmb-su'); su.value = 'kalmido'; su.dispatchEvent(new w.Event('change', {bubbles: true})); }
   await until(async () => !md.querySelector('.hmb-err').textContent, 4000);
   click(w, md && md.querySelector('[data-hmbd="check"]'));
   await until(async () => md.querySelectorAll('.hmbcheck .hmbok').length === 2, 20000);
