@@ -32,6 +32,8 @@ from ..office.pdfweb import LOGO_FILE, epdf_name  # 2.369.5 (#2517): pulled up f
 from ..office.signoff import sig_purpose, sig_token_new  # 2.369.5 (#2517): pulled up from functions
 from ..office.letterhead import BP_FILE_RE  # 2.369.5 (#2517): pulled up from functions
 from ..office.eqcare import eqc_sync
+from ..office.periodlock import pl_first_month, pl_label, pl_month  # 2.1316.0 (#6577)
+from .acctimport import UmzBad, tr  # 2.1316.0 (#6577)
 
 # ids inside JSON texts: key -> map kind (unknown -> None)
 OI_JSON_IDS = {"service_id": "office_services", "producing_service_id": "office_services", "role_id": "office_roles",
@@ -284,9 +286,8 @@ def _p_doc(c, run, src, d, ctx):
         return False
     for col in ("deleted_at", "trash_refs", "rev"):
         d.pop(col, None)
-    if _oi_number_taken(c, ctx.space, d.get("number")):
-        run.warning(N_("A document number already exists in the target office, the document was skipped: {0}"), d.get("number"))
-        return None
+    if _oi_number_taken(c, ctx.space, d.get("number")):  # 2.1316.0 (#6577): refused, never skipped (oi_target_check ran before)
+        raise UmzBad(OI_REFUSED, tr(OI_NUM_TAKEN, d.get("number")))
     for col in ("chain_key", "chain_seq", "chain_prev", "chain_hash", "chain_ver"):  # 2.531.0 (#4497): the target's own chain (office/chain.py hch_append); 2.1309.0 (#6467): + chain_ver
         d.pop(col, None)
     for col in ("ref_doc_ids", "abs_refs"):  # set by the finish pass (other documents)
@@ -313,17 +314,46 @@ def _oi_mark(c, run, ctx, target, doc_id=None, detail=None):
     run.created["oi"].append(["office_doc_log", lid, ctx.space])
 
 
+def _oi_drop_doc(c, run, ctx, src, nid, written):
+    """2.1316.0 (#6577): a finalised document whose original did not arrive goes again (with the files stored for it just now):
+    its download would answer 409 for good and the undo keeps finalised documents. What hangs on it (positions, payments)
+    finds no document and stays out with the warning of oi_write; the result names the number."""
+    for full in written:
+        try:
+            os.remove(full)
+        except OSError:
+            pass
+        if full in run.created.get("oi_files", []):
+            run.created["oi_files"].remove(full)
+        run.created.get("oi_file_rows", {}).pop(full, None)
+        if full in run.written:
+            run.written.remove(full)
+    with ofx_release(c, "office_docs"):
+        c.execute("DELETE FROM office_doc_log WHERE doc_id=?", (nid,))  # the store_missing / import entries of this row, none else yet
+        c.execute("DELETE FROM office_docs WHERE id=?", (nid,))
+    run.maps.get("office_docs", {}).pop(_oid(src.get("id")), None)
+    run.src.get("office_docs", {}).pop(str(_oid(src.get("id"))), None)
+    run.created["oi"] = [e for e in run.created["oi"] if not (e and e[0] == "office_docs" and e[1] == nid)]
+    run.count("office_docs", -1)  # oi_write counts the row after this hook
+    run.warning(OI_NO_ORIGINAL, str(src.get("number") or ""), must=True)
+
+
 def _a_doc(c, run, src, nid, ctx):
     """The stored files of a finalised document (PDF / XML under the new id) and the snapshots its sender names."""
-    _oi_mark(c, run, ctx, "doc", nid, {k: src.get(k) for k in ("number", "status", "locked_at")})  # 2.237.0 D (#2870)
     old = src.get("id")
+    if isinstance(old, int) and src.get("kind"):
+        r_old, r_new, written = {**src}, {**src, "id": nid}, []
+        for ext, mime in (("pdf", "application/pdf"), ("xml", "application/xml")):
+            if src.get(ext + "_sha256"):
+                new = _oi_put(ctx, f"doc{old}-{epdf_name(r_old)}.{ext}", f"doc{int(nid)}-{epdf_name(r_new)}.{ext}", mime=mime)
+                if new:
+                    written.append(os.path.realpath(os.path.join(_oi_dir(ctx.space), new)))
+                elif src.get("locked_at"):  # 2.1316.0 (#6577): missing in the file or refused by the scanner
+                    return _oi_drop_doc(c, run, ctx, src, nid, written)
+                _oi_own(ctx, new, ("office_docs", nid))  # 2.516.0 (#4364)
+    _oi_mark(c, run, ctx, "doc", nid, {k: src.get(k) for k in ("number", "status", "locked_at")})  # 2.237.0 D (#2870)
     if not isinstance(old, int) or not src.get("kind"):
         return
-    r_old, r_new = {**src}, {**src, "id": nid}
-    for ext, mime in (("pdf", "application/pdf"), ("xml", "application/xml")):
-        if src.get(ext + "_sha256"):
-            _oi_own(ctx, _oi_put(ctx, f"doc{old}-{epdf_name(r_old)}.{ext}", f"doc{int(nid)}-{epdf_name(r_new)}.{ext}", mime=mime),
-                    ("office_docs", nid))  # 2.516.0 (#4364)
     snd = _oi_json(src.get("sender"), {})
     if isinstance(snd, dict):
         if isinstance(snd.get("logo"), str) and re.fullmatch(r"logo-[0-9a-f]{16}\.png", snd["logo"]) and _oi_logo_ok(ctx, snd["logo"]):
@@ -415,9 +445,8 @@ def _a_archive(c, run, src, nid, ctx):
 
 
 def _p_archive(c, run, src, d, ctx):
-    if _oi_number_taken(c, ctx.space, d.get("number")):
-        run.warning(N_("A document number already exists in the target office, the document was skipped: {0}"), d.get("number"))
-        return None
+    if _oi_number_taken(c, ctx.space, d.get("number")):  # 2.1316.0 (#6577): like _p_doc
+        raise UmzBad(OI_REFUSED, tr(OI_NUM_TAKEN, d.get("number")))
     d["file"] = ""  # written by _a_archive under the new id
     return d
 
@@ -695,6 +724,110 @@ def oi_auto_preview(data):
     """2.1289.0 (#6576): True when the archive brings an invoice series or office settings (the preview's hint: they arrive paused)."""
     oi = data.get("oi") if isinstance(data.get("oi"), dict) else {}
     return bool(oi.get("office/invoice_series.json") or oi.get("office/settings.json"))
+
+
+# 2.1316.0 (#6577): an import into an office that has documents already is no silent merge. Before the run (preview and the
+# start, acctimport.umz_go) and once more inside it (umz_write, before the first office row) the target is checked like a
+# personal office moving into an organisation (office/pbtransfer.py pbt_plan): a document number the target uses already, or
+# data of the file in a month the target has locked, refuses the office part with the list; nothing is left out quietly.
+# A finalised document whose original (PDF / XML) is not in the file or is refused by the scanner never arrives as a document
+# whose download fails for good: it stays out and is named with its number (_a_doc, oi_facts "missing").
+OI_DATED = (("office/documents.json", "date"), ("office/payments.json", "date"), ("office/bank_tx.json", "day"),
+            ("office/cash_entries.json", "day"), ("office/trips.json", "date_from"))  # periodlock._DATED, as archive entries
+OI_NUM_TAKEN = N_("The number {0} is already used in the target office")
+OI_NUM_MORE = N_("Further numbers already used in the target office: {0}")
+OI_LOCKED = N_("The target office is locked up to {0}; the file has office data from {1}")
+OI_LOCKS_ON = N_("The file locks the office up to {0}: the target office is locked up to {0} as well (also its own data of these months)")
+OI_NO_ORIGINAL = N_("A finalised document without its original file was not imported: {0}")
+OI_REFUSED = N_("The office part cannot be imported into this office: {0}")
+OI_SHOW_MAX = 200  # numbers named in a list at most (the count of the rest is named too)
+
+
+def _oi_rows(oi, path):
+    return [r for r in oi.get(path) or [] if isinstance(r, dict) and not r.get("deleted_at")]
+
+
+def _oi_original(r):
+    """The archive entries of the stored originals finalised document r needs ([(ext, entry name)]); empty for a draft or a
+    document finalised before the originals were stored (rendered from its snapshot, office/pdfweb.py _stored_or_missing)."""
+    if not r.get("locked_at") or not isinstance(r.get("id"), int) or not r.get("kind"):
+        return []
+    return [(ext, _oi_name(f"doc{int(r['id'])}-{epdf_name(r)}.{ext}")) for ext in ("pdf", "xml") if r.get(ext + "_sha256")]
+
+
+def oi_facts(data, files):
+    """What the target check needs from the file, read once (the preview stores it with the upload, the run reads it anew):
+    {numbers, months, locks, missing, final}. missing = the numbers of finalised documents whose original is not in the file."""
+    oi = data.get("oi") if isinstance(data.get("oi"), dict) else {}
+    docs = _oi_rows(oi, "office/documents.json")
+    nums = {str(r["number"])[:100] for r in docs + _oi_rows(oi, "office/archive.json") if isinstance(r.get("number"), str) and r["number"].strip()}
+    months = {pl_month(r.get(col)) for path, col in OI_DATED for r in _oi_rows(oi, path)} - {None}
+    locks = {pl_month(r.get("period")) for r in _oi_rows(oi, "office/period_locks.json")} - {None}
+    final = [r for r in docs if r.get("locked_at")]
+    missing = sorted({str(r.get("number") or r.get("id"))[:100] for r in final if any(n not in files for _e, n in _oi_original(r))})
+    return {"numbers": sorted(nums), "months": sorted(months), "locks": sorted(locks), "missing": missing, "final": len(final)}
+
+
+def oi_target_check(c, facts, space):
+    """2.1316.0 (#6577): the file's office (facts of oi_facts) against target office space (an organisation or the person's
+    personal office; None: none yet, nothing to collide with) -> {"conflicts": [what refuses the import], "notes": [...]}, each
+    entry [text key, *values] (tr(*x) reads it, run.warning(*x) keeps it). Only numbers and months leave this function (the
+    caller is the target's admin or its owner)."""
+    out = {"conflicts": [], "notes": []}
+    if not facts or not space:
+        return out
+    nums, taken = list(facts.get("numbers") or []), []
+    with system_ctx(c):  # review: the admin of the target may lack office rights; only the colliding numbers leave this block
+        for i in range(0, len(nums), 500):
+            part = nums[i:i + 500]
+            taken += [r[0] for r in c.execute("SELECT number FROM office_docs WHERE org_id=? AND number = ANY(?) UNION "
+                                              "SELECT number FROM office_archive WHERE org_id=? AND number = ANY(?)",
+                                              (space, part, space, part)).fetchall()]
+        r = c.execute("SELECT MAX(period) AS p FROM office_period_locks WHERE org_id=?", (space,)).fetchone()
+        through = r["p"] if r is not None else None
+        own_first = pl_first_month(c, space) if facts.get("locks") else None
+    taken = sorted(set(taken))
+    out["conflicts"] += [[OI_NUM_TAKEN, x] for x in taken[:OI_SHOW_MAX]]
+    if len(taken) > OI_SHOW_MAX:
+        out["conflicts"].append([OI_NUM_MORE, len(taken) - OI_SHOW_MAX])
+    first = (facts.get("months") or [None])[0]
+    if through and first and first <= through:
+        out["conflicts"].append([OI_LOCKED, pl_label(through), pl_label(first)])
+    own = (facts.get("locks") or [None])[-1]
+    if own and own_first and own_first <= own and not (through and own <= through):  # like pbt_plan: said, not refused
+        out["notes"].append([OI_LOCKS_ON, pl_label(own)])
+    return out
+
+
+def oi_target_refuse(c, run, data, files, space):
+    """2.1316.0 (#6577): inside the run, before the first office row (the preview and the start checked already; the target may
+    have changed since): UmzBad with the first conflicts, the notes into the result."""
+    chk = oi_target_check(c, oi_facts(data, files), space)
+    if chk["conflicts"]:
+        raise UmzBad(OI_REFUSED, "; ".join(tr(*x) for x in chk["conflicts"][:5]) + (" …" if len(chk["conflicts"]) > 5 else ""))
+    for x in chk["notes"]:
+        run.warning(*x, must=True)
+    nums, taken = list(facts.get("numbers") or []), []
+    with system_ctx(c):  # review: the admin of the target may lack office rights; only the colliding numbers leave this block
+        for i in range(0, len(nums), 500):
+            part = nums[i:i + 500]
+            taken += [r[0] for r in c.execute("SELECT number FROM office_docs WHERE org_id=? AND number = ANY(?) UNION "
+                                              "SELECT number FROM office_archive WHERE org_id=? AND number = ANY(?)",
+                                              (space, part, space, part)).fetchall()]
+        r = c.execute("SELECT MAX(period) AS p FROM office_period_locks WHERE org_id=?", (space,)).fetchone()
+        through = r["p"] if r is not None else None
+        own_first = pl_first_month(c, space) if facts.get("locks") else None
+    taken = sorted(set(taken))
+    out["conflicts"] += [tr(OI_NUM_TAKEN, x) for x in taken[:OI_SHOW_MAX]]
+    if len(taken) > OI_SHOW_MAX:
+        out["conflicts"].append(tr(OI_NUM_MORE, len(taken) - OI_SHOW_MAX))
+    first = (facts.get("months") or [None])[0]
+    if through and first and first <= through:
+        out["conflicts"].append(tr(OI_LOCKED, pl_label(through), pl_label(first)))
+    own = (facts.get("locks") or [None])[-1]
+    if own and own_first and own_first <= own and not (through and own <= through):  # like pbt_plan: said, not refused
+        out["notes"].append(tr(OI_LOCKS_ON, pl_label(own)))
+    return out
 
 
 _P = {"created_by": "null"}

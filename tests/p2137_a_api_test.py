@@ -6,7 +6,8 @@
    values, the references, the finalised state and the numbers come along, the files are readable and sealed at rest
    where the app seals them; the source organisation stays unchanged; the undo removes everything again but the finalised
    invoice with its position, payment, client and PDF (2.593.0 #4864)
- - the same export into the source organisation itself: existing document numbers are skipped with a warning, never twice
+ - the same export into the source organisation itself: the numbers it uses already refuse the start with the list, nothing
+   is written (2.1316.0, #6577: was skipped with a warning)
  - a person without an organisation imports it into the private workspace: it lands in the personal office
  - that person exports the personal office (only the owner; others 404) and an admin imports it into an organisation:
    the office and the private clients come along, the private lists do not
@@ -293,14 +294,15 @@ check(Ca.get(B + f"{D}/{INV2}/pdf").content == INV_PDF, "#4864: the finalised in
 check(not p or not os.path.exists(p), "the undo removed the files")
 Ca.delete(B + f"/api/account/import/{iid}")
 
-# ---------------------------------------------------------------- again into the source: numbers it has are skipped
+# ---------------------------------------------------------------- again into the source: the numbers it has refuse the start
+# 2.1316.0 (#6577): was "skipped with a warning" (the invoice with its positions, payments and PDF quietly left out); now the
+# preview names the numbers for this target and the start is refused with the list, nothing is written
 iid, pv = opened(A, OX, RK)
-j = run(A, iid, ORG)
-check(j.get("state") == "done", f"import into the source done {j.get('error')}")
-w = warnings(j)
-check("number already exists" in w, f"the duplicate numbers are named {w}")
+check(any(INV_NO in x for x in ((pv.get("office") or {}).get("targets") or {}).get(str(ORG), {}).get("conflicts", [])),
+      f"#6577: the preview names the number the source uses already {pv.get('office')}")
+r = A.post(B + f"/api/account/import/{iid}/run", json={"again": True, "target": ORG, "people": {}})
+check(r.status_code == 409 and any(INV_NO in x for x in r.json().get("conflicts", [])), f"#6577: the start is refused with the list {r.status_code} {r.text[:200]}")
 check(dbx("SELECT COUNT(*) AS n FROM office_docs WHERE org_id=? AND number=?", (ORG, INV_NO))[0]["n"] == 1, "never two invoices with one number")
-check(A.post(B + f"/api/imports/{(j.get('result') or {}).get('import_id')}/undo").ok, "undo")
 check(office_counts(ORG) == SRC_BEFORE, f"the source is as before {office_counts(ORG)} {SRC_BEFORE}")
 A.delete(B + f"/api/account/import/{iid}")
 
