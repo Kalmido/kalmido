@@ -638,5 +638,5 @@ function listModal(id, folder = '', o = {}) {
 const whiOn = l => !!l && !l.is_inbox && l.life !== 'health' && l.life !== 'budget' && canManage(l);
 function whiBoxHtml(l) {
   if (!whiOn(l)) return '';
-  return `<h4 title="${esc(tr('Create tasks in this project from other tools (n8n, Make, Zapier, Home Assistant)'))}">${tr('Inbound webhook')}</h4><div class="members whi-box" id="l-whi"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+  return `<h4 title="${esc(tr('Create tasks in this project from other tools (n8n, Make, Zapier, Home Assistant)'))}">${tr('Inbound webhook')}</h4><div class="members whi-box" id="l-whi">${/*html-ok*/ loadingHtml()/* 2.1292.0 (#6139) */}</div>`;
 }

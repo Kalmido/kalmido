@@ -437,6 +437,14 @@ function crumbsHtml(t, l, parent) {
   // 2.13.0: the task number, a tap copies the link; 2.218.0 A (#2799): only in the task's "…" menu now ("Copy link · #18"), also on a desktop
   return `<nav class="dcrumbs" aria-label="${esc(tr('Where this task is'))}">${parts.join(`<span class="dcsep" aria-hidden="true">›</span>`)}</nav>`;
 }
+// 2.1292.0 (#6136): "History" of the task menu (also for who may only view): the panel of the task, scrolled to its history
+// (the folded "History", opened) or to its comments with the changes (a shared list)
+function taskHistGo(id) {
+  if (S.sel !== id) openDetail(id);
+  const h = $('#detail #d-hist'), el = h || $('#detail #d-tl');
+  if (h) h.open = true;
+  if (el) el.scrollIntoView?.({block: 'start'}); else toast(tr('Nothing yet'));  // sprung-ok: the person asked for the history
+}
 async function copyTaskLink(id) {
   const url = `${location.origin}/#t/${id}`;
   const k = tkOf(taskById(id)) || '#' + id;  // 2.390.0 (#3353): the key when the project has one
@@ -655,7 +663,7 @@ function renderDetail0(D = $('#detail')) {
   if (!t) {  // 2.369.2 (#3136): a task of a list not loaded yet: its list comes; 2.509.0 (#4324): or the task alone, never an empty panel (liveparts.js)
     if (real && lzSel(S.sel, true)) {
       D.classList.remove('dsplit', 'dsfold');
-      setHtml(D, `<div class="dtop"><button class="iconbtn back" data-act="close-detail" aria-label="${tr('Back')}">${ic('back')}</button><button class="iconbtn dclose" data-act="close-detail" aria-label="${tr('Close (Esc)')}">${ic('x')}</button></div><div class="dbody"><div class="empty">${esc(tr('Loading…'))}</div></div>`);
+      setHtml(D, `<div class="dtop"><button class="iconbtn back" data-act="close-detail" aria-label="${tr('Back')}">${ic('back')}</button><button class="iconbtn dclose" data-act="close-detail" aria-label="${tr('Close (Esc)')}">${ic('x')}</button></div><div class="dbody">${/*html-ok*/ loadingHtml('big')/* 2.1292.0 (#6139) */}</div>`);
     }
     return;
   }
@@ -707,7 +715,7 @@ function renderDetail0(D = $('#detail')) {
     subtasks: ck || msT ? '' : `<div class="dsec subsec"><h5>${isOcc(t) && famOn() ? tr('Gift ideas') : tr('Subtasks')}</h5>${rsnHtml(t)}<div class="subs">${kids.map(k => taskRow(k, {compact: true, subRow: true})).join('')}
         ${ro ? '' : depthOf(t) < maxDepth() - 1 ? `<div class="subadd">${ic('plus', 's')}<input id="d-sub" placeholder="${isOcc(t) && famOn() ? tr('Add a gift idea') : tr('Add subtask')}" aria-label="${esc(isOcc(t) && famOn() ? tr('Add a gift idea') : tr('Add subtask'))}" enterkeyhint="done"></div>` : `<div class="muted" style="font-size:var(--fs-s);padding:.25rem">${trh('At most {0} levels', maxDepth())}</div>`}</div></div>`,
     comments: cm === 'full' ? `<div class="dsec cmsec ${cmtNew() ? 'cmnew' : ''}" id="d-tl">${timelineHtml(t)}</div>` : '',
-    history: hist ? `<details class="dsec cmsec cmro" id="d-hist"><summary><span>${tr('History')}</span></summary><div class="cms" id="d-hist-items">${S.tl.id === t.id ? histItems() : `<div class="muted cmempty">${tr('Loading…')}</div>`}</div></details>` : '',
+    history: hist ? `<details class="dsec cmsec cmro" id="d-hist"><summary><span>${tr('History')}</span></summary><div class="cms" id="d-hist-items">${/*html-ok*/ S.tl.id === t.id ? histItems() : loadingHtml()/* 2.1292.0 (#6139): the history's rows / the shared block */}</div></details>` : '',
     deps: ck ? '' : `${t.id > 0 && dFor(t) && !t.context ? `<div class="dsec depsec" id="d-deps">${depsHtml(t)}</div>` : waitExtHtml(t, ro, true)}${typeof rel_secHtml === 'function' ? rel_secHtml(t) : ''}`,  // 2.22.0 (#686); 2.576.0 (#3371): saved relations (related.js)
     tags: ck || !pz_show(t, 'tags', (t.tags || []).length + (t.ltags || []).length) ? '' : `<div class="dsec"><h5>${tr('Tags')}</h5>${tagEditHtml(t, tlkR)}</div>`,
     attachments: ck || (ro && !(t.attachments || []).length && !t.attachments_trash?.length) ? '' : `<div class="dsec attsec"><h5>${tr('Attachments')}</h5>${typeof le2uAttHead === 'function' ? le2uAttHead(t) : ''}<div class="atts">${(t.attachments || []).map(attHtml).join('')}
@@ -746,8 +754,8 @@ function renderDetail0(D = $('#detail')) {
       ${thumb ? '' : dChk}
       ${thumb ? '' : dDate}
       ${''/* 2.218.0 A (#2799): "Today" is left out when the task is due today (the date chip says it); "Tomorrow" stays, a further click adds a day */}${ck || thumb ? '' : '<span class="dbr" aria-hidden="true"></span>'}<span class="spacer"></span>
-      ${ro ? (t.context ? `<span class="rotag" title="${esc(tr('The main task of a subtask assigned to you: read-only, without notes, files and comments'))}">${ic('sub', 's')}${tr('Context')}</span>`
-        : '' /* 2.1238.0 (#6161, Stufe 2): the read hint is ONE (roDet below / the list head), not a tag here too */) : `${ck ? '' : `<button class="iconbtn ${t.pinned ? 'on' : ''}" data-act="pin" data-id="${t.id}" title="${t.pinned ? tr('Unpin') : tr('Pin')}" aria-label="${tr('Pin')}" aria-pressed="${!!t.pinned}">${ic(t.pinned ? 'pinf' : 'pin')}<span class="dpw dpin">${esc(t.pinned ? tr('Pinned') : tr('Pin'))}</span></button>
+      ${/*html-ok*/ ro ? (t.context ? `<span class="rotag" title="${esc(tr('The main task of a subtask assigned to you: read-only, without notes, files and comments'))}">${ic('sub', 's')}${tr('Context')}</span>`
+        : '' /* 2.1238.0 (#6161, Stufe 2): the read hint is ONE (roDet below / the list head), not a tag here too */) + `<button class="iconbtn" data-act="task-menu" data-id="${esc(t.id)}" title="${esc(tr('More'))}" aria-label="${esc(tr('More'))}">${ic('dots')}</button>`/* 2.1292.0 (#6136): the read functions (Copy link, Print, History) */ : `${ck ? '' : `<button class="iconbtn ${t.pinned ? 'on' : ''}" data-act="pin" data-id="${t.id}" title="${t.pinned ? tr('Unpin') : tr('Pin')}" aria-label="${tr('Pin')}" aria-pressed="${!!t.pinned}">${ic(t.pinned ? 'pinf' : 'pin')}<span class="dpw dpin">${esc(t.pinned ? tr('Pinned') : tr('Pin'))}</span></button>
       <button class="iconbtn ${t.priority ? 'flag-' + t.priority : ''}" data-act="prio" data-id="${t.id}" aria-haspopup="menu" title="${esc(tr('Priority') + ': ' + prioWord(t.priority))}" aria-label="${esc(tr('Priority') + ': ' + prioWord(t.priority))}">${ic('flag')}<span class="dpw">${esc(t.priority ? prioWord(t.priority) : tr('Priority'))}</span></button>`}
       ${''/* 2.364.0 D (#3036): Lock lives in "…"; here only a set lock (to unlock) - else "Time" when the module is on */}${ck || !(t.id > 0) ? '' : !tlkL ? (tFor(t) ? ((run) => `<button class="iconbtn dtime ${run ? 'on' : ''}" data-act="timer-toggle" data-id="${t.id}" title="${esc(run ? tr('Stop timer') : tr('Start time tracking'))}" aria-label="${esc(run ? tr('Stop timer') : tr('Start time tracking'))}" aria-pressed="${run}">${ic(run ? 'stop' : 'clock')}<span class="dpw">${esc(tr('Time|menu'))}</span></button>`)(!!S.timer && S.timer.task_id === t.id) : '') : `<button class="iconbtn tlkb ${tlkL ? 'on' : ''}" data-act="tlk-toggle" data-id="${t.id}" title="${esc(tlkL ? tr('Locked: tap to unlock') : tr('Lock: title, description, date and more stay as they are'))}" aria-label="${esc(tr('Lock'))}" aria-pressed="${tlkL}">${ic('lock')}<span class="dpw">${esc(tlkL ? tr('Locked') : tr('Lock'))}</span></button>`}
       <button class="iconbtn" data-act="task-menu" data-id="${t.id}" title="${tr('More')}" aria-label="${tr('More')}">${ic('dots')}</button>`}

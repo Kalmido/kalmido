@@ -598,10 +598,34 @@ const shRoleSel = (attr, cur, lab, o = {}) => `<select ${attr} aria-label="${esc
 // the address and "invited", with a button to take it back; the share is made once the address is confirmed
 async function adsFill(box, q) {
   if (!box) return;
-  let j; try { j = await rawFetch('GET', '/api/addr-shares?' + q); } catch { box.innerHTML = ''; return; }
+  // 2.1292.0 (#6139): a failed load says so with "Try again" (it emptied the part, as if nobody were invited)
+  let j; try { j = await rawFetch('GET', '/api/addr-shares?' + q); } catch (e) { if (e.message === 'auth' || !box.isConnected) return; box.innerHTML = errorState({size: 'row', title: tr('The invitations could not be loaded'), retry: () => { box.innerHTML = loadingHtml(); adsFill(box, q); }}); return; }
   if (!box.isConnected) return;
   box.innerHTML = (j.open || []).map(x => `<div class="mrow"><span class="n">${esc(x.email || '?')} <span class="muted">${esc(tr('Invited: gets access once the address is confirmed'))}</span></span><button type="button" class="iconbtn" data-adsrm="${esc(x.id)}" title="${esc(tr('Remove the invitation to {0}', x.email || '?'))}" aria-label="${esc(tr('Remove the invitation to {0}', x.email || '?'))}">${ic('x', 's')}</button></div>`).join('');
-  box.onclick = async e => { const b = /** @type {any} */ (e.target).closest('[data-adsrm]'); if (!b) return; e.stopPropagation(); try { await api('DELETE', `/api/addr-shares/${b.dataset.adsrm}`); } catch { return; } toast(tr('Invitation removed')); adsFill(box, q); };
+  box.onclick = async e => {
+    const b = /** @type {any} */ (e.target).closest('[data-adsrm]'); if (!b) return; e.stopPropagation();
+    const x = (j.open || []).find(o => String(o.id) === b.dataset.adsrm);
+    try { await api('DELETE', `/api/addr-shares/${b.dataset.adsrm}`); } catch { return; }
+    adsFill(box, q);
+    // 2.1292.0 (#6139): Undo through the history (undo.js histAdd), a step of this device only (the server keeps no step for an
+    // invitation): it is typed in again through the route that made it (same address and role; the server checks the right as
+    // for a new one); redo removes the new row again, or says so when the address became a member meanwhile
+    const again = x?.email && adsAgain(q, x);
+    if (!again) { toast(tr('Invitation removed')); return; }
+    let nid = null;
+    const undo = async () => { await again(); const r = await rawFetch('GET', '/api/addr-shares?' + q); nid = (r.open || []).find(o => o.email === x.email)?.id ?? null; if (box.isConnected) adsFill(box, q); return {}; };
+    const redo = async () => { if (nid == null) return {none: true, skipped: [tr('Invitation to {0} removed', x.email)]}; await api('DELETE', `/api/addr-shares/${nid}`); if (box.isConnected) adsFill(box, q); return {}; };
+    offerUndo(tr('Invitation removed'), histAdd({label: tr('Invitation to {0} removed', x.email), undo, redo}));
+  };
+}
+// the write that makes open share x of query q again (adsFill's Undo): a project's member route or the folder's, null = none
+// (an invitation with an end date - API only - is not typed in again without it: no Undo)
+function adsAgain(q, x) {
+  const p = new URLSearchParams(q), role = x.role || 'edit';
+  if (x.expires) return null;
+  if (p.get('kind') === 'list' && +p.get('ref')) return () => api('PUT', `/api/lists/${+p.get('ref')}/members`, {email: x.email, role});
+  if (p.get('kind') === 'list_folder' && p.get('folder')) return () => api('PUT', '/api/folders/people', {folder: p.get('folder'), email: x.email, role});
+  return null;
 }
 // ---- 2.33.0 (#927): the owner's notification template for the other people of a list / a shared folder: a ceiling for
 // their pushes (they can be quieter, never louder; the News stay complete). The server checks it (notif_ok -> cap_ok).
@@ -724,7 +748,7 @@ async function ownerModal(lid, name, j, done) {
 // Settings > Administration: the lists nobody can manage (owner = an agent or a disabled user), with "Take over"
 const orphHtml = () => `<h4 id="s-orph-h">${tr('Projects owned by agents or disabled accounts')}</h4>
   <div class="shint">${tr('Nobody can manage who is in these projects: agents cannot share, disabled users cannot sign in. Take a project over for yourself or hand it to another person.')}</div>
-  <div class="members" id="s-orph"><div class="muted mhint">${tr('Loading…')}</div></div>`;
+  <div class="members" id="s-orph">${/*html-ok*/ loadingHtml()/* 2.1292.0 (#6139) */}</div>`;
 async function orphDraw(md) {
   const box = $('#s-orph', md); if (!box) return;
   let j; try { j = await calReq('GET', '/api/admin/lists/orphaned'); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }

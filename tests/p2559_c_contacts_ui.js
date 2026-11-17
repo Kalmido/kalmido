@@ -3,7 +3,7 @@
 // - a new contact: the editor closes and its row shows (a stand-in id below 0) while the server's answer is still held; the
 //   answer brings the real id and opens its card; no GET /api/state for it
 // - an edit: the new name shows at once; a refusal (500) puts the old name back with the server's message
-// - a delete (after the question): gone at once
+// - a delete (2.1292.0 #6124: no question any more): gone at once
 // - the task panel: a contact linked shows its chip at once; unlinking it is gone at once, a refusal brings it back
 // - a person without an organisation (freelancer parity): a new contact shows at once, too
 // The held answers wait in the page (window.fetch wrapped) until the test lets them go: every wait is on a real state.
@@ -130,12 +130,12 @@ const newContact = async (w, d, given, family) => {
   check(await until(() => w.eval(`CT.card?.id`) === CID && d.querySelector('#view [data-ct="cmenu"]')), 'delete: the card shows');
   hold(w, /^DELETE \/api\/contacts\/\d+$/);
   d.querySelector('#view [data-ct="cmenu"]').click();
-  (await until(() => [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => /Delete/.test(b.textContent)))).click();
-  check(await until(() => w.__held.length === 1), 'delete: the request is held (after the question)');
+  (await until(() => [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => /Move to the trash/.test(b.textContent)))).click();  // 2.1292.0 (#6124): the glossary's word, no question
+  check(await until(() => w.__held.length === 1), 'delete: the request is held');
   check(await until(() => !rowNames(d).includes('Ada Lovelace')) && w.eval(`CT.card`) === null, 'delete: gone at once');
   w.__held[0].go(); unhold(w);
   check(await until(async () => !(await ctOnServer(CA, 'Lovelace')).length), 'delete: the server follows');
-  check(await toastHas(d, /Contact deleted/), 'delete: the toast says it');
+  check(await toastHas(d, /“Ada Lovelace” moved to the trash/), 'delete: the toast says it');  // 2.1292.0 (#6124): was "Contact deleted"
   freePoll(w);
   w.close();
 

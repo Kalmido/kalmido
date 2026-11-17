@@ -281,7 +281,7 @@ VARS = (
     _v("KALMIDO_AI_MAX_TOKENS", "1500", "Answer tokens per assistant call.", "agents"),
     # 2.557.0 B (#4670): server agents (agents/srvagent.py, srvagent_run.py): Kalmido calls the model itself with the owner's key
     _v("KALMIDO_SRVAGENT_ANTHROPIC_URL", "https://api.anthropic.com", "Base address of the Anthropic API for server agents (the tests point it at a local stand-in).", "agents"),
-    _v("KALMIDO_SRVAGENT_PARALLEL", "2", "Server agent runs at once on this server (one per agent).", "agents"),
+    _v("KALMIDO_SRVAGENT_PARALLEL", "2", "Server agent runs at once on this server (one per agent; shared fairly: the longest waiting first, one per organisation or person while others wait).", "agents"),
     _v("KALMIDO_SRVAGENT_RUN_S", "300", "Seconds one server agent run may take at most.", "agents"),
     _v("KALMIDO_SRVAGENT_STEPS", "25", "Model calls of one server agent run at most.", "agents"),
     _v("KALMIDO_SRVAGENT_MAX_TOKENS", "4096", "Answer tokens of one model call of a server agent.", "agents"),

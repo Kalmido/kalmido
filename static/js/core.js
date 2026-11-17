@@ -757,6 +757,16 @@ function apiWhat(method, url, body) {
   if (method === 'POST' && /^\/api\/tasks\/-?\d+\/complete$/.test(u)) return body?.status === -1 ? tr('“Won’t do” could not be saved') : tr('Done could not be saved');
   if (method === 'POST' && /^\/api\/tasks\/-?\d+\/reopen$/.test(u)) return tr('Reopening could not be saved');
   if (method === 'POST' && u === '/api/tasks/reorder') return tr('The move was not saved, the task is back in its place');
+  // 2.1292.0 (#6139): the other writes of the lists name what was not saved too (a task's move / change, sections, sharing)
+  if (method === 'GET') return '';
+  const tk = /^\/api\/tasks\/-?\d+$/.test(u), b = body && typeof body === 'object' && !(body instanceof FormData) ? body : {};
+  if (method === 'PATCH' && tk) return ['parent_id', 'section_id', 'list_id'].some(k => k in b) ? tr('The move was not saved') : tr('The change to the task was not saved');
+  if (method === 'POST' && u === '/api/tasks') return tr('The task was not created');
+  if (method === 'DELETE' && tk) return tr('The task was not deleted');
+  if (u === '/api/sections' || /^\/api\/sections\/\d+$/.test(u)) return method === 'POST' ? tr('The section was not created') : method === 'DELETE' ? tr('The section was not deleted') : tr('The section was not saved');
+  if (/^\/api\/lists\/\d+\/sections\/order$/.test(u)) return tr('The order of the sections was not saved');
+  if (/^\/api\/lists\/\d+\/members(\/\d+)?$/.test(u) || u === '/api/folders/people') return method === 'DELETE' ? tr('The person was not removed') : tr('The sharing was not saved');
+  if (method === 'DELETE' && /^\/api\/addr-shares\/\d+$/.test(u)) return tr('The invitation was not removed');
   return '';
 }
 /** @param {string} method @param {string} url @param {any} [body] @returns {Promise<any>} */  // 2.102.0 (#1995)
@@ -1198,7 +1208,7 @@ async function outFlush() {
         // right (403), a conflict (409): the dialog as before, the change is kept there
         if (e.live && (st === 400 || st === 422) && !wiki && !ntU(e.url)) {
           console.warn('outbox: refused', e, err); if (globalThis.document) $('#detail .dsaved')?.classList.remove('on');  // its "Saved" was too early
-          if (err.message !== 'auth' && !err.shown) { if (err.data?.out_request && typeof oor_ask === 'function') toast(err.message, () => oor_ask(err.data.out_request), 10000, tr('Ask an admin')); else toast(err.message); }
+          if (err.message !== 'auth' && !err.shown) { if (err.data?.out_request && typeof oor_ask === 'function') toast(err.message, () => oor_ask(err.data.out_request), 10000, tr('Ask an admin')); else toast(errText(err, apiWhat(e.method, e.url, e.body))); }  // 2.1292.0 (#6139): what was not saved first, as api()
           outSave(() => { OUT.q = OUT.q.filter(x => x !== e); }); e.res = null; e.err = err; e.done = true; refused.push(e); continue;
         }
         console.warn('outbox: dropped', e, err);  // e.g. 404: deleted on another device

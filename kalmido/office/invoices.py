@@ -1711,7 +1711,7 @@ def inv_pay_add(c, oid, uid, did, b, ref=None, online_ref=None, typed=False):
     elif neg:
         if money(amt) > dec(inv_money_fields(r, inv_paid_map(c, oid, [did]))["overpaid"]):
             raise Denied(409, tr("The refund exceeds what is to be paid back"))
-        amt = -amt  # 2.545.0 (#4387): money out, as a refund on a credit note lowers the income (books._pay_parts)
+        amt = -amt  # 2.545.0 (#4387): money out, as a refund on a credit note lowers the income (books.bk_pay_parts)
     elif money(amt) > dec(inv_money_fields(r, inv_paid_map(c, oid, [did]))["open"]):
         raise DeniedKey(409, N_("The payment exceeds the open amount"))  # 2.469.0 (#3459)
     method = b.get("method") or "transfer"

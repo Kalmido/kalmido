@@ -31,10 +31,10 @@ function shareModal(id, opt = {}) {
     ${collab() && (S.peopleVis === 'contacts' || S.instanceMode === 'workspaces') && canManage(l0) ? `<div class="row shmail"><input id="sh-email" type="email" autocomplete="off" placeholder="${esc(tr('Share by e-mail address'))}" aria-label="${esc(tr('Share by e-mail address'))}"><button type="button" class="btn sm" data-m="share-mail">${ic('send', 's')} ${tr('Share')}</button></div><div class="members shopen" id="sh-open"></div>` : ''}
     ${collab() ? shSec('grp', tr('Groups'), `<div id="sh-grpwrap"></div>`, true) : ''}
     ${collab() && agentsOn() ? shSec('ag', tr('Agents'), `<div class="shint lhint keep">${tr('An agent sees exactly the projects shared with it, nothing else. Stopping the sharing ends its access at once.')}</div><div id="sh-agwrap"></div>`, !canManage(l0) && !listPeople(l0).some(p => p.agent || agentById(p.user_id))) : ''}${''/* 2.910.0 (#5442): shown from the start where it will be (no step when the people have loaded) */}
-    ${own && collab() ? shSec('ntf', tr('Notifications for members'), `<div id="sh-ntf"><div class="muted mhint">${tr('Loading…')}</div></div>`, false, opt.focus === 'ntf') : ''}
+    ${own && collab() ? shSec('ntf', tr('Notifications for members'), `<div id="sh-ntf">${/*html-ok*/ loadingHtml()/* 2.1292.0 (#6139) */}</div>`, false, opt.focus === 'ntf') : ''}
     ${!own && collab() ? ntfMemberHint(l0) : ''}
     ${own && pubOn('lists') && l0.e2e && typeof le2u_pubHtml === 'function' ? shSec('pub', tr('Public link'), le2u_pubHtml()) : ''}${''/* 2.64.1 (#1817) */}
-    ${own && pubOn('lists') && !l0.e2e ? shSec('pub', tr('Public link'), `<div id="l-pub"><div class="muted mhint">${tr('Loading…')}</div></div>`) : ''}
+    ${own && pubOn('lists') && !l0.e2e ? shSec('pub', tr('Public link'), `<div id="l-pub">${/*html-ok*/ loadingHtml()/* 2.1292.0 (#6139) */}</div>`) : ''}
     ${shSec('own', tr('Owner'), `<div id="sh-ownwrap"><div class="muted mhint" id="sh-owner"></div><div id="l-owner"></div></div>`, false, !collab())}
 `}));  // 2.910.0 (#5442): the shared frame (shFrameHtml)
   md.classList.add('shmodal');
@@ -65,7 +65,7 @@ function shareModal(id, opt = {}) {
       const ags = people.filter(isAg), acand = users ? users.filter(u => u.agent && !people.some(p => p.user_id === u.id) && agFits(u)) : [];
       aw.innerHTML = ags.length || (mng && acand.length) ? `<div class="members" id="sh-agents">${mng && !agentById(cur.owner_id) && (users || []).some(u => u.agent && agFits(u)) ? '' : ags.map(p => row(cur, p, mng)).join('')}${mng && !agentById(cur.owner_id) && (users || []).some(u => u.agent && agFits(u)) ? `<div class="row"><label for="sh-agsel">${tr('Agent')}</label><select id="sh-agsel"><option value="">${tr('No agent')}</option>${users.filter(u => u.agent && (agFits(u) || ags.some(p => p.user_id === u.id))).map(u => `<option value="${u.id}" ${ags[0]?.user_id === u.id ? 'selected' : ''}>${esc(u.display_name)}${!agFits(u) ? ' · ' + esc(tr('other workspace')) : ''}</option>`).join('')}</select></div>` : ''}${ags.some(p => !agFits((users || []).find(u => u.id === p.user_id) || {org_id: cur.org_id})) ? `<div class="shint keep">${ic('alert', 's')} ${esc(tr('This agent works in another workspace (from before the workspaces). Take it out of the project, or keep it on purpose.'))}</div>` : ''}</div>
         <div id="l-tidyrow">${tidyRowHtml(cur)}</div>` : '';
-      if (!aw.innerHTML && !$('#sh-sec-ag', md)?.hidden) aw.innerHTML = `<div class="muted mhint">${esc(users === null && mng ? tr('Loading…') : tr('No agent'))}</div>`;  // 2.910.0 (#5442)
+      if (!aw.innerHTML && !$('#sh-sec-ag', md)?.hidden) aw.innerHTML = users === null && mng ? loadingHtml() : `<div class="muted mhint">${esc(tr('No agent'))}</div>`;  // 2.1292.0 (#6139): loadingHtml; 2.910.0 (#5442)
       shSecSet('ag', !!aw.innerHTML, ags.length ? ags.map(p => p.name).join(', ') + (listenOn(cur) ? ' · ' + tr('listens in') : '') : tr('No agent'));
     }
     const gw = $('#sh-grpwrap', md);  // 2.10.0 (#441)
