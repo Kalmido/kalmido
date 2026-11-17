@@ -900,8 +900,13 @@ function evShareModal(c, users, done) {
     }));
   };
   wsDraw(); draw();
-  const put = (uid, role) => api('PUT', `/api/evcals/${c.id}/members`, {user_id: uid, role}).then(j => { c.members = j.members || []; draw(); done(); return j; });
-  const rm = uid => api('DELETE', `/api/evcals/${c.id}/members/${uid}`).then(j => { c.members = (c.members || []).filter(m => m.user_id !== uid); draw(); done(); return j; });
+  // 2.1329.0 (#6275): the members as the server has them now go into this dialog's calendar AND into the entry of the current list:
+  // the reload (done) replaces the list, so after a change the dialog's c is an older object than evCal(c.id); an Undo (Ctrl+Z,
+  // the dialog closed) wrote only into that older one, and the Share dialog opened again before the reload came back showed the
+  // calendar without the person put back (CI: '"Try again" loads them, the names show' found no row of Bob)
+  const setMem = m => { c.members = m; const cur = evCal(c.id); if (cur && cur !== c) cur.members = m.slice(); };
+  const put = (uid, role) => api('PUT', `/api/evcals/${c.id}/members`, {user_id: uid, role}).then(j => { setMem(j.members || []); draw(); done(); return j; });
+  const rm = uid => api('DELETE', `/api/evcals/${c.id}/members/${uid}`).then(j => { setMem((c.members || []).filter(m => m.user_id !== uid)); draw(); done(); return j; });
   md.addEventListener('change', async e => {
     const r = e.target.closest('[data-evsrole]'); if (!r) return;
     try { await put(+r.dataset.evsrole, r.value); } catch { draw(); return; }
@@ -915,7 +920,7 @@ function evShareModal(c, users, done) {
       // back: the core's restore of the shares taken back (the role they had); forward: taken out again (new rows in obj_revoked)
       // the members after the restore as the server has them (its answer), not the remembered row (review)
       const back = async () => { let j = null; for (const rid of rev) j = await api('POST', `/api/obj/evcal/${c.id}/shares/${rid}/restore`);
-        c.members = j?.shares ? j.shares.filter(x => x.user_id || x.agent_id).map(x => ({user_id: x.user_id || x.agent_id, role: x.role})) : [...(c.members || []).filter(m => m.user_id !== uid), was].filter(Boolean); draw(); done(); return {}; };
+        setMem(j?.shares ? j.shares.filter(x => x.user_id || x.agent_id).map(x => ({user_id: x.user_id || x.agent_id, role: x.role})) : [...(c.members || []).filter(m => m.user_id !== uid), was].filter(Boolean)); draw(); done(); return {}; };
       const fwd = async () => { rev = (await rm(uid)).revoked || []; return {}; };
       offerUndo(tr('Stopped sharing with {0}', name), histAdd({label: tr('Stop sharing {0} with {1}', c.name, name), undo: back, redo: fwd}));
       return;

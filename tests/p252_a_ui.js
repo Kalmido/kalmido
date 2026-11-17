@@ -259,8 +259,12 @@ const ALL = 'cal,events,comments';
     // fell into the 0.4 s hold, the grid was drawn anew and took the touched block out of the page: the finger's moves went to the
     // removed block, no drag. Here the fetch is sent 150 ms after the finger went down, so its answer lands in the hold
     await until(() => e(`[...document.querySelectorAll('#view .wcev')].some(x => x.textContent.includes('Call')) && !S.cal.loading && !CG.st`));
+    // 2.1329.0 (#5704): only this one fetch is held, fetch is put back at once - the wrapper used to stay and held every later
+    // fetch of the events too (the one after the drop's save) until a touch that never came: S.cal.loading stayed set and
+    // "drawn after the drop" was red unless the live poll happened to invalidate after it (CI night run 44022379112)
     await e(`(() => { const of = window.fetch; window.__p252n = 0;
-      window.fetch = (u, ...a) => String(u?.url || u).includes('calendars/events') ? new Promise(r => document.addEventListener('touchstart', () => setTimeout(r, 150), {once: true, capture: true})).then(() => { window.__p252n++; return of(u, ...a); }) : of(u, ...a);
+      window.fetch = (u, ...a) => { if (!String(u?.url || u).includes('calendars/events')) return of(u, ...a); window.fetch = of;
+        return new Promise(r => document.addEventListener('touchstart', () => setTimeout(r, 150), {once: true, capture: true})).then(() => { window.__p252n++; return of(u, ...a); }); };
       calInvalidate(); renderView(); return 1; })()`);
     const b2 = await e(`(() => { const wb = document.querySelector('#wbody'); wb.scrollTop = 12 * weekH(); const x = [...document.querySelectorAll('#view .wcev')].find(x => x.textContent.includes('Call')), r = x.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + 6, H: weekH(), load: S.cal.loading}; })()`);
     check(b2.load, 'phone: the fetch of the events is on its way while the finger goes down');

@@ -287,8 +287,14 @@ const closeAll = d => { d.querySelectorAll('.modal').forEach(m => m.remove()); }
   check(await until(async () => !(bob.id in await mems())), 'Bob taken out again');
   check(await histAdded(w, n0), '#6156: taking a person out is a step of the history');
   closeAll(d);
+  // 2.1329.0 (#6275): CI red '"Try again" loads them, the names show' - the dialog below was opened before the app's reload after
+  // the Ctrl+Z came back: the list's entry of the calendar still lacked Bob (the Undo wrote only into the closed dialog's older
+  // copy). Here the reload is held until the dialog has been checked, so the race is the rule
+  check(await until(() => w.eval(`!(evCal(${W.id}).members || []).some(m => m.user_id === ${bob.id})`)), 'set-up: the reload after taking him out came back');
+  w.__hold = /^GET \/api\/state/;
   ctrlZ(w);
   check(await until(async () => (await mems())[bob.id] === 'view'), '#6156: Ctrl+Z puts the share back');
+  check(w.eval(`(evCal(${W.id}).members || []).some(m => m.user_id === ${bob.id} && m.role === 'view')`), '#6275: the list knows him again before its reload came back');
   // the people could not be loaded: said so, no names "?"
   w.eval('EVU = null');
   w.__fail = /^GET \/api\/users/;
@@ -298,6 +304,7 @@ const closeAll = d => { d.querySelectorAll('.modal').forEach(m => m.remove()); }
   w.__fail = null;
   click(w, sm.querySelector('[data-esretry]'));
   check(await until(() => /Bob/.test(txt(sm.querySelector(`.mrow[data-uid="${bob.id}"]`)))), '#6156: "Try again" loads them, the names show');
+  w.__hold = null; w.__held.splice(0).forEach(h => h.go());
   closeAll(d);
 
   // ================= #6159: the view choice is a named group

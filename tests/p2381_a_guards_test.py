@@ -8,6 +8,7 @@ when a changed file mapped to them, so parity / pg_dialect / rls_static / the ag
 - every test script of the CI steps "MCP server + usage hook" and "New agents" is in ALWAYS_SUITES
 - --touched: a docs file brings ALWAYS_SUITES, a server / client file also p2661_b_ui (WS_VIEWS), a stylesheet also
   p2419_scale (#5530, CSS_GUARD_SUITES), schema.py / a migration fragment also rls_direct (#5674, SCHEMA_GUARD_SUITES),
+  a client script also p2695_a_rowmenu_coverage (2.1329.0, #5354, JS_GUARD_SUITES),
   nothing changed = nothing
 - #3505: a file --touched cannot map (core) comes back as an UNMAPPED line on stderr and in --unmapped-out, not silently"""
 import os
@@ -23,7 +24,7 @@ import stages  # noqa: E402
 from kt import FAILS, OKS, check  # noqa: E402
 
 rows = {s.name: (s.file, s.line or s.cmd or "") for s in suites.all_suites(N)[0] if s.name}
-for s in stages.ALWAYS_SUITES + stages.APP_GUARD_SUITES + stages.CSS_GUARD_SUITES + stages.SCHEMA_GUARD_SUITES:  # 2.1011.0 (#5674): + rls_direct
+for s in stages.ALWAYS_SUITES + stages.APP_GUARD_SUITES + stages.CSS_GUARD_SUITES + stages.SCHEMA_GUARD_SUITES + stages.JS_GUARD_SUITES:  # 2.1011.0 (#5674): + rls_direct; 2.1329.0 (#5354): + the "…" guard
     check(s in rows, f"{s} is a suite of tests/suites.py")
 for s in stages.ALWAYS_SUITES:
     fname, line = rows.get(s, (None, ""))
@@ -46,6 +47,15 @@ order, why, _ = stages.touched(repo, ["static/js/app.js"])
 check(all(s in order for s in stages.ALWAYS_SUITES + stages.APP_GUARD_SUITES), "a client file: + p2661_b_ui")
 check(why.get("parity") == "guard, always (#2853)", f"--why names the reason: {why.get('parity')}")
 check("p2419_scale" not in order, f"#5530: a client script alone: no scale guard {order}")
+# 2.1329.0 (#5354): a client script brings the "…" coverage guard (static, every static/js file); a stylesheet / docs file does not
+check("p2695_a_rowmenu_coverage" in order and why.get("p2695_a_rowmenu_coverage") == "guard, always (#2853)",
+      f"#5354: a client script: + p2695_a_rowmenu_coverage {order}")
+for f in ("docs/AGENTS.md", "static/app.css", "kalmido/core/db.py"):
+    check("p2695_a_rowmenu_coverage" not in stages.touched(repo, [f])[0], f"#5354: {f}: no \"…\" guard")
+for s in stages.JS_GUARD_SUITES:
+    fname, line = rows.get(s, (None, ""))
+    src = open(os.path.join(N, fname), encoding="utf-8").read() if fname else ""
+    check(fname and "KALMIDO_TEST_DATA" not in line and "start.sh" not in src, f"#5354: {s}: static (no data dir, no container)")
 # #5530: a changed stylesheet brings the scale guard (it reads every stylesheet, no stylesheet names it)
 order, why, _ = stages.touched(repo, ["static/css/start-cal-2800.css"])
 check("p2419_scale" in order and why.get("p2419_scale") == "guard, always (#2853)", f"#5530: a stylesheet: + p2419_scale {order}")

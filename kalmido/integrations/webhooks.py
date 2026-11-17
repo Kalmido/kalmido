@@ -482,8 +482,9 @@ def wh_off_tell(c, w, what, lost=(0, "")):
     the text names how many waiting events were discarded and since when."""
     if not w["agent"]:
         n, since = lost
-        integ_tell(c, integ_org_admins(c, w["org_id"]) if w["org_id"] else [w["user_id"]], what + "_lost" if n else what,
-                   w["name"] or wh_host(w["url"]), str(n) if n else "", more=(since,) if n else (),
+        # 2.1329.0 (#6849): what stays "webhook" / "webhook_admin" in the News item, only its text names the discarded events
+        integ_tell(c, integ_org_admins(c, w["org_id"]) if w["org_id"] else [w["user_id"]], what,
+                   w["name"] or wh_host(w["url"]), str(n) if n else "", more=(since,) if n else (), variant="_lost" if n else "",
                    click="settings/webhooks", focus="webhooks")
 
 

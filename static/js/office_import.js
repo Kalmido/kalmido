@@ -3,7 +3,7 @@
 // duplicates), services and equipment; the person corrects, deselects and confirms. Old invoices / quotations (PDF) get
 // their key data proposed from the file name and are archived unchanged. Every confirmed import is a run that can be
 // undone while nothing builds on it. Org admins only (the server checks); members read the archive.
-const OIM = {pv: null, busy: false, filter: '', arch: [], archBusy: false, runs: null, counter: null, clients: null, list: null, listLoading: false, errs: {}};  // 2.1094.0 (#5902): errs
+const OIM = {pv: null, busy: false, filter: '', arch: [], archBusy: false, runs: null, counter: null, clients: null, list: null, listLoading: false, listAgain: false, errs: {}};  // 2.1094.0 (#5902): errs
 const OIM_ACTS = [['contact', N_('Add as contact person to the client')], ['new', N_('Add as new client')], ['merge', N_('Merge into the existing client')], ['skip', N_('Skip')]];
 // 2.40.0 (#1380): the actions a duplicate offers (in the file: no merge; "contact person" only with a contact name)
 const oimActs = c => OIM_ACTS.filter(([v]) => (v !== 'merge' || c.dup?.kind === 'existing') && (v !== 'contact' || (c.contact || '').trim()));
@@ -21,7 +21,8 @@ async function oimLoad() {
 // "Try again" of a part: the whole page reads again (oimHtml starts oimLoad while OIM.runs is null)
 const oim_fail = (k, size = 'row') => ofcFail(OIM.errs?.[k], () => { OIM.runs = null; OIM.counter = null; OIM.fnt = null; OIM.errs = {}; }, size);
 // 2.979.0 (#5667): an undo / redo the server did: the import page (runs, archived documents) comes again
-histReloader('office-import', () => { const l = !!OIM.list; OIM.list = null; if (OIM.runs && S.route.mod === 'office' && S.route.tab === 'import') return oimLoad().then(ofcDraw); if (OIM.runs) OIM.runs = null; if (l) ofcDraw(); });
+// 2.1329.0 (#6848): the archive list shown keeps its rows until the fresh list is there (oimRefreshList)
+histReloader('office-import', () => { if (OIM.runs && S.route.mod === 'office' && S.route.tab === 'import') { OIM.list = null; return oimLoad().then(ofcDraw); } if (OIM.runs) OIM.runs = null; oimRefreshList(); });
 // 2.80.0 (#1836): the client choice is read again on every visit of the import page and whenever the clients change
 // (core.js), not only once per page load -- a client created meanwhile was missing until a reload
 // (review: a state refresh takes the clients of the state, no extra request; a visit of the page asks the server)
@@ -261,10 +262,22 @@ function oimRunsHtml() {
 // ---- the archive in the documents tab (office_docs.js asks for it when the kind "Archive" is chosen)
 async function oimLoadList() {
   if (OIM.listLoading) return;
-  OIM.listLoading = true;
-  try { OIM.list = await api('GET', '/api/office/legacy/archive'); } catch (x) { OIM.list = {items: [], error: ofcErrHere(x)}; }
+  OIM.listLoading = true; OIM.listAgain = false;
+  let j; try { j = await api('GET', '/api/office/legacy/archive'); } catch (x) { j = {items: [], error: ofcErrHere(x)}; }
   OIM.listLoading = false;
+  if (OIM.listAgain) { oimLoadList(); return; }  // asked again while this one ran: its answer may be from before the change
+  OIM.list = j;
   if (typeof ofdDraw === 'function') ofdDraw();
+}
+// 2.1329.0 (#6848): the archive list again after a change (delete, its undo, a correction, an undo the server did) - the rows
+// shown stay until the fresh list is there (before: "Loading" in between, twice after an undo: the entry's own reload, then
+// the history's; the rows blinked away); not shown = read again on the next visit
+// (also office_docs.js ofdLoadList: every state push reloads the list shown, onumListFresh)
+function oimRefreshList() {
+  if (typeof OFD === 'undefined' || OFD.kind !== 'archive' || S.route.mod !== 'office') { OIM.list = null; return; }
+  if (!OIM.list) { if (typeof ofdDraw === 'function') ofdDraw(); return; }  // nothing shown yet: drawing starts the load
+  if (OIM.listLoading) { OIM.listAgain = true; return; }
+  oimLoadList();
 }
 // 2.380.0 B (#3409): each area shows its own archived documents (Quotations: the quotations, Invoices: the invoices) -- no
 // switch between the kinds any more; Invoices filters All / open / paid, the sum line follows the filters (client, search)
@@ -560,7 +573,7 @@ async function r81b_archEdit(id) {
     } else if (d.tax_lines) { b.amount = ''; old.tax_lines = d.tax_lines.map(l => ({net: l.net, tax: l.tax})); }  // all lines emptied: no amount
     if (inv && adm && $('#r81b-paid', m).checked !== !!d.paid) { b.paid = $('#r81b-paid', m).checked ? 1 : 0; old.paid = d.paid ? 1 : 0; }
     if (!Object.keys(b).length) return;
-    const url = `/api/office/legacy/archive/${id}`, after = () => { OIM.list = null; if (typeof ofdDraw === 'function') ofdDraw(); return {}; };
+    const url = `/api/office/legacy/archive/${id}`, after = () => { oimRefreshList(); return {}; };  // 2.1329.0 (#6848): rows stay while it loads
     const sv = await api('PATCH', url, d.updated_at ? {...b, expect_updated_at: d.updated_at} : b);  // 2.570.0 (#4770): 409 = corrected elsewhere (api() says it)
     after();
     const name = d.number || d.file_name || '', lbl = tr('Correct archived document') + (name ? ` “${name}”` : '');
@@ -586,7 +599,7 @@ async function r81b_archEdit(id) {
 // ---- 2.1315.0 (#6590 c): one old document into the office trash (an admin, its month not locked); the toast takes it back
 async function r81b_trash(md, b, id, d) {
   const url = `/api/office/legacy/archive/${id}`, name = d.number || d.file_name || '';
-  const after = () => { OIM.list = null; if (typeof ofdDraw === 'function') ofdDraw(); };
+  const after = () => oimRefreshList();  // 2.1329.0 (#6848): the rows stay until the fresh list is there
   b.disabled = true;
   try { await api('DELETE', url); } catch (x) { $('.aerr', md).textContent = ofcErrHere(x); b.disabled = false; return; }
   md.remove();

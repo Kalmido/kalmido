@@ -56,6 +56,17 @@ const toastWith = (d, rx) => { const t = d.querySelector('#toast'); return t && 
   // ---- the toast's Undo
   t1?.querySelector('button')?.click();
   check(!!await until(() => row(d), {timeout: 30000}), "the toast's Undo: the row is back");
+  // 2.1329.0 (#6848): a state push after the undo (load() -> onumListFresh -> ofdLoadList) read the list again and showed
+  // "Loading" instead of the rows for a moment - in the CI exactly before the next click (row(d) undefined); now the rows
+  // stay until the fresh list is there. The push here at once (its 5 s pause reset), as a change made elsewhere
+  await idle(w);
+  let blink = 0; const iv = setInterval(() => { if (!row(d)) blink++; }, 1);
+  let reads = 0; const f0 = w.fetch; w.fetch = (u, o) => { if (/\/api\/office\/legacy\/archive$/.test(String(u)) && !(o && o.method && o.method !== 'GET')) reads++; return f0(u, o); };
+  w.eval('onumListFresh.at = 0; onumListFresh()');
+  await until(() => reads > 0);
+  await idle(w);
+  clearInterval(iv); w.fetch = f0;
+  check(reads > 0 && blink === 0 && !!row(d), `a change elsewhere reads the list again, its rows stay meanwhile (hidden ${blink} times)`);
   check((await call('GET', `/api/office/legacy/archive/${aid}`)).number === NUM, 'with its number');
 
   // ---- again, then back through the office trash
