@@ -1450,6 +1450,8 @@ ROUTES = {
     "GET /api/office/contracts/{}/files": "office", "POST /api/office/contracts/{}/files": "office",
     "GET /api/office/contracts/{}/files/{}": "office", "PATCH /api/office/contracts/{}/files/{}": "office",
     "DELETE /api/office/contracts/{}/files/{}": "office", "POST /api/office/contracts/{}/files/{}/restore": "office",
+    "DELETE /api/office/legacy/archive/{}": "office",  # 2.1315.0 (#6590 c): one old document into the trash (p21315_b_importe_test.py)
+    "POST /api/office/legacy/archive/{}/restore": "office",  # 2.1315.0 (#6590 c): and back (p21315_b_importe_test.py)
     # 2.120.0 B (#2088): the customer's documents in the portal (cookie address + space + client, another client / space /
     # a draft 404) and the office's "Send portal link" (a client of the office area only; p2120_b_api_test.py)
     "GET /portal/docs/{}/pdf": "portal", "POST /api/office/clients/{}/portal-link": "office",

@@ -457,6 +457,15 @@ is an office log line `number` (`skipped`, `reason` "taken by ..."). A number wi
 document's date (409), a correction never dates before its invoice (400). Both routes are session routes of the office (no API
 v1 / MCP tool), the same in the private office of a person without an organisation.
 
+**Gaps** (2.1315, #6472): every running number of the invoice / correction series between 1 and the counter that no
+finalised document carries is a gap. `GET /api/office/number-ranges` names them per series of the current period under
+`gaps: {count, none, ranges: [{from, to, code, reason}], more}` (the first five ranges; the page shows them under the row,
+red when numbers lack a reason). Each range has one reason, in this order: a draft carries the number (`draft`), another
+document (`doc`) or the legacy archive (`archive`) carries it, the counter passed it (`skipped`, office log), it lies just
+below a number set by hand (`manual`, the logged reason), the counter was set (`start` from 1, else `set`; the legacy
+counter `legacy`), else `none`. The same function (`office/numranges.py onum_gaps`) fills `number_ranges.csv` of the
+auditor's export.
+
 ## Country packs
 
 Tax rates, number and date formats, the labels of the documents and the default texts are not in the code but in a
@@ -1648,6 +1657,12 @@ without a date or an amount are not in the tables; `missing.txt` names them. Adm
 2.1289: `invoices.csv` ends with `Importiert_am` / `Importiert_von` for a finalised document the organisation import took
 from a file (from its office log line `import`); the list and the document view show it as "imported on ... by ...", the
 customer PDF stays as it was.
+2.1315 (#6472): `invoices.csv` names the recipient as the document froze it (`recipient_snapshot`: Kunde, Kundennummer and the
+appended Anschrift, USt_IdNr), not today's client master; `Kundenstamm` says when the number comes from the master or the
+client is gone. Appended as well: `Leistung_von`, `Leistung_bis`, `Faellig`, `Storno_von_Nummer` (the cancelled invoice's
+number); `positions.csv` ends with `Steuerschluessel` (standard / reduced / exempt, `ohne_USt[:note]` without VAT). New table
+`number_ranges.csv`: per invoice / correction series and period the counter and every missing number as a range with its
+reason (see number ranges, gaps), `keine Luecke` for a series without one.
 
 ## DATEV export with receipt images
 

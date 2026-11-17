@@ -57,6 +57,7 @@ from ..office.gdpdudtd import GX_DTD, GX_DTD_NAME
 from ..office.meals import bw_path
 from ..office.pdfweb import _stored, epdf_name
 from ..office.rights import ofr_log_rows
+from ..office.numranges import onum_gap_text, onum_gaps  # 2.1315.0 (#6472)
 from ..office.datev import dx_rows  # 2.369.5 (#2517): pulled up from functions
 from ..office.docs import odoc_imported  # 2.1289.0 (#6481 U4)
 from ..files.bulk import abm_drop, abm_send_zip, abm_slot  # 2.674.0 (#4190): temporary files + the shared place of the large exports
@@ -427,9 +428,62 @@ def _dunning(c, oid, frm, to, T, fl):
                                                   (oid, *part))})
     for r in rows:
         f = _doc_files(c, oid, r, fl, "mahnungen")
-        t.add(r["id"], r["number"], r["date"], r["cl_name"] or "", r["cl_no"] or "", r["reminder_level"] or "",
+        rc = gx_recipient(r)  # 2.1315.0 (#6472): the frozen recipient, as invoices.csv
+        t.add(r["id"], r["number"], r["date"], rc["name"], rc["customer_no"], r["reminder_level"] or "",
               ", ".join(nos.get(i) or f"ID {i}" for i in ids(r)), r["reminder_fee"], _j(r["totals"]).get("gross"), r["currency"], r["status"],
               r["locked_at"], _flag(dict(r)), f[0], f[1])
+    return t
+
+
+def gx_recipient(r):
+    """2.1315.0 (#6472, audit #4791 A2): the recipient of finalised document row r as it froze it (recipient_snapshot):
+    {name, address, vat_id, customer_no, master}. master = the client master's part: "" when the snapshot carries the
+    customer number, else the master's number now "(Kundenstamm)", or why there is none (no client, deleted). A document
+    frozen without a snapshot (before 2.36.2) reads the master, marked."""
+    snap = _j(r["recipient_snapshot"])
+    have = bool(snap.get("name") or snap.get("lines"))
+    name = (snap.get("name") or "") if have else (r["cl_name"] or "")
+    if have and snap.get("name_extra"):
+        name += ", " + snap["name_extra"]
+    parts = [snap.get(k) or "" for k in ("street", "extra")] + [" ".join(x for x in (snap.get("zip") or "", snap.get("city") or "") if x),
+                                                               snap.get("country") or ""]
+    addr = ", ".join(x.strip() for x in parts if x and x.strip())
+    if not addr and have:  # older snapshots: the printed lines below the name
+        skip = {snap.get("name") or "", snap.get("name_extra") or "", ((snap.get("contact") or {}) if isinstance(snap.get("contact"), dict) else {}).get("name") or ""}
+        addr = ", ".join(x for x in (snap.get("lines") or []) if isinstance(x, str) and x.strip() and x not in skip)
+    no = str(snap.get("customer_no") or "").strip()
+    if no:
+        master = ""
+    elif r["client_id"] is None:
+        master = "kein Kunde im Kundenstamm (geloescht oder nie zugeordnet)"
+    elif r["cl_name"] is None:
+        master = f"Kunde ID {r['client_id']} nicht mehr im Kundenstamm"
+    else:
+        no = r["cl_no"] or ""
+        master = "Kundennummer aus dem Kundenstamm (heute)" if no else "ohne Kundennummer"
+    if not have:
+        master = ("Empfaenger aus dem Kundenstamm (heute): keine eingefrorene Anschrift; " + master).rstrip("; ")
+    return {"name": name, "address": addr, "vat_id": str(snap.get("vat_id") or ""), "customer_no": no, "master": master}
+
+
+def gx_number_ranges(c, oid, frm, to, T):
+    """2.1315.0 (#6472, audit #4791 A2 b): number_ranges.csv -- per invoice / correction series and period (the years of the
+    export; a series without a year in its scheme always) the counter and every gap as a range with one reason
+    (office/numranges.py onum_gaps, the same check as the number ranges page)."""
+    t = T("number_ranges.csv", "Nummernkreise",
+          "Rechnungs- und Korrekturnummern je Nummernkreis und Periode: Zaehlerstand und jede fehlende laufende Nummer als Bereich mit Grund "
+          "(aus dem Bueroprotokoll, sonst Entwurf / Altbestand / ohne Grund)",
+          [("Reihe", A), ("Periode", A), ("Von", A), ("Bis", A), ("Anzahl", A), ("Grund", A), ("Zaehlerstand", A), ("Fehlend_gesamt", A),
+           ("Nummern_anderes_Schema", A)], key=3)
+    if t.w is None:
+        t.n = sum(max(1, len(g["ranges"])) for g in onum_gaps(c, oid, years=(int(frm[:4]), int(to[:4]))))
+        return t
+    for g in onum_gaps(c, oid, years=(int(frm[:4]), int(to[:4]))):
+        name = "+".join(g["kinds"])
+        if not g["ranges"]:  # a series without a gap: one line saying so
+            t.add(name, g["period"], "", "", 0, "keine Luecke", g["last"], 0, g["other"])
+        for r in g["ranges"]:
+            t.add(name, g["period"], r["from"], r["to"], r["to"] - r["from"] + 1, onum_gap_text(r), g["last"], g["count"], g["other"])
     return t
 
 
@@ -460,8 +514,8 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
     s = office_settings(c, oid)
     out = []
 
-    def _T(*a):
-        return _Tbl(*a, file=tempfile.TemporaryFile("w+", encoding="utf-8", newline="") if files else None)
+    def _T(*a, **kw):  # 2.1315.0 (#6472): + key (the primary key columns)
+        return _Tbl(*a, **kw, file=tempfile.TemporaryFile("w+", encoding="utf-8", newline="") if files else None)
 
     t = _T("bookings.csv", "Buchungen", "Buchungszeilen wie im DATEV-Buchungsstapel (Ausgang, Zahlungen, Eingang)",
              [("Zeile", A), ("Belegdatum", D), ("Belegnummer", A), ("Buchungstext", A), ("Umsatz", N), ("Soll/Haben", A),
@@ -474,14 +528,21 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
               r.get("Gegenkonto (ohne BU-Schlüssel)", ""), r.get("BU-Schlüssel", ""), r.get("WKZ Umsatz", ""))
 
     # 2.1309.0 (#6471): the documents in the trash stay in, marked (Kennzeichen), with the stored PDF / XML and their SHA-256
-    docs = c.execute("SELECT d.*, cl.name AS cl_name, cl.customer_no AS cl_no FROM office_docs d LEFT JOIN clients cl ON cl.id=d.client_id "
+    # 2.1315.0 (#6472, audit #4791 A2): the recipient as the document froze it (recipient_snapshot), not the client master's
+    # name today (renamed / deleted later); the master's number only where the snapshot has none, named as such
+    docs = c.execute("SELECT d.*, cl.name AS cl_name, cl.customer_no AS cl_no, cx.number AS cancels_no FROM office_docs d "
+                     "LEFT JOIN clients cl ON cl.id=d.client_id LEFT JOIN office_docs cx ON cx.id=d.cancels_id AND cx.org_id=d.org_id "
                      "WHERE d.org_id=? AND d.kind IN ('invoice','credit') AND d.locked_at IS NOT NULL AND d.date>=? AND d.date<=? "
                      "AND d.trial=0 ORDER BY d.date, d.number", (oid, frm, to)).fetchall()
-    t = _T("invoices.csv", "Rechnungen", "Festgeschriebene Rechnungen und Rechnungskorrekturen (Dateien unter belege/rechnungen/)",
+    t = _T("invoices.csv", "Rechnungen", "Festgeschriebene Rechnungen und Rechnungskorrekturen (Dateien unter belege/rechnungen/); "
+           "Kunde, Anschrift, USt-IdNr. und Kundennummer wie beim Festschreiben eingefroren",
              [("ID", A), ("Art", A), ("Nummer", A), ("Datum", D), ("Kunde", A), ("Kundennummer", A), ("Netto", N), ("Steuer", N),
               ("Brutto", N), ("Waehrung", A), ("Status", A), ("Festgeschrieben", D), ("Storno_von", A),
               ("Importiert_am", D), ("Importiert_von", A),  # 2.1289.0 (#6481 U4): taken from a file by the organisation import
-              ("Kennzeichen", A), ("PDF_Dateiname", A), ("PDF_SHA-256", A), ("XML_Dateiname", A), ("XML_SHA-256", A)])
+              ("Kennzeichen", A), ("PDF_Dateiname", A), ("PDF_SHA-256", A), ("XML_Dateiname", A), ("XML_SHA-256", A),
+              # 2.1315.0 (#6472): appended (readers by position keep their columns)
+              ("Anschrift", A), ("USt_IdNr", A), ("Kundenstamm", A), ("Leistung_von", D), ("Leistung_bis", D), ("Faellig", D),
+              ("Storno_von_Nummer", A)])
     out.append(t)
     imp = odoc_imported(c, oid, None) if docs and files else {}
     gone_docs = set()
@@ -493,15 +554,21 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
             continue
         tt = _j(r["totals"])
         im = imp.get(r["id"]) or {}
-        t.add(r["id"], r["kind"], r["number"], r["date"], r["cl_name"] or "", r["cl_no"] or "", tt.get("net"), tt.get("tax_total"),
+        rc = gx_recipient(r)
+        t.add(r["id"], r["kind"], r["number"], r["date"], rc["name"], rc["customer_no"], tt.get("net"), tt.get("tax_total"),
               tt.get("gross"), r["currency"], r["status"], r["locked_at"], r["cancels_id"] or "", im.get("at") or "", im.get("by") or "",
-              _flag(dict(r)), *_doc_files(c, oid, r, fl, "rechnungen"))
+              _flag(dict(r)), *_doc_files(c, oid, r, fl, "rechnungen"), rc["address"], rc["vat_id"], rc["master"],
+              r["service_from"] or "", r["service_to"] or "", r["due_date"] or "",
+              (r["cancels_no"] or f"ID {r['cancels_id']}") if r["cancels_id"] else "")
 
     t = _T("positions.csv", "Positionen", "Positionen der Rechnungen und Rechnungskorrekturen",
              [("ID", A), ("Rechnung_ID", A), ("Bezeichnung", A), ("Menge", N), ("Einheit", A), ("Einzelpreis", N), ("Steuersatz", N),
-              ("Netto", N), ("Steuer", N), ("Kennzeichen", A)])
+              ("Netto", N), ("Steuer", N), ("Kennzeichen", A),
+              ("Steuerschluessel", A)])  # 2.1315.0 (#6472): the position's tax key (standard / reduced / exempt; ohne_USt[:note])
     out.append(t)
     ids = [r["id"] for r in docs]
+    # 2.1315.0 (#6472): a document without VAT (small business, reverse charge ...) has no tax key per position: its note instead
+    novat = {r["id"]: "ohne_USt" + (f":{r['vat_note']}" if r["vat_note"] else "") for r in docs if r["vat_mode"] == "novat"}
     for k in range(0, len(ids), 500):
         part = ids[k:k + 500]
         q = ",".join("?" * len(part))
@@ -511,7 +578,8 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
         for it in c.execute(f"SELECT * FROM office_doc_items WHERE doc_id IN ({q}) ORDER BY doc_id, sort, id", part).fetchall():
             it = oc_dec_fields(c, oid, "office_doc_items", it)
             t.add(it["id"], it["doc_id"], it["title"], it["qty"], it["unit"], it["rate"], it.get("tax_pct"), it.get("net"), it.get("tax_amount"),
-                  _flag(it, TRASH if it["doc_id"] in gone_docs else ""))  # 2.1309.0 (#6471): the trash marked, not left out
+                  _flag(it, TRASH if it["doc_id"] in gone_docs else ""),  # 2.1309.0 (#6471): the trash marked, not left out
+                  novat.get(it["doc_id"]) or it.get("tax") or "")
 
     t = _T("payments.csv", "Zahlungen", "Zahlungseingaenge auf Rechnungen",
              [("ID", A), ("Rechnung_ID", A), ("Rechnungsnummer", A), ("Datum", D), ("Betrag", N), ("Zahlart", A), ("Kennzeichen", A)])
@@ -532,7 +600,9 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
         e = oc_dec_fields(c, oid, "office_cash_entries", r)
         t.add(e["id"], e["book"], e["no"], e["day"], e["dir"], e["amount"], e["vat_pct"] or "", e["text"], e["category"], e["storno_of"] or "")
 
-    t = _T("clients.csv", "Kunden", "Kunden des Bueros", [("ID", A), ("Kundennummer", A), ("Name", A), ("Anschrift", A), ("USt_IdNr", A)])
+    out.append(gx_number_ranges(c, oid, frm, to, _T))  # 2.1315.0 (#6472)
+
+    t = _T("clients.csv", "Kunden", "Kunden des Bueros (Stand beim Export; der Empfaenger einer Rechnung steht eingefroren in invoices.csv)", [("ID", A), ("Kundennummer", A), ("Name", A), ("Anschrift", A), ("USt_IdNr", A)])
     out.append(t)
     for r in c.execute(f"SELECT * FROM clients WHERE {pb_cl_sql(c, oid)} ORDER BY id").fetchall():  # a personal office: its owner's
         r = oc_dec_fields(c, oid, "clients", r)

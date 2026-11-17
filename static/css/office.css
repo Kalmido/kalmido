@@ -990,6 +990,7 @@ button.dma-open:hover .dma-n,button.dma-open:focus-visible .dma-n{color:var(--ac
 .onum .onumrow>.lacts{flex:1;min-width:0}  /* 2.855.0 (#5456): the field column holds field, preview and its hint */
 .onum .onumrow .onumh{margin-top:-.25rem}  /* the hint right below its field */
 .onum .onumrow{margin-bottom:.5rem}
+.onum .onumgaps{flex-basis:100%;overflow-wrap:anywhere}.onum .onumgaps.warn{color:var(--danger)}  /* 2.1315.0 (#6472): the gaps of the series with their reason, under the row */
 .onum .onumfoot{margin-top:.25rem}
 .onumwhy{flex-basis:100%}
 .onumwhy input{flex:1;min-width:0}

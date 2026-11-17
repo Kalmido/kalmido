@@ -26,6 +26,7 @@ import json
 import os
 import re
 import uuid
+from collections import Counter
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from xml.etree import ElementTree as ET
@@ -235,7 +236,7 @@ def _batch(p):
     pf = _period_from(p)
     year = (p["fy_start"] or pf).year if (p["fy_start"] or pf) else None
     names = p["names"]
-    rows, bad, debit, credit, no_ctr, ls, lh = [], 0, Decimal(0), Decimal(0), 0, Decimal(0), Decimal(0)
+    rows, bad = [], 0
     for i, r in enumerate(p["rows"]):
         acct, ctr = re.sub(r"\s+", "", _cell(p, r, "account"))[:12], re.sub(r"\s+", "", _cell(p, r, "counter"))[:12]
         side, amt = _cell(p, r, "side").strip().upper()[:1], _amount(_cell(p, r, "amount"))
@@ -250,6 +251,18 @@ def _batch(p):
                      "currency": (_cell(p, r, "currency").strip().upper() or "EUR")[:3], "bu": _cell(p, r, "bu").strip()[:4],
                      "doc1": _cell(p, r, "doc1").strip()[:36], "doc2": _cell(p, r, "doc2").strip()[:12],
                      "text": _cell(p, r, "text").strip()[:200], "link": _guid(_cell(p, r, "link")), "raw": json.dumps(raw, ensure_ascii=False)})
+    if year is None:
+        days = sorted(x["day"] for x in rows if x["day"])
+        year = int(days[0][:4]) if days else None
+    return {"year": year, "rows": rows, "bad": bad, **_batch_sums(rows)}
+
+
+def _batch_sums(rows):
+    """{debit, credit, no_counter, lines_s, lines_h, first, last} of booking lines (2.1315.0 #6590 d: apart from _batch, so the
+    lines left after the overlap check are summed alone)."""
+    debit, credit, no_ctr, ls, lh = Decimal(0), Decimal(0), 0, Decimal(0), Decimal(0)
+    for x in rows:
+        side, amt = x["side"], x["amount"]
         # the control: every line books on its account AND on its counter account (the other side); a line without counter
         # account books one side only -> debit != credit. ls / lh: the sums of the lines marked S / H (review F4: shown too)
         if side == "S":
@@ -258,19 +271,56 @@ def _batch(p):
         else:
             credit += amt
             lh += amt
-        if ctr:
+        if x["counter"]:
             if side == "S":
                 credit += amt
             else:
                 debit += amt
         else:
             no_ctr += 1
-    if year is None:
-        days = sorted(x["day"] for x in rows if x["day"])
-        year = int(days[0][:4]) if days else None
     days = sorted(x["day"] for x in rows if x["day"])
-    return {"year": year, "rows": rows, "bad": bad, "debit": debit, "credit": credit, "no_counter": no_ctr, "lines_s": ls, "lines_h": lh,
+    return {"debit": debit, "credit": credit, "no_counter": no_ctr, "lines_s": ls, "lines_h": lh,
             "first": days[0] if days else "", "last": days[-1] if days else ""}
+
+
+# 2.1315.0 (#6590 d): overlapping batches (January to June, later the whole year) -- a line already in the archive (an active
+# run, the same year) or in an earlier batch of this upload is left out; two equal lines need two equal ones there (counted)
+BA_OVERLAP = N_("{0} lines are in the archive already (overlapping batch) and are left out")
+
+
+def _line_key(x):
+    return json.dumps([x["day"], x["account"], x["counter"], x["side"], format(Decimal(str(x["amount"])).quantize(Decimal("0.01")), "f"),
+                       x["bu"] or "", x["doc1"] or "", x["doc2"] or "", x["text"] or ""], ensure_ascii=False)
+
+
+def _year_lines(c, oid, year, cache):
+    """Counter of the line keys of the archive's year (active runs), read once per plan."""
+    if year not in cache:
+        n = Counter()
+        for r in c.execute("SELECT b.* FROM office_bookarch b JOIN office_import_runs r ON r.id=b.run_id WHERE b.org_id=? AND b.year=? "
+                           "AND r.undone_at IS NULL", (oid, year)).fetchall():
+            n[_line_key(oc_dec_fields(c, oid, "office_bookarch", r))] += 1
+        cache[year] = n
+    return cache[year]
+
+
+def _overlap_cut(c, oid, b, cache):
+    """Leaves out the lines of batch b that the archive or an earlier batch of the upload holds -> the number left out."""
+    have = _year_lines(c, oid, b["year"], cache)
+    keep, cut = [], 0
+    for x in b["rows"]:
+        k = _line_key(x)
+        if have.get(k):
+            have[k] -= 1
+            cut += 1
+        else:
+            keep.append(x)
+    for x in keep:  # the next batch of this upload sees these lines as there
+        have[_line_key(x)] += 1
+    if cut:
+        b["rows"] = keep
+        b.update(_batch_sums(keep))
+    return cut
 
 
 def _content_key(year, rows):
@@ -298,6 +348,7 @@ def ba_plan(c, oid, uid, items, with_docs):
     runs = {r["id"]: r["created_at"] for r in c.execute("SELECT id, created_at FROM office_import_runs WHERE org_id=? AND kind=?", (oid, BA_KIND))}
     plan = {"files": [], "batches": [], "labels": [], "masters": [], "docs": [], "doc_files": {}, "years": {}, "errors": errors}
     seen, xmls, images = set(), [], {}
+    lines_have = {}  # 2.1315.0 (#6590 d): year -> Counter of the line keys there (_overlap_cut)
     for name, data in files:
         name = base_name(name) or "file"
         low = name.casefold()
@@ -338,7 +389,11 @@ def ba_plan(c, oid, uid, items, with_docs):
                 item.update(kind="unknown", reason=tr(BA_NO_YEAR))
             elif ck in known_ck or any(x["ck"] == ck for x in plan["batches"]):
                 item.update(kind="duplicate", reason=tr(BA_DUP, _when(runs.get(known_ck.get(ck)))) if ck in known_ck else tr(BA_DUP_UPLOAD))
+            elif _overlap_cut(c, oid, b, lines_have) and not b["rows"]:  # 2.1315.0 (#6590 d): every line there already
+                item.update(kind="duplicate", rows=0, reason=tr(BA_OVERLAP, item["rows"]))
             else:
+                if len(b["rows"]) < item["rows"]:
+                    item.update(rows=len(b["rows"]), overlap=item["rows"] - len(b["rows"]), reason=tr(BA_OVERLAP, item["rows"] - len(b["rows"])))
                 plan["batches"].append({"item": item, "data": data, "ck": ck, **b})
                 y = plan["years"].setdefault(b["year"], {"year": b["year"], "bookings": 0, "debit": Decimal(0), "credit": Decimal(0),
                                                           "no_counter": 0, "bad": 0, "first": "", "last": "", "lines_s": Decimal(0),
@@ -353,7 +408,7 @@ def ba_plan(c, oid, uid, items, with_docs):
                 y["first"] = min(x for x in (y["first"], b["first"]) if x) if (y["first"] or b["first"]) else ""
                 y["last"] = max(y["last"], b["last"])
                 if b["bad"]:
-                    item["reason"] = tr(BA_ROW_BAD, b["bad"])
+                    item["reason"] = "; ".join(x for x in (item.get("reason"), tr(BA_ROW_BAD, b["bad"])) if x)  # 2.1315.0 (#6590 d): + the overlap
         elif p["category"] == 20:
             year = p["fy_start"].year if p["fy_start"] else None
             labels = {}

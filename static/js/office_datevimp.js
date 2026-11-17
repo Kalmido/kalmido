@@ -111,7 +111,10 @@ function dimp_previewHtml(j) {
     return `<li><span class="ofcn"><b>${esc(x.account)} · ${esc(v.name || x.current || '')}</b><small class="muted">${esc(info.join(' · '))}</small></span><span class="ofdsum">${act}</span></li>`;
   }).join('');
   const more = j.total > (j.rows || []).length ? `<p class="muted ofchint">${esc(tr('The first {0} of {1} rows', (j.rows || []).length, j.total))}</p>` : '';
-  return head + hints + `<ul class="ofclist dimprows" role="list">${rows}</ul>` + more;
+  // 2.1315.0 (#6590 d): the reasons of every row, also beyond the rows shown
+  const rs = (j.reasons || []).filter(x => x.row > ((j.rows || []).at(-1)?.row || 0));
+  const why = rs.length ? `<details class="dimpwhy"><summary>${esc(tr('Reasons of the further rows ({0})', rs.length))}</summary><ul class="ofclist dimprows" role="list">${rs.map(x => `<li><span class="ofcn"><b>${esc(tr('Row {0}', x.row))}${x.account ? ' · ' + esc(x.account) : ''}</b><small class="muted">${esc(x.reason)}</small></span><span class="ofdsum"><small class="rotag dimpact" data-act="${esc(x.action)}">${esc(tr(DIMP_ACT[x.action] || x.action))}</small></span></li>`).join('')}</ul></details>` : '';
+  return head + hints + `<ul class="ofclist dimprows" role="list">${rows}</ul>` + more + why;
 }
 
 // ---- the opening balances of a year (bookkeeping)

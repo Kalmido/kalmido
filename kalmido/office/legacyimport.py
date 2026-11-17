@@ -46,7 +46,7 @@ from ..core import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from ..core.zipread import zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from .model import (MD, pb_cl_org, pb_cl_sql, office_create, office_gate, office_in_use, office_number_format, office_org, office_role, office_rows, office_scheme_period,
                     office_settings, office_update)
-from ..core.csvimport import amount_text, csv_table  # 2.149.0 G (#2517): pulled up from functions
+from ..core.csvimport import XlNum, amount_text, csv_table  # 2.149.0 G (#2517): pulled up from functions
 from ..core.orgcrypt import oc_seal, oc_send_file  # 2.149.0 G (#2517): pulled up from functions
 from ..files.scan import sc_guard, sc_up  # 2.209.0 D (#1856)
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
@@ -373,6 +373,8 @@ def _sheet(z, path, strings, budget, zeros=None, filled=None):
                 v = v.split(".")[0]
             if zeros and t in (None, "n") and v.isdigit() and cel.get("s") in zeros:
                 v = v.zfill(zeros[cel.get("s")])
+            elif t in (None, "n") and v:
+                v = XlNum(v)  # 2.1315.0 (#6590 a): a number cell -- the type decides, amount_text reads "0.125" as 0.125
             if v != "" and ci not in cells:
                 filled[0] += 1
                 if filled[0] > FI_CELLS_MAX:
@@ -838,6 +840,7 @@ def fi_xls_read(raw):
                     t, v = sh.cell_type(r, c), sh.cell_value(r, c)
                     if t in (xlrd.XL_CELL_NUMBER, xlrd.XL_CELL_DATE):
                         v = str(int(v)) if float(v).is_integer() and abs(v) < 1e15 else repr(float(v))
+                        v = XlNum(v)  # 2.1315.0 (#6590 a): a number cell, never read by the text rule
                     elif t == xlrd.XL_CELL_BOOLEAN:
                         v = "1" if v else "0"
                     elif t == xlrd.XL_CELL_TEXT:
@@ -2154,7 +2157,7 @@ def fi_archive_add(c, oid, uid, raw, file_name, b):
     if _number_used(c, oid, f["number"]):
         raise Denied(409, tr("The number {0} is already used", f["number"]))
     sha = hashlib.sha256(raw).hexdigest()
-    if c.execute("SELECT 1 FROM office_archive WHERE org_id=? AND sha256=?", (oid, sha)).fetchone():
+    if c.execute(f"SELECT 1 FROM office_archive WHERE org_id=? AND sha256=? AND {live_sql()}", (oid, sha)).fetchone():  # 2.1315.0 (#6590 c): one in the trash may come anew
         raise Denied(409, tr("This PDF is already in the archive"))
     s = office_settings(c, oid)
     row = dict(f, org_id=oid, run_id=rid, currency=s.get("currency") or "EUR", file_name=_txt(os.path.basename((file_name or "").replace("\\", "/")), 255),
@@ -2191,7 +2194,7 @@ def fk_archive_done(p, committed):
 
 
 def _run_count(c, oid, rid):
-    n = c.execute("SELECT COUNT(*) FROM office_archive WHERE org_id=? AND run_id=?", (oid, rid)).fetchone()[0]
+    n = c.execute(f"SELECT COUNT(*) FROM office_archive WHERE org_id=? AND run_id=? AND {live_sql()}", (oid, rid)).fetchone()[0]  # 2.1315.0 (#6590 c)
     c.execute("UPDATE office_import_runs SET counts=? WHERE id=? AND org_id=?", (json.dumps({"archive": int(n)}), rid, oid))
 
 
@@ -2214,7 +2217,7 @@ def _archive_public(r, names=None):
 
 def fi_archive_rows(c, oid, kind="", client_id=0):
     names = {r["id"]: r["name"] for r in c.execute(f"SELECT id, name FROM clients WHERE {pb_cl_sql(c, oid)}")}
-    sql, args = "SELECT * FROM office_archive WHERE org_id=?", [oid]
+    sql, args = f"SELECT * FROM office_archive WHERE org_id=? AND {live_sql()}", [oid]  # 2.1315.0 (#6590 c): not the trash
     if kind in ("invoice", "offer"):
         sql += " AND kind=?"
         args.append(kind)
@@ -2735,14 +2738,14 @@ def fi_archive_patch(aid):
         ofx_log(c, oid, "update", target="archive", detail={"archive_id": aid, "fields": sorted(f)})
     bump(c)  # 2.566.0 (#4706): the area tick, other devices reload
     c.commit()
-    return jsonify(_archive_public(c.execute("SELECT * FROM office_archive WHERE id=? AND org_id=?", (aid, oid)).fetchone()))
+    return jsonify(_archive_public(c.execute(f"SELECT * FROM office_archive WHERE id=? AND org_id=? AND {live_sql()}", (aid, oid)).fetchone()))
 
 
 @app.get("/api/office/legacy/archive/<int:aid>/pdf")
 def fi_archive_pdf(aid):
     """Members: the original PDF, unchanged."""
     c, uid, oid = _ctx(admin=False)
-    r = c.execute("SELECT file, file_name FROM office_archive WHERE id=? AND org_id=?", (aid, oid)).fetchone()
+    r = c.execute(f"SELECT file, file_name FROM office_archive WHERE id=? AND org_id=? AND {live_sql()}", (aid, oid)).fetchone()  # 2.1315.0 (#6590 c)
     p = fi_archive_path(oid, r["file"]) if r else None
     if not p:
         raise Denied(404)
