@@ -4794,6 +4794,7 @@ button.lkchip:hover{border-color:var(--accent)}
 .annbar{display:flex;align-items:center;gap:.5rem;margin:.5rem 1.75rem 0;padding:.375rem .375rem .375rem .75rem;border-radius:.75rem;background:color-mix(in srgb,var(--accent) 12%,var(--bg2));border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);font-size:var(--fs-s);line-height:var(--lh-tight)}
 .annbar.maint{background:color-mix(in srgb,var(--p3) 16%,var(--bg2));border-color:color-mix(in srgb,var(--p3) 45%,transparent)}
 .annbar .annt{flex:1;min-width:0;overflow-wrap:anywhere}
+.annbar.mvbar{flex-direction:column;align-items:stretch;background:color-mix(in srgb,var(--p3) 16%,var(--bg2));border-color:color-mix(in srgb,var(--p3) 45%,transparent)}  /* 2.1337.0 (#6600): an organisation is moving */
 .annbar > svg{flex:none;color:var(--accent)}
 .annbar.maint > svg{color:var(--p3)}
 .annbar .iconbtn{flex:none}
