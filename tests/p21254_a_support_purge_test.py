@@ -20,6 +20,16 @@ tenant-matrix: support
    without such a route too. Live: frida's own session makes the addresses and sees them, her support session gets 403 / ''
  - a member of an organisation (cara): a comment and an attachment on a task of the organisation's project and an edit of
    that task 403 without the organisation's grant, fine with it; her private task stays writable
+ - 2.1364.0 (#6320, the check in the core instead of SGA_PATH_ORG): the guard walks every writing route (POST / PUT / PATCH /
+   DELETE, tests/routes_ast.py) of an organisation-bound object (a project, a task, a section, a comment, an attachment, a
+   notepad, a file node) with the organisation's object in the path as cara's support session without the organisation's
+   grant: never 2xx (ALLOW names the exceptions with a reason) and nothing of the organisation changed (a fingerprint of the
+   rows); the multi-select (/api/tasks/batch: patch, complete, delete, a move into the organisation's project) and the drag
+   (/api/tasks/reorder, also into the project) change nothing there
+ - review #4788 (2): deleting a budget receipt, a notepad and the last way of an office document (no trash: for good) 403
+   support_session for frida's support session, the document stays; her own session deletes it
+ - review #4788 (3): a filed mail of frida: her support session sees its recipients without the secret filing address and
+   without the .eml (eml_id none, GET of its content 403 support_session); her own session sees both
 usage: p21254_a_support_purge_test.py <datadir>"""
 import ast
 import glob
@@ -245,6 +255,25 @@ r = Fr.delete(B + f"/api/tasks/{TID}?hard=1")
 check(r.ok and code(r) != "support_session" and kt.dbx("SELECT COUNT(*) FROM tasks WHERE id=?", (TID,)) == [(0,)],
       f"frida's own session deletes it for good {r.status_code} {r.text[:100]}")
 
+# ---------------------------------------------------------------- 2.1364.0 (#6320, review #4788 (2)): deleting for good without a trash
+for path in ("/api/budget/files/999999", "/api/notepads/999999"):
+    r = X.delete(B + path)
+    check(refused(r), f"support session: DELETE {path} (no trash: for good) 403 support_session, {r.status_code} {r.text[:100]}")
+assert Fr.put(B + "/api/office/settings", json={"company_fields": {"name": "Frida Film", "street": "Teststrasse 1", "zip": "20000",
+                                                                  "city": "Hamburg", "country": "DE"}}).ok
+r = Fr.post(B + "/api/clients", json={"name": "Example Client Ltd", "street": "Marktstrasse 5", "zip": "50000", "city": "Koeln", "country": "DE"})
+assert r.ok, r.text
+r = Fr.post(B + "/api/office/docs", json={"kind": "invoice", "client_id": r.json()["id"], "service_from": "2026-03-01", "service_to": "2026-03-02",
+                                          "items": [{"title": "Schnitt", "qty": 1, "rate": 120}]})
+check(r.status_code == 201, f"setup: frida's invoice draft {r.status_code} {r.text[:150]}")
+DOC = r.json().get("id") if r.status_code == 201 else 0
+kt.dbx("UPDATE office_docs SET status='paid' WHERE id=?", (DOC,))  # past draft, never finalised nor sent: the last way deletes the row for good
+r = X.delete(B + f"/api/office/docs/{DOC}")
+check(refused(r) and kt.dbx("SELECT COUNT(*) FROM office_docs WHERE id=?", (DOC,)) == [(1,)],
+      f"support session: the last way of deleting an office document (for good) 403, the document stays {r.status_code} {r.text[:100]}")
+r = Fr.delete(B + f"/api/office/docs/{DOC}")
+check(r.ok and kt.dbx("SELECT COUNT(*) FROM office_docs WHERE id=?", (DOC,)) == [(0,)], f"frida's own session deletes it {r.status_code} {r.text[:100]}")
+
 # ---------------------------------------------------------------- the secret inbox addresses
 for path in ("/api/me/mail", "/api/docs/mail-addresses", f"/api/lists/{LID}/request-mail"):
     r = X.get(B + path)
@@ -271,6 +300,26 @@ for route, how in sorted(ADDR.items(), key=lambda x: x[0]):
     mine, theirs = Fr.get(url), X.get(url)
     check(mine.ok and any("@" in (a or "") for a in how[1](mine.json())), f"frida's own session sees the address of {route}: {mine.status_code} {mine.text[:150]}")
     check(theirs.ok and not any(how[1](theirs.json())), f"support session: {route} answers without the address {theirs.status_code} {theirs.text[:150]}")
+
+# ---------------------------------------------------------------- review #4788 (3): a filed mail's recipients and its .eml
+r = Fr.post(B + "/api/files/upload", data={"space": "private"}, files={"file": ("mail.eml", b"Subject: invented\n\nhello\n", "message/rfc822")})
+check(r.ok, f"setup: frida's .eml {r.status_code} {r.text[:100]}")
+EML = ((r.json().get("items") or [{}])[0].get("id") or 0) if r.ok else 0
+TOKADDR = "tasks+a1b2c3d4@example.test"
+HM = kt.dbx("INSERT INTO hub_mails(owner_id, list_id, ws, message_id, from_addr, to_addrs, subject, eml_id, created_at) "
+            "VALUES(?, ?, ?, '<p21254@example.com>', 'sender@example.com', ?, 'Invented', ?, '2026-03-01T10:00:00Z') RETURNING id",
+            (FID, LID, f"u{FID}", f"Frida <{TOKADDR}>, office@example.com", EML))[0][0]
+kt.dbx("UPDATE fs_nodes SET hub_mail_id=? WHERE id=?", (HM, EML))
+mine, theirs = Fr.get(B + f"/api/hubmail/mails/{HM}"), X.get(B + f"/api/hubmail/mails/{HM}")
+check(mine.ok and TOKADDR in mine.json().get("to", "") and mine.json().get("eml_id") == EML,
+      f"frida's own session sees the filing address and the .eml {mine.status_code} {mine.text[:200]}")
+check(theirs.ok and TOKADDR not in theirs.text and "office@example.com" in theirs.json().get("to", "") and theirs.json().get("eml_id") is None,
+      f"support session: the recipients without the filing address, no .eml {theirs.status_code} {theirs.text[:200]}")
+for path in (f"/api/hubmail/mails/{HM}/files/{EML}", f"/api/files/nodes/{EML}/content"):
+    r = X.get(B + path)
+    check(refused(r), f"support session: GET {path} (the .eml) 403 support_session, {r.status_code} {r.text[:100]}")
+    r = Fr.get(B + path)
+    check(r.ok and b"invented" in r.content, f"frida's own session opens {path}: {r.status_code}")
 
 # ---------------------------------------------------------------- child paths of an organisation's task
 ALPHA = A.get(B + "/api/orgs").json()["orgs"][0]["id"]
@@ -306,6 +355,71 @@ for what, call in WAYS:
     check(r.ok and code(r) != "support_session", f"support session: {what} on her private task {r.status_code} {r.text[:100]}")
 check(kt.dbx("SELECT COUNT(*) FROM attachments WHERE task_id=?", (OT,)) == [(0,)] and kt.dbx("SELECT title FROM tasks WHERE id=?", (OT,)) == [("Studio task",)],
       "nothing went into the organisation's task")
+# ---------------------------------------------------------------- 2.1364.0 (#6320): every writing route of an organisation's object
+import routes_ast  # noqa: E402
+
+r = Cc.post(B + f"/api/tasks/{OT}/comments", json={"body": "From cara"})
+assert r.ok, r.text
+CMT = kt.dbx("SELECT MAX(id) FROM obj_comments")[0][0]
+r = Cc.post(B + f"/api/tasks/{OT}/attachments", files={"file": ("a.txt", b"cara\n", "text/plain")})
+assert r.ok, r.text
+ATT = kt.dbx("SELECT MAX(id) FROM attachments WHERE task_id=?", (OT,))[0][0]
+r = Cc.post(B + "/api/sections", json={"list_id": OL, "name": "Studio part"})
+check(r.ok, f"setup: a section of the organisation's project {r.status_code} {r.text[:100]}")
+SEC = (kt.dbx("SELECT MAX(id) FROM sections WHERE list_id=?", (OL,)) or [(None,)])[0][0] or 999999
+r = Cc.post(B + f"/api/lists/{OL}/notepads", json={"title": "Studio pad", "body": "x"})
+NP = (kt.dbx("SELECT MAX(id) FROM list_notepads WHERE list_id=?", (OL,)) or [(None,)])[0][0] or 999999
+r = Cc.post(B + "/api/files/folders", json={"name": "Studio files", "org_id": CO, "space": f"org:{CO}"})
+NODE = (kt.dbx("SELECT MAX(id) FROM fs_nodes WHERE org_id=?", (CO,)) or [(None,)])[0][0] or 999999
+OBJ = {"lists": OL, "tasks": OT, "sections": SEC, "comments": CMT, "attachments": ATT, "notepads": NP, "files/nodes": NODE}
+check(all(OBJ.values()), f"setup: the organisation's objects {OBJ}")
+# route -> why a support session may get 2xx there (nothing of the organisation changes)
+ALLOW = {}
+TABLES = [x[0] for x in kt.dbx("SELECT table_name FROM information_schema.columns WHERE table_schema=current_schema() AND column_name='list_id'")]
+
+
+def fingerprint():
+    """The organisation's rows: its project and task as they are, and how many rows of every table point at the project."""
+    out = [kt.dbx("SELECT * FROM lists WHERE id=?", (OL,)), kt.dbx("SELECT * FROM tasks WHERE list_id=? ORDER BY id", (OL,)),
+           kt.dbx("SELECT id, body, deleted_at FROM obj_comments WHERE id=?", (CMT,)), kt.dbx("SELECT id, deleted_at FROM attachments WHERE task_id=?", (OT,)),
+           kt.dbx("SELECT id, name, deleted_at FROM fs_nodes WHERE org_id=? ORDER BY id", (CO,))]
+    for t in sorted(set(TABLES)):
+        out.append((t, kt.dbx(f"SELECT COUNT(*) FROM {t} WHERE list_id=?", (OL,))))
+    return out
+
+
+before = fingerprint()
+routes, _probs = routes_ast.app_routes(os.path.join(N, ".."))
+walked, sup = 0, 0
+for rt in sorted(routes):
+    meth, path = rt.split(" ", 1)
+    if meth not in ("POST", "PUT", "PATCH", "DELETE"):
+        continue
+    area = next((a for a in sorted(OBJ, key=len, reverse=True) if path.startswith(f"/api/{a}/{{}}")), None)
+    if area is None:
+        continue
+    url = path.replace("{}", str(OBJ[area]), 1).replace("{}", "999999")
+    res = Y.request(meth, B + url, json={})
+    walked += 1
+    sup += refused(res)
+    check(res.status_code >= 300 or rt in ALLOW, f"guard: {rt} as a support session on the organisation's {area} without its grant -> {res.status_code} "
+                                                  f"{res.text[:120]} (refuse it in the core: need_list / need_task / obj_need / need_node)")
+check(walked >= 150, f"guard: the writing routes of the organisation's objects were walked ({walked}, {sup} with code support_session)")
+check(fingerprint() == before, "guard: nothing of the organisation changed")
+# review #4788 (1): the multi-select and the drag, also as a move into the organisation's project
+for b_ in ({"ids": [OT], "action": "patch", "data": {"title": "Batch by support"}}, {"ids": [OT], "action": "complete"},
+           {"ids": [OT], "action": "delete"}, {"ids": [PT], "action": "patch", "data": {"list_id": OL}},
+           {"ids": [PT], "action": "patch_each", "data": {"items": {str(PT): {"list_id": OL}}}}):
+    r = Y.post(B + "/api/tasks/batch", json=b_)
+    moving = PT in b_["ids"]  # the organisation's task itself is not even seen (count 0); a move into its project is refused
+    check(r.ok and r.json().get("count") == 0 and (not moving or bool(r.json().get("errors"))),
+          f"support session: batch {b_['action']} changes nothing {r.status_code} {r.text[:150]}")
+r = Y.post(B + "/api/tasks/reorder", json={"items": [{"id": OT, "sort": 5}]})
+check(r.status_code < 500, f"support session: reorder of the organisation's task {r.status_code} {r.text[:150]}")
+r = Y.post(B + "/api/tasks/reorder", json={"items": [{"id": PT, "list_id": OL, "sort": 1}]})
+check(refused(r), f"support session: reorder of her private task into the organisation's project 403 support_session {r.status_code} {r.text[:150]}")
+check(fingerprint() == before and kt.dbx("SELECT list_id FROM tasks WHERE id=?", (PT,)) == [(PL,)],
+      "nothing of the organisation changed, the private task stayed in her private project")
 assert Ca.post(B + "/api/support-access", json={"hours": 1, "org_id": CO}).ok
 for what, call in WAYS:
     r = call(Y, OT)
