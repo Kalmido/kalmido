@@ -19059,5 +19059,6 @@
   "Only the agent's own token can ask for a request token": "Nur das eigene Token des Agenten kann ein Anfrage-Token holen",
   "One request works for one person: these events come from several": "Eine Anfrage arbeitet für eine Person: Diese Ereignisse kommen von mehreren",
   "This person gives the agent no orders (any more)": "Diese Person kann dem Agenten keine Aufträge (mehr) geben",
-  "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Dieser Agent arbeitet je Anfrage: Nimm das Anfrage-Token des Ereignisses (POST /api/v1/agent/request-token)"
+  "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Dieser Agent arbeitet je Anfrage: Nimm das Anfrage-Token des Ereignisses (POST /api/v1/agent/request-token)",
+  "It works per request for the person who asked: each run reaches only what that person reaches themselves.": "Er arbeitet je Anfrage für die Person, die gefragt hat: Jeder Lauf erreicht nur, was diese Person selbst erreicht."
 }

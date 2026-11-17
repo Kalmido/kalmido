@@ -19059,5 +19059,6 @@
   "Only the agent's own token can ask for a request token": "Alleen het eigen token van de agent kan een verzoektoken aanvragen",
   "One request works for one person: these events come from several": "Eén verzoek werkt voor één persoon: deze gebeurtenissen komen van meerdere",
   "This person gives the agent no orders (any more)": "Deze persoon kan de agent geen opdrachten (meer) geven",
-  "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Deze agent werkt per verzoek: gebruik het verzoektoken van de gebeurtenis (POST /api/v1/agent/request-token)"
+  "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Deze agent werkt per verzoek: gebruik het verzoektoken van de gebeurtenis (POST /api/v1/agent/request-token)",
+  "It works per request for the person who asked: each run reaches only what that person reaches themselves.": "Hij werkt per verzoek voor de persoon die het vroeg: elke run bereikt alleen wat die persoon zelf bereikt."
 }
