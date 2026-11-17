@@ -509,6 +509,8 @@ coding agents, building files, own tools.
   or cannot be reached, the starter skips the request (a status line) and its dispatcher round waits -- the agent's own
   token never reaches a run, a job or the dispatcher's list work; only an older server without the route (a plain 404)
   keeps the old behaviour. The wake of a finished job asks with the events of that person's last run.
+  Request tokens are not listed with the agent's tokens; removing one of its computers (or any long-lived token of the
+  agent) ends **all** its request tokens at once -- connected starters simply ask again.
   The **hosted MCP access** of a team agent works for the person who connected it (the same cut, renewed with each access
   token).
 - **Guests and read-only people** of the agent's organisation give a team agent no orders (2.1287.0): their chat message,
