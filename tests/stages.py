@@ -35,6 +35,8 @@ test files and the changed files, nothing is started; Python standard library on
                      gets the stage "none" = no test shards (the queue checked the same commit)
                      #6253: the train's release push on main ("X.Y.Z: Live-Zug (...)") gets the stage "release" = the
                      groups of the hard suites only; the soft suites run nightly and by hand (stage full)
+                     #6873 (zug-pr-6853): the train's version pull request in the queue (merge_group, head subject
+                     "X.Y.Z: Live-Zug (") gets the stage "release"; its landing push (CI_QUEUE_RUN) "none"
 
 With a separate test runner, only the suites a branch touches (exit 3 = the change needs the full run):
   s=$(python3 tests/stages.py --suites --changed origin/main) && <test runner> run $s
@@ -56,6 +58,8 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 sys.path.insert(0, HERE)
 from shards import FRESH_RE, RUN_RE  # noqa: E402  (the same group count as tools/shards.py and run_all.sh)
 
+# zug-pr-6853 (#6873): the head commit of the train's version pull request: "X.Y.Z: Live-Zug (" at the start of its subject
+ZUG_PR_RE = re.compile(r"^\d+\.\d+\.\d+: Live-Zug \(")
 FILE_RE = re.compile(r"\s([A-Za-z0-9_./-]+\.(?:py|js))\b")
 # the CI basics, the stage rules themselves and the release (VERSION): always the full run
 FULL_EXACT = {
@@ -862,6 +866,13 @@ def ci_base():
     if ev == "merge_group":
         # #4006: an entry of the merge queue (gh-readonly-queue/...): the push stage against the queue's base commit (the
         # target branch with the entries before it); a release commit in the queue changes VERSION = the full stage below
+        if ZUG_PR_RE.match(msg):
+            # zug-pr-6853 (#6873, decision 17.11.2026 10:43, one writer for main): the train's version commit comes as its own
+            # pull request through the queue; its entry ("X.Y.Z: Live-Zug (...)" at the start of the head commit's subject -
+            # anywhere else in a message is an ordinary entry) runs the stage "release" = the hard groups, like the release
+            # push did, and the landing push of that very commit then runs "none" (CI_QUEUE_RUN below). The train takes
+            # this way only when kalmido-release/dispatcher.json merge_queue.zug_pr allows it (this mark alone switches nothing)
+            return "release", "the train's version pull request in the merge queue: the hard suites only (soft suites nightly)", None
         base = os.environ.get("CI_BASE_SHA", "")
         if not base:
             return "full", "merge queue entry without a base commit: full run", None
@@ -881,6 +892,16 @@ def ci_base():
         if base:
             return None, "package branch (job/**) against main", base
         return "full", "package branch (job/**) without a merge base with main: full run", None
+    queue_run = os.environ.get("CI_QUEUE_RUN", "").strip()
+    if ev == "push" and os.environ.get("GITHUB_REF", "") == "refs/heads/main" and queue_run:
+        # #6063 (decision 14.11.2026): the merge queue lands its entry on main as the very commit its merge_group run checked
+        # (ci.yml job "plan" looks that run up by head SHA and sets CI_QUEUE_RUN): the same tree, so the push runs no test
+        # shards ("none"). Only the train's release push, the nightly run and runs by hand run the full stage; a push from
+        # the queue took ~60 shards (too many groups = full) and left the train's run waiting for runners.
+        # #6873 (zug-pr-6853): before the release push below - a version commit the queue landed was checked there (stage
+        # release in its merge_group run). Fails the lookup of CI_QUEUE_RUN (API) or came the commit by a direct push, the
+        # release push below runs its stage "release" again: wanted as the fallback
+        return "none", f"push from the merge queue: the same commit was checked in merge_group run {queue_run}", None
     if ev == "push" and os.environ.get("GITHUB_REF", "") == "refs/heads/main" and ": Live-Zug (" in msg:
         # #6253 (decision 15.11.2026): the train's release push ("X.Y.Z: Live-Zug (...)", the same test as the concurrency
         # group of ci.yml, #6061) runs the stage "release" = the groups of the hard suites only (tests/hard_suites.txt) beside
@@ -888,13 +909,6 @@ def ci_base():
         # its touched suites in its merge queue run; the soft suites run in the nightly full run and by hand. The full run
         # per train push held up to 16 runners for 3.5-4 h (36 % of all runner minutes) and starved the merge queue
         return "release", "the train's release push: the hard suites only (soft suites nightly)", None
-    queue_run = os.environ.get("CI_QUEUE_RUN", "").strip()
-    if ev == "push" and os.environ.get("GITHUB_REF", "") == "refs/heads/main" and queue_run and ": Live-Zug (" not in msg:
-        # #6063 (decision 14.11.2026): the merge queue lands its entry on main as the very commit its merge_group run checked
-        # (ci.yml job "plan" looks that run up by head SHA and sets CI_QUEUE_RUN): the same tree, so the push runs no test
-        # shards ("none"). Only the train's release push, the nightly run and runs by hand run the full stage; a push from
-        # the queue took ~60 shards (too many groups = full) and left the train's run waiting for runners
-        return "none", f"push from the merge queue: the same commit was checked in merge_group run {queue_run}", None
     if ev == "push":
         before = os.environ.get("CI_BEFORE", "")
         if not before or set(before) == {"0"}:

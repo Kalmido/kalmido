@@ -56,8 +56,9 @@ ZUG = "2.1226.0: Live-Zug (Paket 2.1198, Paket 2.1205, Paket 2.1210)"
 push = {"GITHUB_EVENT_NAME": "push", "GITHUB_REF": "refs/heads/main", "CI_BEFORE": head, "CI_MESSAGE": ZUG}
 st, why, base = ci_base(push)
 check(st == "release" and base is None, "the train's release push = stage release (%s, %s)" % (st, why))
+# 2.1352.0 (#6873): the version commit the queue checked (its merge_group run, stage release) lands with stage none
 st, _, _ = ci_base(dict(push, CI_QUEUE_RUN="43560000001"))
-check(st == "release", "a release push with a merge_group run of the same SHA stays release, never none (%s)" % st)
+check(st == "none", "a release push with a merge_group run of the same SHA = none (the queue checked it, #6873) (%s)" % st)
 st, _, _ = ci_base(dict(push, CI_MESSAGE=ZUG + " [full]"))
 check(st == "full", "[full] in the message still asks for the full run (%s)" % st)
 st, _, _ = ci_base(dict(push, GITHUB_REF="refs/heads/hotfix/2.1226.1"))
