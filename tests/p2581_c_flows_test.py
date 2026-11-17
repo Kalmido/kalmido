@@ -158,10 +158,14 @@ check(len(dbx("SELECT id FROM doc_flow_runs WHERE rule_id=? AND node_id=?", (fid
 # ---- webhook: internal targets refused like every webhook, the secret once
 for bad in ("https://127.0.0.1/hook", "https://localhost/hook", "https://10.1.2.3/hook", "http://hooks.example.com/hook", "ftp://hooks.example.com/"):
     check(flow(Fr, "private", kind="any", match="Webhooktest", webhook=bad).status_code == 400, f"webhook: {bad} refused")
+# 2.1322.0 (#6560 5): this server has no server key -> a flow with a webhook (its secret) is refused instead of kept in plain;
+# the stored and sealed secret is tested in p2581_e_flowreview_test.py (a server with a key)
+n0 = len(dbx("SELECT id FROM doc_rules"))
 r = flow(Fr, "private", name="Hook", kind="any", match="Webhooktest", webhook="https://hooks.example.com/kalmido")
-check(r.status_code == 201 and len(r.json().get("hook_secret") or "") >= 20, f"webhook: an allowed target is stored, the secret once {r.status_code} {r.text[:200]}")
+check(r.status_code == 409 and "KALMIDO_SECRET_KEY" in r.text and "hook_secret" not in r.text, f"webhook: without a server key the flow is refused {r.status_code} {r.text[:200]}")
+check(len(dbx("SELECT id FROM doc_rules")) == n0, "webhook: nothing stored in plain")
 rs = Fr.get(B + "/api/docs/settings?ws=private").json()["rules"]
-check(all("hook_secret" not in x for x in rs) and any(x.get("webhook") == "https://hooks.example.com/kalmido" for x in rs), "webhook: the secret never in the settings")
+check(not any(x.get("webhook") for x in rs), "webhook: no flow with a webhook in the settings")
 
 # ---- notify + rights in an organisation
 check(flow(Fr, "private", kind="any", match="x", notify=[ids["bob"]]).status_code == 400, "notify: a person outside frida's workspace refused")
