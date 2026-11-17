@@ -395,7 +395,11 @@ mode: not checked yet) keeps its line in the list without the file (2.306.0).
   is in, untick it in the position's calculation), after the positions, before discount and tax. It carries the tax of
   those positions (each rate's share, `by_tax` on the line), so an invoice or progress invoice from the quotation takes it
   as one position per tax rate and the e-invoice has it as a line per rate (like the discount). Repricing computes it
-  with the new prices. An industry pack only presets its title and percentage (and adds the handling costs). The company data choose the word before the
+  with the new prices. Since 2.1345.0 (#6943) the surcharge can be a fixed net amount instead (`markup_amount`, in the home
+  currency like the discount's amount; switch % / currency next to the field): it counts instead of the percent (which is
+  then 0), is spread over the tax rates of the marked positions the same way, shows as "1 flat" with the amount and no
+  percent, is one line on the title page of a quotation with parts, and repricing keeps it as a fixed part of the sum.
+  Handling costs stay in percent. An industry pack only presets its title and percentage (and adds the handling costs). The company data choose the word before the
   management's names in the footer (`md_label`: Geschäftsführung, Gesellschafter, Inhaber, Inhaberin, Vorstand, Partner;
   German or English by the document's language). Unsaved input of these pages survives a change of the view and live
   updates until it is saved or discarded.

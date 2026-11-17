@@ -32,6 +32,7 @@ Fable review of 16.11.2026 (each case red without its fix):
 usage: p6453_circle_test.py <datadir>"""
 import json
 import os
+import subprocess
 import sys
 from datetime import timedelta, timezone
 
@@ -519,5 +520,43 @@ r = requests.post(V + f"/tasks/{T_PRIV}/working", headers=H, json={"text": "sort
 j = r.json() if r.ok else {}
 check(r.status_code == 201 and (j.get("working") or {}).get("text") == "sorting the notes" and "text_shown" not in j,
       f"its private project: the progress line as before ({r.status_code} {r.text[:200]})")
+
+# ================================================================== 2.1345.0 (#6736, Fable reader #4945 N1): approvals from before 2.1284
+# A bridge approved before the circles were kept (circle_a / circle_b NULL) gets at the start the circle of the moment of
+# its approval as far as list_members.added_at proves it -- not the one of the start: otto, who came to the project after
+# the approval, was never approved, so the bridge no longer holds and asks anew; otto there before: it holds.
+LG_A, LG_B = project("Legacy own"), project("Legacy shared")
+LG_C = project("Legacy shared early")
+LG_D, LG_E = project("Legacy shared moved"), project("Legacy own moved")
+# review F1 (decision 17.11.2026): the owner of today counts only without a change of ownership since the approval (list_activity)
+kt.dbx("INSERT INTO list_activity(list_id,user_id,kind,data,created_at) VALUES(?,?,'owner','{}',?)", (LG_E, FID, ts(-1)))
+for name, la, lb, added in (("legacylate", LG_A, LG_B, ts(-1)), ("legacyearly", LG_A, LG_C, ts(-72)), ("legacymoved", LG_E, LG_D, ts(-72))):
+    aid, _ = agent(name)
+    kt.dbx("INSERT INTO list_members(list_id,user_id,role,added_at) VALUES(?,?,'edit',?)", (lb, OID, added))
+    x, y = min(la, lb), max(la, lb)
+    kt.dbx("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at) VALUES(?,?,?,?,?)", (aid, x, y, FID, ts(-48)))
+    out = subprocess.run(["docker", "exec", kt.CT, "python", "-c", f"""import json, app
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.agents.safety import bridge_circles_start
+from kalmido.agents.circle import bridge_holds, list_circles
+c = connect()
+bridge_circles_start(c)
+c.commit()
+with system_ctx(c):
+    r = c.execute("SELECT * FROM agent_bridges WHERE agent_id=?", ({aid},)).fetchone()
+    print(json.dumps({{"a": r["circle_a"], "b": r["circle_b"], "holds": bridge_holds(c, r, list_circles(c, [{x}, {y}]))}}))
+c.close()"""], capture_output=True, text=True)
+    try:
+        j = json.loads(out.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        j = {"error": (out.stdout + out.stderr)[-600:]}
+    want_b = f"{min(FID, OID)},{max(FID, OID)}" if name != "legacylate" else str(FID)
+    want_a = "" if name == "legacymoved" else str(FID)
+    got_b, got_a = (j.get("b"), j.get("a")) if lb == y else (j.get("a"), j.get("b"))
+    check(got_b == want_b and got_a == want_a and j.get("holds") is (name == "legacyearly"),
+          f"#6736 a bridge from before 2.1284 ({name}: otto {'added after' if name == 'legacylate' else 'there before'} the approval"
+          f"{', the owner of the other project changed since' if name == 'legacymoved' else ''}): circles as proved then "
+          f"({want_a} / {want_b}), holds {name == 'legacyearly'} {j}")
 
 sys.exit(done("p6453_circle"))

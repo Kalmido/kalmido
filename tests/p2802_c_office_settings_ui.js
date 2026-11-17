@@ -70,6 +70,9 @@ const FEAT = 'cal,comments,collab,files,docs,office,clients';
     w.eval('window.__T.length = 0; 1');
     type(w, d.querySelector('#onum-invoice'), '50');  // a jump in the invoice series needs a reason
     await until(() => d.querySelector('#onum-invoice-why'));
+    // 2.1345.0 (#6532): no real invoice yet: the reason is prefilled ("Taken over from the previous program") - emptied for the refusal
+    check(d.querySelector('#onum-invoice-why').value === 'Taken over from the previous program', `${who}: the empty invoice series prefills the reason`);
+    type(w, d.querySelector('#onum-invoice-why'), '');
     type(w, d.querySelector('#onum-reminder'), '9');
     click(w, applyB());
     check(await until(async () => (await range('reminder'))?.next === 9), `${who}: the reminder series is saved`);

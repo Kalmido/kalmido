@@ -277,7 +277,7 @@ OFD_VIEW = frozenset((
     "service_to", "due_date", "payment_days", "vat_note", "delivery_title", "reminder_level", "reminder_fee",
     "reminder_deadline_days", "skonto_pct", "skonto_days", "inv_type", "raw_mode", "raw_factor", "producing_on", "producing_mode",
     "producing_rate", "prod_quotient", "discount_pct", "discount_amount", "handling_pct", "markup_pct", "handling_label", "markup_label",
-    "share_label", "markup_stacked", "fields", "totals", "net_text", "gross_text", "items", "parts", "accept_print", "locked",
+    "share_label", "markup_amount", "markup_stacked", "fields", "totals", "net_text", "gross_text", "items", "parts", "accept_print", "locked",
     "can_edit", "trial", "created_at", "updated_at", "lang_notes", "lang_gaps", "subtotals", "flat_print"))  # 2.1041.0 (#5816, #5817)
 OFD_ITEM = frozenset(("id", "sort", "kind", "title", "detail", "qty", "unit", "rate", "tax", "tax_pct", "net", "tax_amount",
                       "raw_fee", "producing", "in_handling", "in_markup", "intext", "discountable", "discount_pct", "part_id", "ref_part_id",
@@ -319,7 +319,7 @@ OFD_HEAD = frozenset((
     "date", "valid_until", "service_from", "service_to", "due_date", "payment_days", "vat_note", "einvoice_format",
     "delivery_title", "skonto_pct", "skonto_days", "inv_type", "reminder_level", "reminder_fee", "reminder_deadline_days",
     "raw_mode", "producing_on", "accept_on", "raw_factor", "prod_quotient", "producing_rate", "discount_pct", "discount_amount", "handling_pct",
-    "markup_pct", "handling_label", "markup_label", "markup_stacked", "rights", "fields",
+    "markup_pct", "handling_label", "markup_label", "markup_stacked", "markup_amount", "rights", "fields",
     "subtotals", "flat_print"))  # 2.1041.0 (#5816, #5817, review F3)
 OFD_LINKS = ("client_id", "contact_id", "contract_id")
 OFD_NO_LINK = N_("Through a folder only the document itself can be changed, not its client, contact person, framework contract or catalogue entries")

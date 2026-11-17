@@ -62,6 +62,9 @@ async function part_numranges() {
   const inp = d.querySelector('#onum-invoice'); inp.value = '1001';
   inp.dispatchEvent(new w.Event('input', {bubbles: true}));
   check(await until(() => d.querySelector('#onum-invoice-why')), 'a jump in the invoice series asks for a reason');
+  // 2.1345.0 (#6532): no real invoice finalised yet: the reason is prefilled; emptied here to see the refusal without one
+  check(d.querySelector('#onum-invoice-why').value === 'Taken over from the previous program', 'the empty invoice series prefills the reason');
+  { const wy = d.querySelector('#onum-invoice-why'); wy.value = ''; wy.dispatchEvent(new w.Event('input', {bubbles: true})); }
   check(d.querySelector('#onum-invoice-pv').textContent.includes(`RE-${Y}-1001`), 'the preview shows the finished number: ' + d.querySelector('#onum-invoice-pv').textContent);
   check(d.activeElement && d.activeElement.id === 'onum-invoice', 'the focus stays in the field');
   check(d.activeElement.selectionStart === d.activeElement.value.length, 'the caret stays at the end after the redraw (device test: typing 1001 gave 0110)');  // 2.138.0 (#2256)

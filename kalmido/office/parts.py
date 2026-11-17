@@ -180,6 +180,7 @@ def tp_part_calc(c, oid, r, p, pack, eur=False, home=None, items=None):
     doc = {**_doc_calc(r, eur, home), "discount_pct": 0, "discount_amount": 0, **(p.get("settings") or {})}  # 2.1042.0 (#5815): the title page's amount stays there
     if not _flag(doc.get("mk_per_part")):  # 2.1249.0 (#6281): the markup is one line on the title page, over the part lines too
         doc["markup_pct"] = None
+    doc["markup_amount"] = None  # 2.1345.0 (#6943): a fixed markup is the title page's one line, never once per part
     novat = str(doc.get("vat_mode") or "vat") == "novat"
     if p["kind"] == "shoot":
         fn = _dk("dk_sheet_calc")

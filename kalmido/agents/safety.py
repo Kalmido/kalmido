@@ -132,16 +132,32 @@ def bridge_store(c, aid, a, b, by, circ=None):
               (aid, x, y, by, iso(now_utc()), circle_csv(cs[x]), circle_csv(cs[y])))
 
 
+def _circle_then(c, lid, at):
+    """2.1345.0 (#6736, Fable reader #4945 N1): the part of list lid's circle of today that the history proves was there at
+    the moment at (an approval of agent_bridges): the owner (unless list_activity shows a change of ownership since, review
+    F1) and the members added no later than at (list_members.added_at).
+    A member added since, or a person who reads it only as one of its organisation (no join time kept), is not proved."""
+    # review F1 (decision 17.11.2026): the owner of today only when list_activity shows no change of ownership since the approval
+    proved = {r[0] for r in c.execute("""SELECT owner_id FROM lists WHERE id=? AND NOT EXISTS (SELECT 1 FROM list_activity
+                                           WHERE list_id=? AND kind='owner' AND created_at > CAST(? AS TIMESTAMPTZ)) UNION
+                                         SELECT user_id FROM list_members WHERE list_id=? AND added_at <= CAST(? AS TIMESTAMPTZ)""",
+                                      (lid, lid, at, lid, at))}
+    return frozenset(list_circle(c, lid) & proved)
+
+
 def bridge_circles_start(c):
     """2.1284.0 (#6453, review G5; core/objhooks.START, every start): the approvals from before the circles were kept
-    (circle_a / circle_b NULL) get the circles of this moment -- what the person saw last. Only rows still NULL."""
+    (circle_a / circle_b NULL) get a circle. Only rows still NULL. 2.1345.0 (#6736): only the circle of the moment of the
+    approval as far as the history proves it (_circle_then), not the one of the start: who came between the approval and the
+    update was never approved -- bridge_holds fails for them and the share / the control gate asks once anew with a card."""
     with system_ctx(c):
-        rows = c.execute("SELECT agent_id, list_a, list_b FROM agent_bridges WHERE circle_a IS NULL OR circle_b IS NULL").fetchall()
+        rows = c.execute("SELECT agent_id, list_a, list_b, at FROM agent_bridges WHERE circle_a IS NULL OR circle_b IS NULL").fetchall()
         for r in rows:
             c.execute("UPDATE agent_bridges SET circle_a=?, circle_b=? WHERE agent_id=? AND list_a=? AND list_b=?",
-                      (circle_csv(list_circle(c, r["list_a"])), circle_csv(list_circle(c, r["list_b"])), r["agent_id"], r["list_a"], r["list_b"]))
+                      (circle_csv(_circle_then(c, r["list_a"], r["at"])), circle_csv(_circle_then(c, r["list_b"], r["at"])),
+                       r["agent_id"], r["list_a"], r["list_b"]))
     if rows:
-        print("agent bridges: circles of", len(rows), "approvals from before kept", flush=True)
+        print("agent bridges: circles of", len(rows), "approvals from before kept (as proved at their approval)", flush=True)
 
 
 def bridge_conflicts(c, aid, lid, circle=None, joining=False):
