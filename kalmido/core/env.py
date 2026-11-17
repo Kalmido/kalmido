@@ -260,6 +260,7 @@ VARS = (
     _v("KALMIDO_IMPORT_RATE", "30", "Imports and previews per person in 10 minutes; new import uploads (account, knowledge, Paperless) have a counter of their own with the same value.", "integrations"),
     _v("KALMIDO_LINEAR_API", "", "Tests only: address of a fake Linear GraphQL API for the Linear import (http://127.0.0.1 or localhost only, anything else is ignored).", "test"),  # 2.394.0 A (#3377)
     _v("KALMIDO_ERROR_REPORTS_PER_HOUR", "30", "New error reports per hour.", "integrations"),
+    _v("KALMIDO_MBR_LOOK", "1000", "Mails of one folder the document rules of a mailbox look at per run (the rest follows in the next run).", "integrations"),  # 2.1322.0 (#6560)
 
     # ---- agents and assistant
     _v("KALMIDO_AGENT_WAITERS", "threads - 8 (at least `6` but at most half of the threads; `16` with the default 24 threads)", "Agent connections waiting for events on the whole server at the same time. Each one holds a web thread, so the default follows `KALMIDO_THREADS`; beyond it the answer is `busy: true` with a `Retry-After` of 3-8 s.", "agents"),
@@ -348,6 +349,7 @@ VARS = (
     _v("KALMIDO_TEST_ROT_ABORT", "", "Tests: stop the key rotation right after the switch (1).", "test"),
     _v("KALMIDO_TEST", "0", "Switch: marks a test container (set by tests/start.sh); only then KALMIDO_TEST_NOW and KALMIDO_TEST_RATE_WINDOW_S work. Never on a real server.", "test"),
     _v("KALMIDO_TEST_NOW", "", "Test containers only (with KALMIDO_TEST=1): the server clock starts at this ISO time and runs on from there.", "test"),
+    _v("KALMIDO_TEST_RQ_WINDOW_S", "3600", "Test containers only (with KALMIDO_TEST=1): seconds of the hourly limits of requests by e-mail.", "test"),  # 2.1322.0 (#6560)
     _v("KALMIDO_TEST_RATE_WINDOW_S", "60", "Test containers only (with KALMIDO_TEST=1): seconds of the request rate window instead of a minute.", "test"),  # 2.522.0 (#4180)
     _v("KALMIDO_TEST_NOW_AT", "", "Test containers only: the real Unix second KALMIDO_TEST_NOW belongs to (app and worker share one shifted clock).", "test"),
     _v("KALMIDO_TEST_MODE", "0", "Test containers only: allows the test switches of the organisation key tool (1); left alone in a server's .env it is ignored.", "test"),
