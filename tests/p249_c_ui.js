@@ -66,8 +66,9 @@ const key = (w, el, k, o = {}) => el.dispatchEvent(new w.KeyboardEvent('keydown'
     check(pg.body && pg.body.startsWith('See [[Docs/Other]]'), 'saved on the server: ' + JSON.stringify(pg.body));
   }
   // read mode: the link, the mind map block (2.554.0 #4052: no Read / Edit switch: the entry "Read-only" of the page's "…" menu)
-  await w.eval(`wk_modeItems(WK.pg).find(x => x.label === 'Read-only').fn()`);
-  await sleep(300);
+  // 2.1329.0 (#6347): the entry by its lock icon, not its label - #6091 (2.1168.0) renamed "Read-only" to "Lock editing (this
+  // device)" and find() came back undefined (TypeError reading 'fn', red in CI and on the Mac alike)
+  check(await w.eval(`(async () => { const it = wk_modeItems(WK.pg).find(x => x.icon === 'lock'); if (!it) return 0; await it.fn(); return 1; })()`), 'the "…" of the page has the device lock entry');
   const lk = await until(() => d.querySelector('#wk-md a.wklink'));
   check(lk && lk.getAttribute('href') === '#wiki/' + OTHER, '[[link]] becomes a link to the page');
   check(d.querySelectorAll('#wk-md .mmblock svg [data-mmn]').length === 3, 'the ```mindmap block is drawn (3 branches)');
