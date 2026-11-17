@@ -222,6 +222,8 @@ def _clean(c, oid, table, r):
         row["archived"] = list_archived(row)
     if table == "obj_reactions":
         row[OX_RX_COL[row.pop("target_kind")]] = row.pop("target_id")
+    if table == "agent_rules":  # 2.1334.0 (#6585): the rule, never the excerpt it was learned from (a task of a list the admin may not see)
+        row.pop("source_excerpt", None)
     if table == "obj_tags":  # 2.947.0 (#5275): the columns of list_tags / the labels' file
         k, v = row.pop("scope_kind"), row.pop("scope_id")
         row.pop("created_by", None)

@@ -10,6 +10,7 @@ change history follows the objects an archive carries. Invented names only (exam
    link), the project's bell, the remembered shopping items, the sign-in addresses, the own account row, the history of the
    own changes; a template's file gone from the disk is named in missing (was left out silently); the import's preview names
    the documents as staying behind
+ - a member: the account export carries the own note on an organisation's document and the memberships (Art. 15)
 Starts its OWN container (workspaces mode, no server key: the archives are plain ZIPs). usage: p21334_a_export_kinds_test.py <datadir>"""
 # freelancer-matrix: tasks
 import io
@@ -145,6 +146,7 @@ FTF = one(dbx("INSERT INTO template_files(template_id, user_id, node_key, name, 
               "RETURNING id", (FTPL, FID, TS)))
 check(DOC and GONE and FTPL and FTF, f"setup: the freelancer's documents and template {DOC} {GONE} {FTPL} {FTF}")
 
+
 ok(Fr.post(B + "/api/account/export", json={}), "freelancer: account export starts")
 kt.until(lambda: Fr.get(B + "/api/account/export").json().get("state") != "running", timeout=240)
 check(Fr.get(B + "/api/account/export").json().get("state") == "done", "freelancer: account export done")
@@ -177,5 +179,18 @@ fni = " | ".join(fman.get("not_imported") or [])
 check("private-documents/" in fni and "private_links" in fni and "my_history" in fni,
       f"freelancer: not_imported names the documents, the links and the history {fni}")
 check((fman.get("private_documents") or {}).get("documents") == 1, f"freelancer: the manifest counts the private documents {fman.get('private_documents')}")
+
+# ================================================================== a member: what I wrote in an organisation, my memberships (Art. 15)
+ODOC = one(dbx("INSERT INTO fs_nodes(owner_id, org_id, kind, name, created_at, updated_at) VALUES(?, ?, 'file', 'org.pdf', ?, ?) RETURNING id",
+               (ALICE, ORG, TS, TS)))
+dbx("INSERT INTO obj_comments(kind, ref_id, org_id, user_id, body, created_at) VALUES('doc_note', ?, ?, ?, 'Alice in Alpha', ?)", (ODOC, ORG, ALICE, TS))
+ok(A.post(B + "/api/account/export", json={}), "alice: account export starts")
+kt.until(lambda: A.get(B + "/api/account/export").json().get("state") != "running", timeout=240)
+check(A.get(B + "/api/account/export").json().get("state") == "done", "alice: account export done")
+az = unzip(su_get(A, B + "/api/account/export/file").content)
+on = rows_of(az, "data/org_doc_notes.json")
+check([(n.get("node_id"), n.get("text")) for n in on] == [(ODOC, "Alice in Alpha")], f"alice: my note on an organisation's document {on}")
+ms = rows_of(az, "data/memberships.json")
+check({m.get("org_name") for m in ms} >= {"Alpha Quelle", "Beta Fremd"}, f"alice: the organisations I am a member of {ms}")
 
 sys.exit(kt.done("p21334_a_export_kinds"))
