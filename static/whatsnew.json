@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1311.0",
+   "date": "2026-11-17",
+   "items": [
+    {
+     "de": "Kontakte löschen fragt nicht mehr - ein Tipp auf Rückgängig (oder Strg+Z) holt sie zurück.",
+     "en": "Deleting contacts no longer asks - tap Undo (or Ctrl+Z) to get them back."
+    },
+    {
+     "de": "Wer eine Liste nur ansehen darf, hat an der Aufgabe ein Menü mit Link kopieren, Drucken und Verlauf.",
+     "en": "View-only members get a task menu with Copy link, Print and History."
+    },
+    {
+     "de": "Admins können eine angehaltene Kontolöschung in Einstellungen > Benutzer freigeben oder ablehnen.",
+     "en": "Admins can release or reject a held account deletion in Settings > Users."
+    }
+   ]
+  },
+  {
    "version": "2.1310.0",
    "date": "2026-11-17",
    "items": [
@@ -1279,16 +1297,6 @@
     {
      "de": "Absender und Dokumenttyp schlagen ab dem ersten Buchstaben bekannte Einträge vor, wie bei den Tags.",
      "en": "Sender and document type suggest known entries from the first letter, like the tags."
-    }
-   ]
-  },
-  {
-   "version": "2.759.0",
-   "date": "2026-11-09",
-   "items": [
-    {
-     "de": "Freigegebene Bewirtungsbelege landen im DATEV-Buchungsstapel, aufgeteilt in 70 % abziehbar und 30 % nicht abziehbar.",
-     "en": "Approved entertainment receipts go into the DATEV booking batch, split into 70 % deductible and 30 % not deductible."
     }
    ]
   }

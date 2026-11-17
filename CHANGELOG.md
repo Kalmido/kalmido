@@ -23,6 +23,47 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1311.0] - 2026-11-17
+
+Package 2.1292 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6478: cash-basis VAT after a finalised partial credit note - a payment is split by what stays open per tax rate (frozen
+  tax lines of the invoice minus the finalised credit notes, books.bk_credit_rest / bk_pay_parts), in the books, the VAT
+  return and the key figures; example 119 + 107, the 7 % line credited, 119 paid: VAT 19.00 instead of 13.52.
+- #6569: server agent run places are shared fairly - longest wait first, an organisation (or a person without one) holds at
+  most one place while others wait, waiting rows look for a free place right after a run, and a wait of more than 25 s
+  gets one line in the chat (never naming who holds the places). The number of places is unchanged (KALMIDO_SRVAGENT_PARALLEL).
+  New column agent_server.wait_note (migrations.d/6569.py).
+- #6139: Lists: every failed write names what was not saved (apiWhat), loading errors of invitations, folder sharing and the
+  project overview show an error with Retry instead of an empty list or "not shared", raw "Loading..." texts use
+  loadingHtml, the board shows its empty state with lanes and when a filter hides every task; removing an invitation offers
+  Undo (a step of this device).
+
+### Changed
+- #6124: contacts speak like the glossary ("view only", "Move to the trash", "Merges", "Person/Company") and delete like
+  tasks: no question for one or several contacts, Undo in the toast, Ctrl+Z and Recent steps; an address book asks once.
+- #6136: Lists: a reader gets the task menu with Copy link, Print (printable page) and History; the folder's Share dialog
+  manages people, invitations and e-mail sharing only for the owner of a project in the folder.
+
+Package 2.1297 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Abhängigkeiten: Rest-Härtung Lieferkette (Test-/CI).
+
+### Changed
+- Settings: every setting has its own name and one place - "Morgen-Briefing um" apart from "Tagesüberblick um", the field "Kanal" under "Zustellung", the bottom bar editor only under Navigation ("Menüs und Leiste unten"; Appearance links there with "Navigation öffnen"), one section for both completed-task switches, "For advanced users" once in Integrations, the app's server row in Account named "Server dieser App" (#6129).
+- Supply chain: the CI tools (ruff, bandit, pip-audit, semgrep, coverage, tzdata) and the test packages install from hash locks (tools/ci/*.lock, tests/requirements.lock); tools/pins.py checks the locks against their sources, every workflow image for a digest (ZAP until the next `pins.py --update`, #6681), the sha256 lines of static/vendor/*/README against the files, and asks OSV for the CodeMirror bundle's packages too (#6509).
+
+### Fixed
+- Mail limits: an address is accepted only as one plain address (no angle brackets, comma, semicolon, quotes) in every form, and the daily limit per receiving address counts it in one form - "<a@x.de>" or "a@x.de,1.a" no longer get around the 5 mails per address and day, "address taken" at sign-up or the open bookings per address; event invitations count against the limit per receiving address too (#6548).
+
+Package 2.1298 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Agenten-Dispatcher der App: fremde Änderung an Tit).
+
+### Changed
+- #6395: an admin's lock now holds the final deletion an account asked for until an admin releases it (it runs on its old day or at the next tick) or rejects it (the deletion is off, the account stays locked, its agents stay paused, the person gets a mail) - at most 30 days from the lock, then it runs without a decision. The server admins hear of it in the bell (News "delhold", row "usage", with a push) at the lock, 7 days and 1 day before the end. Settings > Users, the person's dialog: "Deletion on hold until …" with "Release deletion" / "Reject deletion", and "Hold deletion" for an account that waits for its own deletion. Routes `POST /api/users/<id>/deletion` and, for the hoster, `POST /api/operator/accounts/<id>/deletion` (`{"decision": "release"|"reject"}`). The person sees at the sign-in and through an old cancel link that the deletion is held and by when it happens. Suite p21298_b_delhold (new), p2553_a_selfdelete follows the cancel link's answer (409 held).
+
+### Fixed
+- #6556: notification channels (Slack, Matrix, Telegram, Signal) - a receiving server with a broken answer (no status line, a cut body: `http.client.HTTPException`, no `OSError`) now fails only its own channel and counts as its failure (it turns off after the usual number of failures). A waiting message leaves the queue only after its own try (taking it moves its `retry_at`; it is deleted when its result is written), so a broken send no longer drops up to 30 waiting messages of every channel and organisation. Suite p2240_b_channels (red without the fix).
+- #6351: a locked account (by an admin or the hoster) locks its personal agents too: the owner's state is part of the one agent row (`AGENT_ROW_SQL`, `agent_active`), so the agent's API token answers `403` with the code `owner_locked`, the hosted MCP server answers `403` (no refresh), no new events are recorded and its webhook gets nothing. Nothing is written to the agent: unlocking the account lets it work again at once with the same token. Team agents are not affected. Suite p21264_a_ownerlock.
+
 ## [2.1310.0] - 2026-11-17
 
 Package 2.1281.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -102,7 +143,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1310.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1311.0...HEAD
+[2.1311.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1311.0
 [2.1310.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1310.0
 [2.1307.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1307.0
 [2.1304.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1304.0
