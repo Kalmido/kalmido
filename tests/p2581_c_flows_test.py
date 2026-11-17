@@ -166,6 +166,12 @@ check(r.status_code == 409 and "KALMIDO_SECRET_KEY" in r.text and "hook_secret" 
 check(len(dbx("SELECT id FROM doc_rules")) == n0, "webhook: nothing stored in plain")
 rs = Fr.get(B + "/api/docs/settings?ws=private").json()["rules"]
 check(not any(x.get("webhook") for x in rs), "webhook: no flow with a webhook in the settings")
+# 2.1337.0 (#6876): an imported flow (a crafted archive with a webhook and its secret) is never stored in plain either: without
+# a server key it comes without the webhook (admin/oi_store.py _rule)
+import oi_flowprobe  # noqa: E402
+data, out = oi_flowprobe.import_flow(FR)
+check(isinstance(data, str) and oi_flowprobe.SECRET not in data and oi_flowprobe.URL not in data and "Importfall" in data,
+      f"import: without a server key the flow comes without its webhook, never the secret in plain {data!r} {out if data is None else ''}")
 
 # ---- notify + rights in an organisation
 check(flow(Fr, "private", kind="any", match="x", notify=[ids["bob"]]).status_code == 400, "notify: a person outside frida's workspace refused")
