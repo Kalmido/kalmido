@@ -3,7 +3,8 @@
 """2.530.0 A (#4315, audit #2425 B36 B37 B11): deleting a comment or a team chat message puts it into the trash. Invented names only.
  - a comment with a file (also someone else's, deleted by the list owner): row, text and file stay in the database and on disk,
    nothing shows it (timeline, state, v1 for an agent, the file download, the task's file trash); a member who is neither the
-   author nor an owner may not restore it, a person outside the list gets 404; the author restores it with its file; the trash
+   author nor an owner may not restore it, a person outside the list gets 404; the owner who deleted it restores it with
+   its file (2.1364.0, #6297 3: not its author any more); the trash
    run after the period removes row, text, file row and file
  - an agent deleting a comment through v1 waits for a person's approval (202)
  - a team chat message with a file in a list channel: the same (text + file kept, invisible, restore, run removes them)
@@ -106,8 +107,10 @@ check(Bo.post(B + f"/api/attachments/{AT}/restore").status_code == 404, "the fil
 # rights of the restore
 check(Da.post(B + f"/api/comments/{CM}/restore").status_code == 403, "dave (member, not the author, no owner) may not restore it")
 check(Ca.post(B + f"/api/comments/{CM}/restore").status_code == 404, "carl (not in the project) gets 404")
-r = Bo.post(B + f"/api/comments/{CM}/restore")
-check(r.ok and r.json().get("task_id") == T, f"bob (the author) restores it {r.status_code} {r.text[:160]}")
+# 2.1364.0 (#6297 3): the author does not undo a delete of the list owner (was: bob restored it); the owner does
+check(Bo.post(B + f"/api/comments/{CM}/restore").status_code == 403, "bob (the author) does not restore what the owner deleted (403)")
+r = A.post(B + f"/api/comments/{CM}/restore")
+check(r.ok and r.json().get("task_id") == T, f"the list owner restores it {r.status_code} {r.text[:160]}")
 tl = Bo.get(B + f"/api/tasks/{T}/timeline").json()["comments"]
 k = next((x for x in tl if x["id"] == CM), None)
 check(k and k["body"] == SECRET and [a["id"] for a in k["attachments"]] == [AT], f"text and file are back {k}")
@@ -174,9 +177,11 @@ for who, s in (("bob", Bo), ("dave", Da)):
     check(CHAT not in t.text and "map.txt" not in t.text, f"{who}: nor the conversation list (last message)")
 check(Da.post(B + f"/api/team/messages/{MID}/restore").status_code == 403, "dave may not restore bob's message")
 check(Ca.post(B + f"/api/team/messages/{MID}/restore").status_code in (403, 404), "carl (not in the channel) may not restore it")
-r = Bo.post(B + f"/api/team/messages/{MID}/restore")
+# 2.1364.0 (#6297 3): the author does not undo a delete of the list owner (was: bob restored it); the owner does
+check(Bo.post(B + f"/api/team/messages/{MID}/restore").status_code == 403, "bob (the author) does not restore what the owner deleted (403)")
+r = A.post(B + f"/api/team/messages/{MID}/restore")
 check(r.ok and r.json()["body"] == CHAT and not r.json()["deleted"] and [a["id"] for a in r.json()["attachments"]] == [FID_],
-      f"bob restores it with its file {r.status_code} {r.text[:200]}")
+      f"the owner restores it with its file {r.status_code} {r.text[:200]}")
 check(Da.get(B + f"/api/team/files/{FID_}").content == b"invented map", "dave reads the file again")
 check(Bo.post(B + f"/api/team/messages/{MID}/restore").status_code == 404, "a live message: nothing to restore (404)")
 check(Bo.delete(B + f"/api/team/messages/{MID}").ok, "deleted again")
