@@ -19,6 +19,7 @@ from ..core.errors import BadInput
 from ..core.i18n import N_, lang, tr, trn
 from ..core.orgcrypt import oc_dec_fields
 from ..core.pg import insert_id, system_ctx
+from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..tasks.validation import log_act
 from .banknorc import BNR_EVERY, _alive, _next
 from .calc import dec, money
@@ -123,7 +124,7 @@ def ccn_tick(c, now=None, force=False):
     with system_ctx(c):  # which areas have the reminder at all; each is then read under its own lock
         # 2.1111.0 (#5953): data is JSONB ("every" no longer first): the value, not the text; no JSON = skipped (review F2)
         oids = [r[0] for r in c.execute("SELECT org_id FROM office_settings WHERE (CASE WHEN pg_input_is_valid(CAST(data AS text), 'jsonb') THEN CAST(data AS jsonb) END)->'card_norc'->>'every' "
-                                        "IN ('week', 'month') ORDER BY org_id").fetchall()]
+                                        f"IN ('week', 'month') AND {mv_sql()} ORDER BY org_id").fetchall()]
     c.commit()
     for oid in oids:
         try:
