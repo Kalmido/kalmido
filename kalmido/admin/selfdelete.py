@@ -15,7 +15,14 @@ admin of an organisation, an account whose organisation things nobody could take
 An admin who enables the account again ends the deletion as well (the next tick lifts it).
 2.1254.0 (#6293): an admin who locks an account while it waits is noted in its plan ("admin", users.sdl_admin_locked): the
 cancel links end, the paused agents stay paused, no reminder with a new link; the password still cancels the deletion, but
-the account stays locked until an admin enables it (then the agents stay paused: their owner turns them on again)."""
+the account stays locked until an admin enables it (then the agents stay paused: their owner turns them on again).
+2.1298.0 (#6395, decided 16.11.2026): that lock also holds the final deletion (accounts/delhold.py) until an admin
+releases it (POST /api/users/<id>/deletion {"decision": "release"}, the hoster: /api/operator/accounts/<id>/deletion; it runs
+on its old day or at the next tick) or rejects it ({"decision": "reject"}: the deletion is off, the account stays locked, its
+agents stay paused, the person gets the mail "cancelled_held"). Without a decision it runs SDL_HOLD (30 days) after the lock:
+the right to erasure is not put off for ever. The admins hear of it in the bell (News "delhold", row "usage") at the lock, 7 days
+and 1 day before the end of the hold (plan "told"). The person sees at the sign-in (accounts/login.py) and through a cancel link
+of before the lock (plan "held_toks", 409) that the deletion is held and by when it happens; the password still cancels it."""
 import json
 import secrets
 from datetime import timedelta
@@ -33,15 +40,18 @@ from ..accounts.bgjobs import BGJ_FNS, bgj_add
 from ..accounts.login import _reauth, rc_use, totp_match, unseal
 from ..accounts.session import _DUMMY_HASH, _rate_fail, _rate_keys, _token_hash, login_wait, rate_ip, login_name_in
 from ..accounts.sessions import ses_end
-from ..notify.push import WD_TICKS
+from ..notify.push import WD_TICKS, notify, push_prio, push_reachable  # 2.1298.0 (#6395): + the push of a held deletion
+from ..collab.comments import lang_of  # 2.1298.0 (#6395)
 from ..notify.alerts import aa_now
 from ..core.access import my_inbox
 from ..lists.lists import list_purge
 from ..accounts.orglists import _ol_people  # 2.1151.0 D (#4562)
 from ..collab.news import KIND_ROW
 from ..core.objnotify import obj_notify
+from ..core.objhooks import NOTIFY_READERS  # 2.1298.0 (#6395)
 from ..lists.ownership import owner_candidates, owner_transfer
-from ..accounts.users import _active_admins, user_delete_run
+from ..accounts.users import _active_admins, need_admin, om_admin_all, user_delete_run
+from ..accounts.delhold import SDL_HELD, sdl_hold_until  # 2.1298.0 (#6395)
 from ..accounts.useradmin import ua8_foreign, ua8_list_info, ua8_owned
 from ..accounts.orgretain import UPG_NO_HEIR, upg_heirless, upg_info
 from .backup import BK_ON_ENV, _clamp_int, bk_weekly_max
@@ -54,6 +64,8 @@ SDL_RETRY = timedelta(hours=1)  # a final run that failed is tried again after t
 SDL_FRESH = 600  # s: an account without a password confirms with a sign-in at most this long ago (as users.FIRST_PW_FRESH)
 SDL_CANCEL = "/api/auth/delete-cancel"
 OPEN_PATHS.add(SDL_CANCEL)  # reachable without a session: the account is locked (the cancel link / the password is the credential)
+SDL_NO_HOLD = N_("No deletion of this account waits for a decision.")
+SDL_TELL = (("lock", None), ("d7", timedelta(days=7)), ("d1", timedelta(days=1)))  # 2.1298.0 (#6395): when the admins hear of a held deletion
 SDL_LAST_ADMIN = N_("You are the only active server admin. Make somebody else a server admin first, then delete your account.")
 SDL_LAST_ORG = N_("You are the last admin of the organisation {0}. Make somebody else an admin there first (or delete the organisation), then delete your account.")
 
@@ -309,6 +321,14 @@ def sdl_cancel():
         u = c.execute("SELECT * FROM users WHERE id=? AND delete_at IS NOT NULL", (int(uid),)).fetchone() if uid.isdigit() and len(uid) <= 18 else None  # review N1: no BIGINT overflow
         # 2.1254.0 (#6293): an admin locked the account while it waited: the link ended (users.sdl_admin_locked)
         ok = bool(u and secret and not sdl_plan(u).get("admin") and any(tkh_match(secret, h) for h in sdl_plan(u).get("toks") or []))
+        # 2.1298.0 (#6395): a link of before the lock (plan held_toks) hears that the deletion is held and until when -- only
+        # the holder of a real link (anybody else gets the 403 below, nothing of the account's state)
+        held = bool(u and secret and not ok and sdl_plan(u).get("admin") and u["disabled"] and not sdl_plan(u).get("release")
+                    and any(tkh_match(secret, h) for h in sdl_plan(u).get("held_toks") or []))
+        if held:
+            c.rollback()
+            by, lg = sdl_hold_until(sdl_plan(u)), lang(c, u["id"])
+            return jsonify(error=tr(SDL_HELD, _when(iso(by), lg), lg=lg), held=True, delete_by=iso(by)), 409
     else:
         username = login_name_in(b.get("username"))  # 2.1271.0 (#6420): cut before anything
         keys = _rate_keys(username)
@@ -500,6 +520,11 @@ def sdl_tick(c, *_):
             _lift(c, u["id"], enabled=True)
             c.commit()
             continue
+        held = sdl_hold_until(plan) if plan.get("admin") and not plan.get("release") else None
+        if held:  # 2.1298.0 (#6395): an admin's lock holds the deletion until a decision, at most until the end of the hold
+            sdl_hold_tell(c, u["id"], now)
+            if held > now:
+                continue
         if at <= now:
             tried = plan.get("tried")
             if tried and parse_iso(tried) + SDL_RETRY > now:
@@ -508,6 +533,113 @@ def sdl_tick(c, *_):
             continue
         if at - SDL_REMIND <= now and not plan.get("reminded") and not plan.get("admin"):
             sdl_remind(c, u["id"], now)
+
+
+def sdl_hold_tell(c, uid, now):
+    """2.1298.0 (#6395): the active server admins hear in the bell (News "delhold", row "usage" like a registration that waits;
+    the push with it) that an admin's lock holds the deletion of uid: once at the lock, 7 days and 1 day before the end of the
+    hold. The stages told are noted in the plan as it is now (_plan_note: a decision meanwhile stays); a missed stage is not
+    told late, only the latest due one. -> the stage told or None."""
+    stage = []
+
+    def add(p):
+        until = sdl_hold_until(p)
+        if not until or p.get("release"):
+            return None
+        told = list(p.get("told") or [])
+        due = [k for k, before in SDL_TELL if before is None or until - before <= now]
+        new = [k for k in due if k not in told]
+        if not new:
+            return None
+        stage.append((new[-1], until))
+        return {**p, "told": told + new}
+    if _plan_note(c, uid, add) is None:
+        c.rollback()
+        return None
+    st, until = stage[0]
+    with system_ctx(c):  # the watchdog, nobody signed in: the admins of the server and the account's name (no content)
+        u = c.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
+        ops = [r[0] for r in c.execute("SELECT id FROM users WHERE is_admin AND NOT disabled AND COALESCE(kind, 'user')<>'agent' AND id<>? "
+                                       "ORDER BY id", (uid,)).fetchall()]
+    data = {"user_id": uid, "username": u["username"] if u else "", "until": iso(until), "stage": st}
+    # the core's send decision: the reader rule below (_hold_reader: the admins whose user management holds the account), the
+    # News entry, then the row "usage" of the notification settings for the push (like a registration that waits)
+    got = obj_notify(c, "delhold", uid, ops, row="usage", push=True, news={"kind": "delhold", "data": data, "actor": uid},
+                     gate=lambda aid, s: push_reachable(c, aid, s))
+    pushes = []
+    for aid, s in sorted(got.items()):
+        lg = lang_of(s)
+        pushes.append((aid, tr("Account deletion on hold: {0}", data["username"], lg=lg),
+                       tr("Release or reject it by {0}; without a decision it runs then.", _when(iso(until), lg), lg=lg),
+                       push_prio(s), s))
+    c.commit()
+    for aid, title, msg, prio, s in pushes:
+        try:
+            notify(aid, title, msg, prio, click=f"{PUBLIC_URL}/#settings/users", s=s)
+        except Exception as e:  # noqa: BLE001 - a push never stops the tick
+            print("account deletion hold: push not sent:", db_log_err(e), flush=True)
+    return st
+
+
+def _hold_reader(c, aid, uid):
+    """2.1298.0 (#6395): who hears of the held deletion of uid (core/objnotify.py NOTIFY_READERS["delhold"]): an active server
+    admin whose user management holds the account (users.om_admin_all): every one for an account outside all organisations,
+    else one who shares an organisation with it (its own admins decide on the others; the hoster through its console)."""
+    with system_ctx(c):  # structure only: the admin right, memberships
+        return bool(c.execute("""SELECT 1 FROM users a WHERE a.id=? AND a.is_admin AND NOT a.disabled AND COALESCE(a.kind, 'user')<>'agent'
+                                   AND (NOT EXISTS (SELECT 1 FROM org_members WHERE user_id=?)
+                                        OR EXISTS (SELECT 1 FROM org_members x JOIN org_members y ON y.org_id=x.org_id
+                                                   WHERE x.user_id=a.id AND y.user_id=?))""", (aid, uid, uid)).fetchone())
+
+
+NOTIFY_READERS["delhold"] = _hold_reader
+
+
+def sdl_decide(c, uid, decision, actor):
+    """2.1298.0 (#6395): an admin (actor: the user name, or "operator" for the hoster) decides on the deletion of uid an admin's
+    lock holds. release: plan "release" (the next tick runs it, on its old day when that is still ahead); reject: the deletion
+    is off (delete_at, delete_plan cleared), the account stays locked, its agents stay paused, the person gets the mail
+    "cancelled_held". Both go into the security log. The caller checked who may. -> (http code, dict)"""
+    if decision not in ("release", "reject"):
+        return 400, {"error": tr("Invalid value: {0}", "decision"), "code": "invalid"}
+    with system_ctx(c):  # the account across organisations (the user management, the hoster's console)
+        u = c.execute("SELECT * FROM users WHERE id=? FOR UPDATE", (uid,)).fetchone()
+        if not u or (u["kind"] or "user") == "agent":
+            c.rollback()
+            return 404, {"error": tr("unknown person"), "code": "not_found"}
+        p = sdl_plan(u)
+        if not u["delete_at"] or not u["disabled"] or not p.get("admin"):
+            c.rollback()
+            return 409, {"error": tr(SDL_NO_HOLD), "code": "no_hold"}
+        if decision == "release":
+            if not p.get("release"):
+                p["release"] = iso(now_utc())
+                c.execute("UPDATE users SET delete_plan=? WHERE id=?", (json.dumps(p), uid))
+        else:
+            c.execute("UPDATE users SET delete_at=NULL, delete_plan='' WHERE id=?", (uid,))  # disabled and the paused agents stay
+        bump(c)
+    c.commit()
+    at = str(u["delete_at"])
+    if decision == "release":
+        aa_now("security", f"selfdel-release:{uid}", N_("{0} released the deletion the account {1} asked for; it runs on {2} or at once."),
+               [actor, f"#{uid}", at[:10]])
+        return 200, {"ok": True, "decision": decision, "delete_at": at}
+    sdl_mail(c, uid, "cancelled_held")
+    aa_now("security", f"selfdel-reject:{uid}", N_("{0} rejected the deletion the account {1} asked for; the account stays locked."),
+           [actor, f"#{uid}"])
+    return 200, {"ok": True, "decision": decision}
+
+
+@app.post("/api/users/<int:uid>/deletion")
+def sdl_admin_decide(uid):
+    """2.1298.0 (#6395): {"decision": "release" | "reject"} -- the server admin decides on the own deletion of an account an
+    admin's lock holds (Settings > Users, the row of the account). 409 when none waits for a decision."""
+    need_admin()
+    c = db()
+    if uid == g.user["id"] or not om_admin_all(c, uid):
+        return err(tr("unknown person"), 404)
+    code, out = sdl_decide(c, uid, str(body().get("decision") or ""), g.user["username"])
+    return jsonify(out), code
 
 
 def _plan_note(c, uid, change):

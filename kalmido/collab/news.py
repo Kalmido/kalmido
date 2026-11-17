@@ -8,6 +8,7 @@ from flask import g, jsonify, request
 
 from ..core.config import app, PUBLIC_URL
 from ..core.pg import system_ctx  # 2.367.5 (#2980)
+from ..accounts.delhold import sdl_held  # 2.1298.0 (#6395)
 from ..core.pg import st_ids  # 2.674.0 B (#4194)
 from ..core.schema import USER_DEFAULTS
 from ..core.i18n import tr
@@ -67,6 +68,7 @@ NEWS_KINDS += ("job_watch",)  # 2.392.2 (#3366): the watchdog found a job of an 
 NEWS_KINDS += ("docflow",)  # 2.581.0 (#4803): a document flow tells me about a document (row "docflow", docs/flows.py; News only)
 NEWS_KINDS += ("agentask",)  # 2.1039.0 (#5805): an agent asks me in its chat (row "approval", agents/chatnews.py; one row per agent)
 NEWS_KINDS += ("budgetwarn",)  # 2.555.0 (#4570): a project / task reached 80 % / 100 % of its "Budget h" (row "timebudget", personal/budgetwarn.py)
+NEWS_KINDS += ("delhold",)  # 2.1298.0 (#6395): an admin's lock holds an account's own deletion, the admins decide (row "usage", admin/selfdelete.py)
 NEWS_KINDS += ("chatmention",)  # 2.1037.0 (#5800)
 NEWS_KINDS += ("offerexp",)  # 2.1064.0 (#5818): a sent quotation without an answer expires soon / has expired (row "office", office/offerexp.py; News only): @me in a team chat channel / group / project conversation (row "mention", collab/teamchat.py tcm_news)
 NEWS_LIST_KINDS = ("share", "role", "unshare", "status", "owner", "evinvite", "evchange", "evshare", "abshare", "agentjoin", "playbook_proposal", "e2e_key")  # about a list (2.21: an event / calendar / address book), not a task
@@ -306,6 +308,7 @@ KIND_ROW["calsub"] = "calsub"
 KIND_ROW["docpaid"] = KIND_ROW["docoverdue"] = "office"  # 2.367.4 (#2972)
 KIND_ROW["offerexp"] = "office"  # 2.1064.0 (#5818)
 KIND_ROW["orglogin"] = "usage"  # 2.367.4 (#2974)
+KIND_ROW["delhold"] = "usage"  # 2.1298.0 (#6395): like a registration that waits for the admins
 KIND_ROW["orgjoinres"] = KIND_ROW["orgrole"] = "share"
 KIND_ROW["aprequest"] = "assign"  # 2.367.2 (#2968): like the assignment it replaces
 KIND_ROW["filereq"] = "filereq"  # 2.122.0 A (#2097)
@@ -487,6 +490,13 @@ def list_push(c, uid, row, lid, title_fn, msg_fn, click=None):
         return
     lg = lang_of(s)
     g.pushes.append((uid, title_fn(lg), msg_fn(lg), click or f"{PUBLIC_URL}/#l/{lid}", push_prio(s), {"scope": f"l:{lid}"}))  # 2.240.0 B2 (#2867)
+
+
+def news_delhold_live(c, du):
+    """2.1298.0 (#6395): the deletion of account du still waits for an admin's decision (accounts/delhold.sdl_held)."""
+    with system_ctx(c):  # the account's state, across organisations (the reader is an admin)
+        u = c.execute("SELECT disabled, delete_at, delete_plan FROM users WHERE id=?", (du,)).fetchone() if du else None
+    return bool(u and sdl_held(u))
 
 
 def news_add(c, uid, kind, task_id=None, list_id=None, comment_id=None, data=None, actor=None, row=None, s=None):
@@ -687,6 +697,13 @@ def news_items(c, uid, s=None, mentions_only=False, to_me=False):
                 su = 0
             so = news_org_data(r)  # 2.367.4 (#2974): an organisation's admin, by the person's domain
             if not (news_org_admin(c, uid, so) if so else nw_once("admin", lambda: is_admin_id(c, uid))) or not c.execute("SELECT 1 FROM users WHERE id=? AND signup='pending'", (su,)).fetchone():
+                continue
+        elif kind == "delhold":  # 2.1298.0 (#6395): for admins, while the account's deletion is still held
+            try:
+                du = int(json.loads(r["data"] or "{}").get("user_id") or 0)
+            except (ValueError, TypeError, AttributeError):
+                du = 0
+            if not nw_once("admin", lambda: is_admin_id(c, uid)) or not news_delhold_live(c, du):
                 continue
         elif kind == "proposal":  # 2.3.0: while the proposal job (mine) exists
             try:

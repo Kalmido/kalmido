@@ -42,6 +42,7 @@ People and organisations: sign-in, sessions, workspaces, roles, invitations, per
 - `kalmido/accounts/cinvite.py` (`cinv`) - Invitation links: a person invites someone without an account by a link or QR code
 - `kalmido/accounts/colors.py` (`ac`) - A fixed colour per account (agents and people)
 - `kalmido/accounts/colwidths.py` - The column widths of the lists, per person on every device (setting col_widths)
+- `kalmido/accounts/delhold.py` (`sdl`) - An admin's lock holds the deletion an account asked for, until an admin decides (at most 30 days)
 - `kalmido/accounts/discover.py` (`disc`) - Finding people by e-mail like in a messenger
 - `kalmido/accounts/invite.py` (`invite`) - Invitations and reset links a one-time link by e-mail with which a person sets their own password
 - `kalmido/accounts/layouts.py` (`wg`) - Views built from blocks ("Customize")

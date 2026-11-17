@@ -15,7 +15,7 @@ from ..accounts.session import me, user_public
 from .orgretain import _until  # 2.186.0 A (#2566)
 from .orgs import _operator_apart, op_apart_deny, op_foreign_account  # 2.399.0 (#2687); 2.539.0 (#4374): _operator_apart
 from ..accounts.orgs import org_role, user_orgs, visible_people, need_visible  # 2.369.5 (#2517): pulled up from functions
-from ..accounts.users import _op_foreign, om_admin_all, need_admin, op_account_brief, user_update  # 2.539.0 (#4374): _op_foreign, op_account_brief; 2.369.5 (#2517): pulled up from functions
+from ..accounts.users import _delete_hold, _op_foreign, om_admin_all, need_admin, op_account_brief, user_update  # 2.539.0 (#4374): _op_foreign, op_account_brief; 2.369.5 (#2517): pulled up from functions
 
 
 UA8_FILTERS = ("people", "active", "disabled", "admin", "invited", "pending", "agents", "all")
@@ -127,7 +127,7 @@ def ua8_admin_dicts(c, rows):
                     "email": u["email"] or "", "twofa": tf, "oidc_linked": bool(u["oidc_subject"]),
                     "parents": parents.get(uid, []) if u["kid"] else [], "invite": invite.get(uid),
                     "signup": u["signup"] or "", "kid": bool(u["kid"]), **st,
-                    "storage": {"used": used.get(uid, 0), "quota_mb": u["storage_quota_mb"]}})
+                    "storage": {"used": used.get(uid, 0), "quota_mb": u["storage_quota_mb"]}, **_delete_hold(u)})  # 2.1298.0 (#6395)
         if hosted_:  # 2.539.0 (#4374): like user_admin_dict -- a client's account (apart) reduced, an open support access named
             out[-1].update(_op_foreign(c, uid))
             if out[-1].get("apart"):

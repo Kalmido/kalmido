@@ -80,7 +80,10 @@ deleted along; the other people of a project that goes along find a notice in th
 the project's name, nothing of its content; switched with the project notices of the notification settings). A mail with a
 cancel link goes out at once and a reminder one day before; signing in with the password
 also offers only "Cancel the deletion". The last admin of an organisation and the only server admin cannot delete
-themselves until somebody else holds the role.
+themselves until somebody else holds the role. When an admin also locks the account while it waits (for example during a
+review), the deletion is held until an admin releases it (then it runs) or rejects it (the account stays locked), at the
+latest 30 days after the lock: then it runs without a decision. The admins are reminded in their News; the person sees at
+the sign-in that the deletion is held and by which day it happens at the latest, and can still cancel it.
 
 So that a restored backup does not bring a deleted account back, Kalmido notes each deleted account as salted hashes
 (no readable name or address) and deletes it again after a restore. The note goes with the log clean-up once no backup

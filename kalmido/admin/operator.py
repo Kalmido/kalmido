@@ -42,6 +42,8 @@ from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.secmail import sec_mail  # 2.485.0 (#3939): earlier in the load order, at module level
 from ..accounts.sessions import ses_end
 from ..accounts.users import _active_admins, sdl_admin_locked, user_delete_run
+from ..accounts.delhold import sdl_hold_dict  # 2.1298.0 (#6395)
+from .selfdelete import sdl_decide  # 2.1298.0 (#6395)
 from .hosting import ANN_TEXT_MAX, _mb, _user_bytes, announce_get, announce_set, hosted, hosting_settings, quota_default_mb
 from .retexport import RX_NEEDED, rx_counts, rx_subject
 from ..accounts.orgs import instance_mode  # 2.369.5 (#2517): pulled up from functions
@@ -231,17 +233,19 @@ def _op_day(v):
 
 def _op_account(c, uid):
     """The account uid as numbers / states, or None (unknown or an agent). Runs as "system" (the caller's block)."""
-    u = c.execute("SELECT id, kind, is_admin, disabled, created_at, storage_quota_mb FROM users WHERE id=?", (uid,)).fetchone()
+    u = c.execute("SELECT id, kind, is_admin, disabled, created_at, storage_quota_mb, delete_at, delete_plan FROM users WHERE id=?", (uid,)).fetchone()
     if not u or (u["kind"] or "user") == "agent":
         return None
     seen = c.execute("SELECT MAX(NULLIF(CAST(last_seen_at AS text), '')::timestamptz) FROM sessions WHERE user_id=?", (uid,)).fetchone()[0]  # 2.1115.0 (#5951)
     orgs = _count(c, "SELECT COUNT(*) FROM org_members m JOIN orgs o ON o.id=m.org_id WHERE m.user_id=? AND o.personal_of IS NULL", (uid,))
     projects = _count(c, "SELECT COUNT(*) FROM lists WHERE owner_id=? AND NOT is_inbox", (uid,))
     own = u["storage_quota_mb"]
+    hold = sdl_hold_dict(u)  # 2.1298.0 (#6395): a deletion the account asked for that an admin's lock holds (days, a state)
     return {"id": int(u["id"]), "disabled": bool(u["disabled"]), "is_admin": bool(u["is_admin"]),
             "created": _op_day(u["created_at"]), "last_active": _op_day(seen), "orgs": orgs, "projects": projects,
             "storage": {"files_bytes": _user_bytes(c, [uid]), "quota_mb": own,
-                        "effective_mb": own if own is not None else quota_default_mb(c)}}
+                        "effective_mb": own if own is not None else quota_default_mb(c)},
+            **({"delete_hold": hold} if hold else {})}
 
 
 def _op_get(c, uid):
@@ -356,6 +360,20 @@ def operator_account_delete(uid):
     if code:
         return jsonify(error=tr("Invalid value: {0}", code), code=code), 409
     return jsonify(ok=True, deleted=uid)
+
+
+@app.post("/api/operator/accounts/<int:uid>/deletion")
+def operator_account_deletion(uid):
+    """2.1298.0 (#6395): {"decision": "release" | "reject"} -- the hoster decides on the own deletion of an account an admin's
+    lock holds, as the user management does (admin/selfdelete.sdl_decide: the security log with the actor "operator").
+    404 unknown or an agent, 409 (code no_hold) when none waits for a decision."""
+    op_gate(f"account-deletion #{uid}")
+    b = body()
+    c = db()
+    code, out = sdl_decide(c, uid, str((b if isinstance(b, dict) else {}).get("decision") or ""), "operator")
+    if code != 200:
+        return jsonify(out), code
+    return jsonify(account=_op_get(c, uid), **out)
 
 
 @app.put("/api/operator/quota-default")

@@ -181,7 +181,7 @@ function Nap([int]$sec) {  # Start-Sleep that a TERM / INT ends; then the comman
   if ($script:Watch -and [KalmidoStop]::Asked) { Stop-Agent; exit 0 }
 }
 
-# GET /api/v1/agent -> a settings object (2.236.0: working / resumes = the work window of the work style). A paused agent's token is refused (403): enabled = $false. $null: Kalmido not
+# GET /api/v1/agent -> a settings object (2.236.0: working / resumes = the work window of the work style). A paused agent's token is refused (403; 2.1264.0, #6351: also while its owner's account is locked, code owner_locked - the same answer here, the agent goes on once the account is unlocked): enabled = $false. $null: Kalmido not
 # reachable (or another error). 2.157.0 (#1517): a revoked token (401) -> revoked = $true. The token only goes into the request header.
 function Fetch {
   $h = @{ Authorization = "Bearer $($env:KALMIDO_TOKEN)" }

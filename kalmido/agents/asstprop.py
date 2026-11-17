@@ -38,7 +38,7 @@ from ..core.db import bump, err, iso, local_now, now_utc
 from ..core.pg import insert_id, system_ctx
 from ..core.access import Denied, list_role, live_sql
 from ..core.errors import BadInput
-from ..agents.core import agent_active, agent_emit, agent_row, agent_shares, is_agent, job_dict, JOB_TITLE_MAX
+from ..agents.core import agent_active, agent_emit, agent_row, AGENT_ROW_SQL, agent_shares, is_agent, job_dict, JOB_TITLE_MAX
 from ..agents.proposals import PROP_LIMITS, PROP_OPEN_MAX, PROP_TEXT_MAX, _p_keys, _p_str, prop_mode
 from ..collab.comments import user_names
 from ..office.rights import NO_RIGHT, ofr_allows
@@ -142,8 +142,7 @@ def ast_doc_agents(c, uid, nid, area="offers"):
 
 def ast_list_agents(c, uid, lid):
     """Agents uid may ask for a client report of list lid: the list is shared with them and uid may address them there."""
-    rows = c.execute("""SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u ON u.id=a.user_id
-                        WHERE u.kind='agent' ORDER BY u.id""").fetchall()
+    rows = c.execute(AGENT_ROW_SQL + " WHERE u.kind='agent' ORDER BY u.id").fetchall()
     return [a for a in rows if prop_agent_ok(c, a, uid) and list_role(c, lid, a["user_id"])
             and (prop_mode(a) == "all" or agent_usable(c, a["user_id"], uid, lid))]
 

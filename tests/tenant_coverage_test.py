@@ -251,6 +251,7 @@ ROUTES = {
     # 2.485.0 (#3939): one customer's account by number (lock, unlock, quota, delete) and the default quota
     "POST /api/operator/accounts/find": "operator", "GET /api/operator/accounts/{}": "operator",
     "PUT /api/operator/accounts/{}": "operator", "DELETE /api/operator/accounts/{}": "operator",
+    "POST /api/operator/accounts/{}/deletion": "operator",  # 2.1298.0 (#6395): the hoster decides on a held own deletion
     "PUT /api/operator/quota-default": "operator",
     "PUT /api/v1/admin/announcement": "admin", "GET /api/admin/agents": "admin", "POST /api/admin/agents": "admin",
     "PATCH /api/admin/agents/{}": "admin", "POST /api/admin/agents/{}/reset": "admin",
@@ -935,6 +936,7 @@ ROUTES = {
     "POST /api/users/{}/invite": "people", "POST /api/users/{}/approve": "people",
     "POST /api/users/{}/signin-link": "people", "GET /api/v1/admin/users": "people", "GET /api/users": "people",
     "POST /api/users": "people", "PATCH /api/users/{}": "people", "DELETE /api/users/{}": "people",
+    "POST /api/users/{}/deletion": "people",  # 2.1298.0 (#6395): an admin releases / rejects a held own deletion (users.om_admin_all; p21298_b_delhold_test.py)
     # 2.88.0 (#1980): the delete dialog's lists + candidates, several accounts at once (p288_b_api_test.py)
     "GET /api/users/{}/delete-info": "people", "POST /api/users/bulk": "people",
     "GET /api/avatar/{}/{}.jpg": "people",

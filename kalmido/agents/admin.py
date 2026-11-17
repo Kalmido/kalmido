@@ -32,7 +32,7 @@ from ..agents.control import ctl_new  # 2.235.0 A (#2891): a new agent asks befo
 from ..api.v1 import API_ON, need_api, SCOPES, SCOPES_AGENT_DEFAULT, SCOPES_AGENT_NEVER, token_public, WH_ON
 from ..integrations.webhooks import need_wh, wh_allow, wh_err_text, wh_log, wh_public, wh_send, wh_url_check
 from ..agents.core import (
-    agent_active, agent_emit, AGENT_EVENTS, AGENT_NOTE_MAX, agent_public, agent_row, agent_runtime, is_agent, need_person,
+    agent_active, agent_emit, AGENT_EVENTS, AGENT_ROW_SQL, AGENT_NOTE_MAX, agent_public, agent_row, agent_runtime, is_agent, need_person,
     perm_user_ok, runtime_clean, RUNTIME_DEFAULTS, runtime_derived,
 )
 from ..accounts.orgs import main_org, user_orgs, org_member_add  # 2.369.5 (#2517): pulled up from functions
@@ -182,8 +182,7 @@ def admin_agents():
     from ..api.scopes import scopes_offer
     need_admin()
     c = db()
-    rows = c.execute("""SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u ON u.id=a.user_id
-                        WHERE u.kind='agent' ORDER BY u.id""").fetchall()
+    rows = c.execute(AGENT_ROW_SQL + " WHERE u.kind='agent' ORDER BY u.id").fetchall()
     out = []
     for a in rows:
         if a["owner_id"] and a["owner_id"] != me():
@@ -704,8 +703,7 @@ def need_own_agent(c, aid):
 
 
 def my_agents(c, uid):
-    return [agent_admin_dict(c, a) for a in c.execute("""SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a
-                                                         JOIN users u ON u.id=a.user_id WHERE u.kind='agent' AND a.owner_id=? ORDER BY u.id""", (uid,))]
+    return [agent_admin_dict(c, a) for a in c.execute(AGENT_ROW_SQL + " WHERE u.kind='agent' AND a.owner_id=? ORDER BY u.id", (uid,))]
 
 
 @app.get("/api/my/agents")

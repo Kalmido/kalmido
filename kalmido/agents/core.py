@@ -144,13 +144,29 @@ def is_agent(u):
         return False
 
 
+# 2.1264.0 (#6351): THE row of an agent - its agents row, its account and owner_locked: the account of the person it belongs to
+# is locked (users.disabled of agents.owner_id; false for an agent without an owner, a team agent). Every query that hands rows
+# to agent_active uses it, so nothing reads an agent without its owner's state. users carries no row-level security: the
+# owner's row is seen in every context (also the agent's own).
+AGENT_ROW_SQL = """SELECT a.*, u.username, u.display_name, u.avatar, u.disabled, COALESCE(o.disabled, false) AS owner_locked
+                   FROM agents a JOIN users u ON u.id=a.user_id LEFT JOIN users o ON o.id=a.owner_id"""
+
+
 def agent_row(c, aid):
-    return c.execute("""SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u ON u.id=a.user_id
-                        WHERE a.user_id=? AND u.kind='agent'""", (aid,)).fetchone() if aid else None
+    return c.execute(AGENT_ROW_SQL + " WHERE a.user_id=? AND u.kind='agent'", (aid,)).fetchone() if aid else None
+
+
+def agent_owner_locked(a):
+    """2.1264.0 (#6351): the account of the person agent a (agent_row) belongs to is locked. Nothing is written to the agent:
+    unlocking the account lets it work again at once."""
+    return bool(a) and bool(a["owner_locked"])
 
 
 def agent_active(a):
-    return bool(a) and bool(a["enabled"]) and not a["disabled"]
+    """The agent works: switched on, its own account not disabled and (2.1264.0, #6351) its owner's account not locked - the one
+    check behind the API token (api/v1.py api_authenticate, so also the hosted MCP's calls), the events and the webhook
+    (agent_emit), schedules, proposals and the chat."""
+    return bool(a) and bool(a["enabled"]) and not a["disabled"] and not a["owner_locked"]
 
 
 def agent_ids(c):
@@ -1724,8 +1740,7 @@ def agent_projects_count(c, aid):
 
 
 def agents_for(c, uid):
-    rows = c.execute("""SELECT a.*, u.username, u.display_name, u.avatar, u.disabled FROM agents a JOIN users u ON u.id=a.user_id
-                        WHERE u.kind='agent' ORDER BY u.id""").fetchall()
+    rows = c.execute(AGENT_ROW_SQL + " WHERE u.kind='agent' ORDER BY u.id").fetchall()
     sh = agents_shared(c, [a["user_id"] for a in rows], uid)  # 2.674.0 B (#4194): agent_shares for all at once
     # 2.777.0 C (#5378, decided 09.11.2026): a team agent of my organisation also without a shared project (agent_org_orgs)
     oo = agent_org_orgs(c, uid) if any(not a["owner_id"] and a["org_id"] and a["user_id"] not in sh for a in rows) else set()

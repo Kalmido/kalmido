@@ -327,5 +327,26 @@ LH = " ".join(ch["hint"] for ch in Ca.get(B + "/api/me/channels").json()["channe
 check(LH and not [t for t in (*(b["url"][-4:] for _, b, _ in H4516.values() if "url" in b), TOK4516[-4:]) if t in LH],
       f"#4516: the list of channels shows none of the ends either {LH!r}")
 
+# ---- 2.1298.0 (#6556): a receiving server with a broken answer (no status line: http.client.BadStatusLine, no OSError) fails
+# its own channel only: a message of another person waiting in the same batch is still delivered (was: the batch had left the
+# queue before sending, the exception ended the loop and the rest was gone), and the broken channel counts the failure
+BAD6556, GOOD6556 = "/badstatus-6556", "/b6556-good"
+r = Ca.post(B + "/api/me/channels", json={"kind": "slack", "name": "bad6556", "url": STUB + BAD6556, "events": ["digest"]})
+check(r.status_code == 201, f"#6556 setup: carol's channel to a broken server {r.text[:200]}")
+cb6556 = r.json().get("id") if r.status_code == 201 else 0
+r = Fi.post(B + "/api/me/channels", json={"kind": "slack", "name": "good6556", "url": STUB + GOOD6556, "events": ["digest"]})
+check(r.status_code == 201, f"#6556 setup: frida's (no organisation) good channel {r.text[:200]}")
+cg6556 = r.json().get("id") if r.status_code == 201 else 0
+t6556 = time.time() - 30  # the broken one first in the batch (same round, older)
+for chid, txt, at in ((cb6556, "6556 to the broken server", t6556), (cg6556, "6556 for frida after it", t6556 + 1)):
+    dbx("INSERT INTO notify_channel_queue(channel_id,text,created_at) VALUES(?,?,?)", (chid, txt, at))
+check(wait_for(GOOD6556, "6556 for frida after it", timeout=20), "#6556: the message after the broken server's still arrives")
+t0 = time.time()
+while time.time() - t0 < 15 and not (dbx("SELECT fails FROM notify_channels WHERE id=?", (cb6556,)) or [[0]])[0][0]:
+    time.sleep(0.3)
+f6556 = dbx("SELECT fails, last_error FROM notify_channels WHERE id=?", (cb6556,))
+check(f6556 and f6556[0][0] >= 1 and f6556[0][1] == "network", f"#6556: the broken channel counts its failure {f6556}")
+check([t for t in texts(BAD6556) if "6556 to the broken server" in t], "#6556: the broken server was tried (not skipped)")
+
 print(f"p2240_b_channels: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
