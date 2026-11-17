@@ -466,6 +466,7 @@ async function chn_meDraw(md) {  // Settings > Notifications (settings.js: the b
     ${(S.me?.workspaces || []).length ? `<div class="shint">${tr('From an organisation’s projects only a short note with the link arrives, unless the organisation allows the content. Health, budget, an organisation’s trips and read later stay in the app.')}</div>` : ''}${''/* 2.240.0 B (#2867), B2: the person's organisations */}
     <div class="members chnrows">${chn_rowsHtml(j)}</div>
     <div class="row"><button type="button" class="btn sm" data-chn="new">${ic('plus', 's')} ${tr('Add forwarding')}</button></div>` : '') + chn_mailHtml(j.mail);
+  if (typeof sf_wrap === 'function') sf_wrap(box, 'notify');  // 2.1353.0 (#6827): its sections as head rows like the rest of the tab
   if (box._wired) return;
   box._wired = true;
   box.addEventListener('click', e => chn_click(e, box, '/api/me/channels', () => chn_meDraw(md)));  // the mail selects save through SETS (settings.js)
