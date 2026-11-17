@@ -8,12 +8,17 @@
 // a stripe / frame / the sign in the header, never a dot or an accent, so it needs no ink; the tones sit between the list
 // tones (deeper, calmer) so the two signals do not read as one. Text in the tone (the sign) passes 4.5:1 on the backgrounds.
 const WSC_TONES = [
-  ['#8b9cf7', '#4252c7'], ['#4cc3d9', '#0e6f82'], ['#6fcf8f', '#2b7444'], ['#e0b05c', '#85600f'],
+  // 2.1350.0 (#6721): tone 2 was a petrol (#4cc3d9 / #0e6f82) that read as Kalmido's accent (#4fb3c1 / #187381): now an olive
+  // (4.5:1 for text on both backgrounds, clearly apart from the accent and the 7 other tones)
+  ['#8b9cf7', '#4252c7'], ['#b0c44a', '#576a0c'], ['#6fcf8f', '#2b7444'], ['#e0b05c', '#85600f'],
   ['#ef8a6b', '#b0472a'], ['#d38ad8', '#8c3b91'], ['#f080a0', '#b03a5d'], ['#a8b0bd', '#545c69'],
 ];
+// 2.1350.0 (#6721): an organisation that chose the old petrol keeps its place in the palette: it moves to the olive with it
+// (the stored colour stays, the shown one is the tone of that place; nothing is rewritten)
+const WSC_MOVED = {'#4cc3d9': 1, '#0e6f82': 1};
 // the colour of a workspace. Private has none (neutral); an organisation has the one its admins chose
 // (orgs.color, nearest tone of WSC_TONES) or, before that, a default tone from its id -- coloured always means "others see it"
-const wsc_ix = (color, orgId) => { const i = color ? lp_nearIx(color, WSC_TONES, [0, 1]) : -1; return i >= 0 ? i : Math.abs(+orgId - 1) % WSC_TONES.length; };
+const wsc_ix = (color, orgId) => { const i = !color ? -1 : WSC_MOVED[String(color).toLowerCase()] ?? lp_nearIx(color, WSC_TONES, [0, 1]); return i >= 0 ? i : Math.abs(+orgId - 1) % WSC_TONES.length; };
 // 2.57.0 B (#1807): my own choice wins (setting ws_colors, a tone of LP_TONES -> its dark / light value, "none" = neutral)
 const wsc_tone = orgId => { if (!orgId) return null; const t = wsp_own('org:' + +orgId); return t === 'none' ? null : t ? [t[2], t[4]] : WSC_TONES[wsc_ix(wsOrg(orgId)?.color, orgId)]; };
 const wsc_vars = orgId => { const t = wsOn() && wsc_tone(orgId); return t ? `--wsd:${t[0]};--wsl:${t[1]}` : ''; };
