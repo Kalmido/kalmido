@@ -94,6 +94,11 @@ MANAGE_ROUTES = frozenset({
     "/api/office/peppol/check", "/api/office/tax-dates", "/api/office/procdoc",
     "/api/office/cards/reminder",  # 2.444.0 (#3447)
 })
+# 2.1340.0 (#6613): the accounting role (not ruled by groups) reads the bookkeeping, quotations / invoices, receipts, bank,
+# cash, contracts and the exports -- not the pipeline (requests), the generated documents / templates / privacy sheets, the
+# correspondence and the whole office log (ACC_NO_ROUTES; a document's own history stays with the document)
+ACC_NONE = frozenset({"pipeline", "gendocs", "letters"})
+ACC_NO_ROUTES = frozenset({"/api/office/log", "/api/office/log/chain"})
 # routes whose reading needs "manage" too: the whole office log (every area's before / after) and the master data export
 MANAGE_READ = frozenset({"/api/office/log", "/api/office/export", "/api/office/cards/reminder"})
 # "METHOD rule" -> the special a group needs for it (on top of the area's level). 2.187.0 B (#2476)
@@ -237,8 +242,8 @@ def ofr_legacy_levels(role):
         return {k: ("edit" if AREA_LEGACY[k] == "member" else "own" if k in LEGACY_OWN else "none") for k in AREA_KEYS}
     if role == "readonly":
         return {k: ("view" if AREA_LEGACY[k] == "member" else "none") for k in AREA_KEYS}
-    if role == "accounting":  # 2.143.0 A (#2151): reads the whole office incl. the admins' bookkeeping, exports
-        return _all("view")
+    if role == "accounting":  # 2.143.0 A (#2151): reads the office incl. the admins' bookkeeping, exports
+        return {k: ("none" if k in ACC_NONE else "view") for k in AREA_KEYS}  # 2.1340.0 (#6613): not the areas of ACC_NONE
     return _all("none")
 
 
@@ -467,6 +472,7 @@ def ofr_check(c, uid, oid, area=None, admin=False):
     caller skips its old admin check); False = not ruled by groups (the old checks stay)."""
     r = ofr_rights(c, uid, oid)
     if r is None:
+        ofr_acc_cap(c, uid, oid, area)
         return ofr_legacy_own(c, uid, oid, area)
     if request.path.startswith("/api/office/rights"):
         return True  # the rights page checks on its own (ofr_manager)
@@ -491,6 +497,16 @@ def ofr_check(c, uid, oid, area=None, admin=False):
     if special and special not in r["specials"]:
         raise Denied(403, tr(NO_SPECIAL))
     return True
+
+
+def ofr_acc_cap(c, uid, oid, area=None):
+    """2.1340.0 (#6613): 403 for a person of the organisation role accounting (not ruled by groups) in an area of ACC_NONE or
+    on a route of ACC_NO_ROUTES; everybody else: nothing. Runs in ofr_gate (every /api/office/* path) and in office_org."""
+    area = area or ofr_area_of(request.path)
+    if area not in ACC_NONE and request.path not in ACC_NO_ROUTES:
+        return
+    if pb_owner(c, oid) is None and not _is_agent(c, uid) and org_role(c, uid, oid) == "accounting":
+        raise Denied(403, tr(NO_RIGHT))
 
 
 def ofr_legacy_own(c, uid, oid, area=None):
