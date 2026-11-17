@@ -387,6 +387,50 @@ b17 = ein.ein_check_block(xml.replace(b"<ram:CalculatedAmount>6540.35</ram:Calcu
 check(not any("BR-CO-17" in str(x) for x in b17), f"F51: one cent off BR-CO-17 does not stop finalising {b17}")
 b17x = ein.ein_check_block(xml.replace(b"<ram:CalculatedAmount>6540.35</ram:CalculatedAmount>", b"<ram:CalculatedAmount>6542.35</ram:CalculatedAmount>"))
 check(any("BR-CO-17" in str(x) for x in b17x), f"F51: two euros off BR-CO-17 stops finalising {b17x}")
+
+# ---------------------------------------------------------------- 8. 2.1359.0 (#6482 P5-5): the texts of the PDF in the XML
+# heading / text lines go with the next position (BT-127), intro, rights block, closing and a text after the last position
+# are document notes (BT-22) -- before, they stood only in the PDF picture
+m8 = fixture()
+m8["lines"] = m8["lines"][:2] + [{"kind": "text", "text": "Dreh in Hamburg, 2 Tage"}] + m8["lines"][2:] + [{"kind": "text", "text": "Abnahme am 30.05."}]
+for fmt in ("zugferd", "xrechnung"):
+    from xml.etree import ElementTree as ET
+    x8 = ET.fromstring(ein.ein_build(dict(m8, einvoice_format=fmt), fmt))
+    li = x8.findall(".//ram:IncludedSupplyChainTradeLineItem", ein.NS)
+    ln_notes = [(x.findtext("ram:AssociatedDocumentLineDocument/ram:IncludedNote/ram:Content", None, ein.NS)) for x in li]
+    check(ln_notes == ["FILMHERSTELLUNG OHNE ANKAUF VON ROH- UND PROJEKTDATEN", "Dreh in Hamburg, 2 Tage\nZusatzkosten:", None, None],
+          f"#6482 {fmt}: heading and text lines as BT-127 of the next position {ln_notes}")
+    dn = [x.text for x in x8.findall("rsm:ExchangedDocument/ram:IncludedNote/ram:Content", ein.NS)]
+    check(any(n.startswith("Sehr geehrte Damen und Herren") for n in dn) and "Abnahme am 30.05." in dn and dn[-1] == m8["closing"]
+          and any(n.startswith("Rechteübertragung\nZeitliche Auswertung: unbegrenzt") and n.endswith("§3 des RV.") for n in dn),
+          f"#6482 {fmt}: intro, trailing text, rights block and closing as BT-22 {dn}")
+    check(ein.ein_check(ET.tostring(x8)) == [], f"#6482 {fmt}: ein_check clean with the notes")
+u8 = ET.fromstring(ein.ein_ubl_build(m8, "en16931"))
+uq = {"cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2", "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"}
+check([x.findtext("cbc:Note", None, uq) for x in u8.findall("cac:InvoiceLine", uq)][:2] == ["FILMHERSTELLUNG OHNE ANKAUF VON ROH- UND PROJEKTDATEN", "Dreh in Hamburg, 2 Tage\nZusatzkosten:"]
+      and len(u8.findall("cbc:Note", uq)) == 1 and m8["closing"] in u8.findtext("cbc:Note", "", uq),
+      "#6482 UBL: BT-127 per line, one document note with intro .. closing (PEPPOL-EN16931-R002)")
+with open(os.path.join(OUT, "xrechnung-notes-6482.xml"), "wb") as fh:
+    fh.write(ein.ein_build(dict(m8, einvoice_format="xrechnung"), "xrechnung"))
+
+# ---------------------------------------------------------------- 9. 2.1359.0 (#6482 P5-6): no sRGB profile = no e-invoice PDF
+# finalising an e-invoice (pdfweb._render: pdfa_required) stops instead of writing a PDF without OutputIntent (no PDF/A-3);
+# any other PDF is still written (the warning in the log)
+icc0 = pdf.ICC_FILE
+try:
+    pdf.ICC_FILE = os.path.join(OUT, "no-such-profile.icc")
+    raised = None
+    try:
+        pdf.office_pdf(fixture(), xml=xml, meta={"pdfa_required": True})
+    except pdf.PdfaMissing as x:
+        raised = x
+    check(raised is not None, "#6482: a finalised e-invoice without the sRGB profile raises PdfaMissing")
+    p9 = pdf.office_pdf(fixture())
+    check(p9.startswith(b"%PDF") and b"/OutputIntents" not in p9, "#6482: a PDF without e-invoice is still written (no OutputIntent)")
+finally:
+    pdf.ICC_FILE = icc0
+check(b"/OutputIntents" in pdf.office_pdf(fixture(), xml=xml, meta={"pdfa_required": True}), "#6482: with the profile the e-invoice PDF has its OutputIntent")
+
 print("files for the validators:", sorted(os.listdir(OUT)))
 print(f"office_einvoice: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

@@ -88,7 +88,38 @@ EXEMPT_TEXT = {"reverse": N_("Reverse charge: VAT liability of the recipient.|ei
                "export": N_("Tax-exempt export of goods.|einvoice"),
                "exempt": N_("Tax exempt.|einvoice")}  # 2.296.0 B (#3169): a 0 % line of a taxed invoice without its own reason
 EIN_WORDS = {"project": N_("Project: {0}|einvoice"), "transfer": N_("Credit transfer|einvoice"),
-             "refund": N_("The amount will be refunded or offset.|einvoice"), "now": N_("Payable on receipt.|einvoice")}
+             "refund": N_("The amount will be refunded or offset.|einvoice"), "now": N_("Payable on receipt.|einvoice"),
+             "rights": N_("Transfer of rights|pdf")}  # 2.1359.0 (#6482): the rights block as a note (BT-22), the word of the PDF
+EIN_NOTE_MAX = 4000  # 2.1359.0 (#6482): characters of one note (BT-22 / BT-127); the PDF limits its texts to the same order
+
+
+def _text_notes(m, lang):
+    """2.1359.0 (#6482 P5-5): the texts of the print model that only stood in the PDF, for the XML (the XML is the invoice).
+    Returns ({id(line): BT-127 text}, [BT-22 texts]): heading and text lines between positions go with the NEXT position as
+    its line note (BT-127, joined); those after the last position, the intro, the rights block and the closing are
+    document notes (BT-22), in the order of the PDF (intro, trailing lines, rights, closing)."""
+    by_line, pending = {}, []
+    for ln in m.get("lines") or []:
+        if not isinstance(ln, dict):
+            continue
+        k = ln.get("kind") or "item"
+        if k in ("heading", "text"):
+            t = " ".join(str(ln.get("title") or "").split()) if k == "heading" else str(ln.get("text") or "").strip()
+            if t:
+                pending.append(t)
+        elif k in ("item", "discount", "producing", "surcharge", "raw") and not (k == "raw" and ln.get("optional")):  # as _ubl_lines
+            if pending:
+                by_line[id(ln)] = "\n".join(pending)[:EIN_NOTE_MAX]
+                pending = []
+    doc = [str(m.get("intro") or "").strip()] + pending
+    rg = m.get("rights") if isinstance(m.get("rights"), dict) else {}
+    rows = [f"{str(r[0]).strip()}: {str(r[1]).strip()}" if str(r[0]).strip() else str(r[1]).strip()
+            for r in (rg.get("rows") or []) if isinstance(r, (list, tuple)) and len(r) >= 2 and str(r[1]).strip()]
+    if rows or str(rg.get("note") or "").strip():
+        doc.append("\n".join([str(rg.get("title") or "").strip() or tr(EIN_WORDS["rights"], lg=lang)] + rows
+                             + ([str(rg["note"]).strip()] if str(rg.get("note") or "").strip() else [])))
+    doc.append(str(m.get("closing") or "").strip())
+    return by_line, [t[:EIN_NOTE_MAX] for t in doc if t]
 
 
 def ein_lang(v):
@@ -325,7 +356,8 @@ def ein_build(model, fmt="zugferd"):
              tr(EIN_WORDS["project"], " ".join(str(m["project_title"]).split()), lg=lang)) if x and str(x).strip()]  # 2.431.0 B (#3594): the subject on one line
     if novat and not m.get("vat_note_text"):
         notes.insert(0, _exempt(m, lang))
-    for n in notes[:4] + ([abs_note] if abs_note else []):
+    line_notes, text_notes = _text_notes(m, lang)  # 2.1359.0 (#6482): intro, rights, closing and trailing text lines (BT-22)
+    for n in notes[:4] + ([abs_note] if abs_note else []) + text_notes:
         _e(_e(doc, "ram:IncludedNote"), "ram:Content", n)
 
     tx = _e(root, "rsm:SupplyChainTradeTransaction")
@@ -337,7 +369,10 @@ def ein_build(model, fmt="zugferd"):
     # the price cut to four places: 1000 x 0.1355 = 135.50 against the line amount 135.46)
     for ln, n, net, pct, qty, rate, charge in _ubl_lines(m, cat):
         li = _e(tx, "ram:IncludedSupplyChainTradeLineItem")
-        _e(_e(li, "ram:AssociatedDocumentLineDocument"), "ram:LineID", str(ln.get("pos") or n))
+        ald = _e(li, "ram:AssociatedDocumentLineDocument")
+        _e(ald, "ram:LineID", str(ln.get("pos") or n))
+        if id(ln) in line_notes:  # 2.1359.0 (#6482): the heading / text lines above this position (BT-127)
+            _e(_e(ald, "ram:IncludedNote"), "ram:Content", line_notes[id(ln)])
         pr = _e(li, "ram:SpecifiedTradeProduct")
         _e(pr, "ram:Name", str(ln.get("title") or "")[:200] or ("Position " + str(n)))
         if ln.get("detail"):
@@ -855,8 +890,10 @@ def ein_ubl_build(model, profile="peppol", sender_id="", receiver_id=""):
              tr(EIN_WORDS["project"], " ".join(str(m["project_title"]).split()), lg=lang)) if x and str(x).strip()]  # 2.431.0 B (#3594): the subject on one line
     if novat and not m.get("vat_note_text"):
         notes.insert(0, extext)
-    if notes or abs_note:  # PEPPOL-EN16931-R002: one note on document level
-        _u(root, "cbc:Note", "\n".join(notes[:4] + ([abs_note] if abs_note else [])))
+    line_notes, text_notes = _text_notes(m, lang)  # 2.1359.0 (#6482): intro, rights, closing, trailing text lines (BT-22)
+    head = notes[:4] + ([abs_note] if abs_note else [])
+    if head or text_notes:  # PEPPOL-EN16931-R002: one note on document level (the texts as paragraphs after the old lines)
+        _u(root, "cbc:Note", "\n\n".join((["\n".join(head)] if head else []) + text_notes))
     _u(root, "cbc:DocumentCurrencyCode", cur)
     if cur != hcur:
         _u(root, "cbc:TaxCurrencyCode", hcur)
@@ -970,6 +1007,8 @@ def ein_ubl_build(model, profile="peppol", sender_id="", receiver_id=""):
     for ln, n, net, pct, qty, rate, charge in lines:
         li = _u(root, "cac:CreditNoteLine" if credit else "cac:InvoiceLine")
         _u(li, "cbc:ID", str(ln.get("pos") or n))
+        if id(ln) in line_notes:  # 2.1359.0 (#6482): the heading / text lines above this position (BT-127, one note per line)
+            _u(li, "cbc:Note", line_notes[id(ln)])
         _u(li, "cbc:CreditedQuantity" if credit else "cbc:InvoicedQuantity", _qty(qty), unitCode=UNIT_CODES.get(str(ln.get("unit") or ""), "C62"))
         _u(li, "cbc:LineExtensionAmount", _m(net), currencyID=cur)
         lac = _line_allowance(ln) if charge < 0 else None

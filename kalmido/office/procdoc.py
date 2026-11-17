@@ -39,7 +39,7 @@ from .model import office_gate, office_org, office_role, office_settings, ofx_na
 from .pdf import pdf_paper_ns  # 2.357.0 A (#3156): the office's paper size
 from ..core.pg import system_ctx  # 2.369.5 (#2517): pulled up from functions; 2.977.0 (#5282): + pd_retire
 from .ledger import ofx_company, ofx_log  # 2.369.5 (#2517): pulled up from functions
-from .packs import office_pack  # 2.369.5 (#2517): pulled up from functions
+from .packs import office_feature_on, office_pack, office_pack_for  # 2.369.5 (#2517): pulled up from functions; 2.1359.0 (#6482): + office_feature_on, office_pack_for
 from .periodlock import pl_label, pl_through  # 2.369.5 (#2517): pulled up from functions
 
 PD_TEXT_MAX = 20000  # characters of one own text
@@ -159,6 +159,27 @@ def _pd_agents(c, oid, s, t):
           "is one line in the office log without contents (agent_read / agent_write).")])
 
 
+def pd_einvoice_duty(s, t):
+    """2.1359.0 (#6482 P5-4): the lines on the e-invoice duty for an office with the German pack (else []): the dates of the
+    transition (section 27 (38) UStG) and what the switch docs.einvoice of this office means for its finalised invoices."""
+    pack = office_pack_for(s) or {}
+    if pack.get("code") != "DE":
+        return []
+    on = office_feature_on(s, "docs.einvoice", pack)
+    return [t("E-Rechnungspflicht im Inland (§ 14 UStG, Übergang nach § 27 Abs. 38 UStG): Empfang seit 01.01.2025; Rechnungen an "
+              "inländische Unternehmer sind ab 01.01.2027 als E-Rechnung auszustellen, bei einem Vorjahresumsatz bis 800.000 EUR ab "
+              "01.01.2028. Ausgenommen sind Kleinbetragsrechnungen bis 250 EUR und Kleinunternehmer.",
+              "E-invoice duty in Germany (section 14 UStG, transition by section 27 (38) UStG): receiving since 1 January 2025; invoices "
+              "to domestic businesses must be issued as e-invoices from 1 January 2027, with a turnover of up to 800,000 EUR in the "
+              "year before from 1 January 2028. Small amount invoices up to 250 EUR and small businesses are exempt.")
+            + " " + (t("Die Funktion E-Rechnung ist eingeschaltet: jede festgeschriebene Rechnung und Rechnungskorrektur bekommt ihre XML.",
+                       "The function e-invoices is on: every finalised invoice and correction gets its XML.") if on else
+                     t("Die Funktion E-Rechnung ist ausgeschaltet: festgeschriebene Rechnungen sind reine PDF-Rechnungen und bekommen "
+                       "nachträglich keine XML; das Festschreiben warnt bei Rechnungen über 250 EUR an inländische Geschäftskunden.",
+                       "The function e-invoices is off: finalised invoices are PDF only and never get their XML later; finalising "
+                       "warns for invoices above 250 EUR to domestic businesses."))]
+
+
 def pd_auto(c, oid, L):
     """{field: the prefilled text} in language L ("de" | "en"), from the settings and what the office holds."""
     gap = PD_GAP[L]
@@ -224,7 +245,7 @@ def pd_auto(c, oid, L):
           "Finalising freezes number, sender, recipient, positions and tax rates; afterwards the head, the positions, the number and "
           "deleting are blocked. Corrections only by a credit note / cancellation invoice."),
         t("E-Rechnungsformat: ", "E-invoice format: ") + PD_EINV.get(s.get("einvoice_format") or "", s.get("einvoice_format") or "-") + "; "
-        + t("Zahlungsziel: ", "Payment term: ") + str(s.get("payment_days") or 0) + t(" Tage", " days")])
+        + t("Zahlungsziel: ", "Payment term: ") + str(s.get("payment_days") or 0) + t(" Tage", " days")] + pd_einvoice_duty(s, t))
     num = pack.get("numbering") or {}
     labels = (("offer", "Angebote", "Quotations", "offer_scheme"), ("invoice", "Rechnungen", "Invoices", "invoice_scheme"),
               ("credit", "Rechnungskorrekturen", "Credit notes", "credit_scheme"), ("reminder", "Mahnungen", "Reminders", "reminder_scheme"),

@@ -1166,10 +1166,12 @@ async function ofdClick(e) {
     const fin = tr('Number, positions, sums, sender and tax rates are frozen. Afterwards it can only be duplicated.');
     // 2.1345.0 (#6532): the first real invoice of the office adds its line with the ways to the test mode and the number ranges
     const first = pv?.first ? ofd_firstHtml() : '';
+    // 2.1359.0 (#6482): the server's warning when this invoice would go to a German business without e-invoice (only a warning)
+    const warnHtml = pv?.einvoice_warn ? `<p class="ofdwarn ofdfinwarn" role="status">${esc(pv.einvoice_warn)}</p>` : '';
     const noHtml = pv?.number ? `<p class="ofdfinno">${esc(tr('Will be finalised as {0}', '\u0000')).replace('\u0000', `<b>${esc(pv.number)}</b>`)}</p><p>${esc(fin)}</p>` : '';
     if (ofd_finHand(d)) {  // 2.1289.0 (#6481 N3, S3): a number of your own only here, given with the finalising (office admins)
       let md0 = null, j = null;
-      const html = (noHtml || `<p>${esc(fin)}</p>`) + first + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
+      const html = (noHtml || `<p>${esc(fin)}</p>`) + first + warnHtml + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
         + ofdF('fin-no', tr('Number'), `<input id="ofd-fin-no" maxlength="80" autocomplete="off" spellcheck="false" placeholder="${esc(pv?.number || '')}">`)
         + ofdF('fin-why', tr('Reason (needed when numbers are skipped)'), `<input id="ofd-fin-why" maxlength="300">`) + '</details>';
       const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; if (first) ofd_firstWire(md); },
@@ -1178,7 +1180,7 @@ async function ofdClick(e) {
       if (ok && j) toast(tr('Finalised as {0}', j.number || ''));
       return;
     }
-    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first ? {html: (noHtml || `<p>${esc(fin)}</p>`) + first} : {}),
+    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first || warnHtml ? {html: (noHtml || `<p>${esc(fin)}</p>`) + first + warnHtml} : {}),
       ...(first ? {after: ofd_firstWire} : {})})) return;
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, {}); if (j) toast(tr('Finalised as {0}', j.number || ''));
     return;
@@ -1191,8 +1193,11 @@ async function ofdClick(e) {
   if (a === 'it-text') {
     const blocks = ofcRows('texts').filter(x => x.kind === 'block' && !x.archived);
     const add = async text => { d.items.push({kind: 'text', title: '', detail: text, qty: 1, unit: 'day', rate: 0, tax: 'standard', raw_fee: 0, producing: 0, intext: 'intern', cost: 0, discountable: 1}); if (text) await ofdPutItems(); else ofdDraw(); if (!text) $(`${sc}.ofdits [data-i="${d.items.length - 1}"][data-k="detail"]`)?.focus(); };
-    if (!blocks.length) { await add(''); return; }
-    menu(b, [{label: tr('Free text'), icon: 'edit', fn: () => add('')}, '-', ...blocks.map(x => ({label: x.key || (x.text_de || x.text_en).slice(0, 50), fn: () => add(ofcText(x.id, ofdTl(d)))}))]);
+    // 2.1359.0 (#6482): + the country pack's built-in blocks (section 14b UStG retention note), in the document's language
+    const lg = ofdTl(d), uil = uiLang().slice(0, 2), packBl = OFC.info?.pack?.blocks || [];
+    if (!blocks.length && !packBl.length) { await add(''); return; }
+    menu(b, [{label: tr('Free text'), icon: 'edit', fn: () => add('')}, '-', ...blocks.map(x => ({label: x.key || (x.text_de || x.text_en).slice(0, 50), fn: () => add(ofcText(x.id, lg))})),
+      ...(packBl.length && blocks.length ? ['-'] : []), ...packBl.map(x => ({label: x.label?.[uil] || x.label?.en || x.key, fn: () => add(x[lg] || x.en || x.de || '')}))]);
     return;
   }
   if (a === 'it-del') { d.items.splice(+b.dataset.i, 1); await ofdPutItems(); return; }

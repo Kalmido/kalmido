@@ -256,6 +256,14 @@
       "de": "Dieses Angebot ist gültig bis {date}.",
       "en": "This quotation is valid until {date}."
     },
+    "blocks": [
+      {
+        "key": "s14b",
+        "label": {"de": "Aufbewahrungshinweis § 14b UStG (Privatkunde, Leistung am Grundstück)", "en": "Retention note section 14b UStG (private client, work on a property)"},
+        "de": "Hinweis zur Aufbewahrungspflicht nach § 14b Abs. 1 Satz 5 UStG: Sie sind verpflichtet, diese Rechnung, einen Zahlungsbeleg oder eine andere beweiskräftige Unterlage zwei Jahre lang aufzubewahren. Die Frist beginnt mit dem Schluss des Kalenderjahres, in dem die Rechnung ausgestellt wurde.",
+        "en": "Note on the retention duty under section 14b (1) sentence 5 of the German VAT Act: you must keep this invoice, a payment receipt or another conclusive document for two years. The period begins at the end of the calendar year in which the invoice was issued."
+      }
+    ],
     "rights_time": [
       {
         "key": "unlimited",

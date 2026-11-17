@@ -203,6 +203,8 @@ const OCF_FEATS = [
   ['money.travel', 'plane', N_('Travel expenses'), N_('Trips with per diem allowances and receipts')],
   ['money.meals', 'meal', N_('Entertainment receipts'), N_('Business meals with guests and reason')],
   ['money.subs', 'repeat', N_('Subscriptions & tools'), N_('Running subscriptions, seats and what they cost')]];
+// 2.1359.0 (#6482): the legal dates at the switch (German pack only; the same in the procedure documentation, procdoc.py)
+const OCF_LAW = {'docs.einvoice': N_('In Germany invoices to businesses must be e-invoices from 1 January 2027 (from 1 January 2028 with a turnover of up to 800,000 EUR in the year before). Switched off, finalised invoices stay PDF only and never get their XML later.')};
 const OCF_FIXED = ['books.gobd'];  // cannot be switched off (packs.PACK_FEATURES switch false)
 const ocf_offers = () => OFC.info?.pack?.offers || {};
 const ocf_name = code => { const p = (PKC.packs?.country || []).find(x => x.code === code); return p ? pkc_nm(p) : code; };
@@ -215,9 +217,9 @@ function ocf_settingsHtml(dis) {
   const rt = p.retention || {};
   return `${ofcII('functions')}${''/* 2.555.0 (#4664): no heading "Functions" under the group heading "Functions" */}
     <p class="muted">${esc(tr('Country pack: {0}', `${pkc_nm(p)} (${p.code})`))} · <button type="button" class="linkbtn" data-ostgo="packs">${tr('Change country')}</button></p>
-    <div class="ocf-list">${mine.map(([k, i, n, d]) => {
+    <div class="ocf-list">${/*html-ok*/ mine.map(([k, i, n, d]) => {
       const fixed = OCF_FIXED.includes(k), on = fixed || !off.includes(k);
-      return `<div class="row ocf-row"><label class="chkl swl"><span class="swc"><input type="checkbox" role="switch" id="ocf-${esc(k.replace('.', '-'))}" data-feat="${esc(k)}" ${on ? 'checked' : ''} ${fixed ? 'disabled' : dis}><span class="swt" aria-hidden="true"></span></span><span>${ic(i, 's')} ${esc(tr(n))}</span></label><span class="muted ofchint">${esc(tr(d))}</span></div>`;
+      return `<div class="row ocf-row"><label class="chkl swl"><span class="swc"><input type="checkbox" role="switch" id="ocf-${esc(k.replace('.', '-'))}" data-feat="${esc(k)}" ${on ? 'checked' : ''} ${fixed ? 'disabled' : dis}><span class="swt" aria-hidden="true"></span></span><span>${ic(i, 's')} ${esc(tr(n))}</span></label><span class="muted ofchint">${esc(tr(d))}${OCF_LAW[k] && p.code === 'DE' ? ' ' + esc(tr(OCF_LAW[k])) : ''}</span></div>`;
     }).join('')}</div>
     ${not.length ? `<p class="muted ofchint">${esc(tr('Not part of this country pack: {0}', not.map(f => tr(f[2])).join(', ')))}</p>` : ''}
     <p class="muted ofchint">${esc(tr('Receipts are kept {0} years, books {1} years.', rt.receipts ?? 10, rt.books ?? 10))}</p>${ocm_settingsHtml(dis)}${ccb_settingsHtml(dis)}`;
