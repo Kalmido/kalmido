@@ -33,6 +33,8 @@ from ..office.signoff import sig_purpose, sig_token_new  # 2.369.5 (#2517): pull
 from ..office.letterhead import BP_FILE_RE  # 2.369.5 (#2517): pulled up from functions
 from ..office.eqcare import eqc_sync
 from ..office.periodlock import pl_first_month, pl_label, pl_month  # 2.1316.0 (#6577)
+from ..office.numranges import NR_SUFFIX_RE, nr_scheme_clean  # 2.1365.0 (#6698, Fable F3): an imported range is checked like a new one
+from ..core.errors import BadInput
 from .acctimport import UmzBad, tr  # 2.1316.0 (#6577)
 
 # ids inside JSON texts: key -> map kind (unknown -> None)
@@ -238,7 +240,35 @@ def _p_settings(c, run, src, d, ctx):
     return d
 
 
+def _p_num_range(c, run, src, d, ctx):
+    """2.1365.0 (#6698): an additional number range; a code the target area uses already gets a digit (GT -> GT2): its counter and
+    documents stay its own (never merged into the target's range)."""
+    # the same checks as the route (numranges.nr_create / nr_scheme_clean): the archive is data, never trusted (Fable F3)
+    code = re.sub(r"[^A-Z0-9]", "", str(d.get("code") or "").upper())[:8] or "R"
+    if not NR_SUFFIX_RE.fullmatch(str(d.get("credit_suffix") or "")):
+        run.warning(N_("A number range of the archive had an invalid ending of corrections; it was set to {0}"), "-K")
+        d["credit_suffix"] = "-K"
+    try:
+        d["scheme"] = nr_scheme_clean(c, ctx.space, d.get("scheme"))
+    except BadInput:  # its documents stay in a range of their own (never the main range's chain), but it numbers nothing new
+        run.warning(N_("A number range of the archive has a scheme the office does not accept; it was imported closed: {0}"), str(d.get("code") or ""))
+        d["scheme"] = str(d.get("scheme") or "")[:200] or "R-{seq}"
+        d["closed_at"] = d.get("closed_at") or iso(now_utc())
+    base, n = code[:7], 2
+    while c.execute("SELECT 1 FROM office_num_ranges WHERE org_id=? AND code=?", (ctx.space, code)).fetchone():
+        code, n = f"{base[:8 - len(str(n))]}{n}", n + 1
+    if code != str(d.get("code") or ""):
+        run.warning(N_("A number range of the target office was kept: {0}"), f"{d.get('code')} -> {code}")
+    d["code"] = code
+    return d
+
+
 def _p_numbers(c, run, src, d, ctx):
+    if re.fullmatch(r"r\d+", str(d.get("kind") or "")):  # 2.1365.0 (#6698): the counter of an additional range -> its new id
+        new = run.m("office_num_ranges", str(d["kind"])[1:])
+        if not new:
+            return False
+        d["kind"] = f"r{int(new)}"
     if c.execute("SELECT 1 FROM office_numbers WHERE org_id=? AND kind=? AND period=?", (ctx.space, d.get("kind"), d.get("period") or "")).fetchone():
         if isinstance(d.get("last"), int):  # 2.137.0 review M2: the kept counter continues after the imported numbers (never one twice)
             c.execute("UPDATE office_numbers SET last=GREATEST(last, ?) WHERE org_id=? AND kind=? AND period=?",
@@ -839,13 +869,14 @@ SPECS = [
     OiT("office/packages.json", "office_sets", private="office", prep=_p_sets),
     OiT("office/doc_templates.json", "office_doc_templates", people=_P, private="office"),
     OiT("office/settings.json", "office_settings", private="office", rid=False, key=("org_id",), prep=_p_settings),
+    OiT("office/num_ranges.json", "office_num_ranges", people=_P, private="office", prep=_p_num_range),  # 2.1365.0 (#6698): before their counters
     OiT("office/numbers.json", "office_numbers", private="office", rid=False, key=("org_id", "kind", "period"), prep=_p_numbers),
     OiT("office/contracts.json", "office_contracts", refs={"client_id": "clients", "rights_time_id": "office_texts",
         "rights_territory_id": "office_texts", "rights_media_id": "office_texts"}, private="office", prep=_p_contract),
     OiT("office/contract_files.json", "office_contract_files", refs={"contract_id": "office_contracts"}, need=("contract_id",),
         people=_P, private="office", prep=_p_contract_file),
     OiT("office/documents.json", "office_docs", refs={"client_id": "clients", "contract_id": "office_contracts", "contact_id": "office_client_contacts",
-        "list_id": "lists"}, late={"version_of": "office_docs", "replaces_id": "office_docs", "cancels_id": "office_docs", "source_doc_id": "office_docs",
+        "list_id": "lists", "range_id": "office_num_ranges"}, late={"version_of": "office_docs", "replaces_id": "office_docs", "cancels_id": "office_docs", "source_doc_id": "office_docs",
         "series_id": "office_inv_series"}, people={**_P, "locked_by": "null", "agent_id": "null"}, private="office", prep=_p_doc, after=_a_doc),
     OiT("office/document_parts.json", "office_doc_parts", refs={"doc_id": "office_docs"}, need=("doc_id",), private="office", prep=_p_part),
     OiT("office/document_items.json", "office_doc_items", refs={"doc_id": "office_docs", "service_id": "office_services",
