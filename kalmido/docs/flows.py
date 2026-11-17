@@ -522,6 +522,8 @@ def fl_hook_payload(c, run):
     node = c.execute("SELECT * FROM fs_nodes WHERE id=? AND deleted_at IS NULL", (run["node_id"],)).fetchone()
     if not r.get("webhook") or not r.get("hook_secret") or not m or not node:
         return None
+    if os.environ.get("KALMIDO_TEST") == "1" and node["name"] == os.environ.get("KALMIDO_TEST_FL_FAIL_DOC"):
+        raise RuntimeError("test: a webhook call that cannot be prepared")  # tests only (#6881), like fl_tick's (#6389)
     oid = S.ws_org(ws)
     doc = {"id": node["id"], "name": node["name"], "workspace": f"org:{oid}" if oid else "private", "source": m["source"],
            "sender": S.label_name(c, ws, "sender", m["sender_id"]), "type": S.label_name(c, ws, "type", m["type_id"]),
@@ -569,7 +571,7 @@ def fl_hook_off(c, rid, ws, why, error=""):
     if why == "admin" and r and not r.get("off"):
         r["off"] = True
         # sealed like _rule_save (#6560 5): a flow with a webhook secret stays sealed also with org_encrypt off; no server
-        # key (None): data stays as it is, hook_state 'admin' still holds the webhook
+        # key (None): data stays as it is, hook_state 'admin' holds the whole flow (store.py rules_get reads it as off, #6881)
         data = S._jseal(c, ws, "doc_rules.data", r, always=bool(r.get("hook_secret")))
         if data is not None:
             c.execute("UPDATE doc_rules SET data=? WHERE id=?", (data, rid))

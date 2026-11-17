@@ -11,6 +11,9 @@
    admin), the admin bob hears it; bob switches it on again and is its author from then on, the call goes out again
  - a person without an organisation (freelancer-matrix: files): frida's private flow switches off after failures, she
    hears it herself
+ - 2.1337.0 (#6881): a paused flow (hook_state admin) runs no action at all, also when the pause could not write off into
+   its data (no server key: the state alone holds it); a webhook call that cannot even be prepared counts at the flow like a
+   failed call and, given up, switches the webhook off and tells the admins
 freelancer-matrix: files
 tenant-matrix: document
 usage: p21321_a_flowhook_test.py <datadir>      (a fresh container; KMT_NOSTART=1: it runs already, with the stub)"""
@@ -29,7 +32,8 @@ from freelancer_fixture import FEATURES, freelancer, org_join  # noqa: E402
 
 STUB = "http://127.0.0.1:8097"
 KEY = base64.b64encode(os.urandom(32)).decode()  # #6560: the flow's webhook secret is sealed, refused without a server key
-kt.fresh(env={"KALMIDO_SECRET_KEY": KEY, "KALMIDO_DOCFLOW_TICK_S": "1", "KALMIDO_WEBHOOK_ALLOW_HOSTS": "127.0.0.1:8097", "KALMIDO_WEBHOOK_BACKOFF": "1,1"},
+kt.fresh(env={"KALMIDO_SECRET_KEY": KEY, "KALMIDO_DOCFLOW_TICK_S": "1", "KALMIDO_WEBHOOK_ALLOW_HOSTS": "127.0.0.1:8097", "KALMIDO_WEBHOOK_BACKOFF": "1,1",
+                   "KALMIDO_TEST_FL_FAIL_DOC": "kaputt6881.pdf"},
          prefix="P21321A")
 if not kt.nostart("P21321A"):
     shutil.copy(os.path.join(N, "stub_webhook.py"), DATA)
@@ -180,5 +184,36 @@ upload(Fr, "frida1.pdf", ["Fridafall eins", "Seite 1"])
 f = until(lambda: (lambda x: x if x and x.get("hook_state") == "failures" else None)(rule(Fr, "private", "Frida tot")), 60)
 check(f and f["hook_fails"] == 3, f"freelancer: switched off after the last retry {f}")
 check(until(lambda: integfail(Fr, "docflow_hook"), 15), "freelancer: she hears it herself")
+
+# ---- 2.1337.0 (#6881): a paused flow holds every action, not only its webhook. The pause without a server key leaves the
+# data as it was (no off in it) and only sets hook_state 'admin' -- made here directly, the server of this test has a key
+r = Bo.post(B + "/api/docs/rules", json={"ws": OWS, "name": "Halt", "kind": "any", "match": "Haltfall", "tags": ["Haltgelesen"], "webhook": STUB + "/ok"})
+check(r.status_code == 201, f"setup: bob's flow with a tag and a webhook {r.status_code} {r.text[:200]}")
+HALT = r.json().get("id") if r.ok else 0
+dbx("UPDATE doc_rules SET hook_state='admin' WHERE id=?", (HALT,))
+n_ok = len(calls("/ok"))
+h1 = upload(Bo, "halt1.pdf", ["Haltfall eins", "Seite 1"], ws=OWS)
+time.sleep(2)  # a few ticks of the webhook loop
+check("Haltgelesen" not in tags(Bo, h1), f"paused: the flow's tag is not set {tags(Bo, h1)}")
+check(not dbx("SELECT id FROM doc_flow_runs WHERE rule_id=?", (HALT,)), "paused: the flow made no run")
+check(len(calls("/ok")) == n_ok, "paused: no call went out")
+check((rule(Bo, OWS, "Halt") or {}).get("off") is True, "paused: the list shows the flow off")
+r = patch(Bo, rule(Bo, OWS, "Halt"), off=False)
+check(r.ok and dbx("SELECT hook_state FROM doc_rules WHERE id=?", (HALT,))[0][0] == "", f"paused: an admin switches it on again {r.status_code}")
+h2 = upload(Bo, "halt2.pdf", ["Haltfall zwei", "Seite 1"], ws=OWS)
+check(until(lambda: "Haltgelesen" in tags(Bo, h2), 30), "paused: switched on, the tag is set again")
+check(until(lambda: len(calls("/ok")) == n_ok + 1, 30), "paused: switched on, the call goes out again")
+
+# ---- 2.1337.0 (#6881): a call that cannot be prepared counts like every failed call and switches the webhook off at the end
+r = Bo.post(B + "/api/docs/rules", json={"ws": OWS, "name": "Kaputt", "kind": "any", "match": "Kaputtfall", "webhook": STUB + "/ok"})
+check(r.status_code == 201, f"setup: a flow whose call cannot be prepared {r.status_code} {r.text[:200]}")
+n_ok = len(calls("/ok"))
+k1 = upload(Bo, "kaputt6881.pdf", ["Kaputtfall eins", "Seite 1"], ws=OWS)
+f = until(lambda: (lambda x: x if x and x.get("hook_state") == "failures" else None)(rule(Bo, OWS, "Kaputt")), 60)
+check(f and f["hook_fails"] == 3 and "RuntimeError" in f["hook_error"], f"not prepared: counted at the flow and switched off {f}")
+check(dbx("SELECT hook FROM doc_flow_runs WHERE node_id=?", (k1,))[0][0] == "failed", "not prepared: the run's call is given up")
+check(len(calls("/ok")) == n_ok, "not prepared: nothing went out")
+nb = until(lambda: [x for x in integfail(Bo, "docflow_hook") if "Kaputt" in x["data"]["text"]], 15)
+check(nb, f"not prepared: the admin hears it {nb}")
 
 sys.exit(kt.done("p21321_a_flowhook"))
