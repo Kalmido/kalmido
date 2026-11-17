@@ -45,7 +45,7 @@ from ..collab.news import NEWS_CLEAN
 from ..accounts.users import need_admin
 from ..calendars.caldav import _DAV_CACHE, _DAV_CACHE_LOCK, _DAV_INST, dav_inst
 from ..notify.push import _b64u, _b64u_dec, _VAPID
-from ..notify.alerts import _clamp_int, _env_int, aa_count, aa_disk, aa_now, aa_oserr, aa_switch
+from ..notify.alerts import _clamp_int, _env_int, aa_count, aa_disk, aa_now, aa_oserr, aa_switch, Nn_
 from ..api.common import hit_limit  # 2.581.0 (#4826): the core layer's counter (the passphrase check)
 from ..calendars.subscriptions import _CAL_KEY
 from . import bkstore as bks  # 2.432.0 (#3584): the shared file store
@@ -95,6 +95,8 @@ BK_MISSING_SHOWN = 20          # 2.273.0 A (#3050): paths of vanished files name
 BK_OFFLINE_NOTE = N_("Devices that still hold unsent changes send them after reloading: they can meet the restored state as conflicts or come back as new items. Check recent work on those devices.")
 BK_MAX_RATIO = 500             # unpacked / packed per member above 1 MB (zip bomb)
 BK_STALE_S = 2 * 86400         # "backup older than 2 days" alert
+BK_CHECK_S = 7 * 86400         # 2.1338.0 (#6612): the newest backup is checked completely once a week (bk_check_tick)
+BK_OFF_S = 7 * 86400           # 2.1338.0 (#6612): automatic backups off and the newest backup older than this: alert
 BK_SAFETY_KEEP = 3
 # 2.152.0 B (#2172): weekly backups for at most a year (data protection: backups of deleted data are kept short and
 # documented); older safety backups go after ret_days("backups") (core/retention.py, behind its switch)
@@ -154,7 +156,8 @@ BK_ERR = {"busy": N_("Another backup or restore is running, please try again in 
           "io": N_("The backup could not be written ({0})."),
           "format": N_("This is not an Kalmido backup (or the file is damaged)."),
           "members": N_("The backup contains unexpected files and was refused."),
-          "too_large": N_("The backup is too large (limit {0} MB unpacked)."),
+          # 2.1338.0 (#6612): the text names the setting (it only applies to archives from outside since then)
+          "too_large": N_("The backup is too large (limit {0} MB unpacked, set with KALMIDO_BACKUP_MAX_MB)."),
           "bomb": N_("The backup looks like a zip bomb and was refused."),
           "hash": N_("The backup is damaged: a file does not match its checksum."),
           "integrity": N_("The database in the backup is damaged (integrity check failed)."),
@@ -191,7 +194,8 @@ BK_LEFTOVER_NOTE = N_("Folders from a restore are lying next to the data folder 
 # 2.359.3 (#2893): what a restore warns about (bk_key_state; "foreign" only gets this far with KALMIDO_SECRET_KEY_CHANGED=1)
 BK_KEY_WARN = {"foreign": N_("This backup was made with another server key: attachments, private files and encrypted fields stay unreadable until that key is back in place."),
                "secrets": N_("This backup may come from another server key: stored access tokens (Git, documents, single sign-on) may be unreadable. Enter them again or put the old key back.")}
-_BK = {"running": "", "started": 0.0, "next_try": 0.0, "stale_at": 0.0, "meta": {}}
+_BK = {"running": "", "started": 0.0, "next_try": 0.0, "stale_at": 0.0, "meta": {},
+       "check_next_try": 0.0, "off_at": 0.0}  # 2.1338.0 (#6612): the weekly check, the "switched off" alert
 _BK_LOCK = threading.Lock()
 
 
@@ -263,7 +267,8 @@ def bk_enc_header(f):
     return h, raw
 
 
-def bk_decrypt(src, dst, pw):
+def bk_decrypt(src, dst, pw, limit=True):
+    """limit=False (2.1338.0, #6612): a backup this server wrote itself, KALMIDO_BACKUP_MAX_MB does not apply."""
     with open(src, "rb") as f, open(dst, "wb") as o:
         h, raw = bk_enc_header(f)
         aes = AESGCM(bk_key(pw, _b64u_dec(h["salt"]), h))
@@ -289,7 +294,7 @@ def bk_decrypt(src, dst, pw):
                 e.first = i == 0  # 2.525.0 (#4303): the very first chunk = another passphrase (bk_old_pass), later = damaged
                 raise e
             total += len(pt)
-            if total > BK_MAX_BYTES:
+            if limit and total > BK_MAX_BYTES:
                 raise BackupError("too_large", BK_MAX_BYTES // 1048576)
             o.write(pt)
             if last:
@@ -715,6 +720,8 @@ def bk_public(x):
             "app_version": m.get("app_version", ""), "schema_version": m.get("schema_version"), "counts": m.get("counts") or {},
             "attachment_files": m.get("attachment_files"), "attachment_bytes": m.get("attachment_bytes"),
             "pack_files": m.get("pack_files") or 0,  # 2.359.2 (#2895)
+            # 2.1338.0 (#6612): what a downloaded copy holds unpacked (compared with KALMIDO_BACKUP_MAX_MB for uploads)
+            "unpacked_bytes": (m.get("db_bytes") or 0) + (m.get("attachment_bytes") or 0),
             "unreadable": bool(m.get("unreadable")), "missing_files": m.get("missing_files") or 0,  # 2.273.0 A (#3050)
             # 2.432.0 (#3584): files kept once in the shared store (size = this file only) and what this backup added there
             "shared_files": m.get("shared_files") or 0, "shared_bytes": m.get("shared_bytes") or 0,
@@ -950,7 +957,9 @@ def backup_tick(c):
         return
     from .offsite import bko_tick
     bko_tick(c)  # 2.143.0 B (#2152): the newest backup to the off-site target (also when only manual backups are made)
+    bk_check_tick(c)  # 2.1338.0 (#6612): also while the automatic backups are off (the manual ones are checked then)
     if gsetting(c, "bk_on") != "1":
+        bk_off_alert(c)  # 2.1338.0 (#6612): an old install with the schedule off heard nothing so far
         return
     bk_uploads_gc()
     now = local_now()
@@ -969,6 +978,91 @@ def backup_tick(c):
             last = gsetting(c, "bk_last_ok")
             aa_now("storage", "backup:stale", N_("The last successful backup is older than 2 days ({0})."),
                    [last[:16].replace("T", " ") + " UTC" if last else {"t": N_("none yet")}])
+
+
+def bk_check_tick(c):
+    """2.1338.0 (#6612): once a week the newest backup is checked completely, as the button "Check" does (decrypt, every
+    checksum, the shared store files, the dump read through): a damaged file in the shared store breaks every backup
+    that names it, and nobody noticed before a restore. A damaged store file is written again from its original while
+    that is still there (bk_store_repair). A failure is an admin alert and is checked again the next day; "busy" and a
+    backup deleted meanwhile try again within the hour. With the schedule on it runs after the day's backup. The clock
+    starts at the first tick (first check a week later)."""
+    if time.time() < _BK["check_next_try"] or _BK["running"]:
+        return
+    at = gsetting(c, "bk_check_at")
+    if not at:
+        gset(c, "bk_check_at", iso(now_utc()))
+        c.commit()
+        return
+    if (now_utc() - parse_iso(at)).total_seconds() < BK_CHECK_S:
+        return
+    if gsetting(c, "bk_on") == "1" and gsetting(c, "bk_last_day") != local_now().date().isoformat():
+        return  # the day's scheduled backup first: then that one is the newest
+    items = bk_list()
+    if not items:
+        gset(c, "bk_check_at", iso(now_utc()))
+        c.commit()
+        return
+    x = items[0]
+    pw = bk_passphrase(c) if x["encrypted"] else ""
+    c.rollback()  # (no read transaction stays open while a large backup is read through, #3118)
+    try:
+        man = bk_verify(os.path.join(BK_DIR, x["name"]), pw, (x.get("meta") or {}).get("format_version") == 3, True)
+        e = None
+    except BackupError as be:
+        e = bk_old_pass(be, "", True)
+    except FileNotFoundError:  # deleted meanwhile (rotation): the next newest within the hour
+        e = BackupError("not_found")
+    except OSError as oe:
+        e = BackupError("io", aa_oserr(oe))
+    if e is not None and e.code in ("busy", "store_busy", "not_found"):
+        _BK["check_next_try"] = time.time() + 3600
+        return
+    when = now_utc()
+    if e is None:
+        gset(c, "bk_check_at", iso(when))
+        gset(c, "bk_check_error", "")
+        n = man.get("_repaired") or 0
+        print(f"backup check: {x['name']} is fine" + (f" ({n} damaged shared file(s) written again)" if n else ""), flush=True)
+        if n:
+            aa_now("storage", "backup:repaired", Nn_("The weekly backup check found {0} damaged file in the backup folder and wrote it again from the original. Check the disk of the backup folder.",
+                                                     "The weekly backup check found {0} damaged files in the backup folder and wrote them again from the originals. Check the disk of the backup folder."), [n], n)
+    else:
+        gset(c, "bk_check_at", iso(when - timedelta(seconds=BK_CHECK_S - 86400)))  # again tomorrow (a new backup may be fine)
+        gset(c, "bk_check_error", e.text("en"))
+        gset(c, "bk_check_error_at", iso(when))
+        print("backup check FAILED:", x["name"], e.text("en"), flush=True)
+        aa_now("storage", f"backup:check:{e.code}", N_("The weekly check of the newest backup ({0}) failed: {1}"),
+               [x["name"], {"t": BK_ERR.get(e.code, BK_ERR["format"])} if not e.args_ else e.text("en")], click="settings/backup")
+    gset(c, "bk_check_name", x["name"])
+    gset(c, "bk_check_ok", "" if e else iso(when))
+    c.commit()
+
+
+def bk_off_alert(c):
+    """2.1338.0 (#6612): automatic backups switched off (an old install, bk_on 0) and the newest backup older than BK_OFF_S
+    (or none): an admin alert once a week, looked at hourly, from BK_OFF_S after the first
+    look on. "Older than 2 days" only runs with the schedule on."""
+    if time.time() - _BK["off_at"] < 3600:
+        return
+    _BK["off_at"] = time.time()
+    since = gsetting(c, "bk_watch_from")  # (the first tick with this check: a fresh install or the update is not warned at once)
+    if not since:
+        gset(c, "bk_watch_from", iso(now_utc()))
+        c.commit()
+        return
+    if (now_utc() - parse_iso(since)).total_seconds() <= BK_OFF_S:
+        return
+    items = bk_list()
+    if items and (now_utc() - items[0]["at"]).total_seconds() <= BK_OFF_S:
+        return
+    told = gsetting(c, "bk_off_told")  # once a week (the alert cooldown alone would repeat it every few hours)
+    if told and (now_utc() - parse_iso(told)).total_seconds() < BK_OFF_S:
+        return
+    gset(c, "bk_off_told", iso(now_utc()))
+    c.commit()
+    aa_now("storage", "backup:off", N_("Automatic backups are switched off and there is no backup from the last 7 days (newest: {0}). Switch them on under Settings > Server > Backup."),
+           [items[0]["at"].strftime("%Y-%m-%d %H:%M") if items else {"t": N_("none yet")}], click="settings/backup")
 
 
 def bk_fail_tell(c, e):
@@ -1013,7 +1107,7 @@ def backup_loop():
 
 
 # ---- inspection / extraction of an archive (restore, verify)
-def bk_open(path, pw, work):
+def bk_open(path, pw, work, limit=True):
     """Path of the plain zip (decrypted into `work` when needed) + the encryption header or None."""
     with open(path, "rb") as f:
         head = f.read(len(BK_MAGIC))
@@ -1021,16 +1115,18 @@ def bk_open(path, pw, work):
         if not pw:
             raise BackupError("need_passphrase")
         zp = os.path.join(work, "archive.zip")
-        return zp, bk_decrypt(path, zp, pw)
+        return zp, bk_decrypt(path, zp, pw, limit)
     if head[:4] != b"PK\x03\x04":
         raise BackupError("format")
     return path, None
 
 
-def bk_check_zip(z, space=True):
+def bk_check_zip(z, space=True, limit=True):
     """Validates the member list; returns the manifest (with files) or BackupError. space=False: no free space and no
     version check (the download of a format-3 backup writes and restores nothing). 2.432.0 (#3584): format 3 = + the
-    list "shared" (bkstore.py)."""
+    list "shared" (bkstore.py). 2.1338.0 (#6612): limit=False = a backup this server wrote itself: KALMIDO_BACKUP_MAX_MB
+    (the unpacked total) is for archives from outside only - before, an instance with more attachments than the limit
+    could neither check nor restore any of its own backups (the zip bomb ratio and the member count stay)."""
     infos = z.infolist()
     if len(infos) > BK_MAX_MEMBERS:
         raise BackupError("members")
@@ -1045,7 +1141,7 @@ def bk_check_zip(z, space=True):
             raise BackupError("members")
         seen.add(n)
         total += i.file_size
-        if total > BK_MAX_BYTES:
+        if limit and total > BK_MAX_BYTES:
             raise BackupError("too_large", BK_MAX_BYTES // 1048576)
         if i.file_size > 1024 * 1024 and i.file_size > BK_MAX_RATIO * max(1, i.compress_size):
             raise BackupError("bomb")
@@ -1092,7 +1188,7 @@ def bk_check_zip(z, space=True):
                 raise BackupError("members")
             listed[f[0]] = f
             total += f[1]
-            if total > BK_MAX_BYTES:
+            if limit and total > BK_MAX_BYTES:
                 raise BackupError("too_large", BK_MAX_BYTES // 1048576)
     elif "shared" in man:
         raise BackupError("format")
@@ -1436,14 +1532,17 @@ def bk_scan_dump(dump):
             "secret_fp": meta.get(SKFP_KEY, "")}
 
 
-def bk_prepare(path, pw, work, att_dest=None, office_dest=None, restore=False, pack_dest=None):
+def bk_prepare(path, pw, work, att_dest=None, office_dest=None, restore=False, pack_dest=None, own=False):
     """Checks an archive completely; extracts the dump into work (and the attachments into att_dest, the office files into
     office_dest, the own industry packs into pack_dest, if given) and reads it through once. Returns (manifest, dump path). A format-1 archive (SQLite, before
-    2.37) is checked (members, checksums); 2.1034.0 (#5304): its restore is refused (the move tool is gone)."""
-    zp, _ = bk_open(path, pw, work)
+    2.37) is checked (members, checksums); 2.1034.0 (#5304): its restore is refused (the move tool is gone).
+    2.1338.0 (#6612): own = a backup this server wrote (not an upload): no size limit, and a check (nothing extracted)
+    writes a damaged shared store file again from its original while that is still there unchanged (man["_repaired"])."""
+    zp, _ = bk_open(path, pw, work, limit=not own)
+    repaired = 0
     try:
         with zipfile.ZipFile(zp) as z:
-            man = bk_check_zip(z)
+            man = bk_check_zip(z, limit=not own)
             if man["_legacy"] and restore:  # 2.1034.0 (#5304): before anything is extracted
                 raise BackupError("legacy")
             dbp = os.path.join(work, BK_DUMP)
@@ -1486,8 +1585,15 @@ def bk_prepare(path, pw, work, att_dest=None, office_dest=None, restore=False, p
                     m = BK_MEMBER_RE.fullmatch(name)
                     base = None if att_dest is None else office_dest if m.group(1) == "office" else att_dest
                     if base is None:
-                        for _ in bk_shared_chunks(key, sha, size):
-                            pass
+                        try:
+                            for _ in bk_shared_chunks(key, sha, size):
+                                pass
+                        except BackupError as e:
+                            if not (own and att_dest is None and e.code == "hash" and bk_store_repair(key, name, size, sha)):
+                                raise
+                            repaired += 1
+                            for _ in bk_shared_chunks(key, sha, size):  # (read once more: the new file must pass as well)
+                                pass
                         continue
                     d = os.path.join(base, m.group(2))
                     dest = os.path.join(d, m.group(3))
@@ -1503,6 +1609,7 @@ def bk_prepare(path, pw, work, att_dest=None, office_dest=None, restore=False, p
         raise BackupError("format") from None
     except (zipfile.LargeZipFile, NotImplementedError, EOFError):
         raise BackupError("format") from None
+    man["_repaired"] = repaired
     if not man["_legacy"]:
         man["db"] = bk_scan_dump(dbp)
         man["key_state"] = bk_key_state(man)  # 2.359.3 (#2893)
@@ -1527,6 +1634,29 @@ def bk_shared_chunks(key, sha, size):
         if e.code == "missing":
             raise BackupError("shared_missing", 1) from None
         raise BackupError("hash") from None
+
+
+def bk_store_repair(key, name, size, sha):
+    """2.1338.0 (#6612): a shared store file failed its check (bytes changed, e.g. a bad sector; bks.put keeps a file of the right
+    size and never reads it again). Every backup that names it would fail its restore: it is written again from the original
+    attachment / office file, if that is still there with exactly this content. -> True when written."""
+    m = BK_MEMBER_RE.fullmatch(name)
+    if not m:
+        return False
+    base = OFFICE_DIR if m.group(1) == "office" else ATT_DIR
+    full = os.path.join(base, name.split("/", 1)[1])
+    if not os.path.realpath(full).startswith(os.path.realpath(base) + os.sep):
+        return False
+    try:
+        if os.path.islink(full) or os.path.getsize(full) != size or _sha256_file(full) != sha:
+            return False
+        got = bks.put(BK_STORE, key, full, sha, size, force=True)
+    except (OSError, bks.StoreError):
+        return False
+    if got is None:
+        return False
+    print("backup check: a damaged file of the shared store was written again from its original:", got[0], flush=True)
+    return True
 
 
 def bk_shared_missing(man, key):
@@ -2024,7 +2154,9 @@ def bk_restore(path, pw, admin, via, keep_purged=False):
         os.makedirs(pack_new, mode=0o755)
         rlock = bk_read_lock()  # 2.525.0 (#4303): no clean-up of the store (worker process) while its shared files are read
         try:
-            man, dbp = bk_prepare(path, pw, work, att_new, off_new, restore=True, pack_dest=pack_new)
+            # 2.1338.0 (#6612): a listed backup of this server (not an upload) is restored whatever its size
+            own = os.path.dirname(os.path.abspath(path)) != os.path.join(BK_DIR, ".uploads")
+            man, dbp = bk_prepare(path, pw, work, att_new, off_new, restore=True, pack_dest=pack_new, own=own)
         finally:
             bks.unlock(rlock)
         kstate = man.get("key_state", "ok")
@@ -2257,6 +2389,9 @@ def bk_state(c):
             "total_bytes": sum(x["size"] for x in items) + store[1], "free_bytes": aa_disk().get("free"),
             "store_files": store[0], "store_bytes": store[1],  # 2.432.0 (#3584): the shared store (one line in the list)
             "max_mb": BK_MAX_BYTES // 1048576, "items": [bk_public(x) for x in items],
+            # 2.1338.0 (#6612): the weekly check of the newest backup (bk_check_tick)
+            "check_ok": gsetting(c, "bk_check_ok"), "check_error": gsetting(c, "bk_check_error"),
+            "check_error_at": gsetting(c, "bk_check_error_at"), "check_name": gsetting(c, "bk_check_name"),
             # 2.152.0 B (#2172): the limits the admin view explains
             "encrypt_required": BK_ENCRYPT_REQUIRED, "keep_weekly_max": bk_weekly_max(),  # 2.306.0 G (#2946): always set
             "same_disk_only": bk_same_disk() and not (bko["type"] and bko["on"])}  # 2.1179.0 C (#2898): no copy anywhere else
@@ -2446,7 +2581,7 @@ def bk_download_pass(p):
         raise BackupError("need_passphrase")
     work = tempfile.mkdtemp(prefix=".tmp-dl-", dir=BK_DIR)
     try:
-        bk_decrypt(p, os.path.join(work, "archive.zip"), pw)
+        bk_decrypt(p, os.path.join(work, "archive.zip"), pw, limit=False)  # 2.1338.0 (#6612): an own backup
     except BackupError as e:
         raise bk_old_pass(e, given, True) from None  # 2.525.0 (#4303): the same rule as check and restore
     finally:
@@ -2481,13 +2616,13 @@ def bk_download_assembled(p, name, enc, pw, rlock=None):
                 raise BackupError("need_passphrase")
             zp = os.path.join(work, "archive.zip")
             try:
-                head = bk_decrypt(p, zp, pw)
+                head = bk_decrypt(p, zp, pw, limit=False)  # 2.1338.0 (#6612): an own backup, no size limit
             except BackupError as e:
                 raise BackupError("old_passphrase" if e.code == "passphrase" else e.code, *e.args_) from None
         else:
             zp = p
         z = held["z"] = zipfile.ZipFile(zp)
-        man = bk_check_zip(z, space=False)
+        man = bk_check_zip(z, space=False, limit=False)
         key = bk_store_key(man, pw)
         miss = bk_shared_missing(man, key)
         if miss:
@@ -2585,24 +2720,32 @@ def backups_verify(name):
             raise BackupError("not_found") from None
         finally:
             _BK["meta"].pop(name, None)  # review: an upload's manifest is not kept in the summary cache (read once here)
-    work = tempfile.mkdtemp(prefix=".verify-", dir=BK_DIR)
-    rlock = None
     try:
-        rlock = bk_read_lock() if fmt3 else None
-        man, _ = bk_prepare(p, pw, work)
+        man = bk_verify(p, pw, fmt3, own)
     except BackupError as e:
         if e.code == "passphrase" and given:  # 2.644.0 (#4530): only a typed-in passphrase counts as a try (as the restore)
             _rate_fail(keys)
         raise bk_old_pass(e, given, own) from None
-    finally:
-        bks.unlock(rlock)
-        shutil.rmtree(work, ignore_errors=True)
     return jsonify(ok=True, created_at=man.get("created_at"), app_version=man.get("app_version"),
+                   repaired=man.get("_repaired") or 0,  # 2.1338.0 (#6612)
                    schema_version=man.get("schema_version"), counts=man.get("counts") or {}, legacy=man["_legacy"],
                    attachment_files=man.get("attachment_files"), attachment_bytes=man.get("attachment_bytes"),
                    pack_files=man.get("pack_files") or 0,  # 2.359.2 (#2895)
                    key_warning=bk_key_warning(man),  # 2.359.3 (#2893)
                    missing_files=man.get("missing_files") or 0, missing_paths=man.get("missing_paths") or [])  # 2.273.0 A (#3050)
+
+
+def bk_verify(p, pw, fmt3, own):
+    """The full check of one archive (the button "Check" and the weekly check, 2.1338.0 #6612): a work folder, the readers'
+    lock of the store for a format-3 archive, bk_prepare without extracting. -> the manifest; BackupError."""
+    work = tempfile.mkdtemp(prefix=".verify-", dir=BK_DIR)
+    rlock = None
+    try:
+        rlock = bk_read_lock() if fmt3 else None
+        return bk_prepare(p, pw, work, own=own)[0]
+    finally:
+        bks.unlock(rlock)
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def bk_no_upload_hosted():

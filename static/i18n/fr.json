@@ -1899,7 +1899,6 @@
   "The backup could not be written ({0}).": "La sauvegarde n'a pas pu être écrite ({0}).",
   "This is not an Kalmido backup (or the file is damaged).": "Ce n'est pas une sauvegarde Kalmido (ou le fichier est endommagé).",
   "The backup contains unexpected files and was refused.": "La sauvegarde contient des fichiers inattendus et a été refusée.",
-  "The backup is too large (limit {0} MB unpacked).": "La sauvegarde est trop volumineuse (limite de {0} Mo décompressée).",
   "The backup looks like a zip bomb and was refused.": "La sauvegarde ressemble à une bombe zip et a été refusée.",
   "The backup is damaged: a file does not match its checksum.": "La sauvegarde est endommagée : un fichier ne correspond pas à sa somme de contrôle.",
   "The database in the backup is damaged (integrity check failed).": "La base de données de la sauvegarde est endommagée (échec de la vérification d'intégrité).",
