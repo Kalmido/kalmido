@@ -34,7 +34,7 @@ from ..core.db import body, bump, err, iso, iso_ms, local_now, now_utc, test_sec
 from ..core.i18n import N_, tr
 from ..core.pg import system_ctx, write_lock
 from ..core.access import Denied, live_sql
-from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..accounts.orgroles import OFFICE_READ
 from ..tasks.validation import valid_date
 from ..collab.news import news_add
