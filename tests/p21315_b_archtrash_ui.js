@@ -56,6 +56,12 @@ const toastWith = (d, rx) => { const t = d.querySelector('#toast'); return t && 
   // ---- the toast's Undo
   t1?.querySelector('button')?.click();
   check(!!await until(() => row(d), {timeout: 30000}), "the toast's Undo: the row is back");
+  // 2.1329.0 (#6848): the history's reload after the undo came later and showed "Loading" instead of the rows - the row
+  // blinked away again (CI: row(d) undefined below); now the rows stay until the fresh list is there
+  let blink = 0; const iv = setInterval(() => { if (!row(d)) blink++; }, 5);
+  await idle(w);
+  clearInterval(iv);
+  check(blink === 0 && !!row(d), `after the undo the row stays (no reload in between hides it: ${blink})`);
   check((await call('GET', `/api/office/legacy/archive/${aid}`)).number === NUM, 'with its number');
 
   // ---- again, then back through the office trash
