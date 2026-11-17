@@ -224,7 +224,10 @@ check(not bad_full, f"a token with the scope is never refused for the scope: {ba
 check(spec["paths"]["/attachments/{id}"]["get"]["x-kalmido-scope"] == "attachments:read"
       and spec["paths"]["/tasks/{id}"]["delete"]["x-kalmido-scope"] == "delete"
       and spec["paths"]["/tasks/{id}/comments"]["post"]["x-kalmido-scope"] == "comments"
-      and spec["paths"]["/agent/status"]["put"]["x-kalmido-scope"] == "agent", "OpenAPI: the scopes of some known operations")
+      and spec["paths"]["/agent/status"]["put"]["x-kalmido-scope"] == "agent"
+      # 2.1364.0 (#6297 (11)): the bytes of a sign-off version are a download like the others
+      and spec["paths"]["/videos/{id}/versions/{version_id}/file"]["get"]["x-kalmido-scope"] == "attachments:read",
+      "OpenAPI: the scopes of some known operations")
 
 # ================================================================== agents: default scopes, changes, token expiry
 r = A.post(B + "/api/admin/agents", json={"username": "claude", "display_name": "Claude"})
