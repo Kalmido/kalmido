@@ -19,10 +19,8 @@
 
 ## What's new
 
-**2.1346.0** (2026-11-17):
-- **Office**: quotes and invoices show a bold subtotal before surcharges and discounts; invoices without a client get fixed address fields; finalising an e-invoice names missing required data.
-- **Security**: organisations with retained documents can no longer be deleted; hosted agents get a hard day limit in tokens.
-- **Install**: the repository and image moved to `Kalmido/kalmido` / `ghcr.io/kalmido/kalmido`; installers follow all redirects.
+**2.1351.0** (2026-11-17):
+- **Backups**: your own backups have no size limit (`KALMIDO_BACKUP_MAX_MB` applies to uploaded archives only); the newest backup is checked completely once a week, and a damaged shared file is repaired from its original.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
