@@ -28,7 +28,7 @@ from ..core.i18n import N_, lang, tr
 from ..core.pg import system_ctx, write_lock
 from ..core.access import Denied, live_sql  # 2.149.0 G (#2517): pulled up from functions; 2.1005.0 (#5415): live_sql
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
-from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from .fixedimport import fci_people  # 2.369.5 (#2517): pulled up from functions
 from .model import office_on, office_role, office_settings, pb_personal  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
