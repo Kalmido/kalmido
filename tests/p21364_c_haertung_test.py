@@ -12,6 +12,8 @@
  4 a mail reply through the own address token of a read-only member with a colleague's forged From: no comment, a note
  5 another person's own ticket types: only the ones their private project I see offers, without note template, switched off
    ones or id (was: every own type of that person)
+ 6 a table shared by e-mail address tells nothing of an account behind it: the file store's node shows neither the bound
+   account's share nor a history line naming it, and its share id answers 404 like an unknown one (was 400)
 usage: p21364_c_haertung_test.py <datadir>"""
 import base64
 import os
@@ -216,5 +218,23 @@ check(seen and "template" not in seen[0] and "id" not in seen[0] and seen[0].get
       f"(5) without note template and id ({sorted(seen[0]) if seen else None})")
 own = [x for x in Bo.get(B + "/api/ticket-types").json().get("types", []) if x.get("owner_id") == BOB]
 check(len(own) == 3 and all("template" in x for x in own), "(5) bob still sees all his own types with templates")
+
+# ==== 6: sharing a table by address
+Bo.patch(B + "/api/settings", json={"workspace": "private"})
+SH = Bo.post(B + "/api/sheets", json={"title": "Prices", "space": "private"}).json().get("id")
+r1 = Bo.post(B + f"/api/sheets/{SH}/shares", json={"email": "dora@example.com", "role": "read"})
+r2 = Bo.post(B + f"/api/sheets/{SH}/shares", json={"email": "nobody6297@example.com", "role": "read"})
+check(SH and r1.status_code == r2.status_code == 201 and sorted(r1.json()) == sorted(r2.json()), "(6) the same answer with and without an account")
+FSS = dbx("SELECT s.id FROM fs_shares s JOIN fs_nodes n ON n.id=s.node_id WHERE n.ref_kind='sheet' AND n.ref_id=? AND s.user_id=?", (SH, DORA))
+check(bool(FSS), "(6) setup: dora's account holds the table through the address (bound)")
+NODE = dbx("SELECT id FROM fs_nodes WHERE kind='ref' AND ref_kind='sheet' AND ref_id=?", (SH,))[0][0]
+nd = Bo.get(B + f"/api/files/nodes/{NODE}").json()
+check(not any(x.get("user_id") == DORA for x in nd.get("shares", [])), f"(6) the file store's node lists no share of dora ({nd.get('shares')})")
+check(not any(f"user:{DORA}" in (x.get("detail") or "") or x.get("user_id") == DORA for x in nd.get("log", [])),
+      "(6) and its history names no account of an address")
+fid = FSS[0][0] if FSS else 0
+codes = (Bo.patch(B + f"/api/sheets/{SH}/shares/{fid}", json={}).status_code, Bo.patch(B + f"/api/sheets/{SH}/shares/{fid + 9999}", json={}).status_code)
+check(codes == (404, 404), f"(6) the bound share's id answers like an unknown one {codes}")
+check(Bo.get(B + f"/api/sheets/{SH}/shares").ok, "(6) the table's own dialog still lists its shares")
 
 sys.exit(kt.done("p21364_c_haertung"))
