@@ -3280,7 +3280,7 @@ class Runner:
         what = "status_chat" if uid else "status_event"  # 2.450.0 (#3769): a key of TEXTS
         if not self.run_request(evs, uid):  # 2.1325.0 (#6668): before anything of the run reads Kalmido
             # review F1: a team agent without a request token (the person may not order it, the server refused, the network)
-            log(f"run skipped: no request token ({'chat ' + str(uid) if uid else 'task event'})")
+            log(f"run not started: no request token ({'chat ' + str(uid) if uid else 'task event'})")
             self.status_say("idle", "status_no_request")
             return
         if self.extras:  # 2.44.0 B (#1443): a fresh outbox folder for a chat run
