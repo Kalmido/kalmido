@@ -5056,7 +5056,8 @@ it, `in` = to it), `rel` (what it means), `note`, and `other` = the other side `
 `ok`, or `gone` once that object is deleted or in the trash (then without title); a side you may not see is left out.
 Review 2.1076: a side in the trash shows as `gone` only when you may restore it (else it is left out); a side deleted for good
 is `{state: gone}` without `kind` and `id` unless you made the link. Your token needs the read scope of the other side too
-(an event: `calendar`; a contact: `contacts`): linking to a kind you may not read is `403`, such sides are left out of the list,
+(an event: `calendar`; a contact: `contacts`; since 2.1364.0 (#6297) a table `sheets:read` / `sheets:write`, a file or folder
+`files:read` / `files:write`, a knowledge page `wiki:read` / `wiki:write`): linking to a kind you may not read is `403`, such sides are left out of the list,
 and removing a link needs the write scope of its source. The workspace of a file, a knowledge page or a table is its own row's.
 `POST .../links` with `{kind, id, rel?, note?}` links the object (you need write on it: your share `edit`, the kind's write
 scope) with another one you see in the **same workspace**; `rel` is a short name (default `related`), `note` at most 500
