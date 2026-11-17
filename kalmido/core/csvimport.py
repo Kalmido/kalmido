@@ -21,7 +21,7 @@ import re
 import unicodedata
 import xml.etree.ElementTree as ET
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from . import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
 from .i18n import tr
@@ -161,12 +161,36 @@ def csv_table_numbered(text, max_rows=CSV_ROWS):
     return d, header, body, list(nums[hi + 1:])
 
 
+class XlNum(str):
+    """2.1315.0 (#6590 a): the stored text of a real number cell of a spreadsheet (.xlsx "n", .xls number): always a dot as
+    decimal mark, never a thousand separator. The cell type decides, amount_text never guesses it by the text rule ("0.125"
+    of a number cell was 125). str() and strip() keep the mark, so the readers' str(cell).strip() pass it on."""
+    __slots__ = ()
+
+    def __str__(self):
+        return self
+
+    def strip(self, chars=None):
+        return self if chars is None else str.strip(self, chars)
+
+
+def xl_num_value(s):
+    """Decimal of an XlNum (also "1.5E-7" and formula results with many decimals) or None."""
+    try:
+        v = Decimal(str.__str__(s))
+    except InvalidOperation:
+        return None
+    return v if v.is_finite() else None
+
+
 def amount_text(s, dec=None):
     """2.355.0 B (#2843): the one reader of a typed / exported money amount -> unrounded signed Decimal or None (unreadable,
     never a silent other number). Thousand separators only in groups of three ("1.234,56", "1,234.56", "1'234.56"); dec ","
     or "." is the decimal mark of the file, dec None reads both (German first: "1.500" = 1500, "1.234,5" / "1,234.5" by the
     last mark). A single mark before exactly three digits after at most three ("1,500", "1.234" with the decimal point)
     could be a thousand or three decimals and is unreadable."""
+    if isinstance(s, XlNum):  # 2.1315.0 (#6590 a): a number cell is read as stored (dot = decimal), never by the text rule
+        return xl_num_value(s)
     s = re.sub(r"[\s\u00a0\u202f]", "", str(s or ""))
     s = re.sub(r"(?i)(eur|€|\$|usd|chf|£)", "", s)
     if not s:
