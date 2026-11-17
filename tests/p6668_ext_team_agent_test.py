@@ -290,9 +290,13 @@ r = ask([SC + 100000])
 check(r.status_code == 404 and err(r).get("code") == "event_gone", f"(d) an unknown event 404 {r.status_code}")
 r = A.post(B + "/api/admin/agents", json={"scopes": SCOPES, "username": "otherbot", "display_name": "Other Bot", "org_id": ORG})
 check(r.status_code == 201, f"setup: another team agent {r.status_code}")
-YH = {"Authorization": "Bearer " + r.json().get("token", "")}
+YT, YH = r.json().get("id"), {"Authorization": "Bearer " + r.json().get("token", "")}
 r = requests.post(V + "/agent/request-token", headers=YH, json={"seqs": [SC]}, timeout=30)
 check(r.status_code == 404 and not r.json().get("token"), f"(d) another agent gets no token for this agent's event (404) {r.status_code}")
+r = requests.post(V + "/agent/request-token", headers=YH, json={"seqs": []}, timeout=30)
+check(r.status_code == 400, f"(d) no event: 400 {r.status_code}")
+check(dbx("SELECT per_request FROM agents WHERE user_id=?", (YT,)) == [(False,)],
+      "(d) review F5: refused asks never switch an agent to per request (only an issued request token does)")
 r = ask(None, operator=True)
 check(r.status_code == 409 and err(r).get("code") == "no_operator", f"(d) nobody chosen for its questions: 409 {r.status_code} {r.text[:160]}")
 r = ask([])
