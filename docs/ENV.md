@@ -264,6 +264,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_IMPORT_MAX_MB` | `20` | Size in MB of an import file (other task apps). |
 | `KALMIDO_IMPORT_MAX_TASKS` | `20000` | Tasks per import at most. |
 | `KALMIDO_IMPORT_RATE` | `30` | Imports and previews per person in 10 minutes; new import uploads (account, knowledge, Paperless) have a counter of their own with the same value. |
+| `KALMIDO_MBR_LOOK` | `1000` | Mails of one folder the document rules of a mailbox look at per run (the rest follows in the next run). |
 | `KALMIDO_PAYONLINE_GO_RATE` | `10` | Checkouts one address may start per minute on the public pay page (2.469.0). |
 | `KALMIDO_PEPPOL_ALLOW_HOSTS` | `(empty)` | Internal hosts the own Peppol endpoint of any office area may reach (the calendar allow list counts only when an instance admin sets the endpoint, 2.306.0). |
 | `KALMIDO_PUBLIC_LINKS` | `1` | Switch: public read-only links of lists. |
@@ -391,6 +392,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_TEST_PG_DUMP_VERSION` | `(empty)` | Test containers only (with KALMIDO_TEST=1): plays the output of pg_dump --version in the check before a backup (2.359.3, #2945). |
 | `KALMIDO_TEST_RATE_WINDOW_S` | `60` | Test containers only (with KALMIDO_TEST=1): seconds of the request rate window instead of a minute. |
 | `KALMIDO_TEST_ROT_ABORT` | `(empty)` | Tests: stop the key rotation right after the switch (1). |
+| `KALMIDO_TEST_RQ_WINDOW_S` | `3600` | Test containers only (with KALMIDO_TEST=1): seconds of the hourly limits of requests by e-mail. |
 | `KALMIDO_TEST_TIMING_ALL` | `(empty)` | Tests: Server-Timing for every account, not only instance admins (1). |
 | `KALMIDO_TEST_UMZ_END_DELAY` | `(empty)` | Test containers only (with KALMIDO_TEST=1): seconds an account or wiki import's worker waits before it ends (2.308.0, #3261; 2.363.0, #3280). |
 | `KALMIDO_TEST_UMZ_SHARE_DELAY` | `(empty)` | Test containers only (with KALMIDO_TEST=1): seconds an account or organisation import waits after sharing with each ticked person, before it commits (2.644.0, #5024). |
