@@ -133,7 +133,8 @@ function ofm_admSeen(adm, rights, used, menuOff = []) {
 }
 // 2.545.0 (#4592): a member in "Previous access" has the level "own" in some areas (server: office/rights.py LEGACY_OWN,
 // the travel expenses): their menu point shows, everything else stays as before
-// 2.1094.0 (#5902): the role Bookkeeping (accounting) in "Previous access" reads every area (server: rights.py ofr_legacy_levels,
+// 2.1094.0 (#5902): the role Bookkeeping (accounting) in "Previous access" reads every area (2.1340.0 #6613: but pipeline,
+// documents and correspondence, their level "none" hides them here; server: rights.py ofr_legacy_levels ACC_NONE,
 // model.py office_org lets it read the admins' routes) - its levels are "view" down to the settings, which no other role of
 // "Previous access" has: then every area it may read shows (Bookkeeping, Bank, ...; writes stay refused by the server)
 const ofm_legOwnOf = r => !r || !r.legacy || !r.levels ? [] : Object.keys(r.levels).filter(k => r.levels.settings === 'view' ? r.levels[k] !== 'none' : r.levels[k] === 'own');
