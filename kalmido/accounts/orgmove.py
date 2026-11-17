@@ -9,9 +9,9 @@ at any time (everything runs again; invoice series that missed a period meanwhil
 task "Invoice series ... paused", office/recurring.py rin_moved) or has the organisation deleted. Starting and ending are written
 to the organisation's log (org_list_log, actions move_on / move_off: Projects of the organisation > History).
 
-GET    /api/orgs/<oid>/moving   every member: {moving, since?, by_name?, why?}
-POST   /api/orgs/<oid>/moving   an admin: {confirm: the organisation's name, why?} -> starts it (409 when it runs already)
-DELETE /api/orgs/<oid>/moving   an admin: ends it -> {moving: false, paused: [series ids]}
+GET    /api/orgs/<org id>/moving   every member: {moving, since?, by_name?, why?}
+POST   /api/orgs/<org id>/moving   an admin: {confirm: the organisation's name, why?} -> starts it (409 when it runs already)
+DELETE /api/orgs/<org id>/moving   an admin: ends it -> {moving: false, paused: [series ids]}
 People only (agents 403); app only (APP_ONLY "* /api/orgs" in tests/parity_test.py)."""
 import json
 
