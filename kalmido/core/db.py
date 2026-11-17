@@ -333,8 +333,9 @@ def create_user(c, username, display_name="", password=None, proxy_login=None, i
     pl = is_admin if paperless_access is None else paperless_access
     # 2.138.0 C (#1907): no upload token until the person creates one (shown once); a seeded one (TASKS_DROP_TOKEN) as hash
     from ..core.tokenhash import tkh_hash
+    # 2.1313.0 (#6557): drop_agent 0 = a new token never sends to agents until the person switches it on (NULL = from before)
     uid = insert_id(c, """INSERT INTO users(username,display_name,password_hash,proxy_login,is_admin,drop_token_hash,drop_token_at,
-                                         created_at,paperless_access) VALUES(?,?,?,?,?,?,?,?,?)""",
+                                         created_at,paperless_access,drop_agent) VALUES(?,?,?,?,?,?,?,?,?,0)""",
                     (username, display_name or username, generate_password_hash(password) if password else None,
                      proxy_login or None, 1 if is_admin else 0, tkh_hash(drop_token), iso(now_utc()) if drop_token else None,
                      iso(now_utc()), 1 if pl else 0))

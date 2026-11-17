@@ -237,6 +237,7 @@ def chat_dict(r, rx=None, files=None, api=False, newest=None, edits=False):
             "job_parent": r["job_parent"] if "job_parent" in r.keys() else None,  # 2.47.3 (#1764): the leading job of that part job
             "job_msg": r["job_msg"] if "job_msg" in r.keys() else None,  # 2.96.0 C (#2015): say | question | result | error (null = unknown)
             "source": r["source"] if "source" in r.keys() else None,  # 2.388.0 (#3341): e.g. dispatcher, the app can hide it (null = the agent itself)
+            **chat_drop_mark(r),  # 2.1313.0 (#6557): a person's message through the upload token: origin drop, untrusted
             # 2.37.0 (#1159): the agent offers "Save as task" under this message (the person saves, never the agent)
             "offer_save": bool(r["offer_save"]) if "offer_save" in r.keys() and r["sender"] == "agent" else False,
             **chat_reply(r),  # 2.33.0 (#1076): reply_to + reply (the quote of the answered message)
@@ -769,6 +770,14 @@ JCB_NOT_SQL = "COALESCE(kind, '')<>'brief'"
 CHAT_UNSHARED_SQL = "COALESCE(kind, '')<>'unshared'"
 
 
+def chat_drop_mark(r):
+    """2.1313.0 (#6557): {origin: 'drop', untrusted: True} for a person's message sent through the upload token (/drop, core/
+    pages.py drop_to_agent, agent_chat.source 'drop'), else {}. The token lives in plain text in other apps: whoever holds it
+    can write such a message, so the agent treats it like text from outside (acts only after an approval card)."""
+    keys = r.keys()
+    return {"origin": "drop", "untrusted": True} if r["sender"] == "user" and "source" in keys and r["source"] == "drop" else {}
+
+
 def chat_source(v):
     """2.388.0 (#3341): the checked field source of POST /api/v1/agent/chats/{uid}: a short name, None without."""
     if v in (None, ""):
@@ -1189,6 +1198,7 @@ def chat_emit(c, aid, r):
     """The 'chat' event for the agent about a person's message r (with its files: REST addresses)."""
     tid = r["task_id"]
     data = {"message": chat_one(c, r, api=True), "user": {"id": r["user_id"], "name": user_names(c, [r["user_id"]]).get(r["user_id"], "")}}
+    data.update(chat_drop_mark(r))  # 2.1313.0 (#6557): also on the event itself (the launcher frames it as data, agent_run.py untrusted_hint)
     if tid:
         data.update(agent_task_data(c, tid, aid))
     if r["job_id"]:  # 2.153.0 (#1962): typed in the job's own chat -- the job it is for (message.job_id is its id)

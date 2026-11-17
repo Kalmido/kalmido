@@ -22,9 +22,19 @@ async function dropTokenNew(md) {
 function tkh_dropHtml(tok) {
   const at = S.me?.drop_token_at ? new Date(S.me.drop_token_at) : null;
   if (tok) return `<div class="row"><label for="s-droptok">${tr('Upload token')}</label><input id="s-droptok" readonly value="${esc(tok)}"><button class="btn sm pri" data-m="drop-copy-tok">${ic('copy', 's')} ${tr('Copy')}</button></div>
-    <div class="shint keep" role="status">${tr('Only visible now: copy it now. If you lose it, create a new one.')}</div>`;
+    <div class="shint keep" role="status">${tr('Only visible now: copy it now. If you lose it, create a new one.')}</div>${/*html-ok*/ dropAgHtml()}`;
   if (!S.me?.drop_token_set) return `<div class="row"><label>${tr('Upload token')}</label><button class="btn sm pri" data-m="drop-new-tok">${ic('key', 's')} ${tr('Create upload token')}</button></div>`;
-  return `<div class="row"><label>${tr('Upload token')}</label><span class="muted">${at && !isNaN(at) ? esc(tr('Active since {0}', fmtDateNum(at))) : tr('Active')}</span><button class="btn sm" data-m="drop-new-tok" title="${esc(tr('The old token stops working'))}">${ic('key', 's')} ${tr('New token')}</button></div>`;
+  return `<div class="row"><label>${tr('Upload token')}</label><span class="muted">${at && !isNaN(at) ? esc(tr('Active since {0}', fmtDateNum(at))) : tr('Active')}</span><button class="btn sm" data-m="drop-new-tok" title="${esc(tr('The old token stops working'))}">${ic('key', 's')} ${tr('New token')}</button></div>${/*html-ok*/ dropAgHtml()}`;
+}
+// 2.1313.0 (#6557): may the upload token also send to the agents (the field "to" of the shortcut)? Off for a new token; the
+// agent gets such a message marked as not proven (origin drop) and changes something only after an approval card
+const dropAgHtml = () => S.me?.support_session ? '' : `<div class="row"><label class="chkl"><input type="checkbox" id="s-dropag"${S.me?.drop_agent ? ' checked' : ''}> ${tr('Also send to agents')}</label></div>
+    <div class="shint">${tr('The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.')}</div>`;
+async function dropAgentSet(el) {
+  const on = el.checked;
+  try { await api('PATCH', '/api/me', {drop_agent: on}); } catch { el.checked = !on; return; }
+  if (S.me) Object.assign(S.me, {drop_agent: on, drop_agent_hint: false});
+  toast(on ? tr('The upload token can now send to your agents') : tr('The upload token no longer sends to your agents'));
 }
 function tkh_dropDraw(md, tok) { const w = $('#s-dropw', md); if (w) w.innerHTML = tkh_dropHtml(tok); }
 // 2.138.0 C (#1907): every HTTP Shortcuts download carries a new token (the server cannot read the old one back)

@@ -22,10 +22,21 @@ def tkh_match(tok, stored):
 
 
 def tkh_set_drop(c, uid, tok=None):
-    """A new upload token for uid (or the given one, e.g. TASKS_DROP_TOKEN); the old one stops working. Returns it."""
+    """A new upload token for uid (or the given one, e.g. TASKS_DROP_TOKEN); the old one stops working. Returns it.
+    2.1313.0 (#6557): a new token never sends to agents until the person switches it on (users.drop_agent)."""
     tok = tok or secrets.token_urlsafe(TKH_DROP_BYTES)
-    c.execute("UPDATE users SET drop_token=NULL, drop_token_hash=?, drop_token_at=? WHERE id=?", (tkh_hash(tok), iso(now_utc()), uid))
+    c.execute("UPDATE users SET drop_token=NULL, drop_token_hash=?, drop_token_at=?, drop_agent=0 WHERE id=?",
+              (tkh_hash(tok), iso(now_utc()), uid))
     return tok
+
+
+def drop_agent_of(u):
+    """2.1313.0 (#6557): {drop_agent, drop_agent_hint} of the account row u for /api/me and /api/state: may the upload token
+    send to the agents (users.drop_agent: 1 on, 0 off, NULL = a token from before 2.1313.0: on, and the one-time hint is
+    still to be shown). Both false without a token and for a child account."""
+    has = bool(not u["kid"] and u["drop_token_hash"])
+    v = u["drop_agent"] if "drop_agent" in u.keys() else 0
+    return {"drop_agent": has and v != 0, "drop_agent_hint": has and v is None}
 
 
 def tkh_set_ical(c, uid):
