@@ -507,6 +507,33 @@ function wkeFit(name) {
   const out = (dir ? dir + '/' : '') + wkeCut(parts[parts.length - 1], room);
   return out.toLowerCase().startsWith(WKE_PRE) ? null : out;
 }
+// 2.1336.0 (#6804): the text encoding as the server's import reads it (core/csvimport.py text_decode): UTF-8 with / without BOM,
+// UTF-16 (BOM or many zero bytes), else Windows-1252 (named in the report) -> {text, enc}; no text -> throws with the reason
+const wkeNotTxt = () => wkeErr(tr('This is not a text file'), 'bad'), wkeUnread = () => wkeErr(tr('The text encoding of the file could not be read (UTF-8, UTF-16 or Windows-1252 expected)'), 'bad');
+function wkeText(b) {
+  const dec = (enc, x) => { try { return new TextDecoder(enc, {fatal: true, ignoreBOM: true}).decode(x); } catch { throw wkeUnread(); } };
+  let enc = 'utf-8', s;
+  if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) s = dec('utf-8', b.subarray(3));
+  else if (b[0] === 0xff && b[1] === 0xfe) { s = dec('utf-16le', b.subarray(2)); enc = 'utf-16'; }
+  else if (b[0] === 0xfe && b[1] === 0xff) { s = dec('utf-16be', b.subarray(2)); enc = 'utf-16'; }
+  else {
+    const h = b.subarray(0, 4000); let z = 0, zo = 0;
+    for (let i = 0; i < h.length; i++) if (!h[i]) { z++; if (i & 1) zo++; }
+    if (h.length >= 4 && z > Math.floor(h.length / 4)) { enc = zo > z - zo ? 'utf-16le' : 'utf-16be'; s = dec(enc, b); }
+    else {
+      if (b.includes(0)) throw wkeNotTxt();
+      try { s = new TextDecoder('utf-8', {fatal: true, ignoreBOM: true}).decode(b); } catch {
+        if ([0x81, 0x8d, 0x8f, 0x90, 0x9d].some(x => b.includes(x))) throw wkeUnread();  // undefined in Windows-1252 (as Python's cp1252)
+        s = dec('windows-1252', b); enc = 'windows-1252';
+      }
+    }
+  }
+  if (s.includes('\0')) throw wkeNotTxt();
+  return {text: s.replace(/^\ufeff+/, ''), enc};
+}
+// 2.1336.0 (#6804): the list of what an export left out ("not included.txt" in the reader's language, core/omitted.py) in the
+// ZIP root; the names in every language come with the state (S.omitNames from /api/state omit_names, one source: the i18n key on the server)
+const wkeOmitFile = name => { const m = /^(.+?)(?: \(\d{1,6}\))?\.txt$/.exec(String(name || '').trim().toLowerCase()); return !!m && !name.includes('/') && (S.omitNames || ['not included']).includes(m[1]); };
 // a ZIP of .md files into the space: the server's limits and path cleaning, names taken are skipped, every page created
 // encrypted (one call each; a "too many requests" waits and tries again). Answers {created: ids, skipped: names}.
 async function wkeImport(sp, file, onProg = null) {  // 2.177.0 (#2685): onProg(done, total) for the progress window; false = stop
@@ -518,26 +545,27 @@ async function wkeImport(sp, file, onProg = null) {  // 2.177.0 (#2685): onProg(
   const files = ents.filter(x => !x.name.endsWith('/'));
   if (files.length > WKE_ZIP.files) throw wkeErr(tr('Too many files (at most {0})', WKE_ZIP.files), 'bad');
   if (files.filter(x => x.name.toLowerCase().endsWith('.md')).reduce((a, x) => a + x.usize, 0) > WKE_ZIP.total) throw wkeErr(tr('The archive is too large'), 'bad');
-  const created = [], skipped = [], detail = [], short = [], seen = new Set(), td = new TextDecoder('utf-8');
+  const created = [], skipped = [], detail = [], short = [], recoded = [], seen = new Set();
   for (const [k, x] of files.entries()) {
     if (onProg && onProg(k, files.length) === false) break;
     const nm = x.name.slice(0, 200);
+    if (wkeOmitFile(x.name)) continue;  // 2.1336.0 (#6804): silently, as the server's import
     if (!x.name.toLowerCase().endsWith('.md')) {  // 2.99.0 A (#2182): the files of a locked space are not taken over yet (decision 2.99)
       skipped.push(nm); detail.push({name: nm, reason: /\.(pdf|png|jpe?g|gif|webp|svg)$/i.test(x.name) ? tr('Encrypted workspace: files are not imported yet') : tr('Only PDF files and pictures (PNG, JPEG, GIF, WebP, SVG)')});
       continue;
     }
     if (x.usize > WKE_ZIP.file || x.csize > WKE_ZIP.file + 4096 || x.name.includes('__MACOSX') || (x.flags & 1) || ![0, 8].includes(x.method)) { skipped.push(nm); continue; }
-    let path, text, cut = false;
+    let path, text, enc, cut = false;
     try {
       try { path = wkeClean(x.name); } catch (e) { path = wkeFit(x.name); if (!path) throw e; cut = true; }  // 2.210 A (#2755): shortened, not skipped
       const raw = x.method === 8 ? await wkeInflate(x.data(), WKE_ZIP.file) : x.data();
-      text = td.decode(raw.subarray(0, WKE_ZIP.file)).replace(/^﻿/, '');
-    } catch { skipped.push(nm); continue; }
+      ({text, enc} = wkeText(raw.subarray(0, WKE_ZIP.file)));  // 2.1336.0 (#6804): was UTF-8 with replacement characters, silently
+    } catch (e) { skipped.push(nm); if (e?.code === 'bad') detail.push({name: nm, reason: e.message}); continue; }
     if (seen.has(path.toLowerCase()) || wk_byPath(sp, path)) { skipped.push(nm); continue; }
     for (let tries = 0; ; tries++) {
       try {
         const r = await wkeApi('POST', '/api/wiki/pages', {space: sp, path, body: text}, sp);
-        created.push(r.id); seen.add(path.toLowerCase()); if (cut) short.push({name: nm, path});
+        created.push(r.id); seen.add(path.toLowerCase()); if (cut) short.push({name: nm, path}); if (enc === 'windows-1252') recoded.push(nm);
         break;
       } catch (e) {
         if (e?.status === 429 && tries < 5) { await new Promise(res => setTimeout(res, 1500 * (tries + 1))); continue; }
@@ -547,6 +575,7 @@ async function wkeImport(sp, file, onProg = null) {  // 2.177.0 (#2685): onProg(
     }
   }
   return {ok: true, created, updated: [], files: [], files_n: 0, skipped: skipped.slice(0, 200), skipped_n: skipped.length, shortened: short.slice(0, 200), shortened_n: short.length,
+    recoded: recoded.slice(0, 200), recoded_n: recoded.length,  // 2.1336.0 (#6804): as the server's report (wiki.js names them)
     skipped_detail: [...detail, ...skipped.filter(n => !detail.some(d => d.name === n)).map(name => ({name, reason: ''}))].slice(0, 200)};
 }
 
