@@ -73,8 +73,9 @@ async function openBiz(who) {
     // says "Applies to the whole year" about the year, not the workspace
     check(!/Applies to(?! the whole year)/.test(box.textContent), `${who}: no "Applies to"`);
     // heading levels
-    const groups = [...form.querySelectorAll(':scope > h3')].map(h => h.id);
-    check(groups[0] === 's-biz-company' && groups.includes('s-biz-docs') && groups.includes('s-biz-packs') && !form.querySelector(':scope > h4'), `${who}: the groups are h3 ` + groups.join());
+    // 2.1353.0 (#6827): each group is a folded head row (details.sfold) with its h3 in the summary
+    const groups = [...form.querySelectorAll(':scope > details.sfold > summary > h3')].map(h => h.id);
+    check(groups[0] === 's-biz-company' && groups.includes('s-biz-docs') && groups.includes('s-biz-packs') && !form.querySelector(':scope > h4, :scope > h3'), `${who}: the groups are h3 ` + groups.join());
     check(!form.querySelector('.ostp h3'), `${who}: no h3 inside a part ` + [...form.querySelectorAll('.ostp h3')].map(txt).join('|'));
     const heads = t => [...box.querySelectorAll('h3, h4, h5')].filter(h => txt(h) === t).length;
     check(heads('Company') === 1, `${who}: "Company" once ` + heads('Company'));

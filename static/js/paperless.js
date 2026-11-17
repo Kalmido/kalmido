@@ -52,7 +52,7 @@ function pl_draw() {
 }
 function pl_jumpNow() {  // 2.87.9 (#1936): the jump from the search / the documents settings lands on the section
   const h = PL.jump && $('#s-pl-h'); if (!h) return;
-  PL.jump = false; if (typeof som_reveal === 'function') som_reveal(h);  // 2.583.0 (#4833): it lies under "Further options"
+  PL.jump = false; if (typeof sf_reveal === 'function') sf_reveal(h);  // 2.1353.0 (#6827): its head row may be closed
   h.closest('details.introw')?.setAttribute('open', '');  // 2.625.0 (#4489): its folded row
   h.scrollIntoView?.({block: 'start'}); h.classList.add('flash'); setTimeout(() => h.classList.remove('flash'), 1600);
 }

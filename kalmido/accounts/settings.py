@@ -34,7 +34,7 @@ SETTINGS_SERVER_ONLY = ("digest_sent", "digest_mail_sent", "digest_mail_try", "r
                         "brief_sent", "brief_read",  # 2.34.0 (#264)
                         "fav_asked",  # 2.46.1 (#1361): lists already offered as a favourite
                         "evmail_at", "evmail_day")  # 2.142.0 A (#2146): the bundled event mails sent
-USER_DEFAULTS.setdefault("settings_more", "[]")  # 2.583.0 (#4833): the settings tabs whose "Further options" are open (like modcards.py ws_mods_off)
+USER_DEFAULTS.setdefault("settings_more", "[]")  # 2.583.0 (#4833); 2.1353.0 (#6827): the head rows of the settings opened / closed against their start
 USER_DEFAULTS.setdefault("col_widths", "{}")  # 2.742.0 (#4857): the dragged column widths per list (accounts/colwidths.py)
 USER_DEFAULTS.setdefault("view_cols", "")  # 2.750.0 (#4502): the columns of the collected views (Today, My tasks, filters, ...): json list of keys, '' = the default (not in schema.py)
 SIDE_GROUPS = ("focus", "clients", "lists", "filters", "tags", "views", "areas", "team")  # 2.25.0 (UX-03); 2.39.1 (#1185): areas
@@ -373,12 +373,13 @@ def clean_setting(k, v):
         if not isinstance(o, list) or len(o) > 200 or not all(isinstance(x, str) and re.fullmatch(r"\d{1,12}", x) for x in o):
             raise bad
         return json.dumps(list(dict.fromkeys(o)))
-    if k == "settings_more":  # 2.583.0 (#4833): ["<settings tab>", ...] whose "Further options" are open (all devices)
+    if k == "settings_more":  # 2.583.0 (#4833): ["<settings tab>", ...] (old, no longer read); 2.1353.0 (#6827): the head rows of
+        # the settings (static/js/settings.js sf_*) the person opened ("o:<tab>/<section>") or closed ("c:...") against their start
         try:
             o = json.loads(sv or "[]")
         except ValueError:
             raise bad from None
-        if not isinstance(o, list) or len(o) > 40 or not all(isinstance(x, str) and re.fullmatch(r"[a-z]{1,20}", x) for x in o):
+        if not isinstance(o, list) or len(o) > 300 or not all(isinstance(x, str) and re.fullmatch(r"[a-z]{1,20}|[oc]:[a-z]{1,20}/[a-z0-9_-]{1,40}", x) for x in o):
             raise bad
         return json.dumps(list(dict.fromkeys(o)))
     if k in ("dc_tile_d", "dc_tile_m"):  # 2.583.0 (#4812): the card width in rem, '' = standard (static/js/tilesize.js TS_MIN..TS_MAX)
@@ -924,7 +925,7 @@ def settings_reset():
 @app.get("/api/settings/defaults")
 def settings_defaults():
     """2.583.0 (#4833): the start value of every setting a person may change (what a new account gets: USER_DEFAULTS and
-    NEW_ACCOUNT_VALUES of core/db.py create_user); the settings dialog counts what differs from it under each "Further options".
+    NEW_ACCOUNT_VALUES of core/db.py create_user); the settings dialog counts what differs from it in each head row (2.1353.0, #6827).
     No values of the person."""
     me()
     d = {**USER_DEFAULTS, **NEW_ACCOUNT_VALUES}
