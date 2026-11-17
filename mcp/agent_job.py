@@ -115,6 +115,12 @@ NAME_RE = re.compile(r"^([A-ZÄÖÜ][a-zäöüß]{1,11}(?: [A-Z])?): ")
 STATE_DIR = None  # set by the runner (agent_extras) when its --state differs from the environment
 
 
+def defuse_fence(text):
+    """2.1352.0 (#6884): every run of three or more < or > spaced out ("<<<<<" -> "< < < < <"); the twin of
+    agent_run.defuse_fence (this module runs without it), mcp_test checks that both give the same."""
+    return re.sub(r"<{3,}|>{3,}", lambda m: " ".join(m.group()), str(text or ""))
+
+
 def state_dir():
     return os.path.expanduser(STATE_DIR or os.environ.get("KALMIDO_STATE_DIR") or "~/.cache/kalmido-agent")
 
@@ -475,7 +481,7 @@ def inbox_prompt(jid, items):
             out.append(f"[{when}] {who} answered your approval card: {it.get('text')}. Only a yes is a yes: on no, leave it out and "
                        "say in your result what stays open.")
             continue
-        t = str(it.get("text") or "").replace("<<<", "< < <")
+        t = defuse_fence(it.get("text"))
         out += [f"[{when}] {who} sent a message to this job (from its card in Kalmido):",
                 f"<<<message job-{jid}-{i + 1} from {who}>>>", t, f"<<<end message job-{jid}-{i + 1}>>>"]
     return ("(Launcher: messages for this job arrived while it runs. The person's message outranks your plan; the fixed rules, "
