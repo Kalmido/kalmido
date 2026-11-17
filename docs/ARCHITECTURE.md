@@ -71,6 +71,11 @@ project in the app, and this document keeps the technical name.
    `version:all` when that is not known), and `/api/version` carries `vs`, the newest of the person's own keys. A `v` that
    moved while `vs` stayed at or below the client's version is a change elsewhere: the client takes the new `v` without
    fetching anything. Every start sets `version:all` to the current version (a barrier).
+   2.1357.0 (#6335): notes are a light area of their own (`notes`: the open notes reload, the delta's side part carries
+   `notes`); a write counted for tasks / comments / time that leaves no `dl_changes` row (folder properties, a notepad, a
+   public link) counts as `other` for the writer's own devices (`version:u:<id>`), so it no longer falls through the delta.
+   A delta answer that arrives after the state moved on and is not newer is dropped; an open calendar / Today view and an
+   open file store folder are drawn after a change elsewhere, and the day changing with the app open redraws Today.
 5. **In the background** (`kalmido/startup.py` starts the threads): the watchdog (`notify/push.py`: reminders, nags,
    digests, rotations, clean-ups; 2.369.4 (#2516): the clean-up sections at most every `KALMIDO_WD_SLOW_S` seconds), the update check, calendar subscriptions, backups, webhook deliveries, mail and Git
    polling. Every thread and request passes the maintenance gate (`GATE` in `accounts/session.py`), so a restore can
