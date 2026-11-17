@@ -29,6 +29,7 @@ from ..core.config import app, ATT_DIR
 from ..core.i18n import N_, tr as _tr_base, tr_stored
 from ..core.db import bump, db, err, insert_id, iso_ms, now_utc
 from ..accounts.session import me
+from ..accounts.modcards import fs_content_ok  # 2.1324.0 (#6589, review F1): the gates of the file routes in the export
 from ..core.access import Denied, live_sql
 from ..core.objparts import part_kind  # 2.1093.0 (#5472): the core's trash run of the files deleted on their own
 from ..core.orgcrypt import OrgCryptError, oc_copy_file, oc_read_file, oc_send_file, oc_user_space, oc_write_file
@@ -864,6 +865,9 @@ WKA_NOT_NOACCESS = N_("A linked file you cannot open, or no longer there")
 WKA_NOT_E2E = N_("A linked file in a locked folder (only readable in the browser)")
 WKA_NOT_SHEET = N_("A table: tables are not part of the knowledge export, the reference stays as text")
 WKA_NOT_ZIPFULL = N_("The ZIP would be too large with it")
+WKA_NOT_REFMAX = N_("More linked files than one export takes ({0}); this one stays out")
+WKA_REF_MAX = max(1, int(os.environ.get("KALMIDO_WIKI_EXPORT_REF_MAX", "2000") or 2000))  # 2.1324.0 (#6589, review F4): distinct file references looked up per export; the rest is named
+WKA_LOCK_CHUNK = 500  # ids per fsl_map question
 WKA_FS_LINK_RE = re.compile(r"(!?)\[([^\[\]\n]*)\]\(/api/files/nodes/(\d{1,15})/content(?:[?#][^\s()]*)?\)")
 
 
@@ -875,7 +879,8 @@ def wka_export_zip(c, oid, uid):
     the large exports (abm_slot, 429 when both are taken). 2.1324.0 (#6589): files of the file store a page shows or links
     (![..](/api/files/nodes/<id>/content), [[datei:…]]) come along under _attachments/<page>/ when the exporting person may
     open them (wkembed.wem_visible: the file store's rights, same space; not in a locked folder, not locked by the virus
-    scanner), their links point at the copy; tables, files one may not open and everything else left out are named with
+    scanner; the gates of the file routes: module card and areas switched off, accounts/modcards.py fs_content_ok; at most
+    WKA_REF_MAX references), their links point at the copy; tables, files one may not open and everything else left out are named with
     their reason in "not included.txt" (a file one may not open only by the reference as the page writes it, never its name)."""
     from ..files.bulk import abm_readable, abm_slot, abm_too_big
     from ..files.fslock import fsl_map
@@ -910,21 +915,40 @@ def wka_export_zip(c, oid, uid):
         else:
             texts.append((r, text or ""))
     # 2.1324.0 (#6589): the file store's files the pages show / link -> fsz[node id] = (path in the ZIP, node row)
-    fsz, refused, cand = {}, set(), []
+    # review F4: at most WKA_REF_MAX distinct references are looked up (one space: the same reference text names the same
+    # file), the rest is named with its own reason; the lock question in pieces
+    fsz, refused, cand, seen, found = {}, set(), [], set(), {}  # found: [[datei:…]] reference -> node id (looked up once)
+
+    def want(r, key, ref):
+        if key in seen:
+            return False
+        if len(seen) >= WKA_REF_MAX:
+            not_in.add(f"{r['path']}: {ref}", WKA_NOT_REFMAX, WKA_REF_MAX)
+            return False
+        seen.add(key)
+        return True
     for r, text in texts:
         for m in WKA_FS_LINK_RE.finditer(text):
-            cand.append((r, int(m.group(3)), f"/api/files/nodes/{m.group(3)}/content"))
+            if want(r, ("n", m.group(3)), f"/api/files/nodes/{m.group(3)}/content"):
+                cand.append((r, int(m.group(3)), f"/api/files/nodes/{m.group(3)}/content"))
         for m in WEM_LINK_RE.finditer(text):
             if m.group(1).lower() == "tabelle":
                 not_in.add(f"{r['path']}: {m.group(0)}", WKA_NOT_SHEET)
-            else:
-                cand.append((r, wem_find_file(c, r, m.group(2)), m.group(0)))
-    locked = fsl_map(c, sorted({nid for _, nid, _ in cand if nid and nid < 2 ** 62}))
+            elif want(r, ("d", m.group(2).strip().strip("/").lower()), m.group(0)):
+                found[m.group(2).strip().strip("/").lower()] = wem_find_file(c, r, m.group(2))
+                cand.append((r, found[m.group(2).strip().strip("/").lower()], m.group(0)))
+    ids = sorted({nid for _, nid, _ in cand if nid and nid < 2 ** 62})
+    locked = {}
+    for i in range(0, len(ids), WKA_LOCK_CHUNK):
+        locked.update(fsl_map(c, ids[i:i + WKA_LOCK_CHUNK]))
+    gate = {}  # review F1: the module card / the areas switched off (accounts/modcards.py fs_content_ok) per organisation
     for r, nid, ref in cand:
         if nid in fsz or (nid and nid in refused):  # named once
             continue
         why = None
-        if not nid or nid >= 2 ** 62 or not wem_visible(c, uid, nid, r):
+        if r["org_id"] not in gate:
+            gate[r["org_id"]] = fs_content_ok(c, uid, r["org_id"])
+        if not nid or nid >= 2 ** 62 or not gate[r["org_id"]] or not wem_visible(c, uid, nid, r):  # wem_visible: the page's space = the file's
             why = WKA_NOT_NOACCESS
         elif nid in locked:
             why = WKA_NOT_E2E
@@ -968,7 +992,7 @@ def wka_export_zip(c, oid, uid):
         def sub(m):
             if m.group(1).lower() != "datei":
                 return m.group(0)
-            nid = wem_find_file(c, page, m.group(2))
+            nid = found.get(m.group(2).strip().strip("/").lower())  # review F4: the lookup of the candidates, not again
             if ("f", nid) not in written:
                 return m.group(0)
             lb = m.group(0)[2:-2].partition("|")[2].strip()
