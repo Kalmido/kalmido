@@ -18992,6 +18992,8 @@
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Tot die tijd worden e-mails met inhoud (de dagelijkse samenvatting, meldingen) er niet naartoe gestuurd.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bevestig eerst je e-mailadres: e-mails met inhoud gaan alleen naar een bevestigd adres.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Je adres is nog niet bevestigd: de dagelijkse samenvatting en e-mails over gebeurtenissen gaan pas uit nadat je het hebt bevestigd.",
+  "not included|file name of the list in a ZIP": "niet opgenomen",
+  "These items are not in this ZIP:": "Deze items staan niet in deze ZIP:",
   "Sending needs the user name and the password of the SMTP server": "Voor verzenden zijn de gebruikersnaam en het wachtwoord van de SMTP-server nodig",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Verzenden alleen via poort 465 of 587 (poort 25 alleen voor een server die een beheerder heeft toegestaan)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Er wordt alleen verzonden met de gebruikersnaam en het wachtwoord van de SMTP-server, via poort 465 of 587."
