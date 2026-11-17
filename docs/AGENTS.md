@@ -514,7 +514,7 @@ coding agents, building files, own tools.
   `{"operator": true}` gives the token for the person chosen in the agent's settings (*who answers its permission
   questions*, `perm_user_id`) for the agent's own list work (the starter's dispatcher); none chosen: `409 no_operator`.
   Only the agent's own long-lived token may ask (`403 request_token_main`); a personal agent gets `{"token": null}` (its
-  own token is already its owner's). **From the first ask on, the agent's own token reaches only its channel** (events,
+  own token is already its owner's). **From the first request token on, the agent's own token reaches only its channel** (events,
   status, chats, jobs, usage, messages and cards: the classes own, mine, send and pin of the route table above); every
   other route answers `403 request_token_needed` -- use the request token there. A program that never asks keeps its
   token's whole reach (as before 2.1348); the reference starter asks before every run, gives ONLY the request token to
