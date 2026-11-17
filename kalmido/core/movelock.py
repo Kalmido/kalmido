@@ -31,7 +31,7 @@ from flask import g, has_request_context, request
 
 from .config import app
 from .i18n import N_
-from .db import _mv_moving, iso
+from .db import iso
 from .pg import set_move_hook, system_ctx
 from .rls import _lock_all, org_tables
 
@@ -100,21 +100,6 @@ def mv_strict(c):
     finally:
         _TL.strict -= 1
         c._db_ctx = None
-
-
-class OrgMoving(Exception):
-    """Raised by the app itself before a write it knows goes into a moving organisation (a public page's POST, core/access.py
-    acx_anon_bind): the same answer as the trigger's (core/db.py mv_answer)."""
-
-
-app.errorhandler(OrgMoving)(_mv_moving)
-
-
-def mv_public_check(moving_at):
-    """core/access.py acx_anon_bind: a public link / form / booking page / file request of an organisation that is moving takes
-    no write (a POST is refused before the page does anything, also before a mail would go out); reading stays."""
-    if moving_at and not mv_ok_now():
-        raise OrgMoving()
 
 
 def mv_refused(e):
