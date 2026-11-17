@@ -19,6 +19,7 @@ tenant-matrix: agent (only the agent's own events; the token reaches only what t
      stays; a card a person answered still runs with it (the replay of an approved request)
  (f) static: the reference starter asks before every run and gives only the request token to the run (child_env), the
      dispatcher works with the chosen person's token; both launchers name the capability
+ (h) review F2: removing a computer of the agent (its long-lived token) ends the request tokens too (401)
  (g) review F1, no server: no request token for a team agent (403 no_order, 400, 404 event_gone, the network) = the run, the
      dispatcher round and their children never start / never get the agent's own token; an older server (plain 404) and a
      personal agent keep it; a job's wake asks with the person's last events
@@ -286,6 +287,18 @@ check(r.ok and not dbx("SELECT 1 FROM api_tokens WHERE user_id=? AND asked_by=? 
 XA = [a for a in A.get(B + "/api/admin/agents").json().get("agents", []) if a.get("id") == XT]
 check(XA and XA[0].get("tokens") and not any(t.get("name") == "Agent request" for t in XA[0]["tokens"]),
       "(d) request tokens are not listed with the agent's tokens")
+
+# ================================================================ (h) review F2: removing the computer ends its request tokens
+# Without the fix the request tokens fetched with a removed computer's token lived on for up to 8 h, unlisted and unrevocable.
+RC2 = r.json().get("token") or ""
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC2), timeout=30).ok, "(h) carl's new request token works")
+MT = [t["id"] for t in XA[0]["tokens"]] if XA else []
+check(len(MT) == 1, f"(h) the agent has one computer (its own token) {MT}")
+r = A.delete(B + f"/api/admin/agents/{XT}/machines/{MT[0] if MT else 0}")
+check(r.ok, f"(h) the admin removes the computer {r.status_code} {r.text[:160]}")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC2), timeout=30).status_code == 401,
+      "(h) the request token fetched with it is refused (401)")
+check(not dbx("SELECT 1 FROM api_tokens WHERE user_id=? AND name='Agent request'", (XT,)), "(h) no request token of the agent is left")
 
 # ================================================================ the person without an organisation loses nothing
 r = Fr.post(B + "/api/my/agents", json={"username": "fridabot", "display_name": "Fridabot", "scopes": SCOPES})
