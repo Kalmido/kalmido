@@ -59,7 +59,8 @@ SCAN_PREP = ("install scanners*", "pinned dependencies*")
 # fable 2.940.0 M2 (#5600): a red Lint is soft only when these scanner steps are THERE and green (positive check: a Lint
 # cancelled mid-way may list only the steps it began)
 LINT_MUST = ("pinned dependencies*", "install scanners*", "bandit*", "pip-audit (image*")
-QUEUE_SHARD_RE = re.compile(r"^Test suites (\d+)/\d+ (full|push|queue)( hart)?\b")  # #5787: + the queue stage of a merge queue entry
+# #6873 (zug-pr-6853): + release = the train's version pull request in the merge queue (tests/stages.py; every shard "hart")
+QUEUE_SHARD_RE = re.compile(r"^Test suites (\d+)/\d+ (full|push|queue|release)( hart)?\b")  # #5787: + the queue stage of a merge queue entry
 QUEUE_GATE = "Merge queue gate"
 ANN_MAX = 10  # #5787 review 7: GitHub keeps at most 10 error annotations per step (tests/run_all.sh names a red suite by one)  # #5787: the job name of ci.yml - a required check of the ruleset, keep it as it is
 SOFT_CONCL = ("failure", "cancelled")  # #5600: the run conclusions judge_soft looks at (cancelled = a newer push cut the run)
