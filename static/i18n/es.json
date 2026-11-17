@@ -19004,6 +19004,7 @@
   "1-{0} select · Enter takes over · arrows back and forth": "1-{0} elegir · Intro acepta · flechas atrás y adelante",
   "Enter takes over · arrows back and forth": "Intro acepta · flechas atrás y adelante",
   "Arrows back and forth": "Flechas atrás y adelante",
+  "More linked files than one export takes ({0}); this one stays out": "Más archivos enlazados de los que admite una exportación ({0}); este queda fuera",
   "Too many documents for one export: {0} (at most {1})": "Demasiados documentos para una exportación: {0} (como máximo {1})",
   "{0} column left out (at most {1} per sheet)": ["{0} columna omitida (como máximo {1} por hoja)", "{0} columnas omitidas (como máximo {1} por hoja)"],
   "Import CSV, Excel or ODS…": "Importar CSV, Excel u ODS…",

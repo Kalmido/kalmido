@@ -208,6 +208,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_PHOTO_MAX_PIXELS` | `40000000` | Largest photo (pixels) that is re-encoded when it is turned. |
 | `KALMIDO_REVIEW_LINK_SEALED_MAX_MB` | `50` | Size in MB of an encrypted file an approval's customer link hands out at most (larger ones only signed in). |
 | `KALMIDO_SPLIT_PAGES` | `100` | Pages of a scanned stack at most that are split into letters (2-500). |
+| `KALMIDO_WIKI_EXPORT_REF_MAX` | `2000` | Linked files of the file store looked up per knowledge export at most (the rest is named in the ZIP), 2.1324.0. |
 | `KALMIDO_WIKI_FILE_MAX_MB` | `100` | Largest PDF or picture in MB of a knowledge page (upload and ZIP import), 2.177.0. |
 | `KALMIDO_WIKI_IMPORT_MAX_FILES` | `10000` | Entries of a ZIP of knowledge pages at most, 2.177.0. |
 | `KALMIDO_WIKI_IMPORT_MAX_MB` | `4096` | Size in MB of a ZIP of knowledge pages that can be imported (and of everything unpacked from it), 2.177.0. |

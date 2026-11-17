@@ -19004,6 +19004,7 @@
   "1-{0} select · Enter takes over · arrows back and forth": "1-{0} kiezen · Enter neemt over · pijlen terug en verder",
   "Enter takes over · arrows back and forth": "Enter neemt over · pijlen terug en verder",
   "Arrows back and forth": "Pijlen terug en verder",
+  "More linked files than one export takes ({0}); this one stays out": "Meer gekoppelde bestanden dan één export meeneemt ({0}); dit bestand blijft buiten",
   "Too many documents for one export: {0} (at most {1})": "Te veel documenten voor één export: {0} (hoogstens {1})",
   "{0} column left out (at most {1} per sheet)": ["{0} kolom weggelaten (hoogstens {1} per blad)", "{0} kolommen weggelaten (hoogstens {1} per blad)"],
   "Import CSV, Excel or ODS…": "CSV, Excel of ODS importeren…",

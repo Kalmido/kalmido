@@ -163,6 +163,7 @@ VARS = (
     _v("KALMIDO_CLAMD_DOWN_S", "30", "Seconds a failed scanner is not asked again.", "files"),
     _v("KALMIDO_WIKI_FILE_MAX_MB", "100", "Largest PDF or picture in MB of a knowledge page (upload and ZIP import), 2.177.0.", "files"),
     _v("KALMIDO_WIKI_IMPORT_MAX_MB", "4096", "Size in MB of a ZIP of knowledge pages that can be imported (and of everything unpacked from it), 2.177.0.", "files"),
+    _v("KALMIDO_WIKI_EXPORT_REF_MAX", "2000", "Linked files of the file store looked up per knowledge export at most (the rest is named in the ZIP), 2.1324.0.", "files"),  # 2.1324.0 (#6589)
     _v("KALMIDO_WIKI_IMPORT_MAX_FILES", "10000", "Entries of a ZIP of knowledge pages at most, 2.177.0.", "files"),
     _v("KALMIDO_CLAMD_TICK_S", "60", "Seconds between two catch-up runs of the scanner.", "files"),
     _v("KALMIDO_MIME_SWEEP", "on", "Switch: give older files the type their content shows (once, a few per minute), 2.209.0.", "files"),

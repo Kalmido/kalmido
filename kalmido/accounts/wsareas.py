@@ -106,6 +106,14 @@ def wsa_org_check(c, oid, area):
         raise Denied(403, tr(WSA_OFF_TEXT))
 
 
+def wsa_file_ok(c, oid):
+    """2.1324.0 (#6589): may a file of the file store of organisation oid be opened by its id (its content, a copy in an
+    export) as far as the areas go? No only when its admins switched the area "ablage" off and the office too (a file of the
+    office stays reachable while the office is on). One decision for wsa_gate and the knowledge export (wiki/wikiatt.py)."""
+    off = wsa_org_off(c, oid) if oid else []
+    return "ablage" not in off or "office" not in off
+
+
 def _in_req():
     from flask import has_request_context
     return has_request_context()
@@ -160,8 +168,10 @@ def wsa_gate(p=None):
         if a == area and m:
             r = c.execute(f"SELECT org_id FROM {table} WHERE id=?", (int(m.group(1)),)).fetchone()  # noqa: S608 (fixed names)
             if r and r[0]:
-                if area != "ablage" or "office" in wsa_org_off(c, r[0]):  # a file of the office stays reachable while the office is on
+                if area != "ablage":
                     wsa_org_check(c, r[0], area)
+                elif not wsa_file_ok(c, r[0]):  # a file of the office stays reachable while the office is on
+                    raise Denied(403, tr(WSA_OFF_TEXT))
                 return None
     if area == "ablage" and (request.method != "GET" or p.rstrip("/") not in WSA_ABLAGE_VIEWS):
         return None
