@@ -295,7 +295,7 @@ def _bind(c, r, aid, tid, by):
         return False
     x = c.execute("SELECT role FROM sheet_shares WHERE id=?", (aid,)).fetchone()
     c.execute("UPDATE sheet_shares SET user_id=? WHERE id=?", (tid, aid))
-    shs_put(c, by, r, tid, x["role"] if x else "read")
+    shs_put(c, by, r, tid, x["role"] if x else "read", log=False)  # 2.1364.0 (#6297 6): no history line naming the account
     return True
 
 
@@ -375,24 +375,26 @@ def shs_node(c, uid, r):
     return c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
 
 
-def shs_put(c, uid, r, who, role, expires_at=None):
+def shs_put(c, uid, r, who, role, expires_at=None, log=True):
     """2.937.0 (#5244): account who (a person or an agent) gets / keeps its core share of table r with role read | write
     (core/objects.py obj_node_share on the table's node; the same account again changes the role). The caller checked who may
-    share and with whom. Returns the share id; Denied(409) when the node is full."""
+    share and with whom. Returns the share id; Denied(409) when the node is full. 2.1364.0 (#6297 6, audit #4741): log=False for
+    the account of an address (no line "share user:<id>" in the file store's history: the address's account stays unknown)."""
     from ..core.objects import obj_node_share
     key = "agent_id" if _agent_row(c, who) is not None else "user_id"
-    fid = obj_node_share(c, uid, shs_node(c, uid, r), key, int(who), SHS_CORE.get(role, "view"), expires_at, r["org_id"] or None, event=False)
+    fid = obj_node_share(c, uid, shs_node(c, uid, r), key, int(who), SHS_CORE.get(role, "view"), expires_at, r["org_id"] or None, event=False,
+                         log=log)
     shs_drop_cache()
     return fid
 
 
-def shs_take(c, uid, sid, s, reason="unshare", org=None):
+def shs_take(c, uid, sid, s, reason="unshare", org=None, log=True):
     """2.937.0 (#5244): core share s (a row of fs_shares on table sid's node) goes into obj_revoked (core/objects.py
     obj_node_unshare: restorable, shs_restore) -- also an address bound to that account (2.360.2 M, #2561: the address is
     not kept). Returns the obj_revoked id."""
     from ..core.objects import obj_node_unshare
     n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (s["node_id"],)).fetchone()
-    out = obj_node_unshare(c, uid, n, s["id"], kind=SHS_KIND, ref_id=sid, org=org, reason=reason) if n is not None else None
+    out = obj_node_unshare(c, uid, n, s["id"], kind=SHS_KIND, ref_id=sid, org=org, reason=reason, log=log) if n is not None else None
     who = s["user_id"] or s["agent_id"]
     if who:
         c.execute("DELETE FROM sheet_shares WHERE sheet_id=? AND user_id=? AND email_key!=''", (sid, who))
@@ -567,7 +569,7 @@ def _by_email(c, r, uid, em, role):
     bound = old["user_id"] if old else None
     x = addr_account(c, em)  # 2.983.0 (#5643): only a proved address; else the row stays open until shs_redeem at sign-in
     if bound and x == bound and shs_fits(c, bound, r):
-        shs_put(c, uid, r, bound, role)  # the bound row comes back / changes role: its core share follows
+        shs_put(c, uid, r, bound, role, log=False)  # the bound row comes back / changes role: its core share follows
     else:
         if bound:  # 2.937.0 (#5244): its account may no longer hold it: open again
             c.execute("UPDATE sheet_shares SET user_id=NULL WHERE id=?", (aid,))
@@ -575,7 +577,7 @@ def _by_email(c, r, uid, em, role):
             if s is not None:  # 2.983.0 (#5643, Fable F1): bound before the proof counted, or the address changed since:
                 from ..core.objects import obj_node_unshare  # the core share it held through this address ends too
                 n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (s["node_id"],)).fetchone()
-                obj_node_unshare(c, uid, n, s["id"], kind=SHS_KIND, ref_id=sid, org=r["org_id"], reason="unshare")
+                obj_node_unshare(c, uid, n, s["id"], kind=SHS_KIND, ref_id=sid, org=r["org_id"], reason="unshare", log=False)
         if x:
             _bind(c, r, aid, x, uid)
     shs_drop_cache()
@@ -593,7 +595,10 @@ def _need_share(c, sid, shid):
     n = fs_ref_node(c, SHS_KIND, sid)
     s = c.execute("SELECT * FROM fs_shares WHERE id=? AND node_id=? AND (user_id IS NOT NULL OR agent_id IS NOT NULL)",
                   (shid, n["id"] if n else 0)).fetchone()
-    if not s:
+    # 2.1364.0 (#6297 6, audit #4741): the share of an address's account is reached only as the address (its negative id):
+    # a 400 "role" for its share id would tell that the address has an account
+    if not s or (s["user_id"] and c.execute(f"SELECT 1 FROM sheet_shares WHERE sheet_id=? AND user_id=? AND {SHS_ADDR.format(a='')}",
+                                            (sid, s["user_id"])).fetchone()):
         raise Denied(404)
     return "core", s
 
@@ -611,7 +616,7 @@ def sheets_shares_patch(sid, shid):
     if kind == "addr":
         c.execute("UPDATE sheet_shares SET role=? WHERE id=?", (role, x["id"]))
         if x["user_id"] and addr_account(c, _addr(c, x)) == x["user_id"] and shs_fits(c, x["user_id"], r):
-            shs_put(c, uid, r, x["user_id"], role, shs_core_of(c, sid, x["user_id"])["expires_at"])
+            shs_put(c, uid, r, x["user_id"], role, shs_core_of(c, sid, x["user_id"])["expires_at"], log=False)
         elif x["user_id"]:  # 2.1071.0 (#5658, Fable 2.983 N2): bound before the proof counted (or the address changed since): no role
             # change for that account -- the row opens again (shs_redeem binds it at a sign-in with the address proved) and the
             # core share it held through this address ends, as _by_email does
@@ -620,7 +625,7 @@ def sheets_shares_patch(sid, shid):
             if s is not None:
                 from ..core.objects import obj_node_unshare
                 n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (s["node_id"],)).fetchone()
-                obj_node_unshare(c, uid, n, s["id"], kind=SHS_KIND, ref_id=sid, org=r["org_id"], reason="unshare")
+                obj_node_unshare(c, uid, n, s["id"], kind=SHS_KIND, ref_id=sid, org=r["org_id"], reason="unshare", log=False)
     else:
         shs_put(c, uid, r, x["user_id"] or x["agent_id"], role, x["expires_at"])  # an end date from the file store stays
     shs_drop_cache()
@@ -637,7 +642,7 @@ def sheets_shares_delete(sid, shid):
     if kind == "addr":
         s = shs_core_of(c, sid, x["user_id"]) if x["user_id"] else None
         if s is not None:
-            shs_take(c, uid, sid, s, org=r["org_id"] or None)  # the core share goes (obj_revoked) and the address with it
+            shs_take(c, uid, sid, s, org=r["org_id"] or None, log=False)  # the core share goes (obj_revoked) and the address with it
         c.execute("DELETE FROM sheet_shares WHERE id=?", (x["id"],))  # 2.360.2 M (#2561): the address is not kept
     else:
         shs_take(c, uid, sid, x, org=r["org_id"] or None)
