@@ -11,20 +11,23 @@
 
 const WK = {space: null, idx: {}, pg: null, pgErr: '', edit: false, dirty: false, saveT: 0, q: '', ac: null, busy: {}, selOn: false, sel: new Set(), selSp: null, selVis: []};
 const wk_spaces = () => ['private', ...(S.me?.workspaces || []).map(w => 'org:' + w.id)];
+// 2.1364.0 (#6722): the spaces the lists show -- under "All workspaces" only those where Knowledge is on for me (areas.js
+// mod_spaces); wk_spaces stays every space for an opened page, the trash and the search (nothing is lost)
+const wk_shown = () => { const a = wk_spaces(); if (!wsOn() || wsCur?.() !== 'all') return a; const on = mod_spaces('wiki'); return a.filter(s => on.includes(s)).length ? a.filter(s => on.includes(s)) : a; };
 function wk_cur() {
-  const ok = v => !!v && wk_spaces().includes(v);
+  const ok = v => !!v && wk_spaces().includes(v), on = v => ok(v) && wk_shown().includes(v);  // 2.1364.0 (#6722): on = shown
   if (WK.pg && WK.pg.id === S.route.wid && ok(WK.pg.space)) return WK.pg.space;
   const ws = wsCur?.(); if (ws && ws !== 'all' && ok(ws)) return ws;
-  if (S.route.mod === 'wiki' && ok(S.route.wsp)) return S.route.wsp;  // 2.198.0 A (#2743): #wiki/s/<space>
-  if (ok(WK.space)) return WK.space;
-  const ls = LS.get('wkSpace', ''); if (ok(ls)) return ls;
-  return wk_spaces()[1] || 'private';
+  if (S.route.mod === 'wiki' && on(S.route.wsp)) return S.route.wsp;  // 2.198.0 A (#2743): #wiki/s/<space>
+  if (on(WK.space)) return WK.space;
+  const ls = LS.get('wkSpace', ''); if (on(ls)) return ls;
+  const sh = wk_shown(); return sh[1] || sh[0] || 'private';
 }
 const wk_spaceName = sp => sp === 'private' ? tr('Private|workspace') : (wsOrg(sp.slice(4))?.name || tr('Organisation'));
 // 2.198.0 A (#2743): "All workspaces" with more than one space: each space is an entry of its own (the panel's root nodes,
 // the phone's list, the overview), the open one is in the address (#wiki/s/<space>[/d/<path>]), a page brings its own
 // space; null = no space open (the overview). One space shown above (or only Private) = that space, as before.
-const wk_all = () => wk_spaces().length > 1 && (!wsCur?.() || wsCur() === 'all');
+const wk_all = () => wk_shown().length > 1 && (!wsCur?.() || wsCur() === 'all');
 // 2.319 (#3287): the open page's space and path -- the loaded page, else its row in a loaded index (a click in the tree
 // draws the panel before the page has loaded: the tree stays open down to it)
 function wk_pgAt(id) {
@@ -40,7 +43,7 @@ const wk_phonePage = () => isMobile() && S.route.mod === 'wiki' && !!S.route.wid
 const wk_topTitle = () => wk_label(WK.pg?.path || '');  // 2.1198.0 (#6090): a daily note as its date
 function wk_open() {
   if (!wk_all()) return wk_cur();
-  const r = S.route, ok = v => !!v && wk_spaces().includes(v); if (r.mod !== 'wiki') return null;
+  const r = S.route, ok = v => !!v && wk_shown().includes(v); if (r.mod !== 'wiki') return null;
   if (r.wid) { const x = wk_pgAt(r.wid); return x && ok(x.space) ? x.space : null; }
   if (ok(r.wsp)) return r.wsp;
   return r.wdir != null || r.wtag != null ? wk_cur() : null;  // an older #wiki/d/<path> link: the space used last; 2.371 (#3150): #wiki/t/<tag>
@@ -53,16 +56,16 @@ wso_open('wiki', () => S.route?.mod !== 'wiki' ? null : WK.pg && WK.pg.id === S.
 const wk_spIcon = sp => typeof wsIcon === 'function' ? wsIcon(sp) : ic(sp === 'private' ? 'home' : 'brief', 's');
 const wk_locked = sp => typeof wkeLockHtml === 'function' && !!WK.idx[sp]?.pages && !!wkeLockHtml(sp);
 function wk_spacesHtml() {  // the entries per space (phone list, computer overview); 2.200.0 A (#2747, audit B 1): named like the file store's spaces
-  return `<ul class="wktree wkdlist wkspaces" aria-label="${esc(tr('Workspaces'))}">${wk_spaces().map(s => `<li><a href="#wiki/s/${esc(s)}" class="wkitem wkdrow" data-wksp="${esc(s)}"${/*html-ok*/ wso_row(s) /* 2.1241.0 (#6182) */}>${wk_locked(s) ? ic('lock', 's') : wk_spIcon(s)}<span>${esc(wk_spaceName(s))}</span>${typeof wkeMark === 'function' ? wkeMark(s) : ''}</a></li>`).join('')}</ul>`;
+  return `<ul class="wktree wkdlist wkspaces" aria-label="${esc(tr('Workspaces'))}">${wk_shown().map(s => `<li><a href="#wiki/s/${esc(s)}" class="wkitem wkdrow" data-wksp="${esc(s)}"${/*html-ok*/ wso_row(s) /* 2.1241.0 (#6182) */}>${wk_locked(s) ? ic('lock', 's') : wk_spIcon(s)}<span>${esc(wk_spaceName(s))}</span>${typeof wkeMark === 'function' ? wkeMark(s) : ''}</a></li>`).join('')}</ul>`;
 }
 // 2.769.0 (#5352): the overview under "All" (areas.js spo_recentHtml). 2.880.0 (#5561): a calm list of rows - "Recently edited"
 // (the page #wiki/recent), then one row per space with its lock mark (as wk_spacesHtml)
-const wk_rows = () => wk_spaces().map(s => [s, wk_spaceName(s), wk_locked(s) ? ic('lock', 's') : wk_spIcon(s), typeof wkeMark === 'function' ? wkeMark(s) : '']);
+const wk_rows = () => wk_shown().map(s => [s, wk_spaceName(s), wk_locked(s) ? ic('lock', 's') : wk_spIcon(s), typeof wkeMark === 'function' ? wkeMark(s) : '']);
 const wk_recentHtml = () => `<nav id="wk-res" aria-label="${esc(tr('Pages'))}">${/*html-ok*/ spo_recentHtml('wiki', sp => 'wiki/s/' + sp, wk_rows())}</nav>`;  // #wk-res: the search's hits take its place (the input listener)
 // search under "All": the names in every loaded space (locked ones only after unlocking), each hit with its space's name
 function wk_allHits(q) {
   const out = [];
-  for (const s of wk_spaces()) { const d = WK.idx[s]; if (!d?.pages || wk_locked(s)) continue; for (const p of d.pages) if (p.path.toLowerCase().includes(q) || d.off && String(p.body || '').toLowerCase().includes(q)) out.push({...p, space: s}); }
+  for (const s of wk_shown()) { const d = WK.idx[s]; if (!d?.pages || wk_locked(s)) continue; for (const p of d.pages) if (p.path.toLowerCase().includes(q) || d.off && String(p.body || '').toLowerCase().includes(q)) out.push({...p, space: s}); }
   return out;
 }
 const wk_hitHtml = (p, i) => `<li><a href="#wiki/${p.id}" class="wkitem">${ic('note', 's')}${wk_hitName(p, i)}<small class="muted wkspn">${esc(wk_spaceName(p.space))}</small></a></li>`;
@@ -70,7 +73,7 @@ const wk_hitHtml = (p, i) => `<li><a href="#wiki/${p.id}" class="wkitem">${ic('n
 // wkhist.js wks_nameHtml), for the first 30 hits; nothing is loaded for it
 const wk_hitName = (p, i) => i < 30 && typeof wks_nameHtml === 'function' ? wks_nameHtml(p, WK.q) : wk_pathHtml(p.path);  // 2.1198.0 (#6090): name + folders
 function wk_allHitsHtml(q, cls = '') {
-  const v = wk_allHits(q), wait = wk_spaces().some(s => !WK.idx[s]?.pages && !WK.idx[s]?.err);
+  const v = wk_allHits(q), wait = wk_shown().some(s => !WK.idx[s]?.pages && !WK.idx[s]?.err);
   return `<nav id="wk-res" class="${cls}" aria-label="${esc(tr('Pages'))}">${/*html-ok*/ v.length ? `<ul class="wktree">${v.map(wk_hitHtml).join('')}</ul>` : wait ? '' : wk_noHit()}${wait ? `<div class="muted mhint">${tr('Loading…')}</div>` : ''}${typeof wks_html === 'function' ? wks_html('', WK.q, v.filter(p => p.path.toLowerCase().includes(q))) : ''}</nav>`;
 }
 const wk_base = p => p.split('/').pop();
@@ -217,11 +220,11 @@ const wk_moreHtml = d => d?.more ? `<div class="muted mhint wkcapped" role="stat
 // ---- the view
 function viewWiki() {
   if (typeof wkcm_gone === 'function') wkcm_gone();  // 2.554.0 (#4052): the editor of a page that went (another page, a space locked) lets go of its text
-  if (S.route.zle) { for (const s of wk_spaces()) if (!WK.idx[s]) wk_load(s); return `<div class="ntwrap wkwrap wkdesk"><section class="wkfolder zlefull">${/*html-ok*/ spo_recentPage('wiki', wk_rows())}</section></div>`; }  // 2.880.0 (#5561): #wiki/recent
+  if (S.route.zle) { for (const s of wk_shown()) if (!WK.idx[s]) wk_load(s); return `<div class="ntwrap wkwrap wkdesk"><section class="wkfolder zlefull">${/*html-ok*/ spo_recentPage('wiki', wk_rows())}</section></div>`; }  // 2.880.0 (#5561): #wiki/recent
   const all = wk_all(), op = wk_open(), sp = op || wk_cur(), d = WK.idx[sp];
   if (!d || d.v !== S.v) wk_load(sp);
   if (all && op && S.route.wsp === op && WK.space !== op) { WK.space = op; LS.set('wkSpace', op); }  // 2.198.0 A (#2743): the space used last (New page, older links)
-  if (all && (!op || WK.q.trim())) for (const s of wk_spaces()) if (!WK.idx[s] || WK.q.trim() && WK.idx[s].v !== S.v) wk_load(s);  // the overview's locks, the search over every space
+  if (all && (!op || WK.q.trim())) for (const s of wk_shown()) if (!WK.idx[s] || WK.q.trim() && WK.idx[s].v !== S.v) wk_load(s);  // the overview's locks, the search over every space
   const id = S.route.wid;
   if (id && WK.pgErrFor !== id + ':' + S.v && (!WK.pg || WK.pg.id !== id || WK.pg._v !== S.v)) wk_loadPage(id);  // a page that failed: again only with new data
   const cur = id && WK.pg && WK.pg.id === id ? WK.pg : null, mob = isMobile();
@@ -548,7 +551,7 @@ function wk_panelHtml() {
 // loads then: "Loading…"); a locked space has the lock and no folders until it is unlocked on its page
 function wk_panelAllHtml() {
   const r = S.route, onW = r.mod === 'wiki', op = onW ? wk_open() : null;
-  return `<div class="sgroup sbbp sbbtree" role="group" aria-label="${esc(tr('Workspaces'))}">${/*html-ok*/ wk_spaces().map(sp => {
+  return `<div class="sgroup sbbp sbbtree" role="group" aria-label="${esc(tr('Workspaces'))}">${/*html-ok*/ wk_shown().map(sp => {
     const d = WK.idx[sp], lock = wk_locked(sp), here = op === sp;
     const pa = here && r.wid ? wk_pgAt(r.wid) : null;  // 2.319 (#3287)
     const at = here ? (r.wdir != null ? r.wdir : pa ? wk_dirOf(pa.path) : '').toLowerCase() : '';
@@ -888,8 +891,8 @@ async function wk_conflict(mine, theirs, patch) {
 const wk_tplOpts = sp => `<option value="0">${tr('Empty page')}</option>${wk_pages(sp).filter(p => wk_isTpl(p.path)).map(t => `<option value="${t.id}">${esc(wk_base(t.path))}</option>`).join('')}`;
 async function wk_new(path0 = '', dir = '', spx = '') {  // 2.210 B (#2757): dir = the folder the dialog starts in, spx = its space
   const ask = !spx && !wk_open() && !path0;  // 2.198.0 A (#2743): under "All" into the open space; none open = the dialog asks, the space used last first
-  if (ask) await Promise.all(wk_spaces().map(s => WK.idx[s]?.pages ? null : wk_load(s)));
-  const sps = ask ? wk_spaces().filter(s => !wk_locked(s) && WK.idx[s]?.mayWrite !== false) : [];
+  if (ask) await Promise.all(wk_shown().map(s => WK.idx[s]?.pages ? null : wk_load(s)));
+  const sps = ask ? wk_shown().filter(s => !wk_locked(s) && WK.idx[s]?.mayWrite !== false) : [];
   const sp0 = spx || (ask && sps.length && !sps.includes(wk_cur()) ? sps[0] : wk_cur()), tpls = wk_pages(sp0).filter(p => wk_isTpl(p.path));
   WK.spPick = sp0;
   const pre = dir || path0 || (S.route.mod === 'wiki' && S.route.wdir ? S.route.wdir + '/' : '') || (WK.pg && WK.pg.space === sp0 && WK.pg.path.includes('/') ? WK.pg.path.split('/').slice(0, -1).join('/') + '/' : '');  // 2.152.3 B (#2620): + the open folder

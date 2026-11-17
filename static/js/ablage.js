@@ -6,7 +6,10 @@
 'use strict';
 
 const AB = {space: (sp => sp === 'trash' ? '' : sp)(LS.get('abSpace', '')) /* 2.1178.0 (#6115): never the trash first */, key: '', dkey: '', data: null, err: '', loading: false, seq: 0, sel: new Map(), selOn: false, drag: null};  // 2.768.0 (#4888): sel = the area's ONE selection (ab_selInfo)
-const ab_spaces = () => { const w = wsCur(); return [...(w === 'all' || w === 'private' || !wsOn() ? ['private'] : []), ...(wsOn() ? (S.me?.workspaces || []).filter(o => w === 'all' || w === 'org:' + o.id).map(o => 'org:' + o.id) : []), 'shared', 'trash']; };
+// 2.1364.0 (#6722): under "All workspaces" only the spaces where Files is on for me (areas.js mod_spaces); Shared with me and
+// the trash stay (the trash finds everything), a node opened from the search still opens
+const ab_spaces = () => { const w = wsCur(), on = w === 'all' && wsOn() ? mod_spaces('ablage', 'files') : null, own = [...(w === 'all' || w === 'private' || !wsOn() ? ['private'] : []), ...(wsOn() ? (S.me?.workspaces || []).filter(o => w === 'all' || w === 'org:' + o.id).map(o => 'org:' + o.id) : [])];
+  return [...(on && own.some(s => on.includes(s)) ? own.filter(s => on.includes(s)) : own), 'shared', 'trash']; };
 // 2.540.0 (#4575): "All workspaces" with more than one space of one's own (Private + an organisation): the top of the file
 // store is the overview of the spaces (areas.js spo_html, + Shared with me and the trash), the open one is in the address
 // (#ablage/s/<space>, ab_home). AB.space (LS 'abSpace') is only kept and used while one workspace is shown; under "All"
