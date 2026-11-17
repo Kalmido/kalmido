@@ -16,7 +16,7 @@ const path = require('path');
 const {sleep, B, login} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
-const firefox = require('./ff')({tag: 'p21312_b_calswipe_ui', check, shots: 'P21312B_SHOTS'});
+const firefox = require('./ff')({tag: 'p21312_b_calswipe_ui', check, shots: 'P21312B_SHOTS', prefs: [['ui.prefersReducedMotion', 0]]});  // the glide as on the phone / Fold (reduced motion snaps without it: swipenav.js)
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 const DATA = process.argv[2] || path.join(__dirname, '.data');
 if (!process.env.P21312B_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
@@ -51,16 +51,16 @@ const call = async (method, url, body) => { const r = await fetch(B + url.replac
       check(await wait(`!!${GRID}?.querySelector('.cell') && S.calMonth === '2026-03'`), `Firefox ${W}: March 2026`);
 
       // ---- half a swipe: the placeholder beside the grid, the rest stands
-      const mid = await ev(`(() => { ${TOUCH} const g = ${GRID}; ${WATCH}(g);
+      const mid = await ev(`(() => { ${TOUCH} const g = ${GRID}; ${WATCH}(g); const gl0 = g.getBoundingClientRect().left;
         const v = document.getElementById('view'), ag = v.querySelector('.agenda'), a0 = ag?.getBoundingClientRect().left;
         hold(g.querySelectorAll('.cell:not(.out)')[9], -${Math.round(W * .3)});
         const nb = v.querySelector(':scope > .swn-nb[data-dir="1"] > .cal.cgs-nbg'), r = nb?.getBoundingClientRect();
         return {nb: !!nb, days: nb ? nb.querySelectorAll('.cell:not(.out)').length : 0, wd: nb ? nb.querySelectorAll('.wd').length : 0,
-          vis: !!r && r.left < innerWidth - 20 && r.right > 0 && r.height > 100, gtf: g.style.transform,
+          vis: !!r && r.left < innerWidth - 20 && r.right > 0 && r.height > 100, gtf: g.style.transform, moved: Math.round(g.getBoundingClientRect().left - gl0), gap: r ? Math.round(r.left - g.getBoundingClientRect().right) : null, gcs: getComputedStyle(g).transform, an: getComputedStyle(g).animationName + '|' + document.getElementById('view').className,
           ag: !!ag, agTf: ag ? getComputedStyle(ag).transform : 'none', agMoved: ag ? Math.round(ag.getBoundingClientRect().left - a0) : 0, qin: !!ag?.querySelector('#qinput'),
           bar: getComputedStyle(v.querySelector('.calbar')).transform, side: getComputedStyle(v).overflowX + ':' + v.scrollLeft}; })()`);
       check(mid.nb && mid.days === 30 && mid.wd === 7 && mid.vis, `Firefox ${W}: half a swipe: April lies beside the grid as an empty grid (7 weekdays, 30 days), on the screen ` + JSON.stringify(mid));
-      check(/translateX\(-\d+px\)/.test(mid.gtf), `Firefox ${W}: the grid follows the finger ` + mid.gtf);
+      check(/translateX\(-\d+px\)/.test(mid.gtf) && mid.moved === -Math.round(W * .3) && Math.abs(mid.gap - 16) <= 2, `Firefox ${W}: the grid follows the finger (seen on the screen), the next month 16 px beside it ` + JSON.stringify(mid));
       check(mid.ag && mid.qin && mid.agTf === 'none' && mid.agMoved === 0 && mid.bar === 'none', `Firefox ${W}: the day list with its input line and the bar stand still ` + JSON.stringify(mid));
       check(mid.side === 'hidden:0', `Firefox ${W}: the page does not scroll sideways ` + mid.side);
       await shot(`p21312b-month-mid-${W}.png`);
