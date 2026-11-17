@@ -1675,13 +1675,20 @@ def rck_tell(c, oid, actor, action):
     return n
 
 
+RCK_GONE = []  # 2.1364.0 (#6297 1): fn(c, oid, uid) of higher layers, called by rck_admin_gone
+
+
 def rck_admin_gone(c, oid, uid):
     """2.539.0 (#4373, audit #2482 F3): uid is no longer an active admin of organisation oid (taken out, left, demoted, locked
     or deleted). Did uid show (or make) the organisation's recovery key since the key was last renewed (org_keys.rotated_at;
     the office log, oc_route_recovery), the remaining admins get the News item "orgkey" with action renew: the person may
     still hold a recovery key that opens later data copies of the organisation. Nothing is rotated here -- a new recovery key
     must be shown and kept by an admin. Call it before an account is deleted (the log loses the user id then). Caller
-    commits. Returns the number of admins told."""
+    commits. Returns the number of admins told.
+    2.1364.0 (#6297 1): every way an admin's right ends comes here: what registered in RCK_GONE ends with it (accounts/orginvite.py:
+    the invitations uid made in oid)."""
+    for fn in RCK_GONE:
+        fn(c, oid, uid)
     with system_ctx(c):  # orgcrypt: key rows, the office log's showing entries and who administers (structure, no values)
         k = c.execute("SELECT recovery_shown_at, rotated_at FROM org_keys WHERE org_id=?", (int(oid),)).fetchone()
         if not k or not k["recovery_shown_at"]:
