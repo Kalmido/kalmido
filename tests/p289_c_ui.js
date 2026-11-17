@@ -2,7 +2,7 @@
 // (start.sh), jsdom. Invented names only.
 // - the table's menu offers "Export as CSV" / "Export as Excel (.xlsx)": the download link points at the export, the file
 //   has the values (CSV) / is an .xlsx
-// - the overview's menu offers "Import CSV or Excel…": a chosen CSV becomes a new table in the overview's space, opened at
+// - the overview's menu offers "Import CSV, Excel or ODS…" (2.1324.0 (#6709): + ODS): a chosen CSV becomes a new table in the overview's space, opened at
 //   once, the toast says what was imported; Undo moves it to the trash, Redo brings it back
 // - the overview of a list's tables imports attached to that list
 const path = require('path');
@@ -56,8 +56,8 @@ const item = (d, re) => [...d.querySelectorAll('[role="menuitem"]')].find(b => r
   w.HTMLInputElement.prototype.click = function () { picked.push(this); };
   check(await until(() => d.querySelector('[data-shv="omenu"]')), 'the overview has a menu for the import');
   click(w, d.querySelector('[data-shv="omenu"]'));
-  check(await until(() => item(d, /Import CSV or Excel/)), 'the overview menu: import');
-  click(w, item(d, /Import CSV or Excel/));
+  check(await until(() => item(d, /Import CSV, Excel or ODS/)), 'the overview menu: import');
+  click(w, item(d, /Import CSV, Excel or ODS/));
   const inp = picked[0];
   check(inp && inp.type === 'file' && /\.xlsx/.test(inp.accept) && /\.csv/.test(inp.accept), 'a file chooser for CSV and xlsx');
   Object.defineProperty(inp, 'files', {configurable: true, value: [new w.File(['Item;Price\r\nTripod;80,50\r\nLight;120\r\n'], 'Rental.csv')]});
@@ -79,8 +79,8 @@ const item = (d, re) => [...d.querySelectorAll('[role="menuitem"]')].find(b => r
   const picked2 = [];
   w.HTMLInputElement.prototype.click = function () { picked2.push(this); };
   check(await until(() => d.querySelector('[data-shv="omenu"]')), "a list's tables: the menu");
-  click(w, d.querySelector('[data-shv="omenu"]')); await until(() => item(d, /Import CSV or Excel/));
-  click(w, item(d, /Import CSV or Excel/));
+  click(w, d.querySelector('[data-shv="omenu"]')); await until(() => item(d, /Import CSV, Excel or ODS/));
+  click(w, item(d, /Import CSV, Excel or ODS/));
   Object.defineProperty(picked2[0], 'files', {configurable: true, value: [new w.File(['Day,Place\r\n1,Harbour\r\n'], 'Plan.csv')]});
   picked2[0].dispatchEvent(new w.Event('change', {bubbles: true}));
   check(await until(() => /^#sheets\/\d+$/.test(w.location.hash)), 'opened');
