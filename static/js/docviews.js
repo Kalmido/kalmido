@@ -156,7 +156,7 @@ function dcv_barHtml() {
   const v = DC.dv ? dcv_get(DC.dv) : null;
   if (!v) return `<button type="button" class="btn sm dcv-save" data-dcv="save">${ic('bookmark', 's')} <span>${esc(tr('Save view'))}</span></button>`;
   const ch = dcv_changed();
-  return `<span class="dcv-cur"><button type="button" class="btn sm on dcv-name" data-dcv="menu" data-dcvid="${v.id}" aria-haspopup="menu">${ic('bookmark', 's')} <span>${esc(v.title)}</span>${ch ? `<span class="dcv-dirty" title="${esc(tr('Changed since it was saved'))}">*</span>` : ''}</button>${ch && v.role !== 'view' ? `<button type="button" class="btn sm pri" data-dcv="update" data-dcvid="${v.id}">${esc(tr('Update view'))}</button>` : ''}</span>`;
+  return `<span class="dcv-cur"><button type="button" class="btn sm on dcv-name" data-dcv="menu" data-dcvid="${v.id}" aria-haspopup="menu">${ic('bookmark', 's')} <span>${esc(v.title)}</span>${ch ? `<span class="dcv-dirty" title="${esc(tr('Changed since it was saved'))}">*</span>` : ''}</button>${ch && canWrite(v) ? `<button type="button" class="btn sm pri" data-dcv="update" data-dcvid="${v.id}">${esc(tr('Update view'))}</button>` : ''}</span>`;
 }
 
 // ---- writes (the core's routes: version check, history, trash with undo)
@@ -208,16 +208,16 @@ function dcv_todaySet(id, on, quiet) {
 }
 function dcv_menuItems(v) {
   if (!v) return [];
-  const key = 'r:docview:' + v.id, fav = typeof fv2_is === 'function' && fv2_is(key), w = v.role !== 'view';
+  const key = 'r:docview:' + v.id, fav = typeof fv2_is === 'function' && fv2_is(key), w = canWrite(v);
   return [
     w ? {label: tr('Rename…'), icon: 'edit', fn: () => dcv_rename(v)} : null,
     w ? {label: tr('Edit filter…'), icon: 'filter', fn: () => dcv_edit(v)} : null,  // 2.857.0 (#5518)
     w ? {label: tr('Use the current filters'), icon: 'filter', fn: () => dcv_update(v)} : null,
     typeof fv2_set === 'function' ? {label: fav ? tr('Remove from favourites') : tr('Add to favourites'), icon: 'star', on: fav, fn: () => fv2_set(key, !fav)} : null,
     {label: tr('Show on Today'), icon: 'sun', on: dcv_isToday(v.id), fn: () => dcv_todaySet(v.id, !dcv_isToday(v.id))},
-    v.role === 'manage' && dcv_mayShare(v) ? {label: tr('Share with everyone of the organisation'), icon: 'users', on: v.shared_all, fn: () => dcv_shareAll(v, !v.shared_all)} : null,
-    v.role === 'manage' ? '-' : null,
-    v.role === 'manage' ? {label: tr('Delete view'), icon: 'trash', cls: 'danger', fn: () => dcv_delete(v)} : null].filter(Boolean);
+    v.role === 'manage' /* canwrite-ok: deleting and sharing a view is the manager's alone */ && dcv_mayShare(v) ? {label: tr('Share with everyone of the organisation'), icon: 'users', on: v.shared_all, fn: () => dcv_shareAll(v, !v.shared_all)} : null,
+    v.role === 'manage' /* canwrite-ok: deleting and sharing a view is the manager's alone */ ? '-' : null,
+    v.role === 'manage' /* canwrite-ok: deleting and sharing a view is the manager's alone */ ? {label: tr('Delete view'), icon: 'trash', cls: 'danger', fn: () => dcv_delete(v)} : null].filter(Boolean);
 }
 
 // ---- Today: one block per view switched on (dashboard.js LY.today, render.js)

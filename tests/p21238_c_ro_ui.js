@@ -128,6 +128,34 @@ const vtext = d => (d.querySelector('#view')?.textContent || '').replace(/\s+/g,
     const r = await fetch(B + 'api/docs', {method: 'POST', headers: {'X-Requested-With': 'kalmido', Cookie: RK}, body: fd});
     check([403, 404].includes(r.status), `rita: API upload of a document refused ${r.status}`); }
 
+  // ================= document view (2.1336.0, #6262, Stufe 2b): the readers see no write entry and ONE read hint
+  // a PDF with one text page, written by hand (as p2583_a_docview)
+  const pdf1 = () => { const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [4 0 R] /Count 1 >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>', '<< /Length 38 >>\nstream\nBT /F1 12 Tf 60 740 Td (Lesen) Tj ET\nendstream'];
+    let out = '%PDF-1.4\n'; const offs = []; objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const x = out.length; out += `xref\n0 6\n0000000000 65535 f \n` + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${x}\n%%EOF\n`;
+    return Buffer.from(out, 'latin1'); };
+  { const fd = new FormData(); fd.append('files', new Blob([pdf1()], {type: 'application/pdf'}), 'lesen.pdf'); fd.append('ws', 'org:' + ORG);
+    const r = await fetch(B + 'api/docs', {method: 'POST', headers: {'X-Requested-With': 'kalmido', Cookie: CA}, body: fd});
+    const DID = (await r.json()).ids?.[0];
+    check(DID, 'document view: a document of Alpha');
+    await until(async () => ['done', 'failed'].includes((await call(CA, 'GET', `/api/docs/${DID}`)).state));
+    // a document of an organisation is its owner's until shared: rita reads it, mona edits it
+    for (const [u, role] of [['rita', 'view'], ['mona', 'edit']]) check((await call(CA, 'POST', `/api/files/nodes/${DID}/shares`, {user_id: uid[u], role})).http < 300, `document view: shared with ${u} (${role})`);
+    for (const [u, want] of [['rita', false], ['mona', true]]) {
+      w = await boot({user: u, hash: 'docs/' + DID}); d = w.document;
+      check(await until(() => d.querySelector('.dv-view .dc-body')), `${u}: the document view is drawn`);
+      check(await until(() => !!d.querySelector('.dv-view .dc-adel') === want), `${u}: "Move to the trash" ${want ? 'offered' : 'left out'}`);
+      check(d.querySelectorAll('.dv-view .cwro').length === (want ? 0 : 1), `${u}: ${want ? 'no' : 'exactly one'} read hint`);
+      check(d.querySelectorAll('.dv-view #dc-props input:not([disabled]):not([type=hidden]), .dv-view #dc-props select:not([disabled])').length > 0 === want, `${u}: the fields ${want ? 'edit' : 'read'}`);
+      const b = d.querySelector('.dv-view [data-dc="actsmore"]'); b?.click();
+      check(await until(() => d.querySelector('[role="menu"]')), `${u}: the Actions menu opens`);
+      const mt = d.querySelector('[role="menu"]')?.textContent || '';
+      check(/New task/.test(mt) === want, `${u}: "New task" in the menu ${want ? 'offered' : 'left out'}`);
+      w.close();
+    }
+  }
+
   // ================= lists: the readers
   for (const [u, ck, L, T, title] of [['rita', RK, OL, OT, 'Plan the shoot'], ['vera', VK, PL, PT, 'Read the script']]) {
     w = await boot({user: u, hash: 'l/' + L}); d = w.document;
