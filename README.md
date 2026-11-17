@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1326.0** (2026-11-17):
-- **Calendar**: swiping leafs like a page on every touch screen; only the grid moves, the bar and input line stay.
-- **Mail**: an own SMTP server needs a login and port 465 / 587, with hourly send limits per person.
-- **Office**: finalising and numbering notice a document changed elsewhere and offer "Reload".
-- **Security**: support access on hosted servers can change only a fixed list of fields.
+**2.1330.0** (2026-11-17):
+- **Phone**: from 390 px width (e.g. a folded phone) the bottom bar holds 6 places; the first start loads the app faster.
+- **Office**: auditor's export with number ranges and gaps; importing an organisation export checks taken numbers and locked months first.
+- **Mail**: document rules work off a whole mailbox folder and show how many mails are still unchecked.
+- **Security**: the upload token needs its own switch to send to agents; payment and webhook secrets are always sealed.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
