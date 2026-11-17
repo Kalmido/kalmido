@@ -82,7 +82,8 @@ OLD_CALC = {  # office/calc.py LABELS up to 2.167 (2.357.0 (#3183): German "Summ
     "surcharge_detail_stacked": ("{pct} % auf die markierten Positionen und die Handlungskosten", "{pct} % on the marked positions and the handling costs"),
     "raw_detail": ("{pct} % der Positionen mit Rohdaten", "{pct} % of the positions with raw data"), "discount": ("Rabatt", "Discount"),
     # 2.1201.0 (#6175): "rabattfähigen" / "discountable" (was "markierten" / "marked": the PDF marks nothing)
-    "discount_detail": ("{pct} % auf die rabattfähigen Positionen", "{pct} % on the discountable positions"), "net": ("Summe netto", "Net Total"),
+    # 2.1327.0 (#6816): + its base ("({base})")
+    "discount_detail": ("{pct} % auf die rabattfähigen Positionen ({base})", "{pct} % on the discountable positions ({base})"), "net": ("Summe netto", "Net Total"),
     "net_incl_raw": ("Summe netto mit Option Rohdaten", "Net total with option raw data"), "net_excl_raw": ("ohne Rohdaten", "excluding raw data"),
     "gross": ("Gesamt brutto", "Gross Total"), "tax_standard": ("MwSt. {pct} %", "VAT {pct} %"), "tax_reduced": ("MwSt. {pct} %", "VAT {pct} %"),
     "tax_exempt": ("steuerfrei", "tax exempt"), "vat_note": ("Alle Preise zuzüglich 7 % bzw. 19 % MwSt.", "All prices plus 7 % or 19 % VAT."),

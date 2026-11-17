@@ -65,7 +65,8 @@ check(sur[0].get("mixed_tax") is True and sur[0].get("tax_pct") is None and t.ge
 tl = {x["rate_key"]: (x["base"], x["amount"]) for x in t["tax_lines"]}
 check(t["net"] == 2025 and tl == {"standard": (1450, 275.5), "reduced": (575, 40.25)} and t["gross"] == 2340.75,
       f"calc: net 2025.00, 19 % on 1450.00 = 275.50, 7 % on 575.00 = 40.25, gross 2340.75: {t['net']} {tl} {t['gross']}")
-check(calc.office_calc({"lang": "en", "markup_pct": 15}, ITS, PACK)["lines"][3]["title"] == "Surcharge", "calc: 'Surcharge' in English")
+# 2.1327.0 (#6816): the surcharge line by its kind (the positions' subtotal stands before it now)
+check([x["title"] for x in calc.office_calc({"lang": "en", "markup_pct": 15}, ITS, PACK)["lines"] if x["kind"] == "surcharge"] == ["Surcharge"], "calc: 'Surcharge' in English")
 # the same positions all at 19 %: exactly the calculation of before (one line, all at the standard rate)
 t1 = calc.office_calc({"lang": "de", "markup_pct": 15, "markup_label": '{"de": "Mehraufwand", "en": "Extra work"}'},
                       [dict(x, tax="standard") for x in ITS], PACK)

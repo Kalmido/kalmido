@@ -57,7 +57,8 @@ check(r["tax_lines"] == [{"rate_key": "standard", "pct": 19, "base": 20380, "amo
 check(r["gross"] == 24252.2, f"KV02: gross 24252.20, got {r['gross']}")
 check(r["vat_note"] == "Alle Preise zuzüglich 19 % MwSt.", "KV02: the offer's VAT note (DE) names only 19 %")  # 2.114.4 (#2274)
 kinds = [l["kind"] for l in r["lines"]]
-check(kinds == ["item"] * 12 + ["producing", "raw"], f"KV02: 12 positions, then Producing and the raw data option: {kinds}")
+# 2.1327.0 (#6816): the positions' subtotal before Producing (the first line after the positions)
+check(kinds == ["item"] * 12 + ["subtotal", "producing", "raw"], f"KV02: 12 positions, the subtotal, then Producing and the raw data option: {kinds}")
 raw = r["lines"][-1]
 check(raw["optional"] and raw["title"] == "Optional: Bereitstellung der Rohdaten" and raw["total"] == 3422.5, f"KV02: the optional raw data line {raw}")
 prod = r["lines"][-2]
@@ -92,7 +93,8 @@ check(dl["total"] == -23 and dl["pct"] == 10 and dl["title"] == "Rabatt", f"the 
 check(d["tax_lines"] == [{"rate_key": "standard", "pct": 19, "base": 230, "amount": 43.7, "label": "MwSt. 19 %"}, {"rate_key": "reduced", "pct": 7, "base": 27, "amount": 1.89, "label": "MwSt. 7 %"}], f"discount reduces each tax base: {d['tax_lines']}")
 check(d["vat_note"] == "Alle Preise zuzüglich 7 % bzw. 19 % MwSt.", f"2.114.4 (#2274): both rates occur, the note names both: {d['vat_note']}")
 check(d["gross"] == 257 + 43.7 + 1.89, f"gross {d['gross']}")
-check([l["kind"] for l in d["lines"]] == ["item", "item", "heading", "item", "discount"], f"headings pass through in order: {[l['kind'] for l in d['lines']]}")
+# 2.1327.0 (#6816): + the positions' subtotal before the discount
+check([x["kind"] for x in d["lines"]] == ["item", "item", "heading", "item", "subtotal", "discount"], f"headings pass through in order: {[x['kind'] for x in d['lines']]}")
 check(office_calc({**DOC, "discount_pct": 0}, KV02, PACK)["discount"] == 0 and "discount" not in [l["kind"] for l in r["lines"]], "0 %: no discount line")
 
 # ---------------------------------------------------------------- USD

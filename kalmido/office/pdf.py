@@ -1520,6 +1520,11 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
         _last = max([i for i, x in enumerate(lines) if (x.get("kind") or "item") == "item"], default=-1)
         sum_disc = [x for i, x in enumerate(lines) if i > _last and x.get("kind") == "discount" and not x.get("pos")]
         lines = [x for x in lines if not any(x is d for d in sum_disc)]
+    # 2.1327.0 (#6816): the positions' subtotal only where a row it stands before is still in the table (the discount went into
+    # the totals above, a final invoice's deductions go below them)
+    lines = [x for i, x in enumerate(lines) if not (x.get("kind") == "subtotal" and x.get("items") and not any(
+        y.get("kind") in ("producing", "surcharge", "discount") or (y.get("kind") == "raw" and not y.get("optional")) or y.get("sur_pct") is not None
+        for y in lines[i + 1:]))]
     # 2.296.0 E (#3166): the room of a following page below a table head; a row / payment text higher than that is split by lines
     p3s_cap = ((BP["bottom"][1] if BP["hide_footer"] else min(BP["bottom"][1], body_bottom)) if BP else body_bottom) - PDF_NEXT_TOP - thead_h - 8
     have_table = False
@@ -1635,12 +1640,17 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
                 st_l = pb_wrap(str(ln.get("label") or ln.get("title") or ""), body, PDF_CW - c_pos - 100, True)
                 st_v = str(ln.get("total_text") or money(ln.get("total") or 0))
 
-                def draw_sub(p, y, st_l=st_l, st_v=st_v, h=8 + len(st_l) * lh):
+                it_sub = bool(ln.get("items"))  # 2.1327.0 (#6816): the positions' subtotal: a short rule above the amount columns
+
+                def draw_sub(p, y, st_l=st_l, st_v=st_v, h=8 + len(st_l) * lh + (3 if it_sub else 0), it_sub=it_sub):
+                    yy = y + 4 + (3 if it_sub else 0)
+                    if it_sub:
+                        p.line(x_rate, y + 2, PDF_L + PDF_CW, y + 2, 0.8, C_INK2)
                     for j, s_ in enumerate(st_l):
-                        p.text(x_title + 3, y + 4 + j * lh, s_, body, True)
-                    p.text(PDF_L, y + 4 + (len(st_l) - 1) * lh, st_v, body, True, align="r", width=PDF_CW - 3)
-                    p.line(PDF_L, y + h - 0.5, PDF_L + PDF_CW, y + h - 0.5, 0.8, C_INK2)
-                block(8 + len(st_l) * lh, draw_sub, table=True)
+                        p.text(x_title + 3, yy + j * lh, s_, body, True)
+                    p.text(PDF_L, yy + (len(st_l) - 1) * lh, st_v, body, True, align="r", width=PDF_CW - 3)
+                    p.line(PDF_L, y + h - 0.5, PDF_L + PDF_CW, y + h - 0.5, 0.5 if it_sub else 0.8, C_RULE2 if it_sub else C_INK2)
+                block(8 + len(st_l) * lh + (3 if it_sub else 0), draw_sub, table=True)
                 have_table = True
     # -- 2.438.0 B (#3622): the overview of the part totals: slots of height 0 before the table, filled in by ov_fill when the
     # document has two pages or more without it (else it prints exactly as without an overview)
