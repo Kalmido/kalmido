@@ -30,12 +30,13 @@ import time
 from flask import g, has_request_context, request
 
 from .config import app
+from .i18n import N_
 from .db import _mv_moving, iso
 from .pg import set_move_hook, system_ctx
 from .rls import _lock_all, org_tables
 
 MV_STATE = "KM423"  # the SQLSTATE of the triggers (class KM: Kalmido's own)
-MV_MSG = "The organisation is moving: it is read only."  # translated by core/db.py db_error (static/i18n)
+MV_MSG = N_("The organisation is moving: it is read-only.")  # translated by core/db.py mv_answer
 MV_TRIGGER = "kalmido_moving"
 MV_ORG_TRIGGER = "kalmido_moving_org"
 MV_FREE = frozenset({"bg_jobs", "office_doc_log", "portal_logins"})
