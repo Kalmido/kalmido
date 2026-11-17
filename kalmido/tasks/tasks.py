@@ -4,7 +4,8 @@ from datetime import timedelta
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, PUBLIC_URL
-from ..core.pg import insert_id, st_ids, write_lock
+from ..core.pg import st_ids, write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825)
 from ..core.objparts import part_kind, part_write  # 2.610.0 (#4762): the core's write layer of side objects
 from ..core.schema import MAX_DEPTH, USER_DEFAULTS
 from ..core.i18n import tr
@@ -370,9 +371,9 @@ def task_create():
         f["client_ref"] = ref
     if f.get("assignee_id") or f.get("assignee_group_id"):
         f["assigned_by"] = me()
-    cols = list(f) + ["created_at", "updated_at"]
-    cur_id = insert_id(c, f"INSERT INTO tasks({','.join(cols)}) VALUES({','.join('?' * len(cols))})",
-                    [f[k] for k in f] + [ts, ts])
+    # 2.1358.0 (#6825): the one way into tasks (tasks/repo.py); f carries its own sort (set above), the columns are unchanged
+    nf = {k: v for k, v in f.items() if k not in ("list_id", "title", "created_by")}
+    cur_id = task_insert(c, f["created_by"], f["list_id"], title=f["title"], ts=ts, **nf)
     if b.get("tags"):
         set_tags(c, cur_id, b["tags"])
     if b.get("ltags"):

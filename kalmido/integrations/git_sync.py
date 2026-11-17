@@ -45,7 +45,8 @@ from flask import g, has_request_context
 from ..core.config import app
 from ..core.i18n import lang, N_, tr
 from ..core.db import bump, db, err, iso, iso_ms, now_utc, parse_iso
-from ..core.pg import insert_id, write_lock
+from ..core.pg import write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.objcomments import OCM_MENTION_RE as MENTION_RE, ocm_add  # 2.972.0 (#5272)
 from ..core.access import reading_sql
 from ..notify.alerts import _env_int, aa_count
@@ -470,12 +471,12 @@ def gsy_new_task(c, r, n, lg):
     ts, lid, ref = iso_ms(now_utc()), r["list_id"], _ref(r, n["no"])
     tail = "\n\n" + ref + (" · " + tr("opened by @{0}", imp_line(n["author"], 100), lg=lg) if n["author"] else "")
     body = _norm_body(n["body"])
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
     closed = n["state"] == "closed"
-    tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,content,status,sort,created_at,updated_at,completed_at,created_by,url)
-                       VALUES(?,?,?,?,?,?,?,?,?,NULL,?)""",
-                    (lid, _section(c, lid), (n["title"] or ref)[:500], _with_tail(body, tail), 2 if closed else 0, srt,
-                     n["created_at"] or ts, ts, (n["closed_at"] or ts) if closed else None, n["url"] or None))
+    # 2.1358.0 (#6825): on top (sort TOP; _section only makes a section, no task); no creator - an issue
+    # from outside; created_at = the issue's
+    tid = task_insert(c, None, lid, section_id=_section(c, lid), title=(n["title"] or ref)[:500], content=_with_tail(body, tail),
+                      status=2 if closed else 0, ts=ts, created_at=n["created_at"] or ts,
+                      completed_at=(n["closed_at"] or ts) if closed else None, url=n["url"] or None)
     log_act(c, tid, "created", {"gsy": ref}, uid=None)
     if n["labels"]:
         _apply(c, r, _task(c, tid), "labels", _remote(n, "labels"), tail, ref)

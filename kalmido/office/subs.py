@@ -22,7 +22,7 @@ from ..core.config import PUBLIC_URL, app, WATCHDOG_INTERVAL
 from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..core.db import iso, local_now, now_utc
 from ..core.i18n import N_, lang, short_day, tr
-from ..core.pg import insert_id
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..personal.timetrack import _csv_cell
 from ..core.errors import BadInput
 from .calc import CALC_LOCALE, calc_lang, dec, dstr, fmt_point, money
@@ -295,9 +295,8 @@ def abo_task_new(c, person, label, due, text):
     lid = my_inbox(c, person)
     lg = lang(c, person)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,sort,created_at,updated_at,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (lid, tr(ABO_TASK_TITLE, label[:150], lg=lg), text, due, srt, ts, ts, person, PUBLIC_URL.rstrip("/") + "/#office/subs", person))
+    tid = task_insert(c, person, lid, title=tr(ABO_TASK_TITLE, label[:150], lg=lg), content=text, due=due, ts=ts,
+                      url=PUBLIC_URL.rstrip("/") + "/#office/subs", assignee_id=person)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=person)
     return tid
 

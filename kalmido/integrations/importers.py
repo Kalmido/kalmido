@@ -16,6 +16,7 @@ from flask import has_request_context, jsonify, request
 
 from ..core.config import app, TZ
 from ..core.pg import insert_id, qi, write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.schema import MAX_DEPTH, USER_DEFAULTS
 from ..core.i18n import lang, N_, tr
 from ..core.mdedit import MD_LINE_MAX, md_head_line  # 2.1280.0 (#6423)
@@ -2264,13 +2265,14 @@ def imp_run(c, uid, plan, opts, dry):
                         f["content"] = ((f.get("content") or "") + ("\n\n" if f.get("content") else "") +
                                         tr("Assignee ({0}): {1}", imp_name(src), who, lg=lg))[:CONTENT_MAX]
                 status = t["status"] if t["status"] in (0, 2, -1) else 0
-                tid = insert_id(c, """INSERT INTO tasks(list_id,section_id,title,content,priority,status,due,due_time,reminders,reminded,repeat,
-                       repeat_from,sort,created_at,updated_at,completed_at,tt_id,start,duration,created_by,completed_by,assignee_id,
-                       assigned_by,url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (lid, sid, f["title"], f.get("content") or "", f.get("priority") or 0, status, f.get("due"), f.get("due_time"),
-                     f.get("reminders") or "", json.dumps(reminded), f.get("repeat") or "", f.get("repeat_from") or "due",
-                     base_sort + i, t["created_at"] or ts, ts, (t["completed_at"] or ts) if status else None, key, f.get("start"),
-                     f.get("duration"), uid, uid if status else None, aid, uid if aid else None, t["url"]))
+                # 2.1358.0 (#6825): the one way into tasks; the import's own order (base_sort + i), created_at = the source's
+                tid = task_insert(c, uid, lid, section_id=sid, title=f["title"], content=f.get("content") or "",
+                                  priority=f.get("priority") or 0, status=status, due=f.get("due"), due_time=f.get("due_time"),
+                                  reminders=f.get("reminders") or "", reminded=json.dumps(reminded), repeat=f.get("repeat") or "",
+                                  repeat_from=f.get("repeat_from") or "due", sort=base_sort + i, ts=ts, created_at=t["created_at"] or ts,
+                                  completed_at=(t["completed_at"] or ts) if status else None, tt_id=key, start=f.get("start"),
+                                  duration=f.get("duration"), completed_by=uid if status else None, assignee_id=aid,
+                                  assigned_by=uid if aid else None, url=t["url"])
                 idmap[t["ext"]] = tid
                 created["tasks"].append(tid)
                 rows.append((t, tid, lid))

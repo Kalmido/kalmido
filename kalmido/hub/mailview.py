@@ -24,7 +24,7 @@ from html.parser import HTMLParser
 from flask import jsonify, make_response, request
 
 from ..core.config import app
-from ..core.pg import insert_id
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.i18n import tr
 from ..core.db import body, bump, db, err, iso, now_utc
 from ..core.access import Denied, WRITE_ROLES, acx_lists_sql, list_role, need_task, need_feat, list_state_sql, list_archived_sql
@@ -528,9 +528,7 @@ def mh_make_task(mid):
     title0, desc = _defaults(c, m)
     title = _title(b, title0)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,sort,due,created_at,updated_at,created_by) VALUES(?,?,?,?,?,?,?,?)",
-                    (lid, title, desc, srt, due or None, ts, ts, uid))
+    tid = task_insert(c, uid, lid, title=title, content=desc, due=due or None, ts=ts)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=uid)
     agent_added_events(c, tid, source="mail")  # a normal task for the list's agent (as a task by mail); the mail stays out
     _link(c, m, "task", tid)

@@ -11,7 +11,7 @@ from flask import jsonify
 from ..core.config import PUBLIC_URL, app
 from ..core.db import body, bump, iso, local_now, now_utc, write_lock
 from ..core.i18n import N_, lang, tr
-from ..core.pg import insert_id
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.errors import BadInput
 from .cashflow import _ctx
 from .fixedimport import fci_people, fci_task_end
@@ -131,9 +131,8 @@ def txd_task_new(c, kind, cfg, person):
         content = f"{tr(TXY_TEXT, lg=lg)}\n\n{tr(TXY_HINT, lg=lg)}\n\n[{tr(TXD_HELP, lg=lg)}]({url})\n\n_{tr(TXD_NOTE, lg=lg)} {tr(TXD_WEEKEND, lg=lg)}_"
     lid = my_inbox(c, person)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,repeat,sort,created_at,updated_at,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                    (lid, title, content, due.isoformat(), txd_repeat(kind, cfg, dl, due), srt, ts, ts, person, url, person))
+    tid = task_insert(c, person, lid, title=title, content=content, due=due.isoformat(), repeat=txd_repeat(kind, cfg, dl, due), ts=ts,
+                      url=url, assignee_id=person)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=person)
     return tid
 

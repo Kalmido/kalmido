@@ -42,7 +42,8 @@ from flask import jsonify
 from ..core.config import app, APP_NAME, MAX_FILE_MB
 from ..core.db import body, bump, db, err, iso, now_utc, test_seconds
 from ..core.i18n import lang, tr
-from ..core.pg import insert_id, system_ctx
+from ..core.pg import system_ctx
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.objcomments import ocm_add  # 2.972.0 (#5272)
 from ..core.access import Denied, MANAGE_ROLES, need_list, task_visible
 from ..core.pages import save_attachment_bytes
@@ -231,9 +232,8 @@ def rq_new(c, msg, mid, l, sender, verified, auto, hint=""):
         meta += " · " + hint
     content = (text + "\n\n" if text else "") + "— " + meta
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,sort,created_at,updated_at,tt_id,created_by) VALUES(?,?,?,?,?,?,?,?)",
-                    (lid, title, content, srt, ts, ts, "mail:" + mid, None))
+    # 2.1358.0 (#6825): on top (sort TOP); no creator - the mail of a person without an account
+    tid = task_insert(c, None, lid, title=title, content=content, ts=ts, tt_id="mail:" + mid)
     ptid, ptok = P.pt_create(c, tid, {"id": lid, "org_id": l["org_id"], "owner_id": l["owner_id"]}, None, name, sender)
     c.execute("UPDATE portal_tickets SET via='mail', unverified=?, lang=? WHERE id=?", (0 if verified else 1, lg, ptid))
     _keep(c, tid, mid, "src")

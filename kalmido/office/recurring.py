@@ -28,6 +28,7 @@ from ..core.i18n import LANGS, N_, lang, short_day, tr, tr_stored, trn
 from .doclang import doc_lg  # 2.185.0 C (#2520)
 from .pdfweb import epdf_sweep  # 2.355.0 A (#2847)
 from ..core.pg import insert_id, system_ctx, write_lock
+from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.orgcrypt import oc_item_store, oc_dec_fields
 from ..core.errors import BadInput, err_stored
 from .calc import dec, dstr, fmt_money, money
@@ -394,10 +395,9 @@ def rin_task(c, person, title, text, doc_id=None):
     """A task in the person's inbox, theirs and assigned to them, due today: a link into the office, never an amount."""
     lid = my_inbox(c, person)
     ts = iso(now_utc())
-    srt = c.execute("SELECT COALESCE(MIN(sort),0)-1 FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0]
     url = PUBLIC_URL.rstrip("/") + (f"/#office/offers/{int(doc_id)}" if doc_id else "/#office/offers")
-    tid = insert_id(c, "INSERT INTO tasks(list_id,title,content,due,sort,created_at,updated_at,created_by,url,assignee_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (lid, title[:300], text[:4000], local_now().date().isoformat(), srt, ts, ts, person, url, person))
+    tid = task_insert(c, person, lid, title=title[:300], content=text[:4000], due=local_now().date().isoformat(), ts=ts, url=url,
+                      assignee_id=person)  # 2.1358.0 (#6825): on top (sort TOP)
     log_act(c, tid, "created", uid=person)
     return tid
 
