@@ -106,6 +106,9 @@ check(requests.post(B + "/api/v1/tasks", headers=API, json={"title": "API before
 # ================================================================== (1) who may start it
 M = f"/api/orgs/{ORG}/moving"
 check(A.get(B + M).json() == {"moving": False}, "before: not moving")
+# tenant: GET /api/orgs/{}/moving
+# tenant: POST /api/orgs/{}/moving
+# tenant: DELETE /api/orgs/{}/moving
 check(Ca.get(B + M).status_code == 404 and Ca.post(B + M, json={"confirm": "Alpha"}).status_code == 404
       and Ca.delete(B + M).status_code == 404, "the admin of another organisation: 404 for the state, start and end")
 check(Bo.post(B + M, json={"confirm": "Alpha"}).status_code == 403, "a member who is no admin: 403")
