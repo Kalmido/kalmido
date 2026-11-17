@@ -49,7 +49,8 @@ KINDS = {
     "people": ("matrix", "p2280_api_test.py, p2300_tenant_test.py: the user list, user changes, invitations / sign-in links by id"),
     "org": ("matrix", "p2280_api_test.py: organisations, their members and admins; p2115_b_api_test.py: invitations by e-mail (2.115.0); "
                    "p2146_d_api_test.py: the retention export of another organisation 404 (2.146.0); "
-                   "p2422_orgself_test.py: a company of one's own - its admin sets no e-mail domains (2.422.0), an organisation admin neither (2.467.0)"),
+                   "p2422_orgself_test.py: a company of one's own - its admin sets no e-mail domains (2.422.0), an organisation admin neither (2.467.0); "
+                   "p6600_org_moving_test.py: the move of an organisation - a member of another one gets 404, starts and ends nothing (2.1337.0)"),
     "calendar": ("matrix", "p2300_tenant_test.py: calendars by id, sharing (B2), workspace (B3); p294_b_api_test.py (the booking page: types / bookings of another person 404, the public pages); "
                  "p2111_b_api_test.py (invitation marks and subscription links of another person's calendar 404, a link ends with the sharing)"),
     "event": ("matrix", "p2300_tenant_test.py: events by id, ranges, invitations"),
@@ -851,6 +852,7 @@ ROUTES = {
     "POST /api/orgs/{}/join": "org", "DELETE /api/orgs/{}/join": "org",
     # 2.35.0 (#1101): an organisation admin's lists of the organisation (p2350_c_api_test.py: other organisation, private list, member 403)
     "GET /api/orgs/{}/out-requests": "org", "POST /api/orgs/{}/out-requests": "org", "POST /api/orgs/{}/out-requests/{}": "org",  # 2.361.2 (#2923)
+    "GET /api/orgs/{}/moving": "org", "POST /api/orgs/{}/moving": "org", "DELETE /api/orgs/{}/moving": "org",  # 2.1337.0 (#6600)
     "GET /api/orgs/{}/lists": "org", "POST /api/orgs/{}/lists/{}/archive": "org", "DELETE /api/orgs/{}/lists/{}": "org",
     "GET /api/orgs/{}/tasks": "org",  # 2.574.0 (#3376): p2574_d_api_test.py (the admin of another organisation: 404)
     "POST /api/orgs/{}/lists/{}/owner": "org",
