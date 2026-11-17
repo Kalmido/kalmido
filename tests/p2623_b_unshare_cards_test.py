@@ -4,7 +4,8 @@
 page's or folder's node marks the card in sheet_shares / wiki_shares ended (revoked_at) and puts the row into obj_revoked --
 an older version after a rollback reads only the card and must not open the share again. Invented names only.
  - tables: the card of an organisation's table is marked, the guest reads nothing; Undo (share again) opens the card again
- - freelancer-matrix: sheets, wiki (a private table shared by address: the card goes, as in the table's dialog; a page and a
+ - freelancer-matrix: sheets, wiki (a private table shared by address: 2.1364.0 #6297 6: the file store's dialog answers 404 for
+   it too, the table's dialog ends it - the card goes, the row in obj_revoked; a page and a
    folder of a person without an organisation: the card is marked, the folder card ends as a whole -- both core shares;
    2.1138.0 #6025: shared by address, they end in the knowledge dialog -- the file store's dialog answers 404 for them)
  - a share made in the file store on a table's node (no card) goes into obj_revoked too; a plain folder's share is deleted
@@ -134,7 +135,11 @@ check(r.status_code == 201 and Fi.get(B + f"/api/sheets/{P1}").status_code == 20
 # 2.937.0 (#5244): the address is bound to fiona's account, her right is her core share on the table's node
 fsp = dbx("SELECT f.id FROM fs_shares f JOIN fs_nodes n ON n.id=f.node_id WHERE n.kind='ref' AND n.ref_kind='sheet' AND n.ref_id=? "
           "AND f.user_id=?", (P1, FIO))
-check(bool(fsp) and Fr.delete(B + f"/api/files/shares/{fsp[0][0] if fsp else 0}").ok, "frida takes it back in the file store's dialog")
+# 2.1364.0 (#6297 6): the file store neither shows nor reaches the share of an address's account (was: frida took it back
+# there); she takes it back in the table's dialog, as the address
+check(bool(fsp) and Fr.delete(B + f"/api/files/shares/{fsp[0][0] if fsp else 0}").status_code == 404, "the file store's dialog does not reach it (404)")
+adr = [x["id"] for x in Fr.get(B + f"/api/sheets/{P1}/shares").json().get("shares", []) if x["id"] < 0]
+check(len(adr) == 1 and Fr.delete(B + f"/api/sheets/{P1}/shares/{adr[0]}").ok, "frida takes it back in the table's dialog")
 check(Fi.get(B + f"/api/sheets/{P1}").status_code == 404, "... fiona reads nothing")
 check(dbx("SELECT COUNT(*) FROM sheet_shares WHERE sheet_id=? AND revoked_at IS NULL", (P1,))[0][0] == 0,
       "#4778: no open card left (the one with the typed address goes, as in the table's dialog)")
