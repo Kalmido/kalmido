@@ -3,17 +3,18 @@
 // - the data: the accepted list without no. 17, 28 and 53; every quote has its author; every quote that is no sound poem has
 //   the German and the English text (its original or a translation), a sound poem has no translation; Vaché and Pansaers
 //   without a work title; the pick is fixed per day and walks through the whole list before one repeats
-// - Today (home): below the greeting "Good …, Alice" the quote ONCE in italics, in the interface language, and "— Author";
-//   2.1017.0 (#5784): replaces the original + translation below it (#5239); no quote ends on a comma, semicolon or colon;
-//   the module loads on demand (lazy start: first a placeholder, then the line); drawing the page again twice keeps the
-//   same line and draws it at once (no placeholder, no jump)
-// - the sign-in page shows the same line, alone (no "nice to have you here" greeting any more)
+// - 2.1353.0 (#6979): the quote is on the sign-in page only: Today (home) shows none (no line, no placeholder, the module is
+//   not even loaded); the sign-in page shows the quote ONCE in italics, in the interface language, and "— Author", alone
+//   above the form (no "nice to have you here" greeting any more); 2.1017.0 (#5784): replaces the original + translation
+//   below it (#5239); no quote ends on a comma, semicolon or colon; the module loads on demand (lazy start: first a
+//   placeholder, then the line); drawing the page again twice keeps the same line and draws it at once (no placeholder)
+// - 2.1353.0 (#6979): a ' / ' between two verse lines shows as a real line break (<br>), never as a slash; the data keep it
 // - German interface: a French original shows only the German text, a German one its original; French: the French original,
 //   else English; a sound poem always its original
 // - 2.1030.0 (#5785): Spanish, Italian, Dutch and French have their own text for every quote that is no sound poem (French:
 //   for the German and English originals), each in its own file loaded on demand (quotes_dada_<code>.js); the same verse
 //   breaks as the original, none ends on a comma, semicolon or colon; without that file the line falls back to English;
-//   a Spanish interface shows the Spanish text on Today and on the sign-in page and loads only the Spanish file
+//   a Spanish interface shows the Spanish text on the sign-in page and loads only the Spanish file
 const {execFileSync} = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -73,7 +74,10 @@ check(ctx2.qd_text(de, 'es')[0] === 'Lo que llamamos Dada es un juego de locos s
 execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
 let CK;
 const call = async (method, url, body, ck = CK) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: ck}, body: body ? JSON.stringify(body) : undefined}); return {...(await r.json().catch(() => ({}))), status: r.status}; };
-const line = d => { const f = d.querySelector('figure.qd'); return f && {n: Number(f.dataset.qdn), o: f.querySelector('.qdo')?.textContent || '', cap: f.querySelector('figcaption')?.textContent || '',
+// 2.1353.0 (#6979): the text as shown: a <br> is a line break (textContent would glue the two verse lines together)
+const shown = el => el ? [...el.childNodes].map(n => n.nodeName === 'BR' ? '\n' : n.textContent).join('') : '';
+const vis = t => t.split(' / ').join('\n');
+const line = d => { const f = d.querySelector('.authscreen figure.qd'); return f && {n: Number(f.dataset.qdn), o: shown(f.querySelector('.qdo')), cap: f.querySelector('figcaption')?.textContent || '',
   a: f.querySelector('.qda')?.textContent || '', tip: f.querySelector('.qda')?.getAttribute('title') || '', cls: f.className, lang: f.querySelector('.qdo')?.getAttribute('lang') || '',
   italic: f.querySelector('.qdo')?.tagName === 'BLOCKQUOTE'}; };
 
@@ -83,74 +87,87 @@ const line = d => { const f = d.querySelector('figure.qd'); return f && {n: Numb
   CK = await login('alice');
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done'});
 
-  // ================= Today, English, the module loads on demand
+  // ================= Today, English: no quote any more (2.1353.0, #6979), the module is not loaded for it
   let w = await boot({user: 'alice', hash: 'home', lazy: true}), d = w.document;
   await idle(w);
-  await until(() => d.querySelector('.dash figure.qd.dashq'));
+  await until(() => d.querySelector('.dash .dashhead h2'));
+  const head = d.querySelector('.dash .dashhead h2');
+  check(head && /Alice/.test(head.textContent), 'Today: the greeting with the name stays');
+  check(!d.querySelector('.dash figure.qd') && !d.querySelector('.dash .qdslot') && !d.querySelector('.dash .qdo'), '#6979: Today shows no quote and no placeholder');
+  check(!w.eval('[...LD_RAN]').some(x => /^quotes/.test(x)), '#6979: Today does not load the quotes ' + w.eval('[...LD_RAN]'));
+  w.eval('render()');
+  check(!d.querySelector('.dash figure.qd, .dash .qdslot'), '#6979: Today drawn again: still no quote');
+
+  // ================= the sign-in page, English: the module loads on demand, the line alone, centred above the form
+  w.eval(`authScreen({auth: 'login'})`);
+  await until(() => d.querySelector('.authscreen figure.qd.lgq'));
   let L = line(d);
   const want = w.eval('qd_pick()');
   const wt = ctx.qd_text(want, 'en');
-  check(L && L.n === want[0] && L.o === wt[0] && L.lang === wt[1], 'Today: the quote of the day once, in English (or its English original / sound poem) ' + JSON.stringify(L));
-  check(L && Q.some(q => q[0] === L.n && (q[2] === L.o || q[4] === L.o)), 'Today: a quote of the list');
-  check(L && L.a === '— ' + want[5] && L.tip === want[6], 'Today: "— Author", the work as the tooltip ' + (L && L.a));
-  check(L && L.cap === L.a && !d.querySelector('.qdt'), 'Today: below the quote only the author, no second text ' + (L && L.cap));
-  const head = d.querySelector('.dash .dashhead h2'), fig = d.querySelector('.dash figure.qd');
-  check(head && /Alice/.test(head.textContent) && head.closest('.dashhead').nextElementSibling === fig, 'Today: the greeting with the name stays, the quote right below it');
-  check(!d.querySelector('.dash .qdslot'), 'Today: no placeholder left');
+  check(L && L.n === want[0] && L.o === vis(wt[0]) && L.lang === wt[1], 'sign-in page: the quote of the day once, in English (or its English original / sound poem) ' + JSON.stringify(L));
+  check(L && Q.some(q => q[0] === L.n && (vis(q[2]) === L.o || vis(q[4]) === L.o)), 'sign-in page: a quote of the list');
+  check(L && L.a === '— ' + want[5] && L.tip === want[6], 'sign-in page: "— Author", the work as the tooltip ' + (L && L.a));
+  check(L && L.cap === L.a && !d.querySelector('.qdt'), 'sign-in page: below the quote only the author, no second text ' + (L && L.cap));
+  const sc = d.querySelector('.authscreen'), fig = sc?.querySelector('figure.qd');
+  check(fig && !!(fig.compareDocumentPosition(sc.querySelector('#auth-form')) & 4), 'sign-in page: the quote stands above the form');
+  check(sc && !/nice to have you here|Welcome back/.test(sc.textContent) && !sc.querySelector('.lghello'), 'sign-in page: no "nice to have you here" / "Welcome back" any more');
+  check(!d.querySelector('.authscreen .qdslot'), 'sign-in page: no placeholder left');
   // drawing again: the same line at once
   for (let i = 0; i < 2; i++) {
-    w.eval('render()');
+    w.eval(`authScreen({auth: 'login'})`);
     const now = line(d);
-    check(now && now.n === L.n && !d.querySelector('.qdslot'), `Today: drawn again (${i + 1}): the same line at once, no placeholder`);
+    check(now && now.n === L.n && !d.querySelector('.qdslot'), `sign-in page: drawn again (${i + 1}): the same line at once, no placeholder`);
   }
   // the next day (another date): another quote of the list, the French one in English
   const f39 = w.eval(`(() => { const D = new Date(2026, 10, 11); for (let i = 0; i < 400; i++) { const x = new Date(D.getTime() + i * 864e5); if (qd_pick(x)[0] === 39) return x.getTime(); } return 0; })()`);
-  const n39 = w.eval(`qd_node('dashq', new Date(${f39}))`);
+  const n39 = w.eval(`qd_node('lgq', new Date(${f39}))`);
   check(n39.querySelector('.qdo').textContent === 'Rainy days look like holidays.' && n39.querySelector('.qdo').lang === 'en' && n39.querySelector('figcaption').textContent === '— Francis Picabia',
     'English interface, a French original: only the English text and the author');
-
-  // ================= the sign-in page: the same line, alone, centred above the form
-  w.eval(`authScreen({auth: 'login'})`);
-  await until(() => d.querySelector('.authscreen figure.qd.lgq'));
-  const sc = d.querySelector('.authscreen');
-  const LS = sc && (() => { const f = sc.querySelector('figure.qd'); return {n: Number(f.dataset.qdn), o: f.querySelector('.qdo').textContent, a: f.querySelector('.qda').textContent, before: !!(f.compareDocumentPosition(sc.querySelector('#auth-form')) & 4)}; })();
-  check(LS && LS.n === L.n && LS.o === L.o && LS.a === L.a, 'sign-in page: the same quote as on Today ' + JSON.stringify(LS));
-  check(LS && LS.before, 'sign-in page: the quote stands above the form');
-  check(sc && !/nice to have you here|Welcome back/.test(sc.textContent) && !sc.querySelector('.lghello'), 'sign-in page: no "nice to have you here" / "Welcome back" any more');
+  // 2.1353.0 (#6979): every quote of the list (the whole round of days), the ' / ' of its verse lines is a line break, never a slash
+  const all = JSON.parse(w.eval(`(() => { const D = new Date(2026, 10, 11), out = []; for (let i = 0; i < QD_LIST.length; i++) { const x = new Date(D.getTime() + i * 864e5), q = qd_pick(x), o = qd_node('lgq', x).querySelector('.qdo');
+    out.push([q[0], /(^|\\s)\\/(\\s|$)/.test(o.textContent), o.querySelectorAll('br').length, qd_text(q, I18N.code)[0].split(' / ').length - 1, o.innerHTML.replace(/<br>/g, '').includes('<')]); } return JSON.stringify(out); })()`));
+  check(all.length === Q.length && all.filter(x => x[3]).length >= 10, '#6979: the round covers the list, with many verse quotes ' + all.filter(x => x[3]).length);
+  check(all.every(x => !x[1] && x[2] === x[3] && !x[4]), '#6979: no quote shows a verse slash " / " (no. 43 keeps its "11 h. 1/2"); one <br> per verse break, nothing else as markup ' + all.filter(x => x[1] || x[2] !== x[3] || x[4]).map(x => x[0]));
   w.close();
 
   // ================= German interface
   await call('PATCH', '/api/settings', {lang: 'de'});
   w = await boot({user: 'alice', hash: 'home'}); d = w.document;
   await idle(w);
-  await until(() => d.querySelector('.dash figure.qd.dashq'));
+  check(!d.querySelector('.dash figure.qd, .dash .qdslot'), 'German: Today shows no quote');
+  w.eval(`authScreen({auth: 'login'})`);
+  await until(() => d.querySelector('.authscreen figure.qd.lgq'));
   L = line(d);
-  check(L && L.o === ctx.qd_text(want, 'de')[0] && L.cap === L.a, 'German: the German text once, below it only the author ' + JSON.stringify(L));
+  check(L && L.o === vis(ctx.qd_text(want, 'de')[0]) && L.cap === L.a, 'German: the German text once, below it only the author ' + JSON.stringify(L));
   const g39 = w.eval(`qd_node('', new Date(${f39}))`);
   check(g39.querySelector('.qdo').textContent === 'Regentage sehen aus wie Ferien.' && g39.querySelector('.qdo').lang === 'de' && !g39.textContent.includes('vacances'),
     'German, a French original: only the German text, not the French one');
   const gde = w.eval(`(() => { const D = new Date(2026, 10, 11); for (let i = 0; i < 400; i++) { const x = new Date(D.getTime() + i * 864e5); if (qd_pick(x)[0] === 1) return qd_node('', x); } return null; })()`);
   check(gde && gde.querySelector('.qdo').textContent === 'Was wir Dada nennen, ist ein Narrenspiel aus dem Nichts' && gde.querySelector('figcaption').textContent === '— Hugo Ball',
     'German, a German original: the original and "— Hugo Ball"');
+  // 2.1353.0 (#6979): no. 18 (two verse lines in the data, 'Blau … Haares. / Rot … Vogels.'): two lines, no slash
+  const g18 = w.eval(`(() => { const D = new Date(2026, 10, 11); for (let i = 0; i < 400; i++) { const x = new Date(D.getTime() + i * 864e5); if (qd_pick(x)[0] === 18) return qd_node('lgq', x); } return null; })()`);
+  const o18 = g18?.querySelector('.qdo');
+  check(o18 && shown(o18) === 'Blau ist die Farbe deines gelben Haares.\nRot ist das Girren deines grünen Vogels.' && o18.querySelectorAll('br').length === 1 && !o18.textContent.includes('/'),
+    '#6979: a verse quote shows its two lines with a line break, not " / " ' + (o18 && JSON.stringify(shown(o18))));
   w.close();
 
-  // ================= 2.1030.0 (#5785): Spanish interface, the Spanish file loads on demand beside the quotes
+  // ================= 2.1030.0 (#5785): Spanish interface, the Spanish file loads on demand beside the quotes (on the sign-in page)
   await call('PATCH', '/api/settings', {lang: 'es'});
   w = await boot({user: 'alice', hash: 'home', lazy: true}); d = w.document;
   await idle(w);
-  await until(() => d.querySelector('.dash figure.qd.dashq'));
+  check(!d.querySelector('.dash figure.qd, .dash .qdslot'), 'Spanish: Today shows no quote');
+  w.eval(`authScreen({auth: 'login'})`);
+  await until(() => d.querySelector('.authscreen figure.qd.lgq'));
   L = line(d);
   const wes = ctx2.qd_text(want, 'es');
-  check(L && L.o === wes[0] && L.lang === wes[1] && L.cap === L.a, 'Spanish: the Spanish text once (or the original of a sound poem), below it only the author ' + JSON.stringify(L));
+  check(L && L.o === vis(wes[0]) && L.lang === wes[1] && L.cap === L.a, 'Spanish: the Spanish text once (or the original of a sound poem), below it only the author ' + JSON.stringify(L));
   const s39 = w.eval(`qd_node('', new Date(${f39}))`);
   check(s39.querySelector('.qdo').textContent === 'Los días de lluvia se parecen a las vacaciones.' && s39.querySelector('.qdo').lang === 'es', 'Spanish, a French original: the Spanish text');
   const ran = w.eval('[...LD_RAN]').filter(x => /^quotes/.test(x));
   check(ran.includes('quotes_dada_es') && !ran.some(x => /quotes_dada_(it|nl|fr)$/.test(x)), 'Spanish: only the Spanish file is loaded ' + ran);
-  w.eval('render()');
-  check(line(d)?.o === L.o && !d.querySelector('.qdslot'), 'Spanish: drawn again, the same line at once');
   w.eval(`authScreen({auth: 'login'})`);
-  await until(() => d.querySelector('.authscreen figure.qd.lgq'));
-  check(d.querySelector('.authscreen figure.qd .qdo')?.textContent === wes[0], 'Spanish: the sign-in page shows the same Spanish line');
+  check(line(d)?.o === L.o && !d.querySelector('.qdslot'), 'Spanish: drawn again, the same line at once');
   w.close();
 
   console.log(`p2955_a_quotes: ${ok} ok, ${F.length} failed`);

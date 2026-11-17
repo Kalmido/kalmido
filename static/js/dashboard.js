@@ -597,7 +597,7 @@ function viewHome() {
   const first = hpFirstOn();
   if (first) for (const k in parts) if (/^<section class="dcard dempty/.test(parts[k] || '')) parts[k] = '';
   return `<div class="dash"><div class="dashhead"><h2>${esc(greet)}</h2><span class="muted">${esc(fmtDateLoc(today()))}</span><span class="spacer"></span>${lyCustomBtn('home')}</div>
-    ${/*html-ok*/ qd_slot('dashq')}${''/* 2.955.0 (#5239): the Dada quote of the day */}${/*html-ok*/ hpSummary(!!parts.today && hpShown('today'))}${forMeBanner()}${/*html-ok*/ first ? hpFirstHtml() : ''}${lyHtml('home', parts, {cols: true, empty: `<p class="muted">${tr('Every block is hidden. “+ Block” brings them back.')}</p>`})}</div>`;
+    ${''/* 2.1353.0 (#6979): the Dada quote of the day is on the sign-in page only (was here since 2.955.0, #5239) */}${/*html-ok*/ hpSummary(!!parts.today && hpShown('today'))}${forMeBanner()}${/*html-ok*/ first ? hpFirstHtml() : ''}${lyHtml('home', parts, {cols: true, empty: `<p class="muted">${tr('Every block is hidden. “+ Block” brings them back.')}</p>`})}</div>`;
 }
 // 2.1249.0 (#6125): "Getting started" while the account has no project and no task yet (the practice project of a new
 // account counts as one: then the cards themselves show it); each step leads into an area that is already there
