@@ -38,6 +38,15 @@ OCR_PARALLEL = _env_int("KALMIDO_OCR_PARALLEL", 1, 1, 8)         # pages recogni
 # 2.1283.0 (#6427): wall clock of ONE document (waiting for the slot included): a PDF from outside (form, file request, mail)
 # whose pages each stay just under the page limit no longer keeps the queue for half an hour
 OCR_DOC_S = _env_int("KALMIDO_OCR_DOC_S", 300, 10, 7200)
+# 2.1337.0 (#6651): the wall clock of ONE document from an anonymous source (a public form, a file request, a mail): a stranger
+# can send as many as the form takes, so each gets less than a document a member put in. "Recognise again" by a person
+# runs with OCR_DOC_S (docs/store.py process)
+OCR_ANON_S = _env_int("KALMIDO_OCR_ANON_S", 90, 10, 7200)
+# 2.1337.0 (#6651): recognition seconds of ONE workspace per hour, the documents' and the files' queue together (ocr_charge).
+# Used up: its documents and files stay waiting and come up again once the oldest seconds of the hour have run out --
+# nothing is dropped; the other workspaces go on. Kept in the queue process (a restart starts a fresh hour)
+OCR_WS_HOUR_S = _env_int("KALMIDO_OCR_WS_HOUR_S", 1800, 60, 86400)
+OCR_HOUR = 3600
 # 2.1283.0 (#6427): pages cut off after which a document ends: the time limit, a tool killed by a signal (its CPU limit),
 # or a failure that took at least half the page time. A damaged page that fails at once costs nothing and does not count
 OCR_FAILS = 2
@@ -84,6 +93,41 @@ class _FairSem:
 
 
 _SEM = _FairSem(OCR_PARALLEL)
+_SPENT = {}  # 2.1337.0 (#6651): workspace -> deque of (monotonic time, recognition seconds) of the last hour
+_SPENT_LOCK = threading.Lock()
+
+
+def ocr_charge(ws, seconds, clock=time.monotonic):
+    """2.1337.0 (#6651): book the seconds one recognition of workspace ws took (its hour budget, OCR_WS_HOUR_S)."""
+    if not ws or seconds <= 0:
+        return
+    with _SPENT_LOCK:
+        _SPENT.setdefault(ws, collections.deque()).append((clock(), float(seconds)))
+
+
+def ocr_spent(ws, clock=time.monotonic):
+    """2.1337.0 (#6651): the recognition seconds workspace ws used in the last hour."""
+    now = clock()
+    with _SPENT_LOCK:
+        q = _SPENT.get(ws)
+        while q and q[0][0] <= now - OCR_HOUR:
+            q.popleft()
+        if q is not None and not q:
+            _SPENT.pop(ws, None)
+        return sum(s for _t, s in q) if q else 0.0
+
+
+def ocr_tired(clock=time.monotonic):
+    """2.1337.0 (#6651): the workspaces whose hour budget is used up -- the queues skip their waiting rows meanwhile."""
+    with _SPENT_LOCK:
+        names = list(_SPENT)
+    return sorted(w for w in names if ocr_spent(w, clock) >= OCR_WS_HOUR_S)
+
+
+def ocr_ws_sql(names):
+    """2.1337.0 (#6651): a list of workspace names as a Postgres TEXT[] literal (the queues' ? parameters); names are
+    'o<id>' / 'u<id>' (docs/store.py doc_ws), nothing that needs quoting."""
+    return "{" + ",".join(str(w) for w in names) + "}"
 # 2.1283.0 (#6427): the small previews of pictures (files/web.py files_thumb) have their own slots: a long recognition no
 # longer answers every card of every organisation with 429
 THUMB_PARALLEL = 2
@@ -252,19 +296,20 @@ def _ocr_page(tmp, src, i, langs, left):
             pass
 
 
-def ocr_bytes(data, kind, lang=None, base=None, clock=time.monotonic):
+def ocr_bytes(data, kind, lang=None, base=None, clock=time.monotonic, doc_s=None):
     """{"text", "pages", "pages_read", "truncated"} or {"error": "no_ocr" | "busy" | "too_complex" | "unreadable"}.
     kind = "pdf" | "image"; lang = the person's app language (2.122.0, #2101: read with its Tesseract language as well).
     2.1283.0 (#6427): the slot is taken PER PAGE (other documents, "Optimise PDF" and the page scan get their turn in
     between); one document has OCR_DOC_S seconds of wall clock in all, then what was read so far counts (truncated);
     after OCR_FAILS pages cut off -- by the time limit or by a tool that was killed / failed -- the document ends; a
-    picture must be one by its first bytes (ocr_is_image), else "unreadable" without Tesseract ever seeing it."""
+    picture must be one by its first bytes (ocr_is_image), else "unreadable" without Tesseract ever seeing it.
+    2.1337.0 (#6651): doc_s = the document's clock instead of OCR_DOC_S (OCR_ANON_S for an anonymous source)."""
     if not ocr_available():
         return {"error": "no_ocr"}
     if kind != "pdf" and not ocr_is_image(data, heif=False):
         return {"error": "unreadable"}
     langs = ocr_langs(lang, base=base)[0]  # 2.635.0 (#4807 b): base = the area's chosen languages
-    end = clock() + OCR_DOC_S
+    end = clock() + (OCR_DOC_S if doc_s is None else max(1, min(OCR_DOC_S, doc_s)))
 
     def left():
         return end - clock()
@@ -614,8 +659,9 @@ def qr_codes(data, kind, pages=1, want=None, budget=None):
         return []
 
 
-def doc_text(name, mime, data, owner=None, lang=None, langs=None):
-    """{"text", "method": "text" | "pdf" | "ocr" | "office" (2.635.0, #4807) | "none", "pages"?, "error"?} -- the text of one document's bytes."""
+def doc_text(name, mime, data, owner=None, lang=None, langs=None, doc_s=None):
+    """{"text", "method": "text" | "pdf" | "ocr" | "office" (2.635.0, #4807) | "none", "pages"?, "error"?} -- the text of one document's bytes.
+    2.1337.0 (#6651): doc_s = the recognition's clock of this document (ocr_bytes; OCR_ANON_S for an anonymous source)."""
     kind = file_kind(name, mime, data[:2048])
     if kind == "text":
         return {"text": _decode(data)[:TEXT_CAP], "method": "text", "kind": kind}
@@ -642,7 +688,7 @@ def doc_text(name, mime, data, owner=None, lang=None, langs=None):
             data, e = heif_jpeg(data)
             if e:
                 return {"error": e, "kind": kind}
-    o = ocr_bytes(data, kind, lang, langs)
+    o = ocr_bytes(data, kind, lang, langs, doc_s=doc_s)
     if o.get("error"):
         return {"error": o["error"], "kind": kind}
     # 2.1283.0 (#6427, review): truncated = not every page was read (page count, the document's clock, cut-off pages)

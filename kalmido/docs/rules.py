@@ -207,7 +207,8 @@ def _clean_share(v):
     return [{k: t, "role": role} for (k, t), role in sorted(seen.items())]
 # the source filter: a group -> the values of doc_meta.source (docs/ingest.py docs_ingest callers); "mailbox" for the own
 # mailbox of a workspace (#4804) when it marks its documents apart from the document address
-SOURCES = {"upload": ("upload", "share", "api", "folder", "office", "payonline"), "mail": ("mail", "mailbox"), "scan": ("scan",),
+SOURCES = {"upload": ("upload", "share", "api", "folder", "office", "payonline", "filereq"),  # 2.1337.0 (#6651): + filereq
+           "mail": ("mail", "mailbox"), "scan": ("scan",),
            "fetcher": ("abholer",), "import": ("paperless", "import")}
 
 

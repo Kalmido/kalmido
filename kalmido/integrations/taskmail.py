@@ -191,7 +191,7 @@ def tmr_comment(c, msg, mid, tid, sender, uid):
     for fname, mime, data in files[:TMR_FILES]:
         if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
             try:
-                save_attachment_bytes(c, tid, fname, mime, data)
+                save_attachment_bytes(c, tid, fname, mime, data, anon=True)  # 2.1337.0 (#6651): from a mail
             except OSError:
                 whole = False
                 break

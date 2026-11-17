@@ -336,7 +336,9 @@ def split_link(title, content=""):
     return title, content, None
 
 
-def save_attachment_bytes(c, tid, name, mime, data, owner=None):
+def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
+    """2.1337.0 (#6651): anon = the file came from a source a stranger can fill (a public form, a mail): its text recognition
+    gets the shorter clock (files/textscan.py ts_mark_anon)."""
     from ..tasks.attachments import safe_name
     from ..notify.alerts import aa_count, aa_oserr
     from ..admin.hosting import quota_fits
@@ -379,7 +381,7 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None):
         return
     aid = insert_id(c, "INSERT INTO attachments(task_id,name,mime,size,path,created_at,user_id) VALUES(?,?,?,?,?,?,?)",
                     (tid, name, mime, len(data), rel, iso(now_utc()), who))
-    up_after_store(c, "att", aid, org, info)
+    up_after_store(c, "att", aid, org, {**(info or {}), "anon": True} if anon else info)  # 2.1337.0 (#6651)
 
 
 def h6a_share_origin_ok():

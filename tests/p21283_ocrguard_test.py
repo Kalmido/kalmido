@@ -17,6 +17,11 @@ freelancer-matrix: n/a (no route new or changed in its answer; the preview route
  - the previews have their own slots: with the recognition's slot taken the preview route still answers a JPEG (was 429)
  - the page scan of a stack (docs/split.py) takes the slot per page as well
  - the files' queue (files/textscan.py ts_run_once) goes round the workspaces: A A A B waiting -> A, B, A, A
+ - 2.1337.0 (#6651): the hour budget of a workspace (ocr_charge / ocr_tired, a clock handed in): used up after its seconds,
+   free again an hour later; the files' queue skips a used-up workspace (its file stays waiting, nothing dropped) and takes
+   it once the budget frees up; a file marked anonymous (ts_mark_anon) comes with anon and is recognised with the shorter
+   clock (OCR_ANON_S), a member's file with the full one; 30 pages of 50 s from an anonymous source end after 2 pages,
+   truncated; a document from the mail / a file request gets the shorter clock, "Recognise again" (auto._full) the full one
 usage: p21283_ocrguard_test.py <datadir>   (P21283_NOSTART=1: the container runs already)"""
 import json
 import subprocess
@@ -225,6 +230,7 @@ def proc(c, row):
     c.execute("UPDATE file_text SET state='skip' WHERE id=?", (row["id"],))
 
 
+real_proc = TS._process  # 2.1337.0 (#6651): used again below
 TS._process = proc
 c = connect()
 with system_ctx(c):
@@ -238,6 +244,83 @@ with system_ctx(c):
 c.commit()
 c.close()
 out["queue"] = {"seen": seen, "steps": steps}
+
+# ---- 2.1337.0 (#6651): the hour budget of a workspace
+tick = [5000.0]
+clk = lambda: tick[0]  # noqa: E731
+O._SPENT.clear()
+O.ocr_charge("u900001", O.OCR_WS_HOUR_S - 10, clock=clk)
+h1 = O.ocr_tired(clock=clk)
+tick[0] += 1800
+O.ocr_charge("u900001", 20, clock=clk)
+h2 = O.ocr_tired(clock=clk)
+tick[0] += 1801  # the first charge is older than an hour
+h3 = O.ocr_tired(clock=clk)
+out["hour"] = [h1, h2, h3, round(O.ocr_spent("u900001", clock=clk))]
+
+# the files' queue skips a used-up workspace and takes it once its budget frees up; anon comes along
+O._SPENT.clear()
+O.ocr_charge("u900011", O.OCR_WS_HOUR_S)  # u900011 has used its hour
+seen2 = []
+
+
+def proc2(c, row):
+    seen2.append([row["ws"], row["anon"]])
+    c.execute("UPDATE file_text SET state='skip' WHERE id=?", (row["id"],))
+
+
+TS._process = proc2
+TS._Q["recent"] = []
+c = connect()
+with system_ctx(c):
+    for ref, ws in ((900011, "u900011"), (900012, "u900012")):
+        c.execute("INSERT INTO file_text(kind, ref_id, ws, state, created_at, updated_at) VALUES('att', ?, ?, 'wait', ?, ?)",
+                  (ref, ws, TS._now(), TS._now()))
+    on, TS.ON = TS.ON, True  # the server's own queue is off here (KALMIDO_FILE_OCR=off): ts_mark_anon writes only while on
+    TS.ts_mark_anon(c, "att", 900012)
+    TS.ON = on
+c.commit()
+s1 = [TS.ts_run_once(), TS.ts_run_once()]
+with system_ctx(c):
+    waiting = c.execute("SELECT state FROM file_text WHERE kind='att' AND ref_id=900011").fetchone()[0]
+c.commit()
+O._SPENT.clear()  # the hour went by
+s1.append(TS.ts_run_once())
+with system_ctx(c):
+    c.execute("DELETE FROM file_text WHERE ref_id IN (900011, 900012) AND kind='att'")
+c.commit()
+out["queue_budget"] = {"seen": seen2, "steps": s1, "waiting": waiting}
+
+# the shorter clock of an anonymous file (files/textscan.py _process -> doc_text(doc_s=...)), the budget charged
+got = []
+TS._ref = lambda c, k, i: {"name": "x.pdf", "mime": "application/pdf", "size": 10, "org_id": None, "owner_id": 1, "ws": "u900021"}
+TS._infected = lambda c, k, i: False
+TS._read = lambda c, k, i, ref: b"%PDF-1.4 anon " + str(i).encode()
+TS.doc_text = lambda name, mime, data, doc_s=None, **kw: got.append(doc_s) or {"error": "too_complex"}
+O._SPENT.clear()
+with system_ctx(c):
+    for ref, anon in ((900021, 1), (900022, 0)):
+        fid = c.execute("INSERT INTO file_text(kind, ref_id, ws, state, anon, created_at, updated_at) VALUES('att', ?, 'u900021', 'run', ?, ?, ?) RETURNING id",
+                        (ref, anon, TS._now(), TS._now())).fetchone()[0]
+        real_proc(c, {"id": fid, "kind": "att", "ref_id": ref, "ws": "u900021", "anon": anon})
+    rows = [list(x) for x in c.execute("SELECT ref_id, state, error FROM file_text WHERE ref_id IN (900021, 900022) AND kind='att' ORDER BY ref_id")]
+    c.execute("DELETE FROM file_text WHERE ref_id IN (900021, 900022) AND kind='att'")
+c.commit()
+out["anon_files"] = {"doc_s": got, "anon_s": O.OCR_ANON_S, "charged": "u900021" in O._SPENT, "rows": rows}
+
+# 30 pages of 50 s from an anonymous source end at its clock
+reset(30, tess_slow)
+t0 = now[0]
+r = O.ocr_bytes(b"%PDF-1.4 invented", "pdf", clock=lambda: now[0], doc_s=O.OCR_ANON_S)
+out["anon_clock"] = {"pages_read": r.get("pages_read"), "truncated": r.get("truncated"), "took": now[0] - t0, "anon_s": O.OCR_ANON_S}
+O._run, O._tess = real_run, real_tess
+O._AVAIL.clear()
+
+# the documents: mail / file request -> the shorter clock, "Recognise again" (auto._full) the full one
+from kalmido.docs import store as SS
+out["doc_clock"] = [SS.anon_clock(c, {"source": s_, "auto": a_, "ws": "u1"}) for s_, a_ in
+                    (("mail", ""), ("mailbox", "{}"), ("filereq", ""), ("upload", ""), ("folder", ""), ("mail", '{"_full":1}'))]
+c.close()
 print("RESULT " + json.dumps(out, default=str))
 """
 
@@ -289,5 +372,22 @@ check(u.get("thumb") == [200, True], f"with the recognition's slot taken the pre
 q = u.get("queue") or {}
 check(q.get("seen") == ["u900001", "u900002", "u900001", "u900001"] and q.get("steps") == [1, 1, 1, 1, 0],
       f"the files' queue goes round the workspaces: A A A B waiting -> A, B, A, A {q}")
+
+h = u.get("hour") or []
+check(h[:3] == [[], ["u900001"], []] and h[3] == 20,
+      f"#6651: a workspace's hour budget: used up after its seconds, free again once they are older than an hour {h}")
+q = u.get("queue_budget") or {}
+check(q.get("seen") == [["u900012", 1], ["u900011", 0]] and q.get("steps") == [1, 0, 1] and q.get("waiting") == "wait",
+      f"#6651: the files' queue skips a used-up workspace (its file waits, not dropped) and takes it once the budget frees up; "
+      f"a file marked anonymous comes with anon {q}")
+a = u.get("anon_files") or {}
+check(a.get("doc_s") == [a.get("anon_s"), None] and a.get("charged") is True,
+      f"#6651: an anonymous file is recognised with the shorter clock, a member's with the full one; the time is charged {a}")
+a = u.get("anon_clock") or {}
+check(a.get("pages_read") == 2 and a.get("truncated") is True and a.get("took", 9999) <= a.get("anon_s", 0) + 50,
+      f"#6651: 30 pages of 50 s from an anonymous source end at its shorter clock (2 pages), truncated {a}")
+dc = u.get("doc_clock") or []
+check(len(dc) == 6 and dc[:3] == [dc[0]] * 3 and dc[0] and dc[3:] == [None, None, None],
+      f"#6651: documents from the mail / a file request get the shorter clock; uploads, folders and 'Recognise again' the full one {dc}")
 
 sys.exit(kt.done("p21283_ocrguard"))
