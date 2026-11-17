@@ -19,10 +19,11 @@
 
 ## What's new
 
-**2.1310.0** (2026-11-17):
-- **Agents**: a team agent answers and acts only with the rights of the person who asked.
-- **Office**: invoices from quotations with parts always match the quotation; cent rests become a "Rounding adjustment" line.
-- **Mail**: incoming mail is limited (2,000 MIME parts, 256 KB head, 100 documents / 100 MB per mail) so crafted mails cannot stall the server.
+**2.1326.0** (2026-11-17):
+- **Calendar**: swiping leafs like a page on every touch screen; only the grid moves, the bar and input line stay.
+- **Mail**: an own SMTP server needs a login and port 465 / 587, with hourly send limits per person.
+- **Office**: finalising and numbering notice a document changed elsewhere and offer "Reload".
+- **Security**: support access on hosted servers can change only a fixed list of fields.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
