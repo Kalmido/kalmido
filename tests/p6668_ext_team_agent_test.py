@@ -21,6 +21,7 @@ tenant-matrix: agent (only the agent's own events; the token reaches only what t
      dispatcher works with the chosen person's token; both launchers name the capability
  (i) review F3: the step of a card run with the agent's own token always checks the card and the rights of the person who
      said Yes (a reader's Yes changes nothing), a read through a card needs the request token
+ (c) review F4: an event older than 24 hours gives no request token any more (404 event_gone)
  (h) review F2: removing a computer of the agent (its long-lived token) ends the request tokens too (401)
  (g) review F1, no server: no request token for a team agent (403 no_order, 400, 404 event_gone, the network) = the run, the
      dispatcher round and their children never start / never get the agent's own token; an older server (plain 404) and a
@@ -278,6 +279,9 @@ check(requests.get(V + f"/tasks/{SX}", headers=hdr(RN), timeout=30).status_code 
 r = requests.post(V + f"/tasks/{TX}/comments", headers=hdr(RN), json={"body": "FROM-NOBODY"}, timeout=30)
 check(r.status_code == 409 and err(r).get("code") == "approval_required", f"(c) every change is a card (no control level chosen) {r.status_code} {r.text[:200]}")
 check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='FROM-NOBODY'", (TX,)), "(c) ... nothing written")
+dbx("UPDATE agent_events SET created_at=now() - interval '25 hours' WHERE id=?", (SN,))
+r = ask([SN])
+check(r.status_code == 404 and err(r).get("code") == "event_gone", f"(c) review F4: an event older than 24 h gives no request token {r.status_code}")
 
 # ================================================================ (d) what is refused
 r = ask([SC, SR])

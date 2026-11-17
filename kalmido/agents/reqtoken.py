@@ -4,7 +4,7 @@ The run of a team agent on the Kalmido server already works with the rights of t
 srv_run_cut: api_tokens.asked_by / run_lists, core/access.py act_for / token_lists, api/runfor.py run_gate, agents/control.py
 ctl_cap). A team agent that runs elsewhere gets the same cut per request:
  - POST /api/v1/agent/request-token {"seqs": [event numbers]} (its own long-lived token only): a short-lived token of the agent
-   (REQ_TTL_S) for the person these events come from -- the same cut, the same code (srv_run_cut): only that person's projects,
+   (REQ_TTL_S) for the person these events come from (events at most REQ_EVENT_MAX_AGE_S old) -- the same cut, the same code (srv_run_cut): only that person's projects,
    outside projects at most their own role, writes capped to their role (a reader's order becomes an approval card).
    Events without a person (the project's own automation): only the events' projects, and every change is a card (req_unasked,
    agents/control.py ctl_gate). Events of two people in one call: 400 (one request = one person).
@@ -33,6 +33,7 @@ from .core import agent_row, need_agent, perm_user_of
 REQ_TOKEN_NAME = "Agent request"   # api_tokens.name of a request token (never a token a person makes: agents only)
 REQ_TTL_S = 8 * 3600               # a request lasts at most this long (a run, the jobs it starts); then a new one
 REQ_SEQS_MAX = 100
+REQ_EVENT_MAX_AGE_S = 24 * 3600    # review F4: an event older than this gives no request token any more (404 event_gone)
 
 
 def _int(v):
@@ -92,8 +93,8 @@ def v1_agent_request_token():
             seqs = b.get("seqs")
             if not isinstance(seqs, list) or not seqs or len(seqs) > REQ_SEQS_MAX or any(_int(x) is None for x in seqs):
                 return v1_err(400, tr("Invalid value: {0}", "seqs"))
-            rows = c.execute("SELECT id, payload FROM agent_events WHERE agent_id=? AND id = ANY(CAST(? AS BIGINT[]))",
-                             (aid, st_ids(set(seqs)))).fetchall()
+            rows = c.execute("SELECT id, payload FROM agent_events WHERE agent_id=? AND id = ANY(CAST(? AS BIGINT[])) AND created_at>=?",
+                             (aid, st_ids(set(seqs)), iso(now_utc() - timedelta(seconds=REQ_EVENT_MAX_AGE_S)))).fetchall()
             if len(rows) != len(set(seqs)):
                 return v1_err(404, tr("Not found"), name="event_gone")
             work = []
