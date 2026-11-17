@@ -18984,6 +18984,7 @@
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "L’eliminazione viene annullata; l’account resta bloccato finché un admin non lo sblocca. La persona riceve un’e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} ha chiesto di eliminare il proprio account ed è stato bloccato: l’eliminazione attende la tua decisione, al più tardi fino al {1}",
   "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decidi sull’eliminazione sospesa di {0}: senza decisione avviene il {1}",
+  "already there (imported from a statement in another format)": "già presente (importato da un estratto conto in un altro formato)",
   "Missing numbers: {0}": "Numeri mancanti: {0}",
   "{0} without a reason": "{0} senza motivo",
   "a draft carries the number": "una bozza porta il numero",
