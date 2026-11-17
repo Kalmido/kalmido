@@ -587,6 +587,10 @@ CSS_GUARD_SUITES = ("p2419_scale",)
 # group, a CHECK on obj_tags.scope_kind) - no small run took it. It takes 5-8 minutes (own container in mode workspaces), so it
 # is not in the fixed set "db" (every db.py / pg.py change) but along with schema.py and every migration fragment only
 SCHEMA_GUARD_SUITES = ("rls_direct",)
+# 2.1329.0 (#5354): the "…" coverage guard reads every static/js file; a package that adds a "…" button names it never, so a
+# missing RM_LEFT count / data-rowmenu showed up only in the full CI (red five times since 09.11., last #6136). Along with any
+# changed client script (seconds, static)
+JS_GUARD_SUITES = ("p2695_a_rowmenu_coverage",)
 APP_PREFIXES = ("kalmido/", "static/")
 # 2.501.0 (#4016): files the push stage sends to the full run, for --touched only (the small runs; select() and the CI stay as they
 # are): 330 einreihen checks ran only a sample because schema.py / db.py / app.css (272 times), translations (194), start files
@@ -777,8 +781,9 @@ def touched(repo, files, base=None, head=None):
                         why.setdefault(s, f"{f}: route added")
     css = any(f == "static/app.css" or (f.startswith("static/css/") and f.endswith(".css")) for f in files)
     schema = any(f == "kalmido/core/schema.py" or f.startswith("kalmido/core/migrations.d/") for f in files)  # #5674
+    js = any(f.startswith("static/js/") and f.endswith(".js") for f in files)  # #5354
     for s in ALWAYS_SUITES + (APP_GUARD_SUITES if any(f.startswith(APP_PREFIXES) for f in files) else ()) + (CSS_GUARD_SUITES if css else ()) \
-            + (SCHEMA_GUARD_SUITES if schema else ()):
+            + (SCHEMA_GUARD_SUITES if schema else ()) + (JS_GUARD_SUITES if js else ()):
         if files and s in repo.group_of:  # an unknown name: p2381_a_guards fails
             why.setdefault(s, "guard, always (#2853)")
     # a chosen suite that reads a state file of its group (ids.json, cal_ids.json ...) needs the suites before it that
