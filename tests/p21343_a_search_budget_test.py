@@ -121,7 +121,7 @@ def wiki(q):
     return {p["id"] for p in r.json().get("pages", [])} if r.ok else {("error", r.status_code)}
 
 
-check(until(lambda: wiki("brombeer") == set(P), 60) == set(P), f"the whole 8-letter word finds every page {wiki('brombeer')}")
+check(until(lambda: wiki("brombeer") == set(P), 60), f"the whole 8-letter word finds every page {wiki('brombeer')}")
 got = until(lambda: wiki("bromb") if len(wiki("bromb")) == 2 else None, 60)
 check(got == set(P[1:]), f"bromb (found by its prefix, each page opened to check): only the 2 newest opened {wiki('bromb')}")
 sys.exit(kt.done("p21343_a_search_budget"))
