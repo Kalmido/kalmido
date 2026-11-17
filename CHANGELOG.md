@@ -23,6 +23,35 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1339.0] - 2026-11-17
+
+Package 2.1284 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #6453: security (agents): an agent on "Routine" or "Free" asks with an approval card before it writes into a project that more people read than its other places, or into anything public (public link, client report, shared knowledge page); the card says "Visible to more people" / "Publicly visible", needs a person's yes and is never approved by the deadline. The progress line of a task shows no text in such projects; the mark still shows that the agent is working. The target is checked where the write really lands: a subtask counts as its parent's project, a target without a project (calendar, address book, table, folder) is checked against every source, a team agent's chat to a person and its status text count as targets, an approved bridge holds only for the circles it was approved for, and only a person who reads the sources may say Yes. The gates read a body id exactly as the routes do (' 7', '07'), and moving a task checks every project the body names (parent, list_id, section), also when a `_prev` conflict drops the parent. Template, in-app rules, AGENTS.md, the setup guide and the MCP descriptions name the rule.
+- #6575: agents: deleting a project tag that nothing carries (no open, done or trashed task) no longer needs a one-way card; a tag in use, a tag a rule or a client link names, and every organisation label still do. One-way: the tag row itself (name, colour, order) is gone, it can be created again by name.
+- #6606: self-hosting on Raspberry Pi and ARM servers: the virus scanner uses clamav/clamav-debian:1.4 (amd64 and arm64); the nightly install check fails when an image of docker-compose.yml lacks one of the two architectures.
+- #6606: installer: on a server with less than about 3 GB of memory a new installation leaves the virus scanner out and says so at the end and in Settings > Server > Backup; `KALMIDO_CLAMAV=1/0` switches it on or off, an update keeps the choice and never removes a running scanner because of how COMPOSE_PROFILES is written in .env. `KALMIDO_CLAMD=0/off/no/false` counts as off like in the app. Run as root, the app keeps its own user 1000 (`chown -hR` of data/ and secret/, also of a linked folder's target).
+
+### Fixed
+- #6597: office editor: the subject and every multi-line field (address lines, rights note, introduction, closing, text positions) show their whole text, growing from their start height up to ten rows; a short subject stays two rows, also while typing. The multi-line fields stand under their label in the full width of the column, in quotations, invoices and credit notes, on phones too.
+- #6321: security (knowledge): a share with "show pictures" checks who embedded each picture (kept per page and file in the new table wiki_embeds) instead of the page's last editor. Only a person's own save of a text claims a picture; renaming, moving, relinking, restoring a version, unlocking a space or making a page from a colleague's template never does - such a picture is nobody's and stays hidden in the link until someone takes it out and puts it in again. Existing pages get their records once at the start (the last editor of then).
+
+Package 2.1328 (Lieferkette: Digests per pins.py --update erneuern (ZAP-Abbild in ci.yml, Go-Bas).
+
+### Changed
+- Supply chain: refreshed pinned digests with `tools/pins.py --update` - Go base image in the Dockerfile, ZAP image in the CI security scan now pinned by digest; `WF_UNPINNED` is empty again (#6681)
+- Supply chain: refreshed `embed/requirements.lock` (filelock 4.2.11, httpcore2/httpx2 2.16.2, resolved sub-packages only) (#6681)
+
+Package 2.1321.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6555: The webhook of a document flow follows the rules of the organisation's webhooks: before every call the flow's author must still be an admin of the workspace (else the flow pauses and the admins are told), failed calls are counted at the flow with the last error shown in the flow list, and after the last retry the webhook switches off and the admins hear it (News and push, "Integration problems"). The flow's other actions keep running; "Switch webhook on again" or saving the flow starts it again. A paused flow stays sealed with its webhook secret, also with the server switch for encryption off.
+- #6480: The UBL e-invoice sent over Peppol is kept byte for byte (sealed in the office folder, checked against the send's SHA-256). The UBL download answers that file, also after a cancellation; the auditor (GoBD), retention and organisation exports carry it.
+
+### Changed
+- #6397: Search: every reader of the shared search index narrows to its own rows (visible projects, address books, calendars, rooms, the organisation) over an index before the words and the ranking; the name search runs as two arms instead of one OR, so the full-text index is used. An organisation no longer pays for the size of the others.
+
 ## [2.1330.0] - 2026-11-17
 
 Package 2.1313.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -268,7 +297,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1330.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1339.0...HEAD
+[2.1339.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1339.0
 [2.1330.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1330.0
 [2.1326.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1326.0
 [2.1323.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1323.0
