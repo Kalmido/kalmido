@@ -51,7 +51,7 @@ def ags_need(c, aid):
     """The agent row when the signed-in person may edit agent aid (module docstring), else Denied(404)."""
     a = ws_need_editor(c, aid)
     if not a["owner_id"]:
-        need_agent_admin(c, aid)  # the hosted operator never reads a client's agent (op_apart_deny)
+        need_agent_admin(c, aid, read=True)  # the hosted operator never reads a client's agent (op_apart_deny)
         if not admin_sees(c, aid):
             raise Denied(404)
     return a

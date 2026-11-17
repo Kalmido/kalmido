@@ -123,6 +123,15 @@ for body in ({"owner_id": AL}, {"enabled": True, "owner_id": AL}, {"webhook_url"
 check(kt.dbx("SELECT owner_id FROM agents WHERE user_id=?", (FAG,)) == [(FID,)], "her agent stays hers")
 check(A.patch(B + f"/api/admin/agents/{FAG}", json={"enabled": False}).ok and A.patch(B + f"/api/admin/agents/{FAG}", json={"enabled": True}).ok,
       "with the grant: the kill switch still works")
+# 2.1363.0 (#6862): the kill switch is all support access changes on her agent -- no delete, reset, avatar, test event or device
+for meth, path in (("post", "/reset"), ("post", "/test"), ("delete", "/machines/999999"), ("delete", "")):
+    r = getattr(A, meth)(B + f"/api/admin/agents/{FAG}{path}")
+    check(r.status_code == 403, f"with the grant: {meth.upper()} her agent{path} -> 403 " + r.text[:100])
+r = A.post(B + f"/api/admin/agents/{FAG}/avatar", files={"file": ("a.png", b"\x89PNG\r\n\x1a\n", "image/png")})
+check(r.status_code == 403, "with the grant: no avatar on her agent -> 403 " + r.text[:100])
+check(kt.dbx("SELECT 1 FROM agents WHERE user_id=?", (FAG,)) == [(1,)], "her agent still exists")
+for path in ("/machines", "/model-usage", "/audit"):
+    check(A.get(B + f"/api/admin/agents/{FAG}{path}").ok, f"with the grant: reading her agent{path} still works")
 # a kid of the client that lists the operator as a parent (made before, by the client): no sign-in link, no PIN without a grant
 r = A.post(B + "/api/users", json={"username": "fkid", "display_name": "Fkid", "password": "password123", "orgs": []})
 KID = r.json()["id"]
