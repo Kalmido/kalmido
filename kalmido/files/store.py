@@ -495,13 +495,13 @@ def fs_visible_sql_c(c, uid):
     # (#5862): for people too (the exclusions of a whole knowledge area shared with them)
     step = dl_wiki_step_sql(c, uid)
     # 2.1340.0 (#6613): the accounting role's documents folder itself is listed, without descending into it (fv would)
-    src = (f"(SELECT id FROM fv UNION SELECT id FROM fs_nodes WHERE id IN ({','.join(map(str, roots))})) fvr"
-           if roots else "fv")
+    root_u = f" UNION SELECT id FROM fs_nodes WHERE id IN ({','.join(map(str, roots))})" if roots else ""
     return (f"(WITH RECURSIVE fv(id) AS (SELECT n.id FROM fs_nodes n WHERE ({seed}) AND ({orgs}) "
             f"UNION SELECT n.id FROM fs_nodes n JOIN fv ON n.parent_id = fv.id WHERE ({orgs}){step}), "
             f"fd(id) AS (SELECT id FROM fs_nodes WHERE deleted_at IS NOT NULL "
-            f"UNION SELECT n.id FROM fs_nodes n JOIN fd ON n.parent_id = fd.id) "
-            f"SELECT id FROM {src} WHERE id NOT IN (SELECT id FROM fd){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
+            f"UNION SELECT n.id FROM fs_nodes n JOIN fd ON n.parent_id = fd.id), "
+            f"fr(id) AS (SELECT id FROM fv{root_u}) "
+            f"SELECT id FROM fr WHERE id NOT IN (SELECT id FROM fd){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
             f"{_ref_hidden(c, uid)}{_lock_hidden(c, agent)}{_for_sql(c, uid)})")
 
 
