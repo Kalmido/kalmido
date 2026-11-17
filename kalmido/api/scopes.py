@@ -615,9 +615,12 @@ def v1_task_move(tid):
     cur = c.execute("SELECT list_id FROM tasks WHERE id=?", (tid,)).fetchone()
     if b.get("list_id") and b["list_id"] != cur["list_id"] and "section_id" not in b:
         ch["section_id"] = None  # another list: no section unless one of that list is given
-    if b.get("list_id") and b["list_id"] != cur["list_id"]:
-        from ..agents.safety import move_gate
-        move_gate(c, [(tid, b["list_id"])])  # 2.30.0 (#919): an agent moving it to other people waits for approval
+    from ..agents.safety import move_dst, move_gate
+    # 2.1284.0 (#6453, review G1; Fable reader #4945 F1): every project the body names (parent, list_id, section) is a target -
+    # apply_update may drop a parent as a _prev conflict after this gate and move the task to list_id
+    moves = [(tid, d) for d in move_dst(c, b) if d != cur["list_id"]]
+    if moves:
+        move_gate(c, moves)  # 2.30.0 (#919): an agent moving it to other people waits for approval
     if ch:
         v1_call(task_update, tid, body=ch)
     t = c.execute("SELECT list_id, section_id, parent_id FROM tasks WHERE id=?", (tid,)).fetchone()

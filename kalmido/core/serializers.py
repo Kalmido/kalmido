@@ -128,6 +128,9 @@ WK_TTL = 900     # 2.407.0 A (#3513): an agent's "working" on a task fades after
 WK_TEXT_MAX = 200  # its progress line as the rows show it
 
 
+WK_MUTE = []  # 2.1284.0 (#6453): fn(c, {task id: agent id}) -> the task ids whose mark shows no text (registered by agents/circle.py)
+
+
 def wk_for(c, ids):
     """2.407.0 A (#3513): {task id: {agent_id, agent, name, text, at, ttl}} = an agent works on the task now: its newest
     running job of the task (not a proposal / approval job) updated within WK_TTL; text = the job log's last line. Read
@@ -147,6 +150,9 @@ def wk_for(c, ids):
         out[r["task_id"]] = {"agent_id": r["agent_id"], "agent": r["display_name"] or r["username"], "name": r["name"] or None,
                              "text": line[:WK_TEXT_MAX - 1] + "…" if len(line) > WK_TEXT_MAX else line, "at": r["updated_at"],
                              "ttl": WK_TTL}
+    for fn in WK_MUTE:  # 2.1284.0 (#6453): in a project more people (or the public) read than the agent's other places the mark
+        for tid in fn(c, {t: w["agent_id"] for t, w in out.items()}):  # stays, the agent's own words do not (agents/circle.py)
+            out[tid].update(text="", name=None, muted=True)
     return out
 
 

@@ -853,7 +853,7 @@ def _wka_save(c, pid, text, uid, ts):
     prev = wkh_prev(c, r)
     c.execute("UPDATE wiki_pages SET body=?, attrs=?, updated_by=?, updated_at=? WHERE id=?",
               (wkh_seal(c, r["org_id"], r["owner_id"], text), json.dumps(wiki_frontmatter(text), ensure_ascii=False), uid, ts, pid))
-    wiki_set_links(c, pid, text)
+    wiki_set_links(c, pid, text, uid, prev[0])  # 2.1284.0 (#6321): the person's own text (an import, the list of its files)
     wkh_note(c, pid, uid, ts, prev=prev)
 
 

@@ -14,11 +14,13 @@ links on the server (the browser asks /refs with the ids it finds in the decrypt
 wem_visible(c, uid, node_id) is the one check for a viewer (uid None = not signed in, e.g. a guest link: never).
 """
 import re
+from datetime import datetime
 
 from flask import jsonify, request
 
+from ..core import objhooks  # 2.1284.0 (#6321): START, the rows of the pages written before wiki_embeds
 from ..core.config import app
-from ..core.db import body, db
+from ..core.db import body, db, gset, gsetting, iso_ms, now_utc
 from ..core.i18n import tr
 from ..core.access import Denied
 from ..accounts.session import me
@@ -33,6 +35,11 @@ from ..accounts.orgroles import user_orgs_full  # 2.369.5 (#2517): pulled up fro
 WEM_EMBED_RE = re.compile(r"/api/files/nodes/(\d{1,15})/content\b")
 WEM_LINK_RE = re.compile(r"\[\[\s*(datei|tabelle)\s*:\s*([^\[\]|#\n]{1,250}?)\s*(?:\|[^\[\]\n]*)?\]\]", re.I)
 WEM_MAX = 200  # references per page / per question
+# 2.380 H (#2356): a picture of the file store embedded in a page: ![label](/api/files/nodes/<id>/content); 2.380 (#2356
+# review): code shows as text -- a picture named in a fenced block or in `code` is not embedded (2.1284.0, #6321: here from
+# wkshare.py, the one reading of "embedded" for the shares and for wiki_embeds)
+WEM_IMG_RE = re.compile(r"!\[[^\[\]\n]*\]\(\s*<?/api/files/nodes/(\d{1,15})/content>?")
+WEM_CODE_RE = re.compile(r"^[ \t]*(```|~~~).*?(?:^[ \t]*\1[^\n]*$|\Z)|`[^`\n]*`", re.S | re.M)
 
 
 def wem_refs_of(text):
@@ -46,6 +53,99 @@ def wem_refs_of(text):
             seen.add(k)
             links.append(k)
     return ids[:WEM_MAX], links[:WEM_MAX]
+
+
+def wem_img_ids(text):
+    """2.1284.0 (#6321): the node ids of the file store pictures embedded in a page text, sorted, all of them (a share shows
+    the first WEM_MAX, wkshare.py wsh_img_nodes). A text of a locked space (e2e1:) has none on the server."""
+    t = text or ""
+    if t.startswith("e2e1:"):
+        return []
+    return sorted({int(m.group(1)) for m in WEM_IMG_RE.finditer(WEM_CODE_RE.sub("", t)) if int(m.group(1)) < 2 ** 62})
+
+
+def wem_embeds_set(c, pid, text, by=None, old=None):
+    """2.1284.0 (#6321): wiki_embeds of page pid follows its new text (pages.wiki_set_links calls it at every write of a
+    page's text). One rule (Fable review 1 of #6321, F1-F5): only a person or an agent who SAVES a text they wrote claims a
+    picture -- by = that account, old = the page's text before this save ("" = a new page). A picture this save turns into
+    an embed is theirs; one that stays keeps its row (also a row with nobody); one that left the text loses its row.
+    Everything else only follows (by None): a relink, a move, a rename of a folder, a restored version, an undo, a text that
+    comes out of a space's lock, an import nobody here stands for -- an embed that appears there gets a row with nobody
+    (user_id NULL = no picture through a share until someone takes it out and puts it in again). No row never means "the
+    next writer's": an embed that stood in the old text without a row gets nobody too, as does every embed when old is not
+    given."""
+    ids = set(wem_img_ids(text))
+    have = {r[0] for r in c.execute("SELECT node_id FROM wiki_embeds WHERE page_id=?", (pid,)).fetchall()}
+    gone = sorted(have - ids)
+    for i in range(0, len(gone), 500):
+        part = gone[i:i + 500]
+        c.execute(f"DELETE FROM wiki_embeds WHERE page_id=? AND node_id IN ({','.join('?' * len(part))})", [pid, *part])
+    new = sorted(ids - have)
+    was = set(wem_img_ids(old)) if new and by and old is not None else None
+    for nid in new:
+        c.execute("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,?,?,CURRENT_TIMESTAMP) "
+                  "ON CONFLICT (page_id,node_id) DO NOTHING", (pid, nid, by if was is not None and nid not in was else None))
+
+
+def wem_embeds_copy(c, src, pid, by):
+    """2.1284.0 (#6321, review 1 F4 + re-check N1): page pid was made by account `by` from the text of page src (a template).
+    An embed that `by` put into src themselves stays theirs on the new page; every other one stays nobody's (the row with
+    user_id NULL of wem_embeds_set without `by`) -- reading a template is no right to carry a colleague's embed, with their
+    name on it, to a page of one's own choice (e.g. under a folder link with pictures). Called after wem_embeds_set
+    without `by`."""
+    c.execute("UPDATE wiki_embeds SET user_id=s.user_id FROM wiki_embeds s WHERE s.page_id=? AND wiki_embeds.page_id=? "
+              "AND s.node_id=wiki_embeds.node_id AND s.user_id=?", (src, pid, by))
+
+
+def wem_embeds_drop(c, where, args):
+    """2.1284.0 (#6321): the pages `where` (a condition on wiki_pages, fixed text of the caller) keep no embed rows: their
+    text went behind the lock of a space (the places that empty wiki_links without pages.wiki_set_links)."""
+    c.execute(f"DELETE FROM wiki_embeds WHERE page_id IN (SELECT id FROM wiki_pages WHERE {where})", args)
+
+
+def wem_embedders(c, pid):
+    """2.1284.0 (#6321): {node id: account id | None} -- who embedded which picture into page pid."""
+    return {r[0]: r[1] for r in c.execute("SELECT node_id, user_id FROM wiki_embeds WHERE page_id=?", (pid,)).fetchall()}
+
+
+WEM_SINCE = "wem_since6321"  # settings: the start of the last run of wem_embeds_start (a point in time)
+
+
+def wem_embeds_start(c):
+    """2.1284.0 (#6321, core/objhooks.START, every start; review 1 F3/F6): wiki_embeds agrees with the texts again.
+    The first start (no WEM_SINCE): every page -- the pages written before wiki_embeds get their rows, every picture
+    embedded in a page's text with the page's last editor (the rule of #6295 that stood until then: nothing better is
+    known), nobody (NULL) when the page has no editor any more.
+    Every later start: only the pages changed since the start before (a version without wiki_embeds may have run in
+    between, a rollback; else this finds nothing to do) -- a row whose picture is no longer in the text goes, an embed
+    without a row gets nobody. A text that cannot be opened keeps what it has (no row = no picture)."""
+    from .wkhist import WikiUnreadable, wkh_open
+    since, ts = gsetting(c, WEM_SINCE), iso_ms(now_utc())
+    try:
+        datetime.fromisoformat((since or "").replace("Z", "+00:00"))
+    except ValueError:
+        since = None
+    last, n = 0, 0
+    while True:
+        rows = c.execute("SELECT id, org_id, owner_id, body, updated_by FROM wiki_pages WHERE id>?"
+                         + (" AND updated_at>=?" if since else "") + " ORDER BY id LIMIT 500", (last, *([since] if since else ()))).fetchall()
+        if not rows:
+            break
+        for r in rows:
+            last = r["id"]
+            try:
+                ids = set(wem_img_ids(wkh_open(c, r["org_id"], r["owner_id"], r["body"])))
+            except WikiUnreadable:
+                continue
+            have = {x[0] for x in c.execute("SELECT node_id FROM wiki_embeds WHERE page_id=?", (r["id"],)).fetchall()}
+            who = r["updated_by"] if not since and not have else None
+            for nid in sorted(have - ids):
+                n += c.execute("DELETE FROM wiki_embeds WHERE page_id=? AND node_id=?", (r["id"], nid)).rowcount
+            for nid in sorted(ids - have):
+                n += c.execute("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,?,?,CURRENT_TIMESTAMP) "
+                               "ON CONFLICT (page_id,node_id) DO NOTHING", (r["id"], nid, who)).rowcount
+    gset(c, WEM_SINCE, ts)
+    return n
 
 
 def wem_same_space(row, page):
@@ -214,8 +314,9 @@ def wem_backlinks():
 
 
 def wem_purged(c, nid):
-    """A file removed for good (files/store.fs_purge): its backlink rows go with it."""
+    """A file removed for good (files/store.fs_purge): its backlink rows go with it, 2.1284.0 (#6321) and who embedded it."""
     c.execute("DELETE FROM wiki_links WHERE to_file=?", (nid,))
+    c.execute("DELETE FROM wiki_embeds WHERE node_id=?", (nid,))
 
 
 def _wem_hook():
@@ -225,3 +326,6 @@ def _wem_hook():
 
 
 _wem_hook()
+
+
+objhooks.START.append(("wem_embeds_start", False, wem_embeds_start))  # 2.1284.0 (#6321): every start (the first one: all pages)
