@@ -173,7 +173,7 @@ def ains_admin_code(aid):
 def ains_admin_machines(aid):
     c = db()
     with system_ctx(c):  # the instance admin manages agent accounts (any organisation; structure, no content)
-        need_agent_admin(c, aid)
+        need_agent_admin(c, aid, read=True)  # 2.1363.0 (#6862): reading; removing a device stays closed to support access
         return jsonify(machines=ains_machines(c, aid))
 
 

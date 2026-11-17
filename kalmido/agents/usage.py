@@ -482,7 +482,7 @@ def usage_by_class(c, aid):
 def admin_agent_model_usage(aid):
     """2.992.0 (#5684): the usage per kind of run of the last 7 days (the section Model of the admin's dialog)."""
     c = db()
-    need_agent_admin(c, aid)
+    need_agent_admin(c, aid, read=True)  # 2.1363.0 (#6862): reading
     return jsonify(usage_by_class(c, aid))
 
 
@@ -716,7 +716,7 @@ def admin_agents_audit(aid=None):
     the first page `today` {requests, denied, polls}."""
     c = db()
     if aid is not None:
-        need_agent_admin(c, aid)
+        need_agent_admin(c, aid, read=True)  # 2.1363.0 (#6862): reading
     else:
         need_admin()
     return _audit_answer(aid, only=op_own_agents(c))
