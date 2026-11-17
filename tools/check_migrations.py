@@ -39,6 +39,11 @@ it did. core/db.py col_present skips it once the column has that type (no ACCESS
 there, not copied) is a finding: pg_dump prints it into every dump, and the restore refuses a dump with such a call (2.763: DEFAULT now()
 in a fragment made every backup unrestorable). CURRENT_TIMESTAMP instead of now() (pg_dump prints it without brackets).
 
+2.1356.0 (#6824): the one-shot data steps of the start (settings flag migr_*) stand in ONE ordered list, kalmido/core/oncesteps.py
+STEPS. A flag read or written as gsetting(c, "migr_...") / gset(c, "migr_...") anywhere else is a finding, except the area
+functions of ONCE_ELSEWHERE (each with why it stays there); the keys of STEPS are unique, each phase stands in one piece, and
+core/db.py init_db calls run_phase once per phase, in the order of STEPS.
+
 usage: python3 tools/check_migrations.py [-v]     exit code 1 on a finding
 """
 import ast
@@ -351,6 +356,48 @@ def frag_findings(path):
     return bad + (content_findings(n, values, src) if len(bad) == shape else [])
 
 
+ONCE_FLAG = re.compile(r"""\bgset(?:ting)?\(\s*\w+\s*,\s*["']migr_""")
+ONCE_HOME = "kalmido/core/oncesteps.py"
+ONCE_ELSEWHERE = {  # 2.1356.0 (#6824): one-shots that stay inside their area's own start function (not a plain block of init_db)
+    "kalmido/accounts/orgs.py": "instance_sync / ws_migrate (init_db steps of their own): the flag is written before the work, "
+                                "instance_sync prints at every start",
+    "kalmido/accounts/tenancy.py": "ws_migrate_objs: on a shared server without organisations the flag stays unset on purpose",
+    "kalmido/admin/hosting.py": "quota_backfill: two flags in one every-start step, migr_hosted_pl only on a hosted server",
+    "kalmido/office/ledger.py": "ofx_log_names_fill (inside ofx_migrate): the flag waits while a key cannot be read (tried again)",
+    "kalmido/events/model.py": "migrate_family_events: runs after init_db (kalmido/startup.py), in its own transaction",
+    "kalmido/startup.py": "migr_addrlog6062: after init_db, its own transaction (core may not import the file store)",
+}
+
+
+def once_findings(root=ROOT):
+    """2.1356.0 (#6824): the one-shot flags outside the list, the list's keys and phases against init_db's calls."""
+    bad = []
+    for p in sorted(glob.glob(os.path.join(root, "kalmido", "**", "*.py"), recursive=True)):
+        rel = os.path.relpath(p, root).replace(os.sep, "/")
+        if rel == ONCE_HOME or rel in ONCE_ELSEWHERE:
+            continue
+        with open(p, encoding="utf-8") as f:
+            for k, ln in enumerate(f, 1):
+                if ONCE_FLAG.search(ln.split("#", 1)[0]):
+                    bad.append(f"{rel}:{k}: a one-shot flag migr_* outside {ONCE_HOME} -- the step goes into its STEPS (#6824)")
+    try:
+        with open(os.path.join(root, *ONCE_HOME.split("/")), encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        steps = [(e.elts[0].value, e.elts[1].value) for n in tree.body
+                 if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "STEPS" for e in n.value.elts]
+    except (OSError, SyntaxError, AttributeError) as e:
+        return bad + [f"{ONCE_HOME}: STEPS not readable ({e})"]
+    keys = [k for _, k in steps]
+    bad += [f"{ONCE_HOME}: STEPS key {k} twice" for k in sorted({k for k in keys if keys.count(k) > 1})]
+    phases = [p for i, (p, _) in enumerate(steps) if i == 0 or steps[i - 1][0] != p]
+    bad += [f"{ONCE_HOME}: STEPS phase {p} not in one piece" for p in sorted({p for p in phases if phases.count(p) > 1})]
+    with open(os.path.join(root, "kalmido", "core", "db.py"), encoding="utf-8") as f:
+        calls = re.findall(r"""^\s*run_phase\(c, clk, ["'](\w+)["']\)""", f.read(), re.M)
+    if calls != phases:
+        bad.append(f"core/db.py init_db: run_phase calls {calls} differ from the phases of STEPS {phases}")
+    return bad
+
+
 def findings(root=ROOT):
     with open(os.path.join(root, "kalmido", "core", "schema.py"), encoding="utf-8") as f:
         src = f.read()
@@ -372,7 +419,7 @@ def findings(root=ROOT):
                 bad.append(f"{os.path.basename(p)}: drops {t}, but schema.py or a fragment still creates it (every start would make it again)")
             for t in sorted(x for x in ok if "." in x and column_made(full, *x.split(".", 1))):  # review F5
                 bad.append(f"{os.path.basename(p)}: drops {t}, but schema.py or a fragment still adds it (every start would make it again)")
-    return bad
+    return bad + once_findings(root)
 
 
 if __name__ == "__main__":
