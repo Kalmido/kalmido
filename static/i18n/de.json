@@ -18993,6 +18993,13 @@
   "at most 60 issues and 300 comments a day": "höchstens 60 Issues und 300 Kommentare am Tag",
   "hash chain broken here (daily check)": "Hash-Kette hier gebrochen (tägliche Prüfung)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hash-Kette im Büro gebrochen: Büro {0}, Dokument-ID {1} (Reihe {2}, Stelle {3}, {4}). Das Büro-Protokoll nennt es.",
+  "The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1}).": "Der Webhook des Dokument-Ablaufs {0} wurde abgeschaltet: seine Aufrufe ließen sich nicht zustellen (letzter Fehler: {1}).",
+  "Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more.": "Der Dokument-Ablauf {0} wurde pausiert: die Person, die seinen Webhook eingerichtet hat, ist kein Admin des Arbeitsbereichs mehr.",
+  "Paused: the person who set up its webhook is no admin any more": "Pausiert: wer den Webhook eingerichtet hat, ist kein Admin mehr",
+  "Webhook off after failed calls": "Webhook nach fehlgeschlagenen Aufrufen aus",
+  "Webhook calls failed in a row: {0}": "Webhook-Aufrufe in Folge fehlgeschlagen: {0}",
+  "Last error: {0}": "Letzter Fehler: {0}",
+  "Switch webhook on again": "Webhook wieder einschalten",
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Bis dahin gehen E-Mails mit Inhalten (die Tageszusammenfassung, Benachrichtigungen) nicht an sie.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bitte bestätige zuerst deine E-Mail-Adresse: E-Mails mit Inhalten gehen nur an eine bestätigte Adresse.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Deine Adresse ist noch nicht bestätigt: Die Tageszusammenfassung und E-Mails zu Ereignissen gehen erst raus, wenn du sie bestätigt hast."

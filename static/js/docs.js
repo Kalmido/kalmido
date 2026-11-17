@@ -1124,6 +1124,14 @@ async function dc_sClick(e) {
     histToast(r.off ? tr('Switched on') : tr('Switched off'), histAdd({label: r.off ? tr('Switched on') : tr('Switched off'), sett: true, undo: put(!!r.off), redo: put(!r.off)}));
     return;
   }
+  if (a.startsWith('rhook:')) {  // 2.1321.0 (#6555): a flow's webhook switched off after failed calls goes on again (saved = on)
+    const id = +a.slice(6), cur = (DC.set?.rules || s.rules).find(x => x.id === id); if (!cur) return;
+    try {
+      const x = await api('PATCH', `/api/docs/rules/${id}`, {...cur, id: undefined, updated_at: undefined, expect_updated_at: cur.updated_at || undefined});
+      s.rules = x.rules; if (DC.set) DC.set.rules = x.rules; dc_sDraw($('.dc-smd') || md); toast(tr('Switched on'));
+    } catch (e) { if (e?.status === 409 && e.data?.rules) { s.rules = e.data.rules; if (DC.set) DC.set.rules = e.data.rules; dc_sDraw($('.dc-smd') || md); } }
+    return;
+  }
   if (a.startsWith('rdel:')) {
     const id = +a.slice(5), r = s.rules.find(x => x.id === id);
     let j; try { j = await api('DELETE', `/api/docs/rules/${id}`); } catch { return; }

@@ -989,8 +989,16 @@ def _rule_ver(c, rid):
 
 def _rules_v(c, ws):
     """2.635.0 (#4856): the flows of ws as rules_get gives them, each with its version (updated_at)."""
-    ver = {r[0]: r[1] for r in c.execute("SELECT id, COALESCE(" + ct_iso("updated_at") + ", " + ct_iso("created_at") + ") FROM doc_rules WHERE ws=?", (ws,))}
-    return [{**r, "updated_at": ver.get(r["id"], "")} for r in S.rules_get(c, ws)]
+    ver = {r[0]: r[1:] for r in c.execute("SELECT id, COALESCE(" + ct_iso("updated_at") + ", " + ct_iso("created_at") + "), hook_state, hook_fails, "
+                                          "hook_error, " + ct_iso("hook_error_at") + " FROM doc_rules WHERE ws=?", (ws,))}
+    out = []
+    for r in S.rules_get(c, ws):
+        v = ver.get(r["id"]) or ("", "", 0, "", None)
+        x = {**r, "updated_at": v[0]}
+        if r.get("webhook"):  # 2.1321.0 (#6555): the webhook's state at the flow: off / paused, failed calls in a row, the last error
+            x.update(hook_state=v[1] or "", hook_fails=v[2] or 0, hook_error=v[3] or "", hook_error_at=v[4] or "")
+        out.append(x)
+    return out
 
 
 def _scan_json(c, uid, oid):
@@ -1029,7 +1037,7 @@ def docs_settings_put():
 
 
 def _rule_save(c, ws, d, rid=None):
-    from .flows import fl_clean, fl_rule_old  # 2.581.0 (#4803): a rule is a flow (trigger, filters, actions)
+    from .flows import fl_clean, fl_hook_reset, fl_rule_old  # 2.581.0 (#4803): a rule is a flow (trigger, filters, actions)
     try:
         r, shown = fl_clean(c, ws, d, fl_rule_old(c, rid, ws) if rid else None)
     except S.RU.RuleError as e:
@@ -1048,6 +1056,7 @@ def _rule_save(c, ws, d, rid=None):
     data = S._jseal(c, ws, "doc_rules.data", r)
     if rid:
         c.execute("UPDATE doc_rules SET data=?, updated_at=? WHERE id=? AND ws=?", (data, iso_ms(now_utc()), rid, ws))  # 2.635.0 (#4856)
+        fl_hook_reset(c, rid, me())  # 2.1321.0 (#6555): saved again = the webhook on again (after a pause: this admin is its author)
         return rid, None
     pos = (c.execute("SELECT COALESCE(MAX(pos), 0) FROM doc_rules WHERE ws=?", (ws,)).fetchone()[0] or 0) + 1
     return insert_id(c, "INSERT INTO doc_rules(org_id, ws, pos, data, created_by, created_at) VALUES(?,?,?,?,?,?)",
@@ -1089,7 +1098,8 @@ def docs_rule_edit(rid):
     d = body()
     write_lock(c, f"doc_rules-{rid}")
     ccf_check(d, _rule_ver(c, rid), "rules", lambda: _rules_v(c, ws))
-    d = {k: v for k, v in d.items() if k not in ("expect_updated_at", "updated_at", "id")} if isinstance(d, dict) else d
+    d = {k: v for k, v in d.items() if k not in ("expect_updated_at", "updated_at", "id", "hook_state", "hook_fails", "hook_error",
+                                                 "hook_error_at")} if isinstance(d, dict) else d  # 2.1321.0 (#6555): what _rules_v adds
     if "pos" in d and isinstance(d["pos"], (int, float)) and not isinstance(d["pos"], bool):
         if not -1e9 < d["pos"] < 1e9:  # 2.126.0 A (#1979 L4): also no Infinity / NaN
             return err(tr("Invalid value: {0}", "pos"))
