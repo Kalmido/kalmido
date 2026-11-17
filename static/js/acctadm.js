@@ -71,6 +71,7 @@ function wsPaneWire(md) {
     wsPaneDraw(md);
   });
   md.addEventListener('click', async e => {
+    if (e.target.closest('[data-wsorgadd]')) { sbb_orgAdd(); return; }  // 2.1364.0 (#6885): the same dialog as the workspace menu had
     const oa = e.target.closest('[data-oadm]');
     if (oa) { const o = (($('#s-ws', md)._j || {}).orgs || []).find(x => x.id === +oa.dataset.oadm); oadmOpen(+oa.dataset.oadm, o?.name || ''); return; }  // 2.35.0 (#1101)
     const otk = e.target.closest('[data-otk]');
