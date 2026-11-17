@@ -451,7 +451,6 @@ ORDER = (
     "office.datev",  # 2.47.3 (#1460): DATEV booking batch (EXTF) of invoices, credit notes and payments
     "office.periodlock",  # 2.148.0 A (#2471): locked accounting periods (GoBD)
     "office.gdpdudtd",  # 2.188.0 A (#2498): the official GDPdU DTD (text) for the auditor ZIP
-    "office.gobdexport",  # 2.148.0 A (#2471): the export for the tax auditor (GDPdU index.xml + CSV)
     "office.datevzip",  # 2.148.0 B (#2470): DATEV batch + receipt images (document.xml) as one ZIP
     "office.datevin",  # 2.120.0 C (#2090): DATEV batch input side (receipts, travel expenses) + its accounts route
     "office.okern",  # 2.784.0 (#5366): office kinds on the core's trash (before their modules: office.datevimp registers osupplier)
@@ -534,6 +533,7 @@ ORDER = (
     "agents.lyprop",  # 2.55.0 B (#1066): agents propose arrangements of views (the person accepts)
     "admin.exportleft", "admin.oilock", "admin.orgexport",  # 2.42.0 (#833): organisation export (encrypted archive); #4300: oilock
     "admin.retexport",  # 2.146.0 D (#2468): the retention export before deleting an account / organisation
+    "admin.gobdexport",  # 2.148.0 A (#2471): the export for the tax auditor (GDPdU index.xml + CSV); 2.1309.0 (#6471): from office/, reads rx_tables
     "admin.purgeshare",  # 2.508.0 (#4301): what an account shares privately passes on when it is deleted (no routes)
     "admin.selfdelete",  # 2.553.0 (#1413): a person deletes their own account (7 days locked, then the watchdog deletes it)
     "admin.acctexport",  # 2.73.0 B (#1473): account export (moving between servers, GDPR copy)

@@ -1818,14 +1818,19 @@ def office_seed_texts(c, oid):
 
 
 # ---------------------------------------------------------------- past the lock trigger
+# 2.1309.0 (#6467): the tables the database holds for finalised documents (core/migrations.d/4598.py, 6467.py)
+OFX_HELD = ("office_docs", "office_doc_items", "office_payments", "office_doc_log")
+
+
 @contextmanager
 def ofx_release(c, table="office_docs"):
     """2.542.0 (#4598): the statements of the block may change / delete finalised documents past the database trigger
     kalmido_office_locked (core/migrations.d/4598.py): set_config kalmido.locked_ok for this transaction only, off again
     after the block. Only for the deliberate exceptions (a never-sent quotation back to a draft / deleted, the encryption
     passes, a personal office moving, the organisation import and its undo) -- keep the block to the statements that need
-    it and commit after it, never inside. table: a generic loop passes its table; anything but office_docs is a no-op."""
-    if table != "office_docs":
+    it and commit after it, never inside. table: a generic loop passes its table; a table outside OFX_HELD is a no-op.
+    2.1309.0 (#6467): the same switch passes the triggers on the positions, payments and office log (6467.py)."""
+    if table not in OFX_HELD:
         yield
         return
     c.execute("SELECT set_config('kalmido.locked_ok', 'on', true)")

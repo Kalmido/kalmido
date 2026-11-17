@@ -55,13 +55,19 @@ check(pdf.pdf_encode(f"1{NB}234,50 €") in (b"1\xa0234,50 \x80", b"1 234,50 \x8
       "the no-break space prints as a space and never breaks the amount")
 
 # #3173: a markup line of a quotation carries its translated unit and word (was unit_text "" -> "1 flat", "Markup" in German)
-q = calc.office_calc({"lang": "de", "markup_pct": 10}, [{"kind": "service", "title": "Schnitt", "qty": 2, "unit": "day", "rate": 500, "in_markup": 1}],
+# 2.1309.0 (#6490): the markup shows "10 %" | base | amount now; the handling costs keep "1 pauschal" (checked on them, and on a
+# markup line sent before: doc["mk_flat_line"])
+q = calc.office_calc({"lang": "de", "markup_pct": 10, "handling_pct": 10}, [{"kind": "service", "title": "Schnitt", "qty": 2, "unit": "day", "rate": 500, "in_markup": 1, "in_handling": 1}],
                      {"tax": {"standard": 19}})
-sur = [x for x in q["lines"] if x["kind"] == "surcharge"]
+sur = {x["slot"]: x for x in q["lines"] if x["kind"] == "surcharge"}
 # 2.1228.0 (#6254): without a pack the line says "Zuschlag" (was "Aufschlag")
-check(sur and sur[0]["unit_text"] == "pauschal" and sur[0]["title"] == "Zuschlag", f"markup line: unit 'pauschal', title 'Zuschlag': {sur}")
-q_en = calc.office_calc({"lang": "en", "markup_pct": 10}, [{"kind": "service", "title": "Edit", "qty": 2, "unit": "day", "rate": 500, "in_markup": 1}], {})
-check([x["unit_text"] for x in q_en["lines"] if x["kind"] == "surcharge"] == ["flat"], "markup line in English: unit 'flat' (the English word)")
+check(sur["handling"]["unit_text"] == "pauschal" and sur["markup"]["title"] == "Zuschlag" and sur["markup"]["qty_text"] == "10 %" and sur["markup"]["unit_text"] == "",
+      f"handling line: unit 'pauschal'; markup line: 'Zuschlag', 10 % (#6490): {sur}")
+q = calc.office_calc({"lang": "de", "markup_pct": 10, "mk_flat_line": 1}, [{"kind": "service", "title": "Schnitt", "qty": 2, "unit": "day", "rate": 500, "in_markup": 1}],
+                     {"tax": {"standard": 19}})
+check([x["unit_text"] for x in q["lines"] if x["kind"] == "surcharge"] == ["pauschal"], "a markup line sent before: unit 'pauschal'")
+q_en = calc.office_calc({"lang": "en", "handling_pct": 10}, [{"kind": "service", "title": "Edit", "qty": 2, "unit": "day", "rate": 500, "in_handling": 1}], {})
+check([x["unit_text"] for x in q_en["lines"] if x["kind"] == "surcharge"] == ["flat"], "handling line in English: unit 'flat' (the English word)")
 
 # ---------------------------------------------------------------- e-invoice fixture (invented)
 SENDER = {"name": "Studio Nordlicht GmbH", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE",
@@ -214,6 +220,13 @@ data = pdf.office_pdf(pm)
 check(data[:4] == b"%PDF" and any("Steuerfreie Leistung nach § 4 Nr. 21 UStG" in t for t in TEXTS), "PDF: the exemption reason beside the sums")
 check("1 pauschal" in TEXTS and "1 flat" not in TEXTS, f"PDF: the surcharge line with its translated unit (was '1 flat'): {[t for t in TEXTS if t.startswith('1 ')]}")
 check(any(t == "MwSt. 19 % auf 4.340,00 €" for t in TEXTS), "PDF: the tax row with its taxable amount as the model gives it")
+# 2.1309.0 (#6490): a markup "15 %" | base | amount prints without a unit word, the base as the unit price
+TEXTS.clear()
+pm["lines"] = pm["lines"][:-1] + [{"kind": "surcharge", "slot": "markup", "pos": 4, "title": "Zuschlag", "qty": 1, "qty_text": "15 %", "unit": "flat", "unit_text": "",
+                                   "sur_pct": 15, "sur_base": 10305, "rate": 1545.75, "rate_text": "10.305,00 €", "tax_pct": 19, "total": 1545.75, "total_text": "1.545,75 €"}]
+data = pdf.office_pdf(pm)
+check("15 %" in TEXTS and not any(t.startswith("15 % ") for t in TEXTS) and "10.305,00 €" in TEXTS and "1.545,75 €" in TEXTS,
+      f"PDF #6490: Zuschlag | 15 % | 10.305,00 € | 1.545,75 €: {[t for t in TEXTS if '%' in t or '€' in t][:12]}")
 pdf._Page = _Base
 
 print(f"p2296_b_invoice: {OKS[0]} ok, {len(FAILS)} failed")

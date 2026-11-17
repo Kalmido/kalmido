@@ -95,6 +95,7 @@ Operator tools: backup, export / import of accounts and organisations, retention
 - `kalmido/admin/clientip.py` (`ip`) - Does the client's real address reach Kalmido? Behind a reverse proxy in Docker with published ports (docker-proxy)
 - `kalmido/admin/dataretention.py` (`orf`) - The daily clean-up of old logs and expired credentials, and the weekly orphan-file sweep (no routes; the watchdog starts both, see notify/push.py watchdog_tick)
 - `kalmido/admin/exportleft.py` - What stays out of the exports on purpose, with the reason
+- `kalmido/admin/gobdexport.py` (`gx`) - The export for a tax auditor (GoBD "Datenträgerüberlassung", Z3 access)
 - `kalmido/admin/hosting.py` (`quota`) - Running Kalmido for others
 - `kalmido/admin/offsite.py` (`bko`) - An off-site target for the backups (instance admins)
 - `kalmido/admin/oi_office.py` (`p`) - Organisation import -- the clients and the office
@@ -634,7 +635,6 @@ Office & finance: quotations, invoices, bank, books, tax, DATEV, e-invoices, let
 - `kalmido/office/fixedimport.py` (`fci`) - Fixed costs of the cash flow from a spreadsheet, and the optional monthly task "
 - `kalmido/office/gdpdudtd.py` - The official DTD of the GDPdU / GoBD description standard, text unchanged
 - `kalmido/office/girocode.py` (`gcq`) - The GiroCode (EPC QR code, EPC069-12 version 002)
-- `kalmido/office/gobdexport.py` (`gx`) - The export for a tax auditor (GoBD "Datenträgerüberlassung", Z3 access)
 - `kalmido/office/homecur.py` (`hc`) - The office's own home currency (ISO 4217)
 - `kalmido/office/invoices.py` (`inv`) - Office & finance, stage 2: invoices, credit notes and reminders (kinds invoice / credit / reminder of office_docs)
 - `kalmido/office/kpi.py` (`kpi`) - Office & finance: the business figures at a glance

@@ -93,6 +93,17 @@ for t, arc in sorted(rx.items()):
     check(arc.split("/")[0] in sections, f"{arc}: its folder has no line in RX_SECTIONS (the index would not name it)")
 check(not (office - set(rx) - set(rleft)), f"every office table is accounted for in the retention export ({len(office)} tables)")
 
+# 2.1309.0 (#6471): the auditor's export (kalmido/admin/gobdexport.py GX_RX) takes its further tables from the retention export's
+# list (rx_tables: their where clause) -- one list: each of them is in RX_TABLES or the register's rx, no file name twice
+gtree = ast.parse(open(os.path.join(ROOT, "kalmido", "admin", "gobdexport.py"), encoding="utf-8").read())
+gc = {n.targets[0].id: n.value for n in gtree.body if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name)}
+gx = [(e.elts[0].value, e.elts[1].value) for e in gc["GX_RX"].elts]
+for t, _u in gx:
+    check(t in rx, f"{t}: in GX_RX of the auditor's export but not in the retention export (RX_TABLES / register rx)")
+check(len({u for _t, u in gx}) == len(gx) and len({t for t, _u in gx}) == len(gx), f"GX_RX: no table and no file twice {gx}")
+check({"office_bank_tx", "office_cc_lines", "office_drives", "office_meals", "office_trips", "office_trip_items", "office_equipment",
+       "office_ledger_entries"} <= {t for t, _u in gx}, "GX_RX: bank, card lines, logbook, entertainment, trips, assets, ledger (#6471)")
+
 # 2.455.0 (#3469): the account export
 atext = open(os.path.join(ROOT, "kalmido", "admin", "acctexport.py"), encoding="utf-8").read()
 atree = ast.parse(atext)

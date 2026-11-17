@@ -287,7 +287,7 @@ def _p_doc(c, run, src, d, ctx):
     if _oi_number_taken(c, ctx.space, d.get("number")):
         run.warning(N_("A document number already exists in the target office, the document was skipped: {0}"), d.get("number"))
         return None
-    for col in ("chain_key", "chain_seq", "chain_prev", "chain_hash"):  # 2.531.0 (#4497): the target's own chain (office/chain.py hch_append)
+    for col in ("chain_key", "chain_seq", "chain_prev", "chain_hash", "chain_ver"):  # 2.531.0 (#4497): the target's own chain (office/chain.py hch_append); 2.1309.0 (#6467): + chain_ver
         d.pop(col, None)
     for col in ("ref_doc_ids", "abs_refs"):  # set by the finish pass (other documents)
         if col in d and d[col] is not None:  # an empty value stays empty (the round trip compares them)
@@ -942,7 +942,8 @@ def _f_origins(c, run, uid, data, who):
             new = run.m(table, src.get("id")) if isinstance(src, dict) else None
             o = org.get((table, _oid(src.get("origin_id")) or _oid(src.get("id")))) if new else None
             if o and o != new:
-                c.execute(f"UPDATE {table} SET origin_id=? WHERE id=?", (o, new))
+                with ofx_release(c, table):  # 2.1309.0 (#6467): a position of a document imported as finalised (6467.py)
+                    c.execute(f"UPDATE {table} SET origin_id=? WHERE id=?", (o, new))
 
 
 FINISH = [_f_docs, _f_runs, _f_bank, _f_datev_guids, _f_equipment, _f_origins]  # 2.558.0 D (#4591, review F5): + _f_equipment; 2.654.0 (#4585): + _f_origins

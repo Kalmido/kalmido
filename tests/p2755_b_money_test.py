@@ -163,6 +163,7 @@ out['dflt'] = c.execute("SELECT column_default FROM information_schema.columns W
 out['chain_num'] = hch_check(c, {ORG})['ok']
 out['third'] = mc_migrate(c, AT)
 c.execute("ALTER TABLE office_doc_items ALTER COLUMN tax_amount TYPE TEXT USING tax_amount::text")
+c.execute("SELECT set_config('kalmido.locked_ok', 'on', true)")  # 2.1309.0 (#6467): a finalised document's position (core/migrations.d/6467.py)
 c.execute("UPDATE office_doc_items SET tax_amount='-0.00' WHERE id=?", (d[1]['id'],))
 out['chained_negzero'] = mc_migrate(c, AT)['office_doc_items.tax_amount']
 c.rollback()
@@ -266,9 +267,9 @@ from kalmido.office.chain import hch_canon, hch_check, hch_hash
 out = {{'login': list(c.execute("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user").fetchone())}}
 c.execute("ALTER TABLE office_doc_items ALTER COLUMN tax_amount TYPE TEXT USING tax_amount::text")
 it = c.execute("SELECT id FROM office_doc_items WHERE doc_id=? ORDER BY sort, id", ({DID},)).fetchall()[1]['id']
+c.execute("SELECT set_config('kalmido.locked_ok', 'on', true)")  # the finalised row's chain_hash (core/migrations.d/4598.py); 2.1309.0 (#6467): its position too (6467.py)
 c.execute("UPDATE office_doc_items SET tax_amount='-0.00' WHERE id=?", (it,))
 d = c.execute("SELECT * FROM office_docs WHERE id=?", ({DID},)).fetchone()
-c.execute("SELECT set_config('kalmido.locked_ok', 'on', true)")  # the finalised row's chain_hash (core/migrations.d/4598.py)
 c.execute("UPDATE office_docs SET chain_hash=? WHERE id=?", (hch_hash(d['chain_prev'] or '', hch_canon(c, {ORG}, d)), {DID}))
 out['it'] = it
 out['org'] = d['org_id']
