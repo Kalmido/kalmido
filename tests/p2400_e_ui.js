@@ -81,7 +81,8 @@ const FEAT = 'cal,comments,collab,office,clients';
       '#1371: the typed values are back after the view change ' + await ev(`document.getElementById('osc-street').value + ' / ' + document.getElementById('os-valid').value`));
     await leave('os-valid');  // 2.113.0 (#2247): the restored draft saves when left
     // live events while typing in a field: a comment from another session, ofcInfo(true), render()
-    await ev(`(() => { const el = document.getElementById('osc-city'); el.focus(); el.value = 'Ham'; el.setSelectionRange(3, 3); el.dispatchEvent(new Event('input', {bubbles: true})); window.__rv = 0; const o = renderView; renderView = (...a) => { __rv++; return o(...a); }; return 1; })()`);
+    // 2.1353.0 (#6827): the group Company is a folded head row: the person opens it to type in it (it stays open over redraws)
+    await ev(`(() => { const el = document.getElementById('osc-city'); const g = el.closest('details.sfold'); if (g) g.open = true; el.focus(); el.value = 'Ham'; el.setSelectionRange(3, 3); el.dispatchEvent(new Event('input', {bubbles: true})); window.__rv = 0; const o = renderView; renderView = (...a) => { __rv++; return o(...a); }; return 1; })()`);
     await call(CA2, 'POST', `/api/tasks/${task.id}/comments`, {body: 'Passt der Dienstag?'});
     const live = await ready(ev, `__rv > 0`, 40);
     await ev(`(async () => { await ofcInfo(true); render(); ofcDraw(); return 1; })()`);

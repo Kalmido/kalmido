@@ -41,7 +41,8 @@ const today = new Date().toISOString().slice(0, 10);
     const kids = [...sp.querySelectorAll(':scope > *')].filter(e => e.getClientRects().length && r(e).height > 0);
     const left = kids.filter(e => r(e).left < mid), right = kids.filter(e => r(e).left >= mid);
     // overlaps between the rows / hints of the area (both columns)
-    const rows = [...sp.querySelectorAll('.row, .shint')].filter(e => e.getClientRects().length && r(e).height > 0 && !e.closest('[hidden]'));
+    // 2.1353.0 (#6827): rows in a closed head row are not shown (Firefox keeps boxes for them, all at one place)
+    const rows = [...sp.querySelectorAll('.row, .shint')].filter(e => e.getClientRects().length && r(e).height > 0 && !e.closest('[hidden]') && !e.closest('details:not([open])'));
     let over = 0; for (let i = 0; i < rows.length && over < 3; i++) for (let j = i + 1; j < rows.length; j++) { const a = r(rows[i]), b = r(rows[j]);
       if (rows[i].contains(rows[j]) || rows[j].contains(rows[i])) continue;
       if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) { over++; break; } }
