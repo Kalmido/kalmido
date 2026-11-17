@@ -603,7 +603,7 @@ function viewHome() {
 // account counts as one: then the cards themselves show it); each step leads into an area that is already there
 const hpFirstOn = () => !S.tasks.size && !S.lists.some(l => !l.is_inbox && !l.archived);
 function hpFirstHtml() {
-  const st = [[`<a href="#inbox">`, '</a>', 'inbox', tr('Write down your first task'), tr('Everything starts in the inbox; sort it later.')],
+  const st = [[`<a href="#inbox">`, '</a>', 'inbox', tr('Write down your first task'), tr('Everything starts in the basket; sort it later.')],
     ['<button type="button" class="dwb" data-hpfirst="project">', '</button>', 'list', tr('Create a project'), tr('A project bundles tasks, files and notes.')],
     ['<button type="button" class="dwb" data-hpfirst="tour">', '</button>', 'arrow', tr('Take the short tour'), tr('Two minutes through the most important places.')],
     [`<a href="#help">`, '</a>', 'help', tr('How it works'), tr('The help explains every area.')]];

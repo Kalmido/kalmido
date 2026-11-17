@@ -179,5 +179,33 @@ allsrc = "".join(open(f, encoding="utf-8").read() for f in glob.glob(os.path.joi
 for k in OLD_TR:
     check(("tr('%s'" % k) not in allsrc, f"no plural-only tr() left for '{k[:50]}'")
 
+# 2.1329.0 (#4992): #1219 the basket has one name in every language - moved here from tests/p2391_k_ui.js (a UI suite of the full
+# CI only): a new text saying "inbox" for the basket turned that suite red after the package was live, four times since 07.11.;
+# here it is red in the lint of the build job's own Mac run and in the einreihen check. The English key says "basket"; a key
+# about another inbox (scan / documents / ntfy / bug inbox) goes into INBOX_OK with its reason - never the basket.
+BASKET = {"de": "Eingang", "fr": "Panier", "es": "Cesta", "it": "Raccolta", "nl": "Mand"}
+OLD_BASKET = {"de": None,  # 2.152.4 (#2634): German says Eingang again
+              "fr": re.compile(r"boîte de réception", re.I), "es": re.compile(r"bandeja de entrada", re.I),
+              "it": re.compile(r"In arrivo|posta in arrivo"), "nl": re.compile(r"\binbox\b", re.I)}
+INBOX_OK = re.compile("|".join([
+    r"DATEV", r"Incoming invoices",
+    r"document inbox", r"^Inboxes$", r"^Documents: inboxes$", r"^Create inbox$", r"other members' inboxes", r"two inboxes",
+    r"^The inboxes could not be loaded$",  # 2.1246.0 (#6109): the documents' inboxes (Documents > inboxes)
+    r"Dokumente/Eingang", r"^Inbox\|folder$",  # 2.48.0 (#1111) / 2.368.0 (#2987): the documents' inbox folder (data)
+    r"[Ss]can inbox",  # 2.207.0 (#2763) / 2.630.0 (#4889): the scan inbox (Documents > Settings, de: Scan-Eingang)
+    r"ntfy share inbox", r"ntfy inbox \{0\}", r"Share inbox \(ntfy\)", r"topic inbox",  # 2.142.1 (#2150) / 2.457.0 (#2971): ntfy
+    r"^With a bug inbox$",  # 2.473.0 (#3378): the bug inbox of a Software project
+    r"^Coming up$",  # it: "In arrivo" = coming up
+]))
+for code, name in BASKET.items():
+    d = ic.load_code(code)
+    check(d.get("Basket") == name, f"#1219 {code}: Basket = {name} ({d.get('Basket')})")
+    check("Inbox" not in d, f'#1219 {code}: no key "Inbox" any more')
+    old = OLD_BASKET[code]
+    bad = [(k, v) for k, v in d.items() if not k.startswith("_") and not INBOX_OK.search(k)
+           and (re.search(r"inbox", k, re.I) or (old and old.search(json.dumps(v, ensure_ascii=False))))]
+    check(not bad, f"#1219 {code}: no old name of the basket left - say basket ({name}), or, for another inbox, add the key "
+                   f"to INBOX_OK with its reason: {bad[:3]}")
+
 print(f"\n{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
