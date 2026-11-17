@@ -32,8 +32,10 @@ from urllib.parse import urlparse
 
 from datetime import timedelta
 
+from flask import g
+
 from ..core.config import PUBLIC_URL
-from ..core.db import iso, now_utc
+from ..core.db import db, iso, now_utc
 from ..core.pg import system_ctx
 from ..core.i18n import tr
 from ..core.env import env_int
@@ -355,11 +357,33 @@ def srvweb_gate_step(st, method, path, b, va):
     """The class of a write of an agent while its web run st is on: a meta step outside SRV_WEB_META_OK becomes "change" (needs a
     card); chat messages and their reactions only to the people of the run; the cross proposal only as tasks (its sources are
     added) -> None = keep the class."""
+    to = st.get("to") or []
     if any(re.search(rx, path) for rx in SRV_WEB_META_OK):
-        return None
+        return _srvweb_free_text(to, method, path, b or {}, va)
     if path.startswith("/agent/chats/{}"):
-        return None if va.get("uid") in (st.get("to") or []) else "change"
+        return None if va.get("uid") in to else "change"
     if path == "/agent/proposals" and method == "POST" and (b or {}).get("kind") in (None, "", "extract"):
         return None
     return "change"
 
+
+def _srvweb_free_text(to, method, path, b, va):
+    """2.1364.0 (#6297 (10), audit #4741 F1): the free meta routes that carry the model's own text before other people - a job's
+    title (its chat line, the News entry and the push "waiting for your approval"), a progress step, the working mark's line and
+    title on a task, the status text on the avatar - stay free only towards the people of the run; else "change" (a card)."""
+    def _job_user(jid):
+        r = db().execute("SELECT user_id FROM agent_jobs WHERE id=? AND agent_id=?", (jid, g.user["id"])).fetchone() \
+            if isinstance(jid, int) and not isinstance(jid, bool) else None
+        return r["user_id"] if r else None
+    if path == "/agent/jobs" and method == "POST":
+        return None if b.get("user_id") in to else "change"  # without a person it goes to the task's assignee
+    if path == "/agent/jobs/{}" and method == "PATCH" and any(b.get(k) for k in ("title", "log", "append_log", "state")):
+        return None if _job_user(va.get("jid")) in to else "change"
+    if path == "/agent/progress" and method == "POST":
+        uid = b.get("chat_user_id") if b.get("job_id") is None else _job_user(b.get("job_id"))
+        return None if uid in to else "change"
+    if path == "/tasks/{}/working" and method in ("POST", "PATCH") and any(b.get(k) for k in ("text", "title", "name")):
+        return "change"  # every person who sees the task reads it
+    if path == "/agent/status" and str(b.get("text") or "").strip():
+        return "change"  # every member who sees the agent reads it
+    return None
