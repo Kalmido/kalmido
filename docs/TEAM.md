@@ -796,7 +796,10 @@ the role next to each member, and in *Invite by e-mail*; *What the roles mean* e
 - **Accounting**: like a guest, plus the office of the organisation to read and export (also the bookkeeping, the income
   statement and the DATEV export) and receipts to upload into the organisation's documents (a wrongly uploaded receipt
   of their own they can rename or remove again). Nothing else is sent, deleted or changed, no master data or settings.
-  The typical case: the tax advisor.
+  The typical case: the tax advisor. Since 2.1340.0 (#6613): in the organisation's documents only the receipts and their
+  own uploads (no other member's contracts or papers); in the office not the pipeline, the generated documents, templates
+  and privacy sheets, the correspondence and the whole office log; an approval link's address and the signer's data only
+  for people who may change the document (also not for read-only).
 
 The three limited roles add nothing at the top level of the organisation's files, own no list of the organisation (a project
 handed over goes only to a member or admin), copy no project into the organisation, use no internal form of the organisation
