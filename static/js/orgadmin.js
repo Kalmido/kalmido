@@ -11,7 +11,7 @@ const OADM_ACT = {archive: N_('{0} archived {1}'), restore: N_('{0} restored {1}
   outok: N_('{0} released {1} for its maker to take it back'), outno: N_('{0} rejected giving {1} back'),  // 2.361.2 (#2923)
   export: N_('{0} exported {1} with the account export'),  // 2.148.1 C (#2492)
   tasks: N_('{0} looked at the tasks of {1}'), tasksall: N_('{0} looked at the tasks of all projects'),  // 2.574.0 (#3376): the read-only task view
-  move_on: N_('{0} started the move of the organisation (read only)'), move_off: N_('{0} ended the move of the organisation')};  // 2.1337.0 (#6600)
+  move_on: N_('{0} started the move of the organisation (read-only)'), move_off: N_('{0} ended the move of the organisation')};  // 2.1337.0 (#6600)
 function oadmRow(x) {
   const sub = [x.owner_agent ? tr('Owner: {0} (agent)', x.owner_name) : tr('Owner: {0}', x.owner_name), tr('{0} open', x.open) + ' / ' + trn('{0} task', '{0} tasks', x.tasks),
     trn('{0} member', '{0} members', x.members), tr('changed {0}', fmtDateLoc(String(x.changed_at || '').slice(0, 10)) || '–'), x.folder && tr('Folder: {0}', fDisp(x.folder))].filter(Boolean);  // 2.39.1 (#1188): + folder path
