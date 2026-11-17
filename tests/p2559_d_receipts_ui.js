@@ -8,6 +8,9 @@
 // - Save of the receipt sheet: the sheet closes at once, the row shows the new category while the first request is held; a
 //   refusal puts the old category back
 // - none of these actions fetches the whole state again (no GET /api/state)
+// - 2.1362.0 (#6327): the sheet sends only the changed fields with its version: another device changed the category while
+//   the sheet was open -> a date changed here keeps their category; a VAT rate changed here -> 409, the sheet opens again on
+//   the current state with the rate typed here and the merge bar; saving again keeps both; Undo takes only the rate back
 // The held answers wait in the page (window.fetch wrapped) until the test lets them go: every wait is on a real state.
 const path = require('path');
 const {execFileSync} = require('child_process');
@@ -119,7 +122,8 @@ async function receipt(ck, ws, name, amount, day) {
   unhold(w);
 
   // ================= Save of the sheet: closes at once, the row shows the new category; a refusal puts it back
-  hold(w, /^PATCH \/api\/docs\/\d+$/);
+  // 2.1362.0 (#6327): only the category changed -> the first (and only) request is the receipt's PUT (no PATCH of the document)
+  hold(w, /^(PATCH \/api\/docs\/\d+|PUT \/api\/docs\/\d+\/receipt)$/);
   d.querySelector('.bk-sheet #bk-cat').value = 'Software';
   d.querySelector('.bk-sheet [data-m="save"]').click();
   check(await until(() => w.__held.length === 1), 'Save: the first request is on its way (held)');
@@ -141,6 +145,42 @@ async function receipt(ck, ws, name, amount, day) {
   unhold(w);
 
   check(!stateFetches(w).length, 'no action fetched the whole state again: ' + stateFetches(w).join(' | '));
+
+  // ================= 2.1362.0 (#6327): another device's change is never put back silently
+  const rcOf = async id => (await call(CA, 'GET', `/api/docs/${id}/receipt`)).receipt || {};
+  const dateOf = async id => (await call(CA, 'GET', `/api/docs/${id}`)).date;
+  // the versions are whole seconds: the other device's write comes in a later second than the one the sheet reads (a real state)
+  const later = async id => { const v = Date.parse((await rcOf(id)).updated_at); return until(() => Date.now() > v + 1100); };
+  d.querySelector(`.rcl-list [data-rcl="rc"][data-id="${R2}"]`).click();
+  check(await until(() => d.querySelector('.bk-sheet #bk-cat')?.value === 'Software'), 'the sheet opens with Software');
+  check(await later(R2), 'a second later');
+  check((await call(CA, 'PUT', `/api/docs/${R2}/receipt`, {category: 'Travel', vat_pct: '19', keep: true})).http === 200, 'the other device: category Travel');
+  const day2 = TC.day(-1);
+  const di = d.querySelector('.bk-sheet #bk-date'); di.value = day2; di.dispatchEvent(new w.Event('input', {bubbles: true}));
+  d.querySelector('.bk-sheet [data-m="save"]').click();
+  check(await until(async () => await dateOf(R2) === day2), 'only the date changed here: the server stores it');
+  check((await rcOf(R2)).category === 'Travel', 'the category of the other device stays (was put back to Software before #6327)');
+  check(await until(() => /Travel/.test(rowOf(R2)?.textContent || '')), 'the row shows Travel');
+  // a field of the receipt changed here while the other device changed the receipt: 409, nothing written, the merge bar
+  d.querySelector(`.rcl-list [data-rcl="rc"][data-id="${R2}"]`).click();
+  check(await until(() => d.querySelector('.bk-sheet #bk-cat')?.value === 'Travel'), 'the sheet opens with Travel');
+  check(await later(R2), 'a second later again');
+  check((await call(CA, 'PUT', `/api/docs/${R2}/receipt`, {category: 'Hardware', vat_pct: '19', keep: true})).http === 200, 'the other device: category Hardware');
+  const vi = d.querySelector('.bk-sheet #bk-vat'); vi.value = '7'; vi.dispatchEvent(new w.Event('input', {bubbles: true}));
+  d.querySelector('.bk-sheet [data-m="save"]').click();
+  check(await until(() => d.querySelector('.bk-sheet .obj-merge')), 'the sheet opens again with the merge bar');
+  const sh = d.querySelector('.bk-sheet');
+  check(sh.querySelector('#bk-cat').value === 'Hardware' && sh.querySelector('#bk-vat').value === '7', 'it shows their category and the rate typed here');
+  check(sh.querySelector('#bk-cat').classList.contains('obj-theirs'), 'the category is marked as changed by someone else');
+  check((await rcOf(R2)).vat_pct === '19', 'nothing of the refused save was written');
+  sh.querySelector('.obj-merge [data-om="mine"]').click();
+  sh.querySelector('[data-m="save"]').click();
+  check(await until(async () => (await rcOf(R2)).vat_pct === '7'), 'saved again: the rate is stored');
+  check((await rcOf(R2)).category === 'Hardware', 'and their category stays');
+  check(await until(() => toastHas(/Changed receipt/) && d.querySelector('#toast button:not(.tx)')), 'the undo toast');
+  d.querySelector('#toast button:not(.tx)').click();
+  check(await until(async () => (await rcOf(R2)).vat_pct === '19'), 'Undo takes the rate back');
+  check((await rcOf(R2)).category === 'Hardware', 'Undo leaves the category of the other device');
   w.close();
   console.log(`p2559_d_receipts_ui: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
