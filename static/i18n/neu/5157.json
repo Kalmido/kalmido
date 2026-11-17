@@ -1,0 +1,57 @@
+{
+  "de": {
+    "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "Das Adressbuch {0} lässt sich nicht mehr lesen: Geburtstage und Jahrestage daraus sind vielleicht nicht aktuell.",
+    "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "Das Adressbuch {0} hat das geänderte Datum von {2} nicht übernommen; es gilt nur in Kalmido ({1}).",
+    "Address book #{0} of user {1} failed {2} times in a row ({3}).": "Adressbuch #{0} von {1} ist {2}-mal in Folge fehlgeschlagen ({3}).",
+    "Only the outlays of a cancelled invoice can be released": "Nur die Auslagen einer stornierten Rechnung lassen sich wieder abrechenbar machen",
+    "Release the outlays again": "Auslagen wieder abrechenbar machen",
+    "Release the outlays again?": "Auslagen wieder abrechenbar machen?",
+    "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} Beleg dieser stornierten Rechnung kann dann auf eine neue Rechnung.", "{0} Belege dieser stornierten Rechnung können dann auf eine neue Rechnung."],
+    "{0} receipt released": ["{0} Beleg wieder abrechenbar", "{0} Belege wieder abrechenbar"],
+    "This release has already been undone": "Diese Freigabe wurde schon rückgängig gemacht"
+  },
+  "es": {
+    "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "La libreta de direcciones {0} ya no se puede leer: sus cumpleaños y aniversarios pueden no estar al día.",
+    "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "La libreta de direcciones {0} no aceptó la fecha cambiada de {2}; solo queda en Kalmido ({1}).",
+    "Address book #{0} of user {1} failed {2} times in a row ({3}).": "La libreta de direcciones #{0} de {1} falló {2} veces seguidas ({3}).",
+    "Only the outlays of a cancelled invoice can be released": "Solo se pueden liberar los suplidos de una factura anulada",
+    "Release the outlays again": "Liberar de nuevo los suplidos",
+    "Release the outlays again?": "¿Liberar de nuevo los suplidos?",
+    "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} justificante de esta factura anulada podrá ir entonces a una nueva factura.", "{0} justificantes de esta factura anulada podrán ir entonces a una nueva factura."],
+    "{0} receipt released": ["{0} justificante liberado", "{0} justificantes liberados"],
+    "This release has already been undone": "Esta liberación ya se ha deshecho"
+  },
+  "fr": {
+    "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "Le carnet d'adresses {0} ne peut plus être lu : ses anniversaires et dates de fête ne sont peut-être plus à jour.",
+    "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "Le carnet d'adresses {0} n'a pas accepté la date modifiée de {2} ; elle reste seulement dans Kalmido ({1}).",
+    "Address book #{0} of user {1} failed {2} times in a row ({3}).": "Le carnet d'adresses #{0} de {1} a échoué {2} fois de suite ({3}).",
+    "Only the outlays of a cancelled invoice can be released": "Seuls les débours d'une facture annulée peuvent être libérés",
+    "Release the outlays again": "Libérer à nouveau les débours",
+    "Release the outlays again?": "Libérer à nouveau les débours ?",
+    "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} justificatif de cette facture annulée pourra alors figurer sur une nouvelle facture.", "{0} justificatifs de cette facture annulée pourront alors figurer sur une nouvelle facture."],
+    "{0} receipt released": ["{0} justificatif libéré", "{0} justificatifs libérés"],
+    "This release has already been undone": "Cette libération a déjà été annulée"
+  },
+  "it": {
+    "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "La rubrica {0} non si può più leggere: i suoi compleanni e anniversari potrebbero non essere aggiornati.",
+    "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "La rubrica {0} non ha accettato la data modificata di {2}; resta solo in Kalmido ({1}).",
+    "Address book #{0} of user {1} failed {2} times in a row ({3}).": "La rubrica #{0} di {1} non è riuscita {2} volte di seguito ({3}).",
+    "Only the outlays of a cancelled invoice can be released": "Solo le spese anticipate di una fattura annullata possono essere liberate",
+    "Release the outlays again": "Libera di nuovo le spese anticipate",
+    "Release the outlays again?": "Liberare di nuovo le spese anticipate?",
+    "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} ricevuta di questa fattura annullata potrà poi andare in una nuova fattura.", "{0} ricevute di questa fattura annullata potranno poi andare in una nuova fattura."],
+    "{0} receipt released": ["{0} ricevuta liberata", "{0} ricevute liberate"],
+    "This release has already been undone": "Questa liberazione è già stata annullata"
+  },
+  "nl": {
+    "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "Adresboek {0} kan niet meer worden gelezen: de verjaardagen en jubilea eruit zijn misschien niet actueel.",
+    "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "Adresboek {0} heeft de gewijzigde datum van {2} niet overgenomen; die blijft alleen in Kalmido ({1}).",
+    "Address book #{0} of user {1} failed {2} times in a row ({3}).": "Adresboek #{0} van {1} is {2} keer op rij mislukt ({3}).",
+    "Only the outlays of a cancelled invoice can be released": "Alleen de voorschotten van een geannuleerde factuur kunnen weer worden vrijgegeven",
+    "Release the outlays again": "Voorschotten weer vrijgeven",
+    "Release the outlays again?": "Voorschotten weer vrijgeven?",
+    "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} bon van deze geannuleerde factuur kan dan op een nieuwe factuur.", "{0} bonnen van deze geannuleerde factuur kunnen dan op een nieuwe factuur."],
+    "{0} receipt released": ["{0} bon vrijgegeven", "{0} bonnen vrijgegeven"],
+    "This release has already been undone": "Deze vrijgave is al ongedaan gemaakt"
+  }
+}

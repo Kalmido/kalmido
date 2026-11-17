@@ -1050,6 +1050,7 @@ function ofdMoreItems(d, inList) {
         try { const j = await rawFetch('POST', `/api/office/docs/${d.id}/unlock`); OFD.list = null; OFD.log = null; if (inList) ofdLoadList(true); else { OFD.doc = j; ofdDraw(); } toast(tr('Back to a draft')); } catch (x) { ofcErr(x); }
       }} : null,
       rw && d.kind === 'invoice' && d.status === 'cancelled' && d.time_billed?.entries && ofcAdmin() ? {label: tr('Release the time again'), icon: 'clock', fn: () => tbill_release(d)} : null,  // 2.144.6 A (#2053)
+      rw && d.kind === 'invoice' && d.status === 'cancelled' && (d.outlays_billed?.receipts || d.outlays_billed?.trips) && ofcAdmin() ? {label: tr('Release the outlays again'), icon: 'receipt', fn: () => au_release(d)} : null,  // 2.1342.0 (#6479)
       rw && d.can_delete ? '-' : null,
       rw && d.can_delete ? {label: tr('Delete'), icon: 'trash', cls: 'danger', fn: async () => {
         if (d.trial) { if (!await askConfirm(tr('Delete trial document?'), tr('{0} is a trial document and disappears permanently.', d.number || ofdKindName(d.kind, true)), {ok: tr('Delete'), danger: true})) return; }  // 2.144.10 C (#2576)
@@ -1356,6 +1357,16 @@ async function tbill_release(d) {
   const ids = j.released || [], again = async undo => { await api('POST', `/api/office/docs/${d.id}/time-release`, undo ? {undo: ids} : {}); await ofdLoadDoc(d.id, true); return {}; };
   await ofdLoadDoc(d.id, true);
   offerUndo(tr('Time released ({0} h)', h), histAdd({label: tr('Time released ({0} h)', h), res: j, lids: [], undo: () => again(true), redo: () => again(false)}));
+}
+// 2.1342.0 (#6479): the receipts and travel receipts of a cancelled invoice can be billed again (one undo step binds them again)
+async function au_release(d) {
+  const n = (d.outlays_billed.receipts || 0) + (d.outlays_billed.trips || 0);
+  if (!await askConfirm(tr('Release the outlays again?'), trn('{0} receipt of this cancelled invoice can then go onto a new invoice.', '{0} receipts of this cancelled invoice can then go onto a new invoice.', n), {ok: tr('Release')})) return;
+  let j; try { j = await api('POST', `/api/office/docs/${d.id}/outlays-release`, {}); } catch { return; }
+  const again = async undo => { await api('POST', `/api/office/docs/${d.id}/outlays-release`, undo ? {undo: true} : {}); await ofdLoadDoc(d.id, true); return {}; };
+  await ofdLoadDoc(d.id, true);
+  const lb = trn('{0} receipt released', '{0} receipts released', n);
+  offerUndo(lb, histAdd({label: lb, res: j, lids: [], undo: () => again(true), redo: () => again(false)}));
 }
 function tbill_ftDone(t) {
   if (!t) return;

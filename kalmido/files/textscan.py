@@ -59,6 +59,7 @@ IDLE = 5             # s the queue sleeps when there is nothing to do
 RUN_STALE = 45
 TRIES = 3
 SEARCH_MAX = 100     # hits of the Ablage search
+TS_SCAN_MAX = 2000   # 2.1343.0 (#6406): rows of file texts / documents read per workspace by the Ablage search (newest first)
 BF_KEY = "ts_backfill"  # settings: {kind: lowest id queued so far, "done": [kinds]}
 # 2.1283.0 (#6427): recent = the workspaces served, longest ago first (round robin as docs/ingest.py DOCS_NEXT)
 _Q = {"thread": None, "bf": 0.0, "recent": []}
@@ -484,43 +485,55 @@ def ts_files_find(c, uid, raw, space=""):
     ncond, nargs = osr_name_cond("n.name", raw)
     hit = {r[0]: "name" for r in c.execute(f"SELECT n.id FROM fs_nodes n WHERE {vis} AND {ncond} ORDER BY n.id DESC LIMIT ?",
                                            (*args, *nargs, SEARCH_MAX))} if ncond else {}
+    # 2.1343.0 (#6406): per workspace, narrowed in SQL by the word index's hashes (osw_prefilter) and at most TS_SCAN_MAX rows
+    # (newest first) -- no longer every visible file text and document row into Python
     if ON and osw_terms(raw):
         cand, node = {}, {}
-        for r in c.execute(f"""SELECT f.id, f.ws, f.node_id FROM file_text f JOIN fs_nodes n ON n.id=f.node_id
-                               WHERE f.kind='fs' AND f.state='found' AND {vis}""", args):
-            cand.setdefault(r["ws"], set()).add(r["id"])
-            node[r["id"]] = r["node_id"]
+        for ws in _ts_ws(c, "SELECT DISTINCT f.ws FROM file_text f JOIN fs_nodes n ON n.id=f.node_id WHERE f.kind='fs' AND f.state='found' AND " + vis, args):
+            pq, pa = osw_prefilter(c, "file_text", ws, raw, "f.id")
+            for r in c.execute(f"""SELECT f.id, f.ws, f.node_id FROM file_text f JOIN fs_nodes n ON n.id=f.node_id
+                                   WHERE f.kind='fs' AND f.state='found' AND f.ws=? AND {vis}{pq} ORDER BY f.id DESC LIMIT ?""",
+                               (ws, *args, *pa, TS_SCAN_MAX)):
+                cand.setdefault(r["ws"], set()).add(r["id"])
+                node[r["id"]] = r["node_id"]
         for fid in osw_match(c, "file_text", cand, raw, _ts_opened) or ():  # 2.1002.0 (#5279): the shared word index
             hit.setdefault(node[fid], "text")
-    docs = {}
-    for r in c.execute(f"SELECT d.node_id, d.ws FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id WHERE {vis}", args):
-        docs.setdefault(r["ws"], []).append(r["node_id"])
+    dws = _ts_ws(c, f"SELECT DISTINCT d.ws FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id WHERE {vis}", args)
     if ON and osw_terms(raw):
+        docs = {}
+        for ws in dws:
+            pq, pa = osw_prefilter(c, "doc", ws, raw, "d.node_id")
+            docs[ws] = [r[0] for r in c.execute(f"SELECT d.node_id FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id WHERE d.ws=? AND {vis}{pq} "
+                                                "ORDER BY d.node_id DESC LIMIT ?", (ws, *args, *pa, TS_SCAN_MAX))]
         for nid in osw_match(c, "doc", docs, raw, S.doc_opened) or ():  # 2.1002.0 (#5279): the shared word index
             hit.setdefault(nid, "text")
-    for nid in _doc_label_hits(c, docs, raw):  # 2.353.0 D (#2759): sender, document type, tags of the documents (before "text":
-        if hit.get(nid) != "name":              # the word index holds the sender too)
+    for nid in _doc_label_hits(c, dws, vis, args, raw):  # 2.353.0 D (#2759): sender, document type, tags of the documents (before "text":
+        if hit.get(nid) != "name":                       # the word index holds the sender too)
             hit[nid] = "doc"
     ids = sorted(hit, reverse=True)[:SEARCH_MAX]
     rows = c.execute(f"SELECT * FROM fs_nodes WHERE id IN ({','.join('?' * len(ids))})", tuple(ids)).fetchall() if ids else []
     return sorted(rows, key=lambda r: -r["id"]), hit
 
 
-def _doc_label_hits(c, docs, raw):
-    """2.353.0 D (#2759): the documents among docs ({ws: [node ids]}, all visible) whose sender, type or a tag contains raw."""
+def _ts_ws(c, sql, args):
+    return [r[0] for r in c.execute(sql, args)]
+
+
+def _doc_label_hits(c, dws, vis, args, raw):
+    """2.353.0 D (#2759): the documents of the workspaces dws visible by vis (the fs_nodes n condition of ts_files_find with
+    its args) whose sender, type or a tag contains raw. 2.1343.0 (#6406): the visibility in SQL, at most TS_SCAN_MAX per label
+    kind and workspace, instead of every visible document's id in Python."""
     low, out = raw.casefold(), set()
-    for ws, nids in docs.items():
-        mine, got = set(nids), set()
+    for ws in dws:
         for kind, col in (("sender", "sender_id"), ("type", "type_id"), ("tag", None)):
             ids = [x["id"] for x in S.labels(c, ws, kind) if low in (x["name"] or "").casefold()][:500]
             if not ids:
                 continue
             q = ",".join("?" * len(ids))
-            sql = (f"SELECT node_id FROM doc_meta WHERE ws=? AND {col} IN ({q})" if col else
-                   f"SELECT k.obj_id FROM obj_tag_links k JOIN doc_meta d ON d.node_id=k.obj_id WHERE k.kind='fs_entry' AND d.ws=? "
-                   f"AND k.tag_id IN ({q})")  # 2.1119.0 (#5277): the core's links
-            got |= {r[0] for r in c.execute(sql, (ws, *ids))}
-        out |= got & mine
+            sql = (f"SELECT d.node_id FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id WHERE d.ws=? AND d.{col} IN ({q}) AND {vis}" if col else
+                   f"SELECT d.node_id FROM obj_tag_links k JOIN doc_meta d ON d.node_id=k.obj_id JOIN fs_nodes n ON n.id=d.node_id "
+                   f"WHERE k.kind='fs_entry' AND d.ws=? AND k.tag_id IN ({q}) AND {vis}")  # 2.1119.0 (#5277): the core's links
+            out |= {r[0] for r in c.execute(sql + " ORDER BY d.node_id DESC LIMIT ?", (ws, *ids, *args, TS_SCAN_MAX))}
     return out
 
 

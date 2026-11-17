@@ -87,7 +87,10 @@ and refuses private, loopback, link-local, CGNAT (100.64.0.0/10), multicast and 
 including IPv4-mapped and NAT64 / 6to4 forms), then connects to exactly the address it checked (no second DNS
 lookup, so DNS rebinding does not help; TLS still verifies the host name). Redirects are followed by hand, at most
 five, never from https to http, to another host only for links without a password and only over https, and every hop
-runs through the same check. XML from CalDAV servers with a DTD or entities is refused.
+runs through the same check. XML from CalDAV servers with a DTD or entities is refused. A password (CalDAV, address books) and a link
+that looks like it carries a secret (a query such as `?token=`, or a random-looking part of the path or file name such as `3f9a1c7e5b2d.ics` - a heuristic, a plain name like `holidays.ics` is not caught) only go over `https://`; over `http://` only to a
+host an admin allowed (below), otherwise adding, changing and the regular fetch stop with "Only https:// addresses work
+here" (2.1342.0, #6553).
 
 **Your own server at home:** a Radicale, Nextcloud or other calendar server in your own network (a LAN or VPN
 address) is blocked by that guard until an admin allows its host: *Settings > Server > Server > Advanced > Allowed internal hosts* (`host` or `host:port`, comma-separated), or `KALMIDO_CALENDAR_ALLOW_HOSTS` in the environment. Only

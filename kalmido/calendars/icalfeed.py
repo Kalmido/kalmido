@@ -229,7 +229,7 @@ def ics_build(c, u):
         try:
             lines += ics_event(t, s, lg, host, key, stamp)
         except (ValueError, TypeError) as e:  # one broken row never breaks the whole feed
-            print("ical: skipping task", t["id"], e, flush=True)
+            print("ical: skipping task", t["id"], type(e).__name__, flush=True)  # 2.1342.0 (#6553 4): the type only (a ValueError can quote the task)
     lines.append("END:VCALENDAR")
     return "\r\n".join(ics_fold(x) for x in lines) + "\r\n"
 

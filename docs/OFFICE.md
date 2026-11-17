@@ -2250,7 +2250,9 @@ The part's name is one source (2.144.9): a rename changes every title page line 
   deleted and never land on a second invoice, also when two invoices are made at the same moment. The answer's `time`
   says how many entries were taken and skipped. Deleting the draft frees them again; a finalised invoice keeps them,
   also once cancelled - on a cancelled invoice the office admin frees them with *Release the time again*
-  (`POST /api/office/docs/{id}/time-release`, undoable). Without an organisation the private office bills the
+  (`POST /api/office/docs/{id}/time-release`, undoable). The receipts and travel receipts billed on a cancelled invoice go
+  free the same way with *Release the outlays again* (`POST /api/office/docs/{id}/outlays-release`, undoable, 2.1342.0);
+  the cancelled invoice keeps its positions. Without an organisation the private office bills the
   person's private lists the same way;
 - **empty** (`POST /api/office/docs` with `{"kind": "invoice"}`).
 

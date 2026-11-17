@@ -106,7 +106,7 @@ function wklv_tk(ta, box) {
   clearTimeout(tk.t); tk.q = q;
   if (q.length < 2 || S.me?.kid || !OUT.online || OUT.down) return true;
   tk.t = setTimeout(async () => {
-    let r; try { r = await rawFetch('GET', '/api/search?limit=8&q=' + encodeURIComponent(q)); } catch { return; }  // offline / error: the local hits stay
+    let r; try { r = await rawFetch('GET', '/api/search?limit=8&groups=&q=' + encodeURIComponent(q)); } catch { return; }  // offline / error: the local hits stay; 2.1343.0 (#6406): groups= -- only the tasks, no groups
     if (WKLV.tk !== tk || tk.q !== q) return;
     const have = new Set(loc.map(t => t.id));
     show(loc.concat((r.hits || []).map(h => h.task).filter(t => t && !have.has(t.id))).slice(0, 8));

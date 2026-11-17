@@ -14,7 +14,7 @@ Kalmido 2.9.0 is a CalDAV server for tasks. Every project you can see appears as
 
 ## For users
 
-1. **Settings › Account › App passwords › New app password.** Give it the name of the device. The password is shown once. Each device gets its own password, so you can revoke a lost phone without touching the others. App passwords are made only here in the web app (2.539.0), never with an API token. Changing your password ends them all unless you untick "End all app passwords and API tokens" (2.539.0); a reset always ends them.
+1. **Settings › Account › App passwords › New app password.** Give it the name of the device. The password is shown once. Each device gets its own password, so you can revoke a lost phone without touching the others. App passwords are made only here in the web app (2.539.0), never with an API token. **An app password works without your second factor** (authenticator app, passkey): calendar and contact apps cannot ask for one, so whoever has the app password can read and change your calendars, tasks and contacts over CalDAV / CardDAV. Treat it like your password, give each device its own and revoke the one of a lost device at once (2.1342.0, #6553). Changing your password ends them all unless you untick "End all app passwords and API tokens" (2.539.0); a reset always ends them.
 2. **Settings › Integrations › Calendar apps (CalDAV)** shows three things: the server, the CalDAV address (`https://your-server/dav/`) and your user name. It also has step-by-step guides.
 3. Log in with your **Kalmido user name** and the **app password**. Your account password never works for CalDAV, and neither does single sign-on.
 

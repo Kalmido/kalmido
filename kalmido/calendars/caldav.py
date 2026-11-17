@@ -821,7 +821,7 @@ def dav_render(c, u, lst):
         try:
             lines, tz = dav_vtodo(t, ctx)
         except (ValueError, TypeError) as e:  # one broken row never breaks the collection
-            print("caldav: skipping task", t["id"], e, flush=True)
+            print("caldav: skipping task", t["id"], type(e).__name__, flush=True)  # 2.1342.0 (#6553 4): the type only (a ValueError can quote the task)
             continue
         members[dav_name_of(t["id"], ctx["meta"].get(t["id"]))] = (t["id"], dav_etag(lines, tz), lines, tz, t)
     return members

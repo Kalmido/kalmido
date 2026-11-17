@@ -179,6 +179,10 @@ r = requests.get(V + f"/team/rooms/{PRJ}/messages", headers=CLH)
 check(r.ok and next(m for m in r.json()["data"] if m["id"] == R)["thread_count"] >= 4, "v1: the agent sees the thread count " + r.text[:200])
 r = requests.get(V + f"/team/rooms/{PRJ}/messages?thread={R}", headers=CLH)
 check(r.ok and r.json()["root"]["id"] == R and T4 in [m["id"] for m in r.json()["data"]], "v1: the agent reads the thread " + r.text[:200])
+# 2.1347.0 (#6858): since 2.1287.0 (#6454) a person's mention in a channel (no project) reaches a team agent only when a project
+# opens it to that person (agent_shares) - a channel member alone gives it no orders; alice shares a project with the agent
+AGW = A.post(B + "/api/lists", json={"name": "Agent work", "org_id": ORG}).json()["id"]
+assert A.put(B + f"/api/lists/{AGW}/members", json={"user_id": CL, "role": "edit"}).ok
 cur = requests.get(V + "/agent/events?since=latest", headers=CLH).json()["cursor"]
 r = requests.post(V + f"/team/rooms/{PRJ}/messages", headers=CLH, json={"body": "I can draft the agenda", "thread_of": R})
 check(r.status_code == 201 and r.json()["thread_of"] == R, "v1: the agent answers in the thread " + r.text[:200])

@@ -1488,6 +1488,7 @@ ROUTES = {
     # 2.144.6 A (#2053): time entries to an invoice (office/timebill.py: the office area's client lists, release = office admin;
     # p21446_a_api_test.py)
     "GET /api/office/time-open": "office", "POST /api/office/docs/{}/time-release": "office",
+    "POST /api/office/docs/{}/outlays-release": "office",  # 2.1342.0 (#6479): tested in p2269_a_docitems_test.py (a stranger 404, a member 403)
     # 2.144.10 A (#2576): delete every trial document of the area one works in, admins only (p214410_a_api_test.py)
     "POST /api/office/trial/delete-all": "office",
     "GET /api/office/trial": "office",  # 2.417.0 C (#3445): only the count of the office open now (office_ctx; another organisation: its own office, never ours - p2417_c_api)

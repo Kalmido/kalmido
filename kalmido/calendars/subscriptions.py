@@ -220,6 +220,31 @@ def cal_http_refused(allow, url):
         return str(p.hostname or "").lower().rstrip(".") not in ("localhost", "localhost.localdomain")
 
 
+_CAL_RUN = re.compile(r"[A-Za-z0-9]+")
+
+
+def _cal_tokenish(run):
+    """2.1342.0 (#6553 1, Gegenlesen #5177 F1): one run of letters / digits that looks random: 10+ characters with letters
+    and digits, 10+ hex digits, or 20+ letters (a long word without separators is rare in a file name)."""
+    if len(run) >= 10 and re.search(r"\d", run) and re.search(r"[A-Za-z]", run):
+        return True
+    return (len(run) >= 10 and re.fullmatch(r"[0-9a-fA-F]+", run) is not None and not run.isdigit()) or (len(run) >= 20 and run.isalpha())
+
+
+def cal_url_secret(url):
+    """2.1342.0 (#6553 1): the address itself likely carries a secret (a private ICS link): a query (?token=, ?key=,
+    ?export), or a path segment with a random-looking run - also as a file name (3f9a...c1.ics: the extension is left off
+    first). A heuristic: a plain name like holidays/feiertage-2026.ics or calendar/basic.ics stays allowed over http."""
+    p = urllib.parse.urlsplit(str(url or ""))
+    if p.query:
+        return True
+    for seg in p.path.split("/"):
+        stem = re.sub(r"\.(ics|ical|ifb|vcs)$", "", urllib.parse.unquote(seg), flags=re.I)
+        if any(_cal_tokenish(x) for x in _CAL_RUN.findall(stem)):
+            return True
+    return False
+
+
 def _cal_connector(allow):
     """socket.create_connection replacement: resolve, check every address, connect to a checked one."""
     def create(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None, *a, **k):  # noqa: ARG001
@@ -424,6 +449,8 @@ def _cal_http(url, method, body, headers, auth, allow, cross_redirects, max_byte
             raise CalError("config")
         hd = {"User-Agent": CAL_UA, "Accept": "text/calendar, application/xml, text/xml, */*;q=0.5", **(headers or {})}
         if auth and p.hostname.lower() == first:
+            if cal_http_refused(allow, url):  # 2.1342.0 (#6553 1): a password never over plain http (only to a host the admin allowed)
+                raise CalError("needs_https")
             hd["Authorization"] = "Basic " + base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode()
         req = urllib.request.Request(url, data=body, method=method, headers=hd)
         try:
@@ -809,7 +836,7 @@ def caldav_discover(url, auth, allow):
             final, rs = dav_propfind(cand, 0, "<d:current-user-principal/><d:resourcetype/><d:displayname/>"
                                               "<c:calendar-home-set/><a:calendar-color/><c:supported-calendar-component-set/>", auth, allow)
         except CalError as e:
-            if e.code in ("auth", "blocked", "tls", "timeout", "too_large"):
+            if e.code in ("auth", "blocked", "tls", "timeout", "too_large", "needs_https"):  # 2.1342.0 (#6553 1)
                 raise
             continue
         if not rs:
@@ -930,6 +957,8 @@ def cal_sync(c, sid, force=False):
             allow = cal_allow(c, "calendar")  # 2.380 G (#3389)
             url = cal_unseal(c, s["user_id"], s["url"])
             auth = (s["username"], cal_unseal(c, s["user_id"], s["password"])) if s["kind"] == "caldav" else None
+            if cal_url_secret(url) and cal_http_refused(allow, url):  # 2.1342.0 (#6553 1): also a link stored before (the password: cal_http)
+                raise CalError("needs_https")
             c.commit()  # 2.37.0 (#1150): no open transaction while the calendar server is asked (snapshot, pool)
             res = None
             if s["kind"] == "caldav":
@@ -1144,6 +1173,8 @@ def cal_discover_api():
     user, pw = b.get("username"), b.get("password")
     if not url or not isinstance(user, str) or not isinstance(pw, str) or not user.strip() or not pw or len(user) > 200 or len(pw) > 500:
         return err(tr("Server address, username and password are needed"))
+    if cal_http_refused(cal_allow(db(), "calendar"), url):  # 2.1342.0 (#6553 1): the password never over plain http
+        return jsonify(error=cal_err_text("needs_https"), code="needs_https"), 400
     if not cal_rate(me()):
         return _cal_limited()
     try:
@@ -1167,6 +1198,8 @@ def cal_create():
         url = cal_norm_url(b.get("url"))
         if not url:
             return err(tr("Invalid link"))
+        if cal_url_secret(url) and cal_http_refused(cal_allow(c, "calendar"), url):  # 2.1342.0 (#6553 1)
+            return jsonify(error=cal_err_text("needs_https"), code="needs_https"), 400
         todo = [(url, fields)]
         user = pw = ""
     elif kind == "caldav":
@@ -1175,6 +1208,8 @@ def cal_create():
         sel = b.get("calendars")
         if not server or not isinstance(user, str) or not isinstance(pw, str) or not user.strip() or not pw or len(user) > 200 or len(pw) > 500:
             return err(tr("Server address, username and password are needed"))
+        if cal_http_refused(cal_allow(c, "calendar"), server):  # 2.1342.0 (#6553 1): the password never over plain http
+            return jsonify(error=cal_err_text("needs_https"), code="needs_https"), 400
         if not isinstance(sel, list) or not sel or len(sel) > CAL_MAX_SUBS or not all(isinstance(x, dict) for x in sel):
             return err(tr("Select at least one calendar"))
         user, todo = user.strip(), []
@@ -1223,6 +1258,8 @@ def cal_update(sid):
         url = cal_norm_url(b["url"])
         if not url:
             return err(tr("Invalid link"))
+        if cal_url_secret(url) and cal_http_refused(cal_allow(c, "calendar"), url):  # 2.1342.0 (#6553 1)
+            return jsonify(error=cal_err_text("needs_https"), code="needs_https"), 400
         upd.update(url=cal_seal(c, r["user_id"], url), url_hint=cal_url_hint(url), etag="", last_modified="")
         resync = True
     if r["kind"] == "caldav":

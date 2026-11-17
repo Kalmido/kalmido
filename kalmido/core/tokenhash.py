@@ -7,6 +7,9 @@ import hmac
 import secrets
 
 from .db import iso, now_utc
+from .pg import qi
+
+_TKH_FEEDS = ("ev_cal_feeds", "abs_cal_feeds")  # 2.1342.0 (#6553 3): the feed tables with secret / secret_hash (allowlist of qi)
 
 TKH_DROP_BYTES, TKH_ICAL_BYTES = 24, 32
 
@@ -81,13 +84,18 @@ def tkh_evfeed_match(c, r, tok):
     """2.577.0 (#4708 6): does tok open the event calendar link row r? Against the stored hash; a plain secret still in the
     row (written after this start, e.g. by an older version after a roll-back) is compared in constant time and stored as
     a hash at once, so the link keeps working and the plain value goes."""
+    return _tkh_feed_match(c, "ev_cal_feeds", r, tok)
+
+
+def _tkh_feed_match(c, table, r, tok):
+    """tkh_evfeed_match / tkh_absfeed_match: a feed row r of table (columns secret, secret_hash) and a presented secret."""
     if tkh_match(tok, r["secret_hash"]):
         return True
     plain = r["secret"] or ""
     if not (tok and plain) or not hmac.compare_digest(plain.encode(), tok.encode()):
         return False
     try:  # storing the hash is a tidy-up: the link opens even if this write fails (the next start hashes it)
-        c.execute("UPDATE ev_cal_feeds SET secret='', secret_hash=? WHERE id=? AND secret=?", (tkh_hash(plain), r["id"], plain))
+        c.execute(f"UPDATE {qi(table, _TKH_FEEDS)} SET secret='', secret_hash=? WHERE id=? AND secret=?", (tkh_hash(plain), r["id"], plain))
         c.commit()
     except Exception:  # noqa: BLE001
         c.rollback()
@@ -97,9 +105,29 @@ def tkh_evfeed_match(c, r, tok):
 def tkh_migrate_evfeeds(c):
     """2.577.0 (#4708 6), at every start (idempotent): the plain secrets of the event calendars' links (from before 2.577, or
     written by an older version after a roll-back) become hashes, the plain value goes. The links keep working. A one-way
-    step: a version before 2.577 no longer opens these links (they answer 404 there until a new link is made)."""
-    n = c.execute("UPDATE ev_cal_feeds SET secret_hash=encode(sha256(convert_to(secret, 'UTF8')), 'hex'), secret='' "
-                  "WHERE secret<>''").rowcount
-    if n:
-        print("tokens: stored", n, "event calendar links as hashes", flush=True)
+    step: a version before 2.577 no longer opens these links (they answer 404 there until a new link is made).
+    2.1342.0 (#6553 3): the absences links (abs_cal_feeds) the same way (a version before 2.1342 no longer opens them)."""
+    n = 0
+    for table, what in (("ev_cal_feeds", "event calendar"), ("abs_cal_feeds", "absences")):
+        k = c.execute(f"UPDATE {qi(table, _TKH_FEEDS)} SET secret_hash=encode(sha256(convert_to(secret, 'UTF8')), 'hex'), secret='' "
+                      "WHERE secret<>''").rowcount
+        if k:
+            print("tokens: stored", k, what, "links as hashes", flush=True)
+        n += k
     return n
+
+
+def tkh_set_absfeed(c, uid, fid=None):
+    """2.1342.0 (#6553 3): a new secret for uid's absences link: row fid gets it (the old address stops at once), else a new
+    row. Only its hash is stored. Returns the secret (shown once)."""
+    tok = secrets.token_urlsafe(TKH_ICAL_BYTES)
+    if fid:
+        c.execute("UPDATE abs_cal_feeds SET secret='', secret_hash=?, created_at=? WHERE id=? AND user_id=?", (tkh_hash(tok), iso(now_utc()), fid, uid))
+    else:
+        c.execute("INSERT INTO abs_cal_feeds(user_id, secret, secret_hash, created_at) VALUES(?,'',?,?)", (uid, tkh_hash(tok), iso(now_utc())))
+    return tok
+
+
+def tkh_absfeed_match(c, r, tok):
+    """2.1342.0 (#6553 3): does tok open the absences link row r? As tkh_evfeed_match (a plain secret left is hashed)."""
+    return _tkh_feed_match(c, "abs_cal_feeds", r, tok)

@@ -75,8 +75,13 @@ async function abc_feedModal() {
   md.classList.add('evfmodal');
   const draw = j => {
     const box = $('#abf-body', md); if (!box) return;
-    if (!j.url) { box.innerHTML = `<div class="row"><button class="btn pri" data-abf="create">${ic('cal', 's')} ${esc(tr('Create subscription link'))}</button></div>`; return; }
+    if (!j.url && !j.active) { box.innerHTML = `<div class="row"><button class="btn pri" data-abf="create">${ic('cal', 's')} ${esc(tr('Create subscription link'))}</button></div>`; return; }
+    // 2.1342.0 (#6553 3): the server keeps only a hash: the link is in the answer of create / rotate once, later "active since"
+    const at = j.created_at ? new Date(j.created_at) : null;
+    if (!j.url) { box.innerHTML = `<div class="row"><span class="muted" id="abf-act">${esc(at && !isNaN(at.getTime()) ? tr('Subscription link active since {0}', fmtDateNum(at)) : tr('Subscription link active'))}</span></div>
+      <div class="row evfbtns"><button class="btn" data-abf="rotate">${ic('key', 's')} ${esc(tr('New link'))}</button><button class="btn danger" data-abf="off">${esc(tr('Turn the link off'))}</button></div>`; return; }
     box.innerHTML = `<div class="row icalrow"><input id="abf-url" readonly value="${esc(j.url)}" aria-label="${esc(tr('Subscription link'))}"><button class="btn pri" data-abf="copy">${ic('copy', 's')} ${esc(tr('Copy'))}</button></div>
+      <div class="shint keep" role="status">${esc(tr('Only visible now: copy it now. If you lose it, create a new one.'))}</div>
       <div class="row evfbtns"><a class="btn" href="${esc(j.url.replace(/^https?:/, 'webcal:'))}">${ic('cal', 's')} ${esc(tr('Open in calendar app'))}</a><button class="btn" data-abf="rotate">${ic('key', 's')} ${esc(tr('New link'))}</button><button class="btn danger" data-abf="off">${esc(tr('Turn the link off'))}</button></div>`;
   };
   // 2.1077.0 (#5461): a failed fetch says so with "Try again" (offline: "You are offline"), not always "Only available online."

@@ -26,6 +26,8 @@ VARS = (
     _v("KALMIDO_DB_POOL_MAX", "", "Largest number of pooled database connections per process (empty = threads + 16); with KALMIDO_WEB_PROCS the number of the whole container, shared out (empty = each web process its threads + 16 for the first, + 8 for the others).", "core"),
     _v("KALMIDO_POOL_MAX", "", "Older name of KALMIDO_DB_POOL_MAX (used when that one is not set).", "core"),
     _v("KALMIDO_DB_STATEMENT_TIMEOUT", "30", "Seconds one database statement of a request may run (0 = no limit).", "core"),
+    _v("KALMIDO_SEARCH_BUDGET_MS", "400", "Milliseconds the general search (command palette) spends on the areas per request; the areas it did not reach are searched in a next request (0 = one area per request).", "core"),
+    _v("KALMIDO_SEARCH_OPEN_MAX", "500", "Sealed texts (documents, file texts, knowledge pages, mails) a search opens per workspace to check a word found by a shorter prefix, newest first.", "core"),
     _v("KALMIDO_THREADS", "24", "Web server threads per container (2-256); with KALMIDO_WEB_PROCS shared out over the web processes.", "core"),
     _v("KALMIDO_WEB_PROCS", "1", "Web processes of this container on the same port (1-16, SO_REUSEPORT, Linux only; elsewhere 1 with a log line). The first one runs the background work and starts the others, which answer requests only; threads and pool are shared out, not multiplied. A restore of a backup needs 1.", "core"),
     _v("KALMIDO_WEB_PROC_INDEX", "", "Internal: set by the first web process for the ones it starts (KALMIDO_WEB_PROCS).", "core"),
