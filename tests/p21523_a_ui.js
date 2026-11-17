@@ -4,8 +4,8 @@
 // - #kbar spans the bar of the areas, the panel and the page: brand (logo + word mark) + workspace (dot, name cut with …,
 //   arrow), the search (palette, Mod+K), the bell, the account; #top keeps only the title and its own buttons
 // - the brand is no longer in the panel's head (.sbbrand), no search on top of the panel, no account at the bottom of the bar
-// - the workspace menu: "Switch to", the company with its own sign, Private, a tick on the shown one, "Add a company",
-//   "Company settings" only while a company is shown; Escape closes, arrow keys move
+// - the workspace menu: "Switch to", the company with its own sign, Private, a tick on the shown one, "Add a company" (only
+//   without an organisation, 2.1364.0 #6885: else in Settings > Organisation), "Company settings" only while a company is shown; Escape closes, arrow keys move
 // - the panel's head: the area's name, "Fold all" switches the groups (Tasks, Office), none on Time; "Hide the panel" hides
 //   it (kept after reloading), the button on top of the bar brings it back
 // - a phone (402 px) has no head bar, its header keeps the bell
@@ -105,7 +105,8 @@ const ORG = 'Lindenhof Filmproduktion und Postproduktion GbR';
     const items = await ev(`[...document.querySelectorAll('#pop .kbwsi')].map(b => b.querySelector('.ml').textContent.trim() + (b.classList.contains('on') ? '*' : '')).join('|')`);
     check(items.startsWith(ORG + '*|Private'), 'the company first and ticked, then Private ' + items);
     check(await ev(`!!document.querySelector('#pop .kbwsi.on .mchk') && !!document.querySelector('#pop .kbwsi .kbwsic .kbini') && !!document.querySelectorAll('#pop .kbwsi')[1]?.querySelector('svg.i')`), 'the company with its own sign (initial), Private with the house, the tick');
-    check(await ev(`!!document.querySelector('#pop .kbws-add') && !!document.querySelector('#pop .kbws-set') && !!document.querySelector('#pop hr')`), '"Add a company" and "Company settings" below a separator');
+    // 2.1364.0 (#6885): "Add a company" only without an organisation (it lives in Settings > Organisation now)
+    check(await ev(`!document.querySelector('#pop .kbws-add') && !!document.querySelector('#pop .kbws-set') && !!document.querySelector('#pop hr')`), '"Company settings" below a separator, no "Add a company" inside an organisation');
     check(!/Start|Hide the sidebar/.test(await ev(menuLabels)), 'no Start / Hide the sidebar in this menu');
     await shot('p21523a-menu-light.png');
     // 2.308.0 (#3272): wait for the focus in the menu (the app moves it there in a timer) instead of reading it at once
@@ -120,11 +121,22 @@ const ORG = 'Lindenhof Filmproduktion und Postproduktion GbR';
     await ev(`[...document.querySelectorAll('#pop .kbwsi')].find(b => b.textContent.includes('Private'))?.click()`);
     check(await ready(ev, `document.querySelector('#kbar .kbfirm .wsn')?.textContent === 'Private'`, 40), 'the switch to Private');
     await click(ev, '#kbar .kbsw'); await ready(ev, popOpen, 20);
-    check(await ev(`!document.querySelector('#pop .kbws-set') && !!document.querySelector('#pop .kbws-add')`), 'Private: no company settings');
+    check(await ev(`!document.querySelector('#pop .kbws-set') && !document.querySelector('#pop .kbws-add')`), 'Private: no company settings (and no Add a company, 2.1364.0 #6885)');
     await key(ev, 'Escape'); await sleep(300);
     await click(ev, '#kbar .kbsw'); await ready(ev, popOpen, 20);
     await ev(`[...document.querySelectorAll('#pop .kbwsi')].find(b => b.textContent.includes(${JSON.stringify(ORG)}))?.click()`);
     check(await ready(ev, `document.querySelector('#kbar .kbfirm .wsn')?.textContent === ${JSON.stringify(ORG)}`, 40), 'back to the company');
+    // 2.1364.0 (#6885): "Add a company" lives in Settings > Organisation (Workspaces); the settings search finds it; same dialog
+    await ev(`(settingsModal('org'), 1)`);
+    check(await ready(ev, `!!document.querySelector('.modal [data-wsorgadd]')?.getClientRects().length`, 60), '#6885: Settings > Organisation shows "Add an organisation"');
+    await ev(`(() => { const q = document.querySelector('#s-search'); q.removeAttribute('readonly'); q.value = 'company'; q.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
+    check(await ready(ev, `[...document.querySelectorAll('#s-sres [data-hit]')].some(b => /Add an organisation/.test(b.textContent))`, 20), '#6885: the settings search finds it by "company"');
+    await ev(`(() => { const q = document.querySelector('#s-search'); q.value = ''; q.dispatchEvent(new Event('input', {bubbles: true})); return 1; })()`);
+    const nMd = await ev(`document.querySelectorAll('.modal').length`);
+    await click(ev, '.modal [data-wsorgadd]');
+    check(await ready(ev, `document.querySelectorAll('.modal').length > ${nMd}`, 40), '#6885: the button opens the dialog of a new organisation');
+    await key(ev, 'Escape'); await sleep(300); await key(ev, 'Escape'); await sleep(300);
+    if (!await ready(ev, `!document.querySelector('.modal')`, 20)) await ev(`(document.querySelectorAll('.modal').forEach(m => m.remove()), 1)`);
 
     // ================= the panel's head: name, fold all, hide
     await nav(B + `#l/${L}`);
