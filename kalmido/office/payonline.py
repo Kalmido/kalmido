@@ -588,8 +588,6 @@ def pol_hook(token):
             return err(tr("Too many attempts, please wait a few minutes"), 429)
         return err(tr("unknown"), 404)
     oid = r["org_id"]
-    if hit_limit(f"polh:{oid}", POL_HOOK_PER_MIN):
-        return err(tr("Too many attempts, please wait a few minutes"), 429)
     acx_anon_bind(c, oid)
     conf = pol_conf(c, oid)
     ad = POL_ADAPTERS.get(conf["provider"])
@@ -599,6 +597,10 @@ def pol_hook(token):
         if hit_limit(f"polu:{client_ip()}", POL_BAD_PER_MIN):
             return err(tr("Too many attempts, please wait a few minutes"), 429)
         return err(tr("Invalid signature"), 400)
+    # 2.1322.0 (#6560 8): the area's limit counts signed calls only - unsigned ones are counted per address above, so
+    # whoever knows the hook address can no longer use up the area's minute and make the provider's real events bounce
+    if hit_limit(f"polh:{oid}", POL_HOOK_PER_MIN):
+        return err(tr("Too many attempts, please wait a few minutes"), 429)
     try:
         ev = ad.event(raw)
     except (ValueError, UnicodeDecodeError, AttributeError, TypeError):
