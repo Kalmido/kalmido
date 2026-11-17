@@ -149,7 +149,7 @@ async function rxAsk(info, title) {
 function mvBoxHtml(o) {
   if (!o || !o.id) return '';
   return `<div class="mvbox" data-mvorg="${esc(String(+o.id))}" data-mvname="${esc(o.name || '')}"><h5>${tr('Move the organisation')}</h5>
-    <div class="shint">${tr('Before you export the organisation to take it to another server: start the move. Then nobody can change anything in it any more (members, agents, API keys, forms, booking pages, incoming mail), no new numbers are given and invoice series, payment reminders and fetching rest. Reading, downloading and the export stay possible, so the export shows a fixed state.')}</div>
+    <div class="shint">${tr('Before you export the organisation to take it to another server: start the move. Then nobody can change anything in it any more (members, agents, API keys, forms, booking pages, incoming e-mail), no new numbers are given and invoice series, payment reminders and fetching rest. Reading, downloading and the export stay possible, so the export shows a fixed state.')}</div>
     <div class="mvst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>`;
 }
 function mvStateHtml(j) {
@@ -172,7 +172,7 @@ function mvDraw(root) {
     const box = b.closest('.mvbox'), oid = +box.dataset.mvorg, name = box.dataset.mvname || '';
     try {
       if (b.dataset.mv === 'start') {
-        if (!await askConfirm(tr('Start the move of “{0}”?', name), tr('From now on the whole organisation is read-only for all members, agents, API keys, forms, booking pages and incoming mail, until an admin ends the move. Every member sees a notice with your name and the reason.'), {ok: tr('Continue'), danger: true})) return;
+        if (!await askConfirm(tr('Start the move of “{0}”?', name), tr('From now on the whole organisation is read-only for all members, agents, API keys, forms, booking pages and incoming e-mail, until an admin ends the move. Every member sees a notice with your name and the reason.'), {ok: tr('Continue'), danger: true})) return;
         let dm = null, why = '';
         const typed = await askDialog(/** @type {any} */ ({title: tr('Start the move'), danger: true, ok: tr('Start the move'),
           html: `<div class="row"><label for="mv-why">${esc(tr('Reason (all members see it)'))}</label><input id="mv-why" maxlength="500" autocomplete="off"></div><p>${esc(tr('Type the name of the organisation to start the move'))}</p>`,
