@@ -312,7 +312,7 @@ check(balances(ORG2) == [(Y, "1200", "100.00", "S"), (Y, "1400", "70.00", "S")] 
 check({x[0] for x in sql("SELECT guid FROM office_datev_guids WHERE org_id=? AND doc_id IS NOT NULL", (ORG2,))} == {GI},
       "second import: the invoice adds no GUID")
 # 2.188.0 (#2498): a target with an own, differing opening balance (and no document of the file's numbers) keeps its own
-ORG3 = A.post(B + "/api/admin/orgs", json={"name": "Gamma", "admin_id": CAROL}).json()["id"]
+ORG3 = A.post(B + "/api/admin/orgs", json={"name": "Gamma Ziel", "admin_id": CAROL}).json()["id"]
 add_balance(ORG3, "1400", "70.00")
 w2 = org_import(Ca, OX2, RK2, ORG3)
 check(balances(ORG3) == [(Y, "1200", "100.00", "S"), (Y, "1400", "70.00", "S")], f"Gamma: no balance twice, Gamma's kept {balances(ORG3)}")
