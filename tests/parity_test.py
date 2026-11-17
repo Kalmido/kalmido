@@ -1057,6 +1057,8 @@ API_ONLY = {  # REST routes on purpose without an MCP tool (reason)
     "POST /focus/{}/pause": "2.116.0 (#2067): as GET /focus",
     "POST /focus/{}/resume": "2.116.0 (#2067): as GET /focus",
     "POST /me/purpose": "2.19.0: the modules of the account (scope account): never for agents",
+    "POST /agent/request-token": "2.1325.0 (#6668): the starter asks it before a run (mcp/agent_run.py run_request); never a "
+                                 "tool -- the model works with the token it was given and never gets another",
 }
 none = sorted(r for r in API if r not in reached and r not in API_ONLY)
 check(not none, f"API routes without an MCP tool or a documented exception: {none}")
