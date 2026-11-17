@@ -410,7 +410,7 @@ c.commit()
 - 2.1029.0 (#5537, stage 1): a project (lists) carries ONE state marker `lists.state` = `live` | `archived` | `trash`
   (`migrations.d/5537_a.py`). The trigger `kalmido_list_state` keeps it equal to `archived` / `deleted_at` on every INSERT and
   every UPDATE naming them, so the write paths stay as they are and a copy of all columns cannot write a wrong marker; the
-  rows of before got theirs once at the start (`core/db.py`, flag `migr_liststate5537`). Reads ask through
+  rows of before got theirs once at the start (`core/oncesteps.py`, flag `migr_liststate5537`). Reads ask through
   `list_state_sql(alias, *states)` of `core/access.py` (no state = `live`: neither archived nor in the trash);
   `otr_live(alias)` = live or archived. A handwritten `archived=0` / `deleted_at IS NULL` on lists is red in
   `tools/check_list_state.py` (baseline `tools/list_state_baseline.json`, only shrinks; it reads line by line). Reading the
