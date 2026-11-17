@@ -18999,6 +18999,7 @@
   "{0} column left out (at most {1} per sheet)": ["{0} colonna tralasciata (al massimo {1} per foglio)", "{0} colonne tralasciate (al massimo {1} per foglio)"],
   "not included|file name of the list in a ZIP": "non incluso",
   "These items are not in this ZIP:": "Questi elementi non sono in questo ZIP:",
+  "Showing the newest {0} of {1} submissions. The CSV has all of them.": "Sono mostrati i {0} invii più recenti su {1}. Il CSV li contiene tutti.",
   "Sending needs the user name and the password of the SMTP server": "Per inviare servono il nome utente e la password del server SMTP",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Invio solo tramite la porta 465 o 587 (la porta 25 solo per un server consentito da un amministratore)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Si invia solo con il nome utente e la password del server SMTP, tramite la porta 465 o 587."

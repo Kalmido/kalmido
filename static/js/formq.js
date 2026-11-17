@@ -110,7 +110,8 @@ async function fq_entriesOpen(f) {
       <dl>${j.questions.map(q => `<dt>${esc(q.label)}</dt><dd>${esc(show(q, en.answers[q.id]))}</dd>`).join('')}</dl>
       <button type="button" class="btn sm" data-fq="task" data-tid="${en.task_id}">${ic('arrow', 's')} ${tr('Open task')}</button></details>`;
   const md = modal(`<div class="lhdr"><h3>${tr('Submissions')} · ${esc(f.title)}</h3><span class="spacer"></span><button class="iconbtn" data-m="close" aria-label="${tr('Close')}" title="${tr('Close')}">${ic('x')}</button></div>
-    <div class="fq-entries">${j.entries.map(row).join('') || `<div class="muted mhint">${tr('Nothing sent yet.')}</div>`}</div>
+    <div class="fq-entries">${j.entries.map(row).join('') || `<div class="muted mhint">${tr('Nothing sent yet.')}</div>`}</div>${''/* 2.1324.0 (#6589): the evaluation shows the newest ones, the CSV has every one */}
+    ${j.total > j.entries.length ? `<div class="muted mhint fq-more">${esc(tr('Showing the newest {0} of {1} submissions. The CSV has all of them.', j.entries.length, j.total))}</div>` : ''}
     <div class="foot"><span class="spacer"></span>${j.entries.length ? `<a class="btn" href="/api/forms/${f.id}/entries.csv" download>${ic('download', 's')} CSV</a>` : ''}<button class="btn" data-m="close">${tr('Close')}</button></div>`);
   md.addEventListener('click', e => {
     const b = e.target.closest('[data-m],[data-fq]'); if (!b) return;
