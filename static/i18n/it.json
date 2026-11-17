@@ -18994,6 +18994,7 @@
   "at most 60 issues and 300 comments a day": "al massimo 60 issue e 300 commenti al giorno",
   "hash chain broken here (daily check)": "catena hash interrotta qui (controllo giornaliero)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Catena hash dell'ufficio interrotta: ufficio {0}, documento ID {1} (serie {2}, posizione {3}, {4}). Il registro dell'ufficio lo indica.",
+  "Office hash chain cannot be checked: office {0}, document id {1} (series {2}, place {3}) cannot be read with the office's key for {4} days. The check goes on behind it.": "Catena hash dell'ufficio non verificabile: ufficio {0}, documento ID {1} (serie {2}, posizione {3}) non leggibile con la chiave dell'ufficio da {4} giorni. Il controllo prosegue oltre.",
   "Mailbox {0}: fetching stopped, the server refused the sign-in several times in a row (failing since {1}). Save the access data again.": "Casella {0}: scaricamento fermato, il server ha rifiutato l'accesso più volte di seguito (errore dal {1}). Salva di nuovo i dati di accesso.",
   "You get this e-mail because Integrations is switched on in Settings > Notifications.": "Ricevi questa e-mail perché Integrazioni è attivo in Impostazioni > Notifiche.",
   "Nobody can receive the e-mails: the organisation has no admin, so the mailbox is not fetched": "Nessuno può ricevere le e-mail: l'organizzazione non ha un amministratore, quindi la casella non viene scaricata",

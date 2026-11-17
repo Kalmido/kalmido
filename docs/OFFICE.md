@@ -2133,7 +2133,11 @@ A document without a stored PDF yet (an import) is linked with version 1. Old li
 The watchdog checks every office's chains **daily**: a new break gives one admin alert (kind "Security events", switchable
 in the admin alert settings) and one line "hash chain broken here (daily check)" on the first bad document in the office
 log; the same break is not reported again. A value the office's key cannot open now (`reason: unreadable`) is no break
-report, only a server log line.
+report, only a server log line. *Since 2.1319.0 (#6770)* the check goes on behind such a link (so it no longer hides a real
+break further on, which is then named `first_bad`; the answer names the first unreadable document in `unreadable`), and an
+unreadable link found on 3 days in a row gives one admin alert of its own ("cannot be checked"). Each office is checked in its
+own savepoint: an office whose check fails does not drop the log lines of the others. The marks of what was reported lie in
+the same database (see docs/dev/hashkette.md): they catch a mistake, not someone who can write to the database.
 
 The print model and the PDF of a finalised document are built from this snapshot only: later changes of the company,
 the logo, the services, the client or the country pack do not change it. Changing the head, the positions or the number
