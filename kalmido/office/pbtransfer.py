@@ -180,6 +180,8 @@ def pbt_plan(c, uid, src, dst):
         conflicts.append(tr("The number {0} is already used", x))
     if len(taken) > 50:
         conflicts.append(trn("and {0} more number", "and {0} more numbers", len(taken) - 50))
+    for x in c.execute("SELECT code FROM office_num_ranges WHERE org_id=? AND code IN (SELECT code FROM office_num_ranges WHERE org_id=?) ORDER BY code", (src, dst)):
+        conflicts.append(tr("The short code {0} is already used", x[0]))  # 2.1348.0 (#6698): a number range's code is unique per area
     files = pbt_files(src)
     ddir = os.path.join(OFFICE_DIR, str(int(dst)))
     for rel, _p in files:
@@ -481,6 +483,9 @@ def pbt_post():
         # M2: never a number twice); the personal office keeps its own (the person's sequence never restarts)
         c.execute("INSERT INTO office_numbers(org_id, kind, period, last) SELECT ?, kind, period, last FROM office_numbers WHERE org_id=? "
                   "ON CONFLICT(org_id, kind, period) DO UPDATE SET last=GREATEST(office_numbers.last, excluded.last)", (dst, src))
+        # 2.1348.0 (#6698): the additional number ranges moved with their ids (office_num_ranges is no PBT_KEEP table): their
+        # counters (kind 'r<id>') move with them -- copied above, so the target continues after the moved numbers -- and leave here
+        c.execute("DELETE FROM office_numbers WHERE org_id=? AND kind ~ '^r[0-9]+$' AND kind IN (SELECT 'r' || id FROM office_num_ranges WHERE org_id=?)", (src, dst))
         cl = p["clients"]
         if cl:
             q = ",".join("?" * len(cl))

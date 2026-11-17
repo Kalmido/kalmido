@@ -58,6 +58,7 @@ from ..accounts.login import seal, unseal, WA_ORIGINS_ENV
 from ..accounts.orgs import op_foreign_account
 from ..agents.core import agent_owner_locked, agent_row, is_agent, need_person
 from ..agents.admin import agent_policy, agent_token_new, agent_ws_allowed_any, my_agent_make
+from ..agents.reqtoken import mcpr_cut  # 2.1348.0 (#6668)
 from ..api.common import hit_limit
 from ..api.v1 import API_ON
 
@@ -269,6 +270,8 @@ def _issue(c, grant_id, aid, cname):
     after the access was made."""
     with system_ctx(c):  # the grant's own agent: agent_token_new copies its scopes, address rule and projects (no content)
         tok = agent_token_new(c, aid, name=("MCP: " + (cname or "client"))[:80])
+        # 2.1348.0 (#6668): a team agent's access works for the person who connected it (agents/reqtoken.py mcpr_cut)
+        mcpr_cut(c, aid, _token_hash(tok), c.execute("SELECT user_id FROM oauth_grants WHERE id=?", (grant_id,)).fetchone()[0])
     now = now_utc()
     end = mcpr_grant_end(c.execute("SELECT created_at FROM oauth_grants WHERE id=?", (grant_id,)).fetchone()[0])
     exp = min(now + timedelta(seconds=MCPR_ACCESS_S), end)

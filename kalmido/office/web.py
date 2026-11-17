@@ -75,6 +75,8 @@ def office_settings_get():
                    used=of_used(c, oid),  # 2.276.0 A (#3039): what the office already holds (start page, folded group, menu points)
                    submit=rsb_flag(c, uid, oid),  # 2.356.0 D (#3129): "Submit receipt" (may hand in, does not see the bookkeeping)
                    cards=cc_flag(c, uid, oid),  # 2.444.0 (#3447): the person holds a card here
+                   num_ranges=[{"id": r["id"], "code": r["code"], "name": r["name"] or "", "closed": r["closed_at"] is not None} for r in c.execute(
+                       "SELECT id, code, name, closed_at FROM office_num_ranges WHERE org_id=? ORDER BY code, id", (oid,))],  # 2.1348.0 (#6698): the draft's range choice
                    **of_pack_choice(c, oid, role, cf), **pb_info(c, uid, oid))
 
 

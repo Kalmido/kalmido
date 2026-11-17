@@ -1463,6 +1463,7 @@ ROUTES = {
     "GET /s/f/{}/d/{}": "fileextlink", "GET /s/f/{}/v/{}": "fileextlink", "GET /s/f/{}/zip": "fileextlink",
     # 2.138.0 D (#2256): number ranges of the office area one works in, admins write (p2138_d_api_test.py)
     "GET /api/office/number-ranges": "office", "POST /api/office/number-ranges/{}": "office",
+    "POST /api/office/num-ranges": "office", "PATCH /api/office/num-ranges/{}": "office", "DELETE /api/office/num-ranges/{}": "office",  # 2.1348.0 (#6698): p6698_office_numranges_test.py
     # 2.144.0 A (#2412): Stop in the agent chat (who may write the agent) and the agent's confirmation (p2144_a_api_test.py)
     "POST /api/agents/{}/abort": "agent", "POST /api/v1/agent/aborted": "agent",
     # 2.236.0 (#2904-#2911): the work style of an agent (owner / instance admin, else 404); C (#2906): its queue (p2236_c_queue_test.py)
@@ -1484,6 +1485,7 @@ ROUTES = {
     # 2.653.0 (#5079): the whole history page by page (owner / instance admin, else 404) and a decision line the agent writes into its own history
     "GET /api/agents/{}/control/history": "agent",  # p2653_a_agentlog_test.py
     "POST /api/v1/agent/decisions": "agent",  # p2653_a_agentlog_test.py
+    "POST /api/v1/agent/request-token": "agent",  # 2.1348.0 (#6668): only its own events, the cut = the person's own rights (p6668_ext_team_agent_test.py)
     "POST /api/v1/agent/approvals/{}/run": "agent",  # 2.1045.0 (#5827): only the token's own cards (p21045_a_approval_test.py)
     # 2.144.6 A (#2053): time entries to an invoice (office/timebill.py: the office area's client lists, release = office admin;
     # p21446_a_api_test.py)
