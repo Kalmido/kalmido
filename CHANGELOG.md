@@ -23,6 +23,22 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1344.0] - 2026-11-17
+
+Package 2.1329 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Teil 1/6: Sammelpaket: Aufgaben ohne Paket (Dispatcher), CI-only rot: p2458_b).
+
+### Fixed
+- Calendar: the Share dialog keeps a member that was put back (also by Undo) when it is opened again before the calendar list reloads (#6275).
+- Office archive list: a background refresh no longer blanks the rows with "Loading…"; they stay until the fresh list is there (#6848).
+- A switched-off webhook's News item is typed as a webhook again, so it shows and names the webhook (#6849).
+- Start page: the getting-started step names the basket, not the old "inbox" (fr/es/it/nl) (#4992).
+- Fewer database round trips per /api/state: excluded knowledge folders are read without a system block (#5137).
+- Tests brought in line with earlier changes and freed from races: p252_a_ui (#5704), p2498_a_phone320_ui (#6191), p249_c_ui (#6347), p287b_c_ui (#6349), p255_e_ui (#6850), payonline_ui (#6851).
+
+### Changed
+- The #1219 old-name check of all translations moved from a UI suite into tests/i18n_test.py (runs in every lint) (#4992).
+- The "…" row menu guard (p2695_a_rowmenu_coverage) runs along with every changed client script (#5354).
+
 ## [2.1339.0] - 2026-11-17
 
 Package 2.1284 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -297,7 +313,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1339.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1344.0...HEAD
+[2.1344.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1344.0
 [2.1339.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1339.0
 [2.1330.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1330.0
 [2.1326.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1326.0
