@@ -83,10 +83,12 @@
   $Version = $env:KALMIDO_VERSION
   if (-not $Version) {
     try {
+      # 2.1336.0 (#6505): every forward is followed and the last address counts (ResponseUri): after the move of the repository the
+      # first answer was a 301 to the new name, not the tag - the installer stopped ("Could not find the latest release")
       $req = [Net.HttpWebRequest]::Create("$GH/releases/latest")
-      $req.Method = 'HEAD'; $req.AllowAutoRedirect = $false; $req.Timeout = 30000; $req.UserAgent = 'kalmido-installer'
+      $req.Method = 'HEAD'; $req.AllowAutoRedirect = $true; $req.MaximumAutomaticRedirections = 10; $req.Timeout = 30000; $req.UserAgent = 'kalmido-installer'
       $resp = $req.GetResponse()
-      try { if ("$($resp.Headers['Location'])" -match '/releases/tag/(v\d+\.\d+\.\d+)$') { $Version = $Matches[1] } } finally { $resp.Close() }
+      try { if ("$($resp.ResponseUri.AbsolutePath)" -match '/releases/tag/(v\d+\.\d+\.\d+)$') { $Version = $Matches[1] } } finally { $resp.Close() }
     } catch { }
     if (-not $Version) { Fail "Could not find the latest release on GitHub (no answer, or no release). Nothing was changed.`nTry again later, or name a version: `$env:KALMIDO_VERSION = 'v1.2.3' (the unreleased development state: `$env:KALMIDO_VERSION = 'main')." }
   }
@@ -264,6 +266,18 @@
   $envFile = Join-Path $Dir '.env'
   if (Test-Path $envFile) {
     Say 'Keeping your existing .env'
+    # 2.1336.0 (#6505): the image moved with the repository into the organisation; the old name gets no new version, no security fix
+    # and no digest any more. A KALMIDO_IMAGE line that begins with the old name is switched, the version or digest behind it stays
+    $oldImageRe = [regex]::Escape('ghcr.io/gegenschuss/kalmido')   # old image name (#6505), only to switch it
+    $envTextI = [IO.File]::ReadAllText($envFile)
+    $imgRe = "(?m)^(KALMIDO_IMAGE=[`"']?)$oldImageRe(?=[:@`"']|\r?$)"
+    if ($envTextI -match $imgRe) {
+      [IO.File]::WriteAllText($envFile, [regex]::Replace($envTextI, $imgRe, '${1}ghcr.io/kalmido/kalmido'), (New-Object Text.UTF8Encoding($false)))
+      Say 'Switched KALMIDO_IMAGE in .env to the new image name ghcr.io/kalmido/kalmido (the old name gets no updates; version kept)'
+    }
+    if ((Test-Path $Override) -and -not ((Get-Content $Override -TotalCount 1) -like "$Marker*") -and ([IO.File]::ReadAllText($Override) -match "$oldImageRe(?=[:@`"' ]|\r?$)")) {
+      Warn 'Your own docker-compose.override.yml names the old image name; change it to ghcr.io/kalmido/kalmido (the old one gets no updates).'
+    }
     if ($PubUrl) {
       $envText = [IO.File]::ReadAllText($envFile)
       if ($envText -match '(?m)^PUBLIC_URL=') { $envText = [regex]::Replace($envText, '(?m)^PUBLIC_URL=.*$', "PUBLIC_URL=$PubUrl") }
@@ -370,7 +384,11 @@
     Step "Downloading the prebuilt image $($script:Image)"
     if ((Invoke-Native 'docker' @('pull', $script:Image)) -eq 0) { $upArgs = @('up', '-d') }
     else {
-      Warn 'The prebuilt image could not be downloaded. Building it locally instead (takes a minute).'
+      # 2.1336.0 (#6505): a release image pinned to its digest that cannot be pulled is no detail: the digest check (#2914) and
+      # the signed build do not apply to a local build. Said loudly (tools/install_upgrade_check.py counts the line of install.sh)
+      if ($script:Image -like '*@sha256:*') {
+        Warn "RELEASE IMAGE NOT DOWNLOADED: $($script:Image) could not be pulled.`n      Kalmido is built locally from the checked source archive instead - not the signed release image.`n      Check the network to ghcr.io (docker pull `"$($script:Image)`") and run the update again to get the release image."
+      } else { Warn 'The prebuilt image could not be downloaded. Building it locally instead (takes a minute).' }
       $script:Image = ''
       Write-Override
     }

@@ -2120,6 +2120,9 @@ stay blocked until you allow them.
 - **Pin the version** (`KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:<version>`, not `latest`), so an update happens when
   you decide. With the installer the `image:` line of `docker-compose.override.yml` wins over `KALMIDO_IMAGE`: there you pin with
   `KALMIDO_VERSION=vX.Y.Z ~/kalmido/update.sh`.
+- **The image name** is `ghcr.io/kalmido/kalmido` since 2.1336.0 (the repository moved into the Kalmido organisation); the old
+  name gets no new version. The installer and `update.sh` switch a `KALMIDO_IMAGE` line with the old name in `.env` by themselves
+  (version and digest stay); a `KALMIDO_IMAGE` you set elsewhere (your own compose or override file) you change yourself.
 - **A safe order:** backup, then pull and start, then check `GET /api/health` and a few counts (users, projects, tasks,
   attachments) against the values before. If anything is off, go back by hand, no tool does it for you: see
   [Back to the previous version](#back-to-the-previous-version).
