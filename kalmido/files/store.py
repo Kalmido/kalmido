@@ -879,9 +879,12 @@ fs_change_hooks = []  # 2.352.0 A (#2748): f(c, nid, action) after every change 
 # address) is listed nowhere in the file store -- not in the node's dialog, its shares above, its "Shared with" names or its
 # shared mark -- and the file store's routes do not reach it: its account would tell the sharer that the address has one,
 # which an open share by address (core/addrshare.py, no row of fs_shares at all) never does. The knowledge dialog shows and
-# ends both alike. a = the alias of fs_shares.
+# ends both alike. a = the alias of fs_shares. 2.1364.0 (#6297 6, audit #4741): the same for the account an address of the
+# tables' dialog was bound to (sheets/shshare.py sheet_shares with email_key: its share on the table's node).
 FS_NOT_ADDR = ("NOT EXISTS (SELECT 1 FROM wiki_share_cards fk WHERE (fk.fs_share_id={a}.id OR fk.pair_id={a}.id) "
-               "AND fk.email IS NOT NULL AND fk.email<>'')")
+               "AND fk.email IS NOT NULL AND fk.email<>'') AND NOT EXISTS (SELECT 1 FROM sheet_shares sk JOIN fs_nodes sn ON "
+               "sn.kind='ref' AND sn.ref_kind='sheet' AND sn.ref_id=sk.sheet_id WHERE sn.id={a}.node_id AND sk.user_id={a}.user_id "
+               "AND sk.email_key<>'' AND sk.revoked_at IS NULL)")
 
 
 def _fs_json(v):
