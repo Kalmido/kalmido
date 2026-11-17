@@ -926,6 +926,36 @@ def inv_reminder_extra_rows(t, lang, cur):
 
 
 FLAT_FEE_EUR = Decimal("40.00")  # 2.355.0 D (#2846): section 288 (5) BGB, per invoice, EUR only
+EINV_SMALL_EUR = Decimal("250.00")  # 2.1359.0 (#6482): section 33 UStDV, a small amount invoice needs no e-invoice
+# 2.1359.0 (#6482 P5-4): the warning of the finalise dialog (section 27 (38) UStG: paper / PDF to a domestic business only in the
+# transition; the block from 2028 is not built: it needs an explicit "business" mark at the client, decided again in 2027)
+EINV_DUTY_WARN = N_("No e-invoice: this invoice goes to a business in Germany as a PDF only (the function E-invoices is off in the office settings). Invoices to German businesses must be e-invoices from 1 January 2027, from 1 January 2028 with a turnover of up to 800,000 EUR in the year before. A finalised invoice never gets its XML later.")  # noqa: E501
+
+
+def inv_einvoice_warn(c, oid, r, s=None):
+    """2.1359.0 (#6482 P5-4): EINV_DUTY_WARN (the source text) when finalising draft r would issue a PDF-only invoice to a
+    domestic business, else "": an invoice / correction, not a trial, the office works with the German pack and has e-invoices
+    switched off, is no small business (section 19 UStG), the client counts as a business (inv_reminder_business: the
+    office's choice or VAT id / buyer reference / Peppol id) and sits in Germany, the gross is above 250 EUR. Only a warning."""
+    if r["kind"] not in ("invoice", "credit") or _col(r, "trial") or ofx_locked(r):
+        return ""
+    s = s if s is not None else office_settings(c, oid)
+    pack = office_pack_for(s) or {}
+    if pack.get("code") != "DE" or office_feature(c, oid, "docs.einvoice", s) or s.get("small_business"):
+        return ""
+    if not r["client_id"] or not inv_reminder_business(c, oid, r, s):
+        return ""
+    cl = c.execute(f"SELECT country FROM clients WHERE id=? AND {pb_cl_sql(c, oid)}", (r["client_id"],)).fetchone()
+    if cl is None or str(cl["country"] or "DE").strip().upper() not in ("", "DE"):
+        return ""
+    t = _j(r["totals"], {})
+    gross = t.get("gross_eur") if str(r["currency"] or "EUR").upper() != "EUR" and t.get("gross_eur") not in (None, "") else t.get("gross")
+    try:
+        if abs(dec(str(gross if gross not in (None, "") else 0))) <= EINV_SMALL_EUR:
+            return ""
+    except (ArithmeticError, ValueError):
+        pass
+    return EINV_DUTY_WARN
 
 
 def inv_reminder_business(c, oid, r, s):

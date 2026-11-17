@@ -7,6 +7,7 @@ Invented companies, addresses and figures only (example.com); the receipts are t
  - rates: 20 % = a foreign rate?, 0 % without its reason, reverse charge (section 13b) named
  - required details: "Missing" only when the text has not even the label, else "Please check ... not found" (hint)
  - the VAT id per country (DE with its check digit), the German tax number, an entertainment receipt, an e-invoice (fields only)
+ - 2.1359.0 (#6482): a German supplier's PDF invoice from 2027 on gets the soft hint "no e-invoice format"
 usage: p2299_d_rcheck_test.py   (KALMIDO_SRC=<dir with kalmido/>)"""
 import importlib.util
 import os
@@ -164,9 +165,23 @@ einv = {"supplier": "Muster Werkstatt GmbH", "vat_id": VID, "invoice_no": "RE-9"
 check(codes(einv, "anything") == [], f"an e-invoice: its fields fit, the text is not read {codes(einv, 'anything')}")
 check("calc_sum" in codes({**einv, "gross": "130.00"}), "an e-invoice whose figures do not add up")
 
+# ---- 2.1359.0 (#6482): a German supplier's PDF invoice from 2027 on: the soft hint "no e-invoice format" (never counted);
+# not before 2027, not for an e-invoice, a small amount, a foreign supplier or a 0 % note (small business)
+F27 = FULL.replace("12.10.2026", "12.01.2027").replace("RE-2026-501", "RE-2027-501")
+D27 = {"date": "2027-01-12"}  # the document date (rck_fields: doc_meta.doc_date)
+check("no_einv" in run(F27, **D27) and R.rck_soft("no_einv"), f"a German PDF invoice of 2027: the soft hint {run(F27, **D27)}")
+check([c for c in run(F27, **D27) if not R.rck_soft(c)] == [], f"the hint does not count (complete invoice) {run(F27, **D27)}")
+check("no_einv" not in run(FULL, date="2026-10-12"), "an invoice of 2026: no hint (PDF allowed in the transition)")
+check("no_einv" not in run(F27), "no document date: no hint")
+check("no_einv" not in codes({**einv, **D27}, F27), "an e-invoice of 2027: no hint")
+check("no_einv" not in run(F27.replace(VID, "ATU12345675"), **D27), "a supplier abroad: no hint")
+small27 = run(F27, net="200.00", vat="38.00", gross="238.00", **D27)  # the figures as a person set them
+check("no_einv" not in small27, f"a small amount (238 EUR): no hint {small27}")
+
 # ---- every message is in the table, every level hint | warn
 check(all(lv in ("hint", "warn") for lv, _m in R.RCK_MSG.values()), "levels")
-check(all(m.startswith(("Missing:", "Please check:", "Reverse charge", "Entertainment:")) for _l, m in R.RCK_MSG.values()), "sentences: Missing / Please check")
+# 2.1359.0 (#6482): + "Note:" (the soft hint on a German supplier's invoice without e-invoice format)
+check(all(m.startswith(("Missing:", "Please check:", "Reverse charge", "Entertainment:", "Note:")) for _l, m in R.RCK_MSG.values()), "sentences: Missing / Please check")
 check(all(m.startswith("Missing:") == (lv == "warn" and not m.startswith("Please")) for lv, m in R.RCK_MSG.values() if m.startswith("Missing:")),
       "Missing only as a warning")
 

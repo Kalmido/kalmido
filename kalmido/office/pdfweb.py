@@ -20,6 +20,7 @@ download and GET .../pdf of the app serve it (?original=1 the original), the ori
 import datetime
 import hashlib
 import io
+import logging
 import os
 import re
 
@@ -32,7 +33,7 @@ from ..core.db import bump, connect, db, err
 from ..core.access import Denied
 from .model import office_feature, office_gate, office_logo_set, office_need_feature, office_org, office_settings
 from ..core.orgcrypt import oc_read_file, oc_write_file
-from .pdf import office_pdf, pdf_lang, pdf_to_8bit  # 2.296.0 D (#3172): + pdf_to_8bit, 2.357.0 D (#3183): + pdf_lang
+from .pdf import PdfaMissing, office_pdf, pdf_lang, pdf_to_8bit  # 2.1359.0 (#6482): + PdfaMissing; 2.296.0 D (#3172): + pdf_to_8bit, 2.357.0 D (#3183): + pdf_lang
 from .einvoice import ein_build, ein_check_block
 from .terms import agb_offer_pdf  # 2.434.0 (#3619)
 from .packs import office_pack_for  # 2.369.5 (#2517): pulled up from functions
@@ -234,8 +235,10 @@ def epdf_format(c, oid, r):
     return fmt if fmt in offered else (offered[0] if offered else "zugferd")  # 2.147.0 (#2461): only what the country pack offers
 
 
-def _render(c, oid, r, model=None):
-    """(pdf bytes, xml bytes or None, format) of document row r from its print model (the snapshot when finalised)."""
+def _render(c, oid, r, model=None, pdfa_required=False):
+    """(pdf bytes, xml bytes or None, format) of document row r from its print model (the snapshot when finalised).
+    2.1359.0 (#6482 P5-6): pdfa_required (epdf_store, the finalising): with an e-invoice the PDF must be a PDF/A-3, without
+    the sRGB profile pdf.PdfaMissing; the other callers (download, copy, move) keep the PDF with the warning in the log."""
     from .ledger import ofx_locked
     model = model or _model(c, oid, r["id"])
     epdf_mark(r, model)  # 2.138.2 A (#2393): never an unmarked draft, whichever model came in; 2.144.10 A (#2576): nor trial
@@ -249,7 +252,9 @@ def _render(c, oid, r, model=None):
             when = datetime.datetime.fromisoformat(str(r["locked_at"]).replace("Z", "+00:00")).astimezone()
         except ValueError:
             when = None
-    meta = {"when": when, "producer": f"Kalmido v{APP_VERSION}", "xml_profile": "EN 16931", "doc_type": "INVOICE"}
+    # 2.1359.0 (#6482 P5-6): finalising an e-invoice needs a PDF/A-3: no sRGB profile -> PdfaMissing (epdf_store: 400)
+    meta = {"when": when, "producer": f"Kalmido v{APP_VERSION}", "xml_profile": "EN 16931", "doc_type": "INVOICE",
+            "pdfa_required": bool(pdfa_required and xml is not None)}
     pdf = office_pdf(model, xml=xml if fmt == "zugferd" else None, meta=meta)
     return pdf, xml, fmt
 
@@ -263,7 +268,11 @@ def epdf_store(c, oid, did, log_extra=None):
     from .docs import doc_row
     from .ledger import ofx_log
     r = doc_row(c, oid, did)
-    pdf, xml, fmt = _render(c, oid, r)
+    try:
+        pdf, xml, fmt = _render(c, oid, r, pdfa_required=True)
+    except PdfaMissing:  # 2.1359.0 (#6482 P5-6): no PDF/A-3 without the colour profile -> nothing finalised (was a warning in the log)
+        logging.getLogger(__name__).error("office: sRGB profile missing, e-invoice of document %s not finalised", did)
+        raise BadKey(N_("The e-invoice cannot be finalised: the server lacks the colour profile for PDF/A-3. Please tell the administrator of this Kalmido.")) from None
     if xml is not None:  # 2.1308.0 (#6476): the own check on the finished XML, before any file is written (ZUGFeRD and XRechnung)
         miss = ein_check_block(xml)
         if miss:  # 400 -> ofx_finalize's transaction is rolled back: no number, no status, no file

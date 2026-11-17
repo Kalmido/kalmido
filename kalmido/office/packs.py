@@ -155,6 +155,11 @@ def office_pack_validate(d):
                 bad.append(f"texts.{k}: list of {{key, de, en}}")
             elif len({x["key"] for x in lst}) != len(lst):
                 bad.append(f"texts.{k}: keys must be unique")
+        bl = tx.get("blocks")  # 2.1359.0 (#6482): optional built-in text blocks (the menu "Text" of a document), e.g. section 14b UStG
+        if bl is not None and (not isinstance(bl, list) or any(not isinstance(x, dict) or not isinstance(x.get("key"), str) or not x["key"]
+                                                               or not _text_pair(x) or (x.get("label") is not None and not _text_pair(x["label"]))
+                                                               for x in bl) or len({x.get("key") for x in bl if isinstance(x, dict)}) != len(bl)):
+            bad.append("texts.blocks: list of {key, de, en, label?: {de, en}}, keys unique")
     nb = d.get("numbering")
     if nb is not None and (not isinstance(nb, dict) or any(not isinstance(v, str) for v in nb.values())):
         bad.append("numbering: object of texts")

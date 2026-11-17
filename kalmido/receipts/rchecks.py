@@ -29,7 +29,7 @@ from ..docs.web import _doc, _no_agent, doc_json
 from ..docs.rcheck import rck_check, rck_soft
 
 RCK_FILL = 200          # stale receipts checked per list request (the rest on the next one; ~1 s)
-RCK_VER = "2"           # part of the stamp: a new rule set checks every receipt again (2.892.0 #5453: "2", unreadable text)
+RCK_VER = "3"           # part of the stamp: a new rule set checks every receipt again (2.892.0 #5453: "2", unreadable text; 2.1359.0 #6482: "3", no_einv)
 RCK_MEAL = re.compile(r"bewirt|restaurant|gastst|hospitality|entertainment|\bmeals?\b", re.I)
 _AMT = re.compile(r"-?\d+\.\d{2}")
 
