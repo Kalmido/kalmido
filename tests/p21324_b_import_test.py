@@ -9,6 +9,8 @@
  - hostile .ods: DOCTYPE / ENTITY, a filled cell repeated 2^31 times in rows and columns, a full row repeated over the cell
    budget, a broken content.xml, a ".ods" without the mimetype: a clean 400, fast; measured in the app container: the peak
    memory of the repeat bombs stays small (they are checked before being rolled out)
+ - #6709 (Fable F2): 10 000 list validations on one column of a hidden sheet with 6 000 000 filled rows import in seconds; a hidden
+   sheet over the work budget is a clean 400
  - #6589: nothing falls away without a word - an .xlsx with columns beyond the 200 of a sheet imports its first 200 and the
    answer names the columns left out (report cols_left_out + the message); a file within the limit says nothing of it
  - a person without an organisation (freelancer-matrix: sheets)
@@ -248,6 +250,29 @@ refused("broken.ods", ods("<table:table table:name='X'><table:table-row>"), "not
 refused("nomime.ods", ods(RATES, mime=None), "not a spreadsheet file", "an .ods without its mimetype entry")
 refused("deep.ods", ods("<table:table table:name='D'>" + "<table:table-row-group>" * 80 + "</table:table-row-group>" * 80 + "</table:table>"),
         "not a spreadsheet file (.ods)", "nesting deeper than 64")
+
+# 2.1324.0 (#6709, Fable F2): 10 000 list validations on the same column of a hidden sheet whose 20 000 filled rows are each
+# repeated 300 times (was 10 000 x 201 steps per row, hours): one capture per column and row, only within the range -> imported fast
+MANYVAL = "".join(f'<table:content-validation table:name="v{i}" table:condition="of:cell-content-is-in-list([$Hid.$A$1:.$A$2])" '
+                  f'table:base-cell-address="V.A2"/>' for i in range(10_000))
+HID = ('<table:table table:name="Hid" table:style-name="ta2">' + row(t("x1")) + row(t("x2"))
+       + "".join(f'<table:table-row table:number-rows-repeated="300">{t("z")}</table:table-row>' for _ in range(20_000)) + "</table:table>")
+VIS = '<table:table table:name="V" table:style-name="ta1">' + row(t("Pick")) + row(t("x1").replace("<table:table-cell ", '<table:table-cell table:content-validation-name="v0" ')) + "</table:table>"
+t0 = time.monotonic()
+try:
+    r = A.post(B + "/api/sheets/import", data={"space": "private"}, files={"file": ("manyval.ods", ods(VIS + HID, STYLES, MANYVAL))}, timeout=60)
+    secs, code, body = time.monotonic() - t0, r.status_code, r.text
+except Exception as e:  # noqa: BLE001 - the old reader: no answer within a minute
+    secs, code, body, r = time.monotonic() - t0, 0, repr(e), None
+check(code == 201 and secs < 10, f"#6709 F2: 10 000 validations on one column + 6 000 000 hidden rows: imported in {secs:.1f} s - {code} {body[:200]}")
+if code == 201:
+    cols = sheet(A, r.json()["sheet"]["id"]).get("columns") or [{}]
+    check(cols[0].get("kind") == "select" and [o["label"] for o in cols[0].get("options") or []] == ["x1", "x2"],
+          f"#6709 F2: the list still comes from the hidden range {cols[0]}")
+# a sheet not taken (hidden) has a work budget too: a filled cell repeated over all columns and a million rows -> a clean 400
+refused("hidbomb.ods", ods(RATES + '<table:table table:name="H" table:style-name="ta2"><table:table-row table:number-rows-repeated="1048576">'
+                           '<table:table-cell office:value-type="float" office:value="1" table:number-columns-repeated="16384"><text:p>1</text:p>'
+                           '</table:table-cell></table:table-row></table:table>', STYLES), "The file is too large", "a hidden sheet over the work budget")
 
 # ---------------------------------------------------------------- in the app container: the memory the repeat bombs take
 EMPTY = ods('<table:table table:name="E"><table:table-row><table:table-cell office:value-type="string"><text:p>x</text:p></table:table-cell>'

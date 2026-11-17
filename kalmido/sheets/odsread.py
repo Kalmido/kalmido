@@ -15,6 +15,10 @@ ShxGrid per sheet, so shb_import / shx_import take it unchanged:
 Safety as for the .xlsx reader: zip_guard before zipfile, at most 2000 entries, content.xml read by core/safexml.py in pieces
 (no DOCTYPE / ENTITY anywhere, no NUL, depth limit, size budget SHX_UNZIPPED_MAX), every read element leaves the tree once used
 (at most XL_TREE_MAX elements held between two rows), one of the xl_slot places. Cell styles (bold, colours) are not taken over.
+2.1324.0 (#6709, Fable F2): the work is bounded for every sheet, also hidden ones and those beyond `most`: a list validation's
+range is one entry per column (however many validations point at it), it is filled at most once per column and row, only within
+its rows and up to ODS_CAPT_MAX labels; every row and cell read and every filled cell of a sheet not taken (times its repeats)
+counts against ODS_WORK_MAX -- above it a clean 400 instead of a thread bound for hours.
 """
 import io
 import re
@@ -34,6 +38,8 @@ from .core import SH_COLS_MAX, SH_ROWS_MAX
 ODS_MIME = (b"application/vnd.oasis.opendocument.spreadsheet", b"application/vnd.oasis.opendocument.spreadsheet-template")
 ODS_COLS_SEEN = 1 << 14  # columns looked at for the "left out" count (LibreOffice has 16 384)
 ODS_SPACES_MAX = 1000  # <text:s text:c="..."/>: spaces at most
+ODS_CAPT_MAX = 1000  # labels read for one list validation range (sheet, column)
+ODS_WORK_MAX = 10_000_000  # rows / cells read + labels taken + filled cells of sheets not taken (with their repeats), all sheets
 _T = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
 _O = "{urn:oasis:names:tc:opendocument:xmlns:office:1.0}"
 _X = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
@@ -306,10 +312,11 @@ def _events(z, budget_max):
 
 def _read(z, most, ShxGrid, too_many, cells_max, stored_max, unzipped_max):
     hidden_styles, valid, names = set(), {}, []
-    need = {}  # sheet name -> [(col, row1, row2)] of list validations' ranges
+    need = {}  # sheet name -> {col: [row1, row2]} of list validations' ranges (one per column: the rows they span together)
     cap = {}  # (sheet, col) -> {row: label}
     grids, n_visible = [], 0
     full = [0]  # filled cells of all kept sheets
+    work = [0]  # ODS_WORK_MAX: what reading costs, over all sheets
     open_, n = [], 0
     in_cell = 0  # open cells: what is inside one (text, a table inside a cell) is kept until the cell ends
     t = None  # the sheet being read: dict(name, grid | None, cells, r, c, row, vals, capt, cut)
@@ -333,9 +340,9 @@ def _read(z, most, ShxGrid, too_many, cells_max, stored_max, unzipped_max):
                     if n_visible <= most:
                         g = ShxGrid()
                         g.sheet_name = nm
-                t = {"name": nm, "grid": g, "cells": {}, "r": 0, "c": 0, "row": [], "capt": [], "vals": {}}
+                t = {"name": nm, "grid": g, "cells": {}, "r": 0, "c": 0, "row": [], "capt": [], "vals": {}, "seen": 0}
             elif tag == _ROW and t is not None:
-                t["c"], t["row"], t["capt"] = 0, [], []
+                t["c"], t["row"], t["capt"], t["seen"] = 0, [], [], 0
             open_.append(el)
             continue
         open_.pop()
@@ -349,7 +356,7 @@ def _read(z, most, ShxGrid, too_many, cells_max, stored_max, unzipped_max):
             if in_cell:
                 continue  # a cell of a table inside a cell: part of the outer cell
             if parent is not None and parent.tag == _ROW:
-                _take_cell(el, t, kept(), need, full, cells_max, too_many)
+                _take_cell(el, t, kept(), need, full, work, cells_max, too_many)
             el.clear()
             if parent is not None:
                 parent.remove(el)
@@ -357,7 +364,7 @@ def _read(z, most, ShxGrid, too_many, cells_max, stored_max, unzipped_max):
         if in_cell:
             continue  # inside a cell: kept until the cell ends (counted in n)
         if tag == _ROW and t is not None:
-            _take_row(el, t, kept(), cap, full, cells_max, stored_max, too_many)
+            _take_row(el, t, kept(), need, cap, full, work, cells_max, stored_max, too_many)
             el.clear()
             if parent is not None:
                 parent.remove(el)
@@ -393,7 +400,8 @@ def _read(z, most, ShxGrid, too_many, cells_max, stored_max, unzipped_max):
             if v is not None and nm and len(valid) < 10_000:
                 valid[nm] = v
                 if isinstance(v, tuple):
-                    need.setdefault(v[1], []).append((v[2], v[3], v[4]))
+                    span = need.setdefault(v[1], {}).setdefault(v[2], [v[3], v[4]])
+                    span[0], span[1] = min(span[0], v[3]), max(span[1], v[4])
         elif tag == _T + "named-range" and len(names) < 10_000:
             a = _addr(el.get(_T + "cell-range-address") or "")
             nm = el.get(_T + "name") or ""
@@ -422,8 +430,15 @@ def _read(z, most, ShxGrid, too_many, cells_max, stored_max, unzipped_max):
     return grids
 
 
-def _take_cell(el, t, keep, need, full, cells_max, too_many):
+def _spend(work, k):
+    work[0] += k
+    if work[0] > ODS_WORK_MAX:
+        raise BadInput(tr("The file is too large"))
+
+
+def _take_cell(el, t, keep, need, full, work, cells_max, too_many):
     """One cell of the current row: rolled out over its repeats when it holds something, else only the position moves."""
+    _spend(work, 1)
     rep = _int(el, _T + "number-columns-repeated", 1 << 30)
     c = t["c"]
     t["c"] = c + rep
@@ -436,10 +451,15 @@ def _take_cell(el, t, keep, need, full, cells_max, too_many):
             t["vals"].setdefault(ci, vn)
     if x is None:
         return
-    if t["name"] in need:  # a list validation reads its labels from here
-        for (col, _r1, _r2) in need[t["name"]]:
-            if c <= col < c + rep:
-                t["capt"].append((col, x["v"]))
+    t["seen"] += min(rep, ODS_COLS_SEEN)  # filled cells of this row (a sheet not taken: counted with the row's repeats)
+    cols = need.get(t["name"])
+    if cols and x["v"]:  # a list validation reads its labels from here: once per column (columns of a row do not overlap)
+        if rep <= len(cols):
+            hit = [ci for ci in range(c, c + rep) if ci in cols]
+        else:
+            hit = [ci for ci in cols if c <= ci < c + rep]
+        _spend(work, min(rep, len(cols)))
+        t["capt"].extend((ci, x["v"]) for ci in hit)
     if not keep:
         return
     cs, rs = _int(el, _T + "number-columns-spanned", 1 << 14), _int(el, _T + "number-rows-spanned", 1 << 20)
@@ -462,19 +482,33 @@ def _take_cell(el, t, keep, need, full, cells_max, too_many):
             t["row"].append((ci, x))
 
 
-def _take_row(el, t, keep, cap, full, cells_max, stored_max, too_many):
+def _take_row(el, t, keep, need, cap, full, work, cells_max, stored_max, too_many):
     """The current row: its cells into the sheet once per repeat; an empty row (also repeated a million times) only moves on."""
+    _spend(work, 1)
     rep = _int(el, _T + "number-rows-repeated", 1 << 30)
     r0 = t["r"]
     t["r"] = r0 + rep
     if t["capt"]:
+        cols = need[t["name"]]
         for col, v in t["capt"]:
+            span = cols.get(col)
+            if span is None:
+                continue
             got = cap.setdefault((t["name"], col), {})
-            for k in range(min(rep, 201)):
-                if len(got) < 1000 and v:
-                    got[r0 + 1 + k] = v.strip()
+            lo = max(r0 + 1, span[0])
+            hi = min(r0 + rep, span[1], lo + ODS_CAPT_MAX - len(got) - 1)
+            _spend(work, 1 + max(0, hi - lo + 1))
+            v = v.strip()
+            for r in range(lo, hi + 1):
+                got[r] = v
+            if len(got) >= ODS_CAPT_MAX or r0 + rep >= span[1]:
+                del cols[col]  # full, or its rows are behind: nothing more to read for it
+    if not keep:
+        if t["seen"] and rep > 1:
+            _spend(work, t["seen"] * (rep - 1))
+        return
     row = t["row"]
-    if not keep or not row:
+    if not row:
         return
     if r0 + rep > SH_ROWS_MAX + 1:
         raise BadInput(tr("Too many rows (at most {0})", SH_ROWS_MAX))
