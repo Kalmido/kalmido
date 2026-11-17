@@ -7,6 +7,8 @@
    again leaves no invitation to come back by; (c) a demotion of an admin waits for the organisation's row (FOR UPDATE)
  2 a text that only starts like a sealed value ("kenc1:...") is sealed like any other (the ledger entry of a person without
    an organisation reads, changes and deletes again; freelancer-matrix: office); a real sealed value is kept
+ 3 restoring a deleted task comment / team chat message: the author does not undo a project admin's delete; not in a frozen
+   DM; not as a read-only person of the organisation (each was 200 before)
 usage: p21364_c_haertung_test.py <datadir>"""
 import base64
 import os
@@ -19,7 +21,7 @@ sys.path.insert(0, N)
 import kt  # noqa: E402
 import testclock  # noqa: E402
 import dbx as dbxm  # noqa: E402
-from freelancer_fixture import freelancer, org_join  # noqa: E402
+from freelancer_fixture import FEATURES, freelancer, org_join  # noqa: E402
 from kt import B, CT, DATA, check, dbx, sess, until  # noqa: E402
 
 kt.fresh(env={"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_ORGCRYPT_DELAY": "0",
@@ -136,5 +138,51 @@ out = py_in_app(f"from kalmido.core import orgcrypt as oc\nv = oc.oc_enc(c, {ORG
                 f"print('KEEP', oc.oc_enc(c, {ORG}, 't.c', v) == v, oc.oc_dec(c, {ORG}, 't.c', oc.oc_enc(c, {ORG}, 't.c', '{FAKE}')).lstrip(chr(8203)) == '{FAKE}',"
                 f" oc.oc_enc(c, {ORG}, 't.d', v) != v)")
 check("KEEP True True True" in out, f"(2) a real sealed value is kept, a fake one sealed, one of another place sealed anew: {out[-300:]}")
+
+# ==== 3: restoring a comment / a team chat message
+Bo, Ca = sess("bob"), sess("carl")
+for s_ in (Bo, Ca):
+    s_.patch(B + "/api/settings", json={"lang": "en", "features": FEATURES, "tour": "done", "workspace": f"org:{ORG}"})
+L = Bo.post(B + "/api/lists", json={"name": "Hardening", "org_id": ORG}).json().get("id")
+check(L and Bo.put(B + f"/api/lists/{L}/members", json={"user_id": CARL, "role": "edit"}).ok, "(3) setup: bob's project, carl edits")
+T = Bo.post(B + "/api/tasks", json={"list_id": L, "title": "Check"}).json().get("id")
+Bo.get(B + "/api/team")
+ROOM = next((x["id"] for x in Ca.get(B + "/api/team").json().get("rooms", []) if x.get("list_id") == L), None)
+check(T and ROOM, f"(3) setup: a task and the project's channel {T} {ROOM}")
+
+
+def comment(s, text):
+    return s.post(B + f"/api/tasks/{T}/comments", json={"body": text}).json().get("id")
+
+
+def say(s, rid, text):
+    return s.post(B + f"/api/team/rooms/{rid}/messages", json={"body": text}).json().get("id")
+
+
+C1, M1 = comment(Ca, "Carl's note"), say(Ca, ROOM, "Carl's message")
+check(Bo.delete(B + f"/api/comments/{C1}").ok and Bo.delete(B + f"/api/team/messages/{M1}").ok, "(3) bob (project admin) takes both down")
+check(Ca.post(B + f"/api/comments/{C1}/restore").status_code == 403, "(3) carl does not bring back his comment bob deleted (403)")
+check(Ca.post(B + f"/api/team/messages/{M1}/restore").status_code == 403, "(3) nor his message bob deleted (403)")
+check(Bo.post(B + f"/api/comments/{C1}/restore").ok and Bo.post(B + f"/api/team/messages/{M1}/restore").ok, "(3) bob may undo his own delete")
+C0, M0 = comment(Ca, "Own note"), say(Ca, ROOM, "Own message")
+check(Ca.delete(B + f"/api/comments/{C0}").ok and Ca.post(B + f"/api/comments/{C0}/restore").ok
+      and Ca.delete(B + f"/api/team/messages/{M0}").ok and Ca.post(B + f"/api/team/messages/{M0}/restore").ok,
+      "(3) carl still restores what he deleted himself")
+# a frozen DM: the partner is locked
+r = A.post(B + "/api/users", json={"username": "hanna", "display_name": "Hanna", "password": kt.PASSWORD, "email": "hanna@example.com"})
+HANNA = r.json()["id"]
+A.patch(B + f"/api/admin/orgs/{ORG}", json={"members_add": [HANNA]})
+Bo.put(B + f"/api/lists/{L}/members", json={"user_id": HANNA, "role": "view"})  # carl works with her (a common project)
+DM = Ca.post(B + "/api/team/dm", json={"user_id": HANNA}).json().get("id")
+M2 = say(Ca, DM, "Before the lock")
+check(DM and M2 and Ca.delete(B + f"/api/team/messages/{M2}").ok, "(3) carl deletes his DM message to hanna")
+dbx("UPDATE users SET disabled=? WHERE id=?", (True, HANNA))  # hanna's account is locked: the DM is frozen
+check(Ca.post(B + f"/api/team/messages/{M2}/restore").status_code == 403, "(3) nothing comes back into a frozen DM (403)")
+# a read-only person of the organisation
+C3, M3 = comment(Ca, "Later read-only"), say(Ca, ROOM, "Later read-only")
+check(Ca.delete(B + f"/api/comments/{C3}").ok and Ca.delete(B + f"/api/team/messages/{M3}").ok, "(3) carl deletes his own comment and message")
+check(Bo.put(B + f"/api/orgs/{ORG}/members", json={"user_id": CARL, "role": "readonly"}).ok, "(3) carl becomes read-only in Alpha")
+check(Ca.post(B + f"/api/comments/{C3}/restore").status_code == 403, "(3) read-only: the comment does not come back (403)")
+check(Ca.post(B + f"/api/team/messages/{M3}/restore").status_code == 403, "(3) read-only: the message does not come back (403)")
 
 sys.exit(kt.done("p21364_c_haertung"))
