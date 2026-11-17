@@ -40,7 +40,9 @@ const SH = !!process.env.P2298A1_SHOTS;
   const signIn = (ev, u) => ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: '${u}', password: 'password123'})}).then(r => r.status)`);
   // visible = takes room on the page (a hidden .iisrc / a clipped block does not)
   const vis = sel => `(() => { const e = document.querySelector('${sel}'); if (!e) return false; const b = e.getBoundingClientRect(); return b.width > 2 && b.height > 2 && getComputedStyle(e).visibility !== 'hidden'; })()`;
-  const sub = async (ev, k) => { await ev(`(() => { document.querySelector('#ofc-set #s-biz-${k}')?.click(); return 1; })()`); await sleep(300); };
+  // 2.1353.0 (#6827): a group is a folded head row: a tap on its heading opens it when it is closed (the open state is the person's,
+  // so the second workspace may find it open already)
+  const sub = async (ev, k) => { await ev(`(() => { const h = document.querySelector('#ofc-set #s-biz-${k}'); if (h && !h.closest('details')?.open) h.click(); return 1; })()`); await sleep(300); };
   const toastSaved = `[...document.querySelectorAll('#toast, .toast')].some(t => t.offsetParent && /^\\s*Gespeichert\\s*$/.test(t.textContent))`;
   // headless Firefox without window focus fires no focus events (and matches no :focus-within): the page's own focusin /
   // focusout listeners get the event by hand, they read document.activeElement (a real focus change sets it)

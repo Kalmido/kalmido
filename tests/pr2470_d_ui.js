@@ -42,7 +42,8 @@ const FEAT = 'cal,comments,collab,files,docs,office,clients';
     check(d.querySelectorAll('#ofc-set').length === 1, `${who}: one form on the screen`);
     check(!d.querySelector('#ofc-set .ostsub') && !d.querySelector('#ofc-set [data-ostp][hidden]'), `${who}: no tab row, nothing hidden`);
     check(!d.querySelector('#ofc-set input:not([type=file])')?.disabled, `${who}: the fields can be changed`);
-    const rows = [...d.querySelectorAll('#s-biz-tpl ~ [data-ostp="tpl"] [data-osttpl]')].map(a => a.dataset.osttpl).join();
+    // 2.1353.0 (#6827): the group is a folded head row
+    const rows = [...d.querySelectorAll('details[data-sf="biz/tpl"] > .sfb > [data-ostp="tpl"] [data-osttpl]')].map(a => a.dataset.osttpl).join();
     check(rows === 'services,texts,gendocs', `${who}: Texts & templates has its three rows ` + rows);
     await sleep(300);
     check(d.querySelectorAll('.smodal').length === 1 && w.location.hash === '#office/start', `${who}: no second jump`);
