@@ -12,6 +12,7 @@ confirmation when wiki pages, tables or office data would go along (409 with the
 The account deletion (users.user_purge) uses the same: the personal office is dismantled with its files (no legal data)
 or retired; the rest of the account goes (upg_* helpers).
 """
+import contextvars
 import json
 import os
 import re
@@ -413,6 +414,38 @@ def odl_tchat_files(c, oid):
     return [x["path"] for x in rows if x["path"]]
 
 
+# 2.1327.0 (#1969, decision of 17.11.2026): an organisation (or personal office) with finalised documents whose legal period
+# runs is never deleted for good: the delete routes answer 409 before (odl_docs_block), odl_dismantle refuses as the last
+# line (every path: the account deletion, the retention run, the restore journal). The way out: the retention export, then
+# the deletion after the period -- or by the server's operator (an instance admin / the hosting console) after a finished
+# export of it (ODL_DOCS_OK, set only there). Self-hosting retires such an organisation instead (odl_retire): it stays.
+ODL_DOCS_OK = contextvars.ContextVar("odl_docs_ok", default=False)
+ODL_DOCS_ORG = N_("This organisation has {0} finalised invoices or documents that the law keeps until {1} (GoBD). It cannot be deleted before then: download the organisation's retention export; after that day it can be deleted, or by the server's operator after the export.")
+ODL_DOCS_USER = N_("This account's private office has {0} finalised invoices or documents that the law keeps until {1} (GoBD). The account cannot be deleted before then: download the retention export; after that day it can be deleted, or by the server's operator after the export. You can disable the account instead.")
+
+
+def odl_locked_docs(c, oid):
+    """#1969: {"n": finalised documents of organisation / personal office oid, "until": the end of their legal period or None
+    when it is over (or there are none)}. Counted on every instance (odl_retention counts nothing on the hosted one)."""
+    if not oid:
+        return {"n": 0, "until": None}
+    sql = dict((k, q) for k, _kind, q in ODL_LEGAL)["documents"]
+    with system_ctx(c):  # years only, no content: the deleting person need not be a member
+        years = [r[0] for r in c.execute(sql, (int(oid),)).fetchall()]
+    end = _until("book", years)
+    return {"n": len(years) if end else 0, "until": end}
+
+
+def odl_docs_block(c, oid, user=False):
+    """#1969: the Denied(409) a deletion of oid gets now -- finalised documents in their period that would go for good
+    (not retired: odl_retention keeps them on a self-hosted server) -- or None. user: the account's personal office."""
+    d = odl_locked_docs(c, oid)
+    if not d["until"] or ODL_DOCS_OK.get() or odl_retention(c, oid)["until"]:
+        return None
+    return Denied(409, tr(ODL_DOCS_USER if user else ODL_DOCS_ORG, d["n"], d["until"]),
+                  data={"code": "retention", "reason": "locked_docs", "kept_until": d["until"], "documents": d["n"]})
+
+
 odl_before_delete = []  # 2.209.0 D (#1856): fn(c, oid) of higher packages, called right before the organisation's row goes
 
 
@@ -423,6 +456,10 @@ def odl_dismantle(c, oid):
     from ..admin.orgcrypt_cli import before_org_delete
     from ..files.store import fs_org_purge
     oid = int(oid)
+    d = {"until": None} if ODL_DOCS_OK.get() else odl_locked_docs(c, oid)
+    if d["until"]:  # 2.1327.0 (#1969): never finalised documents in their period (the caller's savepoint / rollback keeps all)
+        print(f"organisation {oid}: kept, finalised documents in their legal period until {d['until']} (#1969)", flush=True)
+        raise Denied(409, tr(ODL_DOCS_ORG, d["n"], d["until"]))
     with system_ctx(c):  # the instance admin (or an account deletion) removes an organisation they need not be in
         files = fs_org_purge(c, oid)
         from ..wiki.wikiatt import wka_org_files
@@ -485,7 +522,7 @@ def odl_retired_prune(c, force=False):
         try:
             with c.savepoint():
                 todo = odl_dismantle(c, oid)
-        except Denied:  # a file that could not be resealed keeps it (tried again next time)
+        except Denied:  # a file that could not be resealed keeps it (tried again next time); 2.1327.0 (#1969): finalised documents in their period too (logged)
             continue
         c.commit()
         unlink_files(todo)

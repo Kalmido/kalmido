@@ -59,15 +59,16 @@ ITS = [it("Briefing", 1, 300), H1, it("Konzept", 2, 1000), {"kind": "text", "det
        H2, it("Kamera", 3, 800), {"kind": "heading", "title": "Optionen"}, it("Drohne", 1, 550, "alternative")]
 off = office_calc({**DOC, "discount_pct": 10}, ITS)
 on = office_calc({**DOC, "discount_pct": 10, "subtotals": 1}, ITS)
-st = [x for x in on["lines"] if x["kind"] == "subtotal"]
+st = [x for x in on["lines"] if x["kind"] == "subtotal" and not x.get("items")]  # 2.1327.0 (#6816): the sections' ones (not the positions' subtotal)
 check([(x["sec"], x["title"], x["total"]) for x in st] == [(0, "Vorproduktion", 2000), (1, "Dreh", 2400)],
       "#5816: one per section with counted positions, none before the first heading " + str(st))
 check(st[0]["label"] == "Zwischensumme Vorproduktion" and st[0]["total_text"] == "2.000,00 €", "#5816: label and amount " + str(st[0]))
 kinds = [x["kind"] for x in on["lines"]]
-check(kinds == ["item", "heading", "item", "text", "item", "subtotal", "heading", "item", "subtotal", "heading", "item", "discount"],
+# 2.1327.0 (#6816): + the positions' subtotal before the discount (after the sections' ones)
+check(kinds == ["item", "heading", "item", "text", "item", "subtotal", "heading", "item", "subtotal", "heading", "item", "subtotal", "discount"],
       "#5816: at the end of the section, after its text, before the next heading and the discount " + str(kinds))
 check(all(on[k] == off[k] for k in ("net", "gross", "tax_lines", "discount", "items_net")), "#5816: the sums the same as with the switch off")
-check(not any(x["kind"] == "subtotal" for x in off["lines"]), "#5816: off = no subtotal line")
+check(not any(x["kind"] == "subtotal" and not x.get("items") for x in off["lines"]), "#5816: off = no subtotal line")  # 2.1327.0 (#6816): the positions' one before the discount stays
 en = office_calc({**DOC, "lang": "en", "subtotals": True}, ITS)
 check([x["label"] for x in en["lines"] if x["kind"] == "subtotal"][0] == "Subtotal Vorproduktion", "#5816: the label in English")
 iv = inv_calc({"lang": "de", "subtotals": 1}, [H2, it("Kamera", 3, 800), {"kind": "discount", "title": "Nachlass", "qty": 1, "rate": 100, "tax": "standard"},

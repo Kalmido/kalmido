@@ -789,11 +789,11 @@
   const LBL = {de: {net: 'Summe Netto', gross: 'Gesamt Brutto', discount: 'Rabatt', producing: 'Producing', net_incl_raw: 'Summe netto mit Option Rohdaten', net_excl_raw: 'ohne Rohdaten',
     tax: p => `MwSt. ${p} %`, exempt: 'steuerfrei', vat_note: 'Alle Preise zuzüglich 7 % bzw. 19 % MwSt.', novat_note: 'Nicht im Inland steuerbar / Reverse-Charge-Verfahren.',
     units: {day: 'Tage', hour: 'Std.', piece: 'Stk.', minute: 'Min.', flat: 'pauschal'}, producing_detail: (d, q, k) => `${d} Tage = ${q} Produktionstage / ${k}, auf halbe Tage gerundet`,
-    raw_optional: 'Optional: Bereitstellung der Rohdaten', raw_included: 'Bereitstellung der Rohdaten', raw_detail: p => `${p} % der Positionen mit Rohdaten`, discount_detail: p => `${p} % auf die rabattfähigen Positionen`, discount_amount: 'Fester Betrag auf die rabattfähigen Positionen'},
+    raw_optional: 'Optional: Bereitstellung der Rohdaten', raw_included: 'Bereitstellung der Rohdaten', raw_detail: p => `${p} % der Positionen mit Rohdaten`, discount_detail: (p, b) => `${p} % auf die rabattfähigen Positionen (${b})`, discount_amount: b => `Fester Betrag auf die rabattfähigen Positionen (${b})`},
   en: {net: 'Net Total', gross: 'Gross Total', discount: 'Discount', producing: 'Producing', net_incl_raw: 'Net total with option raw data', net_excl_raw: 'excluding raw data',
     tax: p => `VAT ${p} %`, exempt: 'tax exempt', vat_note: 'All prices plus 7 % or 19 % VAT.', novat_note: 'Not taxable domestically / reverse charge.',
     units: {day: 'days', hour: 'h', piece: 'pcs', minute: 'min', flat: 'flat'}, producing_detail: (d, q, k) => `${d} days = ${q} production days / ${k}, rounded to half days`,
-    raw_optional: 'Optional: Delivery of raw data', raw_included: 'Delivery of raw data', raw_detail: p => `${p} % of the positions with raw data`, discount_detail: p => `${p} % on the discountable positions`, discount_amount: 'Fixed amount on the discountable positions'}};
+    raw_optional: 'Optional: Delivery of raw data', raw_included: 'Delivery of raw data', raw_detail: p => `${p} % of the positions with raw data`, discount_detail: (p, b) => `${p} % on the discountable positions (${b})`, discount_amount: b => `Fixed amount on the discountable positions (${b})`}};
   const flag = v => ![null, undefined, 0, '0', '', false, 'false', 'off'].includes(v);
   // the calculator of quotations (office_calc) and of invoices / credit notes (inv_calc)
   function ofCalc(d, inv) {
@@ -840,9 +840,9 @@
       if (da > 0n) { const ks = Object.keys(disc).filter(k => disc[k] > 0n), tot = ks.reduce((a, k) => a + disc[k], 0n), a = da > tot ? tot : da;
         if (a > 0n) { const big = ks.reduce((x, k) => disc[k] > disc[x] ? k : x, ks[0]); let rest = a;
           for (const k of ks) if (k !== big) { const x = divR(a * disc[k], tot); base[k] -= x; rest -= x; } base[big] -= rest; discount = a; net -= discount;
-          lines.push({kind: 'discount', title: L.discount, pct: null, amount: cn(a), total: cn(-a), total_text: fmtM(-a, lang, cur), detail: L.discount_amount}); } }
+          lines.push({kind: 'discount', title: L.discount, pct: null, amount: cn(a), total: cn(-a), total_text: fmtM(-a, lang, cur), detail: L.discount_amount(fmtM(tot, lang, cur))}); } }  /* 2.1327.0 (#6816): with its base */
       else if (dp > 0) { for (const k of Object.keys(base)) { const x = pctOf(disc[k], dp); base[k] -= x; discount += x; } net -= discount;
-        if (discount > 0n) lines.push({kind: 'discount', title: L.discount, pct: dp, total: cn(-discount), total_text: fmtM(-discount, lang, cur), detail: L.discount_detail(fmtQ(dp, lang))}); }
+        if (discount > 0n) lines.push({kind: 'discount', title: L.discount, pct: dp, total: cn(-discount), total_text: fmtM(-discount, lang, cur), detail: L.discount_detail(fmtQ(dp, lang), fmtM(Object.values(disc).reduce((a, x) => a + x, 0n), lang, cur))}); }
     }
     const taxLines = []; let taxSum = 0n;
     if (!novat) for (const k of Object.keys(base)) { if (base[k] === 0n) continue; const amt = pctOf(base[k], rates[k]); taxSum += amt;

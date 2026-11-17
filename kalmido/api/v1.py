@@ -69,6 +69,7 @@ from ..personal.timetrack import n43_admin_lists  # 2.369.5 (#2517): pulled up f
 from ..accounts.orgs import instance_mode, visible_people  # 2.369.5 (#2517): pulled up from functions
 from ..lists.formula import fx_fill  # 2.369.5 (#2517): pulled up from functions
 from .runfor import run_gate  # 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
+from ..core.access import feats  # 2.1327.0 (#6823): the one reading of the module switches
 SRV_TOKEN_NAME = "Server agent run"  # 2.557.0 (#4670): = agents/srvagent_run.py SRV_TOKEN_NAME (no import: api below agents)
 
 
@@ -309,6 +310,9 @@ def task_core(r, tags, fields):
             "repeat_from": r["repeat_from"], "url": r["url"], "tags": tags, "list_tags": list(r["ltags"]) if "ltags" in r.keys() else [],
             "pinned": bool(r["pinned"]),
             "assignee_id": r["assignee_id"], "created_by": r["created_by"], "completed_by": r["completed_by"],
+            # 2.1308.0 (#6523, review F1): the creator wrote it in the app or with their own token (not a webhook, mail, form,
+            # import, sync or a task from before 2.1308.0, which carry created_by too)
+            "by_creator": ("origin" in r.keys() and r["origin"] == "person"),
             "assignee_group_id": r["assignee_group_id"] if "assignee_group_id" in r.keys() else None,  # 2.10.0 (#441)
             "created_at": r["created_at"], "updated_at": r["updated_at"], "completed_at": r["completed_at"],
             "deleted": bool(r["deleted_at"]), "fields": fields, "waiting": waiting_of(r),
@@ -703,7 +707,7 @@ def v1_openapi():
 def v1_me():
     from ..agents.core import is_agent
     c, u, t = db(), g.user, g.token
-    fs = (usettings(c, u["id"]).get("features") or "").split(",")
+    fs = feats(c, u["id"])
     return jsonify(id=u["id"], username=u["username"], display_name=u["display_name"] or u["username"], is_admin=bool(u["is_admin"]),
                    kind="agent" if is_agent(u) else "user",
                    token={"id": t["id"], "name": t["name"], "scopes": sorted(api_scopes(t["scopes"])), "expires_at": t["expires_at"],

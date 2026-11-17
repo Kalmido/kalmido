@@ -15,11 +15,11 @@ from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.pg import insert_id, system_ctx
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
 from ..core.i18n import browser_lang, lang, N_, tr
-from ..core.db import body, bump, db, err, iso, now_utc, usettings
+from ..core.db import body, bump, db, err, iso, now_utc
 from ..accounts.session import _accept_lang, _token_hash, me, rate_ip
 from ..accounts.login import auth_key, seal, unseal
 from ..accounts.bgjobs import bgj_add, bgj_fn
-from ..core.access import acx_anon_bind, Denied, list_role, MANAGE_ROLES, need_feat, need_list, list_state_sql
+from ..core.access import acx_anon_bind, Denied, list_role, MANAGE_ROLES, need_feat, need_list, list_state_sql, feat_has
 from ..tasks.validation import log_act
 from ..core.errors import BadInput
 from ..api.common import hit_budget, hit_limit
@@ -88,7 +88,7 @@ def h6d_form_bytes(form_id, n):
 
 
 def forms_on(c, uid):
-    return "forms" in (usettings(c, uid).get("features") or "").split(",")
+    return feat_has(c, uid, "forms")
 
 
 def need_form_manager(c, lid):

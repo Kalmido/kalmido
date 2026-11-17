@@ -14,12 +14,13 @@ from ..core.config import (
 )
 from ..core.schema import USER_DEFAULTS
 from ..core.i18n import LANGS, N_, tr
-from ..core.db import body, bump, connect, db, err, gset, gsetting, iso, now_utc, parse_iso, uset, usettings
+from ..core.db import body, bump, connect, db, err, gset, gsetting, iso, now_utc, parse_iso, uset
 from ..core.pg import write_lock  # 2.528.0 (#4305)
 from ..core.pgbus import bus_on, bus_send  # 2.622.0 (#3891)
 from ..accounts.session import GATE, me
 from ..accounts.oidc import oidc_public, oidc_reauth
 from ..core.access import _COLLAB_ALL, _TIME_ALL, collab_all, time_all
+from .access import feats  # 2.1327.0 (#6823): the one reading of the module switches
 
 # 2.306.0 B (#2887): privacy statement / imprint of the operator (env or Administration > Server)
 LEGAL_ENV = {"privacy_url": os.environ.get("KALMIDO_PRIVACY_URL", "").strip(), "imprint_url": os.environ.get("KALMIDO_IMPRINT_URL", "").strip()}
@@ -428,7 +429,7 @@ def _apply_instance(c, b):
         _COLLAB_ALL["on"] = b["collab_all"]
         if b["collab_all"] and b.get("collab_personal_on") is True:  # "Switch on collaboration now?" (second user)
             for (uid,) in c.execute("SELECT id FROM users WHERE NOT disabled").fetchall():
-                fs = [f for f in usettings(c, uid)["features"].split(",") if f]
+                fs = feats(c, uid)
                 if "collab" not in fs:
                     uset(c, uid, "features", ",".join(fs + ["collab"]))
     if "time_all" in b:

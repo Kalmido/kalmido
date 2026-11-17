@@ -710,7 +710,11 @@ async function pb_transfer() {
     const j = await api('POST', '/api/office/move/org', {org, confirm: true});
     await refreshMe(); S.settings.workspace = 'org:' + j.org_id; LS.set('ws', S.settings.workspace);
     pb_reset(true); OFC.ws = typeof wsCur === 'function' ? wsCur() : ''; render();
-    toast(tr('Your office is now in “{0}”', j.name));
+    // 2.1327.0 (#6591): the check of the organisation's hash chain after the move, in the toast and at the access log
+    const k = j.chain; if (k) OFC.chain = k;
+    const ck = !k ? '' : k.ok ? trn('Chain intact: {0} finalised document checked.', 'Chain intact: {0} finalised documents checked.', k.count)
+      : tr(k.first_bad?.reason === 'gap' ? N_('Chain broken: a document before {0} is missing.') : N_('Chain broken: document {0} differs from what was finalised.'), k.first_bad?.number || '#' + k.first_bad?.id);
+    toast(tr('Your office is now in “{0}”', j.name) + (ck ? ' ' + ck : ''));
   } catch (x) { ofcErr(x); }
 }
 // 2.356.0 A (#2926): the own part of an organisation's office into the personal office (POST /api/office/move-space what office:

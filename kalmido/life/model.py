@@ -11,7 +11,7 @@ from ..core.pg import insert_id, system_ctx, ts_canon, write_lock
 from ..core import orgcrypt as oc  # 2.306.0 A (#2885)
 from ..core.conflict import Conflict  # 2.269.0 C (#3017)
 from ..core.i18n import csv_dialect, lang, N_, tr
-from ..core.db import iso, iso_ms, local_now, now_utc, usettings
+from ..core.db import iso, iso_ms, local_now, now_utc
 from ..core.usertz import user_now
 from ..core.access import Denied, health_hidden, my_max_sort, need_list, no_reading_sql, org_trips_hidden, tvis, vis_sql, wr_sql, FEAT_OFF, list_state_sql
 from ..core.serializers import load_tasks, csv_cell
@@ -30,6 +30,7 @@ from ..tasks.dayplan import dayplan_mine_sql  # 2.369.5 (#2517): pulled up from 
 from ..collab.liste2e import le2a_gen_refuse  # 2.369.5 (#2517): pulled up from functions
 from ..events.model import cal_create, ev_fields, ev_store  # 2.369.5 (#2517): pulled up from functions
 from ..core.db import uset  # 2.369.5 (#2517): pulled up from functions
+from ..core.access import feat_has, feat_in, feats  # 2.1327.0 (#6823): the one reading of the module switches
 
 
 # ---------------------------------------------------------------- 2.22.0 (#663): "Home & life"
@@ -77,7 +78,7 @@ TRIP_SPAN_MAX = 366
 
 
 def feat_on(c, uid, f):
-    return f in (usettings(c, uid).get("features") or "").split(",")
+    return feat_has(c, uid, f)
 
 
 def need_life(c, uid, f):
@@ -467,7 +468,7 @@ def life_overview(c, uid, oid=None):
     """What the view "Home & life" shows, per switched-on module. 2.173.0 A (#2680): of one space -- private (oid None:
     trips and contacts outside every organisation, plus the private-only parts) or organisation oid (its trips and the
     contacts of its address books, nothing else)."""
-    on = set((usettings(c, uid).get("features") or "").split(","))
+    on = set(feats(c, uid))
     if oid:
         on &= set(LIFE_ORG_MODS)
     today = local_now().date()
@@ -598,7 +599,7 @@ def _wd_care(c, users, S, LG, now):
         s = S[uid]
         pn = user_now(s, now)  # 2.368.3 (#2985)
         today = pn.date().isoformat()
-        if "care" not in (s.get("features") or "").split(",") or "contacts" not in (s.get("features") or "").split(","):
+        if not feat_in(s, "care") or not feat_in(s, "contacts"):
             continue
         if pn.strftime("%H:%M") < (s.get("allday_time") or "09:00") or s.get("care_sent") == today:
             continue

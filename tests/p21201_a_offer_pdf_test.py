@@ -32,12 +32,13 @@ import pdfcheck  # noqa: E402
 from kt import check, done  # noqa: E402
 
 # ---------------------------------------------------------------- 10. the discount note
-check(calc.label(None, "de", "discount_detail", pct="5") == "5 % auf die rabattfähigen Positionen",
-      f"#6175 10: de discount note ({calc.label(None, 'de', 'discount_detail', pct='5')!r})")
-check(calc.label(None, "en", "discount_detail", pct="5") == "5 % on the discountable positions", "#6175 10: en discount note")
-check(calc.label(None, "de", "discount_detail_amount") == "Fester Betrag auf die rabattfähigen Positionen", "#6175 10: de fixed amount note")
+# 2.1327.0 (#6816): the note names its base ("(14.200,00 €)")
+check(calc.label(None, "de", "discount_detail", pct="5", base="14.200,00 €") == "5 % auf die rabattfähigen Positionen (14.200,00 €)",
+      f"#6175 10: de discount note ({calc.label(None, 'de', 'discount_detail', pct='5', base='14.200,00 €')!r})")
+check(calc.label(None, "en", "discount_detail", pct="5", base="€14,200.00") == "5 % on the discountable positions (€14,200.00)", "#6175 10: en discount note")
+check(calc.label(None, "de", "discount_detail_amount", base="1,00 €") == "Fester Betrag auf die rabattfähigen Positionen (1,00 €)", "#6175 10: de fixed amount note")
 for lg in ("fr", "nl", "es", "it"):
-    s = calc.label(None, lg, "discount_detail", pct="5") + " / " + calc.label(None, lg, "discount_detail_amount")
+    s = calc.label(None, lg, "discount_detail", pct="5", base="1") + " / " + calc.label(None, lg, "discount_detail_amount", base="1")
     check("discountable" not in s and not any(w in s for w in ("marqu", "gemarkeerd", "marcad", "contrassegn")), f"#6175 10: {lg} translated, nothing 'marked' ({s})")
 
 # ---------------------------------------------------------------- 11. no doubled "Optional:" below "Optionen"

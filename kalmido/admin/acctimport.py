@@ -1439,6 +1439,7 @@ class _Run:
         self.written = []  # full paths of files written (removed again when the run fails)
         self.stopped = None
         self.kind = "account"  # or "org": an organisation export (part 4)
+        self.chain = {}  # 2.1327.0 (#6591): office id -> its hash chain check after the import (oi_office._f_chain)
 
     def m(self, kind, old):
         o = _oid(old)
@@ -2583,6 +2584,8 @@ def umz_run(uid, iid, opts):
         result = {"created": run.stats, "people": shared, "import_id": iid_db,
                   "undo_until": iso(umz_undo_until(now_utc())) if iid_db else None,
                   "warnings": run.warnings()}  # 2.448.0 (#3765): key + values, umz_view translates; 2.531.0 (#4317) F4: the must ones first
+        if run.chain:  # 2.1327.0 (#6591): the hash chain check of each office the import wrote documents into
+            result["chain"] = run.chain
         if run.stopped == "quota":
             result["stopped"] = [N_("Your storage is full: some files were left out, everything else came over. The import can be undone.")]
         # 2.1140.0 (#6060): the upload goes BEFORE the state says done / stopped - the finally below removed it only after, so a

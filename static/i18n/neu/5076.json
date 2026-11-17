@@ -1,0 +1,52 @@
+{
+  "de": {
+    "Subtotal|calc": "Zwischensumme",
+    "{pct} % on the discountable positions ({base})|calc": "{pct} % auf die rabattfähigen Positionen ({base})",
+    "Fixed amount on the discountable positions ({base})|calc": "Fester Betrag auf die rabattfähigen Positionen ({base})",
+    "This organisation has {0} finalised invoices or documents that the law keeps until {1} (GoBD). It cannot be deleted before then: download the organisation's retention export; after that day it can be deleted, or by the server's operator after the export.": "Diese Organisation hat {0} festgeschriebene Rechnungen oder Belege, die das Gesetz bis {1} aufbewahrt (GoBD). Bis dahin lässt sie sich nicht löschen: Lade den Aufbewahrungs-Export der Organisation herunter; nach diesem Tag lässt sie sich löschen, oder der Betreiber des Servers löscht sie nach dem Export.",
+    "This account's private office has {0} finalised invoices or documents that the law keeps until {1} (GoBD). The account cannot be deleted before then: download the retention export; after that day it can be deleted, or by the server's operator after the export. You can disable the account instead.": "Das private Büro dieses Kontos hat {0} festgeschriebene Rechnungen oder Belege, die das Gesetz bis {1} aufbewahrt (GoBD). Bis dahin lässt sich das Konto nicht löschen: Lade den Aufbewahrungs-Export herunter; nach diesem Tag lässt es sich löschen, oder der Betreiber des Servers löscht es nach dem Export. Du kannst das Konto stattdessen sperren.",
+    "joined the hash chain of this office (moved in)": "in die Hash-Kette dieses Büros aufgenommen (Umzug)",
+    "Billed in an earlier organisation": "Abgerechnet in einer früheren Organisation",
+    "The hash chain of the office is not intact after the import: check it under Settings, access log.": "Die Hash-Kette des Büros ist nach dem Import nicht intakt: Prüfe sie unter Einstellungen, Zugriffsprotokoll."
+  },
+  "es": {
+    "Subtotal|calc": "Subtotal",
+    "{pct} % on the discountable positions ({base})|calc": "{pct} % sobre las posiciones con descuento ({base})",
+    "Fixed amount on the discountable positions ({base})|calc": "Importe fijo sobre las posiciones con descuento ({base})",
+    "This organisation has {0} finalised invoices or documents that the law keeps until {1} (GoBD). It cannot be deleted before then: download the organisation's retention export; after that day it can be deleted, or by the server's operator after the export.": "Esta organización tiene {0} facturas o documentos cerrados que la ley conserva hasta {1} (GoBD). Hasta entonces no se puede eliminar: descarga la exportación de conservación de la organización; después de ese día se puede eliminar, o la elimina el operador del servidor tras la exportación.",
+    "This account's private office has {0} finalised invoices or documents that the law keeps until {1} (GoBD). The account cannot be deleted before then: download the retention export; after that day it can be deleted, or by the server's operator after the export. You can disable the account instead.": "La oficina personal de esta cuenta tiene {0} facturas o documentos cerrados que la ley conserva hasta {1} (GoBD). Hasta entonces la cuenta no se puede eliminar: descarga la exportación de conservación; después de ese día se puede eliminar, o la elimina el operador del servidor tras la exportación. En su lugar puedes desactivar la cuenta.",
+    "joined the hash chain of this office (moved in)": "incorporado a la cadena hash de esta oficina (traslado)",
+    "Billed in an earlier organisation": "Facturado en una organización anterior",
+    "The hash chain of the office is not intact after the import: check it under Settings, access log.": "La cadena hash de la oficina no está intacta tras la importación: compruébala en Ajustes, Registro de accesos."
+  },
+  "fr": {
+    "Subtotal|calc": "Sous-total",
+    "{pct} % on the discountable positions ({base})|calc": "{pct} % sur les postes remisables ({base})",
+    "Fixed amount on the discountable positions ({base})|calc": "Montant fixe sur les postes remisables ({base})",
+    "This organisation has {0} finalised invoices or documents that the law keeps until {1} (GoBD). It cannot be deleted before then: download the organisation's retention export; after that day it can be deleted, or by the server's operator after the export.": "Cette organisation a {0} factures ou documents finalisés que la loi conserve jusqu'au {1} (GoBD). Elle ne peut pas être supprimée avant : télécharge l'export de conservation de l'organisation ; après cette date, elle peut être supprimée, ou l'opérateur du serveur la supprime après l'export.",
+    "This account's private office has {0} finalised invoices or documents that the law keeps until {1} (GoBD). The account cannot be deleted before then: download the retention export; after that day it can be deleted, or by the server's operator after the export. You can disable the account instead.": "Le bureau personnel de ce compte a {0} factures ou documents finalisés que la loi conserve jusqu'au {1} (GoBD). Le compte ne peut pas être supprimé avant : télécharge l'export de conservation ; après cette date, il peut être supprimé, ou l'opérateur du serveur le supprime après l'export. Tu peux désactiver le compte à la place.",
+    "joined the hash chain of this office (moved in)": "intégré à la chaîne de hachage de ce bureau (déménagement)",
+    "Billed in an earlier organisation": "Facturé dans une organisation précédente",
+    "The hash chain of the office is not intact after the import: check it under Settings, access log.": "La chaîne de hachage du bureau n'est pas intacte après l'import : vérifie-la sous Paramètres, Journal des accès."
+  },
+  "it": {
+    "Subtotal|calc": "Subtotale",
+    "{pct} % on the discountable positions ({base})|calc": "{pct} % sulle voci scontabili ({base})",
+    "Fixed amount on the discountable positions ({base})|calc": "Importo fisso sulle voci scontabili ({base})",
+    "This organisation has {0} finalised invoices or documents that the law keeps until {1} (GoBD). It cannot be deleted before then: download the organisation's retention export; after that day it can be deleted, or by the server's operator after the export.": "Questa organizzazione ha {0} fatture o documenti finalizzati che la legge conserva fino al {1} (GoBD). Fino ad allora non può essere eliminata: scarica l'esportazione di conservazione dell'organizzazione; dopo quel giorno può essere eliminata, oppure la elimina il gestore del server dopo l'esportazione.",
+    "This account's private office has {0} finalised invoices or documents that the law keeps until {1} (GoBD). The account cannot be deleted before then: download the retention export; after that day it can be deleted, or by the server's operator after the export. You can disable the account instead.": "L'ufficio personale di questo account ha {0} fatture o documenti finalizzati che la legge conserva fino al {1} (GoBD). Fino ad allora l'account non può essere eliminato: scarica l'esportazione di conservazione; dopo quel giorno può essere eliminato, oppure lo elimina il gestore del server dopo l'esportazione. In alternativa puoi disattivare l'account.",
+    "joined the hash chain of this office (moved in)": "inserito nella catena hash di questo ufficio (trasferimento)",
+    "Billed in an earlier organisation": "Fatturato in un'organizzazione precedente",
+    "The hash chain of the office is not intact after the import: check it under Settings, access log.": "La catena hash dell'ufficio non è integra dopo l'importazione: controllala in Impostazioni, Registro accessi."
+  },
+  "nl": {
+    "Subtotal|calc": "Subtotaal",
+    "{pct} % on the discountable positions ({base})|calc": "{pct} % op de posten met korting ({base})",
+    "Fixed amount on the discountable positions ({base})|calc": "Vast bedrag op de posten met korting ({base})",
+    "This organisation has {0} finalised invoices or documents that the law keeps until {1} (GoBD). It cannot be deleted before then: download the organisation's retention export; after that day it can be deleted, or by the server's operator after the export.": "Deze organisatie heeft {0} definitieve facturen of documenten die de wet tot {1} bewaart (GoBD). Tot dan kan ze niet worden verwijderd: download de bewaar-export van de organisatie; na die dag kan ze worden verwijderd, of de beheerder van de server verwijdert ze na de export.",
+    "This account's private office has {0} finalised invoices or documents that the law keeps until {1} (GoBD). The account cannot be deleted before then: download the retention export; after that day it can be deleted, or by the server's operator after the export. You can disable the account instead.": "Het persoonlijke kantoor van dit account heeft {0} definitieve facturen of documenten die de wet tot {1} bewaart (GoBD). Tot dan kan het account niet worden verwijderd: download de bewaar-export; na die dag kan het worden verwijderd, of de beheerder van de server verwijdert het na de export. Je kunt het account in plaats daarvan uitschakelen.",
+    "joined the hash chain of this office (moved in)": "opgenomen in de hashketen van dit kantoor (verhuisd)",
+    "Billed in an earlier organisation": "Gefactureerd in een eerdere organisatie",
+    "The hash chain of the office is not intact after the import: check it under Settings, access log.": "De hashketen van het kantoor is na de import niet intact: controleer hem onder Instellingen, Toegangslogboek."
+  }
+}

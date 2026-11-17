@@ -20,7 +20,7 @@ from ..core.i18n import N_, tr
 from ..core.pg import insert_id, write_lock
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_item_store, oc_json_load, oc_json_store
 from ..core.errors import BadInput
-from .calc import RAW_MODES, TAX_KEYS, calc_cur, calc_discount_split, calc_home_rate, calc_line_amount, inv_sur_fields, calc_subtotals, calc_tax_day, calc_lang, dec, fmt_money, fmt_qty, fmt_rate, label, money, office_calc, opt_label_under, pack_tax, _num
+from .calc import RAW_MODES, TAX_KEYS, calc_cur, calc_discount_split, calc_home_rate, calc_line_amount, inv_sur_fields, calc_subtotals, calc_items_sub, calc_disc_detail, calc_tax_day, calc_lang, dec, fmt_money, fmt_qty, fmt_rate, label, money, office_calc, opt_label_under, pack_tax, _num
 from .homecur import hc_home  # 2.189.0 (#2475)
 from .doclang import doc_txt
 from .model import PARTS_TITLE_FILM, UNITS, office_role, office_settings
@@ -312,7 +312,7 @@ def tp_doc_totals(c, oid, r, items, pack, eur=False, home=None, part_items=None)
     lines = []
     for ln in t["lines"]:
         k = ln["kind"]
-        if k == "discount":
+        if k == "discount" or k == "subtotal":  # 2.1327.0 (#6816): + the positions' subtotal (made again below with the part lines)
             continue  # computed again below over the direct positions and the part lines
         if k == "item" and ln.get("id") in refs:
             it = refs[ln["id"]]
@@ -381,7 +381,7 @@ def tp_doc_totals(c, oid, r, items, pack, eur=False, home=None, part_items=None)
         discount += d
     if discount > 0:
         lines.append({"kind": "discount", "title": label(pack, lang, "discount"), "pct": None if amt_on else _num(disc_pct), "total": _num(-discount),
-                      "detail": label(pack, lang, "discount_detail_amount") if amt_on else label(pack, lang, "discount_detail", pct=fmt_qty(disc_pct, lang)),
+                      "detail": calc_disc_detail(pack, lang, currency, amt_on, disc_pct, sum(disc_base.values(), D0), doc.get("sub_legacy")),  # 2.1327.0 (#6816): with its base
                       "taxes": {tk: _num(v) for tk, v in split.items()}, **({"amount": _num(discount)} if amt_on else {})})
     net = sum(base.values(), D0)
     tax_lines, tax_sum = [], D0
@@ -393,6 +393,8 @@ def tp_doc_totals(c, oid, r, items, pack, eur=False, home=None, part_items=None)
             tax_sum += amt
             tax_lines.append({"rate_key": tk, "pct": _num(rates[tk]), "base": _num(base[tk]), "amount": _num(amt),
                               "label": label(pack, lang, "tax_" + tk, pct=fmt_qty(rates[tk], lang))})
+    if not _flag(doc.get("sub_legacy")):  # 2.1327.0 (#6816): the net of the positions and part lines (a quotation sent before: none)
+        calc_items_sub(lines, items_net, pack, lang, currency)
     if _flag(doc.get("subtotals")):  # 2.1041.0 (#5816): the title page's sections with the amounts of their part lines
         calc_subtotals(lines, pack, lang, currency)
     out = dict(t)

@@ -651,6 +651,9 @@ def list_org_set(c, lid, v):
     return True
 
 
+LIST_SPACE_MOVED = []  # 2.1327.0 (#6591): fn(c, lid) of higher packages, called once a list changed its workspace (the caller commits)
+
+
 def list_space_follow(c, lid, old_org, boundary):
     """2.401.0 (#2924): list lid just changed its workspace (from old_org): its tasks' customer reports and bells that lived in
     the old space go along (lists/lmove.py); boundary = team/clients.py _org_boundary: a report's client of another workspace
@@ -671,6 +674,8 @@ def list_space_follow(c, lid, old_org, boundary):
     # 2.981.0 (#5287): the bells of the project itself (kind 'list', was list_bell) go along too
     c.execute("UPDATE obj_follow SET org_id=? WHERE kind='list' AND ref_id=? AND mode<>'watch' AND org_id IS NOT DISTINCT FROM ?",
               (oid, lid, old_org or None))
+    for fn in LIST_SPACE_MOVED:  # 2.1327.0 (#6591): e.g. its billed time "billed in an earlier organisation" (office/timebill.py)
+        fn(c, lid)
     return n
 
 
@@ -709,6 +714,8 @@ def ws_private_for(c, lid):
     org_out(c, oid, None, "list", c.execute("SELECT name FROM lists WHERE id=?", (lid,)).fetchone()[0], list_id=lid, obj=lid)  # 2.361.2 (#2923): obj
     c.execute("UPDATE lists SET org_id=NULL WHERE id=?", (lid,))
     c.execute("DELETE FROM reading_orgs WHERE list_id=?", (lid,))  # 2.172.1 (#2689): no longer the organisation's read-later project
+    for fn in LIST_SPACE_MOVED:  # 2.1327.0 (#6591): as list_space_follow
+        fn(c, lid)
     from ..admin.orgcrypt_cli import oc_settle_kick
     oc_settle_kick([lid])  # 2.64.0 (#1864): its files get the owner's account key
 
@@ -1265,17 +1272,26 @@ def org_delete(oid):
         # #3090: its documents locked before the deletion's first write (no deadlock with a recognition run, users.user_delete)
         c.execute("SELECT node_id FROM doc_meta WHERE org_id=? ORDER BY node_id FOR UPDATE", (oid,)).fetchall()
         from ..admin.retexport import rx_alert, rx_gate, rx_subject
+        from .orgretain import ODL_DOCS_OK, odl_docs_block
         bad, retained = rx_gate(c, rx_subject(c, "org", oid))  # 2.146.0 D (#2468): the retention export (or its waiver) first
         if bad:
             return bad
+        # 2.1327.0 (#1969): finalised documents in their period block it (409 with the day and the way), a waiver too; the
+        # operator's way (this route is the instance admins') goes only after a finished retention export (rx_gate "exported")
+        blk = odl_docs_block(c, oid)
+        if blk and not (retained and retained[1] == "exported"):
+            c.rollback()
+            raise blk
         oname = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
         from ..admin.hosting import hosted
         from ..office.olock import OLK_BYPASS
         olv_gone_news(c, oid, oname)  # 2.361.0 (#2920): every member learns it, with what of theirs goes along
         tok = OLK_BYPASS.set(hosted())  # 2.152.0 (#2167, review A2): the hosted instance keeps no booked receipts (rx_gate passed)
+        dtok = ODL_DOCS_OK.set(bool(blk) and bool(retained) and retained[1] == "exported")  # #1969: the operator after the export
         try:
             todo = odl_dismantle(c, oid)  # 2.152.0 A: the steps shared with the account deletion and the retention run
         finally:
+            ODL_DOCS_OK.reset(dtok)
             OLK_BYPASS.reset(tok)
         bump(c)
         c.commit()

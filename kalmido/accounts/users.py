@@ -522,7 +522,8 @@ def user_delete(uid):
         return err(tr("You cannot delete yourself"))
     mode = request.args.get("lists")
     code, answer, n = user_delete_run(c, uid, g.user["username"], along=mode == "delete",
-                                      settle=(lambda: ua8_lists_settle(c, u, by, rx_lists_how())) if mode else None)
+                                      settle=(lambda: ua8_lists_settle(c, u, by, rx_lists_how())) if mode else None,
+                                      operator=by == "instance")  # 2.1327.0 (#1969): an organisation's admin never
     if code == "projects":
         return err(trn("The user still owns {0} project. Delete it or disable the user instead.",
                        "The user still owns {0} projects. Delete them or disable the user instead.", n), 409)
@@ -531,12 +532,15 @@ def user_delete(uid):
     return jsonify(ok=True, lists=n)
 
 
-def user_delete_run(c, uid, actor, along=False, settle=None, how=None):
+def user_delete_run(c, uid, actor, along=False, settle=None, how=None, operator=False):
     """#3939: the core of an account deletion, shared by the user management (DELETE /api/users/<id>) and the hosting
     operator's console (admin/operator.py) -- the caller has checked who may delete. Locks the documents going along, counts
     the account's own projects (settle = None: they block; else settle() hands them on / deletes them, useradmin.ua8_lists_settle),
     passes the retention gate (rx_gate; how: its ?retention=, None = the request's), purges, commits, removes the files and
     writes the security log with actor (a user name or "operator") and the account by number.
+    2.1327.0 (#1969): a personal office with finalised documents in their period that would go for good blocks it (the 409 of
+    orgretain.odl_docs_block, code "retention"); operator = the server's operator deletes (an instance admin, the hosting
+    console): then it goes after a finished retention export (how / ?retention= "exported").
     -> (None, None, projects) when deleted, ("projects", None, n) when projects block, ("retention" | "lists", 409 answer, n)."""
     from ..accounts.useradmin import ua8_audit
     from ..admin.retexport import rx_alert, rx_gate, rx_subject
@@ -552,6 +556,10 @@ def user_delete_run(c, uid, actor, along=False, settle=None, how=None):
         return "projects", None, n
     # 2.146.0 D (#2468): records to keep -> the retention export or its waiver first (counted before the lists go; the lists'
     # own refusals answer first)
+    from ..accounts.orgretain import ODL_DOCS_OK, odl_docs_block
+    with system_ctx(c):  # the account's personal office (any organisation context)
+        poid = (c.execute("SELECT id FROM orgs WHERE personal_of=?", (uid,)).fetchone() or [None])[0]
+    blk = odl_docs_block(c, poid, user=True)  # 2.1327.0 (#1969): asked below, after the retention gate's own answer
     keep, retained = rx_gate(c, rx_subject(c, "user", uid), along=along, how=how)
     if n:
         bad, done = settle()  # 2.186.0 A (#2566)
@@ -562,7 +570,14 @@ def user_delete_run(c, uid, actor, along=False, settle=None, how=None):
     if keep:
         c.rollback()
         return "retention", keep, n
-    files = user_purge(c, uid, gated=True)  # 2.152.0 A (#2164): records kept by law retire the personal office instead of blocking (2.148.1 #2479)
+    if blk and not (operator and retained and retained[1] == "exported"):  # #1969: a waiver neither, the operator after the export
+        c.rollback()
+        return "retention", (jsonify({**blk.data, "error": blk.text()}), 409), n
+    dtok = ODL_DOCS_OK.set(bool(blk) and bool(retained) and retained[1] == "exported")  # #1969: the operator after the export
+    try:
+        files = user_purge(c, uid, gated=True)  # 2.152.0 A (#2164): records kept by law retire the personal office instead of blocking (2.148.1 #2479)
+    finally:
+        ODL_DOCS_OK.reset(dtok)
     bump(c)
     c.commit()
     unlink_files(files)  # 2.152.0 (#2164): with the photo (user_purge)

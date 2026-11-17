@@ -21,9 +21,9 @@ from flask import jsonify, request
 
 from ..core.config import app
 from ..core.pg import insert_id
-from ..core.access import Denied, WRITE_ROLES, list_role, list_archived_sql
+from ..core.access import Denied, WRITE_ROLES, list_role, list_archived_sql, feat_has
 from ..agents.core import agent_usable
-from ..core.db import bump, db, iso, now_utc, usettings
+from ..core.db import bump, db, iso, now_utc
 from ..core.i18n import N_, tr
 from ..accounts.session import me
 from ..core.errors import BadInput
@@ -84,7 +84,7 @@ def ast2_person_ok(c, pid, sheet, lid):
     u = c.execute("SELECT kind, disabled FROM users WHERE id=?", (pid,)).fetchone() if pid else None
     if not u or (u["kind"] or "user") != "user" or u["disabled"]:
         return False
-    if "sheets" not in (usettings(c, pid).get("features") or "").split(","):
+    if not feat_has(c, pid, "sheets"):
         return False
     return sh_may(c, pid, sheet, write=True, share=False) and list_role(c, lid, pid) in WRITE_ROLES
 

@@ -18645,8 +18645,6 @@
   "Please enter an e-mail address like name@example.org.": "Bitte eine E-Mail-Adresse wie name@example.org eingeben.",
   "Only digits, spaces and + - / ( ) here, please.": "Hier bitte nur Ziffern, Leerzeichen und + - / ( ).",
   "Please enter a web address like https://example.org.": "Bitte eine Webadresse wie https://example.org eingeben.",
-  "{pct} % on the discountable positions|calc": "{pct} % auf die rabattfähigen Positionen",
-  "Fixed amount on the discountable positions|calc": "Fester Betrag auf die rabattfähigen Positionen",
   "Daily notes": "Tagesnotizen",
   "Write …": "Schreiben …",
   "Write … (/ for commands)": "Schreiben … (/ für Befehle)",

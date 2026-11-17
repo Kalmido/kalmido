@@ -10,7 +10,7 @@ from ..core.i18n import lang, LANGS, N_, tr
 from ..core.numtext import parse_num, user_dec
 from ..core.db import iso, local_now, now_utc, uset, usettings
 from ..accounts.session import me, user_public
-from ..core.access import collab_all, Denied, list_people, my_max_sort, need_list, vis_sql, wr_sql, task_visible, time_all, list_state_sql
+from ..core.access import collab_all, Denied, list_people, my_max_sort, need_list, vis_sql, wr_sql, task_visible, time_all, list_state_sql, feats
 from ..core.serializers import load_tasks
 from ..core.state import visible_lists
 from ..lists.lists import list_created, clean_folder, LIST_NAME_MAX
@@ -1041,7 +1041,7 @@ def purpose_apply(c, uid, purpose, examples=False, all_mods=None, only=False):
     business modules too (lists and tasks only). #1602: the sample project only on request (examples, off by default)."""
     if purpose not in PURPOSES:
         raise BadInput(tr("Invalid value: {0}", "purpose"))
-    fs = [x for x in (usettings(c, uid).get("features") or "").split(",") if x]
+    fs = feats(c, uid)
     on = pm_purpose_on(purpose, all_mods)
     sw = PURPOSE_MODS + (PM_FULL if all_mods is False or only else ())  # 2.56.1 (#1808): off = every module off (was PURPOSE_MODS + office extras)
     if only:  # 2.364.0 A (#3032): exactly the purpose's package, every other module off (the first start's short question);

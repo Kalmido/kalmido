@@ -28,8 +28,7 @@ from flask import g
 from ..accounts.orgroles import office_allowed
 from ..accounts.orgs import org_role
 from ..accounts.wsareas import wsa_org_off
-from ..core.access import list_role, list_state_sql, live_sql, vis_sql
-from ..core.db import usettings
+from ..core.access import list_role, list_state_sql, live_sql, vis_sql, feat_has
 from ..core.i18n import N_, tr
 from ..core.orgcrypt import OrgCryptError, oc_dec_fields
 from ..docs.store import doc_opener
@@ -62,7 +61,7 @@ def _kid():
 def rcx_office(c, uid, oid, area):
     """(office area id, own uid | None) when uid may read area ("receipts" | "meals") of the office of space oid (None:
     the personal office), else None. own = the level "own" of office groups: only the person's own rows."""
-    if _kid() or OFFICE_FEAT not in (usettings(c, uid).get("features") or "").split(","):
+    if _kid() or not feat_has(c, uid, OFFICE_FEAT):
         return None
     if oid is None:
         off = pb_personal(c, uid, create=False)  # a person who never opened the office has none: nothing to show
@@ -171,7 +170,7 @@ def _lines(v):
 
 def _budget(c, uid, oid, limit):
     """[(title, open, items)] -- the receipts of the live entries of the space's budget lists uid sees, per list."""
-    if _kid() or bud_hidden(c, uid) or "budget" not in (usettings(c, uid).get("features") or "").split(","):
+    if _kid() or bud_hidden(c, uid) or not feat_has(c, uid, "budget"):
         return []
     if oid and "life" in wsa_org_off(c, oid):
         return []

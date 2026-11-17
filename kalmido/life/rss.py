@@ -16,7 +16,7 @@ from ..core.db import connect, iso, now_utc, parse_iso
 from ..core.writes import obj_restore, obj_trash  # 2.947.0 (#5367): the core's trash (life/lfkern.py)
 from ..core.pg import IntegrityError, insert_id, write_lock
 from ..core.objseen import osn_clear, osn_mark, osn_mark_sel, osn_seen_sql  # 2.981.0 (#5286): the read mark is the core's obj_seen
-from ..core.access import Denied, live_sql, task_visible  # 2.947.0 (#5367): live_sql
+from ..core.access import Denied, live_sql, task_visible, feat_in  # 2.947.0 (#5367): live_sql
 from ..accounts.orgs import is_org_admin, user_orgs
 from ..accounts.orgroles import need_org_area, org_writes
 from ..tasks.validation import as_int, TITLE_MAX
@@ -711,7 +711,7 @@ def _wd_feeds(c, users, S, LG, now):  # noqa: ARG001
     """Watchdog: starts the fetch of due feeds of people with the module on in a thread of its own (2.85.0 review: a slow
     feed server never holds up reminders and the other sections; at most one run at a time) and cleans up old articles
     (2.947.0 #5367: the deleted feeds go with the core's trash run, life/lfkern.py trash_prune=True)."""
-    on = [u for u in users if "feeds" in (S[u].get("features") or "").split(",")]
+    on = [u for u in users if feat_in(S[u], "feeds")]
     if on and _RSS_RUN.acquire(blocking=False):
         threading.Thread(target=_rss_run, args=(on,), daemon=True).start()
     nu = now_utc()

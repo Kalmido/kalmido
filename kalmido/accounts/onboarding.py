@@ -11,7 +11,7 @@ from ..core.i18n import lang, N_, tr
 from ..core.db import body, bump, db, err, iso, iso_ms, local_now, now_utc, uset, usettings, write_lock
 from ..accounts.session import me
 from ..accounts.pictures import list_icon_drop_file
-from ..core.access import acx_drop, collab_all, list_role, my_max_sort, time_all, WRITE_ROLES, otr_live, list_set_archived
+from ..core.access import acx_drop, collab_all, list_role, my_max_sort, time_all, WRITE_ROLES, otr_live, list_set_archived, feat_list
 from ..core.serializers import unlink_files
 from ..core.errors import BadInput, Denied  # 2.578.0 (#4573)
 from ..core.conflict import ccf_check  # 2.578.0 (#4573)
@@ -86,7 +86,7 @@ def onboarding():
         c.commit()
         return jsonify(ok=True, created=False)
     lg = lang(c, uid)
-    feats = [f for f in usettings(c, uid)["features"].split(",") if f]
+    feats = feat_list(usettings(c, uid))
     feats = [f for f in feats if (f != "collab" or collab_all()) and (f != "time" or time_all())]
     touch, mac = b.get("touch") is True, b.get("mac") is True
     ts, day = iso(now_utc()), local_now().strftime("%Y-%m-%d")
@@ -232,7 +232,7 @@ def sample_create(c, uid):
     c.execute("DELETE FROM sample_items WHERE user_id=?", (uid,))  # leftovers of a sample removed by hand
     lg = lang(c, uid)
     s = usettings(c, uid)
-    feats = {f for f in s["features"].split(",") if f}
+    feats = set(feat_list(s))
     feats = {f for f in feats if (f != "collab" or collab_all()) and (f != "time" or time_all())}
     project = bool({"time", "deps", "fields", "progress"} & feats)
     today = local_now().date()

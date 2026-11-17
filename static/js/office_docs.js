@@ -465,7 +465,7 @@ function ofdEditorHtml() {
     <div class="ofdgrid">
     ${vf ? '' : clients.length ? ofdF('client_id', tr('Client'), ofdBound(d, ofdSel('client_id', d.client_id, clients, cdn_on() ? tr('No client') : tr('free recipient')))) : typeof clientsOn === 'function' && clientsOn() ? `<div class="row fx8a_nocl"><label>${esc(tr('Client'))}</label><span class="muted">${esc(tr('No clients in this area yet'))}</span>${ro ? '' : `<button type="button" class="btn sm" data-ofd="client-new">${ic('plus', 's')}<span>${tr('Add client')}</span></button>`}</div>` : ''}
     ${d.client_id && (d.client_contacts || []).length ? ofdF('contact_id', tr('Contact person'), ofdSel('contact_id', d.contact_id ?? d.client_contacts[0].id, [...d.client_contacts.map(k => [k.id, k.name + (k.role ? ` (${k.role})` : '') + (k.is_default ? ' · ' + tr('default') : '')]), [0, tr('no contact person')]]), tr('the attention line of the address follows the choice')) : ''}
-    ${cdn_on() ? cdn_recHtml(d, ro) : `${ofdF('recipient_name', tr('Recipient'), ofdIn('recipient_name', d.recipient?.name, {ph: tr('Company or name')}))}
+    ${/*html-ok*/ cdn_on() ? cdn_recHtml(d, ro) : ofd_recFixed(d) ? ofd_recFieldsHtml(d) : `${ofdF('recipient_name', tr('Recipient'), ofdIn('recipient_name', d.recipient?.name, {ph: tr('Company or name')}))}
     ${ofdF('recipient_lines', tr('Address lines'), ofdTa('recipient_lines', (d.recipient?.lines || []).join('\n'), 3, {ph: tr('one line each: name, attention, street, place')}))}`}
     ${ofdF('project_title', tr('Project title'), ofdTa('project_title', d.project_title, 2, {max: 1000, grow: 10}))}
     ${kind === 'delivery' ? ofdF('delivery_title', tr('Document title'), ofdSel('delivery_title', d.delivery_title || '', [['', tr('Delivery note')], ['service', tr('Proof of service')]])) : ''}
@@ -776,7 +776,7 @@ const OFD_ACTIONS = {valid_until: N_('validity extended'), /* 2.1064.0 (#5818) *
   finalize: N_('finalised'), unlock: N_('finalising undone'), duplicate: N_('created as a copy'), cashflow: N_('cash flow choice changed'), delete: N_('deleted'), open: N_('opened'), pdf: N_('PDF opened'), render: N_('preview opened'),
   export: N_('exported'), import: N_('imported'), archive: N_('archived'), upload: N_('uploaded'),
   payment: N_('payment recorded'), payment_delete: N_('payment reversed'), send: N_('sent by e-mail'), datev: N_('sent to the DATEV inbox'), undo: N_('import undone'), reminder_fee: N_('reminder fee waived / paid / open again / cancelled'), recovery_key: N_('recovery key shown'),
-  chain_broken: N_('hash chain broken here (daily check)'), /* 2.1309.0 (#6467) */ agent_read: N_('read (agent)'), agent_write: N_('drafted (agent)'), from_sheet: N_('created from a table'), restore: N_('restored|office log')};  // 2.113.2 (#2253): + restore  // 2.89.0 (#1916, D): + from_sheet  // 2.51.0 A (#1348)  // 2.42.0 (#828): + recovery_key  // 2.39.1 (#1182): + undo; 2.40.0 (#1368): + reminder_fee
+  chain_broken: N_('hash chain broken here (daily check)'), /* 2.1309.0 (#6467) */ chain_moved: N_('joined the hash chain of this office (moved in)'), /* 2.1327.0 (#6591) */ agent_read: N_('read (agent)'), agent_write: N_('drafted (agent)'), from_sheet: N_('created from a table'), restore: N_('restored|office log')};  // 2.113.2 (#2253): + restore  // 2.89.0 (#1916, D): + from_sheet  // 2.51.0 A (#1348)  // 2.42.0 (#828): + recovery_key  // 2.39.1 (#1182): + undo; 2.40.0 (#1368): + reminder_fee
 const ofdActText = (a, x) => a !== 'reprice' ? tr(OFD_ACTIONS[a] || a) : x?.detail?.pct != null ? tr('prices changed by {0} %', fmtNum(x.detail.pct, 2)) : tr('prices changed');  // 2.1041.0 (#5812): the repricing names its percentage
 const ofdWhen = iso => { const d = new Date(iso); return isNaN(+d) ? iso || '' : fmtStamp(d); };  // 2.368.0 B (#2982)
 function ofdLogHtml(d) {
@@ -998,6 +998,7 @@ async function ofdChange0(e) {
     await ofdPatch({rights: ofdRightsBody()}); return;
   }
   if (f === 'intro_pick' || f === 'closing_pick') { if (!t.value) return; const k = f.replace('_pick', ''); const ta = $('#ofd-' + k); const v = ofcText(+t.value, ofdTl(d)); if (ta) ta.value = v; await ofdPatch({[k]: v}); return; }
+  if (f.startsWith('recipient_') && ofd_recFixed(d)) { await ofdPatch({recipient: ofd_recBody(d)}); return; }  // 2.1308.0 (#6477)
   if (f === 'recipient_name' || f === 'recipient_lines') { await ofdPatch({recipient: {name: $('#ofd-recipient_name')?.value ?? d.recipient?.name, lines: ($('#ofd-recipient_lines')?.value ?? (d.recipient?.lines || []).join('\n')).split('\n')}}); return; }
   if (f === 'client_id') { await ofdPatch({client_id: t.value ? +t.value : null, recipient_from_client: !!t.value}); return; }
   if (f === 'contract_id') { await ofdPatch({contract_id: t.value ? +t.value : null}); return; }
@@ -1162,6 +1163,25 @@ const ofd_finHand = d => ['invoice', 'credit'].includes(d.kind) && !d.trial && !
 // shows it read-only with "Edit client"; without a client "Add client" makes one and sets it. A finished / sent document
 // shows what was frozen; an old one with free lines keeps them. With the client module off the free fields stay.
 const cdn_on = () => typeof clientsOn === 'function' && clientsOn();
+// 2.1308.0 (#6477): an invoice / correction without a client has the client's fixed address fields (the e-invoice reads
+// them), no free lines; a correction of an invoice finalised with free lines keeps them (inherited, the server allows it).
+// Quotations, reminders and delivery notes keep the free lines.
+const OFD_REC = [['street', N_('Street'), 200], ['extra', N_('Address extra'), 200], ['zip', N_('Postcode'), 20], ['city', N_('City'), 120]];
+function ofd_recFixed(d) {
+  const r = d.recipient || {};
+  if (d.kind !== 'invoice' && d.kind !== 'credit') return false;
+  return !(d.kind === 'credit' && d.cancels_id && !['street', 'zip', 'city', 'country'].some(k => String(r[k] || '').trim()) && (r.lines || []).length);
+}
+function ofd_recFieldsHtml(d) {
+  const r = d.recipient || {};
+  return ofdF('recipient_name', tr('Recipient'), ofdIn('recipient_name', r.name, {ph: tr('Company or name')}))
+    + OFD_REC.map(([k, n, mx]) => ofdF('recipient_' + k, tr(n), ofdIn('recipient_' + k, r[k], {max: mx}))).join('')
+    + `<div class="row"><label for="ofd-recipient_country-q">${esc(tr('Country'))}</label>${/*html-ok*/ ctyField('ofd-recipient_country', r.country, {attrs: 'data-f="recipient_country"', label: tr('Country')})}</div>`;
+}
+function ofd_recBody(d) {
+  const r = d.recipient || {}, v = k => $('#ofd-recipient_' + k)?.value ?? r[k] ?? '';
+  return {name: v('name'), street: v('street'), extra: v('extra'), zip: v('zip'), city: v('city'), country: v('country')};
+}
 function cdn_recHtml(d, ro) {
   const r = d.recipient || {}, lines = (r.lines || []).filter(x => String(x).trim());
   const addr = lines.length ? `<address class="cdnadr">${lines.map(x => esc(String(x))).join('<br>')}</address>` : '';

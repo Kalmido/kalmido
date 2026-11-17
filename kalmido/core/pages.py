@@ -13,7 +13,7 @@ from flask import g, jsonify, redirect, request, Response, send_from_directory
 from ..core.config import app, APP_VERSION, ATT_DIR, ICAL_PREFIX, PUB_PREFIX, SEARCH_INDEX, MAX_FILE_MB, PUBLIC_URL
 from .pg import insert_id
 from ..core.i18n import browser_lang, lang, N_, tr, trn
-from ..core.db import bump, db, err, iso, now_utc, usettings
+from ..core.db import bump, db, err, iso, now_utc
 from ..accounts.session import client_ip, GATE, me
 from ..core.access import Denied, my_inbox, time_all, acx_token_bind, collab_all
 from ..core.orgcrypt import oc_task_org  # 2.149.0 G (#2517): pulled up from functions
@@ -23,6 +23,7 @@ from ..core.db import GLOBAL_DEFAULTS, lv_versions_fmt, lv_versions_q  # 2.149.0
 from ..core.strip import start_css_files  # 2.191.0 B (#1824), 2.476.0 (#3487)
 from ..core.i18nfrag import fragment_paths  # 2.1188.0 (#6194)
 from ..core.codemanifest import CM_ASSET_RE, CM_LANG_FILE, CM_SW_LIST_RE, cm_index, cm_json, cm_ld_metas, cm_served, cm_sha, cm_static_rels  # 2.742.0 (#5217)
+from .access import feat_has  # 2.1327.0 (#6823): the one reading of the module switches
 
 
 # ---------------------------------------------------------------- pages
@@ -565,7 +566,7 @@ def manifest():
                                       ("news", N_("News"), "/#news"), ("search", N_("Search"), "/#search"))]
     # 2.125.0 C (#2121): start / stop the timer from the home screen, only for a signed-in person with the module on
     u = getattr(g, "user", None)
-    if u and "time" in (usettings(db(), u["id"]).get("features") or "").split(",") and time_all():
+    if u and feat_has(db(), u["id"], "time") and time_all():
         m["shortcuts"].append({"name": tr("Start / stop timer", lg=lg), "short_name": tr("Timer", lg=lg), "url": "/?action=timer",
                                "icons": [{"src": f"/static/shortcuts/timer-{z}.png", "sizes": f"{z}x{z}", "type": "image/png"} for z in (96, 192)]})
     return Response(json.dumps(m, ensure_ascii=False, indent=2), mimetype="application/json")
