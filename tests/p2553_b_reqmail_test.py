@@ -317,7 +317,7 @@ check(task_of(M10) is None, "the old address takes nothing")
 # ---------------------------------------------------------------- 2.1322.0 (#6560 3): over the limit a mail waits, never dropped
 time.sleep(46)  # (a fresh window of the request limits: 45 s in this container)
 FL = [mail("Flora <flora@example.org>", NEW, f"Request {i}", f"Question {i}.", f"<p2553b-fl{i}@example.org>") for i in range(11)]
-settle_mark = mail("Marker <marker@example.org>", MARK, "marker", "marker", f"<p2553b-mark-fl@example.org>")
+settle_mark = mail("Marker <marker@example.org>", MARK, "marker", "marker", "<p2553b-mark-fl@example.org>")
 check(bool(poll(lambda: task_of(settle_mark))), "the round went past the eleven mails")
 got = [m for m in FL if task_of(m)]
 seen_now = set(open(os.path.join(DATA, "mail", "seen")).read().split())
