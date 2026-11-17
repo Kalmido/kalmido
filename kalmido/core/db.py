@@ -24,7 +24,7 @@ from ..core.schema import (
     GLOBAL_DEFAULTS, INDEXES, LIST_E2E_TRIGGER, PURGED_TRIGGER, QUICKNOTE_TRIGGER, REVOKED_TRIGGER, TICKET_NO_TRIGGER, WIKI_E2E_TRIGGER, MIGRATIONS, SCHEMA, SCHEMA_VERSION, TIME_TITLE_TRIGGER, USER_DEFAULTS,
     SEC_AT_TRIGGER,  # 2.410.0 B (#3515)
 )
-from ..core.i18n import LANGS, tr
+from ..core.i18n import LANGS, browser_lang, tr  # 2.1337.0 (#6600): + browser_lang
 from .pg import pool_refresh, system_ctx as pg_system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from . import config  # 2.369.5 (#2517): pulled up from functions
 from . import objhooks  # 2.565.0 (#4717 #4719): START, the areas' forward copies onto the shared core
@@ -217,6 +217,17 @@ def _db_log_exception(exc_info):
 app.log_exception = _db_log_exception
 
 
+def _mv_moving(_e):
+    """2.1337.0 (#6600): core/movelock.py OrgMoving -> the same answer as the database lock's."""
+    c = g.get("db")
+    if c is not None:
+        try:
+            c.rollback()
+        except Exception:  # noqa: BLE001  (the connection itself may be gone)
+            pass
+    return mv_answer()
+
+
 @app.errorhandler(DbError)
 def db_error(e):
     """2.37.0 (#1150): a database error nobody caught. Postgres is strict where SQLite stored anything: a value of the wrong
@@ -229,6 +240,9 @@ def db_error(e):
             c.rollback()
         except Exception:  # noqa: BLE001  (the connection itself may be gone)
             pass
+    from .movelock import MV_STATE
+    if getattr(e, "sqlstate", None) == MV_STATE:  # 2.1337.0 (#6600): the organisation is moving - read only (423 Locked)
+        return mv_answer()
     denied = getattr(e, "sqlstate", None) == "42501"  # 2.37.0 (review K2-1): InsufficientPrivilege, e.g. a row-level
     if not denied and not isinstance(e, (DataError, IntegrityError)):  # security policy stopped a write the app let through
         raise e
@@ -253,6 +267,31 @@ def db_error(e):
         from flask import Response
         return Response(msg + "\n", code, content_type="text/plain; charset=utf-8")
     return err(msg, code)
+
+
+def mv_answer():
+    """2.1337.0 (#6600): the answer to a write into an organisation that is moving (core/movelock.py), in the format of the path:
+    /api/v1 and /dav their own, a public page sent as a plain HTML form (forms, file requests) a page, else JSON (the app)."""
+    from .movelock import MV_MSG
+    msg = tr(MV_MSG)
+    if not request.path.startswith(("/api/", "/dav")) and request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html":
+        import html as _h
+        from flask import Response
+        lg = browser_lang() or "en"
+        t = _h.escape(tr("Not possible right now", lg=lg))
+        doc = (f'<!doctype html><html lang="{_h.escape(lg)}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, '
+               f'initial-scale=1"><meta name="robots" content="noindex, nofollow"><title>{t}</title><link rel="stylesheet" href="/static/public.css">'
+               f'</head><body><main><div class="msg"><h1>{t}</h1><p>{_h.escape(tr(MV_MSG, lg=lg))} {_h.escape(tr("Please try again later.", lg=lg))}'
+               '</p></div></main></body></html>')
+        return Response(doc, 423, content_type="text/html; charset=utf-8")
+    if request.path.startswith("/api/v1/"):
+        from ..api.common import v1_err
+        return v1_err(423, msg, name="org_moving")
+    if request.path == "/dav" or request.path.startswith("/dav/"):
+        from flask import Response
+        return Response(msg + "\n", 423, content_type="text/plain; charset=utf-8")
+    r = jsonify(error=msg, code="org_moving")
+    return r, 423
 
 
 @app.teardown_appcontext
@@ -1264,6 +1303,9 @@ def init_db(guard=True):
         from .rls import apply as rls_apply, OFF_HELP
         rls_on = rls_apply(c)  # 2.37.0 (#1150): row-level security per organisation (policies + the app role)
         clk("rls_apply")
+        from .movelock import mv_apply
+        mv_apply(c)  # 2.1337.0 (#6600): the write lock of an organisation that is moving (a trigger on every org_id table)
+        clk("mv_apply")
         if not rls_on and guard:  # 2.37.0 (review W2-2): several organisations rely on it -> no start without it
             from ..accounts.orgs import INSTANCE_ENV
             # 2.46.0 (#1592): needed with several organisations (or the mode workspaces set explicitly, as before)
