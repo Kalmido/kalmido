@@ -28,6 +28,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import sys
 
 N = os.path.dirname(os.path.abspath(__file__))
@@ -40,7 +41,8 @@ from kt import B, CT, DATA, check, dbx, done, sess, until  # noqa: E402
 MAILENV = {"KALMIDO_MAIL_ADDRESS": "tasks@example.test", "KALMIDO_IMAP_HOST": "127.0.0.1", "KALMIDO_IMAP_PORT": "1143",
            "KALMIDO_IMAP_SSL": "0", "KALMIDO_IMAP_USER": "kalmido", "KALMIDO_IMAP_PASSWORD": "secret", "KALMIDO_IMAP_INTERVAL": "600",
            "KALMIDO_SMTP_HOST": "127.0.0.1", "KALMIDO_SMTP_PORT": "1025", "KALMIDO_SMTP_TLS": "none",
-           "KALMIDO_MAIL_FROM": "kalmido@example.test", "KALMIDO_MAIL_AUTHSERV_ID": "mx.example.test", "TASKS_WATCHDOG_INTERVAL": "2"}
+           "KALMIDO_MAIL_FROM": "kalmido@example.test", "KALMIDO_MAIL_AUTHSERV_ID": "mx.example.test", "TASKS_WATCHDOG_INTERVAL": "2",
+           "KALMIDO_TEST_RQ_WINDOW_S": "45"}  # 2.1322.0 (#6560 3): the hour of the request limits, shortened
 AR_CARL = "mx.example.test; dkim=pass header.d=example.org; spf=pass smtp.mailfrom=carl@example.org"
 kt.fresh(MAILENV)
 os.makedirs(os.path.join(DATA, "mail", "in"), exist_ok=True)
@@ -311,5 +313,20 @@ check(NEW and NEW != ADDR, "renew: a new address")
 M10 = mail(CARL, ADDR, "To the old address", "old", "<p2553b-10@example.org>", auth=[AR_CARL])
 settle()
 check(task_of(M10) is None, "the old address takes nothing")
+
+# ---------------------------------------------------------------- 2.1322.0 (#6560 3): over the limit a mail waits, never dropped
+time.sleep(46)  # (a fresh window of the request limits: 45 s in this container)
+FL = [mail("Flora <flora@example.org>", NEW, f"Request {i}", f"Question {i}.", f"<p2553b-fl{i}@example.org>") for i in range(11)]
+settle_mark = mail("Marker <marker@example.org>", MARK, "marker", "marker", f"<p2553b-mark-fl@example.org>")
+check(bool(poll(lambda: task_of(settle_mark))), "the round went past the eleven mails")
+got = [m for m in FL if task_of(m)]
+seen_now = set(open(os.path.join(DATA, "mail", "seen")).read().split())
+check(len(got) == 10 and str(NEXT[0] - 1) not in seen_now, f"10 per sender and hour become tickets, the 11th waits unseen in the mailbox ({len(got)})")
+nt = [json.loads(d).get("text", "") for (d,) in dbx("SELECT data FROM notifications WHERE kind='integfail' AND user_id=?", (BU,))]
+check(sum("hourly limit" in t for t in nt) == 1, f"the project's owner hears it once {nt}")
+check(dbx("SELECT tries, state FROM mail_in_seen WHERE box='instance' AND state='open'") == [(0, "open")], "its attempt stays open, none used up")
+time.sleep(46)  # the window has passed: the next round takes it
+check(bool(poll(lambda: task_of(FL[-1]), 30)), "after the window the waiting mail becomes its ticket")
+check(str(NEXT[0] - 1) in set(open(os.path.join(DATA, "mail", "seen")).read().split()), "and is marked seen then")
 
 sys.exit(done("p2553_b_reqmail"))

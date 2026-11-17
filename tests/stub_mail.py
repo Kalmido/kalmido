@@ -60,6 +60,12 @@ class Imap(socketserver.StreamRequestHandler):
                     self.w(f"* {seq} FETCH (UID {u} RFC822.SIZE {len(data)})\r\n{tag} OK FETCH done\r\n")
                     continue
                 self.w(f"* {seq} FETCH (UID {u} RFC822 {{{len(data)}}}\r\n".encode() + data + b")\r\n" + f"{tag} OK FETCH done\r\n".encode())
+            elif cmd == "UID" and args and args[0].upper() == "STORE" and args[2:3] and args[2].upper() == "-FLAGS":
+                u = int(args[1])  # 2.1322.0 (#6560 3): unseen again (a mail put back for a later round)
+                left = [x for x in sorted(seen()) if x != u]
+                with open(os.path.join(D, "seen"), "w") as f:
+                    f.write("".join(f"{x}\n" for x in left))
+                self.w(f"* {msgs().index(u) + 1} FETCH (UID {u} FLAGS ())\r\n{tag} OK STORE done\r\n")
             elif cmd == "UID" and args and args[0].upper() == "STORE":
                 u = int(args[1])
                 with open(os.path.join(D, "seen"), "a") as f:
