@@ -13,7 +13,8 @@ waited for a moment; or it committed and then failed) lets the repeat run as bef
 committed effect, so a request that committed and then failed (5xx, e.g. a push after the commit) keeps its key as done,
 and a repeat that finds a committed claim without an answer gets {"ok": true} instead of applying the change a second time
 (a log entry, a new row). API v1 (agents, who may retry a call whose later steps failed) stays as before.
-Without the header nothing changes. Keys older than IDEM_DAYS (14, 2.380 H #3387) go when the same person claims a new key.
+Without the header nothing changes. Keys older than IDEM_DAYS (14, 2.380 H #3387) go with the watchdog's hourly idem_prune
+(2.1315.0 #6409, was: when the same person claimed a new key); until then an expired key counts as gone (never replayed).
 """
 import json
 import re
@@ -30,6 +31,8 @@ IDEM_DAYS = 14  # 2.380 H (#3387): as long as the offline queue lives (a change 
 IDEM_MAX_KEYS = 5000  # 2.380 (#3387 review): kept keys per person; the oldest beyond go (14 days must not mean unbounded)
 IDEM_MAX_BODY = 256 * 1024  # bytes of a stored answer; a larger one is replayed as {"ok": true}
 IDEM_WAIT = 10.0  # 2.575.0 (#3948): was 3 s; a 503 retry of the MCP client during a long write must not write twice; s: a repeat that arrives while the first request is still running waits this long for its answer
+IDEM_PRUNE = {"at": 0.0}  # 2.1315.0 (#6409): the last run of idem_prune (time.time())
+IDEM_PRUNE_S = 3600
 _IDEM_KEY = re.compile(r"^[A-Za-z0-9_.:-]{1,100}$")
 _IDEM_METHODS = ("POST", "PATCH", "PUT", "DELETE")
 
@@ -62,18 +65,43 @@ def _idem_replay(r):
     return resp
 
 
+def _idem_insert(c, uid, k, ts):
+    """Claims the key (True) or finds it there (False). A second request with the same key waits here until the first one
+    commits or rolls back (the row's lock)."""
+    return bool(c.execute("INSERT INTO idem_keys(user_id, k, method, path, created_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING RETURNING k",
+                          (uid, k, request.method, request.path, iso(ts))).fetchone())
+
+
+def idem_prune(c, force=False):
+    """2.1315.0 (#6409): the watchdog (notify/push.py, at most hourly): keys older than IDEM_DAYS go in one DELETE (index
+    ix6409_idem_keys_created), then the oldest keys of a person over IDEM_MAX_KEYS. Was done by every write request with a
+    key. Between two runs a person may hold a few keys more than IDEM_MAX_KEYS; an expired key is never replayed meanwhile
+    (idem_claim). -> the number of keys removed."""
+    if not force and time.time() - IDEM_PRUNE["at"] < IDEM_PRUNE_S:  # also in the test containers: a suite runs it with force
+        return 0
+    IDEM_PRUNE["at"] = time.time()
+    n = c.execute("DELETE FROM idem_keys WHERE created_at<?", (iso(now_utc() - timedelta(days=IDEM_DAYS)),)).rowcount
+    for (uid,) in c.execute("SELECT user_id FROM idem_keys GROUP BY user_id HAVING COUNT(*)>?", (IDEM_MAX_KEYS,)).fetchall():
+        n += c.execute("DELETE FROM idem_keys WHERE user_id=? AND k IN (SELECT k FROM idem_keys WHERE user_id=? ORDER BY created_at DESC, k DESC OFFSET ?)",
+                       (uid, uid, IDEM_MAX_KEYS)).rowcount
+    c.commit()
+    return n
+
+
 @app.before_request
 def idem_claim():
     k = _idem_key()
     if not k:
         return None
     c, uid, ts = db(), g.user["id"], now_utc()
-    c.execute("DELETE FROM idem_keys WHERE user_id=? AND created_at<?", (uid, iso(ts - timedelta(days=IDEM_DAYS))))
-    c.execute("DELETE FROM idem_keys WHERE user_id=? AND k IN (SELECT k FROM idem_keys WHERE user_id=? ORDER BY created_at DESC OFFSET ?)",
-              (uid, uid, IDEM_MAX_KEYS - 1))  # room for the key claimed next
-    # a second request with the same key waits here until the first one commits or rolls back (the row's lock)
-    if c.execute("INSERT INTO idem_keys(user_id, k, method, path, created_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING RETURNING k",
-                 (uid, k, request.method, request.path, iso(ts))).fetchone():
+    # 2.1315.0 (#6409): no tidying here any more (two DELETE per write, the second sorting up to IDEM_MAX_KEYS keys): the
+    # watchdog's idem_prune does it hourly. Only the claim; a key past IDEM_DAYS that is still there is taken over below.
+    if _idem_insert(c, uid, k, ts):
+        g.idem_k = k
+        return None
+    lim = iso(ts - timedelta(days=IDEM_DAYS))
+    # a key older than IDEM_DAYS counts as gone until the next run (as when it was deleted before the claim): never replayed
+    if c.execute("DELETE FROM idem_keys WHERE user_id=? AND k=? AND created_at<?", (uid, k, lim)).rowcount and _idem_insert(c, uid, k, ts):
         g.idem_k = k
         return None
     end = time.monotonic() + IDEM_WAIT

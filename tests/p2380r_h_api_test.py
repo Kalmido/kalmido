@@ -5,7 +5,8 @@ and bookmarks), own container (start.sh) with the mail stub and the fake web ser
 addresses @example.com.
 freelancer-matrix: wiki
  - #3387: an idempotency key lives 14 days: a write sent again after 10 days gets its stored answer back (nothing changes
-   twice), a key older than 14 days goes when the person claims a new one
+   twice); 2.1315.0 (#6409): a key older than 14 days goes with the watchdog's hourly run (idem_prune), not with a write;
+   until then a write with it runs and is not replayed; the run caps a person at 5000 keys, the oldest go
  - #3392: an event's switch guests_visible (default off): on, the invitation to an external guest names all guests; off,
    only the recipient; not a boolean = 400; the calendar export carries X-KALMIDO-GUESTS-VISIBLE:TRUE only for the event
    with the switch on; a calendar file with the line sets it, one without the line leaves it as it is, FALSE turns it off;
@@ -182,20 +183,39 @@ dbx("UPDATE idem_keys SET created_at=? WHERE user_id=? AND k='p2380h-k1'", (iso_
 dbx("INSERT INTO idem_keys(user_id,k,method,path,status,body,created_at) VALUES(?,?,?,?,?,?,?)",
     (ALICE, "p2380h-old", "PATCH", f"/api/tasks/{T}", 200, "{}", iso_s(tnow() - timedelta(days=15))))
 r = A.patch(B + f"/api/tasks/{T}", json={"title": "Zwei"}, headers={"Idempotency-Key": "p2380h-k2"})
-check(r.ok and r.json().get("title") == "Zwei", "#3387: another change with a new key (the old keys are tidied now)")
-check(one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-old'", (ALICE,)) == 0, "#3387: a key older than 14 days went")
+check(r.ok and r.json().get("title") == "Zwei", "#3387: another change with a new key")
+# 2.1315.0 (#6409): the request no longer tidies (was: the old keys went here); the watchdog's idem_prune does it
+check(one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-old'", (ALICE,)) == 1, "#6409: a write with a key deletes no keys")
+# 2.1315.0 (#6409): until the next run a key older than 14 days counts as gone: the change with it runs, nothing is replayed
+r = A.patch(B + f"/api/tasks/{T}", json={"title": "Drei"}, headers={"Idempotency-Key": "p2380h-old"})
+check(r.ok and r.headers.get("Idempotent-Replayed") is None and r.json().get("title") == "Drei",
+      f"#6409: an expired key is not replayed ({r.status_code} {r.headers.get('Idempotent-Replayed')} {r.text[:80]})")
+check(one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-old' AND created_at>?", (ALICE, iso_s(tnow() - timedelta(days=1)))) == 1,
+      "#6409: the expired key is claimed anew")
 r = A.patch(B + f"/api/tasks/{T}", json={"title": "Eins"}, headers=K1)
 check(r.ok and r.headers.get("Idempotent-Replayed") == "true", f"#3387: the change sent again after 10 days gets its answer back "
       f"({r.status_code} {r.headers.get('Idempotent-Replayed')})")
-check(A.get(B + f"/api/tasks/{T}").json().get("title") == "Zwei", "#3387: and changes nothing a second time")
+check(A.get(B + f"/api/tasks/{T}").json().get("title") == "Drei", "#3387: and changes nothing a second time")
 # 2.380 review: the keys of one person are capped (IDEM_MAX_KEYS 5000), the oldest go first
+# 2.1315.0 (#6409): by the watchdog's run (idem_prune), no longer by the request
 dbx("INSERT INTO idem_keys(user_id,k,method,path,status,body,created_at) SELECT ?, 'p2380h-f' || g, 'PATCH', '/x', 200, '{}', ? "
     "FROM generate_series(1, 5000) g", (ALICE, iso_s(tnow() - timedelta(days=1))))
+dbx("INSERT INTO idem_keys(user_id,k,method,path,status,body,created_at) VALUES(?,?,?,?,?,?,?)",
+    (ALICE, "p2380h-old2", "PATCH", "/x", 200, "{}", iso_s(tnow() - timedelta(days=15))))
+dbx("INSERT INTO idem_keys(user_id,k,method,path,status,body,created_at) VALUES(?,?,?,?,?,?,?)",
+    (uid["bob"], "p2380h-bob", "PATCH", "/x", 200, "{}", iso_s(tnow() - timedelta(days=13))))
 r = A.patch(B + f"/api/tasks/{T}", json={"title": "Zwei"}, headers={"Idempotency-Key": "p2380h-k3"})
-check(r.ok and one("SELECT COUNT(*) FROM idem_keys WHERE user_id=?", (ALICE,)) == 5000
+n_before = one("SELECT COUNT(*) FROM idem_keys WHERE user_id=?", (ALICE,))
+check(r.ok and n_before == 5005, f"#6409: the request caps nothing ({n_before} keys)")
+out = subprocess.run(["docker", "exec", CT, "python3", "-c", "import app\nfrom kalmido.core.db import connect\nfrom kalmido.core.idem import idem_prune\n"
+                      "c = connect()\nprint('N=%d' % idem_prune(c, force=True))\nc.close()"], capture_output=True, text=True, timeout=180)
+check(out.returncode == 0 and "N=5" in out.stdout.split(), f"#6409: one run of the watchdog section removes 5 keys ({out.stdout[-200:]} {out.stderr[-300:]})")
+check(one("SELECT COUNT(*) FROM idem_keys WHERE user_id=?", (ALICE,)) == 5000
+      and one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-old2'", (ALICE,)) == 0
       and one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-k1'", (ALICE,)) == 0
-      and one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-k3'", (ALICE,)) == 1,
-      "#3387 review: at most 5000 keys per person, the oldest went, the new one stays")
+      and one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-k3'", (ALICE,)) == 1
+      and one("SELECT COUNT(*) FROM idem_keys WHERE user_id=? AND k='p2380h-bob'", (uid["bob"],)) == 1,
+      "#3387 review / #6409: the run takes the keys older than 14 days and the oldest over 5000, the new one and another person's stay")
 
 # ================================================================== #3392: the guest list of an event
 CAL = A.post(B + "/api/evcals", json={"name": "Alice Termine", "org_id": None}).json()["id"]
