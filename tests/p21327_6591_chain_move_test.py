@@ -12,6 +12,10 @@ freelancer-matrix: office  tenant-matrix: office
    the project): the project goes into the private workspace -> the billed entry no longer points at that invoice but stays
    billed ("billed in an earlier organisation": billed_at kept, not billable; GET shows billed with earlier, a change of
    its duration 409, the note still changes), the open one stays open; the invoice no longer names the project
+ - 2.1364.0 (#6883): a third entry billed on a DRAFT of the organisation (which names the project) is open again after the
+   move (no document, no billing day, billable), the draft no longer names the project; the project comes back into the
+   organisation -> the entry of the finalised invoice points at it again (billable, no longer "earlier"), the draft's stays
+   open; it leaves again -> "earlier" again with the reference kept
 usage: p21327_6591_chain_move_test.py <datadir>"""
 import base64
 import os
@@ -104,6 +108,17 @@ r = Fr.post(B + "/api/time/entries", json={"list_id": LID, "start": "2026-03-02T
 assert r.ok, r.text
 TO = r.json()["id"]
 sql("UPDATE time_entries SET billed_doc_id=?, billed_at='2026-03-05T10:00:00+00:00' WHERE id=?", (A1, TB), write=True)  # as "invoice from time" did
+# 2.1364.0 (#6883): a draft of the organisation with time of the project on it
+r = Fr.post(B + "/api/time/entries", json={"list_id": LID, "start": "2026-03-03T09:00", "minutes": 45, "note": "Farbe"})
+assert r.ok, r.text
+TD = r.json()["id"]
+r = Fr.post(B + OFC + "/docs", json={"kind": "invoice", "client_id": sql("SELECT client_id FROM office_docs WHERE id=?", (A2,))[0][0],
+                                     "service_from": "2026-03-03", "service_to": "2026-03-03", "items": [{"title": "Farbe", "qty": 1, "rate": 90}]})
+assert r.status_code == 201, r.text
+AD = r.json()["id"]
+assert Fr.post(B + OFC + f"/docs/{AD}/project", json={"list_id": LID}).ok
+sql("UPDATE time_entries SET billed_doc_id=?, billed_at='2026-03-06T10:00:00+00:00' WHERE id=?", (AD, TD), write=True)
+check(sql("SELECT locked_at IS NULL FROM office_docs WHERE id=?", (AD,)) == [(True,)], "setup: a draft")
 check(sql("SELECT list_id FROM office_docs WHERE id=?", (A1,)) == [(LID,)], "setup: the invoice names the project")
 r = Fr.patch(B + f"/api/lists/{LID}", json={"org_id": None})
 check(r.ok and sql("SELECT org_id FROM lists WHERE id=?", (LID,)) == [(None,)], f"the project goes into the private workspace {r.status_code} {r.text[:200]}")
@@ -118,6 +133,20 @@ r = Fr.patch(B + f"/api/time/entries/{TB}", json={"note": "Dreh, Tag 1"})
 check(r.ok, f"#6591: its note still changes {r.status_code} {r.text[:200]}")
 check(sql("SELECT list_id FROM office_docs WHERE id=?", (A1,)) == [(None,)] and not sql("SELECT 1 FROM office_doc_items WHERE doc_id=? AND list_id=?", (A1, LID)),
       "#6591: the organisation's invoice no longer names the project")
+row = sql("SELECT billed_doc_id, billed_item_id, billable, billed_at, billed_moved_doc_id FROM time_entries WHERE id=?", (TD,))
+check(row == [(None, None, True, None, None)], f"#6883: the time of the draft is open again (billable, no billing day) {row}")
+check(sql("SELECT list_id FROM office_docs WHERE id=?", (AD,)) == [(None,)], "#6883: the draft no longer names the project")
+check(sql("SELECT billed_moved_doc_id FROM time_entries WHERE id=?", (TB,)) == [(A1,)], "#6883: the finalised invoice is remembered")
+r = Fr.patch(B + f"/api/lists/{LID}", json={"org_id": ALPHA})
+check(r.ok and sql("SELECT org_id FROM lists WHERE id=?", (LID,)) == [(ALPHA,)], f"#6883: the project comes back {r.status_code} {r.text[:200]}")
+row = sql("SELECT billed_doc_id, billable, billed_at IS NOT NULL, billed_moved_doc_id FROM time_entries WHERE id=?", (TB,))
+check(row == [(A1, True, True, None)], f"#6883: back in the organisation, the entry is on its invoice again {row}")
+e = Fr.get(B + f"/api/time/entries/{TB}").json()
+check((e.get("billed") or {}).get("id") == A1 and not (e.get("billed") or {}).get("earlier"), f"#6883: shown on its invoice again {e.get('billed')}")
+check(sql("SELECT billed_doc_id, billable FROM time_entries WHERE id=?", (TD,)) == [(None, True)], "#6883: the draft's time stays open")
+r = Fr.patch(B + f"/api/lists/{LID}", json={"org_id": None})
+check(r.ok and sql("SELECT billed_doc_id, billable, billed_moved_doc_id FROM time_entries WHERE id=?", (TB,)) == [(None, False, A1)],
+      f"#6883: it leaves again: billed earlier, the reference kept {r.status_code}")
 
 # ---------------------------------------------------------------- a) the personal office moves into the organisation
 ws(Fr, "private")
