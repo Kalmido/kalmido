@@ -351,6 +351,10 @@ ERR += check_menu_own.errors()
 # (tools/check_canwrite.py, tools/canwrite_baseline.json)
 import check_canwrite  # noqa: E402
 ERR += check_canwrite.errors()
+# 2.1358.0 (#6825): a new task is written only by task_insert() of kalmido/tasks/repo.py, no own INSERT INTO tasks beyond
+# the baseline (tools/check_task_insert.py, tools/task_insert_baseline.json)
+import check_task_insert  # noqa: E402
+ERR += check_task_insert.errors()
 
 for e in ERR:
     print("ERROR:", e)
