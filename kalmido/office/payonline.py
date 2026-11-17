@@ -51,7 +51,7 @@ from ..core.config import APP_NAME, PUBLIC_URL, TZ, app
 from ..core.db import body, bump, db, err, iso, local_now, now_utc
 from ..core.errors import BadInput
 from ..core.i18n import N_, tr
-from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
+from ..core.orgcrypt import OrgCryptError, oc_dec_fields, oc_enc_fields, oc_seal_fields
 from ..core.pg import insert_id, system_ctx, write_lock
 from ..lists.public import PUB_BAD_LIMIT, PUB_CSP, pub_gone, pub_html, pub_limited, public_links_on
 from ..notify.alerts import _env_int, aa_count
@@ -313,7 +313,10 @@ def pol_new_hook():
 
 
 def pol_write(c, oid, uid, new):
-    enc = oc_enc_fields(c, oid, "office_payonline", {k: new[k] for k in ("secret_key", "webhook_secret", "hook_token")})
+    try:  # 2.1322.0 (#6560 5): sealed always (also with org_encrypt off); without a server key nothing is stored in plain
+        enc = oc_seal_fields(c, oid, "office_payonline", {k: new[k] for k in ("secret_key", "webhook_secret", "hook_token")})
+    except OrgCryptError:
+        raise Denied(409, tr("Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)")) from None
     c.execute("INSERT INTO office_payonline(org_id, provider, enabled, secret_key, webhook_secret, hook_token, hook_hash, updated_by, updated_at) "
               "VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(org_id) DO UPDATE SET provider=excluded.provider, enabled=excluded.enabled, "
               "secret_key=excluded.secret_key, webhook_secret=excluded.webhook_secret, hook_token=excluded.hook_token, "

@@ -18993,6 +18993,7 @@
   "at most 60 issues and 300 comments a day": "hoogstens 60 issues en 300 reacties per dag",
   "hash chain broken here (daily check)": "hashketen hier verbroken (dagelijkse controle)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hashketen van het kantoor verbroken: kantoor {0}, document-ID {1} (reeks {2}, plaats {3}, {4}). Het kantoorlogboek noemt het.",
+  "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Stel KALMIDO_SECRET_KEY in op de server om toegangsgegevens op te slaan (32 willekeurige bytes, base64)",
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Tot die tijd worden e-mails met inhoud (de dagelijkse samenvatting, meldingen) er niet naartoe gestuurd.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bevestig eerst je e-mailadres: e-mails met inhoud gaan alleen naar een bevestigd adres.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Je adres is nog niet bevestigd: de dagelijkse samenvatting en e-mails over gebeurtenissen gaan pas uit nadat je het hebt bevestigd."

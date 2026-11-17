@@ -128,6 +128,22 @@ r = flow(A, OWS, name="Hook", kind="any", match="Gutachten", webhook="https://ho
          task={"title": "Pruefen", "to": ids["carol"]})
 check(r.status_code == 201 and r.json().get("hook_secret"), f"setup: a flow with a webhook and a task for carol {r.status_code} {r.text[:200]}")
 SECRET = (r.json() if r.ok else {}).get("hook_secret") or "none-given"
+rs = A.get(B + f"/api/docs/settings?ws={OWS}").json()["rules"]
+check(all("hook_secret" not in x for x in rs) and any(x.get("webhook") == "https://hooks.example.com/geheimpfad-4803" for x in rs), "webhook: the secret never in the settings")
+# 2.1322.0 (#6560 5): the flow with its secret is sealed also with the instance switch org_encrypt off (a flow without one is not)
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": False}).ok, "setup: org_encrypt off")
+r = flow(A, OWS, name="HookAus", kind="any", match="Nichtda", webhook="https://hooks.example.com/aus-6560")
+r2 = flow(A, OWS, name="OhneHook", kind="any", match="Nichtda", tags=["x6560"])
+check(r.status_code == 201 and r2.status_code == 201, f"setup: two flows with org_encrypt off {r.status_code} {r2.status_code}")
+row = dbx("SELECT data FROM doc_rules WHERE id=?", (r.json().get("id") if r.ok else 0,))
+plain = dbx("SELECT data FROM doc_rules WHERE id=?", (r2.json().get("id") if r2.ok else 0,))
+check(row and row[0][0].startswith("kenc1:") and (r.json().get("hook_secret") or "x") not in row[0][0],
+      f"webhook: the flow with a secret is sealed although org_encrypt is off ({row and row[0][0][:12]})")
+check(plain and not plain[0][0].startswith("kenc1:"), "a flow without a secret follows the switch (plain while it is off)")
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": True}).ok, "setup: org_encrypt on again")
+for x in (r, r2):
+    if x.ok and x.json().get("id"):
+        A.delete(B + f"/api/docs/rules/{x.json()['id']}?ws={OWS}")
 r = flow(A, OWS, name="FuerBob", kind="any", match="Angebot", task={"title": "Ansehen", "to": ids["bob"]})
 check(r.status_code == 201, f"setup: a flow with a task for bob {r.status_code} {r.text[:200]}")
 r = A.post(B + f"/api/orgs/{ORG}/export")

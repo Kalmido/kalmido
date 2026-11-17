@@ -246,6 +246,17 @@ def doc_seal(c, ws, ctx, value):
     return doc_seal_as(c, ws, ctx, value, bool(ws_user(ws)) and docs_ukey_on(c))  # 2.126.0 A (#1970)
 
 
+def doc_seal_always(c, ws, ctx, value):
+    """2.1322.0 (#6560 5): value sealed like doc_seal, but also with the instance switch org_encrypt off (access data such
+    as a flow's webhook secret, like the Paperless token); None without a server key - the caller refuses to save."""
+    if value is None or value == "":
+        return value
+    if not SECRET_KEY:
+        return None
+    out = doc_seal_as(c, ws, ctx, value, bool(ws_user(ws)) and docs_ukey_on(c))
+    return out if out != value else None
+
+
 def doc_opener(c, ws, ctx, default=""):
     """2.546.0 (#4186): doc_open for many values of one space ws and field ctx (the receipt lists): the same two forms and the
     same default, the keys looked up once instead of per value (oc_key reads its key row on every call)."""
@@ -298,8 +309,9 @@ def _jopen(c, ws, ctx, value, default):
     return v if isinstance(v, type(default)) else default
 
 
-def _jseal(c, ws, ctx, value):
-    return doc_seal(c, ws, ctx, json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+def _jseal(c, ws, ctx, value, always=False):
+    raw = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return doc_seal_always(c, ws, ctx, raw) if always else doc_seal(c, ws, ctx, raw)  # 2.1322.0 (#6560 5): always
 
 
 # ---- the word index ---------------------------------------------------------------------------------------------------

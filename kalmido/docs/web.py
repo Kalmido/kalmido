@@ -1043,9 +1043,12 @@ def _rule_save(c, ws, d, rid=None):
                "share": tr("Invalid value: {0}", "share"),  # 2.635.0 (#4856)
                "share_target": tr("Only people, groups and agents of the same workspace can get a share")}.get(why, tr("Invalid value: {0}", "rule"))
         return None, err(msg)
+    # 2.1322.0 (#6560 5): a flow with a webhook holds its secret: sealed always (also with org_encrypt off), never in plain
+    data = S._jseal(c, ws, "doc_rules.data", r, always=bool(r.get("hook_secret")))
+    if data is None:
+        return None, err(tr("Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)"), 409)
     if shown:
         g.fl_secret = shown  # 2.581.0 (#4803): the webhook's secret, shown once
-    data = S._jseal(c, ws, "doc_rules.data", r)
     if rid:
         c.execute("UPDATE doc_rules SET data=?, updated_at=? WHERE id=? AND ws=?", (data, iso_ms(now_utc()), rid, ws))  # 2.635.0 (#4856)
         return rid, None

@@ -18993,6 +18993,7 @@
   "at most 60 issues and 300 comments a day": "höchstens 60 Issues und 300 Kommentare am Tag",
   "hash chain broken here (daily check)": "Hash-Kette hier gebrochen (tägliche Prüfung)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hash-Kette im Büro gebrochen: Büro {0}, Dokument-ID {1} (Reihe {2}, Stelle {3}, {4}). Das Büro-Protokoll nennt es.",
+  "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Setze KALMIDO_SECRET_KEY auf dem Server, um Zugangsdaten zu speichern (32 Zufallsbytes, Base64)",
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Bis dahin gehen E-Mails mit Inhalten (die Tageszusammenfassung, Benachrichtigungen) nicht an sie.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bitte bestätige zuerst deine E-Mail-Adresse: E-Mails mit Inhalten gehen nur an eine bestätigte Adresse.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Deine Adresse ist noch nicht bestätigt: Die Tageszusammenfassung und E-Mails zu Ereignissen gehen erst raus, wenn du sie bestätigt hast."
