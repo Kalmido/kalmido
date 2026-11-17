@@ -37,7 +37,7 @@ from datetime import timedelta
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, COOKIE
-from ..core.access import ACX_SUPPORT_ORGS  # 2.1350.0 (#6502)
+from ..core.access import ACX_SUP_FOREIGN, ACX_SUPPORT_ORGS  # 2.1350.0 (#6502); 2.1364.0 (#6320): ACX_SUP_FOREIGN
 from ..core.db import body, connect, db, err, iso, now_utc, parse_iso, usettings
 from ..core.errors import Denied
 from ..core.i18n import N_, lang, short_day, tr
@@ -264,6 +264,8 @@ SGA_NO_WRITE = tuple((m, re.compile(p)) for m, p in (
     (("DELETE",), r"/api/office/(trips|fixed-costs)/\d+"),
     # 2.538.0 (#4365, review F6): the next running number (a gap in the invoice series) is the bookkeeping's structure
     (None, r"/api/office/number-ranges/[^/]+"),
+    # 2.1364.0 (#6320, review #4788 (2)): a budget receipt and a project's notepad have no trash: their DELETE is for good
+    (("DELETE",), r"/api/(budget/files|notepads)/\d+"),
 ))
 # 2.1254.0 (#6294): routes that delete for good only with a query parameter (the guard never saw the query before): refused
 # whenever the parameter is there at all, whatever its value. tests/p21254_a_support_purge_test.py checks every DELETE route that
@@ -274,7 +276,7 @@ SGA_PURGE_ARGS = tuple((m, re.compile(p), a) for m, p, a in (
     (("DELETE",), r"/api/notes/\d+", "empty"),  # collab/notes.py note_delete: an empty quick note, never into the trash
 ))
 SGA_BOOKING = N_("A support session books nothing in the office and deletes nothing permanently: the client does that")
-SGA_FOREIGN = N_("A support session puts nothing into an organisation that has not granted support access")
+SGA_FOREIGN = ACX_SUP_FOREIGN  # 2.1364.0 (#6320): one text with the core's check
 
 
 def sga_may_write(path):
@@ -334,18 +336,13 @@ def sga_list_foreign(c, lid):
 # 2.538.0 (#4365, review F5): a new event / contact / note goes into the organisation of its container: the calendar (cal_id),
 # the address book (book_id, an organisation's own book first) or the project in the path
 SGA_BOX_ORG = {"cal_id": "SELECT org_id FROM ev_cals WHERE id=?", "book_id": "SELECT COALESCE(owner_org_id, org_id) FROM books WHERE id=?"}
-# 2.1254.0 (#6294): a write on an object in the path (and its child paths: a task's comments, attachments, subtasks ...) goes
-# into the organisation of the object's project -- every write method; was only the new items of a project (POST)
-SGA_PATH_ORG = tuple((re.compile(p), q) for p, q in (
-    (r"/api/tasks/(\d+)(?:/.*)?", "SELECT l.org_id FROM tasks t JOIN lists l ON l.id=t.list_id WHERE t.id=?"),
-    (r"/api/attachments/(\d+)(?:/.*)?", "SELECT l.org_id FROM attachments a JOIN tasks t ON t.id=a.task_id JOIN lists l ON l.id=t.list_id WHERE a.id=?"),
-    (r"/api/lists/(\d+)(?:/.*)?", "SELECT org_id FROM lists WHERE id=?"),
-))
+# 2.1364.0 (#6320): the table of paths (SGA_PATH_ORG, 2.1254.0 #6294: tasks, attachments, lists and their child paths) went:
+# the core's need_* functions refuse a support session's write into such an organisation themselves (core/access.py acx_sup_write)
 
 
 def sga_box_foreign(c, method, path, b):
     """2.538.0 (#4365, review F5): True when a support session's write puts contents into an organisation without its own
-    support access through a container: cal_id / book_id in the body or the object in the path (SGA_PATH_ORG)."""
+    support access through a container: cal_id / book_id in the body (an object in the path: the core, #6320)."""
     if not sga_is_support(c):
         return False
     for k, q in SGA_BOX_ORG.items():
@@ -356,12 +353,6 @@ def sga_box_foreign(c, method, path, b):
             r = c.execute(q, (int(v),)).fetchone()
         if r and sga_org_foreign(c, r[0]):
             return True
-    for rx, q in SGA_PATH_ORG:
-        m = rx.fullmatch(path)
-        if m:
-            with system_ctx(c):  # only the parent's organisation id: structure, no content
-                r = c.execute(q, (int(m.group(1)),)).fetchone()
-            return bool(r) and sga_org_foreign(c, r[0])
     return False
 
 
@@ -449,7 +440,7 @@ def sga_guard():
         return jsonify(error=tr(SGA_BOOKING), code="support_session"), 403
     # 2.538.0 (#4365): contents go into no organisation without its own support access (a new object's org_id, a list_id)
     if (isinstance(b, dict) and (sga_org_foreign(c, b.get("org_id")) or sga_list_foreign(c, b.get("list_id")))) \
-            or sga_box_foreign(c, request.method, p, b):  # review F5: through a calendar, an address book, a project's path
+            or sga_box_foreign(c, request.method, p, b):  # review F5: through a calendar, an address book (a path: the core, #6320)
         return jsonify(error=tr(SGA_FOREIGN), code="support_session"), 403
     return None
 
