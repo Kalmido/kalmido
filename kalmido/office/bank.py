@@ -62,7 +62,7 @@ from .model import office_ctx_admin as _ctx  # noqa: E402  2.149.0 G (#2517): wa
 from .homecur import hc_home  # noqa: E402  2.189.0 B (#2475)
 from .invoices import _j as _inv_j, inv_refund_open  # noqa: E402  2.354.0 D (#2837)
 from .payonline import pol_bank_hit, pol_bank_info, pol_bank_match  # noqa: E402  2.469.0 (#3459)
-from .cfbank import cfb_preview, cfb_read, cfb_store  # 2.369.5 (#2517): pulled up from functions
+from .cfbank import cfb_preview, cfb_read, cfb_store  # noqa: E402  2.369.5 (#2517): pulled up from functions
 from .invoices import inv_pay_add, inv_pay_del  # 2.369.5 (#2517): pulled up from functions
 from .periodlock import period_need_open  # 2.369.5 (#2517): pulled up from functions
 from .docs import doc_row  # 2.369.5 (#2517): pulled up from functions
