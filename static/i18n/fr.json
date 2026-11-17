@@ -19056,6 +19056,7 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "verrouillé par mot de passe (chiffré de bout en bout) : le serveur ne le détient que chiffré",
   "shared with you: only the projects you own are exported": "partagé avec toi : seuls tes propres projets sont exportés",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Projets partagés non inclus : {0}. Cette exportation ne contient que tes propres projets.",
+  "Still open from today": "Encore ouvert d’aujourd’hui",
   "This place is visible to more people than other places you read (a wider circle of people): writing there needs a person's Yes, on every level.": "Cet endroit est visible par plus de personnes que d’autres endroits que tu lis (un cercle de personnes plus large) : y écrire demande le Oui d’une personne, à chaque niveau.",
   "This place is publicly visible (a public link, a client's report or a shared knowledge page): writing there needs a person's Yes, on every level.": "Cet endroit est visible publiquement (un lien public, le signalement d’un client ou une page de connaissances partagée) : y écrire demande le Oui d’une personne, à chaque niveau.",
   "Writing into a place more people or the public can see needs the Yes of a person on a card that says so: ask with a new card.": "Écrire dans un endroit que d’autres personnes ou le public peuvent voir demande le Oui d’une personne sur une carte qui le dit : demande avec une nouvelle carte.",

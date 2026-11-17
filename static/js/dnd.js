@@ -210,6 +210,8 @@ async function dropTask0(id, el, clientY) {
         rows = rows.filter(x => x.priority === target.priority);
       }
       item.sort = dndSortAt(rows, target, dropAfter(row, clientY));
+      // 2.1365.0 (#6960): Tomorrow: from "Still open from today" onto a task of tomorrow = due tomorrow (its time stays)
+      if (S.route.key === 'tomorrow' && target.due === addDays(today(), 1) && t.due !== target.due) item.due = target.due;
       if (target.list_id !== t.list_id) item.list_id = target.list_id;
       if (target.parent_id !== t.parent_id) {
         if (!target.parent_id) { const ad = detachPatch(t); if ('priority' in item) delete ad.priority; dt = [[id, ad, t.parent_id]]; }  // 2.1271.0 (#6436): out of the parent (not under another one); a priority block's own priority wins
