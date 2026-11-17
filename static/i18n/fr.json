@@ -18992,5 +18992,8 @@
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Chaîne de hachage du bureau rompue : bureau {0}, document ID {1} (série {2}, position {3}, {4}). Le journal du bureau l'indique.",
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "D’ici là, les e-mails avec du contenu (le résumé quotidien, les notifications) ne lui sont pas envoyés.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Confirme d’abord ton adresse e-mail : les e-mails avec du contenu ne partent que vers une adresse confirmée.",
-  "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Ton adresse n’est pas encore confirmée : le résumé quotidien et les e-mails sur les événements ne partent qu’une fois que tu l’as confirmée."
+  "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Ton adresse n’est pas encore confirmée : le résumé quotidien et les e-mails sur les événements ne partent qu’une fois que tu l’as confirmée.",
+  "Sending needs the user name and the password of the SMTP server": "Pour envoyer, il faut le nom d'utilisateur et le mot de passe du serveur SMTP",
+  "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Envoi uniquement par le port 465 ou 587 (le port 25 seulement pour un serveur autorisé par un administrateur)",
+  "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "L'envoi se fait uniquement avec le nom d'utilisateur et le mot de passe du serveur SMTP, par le port 465 ou 587."
 }

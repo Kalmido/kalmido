@@ -23,6 +23,23 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1326.0] - 2026-11-17
+
+Package 2.1312 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), MCP-Zaun: Zaun-Zeichen vollständig entschärfen und).
+
+### Changed
+- #6540 Security (own mailbox): a workspace's own SMTP server sends only with a login (user name and password required as soon as a server is entered) and only on port 465 / 587 - port 25 or another port only for a host:port on the admin's internal mail server list. A mailbox saved before without a login or on another port sends nothing any more; the compose dialog says why. Through the own SMTP at most 30 mails per hour and person and 20 per person and receiving address and day; invoices, reminders and letters stay unlimited. Saving a changed connection, "Check connection" and "Fetch now" share one limit per person (30 in 10 minutes) and answer only "not reachable" or "login refused". The test has 40 seconds in all, a delivery 60. The admin's list 'mail' applies only to the server admins' workspaces, and an entry without a port opens only the mail ports (25, 143, 465, 587, 993).
+- #6711 Calendar: a finger swipe leafs like a page on every touch screen (also the unfolded Fold): only the grid moves (month, week, day, year), the bar and the input line stay; the neighbour period lies beside it as an empty grid, glides fully into place when let go and is then drawn - no spring back, no second glide-in. The arrows, the trackpad swipe and the two-finger zoom are unchanged.
+
+### Fixed
+- #6493 Files: the document cards show their area (dot and name, e.g. "Private") in full; a long organisation name is shortened only when the card is really too narrow and then shows the full name as a tooltip.
+
+Package 2.1317 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6331: Office: finalising a document and setting its number check the version of the draft shown (`expect_updated_at`; the web app always sends it). Changed elsewhere in the meantime (another device, a colleague) answers 409 with the current state: nothing is finalised or numbered and the editor shows the bar "Changed in the meantime" with "Reload". Without a version (agents, older clients) the stored state is finalised as before. `POST /api/office/docs/<id>/number` also returns the new `updated_at`.
+- #6496 (security): Support access on hosted servers changes only a fixed list: an account's lock and storage quota, an agent's on / off switch, an organisation's name and symbol. Kid flag and parents, admin right, display name, an agent's owner, webhook, scopes and lists, an organisation's e-mail domains, members and roles are refused (403), so the operator can no longer plant access that outlives the grant. On a hosted server an instance admin listed as a parent of a customer's kid makes its sign-in link only through an open grant and never sets its PIN. The organisation dialog sends no empty member lists.
+
 ## [2.1323.0] - 2026-11-17
 
 Package 2.1299 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -195,7 +212,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1323.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1326.0...HEAD
+[2.1326.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1326.0
 [2.1323.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1323.0
 [2.1318.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1318.0
 [2.1314.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1314.0
