@@ -18997,6 +18997,7 @@
   "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Imposta KALMIDO_SECRET_KEY sul server per salvare i dati di accesso (32 byte casuali, base64)",
   "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "Il webhook {0} è stato disattivato: i suoi eventi non potevano essere consegnati. {1} eventi in attesa dal {2} sono stati scartati.",
   "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "Il webhook {0} è stato disattivato: la persona che lo ha configurato non è più admin dell’organizzazione. {1} eventi in attesa dal {2} sono stati scartati.",
+  "Error reports of project {0} are paused: {1}": "Le segnalazioni di errore del progetto {0} sono in pausa: {1}",
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Fino ad allora le e-mail con contenuti (il riepilogo giornaliero, le notifiche) non vengono inviate a questo indirizzo.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Conferma prima il tuo indirizzo e-mail: le e-mail con contenuti vanno solo a un indirizzo confermato.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Il tuo indirizzo non è ancora confermato: il riepilogo giornaliero e le e-mail sugli eventi partono solo dopo che lo hai confermato."

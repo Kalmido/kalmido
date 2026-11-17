@@ -480,8 +480,24 @@ check(requests.post(EP, json=gen).status_code == 404, "the old URL stops working
 check(requests.post(URL2.replace(URL2.split("/api/")[0], B), json=gen).status_code == 200, "the new URL works")
 j = ag.req("GET", f"/lists/{P}/error-hook").json()
 check(j.get("on") is True and "url" not in j and j.get("received", 0) >= 10 and j.get("open", 0) >= 3, f"v1: the state (no URL): {j}")
+# 2.1322.0 (#6560 4): the creator's right is asked at every call - a list admin who makes the URL and loses the right pauses it
+r = Da.patch(B + f"/api/lists/{P}/error-hook", json={"state": "rotate"})
+URL3 = B + "/api/hooks/issues/" + r.json().get("url", "x/api/hooks/issues/").split("/api/hooks/issues/")[1]
+check(r.ok and requests.post(URL3, json=gen).status_code == 200, "setup: dave makes a new URL, it works")
+assert A.put(B + f"/api/lists/{P}/members", json={"user_id": ids["dave"], "role": "view"}).ok
+r = requests.post(URL3, json=gen)
+check(r.status_code == 403 and "paused" in r.text, f"dave only views now: the webhook pauses {r.status_code} {r.text[:200]}")
+check(requests.post(URL3, json=gen).status_code == 403, "paused: also the next call")
+j = A.get(B + f"/api/lists/{P}/error-hook").json()
+check(j.get("on") is True and "can no longer change" in (j.get("paused_text") or ""), f"the list shows why it is paused: {j}")
+check(dbq("SELECT COUNT(*) FROM notifications WHERE kind='integfail' AND user_id=? AND data::text LIKE '%Error reports of project%'", (ids["dave"],))[0][0] == 1,
+      "dave hears it once")
+r = A.patch(B + f"/api/lists/{P}/error-hook", json={"state": "rotate"})
+URL4 = B + "/api/hooks/issues/" + r.json().get("url", "x/api/hooks/issues/").split("/api/hooks/issues/")[1]
+check(r.ok and not r.json().get("paused_text") and requests.post(URL4, json=gen).status_code == 200, "a new URL by the owner resumes it with her rights")
+assert A.put(B + f"/api/lists/{P}/members", json={"user_id": ids["dave"], "role": "admin"}).ok
 check(A.patch(B + f"/api/lists/{P}/error-hook", json={"state": "off"}).json().get("on") is False, "off")
-check(requests.post(URL2.replace(URL2.split("/api/")[0], B), json=gen).status_code == 404, "off: 404")
+check(requests.post(URL4, json=gen).status_code == 404, "off: 404")
 # a list without ticket types
 r = A.patch(B + f"/api/lists/{Q}/error-hook", json={"state": "on"})
 EQ = B + "/api/hooks/issues/" + r.json()["url"].split("/api/hooks/issues/")[1]

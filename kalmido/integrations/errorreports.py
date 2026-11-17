@@ -13,17 +13,19 @@ from flask import g, jsonify, request
 from ..core.config import app, APP_VERSION, PUBLIC_URL
 from ..core.pg import insert_id, system_ctx
 from ..core.ephem import eph_within  # 2.642.0 (#4975)
-from ..core.i18n import lang, tr
+from ..core.i18n import N_, lang, tr
 from ..core.db import body, bump, db, err, gset, gsetting, iso, iso_ms, now_utc
 from ..accounts.session import me
-from ..core.access import acx_anon_bind, is_project, list_people, MANAGE_ROLES, need_list, list_role, tvis, list_state_sql, list_archived_sql
+from ..core.access import acx_anon_bind, is_project, list_people, MANAGE_ROLES, need_list, list_role, tvis, list_state_sql, list_archived_sql, WRITE_ROLES
 from ..core.pages import valid_url
 from ..tasks.validation import CONTENT_MAX, log_act, ticket_template
 from ..collab.comments import lang_of
 from ..core.errors import UnknownFields
 from ..notify.push import push_prio, push_reachable
 from ..notify.alerts import _env_int
-from ..api.common import v1_args, v1_call, v1_json, v1_view
+from ..api.common import RATE_WINDOW_S, hit_limit, v1_args, v1_call, v1_json, v1_view
+from ..core.ratedb import rate_hit  # 2.1322.0 (#6560 4)
+from ..collab.integfail import integ_tell
 from ..agents.core import agent_ids, agent_tidy_events, is_agent
 from ..integrations.git import _gd, git_need_manage, GIT_PROVIDERS, git_public
 from .gitbuild import gb_spec  # 2.369.5 (#2517): pulled up from functions
@@ -47,7 +49,13 @@ ERR_NEW_PER_HOUR = _env_int("KALMIDO_ERROR_REPORTS_PER_HOUR", 30)
 ERR_REQ_PER_MIN = 120
 ERR_BODY_MAX = 8000
 ERR_LEVELS = ("fatal", "critical", "error", "warning", "warn", "info", "debug")
-_ERR_RATE, _ERR_LOCK = {}, threading.Lock()
+_ERR_LOCK = threading.Lock()  # (the browser's reports below; the webhook's minute is counted in the shared store, #6560)
+# 2.1322.0 (#6560 4): the person who switched the webhook on must still be able to change the project at every call, else it
+# pauses (like the inbound webhooks of hookin.py); a list admin switching it on again or making a new URL becomes its creator
+ERR_PAUSE = {
+    "creator": N_("the person who set it up has no access to the project any more"),
+    "role": N_("the person who set it up can no longer change the project"),
+}
 
 
 def err_md(s):
@@ -121,17 +129,33 @@ def err_content(c, lid, rep, lg):
 
 
 def err_rate_ok(lid):
-    now = time.time()
-    with _ERR_LOCK:
-        lst = [t for t in _ERR_RATE.get(lid, []) if t > now - 60]
-        if len(lst) >= ERR_REQ_PER_MIN:
-            _ERR_RATE[lid] = lst
-            return False
-        lst.append(now)
-        _ERR_RATE[lid] = lst
-        if len(_ERR_RATE) > 5000:
-            _ERR_RATE.clear()
-    return True
+    """2.1322.0 (#6560 4): ERR_REQ_PER_MIN calls per list and minute, counted in the shared store (core/ratedb.py) over every
+    web process (was: one counter per process, so the limit grew with their number); the process's own counter only when
+    the shared count fails."""
+    over = rate_hit(f"errh:{lid}", ERR_REQ_PER_MIN, RATE_WINDOW_S)
+    if over is None:
+        over = hit_limit(f"errh:{lid}", ERR_REQ_PER_MIN)
+    return not over
+
+
+def err_creator_ok(c, r):
+    """2.1322.0 (#6560 4): None while the hook's creator may still change the list, else the pause reason (a key of ERR_PAUSE)."""
+    with system_ctx(c):  # the creator's account (the call itself is anonymous)
+        u = c.execute("SELECT * FROM users WHERE id=?", (r["created_by"],)).fetchone() if r["created_by"] else None
+    if not u or u["disabled"] or is_agent(u) or u["kid"]:
+        return "creator"
+    with system_ctx(c):  # the creator's role in the list (their memberships, not the anonymous caller's)
+        role = list_role(c, r["list_id"], u["id"])
+    return None if role in WRITE_ROLES else "role" if role else "creator"
+
+
+def err_pause(c, r, why):
+    with system_ctx(c):  # exactly the hook whose token was just checked
+        c.execute("UPDATE issue_hooks SET paused_reason=? WHERE list_id=?", (why, r["list_id"]))
+        lo = c.execute("SELECT name FROM lists WHERE id=?", (r["list_id"],)).fetchone()
+    integ_tell(c, [r["created_by"], r["owner_id"]], "errhook", lo["name"] if lo else f"#{r['list_id']}", ERR_PAUSE[why],
+               click=f"l/{r['list_id']}", list=r["list_id"])
+    c.commit()
 
 
 # 2.138.4 C (#2381): the token in a header (Authorization: Bearer … or X-Kalmido-Token) keeps it out of the access logs of
@@ -175,6 +199,12 @@ def errhook_in(lid, token):
     if not r or not token or len(token) > 200 or not hmac.compare_digest(r["token_hash"], hashlib.sha256(token.encode()).hexdigest()):
         return err(tr("unknown"), 404)
     acx_anon_bind(c, r["org_id"])  # ... then read and write as nobody, inside exactly the list's organisation
+    if r["paused_reason"]:
+        return err(tr("This webhook is paused: {0}", tr(ERR_PAUSE.get(r["paused_reason"], ERR_PAUSE["creator"]))), 403)
+    why = err_creator_ok(c, r)
+    if why:  # 2.1322.0 (#6560 4): asked at every call, not only when it was switched on
+        err_pause(c, r, why)
+        return err(tr("This webhook is paused: {0}", tr(ERR_PAUSE[why])), 403)
     if (request.content_length or 0) > ERR_MAX_BYTES:
         return err(tr("The report is too large (at most {0} KB)", ERR_MAX_BYTES // 1024), 413)
     raw = request.get_data(cache=False) or b""
@@ -283,7 +313,8 @@ def errhook_public(c, lid, manage):
     d = {"on": bool(r), "last_at": r["last_at"] if r else None, "received": r["received"] if r else 0,
          "open": c.execute("""SELECT COUNT(*) FROM issue_reports e JOIN tasks t ON t.id=e.task_id WHERE e.list_id=?
                               AND t.status=0 AND t.deleted_at IS NULL AND """ + tvis(c, me(), "t."), (lid,)).fetchone()[0] if r else 0,  # 2.223.7 D (#2941): only what the viewer sees
-         "may": bool(manage), "per_hour": ERR_NEW_PER_HOUR}
+         "may": bool(manage), "per_hour": ERR_NEW_PER_HOUR,
+         "paused_text": tr(ERR_PAUSE.get(r["paused_reason"], ERR_PAUSE["creator"])) if r and r["paused_reason"] else None}  # 2.1322.0 (#6560 4)
     if r and manage:
         d["created_at"] = r["created_at"]
     return d
@@ -318,7 +349,8 @@ def errhook_set(lid):
         tok = secrets.token_urlsafe(32)
         c.execute("""INSERT INTO issue_hooks(list_id,token_hash,created_by,created_at) VALUES(?,?,?,?)
                      ON CONFLICT(list_id) DO UPDATE SET token_hash=excluded.token_hash, created_by=excluded.created_by,
-                     created_at=excluded.created_at""", (lid, hashlib.sha256(tok.encode()).hexdigest(), me(), iso(now_utc())))
+                     created_at=excluded.created_at, paused_reason=NULL""",  # 2.1322.0 (#6560 4): resumed with this admin's rights
+                  (lid, hashlib.sha256(tok.encode()).hexdigest(), me(), iso(now_utc())))
         out["url"] = f"{PUBLIC_URL.rstrip('/')}/api/hooks/issues/{lid}/{tok}"  # the only time it is shown
         out["hook_url"], out["token"] = f"{PUBLIC_URL.rstrip('/')}/api/hooks/issues/{lid}", tok  # 2.138.4 C (#2381): token as a header
     bump(c)
