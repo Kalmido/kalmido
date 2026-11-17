@@ -68,6 +68,15 @@ check("timeout-minutes:" in job and "fetch-depth: 0" in job, "install-upgrade: a
 check('python3 tools/install_upgrade_check.py run --ref "$GITHUB_SHA"' in job,
       "install-upgrade calls the tool for the commit of the run")
 check("upload-artifact" in job and "upgrade-fixture" in job, "install-upgrade keeps the old database (the quarterly fixture) as an artifact")
+# 2.1336.0 (#6505): a run WITHOUT KALMIDO_VERSION (the one-liner of a stranger), and a pull that fell back to a local build is red
+check("python3 tools/install_upgrade_check.py latest " in job, "#6505: install-upgrade also runs install.sh without KALMIDO_VERSION")
+check(iuc.PULL_FAILED in read("install.sh") and iuc.PULL_FAILED in read("install.ps1"), "#6505: the tool looks for the warning the installers print")
+for say_, red in (("echo ok", False), ("echo 'Note: %s: x could not be pulled.'" % iuc.PULL_FAILED, True), ("exit 3", True)):
+    try:
+        got = iuc.sh_install(["sh", "-c", say_], dict(os.environ))
+        check(not red and "ok" in got, f"#6505: sh_install of {say_!r} passes and keeps the output")
+    except SystemExit as e:
+        check(red, f"#6505: sh_install of {say_!r} is red ({e})")
 used = {}
 for name, ref in re.findall(r"uses: ([\w./-]+)@([0-9a-f]{40})", ci[:m.start()] if m else ci):
     used.setdefault(name, set()).add(ref)
