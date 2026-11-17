@@ -368,7 +368,9 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
   such a run is on, every change waits for an approval card** - also for an agent whose control level would let it act or
   that has none - and so does every chat message to someone other than the person who asked and the agent's owner
   (2.571.0: a person whose mention, assignment or comment lies in the same run gets a message only by card), a standing rule and every proposal route except a proposal for a job and a task
-  proposal (409 `approval_required`, as in [Control level](#control-level)). Every chat message, approval card and proposal of the
+  proposal (409 `approval_required`, as in [Control level](#control-level)). 2.1364.0 (#6297): the same for the free
+  texts of its own channel - a job for, a progress step to, or a job change of someone outside those two people, a working
+  mark with a text or title on a task, and a status text on the avatar wait for a card too. Every chat message, approval card and proposal of the
   run names the web sources it used under *From the web* (a proposal also as `web_sources: [{url, label}]`). The runs show
   the searches, pages and VAT checks; `GET /api/agents/usage` counts `web_searches` and `web_fetches`.
 - **The key**: stored encrypted, never returned, never written to a log. The app shows only "Saved" with *Replace* and
