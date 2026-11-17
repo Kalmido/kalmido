@@ -21,7 +21,7 @@ own project with the same name is reused) or one existing project you can edit. 
   gets a history line *imported from ...*; imports do not send one webhook per task.
 - The same import is available to scripts: `POST /api/v1/import/{source}` ([docs/API.md](API.md#import)).
 - People named in a file (assignees) are assigned only when the e-mail, user name or display name matches exactly one person who can see the target project (its owner or a member); otherwise the name goes into the notes as text.
-- **Leaving again** (2.142.0): *Settings > Data* also exports your projects as **Todoist CSV** (a ZIP with one file per project in Todoist's import format) or as **Markdown** checklists (one `.md` per project); projects with a lock are left out (the server cannot read them).
+- **Leaving again** (2.142.0): *Settings > Data* also exports your projects as **Todoist CSV** (a ZIP with one file per project in Todoist's import format) or as **Markdown** checklists (one `.md` per project); only the projects you own go in: projects shared with you and projects with a lock (the server cannot read them) are left out, and since 2.1324.0 the file *not included.txt* in the ZIP names each of them with the reason.
 
 | From | Export there | What comes along |
 |---|---|---|
