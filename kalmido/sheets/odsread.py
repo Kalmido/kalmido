@@ -471,8 +471,18 @@ def _take_cell(el, t, keep, need, full, work, cells_max, too_many):
             g.fmt_left_out += 1
     if c + rep > SH_COLS_MAX:
         g = t["grid"]
-        for ci in range(max(c, SH_COLS_MAX), min(c + rep, ODS_COLS_SEEN)):
-            g.cols_cut.add(ci)
+        lo, hi = max(c, SH_COLS_MAX), min(c + rep, ODS_COLS_SEEN)
+        # 2.1324.0 (#6709, review F1 of the second reader): no free per-column loop per cell any more. While the columns left out
+        # are one gapless block [SH_COLS_MAX, top) only what lies beyond top is added (a row like the one before costs nothing);
+        # otherwise the columns are added in one step. Every column added counts against ODS_WORK_MAX.
+        top = t.get("cut_top", SH_COLS_MAX)
+        block = len(g.cols_cut) == top - SH_COLS_MAX
+        if block and lo <= top:
+            lo = top
+        if hi > lo:
+            _spend(work, hi - lo)
+            g.cols_cut.update(range(lo, hi))
+            t["cut_top"] = max(top, hi)
     take = max(0, min(c + rep, SH_COLS_MAX) - c)
     if take:
         full[0] += take
