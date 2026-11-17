@@ -34,12 +34,14 @@ from ..core.objparts import part_kind  # 2.1093.0 (#5472): the core's trash run 
 from ..core.orgcrypt import OrgCryptError, oc_copy_file, oc_read_file, oc_send_file, oc_user_space, oc_write_file
 from ..core.serializers import unlink_files
 from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
+from ..core.omitted import Omitted  # 2.1324.0 (#6589): "not included.txt" of the export
 from ..core.errors import BadInput, BadKey, err_stored
 from ..tasks.attachments import file_ext, safe_name, send_stored
 from .pages import (WIKI_ZIP_FILES, WIKI_ZIP_FILE_MAX, wiki_clean_path, wiki_fit_paths, wiki_path_parts, wiki_frontmatter, wiki_insert, wiki_need,
                     wiki_set_links, wiki_space, wiki_space_key, wiki_space_sql)
 from ..docs.pagesize import PG_MAX, pg_of  # #5227: a picture's size from its header
 from .wikie2e import wke_mode, wke_page_mode  # 2.369.5 (#2517): pulled up from functions; 2.637.0 (#4745): wke_mode
+from .wkembed import WEM_LINK_RE, wem_find_file, wem_visible  # 2.1324.0 (#6589): the file store's files of the export
 
 WKA_LANG = threading.local()  # 2.177.0 (#2685): the language of the person a background import (wkimport.py) works for
 WKA_TOO_LARGE = N_("The archive is too large")
@@ -848,57 +850,162 @@ def _wka_save(c, pid, text, uid, ts):
 
 
 # ---- export ---------------------------------------------------------------------------------------------------------------
+# 2.1324.0 (#6589): nothing is left out silently -- what is not in the ZIP is named in "not included.txt" (core/omitted.py)
+WKA_NOT_GONE = N_("The stored file is missing or damaged")
+WKA_NOT_LOCKED = N_("Locked by the virus scanner or not checked yet")
+WKA_NOT_NOACCESS = N_("A linked file you cannot open, or no longer there")
+WKA_NOT_E2E = N_("A linked file in a locked folder (only readable in the browser)")
+WKA_NOT_SHEET = N_("A table: tables are not part of the knowledge export, the reference stays as text")
+WKA_NOT_ZIPFULL = N_("The ZIP would be too large with it")
+WKA_FS_LINK_RE = re.compile(r"(!?)\[([^\[\]\n]*)\]\(/api/files/nodes/(\d{1,15})/content(?:[?#][^\s()]*)?\)")
+
+
 def wka_export_zip(c, oid, uid):
     """GET /api/wiki/export (pages.wiki_export checked the space and its lock): every page as .md, its files under
     _attachments/<page path>/<name>, the links in the pages as [[_attachments/…]] (a re-import gives the same structure).
     Written into a temporary file (the files may be large), sent and gone. 2.674.0 (#4190): the limits of the files ZIP
     (files/bulk.py abm_too_big: count and size of the files, 413 before anything is written) and one of the two places of
-    the large exports (abm_slot, 429 when both are taken)."""
-    from ..files.bulk import abm_slot, abm_too_big
+    the large exports (abm_slot, 429 when both are taken). 2.1324.0 (#6589): files of the file store a page shows or links
+    (![..](/api/files/nodes/<id>/content), [[datei:…]]) come along under _attachments/<page>/ when the exporting person may
+    open them (wkembed.wem_visible: the file store's rights, same space; not in a locked folder, not locked by the virus
+    scanner), their links point at the copy; tables, files one may not open and everything else left out are named with
+    their reason in "not included.txt" (a file one may not open only by the reference as the page writes it, never its name)."""
+    from ..files.bulk import abm_readable, abm_slot, abm_too_big
+    from ..files.fslock import fsl_map
+    from ..files.store import fs_log_add, fs_read
     w, a = wiki_space_sql(oid, uid)
     pw = w.replace(" AND ", " AND p.")
     pages = c.execute(f"SELECT id, org_id, owner_id, path, body FROM wiki_pages WHERE deleted_at IS NULL AND {w} ORDER BY path", a).fetchall()
     zpath, used = {}, {}
     rows = c.execute(f"SELECT f.id, f.page_id, f.name, f.path, f.size, p.path AS ppath FROM wiki_files f JOIN wiki_pages p ON p.id=f.page_id "
                      f"WHERE f.deleted_at IS NULL AND p.deleted_at IS NULL AND p.{pw} ORDER BY f.page_id, f.id", a).fetchall()
-    for r in rows:
-        stem, dot, ext = r["name"].rpartition(".") if "." in r["name"].strip(".") else (r["name"], "", "")
-        n, name = 1, r["name"]
-        while f"{r['page_id']}/{name.lower()}" in used:
+
+    def place(page_id, ppath, name):
+        stem, dot, ext = name.rpartition(".") if "." in name.strip(".") else (name, "", "")
+        n, nm = 1, name
+        while f"{page_id}/{nm.lower()}" in used:
             n += 1
-            name = f"{stem} ({n}){dot}{ext}"
-        used[f"{r['page_id']}/{name.lower()}"] = 1
-        zpath[r["id"]] = (f"_attachments/{r['ppath']}/{name}", r)
-    msg = abm_too_big(len(zpath), sum(int(r["size"] or 0) for r in rows))  # 2.674.0 (#4190)
+            nm = f"{stem} ({n}){dot}{ext}"
+        used[f"{page_id}/{nm.lower()}"] = 1
+        return f"_attachments/{ppath}/{nm}"
+    for r in rows:
+        zpath[r["id"]] = (place(r["page_id"], r["ppath"], r["name"]), r)
+    count, size = len(zpath), sum(int(r["size"] or 0) for r in rows)
+    msg = abm_too_big(count, size)  # 2.674.0 (#4190)
     if msg:
         raise Denied(413, msg)
+    from .wkhist import wsb_body_or
+    texts, not_in = [], Omitted()  # texts: (page row, open text); not_in: what is left out (name, reason)
+    for r in pages:
+        text = wsb_body_or(c, r, None)  # 2.126.2 B (#2358): an unreadable page is left out, never its ciphertext
+        if text is None:
+            not_in.add(r["path"] + ".md", WKA_LOST)
+        else:
+            texts.append((r, text or ""))
+    # 2.1324.0 (#6589): the file store's files the pages show / link -> fsz[node id] = (path in the ZIP, node row)
+    fsz, refused, cand = {}, set(), []
+    for r, text in texts:
+        for m in WKA_FS_LINK_RE.finditer(text):
+            cand.append((r, int(m.group(3)), f"/api/files/nodes/{m.group(3)}/content"))
+        for m in WEM_LINK_RE.finditer(text):
+            if m.group(1).lower() == "tabelle":
+                not_in.add(f"{r['path']}: {m.group(0)}", WKA_NOT_SHEET)
+            else:
+                cand.append((r, wem_find_file(c, r, m.group(2)), m.group(0)))
+    locked = fsl_map(c, sorted({nid for _, nid, _ in cand if nid and nid < 2 ** 62}))
+    for r, nid, ref in cand:
+        if nid in fsz or (nid and nid in refused):  # named once
+            continue
+        why = None
+        if not nid or nid >= 2 ** 62 or not wem_visible(c, uid, nid, r):
+            why = WKA_NOT_NOACCESS
+        elif nid in locked:
+            why = WKA_NOT_E2E
+        if why:
+            refused.add(nid)
+            not_in.add(f"{r['path']}: {ref}", why)  # the reference as the page writes it: no name of a hidden file
+            continue
+        n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
+        if not n["cur_version"] or not abm_readable(c, n):
+            refused.add(nid)
+            not_in.add(f"{r['path']}: {n['name']}", WKA_NOT_LOCKED)
+            continue
+        if abm_too_big(count + 1, size + int(n["size"] or 0)):
+            refused.add(nid)
+            not_in.add(f"{r['path']}: {n['name']}", WKA_NOT_ZIPFULL)
+            continue
+        count, size = count + 1, size + int(n["size"] or 0)
+        fsz[nid] = (place(r["id"], r["path"], wka_name(n["name"]) or f"file-{nid}"), n)
+    written = set()  # ("w" | "f", id) of the files that went into the ZIP
+
+    def link(p, name, bang, lb):
+        if bang and name.lower().rsplit(".", 1)[-1] in ("png", "jpg", "jpeg", "gif", "webp", "svg"):
+            return f"![[{p}]]"
+        return f"[[{p}]]" if not lb or lb == name else f"[[{p}|{lb.replace('|', '/')}]]"
 
     def back(m):
         hit = zpath.get(int(m.group(3)))
-        if not hit:
+        if not hit or ("w", int(m.group(3))) not in written:
             return m.group(0)
         p, r = hit
-        if m.group(1) and r["name"].lower().rsplit(".", 1)[-1] in ("png", "jpg", "jpeg", "gif", "webp", "svg"):
-            return f"![[{p}]]"
-        lb = m.group(2)
-        return f"[[{p}]]" if not lb or lb == r["name"] else f"[[{p}|{lb.replace('|', '/')}]]"
-    from .wkhist import wsb_body_or
+        return link(p, r["name"], m.group(1), m.group(2))
+
+    def back_fs(m):
+        nid = int(m.group(3))
+        if ("f", nid) not in written:
+            return m.group(0)
+        p, n = fsz[nid]
+        return link(p, n["name"], m.group(1), m.group(2))
+
+    def back_ref(page):
+        def sub(m):
+            if m.group(1).lower() != "datei":
+                return m.group(0)
+            nid = wem_find_file(c, page, m.group(2))
+            if ("f", nid) not in written:
+                return m.group(0)
+            lb = m.group(0)[2:-2].partition("|")[2].strip()
+            return link(fsz[nid][0], fsz[nid][1]["name"], False, lb)
+        return sub
     os.makedirs(WKA_TMP, mode=0o700, exist_ok=True)
     with abm_slot():  # 2.674.0 (#4190): Denied(429) before the temporary file when both places are taken
         fd, tmp = tempfile.mkstemp(prefix="export-", suffix=".zip", dir=WKA_TMP)
         try:
             with os.fdopen(fd, "wb") as out, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as z:
-                for r in pages:
-                    text = wsb_body_or(c, r, None)  # 2.126.2 B (#2358): an unreadable page is left out, never its ciphertext
-                    if text is not None:
-                        z.writestr(r["path"] + ".md", WKA_URL_RE.sub(back, text or ""))  # 2.123.0 A (#2105): opened
-                for p, r in zpath.values():
+                from ..files.scan import sc_guard
+                for fid, (p, r) in zpath.items():  # the files first: a link is turned into [[…]] only when its file is in the ZIP
                     try:
+                        sc_guard(c, "wiki", fid)  # 2.1324.0 (#6589): as the download (wka_get) -- a locked file stays out, named
                         data = oc_read_file(c, os.path.join(ATT_DIR, r["path"]))
-                    except OSError:
-                        continue  # a missing file (storage check reports it) does not stop the export
+                    except Denied:
+                        not_in.add(p, WKA_NOT_LOCKED)
+                        continue
+                    except (OSError, OrgCryptError):
+                        not_in.add(p, WKA_NOT_GONE)  # a missing file (storage check reports it) does not stop the export
+                        continue
                     z.writestr(p, data, compress_type=zipfile.ZIP_DEFLATED if p.lower().endswith(".svg") else zipfile.ZIP_STORED)
+                    written.add(("w", fid))
+                for nid, (p, n) in fsz.items():
+                    try:
+                        data = fs_read(c, nid)
+                    except Denied:
+                        not_in.add(p, WKA_NOT_LOCKED)
+                        continue
+                    except (OSError, OrgCryptError):
+                        not_in.add(p, WKA_NOT_GONE)
+                        continue
+                    z.writestr(p, data, compress_type=zipfile.ZIP_STORED if (n["mime"] or "").startswith(("image/", "video/", "audio/"))
+                               and not p.lower().endswith(".svg") else zipfile.ZIP_DEFLATED)
+                    written.add(("f", nid))
+                    fs_log_add(c, nid, "download")  # the file store's access history, as its own ZIP (files_zip)
+                for r, text in texts:
+                    t = WKA_URL_RE.sub(back, text)  # 2.123.0 A (#2105): opened
+                    t = WEM_LINK_RE.sub(back_ref(r), WKA_FS_LINK_RE.sub(back_fs, t))
+                    z.writestr(r["path"] + ".md", t)
+                not_in.write(z, z.namelist())
             fh = open(tmp, "rb")
         finally:
             os.remove(tmp)  # the open handle keeps the bytes until the answer is sent
+    if fsz:
+        c.commit()  # the access history of the file store's files
     return send_file(fh, mimetype="application/zip", as_attachment=True, download_name="wiki.zip")
