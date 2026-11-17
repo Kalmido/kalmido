@@ -247,6 +247,18 @@ def reminder_claims(s, who):
     led = s.get(B + BK + f"/ledger?year={Y}&journal=1").json()
     fr = [x for x in led.get("journal", []) if x["src"] == "fee"]
     check(sum((Decimal(x["amount"]) for x in fr), Decimal(0)) == claim, f"{who}: ledger: the paid claim as other income {fr}")
+    # 2.1352.0 (#6599): the DATEV batch has the paid claim, too (was missing: ledger and batch differed by it), on the day
+    # it was marked paid, without VAT key, clearing account 1590 against the fee income 2700 (SKR03) as the ledger
+    check(s.put(B + OF + "/settings", json={"datev_extf": {"advisor_no": "1234567", "client_no": "12345", "fy_start": 1, "acct_len": 4,
+                                                             "chart": "SKR03"}}).ok, f"{who}: DATEV numbers set")
+    r = s.get(B + OF + f"/datev/extf?from={TODAY}&to={TODAY}&in=0")
+    num = s.get(B + f"{D}/{rm}").json().get("number") or ""
+    rows = [ln.split(";") for ln in r.content.decode("cp1252").splitlines() if f'"Mahnforderung {num}' in ln] if r.ok and num else []
+    amt = format(claim, "f").replace(".", ",")
+    check(len(rows) == 1 and rows[0][0] == amt and rows[0][1] == '"S"' and rows[0][6] == "1590" and rows[0][7] == "2700"
+          and rows[0][8] in ("", '""'), f"{who}: DATEV batch: the paid claim {amt} once, 1590 against 2700, no VAT key {r.status_code} {rows}")
+    led_fee = [x for x in fr if x.get("debit") == "1590" and x.get("credit") == "2700"] if fr and "debit" in fr[0] else fr
+    check(len(led_fee) == len(fr), f"{who}: ledger and DATEV batch book the claim alike {fr}")
     # #6459: the amount is stored when marked paid; a mark of before 2.1259 (nothing stored) keeps its fee alone
     st_amt = dbxm.q(DATA, "SELECT reminder_fee_paid_amount FROM office_docs WHERE id=?", (rm,))[0][0]
     check(st_amt is not None and Decimal(str(st_amt)) == claim, f"{who}: the paid amount is stored on the reminder {st_amt} {claim}")

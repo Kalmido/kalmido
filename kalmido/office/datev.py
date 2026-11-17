@@ -411,6 +411,16 @@ def dx_rows(c, oid, d_from, d_to, s=None, inside=True, hints_out=None):
                     "Belegdatum": _ddmm(r["p_date"]), "Belegfeld 1": dx_beleg(r["number"]),
                     "Buchungstext": ("Zahlung " + (r["number"] or "") + " " + name).strip()[:60], "Festschreibung": "0",
                     "_date": r["p_date"], "_kind": "payment", "_pay": r["p_id"]})  # 2.685.0 (#5128): _pay = the payment (the ledger's bank account)
+    # 2.1352.0 (#6599): a paid reminder claim (fee + default interest + flat fee, books.bk_fees_paid) on the day it was marked
+    # paid, without VAT (damages): the clearing account against the fee income -- the same booking as the ledger's
+    from .books import bk_fees_paid
+    from .ledger_dbl import ld_acct
+    for f in bk_fees_paid(c, oid, d_from, d_to, home):
+        out.append({"Umsatz (ohne Soll/Haben-Kz)": _amt(f["amount"]), "Soll/Haben-Kennzeichen": "S", "WKZ Umsatz": home,
+                    "Konto": ld_acct(st, "clearing"), "Gegenkonto (ohne BU-Schlüssel)": ld_acct(st, "fee_in"), "BU-Schlüssel": "",
+                    "Belegdatum": _ddmm(f["date"]), "Belegfeld 1": dx_beleg(f["number"] or f"M{f['doc_id']}"),
+                    "Buchungstext": ("Mahnforderung " + (f["number"] or "")).strip()[:60], "Festschreibung": "0",
+                    "_date": f["date"], "_kind": "fee"})
     if outside and hints_out is not None:
         hints_out.append({"key": "pay_outside", "count": outside, "text": tr(DX_PAY_OUTSIDE_1) if outside == 1 else tr(DX_PAY_OUTSIDE, outside)})
     if inside:  # 2.120.0 C (#2090): receipts and travel expenses in the same batch (office/datevin.py)
