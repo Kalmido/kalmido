@@ -1298,6 +1298,15 @@ a new kind. One way per table: a second registration is refused, `tools/check_ex
   given both ways.
 - Not in the register: the parts of a kind's own table that join a core table only for their columns (`playbooks`: rows of
   `obj_versions` on the Playbook's head, read as the area's part).
+- 2.1334.0 (#6585): the check holds every **kind** too, not only the table. `CORE_KINDS` in `tools/check_export_tables.py` names
+  each cross-cutting table's kind column and the constant of the core that lists its kinds (`OCM_KINDS`, `ORX_KINDS`, `OFL_KINDS`,
+  `OSN_KINDS`, `NCAP_KINDS`, `OTG_SCOPES`, `OTG_KINDS`, `OBJV_KINDS`, `OLNK_AREA_RELS`; `obj_links`: every other relation is a free
+  link); each kind needs a query in the organisation export and one in the account export that takes it (a `kind='x'` / `IN (...)`
+  / `NOT IN {AREA_RELS}` / no condition on the column), or a reason in `KIND_LEFT`. A new kind = name it in the constant (the
+  core's helper refuses an unknown one), then export it or give the reason. `KIND_WHOLE` names the core tables whose rows go as a
+  whole (history, undo, search). `obj_history`'s organisation file follows the objects the archive carries
+  (`admin/orgexport.py ox_history_where`); what no import takes over stands in the manifests' `not_imported`. Every table
+  (not only those with an organisation column) is in the organisation export or `OX_LEFT` (#6359).
 
 ## Filter (2.846.0, #5520)
 
