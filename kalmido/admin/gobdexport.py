@@ -56,6 +56,7 @@ from ..office.ledger import ofx_company, ofx_log
 from ..office.gdpdudtd import GX_DTD, GX_DTD_NAME
 from ..office.meals import bw_path
 from ..office.pdfweb import _stored, epdf_name
+from ..office.pdfweb import epdf_ubl_sent  # 2.1321.0 (#6480)
 from ..office.rights import ofr_log_rows
 from ..office.datev import dx_rows  # 2.369.5 (#2517): pulled up from functions
 from ..office.docs import odoc_imported  # 2.1289.0 (#6481 U4)
@@ -222,6 +223,29 @@ def _doc_files(c, oid, r, fl, folder):
             ofx_log(c, oid, "store_mismatch", doc_id=r["id"], detail={"file": ext, "sha256": want, "found": sha, "at": "gobd export"})
         out += [name, sha]
     return out
+
+
+def _ubl_files(c, oid, r, fl, folder):
+    """2.1321.0 (#6480): the UBL of each Peppol send of document r that went out, byte for byte as it was sent, into
+    belege/<folder>/ -> [names, SHA-256s] (each joined by a space; '' when none or in the check)."""
+    if fl is None:
+        return ["", ""]
+    names, shas = [], []
+    label = r["number"] or f"ID {r['id']}"
+    for sid, p, want in epdf_ubl_sent(c, oid, r):
+        try:
+            data = oc_read_file(c, p)
+        except Exception as e:  # noqa: BLE001 -- one unreadable file must not stop the export: named in hinweise.txt
+            print("gobd export: Peppol UBL of document", r["id"], "not readable:", type(e).__name__, flush=True)
+            fl.notes.append(f"{label}: Peppol-UBL-Datei (Versand {sid}) nicht lesbar")
+            continue
+        name, sha = fl.put(f"belege/{folder}/{int(r['id'])}-{_safe_part(epdf_name(r), 100)}.peppol-{sid}.xml", data)
+        if want and want != sha:
+            fl.notes.append(f"{name}: Pruefsumme weicht von der beim Versand notierten ab ({want})")
+            ofx_log(c, oid, "store_mismatch", doc_id=r["id"], detail={"file": "ubl", "send": sid, "sha256": want, "found": sha, "at": "gobd export"})
+        names.append(name)
+        shas.append(sha)
+    return [" ".join(names), " ".join(shas)]
 
 
 def _fs_file(c, nid, name, fl):
@@ -481,7 +505,8 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
              [("ID", A), ("Art", A), ("Nummer", A), ("Datum", D), ("Kunde", A), ("Kundennummer", A), ("Netto", N), ("Steuer", N),
               ("Brutto", N), ("Waehrung", A), ("Status", A), ("Festgeschrieben", D), ("Storno_von", A),
               ("Importiert_am", D), ("Importiert_von", A),  # 2.1289.0 (#6481 U4): taken from a file by the organisation import
-              ("Kennzeichen", A), ("PDF_Dateiname", A), ("PDF_SHA-256", A), ("XML_Dateiname", A), ("XML_SHA-256", A)])
+              ("Kennzeichen", A), ("PDF_Dateiname", A), ("PDF_SHA-256", A), ("XML_Dateiname", A), ("XML_SHA-256", A),
+              ("Peppol_UBL_Dateiname", A), ("Peppol_UBL_SHA-256", A)])  # 2.1321.0 (#6480): the e-invoice as sent over Peppol
     out.append(t)
     imp = odoc_imported(c, oid, None) if docs and files else {}
     gone_docs = set()
@@ -495,7 +520,7 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
         im = imp.get(r["id"]) or {}
         t.add(r["id"], r["kind"], r["number"], r["date"], r["cl_name"] or "", r["cl_no"] or "", tt.get("net"), tt.get("tax_total"),
               tt.get("gross"), r["currency"], r["status"], r["locked_at"], r["cancels_id"] or "", im.get("at") or "", im.get("by") or "",
-              _flag(dict(r)), *_doc_files(c, oid, r, fl, "rechnungen"))
+              _flag(dict(r)), *_doc_files(c, oid, r, fl, "rechnungen"), *_ubl_files(c, oid, r, fl, "rechnungen"))
 
     t = _T("positions.csv", "Positionen", "Positionen der Rechnungen und Rechnungskorrekturen",
              [("ID", A), ("Rechnung_ID", A), ("Bezeichnung", A), ("Menge", N), ("Einheit", A), ("Einzelpreis", N), ("Steuersatz", N),

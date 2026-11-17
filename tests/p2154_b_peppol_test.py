@@ -14,10 +14,14 @@
  - own endpoint (organisation Beta): send -> sent, refresh -> rejected with the provider's message, without "again" 409, with
    again a new send; a provider failure (500) -> 502, the send recorded as error with the text
  - the organisation boundary (tenant-matrix: office): Beta does not see / send Alpha's document (404), an agent token gets 403
+ - 2.1321.0 (#6480): the UBL sent is stored byte for byte: /ubl answers it after a client change and after a cancellation,
+   the auditor export (GoBD) carries it with its SHA-256
  - a person without an organisation (freelancer-matrix: office) sets up the connection in the personal office and sends
 usage: p2154_b_peppol_test.py <datadir>      (P2154B_NOSTART=1 = the server already runs, with the stub on port 8098)"""
 import base64
+import hashlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -25,6 +29,7 @@ import subprocess
 import sys
 import threading
 import time
+import zipfile
 
 import requests
 
@@ -309,6 +314,35 @@ check(r.status_code == 201 and Ca.post(B + f"{D}/{r.json()['id']}/finalize").ok,
 check(Ca.get(B + f"{D}/{D4}").json().get("status") == "cancelled", "the invoice is cancelled")
 check(any(m["key"] == "kind" for m in view(Ca, D4).json()["missing"]), "cancelled: not sendable")
 check(Ca.post(B + f"{D}/{D4}/peppol", json={}).status_code == 409 and Ca.get(B + f"{D}/{D4}/ubl").status_code == 409, "cancelled: send 409, UBL 409")
+# 2.1321.0 (#6480): the UBL that went out is kept byte for byte: /ubl answers it (also after the client changed and after a
+# cancellation), its SHA-256 is the send's, the auditor export carries it in belege/ (invoices.csv Peppol_UBL_*)
+D5 = invoice(Ca, CL2)
+n5 = len(stub_log())
+check(Ca.post(B + f"{D}/{D5}/peppol", json={}).status_code == 201, "#6480: (setup) sent")
+post = [x for x in stub_log()[n5:] if x["path"] == "/own/documents"]
+sent = base64.b64decode(post[-1]["body"]) if post else b""
+check(sent and Ca.patch(B + f"/api/clients/{CL2}", json={"peppol_id": "9930:DE123456789"}).ok, "#6480: (setup) the client's Peppol id changes after sending")
+r = Ca.get(B + f"{D}/{D5}/ubl")
+check(r.ok and r.content == sent, f"#6480: /ubl is the UBL that went out, byte for byte (not built anew with the new id) {r.status_code}")
+check(dbx("SELECT xml_sha256 FROM office_peppol_sends WHERE doc_id=? ORDER BY id DESC LIMIT 1", (D5,))[0][0] == hashlib.sha256(sent).hexdigest(),
+      "#6480: its SHA-256 is the send's xml_sha256")
+r = Ca.post(B + f"{D}/{D5}/credit")
+check(r.status_code == 201 and Ca.post(B + f"{D}/{r.json()['id']}/finalize").ok and Ca.get(B + f"{D}/{D5}").json().get("status") == "cancelled",
+      f"#6480: (setup) the sent invoice is cancelled: {r.text[:200]}")
+r = Ca.get(B + f"{D}/{D5}/ubl")
+check(r.ok and r.content == sent, f"#6480: a cancelled invoice that went over Peppol still answers its sent UBL {r.status_code} {r.text[:200]}")
+check(Ca.get(B + f"{D}/{D4}/ubl").status_code == 409, "#6480: a cancelled invoice never sent stays 409")
+r = Ca.get(B + O + f"/gobd/export?from={time.strftime('%Y-01-01')}&to={time.strftime('%Y-%m-%d')}")
+if r.ok:
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    ubl_names = [n for n in z.namelist() if n.startswith("belege/rechnungen/") and n.endswith(".peppol-%d.xml" % dbx(
+        "SELECT id FROM office_peppol_sends WHERE doc_id=? ORDER BY id DESC LIMIT 1", (D5,))[0][0])]
+    hdr = z.read("invoices.csv").decode("utf-8")
+    check(ubl_names and z.read(ubl_names[0]) == sent and ubl_names[0] in hdr and hashlib.sha256(sent).hexdigest() in hdr,
+          f"#6480: the auditor export carries the sent UBL with name and SHA-256 in invoices.csv {ubl_names}")
+else:
+    check(False, f"#6480: the auditor export {r.status_code} {r.text[:200]}")
+Ca.patch(B + f"/api/clients/{CL2}", json={"peppol_id": BE_ID})
 
 # ---------------------------------------------------------------- a person without an organisation (freelancer-matrix: office)
 FID, Fr = freelancer(B, A)

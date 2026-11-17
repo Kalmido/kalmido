@@ -390,6 +390,17 @@ def _a_signoff(c, run, src, nid, ctx):
             ("office_docs", new_doc), ("office_signoffs", nid))  # 2.516.0 (#4364)
 
 
+def _a_peppol_send(c, run, src, nid, ctx):
+    """2.1321.0 (#6480): the UBL a Peppol send carried (stored at sending, byte for byte) under the new document and send."""
+    dsrc = next((x for x in (ctx.data.get("oi") or {}).get("office/documents.json") or [] if x.get("id") == src.get("doc_id")), None)
+    new_doc = run.m("office_docs", src.get("doc_id"))
+    if not dsrc or not new_doc or not isinstance(src.get("id"), int) or not src.get("xml_sha256"):
+        return
+    _oi_own(ctx, _oi_put(ctx, f"doc{int(dsrc['id'])}-{epdf_name(dsrc)}.peppol-{int(src['id'])}.xml",
+                         f"doc{int(new_doc)}-{epdf_name({**dsrc, 'id': new_doc})}.peppol-{int(nid)}.xml", mime="application/xml"),
+            ("office_docs", new_doc), ("office_peppol_sends", nid))
+
+
 def _p_meal_file(c, run, src, d, ctx):
     d["file"] = ""
     m = re.fullmatch(r"meal\d{1,12}-[0-9a-f]{16}(\.[a-z]{2,4})", str(src.get("file") or ""))
@@ -809,7 +820,7 @@ SPECS = [
     OiT("office/dunning_marks.json", "office_dunning_marks", refs={"doc_id": "office_docs", "reminder_id": "office_docs"}, need=("doc_id",),
         private="office"),  # 2.147.1 (#2054, review): a suggested reminder deleted by hand stays not suggested after an import
     OiT("office/peppol_sends.json", "office_peppol_sends", refs={"doc_id": "office_docs"}, need=("doc_id",), people=_P,
-        private="office"),  # 2.154.0 B (#1960): the history of sends over Peppol (the connection itself is set up again)
+        private="office", after=_a_peppol_send),  # 2.154.0 B (#1960): the history of sends over Peppol (the connection itself is set up again)
     OiT("office/cashflow_start.json", "office_cf_start", people={"updated_by": "null"}, private="office", rid=False, key=("org_id",),
         prep=_p_cf_start),  # 2.1067.0 (#5789): + its id (= the target's org_id)
     OiT("office/cashflow_adjust.json", "office_cf_adjust", people=_P, private="office"),
