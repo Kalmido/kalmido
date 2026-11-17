@@ -1,6 +1,28 @@
 {
  "versions": [
   {
+   "version": "2.1339.0",
+   "date": "2026-11-17",
+   "items": [
+    {
+     "de": "Angebote und Rechnungen: Betreff und alle mehrzeiligen Felder zeigen ihren ganzen Text und wachsen mit, das Label steht darüber.",
+     "en": "Quotations and invoices: the subject and all multi-line fields show their whole text and grow with it, the label stands above."
+    },
+    {
+     "de": "Agenten fragen mit einer Karte, bevor sie in ein Projekt mit weiterem Personenkreis oder öffentlichem Link schreiben.",
+     "en": "Agents ask with a card before they write into a project with a wider circle of people or a public link."
+    },
+    {
+     "de": "Kleine Server: unter etwa 3 GB Arbeitsspeicher lässt der Installer den Virenscanner weg und zeigt das in Einstellungen > Server > Sicherung.",
+     "en": "Small servers: under about 3 GB of memory the installer leaves the virus scanner out and shows it in Settings > Server > Backup."
+    },
+    {
+     "de": "Scheitert der Webhook eines Dokument-Ablaufs dauerhaft, schaltet er sich ab; der letzte Fehler steht am Ablauf, und ein Knopf schaltet ihn wieder ein.",
+     "en": "A document flow's webhook that keeps failing switches itself off; the last error shows at the flow, and a button switches it on again."
+    }
+   ]
+  },
+  {
    "version": "2.1330.0",
    "date": "2026-11-17",
    "items": [
@@ -1267,28 +1289,6 @@
     {
      "de": "Auf der Agenten-Seite öffnet jede Auftrags-Karte mit „Chat öffnen“ direkt den Verlauf, auch bei beendeten Aufträgen.",
      "en": "On the agents page every job card opens its chat with \"Open chat\", also for ended jobs."
-    }
-   ]
-  },
-  {
-   "version": "2.782.0",
-   "date": "2026-11-09",
-   "items": [
-    {
-     "de": "Unter dem Ordnerbaum in Dateien filterst du alle Dokumente mit einem Klick nach Absender, Dokumenttyp, Tag, Archivnummer oder eigenem Feld, jeweils mit Anzahl.",
-     "en": "Below the folder tree in Files you filter all documents with one click by sender, document type, tag, archive number or custom field, each with its count."
-    },
-    {
-     "de": "Dokumente haben einen eigenen Titel ohne „.pdf“, der Dateiname bleibt getrennt änderbar.",
-     "en": "Documents have their own title without \".pdf\", the file name stays editable apart."
-    },
-    {
-     "de": "Meine Aufgaben, Heute und Sammelansichten haben Spaltenköpfe zum Sortieren und eine Spalte Projekt.",
-     "en": "My tasks, Today and collected views have column titles for sorting and a column Project."
-    },
-    {
-     "de": "Rückgängig zeigt jetzt „Letzte Schritte“ von allen deinen Geräten - lange auf den Pfeil drücken oder im Konto-Menü öffnen.",
-     "en": "Undo now shows \"Recent steps\" from all your devices - long-press the arrow or open it from the account menu."
     }
    ]
   }
