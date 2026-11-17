@@ -63,7 +63,8 @@ execFileSync('docker', ['exec', '-d', CT, 'python', '/data/fake_newsletter.py'])
   d.querySelector('[data-nwl="connect"]').click();
   const od = await until(() => d.querySelector('.nwl-set [data-nwl="open-dlg"]'));
   const sbody = () => d.querySelector('.nwl-set .nwl-body');
-  check(/listmonk/.test(sbody()?.textContent || '') && /…1234/.test(sbody()?.textContent || '') && !sbody().innerHTML.includes(TOKEN), 'connected: the service and the hint, never the token');
+  // 2.1329.0 (#6850): since 2.1322.0 (#6560 7) no last four characters of the token are kept or shown - only "Access data set"
+  check(/listmonk/.test(sbody()?.textContent || '') && /Access data set/.test(sbody()?.textContent || '') && !/…1234/.test(sbody()?.textContent || '') && !sbody().innerHTML.includes(TOKEN), 'connected: the service and "access data set", never (a part of) the token');
   check(!!d.querySelector('.nwl-set [data-nwlc="auto"]') && !d.querySelector('.nwl-set [data-nwl="seg-new"]'), 'the settings: daily sync there, the segments not');
   od?.click();
   await until(() => d.querySelector('.modal.nwl-md [data-nwl="seg-new"]'));
