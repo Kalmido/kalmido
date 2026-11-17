@@ -31,7 +31,7 @@ from .model import pb_personal  # 2.747.0 (#5246)
 from .model import ofx_release  # 2.1309.0 (#6467)
 from .okern import ofk_purge, ofk_register, ofk_trash  # 2.1004.0 (#5494)
 from .rights import NO_RIGHT, ofr_admin_or, ofr_allows
-from ..accounts.orgroles import OFFICE_READ
+from ..accounts.orgroles import OFFICE_READ, office_allowed
 from ..accounts.orgs import user_orgs
 from ..accounts.session import _accept_lang, me, _rate_blocked, _rate_fail, _token_hash, rate_ip
 from ..accounts.login import auth_key, seal, unseal
@@ -244,7 +244,6 @@ def sig_public(c, r, full=True, url=True):
 def sig_may_edit(c, uid, oid, area="offers"):
     """2.1340.0 (#6613): may uid change the documents of office area oid's area (quotations: offers, generated documents:
     gendocs)? Not for the read-only / accounting roles (orgroles.office_allowed), office groups need 'edit' in the area."""
-    from ..accounts.orgroles import office_allowed
     if not uid or office_allowed(c, uid, oid, write=True) is not None:
         return False
     return ofr_allows(c, uid, oid, area, "edit")
