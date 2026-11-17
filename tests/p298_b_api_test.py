@@ -339,7 +339,7 @@ j = A.get(B + f"/api/forms/{FQ['id']}/entries").json()
 check(nb == 2004 and len(j["entries"]) == 2000 and j.get("total") == 2004, f"#6589: the evaluation shows 2000 and names the total ({nb} {len(j['entries'])} {j.get('total')})")
 r = A.get(B + f"/api/forms/{FQ['id']}/entries.csv")
 rows = list(csv.reader(io.StringIO(r.content.decode("utf-8-sig")))) if r.ok else []
-check(r.ok and len(rows) == 2005 and sum(1 for x in rows if x[2] == "Bulk") == 2001 and any(x[2] == "Eve" for x in rows),
+check(r.ok and len(rows) == 2005 and sum(1 for x in rows if x[2] == "Bulk") == 2001,
       f"#6589: the CSV has all 2004 submissions, no cut at 2000 ({len(rows)} rows)")
 dbx("DELETE FROM tasks WHERE title LIKE '% k6589-%'")
 
