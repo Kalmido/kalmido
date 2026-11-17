@@ -4,7 +4,7 @@
 // editor (click on the number). Own save via /api/office/number-ranges (not the settings' save, hence the ids
 // without "os-" and data-fg-skip); only upwards, a jump in the invoice / credit note series needs a reason (office log).
 // 2.855.0 (#5456): one form - every field with its hint right below it, one "Apply" at the end saves all changed rows.
-const ONUM = {ranges: null, loading: false, err: '', doc: null, busy: false};
+const ONUM = {ranges: null, extra: [], loading: false, err: '', doc: null, busy: false};
 const ONUM_NAMES = {offer: N_('Quotation numbers'), invoice: N_('Invoice numbers'), credit: N_('Credit note numbers'), reminder: N_('Payment reminder numbers'), delivery: N_('Delivery note numbers')};
 const ONUM_SCHEME_IDS = {offer: 'os-scheme', invoice: 'os-inv-scheme', credit: 'os-cr-scheme', reminder: 'os-rm-scheme', delivery: 'os-ls-scheme'};
 
@@ -20,8 +20,8 @@ function onumFmt(scheme, seq) {
 async function onumLoad() {
   if (ONUM.loading) return;
   ONUM.loading = true;
-  try { const j = await api('GET', '/api/office/number-ranges'); ONUM.ranges = j.ranges || []; ONUM.err = ''; }
-  catch (x) { ONUM.ranges = []; ONUM.err = ofcErrHere(x); }
+  try { const j = await api('GET', '/api/office/number-ranges'); ONUM.ranges = j.ranges || []; ONUM.extra = j.extra || []; ONUM.err = ''; onumInfoRanges(); }
+  catch (x) { ONUM.ranges = []; ONUM.extra = []; ONUM.err = ofcErrHere(x); }
   ONUM.loading = false;
   onumRedraw();
 }
@@ -36,27 +36,27 @@ function onumHtml() {
   const sig = [OFC.info?.org_id, s.offer_counter || 'org', s.credit_shared ? 1 : 0, ...Object.keys(ONUM_NAMES).map(sch)].join('|');  // 2.433.0 (#3597): + the shared counter
   if (ONUM.sig !== sig) { ONUM.sig = sig; ONUM.ranges = null; }  // another office area / a saved scheme: read again
   if (!ONUM.ranges) { if (!ONUM.loading) setTimeout(onumLoad, 0); return `<div id="onum-box" class="onum" data-fg-skip></div>`; }
-  const rows = ONUM.ranges.map(r => {
+  const rows = onumRows().map(r => {
     // 2.433.0 (#3597): invoice corrections on the invoices' counter - the row greyed, the next number set with the invoices
     if (r.shared) return `<div class="row onumrow onumshared" data-kind="${r.kind}"><label for="onum-${r.kind}">${esc(tr(ONUM_NAMES[r.kind]))}</label>
       <span class="lacts"><input id="onum-${r.kind}" type="text" value="${esc(String(r.next))}" class="numin" disabled aria-describedby="onum-${r.kind}-h"><span class="muted ofcpv">${esc(tr('next: {0}', onumFmt(r.scheme, r.next)))}</span></span>
       <span class="muted ofchint" id="onum-${r.kind}-h">${esc(tr('Counts with the invoice numbers'))}</span></div>`;
     const id = 'onum-' + r.kind, v = ONUM['v' + r.kind] ?? String(r.next), n = parseInt(v, 10), jump = n > r.min_next;
     const pv = n >= 1 ? tr('next: {0}', onumFmt(r.scheme, n)) : '';
-    const hint = [tr('at least {0}', r.min_next), r.yearly ? tr('applies to {0}', r.period) : ''].filter(Boolean).join(' · ');
-    return `<div class="row onumrow" data-kind="${r.kind}"><label for="${id}">${esc(tr(ONUM_NAMES[r.kind]))}</label>
+    const hint = [tr('at least {0}', r.min_next), r.yearly ? tr('applies to {0}', r.period) : '', ...onumExtraHint(r)].filter(Boolean).join(' · ');
+    return `<div class="row onumrow${r.code ? ' onumextra' : ''}" data-kind="${r.kind}"><label for="${id}">${esc(onumName(r))}</label>
       <span class="lacts"><input id="${id}" data-onum-in="${r.kind}" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(v)}" class="numin" aria-describedby="${id}-h">
       <span class="muted ofcpv" id="${id}-pv" aria-live="polite">${esc(pv)}</span>
       <span class="muted ofchint onumh" id="${id}-h">${esc(hint)}</span></span>
       ${/*html-ok*/ onumGapsHtml(r) /* 2.1315.0 (#6472): escaped inside */}
       ${r.reason_needed && jump ? `<span class="lacts onumwhy"><input id="${id}-why" data-onum-why="${r.kind}" value="${esc(ONUM['w' + r.kind] || '')}" maxlength="300" placeholder="${esc(tr('Reason for the jump (kept in the office log)'))}" aria-label="${esc(tr('Reason'))}"></span>` : ''}
-      ${ONUM['e' + r.kind] ? `<span class="ofcpv err ofchint" role="alert">${esc(ONUM['e' + r.kind])}</span>` : ''}</div>`;
+      ${ONUM['e' + r.kind] ? `<span class="ofcpv err ofchint" role="alert">${esc(ONUM['e' + r.kind])}</span>` : ''}${/*html-ok*/ onumExtraActs(r) /* 2.1348.0 (#6698): escaped inside */}</div>`;
   }).join('');
   const dirty = onumDirty().length > 0;
   return `<div id="onum-box" class="onum" data-fg-skip><h4>${tr('Next running number')}</h4><div class="shint">${esc(tr('With a year in the scheme it applies to the current year.'))}</div>
     <p class="muted ofchint">${esc(tr('E.g. to continue your previous program. Only upwards.'))}</p>
     ${/*html-ok*/ ONUM.err ? errorState({sub: ONUM.err, size: 'row'}) /* 2.1076.0 (#5450) */ : ''}${rows}
-    ${ONUM.ranges.some(r => !r.shared) ? `<div class="row onumfoot"><span class="lacts"><button type="button" class="btn sm pri" data-onum="apply" ${dirty && !ONUM.busy ? '' : 'disabled'}>${tr('Apply')}</button></span></div>` : ''}</div>`;
+    ${ONUM.ranges.some(r => !r.shared) ? `<div class="row onumfoot"><span class="lacts"><button type="button" class="btn sm" data-onum="nr-add">${ic('plus', 's')}<span>${tr('Add number range')}</span></button><button type="button" class="btn sm pri" data-onum="apply" ${dirty && !ONUM.busy ? '' : 'disabled'}>${tr('Apply')}</button></span></div>` : ''}</div>`;
 }
 // 2.1315.0 (#6472): the gaps of the series (the same check as the auditor's export, number_ranges.csv) - each range with its reason
 function onumGapsHtml(r) {
@@ -66,7 +66,7 @@ function onumGapsHtml(r) {
   return `<span class="muted ofchint onumgaps${g.none ? ' warn' : ''}" id="onum-${esc(r.kind)}-gaps">${esc(tr('Missing numbers: {0}', g.count))}${g.none ? ' (' + esc(tr('{0} without a reason', g.none)) + ')' : ''} - ${esc(list)}</span>`;
 }
 // 2.855.0 (#5456): the rows whose field differs from the stored next number (shared rows have no own counter)
-const onumDirty = () => (ONUM.ranges || []).filter(r => !r.shared && ONUM['v' + r.kind] != null && ONUM['v' + r.kind].trim() !== String(r.next));
+const onumDirty = () => onumRows().filter(r => !r.shared && ONUM['v' + r.kind] != null && ONUM['v' + r.kind].trim() !== String(r.next));
 
 // 2.855.0 (#5456): one "Apply" for all changed rows: one question naming every jump, then each row through its own route
 // (POST /api/office/number-ranges/<kind>); a row the server refuses keeps its value and says why at its field (no toast),
@@ -77,7 +77,7 @@ async function onumApplyAll() {
   const bad = ch.filter(r => !(val(r) > r.next));
   for (const r of bad) ONUM['e' + r.kind] = tr('Only upwards: at least {0}', r.next + 1);
   if (bad.length) { onumRedraw(); $('#onum-' + bad[0].kind)?.focus(); return; }
-  const lines = ch.map(r => tr('{0}: continues at {1}, the numbers {2} to {3} are skipped.', tr(ONUM_NAMES[r.kind]), onumFmt(r.scheme, val(r)), r.next, val(r) - 1));
+  const lines = ch.map(r => tr('{0}: continues at {1}, the numbers {2} to {3} are skipped.', onumName(r), onumFmt(r.scheme, val(r)), r.next, val(r) - 1));
   const html = lines.map(l => `<p>${esc(l)}</p>`).join('') + `<p>${esc(tr('Skipped numbers cannot be given later.'))}</p>`;
   if (!await askConfirm(tr('Apply the new running numbers?'), '', {html, ok: tr('Apply')})) return;
   ONUM.busy = true; onumRedraw();
@@ -164,11 +164,14 @@ document.addEventListener('click', e => {
   else if (a === 'doc-open') onumDocOpen();
   else if (a === 'doc-save') onumDocSave();
   else if (a === 'doc-x') { ONUM.doc = null; ofdDraw(); }
+  else if (a === 'nr-add') nrDialog(null);  // 2.1348.0 (#6698)
+  else if (a === 'nr-edit') nrDialog(ONUM.extra.find(x => String(x.id) === b.dataset.id) || null);
+  else if (a === 'nr-del') nrDelete(ONUM.extra.find(x => String(x.id) === b.dataset.id));
 });
 document.addEventListener('input', e => {
   const t = /** @type {any} */ (e.target);
   if (t.dataset?.onumIn) {
-    const k = t.dataset.onumIn, r = (ONUM.ranges || []).find(x => x.kind === k); if (!r) return;
+    const k = t.dataset.onumIn, r = onumRows().find(x => x.kind === k); if (!r) return;
     ONUM['v' + k] = t.value; delete ONUM['e' + k];
     const n = parseInt(t.value, 10), row = t.closest('.onumrow');
     const pv = $('#onum-' + k + '-pv'); if (pv) pv.textContent = n >= 1 ? tr('next: {0}', onumFmt(r.scheme, n)) : '';
@@ -186,3 +189,46 @@ document.addEventListener('keydown', e => {
 }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && ONUM.doc && (/** @type {any} */ (e.target).id === 'onum-doc' || /** @type {any} */ (e.target).id === 'onum-doc-why')) { ONUM.doc = null; ofdDraw(); } });
 if (typeof OA_LOG_TG === 'object') OA_LOG_TG.number_range = N_('Number ranges');  // the office log names the target
+
+// ---- 2.1348.0 (#6698): additional number ranges (invoices and their corrections on a counter of their own, e.g. GT-{yyyy}-{seq:03}
+// with the corrections' ending -K). Admins add, change, close or remove them here (the settings page is theirs, ofcAdmin); the
+// next number of a range is set in the same form (POST /api/office/number-ranges/r<id>). The draft editor offers the open ranges
+// (office_docs.js ofd_rangeHtml, from OFC.info.num_ranges).
+const onumRows = () => [...(ONUM.ranges || []), ...(ONUM.extra || []).map(x => ({...x, kind: x.key}))];
+const onumName = r => r.code ? r.code + (r.name ? ' · ' + r.name : '') : tr(ONUM_NAMES[r.kind]);
+const onumExtraHint = r => !r.code ? [] : [tr('corrections: {0}', onumFmt(r.credit_scheme, r.next)), r.dunning ? tr('payment reminders on') : tr('no payment reminders'), r.closed ? tr('closed') : ''];
+function onumExtraActs(r) {
+  if (!r.code) return '';
+  return `<span class="lacts onumacts"><button type="button" class="btn sm" data-onum="nr-edit" data-id="${esc(String(r.id))}">${ic('edit', 's')}<span>${tr('Edit')}</span></button>`
+    + (r.used ? '' : `<button type="button" class="btn sm" data-onum="nr-del" data-id="${esc(String(r.id))}">${ic('trash', 's')}<span>${tr('Remove')}</span></button>`) + '</span>';
+}
+function onumInfoRanges() {  // the draft editor's choice follows a change here
+  if (typeof OFC === 'object' && OFC.info) OFC.info.num_ranges = (ONUM.extra || []).map(x => ({id: x.id, code: x.code, name: x.name, closed: x.closed}));
+}
+function nrDialog(r) {
+  let md0 = null;
+  const f = (id, label, html, hint) => `<div class="row"><label for="${esc(id)}">${esc(label)}</label>${/*html-ok*/ html}${hint ? `<span class="muted ofchint">${esc(hint)}</span>` : ''}</div>`;
+  const used = !!r?.used;
+  const html = (r ? '' : f('nr-code', tr('Short code'), `<input id="nr-code" maxlength="8" autocomplete="off" spellcheck="false" placeholder="GT">`, tr('1 to 8 letters A-Z or digits, cannot be changed later')))
+    + f('nr-name', tr('Name'), `<input id="nr-name" maxlength="80" value="${esc(r?.name || '')}">`)
+    + f('nr-scheme', tr('Scheme'), `<input id="nr-scheme" maxlength="80" autocomplete="off" spellcheck="false" value="${esc(r?.scheme || '')}" placeholder="GT-{yyyy}-{seq:03}">`,
+      tr('starts with a fixed text; building blocks {0}', '{yyyy} {yy} {seq} {seq:03}') + (used ? ' · ' + tr('a change applies from the next number on') : ''))
+    + f('nr-suffix', tr('Ending of corrections'), `<input id="nr-suffix" maxlength="8" value="${esc(r ? r.credit_suffix : '-K')}">`, tr('corrections count on the same counter'))
+    + `<label class="chk"><input type="checkbox" id="nr-dunning" ${r?.dunning ? 'checked' : ''}> ${esc(tr('Payment reminders and overdue notices for this range'))}</label>`
+    + (r ? `<label class="chk"><input type="checkbox" id="nr-closed" ${r.closed ? 'checked' : ''}> ${esc(tr('Closed: no new invoices in this range'))}</label>` : '')
+    + `<p class="muted ofchint">${esc(tr('Kalmido sets the date of a document of this range when it is finalised; numbers by hand are not possible there.'))}</p>`;
+  askDialog({title: r ? tr('Edit number range {0}', r.code) : tr('Add number range'), html, ok: r ? tr('Save') : tr('Add'), after: md => { md0 = md; },
+    submit: async () => {
+      const v = id => (/** @type {HTMLInputElement|null} */ ($('#' + id, md0))?.value || '').trim(), on = id => !!(/** @type {HTMLInputElement|null} */ ($('#' + id, md0))?.checked);
+      const b = {name: v('nr-name'), scheme: v('nr-scheme'), credit_suffix: v('nr-suffix'), dunning: on('nr-dunning')};
+      try {
+        if (r) await rawFetch('PATCH', `/api/office/num-ranges/${r.id}`, {...b, closed: on('nr-closed')});
+        else await rawFetch('POST', '/api/office/num-ranges', {...b, code: v('nr-code').toUpperCase()});
+      } catch (x) { ofcErr(x); return false; }
+      toast(tr('Saved')); if (typeof OFC === 'object') OFC.log = null; onumLoad(); return true;
+    }});
+}
+async function nrDelete(r) {
+  if (!r || !await askConfirm(tr('Remove number range {0}?', r.code), tr('Its drafts go back to the main range.'), {ok: tr('Remove')})) return;
+  try { await rawFetch('DELETE', `/api/office/num-ranges/${r.id}`); toast(tr('Removed')); onumLoad(); } catch (x) { ofcErr(x); }
+}

@@ -28,7 +28,7 @@ from .okern import ofk_register, ofk_trash  # 2.1005.0 (#5415): a draft in the c
 from .okern import ofk_fk_refs  # 2.1005.0 (#5415): was otrash.otb_refs
 from .homecur import HC_CODES, hc_code, hc_home, hc_office_rate  # 2.189.0 (#2475)
 from .model import (NAME_MAX, PT_MAX, TEXT_MAX, UNITS, client_short_code, pb_cl_sql, pb_cl_live, office_gate, office_need_feature, office_org, onc_next, onc_ready, onc_version, office_role, office_settings,
-                    office_seed_texts, office_trial_number, trial_flag)
+                    office_seed_texts, office_trial_number, trial_flag, doc_range_id, num_range_schemes, num_view)  # 2.1348.0 (#6698): + the ranges
 from .pdf import pdf_paper  # 2.357.0 A (#3156)
 from .oubar import OUB_SENT, oub_barrier, oub_doc_name  # 2.747.0 (#5252): a document marked sent is a barrier of the undo steps
 from .ledger import (ofx_release, ofx_company, ofx_company_print, ofx_sender_line, ofx_diff, ofx_items_brief, ofx_locked, ofx_log, ofx_logo_path, ofx_need_editable,
@@ -664,6 +664,8 @@ def doc_brief(r, pm=None, lg=None, today=None):
          "locked": ofx_locked(r), "due_date": r["due_date"] if "due_date" in r.keys() else None, "cancels_id": r["cancels_id"] if "cancels_id" in r.keys() else None,
          "inv_type": r["inv_type"] if "inv_type" in r.keys() else "",  # 2.120.0 A (#2087)
          "trial": bool(r["trial"]) if "trial" in r.keys() else False}  # 2.144.10 A (#2576)
+    if r["kind"] in ("invoice", "credit"):
+        d["range_id"] = doc_range_id(r)  # 2.1348.0 (#6698): the number range (None = the main range)
     if r["kind"] == "offer":  # 2.1064.0 (#5818): sent, no answer and past "valid until" = the mark "expired" in the list
         d["expired"] = r["status"] == "sent" and bool(r["valid_until"]) and r["valid_until"] < (today or local_now().date().isoformat())
     if r["kind"] == "offer" and "cashflow" in r.keys():  # 2.88.0 (#1915)
@@ -962,12 +964,36 @@ def clean_doc(c, oid, b, cur, admin):
             f["contract_id"] = ct["id"]
             if ct["id"] != cur["contract_id"] and b.get("apply_contract", True):
                 _apply_contract(c, oid, f, ct, lang, _j(f.get("rights") or cur["rights"], {}))
+    if "range_id" in b:  # 2.1348.0 (#6698): the number range of an invoice draft (main range = none)
+        f["range_id"] = odoc_range_clean(c, oid, b.get("range_id"), cur)
     if cur["kind"] == "credit" and _cur_val(cur, "cancels_id"):  # 2.354.0 D (#2838): bound to its invoice, a change is refused
         for k in CREDIT_BOUND:
             if k in f and k in cur.keys() and not _same_val(k, f[k], cur[k]):
                 raise Denied(409, tr("A credit note keeps the currency, exchange rate, client and VAT of its invoice"))
             f.pop(k, None)
     return f
+
+
+def odoc_range_clean(c, oid, v, cur):
+    """2.1348.0 (#6698): the range id an invoice draft may take (None / "" / 0 = the main range): one of the area's open ranges.
+    A correction keeps its invoice's range, a document with a number (or of another kind) keeps the one it has: 409."""
+    rid = None
+    if v not in (None, "", 0, "0"):
+        try:
+            rid = int(v)
+        except (TypeError, ValueError):
+            raise BadInput(tr("Invalid value: {0}", "range_id"))
+    if rid == doc_range_id(cur):
+        return rid
+    if cur["kind"] != "invoice" or _cur_val(cur, "number") or _cur_val(cur, "trial"):
+        raise Denied(409, tr("Only an invoice draft without a number can change its number range"))
+    if rid is not None:
+        rg = c.execute("SELECT id, closed_at FROM office_num_ranges WHERE id=? AND org_id=?", (rid, oid)).fetchone()
+        if rg is None:
+            raise Denied(404)
+        if rg["closed_at"]:
+            raise Denied(409, tr("This number range is closed"))
+    return rid
 
 
 def ofd_discount_clean(c, oid, b, cur, f):
@@ -1180,7 +1206,7 @@ def _assign_number(c, oid, did, s=None, manual=None, reason=""):
         if r["kind"] != "offer":  # 2.38.0: only above the series' last value (no back-dating), the counter follows
             inv_manual_number(c, oid, r, s, num, reason)
         elif num != (r["number"] or ""):  # 2.1289.0 (#6481 N2): a quotation never takes a number of the invoice / correction series
-            odoc_offer_num_check(s, num)
+            odoc_offer_num_check(s, num, c, oid)
     else:
         num = doc_next_number(c, oid, r, s)
     if c.execute("SELECT 1 FROM office_docs WHERE org_id=? AND number=? AND id!=?", (oid, num, did)).fetchone() or fi_number_taken(c, oid, num):
@@ -1200,6 +1226,9 @@ def doc_next_number(c, oid, r, s, peek=False):
     another value (no {seq}) or a longer run of taken values is a clear 409, never "already used"."""
     rec = _j(r["recipient"], {})
     d = date.fromisoformat(r["date"]) if r["date"] else local_now().date()
+    s = num_view(c, oid, s, r)  # 2.1348.0 (#6698): a document of an additional range counts with the range's schemes and counter
+    if s.get("_range_key"):
+        d = local_now().date()  # ... and is dated the day it is finalised (ledger.ofx_range_date): the preview shows that number
     # 2.118.0 A (#2265): a quotation's duplicate keeps the first one's running number with the next {version};
     # quotations count per organisation, client or project (onc_next)
     ver, num = onc_version(c, oid, r, inv_scheme(s, r["kind"]), lambda x: {"project": x["project_title"], "client": _j(x["recipient"], {}).get("name") or "",
@@ -1243,12 +1272,16 @@ ODOC_KIND_WORDS = {"offer": N_("Quotation"), "invoice": N_("Invoice"), "credit":
                    "delivery": N_("Delivery note")}
 
 
-def odoc_offer_num_check(s, num):
+def odoc_offer_num_check(s, num, c=None, oid=None):
     """2.1289.0 (#6481 N2): a hand-set quotation number must not follow the scheme of the invoice or correction series (it
-    would take a value of that gap-free series); a scheme the quotations share with it is no conflict. BadKey otherwise."""
+    would take a value of that gap-free series); a scheme the quotations share with it is no conflict. BadKey otherwise.
+    2.1348.0 (#6698): nor the schemes of an additional number range of the area (c, oid given)."""
     own = inv_scheme(s, "offer")
-    for k in ("invoice", "credit"):
-        sch = inv_scheme(s, k)
+    schemes = [inv_scheme(s, k) for k in ("invoice", "credit")]
+    if c is not None:
+        for rg in c.execute("SELECT scheme, credit_suffix FROM office_num_ranges WHERE org_id=?", (oid,)).fetchall():
+            schemes += list(num_range_schemes(rg).values())
+    for sch in schemes:
         if sch and sch != own and inv_manual_seq(sch, num) is not None:
             raise BadKey(N_("The number {0} follows the scheme {1} of the invoices or corrections; a quotation needs a number of its own"), num, sch)
 
@@ -1615,6 +1648,12 @@ def odoc_list():
     if request.args.get("trial") in ("0", "1"):  # 2.144.10 A (#2576): only trial / only real documents
         sql += " AND trial=?"
         args.append(int(request.args["trial"]))
+    rq = str(request.args.get("range") or "")  # 2.1348.0 (#6698): one number range (main = the main range)
+    if rq == "main":
+        sql += " AND range_id IS NULL"
+    elif rq.isdigit():
+        sql += " AND range_id=?"
+        args.append(int(rq))
     # 2.199.0 B (#2742): the automatic groups of the folder panel (filter views): one client, project or year
     if str(request.args.get("client_id") or "").isdigit():
         sql += " AND client_id=?"
@@ -1783,7 +1822,7 @@ def odoc_update(did):
     if f.get("date") and f["date"] != r["date"] and r["kind"] in ("invoice", "credit"):
         from .periodlock import period_need_open
         period_need_open(c, oid, f["date"])  # 2.148.0 A (#2471): an invoice draft cannot move into a locked month
-        y = inv_number_year(inv_scheme(office_settings(c, oid), r["kind"]), r["number"]) if r["number"] and not r["trial"] else None
+        y = inv_number_year(inv_scheme(num_view(c, oid, office_settings(c, oid), r), r["kind"]), r["number"]) if r["number"] and not r["trial"] else None  # 2.1348.0 (#6698): num_view
         if y is not None and date.fromisoformat(f["date"]).year != y:  # 2.355.0 A (#2839): a numbered draft stays in its number's year
             raise Denied(409, tr("The number {0} belongs to {1}; the date can only change within that year", r["number"], y))
     from .doclang import fd_lang_swap, fd_put_titles  # 2.40.0 (#1381, #1363): a new language swaps unchanged standard texts
@@ -1992,7 +2031,8 @@ DUP_SKIP = {"id", "number", "status", "created_at", "updated_at", "sent_at", "cr
             "version_of", "cashflow",  # 2.88.0 (#1915): set below (a quotation's copy = its next version, cash flow auto)
             "series_id", "series_period", "abs_refs",  # 2.120.0 A (#2087): abs_refs  # 2.91.0 A (#1923): a copy is no invoice of the series (office/recurring.py sets them itself)
             "reminder_fee_state", "reminder_fee_paid_at", "reminder_fee_paid_amount", "agent_id", "list_id", "dup_times_from",  # 2.355.0 A (#2839): inv_type -- a copy of a final invoice is a plain one
-            "client_ref", "inv_type"}  # 2.269.0 D (#3046): the device's id of the request that made the original  # 2.126.0 A (#1979 F6): a fresh fee state, made by the person copying
+            "client_ref", "inv_type",
+            "range_id"}  # 2.1348.0 (#6698): a copy starts in the main range (a correction takes its invoice's range in invoices.inv_credit_of)  # 2.269.0 D (#3046): the device's id of the request that made the original  # 2.126.0 A (#1979 F6): a fresh fee state, made by the person copying
 DUP_SKIP |= {"deleted_at", "deleted_by", "rev", "updated_by", "trash_refs"}  # 2.1005.0 (#5415): the core's trash columns stay the original's
 DUP_ITEM_SKIP = {"id", "tax_pct", "net", "tax_amount"}
 

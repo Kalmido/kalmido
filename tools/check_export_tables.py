@@ -57,6 +57,7 @@ SECRET_OK = {
     "office_bank_tx.hash": "fingerprint of a bank line, against importing it twice",
     "office_docs.chain_hash": "2.531.0 (#4497): the SHA-256 link of the hash chain over finalised documents (office/chain.py), not a secret",
     "office_docs.chain_key": "2.531.0 (#4497): the number series a document is chained in",
+    "office_num_ranges.credit_suffix": "2.1348.0 (#6698): the ending of a number range's correction numbers (-K), not a credential",
     "office_bookarch_files.content_key": "fingerprint of a file's content, against importing it twice",
     "office_gen_docs.body_hash": "fingerprint of the document's text",
     "office_signoffs.doc_hash": "fingerprint of the document that was signed off (the proof)",

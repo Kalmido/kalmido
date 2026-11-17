@@ -463,6 +463,7 @@ OX_AREAS = (
     ("office/contract_files.json", "office_contract_files", "org_id=?"),  # 2.117.0 B (#2285): the files themselves come with OFFICE_DIR
     ("office/client_contacts.json", "office_client_contacts", "org_id=?"),
     ("office/numbers.json", "office_numbers", "org_id=?"),
+    ("office/num_ranges.json", "office_num_ranges", "org_id=?"),  # 2.1348.0 (#6698): the additional number ranges (their counters: numbers.json, kind r<id>)
     ("office/documents.json", "office_docs", "org_id=?"),
     ("office/document_items.json", "office_doc_items", f"doc_id IN ({DSQ})"),
     ("office/document_parts.json", "office_doc_parts", "org_id=?"),  # 2.47.0 (#1215): the parts of quotations

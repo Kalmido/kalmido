@@ -503,7 +503,7 @@ def gx_number_ranges(c, oid, frm, to, T):
         t.n = sum(max(1, len(g["ranges"])) for g in onum_gaps(c, oid, years=(int(frm[:4]), int(to[:4]))))
         return t
     for g in onum_gaps(c, oid, years=(int(frm[:4]), int(to[:4]))):
-        name = "+".join(g["kinds"])
+        name = (g["range"] + ": " if g.get("range") else "") + "+".join(g["kinds"])  # 2.1348.0 (#6698): an additional range named by its code
         if not g["ranges"]:  # a series without a gap: one line saying so
             t.add(name, g["period"], "", "", 0, "keine Luecke", g["last"], 0, g["other"])
         for r in g["ranges"]:
