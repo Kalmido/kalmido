@@ -121,7 +121,7 @@ MBX_AFTER_POLL = []  # 2.581.0 (#4804): f(M, box) on the open connection after t
 
 
 from ..core.db import now_iso as _now  # noqa: E402  2.149.0 G (#2517): was an own copy
-from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
+from ..core.movelock import mv_sql  # noqa: E402  2.1337.0 (#6600): an organisation that is moving rests
 
 
 def _gate():
