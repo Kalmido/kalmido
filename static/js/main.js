@@ -160,7 +160,7 @@ function bootDone() {
     // 2.1313.0 (#6367): the worker signs up once the app stands (idle, at the latest after 5 s): its install (the shell, then the
     // modules on demand, sw.js swInstall) no longer competes with the first view and the first clicks
     const swReg = () => navigator.serviceWorker.register('/sw.js').catch(() => {});
-    if (typeof requestIdleCallback === 'function') requestIdleCallback(swReg, {timeout: 5000}); else setTimeout(swReg, 5000);
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(swReg, {timeout: 5000}); else setTimeout(swReg, 5000);
     navigator.serviceWorker.addEventListener('message', swMessage);
   }
   // 2.145.0 B (#2424): an own window: the real state behind the first picture; push, onboarding and the tour stay with the main window

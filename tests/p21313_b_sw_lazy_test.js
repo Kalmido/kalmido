@@ -81,7 +81,7 @@ async function install({manifest = true, conn = null, old = [], fail = ''} = {})
 
   const main = fs.readFileSync(path.join(SRC, 'static', 'js', 'main.js'), 'utf8');
   check(!/navigator\.serviceWorker\.register\('\/sw\.js'\)\.catch\(\(\) => \{\}\);\n\s*navigator\.serviceWorker\.addEventListener/.test(main), 'main.js: the worker no longer signs up right at the start');
-  check(/requestIdleCallback\(swReg, \{timeout: 5000\}\); else setTimeout\(swReg, 5000\)/.test(main), 'main.js: the worker signs up when idle, at the latest after 5 s');
+  check(/window\.requestIdleCallback\(swReg, \{timeout: 5000\}\); else setTimeout\(swReg, 5000\)/.test(main), 'main.js: the worker signs up when idle, at the latest after 5 s');
 
   console.log(`p21313_b_sw_lazy_test: ${ok} ok, ${F.length} failed`);
   process.exit(F.length ? 1 : 0);
