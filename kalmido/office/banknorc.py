@@ -26,6 +26,7 @@ from ..core.errors import BadInput
 from ..core.i18n import N_, lang, tr, trn
 from ..core.pg import system_ctx
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
+from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..tasks.validation import log_act
 from .bank import BNK_LIST_MAX, BNK_KINDS, _ctx, _home, _receipts, _shift, _tx_dec
 from .bankvend import bv_key, bv_missing, bv_noreceipt_keys, bv_task_lines  # 2.425.0 B (#3451)
@@ -247,7 +248,7 @@ def bnr_tick(c, now=None, force=False):
     with system_ctx(c):  # which areas have the reminder at all; each is then read under its own lock
         # 2.1111.0 (#5953): data is JSONB ("every" no longer first): the value, not the text; no JSON = skipped (review F2)
         oids = [r[0] for r in c.execute("SELECT org_id FROM office_settings WHERE (CASE WHEN pg_input_is_valid(CAST(data AS text), 'jsonb') THEN CAST(data AS jsonb) END)->'bank_norc'->>'every' "
-                                        "IN ('week', 'month') ORDER BY org_id").fetchall()]
+                                        f"IN ('week', 'month') AND {mv_sql()} ORDER BY org_id").fetchall()]
     c.commit()
     for oid in oids:
         try:

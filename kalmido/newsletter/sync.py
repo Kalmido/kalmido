@@ -64,6 +64,7 @@ def nwl_err_text(stored):
 
 
 from ..core.db import now_iso as _now  # noqa: E402  2.149.0 G (#2517): was an own copy
+from ..core.movelock import mv_sql  # noqa: E402  2.1337.0 (#6600): an organisation that is moving rests
 
 
 def nwl_email_ok(e):
@@ -540,7 +541,7 @@ def nwl_run_json(r):
 def nwl_tick(c):
     """Every connection with "auto" whose last run is a day old gets a run (each in its own thread)."""
     due = now_utc() - timedelta(hours=NWL_EVERY_H)
-    for r in c.execute("SELECT * FROM nl_conns WHERE auto=1").fetchall():
+    for r in c.execute(f"SELECT * FROM nl_conns WHERE auto=1 AND {mv_sql()}").fetchall():  # 2.1337.0 (#6600): + mv_sql
         last = parse_iso(r["synced_at"]) if r["synced_at"] else None
         if (last is None or last <= due) and not nwl_busy(r["id"]):
             if r["owner_id"] and c.execute("SELECT disabled FROM users WHERE id=?", (r["owner_id"],)).fetchone()[0]:
