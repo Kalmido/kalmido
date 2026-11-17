@@ -18993,13 +18993,6 @@
   "at most 60 issues and 300 comments a day": "hoogstens 60 issues en 300 reacties per dag",
   "hash chain broken here (daily check)": "hashketen hier verbroken (dagelijkse controle)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hashketen van het kantoor verbroken: kantoor {0}, document-ID {1} (reeks {2}, plaats {3}, {4}). Het kantoorlogboek noemt het.",
-  "The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1}).": "De webhook van documentstroom {0} is uitgeschakeld: de aanroepen konden niet worden afgeleverd (laatste fout: {1}).",
-  "Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more.": "Documentstroom {0} is gepauzeerd: de persoon die de webhook heeft ingesteld is geen beheerder van de werkruimte meer.",
-  "Paused: the person who set up its webhook is no admin any more": "Gepauzeerd: wie de webhook heeft ingesteld is geen beheerder meer",
-  "Webhook off after failed calls": "Webhook uit na mislukte aanroepen",
-  "Webhook calls failed in a row: {0}": "Webhook-aanroepen achter elkaar mislukt: {0}",
-  "Last error: {0}": "Laatste fout: {0}",
-  "Switch webhook on again": "Webhook weer inschakelen",
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Tot die tijd worden e-mails met inhoud (de dagelijkse samenvatting, meldingen) er niet naartoe gestuurd.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bevestig eerst je e-mailadres: e-mails met inhoud gaan alleen naar een bevestigd adres.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Je adres is nog niet bevestigd: de dagelijkse samenvatting en e-mails over gebeurtenissen gaan pas uit nadat je het hebt bevestigd."
