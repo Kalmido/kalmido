@@ -23,6 +23,30 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1355.0] - 2026-11-17
+
+Package 2.1343 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Search: the command palette's "Everywhere" groups run on a time budget per request (KALMIDO_SEARCH_BUDGET_MS, 400 ms) in their fixed order; the areas not reached come back as `pending` and the palette loads them right after (GET /api/search?kind=groups&groups=…). Each area runs under a 2.5 s statement limit; a search the browser dropped (a newer query) stops before the next area (#6406).
+- Search: the expensive parts are capped -- sealed texts opened to check a word found by its prefix (KALMIDO_SEARCH_OPEN_MAX, 500 newest per workspace), file texts and documents of the Ablage search (narrowed by the word index in SQL, 2,000 per workspace), text field values (2,000), the palette's message group (50 candidates per kind instead of 1,000) (#6406).
+- Knowledge pages: the task-link suggestions ask the server for tasks only, without the other areas (#6406).
+
+Package 2.1342 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6927 Ticking a task off folds its row to nothing: no gap stays on the desktop (the column rows kept their padding) and the list no longer jumps on the redraw; the fold ends on the real end of the animation, not on a timer.
+- #6479 The receipts and travel receipts billed on a cancelled invoice can be released again (*Release the outlays again*, `POST /api/office/docs/{id}/outlays-release`, undoable), so the correcting invoice can take them; the cancelled invoice keeps its positions.
+
+### Changed
+- #6553 Calendars and contacts hardened: a password is not sent over plain http:// and neither is a calendar link that looks like it carries a secret (a query, or a random-looking part of the path or file name; a heuristic) - only to hosts the admin allowed; existing subscriptions of that kind now fail with "Only https://", a CardDAV source that keeps failing is told like a calendar subscription (news after 3, alarm after 5 failures) and a refused write-back names the contact, the absences feed keeps only the hash of its secret (the link is shown once; existing links keep working), its failed attempts count per network (rate_ip), log lines name the error type only, the docs say that app passwords work without a second factor.
+
+Package 2.1347 (Bündel: Weich rot: p21238_b_ro_ui, Weich rot: p2139_a_api, Weich rot: p2754_l_ci u. 2 weitere).
+
+### Fixed
+- German texts name the office settings "Einstellungen > Firma & Büro" (small business VAT note, switched-off import automations, XRechnung company data) (#6861)
+- Suites follow intended changes: the contact card's "Move to the trash" (#6857, after #6124), a team agent hears a channel mention only via a shared project (#6858, after #6454), ruff and coverage pinned in the hash locks (#6860, #6859, after #6509); p2925_a_words also checks new texts in static/i18n/neu (#6861)
+
 ## [2.1351.0] - 2026-11-17
 
 Package 2.1338.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -382,7 +406,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1351.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1355.0...HEAD
+[2.1355.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1355.0
 [2.1351.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1351.0
 [2.1346.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1346.0
 [2.1344.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1344.0
