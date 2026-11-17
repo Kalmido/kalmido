@@ -40,9 +40,9 @@ import secrets
 from flask import jsonify
 
 from ..core.config import app, APP_NAME, MAX_FILE_MB
-from ..core.db import body, bump, db, err, iso, now_utc
+from ..core.db import body, bump, db, err, iso, now_utc, test_seconds
 from ..core.i18n import lang, tr
-from ..core.pg import insert_id
+from ..core.pg import insert_id, system_ctx
 from ..core.objcomments import ocm_add  # 2.972.0 (#5272)
 from ..core.access import Denied, MANAGE_ROLES, need_list, task_visible
 from ..core.pages import save_attachment_bytes
@@ -51,6 +51,7 @@ from ..accounts.mailtok import mtk_new, mtk_plain  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_add, bgj_fn
 from ..api.common import hit_limit
 from ..collab.comments import collab_user
+from ..collab.integfail import integ_tell  # 2.1322.0 (#6560 3)
 from ..collab.liste2eguard import le2b_list_locked, le2b_off
 from ..collab.news import news_add
 from ..hub import hubmail as H
@@ -69,6 +70,7 @@ _MID_RE = re.compile(r"<[^<>\s]{1,290}>")
 RQ_FILES = 20             # files of one mail at most
 RQ_IN_HOUR = 60           # new tickets per list and hour (by mail)
 RQ_IN_SENDER_HOUR = 10    # new tickets per list, sender and hour
+RQ_WINDOW = test_seconds("KALMIDO_TEST_RQ_WINDOW_S", 3600)  # 2.1322.0 (#6560 3): the hour of both (a test container may shorten it)
 RQ_TITLE_MAX = 300
 _AUTO_PREC = ("bulk", "junk", "list", "auto_reply")
 _AUTO_LOCAL = ("mailer-daemon", "postmaster")
@@ -285,14 +287,27 @@ def rq_take(c, r, msg, raw):
         return rq_comment(c, msg, mid, p, l, verified)
     if msg.get_content_type() == "multipart/report" or sender.partition("@")[0] in _AUTO_LOCAL:
         return 0  # review N5: a delivery report / mailer daemon (a bounce of our own confirmation) is never a ticket
-    if hit_limit(f"rqin:{lid}", RQ_IN_HOUR, 3600) or hit_limit(f"rqine:{lid}:{P.pt_email_hash(c, sender)}", RQ_IN_SENDER_HOUR, 3600):
-        return 0
+    # 2.1322.0 (#6560 3): over a limit the mail is no longer dropped: it waits in the mailbox (unseen) and is taken in a later
+    # round; the project's managers hear it once an hour. The sender's limit first (a refused call counts nothing), then the
+    # list's for every sender together - so a mail waiting for its sender's hour never uses up the list's
+    if hit_limit(f"rqine:{lid}:{P.pt_email_hash(c, sender)}", RQ_IN_SENDER_HOUR, RQ_WINDOW) or hit_limit(f"rqin:{lid}", RQ_IN_HOUR, RQ_WINDOW):
+        rq_limit_tell(c, l)
+        return M.MAIL_LATER
     hint = tr("Reply to ticket T{0}, the sender is not its reporter", named, lg=lang(c, l["owner_id"])) if named else ""
     tid, conf = rq_new(c, msg, mid, l, sender, verified, auto, hint)
     if conf:
         c.commit()  # the ticket first, then its confirmation (the worker sends it)
         bgj_add("mail:reqmail", *conf)
     return tid
+
+
+def rq_limit_tell(c, lst):
+    """2.1322.0 (#6560 3): the owner and the admins of the project hear once an hour that requests by e-mail wait for the limit."""
+    if hit_limit(f"rqtold:{lst['id']}", 1, RQ_WINDOW):
+        return
+    with system_ctx(c):  # the project's managers (the mail itself comes from nobody)
+        uids = [lst["owner_id"]] + [r[0] for r in c.execute("SELECT user_id FROM list_members WHERE list_id=? AND role='admin'", (lst["id"],))]
+    integ_tell(c, uids, "reqmail", lst["name"] or f"#{lst['id']}", click=f"l/{lst['id']}", list=lst["id"])
 
 
 @bgj_fn("mail:reqmail", tries=1)

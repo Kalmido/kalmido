@@ -186,6 +186,12 @@ m = Bo.get(B + O + "/payonline")
 check(m.ok and "webhook_url" not in m.json() and not m.json()["can_edit"], "a member sees no webhook address")
 row = dbx("SELECT secret_key, webhook_secret, hook_token FROM office_payonline WHERE org_id=?", (ORG,))[0]
 check(all(str(x).startswith("kenc1:") for x in row), f"key, secret and webhook token sealed at rest: {[str(x)[:8] for x in row]}")
+# 2.1322.0 (#6560 5): sealed always - also with the instance switch org_encrypt off (before: stored in plain then)
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": False}).ok, "setup: org_encrypt off")
+check(A.put(B + O + "/payonline", json={"secret_key": KEY, "webhook_secret": SECRET}).ok, "saved again with org_encrypt off")
+row = dbx("SELECT secret_key, webhook_secret, hook_token FROM office_payonline WHERE org_id=?", (ORG,))[0]
+check(all(str(x).startswith("kenc1:") for x in row), f"org_encrypt off: key, secret and webhook token still sealed: {[str(x)[:8] for x in row]}")
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": True}).ok, "setup: org_encrypt on again")
 HOOK = hook_of(A)
 check(A.post(B + O + "/payonline/check").json().get("ok") is True, "connection check works")
 check(not stub_log() or all(x["auth"] == f"Bearer {KEY}" for x in stub_log()), "the provider got the office's key")
@@ -484,6 +490,13 @@ Fr.patch(B + "/api/settings", json={"workspace": "private"})
 j = Fr.get(B + f"/api/office/move/check?org={ORGX}").json()
 check(any("online payment" in x.lower() or "online-zahlung" in x.lower() for x in j.get("conflicts", [])), f"a checkout under way stops the move: {j.get('conflicts')}")
 check(any("pay link" in x.lower() or "bezahl-link" in x.lower() for x in j.get("notes", [])), f"the move names the pay links: {j.get('notes')}")
+
+# ---------------------------------------------------------------- 2.1322.0 (#6560 8): unsigned calls cannot use up the area's limit
+junk = json.dumps({"id": "evt_flood", "type": "checkout.session.completed", "data": {"object": {}}}).encode()
+codes = {requests.post(B + f"/api/hooks/pay/{HOOK}", data=junk, headers={"Stripe-Signature": "t=1,v1=00"}).status_code for _ in range(310)}
+check(codes <= {400, 429}, f"unsigned calls are refused: {codes}")
+r = event(HOOK, "customer.created", {"id": "cus_after_flood"})
+check(r.status_code == 200, f"a signed event right after 310 unsigned calls is still taken: {r.status_code} {r.text[:200]}")
 
 # ---------------------------------------------------------------- limits of the public routes
 check(any(requests.post(B + "/s/pay/" + "y" * 43 + "/go").status_code == 429 for _ in range(45)), "the pay page's start route is limited per address")

@@ -516,6 +516,20 @@ def oc_dec_col(c, org_id, table, col, values):
     return out
 
 
+def oc_seal_fields(c, org_id, table, values):
+    """2.1322.0 (#6560 5): like oc_enc_fields, but the access data of a service (a provider key, a webhook secret, a hook
+    token) are sealed always - also with the instance switch org_encrypt off, like the Paperless token. OrgCryptError
+    without a server key or an area: the caller refuses to save rather than keep such a value in plain."""
+    d, key = dict(values), None
+    for k in FIELDS.get(table, ()):
+        if d.get(k) not in (None, "") and not oc_is_enc(d.get(k)):
+            if not SECRET_KEY or not org_id:
+                raise OrgCryptError("no server key: access data are never stored in plain")
+            key = key or oc_key(c, org_id)
+            d[k] = oc_enc_k(key, org_id, f"{table}.{k}", d[k])
+    return d
+
+
 def oc_enc_fields(c, org_id, table, values):
     """values (dict column -> plain value) with the protected columns of table encrypted (when active)."""
     d = dict(values)

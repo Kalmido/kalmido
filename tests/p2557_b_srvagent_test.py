@@ -91,10 +91,10 @@ for bad, what in (({"api_key": "short"}, "too short"), ({"api_key": "sk-test wit
     check(r.status_code == 400 and "sk-test" not in r.text, f"PUT refuses {what} ({r.status_code})")
 r = call(Fr, "put", f"/api/agents/{AID}/server", json={"api_key": KEY1, "instructions": "Always sign with PELICAN-SIGN."})
 j = r.json()
-check(r.ok and j["has_key"] is True and j["key_hint"] == "…" + KEY1[-4:] and j["server"] is True and j["instructions"].startswith("Always sign"),
-      f"PUT stores the key (hint only) {r.text[:300]}")
+check(r.ok and j["has_key"] is True and j["key_hint"] == "" and j["server"] is True and j["instructions"].startswith("Always sign"),
+      f"PUT stores the key (no part of it shown, # 2.1322.0 (#6560): no last four characters) {r.text[:300]}")
 row = dbx("SELECT key_sealed, key_hint FROM agent_server WHERE agent_id=?", (AID,))
-check(row and row[0][0].startswith("v1.") and KEY1 not in row[0][0] and row[0][1] == KEY1[-4:], "the key is sealed in the database")
+check(row and row[0][0].startswith("v1.") and KEY1 not in row[0][0] and row[0][1] == "", "the key is sealed in the database, no hint beside it")
 check(dbx("SELECT provider, ai FROM agents WHERE user_id=?", (AID,)) == [("kalmido-server", 1)], "the agent is a server agent now")
 r = call(Fr, "get", f"/api/agents/{AID}/server/models")
 j = r.json()
@@ -246,7 +246,7 @@ check(not any("FAKE_QUEUED" in json.dumps(x) for x in plog()[n0:]), "the stopped
 
 # ---------------------------------------------------------------- a key the provider refuses
 r = call(Fr, "put", f"/api/agents/{AID}/server", json={"api_key": KEY_BAD})
-check(r.ok and r.json()["key_hint"] == "…" + KEY_BAD[-4:] and KEY_BAD not in r.text, "the key replaced")
+check(r.ok and r.json()["key_hint"] == "" and r.json()["has_key"] is True and KEY_BAD not in r.text, "the key replaced")
 after, _ = chat("With the wrong key")
 m = agent_says(after, "could not finish")
 check(m and "refused the key" in m["body"] and KEY_BAD not in m["body"], f"the chat says it neutrally {(m or {}).get('body', '')[:200]}")

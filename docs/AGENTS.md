@@ -370,8 +370,8 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
   proposal (409 `approval_required`, as in [Control level](#control-level)). Every chat message, approval card and proposal of the
   run names the web sources it used under *From the web* (a proposal also as `web_sources: [{url, label}]`). The runs show
   the searches, pages and VAT checks; `GET /api/agents/usage` counts `web_searches` and `web_fetches`.
-- **The key**: stored encrypted, never returned, never written to a log. The app shows only its last four characters
-  (`…abcd`) with *Replace* and *Delete*.
+- **The key**: stored encrypted, never returned, never written to a log. The app shows only "Saved" with *Replace* and
+  *Delete* (2.1322.0: no part of the key, `key_hint` stays empty).
 - **Runs**: in the background queue of the worker, never in the web process; at most `KALMIDO_SRVAGENT_PARALLEL` (default
   2) at once per server and one per agent, shared fairly: the agent waiting longest goes first, and an organisation (or a
   person without one) holds at most one place while others wait (alone it may use them all); who waits longer than about
@@ -433,7 +433,7 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
 | Route | What |
 |---|---|
 | `GET /api/agents/server/defaults` | before the agent exists: `{docs_scopes, enabled_instance, provider, default_name, default_model, default_instructions, starter, flows, followup_days, followup_max}` (people only; `docs_scopes` 2.621.0: `[{key: "me"|"org:<id>", name}]`, the workspace the starter item "documents" meets per owner choice (Private, or an organisation the person administers); a plan of the starter pack is found by its fixed marker, a rule in any language, so a switch of language adds nothing twice; `flows` 2.565.0: the routines that may have a model of their own) |
-| `GET /api/agents/<id>/server` | `{provider, model, instructions, has_key, key_hint, enabled_instance, default_model, default_instructions, server, flow_models, flow_web}`, never the key; `flow_models` (2.565.0): `{briefing, tidy, meetings, followup}` each a model or `""` (= the agent's); `flow_web` (2.571.0): `{briefing, tidy, meetings, followup, other}` each `true` / `false` (web research) |
+| `GET /api/agents/<id>/server` | `{provider, model, instructions, has_key, key_hint (always "" since 2.1322.0), enabled_instance, default_model, default_instructions, server, flow_models, flow_web}`, never the key; `flow_models` (2.565.0): `{briefing, tidy, meetings, followup}` each a model or `""` (= the agent's); `flow_web` (2.571.0): `{briefing, tidy, meetings, followup, other}` each `true` / `false` (web research) |
 | `PUT /api/agents/<id>/server` | `{provider?, model?, instructions?, api_key?, delete_key?, flow_models?}`; creates the settings and sets the agent's provider to `kalmido-server`. `flow_models` (2.565.0, #4674): `{routine: model}` for the routines named (the others stay), `""` = back to the agent's model; a model not in the provider's live list for the stored key, an unknown routine or no key yet: 400; the list not readable: 502. `flow_web` (2.571.0, #4676): `{key: true / false}` for the keys named (the others stay); an unknown key or no bool: 400 |
 | `GET /api/agents/<id>/server/starter` | 2.777.0 (#5378): `{items: {briefing, tidy, docs, meetings, followup, office}: "active" / "waiting" / "paused" / "missing", shared, projects, org_id}` for the person asking (who may: as for the POST): `waiting` = a plan that waits for a shared project, `shared` = you reach the agent through a project, `own` = you shared one of your own projects with it (only that starts your waiting plans), `projects` = how many projects are shared with it (a number) |
 | `GET /api/agents/<id>/server/models` | `{models: [{id, name}], default, fallback_note?}` live from the provider; 409 `{"error": "no_key"}` without a key |
