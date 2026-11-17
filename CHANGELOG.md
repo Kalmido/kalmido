@@ -23,6 +23,49 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1346.0] - 2026-11-17
+
+Package 2.1336 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Action needed
+- #6505: Self-hosters: the image moved to `ghcr.io/kalmido/kalmido` (the old `ghcr.io/gegenschuss/kalmido` gets no new versions or security fixes). `update.sh` / `update.ps1` switch a `KALMIDO_IMAGE` line in `.env` by themselves (version or digest kept); if you set the image elsewhere (your own compose or override file), change it yourself. If your `update.sh` stops with "Could not find the latest release", run it once with `KALMIDO_VERSION=v2.1336.0`.
+
+### Fixed
+- #6505: The installers (install.sh, install.ps1) follow every forward when they look up the latest release, so the move of the repository into the organisation no longer stops a fresh install or an update. When a release image pinned to its digest cannot be pulled, the installer says so loudly ("RELEASE IMAGE NOT DOWNLOADED") instead of building locally in silence. Installer, compose file, `.env.example`, docs (self-hosting, code verification, security, agents) and the addresses in the app name `Kalmido/kalmido` and `ghcr.io/kalmido/kalmido`.
+- #6804: Importing knowledge into a locked (end-to-end encrypted) area detects the text encoding like the server import (UTF-8 with or without BOM, UTF-16, otherwise Windows-1252, named in the import report) instead of turning umlauts into replacement characters. Re-importing an export no longer reports Kalmido's own "not included.txt" list in the root of the ZIP as a skipped file (locked area and server import).
+
+### Changed
+- #6262: The document view asks the shared write rule: a person who may only read sees no write entries in the document view, its "Actions" menu and saved views, and exactly one "You can only read here" note in the properties.
+- #6505: The nightly installer check also runs install.sh without a fixed `KALMIDO_VERSION` (the "find the latest release" way) and counts a local build after a failed pull of the release image as red; a lint guard keeps the old repository name out of everything but the changelogs.
+
+Package 2.1327.0 (Bündel: Angebot/Rechnung: Zwischensumme der Positionen vor, Sammelpaket: Aufgaben ohne Paket (Dispatcher), Audit T2 B4 (Entscheidung): Lösch).
+
+### Added
+- #6816: Quotes and invoices show a bold "Subtotal" (net of the items, short rule above) right before the first surcharge, production surcharge or discount line; without a surcharge or discount nothing changes. The discount line always names its base: "5 % on the discountable positions (14,200.00 €)" / "Fixed amount on the discountable positions (…)". Display only - totals, tax and e-invoice unchanged; quotes sent before this version keep their lines. PDF and approval page, single and parts view (the web editor shows the base, not the subtotal row).
+
+### Changed
+- #1969: An organisation or account whose office holds finalised documents within their 10-year retention period can no longer be deleted (409 naming the date and the way: retention export, then deletion after the period or by the operator). A waiver of the export no longer suffices; the instance operator may delete only after a finished retention export. Covers organisation delete, account delete (admin, hosting console, self-deletion - refused at the request), and the retire/purge runs, which now leave such an organisation standing with a log line.
+- #6823: One reading of a person's module switches: `feat_has` / `feat_in` / `feats` in `core/access.py`; `need_feat` (409), `v1_feature` (403) and `feat_on` build on it, 38 inline splits switched over, `tools/check_feat_split.py` refuses new ones. An agent with a locked calendar now also counts its calendar module as off (was: only its calendar list empty).
+
+### Fixed
+- #6591: Moving a personal office into an organisation and importing an organisation export re-chain the finalised documents that came in: their old chain places are cleared and they join the target's chain in finalising order (office log "chain_moved"), then the chain check runs once and its result is part of the move / import answer. Before, two documents on one chain place read as a broken chain for good, and an import stayed "pending".
+- #6591: Moving a project into another organisation (or back to private) keeps its time entries billed in the old office billed, but drops the link to that invoice: the row shows "billed in an earlier organisation", duration and date stay locked.
+- #6719: Notes follow their project's organisation colour: card stripe and origin under "All", the panel cards of a project, and the opened note marks the view in the organisation's colour; private notes stay neutral.
+- main: #6453: The agents' job list asks whether a job's words are hidden (wider / public project) once per agent instead of once per job, so its statement count no longer grows with the number of jobs (p2674_b_api red since 2.1284.0).
+
+Package 2.1308 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Kalmido-KI: hartes Tageslimit ist freiwillig; Ausl, Doku Wissen: bekannte Grenze bei ).
+
+### Changed
+- #6477: an invoice or correction without a client is finalised only with the recipient's fixed address fields (street, postcode, city, country; empty country = your own) - no free lines; the editor shows recipient, street, address extra, postcode, city and country instead of "Address lines" when the client module is off (quotations, reminders and delivery notes keep the free text). The sender comes only from the fixed company fields. A correction of an older invoice with free-text recipient stays possible and inherits its lines.
+- #6568: on a hosted server (`KALMIDO_HOSTED=1`) every server agent keeps a hard day limit in tokens: set with the first key (default 2,000,000), it can be changed but not emptied (400), and at most the operator's ceiling `server_day_cap` (instance setting, `PUT /api/admin/agent-policy`, default 10,000,000). Existing agents get the limit before their next run. Runs nobody asked for (form, mail inbox, webhook, listening in) count against their own share - a quarter of the day limit (new columns `agent_runs.no_person`, `agent_usage.no_person`).
+- #6523: the app's agent dispatcher (`mcp/agent_dispatch.py`) builds only tasks the person wrote themselves (`created_by` = the person and `by_creator` true); other tasks are listed as "foreign" and never start. Comments of other accounts reach the job brief fenced as data. New nullable column `tasks.origin` ('person' only for tasks written in the app or with the creator's own token); the API gives it as `by_creator`. Tasks from before 2.1308 count as not written by the person.
+
+### Fixed
+- #6476: finalising checks the finished e-invoice XML (ZUGFeRD and XRechnung) before any file is written and stops with 400 naming the missing data in plain words (nothing is numbered or stored); for XRechnung the finalise dialog names beforehand the client's Leitweg ID, your company's phone and e-mail and the client's invoice e-mail; XRechnung also checks postcode and city of seller and buyer (BR-DE-3/4, BR-DE-8/9). A tax per rate up to 1.00 off base x rate (BR-CO-17, e.g. a full credit note of a final invoice built from gross amounts) stays within the EN 16931 tolerance and does not stop finalising.
+
+### Docs
+- #6325: docs/WIKI.md names the known limit of excluded folders: a name already used by a folder kept out can be guessed, never its pages or content.
+
 ## [2.1344.0] - 2026-11-17
 
 Package 2.1329 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Teil 1/6: Sammelpaket: Aufgaben ohne Paket (Dispatcher), CI-only rot: p2458_b).
@@ -313,7 +356,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1344.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1346.0...HEAD
+[2.1346.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1346.0
 [2.1344.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1344.0
 [2.1339.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1339.0
 [2.1330.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1330.0
