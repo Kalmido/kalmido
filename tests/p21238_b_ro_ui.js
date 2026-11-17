@@ -6,7 +6,7 @@
 //   with him as "view". Fred: no organisation (the freelancer fixture's case), his own calendar and address book.
 // - a reader (Rita, Bob): no "+ Event", no new event by dragging over a day, an event is not draggable, the popover has no
 //   Edit / Delete, the editor opened on the event reads (fields disabled, no Save / Delete); no "New contact", no import
-//   (file input, menu; Bob in his own Private workspace keeps them: #6122 asks for his own book), no select button, the card has no Edit and its "..." no Delete; the read hint shows exactly ONCE per
+//   (file input, menu; Bob in his own Private workspace keeps them: #6122 asks for his own book), no select button, the card has no Edit and its "..." no Move to the trash (#6124); the read hint shows exactly ONCE per
 //   view; the CONTENT (event title, contact name) is there
 // - a direct API write of the reader stays 403 (event, contact)
 // - the same persons with the right (Bob: share "edit", Rita: member) see the entries and no read hint; Fred too
@@ -139,7 +139,8 @@ const FEATS = 'cal,events,contacts,collab,comments';
     click(w, d.querySelector('#view [data-ct="cmenu"]'));
     await until(() => d.querySelector('#pop [role="menuitem"]'));
     const cm = [...d.querySelectorAll('#pop [role="menuitem"]')].map(x => x.textContent.trim());
-    check(cm.some(x => /^Delete/.test(x)) === writer, `${who}: the card's Delete ${writer ? 'there' : 'left out'}: ${cm.join('|')}`);
+    // 2.1347.0 (#6857): since 2.1292.0 (#6124) the card deletes like tasks - its "..." says "Move to the trash" (the glossary's word)
+    check(cm.some(x => /^Move to the trash/.test(x)) === writer, `${who}: the card's Move to the trash ${writer ? 'there' : 'left out'}: ${cm.join('|')}`);
     // 2.1238.0 (#6161): "Invite to a new event" only where an event may be made (the same rule as "+ Event")
     check(cm.some(x => /Invite to a new event/.test(x)) === w.eval('evCanNew()'), `${who}: "Invite to a new event" follows evCanNew: ${cm.join('|')}`);
     w.eval('closePop()'); w.close();
