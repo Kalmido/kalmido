@@ -8,7 +8,7 @@ from flask import g, has_request_context, jsonify, request
 from ..core.config import app
 from ..core.i18n import tr
 from ..core.db import body, bump, db, iso, now_utc
-from ..core.objsearch import osr_ids_sql  # 2.1026.0 (#5280)
+from ..core.objsearch import osr_ids_sql, osr_scope_nodes  # 2.1026.0 (#5280)
 from ..core.pg import insert_id, write_lock
 from ..core.access import Denied, my_max_sort, vis_sql, wr_sql, list_state_sql
 from ..core.errors import BadInput
@@ -117,7 +117,7 @@ def rl_view(c, uid, a):
     if q:
         # 2.1026.0 (#5280, stage Q6c): the shared search index of the tasks (title, text, address: every word at a word start,
         # umlauts as ae / oe / ue) instead of an ILIKE
-        ids, x = osr_ids_sql("task", q)
+        ids, x = osr_ids_sql("task", q, scope=osr_scope_nodes(lids))  # 2.1321.0 (#6397): the read-later projects first
         w += f" AND t.id IN {ids}" if ids else " AND FALSE"
         args += x
     off = as_int(a.get("offset") or 0, "offset", 0, 1_000_000)
