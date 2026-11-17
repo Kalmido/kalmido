@@ -12,6 +12,7 @@ thread of the process. Invented names only.
    line of dashes, a list stays a list, the import names its lists and sections after the headings
  - the snippet of a long page is cut around the hit first and cleaned then: plain text, "…" on both sides, the word marked;
    a word that stands only in a link's address gives no snippet from there (the next hit does)
+ - 2.1300.0 (#6652): a list indented one step deeper on every line is imported quickly; levels below 5 move up
  - freelancer-matrix: wiki, tasks (a person without an organisation: her private pages, her link, her export, her import)
 usage: p21280_a_md_freeze_test.py <datadir>"""
 import io
@@ -191,6 +192,40 @@ else:
     check(r is not None and r.status_code == 200 and "vielwort" in r.text and r.text.count("<h2>x ") == 50, "they are 50 headings")
     r = timed("the Word export of that page", lambda: docx(pm))
     check(r is not None and r.status_code == 200, "the Word file comes")
+
+# ================================================================ 2.1300.0 (#6652): a list indented one step deeper on every line
+# the import built the whole chain of parent titles again for every task (2000 lines: 5 s and 1 GB, 4000: 23 s and 4 GB)
+DEEP = 2300  # about 3.8 MB: below the request limit of the test server
+deep = "".join(" " * i + f"- [ ] Tief {i} " + "x" * 480 + "\n" for i in range(DEEP))
+# the same lines without nesting first: what the preview of so many tasks takes anyway
+t0 = time.monotonic()
+r = timed(f"the Markdown import's preview of {DEEP} lines side by side", lambda: imp("markdown", "flach.md", "".join(x.lstrip() + "\n" for x in deep.splitlines()).encode()))
+t_flat = time.monotonic() - t0
+t0 = time.monotonic()
+r = timed(f"the Markdown import's preview of {DEEP} lines, each one step deeper", lambda: imp("markdown", "tief.md", deep.encode()))
+t_deep = time.monotonic() - t0
+# the time grows with the lines, not with lines x depth (before: the deep list took many times the flat one, on any machine)
+print(f"deep {t_deep:.2f} s, flat {t_flat:.2f} s")
+check(t_deep < 2 * t_flat + 0.5, f"the deep list takes about as long as the flat one ({t_deep:.2f} s, flat {t_flat:.2f} s)")
+j = r.json() if r is not None and r.ok else {}
+w = next((x for x in j.get("warnings", []) if "Nested deeper than 5" in (x.get("text") or "")), {})
+check(j.get("created", {}).get("tasks") == DEEP and w.get("count") == DEEP - 5,
+      f"the deep list: every line a task, the ones below level 5 moved up with one warning {r is not None and r.status_code} {str(j.get('created'))[:160]} {w.get('count')} {(r.text[:200] if r is not None and not r.ok else '')}")
+# what the levels give: five kept, deeper lines hang below level 4 (on level 5), a shallower line after them finds its parent
+nest = "".join("  " * i + f"- [ ] Nest {i + 1}\n" for i in range(7)) + "  - [ ] Nest Zwei\n"
+r = F.post(B + "/api/import/markdown", files={"file": ("Nest.md", nest.encode())}, data={}, timeout=LIMIT)
+check(r.ok, f"the nested list is imported {r.status_code} {r.text[:160]}")
+st = {t["title"]: t for t in F.get(B + "/api/state").json()["tasks"] if t["title"].startswith("Nest ")}
+
+
+def pid(k):
+    return (st.get(k) or {}).get("parent_id")
+
+
+check(len(st) == 8 and pid("Nest 1") is None and all(pid(f"Nest {i}") == st[f"Nest {i - 1}"]["id"] for i in range(2, 6)),
+      "the nested list: five levels kept " + str({k: pid(k) for k in st}))
+check(pid("Nest 6") == st["Nest 4"]["id"] and pid("Nest 7") == st["Nest 4"]["id"] and pid("Nest Zwei") == st["Nest 1"]["id"],
+      "the nested list: levels 6 and 7 hang below level 4, the line back on level 2 below level 1 " + str({k: pid(k) for k in st}))
 
 # the server still answers everybody
 check(requests.get(B + "/api/health", timeout=LIMIT).ok and A.get(B + "/api/state", timeout=LIMIT).ok, "the server answers afterwards")
