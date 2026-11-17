@@ -17,6 +17,7 @@ from .pg import set_ctx_hook, st_ids, system_ctx as pg_system  # 2.149.0 G (#251
 from .dlock import DL_FEAT_AREA, dl_area_locked, dl_list_hidden, dl_lists_sql, dl_task_hidden, dl_task_sql  # 2.235.0 B (#2902): an agent's data lock
 from .dlock import dl_tasks_locked  # 2.674.0 B (#4194)
 from ..core.pg import system_ctx as _sys, LOOKUP  # 2.369.5 (#2517): pulled up from functions
+from .movelock import mv_public_check  # 2.1337.0 (#6600)
 
 
 # ---------------------------------------------------------------- access control
@@ -465,10 +466,12 @@ def acx_anon_bind(c, org_id):
     Applies to the running transaction at once and to every later one of this request.
     2.152.0 (#2167): a retired organisation (kept by law only) opens no public link any more: 404."""
     if org_id:
-        with _sys(c):  # instance structure: is the organisation retired?
-            r = c.execute("SELECT retired_at FROM orgs WHERE id=?", (int(org_id),)).fetchone()
+        with _sys(c):  # instance structure: is the organisation retired? (2.1337.0, #6600: or moving)
+            r = c.execute("SELECT retired_at, moving_at FROM orgs WHERE id=?", (int(org_id),)).fetchone()
         if r and r[0]:
             raise Denied(404)
+        if r:
+            mv_public_check(r[1])  # 2.1337.0 (#6600): a write of a public page into a moving organisation: 423 at once
     g.acx_anon_orgs = (int(org_id),) if org_id else ()
     g.pop("acx", None)  # the next statement on c runs with it (core/pg.py asks acx_conn_hook)
 
