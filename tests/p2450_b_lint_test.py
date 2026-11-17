@@ -5,6 +5,7 @@
  - docker-compose.yml: loads, health check with python3 on /api/health, the server key file on its own volume (not ./data)
  - examples/: Caddy, nginx, Traefik templates with only example.com addresses and the long-polling / WebSocket note
  - .env.example + README: no active KALMIDO_SETUP_CODE, no v2.5.0, no SQLite "PRAGMA quick_check" left
+ - 2.1336.0 (#6505): the old repository / image name of before the move into the organisation is nowhere outside the changelogs
 usage: p2450_b_lint_test.py"""
 import os
 import re
@@ -128,6 +129,38 @@ check("PRAGMA quick_check" not in rd, "README: no SQLite PRAGMA quick_check")
 check("install.sh](install.sh)" in rd and "examples/" in read("docs", "SELF-HOSTING.md"), "README links the install script, SELF-HOSTING the examples")
 check("## Requirements" in read("docs", "SELF-HOSTING.md") and "Raspberry" in rd, "requirements documented")
 check('KALMIDO_SETUP_CODE="${KALMIDO_SETUP_CODE-off}"' in read("tests", "start.sh"), "tests/start.sh switches the setup code off")
+
+# ---- 2.1336.0 (#6505): the repository moved into the organisation (Kalmido/kalmido, image ghcr.io/kalmido/kalmido); the old name
+# gets no release, no image and no digest any more. Only the changelogs keep it (history), and the lines of the installers that
+# switch an old .env (marked "old image name (#6505)").
+OLD_NAME = "github.com/Gegenschuss/kalmido".split("/", 1)[1].lower()  # the old name itself: a marked line (old image name (#6505))
+SKIP_DIRS = {".git", "node_modules", "__pycache__", "changelog.d", "data", "pgdata", "secret"}
+
+
+def tracked_files():
+    r = subprocess.run(["git", "-C", ROOT, "ls-files", "-z"], capture_output=True)
+    if r.returncode == 0 and r.stdout:
+        return [f for f in r.stdout.decode("utf-8", "replace").split("\0") if f]
+    out = []  # no git in the tree (a synced copy): every file below ROOT but the data folders
+    for base, dirs, files in os.walk(ROOT):
+        dirs[:] = [x for x in dirs if x not in SKIP_DIRS and not x.startswith(".data") and not (x.startswith(".") and x != ".github")]
+        out += [os.path.relpath(os.path.join(base, f), ROOT) for f in files]
+    return out
+
+
+old_hits = []
+for rel in tracked_files():
+    parts = rel.replace(os.sep, "/").split("/")
+    if parts[0].startswith("CHANGELOG") or parts[0] == "changelog.d" or rel.replace(os.sep, "/").startswith("docs/changelog/"):
+        continue
+    try:
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        continue  # images, fonts, links to nowhere
+    old_hits += [f"{rel}:{n}" for n, line in enumerate(lines, 1)
+                 if OLD_NAME in line.lower() and "old image name (#6505)" not in line]
+check(not old_hits, f"#6505: no old repository / image name outside the changelogs: {old_hits[:10]}")
 
 print(f"p2450_b_lint: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

@@ -1003,6 +1003,11 @@ jobs:
         run: pip install --require-hashes -r tests/requirements.lock
       - name: install.sh (last release) -> data -> update.sh (this commit) -> checks
         run: python3 tools/install_upgrade_check.py run --ref "$GITHUB_SHA" --dir "$RUNNER_TEMP/kalmido-install" --out "$RUNNER_TEMP/upgrade-fixture"
+      - name: The one-liner of a stranger (install.sh without KALMIDO_VERSION -> latest release, prebuilt image)
+        if: always()  # its own verdict, also when the update check above is red
+        # 2.1336.0 (#6505): the step above always names KALMIDO_VERSION, so it never saw the latest-release search break after the
+        # move of the repository (301 to the new name); a pull that falls back to a local build is red too
+        run: python3 tools/install_upgrade_check.py latest --dir "$RUNNER_TEMP/kalmido-latest" --port 3041
       - name: Every image of docker-compose.yml for linux/amd64 and linux/arm64
         if: always()  # its own verdict, also when the update check above is red
         # 2.1284.0 (#6606): clamav/clamav was amd64 only and a Raspberry Pi / ARM server stopped there; this runner is amd64,
