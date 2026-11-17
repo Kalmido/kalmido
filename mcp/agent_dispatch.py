@@ -541,7 +541,8 @@ class Dispatcher:
                     res["started"] = {"tasks": ids, "dry": True}
                 else:
                     env = self.host.child_env(self.owner(), None) if hasattr(self.host, "child_env") else dict(os.environ)
-                    env["KALMIDO_TOKEN"] = api.token  # 2.1325.0 (#6668): the job works for the chosen person (never the own token, F1)
+                    if api is not self.host.api:  # 2.1325.0 (#6668): the job works for the chosen person (child_env: never the own
+                        env["KALMIDO_TOKEN"] = api.token  # token of a team agent, review F1)
                     for k in ("KALMIDO_CHAT_USER", "KALMIDO_OUTBOX"):  # never the person / outbox of the last chat run
                         env.pop(k, None)
                     if self.owner():
