@@ -13,14 +13,20 @@
    up / down distance the hour height, diagonal both. The hour bounds no longer change the view there; pinched together
    beyond 14 days = the month. Ctrl + Shift + wheel (or Ctrl + a sideways wheel) = days, Ctrl + wheel = hours; a pinch
    without a direction (the trackpad's Ctrl + wheel, Safari's gesture events) zooms the hours and, beyond the lower bound,
-   goes to the month. */
+   goes to the month.
+   2.1312.0 (#6711): one finger leafs like a page with the core's helper (swipenav.js swn_attach, as the document view and the
+   task panel): only the grid moves (the bar, the day list with its input line below the month stay), the neighbour period
+   lies beside it as a placeholder (its empty grid with the head: weekdays, the days of the week, the twelve months), let go
+   far enough it glides fully into place and only then the new period is drawn (no spring back to 0, no second glide-in);
+   on every touch screen the same. The trackpad's sideways swipe and the arrows stay as they were. */
 'use strict';
 
 const CGS = {
-  /** @type {any} */ sw: null,  // one-finger swipe {x0, y0, t0, dx, lock, els}
+  /** @type {any} */ sw: null,  // 2.1312.0 (#6711): the handle of the one-finger leafing (swipenav.js swn_attach)
   /** @type {any} */ pz: null,  // zoom session {week|flat, k, src: 'touch'|'wheel'|'gesture', ...}
   /** @type {any} */ wx: null,  // trackpad swipe {acc, els, idle, done}
   /** @type {any} */ tap: null,  // last tap on a month day {day, x, y, at}
+  fing: false, redraw: false, attaching: false,  // 2.1312.0 (#6711): a finger leafs / a redraw waits for it / swn_attach runs
   hold: false,  // fingers of an ended pinch still on the screen: no swipe until all are lifted
 };
 const CGS_AREA = '#view .cal, #view .week, #view #cyear';
@@ -88,7 +94,7 @@ function cgs_pzStart(area, x, y, src) {
     const H0 = weekH(), r = wb.getBoundingClientRect();
     cgs_hang(wb, H0);
     // 2.290.0 A (#3144): the day columns' box and the day under the fingers (for the number of days)
-    const {days, nf} = calGridDays(), cols = $$('#view .week .wcol'), c0 = cols[0]?.getBoundingClientRect(), c1 = cols[cols.length - 1]?.getBoundingClientRect();
+    const {days, nf} = calGridDays(), cols = $$('#view .week:not(.cgs-nbg) .wcol'), c0 = cols[0]?.getBoundingClientRect(), c1 = cols[cols.length - 1]?.getBoundingClientRect();
     const cl = c0 ? c0.left : r.left, cw = Math.max(1, (c1 ? c1.right : r.right) - cl);
     const anchor = addDays(days[0], Math.min(days.length - 1, Math.floor(Math.max(0, Math.min(.999, (x - cl) / cw)) * nf)));
     CGS.pz = {week, wb, src, H0, H: H0, k: 1, kx: 1, ky: 1, x, y, top: r.top, min: (wb.scrollTop + Math.max(0, Math.min(r.height, y - r.top))) / H0 * 60,
@@ -170,7 +176,7 @@ function cgs_pzEnd() {
   setTimeout(() => { p.box.style.transition = ''; p.box.style.transformOrigin = ''; }, 200);
 }
 
-// ---- turning the page (fingers and trackpad): the content below the bar follows, then snaps
+// ---- turning the page with the trackpad: the content below the bar follows, then snaps
 const cgs_pages = () => /** @type {HTMLElement[]} */ ($$('#view > .calbar ~ *'));
 function cgs_shift(els, dx) { for (const el of els) { el.style.transition = 'none'; el.style.transform = dx ? `translateX(${Math.round(dx)}px)` : ''; } }
 function cgs_back(els) {
@@ -187,7 +193,6 @@ document.addEventListener('touchstart', e => {
   if (!e.touches) return;  // a plain Event("touchstart") (tests, synthetic taps) has no touch list
   const n = e.touches.length;
   if (n >= 2) {
-    if (CGS.sw) { if (CGS.sw.els) cgs_back(CGS.sw.els); CGS.sw = null; }
     if (CGS.pz || n > 2) { if (n > 2 && CGS.pz) cgs_pzEnd(); return; }
     const a = cgs_area(e.touches[0].target), b = cgs_area(e.touches[1].target);
     if (!a || a !== b || CG.st?.active || lp?.active || document.body.classList.contains('cgdrag') || document.body.classList.contains('tdrag')) return;
@@ -198,11 +203,7 @@ document.addEventListener('touchstart', e => {
     CGS.pz.dx0 = Math.max(CGS_AX, Math.abs(p.clientX - q.clientX)); CGS.pz.dy0 = Math.max(CGS_AX, Math.abs(p.clientY - q.clientY));  // 2.290.0 A (#3144)
     return;
   }
-  CGS.hold = false;
-  const t = e.touches[0], a = cgs_area(e.target);
-  // not from the screen's edges (the phone's own Back gesture), not in a field / the open "New event" block
-  if (!a || cgs_busy() || cgs_el(e.target)?.closest('input, textarea, select, .cgnew') || t.clientX < 16 || t.clientX > innerWidth - 16) { CGS.sw = null; return; }
-  CGS.sw = {x0: t.clientX, y0: t.clientY, t0: Date.now(), dx: 0, lock: null, els: null};
+  CGS.hold = false;  // one finger: the leafing (swipenav.js, attached below) decides
 }, {passive: true});
 document.addEventListener('touchmove', e => {
   const p = CGS.pz;
@@ -215,38 +216,85 @@ document.addEventListener('touchmove', e => {
     p.kx = cgs_dead(Math.max(CGS_AX, Math.abs(a.clientX - b.clientX)) / p.dx0); p.ky = Math.max(CGS_AX, Math.abs(a.clientY - b.clientY)) / p.dy0;
     p.x = (a.clientX + b.clientX) / 2; p.y = (a.clientY + b.clientY) / 2;
     cgs_pzDraw();
-    return;
   }
-  const s = CGS.sw; if (!s || e.touches.length !== 1) return;
-  const t = e.touches[0], dx = t.clientX - s.x0, dy = t.clientY - s.y0;
-  if (!s.lock) {
-    if (cgs_busy()) { CGS.sw = null; return; }
-    if (Math.hypot(dx, dy) < 10) return;  // beyond the 8 px after which caldrag.js / dnd.js let go of their hold
-    s.lock = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-    if (s.lock === 'y') { CGS.sw = null; return; }  // up / down: the hours / the page scroll as before
-    s.els = cgs_pages(); s.lx = t.clientX; s.lt = Date.now();
-  }
-  if (e.cancelable) e.preventDefault();
-  s.v = (t.clientX - s.lx) / Math.max(1, Date.now() - s.lt); s.lx = t.clientX; s.lt = Date.now();
-  s.dx = t.clientX - s.x0;
-  cgs_shift(s.els, s.dx);
 }, {passive: false});
 const cgs_dead = k => k > CGS_DEAD ? k / CGS_DEAD : k < 1 / CGS_DEAD ? k * CGS_DEAD : 1;
 function cgs_touchEnd(e) {
   if (CGS.pz?.src === 'touch') {
     if (e.touches.length >= 2) return;
     CGS.hold = e.touches.length > 0;
-    cgs_pzEnd(); return;
+    cgs_pzEnd();
   }
-  const s = CGS.sw; CGS.sw = null;
-  if (!s?.els || CGS.hold) return;
-  const w = $('#view')?.clientWidth || innerWidth;
-  // far enough (a fifth of the width) or a quick flick: the next / previous period, else back into place
-  const go = e.type !== 'touchcancel' && (Math.abs(s.dx) > Math.min(90, w * .2) || (Math.abs(s.dx) > 30 && Math.abs(s.v || 0) > .35 && Math.sign(s.v) === Math.sign(s.dx)));
-  if (go) cgs_turn(s.els, s.dx < 0 ? 1 : -1); else cgs_back(s.els);
 }
 document.addEventListener('touchend', cgs_touchEnd, {passive: true});
 document.addEventListener('touchcancel', cgs_touchEnd, {passive: true});
+
+// ---- 2.1312.0 (#6711): one finger leafs like a page (swipenav.js swn_attach): the grid only, the neighbour as a placeholder
+const CGS_LEAF = ['month', 'week', 'day', 'year'];
+// the state of the neighbour period (calendar.js calStep, the arrows' step) while fn runs; the shown period stays
+function cgs_with(dir, fn) {
+  const was = {sel: S.calSel, mon: S.calMonth, tl: S.tlStart};
+  try { calStep(dir); return fn(); } finally { S.calSel = was.sel; S.calMonth = was.mon; S.tlStart = was.tl; }
+}
+function cgs_nbMonth() {  // the month's grid: weekdays and day numbers, no entries
+  const [y, m] = S.calMonth.split('-').map(Number), start = weekStartOf(ds(new Date(y, m - 1, 1))), t0 = today();
+  let cells = '';
+  for (let i = 0; i < 42; i++) {
+    const d = addDays(start, i), out = pd(d).getMonth() !== m - 1;
+    if (i === 35 && out) break;
+    cells += `<div class="cell${out ? ' out' : ''}${d === t0 ? ' today' : ''}"><span class="dn">${/*html-ok*/ pd(d).getDate() /* a number */}</span></div>`;
+  }
+  return `<div class="cal calv">${wdOrder().map(i => `<div class="wd">${esc(WD[i])}</div>`).join('')}${/*html-ok*/ cells /* built above */}</div>`;
+}
+function cgs_nbWeek() {  // the days' head, an empty all-day row as high as the one shown, the hours (scrolled like the shown ones)
+  const {days} = calGridDays(), t0 = today(), H = weekH(), ad = /** @type {HTMLElement|null} */ ($('#view .week:not(.cgs-nbg) .wallday'))?.offsetHeight || 0;
+  const up = `transform:translateY(-${/*html-ok*/ $('#wbody')?.scrollTop || 0 /* a number */}px)`;  // the hours where the shown ones are scrolled to
+  return `<div class="week calv${S.calMode === 'day' ? ' oneday' : ''}" style="--cols:${days.length};--h:${/*html-ok*/ H /* a number */}px">
+    <div class="whead"><div></div>${days.map(d => `<div class="wh${d === t0 ? ' today' : ''}"><span>${esc(WD[pd(d).getDay()])}</span><b>${/*html-ok*/ pd(d).getDate() /* a number */}</b></div>`).join('')}</div>
+    <div class="wallday"${ad ? ` style="height:${/*html-ok*/ ad /* a number */}px"` : ''}><div class="wlbl">${esc(tr('all day|short'))}</div>${/*html-ok*/ days.map(() => '<div class="wad"></div>').join('') /* constant */}</div>
+    <div class="wbody"><div class="wgutter" style="${/*html-ok*/ up /* numbers */}">${[...Array(24)].map((_, h) => `<div class="wtime" style="top:${/*html-ok*/ h * H /* a number */}px">${esc(fmtTimeLoc(pad(h) + ':00'))}</div>`).join('')}</div>${days.map(d => `<div class="wcol${d === t0 ? ' today' : ''}" style="${/*html-ok*/ up /* numbers */}"></div>`).join('')}</div></div>`;
+}
+function cgs_nbYear() {  // the twelve months without the tint of the entries
+  const y = +S.calSel.slice(0, 4), t0 = today(), none = new Map();
+  return `<div class="cyear calv">${/*html-ok*/ [...Array(12).keys()].map(m => cyr_month(y, m, none, t0)).join('') /* calyear.js, escaped there */}</div>`;
+}
+/** @param {number} dir -> {el}: the neighbour period's empty grid, laid beside the shown one (no ids, never focused) */
+function cgs_peek(dir) {
+  if (CGS.attaching || !$('#view > .calbar.cbm')) return null;  // swn_attach's prime (no pictures to fetch ahead here)
+  CGS.fing = true;  // laid in at the swipe's lock: from now on the redraws wait (cgs_held)
+  const box = document.createElement('div');
+  box.innerHTML = cgs_with(dir, () => S.calMode === 'year' ? cgs_nbYear() : S.calMode === 'month' ? cgs_nbMonth() : cgs_nbWeek());
+  const el = /** @type {HTMLElement} */ (box.firstElementChild);
+  el.classList.add('cgs-nbg'); el.inert = true;
+  return {el};
+}
+// the area under the finger: the grid; not in a field / the open "New event" block, not while a drag or a pinch owns the fingers
+/** @param {EventTarget|null} t */
+const cgs_leafArea = t => CGS.pz || CGS.hold || cgs_busy() || !CGS_LEAF.includes(S.calMode) || cgs_el(t)?.closest('input, textarea, select, .cgnew, .swn-nb') ? null : /** @type {HTMLElement|null} */ (cgs_area(t));
+if (typeof swn_attach === 'function') {
+  CGS.attaching = true;
+  try {
+    CGS.sw = swn_attach(document, {area: cgs_leafArea, can: () => CGS_LEAF.includes(S.calMode), peek: cgs_peek,
+      go: dir => { CGS.redraw = false; calStep(dir); renderView(); },  // drawn in place: no an_calSlide (the neighbour already stands there)
+      busy: () => cgs_busy() || !!CGS.pz || CGS.hold});
+  } finally { CGS.attaching = false; }
+}
+// a finger that leafs (from the swipe's lock to the end of its snap): the calendar's own redraws (calendar.js: the events, the
+// repeating tasks fetched) and the live ones (liveparts.js lpHold) wait - a grid drawn anew took the moving grid and its
+// placeholder away mid-swipe - and are drawn once the snap / the spring back is over
+const cgs_leafing = () => !!CGS.fing || !!CGS.sw?.snapping();
+function cgs_held() { if (!cgs_leafing()) return false; CGS.redraw = true; return true; }
+function cgs_after() {
+  setTimeout(() => {
+    if (cgs_leafing()) { cgs_after(); return; }
+    const r = CGS.redraw; CGS.redraw = false;
+    if (S.viewStale && typeof viewSafeRender === 'function') viewSafeRender();
+    else if (r && S.route?.mod === 'cal') renderView();
+  }, 260);
+}
+const cgs_lift = () => { if (!CGS.fing) return; CGS.fing = false; cgs_after(); };  // after swipenav's own end (attached before)
+document.addEventListener('touchend', cgs_lift, {passive: true});
+document.addEventListener('touchcancel', cgs_lift, {passive: true});
 
 // ---- trackpad / mouse: Ctrl + wheel (a trackpad pinch arrives so in Chrome, Edge, Firefox) zooms, sideways turns the page
 ($('#view') || document).addEventListener('wheel', e => {  // on the view only: scrolling elsewhere never waits for it
