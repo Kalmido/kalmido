@@ -89,7 +89,8 @@ const HEAD = `(() => {
   const n2 = w.eval('HIST.undo.length');
   click(w, pop.querySelector('[data-q="revert"]')); await until(async () => (await getT(T)).due === day(5)); await idle(w);
   check((await getT(T)).due === day(5) && pop.classList.contains('hidden') && w.eval('HIST.undo.length') === n2, 'Undo in the foot: back, closed, no extra step');
-  // 2.905.0 (#5255): the foot takes the visit's own server step back (POST /api/undo/to) instead of a new change; a new change
+  // 2.905.0 (#5255): the foot takes the visit's own server step back (2.1358.0 (#6328): POST /api/undo/<group>/undo per own group,
+  // no longer /api/undo/to) instead of a new change; a new change
   // would be the person's newest step and a later Ctrl+Z brought "Today" again
   const ug = ((await call('GET', '/api/undo?limit=1')).items || [])[0];
   check(ug && ug.state === 'undone', 'Undo in the foot: the newest own step on the server is the undone visit, no new step ' + JSON.stringify(ug));

@@ -108,7 +108,8 @@ const addD = (s, n) => { const [y, m, d] = s.split('-').map(Number); const x = n
   await until(() => toastBtn());
   await toastClick();
   // 2.1060.0 (#5868): since #5637 (3b5aff9c1e) the toast's Undo takes back exactly its own step (POST /api/undo/<group>/undo):
-  // the due date the other device changed since stays and is named; the arrow / Ctrl+Z (POST /api/undo/to) then takes back the
+  // the due date the other device changed since stays and is named; the arrow / Ctrl+Z (2.1358.0 (#6328): POST /api/undo/<group>/undo
+  // of the newest step, no longer /api/undo/to) then takes back the
   // person's newest step, the other device's (the own step is used up by the toast: the field it held stayed)
   const tt = () => d.querySelector('#toast').textContent;
   check(await until(() => !w.eval('HIST.busy') && /Changed (elsewhere|by someone else)/.test(tt())), 'the toast\'s Undo names the date changed on the other device: ' + tt());
