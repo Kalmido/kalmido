@@ -36,7 +36,7 @@ from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_enc_fields, oc_json_store,
 from ..core.access import Denied
 from ..core.errors import BadInput, DeniedKey
 from .model import ofx_release  # noqa: F401  2.542.0 (#4598): moved to model, chain needs it at module level
-from .model import doc_range_id, ofx_name1, ofx_name_clean, ofx_name_lines, office_gate, office_org, office_role, office_settings, pb_cl_sql
+from .model import doc_range_id, ofx_name1, ofx_name_clean, ofx_name_lines, office_role, office_settings, pb_cl_sql
 from .packs import office_pack_for
 from .doclang import doc_lg, doc_pack
 from .rights import ofr_admin_or

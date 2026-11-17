@@ -577,7 +577,7 @@ def num_view(c, oid, s, r):
     if rg is None:  # a range that is gone (an older version deleted it): never the main counter -- refuse
         raise BadInput(tr("Invalid value: {0}", "range_id"))
     sch = num_range_schemes(rg)
-    return {**s, "invoice_scheme": sch["invoice"], "credit_scheme": sch["credit"], "credit_shared": 1, "_range_key": f"r{rid}", "_range": dict(rg)}
+    return {**s, "invoice_scheme": sch["invoice"], "credit_scheme": sch["credit"], "credit_shared": 1, "_range_key": f"r{rid}"}
 
 
 def _pack_switch(out, cur, b):

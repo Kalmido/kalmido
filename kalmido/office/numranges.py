@@ -26,7 +26,7 @@ from ..core.errors import BadInput
 from ..core.db import body, bump, db, err, iso, now_utc
 from ..core.i18n import N_, tr
 from ..core.orgcrypt import oc_dec
-from ..core.pg import write_lock
+from ..core.pg import qi, write_lock
 from .docs import ODOC_KIND_WORDS  # 2.1315.0 (#6472)
 from .invoices import INV_SKIP_REASON_MIN, inv_manual_seq, inv_number_year, inv_scheme
 from .ledger import ofx_log
@@ -350,6 +350,7 @@ NR_CODE_RE = re.compile(r"[A-Z0-9]{1,8}")
 NR_SUFFIX_RE = re.compile(r"[-_.A-Za-z0-9]{1,8}")
 NR_BLOCKS = ("yyyy", "yy")  # besides {seq} / {seq:0N}: a machine range stays predictable (no client / project / date blocks)
 NR_NAME_MAX = 80
+NR_COLS = ("name", "scheme", "credit_suffix", "dunning", "closed_at", "updated_at")  # what PATCH writes (qi)
 
 
 def nr_used(c, oid, rid):
@@ -434,7 +435,7 @@ def nr_create():
     return jsonify(nr_public(c, oid, rg)), 201
 
 
-@app.route("/api/office/num-ranges/<int:rid>", methods=["PATCH"])
+@app.patch("/api/office/num-ranges/<int:rid>")
 def nr_patch(rid):
     """Office admin. {name?, scheme?, credit_suffix?, dunning?, closed?}: a new scheme / suffix applies from the next number on
     (the numbers given stay); every change goes into the office log. A closed range takes no new document."""
@@ -465,7 +466,7 @@ def nr_patch(rid):
     f = {k: v for k, v in f.items() if (bool(v) if k in ("dunning",) else v) != (bool(rg[k]) if k in ("dunning",) else rg[k])}
     if f:
         f["updated_at"] = iso(now_utc())
-        c.execute(f"UPDATE office_num_ranges SET {', '.join(k + '=?' for k in f)} WHERE id=? AND org_id=?", (*f.values(), rid, oid))
+        c.execute(f"UPDATE office_num_ranges SET {', '.join(qi(k, NR_COLS) + '=?' for k in f)} WHERE id=? AND org_id=?", (*f.values(), rid, oid))
         keys = [k for k in f if k != "updated_at"]
         ofx_log(c, oid, "num_range", target="number_range", detail={"before": {"id": rid, "code": rg["code"], **{k: _nr_logv(rg[k]) for k in keys}},
                                                                     "after": {k: _nr_logv(f[k]) for k in keys}})
