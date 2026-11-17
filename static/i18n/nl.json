@@ -19055,14 +19055,5 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Eén bestand per project in een ZIP: Todoist-CSV voor de import in Todoist, Markdown als checklists voor elke notitie-app. Alleen je eigen projecten gaan erin: met jou gedeelde projecten en projecten die met een wachtwoord zijn vergrendeld blijven buiten, een lijst in de ZIP noemt ze.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "vergrendeld met een wachtwoord (end-to-end versleuteld): de server heeft het alleen versleuteld",
   "shared with you: only the projects you own are exported": "met jou gedeeld: alleen je eigen projecten worden geëxporteerd",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten.",
-  "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "Adresboek {0} kan niet meer worden gelezen: de verjaardagen en jubilea eruit zijn misschien niet actueel.",
-  "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "Adresboek {0} heeft de gewijzigde datum van {2} niet overgenomen; die blijft alleen in Kalmido ({1}).",
-  "Address book #{0} of user {1} failed {2} times in a row ({3}).": "Adresboek #{0} van {1} is {2} keer op rij mislukt ({3}).",
-  "Only the outlays of a cancelled invoice can be released": "Alleen de voorschotten van een geannuleerde factuur kunnen weer worden vrijgegeven",
-  "Release the outlays again": "Voorschotten weer vrijgeven",
-  "Release the outlays again?": "Voorschotten weer vrijgeven?",
-  "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} bon van deze geannuleerde factuur kan dan op een nieuwe factuur.", "{0} bonnen van deze geannuleerde factuur kunnen dan op een nieuwe factuur."],
-  "{0} receipt released": ["{0} bon vrijgegeven", "{0} bonnen vrijgegeven"],
-  "This release has already been undone": "Deze vrijgave is al ongedaan gemaakt"
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten."
 }

@@ -19055,14 +19055,5 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Eine Datei je Projekt in einer ZIP-Datei: Todoist-CSV für den Import in Todoist, Markdown als Checklisten für jede Notiz-App. Es kommen nur deine eigenen Projekte hinein: mit dir geteilte und mit Passwort verschlüsselte Projekte bleiben draußen, eine Liste in der ZIP-Datei nennt sie.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "mit Passwort verschlüsselt (Ende-zu-Ende): der Server hat es nur als Geheimtext",
   "shared with you: only the projects you own are exported": "mit dir geteilt: exportiert werden nur deine eigenen Projekte",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte.",
-  "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "Das Adressbuch {0} lässt sich nicht mehr lesen: Geburtstage und Jahrestage daraus sind vielleicht nicht aktuell.",
-  "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "Das Adressbuch {0} hat das geänderte Datum von {2} nicht übernommen; es gilt nur in Kalmido ({1}).",
-  "Address book #{0} of user {1} failed {2} times in a row ({3}).": "Adressbuch #{0} von {1} ist {2}-mal in Folge fehlgeschlagen ({3}).",
-  "Only the outlays of a cancelled invoice can be released": "Nur die Auslagen einer stornierten Rechnung lassen sich wieder abrechenbar machen",
-  "Release the outlays again": "Auslagen wieder abrechenbar machen",
-  "Release the outlays again?": "Auslagen wieder abrechenbar machen?",
-  "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} Beleg dieser stornierten Rechnung kann dann auf eine neue Rechnung.", "{0} Belege dieser stornierten Rechnung können dann auf eine neue Rechnung."],
-  "{0} receipt released": ["{0} Beleg wieder abrechenbar", "{0} Belege wieder abrechenbar"],
-  "This release has already been undone": "Diese Freigabe wurde schon rückgängig gemacht"
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte."
 }
