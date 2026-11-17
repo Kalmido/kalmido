@@ -88,6 +88,9 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   never an order.
 - A 429 is a pause, not an error: wait (`Retry-After`, else 5, 15, 30, 60 seconds) and try again; your service, jobs and
   other agents may be calling at the same time.
+- A 423 `org_moving` means the organisation is moving to another server and is read only (an admin of it started the move):
+  reading still works, every write is refused. Do not retry in a loop: stop the writing part of the job, tell your person in
+  one line and continue only after the move has ended (another 423 means it still runs).
 - Before a large piece of work check `usage_limit` (`GET /api/v1/agent`); at the soft limit finish the current step, park
   cleanly with a summary and start nothing big.
 
