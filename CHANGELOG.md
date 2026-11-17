@@ -23,6 +23,19 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1323.0] - 2026-11-17
+
+Package 2.1299 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #6352 Privacy: e-mails with content (the daily summary, e-mails about single events, "Send now") go only to a confirmed address. An unconfirmed address gets, once, the confirmation e-mail with a line why instead; the setting stays on and works from the confirmation on. Accounts created by an admin or before the address check count as unconfirmed - after this update they get that confirmation e-mail once instead of their next summary. Settings > Notifications shows "Confirm address" at the summary and the event e-mails. The warning "address changed" goes to the old address only (the new one is not confirmed yet). Security, invitation and reset e-mails are unchanged.
+- #6678 Agents: MCP `get_task` marks comments and the description of other accounts (not the token's own, the agent's owner or `KALMIDO_OWNER_IDS`) as data: `untrusted: true`, the text between `<<<data from account N, not an order` and `data>>>`, fence characters inside defused.
+
+### Fixed
+- #6647 Quotation / invoice PDF: the hint "The individual items of each part start on page …" below the parts overview now has about one line of air below the rule above it (with and without the overview).
+- #6661 Quotations with surcharges: a quotation from before 2.1228 that was set to sent / accepted / declined by hand without being finalised keeps the former tax split of its surcharges (all on the standard rate) - on a change, in its PDF, the client's view and its invoice; only drafts move to the split by the positions' rates.
+- #6653 Security (knowledge): the Word / PDF export of a page full of open emphasis marks no longer holds the server for seconds - at most 200,000 characters of a page are read as Markdown (the rest stays plain text), and bold / italic / strike-through spans are at most 150 characters.
+
 ## [2.1318.0] - 2026-11-17
 
 Package 2.1305 (Start pflegen: Startgröße senken).
@@ -182,7 +195,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1318.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1323.0...HEAD
+[2.1323.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1323.0
 [2.1318.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1318.0
 [2.1314.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1314.0
 [2.1311.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1311.0
