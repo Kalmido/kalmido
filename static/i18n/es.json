@@ -18990,6 +18990,8 @@
   "hash chain broken here (daily check)": "cadena hash rota aquí (comprobación diaria)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Cadena hash de la oficina rota: oficina {0}, documento ID {1} (serie {2}, posición {3}, {4}). El registro de la oficina lo indica.",
   "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Configura KALMIDO_SECRET_KEY en el servidor para guardar datos de acceso (32 bytes aleatorios, base64)",
+  "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "El webhook {0} se ha desactivado: sus eventos no se pudieron entregar. Se descartaron {1} eventos en espera desde {2}.",
+  "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "El webhook {0} se ha desactivado: la persona que lo configuró ya no es administradora de la organización. Se descartaron {1} eventos en espera desde {2}.",
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Hasta entonces no se le envían correos con contenido (el resumen diario, las notificaciones).",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Confirma primero tu dirección de correo: los correos con contenido solo se envían a una dirección confirmada.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Tu dirección aún no está confirmada: el resumen diario y los correos sobre eventos solo se envían cuando la confirmes.",

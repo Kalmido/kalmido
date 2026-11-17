@@ -20,7 +20,7 @@ from flask import g, has_request_context, jsonify
 from ..core.config import app, APP_NAME, APP_VERSION
 from ..core.pg import insert_id, system_ctx
 from ..core.i18n import N_, tr
-from ..core.db import body, connect, db, err, inbox_default, iso, iso_ms, local_now, now_utc, usettings
+from ..core.db import body, connect, db, err, inbox_default, iso, iso_ms, local_day, local_now, now_utc, usettings
 from ..accounts.session import _rate_blocked, _rate_fail, GATE, me
 from ..accounts.login import seal, unseal
 from ..accounts.orgs import is_org_admin, may_see  # may_see: 2.574.0 (#3376, review F4)
@@ -469,11 +469,21 @@ def who_obj(c, kind, oid, event):
     return None
 
 
-def wh_off_tell(c, w, what):
+def wh_drop_queue(c, wid):
+    """2.1322.0 (#6560 6): empties the queue of webhook wid -> (how many events were waiting, the local day of the oldest)."""
+    r = c.execute("SELECT COUNT(*), MIN(created_at) FROM webhook_queue WHERE webhook_id=?", (wid,)).fetchone()
+    c.execute("DELETE FROM webhook_queue WHERE webhook_id=?", (wid,))
+    return int(r[0] or 0), str(local_day(r[1]) or "")
+
+
+def wh_off_tell(c, w, what, lost=(0, "")):
     """2.367.3 (#2971): a webhook turned itself off: its owner / the organisation's admins hear it (the instance's admins only
-    get their alert). An agent's webhook: the admins' alert, as before."""
+    get their alert). An agent's webhook: the admins' alert, as before. 2.1322.0 (#6560 6): lost = wh_drop_queue's answer -
+    the text names how many waiting events were discarded and since when."""
     if not w["agent"]:
-        integ_tell(c, integ_org_admins(c, w["org_id"]) if w["org_id"] else [w["user_id"]], what, w["name"] or wh_host(w["url"]),
+        n, since = lost
+        integ_tell(c, integ_org_admins(c, w["org_id"]) if w["org_id"] else [w["user_id"]], what + "_lost" if n else what,
+                   w["name"] or wh_host(w["url"]), str(n) if n else "", more=(since,) if n else (),
                    click="settings/webhooks", focus="webhooks")
 
 
@@ -482,9 +492,9 @@ def who_admin_ok(c, hooks):
     out = []
     for w in hooks:
         if w["org_id"] and org_role(c, w["user_id"], w["org_id"]) != "admin":
-            c.execute("DELETE FROM webhook_queue WHERE webhook_id=?", (w["id"],))
+            lost = wh_drop_queue(c, w["id"])
             c.execute("UPDATE webhooks SET enabled=false, disabled_reason='admin', updated_at=? WHERE id=?", (iso(now_utc()), w["id"]))
-            wh_off_tell(c, w, "webhook_admin")
+            wh_off_tell(c, w, "webhook_admin", lost)
             continue
         out.append(w)
     return out
@@ -521,6 +531,10 @@ def wh_tick():
             c.execute("""DELETE FROM webhook_queue WHERE webhook_id IN (SELECT w.id FROM webhooks w JOIN users u ON u.id=w.user_id
                          WHERE NOT w.enabled OR u.disabled OR (w.agent=1 AND EXISTS (SELECT 1 FROM agents a JOIN users o
                          ON o.id=a.owner_id WHERE a.user_id=w.user_id AND o.disabled)))""")
+            # 2.1322.0 (#6560 6): what waits for an organisation's webhook whose creator is no admin there any more is not
+            # delivered (who_admin_ok was asked only when an event was queued): the webhook turns off, its queue goes
+            who_admin_ok(c, c.execute("""SELECT w.* FROM webhooks w WHERE w.enabled AND w.org_id IS NOT NULL AND w.agent=0
+                                         AND EXISTS (SELECT 1 FROM webhook_queue q WHERE q.webhook_id=w.id)""").fetchall())
             c.commit()
             # 2.658.0 (#4193): the batch takes the waiting deliveries in turns over the webhooks (the first of each, then the
             # second of each, ...; in its own order within one webhook), so 500 waiting ones of a dead webhook no longer stand
@@ -569,12 +583,12 @@ def wh_result(c, r, res):
             with contextlib.suppress(ValueError, TypeError):
                 chat_delivered(c, w["user_id"], chat_event_mids([json.loads(r["payload"])]))
     elif att > len(WH_BACKOFF):  # the last retry failed: turn the webhook off, tell the admins
-        c.execute("DELETE FROM webhook_queue WHERE webhook_id=?", (w["id"],))
+        lost = wh_drop_queue(c, w["id"])
         c.execute("UPDATE webhooks SET enabled=false, disabled_reason='failures', updated_at=? WHERE id=?", (iso(now_utc()), w["id"]))
         print(f"webhook {w['id']} of user {w['user_id']} turned off after {att} failed attempts ({errc} {status or ''})", flush=True)
         aa_now("integration", f"webhook:{w['id']}", N_("Webhook {0} of {1} was switched off after {2} failed attempts to deliver an event (last error: {3})."),
                [w["id"], w["username"], att, errc + (f" {status}" if status else "")])
-        wh_off_tell(c, w, "webhook")
+        wh_off_tell(c, w, "webhook", lost)
     else:
         c.execute("UPDATE webhook_queue SET attempt=?, next_at=? WHERE id=?", (att, time.time() + WH_BACKOFF[att - 1], r["id"]))
     c.commit()

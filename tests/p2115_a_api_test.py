@@ -296,6 +296,22 @@ h = until(lambda: [x for x in A.get(B + f"/api/orgs/{ORG}/webhooks").json()["hoo
     [x for x in A.get(B + f"/api/orgs/{ORG}/webhooks").json()["hooks"] if x["id"] == BW]
 check(h and not h[0]["enabled"] and h[0]["disabled_reason"] == "admin", f"turned off: no admin any more {h}")
 check(none_after("/bob-org", "task.created", lambda d: True, 2), "nothing delivered after the demotion")
+# 2.1322.0 (#6560 6): what was queued while the creator was an admin is not delivered after the demotion either
+A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": uid["bob"], "role": "admin"})
+r = Bo.post(B + f"/api/orgs/{ORG}/webhooks", json={"name": "Bob's queued", "url": STUB + "/bob-org2", "events": ["task.created"]})
+check(r.status_code == 201, "setup: bob adds another one as admin")
+BW2 = r.json()["id"]
+pay = json.dumps({"id": "d-6560", "event": "task.created", "created_at": "2026-11-17T08:00:00Z", "webhook_id": BW2, "data": {"task": {"id": 1}}})
+dbx("INSERT INTO webhook_queue(webhook_id,delivery,event,payload,attempt,next_at,created_at) VALUES(?,?,?,?,0,?,?)",
+    (BW2, "d-6560", "task.created", pay, time.time() + 4, "2026-11-17T08:00:00Z"))
+A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": uid["bob"], "role": "member"})
+h = until(lambda: [x for x in A.get(B + f"/api/orgs/{ORG}/webhooks").json()["hooks"] if x["id"] == BW2 and not x["enabled"]], 15)
+check(h and h[0]["disabled_reason"] == "admin", f"a queued event of a demoted creator: the webhook turns off before delivering {h}")
+check(none_after("/bob-org2", "task.created", lambda d: True, 6), "the queued event is not delivered after the demotion")
+check(not dbx("SELECT 1 FROM webhook_queue WHERE webhook_id=?", (BW2,)), "its queue is emptied")
+nt = [json.loads(d).get("text", "") for (d,) in dbx("SELECT data FROM notifications WHERE kind='integfail' AND user_id=(SELECT id FROM users WHERE username='alice')")]
+check(any("no admin" in t and "1 waiting events since 2026-11-17" in t for t in nt), f"the admins hear how many waiting events were discarded {nt}")
+A.delete(B + f"/api/orgs/{ORG}/webhooks/{BW2}")
 r = A.patch(B + f"/api/orgs/{ORG}/webhooks/{BW}", json={"enabled": True})
 check(r.ok and r.json()["enabled"], "another admin switches it on again (and owns it)")
 check(A.delete(B + f"/api/orgs/{ORG}/webhooks/{BW}").ok and Bo.delete(B + f"/api/orgs/{ORG}/webhooks/{OW}").status_code == 403,
