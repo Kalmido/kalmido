@@ -130,10 +130,10 @@ def mv_apply(c):
     _fn(c, "kalmido_moving_guard", GUARD_SRC)
     _fn(c, "kalmido_moving_org", ORG_SRC)
     want = {t for t in org_tables(c) if t not in MV_FREE}
-    have = {r[0] for r in c.execute("SELECT r.relname FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid "
+    have = {r[0] for r in c.execute("SELECT r.relname FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid "  # pg-ok: catalog oid (Postgres only)
                                     "WHERE t.tgname=? AND NOT t.tgisinternal AND r.relnamespace=current_schema()::regnamespace",
                                     (MV_TRIGGER,)).fetchall()}
-    org_on = c.execute("SELECT 1 FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid WHERE t.tgname=? AND r.relname='orgs' "
+    org_on = c.execute("SELECT 1 FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid WHERE t.tgname=? AND r.relname='orgs' "  # pg-ok: catalog oid (Postgres only)
                        "AND r.relnamespace=current_schema()::regnamespace", (MV_ORG_TRIGGER,)).fetchone()
     add, drop = sorted(want - have), sorted(have - want)
     if add or drop:
