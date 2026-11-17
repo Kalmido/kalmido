@@ -29,7 +29,7 @@ tenant-matrix: support
  - review #4788 (2): deleting a budget receipt, a notepad and the last way of an office document (no trash: for good) 403
    support_session for frida's support session, the document stays; her own session deletes it
  - review #4788 (3): a filed mail of frida: her support session sees its recipients without the secret filing address and
-   without the .eml (eml_id none, GET of its content 403 support_session); her own session sees both
+   without the .eml (eml_id none, GET of its content 403 support_session, not in a ZIP); her own session sees both
 usage: p21254_a_support_purge_test.py <datadir>"""
 import ast
 import glob
@@ -320,6 +320,21 @@ for path in (f"/api/hubmail/mails/{HM}/files/{EML}", f"/api/files/nodes/{EML}/co
     check(refused(r), f"support session: GET {path} (the .eml) 403 support_session, {r.status_code} {r.text[:100]}")
     r = Fr.get(B + path)
     check(r.ok and b"invented" in r.content, f"frida's own session opens {path}: {r.status_code}")
+
+
+def zip_names(r):
+    import io
+    import zipfile
+    try:
+        return zipfile.ZipFile(io.BytesIO(r.content)).namelist() if r.ok else []
+    except zipfile.BadZipFile:
+        return []
+
+
+r = X.get(B + f"/api/files/zip?ids={EML}")
+check("mail.eml" not in zip_names(r) and r.status_code < 500, f"support session: the .eml stays out of a ZIP {r.status_code} {zip_names(r)}")
+r = Fr.get(B + f"/api/files/zip?ids={EML}")
+check(r.ok, f"frida's own session downloads it as a ZIP {r.status_code} {r.text[:80] if not r.ok else ''}")
 
 # ---------------------------------------------------------------- child paths of an organisation's task
 ALPHA = A.get(B + "/api/orgs").json()["orgs"][0]["id"]
