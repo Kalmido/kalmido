@@ -23,6 +23,13 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1314.0] - 2026-11-17
+
+Package 2.1300 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6652 Security (import): a Markdown or Notion file with a list indented one step deeper on every line no longer takes seconds and gigabytes - the nesting is capped at the deepest allowed level while reading, deeper lines hang below it with the existing warning.
+
 ## [2.1311.0] - 2026-11-17
 
 Package 2.1292 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -143,7 +150,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1311.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1314.0...HEAD
+[2.1314.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1314.0
 [2.1311.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1311.0
 [2.1310.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1310.0
 [2.1307.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1307.0
