@@ -309,6 +309,17 @@ is set by the office (`retention_years`, default 10), e-invoices as EN 16931 ZUG
 becomes ZUGFeRD), and the company country is needed before an invoice is finalised. Home currency: chosen by the
 office (2.189, see *Home currency*).
 
+**E-invoice duty in Germany (2.1359).** The German pack names the dates at the switch `docs.einvoice` and in the procedure
+documentation (receiving since 1 January 2025; issuing to domestic businesses from 1 January 2027, with a turnover of up to
+800,000 EUR in the year before from 1 January 2028). With e-invoices switched off, the finalise dialog warns
+(`einvoice_warn` of `GET /api/office/docs/<id>/number-preview`) when an invoice above 250 EUR goes to a client in Germany that
+counts as a business (the dunning setting, or a VAT ID / buyer reference / Peppol ID); a small business is left out. It is
+only a warning: no block. The XML carries what only stood in the PDF: heading and text lines as the note of the next
+position (BT-127), intro, rights block, closing and text after the last position as document notes (BT-22). Without the
+sRGB profile on the server an e-invoice is not finalised (400) instead of storing a PDF that is no PDF/A-3. The menu
+**Text** of a document offers the pack's built-in block "Retention note section 14b UStG" (work on a property for a private
+client, section 14 (4) no. 9 UStG; `texts.blocks` of a pack).
+
 **Home currency (2.189).** Every office has one home currency (ISO 4217, `home_currency` in the settings): the currency
 of its price list, books, cash flow, key figures, travel expenses, bank reconciliation and exports, and the currency the
 tax of a foreign currency document is also shown in. A country pack fixes it (`DE`: always EUR - nothing changes for
@@ -1181,6 +1192,8 @@ documents' forwarding address (any other .xml in a mail is left out). Date, due 
 in the suggestion line of the receipt. The document says "E-invoice" and offers **Readable view**: the invoice as a plain page
 (seller, recipient, lines, VAT, totals, IBAN) to read, print or save as PDF with the browser. An XML with a DOCTYPE, a broken one
 or one beyond the limits (5 MB, nesting, number of elements) stays an ordinary file.
+From 2027 on, a German supplier's invoice that arrives as a PDF without e-invoice data gets the soft hint "the supplier
+sent no e-invoice format" in the receipt check (2.1359; not counted as a hint, small amounts and 0 % notes left out).
 
 **Accounts per category (2.121):** with the DATEV export set up, a receipt's sheet shows under the category the account of the
 chart SKR03 or SKR04 (Settings → Company & office → Data) it is booked on - the default the export finds for the category (e.g. Software 4964 /

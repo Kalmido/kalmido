@@ -80,10 +80,13 @@ RCK_MSG = {
     "taxno_fmt": ("hint", N_("Please check: the tax number {0} does not look like a German tax number")),
     "recipient": ("hint", N_("Please check: name and address of the recipient (required above 250 EUR)")),
     "meal": ("hint", N_("Entertainment: note the occasion, the participants and a tip (Office > Entertainment)")),
+    # 2.1359.0 (#6482): a German supplier's invoice from 2027 on as PDF / paper only (section 27 (38) UStG): a soft hint, no check
+    "no_einv": ("hint", N_("Note: the supplier sent no e-invoice format (ZUGFeRD / XRechnung). German businesses must issue e-invoices from 2027 (with a small turnover from 2028); you may ask for one.")),
 }
+RCK_EINV_FROM = "2027-01-01"  # 2.1359.0 (#6482): the first day of the duty to issue e-invoices (larger businesses)
 # 2.892.0 (#5453): the codes that only say the text did not show a detail (the recognition did not find it; the paper may
 # well have it): listed at the receipt below the real hints, never counted as a hint ("With hints", the number, the filter)
-RCK_SOFT = frozenset(("supplier", "address", "taxid_read", "number_read", "service", "net", "vat", "recipient"))
+RCK_SOFT = frozenset(("supplier", "address", "taxid_read", "number_read", "service", "net", "vat", "recipient", "no_einv"))  # 2.1359.0 (#6482): + no_einv
 
 
 def rck_soft(code):
@@ -266,6 +269,12 @@ def rck_check(fields, text=None, today=None):
             add(bad[0], *bad[1])
     if f.get("tax_no") and not rck_taxno_ok(f["tax_no"]):
         add("taxno_fmt", f["tax_no"])
+
+    # ---- 2.1359.0 (#6482 P5-6): a German supplier (DE VAT id or a German tax number) sent its invoice from 2027 on without an
+    # e-invoice format; small amounts (section 33 UStDV) and a 0 % note (small business, reverse charge, tax free) are left out
+    if (not einv and text and not small and not zero and str(f.get("date") or "")[:10] >= RCK_EINV_FROM
+            and (str(f.get("vat_id") or "").replace(" ", "").upper().startswith("DE") or (f.get("tax_no") and rck_taxno_ok(f["tax_no"])))):
+        add("no_einv")
 
     # ---- an entertainment receipt: occasion and participants (the office's own receipt, office/meals.py, asks for them)
     if f.get("meal") and not (text and all(r.search(text) for r in RCK_MEAL_OK)):

@@ -152,7 +152,8 @@ def office_pack_info(pack, s):
             "currency": pack["currency"], "neutral": bool(pack.get("neutral")), "tax_editable": bool(tax.get("editable")),
             "offers": pack_features(pack), "retention": pack_retention(pack, s),
             "einvoice_formats": [f for f in ((pack.get("einvoice") or {}).get("formats") or []) if f in ("zugferd", "xrechnung")],
-            "currency_editable": hc_pack_editable(pack), "currencies": list(HC_CODES)}  # 2.189.0 (#2475)
+            "currency_editable": hc_pack_editable(pack), "currencies": list(HC_CODES),  # 2.189.0 (#2475)
+            "blocks": (pack.get("texts") or {}).get("blocks") or []}  # 2.1359.0 (#6482): the built-in text blocks (section 14b UStG)
 
 
 def of_home_locked(c, oid, pack):

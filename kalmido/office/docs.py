@@ -1906,14 +1906,19 @@ def odoc_number_preview(did):
     """2.431.0 B (#3605): {number, given} -- the number finalising the document gives it (the finalise dialog): its own
     number when it has one (given true), else the next one of its scheme, the counter only looked at. Who may finalise
     may look (the same office context). 2.1345.0 (#6532): + first -- a real invoice while the office has finalised none yet
-    (the dialog says it can no longer be deleted, with the ways to the test mode and the number ranges)."""
+    (the dialog says it can no longer be deleted, with the ways to the test mode and the number ranges).
+    2.1359.0 (#6482 P5-4): + einvoice_warn, the dialog's warning (translated) when it would issue a PDF-only invoice to a domestic
+    business (invoices.inv_einvoice_warn), else ""."""
+    from .invoices import inv_einvoice_warn
     c, uid, oid = _ctx()
     r = doc_row(c, oid, did)
     first = r["kind"] == "invoice" and not r["trial"] and not ofx_locked(r) and office_first_invoice(c, oid)
+    warn = inv_einvoice_warn(c, oid, r)
+    warn = tr(warn) if warn else ""
     if r["number"]:
-        return jsonify(number=r["number"], given=True, first=first)
+        return jsonify(number=r["number"], given=True, first=first, einvoice_warn=warn)
     num = office_trial_number(c, oid, did, peek=True) if r["trial"] else doc_next_number(c, oid, r, office_settings(c, oid), peek=True)
-    return jsonify(number=num, given=False, first=first)
+    return jsonify(number=num, given=False, first=first, einvoice_warn=warn)
 
 
 @app.post("/api/office/docs/<int:did>/status")
