@@ -230,7 +230,7 @@ function teRow(e, {task = true, day = true} = {}) {
 domReady(() => ms_rowMenu('.terow.temine', r => ms_btnMenu(r, '.teacts .iconbtn', (r.querySelector('.tett')?.textContent || r.querySelector('.tet')?.textContent || '').trim())));  // multisel.js loads after this file
 // 2.144.6 A (#2053): "billed RE-…" (opens the invoice) or "not billable" in the row; nothing for open billable time
 function tbill_tag(e) {
-  if (e.billed && !e.billed.id) return `<span class="tebill muted">${esc(tr('billed {0}', '').trim())}</span>`;  // someone else's entry: no invoice link
+  if (e.billed && !e.billed.id) return `<span class="tebill muted"${e.billed.earlier ? ` title="${esc(tr('Billed in an earlier organisation'))}"` : ''}>${esc(tr('billed {0}', '').trim())}</span>`;  // someone else's entry: no invoice link; 2.1327.0 (#6591): billed in an earlier organisation
   if (e.billed) return `<button class="tebill linkbtn" data-go="office/invoices/${+e.billed.id}" title="${esc(tr('On this invoice; duration and date are locked'))}">${esc(tr('billed {0}', e.billed.number || tr('Draft')))}</button>`;
   return e.billable === false ? `<span class="tebill">${esc(tr('not billable'))}</span>` : '';
 }

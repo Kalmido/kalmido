@@ -17,11 +17,12 @@ from ..core.i18n import N_, tr
 from ..core.db import body, bump, iso, now_utc
 from ..core.access import Denied, live_sql
 from ..core.pg import system_ctx
+from ..accounts.orgs import LIST_SPACE_MOVED  # 2.1327.0 (#6591)
 from ..personal.timetrack import BadInput
 from .model import office_role, pb_cl_sql
 from .rights import ofr_admin_or, ofr_own_uid
 from ..core.access import vis_sql  # 2.369.5 (#2517): pulled up from functions
-from .ledger import _log_public, ofx_log  # 2.369.5 (#2517): pulled up from functions
+from .ledger import _log_public, ofx_log, ofx_release  # 2.369.5 (#2517): pulled up from functions; 2.1327.0 (#6591): + ofx_release
 
 TBL_LOCKED = N_("This time is on invoice {0}: duration, date, task and billable can no longer be changed")
 TBL_LOCKED_DEL = N_("This time is on invoice {0} and cannot be deleted")
@@ -41,15 +42,42 @@ def tbill_doc(c, did):
     return dict(r) if r else None
 
 
+def tbill_list_moved(c, lid):
+    """2.1327.0 (#6591): project lid just changed its workspace (accounts/orgs.list_space_follow, ws_private_for). Its time
+    entries billed on a document of another office than its new one stay billed -- "billed in an earlier organisation": the
+    reference goes (billed_doc_id / billed_item_id NULL, no pointer into an office the project has left), billed_at stays and
+    they are no longer billable (never billed twice; the same state as billed entries an import brought without their invoice,
+    admin/acctimport.umz_billed). The office rows of other offices that named the project (documents, positions) let go of it.
+    -> the number of entries marked. The caller commits."""
+    with system_ctx(c):  # the documents of the office the project left (the person moving it need not see them)
+        lr = c.execute("SELECT org_id, owner_id FROM lists WHERE id=?", (lid,)).fetchone()
+        if not lr:
+            return 0
+        office = lr["org_id"] or (c.execute("SELECT id FROM orgs WHERE personal_of=?", (lr["owner_id"],)).fetchone() or [None])[0]
+        n = c.execute("UPDATE time_entries SET billed_doc_id=NULL, billed_item_id=NULL, billable=false, billed_at=COALESCE(billed_at, ?), updated_at=? "
+                      "WHERE list_id=? AND billed_doc_id IS NOT NULL AND EXISTS (SELECT 1 FROM office_docs d WHERE d.id=time_entries.billed_doc_id "
+                      "AND d.org_id IS DISTINCT FROM ?)", (iso(now_utc()), iso(now_utc()), lid, office)).rowcount
+        c.execute("UPDATE office_docs SET list_id=NULL WHERE list_id=? AND org_id IS DISTINCT FROM ?", (lid, office))  # a free column (4598.py)
+        with ofx_release(c, "office_doc_items"):  # the position's project link is no part of what was finalised (chain.HCH_ITEM_FIELDS)
+            c.execute("UPDATE office_doc_items SET list_id=NULL WHERE list_id=? AND org_id IS DISTINCT FROM ?", (lid, office))
+    return n
+
+
+LIST_SPACE_MOVED.append(tbill_list_moved)
+
+
 def tbill_need_open(c, r, b):
     """409 when entry r is billed and b changes more than the note (PATCH); a vanished document frees the entry first."""
-    if not ("billed_doc_id" in r.keys() and r["billed_doc_id"]):
+    earlier = not ("billed_doc_id" in r.keys() and r["billed_doc_id"]) and "billed_at" in r.keys() and bool(r["billed_at"])
+    if not ("billed_doc_id" in r.keys() and r["billed_doc_id"]) and not earlier:  # 2.1327.0 (#6591): billed earlier stays billed
         return
     if b is not None:
         same = {"billable": lambda v: v in (None, "") or tbill_billable(v) == r["billable"],
                 "task_id": lambda v: v == r["task_id"], "list_id": lambda v: v == r["list_id"]}
         if all(k not in b or (k in same and same[k](b[k])) for k in ("start", "end", "minutes", "seconds", "task_id", "list_id", "billable")):
             return  # only the note (or unchanged values of a form that sends everything)
+    if earlier:  # billed in an earlier organisation (or before an import): locked, without a number
+        tbill_locked(c, None, b is None)
     d = tbill_doc(c, r["billed_doc_id"])
     if d is None:
         c.execute("UPDATE time_entries SET billed_doc_id=NULL, billed_at=NULL, billed_item_id=NULL WHERE id=?", (r["id"],))
@@ -124,6 +152,8 @@ def tbill_out(r, uid=None):
                 cache[bid] = tbill_doc(db(), bid)
             d = cache[bid]
     own = uid is not None and "user_id" in k and r["user_id"] == uid and tbill_shows(None, d, uid)
+    if not bid and "billed_at" in k and r["billed_at"]:  # 2.1327.0 (#6591): billed in an earlier organisation (tbill_list_moved)
+        return {"billable": bool(r["billable"]) if "billable" in k else True, "billed": {"id": None, "number": "", "at": r["billed_at"], "earlier": True}}
     return {"billable": bool(r["billable"]) if "billable" in k else True,
             "billed": ({"id": bid, "number": d["number"] or "", "at": r["billed_at"]} if own
                        else {"id": None, "number": "", "at": r["billed_at"]}) if d else None}

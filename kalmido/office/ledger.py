@@ -486,6 +486,30 @@ def ofx_snapshot_pack(r):
     return d if isinstance(d, dict) else {}
 
 
+def ofx_rechain(c, oid, ids, origin):
+    """2.1327.0 (#6591): documents ids that just came into office oid (origin "move": a personal office moved into it,
+    office/pbtransfer.py; "import": an organisation import, admin/oi_office.py) leave the chain places they brought along (two
+    documents on one place would read as a break for good) and join the chains of oid in the order they were finalised
+    (chain.hch_append: the canonical version each link gets anew, hch_link_ver); each one linked now gets the office log line
+    "chain_moved" ({from: origin, chain, seq}). Then chain.hch_check of oid -> its result for the move's / import's answer.
+    Data the key cannot open now leaves them pending (as ofx_finalize: the next finalising / start links them). The caller commits."""
+    ids = sorted({int(x) for x in ids or ()})
+    if ids:
+        q = ",".join("?" * len(ids))
+        with ofx_release(c):  # their old places go (kalmido_office_locked frees the chain columns only while chain_seq is empty)
+            c.execute(f"UPDATE office_docs SET chain_key='', chain_seq=NULL, chain_prev='', chain_hash='', chain_ver=NULL "
+                      f"WHERE org_id=? AND id IN ({q}) AND chain_seq IS NOT NULL", (oid, *ids))
+        try:
+            with c.savepoint():
+                hch_append(c, oid)
+        except Exception as e:  # noqa: BLE001 -- never undoes the move / import: they stay pending
+            app.logger.warning("office chain: office %s, documents that came in not chained yet: %s", oid, type(e).__name__)
+        for r in c.execute(f"SELECT id, chain_key, chain_seq FROM office_docs WHERE org_id=? AND id IN ({q}) AND chain_seq IS NOT NULL "
+                           "ORDER BY chain_key, chain_seq", (oid, *ids)).fetchall():
+            ofx_log(c, oid, "chain_moved", doc_id=r["id"], detail={"from": origin, "chain": r["chain_key"], "seq": int(r["chain_seq"])})
+    return hch_check(c, oid)
+
+
 # ---------------------------------------------------------------- start-up
 def ofx_migrate(c):
     """Every start (inside init_db's transaction): positions written without organisation (older versions) get the one
