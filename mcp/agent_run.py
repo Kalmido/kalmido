@@ -3048,9 +3048,13 @@ class Runner:
         ex = getattr(self, "extras", None)  # part B (agent_extras): KALMIDO_OUTBOX, KALMIDO_CHAT_USER, ... as the base
         env = dict(ex.env() if ex and hasattr(ex, "env") else os.environ)
         ra = getattr(self, "run_api", None)
+<<<<<<< HEAD
         if ra is not None and ra is not self.api:  # 2.1348.0 (#6668): the run sees only the token of its request
+=======
+        if ra is not None and ra is not getattr(self, "api", None):  # 2.1348.0 (#6668): the run sees only the token of its request
+>>>>>>> #6668: starter stand-ins without api/token keep working; tests follow the fail-closed starter (review F1)
             env["KALMIDO_TOKEN"] = ra.token
-        elif getattr(self.api, "req_personal", None) is False:  # review F1: a team agent's own long-lived token never reaches a child
+        elif getattr(getattr(self, "api", None), "req_personal", None) is False:  # review F1: a team agent's own long-lived token never reaches a child
             env.pop("KALMIDO_TOKEN", None)
         for k in ("KALMIDO_PERM_DIR", "KALMIDO_PERM_SOCK", "KALMIDO_PERM_KEY", "KALMIDO_PERM_PID"):
             env.pop(k, None)  # 2.625.0 (#3661): never an inherited channel; without the runner's channel the hook denies
