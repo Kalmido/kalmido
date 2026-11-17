@@ -9,6 +9,11 @@ tenant-matrix: office  freelancer-matrix: office
  - (b) the same day of the bank first as CSV, then as CAMT: the CAMT preview names every booking "already there"
    (dup + dup_other), the import adds none; a booking of the CAMT with another counterpart and purpose on the same day
    and amount is new; the same format still keeps two equal bookings apart (fingerprint, not this check)
+ - (c) one imported old document goes into the office trash (DELETE /api/office/legacy/archive/<id>): also after it was
+   edited (the run's undo refuses then); gone from the list, the dialog and the PDF, listed in the office trash; its number
+   is free (a corrected PDF takes it); the restore refuses while the number is used again (409) and brings the number back
+   once it is free; a document of a locked month stays (409); an old invoice in the trash is kept by law (delete for good
+   409), a quotation goes; another office / the other person: 404 and nothing changes
  - the person without an organisation (tests/freelancer_fixture.py) in the personal office: the same for (a) and (b)
 usage: p21315_b_importe_test.py <datadir>"""
 import base64
@@ -154,5 +159,83 @@ for who, s in WHO:
     r = s.post(B + K + "/import/preview", json={"text": text2, "filename": "konto2.csv", "mapping": CSV_MAP})
     j = r.json() if r.ok else {}
     check(r.ok and j.get("count") == 1 and j.get("dup_count") == 1, p + f"CSV again with two equal rows: one there, one new {r.text[:300]}")
+
+# ======================================================================== (c) one old document into the trash
+def tiny_pdf(text):
+    stream = f"BT /F1 12 Tf 40 700 Td ({text}) Tj ET".encode()
+    objs = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    out, offs = b"%PDF-1.4\n", []
+    for i, o in enumerate(objs, 1):
+        offs.append(len(out))
+        out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    x = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offs)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, x)
+    return out
+
+
+def arch_up(s, rid, number, text, day, kind="invoice"):
+    r = s.post(B + O + "/legacy/archive", data={"run_id": rid, "kind": kind, "number": number, "client_name": "Altkunde",
+                                                "date": day, "amount": "100.00"},
+               files={"file": (f"{number}.pdf", tiny_pdf(text), "application/pdf")})
+    check(r.status_code == 201, f"(c) upload {number} {r.status_code} {r.text[:200]}")
+    return r.json().get("id", 0) if r.status_code == 201 else 0
+
+
+def arch_ids(s):
+    return {x["id"]: x["number"] for x in s.get(B + O + "/legacy/archive").json().get("items") or []}
+
+
+ARCH = "/api/office/legacy/archive"  # the whole path (tests/freelancer_coverage_test.py finds the calls)
+for who, s, other in (("org", A, Fr), ("freelancer", Fr, A)):
+    p = f"(c) {who}: "
+    rid = s.post(B + O + "/legacy/archive/run").json()["run_id"]
+    a1 = arch_up(s, rid, f"ALT-{who}-1", f"Rechnung 1 {who}", DAY[10])
+    a2 = arch_up(s, rid, f"ALT-{who}-2", f"Rechnung 2 {who}", DAY[11])
+    a3 = arch_up(s, rid, f"ANG-{who}-3", f"Angebot 3 {who}", DAY[12], kind="offer")
+    r = other.delete(B + f"/api/office/legacy/archive/{a1}")
+    check(r.status_code == 404 and a1 in arch_ids(s), p + f"another office cannot put it into the trash {r.status_code}")
+    # edited: the run's undo refuses, the single document still goes
+    check(s.patch(B + ARCH + f"/{a2}", json={"paid": 1}).ok, p + "an old invoice marked paid")
+    check(s.post(B + O + f"/legacy/runs/{rid}/undo").status_code == 409, p + "the run's undo refuses after the edit (unchanged)")
+    r = s.delete(B + ARCH + f"/{a2}")
+    check(r.ok, p + f"the edited old invoice goes into the trash {r.status_code} {r.text[:200]}")
+    r = s.delete(B + ARCH + f"/{a1}")
+    check(r.ok, p + f"an old invoice goes into the trash {r.status_code} {r.text[:200]}")
+    ids = arch_ids(s)
+    check(a1 not in ids and a2 not in ids and a3 in ids, p + f"gone from the archive list {ids}")
+    check(s.get(B + ARCH + f"/{a1}").status_code == 404 and s.get(B + ARCH + f"/{a1}/pdf").status_code == 404,
+          p + "the dialog and the PDF answer 404")
+    tr_ = s.get(B + O + "/trash").json().get("items") or []
+    check(any(x.get("core") == "oarchive" and x["id"] == a1 and f"ALT-{who}-1" in x.get("label", "") for x in tr_),
+          p + f"listed in the office trash with its number {[(x.get('core'), x['id'], x.get('label')) for x in tr_]}")
+    check(s.delete(B + ARCH + f"/{a1}").status_code == 404, p + "a second delete: 404")
+    r = other.post(B + f"/api/office/legacy/archive/{a1}/restore")
+    check(r.status_code == 404 and a1 not in arch_ids(s), p + f"another office cannot restore it {r.status_code}")
+    # the number is free: a corrected PDF takes it; the restore waits until it is free again
+    a4 = arch_up(s, rid, f"ALT-{who}-1", f"Rechnung 1 korrigiert {who}", DAY[10])
+    r = s.post(B + ARCH + f"/{a1}/restore")
+    check(r.status_code == 409 and f"ALT-{who}-1" in r.text, p + f"the restore refuses while the number is used again {r.status_code} {r.text[:200]}")
+    check(a1 not in arch_ids(s), p + "the refused restore leaves it in the trash")
+    check(s.delete(B + ARCH + f"/{a4}").ok, p + "the corrected one into the trash")
+    r = s.post(B + ARCH + f"/{a1}/restore")
+    check(r.ok and r.json().get("number") == f"ALT-{who}-1" and arch_ids(s).get(a1) == f"ALT-{who}-1",
+          p + f"restored with its number {r.status_code} {r.text[:200]}")
+    check(s.get(B + ARCH + f"/{a1}/pdf").status_code == 200, p + "its PDF opens again")
+    # the trash: an old invoice is kept by law, a quotation goes for good
+    r = s.delete(B + f"/api/office/trash/core/oarchive/{a2}")
+    check(r.status_code == 409, p + f"an old invoice in the trash is kept by law {r.status_code} {r.text[:200]}")
+    check(s.delete(B + ARCH + f"/{a3}").ok, p + "a quotation into the trash")
+    r = s.delete(B + f"/api/office/trash/core/oarchive/{a3}")
+    check(r.ok, p + f"a quotation is deleted for good from the trash {r.status_code} {r.text[:200]}")
+    # a locked month binds it
+    a5 = arch_up(s, rid, f"ALT-{who}-5", f"Rechnung 5 {who}", "2025-03-10")
+    r = s.post(B + O + "/periods/lock", json={"through": "2025-03", "confirm": "03/2025"})
+    check(r.ok, p + f"March 2025 locked {r.status_code} {r.text[:200]}")
+    r = s.delete(B + ARCH + f"/{a5}")
+    check(r.status_code == 409 and a5 in arch_ids(s), p + f"a document of a locked month stays {r.status_code} {r.text[:200]}")
 
 raise SystemExit(kt.done("p21315_b_importe"))
