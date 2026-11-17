@@ -31,7 +31,7 @@ from flask import g, has_request_context, jsonify
 from ..core.config import app
 from ..core.db import body, bump, db, err, usettings
 from ..core.i18n import tr
-from ..core.access import Denied
+from ..core.access import Denied, feat_in
 from ..core.pg import system_ctx
 from ..accounts.session import me
 from ..accounts.orgs import is_org_admin, user_orgs
@@ -78,7 +78,7 @@ def ar_office(c, uid):
     if not u or (u["kind"] or "user") == "agent" or ("kid" in u.keys() and u["kid"]) or u["disabled"]:
         return None
     st = usettings(c, uid)
-    if OFFICE_FEAT not in (st.get("features") or "").split(","):
+    if not feat_in(st, OFFICE_FEAT):
         return None
     orgs = user_orgs(c, uid)
     ws = _ar_space(orgs, (st.get("workspace") or "").strip(), uid)

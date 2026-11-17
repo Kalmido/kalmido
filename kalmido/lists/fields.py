@@ -9,8 +9,8 @@ from flask import g, has_app_context, jsonify, request
 from ..core.config import app
 from ..core.pg import insert_id, like_escape, st_ids, system_ctx, write_lock
 from ..core.i18n import tr
-from ..core.db import body, bump, db, err, iso, now_utc, uset, usettings
-from ..core.access import collab_all, Denied, list_people, list_role, need_list, pvis, task_visible, vis_sql
+from ..core.db import body, bump, db, err, iso, now_utc, uset
+from ..core.access import collab_all, Denied, list_people, list_role, need_list, pvis, task_visible, vis_sql, feats
 from ..core.access import live_sql  # 2.783.0 (#5368)
 from ..core.pages import valid_link
 from ..lists.lists import COL_MAX, columns_out
@@ -330,7 +330,7 @@ def tb_fields_module_on(c, lid):
     if not r or not r[0]:
         return []
     write_lock(c, f"usettings-{int(r[0])}")  # 2.528.0 B (#4305, A11): the owner's modules read-change-write like PATCH /api/settings
-    fs = [x for x in (usettings(c, r[0]).get("features") or "").split(",") if x]
+    fs = feats(c, r[0])
     if "fields" in fs:
         return []
     uset(c, r[0], "features", ",".join(fs + ["fields"]))

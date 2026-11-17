@@ -13,9 +13,9 @@ from flask import jsonify, Response
 
 from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.i18n import tr
-from ..core.db import body, db, usettings
+from ..core.db import body, db
 from ..accounts.session import _rate_blocked, _rate_fail, client_ip, me
-from ..core.access import need_feat, acx_token_bind
+from ..core.access import need_feat, acx_token_bind, feat_has
 from ..core.errors import BadInput
 from ..core.tokenhash import tkh_evfeed_match, tkh_set_evfeed
 from ..events.model import ev_role, need_evcal
@@ -104,7 +104,7 @@ def evf_feed(token):
     cal = c.execute("SELECT * FROM ev_cals WHERE id=?", (f["cal_id"],)).fetchone()
     if not ev_role(c, f["user_id"], cal):  # the person may no longer see the calendar (left the organisation, sharing ended)
         return _nf()
-    if "events" not in (usettings(c, f["user_id"]).get("features") or "").split(","):  # 2.111.0 review: module off = links off
+    if not feat_has(c, f["user_id"], "events"):  # 2.111.0 review: module off = links off
         return _nf()
     return Response(evf_build(c, cal, f["user_id"]), content_type="text/calendar; charset=utf-8",
                     headers={"Cache-Control": "private, no-store", "Content-Disposition": 'inline; filename="calendar.ics"',

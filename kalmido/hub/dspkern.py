@@ -24,8 +24,7 @@ organisation floor; agents never reach a role here). An object in the trash: onl
 The space: an organisation's area -> (org, None); a personal area -> (None, None) (its owner is checked by abs_org)."""
 import json
 
-from ..core.access import Denied, live_sql
-from ..core.db import usettings
+from ..core.access import Denied, live_sql, feat_has
 from ..core.i18n import N_, tr
 from ..core.objects import obj_need, obj_reg_node, obj_register
 from ..core.orgcrypt import oc_enc_fields
@@ -47,7 +46,7 @@ def _person_area(c, uid, oid):
     u = c.execute("SELECT kind, kid FROM users WHERE id=?", (int(uid),)).fetchone()
     if u is None or (u["kind"] or "user") == "agent" or u["kid"]:
         return None
-    if "dispo" not in (usettings(c, int(uid)).get("features") or "").split(","):
+    if not feat_has(c, int(uid), "dispo"):
         return None
     try:
         abs_org(c, int(uid), int(oid), create=False)
