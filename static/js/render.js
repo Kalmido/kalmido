@@ -43,7 +43,7 @@ function mvSync() {
   const ws = (S.me?.workspaces || []).filter(w => w.moving);
   let bar = $('#mvbar');
   if (!ws.length || S.me?.kid) { if (bar) barKeep(() => bar.remove()); return; }
-  const html = ws.map(w => `<span class="annt">${ic('lock', 's')} <b>${esc(tr('{0} is moving', w.name))}:</b> ${esc(tr('everything in it is read only until the move ends.'))} ${esc(tr('Started by {0}', w.moving.by_name || '?'))}${w.moving.why ? ` <span class="muted">· ${esc(w.moving.why)}</span>` : ''}</span>`).join('');
+  const html = ws.map(w => `<span class="annt">${ic('lock', 's')} <b>${esc(tr('{0} is moving', w.name))}:</b> ${esc(tr('everything in it is read-only until the move ends.'))} ${esc(tr('Started by {0}', w.moving.by_name || '?'))}${w.moving.why ? ` <span class="muted">· ${esc(w.moving.why)}</span>` : ''}</span>`).join('');
   if (!bar || bar.innerHTML !== html) barKeep(() => { if (!bar) { bar = document.createElement('div'); bar.id = 'mvbar'; bar.className = 'annbar mvbar'; bar.setAttribute('role', 'status'); const ab = $('#annbar'); if (ab) ab.after(bar); else main.prepend(bar); } bar.innerHTML = html; });
 }
 // ---- 2.940.0 (#5226): a bar above the view (notice, notifications question, encrypted list, supporter hint) that comes,
