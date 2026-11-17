@@ -432,8 +432,8 @@ def _mail_parts(files, ei_is, mid, why=None, cut=None):
             small = docs_left < MAIL_UNPACKED or bytes_left < DOC_UNPACKED_MAX  # (narrower than an archive's own limits)
             over = []
             got, errors = doc_unpack(name, data, min(MAIL_UNPACKED, docs_left), min(DOC_UNPACKED_MAX, bytes_left), over)
-            for e in errors:
-                print("docs: mail attachment", e[:200], flush=True)
+            if errors:  # 2.1322.0 (#6560 9): the count only - the texts carry the file names of a customer's mail
+                print("docs: mail attachment,", len(errors), "problem(s) in an archive", flush=True)
             if over and small and cut is not None:
                 cut.append("an archive")  # (over a limit the mail's budget narrowed: it may have fitted, the mail is kept)
             # what was unpacked counts, also the files that are left out below (a ZIP full of other XML costs its bytes)
