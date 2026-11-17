@@ -25,7 +25,8 @@ function hmb_hubSection() {
   const rows = (j.spaces || []).filter(x => x.manage || x.set).map(x => {
     const what = !x.set ? tr('No mailbox yet') : [x.receive ? tr('receives') : '', x.send ? tr('sends') : ''].filter(Boolean).join(' · ') + (x.active ? '' : ' · ' + tr('paused'));
     return `<li class="hbmsp hmbsp" data-hmbws="${esc(x.ws)}"><span class="hbmspn"><b>${esc(x.name)}</b><small class="muted">${x.address ? esc(x.address) + ' · ' : ''}${esc(what)}</small>
-        ${x.error_text ? `<small class="hmberr" role="status">${ic('info', 's')} ${esc(x.error_text)}</small>` : ''}</span>
+        ${x.error_text ? `<small class="hmberr" role="status">${ic('info', 's')} ${esc(x.error_text)}${x.error_at ? ' · ' + esc(tr('failing since {0}', fmtWhen(x.error_at))) : ''}${x.halted ? ' · ' + esc(tr('fetching stopped')) : ''}</small>` : ''}
+        ${x.skipped ? `<small class="muted hmbskip">${esc(trn('{0} e-mail left in the mailbox as too large', '{0} e-mails left in the mailbox as too large', x.skipped))}</small>` : ''}</span>
       ${x.manage ? `<button type="button" class="btn sm" data-hmba="edit" data-ws="${esc(x.ws)}">${ic('gear', 's')}<span>${tr(x.set ? 'Change' : 'Set up')}</span></button>` : ''}</li>`;
   }).join('');
   if (!rows) return '';
@@ -59,8 +60,17 @@ function hmb_checkHtml(j) {
   const ch = j?.check, b = j?.box;
   const line = (k, label) => ch?.[k] ? `<li class="${ch[k].ok ? 'hmbok' : 'hmbbad'}">${ic(ch[k].ok ? 'check' : 'x', 's')}<span>${esc(label)}: ${esc(ch[k].ok ? tr('works') : ch[k].text)}</span></li>` : '';
   const out = ch ? line('imap', tr('Receiving')) + line('smtp', tr('Sending')) : '';
-  const st = !ch && b ? (b.error_text ? `<li class="hmbbad">${ic('info', 's')}<span>${esc(b.error_text)}</span></li>` : b.polled_at ? `<li class="muted">${ic('check', 's')}<span>${esc(tr('Last fetched {0}', fmtWhen(b.polled_at)))}</span></li>` : '') : '';
-  return out || st ? `<ul class="hmbcheck" role="status">${out || st}</ul>` : '';
+  // 2.1319.0 (#6545): the last successful fetch, failing since, the stop after refused logins, the mails left as too large,
+  // the same mailbox in another workspace -- each one line
+  const li = (cls, icon, text) => `<li class="${esc(cls)}">${ic(icon, 's')}<span>${esc(text)}</span></li>`;
+  const st = !ch && b ? [
+    b.halted ? li('hmbbad hmbhalt', 'x', b.halted_text) : '',
+    b.error_text ? li('hmbbad', 'info', b.error_text + (b.error_at ? ' · ' + tr('failing since {0}', fmtWhen(b.error_at)) : '')) : '',
+    b.ok_at ? li('muted', 'check', tr('Last successful fetch {0}', fmtWhen(b.ok_at))) : b.polled_at && !b.error_text ? li('muted', 'check', tr('Last fetched {0}', fmtWhen(b.polled_at))) : '',
+    b.skipped ? li('hmbbad hmbskip', 'info', trn('{0} e-mail left in the mailbox as too large', '{0} e-mails left in the mailbox as too large', b.skipped) + (b.skipped_at ? ' · ' + tr('last {0}', fmtWhen(b.skipped_at)) : '')) : '',
+  ].join('') : '';
+  const tw = b?.twice ? li('hmbbad hmbtwice', 'info', b.twice) : '';
+  return out || st || tw ? `<ul class="hmbcheck" role="status">${out || st}${/*html-ok*/ tw}</ul>` : '';
 }
 async function hmb_dialog(ws) {
   let j; try { j = await api('GET', `/api/hubmail/mailbox?ws=${encodeURIComponent(ws)}`); } catch { return; }
@@ -124,7 +134,7 @@ async function hmb_dialog(ws) {
   });
 }
 function hmb_footHtml(box) {
-  return `${box ? `<button type="button" class="btn danger" data-hmbd="del">${ic('trash', 's')} ${tr('Remove')}</button>` : ''}${box?.imap_host ? `<button type="button" class="btn" data-hmbd="poll">${ic('sync', 's')} ${tr('Fetch now')}</button>` : ''}<span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button><button type="button" class="btn pri" data-hmbd="check">${ic('check', 's')} ${tr('Check connection')}</button>`;
+  return `${box ? `<button type="button" class="btn danger" data-hmbd="del">${ic('trash', 's')} ${tr('Remove')}</button>` : ''}${box?.imap_host && !box.halted ? `<button type="button" class="btn" data-hmbd="poll">${ic('sync', 's')} ${tr('Fetch now')}</button>` : ''}<span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button><button type="button" class="btn pri" data-hmbd="check">${ic('check', 's')} ${tr('Check connection')}</button>`;
 }
 // the PUT body of the form (check = log in to both servers too); a string = what is wrong
 function hmb_body(md, ws, check) {
