@@ -2,10 +2,10 @@
 
 An admin of the organisation switches the move on (accounts/orgmove.py: orgs.moving_at, moving_by, moving_by_name, moving_why).
 From then on no request writes a row of the organisation any more, whoever sends it (members, agents, API tokens, public forms,
-booking pages, file requests, incoming hooks and mails, DAV): the trigger kalmido_moving_guard sits on every table with an org_id
+booking pages, file requests, incoming hooks and mails, DAV): the trigger kalmido_zz_moving (function kalmido_moving_guard) sits on every table with an org_id
 (the same set as the row-level security policies, core/rls.py org_tables, no hand list) and refuses an INSERT / UPDATE / DELETE
 of such a row with SQLSTATE MV_STATE; core/db.py db_error answers it with 423 and MV_MSG. The organisation's own row (orgs, no
-org_id) has the trigger kalmido_moving_org: no change while it is moving except the end of the move.
+org_id) has the trigger kalmido_zz_moving_org: no change while it is moving except the end of the move.
 
 What passes (the transaction-local switch app.move_ok = '1', set by core/pg.py with every context from mv_ok_now()):
 - reading requests (GET / HEAD / OPTIONS): their bookkeeping (a read mark, the office log of an opened PDF) goes on;
@@ -21,7 +21,7 @@ Tables in MV_FREE never get the trigger: the queue (bg_jobs: the export is a row
 downloaded the export, the GoBD log of reads), the portal's sign-in rows (portal_logins: signing in stays possible).
 
 Additive: a version before 2.1337 ignores the columns; the triggers it would find let everything through while no organisation
-is moving (its way back: DROP TRIGGER kalmido_moving ON <every table>, DROP TRIGGER kalmido_moving_org ON orgs, DROP FUNCTION
+is moving (its way back: DROP TRIGGER kalmido_zz_moving ON <every table>, DROP TRIGGER kalmido_zz_moving_org ON orgs, DROP FUNCTION
 kalmido_moving_guard(), kalmido_moving_org())."""
 import contextlib
 import threading
@@ -36,8 +36,8 @@ from .rls import _lock_all, org_tables
 
 MV_STATE = "KM423"  # the SQLSTATE of the triggers (class KM: Kalmido's own)
 MV_MSG = N_("The organisation is moving: it is read-only.")  # translated by core/db.py mv_answer
-MV_TRIGGER = "kalmido_moving"
-MV_ORG_TRIGGER = "kalmido_moving_org"
+MV_TRIGGER = "kalmido_zz_moving"  # the last BEFORE trigger of a table (by name): it sees org_id after kalmido_orw_fill (core/orgrows.py)
+MV_ORG_TRIGGER = "kalmido_zz_moving_org"
 MV_FREE = frozenset({"bg_jobs", "office_doc_log", "portal_logins"})
 MV_SAFE = frozenset({"GET", "HEAD", "OPTIONS"})
 
