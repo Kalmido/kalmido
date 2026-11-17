@@ -19,7 +19,7 @@ from ..core.access import Denied, live_sql
 from ..core.errors import BadInput
 from .calc import dec, money
 from .books import bk_receipts, bk_ws
-from .ledger import ofx_items_brief, ofx_log
+from .ledger import _log_public, ofx_items_brief, ofx_log
 from .model import office_gate, office_org, office_settings
 from .travel import MAX_ITEMS, _amount, _bill_doc, _fmt_day
 
@@ -29,6 +29,7 @@ AU_ALL = ("0001-01-01", "9999-12-31")
 from .rights import ofr_need_area  # noqa: E402  2.187.0 (#2476)
 from .model import office_ctx_admin as _ctx  # noqa: E402  2.149.0 G (#2517): was an own copy
 from .docs import doc_items, recalc, ofd_free_receipts  # 2.369.5 (#2517): pulled up from functions
+from .docs import doc_row  # noqa: E402  2.1342.0 (#6479): the release of a cancelled invoice
 
 
 def au_ids(v, name):
@@ -163,3 +164,57 @@ def au_unbill_post():
     bump(c)
     c.commit()
     return jsonify(ok=True, removed=removed)
+
+
+AU_LOG_IDS = 1500  # 2.1342.0 (#6479): freed receipts kept in the office log for the undo (pairs; fits OFX_DETAIL_MAX)
+
+
+def au_doc_outlays(c, oid, did):
+    """2.1342.0 (#6479): {receipts, trips} the number of receipts / travel receipts billed on document did (the invoice view
+    shows the release with it)."""
+    n = c.execute("SELECT COUNT(*) FROM rc_receipts WHERE ws=? AND billed_doc_id=?", (bk_ws(c, oid), did)).fetchone()[0]
+    t = c.execute("SELECT COUNT(*) FROM office_trip_items WHERE org_id=? AND billed_doc_id=?", (oid, did)).fetchone()[0]
+    return {"receipts": int(n), "trips": int(t)}
+
+
+@app.post("/api/office/docs/<int:did>/outlays-release")
+def au_release_post(did):
+    """2.1342.0 (#6479): the receipts and travel receipts billed on a cancelled invoice are free again, so the correcting
+    invoice can take them (like the time, timebill.py tbill_release_post); the cancelled invoice keeps its positions.
+    {"undo": true} binds again what the last release of this invoice freed, as long as nobody billed it meanwhile.
+    -> {released: {receipts, trips}, outlays_billed}"""
+    c, uid, oid = _ctx()
+    ofr_need_area(c, uid, oid, "offers", "edit")  # as the billing of receipts (au_bill_post)
+    r = doc_row(c, oid, did)
+    if r["kind"] != "invoice" or r["status"] != "cancelled":
+        raise Denied(409, tr("Only the outlays of a cancelled invoice can be released"))
+    b = body()
+    write_lock(c, f"office_receipts_bill_{int(oid)}")  # never in between a billing of the same receipts
+    ws, ts = bk_ws(c, oid), iso(now_utc())
+    if isinstance(b, dict) and b.get("undo"):
+        last = c.execute("SELECT * FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='outlays_release' ORDER BY id DESC LIMIT 1",
+                         (oid, did)).fetchone()
+        if not last or c.execute("SELECT 1 FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='outlays_rebind' AND id>? LIMIT 1",
+                                 (oid, did, last["id"])).fetchone():  # review #5178 F1: each release is undone once only
+            raise Denied(409, tr("This release has already been undone"))
+        d = _log_public(c, last)["detail"]
+        n = 0
+        for nid, iid in d.get("receipts") or []:  # only still open ones (nobody billed them meanwhile)
+            n += c.execute("UPDATE rc_receipts SET billed_doc_id=?, billed_item_id=?, billed_at=? WHERE ws=? AND node_id=? AND billed_doc_id IS NULL",
+                           (did, iid, ts, ws, nid)).rowcount
+        for tid, iid in d.get("trips") or []:
+            n += c.execute("UPDATE office_trip_items SET billed_doc_id=?, billed_item_id=?, billed_at=?, updated_at=? WHERE org_id=? AND id=? AND billed_doc_id IS NULL",
+                           (did, iid, ts, ts, oid, tid)).rowcount
+        ofx_log(c, oid, "outlays_rebind", doc_id=did, detail={"entries": n})
+        bump(c)
+        c.commit()
+        return jsonify(released={"receipts": [], "trips": []}, outlays_billed=au_doc_outlays(c, oid, did))
+    rc = [[x[0], x[1]] for x in c.execute("SELECT node_id, billed_item_id FROM rc_receipts WHERE ws=? AND billed_doc_id=? ORDER BY node_id", (ws, did))]
+    tp = [[x[0], x[1]] for x in c.execute("SELECT id, billed_item_id FROM office_trip_items WHERE org_id=? AND billed_doc_id=? ORDER BY id", (oid, did))]
+    c.execute("UPDATE rc_receipts SET billed_doc_id=NULL, billed_at=NULL, billed_item_id=NULL WHERE ws=? AND billed_doc_id=?", (ws, did))
+    c.execute("UPDATE office_trip_items SET billed_doc_id=NULL, billed_at=NULL, billed_item_id=NULL, updated_at=? WHERE org_id=? AND billed_doc_id=?", (ts, oid, did))
+    keep = len(rc) + len(tp) <= AU_LOG_IDS  # a huge release keeps only the counts (no undo then)
+    ofx_log(c, oid, "outlays_release", doc_id=did, detail={"count": len(rc) + len(tp), **({"receipts": rc, "trips": tp} if keep else {})})
+    bump(c)
+    c.commit()
+    return jsonify(released={"receipts": [x[0] for x in rc], "trips": [x[0] for x in tp]}, outlays_billed=au_doc_outlays(c, oid, did))

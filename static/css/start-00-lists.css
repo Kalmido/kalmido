@@ -349,7 +349,9 @@ html.mini-task #detail .dclose,html.mini-task #detail .back,html.mini-task #deta
 .trow.ui-strike .ttl::after{content:'';position:absolute;left:0;right:0;top:55%;height:1.5px;background:var(--faint);transform-origin:left center;animation:ui_strike .35s ease-out forwards;pointer-events:none}
 .trow.ui-strike.ui-now .ttl{transition:none}
 .trow.ui-strike.ui-now .ttl::after{animation:none}
-.trow.ui-gone{height:0!important;min-height:0;opacity:0;overflow:hidden;padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;border-width:0;pointer-events:none;transition:height .25s ease-in,opacity .25s ease-in,padding .25s ease-in,margin .25s ease-in}
+/* 2.1342.0 (#6927): all of the box with !important - a more specific rule (.trow.hascols.haslc on the desktop) kept its padding, the
+   folded row left a 12 px gap that the redraw then closed with a jump */
+.trow.ui-gone{height:0!important;min-height:0!important;opacity:0;overflow:hidden;padding-top:0!important;padding-bottom:0!important;margin-top:0!important;margin-bottom:0!important;border-width:0!important;pointer-events:none;transition:height .25s ease-in,opacity .25s ease-in,padding .25s ease-in,margin .25s ease-in}
 #main:not(.lp-one) #view .trow.lpc,#view .kcards .trow.lpc{box-shadow:inset .1875rem 0 0 var(--lpc)}
 #main:not(.lp-one) #view .trow.lpc::before,#view .kcards .trow.lpc::before{left:.375rem}
 /* 2.320.0 (#3289): the field Projects in the task panel; Alt onto a project in the sidebar (the hint while dragging) */

@@ -243,6 +243,12 @@ check(pub.get(B + f"/ical/ev/{fid}.altesGeheimnis4708abcdefghijklmnopqrstuX.ics"
 U2 = Fr.post(B + f"/api/evcals/{FCAL}/feed", json={"action": "rotate"}).json().get("url") or ""
 check(U2 and pub.get(B + urlparse(U2).path).status_code == 200 and r.status_code == 200
       and pub.get(B + f"/ical/ev/{fid}.altesGeheimnis4708abcdefghijklmnopqrstuv.ics").status_code == 404, "(6) rotate: a new address, the old one stops")
+# 2.1342.0 (#6553, review #5180 F1): wrong tries count per rate_ip() (an IPv6 /64), as the absences and task feeds
+codes = {requests.get(B + f"/ical/ev/{fid}.wrong{i}.ics", headers={"X-Forwarded-For": f"2001:db8:5180:1::{i + 1:x}"}).status_code for i in range(30)}
+r = requests.get(B + urlparse(U2).path, headers={"X-Forwarded-For": "2001:db8:5180:1::ffff"})
+check(codes == {404} and r.status_code == 429, f"(6) 30 wrong tries from one /64 block that /64 ({codes} then {r.status_code})")
+r = requests.get(B + urlparse(U2).path, headers={"X-Forwarded-For": "2001:db8:5180:2::1"})
+check(r.status_code == 200, f"(6) ... another /64 is not blocked ({r.status_code})")
 
 # ================================================================== (4) who changed it last: events, contacts, wiki versions
 r = Fr.post(B + "/api/contacts", json={"book_id": BK, "fn": "Spur Example"})

@@ -10,20 +10,19 @@
   organisation; '' = the area's state, hub/absence.py abs_state), computed offline (abs_holidays).
 - A subscription link of my own absences + the holidays of my state (GET /ical/abs/<id>.<secret>.ics) for the calendar
   app of a phone: made, replaced and removed like the link of an event calendar (events/evfeed.py: the secret in the path
-  is the only credential, a wrong one counts per client address, 404 like an unknown one). Never data of other people;
+  is the only credential, a wrong one counts per client address, 404 like an unknown one). 2.1342.0 (#6553 3): only the
+  secret's hash is stored, the address is shown once (create / rotate); a wrong one counts per rate_ip(). Never data of other people;
   the kind of a sick leave never leaves the app ("Away" instead, health data)."""
-import hmac
-import secrets
 from datetime import date, timedelta
 
 from flask import jsonify, Response
 
 from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.i18n import lang, tr
-from ..core.db import body, db, iso, local_now, now_utc, usettings
+from ..core.db import body, db, local_now, now_utc, usettings
 from ..core.access import Denied
 from ..core.orgcrypt import oc_dec_fields
-from ..accounts.session import _rate_blocked, _rate_fail, client_ip
+from ..accounts.session import _rate_blocked, _rate_fail, client_ip, rate_ip
 from ..personal.timetrack import BadInput
 from .absence import ABS_STATES, _gate, abs_holidays, abs_holidays_shown, abs_org, abs_countries_shown, abs_people, abs_state, abs_states_shown
 from ..accounts.orgs import user_orgs  # 2.369.5 (#2517): pulled up from functions
@@ -31,6 +30,7 @@ from ..accounts.orgroles import user_orgs_full  # 2.369.5 (#2517): pulled up fro
 from ..calendars.icalfeed import ics_fold, ics_text  # 2.369.5 (#2517): pulled up from functions
 from ..notify.alerts import aa_count  # 2.369.5 (#2517): pulled up from functions
 from ..core.access import acx_token_bind  # 2.369.5 (#2517): pulled up from functions
+from ..core.tokenhash import tkh_absfeed_match, tkh_set_absfeed  # 2.1342.0 (#6553 3)
 
 ABC_KIND = {"vacation": "Holiday", "sick": "Sick leave", "off": "Day off", "other": "Other absence"}
 ABC_MAX = 2000  # absences in one answer / feed
@@ -131,8 +131,14 @@ def abc_cal(c, uid, lo, hi):
 
 
 # ---------------------------------------------------------------- the subscription link (ICS feed)
-def abc_url(row):
-    return f"{PUBLIC_URL}/ical/abs/{row['id']}.{row['secret']}.ics" if row else None
+def abc_url(fid, secret):
+    """2.1342.0 (#6553 3): the address with its secret (only in the answer that made it; the server keeps the hash)."""
+    return f"{PUBLIC_URL}/ical/abs/{fid}.{secret}.ics"
+
+
+def abc_link_state(row):
+    """2.1342.0 (#6553 3): whether the person has a link and since when (the address itself is shown once)."""
+    return {"active": bool(row), "created_at": (row["created_at"] or "") if row else ""}
 
 
 def abc_feed_row(c, uid):
@@ -169,7 +175,7 @@ def _nf():
 
 @app.get("/ical/abs/<token>.ics")
 def abc_feed(token):
-    keys = [("ical:" + client_ip(), ABC_FAIL_LIMIT)]
+    keys = [("ical:" + rate_ip(), ABC_FAIL_LIMIT)]  # 2.1342.0 (#6553 3): an IPv6 /64 counts as one address
     if _rate_blocked(keys):
         return Response("Too many requests\n", 429, content_type="text/plain; charset=utf-8")
     c = db()
@@ -179,7 +185,7 @@ def abc_feed(token):
         r = c.execute("SELECT f.*, u.disabled, u.kid, u.kind FROM abs_cal_feeds f JOIN users u ON u.id=f.user_id WHERE f.id=?",
                       (int(fid),)).fetchone()
         if r and not r["disabled"] and not r["kid"] and (r["kind"] or "user") != "agent" \
-                and hmac.compare_digest(r["secret"].encode(), secret.encode()):
+                and tkh_absfeed_match(c, r, secret):  # 2.1342.0 (#6553 3): against the stored hash (a plain one left is hashed)
             f = r
     if not f:
         _rate_fail(keys)
@@ -197,7 +203,7 @@ def abc_feed_info():
     own choice (holiday_state, '' = my area's), the state that applies now and my area's."""
     c, uid = _gate()
     s = usettings(c, uid)
-    return jsonify(url=abc_url(abc_feed_row(c, uid)), states=abs_states_shown(), countries=abs_countries_shown(), own=s.get("holiday_state") or "", state=abc_state(c, uid, s),
+    return jsonify(url=None, **abc_link_state(abc_feed_row(c, uid)), states=abs_states_shown(), countries=abs_countries_shown(), own=s.get("holiday_state") or "", state=abc_state(c, uid, s),
                    area=abc_state(c, uid, {}))
 
 
@@ -208,14 +214,16 @@ def abc_feed_set():
     c, uid = _gate()
     b = body()
     a = b.get("action") if isinstance(b, dict) else None
-    row = abc_feed_row(c, uid)
+    row, tok = abc_feed_row(c, uid), None
     if a == "off":
         c.execute("DELETE FROM abs_cal_feeds WHERE user_id=?", (uid,))
     elif a == "rotate" and row:
-        c.execute("UPDATE abs_cal_feeds SET secret=?, created_at=? WHERE id=?", (secrets.token_urlsafe(32), iso(now_utc()), row["id"]))
+        tok = tkh_set_absfeed(c, uid, row["id"])
     elif a in ("create", "rotate") and not row:
-        c.execute("INSERT INTO abs_cal_feeds(user_id, secret, created_at) VALUES(?,?,?)", (uid, secrets.token_urlsafe(32), iso(now_utc())))
+        tok = tkh_set_absfeed(c, uid)
     elif a != "create":
         raise BadInput(tr("Invalid value: {0}", "action"))
     c.commit()
-    return jsonify(url=abc_url(abc_feed_row(c, uid)))
+    row = abc_feed_row(c, uid)
+    # 2.1342.0 (#6553 3): only the hash is stored: the new address is in this answer once; create with a link answers url null
+    return jsonify(url=abc_url(row["id"], tok) if tok and row else None, **abc_link_state(row))

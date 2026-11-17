@@ -157,7 +157,10 @@ check(Ca.post(B + "/api/team/absences/feed", json={"action": "bogus"}).status_co
 url = Ca.post(B + "/api/team/absences/feed", json={"action": "create"}).json()["url"]
 check(bool(url) and "/ical/abs/" in url, "create makes a link " + str(url))
 P1 = urllib.parse.urlparse(url).path
-check(Ca.post(B + "/api/team/absences/feed", json={"action": "create"}).json()["url"] == url, "create again keeps it")
+# 2.1342.0 (#6553 3): only the hash is stored: create again keeps the link but cannot show it (url null, active since)
+j = Ca.post(B + "/api/team/absences/feed", json={"action": "create"}).json()
+check(j["url"] is None and j["active"] is True and j["created_at"], "create again keeps it (shown once: url null, active) " + str(j))
+check(requests.get(B + P1).status_code == 200 and Ca.get(B + "/api/team/absences/feed").json()["url"] is None, "… the link still works, GET never shows it")
 r = requests.get(B + P1)
 check(r.status_code == 200 and r.headers.get("Content-Type", "").startswith("text/calendar") and "no-store" in r.headers.get("Cache-Control", ""),
       f"the feed: ICS, not cached ({r.status_code} {r.headers.get('Cache-Control')})")
@@ -177,7 +180,8 @@ url2 = Ca.post(B + "/api/team/absences/feed", json={"action": "rotate"}).json()[
 check(url2 and url2 != url and requests.get(B + P1).status_code == 404, "rotate: the old link stops at once")
 P2 = urllib.parse.urlparse(url2).path
 check(requests.get(B + P2).status_code == 200, "the new link works")
-check(Bo.get(B + "/api/team/absences/feed").json()["url"] is None, "bob does not see carol's link")
+check(Bo.get(B + "/api/team/absences/feed").json()["url"] is None and Bo.get(B + "/api/team/absences/feed").json()["active"] is False,
+      "bob does not see carol's link")  # 2.1342.0 (#6553 3): nor that she has one
 check(Ca.post(B + "/api/team/absences/feed", json={"action": "off"}).json()["url"] is None and requests.get(B + P2).status_code == 404,
       "off removes it")
 

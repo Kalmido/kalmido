@@ -13,6 +13,8 @@ encryption on), invented companies and people only (@example.com / .example).
  - 2.1317.0 (#6331): finalising / the number by hand with expect_updated_at of an older state (another session changed a
    position / the head) -> 409 with the current state, no number, still a draft; with the current version it goes; without
    a version as before
+ - 2.1342.0 (#6479): the receipts and travel receipts of a cancelled invoice are released (draft / not cancelled 409,
+   member 403, stranger 404), the undo binds them again, the correcting invoice can take them, a later undo leaves them there
  - a person without an organisation (freelancer-matrix: office): the same in the personal office
 usage: p2269_a_docitems_test.py <datadir>      (a fresh container; P2269A_NOSTART=1 = the server already runs)"""
 import base64
@@ -64,8 +66,12 @@ def parallel(fns):
     return out
 
 
-def run(S, S2, who, M=None):
-    """S = an office admin's session, S2 = a second session of the same person (another tab / the phone), M = a member."""
+INV6479 = []  # 2.1342.0 (#6479): the organisation's cancelled invoice (a stranger's release: 404)
+
+
+def run(S, S2, who, M=None, ws="private"):
+    """S = an office admin's session, S2 = a second session of the same person (another tab / the phone), M = a member,
+    ws = the documents space of the office (#6479: a receipt)."""
     cl = setup_office(S)
     r = S.post(B + D, json={"kind": "offer", "project_title": "Image film", "client_id": cl,
                             "items": [{"title": "Shoot day", "qty": 2, "unit": "day", "rate": 900, "cost": 300}]})
@@ -205,6 +211,51 @@ def run(S, S2, who, M=None):
     r = S.post(B + f"{D}/{did}/number", json={"number": "Q-6331", "expect_updated_at": q2["updated_at"]})
     check(r.ok and r.json().get("number") == "Q-6331" and r.json().get("updated_at") == S.get(B + f"{D}/{did}").json().get("updated_at"),
           f"{who}: the number with the current version, the answer's version is the stored one " + r.text[:200])
+    # ------------------------------------------------ 2.1342.0 (#6479): the outlays of a cancelled invoice are free again
+    r = S.post(B + O + "/trips", json={"date_from": "2030-04-10", "dest": "Example location", "items": [{"date": "2030-04-10", "category": "taxi", "amount": 30}]})
+    check(r.status_code == 201, f"{who}: #6479 a trip " + r.text[:200])
+    t2 = (r.json().get("items") or [{}])[0].get("id")
+    r = S.post(B + D, json={"kind": "invoice", "client_id": cl, **SP, "items": [{"title": "Service 3", "qty": 1, "unit": "flat", "rate": 90}]})
+    inv = r.json().get("id")
+    r = S.post(B + O + "/trips/bill", json={"doc_id": inv, "item_ids": [t2]})
+    check(r.ok, f"{who}: #6479 the travel receipt billed " + r.text[:200])
+    tpos = (r.json().get("positions") or [0])[0]
+    r = S.post(B + "/api/docs", data={"ws": ws}, files={"files": ("taxi-6479.pdf", b"%PDF-1.4\n%%EOF\n", "application/pdf")})
+    check(r.status_code == 201, f"{who}: #6479 a receipt uploaded " + r.text[:200])
+    rn = (r.json().get("ids") or [0])[0]
+    check(S.put(B + f"/api/docs/{rn}/receipt", json={"category": "Travel", "keep": True}).ok, f"{who}: #6479 marked as a receipt")
+    kt.dbx("UPDATE rc_receipts SET billed_doc_id=?, billed_item_id=?, billed_at=? WHERE node_id=?", (inv, tpos, "2030-04-11T10:00:00+00:00", rn))
+    check(S.post(B + f"/api/office/docs/{inv}/outlays-release", json={}).status_code == 409, f"{who}: #6479 release on a draft: 409")
+    check(S.post(B + f"{D}/{inv}/finalize", json={}).ok, f"{who}: #6479 the invoice finalised")
+    S.post(B + O + "/trips/unbill", json={"item_ids": [t2]})
+    check(kt.dbx("SELECT billed_doc_id FROM office_trip_items WHERE id=?", (t2,))[0][0] == inv, f"{who}: #6479 a finalised invoice keeps its receipts (unbill)")
+    check(S.post(B + f"/api/office/docs/{inv}/outlays-release", json={}).status_code == 409, f"{who}: #6479 release on a finalised, not cancelled invoice: 409")
+    kt.dbx("UPDATE office_docs SET status='cancelled' WHERE id=?", (inv,))
+    g = S.get(B + f"{D}/{inv}").json()
+    check(g.get("outlays_billed") == {"receipts": 1, "trips": 1}, f"{who}: #6479 the cancelled invoice names its outlays {g.get('outlays_billed')}")
+    if M is not None:
+        check(M.post(B + f"/api/office/docs/{inv}/outlays-release", json={}).status_code == 403, f"{who}: #6479 a member cannot release (403)")
+    r = S.post(B + f"/api/office/docs/{inv}/outlays-release", json={})
+    j = r.json() if r.ok else {}
+    check(r.ok and j.get("released") == {"receipts": [rn], "trips": [t2]} and j.get("outlays_billed") == {"receipts": 0, "trips": 0},
+          f"{who}: #6479 the admin releases the outlays " + r.text[:200])
+    check(tuple(kt.dbx("SELECT billed_doc_id, billed_item_id FROM office_trip_items WHERE id=?", (t2,))[0]) == (None, None)
+          and kt.dbx("SELECT billed_doc_id FROM rc_receipts WHERE node_id=?", (rn,))[0][0] is None, f"{who}: #6479 both are open again")
+    check(tpos in [x["id"] for x in S.get(B + f"{D}/{inv}").json().get("items") or []], f"{who}: #6479 the cancelled invoice keeps its position")
+    r = S.post(B + f"/api/office/docs/{inv}/outlays-release", json={"undo": True})
+    check(r.ok and r.json().get("outlays_billed") == {"receipts": 1, "trips": 1}, f"{who}: #6479 the undo binds them again " + r.text[:200])
+    check(kt.dbx("SELECT billed_item_id FROM office_trip_items WHERE id=?", (t2,))[0][0] == tpos, f"{who}: #6479 the undo restores the position link")
+    r = S.post(B + f"/api/office/docs/{inv}/outlays-release", json={"undo": True})
+    check(r.status_code == 409, f"{who}: #6479 (review #5178 F1) a second undo of the same release: 409 " + r.text[:200])
+    check(S.post(B + f"/api/office/docs/{inv}/outlays-release", json={}).ok, f"{who}: #6479 released again")
+    r = S.post(B + D, json={"kind": "invoice", "client_id": cl, **SP, "items": [{"title": "Service 4", "qty": 1, "unit": "flat", "rate": 90}]})
+    inv2 = r.json().get("id")
+    r = S.post(B + O + "/trips/bill", json={"doc_id": inv2, "item_ids": [t2]})
+    check(r.ok and r.json().get("positions"), f"{who}: #6479 the correcting invoice takes the travel receipt " + r.text[:200])
+    r = S.post(B + f"/api/office/docs/{inv}/outlays-release", json={"undo": True})
+    check(r.ok and kt.dbx("SELECT billed_doc_id FROM office_trip_items WHERE id=?", (t2,))[0][0] == inv2,
+          f"{who}: #6479 an undo after the new billing leaves it on the new invoice (never billed twice)")
+    INV6479.append(inv)
 
 
 assert sess().post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice", "password": "password123"}).ok
@@ -220,10 +271,12 @@ Bo.patch(B + "/api/settings", json={"tour": "done", "lang": "en", "features": FE
 A2 = sess("alice")
 for s in (A, A2, Bo):
     s.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
-run(A, A2, "organisation", Bo)
+run(A, A2, "organisation", Bo, f"org:{ORG}")
 
 # ================================================================== a person without an organisation (freelancer-matrix: office)
 FID, F = freelancer(B, A)
 run(F, login(B, "frida"), "freelancer")
+# tenant-matrix: office -- 2.1342.0 (#6479): a stranger (the freelancer) cannot release the organisation's outlays
+check(F.post(B + f"/api/office/docs/{INV6479[0]}/outlays-release", json={}).status_code == 404, "#6479 a stranger's release: 404")
 
 sys.exit(kt.done("p2269_a_docitems"))

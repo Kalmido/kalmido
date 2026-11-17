@@ -34,6 +34,8 @@ INTEG_TEXT = {
     "docflow": N_("Document flow {0} keeps failing on a document, failing since {1}."),  # 2.1265.0 (#6389): a scheduled flow
     "docflow_hook": N_("The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1})."),  # 2.1321.0 (#6555)
     "docflow_admin": N_("Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more."),  # 2.1321.0 (#6555)
+    "carddav": N_("Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date."),  # 2.1342.0 (#6553 2)
+    "carddav_wb": N_("Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1})."),  # 2.1342.0 (#6553 2)
     "backup": N_("Backup failed: {0}"),
     "payonline": N_("An online payment on invoice {0} could not be booked: {1}"),  # 2.469.0 (#3459)
 }
