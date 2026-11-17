@@ -161,12 +161,12 @@ def tt_index_data(c, uid, space=None):
                 "types": [tt_out(c, uid, r, tt_task_count(c, oid, owner, r["key"]) if edit else None) for r in rows],
                 "suggestions": tt_suggestions({r["key"] for r in rows}), "builtin": list(TICKET_TYPES)}
     orgs = sorted(user_orgs_full(c, uid))
-    owners = sorted(tt_owners_seen(c, uid) | {uid})
-    q = f"(org_id IS NULL AND owner_id IN ({','.join('?' * len(owners))}))"
+    q = "(org_id IS NULL AND owner_id=?)"
     if orgs:
         q += f" OR org_id IN ({','.join('?' * len(orgs))})"
-    rows = c.execute(f"SELECT * FROM ticket_types WHERE {q} ORDER BY sort, id", [*owners, *orgs]).fetchall()
-    return {"types": [tt_out(c, uid, r) for r in rows] + tt_limited(c, uid, set(orgs)), "builtin": list(TICKET_TYPES)}
+    rows = c.execute(f"SELECT * FROM ticket_types WHERE {q} ORDER BY sort, id", [uid, *orgs]).fetchall()
+    # 2.1364.0 (#6297 5, audit #4741): another person's own types only as their private projects I see offer them (tt_private_limited)
+    return {"types": [tt_out(c, uid, r) for r in rows] + tt_limited(c, uid, set(orgs)) + tt_private_limited(c, uid), "builtin": list(TICKET_TYPES)}
 
 
 def tt_limited(c, uid, full):
@@ -184,6 +184,22 @@ def tt_limited(c, uid, full):
                 seen.add(r["id"])
                 out.append({"key": r["key"], "name": r["name"], "icon": r["icon"], "color": r["color"], "enabled": True,
                             "org_id": r["org_id"], "space": f"org:{r['org_id']}"})
+    return out
+
+
+def tt_private_limited(c, uid):
+    """2.1364.0 (#6297 5, audit #4741): the own types of another person whose private projects uid sees, like tt_limited: only
+    the ones those projects offer - key, name, symbol, colour and the owner (the client matches them to the project's owner);
+    no note template, no switched off ones, no id (before: every own type of that person, template and all)."""
+    out, seen = [], set()
+    for lr in c.execute(f"SELECT id, owner_id FROM lists WHERE org_id IS NULL AND owner_id<>? AND id IN ({vis_sql()}) ORDER BY id",
+                        (uid, uid, uid)).fetchall():
+        keys = set(tt_offered(c, lr["id"]))
+        for r in tt_rows(c, None, lr["owner_id"], True):
+            if r["key"] in keys and r["id"] not in seen:
+                seen.add(r["id"])
+                out.append({"key": r["key"], "name": r["name"], "icon": r["icon"], "color": r["color"], "enabled": True,
+                            "org_id": None, "space": "private", "owner_id": r["owner_id"]})
     return out
 
 
