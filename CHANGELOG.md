@@ -23,6 +23,38 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1318.0] - 2026-11-17
+
+Package 2.1305 (Start pflegen: Startgröße senken).
+### Changed
+- Start care (#4742): 241 rules of `app.css` that only one area loaded on demand draws (Office, Life, Settings, Timeline, Wiki, Calendar, Agent chat, Filing, Contacts, Docs, Integrations, and the new stylesheets `css/family.css` and `css/team.css` for Family and Team) move unchanged into that area's stylesheet, ahead of its own rules so the cascade stays. The start loads 3.1 KB less CSS (gzip); the CSS ceiling in `tools/perf_budget.json` drops to keep 2.5 percent room.
+
+Package 2.1306.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Issue sync with GitHub / GitLab: a new task becomes an issue only when a signed-in person created it in the app - never from an inbound webhook, an error report, an e-mail, a form, an agent or an API token (#6554).
+- Issue sync: per connection and day at most 60 new issues and 300 comments go out; the rest waits for the next day and the person who stored the token is told once (#6554).
+- Issue sync: an @name in a title, text or comment that goes to the repository no longer notifies anyone there (#6554).
+- Repository connections: the person whose access token a connection uses can always remove it, also without the admin role of the project; while that person has no access to the project any more, the connection pauses and the project owner is told (#6554).
+
+### Fixed
+- An issue address that is not http(s) is no longer taken over as the task's link (#6554).
+
+Package 2.1309 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- #6467: the database itself now protects the positions (`office_doc_items`), payments (`office_payments`) and office log (`office_doc_log`) of finalised documents, next to the existing lock on `office_docs`: no change of a position, payments only take a bank line (`bank_tx_id`), no deletion, the log is append-only (read entries may still be pruned). The deliberate exceptions (encryption passes, organisation import and undo, moving a personal office, the name fill of #6470) go through `ofx_release`; reference actions of the database pass. Way back of the app: `docs/OFFICE.md`.
+- #6467: hash chain version 2 also covers the stored PDF and e-invoice XML checksums and the head fields (VAT mode and note, exchange rate, cancelled document, invoice type, progress references, due date, early payment discount, intro / closing text, order reference); older links keep their version and stay valid. The watchdog checks every office's chain once a day; a new break raises one admin alarm and a line `chain_broken` in the office log.
+- #6471: the tax auditor's export (GoBD, Z3) is complete: folder `belege/` with the stored invoice and reminder PDF / XML, receipt files and entertainment bills byte for byte (file name and SHA-256 in `invoices.csv`, `dunning.csv`, `receipts.csv`, `meal_files.csv`; missing, locked or differing files named in `hinweise.txt`); new tables for bank lines, card statements and lines, vehicles, logbook and its log, entertainment, trips and trip items, asset register, ledger bookings and reminders (from the retention export's register with the period filter); `log.csv` carries the values before and after; trash and undone import rows stay in, marked in `Kennzeichen`; `chain_check.csv` and `chain_heads.csv` hold the chain check at export time and each chain's head (#6467 point 4). The module moved to `kalmido/admin/gobdexport.py`, the route is unchanged.
+
+### Changed
+- #6490: on customer documents (PDF, print view, approval page, invoice from the quotation) the markup line reads percent | base | amount ("15 % | 10.305,00 € | 1.545,75 €") instead of "1 flat | amount | amount"; the amount and all totals are unchanged, the e-invoice keeps quantity 1 x amount. Quotations that already left the draft and documents already sent or finalised keep "1 flat"; handling costs stay "1 flat".
+
+### Fixed
+- #6463: in a foreign currency, the last progress invoice bills the quotation's rest in the document currency, so progress invoices plus the final invoice equal the quotation to the cent (before: +/- 0.01 possible); the rounding line's text names its price in the document currency. The editor-save case with HUF moved into a hard suite (`p6463_fx_abschlag_invoice`).
+- #6763: ruff and git leave the suites' data directories `tests/.data*` alone (a leftover stub on a test place turned the lint red).
+- #6471: suite p6481_office_numbers reads the import columns of `invoices.csv` by name from `index.xml` (#6471 appends the trash mark and the file checksums after them).
+
 ## [2.1314.0] - 2026-11-17
 
 Package 2.1300 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -150,7 +182,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1314.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1318.0...HEAD
+[2.1318.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1318.0
 [2.1314.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1314.0
 [2.1311.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1311.0
 [2.1310.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1310.0

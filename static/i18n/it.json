@@ -18987,5 +18987,11 @@
   "Reject the deletion of “{0}”?": "Rifiutare l’eliminazione di «{0}»?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "L’eliminazione viene annullata; l’account resta bloccato finché un admin non lo sblocca. La persona riceve un’e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} ha chiesto di eliminare il proprio account ed è stato bloccato: l’eliminazione attende la tua decisione, al più tardi fino al {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decidi sull’eliminazione sospesa di {0}: senza decisione avviene il {1}"
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decidi sull’eliminazione sospesa di {0}: senza decisione avviene il {1}",
+  "Paused: the person whose access token this connection uses has no access to the project any more. Store a new token or remove the repository.": "In pausa: la persona di cui questa connessione usa il token di accesso non ha più accesso al progetto. Salva un nuovo token o rimuovi il repository.",
+  "Git connection {0} is paused: the person whose access token it uses has no access to the project any more.": "La connessione Git {0} è in pausa: la persona di cui usa il token di accesso non ha più accesso al progetto.",
+  "Git connection {0} reached its daily limit of new issues or comments ({1}); the rest goes out tomorrow.": "La connessione Git {0} ha raggiunto il limite giornaliero di nuove issue o commenti ({1}); il resto parte domani.",
+  "at most 60 issues and 300 comments a day": "al massimo 60 issue e 300 commenti al giorno",
+  "hash chain broken here (daily check)": "catena hash interrotta qui (controllo giornaliero)",
+  "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Catena hash dell'ufficio interrotta: ufficio {0}, documento ID {1} (serie {2}, posizione {3}, {4}). Il registro dell'ufficio lo indica."
 }
