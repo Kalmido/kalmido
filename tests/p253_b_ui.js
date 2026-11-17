@@ -162,8 +162,13 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   w = await boot({user: 'alice'}); d = w.document;
   w.eval(`settingsModal(lmOrgPaneOn() ? 'org' : 'account')`); await until(() => d.querySelector('.wscpick'));
   check(d.querySelectorAll('.wscpick [data-wscp]').length === 8 && d.querySelector('.wscpick [data-wscp].on')?.dataset.wscp === '#ef8a6b', '#1474: the admin sees 8 swatches, the chosen one pressed');
-  click(w, d.querySelector('.wscpick [data-wscp="#4cc3d9"]'));
-  check(await until(async () => (await call('GET', '/api/orgs')).orgs[0].color === '#4cc3d9'), '#1474: a tap sets the colour');
+  // 2.1350.0 (#6721): tone 2 is an olive now (was the petrol #4cc3d9 that read as Kalmido's accent)
+  click(w, d.querySelector('.wscpick [data-wscp="#b0c44a"]'));
+  check(await until(async () => (await call('GET', '/api/orgs')).orgs[0].color === '#b0c44a'), '#1474: a tap sets the colour');
+  // lp_dist is the squared redmean distance: 3600 = 60 apart (the old petrol was ~51 from the dark accent, ~11 from the light one)
+  const accD = w.eval(`getComputedStyle(document.documentElement).getPropertyValue('--acc-d').trim()`), accL = w.eval(`getComputedStyle(document.documentElement).getPropertyValue('--acc-l').trim()`);
+  check(/^#[0-9a-f]{6}$/i.test(accD) && w.eval(`WSC_TONES.every(t => lp_dist(lp_rgb(t[0]), lp_rgb('${accD}')) > 3600 && lp_dist(lp_rgb(t[1]), lp_rgb('${accL}')) > 3600)`), '#6721: no organisation tone reads as the Kalmido accent');
+  check(w.eval(`WSC_TONES[wsc_ix('#4cc3d9', 1)][0] === '#b0c44a' && WSC_TONES[wsc_ix('#0E6F82', 1)][1] === '#576a0c'`), '#6721: an organisation that chose the old petrol shows the olive in its place');
   w.close();
   w = await boot({user: 'bob'}); d = w.document;
   w.eval(`settingsModal(lmOrgPaneOn() ? 'org' : 'account')`); await until(() => d.querySelector('.wscpick'));

@@ -1,0 +1,42 @@
+{
+  "de": {
+    "Your first invoice. It can no longer be deleted afterwards, only corrected.": "Deine erste Rechnung. Sie lässt sich danach nicht mehr löschen, nur korrigieren.",
+    "Try it out first?": "Erst ausprobieren?",
+    "Another starting number?": "Andere Startnummer?",
+    "Numbers": "Nummern",
+    "Taken over from the previous program": "Übernahme aus dem bisherigen Programm",
+    "Surcharge as": "Zuschlag als"
+  },
+  "es": {
+    "Your first invoice. It can no longer be deleted afterwards, only corrected.": "Tu primera factura. Después ya no se puede borrar, solo corregir.",
+    "Try it out first?": "¿Probar primero?",
+    "Another starting number?": "¿Otro número inicial?",
+    "Numbers": "Números",
+    "Taken over from the previous program": "Traspaso del programa anterior",
+    "Surcharge as": "Recargo como"
+  },
+  "fr": {
+    "Your first invoice. It can no longer be deleted afterwards, only corrected.": "Ta première facture. Elle ne pourra plus être supprimée ensuite, seulement corrigée.",
+    "Try it out first?": "Essayer d’abord ?",
+    "Another starting number?": "Autre numéro de départ ?",
+    "Numbers": "Numéros",
+    "Taken over from the previous program": "Reprise du programme précédent",
+    "Surcharge as": "Majoration en"
+  },
+  "it": {
+    "Your first invoice. It can no longer be deleted afterwards, only corrected.": "La tua prima fattura. Dopo non si può più eliminare, solo correggere.",
+    "Try it out first?": "Provare prima?",
+    "Another starting number?": "Altro numero iniziale?",
+    "Numbers": "Numeri",
+    "Taken over from the previous program": "Ripresa dal programma precedente",
+    "Surcharge as": "Maggiorazione come"
+  },
+  "nl": {
+    "Your first invoice. It can no longer be deleted afterwards, only corrected.": "Je eerste factuur. Die kun je daarna niet meer verwijderen, alleen corrigeren.",
+    "Try it out first?": "Eerst uitproberen?",
+    "Another starting number?": "Ander startnummer?",
+    "Numbers": "Nummers",
+    "Taken over from the previous program": "Overgenomen uit het vorige programma",
+    "Surcharge as": "Toeslag als"
+  }
+}

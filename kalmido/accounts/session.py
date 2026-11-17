@@ -356,11 +356,13 @@ def authenticate():
                                       ELSE sg.ended_at IS NULL AND sg.ends_at>? END)""",
                               (_token_hash(tok), now, now)).fetchone()
                 if r:
+                    from .supportgrant import sga_session_mark
+                    # 2.503.0 (#4307); 2.1350.0 (#6502): before g.user, so the request's first access context is already the
+                    # support session's narrowed one (core/access.py acx_of)
+                    sga_session_mark(c, _token_hash(tok), r["id"])
                     g.user, g.auth_via = r, "session"
                     from ..accounts.sessions import ses_touch
                     ses_touch(c, _token_hash(tok))  # 2.115.0 B (#2062): last activity, at most every few minutes
-                    from .supportgrant import sga_session_mark
-                    sga_session_mark(c, _token_hash(tok))  # 2.503.0 (#4307)
     path = request.path
     if request.method not in ("GET", "HEAD", "OPTIONS") and path.startswith("/api/") \
             and request.headers.get(CSRF_HEADER) != CSRF_VALUE:
@@ -653,14 +655,17 @@ def start_session(c, uid, remember, via="password"):
     c.execute("UPDATE users SET op_made_by=NULL WHERE id=? AND op_made_by IS NOT NULL", (uid,))  # 2.480.0 (#3944, F8): signed in = the client's own
     # 2.1062.0 (#5786, review F2): signed in once - never withdrawn as a never used account (accounts/orginvite.py oinv_expire)
     c.execute("UPDATE users SET oinv_used=TRUE WHERE id=? AND oinv_made_at IS NOT NULL AND NOT oinv_used", (uid,))
+    sup = False
     if via == "link":  # 2.485.0 (#3939): a sign-in link the operator made through support access: no longer than that access
         from .supportgrant import sga_session_cap
-        sga_session_cap(c, uid, _token_hash(tok))
+        sup = sga_session_cap(c, uid, _token_hash(tok))
     from ..admin.clientip import login_seen
     login_seen(c, uid)  # 2.33.0 (#834): many accounts from one private address = the proxy hides the client addresses
     _shs_signin(c, c.execute("SELECT id, email, email_proved, kind FROM users WHERE id=?", (uid,)).fetchone())
     from flask import has_request_context
     from ..notify.sev import sev_login
+    if sup:  # 2.1350.0 (#6502): the operator's browser and address are no known device / address of the client
+        return tok, (days * 86400 if remember else None)
     sev_login(c, uid, client_ip() if has_request_context() else "", via)  # 2.36.2 (#1133): an admin from a new address
     if has_request_context():  # 2.266.0 (#2963): a sign-in from a new device -> a mail to the person
         from .secmail import sec_login

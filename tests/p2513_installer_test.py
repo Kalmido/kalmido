@@ -328,9 +328,13 @@ with open(os.path.join(ROOT, "docker-compose.yml"), encoding="utf-8") as f:
     COMPOSE_YML = f.read()
 
 
-def env_case(env_text, code, **env):
-    """An installation folder with this .env (bytes as given) and the real docker-compose.yml; CODE runs there."""
-    mem_docker(16000)
+def env_case(env_text, code, docker=None, **env):
+    """An installation folder with this .env (bytes as given) and the real docker-compose.yml; CODE runs there. 2.1350.0 (#6933):
+    docker = the body of the docker stub (default: answers 16 GB of memory, everything else succeeds)."""
+    if docker:
+        stub("docker", docker)
+    else:
+        mem_docker(16000)
     d = folder()
     with open(os.path.join(d, ".env"), "w", encoding="utf-8", newline="") as f:
         f.write(env_text)
@@ -396,6 +400,63 @@ for bad in ("/", os.path.join(TMP, "gone")):
     check(rc == 1 and "/secret is a link" in out + err and "secret" not in calls(), f"#6606 F10: secret/ a link to {bad} stops ({rc} {out + err} {calls()})")
 check("`chown -hR`" in open(os.path.join(ROOT, "docs", "SELF-HOSTING.md"), encoding="utf-8").read(), "#6606 F10: SELF-HOSTING.md names chown -hR and links")
 
+# 2.1345.0 (#6658, decision 17.11.2026): ONE rule for a link target - empty, or the marker DIRECTORY .kalmido-target in it
+# (never a link; an older run's marker file becomes the directory); / is refused outright
+def link_case(target):
+    d = folder()
+    os.symlink(target, os.path.join(d, "data"))
+    os.makedirs(os.path.join(d, "secret"))
+    return run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+
+
+for bad in ("/home", "/etc", "/var", "/usr"):
+    rc, out, err = link_case(bad)
+    check(rc == 1 and "ln -sfn" in out + err and ".kalmido-target" in out + err and "chown" not in calls(),
+          f"#6658: data/ a link to the full {bad} stops with the commands ({rc} {out + err} {calls()})")
+rc, out, err = link_case(os.path.dirname(TMP))
+check(rc == 1 and "chown" not in calls(), f"#6658: a link to an ancestor of the installation folder stops ({rc} {out + err})")
+base = tempfile.mkdtemp(dir=TMP)
+full = os.path.join(base, "a", "b", "kalmido-data")
+os.makedirs(full)
+open(os.path.join(full, "someone-else.txt"), "w").close()
+rc, out, err = link_case(full)
+check(rc == 1 and "chown" not in calls(), f"#6658: a deep folder that is not empty and has no marker stops ({rc} {out + err})")
+os.mkdir(os.path.join(full, ".kalmido-target"))
+rc, out, err = link_case(full)
+check(rc == 0 and "chown -hR 1000:1000 %s\n" % os.path.realpath(full) in calls(), f"#6658: with the marker directory it is taken ({rc} {out + err} {calls()})")
+empty = os.path.join(base, "empty")
+os.makedirs(empty)
+rc, out, err = link_case(empty)
+mk = os.path.join(empty, ".kalmido-target")
+check(rc == 0 and os.path.isdir(mk) and not os.path.islink(mk), f"#6658: an empty folder is taken and gets the marker directory ({rc} {out + err})")
+# the marker a link (to a file elsewhere): never followed, nothing written through it, no chown
+victim = os.path.join(base, "victim.txt")
+with open(victim, "w") as fh:
+    fh.write("keep me")
+trap = os.path.join(base, "trap")
+os.makedirs(trap)
+os.symlink(victim, os.path.join(trap, ".kalmido-target"))
+rc, out, err = link_case(trap)
+check(rc == 1 and open(victim).read() == "keep me" and "chown" not in calls(), f"#6658: a marker that is a link stops, the file behind it untouched ({rc} {out + err})")
+# the old form: a marker FILE in an older run's folder becomes the directory
+old = os.path.join(base, "old")
+os.makedirs(old)
+open(os.path.join(old, "tasks-export.csv"), "w").close()
+open(os.path.join(old, ".kalmido-target"), "w").close()
+rc, out, err = link_case(old)
+check(rc == 0 and os.path.isdir(os.path.join(old, ".kalmido-target")), f"#6658: an old marker file is accepted and becomes the directory ({rc} {out + err})")
+# env_get: blanks before the quote
+rc, out, t, cl = env_case('TZ=UTC\nKALMIDO_CLAMD= "scanner.example.com:3310"\nPOSTGRES_PASSWORD=x\n', 'printf "[%s]" "$(env_get KALMIDO_CLAMD)"')
+check("[scanner.example.com:3310]" in out, f"#6658: env_get strips blanks before the quote ({out})")
+# clamav_note: an own scanner is named as such
+rc, out, t, cl = env_case("TZ=UTC\nCOMPOSE_PROFILES=localdb\nKALMIDO_CLAMD=scanner.example.com:3310\nPOSTGRES_PASSWORD=x\n", "clamav_note")
+check("your own scanner" in out and "scanner.example.com:3310" in out and "COMPOSE_PROFILES" not in out, f"#6658: an own scanner is reported as such ({out})")
+# install.ps1: the same rules as text
+check("KALMIDO_CLAMAV must be 1" in PS and "$ClamavMinMb = 2800" in PS and "KALMIDO_CLAMAV_OFF=low_memory" in PS and "your own scanner" in PS and "$env:KALMIDO_CLAMAV" in PS[:PS.index("Set-StrictMode")],
+      "#6658: install.ps1 has KALMIDO_CLAMAV and the 3 GB rule")
+check("{ param($m) $profLine }" in PS and 'else { $envText = $envText.TrimEnd("`n") + "`n$profLine`n" }' in PS,
+      "#6658 F4: install.ps1 replaces COMPOSE_PROFILES through a script block and appends a missing line")
+
 # ------------------------------------------------------------------ #6505
 # GitHub after the move: the first answer of the old address is a 301 to the new name, only the end of the chain names the tag.
 # The stub answers like curl: -w %{url_effective} with -L = the last address, %{redirect_url} = the first forward only
@@ -418,6 +479,17 @@ for before, after in (("KALMIDO_IMAGE=%s:2.1229.0@%s\n" % (OLDIMG, DG), "KALMIDO
 for keep in ("#KALMIDO_IMAGE=%s:X.Y.Z\n" % OLDIMG, "KALMIDO_IMAGE=%s-mirror:1\n" % OLDIMG, "KALMIDO_IMAGE=registry.example.com/kalmido:1\n"):
     rc, out, t, _ = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\n" + keep, "write_env")
     check(rc == 0 and keep in t and "new image name" not in out, f"#6505: {keep.strip()} stays as it is ({t})")
+# 2.1350.0 (#6933, review N1): a pinned version / digest the new name does not have keeps the old name, said in a warning
+for before in ("KALMIDO_IMAGE=%s:2.1229.0@%s\n" % (OLDIMG, DG), 'KALMIDO_IMAGE="%s:2.1.0"\n' % OLDIMG):
+    rc, out, t, cl = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\n" + before, "write_env",
+                              docker='case "$1" in manifest) exit 1 ;; info) echo 16777216000 ;; esac\nexit 0')
+    check(rc == 0 and before in t and "new image name" not in out and "stays on the old image name" in out,
+          f"#6933: {before.strip()} not under the new name: kept, with a warning ({rc} {t} {out[-300:]})")
+    check("manifest inspect ghcr.io/kalmido/kalmido:" in cl, f"#6933: the new name was asked ({cl})")
+rc, out, t, _ = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\nKALMIDO_IMAGE=%s:latest\n" % OLDIMG, "write_env",
+                         docker='case "$1" in manifest) exit 1 ;; esac\nexit 0')
+check(rc == 0 and "KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:latest" in t, f"#6933: :latest switches without asking ({t})")
+check("docker manifest inspect" in PS and "stays on the old image name" in PS, "#6933: install.ps1 asks the new name before it switches a pin")
 check("ghcr.io/kalmido/kalmido" in PS and "Switched KALMIDO_IMAGE in .env to the new image name" in PS
       and "(?m)^(KALMIDO_IMAGE=" in PS, "#6505: install.ps1 switches the old image name in .env too")
 

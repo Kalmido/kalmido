@@ -396,14 +396,16 @@ def ofa_match_ids(items, old):
 
 def ofa_surcharge(c, oid, v):
     """2.1228.0 (#6254): the agent's {pct?, title?} (null = off) -> the request fields markup_pct / markup_label, as a
-    person's change sends them (checked by docs.prd_doc_clean: pct 0..100, an empty title = the default / the pack's)."""
+    person's change sends them (checked by docs.prd_doc_clean: pct 0..100, an empty title = the default / the pack's).
+    2.1345.0 (#6943): or {amount, title?} = a fixed net amount in the home currency instead of the percent (markup_amount;
+    pct and amount together are refused: one excludes the other, like a person's editor)."""
     if v is None:
         return {"markup_pct": None}
-    if not isinstance(v, dict) or any(k not in ("pct", "title") for k in v):
+    if not isinstance(v, dict) or any(k not in ("pct", "amount", "title") for k in v):
         raise BadInput(tr("Invalid value: {0}", "surcharge"))
-    if not v or ("title" in v and not isinstance(v["title"], str)):  # review: a title is text, {} sets nothing
+    if not v or ("title" in v and not isinstance(v["title"], str)) or ("pct" in v and "amount" in v):  # review: a title is text, {} sets nothing
         raise BadInput(tr("Invalid value: {0}", "surcharge"))
-    return {k2: v[k] for k, k2 in (("pct", "markup_pct"), ("title", "markup_label")) if k in v}  # review: a title alone keeps the percent
+    return {k2: v[k] for k, k2 in (("pct", "markup_pct"), ("amount", "markup_amount"), ("title", "markup_label")) if k in v}  # review: a title alone keeps the percent
 
 
 def ofa_draft_create(c, uid, oid, data, agent_id=None):
@@ -1080,8 +1082,10 @@ def ofa_spec(paths, schemas, op, ok, errs, ref, pid, q):
     draft = {"type": "object", "properties": {
         "client_id": {"type": ["integer", "null"]}, "title": {"type": "string"}, "intro": {"type": "string"}, "items": {"type": "array", "items": item},
         "list_id": {"type": ["integer", "null"], "description": "The project list (in the office's workspace)"},
-        "surcharge": {"type": ["object", "null"], "description": "2.1228.0: a surcharge in percent on the positions marked for it (new ones are), its own line after the positions, before discount and tax; null = off",
-                      "properties": {"pct": {"type": ["number", "null"], "description": "0..100"}, "title": {"type": "string", "description": "The line title (empty = Surcharge)"}}},
+        "surcharge": {"type": ["object", "null"], "description": "2.1228.0: a surcharge in percent on the positions marked for it (new ones are), its own line after the positions, before discount and tax; 2.1345.0: or a fixed net amount (amount, home currency) instead of pct; null = off",
+                      "properties": {"pct": {"type": ["number", "null"], "description": "0..100"},
+                                     "amount": {"type": ["number", "null"], "description": "2.1345.0: a fixed net amount in the home currency instead of pct (not both); empty / 0 = none"},
+                                     "title": {"type": "string", "description": "The line title (empty = Surcharge)"}}},
         "notify": {"type": "boolean", "description": "A card in the person's chat: sum, PDF preview, Open in the office"},
         "requested_by": {"type": "integer"}}}
     schemas["OfficeDraftInput"] = {"type": "object", "properties": {**draft["properties"], "trial": {  # 2.144.10 A (#2576): set at creation only

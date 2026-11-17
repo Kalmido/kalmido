@@ -31,7 +31,7 @@ from .model import pb_personal  # 2.747.0 (#5246)
 from .model import ofx_release  # 2.1309.0 (#6467)
 from .okern import ofk_purge, ofk_register, ofk_trash  # 2.1004.0 (#5494)
 from .rights import NO_RIGHT, ofr_admin_or, ofr_allows
-from ..accounts.orgroles import OFFICE_READ
+from ..accounts.orgroles import OFFICE_READ, office_allowed
 from ..accounts.orgs import user_orgs
 from ..accounts.session import _accept_lang, me, _rate_blocked, _rate_fail, _token_hash, rate_ip
 from ..accounts.login import auth_key, seal, unseal
@@ -224,9 +224,11 @@ def sig_enc(c, r, vals):
         return oc_enc_fields(c, oid, "office_signoffs", vals)
 
 
-def sig_public(c, r, full=True):
+def sig_public(c, r, full=True, url=True):
     """full=False (members of the office who are not its admin): without the signer's e-mail, address and device
-    (2.50.0 #1200 review: personal data of the customer only for the admins / the list's owner)."""
+    (2.50.0 #1200 review: personal data of the customer only for the admins / the list's owner).
+    url=False: without the link's address (2.1340.0 #6613: the address decides as the customer, so only people who may
+    change the document get it -- sig_may_edit; as the videos' review, can_write)."""
     d = sig_dec(c, r)
     live = d["state"] == "open" and not d["revoked_at"] and not (d["expires_at"] and parse_iso(d["expires_at"]) <= now_utc()) \
         and not sig_too_old(d)  # 2.666.0 (#4074 10)
@@ -234,9 +236,17 @@ def sig_public(c, r, full=True):
             "task_id": d["task_id"], "title": d["title"], "state": d["state"], "expires_at": d["expires_at"], "revoked_at": d["revoked_at"],
             "signer_name": d["signer_name"], "signer_email": d["signer_email"], "reason": d["reason"], "signed_at": d["signed_at"],
             "ip": d["ip"], "user_agent": d["user_agent"], "doc_hash": d["doc_hash"], "created_at": d["created_at"], "created_by": d["created_by"],
-            "live": live, "url": sig_url(c, d) if live else None,
+            "live": live, "url": sig_url(c, d) if live and url else None,
             "show_old": bool(d.get("show_old")), "carried_from": d.get("carried_from"),  # 2.642.0 (#4772)
             **({} if full else {"signer_email": None, "ip": None, "user_agent": None})}
+
+
+def sig_may_edit(c, uid, oid, area="offers"):
+    """2.1340.0 (#6613): may uid change the documents of office area oid's area (quotations: offers, generated documents:
+    gendocs)? Not for the read-only / accounting roles (orgroles.office_allowed), office groups need 'edit' in the area."""
+    if not uid or office_allowed(c, uid, oid, write=True) is not None:
+        return False
+    return ofr_allows(c, uid, oid, area, "edit")
 
 
 def sig_people(c, oid, creator, lid=None):
@@ -362,7 +372,8 @@ def sig_offer_list(did):
     doc_row(c, oid, did)
     rows = c.execute("SELECT * FROM office_signoffs WHERE doc_id=? AND org_id=? ORDER BY id DESC LIMIT 50", (did, oid)).fetchall()
     adm = office_role(c, uid, oid) == "admin"
-    return jsonify(signoffs=[sig_public(c, r, adm) for r in rows])
+    ed = sig_may_edit(c, uid, oid)  # 2.1340.0 (#6613): the link's address only for who may change the quotation
+    return jsonify(signoffs=[sig_public(c, r, adm and ed, ed) for r in rows])
 
 
 @app.post("/api/office/signoffs/<int:sid>/revoke")

@@ -361,7 +361,7 @@ env_drop() {  # PATTERN: the lines that match it go
 # 2.1284.0 (#6606, review F7-F9): NAME's value in .env as Compose reads it - the last line, without CR, without the quotes
 # around it, without a comment at the end (" #..." after a value without quotes); never expanded by the shell
 env_get() {
-  v=$(sed -n "s/^$1=//p" "$DIR/.env" 2>/dev/null | tail -n 1 | tr -d '\r')
+  v=$(sed -n "s/^$1=//p" "$DIR/.env" 2>/dev/null | tail -n 1 | tr -d '\r' | sed 's/^[[:space:]]*//')  # 2.1345.0 (#6658): blanks before the quote
   case "$v" in
     \"*) v=${v#\"}; v=${v%%\"*} ;;
     \'*) v=${v#\'}; v=${v%%\'*} ;;
@@ -438,10 +438,27 @@ choose_clamav() {
   fi
 }
 
+# 2.1345.0 (#6658, decision 17.11.2026 after three readers): ONE rule for every link target of data/ or secret/, whatever
+# its depth or folder: chown -hR runs only on a folder that is empty or carries the Kalmido marker directory .kalmido-target
+# (a real directory, never a link). / is refused outright. An older run's marker FILE (a regular file, no link) is the known
+# old form: accepted and turned into the directory. The marker is made with mkdir, which follows no link and fails cleanly.
+LINK_MARK=".kalmido-target"
+link_target_ok() {
+  [ "$1" != / ] || return 1
+  m="$1/$LINK_MARK"
+  if [ -L "$m" ]; then return 1; fi
+  if [ -d "$m" ]; then return 0; fi
+  if [ -f "$m" ]; then rm -f "$m" && mkdir "$m" && return 0; return 1; fi  # the old form (a file): becomes the directory
+  [ -z "$(ls -A "$1" 2>/dev/null)" ]
+}
+
 # the line about the virus scanner at the end of the installation (from .env: what really runs)
 clamav_note() {
   if clamav_profile && ! clamd_off; then
     say "Virus scan: ClamAV checks every upload (about 1-1.5 GB RAM); switch it off: KALMIDO_CLAMAV=0 \"$DIR/update.sh\" (docs/SELF-HOSTING.md)"  # 2.61.0
+  elif grep -q '^KALMIDO_CLAMD=' "$DIR/.env" 2>/dev/null && ! clamd_off; then
+    # 2.1345.0 (#6658): KALMIDO_CLAMD points to a scanner of your own: the app checks, only no container of ours runs
+    say "Virus scan: your own scanner (KALMIDO_CLAMD=$(env_get KALMIDO_CLAMD)) checks every upload; the ClamAV container of this installation is not used."
   elif grep -q '^KALMIDO_CLAMAV_OFF=low_memory' "$DIR/.env"; then
     if [ -n "${CLAMAV_SAID:-}" ]; then m="about $CLAMAV_SAID MB of memory, under 3 GB"; else m="less than about 3 GB of memory"; fi
     printf '\033[1;33mVirus scan: OFF.\033[0m This server has %s; ClamAV alone needs 1-1.5 GB.\n' "$m"
@@ -496,6 +513,17 @@ migrate_image_name() {
     warn "Your own docker-compose.override.yml names the old image name; change it to ghcr.io/kalmido/kalmido (the old one gets no updates)."
   fi
   grep -Eq "^KALMIDO_IMAGE=[\"']?$OLD_IMAGE_RE([:@\"']|\$)" "$DIR/.env" 2>/dev/null || return 0
+  # 2.1350.0 (#6933, review N1 of job/5115): a pinned version / digest is switched only when the new name has it (an old pin
+  # may have been pushed only under the old name); without that answer the line stays and a warning says what to do
+  ref=$(sed -n "s/^KALMIDO_IMAGE=//p" "$DIR/.env" | tail -n 1 | tr -d "\"'")
+  rest=${ref#"$OLD_IMAGE_RE"}
+  case "$rest" in
+    ''|:latest) ;;
+    *) if ! docker manifest inspect "ghcr.io/kalmido/kalmido$rest" >/dev/null 2>&1; then
+         warn "KALMIDO_IMAGE in .env stays on the old image name: ghcr.io/kalmido/kalmido$rest was not found (or not reachable). Set KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:<a current version> in .env; the old name gets no updates."
+         return 0
+       fi ;;
+  esac
   sed -E -i.bak "s#^(KALMIDO_IMAGE=[\"']?)$OLD_IMAGE_RE([:@\"']|\$)#\1ghcr.io/kalmido/kalmido\2#" "$DIR/.env" && rm -f "$DIR/.env.bak"
   chmod 600 "$DIR/.env"
   say "Switched KALMIDO_IMAGE in .env to the new image name ghcr.io/kalmido/kalmido (the old name gets no updates; version kept)"
@@ -550,7 +578,10 @@ write_override() {
       p="$DIR/$f"
       if [ -L "$p" ]; then
         p=$(cd -P "$p" 2>/dev/null && pwd -P) || die "$DIR/$f is a link to a folder that does not exist."
-        [ "$p" != / ] || die "$DIR/$f is a link to / - point it to a folder of its own."
+        # 2.1345.0 (#6658): only an empty folder or one with the Kalmido marker directory (link_target_ok)
+        link_target_ok "$p" || die "$DIR/$f is a link to $p, which is neither empty nor marked as Kalmido's folder (a directory $LINK_MARK in it); chown would hit everything in it. Is it Kalmido's own $f folder: mkdir \"$p/$LINK_MARK\" and re-run the installer. Otherwise point the link to an empty folder of its own: mkdir -p \"$p/kalmido-$f\" && ln -sfn \"$p/kalmido-$f\" \"$DIR/$f\" && re-run the installer"
+        [ -d "$p/$LINK_MARK" ] && [ ! -L "$p/$LINK_MARK" ] || mkdir "$p/$LINK_MARK" 2>/dev/null \
+          || die "Could not create the marker $p/$LINK_MARK (a link or a file is in the way); remove it and re-run the installer."
         say "$DIR/$f is a link: giving its target $p to user 1000"
       fi
       chown -hR 1000:1000 "$p" || die "Could not give $DIR/data and $DIR/secret to user 1000 (chown)."

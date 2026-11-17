@@ -163,9 +163,23 @@ def _hist_recent(at, lim):
         return False
 
 
+def obj_hist_via(uid):
+    """2.1350.0 (#6502): obj_history.via of a change uid makes now: 'support' in a support session of uid's account (the
+    operator working as the client, accounts/supportgrant.py), else None."""
+    # the mark authenticate / a support sign-in set (accounts/supportgrant.py sga_session_mark, sga_acting)
+    return "support" if has_request_context() and uid and g.get("acx_sup_uid") == int(uid) else None
+
+
+def obj_hist_name(r, names):
+    """2.1350.0 (#6502): the name a history entry r shows: the person's, marked when support made the change in their account."""
+    n = names.get(r["user_id"], "") if r["user_id"] else ""
+    return tr("{0} (support access)", n) if r["via"] == "support" else n
+
+
 def obj_history_add(c, uid, kind, rid, before, after, action="update", org_id=None, agent=None):
     """Note a change of the object in obj_history (before / after: {field: value} of what changed). An 'update' of the same
-    person (and the same agent flag) within OBJ_MERGE_MIN minutes merges into the last entry: its before stays, after grows."""
+    person (and the same agent flag) within OBJ_MERGE_MIN minutes merges into the last entry: its before stays, after grows.
+    2.1350.0 (#6502): a change in a support session is marked (via 'support') and never merges with the person's own."""
     reg = _reg(kind)
     if org_id is None:
         if kind in OBJ_TRACK:  # 2.777.0 (#5254): a tracked table without a workspace column (habits: always a person's own)
@@ -175,11 +189,13 @@ def obj_history_add(c, uid, kind, rid, before, after, action="update", org_id=No
             r = obj_row(c, kind, rid)
         org_id = (r["org_id"] or None) if r is not None else None
     ag = 1 if (obj_is_agent(c, uid) if agent is None else agent) else 0
+    via = obj_hist_via(uid)
     ts = _now()
     if action == "update":
         last = c.execute("SELECT * FROM obj_history WHERE kind=? AND ref_id=? ORDER BY id DESC LIMIT 1", (kind, int(rid))).fetchone()
         lim = now_utc() - timedelta(minutes=OBJ_MERGE_MIN)
-        if last is not None and last["action"] == "update" and last["user_id"] == uid and last["agent"] == ag and _hist_recent(last["updated_at"], lim):
+        if last is not None and last["action"] == "update" and last["user_id"] == uid and last["agent"] == ag and last["via"] == via \
+                and _hist_recent(last["updated_at"], lim):
             b0, a0 = json.loads(last["vals_before"] or "{}"), json.loads(last["vals_after"] or "{}")
             for k, v in before.items():
                 b0.setdefault(k, v)
@@ -190,9 +206,9 @@ def obj_history_add(c, uid, kind, rid, before, after, action="update", org_id=No
             c.execute("UPDATE obj_history SET vals_before=?, vals_after=?, updated_at=? WHERE id=?",
                       (json.dumps(b0, default=str), json.dumps(a0, default=str), ts, last["id"]))
             return last["id"]
-    hid = insert_id(c, "INSERT INTO obj_history(kind,ref_id,org_id,user_id,agent,action,vals_before,vals_after,created_at,updated_at) "
-                       "VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    (kind, int(rid), org_id, uid, ag, action, json.dumps(before, default=str), json.dumps(after, default=str), ts, ts))
+    hid = insert_id(c, "INSERT INTO obj_history(kind,ref_id,org_id,user_id,agent,action,vals_before,vals_after,created_at,updated_at,via) "
+                       "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    (kind, int(rid), org_id, uid, ag, action, json.dumps(before, default=str), json.dumps(after, default=str), ts, ts, via))
     n = c.execute("SELECT COUNT(*) FROM obj_history WHERE kind=? AND ref_id=?", (kind, int(rid))).fetchone()[0]
     if n > OBJ_HISTORY_MAX:
         c.execute("DELETE FROM obj_history WHERE id IN (SELECT id FROM obj_history WHERE kind=? AND ref_id=? ORDER BY id LIMIT ?)",
@@ -209,6 +225,7 @@ def obj_history_add_many(c, uid, kind, items, agent=None):
         return
     _reg(kind)
     ag = 1 if (obj_is_agent(c, uid) if agent is None else agent) else 0
+    via = obj_hist_via(uid)  # 2.1350.0 (#6502)
     ts = _now()
     lim = now_utc() - timedelta(minutes=OBJ_MERGE_MIN)
     for i in range(0, len(items), 500):
@@ -220,7 +237,8 @@ def obj_history_add_many(c, uid, kind, items, agent=None):
         upd, ins = [], []
         for rid, before, after, oid in part:
             x = last.get(int(rid))
-            if x is not None and x["action"] == "update" and x["user_id"] == uid and x["agent"] == ag and _hist_recent(x["updated_at"], lim):
+            if x is not None and x["action"] == "update" and x["user_id"] == uid and x["agent"] == ag and x["via"] == via \
+                    and _hist_recent(x["updated_at"], lim):
                 b0, a0 = json.loads(x["vals_before"] or "{}"), json.loads(x["vals_after"] or "{}")
                 for k, v in before.items():
                     b0.setdefault(k, v)
@@ -230,14 +248,14 @@ def obj_history_add_many(c, uid, kind, items, agent=None):
                     b0.pop(k)
                 upd += [x["id"], json.dumps(b0, default=str), json.dumps(a0, default=str)]
             else:
-                ins += [kind, int(rid), oid, uid, ag, "update", json.dumps(before, default=str), json.dumps(after, default=str), ts, ts]
+                ins += [kind, int(rid), oid, uid, ag, "update", json.dumps(before, default=str), json.dumps(after, default=str), ts, ts, via]
         if upd:
             c.execute("UPDATE obj_history SET vals_before=v.b, vals_after=v.a, updated_at=? FROM (VALUES "
                       + ",".join(["(CAST(? AS bigint), CAST(? AS jsonb), CAST(? AS jsonb))"] * (len(upd) // 3))  # 2.1101.0 (#5954): JSONB
                       + ") AS v(id, b, a) WHERE obj_history.id=v.id", [ts, *upd])
         if ins:
-            c.execute("INSERT INTO obj_history(kind,ref_id,org_id,user_id,agent,action,vals_before,vals_after,created_at,updated_at) "
-                      "VALUES " + ",".join(["(?,?,?,?,?,?,?,?,?,?)"] * (len(ins) // 10)), ins)
+            c.execute("INSERT INTO obj_history(kind,ref_id,org_id,user_id,agent,action,vals_before,vals_after,created_at,updated_at,via) "
+                      "VALUES " + ",".join(["(?,?,?,?,?,?,?,?,?,?,?)"] * (len(ins) // 11)), ins)
             c.execute(f"DELETE FROM obj_history WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY ref_id ORDER BY id DESC) "
                       f"AS rn FROM obj_history WHERE kind=? AND ref_id IN ({q})) t WHERE rn > ?)", [kind, *ids, OBJ_HISTORY_MAX])
 
@@ -247,8 +265,8 @@ def obj_history(c, uid, kind, rid, limit=50):
     obj_need(c, uid, kind, rid, "view")
     rows = c.execute("SELECT * FROM obj_history WHERE kind=? AND ref_id=? ORDER BY id DESC LIMIT ?", (kind, int(rid), int(limit))).fetchall()
     names = user_names(c, [r["user_id"] for r in rows if r["user_id"]])
-    return [{"id": r["id"], "at": r["updated_at"], "created_at": r["created_at"], "user_id": r["user_id"], "name": names.get(r["user_id"], ""),
-             "agent": bool(r["agent"]), "action": r["action"], "before": json.loads(r["vals_before"] or "{}"),
+    return [{"id": r["id"], "at": r["updated_at"], "created_at": r["created_at"], "user_id": r["user_id"], "name": obj_hist_name(r, names),
+             "agent": bool(r["agent"]), "support": r["via"] == "support", "action": r["action"], "before": json.loads(r["vals_before"] or "{}"),
              "after": json.loads(r["vals_after"] or "{}")} for r in rows]
 
 

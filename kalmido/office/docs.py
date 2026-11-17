@@ -28,7 +28,7 @@ from .okern import ofk_register, ofk_trash  # 2.1005.0 (#5415): a draft in the c
 from .okern import ofk_fk_refs  # 2.1005.0 (#5415): was otrash.otb_refs
 from .homecur import HC_CODES, hc_code, hc_home, hc_office_rate  # 2.189.0 (#2475)
 from .model import (NAME_MAX, PT_MAX, TEXT_MAX, UNITS, client_short_code, pb_cl_sql, pb_cl_live, office_gate, office_need_feature, office_org, onc_next, onc_ready, onc_version, office_role, office_settings,
-                    office_seed_texts, office_trial_number, trial_flag)
+                    office_seed_texts, office_trial_number, trial_flag, office_first_invoice)
 from .pdf import pdf_paper  # 2.357.0 A (#3156)
 from .oubar import OUB_SENT, oub_barrier, oub_doc_name  # 2.747.0 (#5252): a document marked sent is a barrier of the undo steps
 from .ledger import (ofx_release, ofx_company, ofx_company_print, ofx_sender_line, ofx_diff, ofx_items_brief, ofx_locked, ofx_log, ofx_logo_path, ofx_need_editable,
@@ -317,7 +317,7 @@ def fk_doc_contact_clean(c, oid, b, cur, f):
 
 
 # ---------------------------------------------------------------- 2.113.1 (#2251, #2252): the options of the industry packs
-PRD_DOC_KEYS = ("handling_pct", "handling_label", "markup_pct", "markup_label", "markup_stacked")
+PRD_DOC_KEYS = ("handling_pct", "handling_label", "markup_pct", "markup_label", "markup_stacked", "markup_amount")  # 2.1345.0 (#6943): + markup_amount
 
 
 def _offer_title(s, L, lang):
@@ -379,6 +379,16 @@ def prd_doc_clean(c, oid, b):
                 f[k + "_label"] = json.dumps({"de": v, "en": v}, ensure_ascii=False)
     if "markup_stacked" in b:
         f["markup_stacked"] = 0 if b.get("markup_stacked") in (0, False, "0", "false", None, "") else 1
+    # 2.1345.0 (#6943): the markup as a fixed net amount in the home currency (markup_amount, empty / 0 = none) instead of the
+    # percent; one excludes the other: an amount > 0 sets the percent to 0 (the markup stays on), a percent > 0 or the markup
+    # switched off (markup_pct null) clears the amount
+    if "markup_amount" in b:
+        v = _num(b.get("markup_amount"), "markup_amount", 0, 1e8)
+        f["markup_amount"] = v if v else None
+        if v:
+            f["markup_pct"] = 0
+    elif "markup_pct" in f and (f["markup_pct"] is None or f["markup_pct"] > 0):
+        f["markup_amount"] = None
     return f
 
 
@@ -1895,13 +1905,15 @@ def odoc_finalize_number(c, oid, did):
 def odoc_number_preview(did):
     """2.431.0 B (#3605): {number, given} -- the number finalising the document gives it (the finalise dialog): its own
     number when it has one (given true), else the next one of its scheme, the counter only looked at. Who may finalise
-    may look (the same office context)."""
+    may look (the same office context). 2.1345.0 (#6532): + first -- a real invoice while the office has finalised none yet
+    (the dialog says it can no longer be deleted, with the ways to the test mode and the number ranges)."""
     c, uid, oid = _ctx()
     r = doc_row(c, oid, did)
+    first = r["kind"] == "invoice" and not r["trial"] and not ofx_locked(r) and office_first_invoice(c, oid)
     if r["number"]:
-        return jsonify(number=r["number"], given=True)
+        return jsonify(number=r["number"], given=True, first=first)
     num = office_trial_number(c, oid, did, peek=True) if r["trial"] else doc_next_number(c, oid, r, office_settings(c, oid), peek=True)
-    return jsonify(number=num, given=False)
+    return jsonify(number=num, given=False, first=first)
 
 
 @app.post("/api/office/docs/<int:did>/status")

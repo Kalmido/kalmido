@@ -305,7 +305,9 @@ def acx_of(c, uid):
     if has_request_context():
         cache = g.setdefault("acx_users", {})
         if uid not in cache:
-            cache[uid] = _ctx_cached(c, uid)
+            # 2.1350.0 (#6502): a support session reads with a narrowed context, built per request and never stored in
+            # _REQ_CTX (that entry is the account's own: the client's own session must neither get it nor give it)
+            cache[uid] = _ctx_support(c, uid) if g.get("acx_sup_uid") == uid else _ctx_cached(c, uid)
         return cache[uid]
     hit = _BG_CTX.get(uid)  # background work: a short-lived cache (memberships change rarely; 2 s)
     if hit and hit[0] > time.monotonic():
@@ -383,6 +385,19 @@ def _ctx_build(c, uid):
             if r:
                 orgs = (*orgs, r[0])
     return AccessCtx(uid, orgs, "agent" if agent else "user", aorg, None)
+
+
+ACX_SUPPORT_ORGS = [None]  # 2.1350.0 (#6502): fn(c, uid, org_ids) -> the readable ones (accounts/supportgrant.py sets it)
+
+
+def _ctx_support(c, uid):
+    """2.1350.0 (#6502, decision of 16.11.2026): the context of a support session of account uid: its private space, its own
+    office and only the organisations whose admins opened support access themselves (accounts/supportgrant.py
+    sga_orgs_readable) -- not every organisation the person is in. Fresh each request, never in _REQ_CTX / _BG_CTX.
+    Without the function (not registered): no organisation at all (the safe side)."""
+    ctx = _ctx_build(c, uid)
+    fn = ACX_SUPPORT_ORGS[0]
+    return ctx._replace(org_ids=tuple(fn(c, uid, ctx.org_ids)) if fn else ())
 
 
 def acx(c=None):

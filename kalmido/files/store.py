@@ -377,7 +377,12 @@ def _fs_limited_role(c, uid, org, chain, ids, pre=None):
     elif rk == "accounting":
         root = pre.docs_root(c, org) if pre is not None else _fs_docs_root(c, org)
         if root and any(r["id"] == root for r in chain):
-            role = _best(role, "view")  # own receipts stay 'edit' (review)
+            # 2.1340.0 (#6613): only the documents folder itself and the receipts in it (a file with an rc_receipts row),
+            # not every document of the other members (contracts, staff papers); own uploads and shares as above
+            nid = chain[0]["id"]
+            if nid == root or (pre.is_receipt(c, nid) if pre is not None else
+                               c.execute("SELECT 1 FROM rc_receipts WHERE node_id=?", (nid,)).fetchone() is not None):
+                role = _best(role, "view")  # own receipts stay 'edit' (review)
     share = _shares_role(c, ids, uid, False, pre)
     if rk == "readonly" and share:
         share = "view"
@@ -455,6 +460,7 @@ def fs_visible_sql_c(c, uid):
     ctx = acx_of(c, uid)
     agent = ctx.role == "agent"
     now = _now().replace("'", "")
+    roots = []  # 2.1340.0 (#6613): the documents folders of the organisations where uid is accounting
     if agent:
         orgs = f"n.org_id IS NULL OR n.org_id = {int(ctx.agent_org_id)}" if ctx.agent_org_id else "n.org_id IS NULL"
         seed = (f"n.agent_id = {uid} OR n.id IN (SELECT node_id FROM fs_shares WHERE (agent_id = {uid} OR user_id = {uid}) "
@@ -475,9 +481,12 @@ def fs_visible_sql_c(c, uid):
         rks = {int(o): org_role_key(c, uid, o) for o in ctx.org_ids}
         full = ",".join(str(o) for o, rk in rks.items() if rk not in ("guest", "accounting")) or "0"
         seed += f" OR (n.org_access IN ('view', 'edit') AND n.org_id IN ({full}))"
-        roots = [_fs_docs_root(c, o) for o, rk in rks.items() if rk == "accounting"]
-        if any(roots):
-            seed += f" OR n.id IN ({','.join(str(int(x)) for x in roots if x)})"
+        acc = [o for o, rk in rks.items() if rk == "accounting"]
+        roots = [int(x) for x in (_fs_docs_root(c, o) for o in acc) if x]
+        if roots:  # 2.1340.0 (#6613): the receipts below the documents folder, not its whole tree (fs_role's rule)
+            seed += (f" OR n.id IN (SELECT r.node_id FROM rc_receipts r WHERE r.org_id IN ({','.join(map(str, acc))}) AND "
+                     f"r.node_id IN (WITH RECURSIVE dr(id) AS (SELECT id FROM fs_nodes WHERE id IN ({','.join(map(str, roots))}) "
+                     f"UNION SELECT x.id FROM fs_nodes x JOIN dr ON x.parent_id = dr.id) SELECT id FROM dr))")
         if collab_all():
             seed += (f" OR n.id IN (SELECT node_id FROM fs_shares WHERE (user_id = {uid} OR group_id IN "
                      f"(SELECT group_id FROM group_members WHERE user_id = {uid})) AND (expires_at IS NULL OR expires_at > '{now}') "
@@ -485,11 +494,14 @@ def fs_visible_sql_c(c, uid):
     # 2.1045.0 (#5823): an excluded knowledge folder is listed only when it (or a node below it) is shared itself; 2.1225.0
     # (#5862): for people too (the exclusions of a whole knowledge area shared with them)
     step = dl_wiki_step_sql(c, uid)
+    # 2.1340.0 (#6613): the accounting role's documents folder itself is listed, without descending into it (fv would)
+    root_u = f" UNION SELECT id FROM fs_nodes WHERE id IN ({','.join(map(str, roots))})" if roots else ""
     return (f"(WITH RECURSIVE fv(id) AS (SELECT n.id FROM fs_nodes n WHERE ({seed}) AND ({orgs}) "
             f"UNION SELECT n.id FROM fs_nodes n JOIN fv ON n.parent_id = fv.id WHERE ({orgs}){step}), "
             f"fd(id) AS (SELECT id FROM fs_nodes WHERE deleted_at IS NOT NULL "
-            f"UNION SELECT n.id FROM fs_nodes n JOIN fd ON n.parent_id = fd.id) "
-            f"SELECT id FROM fv WHERE id NOT IN (SELECT id FROM fd){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
+            f"UNION SELECT n.id FROM fs_nodes n JOIN fd ON n.parent_id = fd.id), "
+            f"fr(id) AS (SELECT id FROM fv{root_u}) "
+            f"SELECT id FROM fr WHERE id NOT IN (SELECT id FROM fd){_mail_hidden(c, uid)}{_receipts_hidden_sql(c, uid, ctx.org_ids)}"  # 2.187.1 A (#2735): agents too
             f"{_ref_hidden(c, uid)}{_lock_hidden(c, agent)}{_for_sql(c, uid)})")
 
 

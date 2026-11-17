@@ -16,7 +16,7 @@ from ..core.pg import write_lock
 from .docs import ODOC_KIND_WORDS  # 2.1315.0 (#6472)
 from .invoices import INV_SKIP_REASON_MIN, inv_manual_seq, inv_number_year, inv_scheme
 from .ledger import ofx_log
-from .model import num_kind, num_scheme, office_gate, office_number_format, office_org, office_role, office_scheme_period, office_settings
+from .model import num_kind, num_scheme, office_first_invoice, office_gate, office_number_format, office_org, office_role, office_scheme_period, office_settings
 
 ONUM_KINDS = ("offer", "invoice", "credit", "reminder", "delivery")  # delivery notes since 2.120.0 D (#2089)
 ONUM_REASON_KINDS = ("invoice", "credit")  # a jump in these series needs a reason (GoBD)
@@ -273,7 +273,8 @@ def onum_list():
     for r in ranges:
         if r["kind"] in hints:
             r["gaps"] = hints[r["kind"]]
-    return jsonify(ranges=ranges, admin=office_role(c, uid, oid) == "admin")
+    # 2.1345.0 (#6532): first_invoice = no real invoice finalised yet: an empty series prefills the reason of a jump
+    return jsonify(ranges=ranges, admin=office_role(c, uid, oid) == "admin", first_invoice=office_first_invoice(c, oid))
 
 
 @app.post("/api/office/number-ranges/<kind>")

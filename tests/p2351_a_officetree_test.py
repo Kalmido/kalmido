@@ -22,7 +22,7 @@
  (g) folder rules (docs/store.py): a rule files only into a folder the uploading person may edit -- the accounting person's
      upload stays where it lands without the rule (rollback test: without the fix it went into the folder)
  (g2) 2.422.0 (#3557): by hand (PATCH folder by id or name, the accept of a suggestion goes the same way) only into a
-     folder the person may edit: read only = 403
+     folder the person may edit: read only = 403 (accounting: 400 or 403, it does not see the folder, #6613)
 usage: p2351_a_officetree_test.py <datadir>
 freelancer-matrix: office  tenant-matrix: office"""
 import os
@@ -265,11 +265,20 @@ PGF = A.post(B + "/api/files/folders", json={"name": "Private papers", "space": 
 st_, pgn = file_in(A, "office_gendoc", PGD, PGF)
 check(st_ == 200 and not any(x["id"] == PGD for x in tree(A, "gen-docs").get("shared") or []), "(f2) her own document is not 'shared' in her own list")
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
-check(not any(x["id"] == PGD for x in tree(Ca, "gen-docs").get("shared") or []), "(f2) not shared: nothing of it in carl's list")
-share(A, PGF, user_id=USERS["carl"], role="view")
-sh = tree(Ca, "gen-docs").get("shared") or []
-check(any(x["id"] == PGD and x["node"] == pgn["id"] for x in sh) and Ca.get(B + f"/api/files/nodes/{pgn['id']}/content").ok,
-      f"(f2) shared with carl: the Documents list of his office shows it (shared through a folder), he reads its PDF ({sh})")
+# 2.1340.0 (#6613): the accounting role no longer reads the generated documents -- the reader of the list is dora (read-only group)
+check(tree(Ca, "gen-docs").get("http") == 403, "(f2) carl (accounting) does not read the Documents list (#6613)")
+r = A.post(B + "/api/users", json={"username": "dora", "display_name": "Dora", "password": "password123", "email": "dora@example.com"})
+assert r.ok, r.text
+DORA = r.json()["id"]
+assert A.put(B + f"/api/orgs/{ORG}/members", json={"email": "dora@example.com", "role": "member"}).ok
+check(A.put(B + f"{O}/rights/people/{DORA}", json={"groups": ["tpl:readonly"]}).ok, "(f2) setup: dora in the office group Read-only")
+Do = sess("dora")
+Do.patch(B + "/api/settings", json={"lang": "en", "features": FEAT, "tour": "done", "workspace": f"org:{ORG}"})
+check(not any(x["id"] == PGD for x in tree(Do, "gen-docs").get("shared") or []), "(f2) not shared: nothing of it in dora's list")
+share(A, PGF, user_id=DORA, role="view")
+sh = tree(Do, "gen-docs").get("shared") or []
+check(any(x["id"] == PGD and x["node"] == pgn["id"] for x in sh) and Do.get(B + f"/api/files/nodes/{pgn['id']}/content").ok,
+      f"(f2) shared with dora: the Documents list of her office shows it (shared through a folder), she reads its PDF ({sh})")
 
 # ---------------------------------------------------------------- (g) folder rules only into folders the uploader edits
 D0 = upload(A, "setup-secret.pdf", f"org:{ORG}")
@@ -304,10 +313,11 @@ check(done[1] == got[1] and (done[0] is None or int(done[0]) != SB),
       f"(g) carl (accounting, reads the documents folder only) uploads the same: the rule does not file it into Secret box ({done})")
 # 2.422.0 (#3557): by hand neither -- carl files his own document into Secret box (read only for him) by id or by its name:
 # refused (403, rollback test: before the fix both went through), the document stays where it was; edit on the folder: he may
+# 2.1340.0 (#6613): Secret box is no receipt folder, so carl (accounting) does not even see it: 400 (unknown folder) or 403
 r = Ca.patch(B + f"/api/docs/{DC}", json={"folder": SB})
-check(r.status_code == 403 and folder_of(Ca, DC)[0] == done[0], f"(g2) carl files his document into a folder he only reads (id): 403 ({r.status_code} {r.text[:120]})")
+check(r.status_code in (400, 403) and folder_of(Ca, DC)[0] == done[0], f"(g2) carl files his document into a folder he may not edit (id): refused ({r.status_code} {r.text[:120]})")
 r = Ca.patch(B + f"/api/docs/{DC}", json={"folder": "Secret box"})
-check(r.status_code == 403 and folder_of(Ca, DC)[0] == done[0], f"(g2) ... by the folder's name: 403 ({r.status_code} {r.text[:120]})")
+check(r.status_code in (400, 403) and folder_of(Ca, DC)[0] == done[0], f"(g2) ... by the folder's name: refused ({r.status_code} {r.text[:120]})")
 share(A, SB, user_id=USERS["carl"], role="edit")
 r = Ca.patch(B + f"/api/docs/{DC}", json={"folder": SB})
 check(r.ok and int(folder_of(Ca, DC)[0] or 0) == SB, f"(g2) shared to edit with carl: now he files it there ({r.status_code} {r.text[:120]})")
