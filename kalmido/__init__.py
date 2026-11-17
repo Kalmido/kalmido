@@ -587,6 +587,7 @@ ORDER = (
     "docs.fetcher",  # 2.425.0 C (#3453): receipt fetchers (own key kind: upload receipts + report the portals' state)
     "docs.csvx",  # 2.122.0 (#2100): the documents list as CSV
     "docs.dviews",  # 2.579.0 (#4802): saved views of the documents search (a kind of the shared core + their counts / hits)
+    "sheets.odsread",  # 2.1324.0 (#6709): the .ods import (no routes; read by sheets.io)
     "sheets.io",  # 2.89.0 C (#1916): tables to / from CSV and .xlsx (export, import as a new sheet)
     "sheets.shprint",  # 2.578.0 (#3462): the print view of a table as a PDF (portrait / landscape, fitted, page numbers)
     "sheets.v1",  # 2.89.0 C (#1916): tables for agents (API v1 + OpenAPI)
