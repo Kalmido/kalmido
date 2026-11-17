@@ -9,7 +9,7 @@ x-logging: &logging
 services:
   kalmido:
     build: .
-    # kalmido:local = built from this folder; KALMIDO_IMAGE=ghcr.io/gegenschuss/kalmido:<version> in .env
+    # kalmido:local = built from this folder; KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:<version> in .env
     # uses the prebuilt image instead (docker compose pull && docker compose up -d)
     image: ${KALMIDO_IMAGE:-kalmido:local}
     container_name: kalmido

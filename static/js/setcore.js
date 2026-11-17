@@ -151,7 +151,7 @@ const MOD_GROUPS = [[N_('Views'), ['cal', 'timeline', 'kanban', 'matrix']], [N_(
   [N_('Projects and team'), ['collab', 'progress', 'deps', 'fields', 'agents', 'workload', 'dispo', 'forms', 'wiki', 'sheets', 'videos']], [N_('Areas|nav'), ['a:office', 'a:ablage', 'a:time', 'a:review', 'a:life', 'a:reading']]];  // 2.48.0 (#1207): + the file store; 2.172.0 B (#2679): + Reading
 const aiPaneOn = () => !!S.me && (feat('agents') || (!!S.me.is_admin && (S.agents || []).length > 0));
 const aiOn = () => aiPaneOn() || (typeof asst_avail === 'function' && asst_avail());  // 2.489.0 (#2664): the section Agents is there (agents or the built-in assistant)
-const ABOUT_LINKS = [['https://kalmido.com', N_('Website'), 'link'], ['https://github.com/Gegenschuss/kalmido', N_('Source code on GitHub'), 'file'], ['https://github.com/Gegenschuss/kalmido/issues', N_('Report a problem'), 'alert']];
+const ABOUT_LINKS = [['https://kalmido.com', N_('Website'), 'link'], ['https://github.com/Kalmido/kalmido', N_('Source code on GitHub'), 'file'], ['https://github.com/Kalmido/kalmido/issues', N_('Report a problem'), 'alert']];
 const openExt = u => { const w = window.open(u, '_blank', 'noopener,noreferrer'); if (w) w.opener = null; };
 // 2.143.0 C (#2153): a quiet hint to install the app. Android / desktop: the browser's own install question
 // (beforeinstallprompt, kept until the hint's button is pressed); iPhone / iPad (Safari has no such question): how to add it

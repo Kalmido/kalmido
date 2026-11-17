@@ -30,7 +30,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_STATE_LAZY_MIN` | `3000` | Tasks in the start state of one person above which a new web client gets only the start set (Today, Upcoming, My tasks, the lists it had open) and loads a list's tasks when it is opened (0 = always the start set). |
 | `KALMIDO_THREADS` | `24` | Web server threads per container (2-256); with KALMIDO_WEB_PROCS shared out over the web processes. |
 | `KALMIDO_UPDATE_CHECK` | `1` | Switch: admins see when a newer release exists (one request a few times a day, never updates anything). |
-| `KALMIDO_UPDATE_URL` | `https://api.github.com/repos/Gegenschuss/kalmido/releases/latest` | Address the update check asks for the latest release. |
+| `KALMIDO_UPDATE_URL` | `https://api.github.com/repos/Kalmido/kalmido/releases/latest` | Address the update check asks for the latest release. |
 | `KALMIDO_WEB_PROCS` | `1` | Web processes of this container on the same port (1-16, SO_REUSEPORT, Linux only; elsewhere 1 with a log line). The first one runs the background work and starts the others, which answer requests only; threads and pool are shared out, not multiplied. A restore of a backup needs 1. |
 | `KALMIDO_WEB_PROC_INDEX` | `(empty)` | Internal: set by the first web process for the ones it starts (KALMIDO_WEB_PROCS). |
 | `KALMIDO_WEB_PROC_PARENT` | `(empty)` | Internal: the process id of the first web process, for the ones it starts (they end with it). |
@@ -318,7 +318,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_SRVAGENT_WEB_FETCHES` | `5` | Pages one server agent run with web research may read (max_uses of web_fetch). |
 | `KALMIDO_SRVAGENT_WEB_SEARCHES` | `5` | Web searches of one server agent run with web research (max_uses of web_search). |
 | `KALMIDO_SRVAGENT_WEB_TOKENS` | `20000` | Tokens of one fetched page at most (max_content_tokens of web_fetch). |
-| `KALMIDO_STARTER_BASE` | `https://github.com/Gegenschuss/kalmido/raw/v{version}/mcp/` | Download address of the agent starter files ({version} is replaced). |
+| `KALMIDO_STARTER_BASE` | `https://github.com/Kalmido/kalmido/raw/v{version}/mcp/` | Download address of the agent starter files ({version} is replaced). |
 | `KALMIDO_TIDY_QUIET_S` | `120` | Seconds a project must be quiet before its tidy agent is asked. |
 | `KALMIDO_USAGE_DAYS` | `400` | Days the agent usage records are kept. |
 | `KALMIDO_VIES_S` | `10` | Seconds one VAT number check at VIES may take. |

@@ -11,7 +11,7 @@
 # If the checksum list of a release (2.277 and newer) cannot be fetched, the installer stops. Branches are not checked.
 #
 # Installs (or updates) Kalmido from GitHub and starts it with Docker Compose. Release versions use
-# the prebuilt image ghcr.io/gegenschuss/kalmido:<version> (amd64 / arm64); if that cannot be pulled,
+# the prebuilt image ghcr.io/kalmido/kalmido:<version> (amd64 / arm64); if that cannot be pulled,
 # the image is built locally from the source.
 # To update later: run update.sh in the install folder (or this command again). Your .env, data/ and
 # secret/ are kept, and the database is backed up to data/backups/ first.
@@ -28,15 +28,15 @@
 #   KALMIDO_CLAMAV   1 = virus scanner on, 0 = off           (default: a new installation runs it from about 3 GB of
 #                                                           memory on; an update keeps the choice of .env)
 #
-# The script never uses sudo. Source: https://github.com/Gegenschuss/kalmido (AGPL-3.0)
+# The script never uses sudo. Source: https://github.com/Kalmido/kalmido (AGPL-3.0)
 
 # Everything is inside main(), which is only called on the last line: a download cut off
 # halfway through cannot run a partial script.
 
 set -eu
 
-GH="https://github.com/Gegenschuss/kalmido"
-IMAGE_REPO="${KALMIDO_IMAGE_REPO:-ghcr.io/gegenschuss/kalmido}"   # override only for mirrors / tests
+GH="https://github.com/Kalmido/kalmido"
+IMAGE_REPO="${KALMIDO_IMAGE_REPO:-ghcr.io/kalmido/kalmido}"   # override only for mirrors / tests
 
 say()  { printf '%s\n' "$*"; }
 step() { printf '\n\033[1;36m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
@@ -277,7 +277,7 @@ cd "$(dirname "$0")"
 KALMIDO_DIR=$(pwd)
 export KALMIDO_DIR
 # the installer of the latest release (before 2.277: kalmido.com/install.sh, which now forwards there)
-curl -fsSL "${KALMIDO_INSTALLER_URL:-https://github.com/Gegenschuss/kalmido/releases/latest/download/install.sh}" | sh
+curl -fsSL "${KALMIDO_INSTALLER_URL:-https://github.com/Kalmido/kalmido/releases/latest/download/install.sh}" | sh
 UPD
   chmod 755 "$DIR/update.sh"
 }

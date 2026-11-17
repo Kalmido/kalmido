@@ -109,10 +109,10 @@ def latest(body, **env):
     return run('resolve_version; echo "VERSION=$VERSION"', **env)
 
 
-FWD = "https://github.com/Gegenschuss/kalmido/releases/%s"
+FWD = "https://github.com/Kalmido/kalmido/releases/%s"
 rc, out, err = latest("printf '%%s' '%s'" % (FWD % "tag/v2.513.0"))
 check(rc == 0 and "VERSION=v2.513.0" in out, f"#4355: the version from the forward ({rc} {out} {err[:200]})")
-check("github.com/Gegenschuss/kalmido/releases/latest" in calls() and "api.github.com" not in calls() and " -I" in calls().replace("-fsSI", "-I"),
+check("github.com/Kalmido/kalmido/releases/latest" in calls() and "api.github.com" not in calls() and " -I" in calls().replace("-fsSI", "-I"),
       f"#4355: one HEAD request on github.com, not the API: {calls()}")
 for what, body in (("no answer", "exit 6"), ("no release (forward to the list)", "printf '%%s' '%s'" % (FWD % "").rstrip("/")),
                    ("no forward at all", "printf ''"), ("a forward to something else", "printf '%%s' '%s'" % (FWD % "tag/nightly"))):

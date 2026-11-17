@@ -15,14 +15,14 @@ täuscht. Dafür ist der Weg von Hand unten da, auf einem Gerät und mit Werkzeu
 Since 2.742.0 every weekly release on GitHub carries `web-manifest-X.Y.Z.json`: the full SHA-256 of every file the browser
 gets from that version, exactly as the server sends it (scripts and styles without comments, the rendered app page, the
 language parts). The release workflow builds it twice from the tagged source and stops on any difference; since 2.761.0 it
-is signed with a GitHub build attestation (`gh attestation verify web-manifest-X.Y.Z.json -R github.com/Gegenschuss/kalmido`).
+is signed with a GitHub build attestation (`gh attestation verify web-manifest-X.Y.Z.json -R github.com/Kalmido/kalmido`).
 The SHA-256 of the manifest file itself stands in the release's `SHA256SUMS`.
 
 A server answers `GET /api/code-manifest` (no sign-in) with the same bytes, computed from what it really sends. Only one
 version per week gets a release; for any other version you can build the manifest from the tag yourself:
 
 ```
-git clone https://github.com/Gegenschuss/kalmido && cd kalmido && git checkout vX.Y.Z
+git clone https://github.com/Kalmido/kalmido && cd kalmido && git checkout vX.Y.Z
 python3 tools/web_manifest.py -o web-manifest-X.Y.Z.json
 sha256sum web-manifest-X.Y.Z.json
 ```
@@ -66,7 +66,7 @@ On a computer, without trusting anything the server says about itself:
    or in the browser: developer tools > Network, save a response, then `sha256sum` on the saved file.
 3. Compare each hash with the entry of that file in `web-manifest-X.Y.Z.json` of the release (or the one you built from the
    tag), and the hash of `served.json` with the line in `SHA256SUMS`.
-4. Optional: `gh attestation verify web-manifest-X.Y.Z.json -R github.com/Gegenschuss/kalmido` shows that the release
+4. Optional: `gh attestation verify web-manifest-X.Y.Z.json -R github.com/Kalmido/kalmido` shows that the release
    workflow of this repository built the manifest from the tagged commit.
 
 A server behind a sign-in proxy may ask for the sign-in first; `/api/code-manifest`, `/sw.js` and `/static/` answer without

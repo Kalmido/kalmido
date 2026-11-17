@@ -513,7 +513,7 @@ window.lifeBar = l => { if (l?.life && !l.archived && (lifeOn() || (l.life === '
 window.lifeDetailHtml = t => { if (t?.id > 0 && !t.context && ['contract', 'device', 'upkeep', 'health', 'bookmark'].includes(t.fam?.kind)) loadModule('life').then(() => { if (S.sel === t.id) renderDetail(); }, () => {}); return ''; };
 window.lifeCareHtml = c => { if (c && feat('care')) ld_later('life'); return ''; };
 // 2.65.0 (#1823) the API docs link (Settings > Agents, the agent chat): integrations.js loads on demand (moved here)
-const API_DOCS = 'https://github.com/Gegenschuss/kalmido/blob/main/docs/API.md';
+const API_DOCS = 'https://github.com/Kalmido/kalmido/blob/main/docs/API.md';
 // 2.65.0 (#1823) playbooks (playbook.js, module playbook): the list / folder dialogs ask these at start (moved here); the
 // area loads the module when it mounts
 // the area: with agents (a folder too), and in a list with a playbook also for members who do not see its agent (they read

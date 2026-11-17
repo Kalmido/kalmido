@@ -10,7 +10,7 @@ hello@kalmido.com if something is not right.
 Everything runs in Docker; there is no build step.
 
 ```sh
-git clone https://github.com/Gegenschuss/kalmido.git
+git clone https://github.com/Kalmido/kalmido.git
 cd kalmido
 cp .env.example .env
 docker compose up -d --build        # http://127.0.0.1:3040

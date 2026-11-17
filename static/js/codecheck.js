@@ -12,7 +12,7 @@
    who means to deceive (docs/CODE-VERIFY.md: the manual way and the check from outside). */
 'use strict';
 
-const CKV_REPO = 'https://github.com/Gegenschuss/kalmido';
+const CKV_REPO = 'https://github.com/Kalmido/kalmido';
 const ckvHex = (/** @type {ArrayBuffer} */ b) => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
 const ckvSha = async (/** @type {BufferSource} */ d) => ckvHex(await crypto.subtle.digest('SHA-256', d));
 // the manifest as bytes, the recipe of kalmido/core/codemanifest.py cm_json (json.dumps indent=0, ensure_ascii=False, sorted

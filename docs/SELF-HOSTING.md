@@ -2117,7 +2117,7 @@ stay blocked until you allow them.
 
 ## Production updates
 
-- **Pin the version** (`KALMIDO_IMAGE=ghcr.io/gegenschuss/kalmido:<version>`, not `latest`), so an update happens when
+- **Pin the version** (`KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:<version>`, not `latest`), so an update happens when
   you decide. With the installer the `image:` line of `docker-compose.override.yml` wins over `KALMIDO_IMAGE`: there you pin with
   `KALMIDO_VERSION=vX.Y.Z ~/kalmido/update.sh`.
 - **A safe order:** backup, then pull and start, then check `GET /api/health` and a few counts (users, projects, tasks,
@@ -2139,8 +2139,8 @@ stay blocked until you allow them.
   pin a version:
 
   ```bash
-  gh attestation verify oci://ghcr.io/gegenschuss/kalmido:X.Y.Z -R github.com/Gegenschuss/kalmido
-  gh attestation verify web-manifest-X.Y.Z.json -R github.com/Gegenschuss/kalmido
+  gh attestation verify oci://ghcr.io/kalmido/kalmido:X.Y.Z -R github.com/Kalmido/kalmido
+  gh attestation verify web-manifest-X.Y.Z.json -R github.com/Kalmido/kalmido
   ```
 
   The installer pins the image to the digest of the release as before; it does not check the attestation itself.
@@ -2163,7 +2163,7 @@ stay blocked until you allow them.
   KALMIDO_VERSION=vX.Y.Z ~/kalmido/update.sh
   ```
 
-  With your own `.env`: set `KALMIDO_IMAGE=ghcr.io/gegenschuss/kalmido:X.Y.Z`, then `docker compose up -d`.
+  With your own `.env`: set `KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:X.Y.Z`, then `docker compose up -d`.
 - **The database copy as well** when you go further back, or when the update damaged data: `update.sh` writes one to
   `data/backups/kalmido-*.dump` before every update (the last 10 stay), but only while the `db` service of this
   installation runs: with an external `DATABASE_URL`, or with Kalmido stopped, there is no copy (`update.sh` warns and waits 15 seconds, then goes on). **Everything entered since is lost.** The copy
@@ -2693,6 +2693,6 @@ All settings are environment variables in `.env` (see [.env.example](../.env.exa
 | `KALMIDO_PUBLIC_LINKS` | `1` | `0` turns public project links off for good (the admin switch in the app is then off and locked) |
 | `KALMIDO_PUBLIC_RATE` | `60` | Public link page views per client address and minute |
 | `KALMIDO_PUBLIC_BURST` | `300` | Views of one public link within 10 minutes that trigger an admin alert |
-| `KALMIDO_IMAGE` | `kalmido:local` | Image for `docker compose`; set `ghcr.io/gegenschuss/kalmido:<version>` to use the prebuilt one |
+| `KALMIDO_IMAGE` | `kalmido:local` | Image for `docker compose`; set `ghcr.io/kalmido/kalmido:<version>` to use the prebuilt one |
 
 Everything else (language, reminder defaults, digest time, pomodoro lengths, which modules are shown) is set per user in the app under *Settings*; the switches for the whole server (collaboration, time tracking, public links, update check, allowed internal hosts) are under *Settings > Server > Server > Whole server*; the sign-in policy and OIDC under *Settings > Server > Sign-in*, backups under *Settings > Server > Backup*, admin alerts under *Settings > Server > Admin alerts*.
