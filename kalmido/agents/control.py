@@ -41,6 +41,7 @@ from ..core.pg import insert_id, system_ctx
 from ..core.access import act_for, run_person, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
 from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
+from ..api.runfor import req_main_step  # 2.1348.0 (#6668, second review F1)
 from ..accounts.session import me
 from ..tasks.lifecycle import apply_update, task_reopen, trash_task
 from ..collab.news import news_forget_comment
@@ -489,7 +490,9 @@ def ctl_gate():
         step = srvweb_gate_step(web, request.method, path, b, request.view_args or {}) or step
     person = ctl_chat_person(c, a, request.method, path, request.view_args or {}) if step == "meta" else None
     if step == "meta" and not person:
-        return None
+        # 2.1348.0 (#6668, second review F1): no card check for a meta step -- a card's meta step with the long-lived token
+        # of a team agent per request (ctl_force_for above) reaches only the agent's own channel, else 403 request_token_needed
+        return req_main_step() if g.get("ctl_force_for") else None
     lids, unknown = ([], False) if person else ctl_lists(c, a["user_id"], path, b)
     if lids is None:
         return None  # a project it cannot see: the route answers 404

@@ -269,6 +269,19 @@ check(r.status_code == 409 and err(r).get("reason") in ("approver_rights", None)
       f"(i) the reader's Yes runs no change in project one {r.status_code} {r.text[:200]}")
 check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='RITA-SAID-YES'", (TX,)), "(i) ... nothing written")
 
+# ---- (j) second review F1: a card's "meta" step (no card check in ctl_gate) with the own token stays outside its channel
+# Without the fix the long-lived token reached e.g. POST /tasks/brief through any answered card (req_main_gate lets a card's
+# write through, ctl_gate stepped out for meta before checking the card).
+BRIEF = {"method": "POST", "path": "/api/v1/tasks/brief", "body": {"task_ids": [TX]}}
+m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, json={"approval": {"title": "Brief?", "step": BRIEF}}, timeout=30)
+check(m.status_code == 201, f"(j) a card with the step POST /tasks/brief to bob {m.status_code} {m.text[:200]}")
+check(Bo.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json={"choice_ids": ["yes"]}).ok, "(j) bob says Yes")
+r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
+check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
+      f"(j) the meta step of a card with the own token: 403 request_token_needed {r.status_code} {r.text[:300]}")
+r = requests.post(V + "/tasks/brief", headers=hdr(RC), json={"task_ids": [TX]}, timeout=30)
+check(r.ok, f"(j) ... with the request token of carl's order the brief stays allowed {r.status_code} {r.text[:200]}")
+
 # ================================================================ (c) an event without a person
 payload = {"id": str(uuid.uuid4()), "event": "followup_due", "agent_id": XT, "actor": None, "via": "web",
            "data": {"task": {"id": TX, "list_id": X1}, "list_id": X1, "note": "NOBODY-ASKS"}}

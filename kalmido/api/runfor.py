@@ -116,7 +116,8 @@ def req_main_gate(c, row, u):
     token (asked_by) is held by run_gate; the replay of an approved job and the step of an answered card (run in this process
     by agents/control.py ctl_run_replay, environ "kalmido.ctl_run" = CTL_RUN_ENV, never set by a network request: the step a
     person said Yes to; review F3: only a write -- ctl_gate then always checks the card and the rights of the person who said
-    Yes, also without a control level; a read through a card needs the request token) are no such request."""
+    Yes, also without a control level; a read through a card needs the request token; second review F1: a write ctl_class
+    calls "meta" gets no card check in ctl_gate, so ctl_gate holds it with req_main_step below) are no such request."""
     if ("asked_by" in row.keys() and row["asked_by"] is not None) or g.get("approved_job") or request.url_rule is None:
         return None
     if request.environ.get("kalmido.ctl_run") and request.method in ("POST", "PUT", "PATCH", "DELETE"):
@@ -125,6 +126,18 @@ def req_main_gate(c, row, u):
         a = c.execute("SELECT owner_id, per_request FROM agents WHERE user_id=?", (u["id"],)).fetchone()
     if a is None or a["owner_id"] or not a["per_request"]:
         return None
+    kind = RUN_ROUTES.get(run_key(request.method, request.url_rule.rule), ("closed", ""))[0].partition(":")[0]
+    if kind in REQ_MAIN_PASS:
+        return None
+    return v1_err(403, tr("This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)"),
+                  name="request_token_needed")
+
+
+def req_main_step():
+    """2.1348.0 (#6668, second review F1): agents/control.py ctl_gate -- the "meta" step of an answered card run with the
+    long-lived token of a team agent per request (req_main_gate lets every write of a card run through, and ctl_gate checks
+    no card for a meta step): a 403 request_token_needed outside the agent's own channel (REQ_MAIN_PASS), else None. So the
+    token reaches e.g. POST /tasks/brief or /news/read through a card no more than without one."""
     kind = RUN_ROUTES.get(run_key(request.method, request.url_rule.rule), ("closed", ""))[0].partition(":")[0]
     if kind in REQ_MAIN_PASS:
         return None
