@@ -236,7 +236,7 @@ def _batch(p):
     pf = _period_from(p)
     year = (p["fy_start"] or pf).year if (p["fy_start"] or pf) else None
     names = p["names"]
-    rows, bad, debit, credit, no_ctr, ls, lh = [], 0, Decimal(0), Decimal(0), 0, Decimal(0), Decimal(0)
+    rows, bad = [], 0
     for i, r in enumerate(p["rows"]):
         acct, ctr = re.sub(r"\s+", "", _cell(p, r, "account"))[:12], re.sub(r"\s+", "", _cell(p, r, "counter"))[:12]
         side, amt = _cell(p, r, "side").strip().upper()[:1], _amount(_cell(p, r, "amount"))

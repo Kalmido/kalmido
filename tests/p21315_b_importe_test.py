@@ -46,8 +46,8 @@ ORG = A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": ALICE}).j
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 FID, Fr = freelancer(B, A, "fiona", features=FEAT)  # freelancer-matrix: office (the personal office, its own admin)
 Fr.patch(B + "/api/settings", json={"workspace": "private"})
-O = "/api/office"
-K = O + "/bank"
+OFF = "/api/office"
+K = OFF + "/bank"
 TODAY = testclock.today()
 DAY = [(TODAY - timedelta(days=n)).isoformat() for n in range(0, 40)]
 WHO = (("org", A), ("freelancer", Fr))
@@ -112,7 +112,7 @@ CSV_MAP = {"date": 0, "amount": 1, "counterpart": 2, "title": 3, "decimal": ",",
 for who, s in WHO:
     p = f"(a) {who}: "
     raw = xlsx([["Name", "Amount (net)", "Due month"], ["Cloud storage", 29.125, 0], ["Office rent", "1.500", 0], ["Tea", 0.5, 0]])
-    r = s.post(B + O + "/fixed-costs/import/preview", files={"file": ("kosten.xlsx", raw, "application/octet-stream")})
+    r = s.post(B + OFF + "/fixed-costs/import/preview", files={"file": ("kosten.xlsx", raw, "application/octet-stream")})
     check(r.ok, p + f"fixed-cost preview {r.status_code} {r.text[:300]}")
     got = {x["label"]: x["amount"] for x in (r.json().get("rows") or [])} if r.ok else {}
     check(got.get("Cloud storage") == "29.13", p + f"29.125 of a number cell is 29.13 (was 29125.00) {got}")
@@ -183,7 +183,7 @@ def tiny_pdf(text):
 
 
 def arch_up(s, rid, number, text, day, kind="invoice"):
-    r = s.post(B + O + "/legacy/archive", data={"run_id": rid, "kind": kind, "number": number, "client_name": "Altkunde",
+    r = s.post(B + OFF + "/legacy/archive", data={"run_id": rid, "kind": kind, "number": number, "client_name": "Altkunde",
                                                 "date": day, "amount": "100.00"},
                files={"file": (f"{number}.pdf", tiny_pdf(text), "application/pdf")})
     check(r.status_code == 201, f"(c) upload {number} {r.status_code} {r.text[:200]}")
@@ -191,13 +191,13 @@ def arch_up(s, rid, number, text, day, kind="invoice"):
 
 
 def arch_ids(s):
-    return {x["id"]: x["number"] for x in s.get(B + O + "/legacy/archive").json().get("items") or []}
+    return {x["id"]: x["number"] for x in s.get(B + OFF + "/legacy/archive").json().get("items") or []}
 
 
 ARCH = "/api/office/legacy/archive"  # the whole path (tests/freelancer_coverage_test.py finds the calls)
 for who, s, other in (("org", A, Fr), ("freelancer", Fr, A)):
     p = f"(c) {who}: "
-    rid = s.post(B + O + "/legacy/archive/run").json()["run_id"]
+    rid = s.post(B + OFF + "/legacy/archive/run").json()["run_id"]
     a1 = arch_up(s, rid, f"ALT-{who}-1", f"Rechnung 1 {who}", DAY[10])
     a2 = arch_up(s, rid, f"ALT-{who}-2", f"Rechnung 2 {who}", DAY[11])
     a3 = arch_up(s, rid, f"ANG-{who}-3", f"Angebot 3 {who}", DAY[12], kind="offer")
@@ -205,7 +205,7 @@ for who, s, other in (("org", A, Fr), ("freelancer", Fr, A)):
     check(r.status_code == 404 and a1 in arch_ids(s), p + f"another office cannot put it into the trash {r.status_code}")
     # edited: the run's undo refuses, the single document still goes
     check(s.patch(B + ARCH + f"/{a2}", json={"paid": 1}).ok, p + "an old invoice marked paid")
-    check(s.post(B + O + f"/legacy/runs/{rid}/undo").status_code == 409, p + "the run's undo refuses after the edit (unchanged)")
+    check(s.post(B + OFF + f"/legacy/runs/{rid}/undo").status_code == 409, p + "the run's undo refuses after the edit (unchanged)")
     r = s.delete(B + ARCH + f"/{a2}")
     check(r.ok, p + f"the edited old invoice goes into the trash {r.status_code} {r.text[:200]}")
     r = s.delete(B + ARCH + f"/{a1}")
@@ -214,7 +214,7 @@ for who, s, other in (("org", A, Fr), ("freelancer", Fr, A)):
     check(a1 not in ids and a2 not in ids and a3 in ids, p + f"gone from the archive list {ids}")
     check(s.get(B + ARCH + f"/{a1}").status_code == 404 and s.get(B + ARCH + f"/{a1}/pdf").status_code == 404,
           p + "the dialog and the PDF answer 404")
-    tr_ = s.get(B + O + "/trash").json().get("items") or []
+    tr_ = s.get(B + OFF + "/trash").json().get("items") or []
     check(any(x.get("core") == "oarchive" and x["id"] == a1 and f"ALT-{who}-1" in x.get("label", "") for x in tr_),
           p + f"listed in the office trash with its number {[(x.get('core'), x['id'], x.get('label')) for x in tr_]}")
     check(s.delete(B + ARCH + f"/{a1}").status_code == 404, p + "a second delete: 404")
@@ -238,7 +238,7 @@ for who, s, other in (("org", A, Fr), ("freelancer", Fr, A)):
     check(r.ok, p + f"a quotation is deleted for good from the trash {r.status_code} {r.text[:200]}")
     # a locked month binds it
     a5 = arch_up(s, rid, f"ALT-{who}-5", f"Rechnung 5 {who}", "2025-03-10")
-    r = s.post(B + O + "/periods/lock", json={"through": "2025-03", "confirm": "03/2025"})
+    r = s.post(B + OFF + "/periods/lock", json={"through": "2025-03", "confirm": "03/2025"})
     check(r.ok, p + f"March 2025 locked {r.status_code} {r.text[:200]}")
     r = s.delete(B + ARCH + f"/{a5}")
     check(r.status_code == 409 and a5 in arch_ids(s), p + f"a document of a locked month stays {r.status_code} {r.text[:200]}")
@@ -291,7 +291,7 @@ FULL = HALF + [("100,00", "S", "1200", "8400", f"{m:02d}01", f"RE-{m}", f"Honora
 
 for who, s in WHO:
     p = f"(d) {who}: "
-    check(s.put(B + O + "/settings", json={"datev_extf": {"advisor_no": "1234567", "client_no": "12345", "fy_start": 1, "acct_len": 4,
+    check(s.put(B + OFF + "/settings", json={"datev_extf": {"advisor_no": "1234567", "client_no": "12345", "fy_start": 1, "acct_len": 4,
                                                         "chart": "SKR03"}}).ok, p + "DATEV settings")
     # -- a bank CSV in another currency
     d1 = DAY[20]
@@ -325,27 +325,27 @@ for who, s in WHO:
           p + f"positions without amounts stay one row with every text {rows}")
     # -- the DATEV check names every row's reason
     rws = [(f"{70100 + i}", f"Lieferant {i}", "Halle") for i in range(22)] + [(f"{70200 + i}", "", "Jena") for i in range(3)]
-    r = s.post(B + O + "/datev/import/check", files={"file": ("extf.csv", extf16(rws), "text/csv")})
+    r = s.post(B + OFF + "/datev/import/check", files={"file": ("extf.csv", extf16(rws), "text/csv")})
     j = r.json() if r.ok else {}
     late = [x for x in j.get("reasons") or [] if x["row"] > 22]
     check(r.ok and len(j.get("rows") or []) == 20 and len(late) == 3 and all(x["reason"] for x in late),
           p + f"the reasons of rows 25 to 27 are named (only 20 rows shown) {r.status_code} {j.get('reasons')} {r.text[:200]}")
     # -- the fixed-cost import starts in the current year
-    r = s.post(B + O + "/fixed-costs/import/preview", files={"file": ("k.xlsx", xlsx([["Name", "Amount (net)", "Due month"], ["Hosting", 12, 0], ["Insurance", 240, 3]]), "application/octet-stream")})
+    r = s.post(B + OFF + "/fixed-costs/import/preview", files={"file": ("k.xlsx", xlsx([["Name", "Amount (net)", "Due month"], ["Hosting", 12, 0], ["Insurance", 240, 3]]), "application/octet-stream")})
     st_ = {x["label"]: x["start"] for x in (r.json().get("rows") or [])} if r.ok else {}
     check(st_.get("Hosting") == f"{TODAY.year}-01-01" and st_.get("Insurance") == f"{TODAY.year}-03-01",
           p + f"the costs start in {TODAY.year} (was fixed 2026) {st_}")
     # -- overlapping batches of the booking archive
-    r = s.post(B + O + "/books/archive/import", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}_H1.csv", extf21(ARCH_YEAR, HALF), "application/octet-stream"))])
+    r = s.post(B + OFF + "/books/archive/import", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}_H1.csv", extf21(ARCH_YEAR, HALF), "application/octet-stream"))])
     check(r.status_code == 201, p + f"archive: the half year {r.status_code} {r.text[:200]}")
-    r = s.post(B + O + "/books/archive/check", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}.csv", extf21(ARCH_YEAR, FULL), "application/octet-stream"))])
+    r = s.post(B + OFF + "/books/archive/check", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}.csv", extf21(ARCH_YEAR, FULL), "application/octet-stream"))])
     j = r.json() if r.ok else {}
     ys = {y["year"]: y for y in j.get("years") or []}
     check(r.ok and ys.get(ARCH_YEAR, {}).get("bookings") == 6 and any("6" in (f.get("reason") or "") for f in j.get("files") or []),
           p + f"archive: the whole year after the half year adds only the 6 new lines and says why {ys} {j.get('files')}")
-    r = s.post(B + O + "/books/archive/import", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}.csv", extf21(ARCH_YEAR, FULL), "application/octet-stream"))])
+    r = s.post(B + OFF + "/books/archive/import", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}.csv", extf21(ARCH_YEAR, FULL), "application/octet-stream"))])
     check(r.status_code == 201, p + f"archive: the whole year {r.status_code} {r.text[:200]}")
-    r = s.post(B + O + "/books/archive/check", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}_H1.csv", extf21(ARCH_YEAR, HALF[:3]), "application/octet-stream"))])
+    r = s.post(B + OFF + "/books/archive/check", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}_H1.csv", extf21(ARCH_YEAR, HALF[:3]), "application/octet-stream"))])
     j = r.json() if r.ok else {}
     check(r.ok and not j.get("years") and any(f.get("kind") == "duplicate" for f in j.get("files") or []),
           p + f"archive: a batch whose every line is there already is a duplicate {j.get('files')} {j.get('years')}")
