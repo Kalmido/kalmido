@@ -7,7 +7,7 @@
 //   nothing raw in the head next to the buttons, no toast left
 // - the send dialog: no variable name (KALMIDO_SMTP_HOST) for an admin either; a part that could not be loaded (recipients)
 //   is named in the dialog instead of silently missing
-// - the bank page: the fetch switched off says so without "FinTS" / "product registration"
+// - the bank page: the fetch switched off says so at the foot without "FinTS" / "product registration" (no greyed button)
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, sleep, B, login, idle} = require('./boot');
@@ -98,10 +98,12 @@ const failFetch = (w, method, re, status, msg) => w.eval(`{ const f0 = window.fe
     w.close();
 
     // ---- the bank page: the fetch switched off, in plain words
+    // 2.1324.0 (#6147): no greyed button any more, the foot line says it; read the foot itself (.bnkfoot) -- the first .ofchint
+    // of the page is the bank accounts link (ofcSetLink), which made this check red three times in job/4697
     w = await boot({user: who, hash: 'office/bank'}); d = w.document;
-    const off = await until(() => d.querySelector('#bnk-fnt-off'));
-    const ot = off?.textContent || '';
-    check(!!off && /not set up on this server/.test(ot) && !/FinTS|registration/i.test(ot), `${who}: the bank fetch off: plain words, no "FinTS" ${JSON.stringify(ot)}`);
+    const foot = await until(() => w.eval(`typeof BNK === 'object' && !!BNK.fints`) && d.querySelector('.bnkbar') && d.querySelector('.bnkfoot'));
+    const ot = foot?.textContent || '';
+    check(!!foot && /No bank access/.test(ot) && !/FinTS|registration/i.test(ot) && !d.querySelector('[data-bnk="fints"], #bnk-fnt-off'), `${who}: the bank fetch off: plain words at the foot, no "FinTS", no greyed button ${JSON.stringify(ot)}`);
     w.close();
   }
 
