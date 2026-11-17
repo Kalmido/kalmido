@@ -2,7 +2,7 @@
 
 Every finalised invoice, credit note, reminder and delivery note joins the chain of its office (organisation or personal
 office) and number series (chain_key = the counter it counts with, models.num_kind: credit notes on the invoices' counter share
-that chain) when it is finalised:
+that chain; 2.1365.0 (#6698): a document of an additional number range the range's chain 'r<id>', models.num_key) when it is finalised:
 
     chain_hash = sha256(chain_prev + canonical data of the document)      chain_prev = chain_hash of the one before ('' = first)
     chain_seq  = its place in that chain (1, 2, ...)
@@ -44,7 +44,7 @@ from ..core.i18n import N_  # 2.1309.0 (#6467)
 from ..notify.alerts import aa_now  # 2.1309.0 (#6467)
 from ..core.pg import system_ctx, write_lock
 from ..core.access import live_sql  # 2.1005.0 (#5415)
-from .model import num_kind, office_settings, ofx_release  # 2.542.0 (#4598): freeing a copied place passes the trigger
+from .model import num_key, office_settings, ofx_release  # 2.542.0 (#4598): freeing a copied place passes the trigger
 
 HCH_DOC_FIELDS = ("number", "kind", "date", "service_from", "service_to", "currency", "locked_at")
 HCH_JSON_FIELDS = {"recipient_snapshot": "recipient", "sender": "sender", "totals": "totals"}
@@ -157,11 +157,11 @@ def hch_append(c, oid, did=None, s=None):
     write_lock(c, f"office_chain_{int(oid)}")
     s = s if s is not None else office_settings(c, oid)
     for r in hch_pending(c, oid):
-        _link(c, oid, r, num_kind(s, r["kind"]))
+        _link(c, oid, r, num_key(s, r))  # 2.1365.0 (#6698): a document of an additional range in the range's chain 'r<id>'
     if did is not None:
         r = c.execute(f"SELECT * FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (did, oid)).fetchone()  # 2.1005.0 (#5415): not the trash
         if r is not None and r["chain_seq"] is None and r["locked_at"] and hch_chained(r):
-            _link(c, oid, r, num_kind(s, r["kind"]))
+            _link(c, oid, r, num_key(s, r))
 
 
 def hch_check(c, oid):
