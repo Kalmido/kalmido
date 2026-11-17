@@ -70,6 +70,13 @@ CAL_REFRESH_GAP = _env_int("KALMIDO_CALENDAR_REFRESH_GAP", 30, lo=0)  # s betwee
 CAL_BACK_DAYS, CAL_AHEAD_DAYS = 60, 365
 CAL_MAX_COMPONENTS = 20000   # VEVENTs per download
 CAL_CPU_S = 20.0             # parse + expansion budget per sync
+# 2.1333.0 (#6429): the expansion library walks a rule from DTSTART to the window and keeps every date it passes (cache),
+# without ever reaching the time check of cal_expand while nothing falls into the window. Each limit below bounds that
+# walk for one event, or for one download, before the library runs (_cal_sanitize).
+CAL_WALK_MAX = 10000         # dates one rule may pass before the window (more: the recurrence goes, the first date stays)
+CAL_WALK_TOTAL = 300000      # the same dates summed over one download (more: "too complex"; bounds CPU and the date caches)
+CAL_DATES_MAX = 1000         # RDATE / EXDATE values per event, each (more: the rest is dropped; the library expands each one)
+CAL_DATES_BACK = 31          # days before the window an RDATE / EXDATE may lie and still be kept (a long event reaching into it)
 CAL_TIMEOUT, CAL_DEADLINE = 20, 60  # s per socket operation / for a whole download
 CAL_MAX_SUBS = 20            # per user
 CAL_INTERVALS = (15, 60)     # minutes
@@ -566,11 +573,77 @@ def _cal_feasible(base, start):
     return bool(nxt) and (nxt - st).days <= RR_PROBE_DAYS
 
 
-def _cal_sanitize(ev, w0):
+def _cal_dates_cap(ev, w0):
+    """2.1333.0 (#6429): at most CAL_DATES_MAX RDATE and EXDATE values each per event. The library expands / looks up
+    every value, and one download may carry hundreds of thousands of them. Values more than CAL_DATES_BACK days before
+    the window go first (they cannot change what the window shows), then whatever is above the cap."""
+    lo = w0.date() - timedelta(days=CAL_DATES_BACK)
+    for key in ("RDATE", "EXDATE"):
+        props = ev.get(key)
+        if props is None:
+            continue
+        left = CAL_DATES_MAX
+        kept = []
+        for p in (props if isinstance(props, list) else [props]):
+            dts = getattr(p, "dts", None)
+            if not isinstance(dts, list):
+                continue
+            vals = []
+            for x in dts:
+                v = getattr(x, "dt", None)
+                v = v[0] if isinstance(v, tuple) and v else v  # a PERIOD counts by its start
+                d = v.date() if isinstance(v, datetime) else v if isinstance(v, date) else None
+                if d is not None and d < lo:
+                    continue
+                if left <= 0:
+                    break
+                vals.append(x)
+                left -= 1
+            if vals:
+                p.dts = vals
+                kept.append(p)
+        del ev[key]
+        if kept:
+            ev[key] = kept if len(kept) > 1 else kept[0]
+
+
+def _cal_walk(rule, start, w0):
+    """2.1333.0 (#6429): the number of dates the rule has before w0, counted up to CAL_WALK_MAX + 1 (above = too many).
+    The same walk the library makes before it reaches the window, here with a stop; None = dateutil cannot read it."""
+    n = 0
+    try:
+        for d in rrulestr(rule, dtstart=start, ignoretz=True):
+            if d >= w0:
+                break
+            n += 1
+            if n > CAL_WALK_MAX:
+                break
+    except (ValueError, TypeError, OverflowError, KeyError, IndexError):
+        return None
+    return n
+
+
+def _cal_until(parts):
+    """The UNTIL date of a rule's parts, None without UNTIL, False when it is unreadable."""
+    u = parts.get("UNTIL")
+    if u is None:
+        return None
+    m = re.fullmatch(r"(\d{4})(\d{2})(\d{2})(T\d{6}Z?)?", u.strip().upper())
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3))) if m else False
+    except ValueError:
+        return False
+
+
+def _cal_sanitize(ev, w0, budget=None):
     """Makes a VEVENT safe to expand (False = drop it). Rules the app cannot expand cheaply lose their recurrence
     (the first occurrence stays): anything below daily (SECONDLY / MINUTELY / HOURLY, BYHOUR / BYMINUTE /
     BYSECOND), a rule that never matches, COUNT above 10000. An open-ended rule starting long before the window
-    starts later by whole periods (same dates inside the window), so dateutil does not walk through centuries."""
+    starts later by whole periods (same dates inside the window), so dateutil does not walk through centuries.
+    2.1333.0 (#6429): one rule per event (the first usable one), a rule that ends before the window goes, a rule
+    that still passes more than CAL_WALK_MAX dates before the window goes; budget {"walk": n} sums those dates over
+    one download (cal_expand stops at CAL_WALK_TOTAL). RDATE / EXDATE are capped (_cal_dates_cap)."""
+    _cal_dates_cap(ev, w0)
     rr = ev.get("RRULE")
     if rr is None:
         return True
@@ -583,6 +656,11 @@ def _cal_sanitize(ev, w0):
     naive = st.replace(tzinfo=None) if isinstance(st, datetime) else datetime(st.year, st.month, st.day)
     keep = []
     for r in (rr if isinstance(rr, list) else [rr]):
+        if keep:
+            # 2.1333.0 (#6429): one rule per event. Each further rule was a further walk from DTSTART, and the shift
+            # below (the only guard against a start centuries back) only ever applied to a single rule. RFC 5545
+            # itself advises against more than one RRULE; calendars write one.
+            break
         try:
             txt = r.to_ical().decode()
         except (AttributeError, ValueError, TypeError):
@@ -601,11 +679,18 @@ def _cal_sanitize(ev, w0):
         base = ";".join(f"{k}={v}" for k, v in parts.items() if k not in ("COUNT", "UNTIL"))
         if not _cal_feasible(base, naive):
             continue
+        until = _cal_until(parts)
+        if until is False or (until is not None and until < w0.date()):
+            # 2.1333.0 (#6429): a rule ending before the window has no date in it, yet the library would walk it from
+            # DTSTART to UNTIL (the year 1000 to 2020: 370 000 dates kept in memory, per rule) -- it goes, the first
+            # occurrence stays. An unreadable UNTIL goes too (no way to bound the walk).
+            continue
         keep.append(parts)
     del ev["RRULE"]
     for parts in keep:
         ev.add("RRULE", icalendar.vRecur.from_ical(";".join(f"{k}={v}" for k, v in parts.items())))
-    if len(keep) == 1 and "COUNT" not in keep[0]:
+    shift = 0
+    if keep and "COUNT" not in keep[0]:
         freq, n = keep[0]["FREQ"], int(keep[0].get("INTERVAL", "1"))
         gap = (w0.date() - naive.date()).days - 7
         if freq in ("DAILY", "WEEKLY"):
@@ -614,11 +699,22 @@ def _cal_sanitize(ev, w0):
         else:  # whole 400-year cycles: the Gregorian calendar repeats exactly (weekdays included)
             ok = (4800 % n == 0) if freq == "MONTHLY" else (400 % n == 0)
             shift = gap // 146097 * 146097 if ok and gap > 146097 else 0
-        if shift > 0:
-            for key in ("DTSTART", "DTEND"):
-                prop = ev.get(key)
-                if prop is not None and hasattr(prop, "dt"):
-                    prop.dt = prop.dt + timedelta(days=shift)
+    if keep and naive + timedelta(days=shift) < w0:
+        # 2.1333.0 (#6429): what the shift cannot move (COUNT, MONTHLY / YEARLY with an interval off the 400-year cycle,
+        # many dates per period) is walked here once with a stop, before the library walks it without one and keeps
+        # every date. Too many dates before the window: the recurrence goes and the start stays where it was (the
+        # first occurrence).
+        walked = _cal_walk(";".join(f"{k}={v}" for k, v in keep[0].items()), naive + timedelta(days=shift), w0)
+        if walked is None or walked > CAL_WALK_MAX:
+            del ev["RRULE"]
+            return True
+        if budget is not None:
+            budget["walk"] = budget.get("walk", 0) + walked
+    if shift > 0:
+        for key in ("DTSTART", "DTEND"):
+            prop = ev.get(key)
+            if prop is not None and hasattr(prop, "dt"):
+                prop.dt = prop.dt + timedelta(days=shift)
     return True
 
 
@@ -661,6 +757,7 @@ def cal_expand(raws):
     w0 = datetime.combine(today - timedelta(days=CAL_BACK_DAYS), datetime.min.time())
     w1 = datetime.combine(today + timedelta(days=CAL_AHEAD_DAYS + 1), datetime.min.time())
     merged, tzids, n, found, name = icalendar.Calendar(), set(), 0, False, ""
+    budget = {"walk": 0}  # 2.1333.0 (#6429): dates the kept rules pass before the window, summed over this download
     for raw in raws:
         if isinstance(raw, str):
             raw = raw.encode("utf-8", "replace")
@@ -688,8 +785,12 @@ def cal_expand(raws):
                     n += 1
                     if n > CAL_MAX_COMPONENTS or time.monotonic() - t0 > CAL_CPU_S:
                         raise CalError("too_complex")
-                    if _cal_sanitize(comp, w0):
+                    if _cal_sanitize(comp, w0, budget):
                         merged.add_component(comp)
+                    if budget["walk"] > CAL_WALK_TOTAL:
+                        # 2.1333.0 (#6429): many events, each just under CAL_WALK_MAX, would together still fill the
+                        # library's date caches and take minutes -- the whole download is refused, as for too many events
+                        raise CalError("too_complex")
     if not found:
         raise CalError("not_calendar")
     try:
@@ -698,6 +799,11 @@ def cal_expand(raws):
         raise CalError("parse") from None
     out, seen, truncated = [], set(), False
     for series in q.series:
+        if time.monotonic() - t0 > CAL_CPU_S:
+            # 2.1333.0 (#6429): the budget is checked between the series too, not only per occurrence -- a series with
+            # nothing in the window never reached the check inside the loop below
+            truncated = True
+            break
         try:
             for occ in series.between(w0, w1):
                 ev = _cal_occ(occ)
