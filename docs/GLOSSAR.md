@@ -795,6 +795,7 @@ Tasks: lifecycle, dependencies, attachments, trash, relations, reminders, review
 - `kalmido/tasks/related.py` (`emb`) - Related tasks, stage 1 -- local text vectors of every task, "
 - `kalmido/tasks/relations.py` (`rel`) - Saved relations between tasks
 - `kalmido/tasks/remindat.py` (`rat`) - A reminder at a fixed time ("remind me Tue 9:00")
+- `kalmido/tasks/repo.py` - The one way a new row gets into tasks - task_insert() (#6825)
 - `kalmido/tasks/review.py` (`rvw`) - The review step of a list -- a reviewer per task, "
 - `kalmido/tasks/roadmap.py` - The roadmap and shifting a list
 - `kalmido/tasks/snippets.py` (`snip`) - Code snippets of a task -- plain code (no Markdown)
