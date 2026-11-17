@@ -329,11 +329,12 @@ def _apply(c, r, t, f, v, tail, ref):
     """Writes the repository's value v of field f into task t (no request: never noted for sending back)."""
     tid, ts = t["id"], iso_ms(now_utc())
     if f == "title":
-        c.execute("UPDATE tasks SET title=?, updated_at=? WHERE id=?", ((v or "?")[:500], ts, tid))
+        # 2.1363.0 (#6728, N1): text from the repository is another hand's -- the task loses the mark 'person' (tasks.origin)
+        c.execute("UPDATE tasks SET title=?, origin=NULL, updated_at=? WHERE id=?", ((v or "?")[:500], ts, tid))
         log_act(c, tid, "title", {"to": (v or "")[:200], "gsy": ref}, uid=None)
     elif f == "body":
         prev = t["content"] or ""
-        c.execute("UPDATE tasks SET content=?, updated_at=? WHERE id=?", (_with_tail(v or "", tail), ts, tid))
+        c.execute("UPDATE tasks SET content=?, origin=NULL, updated_at=? WHERE id=?", (_with_tail(v or "", tail), ts, tid))  # 2.1363.0 (#6728)
         log_act(c, tid, "content", {"prev": prev[:20000], "gsy": ref} if prev.strip() else {"gsy": ref}, uid=None)
     elif f == "state":
         if t["locked"]:  # 2.542.0 (#4609): a locked task keeps its status (the repository's state is not taken over)

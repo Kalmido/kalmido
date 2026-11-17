@@ -15,6 +15,7 @@ from ..core.schema import MAX_DEPTH
 from ..core.i18n import tr
 from ..core.db import body, bump, connect, db, err, gsetting, iso, local_now, now_utc, parse_iso
 from ..accounts.session import me
+from ..api.common import act_by_hand  # 2.1363.0 (#6728)
 from ..core.access import collab_all, Denied, list_people, list_role, need_list, need_task, wr_sql, WRITE_ROLES
 from ..core.access import live_sql, trash_sql  # 2.1002.0 (#5491): the core's trash filter
 from ..core.serializers import unlink_files
@@ -54,6 +55,17 @@ def people_merge(c, tid, old, mine):
         return mine
     have = [r[0] for r in c.execute("SELECT user_id FROM task_people WHERE task_id=? ORDER BY user_id", (tid,))]
     return part_merge(have, old, mine)
+
+
+def origin_lost(cur, f):
+    """2.1363.0 (#6728, N1): the mark 'person' (tasks.origin) holds only while the text is the creator's: another account (or
+    the creator by another way than by hand: a webhook, a public link, CalDAV, a list rule) changing title or notes clears it,
+    so the creator's agent dispatcher no longer takes it as their order. Clearing is final (the undo step does not return it)."""
+    if "origin" not in cur.keys() or cur["origin"] != "person":
+        return False
+    if not any(k in f and _norm(f[k]) != _norm(cur[k]) for k in ("title", "content")):
+        return False
+    return not (me() and cur["created_by"] and int(me()) == int(cur["created_by"]) and act_by_hand())
 
 
 def apply_update(c, tid, b, conflicts=None, lock=False):
@@ -272,6 +284,8 @@ def apply_update(c, tid, b, conflicts=None, lock=False):
         if any(k in f for k in ("due", "due_time", "reminders", "assignee_id")):
             f["reminded"] = "[]"
         f["updated_at"] = iso(now_utc())
+        if origin_lost(cur, f):
+            f["origin"] = None
         if "section_id" in f or "list_id" in f:  # 2.577.0 (#3354): what task.status_changed compares with
             sk_snap(c, tid)
             if not f.get("parent_id", cur["parent_id"]) and cur["status"] != 2:

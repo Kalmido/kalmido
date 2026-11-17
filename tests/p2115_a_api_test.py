@@ -162,6 +162,20 @@ check(dbx("SELECT origin FROM tasks WHERE id=?", (T1,))[0][0] is None, "#6523: a
 r = Bo.post(B + "/api/tasks", json={"list_id": LID, "title": "Bob writes it himself"})
 check(r.status_code in (200, 201) and dbx("SELECT origin FROM tasks WHERE id=?", (r.json().get("id"),))[0][0] == "person",
       f"#6523: a task written in the app is the person's: {r.status_code} {r.text[:120]}")
+# 2.1363.0 (#6728, N1): the mark holds only while the text is bob's -- his own edit and another member's change of a field keep
+# it, carol changing the title clears it for good (bob's later edit does not bring it back)
+BT = r.json().get("id")
+org = lambda: dbx("SELECT origin FROM tasks WHERE id=?", (BT,))[0][0]  # noqa: E731
+check(Bo.patch(B + f"/api/tasks/{BT}", json={"title": "Bob writes it himself, better", "notes": "his notes"}).ok and org() == "person",
+      "#6728: the creator's own edit keeps the mark")
+Bo.put(B + f"/api/lists/{LID}/members", json={"user_id": uid["carol"], "role": "edit"})
+check(Ca.patch(B + f"/api/tasks/{BT}", json={"priority": 5}).ok and org() == "person", "#6728: another member's priority keeps it")
+check(Ca.patch(B + f"/api/tasks/{BT}", json={"title": "Bob writes it himself, better"}).ok and org() == "person",
+      "#6728: the same title sent again changes no text")
+r = Ca.patch(B + f"/api/tasks/{BT}", json={"notes": "carol's order"})
+check(r.ok and org() is None, f"#6728: another member's notes clear the mark: {r.status_code} {org()}")
+check(Bo.patch(B + f"/api/tasks/{BT}", json={"title": "Bob again"}).ok and org() is None, "#6728: cleared stays cleared")
+Bo.put(B + f"/api/lists/{LID}/members", json={"user_id": uid["carol"], "role": "view"})
 r = post_in(URL, json={"title": "With id field", "fields": {str(FLD): 7}, "due": f"{D}T14:30:00"})
 check(r.status_code == 201, f"a field by its id, a date-time: {r.status_code} {r.text[:200]}")
 t = Bo.get(B + f"/api/tasks/{r.json().get('id')}").json()
