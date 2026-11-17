@@ -90,7 +90,7 @@ def invoice(s, title):
     """A finalised invoice of the current workspace -> (id, number)."""
     r = s.post(B + "/api/clients", json={"name": "Muster Medien AG", "street": "Marktweg 5", "zip": "50667", "city": "Koeln", "country": "DE"})
     assert r.status_code in (200, 201), r.text
-    r = s.post(B + D, json={"kind": "invoice", "lang": "de", "client_id": r.json()["id"], "items": [{"title": title, "qty": 1, "rate": 500}]})
+    r = s.post(B + D, json={"kind": "invoice", "lang": "de", "client_id": r.json()["id"], "service_from": "2025-03-01", "service_to": "2025-03-03", "items": [{"title": title, "qty": 1, "rate": 500}]})
     assert r.status_code == 201, r.text
     did = r.json()["id"]
     r = s.post(B + f"{D}/{did}/finalize")

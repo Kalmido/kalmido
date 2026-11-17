@@ -807,27 +807,6 @@ def oi_target_refuse(c, run, data, files, space):
         raise UmzBad(OI_REFUSED, "; ".join(tr(*x) for x in chk["conflicts"][:5]) + (" …" if len(chk["conflicts"]) > 5 else ""))
     for x in chk["notes"]:
         run.warning(*x, must=True)
-    nums, taken = list(facts.get("numbers") or []), []
-    with system_ctx(c):  # review: the admin of the target may lack office rights; only the colliding numbers leave this block
-        for i in range(0, len(nums), 500):
-            part = nums[i:i + 500]
-            taken += [r[0] for r in c.execute("SELECT number FROM office_docs WHERE org_id=? AND number = ANY(?) UNION "
-                                              "SELECT number FROM office_archive WHERE org_id=? AND number = ANY(?)",
-                                              (space, part, space, part)).fetchall()]
-        r = c.execute("SELECT MAX(period) AS p FROM office_period_locks WHERE org_id=?", (space,)).fetchone()
-        through = r["p"] if r is not None else None
-        own_first = pl_first_month(c, space) if facts.get("locks") else None
-    taken = sorted(set(taken))
-    out["conflicts"] += [tr(OI_NUM_TAKEN, x) for x in taken[:OI_SHOW_MAX]]
-    if len(taken) > OI_SHOW_MAX:
-        out["conflicts"].append(tr(OI_NUM_MORE, len(taken) - OI_SHOW_MAX))
-    first = (facts.get("months") or [None])[0]
-    if through and first and first <= through:
-        out["conflicts"].append(tr(OI_LOCKED, pl_label(through), pl_label(first)))
-    own = (facts.get("locks") or [None])[-1]
-    if own and own_first and own_first <= own and not (through and own <= through):  # like pbt_plan: said, not refused
-        out["notes"].append(tr(OI_LOCKS_ON, pl_label(own)))
-    return out
 
 
 _P = {"created_by": "null"}
