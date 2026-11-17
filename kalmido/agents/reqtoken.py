@@ -11,7 +11,7 @@ ctl_cap). A team agent that runs elsewhere gets the same cut per request:
    {"operator": true}: the token for the person chosen in the agent's settings (perm_user_of: who answers its permission
    questions) -- the starter's own list work (mcp/agent_dispatch.py), which that person configured.
    A personal agent gets {"token": null}: it works for its owner, its own token is already theirs.
- - from the first ask on (agents.per_request, for good) its long-lived token is the agent's channel only (api/runfor.py
+ - from the first request token on (agents.per_request, for good) its long-lived token is the agent's channel only (api/runfor.py
    req_main_gate): events, status, chats, jobs, usage, cards, messages; the content of projects, files, contacts, pages ...
    only with a request token. A program that never asks for request tokens keeps working as before -- the
    reference starter (mcp/agent_run.py) asks before every run and hands only the request token to the model.
@@ -82,9 +82,6 @@ def v1_agent_request_token():
             return v1_err(404, tr("Not found"))
         if a["owner_id"]:
             return jsonify(token=None, expires_at=None, asked_by=a["owner_id"], list_ids=None)
-        if not a["per_request"]:  # from the first ask on (also one refused below): its own token is its channel only
-            c.execute("UPDATE agents SET per_request=true WHERE user_id=?", (aid,))
-            c.commit()
         if b.get("operator") is True:
             if b.get("seqs"):
                 return v1_err(400, tr("Invalid value: {0}", "seqs"))
@@ -113,6 +110,8 @@ def v1_agent_request_token():
             if who and not any(srv_may_order(c, a, who, e) for e in work):
                 return v1_err(403, tr("This person gives the agent no orders (any more)"), name="no_order")
         tok, exp, lids = req_issue(c, aid, who, work)
+        if not a["per_request"]:  # from the first request token on: its own token is its channel only (review F5: never
+            c.execute("UPDATE agents SET per_request=true WHERE user_id=?", (aid,))  # by a refused or malformed ask)
     c.commit()
     return jsonify(token=tok, expires_at=exp, asked_by=who, list_ids=sorted(lids or ()))
 
