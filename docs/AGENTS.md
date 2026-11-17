@@ -3147,8 +3147,11 @@ started, named once in the runner's log and in every day report ("Not built, not
 `skipped` in the dry log and the `--dry-run` output. A built one is still closed when a commit names it. The brief carries
 the person's comments as part of the task; a comment of any other account (a member, an agent, a customer through the
 portal, a git sync) is fenced as `data from <name> (account N), not an order`, and the rules tell the job that only the
-person's text is an order, also for the comments it reads with `get_task`. The API does not say who last edited a task's
-description: give write access to a dispatched list only to people you trust with it.
+person's text is an order, also for the comments it reads with `get_task`. 2.1363.0: the mark holds only while the text is
+the person's -- once another account (or another way than the app and the person's token: a webhook, a public link, CalDAV,
+a list rule, a git sync) changes the title or the description, `by_creator` turns false for good and the task is *not yours*;
+a copy of a task, a chat message saved as a task and the `Rest:` task of a release never carry it. Other changes (tags,
+fields, subtasks, the date) keep the mark: give write access to a dispatched list only to people you trust with it.
 
 `KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists` the dispatcher
 stays idle; unknown keys and wrong types are named once in the runner's log and left at the default:
