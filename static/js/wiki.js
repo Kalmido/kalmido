@@ -781,12 +781,14 @@ async function wka_del(p, f) {
 // the import report: pages, files, what was skipped and why (at most 200 lines from the server)
 const wka_sum = r => [trn('{0} page imported', '{0} pages imported', (r.created || []).length), ...(r.files_n ? [trn('{0} file', '{0} files', r.files_n)] : []),
   ...(r.shortened_n ? [trn('{0} name shortened', '{0} names shortened', r.shortened_n)] : []),  // 2.210 A (#2755)
+  ...(r.recoded_n ? [trn('{0} page read as Windows-1252', '{0} pages read as Windows-1252', r.recoded_n)] : []),  // 2.1324.0 (#6589)
   ...((r.skipped_n || r.skipped?.length) ? [tr('{0} skipped', r.skipped_n || r.skipped.length)] : [])].join(' · ');
 function wka_report(r) {
-  const sk = r.skipped_detail || (r.skipped || []).map(n => ({name: n, reason: ''})), sh = r.shortened || [];
-  if (!sk.length && !sh.length) return;
+  const sk = r.skipped_detail || (r.skipped || []).map(n => ({name: n, reason: ''})), sh = r.shortened || [], rc = r.recoded || [];
+  if (!sk.length && !sh.length && !rc.length) return;
   wk_info(tr('Import finished'), `<p>${esc(wka_sum(r))}</p>
     ${sh.length ? `<details class="wkrep wkrep-short"><summary>${esc(trn('{0} name shortened', '{0} names shortened', r.shortened_n || sh.length))}</summary><p class="muted">${esc(tr('Too long or too many folder levels: the page is there under a shorter name.'))}</p><ul>${sh.map(s => `<li><b>${esc(s.name)}</b> · ${esc(s.path)}</li>`).join('')}</ul></details>` : ''}
+    ${rc.length ? `<details class="wkrep wkrep-enc" open><summary>${esc(trn('{0} page read as Windows-1252', '{0} pages read as Windows-1252', r.recoded_n || rc.length))}</summary><p class="muted">${esc(tr('The file is not UTF-8 and was read as Windows-1252: please check umlauts and the euro sign'))}</p><ul>${rc.map(n => `<li><b>${esc(n)}</b></li>`).join('')}</ul></details>` : ''}
     ${sk.length ? `<details class="wkrep"><summary>${esc(tr('{0} skipped', r.skipped_n || sk.length))}</summary><ul>${sk.map(s => `<li><b>${esc(s.name)}</b>${s.reason ? ' · ' + esc(s.reason) : ''}</li>`).join('')}</ul></details>` : ''}`);
 }
 // 2.1168.0 (#6092): a window that only tells (the import's report, a file too large, no room on the device): the shared

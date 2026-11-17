@@ -18993,6 +18993,7 @@
   "The ZIP would be too large with it": "Lo ZIP sarebbe troppo grande con esso",
   "A linked file you cannot open, or no longer there": "Un file collegato che non puoi aprire o che non c'è più",
   "A linked file in a locked folder (only readable in the browser)": "Un file collegato in una cartella bloccata (leggibile solo nel browser)",
+  "{0} page read as Windows-1252": ["{0} pagina letta come Windows-1252", "{0} pagine lette come Windows-1252"],
   "Receipt missing?": "Manca la ricevuta?",
   "Upload it in the documents of the office, then match it here.": "Caricala nei documenti dell'ufficio, poi abbinala qui.",
   "1-{0} select · Enter takes over · arrows back and forth": "1-{0} scegli · Invio applica · frecce avanti e indietro",

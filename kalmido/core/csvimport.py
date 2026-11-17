@@ -24,8 +24,8 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from . import safexml  # 2.1272.0 (#6422): the one reader for foreign XML
-from .i18n import tr
-from ..core.errors import BadInput  # 2.369.5 (#2517): pulled up from functions
+from .i18n import N_, tr
+from ..core.errors import BadInput, BadKey  # 2.369.5 (#2517): pulled up from functions
 from .serializers import csv_cell as _cell  # 2.369.5 (#2517): pulled up from functions
 
 CSV_MAX, CSV_ROWS = 2 * 1024 * 1024, 3000
@@ -109,6 +109,42 @@ def csv_dup_take(counts, key):
         counts[key] -= 1
         return True
     return False
+
+
+# ---------------------------------------------------------------- the text encoding of an imported file
+TXT_NOT_TEXT = N_("This is not a text file")
+TXT_CP1252 = N_("The file is not UTF-8 and was read as Windows-1252: please check umlauts and the euro sign")
+TXT_UNREADABLE = N_("The text encoding of the file could not be read (UTF-8, UTF-16 or Windows-1252 expected)")
+
+
+def text_decode(data):
+    """Bytes of a text file -> (str, encoding): UTF-8 (with / without BOM), UTF-16 (BOM or detected), else Windows-1252
+    (encoding "windows-1252": the caller warns with TXT_CP1252 -- an ISO-8859-15 file shows a wrong euro sign). BadKey
+    TXT_NOT_TEXT / TXT_UNREADABLE when it is no text. 2.1324.0 (#6589): moved here from the task import
+    (integrations/importers.imp_decode, 2.533.0 #4318 F8), the knowledge import reads its pages with it too."""
+    enc = "utf-8"
+    try:
+        if data.startswith(b"\xef\xbb\xbf"):
+            s = data[3:].decode("utf-8")
+        elif data.startswith((b"\xff\xfe", b"\xfe\xff")):
+            s, enc = data.decode("utf-16"), "utf-16"
+        else:
+            head = data[:4000]
+            if len(head) >= 4 and head.count(b"\x00") > len(head) // 4:
+                enc = "utf-16-le" if head[1::2].count(0) > head[0::2].count(0) else "utf-16-be"
+                s = data.decode(enc)
+            else:
+                if b"\x00" in data:
+                    raise BadKey(TXT_NOT_TEXT)
+                try:
+                    s = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    s, enc = data.decode("cp1252"), "windows-1252"
+    except UnicodeDecodeError:
+        raise BadKey(TXT_UNREADABLE) from None
+    if "\x00" in s:
+        raise BadKey(TXT_NOT_TEXT)
+    return s.lstrip("\ufeff"), enc
 
 
 # ---------------------------------------------------------------- CSV
