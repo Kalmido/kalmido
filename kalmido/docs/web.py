@@ -32,6 +32,7 @@ from .maillink import ml_token_new  # 2.424.0 B (#3450)
 from .ocr import ocr_available
 from .pagesize import pg_ok  # 2.905.0 (#5393)
 from ..core.pages import new_inbox_task  # 2.149.0 G (#2517): pulled up from functions
+from ..office.rights import ofr_need_area  # 2.1364.0 (#6297 (14))
 
 PAGE_MAX = 200
 FEATURE_NAMES = ("sender", "type", "tags", "folder")
@@ -451,6 +452,8 @@ def docs_upload():
     unzip = request.form.get("unzip") == "1"
     # 2.522.0 (#4433): area=office = the office's own upload (bookkeeping, bank); sort=1 = the general upload of the file store
     area = "office" if request.form.get("area") == "office" else ("sort" if request.form.get("sort") == "1" else None)
+    if area == "office" and org:  # 2.1364.0 (#6297 (14)): "New in the office" only with the office right on receipts (as sorting)
+        ofr_need_area(c, uid, org, "receipts", "edit")
     src = "share" if request.form.get("source") == "share" else "upload"
     for f in files[:50]:
         data = h6d_read(f)  # 2.86.0 (N22): at most MAX_FILE_MB + 1 bytes in memory (refused in fs_put)

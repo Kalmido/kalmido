@@ -122,6 +122,20 @@ check(office not in ids(Be, area="private"), "a member: the office's upload not 
 b1 = upload(Be, "bert-urlaub.txt", PRIVATE + b"Bert\n")
 done(Be, b1)
 check(b1 not in set(ids(A)) | set(ids(A, area="private")) | set(tree_ids(A)), "the admin does not see the member's private document")
+# 2.1364.0 (#6297 (14)): "New in the office" only with the office right on receipts (edit) - a member ruled by office groups
+BERT = Be.get(B + "/api/state").json()["me"]["id"]
+r = A.post(B + "/api/office/rights/groups", json={"name": "Nur Angebote"})
+GID = r.json().get("id") if r.status_code == 201 else None
+check(GID and A.patch(B + f"/api/office/rights/groups/{GID}", json={"levels": {"receipts": "view"}}).ok
+      and A.put(B + f"/api/office/rights/people/{BERT}", json={"groups": [f"g:{GID}"]}).ok, f"setup: bert in an office group, receipts view {r.text[:160]}")
+n0 = kt.dbx("SELECT COUNT(*) FROM doc_meta WHERE created_by=?", (BERT,))[0][0]
+r = Be.post(B + "/api/docs", data={"ws": f"org:{ORG}", "area": "office"}, files=[("files", ("bert-beleg.txt", OFFICE + b"Bert\n", "text/plain"))])
+check(r.status_code == 403 and kt.dbx("SELECT COUNT(*) FROM doc_meta WHERE created_by=?", (BERT,))[0][0] == n0, f"#6297 (14): no office upload without receipts edit, nothing stored {r.status_code} {r.text[:160]}")
+r = Be.post(B + "/api/docs", data={"ws": f"org:{ORG}"}, files=[("files", ("bert-notiz.txt", PRIVATE + b"Bert 2\n", "text/plain"))])
+check(r.status_code == 201, f"#6297 (14): his plain upload into the organisation still works {r.status_code} {r.text[:160]}")
+check(A.patch(B + f"/api/office/rights/groups/{GID}", json={"levels": {"receipts": "edit"}}).ok, "setup: the group gets receipts edit")
+r = Be.post(B + "/api/docs", data={"ws": f"org:{ORG}", "area": "office"}, files=[("files", ("bert-beleg.txt", OFFICE + b"Bert\n", "text/plain"))])
+check(r.status_code == 201 and row(r.json()["ids"][0])[0] == "office", f"#6297 (14): with receipts edit the office upload lands in the office {r.status_code} {r.text[:160]}")
 
 # ==== a person without an organisation, her personal office (freelancer-matrix: files)
 FRIDA, Fr = freelancer(B, A)
