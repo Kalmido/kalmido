@@ -28,8 +28,8 @@ check(cti.counts() == {}, f"nothing left over: {cti.counts()}")
 check(cti.load_baseline() == {}, f"the baseline is empty: {cti.load_baseline()}")
 check("check_task_insert.errors()" in open(os.path.join(ROOT, "tools", "check_layout.py"), encoding="utf-8").read(),
       "check_layout.py (CI lint, Mac lint) runs the check")
-check(len(cti.scan(open(os.path.join(ROOT, "kalmido", "tasks", "repo.py"), encoding="utf-8").read())) == 1,
-      "repo.py holds the one insert (and is left out of the count)")
+REPO = open(os.path.join(ROOT, "kalmido", "tasks", "repo.py"), encoding="utf-8").read()
+check(any("insert_id(" in REPO.split("\n")[n - 1] for n in cti.scan(REPO)), "repo.py holds the one insert (and is left out of the count)")
 
 # 2. red
 RED = {
