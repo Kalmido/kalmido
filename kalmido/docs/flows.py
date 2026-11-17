@@ -568,7 +568,11 @@ def fl_hook_off(c, rid, ws, why, error=""):
     r = S._jopen(c, ws, "doc_rules.data", row[0], {})
     if why == "admin" and r and not r.get("off"):
         r["off"] = True
-        c.execute("UPDATE doc_rules SET data=? WHERE id=?", (S._jseal(c, ws, "doc_rules.data", r), rid))
+        # sealed like _rule_save (#6560 5): a flow with a webhook secret stays sealed also with org_encrypt off; no server
+        # key (None): data stays as it is, hook_state 'admin' still holds the webhook
+        data = S._jseal(c, ws, "doc_rules.data", r, always=bool(r.get("hook_secret")))
+        if data is not None:
+            c.execute("UPDATE doc_rules SET data=? WHERE id=?", (data, rid))
     c.execute("UPDATE doc_flow_runs SET hook='off' WHERE rule_id=? AND hook='wait'", (rid,))
     name = str((r or {}).get("name") or "").strip() or f"#{rid}"
     print(f"docflows: webhook of flow {rid} {'paused (author no admin)' if why == 'admin' else 'switched off after failures'}", flush=True)

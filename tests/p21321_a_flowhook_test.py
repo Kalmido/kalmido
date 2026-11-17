@@ -151,11 +151,17 @@ check(r.ok and rule(Bo, OWS, "Tot").get("hook_state") == "" and rule(Bo, OWS, "T
       f"failures: saving the flow again switches the webhook on {r.status_code} {r.text[:200]}")
 
 # ---- rights lost: carol becomes a member -> her flow's call does not go out, the flow pauses, bob hears it
+# (#6560 5) with the instance switch org_encrypt off the pause rewrites the flow sealed all the same: its secret never in plain
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": False}).ok, "setup: org_encrypt off")
 check(Bo.put(B + f"/api/orgs/{ORG}/members", json={"user_id": ids["carol"], "role": "member"}).ok, "setup: carol is a member now")
 n_ok = len(calls("/ok"))
 upload(Bo, "carol2.pdf", ["Carolfall zwei", "Seite 1"], ws=OWS)
 f = until(lambda: (lambda x: x if x and x.get("hook_state") == "admin" else None)(rule(Bo, OWS, "Carol")), 30)
 check(f and f.get("off"), f"rights lost: the flow paused {f}")
+row = dbx("SELECT data FROM doc_rules WHERE id=?", ((f or {}).get("id") or 0,))
+check(row and row[0][0].startswith("kenc1:") and "hook_secret" not in row[0][0],
+      f"rights lost: the paused flow stays sealed with org_encrypt off ({row and row[0][0][:12]})")
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": True}).ok, "setup: org_encrypt on again")
 time.sleep(2)
 check(len(calls("/ok")) == n_ok, f"rights lost: the call did not go out to the former admin's target {len(calls('/ok'))} {n_ok}")
 nb = until(lambda: integfail(Bo, "docflow_admin"), 15)
