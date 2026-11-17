@@ -90,5 +90,7 @@ if __name__ == "__main__":
     # trusted_proxy cannot express); waitress must not clear them before the app sees them.
     # 2.102.0 D (#1994): KALMIDO_THREADS (default 16, core/pg.py WEB_THREADS; the pool follows it)
     # 2.642.0 (#4975): WEB_THREADS = this process' part of KALMIDO_THREADS
+    # 2.1343.0 (#6406): channel_request_lookahead=1 -- waitress keeps reading the connection while a request runs, so a request
+    # the browser dropped (a newer search in the palette) is seen (environ waitress.client_disconnected, core/srchreg.py _gone)
     serve(app, **where, threads=WEB_THREADS, max_request_body_size=max(BK_MAX_BYTES, app.config["MAX_CONTENT_LENGTH"]) + 1024 * 1024,
-          clear_untrusted_proxy_headers=False)
+          clear_untrusted_proxy_headers=False, channel_request_lookahead=1)

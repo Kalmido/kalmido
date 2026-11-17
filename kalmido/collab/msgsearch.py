@@ -39,6 +39,7 @@ from .teamchan import tcx_run_ok  # 2.1287.0 (#6454, review P2)
 ARTS = {"c": 1, "t": 2, "a": 3}
 CHAT_TYPES = ("task", "list", "dm", "agent", "channel", "group")  # 2.113.1 (#2059): + channel, group
 MSG_CAND = 1000          # candidates per kind before the per-row checks
+MSG_GROUP_CAND = 50      # 2.1343.0 (#6406): the same for a group of the palette (msg_search_group)
 MSG_TERMS = 8
 SNIP = 160               # characters of a snippet
 
@@ -112,8 +113,10 @@ def snippet(text, marks):
 
 
 # ---- the search
-def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, task=None):
-    """Every visible message matching q, newest first: a list of hit dicts (see the module doc)."""
+def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, task=None, cand=MSG_CAND):
+    """Every visible message matching q, newest first: a list of hit dicts (see the module doc). cand = the candidates read per
+    kind of message (2.1343.0, #6406: the palette's group needs its few newest, not 3 x 1,000 rows with their texts)."""
+    cand = max(1, min(MSG_CAND, int(cand)))
     terms = msg_terms(q)
     if not terms:
         return []
@@ -143,7 +146,7 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
         rows = c.execute(f"""SELECT {ocm_old_cols('m')}, t.list_id, t.title
             FROM obj_comments m JOIN tasks t ON t.id=m.ref_id
             WHERE m.kind='task' AND {mcond} AND {live_sql('m')} AND t.deleted_at IS NULL AND t.list_id = ANY(CAST(? AS BIGINT[])) AND {tvis(c, uid, 't.', write=True)}{snd}
-            {' AND m.ref_id=?' if task is not None else ''} ORDER BY m.id DESC LIMIT {MSG_CAND}""",
+            {' AND m.ref_id=?' if task is not None else ''} ORDER BY m.id DESC LIMIT {cand}""",
                          match + [vis_search_lids(c, uid)] + ([sender] if sender is not None else []) + ([task] if task is not None else [])).fetchall()
         for r in rows:
             if not role(r["list_id"]):
@@ -162,7 +165,7 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
         rows = c.execute(f"""SELECT m.id, m.room_id, m.user_id, m.body, m.created_at, r.kind, r.list_id, r.a, r.b
             FROM tchat_msgs m JOIN tchat_rooms r ON r.id=m.room_id
             WHERE {mcond} AND m.deleted_at IS NULL AND m.enc IS NULL AND {rooms_cond}{snd}
-            {' AND m.room_id=?' if room is not None else ''} ORDER BY m.id DESC LIMIT {MSG_CAND}""",
+            {' AND m.room_id=?' if room is not None else ''} ORDER BY m.id DESC LIMIT {cand}""",
                          match + [uid, uid, uid, uid] + ([sender] if sender is not None else []) + ([room] if room is not None else [])).fetchall()  # 2.924.0 (#5069): the core alone
         ok, lnames, rrows = {}, {}, {}
         for r in rows:
@@ -208,7 +211,7 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
             sq = " AND ((m.sender='user' AND m.user_id=?) OR (m.sender='agent' AND m.agent_id=?))"
             a2 += [sender, sender]
         rows = c.execute(f"""SELECT m.id, m.agent_id, m.user_id, m.sender, m.body, m.created_at
-            FROM agent_chat m WHERE {mcond} AND {cond}{sq} AND COALESCE(m.kind, '')<>'brief' ORDER BY m.id DESC LIMIT {MSG_CAND}""", match + a2).fetchall()  # 2.739.0 (#5216): no job briefs
+            FROM agent_chat m WHERE {mcond} AND {cond}{sq} AND COALESCE(m.kind, '')<>'brief' ORDER BY m.id DESC LIMIT {cand}""", match + a2).fetchall()  # 2.739.0 (#5216): no job briefs
         reach = {}
         for r in rows:
             if not agent_me:
@@ -293,8 +296,9 @@ v1_search_messages = v1_view(v1_search_messages)
 
 
 def msg_search_group(c, uid, q, n):
-    """The first n message hits (the palette's group, ?kind=all of the API)."""
-    return search_messages(c, uid, q, None)[:n]
+    """The first n message hits (the palette's group, ?kind=all of the API). 2.1343.0 (#6406): MSG_GROUP_CAND candidates per kind
+    of message (newest first) instead of MSG_CAND -- the newest n stay the same unless most of them fail the per-row checks."""
+    return search_messages(c, uid, q, None, cand=max(MSG_GROUP_CAND, 10 * n))[:n]
 
 
 srch_register("messages", web=msg_search_web, group=msg_search_group, v1=v1_search_messages, v1group=msg_search_group, order=70)  # 2.1026.0 (#5280)

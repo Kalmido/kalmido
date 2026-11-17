@@ -24,7 +24,9 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_POOL_MAX` | `(empty)` | Older name of KALMIDO_DB_POOL_MAX (used when that one is not set). |
 | `KALMIDO_REPLICAS` | `1` | Number of web processes behind one database (only for the connection check at start). |
 | `KALMIDO_ROLE` | `all` | What this process runs: all (web + background work), web (requests only) or worker (background work only). |
+| `KALMIDO_SEARCH_BUDGET_MS` | `400` | Milliseconds the general search (command palette) spends on the areas per request; the areas it did not reach are searched in a next request (0 = one area per request). |
 | `KALMIDO_SEARCH_INDEX` | `0` | Switch: allow search engines to index this server (public links and forms stay noindex). |
+| `KALMIDO_SEARCH_OPEN_MAX` | `500` | Sealed texts (documents, file texts, knowledge pages, mails) a search opens per workspace to check a word found by a shorter prefix, newest first. |
 | `KALMIDO_SLOW_REQUEST_MS` | `500` | Requests slower than this many milliseconds get a log line with route, duration and statement count (0 = off). |
 | `KALMIDO_STATE_AUTO_MAX` | `4` | Whole-state reloads of the live update (a change everyone sees) that run at the same time; one more is answered later with the client's next poll (0 = no limit). |
 | `KALMIDO_STATE_LAZY_MIN` | `3000` | Tasks in the start state of one person above which a new web client gets only the start set (Today, Upcoming, My tasks, the lists it had open) and loads a list's tasks when it is opened (0 = always the start set). |
