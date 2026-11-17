@@ -11,9 +11,12 @@ text layer written by hand, a "scan" = an image PDF drawn with Pillow).
  - agents: nothing without a share; with view they read, with edit they set fields ("agent"); every access in fs_log
  - a task for the due date; the inbox folder "Dokumente/Eingang"; the forwarding address (mail with a PDF attachment)
  - trash + restore of a document (the file store's routes), rollback: only new tables / columns
+ - 2.1337.0 (#6651): a document whose recognition stopped before every page was read says so (text_cut, also to agents);
+   "Recognise again" asks for the full clock (auto._full) and a complete run takes the mark back
 usage: p248_b_api_test.py <datadir>      (a fresh container; P248B_NOSTART=1: the container runs already)"""
 import email.message
 import io
+import json
 import os
 import subprocess
 import sys
@@ -411,6 +414,20 @@ if r.ok:
     got = until(lambda: dbx("SELECT node_id FROM doc_meta WHERE source='mail'"), 40)
     check(bool(got), "the mail's PDF became a document")
     check(not dbx("SELECT 1 FROM tasks WHERE title LIKE '%Rechnung%' AND tt_id LIKE 'mail:%'"), "no task from a document mail")
+
+# ---- 2.1337.0 (#6651): "Text recognised incompletely" at the document, "Recognise again" takes it back
+_au = json.loads(dbx("SELECT auto FROM doc_meta WHERE node_id=?", (D1,))[0][0] or "{}")
+dbx("UPDATE doc_meta SET auto=? WHERE node_id=?", (json.dumps({**_au, "_cut": 1}), D1), write=True)
+d = doc(A, D1).json()
+check(d.get("text_cut") is True and "_cut" not in (d.get("auto") or {}), f"#6651: a cut-off recognition shows at the document ({d.get('text_cut')}, {d.get('auto')})")
+check(AGS.get(B + f"/api/v1/documents/{D1}").json().get("text_cut") is True, "#6651: ... and to an agent (API v1)")
+r = A.post(B + f"/api/docs/{D1}/redo")
+st, au = dbx("SELECT state, auto FROM doc_meta WHERE node_id=?", (D1,))[0]
+check(r.ok and (st != "wait" or "_full" in (au or "")), f"#6651: 'Recognise again' asks for the full clock ({r.status_code} {st} {au and au[:120]})")
+d = done(A, D1)
+auto = dbx("SELECT auto FROM doc_meta WHERE node_id=?", (D1,))[0][0] or ""
+check(d and d["state"] == "done" and d.get("text_cut") is False and "_full" not in auto and "_cut" not in auto,
+      f"#6651: a complete run takes the mark back ({d and (d['state'], d.get('text_cut'))}, {auto[:200]})")
 
 # ---- trash + restore (the file store's routes)
 check(A.delete(B + f"/api/files/nodes/{D1}").ok and D1 not in ids_of(A), "deleted: out of the list")

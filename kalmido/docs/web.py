@@ -3,6 +3,7 @@
 Rights are the file store's (kalmido/files/store.py): a document is visible when its file node is (fs_visible_sql), it
 may be changed with 'edit' on it. Settings, rules, labels and the mail address of an organisation's workspace: its
 admins; of a person's own workspace: that person. Agents use the API v1 (docs/v1.py), not these routes."""
+import json
 import os
 import re
 from decimal import Decimal, InvalidOperation
@@ -136,6 +137,8 @@ def doc_json(c, m, node, full=False, role=None, pre=None):
     asn_t = auto.pop("_asn_taken", None)  # 2.591.0 B (#4863): the code's number has another document (asn_taken_view)
     page1 = pg_ok(auto.pop("_pg", None))  # 2.905.0 (#5393): the first page's size: the view's preview takes it before the file is there
     scan = bool(auto.pop("_scan", None))  # 2.781.0 (#5390): a scan (docs/scanmark.py): the archive number field shows
+    text_cut = bool(auto.pop("_cut", None))  # 2.1337.0 (#6651): not every page was read (the recognition's clock)
+    auto.pop("_full", None)  # 2.1337.0 (#6651): "Recognise again" asked for the full clock (docs/store.py process)
     sug = S.meta_json(c, m, "suggest", {})
     sug.pop("_given", None)
     out_sug = {}
@@ -169,7 +172,7 @@ def doc_json(c, m, node, full=False, role=None, pre=None):
          "sender": {"id": m["sender_id"], "name": S.label_name(c, ws, "sender", m["sender_id"])} if m["sender_id"] else None,
          "type": {"id": m["type_id"], "name": S.label_name(c, ws, "type", m["type_id"])} if m["type_id"] else None,
          "tags": pre["tags"].get(m["node_id"], []) if pre else S.node_tags(c, m["node_id"]), "folder": folder, "auto": auto, "suggest": out_sug, "review": bool(m["review"]),
-         "thumb": bool(m["thumb"]), "thumb_l": bool(S.thumb_l_of(m)), "task_id": m["task_id"], "asn": m["asn"], "page": page1, "scan": scan, "source": m["source"], "created_at": node["created_at"],
+         "thumb": bool(m["thumb"]), "thumb_l": bool(S.thumb_l_of(m)), "task_id": m["task_id"], "asn": m["asn"], "page": page1, "scan": scan, "text_cut": text_cut, "source": m["source"], "created_at": node["created_at"],
          "updated_at": m["updated_at"], "parent_id": node["parent_id"], "hand": hand,
          "edited_at": doc_ver(m)}  # 2.570.0 (#4770): the version of people's changes (expect_updated_at of PATCH)
     # 2.210 C (#2761): only a flag whether the document is shared (no names)
@@ -806,7 +809,10 @@ def docs_redo(nid):
     m, _n = _doc(c, nid, write=True)
     pl_receipt_need_open(c, nid)  # 2.148.0 A (#2471): a new recognition could change a locked receipt's amount
     S.redo_save(c, m, nid)  # 2.363.3 (#3134): for "Undo"
-    c.execute("UPDATE doc_meta SET state='wait', tries=0, error='', updated_at=? WHERE node_id=?", (_now(), nid))
+    auto = S.meta_json(c, m, "auto", {})
+    auto["_full"] = 1  # 2.1337.0 (#6651): a person asked: the full clock, also for a document from an anonymous source
+    c.execute("UPDATE doc_meta SET state='wait', tries=0, error='', auto=?, updated_at=? WHERE node_id=?",
+              (json.dumps(auto, separators=(",", ":")), _now(), nid))
     c.commit()
     docs_kick()
     m, n = _doc(c, nid)

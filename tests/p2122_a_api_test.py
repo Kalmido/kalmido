@@ -12,6 +12,7 @@ public link /u/<token>. Own container (start.sh), invented companies and people 
    file, number of files, the signed stamp, the honeypot, a cross-site send, a JSON answer for the page's script
  - the subfolder per request; the News item of the creator, bundled (one per link and 10 minutes), switched off = none
  - a person without an organisation (freelancer-matrix: files): the own private folder, the same link
+ - 2.1337.0 (#6651): the visitor's files are marked anonymous for the text recognition (file_text.anon), the member's own not
 usage: p2122_a_api_test.py <datadir>      (a fresh container; P2122A_NOSTART=1 = the server already runs)"""
 import base64
 import hashlib
@@ -161,6 +162,10 @@ check(r.ok and r.json().get("ok") and r.json()["n"] == 1, "the script's send: JS
 check(kids(F) == ["secret-plan.pdf", "logo.png", "logo (2).png"], "the same name again: a second file, nothing overwritten " + str(kids(F)))
 r = up(T, [("../../etc/passwd.pdf", PDF, "application/pdf")], ST, js=True, s=anon)
 check(r.ok and "passwd.pdf" in kids(F) and not any(".." in k or "/" in k for k in kids(F)), "a path in the name: only the name stays")
+# 2.1337.0 (#6651): a visitor's file is marked anonymous for its text recognition (the shorter clock), the member's own file not
+an = dict(dbx("SELECT n.name, f.anon FROM file_text f JOIN fs_nodes n ON n.id=f.node_id WHERE f.kind='fs' AND n.parent_id=?", (F,)))
+check(an.get("passwd.pdf") == 1 and an.get("logo.png") == 1 and an.get("secret-plan.pdf") == 0,
+      f"#6651: the file request's files are anonymous for the text recognition, the member's upload is not {an}")
 for nm, data, what in (("run.exe", b"MZ" + b"\0" * 100, "a program"), ("page.html", b"<html><script>x</script></html>", "HTML"),
                        ("pic.svg", b"<svg onload='x'></svg>", "SVG"), ("fake.png", b"<html><body>no picture</body></html>", "HTML as a picture"),
                        ("fake.pdf", b"just text", "text as a PDF"), ("tool.txt", b"#!/bin/sh\necho hi\n", "a script as text"),
