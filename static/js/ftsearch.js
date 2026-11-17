@@ -39,6 +39,14 @@ async function srchServer(q, f = {}) {
   if (k === 'wiki') return {wiki: j.pages || [], more: {wiki: {total: j.total || 0, next: j.more ? (j.offset || 0) + (j.pages || []).length : null}}, raw: j};
   return {[k]: j[k] || [], raw: j};
 }
+// 2.1343.0 (#6406): the server searches the groups on a time budget; the kinds it did not reach come back as pending and are
+// asked for here (GET /api/search?kind=groups&groups=<kinds>: {groups, pending}) -- each answer brings at least one kind
+async function srchPending(q, kinds, f = {}) {
+  const url = '/api/search?' + new URLSearchParams({q, kind: 'groups', groups: kinds.join(','), glimit: String(f.glimit || 5)});
+  const r = await fetch(url, {headers: {'X-Requested-With': 'kalmido'}, signal: f.signal});
+  if (!r.ok) throw new Error(String(r.status));
+  return (await r.json()) || {};
+}
 const SEARCH_SOURCES = [{id: 'server', search: srchServer}];
 // every source that can give f.kind (all of them without), merged per kind; only when every source failed, the first error
 async function srchRun(q, f = {}) {
@@ -75,6 +83,15 @@ function ftsPalItems(q, shown) {
       if (FTSP.q !== q) return;
       FTSP.r = r;
       if ($('.palette') && PAL.q.trim() === q) palDraw();
+      // 2.1343.0 (#6406): the groups the server did not reach in its time, one request after the other (a newer query aborts)
+      let pend = r.raw?.pending;
+      for (let i = 0; Array.isArray(pend) && pend.length && i < SRCH_KINDS.length; i++) {
+        let j; try { j = await srchPending(q, pend, {glimit: 6, signal: ctl.signal}); } catch { return; }
+        if (FTSP.q !== q || FTSP.r !== r) return;
+        for (const [k, v] of Object.entries(j.groups || {})) if (SRCH_KINDS.includes(k) && Array.isArray(v)) r[k] = (r[k] || []).concat(v);
+        pend = j.pending;
+        if ($('.palette') && PAL.q.trim() === q) palDraw();
+      }
     }, 250);
     return [];
   }

@@ -32,6 +32,7 @@ import time
 import unicodedata
 
 from .db import trigger_ensure
+from .env import env_int
 from .kernretire import kern_retire_floor
 from .objhooks import MOVE, START
 from .objsearch import osr_variants
@@ -43,6 +44,9 @@ OSW_TERMS = 8  # words of a query
 OSW_MARK = "v:2"  # the rules of this version (umlaut variants, prefixes of 2 and 3); without it: indexed again
 OSW_TICK = 100  # objects read per look-up of the catch-up (2.1028.0, #5783: no longer the limit of a tick, OSW_TICK_S is)
 OSW_TICK_S = 2.0  # 2.1028.0 (#5783): seconds of catch-up per watchdog tick, over all kinds (a big document costs more than a mail)
+# 2.1343.0 (#6406): texts opened per search and workspace to check a word found by a shorter prefix (newest first);
+# KALMIDO_SEARCH_OPEN_MAX overrides the 500 (the tests use a small one)
+OSW_OPEN_MAX = env_int("KALMIDO_SEARCH_OPEN_MAX", 500, 1, 100000)
 OSW_OLD_SHORT = 4  # 2.1028.0 (#5783): words shorter than this had only their whole-word hash 'w:' in the old indexes
 # kind -> its source table (the delete trigger) and the old table the move copies (old table, its id column)
 OSW_TABLES = {"doc": "fs_nodes", "file_text": "file_text", "wiki_page": "wiki_pages", "hub_mail": "hub_mails"}
@@ -196,6 +200,12 @@ def osw_term_hits(c, kind, ws, ids, terms, opened, late=None):
                 need.setdefault(i, {})[ti] = vv
         sure |= {i for i, ws_ in late.items() if any(w.startswith(v) for w in ws_ for v in vs)}
         out.append(sure | set(maybe))
+    if len(need) > OSW_OPEN_MAX:  # 2.1343.0 (#6406): a word of 5, 7 or 9+ letters found by its prefix in thousands of objects --
+        keep = sorted(need, reverse=True)[:OSW_OPEN_MAX]  # only the newest are opened and checked, the rest is no hit
+        for i in set(need) - set(keep):
+            for ti in need[i]:
+                out[ti].discard(i)
+        need = {i: need[i] for i in keep}
     if need:
         texts = opened(c, ws, sorted(need))
         for i, per in need.items():

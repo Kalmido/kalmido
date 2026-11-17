@@ -742,6 +742,9 @@ def fd_back(c, r):
     return fid, n
 
 
+FLD_SCAN_MAX = 2000  # 2.1343.0 (#6406): text / link field values a search takes (newest tasks first)
+
+
 def search_field_ids(c, uid, q):
     """Task ids whose text / link / select value matches q (fields of the task's current list, visible lists)."""
     ql = q.casefold()
@@ -751,8 +754,9 @@ def search_field_ids(c, uid, q):
     if any(f["type"] in ("text", "url") for f in fields):
         hits.update(r[0] for r in c.execute(f"""SELECT v.task_id FROM task_field_values v JOIN tasks t ON t.id=v.task_id
                                                JOIN list_fields f ON f.id=v.field_id AND f.list_id=t.list_id
-                                               WHERE f.type IN ('text', 'url') AND f.list_id IN {vis_sql()} AND v.value ILIKE ? ESCAPE '\\'""",
-                                            (uid, uid, f"%{like_escape(q)}%")))
+                                               WHERE f.type IN ('text', 'url') AND f.list_id IN {vis_sql()} AND v.value ILIKE ? ESCAPE '\\'
+                                               ORDER BY v.task_id DESC LIMIT ?""",
+                                            (uid, uid, f"%{like_escape(q)}%", FLD_SCAN_MAX)))  # 2.1343.0 (#6406): at most FLD_SCAN_MAX rows
     sel, multi = {}, {}  # field id -> matching option ids
     for f in fields:
         if f["type"] in ("select", "multiselect"):
