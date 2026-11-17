@@ -181,6 +181,15 @@ rb = rules(A, f"org:{BETA}")
 check("Hook" in rb and "to" not in (rb["Hook"].get("task") or {}) and "webhook" not in rb["Hook"],
       f"import: carol (not ticked) is taken out of the task, the task goes to the author {rb.get('Hook')}")
 check((rb.get("FuerBob", {}).get("task") or {}).get("to") == ids["bob"], f"import: bob (ticked) keeps his task {rb.get('FuerBob')}")
+# 2.1337.0 (#6876): a crafted archive whose flow carries a webhook and its secret: imported sealed (or without them), never
+# the secret in plain -- also with the instance switch org_encrypt off (admin/oi_store.py _rule)
+import oi_flowprobe  # noqa: E402
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": False}).ok, "setup: org_encrypt off")
+for who, org in ((FR, None), (ids["bob"], BETA)):
+    data, out = oi_flowprobe.import_flow(who, org)
+    check(isinstance(data, str) and oi_flowprobe.SECRET not in data and oi_flowprobe.URL not in data,
+          f"import ({'org' if org else 'private'}): the crafted flow's secret never in plain {data!r} {out if data is None else ''}")
+check(A.put(B + "/api/admin/orgcrypt", json={"org_encrypt": True}).ok, "setup: org_encrypt on again")
 
 # ---- 3: undo by a person who may edit the document but not the folder it came from (alice's document of Alpha shared with
 # carol to edit; alice's folder Alt is not open to the members)
