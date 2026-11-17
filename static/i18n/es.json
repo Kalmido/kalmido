@@ -19058,6 +19058,5 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Un archivo por proyecto en un ZIP: CSV de Todoist para importarlo en Todoist, Markdown como listas de control para cualquier app de notas. Solo entran tus propios proyectos: los proyectos compartidos contigo y los bloqueados con contraseña se quedan fuera, una lista en el ZIP los nombra.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "bloqueado con contraseña (cifrado de extremo a extremo): el servidor solo lo guarda cifrado",
   "shared with you: only the projects you own are exported": "compartido contigo: solo se exportan tus propios proyectos",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Proyectos compartidos no incluidos: {0}. En esta exportación solo están tus propios proyectos.",
-  "Links": "Vínculos"
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Proyectos compartidos no incluidos: {0}. En esta exportación solo están tus propios proyectos."
 }
