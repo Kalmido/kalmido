@@ -866,7 +866,15 @@ WKA_NOT_E2E = N_("A linked file in a locked folder (only readable in the browser
 WKA_NOT_SHEET = N_("A table: tables are not part of the knowledge export, the reference stays as text")
 WKA_NOT_ZIPFULL = N_("The ZIP would be too large with it")
 WKA_NOT_REFMAX = N_("More linked files than one export takes ({0}); this one stays out")
-WKA_REF_MAX = max(1, int(os.environ.get("KALMIDO_WIKI_EXPORT_REF_MAX", "2000") or 2000))  # 2.1324.0 (#6589, review F4): distinct file references looked up per export; the rest is named
+def _wka_ref_max():
+    """KALMIDO_WIKI_EXPORT_REF_MAX; a value that is no number falls back to 2000 instead of failing the start (review N1)."""
+    try:
+        return max(1, int(os.environ.get("KALMIDO_WIKI_EXPORT_REF_MAX", "2000") or 2000))
+    except ValueError:
+        return 2000
+
+
+WKA_REF_MAX = _wka_ref_max()  # 2.1324.0 (#6589, review F4): distinct file references looked up per export; the rest is named
 WKA_LOCK_CHUNK = 500  # ids per fsl_map question
 WKA_FS_LINK_RE = re.compile(r"(!?)\[([^\[\]\n]*)\]\(/api/files/nodes/(\d{1,15})/content(?:[?#][^\s()]*)?\)")
 
