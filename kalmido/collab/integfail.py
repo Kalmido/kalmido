@@ -5,9 +5,11 @@ when a channel / webhook turns off, an inbound webhook pauses, or a polled conne
 the content of a list. Agents get nothing (their events are for that)."""
 import json
 
-from ..core.config import PUBLIC_URL
+from ..accounts.bgjobs import BGJ_FNS, bgj_add
+from ..core.config import APP_NAME, PUBLIC_URL
 from ..core.db import iso_ms, now_utc, usettings
 from ..core.i18n import LANGS, N_, tr
+from ..core.mailframe import mail_html
 from ..core.pg import system_ctx
 from ..notify.alerts import _env_int
 from ..notify.push import push_prio
@@ -15,6 +17,18 @@ from .comments import send_pushes
 from .news import notif_ok
 
 INTEG_FAILS = _env_int("KALMIDO_INTEG_FAILS", 5)  # failed polls in a row of a mailbox, a git connection -> told once
+INTEG_BACKOFF_MAX = 6 * 3600  # 2.1333.0 (#6545): the longest wait between two fetches of a mailbox that keeps failing
+
+
+def integ_backoff_s(interval, fails):
+    """2.1333.0 (#6545): seconds until the next fetch of a polled connection (a mailbox) after fails failures in a row: the
+    interval, doubled with every failure (like the calendar subscriptions), at most INTEG_BACKOFF_MAX -- a wrong password
+    was tried every minute."""
+    if not fails:
+        return interval
+    return min(interval * 2 ** min(int(fails), 16), max(interval, INTEG_BACKOFF_MAX))
+
+
 INTEG_TEXT = {
     "channel": N_("Forwarding {0} was switched off after repeated failed sends."),
     "channel_admin": N_("Forwarding {0} was switched off: the person who set it up is no admin of the organisation any more."),
@@ -30,6 +44,8 @@ INTEG_TEXT = {
     "git": N_("Git connection {0} cannot fetch, failing since {1}."),
     "gitowner": N_("Git connection {0} is paused: the person whose access token it uses has no access to the project any more."),  # 2.1306.0 (#6554)
     "gitcap": N_("Git connection {0} reached its daily limit of new issues or comments ({1}); the rest goes out tomorrow."),  # 2.1306.0 (#6554)
+    # 2.1333.0 (#6545): the server refused the login INTEG_FAILS times in a row: the mailbox is not fetched any more
+    "mailbox_auth": N_("Mailbox {0}: fetching stopped, the server refused the sign-in several times in a row (failing since {1}). Save the access data again."),
     "maillost": N_("Mailbox {0}: e-mails could not be taken over ({1}); they are still in the mailbox."),  # 2.1269 (#6386)
     "docflow": N_("Document flow {0} keeps failing on a document, failing since {1}."),  # 2.1265.0 (#6389): a scheduled flow
     "backup": N_("Backup failed: {0}"),
@@ -42,12 +58,15 @@ def integ_org_admins(c, oid):
         return [r[0] for r in c.execute("SELECT user_id FROM org_members WHERE org_id=? AND role='admin'", (oid,)).fetchall()]
 
 
-def integ_tell(c, uids, what, name, detail="", click="", more=(), **data):
+def integ_tell(c, uids, what, name, detail="", click="", more=(), mail=False, **data):
     """What went wrong (a key of INTEG_TEXT) with the thing called name, for each of uids once. click = where to repair it:
     the page after # (a push); data = what the News item needs to open it. name: a text, or f(language) when it needs
     translating. detail: a date, or a text marked with N_; more = further values of the text ({2}, ...; 2.1322.0, #6560).
-    The caller commits; never fails its caller's work."""
-    pushes = []
+    The caller commits; never fails its caller's work.
+    mail (2.1333.0, #6545): an e-mail too (the background mail queue, only with outgoing mail and a proved address), for
+    whoever has the event "integration" on in the News or as a push -- switching the event off stops the mail as well. The
+    caller limits how often (review F1: hub/mailbox.py mailed_at, at most one mail per mailbox in MBX_TELL_AGAIN_S)."""
+    pushes, mails = [], []
     try:
         with c.savepoint(), system_ctx(c):  # the recipients' settings and News, whoever or whatever noticed it
             for uid in dict.fromkeys(x for x in uids if x):
@@ -57,13 +76,38 @@ def integ_tell(c, uids, what, name, detail="", click="", more=(), **data):
                 s = usettings(c, uid)
                 lg = s.get("lang") if s.get("lang") in LANGS else "en"
                 text = tr(INTEG_TEXT[what], name(lg) if callable(name) else name, tr(detail, lg=lg) if detail else "", *more, lg=lg)
-                if notif_ok(c, uid, s, "integration", "news"):
+                news_on, push_on = notif_ok(c, uid, s, "integration", "news"), notif_ok(c, uid, s, "integration", "push")
+                if news_on:
                     c.execute("INSERT INTO notifications(user_id,kind,task_id,list_id,actor_id,comment_id,data,created_at) VALUES(?,?,?,?,?,?,?,?)",
                               (uid, "integfail", None, None, None, None,
                                json.dumps({**data, "what": what, "text": text}, ensure_ascii=False), iso_ms(now_utc())))
-                if notif_ok(c, uid, s, "integration", "push"):
+                if push_on:
                     pushes.append((uid, tr("Integration problem", lg=lg), text, f"{PUBLIC_URL}/#{click or 'settings'}", push_prio(s)))
+                if mail and (news_on or push_on):
+                    # 2.1333.0 (#6545 review F1): only a proved address (users.email_proved, like integrations/mail.py and
+                    # core/access.py): the profile address is free text, so an unproved one would let anyone have the server
+                    # send mails with their own text (the mailbox user name) to a stranger
+                    em = c.execute("SELECT email, email_proved FROM users WHERE id=?", (uid,)).fetchone()
+                    to = (em["email"] or "").strip()
+                    if to and (em["email_proved"] or "") == to.lower():
+                        mails.append((uid, to, lg, text))
     except Exception as e:  # noqa: BLE001
         print("integration notice failed:", what, type(e).__name__, flush=True)
         return
     send_pushes(pushes)
+    for uid, to, lg, text in mails:
+        integ_mail(uid, to, lg, text, click)
+
+
+def integ_mail(uid, to, lg, text, click=""):
+    """2.1333.0 (#6545): one integration notice as an e-mail through the background mail queue (like a failed backup)."""
+    if "mail:security" not in BGJ_FNS:  # registered only with outgoing mail (integrations/mail.py)
+        return
+    try:
+        link = f"{PUBLIC_URL}/#{click or 'settings'}"
+        subject = f"{APP_NAME}: {tr('Integration problem', lg=lg)}"
+        foot = tr("You get this e-mail because Integrations is switched on in Settings > Notifications.", lg=lg)
+        bgj_add("mail:security", to, subject, f"{text}\n\n{link}\n\n-- \n{foot}\n",
+                mail_html(subject, [text], tr("Open settings", lg=lg), link, lang=lg, note=foot), user_id=uid)
+    except Exception as e:  # noqa: BLE001 -- the News item and the push went out; the mail is a second way
+        print("integration mail failed:", type(e).__name__, flush=True)
