@@ -239,14 +239,24 @@ STEP = {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}
 r = requests.post(V + f"/tasks/{TX}/comments", headers=hdr(RC), json={"body": "FOR-CARL"}, timeout=30)
 check(r.status_code == 201, f"(b) carl's request (he writes there) comments {r.status_code} {r.text[:200]}")
 
-# ---- (e) the card of rita's order: carl (writes there) says Yes, the agent runs it with its own token
+# ---- (e) the card of rita's order, run with the agent's own token (the replay of an approved request)
+# 2.1348.0 (#6668): since 2.1284.0 (#6453, review G13) a Yes to a write into a wider circle (project one is read by more
+# people than project two) counts only from a person who reads every place the agent reads: carl (project one only) is
+# refused, bob (both projects) approves and the step runs with the agent's own token.
 m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Comment for Rita?", "step": STEP}}, timeout=30)
 check(m.status_code == 201, f"(e) its own token sends the card (its channel) {m.status_code} {m.text[:200]}")
 MID = m.json().get("id")
 check(Ca.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json={"choice_ids": ["yes"]}).ok, "(e) carl says Yes")
 r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
+check(r.status_code == 409 and err(r).get("code") == "approval_invalid" and err(r).get("reason") == "approver_rights",
+      f"(e) carl's Yes runs nothing in the wider circle (#6453: he does not read project two) {r.status_code} {r.text[:300]}")
+m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, json={"approval": {"title": "Comment for Rita?", "step": STEP}}, timeout=30)
+check(m.status_code == 201, f"(e) a card to bob {m.status_code} {m.text[:200]}")
+MID = m.json().get("id")
+check(Bo.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json={"choice_ids": ["yes"]}).ok, "(e) bob (reads both projects) says Yes")
+r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
 check(r.status_code == 201 and dbx("SELECT COUNT(*) FROM obj_comments WHERE kind='task' AND ref_id=? AND body='FOR-RITA'", (TX,)) == [(1,)],
-      f"(e) the approved step runs with the agent's own token (the replay) {r.status_code} {r.text[:200]}")
+      f"(e) the approved step runs with the agent's own token (the replay) {r.status_code} {r.text[:300]}")
 
 # ---- (i) review F3: the step of a card with the own token always checks the person who said Yes (no control level chosen)
 # Without the fix a Yes of a reader ran with the agent's whole reach (a card's step is always a change: approval.step).
