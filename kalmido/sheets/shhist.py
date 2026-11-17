@@ -134,6 +134,7 @@ def shh_meta_note(c, sid, col, old, new, uid):
 def shh_core_entries(c, sheet, uid, limit):
     """2.571.0 (#4766): the entries of obj_history of table sheet in the form of shh_entries (what = title | tab | list)."""
     from .core import sh_list_title
+    from ..core.writes import obj_hist_name  # 2.1325.0 (#6502): a change in a support session is marked
     rows = c.execute("SELECT * FROM obj_history WHERE kind=? AND ref_id=? ORDER BY id DESC LIMIT ?", (SHH_KIND, sheet["id"], int(limit))).fetchall()
     names = user_names(c, {r["user_id"] for r in rows if r["user_id"]})
 
@@ -146,7 +147,7 @@ def shh_core_entries(c, sheet, uid, limit):
         before, after = json.loads(r["vals_before"] or "{}"), json.loads(r["vals_after"] or "{}")
         for col in [k for k in SHH_CORE if k in before or k in after]:
             out.append({"id": f"h{r['id']}:{col}", "at": r["updated_at"], "user_id": r["user_id"],
-                        "user_name": names.get(r["user_id"], "") or tr("Unknown"), "agent": bool(r["agent"]), "cell_id": None,
+                        "user_name": obj_hist_name(r, names) or tr("Unknown"), "agent": bool(r["agent"]), "cell_id": None,
                         "row_id": None, "col_id": None, "addr": None, "what": SHH_CORE[col], "col_title": tr(SHH_META[SHH_CORE[col]]),
                         "old": txt(col, before.get(col)), "new": txt(col, after.get(col))})
     return out

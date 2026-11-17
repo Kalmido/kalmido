@@ -68,7 +68,7 @@ from ..collab.replies import with_replies  # 2.369.5 (#2517): pulled up from fun
 from ..personal.timetrack import n43_admin_lists  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import instance_mode, visible_people  # 2.369.5 (#2517): pulled up from functions
 from ..lists.formula import fx_fill  # 2.369.5 (#2517): pulled up from functions
-from .runfor import run_gate  # 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
+from .runfor import req_main_gate, run_gate  # 2.1325.0 (#6668): req_main_gate; 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
 SRV_TOKEN_NAME = "Server agent run"  # 2.557.0 (#4670): = agents/srvagent_run.py SRV_TOKEN_NAME (no import: api below agents)
 
 
@@ -232,6 +232,10 @@ def api_authenticate():
         return v1_err(403, tr("This token lacks the permission “{0}”", tr(SCOPE_LABELS.get(need, need))), required_scope=need)
     if is_agent(u) and "asked_by" in row.keys() and row["asked_by"] is not None:
         closed = run_gate(c, row, u)
+        if closed is not None:
+            return closed
+    if is_agent(u) and not srv_inproc:  # 2.1325.0 (#6668): a team agent that works per request: its own token is its channel
+        closed = req_main_gate(c, row, u)
         if closed is not None:
             return closed
     limited = hit_limit(f"api:{row['id']}", API_RATE)
@@ -683,8 +687,12 @@ def token_update(tid):
 @app.delete("/api/me/tokens/<int:tid>")
 def token_delete(tid):
     c = db()
-    if not c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=?", (tid, me())).rowcount:
+    r = c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=? RETURNING name", (tid, me())).fetchone()
+    if not r:
         raise Denied(404)
+    if (g.user["kind"] or "user") == "agent" and str(r["name"] or "") != "Agent request":  # = agents/reqtoken.py REQ_TOKEN_NAME
+        # 2.1325.0 (#6668, review F2): an agent revoking its own token -- its request tokens go too (as agents/reqtoken.py req_drop)
+        c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=?", (me(), "Agent request"))
     c.commit()
     return jsonify(ok=True)
 

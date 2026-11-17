@@ -18,6 +18,7 @@ from ..core.pg import system_ctx
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, now_utc, parse_iso
 from ..core.access import Denied
+from ..agents.reqtoken import REQ_TOKEN_NAME, req_drop  # 2.1325.0 (#6668); req_drop: review F2
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip, rate_ip
 from ..api.v1 import API_ON, need_api
 from ..agents.core import AGENT_OFFLINE_S, agent_row, agent_shares
@@ -68,7 +69,7 @@ def ains_text(v, n, what):
 def ains_machines(c, aid):
     """The computers of agent aid = its tokens (one per setup; a token made by hand counts as one too)."""
     out = []
-    for r in c.execute("SELECT * FROM api_tokens WHERE user_id=? ORDER BY id DESC", (aid,)).fetchall():
+    for r in c.execute("SELECT * FROM api_tokens WHERE user_id=? AND name<>? ORDER BY id DESC", (aid, REQ_TOKEN_NAME)).fetchall():  # 2.1325.0 (#6668): no request tokens
         k = r.keys()
         seen = r["last_used_at"]
         age = round((now_utc() - parse_iso(seen)).total_seconds()) if seen else None
@@ -127,9 +128,10 @@ def ains_code_new(c, aid):
 
 
 def ains_machine_del(c, aid, tid):
-    n = c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=?", (tid, aid)).rowcount
+    n = c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=? AND name<>?", (tid, aid, REQ_TOKEN_NAME)).rowcount
     if not n:
         raise Denied(404)
+    req_drop(c, aid)  # 2.1325.0 (#6668, review F2): the request tokens fetched from that computer go with it
     bump(c)
     c.commit()
     return jsonify(ok=True, machines=ains_machines(c, aid))
@@ -247,6 +249,7 @@ def ains_remove():
             _rate_fail(keys)
             return err(tr("Missing or invalid API token"), 401)
         c.execute("DELETE FROM api_tokens WHERE id=?", (r["id"],))
+        req_drop(c, r["user_id"])  # 2.1325.0 (#6668, review F2): its request tokens go too
         bump(c)
         c.commit()
         print("agent setup: computer removed for agent", r["user_id"], "token", r["id"], flush=True)
