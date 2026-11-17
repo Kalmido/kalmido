@@ -204,6 +204,7 @@ ORDER = (
     "integrations.webhooks",
     "integrations.hookin",  # 2.115.0 A (#2061)
     "agents.core",
+    "agents.reqtoken",  # 2.1325.0 (#6668): a team agent with its own token works per request (before agents.control / admin)
     "collab.reactions",
     "agents.chat",
     "agents.jobchat",  # 2.56.0 A (#1791 / #1793)

@@ -1197,6 +1197,21 @@ def agent_spec(paths, schemas, op, ok, errs, ref, q, pid, nul, page):
                    "Created", "201") | errs("400", "403", "429"), scope=W,
             body={"type": "object", "required": ["title"], "additionalProperties": False, "properties": {
                 "title": {"type": "string", "maxLength": 4000}, "ref": {"type": "string", "maxLength": 4000}}})},
+        # 2.1325.0 (#6668): a team agent with its own token works per request for one person (agents/reqtoken.py)
+        "/agent/request-token": {"post": op(
+            "A short-lived token of a team agent for one request", AG, desc=
+            "2.1325.0 (#6668): a short-lived token of a TEAM agent for ONE request (8 h). seqs: the event numbers of the request "
+            "(all from the same person, else 400 several_people); the token reaches only what that person reaches themselves, "
+            "writes capped to their role (a reader's order: an approval card). Events without a person: only their projects, "
+            "every change a card. operator: true = the person chosen in your settings (perm_user_id), for your own list work. "
+            "Only with your own long-lived token (403 request_token_main); a personal agent gets token null (use your own). From "
+            "the first request token on, your own token reaches only your channel (403 request_token_needed elsewhere).",
+            responses=ok({"type": "object", "properties": {"token": {"type": ["string", "null"]}, "expires_at": {"type": ["string", "null"]},
+                                                     "asked_by": {"type": ["integer", "null"]},
+                                                     "list_ids": {"type": ["array", "null"], "items": {"type": "integer"}}}})
+            | errs("400", "403", "404", "409"), scope=W,
+            body={"type": "object", "additionalProperties": False, "properties": {
+                "seqs": {"type": "array", "items": {"type": "integer"}, "maxItems": 100}, "operator": {"type": "boolean"}}})},
         "/agent/events": {"get": op("Events for the agent after a cursor; long-polling with wait", AG, ok(ref("EventPage")) | errs("400", "403"),
                                     [q("since", "seq of the last event you processed (0 = from the start)", {"type": "integer"}),
                                      q("limit", "At most 500", {"type": "integer"}),

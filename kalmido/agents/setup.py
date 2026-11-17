@@ -18,6 +18,7 @@ from ..core.pg import system_ctx
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, now_utc, parse_iso
 from ..core.access import Denied
+from ..agents.reqtoken import REQ_TOKEN_NAME  # 2.1325.0 (#6668)
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip, rate_ip
 from ..api.v1 import API_ON, need_api
 from ..agents.core import AGENT_OFFLINE_S, agent_row, agent_shares
@@ -68,7 +69,7 @@ def ains_text(v, n, what):
 def ains_machines(c, aid):
     """The computers of agent aid = its tokens (one per setup; a token made by hand counts as one too)."""
     out = []
-    for r in c.execute("SELECT * FROM api_tokens WHERE user_id=? ORDER BY id DESC", (aid,)).fetchall():
+    for r in c.execute("SELECT * FROM api_tokens WHERE user_id=? AND name<>? ORDER BY id DESC", (aid, REQ_TOKEN_NAME)).fetchall():  # 2.1325.0 (#6668): no request tokens
         k = r.keys()
         seen = r["last_used_at"]
         age = round((now_utc() - parse_iso(seen)).total_seconds()) if seen else None

@@ -151,6 +151,7 @@ Connected agents: the agent API, proposals, quotas, locks, schedules, chat and t
 - `kalmido/agents/proposals.py` (`prop`) - Agent proposals, validation helpers, requests from people to agents
 - `kalmido/agents/quota.py` (`quota`) - The usage ring -- how much of its plan
 - `kalmido/agents/rcread.py` (`rcr`) - A connected agent reads a receipt (kind receipt_read, a request of agents/asstprop.py)
+- `kalmido/agents/reqtoken.py` - a team agent with its own token (an own starter, an own program) works per request for ONE person
 - `kalmido/agents/safety.py` (`agent`) - The server keeps an agent inside one circle of people
 - `kalmido/agents/schedules.py` (`sched`) - Planned agent jobs -- "every Monday at 9
 - `kalmido/agents/setup.py` (`ains`) - Set up an agent on a computer with one command
