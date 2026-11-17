@@ -125,11 +125,12 @@ function qd_node(/** @type {string} */ cls, d = new Date()) {
   const q = qd_pick(d), ui = typeof I18N !== 'undefined' ? I18N.code : 'en', [tx, tl] = qd_text(q, ui);
   const fig = document.createElement('figure'), bq = document.createElement('blockquote'), cap = document.createElement('figcaption'), au = document.createElement('span');
   fig.className = 'qd' + (cls ? ' ' + cls : ''); fig.dataset.qdn = String(q[0]);
-  bq.className = 'qdo'; bq.lang = tl; bq.textContent = tx;
+  bq.className = 'qdo'; bq.lang = tl;
+  // 2.1353.0 (#6979): the ' / ' between two verse lines is a real line break (text nodes and <br>, no markup from the data)
+  tx.split(' / ').forEach((x, i) => { if (i) bq.append(document.createElement('br')); bq.append(x); });
   au.className = 'qda'; au.textContent = '— ' + q[5];
   if (q[6]) au.title = q[6];
   cap.append(au); fig.append(bq, cap);
-  if (cls === 'dashq') { fig.tabIndex = 0; fig.setAttribute('role', 'button'); fig.setAttribute('aria-expanded', 'false'); }  // 2.1111.0 (#5963): one line on the start page, a tap opens it
   return fig;
 }
 const qd_html = (/** @type {string} */ cls) => qd_node(cls).outerHTML;
@@ -137,10 +138,3 @@ const qd_html = (/** @type {string} */ cls) => qd_node(cls).outerHTML;
 function qd_fill() {
   for (const el of document.querySelectorAll('[data-qd]')) if (el instanceof HTMLElement) el.replaceWith(qd_node(el.dataset.qd || ''));
 }
-// 2.1111.0 (#5963): the start page's quote is one line; a tap (or Enter / Space) opens the full text and the author, a second one closes it
-function qd_toggle(/** @type {Event} */ e) {
-  const f = e.target instanceof Element ? e.target.closest('.qd.dashq') : null; if (!f) return;
-  if (e.type === 'keydown') { const k = /** @type {KeyboardEvent} */ (e).key; if (k !== 'Enter' && k !== ' ') return; e.preventDefault(); }  // no KeyboardEvent global (ESLint, the quotes suite's VM)
-  f.setAttribute('aria-expanded', String(f.classList.toggle('open')));
-}
-if (typeof document !== 'undefined') { document.addEventListener('click', qd_toggle); document.addEventListener('keydown', qd_toggle); }

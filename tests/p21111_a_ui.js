@@ -1,6 +1,6 @@
 // 2.1111.0 Part A (#5963): the start page without clutter, own container (start.sh).
 // kalmido-suite: fresh
-// jsdom: the sentence under the greeting names only today ("overdue" stands once, in the box "Waiting for you"); the integration failure in the news says how to fix it; the quote is one line
+// jsdom: the sentence under the greeting names only today ("overdue" stands once, in the box "Waiting for you"); the integration failure in the news says how to fix it; 2.1353.0 (#6979): Today shows no quote of the day (was: the quote is one line, #5963)
 // that a tap opens. Firefox 412x900 (phone, touch): the first task of the card Today is in the first screen without scrolling,
 // the active tab and the page title have one name, nothing moves while it loads. Screenshots into $P21111A_SHOTS.
 const {execFileSync} = require('child_process');
@@ -37,9 +37,8 @@ const txt = (d, s) => (d.querySelector(s)?.textContent || '').replace(/\s+/g, ' 
   const dash = txt(d, '.dash');
   const mm = dash.match(/.{0,25}(\d+ tasks? overdue|\d+ overdue).{0,10}/gi) || [], n = mm.length;
   check(n === 1 && /5 tasks overdue/.test(txt(d, '.dtome')), '#5963: "overdue" stands once, in the box Waiting for you (' + n + ') ' + mm.join(' ~ '));
-  const fig = d.querySelector('figure.qd.dashq');
-  check(!fig || (fig.getAttribute('aria-expanded') === 'false' && !fig.classList.contains('open')), '#5963: the quote starts closed');
-  if (fig) { fig.click(); check(fig.classList.contains('open') && fig.getAttribute('aria-expanded') === 'true', '#5963: a tap opens the quote'); fig.click(); check(!fig.classList.contains('open'), '#5963: a second tap closes it'); }
+  // 2.1353.0 (#6979): the quote of the day is on the sign-in page only: Today shows none (was: one line, a tap opens it, #5963)
+  check(!d.querySelector('#view figure.qd, #view .qdslot'), '#6979: Today shows no quote of the day');
   // the Today tab is on, the title says the same
   const on = txt(d, '#tabs button.on'), title = txt(d, '#top h1 .ht');
   // 2.1213.0 (#6126): a computer (no tab bar, the sidebar marks "Start"): the page is "Start"; tab = title only with the tab bar (phone)
@@ -64,7 +63,7 @@ const txt = (d, s) => (d.querySelector(s)?.textContent || '').replace(/\s+/g, ' 
     for (let i = 0; i < 30 && !(await ev(`!!document.querySelector('.dc-today .dtl li')`).catch(() => false)); i++) await sleep(300);
     await sleep(900);
     const M = `(() => { const q = s => document.querySelector(s), top = e => e ? Math.round(e.getBoundingClientRect().top) : null;
-      const li = q('.dc-today .dtl li'), qd = q('figure.qd.dashq .qdo');
+      const li = q('.dc-today .dtl li'), qd = q('#view figure.qd .qdo');
       return {gap: (() => { const h = q('.dtome h3 > span:not(.spacer)'), f = q('.dtome .dwl li'); return h && f ? Math.round(f.getBoundingClientRect().top - h.getBoundingClientRect().bottom) : null; })(),
         waits: [...document.querySelectorAll('#view *')].filter(e => !e.children.length && /^(Waiting for you|Nothing else waits for you)/.test(e.textContent.trim())).length,
         bottom: li ? Math.round(li.getBoundingClientRect().bottom) : null, vh: window.innerHeight, sw: document.documentElement.scrollWidth,
@@ -73,7 +72,7 @@ const txt = (d, s) => (d.querySelector(s)?.textContent || '').replace(/\s+/g, ' 
         mono: li ? getComputedStyle(q('.dc-today .dt') || li).fontFamily : ''}; })()`;
     const m = await ev(M);
     check(m.bottom !== null && m.bottom <= m.vh, '#5963: the first task of Today is in the first screen without scrolling ' + JSON.stringify(m));
-    check(m.qh === null || m.qh <= m.lh * 1.5, '#5963: the quote is one line ' + m.qh + ' / ' + m.lh);
+    check(m.qh == null, '#6979: Today shows no quote of the day (2.1353.0; was: the quote is one line, #5963) ' + m.qh);
     // 2.1111.0 A2 (#5963): "Waiting for you" stands once (no empty slim cards below the box); the first line right under the heading
     check(m.waits === 1, '#5963: exactly one element "Waiting for you" / "Nothing else waits": ' + m.waits);
     check(m.gap !== null && m.gap < 16, '#5963: heading to first line under 16 px: ' + m.gap);
