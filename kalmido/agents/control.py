@@ -48,7 +48,7 @@ from ..notify.push import notify, push_prio, WD_TICKS
 from ..agents.core import agent_emit, agent_row, agent_shares, is_agent, need_agent
 from ..agents.chat import _jload, chat_choices_withdraw, choice_state
 from ..agents.workstyle import ws_need_editor
-from ..agents.reqtoken import req_unasked  # 2.1325.0 (#6668)
+from ..agents.reqtoken import req_main_token, req_unasked  # 2.1325.0 (#6668)
 from ..agents.steps import redact  # 2.653.0 (#5079): a decision line masks secrets like a step
 from ..agents.circle import circle_of, circle_person, circle_reader  # 2.1284.0 (#6453): writing only towards the same or a smaller circle
 from ..core.objcomments import ocm_trash  # 2.530.0 A (#4315, B11): text and files into the trash like comment_delete; 2.972.0 (#5272): the core's
@@ -464,6 +464,10 @@ def ctl_gate():
         web = srvweb_state(c, a["user_id"])
     if a is not None and not a["owner_id"] and req_unasked():  # 2.1325.0 (#6668): a request of a team agent without a person:
         d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # it reads, every change is a card
+    if (a is not None and not a["owner_id"] and a["per_request"] and request.environ.get(CTL_RUN_ENV)
+            and req_main_token()):  # 2.1325.0 (#6668, review F3): the step of an answered card with the long-lived token of a
+        d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # team agent per request: always the card's check
+        g.ctl_force_for = True  # (ctl_claim) and the rights of the person who said Yes -- also with no control level chosen
     if d is None and web is None:
         if a is None or a["owner_id"] or not act_for(a["user_id"]):
             return None  # no level chosen: works as before
@@ -698,8 +702,9 @@ def ctl_claim(c, a, hdr, step, lids, circle=None):
         if not ctl_obj_write(c, who):
             return None, {"reason": "approver_rights"}
         g.ctl_for = who  # every role function of this request answers at most this person's role (core/access.py act_for)
-    elif lids and not a["owner_id"] and run_person() is not None:
+    elif lids and not a["owner_id"] and (run_person() is not None or g.get("ctl_force_for")):
         g.ctl_for = who  # review (F6): a run's card in a project: the person who said Yes counts, not the reader who asked
+        # 2.1325.0 (#6668, review F3): also the card step of a team agent per request (ctl_gate ctl_force_for)
     n = c.execute("""UPDATE agent_chat SET choices=jsonb_set(choices, '{approval,used_at}', to_jsonb(CAST(? AS TEXT)))
                      WHERE id=? AND agent_id=? AND choices->'approval'->>'used_at' IS NULL""",
                   (iso_ms(now_utc()), int(hdr), aid)).rowcount
