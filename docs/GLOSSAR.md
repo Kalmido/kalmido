@@ -58,6 +58,7 @@ People and organisations: sign-in, sessions, workspaces, roles, invitations, per
 - `kalmido/accounts/orginvite.py` (`ojn`) - An organisation's admins invite people by e-mail
 - `kalmido/accounts/orgleave.py` (`olv`) - What leaving or deleting an organisation means for its members
 - `kalmido/accounts/orglists.py` (`ole`) - Organisation admins manage the lists of their organisation (in the workspace settings)
+- `kalmido/accounts/orgmove.py` - the move of an organisation ("Umzug")
 - `kalmido/accounts/orgout.py` (`oo`) - Data of an organisation leaves it (into the private space or another organisation)
 - `kalmido/accounts/orgoutreq.py` (`oor`) - The way back out of an organisation for a member (decided the member asks, an admin releases it with one click; nothing goes back silently)
 - `kalmido/accounts/orgretain.py` (`odl`) - What an organisation (or a person's personal office)
@@ -288,6 +289,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/mailguard.py` - the one way a foreign mail (bytes) becomes an email.message object
 - `kalmido/core/merges.py` (`mg`) - Merging duplicate records by hand (contacts: contacts/merge.py, clients: team/clientmerge.py)
 - `kalmido/core/moneycol.py` - Moves the plain office money columns from TEXT to NUMERIC(14,2) at start when every value fits, and reads them back as two-place text
+- `kalmido/core/movelock.py` - an organisation that is moving ("Umzug") is read only - ONE lock in the write path, in the database
 - `kalmido/core/mt940.py` - SWIFT MT940 / MT942 statements (the German bank dialects: Sparkasse, Volksbank, Deutsche Bank, Commerzbank ...)
 - `kalmido/core/numtext.py` - ONE reader for numbers typed by people - the same rules as parseNum in static/js/core.js
 - `kalmido/core/objects.py` (`obj`) - The shared core, stage 1 -- ONE register of object kinds and ONE role function for every new area (docs/dev/kern.md "So baut man einen neuen Bereich")
