@@ -18993,6 +18993,8 @@
   "The number {0} is used again meanwhile: the old document cannot come back": "Die Nummer {0} ist inzwischen wieder vergeben: Das alte Dokument kann nicht zurück",
   "This PDF is in the archive again meanwhile": "Dieses PDF liegt inzwischen wieder im Archiv",
   "An old invoice is kept by law until {0}": "Eine alte Rechnung wird gesetzlich bis {0} aufbewahrt",
+  "{0} lines are in the archive already (overlapping batch) and are left out": "{0} Zeilen sind schon im Archiv (überlappender Stapel) und werden ausgelassen",
+  "Reasons of the further rows ({0})": "Gründe der weiteren Zeilen ({0})",
   "Missing numbers: {0}": "Fehlende Nummern: {0}",
   "{0} without a reason": "{0} ohne Grund",
   "a draft carries the number": "ein Entwurf trägt die Nummer",

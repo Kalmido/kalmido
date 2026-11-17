@@ -18993,6 +18993,8 @@
   "The number {0} is used again meanwhile: the old document cannot come back": "Het nummer {0} is intussen weer in gebruik: het oude document kan niet terug",
   "This PDF is in the archive again meanwhile": "Deze pdf staat intussen weer in het archief",
   "An old invoice is kept by law until {0}": "Een oude factuur wordt wettelijk bewaard tot {0}",
+  "{0} lines are in the archive already (overlapping batch) and are left out": "{0} regels staan al in het archief (overlappende batch) en worden overgeslagen",
+  "Reasons of the further rows ({0})": "Redenen van de overige regels ({0})",
   "Missing numbers: {0}": "Ontbrekende nummers: {0}",
   "{0} without a reason": "{0} zonder reden",
   "a draft carries the number": "een concept draagt het nummer",

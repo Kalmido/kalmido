@@ -14,7 +14,12 @@ tenant-matrix: office  freelancer-matrix: office
    is free (a corrected PDF takes it); the restore refuses while the number is used again (409) and brings the number back
    once it is free; a document of a locked month stays (409); an old invoice in the trash is kept by law (delete for good
    409), a quotation goes; another office / the other person: 404 and nothing changes
- - the person without an organisation (tests/freelancer_fixture.py) in the personal office: the same for (a) and (b)
+ - (d) a bank CSV in another currency (a currency column or "12,50 USD" in the amount cell) is refused per row, never booked
+   as the office's currency; a CAMT batch booking gives every position with its own amount, counterpart and purpose (was the
+   first only) and the same file again finds them all; positions that do not add up stay one row with every text; the DATEV
+   check names the reason of every row (also beyond the 20 shown); the fixed-cost import starts in the current year (was
+   2026); an overlapping booking batch of the archive (later the whole year after a half year) leaves out the lines there
+ - the person without an organisation (tests/freelancer_fixture.py) in the personal office: the same for (a) to (d)
 usage: p21315_b_importe_test.py <datadir>"""
 import base64
 import io
@@ -237,5 +242,112 @@ for who, s, other in (("org", A, Fr), ("freelancer", Fr, A)):
     check(r.ok, p + f"March 2025 locked {r.status_code} {r.text[:200]}")
     r = s.delete(B + ARCH + f"/{a5}")
     check(r.status_code == 409 and a5 in arch_ids(s), p + f"a document of a locked month stays {r.status_code} {r.text[:200]}")
+
+# ======================================================================== (d) the smaller points
+def camt_batch(day, total, positions, ref):
+    """One CAMT entry of total (signed) with positions [(signed amount or None, name, purpose)] and the bank's reference."""
+    side = "Dbtr" if total > 0 else "Cdtr"
+    txs = []
+    for a, n, pu in positions:
+        amt = "" if a is None else f'<Amt Ccy="EUR">{abs(a):.2f}</Amt><CdtDbtInd>{"CRDT" if a > 0 else "DBIT"}</CdtDbtInd>'
+        txs.append(f"<TxDtls>{amt}<RltdPties><{side}><Pty><Nm>{n}</Nm></Pty></{side}></RltdPties><RmtInf><Ustrd>{pu}</Ustrd></RmtInf></TxDtls>")
+    REF[0] += 1
+    return ('<?xml version="1.0" encoding="UTF-8"?><Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08"><BkToCstmrStmt><Stmt>'
+            f'<Id>S{REF[0]}</Id><Ntry><Amt Ccy="EUR">{abs(total):.2f}</Amt><CdtDbtInd>{"CRDT" if total > 0 else "DBIT"}</CdtDbtInd>'
+            f"<Sts><Cd>BOOK</Cd></Sts><BookgDt><Dt>{day}</Dt></BookgDt><AcctSvcrRef>{ref}</AcctSvcrRef>"
+            f"<NtryDtls>{''.join(txs)}</NtryDtls></Ntry></Stmt></BkToCstmrStmt></Document>")
+
+
+def q(v):
+    return '"' + str(v).replace('"', '""') + '"' if v != "" else ""
+
+
+def head(cat, name, ver, fy, frm="", to=""):
+    f = ['"EXTF"', "700", str(cat), f'"{name}"', str(ver), "20260101120000000", "", '"RE"', '""', '""', "1234567", "12345", fy, "4", frm, to]
+    return ";".join(f + [""] * (31 - len(f)))
+
+
+COLS16 = ("Konto", "Name (Adressatentyp Unternehmen)", "Ort")
+COLS21 = ("Umsatz (ohne Soll/Haben-Kz)", "Soll/Haben-Kennzeichen", "WKZ Umsatz", "Kurs", "Konto", "Gegenkonto (ohne BU-Schlüssel)",
+          "BU-Schlüssel", "Belegdatum", "Belegfeld 1", "Belegfeld 2", "Buchungstext")
+
+
+def extf16(rows):
+    lines = [head(16, "Debitoren/Kreditoren", 5, "20260101"), ";".join(q(c) for c in COLS16)]
+    lines += [";".join(q(x) for x in r) for r in rows]
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
+def extf21(year, rows):
+    lines = [head(21, "Buchungsstapel", 13, f"{year}0101", f"{year}0101", f"{year}1231"), ";".join(q(c) for c in COLS21)]
+    for a, sh, k, g, d, b1, t in rows:
+        lines.append(";".join([a, q(sh), q("EUR"), "", k, g, "", d, q(b1), "", q(t)]))
+    return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+
+
+ARCH_YEAR = TODAY.year - 3
+HALF = [("100,00", "S", "1200", "8400", f"{m:02d}01", f"RE-{m}", f"Honorar {m}") for m in range(1, 7)]
+FULL = HALF + [("100,00", "S", "1200", "8400", f"{m:02d}01", f"RE-{m}", f"Honorar {m}") for m in range(7, 13)]
+
+for who, s in WHO:
+    p = f"(d) {who}: "
+    check(s.put(B + O + "/settings", json={"datev_extf": {"advisor_no": "1234567", "client_no": "12345", "fy_start": 1, "acct_len": 4,
+                                                        "chart": "SKR03"}}).ok, p + "DATEV settings")
+    # -- a bank CSV in another currency
+    d1 = DAY[20]
+    text = ("Datum;Betrag;Währung;Name;Verwendungszweck\n"
+            f"{de(d1)};-10,00;EUR;Laden Eins;Einkauf Euro\n"
+            f"{de(d1)};-20,00;USD;Shop Two;Purchase Dollar\n")
+    m = {"date": 0, "amount": 1, "counterpart": 3, "title": 4, "decimal": ",", "date_format": "DD.MM.YYYY"}
+    r = s.post(B + K + "/import/preview", json={"text": text, "filename": "fx.csv", "mapping": m})
+    rows = {x["purpose"]: x for x in (r.json().get("rows") or [])} if r.ok else {}
+    check(r.ok and rows.get("Purchase Dollar", {}).get("error") and rows.get("Purchase Dollar", {}).get("currency") == "USD"
+          and not rows.get("Einkauf Euro", {}).get("error"), p + f"a USD row of a currency column is refused (was booked as EUR) {rows}")
+    text = "Datum;Betrag;Name;Verwendungszweck\n" + f"{de(d1)};-30,00 USD;Shop Three;Purchase in the cell\n{de(d1)};-5,00 EUR;Laden Zwei;Euro in der Zelle\n"
+    r = s.post(B + K + "/import", json={"text": text, "filename": "fx2.csv", "mapping": CSV_MAP})
+    j = r.json() if r.status_code == 201 else {}
+    check(r.status_code == 201 and j.get("count") == 1 and j.get("skipped") == 1, p + f"'30,00 USD' in the amount cell is refused, the EUR row booked {r.text[:300]}")
+    # -- a CAMT batch booking
+    d2 = DAY[21]
+    st = camt_batch(d2, -150.00, [(-50.00, "Lieferant Eins", "RG 1"), (-60.00, "Lieferant Zwei", "RG 2"), (-40.00, "Lieferant Drei", "RG 3")], f"SAMMEL-{who}")
+    r = s.post(B + K + "/import/preview", json={"text": st, "filename": "sammel.xml"})
+    rows = sorted(((x["counterpart"], x["amount"], x["purpose"]) for x in (r.json().get("rows") or [])), key=str) if r.ok else []
+    check(rows == [("Lieferant Drei", "-40.00", "RG 3"), ("Lieferant Eins", "-50.00", "RG 1"), ("Lieferant Zwei", "-60.00", "RG 2")],
+          p + f"every position of the batch booking with its amount (was the first only, with the total) {rows} {r.text[:200]}")
+    r = s.post(B + K + "/import", json={"text": st, "filename": "sammel.xml"})
+    check(r.status_code == 201 and r.json().get("count") == 3, p + f"three bookings {r.text[:200]}")
+    r = s.post(B + K + "/import/preview", json={"text": st, "filename": "sammel.xml"})
+    check(r.ok and r.json().get("count") == 0 and r.json().get("dup_count") == 3, p + f"the same file again: all three there {r.text[:300]}")
+    st2 = camt_batch(DAY[22], -99.00, [(None, "Firma A", "Teil A"), (None, "Firma B", "Teil B")], f"SAMMEL2-{who}")
+    r = s.post(B + K + "/import/preview", json={"text": st2, "filename": "sammel2.xml"})
+    rows = r.json().get("rows") or [] if r.ok else []
+    check(len(rows) == 1 and rows[0]["amount"] == "-99.00" and "Teil A" in rows[0]["purpose"] and "Teil B" in rows[0]["purpose"],
+          p + f"positions without amounts stay one row with every text {rows}")
+    # -- the DATEV check names every row's reason
+    rws = [(f"{70100 + i}", f"Lieferant {i}", "Halle") for i in range(22)] + [(f"{70200 + i}", "", "Jena") for i in range(3)]
+    r = s.post(B + O + "/datev/import/check", files={"file": ("extf.csv", extf16(rws), "text/csv")})
+    j = r.json() if r.ok else {}
+    late = [x for x in j.get("reasons") or [] if x["row"] > 22]
+    check(r.ok and len(j.get("rows") or []) == 20 and len(late) == 3 and all(x["reason"] for x in late),
+          p + f"the reasons of rows 25 to 27 are named (only 20 rows shown) {r.status_code} {j.get('reasons')} {r.text[:200]}")
+    # -- the fixed-cost import starts in the current year
+    r = s.post(B + O + "/fixed-costs/import/preview", files={"file": ("k.xlsx", xlsx([["Name", "Amount (net)", "Due month"], ["Hosting", 12, 0], ["Insurance", 240, 3]]), "application/octet-stream")})
+    st_ = {x["label"]: x["start"] for x in (r.json().get("rows") or [])} if r.ok else {}
+    check(st_.get("Hosting") == f"{TODAY.year}-01-01" and st_.get("Insurance") == f"{TODAY.year}-03-01",
+          p + f"the costs start in {TODAY.year} (was fixed 2026) {st_}")
+    # -- overlapping batches of the booking archive
+    r = s.post(B + O + "/books/archive/import", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}_H1.csv", extf21(ARCH_YEAR, HALF), "application/octet-stream"))])
+    check(r.status_code == 201, p + f"archive: the half year {r.status_code} {r.text[:200]}")
+    r = s.post(B + O + "/books/archive/check", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}.csv", extf21(ARCH_YEAR, FULL), "application/octet-stream"))])
+    j = r.json() if r.ok else {}
+    ys = {y["year"]: y for y in j.get("years") or []}
+    check(r.ok and ys.get(ARCH_YEAR, {}).get("bookings") == 6 and any("6" in (f.get("reason") or "") for f in j.get("files") or []),
+          p + f"archive: the whole year after the half year adds only the 6 new lines and says why {ys} {j.get('files')}")
+    r = s.post(B + O + "/books/archive/import", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}.csv", extf21(ARCH_YEAR, FULL), "application/octet-stream"))])
+    check(r.status_code == 201, p + f"archive: the whole year {r.status_code} {r.text[:200]}")
+    r = s.post(B + O + "/books/archive/check", files=[("file", (f"EXTF_Buchungsstapel_{ARCH_YEAR}_H1.csv", extf21(ARCH_YEAR, HALF[:3]), "application/octet-stream"))])
+    j = r.json() if r.ok else {}
+    check(r.ok and not j.get("years") and any(f.get("kind") == "duplicate" for f in j.get("files") or []),
+          p + f"archive: a batch whose every line is there already is a duplicate {j.get('files')} {j.get('years')}")
 
 raise SystemExit(kt.done("p21315_b_importe"))

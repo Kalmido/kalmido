@@ -42,7 +42,10 @@ from ..tasks.validation import log_act  # 2.369.5 (#2517): pulled up from functi
 FCI_FILE_MAX = 2 * 1024 * 1024
 FCI_ROWS_MAX = 500
 FCI_UNDO_HOURS = 24  # 2.370.4 (#3089 N15): the undo window of an import (as integrations.importers.IMPORT_UNDO_HOURS)
-FCI_YEAR = 2026  # every imported cost starts in January 2026 (decided 2026-10-16)
+def fci_year():
+    """The year every imported cost starts in (January, or its due month): the current year. 2.1315.0 (#6590 d): was fixed
+    2026 (decided 2026-10-16 for the first imports), wrong from 01.01.2027 on."""
+    return local_now().year
 FCI_HEAD = {  # normalised header (letters / digits only) -> field
     "name": "label", "bezeichnung": "label", "posten": "label",
     "betragnetto": "amount", "betrag": "amount", "netto": "amount", "nettobetrag": "amount", "amountnet": "amount", "amount": "amount",
@@ -222,13 +225,14 @@ def fci_preview(c, oid, raw, name=""):
         rp = next((k for k, rx in FCI_REPEATS if rx.search(rp_s)), None) if rp_s else None
         if rp is None:  # the month decides; the name only marks quarterly costs of a month 1..12
             rp = "monthly" if mon == 0 else "quarterly" if FCI_QUARTER_RE.search(label) else "yearly"
+        yr = fci_year()
         if rp == "monthly":
-            parts = [(f"{FCI_YEAR}-01-01", "monthly")]
+            parts = [(f"{yr}-01-01", "monthly")]
         elif rp == "quarterly":
             x = mon or 1
-            parts = [(f"{FCI_YEAR}-{(x - 1 + 3 * k) % 12 + 1:02d}-01", "yearly") for k in range(4)]
+            parts = [(f"{yr}-{(x - 1 + 3 * k) % 12 + 1:02d}-01", "yearly") for k in range(4)]
         else:
-            parts = [(f"{FCI_YEAR}-{mon or 1:02d}-01", rp)]
+            parts = [(f"{yr}-{mon or 1:02d}-01", rp)]
         for k, (st, rep) in enumerate(parts):
             key = fci_key(label, base["amount"], rep, st)
             dup = key in seen

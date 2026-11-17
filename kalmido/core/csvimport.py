@@ -417,6 +417,27 @@ def csv_iban_col(header):
     return (other or cols or [None])[0]
 
 
+# 2.1315.0 (#6590 d): the currency of a CSV statement's row -- a column named so (read by its name, no mapping needed) or a
+# code / sign in the amount cell ("12,50 USD", "$12.50"). amount_text drops those marks, so a caller that books in one
+# currency compares this with its own and refuses another one, never books it silently as its own.
+CUR_HEAD = ("währung", "waehrung", "whg", "whg.", "currency", "ccy", "devise", "divisa", "munt")
+CUR_SIGN = {"€": "EUR", "$": "USD", "£": "GBP", "¥": "JPY", "₣": "CHF"}
+
+
+def csv_currency_col(header):
+    """The column of the currency (by its name) or None."""
+    return next((i for i, h in enumerate(header) if (h or "").strip().casefold() in CUR_HEAD), None)
+
+
+def csv_currency(text):
+    """'EUR' / 'usd' / '€' / '12,50 USD' / '$12.50' -> the ISO code, '' when the text names none."""
+    s = str(text or "").strip()
+    m = re.search(r"(?<![A-Za-z])([A-Za-z]{3})(?![A-Za-z])", s)
+    if m:
+        return m.group(1).upper()
+    return next((v for k, v in CUR_SIGN.items() if k in s), "")
+
+
 # ---------------------------------------------------------------- CAMT.052 / .053
 # 2.1272.0 (#6422): a statement is read by core/safexml.py (callers cap the file far below CAMT_BYTES_MAX; an entry has
 # about 60 elements)
@@ -457,6 +478,11 @@ def csv_ref_parts(row):
         v = (row.get(k) or "").strip()
         if v and v.upper() not in REF_NONE:
             out.append(f"{tag}|{v}|{a}|{row['day']}" if tag == "e" and row.get("day") else f"{tag}|{v}|{a}")
+    # 2.1315.0 (#6590 d): a position of a batch booking also carries the entry's reference with the entry's total -- the key
+    # the whole entry had as one row before (stored that way, it keeps finding the entry: no position comes twice)
+    bt = row.get("batch")
+    if bt and bt[0] and bt[0].strip().upper() not in REF_NONE:
+        out.append(f"a|{bt[0].strip()}|{_money(Decimal(str(bt[1])))}")
     return out
 
 
@@ -501,6 +527,46 @@ def _money(d):
     return d.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _camt_tx(row, tx, credit, text_max):
+    """The texts, counterpart, IBAN and references of one TxDtls into row."""
+    purpose = [(x.text or "").strip() for x in camt_kids(camt_kid(tx, "RmtInf") if camt_kid(tx, "RmtInf") is not None else tx, "Ustrd")]
+    row["purpose"] = csv_clean(" ".join(p for p in purpose if p), text_max)
+    pts = camt_kid(tx, "RltdPties")
+    if pts is not None:
+        side, acct = ("Dbtr", "DbtrAcct") if credit else ("Cdtr", "CdtrAcct")
+        p = camt_kid(pts, side)
+        if p is not None:
+            row["counterpart"] = csv_clean(camt_txt(p, "Nm") or camt_txt(p, "Pty", "Nm"), 200)
+        iban = camt_txt(pts, acct, "Id", "IBAN").replace(" ", "").upper()
+        row["iban"] = iban if IBAN_RE.match(iban) else None
+    if not row["ref"]:
+        row["ref"] = csv_clean(camt_txt(tx, "Refs", "AcctSvcrRef") or camt_txt(tx, "Refs", "EndToEndId"), 120) or None
+    if row["ref"] == "NOTPROVIDED":
+        row["ref"] = None
+    row["svc_ref"] = row["svc_ref"] or csv_clean(camt_txt(tx, "Refs", "AcctSvcrRef"), 120) or None
+    e2e = csv_clean(camt_txt(tx, "Refs", "EndToEndId"), 120)
+    row["e2e"] = e2e if e2e and e2e.upper() != "NOTPROVIDED" else None
+
+
+def _camt_positions(txs, credit, total):
+    """2.1315.0 (#6590 d): [(signed amount, credit)] of the positions of a batch booking, or None when one names no readable
+    amount or they do not add up to the entry's signed total (then the entry stays one row)."""
+    out = []
+    for tx in txs:
+        el = next((x for x in (camt_kid(tx, "Amt"), camt_kid(tx, "AmtDtls", "TxAmt", "Amt"), camt_kid(tx, "AmtDtls", "InstdAmt", "Amt"))
+                   if x is not None), None)  # an Element without children is falsy: no "or" here
+        try:
+            a = Decimal((el.text or "").strip()) if el is not None else None
+        except (ArithmeticError, ValueError):
+            a = None
+        if a is None or not a.is_finite() or not 0 < a <= CAMT_AMOUNT_MAX or _money(a) == 0:
+            return None
+        ind = camt_txt(tx, "CdtDbtInd")
+        cr = (ind == "CRDT") if ind in ("CRDT", "DBIT") else credit
+        out.append((_money(a if cr else -a), cr))
+    return out if sum(x for x, _c in out) == total else None
+
+
 def camt_rows(text, text_max=300):
     """CAMT.052 / .053 XML -> [{day, amount (signed Decimal), currency, counterpart, purpose, iban, ref, error}]. Documents
     with a DOCTYPE or an ENTITY are refused by the reader (camt_tree: no entity expansion, no external references)."""
@@ -532,25 +598,25 @@ def camt_rows(text, text_max=300):
             a = None
         if a is not None and a.is_finite() and 0 < a <= CAMT_AMOUNT_MAX and _money(a) != 0:  # 0.004 -> 0.00 = unreadable
             row["amount"] = _money(a if credit else -a)
-        tx = camt_kid(ntry, "NtryDtls", "TxDtls")
-        if tx is not None:
-            purpose = [(x.text or "").strip() for x in camt_kids(camt_kid(tx, "RmtInf") if camt_kid(tx, "RmtInf") is not None else tx, "Ustrd")]
-            row["purpose"] = csv_clean(" ".join(p for p in purpose if p), text_max)
-            pts = camt_kid(tx, "RltdPties")
-            if pts is not None:
-                side, acct = ("Dbtr", "DbtrAcct") if credit else ("Cdtr", "CdtrAcct")
-                p = camt_kid(pts, side)
-                if p is not None:
-                    row["counterpart"] = csv_clean(camt_txt(p, "Nm") or camt_txt(p, "Pty", "Nm"), 200)
-                iban = camt_txt(pts, acct, "Id", "IBAN").replace(" ", "").upper()
-                row["iban"] = iban if IBAN_RE.match(iban) else None
-            if not row["ref"]:
-                row["ref"] = csv_clean(camt_txt(tx, "Refs", "AcctSvcrRef") or camt_txt(tx, "Refs", "EndToEndId"), 120) or None
-            if row["ref"] == "NOTPROVIDED":
-                row["ref"] = None
-            row["svc_ref"] = row["svc_ref"] or csv_clean(camt_txt(tx, "Refs", "AcctSvcrRef"), 120) or None
-            e2e = csv_clean(camt_txt(tx, "Refs", "EndToEndId"), 120)
-            row["e2e"] = e2e if e2e and e2e.upper() != "NOTPROVIDED" else None
+        # 2.1315.0 (#6590 d): a batch booking (Sammelbuchung) carries one TxDtls per position: every position is a row of its own
+        # when each names its amount and they add up to the entry; else one row with every position's text (was: the first only)
+        txs = [t for nd in camt_kids(ntry, "NtryDtls") for t in camt_kids(nd, "TxDtls")]
+        parts = _camt_positions(txs, credit, row["amount"]) if len(txs) > 1 and row["amount"] is not None and row["day"] else None
+        if parts:
+            total, svc = row["amount"], row["svc_ref"]
+            for tx, (amt, cr) in zip(txs, parts):
+                pos = dict(row, amount=amt, ref=None, svc_ref=None, e2e=None, batch=(svc, total) if svc else None)
+                _camt_tx(pos, tx, cr, text_max)
+                pos["purpose"] = pos["purpose"] or csv_clean(camt_txt(ntry, "AddtlNtryInf"), text_max)
+                out.append(pos)
+            continue
+        for k, tx in enumerate(txs):
+            if k == 0:
+                _camt_tx(row, tx, credit, text_max)
+                continue
+            more = dict(row, purpose="", counterpart="")  # the other positions' texts join the one row
+            _camt_tx(more, tx, credit, text_max)
+            row["purpose"] = csv_clean(" · ".join(x for x in (row["purpose"], more["counterpart"], more["purpose"]) if x), text_max)
         if not row["purpose"]:
             row["purpose"] = csv_clean(camt_txt(ntry, "AddtlNtryInf"), text_max)
         if row["day"] is None:
