@@ -17,7 +17,7 @@ assistants with a token) reach the module only through `/api/v1/office` and only
 |---|---|
 | Organisation admin | module settings, master data, framework contracts, logo, import, delete documents |
 | Organisation member | without a group (see *Office rights*): read master data and settings, export the master data file, create / edit quotations and invoices, finalise and send them, PDF; since 2.545.0 their own trips in the travel expenses (enter, change, delete; nobody else's trips; no DATEV tick, billing, purposes or exports) |
-| Organisation roles *Read-only* and *Accounting* | at most reading and the exports; every change is refused (Accounting uploads receipts in the documents area) |
+| Organisation roles *Read-only* and *Accounting* | at most reading and the exports; every change is refused (Accounting uploads receipts in the documents area); since 2.1340.0 Accounting reads no pipeline, generated documents / templates / privacy sheets, correspondence or office log, and neither role gets the address of an approval link |
 | Organisation role *Guest* | nothing |
 | Owner of a private office | everything an organisation admin may, in the own private office |
 | Agents | with office access on (scope, office rights group or the agent's switch, and the privacy switch): read master data and documents, drafts of quotations / invoices / reminders, payment suggestions (2.51.0) |
