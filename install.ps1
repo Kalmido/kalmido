@@ -271,7 +271,20 @@
     $oldImageRe = [regex]::Escape('ghcr.io/gegenschuss/kalmido')   # old image name (#6505), only to switch it
     $envTextI = [IO.File]::ReadAllText($envFile)
     $imgRe = "(?m)^(KALMIDO_IMAGE=[`"']?)$oldImageRe(?=[:@`"']|\r?$)"
-    if ($envTextI -match $imgRe) {
+    # 2.1350.0 (#6933, review N1 of job/5115): a pinned version / digest is switched only when the new name has it (an old pin
+    # may have been pushed only under the old name); without that answer the line stays and a warning says what to do
+    $imgRest = ''
+    $imgOk = $true
+    $mI = [regex]::Match($envTextI, "(?m)^KALMIDO_IMAGE=[`"']?$oldImageRe([^`"'\r\n]*)")
+    if ($mI.Success) { $imgRest = $mI.Groups[1].Value }
+    if ($mI.Success -and $imgRest -ne '' -and $imgRest -ne ':latest') {
+      docker manifest inspect "ghcr.io/kalmido/kalmido$imgRest" *> $null
+      if ($LASTEXITCODE -ne 0) {
+        $imgOk = $false
+        Warn "KALMIDO_IMAGE in .env stays on the old image name: ghcr.io/kalmido/kalmido$imgRest was not found (or not reachable). Set KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:<a current version> in .env; the old name gets no updates."
+      }
+    }
+    if ($imgOk -and $envTextI -match $imgRe) {
       [IO.File]::WriteAllText($envFile, [regex]::Replace($envTextI, $imgRe, '${1}ghcr.io/kalmido/kalmido'), (New-Object Text.UTF8Encoding($false)))
       Say 'Switched KALMIDO_IMAGE in .env to the new image name ghcr.io/kalmido/kalmido (the old name gets no updates; version kept)'
     }

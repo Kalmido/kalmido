@@ -328,9 +328,13 @@ with open(os.path.join(ROOT, "docker-compose.yml"), encoding="utf-8") as f:
     COMPOSE_YML = f.read()
 
 
-def env_case(env_text, code, **env):
-    """An installation folder with this .env (bytes as given) and the real docker-compose.yml; CODE runs there."""
-    mem_docker(16000)
+def env_case(env_text, code, docker=None, **env):
+    """An installation folder with this .env (bytes as given) and the real docker-compose.yml; CODE runs there. 2.1350.0 (#6933):
+    docker = the body of the docker stub (default: answers 16 GB of memory, everything else succeeds)."""
+    if docker:
+        stub("docker", docker)
+    else:
+        mem_docker(16000)
     d = folder()
     with open(os.path.join(d, ".env"), "w", encoding="utf-8", newline="") as f:
         f.write(env_text)
@@ -418,6 +422,17 @@ for before, after in (("KALMIDO_IMAGE=%s:2.1229.0@%s\n" % (OLDIMG, DG), "KALMIDO
 for keep in ("#KALMIDO_IMAGE=%s:X.Y.Z\n" % OLDIMG, "KALMIDO_IMAGE=%s-mirror:1\n" % OLDIMG, "KALMIDO_IMAGE=registry.example.com/kalmido:1\n"):
     rc, out, t, _ = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\n" + keep, "write_env")
     check(rc == 0 and keep in t and "new image name" not in out, f"#6505: {keep.strip()} stays as it is ({t})")
+# 2.1350.0 (#6933, review N1): a pinned version / digest the new name does not have keeps the old name, said in a warning
+for before in ("KALMIDO_IMAGE=%s:2.1229.0@%s\n" % (OLDIMG, DG), 'KALMIDO_IMAGE="%s:2.1.0"\n' % OLDIMG):
+    rc, out, t, cl = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\n" + before, "write_env",
+                              docker='case "$1" in manifest) exit 1 ;; info) echo 16777216000 ;; esac\nexit 0')
+    check(rc == 0 and before in t and "new image name" not in out and "stays on the old image name" in out,
+          f"#6933: {before.strip()} not under the new name: kept, with a warning ({rc} {t} {out[-300:]})")
+    check("manifest inspect ghcr.io/kalmido/kalmido:" in cl, f"#6933: the new name was asked ({cl})")
+rc, out, t, _ = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\nKALMIDO_IMAGE=%s:latest\n" % OLDIMG, "write_env",
+                         docker='case "$1" in manifest) exit 1 ;; esac\nexit 0')
+check(rc == 0 and "KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:latest" in t, f"#6933: :latest switches without asking ({t})")
+check("docker manifest inspect" in PS and "stays on the old image name" in PS, "#6933: install.ps1 asks the new name before it switches a pin")
 check("ghcr.io/kalmido/kalmido" in PS and "Switched KALMIDO_IMAGE in .env to the new image name" in PS
       and "(?m)^(KALMIDO_IMAGE=" in PS, "#6505: install.ps1 switches the old image name in .env too")
 
