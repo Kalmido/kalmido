@@ -23,6 +23,29 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1366.0] - 2026-11-18
+
+Package 2.1356 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6326 Live sync: an open task follows a change made on another device - the detail panel is matched after every delta, also while the focus is inside it (always on phones); a focused text field keeps its text and cursor and takes the new text when you leave it; the conflict check uses the text the field showed, so typing on an old text now raises the conflict bar instead of silently overwriting the other device's change; an open conflict bar keeps the panel and your draft until it is answered.
+
+### Changed
+- #6967 docker-compose.yml: ClamAV and the database run with few rights (cap_drop ALL, five added back) and a process cap; ClamAV no longer shares a network with the database - network "scan" (internal, Kalmido + ClamAV) plus its own way out "out" for signature updates (docs/SELF-HOSTING.md).
+- #6824 Startup: the one-shot data steps (migr_* flags) of init_db stand in one ordered list (kalmido/core/oncesteps.py), run at the same places in the same order, each step logged on its own; tools/check_migrations.py rejects new migr_ flags outside the list. No step changed its content.
+
+Package 2.1358 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Office quotes / invoices: the kind chips (archive, dunning, invoice corrections) switch the list under an address with `s/org:N` too (#6964).
+- Office editor: the title of a part on the title page grows with its text up to ten lines, like the subject; the client address from the contact directory shows its whole text (#6659).
+- Undo: "Reset" in the date popover, the arrow and Ctrl+Z take back only the person's own groups, newest first (`POST /api/undo/<id>/undo`), never `/api/undo/to/` - newer steps of another device or tab stay; the fallback without the server list never uses `/to/` either (#6328).
+- Undo: an own undo that was queued offline keeps `X-Kalmido-Undo-Own` when it is sent again (no new server step), and the group header only goes with writes made inside the step (#6328).
+
+### Changed
+- New tasks are written through one insert path `kalmido/tasks/repo.py` `task_insert` (39 inserts in 26 files); the ratchet `tools/check_task_insert.py` forbids new own `INSERT INTO tasks(` (#6825).
+- Dependabot waits 7 days before it proposes a new version (cooldown), the counterpart of the 7-day rule of the pins (#6907).
+
 ## [2.1361.0] - 2026-11-17
 
 Package 2.1345 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -440,7 +463,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1361.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1366.0...HEAD
+[2.1366.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1366.0
 [2.1361.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1361.0
 [2.1355.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1355.0
 [2.1351.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1351.0
