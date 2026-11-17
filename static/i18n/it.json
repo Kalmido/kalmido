@@ -19065,14 +19065,5 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Un file per progetto in un ZIP: CSV di Todoist per l'importazione in Todoist, Markdown come checklist per qualsiasi app di note. Entrano solo i tuoi progetti: i progetti condivisi con te e quelli bloccati con password restano fuori, un elenco nello ZIP li nomina.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "bloccato con password (crittografato end-to-end): il server lo conserva solo cifrato",
   "shared with you: only the projects you own are exported": "condiviso con te: vengono esportati solo i tuoi progetti",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Progetti condivisi non inclusi: {0}. In questa esportazione ci sono solo i tuoi progetti.",
-  "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "La rubrica {0} non si può più leggere: i suoi compleanni e anniversari potrebbero non essere aggiornati.",
-  "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "La rubrica {0} non ha accettato la data modificata di {2}; resta solo in Kalmido ({1}).",
-  "Address book #{0} of user {1} failed {2} times in a row ({3}).": "La rubrica #{0} di {1} non è riuscita {2} volte di seguito ({3}).",
-  "Only the outlays of a cancelled invoice can be released": "Solo le spese anticipate di una fattura annullata possono essere liberate",
-  "Release the outlays again": "Libera di nuovo le spese anticipate",
-  "Release the outlays again?": "Liberare di nuovo le spese anticipate?",
-  "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} ricevuta di questa fattura annullata potrà poi andare in una nuova fattura.", "{0} ricevute di questa fattura annullata potranno poi andare in una nuova fattura."],
-  "{0} receipt released": ["{0} ricevuta liberata", "{0} ricevute liberate"],
-  "This release has already been undone": "Questa liberazione è già stata annullata"
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Progetti condivisi non inclusi: {0}. In questa esportazione ci sono solo i tuoi progetti."
 }
