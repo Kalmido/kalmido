@@ -633,7 +633,10 @@ async function docsAll(url, f = rawFetch) {
 }
 // 2.577.0 (#4638): the office's area open under "All workspaces" (#office/s/<space>) goes along with every /api/office/ request
 // (header X-Kalmido-Office-Space, office/model.py office_space); '' = the server's choice from the setting workspace
-const ofc_spOpen = () => S.route?.mod === 'office' && S.route.wsp && typeof wsCur === 'function' && wsCur() === 'all' ? S.route.wsp : '';
+// 2.1360.0 (#6717): under "All" with exactly one area that has the office on, that office opens directly (no overview,
+// office.js ofc_allOvr) - its area goes with every office request too (the server never guesses between several offices)
+const ofc_spOpen = () => S.route?.mod !== 'office' || typeof wsCur !== 'function' || wsCur() !== 'all' ? ''
+  : S.route.wsp || (typeof ofc_spaces === 'function' && ofc_spaces().length === 1 ? ofc_spaces()[0] : '');
 const ofc_spHdr = url => /^\/api\/(office\/|docs[/?])/.test(String(url || '')) ? ofc_spOpen() : '';  // 2.654.0 (#4823): + /api/docs/ (docs/area.py ar_office: receipts sorted into the open office)
 // 2.577.0 (#4638, review): links, window.open, images and pdfView cannot send the header: the same area as ?_osp= (once);
 // raw fetch() calls outside rawFetch0 go through ofc_spFetch (header); any <a href="/api/office/..."> gets it on its click
