@@ -68,7 +68,7 @@ from ..collab.replies import with_replies  # 2.369.5 (#2517): pulled up from fun
 from ..personal.timetrack import n43_admin_lists  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import instance_mode, visible_people  # 2.369.5 (#2517): pulled up from functions
 from ..lists.formula import fx_fill  # 2.369.5 (#2517): pulled up from functions
-from .runfor import run_gate  # 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
+from .runfor import req_main_gate, run_gate  # 2.1348.0 (#6668): req_main_gate; 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
 from ..core.access import feats  # 2.1327.0 (#6823): the one reading of the module switches
 SRV_TOKEN_NAME = "Server agent run"  # 2.557.0 (#4670): = agents/srvagent_run.py SRV_TOKEN_NAME (no import: api below agents)
 
@@ -233,6 +233,10 @@ def api_authenticate():
         return v1_err(403, tr("This token lacks the permission “{0}”", tr(SCOPE_LABELS.get(need, need))), required_scope=need)
     if is_agent(u) and "asked_by" in row.keys() and row["asked_by"] is not None:
         closed = run_gate(c, row, u)
+        if closed is not None:
+            return closed
+    if is_agent(u) and not srv_inproc:  # 2.1348.0 (#6668): a team agent that works per request: its own token is its channel
+        closed = req_main_gate(c, row, u)
         if closed is not None:
             return closed
     limited = hit_limit(f"api:{row['id']}", API_RATE)

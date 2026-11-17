@@ -19055,5 +19055,9 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Eén bestand per project in een ZIP: Todoist-CSV voor de import in Todoist, Markdown als checklists voor elke notitie-app. Alleen je eigen projecten gaan erin: met jou gedeelde projecten en projecten die met een wachtwoord zijn vergrendeld blijven buiten, een lijst in de ZIP noemt ze.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "vergrendeld met een wachtwoord (end-to-end versleuteld): de server heeft het alleen versleuteld",
   "shared with you: only the projects you own are exported": "met jou gedeeld: alleen je eigen projecten worden geëxporteerd",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten.",
+  "Only the agent's own token can ask for a request token": "Alleen het eigen token van de agent kan een verzoektoken aanvragen",
+  "One request works for one person: these events come from several": "Eén verzoek werkt voor één persoon: deze gebeurtenissen komen van meerdere",
+  "This person gives the agent no orders (any more)": "Deze persoon kan de agent geen opdrachten (meer) geven",
+  "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Deze agent werkt per verzoek: gebruik het verzoektoken van de gebeurtenis (POST /api/v1/agent/request-token)"
 }

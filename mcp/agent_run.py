@@ -298,6 +298,41 @@ class Api:
         self.soft("POST", "/agent/typing", {"chat_user_id": uid}, timeout=10)
 
     task_typing_ok = None
+    request_ok = None  # 2.1348.0 (#6668): False = this server has no request tokens (404): the agent's own token as before
+
+    # kalmido-capability: request_token (2.1348.0, #6668)
+    def request_token(self, seqs=None, operator=False):
+        """2.1348.0 (#6668): a token for ONE request of a team agent (POST /agent/request-token): it reaches only what the
+        person of these events (operator: the person chosen in the agent's settings) reaches themselves. -> (token, expires
+        epoch) or (None, 0): a personal agent (its own token is already its owner's), an older server, events without a seq."""
+        if self.request_ok is False or (not seqs and not operator):
+            return None, 0
+        try:
+            r = self.req("POST", "/agent/request-token", {"operator": True} if operator else {"seqs": sorted(set(seqs))[-100:]}, timeout=30)
+        except ApiError as e:
+            if e.status in (404, 405) and "request_token" not in e.body and "event_gone" not in e.body:
+                self.request_ok = False
+                log("the server has no request tokens: the agent's own token as before")
+            else:
+                log(f"request token: HTTP {e.status}")  # the run goes on with the agent's own token: the server refuses what needs one
+            return None, 0
+        self.request_ok = True
+        tok = r.get("token") if isinstance(r, dict) else None
+        if not tok:
+            return None, 0
+        try:
+            import calendar
+            exp = calendar.timegm(time.strptime(str(r.get("expires_at") or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+        except ValueError:
+            exp = time.time() + 3600
+        return tok, exp
+
+    def as_token(self, tok):
+        """A copy of this client that sends tok (the feature flags it found stay)."""
+        import copy
+        x = copy.copy(self)
+        x.token = tok
+        return x
 
     def task_typing(self, tid):
         """2.615.0 (#3757 / #3754): the typing dots on a task while a task run writes there (POST /tasks/{id}/typing, valid
@@ -2947,10 +2982,39 @@ class Runner:
         PermissionRequest hook that asks in the chat. Further hooks of other parts go in here too (see hook_settings)."""
         return hook_settings(PERM_RELAY)
 
+    # kalmido-capability: request_token (2.1348.0, #6668)
+    def run_request(self, evs):
+        """2.1348.0 (#6668): a team agent works per request for ONE person: the token of this run's events (Api.request_token)
+        is the only token the run gets (child_env: KALMIDO_TOKEN, the MCP server reads it) and the one the runner reads the
+        task with and posts the task's answer with. A personal agent / an older server: the agent's own token, as before."""
+        seqs = []
+        for ev in evs:
+            inner = (ev.get("data") or {}).get("events") if ev.get("event") == "task_bundle" else None
+            for e in ([ev] + list(inner or [])):
+                if isinstance(e, dict) and isinstance(e.get("seq"), int) and not isinstance(e.get("seq"), bool):
+                    seqs.append(e["seq"])
+        tok, _ = self.api.request_token(seqs) if seqs else (None, 0)
+        self.run_api = self.api.as_token(tok) if tok else self.api
+        if self.extras:
+            self.extras.run_api = self.run_api
+        return tok
+
+    def op_api(self):
+        """2.1348.0 (#6668): the client of the starter's own list work (agent_dispatch.py): a team agent's work for the
+        person chosen in its settings (a request token for them, renewed before it runs out); else the agent's own client."""
+        tok, exp = getattr(self, "_op_tok", (None, 0))
+        if not tok or exp - time.time() < 900:
+            tok, exp = self.api.request_token(operator=True)
+            self._op_tok = (tok, exp)
+        return self.api.as_token(tok) if tok else self.api
+
     def child_env(self, uid, tid):
         """2.44.0 (#1442): the environment of one run (the hook finds the runner through it)."""
         ex = getattr(self, "extras", None)  # part B (agent_extras): KALMIDO_OUTBOX, KALMIDO_CHAT_USER, ... as the base
         env = dict(ex.env() if ex and hasattr(ex, "env") else os.environ)
+        ra = getattr(self, "run_api", None)
+        if ra is not None and ra is not self.api:  # 2.1348.0 (#6668): the run sees only the token of its request
+            env["KALMIDO_TOKEN"] = ra.token
         for k in ("KALMIDO_PERM_DIR", "KALMIDO_PERM_SOCK", "KALMIDO_PERM_KEY", "KALMIDO_PERM_PID"):
             env.pop(k, None)  # 2.625.0 (#3661): never an inherited channel; without the runner's channel the hook denies
         ch = getattr(self, "perm_chan", None)
@@ -3180,6 +3244,7 @@ class Runner:
                              ensure_ascii=False))
             return
         what = "status_chat" if uid else "status_event"  # 2.450.0 (#3769): a key of TEXTS
+        self.run_request(evs)  # 2.1348.0 (#6668): before anything of the run reads Kalmido
         if self.extras:  # 2.44.0 B (#1443): a fresh outbox folder for a chat run
             self.extras.begin_run(uid, not uid)
         tid = None if uid else task.get("id")
@@ -3667,7 +3732,7 @@ class Runner:
         if not appr and not sugg:
             return None
         try:
-            r = self.api.comment(tid, body, approval=appr, suggest=None if appr else sugg)
+            r = (getattr(self, "run_api", None) or self.api).comment(tid, body, approval=appr, suggest=None if appr else sugg)
             log(f"task {tid}: answer posted as a comment with {'an approval card' if appr else f'{len(sugg)} buttons'}")
             return r
         except Exception as e:
@@ -3986,7 +4051,7 @@ class Runner:
                 if uid:
                     self.api.typing(uid)
                 elif hasattr(self.api, "task_typing"):  # kalmido-capability: status_typing (2.615.0, #3754): a task run writes on the task (never a summary run)
-                    self.api.task_typing(tid)
+                    (getattr(self, "run_api", None) or self.api).task_typing(tid)
 
         def on_usage(info):
             self.usage.seen(info)
@@ -4081,6 +4146,10 @@ class Runner:
             except Exception as e:
                 log(f"run failed: {type(e).__name__}")
                 self.status_say("error", "status_run_failed")
+            finally:  # 2.1348.0 (#6668): a request's token never outlives its run in the runner
+                self.run_api = self.api
+                if self.extras:
+                    self.extras.run_api = None
             if save:  # a restart in the middle of a batch never answers the done groups again
                 seqs = [int(e["seq"]) for e in group if str(e.get("seq") or "").isdigit()]
                 if seqs and max(seqs) > self.cur:

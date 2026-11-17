@@ -29,6 +29,7 @@ from ..agents.core import (
 )
 from ..agents.chat import chat_delivered, chat_event_mids
 from ..agents.core import perm_user_of
+from ..agents import reqtoken  # noqa: F401 -- 2.1348.0 (#6668): POST /api/v1/agent/request-token
 from ..agents.steps import redact, step_clean, steps_job_log  # 2.407.0 A (#3513)
 from ..core.serializers import wk_for  # 2.407.0 A (#3513)
 from ..agents.workstyle import ws_get, ws_public
