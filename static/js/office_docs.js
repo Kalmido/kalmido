@@ -471,7 +471,7 @@ function ofdEditorHtml() {
     ${ofdF('project_title', tr('Project title'), ofdTa('project_title', d.project_title, 2, {max: 1000, grow: 10}))}
     ${kind === 'delivery' ? ofdF('delivery_title', tr('Document title'), ofdSel('delivery_title', d.delivery_title || '', [['', tr('Delivery note')], ['service', tr('Proof of service')]])) : ''}
     ${kind === 'offer' ? ofdF('project_ref', tr('Order number / reference'), ofdIn('project_ref', d.project_ref, {max: 80})) : ''}
-    ${ofdF('date', tr('Date'), dateIn('ofd-date', d.date, {label: tr('Date'), clear: false, attrs: 'data-f="date"'}))}
+    ${ofdF('date', tr('Date'), dateIn('ofd-date', d.date, {label: tr('Date'), clear: false, attrs: 'data-f="date"'}))}${/*html-ok*/ ofd_rangeHtml(d, ro) /* 2.1365.0 (#6698): escaped inside */}
     ${kind === 'offer' ? ofdF('valid_until', tr('Valid until'), dateIn('ofd-valid_until', d.valid_until, {label: tr('Valid until'), attrs: 'data-f="valid_until"'})) : ''}
     ${kind !== 'reminder' ? ofdF('service_from', tr('Service from'), dateIn('ofd-service_from', d.service_from || '', {label: tr('Service from'), attrs: 'data-f="service_from"'})) : ''}
     ${kind !== 'reminder' ? ofdF('service_to', tr('Service until'), dateIn('ofd-service_to', d.service_to || '', {label: tr('Service until'), attrs: 'data-f="service_to"', after: 'ofd-service_from'})) : ''}
@@ -786,7 +786,7 @@ const OFD_ACTIONS = {valid_until: N_('validity extended'), /* 2.1064.0 (#5818) *
   finalize: N_('finalised'), unlock: N_('finalising undone'), duplicate: N_('created as a copy'), cashflow: N_('cash flow choice changed'), delete: N_('deleted'), open: N_('opened'), pdf: N_('PDF opened'), render: N_('preview opened'),
   export: N_('exported'), import: N_('imported'), archive: N_('archived'), upload: N_('uploaded'),
   payment: N_('payment recorded'), payment_delete: N_('payment reversed'), send: N_('sent by e-mail'), datev: N_('sent to the DATEV inbox'), undo: N_('import undone'), reminder_fee: N_('reminder fee waived / paid / open again / cancelled'), recovery_key: N_('recovery key shown'),
-  chain_broken: N_('hash chain broken here (daily check)'), /* 2.1309.0 (#6467) */ chain_moved: N_('joined the hash chain of this office (moved in)'), /* 2.1327.0 (#6591) */ agent_read: N_('read (agent)'), agent_write: N_('drafted (agent)'), from_sheet: N_('created from a table'), restore: N_('restored|office log')};  // 2.113.2 (#2253): + restore  // 2.89.0 (#1916, D): + from_sheet  // 2.51.0 A (#1348)  // 2.42.0 (#828): + recovery_key  // 2.39.1 (#1182): + undo; 2.40.0 (#1368): + reminder_fee
+  chain_broken: N_('hash chain broken here (daily check)'), /* 2.1309.0 (#6467) */ chain_moved: N_('joined the hash chain of this office (moved in)'), /* 2.1327.0 (#6591) */ num_range: N_('number range changed'), /* 2.1365.0 (#6698) */ agent_read: N_('read (agent)'), agent_write: N_('drafted (agent)'), from_sheet: N_('created from a table'), restore: N_('restored|office log')};  // 2.113.2 (#2253): + restore  // 2.89.0 (#1916, D): + from_sheet  // 2.51.0 A (#1348)  // 2.42.0 (#828): + recovery_key  // 2.39.1 (#1182): + undo; 2.40.0 (#1368): + reminder_fee
 const ofdActText = (a, x) => a !== 'reprice' ? tr(OFD_ACTIONS[a] || a) : x?.detail?.pct != null ? tr('prices changed by {0} %', fmtNum(x.detail.pct, 2)) : tr('prices changed');  // 2.1041.0 (#5812): the repricing names its percentage
 const ofdWhen = iso => { const d = new Date(iso); return isNaN(+d) ? iso || '' : fmtStamp(d); };  // 2.368.0 B (#2982)
 function ofdLogHtml(d) {
@@ -1036,6 +1036,7 @@ async function ofdChange0(e) {
   if (f === 'recipient_name' || f === 'recipient_lines') { await ofdPatch({recipient: {name: $('#ofd-recipient_name')?.value ?? d.recipient?.name, lines: ($('#ofd-recipient_lines')?.value ?? (d.recipient?.lines || []).join('\n')).split('\n')}}); return; }
   if (f === 'client_id') { await ofdPatch({client_id: t.value ? +t.value : null, recipient_from_client: !!t.value}); return; }
   if (f === 'contract_id') { await ofdPatch({contract_id: t.value ? +t.value : null}); return; }
+  if (f === 'range_id') { await ofdPatch({range_id: t.value ? +t.value : null}); return; }  // 2.1365.0 (#6698)
   if (f === 'producing_on') { await ofdPatch({producing_on: t.checked ? 1 : 0}); return; }  // 2.47.0 (#1645)
   if (f === 'subtotals' || f === 'flat_print') { await ofdSave('PATCH', `/api/office/docs/${OFD.doc.id}`, {[f]: t.checked ? 1 : 0}); return; }  // 2.1041.0 (#5816, #5817): the document's, also with a part open
   if (f === 'accept_on') { await ofdPatch({accept_on: t.value === '' ? null : +t.value}); return; }  // 2.114.4 B (#2270)
@@ -1204,7 +1205,19 @@ async function ofdClick(e) {
   if (a === 'fld-del') { d.fields.splice(+b.dataset.i, 1); await ofdPatch({fields: d.fields}); return; }
 }
 // 2.1289.0 (#6481 N3, S3): an invoice / correction without a number takes a number of your own in the finalise dialog (office admins, as the number pen before)
-const ofd_finHand = d => ['invoice', 'credit'].includes(d.kind) && !d.trial && !d.number && typeof ofcAdmin === 'function' && ofcAdmin();
+const ofd_finHand = d => ['invoice', 'credit'].includes(d.kind) && !d.trial && !d.number && !d.range_id && typeof ofcAdmin === 'function' && ofcAdmin();  // 2.1365.0 (#6698): never in an additional range
+// 2.1365.0 (#6698): the number range of an invoice (main range = empty choice) while the area has an additional one; a correction,
+// a numbered, finalised or trial document shows it read-only. In a range Kalmido sets the date when finalising (the hint says so).
+function ofd_rangeHtml(d, ro) {
+  const rs = OFC.info?.num_ranges || [];
+  if (!['invoice', 'credit'].includes(d.kind) || (!rs.length && !d.range_id)) return '';
+  const lab = x => x.code + (x.name ? ' · ' + x.name : ''), cur = rs.find(x => x.id === d.range_id);
+  const hint = d.range_id && !d.locked ? tr('Kalmido sets the date of this document when it is finalised (no number by hand).') : '';
+  if (ro || d.kind !== 'invoice' || d.number || d.locked || d.trial) {
+    return d.range_id ? ofdF('range_id', tr('Number range'), `<span id="ofd-range_id">${esc(cur ? lab(cur) : '#' + d.range_id)}</span>`, hint) : '';
+  }
+  return ofdF('range_id', tr('Number range'), ofdSel('range_id', d.range_id, rs.filter(x => !x.closed || x.id === d.range_id).map(x => [x.id, lab(x)]), tr('Main range')), hint);
+}
 // 2.97.0 B (#1951): the recipient comes from the client (name, attn., street, extra line, postcode city, country): the head
 // shows it read-only with "Edit client"; without a client "Add client" makes one and sets it. A finished / sent document
 // shows what was frozen; an old one with free lines keeps them. With the client module off the free fields stay.

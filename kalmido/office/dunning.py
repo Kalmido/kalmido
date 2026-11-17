@@ -148,13 +148,18 @@ def dun_paid_news(c, oid, r, uid):
                              f"{PUBLIC_URL.rstrip('/')}/{click}", push_prio(s)))
 
 
+# 2.1365.0 (#6698): invoices of an additional number range get reminder suggestions and overdue notices only while the range has
+# them switched on (office_num_ranges.dunning, default off); the list keeps showing "overdue" (one parameter: the area)
+DUN_RANGE_SQL = "(range_id IS NULL OR range_id IN (SELECT id FROM office_num_ranges WHERE org_id=? AND dunning))"
+
+
 def dun_overdue(c, oid, today, people):
     """2.367.4 (#2972): the bell for the invoices of area oid past their due date that it did not tell about yet: one News item
     per person for the whole run. The caller commits."""
     from .invoices import inv_money_fields, inv_paid_map, inv_state
     invs = c.execute("SELECT * FROM office_docs WHERE org_id=? AND kind='invoice' AND locked_at IS NOT NULL AND status IN ('issued','sent') AND trial=0 "
                      f"AND COALESCE(due_date, '')<>'' AND due_date<? AND {live_sql()} AND id NOT IN (SELECT doc_id FROM office_dunning_marks WHERE org_id=? AND level=?) "
-                     "ORDER BY due_date, id LIMIT 2000", (oid, today, oid, DUN_NOTICE)).fetchall()  # 2.1005.0 (#5415): not the trash
+                     f"AND {DUN_RANGE_SQL} ORDER BY due_date, id LIMIT 2000", (oid, today, oid, DUN_NOTICE, oid)).fetchall()  # 2.1005.0 (#5415): not the trash
     pm = inv_paid_map(c, oid, [r["id"] for r in invs]) if invs else {}
     new = [r for r in invs if inv_state(r, pm, today) not in ("paid", "cancelled") and float(inv_money_fields(r, pm)["open"]) > 0]
     if not new:
@@ -191,7 +196,8 @@ def dun_due(c, oid, today, grace):
     from .invoices import inv_money_fields, inv_paid_map, inv_state
     # 2.144.10 B (#2576): the automatic dunning run never picks trial invoices
     invs = c.execute("SELECT * FROM office_docs WHERE org_id=? AND kind='invoice' AND locked_at IS NOT NULL AND status IN ('issued','sent') "
-                     f"AND trial=0 AND COALESCE(due_date, '')<>'' AND due_date<? AND {live_sql()} ORDER BY due_date, id LIMIT 2000", (oid, today)).fetchall()  # 2.1005.0 (#5415): not the trash
+                     f"AND trial=0 AND COALESCE(due_date, '')<>'' AND due_date<? AND {live_sql()} AND {DUN_RANGE_SQL} ORDER BY due_date, id LIMIT 2000",
+                     (oid, today, oid)).fetchall()  # 2.1005.0 (#5415): not the trash; 2.1365.0 (#6698): DUN_RANGE_SQL
     if not invs:
         return {}
     pm = inv_paid_map(c, oid, [r["id"] for r in invs])
