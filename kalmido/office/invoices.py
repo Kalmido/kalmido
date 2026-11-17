@@ -29,7 +29,7 @@ from .calc import INV_VAT_NOTES, TAX_KEYS, calc_cur, calc_home_rate, dec, dstr, 
 from .homecur import hc_code, hc_home, hc_office_rate, hc_rate_missing  # 2.189.0 (#2475); 2.355.0 C (#2844): hc_rate_missing
 from .packs import office_pack_for
 from .doclang import doc_lg, doc_pack  # 2.185.0 C (#2520)
-from .model import num_kind, num_scheme, office_feature, office_gate, office_need_feature, office_org, office_role, office_scheme_period, office_settings, pb_cl_sql, pb_cl_live, trial_flag
+from .model import doc_range_id, num_view, num_kind, num_scheme, office_feature, office_need_feature, office_role, office_scheme_period, office_settings, pb_cl_sql, pb_cl_live, trial_flag
 from .contacts_cl import fk_send_rcpts  # 2.433.0 (#3599)
 from .model import SCHEME_RE, scheme_variants  # 2.355.0 A (#2839)
 from .ledger import ofx_company, ofx_locked, ofx_log, ofx_need_editable
@@ -158,7 +158,11 @@ INV_SKIP_REASON_MIN = 5  # 2.39.1 (#1210 N2): characters of the reason a skipped
 def inv_manual_number(c, oid, r, s, num, reason=""):
     """2.38.0: a manual number of an invoice / credit note must follow the scheme and lie above the series' last value
     (no back-dating); the counter then continues from it. 2.39.1 (#1210 N2): more than one above the counter (a gap in
-    the series) only with a reason (kept in the office log). The caller holds the number lock. BadInput otherwise."""
+    the series) only with a reason (kept in the office log). The caller holds the number lock. BadInput otherwise.
+    2.1348.0 (#6698): a document of an additional number range never takes a number by hand (only the range's next one):
+    refused before any counter is read or written."""
+    if doc_range_id(r):
+        raise BadKey(N_("A document of an additional number range takes the next number of its range; a number by hand is not possible there"))
     scheme = inv_scheme(s, r["kind"])
     kind = num_kind(s, r["kind"])  # 2.433.0 (#3597): a correction on the invoices' shared counter (its period) follows that one
     seq = inv_manual_seq(scheme, num)
@@ -476,12 +480,16 @@ def inv_check_date(c, oid, r, s):
         inv_ = c.execute("SELECT number, date FROM office_docs WHERE id=? AND org_id=?", (r["cancels_id"], oid)).fetchone()
         if inv_ is not None and inv_["date"] and d < inv_["date"]:
             raise BadKey(N_("The date of the correction must not lie before the date of its invoice {0} ({1})"), inv_["number"] or "", inv_["date"])
+    s = num_view(c, oid, s, r)  # 2.1348.0 (#6698): a range is a series of its own (its schemes, both kinds on its counter)
     scheme = num_scheme(s, r["kind"])
     period = office_scheme_period(scheme, date.fromisoformat(d))
     kinds = [k for k in ("invoice", "credit") if num_kind(s, k) == num_kind(s, r["kind"])]
+    rid = doc_range_id(r)
+    # 2.1348.0 (#6698): only the documents of the same range (NULL = the main range); trial documents keep their one series
+    rq, ra = ("", ()) if _col(r, "trial") else (" AND range_id=?", (rid,)) if rid else (" AND range_id IS NULL", ())
     # 2.144.10 B (#2576): trial documents have their own series; they neither count for real ones nor the other way round
-    for row in c.execute(f"SELECT date FROM office_docs WHERE org_id=? AND kind IN ({', '.join('?' * len(kinds))}) AND locked_at IS NOT NULL AND {live_sql()} AND id<>? AND date>? AND trial=? "
-                         "ORDER BY date DESC", (oid, *kinds, r["id"], d, 1 if _col(r, "trial") else 0)):
+    for row in c.execute(f"SELECT date FROM office_docs WHERE org_id=? AND kind IN ({', '.join('?' * len(kinds))}) AND locked_at IS NOT NULL AND {live_sql()} AND id<>? AND date>? AND trial=?{rq} "
+                         "ORDER BY date DESC", (oid, *kinds, r["id"], d, 1 if _col(r, "trial") else 0, *ra)):
         try:
             if office_scheme_period(scheme, date.fromisoformat(row["date"])) == period:
                 raise BadKey(N_("The date must not lie before the last finalised document of this series ({0})"), row["date"])
@@ -761,6 +769,8 @@ def inv_credit_of(c, oid, uid, inv_):
         row["einvoice_format"] = inv_["einvoice_format"]
     row["cancels_id"] = inv_["id"]
     row["source_doc_id"] = inv_["id"]
+    if doc_range_id(inv_):  # 2.1348.0 (#6698): a correction always counts in the range of its invoice (clean_doc never changes it)
+        row["range_id"] = doc_range_id(inv_)
     did = _insert_doc(c, oid, uid, row)
     rows = []
     for it in doc_items(c, inv_["id"], oid):

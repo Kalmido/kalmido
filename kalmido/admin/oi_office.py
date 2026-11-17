@@ -238,7 +238,25 @@ def _p_settings(c, run, src, d, ctx):
     return d
 
 
+def _p_num_range(c, run, src, d, ctx):
+    """2.1348.0 (#6698): an additional number range; a code the target area uses already gets a digit (GT -> GT2): its counter and
+    documents stay its own (never merged into the target's range)."""
+    code = str(d.get("code") or "")[:8] or "R"
+    base, n = code[:7], 2
+    while c.execute("SELECT 1 FROM office_num_ranges WHERE org_id=? AND code=?", (ctx.space, code)).fetchone():
+        code, n = f"{base[:8 - len(str(n))]}{n}", n + 1
+    if code != d.get("code"):
+        run.warning(N_("A number range of the target office was kept: {0}"), f"{d.get('code')} -> {code}")
+    d["code"] = code
+    return d
+
+
 def _p_numbers(c, run, src, d, ctx):
+    if re.fullmatch(r"r\d+", str(d.get("kind") or "")):  # 2.1348.0 (#6698): the counter of an additional range -> its new id
+        new = run.m("office_num_ranges", str(d["kind"])[1:])
+        if not new:
+            return False
+        d["kind"] = f"r{int(new)}"
     if c.execute("SELECT 1 FROM office_numbers WHERE org_id=? AND kind=? AND period=?", (ctx.space, d.get("kind"), d.get("period") or "")).fetchone():
         if isinstance(d.get("last"), int):  # 2.137.0 review M2: the kept counter continues after the imported numbers (never one twice)
             c.execute("UPDATE office_numbers SET last=GREATEST(last, ?) WHERE org_id=? AND kind=? AND period=?",
@@ -839,13 +857,14 @@ SPECS = [
     OiT("office/packages.json", "office_sets", private="office", prep=_p_sets),
     OiT("office/doc_templates.json", "office_doc_templates", people=_P, private="office"),
     OiT("office/settings.json", "office_settings", private="office", rid=False, key=("org_id",), prep=_p_settings),
+    OiT("office/num_ranges.json", "office_num_ranges", people=_P, private="office", prep=_p_num_range),  # 2.1348.0 (#6698): before their counters
     OiT("office/numbers.json", "office_numbers", private="office", rid=False, key=("org_id", "kind", "period"), prep=_p_numbers),
     OiT("office/contracts.json", "office_contracts", refs={"client_id": "clients", "rights_time_id": "office_texts",
         "rights_territory_id": "office_texts", "rights_media_id": "office_texts"}, private="office", prep=_p_contract),
     OiT("office/contract_files.json", "office_contract_files", refs={"contract_id": "office_contracts"}, need=("contract_id",),
         people=_P, private="office", prep=_p_contract_file),
     OiT("office/documents.json", "office_docs", refs={"client_id": "clients", "contract_id": "office_contracts", "contact_id": "office_client_contacts",
-        "list_id": "lists"}, late={"version_of": "office_docs", "replaces_id": "office_docs", "cancels_id": "office_docs", "source_doc_id": "office_docs",
+        "list_id": "lists", "range_id": "office_num_ranges"}, late={"version_of": "office_docs", "replaces_id": "office_docs", "cancels_id": "office_docs", "source_doc_id": "office_docs",
         "series_id": "office_inv_series"}, people={**_P, "locked_by": "null", "agent_id": "null"}, private="office", prep=_p_doc, after=_a_doc),
     OiT("office/document_parts.json", "office_doc_parts", refs={"doc_id": "office_docs"}, need=("doc_id",), private="office", prep=_p_part),
     OiT("office/document_items.json", "office_doc_items", refs={"doc_id": "office_docs", "service_id": "office_services",

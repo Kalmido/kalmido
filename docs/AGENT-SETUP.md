@@ -113,6 +113,15 @@ the computer needed); the setup creates `CLAUDE.md` in the project folder from
 `mcp/CLAUDE.template.md` when there is none (never overwritten), and the launcher reports the usage itself (usage hook as
 Stop / SubagentStop hook in its run settings). The setup prints who answers and where `CLAUDE.md` is.
 
+2.1348.0 (#6668): a team agent works **per request**: before each run the starter asks Kalmido for a token of that request
+(`POST /api/v1/agent/request-token`, valid 8 hours) and gives only that token to the run -- it reaches what the person who
+asked reaches themselves, and an order of a person who only reads becomes an approval card. From then on the token in
+`kalmido-agent.env` reaches only the agent's own channel (events, status, chat, jobs); keep the starter up to date
+(the setup command again) so its runs get their request tokens. The list work of the dispatcher runs for the person
+chosen under *Permission questions go to*. Without a request token (the person may not give the agent orders, nobody is
+chosen, Kalmido cannot be reached) the starter skips the request and shows it in the agent's status; it never runs with
+the token of `kalmido-agent.env` instead. Removing a computer under *Settings > Agents* ends its request tokens at once.
+
 2.47.3 (#1729): *Remove computer* and *Delete agent* show an uninstall command for each computer (run it there first, then delete; it also works after the agent was deleted).
 
 2.157.0 (#1517): on a Mac set up over SSH (nobody logged in at the screen) the agent starts in the background at once and at every screen login after a restart. After *Remove computer* the launcher stops the agent with one log line and waits quietly until you run the uninstall command.

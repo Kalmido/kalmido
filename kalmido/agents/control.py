@@ -41,6 +41,7 @@ from ..core.pg import insert_id, system_ctx
 from ..core.access import act_for, run_person, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
 from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
+from ..api.runfor import req_main_step  # 2.1348.0 (#6668, second review F1)
 from ..accounts.session import me
 from ..tasks.lifecycle import apply_update, task_reopen, trash_task
 from ..collab.news import news_forget_comment
@@ -48,6 +49,7 @@ from ..notify.push import notify, push_prio, WD_TICKS
 from ..agents.core import agent_emit, agent_row, agent_shares, is_agent, need_agent
 from ..agents.chat import _jload, chat_choices_withdraw, choice_state
 from ..agents.workstyle import ws_need_editor
+from ..agents.reqtoken import req_main_token, req_unasked  # 2.1348.0 (#6668)
 from ..agents.steps import redact  # 2.653.0 (#5079): a decision line masks secrets like a step
 from ..agents.circle import circle_of, circle_person, circle_reader  # 2.1284.0 (#6453): writing only towards the same or a smaller circle
 from ..core.objcomments import ocm_trash  # 2.530.0 A (#4315, B11): text and files into the trash like comment_delete; 2.972.0 (#5272): the core's
@@ -461,6 +463,12 @@ def ctl_gate():
     if a is not None and (a["provider"] or "") == "kalmido-server":  # 2.571.0 D (#4676): a server agent's run with web access is on
         from .srvweb import srvweb_state
         web = srvweb_state(c, a["user_id"])
+    if a is not None and not a["owner_id"] and req_unasked():  # 2.1348.0 (#6668): a request of a team agent without a person:
+        d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # it reads, every change is a card
+    if (a is not None and not a["owner_id"] and a["per_request"] and request.environ.get(CTL_RUN_ENV)
+            and req_main_token()):  # 2.1348.0 (#6668, review F3): the step of an answered card with the long-lived token of a
+        d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # team agent per request: always the card's check
+        g.ctl_force_for = True  # (ctl_claim) and the rights of the person who said Yes -- also with no control level chosen
     if d is None and web is None:
         if a is None or a["owner_id"] or not act_for(a["user_id"]):
             return None  # no level chosen: works as before
@@ -482,7 +490,9 @@ def ctl_gate():
         step = srvweb_gate_step(web, request.method, path, b, request.view_args or {}) or step
     person = ctl_chat_person(c, a, request.method, path, request.view_args or {}) if step == "meta" else None
     if step == "meta" and not person:
-        return None
+        # 2.1348.0 (#6668, second review F1): no card check for a meta step -- a card's meta step with the long-lived token
+        # of a team agent per request (ctl_force_for above) reaches only the agent's own channel, else 403 request_token_needed
+        return req_main_step() if g.get("ctl_force_for") else None
     lids, unknown = ([], False) if person else ctl_lists(c, a["user_id"], path, b)
     if lids is None:
         return None  # a project it cannot see: the route answers 404
@@ -695,8 +705,9 @@ def ctl_claim(c, a, hdr, step, lids, circle=None):
         if not ctl_obj_write(c, who):
             return None, {"reason": "approver_rights"}
         g.ctl_for = who  # every role function of this request answers at most this person's role (core/access.py act_for)
-    elif lids and not a["owner_id"] and run_person() is not None:
+    elif lids and not a["owner_id"] and (run_person() is not None or g.get("ctl_force_for")):
         g.ctl_for = who  # review (F6): a run's card in a project: the person who said Yes counts, not the reader who asked
+        # 2.1348.0 (#6668, review F3): also the card step of a team agent per request (ctl_gate ctl_force_for)
     n = c.execute("""UPDATE agent_chat SET choices=jsonb_set(choices, '{approval,used_at}', to_jsonb(CAST(? AS TEXT)))
                      WHERE id=? AND agent_id=? AND choices->'approval'->>'used_at' IS NULL""",
                   (iso_ms(now_utc()), int(hdr), aid)).rowcount

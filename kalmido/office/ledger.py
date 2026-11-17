@@ -23,20 +23,20 @@ import json
 import os
 import re
 import shutil
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from flask import g, jsonify, request, has_app_context
 
 from ..core.config import app, OFFICE_DIR
 from ..core.i18n import N_, tr
-from ..core.db import body, bump, gset, gsetting, iso, now_utc, ix_ensure
+from ..core.db import body, bump, gset, gsetting, iso, local_now, now_utc, ix_ensure
 from ..core.pg import write_lock
 from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_enc_fields, oc_json_store, oc_log_detail
 from ..core.access import Denied
 from ..core.errors import BadInput, DeniedKey
 from .model import ofx_release  # noqa: F401  2.542.0 (#4598): moved to model, chain needs it at module level
-from .model import ofx_name1, ofx_name_clean, ofx_name_lines, office_gate, office_org, office_role, office_settings, pb_cl_sql
+from .model import doc_range_id, ofx_name1, ofx_name_clean, ofx_name_lines, office_role, office_settings, pb_cl_sql
 from .packs import office_pack_for
 from .doclang import doc_lg, doc_pack
 from .rights import ofr_admin_or
@@ -353,6 +353,29 @@ def ofx_logo_path(oid, name):
     return p if os.path.isfile(p) else None
 
 
+def ofx_range_date(c, oid, r):
+    """2.1348.0 (#6698): a document of an additional number range gets the day of finalising as its date (no date from outside,
+    so the range's date order never fails on a retry or on documents in another order); a set due date keeps its term (moves by
+    the same days). The office log notes a changed date. The caller reads the row again."""
+    if r["kind"] == "invoice" and not r["trial"]:  # a closed range takes no new invoice (a correction stays possible: it must)
+        rg = c.execute("SELECT closed_at FROM office_num_ranges WHERE id=? AND org_id=?", (doc_range_id(r), oid)).fetchone()
+        if rg is not None and rg["closed_at"]:
+            raise DeniedKey(409, N_("This number range is closed"))
+    today = local_now().date()
+    old = str(r["date"] or "")[:10]
+    if old == today.isoformat():
+        return
+    due = r["due_date"] if "due_date" in r.keys() else None
+    new_due = due
+    if due and old:
+        try:
+            new_due = (date.fromisoformat(str(due)[:10]) + (today - date.fromisoformat(str(old)[:10]))).isoformat()
+        except ValueError:
+            new_due = None
+    c.execute("UPDATE office_docs SET date=?, due_date=? WHERE id=? AND org_id=?", (today.isoformat(), new_due, r["id"], oid))
+    ofx_log(c, oid, "update", doc_id=r["id"], detail={"before": {"date": old}, "after": {"date": today.isoformat()}, "range_date": 1})
+
+
 def ofx_finalize(c, oid, uid, did, manual=None, reason=""):
     """Finalises document did of organisation oid (see the module text). 409 when it already is.
     2.1289.0 (#6481 N3, S3): manual = a hand-set number of an invoice / correction, checked and given in the same transaction
@@ -363,6 +386,9 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason=""):
     r = doc_row(c, oid, did)
     ofx_need_editable(r)
     s = office_settings(c, oid)
+    if r["kind"] in ("invoice", "credit") and not r["number"] and doc_range_id(r):
+        ofx_range_date(c, oid, r)  # 2.1348.0 (#6698): Kalmido sets the date of a range's document (the day of finalising)
+        r = doc_row(c, oid, did)
     pack = office_pack_for(s, calc_tax_day(dict(r))) or {}  # 2.531.0 (#4498): the rates of its day of service (frozen below)
     if r["kind"] != "offer":  # 2.38.0 (#1021, F1): the required fields of an invoice (400 with the list), due date
         write_lock(c, f"office_num_{int(oid)}")  # 2.126.0 A (#1979 F5): the date check and the number in one go (docs._assign_number)

@@ -503,10 +503,33 @@ coding agents, building files, own tools.
   `requested_by` ...) accepts only the requester (`403 run_person`), a route over the organisation as a whole only for a
   full member, a route over all the agent's projects only for an admin of its organisation (`403 run_closed`). With a
   valid approval card the person who said Yes counts instead of the requester.
-  **Limit:** a team agent that runs elsewhere with its own token (your own runner, the hosted MCP access) has no run the
-  server could bind to a person: the server does not know who asked, so none of the above applies there -- only the rules
-  on the token itself hold (*Members may see and use the agent*, the channel rule, the approver's write right). Use a
-  server agent, or a personal agent, when people with different rights give the agent orders.
+- **A team agent with its own token works per request** (2.1348.0, #6668): the same cut for a team agent that runs
+  elsewhere (the reference starter, your own program). Before working on events it asks
+  `POST /api/v1/agent/request-token {"seqs": [<seq>, ...]}` -> `{token, expires_at, asked_by, list_ids}`: a token of the
+  agent that lasts 8 hours and reaches only what the person of these events reaches themselves (their projects, outside
+  projects at most their own role, writes capped to their role -- a reader's order becomes an approval card). Events of
+  two people in one call: `400 several_people` (one request = one person); a person who may no longer give the agent
+  orders: `403 no_order`; an event that is gone or older than 24 hours: `404 event_gone`. Events without a person (the project's own automation):
+  only the projects of these events, nothing outside them, and **every change is an approval card**.
+  `{"operator": true}` gives the token for the person chosen in the agent's settings (*who answers its permission
+  questions*, `perm_user_id`) for the agent's own list work (the starter's dispatcher); none chosen: `409 no_operator`.
+  Only the agent's own long-lived token may ask (`403 request_token_main`); a personal agent gets `{"token": null}` (its
+  own token is already its owner's). **From the first request token on, the agent's own token reaches only its channel** (events,
+  status, chats, jobs, usage, messages and cards: the classes own, mine, send and pin of the route table above); every
+  other route answers `403 request_token_needed` -- use the request token there. A program that never asks keeps its
+  token's whole reach (as before 2.1348); the reference starter asks before every run, gives ONLY the request token to
+  the run (`KALMIDO_TOKEN` of the run, read by the MCP server), reads the task and posts the task's answer with it.
+  **No request token, no run:** when the server refuses one (`403 no_order`, `400`, `409 no_operator`, `404 event_gone`)
+  or cannot be reached, the starter skips the request (a status line) and its dispatcher round waits -- the agent's own
+  token never reaches a run, a job or the dispatcher's list work; only an older server without the route (a plain 404)
+  keeps the old behaviour. The wake of a finished job asks with the events of that person's last run.
+  Request tokens are not listed with the agent's tokens; removing one of its computers (or any long-lived token of the
+  agent) ends **all** its request tokens at once -- connected starters simply ask again.
+  The step of an answered card (`POST /api/v1/agent/approvals/ID/run`) still runs with the agent's own token, but only a
+  change, and always with the card check: the person who said Yes must be allowed to make that change themselves (also
+  without a control level); a read through a card needs the request token.
+  The **hosted MCP access** of a team agent works for the person who connected it (the same cut, renewed with each access
+  token).
 - **Guests and read-only people** of the agent's organisation give a team agent no orders (2.1287.0): their chat message,
   mention or assignment does not reach it (the role's own words: a guest uses no agents, a read-only person changes nothing).
 - **The circle limit** of `agents/safety.py` holds unchanged: a team agent in two projects with different people is a

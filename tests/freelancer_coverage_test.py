@@ -303,6 +303,7 @@ ROUTES = {
     "POST /api/v1/agent/proposals/sheet-tasks": "agents",  # 2.126.1 B (#2125): p21261_b_api_test.py, the freelancer's own agent
     "POST /api/v1/agent/proposals/shoot": "agents", "POST /api/v1/agent/proposals/time": "agents",
     "POST /api/v1/agent/typing": "agents", "POST /api/v1/agent/usage": "agents",
+    "POST /api/v1/agent/request-token": "agents",  # 2.1348.0 (#6668): p6668_ext_team_agent_test.py (her personal agent: no token needed)
     "POST /api/v1/agents/{}/chat/{}/choice": "agents", "POST /api/v1/agents/{}/chat/{}/reactions": "agents",
     "PUT /api/agents/{}/autoshare": "agents", "PUT /api/agents/{}/permission-mode": "agents",
     "GET /api/agents/{}/perm-users": "agents",  # 2.312.0 D (#3266): p2312_d_perm_user_test.py
@@ -1228,6 +1229,7 @@ ROUTES = {
     "GET /s/f/{}/d/{}": "link", "GET /s/f/{}/v/{}": "link", "GET /s/f/{}/zip": "link",
     # 2.138.0 D (#2256): number ranges of the office (p2138_d_api_test.py)
     "GET /api/office/number-ranges": "office", "POST /api/office/number-ranges/{}": "office",
+    "POST /api/office/num-ranges": "office", "PATCH /api/office/num-ranges/{}": "office", "DELETE /api/office/num-ranges/{}": "office",  # 2.1348.0 (#6698)
     # 2.144.0 A (#2412): Stop in the agent chat and the agent's confirmation (p2144_a_api_test.py)
     "POST /api/agents/{}/abort": "agents", "POST /api/v1/agent/aborted": "agents",
     # 2.236.0 (#2904-#2911): the work style of an agent (owner / instance admin, else 404); C (#2906): its queue (p2236_c_queue_test.py)

@@ -16,8 +16,11 @@ function viewTasks() {
     return {open: m.filter(t => !t.parent_id || !ids.has(t.parent_id)), group, ...extra};
   };
   // 1.5.1: every view has its own "Show completed" (list "…" menu), so every view offers its completed tasks
-  if (k === 'today') return {...pick(t => ((t.due && t.due <= t0) || dlToday(t) || planToday(t, t0)) && !(t.blocked && hideBlockedToday()), 'date'), done: doneRecent.filter(t => t.due && t.due <= t0 && doneSince(t))};  // 2.7.0 (#412): deadlines from their first reminder
-  if (k === 'tomorrow') return {...pick(t => t.due === addDays(t0, 1), 'none'), done: doneRecent.filter(t => t.due === addDays(t0, 1))};
+  const onToday = t => ((t.due && t.due <= t0) || dlToday(t) || planToday(t, t0)) && !(t.blocked && hideBlockedToday());  // what "Today" shows
+  if (k === 'today') return {...pick(onToday, 'date'), done: doneRecent.filter(t => t.due && t.due <= t0 && doneSince(t))};  // 2.7.0 (#412): deadlines from their first reminder
+  // 2.1348.0 (#6960): + carry = what "Today" still shows open (groupTasks: the own group "Still open from today" on top); the
+  // sidebar's count of Tomorrow stays the tasks due tomorrow (render.js counts)
+  if (k === 'tomorrow') return {...pick(t => t.due === addDays(t0, 1), 'none'), carry: pick(t => onToday(t) && t.due !== addDays(t0, 1)).open, done: doneRecent.filter(t => t.due === addDays(t0, 1))};
   if (k === 'week') return {...pick(t => t.due && t.due <= addDays(t0, 6), 'date'), done: doneRecent.filter(t => t.due && t.due <= addDays(t0, 6) && doneSince(t))};
   if (k === 'doable') return {...pick(t => doable(t, t0), 'none'), done: doneRecent.filter(t => doneSince(t) && mineTask(t) && !(t.due && t.due > t0))};
   if (k === 'waiting') return {...pick(t => !!t.waiting_at, 'list'), done: []};  // 2.1.0 (#335)
@@ -303,6 +306,12 @@ function groupTasks(v) {
   let kbHid = [];  // 2.41.0 (#1365): undated tasks of a hidden list go to "Hidden" too
   if (mine) { const ids = new Set(all.map(t => t.id)); mine.tasks = mine.tasks.filter(t => !ids.has(t.id) && favKeep(t)); kbHid = mine.tasks.filter(mtHid); mine.tasks = mine.tasks.filter(t => !mtHid(t)); if (mine.tasks.length) g.push(mine); }
   if (v.mine) { const hids = new Set((v.hid || []).map(t => t.id)); g.push(...mtGroups(v.hid || [], kbHid.filter(t => !hids.has(t.id)))); }
+  if (v.carry?.length) {  // 2.1348.0 (#6960): Tomorrow: what is still open from today, its own foldable group on top (open by default,
+    // the folding kept on this device like every group); the tasks of tomorrow below under their own head, never mixed
+    const i = g.findIndex(x => x.id === 'all' && !x.name);
+    if (i >= 0) { if (g[i].tasks.length) Object.assign(g[i], {id: 'tm:tomorrow', name: tr('Tomorrow')}); else g.splice(i, 1); }
+    g.unshift({id: 'tm:carry', name: tr('Still open from today'), tasks: sortTasks(v.carry.slice(), 'date'), cls: 'tmcarry'});
+  }
   return pinned.length ? [{id: 'pinned', name: tr('Pinned'), tasks: pinned, cls: 'pin'}, ...g] : g;
 }
 function groupRest(v, arr, dn = []) {  // dn: 2.36.2 (#1136) the completed tasks that stay in their sections

@@ -84,6 +84,7 @@ RX_TABLES = (
     ("contracts/contract-files.csv", "office_contract_files"),
     ("contracts/agreements.csv", "office_agreements"),
     ("books/number-ranges.csv", "office_numbers"),
+    ("books/extra-number-ranges.csv", "office_num_ranges"),  # 2.1348.0 (#6698): the additional ranges (code, scheme, suffix) the counters r<id> belong to
     ("books/opening-balances.csv", "office_opening_balances"),
     ("books/period-locks.csv", "office_period_locks"),
     ("books/ledger-entries.csv", "office_ledger_entries"),  # 2.666.0 (#3461): adjusting / opening entries of the balance sheet
