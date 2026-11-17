@@ -15,6 +15,8 @@ only, addresses @example.test / @example.com.
  - e-mails (#2146): an assignment and a mention of a person without a push device -> ONE bundled mail after the delay, with
    links and the hint where to turn it off; a second event waits for the gap; a person with a push device gets none
    ("nopush"), with "always" one; "off" = none; a task out of sight by sending time is left out; invalid values: 400
+ - 2.1299.0 (#6352): an unconfirmed address gets no event mail with content, only once the proof mail (no title, no name);
+   a second event sends nothing more; the setting stays on; once confirmed the event mail comes
 usage: p2142_a_api_test.py <datadir>      (a fresh container; P2142A_NOSTART=1 = the server already runs)"""
 import email as _em
 import email.policy
@@ -149,6 +151,8 @@ r = A.post(B + "/api/admin/orgs", json={"name": "Beta", "admin_id": uid["frank"]
 assert r.status_code in (200, 201), r.text
 OB = r.json().get("id")
 Bo, Ca, Do, Em, Fr = (sess(u) for u in ("bob", "carol", "dora", "emil", "frank"))
+# 2.1299.0 (#6352): event mails go only to a proved address - dora and emil proved theirs (a mailed link); bob and carol did not
+dbx("UPDATE users SET email_proved=lower(email) WHERE id IN (?,?)", (uid["dora"], uid["emil"]))
 for s in (A, Bo, Ca, Do, Em, Fr):
     # 2.142.2: quiet hours off - their default 22:00-07:00 holds channel messages back, so the suite went red after 22:00 (CI)
     assert s.patch(B + "/api/settings", json={"lang": "en", "tour": "done", "features": FEATURES, "quiet_from": "", "quiet_to": ""}).ok
@@ -166,7 +170,9 @@ j = Bo.get(B + "/api/me/channels").json()
 check(j.get("enabled") is True and j.get("kinds") == ["slack", "matrix", "telegram", "signal"] and j.get("channels") == [],
       f"empty list, the four services: {j}")
 check("lists" in j.get("events", []) and "reminder" in j["events"], "a person's events " + str(j.get("events")))
-check(j.get("mail") == {"enabled": True, "address": True, "device": False, "assign": "nopush", "mention": "nopush"}, f"mail info {j.get('mail')}")
+# 2.1299.0 (#6352): "proved" - bob's address is not confirmed (the settings show the hint there)
+check(j.get("mail") == {"enabled": True, "address": True, "device": False, "proved": False, "assign": "nopush", "mention": "nopush"}, f"mail info {j.get('mail')}")
+check(Do.get(B + "/api/me/channels").json()["mail"]["proved"] is True, "#6352: dora's address is confirmed")
 check(Bo.post(B + "/api/me/channels", json={"kind": "teams", "url": "https://example.com/x"}).status_code == 400, "an unknown service: 400")
 check(Bo.post(B + "/api/me/channels", json={"kind": "slack", "url": "http://example.com/x"}).status_code == 400, "http:// not allowed: 400")
 check(Bo.post(B + "/api/me/channels", json={"kind": "slack", "url": "https://10.1.2.3/x"}).status_code == 400, "a private address: 400")
@@ -390,6 +396,31 @@ A.delete(B + f"/api/lists/{ML}/members/{uid['dora']}")
 until(lambda: queued("dora") == [], 40)  # 2.192.0 B (#2513): until the bundled mail was handled (the gap included) instead of 12 s
 time.sleep(1)
 check(all("Hidden later" not in mail_parts(x)[1] for x in mails("dora@example.test")), "#2146: a task out of sight is left out")
+
+# ================================================================ #6352: event mails only to a confirmed address
+# carol's address is not confirmed: an assignment sends no mail with content, only once the mail "Confirm your address"
+A.put(B + f"/api/lists/{ML}/members", json={"user_id": uid["carol"], "role": "edit"})
+M4, M5 = task(A, ML, "Secret client pitch"), task(A, ML, "Second secret task")
+A.patch(B + f"/api/tasks/{M4}", json={"assignee_id": uid["carol"]})
+m = wait_mail("carol@example.test", 1)
+until(lambda: queued("carol") == [], 40)
+time.sleep(1)
+m = mails("carol@example.test")
+subj, text = mail_parts(m[0]) if m else ("", "")
+check(len(m) == 1 and "Confirm your e-mail address" in subj and "#mailproof/" in text, f"#6352: unconfirmed: the proof mail instead ({len(m)} {subj})")
+check("Secret client pitch" not in text and "Alice" not in text and "Mail tasks" not in text, "#6352: no task title, name or project in it " + text[:300])
+check("Until then, e-mails with content" in text, "#6352: it says why " + text[:300])
+A.patch(B + f"/api/tasks/{M5}", json={"assignee_id": uid["carol"]})
+until(lambda: queued("carol") == [], 40)
+time.sleep(1)
+check(len(mails("carol@example.test")) == 1, f"#6352: a second event: no second proof mail, no content ({len(mails('carol@example.test'))})")
+check(Ca.get(B + "/api/state").json()["settings"].get("mail_assign", "nopush") == "nopush", "#6352: the setting stays on (works from the proof on)")
+# confirmed: the mail comes
+dbx("UPDATE users SET email_proved=lower(email) WHERE id=?", (uid["carol"],))
+A.patch(B + f"/api/tasks/{M4}", json={"assignee_id": None})
+A.patch(B + f"/api/tasks/{M4}", json={"assignee_id": uid["carol"]})
+m = wait_mail("carol@example.test", 2, secs=20)
+check(len(m) == 2 and "Secret client pitch" in mail_parts(m[-1])[1], f"#6352: confirmed: the event mail comes ({len(m)})")
 
 print(f"p2142_a_api: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

@@ -643,8 +643,11 @@ function mailHtml(j) {
 }
 function mailDigestHtml(j) {
   if (!j) return '';
-  return `<div class="row"><span class="rlab">${tr('Summary by e-mail')}</span>${j.digest.enabled ? mchk('s-digmail', j.digest.on, tr('Also send the daily summary by e-mail (at the time above, to {0})', j.email || tr('your e-mail address'))) : `<span class="muted">${tr('E-mail sending is not set up on this server')}</span>`}${j.digest.enabled && j.email ? `<button type="button" class="btn sm" data-mail="test">${ic('send', 's')} ${tr('Send now')}</button>` : ''}</div>`;
+  return `<div class="row"><span class="rlab">${tr('Summary by e-mail')}</span>${j.digest.enabled ? mchk('s-digmail', j.digest.on, tr('Also send the daily summary by e-mail (at the time above, to {0})', j.email || tr('your e-mail address'))) : `<span class="muted">${tr('E-mail sending is not set up on this server')}</span>`}${j.digest.enabled && j.email ? `<button type="button" class="btn sm" data-mail="test">${ic('send', 's')} ${tr('Send now')}</button>` : ''}</div>
+    ${/*html-ok*/ j.digest.enabled && j.email && !j.email_proved ? mailProofHint('s-digmail-h') : ''}`;
 }
+// 2.1299.0 (#6352): mails with content go only to a confirmed address - the hint where they are switched on (also integrations.js chn_mailHtml)
+function mailProofHint(id) { return `<div class="shint keep" id="${esc(id)}">${ic('alert', 's')} ${esc(tr('Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.'))} <button type="button" class="btn sm" data-mail="proof">${ic('send', 's')} ${tr('Confirm address')}</button></div>`; }
 async function mailWire(md) {
   const box = $('#s-mail', md), dbx = $('#s-digmail-w', md); if (!box && !dbx) return;
   let j = null;

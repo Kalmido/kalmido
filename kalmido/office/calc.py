@@ -587,7 +587,9 @@ def office_calc(doc, items, pack=None):
         "items_net": _num(items_net), "producing_qty": _num(prod_qty), "producing_days": _num(days), "producing_rate": _num(prod_rate_doc),
         "producing_total": _num(prod_total), "producing_mode": "amount" if share else None, "producing_amount": _num(prod_amt),
         "handling_pct": _num(hu_pct), "handling_base": _num(hu_base), "handling_total": _num(hu_total),
-        "sur_split": 1,  # 2.1228.0 (#6254): the surcharges carry the tax of their positions (docs._calc_doc reads it on finalised ones)
+        # 2.1228.0 (#6254): the surcharges carry the tax of their positions (docs._calc_doc reads it on finalised ones);
+        # 2.1299.0 (#6661): 0 while computed by the former rule, so that a sent quotation changed later stays on it
+        "sur_split": 0 if _flag(doc.get("sur_standard")) else 1,
         "markup_pct": _num(mk_pct), "markup_base": _num(mk_base), "markup_total": _num(mk_total), "raw_base": _num(raw_base), "raw_factor": _num(raw_factor), "raw_amount": _num(raw_amount),
         "discount_pct": _num(disc_pct), "discount": _num(discount),
         # 2.1042.0 (#5815): the fixed amount as asked (home currency), the discountable sum it may take, whether it was cut to it
