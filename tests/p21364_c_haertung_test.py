@@ -9,6 +9,7 @@
    an organisation reads, changes and deletes again; freelancer-matrix: office); a real sealed value is kept
  3 restoring a deleted task comment / team chat message: the author does not undo a project admin's delete; not in a frozen
    DM; not as a read-only person of the organisation (each was 200 before)
+ 4 a mail reply through the own address token of a read-only member with a colleague's forged From: no comment, a note
 usage: p21364_c_haertung_test.py <datadir>"""
 import base64
 import os
@@ -184,5 +185,17 @@ check(Ca.delete(B + f"/api/comments/{C3}").ok and Ca.delete(B + f"/api/team/mess
 check(Bo.put(B + f"/api/orgs/{ORG}/members", json={"user_id": CARL, "role": "readonly"}).ok, "(3) carl becomes read-only in Alpha")
 check(Ca.post(B + f"/api/comments/{C3}/restore").status_code == 403, "(3) read-only: the comment does not come back (403)")
 check(Ca.post(B + f"/api/team/messages/{M3}/restore").status_code == 403, "(3) read-only: the message does not come back (403)")
+
+# ==== 4: a mail reply of a read-only member with a forged From (carl is read-only in Alpha since section 3)
+dbx("INSERT INTO task_mail(task_id,msg_id,sender,kind,created_at) VALUES(?,?,'',?,now())", (T, "<t6297@example.com>", "out"))
+n0 = dbx("SELECT COUNT(*) FROM obj_comments WHERE kind='task' AND ref_id=?", (T,))[0][0]
+MAIL = "From: Bob <bob@example.com>\nTo: carl+tok@example.com\nSubject: Re: Check\nIn-Reply-To: <t6297@example.com>\nMessage-ID: <f6297@example.com>\n\nForged"
+out = py_in_app("import email\nfrom kalmido.integrations.taskmail import tmr_take\n"
+                f"print('TAKE', tmr_take(c, email.message_from_string({MAIL!r}), None, {CARL}, 'token')[0])")
+check("TAKE note" in out, f"(4) carl's token with bob's address as From: a note, no comment ({out[-200:]})")
+check(dbx("SELECT COUNT(*) FROM obj_comments WHERE kind='task' AND ref_id=?", (T,))[0][0] == n0, "(4) no comment on the task")
+out = py_in_app("import email\nfrom kalmido.integrations.taskmail import tmr_take\n"
+                f"print('TAKE', tmr_take(c, email.message_from_string({MAIL!r}), None, {BOB}, 'token')[0])")
+check("TAKE comment" in out, f"(4) bob's own token: still a comment ({out[-200:]})")
 
 sys.exit(kt.done("p21364_c_haertung"))
