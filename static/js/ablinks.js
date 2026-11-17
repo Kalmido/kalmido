@@ -18,12 +18,14 @@ const xl_menuItem = n => n.role === 'owner' && (n.kind === 'file' || n.kind === 
 // ---- the section in the details (after "Shared with"); md = the details dialog, n = the node
 // 2.1224.0 (#6113): at = the element the section follows (the document view's tab Shares: its row of buttons, docview.js)
 const xl_here = n => n.role === 'owner' && (n.kind === 'file' || n.kind === 'folder') && !n.in_trash;
+// 2.1352.0 (#6172): -> true when the section stands (false: not here, no anchor, or removed because the links may not be seen)
 async function xl_mount(md, n, at) {
-  if (!xl_here(n)) return;
-  const anchor = at || $('[data-abd="share"]', md)?.closest('.row'); if (!anchor) return;
+  if (!xl_here(n)) return false;
+  const anchor = at || $('[data-abd="share"]', md)?.closest('.row'); if (!anchor) return false;
   /** @type {any} */
   const box = document.createElement('div');
   box.className = 'xl-sec';
+  box.dataset.nid = String(n.id);  // 2.1352.0 (#6172): undo / redo of a new link redraw only the section of that node
   box.innerHTML = `<h4>${tr('Link for external people')}</h4><div class="xl-links">${/*html-ok*/ loadingHtml('row')}</div>`;  // 2.1216.0 (#6109)
   anchor.after(box);
   // 2.1216.0 (#6109): a failure says so in the section with "Try again" (no toast, the section does not vanish)
@@ -31,6 +33,7 @@ async function xl_mount(md, n, at) {
     xl_draw(box, n, j); };
   await ld();
   box.addEventListener('click', e => xl_click(e, box, n));
+  return box.isConnected;
 }
 function xl_rowHtml(l) {
   const meta = [l.expired ? tr('Expired') : l.expires_at ? tr('until {0}', ab_when(l.expires_at)) : tr('No end date'),
@@ -121,7 +124,9 @@ async function xl_newDlg(nid, done, std) {
     $('[data-m="close"].btn', md).textContent = tr('Done');
     $('#xl-url', md).select();
     const name = node?.name || '';
-    const sec = () => $('.abdlg .xl-sec') || $('.dv-view .xl-sec');  // 2.1224.0 (#6113): + the document view's tab Shares
+    // 2.1224.0 (#6113): + the document view's tab Shares; 2.1352.0 (#6172): only the section of this node (data-nid) - an
+    // undo after the dialog moved on to another file must not draw this node's links into that file's section
+    const sec = () => $(`.abdlg .xl-sec[data-nid="${nid}"]`) || $(`.dv-view .xl-sec[data-nid="${nid}"]`);
     histAdd({label: tr('Link for external people of {0}', qn(name)), undo: () => xl_req('DELETE', `/api/files/ext-links/${j.id}`, sec(), {id: nid}),
       redo: () => xl_req('POST', `/api/files/ext-links/${j.id}/restore`, sec(), {id: nid})});
     if (done) done(); else ab_reload();

@@ -112,12 +112,41 @@ const items = d => [...d.querySelectorAll('#pop:not(.hidden) [role="menuitem"]')
   const row = await until(() => d.querySelector('.dv-view #dv-p-share .xl-sec .xl-row'), 100);
   check(row && /Kunde Nord/.test(row.textContent), 'file view, tab Shares: the existing link with its label ' + (d.querySelector('.dv-view #dv-p-share')?.textContent || '').replace(/\s+/g, ' ').slice(0, 200));
   check(row?.querySelector('[data-xl="copy"]') && row?.querySelector('[data-xl="regen"]') && row?.querySelector('[data-xl="revoke"]'), 'file view: Copy, New link and Switch off');
-  check(d.querySelector('.dv-view #dv-p-share [data-xl="new"]') && !d.querySelector('.dv-view #dv-p-share [data-dc="xlink"]'), 'file view: "Create link" in the section (no second button)');
+  // 2.1352.0 (#6172): the button "Link for external people…" is there but hidden while the section stands
+  check(d.querySelector('.dv-view #dv-p-share [data-xl="new"]') && !d.querySelector('.dv-view #dv-p-share [data-dc="xlink"]:not([hidden])'), 'file view: "Create link" in the section (no second button)');
   row?.querySelector('[data-xl="copy"]').click();
   check(await until(() => w.__cp === link?.url), 'file view: Copy copies the link\'s address');
   row?.querySelector('[data-xl="revoke"]').click();
   check(await until(async () => ((await call(FK, 'GET', `/api/files/nodes/${FA}/ext-links`)).links || []).length === 0), 'file view: Switch off ends the link on the server');
   check(await until(() => !d.querySelector('.dv-view #dv-p-share .xl-row')), 'file view: the row is gone');
+  w.close();
+
+  // ================= 2.1352.0 (#6172): undo of a new link redraws only its own file's section; the button comes back
+  // when the section cannot stand (the links may not be seen)
+  const XB = await call(FK, 'POST', `/api/files/nodes/${FB}/ext-links`, {expires: 'none', label: 'Andere'});
+  check(XB.http < 300, 'setup: a public link of lageplan.txt ' + XB.http);
+  w = await boot({user: 'frida', hash: 'ablage/' + DEEP}); d = w.document;
+  check(await until(() => d.querySelector(`#view .abrow[data-abid="${FA}"]`)), '#6172: the folder shows the file');
+  w.eval(`xl_newDlg(${FA}, null, 'none')`);
+  const mk6172 = await until(() => d.querySelector('.xldlg [data-xn="make"]'));
+  mk6172?.click();
+  check(await until(() => d.querySelector('.xldlg .xl-out:not([hidden])')), '#6172: a new link of drehplan.txt');
+  d.querySelector('.xldlg [data-m="close"]')?.click();
+  check(await until(async () => ((await call(FK, 'GET', `/api/files/nodes/${FA}/ext-links`)).links || []).length === 1), '#6172: the link is on the server');
+  w.eval(`dc_open(${FB}, {tab: 'share'})`);
+  const sb = await until(() => d.querySelector(`.dv-view #dv-p-share .xl-sec[data-nid="${FB}"] .xl-row`), 100);
+  check(sb && /Andere/.test(sb.textContent), '#6172: lageplan.txt, tab Shares: its own link "Andere"');
+  await w.eval('HIST.undo.at(-1).undo()');  // resolves once its answer was drawn (xl_req)
+  check(((await call(FK, 'GET', `/api/files/nodes/${FA}/ext-links`)).links || []).length === 0, '#6172: undo switched the new link of drehplan.txt off');
+  check(/Andere/.test(d.querySelector(`.dv-view #dv-p-share .xl-sec[data-nid="${FB}"]`)?.textContent || ''),
+    '#6172: the section of lageplan.txt still shows its own link (was redrawn with the links of drehplan.txt)');
+  w.close();
+  w = await boot({user: 'frida', hash: 'ablage/' + DEEP}); d = w.document;
+  check(await until(() => d.querySelector(`#view .abrow[data-abid="${FA}"]`)), '#6172: the folder again');
+  w.eval(`{ const rf0 = rawFetch; rawFetch = (m, u, ...a) => m === 'GET' && /ext-links$/.test(u) ? Promise.reject(Object.assign(new Error('no'), {status: 403})) : rf0(m, u, ...a); }`);
+  w.eval(`dc_open(${FA}, {tab: 'share'})`);
+  const xb = await until(() => d.querySelector('.dv-view #dv-p-share [data-dc="xlink"]:not([hidden])'));
+  check(xb && !d.querySelector('.dv-view #dv-p-share .xl-sec'), '#6172: links not to be seen: no section, the button "Link for external people…" shows');
   w.close();
 
   // ================= Share: choosing adds at once with "Can view" (alice, Alpha)
