@@ -19007,7 +19007,6 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "vergrendeld met een wachtwoord (end-to-end versleuteld): de server heeft het alleen versleuteld",
   "shared with you: only the projects you own are exported": "met jou gedeeld: alleen je eigen projecten worden geëxporteerd",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten.",
-  "These projects are locked with a password (end-to-end encrypted). The server only holds them as ciphertext, so they cannot be exported here:": "Deze projecten zijn met een wachtwoord vergrendeld (end-to-end-versleuteld). De server heeft ze alleen als cijfertekst en kan ze hier niet exporteren:",
   "Sending needs the user name and the password of the SMTP server": "Voor verzenden zijn de gebruikersnaam en het wachtwoord van de SMTP-server nodig",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Verzenden alleen via poort 465 of 587 (poort 25 alleen voor een server die een beheerder heeft toegestaan)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Er wordt alleen verzonden met de gebruikersnaam en het wachtwoord van de SMTP-server, via poort 465 of 587."
