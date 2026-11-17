@@ -18,7 +18,7 @@ from ..core.numtext import user_num
 from ..core.db import body, bump, db, err, gsetting, inbox_default, iso, local_now, now_utc, parse_iso, test_seconds, uset, usettings
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, FAIL_WINDOW, client_ip, me, rate_ip
 from ..accounts.login import twofa_methods
-from ..core.access import collab_all, Denied, list_role, my_inbox, need_collab, need_list, need_task, need_time, time_all, token_lists, live_sql, tvis, vis_sql  # 2.955.0 (#5276): live_sql
+from ..core.access import collab_all, Denied, list_role, my_inbox, need_collab, need_list, need_task, need_time, time_all, token_lists, live_sql, tvis, vis_search_lids, vis_sql  # 2.955.0 (#5276): live_sql
 from ..core.serializers import load_tasks, rel_of
 from ..core.objfollow import OFL_WATCHING_SQL, ofl_bells_here  # 2.972.0 (#5285); 2.981.0 (#5287): a project's bell
 from ..core.instance import semver, update_state
@@ -1211,9 +1211,10 @@ def v1_tasks_more(c, uid, a, where, args):
         if not tsq:
             raise BadInput(tr("Invalid value: {0}", "q"))
         # 2.981.0 (#5278): the shared search index obj_search (title A / notes B of a task; not its link or code: weight C)
+        # 2.1321.0 (#6397): the visible lists on the index row first (node_id), then the words -- not every organisation's hits
         where.append("id IN (SELECT f.ref_id FROM obj_search f, to_tsquery('simple'::regconfig, ?) q WHERE f.kind='task' "
-                     "AND f.tsv @@ q AND ts_filter(f.tsv, '{a,b}') @@ q)")
-        args.append(tsq)
+                     "AND f.node_id = ANY(CAST(? AS BIGINT[])) AND f.tsv @@ q AND ts_filter(f.tsv, '{a,b}') @@ q)")
+        args += [tsq, vis_search_lids(c, uid)]
     return rsort
 
 

@@ -35,7 +35,7 @@ from .access import live_sql
 from .db import gset, gsetting, trigger_ensure
 from .kernretire import kern_retire_floor
 from .objhooks import MOVE
-from .pg import like_escape, qi, system_ctx, table_columns, table_exists
+from .pg import like_escape, qi, st_ids, system_ctx, table_columns, table_exists
 from .srchreg import SRCH_HOOKS  # 2.1026.0 (#5280)
 
 OSR_VERSION = "1"        # a new version empties the index and builds it again at the next start
@@ -152,12 +152,65 @@ def osr_name_cond(expr, raw):
     return (" AND ".join(parts), args) if parts else (None, [])
 
 
-def osr_ids_sql(kind, raw, names=False):
-    """(SQL "ref_id IN (...)" sub-select of the objects of kind matching raw, its parameters), or (None, [])."""
-    cond, args = osr_cond(raw, "s", names)
-    if cond is None:
+# ---- 2.1321.0 (#6397): the reader's own rows first. The index holds the rows of every organisation; a reader that hands
+# only the word condition to Postgres makes it read (GIN) and rank the hits of all of them before the join to the source row
+# drops the foreign ones (measured in audit #4765: a person of an almost empty organisation 28 -> 122 ms only because another
+# organisation grew; a member of the large one 0.5 - 1.75 s). So every reader gives a scope over indexed columns, built by one
+# of the helpers below ({a} = the alias of the obj_search row); the word condition and the ranking run inside it.
+OSR_ORG_RLS = ("task", "comment", "contact", "wiki_page", "event", "bookmark")  # org_ref = the source row's org_id (OSR_SOURCES org)
+
+
+def osr_scope_nodes(ids):
+    """Scope: the containers ids (node_id: a task's / note's project, a contact's address book, an event's calendar, a team
+    chat message's room, an agent chat's agent) -- index ix5278_obj_search_node. The caller's own visibility of the
+    containers, so nothing it would show is left out."""
+    return ("{a}.node_id = ANY(CAST(? AS BIGINT[]))", [st_ids(sorted({int(x) for x in ids or ()}))])
+
+
+def osr_scope_owner(uid):
+    """Scope: the rows of one owner (owner_id: an agent chat's person) -- index ix6397_obj_search_owner."""
+    return ("{a}.owner_id = ?", [int(uid)])
+
+
+def osr_scope_org(c, kind):
+    """Scope: exactly the organisations the source row's row-level security lets through (core/rls.py rule: org_id IS NULL
+    or one of app.org_ids), read from the running transaction -- so it never drops a row the reader's join could show; None
+    in the system context (every organisation) and for a kind whose org_ref is not its source's org_id (OSR_ORG_RLS: a
+    note's comes from its project, messages have none). Index ix6397_obj_search_org (kind, org_ref; NULL included)."""
+    if kind not in OSR_ORG_RLS:
+        return None
+    role, orgs = c.execute("SELECT current_setting('app.role', true), current_setting('app.org_ids', true)").fetchone()
+    if role == "system":
+        return None
+    ids = [int(x) for x in (orgs or "").split(",") if x.strip()]
+    return ("({a}.org_ref IS NULL OR {a}.org_ref = ANY(CAST(? AS BIGINT[])))", [st_ids(ids)])
+
+
+def osr_scope_sql(scope, alias="s"):
+    """(' AND <scope>', its parameters) on the obj_search alias, ('', []) without one."""
+    if not scope:
+        return "", []
+    return " AND " + scope[0].replace("{a}", alias), list(scope[1])
+
+
+def osr_ids_sql(kind, raw, names=False, scope=None):
+    """(SQL "ref_id IN (...)" sub-select of the objects of kind matching raw, its parameters), or (None, []).
+    2.1321.0 (#6397): scope (osr_scope_nodes / osr_scope_owner / osr_scope_org) narrows the rows over an index before the
+    words are tested. names=True no longer hands Postgres "tsv @@ q OR names like ..." (the OR made the GIN index useless: every
+    row of the kind was read): two arms instead -- the words through the GIN index, and the rows that have names at all
+    (index ix6397_obj_search_names) with the whole condition. The same rows: a row with empty names matches the like pattern of no
+    word, so it matches exactly when all its groups match in tsv (the AND of the groups' tsqueries)."""
+    groups = osr_groups(raw)
+    tsq = " & ".join(p for p in (osr_group_query(ws) for ws in groups) if p)
+    if not tsq:
         return None, []
-    return f"(SELECT s.ref_id FROM obj_search s WHERE s.kind='{kind}' AND {cond})", args
+    sc, sa = osr_scope_sql(scope)
+    head = f"SELECT s.ref_id FROM obj_search s WHERE s.kind='{kind}'{sc}"
+    if not names:
+        return f"({head} AND s.tsv @@ to_tsquery('simple'::regconfig, ?))", [*sa, tsq]
+    cond, args = osr_cond(raw, "s", names=True)
+    return (f"({head} AND s.tsv @@ to_tsquery('simple'::regconfig, ?) UNION {head} AND s.names <> '' AND {cond})",
+            [*sa, tsq, *sa, *args])
 
 
 # ---- the sources: what each kind indexes (SQL over the row {r}: NEW in the triggers, the table's alias when filling)
@@ -416,9 +469,10 @@ def osr_comment_hits(c, uid, raw, kinds=None, limit=20, cand=200):
     cond, args = osr_cond(raw, "s")
     if not ks or cond is None:
         return []
+    sc, sa = osr_scope_sql(osr_scope_org(c, "comment"))  # 2.1321.0 (#6397): the reader's organisations first
     rows = c.execute(f"""SELECT m.id, m.kind, m.ref_id, m.body FROM obj_search s JOIN obj_comments m ON m.id=s.ref_id
-        WHERE s.kind='comment' AND s.pkind = ANY(CAST(? AS TEXT[])) AND {cond} AND {live_sql('m')}
-        ORDER BY m.id DESC LIMIT {int(cand)}""", [ks] + args).fetchall()
+        WHERE s.kind='comment' AND s.pkind = ANY(CAST(? AS TEXT[])){sc} AND {cond} AND {live_sql('m')}
+        ORDER BY m.id DESC LIMIT {int(cand)}""", [ks] + sa + args).fetchall()
     out, seen = [], {}
     for r in rows:
         k = (r["kind"], r["ref_id"])
@@ -431,4 +485,6 @@ def osr_comment_hits(c, uid, raw, kinds=None, limit=20, cand=200):
     return out
 
 
-SRCH_HOOKS["task_ids"] = lambda raw, names=False: osr_ids_sql("task", raw, names)  # 2.1026.0 (#5280): accounts/orgtasks.py
+# 2.1026.0 (#5280): accounts/orgtasks.py; 2.1321.0 (#6397): nodes = the projects the reader looks at (the scope)
+SRCH_HOOKS["task_ids"] = lambda raw, names=False, nodes=None: osr_ids_sql(
+    "task", raw, names, scope=osr_scope_nodes(nodes) if nodes is not None else None)

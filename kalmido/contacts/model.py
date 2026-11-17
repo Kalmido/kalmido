@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 
 from flask import has_request_context
 
-from ..core.objsearch import osr_ids_sql  # 2.981.0 (#5278)
+from ..core.objsearch import osr_ids_sql, osr_scope_org  # 2.981.0 (#5278)
 from ..core.i18n import lang, N_, tr
 from ..core.pg import insert_id, like_escape, st_ids, system_ctx
 from ..core.db import bump, iso, iso_ms, local_now, now_utc, usettings
@@ -1078,7 +1078,8 @@ def contacts_query(c, uid, q="", book=None, group=None, limit=500, offset=0, tra
     where, args = f"{inb} AND kind!='group' AND deleted_at IS {'NOT ' if trash else ''}NULL", list(ids)
     if (q or "").strip():  # 2.981.0 (#5278, stage Q6a, question 14): the shared search index (core/objsearch.py, kind 'contact'):
         # every word at the start of a word, in the names / company / phone numbers anywhere
-        ids_sql, x = osr_ids_sql("contact", q, names=True)
+        # 2.1321.0 (#6397): the reader's organisations first (as the contacts' row-level security), then the words
+        ids_sql, x = osr_ids_sql("contact", q, names=True, scope=osr_scope_org(c, "contact"))
         if ids_sql is None:
             return [], 0
         where += f" AND id IN {ids_sql}"

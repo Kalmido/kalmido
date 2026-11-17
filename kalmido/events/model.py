@@ -18,7 +18,7 @@ from ..accounts.session import me
 from ..core.access import acx_org_ok, collab_all, Denied, live_sql, task_visible, trash_sql  # 2.947.0 (#5367): trash_sql; 2.1026.0: live_sql
 from ..core.access import act_for  # 2.1287.0 (#6454, review F7)
 from ..core.dlock import dl_area_locked, dl_of, dl_tasks_locked  # 2.560.0 B (#4699)
-from ..core.objsearch import osr_ids_sql  # 2.1026.0 (#5280)
+from ..core.objsearch import osr_ids_sql, osr_scope_nodes, osr_scope_org  # 2.1026.0 (#5280)
 from ..core.pages import valid_url
 from ..tasks.validation import (
     as_int, clean_reminders, rmd_export, rr_feasible, rr_norm, rr_problem, valid_date, valid_hm,
@@ -874,12 +874,14 @@ def ev_find(c, uid, raw, limit=20):
         return []
     cals = my_cal_ids(c, uid)
     rows = []
-    if cals:
+    if cals:  # 2.1321.0 (#6397): the calendars first (node_id = the event's calendar), then the words
+        ids, args = osr_ids_sql("event", raw, scope=osr_scope_nodes(cals))
         q = ",".join("?" * len(cals))
         rows = [(r, cals[r["cal_id"]]) for r in c.execute(
             f"SELECT * FROM events WHERE id IN {ids} AND cal_id IN ({q}) AND {live_sql()} ORDER BY start DESC, id DESC LIMIT ?",
             [*args, *cals, int(limit)]).fetchall()]
-    if collab_all():
+    if collab_all():  # 2.1321.0 (#6397): an invitation may be in another calendar: the reader's organisations first
+        ids, args = osr_ids_sql("event", raw, scope=osr_scope_org(c, "event"))
         for r in c.execute(f"""SELECT e.*, k.org_id AS cal_org FROM events e JOIN event_attendees a ON a.event_id=e.id AND a.user_id=?
                                JOIN ev_cals k ON k.id=e.cal_id WHERE e.id IN {ids} AND {live_sql('e')}
                                ORDER BY e.start DESC, e.id DESC LIMIT ?""", [uid, *args, int(limit)]).fetchall():

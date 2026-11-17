@@ -31,7 +31,7 @@ from ..core.i18n import N_, csv_dialect, lang, tr
 from ..core.db import body, db, iso, now_utc
 from ..accounts.session import me
 from ..core.access import Denied, need_feat
-from ..core.pg import like_escape
+from ..core.pg import like_escape, st_ids
 from ..core.errors import BadInput, UnknownFields
 from ..contacts.model import (contact_brief, contacts_on, my_book_ids, need_book, render_vcard, vc_date, FIELD_MAX, ITEMS_MAX,
                               NOTE_MAX)
@@ -439,8 +439,10 @@ def ctx_dupes_for(c, uid, fn, emails, phones, skip=None):
             conds.append("CAST(emails AS text) ILIKE ? ESCAPE '\\'")
             args.append("%" + like_escape(x) + "%")
         else:  # the last 9 digits of a phone number in the phone numbers of the shared search index (core/objsearch.py names)
-            conds.append("id IN (SELECT s.ref_id FROM obj_search s WHERE s.kind='contact' AND s.names LIKE ?)")  # pg-ok: digits in folded names, case does not matter
-            args.append("%" + x + "%")
+            # 2.1321.0 (#6397): the visible books first (node_id = the contact's book, index ix6397_obj_search_names)
+            conds.append("id IN (SELECT s.ref_id FROM obj_search s WHERE s.kind='contact' AND s.names <> '' "
+                         "AND s.node_id = ANY(CAST(? AS BIGINT[])) AND s.names LIKE ?)")  # pg-ok: digits in folded names, case does not matter
+            args += [st_ids(sorted(books)), "%" + x + "%"]
     q = ",".join("?" * len(books))
     rows = c.execute(f"SELECT * FROM contacts WHERE book_id IN ({q}) AND kind!='group' AND deleted_at IS NULL AND ({' OR '.join(conds)}) ORDER BY id LIMIT 200",
                      [*books, *args]).fetchall()

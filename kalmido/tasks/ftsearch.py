@@ -21,13 +21,13 @@ from flask import g, has_request_context, jsonify, request
 from ..core.i18n import tr
 from ..core.db import db
 from ..core.pg import st_ids
-from ..core.access import access_note, live_sql, tvis, vis_sql
+from ..core.access import access_note, live_sql, tvis, vis_search_lids, vis_sql
 from ..core.serializers import load_tasks
 from ..accounts.session import me
 from ..collab.msgsearch import find_marks, snippet
 from ..collab.comments import comment_plain, user_names
 from ..core.objcomments import OCM_MENTION_RE  # 2.972.0 (#5272)
-from ..core.objsearch import OSR_KINDS, osr_comment_hits, osr_query, osr_terms  # 2.981.0 (#5278)
+from ..core.objsearch import OSR_KINDS, osr_comment_hits, osr_query, osr_scope_nodes, osr_scope_org, osr_scope_sql, osr_terms  # 2.981.0 (#5278)
 from ..collab.teamchat import md_brief
 from ..tasks.validation import as_int
 from ..core.errors import BadInput
@@ -108,11 +108,14 @@ def fts_search(c, uid, raw, files=True):
     # 2.281.0 C (#3113): rank on the stored vector; title / notes only for the FTS_CAND best (in_title: the weight A part)
     # 2.981.0 (#5278): the vector of the shared index (obj_search kind 'task'); a hit only in the link / code snippets
     # (weight C) counts as notes
+    # 2.1321.0 (#6397): the visible lists as an array on the index row first (node_id = the task's list, index
+    # ix5278_obj_search_node), so only their hits are read and ranked -- not the hits of every organisation (audit #4765)
+    nsc, nsa = osr_scope_sql(osr_scope_nodes(vis_search_lids(c, uid)), "f")
     rows = c.execute(f"""SELECT t.id, t.list_id, t.title, t.content, x.r, x.in_title FROM (
         SELECT f.ref_id AS task_id, ts_rank(f.tsv, q) AS r, (ts_filter(f.tsv, '{{a}}') @@ q) AS in_title
         FROM obj_search f JOIN tasks t ON t.id=f.ref_id, to_tsquery('simple'::regconfig, ?) q
-        WHERE f.kind='task' AND f.tsv @@ q AND {_task_cond(c, uid, 't.')} ORDER BY r DESC, f.ref_id DESC LIMIT {cand}) x
-        JOIN tasks t ON t.id=x.task_id ORDER BY x.r DESC, t.id DESC""", (tsq, uid, uid)).fetchall()
+        WHERE f.kind='task'{nsc} AND f.tsv @@ q AND {_task_cond(c, uid, 't.')} ORDER BY r DESC, f.ref_id DESC LIMIT {cand}) x
+        JOIN tasks t ON t.id=x.task_id ORDER BY x.r DESC, t.id DESC""", (tsq, *nsa, uid, uid)).fetchall()
     for r in rows:
         note(r["list_id"])
         if r["in_title"]:
@@ -121,11 +124,14 @@ def fts_search(c, uid, raw, files=True):
             put(r["id"], "notes", r["r"], _snip(_plain(r["content"]), terms))
     # comments: the same visibility as the message search (who may read the task's comments)
     # 2.972.0 (#5272): the comments of tasks in the comments' core (obj_comments kind 'task'); 2.981.0 (#5278): obj_search kind 'comment'
+    # 2.1321.0 (#6397): a comment's index row has no list (node_id) -- its organisation first, as its row-level security
+    # (osr_scope_org: no organisation or one of the reader's; index ix6397_obj_search_org)
+    osc, osa = osr_scope_sql(osr_scope_org(c, "comment"), "f")
     rows = c.execute(f"""SELECT x.*, m.body FROM (SELECT * FROM (SELECT DISTINCT ON (m.ref_id) m.id, m.ref_id AS task_id, t.list_id, ts_rank(f.tsv, q) AS r
         FROM obj_search f JOIN obj_comments m ON m.id=f.ref_id AND m.kind='task' JOIN tasks t ON t.id=m.ref_id, to_tsquery('simple'::regconfig, ?) q
-        WHERE f.kind='comment' AND f.pkind='task' AND f.tsv @@ q AND {live_sql('m')} AND {_task_cond(c, uid, 't.')}
+        WHERE f.kind='comment' AND f.pkind='task'{osc} AND f.tsv @@ q AND {live_sql('m')} AND {_task_cond(c, uid, 't.')}
         ORDER BY m.ref_id, r DESC, m.id DESC) y ORDER BY r DESC, id DESC LIMIT {cand}) x
-        JOIN obj_comments m ON m.id=x.id ORDER BY x.r DESC, x.id DESC""", (tsq, uid, uid)).fetchall()
+        JOIN obj_comments m ON m.id=x.id ORDER BY x.r DESC, x.id DESC""", (tsq, *osa, uid, uid)).fetchall()
     names = user_names(c, {int(x) for r in rows for x in OCM_MENTION_RE.findall(r["body"] or "")}) if rows else {}
     for r in rows:
         if r["task_id"] in best:
