@@ -7,7 +7,10 @@ docker and id on the PATH; install.ps1 (no PowerShell in the test environment) i
 - #4356: over SSH the ready ssh -L command instead of "Open it now"; KALMIDO_URL sets PUBLIC_URL in a new and an existing .env, a
   wrong one stops before anything changes; the note names what the links use; the docs no longer advise editing docker-compose.yml.
 - #6606 (2.1284.0): as root the app keeps user 1000 (data/ + secret/ chowned to it, no user 0:0); under about 3 GB of memory
-  a new installation leaves the virus scanner out and says so, KALMIDO_CLAMAV=1/0 decides it, an update never changes it."""
+  a new installation leaves the virus scanner out and says so, KALMIDO_CLAMAV=1/0 decides it, an update never changes it.
+- #6505 (2.1336.0): the latest release is found through every forward (the move of the repository answered with a 301 to the
+  new name first); an existing .env with the old image name is switched to ghcr.io/kalmido/kalmido (version and digest kept);
+  a release image pinned to its digest that cannot be pulled is said loudly, not built locally in silence."""
 # kalmido-suite: nodata
 import os
 import re
@@ -109,10 +112,10 @@ def latest(body, **env):
     return run('resolve_version; echo "VERSION=$VERSION"', **env)
 
 
-FWD = "https://github.com/Gegenschuss/kalmido/releases/%s"
+FWD = "https://github.com/Kalmido/kalmido/releases/%s"
 rc, out, err = latest("printf '%%s' '%s'" % (FWD % "tag/v2.513.0"))
 check(rc == 0 and "VERSION=v2.513.0" in out, f"#4355: the version from the forward ({rc} {out} {err[:200]})")
-check("github.com/Gegenschuss/kalmido/releases/latest" in calls() and "api.github.com" not in calls() and " -I" in calls().replace("-fsSI", "-I"),
+check("github.com/Kalmido/kalmido/releases/latest" in calls() and "api.github.com" not in calls() and " -I" in calls().replace("-fsSI", "-I"),
       f"#4355: one HEAD request on github.com, not the API: {calls()}")
 for what, body in (("no answer", "exit 6"), ("no release (forward to the list)", "printf '%%s' '%s'" % (FWD % "").rstrip("/")),
                    ("no forward at all", "printf ''"), ("a forward to something else", "printf '%%s' '%s'" % (FWD % "tag/nightly"))):
@@ -125,7 +128,8 @@ rc, out, _ = latest("exit 6", KALMIDO_VERSION="2.500.0")
 check(rc == 0 and "VERSION=v2.500.0" in out, f"#4355: a named version works as before ({rc} {out})")
 for name, txt in (("install.sh", SH), ("install.ps1", PS)):
     check("api.github.com" not in txt and "no release found" not in txt, f"#4355: {name} does not ask the API, no silent main")
-check("AllowAutoRedirect = $false" in PS and "$Version = 'main'" not in PS and "Fail \"Could not find the latest release" in PS, "#4355: install.ps1 reads the forward and stops without an answer")
+# 2.1336.0 (#6505): the forward is followed to its end (AllowAutoRedirect true, ResponseUri), no longer read from the first answer
+check("AllowAutoRedirect = $true" in PS and "$resp.ResponseUri.AbsolutePath" in PS and "$Version = 'main'" not in PS and "Fail \"Could not find the latest release" in PS, "#4355: install.ps1 reads the forward and stops without an answer")
 # ------------------------------------------------------------------ #4356
 rc, out, _ = run('PORT=3040; ssh_tunnel; echo "<"', SSH_CONNECTION="203.0.113.9 50000 198.51.100.7 22")
 check(rc == 0 and out.startswith("ssh -L 3040:127.0.0.1:3040 ") and out.rstrip("<\n").endswith("@198.51.100.7"), f"#4356: the tunnel command over SSH: {out}")
@@ -391,6 +395,40 @@ for bad in ("/", os.path.join(TMP, "gone")):
     rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
     check(rc == 1 and "/secret is a link" in out + err and "secret" not in calls(), f"#6606 F10: secret/ a link to {bad} stops ({rc} {out + err} {calls()})")
 check("`chown -hR`" in open(os.path.join(ROOT, "docs", "SELF-HOSTING.md"), encoding="utf-8").read(), "#6606 F10: SELF-HOSTING.md names chown -hR and links")
+
+# ------------------------------------------------------------------ #6505
+# GitHub after the move: the first answer of the old address is a 301 to the new name, only the end of the chain names the tag.
+# The stub answers like curl: -w %{url_effective} with -L = the last address, %{redirect_url} = the first forward only
+NEW_FWD = "https://github.com/Kalmido/kalmido/releases/%s"
+CHAIN = ("case \"$*\" in *url_effective*) case \"$*\" in *-fsSIL*) printf '%%s' '%s' ;; *) printf '%%s' '%s' ;; esac ;; "
+         "*) printf '%%s' '%s' ;; esac") % (NEW_FWD % "tag/v2.1336.0", NEW_FWD % "latest", NEW_FWD % "latest")
+rc, out, err = latest(CHAIN)
+check(rc == 0 and "VERSION=v2.1336.0" in out, f"#6505: the tag at the end of a 301 -> 302 chain ({rc} {out} {err[:200]})")
+check("url_effective" in calls() and "-fsSIL" in calls() and "--max-redirs" in calls(), f"#6505: curl follows the forwards: {calls()}")
+check("github.com/Kalmido/kalmido" in SH and "github.com/Kalmido/kalmido" in PS, "#6505: both installers ask the organisation's repository")
+
+# an existing .env with the old image name: switched, the version / digest behind it kept; anything else stays
+OLDIMG = "ghcr.io/gegenschuss/kalmido"  # old image name (#6505): the guard of p2450_b_lint lets only marked lines keep it
+DG = "sha256:" + "a" * 64
+for before, after in (("KALMIDO_IMAGE=%s:2.1229.0@%s\n" % (OLDIMG, DG), "KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:2.1229.0@%s\n" % DG),
+                      ("KALMIDO_IMAGE=%s:latest\n" % OLDIMG, "KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:latest\n"),
+                      ('KALMIDO_IMAGE="%s:2.1.0"\n' % OLDIMG, 'KALMIDO_IMAGE="ghcr.io/kalmido/kalmido:2.1.0"\n')):
+    rc, out, t, _ = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\n" + before, "write_env")
+    check(rc == 0 and after in t and OLDIMG not in t and "new image name" in out, f"#6505: {before.strip()} -> {after.strip()} ({rc} {t} {out[-200:]})")
+for keep in ("#KALMIDO_IMAGE=%s:X.Y.Z\n" % OLDIMG, "KALMIDO_IMAGE=%s-mirror:1\n" % OLDIMG, "KALMIDO_IMAGE=registry.example.com/kalmido:1\n"):
+    rc, out, t, _ = env_case("TZ=UTC\nPOSTGRES_PASSWORD=x\nCOMPOSE_PROFILES=localdb\n" + keep, "write_env")
+    check(rc == 0 and keep in t and "new image name" not in out, f"#6505: {keep.strip()} stays as it is ({t})")
+check("ghcr.io/kalmido/kalmido" in PS and "Switched KALMIDO_IMAGE in .env to the new image name" in PS
+      and "(?m)^(KALMIDO_IMAGE=" in PS, "#6505: install.ps1 switches the old image name in .env too")
+
+# a release image pinned to its digest that cannot be pulled: a loud warning (the nightly check counts it), a tag only: the old note
+for img, loud in (("ghcr.io/kalmido/kalmido:2.1336.0@" + DG, True), ("ghcr.io/kalmido/kalmido:2.1336.0", False)):
+    stub("docker", 'case "$1" in pull) exit 1 ;; esac\nexit 0')
+    d = folder()
+    rc, out, err = run(ID.replace('IMAGE=""', 'IMAGE="%s"' % img) + 'DIR="%s"; PORT=3040; compose_up' % d)
+    check(rc == 0 and ("RELEASE IMAGE NOT DOWNLOADED" in err) == loud and "up -d --build" in calls(),
+          f"#6505: pull of {img} fails: built locally, loud={loud} ({rc} {err[-300:]} {calls()})")
+check("RELEASE IMAGE NOT DOWNLOADED" in PS, "#6505: install.ps1 says it as loudly")
 
 shutil.rmtree(TMP, ignore_errors=True)
 print(f"p2513_installer: {OKS[0]} ok, {len(FAILS)} failed")

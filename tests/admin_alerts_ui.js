@@ -58,7 +58,7 @@ const api = async (w, m, u, b) => (await w.fetch(u, {method: m, headers: {'Conte
   w = await boot({user: 'alice'}); d = w.document;
   w.eval(`settingsModal('help')`); await sleep(400); md = d.querySelector('.smodal');
   const links = [...md.querySelectorAll('.aboutlinks a')];
-  check(links.map(a => a.getAttribute('href')).join(' ') === 'https://kalmido.com https://github.com/Gegenschuss/kalmido https://github.com/Gegenschuss/kalmido/issues'
+  check(links.map(a => a.getAttribute('href')).join(' ') === 'https://kalmido.com https://github.com/Kalmido/kalmido https://github.com/Kalmido/kalmido/issues'
     && links.every(a => a.target === '_blank' && a.rel === 'noopener noreferrer'), 'help: website, GitHub, report a problem links');
   md.remove();
   let opened = null; w.open = (u, t, f) => { opened = [u, t, f]; return null; };

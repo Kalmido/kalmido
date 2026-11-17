@@ -176,7 +176,7 @@ function signinHtml(hint) {
 }
 // 2.9.0 (#438): the provider set up here (stored, the client secret encrypted with KALMIDO_SECRET_KEY); a field set by a
 // KALMIDO_OIDC_* variable is locked (the environment wins)
-const OIDC_DOCS = 'https://github.com/Gegenschuss/kalmido/blob/main/docs/OIDC.md';
+const OIDC_DOCS = 'https://github.com/Kalmido/kalmido/blob/main/docs/OIDC.md';
 const OIDC_FORM = [['issuer', N_('Provider'), 'https://auth.example.com/application/o/kalmido/'], ['client_id', N_('Client ID'), ''], ['client_secret', N_('Client secret'), ''],
   ['scopes', N_('Scopes'), 'openid profile email'], ['username_claim', N_('User name claim'), 'preferred_username'], ['groups_claim', N_('Groups claim'), 'groups'],
   ['required_group', N_('Required group'), ''], ['admin_group', N_('Admin group'), ''], ['admin_domains', N_('Admin e-mail domains'), 'example.com'], ['label', N_('Button label'), 'OpenID Connect']];

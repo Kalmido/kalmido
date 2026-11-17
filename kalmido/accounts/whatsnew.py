@@ -23,7 +23,7 @@ from ..core.ctx import me
 USER_DEFAULTS.setdefault("whatsnew_on", "1")  # the dialog after an update (0 = never)
 USER_DEFAULTS.setdefault("whatsnew_seen", "")  # the version whose news the person saw last ('' = not set yet)
 WN_FILE = os.path.join(APP_DIR, "static", "whatsnew.json")
-WN_CHANGELOG = "https://github.com/Gegenschuss/kalmido/blob/main/CHANGELOG.md"  # "Older changes": the public change log
+WN_CHANGELOG = "https://github.com/Kalmido/kalmido/blob/main/CHANGELOG.md"  # "Older changes": the public change log
 _WN = {"key": None, "versions": []}
 _WN_LOCK = threading.Lock()
 

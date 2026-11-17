@@ -35,7 +35,7 @@ from ..core.objparts import part_kind  # 2.1093.0 (#5472): the core's trash run 
 from ..core.orgcrypt import OrgCryptError, oc_copy_file, oc_read_file, oc_send_file, oc_user_space, oc_write_file
 from ..core.serializers import unlink_files
 from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
-from ..core.omitted import Omitted  # 2.1324.0 (#6589): "not included.txt" of the export
+from ..core.omitted import Omitted, is_omit_file  # 2.1324.0 (#6589): "not included.txt" of the export; 2.1336.0 (#6804): + is_omit_file
 from ..core.csvimport import text_decode  # 2.1324.0 (#6589): the text encoding as the task import
 from ..core.errors import BadInput, BadKey, err_stored
 from ..tasks.attachments import file_ext, safe_name, send_stored
@@ -610,6 +610,8 @@ def _wka_import(c, uid, oid, replace, z, infos, saved, total=WKA_ZIP_TOTAL, max_
         ext = file_ext(nm)
         if "__MACOSX" in parts or (parts and parts[-1] in (".DS_Store", "Thumbs.db", "desktop.ini")):
             skip(name, [N_("System file")])
+            continue
+        if is_omit_file(nm):  # 2.1336.0 (#6804): the list of what an export left out (core/omitted.py) is passed over silently
             continue
         if ext == "md":
             if i.file_size > WIKI_ZIP_FILE_MAX or i.file_size > md_left[0]:

@@ -19,12 +19,20 @@
                                                                and what it lacks; needs docker and network to the registries)
   python3 tools/install_upgrade_check.py run [--prev TAG] [--ref REF] [--dir DIR] [--out DIR] [--port N]
                                                                steps 1-4 (needs docker + compose, git, curl, network to GitHub)
+  python3 tools/install_upgrade_check.py latest [--dir DIR] [--port N] [--keep]
+                                                               2.1336.0 (#6505): the one-liner as a stranger runs it - this
+                                                               checkout's install.sh WITHOUT KALMIDO_VERSION: it must find the
+                                                               latest release through the forwards of GitHub, pull its image
+                                                               pinned to the digest (no local build) and start; then removed
+                                                               (--keep: left running)
 
 --prev = that start instead of the search (vX.Y.Z = a release, latest-ok/X.Y.Z = the tag); --ref = what update.sh updates to (default: the commit of HEAD; it must be on GitHub,
 install.sh fetches it from there); --dir = the install folder (default <tmp>/kalmido-install, must not exist yet); --port (3040);
 --out = the folder for <version>.sql.gz + .json (default <tmp>/upgrade-fixture). The dump is the quarterly fixture of
 tests/fixtures/upgrade/ (README there). The start is looked up at run time: once a newer version is live, the check
-starts from it by itself. Python standard library only."""
+starts from it by itself. 2.1336.0 (#6505): an installer that could not pull the release image says so loudly
+(PULL_FAILED) and builds locally; both runs count that as red - the nightly job stayed green while every new installation
+built locally from the old image name. Python standard library only."""
 import argparse
 import os
 import re
@@ -34,7 +42,7 @@ import tempfile
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GH = "https://github.com/Gegenschuss/kalmido"
+GH = "https://github.com/Kalmido/kalmido"
 CODE_RE = re.compile(r"Setup code: *([a-z0-9-]+)")  # the same pattern as setup_code() of install.sh
 
 
@@ -143,6 +151,27 @@ def step(text):
 def sh(args, **kw):
     print("+", " ".join(args), flush=True)
     return subprocess.run(args, check=True, **kw)
+
+
+PULL_FAILED = "RELEASE IMAGE NOT DOWNLOADED"  # the warning of install.sh when the release image pinned to its digest cannot be pulled
+
+
+def sh_install(args, env):
+    """An installer run: its output shown AND kept; red when it fails or fell back to a local build of a release (PULL_FAILED)."""
+    print("+", " ".join(args), flush=True)
+    p = subprocess.Popen(args, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+    out = []
+    for line in p.stdout:
+        print(line, end="", flush=True)
+        out.append(line)
+    rc = p.wait()
+    text = "".join(out)
+    if rc:
+        sys.exit(f"install-upgrade: {' '.join(args)} failed (exit {rc})")
+    if PULL_FAILED in text:
+        sys.exit("install-upgrade: the release image could not be pulled, the installer built locally - "
+                 "a stranger gets no signed image (#6505)")
+    return text
 
 
 def compose_id(d, service):
@@ -257,7 +286,7 @@ def run(argv):
     else:  # 2.1011.0 (#5713): the tag's own install.sh from the checkout (fetch-depth 0); it clones the tag and builds it
         with open(inst, "wb") as f:
             f.write(subprocess.run(["git", "-C", ROOT, "show", f"{prev}:install.sh"], capture_output=True, check=True).stdout)
-    sh(["sh", inst], env=dict(base, KALMIDO_VERSION=prev))
+    sh_install(["sh", inst], env=dict(base, KALMIDO_VERSION=prev))
     app = compose_id(d, "kalmido")
     code = setup_code(container_log(app))
     print(f"install-upgrade: setup code from the log: {'found' if code else 'none (the setup is tried without)'}", flush=True)
@@ -281,6 +310,50 @@ def run(argv):
     return r.returncode
 
 
+def latest(argv):
+    """2.1336.0 (#6505): the way "find the latest release" that run() never takes (it always names KALMIDO_VERSION). After the move
+    of the repository install.sh stopped there for every stranger ("Could not find the latest release") and the nightly job
+    stayed green. Red when the installer stops, does not name the latest release, falls back to a local build, or the app
+    container does not run the release image pinned to its digest."""
+    tmp = tempfile.gettempdir()
+    ap = argparse.ArgumentParser(prog="install_upgrade_check.py latest")
+    ap.add_argument("--dir", default=os.path.join(tmp, "kalmido-latest"))
+    ap.add_argument("--port", type=int, default=3041)
+    ap.add_argument("--keep", action="store_true")
+    a = ap.parse_args(argv)
+    d = os.path.abspath(a.dir)
+    if os.path.exists(d):
+        sys.exit(f"install-upgrade latest: {d} exists already - the check starts from an empty folder")
+    want = latest_release()  # urllib follows every forward: what GitHub calls the latest release
+    if not want:
+        sys.exit(f"install-upgrade latest: GitHub names no latest release ({GH}/releases/latest)")
+    env = dict(os.environ, KALMIDO_DIR=d, KALMIDO_PORT=str(a.port))
+    for k in ("KALMIDO_VERSION", "KALMIDO_BUILD", "KALMIDO_URL", "KALMIDO_IMAGE_REPO", "KALMIDO_INSTALLER_URL"):
+        env.pop(k, None)
+    step(f"install.sh of this checkout without KALMIDO_VERSION (GitHub's latest release: {want}) into {d}, port {a.port}")
+    try:
+        out = sh_install(["sh", os.path.join(ROOT, "install.sh")], env)
+        bad = []
+        if f"Installs the latest release ({want})" not in out:
+            bad.append(f"the installer did not name the latest release {want}")
+        with open(os.path.join(d, ".kalmido-version"), encoding="utf-8") as f:
+            got = f.readline().strip()
+        if got != want:
+            bad.append(f".kalmido-version is {got!r}, not {want}")
+        ct = compose_id(d, "kalmido")
+        img = subprocess.run(["docker", "inspect", "-f", "{{.Config.Image}}", ct], capture_output=True, text=True).stdout.strip()
+        if not re.fullmatch(r"ghcr\.io/kalmido/kalmido:%s@sha256:[0-9a-f]{64}" % re.escape(want[1:]), img):
+            bad.append(f"the app runs {img!r}, not the release image of {want} pinned to its digest")
+        for b in bad:
+            print(f"RED install-upgrade latest: {b}", flush=True)
+        if not bad:
+            print(f"install-upgrade latest: {want} installed from the prebuilt image {img}", flush=True)
+        return 1 if bad else 0
+    finally:
+        if not a.keep and os.path.exists(os.path.join(d, "docker-compose.yml")):
+            subprocess.run(["docker", "compose", "--profile", "localdb", "--profile", "clamav", "down", "-v"], cwd=d)
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else ""
     if cmd == "prev":
@@ -296,6 +369,8 @@ def main(argv):
         return 0 if c else 1
     if cmd == "run":
         return run(argv[2:])
+    if cmd == "latest":
+        return latest(argv[2:])
     if cmd == "arches":
         return arches(argv[2:])
     print(__doc__, file=sys.stderr)

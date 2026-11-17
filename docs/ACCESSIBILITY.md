@@ -134,5 +134,5 @@ the app has not yet been tested by people who use a screen reader every day (see
 
 ## Feedback
 
-Found a barrier? Please open an issue on [GitHub](https://github.com/Gegenschuss/kalmido/issues) with what you tried,
+Found a barrier? Please open an issue on [GitHub](https://github.com/Kalmido/kalmido/issues) with what you tried,
 the device, the browser and (if you use one) the screen reader. Accessibility issues are treated like bugs.

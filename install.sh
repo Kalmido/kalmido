@@ -11,7 +11,7 @@
 # If the checksum list of a release (2.277 and newer) cannot be fetched, the installer stops. Branches are not checked.
 #
 # Installs (or updates) Kalmido from GitHub and starts it with Docker Compose. Release versions use
-# the prebuilt image ghcr.io/gegenschuss/kalmido:<version> (amd64 / arm64); if that cannot be pulled,
+# the prebuilt image ghcr.io/kalmido/kalmido:<version> (amd64 / arm64); if that cannot be pulled,
 # the image is built locally from the source.
 # To update later: run update.sh in the install folder (or this command again). Your .env, data/ and
 # secret/ are kept, and the database is backed up to data/backups/ first.
@@ -28,15 +28,15 @@
 #   KALMIDO_CLAMAV   1 = virus scanner on, 0 = off           (default: a new installation runs it from about 3 GB of
 #                                                           memory on; an update keeps the choice of .env)
 #
-# The script never uses sudo. Source: https://github.com/Gegenschuss/kalmido (AGPL-3.0)
+# The script never uses sudo. Source: https://github.com/Kalmido/kalmido (AGPL-3.0)
 
 # Everything is inside main(), which is only called on the last line: a download cut off
 # halfway through cannot run a partial script.
 
 set -eu
 
-GH="https://github.com/Gegenschuss/kalmido"
-IMAGE_REPO="${KALMIDO_IMAGE_REPO:-ghcr.io/gegenschuss/kalmido}"   # override only for mirrors / tests
+GH="https://github.com/Kalmido/kalmido"
+IMAGE_REPO="${KALMIDO_IMAGE_REPO:-ghcr.io/kalmido/kalmido}"   # override only for mirrors / tests
 
 say()  { printf '%s\n' "$*"; }
 step() { printf '\n\033[1;36m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
@@ -205,8 +205,10 @@ fetch_checked() {
 }
 
 # 2.513.0 (#4355): the tag from the forward of github.com/.../releases/latest (the API allows 60 requests an hour per address)
+# 2.1336.0 (#6505): every forward is followed (-L) and the last address counts: after the move of the repository the first answer
+# was a 301 to the new name, not the tag - the installer stopped ("Could not find the latest release")
 latest_release() {
-  loc=$(curl -fsSI --max-time 30 -o /dev/null -w '%{redirect_url}' "$GH/releases/latest" 2>/dev/null) || loc=""
+  loc=$(curl -fsSIL --max-redirs 10 --max-time 30 -o /dev/null -w '%{url_effective}' "$GH/releases/latest" 2>/dev/null) || loc=""
   tag="${loc##*/releases/tag/}"
   printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || return 1
   printf '%s' "$tag"
@@ -277,7 +279,7 @@ cd "$(dirname "$0")"
 KALMIDO_DIR=$(pwd)
 export KALMIDO_DIR
 # the installer of the latest release (before 2.277: kalmido.com/install.sh, which now forwards there)
-curl -fsSL "${KALMIDO_INSTALLER_URL:-https://github.com/Gegenschuss/kalmido/releases/latest/download/install.sh}" | sh
+curl -fsSL "${KALMIDO_INSTALLER_URL:-https://github.com/Kalmido/kalmido/releases/latest/download/install.sh}" | sh
 UPD
   chmod 755 "$DIR/update.sh"
 }
@@ -484,9 +486,25 @@ follow_port_url() {
   say "Set PUBLIC_URL=http://localhost:$PORT in .env (it followed the new port)"
 }
 
+# 2.1336.0 (#6505): the image moved with the repository into the organisation; the old name gets no new version, no security fix
+# and no digest any more (:latest there stays frozen). A KALMIDO_IMAGE line with the old name is switched to the new one, the
+# version or digest behind it stays. Only lines that begin with the old name; anything else (a mirror, your own build) is kept.
+OLD_IMAGE_RE='ghcr.io/gegenschuss/kalmido'   # old image name (#6505), only to switch it (its dots match themselves too)
+migrate_image_name() {
+  ovr="$DIR/docker-compose.override.yml"
+  if [ -f "$ovr" ] && ! head -n 1 "$ovr" | grep -q "^$OVR_MARK" && grep -Eq "$OLD_IMAGE_RE([:@\"' ]|\$)" "$ovr"; then
+    warn "Your own docker-compose.override.yml names the old image name; change it to ghcr.io/kalmido/kalmido (the old one gets no updates)."
+  fi
+  grep -Eq "^KALMIDO_IMAGE=[\"']?$OLD_IMAGE_RE([:@\"']|\$)" "$DIR/.env" 2>/dev/null || return 0
+  sed -E -i.bak "s#^(KALMIDO_IMAGE=[\"']?)$OLD_IMAGE_RE([:@\"']|\$)#\1ghcr.io/kalmido/kalmido\2#" "$DIR/.env" && rm -f "$DIR/.env.bak"
+  chmod 600 "$DIR/.env"
+  say "Switched KALMIDO_IMAGE in .env to the new image name ghcr.io/kalmido/kalmido (the old name gets no updates; version kept)"
+}
+
 write_env() {
   if [ -f "$DIR/.env" ]; then
     say "Keeping your existing .env"
+    migrate_image_name
     set_public_url
     follow_port_url
     ensure_pg_password
@@ -566,7 +584,14 @@ compose_up() {
     if docker pull "$IMAGE"; then
       UPFLAGS=""
     else
-      warn "The prebuilt image could not be downloaded. Building it locally instead (takes a minute)."
+      # 2.1336.0 (#6505): a release image pinned to its digest that cannot be pulled is no detail: the digest check (#2914) and the
+      # signed build do not apply to a local build. Said loudly; tools/install_upgrade_check.py counts this line as an error
+      case "$IMAGE" in
+        *@sha256:*) warn "RELEASE IMAGE NOT DOWNLOADED: $IMAGE could not be pulled.
+      Kalmido is built locally from the checked source archive instead - not the signed release image.
+      Check the network to ghcr.io (docker pull \"$IMAGE\") and run the update again to get the release image." ;;
+        *) warn "The prebuilt image could not be downloaded. Building it locally instead (takes a minute)." ;;
+      esac
       IMAGE=""
       write_override
     fi

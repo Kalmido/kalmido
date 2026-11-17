@@ -34,7 +34,7 @@ from ..core.access import otr_live  # 2.1029.0 (#5537)
 # integrations may only reach public HTTPS addresses (the admin's internal-host allow-list does not apply).
 # Self-hosted servers (the default) keep everything as before.
 HOSTED = env_bool("KALMIDO_HOSTED", False)
-SELFHOST_DOCS = "https://github.com/Gegenschuss/kalmido#readme"
+SELFHOST_DOCS = "https://github.com/Kalmido/kalmido#readme"
 
 
 def hosted():

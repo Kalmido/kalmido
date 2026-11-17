@@ -102,7 +102,7 @@ function dcv_draw(md) {
   wso_mark(md, d); wso_sync();  // 2.1241.0 (#6184): a document of an organisation: its stripe, #main / "All" marked (docs/dev/kern.md)
   const sm = dcv_stMark(md);  // 2.940.0 (#5601): the strip's place before the body is drawn anew
   { const i = DC.navSrc ? -1 : dc_navIdx(d); if (i >= 0) DVW.sw = dcv_stWin(i); }  // the window of the strip stays while the document is in it
-  const w = d.role !== 'view';
+  const w = canWrite(d);  // 2.1336.0 (#6262): the shared rule
   let body = $('.dc-body', md);
   if (body && body.dataset.id !== String(d.id)) {
     DVW.he = null; DVW.node = null; const s = $('.dv-saved', md); if (s) s.textContent = '';
@@ -127,13 +127,13 @@ function dcv_draw(md) {
 }
 // 2.583.0 (#4832): a plain file has no recognised text
 // 2.768.0 (#4888): History for readers too (versions to view and download, "Mentioned in"; no buttons that write)
-const dcv_tabs = d => DCV_TABS.filter(([t]) => t === 'details' || (t === 'text' && !d.file) || t === 'hist' || (t === 'share' && d.role === 'owner'));
+const dcv_tabs = d => DCV_TABS.filter(([t]) => t === 'details' || (t === 'text' && !d.file) || t === 'hist' || (t === 'share' && d.role === 'owner' /* canwrite-ok: sharing is the owner's alone, not a write entry */));
 // the body: the strip, the fields in tabs, the preview. 2.736.0 (#5212): nb = a neighbour drawn ahead ({d, set}) by the same lines
 function dcv_bodyHtml(d, nb) {
-  const w = d.role !== 'view', tabs = dcv_tabs(d), off = dcv_stripOff();
+  const w = canWrite(d), tabs = dcv_tabs(d), off = dcv_stripOff();
   const tab = tabs.some(([t]) => t === DVW.tab) ? DVW.tab : 'details';
   return `<div class="dc-body dv-cols${off ? ' dv-nostrip' : ''}" data-k="b${d.id}" data-id="${d.id}">${dcv_stripHtml(d, off)}${off ? '' : dcv_gripHtml('strip', tr('In the list'))}
-      <section class="dv-mask dc-props" id="dc-props" aria-label="${esc(tr('Properties'))}">
+      <section class="dv-mask dc-props" id="dc-props" aria-label="${esc(tr('Properties'))}">${/*html-ok*/ w ? '' : roHintHtml()}
         <div class="dv-tabs" role="tablist" aria-label="${esc(tr('Properties'))}">${tabs.map(([t, l]) => `<button type="button" role="tab" id="dv-t-${t}" data-dvtab="${t}" aria-controls="dv-p-${t}" aria-selected="${tab === t}" tabindex="${tab === t ? 0 : -1}">${tr(l)}</button>`).join('')}</div>
         ${tabs.map(([t]) => `<div class="dv-tp" role="tabpanel" id="dv-p-${t}" aria-labelledby="dv-t-${t}"${tab === t ? '' : ' hidden'}${t === 'hist' || t === 'share' ? ' data-fl-fill' : ''}>${t === 'details' ? dcv_detailsHtml(d, w, nb) : t === 'text' ? dcv_textHtml(d, w) : ''}</div>`).join('')}
       </section>${dcv_gripHtml('mask', tr('Properties'))}
@@ -260,8 +260,8 @@ function dcv_actItems(d, w, b) {
   typeof dsp_actItem === 'function' && !d.file ? dsp_actItem(d, w) : null,  // 2.154.0 A (#1111): split a stack
   ...(typeof po_actItems === 'function' ? po_actItems(d, w) : []),  // 2.892.0 (#4873, #4806): Optimise PDF, the searchable PDF and the original (pdfopt.js)
   d.parent_id ? {label: tr('Show in the file store'), icon: 'folder', fn: () => go('ablage/' + d.parent_id)} : null,
-  d.role === 'owner' && typeof ab_share === 'function' ? {label: tr('Share…'), icon: 'users', fn: async () => { await ab_share(d.id); const dlg = $('.abshdlg'); if (dlg) onRemove(dlg, () => dc_c168Refresh(d.id)); }} : null,
-  d.role === 'owner' && typeof xl_newDlg === 'function' ? {label: tr('Link for external people…'), icon: 'link', fn: () => xl_newDlg(d.id, () => dc_c168Refresh(d.id))} : null,  // 2.210 C (#2761)
+  d.role === 'owner' /* canwrite-ok: sharing is the owner's alone, not a write entry */ && typeof ab_share === 'function' ? {label: tr('Share…'), icon: 'users', fn: async () => { await ab_share(d.id); const dlg = $('.abshdlg'); if (dlg) onRemove(dlg, () => dc_c168Refresh(d.id)); }} : null,
+  d.role === 'owner' /* canwrite-ok: the external link is the owner's alone, not a write entry */ && typeof xl_newDlg === 'function' ? {label: tr('Link for external people…'), icon: 'link', fn: () => xl_newDlg(d.id, () => dc_c168Refresh(d.id))} : null,  // 2.210 C (#2761)
   // 2.768.0 (#4888): the file store's actions of the node (ablage.js ab_newVersion / ab_moveDlg / ab_rename; a document's title is its field)
   w && typeof ab_newVersion === 'function' ? {label: tr('Upload a new version…'), icon: 'upload', fn: () => dcv_nodeAct('dvnewver', d)} : null,
   w && typeof ab_moveDlg === 'function' ? {label: tr('Move to…'), icon: 'arrow', next: 1, fn: () => dcv_nodeAct('dvmove', d)} : null,
