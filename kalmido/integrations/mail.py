@@ -467,10 +467,11 @@ def mail_try_done(c, box, key, n):
 
 
 def mail_try_later(c, box, key, n):
-    """2.1322.0 (#6560 3): attempt n was put back by its importer (MAIL_LATER, a limit): it stays open and does not count
-    (the attempts are for imports that break, not for waiting)."""
-    c.execute("UPDATE mail_in_seen SET tries=GREATEST(tries-1, 0), seen_at=? WHERE box=? AND mid=? AND state='open' AND tries=?",
-              (iso(now_utc()), box, key, n))
+    """2.1322.0 (#6560 3): attempt n was put back by its importer (MAIL_LATER, a limit): it is open again and does not count
+    (the attempts are for imports that break, not for waiting). 'done' too: mail_try_done marked it in the importer's
+    transaction, and an importer may commit before it answers (hub/hubmail.py hbm_mail_import does)."""
+    c.execute("UPDATE mail_in_seen SET state='open', tries=GREATEST(tries-1, 0), seen_at=? WHERE box=? AND mid=? "
+              "AND state IN ('open', 'done') AND tries=?", (iso(now_utc()), box, key, n))
 
 
 def mail_try_failed(box, key, n):
