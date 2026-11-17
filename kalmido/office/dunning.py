@@ -28,6 +28,7 @@ from ..core.i18n import N_, lang, tr
 from ..core.pg import system_ctx, write_lock
 from ..core.access import Denied, live_sql  # 2.149.0 G (#2517): pulled up from functions; 2.1005.0 (#5415): live_sql
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
+from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from .fixedimport import fci_people  # 2.369.5 (#2517): pulled up from functions
 from .model import office_on, office_role, office_settings, pb_personal  # 2.369.5 (#2517): pulled up from functions
 from ..collab.news import news_add, notif_ok  # 2.369.5 (#2517): pulled up from functions
@@ -63,7 +64,7 @@ def dun_tick(c, now=None):
     today = (now or local_now()).date().isoformat()
     with system_ctx(c):  # which office areas have an overdue open invoice at all; each is then handled in its admin's own context
         oids = [r[0] for r in c.execute("SELECT DISTINCT org_id FROM office_docs WHERE kind='invoice' AND locked_at IS NOT NULL AND status IN ('issued','sent') "
-                                        f"AND trial=0 AND COALESCE(due_date, '')<>'' AND due_date<? AND {live_sql()} ORDER BY org_id LIMIT 2000", (today,)).fetchall()]  # 2.1005.0 (#5415): not the trash
+                                        f"AND trial=0 AND COALESCE(due_date, '')<>'' AND due_date<? AND {live_sql()} AND {mv_sql()} ORDER BY org_id LIMIT 2000", (today,)).fetchall()]  # 2.1005.0 (#5415): not the trash
     c.commit()
     for oid in oids:
         try:
