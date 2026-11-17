@@ -118,7 +118,9 @@ Stop / SubagentStop hook in its run settings). The setup prints who answers and 
 asked reaches themselves, and an order of a person who only reads becomes an approval card. From then on the token in
 `kalmido-agent.env` reaches only the agent's own channel (events, status, chat, jobs); keep the starter up to date
 (the setup command again) so its runs get their request tokens. The list work of the dispatcher runs for the person
-chosen under *Permission questions go to*.
+chosen under *Permission questions go to*. Without a request token (the person may not give the agent orders, nobody is
+chosen, Kalmido cannot be reached) the starter skips the request and shows it in the agent's status; it never runs with
+the token of `kalmido-agent.env` instead. Removing a computer under *Settings > Agents* ends its request tokens at once.
 
 2.47.3 (#1729): *Remove computer* and *Delete agent* show an uninstall command for each computer (run it there first, then delete; it also works after the agent was deleted).
 
