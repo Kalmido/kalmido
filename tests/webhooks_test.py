@@ -273,6 +273,9 @@ time.sleep(4)
 al = dbx("SELECT kind, message FROM admin_alerts WHERE kind='integration'")
 check(any("Webhook" in m and "switched off" in m for _, m in al), "admin alert (integration) " + str(al))
 check(not any("/fail" in m or STUB in m for _, m in al), "the alert does not name the URL")
+# 2.1322.0 (#6560 6): the owner's News names how many waiting events were discarded and since when
+nt = [json.loads(d).get("text", "") for (d,) in dbx("SELECT data FROM notifications WHERE kind='integfail' AND user_id=(SELECT id FROM users WHERE username='alice')")]
+check(any("failing" in t and "1 waiting events since 20" in t for t in nt), f"the News names the discarded events and their day {nt}")
 lg = A.get(B + f"/api/me/webhooks/{wf['id']}/log").json()["items"]
 check(len(lg) == 5 and all(not x["ok"] and x["status"] == 500 and x["error"] == "http" for x in lg) and "body" not in json.dumps(lg),
       "delivery log: 5 failed attempts, status only")
