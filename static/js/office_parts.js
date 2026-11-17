@@ -46,10 +46,11 @@ function tpProdNote(p) {
   return days > 0 ? (days === 1 ? tr('incl. producing 1 day') : tr('incl. producing {0} days', ofdNumIn(days))) : '';
 }
 // ---- the title page: a part line (title, quantity x the part's net, open)
+// 2.1358.0 (#6659): the part's title is a growing field (data-grow, ofcGrowAll after the draw), like the subject
 function tpItemRow(it, i, d, line, mv) {
   const p = tpPart(d, it.ref_part_id), pn = tpProdNote(p);
   return `<li class="ofdit tppl"><span class="ofdpos rowgrip" ${rowd_attr('it')}>${line?.pos || ''}</span>
-    <div class="ofditb"><input class="ofdtt" data-i="${i}" data-k="title" value="${esc(it.title)}" maxlength="500" placeholder="${esc(p?.title || tr('Part'))}" aria-label="${esc(tr('Part'))}">
+    <div class="ofditb"><textarea class="ofdtt" data-i="${i}" data-k="title" rows="1" maxlength="500" data-grow="10" data-grow-min="1" placeholder="${esc(p?.title || tr('Part'))}" aria-label="${esc(tr('Part'))}">${esc(it.title)}</textarea>
     ${pn ? `<small class="muted tpprod">${esc(pn)}</small>` : ''}
     <span class="ofdnums"><input data-i="${i}" data-k="qty" inputmode="decimal" class="numin" value="${esc(ofdNumIn(it.qty))}" aria-label="${esc(tr('Quantity'))}">
     <span class="muted">× ${esc(tpMoney(p?.totals?.net ?? it.rate, d))}</span>

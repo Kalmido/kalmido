@@ -6,7 +6,8 @@
 //   "Subject" above it (not centred beside a tall field)
 // - the same for the address lines, the rights note, introduction / closing, a text position and the company name of the settings
 // - after the first render, after typing (input) and when a closed section opens (the field had no width while hidden)
-// Screenshots with P21284A_SHOTS=<dir>.
+// 2.1358.0 (#6659): also the address of a client from the directory (shown whole, label above) and the title of a part on the title page
+// (a growing field, ofcGrow). Screenshots with P21284A_SHOTS=<dir>.
 const path = require('path');
 const {execFileSync} = require('child_process');
 const {sleep, B, login} = require('./boot');
@@ -60,6 +61,20 @@ const MEASURE = `(sel) => { const t = document.querySelector(sel); if (!t || !t.
     check(y.http === 201, kind + ': a draft with a long subject ' + y.http);
     docs[kind] = [x.id, y.id];
   }
+  // 2.1358.0 (#6659): an offer with a client from the directory (read-only address block) and a part on its title page with a long title
+  const PLONG = LONG60 + ' ' + LONG60;
+  // a second person (also without an organisation) with the clients module: with it every document shows the directory's address block
+  check((await call(CA, 'POST', '/api/users', {username: 'greta', display_name: 'Greta', password: 'password123', email: 'greta@example.com', orgs: []})).http < 300, 'the person with clients');
+  const CG = await login('greta');
+  await call(CG, 'PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT + ',clients'});
+  await call(CG, 'PUT', '/api/office/settings', {lang: 'en', currency: 'EUR', company_fields: {name: 'Beispiel Atelier', street: 'Musterweg 2', zip: '12345', city: 'Musterstadt',
+    country: 'DE', email: 'atelier@example.com', tax_number: '12/345/67891', vat_id: 'DE999999998', iban: 'DE02120300000000202051', bic: 'BYLADEM1001', bank_name: 'Beispielbank'}});
+  const cl = await call(CG, 'POST', '/api/clients', {name: 'Beispielkunde AG', street: 'Marktplatz 2', zip: '54321', city: 'Beispielort', country: 'DE'});
+  check(cl.http === 200 || cl.http === 201, 'a client ' + cl.http);
+  const po = await call(CG, 'POST', '/api/office/docs', {kind: 'offer', lang: 'en', project_title: 'Teile', client_id: cl.id, items: [svc('Kamera', 1, 500)]});
+  check(po.http === 201, 'an offer with a client ' + po.http);
+  const pp = await call(CG, 'POST', `/api/office/docs/${po.id}/parts`, {title: PLONG});
+  check(pp.http === 201 || pp.http === 200, 'a part ' + pp.http);
   const ready = async (ev, expr, n = 60) => { for (let i = 0; i < n; i++) { if (await ev(expr).catch(() => false)) return true; await sleep(200); } return false; };
   const blank = async (nav, ev) => { await nav(B + 'static/icon.svg'); await ready(ev, `location.pathname === '/static/icon.svg' && document.readyState === 'complete'`, 40); };
   const signIn = (ev, who) => ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: '${who}', password: 'password123'})}).then(r => r.status)`);
@@ -136,6 +151,26 @@ const MEASURE = `(sel) => { const t = document.querySelector(sel); if (!t || !t.
       await judge(`settings ${w}px: company name typed: `, '#os-name', 1, 3, {exact: true});
       await type('#os-name', 'Beispiel');
       await judge(`settings ${w}px: company name short: `, '#os-name', 1, 3, {exact: true});
+      // ---- 2.1358.0 (#6659): the address of a client from the directory and the title of a part on the title page
+      await blank(nav, ev); await ev(`(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`); await signIn(ev, 'greta');
+      await nav(B + `#office/offers/${po.id}`);
+      check(await ready(ev, `!!document.querySelector('.ofdeditor .tppl [data-k="title"]') && !!document.querySelector('.cdnadr')`, 80), `${w}px: the offer with a part and a client`);
+      const adr = await ev(`(() => { const a = document.querySelector('.cdnadr'), row = a.closest('.row'), lab = row.querySelector('label'), ar = a.getBoundingClientRect(), lr = lab.getBoundingClientRect();
+        return {fits: a.clientHeight + 1 >= a.scrollHeight, text: a.textContent, wide: a.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1, lab: lr.bottom <= ar.top + 1 ? 'above' : Math.abs(lr.top - ar.top) <= 6 ? 'top' : 'centred'}; })()`);
+      check(adr && adr.fits && /Marktplatz 2.*54321 Beispielort/.test(adr.text) && adr.wide, `${w}px: the address of the client is shown whole ` + JSON.stringify(adr));
+      check(adr && (adr.lab === 'above' || adr.lab === 'top'), `${w}px: its label sits above / at the top ` + JSON.stringify(adr));
+      const PT = '.ofdeditor .tppl textarea[data-k="title"]';
+      await judge(`part title ${w}px drawn: `, PT, 1, 10);
+      await type(PT, PLONG);  // the line's own title (the part's name is only its placeholder)
+      await judge(`part title ${w}px typed long: `, PT, 1, 10, {exact: true});
+      check(await ev(`document.querySelector(${JSON.stringify(PT)}).value === ${JSON.stringify(PLONG)}`), `${w}px: the part title is whole in the field`);
+      await type('.ofdeditor .tppl textarea[data-k="title"]', THREE + '\n' + THREE);
+      const pt = await judge(`part title ${w}px typed six lines: `, '.ofdeditor .tppl textarea[data-k="title"]', 1, 10, {exact: true});
+      check(pt && pt.rows >= 5.8, `${w}px: the part title grows with its lines ` + JSON.stringify(pt));
+      await type('.ofdeditor .tppl textarea[data-k="title"]', 'Teil');
+      await judge(`part title ${w}px short: `, '.ofdeditor .tppl textarea[data-k="title"]', 1, 10, {exact: true});
+      await shot(`p21284-a-part-${w}.png`);
+      await blank(nav, ev); await ev(`(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`); await signIn(ev, 'frida');
     }
   });
   console.log(F.length ? `FAILED ${F.length}:\n` + F.join('\n') : `p21284_a_grow_ui: ${ok} checks passed`);

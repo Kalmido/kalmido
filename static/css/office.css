@@ -1466,3 +1466,5 @@ details.bnkmiss1:not([open]){font-size:var(--fs-xs)}
   .wlkdlg .card{min-height:0}
   .wlk-body{min-height:0}
 }
+
+.tppl textarea.ofdtt{width:100%;box-sizing:border-box;resize:none;overflow:hidden}  /* 2.1358.0 (#6659): the part's title grows with its text (ofcGrow) */
