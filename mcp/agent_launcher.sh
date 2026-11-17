@@ -21,7 +21,8 @@
 # usage: agent_launcher.sh [-e ENV_FILE] [--once] [-- COMMAND ...]
 #   ENV_FILE  default ./kalmido-agent.env (chmod 600), shell syntax:
 #               KALMIDO_URL=https://tasks.example.com
-#               KALMIDO_TOKEN=abk_...            the agent's API token (Settings > Agents)
+#               KALMIDO_TOKEN=abk_...            the agent's API token (Settings > Agents); a TEAM agent's run never sees it
+#                                                (2.1325.0, #6668): it gets the token of its request only (one person)
 #             everything in it is exported to the command too (the MCP server mcp/kalmido_mcp.py reads the same two)
 #             optional: KALMIDO_TOOLSETS=tickets,code,office  (only those tool packages in the MCP server; chat is always on)
 #   COMMAND   what to start (default: KALMIDO_AGENT_CMD of the env file, else claude; KALMIDO_AGENT_PROFILE claude | codex |
@@ -255,6 +256,8 @@ nightly_due() {
 }
 # kalmido-capability: standing_rules (2.235.0, #2903: the active standing rules under the rules block, in mcp/agent_run.py; 2.1269.0, #6451: a rule the agent saves is only a proposal until its person confirms it, never in the block before)
 # kalmido-capability: reply_style (2.491.0, #2849: the person's wishes for the replies from the event into the prompt, in mcp/agent_run.py)
+# kalmido-capability: request_token (2.1325.0, #6668: a team agent works per request - the run gets only the token of its
+#   request, POST /api/v1/agent/request-token; the dispatcher the one of the chosen person; in mcp/agent_run.py + agent_dispatch.py)
 # kalmido-capability: lang_texts (2.450.0, #3769: the texts by the agent's language, in mcp/agent_run.py)
 # kalmido-capability: job_watch (2.392.2, #3366: the watchdog hints in mcp/agent_run.py, the job chain in mcp/agent_job.py)
 # kalmido-capability: job_inbox, job_cards, approval_move (2.615.0, #3658: messages and card answers reach the job, cards wander, in mcp/agent_run.py + mcp/agent_job.py)
