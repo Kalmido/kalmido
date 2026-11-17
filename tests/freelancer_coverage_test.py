@@ -1216,6 +1216,8 @@ ROUTES = {
     "GET /api/office/contracts/{}/files": "office", "POST /api/office/contracts/{}/files": "office",
     "GET /api/office/contracts/{}/files/{}": "office", "PATCH /api/office/contracts/{}/files/{}": "office",
     "DELETE /api/office/contracts/{}/files/{}": "office", "POST /api/office/contracts/{}/files/{}/restore": "office",
+    "DELETE /api/office/legacy/archive/{}": "office",  # 2.1315.0 (#6590 c): one old document into the trash (p21315_b_importe_test.py)
+    "POST /api/office/legacy/archive/{}/restore": "office",  # 2.1315.0 (#6590 c): and back (p21315_b_importe_test.py)
     # 2.120.0 B (#2088): documents in the customer portal of a freelancer's personal office (p2120_b_api_test.py)
     "GET /portal/docs/{}/pdf": "link", "POST /api/office/clients/{}/portal-link": "office",
     # 2.112.1 B (#2058): external share links of the file store (p21121_b_api_test.py calls them as a freelancer too)

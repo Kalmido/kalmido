@@ -530,6 +530,7 @@ async function r81b_archEdit(id) {
     ${adm ? `<div class="row"><span class="r81b-lbl">${esc(tr('Amount'))}</span>${!d.tax_lines && d.amount != null ? `<span class="muted ofchint">${esc(ofcMoney(d.amount) + ' (' + tr('gross, tax unknown') + ')')}</span>` : ''}
       <div id="r81b-lines"></div><button type="button" class="btn sm ghost" data-r81b="add">${ic('plus', 's')} ${esc(tr('Add tax rate'))}</button><p class="muted r81b-sum" id="r81b-sum" aria-live="polite"></p></div>
     ${inv ? `<label class="chkl r81b-paid"><input type="checkbox" id="r81b-paid" ${d.paid ? 'checked' : ''}> ${esc(tr('Paid'))}</label>` : ''}` : ''}
+    ${adm && !d.copy ? `<p class="r81b-trash"><button type="button" class="btn sm ghost" data-r81b="trash">${ic('trash', 's')} ${esc(tr('Delete'))}</button> <small class="muted">${esc(tr('Goes into the office trash; not while its month is locked.'))}</small></p>` : ''/* 2.1315.0 (#6590 c) */}
     <details class="r81b-hist"><summary>${esc(tr('History'))} (${(d.history || []).length})</summary>${/*html-ok*/ hist ? `<ul role="list">${hist}</ul>` : emptyState({icon: 'clock', title: tr('No changes yet.'), size: 'row'})/* 2.1185.0 (#6151): the one empty block */}</details>`;
   const read = md => $$('.r81b-ln', md).map(el => ({net: $('[data-r81b="net"]', el).value, tax: $('[data-r81b="tax"]', el).value}));
   const paint = md => {
@@ -575,10 +576,24 @@ async function r81b_archEdit(id) {
   md.addEventListener('change', e => { if (e.target.dataset.r81b === 'tax') sum(md); });
   md.addEventListener('click', e => {
     const b = e.target.closest('[data-r81b]'); if (!b || b.tagName === 'INPUT' || b.tagName === 'SELECT') return;
+    if (b.dataset.r81b === 'trash') { r81b_trash(md, b, id, d); return; }  // 2.1315.0 (#6590 c)
     lines = read(md);
     if (b.dataset.r81b === 'add') { lines.push({net: '', tax: lines.some(l => l.tax === '19') ? '7' : '19'}); paint(md); $$('[data-r81b="net"]', md).pop()?.focus(); }
     else if (b.dataset.r81b === 'rm') { lines.splice(+b.closest('.r81b-ln').dataset.i, 1); paint(md); }
   });
+}
+
+// ---- 2.1315.0 (#6590 c): one old document into the office trash (an admin, its month not locked); the toast takes it back
+async function r81b_trash(md, b, id, d) {
+  const url = `/api/office/legacy/archive/${id}`, name = d.number || d.file_name || '';
+  const after = () => { OIM.list = null; if (typeof ofdDraw === 'function') ofdDraw(); };
+  b.disabled = true;
+  try { await api('DELETE', url); } catch (x) { $('.aerr', md).textContent = ofcErrHere(x); b.disabled = false; return; }
+  md.remove();
+  after();
+  offerUndo(tr('Moved to the trash: {0}', name), histAdd({label: tr('Moved to the trash: {0}', name),
+    undo: async () => { await api('POST', url + '/restore'); after(); },
+    redo: async () => { await api('DELETE', url); after(); }}));
 }
 
 // ---- 2.138.0 E (#2237): "Renumber" in the services: 1..n in the order the list shows (one undo step)

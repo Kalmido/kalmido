@@ -422,7 +422,7 @@ def ofm_plan(c, uid, what, src, rows, own=False):
                                           (src, r["id"], r["id"])).fetchall() if not own or x["created_by"] == uid]
             refs = ofm_refs(c, "clients", r["id"], skip=("office_client_contacts",),
                             skip_ids={"office_docs": [d["id"] for d in docs], "office_deals": [x["id"] for x in deals]})
-            arch = c.execute("SELECT * FROM office_archive WHERE org_id=? AND client_id=? AND copy_of IS NULL ORDER BY id",
+            arch = c.execute(f"SELECT * FROM office_archive WHERE org_id=? AND client_id=? AND copy_of IS NULL AND {live_sql()} ORDER BY id",  # 2.1315.0 (#6590 c)
                              (src, r["id"])).fetchall()
             contacts = c.execute("SELECT * FROM office_client_contacts WHERE client_id=? ORDER BY sort, id", (r["id"],)).fetchall()
             p["clients"].append({"row": r, "mode": "copy" if refs else "move", "refs": refs, "issued": issued, "arch": arch,
