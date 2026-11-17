@@ -399,7 +399,7 @@ def _read(z, most, ShxGrid, too_many, cells_max, stored_max, unzipped_max):
             nm = el.get(_T + "name") or ""
             if a and nm and a[1:3] == a[3:5]:
                 names.append((nm, a[0] or (t["name"] if t else ""), a[2] - 1, a[1]))
-        if parent is not None and not (parent.tag in (_S + "style", _T + "content-validation")):
+        if parent is not None and parent.tag not in (_S + "style", _T + "content-validation"):
             el.clear()
             parent.remove(el)
     if not grids:
