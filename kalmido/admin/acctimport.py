@@ -778,9 +778,41 @@ def umz_areas_tr(rows):
     return [{**x, "what": tr(x["what"])} for x in rows or []]
 
 
-def umz_preview(c, uid, man, data, can_invite):
+def umz_office_there(c, uid, src, eid, org):
+    """2.1316.0 (#6577): an earlier import of this source into target org (None: the private space) took the office along
+    (oi_done): a second run skips the office, there is nothing to check (umz_write)."""
+    for r in umz_earlier(c, uid, src, eid):
+        if json.loads(r["report"] or "{}").get("target") == org and json.loads(r["created"] or "{}").get("oi_done"):
+            return True
+    return False
+
+
+def umz_office_space(c, uid, org):
+    """2.1316.0 (#6577): the office an organisation export's office parts go into: the organisation, else my personal office
+    (None while I have none: nothing in it to collide with)."""
+    from ..office.model import pb_personal
+    return org if org else pb_personal(c, uid, create=False)
+
+
+def umz_office_check(c, uid, facts, targets, src, eid):
+    """2.1316.0 (#6577): the preview's target check {target id: {conflicts, notes}} for every target I may choose."""
+    from .oi_office import oi_target_check
+    out = {}
+    for t in targets:
+        org = None if t["id"] == "private" else t["id"]
+        if not umz_office_there(c, uid, src, eid, org):
+            out[str(t["id"])] = oi_target_check(c, facts, umz_office_space(c, uid, org))
+    return out
+
+
+def umz_office_tr(chk):
+    """2.1316.0 (#6577): a stored target check ([key, *values] entries) in the language of who reads it."""
+    return {k: [tr(*x) for x in v] for k, v in (chk or {}).items() if k in ("conflicts", "notes")}
+
+
+def umz_preview(c, uid, man, data, can_invite, files=None):
     from .orgimport import oi_counts
-    from .oi_office import oi_auto_preview  # 2.1289.0 (#6576)
+    from .oi_office import oi_auto_preview, oi_facts  # 2.1289.0 (#6576); 2.1316.0 (#6577): + oi_facts
     tables = {k: len(v) for k, v in data.items()}
     lists = [{"name": _txt(L.get("name"), 200), "folder": _txt(L.get("folder"), 300), "inbox": bool(L.get("is_inbox")),
               "tasks": sum(1 for t in data.get("tasks", []) if t.get("list_id") == L.get("id") and not t.get("deleted_at"))}
@@ -800,6 +832,10 @@ def umz_preview(c, uid, man, data, can_invite):
     eid = man.get("export_id") if isinstance(man.get("export_id"), str) and UMZ_EID_RE.fullmatch(man.get("export_id")) else ""
     skey = umz_src(man, eid)
     earlier = umz_again(c, uid, skey, eid)  # 2.362.3 (#3098): the same source, not only the same file
+    targets = umz_targets(c, uid)
+    oi = data.get("oi") if isinstance(data.get("oi"), dict) else {}
+    # 2.1316.0 (#6577): the target check of the office part (numbers, locked months) for each target, the originals that are missing
+    facts = oi_facts(data, files or {}) if man.get("kind") == "org" and any(k.startswith("office/") and v for k, v in oi.items()) else None
     if man.get("kind") == "org":  # 2.278.0 A (#3095): the role of the file as a suggestion, the admin confirms it
         roles = {umz_pid(p): umz_role(p.get("role")) for p in data.get("people", [])}  # review M2: same key as the preview rows
         for q in people:
@@ -835,7 +871,11 @@ def umz_preview(c, uid, man, data, can_invite):
         "not_taken": skipped, "taken_areas": oi_counts(data) if org_kind else [], "again": bool(earlier), "earlier": earlier, "office_copy": bool(not org_kind and office),
         "auto_paused": bool(org_kind and oi_auto_preview(data)),  # 2.1289.0 (#6576): invoice series and office reminders arrive paused
         "export_id": eid, "src": skey, "kind": "org" if org_kind else "account",
-        "targets": umz_targets(c, uid),  # 2.96.0 D (#1941): an organisation export may go into the private space too
+        "targets": targets,  # 2.96.0 D (#1941): an organisation export may go into the private space too
+        # 2.1316.0 (#6577): what the start would refuse per target, the finalised documents (the undo keeps them), the missing
+        # originals; "office_facts" stays with the upload (umz_check moves it out of the preview, umz_go checks again)
+        "office": {"final": facts["final"], "missing": facts["missing"], "targets": umz_office_check(c, uid, facts, targets, skey, eid)} if facts else None,
+        "office_facts": facts,
     }
 
 
@@ -2132,6 +2172,8 @@ def umz_write(c, run, uid, man, zf, files, data, people):
         run.warning(N_("Office, file store, chat and the other areas of this export are here already: they were skipped."))
     elif man.get("kind") == "org" and data.get("oi"):  # 2.137.0 (#2344): office, file store, chat ... (admin/orgimport.py)
         from .orgimport import oi_write
+        from .oi_office import oi_target_refuse  # 2.1316.0 (#6577): numbers / locked months of the target refuse, before any office row
+        oi_target_refuse(c, run, data, files, run.org or getattr(run, "pb", None))
         oi_write(c, run, uid, man, zf, files, data, who)
         run.created["oi_done"] = True  # 2.362.3 (#3098, review): a run stopped inside (quota) took only a part of the areas
     if man.get("kind") != "org":  # #3470: my private file store, knowledge pages and tables
@@ -2611,9 +2653,10 @@ def umz_check(uid, iid, can_invite):
         zf, man, files, data = umz_open(os.path.join(_dir(uid, iid), "upload.bin"), key, st["size"])
         zf.close()
         umz_room(c, uid, files)  # #3470: before the preview, never halfway through the run
-        pv = umz_preview(c, uid, man, data, can_invite)
+        pv = umz_preview(c, uid, man, data, can_invite, files)
         c.rollback()
-        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"])
+        facts = pv.pop("office_facts", None)  # 2.1316.0 (#6577): for the start's check, not for the client
+        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"], office_facts=facts)
     except UmzBad as e:
         _set(uid, iid, state="invalid", error=[e.text, *e.args_])
         try:
@@ -3090,6 +3133,8 @@ def _view(uid, iid, st):
     if out.get("preview"):  # 2.454.0 (#3808)
         pv = out["preview"]
         out["preview"] = {**pv, "not_taken": umz_areas_tr(pv.get("not_taken")), "taken_areas": umz_areas_tr(pv.get("taken_areas"))}
+        if isinstance(pv.get("office"), dict):  # 2.1316.0 (#6577)
+            out["preview"]["office"] = {**pv["office"], "targets": {k: umz_office_tr(v) for k, v in (pv["office"].get("targets") or {}).items()}}
     if out.get("result"):
         res = out["result"]
         out["result"] = {**res, "warnings": [{**x, "text": tr_stored(x["text"])} for x in res.get("warnings") or []]}
@@ -3228,6 +3273,13 @@ def umz_go(iid):
             return err(tr("Invalid value: {0}", "target"))
         _need_org_admin(c, tg)  # 404 not a member, 403 not its admin: never into somebody else's organisation
         org = tg
+    if st.get("office_facts") and not umz_office_there(c, uid, st.get("src") or "", st.get("export_id") or "", org):
+        from .oi_office import OI_REFUSED, oi_target_check  # 2.1316.0 (#6577): a colliding number / locked month refuses, with the list
+        chk = umz_office_tr(oi_target_check(c, st["office_facts"], umz_office_space(c, uid, org)))
+        if chk["conflicts"]:
+            c.rollback()
+            return jsonify(error=tr(OI_REFUSED, "; ".join(chk["conflicts"][:5]) + (" …" if len(chk["conflicts"]) > 5 else "")),
+                           conflicts=chk["conflicts"]), 409
     picks = {}
     for em, v in (b.get("people") or {}).items() if isinstance(b.get("people"), dict) else ():
         e = umz_pkey(em)

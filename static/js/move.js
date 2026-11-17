@@ -51,6 +51,14 @@ const umzRoleSel = (x, i, hide) => `<select class="umzrole" data-umzr="${i}" ari
 // 2.362.3 (#3098): when it came in, and until when that can be undone
 const umzAgainText = e => e ? [tr('This export, or an older one of the same account, was imported on {0} (import {1}).', esc(fmtWhen(e.at)), '#' + (+e.id)),
   e.undo_until ? tr('You can undo that until {0}.', esc(fmtWhen(e.undo_until))) : ''].filter(Boolean).join(' ') : tr('This export was imported already.');
+// 2.1316.0 (#6577): the office part of an organisation export against the chosen target (the server checked every target at the
+// preview and checks again at the start): numbers the target uses already or months it has locked refuse the start, with the list
+function umzOfficeHtml(p, t) {
+  const c = (p.office?.targets || {})[String(t)];
+  if (!c) return '';
+  return (c.conflicts.length ? `<div class="shint warn" role="alert">${ic('alert', 's')} ${esc(tr('This office cannot take the office part of the file:'))}<ul class="umzleftl">${c.conflicts.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '')
+    + c.notes.map(x => hintK(esc(x))).join('');
+}
 function umzPreviewHtml(j) {
   const p = j.preview, org = p.kind === 'org', src = p.source.url ? esc(p.source.url) : tr('unknown');
   const people = p.people.length ? `<div class="muted mhint">${tr('People of your projects')}</div>` + p.people.map((x, i) => `<div class="mrow umzp">
@@ -71,12 +79,15 @@ function umzPreviewHtml(j) {
     (p.taken_areas || []).length ? hintK(tr('Also imported: {0}', p.taken_areas.map(x => `${esc(x.what)} (${x.count})`).join(', '))) : '',  // 2.137.0 (#2344)
     p.not_taken.length ? hintK(tr('These areas stay on the old server: {0}', p.not_taken.map(x => `${esc(x.what)} (${x.count})`).join(', '))) : '',  // 2.273.0 A (#3030)
     p.office_copy ? hintK(tr(UMZ_OFFICE_COPY)) : '',  // 2.362.2 (#3099)
-    p.auto_paused ? hintK(tr('Invoice series and the automatic reminders of the office arrive paused: check them after the import and switch them on again.')) : ''].join('');  // 2.1289.0 (#6576)
+    p.auto_paused ? hintK(tr('Invoice series and the automatic reminders of the office arrive paused: check them after the import and switch them on again.')) : '',  // 2.1289.0 (#6576)
+    // 2.1316.0 (#6577): what the undo keeps, before the start; the finalised documents whose original is not in the file
+    p.office?.final ? hintK(esc(tr('Finalised documents in the file: {0}. Undoing the import does not take them back; choose the target with care.', p.office.final))) : '',
+    (p.office?.missing || []).length ? hintK(esc(tr('Finalised documents without their original file are not imported: {0}', p.office.missing.join(', ')))) : ''].join('');
   const tgt = p.targets.length > 1 || org ? `<div class="row"><label for="s-umz-tgt">${tr('Into')}</label><select id="s-umz-tgt">${p.targets.map(t => `<option value="${esc(String(t.id))}">${esc(t.id === 'private' ? tr('Private|workspace') : t.name)}</option>`).join('')}</select></div>` : '';
   const none = org && !p.targets.length;  // 2.73.0 B (part 4): an organisation export needs an organisation I administer here
   return `<div class="impbox umzbox" role="status"><div class="imphead"><b>${org ? tr('Organisation export of {0}', esc(p.user.name)) : tr('Export of {0}', esc(p.user.name || p.user.email))}</b></div>
     <div class="muted">${org ? esc(fmtWhen(p.created_at)) : tr('From {0}, created {1}', src, esc(fmtWhen(p.created_at)))}</div>
-    <div class="umzcnt">${umzCounts(p.counts)}</div>${lists}${people}${notes}${tgt}
+    <div class="umzcnt">${umzCounts(p.counts)}</div>${lists}${people}${notes}${tgt}<div id="s-umz-ochk" aria-live="polite">${umzOfficeHtml(p, p.targets[0]?.id ?? 'private')}</div>
     ${none ? hintK(tr('You are not the admin of an organisation on this server. Create one or ask its admin first.')) : ''}
     <div class="row"><button type="button" class="btn sm pri" data-umz="go" ${none ? 'disabled' : ''}>${ic('download', 's')} ${tr('Start the import')}</button><button type="button" class="btn sm" data-umz="cancel">${tr('Cancel')}</button></div></div>`;
 }
@@ -166,6 +177,7 @@ function umzInit(md) {
   $('#s-umz-file', md)?.addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) umzUpload(md, f).catch(() => umzImpDraw(md, null)); });
   md.addEventListener('change', async e => {  // review M1: a typed address that is not the one in the file -> hint at once
     if (e.target.id === 's-umz-tgt' && UMZ.cur?.preview?.kind === 'org') {  // 2.96.0 D (#1941): into Private nobody joins an organisation
+      const oc = $('#s-umz-ochk', md); if (oc) oc.innerHTML = umzOfficeHtml(UMZ.cur.preview, e.target.value);  // 2.1316.0 (#6577)
       const t = e.target.value === 'private' ? tr('Share my projects') : tr(UMZ_ORG_TICK);
       md.querySelectorAll('[data-umzsl]').forEach(x => { x.textContent = t; });
       md.querySelectorAll('[data-umzr]').forEach(x => { x.hidden = e.target.value === 'private'; });  // 2.278.0 A (#3095)
