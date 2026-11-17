@@ -257,7 +257,8 @@ r = A.put(B + f"{R}/people/{CAROL}", json={"groups": [f"g:{g.json()['id']}"]})
 assert r.ok, r.text
 
 # ---- a mailbox with SMTP: the mail leaves through it (the organisation's, then her own when chosen)
-BOX = {"smtp_host": "127.0.0.1", "smtp_port": 1026, "smtp_tls": "none", "from_addr": "office@nordlicht.example", "from_name": "Alpha Office"}
+BOX = {"smtp_host": "127.0.0.1", "smtp_port": 1026, "smtp_tls": "none", "from_addr": "office@nordlicht.example", "from_name": "Alpha Office",
+       "smtp_user": "kalmido", "smtp_password": "secret"}  # 2.1312.0 (#6540): a server for sending only with its login
 r = A.put(B + "/api/hubmail/mailbox", json={**BOX, "ws": f"org:{ORG}"})
 check(r.ok, f"Alpha's mailbox {r.status_code} {r.text[:200]}")
 p = A.get(B + O + "/mail-profile").json()

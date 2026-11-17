@@ -20,7 +20,8 @@ a client's / project's filing. Plain text only, no attachments in 2.141.0. Throu
 client / project, else KALMIDO_SMTP_* when the server has it (sender = the server's address, Reply-To = the person's own),
 else nothing (the dialog says why). The mail is filed first (direction out, send_state sending, the .eml in the file store),
 then sent; a failure leaves it "failed" with a note (never a sent mail that was not). Who may: the write right on the mail /
-the client / the project (hbm_can). Per person 30 mails an hour (through the server's SMTP also its daily e-mail limit). Agents and kid
+the client / the project (hbm_can). Per person 30 mails an hour (through the server's SMTP also its daily e-mail limit,
+through the workspace's 20 a day per recipient, 2.1312.0 #6540: and only with its login on 465 / 587). Agents and kid
 accounts get nothing (no v1 route, no MCP tool in 2.141.0)."""
 import base64
 import email.utils
@@ -46,7 +47,9 @@ from ..accounts.mailtok import mtk_where  # 2.674.0 (#4382 finding 5)
 from . import hubmail as H
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.login import seal  # 2.369.5 (#2517): pulled up from functions
-from ..calendars.subscriptions import CalError, _cal_connector  # 2.369.5 (#2517): pulled up from functions
+from ..calendars.subscriptions import _cal_connector  # 2.369.5 (#2517): pulled up from functions
+from ..calendars.subscriptions import _cal_watch, cal_left, cal_until  # 2.1312.0 (#6540)
+from ..core.mailbudget import SmtpNoLogin, SmtpPortRefused, mail_own_budget, smtp_own_refused  # 2.1312.0 (#6540)
 from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.session import GATE  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_folder, fs_put  # 2.369.5 (#2517): pulled up from functions
@@ -61,6 +64,12 @@ MBX_RCPT = 20           # recipients of one mail (To + Cc)
 MBX_TEXT_MAX = 100000   # characters of a mail's text
 MBX_STALE_S = 600       # a mail still "sending" after this was never confirmed: shown as failed
 MBX_PLAIN = N_("Without encryption only a server on this machine or in the local network can be used")
+# 2.1312.0 (#6540): saving a connection, the test and "Fetch now" of one person share this many tries in MBX_CONN_S seconds
+MBX_CONN = 30
+MBX_CONN_S = 600
+MBX_CHECK_S = 40  # 2.1312.0 (#6540): the whole test (IMAP + SMTP) of one request, a server answering drop by drop included
+# 2.1312.0 (#6540): an entry of the admin's list "mail" without a port allows these ports of the host (not every port)
+MBX_ALLOW_PORTS = (25, 143, 465, 587, 993)
 
 
 def mbx_local_host(host):
@@ -85,14 +94,16 @@ def mbx_local_host(host):
 
 _HOST_RE = re.compile(r"(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)*\.?")
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
+# 2.1312.0 (#6540): outside only "connection failed" (network) or "login failed" (auth): no difference between closed /
+# open / no answer / TLS / a host of the local network (no port scanner, no DNS oracle through the settings). Codes stored
+# before (blocked, tls, other) read as network.
 MBX_ERR = {  # error code -> the text people see (never the server's own words: they may echo a user name)
     "auth": N_("The server refused the user name or the password"),
     "network": N_("The server cannot be reached (address or port wrong, or the server is down)"),
-    "blocked": N_("This server is in the local network: an admin has to allow it first (Settings > Server > Server > Advanced, allowed internal hosts)"),
-    "tls": N_("The encrypted connection failed (check SSL / TLS and the port)"),
     "folder": N_("The folder does not exist on the server"),
     "password": N_("The password is missing"),
-    "other": N_("The server answered with an error"),
+    "login": N_("Sending needs the user name and the password of the SMTP server"),
+    "port": N_("Sending only through port 465 or 587 (port 25 only for a server an admin allowed)"),
 }
 MBX_WAKE = threading.Event()
 _DUE = set()  # workspaces whose mailbox is fetched in the next round (Fetch now)
@@ -141,28 +152,21 @@ def _seal(c, ws, secret):
 
 
 def mbx_err_text(code, lg=None):
-    return tr(MBX_ERR.get(code) or MBX_ERR["other"], lg=lg) if code else ""
+    return tr(MBX_ERR.get(code) or MBX_ERR["network"], lg=lg) if code else ""
 
 
 def _err_code(e):
+    """auth | login | port | folder | network (2.1312.0, #6540: everything else that is no refused login reads as one)."""
     import smtplib
-    if isinstance(e, _AuthFailed):
+    if isinstance(e, (_AuthFailed, smtplib.SMTPAuthenticationError, smtplib.SMTPNotSupportedError)):
         return "auth"
-    if isinstance(e, CalError):
-        return "blocked" if e.code == "blocked" else "network"
-    if isinstance(e, (smtplib.SMTPAuthenticationError, smtplib.SMTPNotSupportedError)):
-        return "auth"
-    if isinstance(e, ssl.SSLError):
-        return "tls"
-    if isinstance(e, imaplib.IMAP4.error):
-        return "folder" if "select" in str(e).lower() else "other"
-    if isinstance(e, (socket.gaierror, socket.timeout, ConnectionError, TimeoutError)):
-        return "network"
-    if isinstance(e, smtplib.SMTPException):
-        return "other"
-    if isinstance(e, OSError):
-        return "network"
-    return "other"
+    if isinstance(e, SmtpNoLogin):
+        return "login"
+    if isinstance(e, SmtpPortRefused):
+        return "port"
+    if isinstance(e, imaplib.IMAP4.error) and "select" in str(e).lower():
+        return "folder"  # after the login: no probe of a stranger's server
+    return "network"
 
 
 def _mutf7(name):
@@ -197,6 +201,7 @@ def _folder_arg(folder):
 class _SafeIMAP(imaplib.IMAP4):
     def __init__(self, host, port, timeout, allow):
         self._kal_allow = allow
+        _cal_watch(self)  # 2.1312.0 (#6540): inside cal_until (the test) its socket is cut at the end
         super().__init__(host, port, timeout=timeout)
 
     def _create_socket(self, timeout):
@@ -206,15 +211,39 @@ class _SafeIMAP(imaplib.IMAP4):
 class _SafeIMAP_SSL(imaplib.IMAP4_SSL):
     def __init__(self, host, port, timeout, allow):
         self._kal_allow = allow
+        _cal_watch(self)  # 2.1312.0 (#6540)
         super().__init__(host, port, timeout=timeout, ssl_context=ssl.create_default_context())  # review: certificate checked
 
     def _create_socket(self, timeout):
         return self.ssl_context.wrap_socket(_cal_connector(self._kal_allow)((self.host, self.port), timeout), server_hostname=self.host)
 
 
-def _allow(c):
-    from ..calendars.subscriptions import cal_allow
-    return cal_allow(c, "mail")  # 2.380 G (#3389)
+def _ws_trusted(c, ws):
+    """2.1312.0 (#6540): may workspace ws reach the internal mail servers of the admin's list? Only the server admins' own:
+    the private space of a server admin, an organisation with a server admin among its admins."""
+    m = re.fullmatch(r"([ou])(\d{1,12})", str(ws or ""))
+    if not m:
+        return False
+    with system_ctx(c):
+        if m.group(1) == "u":
+            return bool(c.execute("SELECT 1 FROM users WHERE id=? AND is_admin AND NOT disabled", (int(m.group(2)),)).fetchone())
+        return bool(c.execute("SELECT 1 FROM org_members m JOIN users u ON u.id=m.user_id WHERE m.org_id=? AND m.role='admin' AND u.is_admin"
+                              " AND NOT u.disabled LIMIT 1", (int(m.group(2)),)).fetchone())
+
+
+def _allow(c, ws):
+    """The hosts (host, port) mailbox ws may reach although internal. 2.380 G (#3389): the admin's list "mail" + the server's
+    KALMIDO_CALENDAR_ALLOW_HOSTS. 2.1312.0 (#6540): the admin's list per workspace (only the server admins' own, _ws_trusted;
+    the server's configuration still for every workspace) and with ports (an entry without a port: the mail ports
+    MBX_ALLOW_PORTS, no longer every port of that host)."""
+    from ..calendars.subscriptions import CAL_ALLOW_ENV, allow_by_purpose, cal_allow_parse
+    got = cal_allow_parse(CAL_ALLOW_ENV)[0]
+    if _ws_trusted(c, ws):
+        got += cal_allow_parse(allow_by_purpose(c)["mail"])[0]
+    out = set()
+    for h, p in got:
+        out.update([(h, p)] if p else [(h, x) for x in MBX_ALLOW_PORTS])
+    return frozenset(out)
 
 
 def _imap_open(c, r, secret, timeout=30, allow=None):
@@ -222,7 +251,7 @@ def _imap_open(c, r, secret, timeout=30, allow=None):
     if not pw:
         raise _NoPassword()
     port = int(r["imap_port"] or 0) or (993 if r["imap_ssl"] else 143)
-    M = (_SafeIMAP_SSL if r["imap_ssl"] else _SafeIMAP)(r["imap_host"], port, timeout, _allow(c) if allow is None else allow)
+    M = (_SafeIMAP_SSL if r["imap_ssl"] else _SafeIMAP)(r["imap_host"], port, timeout, _allow(c, r["ws"]) if allow is None else allow)
     try:
         M.login(r["imap_user"], pw)
     except BaseException as e:
@@ -250,43 +279,46 @@ def mbx_smtp(c, r, secret=None):
         return None
     secret = mbx_secret(c, r) if secret is None else secret
     return {"host": r["smtp_host"], "port": int(r["smtp_port"] or 0), "tls": r["smtp_tls"] or "starttls", "user": r["smtp_user"],
-            "password": secret.get("smtp") or "", "from": r["from_addr"], "allow": _allow(c)}
+            "password": secret.get("smtp") or "", "from": r["from_addr"], "allow": _allow(c, r["ws"])}
 
 
 def mbx_check(c, r, secret=None):
-    """{imap: code | '' | None (not set up), smtp: ...} -- IMAP login + the folder, SMTP login; nothing is sent."""
+    """{imap: code | '' | None (not set up), smtp: ...} -- IMAP login + the folder, SMTP login; nothing is sent.
+    2.1312.0 (#6540): both together at most MBX_CHECK_S seconds (cal_until cuts a server answering drop by drop)."""
     from ..integrations.mail import smtp_open
     secret = mbx_secret(c, r) if secret is None else secret
     out = {"imap": None, "smtp": None}
-    if r["imap_host"]:
-        try:
-            M = _imap_open(c, r, secret)
+    until = time.monotonic() + MBX_CHECK_S
+    with cal_until(until):
+        if r["imap_host"]:
             try:
-                typ, _ = M.select(_folder_arg(r["imap_folder"] or "INBOX"))
-                out["imap"] = "" if typ == "OK" else "folder"
-            finally:
+                M = _imap_open(c, r, secret, timeout=cal_left(until, 30))
                 try:
-                    M.logout()
-                except Exception:  # noqa: BLE001 -- logout after the test: the server may have closed the connection already
-                    pass
-        except _NoPassword:
-            out["imap"] = "password"
-        except Exception as e:  # noqa: BLE001
-            out["imap"] = _err_code(e)
-    cfg = mbx_smtp(c, r, secret)
-    if cfg:
-        if cfg["user"] and not cfg["password"]:
-            out["smtp"] = "password"
-        else:
-            try:
-                S_ = smtp_open(cfg)
-                try:
-                    S_.quit()
-                except Exception:  # noqa: BLE001 -- quit after the test: the server may have closed the connection already
-                    pass
-                out["smtp"] = ""
+                    typ, _ = M.select(_folder_arg(r["imap_folder"] or "INBOX"))
+                    out["imap"] = "" if typ == "OK" else "folder"
+                finally:
+                    try:
+                        M.logout()
+                    except Exception:  # noqa: BLE001 -- logout after the test: the server may have closed the connection already
+                        pass
+            except _NoPassword:
+                out["imap"] = "password"
             except Exception as e:  # noqa: BLE001
-                out["smtp"] = _err_code(e)
+                out["imap"] = _err_code(e)
+        cfg = mbx_smtp(c, r, secret)
+        if cfg:
+            if cfg["user"] and not cfg["password"]:
+                out["smtp"] = "password"
+            else:
+                try:
+                    S_ = smtp_open(cfg, cal_left(until, 30))
+                    try:
+                        S_.quit()
+                    except Exception:  # noqa: BLE001 -- quit after the test: the server may have closed the connection already
+                        pass
+                    out["smtp"] = ""
+                except Exception as e:  # noqa: BLE001
+                    out["smtp"] = _err_code(e)
     return out
 
 
@@ -473,6 +505,20 @@ def mbx_put():
             secret[p] = ""
     if v["imap_host"] and not secret["imap"]:
         return err(tr("Please enter the password of the mailbox"))
+    # 2.1312.0 (#6540): a server for sending only with a login (never a direct delivery with a sender of one's choosing)
+    # and only on 465 / 587 (25 or another port: a host:port of the admin's list for this workspace)
+    if v["smtp_host"] and (not v["smtp_user"] or not secret["smtp"]):
+        return err(tr(MBX_ERR["login"]))
+    if v["smtp_host"]:
+        if isinstance(smtp_own_refused({"host": v["smtp_host"], "port": v["smtp_port"], "tls": v["smtp_tls"], "user": v["smtp_user"],
+                                        "password": secret["smtp"], "allow": _allow(c, ws)}), SmtpPortRefused):
+            return err(tr(MBX_ERR["port"]))
+    # 2.1312.0 (#6540): a changed connection, the test and "Fetch now" share one limit per person (the stored error code
+    # after the next round would otherwise answer a probe just as well)
+    conn = ("imap_host", "imap_port", "imap_ssl", "imap_user", "smtp_host", "smtp_port", "smtp_tls", "smtp_user")
+    if (d.get("check") is True or any(v[k] != cur[k] for k in conn)
+            or {k: x for k, x in secret.items() if x} != {k: x for k, x in old.items() if x}) and _conn_limited():
+        return err(tr("Too many attempts, please wait a few minutes"), 429)
     ts = _now()
     sealed = _seal(c, ws, secret)
     cols = ("active", "imap_host", "imap_port", "imap_ssl", "imap_user", "imap_folder", "smtp_host", "smtp_port", "smtp_tls", "smtp_user",
@@ -486,13 +532,18 @@ def mbx_put():
     c.commit()
     r = mbx_row(c, ws)
     chk = None
-    if d.get("check") is True and not hit_limit(f"mbxcheck:{me()}", 20, 600):  # review: the same limit as /mailbox/check
+    if d.get("check") is True:  # 2.1312.0 (#6540): counted above (_conn_limited)
         chk = mbx_check(c, r, secret)
         code = chk.get("imap") or chk.get("smtp") or ""
         c.execute("UPDATE hub_mailboxes SET error=?, error_at=? WHERE id=?", (code, ts if code else None, r["id"]))
         c.commit()
         r = mbx_row(c, ws)
     return jsonify(_public(c, ws, org, r, chk))
+
+
+def _conn_limited():
+    """2.1312.0 (#6540): True (= refuse) once a person saved a connection / tested / fetched now MBX_CONN times in MBX_CONN_S."""
+    return hit_limit(f"mbxconn:{me()}", MBX_CONN, MBX_CONN_S)
 
 
 @app.post("/api/hubmail/mailbox/check")
@@ -504,8 +555,8 @@ def mbx_check_route():
     r = mbx_row(c, ws)
     if not r:
         raise Denied(404, tr("No mailbox is set up"))
-    if hit_limit(f"mbxcheck:{me()}", 20, 600):
-        return err(tr("Too many tests, please wait a few minutes"), 429)
+    if _conn_limited():  # 2.1312.0 (#6540): shared with saving a connection and "Fetch now"
+        return err(tr("Too many attempts, please wait a few minutes"), 429)
     chk = mbx_check(c, r)
     code = chk.get("imap") or chk.get("smtp") or ""
     c.execute("UPDATE hub_mailboxes SET error=?, error_at=? WHERE id=?", (code, _now() if code else None, r["id"]))
@@ -532,6 +583,8 @@ def mbx_poll_now():
     r = mbx_row(c, ws)
     if not r or not r["imap_host"]:
         raise Denied(404, tr("No mailbox is set up"))
+    if _conn_limited():  # 2.1312.0 (#6540)
+        return err(tr("Too many attempts, please wait a few minutes"), 429)
     _DUE.add(ws)
     MBX_WAKE.set()
     bus_send("mbx", ws)  # 2.622.0 (#3891): the mailbox loop may run in another process
@@ -663,7 +716,7 @@ def mbx_poll_one(box, hold=None):
     from ..integrations.mail import mail_fetch
     n, code = 0, ""
     try:
-        secret, allow = _bg(lambda c: (mbx_secret(c, box), _allow(c)))
+        secret, allow = _bg(lambda c: (mbx_secret(c, box), _allow(c, box["ws"])))
         M = _imap_open(None, box, secret, allow=allow)
         if hold is not None:
             hold.append(M)
@@ -878,6 +931,9 @@ def mbx_compose():
         out["subject"] = _re_subject(d["subject"])
         out["text"] = _quote(c, m, d)
     out["suggest"] = _client_addrs(c, cid)
+    no = _own_refused(smtp) if via == "workspace" else ""
+    if no:  # 2.1312.0 (#6540)
+        out["can_send"], out["hint"] = False, mbx_err_text(no, lang(c, me()))
     if not via:
         out["hint"] = tr("Sending is not set up: an admin of the workspace enters the mailbox's SMTP access (E-mail filing > Mailbox).")
     return jsonify(out)
@@ -966,14 +1022,22 @@ def mbx_send():
     if not via:
         return jsonify(error=tr("Sending is not set up: an admin of the workspace enters the mailbox's SMTP access (E-mail filing > Mailbox)."),
                        code="no_smtp"), 409
+    no = _own_refused(smtp) if via == "workspace" else ""
+    if no:  # 2.1312.0 (#6540): a mailbox stored without a login / on another port sends nothing until an admin fixes it
+        return jsonify(error=mbx_err_text(no, lang(c, uid)), code=no), 409
     if hit_limit(f"hubsend:{uid}", MBX_SEND_HOUR, 3600):
         return err(tr("Too many e-mails, please wait a few minutes"), 429)
-    if via == "server":  # the server's own SMTP: its daily e-mail limit per person and recipient (a workspace's SMTP is its own)
+    if via == "server":  # the server's own SMTP: its daily e-mail limit per person and recipient
         from ..admin.hosting import mail_budget
         for a in to + cc:
             if not mail_budget(c, uid, a):
                 c.rollback()
                 return err(tr("Today's e-mail limit is reached. Try again tomorrow."), 429)
+        c.commit()
+    else:  # 2.1312.0 (#6540): a workspace's SMTP: at most MAIL_DAY_OWN_RCPT a day per person and recipient
+        if not mail_own_budget(c, uid, to + cc):
+            c.rollback()
+            return err(tr("Today's e-mail limit is reached. Try again tomorrow."), 429)
         c.commit()
     from ..integrations.mail import mail_deliver, mail_message
     try:
@@ -1006,6 +1070,11 @@ def mbx_send():
     c.commit()
     row = c.execute("SELECT * FROM hub_mails WHERE id=?", (mid,)).fetchone()
     return jsonify(mail=H.hbm_public(c, row), via=via), 201
+
+
+def _own_refused(smtp):
+    """2.1312.0 (#6540): '' or the code (login | port) why a workspace's SMTP access sends nothing."""
+    return _err_code(smtp_own_refused(smtp)) if smtp and smtp_own_refused(smtp) else ""
 
 
 def mbx_state(m):
