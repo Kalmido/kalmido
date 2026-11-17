@@ -513,6 +513,17 @@ migrate_image_name() {
     warn "Your own docker-compose.override.yml names the old image name; change it to ghcr.io/kalmido/kalmido (the old one gets no updates)."
   fi
   grep -Eq "^KALMIDO_IMAGE=[\"']?$OLD_IMAGE_RE([:@\"']|\$)" "$DIR/.env" 2>/dev/null || return 0
+  # 2.1350.0 (#6933, review N1 of job/5115): a pinned version / digest is switched only when the new name has it (an old pin
+  # may have been pushed only under the old name); without that answer the line stays and a warning says what to do
+  ref=$(sed -n "s/^KALMIDO_IMAGE=//p" "$DIR/.env" | tail -n 1 | tr -d "\"'")
+  rest=${ref#"$OLD_IMAGE_RE"}
+  case "$rest" in
+    ''|:latest) ;;
+    *) if ! docker manifest inspect "ghcr.io/kalmido/kalmido$rest" >/dev/null 2>&1; then
+         warn "KALMIDO_IMAGE in .env stays on the old image name: ghcr.io/kalmido/kalmido$rest was not found (or not reachable). Set KALMIDO_IMAGE=ghcr.io/kalmido/kalmido:<a current version> in .env; the old name gets no updates."
+         return 0
+       fi ;;
+  esac
   sed -E -i.bak "s#^(KALMIDO_IMAGE=[\"']?)$OLD_IMAGE_RE([:@\"']|\$)#\1ghcr.io/kalmido/kalmido\2#" "$DIR/.env" && rm -f "$DIR/.env.bak"
   chmod 600 "$DIR/.env"
   say "Switched KALMIDO_IMAGE in .env to the new image name ghcr.io/kalmido/kalmido (the old name gets no updates; version kept)"

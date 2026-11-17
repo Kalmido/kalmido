@@ -5,6 +5,7 @@ language, e.g. "nicht enthalten.txt") into the ZIP root with one line per item: 
 no file. Used by the folder ZIP of the files (files/bulk.py) and the other ZIP exports (integrations/exporters.py, wiki).
 Reasons are i18n keys (N_), translated when the file is written; only names the reader may see go in."""
 import re
+from functools import lru_cache
 
 from .i18n import LANGS, N_, tr, trn
 
@@ -64,12 +65,14 @@ class Omitted:
         return nm
 
 
+@lru_cache(maxsize=1)
 def omit_names():
     """2.1336.0 (#6804): the names of the list in every language (lower case, without ".txt"): a re-import of an export passes
     over the list silently (wiki/wikiatt.py; the browser's import of a locked space gets them in the state, core/state.py
-    omit_names -- one source, the i18n key, not a second list)."""
+    omit_names -- one source, the i18n key, not a second list). 2.1350.0 (#6933, review N3 of job/5115): once per process
+    (every /api/state asked it; LANGS is read once at import, core/i18n.py) -> a tuple, sorted."""
     out = {tr(OMIT_FILE, lg=lg).replace("/", "_").replace("\\", "_").strip().lower() for lg in LANGS}
-    return sorted(n for n in out if n)
+    return tuple(sorted(n for n in out if n))
 
 
 def is_omit_file(name):
