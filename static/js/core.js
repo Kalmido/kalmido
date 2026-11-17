@@ -1446,6 +1446,7 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
   S.lists = j.lists; S.inboxNames = j.inbox_names || []; S.sections = j.sections; S.habits = j.habits; S.habitsTrash = j.habits_trash || []; S.pomo = j.pomo;
   S.notes = j.notes || []; S.team = j.team || {enabled: false, unread: 0};  // 2.17.0 (#442 #419)
   S.pomoToday = j.pomo_today; S.avatars = j.avatars || {}; S.colors = j.colors || {}; S.share = j.share || null; S.settings = j.settings; S.mineOrder = moFromState(j); S.languages = j.languages || [{code: 'en', name: 'English'}]; LS.set('lang', j.settings.lang || 'en'); document.documentElement.lang = j.settings.lang || 'en'; S.counts = j.counts; S.v = j.v; S.ntfyUrl = j.ntfy_url;
+  S.omitNames = j.omit_names || ['not included'];  // 2.1336.0 (#6804): the names of "not included.txt" in every language (wikie2e.js)
   S.trashPurge = j.trash_purge !== false;  // 2.223.3 A (#2877)
   lookAdopt();  // 2.143.0 D (#2155)
   o3c_ringsMigrate();  // 2.118.0 (#2297): old device switch for rings -> account setting, once

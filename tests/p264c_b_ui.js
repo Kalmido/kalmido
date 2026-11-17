@@ -132,6 +132,19 @@ const gens = idx => (idx.pages || []).flatMap(p => [p.path, p.body]).filter(v =>
       return {c: r.created.length, s: r.skipped, paths: wk_pages(${JSON.stringify(SP)}).map(x => x.path), inf}; })().catch(e => ({err: e.message}))`);
     check(im.c === 2 && im.paths?.includes('Imp/One') && im.paths?.includes('Sub/Two x') && im.s?.includes('../evil/Three.md') && im.s?.includes('notes.txt') && im.s?.includes('notes/start.md'), 'import: .md files created encrypted, paths cleaned, others / taken names skipped ' + JSON.stringify(im).slice(0, 300));
     check(im.inf === `${M} deflated`, 'import: deflate entries open with DecompressionStream');
+    // 2.1336.0 (#6804): the text encoding as the server reads it (a Windows-1252 page arrives with its umlauts and is named in
+    // the report, UTF-16 with BOM is read); the list of what an export left out ("nicht enthalten.txt") is not reported as skipped
+    const enc = await ev(`(async () => { const te = new TextEncoder(), sp = ${JSON.stringify(SP)};
+      const cp = new Uint8Array([0x47, 0x72, 0xf6, 0xdf, 0x65, 0x20, 0x80, 0x20, 0xe4, 0xfc, 0x20, ...te.encode('${M} cp')]);
+      const u16 = new Uint8Array([0xff, 0xfe, ...[...'Grüße ${M} u16'].flatMap(c => [c.charCodeAt(0) & 255, c.charCodeAt(0) >> 8])]);
+      const z = wkeZip([{name: 'Enc/Umlaut.md', data: cp}, {name: 'Enc/Wide.md', data: u16}, {name: 'nicht enthalten.txt', data: te.encode('x')}, {name: 'not included (2).txt', data: te.encode('x')}]);
+      const r = await wkeImport(sp, new File([z], 'e.zip', {type: 'application/zip'}));
+      await wk_load(sp, true);
+      const body = path => wk_pages(sp).find(x => x.path === path)?.body || '';
+      return {c: r.created.length, s: r.skipped, rc: r.recoded, sum: wka_sum(r), cp: body('Enc/Umlaut'), w: body('Enc/Wide')}; })().catch(e => ({err: e.message}))`);
+    check(enc.c === 2 && enc.cp?.startsWith('Größe € äü ') && enc.w?.startsWith('Grüße '), 'import: a Windows-1252 and a UTF-16 page arrive with their umlauts ' + JSON.stringify(enc).slice(0, 400));
+    check(JSON.stringify(enc.rc) === '["Enc/Umlaut.md"]' && enc.sum?.includes('Windows-1252'), 'import: the Windows-1252 page is named in the report ' + JSON.stringify(enc).slice(0, 400));
+    check(Array.isArray(enc.s) && !enc.s.length, 'import: "nicht enthalten.txt" / "not included (2).txt" of an export are not reported as skipped ' + JSON.stringify(enc.s));
     // 2.64.3 E (#1817, review 2 L2): inflating stops at the limit, the archive's size is not trusted
     check(await ev(`(async () => { const cs = new Blob([new Uint8Array(5000)]).stream().pipeThrough(new CompressionStream('deflate-raw'));
       return wkeInflate(new Uint8Array(await new Response(cs).arrayBuffer()), 1000).then(() => 'opened', () => 'stopped'); })()`) === 'stopped', 'import: inflating stops at the size limit');
