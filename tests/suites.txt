@@ -2230,7 +2230,7 @@ fresh; run p2352_f_review "$PY" p2352_f_review_test.py "$KALMIDO_TEST_DATA"
 fresh; run p2235_d_kbd_ui node p2235_d_kbd_ui.js "$KALMIDO_TEST_DATA"
 # 2.354.0 C (#3326 #3009 #3013): +1 day / -1 day instead of Tomorrow, Overdue buttons clear of the block "…", small UI texts
 fresh; run p2354_c_ui node p2354_c_ui.js "$KALMIDO_TEST_DATA"
-# 2.380.0 (#3420): the film pack offers Producing by amount, also switchable in a quotation made before the pack; freelancer-matrix: office
+# 2.380.0 (#3420); 2.1353.0 (#6839): the film pack offers no Producing by amount (private pack only), a saved quotation with it keeps computing; freelancer-matrix: office
 fresh; run p2380_l_ui node p2380_l_ui.js "$KALMIDO_TEST_DATA"
 # 2.365.2 C (#2789): module settings moved to Settings (time/focus link, agent steps, letter signature, organisation rules, own holiday state); freelancer-matrix: none
 fresh; run p2365_2_c_ui node p2365_2_c_ui.js "$KALMIDO_TEST_DATA"
