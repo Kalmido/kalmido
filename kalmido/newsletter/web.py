@@ -59,7 +59,7 @@ def _public(c, ws, org):
     rows = N.nwl_contacts(c, ws)
     secret_set = bool(r["secret"])
     out["conn"] = {"kind": r["kind"], "preview": r["kind"] in NWL_PREVIEW, "url": r["url"], "secret_set": secret_set,
-                   "hint": "",  # 2.1322.0 (#6560 7): no part of the access data is shown "mode": r["mode"], "auto": bool(r["auto"]), "synced_at": r["synced_at"],
+                   "hint": "", "mode": r["mode"], "auto": bool(r["auto"]), "synced_at": r["synced_at"],  # 2.1322.0 (#6560 7): no hint
                    "error": r["error"], "error_text": N.nwl_err_text(r["error"]), "busy": N.nwl_busy(r["id"]),
                    "user": "set" if secret_set and r["kind"] in ("listmonk", "cleverreach") else ""}
     out["segments"] = [_seg_json(c, r, s, rows) for s in c.execute("SELECT * FROM nl_segments WHERE conn_id=? ORDER BY lower(name), id",
