@@ -440,9 +440,9 @@ choose_clamav() {
 
 # 2.1345.0 (#6658): may chown -hR run on this link target (already resolved)? $2 = data or secret. No for / , a system folder
 # itself (etc usr var home root bin sbin lib* boot opt srv mnt media tmp run under the root) and an ancestor of the
-# installation folder. Review F3: a folder right under one of var usr home tmp run srv opt only when it is empty or carries
-# the Kalmido marker (.kalmido-target, written after the first run; an older run's backups/ in data, kalmido.key in secret
-# count too).
+# installation folder. Review F3: a folder right under one of var usr home tmp run srv opt etc root boot mnt media lib lib64 only when it is
+# empty or carries the Kalmido marker (.kalmido-target, written after the first run; an older run's backups/ with a
+# kalmido-*.dump in data, kalmido.key in secret count too).
 LINK_MARK=".kalmido-target"
 link_target_ok() {
   case "$1" in
@@ -450,12 +450,13 @@ link_target_ok() {
   esac
   d=$(cd -P "$DIR" 2>/dev/null && pwd -P) || d="$DIR"
   case "$d/" in "$1"/*) return 1 ;; esac
-  for s in var usr home tmp run srv opt; do
+  for s in var usr home tmp run srv opt etc root boot mnt media lib lib64; do  # Fable reader #5194 F2: + etc root boot mnt media lib lib64
     rest=${1#/"$s"/}
     [ "$rest" != "$1" ] || continue
     case "$rest" in */*) return 0 ;; esac  # deeper: a folder of its own
     [ -e "$1/$LINK_MARK" ] && return 0
-    [ "${2:-}" = data ] && [ -d "$1/backups" ] && return 0
+    # Fable reader #5194 F2: backups/ alone is no proof (a home may have one): only with a Kalmido dump in it
+    [ "${2:-}" = data ] && ls "$1"/backups/kalmido-*.dump >/dev/null 2>&1 && return 0
     [ "${2:-}" = secret ] && [ -f "$1/kalmido.key" ] && return 0
     [ -z "$(ls -A "$1" 2>/dev/null)" ] && return 0
     return 1
