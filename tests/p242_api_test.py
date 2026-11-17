@@ -196,7 +196,7 @@ else:
     print("p242_api: collab_all switch route not found, skipped:", r.status_code)
 
 # 2.1357.0 (#6335 B3): no change falls through the delta any more - a note is the light area "notes" (the delta's side part
-# carries the notes), a route of the tasks area that leaves no row for the delta (a folder's properties) counts as "other"
+# carries the notes), a route of the tasks area that leaves no row for the delta (a folder's properties; no list in it) counts as "other"
 # (the whole state) for the writer's own devices only, a task change stays "tasks". A2 = a second device of alice.
 def areas(s):
     return s.get(B + "/api/version").json().get("a") or {}
@@ -211,7 +211,7 @@ def vs(s):
 
 
 A2 = sess("alice")
-TL = A.post(B + "/api/lists", json={"name": "Two devices", "folder": "Home"}).json()["id"]
+TL = A.post(B + "/api/lists", json={"name": "Two devices"}).json()["id"]
 TT = A.post(B + "/api/tasks", json={"title": "Shopping", "list_id": TL}).json()["id"]
 a0 = areas(A)
 r = A2.post(B + f"/api/lists/{TL}/notes", json={"title": "Second device note", "body": "first line"})
@@ -228,7 +228,7 @@ dl = A.get(B + f"/api/state/delta?since={v1}&lean=1&side=1&tt=1").json()
 check(dl.get("full") is False and any(n["id"] == NID and n["title"] == "Second device note" for n in dl.get("notes") or []),
       f"B3: the delta's side part carries the notes {dl.get('full')}")
 a0, va0, vb0 = areas(A), vs(A), vs(Bo)
-check(A2.put(B + "/api/folders/props", json={"folder": "Home", "props": {"hide_done": True}, "apply": "new"}).ok, "B3: folder properties saved")
+check(A2.put(B + "/api/folders/props", json={"folder": "Corner", "props": {"hide_done": True}, "apply": "new"}).ok, "B3: folder properties saved")
 m = moved(a0, areas(A))
 check("other" in m and "tasks" not in m, f"B3: folder properties (no delta row) count as other: {m}")
 check(vs(A) != va0, "B3: the writer's other device sees the change (its vs moved)")
