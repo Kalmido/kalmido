@@ -21,6 +21,8 @@ from ..core.pg import system_ctx, table_exists
 from ..tasks.repo import task_insert  # 2.1358.0 (#6825): the one way into tasks
 from ..core.i18n import browser_lang, lang, md_plain, tr, trn
 from ..core.db import body, bump, connect, db, err, inbox_default, iso, local_now, now_utc, uset, usettings
+from ..core.db import DbError  # 2.1337.0 (#6600)
+from ..core.movelock import mv_refused, mv_strict  # 2.1337.0 (#6600): the mail of a moving organisation waits
 from ..accounts.session import GATE, me
 from ..accounts.mailtok import mtk_new, mtk_plain, mtk_where  # 2.674.0 (#4382 finding 5)
 from ..accounts.bgjobs import bgj_fn
@@ -318,6 +320,22 @@ class MailKept(int):
 
 
 def mail_import(c, raw, pre=None):
+    """2.1337.0 (#6600): _mail_import under the lock of a moving organisation (core/movelock.py mv_strict): a mail for one stays
+    in the mailbox (MAIL_LATER: unseen again, taken again after the move), never imported into it, never thrown away."""
+    if c is None:
+        return _mail_import(c, raw, pre)
+    with mv_strict(c):
+        try:
+            return _mail_import(c, raw, pre)
+        except DbError as e:
+            if not mv_refused(e):
+                raise
+            c.rollback()
+            print("mail: one mail waits, its organisation is moving", flush=True)
+            return MAIL_LATER
+
+
+def _mail_import(c, raw, pre=None):
     """One message (bytes) -> one task. Returns the task id, MAIL_DROP when it is for nobody or already imported, None
     when another importer (documents, hub, data protection) took nothing in (2.240.0 A, #2883: that mail stays).
     2.424.0 B2 (#3450): c None = the step before the database transaction (mail_fetch prefetch): the invoice link

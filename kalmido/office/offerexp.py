@@ -34,6 +34,7 @@ from ..core.db import body, bump, err, iso, iso_ms, local_now, now_utc, test_sec
 from ..core.i18n import N_, tr
 from ..core.pg import system_ctx, write_lock
 from ..core.access import Denied, live_sql
+from ..core.movelock import mv_skip, mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..accounts.orgroles import OFFICE_READ
 from ..tasks.validation import valid_date
 from ..collab.news import news_add
@@ -149,7 +150,7 @@ def ofe_tick(c, now=None):
     with system_ctx(c):  # which areas have a candidate at all; each is then handled in its admin's own context
         oids = [r[0] for r in c.execute(
             "SELECT DISTINCT org_id FROM office_docs WHERE kind='offer' AND status='sent' AND trial=0 AND valid_until IS NOT NULL "
-            f"AND valid_until<=? AND valid_until>=? AND {live_sql()} ORDER BY org_id LIMIT 2000",
+            f"AND valid_until<=? AND valid_until>=? AND {live_sql()} AND {mv_sql()} ORDER BY org_id LIMIT 2000",
             ((day + timedelta(days=OFE_DAYS_MAX)).isoformat(), (day - timedelta(days=OFE_LATE)).isoformat())).fetchall()]
     c.commit()
     for oid in oids:

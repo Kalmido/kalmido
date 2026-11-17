@@ -365,8 +365,10 @@ def sched_tick(c):
             c.commit()
     except Exception as e:  # noqa: BLE001 -- the due plans below still run
         _wd_fail(c, "agent schedules waking", "all", e)  # 2.1265.0 (#6387): the admin alert like every watchdog part (was only the log)
-    rows = c.execute("SELECT * FROM agent_schedules WHERE enabled AND next_at IS NOT NULL AND next_at<=? ORDER BY next_at LIMIT ?",
-                     (iso(now), SCHED_TICK_MAX)).fetchall()
+    # 2.1337.0 (#6600): not a plan about a project of an organisation that is moving (read only): it waits, runs once after it
+    rows = c.execute("SELECT * FROM agent_schedules WHERE enabled AND next_at IS NOT NULL AND next_at<=? AND (list_id IS NULL OR NOT EXISTS "
+                     "(SELECT 1 FROM lists l JOIN orgs o ON o.id=l.org_id WHERE l.id=agent_schedules.list_id AND o.moving_at IS NOT NULL)) "
+                     "ORDER BY next_at LIMIT ?", (iso(now), SCHED_TICK_MAX)).fetchall()
     for r in rows:
         try:
             if sched_fire(c, r, now) not in ("no_access", "no_list"):

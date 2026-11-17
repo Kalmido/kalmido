@@ -121,6 +121,7 @@ MBX_AFTER_POLL = []  # 2.581.0 (#4804): f(M, box) on the open connection after t
 
 
 from ..core.db import now_iso as _now  # noqa: E402  2.149.0 G (#2517): was an own copy
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 
 
 def _gate():
@@ -885,7 +886,8 @@ def mbx_poll_all(only=None, interval=60):
     times is not fetched at all (mbx_halted), its owners hear of it again every MBX_TELL_AGAIN_S. interval = the round's."""
     def boxes(c):
         with system_ctx(c):
-            out = [dict(x) for x in c.execute("SELECT * FROM hub_mailboxes WHERE active AND imap_host<>'' ORDER BY id").fetchall()]
+            # 2.1337.0 (#6600): not the mailbox of an organisation that is moving: its mail stays on the mail server, fetched after the move
+            out = [dict(x) for x in c.execute(f"SELECT * FROM hub_mailboxes WHERE active AND imap_host<>'' AND {mv_sql()} ORDER BY id").fetchall()]
         c.commit()
         return out
     n, now = 0, now_utc()
