@@ -208,6 +208,11 @@ lines = [x for x in r.content.decode("utf-8-sig").split("\r\n") if x] if r.ok el
 check(len(BULK) == 2001 and len(lines) == 2003 and sum(1 for x in lines if "-k6589-" in x) == 2001,
       f"#6589: 2002 documents -> 2002 rows, no cut at 2000 ({r.status_code} {len(BULK)} ids, {len(lines)} lines)")
 dbx("DELETE FROM fs_nodes WHERE name LIKE '%-k6589-%'", write=True)
+# 2.1324.0 (#6589, Fable F3): a fixed ceiling of 50 000 ids per call; above it a 400 naming the number and the ceiling (no silent cut)
+r = A.post(B + "/api/docs/export.csv", json={"ids": list(range(10**9, 10**9 + 50_001))})
+check(r.status_code == 400 and "50001" in r.text and "50000" in r.text, f"#6589 F3: 50 001 ids -> 400 with number and ceiling ({r.status_code} {r.text[:200]})")
+r = A.post(B + "/api/docs/export.csv", json={"ids": [D1] * 60_000})
+check(r.status_code == 200, f"#6589 F3: the same id 60 000 times counts once ({r.status_code})")
 
 # ---- #2101: the OCR language choice
 spec = importlib.util.spec_from_file_location("ocr_c", os.path.join(N, "..", "kalmido", "docs", "ocr.py"))

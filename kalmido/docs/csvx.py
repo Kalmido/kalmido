@@ -3,13 +3,15 @@
 POST /api/docs/export.csv {ids: [...]}: only documents the signed-in person may see (the others are left out silently);
 amounts are opened like in the detail answer. Text a spreadsheet would run as a formula gets a "'" in front.
 2.1324.0 (#6589): no row limit any more (was 2000, cut silently): the rows are read one by one into a spooled file
-(core/serializers.py csv_download); the rate limit stays."""
+(core/serializers.py csv_download); the rate limit stays. A fixed, generous ceiling of DCX_IDS_MAX ids per call (Fable F3):
+above it a 400 naming the number and the ceiling -- nothing is cut silently."""
 import re
 
 from flask import request
 
 from ..core.config import app
 from ..core.db import db
+from ..core.errors import BadInput
 from ..core.i18n import dec_comma, lang, tr
 from ..core.serializers import csv_download
 from ..core.access import Denied
@@ -19,6 +21,7 @@ from . import store as S
 from .web import _no_agent, doc_json
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
 
+DCX_IDS_MAX = 50_000  # documents per export call
 _NUM = re.compile(r"-?\d+(?:[.,]\d+)?")
 
 
@@ -54,6 +57,8 @@ def docs_export_csv():
     b = request.get_json(silent=True) or {}
     ids = [int(x) for x in (b.get("ids") or []) if str(x).isdigit()] if isinstance(b.get("ids"), list) else []
     ids = list(dict.fromkeys(ids))  # 2.1324.0 (#6589): every id (was [:2000])
+    if len(ids) > DCX_IDS_MAX:  # 2.1324.0 (#6589, Fable F3): a ceiling with a clear word, not a silent cut
+        raise BadInput(tr("Too many documents for one export: {0} (at most {1})", len(ids), DCX_IDS_MAX))
     if hit_limit(f"docs-csv:{me()}", 6):
         raise Denied(429)
     c = db()
