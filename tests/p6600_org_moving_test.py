@@ -13,8 +13,10 @@ Invented companies, people and figures only. tenant-matrix: org
    late, decision of 16.11.2026) and its admin gets the task "Invoice series ... paused"; the next watchdog run makes nothing
 usage: p6600_org_moving_test.py <datadir>"""
 import os
+import re
 import subprocess
 import sys
+import time
 from datetime import date
 
 import requests
@@ -83,7 +85,7 @@ check(any(w["id"] == ORG for w in Bo.get(B + "/api/state").json()["me"]["workspa
 
 # the organisation's things before the move: a project with a task, a public form, an office with an invoice series due today
 L = A.post(B + "/api/lists", json={"name": "Alpha project", "org_id": ORG}).json()["id"]
-assert A.post(B + f"/api/lists/{L}/members", json={"user_id": BOB, "role": "edit"}).status_code in (200, 201)
+assert A.put(B + f"/api/lists/{L}/members", json={"user_id": BOB, "role": "edit"}).ok
 T = A.post(B + "/api/tasks", json={"title": "Before the move", "list_id": L}).json()["id"]
 FORM = A.post(B + f"/api/lists/{L}/forms", json={"title": "Requests", "access": "public"}).json()
 FTOK = FORM["url"].rsplit("/", 1)[1]
@@ -133,11 +135,19 @@ moving423(r, "bob's API token (an agent's way in)")
 check("read-only" in r.text, f"... with the message ({r.text[:160]})")
 anon = requests.Session()
 anon.headers.update(H)
-page = anon.get(B + "/f/" + FTOK)
-check(page.ok, f"the public form still opens (reading) {page.status_code}")
-r = anon.post(B + "/f/" + FTOK, data={"subject": "Eine Anfrage", "text": "Hallo", "name": "Eve", "stamp": "x"})
+def stamp():
+    page = anon.get(B + "/f/" + FTOK)
+    m = re.search(r'name="stamp" value="([^"]+)"', page.text)
+    return page.status_code, (m.group(1) if m else "")
+
+
+code1, ST1 = stamp()
+code2, ST2 = stamp()
+check(code1 == 200 and ST1 and ST2, f"the public form still opens (reading) {code1}")
+until(lambda: time.time() - int((ST2 or "0").split(".")[0] or 0) > 3.2, 10)  # the stamp's least age (FRM_MIN_S): a real state
+r = anon.post(B + "/f/" + FTOK, data={"subject": "Eine Anfrage", "text": "Hallo", "name": "Eve", "stamp": ST1})
 moving423(r, "the public form sent by a script (JSON)")
-r = anon.post(B + "/f/" + FTOK, data={"subject": "Eine Anfrage", "text": "Hallo", "name": "Eve", "stamp": "x"},
+r = anon.post(B + "/f/" + FTOK, data={"subject": "Eine Anfrage", "text": "Hallo", "name": "Eve", "stamp": ST2},
               headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
 check(r.status_code == 423 and "<html" in r.text and "read-only" in r.text, f"... sent by a browser: a page that says so ({r.status_code})")
 check(not dbx("SELECT 1 FROM tasks WHERE list_id=? AND title IN ('During the move', 'API during', 'Eine Anfrage')", (L,)),

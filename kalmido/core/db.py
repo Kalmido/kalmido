@@ -217,17 +217,6 @@ def _db_log_exception(exc_info):
 app.log_exception = _db_log_exception
 
 
-def _mv_moving(_e):
-    """2.1337.0 (#6600): core/movelock.py OrgMoving -> the same answer as the database lock's."""
-    c = g.get("db")
-    if c is not None:
-        try:
-            c.rollback()
-        except Exception:  # noqa: BLE001  (the connection itself may be gone)
-            pass
-    return mv_answer()
-
-
 @app.errorhandler(DbError)
 def db_error(e):
     """2.37.0 (#1150): a database error nobody caught. Postgres is strict where SQLite stored anything: a value of the wrong
