@@ -274,6 +274,21 @@ refused("hidbomb.ods", ods(RATES + '<table:table table:name="H" table:style-name
                            '<table:table-cell office:value-type="float" office:value="1" table:number-columns-repeated="16384"><text:p>1</text:p>'
                            '</table:table-cell></table:table-row></table:table>', STYLES), "The file is too large", "a hidden sheet over the work budget")
 
+# 2.1324.0 (#6709, review F1 of the second reader): rows of an empty cell 200 wide and a filled one 16 184 wide (the columns left out)
+# looped 16 184 times per row outside the work budget -> now a known block costs nothing again: imported fast, all named
+WIDECUT = ('<table:table table:name="W" table:style-name="ta1">' + row(t("a")) + "".join(
+    '<table:table-row><table:table-cell table:number-columns-repeated="200"/><table:table-cell office:value-type="float" '
+    'office:value="1" table:number-columns-repeated="16184"><text:p>1</text:p></table:table-cell></table:table-row>' for _ in range(20_000))
+    + "</table:table>")
+t0 = time.monotonic()
+try:
+    r = A.post(B + "/api/sheets/import", data={"space": "private"}, files={"file": ("widecut.ods", ods(WIDECUT, STYLES))}, timeout=60)
+    secs, code, body = time.monotonic() - t0, r.status_code, r.text
+except Exception as e:  # noqa: BLE001 - the old reader: no answer within a minute
+    secs, code, body, r = time.monotonic() - t0, 0, repr(e), None
+check(code == 201 and secs < 10 and (r.json().get("report") or {}).get("cols_left_out") == 16184,
+      f"#6709 review F1: 20 000 rows filled only past column 200: imported in {secs:.1f} s, 16 184 columns named - {code} {body[:300]}")
+
 # ---------------------------------------------------------------- in the app container: the memory the repeat bombs take
 EMPTY = ods('<table:table table:name="E"><table:table-row><table:table-cell office:value-type="string"><text:p>x</text:p></table:table-cell>'
             '</table:table-row>' + EMPTY_ROWS * 50 + '</table:table>')
