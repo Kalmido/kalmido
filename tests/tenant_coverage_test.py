@@ -852,7 +852,7 @@ ROUTES = {
     "POST /api/orgs/{}/join": "org", "DELETE /api/orgs/{}/join": "org",
     # 2.35.0 (#1101): an organisation admin's lists of the organisation (p2350_c_api_test.py: other organisation, private list, member 403)
     "GET /api/orgs/{}/out-requests": "org", "POST /api/orgs/{}/out-requests": "org", "POST /api/orgs/{}/out-requests/{}": "org",  # 2.361.2 (#2923)
-    "GET /api/orgs/{}/moving": "org", "POST /api/orgs/{}/moving": "org", "DELETE /api/orgs/{}/moving": "org",  # 2.1337.0 (#6600)
+    "GET /api/orgs/{}/moving": "org", "POST /api/orgs/{}/moving": "org", "DELETE /api/orgs/{}/moving": "org",  # 2.1337.0 (#6600): p6600_org_moving_test.py (another organisation 404)
     "GET /api/orgs/{}/lists": "org", "POST /api/orgs/{}/lists/{}/archive": "org", "DELETE /api/orgs/{}/lists/{}": "org",
     "GET /api/orgs/{}/tasks": "org",  # 2.574.0 (#3376): p2574_d_api_test.py (the admin of another organisation: 404)
     "POST /api/orgs/{}/lists/{}/owner": "org",
