@@ -102,6 +102,36 @@ const FEAT = 'comments,collab,sheets,time';
   w.eval(`go('trash')`);
   const tr = await until(() => d.querySelector(`.otrrow[data-otr="${GL}"]`), {timeout: 20000});
   check(tr && /Old campaign/.test(tr.textContent) && striped(tr, T), '#6188 the trash: the organisation\'s deleted project wears its stripe');
+  // ================= 2.1353.0 (#6957) the menu "Switch to": each organisation's tile in its own colour, whichever workspace is open
+  const tile = () => d.querySelector('#pop .kbwsi .kbini');
+  w.eval(`sbb_wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);
+  let kt = await until(tile);
+  check(kt && kt.dataset.wsc === '1' && kt.style.getPropertyValue('--wsd') === T.d, '#6957 the tile of the organisation wears its own colour (workspace "All" open)');
+  check(!d.querySelector('#pop .kbwsi svg[data-wsc]'), '#6957 Private without a colour of its own: the house stays neutral');
+  w.eval(`closePop()`);
+  // a second organisation with another colour: each tile has its own, not the open workspace's
+  const O2 = (await call('POST', '/api/orgs', {name: 'Zeta'}))?.id;
+  if (O2) {
+    await call('PATCH', '/api/orgs/' + O2, {color: '#4cc3d9'});
+    await w.eval(`load().then(render)`);
+    w.eval(`sbb_wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);
+    await until(() => d.querySelectorAll('#pop .kbwsi .kbini').length >= 2);
+    const tv = [...d.querySelectorAll('#pop .kbwsi .kbini')].map(x => x.style.getPropertyValue('--wsd'));
+    check(tv.length >= 2 && new Set(tv).size === tv.length && tv.every(Boolean), '#6957 two organisations: two different tile colours ' + tv.join('|'));
+    w.eval(`closePop()`);
+  }
+  // Private's own colour: the overview "All workspaces" rows and the menu's house wear it; without a choice neutral
+  const ovr = () => w.eval(`spo_html('x', [['private', 'Private', ''], ['org:${ORG}', 'Studio', '']])`);
+  check(!/data-wso/.test(ovr().split('</li>')[0]), '#6957 overview: Private without a colour of its own stays neutral');
+  await call('PATCH', '/api/settings', {ws_colors: JSON.stringify({private: w.eval('LP_TONES[2][0]')})});
+  await w.eval(`load().then(render)`);
+  const o1 = ovr();
+  check(/data-wso="1"[^>]*>[^]*Private/.test(o1.split('</li>')[0]) || /spovr[^>]*data-wso="1"/.test(o1.split('</li>')[0]), '#6957 overview: Private wears the colour I chose ' + o1.slice(0, 300));
+  check(w.eval(`wso_row('private')`) === '', '#6957 other views: wso_row without the overview flag leaves Private neutral');
+  w.eval(`sbb_wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);
+  check(await until(() => d.querySelector('#pop .kbwsi svg.i[data-wsc]')), '#6957 the menu: Private\'s house wears the colour I chose');
+  w.eval(`closePop()`);
+  await call('PATCH', '/api/settings', {ws_colors: '{}'});
   w.close();
 
   // ================= inside the organisation's workspace: no repeated origin; another workspace's item keeps it
