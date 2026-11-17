@@ -111,12 +111,14 @@ async function ensureOcc(lo, hi) {
     const j = await api('GET', `/api/occurrences?from=${lo}&to=${hi}`);
     if (S.occ.want !== key) return;  // a newer request replaced this one
     S.occ = {key, items: j.items, want: ''};
+    if (typeof cgs_held === 'function' && cgs_held()) return;  // 2.1312.0 (#6711): a finger leafs: drawn after it (calgest.js)
     if (S.route.mod === 'cal' || isListCal()) renderView();  // 2.156.0 C (#2071): + a list's calendar
   } catch {
     // 2.1212.0 (#6159): the repeating tasks' later dates could not be loaded: the view says so with "Try again" (calEvState),
     // and does not fetch again by itself on every drawing
     if (S.occ.want !== key) return;
     S.occ.want = ''; S.occ.err = key;
+    if (typeof cgs_held === 'function' && cgs_held()) return;
     if (S.route.mod === 'cal' || isListCal()) renderView();
   }
 }
@@ -181,6 +183,7 @@ async function ensureCalEv(lo, hi) {
   // moves and its end to the removed block only - the drag never came (CI: "hold and drag an event" moved nothing, the answer
   // of the view's own fetch fell into the hold). Every end of a press runs cg_clear, which draws
   if (typeof CG !== 'undefined' && (CG.st?.active || (CG.st?.touch && typeof drg_cur !== 'undefined' && drg_cur?.d === CG.st))) { CG.redraw = 1; return; }
+  if (typeof cgs_held === 'function' && cgs_held()) return;  // 2.1312.0 (#6711): nor under a finger that leafs (calgest.js draws after it)
   if (S.route.mod === 'cal' || (S.route.mod === 'tasks' && S.route.key === 'today') || S.route.mod === 'home') renderView();  // 2.144.0 C (#2418): + the start page
 }
 function calInvalidate() { S.cal.key = ''; S.cal.loading = ''; S.cal.err = ''; S.cal.seq = (S.cal.seq || 0) + 1; }
@@ -371,6 +374,19 @@ function tlCalRows(start, end, DW) {  // calendar timeline: one row per calendar
 async function calReq(method, url, body) {
   try { return await rawFetch(method, url, body); }
   catch (e) { throw new Error(e instanceof Offline ? tr('Only available online.') : e.message); }
+}
+// 2.1312.0 (#6711): one period on (dir 1) or back (-1): the arrows of the bar (events.js) and the finger's leafing (calgest.js)
+function calStep(dir) {
+  if (S.calMode === 'week') S.calSel = addDays(S.calSel, calDaysN() * dir);  // 2.290.0 A (#3144): by the grid's number of days
+  else if (S.calMode === 'day') S.calSel = addDays(S.calSel, dir);
+  else if (S.calMode === 'year') S.calSel = `${+S.calSel.slice(0, 4) + dir}-${S.calSel.slice(5, 7)}-01`;  // 2.155.0 C (#2078)
+  else if (S.calMode === 'agenda') S.calSel = addDays(S.calSel, 14 * dir);  // 2.21.0 (#659)
+  else if (S.calMode === 'timeline') S.tlStart = addDays(S.tlStart, 14 * dir);
+  else {
+    const [y, m] = S.calMonth.split('-').map(Number); S.calMonth = ds(new Date(y, m - 1 + dir, 1)).slice(0, 7);
+    // 2.1077.0 (#5461): the day list under the month follows the page (it said "Today" under another month): today there, else the 1st
+    if (S.calSel?.slice(0, 7) !== S.calMonth) S.calSel = today().slice(0, 7) === S.calMonth ? today() : `${S.calMonth}-01`;
+  }
 }
 function calBar(title, done = true, extra = '') {
   if (S.lcal && typeof lcal_bar === 'function') return lcal_bar(title, done);  // 2.156.0 C (#2071): a list's calendar (listcal.js)
