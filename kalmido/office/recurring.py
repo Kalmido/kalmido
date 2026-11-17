@@ -61,7 +61,7 @@ RIN_WHY_NOBODY = N_("Nobody may make the invoices of the series: the area has no
 RIN_PAUSE_WHY = ("nobody", "nobody_told", "fails", "template", "import", "moving")  # 2.1337.0 (#6600): + moving
 # 2.1337.0 (#6600): a series whose period came while its organisation was moving (read only) is not made late when the move ends:
 # paused with the task RIN_TASK_PAUSED and this text (accounts/orgmove.py mv_series_pause, rin_moved)
-RIN_WHY_MOVE = N_("The organisation was moving (read only) when the next invoice of the series was due: it was not made and will not be made late. Check the series and switch it on again.")
+RIN_WHY_MOVE = N_("The organisation was moving (read-only) when the next invoice of the series was due: it was not made and will not be made late. Check the series and switch it on again.")
 RIN_WHY_BACK = N_("The series was paused because its area had no admin with the office switched on: no invoices were made since. Check the series and switch it on again.")
 
 

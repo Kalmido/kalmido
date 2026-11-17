@@ -154,7 +154,7 @@ function mvBoxHtml(o) {
 }
 function mvStateHtml(j) {
   if (!j.moving) return `<div class="row"><button type="button" class="btn sm" data-mv="start">${ic('lock', 's')} ${tr('Start the move…')}</button></div>`;
-  return `<div class="shint keep warn">${ic('lock', 's')} ${esc(tr('The move runs since {0}, started by {1}: the organisation is read only.', fmtWhen(j.since), j.by_name || '?'))}${j.why ? ' ' + esc(tr('Reason: {0}', j.why)) : ''}</div>
+  return `<div class="shint keep warn">${ic('lock', 's')} ${esc(tr('The move runs since {0}, started by {1}: the organisation is read-only.', fmtWhen(j.since), j.by_name || '?'))}${j.why ? ' ' + esc(tr('Reason: {0}', j.why)) : ''}</div>
     <div class="row"><button type="button" class="btn sm" data-mv="end">${ic('unlock', 's')} ${tr('End the move')}</button></div>
     <div class="shint">${tr('Ending it lets everything run again. Invoice series whose date came during the move are not made late: they are paused, and you get a task for each. To delete the organisation after the move, ask the admin of this server.')}</div>`;
 }
@@ -172,7 +172,7 @@ function mvDraw(root) {
     const box = b.closest('.mvbox'), oid = +box.dataset.mvorg, name = box.dataset.mvname || '';
     try {
       if (b.dataset.mv === 'start') {
-        if (!await askConfirm(tr('Start the move of “{0}”?', name), tr('From now on the whole organisation is read only for all members, agents, API keys, forms, booking pages and incoming mail, until an admin ends the move. Every member sees a notice with your name and the reason.'), {ok: tr('Continue'), danger: true})) return;
+        if (!await askConfirm(tr('Start the move of “{0}”?', name), tr('From now on the whole organisation is read-only for all members, agents, API keys, forms, booking pages and incoming mail, until an admin ends the move. Every member sees a notice with your name and the reason.'), {ok: tr('Continue'), danger: true})) return;
         let dm = null, why = '';
         const typed = await askDialog(/** @type {any} */ ({title: tr('Start the move'), danger: true, ok: tr('Start the move'),
           html: `<div class="row"><label for="mv-why">${esc(tr('Reason (all members see it)'))}</label><input id="mv-why" maxlength="500" autocomplete="off"></div><p>${esc(tr('Type the name of the organisation to start the move'))}</p>`,
@@ -180,7 +180,7 @@ function mvDraw(root) {
         if (typed === null) return;
         if (typed.trim().toLowerCase() !== name.trim().toLowerCase()) { toast(tr('The name does not match: the move did not start')); return; }
         await api('POST', `/api/orgs/${oid}/moving`, {confirm: typed.trim(), why});
-        toast(tr('The move has started: the organisation is read only'));
+        toast(tr('The move has started: the organisation is read-only'));
       } else if (b.dataset.mv === 'end') {
         if (!await askConfirm(tr('End the move?'), tr('Everything in the organisation runs again. Invoice series whose date came during the move stay paused until you switch them on.'), {ok: tr('End the move')})) return;
         const r = await api('DELETE', `/api/orgs/${oid}/moving`);
