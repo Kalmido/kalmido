@@ -64,7 +64,8 @@ services:
       # only to the address your proxy connects to, e.g. instead of the line above:
       # - "127.0.0.1:3040:3045"
     # 2.59.0 (#1375): "default" + the internal network of the optional embedding service (below)
-    networks: [default, embed]
+    # 2.1356.0 (#6967): + "scan", the internal network shared with ClamAV only (db is not in it)
+    networks: [default, embed, scan]
 
   db:
     # PostgreSQL 17 (2.37.0). Stay on 17 when updating; a new major version needs a dump + restore (docs/SELF-HOSTING.md).
@@ -80,6 +81,11 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    # 2.1356.0 (#6967): few rights, a process cap. The official entrypoint starts as root (chown/chmod of PGDATA), then
+    # drops to the postgres user: these five rights are what it needs. One process per connection (pool <= 40, max 60) + workers.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    pids_limit: 512
     environment:
       POSTGRES_USER: kalmido
       POSTGRES_DB: kalmido
@@ -143,6 +149,13 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    # 2.1356.0 (#6967): ClamAV parses every upload: few rights (the entrypoint runs as root to give /var/lib/clamav to the
+    # clamav user, then freshclam and clamd run as that user), a process cap, and no sight of the database: network "scan"
+    # (internal, only Kalmido + ClamAV) plus "out" (own bridge, only ClamAV: the way out for freshclam).
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    pids_limit: 256
+    networks: [scan, out]
     healthcheck:
       test: ["CMD", "clamdcheck.sh"]
       interval: 60s
@@ -156,6 +169,11 @@ services:
 networks:
   embed:
     internal: true
+  # 2.1356.0 (#6967): Kalmido <-> ClamAV only, no way out; db is not in it
+  scan:
+    internal: true
+  # ClamAV's own way out (signature updates); the default network, where db lives, is not used by ClamAV
+  out: {}
 
 volumes:
   clamav-db:

@@ -1478,6 +1478,9 @@ The image is `clamav/clamav-debian:1.4` (2.1284.0: linux/amd64 and linux/arm64; 
 a Raspberry Pi or an ARM server stopped at "no matching manifest"). An update takes the volume `clamav-db` over as it is: same
 path, port and health check, and the container gives `/var/lib/clamav` to its own `clamav` user on every start. The old image
 stays on disk until you remove it: `docker image rm clamav/clamav:1.4`.
+2.1356.0 (#6967): ClamAV runs with few rights (`cap_drop: ALL` plus five, `pids_limit: 256`) in two networks of its own: `scan`
+(internal, only Kalmido and ClamAV; the database is not in it) and `out` (only ClamAV, the way out for the signature updates).
+The database container has the same reduced rights.
 
 - **A find**: the upload is refused with the name of the signature ("file.pdf: malware found (...), not uploaded").
 - **Scanner not reachable** (still loading, stopped, crashed) or a file larger than `KALMIDO_CLAMD_MAX_MB`: the upload is
