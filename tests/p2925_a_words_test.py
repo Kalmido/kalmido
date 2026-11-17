@@ -17,6 +17,13 @@ from kt import FAILS, OKS, check  # noqa: E402  shared helpers (tests/kt.py)
 
 de = json.load(open(os.path.join(R, "static", "i18n", "de.json"), encoding="utf-8"))
 vals = [(k, v if isinstance(v, str) else " ".join(v)) for k, v in de.items()]
+# 2.1347.0 (#6861): new texts wait in static/i18n/neu/<job>.json until the merge queue folds them into de.json - checked here
+# too, so a wrong word is red in the job that writes it, not nights later after the fold
+neu_dir = os.path.join(R, "static", "i18n", "neu")
+for fn in sorted(os.listdir(neu_dir)) if os.path.isdir(neu_dir) else []:
+    if fn.endswith(".json"):
+        part = json.load(open(os.path.join(neu_dir, fn), encoding="utf-8")).get("de") or {}
+        vals += [(f"{fn}:{k}", v if isinstance(v, str) else " ".join(v)) for k, v in part.items()]
 bad = lambda word: [k for k, v in vals if word in v]  # noqa: E731
 
 check(not bad("Briefkopf"), f"no Briefkopf {bad('Briefkopf')}")
