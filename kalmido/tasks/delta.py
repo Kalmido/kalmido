@@ -191,8 +191,9 @@ def dl_floor_check(c, sig):
 
 
 def dl_stamp(c, v):
-    """bump(): the rows of this transaction (and committed ones nobody stamped yet) belong to version v."""
-    c.execute("UPDATE dl_changes SET ver=? WHERE ver IS NULL", (v,))
+    """bump(): the rows of this transaction (and committed ones nobody stamped yet) belong to version v -> how many (2.1357.0,
+    #6335 B3: none = no task change the delta could bring)."""
+    n = c.execute("UPDATE dl_changes SET ver=? WHERE ver IS NULL", (v,)).rowcount
     if v % DL_CLEAN == 0:
         # dl_marks: [[version, time], ...] of the clean-ups (DL_DAYS + a few): versions older than DL_DAYS go as well
         now = now_utc()
@@ -209,6 +210,7 @@ def dl_stamp(c, v):
         c.execute("DELETE FROM dl_changes WHERE ver <= ?", (cut,))
         if cut > int(gsetting(c, "dl_floor") or 0):
             gset(c, "dl_floor", cut)
+    return n or 0
 
 
 DL_SCOPE_ROWS = 500  # 2.369.4 (#2507): more unstamped rows than this at a bump: counted for everyone (no scope worked out)
@@ -283,12 +285,14 @@ def dl_side(c, uid):
     from ..collab.news import news_head, news_items
     from ..collab.teamchat import tchat_on, tchat_unread_both
     from ..events.model import cals_for, events_on
+    from ..collab.notes import notes_brief
     s = usettings(c, uid)
     nitems = news_items(c, uid, s)[0]
     return dict(
         team=dict(zip(("enabled", "unread", "dm_unread"), (tchat_on(c, uid), *tchat_unread_both(c, uid)))),
         news=news_head(c, uid, s, nitems),  # 2.1037.0 (#5801): + the deadline lines (due)
-        evcals=cals_for(c, uid) if events_on(c, uid) else [], evsig=ev_sig(c, uid))
+        evcals=cals_for(c, uid) if events_on(c, uid) else [], evsig=ev_sig(c, uid),
+        notes=notes_brief(c, uid))  # 2.1357.0 (#6335 B3): the notes (a light area): the list the sidebar / search / overview show
 
 
 @app.get("/api/state/delta")
