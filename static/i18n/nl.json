@@ -18988,7 +18988,6 @@
   "Sending needs the user name and the password of the SMTP server": "Voor verzenden zijn de gebruikersnaam en het wachtwoord van de SMTP-server nodig",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Verzenden alleen via poort 465 of 587 (poort 25 alleen voor een server die een beheerder heeft toegestaan)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Er wordt alleen verzonden met de gebruikersnaam en het wachtwoord van de SMTP-server, via poort 465 of 587.",
-  "Everything starts in the basket; sort it later.": "Alles begint in de mand; sorteer later.",
   "Create an upload token first": "Maak eerst een uploadtoken aan",
   "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "Versturen naar agents staat uit voor dit uploadtoken (Instellingen > Integraties > Delen vanaf je telefoon).",
   "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Berichten via het uploadtoken komen bij je agents aan als ‘van buitenaf’ gemarkeerd. Uitzetten kan via Instellingen > Integraties > Delen vanaf je telefoon.",

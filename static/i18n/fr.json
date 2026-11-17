@@ -18988,7 +18988,6 @@
   "Sending needs the user name and the password of the SMTP server": "Pour envoyer, il faut le nom d'utilisateur et le mot de passe du serveur SMTP",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Envoi uniquement par le port 465 ou 587 (le port 25 seulement pour un serveur autorisé par un administrateur)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "L'envoi se fait uniquement avec le nom d'utilisateur et le mot de passe du serveur SMTP, par le port 465 ou 587.",
-  "Everything starts in the basket; sort it later.": "Tout commence dans le panier ; trie plus tard.",
   "Create an upload token first": "Crée d'abord un token d'envoi",
   "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "L'envoi aux agents est désactivé pour ce token d'envoi (Paramètres > Intégrations > Partager depuis ton téléphone).",
   "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Les messages envoyés avec le token d'envoi arrivent chez tes agents marqués comme venant de l'extérieur. Tu peux le désactiver : Paramètres > Intégrations > Partager depuis ton téléphone.",
