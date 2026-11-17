@@ -514,8 +514,8 @@ def gx_tables(c, oid, frm, to, gaps=None, files=False, fl=None):
     s = office_settings(c, oid)
     out = []
 
-    def _T(*a):
-        return _Tbl(*a, file=tempfile.TemporaryFile("w+", encoding="utf-8", newline="") if files else None)
+    def _T(*a, **kw):  # 2.1315.0 (#6472): + key (the primary key columns)
+        return _Tbl(*a, **kw, file=tempfile.TemporaryFile("w+", encoding="utf-8", newline="") if files else None)
 
     t = _T("bookings.csv", "Buchungen", "Buchungszeilen wie im DATEV-Buchungsstapel (Ausgang, Zahlungen, Eingang)",
              [("Zeile", A), ("Belegdatum", D), ("Belegnummer", A), ("Buchungstext", A), ("Umsatz", N), ("Soll/Haben", A),
