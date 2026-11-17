@@ -1,0 +1,47 @@
+{
+  "de": {
+    "The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1}).": "Der Webhook des Dokument-Ablaufs {0} wurde abgeschaltet: seine Aufrufe ließen sich nicht zustellen (letzter Fehler: {1}).",
+    "Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more.": "Der Dokument-Ablauf {0} wurde pausiert: die Person, die seinen Webhook eingerichtet hat, ist kein Admin des Arbeitsbereichs mehr.",
+    "Paused: the person who set up its webhook is no admin any more": "Pausiert: wer den Webhook eingerichtet hat, ist kein Admin mehr",
+    "Webhook off after failed calls": "Webhook nach fehlgeschlagenen Aufrufen aus",
+    "Webhook calls failed in a row: {0}": "Webhook-Aufrufe in Folge fehlgeschlagen: {0}",
+    "Last error: {0}": "Letzter Fehler: {0}",
+    "Switch webhook on again": "Webhook wieder einschalten"
+  },
+  "es": {
+    "The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1}).": "El webhook del flujo de documentos {0} se ha desactivado: sus llamadas no se pudieron entregar (último error: {1}).",
+    "Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more.": "El flujo de documentos {0} se ha pausado: la persona que configuró su webhook ya no es administradora del espacio de trabajo.",
+    "Paused: the person who set up its webhook is no admin any more": "En pausa: quien configuró el webhook ya no es administrador",
+    "Webhook off after failed calls": "Webhook desactivado tras llamadas fallidas",
+    "Webhook calls failed in a row: {0}": "Llamadas de webhook fallidas seguidas: {0}",
+    "Last error: {0}": "Último error: {0}",
+    "Switch webhook on again": "Volver a activar el webhook"
+  },
+  "fr": {
+    "The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1}).": "Le webhook du flux de documents {0} a été désactivé : ses appels n'ont pas pu être remis (dernière erreur : {1}).",
+    "Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more.": "Le flux de documents {0} a été mis en pause : la personne qui a configuré son webhook n'est plus administratrice de l'espace de travail.",
+    "Paused: the person who set up its webhook is no admin any more": "En pause : la personne qui a configuré le webhook n'est plus administratrice",
+    "Webhook off after failed calls": "Webhook désactivé après des appels échoués",
+    "Webhook calls failed in a row: {0}": "Appels de webhook échoués d'affilée : {0}",
+    "Last error: {0}": "Dernière erreur : {0}",
+    "Switch webhook on again": "Réactiver le webhook"
+  },
+  "it": {
+    "The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1}).": "Il webhook del flusso di documenti {0} è stato disattivato: le sue chiamate non sono state consegnate (ultimo errore: {1}).",
+    "Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more.": "Il flusso di documenti {0} è stato messo in pausa: la persona che ha impostato il suo webhook non è più amministratrice dell'area di lavoro.",
+    "Paused: the person who set up its webhook is no admin any more": "In pausa: chi ha impostato il webhook non è più amministratore",
+    "Webhook off after failed calls": "Webhook disattivato dopo chiamate non riuscite",
+    "Webhook calls failed in a row: {0}": "Chiamate webhook non riuscite di seguito: {0}",
+    "Last error: {0}": "Ultimo errore: {0}",
+    "Switch webhook on again": "Riattivare il webhook"
+  },
+  "nl": {
+    "The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1}).": "De webhook van documentstroom {0} is uitgeschakeld: de aanroepen konden niet worden afgeleverd (laatste fout: {1}).",
+    "Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more.": "Documentstroom {0} is gepauzeerd: de persoon die de webhook heeft ingesteld is geen beheerder van de werkruimte meer.",
+    "Paused: the person who set up its webhook is no admin any more": "Gepauzeerd: wie de webhook heeft ingesteld is geen beheerder meer",
+    "Webhook off after failed calls": "Webhook uit na mislukte aanroepen",
+    "Webhook calls failed in a row: {0}": "Webhook-aanroepen achter elkaar mislukt: {0}",
+    "Last error: {0}": "Laatste fout: {0}",
+    "Switch webhook on again": "Webhook weer inschakelen"
+  }
+}
