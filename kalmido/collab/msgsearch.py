@@ -27,7 +27,7 @@ from ..tasks.validation import as_int
 from ..core.errors import BadInput
 from ..collab.comments import comment_plain, user_names
 from ..core.objcomments import ocm_old_cols, OCM_MENTION_RE  # 2.972.0 (#5272)
-from ..core.objsearch import osr_cond, osr_fold_char as _fold_char, osr_variants as _variants  # 2.981.0 (#5278)
+from ..core.objsearch import osr_fold_char as _fold_char, osr_ids_sql, osr_scope_nodes, osr_scope_org, osr_scope_owner, osr_variants as _variants  # 2.981.0 (#5278)
 from ..collab.teamchat import md_brief, tchat_on, tchat_room_ok
 from ..agents.core import agent_ids, agent_shares, is_agent
 from ..api.v1 import API_PAGE_MAX
@@ -60,13 +60,14 @@ def msg_terms(q):
     return [w[:64] for w in re.findall(r"\w+", q or "") if w.strip("_")][:MSG_TERMS]
 
 
-def match_sql(terms, kind):
+def match_sql(terms, kind, scope=None):
     """(SQL condition on the message m of kind in obj_search, its parameters): every word at the beginning of a word of the
-    folded text, in any variant (2.981.0, #5278: the shared index instead of the trigram index)."""
-    cond, args = osr_cond(" ".join(terms), "s")
-    if cond is None:  # no letter or digit in the words: nothing found
+    folded text, in any variant (2.981.0, #5278: the shared index instead of the trigram index). 2.1321.0 (#6397): scope
+    (core/objsearch.py osr_scope_*) narrows the index rows first: the reader's organisations, rooms or own agent chats."""
+    ids, args = osr_ids_sql(kind, " ".join(terms), scope=scope)
+    if ids is None:  # no letter or digit in the words: nothing found
         return "FALSE", []
-    return f"m.id IN (SELECT s.ref_id FROM obj_search s WHERE s.kind='{kind}' AND {cond})", args
+    return f"m.id IN {ids}", args
 
 
 def find_marks(text, terms):
@@ -135,7 +136,7 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
         return roles[lid]
 
     if "c" in arts:
-        mcond, match = match_sql(terms, "comment")  # 2.981.0 (#5278): the comments' rows of the shared index
+        mcond, match = match_sql(terms, "comment", osr_scope_org(c, "comment"))  # 2.981.0 (#5278): the comments' rows of the shared index
         # 2.695.0 (#4960): the visible lists as an array (vis_search_lids, without the lock's): their tasks through the index
         # tasks_list, their comments through comments_task -- under row-level security the trigram index cannot help
         # 2.972.0 (#5272): the comments' core (obj_comments kind 'task'), the row in its old shape (created_at as ISO text)
@@ -152,12 +153,15 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
     if "t" in arts and (collab_all() if agent_me else tchat_on(c, uid)):
         from .tcxcore import tcx_core_rooms_sql  # 2.565.0 (#4719): + the channels shared with a group of uid
         from ..core.objects import obj_gate  # 2.654.0 (#5053)
-        mcond, match = match_sql(terms, "tchat")  # 2.981.0 (#5278)
+        # 2.1321.0 (#6397): the rooms first (one small read), their messages through the index row's node_id (the room)
+        rooms_cond = (f"((r.kind='dm' AND (r.a=? OR r.b=?)) OR (r.kind='list' AND r.list_id IN {vis_sql()}"
+                      " AND r.list_id NOT IN (SELECT id FROM lists WHERE e2e IS NOT NULL))"
+                      f" OR (r.kind IN ('channel','group') AND r.id IN ({tcx_core_rooms_sql(uid)})))")
+        rids = [x[0] for x in c.execute(f"SELECT r.id FROM tchat_rooms r WHERE {rooms_cond}", (uid, uid, uid, uid)).fetchall()]
+        mcond, match = match_sql(terms, "tchat", osr_scope_nodes(rids))  # 2.981.0 (#5278)
         rows = c.execute(f"""SELECT m.id, m.room_id, m.user_id, m.body, m.created_at, r.kind, r.list_id, r.a, r.b
             FROM tchat_msgs m JOIN tchat_rooms r ON r.id=m.room_id
-            WHERE {mcond} AND m.deleted_at IS NULL AND m.enc IS NULL AND ((r.kind='dm' AND (r.a=? OR r.b=?)) OR (r.kind='list' AND r.list_id IN {vis_sql()}
-              AND r.list_id NOT IN (SELECT id FROM lists WHERE e2e IS NOT NULL))
-              OR (r.kind IN ('channel','group') AND r.id IN ({tcx_core_rooms_sql(uid)}))){snd}
+            WHERE {mcond} AND m.deleted_at IS NULL AND m.enc IS NULL AND {rooms_cond}{snd}
             {' AND m.room_id=?' if room is not None else ''} ORDER BY m.id DESC LIMIT {MSG_CAND}""",
                          match + [uid, uid, uid, uid] + ([sender] if sender is not None else []) + ([room] if room is not None else [])).fetchall()  # 2.924.0 (#5069): the core alone
         ok, lnames, rrows = {}, {}, {}
@@ -197,7 +201,8 @@ def search_messages(c, uid, q, arts=None, sender=None, room=None, agent=None, ta
             if agent is not None:
                 cond += " AND m.agent_id=?"
                 a2.append(agent)
-        mcond, match = match_sql(terms, "agent_chat")  # 2.981.0 (#5278)
+        # 2.1321.0 (#6397): the own conversations first -- an agent's: node_id = the agent; a person's: owner_id = the person
+        mcond, match = match_sql(terms, "agent_chat", osr_scope_nodes([uid]) if agent_me else osr_scope_owner(uid))  # 2.981.0 (#5278)
         sq = ""
         if sender is not None:
             sq = " AND ((m.sender='user' AND m.user_id=?) OR (m.sender='agent' AND m.agent_id=?))"

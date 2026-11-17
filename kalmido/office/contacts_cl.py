@@ -19,7 +19,7 @@ from .model import pb_cl_sql
 from ..contacts.model import bk_member_role, contact_visible, contact_brief, contacts_on, my_book_ids  # 2.369.5 (#2517): pulled up from functions
 from ..team.clients import client_rows, clients_on  # 2.369.5 (#2517): pulled up from functions
 from ..core.pg import system_ctx  # 2.369.5 (#2517): pulled up from functions
-from ..core.objsearch import osr_ids_sql  # 2.1003.0 (#5722)
+from ..core.objsearch import osr_ids_sql, osr_scope_nodes  # 2.1003.0 (#5722)
 
 FK_MAX = {"name": 120, "role": 120, "email": 200, "phone": 60}
 FK_LIMIT = 50  # contact persons per client
@@ -296,7 +296,7 @@ def ckl_candidates(c, uid, cl, q="", limit=20):
     args = list(books)
     q = re.sub(r"\s+", " ", q or "").strip()[:100]
     if q:  # 2.1003.0 (#5722): contacts.search went in 2.981.0 (#5278) -- the shared search index (core/objsearch.py, kind 'contact')
-        ids_sql, x = osr_ids_sql("contact", q, names=True)
+        ids_sql, x = osr_ids_sql("contact", q, names=True, scope=osr_scope_nodes(books))  # 2.1321.0 (#6397): the books first
         if ids_sql is None:
             return []
         sql += f" AND id IN {ids_sql}"

@@ -74,7 +74,8 @@ def oadm_tasks(oid):
     if q:
         # 2.1026.0 (#5280, stage Q6c): the shared search index (core/objsearch.py: a word start, umlauts as ae / oe / ue, a part
         # of the ticket key anywhere) instead of an ILIKE on the title
-        ids, x = SRCH_HOOKS["task_ids"](q, names=True)  # the domain layer's index without an upward import
+        # the domain layer's index without an upward import; 2.1321.0 (#6397): the organisation's projects asked for first
+        ids, x = SRCH_HOOKS["task_ids"](q, names=True, nodes=[lid] if lid is not None else list(by_id))
         where.append(f"t.id IN {ids}" if ids else "FALSE")
         args += x
     w = " AND ".join(where)
