@@ -59,6 +59,7 @@ ORDER = (
     "core.tokenhash",  # 2.138.0 C (#1907): upload / calendar tokens as hashes
     "core.ipallow",  # 2.705.0 (#5151): the address rule of a key (API tokens, receipt fetcher keys)
     "core.rls",  # 2.37.0 (#1150): row-level security, applied by init_db
+    "core.movelock",  # 2.1337.0 (#6600): an organisation that is moving is read only (one database trigger, applied by init_db)
     "core.orgrows",  # 2.662.0 (#4602): the organisation of tasks / comments / events / contacts (triggers, set up by init_db)
     "core.retention",  # 2.152.0 (#2165): deletion periods + the switch of the retention runs
     "core.fkeys",  # 2.152.0 C (#2174): foreign keys of references that had none (orphans cleaned first)
@@ -166,6 +167,7 @@ ORDER = (
     "accounts.orgoutreq",  # 2.361.2 (#2923): a member asks back what they brought into an organisation
     "accounts.useradmin",  # 2.88.0 (#1980)
     "accounts.orgretain",  # 2.152.0 A (#2164 #2167)
+    "accounts.orgmove",  # 2.1337.0 (#6600): the switch "Start the move" of an organisation's admins
     "lists.tplextra",  # 2.363.3 (#3134)
     "lists.templates",
     "tasks.dependencies",

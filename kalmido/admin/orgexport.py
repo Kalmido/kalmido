@@ -60,6 +60,7 @@ from ..accounts.pictures import list_icon_path, org_icon_path, org_icon_tok  # 2
 from ..accounts.session import me
 from ..lists.listhead import o3c_head_rel  # 2.363.2 (#3106)
 from ..core.orgcrypt import OrgCryptError, _org_admin, oc_dec, oc_dec_row, oc_enabled, oc_read_file, oc_status  # 2.149.0 G (#2517): pulled up from functions
+from ..core.movelock import mv_allow  # 2.1337.0 (#6600): the writes a move allows
 from ..files.scan import sc_locked_all  # 2.209.0 D (#1856)
 from .offsite import stepup_download  # 2.223.2 C (#2871): the step-up before a download
 from ..accounts.orgretain import odl_ids  # 2.278.0 A (#3093)
@@ -1603,6 +1604,7 @@ def ox_download(oid):
     e = stepup_download(c, proxy_ok=not own)
     if e is not None:
         return e
+    mv_allow(c)  # 2.1337.0 (#6600): the export stays possible while the organisation is moving (its log line)
     with system_ctx(c):  # 2.152.0 (#2167, review A4): an instance admin of a retired organisation is no member of it
         ofx_log(c, oid, "export", target="org_download", detail={"file": st["file"]}, dedupe_min=10)
     c.commit()
