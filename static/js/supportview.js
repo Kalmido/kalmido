@@ -17,7 +17,8 @@ function sgvGrantHtml(gr, key, label) {
       <small class="muted">${gr ? esc(tr('Open until {0}', sgvWhen(gr.ends_at))) + (gr.by ? ' · ' + esc(tr('granted by {0}', gr.by)) : '') : esc(tr('Closed|support'))}</small></span>
       ${gr ? `<span class="tfastate on">${tr('Open|support')}</span><button class="btn sm" data-sgv="end" data-gid="${gr.id}">${ic('lock', 's')} ${tr('End now')}</button>`
     : `${pick}<button class="btn sm" data-sgv="grant">${ic('key', 's')} ${tr('Grant')}</button>`}</div>
-    ${gr ? `<div class="sgvuses">${uses.length ? `<ul class="slist">${uses.slice(0, 20).map(u => `<li><span class="muted">${esc(sgvWhen(u.at))}</span> ${esc(u.by || tr('Support'))}: ${esc(sgvVerb(u))} <code>${esc(u.method + ' ' + u.route)}</code></li>`).join('')}</ul>` : `<div class="muted mhint">${tr('Support has not used it yet.')}</div>`}</div>` : ''}`;
+    ${gr ? `<div class="sgvuses">${uses.length ? `<ul class="slist">${uses.slice(0, 20).map(u => `<li><span class="muted">${esc(sgvWhen(u.at))}</span> ${esc(u.by || tr('Support'))}: ${esc(sgvVerb(u))} <code>${esc(u.method + ' ' + u.route)}</code></li>`).join('')}</ul>` : `<div class="muted mhint">${tr('Support has not used it yet.')}</div>`}</div>` : ''}
+    ${gr?.dropped ? `<div class="muted mhint sgvdrop">${esc(trn('{0} older entry is no longer listed', '{0} older entries are no longer listed', gr.dropped))}</div>` : ''}`;  // 2.1325.0 (#6502): beyond the log's limits
 }
 async function sgvDraw(md) {
   const box = $('#s-sgv', md); if (!box) return;
