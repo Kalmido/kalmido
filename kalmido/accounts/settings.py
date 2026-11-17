@@ -24,6 +24,7 @@ from .layouts import LAYOUT_KEYS
 from ..core.access import acx_lists_sql, list_archived, otr_live  # 2.1029.0 (#5537); 2.1097.0 (#5949): + acx_lists_sql at module level; 2.1231.0 (#5880): list_archived
 from ..core.objexport import oex_acct  # 2.1097.0 (#5949): the parts of the core's tables (the export register)
 from ..core.access import live_sql  # 2.1076.0 (#5271)
+from ..core.objhooks import OLNK_AREA_RELS  # 2.1334.0 (#6585): the free links of the account export (umz_fmt AREA_RELS)
 
 
 # ---------------------------------------------------------------- settings / export (per user)
@@ -1064,7 +1065,6 @@ def umz_fmt():
     """2.1097.0 (#5949): the placeholders of the account queries of the core's export register (core/objexport.py acct /
     acct_more); every "?" in them is the person's id."""
     from ..core.objcomments import OCM_TS, ocm_note_cols, ocm_old_cols, ocm_video_cols
-    from ..core.objhooks import OLNK_AREA_RELS
     own = f"(SELECT id FROM lists WHERE owner_id=? AND ({otr_live('')} OR org_id IS NULL))"  # an organisation's list in its trash is the organisation's
     return {"OWN": own, "TASKS": f"(SELECT id FROM tasks WHERE list_id IN {own})",
             "SHARED": "(SELECT m.list_id FROM list_members m JOIN lists l ON l.id=m.list_id WHERE m.user_id=? AND l.owner_id!=?)",

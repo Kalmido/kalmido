@@ -52,7 +52,7 @@ from ..core.db import connect, db, err, iso, now_utc
 from ..core.pg import qi, system_ctx, table_names
 from ..core.objcomments import ocm_note_cols, ocm_old_cols, ocm_video_cols  # 2.972.0 (#5272); 2.981.0 (#5273): + video / note
 from ..core.objexport import oex_left, oex_nodes, oex_org  # 2.1093.0 (#5289): the export register of the core
-from ..core.objhooks import OLNK_AREA_RELS  # 2.1334.0 (#6585): the free links (links.json) are every other relation
+from ..core.objhooks import OBJ, OLNK_AREA_RELS  # 2.1334.0 (#6585): the free links (links.json) are every other relation, the history's kinds
 from ..docs.store import doc_open as _doc_open  # 2.981.0 (#5273): the notes on documents (obj_comments kind doc_note)
 from ..core.i18n import N_, lang, tr
 from ..core.access import Denied, list_archived, live_sql, otr_live  # 2.1231.0 (#5880): list_archived
@@ -669,8 +669,29 @@ OX_LEFT = {
 # 2.1093.0 (#5289, stage Q11): the tables of the core say where their rows go themselves (core/objexport.py, the export register);
 # OX_AREAS / OX_LEFT above hold only the old tables. OX_FMT fills the placeholders of the register's where clauses.
 # 2.1334.0 (#6585): + AREA_RELS, the areas' own link relations (links.json: every other one, the free links)
+# 2.1334.0 (#6585): + HISTORY, the objects whose change history goes along: nothing here, ox_build fills it (ox_history_where)
 OX_FMT = {"LSQ": LSQ, "TSQ": TSQ, "RSQ": RSQ, "LIVE": live_sql(), "LETTER_LINKS": OX_LETTER_LINKS,
-          "AREA_RELS": "(" + ", ".join(f"'{r}'" for r in OLNK_AREA_RELS) + ")"}
+          "AREA_RELS": "(" + ", ".join(f"'{r}'" for r in OLNK_AREA_RELS) + ")", "HISTORY": "FALSE"}
+# 2.1334.0 (#6585): the kinds of the change history outside the core's register (collab/teamchat.py TCV_KIND: a message's earlier
+# versions) -> their table; the tables whose rows the export filters after reading (hidden filed mails, the store's trash) keep
+# their history out
+OX_HISTORY_TABLES = {"tchat_msg": "tchat_msgs"}
+OX_HISTORY_SKIP = ("hub_mails", "fs_nodes")
+
+
+def ox_history_where(c, vis=lambda w: w):
+    """2.1334.0 (#6585, audit #4808 T13 5): the objects of history/changes.json -- for each kind of the core's register (+
+    OX_HISTORY_TABLES) whose table is an area of this export: its rows as that area exports them (the same where clause, the trash
+    left out, vis = the exporting admin's lists and channels); the history of anything else stays out. Every "?" is the organisation."""
+    first = {}
+    for _n, t, w in OX_AREAS + oex_org(OX_FMT):
+        first.setdefault(t, w)
+    kinds = {**{k: r.get("table") for k, r in OBJ.items()}, **OX_HISTORY_TABLES}
+    names, parts = table_names(c), []
+    for k, t in sorted(kinds.items()):
+        if t in first and t not in OX_HISTORY_SKIP and t in names and "id" in _table_cols(c, t) and re.fullmatch(r"[a-z][a-z0-9_]*", k):
+            parts.append(f"(kind='{k}' AND ref_id IN (SELECT id FROM {qi(t, names)} WHERE {ox_live(c, t, vis(first[t]))}))")
+    return "(" + " OR ".join(parts) + ")" if parts else "FALSE"
 
 
 def ox_areas():
@@ -944,6 +965,8 @@ def ox_build(c, oid, out, by=None):
         for name, table, where in ox_areas():  # 2.1093.0 (#5289): + the core's register
             if table not in have:
                 continue
+            if table == "obj_history":  # 2.1334.0 (#6585): the history of the objects this archive carries
+                where = "org_id=? AND " + ox_history_where(c, vis)
             where = ox_live(c, table, vis(where))
             rows = _rows(c, oid, table, where, (oid,) * where.count("?"))
             if table == "hub_mails" and hidden:

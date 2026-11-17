@@ -158,8 +158,9 @@ EXP = export_of(F)
 
 
 man = json.loads(zipfile.ZipFile(BytesIO(EXP)).read("manifest.json"))
-# 2.362.4 (#3107): sprints are in the account export since #3469, chat_saves is still left out
-check(any("chat_saves" in x and "not yet" in x for x in man["not_included"]), f"#3107: the manifest names the tables left out: {man['not_included'][-1]}")
+# 2.362.4 (#3107): sprints are in the account export since #3469; 2.1334.0 (#6359): chat_saves too -- git_branches is still left out
+check(any("git_branches" in x and "not yet" in x for x in man["not_included"]), f"#3107: the manifest names the tables left out: {man['not_included'][-1]}")
+check(not any("chat_saves" in x for x in man["not_included"]), "2.1334.0 (#6359): chat_saves is in the file, no longer named as left out")
 check(not any("sprints" in x for x in man["not_included"]), f"#3107: what is exported is not named as left out: {man['not_included']}")
 
 
