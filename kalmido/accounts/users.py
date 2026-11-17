@@ -145,6 +145,10 @@ def admin_sees(c, uid):
 OP_ACCOUNT_KEYS = {"disabled", "storage_quota_mb", "is_admin", "_prev"}
 # 2.485.0 (#3939, review F1): what the operator never changes through a client's support access (sign-in data)
 OP_SUPPORT_DENY = {"password", "email", "username", "proxy_login", "reset_2fa", "oidc_unlink", "kind", "ntfy_topic"}
+# 2.1317.0 (#6496, audit #4800 F1): what the operator still changes on a client's account through its support access -- a list of
+# what is allowed instead of OP_SUPPORT_DENY's list of what is not: lock / unlock and the storage quota. Never kid / parents (as a
+# parent the operator would make sign-in links after the grant ends), the admin right, organisations, names or sign-in data.
+OP_SUPPORT_KEYS = {"disabled", "storage_quota_mb"}
 
 
 def om_admin_all(c, uid):
@@ -349,7 +353,7 @@ def user_update(uid):
     from ..accounts.orgs import op_apart_deny, op_foreign_account, op_foreign_org, op_support_deny, op_support_only
     if op_foreign_account(c, uid) and set(b) - OP_ACCOUNT_KEYS:  # 2.399.0 (#2687): hosted: a customer's account only locked / its quota
         op_apart_deny()
-    if set(b) & OP_SUPPORT_DENY and op_support_only(c, uid=uid):  # 2.485.0 (#3939, review F1): no credentials through support access
+    if set(b) - OP_SUPPORT_KEYS and op_support_only(c, uid=uid):  # 2.1317.0 (#6496): only OP_SUPPORT_KEYS through support access
         op_support_deny()
     prev = b.get("_prev") if isinstance(b.get("_prev"), dict) else {}
     for k in ("orgs", "parents"):  # 2.270.0 A (#3019): with _prev only what the dialog changed (who joined meanwhile stays)

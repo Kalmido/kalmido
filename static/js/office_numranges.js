@@ -110,8 +110,10 @@ function onumDocOpen() {
   ofdDraw(); const i = $('#onum-doc'); if (i) { i.focus(); i.select(); }
 }
 async function onumDocSet(d, num, why) {
-  const j = await rawFetch('POST', `/api/office/docs/${d.id}/number`, {number: num, reason: why});
-  if (OFD.doc && OFD.doc.id === d.id) OFD.doc.number = j.number;
+  // 2.1317.0 (#6331): after the editor's own saves (ofd_inChain), with the version of the draft shown (ofd_ver); 409 {doc} = the conflict bar
+  const j = await ofd_inChain(() => rawFetch('POST', `/api/office/docs/${d.id}/number`, {number: num, reason: why, ...(OFD.doc && OFD.doc.id === d.id ? ofd_ver() : {})}))
+    .catch(x => { if (x.status === 409 && x.data?.doc && OFD.doc && x.data.doc.id === OFD.doc.id) { OFD.conflict = {id: OFD.doc.id, doc: x.data.doc}; ONUM.doc = null; x.conflict = true; } throw x; });
+  if (OFD.doc && OFD.doc.id === d.id) { OFD.doc.number = j.number; if (j.updated_at) OFD.doc.updated_at = j.updated_at; }
   if (Array.isArray(OFD.list)) { const r = OFD.list.find(x => x.id === d.id); if (r) r.number = j.number; }  // the list shows it at once
   OFD.list = null; OFD.log = null;  // ... and is read again when it opens
   return j;
@@ -131,7 +133,7 @@ async function onumDocSave() {
       const back = async n => { try { await onumDocSet({id}, n, ''); ofdDraw(); } catch (x) { ofcErr(x); } };
       offerUndo(tr('Saved'), histAdd({label: tr('Change number'), undo: () => back(old), redo: () => back(j.number)}));
     } else toast(tr('Saved'));
-  } catch (x) { e.busy = false; e.err = ofcErrHere(x); }
+  } catch (x) { e.busy = false; if (!x.conflict) e.err = ofcErrHere(x); }  // 2.1317.0 (#6331): a conflict says it in the bar
   ofdDraw();
 }
 // the office list follows a change made elsewhere (another device, the console, an agent): load() of the state calls this

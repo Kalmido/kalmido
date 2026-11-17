@@ -89,6 +89,11 @@ def need_agent_admin(c, aid, kill=False, cred=False):
     return a
 
 
+# 2.1317.0 (#6496, audit #4800 F1): what the operator changes on a client's agent through the client's support access -- a list of
+# what is allowed: the kill switch. Never "Belongs to" (owner_id: taking the agent over for good), its webhook, scopes or lists.
+AGENT_SUPPORT_KEYS = {"enabled"}
+
+
 AGENT_TOKEN_CREATED = "Agent (created)"
 
 
@@ -283,6 +288,8 @@ def admin_agent_update(aid):
     with system_ctx(c):  # 2.37.0 (#1150): the instance admin manages agent accounts (any organisation; structure, no content)
         b = body()
         a0 = need_agent_admin(c, aid, kill=isinstance(b, dict) and set(b) <= {"enabled"})  # 2.399.0 (#2687): hosted, a client's agent: pause only
+        if set(b) - AGENT_SUPPORT_KEYS and op_support_only(c, uid=aid):  # 2.1317.0 (#6496): through support access pause / resume only
+            op_support_deny()
         secret = None
         if "username" in b:
             username = str(b["username"] or "").strip().lower()

@@ -56,6 +56,7 @@ from dateutil.relativedelta import relativedelta  # noqa: E402
 from ..collab.liste2eguard import le2b_list_locked, le2b_off  # 2.369.5 (#2517): pulled up from functions
 from ..collab.liste2e import le2a_gen_refuse  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orginvite import ojn_waiting  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgs import op_foreign_account  # 2.1317.0 (#6496)
 
 FAM_LIST_KINDS = ("", "shopping", "meals", "birthdays", "household", "packing", "family", "recipes")  # 2.46.1 (#1615): "family"; 2.140.0 A (#2132): "recipes"
 FAM_OCC = ("birthday", "anniversary")
@@ -155,9 +156,15 @@ def parent_of(c, uid, kid):
     """uid may look after kid: a parent of it, or an admin of the kid's organisation (N8)."""
     if not is_kid(c, kid) or uid == kid:
         return False
+    u = c.execute("SELECT is_admin FROM users WHERE id=?", (uid,)).fetchone()
+    if u and u[0] and has_request_context() and g.get("user") and uid == me():
+        # 2.1317.0 (#6496, audit #4800 F1): hosted: the operator (an instance admin) looks after no client's kid -- neither as a
+        # listed parent nor as an admin -- unless the kid is no client's account (its own family, a kid it made itself); the
+        # client's support access opens no kid's PIN or rewards either (sign-in links: accounts/signup._may_link)
+        if op_foreign_account(c, kid, note=False, grant=False):
+            return False
     if uid in kid_parents(c, kid):
         return True
-    u = c.execute("SELECT is_admin FROM users WHERE id=?", (uid,)).fetchone()
     return bool(u and u[0]) and h6a_admin_kid_ok(c, uid, kid)
 
 

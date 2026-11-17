@@ -101,8 +101,39 @@ for body in ({"email": "ops@example.com"}, {"password": "taken-over-1"}, {"reset
     r = A.patch(B + f"/api/users/{FID}", json=body)
     check(r.status_code == 403, f"with the grant: no sign-in data {list(body)} -> 403 " + r.text[:100])
 check(kt.dbx("SELECT email FROM users WHERE id=?", (FID,)) == [("frida@example.com",)], "frida's address is unchanged")
+# 2.1317.0 (#6496): through support access only lock / unlock and the quota (was: anything but sign-in data, also her name)
 r = A.patch(B + f"/api/users/{FID}", json={"display_name": "Frida F"})
-check(r.ok, "with the grant: the operator fixes her display name " + r.text[:100])
+check(r.status_code == 403, "with the grant: her display name stays hers " + r.text[:100])
+# ---- 2.1317.0 (#6496, audit #4800 F1): a list of what support access changes -- no lasting door for the operator
+AL = kt.dbx("SELECT id FROM users WHERE username='alice'")[0][0]
+for body in ({"kid": True, "parents": [AL]}, {"kid": True}, {"parents": [AL]}, {"is_admin": True}, {"orgs": []}, {"disabled": False, "kid": True}):
+    r = A.patch(B + f"/api/users/{FID}", json=body)
+    check(r.status_code == 403, f"with the grant: {list(body)} -> 403 " + r.text[:100])
+check(kt.dbx("SELECT kid FROM users WHERE id=?", (FID,))[0][0] in (0, False, None) and not kt.dbx("SELECT 1 FROM kid_parents WHERE kid_id=?", (FID,)),
+      "frida stays no kid account, the operator is no parent of hers")
+check(A.patch(B + f"/api/users/{FID}", json={"storage_quota_mb": 500}).ok and A.patch(B + f"/api/users/{FID}", json={"disabled": False}).ok,
+      "with the grant: the quota and the lock still work")
+r = S["frida"].post(B + "/api/my/agents", json={"username": "fridabot"})
+check(r.status_code == 201, "frida makes a personal agent " + r.text[:100])
+FAG = r.json()["id"]
+for body in ({"owner_id": AL}, {"enabled": True, "owner_id": AL}, {"webhook_url": "https://example.com/hook"}, {"scopes": ["read"]},
+             {"list_ids": []}, {"display_name": "Ops bot"}):
+    r = A.patch(B + f"/api/admin/agents/{FAG}", json=body)
+    check(r.status_code == 403, f"with the grant: her agent {list(body)} -> 403 " + r.text[:100])
+check(kt.dbx("SELECT owner_id FROM agents WHERE user_id=?", (FAG,)) == [(FID,)], "her agent stays hers")
+check(A.patch(B + f"/api/admin/agents/{FAG}", json={"enabled": False}).ok and A.patch(B + f"/api/admin/agents/{FAG}", json={"enabled": True}).ok,
+      "with the grant: the kill switch still works")
+# a kid of the client that lists the operator as a parent (made before, by the client): no sign-in link, no PIN without a grant
+r = A.post(B + "/api/users", json={"username": "fkid", "display_name": "Fkid", "password": "password123", "orgs": []})
+KID = r.json()["id"]
+dbw("UPDATE users SET kid=1, op_made_by=NULL WHERE id=?", (KID,))
+dbw("INSERT INTO kid_parents(kid_id, parent_id) VALUES(?, ?)", (KID, FID))
+dbw("INSERT INTO kid_parents(kid_id, parent_id) VALUES(?, ?)", (KID, AL))
+check(link(KID).status_code == 403, "hosted: the operator as a listed parent of a client's kid makes no sign-in link")
+check(A.put(B + f"/api/family/kids/{KID}/pin", json={"pin": "1234"}).status_code == 404, "... and sets no PIN of the kid (family route)")
+r = S["frida"].post(B + f"/api/users/{KID}/signin-link")
+check(r.ok and r.json().get("link"), "the client herself (a parent) still makes the kid's sign-in link " + r.text[:100])
+check(S["frida"].put(B + f"/api/family/kids/{KID}/pin", json={"pin": "1234"}).ok, "... and sets its PIN")
 check(link(uid["cara"]).status_code in (403, 404), "frida's grant opens no other account")
 users = {u["id"]: u for u in A.get(B + "/api/users?all=1").json()["users"]}
 check(not users[FID].get("apart") and users[FID].get("support_until") and users[uid["cara"]].get("apart") is True,
@@ -195,6 +226,13 @@ OPS = r.json()["id"]
 for body in ({"members_add": [OPS]}, {"admins_add": [OPS]}):
     r = A.patch(B + f"/api/admin/orgs/{CO}", json=body)
     check(r.status_code == 403, f"with the grant: nobody new into the organisation {list(body)} " + r.text[:100])
+# 2.1317.0 (#6496): name and symbol only -- no e-mail domain (the operator's registration would join), no member or role change
+for body in ({"domains": "ops.example.com"}, {"name": "Client Studio GmbH", "domains": "ops.example.com"}, {"members_remove": [uid["cara"]]},
+             {"admins_add": [uid["cara"]]}, {"members_add": []}):
+    r = A.patch(B + f"/api/admin/orgs/{CO}", json=body)
+    check(r.status_code == 403, f"with the grant: {list(body)} -> 403 " + r.text[:100])
+check(kt.dbx("SELECT domains FROM orgs WHERE id=?", (CO,))[0][0] in ("", None), "the organisation's e-mail domains are unchanged")
+check(A.patch(B + f"/api/admin/orgs/{CO}", json={"icon": "🎬"}).ok, "with the grant: the operator sets its symbol")
 check(not kt.dbx("SELECT 1 FROM org_joins WHERE org_id=? AND user_id=?", (CO, OPS)) and not kt.dbx("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (CO, OPS)),
       "... no invitation, no membership")
 r = A.post(B + "/api/admin/agents", json={"username": "intruder", "org_id": CO})
@@ -216,4 +254,9 @@ kt.fresh(env={"KALMIDO_SECRET_KEY": KEY}, keep=True)
 F2 = login(B, "frida")
 check(F2.get(B + "/api/support-access").json()["hosted"] is False, "self-hosted: hosted=false (the section stays hidden)")
 check(F2.post(B + "/api/support-access", json={"hours": 1}).status_code == 409, "self-hosted: no grant (409)")
+# 2.1317.0 (#6496): self-hosted the admin keeps the whole account dialog (kid / parents, a parent's sign-in link, the PIN)
+A = sess("alice")
+r = A.patch(B + f"/api/users/{FID}", json={"kid": True, "parents": [AL]})
+check(r.ok and kt.dbx("SELECT 1 FROM kid_parents WHERE kid_id=? AND parent_id=?", (FID, AL)), "self-hosted: the admin makes frida a kid with parents " + r.text[:100])
+check(link(KID).ok and A.put(B + f"/api/family/kids/{KID}/pin", json={"pin": "4321"}).ok, "self-hosted: the admin as a parent makes a link and sets the PIN")
 sys.exit(kt.done("p2485_a_support"))
