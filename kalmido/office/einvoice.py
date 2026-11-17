@@ -655,6 +655,12 @@ def ein_check_block(xml_bytes):
     for f in ein_check(xml_bytes):
         if f.startswith("empty element"):
             continue
+        # 2.1308.0 (#6476, case F51): a tax per rate a few cents off base x rate (a credit note / final invoice made from the
+        # gross amounts, #6445: 178.48 gross -> 28.49 tax on 149.99) is within the EN 16931 / KoSIT tolerance of 1.00 for BR-CO-17;
+        # ein_check stays exact (it is the test of the module's own sums), finalising refuses only what a validator rejects
+        m = re.match(r"BR-CO-17: tax (\S+) for .* != (\S+)$", f)
+        if m and abs(_d(m.group(1)) - _d(m.group(2))) <= Decimal("1.00"):
+            continue
         hit = next((k for p, k in EIN_PLAIN if f.startswith(p)), None)
         x = [hit] if hit else [N_("e-invoice check: {0}"), f]
         if x not in out:

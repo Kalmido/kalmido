@@ -381,6 +381,12 @@ check(ein.ein_check_block(re.sub(rb"<ram:BuyerOrderReferencedDocument>", b"<ram:
       "#6476: an empty element (deprecated in ZUGFeRD 2.4+) does not stop finalising")
 bs = ein.ein_check_block(broken)
 check(["e-invoice check: {0}", next((x for x in ein.ein_check(broken) if "BR-CO-15" in x), "")] in bs, f"#6476: a wrong sum stops it, named as found {bs}")
+# case F51 (#6445 credit note 178.48 gross -> 28.49 tax on 149.99): a tax per rate a cent off is within the EN 16931 tolerance
+# of 1.00 (BR-CO-17) and stops nothing; more than 1.00 off still stops finalising
+b17 = ein.ein_check_block(xml.replace(b"<ram:CalculatedAmount>6540.35</ram:CalculatedAmount>", b"<ram:CalculatedAmount>6540.36</ram:CalculatedAmount>"))
+check(not any("BR-CO-17" in str(x) for x in b17), f"F51: one cent off BR-CO-17 does not stop finalising {b17}")
+b17x = ein.ein_check_block(xml.replace(b"<ram:CalculatedAmount>6540.35</ram:CalculatedAmount>", b"<ram:CalculatedAmount>6542.35</ram:CalculatedAmount>"))
+check(any("BR-CO-17" in str(x) for x in b17x), f"F51: two euros off BR-CO-17 stops finalising {b17x}")
 print("files for the validators:", sorted(os.listdir(OUT)))
 print(f"office_einvoice: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
