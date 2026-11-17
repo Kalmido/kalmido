@@ -531,13 +531,61 @@ def _credit_shared_switch(c, oid, out, cur, b):
 def num_kind(s, kind):
     """2.433.0 (#3597): the counter (office_numbers.kind) a document kind counts with: invoice corrections the invoices'
     one while credit_shared is on, every other kind its own."""
+    if s.get("_range_key") and kind in ("invoice", "credit"):  # 2.1365.0 (#6698): the view of a range (num_view)
+        return s["_range_key"]
     return "invoice" if kind == "credit" and s.get("credit_shared") else kind
 
 
 def num_scheme(s, kind):
     """The scheme whose year decides the counter's period of kind (num_kind): a shared counter has the invoices' period."""
     k = num_kind(s, kind)
+    if k == s.get("_range_key"):  # 2.1365.0 (#6698): a range's counter has the period of its invoice scheme
+        k = "invoice"
     return s.get(k + "_scheme") or s.get("offer_scheme") or ""
+
+
+# 2.1365.0 (#6698): additional number ranges (office_num_ranges, office/numranges.py). A document with range_id counts on the
+# range's own counter (office_numbers kind 'r<id>'), in its own date order and hash chain; invoices and their corrections share
+# that counter, a correction's number is the scheme with the range's credit_suffix (GT-2027-004-K). Every place that holds a
+# document row takes its counter and schemes from num_view(c, oid, s, r): the settings themselves without a range (the main range
+# exactly as before), else a copy whose invoice / credit schemes are the range's and whose num_kind is 'r<id>' -- so num_kind,
+# num_scheme and inv_scheme give the range's values without a second code path.
+NR_KINDS = ("invoice", "credit")  # the kinds a range holds (quotations, reminders, delivery notes stay in the main range)
+
+
+def doc_range_id(r):
+    """The range id of document row r (None = the main range; a row from before the column too)."""
+    v = r.get("range_id") if isinstance(r, dict) else (r["range_id"] if "range_id" in r.keys() else None)
+    return int(v) if v else None
+
+
+def num_key(s, r):
+    """The counter (office_numbers.kind) and chain key of document row r: 'r<id>' in a range, else num_kind of its kind."""
+    rid = doc_range_id(r) if r["kind"] in NR_KINDS else None
+    return f"r{rid}" if rid else num_kind(s, r["kind"])
+
+
+def num_range_row(c, oid, rid):
+    """The range rid of office area oid (a row) or None."""
+    return c.execute("SELECT * FROM office_num_ranges WHERE id=? AND org_id=?", (rid, oid)).fetchone() if rid else None
+
+
+def num_range_schemes(rg):
+    """{kind: scheme} of range row rg: the invoices' scheme, the corrections' the same with the suffix."""
+    return {"invoice": rg["scheme"], "credit": rg["scheme"] + (rg["credit_suffix"] or "")}
+
+
+def num_view(c, oid, s, r):
+    """The settings document row r counts with: s itself in the main range, else a copy with the range's schemes on one
+    shared counter 'r<id>' (num_kind / num_scheme / inv_scheme read it)."""
+    rid = doc_range_id(r) if r["kind"] in NR_KINDS else None
+    if not rid:
+        return s
+    rg = num_range_row(c, oid, rid)
+    if rg is None:  # a range that is gone (an older version deleted it): never the main counter -- refuse
+        raise BadInput(tr("Invalid value: {0}", "range_id"))
+    sch = num_range_schemes(rg)
+    return {**s, "invoice_scheme": sch["invoice"], "credit_scheme": sch["credit"], "credit_shared": 1, "_range_key": f"r{rid}"}
 
 
 def _pack_switch(out, cur, b):
