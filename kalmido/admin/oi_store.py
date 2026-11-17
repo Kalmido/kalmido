@@ -384,7 +384,15 @@ def _rule(c, run, src, d, ctx):
             r["task"]["to"] = int(new)
         else:
             r["task"].pop("to", None)
-    d["ws"], d["data"] = ws, S._jseal(c, ws, "doc_rules.data", r)
+    # 2.1337.0 (#6876): the import takes no webhook (clean_rule without extra; the export leaves secret and address out); should
+    # a flow with a secret come along all the same, it is sealed always like docs/web.py _rule_save (#6560 5), never in plain:
+    # without a server key the flow comes without its webhook
+    data = S._jseal(c, ws, "doc_rules.data", r, always=bool(r.get("hook_secret")))
+    if data is None:
+        r.pop("hook_secret", None)
+        r.pop("webhook", None)
+        data = S._jseal(c, ws, "doc_rules.data", r)
+    d["ws"], d["data"] = ws, data
     return d
 
 
