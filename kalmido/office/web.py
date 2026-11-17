@@ -472,7 +472,10 @@ def office_export_get():
 
 @app.post("/api/office/import")
 def office_import_post():
-    """Org admin. Body: the export's JSON (or multipart file 'file'); ?overwrite=1 updates rows that exist by name."""
+    """Org admin. Body: the export's JSON (or multipart file 'file'); ?overwrite=1 updates rows that exist by name.
+    2.1324.0 (#6589): ?preview=1 = the same counts without writing anything ({ok, preview: true, overwrite, counts}: added /
+    updated / skipped per area, settings "updated" when they would be overwritten) -- the app shows them before it overwrites;
+    an area with more entries than the limit refuses the file with its numbers (400)."""
     c, uid, oid = _ctx(admin=True)
     f = request.files.get("file")
     if f is not None:
@@ -490,6 +493,8 @@ def office_import_post():
     if not isinstance(d, dict):
         return err(tr("Invalid data"))
     overwrite = (request.args.get("overwrite") or (d.get("overwrite") if isinstance(d.get("overwrite"), (bool, int, str)) else "")) in (1, True, "1", "true")
+    if request.args.get("preview") == "1":  # 2.1324.0 (#6589)
+        return jsonify(ok=True, preview=True, overwrite=bool(overwrite), counts=office_import(c, oid, d, overwrite=overwrite, dry=True))
     counts = office_import(c, oid, d, overwrite=overwrite)
     ofx_log(c, oid, "import", target="master_data", detail={"overwrite": bool(overwrite), "counts": counts})
     bump(c)  # 2.566.0 (#4706): the area tick, other devices reload
