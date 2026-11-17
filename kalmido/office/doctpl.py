@@ -177,7 +177,7 @@ from .ledger import ofx_company, ofx_company_print, ofx_log  # 2.369.5 (#2517): 
 from .docs import doc_row, _fmt_date, odoc_render  # 2.369.5 (#2517): pulled up from functions
 from .calc import fmt_money  # 2.369.5 (#2517): pulled up from functions
 from .contacts_cl import fk_contact  # 2.369.5 (#2517): pulled up from functions
-from .signoff import sig_dec, sig_public, sig_create, sig_expiry  # 2.369.5 (#2517): pulled up from functions
+from .signoff import sig_dec, sig_public, sig_create, sig_expiry, sig_may_edit  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_read, fs_role  # 2.369.5 (#2517): pulled up from functions
 from ..lists.public import public_links_on  # 2.369.5 (#2517): pulled up from functions
 
@@ -901,7 +901,6 @@ def dt_doc_public(c, oid, r, names=None, sigs=None):
 def _dt_sig(c, oid, s):
     """2.1340.0 (#6613): a generated document's link with its address and the signer's data only for who may change the
     document (sig_may_edit in the area gendocs); everybody else sees state and dates."""
-    from .signoff import sig_may_edit
     k = ("dt_sig_ok", oid)
     if has_request_context():
         ok = g.setdefault("dt_sig_ok", {})
