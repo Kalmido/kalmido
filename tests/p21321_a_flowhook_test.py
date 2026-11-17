@@ -14,6 +14,7 @@
 freelancer-matrix: files
 tenant-matrix: document
 usage: p21321_a_flowhook_test.py <datadir>      (a fresh container; KMT_NOSTART=1: it runs already, with the stub)"""
+import base64
 import json
 import os
 import shutil
@@ -27,7 +28,8 @@ from kt import B, CT, DATA, N, check, dbx, sess, until  # noqa: E402
 from freelancer_fixture import FEATURES, freelancer, org_join  # noqa: E402
 
 STUB = "http://127.0.0.1:8097"
-kt.fresh(env={"KALMIDO_DOCFLOW_TICK_S": "1", "KALMIDO_WEBHOOK_ALLOW_HOSTS": "127.0.0.1:8097", "KALMIDO_WEBHOOK_BACKOFF": "1,1"},
+KEY = base64.b64encode(os.urandom(32)).decode()  # #6560: the flow's webhook secret is sealed, refused without a server key
+kt.fresh(env={"KALMIDO_SECRET_KEY": KEY, "KALMIDO_DOCFLOW_TICK_S": "1", "KALMIDO_WEBHOOK_ALLOW_HOSTS": "127.0.0.1:8097", "KALMIDO_WEBHOOK_BACKOFF": "1,1"},
          prefix="P21321A")
 if not kt.nostart("P21321A"):
     shutil.copy(os.path.join(N, "stub_webhook.py"), DATA)
