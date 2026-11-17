@@ -285,6 +285,16 @@ class _MailDrop:
 
 
 MAIL_DROP = _MailDrop()
+
+
+class _MailLater:
+    """2.1322.0 (#6560 3): an importer's answer "not now" (a limit was reached): the mail goes back to unseen, its attempt
+    stays open without using one up, and the next round takes it again after the new mails (mail_fetch)."""
+    def __bool__(self):
+        return True
+
+
+MAIL_LATER = _MailLater()
 _PARSED = threading.local()  # 2.1281.0 (#6425): the mail mail_fetch is at, taken apart once (the step before the transaction + the import)
 
 
@@ -458,6 +468,13 @@ def mail_try_done(c, box, key, n):
                      (box, key, n)).fetchone() is not None
 
 
+def mail_try_later(c, box, key, n):
+    """2.1322.0 (#6560 3): attempt n was put back by its importer (MAIL_LATER, a limit): it stays open and does not count
+    (the attempts are for imports that break, not for waiting)."""
+    c.execute("UPDATE mail_in_seen SET tries=GREATEST(tries-1, 0), seen_at=? WHERE box=? AND mid=? AND state='open' AND tries=?",
+              (iso(now_utc()), box, key, n))
+
+
 def mail_try_failed(box, key, n):
     """2.1269 (#6386): attempt n failed: the last one gives the mail up (True), else it stays open for the next round."""
     if n < MAIL_TRIES:
@@ -535,7 +552,10 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
     again = []
     if box:  # 2.1269 (#6386): the open attempts after the new mails (one that breaks the connection never holds the new ones up)
         with GATE.bg():
-            again = [u for u in mail_try_open_uids(box) if u not in set(new)]
+            again = mail_try_open_uids(box)
+        # 2.1322.0 (#6560 3): an open attempt that is unseen again (a mail an importer put back for later, MAIL_LATER) goes
+        # behind the new mails as well: a flood waiting for its limit never holds up the other mails of the mailbox
+        new = [u for u in new if u not in set(again)]
     try:  # 2.1269 (#6386): the notice also when the round breaks off later (each given-up mail counts once)
         for u in (new + again)[:200]:
             retry = u in again
@@ -580,7 +600,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
             M.uid("STORE", u, "+FLAGS", "(\\Seen)")
             if box and tries is None:  # done, given up, or another process has it (2.193.0 D, #2220)
                 continue
-            done, failed = False, False
+            done, failed, later = False, False, False
             pre = None
             if prefetch:
                 try:
@@ -596,7 +616,13 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                     res = None
                     if box and not mail_try_done(c, box, key, tries):  # another process took the attempt over
                         c.rollback()
-                    elif (res := (importer(c, raw, pre) if prefetch else importer(c, raw))):
+                    elif (res := (importer(c, raw, pre) if prefetch else importer(c, raw))) is MAIL_LATER:
+                        c.rollback()  # 2.1322.0 (#6560 3): not now - the attempt stays open and is not counted
+                        later = True
+                        if box:
+                            mail_try_later(c, box, key, tries)
+                            c.commit()
+                    elif res:
                         n += 1
                         if box:  # (the importer committed; the end of the attempt went with it -- again if it rolled back)
                             mail_try_done(c, box, key, tries)
@@ -629,6 +655,9 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                         gave += mail_try_failed(box, key, tries)
                 except Exception as e:  # noqa: BLE001 -- no database: the attempt stays open, the next round counts it
                     print("mail: attempt not noted:", type(e).__name__, flush=True)
+            if later:  # 2.1322.0 (#6560 3): unseen again, in the mailbox for the next round
+                M.uid("STORE", u, "-FLAGS", "(\\Seen)")
+                continue
             if delete and done:
                 M.uid("STORE", u, "+FLAGS", "(\\Seen \\Deleted)")
                 gone.append(u)
