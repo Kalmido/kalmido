@@ -19,6 +19,9 @@ tenant-matrix: agent (only the agent's own events; the token reaches only what t
      stays; a card a person answered still runs with it (the replay of an approved request)
  (f) static: the reference starter asks before every run and gives only the request token to the run (child_env), the
      dispatcher works with the chosen person's token; both launchers name the capability
+ (g) review F1, no server: no request token for a team agent (403 no_order, 400, 404 event_gone, the network) = the run, the
+     dispatcher round and their children never start / never get the agent's own token; an older server (plain 404) and a
+     personal agent keep it; a job's wake asks with the person's last events
 usage: p6668_ext_team_agent_test.py <datadir>      (KMT_NOSTART=1 / P6668_NOSTART=1: a running server)"""
 import json
 import os
@@ -49,6 +52,78 @@ check("def data_api" in DISP and "read_tasks(self.data_api(), cfg)" in DISP and 
       "(f) agent_dispatch.py: the list work and its jobs with the chosen person's token")
 for name in ("agent_launcher.sh", "agent_launcher.ps1"):
     check("kalmido-capability: request_token" in read("mcp", name), f"(f) {name} names request_token")
+
+
+# ---------------------------------------------------------------- (g) review F1: the starter fails closed (no server)
+# Without the fix a refused request token (403 no_order, 400 several_people, 409 no_operator, the network) let the run go on with
+# the agent's own long-lived token: the model could fetch any person's reach with it. Only an older server (plain 404) keeps it.
+def _f1():
+    import importlib.util
+    import sys
+    import tempfile
+    os.environ.update(KALMIDO_URL="http://127.0.0.1:9", KALMIDO_TOKEN="abk_" + "m" * 30)
+    for nm in ("agent_run", "agent_dispatch"):
+        spec = importlib.util.spec_from_file_location(nm, os.path.join(ROOT, "mcp", nm + ".py"))
+        m = importlib.util.module_from_spec(spec)
+        sys.modules[nm] = m
+        spec.loader.exec_module(m)
+    ar, ad = sys.modules["agent_run"], sys.modules["agent_dispatch"]
+    tmp = tempfile.mkdtemp(prefix="kalmido-p6668f1-")
+
+    def runner(name, answer):
+        r = ar.Runner(["claude"], os.path.join(tmp, name))
+        r.extras = None
+        r.calls, r.started, r.said = [], [], []
+
+        def req(method, path, body=None, query=None, timeout=30, retry=True):
+            r.calls.append((path, body, r.api.token))
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        r.api.req = req
+        r.api.status = lambda *a, **k: r.said.append(k.get("key"))
+        r.attempt_runs = lambda *a, **k: (r.started.append(1), (None, 1, "stub"))[1]
+        return r
+
+    ev = [{"event": "chat", "seq": 41, "data": {"user": {"id": 5}, "message": {"id": 1, "body": "hi"}}}]
+    for name, answer in (("no_order", ar.ApiError(403, '{"error": {"code": "no_order"}}')),
+                         ("several_people", ar.ApiError(400, '{"error": {"code": "several_people"}}')),
+                         ("event_gone", ar.ApiError(404, '{"error": {"code": "event_gone"}}')),
+                         ("network", OSError("unreachable"))):
+        r = runner(name, answer)
+        check(r.run_request(ev, 5) is False and r.run_api is r.api, f"(g) F1 {name}: no request token = the run may not start")
+        r = runner(name + "-run", answer)
+        r.run(5, [dict(e) for e in ev])
+        check(not r.started and "status_no_request" in r.said, f"(g) F1 {name}: the run is skipped with a status line {r.said}")
+        if name != "network":
+            check("KALMIDO_TOKEN" not in r.child_env(5, None), f"(g) F1 {name}: a child of the team agent never gets its own token")
+        r = runner(name + "-op", answer)
+        check(r.op_api() is None, f"(g) F1 {name}: the dispatcher gets no client for the chosen person")
+        proj = os.path.join(tmp, name + "-proj")
+        os.makedirs(proj)
+        with open(os.path.join(proj, "KALMIDO-DISPATCH.json"), "w", encoding="utf-8") as f:
+            json.dump({"lists": [1]}, f)
+        r.agent = {"owner_id": None, "runtime": {"dispatch": "on"}}
+        res = ad.Dispatcher(r, proj).tick(force=True, dry=False) or {}
+        check("no request token" in str(res.get("problem")) and all(c[0] == "/agent/request-token" for c in r.calls),
+              f"(g) F1 {name}: the dispatcher round reads nothing with the agent's own token {res.get('problem')} {r.calls}")
+    r = runner("old-server", ar.ApiError(404, '{"error": "Not found"}'))
+    check(r.run_request(ev, 5) is True and r.api.request_ok is False and r.child_env(5, None).get("KALMIDO_TOKEN") == "abk_" + "m" * 30,
+          "(g) F1: an older server (404 on the route) keeps the agent's own token, as before")
+    r = runner("personal", {"token": None, "expires_at": None, "asked_by": 5, "list_ids": None})
+    check(r.run_request(ev, 5) is True and r.api.req_personal is True and r.child_env(5, None).get("KALMIDO_TOKEN") == "abk_" + "m" * 30,
+          "(g) F1: a personal agent keeps its own token")
+    r = runner("ok", {"token": "abk_" + "r" * 30, "expires_at": "2099-01-01T00:00:00Z", "asked_by": 5, "list_ids": [1]})
+    check(r.run_request(ev, 5) is True and r.child_env(5, None).get("KALMIDO_TOKEN") == "abk_" + "r" * 30,
+          "(g) F1: the run gets the request token only")
+    r.run_api = r.api
+    wake = [{"event": "job_wake", "seq": "wake-9", "data": {"user": {"id": 5}}}]
+    check(r.run_request(wake, 5) is True and r.calls[-1][1] == {"seqs": [41]}, f"(g) F1: a job's wake asks with the person's last events {r.calls[-1]}")
+    r.run_api = r.api  # after the run (Runner.handle)
+    check("KALMIDO_TOKEN" not in r.child_env(5, None), "(g) F1: outside a request the team agent's children get no token")
+
+
+_f1()
 
 # ---------------------------------------------------------------- server
 fresh(prefix="P6668")
