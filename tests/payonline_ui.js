@@ -12,7 +12,10 @@ const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL
 const firefox = require('./ff')({tag: 'payonline_ui', check, shots: 'PAYONLINEUI_SHOTS'});
 const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 const DATA = process.argv[2] || path.join(__dirname, '.data');
-if (process.env.PAYONLINEUI_NOSTART !== '1') execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
+// 2.1329.0 (#6851): since 2.1322.0 (#6560 5) the access data are sealed always and refused (409) without a server key - this
+// container gets one (a fixed test key, as p255_e_ui); the refusal itself is tested in payonline_test.py / p2581_c_flows_test.py
+if (process.env.PAYONLINEUI_NOSTART !== '1') execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore',
+  env: {...process.env, EXTRA: (process.env.EXTRA || '') + ' -e KALMIDO_SECRET_KEY=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8='}});
 const call = async (ck, method, url, body) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: ck}, body: body ? JSON.stringify(body) : undefined}); const j = await r.json().catch(() => ({})); return {http: r.status, ...j}; };
 const FEAT = 'cal,comments,collab,office,clients,docs,contacts,time';
 
