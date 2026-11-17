@@ -54,6 +54,7 @@ from ..office.books import bk_csv_cell  # 2.369.5 (#2517): pulled up from functi
 from .orgexport import OX_AREAS, OX_FMT, OX_PB_CLIENTS, _rows, ox_live, _safe_part, _under  # 2.369.5 (#2517): pulled up from functions
 from ..core.objexport import oex_rx  # 2.1093.0 (#5289): the export register of the core
 from ..office.pdfweb import _render, _stored, epdf_name  # 2.369.5 (#2517): pulled up from functions
+from ..office.pdfweb import epdf_ubl_sent  # 2.1321.0 (#6480)
 from ..office.cashbook import cb_csv_text, cb_export_data, cb_pdf_bytes  # 2.369.5 (#2517): pulled up from functions
 
 RX_VALID_DAYS = 7  # a finished export counts this long as "exported" for the deletion
@@ -563,6 +564,25 @@ def _checked(c, oid, z, r, ext, data, stem):
     return data
 
 
+def _ubl_sent(c, oid, z, r, stem, done):
+    """2.1321.0 (#6480): the UBL of each Peppol send of document r that went out, byte for byte as it was sent
+    (<stem>.peppol-<send>.xml); a file whose SHA-256 differs from the send's is named in the index and logged."""
+    for sid, p, want in epdf_ubl_sent(c, oid, r):
+        name = f"{stem}.peppol-{sid}.xml"
+        done.add(os.path.realpath(p))
+        try:
+            data = oc_read_file(c, p)
+        except Exception as e:  # noqa: BLE001 -- one unreadable file must not stop the export: named in the index
+            print("retention export: Peppol UBL of document", r["id"], "not readable:", type(e).__name__, flush=True)
+            z.missing.append(name)
+            continue
+        got = hashlib.sha256(data).hexdigest()
+        if want and got != want:
+            z.missing.append(f"{name} (checksum mismatch)")
+            ofx_log(c, oid, "store_mismatch", doc_id=r["id"], detail={"file": "ubl", "send": sid, "sha256": want, "found": got, "at": "retention export"})
+        yield z.put(name, data, "invoices")
+
+
 def _fs_locked(c, z, nid, name):
     """2.370.0 (#2781): the current version of file nid is locked by the virus scanner -> True (listed in z.locked)."""
     r = c.execute("SELECT cur_version FROM fs_nodes WHERE id=?", (nid,)).fetchone()
@@ -576,6 +596,7 @@ def _invoices(c, z, sub, done):
     for r in c.execute(f"SELECT * FROM office_docs WHERE org_id=? AND locked_at IS NOT NULL AND trial=0 AND {live_sql()} ORDER BY date, id", (oid,)).fetchall():  # 2.1005.0 (#5415): never one of the trash (a draft is never finalised anyway)
         stem = "invoices/" + _safe_part(epdf_name(r), 100)
         p, x = _stored(oid, r, "pdf"), _stored(oid, r, "xml")
+        yield from _ubl_sent(c, oid, z, r, stem, done)  # 2.1321.0 (#6480): the e-invoice as it went over Peppol
         try:
             if p:
                 done.add(os.path.realpath(p))
