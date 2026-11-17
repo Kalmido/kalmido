@@ -96,6 +96,7 @@ ORDER = (
     "core.state",
     "core.safexml",  # 2.1272.0 (#6422): the one reader for XML from outside (standard library only)
     "core.csvimport",  # 2.140.0 B (#2134): the statement reader of budget and bank reconciliation
+    "core.omitted",  # 2.1324.0 (#6589): the list "not included.txt" of what a ZIP export leaves out (no routes)
     "core.zipread",  # 2.146.0 (#2453 #2455 #2457): the in-memory ZIP reader of the importers
     "core.merges",  # 2.66.0 (#1835): merging contacts / clients (reversible)
     "core.mt940",  # 2.299.0 A (#3190): MT940 / MT942 statements (after csvimport, before stmtfiles)
