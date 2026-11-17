@@ -143,3 +143,51 @@ async function rxAsk(info, title) {
     });
   });
 }
+// ---- 2.1337.0 (#6600): Settings > Organisation > Data, "Move the organisation" (its admins). Started (second confirmation: the
+// name typed), the whole organisation is read only for everybody until an admin ends the move (accounts/orgmove.py); the export
+// above then shows a fixed state. Every member sees the bar of render.js mvSync.
+function mvBoxHtml(o) {
+  if (!o || !o.id) return '';
+  return `<div class="mvbox" data-mvorg="${esc(String(+o.id))}" data-mvname="${esc(o.name || '')}"><h5>${tr('Move the organisation')}</h5>
+    <div class="shint">${tr('Before you export the organisation to take it to another server: start the move. Then nobody can change anything in it any more (members, agents, API keys, forms, booking pages, incoming mail), no new numbers are given and invoice series, payment reminders and fetching rest. Reading, downloading and the export stay possible, so the export shows a fixed state.')}</div>
+    <div class="mvst" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div></div>`;
+}
+function mvStateHtml(j) {
+  if (!j.moving) return `<div class="row"><button type="button" class="btn sm" data-mv="start">${ic('lock', 's')} ${tr('Start the move…')}</button></div>`;
+  return `<div class="shint keep warn">${ic('lock', 's')} ${esc(tr('The move runs since {0}, started by {1}: the organisation is read only.', fmtWhen(j.since), j.by_name || '?'))}${j.why ? ' ' + esc(tr('Reason: {0}', j.why)) : ''}</div>
+    <div class="row"><button type="button" class="btn sm" data-mv="end">${ic('unlock', 's')} ${tr('End the move')}</button></div>
+    <div class="shint">${tr('Ending it lets everything run again. Invoice series whose date came during the move are not made late: they are paused, and you get a task for each. To delete the organisation after the move, ask the admin of this server.')}</div>`;
+}
+async function mvLoad(box) {
+  const st = $('.mvst', box);
+  let j; try { j = await api('GET', `/api/orgs/${+box.dataset.mvorg}/moving`); } catch { st.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
+  st.innerHTML = mvStateHtml(j);
+}
+function mvDraw(root) {
+  root.querySelectorAll('.mvbox').forEach(mvLoad);
+  if (root._mvWired) return;
+  root._mvWired = true;
+  root.addEventListener('click', async e => {
+    const b = e.target.closest('[data-mv]'); if (!b) return;
+    const box = b.closest('.mvbox'), oid = +box.dataset.mvorg, name = box.dataset.mvname || '';
+    try {
+      if (b.dataset.mv === 'start') {
+        if (!await askConfirm(tr('Start the move of “{0}”?', name), tr('From now on the whole organisation is read only for all members, agents, API keys, forms, booking pages and incoming mail, until an admin ends the move. Every member sees a notice with your name and the reason.'), {ok: tr('Continue'), danger: true})) return;
+        let dm = null, why = '';
+        const typed = await askDialog(/** @type {any} */ ({title: tr('Start the move'), danger: true, ok: tr('Start the move'),
+          html: `<div class="row"><label for="mv-why">${esc(tr('Reason (all members see it)'))}</label><input id="mv-why" maxlength="500" autocomplete="off"></div><p>${esc(tr('Type the name of the organisation to start the move'))}</p>`,
+          input: {placeholder: name, max: 200}, after: m => { dm = m; }, submit: () => { why = ($('#mv-why', dm)?.value || '').trim(); return true; }}));
+        if (typed === null) return;
+        if (typed.trim().toLowerCase() !== name.trim().toLowerCase()) { toast(tr('The name does not match: the move did not start')); return; }
+        await api('POST', `/api/orgs/${oid}/moving`, {confirm: typed.trim(), why});
+        toast(tr('The move has started: the organisation is read only'));
+      } else if (b.dataset.mv === 'end') {
+        if (!await askConfirm(tr('End the move?'), tr('Everything in the organisation runs again. Invoice series whose date came during the move stay paused until you switch them on.'), {ok: tr('End the move')})) return;
+        const r = await api('DELETE', `/api/orgs/${oid}/moving`);
+        toast(r.paused?.length ? trn('The move has ended. {0} invoice series is paused.', 'The move has ended. {0} invoice series are paused.', r.paused.length) : tr('The move has ended'));
+      }
+      await load(); render();  // the bar of every member (render.js mvSync) comes / goes with the state
+    } catch { /* api() showed it */ }
+    mvLoad(box);
+  });
+}

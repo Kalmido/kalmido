@@ -16,7 +16,7 @@ function render0() {
   wsc_sync();  // 2.53.0 (#1474): its workspace's colour as the header stripe and the frame of the input fields (wscolor.js)
   sideSearchSync(); badgeSync();
   if (S.shop) shopDraw();  // 2.19.0: shopping mode follows every reload (the app's own poll included); lazy-ok: only shopModeOpen (family.js) sets S.shop
-  fitLayout(true); renderSide(); annSync(); ntfAskSync(); if (typeof le2u_barSync === 'function') le2u_barSync(); renderTop(); renderView(); renderTabs(); quotaNudge(); sup_barSync();  // 2.64.1 (#1817): le2u = the bar of a locked list; 2.74.0 (#338): + the yearly supporter hint
+  fitLayout(true); renderSide(); annSync(); mvSync(); ntfAskSync(); if (typeof le2u_barSync === 'function') le2u_barSync(); renderTop(); renderView(); renderTabs(); quotaNudge(); sup_barSync();  // 2.64.1 (#1817): le2u = the bar of a locked list; 2.74.0 (#338): + the yearly supporter hint
   $('#fab').innerHTML = ic('plus'); $('#fab').setAttribute('aria-label', tr('New task')); $('#fab').title = kt(tr('New task'), 'n');
   fabSync();
   o3c_sync();  // 2.83.0 C (#1427): the header strip of a list / folder (listhead.js)
@@ -35,6 +35,16 @@ function annSync() {
   const html = `${ic(a.level === 'maintenance' ? 'alert' : 'bell', 's')}<span class="annt"><b>${esc(a.level === 'maintenance' ? tr('Maintenance') : tr('Notice'))}:</b> ${esc(a.text)}${until ? ` <span class="muted">· ${esc(until)}</span>` : ''}</span><button type="button" class="iconbtn" data-act="ann-hide" aria-label="${esc(tr('Hide this notice'))}" title="${esc(tr('Hide this notice'))}">${ic('x', 's')}</button>`;
   const cls = 'annbar ' + (a.level === 'maintenance' ? 'maint' : '');
   if (!bar || bar.innerHTML !== html || bar.className !== cls) barKeep(() => { if (!bar) { bar = document.createElement('div'); bar.id = 'annbar'; bar.setAttribute('role', 'status'); main.prepend(bar); } bar.className = cls; bar.innerHTML = html; });  // its class too: the padding counts
+}
+// ---- 2.1337.0 (#6600): an organisation of mine is moving (read only): one bar for every member with the reason and who started
+// it (S.me.workspaces[].moving, accounts/orgmove.py); not hideable, it goes when the move ends
+function mvSync() {
+  const main = $('#main'); if (!main) return;
+  const ws = (S.me?.workspaces || []).filter(w => w.moving);
+  let bar = $('#mvbar');
+  if (!ws.length || S.me?.kid) { if (bar) barKeep(() => bar.remove()); return; }
+  const html = ws.map(w => `<span class="annt">${ic('lock', 's')} <b>${esc(tr('{0} is moving', w.name))}:</b> ${esc(tr('everything in it is read only until the move ends.'))} ${esc(tr('Started by {0}', w.moving.by_name || '?'))}${w.moving.why ? ` <span class="muted">· ${esc(w.moving.why)}</span>` : ''}</span>`).join('');
+  if (!bar || bar.innerHTML !== html) barKeep(() => { if (!bar) { bar = document.createElement('div'); bar.id = 'mvbar'; bar.className = 'annbar mvbar'; bar.setAttribute('role', 'status'); const ab = $('#annbar'); if (ab) ab.after(bar); else main.prepend(bar); } bar.innerHTML = html; });
 }
 // ---- 2.940.0 (#5226): a bar above the view (notice, notifications question, encrypted list, supporter hint) that comes,
 // goes or changes its height on its own does not move what is read: #view.scrollTop takes the difference (rule 08.11.2026
