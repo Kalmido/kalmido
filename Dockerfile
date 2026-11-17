@@ -2,7 +2,7 @@
 # natively on the build machine (also for a multi-platform image), tested, packed; Settings > Documents offers the files
 # 2.168.5: ${BUILDPLATFORM:-linux/amd64} and no RUN --mount - the classic builder (Docker without buildx, e.g. a
 # staging host) knows neither; BuildKit (release, multi-platform) still sets BUILDPLATFORM itself, so the default stays unused
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.27-alpine@sha256:eb61c3873c97416fff0116553fff65d67a3549f72e11d9758849a689cdd8b523 AS folderwatch
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.27-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS folderwatch
 # 2.1175.0 (#2770): the menu bar symbol on the Mac uses purego (Apache-2.0), vendored in folderwatch/vendor - still no cgo,
 # no network in the build (GOPROXY=off, -mod=vendor); its license ships next to the downloads like the Go license
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOFLAGS="-trimpath -mod=vendor"
