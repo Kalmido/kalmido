@@ -23,6 +23,32 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1351.0] - 2026-11-17
+
+Package 2.1338.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #6612: backups: `KALMIDO_BACKUP_MAX_MB` now applies to uploaded archives only. The server's own backups are checked, downloaded and restored whatever their size (before, an instance with more attachments than the limit, 4 GB by default, could neither check nor restore any of its backups); the error text names the variable. Settings > Server > Backup warns when the newest backup is larger than the limit for uploads (a downloaded copy then needs a higher limit on the other server).
+- #6612: backups: once a week the newest backup is checked completely, like the button "Check" (decrypt, every checksum, the shared files, the database dump). A failure is an admin alert, shows on the backup page and is checked again the next day; a successful check shows its date there. With automatic backups switched off and no backup from the last 7 days, the admins get an alert once a week.
+
+### Fixed
+- #6612: backups: a damaged file in the shared backup store (same size, other bytes) made every backup that names it fail on restore, and nobody noticed. The check (button and weekly) writes such a file again from its original while that is still there unchanged, and says so (toast, admin alert).
+
+Package 2.1334 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- Export guard per kind: tools/check_export_tables.py holds every kind of every shared-core table (comments, reactions, follows, read marks, notification templates, tags, tag links, versions, link relations incl. the free links) against the organisation and the account export; a kind no query takes needs a reason in KIND_LEFT (hard in the CI lint). OTG_KINDS / OBJV_KINDS name the kinds of tag links and versions; their helpers refuse an unknown kind (#6585).
+- The organisation export guard holds every table, like the account export's: exported, in OX_LEFT with the reason, or holding nobody's data (#6359).
+- The change history (obj_history) goes along: the organisation archive's history/changes.json follows exactly the objects the archive carries (never a group conversation's message, a hidden list or another organisation), the account export's data/my_history.json holds the person's own changes in the private space. Both manifests list what no import takes over (not_imported) (#6585).
+
+### Added
+- Account export: the details of the private document store (private-documents/documents/*.json: details, fields, senders, types, receipts, notes, tags, rules), private links (a contact's tasks, filed mails, free links), the bells of the own projects, the own notes and video comments in organisations, the account row, memberships, sign-in addresses, the files and voice messages sent in direct messages and private rooms, the other person's name on direct messages (#6585).
+- Account export, formerly "not yet in the account export": agent chat files, trip costs, family rewards, remembered shopping items, table links, chat messages saved as tasks, knowledge spaces, the document rules of the private mailbox (#6359).
+- Organisation export: free links (links.json), the templates' file copies (lists/template_files.json + files/templates/), the rules of the organisation's agents (agents/rules.json, without the source excerpt), the document rules of the workspace mailbox (hub/mailbox_rules.json) (#6585, #6359).
+
+### Fixed
+- Account export: a knowledge page, table or template file that is gone from the disk is named in the manifest's missing list instead of being left out silently (#6585).
+
 ## [2.1346.0] - 2026-11-17
 
 Package 2.1336 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -356,7 +382,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1346.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1351.0...HEAD
+[2.1351.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1351.0
 [2.1346.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1346.0
 [2.1344.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1344.0
 [2.1339.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1339.0
