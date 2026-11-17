@@ -23,7 +23,7 @@ proxy sign-in only). A self-hosted server has no use for it: the routes answer h
 2.1325.0 (#6502, decision of 16.11.2026): a support session reads only the person's private space, own office and the
 organisations whose admins opened support access themselves (core/access.py _ctx_support, per request, never cached for the
 account); its changes stand in the history marked as support (obj_history.via, a task's activity data.via); the person / the
-organisation's admins hear in the bell (News "support") of an organisation's grant, the first use and an early end, the person
+organisation's admins hear in the bell (News "support") of an organisation's grant, the first use and an early stop, the person
 who grants gets a security mail; a support sign-in is no known device of the client.
 
   GET    /api/support-access          {hosted, hours, account: grant|null, orgs: [{org_id, name, grant|null}], past: [grant]}
@@ -544,11 +544,15 @@ def sga_flush(resp):
     if not used and not sup:
         return resp
     now = now_utc()
-    e = {"at": iso(now), "by": int(sup or g.user["id"]), "m": request.method[:8], "r": _route(), "s": int(resp.status_code)}
-    if sup:  # 2.500.0 (#4070): done in a support session, not by the person
-        e["sup"] = 1
-    op = g.get("sga_op") if sup else g.user["id"]  # the operator: the link's maker (a support session) or the admin himself
-    gids = sorted({int(gid) for gid in used or ()})
+    try:  # 2.1325.0 (#6502, review F6): building the entry belongs to the log too - an error here never breaks the answer
+        e = {"at": iso(now), "by": int(sup or g.user["id"]), "m": request.method[:8], "r": _route(), "s": int(resp.status_code)}
+        if sup:  # 2.500.0 (#4070): done in a support session, not by the person
+            e["sup"] = 1
+        op = g.get("sga_op") if sup else g.user["id"]  # the operator: the link's maker (a support session) or the admin himself
+        gids = sorted({int(gid) for gid in used or ()})
+    except Exception as x:  # noqa: BLE001
+        print("support access log error:", type(x).__name__, flush=True)
+        return resp
     try:
         c = connect()
         try:
