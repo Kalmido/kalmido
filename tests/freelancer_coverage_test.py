@@ -691,6 +691,8 @@ ROUTES = {
     "GET /api/orgs/{}/tasks": "orgadmin",  # 2.574.0 (#3376): an organisation admin's read-only task view (404 without one, p2574_d_api_test.py)
     "GET /api/orgs/{}/out-requests": "orgadmin", "POST /api/orgs/{}/out-requests": "orgadmin",  # 2.361.2 (#2923)
     "POST /api/orgs/{}/out-requests/{}": "orgadmin",
+    # 2.1337.0 (#6600): the move of an organisation (read only) - its admins start / end it, its members read the state (p6600_org_moving_test.py)
+    "GET /api/orgs/{}/moving": "orgadmin", "POST /api/orgs/{}/moving": "orgadmin", "DELETE /api/orgs/{}/moving": "orgadmin",
     # 2.223.2 C (#2871): the step-up before a download (POST -> a one-time ticket; p22232_c_offsite_test.py, freelancer too)
     "POST /api/orgs/{}/export/file": "office", "POST /api/retention/me/export.zip": "office", "POST /api/retention/org/{}/export.zip": "orgadmin",
     # 2.1291.0 (#6474, A6): the waiver of the retention export, declared by the person / an organisation's admin (p21291_rxgate_test.py)
