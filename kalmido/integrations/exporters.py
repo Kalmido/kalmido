@@ -1,8 +1,6 @@
 """2.142.0 C (#2148): export into other tools' formats: a ZIP with one Todoist-template CSV per list, or one Markdown checklist per
 list. Same scope as GET /api/export.json (the lists I own); lists with the lock (end-to-end encrypted) are left out, the server
-only holds ciphertext of them, and a note file in the ZIP says so. Completed tasks stay out of the CSV (it has no state).
-2.1324.0 (#6589): nothing left out silently: the projects shared with me (not mine) and the locked ones are named in
-"not included.txt" (core/omitted.py) with the reason and the count of the shared ones; the settings hint says it too."""
+only holds ciphertext of them, and a note file in the ZIP says so. Completed tasks stay out of the CSV (it has no state)."""
 import csv
 import io
 import re
@@ -11,9 +9,7 @@ import zipfile
 from flask import Response
 
 from ..core.config import app, TZ
-from ..core.i18n import N_, tr
-from ..core.omitted import Omitted  # 2.1324.0 (#6589)
-from ..core.state import visible_lists  # 2.1324.0 (#6589)
+from ..core.i18n import tr
 from ..core.db import db, local_now
 from ..core.objtags import otg_user_of  # 2.955.0 (#5276): the personal tags of the core (were task_tags)
 from ..core.serializers import csv_cell
@@ -73,16 +69,6 @@ def ex_lists(c, uid):
     """(lists to export, names of the locked ones that stay out), the scope of export.json."""
     rows = c.execute(f"SELECT * FROM lists WHERE owner_id=? AND ({otr_live('')} OR org_id IS NULL) ORDER BY is_inbox DESC, sort, id", (uid,)).fetchall()
     return [r for r in rows if not r["e2e"]], [r["name"] for r in rows if r["e2e"]]
-
-
-EX_WHY_LOCKED = N_("locked with a password (end-to-end encrypted): the server only holds it as ciphertext")
-EX_WHY_SHARED = N_("shared with you: only the projects you own are exported")
-EX_SHARED_NOTE = N_("Shared projects not included: {0}. Only the projects you own are in this export.")
-
-
-def ex_shared(c, uid):
-    """2.1324.0 (#6589): names of the projects uid sees but does not own (they stay out of the export, the ZIP names them)."""
-    return sorted((r["name"] or "" for r in visible_lists(c, uid, light=True) if r["owner_id"] != uid), key=str.casefold)
 
 
 def ex_tasks(c, uid, lid):
@@ -172,18 +158,13 @@ def ex_zip(kind):
     lists, locked = ex_lists(c, uid)
     used, buf = set(), io.BytesIO()
     ext, fn = (".csv", ex_todoist_csv) if kind == "todoist" else (".md", ex_markdown)
-    omit = Omitted()  # 2.1324.0 (#6589): one list of what stays out (was README-locked-lists.txt for the locked ones only)
-    shared = ex_shared(c, uid)
-    if shared:
-        omit.note(EX_SHARED_NOTE, len(shared))
-    for n in locked:
-        omit.add(n, EX_WHY_LOCKED)
-    for n in shared:
-        omit.add(n, EX_WHY_SHARED)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for l in lists:
             z.writestr(ex_file_name(tr("Basket") if l["is_inbox"] else l["name"], used, ext), fn(c, uid, l))
-        omit.write(z, {u + ext for u in used})
+        if locked:
+            z.writestr(ex_file_name("README-locked-lists", used, ".txt"),
+                       tr("These projects are locked with a password (end-to-end encrypted). The server only holds them as ciphertext, so they cannot be exported here:") +
+                       "\n\n" + "\n".join("- " + n for n in locked) + "\n")
     name = f"kalmido-{'todoist' if kind == 'todoist' else 'markdown'}-{local_now():%Y-%m-%d}.zip"
     from ..admin.acctexport import umz_log_org_lists
     umz_log_org_lists(c, uid)  # 2.148.1 H (#2492): noted in the organisation's list history like export.json
