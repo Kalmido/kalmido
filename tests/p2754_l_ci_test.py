@@ -75,7 +75,11 @@ check(cov_job and nightly in cov_job and "continue-on-error: true" in cov_job.sp
       "#5298: the job coverage runs only then and never turns the run red")
 check("tools/coverage_summary.py" in cov_job and "zero-coverage.txt" in cov_job and "GITHUB_STEP_SUMMARY" in cov_job,
       "#5298: figure + modules without coverage in the summary, zero list in the artifact")
-check(re.search(r"coverage==\d+\.\d+\.\d+", tests_job) and re.search(r"coverage==\d+\.\d+\.\d+", cov_job), "#5298: coverage pinned")
+# 2.1347.0 (#6859): since 2.1297.0 (#6509) both jobs install coverage with hashes from tools/ci/coverage.lock instead of
+# "pip install coverage==X" - pinned = both name the lock and the lock pins coverage
+cov_lock = os.path.join(ROOT, "tools", "ci", "coverage.lock")
+lock_pin = os.path.exists(cov_lock) and re.search(r"^coverage==\d+\.\d+\.\d+ ", open(cov_lock, encoding="utf-8").read(), re.M)
+check(lock_pin and all("--require-hashes -r tools/ci/coverage.lock" in j for j in (tests_job, cov_job)), "#5298: coverage pinned")
 
 # 5. tests/start.sh with a stand-in docker / curl
 tmp = tempfile.mkdtemp(prefix="p2754l-")
