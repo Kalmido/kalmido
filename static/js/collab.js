@@ -324,6 +324,7 @@ function newsText(it, U) {
     case 'delhold': return d.stage === 'lock' ? tr('{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}', q(d.username || ''), esc(fmtDate(String(d.until || '').slice(0, 10))))
       : tr('Decide on the held deletion of {0}: without a decision it runs on {1}', q(d.username || ''), esc(fmtDate(String(d.until || '').slice(0, 10))));  // 2.1298.0 (#6395)
     case 'orglogin': return tr('Admin {0} signed in from a new address: {1}', q(d.name || ''), esc(d.ip || ''));  // 2.367.4 (#2974)
+    case 'support': return sgaNewsText(d, q);  // 2.1325.0 (#6502)
     case 'orgjoinres': return d.yes ? tr('{0} accepted your invitation to {1}', who, q(d.name || '')) : tr('{0} rejected your invitation to {1}', who, q(d.name || ''));
     case 'orgrole': return tr('{0} changed your role in {1}: {2}', who, q(d.name || ''), esc(({admin: tr('Admin'), readonly: tr('Read-only'), accounting: tr('Accounting'), guest: tr('Guest')})[d.role] || tr('Member')));
     case 'agentjoin': return d.provider ? tr('{0} added the agent {1} to {2}. It runs at {3}. What it reads in the project goes there.', who, q(d.agent || ''), q(newsListName(it)), q(d.provider))
@@ -355,7 +356,7 @@ function newsText(it, U) {
   }
   return tr('{0} changed something', who);
 }
-const NEWS_ICON = {job_watch: 'clock', playbook_proposal: 'book', orglist: 'archive', mention: 'at', comment: 'comment', assign: 'user', unassign: 'user', take: 'check', complete: 'check', share: 'users', role: 'users', unshare: 'users', unblock: 'deps', status: 'pulse', newtask: 'plus', approval: 'bot', agentask: 'bot', followup: 'hourglass', usage: 'chart', proposal: 'bot', errreport: 'bug', apdecide: 'eye', signup: 'user', delhold: 'user', agentjoin: 'bot', e2e_key: 'key', wiki_e2e_key: 'key', orgkey: 'key'};  // 2.64.1 / 2.64.3 B (#1817)
+const NEWS_ICON = {job_watch: 'clock', playbook_proposal: 'book', orglist: 'archive', mention: 'at', comment: 'comment', assign: 'user', unassign: 'user', take: 'check', complete: 'check', share: 'users', role: 'users', unshare: 'users', unblock: 'deps', status: 'pulse', newtask: 'plus', approval: 'bot', agentask: 'bot', followup: 'hourglass', usage: 'chart', proposal: 'bot', errreport: 'bug', apdecide: 'eye', signup: 'user', delhold: 'user', support: 'key', agentjoin: 'bot', e2e_key: 'key', wiki_e2e_key: 'key', orgkey: 'key'};  // 2.64.1 / 2.64.3 B (#1817)
 /** @type {any} */ (NEWS_ICON).wiki_shared = 'book';  // 2.126.2 B (#2355)
 /** @type {any} */ (NEWS_ICON).orgdelnotice = /** @type {any} */ (NEWS_ICON).orggone = 'alert';  // 2.361.0 (#2920)
 /** @type {any} */ (NEWS_ICON).whorgcut = 'alert';  // 2.380 G (#3391)
@@ -550,6 +551,7 @@ async function newsOpen(i, opts) {
   if (it.kind === 'whorgcut') { settingsModal('webhooks'); return; }  // 2.380 G (#3391): Settings > Access, the webhooks
   if (it.kind === 'signup' && it.data?.org_id) { settingsModal('org'); return; }  // 2.464.0 (#3882): the person's row in the organisation
   if (it.kind === 'orglogin' || it.kind === 'orgjoinres' || it.kind === 'orgrole') return;
+  if (it.kind === 'support') { settingsModal('account'); return; }  // 2.1325.0 (#6502): Settings > Account, the support access with its log
   if (it.kind === 'signup' || it.kind === 'delhold') { settingsModal('users'); return; }  // 2.1298.0 (#6395): delhold, the account's dialog there  // 2.23.0 (#711): approve it under Users  // 2.15.0 (#479): an agent's request
   if (!it.task_id) { if (it.list_id && listById(it.list_id)) go('l/' + it.list_id); return; }
   if (!taskById(it.task_id)) {  // e.g. completed long ago: not in the state
@@ -563,7 +565,7 @@ async function newsOpen(i, opts) {
 // ---- 2.122.0 (#2314): phones: a sideways swipe on the task opened from the news goes to the next (left) / previous (right)
 // UNREAD news in the order and with the filter (tab, kind, workspace) of the list; it is marked read like on opening. None left:
 // a short notice, the view stays. Same exceptions as the swipe on tasks (detail.js, #1071); the swipe on the list rows stays.
-const NSW_SKIP = /^(orglogin|orgjoinres|orgrole|proposal|playbook_proposal|evinvite|evchange|apbooking|calsub|docpaid|docoverdue|offerexp|evshare|abshare|connreq|connok|orgjoin|lytpl|dispo|usage|upscan|signup|delhold|leavereq|leavedecide|tsheet|wiki_shared|orgdelnotice|orggone|whorgcut|integfail)$/;  // 2.125.0 A (#2117) + B (#2119): + leave, timesheets
+const NSW_SKIP = /^(orglogin|orgjoinres|orgrole|proposal|playbook_proposal|evinvite|evchange|apbooking|calsub|docpaid|docoverdue|offerexp|evshare|abshare|connreq|connok|orgjoin|lytpl|dispo|usage|upscan|signup|delhold|support|leavereq|leavedecide|tsheet|wiki_shared|orgdelnotice|orggone|whorgcut|integfail)$/;  // 2.125.0 A (#2117) + B (#2119): + leave, timesheets
 const nswOn = () => !!S.nswTask && S.sel === S.nswTask;
 function nswTarget(dir) {
   const its = S.nf.items || [], cur = its.findIndex(x => x.id === S.nswId);
@@ -672,9 +674,18 @@ document.addEventListener('click', ev => {  // 2.490.0 (#4018): narrow column: a
   if (cm && !ev.target.closest('button,a,textarea,input,[data-act]')) cm.classList.toggle('cacton');
 });
 const fmtDayAbs = s => fmtDay(pd(s).getFullYear() !== new Date().getFullYear() ? 'year' : 'short', pd(s));
+// 2.1325.0 (#6502): support access in the bell -- an organisation's grant (its other admins), the first use, an early end
+function sgaNewsText(d, q) {
+  const until = d.until ? fmtWhen(String(d.until)) : '';
+  if (d.stage === 'grant') return tr('{0} opened support access to the organisation {1} until {2}', q(d.by || ''), q(d.name || ''), esc(until));
+  if (d.stage === 'start') return d.org_id ? tr('Support started working in the organisation {0} (access until {1})', q(d.name || ''), esc(until))
+    : tr('Support started working in your account (access until {0})', esc(until));
+  return d.org_id ? tr('{0} ended the support access to the organisation {1}', q(d.by || ''), q(d.name || '')) : tr('Support access to your account ended');
+}
 function actText(a, U) {  // "via API" after lines written through a personal access token
   return actText0(a, U) + (a.data?.via === 'api' ? ` <span class="via">${tr('via API')}</span>` : a.data?.via === 'caldav' ? ` <span class="via">${tr('via CalDAV')}</span>`
-    : a.data?.via === 'webhook' ? ` <span class="via">${tr('via webhook')}</span>` : '');  // 2.115.0 A (#2061)
+    : a.data?.via === 'webhook' ? ` <span class="via">${tr('via webhook')}</span>`  // 2.115.0 A (#2061)
+    : a.data?.via === 'support' ? ` <span class="via">${tr('via support access')}</span>` : '');  // 2.1325.0 (#6502): the operator in a support session
 }
 const viaName = (d, id, U) => d?.gsy ? d.gsy : d?.rule ? tr('Rule {0}', d.rule.name || '') : d?.via === 'public_link' && !id ? (d.ext_name ? tr('{0} (client, via the link)', d.ext_name) : tr('Someone via the public link')) : uname(id, U);  // 2.50.0 (#329): + the customer's name
 function actText0(a, U) {
