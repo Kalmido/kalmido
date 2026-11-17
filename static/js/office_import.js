@@ -272,8 +272,10 @@ async function oimLoadList() {
 // 2.1329.0 (#6848): the archive list again after a change (delete, its undo, a correction, an undo the server did) - the rows
 // shown stay until the fresh list is there (before: "Loading" in between, twice after an undo: the entry's own reload, then
 // the history's; the rows blinked away); not shown = read again on the next visit
+// (also office_docs.js ofdLoadList: every state push reloads the list shown, onumListFresh)
 function oimRefreshList() {
-  if (!OIM.list || typeof OFD === 'undefined' || OFD.kind !== 'archive' || S.route.mod !== 'office') { OIM.list = null; return; }
+  if (typeof OFD === 'undefined' || OFD.kind !== 'archive' || S.route.mod !== 'office') { OIM.list = null; return; }
+  if (!OIM.list) { if (typeof ofdDraw === 'function') ofdDraw(); return; }  // nothing shown yet: drawing starts the load
   if (OIM.listLoading) { OIM.listAgain = true; return; }
   oimLoadList();
 }
