@@ -107,8 +107,9 @@ LABELS = {
     "surcharge_detail_parts_stacked": N_("{pct} % on the marked positions, the parts and the handling costs|calc"),
     "raw_detail": N_("{pct} % of the positions with raw data|calc"), "discount": N_("Discount|calc"),
     # 2.1201.0 (#6175): "discountable" (was "marked": the PDF marks nothing)
-    "discount_detail": N_("{pct} % on the discountable positions|calc"),
-    "discount_detail_amount": N_("Fixed amount on the discountable positions|calc"),  # 2.1042.0 (#5815)
+    # 2.1327.0 (#6816): always with the base it is computed on ("5 % on the discountable positions (14,200.00 EUR)")
+    "discount_detail": N_("{pct} % on the discountable positions ({base})|calc"),
+    "discount_detail_amount": N_("Fixed amount on the discountable positions ({base})|calc"),  # 2.1042.0 (#5815)
     "net": N_("Net Total|calc"), "net_incl_raw": N_("Net total with option raw data|calc"), "net_excl_raw": N_("excluding raw data|calc"),  # 2.114.4 A (#2275)
     "gross": N_("Gross Total|calc"),
     "tax_standard": N_("VAT {pct} %|calc"), "tax_reduced": N_("VAT {pct} %|calc"), "tax_exempt": N_("tax exempt|calc"),
@@ -118,6 +119,7 @@ LABELS = {
     "opt_optional": N_("Optional:|calc"), "opt_alternative": N_("Alternative:|calc"),  # 2.1041.0 (#5814)
     "opt_note": N_("Optional and alternative positions are not included in the total.|calc"),
     "subtotal_section": N_("Subtotal {title}|calc"),  # 2.1041.0 (#5816; "subtotal" is a word of the packs already)
+    "subtotal": N_("Subtotal|calc"),  # 2.1327.0 (#6816): the net of the positions before the first surcharge / discount (packs: "subtotal")
     "unit_day": N_("days|calc"), "unit_hour": N_("h|calc"), "unit_piece": N_("pcs|calc"), "unit_minute": N_("min|calc"), "unit_flat": N_("flat|calc"),
 }
 CALC_PROD_WORD = (N_("production day|calc"), N_("production days|calc"))  # 2.185.0 C (#2520)
@@ -566,7 +568,7 @@ def office_calc(doc, items, pack=None):
         disc_by[k] = _num(d)
     if discount > 0:
         lines.append({"kind": "discount", "title": label(pack, lang, "discount"), "pct": None if amt_on else _num(disc_pct), "total": _num(-discount),
-                      "detail": label(pack, lang, "discount_detail_amount") if amt_on else label(pack, lang, "discount_detail", pct=fmt_qty(disc_pct, lang)),
+                      "detail": calc_disc_detail(pack, lang, currency, amt_on, disc_pct, sum(disc_base.values(), Decimal(0)), doc.get("sub_legacy")),  # 2.1327.0 (#6816)
                       "by_tax": disc_by, **({"amount": _num(discount)} if amt_on else {})})
 
     net = items_net + prod_total + hu_total + mk_total + (raw_amount if raw_mode == "included" else Decimal(0)) - discount
@@ -610,9 +612,53 @@ def office_calc(doc, items, pack=None):
         out["mk_pct_line"] = 1  # 2.1309.0 (#6490): computed with the markup as "15 %" | base | amount (docs._mk_flat reads it)
     if any(x.get("opt") for x in lines):  # 2.1041.0 (#5814): only then (the totals of every other document stay as they were)
         out["opt_note"] = label(pack, lang, "opt_note")
+    if not _flag(doc.get("sub_legacy")):  # 2.1327.0 (#6816): a quotation sent before keeps its lines (docs._sub_legacy)
+        calc_items_sub(lines, items_net, pack, lang, currency)  # before the sections' subtotals (they close before it)
+        out["it_sub"] = 1  # computed with the positions' subtotal and the discount's base (docs._sub_legacy reads it)
     if _flag(doc.get("subtotals")):  # 2.1041.0 (#5816)
         calc_subtotals(lines, pack, lang, currency)
     return out
+
+
+CALC_AFTER = ("producing", "surcharge", "raw", "discount")  # the lines the calculation adds after the positions
+
+
+def calc_disc_detail(pack, lang, currency, amt_on, pct, base, legacy=False):
+    """2.1327.0 (#6816): the explanation of a quotation's discount line, always naming its base (the discountable positions);
+    legacy (a quotation sent before, docs._sub_legacy): without it, as it was sent."""
+    b = "{base}" if _flag(legacy) else fmt_money(max(dec(base), Decimal(0)), lang, currency)
+    s = label(pack, lang, "discount_detail_amount", base=b) if amt_on else label(pack, lang, "discount_detail", pct=fmt_qty(pct, lang), base=b)
+    return s.replace(" ({base})", "").replace("({base})", "").strip() if _flag(legacy) else s
+
+
+def calc_items_sub(lines, total, pack, lang, currency):
+    """2.1327.0 (#6816): inserts a line {kind: subtotal, items: 1, label, total, total_text} = total (the net of the positions,
+    items_net) right before the first line the calculation adds after the positions (producing, a surcharge, included raw
+    data or the discount), when a producing, surcharge or discount line follows; else none (no switch). Display only: no sum
+    changes; one line, none between surcharge and discount (the discount is computed on the positions only)."""
+    at = next((i for i, x in enumerate(lines) if x.get("kind") in CALC_AFTER and not (x.get("kind") == "raw" and x.get("optional"))), None)
+    if at is None or not any(x.get("kind") in ("producing", "surcharge", "discount") for x in lines[at:]):
+        return lines
+    lines.insert(at, {"kind": "subtotal", "items": 1, "title": "", "label": label(pack, lang, "subtotal"), "total": _num(dec(total)),
+                      "total_text": fmt_money(dec(total), lang, currency)})
+    return lines
+
+
+def inv_items_sub(lines, pack, lang, currency):
+    """2.1327.0 (#6816): the same on an invoice (a document of positions only): before the first discount position or markup
+    position of a quotation (sur_pct, "15 %") after its last other position, the sum of the positions above it. None when
+    the invoice deducts progress invoices (abs_tax: their own rows in the totals) or nothing such ends it."""
+    if any(x.get("abs_tax") is not None for x in lines):
+        return lines
+    cnt = [i for i, x in enumerate(lines) if x.get("kind") in ("item", "discount")]
+    plain = [i for i in cnt if lines[i].get("kind") == "item" and lines[i].get("sur_pct") is None]
+    at = next((i for i in cnt if plain and i > plain[-1]), None)
+    if at is None:
+        return lines
+    tot = sum((dec(lines[i].get("total")) for i in cnt if i < at), Decimal(0))
+    lines.insert(at, {"kind": "subtotal", "items": 1, "title": "", "label": label(pack, lang, "subtotal"), "total": _num(tot),
+                      "total_text": fmt_money(tot, lang, currency)})
+    return lines
 
 
 def sur_pct_fields(pct, base, amt, split, src, lang="de"):
@@ -846,6 +892,7 @@ def inv_calc(doc, items, pack=None):
         "lines": lines,
         "labels": {k: label(pack, lang, k) for k in ("net", "gross", "discount")},
     }
+    inv_items_sub(lines, pack, lang, currency)  # 2.1327.0 (#6816): before the sections' subtotals (a trailing discount is after them)
     if _flag(doc.get("subtotals")):  # 2.1041.0 (#5816): a discount position inside a section counts there
         calc_subtotals(lines, pack, lang, currency, ("item", "discount"))
     if foreign:  # the tax (and the total) in the home currency as well, by the document's rate (2.189.0: keys keep "_eur")

@@ -394,7 +394,8 @@ def _calc_doc(r, home="EUR"):  # 2.189.0 (#2475): home = the office's home curre
             "date": dict(r).get("date"), "service_to": dict(r).get("service_to"),  # 2.531.0 (#4498): the rates of the day of service
             "sur_standard": _sur_legacy(r),  # 2.1228.0 (#6254, review)
             "mk_per_part": _mk_legacy(r),  # 2.1249.0 (#6281)
-            "mk_flat_line": _mk_flat(r)}  # 2.1309.0 (#6490)
+            "mk_flat_line": _mk_flat(r),  # 2.1309.0 (#6490)
+            "sub_legacy": _sub_legacy(r)}  # 2.1327.0 (#6816)
 
 
 def _sur_legacy(r):
@@ -421,6 +422,18 @@ def _mk_flat(r):
     if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
         return 0
     return 0 if _j(r["totals"], {}).get("mk_pct_line") else 1
+
+
+def _sub_legacy(r):
+    """2.1327.0 (#6816): 1 = quotation row r left the draft (finalised, or set to sent / accepted / declined) and was last computed
+    before the positions' subtotal and the discount's base (its cached / frozen totals lack "it_sub"): its PDF, the client's view
+    (and the hash of an open approval link: signoff.sig_doc_hash) and its invoices keep the lines it was sent with. A draft takes
+    them (odoc_set_status computes it once more before it leaves the draft)."""
+    if dict(r).get("kind") != "offer":
+        return 0
+    if not ofx_locked(r) and (dict(r).get("status") or "draft") == "draft":
+        return 0
+    return 0 if _j(r["totals"], {}).get("it_sub") else 1
 
 
 def _mk_stale(c, oid, r):
@@ -1357,7 +1370,7 @@ def ofp_flat(m):
         out = []
         for ln in lines or []:
             k = ln.get("kind") if isinstance(ln, dict) else None
-            if k in OFP_AUTO or (k == "raw" and not ln.get("optional")):
+            if k in OFP_AUTO or (k == "raw" and not ln.get("optional")) or (k == "subtotal" and ln.get("items")):  # 2.1327.0 (#6816): + the positions' subtotal
                 continue
             if k == "item":
                 ln = {kk: v for kk, v in ln.items() if kk not in OFP_DROP and (ln.get("opt") or kk not in ("total", "total_text"))}
@@ -1901,8 +1914,9 @@ def odoc_set_status(c, oid, did, st, uid, r=None):
                 inv_pay_add(c, oid, uid, did, {"amount": str(rest), "note": tr("Marked as paid by hand")})  # sets paid / paid_at, invoice.paid
                 ofx_log(c, oid, "status", doc_id=did, detail={"before": {"status": r["status"]}, "after": {"status": "paid"}})
                 return
-    if r["kind"] == "offer" and r["status"] == "draft" and st != "draft" and not ofx_locked(r) and dict(r).get("markup_pct") is not None:
-        recalc(c, oid, did)  # 2.1309.0 (#6490): its totals as the draft shows them (mk_pct_line), so it keeps that line once sent
+    if r["kind"] == "offer" and r["status"] == "draft" and st != "draft" and not ofx_locked(r) and (dict(r).get("markup_pct") is not None
+                                                                                          or not _j(r["totals"], {}).get("it_sub")):
+        recalc(c, oid, did)  # 2.1309.0 (#6490): its totals as the draft shows them (mk_pct_line), so it keeps that line once sent; 2.1327.0 (#6816): + it_sub
     c.execute("UPDATE office_docs SET status=?, updated_at=?, sent_at=COALESCE(sent_at, ?) WHERE id=? AND org_id=?",
               (st, iso_ms(now_utc()), ts if st in ("sent", "accepted", "declined", "superseded") else None, did, oid))  # 2.571.0 (#4776): updated_at in ms
     if r["kind"] != "offer":
