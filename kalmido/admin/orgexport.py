@@ -222,6 +222,12 @@ def _clean(c, oid, table, r):
         row["archived"] = list_archived(row)
     if table == "obj_reactions":
         row[OX_RX_COL[row.pop("target_kind")]] = row.pop("target_id")
+    if table == "obj_history":  # 2.1334.0 (review #5153 F2): a change of a secret-like field never leaves, also inside the history
+        for k in ("vals_before", "vals_after"):
+            v = row.get(k)
+            j = json.loads(v) if isinstance(v, str) and v.strip().startswith("{") else v
+            if isinstance(j, dict):
+                row[k] = {f: x for f, x in j.items() if f not in OX_SECRET_COLS}
     if table == "template_files":  # 2.1334.0 (review F4): the server's storage path stays here (the file is under files/templates/)
         row.pop("path", None)
     if table == "agent_rules":  # 2.1334.0 (#6585): the rule, never where it was learned (a member's private chat with the agent, a
@@ -689,6 +695,15 @@ OX_HISTORY_TABLES = {"tchat_msg": "tchat_msgs"}
 # (OX_AFTER_READ / OX_AFTER_READ_FILES: below OX_NODE_FILES)
 
 
+def ox_reads_agent_rules(c, by):
+    """2.1334.0 (review #5153 F1): agents/rules.json holds the rules of the team agents; in the app only an instance admin reads
+    them (agents/core.py may_set_runtime for an agent without owner) -- an organisation admin who is none gets no rules file
+    (the manifest names agent_rules under not_included)."""
+    uid = (by or {}).get("id")
+    r = c.execute("SELECT is_admin FROM users WHERE id=?", (uid,)).fetchone() if uid else None
+    return bool(r and r["is_admin"])
+
+
 def ox_history_skip():
     """2.1334.0 (review F5): the tables whose objects are filtered after reading (derived from OX_AFTER_READ / _FILES)."""
     return set(OX_AFTER_READ) | {t for n, t, _w in OX_AREAS + oex_org(OX_FMT) if n in OX_AFTER_READ_FILES}
@@ -997,8 +1012,12 @@ def ox_build(c, oid, out, by=None):
 
         def vis(where):
             return where.replace(CSQ, csq).replace(APQ, apq).replace(LSQ, lsq)
+        rules_out = False
         for name, table, where in ox_areas():  # 2.1093.0 (#5289): + the core's register
             if table not in have:
+                continue
+            if table == "agent_rules" and not ox_reads_agent_rules(c, by):  # review #5153 F1: the export follows the app
+                rules_out = True
                 continue
             for e in [e for e in oex_org_raw() if e[0] == name and e[1] == table]:  # 2.1334.0 (#6585): HISTORY / LINKED per archive
                 where = e[2].format(**{**OX_FMT, **{k: f(c, vis) for k, f in OX_FILLED.items() if "{" + k + "}" in e[2]}})
@@ -1128,7 +1147,8 @@ def ox_build(c, oid, out, by=None):
             "counts": man.counts, "files": man.files,
             "client_encrypted": {**man.client_enc, "note": "Encrypted in the browser by their author: stored here as ciphertext, only the author can open them."},
             "decrypted": ox_decrypted_note("organisation"),
-            "not_included": [*ox_not_included(c, by, OX_NOT_INCLUDED), *left_lines(ox_left(), ox_lang(c, by))],  # 2.449.0 (#3768), 2.362.4 (#3107), 2.464.0 (#3841)
+            "not_included": [*ox_not_included(c, by, OX_NOT_INCLUDED),
+                             *left_lines({**ox_left(), **({"agent_rules": _AGENT} if rules_out else {})}, ox_lang(c, by))],  # 2.449.0 (#3768), 2.362.4 (#3107), 2.464.0 (#3841)
             "locked_files": man.locked,  # 2.209.0 D (#1856)
             "missing": man.missing,  # 2.363.2 (#3106)
             "not_imported": ox_not_imported(man.files, ox_lang(c, by)),  # 2.1334.0 (#6585)
