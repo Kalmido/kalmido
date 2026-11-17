@@ -1,6 +1,16 @@
 {
  "versions": [
   {
+   "version": "2.1323.0",
+   "date": "2026-11-17",
+   "items": [
+    {
+     "de": "E-Mails mit Inhalten (Tageszusammenfassung, Ereignis-Mails) gehen nur noch an eine bestätigte Adresse - in Einstellungen > Benachrichtigungen steht dafür „Adresse bestätigen“.",
+     "en": "E-mails with content (daily summary, event e-mails) go only to a confirmed address - Settings > Notifications has \"Confirm address\" for it."
+    }
+   ]
+  },
+  {
    "version": "2.1318.0",
    "date": "2026-11-17",
    "items": [
@@ -1267,24 +1277,6 @@
     {
      "de": "Unter Einstellungen > Hilfe > Code prüfen zeigt Kalmido, welcher Code in deinem Browser läuft, als Prüfwert zum Vergleich mit der Veröffentlichung.",
      "en": "Settings > Help > Check code shows which code runs in your browser, as a hash to compare with the published release."
-    }
-   ]
-  },
-  {
-   "version": "2.762.0",
-   "date": "2026-11-09",
-   "items": [
-    {
-     "de": "In der geteilten Ansicht kannst du Aufgaben, Dateien und Dokumente von einer Hälfte in die andere ziehen - in Listen, Kalender, Büro, Ablage oder auf eine Aufgabe.",
-     "en": "In the split view you can drag tasks, files and documents from one half into the other - into lists, the calendar, the office, the file store or onto a task."
-    },
-    {
-     "de": "Dateien und Dokumente sind ein Bereich mit einem Ordnerbaum; ein Ordner mit Erkennung zeigt seine Dokumente mit Suche, Filter und Sortierung.",
-     "en": "Files and documents are one area with one folder tree; a folder with recognition shows its documents with search, filters and sorting."
-    },
-    {
-     "de": "„Alle Dokumente“, „Zu prüfen“ und gespeicherte Ansichten stehen in der Seitenleiste unter dem Ordnerbaum.",
-     "en": "\"All documents\", \"To review\" and saved views sit in the sidebar below the folder tree."
     }
    ]
   }

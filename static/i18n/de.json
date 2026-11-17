@@ -18992,5 +18992,8 @@
   "Git connection {0} reached its daily limit of new issues or comments ({1}); the rest goes out tomorrow.": "Git-Verbindung {0} hat ihre Tagesgrenze für neue Issues oder Kommentare erreicht ({1}); der Rest geht morgen raus.",
   "at most 60 issues and 300 comments a day": "höchstens 60 Issues und 300 Kommentare am Tag",
   "hash chain broken here (daily check)": "Hash-Kette hier gebrochen (tägliche Prüfung)",
-  "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hash-Kette im Büro gebrochen: Büro {0}, Dokument-ID {1} (Reihe {2}, Stelle {3}, {4}). Das Büro-Protokoll nennt es."
+  "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hash-Kette im Büro gebrochen: Büro {0}, Dokument-ID {1} (Reihe {2}, Stelle {3}, {4}). Das Büro-Protokoll nennt es.",
+  "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Bis dahin gehen E-Mails mit Inhalten (die Tageszusammenfassung, Benachrichtigungen) nicht an sie.",
+  "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bitte bestätige zuerst deine E-Mail-Adresse: E-Mails mit Inhalten gehen nur an eine bestätigte Adresse.",
+  "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Deine Adresse ist noch nicht bestätigt: Die Tageszusammenfassung und E-Mails zu Ereignissen gehen erst raus, wenn du sie bestätigt hast."
 }
