@@ -4,7 +4,9 @@ Omitted collects (name, reason) while an export is built; write() puts a text fi
 language, e.g. "nicht enthalten.txt") into the ZIP root with one line per item: name and reason. Nothing collected ->
 no file. Used by the folder ZIP of the files (files/bulk.py) and the other ZIP exports (integrations/exporters.py, wiki).
 Reasons are i18n keys (N_), translated when the file is written; only names the reader may see go in."""
-from .i18n import N_, tr, trn
+import re
+
+from .i18n import LANGS, N_, tr, trn
 
 OMIT_FILE = N_("not included|file name of the list in a ZIP")
 OMIT_HEAD = N_("These items are not in this ZIP:")
@@ -60,3 +62,17 @@ class Omitted:
         nm = self.file_name({str(t).lower() for t in taken})
         z.writestr(nm, self.text().encode("utf-8"))
         return nm
+
+
+def omit_names():
+    """2.1336.0 (#6804): the names of the list in every language (lower case, without ".txt"): a re-import of an export passes
+    over the list silently (wiki/wikiatt.py; the browser's import of a locked space gets them in the state, core/state.py
+    omit_names -- one source, the i18n key, not a second list)."""
+    out = {tr(OMIT_FILE, lg=lg).replace("/", "_").replace("\\", "_").strip().lower() for lg in LANGS}
+    return sorted(n for n in out if n)
+
+
+def is_omit_file(name):
+    """2.1336.0 (#6804): name (as in the ZIP) is the list Kalmido wrote into the ZIP root: "<name>.txt" or "<name> (2).txt"."""
+    m = re.fullmatch(r"(.+?)(?: \(\d{1,6}\))?\.txt", str(name or "").strip().lower())
+    return bool(m) and "/" not in str(name) and m.group(1) in omit_names()
