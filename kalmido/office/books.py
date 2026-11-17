@@ -521,9 +521,14 @@ def bk_credit_rest(c, oid, r, home, memo):
     full = _rate_lines(_j(r["totals"]).get("tax_lines"))
     if not full:
         return None
+    if "_credits" not in memo:  # 2.1365.0 (#6795): the finalised credit notes of the office read once per run, was one query per
+        # paid invoice (5,000 invoices: 3,400 statements, 750 ms for the income statement)
+        cr = memo["_credits"] = {}
+        for x in c.execute(f"SELECT cancels_id, totals FROM office_docs WHERE org_id=? AND kind='credit' AND cancels_id IS NOT NULL "
+                           f"AND locked_at IS NOT NULL AND {live_sql()} ORDER BY id", (oid,)).fetchall():
+            cr.setdefault(x["cancels_id"], []).append(x)
     crd = {}
-    for x in c.execute(f"SELECT totals FROM office_docs WHERE org_id=? AND kind='credit' AND cancels_id=? AND locked_at IS NOT NULL AND {live_sql()}",
-                       (oid, r["id"])).fetchall():
+    for x in memo["_credits"].get(r["id"], ()):
         tl = _rate_lines(_j(x["totals"]).get("tax_lines"))
         if not tl and money(dec(_j(x["totals"]).get("gross") or 0)) != 0:
             return None
