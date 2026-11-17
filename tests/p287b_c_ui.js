@@ -97,7 +97,7 @@ const FEAT = 'cal,comments,collab,contacts,office,clients';
     await click(ev, '#view .ofpb .ofpback');  // 2.98.0 (#2180)
     check(await ready(ev, `location.hash === '#office/start' && document.querySelectorAll('#view .oflg').length === 4` /* 2.489.0 (#2664): + the address book, an entry of its own */, 60), '#1917 phone: the path leads back to the tiles');
     await click(ev, '#view .oflc [data-ofm="contacts"]');
-    check(await ready(ev, `location.hash === '#contacts' && /Office\\s*·\\s*Address book/.test(document.querySelector('#view .ofpb .ofpback')?.textContent || '')`, 60), '#1917 phone: Contacts under Office · Address book (2.489.0 #2664: no point of Sell)');
+    check(await ready(ev, `location.hash === '#contacts' && /Office\\s*·\\s*Contacts/.test(document.querySelector('#view .ofpb .ofpback')?.textContent || '')`, 60), '#1917 phone: Contacts under Office · Contacts (2.489.0 #2664: no point of Sell)');  // 2.1329.0 (#6349): the group is called Contacts since 2.1168.0 (#6118), was Address book
     // ================= member of an organisation
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1280, height: 900}});
     await signIn(ev, 'bob');
