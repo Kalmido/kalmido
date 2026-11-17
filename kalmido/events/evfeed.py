@@ -14,7 +14,7 @@ from flask import jsonify, Response
 from ..core.config import app, APP_NAME, PUBLIC_URL
 from ..core.i18n import tr
 from ..core.db import body, db
-from ..accounts.session import _rate_blocked, _rate_fail, client_ip, me
+from ..accounts.session import _rate_blocked, _rate_fail, client_ip, me, rate_ip
 from ..core.access import need_feat, acx_token_bind, feat_has
 from ..core.errors import BadInput
 from ..core.tokenhash import tkh_evfeed_match, tkh_set_evfeed
@@ -86,7 +86,7 @@ def _nf():
 
 @app.get("/ical/ev/<token>.ics")
 def evf_feed(token):
-    keys = [("ical:" + client_ip(), EVF_FAIL_LIMIT)]
+    keys = [("ical:" + rate_ip(), EVF_FAIL_LIMIT)]
     if _rate_blocked(keys):
         return Response("Too many requests\n", 429, content_type="text/plain; charset=utf-8")
     c = db()

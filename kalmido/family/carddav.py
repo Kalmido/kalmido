@@ -17,8 +17,8 @@ from ..accounts.session import GATE, me
 from ..core.access import Denied, list_role, need_list, WRITE_ROLES
 from ..tasks.validation import as_int, DATE_MIN_Y
 from ..calendars.subscriptions import (
-    _cal_limited, _CAL_LOCK, _dav_href, _dav_responses, _dav_xml, cal_allow, CAL_ERR, cal_err_text, cal_href_ok,
-    cal_http, cal_norm_url, CAL_ON, cal_rate, cal_seal, CAL_TICK, cal_unseal, cal_url_hint, CalError, DAV_NS, need_cal, pgb_heal,
+    _cal_limited, _CAL_LOCK, _dav_href, _dav_responses, _dav_xml, cal_allow, CAL_ALERT_FAILS, CAL_ERR, cal_err_text, cal_href_ok,
+    cal_http, cal_http_refused, cal_norm_url, CAL_ON, cal_rate, cal_seal, CAL_TICK, CAL_USER_FAILS, cal_unseal, cal_url_hint, CalError, DAV_NS, need_cal, pgb_heal,
 )
 from ..family.family import (
     _jparse, CONTACT_CARDS_MAX, CONTACT_EVERY_MIN, CONTACT_SRCS_MAX, FAM_LEAD_MAX, FAM_NAME_MAX, FAM_OCC, occ_create, pm_fam_target,
@@ -26,6 +26,8 @@ from ..family.family import (
 )
 from ..calendars.davwrite import cdw_inside  # 2.369.5 (#2517): pulled up from functions
 from ..collab.liste2e import le2a_gen_refuse  # 2.369.5 (#2517): pulled up from functions
+from ..collab.integfail import integ_tell  # 2.1342.0 (#6553 2)
+from ..notify.alerts import aa_now  # 2.1342.0 (#6553 2)
 
 
 # ---- CardDAV: birthdays + anniversaries from contacts (private per user, like calendar subscriptions)
@@ -56,7 +58,7 @@ def carddav_books(url, auth, allow):
         try:
             final, rs = _card_propfind(cand, 0, "<d:resourcetype/><d:current-user-principal/><card:addressbook-home-set/>", auth, allow)
         except CalError as e:
-            if e.code in ("auth", "blocked", "tls", "timeout", "too_large"):
+            if e.code in ("auth", "blocked", "tls", "timeout", "too_large", "needs_https"):  # 2.1342.0 (#6553 1)
                 raise
             continue
         if not rs:
@@ -344,7 +346,7 @@ def wb_err_text(stored):
 def contacts_writeback(c, s, auth, allow, todo, ro, lg):
     """contacts_sync, outside a transaction: todo = [(link row, task row, href, book, (name, mo, dy, y) of the card)].
     -> {href: new card text} of the cards written (for the mirror)."""
-    done, err_ = {}, ""
+    done, err_, refused = {}, "", []
     for ln, t, href, book, (name, mo, dy, y) in todo[:CONTACT_WB_MAX]:
         w = _jparse(ln["want"]) or {}
         nmo, ndy = (w["mo"], w["dy"]) if w.get("mo") and w.get("dy") else (mo, dy)
@@ -379,15 +381,30 @@ def contacts_writeback(c, s, auth, allow, todo, ro, lg):
                 err_ = "read_only"
             else:
                 err_ = e.code if e.code in ("weak_etag", "parse") else e.stored()
+            if not keep:  # 2.1342.0 (#6553 2): refused for good -> the person hears it, with the contact's name
+                refused.append((name, t["list_id"], err_))
         except Exception as e:  # noqa: BLE001  (one card never stops the sync)
             print("contacts write-back: source", s["id"], "failed:", type(e).__name__, flush=True)
             err_ = "parse"
+            refused.append((name, t["list_id"], err_))
         if not keep:
             c.execute("UPDATE contact_links SET want='' WHERE src_id=? AND uid=? AND kind=?", (s["id"], ln["uid"], ln["kind"]))
         c.commit()
     c.execute("UPDATE contact_srcs SET wb_err=?, wb_ro=? WHERE id=?", (err_, json.dumps(sorted(ro)), s["id"]))
+    if refused:  # 2.1342.0 (#6553 2): one News item per sync, naming the contacts (up to three); a click opens their project
+        names = ", ".join(dict.fromkeys(r[0] for r in refused[:3])) + (" …" if len(refused) > 3 else "")
+        integ_tell(c, [s["user_id"]], "carddav_wb", s["name"], wb_err_reason(refused[-1][2]), click="settings", more=(names,),
+                   list=refused[-1][1], focus="carddav")
     c.commit()
     return done
+
+
+def wb_err_reason(stored):
+    """2.1342.0 (#6553 2): why a write-back was refused, as a text marked with N_ (integ_tell translates it per person)."""
+    code = (stored or "").partition(":")[0]
+    if code in ("read_only", "weak_etag", "parse"):
+        return WB_ERR[code]
+    return CAL_ERR[code] if code in CAL_ERR and code not in ("http", "too_large") else CAL_ERR["error"]
 
 
 def cdv_wb_note(c, tid, cur, b):
@@ -538,15 +555,23 @@ def contacts_sync(c, sid):
                 with c.savepoint():  # 2.37.0 (#1150): a failing statement here leaves the birthdays above intact
                     mirror_source(c, sid, cards[:CONTACT_CARDS_MAX])
             except Exception as e:  # noqa: BLE001  (the birthdays above stay, whatever happens here)
-                print("contacts sync: mirroring source", sid, "failed:", type(e).__name__, e, flush=True)
+                print("contacts sync: mirroring source", sid, "failed:", type(e).__name__, flush=True)  # 2.1342.0 (#6553 4): the type only (the text can carry card content)
             upd.update(status="ok", error="", fails=0, count=n, synced_at=iso(now_utc()))
             bump(c)
         except Exception as e:  # noqa: BLE001
             ce = e if isinstance(e, CalError) else CalError("error", type(e).__name__)
             if not isinstance(e, CalError):
-                print("contacts sync: source", sid, "failed:", type(e).__name__, e, flush=True)
+                print("contacts sync: source", sid, "failed:", type(e).__name__, flush=True)  # 2.1342.0 (#6553 4): the type only
             pgb_heal(c)
             upd.update(status="error", error=ce.stored(), fails=s["fails"] + 1)
+            # 2.1342.0 (#6553 2): as a calendar subscription: the person hears it once per streak (the name only, never the
+            # address), the admins get an alert from the fifth failure on
+            if upd["fails"] == CAL_USER_FAILS:
+                integ_tell(c, [s["user_id"]], "carddav", s["name"] or "CardDAV", click="settings", focus="carddav")
+            if upd["fails"] >= CAL_ALERT_FAILS:
+                login = (c.execute("SELECT username FROM users WHERE id=?", (s["user_id"],)).fetchone() or [""])[0]
+                aa_now("integration", f"carddav:{sid}:{ce.code}", N_("Address book #{0} of user {1} failed {2} times in a row ({3})."),
+                       [sid, login, upd["fails"], ce.stored()])
         c.execute(f"UPDATE contact_srcs SET {', '.join(k + '=?' for k in upd)} WHERE id=?", (*upd.values(), sid))
         c.commit()
         return True
@@ -592,6 +617,8 @@ def family_contacts_add():
     user, pw = b.get("username"), b.get("password")
     if not url or not isinstance(user, str) or not isinstance(pw, str) or not user.strip() or not pw or len(user) > 200 or len(pw) > 500:
         return err(tr("Server address, username and password are needed"))
+    if cal_http_refused(cal_allow(c, "carddav"), url):  # 2.1342.0 (#6553 1): the password never over plain http
+        return jsonify(error=contact_err_text("needs_https"), code="needs_https"), 400
     if c.execute("SELECT COUNT(*) FROM contact_srcs WHERE user_id=?", (uid,)).fetchone()[0] >= CONTACT_SRCS_MAX:
         return err(tr("At most {0} address books", CONTACT_SRCS_MAX), 409)
     lid = b.get("list_id")

@@ -121,8 +121,12 @@ function ui_doneStart(id, hide) {
   const gone = () => {
     if (a.cancelled) return;
     if (!mo) { rows.forEach(r => { r.style.display = 'none'; }); end(); return; }
-    rows.forEach(r => { r.style.height = r.offsetHeight + 'px'; r.offsetHeight; r.classList.add('ui-gone'); });
-    tm.push(setTimeout(end, UI_GONE_MS));
+    // 2.1342.0 (#6927): the exit ends when the fold has really ended (transitionend of the height on every row) - the timer alone
+    // could let the redraw come while the row still had some height; the timer stays as the fallback (no transition, a hidden tab)
+    let left = rows.length;
+    const fold = e => { if (e.propertyName !== 'height' || !e.target.classList.contains('ui-gone')) return; e.target.removeEventListener('transitionend', fold); if (!--left) end(); };
+    rows.forEach(r => { r.addEventListener('transitionend', fold); r.style.height = r.offsetHeight + 'px'; r.offsetHeight; r.classList.add('ui-gone'); });
+    tm.push(setTimeout(end, UI_GONE_MS + 150));
   };
   if (!rows.length) end();
   else if (!hide) tm.push(setTimeout(end, mo ? UI_STRIKE_MS : 0));

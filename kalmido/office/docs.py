@@ -572,6 +572,9 @@ def doc_public(c, oid, r, admin, items=True):
             if r["kind"] == "invoice":  # 2.144.6 A (#2053): the time entries it billed
                 from .timebill import tbill_doc_time
                 d["time_billed"] = tbill_doc_time(c, r["id"])
+                if r["status"] == "cancelled":  # 2.1342.0 (#6479): its receipts can be released like the time
+                    from .outlays import au_doc_outlays
+                    d["outlays_billed"] = au_doc_outlays(c, oid, r["id"])
             if r["kind"] == "credit" and d.get("cancels_id"):
                 x = c.execute(f"SELECT id, number FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (d["cancels_id"], oid)).fetchone()  # 2.1005.0 (#5415): not the trash
                 d["cancels"] = {"id": x["id"], "number": x["number"]} if x else None

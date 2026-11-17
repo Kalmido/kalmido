@@ -19055,5 +19055,14 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Un fichier par projet dans un ZIP : CSV Todoist pour l'import dans Todoist, Markdown en listes de contrôle pour toute app de notes. Seuls tes propres projets y entrent : les projets partagés avec toi et ceux verrouillés par mot de passe restent dehors, une liste dans le ZIP les nomme.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "verrouillé par mot de passe (chiffré de bout en bout) : le serveur ne le détient que chiffré",
   "shared with you: only the projects you own are exported": "partagé avec toi : seuls tes propres projets sont exportés",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Projets partagés non inclus : {0}. Cette exportation ne contient que tes propres projets."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Projets partagés non inclus : {0}. Cette exportation ne contient que tes propres projets.",
+  "Address book {0} cannot be read any more: its birthdays and anniversaries may be out of date.": "Le carnet d'adresses {0} ne peut plus être lu : ses anniversaires et dates de fête ne sont peut-être plus à jour.",
+  "Address book {0} did not take the changed date of {2}; it stays in Kalmido only ({1}).": "Le carnet d'adresses {0} n'a pas accepté la date modifiée de {2} ; elle reste seulement dans Kalmido ({1}).",
+  "Address book #{0} of user {1} failed {2} times in a row ({3}).": "Le carnet d'adresses #{0} de {1} a échoué {2} fois de suite ({3}).",
+  "Only the outlays of a cancelled invoice can be released": "Seuls les débours d'une facture annulée peuvent être libérés",
+  "Release the outlays again": "Libérer à nouveau les débours",
+  "Release the outlays again?": "Libérer à nouveau les débours ?",
+  "{0} receipt of this cancelled invoice can then go onto a new invoice.": ["{0} justificatif de cette facture annulée pourra alors figurer sur une nouvelle facture.", "{0} justificatifs de cette facture annulée pourront alors figurer sur une nouvelle facture."],
+  "{0} receipt released": ["{0} justificatif libéré", "{0} justificatifs libérés"],
+  "This release has already been undone": "Cette libération a déjà été annulée"
 }

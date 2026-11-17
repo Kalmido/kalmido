@@ -53,7 +53,7 @@ password: 403 with `password_needed` until the request carries `{"password": ...
 - Nobody matches: "no account". The exception is when **Create accounts on the first OIDC sign-in** is on, in which case the person gets a new account. When the user name claim is not a valid Kalmido user name (Google sends none, Entra sends `anna@corp.example`), the new account is named after the local part of the verified e-mail. That name is used only for creating, never for matching an existing account. A name that is already taken, or no usable name at all, refuses the sign-in: no number is added.
 - Unlink an account under Settings › Organisation › People › edit. The next login links it again by the rules above.
 
-Calendar apps (CalDAV) do not use OIDC: every person creates an app password (see [CALDAV.md](CALDAV.md)).
+Calendar apps (CalDAV) do not use OIDC: every person creates an app password (see [CALDAV.md](CALDAV.md)). An app password is a login of its own: neither the provider's sign-in nor a second factor (of the provider or of Kalmido) is asked for when a calendar or contacts app uses it. Revoke them under *Settings › Account › App passwords* (2.1342.0, #6553).
 
 ## Provider guides
 
