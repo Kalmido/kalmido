@@ -117,6 +117,11 @@ def v1_agent_request_token():
     return jsonify(token=tok, expires_at=exp, asked_by=who, list_ids=sorted(lids or ()))
 
 
+def req_main_token():
+    """Review F3: is the current request one of an agent's own long-lived token (no request token, no run)?"""
+    return g.get("auth_via") == "token" and _main(g.get("token"))
+
+
 def req_unasked():
     """Is the current request one of a request token without a person (the automation of a team agent's projects)? Then every
     change is an approval card (agents/control.py ctl_gate)."""

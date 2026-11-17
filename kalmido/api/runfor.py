@@ -115,11 +115,12 @@ def req_main_gate(c, row, u):
     team agent that works per request (agents.per_request) on a route outside its own channel, else None. A run / request
     token (asked_by) is held by run_gate; the replay of an approved job and the step of an answered card (run in this process
     by agents/control.py ctl_run_replay, environ "kalmido.ctl_run" = CTL_RUN_ENV, never set by a network request: the step a
-    person said Yes to) are no such request."""
+    person said Yes to; review F3: only a write -- ctl_gate then always checks the card and the rights of the person who said
+    Yes, also without a control level; a read through a card needs the request token) are no such request."""
     if ("asked_by" in row.keys() and row["asked_by"] is not None) or g.get("approved_job") or request.url_rule is None:
         return None
-    if request.environ.get("kalmido.ctl_run"):
-        return None
+    if request.environ.get("kalmido.ctl_run") and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        return None  # review F3: only a change, and agents/control.py ctl_gate checks the card and the Yes-sayer's rights
     with system_ctx(c):  # structure: the agent row
         a = c.execute("SELECT owner_id, per_request FROM agents WHERE user_id=?", (u["id"],)).fetchone()
     if a is None or a["owner_id"] or not a["per_request"]:

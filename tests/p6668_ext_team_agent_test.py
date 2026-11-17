@@ -19,6 +19,8 @@ tenant-matrix: agent (only the agent's own events; the token reaches only what t
      stays; a card a person answered still runs with it (the replay of an approved request)
  (f) static: the reference starter asks before every run and gives only the request token to the run (child_env), the
      dispatcher works with the chosen person's token; both launchers name the capability
+ (i) review F3: the step of a card run with the agent's own token always checks the card and the rights of the person who
+     said Yes (a reader's Yes changes nothing), a read through a card needs the request token
  (h) review F2: removing a computer of the agent (its long-lived token) ends the request tokens too (401)
  (g) review F1, no server: no request token for a team agent (403 no_order, 400, 404 event_gone, the network) = the run, the
      dispatcher round and their children never start / never get the agent's own token; an older server (plain 404) and a
@@ -244,6 +246,23 @@ check(Ca.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json={"choice_ids": ["y
 r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
 check(r.status_code == 201 and dbx("SELECT COUNT(*) FROM obj_comments WHERE kind='task' AND ref_id=? AND body='FOR-RITA'", (TX,)) == [(1,)],
       f"(e) the approved step runs with the agent's own token (the replay) {r.status_code} {r.text[:200]}")
+
+# ---- (i) review F3: the step of a card with the own token always checks the person who said Yes (no control level chosen)
+# Without the fix a Yes of a reader (or a card step that reads) ran with the agent's whole reach.
+m = requests.post(V + f"/agent/chats/{uid['rita']}", headers=XH, json={"approval": {"title": "Comment by Rita's Yes?", "step":
+                  {"method": "POST", "path": f"/api/v1/tasks/{TX}/comments", "body": {"body": "RITA-SAID-YES"}}}}, timeout=30)
+check(m.status_code == 201, f"(i) a card to rita {m.status_code} {m.text[:200]}")
+check(Ri.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json={"choice_ids": ["yes"]}).ok, "(i) rita (reads only) says Yes")
+r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
+check(r.status_code == 409 and err(r).get("reason") in ("approver_rights", None) and err(r).get("code") == "approval_invalid",
+      f"(i) the reader's Yes runs no change in project one {r.status_code} {r.text[:200]}")
+check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='RITA-SAID-YES'", (TX,)), "(i) ... nothing written")
+m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Read the crane budget?", "step":
+                  {"method": "GET", "path": f"/api/v1/tasks/{SX}"}}}, timeout=30)
+check(m.status_code == 201, f"(i) a card that reads {m.status_code} {m.text[:200]}")
+check(Ca.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json={"choice_ids": ["yes"]}).ok, "(i) carl says Yes")
+r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
+check(r.status_code != 200 and "Secret crane" not in r.text, f"(i) a read through a card needs the request token {r.status_code} {r.text[:200]}")
 
 # ================================================================ (c) an event without a person
 payload = {"id": str(uuid.uuid4()), "event": "followup_due", "agent_id": XT, "actor": None, "via": "web",
