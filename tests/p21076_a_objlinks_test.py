@@ -316,6 +316,15 @@ r = requests.delete(V + f"/agent/objects/task/{T1}/links/{EL}", headers=AGH)
 check(r.status_code == 403 and live(EL), f"F2: planbot removes a link whose source is an event: 403, it stays {r.status_code} {r.text[:160]}")
 sql("DELETE FROM obj_links WHERE id=?", (EL,), write=True)
 
+# 2.1364.0 (#6297 (8)): a table, a file and a knowledge page carry their area's scopes; planbot holds read + tasks:write only
+for k in ("sheet_table", "fs_entry", "wiki_page"):
+    r = requests.post(V + f"/agent/objects/task/{T1}/links", headers=AGH, json={"kind": k, "id": 999004})
+    check(r.status_code == 403 and "lacks" in r.text, f"#6297 (8): planbot links a task with a {k} without its read scope: 403 {r.status_code} {r.text[:160]}")
+    r = requests.get(V + f"/agent/objects/{k}/999004/links", headers=AGH)
+    check(r.status_code == 403 and "lacks" in r.text, f"#6297 (8): planbot lists the links of a {k} without its read scope: 403 {r.status_code} {r.text[:160]}")
+    r = requests.post(V + f"/agent/objects/{k}/999004/links", headers=AGH, json={"kind": "task", "id": T1})
+    check(r.status_code == 403 and "lacks" in r.text, f"#6297 (8): planbot links a {k} without its write scope: 403 {r.status_code} {r.text[:160]}")
+
 # F3: a side deleted for good names its kind and id only to the link's creator; one in the trash only to who has a role on it
 sql(f"INSERT INTO obj_links(org_id, src_kind, src_id, dst_kind, dst_id, rel, created_by) VALUES({ORG}, 'task', {T1}, 'task', 999003, 'related', {BOB})",
     write=True)
