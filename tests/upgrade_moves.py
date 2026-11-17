@@ -160,6 +160,57 @@ MOVES = [
      "SELECT id, CASE WHEN state='archived' OR (state='trash' AND archived_at IS NOT NULL) THEN 1 ELSE 0 END FROM lists"),
 ]
 
+# 2.1319.0 (#6495): the row fill_old_tables (p2192_c_upgrade) writes into each old table of a move: a row the move's
+# condition above takes (a real kind, an existing person, an existing target), so no move is checked empty. Per old table
+# [(table, {column: SQL of its value})]: the rows to write in that order (a parent first where the condition needs one of its
+# own: a deleted team chat message for its kept text); the last one is the old table's. A column the table does not have (an
+# older release) is left out; the other required columns get the fill's usual values. The people / projects / tasks are the
+# fill's own (the last row: FILL_FIRST), never one of the dump's accounts.
+_U = "SELECT max(id) FROM users"
+_T = "SELECT max(id) FROM tasks"
+_L = "SELECT max(id) FROM lists"
+_TXT = "'p2192-move'"
+_AT = "'2026-01-01T00:00:00Z'"
+_CMT = "SELECT max(k.id) FROM comments k JOIN tasks t ON t.id=k.task_id"
+_MSG = "SELECT max(id) FROM tchat_msgs WHERE COALESCE(CAST(deleted_at AS text), '') = ''"
+FILL = {
+    "comment_reactions": [("comment_reactions", {"comment_id": _CMT, "user_id": _U, "emoji": "'+1'"})],
+    "tchat_rx": [("tchat_rx", {"message_id": _MSG, "user_id": _U, "emoji": "'+1'"})],
+    "chat_reactions": [("chat_reactions", {"message_id": "SELECT max(id) FROM agent_chat", "user_id": _U, "emoji": "'+1'"})],
+    "hub_mail_links": [("hub_mail_links", {"kind": "'task'", "ref_id": _T, "created_by": _U})],
+    "life_device_links": [("life_device_links", {"task_id": _T, "equipment_id": "SELECT max(id) FROM office_equipment", "user_id": _U})],
+    "contact_tasks": [("contact_tasks", {"contact_id": "SELECT max(id) FROM contacts", "task_id": _T})],
+    "office_letter_links": [("office_letter_links", {"letter_id": "SELECT max(id) FROM office_letters", "node_id": "SELECT max(id) FROM fs_nodes",
+                                                     "kind": "'answers'", "deleted_at": "NULL"})],
+    "comments": [("comments", {"task_id": _T, "user_id": _U, "body": _TXT})],
+    "comment_trash_text": [("comment_trash_text", {"comment_id": _CMT, "body": _TXT})],
+    "video_comments": [("video_comments", {"review_id": "SELECT max(id) FROM video_reviews", "author_id": _U, "body": _TXT, "deleted_at": "''",
+                                           "parent_id": "NULL"})],
+    "doc_notes": [("doc_notes", {"node_id": "SELECT max(id) FROM fs_nodes", "user_id": _U, "text": _TXT})],
+    "tchat_trash_text": [("tchat_msgs", {"room_id": "SELECT max(id) FROM tchat_rooms", "user_id": _U, "body": _TXT, "deleted_at": _AT}),
+                         ("tchat_trash_text", {"message_id": "SELECT max(id) FROM tchat_msgs WHERE COALESCE(CAST(deleted_at AS text), '') <> ''",
+                                               "body": _TXT})],
+    "org_tags": [("org_tags", {"org_id": "SELECT max(id) FROM orgs", "name": "'p2192-label'"})],
+    "list_tags": [("list_tags", {"list_id": _L, "name": "'p2192-tag'"})],
+    "task_list_tags": [("task_list_tags", {"task_id": _T, "tag_id": "SELECT max(g.id) FROM list_tags g JOIN tasks t ON t.list_id=g.list_id "
+                                                                    "WHERE t.id=(SELECT max(id) FROM tasks)"})],
+    "task_tags": [("task_tags", {"task_id": _T, "user_id": _U, "tag": "'p2192-tag'"})],
+    "doc_tags": [("doc_tags", {"ws": "'u' || (SELECT max(id) FROM users)", "name": "'p2192-tag'", "org_id": "NULL"})],
+    "doc_node_tags": [("doc_node_tags", {"node_id": "SELECT max(id) FROM fs_nodes", "tag_id": "SELECT max(id) FROM doc_tags WHERE btrim(name) <> ''",
+                                         "auto": "''"})],
+    "task_seen": [("task_seen", {"task_id": _T, "user_id": _U})],
+    "rss_reads": [("rss_reads", {"item_id": "SELECT max(id) FROM rss_items", "user_id": _U})],
+    "rss_items": [("rss_items", {"user_id": _U, "read_at": _AT})],
+    "tchat_reads": [("tchat_reads", {"room_id": "SELECT max(id) FROM tchat_rooms", "user_id": _U, "last_id": "1", "muted": "1"})],
+    "tchat_thread_reads": [("tchat_thread_reads", {"root_id": _MSG, "user_id": _U, "last_id": "1", "follow": "1"})],
+    "task_watchers": [("task_watchers", {"task_id": _T, "user_id": _U})],
+    "task_bell": [("task_bell", {"task_id": _T, "user_id": _U, "level": "'urgent'"})],
+    "list_bell": [("list_bell", {"list_id": _L, "user_id": _U, "mode": "'all'"})],
+    "list_notif": [("list_notif", {"list_id": _L, "user_id": _U})],
+    "folder_notif": [("folder_notif", {"owner_id": _U, "user_id": _U, "folder": "'p2192-folder'"})],
+    "section_templates": [("section_templates", {"user_id": _U, "name": "'p2192-tpl'"})],
+}
+
 _REBUILT = "a search index, no data: rebuilt from its source at the start / by the watchdog (core/objsearch.py, core/objwords.py)"
 _CHECKED = "a start check of its own drops it only when no row is left (core/kernretire.py kern_retire and the areas' *_retire)"
 _DEAD = "no data any more: the feature was taken out / nothing read it (the fragment's drop-ok line)"
@@ -188,10 +239,12 @@ def drop_ok_keys(root=FRAGMENTS):
 
 
 def guard(root=FRAGMENTS):
-    """-> (missing, stale): drop-ok keys without an entry here, entries without a drop-ok line (a typo / a removed fragment)."""
+    """-> (missing, stale): drop-ok keys without an entry here, entries without a drop-ok line (a typo / a removed fragment);
+    2.1319.0 (#6495): a move whose old table has no row in FILL is missing too (lists.archived: the dump's own projects)."""
     keys = drop_ok_keys(root)
     known = {m[0] for m in MOVES} | set(OTHER)
     missing = sorted(f"{k} ({f})" for k, f in keys.items() if k not in known)
+    missing += sorted(f"{m[0]} (no row in FILL)" for m in MOVES if m[0].split(".")[0] not in FILL and m[0] != "lists.archived")  # 2.1319.0 (#6495)
     stale = sorted(k for k in known if k not in keys)
     return missing, stale
 
@@ -222,6 +275,11 @@ def before(q):
         except Exception as e:  # noqa: BLE001 - reported by the suite
             out[i] = f"old query failed: {str(e)[-300:]}"
     return out
+
+
+def empty(q):
+    """2.1319.0 (#6495): the old tables (FILL keys) of the moves that have no row to take now (before() empty)."""
+    return {MOVES[i][0].split(".")[0] for i, keys in before(q).items() if not isinstance(keys, str) and not keys}
 
 
 def after(q, got):
