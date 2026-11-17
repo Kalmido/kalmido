@@ -24,6 +24,7 @@ INTEG_TEXT = {
     "webhook_lost": N_("Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded."),
     "webhook_admin_lost": N_("Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded."),
     "hookin": N_("Inbound webhook {0} is paused: {1}"),
+    "errhook": N_("Error reports of project {0} are paused: {1}"),  # 2.1322.0 (#6560 4)
     "mailbox": N_("Mailbox {0} cannot fetch e-mail, failing since {1}."),
     "git": N_("Git connection {0} cannot fetch, failing since {1}."),
     "gitowner": N_("Git connection {0} is paused: the person whose access token it uses has no access to the project any more."),  # 2.1306.0 (#6554)

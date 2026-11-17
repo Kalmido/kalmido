@@ -86,7 +86,8 @@ function repoWire(md, lid, folder) {
   // 2.18.0 (#408 "Software 2" F): error reports -> bug tickets (a secret webhook URL, shown once; owner / list admins)
   const errHookHtml = () => {
     const eh = j.errors; if (!eh || !isProject(lid) || (!eh.may && !eh.on)) return '';
-    const st = eh.on ? [tr('On'), tr('{0} received', eh.received || 0), eh.open ? trn('{0} open ticket', '{0} open tickets', eh.open) : '', eh.last_at ? tr('last {0}', relTime(eh.last_at)) : ''].filter(Boolean).join(' · ') : tr('Off');
+    const st = eh.on ? [tr('On'), tr('{0} received', eh.received || 0), eh.open ? trn('{0} open ticket', '{0} open tickets', eh.open) : '', eh.last_at ? tr('last {0}', relTime(eh.last_at)) : '',
+      eh.paused_text ? tr('Paused: {0}', eh.paused_text) : ''].filter(Boolean).join(' · ') : tr('Off');  // 2.1322.0 (#6560 4): a new URL resumes it
     const ctl = !eh.may ? '' : eh.on ? `<button data-rowmenu="reporow" class="iconbtn" data-rp="err-menu" title="${esc(tr('Error reports'))}: ${esc(tr('More'))}" aria-label="${esc(tr('Error reports'))}: ${esc(tr('More'))}">${ic('dots', 's')}</button>`
       : `<button class="btn sm" data-rp="err-on">${tr('Switch on')}</button>`;
     return `<div class="errhook" id="rp-err"><div class="mrow reporow errrow">${ic('bug', 's')}<span class="n"><b>${tr('Error reports')}</b><span class="muted rpm">${esc(st)}</span></span>${ctl}</div>
