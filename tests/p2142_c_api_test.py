@@ -142,9 +142,23 @@ lk = mk_list(A, "Locked list")
 dbx("UPDATE lists SET e2e='x' WHERE id=?", (lk,))
 z = zip_of(A.get(B + "/api/export/todoist.zip"))
 check(not any(n.startswith("Locked") for n in z.namelist()), "a list with the lock is not exported")
-note = [n for n in z.namelist() if n.startswith("README-locked")]
-check(note and "Locked list" in z.read(note[0]).decode(), "note file names the locked list")
+# 2.1324.0 (#6589): the locked list is named in the one list "not included.txt" (was README-locked-lists.txt)
+note = [n for n in z.namelist() if n.startswith("not included")]
+check(note and "Locked list - locked with a password" in z.read(note[0]).decode(), "note file names the locked list")
 dbx("UPDATE lists SET e2e=NULL WHERE id=?", (lk,))
+# 2.1324.0 (#6589): a project shared with alice (bob's) stays out and is named with the count of shared ones
+SHL = mk_list(Bo, "Bob shared plan")
+mk_task(Bo, SHL, "Shared task")
+check(Bo.put(B + f"/api/lists/{SHL}/members", json={"user_id": ids["alice"], "role": "edit"}).ok, "setup: bob shares a project with alice")
+for kind in ("todoist", "markdown"):
+    z = zip_of(A.get(B + f"/api/export/{kind}.zip"))
+    note = [n for n in z.namelist() if n.startswith("not included")]
+    txt = z.read(note[0]).decode() if note else ""
+    blob = b"".join(z.read(n) for n in z.namelist() if not n.startswith("not included")).decode()
+    check(note == ["not included.txt"] and "Shared projects not included: 1." in txt and "Bob shared plan - shared with you" in txt
+          and "Shared task" not in blob, f"#6589: {kind}: the shared project is named, not exported ({z.namelist()} {txt!r})")
+z = zip_of(Bo.get(B + "/api/export/todoist.zip"))
+check(not any(n.startswith("not included") for n in z.namelist()), f"#6589: nothing left out -> no such file ({z.namelist()})")
 
 # freelancer-matrix: tasks
 fl = mk_list(Fr, "Frida list")
