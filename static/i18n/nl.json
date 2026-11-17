@@ -18994,6 +18994,7 @@
   "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "Webhook {0} is uitgeschakeld: de persoon die hem heeft ingesteld is geen beheerder van de organisatie meer. {1} wachtende gebeurtenissen sinds {2} zijn verworpen.",
   "Error reports of project {0} are paused: {1}": "Foutmeldingen van project {0} zijn gepauzeerd: {1}",
   "Requests by e-mail to project {0} reached the hourly limit: further mails wait in the mailbox and are taken in later.": "Aanvragen per e-mail aan project {0} hebben de uurlimiet bereikt: verdere mails wachten in de mailbox en worden later overgenomen.",
+  "{0} e-mail not checked yet, follows in the next runs": ["{0} e-mail nog niet gecontroleerd, volgt in de volgende rondes", "{0} e-mails nog niet gecontroleerd, volgen in de volgende rondes"],
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Tot die tijd worden e-mails met inhoud (de dagelijkse samenvatting, meldingen) er niet naartoe gestuurd.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bevestig eerst je e-mailadres: e-mails met inhoud gaan alleen naar een bevestigd adres.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Je adres is nog niet bevestigd: de dagelijkse samenvatting en e-mails over gebeurtenissen gaan pas uit nadat je het hebt bevestigd.",

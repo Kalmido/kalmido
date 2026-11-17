@@ -32,6 +32,7 @@ from ..core.conflict import ccf_check
 from ..core.i18n import N_, lang, tr
 from ..accounts.session import GATE, me
 from ..api.common import hit_limit
+from ..notify.alerts import _env_int
 from ..files.store import fs_chain, fs_deleted, fs_role, fs_roles_many
 from ..docs import store as DS
 from ..docs.ingest import docs_kick, docs_mailbox_import, _mail_has_parts, _mail_toks
@@ -41,7 +42,8 @@ from . import mailbox as MB
 
 MBR_EVERY = 600         # s between two runs of the rules of one mailbox (the round itself is KALMIDO_IMAP_INTERVAL)
 MBR_RULES_MAX = 30      # rules of one mailbox
-MBR_MAILS = 200         # mails of one folder looked at per run (the newest)
+MBR_MAILS = 200         # header lines of one folder fetched at a time (2.1322.0, #6560: from the position on, oldest first)
+MBR_LOOK = _env_int("KALMIDO_MBR_LOOK", 1000)  # 2.1322.0 (#6560 2): mails of one folder looked at per run (the rest: next run)
 MBR_TAKE = 50           # mails of one mailbox taken in per run (the rest follows in the next run)
 MBR_AGE_MAX = 365
 MBR_AFTER = ("seen", "flag", "move", "none")
@@ -179,7 +181,7 @@ DEFAULT = {"name": "", "pos": 0, "active": 1, "folder": "", "from_has": "", "sub
 KNOWN = {"ws", "expect_updated_at", *COLS}
 
 
-def _out(r):
+def _out(r, box=None):
     d = {k: r[k] for k in ("id", "name", "pos", "folder", "from_has", "subject_has", "max_age", "target_id", "after", "after_folder",
                            "hits", "last_hit_at", "updated_at")}
     d.update({k: bool(r[k]) for k in ("active", "need_att", "take_files", "take_mail", "sender_from_mail", "delete_mail")})
@@ -187,6 +189,9 @@ def _out(r):
     code = r.get("last_error") or ""
     d["error"] = code  # 2.636.0 (#4853): the last run left a mail of this rule without a document (tried again)
     d["error_text"] = tr(MBR_RULE_ERR[code]) if code in MBR_RULE_ERR else ""
+    # 2.1322.0 (#6560 2): mails of the rule's folder the last run did not look at yet (worked off in the next runs)
+    st = _pos(box).get(r["folder"] or box["imap_folder"] or "INBOX") if box else None
+    d["backlog"] = int(st.get("left") or 0) if isinstance(st, dict) else 0
     return d
 
 
@@ -223,7 +228,7 @@ def _folders(c, ws):
 
 def _list(c, ws, box):
     rows = c.execute("SELECT * FROM hub_mailbox_rules WHERE box_id=? ORDER BY pos, id", (box["id"],)).fetchall()
-    return {"rules": [_out(r) for r in rows], "status": _status(c, box), "folders": _folders(c, ws)}
+    return {"rules": [_out(r, dict(box)) for r in rows], "status": _status(c, box), "folders": _folders(c, ws)}
 
 
 @app.get("/api/hubmail/mailbox/rules")
@@ -414,6 +419,7 @@ def _after(M, rule, u):
 
 
 KEPT = "kept"  # 2.1281.0 (#6425): _take's "handled" for a mail that became documents but stays as it is in the mailbox
+RETRY = "retry"  # 2.1322.0 (#6560 2): _take's "handled" for a mail that became no document yet (tried again next run)
 
 
 def _take(box, holder, rule, key, raw, msg=None):
@@ -456,7 +462,7 @@ def _take(box, holder, rule, key, raw, msg=None):
             c.execute("DELETE FROM hub_mailbox_docs WHERE box_id=? AND mid=?", (box["id"], key))
             code = "target" if rule["target_id"] and not _holder_can(c, holder, rule["target_id"]) else "nodoc"
             c.execute("UPDATE hub_mailbox_rules SET last_error=? WHERE id=?", (code, rule["id"]))
-            return False, 0
+            return RETRY, 0  # 2.1322.0 (#6560 2): the run's position stays before this mail
         c.execute("UPDATE hub_mailbox_docs SET node_id=? WHERE box_id=? AND mid=?", (first or None, box["id"], key))
         # 2.1281.0 (#6425): the mail's budget left files out -> the rule says so and the mail stays (KEPT: no move, no delete).
         # What this run wrote to the rule about another mail (partly, unsafe) is not wiped by a hit of the same run.
@@ -470,6 +476,28 @@ def _take(box, holder, rule, key, raw, msg=None):
             c.execute("UPDATE hub_mailbox_rules SET hits=hits+1, last_hit_at=?, last_error='' WHERE id=?", (_now(), rule["id"]))
         return (KEPT if cut else True), len(made)
     return _bg(run)
+
+
+def _sig(rules):
+    """2.1322.0 (#6560 2): the state of a folder's rules (which ones, last changed): another state looks at the folder anew."""
+    return hashlib.sha256(json.dumps(sorted((r["id"], str(r["updated_at"])) for r in rules)).encode()).hexdigest()[:16]
+
+
+def _validity(M):
+    """2.1322.0 (#6560 2): the UIDVALIDITY of the folder just selected ('' when the server names none)."""
+    try:
+        _t, v = M.response("UIDVALIDITY")
+        return (v[0].decode() if isinstance(v[0], bytes) else str(v[0]))[:20] if v and v[0] else ""
+    except Exception:  # noqa: BLE001 -- (a server without it: the position holds on the rules alone)
+        return ""
+
+
+def _pos(box):
+    try:
+        v = json.loads(box.get("docs_pos") or "{}")
+    except ValueError:
+        v = {}
+    return v if isinstance(v, dict) else {}
 
 
 def _skip(box, key):
@@ -511,6 +539,7 @@ def mbr_run(M, box):
         return 0
     holder = _bg(lambda c: MB.mbx_holder(c, box))
     n, code, taken = 0, "", 0
+    pos = _pos(box)  # 2.1322.0 (#6560 2)
     if not holder:
         code = "holder"
     folders = {}
@@ -527,85 +556,109 @@ def mbr_run(M, box):
             day = now_utc() - timedelta(days=max(r["max_age"] for r in frs) + 1)
             since = f"{day.day:02d}-{_MONTHS[day.month - 1]}-{day.year}"  # IMAP's date (English month names, any locale)
             typ, data = M.uid("SEARCH", None, "UNDELETED", "SINCE", since)
-            uids = (data[0] or b"").split()[-MBR_MAILS:] if typ == "OK" and data else []
-            heads = _fetch_heads(M, uids)
-            keys = {u: _mid_key(h) for u, (_sz, h) in heads.items()}
-            known = set()
-            if keys:
-                ks = [k for k, _m in keys.values()]
-                known = _bg(lambda c: {x[0] for x in c.execute(f"SELECT mid FROM hub_mailbox_docs WHERE box_id=? AND mid IN ({','.join('?' * len(ks))})",
-                                                               (box["id"], *ks)).fetchall()})
-            for u in uids:
-                if taken >= MBR_TAKE:
-                    break
-                if u not in keys or keys[u][0] in known:
-                    continue
-                key, head = keys[u]
-                if head is None:  # 2.1281.0 (#6425): header lines that never go to the header parser (_mid_key). No rule
-                    known.add(key)  # is marked: nobody knows whether the mail was for one of them
-                    _poison(box, key, MailRefused("head"), [])
-                    continue
-                # 2.1281.0 (#6425): every step that reads the mail's own content sits in a try of this ONE mail (the header
-                # lines here, taking it apart below); only the IMAP commands stay with the folder's try (the connection)
-                try:
-                    fit = [r for r in frs if _head_fits(r, head)]
-                except MemoryError:  # (the server's state, not this mail's: the folder's try, tried again next run)
-                    raise
-                except Exception as e:  # noqa: BLE001 -- a From / Subject / Date line the header parser breaks on
-                    known.add(key)
-                    _poison(box, key, e, frs)
-                    continue
-                if not fit:
-                    continue  # its header lines fit no rule: looked at again next time (a new rule may take it)
-                known.add(key)
-                if heads[u][0] is None or heads[u][0] > MB.MBX_MAIL_MAX:
-                    _skip(box, key)
-                    continue
-                typ, parts = M.uid("FETCH", u.decode(), "(BODY.PEEK[])")
-                raw = next((p[1] for p in parts or [] if isinstance(p, tuple) and len(p) > 1), None)
-                if typ != "OK" or not raw:
-                    continue
-                try:
-                    msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused)
-                    files = None
-                    rule = None
-                    for r in fit:
-                        if r["need_att"]:
-                            if files is None:
-                                _t, mail_text, _ei = _mail_toks(msg)
-                                files = mail_text(msg, att_images=True)[1]
-                            if not files:
-                                continue
-                        rule = r
+            uids = sorted((data[0] or b"").split(), key=int) if typ == "OK" and data else []
+            # 2.1322.0 (#6560 2): the folder is worked off from the oldest mail up, from the position of the last run (the
+            # highest UID with every one below it done) instead of the newest MBR_MAILS only; a change of the folder's rules
+            # or of its UIDVALIDITY starts again from the oldest (mails no rule took are looked at again then). A mail that
+            # waits (no document yet, not fetched) holds the position before it; what is left is the rules' backlog.
+            sig, val = _sig(frs), _validity(M)
+            st = pos.get(folder) or {}
+            start = int(st.get("uid") or 0) if st.get("sig") == sig and st.get("val") == val else 0
+            todo = [u for u in uids if int(u) > start]
+            hold, upto, looked = None, start, 0
+            while looked < len(todo) and looked < MBR_LOOK and taken < MBR_TAKE:
+                chunk = todo[looked:looked + min(MBR_MAILS, MBR_LOOK - looked)]
+                heads = _fetch_heads(M, chunk)
+                keys = {u: _mid_key(h) for u, (_sz, h) in heads.items()}
+                known = set()
+                if keys:
+                    ks = [k for k, _m in keys.values()]
+                    known = _bg(lambda c: {x[0] for x in c.execute(f"SELECT mid FROM hub_mailbox_docs WHERE box_id=? AND mid IN ({','.join('?' * len(ks))})",
+                                                                   (box["id"], *ks)).fetchall()})
+                for u in chunk:
+                    if taken >= MBR_TAKE:
                         break
-                except MemoryError:
-                    raise
-                except Exception as e:  # noqa: BLE001 -- 2.1281.0 (#6425): refused or broken: this mail only, for good
-                    _poison(box, key, e, fit[:1])
-                    continue
-                files = None
-                if rule is None:
-                    _skip(box, key)
-                    continue
-                try:
-                    handled, got = _take(box, holder, rule, key, raw, msg)
-                except Exception as e:  # noqa: BLE001 -- one mail never stops the others; it is not taken again
-                    print("mailbox docs: one mail failed:", type(e).__name__, flush=True)
-                    _skip(box, key)
-                    continue
-                if handled is None:
-                    continue
-                taken += 1
-                n += got
-                if handled and handled != KEPT:
-                    code = _after(M, rule, u) or code
+                    looked += 1
+                    upto = int(u)
+                    if u not in keys:  # its header lines could not be fetched: looked at again next run
+                        hold = hold or u
+                        continue
+                    if keys[u][0] in known:
+                        continue
+                    key, head = keys[u]
+                    if head is None:  # 2.1281.0 (#6425): header lines that never go to the header parser (_mid_key). No rule
+                        known.add(key)  # is marked: nobody knows whether the mail was for one of them
+                        _poison(box, key, MailRefused("head"), [])
+                        continue
+                    # 2.1281.0 (#6425): every step that reads the mail's own content sits in a try of this ONE mail (the header
+                    # lines here, taking it apart below); only the IMAP commands stay with the folder's try (the connection)
+                    try:
+                        fit = [r for r in frs if _head_fits(r, head)]
+                    except MemoryError:  # (the server's state, not this mail's: the folder's try, tried again next run)
+                        raise
+                    except Exception as e:  # noqa: BLE001 -- a From / Subject / Date line the header parser breaks on
+                        known.add(key)
+                        _poison(box, key, e, frs)
+                        continue
+                    if not fit:
+                        continue  # its header lines fit no rule: passed (2.1322.0, #6560: a new or changed rule looks again)
+                    known.add(key)
+                    if heads[u][0] is None or heads[u][0] > MB.MBX_MAIL_MAX:
+                        _skip(box, key)
+                        continue
+                    typ, parts = M.uid("FETCH", u.decode(), "(BODY.PEEK[])")
+                    raw = next((p[1] for p in parts or [] if isinstance(p, tuple) and len(p) > 1), None)
+                    if typ != "OK" or not raw:
+                        hold = hold or u
+                        continue
+                    try:
+                        msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused)
+                        files = None
+                        rule = None
+                        for r in fit:
+                            if r["need_att"]:
+                                if files is None:
+                                    _t, mail_text, _ei = _mail_toks(msg)
+                                    files = mail_text(msg, att_images=True)[1]
+                                if not files:
+                                    continue
+                            rule = r
+                            break
+                    except MemoryError:
+                        raise
+                    except Exception as e:  # noqa: BLE001 -- 2.1281.0 (#6425): refused or broken: this mail only, for good
+                        _poison(box, key, e, fit[:1])
+                        continue
+                    files = None
+                    if rule is None:
+                        _skip(box, key)
+                        continue
+                    try:
+                        handled, got = _take(box, holder, rule, key, raw, msg)
+                    except Exception as e:  # noqa: BLE001 -- one mail never stops the others; it is not taken again
+                        print("mailbox docs: one mail failed:", type(e).__name__, flush=True)
+                        _skip(box, key)
+                        continue
+                    if handled is RETRY:  # no document yet (storage, folder, the hour's limit): tried again next run
+                        hold = hold or u
+                        taken += 1  # (counts like before: a full storage does not fetch the whole folder every run)
+                        continue
+                    if handled is None:
+                        continue
+                    taken += 1
+                    n += got
+                    if handled and handled != KEPT:
+                        code = _after(M, rule, u) or code
+            at = int(hold) - 1 if hold else upto
+            pos[folder] = {"uid": at, "sig": sig, "val": val, "left": len([u for u in uids if int(u) > at])}
         except Exception as e:  # noqa: BLE001 -- the next folder goes on; the code is kept (never the server's words)
             code = code or MB._err_code(e)
             print("mailbox docs: ws", box["ws"], type(e).__name__, flush=True)
     if n:
         docs_kick()
-    _bg(lambda c: c.execute("UPDATE hub_mailboxes SET docs_polled_at=?, docs_error=?, docs_due=0, docs_count=docs_count+? WHERE id=?",
-                            (_now(), code, n, box["id"])))
+    keep = {f: v for f, v in pos.items() if f in folders}  # (a folder no rule names any more is forgotten)
+    _bg(lambda c: c.execute("UPDATE hub_mailboxes SET docs_polled_at=?, docs_error=?, docs_due=0, docs_count=docs_count+?, docs_pos=? WHERE id=?",
+                            (_now(), code, n, json.dumps(keep), box["id"])))
     return n
 
 

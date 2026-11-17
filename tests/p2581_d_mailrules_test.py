@@ -32,7 +32,7 @@ sys.path.insert(0, N)
 from freelancer_fixture import freelancer  # noqa: E402
 from kt import B, CT, DATA, check, dbx, docker_logs_on_first_fail, done, fresh, sess, setup, until  # noqa: E402
 
-ENV = {"KALMIDO_IMAP_INTERVAL": "600", "KALMIDO_CALENDAR_ALLOW_HOSTS": "127.0.0.1:1145",
+ENV = {"KALMIDO_IMAP_INTERVAL": "600", "KALMIDO_CALENDAR_ALLOW_HOSTS": "127.0.0.1:1145", "KALMIDO_MBR_LOOK": "100",  # 2.1322.0 (#6560)
        "KALMIDO_SECRET_KEY": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}
 FEAT = "cal,collab,comments,events,contacts,clients,files,docs"
 MB = os.path.join(DATA, "mbr")
@@ -106,7 +106,7 @@ def run(s, ws):
 docker_logs_on_first_fail()
 # ---- setup: alice (instance admin), Alpha = bob (admin) + carol, Beta = dave, erin without an organisation
 fresh(ENV)
-for d in ("INBOX", "Rechnungen", "Archiv", "Belege", "Markiert", "Weg", "Erin", "Ziel", "Gift"):  # 2.636.0 (#4853): + Ziel; 2.1281.0 (#6425): + Gift
+for d in ("INBOX", "Rechnungen", "Archiv", "Belege", "Markiert", "Weg", "Erin", "Ziel", "Gift", "Viele"):  # 2.1322.0 (#6560): + Viele  # 2.636.0 (#4853): + Ziel; 2.1281.0 (#6425): + Gift
     os.makedirs(os.path.join(MB, d), exist_ok=True)
 shutil.copy(os.path.join(N, "stub_imap_folders.py"), DATA)
 subprocess.run(["docker", "exec", "-d", CT, "python", "/data/stub_imap_folders.py"], check=True)
@@ -371,5 +371,34 @@ check(run(Bo, WS), "#6425: a later run")
 check(until(lambda: [x for x in docs(WS) if x[1] == "Gift-5.pdf"], 30), "#6425: a mail that arrives later is taken as well (the folder is not held)")
 rg = next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RG.get("id")), {})
 check(rg.get("error") == "" and rg.get("hits") == 2, f"#6425: the error is gone after the next document ({rg.get('error')!r}, hits {rg.get('hits')})")
+
+# ---- 2.1322.0 (#6560 2): the rules work a folder off from its position, oldest first - before they saw only the newest 200
+# mails, so an older mail that fits (here behind 230 newer ones) was never taken. This container looks at 100 per run
+# (KALMIDO_MBR_LOOK); what is not looked at yet is the rule's backlog
+r = Bo.post(B + "/api/hubmail/mailbox/rules", json={"ws": f"org:{ORG}", "name": "Many", "folder": "Viele", "subject_has": "invoice",
+                                                    "need_att": True, "after": "seen"})
+check(r.status_code == 201, f"#6560: a rule on the folder Viele ({r.status_code} {r.text[:200]})")
+RV = (r.json() or {}).get("rule") or {}
+drop("Viele", "Shop <billing@shop.example.com>", "Invoice old", att="Viele-alt")
+for i in range(230):
+    drop("Viele", "News <news@shop.example.com>", f"Newsletter {i}")
+drop("Viele", "Shop <billing@shop.example.com>", "Invoice new", att="Viele-neu")
+
+
+def rv():
+    return next((x for x in Bo.get(B + f"/api/hubmail/mailbox/rules?ws=org:{ORG}").json().get("rules", []) if x["id"] == RV.get("id")), {})
+
+
+def vdocs():
+    return sorted(x[1] for x in docs(WS) if x[1].startswith("Viele-"))
+
+
+check(run(Bo, WS), "#6560: the first run on the folder Viele")
+check(until(lambda: vdocs() == ["Viele-alt.pdf"], 30), f"#6560: the oldest mail of the folder becomes a document first ({vdocs()})")
+check(rv().get("backlog") == 132, f"#6560: the rule shows the mails not looked at yet ({rv().get('backlog')})")
+check(run(Bo, WS) and rv().get("backlog") == 32, f"#6560: the next run goes on from its position ({rv().get('backlog')})")
+check(run(Bo, WS) and rv().get("backlog") == 0, f"#6560: the third run reaches the end of the folder ({rv().get('backlog')})")
+check(until(lambda: vdocs() == ["Viele-alt.pdf", "Viele-neu.pdf"], 30), f"#6560: and the newest mail, each once ({vdocs()})")
+check(run(Bo, WS) and rv().get("backlog") == 0 and vdocs() == ["Viele-alt.pdf", "Viele-neu.pdf"], "#6560: a run at the end takes nothing again")
 
 sys.exit(done("p2581_d_mailrules"))
