@@ -506,13 +506,17 @@ def cfg_set(c, ws, data):
 
 
 def rules_get(c, ws, secret=False):
-    """The rules (flows, 2.581.0 #4803) of ws in their order. A flow's webhook secret only with secret=True (docs/flows.py)."""
+    """The rules (flows, 2.581.0 #4803) of ws in their order. A flow's webhook secret only with secret=True (docs/flows.py).
+    2.1337.0 (#6881): a flow paused because its author is no admin any more (hook_state 'admin', docs/flows.py fl_hook_off) is
+    off here, for every action -- also when the pause could not write off into its data (no server key to seal it)."""
     out = []
-    for r in c.execute("SELECT id, pos, data FROM doc_rules WHERE ws=? ORDER BY pos, id", (ws,)):
+    for r in c.execute("SELECT id, pos, data, hook_state FROM doc_rules WHERE ws=? ORDER BY pos, id", (ws,)):
         d = _jopen(c, ws, "doc_rules.data", r["data"], {})
         if d:
             if not secret:
                 d.pop("hook_secret", None)
+            if r["hook_state"] == "admin":
+                d["off"] = True
             out.append({"id": r["id"], **d})
     return out
 
