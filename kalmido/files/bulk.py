@@ -25,7 +25,8 @@ from flask import jsonify, request, send_file
 from ..core.config import app, MAX_FILE_MB
 from ..core.db import bump, db, body, err, local_now
 from ..core.i18n import N_, tr
-from ..core.access import Denied
+from ..core.access import Denied, live_sql
+from ..core.omitted import Omitted  # 2.1324.0 (#6589)
 from ..core.serializers import unlink_files  # 2.809.0 (#5365): the purges' files after the commit
 from ..accounts.session import me
 from .store import DEPTH_MAX, fs_chain, fs_deleted, fs_log_add, fs_put, fs_read, fs_role, fs_visible_ids, need_node, safe_fs_name, _free_name
@@ -286,19 +287,46 @@ def abm_readable(c, n):
     return True
 
 
-def abm_plan(c, roots, can_read, max_files=None, max_mb=None):
+# 2.1324.0 (#6589): why a node the person sees is not in the ZIP (a line each in "not included.txt", core/omitted.py)
+ABM_WHY_REF = N_("a link to another item, not a file")
+ABM_WHY_SCAN = N_("blocked by the virus scanner or not checked yet")
+ABM_WHY_GONE = N_("the stored file is damaged or missing")
+ABM_WHY_LOCKED = N_("in a locked (end-to-end encrypted) folder: open it in the app and download the files there")
+ABM_WHY_DEEP = N_("folder nested too deeply: what is inside is not included")
+
+
+def abm_plan(c, roots, can_read, max_files=None, max_mb=None, omit=None, why_not=None):
     """[(path in the ZIP, node row or None for a folder)] of roots and everything below them that can_read lets through:
     no trash, no links / pages, no locked files; the folder structure kept, names made unique per folder.
-    2.674.0 (#4190): Denied(413) as soon as the files passed the limits (abm_too_big), the rest of the tree is not walked."""
+    2.674.0 (#4190): Denied(413) as soon as the files passed the limits (abm_too_big), the rest of the tree is not walked.
+    2.1324.0 (#6589): omit (core/omitted.py Omitted) collects what is left out of the readable nodes, with the reason;
+    why_not(c, node row) -> reason key | None names one for a node can_read refuses (None: the person does not see it, no line)."""
     out, seen, top = [], set(), set()
     count = [0, 0]  # files, bytes
 
+    def left_out(n, prefix, why):
+        if omit is not None:
+            omit.add(prefix + abm_zip_name(n["name"]) + ("/" if n["kind"] == "folder" else ""), why)
+
     def walk(n, prefix, taken, lvl):
-        if n["id"] in seen or n["deleted_at"] or n["kind"] not in ("file", "folder") or not can_read(c, n):
+        if n["id"] in seen or n["deleted_at"]:
+            return
+        if not can_read(c, n):
+            why = why_not(c, n) if why_not else None
+            if why:
+                seen.add(n["id"])
+                left_out(n, prefix, why)
             return
         seen.add(n["id"])
+        if n["kind"] not in ("file", "folder"):
+            left_out(n, prefix, ABM_WHY_REF)
+            return
         if n["kind"] == "file":
-            if n["cur_version"] and abm_readable(c, n):
+            if not n["cur_version"]:
+                left_out(n, prefix, ABM_WHY_GONE)
+            elif not abm_readable(c, n):
+                left_out(n, prefix, ABM_WHY_SCAN)
+            else:
                 out.append((prefix + abm_unique(abm_zip_name(n["name"]), taken), n))
                 count[0] += 1
                 count[1] += int(n["size"] or 0)
@@ -309,6 +337,8 @@ def abm_plan(c, roots, can_read, max_files=None, max_mb=None):
         path = prefix + abm_unique(abm_zip_name(n["name"]), taken, folder=True) + "/"
         out.append((path, None))
         if lvl >= DEPTH_MAX:
+            if omit is not None and c.execute(f"SELECT 1 FROM fs_nodes WHERE parent_id=? AND {live_sql()} LIMIT 1", (n["id"],)).fetchone():
+                omit.add(path, ABM_WHY_DEEP)
             return
         sub = set()
         for k in c.execute("SELECT * FROM fs_nodes WHERE parent_id=? AND deleted_at IS NULL ORDER BY kind DESC, lower(name), id", (n["id"],)).fetchall():
@@ -319,10 +349,10 @@ def abm_plan(c, roots, can_read, max_files=None, max_mb=None):
     return out
 
 
-def abm_zip_plan(c, roots, can_read, max_files=None, max_mb=None):
+def abm_zip_plan(c, roots, can_read, max_files=None, max_mb=None, omit=None, why_not=None):
     """(plan, files): abm_plan with the limits checked -- Denied(409) when nothing can go into the ZIP, Denied(413) when
-    the limits are passed."""
-    plan = abm_plan(c, roots, can_read, max_files, max_mb)
+    the limits are passed. omit / why_not: see abm_plan."""
+    plan = abm_plan(c, roots, can_read, max_files, max_mb, omit, why_not)
     if not plan:
         raise Denied(409, tr("Nothing here can be downloaded"))
     files = [n for _, n in plan if n is not None]
@@ -332,13 +362,16 @@ def abm_zip_plan(c, roots, can_read, max_files=None, max_mb=None):
     return plan, files
 
 
-def fs_zip_build(c, roots, can_read, on_file=None, max_files=None, max_mb=None):
+def fs_zip_build(c, roots, can_read, on_file=None, max_files=None, max_mb=None, why_not=None):
     """The ZIP of roots (node rows: files and folders) in a temporary file -> (path of the file, name for the download).
     can_read(c, node row) -> bool decides for every node (a folder it refuses is left out with everything below it).
     Refuses with Denied(413) before writing anything when the limits are passed (no half ZIP). on_file(c, node row) is
     called for every file written (the access history). The caller sends the file and removes it (abm_send_zip / abm_drop).
-    Denied(429) while two ZIPs are being built already."""
-    plan, _files = abm_zip_plan(c, roots, can_read, max_files, max_mb)
+    Denied(429) while two ZIPs are being built already.
+    2.1324.0 (#6589): what is left out (links, files the virus scanner holds, damaged ones, why_not's reasons) is named with
+    its reason in "not included.txt" at the top of the ZIP (core/omitted.py); nothing left out = no such file."""
+    omit = Omitted()
+    plan, _files = abm_zip_plan(c, roots, can_read, max_files, max_mb, omit, why_not)
     if not ABM_BUSY.acquire(blocking=False):
         raise Denied(429, tr("Too many requests"))
     if len(roots) == 1 and roots[0]["kind"] == "folder":
@@ -354,13 +387,15 @@ def fs_zip_build(c, roots, can_read, on_file=None, max_files=None, max_mb=None):
                     continue
                 try:
                     data = fs_read(c, n["id"])
-                except (OSError, Denied):  # a damaged / missing stored file: left out, the rest still comes
+                except (OSError, Denied):  # a damaged / missing stored file: left out (named in the list), the rest still comes
+                    omit.add(p, ABM_WHY_GONE)
                     continue
                 ext = p.rsplit(".", 1)[-1].lower() if "." in p else ""
                 packed = ext in ABM_PACKED or (n["mime"] or "").startswith(("image/", "video/", "audio/"))
                 z.writestr(p, data, compress_type=zipfile.ZIP_STORED if packed else zipfile.ZIP_DEFLATED)
                 if on_file:
                     on_file(c, n)
+            omit.write(z, {p.split("/", 1)[0] for p, _n in plan})
     except BaseException:
         os.unlink(path)
         raise
@@ -395,11 +430,17 @@ def files_zip():
     ids = abm_ids(request.args.get("ids") or "")
     roots = [need_node(c, i) for i in abm_outermost(c, ids)]  # links are left out (abm_plan)
     vis = fs_visible_ids(c)
-    vis -= set(fsl_map(c, list(vis)))  # 2.353.0 A (#2758): ciphertexts of a locked folder stay out (the browser opens them one by one)
+    locked = set(fsl_map(c, list(vis)))
+    vis -= locked  # 2.353.0 A (#2758): ciphertexts of a locked folder stay out (the browser opens them one by one)
+
+    def why_not(c2, n):  # 2.1324.0 (#6589): named in "not included.txt"
+        return ABM_WHY_LOCKED if n["id"] in locked else None
     if request.args.get("check") == "1":
-        _plan, files = abm_zip_plan(c, roots, lambda c2, n: n["id"] in vis)
-        return jsonify(files=len(files), size=sum(int(n["size"] or 0) for n in files))
-    path, name = fs_zip_build(c, roots, lambda c2, n: n["id"] in vis, on_file=lambda c2, n: fs_log_add(c2, n["id"], "download"))
+        omit = Omitted()
+        _plan, files = abm_zip_plan(c, roots, lambda c2, n: n["id"] in vis, omit=omit, why_not=why_not)
+        return jsonify(files=len(files), size=sum(int(n["size"] or 0) for n in files), omitted=len(omit))  # 2.1324.0 (#6589): + omitted
+    path, name = fs_zip_build(c, roots, lambda c2, n: n["id"] in vis, on_file=lambda c2, n: fs_log_add(c2, n["id"], "download"),
+                              why_not=why_not)
     try:
         c.commit()
         return abm_send_zip(path, name)

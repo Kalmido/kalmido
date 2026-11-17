@@ -166,6 +166,33 @@ check(Ca.get(B + f"/api/files/zip?ids={D1}").status_code == 404, "a file in the 
 check(Ca.get(B + "/api/files/zip?ids=x").status_code == 400, "bad ids: 400")
 check(Ca.get(B + "/api/files/zip").status_code == 400, "no ids: 400")
 
+# 2.1324.0 (#6589): nothing left out silently: a ZIP with a file the virus scanner holds, a damaged one and a link gets
+# "not included.txt" naming each with its reason (in the person's language); the rest still comes. Without a gap no such
+# file (the exact name lists above).
+MIX = folder(Ca, "Mix")
+upload(Ca, "ok.txt", b"fine", parent=MIX)
+INF = upload(Ca, "infected.txt", b"bad", parent=MIX)
+BRK = upload(Ca, "broken.txt", b"broken", parent=MIX)
+LNK = upload(Ca, "shortcut.txt", b"link", parent=MIX)
+dbx("INSERT INTO upload_scan(kind, ref_id, ver, state, sig, created_at) SELECT 'fs', id, cur_version, 'infected', 'Test-Signature', now() "
+    "FROM fs_nodes WHERE id=?", (INF,))
+dbx("UPDATE fs_versions SET path='nowhere/k6589-missing.bin' WHERE node_id=?", (BRK,))
+dbx("UPDATE fs_nodes SET kind='link' WHERE id=?", (LNK,))
+r = Ca.get(B + f"/api/files/zip?ids={MIX}")
+check(names(r) == ["Mix/", "Mix/ok.txt", "not included.txt"], f"#6589: the readable file + the list of what is not in it ({r.status_code} {names(r)})")
+z = zipfile.ZipFile(io.BytesIO(r.content)) if r.ok else None
+txt = z.read("not included.txt").decode("utf-8") if z and "not included.txt" in z.namelist() else ""
+check("Mix/infected.txt - blocked by the virus scanner" in txt and "Mix/broken.txt - the stored file is damaged or missing" in txt
+      and "Mix/shortcut.txt - a link to another item" in txt and "ok.txt" not in txt, f"#6589: each left-out file with its reason ({txt!r})")
+r = Ca.get(B + f"/api/files/zip?ids={MIX}&check=1")
+check(r.ok and r.json().get("files") == 2 and r.json().get("omitted") == 2, f"#6589: the check counts what stays out ({r.text[:200]})")
+Ca.patch(B + "/api/settings", json={"lang": "de"})
+r = Ca.get(B + f"/api/files/zip?ids={MIX}")
+z = zipfile.ZipFile(io.BytesIO(r.content)) if r.ok else None
+check(z is not None and "nicht enthalten.txt" in z.namelist() and "vom Virenscanner gesperrt" in z.read("nicht enthalten.txt").decode("utf-8"),
+      f"#6589: German: 'nicht enthalten.txt' with German reasons ({names(r)})")
+Ca.patch(B + "/api/settings", json={"lang": "en"})
+
 # ---- shared across the organisation: carol's Alpha folder shared with erin (view)
 SHF = folder(Ca, "Team", space=f"org:{ORG}")
 S1 = upload(Ca, "plan.txt", b"Teamplan", parent=SHF)
