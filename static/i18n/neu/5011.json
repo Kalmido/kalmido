@@ -1,0 +1,62 @@
+{
+  "de": {
+    "Create an upload token first": "Lege zuerst ein Upload-Token an",
+    "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "Senden an Agenten ist für dieses Upload-Token ausgeschaltet (Einstellungen > Integrationen > Teilen vom Handy).",
+    "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Nachrichten über das Upload-Token kommen bei deinen Agenten als „von außen“ gekennzeichnet an. Abschalten kannst du das unter Einstellungen > Integrationen > Teilen vom Handy.",
+    "Also send to agents": "Auch an Agenten senden",
+    "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "Der Kurzbefehl kann dann auch deinen Agenten schreiben. Sie behandeln so eine Nachricht als nicht bestätigt und ändern erst nach deiner Freigabe etwas.",
+    "The upload token can now send to your agents": "Das Upload-Token kann jetzt an deine Agenten senden",
+    "The upload token no longer sends to your agents": "Das Upload-Token sendet nicht mehr an deine Agenten",
+    "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Dein Upload-Token kann auch deinen Agenten Nachrichten senden. Schalte das dort ab, wenn du es nicht brauchst.",
+    "Sent through the upload token from a phone shortcut": "Über das Upload-Token per Kurzbefehl vom Handy gesendet",
+    "via upload token": "über Upload-Token"
+  },
+  "es": {
+    "Create an upload token first": "Crea primero un token de subida",
+    "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "El envío a agentes está desactivado para este token de subida (Ajustes > Integraciones > Compartir desde el móvil).",
+    "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Los mensajes enviados con el token de subida llegan a tus agentes marcados como externos. Puedes desactivarlo en Ajustes > Integraciones > Compartir desde el móvil.",
+    "Also send to agents": "Enviar también a agentes",
+    "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "El atajo podrá escribir también a tus agentes. Tratan ese mensaje como no verificado y solo cambian algo tras tu aprobación.",
+    "The upload token can now send to your agents": "El token de subida ya puede enviar a tus agentes",
+    "The upload token no longer sends to your agents": "El token de subida ya no envía a tus agentes",
+    "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Tu token de subida también puede enviar mensajes a tus agentes. Desactívalo allí si no lo necesitas.",
+    "Sent through the upload token from a phone shortcut": "Enviado con el token de subida desde un atajo del móvil",
+    "via upload token": "con token de subida"
+  },
+  "fr": {
+    "Create an upload token first": "Crée d'abord un token d'envoi",
+    "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "L'envoi aux agents est désactivé pour ce token d'envoi (Paramètres > Intégrations > Partager depuis ton téléphone).",
+    "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Les messages envoyés avec le token d'envoi arrivent chez tes agents marqués comme venant de l'extérieur. Tu peux le désactiver : Paramètres > Intégrations > Partager depuis ton téléphone.",
+    "Also send to agents": "Envoyer aussi aux agents",
+    "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "Le raccourci peut alors aussi écrire à tes agents. Ils traitent un tel message comme non vérifié et ne modifient rien sans ton accord.",
+    "The upload token can now send to your agents": "Le token d'envoi peut maintenant écrire à tes agents",
+    "The upload token no longer sends to your agents": "Le token d'envoi n'écrit plus à tes agents",
+    "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Ton token d'envoi peut aussi envoyer des messages à tes agents. Désactive-le là-bas si tu n'en as pas besoin.",
+    "Sent through the upload token from a phone shortcut": "Envoyé avec le token d'envoi depuis un raccourci du téléphone",
+    "via upload token": "via token d'envoi"
+  },
+  "it": {
+    "Create an upload token first": "Crea prima un token di caricamento",
+    "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "L'invio agli agenti è disattivato per questo token di caricamento (Impostazioni > Integrazioni > Condividi dal telefono).",
+    "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "I messaggi inviati con il token di caricamento arrivano ai tuoi agenti contrassegnati come esterni. Puoi disattivarlo in Impostazioni > Integrazioni > Condividi dal telefono.",
+    "Also send to agents": "Invia anche agli agenti",
+    "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "La scorciatoia potrà scrivere anche ai tuoi agenti. Trattano un messaggio così come non verificato e cambiano qualcosa solo dopo la tua approvazione.",
+    "The upload token can now send to your agents": "Il token di caricamento ora può inviare ai tuoi agenti",
+    "The upload token no longer sends to your agents": "Il token di caricamento non invia più ai tuoi agenti",
+    "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Il tuo token di caricamento può anche inviare messaggi ai tuoi agenti. Disattivalo lì se non ti serve.",
+    "Sent through the upload token from a phone shortcut": "Inviato con il token di caricamento da una scorciatoia del telefono",
+    "via upload token": "con token di caricamento"
+  },
+  "nl": {
+    "Create an upload token first": "Maak eerst een uploadtoken aan",
+    "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "Versturen naar agents staat uit voor dit uploadtoken (Instellingen > Integraties > Delen vanaf je telefoon).",
+    "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Berichten via het uploadtoken komen bij je agents aan als ‘van buitenaf’ gemarkeerd. Uitzetten kan via Instellingen > Integraties > Delen vanaf je telefoon.",
+    "Also send to agents": "Ook naar agents sturen",
+    "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "De snelkoppeling kan dan ook naar je agents schrijven. Zij behandelen zo'n bericht als niet bevestigd en veranderen pas iets na jouw goedkeuring.",
+    "The upload token can now send to your agents": "Het uploadtoken kan nu naar je agents sturen",
+    "The upload token no longer sends to your agents": "Het uploadtoken stuurt niet meer naar je agents",
+    "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Je uploadtoken kan ook berichten naar je agents sturen. Zet het daar uit als je het niet nodig hebt.",
+    "Sent through the upload token from a phone shortcut": "Verstuurd via het uploadtoken vanuit een snelkoppeling op de telefoon",
+    "via upload token": "via uploadtoken"
+  }
+}
