@@ -200,6 +200,13 @@ check({"not yet in the account export", "credentials", "invitations", "not yet i
        "history of knowledge pages"} <= set(keys) and not any("not_included" in k for k in keys), f"the reasons are read: {sorted(keys)[:5]}")
 with open(os.path.join(ROOT, "static", "i18n", "de.json"), encoding="utf-8") as f:
     de = json.load(f)
+# 2.1365.0 (#7034): new texts wait in static/i18n/neu/<job>.json until the merge queue folds them into de.json (#6194): a
+# reason translated there is translated (the app reads both, core/i18nfrag.py) - "Links" of #6585 was red on main till the fold
+neu_dir = os.path.join(ROOT, "static", "i18n", "neu")
+for fn in sorted(os.listdir(neu_dir)) if os.path.isdir(neu_dir) else []:
+    if fn.endswith(".json"):
+        with open(os.path.join(neu_dir, fn), encoding="utf-8") as f:
+            de.update(json.load(f).get("de") or {})
 check(not [k for k in keys if k not in de], f"every reason is translated: {[k for k in keys if k not in de][:5]}")
 
 print(f"export_tables_lint: {OKS[0]} ok, {len(FAILS)} failed")
