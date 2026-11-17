@@ -692,8 +692,10 @@ def search_tasks(c, uid, raw, limit, files=True):
     count. 2.981.0 (#5278, stage Q6a): the words through the shared search index (core/objsearch.py, obj_search kind 'task'):
     every word at the start of a word (umlauts as ae / oe / ue), a part of the ticket key anywhere -- no ILIKE on the tasks."""
     from ..lists.fields import search_field_ids
-    from .objsearch import osr_ids_sql
-    ids_sql, ids_args = osr_ids_sql("task", raw, names=True)
+    from .objsearch import osr_ids_sql, osr_scope_nodes
+    lids = vis_search_lids(c, uid)
+    # 2.1321.0 (#6397): the visible lists on the index row first (node_id), then the words -- not every organisation's hits
+    ids_sql, ids_args = osr_ids_sql("task", raw, names=True, scope=osr_scope_nodes(lids))
     fids = sorted(search_field_ids(c, uid, raw))[:2000] if raw else []
     from ..files.textscan import ts_task_hits
     fhit = ts_task_hits(c, uid, raw) if files else {}  # 2.61.0 (#1820): the recognised text of a task's files finds the task
@@ -713,7 +715,7 @@ def search_tasks(c, uid, raw, limit, files=True):
                          f"AND ({'id IN ' + ids_sql + ' OR ' if ids_sql else ''}id = ANY(CAST(? AS BIGINT[]))) "
                          # 2.1079.0 (#5655): + id DESC -- updated_at has whole seconds; without a last key the hits of one second
                          # came in another order on every answer and the rows read jumped (p2924_c_ruhe_ui)
-                         "ORDER BY status, updated_at DESC, id DESC LIMIT ?", (vis_search_lids(c, uid), *ids_args, list(fids), limit))
+                         "ORDER BY status, updated_at DESC, id DESC LIMIT ?", (lids, *ids_args, list(fids), limit))
     txt = set()
     if fhit and ids_sql:  # 2.61.0 (#1820): "in file <name>" when only a file's text matched (not the task's own words)
         txt = {r[0] for r in c.execute(f"SELECT t.id FROM tasks t WHERE t.id = ANY(CAST(? AS BIGINT[])) AND t.id IN {ids_sql}",

@@ -17,7 +17,7 @@ from ..core.i18n import N_, tr, trn
 from ..core.db import body, bump, connect, db, iso, iso_ms, now_utc
 from ..core.writes import obj_restore, obj_trash  # 2.947.0 (#5367): the core's trash (life/lfkern.py)
 from ..core.pg import insert_id, write_lock
-from ..core.objsearch import osr_ids_sql  # 2.1026.0 (#5280)
+from ..core.objsearch import osr_ids_sql, osr_scope_org  # 2.1026.0 (#5280)
 from ..core.srchreg import srch_q, srch_register  # 2.1026.0 (#5280)
 from ..core.access import Denied, live_sql  # 2.947.0 (#5367): live_sql
 from ..core.conflict import ccf_check  # 2.570.0 (#4770)
@@ -250,7 +250,7 @@ def bm_list(c, uid, a):
     if q:
         # 2.1026.0 (#5280, stage Q6c): every word at the start of a word (umlauts as ae / oe / ue), a part of the site's name
         # anywhere -- the shared search index (core/objsearch.py kind 'bookmark'), no ILIKE
-        ids, x = osr_ids_sql("bookmark", q, names=True)
+        ids, x = osr_ids_sql("bookmark", q, names=True, scope=osr_scope_org(c, "bookmark"))  # 2.1321.0 (#6397): the reader's organisations first
         w += f" AND b.id IN {ids}" if ids else " AND FALSE"
         args += x
     tag = (a.get("tag") or "").strip()[:BM_TAG_MAX]

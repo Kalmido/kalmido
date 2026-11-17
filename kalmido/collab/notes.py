@@ -2,14 +2,14 @@
 import re
 from flask import jsonify, request, Response
 
-from ..core.objsearch import osr_ids_sql  # 2.981.0 (#5278)
+from ..core.objsearch import osr_ids_sql, osr_scope_nodes  # 2.981.0 (#5278)
 from ..core.srchreg import srch_q, srch_register  # 2.1026.0 (#5280)
 from ..core.config import app
 from ..core.pg import IntegrityError, insert_id, ts_canon, write_lock  # 2.1095.0 (#5306): ts_canon
 from ..core.i18n import tr
 from ..core.db import body, bump, db, iso, iso_ms, now_utc
 from ..accounts.session import me
-from ..core.access import Denied, list_people, list_role, plists, qn_is, vis_sql, WRITE_ROLES, otr_live, list_set_archived, list_archived_sql
+from ..core.access import Denied, list_people, list_role, plists, qn_is, vis_search_lids, vis_sql, WRITE_ROLES, otr_live, list_set_archived, list_archived_sql
 from ..tasks.validation import as_int
 from ..collab.comments import user_names
 from ..core.errors import BadInput, reject_unknown
@@ -300,7 +300,9 @@ def notes_search(c, uid, q, lid=None, limit=50):
         w += " AND list_id NOT IN (SELECT id FROM lists WHERE e2e IS NOT NULL)"  # 2.64.1 (#1817, M7): ciphertexts are not searched
         # 2.981.0 (#5278, stage Q6a): every word at the start of a word of the title, text or tags, through the shared search
         # index (core/objsearch.py, obj_search kind 'note'; umlauts as ae / oe / ue) -- no ILIKE on the notes
-        ids, x = osr_ids_sql("note", q)
+        # 2.1321.0 (#6397): the projects first (node_id = the note's list: the asked one, else the visible ones without the
+        # lock's -- the notes shown are a part of them), then the words
+        ids, x = osr_ids_sql("note", q, scope=osr_scope_nodes([lid] if lid else vis_search_lids(c, uid)))
         if ids is None:
             return []
         w += f" AND id IN {ids}"
