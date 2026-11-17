@@ -81,7 +81,7 @@ function umzPreviewHtml(j) {
     p.office_copy ? hintK(tr(UMZ_OFFICE_COPY)) : '',  // 2.362.2 (#3099)
     p.auto_paused ? hintK(tr('Invoice series and the automatic reminders of the office arrive paused: check them after the import and switch them on again.')) : '',  // 2.1289.0 (#6576)
     // 2.1316.0 (#6577): what the undo keeps, before the start; the finalised documents whose original is not in the file
-    p.office?.final ? hintK(esc(tr('Finalised documents in the file: {0}. Undoing the import does not take them back; choose the target with care.', p.office.final))) : '',
+    p.office?.final ? hintK(esc(tr('Finalised documents in the file: {0}. Undoing the import does not take them back; select the target with care.', p.office.final))) : '',
     (p.office?.missing || []).length ? hintK(esc(tr('Finalised documents without their original file are not imported: {0}', p.office.missing.join(', ')))) : ''].join('');
   const tgt = p.targets.length > 1 || org ? `<div class="row"><label for="s-umz-tgt">${tr('Into')}</label><select id="s-umz-tgt">${p.targets.map(t => `<option value="${esc(String(t.id))}">${esc(t.id === 'private' ? tr('Private|workspace') : t.name)}</option>`).join('')}</select></div>` : '';
   const none = org && !p.targets.length;  // 2.73.0 B (part 4): an organisation export needs an organisation I administer here
