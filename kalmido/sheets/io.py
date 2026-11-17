@@ -529,6 +529,7 @@ class ShxGrid:
         self.n_filled = 0  # 2.576.0 (#4188): filled cells counted while reading
         self.merges, self.fmt_rules = [], []  # 2.578.0 (#3462 C): merged blocks (file rows / 0-based columns), colour rules
         self.fmt_left_out = 0  # 2.578.0 (#3462, review G1): formats / merged blocks over the import's cell limit
+        self.cols_cut = set()  # 2.1324.0 (#6589): columns beyond SH_COLS_MAX with content (left out, named in the report)
 
 
 def _shx_too_many():
@@ -738,7 +739,7 @@ def _read_xlsx(z, names, budget, which=0, ctx=None):
             row.remove(cel)
             if _local(cel.tag) == "c":
                 k += 1
-                _shx_cell(cel, k - 1, r, cells, shared, strings, fmts, full, ctx["sty"][0], fl)
+                _shx_cell(cel, k - 1, r, cells, shared, strings, fmts, full, ctx["sty"][0], fl, g.cols_cut)
             continue
         if cel is row:
             row.clear()
@@ -825,12 +826,15 @@ def _read_xlsx(z, names, budget, which=0, ctx=None):
     return g
 
 
-def _shx_cell(cel, k, r, cells, shared, strings, fmts, full, sty=None, fl=None):
+def _shx_cell(cel, k, r, cells, shared, strings, fmts, full, sty=None, fl=None, cut=None):
     """2.576.0 (#4188): one <c> of row r (its k-th cell) into cells {(r, col): ...}; True = a filled cell. Moved out of the
-    sheet loop of _read_xlsx unchanged, the filled cells count in full[0] over all sheets of the file."""
+    sheet loop of _read_xlsx unchanged, the filled cells count in full[0] over all sheets of the file.
+    2.1324.0 (#6589): a cell beyond SH_COLS_MAX with a value or formula puts its column into `cut` (the report names them)."""
     ref = cel.get("r")
     ci = _col_index(ref) if ref else k
     if ci >= SH_COLS_MAX:
+        if cut is not None and any(_local(ch.tag) in ("v", "is", "f") and "".join(ch.itertext()) for ch in cel):
+            cut.add(ci)  # at most 18 278 columns (3 letters)
         return False
     t, v, f = cel.get("t"), None, None
     for ch in cel:
@@ -1120,6 +1124,8 @@ def shx_import(c, uid, grid, space, title, list_id=None, into=None):
             columns.append({"title": titles[ci], "kind": _guess_kind(vals, fmts)})
             columns[-1].update(_shx_col_nf(columns[-1]["kind"], [r[ci] for r in data if ci < len(r) and r[ci].get("num")]))
     report = {"rows": len(data), "columns": width, "formulas": 0, "as_value": 0, "options_added": 0, "names": 0}
+    if getattr(grid, "cols_cut", None):  # 2.1324.0 (#6589): nothing left out without a word
+        report["cols_left_out"] = len(grid.cols_cut)
     grid.hdr = hdr  # 2.124.0 E (#2116)
     if into is not None:
         sid = shb_create(c, into, uid, title, columns=columns or None, rows=max(len(data), 1))
@@ -1200,6 +1206,8 @@ def shx_report_text(rep):
         out.append(trn("{0} formula imported as a value", "{0} formulas imported as a value", rep["as_value"]))
     if rep["options_added"]:
         out.append(trn("{0} value added as a new choice", "{0} values added as new choices", rep["options_added"]))
+    if rep.get("cols_left_out"):  # 2.1324.0 (#6589)
+        out.append(trn("{0} column left out (at most {1} per sheet)", "{0} columns left out (at most {1} per sheet)", rep["cols_left_out"], SH_COLS_MAX))
     if rep.get("fmt_left_out"):  # 2.578.0 (#3462, review G1)
         out.append(trn("{0} cell format left out (too many cells)", "{0} cell formats left out (too many cells)", rep["fmt_left_out"]))
     if rep.get("rules_left_out"):  # 2.578.0 (#3462, review G8)

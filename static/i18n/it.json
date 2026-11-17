@@ -18993,6 +18993,7 @@
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Fino ad allora le e-mail con contenuti (il riepilogo giornaliero, le notifiche) non vengono inviate a questo indirizzo.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Conferma prima il tuo indirizzo e-mail: le e-mail con contenuti vanno solo a un indirizzo confermato.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Il tuo indirizzo non è ancora confermato: il riepilogo giornaliero e le e-mail sugli eventi partono solo dopo che lo hai confermato.",
+  "{0} column left out (at most {1} per sheet)": ["{0} colonna tralasciata (al massimo {1} per foglio)", "{0} colonne tralasciate (al massimo {1} per foglio)"],
   "not included|file name of the list in a ZIP": "non incluso",
   "These items are not in this ZIP:": "Questi elementi non sono in questo ZIP:",
   "Sending needs the user name and the password of the SMTP server": "Per inviare servono il nome utente e la password del server SMTP",
