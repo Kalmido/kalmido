@@ -63,8 +63,10 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       await caught();
       const held = await ready(`(() => { if (td_polling) return false; td_polling = true; return true; })()`, 120);
       check(held, 'B5: the poll held'); if (!held) break S6335B5;
-      // the first delta reads the old change, its answer is held back until the second one is through
-      const gate = `(() => { const a0 = window.__api0 || api; window.__api0 = a0; window.__got = 0; window.__gate = null; api = function (m, u) { const p = a0.apply(this, arguments); if (!String(u).includes('/api/state/delta')) return p; api = a0; p.then(() => { window.__got = 1; }, () => {}); return new Promise(res => { window.__gate = () => p.then(res, () => res(null)); }); }; return 1; })()`;
+      // the first delta reads the old change, its answer is held back until the second one is through; a write of this
+      // window meanwhile (a read mark in the background) would send lpDelta the full way and hide the race: S.wseq is put
+      // back to its value at the delta's start before the answer is let through (no write of mine, the case of #6335 B5)
+      const gate = `(() => { const a0 = window.__api0 || api; window.__api0 = a0; window.__got = 0; window.__gate = null; api = function (m, u) { const p = a0.apply(this, arguments); if (!String(u).includes('/api/state/delta')) return p; api = a0; window.__w = S.wseq || 0; p.then(() => { window.__got = 1; }, () => {}); return new Promise(res => { window.__gate = () => p.then(res, () => res(null)); }); }; return 1; })()`;
       await ev(gate);
       await call(CA, 'PATCH', `/api/tasks/${T5}`, {title: 'B5 old'});
       await ev(`(() => { window.__p1 = lpDelta(S.v, ['tasks']); return 1; })()`);
@@ -72,8 +74,8 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(await ready(`window.__got === 1`, 40), 'B5: the server answered the first delta (the answer waits in the page)');
       await call(CA, 'PATCH', `/api/tasks/${T5}`, {title: 'B5 new'});
       check(await ev(`lpDelta(S.v, ['tasks']).then(() => S.tasks.get(${T5})?.title)`) === 'B5 new', 'B5: the second delta brings the newest title');
-      await ev(`(() => { window.__gate(); return window.__p1.then(() => 1); })()`);
-      check(await ev(`S.tasks.get(${T5})?.title`) === 'B5 new' && /B5 new/.test(await ev(`document.querySelector('#view .trow[data-id="${T5}"]')?.textContent || ''`)), 'B5: the late answer of the first delta does not take the older title back ' + JSON.stringify(await ev(`({t: S.tasks.get(${T5})?.title, row: document.querySelector('#view .trow[data-id="${T5}"]')?.textContent, late: S.lpN.late})`).catch(e => String(e))));
+      await ev(`(() => { S.wseq = window.__w; window.__gate(); return window.__p1.then(r => { window.__r1 = r; return 1; }); })()`);
+      check(await ev(`S.tasks.get(${T5})?.title`) === 'B5 new' && /B5 new/.test(await ev(`document.querySelector('#view .trow[data-id="${T5}"]')?.textContent || ''`)), 'B5: the late answer of the first delta does not take the older title back ' + JSON.stringify(await ev(`({t: S.tasks.get(${T5})?.title, row: document.querySelector('#view .trow[data-id="${T5}"]')?.textContent, late: S.lpN.late, r: window.__r1})`).catch(e => String(e))));
       // the bundled follow-up asks from an older version (S.lpBase) while S.v moved on without a state (a light change,
       // lpLive): its late answer still brings the tasks of that range
       const T6 = (await call(CA, 'POST', '/api/tasks', {title: 'F start', list_id: L})).id;
@@ -86,8 +88,8 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(await ready(`window.__got === 1`, 40), 'B5: the follow-up\'s delta is answered (held in the page)');
       await call(CA, 'PATCH', `/api/tasks/${T5}`, {title: 'B5 newer'});
       await ev(`lpDelta(S.v, ['tasks']).then(() => 1)`);
-      await ev(`(() => { window.__gate(); return window.__pf.then(() => 1); })()`);
-      check(await ev(`S.tasks.get(${T6})?.title`) === 'F changed', 'B5: the late follow-up (asked from an older version) still brings its tasks ' + await ev(`S.tasks.get(${T6})?.title`));
+      await ev(`(() => { S.wseq = window.__w; window.__gate(); return window.__pf.then(r => { window.__r1 = r; return 1; }); })()`);
+      check(await ev(`S.tasks.get(${T6})?.title`) === 'F changed', 'B5: the late follow-up (asked from an older version) still brings its tasks ' + await ev(`JSON.stringify({t: S.tasks.get(${T6})?.title, r: window.__r1})`));
       check(await ev(`S.tasks.get(${T5})?.title`) === 'B5 newer', 'B5: ... and keeps the newer copy of a task it read earlier');
       await ev(`(() => { api = window.__api0; td_polling = false; return 1; })()`);
     }
@@ -102,7 +104,9 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
       check(await ready(`/Phone list/.test(document.querySelector('#view')?.textContent || '')`, 40), 'B3: a note made on the other device shows in the open notes ' + await ev(`S.nt.notes?.length`));
       check(await ready(`(S.notes || []).some(n => n.id === ${NID})`, 80), 'B3: ... and in the notes the app knows (search, overview)');
       await ev(`(() => { location.hash = '#note/${NID}'; return 1; })()`);
-      check(await ready(`S.nt.id === ${NID} && /Eggs/.test(document.querySelector('#nt-md')?.textContent || '')`, 40), 'B3: the note is open (read)');
+      const nopen = await ready(`S.nt.id === ${NID} && /Eggs/.test(document.querySelector('#nt-md')?.textContent || '')`, 40);
+      check(nopen, 'B3: the note is open (read)');
+      if (!nopen) { await ev(`(() => { location.hash = '#l/${L}'; return 1; })()`); break S6335B3; }
       await caught();
       await call(CA, 'PATCH', `/api/notes/${NID}`, {body: 'Eggs, milk'});
       check(await ready(`/milk/.test(document.querySelector('#nt-md')?.textContent || '')`, 40), 'B3: the open note shows the other device\'s text ' + await ev(`document.querySelector('#nt-md')?.textContent`));
