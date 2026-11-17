@@ -19000,6 +19000,11 @@
   "not included|file name of the list in a ZIP": "non inclus",
   "These items are not in this ZIP:": "Ces éléments ne sont pas dans ce ZIP :",
   "Showing the newest {0} of {1} submissions. The CSV has all of them.": "Affichage des {0} envois les plus récents sur {1}. Le CSV les contient tous.",
+  "a link to another item, not a file": "un lien vers un autre élément, pas un fichier",
+  "blocked by the virus scanner or not checked yet": "bloqué par l'antivirus ou pas encore vérifié",
+  "the stored file is damaged or missing": "le fichier enregistré est endommagé ou manquant",
+  "in a locked (end-to-end encrypted) folder: open it in the app and download the files there": "dans un dossier verrouillé (chiffré de bout en bout) : ouvre-le dans l'app et télécharge les fichiers depuis là",
+  "folder nested too deeply: what is inside is not included": "dossier trop profondément imbriqué : son contenu n'est pas inclus",
   "Sending needs the user name and the password of the SMTP server": "Pour envoyer, il faut le nom d'utilisateur et le mot de passe du serveur SMTP",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Envoi uniquement par le port 465 ou 587 (le port 25 seulement pour un serveur autorisé par un administrateur)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "L'envoi se fait uniquement avec le nom d'utilisateur et le mot de passe du serveur SMTP, par le port 465 ou 587."

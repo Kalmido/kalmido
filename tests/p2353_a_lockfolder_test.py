@@ -18,11 +18,13 @@ trip is in tests/p2353_a_lockfolder_ui.js).
 usage: p2353_a_lockfolder_test.py <datadir>
 freelancer-matrix: files  tenant-matrix: file"""
 import base64
+import io
 import json
 import os
 import struct
 import subprocess
 import sys
+import zipfile
 
 import requests
 
@@ -239,6 +241,14 @@ r = A.post(B + f"/api/files/nodes/{SAFE}/requests", json={"title": "Send me", "d
 check(r.status_code in (409, 403), "file request into a locked folder refused " + r.text[:120])
 z = A.get(B + "/api/files/zip", params={"ids": str(TOP), "check": "1"}).json()
 check(z.get("files") == 1, "ZIP of the folder above: the locked files stay out " + json.dumps(z))
+# 2.1324.0 (#6589): the locked folder is named in "not included.txt" with its reason (its files are not listed one by one)
+check(z.get("omitted") == 1, "#6589: the check counts the locked folder as left out " + json.dumps(z))
+r = A.get(B + "/api/files/zip", params={"ids": str(TOP)})
+zz = zipfile.ZipFile(io.BytesIO(r.content)) if r.ok else None
+nt = [n for n in zz.namelist() if n.startswith("not included")] if zz else []
+txt = zz.read(nt[0]).decode("utf-8") if nt else ""
+check(nt == ["not included.txt"] and "Top/Safe/ - in a locked (end-to-end encrypted) folder" in txt and not any(n.startswith("Top/Safe") for n in zz.namelist()),
+      f"#6589: the ZIP names the locked folder in 'not included.txt' ({zz.namelist() if zz else r.status_code} {txt!r})")
 
 # ---------------------------------------------------------------- (e) moving
 r = A.patch(B + f"/api/files/nodes/{F2}", json={"parent_id": SAFE})
