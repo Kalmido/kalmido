@@ -1533,6 +1533,14 @@ accent; a list's own colour, `#main.lp-acc`, wins). Inside one organisation's wo
 tone (`wac_sync`). No header stripe (removed in 2.138.2, #2389). Do not set `wsc-on` / `wac-loc` on `#main` / `#view` by
 hand, and do not build a second origin mark (`ws_originHtml` of the task rows uses `wso_head` too).
 
+2.1333.0 (#6697): under "All workspaces" a page that belongs to ONE workspace wears it as a whole. `wso_scope()` = the workspace
+whose module is on there alone (Settings > Modules per workspace, `wsa_wsOn` / `mc_wsOn`; the team chat: the organisations; the
+Disposition tab: `dispo`); `wsp_side` then takes it instead of "All" - the stripe on top of the sidebar and `:root`'s accent
+(rail, panel, header, tab bar, drawer), as inside that workspace. A page of several workspaces with an open object of an
+organisation keeps `:root` on Kalmido's accent, but the active sidebar row of that object (`#side .srow.on[data-wsc]`,
+`.sbbi.on[data-wsc]`) gets the same `wac-loc` tone as `#view` (`wso_side`, after every `wso_sync` and `renderSide`). A new area
+needs nothing for this: its module key and `wso_open` are enough.
+
 Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open list -> `wso_sync`, task rows under "All" ->
 `ws_originHtml`). 2.1241.0 (#6181-#6185): the calendar (event chips, rows, week blocks, popover, dialog, calendar list;
 `cevOrg`), the wiki (spaces, panel root, the open page or space), the team chat (channels / groups / project chats; direct
