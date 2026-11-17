@@ -120,7 +120,9 @@ async function ofdMore() {
 async function ofdLoadList(force) {
   if (OFD.loading) { if (force) OFD.loadAgain = true; return; }
   if (OFD.list && !force) return;
-  if (OFD.kind === 'archive') { if (typeof OIM !== 'undefined') OIM.list = null; OFD.list = []; ofdDraw(); return; }  // 2.39.1 (#1182): office_import.js loads it
+  // 2.39.1 (#1182): office_import.js loads it; 2.1329.0 (#6848): the rows shown stay until the fresh list is there (every state
+  // push came here through onumListFresh and showed "Loading" instead of the rows for a moment)
+  if (OFD.kind === 'archive') { OFD.list = []; if (typeof oimRefreshList === 'function') oimRefreshList(); else ofdDraw(); return; }
   OFD.loading = true; OFD.loadAgain = false;
   const u = ofdListUrl();
   try { const j = await api('GET', `${u}&limit=${ofd_reloadN()}`); if (u === ofdListUrl()) { OFD.list = j.docs || []; OFD.next = j.next_cursor || null; OFD.role = j.role; OFD.err = ''; OFD.dunning = j.dunning || null; tri_meta(j); } }  // 2.147.1 B (#2054): dunning; 2.144.10 C (#2576): + trial filter / meta
