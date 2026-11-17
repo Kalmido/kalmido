@@ -691,8 +691,8 @@ def token_delete(tid):
     if not r:
         raise Denied(404)
     if (g.user["kind"] or "user") == "agent" and str(r["name"] or "") != "Agent request":  # = agents/reqtoken.py REQ_TOKEN_NAME
-        from ..agents.reqtoken import req_drop  # a later module; 2.1325.0 (#6668, review F2): an agent revoking its own token
-        req_drop(c, me())
+        # 2.1325.0 (#6668, review F2): an agent revoking its own token -- its request tokens go too (as agents/reqtoken.py req_drop)
+        c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=?", (me(), "Agent request"))
     c.commit()
     return jsonify(ok=True)
 
