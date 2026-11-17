@@ -738,7 +738,7 @@ def _settle(c, d):
 @app.get("/api/office/bank/fints")
 def fnt_status():
     """{on, code (why off), accounts: [{id, label, iban_tail, blz, login, server, ok (a German IBAN)}], since}. Also when off
-    (the client shows the button switched off with the reason)."""
+    (the client then shows no button, 2.1324.0 #6147; the foot of the bank page says "No bank access")."""
     c, uid, oid = _ctx()
     off = fnt_off()
     if bka_seed(c, oid):  # the company's account, as the bank accounts' own list makes it

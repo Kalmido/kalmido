@@ -1233,6 +1233,12 @@ negative.
 The tab **Bank** (admins of the office area; in a private office its owner) matches the bookings of your account with
 invoices and receipts. You import the file you download from your bank yourself, or (2.616, German accounts, when the
 server is set up for it) Kalmido fetches the bookings from the bank over FinTS with your PIN - see "Fetch from bank" below.
+On a phone the bar is one row - **Import bank statement** and **More** (Go through, Fetch from bank, Imports, the bank
+accounts) - so the first booking stands high on the screen (2.1324). **Go through** shows one open booking at a time with
+one main step (take the suggestion, or search another receipt / invoice) and the rest under **More** (upload a receipt,
+Private, No receipt needed, Ignore, Cash box transfer, Split across invoices); on a computer the key hint names only the keys
+that work (1-3 as far as cards show numbers, Enter takes it, the arrows go back and forth). The hint "Receipt missing?" folds
+with one tap and stays folded. A suggestion without a picture (an invoice) is a compact card without an empty preview area.
 
 - **Import bank statement**: a CSV export (German and English formats: `1.234,56` or `1,234.56`, `DD.MM.YYYY`,
   `YYYY-MM-DD` …; account lines above the header are skipped) or a CAMT.052 / CAMT.053 XML file. For a CSV you confirm
@@ -1257,8 +1263,8 @@ server is set up for it) Kalmido fetches the bookings from the bank over FinTS w
   most 4 minutes, with at most 50 requests and 60 MB of answers (else `too_large`: choose a shorter period). After a refusal of the bank (wrong PIN, locked access) Kalmido never tries
   again by itself; after two refusals within an hour the account waits for the rest of that hour, so the bank does not lock
   your access. Flicker codes (chipTAN optic) cannot be shown; choose another TAN method. Agents cannot start a fetch (an
-  agent never handles a PIN). The button stays switched off with the reason while the server has no FinTS product
-  registration (see [SELF-HOSTING.md](SELF-HOSTING.md#office-bank-fetch-over-fints)). Routes (admins of the office area,
+  agent never handles a PIN). The button shows only once the server has its FinTS product registration (2.1324: no
+  switched-off button any more; the foot line says "No bank access"; on a phone it sits in the bar's **More**) (see [SELF-HOSTING.md](SELF-HOSTING.md#office-bank-fetch-over-fints)). Routes (admins of the office area,
   the person in a personal office; another person's dialog 404): `GET /api/office/bank/fints` (on / code, the accounts),
   `POST /api/office/bank/fints/start` `{account_id, login, pin, server, from?, to?, remember?, mechanism?}` -> 201
   `{dialog: {id, state mechanism | decoupled | tan | preview, ...}}`, `POST .../{id}/mechanism {id}`, `.../{id}/tan {tan}`,
