@@ -18,6 +18,7 @@ usage: p6481_office_numbers_test.py <datadir>"""
 import csv
 import io
 import os
+import re
 import sys
 import zipfile
 from datetime import date, timedelta
@@ -220,9 +221,13 @@ def run(S, who, member=None):
     if r.ok:
         z = zipfile.ZipFile(io.BytesIO(r.content))
         rows = list(csv.reader(io.StringIO(z.read("invoices.csv").decode("utf-8")), delimiter=";"))
+        # the columns by name from index.xml (more columns may follow the import mark, #6471 appended file / checksum ones)
+        tab = re.search(r"<URL>invoices\.csv</URL>(.*?)</Table>", z.read("index.xml").decode("utf-8"), re.S)
+        cols = re.findall(r"<Variable(?:PrimaryKey|Column)><Name>([^<]*)</Name>", tab.group(1)) if tab else []
+        ia, ib = (cols.index("Importiert_am"), cols.index("Importiert_von")) if "Importiert_von" in cols else (-2, -1)
         mine = [x for x in rows if x[2] == num]
-        ok(mine and mine[0][-2:] == ["01.11.2026", me["display_name"]], f"U4: invoices.csv names import day and person {mine[:1]}")
-        ok(all(x[-2:] == ["", ""] for x in rows if x[2] != num), "U4: the other invoices carry no import mark")
+        ok(mine and [mine[0][ia], mine[0][ib]] == ["01.11.2026", me["display_name"]], f"U4: invoices.csv names import day and person {mine[:1]}")
+        ok(all([x[ia], x[ib]] == ["", ""] for x in rows if x[2] != num), "U4: the other invoices carry no import mark")
         ok(b"Importiert_am" in z.read("index.xml"), "U4: index.xml names the columns")
 
 
