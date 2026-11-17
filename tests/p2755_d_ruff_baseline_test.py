@@ -103,7 +103,11 @@ check(rc == 0 and after and set(after["files"]) == {"kalmido/a.py", "kalmido/b.p
 # 7. the repo
 ci = open(os.path.join(ROOT, ".github/workflows/ci.yml"), encoding="utf-8").read()
 toml = open(os.path.join(ROOT, "ruff.toml"), encoding="utf-8").read()
-pin = re.search(r"pip install ruff==(\d+\.\d+\.\d+)", ci)
+# 2.1347.0 (#6860): since 2.1297.0 (#6509) ci.yml installs ruff with hashes from tools/ci/lint.lock (pin in tools/ci/lint.in),
+# no longer "pip install ruff==X" - the pin is read from the lock the step names
+lock = os.path.join(ROOT, "tools", "ci", "lint.lock")
+pin = ("pip install --require-hashes -r tools/ci/lint.lock" in ci and os.path.exists(lock)
+       and re.search(r"^ruff==(\d+\.\d+\.\d+)", open(lock, encoding="utf-8").read(), re.M))
 check(pin and f"ruff=={pin.group(1)}" in toml, f"ci.yml installs the ruff version ruff.toml names: {pin and pin.group(1)}")
 check("python tools/ruff_baseline.py /tmp/ruff.json" in ci and "--exit-zero" in ci, "ci.yml compares with the baseline")
 check(re.search(r'select = \["E", "F", "BLE"\]', toml) and "line-length = 130" in toml, "ruff.toml: E, F, BLE, 130")
