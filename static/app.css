@@ -8234,6 +8234,9 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 #pop .kbwsi .kbwsic{display:grid;place-items:center;width:1.25rem;height:1.25rem;flex:none}
 #pop .kbwsi .kbwsic img.orgic{width:1.25rem;height:1.25rem;border-radius:.3125rem;object-fit:cover}
 #pop .kbwsi .kbini{display:grid;place-items:center;width:1.25rem;height:1.25rem;border-radius:.3125rem;background:var(--accent);color:var(--accent-ink,#fff);font-size:var(--fs-xs);font-weight:700}
+/* 2.1353.0 (#6957): the tile in its organisation's own colour (data-wsc: --wsc = the theme's tone), Private's house in mine; no colour keeps the accent */
+#pop .kbwsi .kbini[data-wsc]{background:var(--wsc);color:var(--bg)}
+#pop .kbwsi svg.i[data-wsc]{color:var(--wsc)}
 /* the panel's head: name left, the two buttons right and always visible */
 #app.sb-b #side .sbhead{min-height:2.25rem;margin:0 0 .25rem;padding:0 .125rem 0 .25rem}
 #app.sb-b #side .sbhead .sbbpt{margin:0;font-size:var(--fs-m);font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
