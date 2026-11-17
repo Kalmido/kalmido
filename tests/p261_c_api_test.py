@@ -12,6 +12,7 @@
  - deleting the file (attachment, project file, Ablage file for good) deletes its text row and index words; the trash
    hides it from the search
  - the catch-up: a file without a text row (stored before the release) is queued and recognised
+ - 2.1337.0 (#6651): a member's upload is not marked anonymous (file_text.anon 0: the full clock)
 Test files are made here (hand-written PDF, Pillow image); invented words only.
 tenant-matrix: org
 usage: p261_c_api_test.py <datadir>"""
@@ -142,6 +143,8 @@ A1 = dbx("SELECT id FROM attachments WHERE task_id=? ORDER BY id DESC LIMIT 1", 
 check(ft("att", A1) is not None, "#1820: the upload queues the file (a file_text row at once)")
 st = settled("att", A1)
 check(st and st[0] == "found" and st[2] == "pdf", f"#1820: the PDF's text layer is read in the background ({st})")
+# 2.1337.0 (#6651): a member's task file is no anonymous source (the full clock of the recognition)
+check(dbx("SELECT anon FROM file_text WHERE kind='att' AND ref_id=?", (A1,))[0][0] == 0, "#6651: a member's upload is not marked anonymous")
 att = {x["name"]: x for x in Bo.get(B + f"/api/tasks/{T1}").json().get("attachments", [])}.get("bill.pdf") or {}
 check((att.get("up") or {}).get("text") == "found", f"#1820 (with #1818's marks): the task file carries up.text found ({att.get('up')})")
 # 2.1002.0 (#5279): the shared word index obj_search_words (was doc_words / file_words / wiki_words / hub_words)

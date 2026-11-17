@@ -40,6 +40,7 @@ from ..core.env import env_bool
 from ..core.orgcrypt import oc_read_file  # 2.149.0 G (#2517): pulled up from functions
 from .fslock import fl_is_locked  # 2.353.0 A (#2758)
 from .fsviews import fsv_drop  # 2.429.0 (#3580)
+from ..docs.ocr import OCR_ANON_S, ocr_charge, ocr_tired, ocr_ws_sql  # 2.1337.0 (#6651): the hour budget, the anonymous clock
 
 KINDS = ("att", "list", "fs")
 COL = {"att": "att_id", "list": "list_file_id", "fs": "node_id"}
@@ -124,6 +125,8 @@ def ts_after_store(c, kind, ref_id, org_id, info):
     if not ref or not _wanted(ref["name"], ref["mime"]):
         return None
     _enqueue(c, kind, ref_id, ref)
+    if (info or {}).get("anon"):  # 2.1337.0 (#6651): a public form's / a mail's file (core/pages.py save_attachment_bytes)
+        ts_mark_anon(c, kind, ref_id)
     ts_kick()
     return None
 
@@ -131,11 +134,18 @@ def ts_after_store(c, kind, ref_id, org_id, info):
 def _enqueue(c, kind, ref_id, ref):
     ts = _now()
     r = c.execute(f"""INSERT INTO file_text(kind, ref_id, {COL[kind]}, org_id, ws, state, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?)
-                      ON CONFLICT(kind, ref_id) DO UPDATE SET state='wait', tries=0, error='', method='', text='', pages=0,
+                      ON CONFLICT(kind, ref_id) DO UPDATE SET state='wait', tries=0, anon=0, error='', method='', text='', pages=0,
                       org_id=excluded.org_id, ws=excluded.ws,
                       truncated=0, sha256='', updated_at=excluded.updated_at RETURNING id""",
                   (kind, ref_id, ref_id, ref["org_id"], ref["ws"], "wait", ts, ts)).fetchone()
     osw_drop(c, "file_text", [r[0]])  # the old version's words go at once (2.1002.0 #5279: the shared word index)
+
+
+def ts_mark_anon(c, kind, ref_id):
+    """2.1337.0 (#6651): the file came from a source a stranger can fill (a public form, a file request, a mail): its
+    recognition gets the shorter clock (docs/ocr.py OCR_ANON_S). Call it right after the store (same transaction)."""
+    if ON and kind in KINDS:
+        c.execute("UPDATE file_text SET anon=1 WHERE kind=? AND ref_id=?", (kind, int(ref_id)))
 
 
 def ts_marks(c, kind, ids):
@@ -273,11 +283,11 @@ def ts_run_once():
             c.execute("UPDATE file_text SET state='error', error='failed' WHERE state='wait' AND tries >= ?", (TRIES,))
             # 2.1283.0 (#6427): one workspace after the other (one not served lately first, then the one served longest
             # ago), no longer ORDER BY id over all of them: a pile of files of one (a public form takes six a minute) never
-            # holds up the others
+            # holds up the others. 2.1337.0 (#6651): a workspace whose hour budget is used up (docs/ocr.py ocr_tired) waits
             r = c.execute("""UPDATE file_text SET state='run', tries=tries+1, updated_at=? WHERE id=(
-                               SELECT id FROM file_text WHERE state='wait'
+                               SELECT id FROM file_text WHERE state='wait' AND ws <> ALL(CAST(? AS TEXT[]))
                                ORDER BY array_position(CAST(? AS TEXT[]), ws) NULLS FIRST, id LIMIT 1 FOR UPDATE SKIP LOCKED)
-                             RETURNING id, kind, ref_id, ws""", (_now(), "{" + ",".join(_Q["recent"]) + "}")).fetchone()
+                             RETURNING id, kind, ref_id, ws, anon""", (_now(), ocr_ws_sql(ocr_tired()), ocr_ws_sql(_Q["recent"]))).fetchone()
             if r:
                 _Q["recent"] = [w for w in _Q["recent"] if w != r["ws"]][-63:] + [r["ws"]]
             else:
@@ -348,11 +358,14 @@ def _process(c, row):
         _set(c, fid, same["state"], text=same["text"], method=same["method"], pages=same["pages"], truncated=same["truncated"], sha256=sha)
         osw_copy(c, "file_text", same["id"], fid)  # 2.1002.0 (#5279): the shared word index
         return
+    t0 = time.monotonic()
     if mime == "office":  # 2.92.0 C (#1926): the text of the preview model (the same limits as a PDF)
         r = dpv_model(data, office)
         r = {"error": r["error"]} if r.get("error") else {"text": r.get("text") or "", "method": "office", "pages": 0}
-    else:
-        r = doc_text(ref["name"], mime, data)
+    else:  # 2.1337.0 (#6651): a file from an anonymous source (ts_mark_anon) gets the shorter clock
+        r = doc_text(ref["name"], mime, data, doc_s=OCR_ANON_S if row.get("anon") else None)
+    if r.get("error") != "busy":
+        ocr_charge(row["ws"], time.monotonic() - t0)  # 2.1337.0 (#6651): the workspace's hour budget
     if r.get("error") == "busy":
         c.execute("UPDATE file_text SET state='wait', tries=GREATEST(tries-1, 0), updated_at=? WHERE id=?", (_now(), fid))
         return
