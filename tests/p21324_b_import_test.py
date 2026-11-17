@@ -14,6 +14,7 @@
  - a person without an organisation (freelancer-matrix: sheets)
 usage: p21324_b_import_test.py <datadir>      (P21324B_NOSTART=1 = the server already runs)"""
 # freelancer-matrix: sheets
+import base64
 import io
 import json
 import os
@@ -62,9 +63,7 @@ def xlsx(rows):
     return b.getvalue()
 
 
-# ---------------------------------------------------------------- the .ods maker (here and inside the app container)
-ODSGEN = r'''
-import io, zipfile
+# ---------------------------------------------------------------- the .ods maker
 ONS = ('xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" '
        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"')
 
@@ -96,8 +95,6 @@ BOMB = ('<table:table table:name="B"><table:table-row table:number-rows-repeated
         'office:value="1" table:number-columns-repeated="2147483647"><text:p>1</text:p></table:table-cell></table:table-row></table:table>')
 FULLROWS = ('<table:table table:name="F"><table:table-row table:number-rows-repeated="4000"><table:table-cell office:value-type="float" '
             'office:value="7" table:number-columns-repeated="150"><text:p>7</text:p></table:table-cell></table:table-row></table:table>')
-'''
-exec(ODSGEN)  # noqa: S102 - our own text above
 
 
 def row(*cells, rep=1):
@@ -253,8 +250,11 @@ refused("deep.ods", ods("<table:table table:name='D'>" + "<table:table-row-group
         "not a spreadsheet file (.ods)", "nesting deeper than 64")
 
 # ---------------------------------------------------------------- in the app container: the memory the repeat bombs take
-PROBE = ODSGEN + r'''
-import json, time, tracemalloc
+EMPTY = ods('<table:table table:name="E"><table:table-row><table:table-cell office:value-type="string"><text:p>x</text:p></table:table-cell>'
+            '</table:table-row>' + EMPTY_ROWS * 50 + '</table:table>')
+FILES = {k: base64.b64encode(v).decode() for k, v in (("bomb", ods(BOMB)), ("full", ods(FULLROWS)), ("empty", EMPTY))}
+PROBE = "FILES = " + json.dumps(FILES) + r'''
+import base64, json, time, tracemalloc
 from kalmido.core.config import app
 from kalmido.core.errors import BadInput
 from kalmido.sheets.odsread import shx_read_ods_all
@@ -271,10 +271,8 @@ def measure(key, raw):
     out[key] = [err, tracemalloc.get_traced_memory()[1], time.monotonic() - t0]
     tracemalloc.stop()
 with app.test_request_context("/", headers={"Accept-Language": "en"}):
-    measure("bomb", ods(BOMB))
-    measure("full", ods(FULLROWS))
-    measure("empty", ods('<table:table table:name="E"><table:table-row><table:table-cell office:value-type="string"><text:p>x</text:p></table:table-cell>'
-                         '</table:table-row>' + EMPTY_ROWS * 50 + '</table:table>'))
+    for key, b64 in FILES.items():
+        measure(key, base64.b64decode(b64))
 print(json.dumps(out))
 '''
 r = subprocess.run(["docker", "exec", "-i", CT, "python", "-"], input=PROBE, capture_output=True, text=True, timeout=300)
