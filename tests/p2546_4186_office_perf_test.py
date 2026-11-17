@@ -16,6 +16,9 @@ tenant-matrix: office  freelancer-matrix: office
  - bank: bank.bnk_suggest with the index (bnk_suggest_index) gives the same suggestions in the same order as the full
    pair loop (random bookings, invoices and receipts with shared words / amounts); the bank list suggests the receipt of
    the same amount
+ - 2.1365.0 (#6795): the income statement (GET /books/euer) and the key figures read the credit notes of the office once:
+   their statements stay the same (at most +2) for 6 more paid invoices (was one query per paid invoice), organisation and
+   personal office
  - 2.1315.0 (#6403): rc_receipts has the indexes ix6403_rc_receipts_ws / ix6403_rc_receipts_billed and the lookups by ws /
    billed_doc_id use them (EXPLAIN, sequential scans off)
 usage: p2546_4186_office_perf_test.py <datadir>"""
@@ -321,5 +324,33 @@ print(json.dumps({"ix": ix, "ws": "ix6403_rc_receipts_ws" in p1, "billed": "ix64
 res = last_json(in_app(CODE))
 check({"ix6403_rc_receipts_ws", "ix6403_rc_receipts_billed"} <= set(res.get("ix", [])), f"#6403: rc_receipts has its indexes on ws and billed_doc_id {res.get('ix')}")
 check(res.get("ws") and res.get("billed"), f"#6403: the lookups by area and by billed invoice use them {res}")
+
+# ---------------------------------------------------------------- 2.1365.0 (#6795): the income statement does not query per payment
+def paid_invoice(s, cl, k):
+    r = s.post(B + O + "/docs", json={"kind": "invoice", "client_id": cl, "date": TD, "service_from": TD, "service_to": TD,
+                                      "items": [{"title": f"Leistung {k}", "qty": 1, "rate": 100 + k, "unit": "piece"}]})
+    assert r.status_code == 201, r.text
+    r = s.post(B + O + f"/docs/{r.json()['id']}/finalize", json={})
+    assert r.ok, r.text
+    p = s.post(B + O + f"/docs/{r.json()['id']}/payments", json={"date": TD, "amount": str(r.json()["totals"]["gross"]), "method": "transfer"})
+    assert p.status_code in (200, 201), p.text
+
+
+for who, s in (("alice", A), ("fiona", Fr)):
+    r = s.post(B + "/api/clients", json={"name": f"Testkunde {who}", "street": "Marktstraße 5", "zip": "50667", "city": "Köln", "country": "DE"})
+    check(r.status_code == 201, f"{who}: a client for the invoices {r.text[:120]}")
+    cl = r.json().get("id")
+    for k in range(2):
+        paid_invoice(s, cl, k)
+    eu = lambda: s.get(B + O + f"/books/euer?year={YEAR}")  # noqa: E731
+    r1 = eu()
+    n1 = nstmt(eu())
+    for k in range(2, 8):
+        paid_invoice(s, cl, k)
+    r2 = eu()
+    n2 = nstmt(eu())
+    print(f"PERF {who}: statements of the income statement with +6 paid invoices {n1} -> {n2}", flush=True)
+    check(r1.ok and r2.ok and r2.json() != r1.json(), f"{who}: the income statement counts the new payments {r1.status_code} {r2.status_code}")
+    check(n1 > 0 and n2 - n1 <= 2, f"{who}: the statements of the income statement do not grow with the paid invoices ({n1} -> {n2} for +6)")
 
 sys.exit(kt.done("p2546_4186_office_perf"))
