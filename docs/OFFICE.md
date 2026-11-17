@@ -3346,6 +3346,10 @@ number; without them the client's customer number stands in. Agents read the sta
 
 The UBL file of any finalised invoice / credit note is also downloadable (`GET /api/office/docs/<id>/ubl`, menu
 *E-invoice UBL (Peppol)*): with the Peppol IDs when they are set, else the e-mail addresses as electronic addresses.
+Once a document went over Peppol, the UBL that was sent is kept byte for byte (2.1321.0, #6480): sealed next to the PDF
+and XML in the office folder, its SHA-256 = the send's `xml_sha256`. The download answers that file from then on -- also
+after a cancellation (a cancelled invoice that was never sent has no UBL) -- and the auditor export (GoBD, `invoices.csv`
+columns `Peppol_UBL_*`), the retention export and the organisation export carry it.
 
 ## Validators
 
