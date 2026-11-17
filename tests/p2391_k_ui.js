@@ -1,5 +1,5 @@
 // 2.39.1 UI tests, part K, own container (start.sh). jsdom:
-// - #1219 the inbox is called "Basket" in every language (no "Inbox" / "Eingang" left in the texts about it); the sidebar's
+// - #1219 the inbox is called "Basket" in every language (the translation files: tests/i18n_test.py since 2.1329.0, #4992); the sidebar's
 //   number says "to sort"; "Sort" in the basket walks item by item: to a list, assign to me, today, waiting on someone,
 //   delete, skip (buttons + number keys), the end page ("Basket empty" / still to sort), Esc ends
 // - #1219 My tasks: the assigned tasks + the group "From your lists, without a date" (only unassigned, undated tasks of lists
@@ -9,7 +9,6 @@
 // - #1185 the sidebar: "Views" (calendar, matrix ...) and "Areas" (habits, statistics ...); an own arrangement stays (Areas
 //   right after Views); "Fold all" folds every group and folder and switches to "Unfold all"
 const {execFileSync} = require('child_process');
-const fs = require('fs');
 const path = require('path');
 const {boot, sleep, B, login} = require('./boot');
 const F = []; let ok = 0;
@@ -25,26 +24,9 @@ const key = (w, el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', {key: 
 const FEAT = 'cal,matrix,habits,stats,comments,collab';
 
 (async () => {
-  // ================= #1219 the name in every language (the files)
-  const I18N = path.join(__dirname, '..', 'static', 'i18n');
-  const OLD = {de: /(?!)/,  // 2.152.4 (#2634): German says Eingang again
-    fr: /boîte de réception/i, es: /bandeja de entrada/i, it: /In arrivo|posta in arrivo/, nl: /\binbox\b/i};
-  const NEW = {de: 'Eingang', fr: 'Panier', es: 'Cesta', it: 'Raccolta', nl: 'Mand'};
-  // 2.48.0 (#1111): "Dokumente/Eingang" is the fixed name of a folder in the file store (data, the same in every language), not the basket
-  // 2.142.1 (#2150): "Share inbox (ntfy)" is the heading of the ntfy share inbox per person (the topic, not the basket)
-  // 2.207.0 A (#2763): a "scan inbox" (Documents > Settings, upload-only key) is not the basket either (de: Scan-Eingang)
-  // 2.630.0 (#4992): the key "Scan inbox" (Documents > scan inbox edit, #4889) is the same scan inbox, capital S
-  // 2.1246.0 (#4992): "The inboxes could not be loaded" is the error of the documents' inboxes (Documents > inboxes, #6109), not the basket
-  // 2.457.0 (#2971): "ntfy inbox {0} cannot fetch" is the same ntfy share inbox in the notice to the person who can repair it
-  const allowed = k => /DATEV|document inbox|[Ss]can inbox|^Inboxes$|^Documents: inboxes$|^The inboxes could not be loaded$|other members' inboxes|two inboxes|^Create inbox$|ntfy share inbox|ntfy inbox \{0\}|Share inbox \(ntfy\)|topic inbox|Incoming invoices|^Coming up$|Dokumente\/Eingang|^Inbox\|folder$|^With a bug inbox$/.test(k);  // 2.368.0 (#2987): the documents' inbox folder  // 2.473.0 (#3378): the bug inbox of a Software project (a second project), not the basket  // it: "In arrivo" = coming up
-  for (const lg of Object.keys(NEW)) {
-    const dict = JSON.parse(fs.readFileSync(path.join(I18N, lg + '.json'), 'utf8'));
-    check(dict.Basket === NEW[lg], `#1219 ${lg}: Basket = ${NEW[lg]} (${dict.Basket})`);
-    check(!('Inbox' in dict), `#1219 ${lg}: no key "Inbox" any more`);
-    const bad = Object.entries(dict).filter(([k, v]) => !allowed(k) && (/inbox/i.test(k) || OLD[lg].test(JSON.stringify(v))));
-    check(!bad.length, `#1219 ${lg}: no old name left ` + JSON.stringify(bad.slice(0, 3)));
-  }
-
+  // 2.1329.0 (#4992): the #1219 check "no old name of the basket in the translations" moved to tests/i18n_test.py: it reads
+  // files only, so it runs in the lint of every build job's Mac run and in the einreihen check - a new "inbox" text turned only
+  // this UI suite red, in the full CI, after the package was live (four times since 07.11.)
   await sleep(600);
   const r = await fetch(B + 'api/auth/setup', {method: 'POST', headers: H, body: JSON.stringify({username: 'alice', display_name: 'Alice', password: 'password123', wizard: true, lang: 'en'})});
   check(r.ok, 'setup');
