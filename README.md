@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1330.0** (2026-11-17):
-- **Phone**: from 390 px width (e.g. a folded phone) the bottom bar holds 6 places; the first start loads the app faster.
-- **Office**: auditor's export with number ranges and gaps; importing an organisation export checks taken numbers and locked months first.
-- **Mail**: document rules work off a whole mailbox folder and show how many mails are still unchecked.
-- **Security**: the upload token needs its own switch to send to agents; payment and webhook secrets are always sealed.
+**2.1339.0** (2026-11-17):
+- **Self-hosting**: every image, the virus scanner included, runs on arm64 / Raspberry Pi; under about 3 GB of memory the installer leaves the virus scanner out (`KALMIDO_CLAMAV=1` to keep it).
+- **Office**: the subject and all multi-line fields of quotations and invoices show their whole text and grow with it.
+- **Agents**: they ask with a card before writing into a project with a wider circle of people or a public link.
+- **Automation**: a document flow's webhook that keeps failing switches itself off and can be switched on again.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
@@ -71,7 +71,7 @@ curl -fsSL https://kalmido.com/install.sh | sh
 
 If the port is busy, the installer prints the command to retry with another one, e.g. `KALMIDO_PORT=3050 ./update.sh` (or `curl ... | KALMIDO_PORT=3050 sh`); `PUBLIC_URL` follows while it is still `http://localhost:<port>`.
 
-**Uninstall:** `docker compose --profile '*' down -v`, `docker image rm <image> postgres:17.12 clamav/clamav:1.4`, then `sudo rm -rf` the folder (the database files belong to the container's user). Copy `data/backups/` and `secret/kalmido.key` first if you want them.
+**Uninstall:** `docker compose --profile '*' down -v`, `docker image rm <image> postgres:17.12 clamav/clamav-debian:1.4 clamav/clamav:1.4`, then `sudo rm -rf` the folder (the database files belong to the container's user). Copy `data/backups/` and `secret/kalmido.key` first if you want them.
 
 The same without the website:
 
