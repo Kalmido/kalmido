@@ -975,7 +975,7 @@ jobs:
         # the rule file is read from /zap/wrk (the mounted .zap folder); the container's user must be able to read it
         run: |
           chmod a+rx .zap && chmod a+r .zap/rules.tsv
-          docker run --rm --network host -v "$PWD/.zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.17.0 \
+          docker run --rm --network host -v "$PWD/.zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af \
             zap-baseline.py -t http://127.0.0.1:3040/ -c rules.tsv
 
   install-upgrade:

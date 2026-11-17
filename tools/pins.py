@@ -41,7 +41,8 @@ CI_LOCKS = {"tests/requirements.lock": "tests/requirements.txt", "tools/ci/lint.
 WF_IMAGE_RE = re.compile(r"^((?:[a-z0-9.-]+/)+[a-z0-9._-]+):([A-Za-z0-9._-]+)(?:@(sha256:[0-9a-f]{64}))?$")
 # 2.1297.0 (#6509): images still without a digest, each with the task that pins it (python3 tools/pins.py --update needs the
 # network; a build job has none) - a new image without a digest is red, an entry here that has one is red too (stale)
-WF_UNPINNED = {"ghcr.io/zaproxy/zaproxy": "#6509 (b): the digest comes with the next pins.py --update"}
+# 2.1328.0 (#6681): empty - the ZAP image has its digest now
+WF_UNPINNED = {}
 CODEMIRROR_LOCK = "tools/codemirror/package-lock.json"
 VENDOR_SHA_RE = re.compile(r"^\s*sha256\s+([0-9a-f]{64})\s+(\S+)\s*$", re.M)
 # a multi-platform image: the digest of its index, the same for every platform
