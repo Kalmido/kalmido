@@ -299,33 +299,49 @@ class Api:
 
     task_typing_ok = None
     request_ok = None  # 2.1348.0 (#6668): False = this server has no request tokens (404): the agent's own token as before
+    req_personal = None  # True = the server said a personal agent (token null): its own token is already its owner's
 
     # kalmido-capability: request_token (2.1348.0, #6668)
     def request_token(self, seqs=None, operator=False):
         """2.1348.0 (#6668): a token for ONE request of a team agent (POST /agent/request-token): it reaches only what the
         person of these events (operator: the person chosen in the agent's settings) reaches themselves. -> (token, expires
-        epoch) or (None, 0): a personal agent (its own token is already its owner's), an older server, events without a seq."""
-        if self.request_ok is False or (not seqs and not operator):
-            return None, 0
+        epoch, go). go True without a token: the agent's own token may work (a personal agent: it is already its owner's;
+        an older server without the route: 404). go False (review F1): a team agent got no request token (403 no_order,
+        400 several_people / no event, 409 no_operator, 404 event_gone, any other error, the network) -- fail closed: the
+        caller starts nothing, its own long-lived token never reaches a run or a job. Events without a number ask with
+        an empty list: an older server answers 404, a personal agent token null, a team agent 400."""
+        if self.request_ok is False or self.req_personal:
+            return None, 0, True
+        body = {"operator": True} if operator else {"seqs": sorted(set(seqs or []))[-100:]}
         try:
-            r = self.req("POST", "/agent/request-token", {"operator": True} if operator else {"seqs": sorted(set(seqs))[-100:]}, timeout=30)
+            r = self.req("POST", "/agent/request-token", body, timeout=30)
         except ApiError as e:
             if e.status in (404, 405) and "request_token" not in e.body and "event_gone" not in e.body:
                 self.request_ok = False
                 log("the server has no request tokens: the agent's own token as before")
-            else:
-                log(f"request token: HTTP {e.status}")  # the run goes on with the agent's own token: the server refuses what needs one
-            return None, 0
+                return None, 0, True
+            if e.status in (400, 403, 404, 409):  # the route refused: a team agent (a personal one gets 200 before any check)
+                self.request_ok, self.req_personal = True, False
+            m = re.search(r'"code": *"(\w+)"', e.body)
+            log(f"request token: HTTP {e.status}" + (f" {m.group(1)}" if m else "") + ": the run does not start")
+            return None, 0, False
+        except Exception as e:  # the network: never the own token instead
+            log(f"request token: {type(e).__name__}")
+            return None, 0, False
         self.request_ok = True
         tok = r.get("token") if isinstance(r, dict) else None
         if not tok:
-            return None, 0
+            if isinstance(r, dict) and "token" in r and r.get("asked_by"):  # a personal agent (its owner)
+                self.req_personal = True
+                return None, 0, True
+            return None, 0, False
+        self.req_personal = False
         try:
             import calendar
             exp = calendar.timegm(time.strptime(str(r.get("expires_at") or "")[:19], "%Y-%m-%dT%H:%M:%S"))
         except ValueError:
             exp = time.time() + 3600
-        return tok, exp
+        return tok, exp, True
 
     def as_token(self, tok):
         """A copy of this client that sends tok (the feature flags it found stay)."""
@@ -1021,6 +1037,9 @@ TEXTS = {
     "status_no_command": {"en": "The agent command cannot be started", "de": "Der Agentenbefehl lässt sich nicht starten",
                           "fr": "La commande de l'agent ne peut pas démarrer", "es": "No se puede iniciar el comando del agente",
                           "it": "Il comando dell'agente non si avvia", "nl": "De agentopdracht kan niet worden gestart"},
+    "status_no_request": {"en": "Skipped a request: no token for the person who asked", "de": "Eine Anfrage übersprungen: kein Token für die anfragende Person",
+                          "fr": "Une demande ignorée : aucun jeton pour la personne qui l'a faite", "es": "Se omitió una solicitud: no hay token para la persona que la hizo",
+                          "it": "Richiesta saltata: nessun token per la persona che l'ha fatta", "nl": "Een verzoek overgeslagen: geen token voor de persoon die het vroeg"},
     "status_run_failed": {"en": "The last run failed", "de": "Der letzte Lauf ist fehlgeschlagen", "fr": "La dernière exécution a échoué",
                           "es": "La última ejecución falló", "it": "L'ultima esecuzione non è riuscita", "nl": "De laatste run is mislukt"},
     "status_outside_hours": {"en": "Outside working hours", "de": "Außerhalb der Arbeitszeit", "fr": "En dehors des heures de travail",
@@ -2983,29 +3002,39 @@ class Runner:
         return hook_settings(PERM_RELAY)
 
     # kalmido-capability: request_token (2.1348.0, #6668)
-    def run_request(self, evs):
+    def run_request(self, evs, uid=None):
         """2.1348.0 (#6668): a team agent works per request for ONE person: the token of this run's events (Api.request_token)
         is the only token the run gets (child_env: KALMIDO_TOKEN, the MCP server reads it) and the one the runner reads the
-        task with and posts the task's answer with. A personal agent / an older server: the agent's own token, as before."""
+        task with and posts the task's answer with. A personal agent / an older server: the agent's own token, as before.
+        -> True = the run may start; False (review F1) = a team agent got no request token: the run does not start, never
+        with the agent's own token instead. A wake of a job (no event number) asks with the events of the person's last run."""
         seqs = []
         for ev in evs:
             inner = (ev.get("data") or {}).get("events") if ev.get("event") == "task_bundle" else None
             for e in ([ev] + list(inner or [])):
                 if isinstance(e, dict) and isinstance(e.get("seq"), int) and not isinstance(e.get("seq"), bool):
                     seqs.append(e["seq"])
-        tok, _ = self.api.request_token(seqs) if seqs else (None, 0)
+        last = self.state.data.setdefault("req_seqs", {}) if uid else {}
+        tok, _, go = self.api.request_token(seqs or last.get(str(uid)) or [])
         self.run_api = self.api.as_token(tok) if tok else self.api
         if self.extras:
             self.extras.run_api = self.run_api
-        return tok
+        if tok and uid and seqs:
+            with self.state.lock:
+                last[str(uid)] = sorted(set(seqs))[-20:]
+                self.state.save()
+        return go
 
     def op_api(self):
         """2.1348.0 (#6668): the client of the starter's own list work (agent_dispatch.py): a team agent's work for the
-        person chosen in its settings (a request token for them, renewed before it runs out); else the agent's own client."""
+        person chosen in its settings (a request token for them, renewed before it runs out); else the agent's own client.
+        None (review F1): a team agent got no token for that person -- the list work waits, never with the agent's own token."""
         tok, exp = getattr(self, "_op_tok", (None, 0))
         if not tok or exp - time.time() < 900:
-            tok, exp = self.api.request_token(operator=True)
+            tok, exp, go = self.api.request_token(operator=True)
             self._op_tok = (tok, exp)
+            if not go:
+                return None
         return self.api.as_token(tok) if tok else self.api
 
     def child_env(self, uid, tid):
@@ -3015,6 +3044,8 @@ class Runner:
         ra = getattr(self, "run_api", None)
         if ra is not None and ra is not self.api:  # 2.1348.0 (#6668): the run sees only the token of its request
             env["KALMIDO_TOKEN"] = ra.token
+        elif getattr(self.api, "req_personal", None) is False:  # review F1: a team agent's own long-lived token never reaches a child
+            env.pop("KALMIDO_TOKEN", None)
         for k in ("KALMIDO_PERM_DIR", "KALMIDO_PERM_SOCK", "KALMIDO_PERM_KEY", "KALMIDO_PERM_PID"):
             env.pop(k, None)  # 2.625.0 (#3661): never an inherited channel; without the runner's channel the hook denies
         ch = getattr(self, "perm_chan", None)
@@ -3244,7 +3275,11 @@ class Runner:
                              ensure_ascii=False))
             return
         what = "status_chat" if uid else "status_event"  # 2.450.0 (#3769): a key of TEXTS
-        self.run_request(evs)  # 2.1348.0 (#6668): before anything of the run reads Kalmido
+        if not self.run_request(evs, uid):  # 2.1348.0 (#6668): before anything of the run reads Kalmido
+            # review F1: a team agent without a request token (the person may not order it, the server refused, the network)
+            log(f"run skipped: no request token ({'chat ' + str(uid) if uid else 'task event'})")
+            self.status_say("idle", "status_no_request")
+            return
         if self.extras:  # 2.44.0 B (#1443): a fresh outbox folder for a chat run
             self.extras.begin_run(uid, not uid)
         tid = None if uid else task.get("id")

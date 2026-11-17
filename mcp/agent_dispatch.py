@@ -534,7 +534,8 @@ class Dispatcher:
 
     def data_api(self):
         """2.1348.0 (#6668): the client for the lists' content: a team agent's runner gives a request token for the person
-        chosen in its settings (agent_run.py Runner.op_api); else the runner's own client."""
+        chosen in its settings (agent_run.py Runner.op_api); else the runner's own client. None (review F1): a team agent
+        got no token for that person -- the round reads and starts nothing (never with the agent's own token)."""
         f = getattr(self.host, "op_api", None)
         return f() if callable(f) else self.host.api
 
@@ -558,7 +559,12 @@ class Dispatcher:
                 log(problem + ": idle")
             return res
         w = Writer(dry, cfg["max_writes"])
-        tasks, fids, problem = read_tasks(self.data_api(), cfg)
+        api = self.data_api()
+        if api is None:  # review F1 (#6668): fail closed
+            res["problem"] = "no request token for the person chosen in the agent's settings"
+            log(res["problem"])
+            return res
+        tasks, fids, problem = read_tasks(api, cfg)
         if problem:
             res["problem"] = problem
             log(problem)
@@ -583,7 +589,6 @@ class Dispatcher:
             t = by_id[tid]
             if st == "done" and not has_tag(t, cfg["keep_tags"]):
                 sha = ev["done"][tid]
-                api = self.data_api()
                 # 2.542.0 (#4609): a locked task is completed only after unlocking it (the agent may; the history shows it)
                 ok = w(f"close #{tid} (commit {sha})", lambda tid=tid, sha=sha, lk=bool(t.get("locked")): (
                     api.req("POST", f"/tasks/{tid}/comments", {"body": self.say("dispatch_closed", sha, cfg["close_ref"] or "HEAD")}),
@@ -606,13 +611,13 @@ class Dispatcher:
             bundle = cut_bundle(tasks, states, cfg, fids)
             if bundle:
                 ids = [int(t["id"]) for t in bundle]
-                brief = brief_of(bundle, cfg, fids, owner, read_comments(self.host.api, bundle))
+                brief = brief_of(bundle, cfg, fids, owner, read_comments(api, bundle))
                 if dry:
                     w("start a job for " + " ".join(f"#{i}" for i in ids))
                     res["started"] = {"tasks": ids, "dry": True}
                 else:
                     env = self.host.child_env(self.owner(), None) if hasattr(self.host, "child_env") else dict(os.environ)
-                    env["KALMIDO_TOKEN"] = self.data_api().token  # 2.1348.0 (#6668): the job works for the chosen person
+                    env["KALMIDO_TOKEN"] = api.token  # 2.1348.0 (#6668): the job works for the chosen person (never the own token, F1)
                     for k in ("KALMIDO_CHAT_USER", "KALMIDO_OUTBOX"):  # never the person / outbox of the last chat run
                         env.pop(k, None)
                     if self.owner():
