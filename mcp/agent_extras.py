@@ -23,6 +23,7 @@ Standard library only."""
 import json
 import mimetypes
 import os
+import re
 import shutil
 import sys
 import time
@@ -60,8 +61,14 @@ def log(msg):
     sys.stderr.flush()
 
 
+def defuse_fence(text):
+    """2.1352.0 (#6884): every run of three or more < or > spaced out ("<<<<<" -> "< < < < <"); the twin of
+    agent_run.defuse_fence (this module runs without it), mcp_test checks that both give the same."""
+    return re.sub(r"<{3,}|>{3,}", lambda m: " ".join(m.group()), str(text or ""))
+
+
 def _fence(text):
-    return str(text or "").replace("<<<", "< < <")
+    return defuse_fence(text)
 
 
 def max_file_bytes():
