@@ -90,8 +90,9 @@ function modHash(m) { return m === 'tasks' ? keyToHash(LS.get('lastKey', START_K
 const TAB_MAX = 5;  // phone: more than this -> first TAB_MAX-1 + "Mehr"
 // 2.477.0 (#3938): the number of tabs follows the width: below 600 CSS px TAB_MAX, from 600 px 7, from 900 px 9 (the last one
 // is "More" when something is left); turning the device draws the bar again
-const TAB_MQ = typeof matchMedia === 'function' ? [matchMedia('(min-width: 900px)'), matchMedia('(min-width: 600px)')] : [];
-const tabMax = () => TAB_MQ[0]?.matches ? 9 : TAB_MQ[1]?.matches ? 7 : TAB_MAX;
+// 2.1313.0 (#6690): from 390 px 6 (5 + "More": a folded phone like the Fold's outer screen has room for one more), below 5
+const TAB_MQ = typeof matchMedia === 'function' ? [matchMedia('(min-width: 900px)'), matchMedia('(min-width: 600px)'), matchMedia('(min-width: 390px)')] : [];
+const tabMax = () => TAB_MQ[0]?.matches ? 9 : TAB_MQ[1]?.matches ? 7 : TAB_MQ[2]?.matches ? 6 : TAB_MAX;
 TAB_MQ.forEach(q => q.addEventListener?.('change', () => { if ($('#tabs')) renderTabs(); }));
 const SMART_TABS = ['inbox', 'today', 'tomorrow', 'week', 'doable', 'pinned', 'waiting', 'mine_wait', 'stale', 'assigned', 'byme', 'all', 'done', 'trash'];
 const leadEmoji = n => (String(n ?? '').match(/^((?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\uFE0F|\u200D)+)/u) || [])[1];

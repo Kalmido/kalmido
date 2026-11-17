@@ -157,12 +157,16 @@ function bootDone() {
   }
   bootDone();  // 2.39.1 (#1213): the first view is drawn
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    // 2.1313.0 (#6367): the worker signs up once the app stands (idle, at the latest after 5 s): its install (the shell, then the
+    // modules on demand, sw.js swInstall) no longer competes with the first view and the first clicks
+    const swReg = () => navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(swReg, {timeout: 5000}); else setTimeout(swReg, 5000);
     navigator.serviceWorker.addEventListener('message', swMessage);
   }
   // 2.145.0 B (#2424): an own window: the real state behind the first picture; push, onboarding and the tour stay with the main window
   if (MW_GUARD) { if (MW_ON) mw_bootSync(); setTimeout(quipsLoad, 1500); return; }  // 2.891.0 (#5358): the split view's right half too
   setTimeout(wpSync, 3000);
+  if (S.me?.drop_agent_hint && !S.me?.support_session) setTimeout(dropAgentHint, 3000);  // 2.1313.0 (#6557)
   pwa_boot();  // 2.143.0 C (#2153): the install hint (setcore.js)
   // v1.1: first start of a new account: "Getting started" list (server side, in the user's language), then the tour
   // 2.24.0 (UX-22): not while the first-run setup is still open (its "Start" reloads; then the list, in the chosen language,
@@ -180,3 +184,9 @@ function bootDone() {
   setTimeout(wn_boot, 2500);  // 2.556.0 (#4685): "New for you" after an update (lazyload.js)
   setTimeout(quipsLoad, 1500);
 })();
+// 2.1313.0 (#6557): told once - the upload token of this account (made before 2.1313.0) can still send to the agents; the
+// button opens Settings > Integrations > Share from your phone, where it is switched off
+function dropAgentHint() {
+  toast(tr('Your upload token can also send messages to your agents. Switch it off there if you do not need it.'), () => loadModule('settings').then(() => settingsModal('share'), () => {}), 15000, tr('Settings'));
+  api('PATCH', '/api/me', {drop_agent_hint: false}).then(() => { if (S.me) S.me.drop_agent_hint = false; }, () => {});
+}

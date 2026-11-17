@@ -12,6 +12,10 @@
    comments, never of lists it does not see, of tasks it does not see as a participant, of deleted comments or tasks in the
    trash; a person's token works the same way
  - POST /drop with to=agent: the files go into the chat with the agent (last chatted / id / username)
+   2.1313.0 (#6557): only when the person switched "Also send to agents" on for the token (a new token: off, 403); only a
+   signed-in session switches it (not a personal API token); the message carries origin drop + untrusted (person's view,
+   agent's chat list, the 'chat' event); a new token is off again; a token from before 2.1313.0 (on + hint) answers its
+   first message with the hint once (users.drop_agent NULL, core/migrations.d/6557.py)
  - the admin storage check includes chat files (a damaged one: reported, 410)
  - OpenAPI documents the new paths and fields
 #471 "Agent reads every comment":
@@ -237,16 +241,59 @@ check(ot.req("GET", f"/attachments/{A1}").status_code == 200, "view-only agent o
 
 # ================================================================== /drop to=agent
 dt = A.post(B + "/api/me/drop-token").json()["drop_token"]
+# 2.1313.0 (#6557): a new token does not send to agents until the person switches it on (Settings > Integrations)
+me = A.get(B + "/api/me").json()
+check(me.get("drop_agent") is False and me.get("drop_agent_hint") is False, f"a new token: drop_agent off, no hint ({me.get('drop_agent')}, {me.get('drop_agent_hint')})")
+n0 = len(A.get(B + f"/api/agents/{AG}/chat").json()["messages"])
+r = requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "blocked", "to": "agent"})
+check(r.status_code == 403 and "switched off" in r.text, f"/drop to=agent with the switch off -> 403 ({r.status_code} {r.text[:100]})")
+check(len(A.get(B + f"/api/agents/{AG}/chat").json()["messages"]) == n0, "nothing reached the chat")
+check(requests.patch(V.replace("/api/v1", "/api/me"), headers={**alice_api.h, **H}, json={"drop_agent": True}).status_code in (401, 403),
+      "a personal API token cannot switch it on")
+check(A.patch(B + "/api/me", json={"drop_agent": "yes"}).status_code == 400, "drop_agent must be true / false")
+check(A.patch(B + "/api/me", json={"drop_agent": True}).ok and A.get(B + "/api/me").json().get("drop_agent") is True, "the person switches it on (session)")
+_, cur = events(cl, cur)
 r = requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "from my phone", "to": "agent"},
                   files=[("file", ("phone.png", P1, "image/png"))])
 check(r.status_code == 200 and "Claude" in r.text, f"/drop to=agent -> sent to the last chatted agent ({r.status_code} {r.text[:100]})")
+check("switch this off" not in r.text, "no hint for a token made after 2.1313.0")
 last = A.get(B + f"/api/agents/{AG}/chat").json()["messages"][-1]
 check(last["body"] == "from my phone" and last["attachments"][0]["name"] == "phone.png", "the drop landed in the chat")
+check(last.get("source") == "drop" and last.get("origin") == "drop" and last.get("untrusted") is True, f"the message is marked via drop ({last.get('source')}, {last.get('origin')}, {last.get('untrusted')})")
+evs, cur = events(cl, cur)
+ce = [e for e in evs if e["event"] == "chat" and (e["data"].get("message") or {}).get("body") == "from my phone"]
+check(ce and ce[0]["data"].get("origin") == "drop" and ce[0]["data"].get("untrusted") is True
+      and ce[0]["data"]["message"].get("origin") == "drop" and ce[0]["data"]["message"].get("untrusted") is True,
+      f"the agent's chat event carries origin drop + untrusted ({[e['data'].get('origin') for e in ce]})")
+m_ag = [m for m in cl.req("GET", "/agent/chats", params={"user_id": ids["alice"], "limit": 500}).json().get("data", []) if m.get("body") == "from my phone"]
+check(m_ag and m_ag[-1].get("origin") == "drop" and m_ag[-1].get("untrusted") is True, "the agent's chat list marks it too")
+typed = A.post(B + f"/api/agents/{AG}/chat", data={"body": "typed in the app"}).json()
+check("origin" not in typed and "untrusted" not in typed, "a message typed in the app carries no mark")
 r = requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "x", "to": "nobody"})
 check(r.status_code == 404, "/drop to an unknown agent -> 404")
 r = requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "to otto", "to": "otto"})
 check(r.status_code == 200 and A.get(B + f"/api/agents/{AG2}/chat").json()["messages"][-1]["body"] == "to otto", "/drop to=<username>")
 check(requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "inbox"}).status_code == 200, "/drop without to: inbox as before")
+# 2.1313.0 (#6557): a new token starts off again; a token from before 2.1313.0 (migration: on + hint) is told once
+dt = A.post(B + "/api/me/drop-token").json()["drop_token"]
+check(A.get(B + "/api/me").json().get("drop_agent") is False, "a new token is off again")
+c_ = dbx.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+c_.execute("UPDATE users SET drop_agent=NULL WHERE id=?", (ids["alice"],))  # a token from before 2.1313.0 (core/migrations.d/6557.py)
+c_.commit()
+c_.close()
+check(A.get(B + "/api/me").json().get("drop_agent_hint") is True, "a token from before: the hint is pending")
+r = requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "old shortcut", "to": "agent"})
+check(r.status_code == 200 and "switch this off" in r.text, f"its first message answers with the hint ({r.text[:200]})")
+r = requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "old shortcut 2", "to": "agent"})
+check(r.status_code == 200 and "switch this off" not in r.text and A.get(B + "/api/me").json().get("drop_agent_hint") is False, "only once")
+c_ = dbx.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+c_.execute("UPDATE users SET drop_agent=NULL WHERE id=?", (ids["alice"],))
+c_.commit()
+c_.close()
+me = A.patch(B + "/api/me", json={"drop_agent_hint": False}).ok and A.get(B + "/api/me").json()
+check(me and me.get("drop_agent_hint") is False and me.get("drop_agent") is True, "the app clears the hint once shown; the token from before stays on")
+check(A.patch(B + "/api/me", json={"drop_agent": False}).ok and requests.post(B + "/drop", headers={"Authorization": "Bearer " + dt}, data={"text": "x", "to": "agent"}).status_code == 403,
+      "switched off again: 403")
 
 # ================================================================== storage check, gc, OpenAPI
 r = A.get(B + "/api/admin/storage-check").json()

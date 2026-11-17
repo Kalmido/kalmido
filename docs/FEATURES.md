@@ -195,7 +195,8 @@ Every single feature of Kalmido, area by area. The [README](../README.md) has th
 - **Chat** with an agent in a side panel (a tab on the phone); the agent can create tasks and comments within its rights.
   The header shows typing dots while it writes to you and what it is doing: *working on #51*, *waiting for you*,
   *ready*, *paused*, *limit reached* or *offline* (2.4.1). 2.13.1: send screenshots and files in the chat (paperclip,
-  paste, drag and drop, or *Send to agent* from the phone's share sheet); thumbnails open in a lightbox, the sender can
+  paste, drag and drop, or *Send to agent* from the phone's share sheet; 2.1313.0: through the upload token only when
+  *Also send to agents* is on, marked "via upload token" for the agent); thumbnails open in a lightbox, the sender can
   remove a file, and agents can read chat, task and comment files through the API / MCP (`get_attachment`)
 - **Agent reads every comment** (2.13.1): per project, the checked agents hear about every comment people write there, not
   only on tasks they follow (on by default for the project's tidy agent)

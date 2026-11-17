@@ -23,7 +23,24 @@ let I18N = {code: 'en', dict: {}};
 const I18N_PENDING = {};
 function uiLang() {
   if (typeof S !== 'undefined' && S.settings && S.settings.lang) return S.settings.lang;
-  try { return JSON.parse(localStorage.getItem(I18N_LS_KEY)) || 'en'; } catch { return 'en'; }
+  try { return JSON.parse(localStorage.getItem(I18N_LS_KEY)) || i18nBrowserLang(); } catch { return i18nBrowserLang(); }
+}
+// 2.1313.0 (#6134): without a remembered language (a new device, a cleared browser) the page before the login speaks the
+// browser's language when Kalmido has it (the languages of the meta kalmido-i18nv, else the shipped ones), else English.
+// Only the display: the login itself and the account's language setting stay as they are. A region drops (fr-CA -> fr).
+const I18N_SHIPPED = ['en', 'de', 'es', 'fr', 'it', 'nl'];
+function i18nBrowserLang() {
+  try {
+    const nav = typeof navigator !== 'undefined' ? navigator : {};
+    const meta = typeof document !== 'undefined' && document.querySelector?.('meta[name="kalmido-i18nv"]')?.content || '';
+    const fromMeta = meta.split(';').slice(1).map(r => r.split('=')[0]).filter(c => /^[a-z]{2}$/.test(c));
+    const have = fromMeta.length ? ['en', ...fromMeta] : I18N_SHIPPED;
+    for (const l of (nav.languages && nav.languages.length ? nav.languages : [nav.language || ''])) {
+      const c = String(l || '').slice(0, 2).toLowerCase();
+      if (have.includes(c)) return c;
+    }
+  } catch { /* no navigator: English */ }
+  return 'en';
 }
 // load (or switch to) a language; resolves true when it is active. Offline: service worker cache,
 // then the copy of the last loaded language in localStorage.
