@@ -381,7 +381,7 @@ function viewProjStart() {
   const parts = {focus: grp('ps-plan', esc(tr('Plan|nav')), plan), lists: proj, filters: grp('ps-filters', esc(tr('Filters')), fil)};
   return `<div class="pstart">${sideGroupOrder().filter(g => g in parts).map(g => parts[g]).join('')}</div>`;  // the sidebar's order of the groups
 }
-function renderSide() { return !isMobile() || $('#side')?.classList.contains('open') ? keepFocus($('#side'), renderSide0) : renderSide0(); }
+function renderSide() { const r = !isMobile() || $('#side')?.classList.contains('open') ? keepFocus($('#side'), renderSide0) : renderSide0(); wso_side(); return r; }  // 2.1333.0 (#6697): the open object's row in its organisation's tone (wscolor.js)
 function renderSide0() {
   const c = counts(), k = S.route.key, onTasks = S.route.mod === 'tasks';
   const sbb = sbb_on(), sbm = !sbb && sbm_on(), sbbArea = sbb || sbm ? sbb_area() : 'tasks', tasksP = sbbArea === 'tasks';  // 2.152.2 (#2622): sidebar B, the panel of the page's area; 2.196.0 A (#2737): sbm = the phone's drawer like it
