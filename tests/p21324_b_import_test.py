@@ -193,7 +193,7 @@ def ods_ok(s, who):
     check(secs < 10, f"#6709 {who}: the empty repeats up to row 1 048 576 cost nothing ({secs:.1f} s)")
     check(r.json()["sheet"].get("title") == "Shoot", f"#6709 {who}: the title without .ods {r.json()['sheet'].get('title')}")
     check(rep.get("sheets") == 2 and rep.get("sheets_total") == 2, f"#6709 {who}: two visible sheets, the hidden one not {rep}")
-    check(rep.get("rows") == 6 and rep.get("columns") == 8, f"#6709 {who}: 6 data rows (one repeated 3 times rolled out), 8 columns {rep}")
+    check(rep.get("rows") == 6 + 1 and rep.get("columns") == 8, f"#6709 {who}: 6 data rows in Plan (one repeated 3 times rolled out) + 1 in Rates, 8 columns {rep}")
     check(rep.get("formulas") == 2 and rep.get("as_value") == 3, f"#6709 {who}: 2 formulas taken over, the union one 3x as value {rep}")
     check(any("2 sheets imported" in m for m in msgs) and any("3 formulas imported as a value" in m for m in msgs), f"#6709 {who}: the answer {msgs}")
     check("cols_left_out" not in rep, f"#6709 {who}: no column left out {rep}")
@@ -215,7 +215,7 @@ def ods_ok(s, who):
           f"#6709 {who}: a row repeated 3 times, the union formula as its value {[at(d, f'A{i}') for i in (3, 4, 5)]} {at(d, 'D5')}")
     check(at(d, "A6").get("raw") == "Note wide" and (at(d, "A6").get("fmt") or {}).get("merge") == [1, 2] and at(d, "C6").get("value") == 9,
           f"#6709 {who}: the merged cell (and the cell after the covered one) {at(d, 'A6')} {at(d, 'C6')}")
-    check(at(d, "E1").get("raw") == "open" and at(d, "H1").get("raw") == "green", f"#6709 {who}: the select values {at(d, 'E1')} {at(d, 'H1')}")
+    check(at(d, "E1").get("value") == "open" and at(d, "H1").get("value") == "green", f"#6709 {who}: the select values {at(d, 'E1')} {at(d, 'H1')}")
 
 
 ods_ok(A, "admin")
