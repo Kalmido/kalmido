@@ -23,7 +23,7 @@ import zipfile
 
 import kt
 from freelancer_fixture import FEATURES, freelancer
-from kt import B, check, dbx, su_get
+from kt import B, check, dbx, sess, su_get
 
 kt.fresh(prefix="P21334A", env={"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_API_RATE": "100000"})
 kt.docker_logs_on_first_fail()
@@ -103,7 +103,7 @@ dbx("INSERT INTO agents(user_id, org_id, owner_id, created_at) VALUES(?, ?, ?, ?
 dbx("INSERT INTO agent_rules(agent_id, body, created_at, updated_at) VALUES(?, 'Regel persoenlich', ?, ?)", (AGP, TS, TS))
 HIST = "INSERT INTO obj_history(kind, ref_id, org_id, user_id, action, vals_before, vals_after, created_at, updated_at) " \
        "VALUES(?, ?, ?, ?, 'update', CAST(? AS JSONB), CAST(? AS JSONB), ?, ?)"
-dbx(HIST, ("task", ta[0], ORG, ALICE, '{"title": "Alpha alt"}', '{"title": "Alpha neu"}', TS, TS))
+dbx(HIST, ("task", ta[0], ORG, ALICE, '{"title": "Alpha alt", "token": "geheim-alt"}', '{"title": "Alpha neu", "token": "geheim-neu"}', TS, TS))
 dbx(HIST, ("task", tb[0], ORG, ALICE, '{"title": "Fremd alt"}', '{"title": "Fremd neu"}', TS, TS))
 dbx(HIST, ("tchat_msg", 987654321, ORG, ALICE, '{"body": "Gruppe alt"}', '{"body": "Gruppe neu"}', TS, TS))
 TPL = one(dbx("INSERT INTO templates(owner_id, org_id, kind, name, created_at, updated_at) VALUES(?, ?, 'task', 'Vorlage Alpha', ?, ?) RETURNING id",
@@ -132,6 +132,7 @@ check(ar and not any(k in ar[0] for k in ("source_excerpt", "source_user_id", "s
 hs = rows_of(z, "history/changes.json")
 hb = json.dumps(hs)
 check("Alpha neu" in hb, f"history/changes.json: the history of alpha's task {hb[:300]}")
+check("geheim" not in hb, f"history/changes.json: a secret-like field never leaves, also inside vals_before / vals_after (review #5153 F2) {hb[:300]}")
 check("Fremd neu" not in hb and "Gruppe neu" not in hb,
       f"history/changes.json: never the history of an object the archive does not carry (beta's task, a message that is gone) {hb[:300]}")
 tfs = rows_of(z, "lists/template_files.json")
@@ -148,6 +149,26 @@ check(all(f in ni for f in ("history/changes.json", "links.json", "lists/templat
       f"not_imported names the files no import takes over {ni}")
 check(z is not None and "agents/rules.json" in names and "hub/mailbox_rules.json" in names,
       f"the organisation's agent rules and mailbox rules are files of the archive {sorted(n for n in names if n.startswith(('agents/', 'hub/')))}")
+
+# review #5153 F1: an organisation admin who is no instance admin gets no rules of the team agents (the app shows them only to an
+# instance admin); the manifest names agent_rules as not included
+BOB = ok(A.post(B + "/api/users", json={"username": "bob", "display_name": "Bob Admin", "password": "password123",
+                                         "email": "bob@example.com"}), "setup: bob").get("id")
+kt.proved()
+ok(A.put(B + f"/api/orgs/{ORG}/members", json={"email": "bob@example.com", "role": "admin"}), "setup: bob admin of alpha")
+Bo = sess("bob")
+Bo.post(B + f"/api/orgs/{ORG}/join")
+Bo.patch(B + "/api/settings", json={"lang": "en", "features": FEATURES, "tour": "done", "workspace": f"org:{ORG}"})
+if not dbx("SELECT 1 FROM org_members WHERE org_id=? AND user_id=? AND role='admin'", (ORG, BOB)):
+    dbx("INSERT INTO org_members(org_id, user_id, role) VALUES(?, ?, 'admin') ON CONFLICT (org_id, user_id) DO UPDATE SET role='admin'", (ORG, BOB))
+ok(A.delete(B + f"/api/orgs/{ORG}/export"), "alice removes her export of alpha (one export per organisation at a time)")
+ok(Bo.post(B + f"/api/orgs/{ORG}/export"), "bob: the export of alpha starts")
+kt.until(lambda: Bo.get(B + f"/api/orgs/{ORG}/export").json().get("state") in ("done", "failed"), timeout=240)
+check(Bo.get(B + f"/api/orgs/{ORG}/export").json().get("state") == "done", "bob: the export of alpha is done")
+bz = unzip(su_get(Bo, B + f"/api/orgs/{ORG}/export/file").content)
+bman = json.loads(bz.read("manifest.json")) if bz and "manifest.json" in bz.namelist() else {}
+check(bz is not None and "agents/rules.json" not in bz.namelist() and any("agent_rules" in x for x in bman.get("not_included") or []),
+      f"bob (organisation admin, no instance admin): no rules of the team agents, named as not included {sorted(bz.namelist())[:5] if bz else None}")
 
 # ================================================================== freelancer-matrix: the account export of a person without organisation
 FID, Fr = freelancer(B, A)
