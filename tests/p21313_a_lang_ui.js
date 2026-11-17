@@ -8,7 +8,7 @@
 // freelancer-matrix: n/a (the page before the sign-in, no account yet)
 const path = require('path');
 const {execFileSync} = require('child_process');
-const {sleep, B} = require('./boot');
+const {sleep, B, login} = require('./boot');
 const F = []; let ok = 0;
 const check = (c, what) => { if (c) ok++; else { F.push(what); console.log('FAIL:', what); } };
 const ffDe = require('./ff')({tag: 'p21313_a_lang_ui', check, shots: 'P21313A_SHOTS', prefs: [['intl.accept_languages', 'de-DE,de']]});
@@ -20,6 +20,9 @@ if (!process.env.KMT_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.
   await sleep(600);
   const r = await fetch(B + 'api/auth/setup', {method: 'POST', headers: H, body: JSON.stringify({username: 'alice', display_name: 'Alice', password: 'password123', wizard: true, lang: 'en'})});
   check(r.ok, 'setup');
+  const CK = await login('alice'), call = (url, method, body) => fetch(B + url, {method, headers: {...H, Cookie: CK}, body: JSON.stringify(body)});
+  await call('api/admin/setup', 'POST', {lang: 'en'});
+  await call('api/settings', 'PATCH', {lang: 'en', tour: 'done'});
   const ready = async (ev, expr, n = 60) => { for (let i = 0; i < n; i++) { if (await ev(expr).catch(() => false)) return true; await sleep(200); } return false; };
 
   await ffDe(async ({ev, nav, cmd, ctx, shot}) => {
@@ -46,7 +49,8 @@ if (!process.env.KMT_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.
     check(await ev(`(() => { const k = I18N_LS_KEY, old = localStorage.getItem(k); localStorage.setItem(k, '"it"'); const v = uiLang(); if (old == null) localStorage.removeItem(k); else localStorage.setItem(k, old); return v; })()`) === 'it', 'a remembered language still wins');
     // usable: signing in from the German page leads into the app (the account's own language, English, takes over)
     await ev(`(() => { document.querySelector('#au-user').value = 'alice'; document.querySelector('#au-pw').value = 'password123'; document.querySelector('.authscreen .btn.pri').click(); return 1; })()`);
-    check(await ready(ev, `typeof S !== 'undefined' && S.booted && !document.querySelector('.authscreen')`, 100), 'signing in from the German page leads into the app');
+    check(await ready(ev, `typeof S !== 'undefined' && S.booted && S.me?.username === 'alice' && !document.querySelector('#auth-form')`, 100), 'signing in from the German page leads into the app: ' + await ev(`[typeof S !== 'undefined' && S.booted, S.me?.username, !!document.querySelector('#auth-form'), document.querySelector('#au-err')?.textContent || '', location.hash].join(' | ')`).catch(e => String(e)));
+    check(await ready(ev, `I18N.code === 'en'`), 'the account\'s own language (English) takes over after the sign-in');
   });
 
   console.log(`p21313_a_lang_ui: ${ok} ok, ${F.length} failed`);
