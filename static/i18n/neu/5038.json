@@ -1,0 +1,42 @@
+{
+  "de": {
+    "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Setze KALMIDO_SECRET_KEY auf dem Server, um Zugangsdaten zu speichern (32 Zufallsbytes, Base64)",
+    "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "Webhook {0} wurde abgeschaltet: Seine Ereignisse ließen sich nicht zustellen. {1} wartende Ereignisse seit {2} wurden verworfen.",
+    "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "Webhook {0} wurde abgeschaltet: Die Person, die ihn eingerichtet hat, ist kein Admin der Organisation mehr. {1} wartende Ereignisse seit {2} wurden verworfen.",
+    "Error reports of project {0} are paused: {1}": "Fehlerberichte von Projekt {0} sind pausiert: {1}",
+    "Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later.": "Anfragen per E-Mail an Projekt {0} haben das Stundenlimit erreicht: Weitere Mails warten im Postfach und werden später übernommen.",
+    "{0} e-mail not checked yet, follows in the next runs": ["{0} E-Mail noch nicht geprüft, folgt in den nächsten Läufen", "{0} E-Mails noch nicht geprüft, folgen in den nächsten Läufen"]
+  },
+  "es": {
+    "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Configura KALMIDO_SECRET_KEY en el servidor para guardar datos de acceso (32 bytes aleatorios, base64)",
+    "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "El webhook {0} se ha desactivado: sus eventos no se pudieron entregar. Se descartaron {1} eventos en espera desde {2}.",
+    "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "El webhook {0} se ha desactivado: la persona que lo configuró ya no es administradora de la organización. Se descartaron {1} eventos en espera desde {2}.",
+    "Error reports of project {0} are paused: {1}": "Los informes de errores del proyecto {0} están en pausa: {1}",
+    "Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later.": "Las solicitudes por correo al proyecto {0} alcanzaron el límite por hora: los demás correos esperan en el buzón y se procesarán más tarde.",
+    "{0} e-mail not checked yet, follows in the next runs": ["{0} correo aún sin revisar, sigue en las próximas pasadas", "{0} correos aún sin revisar, siguen en las próximas pasadas"]
+  },
+  "fr": {
+    "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Définis KALMIDO_SECRET_KEY sur le serveur pour enregistrer des données d’accès (32 octets aléatoires, base64)",
+    "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "Le webhook {0} a été désactivé : ses événements n’ont pas pu être livrés. {1} événements en attente depuis le {2} ont été abandonnés.",
+    "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "Le webhook {0} a été désactivé : la personne qui l’a configuré n’est plus admin de l’organisation. {1} événements en attente depuis le {2} ont été abandonnés.",
+    "Error reports of project {0} are paused: {1}": "Les rapports d’erreurs du projet {0} sont en pause : {1}",
+    "Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later.": "Les demandes par e-mail au projet {0} ont atteint la limite horaire : les autres e-mails attendent dans la boîte et seront repris plus tard.",
+    "{0} e-mail not checked yet, follows in the next runs": ["{0} e-mail pas encore vérifié, suit lors des prochains passages", "{0} e-mails pas encore vérifiés, suivent lors des prochains passages"]
+  },
+  "it": {
+    "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Imposta KALMIDO_SECRET_KEY sul server per salvare i dati di accesso (32 byte casuali, base64)",
+    "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "Il webhook {0} è stato disattivato: i suoi eventi non potevano essere consegnati. {1} eventi in attesa dal {2} sono stati scartati.",
+    "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "Il webhook {0} è stato disattivato: la persona che lo ha configurato non è più admin dell’organizzazione. {1} eventi in attesa dal {2} sono stati scartati.",
+    "Error reports of project {0} are paused: {1}": "Le segnalazioni di errore del progetto {0} sono in pausa: {1}",
+    "Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later.": "Le richieste via e-mail al progetto {0} hanno raggiunto il limite orario: le altre e-mail attendono nella casella e verranno acquisite più tardi.",
+    "{0} e-mail not checked yet, follows in the next runs": ["{0} e-mail non ancora controllata, segue nei prossimi giri", "{0} e-mail non ancora controllate, seguono nei prossimi giri"]
+  },
+  "nl": {
+    "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Stel KALMIDO_SECRET_KEY in op de server om toegangsgegevens op te slaan (32 willekeurige bytes, base64)",
+    "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "Webhook {0} is uitgeschakeld: de gebeurtenissen konden niet worden afgeleverd. {1} wachtende gebeurtenissen sinds {2} zijn verworpen.",
+    "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "Webhook {0} is uitgeschakeld: de persoon die hem heeft ingesteld is geen beheerder van de organisatie meer. {1} wachtende gebeurtenissen sinds {2} zijn verworpen.",
+    "Error reports of project {0} are paused: {1}": "Foutmeldingen van project {0} zijn gepauzeerd: {1}",
+    "Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later.": "Aanvragen per e-mail aan project {0} hebben de uurlimiet bereikt: verdere mails wachten in de mailbox en worden later overgenomen.",
+    "{0} e-mail not checked yet, follows in the next runs": ["{0} e-mail nog niet gecontroleerd, volgt in de volgende rondes", "{0} e-mails nog niet gecontroleerd, volgen in de volgende rondes"]
+  }
+}
