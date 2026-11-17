@@ -667,6 +667,7 @@ OX_LEFT = {
     "git_commits": _DERIVED, "git_issue_comments": _DERIVED, "git_issue_gone": _DERIVED, "git_issue_links": _DERIVED,
     "git_links": _DERIVED, "git_prs": _DERIVED, "git_tags": _DERIVED, "hub_mailbox_docs": _DERIVED, "list_rule_runs": _DERIVED,
     "rss_items": _DERIVED, "sheet_lastvals": _DERIVED, "wiki_links": _DERIVED,
+    "wiki_embeds": _DERIVED,  # 2.1284.0 (#6321): who embedded which picture (read from the text; the import's page editor stands in)
     "agent_bridges": _AGENT, "agent_events": _AGENT, "agent_job_tasks": _AGENT, "agent_runs": _AGENT, "agent_server": _AGENT,
     "folder_agents": _AGENT, "job_watch": _AGENT, "oauth_codes": _AGENT, "oauth_grants": _AGENT, "sheet_changes": _AGENT,
     "group_members": _SHARE, "groups": _SHARE, "wiki_share_cards": _SHARE,
