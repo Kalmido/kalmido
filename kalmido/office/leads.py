@@ -110,7 +110,7 @@ def lead_from_booking(c, oid, by_uid, name, email="", phone="", note="", source=
         if office_role(c, by_uid, oid) != "admin" or not office_on(c, by_uid):
             return None
         try:
-            b = {"contact": name, "email": email if isinstance(email, str) and EMAIL_RE.match(email.strip()) else "",
+            b = {"contact": name, "email": email if isinstance(email, str) and EMAIL_RE.fullmatch(email.strip()) else "",
                  "phone": phone, "note": note, "source": source if source in LEAD_SOURCES else "booking",
                  "follow_up": follow_up or local_now().date().isoformat(), "stage": "lead"}
             b["title"] = lead_title(b)
@@ -299,7 +299,7 @@ def lead_parse(c, oid, text):
         x["follow_up"], x["value"] = fu or "", dstr(money(v)) if v is not None else "0.00"
         if not x["title"]:
             x["error"] = tr("Name missing")
-        elif x["email"] and not EMAIL_RE.match(x["email"]):
+        elif x["email"] and not EMAIL_RE.fullmatch(x["email"]):
             x["error"] = tr("Invalid value: {0}", tr("E-mail"))
         elif fu is None:
             x["error"] = tr("Invalid value: {0}", tr("Follow-up"))

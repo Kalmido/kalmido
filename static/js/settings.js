@@ -866,7 +866,8 @@ function settingsModal(focus) {
       agents: S.me.is_admin ? ad_agentsHtml(hint) : '',  // 2.46.6 (#1710); 2.555.0 C (#4664): one switch for user_agents (s-uag), no second one
       odata: (lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin') ? wsDataHtml(hint) : '') + (S.me.is_admin ? ocAdminHtml(hint, !(lmOrgPaneOn() && (S.me.workspaces || []).some(w => w.role === 'admin'))) : '')}, ad_admFocus(focus)) : '',  // 2.582.0 (#4827): backups + storage check under Server > Backup
     // 2.418.0 (#3560): the editor of every area's menu and the tab bar (navmenu.js nav_pageDraw)
-    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus"><div class="muted mhint">${tr('Loading…')}</div></div>`,
+    nav: S.me?.kid ? '' : `<h4 id="s-nav-h">${tr('Menus and bottom bar')}</h4>${hint(tr('The order and the points of each menu, for you on every device. Minus hides a point (the search still finds it), Plus brings it back, drag by the grip.'))}<div id="s-navmenus"><div class="muted mhint">${tr('Loading…')}</div></div>
+      <div class="row" style="margin-top:.5rem"><button type="button" class="btn sm tabaddb" id="s-tabadd" data-m="tab-add" style="flex:1" aria-haspopup="dialog">${tr('+ Add tab …')}</button><button class="btn sm" data-m="tab-reset">${tr('Default')}</button></div>`,  // 2.1297.0 (#6129): the bottom bar is edited here only (Appearance links here; children keep it there, they have no Navigation tab)
     look: `<div id="s-lookin">${lookHtml()}</div>
       ${typeof spl_can === 'function' && spl_can() ? `<h4 id="s-split-h">${tr('Split view')}</h4><div class="row">${chk('s-split', LS.get('split', false) === true, tr('A second view of the app on the right'))}</div>
       <div class="row splminrow"><label for="s-splmin">${tr('Split from window width')}</label><input type="number" id="s-splmin" class="aanum wide" inputmode="numeric" min="${esc(String(spl_lo()))}" max="${esc(String(SPL_MAX_PX))}" placeholder="${esc(String(spl_def()))}" value="${esc(+LS.get('splMin', 0) > 0 ? String(spl_from()) : '')}"> <span class="muted">px</span> <button type="button" class="btn sm" data-m="s-splmin-std">${tr('Default')}</button></div>
@@ -876,16 +877,17 @@ function settingsModal(focus) {
       ${hint(tr('Main buttons, the active navigation, ticks, progress and focus take the colour of the workspace shown; Private keeps the accent colour. In “All workspaces” tasks and lists show the colour of their workspace, everything else the accent colour. Off: always the accent colour.')) /* 2.490.0 B (#4026) */}
       <h4 id="s-lemo-h">${tr('New projects')}</h4><div class="row">${chk('s-lemo', s.list_emoji !== '0', tr('Suggest icons for new projects'))}</div>
       ${hint(tr('A new project gets an icon matching its name; existing projects keep theirs.')) /* 2.555.0 C (#4664): each hint under its own switch */}
-      <div class="row">${chk('s-sdn', s.show_done_new !== '0', tr('Hide completed tasks in new projects'))}</div>
-      ${hint(tr('A new project hides its completed tasks; its “…” menu shows them again. A folder default goes first.'))}
       <h4 id="s-sdd-h">${tr('Completed tasks')}</h4><div class="row"><label for="s-sdd">${tr('In projects and views')}</label><select id="s-sdd"><option value="1">${tr('Show completed')}</option><option value="0" ${s.show_done_default === '0' ? 'selected' : ''}>${tr('Hide completed')}</option></select></div>
       ${hint(tr('The default for every project and view; a folder or a single project can choose otherwise.'))}
+      <div class="row">${chk('s-sdn', s.show_done_new !== '0', tr('Hide completed tasks in new projects'))}</div>
+      ${hint(tr('A new project hides its completed tasks; its “…” menu shows them again. A folder default goes first.'))}${''/* 2.1297.0 (#6129): both switches for completed tasks in one section */}
       <h4 id="s-tips-h">${tr('Tips')}</h4><div class="row"><label>${tr('Hints')}</label><button class="btn sm" data-m="hints-reset">${ic('undo', 's')} ${tr('Show tips again')}</button></div>
       ${hint(tr('Brings back the one-time hints on this device (touch screens show helper texts once).'))}
       <h4 id="s-tabbar-h">${tr('Tab bar')}</h4>
-      ${hint(tr('This device fits {0} tabs, the rest goes under “More”.', tabMax()))}
+      ${S.me?.kid ? `${hint(tr('This device fits {0} tabs, the rest goes under “More”.', tabMax()))}
       <div class="navlist" id="s-tabbar"></div>
-      <div class="row" style="margin-top:.5rem"><button type="button" class="btn sm tabaddb" id="s-tabadd" data-m="tab-add" style="flex:1" aria-haspopup="dialog">${tr('+ Add tab …')}</button><button class="btn sm" data-m="tab-reset">${tr('Default')}</button></div>
+      <div class="row" style="margin-top:.5rem"><button type="button" class="btn sm tabaddb" id="s-tabadd" data-m="tab-add" style="flex:1" aria-haspopup="dialog">${tr('+ Add tab …')}</button><button class="btn sm" data-m="tab-reset">${tr('Default')}</button></div>`
+      : `<div class="row tabbarlink"><span class="muted">${tr('The bottom bar is edited under Navigation.')}</span><button type="button" class="btn sm" data-m="go-nav">${tr('Open Navigation')}</button></div>`}${''/* 2.1297.0 (#6129): the editor only under Navigation; a child (no Navigation tab) keeps it here */}
       <h4 id="s-prbg-h">${tr('Task rows')}</h4>
       <div class="row"><label for="s-prbg">${tr('Priority as background')}</label><select id="s-prbg">${[['', N_('Off')], ['soft', N_('Subtle')], ['strong', N_('Strong')]].map(([v, n]) => `<option value="${v}" ${(s.prio_bg || '') === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}</select></div>
       ${hint(tr('A light background in the priority colour; the bar at the edge stays.'))}
@@ -976,8 +978,7 @@ function settingsModal(focus) {
       + intr_row('kk', 'bookmark', N_('Karakeep'), kks_html()) + intr_row('nwl', 'megaphone', N_('Newsletter service'), nwls_html()) + intr_row('apb', 'clock', N_('Booking page'), apbs_html())  // 2.365.2 B (#2789): integrations.js
       + intr_row('mail', 'send', N_('Tasks by e-mail'), `<h4 id="s-mail-h">${tr('Tasks by e-mail')}</h4><div id="s-mail"></div>`)
       + intr_row('share', 'phone', N_('Share from your phone'), shareHtml(hint))
-      + intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html())
-      + acz_linkHtml(S.webhooks?.enabled),  // 2.166.0 (#2633): the webhooks moved to Access
+      + intr_row('bmlet', 'globe', N_('Save button for the browser'), bmls_html()),  // 2.1297.0 (#6129): the link to Access ("For advanced users") stands once, under the cards at the top (integrCardsHtml)
     access: acz_html(),  // 2.166.0 (#2633): API tokens, webhooks and agent tokens in one place
     data: `<h4 id="s-imp-h">${tr('Import')}</h4>
       ${hint(tr('You see a preview first; an import can be undone for 24 hours. Nothing inside the file is fetched from the internet.'))}${nwls_impLinkHtml()}
@@ -1043,7 +1044,7 @@ function settingsModal(focus) {
   pane.data += biz_dataHtml(); pane.integr += intr_row('pep', 'building', N_('E-invoice (Peppol)'), biz_integrHtml());  // 2.365.2 D (#2789): the office's data and its Peppol access (both live in Company & office)
   pane.help += aboutHtml(chk, hint);
   const secs = SET_SECS.filter(([k]) => pane[k]);
-  let cur = {tabbar: 'look', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'access', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'access', apppw: 'account', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // 2.364.0 C (#3041): people, groups, agent rules under Organisation; 2.582.0 (#4827): backup / old odata of a server admin = Server > Backup
+  let cur = {tabbar: S.me?.kid ? 'look' : 'nav', sidebar: 'look', layout: 'modules', collab: 'modules', focus: 'modules', time: 'modules', templates: 'data', sample: 'data', newskinds: 'notify', agents: 'ai', agentdots: 'ai', usage: 'ai', activity: S.me?.is_admin ? 'org' : 'ai', agentpolicy: 'org', server: 'users', signin: 'users', agentsafe: 'ai', agentsetup: 'ai', assistant: 'ai', share: 'integr', ical: 'integr', calendars: 'integr', webhooks: 'access', caldav: 'integr', paperless: 'integr', scans: 'integr', tokens: 'access', apppw: 'account', about: 'help', groups: 'org', users: 'org', odata: S.me?.is_admin ? 'users' : 'org', backup: 'users', dayplan: 'general'}[focus] || (INTB_FOCUS[focus] ? 'integr' : focus);  // 2.364.0 C (#3041): people, groups, agent rules under Organisation; 2.582.0 (#4827): backup / old odata of a server admin = Server > Backup
   if (focus === 'codecheck') cur = 'help';  // 2.766.0 (#5220): the hint of the service worker (upbar.js)
   if (/^biz-/.test(focus || '')) { S.bizJump = focus.slice(4); cur = 'biz'; }  // 2.365.2 D (#2789): a part of Company & office (office.js biz_jump scrolls there)
   if (!secs.some(([k]) => k === cur)) cur = LS.get('settingsSec', 'general');
@@ -1080,7 +1081,7 @@ function settingsModal(focus) {
     LS.set(k === 'side' ? 'densSideV' : 'densRowsV', v); applyDensity(); e.target.setAttribute('aria-valuetext', v + ' %'); const o = $(`#s-dens-${k}-v`, md); if (o) o.textContent = v + ' %'; });
   md.addEventListener('input', e => { if (e.target.id !== 's-fsize') return; const v = +e.target.value; if (v === 100) LS.del('fsize'); else LS.set('fsize', v); applyLook(); fsLabel(v); });
   md.addEventListener('change', e => { if (e.target.id === 's-fsize' && S.settings) render(); });
-  if (focus === 'tabbar') setTimeout(() => $('#s-tabbar-h', md)?.scrollIntoView({block: 'start'}), 0);
+  if (focus === 'tabbar') setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) d.open = true; (S.me?.kid ? $('#s-tabbar-h', md) : d)?.scrollIntoView({block: 'start'}); }, 50);  // sprung-ok: the person asked for this place  // 2.1297.0 (#6129): the bottom bar under Navigation
   if (focus === 'sidebar') setTimeout(() => $('#s-side-h', md)?.scrollIntoView({block: 'start'}), 0);  // 2.25.0 (UX-03)
   if (focus === 'newskinds' || focus === 'share') setTimeout(() => intr_open(md, focus === 'share' ? '#s-share-h' : '#s-news-h')?.scrollIntoView({block: 'start'}), 0);
   if (focus === 'agentdots') setTimeout(() => $('#s-agdots-h', md)?.scrollIntoView({block: 'start'}), 0);
@@ -1219,7 +1220,7 @@ function settingsModal(focus) {
   // Agents) or a folded section opens it; nothing found hides the panes behind one clear line
   const sres = $('#s-search', md) && $('#s-sres', md);
   const SYN = [[['logout', 'log out', 'sign out', 'abmelden', 'ausloggen', 'déconnexion', 'cerrar sesión', 'esci', 'uitloggen'], '[data-acc="logout"]'], [['push', 'benachrichtigung', 'notification', 'glocke', 'bell', 'notificación', 'notifica', 'melding', 'cloche', 'campana', 'campanella'], '[data-pane="notify"] h4'],
-    [['freigabe', 'freigaben', 'externe links', 'datei-anfrage', 'dateianfrage', 'gültigkeit', 'sharing', 'external link', 'file request', 'partage', 'compartir', 'condivisione', 'delen'], '#s-xlstd-h'], [['sidebar', 'seitenleiste', 'barre latérale', 'barra lateral', 'zijbalk'], '#s-side-h'], [['navigation', 'menü anpassen', 'ausblenden', 'reihenfolge'], '#s-nav-h'], [['menü', 'menu', 'tab bar', 'tab-leiste'], '#s-tabbar-h'], [['wartet', 'waiting', 'warten', 'extern'], '[data-modrow="deps"]'], [['passwort', 'password', 'kennwort', 'mot de passe', 'contraseña', 'wachtwoord'], '#a-cur'],
+    [['freigabe', 'freigaben', 'externe links', 'datei-anfrage', 'dateianfrage', 'gültigkeit', 'sharing', 'external link', 'file request', 'partage', 'compartir', 'condivisione', 'delen'], '#s-xlstd-h'], [['sidebar', 'seitenleiste', 'barre latérale', 'barra lateral', 'zijbalk'], '#s-side-h'], [['navigation', 'menü anpassen', 'ausblenden', 'reihenfolge'], '#s-nav-h'], [['menü', 'menu', 'tab bar', 'tab-leiste', 'leiste unten', 'bottom bar'], S.me?.kid ? '#s-tabbar-h' : '#s-nav-h'], [['wartet', 'waiting', 'warten', 'extern'], '[data-modrow="deps"]'], [['passwort', 'password', 'kennwort', 'mot de passe', 'contraseña', 'wachtwoord'], '#a-cur'],
     [['speicher', 'storage', 'quota', 'kontingent', 'stockage', 'almacenamiento', 'archiviazione', 'opslag'], '#s-storage-h'], [['dunkel', 'dark', 'hell', 'light', 'theme', 'sombre', 'oscuro', 'scuro', 'donker', 'thème', 'tema', 'thema'], '#s-lookin h4'], [['sprache', 'language', 'langue', 'idioma', 'lingua', 'taal'], '#s-lang-h'], [['region', 'région', 'regione', 'wochenstart', 'week start', 'uhrzeit', '12 h', '24 h'], '#s-fmt-h']];
   const shown = el => !el.closest('[hidden]') || el.closest('[data-admp], [data-aisp]');
   // 2.46.2 (#1651): readonly until focus keeps password managers out; a value nobody typed is cleared
@@ -1377,6 +1378,7 @@ function settingsModal(focus) {
     if (b.dataset.m === 'keys') { md.remove(); shortcutsModal(); return; }
     if (b.dataset.m === 'hints-reset') { LS.del('hintsSeen'); toast(tr('Done')); render(); return; }
     if (b.dataset.m === 'ag-guide') { aiSubShow(md, 'setup', true); return; }  // 2.4.2 (#392); 2.7.2 (#420): the Set up tab
+    if (b.dataset.m === 'go-nav') { $('.snav [data-sec="nav"]', md)?.click(); setTimeout(() => { const d = $('[data-navsec="tabbar"]', md); if (d) { d.open = true; d.scrollIntoView?.({block: 'start'}); } }, 50); return; }  // sprung-ok: the person asked for this place  // 2.1297.0 (#6129): the bottom bar lives under Navigation only
     if (b.dataset.m === 'go-access') { $('.snav [data-sec="access"]', md)?.click(); return; }  // 2.166.0 (#2633)
     if (b.dataset.m === 'go-share') { $('.snav [data-sec="integr"]', md)?.click(); setTimeout(() => intr_open(md, '#s-share-h')?.scrollIntoView?.({block: 'start'}), 50); return; }  // 2.7.0 (#405 S3)
     if (b.dataset.m === 'go-modules') { $('.snav [data-sec="modules"]', md)?.click(); setTimeout(() => $('[data-pane="modules"] [data-modrow="agents"]', md)?.scrollIntoView?.({block: 'center'}), 50); return; }  // 2.6.0 (K09)

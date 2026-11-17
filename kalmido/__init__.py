@@ -48,6 +48,7 @@ ORDER = (
     "core.mdedit",  # 2.1111.0 (#5830): change a Markdown text in a targeted way (append, replace a section)
     "core.ratedb",  # 2.306.0 D1 (#2875): rate limits counted for every web process
     "core.ephem",  # 2.622.0 (#3891): short-lived state for every web process (sign-in steps, tickets)
+    "core.mailbudget",  # 2.1297.0 (#6548): the daily mail limits per sender and receiving address (no routes)
     "core.pgbus",  # 2.622.0 (#3891): signals between the processes of an instance (pg_notify)
     "core.kernretire",  # 2.924.0 (#5069): stage 7 of the shared core, the start check and DROP of an old member table
     "core.liststate",  # 2.1231.0 (#5880): the move before the old column archived of lists goes (core/db.py init_db)

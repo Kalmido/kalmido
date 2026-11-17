@@ -308,7 +308,19 @@ ICAL_PREFIX = "/ical/"  # calendar feed: the secret token in the path is the onl
 API_PREFIX = "/api/v1/"
 PUB_PREFIX = "/s/"
 USERNAME_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,31}")
-EMAIL_RE = re.compile(r"[^@\s]{1,100}@[^@\s]{1,100}\.[^@\s]{1,60}")
+# 2.1297.0 (#6548): exactly one plain address - no angle brackets, comma, semicolon, quotes, brackets or control characters
+# ('<a@x.de>' or 'a@x.de,1.a' passed before and reached a@x.de while every counter saw another address)
+_EM_BAD = r"@\s<>,;:\"()\[\]\\\x00-\x1f\x7f"
+EMAIL_RE = re.compile(rf"[^{_EM_BAD}]{{1,100}}@[^{_EM_BAD}']{{1,100}}\.[^{_EM_BAD}']{{1,60}}")
+
+
+def mail_norm(addr):
+    """2.1297.0 (#6548): the one form of an address for every counter and comparison (stripped, lower case); None when
+    it is not exactly one plain address."""
+    a = (addr or "").strip().lower() if isinstance(addr, str) else ""
+    return a if len(a) <= 254 and EMAIL_RE.fullmatch(a) else None
+
+
 MIN_PASSWORD = 8
 
 # import name "app" + root_path: the same app name and static folder as when everything lived in app.py
