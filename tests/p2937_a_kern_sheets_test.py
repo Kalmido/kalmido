@@ -8,7 +8,8 @@ freelancer-matrix: sheets
  - the two dialogs show one row: a share made in the table's dialog is the row of the file store's dialog (its id), ended in
    the table's dialog it is gone in the other; a group the person is in opens the table and marks it shared with them
  - an address typed in: the account of that address signs in with it proved -> its core share on the table's node (the
-   dialog still reads "invited", a negative id); ending the address ends the core share
+   dialog still reads "invited", a negative id); ending the address ends the core share; 2.1364.0 (#6297 6): the file
+   store's dialog neither shows nor reaches that share (it would tell the sharer that the address has an account)
  - the undo of a move between workspaces: the guest reads the table again (a real read, not a column)
  - a person without an organisation shares her private table by name with another one: core share, read, both dialogs
  - the start check: an older database (core_id, TEXT times) with a row of a person whose table's node is full keeps
@@ -152,7 +153,8 @@ check(dbx("SELECT user_id FROM sheet_shares WHERE sheet_id=?", (T2,)) == [(LATE,
 d = dlg(A, T2)
 check(len(d) == 1 and d[0]["state"] == "invited" and d[0]["id"] < 0 and d[0]["user_id"] is None and d[0]["role"] == "write",
       f"the dialog still reads the address, never the name {d}")
-check(len(fsdlg(A, node(T2))) == 1, "the file store's dialog holds the core share")
+# 2.1364.0 (#6297 6): the file store's dialog no longer shows the account of an address (was: it held the core share)
+check(len(fsdlg(A, node(T2))) == 0 and core(T2, LATE) == ["edit"], "the file store's dialog does not show the address's account (the core share is there)")
 check(A.delete(B + f"/api/sheets/{T2}/shares/{d[0]['id']}").ok and not core(T2, LATE) and not reads(La, T2)
       and not dbx("SELECT 1 FROM sheet_shares WHERE sheet_id=?", (T2,)), "ending the address ends its core share, the address goes")
 
@@ -175,10 +177,13 @@ P1 = table(Fr, "Own rates", "private")
 # two people without organisation see each other only by address (no shared list): bound to her account at once
 r = Fr.post(B + f"/api/sheets/{P1}/shares", json={"email": "fiona@example.com", "role": "read"})
 check(r.status_code == 201 and reads(Fi, P1) and core(P1, FIO) == ["view"], f"freelancer: the address is a core share, she reads {r.text[:160]}")
-fs = fsdlg(Fr, node(P1))
-check(len(fs) == 1 and fs[0]["user_id"] == FIO and dlg(Fr, P1)[0]["state"] == "invited", "freelancer: the file store's dialog holds the core share")
-check(Fr.delete(B + f"/api/files/shares/{fs[0]['id'] if fs else 0}").ok and dlg(Fr, P1) == [] and not reads(Fi, P1),
-      "freelancer: ended in the file store's dialog, gone in the table's dialog (the address too)")
+# 2.1364.0 (#6297 6): the file store neither shows nor reaches the share of an address's account (was: shown there and ended
+# there); the table's dialog ends it as the address
+FSID = dbx("SELECT s.id FROM fs_shares s WHERE s.node_id=? AND s.user_id=?", (node(P1), FIO))
+check(fsdlg(Fr, node(P1)) == [] and dlg(Fr, P1)[0]["state"] == "invited", "freelancer: the file store's dialog does not show it, the table's says invited")
+check(FSID and Fr.delete(B + f"/api/files/shares/{FSID[0][0]}").status_code == 404, "freelancer: the file store does not reach it (404)")
+check(Fr.delete(B + f"/api/sheets/{P1}/shares/{dlg(Fr, P1)[0]['id']}").ok and dlg(Fr, P1) == [] and not reads(Fi, P1),
+      "freelancer: ended in the table's dialog, the address too")
 check(Fi.get(B + f"/api/sheets/{T3}").status_code == 404, "tenant: a person of no organisation does not read the organisation's table")
 
 # ================================================================ Fable F4: the same share twice at once is one row
