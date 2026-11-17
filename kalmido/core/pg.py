@@ -291,6 +291,9 @@ ADAPTERS = _adapters()
 SYSTEM = (None, (), "system")
 LOOKUP = object()  # context hook answer: "read the memberships first" (see Conn._resolve_ctx)
 _CTX_HOOK = [None]
+# 2.1337.0 (#6600): app.move_ok of a transaction ('1' = it may write into an organisation that is moving, '' = it may not; the
+# database trigger kalmido_moving_guard reads it, core/movelock.py). None = always '1' (no hook registered yet: start-up, CLI).
+_MOVE_HOOK = [None]
 # 2.149.0 B (#2504): per thread [statements, seconds in the database] of the running request (core/reqtime.py); None = not counted
 # (background threads, start-up, CLI). Thread-local, so no lock: a request runs on one waitress thread.
 _RT = threading.local()
@@ -309,6 +312,16 @@ def rt_end():
 
 def rt_peek():
     return getattr(_RT, "s", None)
+
+
+def set_move_hook(fn):
+    """2.1337.0 (#6600): fn() -> True when the running transaction may write into an organisation that is moving (core/movelock.py)."""
+    _MOVE_HOOK[0] = fn
+
+
+def move_ok_now():
+    fn = _MOVE_HOOK[0]
+    return True if fn is None else bool(fn())
 
 
 def set_ctx_hook(fn):
@@ -376,9 +389,10 @@ class Conn:
     def _apply_ctx(self):
         uid, orgs, role = self._ctx
         self._db_ctx = None  # a failed set_config leaves it unknown
+        # 2.1337.0 (#6600): + app.move_ok in the same statement (the write lock of an organisation that is moving, core/movelock.py)
         self._pgx("SELECT set_config('app.user_id', %s, true), set_config('app.org_ids', %s, true), "
-                  "set_config('app.role', %s, true)",
-                  ("" if uid is None else str(uid), ",".join(str(int(o)) for o in orgs), role))
+                  "set_config('app.role', %s, true), set_config('app.move_ok', %s, true)",
+                  ("" if uid is None else str(uid), ",".join(str(int(o)) for o in orgs), role, "1" if move_ok_now() else ""))
         self._db_ctx = self._ctx
 
     def _pgx(self, sql, args=None):

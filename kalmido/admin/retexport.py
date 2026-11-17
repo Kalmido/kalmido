@@ -53,6 +53,7 @@ from ..notify.alerts import aa_now  # 2.369.5 (#2517): pulled up from functions
 from ..office.books import bk_csv_cell  # 2.369.5 (#2517): pulled up from functions
 from .orgexport import OX_AREAS, OX_FMT, OX_PB_CLIENTS, _rows, ox_live, _safe_part, _under  # 2.369.5 (#2517): pulled up from functions
 from ..core.objexport import oex_rx  # 2.1093.0 (#5289): the export register of the core
+from ..core.movelock import mv_allow  # 2.1337.0 (#6600): the writes a move allows
 from ..office.pdfweb import _render, _stored, epdf_name  # 2.369.5 (#2517): pulled up from functions
 from ..office.pdfweb import epdf_ubl_sent  # 2.1321.0 (#6480)
 from ..office.cashbook import cb_csv_text, cb_export_data, cb_pdf_bytes  # 2.369.5 (#2517): pulled up from functions
@@ -952,6 +953,7 @@ def rx_org_get(oid):
 @app.post("/api/retention/org/<int:oid>/export.zip")  # 2.223.2 C (#2871): POST = the step-up
 def rx_org_zip(oid):
     c = db()
+    mv_allow(c)  # 2.1337.0 (#6600): a download, also while the organisation is moving (its log line)
     sub = rx_subject(c, "org", oid)
     with system_ctx(c):  # the organisation's name for the index (the right is checked in _download)
         name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0]
@@ -989,6 +991,7 @@ def rx_me_waiver():
 def rx_org_waiver(oid):
     """#6474 (A6): the same for an organisation, by one of its admins (everybody else 404, an instance admin too)."""
     c = db()
+    mv_allow(c)  # 2.1337.0 (#6600): part of having a moving organisation deleted (#2956)
     sub = rx_subject(c, "org", oid)
     if not rx_owner(c, sub):
         raise Denied(404)
