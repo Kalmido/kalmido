@@ -13,6 +13,8 @@
 //   three columns side by side; every page of a three-page PDF: page 1 drawn sharp at once, page 3 when scrolled to
 //   (the counter "Page 3 / 3"), a zoom draws the page anew at its new size, "Whole page" fits the page into the box; phone:
 //   one column, the preview above the fields
+// - 2.1337.0 (#6651): a document whose recognition stopped early says "Text recognised incompletely" in Content, with
+//   "Recognise again": the click starts the new run, the note goes, a complete run leaves the document without it
 // P4: alice works without an organisation (private documents): the person without an organisation (freelancer-matrix: docs)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -24,6 +26,7 @@ const H = {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'};
 const DATA = process.argv[2] || path.join(__dirname, '.data');
 if (!process.env.P2583A_NOSTART) execFileSync('bash', [path.join(__dirname, 'start.sh'), DATA], {stdio: 'ignore'});
 let CK;
+const sql = (q, args = []) => execFileSync('python3', [path.join(__dirname, 'dbx.py'), DATA, q, JSON.stringify(args)]);  // 2.1337.0 (#6651)
 const call = async (method, url, body) => { const r = await fetch(B + url.replace(/^\//, ''), {method, headers: {...H, Cookie: CK}, body: body ? JSON.stringify(body) : undefined}); return {status: r.status, ...(await r.json().catch(() => ({})))}; };
 const until = async (fn, n = 60) => { for (let i = 0; i < n; i++) { const x = await fn(); if (x) return x; await sleep(200); } return fn(); };
 const click = (w, el, o = {}) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: true, cancelable: true, ...o}));
@@ -161,6 +164,22 @@ async function upload(name, pages) {
   click(m, dm.querySelector('.dv-view .dv-back'));
   check(await until(() => !dm.querySelector('.dv-view') && dm.querySelector('.dc-view .dc-card')), 'phone: back leads to the list');
   m.close();
+
+  // ================= 2.1337.0 (#6651): "Text recognised incompletely" with "Recognise again"
+  sql('UPDATE doc_meta SET auto=? WHERE node_id=?', ['{"_cut": 1}', D2]);
+  const wc = await boot({user: 'alice', hash: `docs/${D2}`}), dcd = wc.document;
+  await until(() => dcd.querySelector('.dv-view [data-dvtab="text"]'));
+  click(wc, dcd.querySelector('.dv-view [data-dvtab="text"]'));
+  const cut = () => dcd.querySelector('#dv-p-text .dc-cut');
+  check(await until(() => cut() && !cut().closest('[hidden]') && /Text recognised incompletely/.test(cut().textContent)),
+    '#6651: Content says "Text recognised incompletely" ' + (cut()?.textContent || 'none'));
+  const again = cut()?.querySelector('[data-dc="redo"]');
+  check(again && /Recognise again/.test(again.textContent), '#6651: ... with the button "Recognise again" next to it');
+  if (again) click(wc, again);
+  check(await until(() => !cut()), '#6651: the click starts the new run, the note goes');
+  check(await until(async () => { const x = await call('GET', `/api/docs/${D2}`); return x.state === 'done' && x.text_cut === false; }, 150),
+    '#6651: the complete run leaves the document without the mark');
+  wc.close();
 
   // ================= Firefox: the real layout and the pages
   await firefox(async ({cmd, ev, nav, ctx, shot}) => {

@@ -1561,7 +1561,9 @@ Each tool runs as a short-lived process with limits; tune them for small hosts:
 | `KALMIDO_OCR_PARALLEL` | `1` | Pages recognised at the same time |
 | `KALMIDO_OCR_PAGES` | `30` | Pages of one document recognised at most |
 | `KALMIDO_OCR_PAGE_S` | `60` | Seconds per page (raster + recognition) |
-| `KALMIDO_OCR_DOC_S` | `300` | Seconds of wall clock per document; what was read until then counts |
+| `KALMIDO_OCR_DOC_S` | `300` | Seconds of wall clock per document; what was read until then counts (the document says "Text recognised incompletely") |
+| `KALMIDO_OCR_ANON_S` | `90` | The same for a document from an anonymous source (public form, file request, mail); "Recognise again" gets the full time |
+| `KALMIDO_OCR_WS_HOUR_S` | `1800` | Recognition seconds per workspace and hour; used up, its documents wait in the queue for the next free minutes |
 | `KALMIDO_OCR_MEM_MB` | `1024` | Memory of one tool |
 | `KALMIDO_OCR_LANGS` | `deu+eng` | Tesseract languages (installed ones only) |
 | `KALMIDO_DOCS_SCAN_S` | `60` | Seconds between two looks into the inbox folders "Dokumente/Eingang" |

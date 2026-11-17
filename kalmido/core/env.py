@@ -178,6 +178,8 @@ VARS = (
     _v("KALMIDO_OCR_PAGE_S", "60", "Seconds per page at most.", "files"),
     _v("KALMIDO_OCR_PARALLEL", "1", "Pages recognised at the same time.", "files"),
     _v("KALMIDO_OCR_DOC_S", "300", "Seconds of wall clock per document at most (2.1283.0, #6427).", "files"),
+    _v("KALMIDO_OCR_ANON_S", "90", "Seconds of wall clock per document from an anonymous source (public form, file request, mail) at most; \"Recognise again\" by a person gets KALMIDO_OCR_DOC_S (2.1337.0, #6651).", "files"),
+    _v("KALMIDO_OCR_WS_HOUR_S", "1800", "Seconds of text recognition one workspace may use per hour (documents and files together); used up, its files wait until the hour frees up, nothing is dropped (2.1337.0, #6651).", "files"),
     _v("KALMIDO_OCR_MEM_MB", "1024", "Memory in MB of one recognition tool.", "files"),
     _v("KALMIDO_PDFOPT_PAGES", "60", "Optimise PDF: pages of one PDF at most (2.892.0, #4873).", "files"),
     _v("KALMIDO_PDFOPT_MB", "100", "Optimise PDF: size of one PDF in MB at most.", "files"),

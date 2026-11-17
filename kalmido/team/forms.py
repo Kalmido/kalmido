@@ -525,11 +525,11 @@ def form_send(token):
     task_mark_origin(c, tid, "form")  # 2.1269.0 (#6431): text from outside, on the task before the tidy / added events
     c.execute("UPDATE forms SET count=count+1, last_at=? WHERE id=?", (ts, f["id"]))
     if upload:
-        save_attachment_bytes(c, tid, *upload, owner=None if uid else f["l_owner"])
+        save_attachment_bytes(c, tid, *upload, owner=None if uid else f["l_owner"], anon=True)  # 2.1337.0 (#6651): a public form
     if qs:  # 2.98.0 B (#1954): the answers for the evaluation, the files as attachments (sealed, scanned, counted)
         fq_entry_save(c, tid, f, cid, sender if g.user or name else "", email if not g.user else "", answers, typed)
         for up in q_ups:
-            save_attachment_bytes(c, tid, *up, owner=None if uid else f["l_owner"])
+            save_attachment_bytes(c, tid, *up, owner=None if uid else f["l_owner"], anon=True)  # 2.1337.0 (#6651)
     status_url = ""
     if portal:  # 2.63.0 (#1513): the report becomes a ticket with a status link (team/portal.py)
         from .portal import pt_create, pt_mail_url, pt_status_url

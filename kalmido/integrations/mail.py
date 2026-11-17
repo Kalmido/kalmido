@@ -405,7 +405,7 @@ def _mail_import(c, raw, pre=None):
     for name, mime, data in files[:20]:
         if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
             try:
-                save_attachment_bytes(c, tid, name, mime, data)
+                save_attachment_bytes(c, tid, name, mime, data, anon=True)  # 2.1337.0 (#6651): from a mail
             except OSError:
                 whole = False
                 break
