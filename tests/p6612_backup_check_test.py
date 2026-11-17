@@ -86,7 +86,7 @@ check(all(os.path.isfile(p) for p in store.values()), "setup: both files lie in 
 
 # ============================================================== no size limit for own backups
 v = A.post(B + f"/api/admin/backups/{x1['name']}/verify", json={})
-check(v.ok and v.json().get("attachment_files") == 2 and v.json().get("repaired") == 0,
+check(v.ok and v.json().get("attachment_files") == 2 and v.json().get("repaired") == 0 and v.json().get("app_version") and v.json().get("created_at"),
       f"an own backup above KALMIDO_BACKUP_MAX_MB is checked fine (was: too large) {v.status_code} {v.text[:200]}")
 j = state()
 top = j["items"][0]

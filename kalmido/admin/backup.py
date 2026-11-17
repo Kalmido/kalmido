@@ -2726,7 +2726,8 @@ def backups_verify(name):
         if e.code == "passphrase" and given:  # 2.644.0 (#4530): only a typed-in passphrase counts as a try (as the restore)
             _rate_fail(keys)
         raise bk_old_pass(e, given, own) from None
-    return jsonify(ok=True, repaired=man.get("_repaired") or 0,  # 2.1338.0 (#6612) created_at=man.get("created_at"), app_version=man.get("app_version"),
+    return jsonify(ok=True, created_at=man.get("created_at"), app_version=man.get("app_version"),
+                   repaired=man.get("_repaired") or 0,  # 2.1338.0 (#6612)
                    schema_version=man.get("schema_version"), counts=man.get("counts") or {}, legacy=man["_legacy"],
                    attachment_files=man.get("attachment_files"), attachment_bytes=man.get("attachment_bytes"),
                    pack_files=man.get("pack_files") or 0,  # 2.359.2 (#2895)
