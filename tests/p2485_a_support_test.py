@@ -180,7 +180,9 @@ dbw("UPDATE support_grants SET uses=? WHERE id=?", (json.dumps([{"at": "2020-01-
 X.post(B + "/api/me/tokens", json={"name": "ops"})
 X.get(B + "/api/state")
 n = json.loads(kt.dbx("SELECT uses FROM support_grants WHERE id=?", (GF,))[0][0])
-check(len(n) == 300 and n[-2]["r"] == "/api/me/tokens" and n[-1]["r"] == "/api/state", f"at most 300 entries, the newest stay {n[-2:]}")
+# 2.1350.0 (#6502): the limit of 300 holds for readings only; a write (refused or not) is kept beside them
+check(len(n) == 301 and sum(1 for u in n if u["m"] == "GET") == 300 and n[-2]["r"] == "/api/me/tokens" and n[-1]["r"] == "/api/state",
+      f"at most 300 readings, the newest stay, the write is kept {len(n)} {n[-2:]}")
 dbw("UPDATE support_grants SET uses=? WHERE id=?", (KEEP, GF))
 n = len(sup_uses())  # 2.503.0 (#4307): the support session added entries since
 A.get(B + "/api/users?all=1")
