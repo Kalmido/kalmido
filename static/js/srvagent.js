@@ -63,7 +63,7 @@ const srv_offHtml = () => `<div class="shint keep srvoff" role="note">${ic('aler
 // the fields both dialogs share: provider, key, model, instructions (j = GET …/server or the defaults)
 function srv_fieldsHtml(j, isNew) {
   const keyRow = !isNew && j.has_key
-    ? `<div class="row"><label>${tr('API key')}</label><code class="srvkey" id="srv-keyhint">${esc(j.key_hint || '')}</code><button type="button" class="btn sm" data-srv="rep">${tr('Replace')}</button><button type="button" class="btn sm danger" data-srv="delkey">${tr('Delete')}</button></div>
+    ? `<div class="row"><label>${tr('API key')}</label><span class="muted srvkey" id="srv-keyhint">${tr('Saved')}</span><button type="button" class="btn sm" data-srv="rep">${tr('Replace')}</button><button type="button" class="btn sm danger" data-srv="delkey">${tr('Delete')}</button></div>
       <div class="row" id="srv-keyrow" hidden><label for="srv-key">${tr('New API key')}</label><input id="srv-key" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="300"></div>`
     : `<div class="row"><label for="srv-key">${tr('API key')}</label><input id="srv-key" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="300" placeholder="sk-ant-…"></div>`;
   const model = j.model || j.default_model || '';

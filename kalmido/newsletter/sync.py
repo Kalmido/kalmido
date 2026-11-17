@@ -112,8 +112,8 @@ def nwl_secret(r):
 
 
 def nwl_hint(secret):
-    t = str((secret or {}).get("token") or "")
-    return t[-4:] if len(t) >= 12 else ""
+    """2.1322.0 (#6560 7): no part of a key is kept or shown any more (its last four characters were) - only "set"."""
+    return ""
 
 
 def nwl_conn(c, ws):
