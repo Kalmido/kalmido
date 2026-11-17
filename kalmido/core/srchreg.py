@@ -94,8 +94,8 @@ def _gone():
     """2.1343.0 (#6406): True when the browser closed the connection of this request (waitress sees it with
     channel_request_lookahead; without it -- tests, another server -- never)."""
     try:
-        f = request.environ.get("waitress.client_disconnected")
-        return bool(f and f())
+        f = request.environ.get("waitress.client_disconnected")  # a callable of the server, not a value of the request
+        return callable(f) and f() is True
     except RuntimeError:  # outside a request (a direct call)
         return False
 
