@@ -5,6 +5,8 @@
  2. the rule on small sources (selftest of the tool): a bare value, a ternary with a bare branch, a join of bare values are
     findings; esc(), tr(), trh(), numbers, x.length, constants, markup built on purpose, the mark are not
  3. a NEW unescaped value in a file is red (a copy of a start file with one added line), a fixed one is not
+ 4. 2.1364.0 (#6297 (15)): a string concatenation into innerHTML / insertAdjacentHTML and a tr() with a bare value inside a
+    ternary / || are findings; escaped parts are not
 usage: python3 tests/p2754_c_innerhtml_lint_test.py"""
 import os
 import subprocess
@@ -27,6 +29,12 @@ new = "el.innerHTML = `<b>${userName}</b>`;\n"
 check(len(list(C.scan(new))) == 1, "a new bare value in an HTML template is found")
 check(not list(C.scan("el.innerHTML = `<b>${esc(userName)}</b>`;\n")), "esc() is clean")
 check(not list(C.scan("el.innerHTML = `<b>${/*html-ok*/ built}</b>`;\n")), "the mark is clean")
+# 2.1364.0 (#6297 (15)): a concatenation into an HTML sink and a tr() with a bare value outside the whole ${} are findings
+check(len(list(C.scan("el.innerHTML = '<b>' + userName + '</b>';\n"))) == 1, "#6297 (15): a concatenation into innerHTML is found")
+check(len(list(C.scan("el.insertAdjacentHTML('beforeend', '<i>' + t.title + '</i>');\n"))) == 1, "#6297 (15): insertAdjacentHTML with a concatenation is found")
+check(not list(C.scan("el.innerHTML = '<b>' + esc(userName) + '</b>';\n")), "#6297 (15): an escaped concatenation is clean")
+check(len(list(C.scan("el.innerHTML = `<p>${ok ? tr('Hi {0}', userName) : ''}</p>`;\n"))) == 1, "#6297 (15): tr() with a bare value in a ternary is found")
+check(not list(C.scan("el.innerHTML = `<p>${ok ? tr('Hi {0}', esc(userName)) : tr('Hello')}</p>`;\n")), "#6297 (15): tr() with escaped values is clean")
 # the baseline counts per file|expression: one more of a known pair is new, the known number is not
 k = next(iter(C.json.load(open(C.BASE, encoding="utf-8"))))
 check(isinstance(k, str) and "|" in k, "baseline keys are file|expression")

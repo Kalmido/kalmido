@@ -599,7 +599,8 @@ Two more files every package used to append to - `static/app.css` (new rules at 
   (Kept here, not as a comment in `app.css`, which does not grow.)
 - **HTML templates are escaped (2.754, #5297).** Every `${}` in a template literal with markup in `static/js/**` goes through
   `esc()` / `tr()` / `trh()`, is a number or a constant, or carries the mark `${/*html-ok*/ x}` (HTML built on purpose).
-  `tools/check_innerhtml.py` (CI lint, `--selftest` for the rule) is red for a NEW unescaped `${}`; the old ones are the
+  `tools/check_innerhtml.py` (CI lint, `--selftest` for the rule; 2.1364.0, #6297: also string concatenations into innerHTML /
+  insertAdjacentHTML, and tr() outside the whole `${}` only with a constant text and safe values) is red for a NEW unescaped `${}`; the old ones are the
   baseline `tools/innerhtml_baseline.json` (`--update` only shrinks it).
 - **Start scripts go below the mark.** The scripts above the comment `new start scripts go below this line` in
   `static/index.html` keep their order (defer runs them in it, some rely on it); their number only goes down. A new start
