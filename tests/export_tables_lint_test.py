@@ -160,9 +160,9 @@ check("33 kinds of the core" in lint()[1], f"the kinds are read: {lint()[1][-200
 rc, out = with_edit(OEXP, "OR (rel='made' AND", "OR (rel='zz_made' AND")
 check(rc == 1 and "obj_links rel=made: in no query of the acct export" in out and "rel=contact" not in out,
       f"a private relation the account export no longer takes is a finding (the others not): {out[-300:]}")
-rc, out = with_edit(OEXP, '("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE}")', '("links.json", "org_id=? AND rel=\'related\' AND {LIVE}")')
+rc, out = with_edit(OEXP, '("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE} AND {LINKED}")', '("links.json", "org_id=? AND rel=\'related\' AND {LIVE} AND {LINKED}")')
 check(rc == 0, f"a named free relation (one outside OLNK_AREA_RELS) counts as the free ones: {out[-300:]}")
-rc, out = with_edit(OEXP, '                             ("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE}")),\n', "),\n")
+rc, out = with_edit(OEXP, '                             ("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE} AND {LINKED}")),\n', "),\n")
 check(rc == 1 and "obj_links rel=(free): in no query of the org export" in out, f"the free links out of the organisation export are a finding: {out[-300:]}")
 rc, out = with_edit(("core", "objcomments.py"), 'OCM_KINDS = ("task", "video", "doc_note", "tchat")', 'OCM_KINDS = ("task", "video", "doc_note", "tchat", "zz_kind")')
 check(rc == 1 and "obj_comments kind=zz_kind: in no query of the org export" in out and "obj_comments kind=zz_kind: in no query of the acct export" in out,

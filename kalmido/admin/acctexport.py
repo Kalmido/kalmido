@@ -626,10 +626,12 @@ def umz_put_page_files(c, zf, out, uid, files, inf, locked):
     for kind, table, sql in (("wiki", "wiki_files", "SELECT id, name, path FROM wiki_files WHERE owner_id=? AND org_id IS NULL AND deleted_at IS NULL ORDER BY id"),
                              ("sheet", "sheet_files", """SELECT id, name, path FROM sheet_files WHERE deleted_at IS NULL AND sheet_id IN
                                                          (SELECT id FROM sheets WHERE org_id IS NULL AND owner_id=?) ORDER BY id"""),
-                             ("tpl", "template_files", "SELECT id, name, path FROM template_files WHERE user_id=? ORDER BY id")):
+                             ("tpl", "template_files", "SELECT id, name, path, scan FROM template_files WHERE user_id=? ORDER BY id")):
         for r in c.execute(sql, (uid,)).fetchall():
             full = _under(ATT_DIR, r["path"])
             sig = inf.get((kind, int(r["id"]), 0))
+            if sig is None and kind == "tpl" and r["scan"] == "infected":  # 2.1334.0 (review F4): a template's copy keeps its mark itself
+                sig = ""  # (the scanner's table has no kind tpl): it stays out, listed like a locked file
             if sig is not None:
                 locked.append({"area": table, "id": r["id"], "name": r["name"] or "", "signature": sig})
             elif not full:  # 2.1334.0 (#6585 T13 6): a file that is gone from the disk is named in the manifest (missing), never left out silently
