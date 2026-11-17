@@ -58,6 +58,7 @@ from .model import office_ctx as _ctx  # noqa: E402  2.149.0 G (#2517): was an o
 from .rights import ofr_admin_or  # noqa: E402  2.187.0 B (#2476)
 from .rights import office_can, ofr_rights  # noqa: E402  2.1238.0 (#6161): ofd_role_edit
 from ..accounts.orgroles import office_allowed  # noqa: E402  2.1238.0 (#6161): ofd_role_edit
+from ..accounts.supportgrant import SGA_BOOKING, sga_is_support  # noqa: E402  2.1364.0 (#6320): odoc_delete
 from .sheet import prd_options  # 2.369.5 (#2517): pulled up from functions
 from ..core.config import OFFICE_DIR  # 2.369.5 (#2517): pulled up from functions
 from ..files.store import fs_purge, fs_purge_files  # 2.369.5 (#2517): pulled up from functions
@@ -2176,6 +2177,9 @@ def odoc_delete(did):
             raise Denied(409, tr(ODOC_SEQ_KEPT_CREDIT if r["kind"] == "credit" else ODOC_SEQ_KEPT))  # 2.1289.0 (#6481 S3)
     if c.execute("SELECT 1 FROM office_signoffs WHERE doc_id=? AND org_id=? AND state <> 'open' LIMIT 1", (did, oid)).fetchone():
         raise Denied(409, tr("The client has signed this quotation; the record is kept"))  # 2.50.0 (#1200 review)
+    if r["kind"] != "offer" and (locked or r["status"] != "draft"):  # the last way below: the row goes for good (no trash)
+        if sga_is_support(c):  # 2.1364.0 (#6320, review #4788 (2)): not for a support session (decision #4365)
+            raise Denied(403, tr(SGA_BOOKING), data={"code": "support_session"})
     ofx_log(c, oid, "delete", doc_id=did, detail={"number": r["number"], "status": r["status"], "net": _j(r["totals"], {}).get("net"),
                                                   **({"locked": True} if locked else {})})  # 2.114.2 A (#2263): the number gap stays traceable
     if not locked and (r["kind"] == "offer" or r["status"] == "draft"):  # 2.1005.0 (#5415): a draft that was never finalised goes

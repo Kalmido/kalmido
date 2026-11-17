@@ -139,6 +139,12 @@ there). `obj_need` turns this into 404 / 403; `obj_visible_sql(c, uid, kind)` / 
 with a `cap` hook lists only with `obj_rows` (it asks `obj_role` per row): `obj_visible_sql` refuses it with `ValueError`,
 because a share there may open less than the SQL would name.
 
+A support session (2.1364.0, #6320) reads with the narrowed context of #6502 (private space, own office, organisations with
+their own support access). Writing into another organisation of the person is refused in the core itself, before the role:
+`obj_need` (need other than view), `need_list` / `need_task` (write) and `files/store.need_node` (write / manage) answer
+403 code `support_session` (`core/access.py acx_sup_write`; "writing" = the caller asks for write access or the request
+method writes). A new area on these functions needs no path entry in `accounts/supportgrant.py`.
+
 Office documents filed in a folder (`office/docref.py`, decision of #2742, confirmed with #5048): the folder share and the
 office groups are two ways in, and the higher one counts for the document itself -- a folder share can lift reading or
 changing a draft above the person's office group in the area (also for a member whose group gives the area nothing). The
