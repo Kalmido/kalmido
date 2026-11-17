@@ -220,7 +220,7 @@ def vdr_v1_spec(paths, schemas, op, ok, errs, ref, pid, q):
              "change the task / list (403 otherwise). A link without time control takes no timecode.")}
     paths["/videos/{id}/versions/{version_id}/file"] = {"get": op(
         "The image / PDF of a sign-off version (2.641.0)", T, ok({"type": "string", "format": "binary"}) | errs("404"),
-        [vid, pid("version_id", "Version id")],
+        [vid, pid("version_id", "Version id")], scope="attachments:read",  # 2.1364.0 (#6297 (11)): a download like the others
         desc="Only when you see the review and its file in the file store. Served as its real type (JPEG, PNG, WebP, PDF).")}
     paths["/videos/{id}/comments/{comment_id}"] = {"patch": op(
         "Mark a video comment done or open again (2.99.1)", T, ok(ref("VideoReview")) | errs("400", "403", "404"),
