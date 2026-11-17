@@ -218,6 +218,8 @@ check(r.status_code == 201, f"setup: a webhook of a person without an organisati
 task(Fi, FL, "For the dead hook")
 check(until(lambda: news(Fi, "webhook"), 30), "#2971: the webhook's owner gets a News item when it turns off")
 check(news(Fi, "webhook") and "Dead hook" in news(Fi, "webhook")[0]["data"]["text"] and news(Fi, "webhook")[0]["data"]["focus"] == "webhooks", "#2971: it names the webhook")
+# 2.1329.0 (#6849): since 2.1322.0 (#6560 6) the text names the discarded waiting events - its kind (data.what) stays "webhook"
+check(news(Fi, "webhook") and "waiting events since" in news(Fi, "webhook")[0]["data"]["text"], f"#2971: the text names the discarded events {news(Fi)}")
 
 # ================================================================ #2971: an inbound webhook pauses
 check(A.put(B + f"/api/lists/{AL}/members", json={"user_id": uid["bob"], "role": "admin"}).ok, "setup: bob manages alice's project")

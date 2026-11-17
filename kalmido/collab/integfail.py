@@ -42,10 +42,12 @@ def integ_org_admins(c, oid):
         return [r[0] for r in c.execute("SELECT user_id FROM org_members WHERE org_id=? AND role='admin'", (oid,)).fetchall()]
 
 
-def integ_tell(c, uids, what, name, detail="", click="", more=(), **data):
+def integ_tell(c, uids, what, name, detail="", click="", more=(), variant="", **data):
     """What went wrong (a key of INTEG_TEXT) with the thing called name, for each of uids once. click = where to repair it:
     the page after # (a push); data = what the News item needs to open it. name: a text, or f(language) when it needs
     translating. detail: a date, or a text marked with N_; more = further values of the text ({2}, ...; 2.1322.0, #6560).
+    variant: the text is INTEG_TEXT[what + variant] (e.g. "_lost"); the News item keeps what itself as its kind of problem
+    (2.1329.0, #6849 - the client and the tests read data.what).
     The caller commits; never fails its caller's work."""
     pushes = []
     try:
@@ -56,7 +58,7 @@ def integ_tell(c, uids, what, name, detail="", click="", more=(), **data):
                     continue
                 s = usettings(c, uid)
                 lg = s.get("lang") if s.get("lang") in LANGS else "en"
-                text = tr(INTEG_TEXT[what], name(lg) if callable(name) else name, tr(detail, lg=lg) if detail else "", *more, lg=lg)
+                text = tr(INTEG_TEXT[what + variant], name(lg) if callable(name) else name, tr(detail, lg=lg) if detail else "", *more, lg=lg)
                 if notif_ok(c, uid, s, "integration", "news"):
                     c.execute("INSERT INTO notifications(user_id,kind,task_id,list_id,actor_id,comment_id,data,created_at) VALUES(?,?,?,?,?,?,?,?)",
                               (uid, "integfail", None, None, None, None,
