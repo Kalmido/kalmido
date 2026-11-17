@@ -86,7 +86,8 @@ const FEAT = 'cal,comments,collab';
     check(await ready(ev, `S.news && S.news.unread_me >= 1`, 60), '#2444: the bell counts the assignment ' + JSON.stringify(await ev(`S.news`)));
     // 2.331.0 A (#3300): the list covers ALL workspaces: the item shows in Private with a small label "Alpha", no hint row, no switching
     check(await ready(ev, `wsCur() === 'private' && /Angebot pruefen/.test(document.querySelector('#view').textContent)`, 60), '#3300: the item of the other workspace is listed');
-    const lab = await ev(`(document.querySelector('#view .nws') || {}).textContent || ''`);
+    // 2.1319.0 (#6697): since 2.1224.0 (#6188) the label is the shared origin mark (wso_origin: dot + name + short letters) - read its name
+    const lab = await ev(`((document.querySelector('#view .nws .wsows') || document.querySelector('#view .nws')) || {}).textContent || ''`);
     check(lab === 'Alpha' && !(await ev(`!!document.querySelector('#view .nelse')`)), '#3300: the label names the workspace, no hint row: ' + lab + ' ' + await ev(`JSON.stringify([wsCur(), wsOn(), (document.querySelector('#view .nitem')||{}).outerHTML, S.nf.items.map(i => [i.kind, i.list_id, !!listById(i.list_id)])])`));
     await shot('p2145-a-news-hint.png');
     await ev(`(() => { fetch('/api/settings', {method: 'PATCH', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({workspace: 'private'})}); return 1; })()`);
