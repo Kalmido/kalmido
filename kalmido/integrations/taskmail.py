@@ -37,6 +37,7 @@ from ..core.access import task_visible
 from ..core.pages import save_attachment_bytes
 from ..accounts.login import auth_key
 from ..admin.hosting import mail_budget
+from ..core.mailbudget import mail_own_budget  # 2.1312.0 (#6540)
 from ..api.common import hit_limit
 from ..collab.comments import MAIL_REPLY, collab_user, user_names
 from ..collab.liste2e import le2e_mode
@@ -260,6 +261,10 @@ def tmr_send(c, tid, uid, cid):
         return "limit"
     if via == "server":
         if not mail_budget(c, uid, rep):
+            c.commit()
+            return "limit"
+    else:  # 2.1312.0 (#6540): through a workspace's SMTP at most MAIL_DAY_OWN_RCPT a day per person and recipient
+        if not mail_own_budget(c, uid, [rep]):
             c.commit()
             return "limit"
     title = M.MAIL_PREFIX_RE.sub("", re.sub(r"\s+", " ", t["title"] or "")).strip() or APP_NAME

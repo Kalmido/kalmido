@@ -1443,8 +1443,9 @@ Who uses it: the task row (dnd.js: right = completed, left = the short menu), th
 the swipe to reply on a message (collab.js: chat, team chat, agent chat, comments). Tests: `tests/p2876_a_rowswipe_ui.js`.
 
 Leafing with a swipe (the next / previous document or picture: the full screen of a document, the image viewer, the task
-panel) is the other gesture of the core: `static/js/swipenav.js` -- `swn_attach(root, {area, can, go, peek})`. The calendar's
-gestures (calgest.js) are their own.
+panel, the calendar's periods) is the other gesture of the core: `static/js/swipenav.js` -- `swn_attach(root, {area, can, go,
+peek})`. The calendar (calgest.js, 2.1312.0 #6711) leafs with it too: only the grid moves, the neighbour period lies beside it
+as its empty grid; the calendar's pinch zoom and the trackpad's sideways swipe stay its own.
 
 ## Calm view: a redraw keeps the reading place (2.924.0, #5224)
 

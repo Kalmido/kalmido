@@ -42,6 +42,8 @@ from ..collab.comments import lang_of  # 2.369.5 (#2517): pulled up from functio
 from ..lists.public import pub_html  # 2.369.5 (#2517): pulled up from functions
 from .mailtrim import md_trim_forward  # 2.369.5 (#2517): pulled up from functions
 from ..calendars.subscriptions import _cal_connector  # 2.369.5 (#2517): pulled up from functions
+from ..calendars.subscriptions import _cal_watch, cal_left, cal_until  # 2.1312.0 (#6540)
+from ..core.mailbudget import SMTP_OWN_S, smtp_own_refused, smtp_port  # 2.1312.0 (#6540): the rules of a workspace's own SMTP
 from ..core.mailguard import MailRefused, mail_parse, mail_precheck  # 2.1281.0 (#6425)
 
 
@@ -727,6 +729,7 @@ class _SafeSMTP(smtplib.SMTP):
     the admin allowed it, calendars/subscriptions.py cal_allow) and exactly the checked one is connected to."""
     def __init__(self, host, port, timeout, allow):
         self._kal_allow = allow
+        _cal_watch(self)  # 2.1312.0 (#6540): inside cal_until (mail_deliver, the mailbox test) its socket is cut at the end
         super().__init__(host, port, timeout=timeout)
 
     def _get_socket(self, host, port, timeout):
@@ -736,6 +739,7 @@ class _SafeSMTP(smtplib.SMTP):
 class _SafeSMTP_SSL(smtplib.SMTP_SSL):
     def __init__(self, host, port, timeout, allow):
         self._kal_allow = allow
+        _cal_watch(self)  # 2.1312.0 (#6540)
         super().__init__(host, port, timeout=timeout, context=_tls_ctx())
 
     def _get_socket(self, host, port, timeout):
@@ -760,21 +764,26 @@ def _admin_tls_ctx():
     return ctx
 
 
-def smtp_open(smtp=None):
+def smtp_open(smtp=None, timeout=30):
     """2.141.0 A (#2141): a connected and logged-in SMTP session: KALMIDO_SMTP_* (smtp None), else a workspace's access
-    {host, port, tls, user, password, from, allow} (allow = the hosts that may be internal: the connection is checked)."""
+    {host, port, tls, user, password, from, allow} (allow = the hosts that may be internal: the connection is checked).
+    2.1312.0 (#6540): a workspace's access always logs in (no user / password = SmtpNoLogin) and only on port 465 / 587 or
+    a host:port of the admin's list (SmtpPortRefused) -- never a direct delivery to someone's mail server."""
     cfg = smtp or SMTP
     tls = cfg["tls"]
-    port = cfg["port"] or (465 if tls == "ssl" else 587 if tls == "starttls" else 25)
+    port = smtp_port(cfg)
     if smtp is None:
-        S_ = smtplib.SMTP_SSL(cfg["host"], port, timeout=30, context=_admin_tls_ctx()) if tls == "ssl" else smtplib.SMTP(cfg["host"], port, timeout=30)
+        S_ = smtplib.SMTP_SSL(cfg["host"], port, timeout=timeout, context=_admin_tls_ctx()) if tls == "ssl" else smtplib.SMTP(cfg["host"], port, timeout=timeout)
     else:
+        no = smtp_own_refused(cfg)
+        if no is not None:
+            raise no
         allow = cfg.get("allow") or frozenset()
-        S_ = _SafeSMTP_SSL(cfg["host"], port, 30, allow) if tls == "ssl" else _SafeSMTP(cfg["host"], port, 30, allow)
+        S_ = _SafeSMTP_SSL(cfg["host"], port, timeout, allow) if tls == "ssl" else _SafeSMTP(cfg["host"], port, timeout, allow)
     try:
         if tls == "starttls":
             S_.starttls(context=_admin_tls_ctx() if smtp is None else _tls_ctx())
-        if cfg["user"]:
+        if cfg["user"] or smtp is not None:
             S_.login(cfg["user"], cfg["password"])
     except BaseException:
         try:
@@ -813,8 +822,17 @@ def mail_message(to, subject, text, html_body=None, images=None, from_name=None,
 
 
 def mail_deliver(m, smtp=None):
-    """2.141.0 A (#2141): sends a built message (mail_message) through KALMIDO_SMTP_* or the access smtp; raises on failure."""
-    S_ = smtp_open(smtp)
+    """2.141.0 A (#2141): sends a built message (mail_message) through KALMIDO_SMTP_* or the access smtp; raises on failure.
+    2.1312.0 (#6540): through a workspace's SMTP at most SMTP_OWN_S seconds in all (a server answering drop by drop)."""
+    if smtp is None:
+        return _deliver(m, None, 30)
+    until = time.monotonic() + SMTP_OWN_S
+    with cal_until(until):
+        _deliver(m, smtp, cal_left(until, 30))
+
+
+def _deliver(m, smtp, timeout):
+    S_ = smtp_open(smtp, timeout)
     try:
         S_.send_message(m)
     finally:

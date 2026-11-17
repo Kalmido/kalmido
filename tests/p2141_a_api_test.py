@@ -4,7 +4,7 @@ with two stub mail servers inside (stub_mail.py: IMAP 1143 + SMTP 1025 = the ser
 The server has NO mailbox of its own here (no KALMIDO_IMAP_*): the workspace mailboxes work alone.
  - set up: an organisation's admins (members 403, others 404, agents 403), a person for the own private workspace; passwords
    sealed, never sent back ("set"), an empty field keeps them, another server needs them again; check = IMAP + SMTP login
-   (wrong password = "auth", an internal port that is not allowed = "blocked"), errors as codes without the server's words
+   (wrong password = "auth", an internal port that is not allowed = "network": 2.1312.0, #6540), errors as codes without the server's words
  - fetching: the mails of Alpha's mailbox land in Alpha only (client by sender, "Not assigned" with the admin who set it up,
    a hub token of another workspace counts as none, Alpha's own token files with its client, an answer to a sent mail joins
    its client), each Message-ID once, \\Seen; the freelancer's private mailbox files into the private workspace
@@ -161,7 +161,8 @@ check(set(sp) == {"private", f"org:{ORG}"} and sp[f"org:{ORG}"]["manage"] and sp
 j = js(Ca.get(B + "/api/hubmail/mailboxes"))
 check({x["ws"]: x["manage"] for x in j.get("spaces", [])} == {"private": True, f"org:{ORG}": False}, f"carol: Alpha not hers to manage ({j})")
 BOX = {"ws": f"org:{ORG}", "imap_host": "127.0.0.1", "imap_port": 1143, "imap_ssl": False, "imap_user": "kalmido", "imap_password": "secret",
-       "smtp_host": "127.0.0.1", "smtp_port": 1026, "smtp_tls": "none", "from_addr": "office@example.test", "from_name": "Alpha Office"}
+       "smtp_host": "127.0.0.1", "smtp_port": 1026, "smtp_tls": "none", "from_addr": "office@example.test", "from_name": "Alpha Office",
+       "smtp_user": "kalmido", "smtp_password": "secret"}  # 2.1312.0 (#6540): a server for sending only with its login
 check(Ca.put(B + "/api/hubmail/mailbox", json=BOX).status_code == 403, "a member of Alpha (no admin): 403")
 check(Da.put(B + "/api/hubmail/mailbox", json=BOX).status_code == 404, "an admin of another organisation: 404")
 check(Da.get(B + f"/api/hubmail/mailbox?ws=org:{ORG}").status_code == 404, "another organisation cannot read it: 404")
@@ -194,11 +195,13 @@ r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "imap_password"
 check(r.ok and js(r)["check"]["imap"]["ok"] and not js(r)["box"]["error"], "the right password again: works, the error is gone")
 r = Bo.put(B + "/api/hubmail/mailbox", json={"ws": "private", "imap_host": "127.0.0.1", "imap_port": 22, "imap_ssl": False, "imap_user": "x",
                                               "imap_password": "y", "check": True})
-check(r.ok and (js(r).get("check") or {}).get("imap", {}).get("code") == "blocked", f"an internal port nobody allowed: blocked ({r.text[:200]})")
+# 2.1312.0 (#6540): outside only "connection failed" / "login failed" -- an internal port nobody allowed reads as network
+check(r.ok and (js(r).get("check") or {}).get("imap", {}).get("code") == "network", f"an internal port nobody allowed: network ({r.text[:200]})")
 check(Bo.delete(B + "/api/hubmail/mailbox?ws=private").ok and not dbx("SELECT 1 FROM hub_mailboxes WHERE ws=?", (f"u{BOB}",)), "bob removes his private mailbox")
 # the freelancer: her own private mailbox (freelancer-matrix: hub)
 r = Er.put(B + "/api/hubmail/mailbox", json={"ws": "private", "imap_host": "127.0.0.1", "imap_port": 1144, "imap_ssl": False, "imap_user": "kalmido",
                                               "imap_password": "secret", "smtp_host": "127.0.0.1", "smtp_port": 1026, "smtp_tls": "none",
+                                              "smtp_user": "erin", "smtp_password": "secret",  # 2.1312.0 (#6540): the login is required
                                               "from_addr": "erin@example.test", "check": True})
 check(r.ok and js(r)["check"]["imap"]["ok"] and js(r)["check"]["smtp"]["ok"], f"freelancer: her own mailbox works ({r.text[:200]})")
 check(dbx("SELECT org_id, owner_id FROM hub_mailboxes WHERE ws=?", (f"u{ERIN}",)) == [(None, ERIN)], "freelancer: stored as her private workspace's")
@@ -325,7 +328,8 @@ check(js(Er.get(B + f"/api/hubmail/mails?client_id={SOLO}")).get("can_send") is 
 check(Er.get(B + f"/api/hubmail/compose?client_id={ACME}").status_code == 404, "freelancer: Alpha's client is not hers (404)")
 
 # ---- an SMTP that fails: 502, the filed mail stays "failed" (no sent mail that was not)
-Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "smtp_port": 1027})
+# 2.1312.0 (#6540): another port needs the password again (without it the change is refused and 1026 would still work)
+check(Bo.put(B + "/api/hubmail/mailbox", json={"ws": f"org:{ORG}", "smtp_port": 1027, "smtp_password": "secret"}).ok, "the SMTP moved to a port nobody answers")
 n0 = len(sent("mail2"))
 r = Bo.post(B + "/api/hubmail/send", json={"client_id": ACME, "to": "acme@example.com", "subject": "Will fail", "text": "x"})
 j = js(r)

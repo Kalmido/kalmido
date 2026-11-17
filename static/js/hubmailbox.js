@@ -37,6 +37,7 @@ const hmb_q = (md, sel) => /** @type {any} */ (md.querySelector(sel));
 const hmb_v = (md, id) => String(hmb_q(md, '#' + id)?.value ?? '').trim();
 function hmb_formHtml(b) {
   const x = b || {}, pw = set => set ? esc(tr('unchanged')) : '';
+  const req = x.smtp_host ? 'required aria-required="true"' : '';  // 2.1312.0 (#6540): a server for sending needs its login
   const inp = (id, label, val, extra = '') => `<div class="row"><label for="${id}">${label}</label><input id="${id}" value="${esc(val ?? '')}" autocomplete="off" ${extra}></div>`;
   return `<h4>${tr('Receiving (IMAP)')}</h4>
     ${inp('hmb-ih', tr('Server'), x.imap_host, 'placeholder="imap.example.com" inputmode="url" spellcheck="false"')}
@@ -46,11 +47,12 @@ function hmb_formHtml(b) {
     <div class="row"><label for="hmb-iw">${tr('Password')}</label><input id="hmb-iw" type="password" autocomplete="new-password" placeholder="${pw(x.imap_password_set)}"></div>
     ${inp('hmb-if', tr('Folder'), x.imap_folder || 'INBOX', 'spellcheck="false"')}
     <h4>${tr('Sending (SMTP)')}</h4>
+    <p class="muted hmbreq">${tr('Sending only with the user name and the password of the SMTP server, through port 465 or 587.')}</p>
     ${inp('hmb-sh', tr('Server'), x.smtp_host, 'placeholder="smtp.example.com" inputmode="url" spellcheck="false"')}
     ${inp('hmb-sp', tr('Port'), x.smtp_port || '', 'inputmode="numeric" placeholder="587"')}
     <div class="row"><label for="hmb-st">${tr('Encryption')}</label><select id="hmb-st">${[['starttls', 'STARTTLS'], ['ssl', 'SSL / TLS'], ['none', tr('None')]].map(([v, l]) => `<option value="${v}" ${(x.smtp_tls || 'starttls') === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>
-    ${inp('hmb-su', tr('User|mailbox'), x.smtp_user, 'spellcheck="false"')}
-    <div class="row"><label for="hmb-sw">${tr('Password')}</label><input id="hmb-sw" type="password" autocomplete="new-password" placeholder="${pw(x.smtp_password_set)}"></div>
+    ${/*html-ok*/ inp('hmb-su', tr('User|mailbox'), x.smtp_user, `spellcheck="false" ${/*html-ok*/ req}`)}
+    <div class="row"><label for="hmb-sw">${tr('Password')}</label><input id="hmb-sw" type="password" autocomplete="new-password" placeholder="${pw(x.smtp_password_set)}" ${/*html-ok*/ req}></div>
     ${inp('hmb-fa', tr('Sender address'), x.from_addr, 'type="email" placeholder="office@example.com" spellcheck="false"')}
     ${inp('hmb-fn', tr('Sender name'), x.from_name, 'maxlength="120"')}
     <div class="row hmbonrow" ${b ? '' : 'hidden'}><label for="hmb-on">${tr('Fetch e-mails')}</label><select id="hmb-on"><option value="1" ${!b || x.active ? 'selected' : ''}>${tr('On')}</option><option value="0" ${!b || x.active ? '' : 'selected'}>${tr('Paused')}</option></select></div>`;
@@ -90,6 +92,7 @@ async function hmb_dialog(ws) {
   };
   md.addEventListener('change', async e => {
     const t = /** @type {any} */ (e.target); if (!t.closest('.hmbform') || !/^hmb-/.test(t.id || '')) return;
+    if (t.id === 'hmb-sh') hmb_req(md);
     if ((t.id === 'hmb-iw' || t.id === 'hmb-sw') && !t.value) return;
     const d = hmb_body(md, ws, false); errEl.textContent = '';
     if (typeof d === 'string') { errEl.textContent = d; return; }
@@ -122,6 +125,11 @@ async function hmb_dialog(ws) {
     finally { b.disabled = false; b.classList.remove('busy'); }
     took(r);
   });
+}
+// 2.1312.0 (#6540): with a server for sending its user name and password are required (the server refuses it otherwise)
+function hmb_req(md) {
+  const on = !!hmb_v(md, 'hmb-sh');
+  for (const id of ['hmb-su', 'hmb-sw']) { const el = hmb_q(md, '#' + id); el.required = on; if (on) el.setAttribute('aria-required', 'true'); else el.removeAttribute('aria-required'); }
 }
 function hmb_footHtml(box) {
   return `${box ? `<button type="button" class="btn danger" data-hmbd="del">${ic('trash', 's')} ${tr('Remove')}</button>` : ''}${box?.imap_host ? `<button type="button" class="btn" data-hmbd="poll">${ic('sync', 's')} ${tr('Fetch now')}</button>` : ''}<span class="spacer"></span><button type="button" class="btn" data-m="close">${tr('Close')}</button><button type="button" class="btn pri" data-hmbd="check">${ic('check', 's')} ${tr('Check connection')}</button>`;

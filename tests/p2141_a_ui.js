@@ -44,7 +44,8 @@ const FEAT = 'collab,comments,clients,contacts';
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT, workspace: 'all'});
   const ACME = (await call('POST', '/api/clients', {name: 'Acme', org_id: null, email: 'acme@example.com', contacts: [{name: 'Lisa', email: 'lisa@example.com'}]})).id;
   const box = await call('PUT', '/api/hubmail/mailbox', {ws: 'private', imap_host: '127.0.0.1', imap_port: 1143, imap_ssl: false, imap_user: 'kalmido', imap_password: 'secret',
-    smtp_host: '127.0.0.1', smtp_port: 1025, smtp_tls: 'none', from_addr: 'office@example.test', from_name: 'Alice Office'});
+    smtp_host: '127.0.0.1', smtp_port: 1025, smtp_tls: 'none', smtp_user: 'kalmido', smtp_password: 'secret',  // 2.1312.0 (#6540): the login is required
+    from_addr: 'office@example.test', from_name: 'Alice Office'});
   check(box.status === 200 && box.box?.imap_password_set, 'setup: the private mailbox ' + box.status);
   mail('Acme <acme@example.com>', 'Quarterly report', 'The numbers of the quarter.');
   await call('POST', '/api/hubmail/mailbox/poll', {ws: 'private'});
@@ -68,6 +69,12 @@ const FEAT = 'collab,comments,clients,contacts';
   if (md) { const ih = md.querySelector('#hmb-iu'); ih.value = ''; ih.dispatchEvent(new w.Event('change', {bubbles: true})); }
   check(await until(async () => /Not saved yet/.test(md.querySelector('.hmb-err').textContent), 4000), 'an incomplete set is not saved, the reason shows');
   if (md) { const ih = md.querySelector('#hmb-iu'); ih.value = 'kalmido'; ih.dispatchEvent(new w.Event('change', {bubbles: true})); }
+  // 2.1312.0 (#6540): with a server for sending its user name and password are marked required, an empty user name is refused with the reason
+  check(md && md.querySelector('#hmb-su').required && md.querySelector('#hmb-sw').getAttribute('aria-required') === 'true' && md.querySelector('.hmbreq'),
+    'mailbox dialog: SMTP user name and password marked required');
+  if (md) { const su = md.querySelector('#hmb-su'); su.value = ''; su.dispatchEvent(new w.Event('change', {bubbles: true})); }
+  check(await until(async () => /user name and the password of the SMTP server/.test(md.querySelector('.hmb-err').textContent), 4000), 'an SMTP without its user name is not saved, the reason shows');
+  if (md) { const su = md.querySelector('#hmb-su'); su.value = 'kalmido'; su.dispatchEvent(new w.Event('change', {bubbles: true})); }
   await until(async () => !md.querySelector('.hmb-err').textContent, 4000);
   click(w, md && md.querySelector('[data-hmbd="check"]'));
   await until(async () => md.querySelectorAll('.hmbcheck .hmbok').length === 2, 20000);
@@ -112,7 +119,7 @@ const FEAT = 'collab,comments,clients,contacts';
   check(outbox().length === 2 && /In-Reply-To: <p2141aui-1@example\.org>/.test(outbox()[1].raw), 'reply sent with In-Reply-To');
 
   // ---- an SMTP that fails: the dialog stays with the error, the list shows "Not sent"
-  await call('PUT', '/api/hubmail/mailbox', {ws: 'private', smtp_port: 1027});
+  await call('PUT', '/api/hubmail/mailbox', {ws: 'private', smtp_port: 1027, smtp_password: 'secret'});  // 2.1312.0 (#6540): another port needs the password again
   // 2.358.0 B (#3302): CI red "md is null" here: the reply's dialog is gone first, then the new one may take its compose
   // request (GET /api/hubmail/compose) longer than 6 s under CI load
   await until(async () => !d.querySelector('.modal.hmbcdlg'), 20000);

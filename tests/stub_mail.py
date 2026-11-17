@@ -1,6 +1,7 @@
 """2.17.0 (#443) test stubs, run INSIDE the test container: a tiny IMAP server (127.0.0.1:1143, no TLS) that serves the
 files /data/mail/in/<uid>.eml as the INBOX (\\Seen remembered in /data/mail/seen), and an SMTP sink (127.0.0.1:1025)
 that appends every mail to /data/mail/out.jsonl. Only the commands imaplib / smtplib use for Kalmido."""
+import base64
 import json, os, re, socketserver, threading
 
 D = "/data/mail"
@@ -95,7 +96,18 @@ class Smtp(socketserver.StreamRequestHandler):
             s = line.decode(errors="replace").strip()
             u = s.upper()
             if u.startswith(("EHLO", "HELO")):
-                self.w("250-stub\r\n250 8BITMIME\r\n")
+                # 2.1312.0 (#6540): a workspace's SMTP always logs in: AUTH PLAIN, password "secret" (any user name)
+                self.w("250-stub\r\n250-AUTH PLAIN\r\n250 8BITMIME\r\n")
+            elif u.startswith("AUTH PLAIN"):
+                arg = s[10:].strip()
+                if not arg:
+                    self.w("334 \r\n")
+                    arg = self.rfile.readline().decode(errors="replace").strip()
+                try:
+                    pw = base64.b64decode(arg).split(b"\0")[2]
+                except (ValueError, IndexError):
+                    pw = b""
+                self.w("235 ok\r\n" if pw == b"secret" else "535 no\r\n")
             elif u.startswith("MAIL FROM"):
                 frm = s.split(":", 1)[1].strip(" <>")
                 self.w("250 OK\r\n")
