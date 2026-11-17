@@ -19088,6 +19088,7 @@
   "A number range with finalised documents cannot be removed; close it instead": "Una serie con documenti finalizzati non può essere rimossa; chiudila invece",
   "Move to section of {0}…": "Sposta in una sezione di {0}…",
   "Section of {0}": "Sezione di {0}",
+  "Still open from today": "Ancora aperto da oggi",
   "Only the agent's own token can ask for a request token": "Solo il token proprio dell’agente può chiedere un token di richiesta",
   "One request works for one person: these events come from several": "Una richiesta lavora per una persona: questi eventi vengono da più persone",
   "This person gives the agent no orders (any more)": "Questa persona non può (più) dare incarichi all’agente",

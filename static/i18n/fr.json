@@ -19087,6 +19087,7 @@
   "A number range with finalised documents cannot be removed; close it instead": "Une plage avec des documents validés ne peut pas être supprimée ; fermez-la plutôt",
   "Move to section of {0}…": "Déplacer vers une section de {0}…",
   "Section of {0}": "Section de {0}",
+  "Still open from today": "Encore ouvert d’aujourd’hui",
   "Only the agent's own token can ask for a request token": "Seul le jeton propre de l’agent peut demander un jeton de requête",
   "One request works for one person: these events come from several": "Une requête travaille pour une seule personne : ces événements viennent de plusieurs",
   "This person gives the agent no orders (any more)": "Cette personne ne peut (plus) donner de tâches à l’agent",

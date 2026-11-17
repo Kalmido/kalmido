@@ -19087,6 +19087,7 @@
   "A number range with finalised documents cannot be removed; close it instead": "Ein Nummernkreis mit festgeschriebenen Belegen kann nicht entfernt werden; schließ ihn stattdessen",
   "Move to section of {0}…": "In Abschnitt von {0} verschieben…",
   "Section of {0}": "Abschnitt von {0}",
+  "Still open from today": "Noch offen von heute",
   "Only the agent's own token can ask for a request token": "Nur das eigene Token des Agenten kann ein Anfrage-Token holen",
   "One request works for one person: these events come from several": "Eine Anfrage arbeitet für eine Person: Diese Ereignisse kommen von mehreren",
   "This person gives the agent no orders (any more)": "Diese Person kann dem Agenten keine Aufträge (mehr) geben",
