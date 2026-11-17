@@ -18983,8 +18983,5 @@
   "Reject the deletion of “{0}”?": "Verwijdering van ‘{0}’ afwijzen?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "De verwijdering wordt geannuleerd; het account blijft geblokkeerd tot een admin het deblokkeert. De persoon krijgt een e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} heeft gevraagd het eigen account te verwijderen en is geblokkeerd: de verwijdering wacht op jouw beslissing, uiterlijk tot {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Beslis over de gepauzeerde verwijdering van {0}: zonder beslissing gebeurt ze op {1}",
-  "Sending needs the user name and the password of the SMTP server": "Voor verzenden zijn de gebruikersnaam en het wachtwoord van de SMTP-server nodig",
-  "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Verzenden alleen via poort 465 of 587 (poort 25 alleen voor een server die een beheerder heeft toegestaan)",
-  "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Er wordt alleen verzonden met de gebruikersnaam en het wachtwoord van de SMTP-server, via poort 465 of 587."
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Beslis over de gepauzeerde verwijdering van {0}: zonder beslissing gebeurt ze op {1}"
 }

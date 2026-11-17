@@ -18984,8 +18984,5 @@
   "Reject the deletion of “{0}”?": "Rifiutare l’eliminazione di «{0}»?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "L’eliminazione viene annullata; l’account resta bloccato finché un admin non lo sblocca. La persona riceve un’e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} ha chiesto di eliminare il proprio account ed è stato bloccato: l’eliminazione attende la tua decisione, al più tardi fino al {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decidi sull’eliminazione sospesa di {0}: senza decisione avviene il {1}",
-  "Sending needs the user name and the password of the SMTP server": "Per inviare servono il nome utente e la password del server SMTP",
-  "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Invio solo tramite la porta 465 o 587 (la porta 25 solo per un server consentito da un amministratore)",
-  "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Si invia solo con il nome utente e la password del server SMTP, tramite la porta 465 o 587."
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decidi sull’eliminazione sospesa di {0}: senza decisione avviene il {1}"
 }
