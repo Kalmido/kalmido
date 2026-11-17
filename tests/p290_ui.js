@@ -46,7 +46,8 @@ const SMALL = sel => `(() => [...document.querySelectorAll('${sel}')].filter(e =
   md.querySelector('#apw-name').value = 'iPhone';
   click(w, md.querySelector('[data-m="ok"]'));
   const sec = await until(() => d.querySelector('#sec-val'));
-  check(sec && /^[a-z2-9]{5}(-[a-z2-9]{5}){3}$/.test(sec.value), `the password is shown once (${sec && sec.value})`);
+  // 2.1325.0 (#6665): since 2.1271.0 (#6552) an app password has an 8-symbol id in front of the 4 x 5 secret (caldav.apppw_new)
+  check(sec && /^[a-z2-9]{8}(-[a-z2-9]{5}){4}$/.test(sec.value), `the password is shown once (${sec && sec.value})`);
   check(/alice/.test(sec.closest('.modal').textContent) && /only this once/.test(sec.closest('.modal').textContent), 'with the user name and "only this once"');
   click(w, sec.closest('.modal').querySelector('[data-m="close"]'));
   check(await until(() => /iPhone/.test(d.querySelector('#s-apws')?.textContent || '') && /never used/.test(d.querySelector('#s-apws').textContent)),
