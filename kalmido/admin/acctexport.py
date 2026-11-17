@@ -56,6 +56,7 @@ from ..core.access import Denied, acx_lists_sql, acx_of, live_sql, otr_live
 from ..accounts.orgout import oo_exported  # 2.362.3 (#3101)
 from ..accounts.pictures import avatar_path
 from ..accounts.session import me
+from ..docs.store import doc_open  # 2.1334.0 (#6585): my notes on an organisation's documents (org_doc_notes)
 from .orgexport import EXPORT_DIR, OX_SECRET_COLS, _Man, _jdef, _safe_part, _under, ox_pb_parts, ox_private_docs, ox_read_listed
 from .exportleft import left_lines, umz_later_names, umz_left_tables  # 2.362.4 (#3107), 2.531.0 (#4317); 2.1093.0 (#5289): + the core's register
 from .offsite import stepup_download  # 2.360.0 A (#2496): the step-up before the download
@@ -515,6 +516,9 @@ def _umz_plain(c, table, d, uid=None):
         return d
     if table == "wiki_pages":
         d["body"] = wsb_body_or(c, d)
+        return d
+    if table == "org_doc_notes" and d.get("text"):  # 2.1334.0 (#6585): my notes on an organisation's documents, sealed with its workspace
+        d["text"] = doc_open(c, d.get("ws"), "doc_notes.text", d["text"], default=None)
         return d
     src = dict(UMZ_DECRYPT).get(table)
     if src and d.get("org_id"):
