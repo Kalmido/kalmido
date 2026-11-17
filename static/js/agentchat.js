@@ -1565,8 +1565,8 @@ function agSetupHtml(guide, os, tool) {
     : tr('A personal agent runs on your own computer and belongs to you: it sees only the projects you share with it, and only you can chat with it.');
   const steps = agToolSteps(AG_GUIDES[g][o], tl, o).map(([h, t, cmd]) => `<li><b>${tr(h)}</b><span>${tr(t)}</span>${cmd ? `<pre class="agcmd">${esc(cmd)}</pre>` : ''}</li>`).join('');
   // 2.1348.0 (#6668): a team agent works per request for one person (the starter asks a request token before every run)
-  const perReq = g === 'team' ? ` ${esc(tr('It works per request for the person who asked: each run reaches only what that person reaches themselves.'))}` : '';
-  return `<div class="shint">${esc(intro)}${perReq} ${esc(tr('Kalmido never starts or downloads an agent: you run the agent yourself.'))}</div>
+  const perReq = g === 'team' ? ' ' + tr('It works per request for the person who asked: each run reaches only what that person reaches themselves.') : '';
+  return `<div class="shint">${esc(intro + perReq)} ${esc(tr('Kalmido never starts or downloads an agent: you run the agent yourself.'))}</div>
     <div class="shint keep">${esc(g === 'own' ? tr('Quickest on your own computer: the download button in your agent’s row (Set up on a computer) installs it with one command.') : tr('Quickest: create the agent, then “Set up on a computer” installs it with one command.'))}</div>
     <details class="agadv agbyhand"><summary>${tr('For advanced users')}</summary>${''/* 2.364.0 D (#3035): the way by hand (useradd …) folded; first the one-command setup in the agent's row */}
     <h4 class="agrh">${esc(tr('Which tool runs the agent?'))}</h4>
