@@ -19005,6 +19005,7 @@
   "1-{0} select · Enter takes over · arrows back and forth": "1-{0} scegli · Invio applica · frecce avanti e indietro",
   "Enter takes over · arrows back and forth": "Invio applica · frecce avanti e indietro",
   "Arrows back and forth": "Frecce avanti e indietro",
+  "Too many documents for one export: {0} (at most {1})": "Troppi documenti per un'esportazione: {0} (al massimo {1})",
   "{0} column left out (at most {1} per sheet)": ["{0} colonna tralasciata (al massimo {1} per foglio)", "{0} colonne tralasciate (al massimo {1} per foglio)"],
   "Import CSV, Excel or ODS…": "Importa CSV, Excel o ODS…",
   "This is not a spreadsheet file (.ods)": "Questo non è un file di foglio di calcolo (.ods)",
