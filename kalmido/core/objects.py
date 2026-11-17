@@ -114,7 +114,7 @@ from datetime import timedelta
 from flask import g, has_request_context, request
 
 from ..accounts.orgroles import FULL_READ, RO_MSG, org_role_key
-from .access import Denied, act_for, acx_of, acx_org_ok, collab_all, need_feat, token_lists
+from .access import Denied, act_for, acx_of, acx_org_ok, acx_sup_write_row, acx_sup_writing, collab_all, need_feat, token_lists
 from .db import LV_AREA_KEYS, insert_id, iso, now_iso, now_utc
 from .errors import BadInput
 from .i18n import tr
@@ -527,6 +527,8 @@ def obj_need(c, uid, kind, rid, need="view", trash=False, own_trash=False):
     reg = obj_reg(kind)
     if reg["feat"]:
         need_feat(reg["feat"])
+    if acx_sup_writing(need != "view") and "org_id" in table_columns(c, reg["table"]):  # 2.1364.0 (#6320): a support session, an organisation without its grant
+        acx_sup_write_row(c, reg["table"], rid, need != "view")
     row = obj_row(c, kind, rid)
     role = obj_role(c, uid, kind, rid, row=row, own_trash=own_trash) if row is not None else None
     if not role or bool(row["deleted_at"]) != bool(trash):

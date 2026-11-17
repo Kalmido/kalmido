@@ -443,6 +443,9 @@ def fs_trash_root_by(chain):
 
 def _send(c, n, version=None, dl=False):
     """The content of a file / link node for the browser (images / pdf / text inline, else a download; sandbox CSP)."""
+    if "hub_mail_id" in n.keys() and n["hub_mail_id"]:  # 2.1364.0 (#6320): a filed mail's .eml, not for a support session
+        from ..hub.hubmail import hbm_eml_refused
+        hbm_eml_refused(c, n["id"])
     if n["kind"] == "ref":  # 2.199.0 A (#2742): the bytes of the area (fs_ref_content checks the role)
         data, name, mime = fs_ref_content(c, me(), n)
         inline = mime in INLINE_TYPES and request.args.get("dl") != "1" and not dl
