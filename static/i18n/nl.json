@@ -8718,7 +8718,6 @@
   "The target office already has its own company data; they were kept.": "Het doelkantoor heeft al eigen bedrijfsgegevens; die zijn behouden.",
   "The target office already has its own cash flow start balance; it was kept.": "Het doelkantoor heeft al een eigen beginsaldo voor de kasstroom; dat is behouden.",
   "A number range of the target office was kept: {0}": "Een nummerreeks van het doelkantoor is behouden: {0}",
-  "A document number already exists in the target office, the document was skipped: {0}": "Een documentnummer bestaat al in het doelkantoor; het document is overgeslagen: {0}",
   "Open approval links of the export were ended; create a new link where it is still needed.": "Open goedkeuringslinks uit de export zijn beëindigd; maak waar nodig een nieuwe link aan.",
   "Export the office": "Kantoor exporteren",
   "Entries of people who were not selected were not imported: {0}": "Items van personen die niet zijn gekozen, zijn niet overgenomen: {0}",

@@ -7,8 +7,9 @@ organisation export needs it). Invented companies, people and figures only; date
  - DATEV ZIP: ?check=1 stores nothing; the first export stores the GUIDs (the start value = the uuid5 formula of 2.148, so
    an update links as before), a second export links the same
  - organisation export -> import into an empty organisation: the stored GUIDs come along (the invoice and the receipt
-   file of the target link as in the source), the opening balances and the procedure documentation once; a second import
-   of the same export adds neither again (a differing balance keeps the target's, with a warning)
+   file of the target link as in the source), the opening balances and the procedure documentation once; a newer export
+   into the same organisation is refused, its invoice number is taken (2.1316.0, #6577); into an organisation with its own
+   differing balance the target's stays, with a warning
  - a person without organisation (personal office, its own admin) exports DATEV, then moves the personal office into an
    organisation: the invoice keeps its GUID there; an opening balance the organisation has already is not added twice, a
    differing one stays in the personal office, the organisation's own procedure documentation stays the only one (the
@@ -295,12 +296,27 @@ check({link(x) for x in cdata if link(x)} == {GI, GR}, f"Beta: the invoice and t
 check(balances(ORG2) == balances(ORG) and n_procdocs(ORG2) == 1, f"Beta: balances + documentation once {balances(ORG2)}")
 sql("UPDATE office_opening_balances SET amount=70 WHERE org_id=? AND account='1400'", (ORG2,))
 OX2, RK2 = org_export(A, ORG)  # 2.362.3 (#3098): the same file again skips its areas; a newer export of the organisation runs them
-w2 = org_import(Ca, OX2, RK2, ORG2)
-check(balances(ORG2) == [(Y, "1200", "100.00", "S"), (Y, "1400", "70.00", "S")], f"second import: no balance twice, Beta's kept {balances(ORG2)}")
-check("opening balance differs" in w2 and f"{Y} 1400" in w2, f"second import: the differing balance is named {w2}")
-check(n_procdocs(ORG2) == 1 and "procedure documentation" not in w2, f"second import: the same documentation not again {n_procdocs(ORG2)} {w2}")
+# 2.1316.0 (#6577): Beta has Alpha's invoice number now - the newer export is refused with the list (was: the invoice skipped
+# quietly, the rest merged); nothing of it lands in Beta
+iid = upload(Ca, OX2)
+j = wait(Ca, iid)
+if j.get("state") == "key":
+    Ca.post(B + f"/api/account/import/{iid}/key", json={"recovery_key": RK2})
+    j = wait(Ca, iid)
+check(any(N1 in x for x in (((j.get("preview") or {}).get("office") or {}).get("targets") or {}).get(str(ORG2), {}).get("conflicts", [])),
+      f"#6577: the preview names the invoice number Beta has already {(j.get('preview') or {}).get('office')}")
+r = Ca.post(B + f"/api/account/import/{iid}/run", json={"again": True, "target": ORG2, "people": {}})
+check(r.status_code == 409 and any(N1 in x for x in r.json().get("conflicts", [])), f"#6577: second import refused with the list {r.status_code} {r.text[:200]}")
+Ca.delete(B + f"/api/account/import/{iid}")
+check(balances(ORG2) == [(Y, "1200", "100.00", "S"), (Y, "1400", "70.00", "S")] and n_procdocs(ORG2) == 1, f"second import: Beta unchanged {balances(ORG2)}")
 check({x[0] for x in sql("SELECT guid FROM office_datev_guids WHERE org_id=? AND doc_id IS NOT NULL", (ORG2,))} == {GI},
-      "second import: the invoice (number taken) adds no GUID")
+      "second import: the invoice adds no GUID")
+# 2.188.0 (#2498): a target with an own, differing opening balance (and no document of the file's numbers) keeps its own
+ORG3 = A.post(B + "/api/admin/orgs", json={"name": "Gamma Ziel", "admin_id": CAROL}).json()["id"]
+add_balance(ORG3, "1400", "70.00")
+w2 = org_import(Ca, OX2, RK2, ORG3)
+check(balances(ORG3) == [(Y, "1200", "100.00", "S"), (Y, "1400", "70.00", "S")], f"Gamma: no balance twice, Gamma's kept {balances(ORG3)}")
+check("opening balance differs" in w2 and f"{Y} 1400" in w2, f"Gamma: the differing balance is named {w2}")
 
 # ---------------------------------------------------------------- the personal office of a person without organisation moves
 ws(Er, "private")

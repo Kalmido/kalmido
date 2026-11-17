@@ -8699,7 +8699,6 @@
   "The target office already has its own company data; they were kept.": "Das Zielbüro hat schon eigene Firmendaten; sie wurden beibehalten.",
   "The target office already has its own cash flow start balance; it was kept.": "Das Zielbüro hat schon einen eigenen Anfangsbestand für die Liquidität; er wurde beibehalten.",
   "A number range of the target office was kept: {0}": "Ein Nummernkreis des Zielbüros wurde beibehalten: {0}",
-  "A document number already exists in the target office, the document was skipped: {0}": "Eine Nummer gibt es im Zielbüro schon, das Dokument wurde übersprungen: {0}",
   "Open approval links of the export were ended; create a new link where it is still needed.": "Offene Abnahme-Links aus dem Export wurden ausgeschaltet; lege bei Bedarf einen neuen Link an.",
   "Export the office": "Büro exportieren",
   "Entries of people who were not selected were not imported: {0}": "Einträge von Personen, die nicht ausgewählt wurden, wurden nicht übernommen: {0}",
