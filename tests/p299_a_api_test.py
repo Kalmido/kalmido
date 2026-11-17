@@ -235,6 +235,21 @@ check(r.status_code == 201, "#2182: the freelancer uploads to its own page " + r
 r2 = imp(Fr, "private", sb_zip(), replace="1")
 check(r2.ok and len(r2.json().get("updated", [])) >= 2, "#2182: replace=1 overwrites the pages " + r2.text[:200])
 
+# 2.1336.0 (#6804): the list of what an export left out (core/omitted.py, every language, also "(2)") in the ZIP root is passed
+# over silently on a re-import; the same name in a folder is no such list and stays named; the names reach the browser's import
+b = io.BytesIO()
+with zipfile.ZipFile(b, "w") as z:
+    z.writestr("Omit/Seite.md", "# Seite\n")
+    z.writestr("nicht enthalten.txt", "Diese Teile sind nicht in diesem ZIP:\r\n")
+    z.writestr("not included (2).txt", "x")
+    z.writestr("Omit/not included.txt", "x")
+r = imp(Fr, "private", b.getvalue())
+sk = [x.get("name") for x in r.json().get("skipped_detail") or []] if r.ok else []
+check(r.ok and len(r.json().get("created", [])) == 1 and sk == ["Omit/not included.txt"],
+      f"#6804: 'nicht enthalten.txt' / 'not included (2).txt' in the root are not reported as skipped {r.text[:400]}")
+on = Fr.get(B + "/api/state").json().get("omit_names") or []
+check({"not included", "nicht enthalten"} <= set(on), f"#6804: the state carries the list's names in every language {on}")
+
 # ---------------------------------------------------------------- Undo of an import
 r = imp(Ca, SP2, sb_zip())
 check(r.ok and r.json()["files_n"] == 5, "#2182: another organisation imports into its own space " + r.text[:200])

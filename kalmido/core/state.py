@@ -7,6 +7,7 @@ from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, COOKIE, MAX_FILE_MB, IOS_SHORTCUT_URL, NTFY_URL, PUBLIC_URL
 from ..core.i18n import languages, tr
+from ..core.omitted import omit_names  # 2.1336.0 (#6804)
 from ..core.schema import MAX_DEPTH
 from ..core.retention import ret_on
 from ..core.dlock import dl_list_hidden  # 2.235.0 B (#2902)
@@ -439,6 +440,7 @@ def state():
         max_depth=MAX_DEPTH,  # 2.156.0 A (#1949): the levels of tasks (dragging, mind map, detail read it)
         webpush={"enabled": WEBPUSH_ON, "key": vapid_public() if WEBPUSH_ON else "", "devices": webpush_count(c, uid)},
         languages=languages(),
+        omit_names=omit_names(),  # 2.1336.0 (#6804): the names of "not included.txt" in every language (wikie2e.js wkeImport skips it)
         news=news_head(c, uid, s, nitems),  # 2.28.0 (#987): + "For you"; 2.1037.0 (#5801): + the deadline lines (due)
         avatars=avatar_map(c, uid),
         colors=ac_color_map(c, uid),  # 2.47.1 (#1721): {user id: fixed account colour} of the accounts I see
