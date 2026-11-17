@@ -18992,6 +18992,7 @@
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Tot die tijd worden e-mails met inhoud (de dagelijkse samenvatting, meldingen) er niet naartoe gestuurd.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Bevestig eerst je e-mailadres: e-mails met inhoud gaan alleen naar een bevestigd adres.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Je adres is nog niet bevestigd: de dagelijkse samenvatting en e-mails over gebeurtenissen gaan pas uit nadat je het hebt bevestigd.",
+  "{0} column left out (at most {1} per sheet)": ["{0} kolom weggelaten (hoogstens {1} per blad)", "{0} kolommen weggelaten (hoogstens {1} per blad)"],
   "not included|file name of the list in a ZIP": "niet opgenomen",
   "These items are not in this ZIP:": "Deze items staan niet in deze ZIP:",
   "Sending needs the user name and the password of the SMTP server": "Voor verzenden zijn de gebruikersnaam en het wachtwoord van de SMTP-server nodig",
