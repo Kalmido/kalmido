@@ -57,7 +57,14 @@ def dfh_hooks():
                     except Exception as e:  # noqa: BLE001
                         print(f"docflows: webhook of run {r['id']} could not be prepared:", type(e).__name__, flush=True)
                         aa_count("watchdog", f"docflows|hook|{type(e).__name__}", "docflows")
-                        dfh_retry(c, r["id"], int(r["hook_attempt"] or 0) + 1, type(e).__name__, 0)
+                        # 2.1337.0 (#6881): counted at the flow and given up like every other failed call (the webhook switches off)
+                        FL.fl_hook_result(c, r["rule_id"], False, type(e).__name__)
+                        if dfh_retry(c, r["id"], int(r["hook_attempt"] or 0) + 1, type(e).__name__, 0):
+                            try:  # a flow that cannot even be read must not stop the batch: its run is given up already
+                                with c.savepoint():
+                                    FL.fl_hook_off(c, r["rule_id"], r["ws"], "failures", type(e).__name__)
+                            except Exception as e2:  # noqa: BLE001
+                                print(f"docflows: webhook of flow {r['rule_id']} not switched off:", type(e2).__name__, flush=True)
                         continue
                     if p is None or p == "blocked":
                         c.execute("UPDATE doc_flow_runs SET hook=? WHERE id=?", ("blocked" if p else "gone", r["id"]))
