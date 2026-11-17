@@ -243,10 +243,10 @@ UMZ_LEFT_OWN = (  # (name, parts): the first part counts, the others only when i
     # 2.360.4 (#3248): what I wrote or got elsewhere; the preview showed the technical names of these parts
     (N_("Channel messages"), ("channel_messages",)),
     (N_("Tasks in other projects"), ("other_tasks",)), (N_("Tasks I take part in"), ("task_people",)),
-    (N_("Stars"), ("kid_stars",)), (N_("Received notifications"), ("notifications",)), (N_("Sign-ins"), ("sessions",)),
+    (N_("Stars"), ("kid_stars",)), (N_("Received notifications"), ("notifications",)), (N_("Sign-ins"), ("sessions", "login_ips")),  # 2.1334.0: + login_ips
     (N_("Push devices"), ("push_devices",)), (N_("Agent chat settings"), ("agent_chat_prefs",)),
     # 2.1334.0 (#6359, #6585): what came into the account export as an Art. 15 / 20 copy and is not made again on the target
-    (N_("Account"), ("account",)), (N_("Organisations"), ("memberships",)), (N_("Sign-ins"), ("login_ips",)),
+    (N_("Account"), ("account",)), (N_("Organisations"), ("memberships",)),
     (N_("Agent chats"), ("chat_files", "chat_saves")), (N_("Direct messages"), ("chat_message_files",)), (N_("Trips"), ("trip_costs",)),
     (N_("Rewards"), ("kid_rewards",)), (N_("Shopping list"), ("shop_memory",)), (N_("Tables"), ("sheet_links",)),
     (N_("Knowledge pages"), ("wiki_spaces",)), (N_("Mailbox"), ("mailbox_rules",)),

@@ -89,7 +89,7 @@ KIND_FREE = "(free)"  # the kind of every value of a column outside its constant
 KIND_HAS_FREE = ("obj_links",)
 # the tables of the core with a kind column whose rows go as a whole (one where clause or one reason for all their kinds)
 KIND_WHOLE = {
-    "obj_history": "the change history of every kind: exported whole (organisation_id / the person's private space)",
+    "obj_history": "the change history of every kind: it follows the objects the organisation export carries, a person's own changes in their private space",
     "obj_undo": "the undo steps of 30 days of every kind: working data, never exported",
     "obj_revoked": "the shares removed of every kind: shares are made anew on the target",
     "obj_addr_shares": "who shares an address book: shares are made anew on the target",

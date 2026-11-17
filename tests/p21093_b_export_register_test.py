@@ -78,7 +78,7 @@ OLD_ORG = {
     ("hub/mail_links.json", "obj_links", "org_id=? AND src_kind='hub_mail' AND rel='made' AND src_id NOT IN (SELECT id FROM hub_mails WHERE deleted_at IS NOT NULL)"),
     # 2.1334.0 (#6585, audit #4808 T13 4 / 5): + the free links and the change history (no longer "rebuilt on the target"), wanted
     ("links.json", "obj_links", f"org_id=? AND rel NOT IN ('made', 'device', 'contact', 'answers', 'reply') AND {live_sql()}"),
-    ("history/changes.json", "obj_history", "org_id=?"),
+    ("history/changes.json", "obj_history", "org_id=? AND FALSE"),  # its objects are filled in by ox_build (ox_history_where)
 }
 OLD_RX = {("books/procedure-documentation.csv", "obj_versions", "kind='procdoc' AND org_id=?"),
           ("letters/letter-links.csv", "obj_links", f"org_id=? AND {OX_LETTER_LINKS} AND src_id IN (SELECT id FROM office_letters WHERE org_id=? AND status<>'draft')")}
@@ -246,7 +246,7 @@ fni = " | ".join(fman.get("not_included") or [])
 check("obj_seen" in fni and "obj_search" in fni and "obj_history" not in fni, f"freelancer: the manifest names the core's tables that stay out {fni[:400]}")
 # 2.1334.0 (#6585): the history of my changes is in the file (my_history) and named as not imported
 fh = fz.read("data/my_history.json").decode() if "data/my_history.json" in fn else ""
-check('"Alt"' in fh and str(FT) in fh and any("my_history" in x for x in fman.get("not_imported") or []),
-      f"freelancer: data/my_history.json with my change and its line in not_imported {fh[:200]} {fman.get('not_imported')}")
+check("Alt" in fh and f'"ref_id": {FT}' in fh and any("my_history" in x for x in fman.get("not_imported") or []),
+      f"freelancer: data/my_history.json with my change and its line in not_imported {fh[:300]!r} {fman.get('not_imported')}")
 
 sys.exit(kt.done("p21093_b_export_register"))

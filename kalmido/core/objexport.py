@@ -146,7 +146,9 @@ obj_export("obj_addr_shares", org_left="invitations (not_included)", acct_left=_
 # 2.1334.0 (#6585, audit #4808 T13 5): the change history is no "rebuilt on the target" -- it is lost on a move. It goes along
 # (an organisation's: history/changes.json; mine: my changes in my private space) and the manifests say that no import takes it
 # over (OEX_NOT_IMPORTED, admin/orgexport.py / acctexport.py not_imported)
-obj_export("obj_history", org=(("history/changes.json", "org_id=?"),),
+# The organisation's file follows the objects the archive carries ({HISTORY}: admin/orgexport.py ox_history_where -- the earlier
+# versions of a message of a group conversation, the history of a list the admin does not see, of the trash stay out with them)
+obj_export("obj_history", org=(("history/changes.json", "org_id=? AND {HISTORY}"),),
            acct_more=(("my_history", "SELECT id, kind, ref_id, action, agent, vals_before, vals_after, created_at, updated_at FROM obj_history "
                                      "WHERE user_id=? AND org_id IS NULL", "History"),))
 obj_export("obj_undo", org_left="undo steps of 30 days", acct_left=_DERIVED)
