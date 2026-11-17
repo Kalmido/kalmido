@@ -208,16 +208,47 @@ const mseAddHtml = () => mseOn() ? `<button type="button" class="linkbtn msenew"
 // a drop into an own section (moDrop: onto a row of it; dnd.js: onto its head = on top of it). Only the tasks shown in own
 // sections are sent (with their places); "Recently assigned" takes nothing.
 async function mseDrop(t, head, targetId = null, after = false) {
-  const sid = head ? +head.dataset.key.slice(3) : NaN, s = mseList().find(x => x.id === sid);
-  if (!s || s.kind === 'recent') return true;
-  const x = mseCtx(), all = moAll().filter(y => y.id !== t.id), flat = [];
+  const sid = head ? +head.dataset.key.slice(3) : NaN;
+  await mseMoveTo([t.id], sid, targetId, after);
+  return true;
+}
+// 2.1365.0 (#6962): tasks (ids, in this order) into own section sid in one moSave - before / after targetId, else on top of it
+// (where its first task stands; an empty one = at the end). mseDrop and "Move to section…" of the task menu go this way.
+async function mseMoveTo(ids, sid, targetId = null, after = false) {
+  const s = mseList().find(x => x.id === sid);
+  if (!s || s.kind === 'recent' || !ids.length) return false;
+  const x = mseCtx(), mv = new Set(ids), all = moAll().filter(y => !mv.has(y.id)), flat = [];
   for (const o of x.own) flat.push(...all.filter(y => mseOf(y, x) === o.id).map(y => y.id));
   flat.push(...all.filter(y => mseOf(y, x) === null).map(y => y.id));
   let at = targetId != null && flat.includes(targetId) ? flat.indexOf(targetId) + (after ? 1 : 0) : -1;
   if (at < 0) { const first = all.find(y => mseOf(y, x) === sid); at = first ? flat.indexOf(first.id) : flat.length; }
-  flat.splice(at, 0, t.id);
-  await moSave(flat, {[t.id]: sid});
+  flat.splice(at, 0, ...ids);
+  await moSave(flat, Object.fromEntries(ids.map(id => [id, sid])));
   return true;
+}
+// 2.1365.0 (#6962): in "My tasks" with own sections (a row of the view, not the task panel) "Move to section…" offers the own
+// sections (not "Recently assigned"; a check at the one it stands in) and "New section…"; the project's sections stay reachable
+// as "Move to section of <project>…". null = not here (the menu stays as it was).
+function mseMenuHere(anchor, ts) {
+  if (!mseOn() || anchor?.closest?.('#detail') || !ts.length) return false;
+  const mine = new Set(moAll().map(y => y.id));
+  return ts.every(t => mine.has(t.id));
+}
+function mseSecPicker(anchor, ids, done = () => {}) {  // done: before the move (the multi panel marks its field changed)
+  const x = mseCtx(), ts = ids.map(id => S.tasks.get(id)).filter(Boolean), cur = new Set(ts.map(t => mseOf(t, x)));
+  menu(anchor, [...x.own.map(s => ({label: mseName(s), icon: 'columns', on: cur.size === 1 && cur.has(s.id), fn: () => { done(); mseMoveTo(ids, s.id); }})),
+    '-', {label: tr('New section…'), icon: 'plus', fn: () => { done(); mseMoveToNew(ids); }}]);
+}
+async function mseMoveToNew(ids) {
+  const n = (await askPrompt(tr('New section'), '', {ok: tr('Create'), input: {placeholder: tr('Name'), max: 200}}))?.trim();
+  if (!n) return;
+  const j = await mseCall('POST', '/api/mine-sections', {name: n});
+  if (j?.id) await mseMoveTo(ids, j.id);
+}
+function mseMenuItems(anchor, ids, proj) {  // proj = the project's own picker (or null)
+  const l = proj && listById(S.tasks.get(ids[0])?.list_id);
+  return [{label: tr('Move to section…'), icon: 'columns', next: 1, fn: () => mseSecPicker(anchor, ids)},
+    ...(proj && l ? [{label: tr('Move to section of {0}…', lname(l)), icon: 'folder', next: 1, fn: proj}] : [])];
 }
 const mseDropHead = async (t, el) => { const h = moActive() && mseOn() && el.closest?.('#view .ghead[data-key^="ms:"]'); return h ? mseDrop(t, h) : false; };
 async function mseCall(method, url, b) {

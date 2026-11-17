@@ -27,6 +27,7 @@ const DL_TXT = [N_('Off|deadline'), N_('Deadline'), N_('Deadline, also on Today'
 // the fields of the multi panel: label, icon, value per task (compared as JSON), its text, who may change it, the editor
 function meFields(ts) {
   const lid = meOneList(ts), anyDue = ts.some(t => t.due), shared = collab() && ts.some(t => listById(t.list_id)?.shared || t.assignee_id);
+  const mse = mseMenuHere(null, ts) ? mseCtx() : null;
   const F = [
     {k: 'date', lab: N_('Date'), icon: 'cal', get: t => t.due ? t.due + (t.due_time ? ' ' + t.due_time : '') : '', text: v => v ? dueLabel({due: v.slice(0, 10), due_time: v.slice(11) || null}) : tr('No date'), open: meDateMenu},
     ...(anyDue ? [{k: 'deadline', lab: N_('Deadline'), icon: 'flag', get: t => t.deadline || 0, text: v => tr(DL_TXT[v] || DL_TXT[0]),
@@ -39,7 +40,10 @@ function meFields(ts) {
         ...mePeople(ts).map(p => ({label: p.name + (S.me && p.user_id === S.me.id ? ' ' + tr('(me)') : ''), ...ac_mi(p.user_id), fn: () => meApply('assignee', t => t.assignee_id !== p.user_id || t.assignee_group_id ? {assignee_id: p.user_id, assignee_group_id: null} : null, tr('Assignee'))}))])}] : []),
     {k: 'list', lab: N_('Project'), icon: 'list', get: t => t.list_id, text: v => lname(listById(v)) || '?', perm: t => canEditList(t.list_id),
       open: a => mv_picker(a, meTasks().map(t => t.id), {filter: l => canEditList(l.id), pick: l => meApply('list', t => t.list_id !== l.id ? {list_id: l.id, section_id: null, ...(t.parent_id && !S.multi.has(t.parent_id) ? {parent_id: null} : {})} : null, tr('Moved to {0}', lname(l)))})},  // 2.455.0 (#3848)
-    ...(lid && S.sections.some(s => s.list_id === lid) ? [{k: 'section', lab: N_('Section'), icon: 'columns', get: t => t.section_id || 0, text: v => v ? secName(v) : tr('No section'),
+    // 2.1365.0 (#6962): in "My tasks" with own sections first the own section (personal: everyone may), the project's as "Section of <project>"
+    ...(mse ? [{k: 'msec', lab: N_('Section'), icon: 'columns', perm: () => true, get: t => mseOf(t, mse) ?? 0, text: v => mseName(mse.own.find(s => s.id === v) || mseList().find(s => s.id === v) || {}) || tr('No section'),
+      open: a => mseSecPicker(a, moSort(meTasks()).map(t => t.id), () => ME.chg.add('msec'))}] : []),
+    ...(lid && S.sections.some(s => s.list_id === lid) ? [{k: 'section', ...(mse ? {lab: tr('Section of {0}', lname(listById(lid))), raw: true} : {lab: N_('Section')}), icon: 'columns', get: t => t.section_id || 0, text: v => v ? secName(v) : tr('No section'),
       open: a => menu(a, [{label: tr('No section'), icon: 'x', fn: () => meApply('section', t => t.section_id ? {section_id: null} : null, tr('Section'))}, '-',
         ...S.sections.filter(s => s.list_id === lid).map(s => ({label: s.name, icon: 'columns', fn: () => meApply('section', t => t.section_id !== s.id ? {section_id: s.id} : null, tr('Section'))}))])}] : []),
     ...(msBulkList() ? [{k: 'milestone', lab: N_('Milestone'), icon: 'flag', get: t => t.milestone_id || 0, text: v => v ? S.tasks.get(v)?.title || '?' : tr('None'), perm: t => canEditList(t.list_id),
