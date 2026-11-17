@@ -10,10 +10,11 @@ from flask import g, has_request_context, jsonify, request, Response
 
 from ..core.config import app
 from ..core.i18n import tr
-from ..core.db import db, test_seconds, usettings
+from ..core.db import db, test_seconds
 from ..core.ctx import me
 from ..core.errors import BadInput, Denied, UnknownFields
 from ..core.ratedb import RATE_SHARED_MIN_S, rate_hit
+from ..core.access import feat_has  # 2.1327.0 (#6823): the one reading of the module switches
 
 
 V1_CODES = {400: "invalid", 401: "unauthorized", 403: "forbidden", 404: "not_found", 405: "method_not_allowed",
@@ -190,7 +191,7 @@ def v1_page(items, offset, limit):
 
 def v1_feature(f):
     """The API also respects the user's own module switches (Settings > Layout / Collaboration)."""
-    if f not in (usettings(db(), me()).get("features") or "").split(","):
+    if not feat_has(db(), me(), f):
         raise Denied(403, tr("Collaboration is switched off in your settings") if f == "collab"
                      else tr("Time tracking is switched off in your settings"))
 

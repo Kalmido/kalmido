@@ -15,7 +15,7 @@ from ..core.db import bump, gset, gsetting, iso, iso_ms, now_utc, usettings
 from ..core.usertz import hm_text, tz_gap, tz_of_s
 from ..core.retention import ret_due, ret_on, ret_report, ret_trash_cut  # 2.272.0 A (#3026)
 from ..accounts.session import me
-from ..core.access import acx_org_ok, collab_all, Denied, live_sql, task_visible, trash_sql  # 2.947.0 (#5367): trash_sql; 2.1026.0: live_sql
+from ..core.access import acx_org_ok, collab_all, Denied, live_sql, task_visible, trash_sql, feat_has, feat_in  # 2.947.0 (#5367): trash_sql; 2.1026.0: live_sql
 from ..core.access import act_for  # 2.1287.0 (#6454, review F7)
 from ..core.dlock import dl_area_locked, dl_of, dl_tasks_locked  # 2.560.0 B (#4699)
 from ..core.objsearch import osr_ids_sql, osr_scope_nodes, osr_scope_org  # 2.1026.0 (#5280)
@@ -58,7 +58,7 @@ WALL_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}")
 
 
 def events_on(c, uid):
-    return "events" in (usettings(c, uid).get("features") or "").split(",")
+    return feat_has(c, uid, "events")
 
 
 def ev_zone(name):
@@ -1294,7 +1294,7 @@ def _wd_events(c, users, S, LG, now):
             who = {cal["owner_id"]} | {m["user_id"] for m in cal_members(c, cal["id"], live=True)}
             who |= {a[0] for a in c.execute("SELECT user_id FROM event_attendees WHERE event_id=? AND user_id IS NOT NULL "
                                             "AND partstat!='declined'", (r["id"],))}
-            who = [u for u in who if u in users and "events" in (S.get(u, {}).get("features") or "").split(",")
+            who = [u for u in who if u in users and feat_in(S.get(u), "events")
                    and r["cal_id"] not in set(json.loads(S.get(u, {}).get("evcals_hidden") or "[]") or [])]
             who = sorted(obj_readers(c, "event", r["id"], who, memo))
             if not who:

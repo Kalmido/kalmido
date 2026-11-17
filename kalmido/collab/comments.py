@@ -14,7 +14,7 @@ from ..core.db import body, bump, db, err, inbox_default, iso, local_now, now_ut
 from ..accounts.session import me
 from ..core.objseen import osn_get, osn_mark  # 2.905.0 (#5284): the read marks of the core
 from ..accounts.bgjobs import bgj_add, bgj_fn  # 2.370.3 (#2760)
-from ..core.access import collab_all, Denied, list_people, list_role, live_sql, MANAGE_ROLES, need_feat, need_task, task_visible, pvis
+from ..core.access import collab_all, Denied, list_people, list_role, live_sql, MANAGE_ROLES, need_feat, need_task, task_visible, pvis, feat_in
 from ..core.serializers import unlink_files
 from ..tasks.tasks import WEB_COMMENT
 from ..tasks.validation import ACT_NOTES  # 2.394.0 C (#3377)
@@ -465,7 +465,7 @@ TASK_PUSH_GAP = int(os.environ.get("TASKS_PUSH_GAP", "60"))  # seconds
 
 
 def collab_on(s):
-    return collab_all() and "collab" in (s.get("features") or "").split(",")
+    return collab_all() and feat_in(s, "collab")
 
 
 def collab_user(c, uid, lid=None):

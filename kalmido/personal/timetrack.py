@@ -19,7 +19,7 @@ from ..core.access import (
     _pset_sql, Denied, health_hidden, list_role, need_feat, need_list, need_task, need_time, plists,
     pvis, task_visible, time_all, vis_sql,
 )
-from ..core.access import run_person  # 2.1287.0 (#6454, review)
+from ..core.access import run_person, feat_in  # 2.1287.0 (#6454, review)
 from ..core.state import visible_lists
 from ..tasks.validation import DAY_HOURS_DEFAULT
 from ..personal.habits import pomo_elapsed
@@ -200,7 +200,7 @@ def entry_secs(r, ref):
 
 
 def time_on(s):
-    return time_all() and "time" in (s.get("features") or "").split(",")
+    return time_all() and feat_in(s, "time")
 
 
 TIME_Q = """SELECT e.*, t.title AS t_title, u.display_name AS u_name, u.username AS u_login, tl.life AS l_life

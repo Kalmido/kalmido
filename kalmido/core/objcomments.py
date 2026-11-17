@@ -63,6 +63,7 @@ from .kernretire import kern_retire_floor
 from .objhooks import MOVE, USER_GONE
 from .pg import insert_id, qi, st_ids, system_ctx, table_columns
 from ..accounts.orgroles import org_say_refusal
+from .access import feat_in  # 2.1327.0 (#6823): the one reading of the module switches
 
 OCM_KINDS = ("task", "video", "doc_note", "tchat")  # 2.981.0 (#5273, stage Q4b): + the comments of a video / picture review, the notes on a
 #            document; (#5274, Q4c) 'tchat' = the team chat's helpers only (its people hook for the parser; its messages stay in tchat_msgs)
@@ -540,7 +541,7 @@ def ocm_notify(c, kind, cid, text, mentions, notify_mentions, nfiles, only=None,
     out = []
     for uid in sorted(ids - ag):  # agents get events (ocm_after), never a push
         s = collab_user(c, uid)
-        if not s or "comments" not in (s.get("features") or "").split(","):  # 2.0.6: comments off -> no comment News / pushes
+        if not s or not feat_in(s, "comments"):  # 2.0.6: comments off -> no comment News / pushes
             continue
         # 2.62.0 (#1854): an agent's comment with "only replies to me" (only the task's "Urgent" still wants every comment)
         p61_ok = bl9_agent_comment_ok(s, uid, author, ag, prev, replied, uid in notify_mentions)

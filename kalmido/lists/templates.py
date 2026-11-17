@@ -8,9 +8,9 @@ from ..core.config import app
 from ..core.pg import insert_id, write_lock
 from ..core.schema import MAX_DEPTH
 from ..core.i18n import lang, N_, tr
-from ..core.db import body, bump, db, err, inbox_default, iso, local_now, now_utc, uset, usettings
+from ..core.db import body, bump, db, err, inbox_default, iso, local_now, now_utc, uset
 from ..accounts.session import me
-from ..core.access import Denied, list_role, live_sql, MANAGE_ROLES, my_inbox, my_max_sort, need_list, need_task, token_lists, WRITE_ROLES
+from ..core.access import Denied, list_role, live_sql, MANAGE_ROLES, my_inbox, my_max_sort, need_list, need_task, token_lists, WRITE_ROLES, feats
 from ..core.pages import valid_link
 from ..lists.lists import list_created, clean_color, clean_folder, LIST_KINDS
 from ..tasks.validation import (
@@ -1164,7 +1164,7 @@ def ptype_create(c, uid, k, name, folder="", color="", start=None, sections=Fals
         if sec:
             c.execute("UPDATE lists SET review_cfg=? WHERE id=?",
                       (json.dumps({"on": 1, "reviewer": None, "section": sec[0], "gate": 1 if rv["gate"] else 0}, separators=(",", ":")), lid))
-    fs = [x for x in (usettings(c, uid).get("features") or "").split(",") if x]
+    fs = feats(c, uid)
     on = [m for m in PTYPES[k]["modules"] if m not in fs]
     if on:
         uset(c, uid, "features", ",".join(fs + on))
@@ -1230,7 +1230,7 @@ def list_ptype_set(c, lid, role, k, skip=()):
             not c.execute("SELECT 1 FROM tasks WHERE list_id=? AND deleted_at IS NULL LIMIT 1", (lid,)).fetchone():
         prev["view"] = cur["view"]
         c.execute("UPDATE lists SET view=? WHERE id=?", (p["view"], lid))
-    fs = [x for x in (usettings(c, me()).get("features") or "").split(",") if x]
+    fs = feats(c, me())
     out["modules_on"] = [m for m in p["modules"] if m not in fs]
     if out["modules_on"]:
         uset(c, me(), "features", ",".join(fs + out["modules_on"]))

@@ -29,9 +29,9 @@ own routes (/api/wiki/files/<id>, /api/list-files/<id>, /api/sheets/<id>/files/<
 """
 from flask import jsonify, request
 
-from ..core.access import acx_of, vis_sql
+from ..core.access import acx_of, vis_sql, feat_has
 from ..core.config import app
-from ..core.db import db, usettings
+from ..core.db import db
 from ..core.errors import Denied
 from ..core.i18n import N_, tr
 from ..core.pg import system_ctx
@@ -234,7 +234,7 @@ def _key_on(c, uid, oid, key):
     a = FSV_GATE.get(key)
     if not a:
         return True
-    if a not in (usettings(c, uid).get("features") or "").split(","):
+    if not feat_has(c, uid, a):
         return False
     return a not in wsa_org_off(c, oid)
 

@@ -9,11 +9,11 @@ from flask import g, jsonify, request
 from ..core.config import app
 from ..core.pg import insert_id, qi, system_ctx, table_columns
 from ..core.i18n import LANGS, N_, tr, trn
-from ..core.db import body, bump, db, err, iso, iso_ms, local_now, now_utc, usettings
+from ..core.db import body, bump, db, err, iso, iso_ms, local_now, now_utc
 from ..core.retention import ret_days
 from ..accounts.session import me
 from ..accounts.orgroles import need_org_write
-from ..core.access import Denied, MANAGE_ROLES, list_role, live_sql, need_feat, tvis, vis_sql
+from ..core.access import Denied, MANAGE_ROLES, list_role, live_sql, need_feat, tvis, vis_sql, feat_has
 from ..core.errors import BadInput
 from ..core.numtext import server_num
 from ..accounts.orgs import INSTANCE_ENV, user_orgs, is_org_admin, ws_chosen_org  # 2.369.5 (#2517): pulled up from functions
@@ -68,8 +68,7 @@ def cl_bill_strip(c, uid, oid, f):
 
 
 def clients_on(c, uid):
-    s = usettings(c, uid)
-    return "clients" in (s.get("features") or "").split(",")
+    return feat_has(c, uid, "clients")
 
 
 def _user(c, uid):

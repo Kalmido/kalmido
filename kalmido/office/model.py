@@ -18,7 +18,7 @@ from ..core.i18n import LANGS, N_, tr
 from ..core.pg import DatabaseError, insert_id, like_escape, qi, table_columns, system_ctx, write_lock
 from ..core.db import db, iso, local_now, now_utc, usettings
 from ..accounts.session import me
-from ..core.access import Denied, acx_drop, live_sql
+from ..core.access import Denied, acx_drop, live_sql, feat_has
 from ..core.rls import rls_org_open  # 2.602.0 (#4729)
 from ..core.errors import BadInput, BadKey, DeniedKey
 from .packs import office_pack, office_pack_codes, office_pack_for, office_feature_on, office_path_feature
@@ -193,7 +193,7 @@ CLIENT_BLOCKS = ("persons", "invoices", "month", "lists", "note", "tickets", "ge
 
 # ---------------------------------------------------------------- gate + organisation
 def office_on(c, uid):
-    return OFFICE_FEAT in (usettings(c, uid).get("features") or "").split(",")
+    return feat_has(c, uid, OFFICE_FEAT)
 
 
 def office_gate(c):
