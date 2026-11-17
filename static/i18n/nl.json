@@ -16826,7 +16826,6 @@
   "Whole page": "Hele pagina",
   "{0} filled in": "{0} ingevuld",
   "A file of the file store. Recognised, it gets the fields of a document (sender, type, date).": "Een bestand van het archief. Herkend krijgt het de velden van een document (afzender, type, datum).",
-  "Further options": "Overige opties",
   "Card size": "Tegelgrootte",
   "Ctrl + mouse wheel": "Ctrl + muiswiel",
   "Backup": "Back-up",
@@ -19056,5 +19055,6 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "vergrendeld met een wachtwoord (end-to-end versleuteld): de server heeft het alleen versleuteld",
   "shared with you: only the projects you own are exported": "met jou gedeeld: alleen je eigen projecten worden geëxporteerd",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten.",
+  "Colours and font": "Kleuren en lettertype",
   "incl. {0} ({1})": "incl. {0} ({1})"
 }

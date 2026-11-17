@@ -16826,7 +16826,6 @@
   "Whole page": "Ganze Seite",
   "{0} filled in": "{0} ausgefüllt",
   "A file of the file store. Recognised, it gets the fields of a document (sender, type, date).": "Eine Datei aus Dateien. Wird sie erkannt, bekommt sie die Felder eines Dokuments (Absender, Typ, Datum).",
-  "Further options": "Weitere Optionen",
   "Card size": "Kachelgröße",
   "Ctrl + mouse wheel": "Strg + Mausrad",
   "Backup": "Sicherung",
@@ -19056,5 +19055,6 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "mit Passwort verschlüsselt (Ende-zu-Ende): der Server hat es nur als Geheimtext",
   "shared with you: only the projects you own are exported": "mit dir geteilt: exportiert werden nur deine eigenen Projekte",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte.",
+  "Colours and font": "Farben und Schrift",
   "incl. {0} ({1})": "inkl. {0} ({1})"
 }

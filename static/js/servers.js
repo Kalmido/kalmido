@@ -24,9 +24,10 @@ async function msvDraw(md) {
   // the section stands in Settings > Account above "Advanced · for developers"
   let box = $('#s-msv', md);
   if (!box) {
-    const anchor = $('#s-account-h', md)?.parentElement?.querySelector(':scope > details.sdev'); if (!anchor) return;
+    // 2.1353.0 (#6827): the sections are folded head rows (settings.js sf_*): Servers is one of its own, before the one around "Advanced"
+    const sdev = $('[data-pane="account"] details.sdev', md), anchor = sdev?.closest('details.sfold') || sdev; if (!anchor) return;
     const sec = document.createElement('div'); sec.className = 'msvsec'; sec.innerHTML = msvHtml();
-    anchor.before(sec); box = $('#s-msv', md);
+    anchor.before(sec); if (typeof sf_wrap === 'function' && anchor !== sdev) sf_wrap(sec, 'account'); box = $('#s-msv', md);
   }
   msvWire(md);
   let j; try { j = await msvFetch(true); } catch { box.innerHTML = `<div class="muted mhint">${tr('Only available online.')}</div>`; return; }
