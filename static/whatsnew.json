@@ -1,6 +1,20 @@
 {
  "versions": [
   {
+   "version": "2.1355.0",
+   "date": "2026-11-17",
+   "items": [
+    {
+     "de": "Auslagen und Reisekosten einer stornierten Rechnung lassen sich über das Menü wieder abrechenbar machen.",
+     "en": "Outlays and travel costs of a cancelled invoice can be released again from the menu."
+    },
+    {
+     "de": "Der Link des Abwesenheits-Kalenders wird nur noch einmal beim Anlegen angezeigt.",
+     "en": "The link of the absences calendar is shown only once, when it is created."
+    }
+   ]
+  },
+  {
    "version": "2.1351.0",
    "date": "2026-11-17",
    "items": [
@@ -1259,16 +1273,6 @@
     {
      "de": "Tabellen: auch gelöschte Zeilen, Spalten, Blätter und Diagramm-Änderungen stehen in „Letzte Schritte“ und lassen sich auf jedem Gerät zurücknehmen.",
      "en": "Tables: deleted rows, columns, sheets and chart changes are in Recent steps too and can be undone on any device."
-    }
-   ]
-  },
-  {
-   "version": "2.819.0",
-   "date": "2026-11-10",
-   "items": [
-    {
-     "de": "Ordner geben jetzt auch Ansicht, Spalten, eigene Felder, Tags, Erinnerung, Stunden und Stundensatz an ihre Projekte weiter.",
-     "en": "Folders now also pass view, columns, custom fields, tags, reminders, hours and hourly rate to their projects."
     }
    ]
   }
