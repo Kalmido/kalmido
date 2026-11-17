@@ -18986,15 +18986,5 @@
   "Reject the deletion of “{0}”?": "Verwijdering van ‘{0}’ afwijzen?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "De verwijdering wordt geannuleerd; het account blijft geblokkeerd tot een admin het deblokkeert. De persoon krijgt een e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} heeft gevraagd het eigen account te verwijderen en is geblokkeerd: de verwijdering wacht op jouw beslissing, uiterlijk tot {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Beslis over de gepauzeerde verwijdering van {0}: zonder beslissing gebeurt ze op {1}",
-  "Create an upload token first": "Maak eerst een uploadtoken aan",
-  "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "Versturen naar agents staat uit voor dit uploadtoken (Instellingen > Integraties > Delen vanaf je telefoon).",
-  "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Berichten via het uploadtoken komen bij je agents aan als ‘van buitenaf’ gemarkeerd. Uitzetten kan via Instellingen > Integraties > Delen vanaf je telefoon.",
-  "Also send to agents": "Ook naar agents sturen",
-  "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "De snelkoppeling kan dan ook naar je agents schrijven. Zij behandelen zo'n bericht als niet bevestigd en veranderen pas iets na jouw goedkeuring.",
-  "The upload token can now send to your agents": "Het uploadtoken kan nu naar je agents sturen",
-  "The upload token no longer sends to your agents": "Het uploadtoken stuurt niet meer naar je agents",
-  "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Je uploadtoken kan ook berichten naar je agents sturen. Zet het daar uit als je het niet nodig hebt.",
-  "Sent through the upload token from a phone shortcut": "Verstuurd via het uploadtoken vanuit een snelkoppeling op de telefoon",
-  "via upload token": "via uploadtoken"
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Beslis over de gepauzeerde verwijdering van {0}: zonder beslissing gebeurt ze op {1}"
 }

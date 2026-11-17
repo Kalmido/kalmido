@@ -18987,15 +18987,5 @@
   "Reject the deletion of “{0}”?": "Rifiutare l’eliminazione di «{0}»?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "L’eliminazione viene annullata; l’account resta bloccato finché un admin non lo sblocca. La persona riceve un’e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} ha chiesto di eliminare il proprio account ed è stato bloccato: l’eliminazione attende la tua decisione, al più tardi fino al {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decidi sull’eliminazione sospesa di {0}: senza decisione avviene il {1}",
-  "Create an upload token first": "Crea prima un token di caricamento",
-  "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "L'invio agli agenti è disattivato per questo token di caricamento (Impostazioni > Integrazioni > Condividi dal telefono).",
-  "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "I messaggi inviati con il token di caricamento arrivano ai tuoi agenti contrassegnati come esterni. Puoi disattivarlo in Impostazioni > Integrazioni > Condividi dal telefono.",
-  "Also send to agents": "Invia anche agli agenti",
-  "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "La scorciatoia potrà scrivere anche ai tuoi agenti. Trattano un messaggio così come non verificato e cambiano qualcosa solo dopo la tua approvazione.",
-  "The upload token can now send to your agents": "Il token di caricamento ora può inviare ai tuoi agenti",
-  "The upload token no longer sends to your agents": "Il token di caricamento non invia più ai tuoi agenti",
-  "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Il tuo token di caricamento può anche inviare messaggi ai tuoi agenti. Disattivalo lì se non ti serve.",
-  "Sent through the upload token from a phone shortcut": "Inviato con il token di caricamento da una scorciatoia del telefono",
-  "via upload token": "con token di caricamento"
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decidi sull’eliminazione sospesa di {0}: senza decisione avviene il {1}"
 }
