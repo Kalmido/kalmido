@@ -90,8 +90,11 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     }
     await ev(`(() => { document.querySelector('.vsegm [data-act="view-list"]').click(); return 1; })()`); await ready(ev, `!!document.querySelector('.vsegm [data-act="view-list"].on')`, 20); await sleep(300);
     check((await ev(tab)).whole, 'the short name of the list view is shown whole');
-    await ev(`(() => { document.querySelector('.vsegm button.on span').textContent = 'Carte mentale du projet'; return 1; })()`); await sleep(100);
-    const t = await ev(tab); check(t.out && t.sym && t.bw >= 44, 'a name too long: only the symbol, never cut ' + JSON.stringify(t));
+    // 2.1329.0 (#6191): the long name is set and measured in one step (the layout is synchronous): with a fixed 100 ms between them,
+    // a drawing of the view in that time (the app's own after the view switch) put the short name back and the tab measured whole
+    // (CI v2.1155.0 / v2.1217.0: {"bw":83,"whole":true,"out":false,...}, the same picture as a render() between the two steps)
+    const t = await ev(`(() => { document.querySelector('.vsegm button.on span').textContent = 'Carte mentale du projet'; return ${tab}; })()`);
+    check(t.out && t.sym && t.bw >= 44, 'a name too long: only the symbol, never cut ' + JSON.stringify(t));
     await shot('tab');
     await ev(`(() => { document.querySelector('.vsegm [data-act="${views[0]}"]').click(); render(); return 1; })()`); await sleep(300);
 
