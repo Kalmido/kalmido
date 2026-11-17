@@ -35,6 +35,7 @@ from ..core.orgcrypt import OrgCryptError, oc_copy_file, oc_read_file, oc_send_f
 from ..core.serializers import unlink_files
 from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from ..core.omitted import Omitted  # 2.1324.0 (#6589): "not included.txt" of the export
+from ..core.csvimport import text_decode  # 2.1324.0 (#6589): the text encoding as the task import
 from ..core.errors import BadInput, BadKey, err_stored
 from ..tasks.attachments import file_ext, safe_name, send_stored
 from .pages import (WIKI_ZIP_FILES, WIKI_ZIP_FILE_MAX, wiki_clean_path, wiki_fit_paths, wiki_path_parts, wiki_frontmatter, wiki_insert, wiki_need,
@@ -588,6 +589,7 @@ def _wka_import(c, uid, oid, replace, z, infos, saved, total=WKA_ZIP_TOTAL, max_
     created, updated, skipped, ts = [], [], [], iso_ms(now_utc())
     budget, md_left = [total], [WKA_MD_TOTAL]
     pages, files = [], {}  # pages: (id, folder, path, text) of the new / replaced ones; files: lower path -> (info, name, path)
+    recoded = []  # 2.1324.0 (#6589): the pages read as Windows-1252 (not UTF-8)
     for i in infos:  # 2.210 A (#2755): names stored as UTF-8 without the archive's UTF-8 mark (zipfile reads them as cp437)
         if not i.flag_bits & 0x800:
             try:
@@ -622,7 +624,9 @@ def _wka_import(c, uid, oid, replace, z, infos, saved, total=WKA_ZIP_TOTAL, max_
                 if raw is None:
                     raise BadKey(N_("Larger than {0} MB"), WIKI_ZIP_FILE_MAX // 1_000_000)
                 md_left[0] -= len(raw)
-                text = raw.decode("utf-8-sig", "replace")
+                # 2.1324.0 (#6589): the encoding as the task import detects it (was UTF-8 with replacement characters, silently);
+                # Windows-1252 is named in the report (recoded), no text at all is skipped with its reason
+                text, enc = text_decode(raw)
                 if text.startswith("e2e1:"):  # 2.64.3 (#1817, review M1): no ciphertext-like text in an open space
                     raise BadKey(N_("Invalid value: {0}"), "body")
             except BadInput as e:
@@ -633,6 +637,8 @@ def _wka_import(c, uid, oid, replace, z, infos, saved, total=WKA_ZIP_TOTAL, max_
             except (zipfile.BadZipFile, OSError, RuntimeError, NotImplementedError, EOFError):
                 skip(name, [N_("The file is damaged")])
                 continue
+            if enc == "windows-1252":
+                recoded.append(name[:200])
             if cutn:
                 short.append({"name": name[:200], "path": path})
                 renamed["/".join(wiki_path_parts(name)).lower()] = path
@@ -820,7 +826,8 @@ def _wka_import(c, uid, oid, replace, z, infos, saved, total=WKA_ZIP_TOTAL, max_
     # 2.99.0 A (#2182): skipped stays the list of names (older callers); skipped_detail = {name, reason} for the report
     return {"ok": True, "created": created, "updated": updated, "files": new_ids, "files_n": len(stored),
             "skipped": [s["name"] for s in skipped][:200], "skipped_detail": skipped[:200], "skipped_n": len(skipped),
-            "shortened": short[:200], "shortened_n": len(short)}  # 2.210 A (#2755): [{name, path}] of the shortened names
+            "shortened": short[:200], "shortened_n": len(short),  # 2.210 A (#2755): [{name, path}] of the shortened names
+            "recoded": recoded[:200], "recoded_n": len(recoded)}  # 2.1324.0 (#6589): names of the pages read as Windows-1252
 
 
 def _wka_lost(c, pid):
