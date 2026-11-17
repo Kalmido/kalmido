@@ -210,8 +210,10 @@ r = Bo.put(B + "/api/newsletter", json={"ws": WA, "kind": "listmonk", "url": LM,
 check(r.ok, f"bob connects listmonk ({r.status_code} {r.text[:200]})")
 j = r.json()
 no_secret(r.text, "connect answer")
-check(j["conn"]["secret_set"] is True and j["conn"]["hint"] == LM_TOKEN[-4:], "only 'set' + the last four characters come back")
+# 2.1322.0 (#6560): no last four characters any more, neither in the answer nor in the database
+check(j["conn"]["secret_set"] is True and j["conn"]["hint"] == "", "only 'set' comes back, no part of the token")
 row = dbx("SELECT secret, hint, org_id, owner_id FROM nl_conns WHERE ws=?", (f"o{ALPHA}",))
+check(row and row[0][1] == "", f"no hint of the token in the database: {row and row[0][1]!r}")
 check(row and row[0][0].startswith("kenc") and not any(x in row[0][0] for x in SECRETS), "the access data are sealed in the database")
 check(row and row[0][2] == ALPHA and row[0][3] is None, "the connection belongs to Alpha")
 check(j["facets"]["books"] == [{"id": BK, "name": "Customers"}], "only Alpha's own address books (carol's private book stays out)")

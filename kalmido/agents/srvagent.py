@@ -5,7 +5,7 @@ planned job). No computer of one's own needed.
 
 A server agent is an ordinary agent (agents.provider = SRV_PROVIDER) with a row in agent_server (core/migrations.d/4670_a.py):
 provider, model, instructions, the key sealed with the server key (accounts/login.py seal, purpose srvagent:<agent id>). The key
-is never served (only its last four characters as key_hint), never logged and never part of an error text; it can only be
+is never served (key_hint stays empty since 2.1322.0, #6560 7), never logged and never part of an error text; it can only be
 replaced or deleted.
 
 Routes (people only; who may: the owner of a personal agent, for a team agent an admin of its organisation or an instance admin,
@@ -273,7 +273,7 @@ def srv_dict(c, a, row=None):
     dm, di = srv_defaults()
     return {"provider": (row["provider"] if row else "") or "anthropic", "model": (row["model"] if row else "") or dm,
             "instructions": row["instructions"] if row else "", "has_key": bool(row and row["key_sealed"]),
-            "key_hint": ("…" + row["key_hint"]) if row and row["key_sealed"] and row["key_hint"] else "",
+            "key_hint": "",  # 2.1322.0 (#6560 7): no part of the key is shown any more (kept for older clients)
             "enabled_instance": not srv_off(c), "default_model": dm, "default_instructions": tr(di),  # 2.557.0: in the person's language
             "server": bool(row) and (a["provider"] or "") == SRV_PROVIDER,
             "flow_models": srv_flow_models(row),  # 2.565.0 D (#4674)
@@ -362,7 +362,7 @@ def srv_put(aid):
         for k, v in sets.items():
             c.execute(f"UPDATE agent_server SET {k}=? WHERE agent_id=?", (v, aid))  # k from the fixed names above
         if key is not None:
-            c.execute("UPDATE agent_server SET key_sealed=?, key_hint=? WHERE agent_id=?", (seal(c, f"srvagent:{aid}", key), key[-4:], aid))
+            c.execute("UPDATE agent_server SET key_sealed=?, key_hint=? WHERE agent_id=?", (seal(c, f"srvagent:{aid}", key), "", aid))  # 2.1322.0 (#6560 7): no hint
         elif b.get("delete_key") is True:
             c.execute("UPDATE agent_server SET key_sealed='', key_hint='' WHERE agent_id=?", (aid,))
         c.execute("UPDATE agent_server SET updated_at=?, updated_by=? WHERE agent_id=?", (iso(now_utc()), me(), aid))

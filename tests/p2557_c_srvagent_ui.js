@@ -97,7 +97,7 @@ async function scenario(tag, user, ck) {
   check(await until(() => !md.isConnected), 'the dialog closes' + T);
   check(!d.querySelector('#av-tokv') && ![...d.querySelectorAll('.modal')].some(m => /shown only this once/.test(m.textContent)), 'no token dialog for a server agent' + T);
   const sv = await call('GET', `/api/agents/${ag.id}/server`, null, ck);
-  check(sv.has_key && sv.key_hint === '…abcd' && sv.model === 'claude-sonnet-5-5' && /outside Kalmido/.test(sv.instructions) && !JSON.stringify(sv).includes('0000abcd'),
+  check(sv.has_key && sv.key_hint === '' && sv.model === 'claude-sonnet-5-5' && /outside Kalmido/.test(sv.instructions) && !JSON.stringify(sv).includes('0000abcd'),
     'stored: the key only as its last four characters, model and instructions' + T);
   check(sv.limits && sv.limits.period === 'day' && sv.limits.metric === 'tokens' && sv.limits.hard === 1500000, 'stored: the hard day limit of the dialog ' + JSON.stringify(sv.limits) + T);
   // a real run: a chat message, the stand-in answers
@@ -111,7 +111,7 @@ async function scenario(tag, user, ck) {
   if (sb) {
     click(w, sb);
     const ed = await until(() => lastModal(d)?.querySelector('#srv-keyhint') && lastModal(d));
-    check(ed && ed.querySelector('#srv-keyhint').textContent === '…abcd' && ed.querySelector('#srv-keyrow').hidden, 'only the last four characters, no key field' + T);
+    check(ed && ed.querySelector('#srv-keyhint').textContent === 'Saved' && ed.querySelector('#srv-keyrow').hidden, 'the key is "Saved", no part of it, no key field' + T);  // 2.1322.0 (#6560): no last four characters
     check(ed && !ed.querySelector('#srv-daylim') && !ed.querySelector('.srvnolim'), 'with a limit: no proposal, no hint (2.638.0, #4714)' + T);
     const opts = await until(() => ed && ed.querySelectorAll('#srv-model option').length === 3 && ed.querySelectorAll('#srv-model option'));
     check(opts && ed.querySelector('#srv-model').value === 'claude-sonnet-5-5', 'the models of the provider, the current one chosen' + T);
@@ -126,10 +126,10 @@ async function scenario(tag, user, ck) {
       click(w, ed.querySelector('[data-m="srv-save"]'));
       const p2 = await until(() => log.slice(n0).find(x => x.method === 'PUT'));
       check(p2 && p2.body.api_key === 'sk-test-new-1111wxyz' && p2.body.model === 'claude-haiku-5-5', 'Save sends the new key and model' + T);
-      const hint = await until(() => ed.querySelector('#srv-keyhint')?.textContent === '…wxyz');
-      check(hint, 'after Save the dialog shows the new last four characters' + T);
+      const hint = await until(() => ed.querySelector('#srv-keyhint')?.textContent === 'Saved' && ed.querySelector('#srv-keyrow')?.hidden);
+      check(hint, 'after Save the dialog shows the key as saved again, without the key field' + T);  // 2.1322.0 (#6560): no last four characters
       const sv2 = await call('GET', `/api/agents/${ag.id}/server`, null, ck);
-      check(sv2.key_hint === '…wxyz' && sv2.model === 'claude-haiku-5-5', 'stored: the new key and model' + T);
+      check(sv2.key_hint === '' && sv2.has_key && sv2.model === 'claude-haiku-5-5', 'stored: the new key and model' + T);
       click(w, ed.querySelector('[data-m="close"]'));
       // 2.638.0 (#4714): a key without a limit: the dialog says so (and proposes nothing: the key is there)
       await call('PATCH', `/api/my/agents/${ag.id}`, {limits: null}, ck);  // (its answer carries the agent's own "status")
