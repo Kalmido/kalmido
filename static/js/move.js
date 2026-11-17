@@ -87,7 +87,7 @@ function umzPreviewHtml(j) {
   const none = org && !p.targets.length;  // 2.73.0 B (part 4): an organisation export needs an organisation I administer here
   return `<div class="impbox umzbox" role="status"><div class="imphead"><b>${org ? tr('Organisation export of {0}', esc(p.user.name)) : tr('Export of {0}', esc(p.user.name || p.user.email))}</b></div>
     <div class="muted">${org ? esc(fmtWhen(p.created_at)) : tr('From {0}, created {1}', src, esc(fmtWhen(p.created_at)))}</div>
-    <div class="umzcnt">${umzCounts(p.counts)}</div>${lists}${people}${notes}${tgt}<div id="s-umz-ochk" aria-live="polite">${umzOfficeHtml(p, p.targets[0]?.id ?? 'private')}</div>
+    <div class="umzcnt">${umzCounts(p.counts)}</div>${lists}${people}${notes}${tgt}<div id="s-umz-ochk" aria-live="polite">${/*html-ok: escaped inside umzOfficeHtml*/ umzOfficeHtml(p, p.targets[0]?.id ?? 'private')}</div>
     ${none ? hintK(tr('You are not the admin of an organisation on this server. Create one or ask its admin first.')) : ''}
     <div class="row"><button type="button" class="btn sm pri" data-umz="go" ${none ? 'disabled' : ''}>${ic('download', 's')} ${tr('Start the import')}</button><button type="button" class="btn sm" data-umz="cancel">${tr('Cancel')}</button></div></div>`;
 }
