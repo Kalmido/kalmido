@@ -24,7 +24,7 @@ members of a list see it (list menu > Agent access, GET /api/lists/<id>/agent-ac
 """
 import threading
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app
@@ -42,6 +42,7 @@ from ..collab.comments import user_names  # 2.369.5 (#2517): pulled up from func
 from ..accounts.users import admin_sees  # 2.369.5 (#2517): pulled up from functions
 from ..api.common import v1_err  # 2.369.5 (#2517): pulled up from functions
 from ..core.pg import system_ctx
+from ..core.retention import ret_days  # 2.1345.0 (#6736, Fable reader #5196 F2): the log period
 from .circle import bridge_holds, circle_csv  # 2.1284.0 (#6453, review G5): an approval holds for the circles it was given for
 
 AGENT_ACCESS_DAYS = 30
@@ -137,7 +138,16 @@ def _circle_then(c, lid, at):
     the moment at (an approval of agent_bridges): the owner (unless list_activity shows a change of ownership since, review
     F1) and the members added no later than at (list_members.added_at).
     A member added since, or a person who reads it only as one of its organisation (no join time kept), is not proved."""
-    # review F1 (decision 17.11.2026): the owner of today only when list_activity shows no change of ownership since the approval
+    # review F1 (decision 17.11.2026): the owner of today only when list_activity shows no change of ownership since the approval;
+    # Fable reader #5196 F2 (decision 17.11.2026): list_activity is kept ret_days("logs") only - an approval older than that
+    # proves nothing (empty circle: the bridge asks once anew)
+    try:
+        when = datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+        when = when if when.tzinfo else when.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return frozenset()
+    if when < now_utc() - timedelta(days=ret_days("logs")):
+        return frozenset()
     proved = {r[0] for r in c.execute("""SELECT owner_id FROM lists WHERE id=? AND NOT EXISTS (SELECT 1 FROM list_activity
                                            WHERE list_id=? AND kind='owner' AND created_at > CAST(? AS TIMESTAMPTZ)) UNION
                                          SELECT user_id FROM list_members WHERE list_id=? AND added_at <= CAST(? AS TIMESTAMPTZ)""",
