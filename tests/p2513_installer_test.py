@@ -396,6 +396,55 @@ for bad in ("/", os.path.join(TMP, "gone")):
     check(rc == 1 and "/secret is a link" in out + err and "secret" not in calls(), f"#6606 F10: secret/ a link to {bad} stops ({rc} {out + err} {calls()})")
 check("`chown -hR`" in open(os.path.join(ROOT, "docs", "SELF-HOSTING.md"), encoding="utf-8").read(), "#6606 F10: SELF-HOSTING.md names chown -hR and links")
 
+# 2.1345.0 (#6658): link targets: system folders and ancestors of the installation folder stop with a ready command; deeper stays ok
+for bad in ("/home", "/etc", "/mnt", "/media", "/var"):
+    d = folder()
+    os.symlink(bad, os.path.join(d, "data"))
+    os.makedirs(os.path.join(d, "secret"))
+    rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+    check(rc == 1 and "ln -sfn" in out + err and "mkdir -p" in out + err and "chown" not in calls(), f"#6658: data/ a link to {bad} stops with a command ({rc} {out + err} {calls()})")
+d = folder()
+os.symlink(os.path.dirname(os.path.dirname(d)), os.path.join(d, "data"))   # an ancestor of the installation folder
+os.makedirs(os.path.join(d, "secret"))
+rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+check(rc == 1 and "a parent of" in out + err and "chown" not in calls(), f"#6658: a link to an ancestor of the installation folder stops ({rc} {out + err})")
+d = folder()
+deep = os.path.join(tgt, "kalmido-data")
+os.makedirs(deep)
+os.symlink(deep, os.path.join(d, "data"))
+os.makedirs(os.path.join(d, "secret"))
+rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+check(rc == 0 and "chown -hR 1000:1000 %s\n" % os.path.realpath(deep) in calls(), f"#6658: a deeper target stays allowed ({rc} {out + err} {calls()})")
+# review F3 (decision 17.11.2026): a folder right under tmp (like var usr run srv opt) only when empty or marked
+second = tempfile.mkdtemp(prefix="kalmido-p6658-", dir="/tmp")
+open(os.path.join(second, "someone-else.txt"), "w").close()
+d = folder()
+os.symlink(second, os.path.join(d, "data"))
+os.makedirs(os.path.join(d, "secret"))
+rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+check(rc == 1 and "ln -sfn" in out + err and "chown" not in calls(), f"#6658 F3: a full folder right under /tmp stops ({rc} {out + err} {calls()})")
+os.remove(os.path.join(second, "someone-else.txt"))
+d = folder()
+os.symlink(second, os.path.join(d, "data"))
+os.makedirs(os.path.join(d, "secret"))
+rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+check(rc == 0 and os.path.exists(os.path.join(second, ".kalmido-target")), f"#6658 F3: an empty one is taken and gets the marker ({rc} {out + err})")
+open(os.path.join(second, "tasks-export.csv"), "w").close()
+rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nDIR="%s"; PORT=3040; write_override' % d)
+check(rc == 0, f"#6658 F3: with the marker it stays allowed on the next run ({rc} {out + err})")
+shutil.rmtree(second, ignore_errors=True)
+# env_get: blanks before the quote
+rc, out, t, cl = env_case('TZ=UTC\nKALMIDO_CLAMD= "scanner.example.com:3310"\nPOSTGRES_PASSWORD=x\n', 'printf "[%s]" "$(env_get KALMIDO_CLAMD)"')
+check("[scanner.example.com:3310]" in out, f"#6658: env_get strips blanks before the quote ({out})")
+# clamav_note: an own scanner is named as such
+rc, out, t, cl = env_case("TZ=UTC\nCOMPOSE_PROFILES=localdb\nKALMIDO_CLAMD=scanner.example.com:3310\nPOSTGRES_PASSWORD=x\n", "clamav_note")
+check("your own scanner" in out and "scanner.example.com:3310" in out and "COMPOSE_PROFILES" not in out, f"#6658: an own scanner is reported as such ({out})")
+# install.ps1: the same rules as text
+check("KALMIDO_CLAMAV must be 1" in PS and "$ClamavMinMb = 2800" in PS and "KALMIDO_CLAMAV_OFF=low_memory" in PS and "your own scanner" in PS and "$env:KALMIDO_CLAMAV" in PS[:PS.index("Set-StrictMode")],
+      "#6658: install.ps1 has KALMIDO_CLAMAV and the 3 GB rule")
+check("{ param($m) $profLine }" in PS and 'else { $envText = $envText.TrimEnd("`n") + "`n$profLine`n" }' in PS,
+      "#6658 F4: install.ps1 replaces COMPOSE_PROFILES through a script block and appends a missing line")
+
 # ------------------------------------------------------------------ #6505
 # GitHub after the move: the first answer of the old address is a 301 to the new name, only the end of the chain names the tag.
 # The stub answers like curl: -w %{url_effective} with -L = the last address, %{redirect_url} = the first forward only

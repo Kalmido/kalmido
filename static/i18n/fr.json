@@ -18862,6 +18862,11 @@
   "({0} characters)": "({0} caractères)",
   "Also shows task {0} in {1}": "Affiche aussi la tâche {0} dans {1}",
   "Mailbox {0}: e-mails could not be taken over ({1}); they are still in the mailbox.": "Boîte {0} : des e-mails n'ont pas pu être repris ({1}) ; ils sont toujours dans la boîte.",
+  "Your first invoice. It can no longer be deleted afterwards, only corrected.": "Ta première facture. Elle ne pourra plus être supprimée ensuite, seulement corrigée.",
+  "Try it out first?": "Essayer d’abord ?",
+  "Another starting number?": "Autre numéro de départ ?",
+  "Numbers": "Numéros",
+  "Taken over from the previous program": "Reprise du programme précédent",
   "The last retention export was not complete: {0} files could not be read, {1} were locked by the virus scanner. Check them in Kalmido and download the export again.": "Le dernier export de conservation n’était pas complet : {0} fichiers n’ont pas pu être lus, {1} étaient bloqués par l’antivirus. Vérifiez-les dans Kalmido et téléchargez à nouveau l’export.",
   "Records to keep were added after the last retention export (number: {0}). Download it again.": "Des documents à conserver ont été ajoutés après le dernier export de conservation (nombre : {0}). Téléchargez-le à nouveau.",
   "Only the person themself or an admin of the organisation can do without the retention export (Settings, at the retention export). Delete after a finished export, or ask them to declare it.": "Seule la personne elle-même ou un admin de l’organisation peut renoncer à l’export de conservation (Paramètres, à l’export de conservation). Supprimez après un export terminé ou demandez-leur de le déclarer.",
@@ -19055,5 +19060,6 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Un fichier par projet dans un ZIP : CSV Todoist pour l'import dans Todoist, Markdown en listes de contrôle pour toute app de notes. Seuls tes propres projets y entrent : les projets partagés avec toi et ceux verrouillés par mot de passe restent dehors, une liste dans le ZIP les nomme.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "verrouillé par mot de passe (chiffré de bout en bout) : le serveur ne le détient que chiffré",
   "shared with you: only the projects you own are exported": "partagé avec toi : seuls tes propres projets sont exportés",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Projets partagés non inclus : {0}. Cette exportation ne contient que tes propres projets."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Projets partagés non inclus : {0}. Cette exportation ne contient que tes propres projets.",
+  "Surcharge as": "Majoration en"
 }

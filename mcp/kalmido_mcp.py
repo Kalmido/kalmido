@@ -2605,8 +2605,9 @@ _OVER = {"expect_updated_at": {"type": "string", "description": "The updated_at 
 _ODRAFT = {"client_id": S_ID, "title": {"type": "string"}, "intro": {"type": "string"}, "items": {"type": "array", "items": _OITEM},
            "list_id": {**S_ID, "description": "The project"}, "notify": {"type": "boolean", "description": "A card in the person's chat: sum, PDF preview, Open in the office"},
            # 2.1228.0 (#6254): the surcharge in percent ("Zuschlag"), its own line after the positions; null = off
-           "surcharge": {"type": ["object", "null"], "description": "A surcharge in percent on the positions marked for it (new ones are): {pct: 0..100, title?: the line title, empty = Surcharge}; null = off",
-                         "properties": {"pct": {"type": ["number", "null"]}, "title": {"type": "string"}}}, **_RB}
+           # 2.1345.0 (#6943): or a fixed net amount (amount, home currency) instead of the percent
+           "surcharge": {"type": ["object", "null"], "description": "A surcharge on the positions marked for it (new ones are): {pct: 0..100, title?: the line title, empty = Surcharge} or {amount: a fixed net amount in the home currency, title?} (not both); null = off",
+                         "properties": {"pct": {"type": ["number", "null"]}, "amount": {"type": ["number", "null"]}, "title": {"type": "string"}}}, **_RB}
 # 2.88.0 (#1915): a draft's share in the cash flow plan (counts once it is sent)
 _OCF = {"cashflow": {"type": "string", "enum": ["auto", "yes", "no"], "description": "In the cash flow plan once sent: auto = the newest version of the chain, yes, no"}}
 # 2.144.10 A (#2576): a trial quotation, set at creation only (not in update_offer_draft)

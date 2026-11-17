@@ -361,7 +361,7 @@ env_drop() {  # PATTERN: the lines that match it go
 # 2.1284.0 (#6606, review F7-F9): NAME's value in .env as Compose reads it - the last line, without CR, without the quotes
 # around it, without a comment at the end (" #..." after a value without quotes); never expanded by the shell
 env_get() {
-  v=$(sed -n "s/^$1=//p" "$DIR/.env" 2>/dev/null | tail -n 1 | tr -d '\r')
+  v=$(sed -n "s/^$1=//p" "$DIR/.env" 2>/dev/null | tail -n 1 | tr -d '\r' | sed 's/^[[:space:]]*//')  # 2.1345.0 (#6658): blanks before the quote
   case "$v" in
     \"*) v=${v#\"}; v=${v%%\"*} ;;
     \'*) v=${v#\'}; v=${v%%\'*} ;;
@@ -438,10 +438,38 @@ choose_clamav() {
   fi
 }
 
+# 2.1345.0 (#6658): may chown -hR run on this link target (already resolved)? $2 = data or secret. No for / , a system folder
+# itself (etc usr var home root bin sbin lib* boot opt srv mnt media tmp run under the root) and an ancestor of the
+# installation folder. Review F3: a folder right under one of var usr home tmp run srv opt only when it is empty or carries
+# the Kalmido marker (.kalmido-target, written after the first run; an older run's backups/ in data, kalmido.key in secret
+# count too).
+LINK_MARK=".kalmido-target"
+link_target_ok() {
+  case "$1" in
+    /|/etc|/usr|/var|/home|/root|/bin|/sbin|/lib|/lib32|/lib64|/libx32|/boot|/opt|/srv|/mnt|/media|/tmp|/run) return 1 ;;
+  esac
+  d=$(cd -P "$DIR" 2>/dev/null && pwd -P) || d="$DIR"
+  case "$d/" in "$1"/*) return 1 ;; esac
+  for s in var usr home tmp run srv opt; do
+    rest=${1#/"$s"/}
+    [ "$rest" != "$1" ] || continue
+    case "$rest" in */*) return 0 ;; esac  # deeper: a folder of its own
+    [ -e "$1/$LINK_MARK" ] && return 0
+    [ "${2:-}" = data ] && [ -d "$1/backups" ] && return 0
+    [ "${2:-}" = secret ] && [ -f "$1/kalmido.key" ] && return 0
+    [ -z "$(ls -A "$1" 2>/dev/null)" ] && return 0
+    return 1
+  done
+  return 0
+}
+
 # the line about the virus scanner at the end of the installation (from .env: what really runs)
 clamav_note() {
   if clamav_profile && ! clamd_off; then
     say "Virus scan: ClamAV checks every upload (about 1-1.5 GB RAM); switch it off: KALMIDO_CLAMAV=0 \"$DIR/update.sh\" (docs/SELF-HOSTING.md)"  # 2.61.0
+  elif grep -q '^KALMIDO_CLAMD=' "$DIR/.env" 2>/dev/null && ! clamd_off; then
+    # 2.1345.0 (#6658): KALMIDO_CLAMD points to a scanner of your own: the app checks, only no container of ours runs
+    say "Virus scan: your own scanner (KALMIDO_CLAMD=$(env_get KALMIDO_CLAMD)) checks every upload; the ClamAV container of this installation is not used."
   elif grep -q '^KALMIDO_CLAMAV_OFF=low_memory' "$DIR/.env"; then
     if [ -n "${CLAMAV_SAID:-}" ]; then m="about $CLAMAV_SAID MB of memory, under 3 GB"; else m="less than about 3 GB of memory"; fi
     printf '\033[1;33mVirus scan: OFF.\033[0m This server has %s; ClamAV alone needs 1-1.5 GB.\n' "$m"
@@ -550,8 +578,10 @@ write_override() {
       p="$DIR/$f"
       if [ -L "$p" ]; then
         p=$(cd -P "$p" 2>/dev/null && pwd -P) || die "$DIR/$f is a link to a folder that does not exist."
-        [ "$p" != / ] || die "$DIR/$f is a link to / - point it to a folder of its own."
+        # 2.1345.0 (#6658): not only /: a system folder (depth 1), the root of a data disk, or an ancestor of the installation folder
+        link_target_ok "$p" "$f" || die "$DIR/$f is a link to $p (a system folder, a parent of $DIR, or a folder right under a system folder that is not empty); chown would hit everything in it. Point it to a folder of its own: mkdir -p \"$p/kalmido-$f\" && ln -sfn \"$p/kalmido-$f\" \"$DIR/$f\" && re-run the installer"
         say "$DIR/$f is a link: giving its target $p to user 1000"
+        : > "$p/$LINK_MARK" 2>/dev/null || true  # review F3: the marker, so a later run knows the folder as Kalmido's
       fi
       chown -hR 1000:1000 "$p" || die "Could not give $DIR/data and $DIR/secret to user 1000 (chown)."
     done

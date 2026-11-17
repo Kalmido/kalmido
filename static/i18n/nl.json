@@ -18862,6 +18862,11 @@
   "({0} characters)": "({0} tekens)",
   "Also shows task {0} in {1}": "Toont taak {0} ook in {1}",
   "Mailbox {0}: e-mails could not be taken over ({1}); they are still in the mailbox.": "Postvak {0}: e-mails konden niet worden overgenomen ({1}); ze staan nog in het postvak.",
+  "Your first invoice. It can no longer be deleted afterwards, only corrected.": "Je eerste factuur. Die kun je daarna niet meer verwijderen, alleen corrigeren.",
+  "Try it out first?": "Eerst uitproberen?",
+  "Another starting number?": "Ander startnummer?",
+  "Numbers": "Nummers",
+  "Taken over from the previous program": "Overgenomen uit het vorige programma",
   "The last retention export was not complete: {0} files could not be read, {1} were locked by the virus scanner. Check them in Kalmido and download the export again.": "De laatste bewaar-export was niet volledig: {0} bestanden konden niet worden gelezen, {1} waren door de virusscanner geblokkeerd. Controleer ze in Kalmido en download de export opnieuw.",
   "Records to keep were added after the last retention export (number: {0}). Download it again.": "Na de laatste bewaar-export zijn er stukken bijgekomen die bewaard moeten worden (aantal: {0}). Download hem opnieuw.",
   "Only the person themself or an admin of the organisation can do without the retention export (Settings, at the retention export). Delete after a finished export, or ask them to declare it.": "Alleen de persoon zelf of een admin van de organisatie kan afzien van de bewaar-export (Instellingen, bij de bewaar-export). Verwijder na een voltooide export of vraag hen dit te verklaren.",
@@ -19055,5 +19060,6 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Eén bestand per project in een ZIP: Todoist-CSV voor de import in Todoist, Markdown als checklists voor elke notitie-app. Alleen je eigen projecten gaan erin: met jou gedeelde projecten en projecten die met een wachtwoord zijn vergrendeld blijven buiten, een lijst in de ZIP noemt ze.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "vergrendeld met een wachtwoord (end-to-end versleuteld): de server heeft het alleen versleuteld",
   "shared with you: only the projects you own are exported": "met jou gedeeld: alleen je eigen projecten worden geëxporteerd",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten.",
+  "Surcharge as": "Toeslag als"
 }

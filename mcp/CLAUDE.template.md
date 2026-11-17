@@ -418,7 +418,7 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   2.568.0 `create_invoice_draft` (an invoice draft without a quotation: `from_time` + `list_id` (+ `task_id`) + `from` / `to` = the open, billable time of that project, or free `items`; send raw values only, Kalmido computes sums, VAT and hours, `missing` = what finalising still needs: tell the person; `time.rate_missing` = the client has no hourly rate, tell the person too; `task_id` only with `from_time`; `409` `no_time` = nothing open), `draft_reminder`, `suggest_payment` /
   `list_payment_suggestions`. Take positions from the services (`service_id`); free positions, other prices and discounts
   are marked for the person. 2.1228.0: a quotation draft may carry `surcharge` `{pct, title?}` (e.g. "Mehraufwand" 15 %;
-  `null` = off), its own line after the positions, before discount and tax; only when the person asked for it. A person reserves the number, finalises, sends, deletes and books payments; never ask them to
+  2.1345.0: or `{amount, title?}` = a fixed net amount in the home currency instead of the percent, not both; `null` = off), its own line after the positions, before discount and tax; only when the person asked for it. A person reserves the number, finalises, sends, deletes and books payments; never ask them to
   let you. Since 2.187.0 your office access comes from the office rights groups (Settings > Company & office > Rights in the office): without a
   group you have none, you never get more than the person in `requested_by`, and you never manage office rights; a `403`
   for an area means: tell the person, do not retry. A month the office has locked (GoBD) refuses a payment suggestion dated in it (409): tell the person instead of

@@ -21,6 +21,8 @@
 #   $env:KALMIDO_BUILD=1  always build locally instead of pulling the prebuilt image
 #   $env:KALMIDO_URL      the address people open, https://...  (goes into PUBLIC_URL of .env, new or existing;
 #                                                                default: a new .env says http://localhost:<port>)
+#   $env:KALMIDO_CLAMAV   1 = virus scanner on, 0 = off         (default: a new installation runs it from about 3 GB of
+#                                                                memory on; an update keeps the choice of .env)
 #
 # Source: https://github.com/Kalmido/kalmido (AGPL-3.0)
 
@@ -75,6 +77,10 @@
   if ($Dir -match '^~([\\/]|$)') { $Dir = $env:USERPROFILE + $Dir.Substring(1) }   # ~\kalmido as the home folder, like before
   try { $Dir = [IO.Path]::GetFullPath([IO.Path]::Combine((Get-Location).ProviderPath, $Dir)) }   # Combine keeps a full path as it is
   catch { Fail "KALMIDO_DIR is not a usable folder path: $Dir" }
+  # 2.1345.0 (#6658): KALMIDO_CLAMAV (like install.sh, #6606), checked before anything changes
+  $ClamavOpt = "$env:KALMIDO_CLAMAV"
+  if ($ClamavOpt -and $ClamavOpt -cne '1' -and $ClamavOpt -cne '0') { Fail 'KALMIDO_CLAMAV must be 1 (virus scanner on) or 0 (off).' }
+  $ClamavMinMb = 2800  # "about 3 GB": a 3 GB machine reports a little less
   # 2.513.0 (#4356): KALMIDO_URL, checked before anything changes: links in mails, push messages and password resets are built from it
   $PubUrl = "$env:KALMIDO_URL".TrimEnd('/')
   if ($PubUrl -and $PubUrl -cnotmatch '^https?://([A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(:[0-9]+)?$') { Fail 'KALMIDO_URL must be the address people open, like https://tasks.example.com (without a path).' }
@@ -264,6 +270,7 @@
 
   # --- .env ---
   $envFile = Join-Path $Dir '.env'
+  $envIsNew = -not (Test-Path $envFile)
   if (Test-Path $envFile) {
     Say 'Keeping your existing .env'
     # 2.1336.0 (#6505): the image moved with the repository into the organisation; the old name gets no new version, no security fix
@@ -345,6 +352,38 @@
     $envText = $envText.TrimEnd("`n") + "`n`n# Optional services of docker-compose.yml: localdb (the PostgreSQL container), clamav (virus scan). Added by the installer.`nCOMPOSE_PROFILES=$($prof -join ',')`n"
     [IO.File]::WriteAllText($envFile, $envText, (New-Object Text.UTF8Encoding($false)))
     Say "Added COMPOSE_PROFILES=$($prof -join ',') to .env (which optional services run)"
+  }
+  # 2.1345.0 (#6658): the virus scanner (ClamAV, 1-1.5 GB of its own): KALMIDO_CLAMAV=1 / 0 decides on any run; without it a NEW
+  # installation with less than about 3 GB leaves it out (the reason stays in .env), an update keeps the choice of .env
+  $envText = [IO.File]::ReadAllText($envFile)
+  $clamavWhy = ''
+  $wantClamav = $null
+  if ($ClamavOpt -ceq '1') { $wantClamav = $true } elseif ($ClamavOpt -ceq '0') { $wantClamav = $false }
+  elseif ($envIsNew) {
+    $mb = $null
+    try { $b = [int64](& docker info --format '{{.MemTotal}}' 2>$null); if ($b -gt 0) { $mb = [int]($b / 1MB) } } catch { }
+    if (-not $mb) { try { $mb = [int]((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1MB) } catch { } }
+    if ($mb -and $mb -lt $ClamavMinMb) { $wantClamav = $false; $clamavWhy = "$mb" }
+  }
+  if ($null -ne $wantClamav) {
+    $pl = @("$(Get-EnvValue $envText 'COMPOSE_PROFILES')".Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne 'clamav' })
+    if ($wantClamav) { $pl += 'clamav' }
+    $envText = [regex]::Replace($envText, '(?m)^# Virus scanner left out by the installer.*\r?\n?', '')
+    $envText = [regex]::Replace($envText, '(?m)^KALMIDO_CLAMAV_OFF=.*\r?\n?', '')
+    # review F4: the value through a script block (a $ in it is never a group reference); no line yet = appended
+    $profLine = "COMPOSE_PROFILES=$($pl -join ',')"
+    if ($envText -match '(?m)^COMPOSE_PROFILES=') { $envText = [regex]::Replace($envText, '(?m)^COMPOSE_PROFILES=.*$', { param($m) $profLine }) }
+    else { $envText = $envText.TrimEnd("`n") + "`n$profLine`n" }
+    if ($wantClamav) {
+      if (Test-ClamdOff $envText) { $envText = [regex]::Replace($envText, '(?m)^KALMIDO_CLAMD=.*\r?\n?', '') }
+    } else {
+      if ($envText -match '(?m)^KALMIDO_CLAMD=') { $envText = [regex]::Replace($envText, '(?m)^KALMIDO_CLAMD=.*$', 'KALMIDO_CLAMD=') }
+      else { $envText = $envText.TrimEnd("`n") + "`nKALMIDO_CLAMD=`n" }
+      if ($clamavWhy) { $envText = $envText.TrimEnd("`n") + "`n# Virus scanner left out by the installer: about $clamavWhy MB of memory, under 3 GB (ClamAV needs 1-1.5 GB of its own). Switch it on: `$env:KALMIDO_CLAMAV = '1'; update.ps1`nKALMIDO_CLAMAV_OFF=low_memory`n" }
+    }
+    [IO.File]::WriteAllText($envFile, $envText, (New-Object Text.UTF8Encoding($false)))
+    if ($clamavWhy) { Warn "This machine has about $clamavWhy MB of memory: the virus scanner (ClamAV, 1-1.5 GB of its own) is left out. Uploads are not checked for malware." }
+    else { Say "Virus scanner $(if ($wantClamav) { 'on' } else { 'off' }) (KALMIDO_CLAMAV=$ClamavOpt)" }
   }
 
   # --- image: release tags have a prebuilt one, branches are built locally ---
@@ -498,7 +537,13 @@
   # 2.1284.0 (#6606, review F9): "checks" only when the clamav profile runs AND the app reads KALMIDO_CLAMD as on
   $envNow = [IO.File]::ReadAllText($envFile)
   $profNow = @("$(Get-EnvValue $envNow 'COMPOSE_PROFILES')".Split(',') | ForEach-Object { $_.Trim() })
-  if (($profNow -contains 'clamav' -or $profNow -contains '*') -and -not (Test-ClamdOff $envNow)) {
+  $clamdNow = Get-EnvValue $envNow 'KALMIDO_CLAMD'
+  if ($clamavWhy -or ($envNow -match '(?m)^KALMIDO_CLAMAV_OFF=low_memory')) {
+    Write-Host "Virus scan: OFF. This machine has less than about 3 GB of memory; ClamAV alone needs 1-1.5 GB." -ForegroundColor Yellow
+    Say '            Uploads are not checked for malware. Switch it on anyway: $env:KALMIDO_CLAMAV = ''1''; then update.ps1'
+  } elseif ($clamdNow -and -not (Test-ClamdOff $envNow) -and -not ($profNow -contains 'clamav' -or $profNow -contains '*')) {
+    Say "Virus scan: your own scanner (KALMIDO_CLAMD=$clamdNow) checks every upload; the ClamAV container of this installation is not used."  # 2.1345.0 (#6658)
+  } elseif (($profNow -contains 'clamav' -or $profNow -contains '*') -and -not (Test-ClamdOff $envNow)) {
     Say 'Virus scan: ClamAV checks every upload (about 1-1.5 GB RAM); small server: KALMIDO_CLAMD= in .env, see docs\SELF-HOSTING.md'  # 2.61.0
   } else {
     Say 'Virus scan: off (COMPOSE_PROFILES / KALMIDO_CLAMD in .env); uploads are not checked. Switch it on: see docs\SELF-HOSTING.md'

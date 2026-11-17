@@ -18862,6 +18862,11 @@
   "({0} characters)": "({0} Zeichen)",
   "Also shows task {0} in {1}": "Zeigt Aufgabe {0} auch in {1}",
   "Mailbox {0}: e-mails could not be taken over ({1}); they are still in the mailbox.": "Postfach {0}: Mails konnten nicht übernommen werden ({1}); sie liegen noch im Postfach.",
+  "Your first invoice. It can no longer be deleted afterwards, only corrected.": "Deine erste Rechnung. Sie lässt sich danach nicht mehr löschen, nur korrigieren.",
+  "Try it out first?": "Erst ausprobieren?",
+  "Another starting number?": "Andere Startnummer?",
+  "Numbers": "Nummern",
+  "Taken over from the previous program": "Übernahme aus dem bisherigen Programm",
   "The last retention export was not complete: {0} files could not be read, {1} were locked by the virus scanner. Check them in Kalmido and download the export again.": "Der letzte Aufbewahrungs-Export war nicht vollständig: {0} Dateien waren nicht lesbar, {1} vom Virenscanner gesperrt. Prüfe sie in Kalmido und lade den Export erneut herunter.",
   "Records to keep were added after the last retention export (number: {0}). Download it again.": "Nach dem letzten Aufbewahrungs-Export sind Unterlagen dazugekommen (Anzahl: {0}). Lade ihn erneut herunter.",
   "Only the person themself or an admin of the organisation can do without the retention export (Settings, at the retention export). Delete after a finished export, or ask them to declare it.": "Auf den Aufbewahrungs-Export kann nur die Person selbst oder ein Admin der Organisation verzichten (Einstellungen, beim Aufbewahrungs-Export). Lösche nach einem fertigen Export oder bitte sie, den Verzicht zu erklären.",
@@ -19055,5 +19060,6 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Eine Datei je Projekt in einer ZIP-Datei: Todoist-CSV für den Import in Todoist, Markdown als Checklisten für jede Notiz-App. Es kommen nur deine eigenen Projekte hinein: mit dir geteilte und mit Passwort verschlüsselte Projekte bleiben draußen, eine Liste in der ZIP-Datei nennt sie.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "mit Passwort verschlüsselt (Ende-zu-Ende): der Server hat es nur als Geheimtext",
   "shared with you: only the projects you own are exported": "mit dir geteilt: exportiert werden nur deine eigenen Projekte",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte.",
+  "Surcharge as": "Zuschlag als"
 }

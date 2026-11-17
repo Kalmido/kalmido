@@ -659,10 +659,19 @@ function ofdAutoHtml(d, t) {
     ${ofdF('producing_rate', tr('Producing rate'), ofdIn('producing_rate', ofdNumIn(d.producing_rate), {num: true, max: 12}), ofcSym(ofcHome()), {keep: 1})}` : ''}
     ${slots.map(k => `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-${k}_on" data-f="${k}_on" ${d[k + '_pct'] != null ? 'checked' : ''}> ${esc(tr('Calculate {0}', prd_slotName(d, k)))}</label></div>
     ${d[k + '_pct'] != null ? `${ofdF(k + '_label', tr('Line title'), ofdIn(k + '_label', prd_slotName(d, k), {max: 80}))}
-    ${/*html-ok*/ ofdF(k + '_pct', tr('Percent'), ofdIn(k + '_pct', ofdNumIn(d[k + '_pct']), {num: true, max: 8}), k === 'markup' && (d.parts || []).length && (d.totals?.mk_title || (!d.locked && (d.status || 'draft') === 'draft')) ? tr('on the marked positions and the parts') : tr('on the marked positions'))}
+    ${/*html-ok*/ k === 'markup' ? ofdMkHtml(d) : ofdF(k + '_pct', tr('Percent'), ofdIn(k + '_pct', ofdNumIn(d[k + '_pct']), {num: true, max: 8}), tr('on the marked positions'))}
     ${k === 'markup' && prd_slotShown(d, 'handling') ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-markup_stacked" data-f="markup_stacked" ${d.markup_stacked ? 'checked' : ''}> ${esc(tr('Also on the handling costs'))}</label></div>` : ''}` : ''}`).join('')}
     ${/*html-ok*/ ofdDiscHtml(d)}
     </div>`;
+}
+// 2.1345.0 (#6943): the markup as a percent or a fixed net amount in the home currency (switch next to the field, like the
+// discount); the amount counts instead of the percent, the server keeps only one of them
+function ofdMkHtml(d) {
+  const amt = +d.markup_amount > 0 ? true : +d.markup_pct > 0 ? false : OFD.mkAmt?.id === d.id && OFD.mkAmt.on, k = amt ? 'markup_amount' : 'markup_pct';
+  const parts = (d.parts || []).length && (d.totals?.mk_title || (!d.locked && (d.status || 'draft') === 'draft'));
+  const sel = `<select id="ofd-markup_mode" data-f="markup_mode" aria-label="${esc(tr('Surcharge as'))}"><option value="pct" ${/*html-ok*/ amt ? '' : 'selected'}>%</option><option value="amount" ${/*html-ok*/ amt ? 'selected' : ''}>${esc(ofcSym(ofcHome()))}</option></select>`;
+  const hint = amt ? tr('fixed net amount on the marked positions') : parts ? tr('on the marked positions and the parts') : tr('on the marked positions');
+  return `<div class="row"><label for="ofd-${/*html-ok*/ k}">${esc(amt ? tr('Amount') : tr('Percent'))}</label><span class="ofddiscin">${/*html-ok*/ ofdIn(k, ofdNumIn(amt ? d.markup_amount : d.markup_pct), {num: true, max: amt ? 14 : 8})}${/*html-ok*/ sel}</span>${/*html-ok*/ ofcHint(hint, {keep: 1})}</div>`;
 }
 // 2.1042.0 (#5815): the discount of a quotation as a percent or a fixed net amount (switch next to the field); a part keeps the percent
 function ofdDiscHtml(d) {
@@ -805,17 +814,40 @@ function ofdPdfOpen(d, dl) {
   if (dl) a.download = ''; else { a.target = '_blank'; a.rel = 'noopener'; }
   document.body.appendChild(a); a.click(); a.remove();
 }
-// 2.892.0 (#5455): built on askDialog (Cancel left of the main button, focus on "Finalise now"); "Show as draft" is the extra middle button
-async function ofdPdfAsk() {
+// 2.892.0 (#5455): built on askDialog (Cancel left of the main button); "Show as draft" is the extra middle button
+// 2.1345.0 (#6532): the main button (focus, Enter) is "Show as draft" - never the step that cannot be undone; "Finalise now"
+// is the plain middle button. pv = the number preview: the first real invoice adds its line (ofd_firstHtml)
+async function ofdPdfAsk(pv) {
   let pick = '';
-  const r = await askDialog({title: tr('This document is not finalised yet'), body: tr('Finalise it now: number, positions, sums, sender and tax rates are frozen. Or look at it as a draft: every page is marked DRAFT.'),
-    ok: tr('Finalise now'), after: md => {
+  const txt = tr('Finalise it now: number, positions, sums, sender and tax rates are frozen. Or look at it as a draft: every page is marked DRAFT.');
+  const r = await askDialog({title: tr('This document is not finalised yet'), ...(pv?.first ? {html: `<p>${esc(txt)}</p>${/*html-ok*/ ofd_firstHtml()}`} : {body: txt}),
+    ok: tr('Show as draft'), after: md => {
       md.classList.add('ofdpa');
       const yes = md.querySelector('[data-cd="yes"]');
-      yes.insertAdjacentHTML('beforebegin', `<button type="button" class="btn" data-pa="draft">${esc(tr('Show as draft'))}</button>`);
-      md.querySelector('[data-pa="draft"]').addEventListener('click', () => { pick = 'draft'; yes.click(); });
+      yes.insertAdjacentHTML('beforebegin', `<button type="button" class="btn" data-pa="final">${esc(tr('Finalise now'))}</button>`);
+      md.querySelector('[data-pa="final"]').addEventListener('click', () => { pick = 'final'; yes.click(); });
+      if (pv?.first) ofd_firstWire(md);
     }});
-  return r ? (pick || 'final') : null;
+  return r ? (pick || 'draft') : null;
+}
+// 2.1345.0 (#6532): while the office has finalised no real invoice (the server's number preview says first), the finalise
+// dialogs add one line: the first one can no longer be deleted, with the ways to the test mode and (admins) the number ranges
+function ofd_firstHtml() {
+  const num = typeof onumHtml === 'function' && ofcAdmin();
+  return `<div class="ofdfirst" role="note"><p><b>${esc(tr('Your first invoice. It can no longer be deleted afterwards, only corrected.'))}</b></p>
+    <p class="ofdfirstgo">${esc(tr('Try it out first?'))} <button type="button" class="linkbtn" data-first="trial">${esc(tr('Test mode'))}</button>${num ? ` · ${esc(tr('Another starting number?'))} <button type="button" class="linkbtn" data-first="numbers">${esc(tr('Numbers'))}</button>` : ''}</p></div>`;
+}
+function ofd_firstWire(md) {
+  md.addEventListener('click', e => {
+    const b = /** @type {any} */ (e.target).closest?.('[data-first]'); if (!b) return;
+    e.preventDefault(); md.querySelector('[data-cd="no"]')?.click(); ofd_firstGo(b.dataset.first);
+  });
+}
+// the office settings through the settings search's opener (settings.js ss_areaOpen): the window, its pane, the section ringed
+function ofd_firstGo(k) {
+  if (typeof SS_AREA !== 'object' || typeof ss_areaOpen !== 'function') return;
+  const w = SS_AREA.find(x => x.secs.some(sc => sc[2] === '#tri-h')); if (!w) return;
+  ss_areaOpen({w, s: k === 'trial' ? w.secs.find(sc => sc[2] === '#tri-h') : [N_('Next running number'), [], '#onum-box', 'docs']});
 }
 // 2.154.0 D (#2567): duplicating an invoice made from times: say that the hours stay with the original
 // 2.437.0 B (#3621): a sent / accepted quotation asks whether the copy replaces it (ticked by default; a supplement stays next to it):
@@ -833,7 +865,8 @@ async function ofdDupAsk(d) {
 
 async function ofdPdfAskGo(d, dl) {
   if (!dl) { ofdPdfOpen(d, false); return; }  // 2.380.0 A (#3410): the preview of a draft opens at once (the server marks it DRAFT); only a download asks
-  const v = await ofdPdfAsk(); if (!v) return;
+  const pv = d.kind === 'invoice' && !d.trial ? await rawFetch('GET', `/api/office/docs/${d.id}/number-preview`).catch(() => null) : null;  // 2.1345.0 (#6532): first
+  const v = await ofdPdfAsk(pv); if (!v) return;
   if (v === 'final') {
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, {}); if (!j) return;  // the server's checks: the error stays as toast
     toast(tr('Finalised as {0}', j.number || '')); d = {...d, ...j};
@@ -1008,6 +1041,14 @@ async function ofdChange0(e) {
   if (/^(handling|markup)_on$/.test(f)) { const k = f.slice(0, -3); await ofdPatch({[k + '_pct']: t.checked ? prd_opts()[k]?.pct ?? 0 : null}); return; }  // 2.113.1 (#2252)
   if (f === 'markup_stacked') { await ofdPatch({markup_stacked: t.checked ? 1 : 0}); return; }
   if (f === 'handling_pct' || f === 'markup_pct') { await ofdPatch({[f]: ofcNum(t.value) ?? 0}); return; }
+  if (f === 'markup_mode') {  // 2.1345.0 (#6943): percent <-> fixed amount, like the discount
+    OFD.mkAmt = {id: d.id, on: t.value === 'amount'};
+    if (t.value === 'amount' && +d.markup_pct > 0) await ofdPatch({markup_pct: 0});
+    else if (t.value !== 'amount' && +d.markup_amount > 0) await ofdPatch({markup_amount: null});
+    else ofdDraw();
+    $('#ofd-' + (t.value === 'amount' ? 'markup_amount' : 'markup_pct'))?.focus({preventScroll: true});
+    return;
+  }
   if (f === 'discount_mode') {  // 2.1042.0 (#5815): percent <-> fixed amount; the other value is cleared on the server once one is set
     OFD.discAmt = {id: d.id, on: t.value === 'amount'};
     if (t.value === 'amount' && +d.discount_pct > 0) await ofdPatch({discount_pct: 0});
@@ -1016,7 +1057,7 @@ async function ofdChange0(e) {
     $('#ofd-' + (t.value === 'amount' ? 'discount_amount' : 'discount_pct'))?.focus({preventScroll: true});
     return;
   }
-  if (['fx_rate', 'raw_factor', 'prod_quotient', 'producing_rate', 'discount_pct', 'discount_amount', 'payment_days', 'reminder_level', 'reminder_fee', 'reminder_deadline_days', 'skonto_pct', 'skonto_days'].includes(f)) { const v = ofcNum(t.value, ['fx_rate', 'raw_factor', 'prod_quotient'].includes(f)); await ofdPatch({[f]: v}); return; }
+  if (['fx_rate', 'raw_factor', 'prod_quotient', 'producing_rate', 'discount_pct', 'discount_amount', 'markup_amount', 'payment_days', 'reminder_level', 'reminder_fee', 'reminder_deadline_days', 'skonto_pct', 'skonto_days'].includes(f)) { const v = ofcNum(t.value, ['fx_rate', 'raw_factor', 'prod_quotient'].includes(f)); await ofdPatch({[f]: v}); return; }
   await ofdPatch({[f]: t.value});
 }
 // 2.87.9 (#1920): the "More" menu of a document - one list for the editor and for the rows of the list (d = the document or a list row)
@@ -1121,19 +1162,22 @@ async function ofdClick(e) {
     // 2.431.0 B (#3605): the dialog names the number it gets (its own one, else the next of the scheme, only looked at); no preview = as before
     const pv = await rawFetch('GET', `/api/office/docs/${d.id}/number-preview`).catch(() => null);
     const fin = tr('Number, positions, sums, sender and tax rates are frozen. Afterwards it can only be duplicated.');
+    // 2.1345.0 (#6532): the first real invoice of the office adds its line with the ways to the test mode and the number ranges
+    const first = pv?.first ? ofd_firstHtml() : '';
     const noHtml = pv?.number ? `<p class="ofdfinno">${esc(tr('Will be finalised as {0}', '\u0000')).replace('\u0000', `<b>${esc(pv.number)}</b>`)}</p><p>${esc(fin)}</p>` : '';
     if (ofd_finHand(d)) {  // 2.1289.0 (#6481 N3, S3): a number of your own only here, given with the finalising (office admins)
       let md0 = null, j = null;
-      const html = (noHtml || `<p>${esc(fin)}</p>`) + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
+      const html = (noHtml || `<p>${esc(fin)}</p>`) + first + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
         + ofdF('fin-no', tr('Number'), `<input id="ofd-fin-no" maxlength="80" autocomplete="off" spellcheck="false" placeholder="${esc(pv?.number || '')}">`)
         + ofdF('fin-why', tr('Reason (needed when numbers are skipped)'), `<input id="ofd-fin-why" maxlength="300">`) + '</details>';
-      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; },
+      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; if (first) ofd_firstWire(md); },
         submit: async () => { const no = ($('#ofd-fin-no', md0)?.value || '').trim(), why = ($('#ofd-fin-why', md0)?.value || '').trim();
           j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, no ? {number: no, reason: why} : {}); return !!j || OFD.conflict?.id === d.id; }});  // 2.1317.0 (#6331): a conflict closes the dialog, the bar says it
       if (ok && j) toast(tr('Finalised as {0}', j.number || ''));
       return;
     }
-    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml ? {html: noHtml} : {})})) return;
+    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first ? {html: (noHtml || `<p>${esc(fin)}</p>`) + first} : {}),
+      ...(first ? {after: ofd_firstWire} : {})})) return;
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, {}); if (j) toast(tr('Finalised as {0}', j.number || ''));
     return;
   }
