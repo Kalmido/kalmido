@@ -22,7 +22,7 @@ from flask import g, jsonify, request
 from ..core.config import PUBLIC_URL, app, WATCHDOG_INTERVAL
 from ..notify.push import _wd_fail  # 2.1265.0 (#6387): the watchdog's report of a failing row
 from ..notify.alerts import aa_count  # 2.1265.0 (#6387)
-from ..core.db import IntegrityError, body, bump, db, iso, local_now, now_utc, uset, usettings
+from ..core.db import IntegrityError, body, bump, connect, db, iso, local_now, now_utc, uset, usettings
 from ..core.access import Denied, live_sql, my_inbox
 from ..core.i18n import LANGS, N_, lang, short_day, tr, tr_stored, trn
 from .doclang import doc_lg  # 2.185.0 C (#2520)
@@ -59,7 +59,10 @@ RIN_WHY_NOBODY = N_("Nobody may make the invoices of the series: the area has no
 # 2.1289.0 (#6629): why a series is off (office_inv_series.pause_why, migrations.d/6629.py). A series paused for nobody ('nobody') never
 # starts again by itself; once its area has an admin with the office on again, the next run gives them the task RIN_TASK_PAUSED with
 # RIN_WHY_BACK once ('nobody_told'). 'import' (admin/oi_office.py _p_series) never makes a task. Switching the series on or off empties it.
-RIN_PAUSE_WHY = ("nobody", "nobody_told", "fails", "template", "import")
+RIN_PAUSE_WHY = ("nobody", "nobody_told", "fails", "template", "import", "moving")  # 2.1337.0 (#6600): + moving
+# 2.1337.0 (#6600): a series whose period came while its organisation was moving (read only) is not made late when the move ends:
+# paused with the task RIN_TASK_PAUSED and this text (accounts/orgmove.py mv_series_pause, rin_moved)
+RIN_WHY_MOVE = N_("The organisation was moving (read only) when the next invoice of the series was due: it was not made and will not be made late. Check the series and switch it on again.")
 RIN_WHY_BACK = N_("The series was paused because its area had no admin with the office switched on: no invoices were made since. Check the series and switch it on again.")
 
 
@@ -72,6 +75,8 @@ from .mailsig import ofm_sender  # 2.369.5 (#2517): pulled up from functions
 from .fixedimport import fci_people  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.validation import log_act  # 2.369.5 (#2517): pulled up from functions
 from .cashflow import _fx  # 2.369.5 (#2517): pulled up from functions
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600)
+from ..accounts.bgjobs import bgj_fn  # 2.1337.0 (#6600)
 from .owrite import ow_history_answer, ow_kind, ow_write  # 2.567.0 D (#4711): the saves go through the core's write layer
 
 ow_kind("office_inv_series", "office_inv_series")
@@ -580,8 +585,9 @@ def rin_tick(c, now=None):
     with system_ctx(c):  # the due series of every office area; each is then made in its admin's own context below
         # 2.1265.0 (#6387): + the series with a mail still due (rin_catchup), also paused or deleted ones: the invoice exists
         # 2.1289.0 (#6629): + the series paused for nobody: told once their area has an admin again (_rin_back_as)
-        due = c.execute("SELECT id, org_id FROM office_inv_series WHERE (deleted_at IS NULL AND active AND next_date<>'' AND next_date<=?) "
-                        f"OR mail_doc IS NOT NULL OR ({live_sql()} AND NOT active AND pause_why='nobody') ORDER BY next_date, id LIMIT 500",
+        # 2.1337.0 (#6600): never one of an organisation that is moving (read only; its missed periods are paused when it ends)
+        due = c.execute("SELECT id, org_id FROM office_inv_series WHERE ((deleted_at IS NULL AND active AND next_date<>'' AND next_date<=?) "
+                        f"OR mail_doc IS NOT NULL OR ({live_sql()} AND NOT active AND pause_why='nobody')) AND {mv_sql()} ORDER BY next_date, id LIMIT 500",
                         (today,)).fetchall()
     c.commit()
     for d in due:
@@ -593,6 +599,34 @@ def rin_tick(c, now=None):
                 rin_failed(c, d["org_id"], d["id"])
             except Exception as e2:  # noqa: BLE001
                 _wd_fail(c, "invoice series pause", d["id"], e2)
+
+
+@bgj_fn("office:series_moved", tries=1)
+def rin_moved(oid, sids):
+    """2.1337.0 (#6600): the series sids of organisation oid were paused when its move ended (accounts/orgmove.py mv_series_pause):
+    their people get the task RIN_TASK_PAUSED with RIN_WHY_MOVE (in their own context, like rin_pause); nobody to tell = the
+    admin alert of the server's operator. Runs once (a queue row): a lost run tells nobody twice."""
+    c = connect()
+    try:
+        for sid in sids:
+            with system_ctx(c):
+                s = c.execute("SELECT * FROM office_inv_series WHERE id=? AND org_id=?", (int(sid), int(oid))).fetchone()
+                people = rin_people(c, oid, s) if s is not None else []
+            c.commit()
+            if s is None:
+                continue
+            if not people:
+                aa_count("watchdog", "invoice series without an admin|paused", f"{oid}:{sid}")
+                continue
+            _rin_ctx(c, people[0], lambda s=s, people=people: _rin_moved_as(c, oid, s, people))
+    finally:
+        c.close()
+
+
+def _rin_moved_as(c, oid, s, people):
+    _tell(c, people, RIN_TASK_PAUSED, _name(c, oid, s), lambda lg: tr(RIN_WHY_MOVE, lg=lg))
+    bump(c)
+    c.commit()
 
 
 def rin_failed(c, oid, sid):

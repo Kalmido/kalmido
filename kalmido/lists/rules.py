@@ -45,6 +45,7 @@ from ..tasks.tasks import can_move, check_assignee, move_lock_subtree  # 2.369.5
 from .fields import field_value, field_act  # 2.369.5 (#2517): pulled up from functions
 from ..collab.comments import user_names, send_pushes  # 2.369.5 (#2517): pulled up from functions
 from ..core.objcomments import ocm_add, ocm_after, ocm_mentions_clean  # 2.972.0 (#5272): the comments' core
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..tasks.lifecycle import apply_update, tsk_finish, tsk_reopen  # 2.369.5 (#2517): pulled up from functions; 2.633.0 (#4781): + tsk_*
 from ..tasks.validation import lock_done_problem  # 2.633.0 (#4781)
 from ..notify.channels import chn_list_events  # 2.369.5 (#2517): pulled up from functions
@@ -995,7 +996,8 @@ def rul_due_tick(c):
             """SELECT r.id AS rid, t.id AS tid FROM list_rules r JOIN tasks t ON t.list_id=r.list_id
                WHERE r.trig='due' AND r.trig_val=? AND r.active AND r.deleted_at IS NULL AND t.due=? AND t.status=0 AND t.deleted_at IS NULL
                AND NOT EXISTS (SELECT 1 FROM list_rule_runs x WHERE x.rule_id=r.id AND x.task_id=t.id AND x.key=?)
-               ORDER BY r.id, t.id LIMIT ?""", (tv, day, key, RUL_DUE_BATCH - len(rows))).fetchall()]
+               AND """ + mv_sql("t.org_id") + """
+               ORDER BY r.id, t.id LIMIT ?""", (tv, day, key, RUL_DUE_BATCH - len(rows))).fetchall()]  # 2.1337.0 (#6600): + mv_sql
     if not rows:
         return
     for rid, tid, key in rows:
