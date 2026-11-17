@@ -20,7 +20,7 @@ import hashlib
 import re
 import urllib.parse
 
-from flask import Response, g, jsonify, request
+from flask import Response, g, has_request_context, jsonify, request
 
 from ..core.config import app, APP_VERSION, OFFICE_DIR
 from ..core.pg import insert_id, system_ctx, write_lock
@@ -895,7 +895,22 @@ def dt_doc_public(c, oid, r, names=None, sigs=None):
             "trial": bool(d.get("trial")),  # 2.144.10 A (#2576)
             # 2.357.0 C (#3158): with the own signature picture (sign_mine: of the person asking; only that person may keep it)
             "sign_image": bool(d.get("sign_uid")), "sign_mine": bool(d.get("sign_uid")) and d.get("sign_uid") == dt_me(),
-            "signoff": sig_public(c, s) if s else None}
+            "signoff": _dt_sig(c, oid, s) if s else None}
+
+
+def _dt_sig(c, oid, s):
+    """2.1340.0 (#6613): a generated document's link with its address and the signer's data only for who may change the
+    document (sig_may_edit in the area gendocs); everybody else sees state and dates."""
+    from .signoff import sig_may_edit
+    k = ("dt_sig_ok", oid)
+    if has_request_context():
+        ok = g.setdefault("dt_sig_ok", {})
+        if k not in ok:
+            ok[k] = sig_may_edit(c, dt_me(), oid, "gendocs")
+        ed = ok[k]
+    else:
+        ed = False
+    return sig_public(c, s, ed, ed)
 
 
 def dt_me():
@@ -1246,7 +1261,7 @@ def dt_signoff_list(gid):
     c, uid, oid = _ctx()
     dt_doc(c, oid, gid)
     rows = c.execute("SELECT * FROM office_signoffs WHERE gen_doc_id=? AND org_id=? ORDER BY id DESC LIMIT 50", (gid, oid)).fetchall()
-    return jsonify(signoffs=[sig_public(c, s) for s in rows])
+    return jsonify(signoffs=[_dt_sig(c, oid, s) for s in rows])  # 2.1340.0 (#6613): was full=True for everybody
 
 
 # ---------------------------------------------------------------- the customer's page (called by office/signoff.py)
