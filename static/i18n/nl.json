@@ -18986,5 +18986,11 @@
   "Reject the deletion of “{0}”?": "Verwijdering van ‘{0}’ afwijzen?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "De verwijdering wordt geannuleerd; het account blijft geblokkeerd tot een admin het deblokkeert. De persoon krijgt een e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} heeft gevraagd het eigen account te verwijderen en is geblokkeerd: de verwijdering wacht op jouw beslissing, uiterlijk tot {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Beslis over de gepauzeerde verwijdering van {0}: zonder beslissing gebeurt ze op {1}"
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Beslis over de gepauzeerde verwijdering van {0}: zonder beslissing gebeurt ze op {1}",
+  "Paused: the person whose access token this connection uses has no access to the project any more. Store a new token or remove the repository.": "Gepauzeerd: de persoon wiens toegangstoken deze koppeling gebruikt, heeft geen toegang meer tot het project. Sla een nieuw token op of verwijder de repository.",
+  "Git connection {0} is paused: the person whose access token it uses has no access to the project any more.": "Git-koppeling {0} is gepauzeerd: de persoon wiens toegangstoken ze gebruikt, heeft geen toegang meer tot het project.",
+  "Git connection {0} reached its daily limit of new issues or comments ({1}); the rest goes out tomorrow.": "Git-koppeling {0} heeft haar daglimiet voor nieuwe issues of reacties bereikt ({1}); de rest gaat morgen weg.",
+  "at most 60 issues and 300 comments a day": "hoogstens 60 issues en 300 reacties per dag",
+  "hash chain broken here (daily check)": "hashketen hier verbroken (dagelijkse controle)",
+  "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Hashketen van het kantoor verbroken: kantoor {0}, document-ID {1} (reeks {2}, plaats {3}, {4}). Het kantoorlogboek noemt het."
 }
