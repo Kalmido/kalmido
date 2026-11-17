@@ -42,8 +42,8 @@ from ..core.errors import Denied
 from ..core.i18n import tr
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
 from ..core.pg import table_columns, ts_canon, write_lock  # 2.1095.0 (#5306): ts_canon
-from ..core.writes import (NEED_VERSION, OBJ_TRACK, _same, _val, obj_history_add, obj_is_agent, obj_track, obj_undo_post,
-                           obj_undo_pre)
+from ..core.writes import (NEED_VERSION, OBJ_TRACK, _same, _val, obj_hist_name, obj_history_add, obj_is_agent, obj_track,
+                           obj_undo_post, obj_undo_pre)
 
 class OwConflict(Conflict):
     """409 {"error", "current": the current state} -- as obj_write. 2.576.0 (#4794): the alias key of before (row, letter,
@@ -190,7 +190,8 @@ def ow_history(c, kind, rid, oid, limit=50):
         rows = c.execute("SELECT * FROM obj_history WHERE kind=? AND ref_id=? AND (org_id=? OR org_id IS NULL) ORDER BY id DESC LIMIT ?",
                          (kind, int(rid), int(oid), int(limit))).fetchall()
     names = user_names(c, [r["user_id"] for r in rows if r["user_id"]])
-    return [{"id": r["id"], "at": r["updated_at"], "user_id": r["user_id"], "name": names.get(r["user_id"], ""), "agent": bool(r["agent"]),
+    return [{"id": r["id"], "at": r["updated_at"], "user_id": r["user_id"], "name": obj_hist_name(r, names), "agent": bool(r["agent"]),
+             "support": r["via"] == "support",  # 2.1325.0 (#6502)
              "action": r["action"], "fields": sorted(set(json.loads(r["vals_before"] or "{}")) | set(json.loads(r["vals_after"] or "{}")))}
             for r in rows]
 

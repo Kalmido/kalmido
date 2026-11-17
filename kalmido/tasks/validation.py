@@ -57,6 +57,8 @@ def log_act(c, tid, kind, data=None, uid=None):
         uid = g.user["id"] or None  # 0 = someone via a public link (no user)
     rr = g.get("rul_run") if has_request_context() else None
     via = None if rr else act_via()
+    if not rr and not via and uid and has_request_context() and g.get("acx_sup_uid") == uid:
+        via = "support"  # 2.1325.0 (#6502): done by support in the person's account (supportgrant.py sga_session_mark; the history says so)
     if rr:  # 2.71.0 A (#1457): a change made by a list rule: the history shows "Rule <name>"
         data = {**(data or {}), "rule": rr}
     if via:  # package B: "via API" / "via the public link" in the history
@@ -81,6 +83,7 @@ def log_act(c, tid, kind, data=None, uid=None):
                          (tid,)).fetchone()
         if last and last["kind"] == kind and last["user_id"] == uid \
                 and (kind != "field" or json.loads(last["data"] or "{}").get("id") == (data or {}).get("id")) \
+                and ((json.loads(last["data"] or "{}").get("via") == "support") == (via == "support")) \
                 and (now_utc() - parse_iso(last["created_at"])).total_seconds() < ACT_MERGE_S:
             if kind == "content":  # 2.270.0 D (#3028): the merged entry keeps the text before the first edit
                 lp = json.loads(last["data"] or "{}").get("prev")
