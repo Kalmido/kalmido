@@ -60,6 +60,3 @@ class Omitted:
         nm = self.file_name({str(t).lower() for t in taken})
         z.writestr(nm, self.text().encode("utf-8"))
         return nm
-
-
-_WIP_KEYS = (N_('a link to another item, not a file'), N_('blocked by the virus scanner or not checked yet'), N_('the stored file is damaged or missing'), N_('in a locked (end-to-end encrypted) folder: open it in the app and download the files there'), N_('folder nested too deeply: what is inside is not included'), N_('locked with a password (end-to-end encrypted): the server only holds it as ciphertext'), N_('shared with you: only the projects you own are exported'), N_('Shared projects not included: {0}. Only the projects you own are in this export.'))  # WIP only

@@ -13,23 +13,22 @@ client of the list's space with that address (organisation of the list, or the l
 another space), forms.client_new (default off): an unknown address becomes a new client there, else the task notes
 "client unknown". form_entries keeps the answers by question id for the evaluation (the list of submissions and a CSV in
 the form dialog, for the people who manage the form)."""
-import csv
 import hashlib
 import hmac
-import io
 import json
 import re
 import secrets
 
-from flask import Response, jsonify, request
+from flask import jsonify, request
 
 from ..core.config import app
 from ..core.db import db, iso, now_utc
 from ..core.i18n import N_, lang, tr, dec_comma
 from ..personal.timetrack import _csv_cell
+from ..core.serializers import csv_download  # 2.1324.0 (#6589)
 from ..core.errors import BadInput
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
-from ..core.access import Denied, list_state_sql  # 2.149.0 G (#2517): pulled up from functions
+from ..core.access import Denied, list_state_sql, live_sql  # 2.149.0 G (#2517): pulled up from functions
 from .forms import FRM_FILE_MAX, h6d_form_bytes, form_url, _gate, need_form_manager, _form_row  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.attachments import safe_name, unexec_name  # 2.369.5 (#2517): pulled up from functions
 from ..hub.hubmail import hbm_match  # 2.369.5 (#2517): pulled up from functions
@@ -48,7 +47,8 @@ FQ_ID_RE = re.compile(r"[a-z0-9]{6,16}")
 FQ_EXT = frozenset(("png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
                     "odt", "ods", "odp", "rtf", "txt", "csv", "md"))
 FQ_NEW_CLIENTS_DAY = 20  # new clients one form may make per day (client_new on)
-FQ_ENTRIES_MAX = 2000    # rows of the evaluation / CSV
+FQ_ENTRIES_MAX = 2000    # rows of the evaluation (2.1324.0, #6589: it names the total; the CSV has every row)
+FQ_PAGE = 500  # 2.1324.0 (#6589): submissions read per query (the CSV has no row limit)
 FQ_YES, FQ_NO = N_("Yes"), N_("No")
 
 
@@ -426,56 +426,80 @@ def _form_of(c, fid):
     return _form_row(c, fid)
 
 
-def fq_entries(c, f):
-    """The submissions of form row f: the tasks it made that are still in its list (not in the trash). The client's name
-    only while the client is of the list's space (a list that moved on takes no other space's names along)."""
+def fq_entries_iter(c, f, limit=None):
+    """The submissions of form row f: the tasks it made that are still in its list (not in the trash), newest first. The
+    client's name only while the client is of the list's space (a list that moved on takes no other space's names along).
+    2.1324.0 (#6589): a generator: the ids in order first (numbers only), then FQ_PAGE rows per query; limit = at most that many."""
     lorg = c.execute("SELECT org_id FROM lists WHERE id=?", (f["list_id"],)).fetchone()[0]
-    rows = c.execute("""SELECT e.*, t.title, t.status, cl.name AS cl_name, cl.org_id AS cl_org FROM form_entries e
-                        JOIN tasks t ON t.id=e.task_id LEFT JOIN clients cl ON cl.id=e.client_id
-                        WHERE e.form_id=? AND t.list_id=? AND t.deleted_at IS NULL ORDER BY e.created_at DESC, e.task_id DESC LIMIT ?""",
-                     (f["id"], f["list_id"], FQ_ENTRIES_MAX)).fetchall()
-    out = []
-    for r in rows:
-        try:
-            ans = json.loads(r["answers"] or "{}")
-        except ValueError:
-            ans = {}
-        cl = {"id": r["client_id"], "name": r["cl_name"]} if r["client_id"] and r["cl_org"] == lorg else None
-        out.append({"task_id": r["task_id"], "title": r["title"], "done": r["status"] != 0, "created_at": r["created_at"],
-                    "sender": r["sender"], "email": r["email"], "client": cl, "answers": ans if isinstance(ans, dict) else {},
-                    "client_typed": bool(cl and r["client_typed"])})  # 2.360.0 D (#2496): only by the typed address (unconfirmed)
-    return out
+    ids = [r[0] for r in c.execute(f"""SELECT e.task_id FROM form_entries e JOIN tasks t ON t.id=e.task_id
+                                      WHERE e.form_id=? AND t.list_id=? AND {live_sql('t')}
+                                      ORDER BY e.created_at DESC, e.task_id DESC""" + (" LIMIT ?" if limit else ""),
+                                   (f["id"], f["list_id"]) + ((limit,) if limit else ())).fetchall()]
+    for i in range(0, len(ids), FQ_PAGE):
+        part = ids[i:i + FQ_PAGE]
+        qm = ",".join("?" * len(part))
+        got = {r["task_id"]: r for r in c.execute(
+            f"""SELECT e.*, t.title, t.status, cl.name AS cl_name, cl.org_id AS cl_org FROM form_entries e
+                JOIN tasks t ON t.id=e.task_id LEFT JOIN clients cl ON cl.id=e.client_id
+                WHERE e.form_id=? AND t.list_id=? AND {live_sql('t')} AND e.task_id IN ({qm})""",
+            (f["id"], f["list_id"], *part)).fetchall()}
+        for tid in part:
+            r = got.get(tid)
+            if r is None:  # gone to the trash in between
+                continue
+            try:
+                ans = json.loads(r["answers"] or "{}")
+            except ValueError:
+                ans = {}
+            cl = {"id": r["client_id"], "name": r["cl_name"]} if r["client_id"] and r["cl_org"] == lorg else None
+            yield {"task_id": r["task_id"], "title": r["title"], "done": r["status"] != 0, "created_at": r["created_at"],
+                   "sender": r["sender"], "email": r["email"], "client": cl, "answers": ans if isinstance(ans, dict) else {},
+                   "client_typed": bool(cl and r["client_typed"])}  # 2.360.0 D (#2496): only by the typed address (unconfirmed)
+
+
+def fq_entries(c, f):
+    """The newest FQ_ENTRIES_MAX submissions of form row f (the evaluation), see fq_entries_iter."""
+    return list(fq_entries_iter(c, f, FQ_ENTRIES_MAX))
+
+
+def fq_entries_total(c, f):
+    """2.1324.0 (#6589): how many submissions fq_entries_iter has in all (the evaluation says when it shows fewer)."""
+    return c.execute(f"""SELECT count(*) FROM form_entries e JOIN tasks t ON t.id=e.task_id
+                        WHERE e.form_id=? AND t.list_id=? AND {live_sql('t')}""", (f["id"], f["list_id"])).fetchone()[0]
 
 
 @app.get("/api/forms/<int:fid>/entries")
 def fq_entries_get(fid):
     """The submissions of a questionnaire (owner / list admins): {questions, entries: [{task_id, title, done, created_at,
-    sender, email, client, answers: {question id: value}}]} (newest first, at most FQ_ENTRIES_MAX)."""
+    sender, email, client, answers: {question id: value}}], total} (newest first, at most FQ_ENTRIES_MAX; total = all of them,
+    2.1324.0 #6589: the dialog says when it shows fewer, the CSV has every one)."""
     c = db()
     f = _form_of(c, fid)
-    return jsonify(questions=fq_list(f), entries=fq_entries(c, f))
+    entries = fq_entries(c, f)
+    return jsonify(questions=fq_list(f), entries=entries,
+                   total=fq_entries_total(c, f) if len(entries) >= FQ_ENTRIES_MAX else len(entries))
 
 
 @app.get("/api/forms/<int:fid>/entries.csv")
 def fq_entries_csv(fid):
-    """The same as CSV: one row per submission, a column per question (formulas defused like the other exports)."""
+    """The same as CSV: one row per submission, a column per question (formulas defused like the other exports).
+    2.1324.0 (#6589): every submission (was the newest 2000), read page by page into a spooled file."""
     c = db()
     f = _form_of(c, fid)
     qs = fq_list(f)
     lg = lang()
-    buf = io.StringIO()
-    w = csv.writer(buf, delimiter=";" if dec_comma(lg) else ",", lineterminator="\r\n")
-    w.writerow([tr("Date"), tr("Task"), tr("Name"), tr("E-mail"), tr("Client"), tr("Done")] + [_csv_cell(q["label"]) for q in qs])
-    for en in fq_entries(c, f):
-        a = en["answers"]
-        cells = []
-        for q in qs:
-            v = a.get(q["id"])
-            v = "; ".join(v) if isinstance(v, list) else (tr(FQ_YES if v == "yes" else FQ_NO) if q["kind"] == "yesno" and v else v)
-            cells.append(_csv_cell(v))
-        w.writerow([en["created_at"][:16].replace("T", " "), _csv_cell(en["title"]), _csv_cell(en["sender"]), _csv_cell(en["email"]),
-                    _csv_cell((en["client"] or {}).get("name")), tr("Yes") if en["done"] else ""] + cells)
+
+    def rows():
+        for en in fq_entries_iter(c, f):
+            a = en["answers"]
+            cells = []
+            for q in qs:
+                v = a.get(q["id"])
+                v = "; ".join(v) if isinstance(v, list) else (tr(FQ_YES if v == "yes" else FQ_NO) if q["kind"] == "yesno" and v else v)
+                cells.append(_csv_cell(v))
+            yield [en["created_at"][:16].replace("T", " "), _csv_cell(en["title"]), _csv_cell(en["sender"]), _csv_cell(en["email"]),
+                   _csv_cell((en["client"] or {}).get("name")), tr("Yes") if en["done"] else ""] + cells
     name = re.sub(r"[^A-Za-z0-9._-]", "_", f"{f['title']}-{now_utc().date().isoformat()}.csv")
-    return Response("﻿" + buf.getvalue(), mimetype="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    head = [tr("Date"), tr("Task"), tr("Name"), tr("E-mail"), tr("Client"), tr("Done")] + [_csv_cell(q["label"]) for q in qs]
+    return csv_download(head, rows(), name, ";" if dec_comma(lg) else ",")
 
