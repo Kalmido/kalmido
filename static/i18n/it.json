@@ -18994,12 +18994,6 @@
   "at most 60 issues and 300 comments a day": "al massimo 60 issue e 300 commenti al giorno",
   "hash chain broken here (daily check)": "catena hash interrotta qui (controllo giornaliero)",
   "Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it.": "Catena hash dell'ufficio interrotta: ufficio {0}, documento ID {1} (serie {2}, posizione {3}, {4}). Il registro dell'ufficio lo indica.",
-  "Set KALMIDO_SECRET_KEY on the server to store access data (32 random bytes, base64)": "Imposta KALMIDO_SECRET_KEY sul server per salvare i dati di accesso (32 byte casuali, base64)",
-  "Webhook {0} was switched off: its events could not be delivered. {1} waiting events since {2} were discarded.": "Il webhook {0} è stato disattivato: i suoi eventi non potevano essere consegnati. {1} eventi in attesa dal {2} sono stati scartati.",
-  "Webhook {0} was switched off: the person who set it up is no admin of the organisation any more. {1} waiting events since {2} were discarded.": "Il webhook {0} è stato disattivato: la persona che lo ha configurato non è più admin dell’organizzazione. {1} eventi in attesa dal {2} sono stati scartati.",
-  "Error reports of project {0} are paused: {1}": "Le segnalazioni di errore del progetto {0} sono in pausa: {1}",
-  "Requests by e-mail to project {0} reached the hourly limit: further e-mails wait in the mailbox and are taken in later.": "Le richieste via e-mail al progetto {0} hanno raggiunto il limite orario: le altre e-mail attendono nella casella e verranno acquisite più tardi.",
-  "{0} e-mail not checked yet, follows in the next runs": ["{0} e-mail non ancora controllata, segue nei prossimi giri", "{0} e-mail non ancora controllate, seguono nei prossimi giri"],
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Fino ad allora le e-mail con contenuti (il riepilogo giornaliero, le notifiche) non vengono inviate a questo indirizzo.",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Conferma prima il tuo indirizzo e-mail: le e-mail con contenuti vanno solo a un indirizzo confermato.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Il tuo indirizzo non è ancora confermato: il riepilogo giornaliero e le e-mail sugli eventi partono solo dopo che lo hai confermato."
