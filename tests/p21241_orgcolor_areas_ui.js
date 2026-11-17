@@ -136,6 +136,26 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(await until(() => !main().classList.contains('wsc-on')) && neutral(d.querySelector('article.ctcard')), '#6185 the private card: neutral');
   w.close();
 
+  // ---- #6719 Notes (2.1327.0): a note follows its project - card with stripe + origin under "All", the open note marked, Private neutral
+  const LO = (await call('POST', '/api/lists', {name: 'Studio notes project', org_id: ORG})).id;
+  const NO = (await call('POST', `/api/lists/${LO}/notes`, {title: 'Studio minutes', body: 'Agreed.'})).id;
+  const NP = (await call('POST', '/api/notes', {title: 'Own thoughts', body: 'Mine alone.'})).id;
+  check(LO && NO, '#6719 setup: a project of the organisation with a note ' + LO + ' ' + NO);
+  w = await boot({hash: 'notes'}); d = w.document;
+  const ntc = n => [...d.querySelectorAll('a.ntcard')].find(r => r.textContent.includes(n));
+  check(await until(() => ntc('Studio minutes')), '#6719 "All notes" lists the note by name');
+  check(striped(ntc('Studio minutes')) && /Studio/.test(ntc('Studio minutes').querySelector('.nto')?.textContent || ''), '#6719 the note card of an organisation\'s project: stripe + where it comes from');
+  const pc = ntc('Own thoughts');
+  check(!pc || (neutral(pc) && !pc.querySelector('.nto')), '#6719 a private note card: neutral');
+  check(/href="#note\/\d+"/.test(ntc('Studio minutes').outerHTML), '#6719 the card links to the note');
+  w.eval(`go('note/${NO}')`);  // jsdom does not follow an anchor's href
+  check(await until(() => d.querySelector('.ntedit')), '#6719 the note opens');
+  check(await until(() => marked()), '#6719 the open note of the organisation: #main.wsc-on');
+  w.eval(`go('notes')`);
+  check(await until(() => !d.querySelector('.ntedit') && ntc('Studio minutes')), '#6719 back to the list works');
+  check(await until(() => !main().classList.contains('wsc-on')), '#6719 ... and the mark is gone');
+  w.close();
+
   // ================= one workspace: no origin marks, the open object still marked
   await call('PATCH', '/api/settings', {workspace: 'org:' + ORG});
   w = await boot({hash: 'wiki/' + WP}); d = w.document;
