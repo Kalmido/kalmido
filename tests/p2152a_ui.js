@@ -67,7 +67,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     check(b && b.first && b.act === 'sbb-ws' && b.pop === 'menu' && b.logo && b.word && b.ws === 'Private' && b.dot && b.inside, '#2607: the brand (logo + word mark) is the first button of the head bar, the workspace beside it: ' + JSON.stringify(b));  // 2.152.3 (#2619): was the first button of the panel head (ws-menu)
     check(b && b.above >= 0 && !b.mark && !b.side && b.logos === 1, '#2607: the brand over the panel, none left in the panel, the small mark at the bottom is gone: ' + JSON.stringify(b));  // 2.152.3 (#2619): the head bar over the panel
     let m = await ev(openMenuK);
-    check(m.head.includes('Switch to') && m.ws.join('|') === 'Alpha|Private|All workspaces' && m.on === 'Private' && m.add && !m.set && !m.home && !m.side, '#2619: the menu: Switch to (organisations first, Private, All), Add a company; no Start / Hide the sidebar: ' + JSON.stringify(m));  // 2.152.3 (#2619): the new workspace menu (sbb_wsMenu)
+    check(m.head.includes('Switch to') && m.ws.join('|') === 'Alpha|Private|All workspaces' && m.on === 'Private' && !m.add && !m.set && !m.home && !m.side, '#2619: the menu: Switch to (organisations first, Private, All), no Add a company inside an organisation; no Start / Hide the sidebar: ' + JSON.stringify(m));  // 2.152.3 (#2619): the new workspace menu (sbb_wsMenu); 2.1364.0 (#6885): Add a company only without an organisation
     await shot('p2152a-menu-1280.png');
     await ev(`(() => { closePop(); return 1; })()`);
     check(await ev(tap('#side .sbbhide')), '#2619: Hide the panel (panel head)');  // 2.152.3 (#2619): hiding moved from the brand menu (wsm-side) to the panel head
