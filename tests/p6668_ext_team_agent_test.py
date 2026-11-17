@@ -187,10 +187,17 @@ check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND bod
 # ================================================================ (d) what is refused
 r = ask([SC, SR])
 check(r.status_code == 400 and err(r).get("code") == "several_people", f"(d) events of two people: 400 {r.status_code} {r.text[:160]}")
-r = ask([SC], headers=hdr(RC))
+r = requests.post(V + "/agent/request-token", headers=hdr(RC), json={"seqs": [SC]}, timeout=30)
 check(r.status_code == 403 and err(r).get("code") == "request_token_main", f"(d) a request token asks for no other one {r.status_code}")
+r = Ca.post(B + "/api/v1/agent/request-token", json={"seqs": [SC]})
+check(r.status_code in (401, 403), f"(d) a person (no agent) gets none {r.status_code}")
 r = ask([SC + 100000])
 check(r.status_code == 404 and err(r).get("code") == "event_gone", f"(d) an unknown event 404 {r.status_code}")
+r = A.post(B + "/api/admin/agents", json={"scopes": SCOPES, "username": "otherbot", "display_name": "Other Bot", "org_id": ORG})
+check(r.status_code == 201, f"setup: another team agent {r.status_code}")
+YH = {"Authorization": "Bearer " + r.json().get("token", "")}
+r = requests.post(V + "/agent/request-token", headers=YH, json={"seqs": [SC]}, timeout=30)
+check(r.status_code == 404 and not r.json().get("token"), f"(d) another agent gets no token for this agent's event (404) {r.status_code}")
 r = ask(None, operator=True)
 check(r.status_code == 409 and err(r).get("code") == "no_operator", f"(d) nobody chosen for its questions: 409 {r.status_code} {r.text[:160]}")
 r = ask([])

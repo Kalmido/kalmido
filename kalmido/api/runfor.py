@@ -113,8 +113,12 @@ REQ_MAIN_PASS = ("own", "mine", "send", "pin", "safe", "noagent")
 def req_main_gate(c, row, u):
     """2.1348.0 (#6668, agents/reqtoken.py): api/v1.py api_authenticate -- a 403 for a request of the long-lived token of a
     team agent that works per request (agents.per_request) on a route outside its own channel, else None. A run / request
-    token (asked_by) is held by run_gate; the replay of an approved card is no such request."""
+    token (asked_by) is held by run_gate; the replay of an approved job and the step of an answered card (run in this process
+    by agents/control.py ctl_run_replay, environ "kalmido.ctl_run" = CTL_RUN_ENV, never set by a network request: the step a
+    person said Yes to) are no such request."""
     if ("asked_by" in row.keys() and row["asked_by"] is not None) or g.get("approved_job") or request.url_rule is None:
+        return None
+    if request.environ.get("kalmido.ctl_run"):
         return None
     with system_ctx(c):  # structure: the agent row
         a = c.execute("SELECT owner_id, per_request FROM agents WHERE user_id=?", (u["id"],)).fetchone()
