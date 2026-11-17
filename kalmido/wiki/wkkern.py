@@ -72,6 +72,7 @@ def _wkk_purge(c, rid):
 
 
 obj_register(WKK_KIND, "wiki_pages", label=N_("Knowledge page"), fields={}, area="other", routes=False, listed=False, fsref=False,
+             scopes=("wiki:read", "wiki:write"),  # 2.1364.0 (#6297 (8)): the knowledge pages' scopes, also on the agents' links
              space=_space, base_role=_base, visible=_visible, cap=lambda c, uid, rid: None,
              children=(("wiki_files", "page_id"),), trash_prune=True)
 obj_on_purge(WKK_KIND, _wkk_purge)
