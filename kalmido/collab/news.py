@@ -9,15 +9,16 @@ from flask import g, jsonify, request
 from ..core.config import app, PUBLIC_URL
 from ..core.pg import system_ctx  # 2.367.5 (#2980)
 from ..accounts.delhold import sdl_held  # 2.1298.0 (#6395)
+from ..accounts.supportgrant import SGA_BELL  # 2.1325.0 (#6502)
 from ..core.pg import st_ids  # 2.674.0 B (#4194)
 from ..core.schema import USER_DEFAULTS
-from ..core.i18n import tr
+from ..core.i18n import N_, tr
 from ..core.db import body, db, err, iso, iso_ms, now_utc, usettings
 from ..accounts.session import me
 from ..accounts.pictures import avatar_map
-from ..core.access import list_role, plists, pvis
+from ..core.access import list_role, org_admin_people, plists, pvis  # 2.1325.0 (#6502): org_admin_people
 from ..core.access import list_roles  # 2.674.0 B (#4194)
-from ..collab.comments import collab_on, collab_user, lang_of, user_names
+from ..collab.comments import collab_on, collab_user, lang_of, push_later, user_names
 from ..core.objcomments import OCM_MENTION_RE  # 2.972.0 (#5272): the one mention token (comments: obj_comments)
 from ..core.objfollow import OFL_LEVEL, ofl_bells_here  # 2.981.0 (#5287): a project's bell is a row of the core's obj_follow
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
@@ -70,6 +71,7 @@ NEWS_KINDS += ("agentask",)  # 2.1039.0 (#5805): an agent asks me in its chat (r
 NEWS_KINDS += ("budgetwarn",)  # 2.555.0 (#4570): a project / task reached 80 % / 100 % of its "Budget h" (row "timebudget", personal/budgetwarn.py)
 NEWS_KINDS += ("delhold",)  # 2.1298.0 (#6395): an admin's lock holds an account's own deletion, the admins decide (row "usage", admin/selfdelete.py)
 NEWS_KINDS += ("chatmention",)  # 2.1037.0 (#5800)
+NEWS_KINDS += ("support",)  # 2.1325.0 (#6502): support access: an organisation's grant, its first use, an early end (row "support", accounts/supportgrant.py)
 NEWS_KINDS += ("offerexp",)  # 2.1064.0 (#5818): a sent quotation without an answer expires soon / has expired (row "office", office/offerexp.py; News only): @me in a team chat channel / group / project conversation (row "mention", collab/teamchat.py tcm_news)
 NEWS_LIST_KINDS = ("share", "role", "unshare", "status", "owner", "evinvite", "evchange", "evshare", "abshare", "agentjoin", "playbook_proposal", "e2e_key")  # about a list (2.21: an event / calendar / address book), not a task
 NEWS_EXCERPT = 300
@@ -96,6 +98,7 @@ NEWS_FOR_ME += ("aprequest",)  # 2.367.2 (#2968)
 NEWS_FOR_ME += ("docpaid",)  # 2.367.4 (#2972)
 NEWS_FOR_ME += ("orgjoinres", "orgrole")  # 2.367.4 (#2974)
 NEWS_FOR_ME += ("chatmention",)  # 2.1037.0 (#5800)
+NEWS_FOR_ME += ("support",)  # 2.1325.0 (#6502)
 # 2.1037.0 (#5801, analysis #4204): a follow-up day (my own reminder, no actor) is a deadline like "due today", an agent's
 # proposal waits for my decision like an approval -- both stood under "For you" in the app (dashboard.js) but did not count
 NEWS_DUE_KINDS = ("followup", "proposal")
@@ -254,6 +257,7 @@ NOTIF_ROWS += ("office",)  # 2.367.4 (#2972): payments and overdue invoices of m
 NOTIF_ROWS += ("notice",)  # 2.367.4 (#2974): the server's maintenance notice sent as a push (push only, on by default)
 NOTIF_ROWS += ("integration",)  # 2.367.3 (#2971): one of my integrations stopped working (News + push on by default)
 NOTIF_ROWS += ("timebudget",)  # 2.555.0 (#4570): a project / task of mine reached 80 % / 100 % of its budget (News + push on by default)
+NOTIF_ROWS += ("support",)  # 2.1325.0 (#6502): support access to my account / my organisation (News + push on by default)
 NOTIF_ROWS += ("docflow",)  # 2.581.0 (#4803): a document flow of my workspace tells me about a document (News only, on by default)
 NOTIF_NEWS_GROUP = {"comment": "comment", "reply": "comment", "follow": "comment", "mention": "mention", "assign": "assign",
                     "complete": "complete", "status": "status", "share": "share", "unblock": "unblock"}
@@ -271,6 +275,7 @@ NOTIF_NEWS_NEW["office"] = 1  # 2.367.4 (#2972)
 NOTIF_NEWS_NEW["integration"] = 1  # 2.367.3 (#2971)
 NOTIF_NEWS_NEW["timebudget"] = 1  # 2.555.0 (#4570)
 NOTIF_NEWS_NEW["docflow"] = 1  # 2.581.0 (#4803)
+NOTIF_NEWS_NEW["support"] = 1  # 2.1325.0 (#6502)
 NOTIF_PUSH_DEFAULT = {"comment": 1, "reply": 1, "follow": 1, "mention": 1, "assign": 1, "newtask": 0, "complete": 1,
                       "status": 0, "share": 0, "unblock": 1, "approval": 1, "followup": 1, "reminder": 1, "usage": 1,
                       "proposal": 1, "nag": 1, "chat": 1, "errreport": 1}
@@ -287,6 +292,7 @@ NOTIF_PUSH_DEFAULT["notice"] = 1  # 2.367.4 (#2974)
 NOTIF_PUSH_DEFAULT["integration"] = 1  # 2.367.3 (#2971)
 NOTIF_PUSH_DEFAULT["timebudget"] = 1  # 2.555.0 (#4570)
 NOTIF_PUSH_DEFAULT["docflow"] = 0  # 2.581.0 (#4803): News only (NOTIF_NO_PUSH)
+NOTIF_PUSH_DEFAULT["support"] = 1  # 2.1325.0 (#6502)
 NOTIF_NO_NEWS = ("reminder", "nag", "chat", "notice")
 NOTIF_NO_PUSH = ("limits", "calsub", "docflow")  # 2.453.0 (#3781): News only (the notes promise no push, no mail)
 NOTIF_UNMUTED = ("mention", "assign")        # still come through a muted list
@@ -323,6 +329,7 @@ KIND_ROW["agentask"] = "approval"  # 2.1039.0 (#5805): "an agent waits for me" (
 KIND_ROW["budgetwarn"] = "timebudget"  # 2.555.0 (#4570)
 KIND_ROW["docflow"] = "docflow"  # 2.581.0 (#4803)
 KIND_ROW["chatmention"] = "mention"  # 2.1037.0 (#5800): switched with the mentions (News + push)
+KIND_ROW["support"] = "support"  # 2.1325.0 (#6502)
 KIND_ROW["wiki_shared"] = "share"  # 2.126.2 B (#2355): switched with the sharing row (News on, no push by default)
 
 
@@ -803,6 +810,10 @@ def news_items(c, uid, s=None, mentions_only=False, to_me=False):
             from ..office.signoff import sig_news_live
             if not sig_news_live(c, uid, r["data"]):
                 continue
+        elif kind == "support":  # 2.1325.0 (#6502): my account's own; an organisation's while I am an admin there
+            so = news_org_data(r)
+            if so and not news_org_admin(c, uid, so):
+                continue
         elif kind in ("orglogin", "orgjoinres"):  # 2.367.4 (#2974): while I am an admin there
             if not news_org_admin(c, uid, news_org_data(r)):
                 continue
@@ -1102,3 +1113,40 @@ def news_cleanup(c, force=False):
                    (NEWS_KEEP_MAX,)).rowcount
     c.commit()
     return n
+
+
+# ---------------------------------------------------------------- support access in the bell
+# 2.1325.0 (#6502): accounts/supportgrant.py sga_tell / sga_push call these (SGA_BELL: the bell is a layer above the accounts)
+SGA_PUSH = {
+    ("grant", True): N_("{0} opened support access to the organisation {1}"),
+    ("start", False): N_("Support started working in your account"),
+    ("start", True): N_("Support started working in the organisation {1}"),
+    ("end", False): N_("Support access to your account ended"),
+    ("end", True): N_("Support access to the organisation {1} ended"),
+}
+
+
+def sga_news_tell(c, r, stage, actor):
+    """News "support" (row "support") about support grant row r at stage grant / start / end to the person (an account's grant)
+    or the organisation's admins, never to actor; the pushes they want -> [(uid, title, msg, notify keywords)]."""
+    from ..notify.push import push_prio, push_reachable
+    oid = r["org_id"]
+    with system_ctx(c):  # the organisation's admins and name, the actor's name: structure, no content
+        to = org_admin_people(c, oid) if oid else [r["user_id"]]
+        name = (c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone() or [""])[0] if oid else ""
+        who = user_names(c, [actor]).get(int(actor), "") if actor else ""
+        data = {"stage": stage, "grant_id": r["id"], "org_id": oid, "name": name or "", "by": who, "until": r["ends_at"]}
+        out = []
+        for p in to:
+            if not p or int(p) == int(actor or 0):
+                continue
+            news_add(c, p, "support", actor=int(actor or 0) or int(r["user_id"]), row="support", data=data)
+            s = usettings(c, p)
+            if notif_ok(c, p, s, "support", "push") and push_reachable(c, p, s):
+                out.append((p, tr(SGA_PUSH[(stage, bool(oid))], who, name, lg=lang_of(s)), "",
+                            {"prio": push_prio(s), "click": f"{PUBLIC_URL.rstrip('/')}/#settings/account", "kind": "other"}))
+    return out
+
+
+SGA_BELL["tell"] = sga_news_tell
+SGA_BELL["push"] = push_later

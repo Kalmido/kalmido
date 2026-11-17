@@ -14,10 +14,17 @@ admin of the organisation. A new grant of the same scope replaces the open one. 
 instance admin) passed the guard only thanks to a grant is logged on the grant: time, who, method, route pattern and status
 (never values or contents); reading the same route again, or the same refusal, within SGA_GET_GAP_S is one entry. 2.503.0 (#4307): so is every request
 of a support session (a sign-in link the operator made through the grant, the session runs as the client: via 'support'), the
-sign-in itself included; such an entry is marked as done by support and goes on the newest grant of the account. At most SGA_USES_MAX entries
-per grant, readings go first. The client sees the grant and its log; the operator sees nothing of it except that the doors are open. An organisation grant holds only while the admin who
+sign-in itself included; such an entry is marked as done by support and goes on the newest grant of the account. At most SGA_USES_MAX readings
+per grant; a write goes only beyond SGA_CHANGES_MAX, counted (2.1325.0, #6502: changes were pushed out at 300 entries, and an entry
+that hit a lock was dropped silently -- it goes to the background queue now). The client sees the grant and its log; the operator sees nothing of it except that the doors are open. An organisation grant holds only while the admin who
 granted it is still an admin of the organisation (and it is not retired). Agents and API tokens cannot grant (a session or the
 proxy sign-in only). A self-hosted server has no use for it: the routes answer hosted=false and refuse a grant (409).
+
+2.1325.0 (#6502, decision of 16.11.2026): a support session reads only the person's private space, own office and the
+organisations whose admins opened support access themselves (core/access.py _ctx_support, per request, never cached for the
+account); its changes stand in the history marked as support (obj_history.via, a task's activity data.via); the person / the
+organisation's admins hear in the bell (News "support") of an organisation's grant, the first use and an early end, the person
+who grants gets a security mail; a support sign-in is no known device of the client.
 
   GET    /api/support-access          {hosted, hours, account: grant|null, orgs: [{org_id, name, grant|null}], past: [grant]}
   POST   /api/support-access          {hours, org_id?} -> {grant}
@@ -30,16 +37,21 @@ from datetime import timedelta
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, COOKIE
-from ..core.db import body, connect, db, err, iso, now_utc, parse_iso
+from ..core.access import ACX_SUPPORT_ORGS  # 2.1325.0 (#6502)
+from ..core.db import body, connect, db, err, iso, now_utc, parse_iso, usettings
 from ..core.errors import Denied
-from ..core.i18n import N_, tr
+from ..core.i18n import N_, lang, short_day, tr
+from ..core.usertz import tz_of_s  # 2.1325.0 (#6502): the end of a grant in the security mail
 from ..core.pg import insert_id, system_ctx
 from ..core.env import env_bool
 from .session import _token_hash, me
 from .sessions import ses_end
+from .bgjobs import bgj_add, bgj_fn  # 2.1325.0 (#6502): the log entries that could not be written at once
+from .secmail import sec_mail  # 2.1325.0 (#6502)
 
 SGA_HOURS = (1, 24, 72, 168)
-SGA_USES_MAX = 300
+SGA_USES_MAX = 300  # readings per grant (2.1325.0, #6502: only readings; was every entry)
+SGA_CHANGES_MAX = 3000  # 2.1325.0 (#6502): writes per grant, refused ones too; beyond them the oldest go, counted (uses_dropped)
 SGA_GET_GAP_S = 600
 SGA_PAST = 10
 
@@ -157,14 +169,16 @@ def sga_session_cap(c, uid, token_hash):
     if not sga_hosted():
         return
     with system_ctx(c):  # support grants of other accounts / organisations (row-level security): structure, no content
-        r = c.execute("SELECT i.grant_id, s.ends_at FROM user_invites i JOIN support_grants s ON s.id=i.grant_id "
+        r = c.execute("SELECT i.grant_id, s.ends_at, i.created_by FROM user_invites i JOIN support_grants s ON s.id=i.grant_id "
                       "WHERE i.user_id=? AND i.kind='login'", (uid,)).fetchone()
         if not r:
-            return
+            return False
         c.execute("UPDATE sessions SET via='support', grant_id=?, expires_at=LEAST(expires_at, ?) WHERE token_hash=?",
                   (r[0], r[1], token_hash))
     if has_request_context():  # 2.503.0 (#4307): the sign-in is the first entry of the log
         g.sga_support = uid
+        g.sga_op = r[2]  # 2.1325.0 (#6502): who opened the session (the client's News at the first use names the operator)
+    return True
 
 
 def sga_sweep(c, uid):
@@ -356,14 +370,52 @@ def sga_scope_check(c, oid):
         raise Denied(403, tr(SGA_FOREIGN), data={"code": "support_session"})
 
 
-def sga_session_mark(c, token_hash):
+def sga_session_mark(c, token_hash, uid):
     """2.503.0 (#4307): the current request is one of a support session: it goes into the client's log (sga_flush). Called by
-    authenticate, so a request an early gate refuses is listed too, a reading as well as a write. Only a hosted server makes such sessions."""
-    if request.method == "OPTIONS" or not sga_hosted():
+    authenticate, so a request an early gate refuses is listed too, a reading as well as a write. Only a hosted server makes such sessions.
+    2.1325.0 (#6502): called before g.user is set; marks the request for the narrowed reading context (g.acx_sup_uid,
+    core/access.py acx_of) and answers sga_is_support without a second query."""
+    if not sga_hosted():
         return
     r = c.execute("SELECT via FROM sessions WHERE token_hash=?", (token_hash,)).fetchone()
-    if r and r[0] == "support":
-        g.sga_support = g.user["id"]
+    g.sga_is_sup = bool(r) and r[0] == "support"
+    if g.sga_is_sup:
+        g.acx_sup_uid = int(uid)
+        if request.method != "OPTIONS":
+            g.sga_support = int(uid)
+
+
+def sga_acting(uid=None):
+    """2.1325.0 (#6502): True when the current request runs in a support session (of account uid, when given). No query: the
+    mark authenticate set (sga_session_mark) or a sign-in through a support link in this request (sga_session_cap)."""
+    if not has_request_context():
+        return False
+    s = g.get("acx_sup_uid")
+    return bool(s) and (uid is None or int(uid) == s)
+
+
+def sga_orgs_readable(c, uid, oids):
+    """2.1325.0 (#6502, decision of 16.11.2026): of organisations oids (the memberships of account uid), those a support session
+    of uid reads: uid's own office and organisations with an open support access of their own (the conditions of sga_open).
+    Never cached beyond the request (core/access.py: the narrowed context is not the account's). The organisations' grants
+    this request reads through are used by it: the request goes on their logs too (the organisation's admins see it, sga_flush)."""
+    oids = [int(o) for o in oids or ()]
+    if not oids:
+        return ()
+    with system_ctx(c):  # the organisations' kind and grants: structure, no content
+        rows = c.execute(
+            f"SELECT o.id, o.personal_of, (SELECT s.id FROM support_grants s JOIN org_members m ON m.org_id=s.org_id AND m.user_id=s.user_id "
+            "AND m.role='admin' JOIN users u ON u.id=s.user_id AND NOT u.disabled WHERE s.org_id=o.id AND s.ended_at IS NULL AND s.ends_at>? "
+            f"ORDER BY s.id DESC LIMIT 1) AS gid FROM orgs o WHERE o.id IN ({','.join('?' * len(oids))}) AND o.retired_at IS NULL",
+            (iso(now_utc()), *oids)).fetchall()
+    ok = {r[0] for r in rows if r[1] == int(uid) or r[2]}
+    gids = {int(r[2]) for r in rows if r[2] and r[1] != int(uid)}
+    if gids and has_request_context():
+        g.sga_used = {*(g.get("sga_used") or ()), *gids}
+    return tuple(o for o in oids if o in ok)
+
+
+ACX_SUPPORT_ORGS[0] = sga_orgs_readable  # core/access.py _ctx_support (accounts sits above core)
 
 
 @app.before_request
@@ -424,48 +476,143 @@ def sga_read_again(uses, e, now):
     return False
 
 
+def sga_is_reading(u):
+    """2.1325.0 (#6502): log entry u is a reading (GET / HEAD); every other entry is a write, refused or not, and is kept."""
+    return not isinstance(u, dict) or u.get("m") in ("GET", "HEAD")
+
+
+def sga_trim(uses):
+    """2.1325.0 (#6502): uses within the log's limits -> the number of entries dropped (the oldest first). Readings above
+    SGA_USES_MAX go; a write only above SGA_CHANGES_MAX (was: at 300 entries the oldest change went once no reading was left)."""
+    n = 0
+    reads = [i for i, u in enumerate(uses) if sga_is_reading(u)]
+    over = set(reads[:max(0, len(reads) - SGA_USES_MAX)])
+    writes = [i for i, u in enumerate(uses) if not sga_is_reading(u)]
+    over |= set(writes[:max(0, len(writes) - SGA_CHANGES_MAX)])
+    if over:
+        uses[:] = [u for i, u in enumerate(uses) if i not in over]
+        n = len(over)
+    return n
+
+
+def sga_log_write(c, gids, sup, e, now, op=None, wait="2s"):
+    """2.1325.0 (#6502): entry e on the grants gids (and, for a support session of account sup, on its newest grant) in the
+    caller's transaction (system context, the caller commits). A grant whose log was empty is used for the first time: the
+    client / the organisation's admins hear of it (sga_tell, actor op = the operator). Raises on a database error (the
+    caller decides: sga_flush hands the entry to the background, the background's run fails visibly)."""
+    gids = {int(x) for x in gids or ()}
+    pushes = []
+    with system_ctx(c):  # an organisation's grant is behind row-level security
+        c.execute(f"SET LOCAL lock_timeout = '{wait}'")  # review F7: never stall a response behind the request's own locks
+        if sup:  # 2.503.0 (#4307): a reading or the sign-in of a support session goes on the account's newest grant
+            row = c.execute("SELECT id FROM support_grants WHERE user_id=? AND org_id IS NULL ORDER BY id DESC LIMIT 1", (int(sup),)).fetchone()
+            if row:
+                gids.add(int(row[0]))
+        for gid in sorted(gids):
+            row = c.execute("SELECT * FROM support_grants WHERE id=? FOR UPDATE", (gid,)).fetchone()
+            if not row:
+                continue
+            try:
+                uses = json.loads(row["uses"] or "[]")
+            except ValueError:
+                uses = []
+            if not isinstance(uses, list):
+                uses = []
+            if sga_read_again(uses, e, now):
+                continue  # the same reading / refusal again: one entry
+            first = not uses
+            uses.append(e)
+            n = sga_trim(uses)
+            c.execute("UPDATE support_grants SET uses=?, uses_dropped=uses_dropped+? WHERE id=?",
+                      (json.dumps(uses, separators=(",", ":")), n, gid))
+            if first and not op and sup:  # a later request of a support session: the operator who made its sign-in link
+                x = c.execute("SELECT created_by FROM user_invites WHERE user_id=? AND kind='login' AND grant_id IS NOT NULL "
+                              "ORDER BY created_at DESC LIMIT 1", (int(sup),)).fetchone()
+                op = x[0] if x else None
+            if first and op:
+                pushes += sga_tell(c, row, "start", op)
+    return pushes
+
+
 @app.after_request
 def sga_flush(resp):
-    """Writes the uses of this request on their grants (own connection: a reading request commits nothing)."""
+    """Writes the uses of this request on their grants (own connection: a reading request commits nothing). 2.1325.0 (#6502):
+    an entry that cannot be written now (a lock held longer than 2 s, a database error) goes to the background queue
+    (bgjobs "sga:log", which waits longer and retries) instead of being dropped."""
     used = g.get("sga_used") if has_request_context() else None
     sup = g.get("sga_support") if has_request_context() else None
     if not used and not sup:
         return resp
+    now = now_utc()
+    e = {"at": iso(now), "by": int(sup or g.user["id"]), "m": request.method[:8], "r": _route(), "s": int(resp.status_code)}
+    if sup:  # 2.500.0 (#4070): done in a support session, not by the person
+        e["sup"] = 1
+    op = g.get("sga_op") if sup else g.user["id"]  # the operator: the link's maker (a support session) or the admin himself
+    gids = sorted({int(gid) for gid in used or ()})
     try:
-        now = now_utc()
-        e = {"at": iso(now), "by": int(sup or g.user["id"]), "m": request.method[:8], "r": _route(), "s": int(resp.status_code)}
-        if sup:  # 2.500.0 (#4070): done in a support session, not by the person
-            e["sup"] = 1
         c = connect()
         try:
-            with system_ctx(c):  # an organisation's grant is behind row-level security; this connection runs inside a request
-                c.execute("SET LOCAL lock_timeout = '2s'")  # review F7: never stall a response behind the request's own locks
-                gids = {int(gid) for gid in used or ()}
-                if sup:  # 2.503.0 (#4307): a reading or the sign-in of a support session goes on the account's newest grant
-                    row = c.execute("SELECT id FROM support_grants WHERE user_id=? AND org_id IS NULL ORDER BY id DESC LIMIT 1", (int(sup),)).fetchone()
-                    if row:
-                        gids.add(int(row[0]))
-                for gid in sorted(gids):
-                    row = c.execute("SELECT uses FROM support_grants WHERE id=? FOR UPDATE", (gid,)).fetchone()
-                    if not row:
-                        continue
-                    try:
-                        uses = json.loads(row[0] or "[]")
-                    except ValueError:
-                        uses = []
-                    if sga_read_again(uses, e, now):
-                        continue  # the same reading / refusal again: one entry
-                    uses.append(e)
-                    while len(uses) > SGA_USES_MAX:  # review F4: readings go first, a change is never pushed out
-                        i = next((k for k, u in enumerate(uses) if not isinstance(u, dict) or u.get("m") in ("GET", "HEAD")), 0)
-                        uses.pop(i)
-                    c.execute("UPDATE support_grants SET uses=? WHERE id=?", (json.dumps(uses, separators=(",", ":")), gid))
+            pushes = sga_log_write(c, gids, sup, e, now, op)
             c.commit()
         finally:
             c.close()
-    except Exception as x:  # noqa: BLE001  the log must never break a request
-        print("support access log error:", type(x).__name__, flush=True)
+        sga_push(pushes)
+    except Exception as x:  # noqa: BLE001  the log never breaks a request; the entry goes to the background instead
+        print("support access log: deferred:", type(x).__name__, flush=True)
+        try:
+            bgj_add("sga:log", gids, int(sup or 0), e, int(op or 0))
+        except Exception as y:  # noqa: BLE001
+            print("support access log error:", type(y).__name__, flush=True)
     return resp
+
+
+@bgj_fn("sga:log")
+def _sga_log_bg(gids, sup, e, op):
+    """2.1325.0 (#6502): an entry sga_flush could not write right away; a failed run is retried (bgjobs) and stays as a failed row."""
+    c = connect()
+    try:
+        pushes = sga_log_write(c, gids, sup or None, e, parse_iso(e.get("at") or "") or now_utc(), op or None, wait="30s")
+        c.commit()
+    finally:
+        c.close()
+    sga_push(pushes)
+
+
+# 2.1325.0 (#6502): the bell (News "support", row "support" of the notification settings, News and push on by default) lives
+# in the domain layer: collab/news.py registers SGA_BELL["tell"] (c, grant row, stage, actor) -> pushes and SGA_BELL["push"]
+SGA_BELL = {}
+
+
+def sga_tell(c, r, stage, actor):
+    """2.1325.0 (#6502): News "support" about grant row r -- stage 'grant' (an organisation's grant opened: its other admins),
+    'start' (its first use: the person, for an organisation every admin), 'end' (ended early: the same) -- never to actor
+    (who did it). Returns the pushes for after the commit (sga_push). The caller commits."""
+    fn = SGA_BELL.get("tell")
+    return fn(c, r, stage, actor) if fn else []
+
+
+def sga_push(pushes):
+    """2.1325.0 (#6502): the pushes of sga_tell, after the commit, through the push queue."""
+    fn = SGA_BELL.get("push")
+    if pushes and fn:
+        fn(pushes)
+
+
+def sga_mail(c, r):
+    """2.1325.0 (#6502): a security mail to the person who opened grant row r (secmail.py "support" / "support_org": if it
+    was not them, they act at once). The time in the person's zone and language. Never raises."""
+    try:
+        lg = lang(c, r["user_id"])
+        at = parse_iso(r["ends_at"]).astimezone(tz_of_s(usettings(c, r["user_id"])))
+        until = f"{short_day(at.date(), lg, year=True)} {at:%H:%M}"
+        if r["org_id"]:
+            with system_ctx(c):  # the organisation's name (the person administers it)
+                o = c.execute("SELECT name FROM orgs WHERE id=?", (r["org_id"],)).fetchone()
+            sec_mail(c, r["user_id"], "support_org", o["name"] if o else "?", until)
+        else:
+            sec_mail(c, r["user_id"], "support", until)
+    except Exception as x:  # noqa: BLE001 - the grant stands without the mail
+        print("support access mail skipped:", type(x).__name__, flush=True)
 
 
 def _names(c, ids):
@@ -487,6 +634,7 @@ def sga_public(c, r, names=None):
     if names is None:
         names = _names(c, [r["user_id"], r["ended_by"]] + [u.get("by") for u in uses])
     return {"id": r["id"], "org_id": r["org_id"], "created_at": r["created_at"], "ends_at": r["ends_at"], "ended_at": r["ended_at"] or "",
+            "dropped": int(r["uses_dropped"] or 0),  # 2.1325.0 (#6502): the oldest entries beyond the log's limits
             "active": not r["ended_at"] and r["ends_at"] > now, "by": names.get(r["user_id"], ""),
             "ended_by": names.get(r["ended_by"], "") if r["ended_by"] else "",
             "uses": [{"at": u.get("at") or "", "by": tr("Support access") if u.get("sup") else names.get(u.get("by"), ""), "method": u.get("m") or "", "route": u.get("r") or "",
@@ -564,7 +712,11 @@ def support_access_grant():
         r = c.execute("SELECT * FROM support_grants WHERE id=?", (gid,)).fetchone()
     if oid is None:  # 2.1271.0 (#6497): the replaced grant's links and sessions end with it (each holds only its own grant)
         sga_sweep(c, me())
+    # 2.1325.0 (#6502): an organisation's other admins hear of it in the bell, the person who granted it gets a security mail
+    pushes = sga_tell(c, r, "grant", me()) if oid else []
+    sga_mail(c, r)
     c.commit()
+    sga_push(pushes)
     print("support access granted:", "org" if oid else "account", f"#{oid or me()}", f"{h} h", flush=True)
     return jsonify(grant=sga_public(c, r))
 
@@ -582,6 +734,8 @@ def support_access_end(gid):
         with system_ctx(c):  # support grants of other accounts / organisations (row-level security): structure, no content
             c.execute("UPDATE support_grants SET ended_at=?, ended_by=? WHERE id=? AND ended_at IS NULL", (iso(now), me(), gid))
         sga_close(c, r, now)
+        pushes = sga_tell(c, r, "end", me())  # 2.1325.0 (#6502): an organisation's other admins (the person ended it themselves)
         c.commit()
+        sga_push(pushes)
         print("support access ended:", f"grant #{gid}", flush=True)
     return jsonify(ok=True)

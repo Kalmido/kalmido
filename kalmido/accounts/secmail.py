@@ -9,6 +9,7 @@ unsubscribe (like the password reset), with a link to Settings > Account (passwo
   code_used       a recovery code was used to sign in            login           a sign-in from a new device / browser
   disabled        an admin deactivated the account               approved        an admin approved the registration
   orgjoin         2.367.4 (#2974): an organisation invites the account (no warning line, the link opens the app)
+  support         2.1325.0 (#6502): the account opened support access to itself  support_org  ... to an organisation
 Nothing without outgoing e-mail (MAIL_OUT_ON), for agents or without an address. The mail goes out in the background
 (bgjobs kind "mail:security", one try: never twice; integrations/mail.py registers it) after the request. A new device = a browser (User-Agent) that is not among the last
 SEC_DEVICES of the account (setting sec_devices, hashes only); the first sign-in after the update only stores it."""
@@ -38,6 +39,9 @@ SEC_EVENTS = {
     "disabled": (N_("Your account was deactivated"), N_("An admin deactivated your account {0}. You can no longer sign in.")),
     "approved": (N_("Your account is approved"), N_("An admin approved your registration: you can sign in with your account {0} now.")),
     "orgjoin": (N_("Invitation to an organisation"), N_("{1} invites your account {0} to join the organisation {2}. Open the app to accept or reject.")),
+    # 2.1325.0 (#6502): support access was opened from the account (accounts/supportgrant.py sga_mail)
+    "support": (N_("Support access opened"), N_("Support access to your account {0} was opened until {1}. You can end it at any time under Settings > Account.")),
+    "support_org": (N_("Support access opened"), N_("Your account {0} opened support access to the organisation {1} until {2}. Any admin of the organisation can end it at any time.")),
 }
 SEC_NOT_ME = N_("If that was not you: change your password right away and tell an admin.")
 
