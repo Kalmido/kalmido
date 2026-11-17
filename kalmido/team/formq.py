@@ -28,7 +28,7 @@ from ..personal.timetrack import _csv_cell
 from ..core.serializers import csv_download  # 2.1324.0 (#6589)
 from ..core.errors import BadInput
 from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from functions
-from ..core.access import Denied, list_state_sql  # 2.149.0 G (#2517): pulled up from functions
+from ..core.access import Denied, list_state_sql, live_sql  # 2.149.0 G (#2517): pulled up from functions
 from .forms import FRM_FILE_MAX, h6d_form_bytes, form_url, _gate, need_form_manager, _form_row  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.attachments import safe_name, unexec_name  # 2.369.5 (#2517): pulled up from functions
 from ..hub.hubmail import hbm_match  # 2.369.5 (#2517): pulled up from functions
@@ -431,16 +431,17 @@ def fq_entries_iter(c, f, limit=None):
     client's name only while the client is of the list's space (a list that moved on takes no other space's names along).
     2.1324.0 (#6589): a generator: the ids in order first (numbers only), then FQ_PAGE rows per query; limit = at most that many."""
     lorg = c.execute("SELECT org_id FROM lists WHERE id=?", (f["list_id"],)).fetchone()[0]
-    ids = [r[0] for r in c.execute("""SELECT e.task_id FROM form_entries e JOIN tasks t ON t.id=e.task_id
-                                      WHERE e.form_id=? AND t.list_id=? AND t.deleted_at IS NULL
+    ids = [r[0] for r in c.execute(f"""SELECT e.task_id FROM form_entries e JOIN tasks t ON t.id=e.task_id
+                                      WHERE e.form_id=? AND t.list_id=? AND {live_sql('t')}
                                       ORDER BY e.created_at DESC, e.task_id DESC""" + (" LIMIT ?" if limit else ""),
                                    (f["id"], f["list_id"]) + ((limit,) if limit else ())).fetchall()]
     for i in range(0, len(ids), FQ_PAGE):
         part = ids[i:i + FQ_PAGE]
+        qm = ",".join("?" * len(part))
         got = {r["task_id"]: r for r in c.execute(
             f"""SELECT e.*, t.title, t.status, cl.name AS cl_name, cl.org_id AS cl_org FROM form_entries e
                 JOIN tasks t ON t.id=e.task_id LEFT JOIN clients cl ON cl.id=e.client_id
-                WHERE e.form_id=? AND t.list_id=? AND t.deleted_at IS NULL AND e.task_id IN ({",".join("?" * len(part))})""",
+                WHERE e.form_id=? AND t.list_id=? AND {live_sql('t')} AND e.task_id IN ({qm})""",
             (f["id"], f["list_id"], *part)).fetchall()}
         for tid in part:
             r = got.get(tid)
@@ -463,8 +464,8 @@ def fq_entries(c, f):
 
 def fq_entries_total(c, f):
     """2.1324.0 (#6589): how many submissions fq_entries_iter has in all (the evaluation says when it shows fewer)."""
-    return c.execute("""SELECT count(*) FROM form_entries e JOIN tasks t ON t.id=e.task_id
-                        WHERE e.form_id=? AND t.list_id=? AND t.deleted_at IS NULL""", (f["id"], f["list_id"])).fetchone()[0]
+    return c.execute(f"""SELECT count(*) FROM form_entries e JOIN tasks t ON t.id=e.task_id
+                        WHERE e.form_id=? AND t.list_id=? AND {live_sql('t')}""", (f["id"], f["list_id"])).fetchone()[0]
 
 
 @app.get("/api/forms/<int:fid>/entries")
