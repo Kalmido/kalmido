@@ -29,7 +29,6 @@ import time
 
 from flask import g, has_request_context, request
 
-from .config import app
 from .i18n import N_
 from .db import iso
 from .pg import set_move_hook, system_ctx
