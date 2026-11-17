@@ -1,5 +1,5 @@
 // kalmido-suite: fresh
-// Package 2.1241.0 (#6181-#6185) UI test: the organisation colour in the areas Calendar, Wiki, Team chat, Files / Documents and
+// Package 2.1241.0 (#6181-#6185) UI test (2.1363.0, #6720: the popover opened through #ev/<id>, its tone, due tasks): the organisation colour in the areas Calendar, Wiki, Team chat, Files / Documents and
 // Contacts, on the core's block (wscolor.js wso_row / wso_origin / wso_open / wso_sync, docs/dev/kern.md "Organisation colour").
 // Rule (owner decision 14.11.2026): what belongs to an organisation wears its colour - its entry (a stripe) and the open object
 // (#main.wsc-on, under "All workspaces" #view.wac-loc); Private stays neutral. Each area is used as a person does: the entry is
@@ -35,7 +35,12 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   // the objects: one of the organisation, one private, per area
   const CO = await call('POST', '/api/evcals', {name: 'Studio calendar', org_id: ORG}), CP = await call('POST', '/api/evcals', {name: 'Home calendar', org_id: null});
   check(CO.id && CP.id, 'setup: a calendar of the organisation and a private one');
-  check((await call('POST', '/api/events', {title: 'Studio meeting', cal_id: CO.id, start: `${T0}T10:00`, end: `${T0}T11:00`, reminders: []})).id, 'setup: an event of the organisation');
+  const EO = (await call('POST', '/api/events', {title: 'Studio meeting', cal_id: CO.id, start: `${T0}T10:00`, end: `${T0}T11:00`, reminders: []})).id;
+  check(EO, 'setup: an event of the organisation');
+  // 2.1363.0 (#6720): a due task of an organisation's project and a private one, both today (the calendar shows them as chips)
+  const LT = (await call('POST', '/api/lists', {name: 'Studio deliveries', org_id: ORG})).id, LPV = (await call('POST', '/api/lists', {name: 'Home chores', org_id: null})).id;
+  check((await call('POST', '/api/tasks', {list_id: LT, title: 'Deliver the cut', due: T0})).id && (await call('POST', '/api/tasks', {list_id: LPV, title: 'Water the plants', due: T0})).id,
+    'setup: a due task of an organisation\'s project and a private one');
   check((await call('POST', '/api/events', {title: 'Dentist', cal_id: CP.id, start: `${T0}T15:00`, end: `${T0}T16:00`, reminders: []})).id, 'setup: a private event');
   const WP = (await call('POST', '/api/wiki/pages', {space: 'org:' + ORG, path: 'Team handbook', body: 'Read me first.'})).id;
   const PP = (await call('POST', '/api/wiki/pages', {space: 'private', path: 'Own notes', body: 'Mine.'})).id;
@@ -70,7 +75,28 @@ const now = new Date(), T0 = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${
   check(await until(() => d.querySelector('#pop .cevpop b')?.textContent.includes('Studio meeting') && d.querySelector('#pop .cevpop .cevact')), '#6181 a click opens the event\'s popover with its title and actions');
   const pop = d.querySelector('#pop .cevpop');
   check(striped(pop) && /Studio/.test(pop.querySelector('.cevo')?.textContent || ''), '#6181 the popover: the organisation\'s stripe and its name');
+  // 2.1363.0 (#6720): under "All" the popover wears the organisation's tone as its accent (Edit in its colour), a private one not
+  check(pop.classList.contains('wac-loc') && pop.style.getPropertyValue('--wad') === want.wad, '#6720 the popover wears the organisation\'s tone (wac-loc)');
   w.eval(`closePop()`);
+  ep.click();
+  check(await until(() => d.querySelector('#pop .cevpop b')?.textContent.includes('Dentist') && d.querySelector('#pop .cevpop .cevact')), '#6720 the private event\'s popover opens');
+  const popP = d.querySelector('#pop .cevpop');
+  check(neutral(popP) && !popP.classList.contains('wac-loc'), '#6720 ... without stripe and without the organisation\'s tone');
+  w.eval(`closePop()`);
+  // 2.1363.0 (#6720): opened through its address #ev/<id> (a push, News) the event's popover is marked the same way (it had
+  // neither stripe nor origin, Edit stayed in Kalmido's accent)
+  w.eval(`evOpen(${EO})`);
+  check(await until(() => d.querySelector('#pop .cevpop b')?.textContent.includes('Studio meeting') && d.querySelector('#pop .cevpop .cevact')), '#6720 #ev/<id> opens the event\'s popover with its title and actions');
+  const popA = d.querySelector('#pop .cevpop');
+  check(striped(popA) && /Studio/.test(popA.querySelector('.cevo')?.textContent || '') && popA.classList.contains('wac-loc'),
+    '#6720 ... with the organisation\'s stripe, its name and its tone');
+  check(/Edit/.test(popA.querySelector('[data-evp="edit"]')?.textContent || ''), '#6720 ... and Edit is there to go on');
+  w.eval(`closePop()`);
+  // 2.1363.0 (#6720): the due task of an organisation's project wears the same stripe as the events next to it, a private one not
+  const tEl = t => [...d.querySelectorAll('#view [data-id]')].find(e => e.textContent.includes(t));
+  check(await until(() => tEl('Deliver the cut') && tEl('Water the plants')), '#6720 the calendar shows both due tasks by name');
+  check(striped(tEl('Deliver the cut')), '#6720 the task of the organisation\'s project: the organisation\'s stripe');
+  check(neutral(tEl('Water the plants')), '#6720 the private task: no stripe');
   // the calendar list (view options): an organisation's calendar with its dot + name for every member
   const lst = w.eval(`(() => { const c = S.evcals.find(x => x.name === 'Studio calendar'); return {own: wso_row(c, '--cc:red'), dot: wso_head(wso_ws(c))}; })()`);
   check(/data-wso="1"/.test(lst.own) && /--cc:red;--wsd:/.test(lst.own) && /wsp-dot/.test(lst.dot), '#6181 the calendar list row: stripe next to the calendar colour, the dot with the name');
