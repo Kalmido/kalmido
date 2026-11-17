@@ -19,6 +19,7 @@ from flask import has_request_context, request
 from ..core.config import _origin, APP_NAME, NTFY_TOKEN, NTFY_URL, PUBLIC_URL, safe_urlopen, TZ, WATCHDOG_INTERVAL
 from ..core.schema import USER_DEFAULTS
 from ..core.undogroups import undo_prune  # 2.747.0 (#5249): the watchdog's run of the undo step groups
+from ..core.idem import idem_prune  # 2.1315.0 (#6409): the watchdog's run of the idempotency keys
 from ..core.i18n import LANGS, md_plain, short_day, tr, trn
 from ..core.pg import system_ctx
 from ..core.usertz import hm_text, tz_gap, tz_of_s, user_now
@@ -791,6 +792,7 @@ def _watchdog_tick(c):
     _wd_section(c, "org export cleanup", ox_cleanup)  # 2.42.0 (#833): archives after 24 h
     _wd_section(c, "merge snapshots", mg_prune, False)  # 2.66.0 (#1835): the undo data of merges after 30 days
     _wd_section(c, "undo steps", undo_prune)  # 2.747.0 (#5249): the step groups after 30 days, over 300 per person, parts without a group
+    _wd_section(c, "idempotency keys", idem_prune)  # 2.1315.0 (#6409): hourly, keys after IDEM_DAYS, over IDEM_MAX_KEYS per person (was per request)
     from ..core.writes import obj_trash_tick  # 2.773.0 (#5292): local, core/writes.py imports back into notify (a cycle at start-up)
     _wd_section(c, "core trash", obj_trash_tick)  # 2.773.0 (#5292): core kinds with trash_prune, hourly (ret_due), switch "trash"
     # 2.981.0 (#5273): the review comments in the trash go with the core's run of every comment (files/trashpurge.py)
