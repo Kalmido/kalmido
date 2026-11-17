@@ -16,7 +16,7 @@ async function wsPaneDraw(md) {
   box._j = j;
   const mm = Object.keys(j.mismatches || {}).length;
   // 2.364.0 C (#3041): with Organisation > Data in the dialog the data boxes of each organisation go there (one place)
-  const dbox = $('#s-wsdata', md), inl = !dbox, dataBoxes = o => ocBoxHtml(o) + oxBoxHtml(o) + (typeof rxBoxHtml === 'function' ? rxBoxHtml('org', o.id) : '');
+  const dbox = $('#s-wsdata', md), inl = !dbox, dataBoxes = o => ocBoxHtml(o) + oxBoxHtml(o) + mvBoxHtml(o) + (typeof rxBoxHtml === 'function' ? rxBoxHtml('org', o.id) : '');  // 2.1337.0 (#6600): + the move
   const org = o => `<details class="sdet wsorg" data-oid="${o.id}" ${j.orgs.length === 1 ? 'open' : ''}><summary>${o.icon_url ? orgIconHtml(o) : `<span class="fem" aria-hidden="true">${o.icon ? esc(o.icon) : ic('building')}</span>`}<b>${esc(o.name)}</b> <span class="muted">${esc(trn('{0} member', '{0} members', o.members.filter(m => !m.agent).length))} · ${esc(trn('{0} project', '{0} projects', o.lists))}${o.role === 'admin' ? ' · ' + esc(tr('you are an admin')) : o.role && o.role !== 'member' ? ' · ' + esc(tr('your role: {0}', oinvRoleSel.label(o.role))) : ''}</span></summary>
     ${o.members.map(m => `<div class="mrow ${m.disabled ? 'off' : ''}">${av(m.id, m.name)}<span class="n">${esc(m.name)}${m.agent ? ' ' + agentBadge(m.id) : ''}${m.id === S.me?.id ? ' ' + tr('(me)') : ''}${m.pending ? ` <span class="muted">· ${tr('waits for approval')}</span>` : ''}</span>${o.role === 'admin' && m.pending ? `<button class="btn sm pri" data-wsok="${m.id}">${ic('check', 's')} ${tr('Approve')}</button>${''/* 2.464.0 (#3882) */}` : ''}${o.role === 'admin' && j.manage && !m.agent ? `${oinvRoleSel('', m.role, o.roles || [], `data-wsrole="${m.id}" aria-label="${esc(tr('Role of {0}', m.name))}"`)}${''/* 2.143.0 A (#2151) */}<button class="iconbtn${m.id !== S.me?.id ? ' ms-phsr' : ''}" data-wsrm="${m.id}" title="${esc(m.id === S.me?.id ? tr('Leave the organisation') : tr('Remove from the organisation'))}" aria-label="${esc(m.id === S.me?.id ? tr('Leave the organisation') : tr('Remove {0} from the organisation', m.name))}">${ic('x', 's')}</button>${m.id !== S.me?.id ? `<button class="iconbtn danger ms-phsr" data-wsdel="${m.id}" title="${esc(tr('Delete account'))}" aria-label="${esc(tr('Delete the account of {0}', m.name))}">${ic('trash', 's')}</button>${/*html-ok*/ ms_dots('.ms-phsr', m.name) /* 2.1151.0 C (#3835): one "…" on a phone */}` : ''/* 2.88.0 (#1980) */}` : `<span class="muted">${m.agent ? tr('Agent') : esc(oinvRoleSel.label(m.role))}</span>`}</div>`).join('')}
     ${o.role === 'admin' && j.manage ? oinvRoleSel.help(o.roles || []) : ''}
@@ -37,7 +37,8 @@ async function wsPaneDraw(md) {
     ${oxBoxHtml(o)}${typeof rxBoxHtml === 'function' ? rxBoxHtml('org', o.id) : ''}</details>`).join(''));
   if (!S.me?.kid) (dbox || box).insertAdjacentHTML('beforeend', `<div class="ocorg">${ocBoxHtml({id: 0}, {title: `${tr('Your private office')}: ${tr('Encryption')}`})}</div>`);  // 2.138.0 C (#1972): its recovery key (hidden without encrypted data)
   oxDraw(box);  // 2.42.0 (#833): the export sections of the organisations I administer
-  if (dbox) { oxDraw(dbox); ocDraw(dbox); }  // 2.364.0 C (#3041)
+  mvDraw(box);  // 2.1337.0 (#6600): the move of the organisations I administer
+  if (dbox) { oxDraw(dbox); mvDraw(dbox); ocDraw(dbox); }  // 2.364.0 C (#3041)
   whoDraw(box);  // 2.115.0 A (#2061): their webhooks; lazy-ok: settings dialog only (LD_NEED settings -> integrations)
   if (typeof chn_orgDraw === 'function') chn_orgDraw(box);  // 2.142.0 A (#2145): their notification channels
   ocDraw(box);  // 2.42.0 (#828): their encryption sections
