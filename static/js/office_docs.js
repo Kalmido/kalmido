@@ -169,7 +169,7 @@ function ofdDraw() {
 // row of the office menu (areas.js ofm_menuHtml), the point itself is its first kind; the kind tabs of the body hide then
 // (app.css #view:has(.ofpb .ofpk)). The address carries the kind (ofd_kindHash), so a kind tab is a plain link.
 function ofd_navKind(sec, ks) {
-  const p = location.hash.slice(1).split('/');
+  const p = location.hash.slice(1).split('/'); if (p[1] === 's') p.splice(1, 2);  // 2.1358.0 (#6964): without the s/org:N prefix
   if (p[0] === 'office' && p[1] === sec && ks.includes(p[2])) return p[2];
   if (OFD.sec === sec && ks.includes(OFD.kind)) return OFD.kind;
   return ks.includes(OFD.kindOf?.[sec]) ? OFD.kindOf[sec] : ks[0];
@@ -244,12 +244,13 @@ function ofd_pairHtml() {
 // 2.356.0 C (#3004): the kind tab is part of the address (#office/offers/invoice): a new address (link, Back) chooses the tab,
 // a tab changed in place (reminder drafts, the cockpit) rewrites the address without a history step
 function ofd_kindHash() {
-  const p = location.hash.slice(1).split('/');
+  // 2.1358.0 (#6964): skip the s/org:N prefix like ofcSeg (office.js), else the chips never matched under an org address
+  const q = location.hash.slice(1).split('/'), o = q[1] === 's' ? 2 : 0, p = [q[0], ...q.slice(1 + o)], pre = q.slice(1, 1 + o).join('/');
   if (p[0] !== 'office' || !Object.hasOwn(OFD_SECS, p[1]) || +p[2]) return;  // 2.380.0 B (#3409): + office/invoices/<kind>
   const ks = OFD_SECS[p[1]], hk = ks.includes(p[2]) ? p[2] : '';
   if (hk && hk !== OFD.kind && location.hash !== OFD.hashSeen) { OFD.kind = hk; OFD.status = ''; OFD.list = null; }
   // the bare #office/<area> stays as it is for the area's first tab (the office's remembered page #2622, the menu's own address)
-  if (hk !== OFD.kind && (hk || OFD.kind !== ks[0])) history.replaceState(history.state, '', `#office/${p[1]}/${OFD.kind}`);
+  if (hk !== OFD.kind && (hk || OFD.kind !== ks[0])) history.replaceState(history.state, '', `#office/${pre ? pre + '/' : ''}${p[1]}/${OFD.kind}`);
   OFD.hashSeen = location.hash;
 }
 // ---- 2.451.0 (#3834): the sort of an office list: same choice on computer and phone, remembered per list on the device.
