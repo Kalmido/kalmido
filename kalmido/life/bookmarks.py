@@ -19,7 +19,7 @@ from ..core.writes import obj_restore, obj_trash  # 2.947.0 (#5367): the core's 
 from ..core.pg import insert_id, write_lock
 from ..core.objsearch import osr_ids_sql  # 2.1026.0 (#5280)
 from ..core.srchreg import srch_q, srch_register  # 2.1026.0 (#5280)
-from ..core.access import Denied, live_sql  # 2.947.0 (#5367): live_sql
+from ..core.access import Denied, live_sql, feat_in  # 2.947.0 (#5367): live_sql
 from ..core.conflict import ccf_check  # 2.570.0 (#4770)
 from ..core.orgcrypt import oc_copy_file, oc_send_file, oc_user_space, oc_write_file
 from ..accounts.session import bg_here, me
@@ -641,7 +641,7 @@ def _wd_bookmarks(c, users, S, LG, now):  # noqa: ARG001
     """Watchdog: queues previews still pending (a restart, a full queue, Karakeep's new bookmarks) of people with the module
     on. 2.947.0 (#5367): the bookmarks in the trash are the core's run (life/lfkern.py: trash_prune, their pictures through its
     purge hook)."""
-    on = [u for u in users if "reading" in (S[u].get("features") or "").split(",")]
+    on = [u for u in users if feat_in(S[u], "reading")]
     if on:
         # 2.97.0 review (M1): at most 3 per person and tick, so one person's many links never hold up the others
         ids = [r[0] for r in c.execute(f"""SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY id) AS n

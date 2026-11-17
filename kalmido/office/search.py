@@ -16,7 +16,7 @@ from ..core.db import db, usettings
 from ..core.ctx import me  # 2.1026.0 (#5280)
 from ..core.pg import like_escape
 from ..core.errors import BadInput, Denied
-from ..core.access import live_sql  # 2.1005.0 (#5415)
+from ..core.access import live_sql, feat_has  # 2.1005.0 (#5415)
 from ..core.srchreg import srch_q, srch_register  # 2.1026.0 (#5280)
 from ..accounts.orgroles import office_allowed, user_orgs_full
 from ..accounts.orgs import user_orgs
@@ -62,7 +62,7 @@ def bs_office_oid(c, uid):
 
 def _clients_ok(c, uid, oid):
     """True when uid sees the clients of office area oid on the clients page (feature + GET /api/clients' membership)."""
-    if "clients" not in (usettings(c, uid).get("features") or "").split(","):
+    if not feat_has(c, uid, "clients"):
         return False
     if pb_owner(c, oid) is not None:
         return pb_owner(c, oid) == uid

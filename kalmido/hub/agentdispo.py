@@ -26,8 +26,8 @@ from ..core.pg import insert_id, system_ctx
 from ..core.pg import write_lock  # 2.657.0 (#5052)
 from ..core.db import iso_ms  # 2.657.0 (#5052)
 from ..core.i18n import tr
-from ..core.db import bump, db, iso, local_now, now_utc, usettings
-from ..core.access import Denied, list_role, need_feat, WRITE_ROLES, FEAT_OFF, token_lists, vis_sql, list_archived_sql
+from ..core.db import bump, db, iso, local_now, now_utc
+from ..core.access import Denied, list_role, need_feat, WRITE_ROLES, FEAT_OFF, token_lists, vis_sql, list_archived_sql, feat_has
 from ..accounts.orgs import visible_people
 from ..accounts.session import me
 from ..core.errors import BadInput
@@ -91,7 +91,7 @@ def _adz_feat(c, oid, owner):
         uids = [owner]
     else:
         uids = [x[0] for x in c.execute("SELECT user_id FROM org_members WHERE org_id=? AND role='admin' ORDER BY user_id", (oid,))]
-    if not any("dispo" in (usettings(c, u).get("features") or "").split(",") for u in uids):
+    if not any(feat_has(c, u, "dispo") for u in uids):
         raise Denied(409, tr(FEAT_OFF["dispo"]))
 
 

@@ -5,7 +5,7 @@ from ..core.config import app, PUBLIC_URL
 from ..core.i18n import tr
 from ..core.db import body, bump, db, err, inbox_default, iso_ms, now_utc
 from ..accounts.session import me
-from ..core.access import Denied, list_people, list_role, need_project, need_task, PROJ_SQL, task_visible, tvis, vis_sql
+from ..core.access import Denied, list_people, list_role, need_project, need_task, PROJ_SQL, task_visible, tvis, vis_sql, feat_in
 from ..tasks.validation import descendants, log_act
 from ..tasks.tasks import one_task
 from ..collab.comments import burst_gate, collab_user, lang_of, user_names
@@ -225,7 +225,7 @@ def unblock_events(c, done_ids):
             if uid == actor:
                 continue
             s = collab_user(c, uid)
-            if not s or "deps" not in (s.get("features") or "").split(","):
+            if not s or not feat_in(s, "deps"):
                 continue  # module "deps" off: no News / push about dependencies (the activity line stays)
             # 2.891.0 (#5270): who may still read the task decides the core's send decision (obj_role >= view)
             if not obj_notify(c, "task", w, [uid], row="unblock", lid=t["list_id"], S={uid: s},

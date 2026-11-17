@@ -10,7 +10,7 @@ import urllib.request
 from ..core.i18n import N_, tr
 from ..core.db import bump, connect, iso, now_utc, parse_iso
 from ..core.pg import write_lock
-from ..core.access import Denied, list_role, WRITE_ROLES
+from ..core.access import Denied, list_role, WRITE_ROLES, feat_in
 from ..accounts.bgjobs import bgj_add, bgj_fn
 from ..accounts.login import seal, unseal
 from ..tasks.validation import as_int, TITLE_MAX
@@ -324,7 +324,7 @@ def _wd_reading(c, users, S, LG, now):
     """Watchdog: the oldest due connection (one per tick, so a slow server never holds the watchdog up long)."""
     for r in c.execute("SELECT * FROM kk_conns ORDER BY synced_at NULLS FIRST LIMIT 5").fetchall():  # 2.1115.0 (#5951): TIMESTAMPTZ, never synced first
         uid = r["user_id"]
-        if uid not in users or "reading" not in (S[uid].get("features") or "").split(","):
+        if uid not in users or not feat_in(S[uid], "reading"):
             continue
         if r["synced_at"] and (now_utc() - parse_iso(r["synced_at"])).total_seconds() < KK_EVERY:
             continue

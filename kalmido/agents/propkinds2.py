@@ -22,9 +22,9 @@ from ..core.config import app
 from ..core.db import bump, db, iso, now_utc
 from ..core.i18n import N_, lang, tr
 from ..core.pg import insert_id, write_lock
-from ..core.access import Denied, my_max_sort, list_other_agent, live_sql
+from ..core.access import Denied, my_max_sort, list_other_agent, live_sql, feats
 from ..accounts.session import me
-from ..core.db import usettings, uset
+from ..core.db import uset
 from ..core.errors import BadInput, UnknownFields
 from ..lists.lists import list_created, clean_color, clean_folder, FOLDER_MAX
 from ..api.common import v1_err  # 2.149.0 G (#2517): pulled up from functions
@@ -145,7 +145,7 @@ def _pk2_offer(c, uid, oid, did):
 def pk2_make_input(c, uid, aid, kind, text=None, file_name=None, offer_id=None):
     """The job input of an inquiry / setup proposal: only what the agent may see."""
     if kind == "setup":
-        fs = set(x for x in (usettings(c, uid).get("features") or "").split(",") if x)
+        fs = set(feats(c, uid))
         return {"modules": [{"key": k, "on": k in fs} for k in PK2_MODS], "project_types": [k for k in PTYPES if ptype_ok(c, uid, k)]}
     org, oid = pk2_area(c, uid, aid)
     ok, why = pk2_office(c, uid, aid, oid)
@@ -331,7 +331,7 @@ def pk2_edit(kind, key, e, prop):
 
 # ---------------------------------------------------------------- apply / undo / redo
 def _pk2_features(c, uid):
-    return [x for x in (usettings(c, uid).get("features") or "").split(",") if x]
+    return feats(c, uid)
 
 
 def _pk2_mod_on(c, uid, k, rec):

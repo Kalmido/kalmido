@@ -203,10 +203,42 @@ def access_note(lid, write=False):
     d[lid] = d.get(lid, False) or bool(write)
 
 
+# 2.1327.0 (#6823): the ONE reading of a person's module switches (user setting "features", a comma list; no row = the
+# instance default of USER_DEFAULTS, an empty value = everything off). need_feat (web, 409), api/common.py v1_feature (API v1,
+# 403) and life/model.py feat_on build on it; elsewhere no code splits the setting itself (tools/check_feat_split.py).
+# Organisation packs (office/packs.py) and the instance switches (collab_all / time_all) are other notions and stay apart.
+def feat_list(s):
+    """The modules switched on in a settings dict s (usettings / usettings_many / collab_user), in stored order, no blanks."""
+    return [x for x in ((s or {}).get("features") or "").split(",") if x]
+
+
+def feat_in(s, f):
+    """Is module f on in the settings dict s? Only the switch - for loops over many people (watchdog, notifications) that
+    hold their settings already; a check of one account uses feat_has (that adds the agent's data lock)."""
+    return f in feat_list(s)
+
+
+def feats(c, uid):
+    """The modules account uid switched on (stored order) - for code that writes the switches or lists them."""
+    return feat_list(usettings(c, uid))
+
+
+def feat_has(c, uid, f, s=None):
+    """Is module f on for account uid? Its own switch, and for a module the agent's data lock covers (DL_FEAT_AREA:
+    events -> calendar, contacts) not locked for it (a person has no lock). s: uid's settings when already read."""
+    return feat_in(usettings(c, uid) if s is None else s, f) and not _feat_locked(c, uid, f)
+
+
+def _feat_locked(c, uid, f):
+    """2.560.0 B (#4699): does the agent's data lock leave module f out for account uid?"""
+    return f in DL_FEAT_AREA and dl_area_locked(c, uid, DL_FEAT_AREA[f])
+
+
 def need_feat(f):
-    if f not in (usettings(db(), me()).get("features") or "").split(","):
+    c, uid = db(), me()
+    if not feat_in(usettings(c, uid), f):
         raise Denied(409, tr(FEAT_OFF[f]))
-    if f in DL_FEAT_AREA and dl_area_locked(db(), me(), DL_FEAT_AREA[f]):  # 2.560.0 B (#4699): a module the agent's data lock leaves out
+    if _feat_locked(c, uid, f):  # 2.560.0 B (#4699): a module the agent's data lock leaves out
         raise Denied(403, tr("The agent's data lock leaves this area out"))
 
 

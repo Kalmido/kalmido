@@ -27,7 +27,7 @@ from ..core.i18n import browser_lang, LANGS, N_, short_day, tr
 from ..collab.comments import lang_of  # 2.367.5 (#2980)
 from ..core.db import body, bump, db, err, iso, iso_ms, now_utc, parse_iso, usettings
 from ..core.pg import insert_id, like_escape, system_ctx, write_lock
-from ..core.access import acx_token_bind, Denied, need_feat
+from ..core.access import acx_token_bind, Denied, need_feat, feat_has
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, rate_ip
 from ..accounts.bgjobs import bgj_add, bgj_fn
 from ..core.errors import BadInput
@@ -685,7 +685,7 @@ def apb_live(c, uid):
         u = c.execute("SELECT disabled, kind, kid FROM users WHERE id=?", (uid,)).fetchone()
     if not u or u["disabled"] or u["kind"] == "agent" or u["kid"]:
         return False
-    return apb_mail_on() and public_links_on(c, "calendar") and "events" in (usettings(c, uid).get("features") or "").split(",")
+    return apb_mail_on() and public_links_on(c, "calendar") and feat_has(c, uid, "events")
 
 
 def apb_retired(c, p):

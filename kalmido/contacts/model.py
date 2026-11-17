@@ -14,9 +14,9 @@ from flask import has_request_context
 from ..core.objsearch import osr_ids_sql  # 2.981.0 (#5278)
 from ..core.i18n import lang, N_, tr
 from ..core.pg import insert_id, like_escape, st_ids, system_ctx
-from ..core.db import bump, iso, iso_ms, local_now, now_utc, usettings
+from ..core.db import bump, iso, iso_ms, local_now, now_utc
 from ..accounts.session import me
-from ..core.access import act_for, acx_org_ok, collab_all, Denied, for_cap, list_role, org_trips_hidden, task_visible, WRITE_ROLES
+from ..core.access import act_for, acx_org_ok, collab_all, Denied, for_cap, list_role, org_trips_hidden, task_visible, WRITE_ROLES, feat_has
 from ..core.dlock import dl_area_locked  # 2.560.0 B (#4699)
 from ..tasks.validation import DATE_MIN_Y
 from ..collab.comments import user_names
@@ -59,9 +59,7 @@ VC_MAPPED = {"BEGIN", "END", "VERSION", "PRODID", "UID", "FN", "N", "NICKNAME", 
 
 
 def contacts_on(c, uid):
-    if dl_area_locked(c, uid, "contacts"):  # 2.560.0 B (#4699): the agent's data lock leaves the contacts out
-        return False
-    return "contacts" in (usettings(c, uid).get("features") or "").split(",")
+    return feat_has(c, uid, "contacts")  # 2.1327.0 (#6823): with the agent's data lock (2.560.0 B, #4699) as before
 
 
 # ---- address books and rights
@@ -1032,7 +1030,7 @@ def contact_dict(c, r, uid=None, links=True):
             except Denied:
                 continue
             d["events"].append({"event_id": er["id"], "title": er["title"], "start": er["start"], "all_day": bool(er["all_day"])})
-        if "care" in (usettings(c, uid).get("features") or "").split(","):  # 2.22.0 (#663): my "stay in touch" for this contact
+        if feat_has(c, uid, "care"):  # 2.22.0 (#663): my "stay in touch" for this contact
             from ..life.model import care_get, care_space
             if not (org_trips_hidden() and care_space(c, r["book_id"])):  # 2.173.0 review (#2680): an organisation's, not for agents / tokens
                 d["care"] = care_get(c, uid, r["id"])
