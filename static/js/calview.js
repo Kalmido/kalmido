@@ -200,6 +200,9 @@ function calEditModal(x, colors, done) {
     } catch (err) { $('#ce-err', md).textContent = err.message; $('#ce-err', md).hidden = false; } finally { b.disabled = false; }
   });
 }
+// 2.1363.0 (#6720): a due task in the calendar wears its project's organisation stripe like an event next to it (wso_row,
+// docs/dev/kern.md "Organisation colour"); style = the chip's list colour (lp_sty) + its own inline style, in one attribute
+const ctOrgAttr = (t, style = '') => wso_row(lp_listOf(t?.list_id), [lp_sty(t), style].filter(Boolean).join(';'));
 function viewCal() {
   if (S.calMode === 'year') return cyr_view();  // 2.155.0 C (#2078): calyear.js
   if (S.calMode === 'timeline' && !feat('timeline')) S.calMode = 'month';
@@ -222,7 +225,7 @@ function viewCal() {
     const ts = byDay.get(d) || [];
     const out = pd(d).getMonth() !== m - 1;
     const evs = evOn ? cevOn(d).sort(cevSort) : [];
-    const chips = [...evs.map(e => cevChip(e, d)), ...msvvCalChips(d), ...ts.map(t => `<div class="ev p${t.priority} ${t.status ? 'done' : ''} ${t.ghost ? 'ghost' : ''} ${isMs(t) ? 'ms' : ''}${lp_cls(t)}" data-id="${t.id}"${lp_attr(t) /* 2.53.0 (#1426) */} draggable="${t.status || t.ghost || isTouch() || !canEdit(t) ? 'false' : 'true'}">${msGlyph(t)}${t.due_time ? `<span class="muted">${esc(fmtTimeLoc(t.due_time))}</span> ` : ''}${mdTitleNL(t.title)}</div>`)];
+    const chips = [...evs.map(e => cevChip(e, d)), ...msvvCalChips(d), ...ts.map(t => `<div class="ev p${t.priority} ${t.status ? 'done' : ''} ${t.ghost ? 'ghost' : ''} ${isMs(t) ? 'ms' : ''}${lp_cls(t)}" data-id="${t.id}"${/*html-ok*/ ctOrgAttr(t) /* 2.53.0 (#1426), 2.1363.0 (#6720) */} draggable="${t.status || t.ghost || isTouch() || !canEdit(t) ? 'false' : 'true'}">${msGlyph(t)}${t.due_time ? `<span class="muted">${esc(fmtTimeLoc(t.due_time))}</span> ` : ''}${mdTitleNL(t.title)}</div>`)];
     cells += `<div class="cell ${out ? 'out' : ''} ${d === t0 ? 'today' : ''} ${d === S.calSel ? 'sel' : ''}" data-day="${d}">
       <span class="dn">${pd(d).getDate()}</span>
       ${chips.slice(0, 3).join('')}
@@ -253,7 +256,7 @@ function viewWeek() {
   msvvCalEnsure(days[0], days[days.length - 1]);  // 2.73.0 C (#661)
   const evsOf = d => evOn ? cevOn(d).sort(cevSort) : [];
   const t0 = today(), H = weekH();
-  const chip = t => `<div class="ev p${t.priority} ${t.status ? 'done' : ''} ${t.ghost ? 'ghost' : ''} ${isMs(t) ? 'ms' : ''}${lp_cls(t)}" data-id="${t.id}"${lp_attr(t) /* 2.53.0 (#1426) */} draggable="${t.status || t.ghost || isTouch() || !canEdit(t) ? 'false' : 'true'}">${msGlyph(t)}${mdTitleNL(t.title)}</div>`;
+  const chip = t => `<div class="ev p${t.priority} ${t.status ? 'done' : ''} ${t.ghost ? 'ghost' : ''} ${isMs(t) ? 'ms' : ''}${lp_cls(t)}" data-id="${t.id}"${/*html-ok*/ ctOrgAttr(t) /* 2.53.0 (#1426), 2.1363.0 (#6720) */} draggable="${t.status || t.ghost || isTouch() || !canEdit(t) ? 'false' : 'true'}">${msGlyph(t)}${mdTitleNL(t.title)}</div>`;
   const now = new Date(), nowTop = (now.getHours() * 60 + now.getMinutes()) / 60 * H;
   // 2.828.0 (#5463): where the hours start: the first timed entry of the days shown or 07:00, the earlier one (render.js cvw_scroll)
   // 2.1179.0 (#6155): at the working hours (cvw_workStart); only an own entry that starts on the day earlier pulls them up (Kalmido's
@@ -270,7 +273,7 @@ function viewWeek() {
       const t = it.t, top = it.s / 60 * H, h = Math.max((it.e - it.s) / 60 * H, 20), cls = `${h >= two ? ' w2' : ''}${it.n >= 3 ? ' wn3' : ''}`;
       const more = it.n >= 3 && it.cl[0] === it ? `<button type="button" class="wmore" data-calday="${/*html-ok*/ d /* a date */}" style="top:${Math.round(top)}px" aria-label="${esc(trn('{0} event', '{0} events', it.cl.length))}" title="${esc(trn('{0} event', '{0} events', it.cl.length))}">+${it.cl.length}</button>` : '';
       if (it.c) return `<div class="wcev${/*html-ok*/ cls /* constant classes */}${ap_draftCls(it.c)}${cg_canDrag(it.c) ? ' cgok' : ''}" data-cev="${it.c.id}" role="button" tabindex="0" title="${esc(cevTitle(it.c))}"${/*html-ok*/ wso_row(cevOrg(it.c), `--cc:${cevColor(it.c)};top:${top}px;height:${h}px;${/*html-ok*/ lane(it) /* numbers */}`) /* 2.1241.0 (#6181): the organisation's stripe; numbers + colours */}>${/*html-ok*/ cevSubMark(it.c)}<b>${it.c.d0 === d ? fmtTimeAt(it.c.s) : '…'}</b> <span class="wct">${esc(cevTitle(it.c))}</span></div>${/*html-ok*/ more /* built above with esc() */}`;  // 2.52.0 (#1016): cgok = may be moved / resized (caldrag.js)
-      return `<div class="wev${/*html-ok*/ cls /* constant classes */} p${t.priority} ${t.status ? 'done' : ''} ${t.ghost ? 'ghost' : ''} ${isMs(t) ? 'ms' : ''}${lp_cls(t)}" data-id="${t.id}" draggable="${t.status || t.ghost || isTouch() || !canEdit(t) ? 'false' : 'true'}" style="${lp_sty(t) ? lp_sty(t) + ';' : '' /* 2.53.0 (#1426) */}top:${top}px;height:${h}px;${/*html-ok*/ lane(it) /* numbers */}">${msGlyph(t)}<b>${esc(fmtTimeLoc(t.due_time))}</b> <span class="wct">${mdTitleNL(t.title)}</span></div>${/*html-ok*/ more /* built above with esc() */}`;
+      return `<div class="wev${/*html-ok*/ cls /* constant classes */} p${t.priority} ${t.status ? 'done' : ''} ${t.ghost ? 'ghost' : ''} ${isMs(t) ? 'ms' : ''}${lp_cls(t)}" data-id="${t.id}" draggable="${t.status || t.ghost || isTouch() || !canEdit(t) ? 'false' : 'true'}"${/*html-ok*/ ctOrgAttr(t, `top:${top}px;height:${h}px;${lane(it)}`) /* 2.53.0 (#1426), 2.1363.0 (#6720); numbers */}>${msGlyph(t)}<b>${esc(fmtTimeLoc(t.due_time))}</b> <span class="wct">${mdTitleNL(t.title)}</span></div>${/*html-ok*/ more /* built above with esc() */}`;
     }).join('');
     return `<div class="wcol ${d === t0 ? 'today' : ''}" data-day="${d}">${blocks}${d === t0 ? `<i class="nowline" style="top:${nowTop}px"></i>` : ''}</div>`;
   }).join('');
