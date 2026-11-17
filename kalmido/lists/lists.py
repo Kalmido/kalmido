@@ -944,7 +944,11 @@ def list_keep(c, lid, by, until, owner=None):
     c.execute("UPDATE lists SET retain_until=? WHERE id=?", (until, lid))
     if owner:  # review M1: kept, not shared -- the people the deleted person shared it with lose it (listtrash.otr_can)
         c.execute("DELETE FROM list_members WHERE list_id=?", (lid,))
+        old = (c.execute("SELECT owner_id FROM lists WHERE id=?", (lid,)).fetchone() or [None])[0]
         c.execute("UPDATE lists SET owner_id=? WHERE id=?", (owner, lid))
+        if old != owner:  # 2.1345.0 (#6736, Fable reader #5194 F1): a change of ownership leaves its history row like a hand-over
+            c.execute("INSERT INTO list_activity(list_id,user_id,kind,data,created_at) VALUES(?,?,?,?,?)",
+                      (lid, by, "owner", json.dumps({"from": old, "to": owner, "kept": True}), iso(now_utc())))
 
 
 def _agent_bridge_blocks(c, lid, uid):

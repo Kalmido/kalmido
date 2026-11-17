@@ -559,4 +559,32 @@ c.close()"""], capture_output=True, text=True)
           f"{', the owner of the other project changed since' if name == 'legacymoved' else ''}): circles as proved then "
           f"({want_a} / {want_b}), holds {name == 'legacyearly'} {j}")
 
+# Fable reader #5194 F1: lists.list_keep (a deleted person's project kept for its custodian) changes the owner and writes the
+# history row "owner" -- the custodian of today is then not proved for an approval from before
+LG_F = project("Legacy kept")
+FX, FY = min(LG_A, LG_F), max(LG_A, LG_F)  # aid: the agent of the last case above (at most 12 personal agents)
+kt.dbx("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at) VALUES(?,?,?,?,?)", (aid, FX, FY, FID, ts(-48)))
+out = subprocess.run(["docker", "exec", kt.CT, "python", "-c", f"""import json, app
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.lists.lists import list_keep
+from kalmido.agents.safety import bridge_circles_start
+c = connect()
+with system_ctx(c):
+    c.execute("UPDATE agent_bridges SET circle_a=NULL, circle_b=NULL WHERE agent_id=? AND list_a=? AND list_b=?", ({aid}, {FX}, {FY}))
+    list_keep(c, {LG_F}, {FID}, None, owner={OID})
+    c.commit()
+    bridge_circles_start(c)
+    c.commit()
+    r = c.execute("SELECT * FROM agent_bridges WHERE agent_id=? AND list_a=? AND list_b=?", ({aid}, {FX}, {FY})).fetchone()
+    n = c.execute("SELECT COUNT(*) FROM list_activity WHERE list_id=? AND kind='owner'", ({LG_F},)).fetchone()[0]
+    print(json.dumps({{"a": r["circle_a"], "b": r["circle_b"], "rows": n}}))
+c.close()"""], capture_output=True, text=True)
+try:
+    j = json.loads(out.stdout.strip().splitlines()[-1])
+except (ValueError, IndexError):
+    j = {"error": (out.stdout + out.stderr)[-600:]}
+got_f = j.get("b") if LG_F > LG_A else j.get("a")
+check(j.get("rows") == 1 and got_f == "", f"#6736 F1: a project kept for its custodian has the history row 'owner', the custodian is not proved: {j}")
+
 sys.exit(done("p6453_circle"))
