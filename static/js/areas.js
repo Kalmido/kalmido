@@ -393,22 +393,28 @@ const o3a_privOnly = mod => O3A_PRIV.includes(mod) || (mod === 'life' && !o3a_li
 // 2.540.0 (#4588): under "All workspaces" (more than one space) the top of each view of Reading (Read later, Bookmarks,
 // Feeds, Home & life) is the overview of the spaces (spo_html, like Knowledge); the open one is in the address
 // (#<view>/s/<space>, rd_home). The picker of #2677 (Private by default) is gone; where a new link is saved (#4025) stays.
-const rd_spaces = () => wsOptions().filter(w => w !== 'all');
+// 2.1364.0 (#6722): under "All workspaces" only the spaces where the view is on for me (mod_spaces; Home & life by its area,
+// the others by Reading and their module); mod = the view (the shown route by default)
+const rd_mods = mod => mod === 'life' ? ['life', null] : ['reading', mod === 'feeds' ? 'feeds' : 'reading'];
+const rd_spaces = (mod = S.route?.mod) => { const a = wsOptions().filter(w => w !== 'all'); if (!wsOn() || wsCur() !== 'all') return a; const on = mod_spaces(...rd_mods(mod)), b = a.filter(w => on.includes(w)); return b.length ? b : a; };
 const rd_all = () => typeof wsCur === 'function' && wsCur() === 'all' && wsOn() && rd_spaces().length > 1;
 const rd_open = () => rd_all() && rd_spaces().includes(S.route.wsp) ? S.route.wsp : null;  // null under "All" = the overview
-const rd_space = () => { const w = typeof wsCur === 'function' ? wsCur() : 'all'; return w !== 'all' ? w : rd_open() || 'private'; };
+const rd_space = () => { const w = typeof wsCur === 'function' ? wsCur() : 'all'; return w !== 'all' ? w : rd_open() || rd_spaces()[0] || 'private'; };  // 2.1364.0 (#6722): one space left = that one
 const rd_ovr = () => rd_all() && !rd_open();
+// 2.1364.0 (#6722): an open space of Reading / Home under "All" is the open object (wscolor.js, docs/dev/kern.md): one space left
+// opens directly and wears its colour; areas.js loads before wscolor.js, so it registers once the page is there
+document.addEventListener('DOMContentLoaded', () => wso_open('reading', () => ['reading', 'bookmarks', 'feeds', 'life'].includes(S.route?.mod) && wsOn() && wsCur() === 'all' && !rd_ovr() ? rd_space() : null));
 const rd_home = (mod, sp = rd_open()) => rd_all() && sp ? mod + '/s/' + sp : mod;
 // the overview of a view of Reading and, inside a space under "All", the path back to it
-const rd_ovrHtml = mod => spo_html(mod, rd_spaces().map(w => [w, wsName(w), wsIcon(w)]));
+const rd_ovrHtml = mod => spo_html(mod, rd_spaces(mod).map(w => [w, wsName(w), wsIcon(w)]));
 const rd_crumb = mod => rd_open() ? spo_crumbHtml(mod, wsName(rd_open())) : '';
 // 2.769.0 (#5352): the overview "All workspaces" of Knowledge, Files and Reading (recent.js zle_ovrHtml, loaded on demand); until it
 // is here a placeholder of the same height. 2.880.0 (#5561): a calm list of rows ("Recently edited", the workspaces, the trash small);
 // spo_recentPage = the page "Recently edited" (#<mod>/recent, recent.js zle_pageHtml) with the same rows as its filter
 const spo_recentHtml = (mod, to, rows) => typeof zle_ovrHtml === 'function' ? zle_ovrHtml(mod, to, rows) : (ld_later('recent'), `<div class="zleov"><div class="zleph" style="--zlen:${/*html-ok*/ rows.length + 1}" aria-busy="true"></div></div>`);
 const spo_recentPage = (mod, rows) => typeof zle_pageHtml === 'function' ? zle_pageHtml(mod, rows) : (ld_later('recent'), '<div class="zleov zlepage"><div class="zleph" style="--zlen:8" aria-busy="true"></div></div>');
-const rd_rows = () => rd_spaces().map(w => [w, wsName(w), wsIcon(w)]);
-const rd_recentHtml = mod => spo_recentHtml(mod, mod, rd_rows());
+const rd_rows = mod => rd_spaces(mod).map(w => [w, wsName(w), wsIcon(w)]);
+const rd_recentHtml = mod => spo_recentHtml(mod, mod, rd_rows(mod));
 // ---- 2.540.0 (#4575 #4588): the overview of the spaces under "All workspaces", shared by the file store (ablage.js),
 // the views of Reading and later other areas (as Knowledge does it, wiki.js wk_spacesHtml): one row per space, a tap opens
 // it, the address carries it, the path above an open space leads back (spo_crumbHtml). to = where a tap leads: a route
@@ -1190,6 +1196,15 @@ function mc_own() {
 const mc_inCap = (ws, f) => { const cap = mc_capOf(ws); return !cap || !mc_all().includes(f) || cap.includes(f); };
 const mc_wsOn = (ws, f) => mc_inCap(ws, f) && !(mc_own()[ws] || []).includes(f);
 const mc_offIn = cur => mc_all().filter(f => cur === 'all' ? !wsa_spaces().some(w => mc_wsOn(w, f)) : !mc_wsOn(cur, f));
+// ---- 2.1364.0 (#6722): one switch, one meaning. Under "All workspaces" every module shows only the workspaces it is on in
+// for me (the area switch above, wsa_wsOn, and the module switch / the card's cap, mc_wsOn) -- as the office has since #5392.
+// Nothing is deleted; the search and the trash still find everything, an entry opened from there still opens.
+// areaId = the area of WSA_AREAS (null for a module without one, e.g. the calendar), featKey = the module (FEATS key).
+// mod_spaces -> the workspaces in order (Private, organisations); one left = the module opens it directly (its colour, #6697).
+const mod_spaces = (areaId, featKey = areaId) => wsa_spaces().filter(w => (!areaId || wsa_wsOn(w, areaId)) && (!featKey || mc_wsOn(w, featKey)));
+// an entry of a mixed list (contacts, clients, events, time entries): hidden under "All" when its workspace has the module off.
+// o = an organisation's id, 'org:<id>', 'private' or an object with org_id (wscolor.js wso_ws); one workspace on top = shown
+const mod_entryOn = (o, areaId, featKey = areaId) => !wsOn() || wsCur() !== 'all' || mod_spaces(areaId, featKey).includes(wso_ws(o) || 'private');
 // an area of the main switch that is on (some part) -- what Settings > Modules offers per workspace
 const wsa_mainOn = id => wsa_raw(() => mg_area(id) ? mg_on(id) : modOn(id));
 // Settings > Modules: one group per workspace with a switch per area (only with organisations: alone, Private = the main switches)

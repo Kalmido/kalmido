@@ -30,13 +30,16 @@ const SHV_ORIGIN = {own: N_('Own value'), formula: N_('Formula'), kalmido: N_('V
 const SHV_WIDTHS = [[80, N_('Narrow')], [120, N_('Normal')], [200, N_('Wide')], [320, N_('Very wide')]];
 
 const shvSpaces = () => ['private', ...(S.me?.workspaces || []).map(w => 'org:' + w.id)];
+// 2.1364.0 (#6722): the spaces the overview and the panel show -- under "All workspaces" only those where Tables is on for me
+// (areas.js mod_spaces); shvSpaces stays every space (the trash, an opened table)
+const shvShown = () => { const a = shvSpaces(); if (!wsOn() || wsCur() !== 'all') return a; const on = mod_spaces('sheets'), b = a.filter(w => on.includes(w)); return b.length ? b : a; };
 const shvSpaceName = sp => sp === 'private' ? tr('Private|workspace') : sp === 'shared' ? tr('Shared with me') : (wsOrg(sp.slice(4))?.name || tr('Organisation'));  // 2.124.0 C (#2113): + shared
 const shvListSpace = l => l?.org_id ? 'org:' + l.org_id : 'private';
 function shvNewSpace() {  // the space a new sheet goes to: the workspace switch, else the last one used, else the first organisation
   const ok = v => !!v && shvSpaces().includes(v), ws = typeof wsCur === 'function' ? wsCur() : 'all';
   if (ws && ws !== 'all' && ok(ws)) return ws;
   const ls = LS.get('shvSpace', ''); if (ok(ls)) return ls;
-  return shvSpaces()[1] || 'private';
+  const sh = shvShown(); return sh[1] || sh[0] || 'private';  // 2.1364.0 (#6722): a space where Tables is on
 }
 
 // ---- loading
@@ -178,6 +181,7 @@ wso_open('sheets', () => {
   if (r.sh) return SHV.sh && SHV.sh.id === r.sh ? SHV.sh.space || 'private' : null;
   if (r.shf) return typeof shf_folder === 'function' ? shf_folder(r.shf)?.space || null : null;
   if (r.shl) return listById(r.shl) || null;
+  if (wsOn() && wsCur() === 'all') { const sh = shvShown(); if (sh.length === 1) return sh[0]; }  // 2.1364.0 (#6722): one space left = its overview wears its colour
   return null;
 });
 function shvOverview(lid) {
@@ -186,6 +190,7 @@ function shvOverview(lid) {
   const l = lid ? listById(lid) : null, ws = typeof wsCur === 'function' ? wsCur() : 'all';
   let items = d?.items || [];
   if (!lid && ws && ws !== 'all') items = items.filter(x => x.space === ws || x.shared_in);  // 2.124.0 C (#2113): shared with me: in every workspace
+  else if (!lid) items = items.filter(x => x.shared_in || shvShown().includes(x.space));  // 2.1364.0 (#6722): "All": the spaces where Tables is on
   const hooks = SHV_HOOKS.overview.length;
   const head = `<div class="shvtop">${lid ? `<a class="btn sm" href="#l/${lid}" data-navup>${ic('back', 's')}${esc(l ? lname(l) : tr('Project'))}</a>` : ''}
     ${lid ? `<h2 class="shvh">${esc(tr('Attached to {0}', l ? lname(l) : ''))}</h2><a class="btn sm" href="#sheets">${esc(tr('All tables'))}</a>` : ''}<span class="spacer"></span>
@@ -196,9 +201,9 @@ function shvOverview(lid) {
   const card = x => shvCardHtml(x, lid);
   // 2.199.0 C (#2742): the folders of a workspace as cards first, its tables in a folder only there (sheetfold.js)
   const fold = sp => !lid && sp !== 'shared' ? shf_cardsHtml(sp, null) : '';
-  const groups = [...shvSpaces(), 'shared'].map(sp => [sp, items.filter(x => sp === 'shared' ? x.shared_in : x.space === sp && !x.shared_in), fold(sp)])
+  const groups = [...shvShown(), 'shared'].map(sp => [sp, items.filter(x => sp === 'shared' ? x.shared_in : x.space === sp && !x.shared_in), fold(sp)])
     .map(g => [g[0], lid ? g[1] : shf_topItems(g[1], g[0]), g[2]]).filter(g => g[1].length || g[2]);  // 2.124.0 C (#2113): + shared with me
-  const many = groups.length > 1 || (!lid && shvSpaces().length > 1);
+  const many = groups.length > 1 || (!lid && shvShown().length > 1);
   return `<div class="shvwrap shvov">${head}${groups.map(([sp, xs, fs]) => `<section class="shvgrp" aria-label="${esc(shvSpaceName(sp))}">${many ? `<h3>${/*html-ok*/ shvSpaceDot(sp)}${esc(shvSpaceName(sp))}</h3>` : ''}<ul class="shvcards">${fs}${xs.map(card).join('')}</ul></section>`).join('')}</div>`;
 }
 // 2.1224.0 (#6186): the organisation colour (docs/dev/kern.md "Organisation colour"): a group heading of an organisation wears its
@@ -220,10 +225,10 @@ function shv_panelHtml() {
   const grp = (g, label, xs) => `<div class="sgroup sbbp">${sbb_head(g, label, xs.length, sbb_folded(g) && xs.some(x => x.id === cur))}${sbb_folded(g) ? '' : xs.map(row).join('')}</div>`;
   const top = `<div class="sgroup sbbp">${sbb_row('sheets', 'all', tr('All tables'), r.mod === 'sheets' && !r.sh && !r.shl && !r.shf, 'data-sbbsh="all"')}</div>`;  // 2.224.0 B (#2816): "New table" only in the overview's head (a folder: its own button / menu)
   if (!d?.items) return top + `<p class="muted sbbtl">${esc(d?.err || tr('Loading…'))}</p>`;
-  const items = ws && ws !== 'all' ? d.items.filter(x => x.space === ws || x.shared_in) : d.items;  // like the overview (2.124.0 C: shared ones in every workspace)
+  const items = ws && ws !== 'all' ? d.items.filter(x => x.space === ws || x.shared_in) : d.items.filter(x => x.shared_in || shvShown().includes(x.space));  // like the overview (2.1364.0, #6722: "All" = where Tables is on) (2.124.0 C: shared ones in every workspace)
   // 2.199.0 C (#2742): one entry per workspace (a single workspace shown: only its entry) with its folders, the tables in no
   // folder and the projects as automatic groups (sheetfold.js); the shared ones stay a group of their own
-  const sps = ws && ws !== 'all' && shvSpaces().includes(ws) ? [ws] : shvSpaces();
+  const sps = ws && ws !== 'all' && shvSpaces().includes(ws) ? [ws] : shvShown();
   return top + `<div class="sgroup sbbp sbbtree" role="group" aria-label="${esc(tr('Tables'))}">${typeof shf_panelTree === 'function' ? sbb_treeHtml(shf_panelTree(items, sps, cur)) : ''}</div>`
     + (items.some(x => x.shared_in) ? grp('sh:shared', tr('Shared with me'), items.filter(x => x.shared_in)) : '');
 }
