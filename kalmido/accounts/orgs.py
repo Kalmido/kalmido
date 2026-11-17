@@ -651,6 +651,9 @@ def list_org_set(c, lid, v):
     return True
 
 
+LIST_SPACE_MOVED = []  # 2.1327.0 (#6591): fn(c, lid) of higher packages, called once a list changed its workspace (the caller commits)
+
+
 def list_space_follow(c, lid, old_org, boundary):
     """2.401.0 (#2924): list lid just changed its workspace (from old_org): its tasks' customer reports and bells that lived in
     the old space go along (lists/lmove.py); boundary = team/clients.py _org_boundary: a report's client of another workspace
@@ -671,6 +674,8 @@ def list_space_follow(c, lid, old_org, boundary):
     # 2.981.0 (#5287): the bells of the project itself (kind 'list', was list_bell) go along too
     c.execute("UPDATE obj_follow SET org_id=? WHERE kind='list' AND ref_id=? AND mode<>'watch' AND org_id IS NOT DISTINCT FROM ?",
               (oid, lid, old_org or None))
+    for fn in LIST_SPACE_MOVED:  # 2.1327.0 (#6591): e.g. its billed time "billed in an earlier organisation" (office/timebill.py)
+        fn(c, lid)
     return n
 
 
@@ -709,6 +714,8 @@ def ws_private_for(c, lid):
     org_out(c, oid, None, "list", c.execute("SELECT name FROM lists WHERE id=?", (lid,)).fetchone()[0], list_id=lid, obj=lid)  # 2.361.2 (#2923): obj
     c.execute("UPDATE lists SET org_id=NULL WHERE id=?", (lid,))
     c.execute("DELETE FROM reading_orgs WHERE list_id=?", (lid,))  # 2.172.1 (#2689): no longer the organisation's read-later project
+    for fn in LIST_SPACE_MOVED:  # 2.1327.0 (#6591): as list_space_follow
+        fn(c, lid)
     from ..admin.orgcrypt_cli import oc_settle_kick
     oc_settle_kick([lid])  # 2.64.0 (#1864): its files get the owner's account key
 

@@ -24,7 +24,7 @@ from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_plain_safe  # 2.188.0 A (#
 from ..core.orgcrypt import OrgCryptError  # 2.516.0 (#4364)
 from ..core.pg import system_ctx, write_lock  # 2.516.0 (#4364); 2.977.0 (#5282): + write_lock
 from ..office.procdoc import PD_KIND, pd_head  # 2.977.0 (#5282): the head of the procedure documentation
-from ..office.ledger import ofx_log_name, ofx_release  # 2.542.0 (#4598); 2.1287.0 (#6470): + ofx_log_name
+from ..office.ledger import ofx_log_name, ofx_rechain, ofx_release  # 2.542.0 (#4598); 2.1287.0 (#6470): + ofx_log_name; 2.1327.0 (#6591): + ofx_rechain
 from ..office.calc import dec  # 2.188.0 A (#2498)
 from ..core.db import insert_id, iso, now_utc  # 2.149.0 G (#2517): pulled up from functions
 from .orgexport import _safe_part  # 2.369.5 (#2517): pulled up from functions
@@ -1058,4 +1058,20 @@ def _f_origins(c, run, uid, data, who):
                     c.execute(f"UPDATE {table} SET origin_id=? WHERE id=?", (o, new))
 
 
-FINISH = [_f_docs, _f_runs, _f_bank, _f_datev_guids, _f_equipment, _f_origins]  # 2.558.0 D (#4591, review F5): + _f_equipment; 2.654.0 (#4585): + _f_origins
+def _f_chain(c, run, uid, data, who):
+    """2.1327.0 (#6591): last pass, once every reference of the documents is in (_f_docs, the late columns): the finalised
+    documents that came in join the hash chains of their office now (office/ledger.ofx_rechain: in the order they were
+    finalised, one office log line "chain_moved" each) instead of "pending" until the next finalising or start; the check of
+    each office afterwards goes into the import's result (run.chain, admin/acctimport.py)."""
+    by = {}
+    for row in run.created.get("oi") or []:
+        if row[0] == "office_docs" and isinstance(row[1], int) and row[2]:
+            by.setdefault(int(row[2]), []).append(row[1])
+    for space, ids in sorted(by.items()):
+        res = ofx_rechain(c, space, ids, "import")
+        run.chain[str(space)] = {k: res[k] for k in ("ok", "count", "pending", "first_bad")}
+        if not res["ok"]:
+            run.warning(N_("The hash chain of the office is not intact after the import: check it under Settings, access log."), must=True)
+
+
+FINISH = [_f_docs, _f_runs, _f_bank, _f_datev_guids, _f_equipment, _f_origins, _f_chain]  # 2.558.0 D (#4591, review F5): + _f_equipment; 2.654.0 (#4585): + _f_origins; 2.1327.0 (#6591): + _f_chain (last)
