@@ -18992,6 +18992,10 @@
   "Until then, e-mails with content (the daily summary, notifications) are not sent to it.": "Hasta entonces no se le envían correos con contenido (el resumen diario, las notificaciones).",
   "Please confirm your e-mail address first: e-mails with content go only to a confirmed address.": "Confirma primero tu dirección de correo: los correos con contenido solo se envían a una dirección confirmada.",
   "Your address is not confirmed yet: the daily summary and e-mails about events go out only after you confirm it.": "Tu dirección aún no está confirmada: el resumen diario y los correos sobre eventos solo se envían cuando la confirmes.",
+  "Only the agent's own token can ask for a request token": "Solo el token propio del agente puede pedir un token de solicitud",
+  "One request works for one person: these events come from several": "Una solicitud trabaja para una persona: estos eventos vienen de varias",
+  "This person gives the agent no orders (any more)": "Esta persona (ya) no puede dar encargos al agente",
+  "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Este agente trabaja por solicitud: usa el token de solicitud del evento (POST /api/v1/agent/request-token)",
   "Sending needs the user name and the password of the SMTP server": "Para enviar se necesitan el nombre de usuario y la contraseña del servidor SMTP",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Envío solo por el puerto 465 o 587 (el puerto 25 solo para un servidor que un administrador haya permitido)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Solo se envía con el nombre de usuario y la contraseña del servidor SMTP, por el puerto 465 o 587."

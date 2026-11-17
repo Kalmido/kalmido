@@ -48,6 +48,7 @@ from ..notify.push import notify, push_prio, WD_TICKS
 from ..agents.core import agent_emit, agent_row, agent_shares, is_agent, need_agent
 from ..agents.chat import _jload, chat_choices_withdraw, choice_state
 from ..agents.workstyle import ws_need_editor
+from ..agents.reqtoken import req_unasked  # 2.1325.0 (#6668)
 from ..agents.steps import redact  # 2.653.0 (#5079): a decision line masks secrets like a step
 from ..core.objcomments import ocm_trash  # 2.530.0 A (#4315, B11): text and files into the trash like comment_delete; 2.972.0 (#5272): the core's
 
@@ -450,6 +451,8 @@ def ctl_gate():
     if a is not None and (a["provider"] or "") == "kalmido-server":  # 2.571.0 D (#4676): a server agent's run with web access is on
         from .srvweb import srvweb_state
         web = srvweb_state(c, a["user_id"])
+    if a is not None and not a["owner_id"] and req_unasked():  # 2.1325.0 (#6668): a request of a team agent without a person:
+        d = {**(d or CTL_DEFAULTS), "level": "approve_all", "projects": {}}  # it reads, every change is a card
     if d is None and web is None:
         if a is None or a["owner_id"] or not act_for(a["user_id"]):
             return None  # no level chosen: works as before
