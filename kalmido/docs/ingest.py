@@ -27,6 +27,7 @@ from ..office.lettermail import ltm_token_space  # 2.312.0 C (#3265)
 from ..files.fslock import fl_is_locked  # 2.353.0 (#2769)
 from .maillink import ML_TAG, ml_budget, ml_collect, ml_links, ml_mail_name  # 2.424.0 B (#3450)
 from .mailaddr import dmn_dest  # 2.577.0 C (#4466)
+from .ocr import ocr_tired, ocr_ws_sql  # 2.1337.0 (#6651): the workspaces' hour budget of recognition
 
 IDLE = 5             # s the queue sleeps when there is nothing to do (a new document wakes it at once)
 SCAN_EVERY = max(1, int(os.environ.get("KALMIDO_DOCS_SCAN_S", "60") or 60))  # s between two looks into the inbox folders
@@ -222,9 +223,11 @@ def po_run_once():
 
 
 # 2.360.0 B (#2496): the next waiting document, one workspace after the other (one not served lately first, then the one
-# served longest ago; ? = the workspaces served, longest ago first), so a pile of scans of one never holds up the others
+# served longest ago; ? = the workspaces served, longest ago first), so a pile of scans of one never holds up the others.
+# 2.1337.0 (#6651): the first ? = the workspaces whose hour budget of recognition is used up (docs/ocr.py ocr_tired): their
+# documents stay waiting until it frees up
 DOCS_NEXT = """SELECT d.node_id FROM doc_meta d JOIN fs_nodes n ON n.id=d.node_id WHERE d.state='wait' AND n.deleted_at IS NULL
-               ORDER BY array_position(CAST(? AS TEXT[]), d.ws) NULLS FIRST, d.created_at, d.node_id LIMIT 1"""
+               AND d.ws <> ALL(CAST(? AS TEXT[])) ORDER BY array_position(CAST(? AS TEXT[]), d.ws) NULLS FIRST, d.created_at, d.node_id LIMIT 1"""
 
 
 def docs_run_once():
@@ -255,7 +258,7 @@ def docs_run_once():
                 c.execute("UPDATE doc_meta SET state='wait' WHERE state='run' AND updated_at < ?", (stale,))
                 c.execute("UPDATE doc_meta SET state='failed', error='failed' WHERE state='wait' AND tries >= ?", (TRIES,))
                 r = c.execute(f"UPDATE doc_meta SET state='run', tries=tries+1, updated_at=? WHERE node_id=({DOCS_NEXT} FOR UPDATE OF d SKIP LOCKED) "
-                              "RETURNING node_id, ws", (_now(), "{" + ",".join(_Q["recent"]) + "}")).fetchone()
+                              "RETURNING node_id, ws", (_now(), ocr_ws_sql(ocr_tired()), ocr_ws_sql(_Q["recent"]))).fetchone()
                 if r:
                     _Q["recent"] = [w for w in _Q["recent"] if w != r[1]][-63:] + [r[1]]
         c.commit()
