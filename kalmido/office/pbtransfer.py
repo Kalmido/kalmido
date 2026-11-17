@@ -25,7 +25,10 @@ key) before the commit; the old ones go only after it (on an error the personal 
 own files (logo, letterhead) stay; the frozen copies of finalised documents (logo-<hash>.png, lhs-<hash>.pdf) go along.
 2.356.0 A (#2926): the receipts the cash book / the equipment list point at (the person's own private files) move into the
 organisation's documents like POST /api/files/move-space (files/fsmove.py), so its accounting can open them.
-One entry "move" in the target's office log."""
+One entry "move" in the target's office log.
+2.1327.0 (#6591): the moved finalised documents leave the hash chain places of the personal office and join the target's
+chains in the order they were finalised (ledger.ofx_rechain, one log line "chain_moved" each); the answer carries the
+target's chain check (chain), the log of the move the personal office's own check before (chain_before)."""
 import os
 import re
 from datetime import timedelta
@@ -39,7 +42,8 @@ from ..core.i18n import N_, tr, trn
 from ..core.orgcrypt import FIELDS, JSON_KEYS, oc_dec_fields, oc_enc, oc_log_detail, oc_read_file, oc_write_file
 from ..core.pg import IntegrityError, qi, system_ctx, table_columns, write_lock  # 2.1111.0 (#5953): qi
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
-from .ledger import ofx_log, ofx_release  # 2.542.0 (#4598): + ofx_release
+from .ledger import ofx_log, ofx_rechain, ofx_release  # 2.542.0 (#4598): + ofx_release; 2.1327.0 (#6591): + ofx_rechain
+from .chain import hch_check  # 2.1327.0 (#6591)
 from .model import office_gate, office_org, pb_owner
 from .officemove import ofm_reseal
 from .procdoc import PD_WAITING, pd_waiting  # 2.977.0 (#5282)
@@ -460,7 +464,12 @@ def pbt_post():
         # stored to key them anew); key_org tells the duplicate check of the organisation's imports (bank.py _key_orgs)
         c.execute("UPDATE office_bank_tx SET key_org=? WHERE org_id=? AND key_org IS NULL", (src, src))
         pbt_empty_heads(c, dst)  # 2.977.0 (#5282): one head per area (unique), an empty one of the target makes room
+        # 2.1327.0 (#6591): the hash chain: the personal office's own check before (noted in the log of the move), its
+        # documents then join the target's chains (ofx_rechain), the target's check after goes into the answer
+        before = _pbt_chain_check(c, src)
+        docs = [r[0] for r in c.execute("SELECT id FROM office_docs WHERE org_id=?", (src,)).fetchall()]
         counts = pbt_rows(c, src, dst, p["tables"])
+        chain = ofx_rechain(c, dst, docs, "move")
         pbt_procdoc_versions(c, src, dst)  # 2.977.0 (#5282): the moved head's versions (obj_versions) follow it
         locked = pl_through(c, src)
         if locked:  # 2.355.0 B (#2845): the locked months go along (logged as a lock in the organisation's office log)
@@ -481,7 +490,8 @@ def pbt_post():
                 c.execute(f"UPDATE office_client_contacts SET contact_id=NULL, trash_contact_id=NULL WHERE client_id IN ({q})", cl)  # own address books stay private
         ofx_log(c, dst, "move", target="settings", detail={"from_personal": 1, "clients": len(cl), "files": len(p["files"]), "receipts": len(p["receipts"]),
                                                            "rows": {k: v for k, v in counts.items() if v},
-                                                           "letter_links": unlinked})
+                                                           "letter_links": unlinked, "chain_before": before,  # #6591
+                                                           "chain": {k: chain[k] for k in ("ok", "count", "pending", "first_bad")}})
         uset(c, uid, "workspace", f"org:{dst}")  # afterwards the app shows the organisation's office
         bump(c)
         c.commit()
@@ -504,4 +514,14 @@ def pbt_post():
     acx_drop()
     print("personal office", src, "moved into organisation", dst, "by", login_log_who(g.user), flush=True)
     return jsonify(ok=True, org_id=dst, name=name, clients=len(p["clients"]), files=len(p["files"]), letter_links=unlinked,
-                   rows=sum(counts.values()))
+                   rows=sum(counts.values()), chain=chain)  # 2.1327.0 (#6591): the check of the target's hash chain after the move
+
+
+def _pbt_chain_check(c, oid):
+    """#6591: the personal office's own chain before the move ({ok, count, first_bad} or None when it cannot be read now)."""
+    try:
+        with c.savepoint():
+            r = hch_check(c, oid)
+        return {"ok": r["ok"], "count": r["count"], "first_bad": r["first_bad"]}
+    except Exception:  # noqa: BLE001 -- the move never fails for its note
+        return None

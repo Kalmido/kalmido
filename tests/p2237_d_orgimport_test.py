@@ -10,6 +10,8 @@ Invented names only.
  - undo after a document of the import was finalised in the target: 409, nothing removed
  - undo by the admin of another target (the finalised invoice of the file was finalised there before): works, nothing left
    but that invoice with its client and its log entry (2.593.0 #4864: a document imported as finalised stays)
+ - 2.1327.0 (#6591): that invoice joins the target's hash chain with the import (not pending), logged "chain_moved", the
+   result names the check
  - a person without organisation (freelancer) imports it privately: unchanged (no rows of others)
  - 2.459.0 (#3849): the organisation's symbol, a list icon and a header picture come back from files/pictures (new tokens, sealed,
    served): a target with a symbol keeps it, into the private workspace the list pictures only, the undo removes them (a picture
@@ -297,6 +299,13 @@ check(counts(ORG3) == before, f"nothing removed {before} {counts(ORG3)}")
 # ---------------------------------------------------------------- the normal undo by the admin (another target)
 j = run(A, opened(A, OX, RK), ORG4, people={EH("bob@example.com"): {"share": True}})
 check(one("SELECT COUNT(*) FROM office_docs WHERE org_id=? AND locked_at IS NOT NULL", (ORG4,)) == 1, "the invoice finalised in the file came along")
+# 2.1327.0 (#6591): it joins the target's hash chain at once (no longer "pending" until the next finalising / start), with the
+# office log line "chain_moved"; the result carries the target's chain check
+FIN = one("SELECT id FROM office_docs WHERE org_id=? AND locked_at IS NOT NULL", (ORG4,))
+ch = ((j.get("result") or {}).get("chain") or {}).get(str(ORG4)) or {}
+check(ch.get("ok") is True and ch.get("pending") == 0 and ch.get("count") == 1 and one("SELECT chain_seq FROM office_docs WHERE id=?", (FIN,)) == 1
+      and one("SELECT COUNT(*) FROM office_doc_log WHERE org_id=? AND doc_id=? AND action='chain_moved'", (ORG4, FIN)) == 1,
+      f"#6591: the imported finalised invoice is chained at once, logged, the result has the check {ch}")
 # 2.666.0 (#4074 3): a time entry of the import billed since on an invoice that stays is part of its basis: the undo keeps it
 L4 = one("SELECT id FROM lists WHERE org_id=? AND name='Alpha Projekt'", (ORG4,))
 TE4 = [x[0] for x in dbx("SELECT id FROM time_entries WHERE list_id=? ORDER BY id", (L4,))]
