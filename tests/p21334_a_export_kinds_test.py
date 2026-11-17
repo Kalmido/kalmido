@@ -5,6 +5,9 @@ change history follows the objects an archive carries. Invented names only (exam
  - the organisation export: the free links (links.json), the history of the objects it carries (history/changes.json) and never
    the history of an object it does not carry (another organisation's task, a row that is gone), the file copies of the
    templates (lists/template_files.json; a copy gone from the disk is named in missing), all named in not_imported
+ - review #5136: F1 the rules of the organisation's agents only (never another's), F2 a free link only with both sides in the
+   archive (never to another organisation's task, never a person's own), F3 a rule without where it was learned, F4 an infected
+   file copy of a template stays out (locked), the storage path never goes along
  - freelancer-matrix: a person without an organisation: the account export carries the details of the private documents
    (private-documents/documents/meta.json + notes.json, nothing of the trash), the private links (a contact's task, a free
    link), the project's bell, the remembered shopping items, the sign-in addresses, the own account row, the history of the
@@ -79,6 +82,19 @@ ta, tb = T.get("alpha") or [0, 0], T.get("beta") or [0, 0]
 # of alpha's task, a history row of alpha that names beta's task, one that names a message that is gone
 dbx("INSERT INTO obj_links(org_id, src_kind, src_id, dst_kind, dst_id, rel, note, created_by, created_at) "
     "VALUES(?, 'task', ?, 'task', ?, 'related', 'frei verknuepft', ?, ?)", (ORG, ta[0], ta[1], ALICE, TS))
+# review F2: a free link of alpha to beta's task, a person's own link: never in alpha's links.json
+dbx("INSERT INTO obj_links(org_id, src_kind, src_id, dst_kind, dst_id, rel, note, created_by, created_at) "
+    "VALUES(?, 'task', ?, 'task', ?, 'related', 'fremd verknuepft', ?, ?)", (ORG, ta[0], tb[0], ALICE, TS))
+dbx("INSERT INTO obj_links(org_id, owner_id, src_kind, src_id, dst_kind, dst_id, rel, note, created_by, created_at) "
+    "VALUES(?, ?, 'task', ?, 'task', ?, 'mine', 'eigen verknuepft', ?, ?)", (ORG, ALICE, ta[1], ta[0], ALICE, TS))
+# review F1 / F3: a rule of alpha's agent (in, without where it was learned) and of beta's agent (never in alpha's archive)
+AG = {}
+for org, tag in ((ORG, "alpha"), (ORGB, "beta")):
+    AG[tag] = one(dbx("INSERT INTO users(username, display_name, kind, created_at) VALUES(?, ?, 'agent', ?) RETURNING id",
+                      (f"agent-{tag}", f"Agent {tag}", TS)))
+    dbx("INSERT INTO agents(user_id, org_id, created_at) VALUES(?, ?, ?)", (AG[tag], org, TS))
+    dbx("INSERT INTO agent_rules(agent_id, body, source_kind, source_excerpt, source_user_id, source_task_id, created_at, updated_at) "
+        "VALUES(?, ?, 'chat', ?, ?, ?, ?, ?)", (AG[tag], f"Regel {tag}", f"Auszug {tag}", ALICE, ta[0] if tag == "alpha" else tb[0], TS, TS))
 HIST = "INSERT INTO obj_history(kind, ref_id, org_id, user_id, action, vals_before, vals_after, created_at, updated_at) " \
        "VALUES(?, ?, ?, ?, 'update', CAST(? AS JSONB), CAST(? AS JSONB), ?, ?)"
 dbx(HIST, ("task", ta[0], ORG, ALICE, '{"title": "Alpha alt"}', '{"title": "Alpha neu"}', TS, TS))
@@ -88,7 +104,9 @@ TPL = one(dbx("INSERT INTO templates(owner_id, org_id, kind, name, created_at, u
               (ALICE, ORG, TS, TS)))
 TF = one(dbx("INSERT INTO template_files(template_id, user_id, node_key, name, path, created_at) VALUES(?, ?, 'n1', 'weg.txt', 'tpl/gone/weg.txt', ?) "
              "RETURNING id", (TPL, ALICE, TS)))
-check(TPL and TF, f"setup: a template of alpha with a file copy that is gone from the disk {TPL} {TF}")
+TFI = one(dbx("INSERT INTO template_files(template_id, user_id, node_key, name, path, scan, created_at) VALUES(?, ?, 'n2', 'boese.txt', "
+              "'tpl/gone/boese.txt', 'infected', ?) RETURNING id", (TPL, ALICE, TS)))
+check(TPL and TF and TFI, f"setup: a template of alpha with a file copy that is gone from the disk and an infected one {TPL} {TF} {TFI}")
 
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 ok(A.post(B + f"/api/orgs/{ORG}/export"), "the export of alpha starts")
@@ -99,17 +117,25 @@ check(z is not None, "the organisation export is a plain ZIP")
 names = set(z.namelist()) if z else set()
 lk = rows_of(z, "links.json")
 check([(r.get("src_id"), r.get("dst_id"), r.get("rel"), r.get("note")) for r in lk] == [(ta[0], ta[1], "related", "frei verknuepft")],
-      f"links.json: the free link of alpha in the core's columns {lk}")
+      f"links.json: the free link of alpha in the core's columns; never one to beta's task or a person's own (review F2) {lk}")
+ar = rows_of(z, "agents/rules.json")
+check([r.get("body") for r in ar] == ["Regel alpha"], f"agents/rules.json: the rule of alpha's agent, never beta's (review F1) {ar}")
+check(ar and not any(k in ar[0] for k in ("source_excerpt", "source_user_id", "source_task_id", "source_id")),
+      f"agents/rules.json: never where a rule was learned (review F3) {ar}")
 hs = rows_of(z, "history/changes.json")
 hb = json.dumps(hs)
 check("Alpha neu" in hb, f"history/changes.json: the history of alpha's task {hb[:300]}")
 check("Fremd neu" not in hb and "Gruppe neu" not in hb,
       f"history/changes.json: never the history of an object the archive does not carry (beta's task, a message that is gone) {hb[:300]}")
 tfs = rows_of(z, "lists/template_files.json")
-check([r.get("id") for r in tfs] == [TF], f"lists/template_files.json: the template's file copy {tfs}")
+check(sorted(r.get("id") for r in tfs) == sorted([TF, TFI]) and not any("path" in r for r in tfs),
+      f"lists/template_files.json: the template's file copies, never the server's storage path (review F4) {tfs}")
 man = json.loads(z.read("manifest.json")) if z and "manifest.json" in names else {}
 check(any(m.get("file", "").startswith(f"files/templates/{TF}-") for m in man.get("missing") or []),
       f"the manifest names the template's file copy that is gone (missing) {man.get('missing')}")
+check(any(x.get("area") == "tpl" and x.get("id") == TFI for x in man.get("locked_files") or [])
+      and not any(m.get("file", "").startswith(f"files/templates/{TFI}-") for m in man.get("missing") or []),
+      f"the infected file copy stays out as a locked file (review F4) {man.get('locked_files')}")
 ni = " | ".join(man.get("not_imported") or [])
 check(all(f in ni for f in ("history/changes.json", "links.json", "lists/template_files.json", "agents/rules.json")),
       f"not_imported names the files no import takes over {ni}")
@@ -144,7 +170,9 @@ dbx(HIST, ("task", FT[0], None, FID, '{"title": "Frei alt"}', '{"title": "Frei A
 FTPL = one(dbx("INSERT INTO templates(owner_id, kind, name, created_at, updated_at) VALUES(?, 'task', 'Frei Vorlage', ?, ?) RETURNING id", (FID, TS, TS)))
 FTF = one(dbx("INSERT INTO template_files(template_id, user_id, node_key, name, path, created_at) VALUES(?, ?, 'n1', 'frei.txt', 'tpl/gone/frei.txt', ?) "
               "RETURNING id", (FTPL, FID, TS)))
-check(DOC and GONE and FTPL and FTF, f"setup: the freelancer's documents and template {DOC} {GONE} {FTPL} {FTF}")
+FTI = one(dbx("INSERT INTO template_files(template_id, user_id, node_key, name, path, scan, created_at) VALUES(?, ?, 'n2', 'boese.txt', "
+              "'tpl/gone/boese.txt', 'infected', ?) RETURNING id", (FTPL, FID, TS)))
+check(DOC and GONE and FTPL and FTF and FTI, f"setup: the freelancer's documents and template {DOC} {GONE} {FTPL} {FTF}")
 
 
 ok(Fr.post(B + "/api/account/export", json={}), "freelancer: account export starts")
@@ -175,6 +203,9 @@ check("Frei alt" in mh, f"freelancer: the history of my own change {mh[:200]}")
 fman = json.loads(fz.read("manifest.json")) if fz and "manifest.json" in fn else {}
 check(any(m.get("file", "").startswith(f"files/template_files/{FTF}-") for m in fman.get("missing") or []),
       f"freelancer: a template's file copy gone from the disk is named in missing {fman.get('missing')}")
+check(any(x.get("area") == "template_files" and x.get("id") == FTI for x in fman.get("locked_files") or [])
+      and not any(m.get("file", "").startswith(f"files/template_files/{FTI}-") for m in fman.get("missing") or []),
+      f"freelancer: the infected file copy of a template stays out as a locked file (review F4) {fman.get('locked_files')}")
 fni = " | ".join(fman.get("not_imported") or [])
 check("private-documents/" in fni and "private_links" in fni and "my_history" in fni,
       f"freelancer: not_imported names the documents, the links and the history {fni}")
