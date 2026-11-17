@@ -179,8 +179,18 @@ check(v.ok, f"an uploaded format-3 zip is checked with this server's store {v.st
 sp = os.path.join(ST, "plain", hashlib.sha256(BIG).hexdigest()[:2], hashlib.sha256(BIG).hexdigest())
 good = open(sp, "rb").read()
 open(sp, "wb").write(good[:-1] + bytes([good[-1] ^ 1]))
+# 2.1338.0 (#6612): the check writes a damaged store file again from its original (still there); without it: hash
 v = A.post(B + f"/api/admin/backups/{x1['name']}/verify", json={})
-check(v.status_code == 400 and v.json().get("code") == "hash", f"a damaged store file = hash {v.status_code} {v.text[:160]}")
+check(v.ok and v.json().get("repaired") == 1 and open(sp, "rb").read() == good,
+      f"a damaged store file is written again from its original {v.status_code} {v.text[:160]}")
+orig = [p for p in glob.glob(os.path.join(DATA, "attachments", "**", "*"), recursive=True) if os.path.isfile(p) and open(p, "rb").read() == BIG]
+for p in orig:
+    os.rename(p, p + ".away")
+open(sp, "wb").write(good[:-1] + bytes([good[-1] ^ 1]))
+v = A.post(B + f"/api/admin/backups/{x1['name']}/verify", json={})
+check(len(orig) == 1 and v.status_code == 400 and v.json().get("code") == "hash", f"a damaged store file without its original = hash {v.status_code} {v.text[:160]}")
+for p in orig:
+    os.rename(p + ".away", p)
 os.remove(sp)
 v = A.post(B + f"/api/admin/backups/{x1['name']}/verify", json={})
 check(v.status_code == 400 and v.json().get("code") == "shared_missing" and "1 " in v.json().get("error", ""),
