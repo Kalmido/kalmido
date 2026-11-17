@@ -247,7 +247,7 @@ r = A.get(B + "/api/files/zip", params={"ids": str(TOP)})
 zz = zipfile.ZipFile(io.BytesIO(r.content)) if r.ok else None
 nt = [n for n in zz.namelist() if n.startswith("not included")] if zz else []
 txt = zz.read(nt[0]).decode("utf-8") if nt else ""
-check(nt == ["not included.txt"] and "Top/Safe/ - in a locked (end-to-end encrypted) folder" in txt and not any(n.startswith("Top/Safe") for n in zz.namelist()),
+check(nt == ["not included.txt"] and "Top/Safe box/ - in a locked (end-to-end encrypted) folder" in txt and not any(n.startswith("Top/Safe") for n in zz.namelist()),
       f"#6589: the ZIP names the locked folder in 'not included.txt' ({zz.namelist() if zz else r.status_code} {txt!r})")
 
 # ---------------------------------------------------------------- (e) moving
