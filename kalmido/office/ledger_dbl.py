@@ -65,7 +65,7 @@ from .calc import calc_lang, dec, dstr, money
 from .assets import ast_afa_year, ast_values
 from .bankacc import bka_datev, bka_rows
 from .bkexport import bx_meal_parts
-from .books import _home, _year, bk_fees_paid, bk_receipts, bk_ws, ofc_meals_euer, ofc_meals_home
+from .books import _year, bk_receipts, bk_ws, ofc_meals_euer, ofc_meals_home
 from .cfbank import cfb_balances
 from .cardnorc import cc_dv_nodes
 from .catacct import ca_accounts
@@ -431,6 +431,10 @@ def _doc_side(c, oid, j, st, s, y0, y1, banks=None, hints_out=None):
             a = -a
         kind = r.get("_kind") or ""
         doc = r.get("Belegfeld 1") or ""
+        if kind == "fee":  # 2.1352.0 (#6599): the paid reminder claims come with the DATEV batch (was _fee_side)
+            j.add(r["_date"], doc, r.get("Buchungstext"), konto, gegen, a, "fee")
+            j.label(gegen, tr(LD_ACC_LABELS["fee_in"]))
+            continue
         if kind == "payment":
             if banks and konto == banks.default and r.get("_pay"):
                 konto = banks.of_payment(r["_pay"])  # 2.685.0 (#5128): the bank account of the line that paid it
@@ -599,15 +603,6 @@ def _km_side(c, oid, j, st, year):
           acct, ld_acct(st, "private_in" if own else "clearing"), km["amount"], "km")
 
 
-def _fee_side(c, oid, j, st, s, y0, y1):
-    """2.685.0 (#5128): the paid reminder fees on their day (books.bk_fees_paid; damages, no VAT): the clearing account (the
-    money came with a bank / cash line) against the other income."""
-    acct = ld_acct(st, "fee_in")
-    for f in bk_fees_paid(c, oid, y0, y1, _home(s)):
-        j.add(f["date"], f["number"] or f"M{f['doc_id']}", tr(LD_ACC_LABELS["fee_in"]), ld_acct(st, "clearing"), acct, f["amount"], "fee")
-        j.label(acct, tr(LD_ACC_LABELS["fee_in"]))
-
-
 def _flowed(c, oid, nid):
     """A receipt paid through a bank line or a cash entry (of any year): its payment is that line's."""
     return c.execute("SELECT 1 FROM office_bank_tx WHERE org_id=? AND match_kind='receipt' AND match_id=? AND deleted_at IS NULL "
@@ -678,9 +673,8 @@ def ld_journal(c, oid, year):
     hints = [h for h in doc_hints if h.get("key") != "pay_outside"] + hints
     _money_side(c, oid, j, st, s, y0, y1, card_nodes, banks, meal_nodes)
     _afa_side(c, oid, j, st, s, year)
-    _meal_side(c, oid, j, st, s, y0, y1)  # 2.685.0 (#5128): entertainment, mileage allowance, reminder fees as in bk_euer
+    _meal_side(c, oid, j, st, s, y0, y1)  # 2.685.0 (#5128): entertainment, mileage allowance as in bk_euer; 2.1352.0 (#6599): reminder fees come with dx_rows (_doc_side)
     _km_side(c, oid, j, st, year)
-    _fee_side(c, oid, j, st, s, y0, y1)
     for a, lb in banks.labels.items():
         j.label(a, lb)
     for e in ld_entries(c, oid, year, ("manual",)):
