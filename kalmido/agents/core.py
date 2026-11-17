@@ -1388,7 +1388,22 @@ def jobs_pre(c, rows, viewer):
     for x in pa:
         if x["id"] in seen:
             parts.setdefault(x["parent_id"], []).append(x["id"])
-    return {"jtasks": jt, "tasks": tasks, "tvis": tvis, "next": nxt, "parts": parts}
+    return {"jtasks": jt, "tasks": tasks, "tvis": tvis, "next": nxt, "parts": parts, "muted": jobs_muted(c, rows, viewer)}
+
+
+def jobs_muted(c, rows, viewer):
+    """2.1327.0 (#6453, p2674_b_api): {(task id, agent id)} of the jobs in rows whose title, name and log job_dict hides from
+    viewer (WK_MUTE, review G4) -- asked once per agent for all its tasks in the list, not once per job (the job list must
+    not grow in statements with the number of jobs, #4194)."""
+    by = {}
+    for j in rows:
+        if j["task_id"] and viewer and viewer not in (j["agent_id"], j["user_id"]):
+            by.setdefault(j["agent_id"], {})[j["task_id"]] = j["agent_id"]
+    out = set()
+    for aid, marks in by.items():
+        for fn in WK_MUTE:
+            out |= {(t, aid) for t in fn(c, marks)}
+    return out
 
 
 def job_dict(c, j, names=None, pre=None):
@@ -1405,7 +1420,8 @@ def job_dict(c, j, names=None, pre=None):
     if t and viewer and viewer == j["agent_id"] and not _jd_sees(c, j["task_id"], t["list_id"], j["agent_id"]):
         t = None  # 2.223.7 D (#2941): the agent no longer sees the task (share withdrawn): the job stays, without its title / list
     if j["task_id"] and viewer and viewer not in (j["agent_id"], j["user_id"]) \
-            and any(j["task_id"] in fn(c, {j["task_id"]: j["agent_id"]}) for fn in WK_MUTE):
+            and ((j["task_id"], j["agent_id"]) in pre["muted"] if pre is not None  # 2.1327.0 (#6453): read once (jobs_muted)
+                 else any(j["task_id"] in fn(c, {j["task_id"]: j["agent_id"]}) for fn in WK_MUTE)):
         # 2.1284.0 (#6453, review G4): the job of a task in a wider / public place of the agent -- its title, name and log
         # are the agent's words (POST /tasks/<id>/working, /agent/jobs), no channel of their own there (agents/circle.py
         # wk_mute). The agent itself and the person the job is for read them as before.
