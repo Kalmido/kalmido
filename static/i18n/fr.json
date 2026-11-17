@@ -18987,6 +18987,7 @@
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "La suppression est annulée ; le compte reste verrouillé jusqu’à ce qu’un administrateur le déverrouille. La personne reçoit un e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} a demandé la suppression de son compte et a été verrouillé : la suppression attend ta décision, au plus tard jusqu’au {1}",
   "Decide on the held deletion of {0}: without a decision it runs on {1}": "Décide de la suppression suspendue de {0} : sans décision, elle a lieu le {1}",
+  "already there (imported from a statement in another format)": "déjà présent (importé depuis un relevé dans un autre format)",
   "Missing numbers: {0}": "Numéros manquants : {0}",
   "{0} without a reason": "{0} sans motif",
   "a draft carries the number": "un brouillon porte le numéro",

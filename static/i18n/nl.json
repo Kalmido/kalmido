@@ -18987,6 +18987,7 @@
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "De verwijdering wordt geannuleerd; het account blijft geblokkeerd tot een admin het deblokkeert. De persoon krijgt een e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} heeft gevraagd het eigen account te verwijderen en is geblokkeerd: de verwijdering wacht op jouw beslissing, uiterlijk tot {1}",
   "Decide on the held deletion of {0}: without a decision it runs on {1}": "Beslis over de gepauzeerde verwijdering van {0}: zonder beslissing gebeurt ze op {1}",
+  "already there (imported from a statement in another format)": "al aanwezig (geïmporteerd uit een afschrift in een ander formaat)",
   "Missing numbers: {0}": "Ontbrekende nummers: {0}",
   "{0} without a reason": "{0} zonder reden",
   "a draft carries the number": "een concept draagt het nummer",

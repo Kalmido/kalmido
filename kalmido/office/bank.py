@@ -62,7 +62,7 @@ from .model import office_ctx_admin as _ctx  # noqa: E402  2.149.0 G (#2517): wa
 from .homecur import hc_home  # noqa: E402  2.189.0 B (#2475)
 from .invoices import _j as _inv_j, inv_refund_open  # noqa: E402  2.354.0 D (#2837)
 from .payonline import pol_bank_hit, pol_bank_info, pol_bank_match  # noqa: E402  2.469.0 (#3459)
-from .cfbank import cfb_preview, cfb_store  # 2.369.5 (#2517): pulled up from functions
+from .cfbank import cfb_preview, cfb_read, cfb_store  # 2.369.5 (#2517): pulled up from functions
 from .invoices import inv_pay_add, inv_pay_del  # 2.369.5 (#2517): pulled up from functions
 from .periodlock import period_need_open  # 2.369.5 (#2517): pulled up from functions
 from .docs import doc_row  # 2.369.5 (#2517): pulled up from functions
@@ -240,7 +240,7 @@ def bnk_parse(c, oid, b, fs=None):
             p["error"] = True
             continue
         for n, r in enumerate(got, 1):
-            r["n"], r["fi"], r["file"] = n, fi, p["name"]
+            r["n"], r["fi"], r["file"], r["_part"] = n, fi, p["name"], p  # 2.1315.0 (#6590 b): _part for bnk_cross_dups
         rows += got
         if len(rows) > BNK_ROWS_MAX:
             raise BadInput(tr("At most {0} rows per import", BNK_ROWS_MAX))
@@ -277,6 +277,7 @@ def bnk_parse(c, oid, b, fs=None):
             refs.setdefault(k, set()).update(days)
         for h, k in seen.items():
             have[h] = max(have.get(h, 0), k)
+    bnk_cross_dups(c, oid, b, rows, parts)  # 2.1315.0 (#6590 b): the same booking from a statement of another format
     if len(parts) > 1:  # one list by day: day, then file, then row (rows without a day at the end)
         rows.sort(key=lambda r: (r["day"] is None, r["day"] or "", r["fi"], r["n"]))
     kinds = {p["fmt"] for p in parts}
@@ -284,9 +285,111 @@ def bnk_parse(c, oid, b, fs=None):
     return (kinds.pop() if len(kinds) == 1 else "mixed"), rows, None, parts, info
 
 
+# ---------------------------------------------------------------- 2.1315.0 (#6590 b): duplicates across formats
+# The fingerprint (bnk_hash) and the reference keys hold inside one format; the same day exported once as CSV and once as
+# CAMT / MT940 differs in the reference (CSV has none) and often in the text. A booking of a statement counts as already
+# there when an active booking of an import of ANOTHER format has the same day and amount, the same account (when both
+# name one) and the same counterpart or purpose (normalized; a purpose cut short by one bank counts when one starts with
+# the other, at least BNK_XPURPOSE_MIN characters). Each existing booking answers one row only (two equal rows need two).
+BNK_XPURPOSE_MIN = 12
+
+
+def _xacct(v):
+    v = re.sub(r"\s+", "", v or "").upper()
+    return v if IBAN_RE.match(v) else ""
+
+
+def _xsame(a_cp, a_pu, b_cp, b_pu):
+    """True when two bookings of the same day and amount name the same counterpart or purpose (normalized)."""
+    a_cp, b_cp, a_pu, b_pu = _norm(a_cp), _norm(b_cp), _norm(a_pu), _norm(b_pu)
+    if a_cp and a_cp == b_cp:
+        return True
+    if a_pu and a_pu == b_pu:
+        return True
+    short, long_ = sorted((a_pu.replace(" ", ""), b_pu.replace(" ", "")), key=len)
+    return len(short) >= BNK_XPURPOSE_MIN and long_.startswith(short)
+
+
+def _part_accounts(c, oid, b, p):
+    """The own account(s) a statement names: CAMT / MT940 from the file, a CSV the bank account chosen at the import."""
+    if p["fmt"] in ("camt", "mt940"):
+        try:
+            return {a for a in (_xacct(x["account"]) for x in cfb_read(c, oid, p["fmt"], {"text": p["text"]})) if a}
+        except BadInput:
+            return set()
+    v = b.get("bank_account")
+    if isinstance(v, str) and v.strip().isdigit():
+        v = int(v.strip())
+    if isinstance(v, int) and not isinstance(v, bool):
+        from .bankacc import bka_rows
+        return {a for a in (_xacct(r.get("iban")) for r in bka_rows(c, oid) if r["id"] == v) if a}
+    return set()
+
+
+def _import_accounts(c, oid, iids):
+    """{import id: {IBAN}} of the given imports: the chosen bank account (CSV) and the accounts of their stored balances."""
+    out = {i: set() for i in iids}
+    if not iids:
+        return out
+    ph = ",".join("?" * len(iids))
+    accts = None
+    for r in c.execute(f"SELECT id, bank_account_id FROM office_bank_imports WHERE org_id=? AND id IN ({ph}) AND bank_account_id IS NOT NULL",
+                       (oid, *iids)).fetchall():
+        if accts is None:
+            from .bankacc import bka_rows
+            accts = {x["id"]: _xacct(x.get("iban")) for x in bka_rows(c, oid) + bka_rows(c, oid, archived=True)}
+        if accts.get(r["bank_account_id"]):
+            out[r["id"]].add(accts[r["bank_account_id"]])
+    for r in c.execute(f"SELECT * FROM office_bank_balances WHERE org_id=? AND import_id IN ({ph})", (oid, *iids)).fetchall():
+        a = _xacct(oc_dec_fields(c, oid, "office_bank_balances", r)["account"])
+        if a:
+            out[r["import_id"]].add(a)
+    return out
+
+
+def bnk_cross_dups(c, oid, b, rows, parts):
+    """Marks dup (and dup_other) on the rows that are already there from a statement of another format (see above)."""
+    todo = [r for r in rows if r["error"] is None and not r["pending"] and not r["dup"] and r.get("day") and r.get("amount") is not None]
+    if not todo:
+        return
+    days = sorted({r["day"] for r in todo})
+    have = {}
+    for t in c.execute("SELECT t.*, i.fmt AS imp_fmt FROM office_bank_tx t LEFT JOIN office_bank_imports i ON i.id=t.import_id "
+                       f"WHERE t.org_id=? AND {live_sql('t')} AND t.day>=? AND t.day<=? ORDER BY t.id", (oid, days[0], days[-1])).fetchall():
+        if t["day"] not in days:
+            continue
+        d = oc_dec_fields(c, oid, "office_bank_tx", t)
+        try:
+            amt = money(dec(d["amount"]))
+        except (ArithmeticError, ValueError, TypeError):
+            continue
+        have.setdefault((t["day"], amt), []).append({"id": t["id"], "fmt": t["imp_fmt"] or "", "import_id": t["import_id"],
+                                                     "cp": d["counterpart"] or "", "pu": d["purpose"] or ""})
+    if not have:
+        return
+    iaccts = _import_accounts(c, oid, sorted({x["import_id"] for xs in have.values() for x in xs if x["import_id"]}))
+    paccts = {}
+    used = set()
+    for r in todo:
+        p = r.get("_part") or {"fmt": "", "text": ""}
+        if id(p) not in paccts:
+            paccts[id(p)] = _part_accounts(c, oid, b, p)
+        mine = paccts[id(p)]
+        for x in have.get((r["day"], money(dec(r["amount"]))), ()):
+            if x["id"] in used or x["fmt"] == p["fmt"]:
+                continue  # the same format: the fingerprint above decided (two equal bookings stay two)
+            theirs = iaccts.get(x["import_id"]) or set()
+            if mine and theirs and not (mine & theirs):
+                continue  # another account
+            if _xsame(r["counterpart"], r.get("purpose_full") or r["purpose"], x["cp"], x["pu"]):
+                used.add(x["id"])
+                r["dup"], r["dup_other"] = True, True
+                break
+
+
 def _row_out(r):
     return {k: (dstr(r[k]) if k == "amount" and r[k] is not None else r.get(k)) for k in
-            ("n", "day", "amount", "currency", "counterpart", "purpose", "iban", "ref", "error", "dup", "file", "pending")}
+            ("n", "day", "amount", "currency", "counterpart", "purpose", "iban", "ref", "error", "dup", "dup_other", "file", "pending")}
 
 
 DVA_BNK_SKIPPED = 100  # 2.533.0 (#4318) F14: skipped rows named in an answer (the count stays exact)
