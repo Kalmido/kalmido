@@ -11,7 +11,7 @@ Export (reading the sheet is enough; values evaluated for the person exporting, 
     or the whole row by color_mode), cell names Excel names. Written by hand (zipfile, no library), checked against the
     OOXML schema order so Excel, LibreOffice and Numbers open it.
 Import (a new sheet in a space the person may write, optionally attached to a list; the module "sheets" on):
-  - CSV (separator ; , or tab detected) and .xlsx (the first sheet): a header row becomes the column titles, the column kind is
+  - CSV (separator ; , or tab detected), .xlsx and (2.1324.0, #6709) .ods (sheets/odsread.py): a header row becomes the column titles, the column kind is
     guessed from the values / number formats, an .xlsx drop-down list becomes a select column (its colours from the
     conditional formatting when there are any), simple formulas are taken over (German names), the rest as their value --
     the answer counts what was taken over as a value. Size budget and entity guard like the legacy import (fi_xlsx_read).
@@ -51,6 +51,7 @@ from .shfmt import (ShfmXl, shfm_import_apply, shfm_load, shfm_xl_merges, shfm_x
 from .shbook import shb_xlsx, shb_import, shb_pairs, shb_create, SHB_TABS_MAX, shb_quote, shb_xl_ref  # 2.369.5 (#2517): pulled up from functions
 from .shbook import shb_is_pivot  # 2.671.0 (#3463 b)
 from .shpivot import shp_csv  # 2.671.0 (#3463 b)
+from .odsread import shx_is_ods, shx_read_ods_all  # 2.1324.0 (#6709)
 
 SHX_FILE_MAX = 10 * 1024 * 1024        # an uploaded file
 SHX_UNZIPPED_MAX = 60 * 1024 * 1024    # the parts of an .xlsx read in all (zip bomb guard)
@@ -1240,7 +1241,7 @@ def shx_export_xlsx(sid):
 
 @app.post("/api/sheets/import")
 def shx_import_post():
-    """multipart: file (.csv / .xlsx), space (private | org:N), list_id?, title? -> {sheet, report, messages} (201)."""
+    """multipart: file (.csv / .xlsx / .ods), space (private | org:N), list_id?, title? -> {sheet, report, messages} (201)."""
     need_feat("sheets")
     c = db()
     uid = me()
@@ -1256,13 +1257,17 @@ def shx_import_post():
         lid = int(lid) if lid not in (None, "", "null") else None
     except ValueError:
         raise BadInput(tr("Invalid value: {0}", "list_id")) from None
-    if raw.startswith(b"PK") or name.lower().endswith(".xlsx"):
+    if shx_is_ods(raw):  # 2.1324.0 (#6709): by its "mimetype" entry (an .ods starts with "PK" like an .xlsx)
+        grid = shx_read_ods_all(raw, SHB_TABS_MAX)
+    elif raw.startswith(b"PK") or name.lower().endswith(".xlsx"):
         grid = shx_read_xlsx_all(raw, SHB_TABS_MAX)  # 2.124.0 E (#2116): every sheet of the file
+    elif name.lower().endswith((".ods", ".ots")):
+        raise BadInput(tr("This is not a spreadsheet file (.ods)"))
     elif name.lower().endswith((".csv", ".txt", ".tsv")) or not name:
         grid = shx_read_csv(raw)
     else:
-        raise BadInput(tr("Only .csv and .xlsx files can be imported"))
-    title = (request.form.get("title") or re.sub(r"\.(csv|xlsx|txt|tsv)$", "", name, flags=re.I) or "").strip()
+        raise BadInput(tr("Only .csv, .xlsx and .ods files can be imported"))
+    title = (request.form.get("title") or re.sub(r"\.(csv|xlsx|ods|ots|txt|tsv)$", "", name, flags=re.I) or "").strip()
     sid, rep = shb_import(c, uid, grid, request.form.get("space") or "private", title, lid)  # 2.124.0 E (#2116)
     c.commit()
     r = sh_reload(c, sid)

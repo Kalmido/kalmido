@@ -273,8 +273,8 @@ button, as you, and the history names the agent. Rows carried over before are gr
 - 2.124.0: a checkbox goes out as a truth value (CSV: `WAHR` / `FALSCH` in German, `TRUE` / `FALSE` otherwise), a person as
   the name, a link as its address, a file as its file name (the file itself stays in Kalmido).
 
-**Import.** In the tables overview (the three dots next to *New table*) choose *Import CSV or Excel…*: the file becomes a
-new table in the space shown (in the tables of a project: attached to it) and opens at once.
+**Import.** In the tables overview (the three dots next to *New table*) choose *Import CSV, Excel or ODS…*: the file becomes
+a new table in the space shown (in the tables of a project: attached to it) and opens at once.
 
 - A first row of text becomes the column titles; Kalmido recognises the column kind (number, currency, percent, date,
   text) from the values and number formats, and an Excel drop-down list becomes a selection column (with its colours).
@@ -282,7 +282,12 @@ new table in the space shown (in the tables of a project: attached to it) and op
 - Simple Excel formulas are taken over (with the German names, also `SUMIF`, `COUNTIF`, `VLOOKUP`, `XLOOKUP` and the text
   and date functions; a `VLOOKUP` without its fourth argument gets `WAHR`, as Excel looks up approximately then); what Kalmido cannot calculate (since 2.124.0 not other sheets of the file any more, whole
   columns like `A:A`, unknown functions) comes in as its value - the message says how many.
-- A `=` at the start of a CSV value stays text, never a formula. At most 10 MB, 5000 rows, 200 columns.
+- An OpenDocument spreadsheet (`.ods`, LibreOffice / OpenOffice, 2.1324.0) comes in like an Excel file: every visible
+  sheet (at most 30) becomes a sheet of the one table, formulas (also into other sheets), drop-down lists, merged and
+  repeated cells are taken over; cell styles (bold, colours) are not. A formula Kalmido cannot take comes in as its value
+  and is counted in the message. There is no ODS export: LibreOffice opens the Excel export.
+- A `=` at the start of a CSV value stays text, never a formula. At most 10 MB, 5000 rows, 200 columns; an Excel or ODS
+  sheet with more columns comes in with its first 200 and the message says how many were left out (2.1324.0).
 - Undo takes back the whole import (the table goes to the trash).
 
 **Agents.** With the permissions *Read tables* / *Write tables* (off for new agents) an agent reads and fills tables,

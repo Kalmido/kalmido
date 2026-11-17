@@ -1,4 +1,4 @@
-// 2.89.0 C (#1916): tables to and from files. "Import CSV or Excel…" in the tables overview (a new table in the space shown,
+// 2.89.0 C (#1916): tables to and from files. "Import CSV, Excel or ODS…" (2.1324.0, #6709: + .ods) in the tables overview (a new table in the space shown,
 // or attached to the list of the overview) and "Export as CSV" / "Export as Excel (.xlsx)" in a table's menu. They hook into
 // sheets.js (SHV_HOOKS); an import is one Undo step (the new table goes to the trash, Redo brings it back).
 window.SHV_HOOKS = window.SHV_HOOKS || {menu: [], overview: []};
@@ -6,7 +6,7 @@ window.SHV_HOOKS = window.SHV_HOOKS || {menu: [], overview: []};
   {label: tr('Export as CSV'), icon: 'download', fn: () => shxUiExport(sh, 'csv')},
   {label: tr('Export as Excel (.xlsx)'), icon: 'download', fn: () => shxUiExport(sh, 'xlsx')}]);
 (SHV_HOOKS.overview = SHV_HOOKS.overview || []).push((space, lid) => [
-  {label: tr('Import CSV or Excel…'), icon: 'upload', fn: () => shxUiImport(space, lid)}]);
+  {label: tr('Import CSV, Excel or ODS…'), icon: 'upload', fn: () => shxUiImport(space, lid)}]);
 
 function shxUiExport(sh, fmt) {  // a download of the file the server makes (values evaluated for you)
   const a = document.createElement('a');
@@ -21,7 +21,7 @@ function shxUiSpace(space, lid) {  // the space of an imported table: the list's
 }
 // 2.633.0 (#4920): a fixed hidden file input #shx-import-file (when the overview has one) is clicked, its change uploads (a drop
 // onto the window too, dropany.js); without it the input made here as before
-const SHX_IMPORT_ACCEPT = '.csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const SHX_IMPORT_ACCEPT = '.csv,.tsv,.txt,.xlsx,.ods,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.oasis.opendocument.spreadsheet';  // 2.1324.0 (#6709): + .ods
 function shxUiImport(space, lid) {
   const fx = document.getElementById('shx-import-file'); if (fx) { fx.click(); return; }
   const inp = document.createElement('input');
