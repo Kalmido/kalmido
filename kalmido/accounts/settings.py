@@ -1063,13 +1063,16 @@ def push_test():
 def umz_fmt():
     """2.1097.0 (#5949): the placeholders of the account queries of the core's export register (core/objexport.py acct /
     acct_more); every "?" in them is the person's id."""
-    from ..core.objcomments import OCM_TS, ocm_old_cols, ocm_video_cols
+    from ..core.objcomments import OCM_TS, ocm_note_cols, ocm_old_cols, ocm_video_cols
+    from ..core.objhooks import OLNK_AREA_RELS
     own = f"(SELECT id FROM lists WHERE owner_id=? AND ({otr_live('')} OR org_id IS NULL))"  # an organisation's list in its trash is the organisation's
     return {"OWN": own, "TASKS": f"(SELECT id FROM tasks WHERE list_id IN {own})",
             "SHARED": "(SELECT m.list_id FROM list_members m JOIN lists l ON l.id=m.list_id WHERE m.user_id=? AND l.owner_id!=?)",
             "PRIVATE": "(SELECT id FROM lists WHERE owner_id=? AND org_id IS NULL)", "VIS": acx_lists_sql(req=False),
             "LIVE": live_sql(), "LIVE_C": live_sql("c"), "LIVE_K": live_sql("k"),
-            "OCM_OLD": ocm_old_cols(), "OCM_VIDEO": ocm_video_cols("k"), "OCM_TS": OCM_TS}
+            "OCM_OLD": ocm_old_cols(), "OCM_VIDEO": ocm_video_cols("k"), "OCM_TS": OCM_TS,
+            # 2.1334.0 (#6585): a document note's columns (doc_notes'), the areas' own link relations (every other one is a free link)
+            "OCM_NOTE": ocm_note_cols(), "AREA_RELS": "(" + ", ".join(f"'{r}'" for r in OLNK_AREA_RELS) + ")"}
 
 
 def umz_export_queries(uid):

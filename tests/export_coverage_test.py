@@ -14,6 +14,9 @@ RX_LEFT_TABLES is not stale, every RX_TABLES table is in OX_AREAS (its rows come
 UMZ_LEFT_TABLES (exportleft.py) with the reason; the list is not stale; every agent is named in UMZ_NOT_INCLUDED (keys never move)
 2.1093.0 (#5289): + the tables of the core in the export register (kalmido/core/objexport.py), read like the lint does
 (tools/check_export_tables.py register)
+2.1334.0 (#6359): the organisation export's guard holds every table like the account export's (a table without an organisation
+or list column -- a mailbox's rules, a template's files -- is in OX_AREAS, in OX_LEFT with the reason, or holds nobody's data:
+UMZ_FREE_TABLES); OX_LEFT is stale only for a table that is gone
 usage: python3 tests/export_coverage_test.py"""
 import ast
 import os
@@ -60,8 +63,15 @@ need = {t for t, cols in tables.items() if any(c in cols for c in COLS) and t no
 for t in sorted(need - areas - set(left)):
     check(False, f"{t}: has {'/'.join(c for c in COLS if c in tables[t])} but is neither in OX_AREAS nor in OX_LEFT "
                  "(kalmido/admin/orgexport.py): export it or name why it stays out")
-for t in sorted(set(left) - need):
-    check(False, f"{t}: stale in OX_LEFT (no such table, or no organisation / list column)")
+# 2.1334.0 (#6359): every table (the frame: the organisations, lists and accounts themselves; a table with nobody's data)
+_lt = ast.parse(open(os.path.join(ROOT, "kalmido", "admin", "exportleft.py"), encoding="utf-8").read())
+free = {k.value for n in _lt.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "UMZ_FREE_TABLES" for k in n.value.keys}
+every = set(tables) - set(SKIP) - {"users"} - free
+for t in sorted(every - need - areas - set(left)):
+    check(False, f"{t}: neither in OX_AREAS nor in OX_LEFT (kalmido/admin/orgexport.py): export it or name why it stays out (#6359)")
+check(not (every - areas - set(left)), f"every table is accounted for in the organisation export ({len(every)} tables, #6359)")
+for t in sorted(set(left) - set(tables)):  # 2.1334.0 (#6359): was "- need" (only tables with an organisation / list column)
+    check(False, f"{t}: stale in OX_LEFT (no such table)")
 for t in sorted(set(left) & areas):
     check(False, f"{t}: in OX_AREAS and in OX_LEFT")
 for t, why in sorted(left.items()):

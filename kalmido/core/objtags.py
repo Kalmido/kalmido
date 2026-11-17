@@ -35,6 +35,7 @@ from .pg import insert_id, st_ids
 OTG_SCOPES = ("user", "list", "org", "ws")
 OTG_PROJECT = ("list", "org")  # the scopes a task's project gives it (this stage)
 OTG_SRC = ("person", "agent", "auto")
+OTG_KINDS = ("task", "fs_entry")  # 2.1334.0 (#6585): the kinds a tag hangs on (otg_link refuses another; tools/check_export_tables.py holds each against the exports)
 OTG_ISO = r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,6})?(Z|[+-]\d\d:\d\d)$"
 
 
@@ -135,6 +136,8 @@ def otg_add(c, scope_kind, scope_id, name, color="", by=None, sort=None):
 
 
 def otg_link(c, tag_id, oid, kind="task", src="person", by=None):
+    if kind not in OTG_KINDS:  # 2.1334.0 (#6585): a new kind is named in OTG_KINDS first (the export guard holds it)
+        raise ValueError(kind)
     c.execute("INSERT INTO obj_tag_links(tag_id,kind,obj_id,src,created_by,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING",
               (tag_id, kind, oid, src if src in OTG_SRC else "person", by, now_utc()))
 
