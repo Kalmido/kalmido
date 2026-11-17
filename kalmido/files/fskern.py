@@ -58,6 +58,7 @@ def _fsk_purge(c, rid):
 
 
 obj_register(FSK_KIND, "fs_nodes", label=N_("File"), fields={}, area="other", routes=False, listed=False, fsref=False,
+             scopes=("files:read", "files:write"),  # 2.1364.0 (#6297 (8)): the file store's scopes, also on the agents' links
              space=_space, base_role=_base, visible=_visible, cap=lambda c, uid, rid: None, trash_prune=True)
 obj_on_purge(FSK_KIND, _fsk_purge, lock=lambda c, rid: fs_purge_lock(c, fs_subtree(c, rid)))  # 2.1047.0 (#5835)
 
