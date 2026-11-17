@@ -14,6 +14,8 @@
    ones or id (was: every own type of that person)
  6 a table shared by e-mail address tells nothing of an account behind it: the file store's node shows neither the bound
    account's share nor a history line naming it, and its share id answers 404 like an unknown one (was 400)
+ 7 the organisation's table / knowledge trash: a writing member deletes for good only what she made or put there, one at a
+   time (was: any one, one at a time); its admin any
 usage: p21364_c_haertung_test.py <datadir>"""
 import base64
 import os
@@ -236,5 +238,38 @@ fid = FSS[0][0] if FSS else 0
 codes = (Bo.patch(B + f"/api/sheets/{SH}/shares/{fid}", json={}).status_code, Bo.patch(B + f"/api/sheets/{SH}/shares/{fid + 9999}", json={}).status_code)
 check(codes == (404, 404), f"(6) the bound share's id answers like an unknown one {codes}")
 check(Bo.get(B + f"/api/sheets/{SH}/shares").ok, "(6) the table's own dialog still lists its shares")
+
+# ==== 7: the trash of an organisation's tables and knowledge pages
+r = A.post(B + "/api/users", json={"username": "ida", "display_name": "Ida", "password": kt.PASSWORD, "email": "ida@example.com"})
+IDA = r.json()["id"]
+check(A.patch(B + f"/api/admin/orgs/{ORG}", json={"members_add": [IDA]}).ok, "(7) setup: ida is a member of Alpha")
+Id = sess("ida")
+Id.patch(B + "/api/settings", json={"lang": "en", "features": FEATURES, "tour": "done", "workspace": f"org:{ORG}"})
+Bo.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
+SP = f"org:{ORG}"
+
+
+def trashed_sheet(s, title):
+    sid = s.post(B + "/api/sheets", json={"title": title, "space": SP}).json().get("id")
+    check(sid and s.delete(B + f"/api/sheets/{sid}").ok, f"(7) setup: table {title} in the trash")
+    return sid
+
+
+def trashed_page(s, path):
+    pid = s.post(B + "/api/wiki/pages", json={"space": SP, "path": path, "body": "text"}).json().get("id")
+    check(pid and s.delete(B + f"/api/wiki/pages/{pid}").ok, f"(7) setup: page {path} in the trash")
+    return pid
+
+
+S_BOB, S_IDA = trashed_sheet(Bo, "Bob's table"), trashed_sheet(Id, "Ida's table")
+r = Id.post(B + "/api/sheets/purge", json={"space": SP, "ids": [S_BOB]})
+check(r.status_code == 403 and dbx("SELECT 1 FROM sheets WHERE id=?", (S_BOB,)), f"(7) ida cannot delete bob's table for good ({r.status_code})")
+check(Id.post(B + "/api/sheets/purge", json={"space": SP, "ids": [S_IDA]}).json().get("ids") == [S_IDA], "(7) ida deletes her own one for good")
+check(Bo.post(B + "/api/sheets/purge", json={"space": SP, "ids": [S_BOB]}).json().get("ids") == [S_BOB], "(7) bob (admin) deletes it")
+P_BOB, P_IDA = trashed_page(Bo, "Bob page 6297"), trashed_page(Id, "Ida page 6297")
+r = Id.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_BOB]})
+check(r.status_code == 403 and dbx("SELECT 1 FROM wiki_pages WHERE id=?", (P_BOB,)), f"(7) ida cannot delete bob's page for good ({r.status_code})")
+check(Id.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_IDA]}).json().get("ids") == [P_IDA], "(7) ida deletes her own page for good")
+check(Bo.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_BOB]}).json().get("ids") == [P_BOB], "(7) bob (admin) deletes it")
 
 sys.exit(kt.done("p21364_c_haertung"))
