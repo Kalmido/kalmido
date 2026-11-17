@@ -19067,6 +19067,8 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "vergrendeld met een wachtwoord (end-to-end versleuteld): de server heeft het alleen versleuteld",
   "shared with you: only the projects you own are exported": "met jou gedeeld: alleen je eigen projecten worden geëxporteerd",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten.",
+  "Text recognised incompletely": "Tekst onvolledig herkend",
+  "The recognition ran out of time: not every page was read.": "De herkenning had niet genoeg tijd: niet elke pagina is gelezen.",
   "The organisation is moving: it is read-only.": "De organisatie verhuist: alleen lezen.",
   "Please try again later.": "Probeer het later opnieuw.",
   "The move of this organisation has already started": "De verhuizing van deze organisatie is al gestart",

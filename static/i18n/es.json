@@ -19067,6 +19067,8 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "bloqueado con contraseña (cifrado de extremo a extremo): el servidor solo lo guarda cifrado",
   "shared with you: only the projects you own are exported": "compartido contigo: solo se exportan tus propios proyectos",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Proyectos compartidos no incluidos: {0}. En esta exportación solo están tus propios proyectos.",
+  "Text recognised incompletely": "Texto reconocido de forma incompleta",
+  "The recognition ran out of time: not every page was read.": "El reconocimiento se quedó sin tiempo: no se leyeron todas las páginas.",
   "The organisation is moving: it is read-only.": "La organización se está mudando: solo lectura.",
   "Please try again later.": "Inténtelo de nuevo más tarde.",
   "The move of this organisation has already started": "La mudanza de esta organización ya ha empezado",

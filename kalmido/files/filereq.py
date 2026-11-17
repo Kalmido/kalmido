@@ -573,12 +573,16 @@ def frq_send(token):
             c.rollback()
             return frq_gone(lg)
         frq_day_full(c, r["id"], len(data))  # counted only once the file is stored
+        from .textscan import ts_mark_anon
+        ts_mark_anon(c, "fs", nid)  # 2.1337.0 (#6651): a stranger's file: the shorter clock of its text recognition
         _log(c, nid, r["created_by"], "frq_upload", r["title"] + (f" · {name}" if name else ""))
         saved.append(nid)
         from ..docs.recog import rc_after_add
         try:
             with c.savepoint():
-                rc_after_add(c, nid, r["created_by"])  # 2.353.0 D (#2759): into a recognising folder = a document (the queue's next tick)
+                if rc_after_add(c, nid, r["created_by"]):  # 2.353.0 D (#2759): into a recognising folder = a document (the queue's next tick)
+                    # 2.1337.0 (#6651): marked as a stranger's document (docs/store.py ANON_SOURCES: the shorter clock)
+                    c.execute("UPDATE doc_meta SET source='filereq' WHERE node_id=? AND source='folder'", (nid,))
         except Exception as x:  # noqa: BLE001 -- the file is in; recognising it later is "Recognise" in its menu
             print("filereq: recognition", type(x).__name__, flush=True)
         size += len(data)
