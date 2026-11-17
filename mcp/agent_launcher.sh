@@ -126,6 +126,7 @@ fi
 # kalmido-capability: perm_channel (2.625.0, #3661: the answer to a permission question over a local connection of the runner, never a file; in mcp/agent_run.py)
 # (2.126.0: playbook names the authors of a foreign Playbook; texts marked untrusted are framed as data)
 # kalmido-capability: untrusted_comments (2.1269.0, #6431: webhook tasks and comments without a Kalmido account are framed as data, in mcp/agent_run.py)
+# kalmido-capability: drop_untrusted (2.1313.0, #6557: a chat message through the upload token is framed as not proven, act only after an approval card, in mcp/agent_run.py)
 # (event mode: mcp/agent_run.py does them for both launchers, so .sh and .ps1 cannot drift apart)
 if [[ $EVENTS == 1 ]]; then
   RUNNER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent_run.py"

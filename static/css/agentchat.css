@@ -572,3 +572,5 @@ body.kb-open .acsug-l{max-height:min(30vh,9rem)}
 .agmu .agmul{list-style:none;margin:0;padding:0;display:grid;gap:.25rem}
 .agmu .agmul li{display:flex;flex-wrap:wrap;gap:.25rem .5rem;font-size:var(--fs-s)}
 .agmu .agmuk{font-weight:600}
+/* 2.1313.0 (#6557): a message sent through the upload token (via upload token) */
+.cmeta .cvia{color:var(--muted);font-size:var(--fs-xs);padding:0 .25rem}

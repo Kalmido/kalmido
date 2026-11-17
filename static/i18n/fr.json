@@ -18986,5 +18986,15 @@
   "Reject the deletion of “{0}”?": "Refuser la suppression de « {0} » ?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "La suppression est annulée ; le compte reste verrouillé jusqu’à ce qu’un administrateur le déverrouille. La personne reçoit un e-mail.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} a demandé la suppression de son compte et a été verrouillé : la suppression attend ta décision, au plus tard jusqu’au {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Décide de la suppression suspendue de {0} : sans décision, elle a lieu le {1}"
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Décide de la suppression suspendue de {0} : sans décision, elle a lieu le {1}",
+  "Create an upload token first": "Crée d'abord un token d'envoi",
+  "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "L'envoi aux agents est désactivé pour ce token d'envoi (Paramètres > Intégrations > Partager depuis ton téléphone).",
+  "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Les messages envoyés avec le token d'envoi arrivent chez tes agents marqués comme venant de l'extérieur. Tu peux le désactiver : Paramètres > Intégrations > Partager depuis ton téléphone.",
+  "Also send to agents": "Envoyer aussi aux agents",
+  "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "Le raccourci peut alors aussi écrire à tes agents. Ils traitent un tel message comme non vérifié et ne modifient rien sans ton accord.",
+  "The upload token can now send to your agents": "Le token d'envoi peut maintenant écrire à tes agents",
+  "The upload token no longer sends to your agents": "Le token d'envoi n'écrit plus à tes agents",
+  "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Ton token d'envoi peut aussi envoyer des messages à tes agents. Désactive-le là-bas si tu n'en as pas besoin.",
+  "Sent through the upload token from a phone shortcut": "Envoyé avec le token d'envoi depuis un raccourci du téléphone",
+  "via upload token": "via token d'envoi"
 }

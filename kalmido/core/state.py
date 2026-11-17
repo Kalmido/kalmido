@@ -13,6 +13,7 @@ from ..core.dlock import dl_list_hidden  # 2.235.0 B (#2902)
 from ..core.objfollow import ofl_bells_here  # 2.981.0 (#5287): a project's bell is a row of the core's obj_follow
 from ..core.db import ag_cursor, ag_cursor_parse, db, err, gsetting, inbox_names, iso, local_now, lv_versions, now_utc, usettings  # 2.619.0 (#3890): + lv_versions
 from ..accounts.session import me, session_gen, user_public
+from ..core.tokenhash import drop_agent_of  # 2.1313.0 (#6557)
 from ..accounts.pictures import avatar_map, list_icon_url
 from ..accounts.colors import ac_color_map
 from ..core.access import (
@@ -396,6 +397,8 @@ def state():
         me={**user_public(u), "orgs": _org_names(c, u["id"]), "is_admin": bool(u["is_admin"]), "auth": g.auth_via, "has_password": bool(u["password_hash"]),
             # 2.138.0 C (#1907): only whether an upload token is set (the token itself is shown once, when created)
             "drop_token_set": bool(not u["kid"] and u["drop_token_hash"]), "drop_token_at": "" if u["kid"] else (u["drop_token_at"] or ""),
+            # 2.1313.0 (#6557): the token may also send to the agents (to=agent); hint = not yet told that this can be switched off
+            **drop_agent_of(u),
             "workspaces": (ws := workspaces_for(c, uid)), "sgen": session_gen(u, ws),  # 2.28.0 (#935): my organisations [{id, name, icon, role}]; 2.238.0 B (#2872): + the sign-in mark
             "since": str(u["created_at"] or "")[:10],  # 2.364.0 B (#3031): the account's first day (Today's review from the second week)
             "support_session": sga_is_support(c)},  # 2.538.0 (#4365): the app hides what a support session may not fetch

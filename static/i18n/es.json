@@ -18986,5 +18986,15 @@
   "Reject the deletion of “{0}”?": "¿Rechazar la eliminación de «{0}»?",
   "The deletion is cancelled; the account stays locked until an admin unlocks it. The person gets an e-mail.": "La eliminación se cancela; la cuenta sigue bloqueada hasta que un admin la desbloquee. La persona recibe un correo.",
   "{0} asked to delete their account and was locked: the deletion waits for your decision, at the latest until {1}": "{0} pidió eliminar su cuenta y fue bloqueada: la eliminación espera tu decisión, a más tardar hasta el {1}",
-  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decide sobre la eliminación en pausa de {0}: sin decisión se realiza el {1}"
+  "Decide on the held deletion of {0}: without a decision it runs on {1}": "Decide sobre la eliminación en pausa de {0}: sin decisión se realiza el {1}",
+  "Create an upload token first": "Crea primero un token de subida",
+  "Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).": "El envío a agentes está desactivado para este token de subida (Ajustes > Integraciones > Compartir desde el móvil).",
+  "Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.": "Los mensajes enviados con el token de subida llegan a tus agentes marcados como externos. Puedes desactivarlo en Ajustes > Integraciones > Compartir desde el móvil.",
+  "Also send to agents": "Enviar también a agentes",
+  "The shortcut can then also write to your agents. They treat such a message as not proven and change something only after your approval.": "El atajo podrá escribir también a tus agentes. Tratan ese mensaje como no verificado y solo cambian algo tras tu aprobación.",
+  "The upload token can now send to your agents": "El token de subida ya puede enviar a tus agentes",
+  "The upload token no longer sends to your agents": "El token de subida ya no envía a tus agentes",
+  "Your upload token can also send messages to your agents. Switch it off there if you do not need it.": "Tu token de subida también puede enviar mensajes a tus agentes. Desactívalo allí si no lo necesitas.",
+  "Sent through the upload token from a phone shortcut": "Enviado con el token de subida desde un atajo del móvil",
+  "via upload token": "con token de subida"
 }

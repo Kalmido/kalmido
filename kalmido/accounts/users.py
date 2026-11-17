@@ -25,7 +25,7 @@ from ..core.access import acx_drop, collab_all, Denied, joined_lists_sql, list_r
 from ..core.serializers import unlink_files
 from ..core.errors import BadInput
 from ..core.orgcrypt import oc_drop_key, oc_list_org, oc_send_file, oc_write_file, rck_admin_gone, rck_admin_orgs  # 2.149.0 G (#2517): pulled up from functions; 2.539.0 (#4373): rck_*
-from ..core.tokenhash import tkh_set_drop  # 2.149.0 G (#2517): pulled up from functions
+from ..core.tokenhash import drop_agent_of, tkh_set_drop  # 2.149.0 G (#2517): pulled up from functions; 2.1313.0 (#6557): drop_agent_of
 from ..core.schema import USER_DEFAULTS  # 2.369.5 (#2517): pulled up from functions
 from .delhold import sdl_hold_dict  # 2.1298.0 (#6395)
 from .colors import ac_valid  # 2.369.5 (#2517): pulled up from functions
@@ -717,6 +717,8 @@ def me_get():
                     # 2.138.0 C (#1907): the upload token is shown only when created (POST /api/me/drop-token); here only
                     # whether one is set and since when. 2.86.0 (N3): /drop takes no child account
                     "drop_token_set": bool(not u["kid"] and u["drop_token_hash"]), "drop_token_at": "" if u["kid"] else (u["drop_token_at"] or ""),
+                    # 2.1313.0 (#6557): as in /api/state
+                    **drop_agent_of(u),
                     "ntfy_topic": usettings(c, u["id"])["ntfy_topic"],
                     "support_session": sga_is_support(c),  # 2.538.0 (#4365): as in /api/state
                     "sgen": session_gen(u, workspaces_for(c, u["id"]))})  # 2.238.0 B (#2872): the sign-in mark (as in /api/state)
@@ -753,6 +755,10 @@ def me_update():
         if not ac_valid(b["color"]):
             return err(tr("Invalid data"))
         c.execute("UPDATE users SET color=? WHERE id=?", (b["color"].lower(), u["id"]))
+    if "drop_agent" in b or "drop_agent_hint" in b:  # 2.1313.0 (#6557): the switch of the upload token, the hint seen
+        e = drop_agent_set(c, u, b)
+        if e:
+            return e
     if "password" in b:
         keys = _rate_keys(u["username"])
         e = login_wait(keys, u["username"])  # 2.282.0 (#3111): other accounts' failures at this address do not stop it
@@ -788,6 +794,27 @@ def me_update():
         from .secmail import sec_mail
         sec_mail(c, u["id"], "password")
     return jsonify(ok=True)
+
+
+def drop_agent_set(c, u, b):
+    """2.1313.0 (#6557): PATCH /api/me {drop_agent: bool} = may the upload token (/drop) also send messages to the person's
+    agents; {drop_agent_hint: false} = the one-time hint about it was seen (setting the switch clears it too). Only in a
+    signed-in session of the person (not an API token, an app password, a support session or a child account): the switch
+    opens a way to instruct agents. An error response or None."""
+    from ..accounts.supportgrant import sga_is_support
+    if u["kid"] or g.auth_via != "session" or sga_is_support(c):
+        return err(tr("Not allowed"), 403)
+    if "drop_agent" in b:
+        if not isinstance(b["drop_agent"], bool):
+            return err(tr("Invalid value: {0}", "drop_agent"))
+        if b["drop_agent"] and not u["drop_token_hash"]:
+            return err(tr("Create an upload token first"), 409)
+        c.execute("UPDATE users SET drop_agent=? WHERE id=?", (1 if b["drop_agent"] else 0, u["id"]))
+    elif "drop_agent_hint" in b:  # the hint was shown: a token from before stays on (NULL -> 1)
+        if b["drop_agent_hint"] is not False:
+            return err(tr("Invalid value: {0}", "drop_agent_hint"))
+        c.execute("UPDATE users SET drop_agent=1 WHERE id=? AND drop_agent IS NULL", (u["id"],))
+    return None
 
 
 @app.post("/api/me/drop-token")

@@ -469,6 +469,12 @@ def drop_post():
         return Response(tr("nothing received", lg=lg) + "\n", 400, mimetype="text/plain")
     to = (request.form.get("to") or "").strip()
     if to:  # 2.13.1 (#465): "Send to agent" (iOS Shortcut / HTTP Shortcuts): the files + text go into an agent chat
+        # 2.1313.0 (#6557): only when the person switched it on for this token (Settings > Integrations > Share from your phone):
+        # the token lives in plain text in other apps and never expires, so by default it is no channel to instruct agents
+        if u["drop_agent"] == 0:  # NULL = a token from before 2.1313.0: on (core/migrations.d/6557.py)
+            print("drop: 403 to agent, switched off for user", u["id"], flush=True)
+            return Response(tr("Sending to agents is switched off for this upload token (Settings > Integrations > Share from your phone).", lg=lg) + "\n",
+                            403, mimetype="text/plain")
         return drop_to_agent(c, u, lg, to, text, files)
     first, _, rest = text.partition("\n")
     first, rest, url = split_link(first.strip(), rest.strip())
@@ -481,6 +487,9 @@ def drop_post():
     print("drop: task", tid, "user", u["id"], repr(title), len(files), "files", e or "", flush=True)
     n = trn(", {0} file", ", {0} files", len(files), lg=lg) if files and title != tr("{0} files shared", len(files), lg=lg) else ""
     return Response(f"Kalmido: {title}{n}" + (f" ({tr('error: {0}', e, lg=lg)})" if e else "") + "\n", mimetype="text/plain")
+
+
+DROP_SOURCE = "drop"  # 2.1313.0 (#6557): agent_chat.source of a message sent through the upload token
 
 
 def drop_agent(c, uid, to):
@@ -500,9 +509,12 @@ def drop_agent(c, uid, to):
 
 
 def drop_to_agent(c, u, lg, to, text, files):
+    """2.1313.0 (#6557): the message is marked as sent through the upload token (agent_chat.source 'drop'): the agent gets it
+    with origin 'drop' + untrusted (agents/chat.py chat_one / chat_emit) and treats it like text from outside (acts only after
+    an approval card). The first such message of a token from before 2.1313.0 carries the one-time hint in the answer."""
     from ..collab.comments import user_names
     from ..agents.core import agent_active, agent_row, CHAT_MAX
-    from ..agents.chat import chat_emit, CHAT_FILES_MAX, chat_post, chat_unlink_trimmed
+    from ..agents.chat import chat_emit, CHAT_FILES_MAX, chat_post, chat_set_source, chat_unlink_trimmed
     aid = drop_agent(c, u["id"], to)
     a = agent_row(c, aid) if aid else None
     if not a:
@@ -513,12 +525,19 @@ def drop_to_agent(c, u, lg, to, text, files):
         r = chat_post(c, aid, u["id"], "user", {"body": text[:CHAT_MAX]}, files[:CHAT_FILES_MAX])
     except BadInput as e:
         return Response(f"Kalmido: {e}\n", 400, mimetype="text/plain")
+    r = chat_set_source(c, r, DROP_SOURCE)
     chat_emit(c, aid, r)
+    hint = u["drop_agent"] is None  # a token from before 2.1313.0: told once, then it stays on
+    if hint:
+        c.execute("UPDATE users SET drop_agent=1 WHERE id=? AND drop_agent IS NULL", (u["id"],))
     c.commit()
     chat_unlink_trimmed()
     name = user_names(c, [aid]).get(aid, "")
     print("drop: chat message", r["id"], "user", u["id"], "agent", aid, len(files), "files", flush=True)
-    return Response(tr("Kalmido: sent to {0}", name, lg=lg) + "\n", mimetype="text/plain")
+    out = tr("Kalmido: sent to {0}", name, lg=lg)
+    if hint:
+        out += "\n" + tr("Messages through the upload token reach your agents marked as from outside. You can switch this off: Settings > Integrations > Share from your phone.", lg=lg)
+    return Response(out + "\n", mimetype="text/plain")
 
 
 @app.get("/robots.txt")

@@ -1150,6 +1150,7 @@ function settingsModal(focus) {
   md.addEventListener('change', e => {
     const el = e.target;
     if (el.id === 'a-name') { saveName(); return; }
+    if (el.id === 's-dropag') { dropAgentSet(el); return; }  // 2.1313.0 (#6557)
     if (SETS[el.id]) { saveEl(el); if (el.id === 's-pushch') { ntfyShow(md); wpState(md); } return; }
     if (el.dataset.agvis) {  // 2.6.1 (#402): which agents show a status dot in the header
       const hid = agentHidden(), aid = +el.dataset.agvis;
