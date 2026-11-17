@@ -95,6 +95,12 @@ for org, tag in ((ORG, "alpha"), (ORGB, "beta")):
     dbx("INSERT INTO agents(user_id, org_id, created_at) VALUES(?, ?, ?)", (AG[tag], org, TS))
     dbx("INSERT INTO agent_rules(agent_id, body, source_kind, source_excerpt, source_user_id, source_task_id, created_at, updated_at) "
         "VALUES(?, ?, 'chat', ?, ?, ?, ?, ?)", (AG[tag], f"Regel {tag}", f"Auszug {tag}", ALICE, ta[0] if tag == "alpha" else tb[0], TS, TS))
+# review #5144 F1: a proposal of alpha's team agent and the rule of a member's personal agent in alpha: never in the archive
+dbx("INSERT INTO agent_rules(agent_id, body, state, created_at, updated_at) VALUES(?, 'Regel vorgeschlagen', 'proposed', ?, ?)", (AG.get("alpha"), TS, TS))
+CAROL = one(dbx("INSERT INTO users(username, display_name, created_at) VALUES('carol', 'Carol Mitglied', ?) RETURNING id", (TS,)))
+AGP = one(dbx("INSERT INTO users(username, display_name, kind, created_at) VALUES('agent-carol', 'Agent Carol', 'agent', ?) RETURNING id", (TS,)))
+dbx("INSERT INTO agents(user_id, org_id, owner_id, created_at) VALUES(?, ?, ?, ?)", (AGP, ORG, CAROL, TS))
+dbx("INSERT INTO agent_rules(agent_id, body, created_at, updated_at) VALUES(?, 'Regel persoenlich', ?, ?)", (AGP, TS, TS))
 HIST = "INSERT INTO obj_history(kind, ref_id, org_id, user_id, action, vals_before, vals_after, created_at, updated_at) " \
        "VALUES(?, ?, ?, ?, 'update', CAST(? AS JSONB), CAST(? AS JSONB), ?, ?)"
 dbx(HIST, ("task", ta[0], ORG, ALICE, '{"title": "Alpha alt"}', '{"title": "Alpha neu"}', TS, TS))
@@ -119,8 +125,9 @@ lk = rows_of(z, "links.json")
 check([(r.get("src_id"), r.get("dst_id"), r.get("rel"), r.get("note")) for r in lk] == [(ta[0], ta[1], "related", "frei verknuepft")],
       f"links.json: the free link of alpha in the core's columns; never one to beta's task or a person's own (review F2) {lk}")
 ar = rows_of(z, "agents/rules.json")
-check([r.get("body") for r in ar] == ["Regel alpha"], f"agents/rules.json: the rule of alpha's agent, never beta's (review F1) {ar}")
-check(ar and not any(k in ar[0] for k in ("source_excerpt", "source_user_id", "source_task_id", "source_id")),
+check([r.get("body") for r in ar] == ["Regel alpha"],
+      f"agents/rules.json: the rule of alpha's team agent, never beta's, a proposal or a member's personal agent's (review F1) {ar}")
+check(ar and not any(k in ar[0] for k in ("source_excerpt", "source_user_id", "source_task_id", "source_id", "card_id", "created_by")),
       f"agents/rules.json: never where a rule was learned (review F3) {ar}")
 hs = rows_of(z, "history/changes.json")
 hb = json.dumps(hs)
@@ -221,6 +228,8 @@ check(A.get(B + "/api/account/export").json().get("state") == "done", "alice: ac
 az = unzip(su_get(A, B + "/api/account/export/file").content)
 on = rows_of(az, "data/org_doc_notes.json")
 check([(n.get("node_id"), n.get("text")) for n in on] == [(ODOC, "Alice in Alpha")], f"alice: my note on an organisation's document {on}")
+apl = rows_of(az, "data/private_links.json")
+check(any(x.get("note") == "eigen verknuepft" for x in apl), f"alice: my own link inside an organisation (review #5144 F2) {apl}")
 ms = rows_of(az, "data/memberships.json")
 check({m.get("org_name") for m in ms} >= {"Alpha Quelle", "Beta Fremd"}, f"alice: the organisations I am a member of {ms}")
 

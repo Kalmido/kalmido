@@ -248,12 +248,14 @@ obj_export("obj_links", org=(("books/contact_tasks.json", "src_kind='contact' AN
                              # review F2: both sides objects the archive carries, never a person's own link ({LINKED})
                              ("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE} AND {LINKED}")),
            acct_more=(("private_links", """SELECT id, src_kind, src_id, dst_kind, dst_id, rel, note, extra::text AS extra, created_by, agent_id,
-                          created_at, updated_at FROM obj_links WHERE org_id IS NULL AND {LIVE} AND (
+                          created_at, updated_at FROM obj_links WHERE {LIVE} AND ((org_id IS NULL AND (
                           (rel='contact' AND src_kind='contact' AND src_id IN (SELECT id FROM contacts WHERE book_id IN
                               (SELECT id FROM books WHERE owner_id=? AND owner_org_id IS NULL AND {LIVE})))
                           OR (rel='made' AND src_kind='hub_mail' AND src_id IN (SELECT id FROM hub_mails WHERE owner_id=? AND org_id IS NULL
                               AND {LIVE}))
-                          OR (rel NOT IN {AREA_RELS} AND created_by=?)) ORDER BY id""", "Links"),),
+                          OR (rel NOT IN {AREA_RELS} AND created_by=?)))
+                          OR (owner_id=? AND rel NOT IN {AREA_RELS})) ORDER BY id""", "Links"),),  # review F2: + my own links in an organisation
+           # (today no writer sets owner_id and org_id together -- life/devlink.py owner only, obj_link org only; held for a later one)
            rx=(("letters/letter-links.csv", "org_id=? AND {LETTER_LINKS} AND src_id IN (SELECT id FROM office_letters WHERE org_id=? AND status<>'draft')"),))
 # 2.958.0 (#5281) / 2.977.0 (#5282): the versions of knowledge pages, Playbooks and the procedure documentation (old columns: ox_objv_row)
 obj_export("obj_versions", org=(("lists/playbooks.json", "kind='playbook' AND ref_id IN (SELECT id FROM playbooks WHERE list_id IN ({LSQ}))"),

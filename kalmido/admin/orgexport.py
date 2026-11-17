@@ -225,7 +225,7 @@ def _clean(c, oid, table, r):
     if table == "template_files":  # 2.1334.0 (review F4): the server's storage path stays here (the file is under files/templates/)
         row.pop("path", None)
     if table == "agent_rules":  # 2.1334.0 (#6585): the rule, never where it was learned (a member's private chat with the agent, a
-        for k in ("source_excerpt", "source_user_id", "source_task_id", "source_id"):  # task of a list the admin may not see; review F3)
+        for k in ("source_excerpt", "source_user_id", "source_task_id", "source_id", "card_id", "created_by"):  # task of a list the admin may not see; review F3)
             row.pop(k, None)
     if table == "obj_tags":  # 2.947.0 (#5275): the columns of list_tags / the labels' file
         k, v = row.pop("scope_kind"), row.pop("scope_id")
@@ -380,7 +380,9 @@ OX_AREAS = (
     # 2.1334.0 (#6585, audit #4808 T13 4): the file copies of these templates (the bytes under files/templates/), the rules the
     # organisation's agents learned (the agents themselves are connected anew) and the document rules of the workspace mailbox
     ("lists/template_files.json", "template_files", f"template_id IN (SELECT id FROM templates WHERE org_id=? AND {live_sql()})"),
-    ("agents/rules.json", "agent_rules", "agent_id IN (SELECT user_id FROM agents WHERE org_id=?)"),  # review F1: an agent's key is user_id
+    # review F1: an agent's key is user_id; only the organisation's team agents (a member's personal agent is theirs) and only rules
+    # in force (a proposal waits for its person, 2.1269.0 #6451)
+    ("agents/rules.json", "agent_rules", "agent_id IN (SELECT user_id FROM agents WHERE org_id=? AND owner_id IS NULL) AND state<>'proposed'"),
     ("lists/ticket_types.json", "ticket_types", "org_id=?"),  # 2.609.0 (#3372): the organisation's own ticket types
     # 2.959.0 (#4031): the organisation's field schema (lists/orgfields.py; list_fields.org_field_id names a row of it), a plain
     # part (OX_PART_COLS: no table internals)
