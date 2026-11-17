@@ -153,6 +153,10 @@ for rel in tracked_files():
     parts = rel.replace(os.sep, "/").split("/")
     if parts[0].startswith("CHANGELOG") or parts[0] == "changelog.d" or rel.replace(os.sep, "/").startswith("docs/changelog/"):
         continue
+    # 2.1336.0 (#6505): README.md is written only by the live train (#2691); the package hands the rename over as README notes
+    # in its changelog.d part, so the build branch cannot change it and the guard skips it
+    if rel == "README.md":
+        continue
     try:
         with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
             lines = f.read().splitlines()
