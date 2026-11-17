@@ -16,6 +16,8 @@ tenant-matrix: office  freelancer-matrix: office
  - bank: bank.bnk_suggest with the index (bnk_suggest_index) gives the same suggestions in the same order as the full
    pair loop (random bookings, invoices and receipts with shared words / amounts); the bank list suggests the receipt of
    the same amount
+ - 2.1315.0 (#6403): rc_receipts has the indexes ix6403_rc_receipts_ws / ix6403_rc_receipts_billed and the lookups by ws /
+   billed_doc_id use them (EXPLAIN, sequential scans off)
 usage: p2546_4186_office_perf_test.py <datadir>"""
 import base64
 import json
@@ -305,5 +307,19 @@ check(r.status_code == 201, "bank: import one booking " + r.text[:200])
 items = A.get(B + O + "/bank/tx").json().get("items", [])
 sug = [s_["id"] for t in items for s_ in t.get("suggestions", []) if s_["kind"] == "receipt"]
 check(sug[:1] == [RA[1]], f"bank: the booking of 23.80 suggests the receipt of the same amount {sug}")
+
+# 2.1315.0 (#6403): rc_receipts has indexes on the area (ws) and on the invoice a receipt was billed on (partial); the office's
+# statements (ws=?, ws=? AND billed_doc_id=?) can use them. Sequential scans off: the few test rows would else be read whole.
+CODE = """
+import json
+c.execute("SET LOCAL enable_seqscan = off")
+ix = sorted(r[0] for r in c.execute("SELECT indexname FROM pg_indexes WHERE tablename='rc_receipts'"))
+p1 = "\\n".join(r[0] for r in c.execute("EXPLAIN SELECT node_id FROM rc_receipts WHERE ws='w-x'"))
+p2 = "\\n".join(r[0] for r in c.execute("EXPLAIN SELECT node_id FROM rc_receipts WHERE billed_doc_id=1"))
+print(json.dumps({"ix": ix, "ws": "ix6403_rc_receipts_ws" in p1, "billed": "ix6403_rc_receipts_billed" in p2, "p1": p1, "p2": p2}))
+"""
+res = last_json(in_app(CODE))
+check({"ix6403_rc_receipts_ws", "ix6403_rc_receipts_billed"} <= set(res.get("ix", [])), f"#6403: rc_receipts has its indexes on ws and billed_doc_id {res.get('ix')}")
+check(res.get("ws") and res.get("billed"), f"#6403: the lookups by area and by billed invoice use them {res}")
 
 sys.exit(kt.done("p2546_4186_office_perf"))
