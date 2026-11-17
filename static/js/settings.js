@@ -265,11 +265,11 @@ function sf_adopt(w) {
   const own = Element.prototype.scrollIntoView; h.scrollIntoView = function (o) { sf_reveal(this, true); return own ? own.call(this, o) : undefined; };
 }
 const SF_IC = {lang: 'globe', startpg: 'home', fmt: 'clock', today: 'sun', dates: 'done', plan: 'cal', wt: 'brief', ind: 'sliders',
-  lookin: 'palette', split: 'columns', wacc: 'palette', lemo: 'smile', sdd: 'done', tips: 'bulb', tabbar: 'menu', prbg: 'rows', side: 'panel', sv: 'eye', fav: 'star',
+  lookin: 'palette', split: 'columns', wacc: 'palette', lemo: 'smile', sdd: 'done', tips: 'bulb', tabbar: 'menu', prbg: 'list', side: 'panel', sv: 'eye', fav: 'star',
   dlv: 'send', thisdev: 'phone', inapp: 'bell', ntfy: 'bellring', rem: 'alarm', quiet: 'moon',
   imp: 'upload', exp: 'download', pmeta: 'camera', vext: 'film', tpl: 'note', sample: 'sparkle', umz: 'arrow', 'xlstd-sec': 'link', ofdata: 'receipt',
   account: 'user', mview: 'eye', sig: 'edit', purpose: 'target', nav: 'menu',
-  company: 'building', tax: 'wallet', docs: 'file', packs: 'pack', functions: 'sliders', data: 'archive', access: 'shield', rights: 'shield', bizmail: 'mail'};
+  company: 'building', tax: 'wallet', docs: 'file', packs: 'box', functions: 'sliders', data: 'archive', access: 'shield', rights: 'shield', bizmail: 'mail'};
 const SF_ST = {  // a short state of a few sections (the rest: only the count of changed settings)
   lang: d => $('[data-lang-set].on', d)?.textContent.trim() || '',
   lookin: d => $('#s-theme button.on', d)?.textContent.trim() || '',

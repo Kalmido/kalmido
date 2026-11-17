@@ -77,7 +77,7 @@ const YEAR = new Date().getFullYear();
       const r = JSON.parse(await ev(`(() => { const p = document.querySelector('.smodal [data-pane="${tab}"]');
         const loose = [...p.querySelectorAll('h4')].filter(h => !h.closest('details.sfold, details.introw, details.modgrp, details.mopt, .lookpv')).map(h => h.id || h.textContent.trim().slice(0, 30));
         const rows = [...p.querySelectorAll('details.sfold')];
-        return JSON.stringify({loose, n: rows.length, open: rows.filter(d => d.open).map(d => d.dataset.sf), bad: rows.filter(d => { const s = d.querySelector(':scope > summary'); return !s.querySelector(':scope > svg:first-child') || !s.querySelector(':scope > h4, :scope > h3') || !s.querySelector(':scope > .fcar'); }).map(d => d.dataset.sf)}); })()`));
+        return JSON.stringify({loose, n: rows.length, open: rows.filter(d => d.open).map(d => d.dataset.sf), bad: rows.filter(d => { const s = d.querySelector(':scope > summary'); return !s.querySelector(':scope > svg:first-child')?.innerHTML.trim() || !s.querySelector(':scope > h4, :scope > h3') || !s.querySelector(':scope > .fcar'); }).map(d => d.dataset.sf)}); })()`));
       check(!r.loose.length, `${tab}: no heading outside a head row ` + JSON.stringify(r.loose));
       check(r.n >= 1 && !r.bad.length, `${tab}: head rows with icon, heading and chevron ` + JSON.stringify(r));
       const want = {look: ['look/lookin'], help: ['help/n0'], nav: ['nav/nav']}[tab] || [];
@@ -142,11 +142,11 @@ const YEAR = new Date().getFullYear();
       await open(o, 'biz', '.smodal #s-biz #ofc-set #s-biz-company');
       return JSON.parse(await ev(`(() => { const f = document.querySelector('.smodal #ofc-set');
         const rows = [...f.querySelectorAll(':scope > details.sfold')];
-        return JSON.stringify({ids: rows.map(d => d.dataset.sf), open: rows.filter(d => d.open).length, loose: [...f.querySelectorAll(':scope > h3, :scope > fieldset.ostp')].length,
+        return JSON.stringify({ids: rows.map(d => d.dataset.sf), open: rows.filter(d => d.open).length, noic: rows.filter(d => !d.querySelector(':scope > summary > svg:first-child')?.innerHTML.trim()).map(d => d.dataset.sf), loose: [...f.querySelectorAll(':scope > h3, :scope > fieldset.ostp')].length,
           co: rows.find(d => d.dataset.sf === 'biz/company')?.querySelector('summary').textContent.trim() || ''}); })()`));
     };
     const bo = await biz(`org:${ORG}`);
-    check(bo.ids[0] === 'biz/company' && bo.ids.includes('biz/docs') && bo.ids.includes('biz/tax') && !bo.open && !bo.loose, 'office of the organisation: the groups are closed head rows ' + JSON.stringify(bo));
+    check(bo.ids[0] === 'biz/company' && bo.ids.includes('biz/docs') && bo.ids.includes('biz/tax') && !bo.open && !bo.loose && !bo.noic.length, 'office of the organisation: the groups are closed head rows, each with its icon ' + JSON.stringify(bo));
     check(/Alpha Studio/.test(bo.co), 'office of the organisation: "Firma" names the company ' + bo.co);
     await shot('p21353-a-biz-org-1440.png');
     // small business + invoice numbers in the head row of Documents & numbers
