@@ -18,6 +18,9 @@ ZIP layout (format "kalmido-account", v 1; admin/acctimport.py reads it):
                         2.362.2 (#3099): the files of my knowledge pages and tables; #3134: the file copies of my templates
     personal-office/   2.362.2 (#3099): my personal office, readable, the same parts as its own export (orgexport.ox_pb_parts);
                         the import names it as staying behind, its own export takes it to another server
+    private-documents/ 2.1334.0 (#6585): the details of the documents of my private document store (documents/*.json in the
+                        shape of an organisation's: title, date, sender, type, fields, text, receipts, notes, tags, rules);
+                        the files themselves are private_files. The import names it as staying behind (not_imported)
     checksum.sha256    "sha256  path" lines (sha256sum -c): manifest.json and every file of the manifest
 
 Never in the file: passwords, session tokens, token hashes, two-factor data, push addresses and keys (only device, browser and
@@ -49,11 +52,12 @@ from ..core.db import connect, db, err, iso, now_utc
 from ..core.objexport import oex_acct  # 2.1097.0 (#5949): the parts of the core's tables (the export register)
 from ..core.pg import snapshot_level, system_ctx
 from ..core.i18n import N_, lang, tr
-from ..core.access import Denied, acx_lists_sql, acx_of, otr_live
+from ..core.access import Denied, acx_lists_sql, acx_of, live_sql, otr_live
 from ..accounts.orgout import oo_exported  # 2.362.3 (#3101)
 from ..accounts.pictures import avatar_path
 from ..accounts.session import me
-from .orgexport import EXPORT_DIR, OX_SECRET_COLS, _Man, _jdef, _safe_part, _under, ox_pb_parts, ox_read_listed
+from ..docs.store import doc_open  # 2.1334.0 (#6585): my notes on an organisation's documents (org_doc_notes)
+from .orgexport import EXPORT_DIR, OX_SECRET_COLS, _Man, _jdef, _safe_part, _under, ox_pb_parts, ox_private_docs, ox_read_listed
 from .exportleft import left_lines, umz_later_names, umz_left_tables  # 2.362.4 (#3107), 2.531.0 (#4317); 2.1093.0 (#5289): + the core's register
 from .offsite import stepup_download  # 2.360.0 A (#2496): the step-up before the download
 from ..core.orgcrypt import OrgCryptError, oc_read_file  # 2.149.0 G (#2517): pulled up from functions
@@ -316,6 +320,11 @@ def umz_people(c, uid, salt=None):
     return list(out.values())
 
 
+# 2.1334.0 (#6585 T13 3): the files and voice messages a person sent in direct messages and in the rooms of their private space
+UMZ_TCHAT_FILES = (f"FROM tchat_files f JOIN tchat_rooms r ON r.id=f.room_id JOIN tchat_msgs m ON m.id=f.message_id AND {live_sql('m')} "
+                   "WHERE f.user_id=? AND (r.kind='dm' OR r.org_id IS NULL)")
+
+
 def umz_extra_queries(uid):
     own = f"(SELECT id FROM lists WHERE owner_id=? AND ({otr_live('')} OR org_id IS NULL))"  # 2.102.0 review F3: an organisation's list in its trash is the organisation's
     private = "(SELECT id FROM lists WHERE owner_id=? AND org_id IS NULL)"  # 2.360.2 (#2561): answers sent to an organisation stay there
@@ -371,7 +380,10 @@ def umz_extra_queries(uid):
         "template_files": ("SELECT id, template_id, node_key, name, mime, size, scan, created_at FROM template_files WHERE user_id=? ORDER BY id", (uid,)),  # #3134
         "agent_chats": ("SELECT id, agent_id, sender, body, task_id, created_at FROM agent_chat WHERE user_id=? ORDER BY id", (uid,)),
         "agent_chat_prefs": ("SELECT agent_id, prefs, updated_at FROM agent_chat_prefs WHERE user_id=? ORDER BY agent_id", (uid,)),  # 2.233.0 A (#2848)
-        "direct_messages": ("SELECT m.id, m.room_id, m.body, m.enc, m.created_at, m.edited_at FROM tchat_msgs m JOIN tchat_rooms r ON r.id=m.room_id "
+        # 2.1334.0 (#6585 T13 3): + the person on the other side by name (as on the people of my lists, never their address)
+        "direct_messages": ("SELECT m.id, m.room_id, (SELECT COALESCE(NULLIF(u.display_name, ''), u.username) FROM users u "
+                            "WHERE u.id = CASE WHEN r.a=m.user_id THEN r.b ELSE r.a END) AS with_name, m.body, m.enc, m.created_at, "
+                            "m.edited_at FROM tchat_msgs m JOIN tchat_rooms r ON r.id=m.room_id "
                             "WHERE r.kind='dm' AND m.user_id=? AND m.deleted_at IS NULL ORDER BY m.id", (uid,)),
         "absences": ("SELECT id, org_id, kind, start_date, end_date, half_day, note, status, decided_at, decision_note, created_at "
                      "FROM hub_absences WHERE user_id=? AND deleted_at IS NULL ORDER BY start_date", (uid,)),
@@ -416,6 +428,35 @@ def umz_extra_queries(uid):
                          "WHERE org_id IS NULL AND owner_id=? ORDER BY sort, id", (uid,)),
         "org_fields": ("SELECT id, key, name, type, options, sort, created_at FROM org_fields "
                        "WHERE org_id IS NULL AND owner_id=? ORDER BY sort, id", (uid,)),
+        # 2.1334.0 (#6359): what I typed in myself that was "not yet in the account export": the files of my agent chats, the
+        # costs of my trips, the rewards of my family, the remembered shopping items and the table links of my lists, my chat
+        # messages saved as tasks, my spaces of knowledge pages (never a key: wkx_holds / e2e names only the state) and the
+        # document rules of my mailbox. The import leaves them behind (acctimport.py UMZ_LEFT_OWN): an Art. 20 copy
+        "chat_files": ("""SELECT f.id, f.message_id, m.agent_id, f.name, f.mime, f.size, f.created_at FROM chat_files f
+                          JOIN agent_chat m ON m.id=f.message_id WHERE m.user_id=? ORDER BY f.id""", (uid,)),
+        "trip_costs": (f"SELECT list_id, trip_id, created_by, created_at FROM life_trip_costs WHERE list_id IN {own} ORDER BY created_at", (uid,)),
+        "kid_rewards": ("""SELECT id, kid_id, title, emoji, cost, once, state, requested_at, decided_at, decided_by, created_by, created_at
+                           FROM kid_rewards WHERE kid_id=? OR created_by=? ORDER BY id""", (uid, uid)),
+        "shop_memory": (f"SELECT list_id, item, section_id, at FROM shop_memory WHERE list_id IN {own} ORDER BY list_id, item", (uid,)),
+        "sheet_links": (f"""SELECT id, sheet_id, row_id, kind, target_id, list_id, batch, created_by, created_at, undone_at FROM sheet_links
+                           WHERE sheet_id IN (SELECT id FROM sheets WHERE {sheets}) OR list_id IN {own} ORDER BY id""", (uid, uid)),
+        "chat_saves": ("SELECT kind, msg_id, task_id, created_at FROM chat_saves WHERE user_id=? ORDER BY created_at", (uid,)),
+        "wiki_spaces": ("SELECT id, e2e IS NOT NULL AS locked, e2e_at FROM wiki_spaces WHERE owner_id=? AND org_id IS NULL ORDER BY id", (uid,)),
+        "mailbox_rules": ("""SELECT id, name, active, pos, from_has, subject_has, need_att, max_age, take_mail, take_files, folder, tags,
+                             target_id, after, after_folder, delete_mail, sender_from_mail, hits, last_hit_at, created_at, updated_at
+                             FROM hub_mailbox_rules WHERE box_id IN (SELECT id FROM hub_mailboxes WHERE owner_id=? AND org_id IS NULL)
+                             ORDER BY pos, id""", (uid,)),
+        # 2.1334.0 (#6585, audit #4808 T13): the files and voice messages I sent in direct messages and in the rooms of my private
+        # space (an organisation's rooms: its export); the bytes under files/chat/ (umz_build)
+        "chat_message_files": ("SELECT f.id, f.message_id, f.room_id, r.kind AS room_kind, f.name, f.mime, f.size, f.voice, f.duration_ms, "
+                               f"f.created_at {UMZ_TCHAT_FILES} ORDER BY f.id", (uid,)),
+        # Art. 15 (#6585 T13 7): my account's own row (never a secret: OX_SECRET_COLS and umz_account_row), the organisations I am
+        # a member of with my role, and the sign-in addresses this server keeps of me
+        "account": ("""SELECT id, username, display_name, email, email_proved, kind, kid, color, created_at, signup, disabled,
+                       is_admin, storage_quota_mb, delete_at FROM users WHERE id=?""", (uid,)),
+        "memberships": ("""SELECT m.org_id, o.name AS org_name, m.role, o.personal_of IS NOT NULL AS personal_office FROM org_members m
+                           JOIN orgs o ON o.id=m.org_id WHERE m.user_id=? ORDER BY m.org_id""", (uid,)),
+        "login_ips": ("SELECT at, ip FROM login_ips WHERE user_id=? ORDER BY at", (uid,)),
         **oex_acct("acct_more", umz_fmt(), uid),  # 2.1097.0 (#5949): the core's tables (tools/check_export_tables.py: never a part twice)
     }
 
@@ -475,6 +516,9 @@ def _umz_plain(c, table, d, uid=None):
         return d
     if table == "wiki_pages":
         d["body"] = wsb_body_or(c, d)
+        return d
+    if table == "org_doc_notes" and d.get("text"):  # 2.1334.0 (#6585): my notes on an organisation's documents, sealed with its workspace
+        d["text"] = doc_open(c, d.get("ws"), "doc_notes.text", d["text"], default=None)
         return d
     src = dict(UMZ_DECRYPT).get(table)
     if src and d.get("org_id"):
@@ -582,13 +626,17 @@ def umz_put_page_files(c, zf, out, uid, files, inf, locked):
     for kind, table, sql in (("wiki", "wiki_files", "SELECT id, name, path FROM wiki_files WHERE owner_id=? AND org_id IS NULL AND deleted_at IS NULL ORDER BY id"),
                              ("sheet", "sheet_files", """SELECT id, name, path FROM sheet_files WHERE deleted_at IS NULL AND sheet_id IN
                                                          (SELECT id FROM sheets WHERE org_id IS NULL AND owner_id=?) ORDER BY id"""),
-                             ("tpl", "template_files", "SELECT id, name, path FROM template_files WHERE user_id=? ORDER BY id")):
+                             ("tpl", "template_files", "SELECT id, name, path, scan FROM template_files WHERE user_id=? ORDER BY id")):
         for r in c.execute(sql, (uid,)).fetchall():
             full = _under(ATT_DIR, r["path"])
             sig = inf.get((kind, int(r["id"]), 0))
+            if sig is None and kind == "tpl" and r["scan"] == "infected":  # 2.1334.0 (review F4): a template's copy keeps its mark itself
+                sig = ""  # (the scanner's table has no kind tpl): it stays out, listed like a locked file
             if sig is not None:
                 locked.append({"area": table, "id": r["id"], "name": r["name"] or "", "signature": sig})
-            elif full:
+            elif not full:  # 2.1334.0 (#6585 T13 6): a file that is gone from the disk is named in the manifest (missing), never left out silently
+                out.missing.append({"file": umz_att_name(table, r["id"], r["name"]), "reason": "not_found"})
+            else:
                 data = umz_read(c, full, table, r["id"], r["name"], locked)
                 if data is not None:
                     files[(table, r["id"])] = umz_att_name(table, r["id"], r["name"])
@@ -607,6 +655,35 @@ def umz_office(c, zf, out, uid, have, locked):
     out.files += [{"path": p, "size": f["bytes"], "sha256": f["sha256"]} for p, f in man.files.items()]
     locked += man.locked
     return {"rows": sum(man.counts.values()), "files": sum(1 for p in man.files if p.startswith(UMZ_OFFICE_DIR + "files/"))}
+
+
+UMZ_DOCS_DIR = "private-documents/"  # 2.1334.0 (#6585)
+
+
+def umz_private_docs(c, zf, out, uid, have):
+    """2.1334.0 (#6585, audit #4808 T13 1): the details of my private documents into the file (orgexport.ox_private_docs) ->
+    {documents, rows} or None."""
+    man = _Man()
+    n = ox_private_docs(c, zf, man, uid, have, UMZ_DOCS_DIR)
+    if not n:
+        return None
+    out.files += [{"path": p, "size": f["bytes"], "sha256": f["sha256"]} for p, f in man.files.items()]
+    return {"documents": n, "rows": sum(man.counts.values())}
+
+
+def umz_not_imported(tables, docs, lg):
+    """2.1334.0 (#6585, audit #4808 T13 5): the manifest's not_imported -- the parts of this file an account import leaves
+    behind ("<name>: <parts>", acctimport.py UMZ_LEFT: the history of my changes, my links, what I wrote elsewhere ...), so
+    "in the file" never reads as "moves along"; + the details of my private documents."""
+    from .acctimport import UMZ_LEFT, UMZ_READ  # the import reads this module: here, not at the load
+    out = []
+    for w, ps in UMZ_LEFT:
+        have = [p for p in ps if tables.get(p) and p not in UMZ_READ]
+        if have:
+            out.append(f"{tr(w, lg=lg)}: {', '.join(have)}")
+    if docs:
+        out.append(f"{tr(N_('Documents'), lg=lg)}: {UMZ_DOCS_DIR}")
+    return out
 
 
 def umz_build(c, uid, stream, export_id):
@@ -654,6 +731,19 @@ def umz_build(c, uid, stream, export_id):
                 files[("private_versions", r["vid"])] = name
                 if r["cur"]:
                     files[("private_files", r["id"])] = name
+        # 2.1334.0 (#6359, #6585 T13 3): the files of my agent chats and the files / voice messages I sent in direct messages and
+        # in my private rooms (their rows: chat_files, chat_message_files; a file that is gone is named in missing)
+        for table, kind, sql in (("chat_files", "chat", "SELECT f.id, f.name, f.path FROM chat_files f JOIN agent_chat m ON m.id=f.message_id "
+                                                        "WHERE m.user_id=? ORDER BY f.id"),
+                                 ("chat_message_files", "tchat", f"SELECT f.id, f.name, f.path {UMZ_TCHAT_FILES} ORDER BY f.id")):
+            for r in c.execute(sql, (uid,)).fetchall():
+                sig = inf.get((kind, int(r["id"]), 0))
+                if sig is not None:
+                    locked.append({"area": table, "id": r["id"], "name": r["name"] or "", "signature": sig})
+                    continue
+                name = f"files/{table}/{int(r['id'])}-{_safe_part(r['name'])}"
+                if _put_file(c, zf, out, name, _under(ATT_DIR, r["path"])):
+                    files[(table, r["id"])] = name
         avatar = ""  # 2.239.0 A (#2882): my own profile picture
         a = c.execute("SELECT avatar FROM users WHERE id=?", (uid,)).fetchone()
         if a and (a[0] or "").startswith("u:"):
@@ -692,6 +782,7 @@ def umz_build(c, uid, stream, export_id):
         client_enc["locked_notes"] = out.tables.get("task_note_locks", 0)
         client_enc["locked_folders"] = out.tables.get("private_locks", 0)  # #4300
         office = umz_office(c, zf, out, uid, have, locked)  # 2.362.2 (#3099)
+        docs = umz_private_docs(c, zf, out, uid, have)  # 2.1334.0 (#6585)
         manifest = {
             "format": UMZ_FORMAT, "v": UMZ_V, "kalmido_version": APP_VERSION, "created_at": iso(now_utc()),
             "source": {"url": PUBLIC_URL, "hosted": bool(hosted())},
@@ -704,6 +795,8 @@ def umz_build(c, uid, stream, export_id):
             "locked_files": locked,  # 2.209.0 D (#1856)
             **({"personal_office": office} if office else {}),
             "missing": out.missing,  # 2.363.2 (#3106): files that are gone or cannot be decrypted [{file, reason}]
+            **({"private_documents": docs} if docs else {}),  # 2.1334.0 (#6585)
+            "not_imported": umz_not_imported(out.tables, docs, lang(c, uid)),  # 2.1334.0 (#6585)
         }
         mb = json.dumps(manifest, ensure_ascii=False, indent=1, default=_jdef).encode()
         zi = zipfile.ZipInfo("manifest.json", date_time=time.localtime()[:6])

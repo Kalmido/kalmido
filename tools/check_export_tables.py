@@ -18,6 +18,13 @@ RX_LEFT_TABLES; its parts not in UMZ_READ_OWN / UMZ_ORG_MAP_OWN) and no table is
 2.1097.0 (#5949): + the register's account queries (acct: umz_export_queries, acct_more: umz_extra_queries) count as parts of the
 account export (a part never by hand too), their names as UMZ_LEFT (never in UMZ_LEFT_OWN too); a node clause (nodes, the export of
 single documents) belongs to an archive of the table's org entries.
+2.1334.0 (#6585, audit #4808 T13): a table of the core holds many kinds in one table (obj_links, obj_comments, obj_tags ...), so
+"the table is in some export query" let whole kinds go missing silently (the notes of private documents, private links, the
+free links of an organisation). For every table of the core with a kind column (CORE_KINDS: the column and the constant of the
+core that lists its kinds) each kind needs, in the organisation export and in the account export, a query that takes it (a
+where clause of the register or a hand query on the table that names the kind, or none of its kinds at all) or a reason in
+KIND_LEFT here; a stale reason (a kind that is gone or exported meanwhile) fails too. A table of the core with a kind column
+outside CORE_KINDS goes as a whole (KIND_WHOLE: why its kinds need no look of their own).
 usage: python3 tools/check_export_tables.py [-v] [--root DIR]      exit 1 on a finding"""
 import ast
 import glob
@@ -59,9 +66,61 @@ SECRET_OK = {
     "sched_poll_votes.ip_hash": "kept empty by _ox_dec_row",
     "ticket_types.key": "the short word of an own ticket type (!key in quick add), no secret (2.609.0, #3372)",
     "org_fields.key": "the name of a schema field the API reads it by (fkey_<key>), no secret (2.959.0, #4031)",
+    "template_files.node_key": "the node of the template's tree a file copy hangs on, no secret (2.1334.0, #6585)",
 }
 # the parts umz_build writes itself: {part of the file: table}
 BUILD_PARTS = {"people": None, "server_links": "msv_links", "budgets": None}
+
+# 2.1334.0 (#6585): the kinds of the core's tables -- table: (kind column, file, the constants that list its kinds). The constant
+# is the one the core's helper refuses an unknown kind with (ocm_kind, ofl, osn_mark, otg_link, obj_version_add ...); obj_links: the
+# areas' relations, every other relation is a free one (people's and agents' links, KIND_FREE)
+CORE_KINDS = {
+    "obj_comments": ("kind", "kalmido/core/objcomments.py", ("OCM_KINDS",)),
+    "obj_reactions": ("target_kind", "kalmido/core/objreact.py", ("ORX_KINDS",)),
+    "obj_follow": ("kind", "kalmido/core/objfollow.py", ("OFL_KINDS",)),
+    "obj_seen": ("kind", "kalmido/core/objseen.py", ("OSN_KINDS",)),
+    "obj_notif_cap": ("kind", "kalmido/core/objnotifcap.py", ("NCAP_KINDS",)),
+    "obj_tags": ("scope_kind", "kalmido/core/objtags.py", ("OTG_SCOPES",)),
+    "obj_tag_links": ("kind", "kalmido/core/objtags.py", ("OTG_KINDS",)),
+    "obj_versions": ("kind", "kalmido/core/objversions.py", ("OBJV_KINDS",)),
+    "obj_links": ("rel", "kalmido/core/objhooks.py", ("OLNK_AREA_RELS",)),
+}
+KIND_FREE = "(free)"  # the kind of every value of a column outside its constant (obj_links: the links people and agents make)
+KIND_HAS_FREE = ("obj_links",)
+# the tables of the core with a kind column whose rows go as a whole (one where clause or one reason for all their kinds)
+KIND_WHOLE = {
+    "obj_history": "the change history of every kind: it follows the objects the organisation export carries, a person's own changes in their private space",
+    "obj_undo": "the undo steps of 30 days of every kind: working data, never exported",
+    "obj_revoked": "the shares removed of every kind: shares are made anew on the target",
+    "obj_addr_shares": "who shares an address book: shares are made anew on the target",
+    "obj_comment_trash": "the trash texts of comments of every kind: working data until the trash period ends",
+    "obj_search": "the search index of every kind: rebuilt from the imported rows",
+    "obj_search_words": "the word index of every kind: rebuilt from the imported rows",
+}
+KIND_COLS = ("kind", "scope_kind", "target_kind", "src_kind", "dst_kind", "rel")
+# (table, kind, export) -> the reason why the kind stays out of that export (org = the organisation export, acct = the account
+# export); export clauses resolve the placeholders of KIND_FMT (the rest name no kind)
+_K_VIEW = "what a person has seen or muted: a personal view state, never exported"
+_K_PERSON = "a person's own setting: their account export"
+_K_NOROWS = "no rows of its own: the team chat's messages stay in tchat_msgs (only the comment helpers, 2.981.0 #5274)"
+KIND_LEFT = {
+    ("obj_comments", "tchat", "org"): _K_NOROWS, ("obj_comments", "tchat", "acct"): _K_NOROWS,
+    ("obj_follow", "list", "org"): _K_PERSON,
+    ("obj_follow", "tchat", "org"): _K_VIEW, ("obj_follow", "tchat", "acct"): _K_VIEW,
+    ("obj_follow", "tchat_thread", "org"): _K_VIEW, ("obj_follow", "tchat_thread", "acct"): _K_VIEW,
+    ("obj_links", "device", "org"): "a person's own device link: their account export (device_links)",
+    ("obj_links", "answers", "acct"): "the letters of an office: their organisation's export, a personal office's in personal-office/",
+    ("obj_links", "reply", "acct"): "the letters of an office: their organisation's export, a personal office's in personal-office/",
+    ("obj_notif_cap", "list", "org"): _K_PERSON, ("obj_notif_cap", "folder", "org"): _K_PERSON,
+    ("obj_reactions", "agent_chat", "org"): "an agent chat is one person's: their account export (reactions)",
+    ("obj_tags", "user", "org"): "a person's own tags: their account export (task_tags)",
+    ("obj_tags", "org", "acct"): "the labels of an organisation: its export",
+    ("obj_versions", "procdoc", "acct"): "the procedure documentation of an office: its organisation's export, a personal office's in personal-office/",
+    ("obj_versions", "wiki", "acct"): "not yet in the account export (history of knowledge pages)",
+    **{("obj_seen", k, ex): _K_VIEW for k in ("task", "rss", "tchat", "tchat_thread", "due") for ex in ("org", "acct")},
+}
+KIND_FMT = {"LETTER_LINKS": ("kalmido/admin/orgexport.py", "OX_LETTER_LINKS"),  # a string constant as it is
+            "AREA_RELS": ("kalmido/core/objhooks.py", "OLNK_AREA_RELS")}  # a tuple constant as ('a', 'b')
 
 
 def read(root, *p):
@@ -186,6 +245,114 @@ def register(root):
     return reg, bad
 
 
+def const_tuple(root, rel, name):
+    """The strings of a module-level tuple constant as written (NAME = (...) and every NAME += (...)), read without the app."""
+    tree, out, found = ast.parse(read(root, *rel.split("/"))), [], False
+    for n in tree.body:
+        if isinstance(n, ast.Assign) and any(getattr(t, "id", "") == name for t in n.targets) \
+                or isinstance(n, ast.AugAssign) and getattr(n.target, "id", "") == name:
+            found = True
+            out += [v for v in strings(n.value)]
+    return out if found else None
+
+
+def const_str(root, rel, name):
+    return next((n.value.value for n in ast.parse(read(root, *rel.split("/"))).body if isinstance(n, ast.Assign)
+                 and getattr(n.targets[0], "id", "") == name and isinstance(n.value, ast.Constant)), None)
+
+
+_KIND_RE = r"(?<![\w.])(?:\w+\.)?{col}\s*(=|<>|!=|NOT\s+IN|IN)\s*(?:'(\w+)'|\(([^()]*)\))"
+
+
+def kinds_of(sql, col, kinds):
+    """The kinds of col (+ KIND_FREE) a query or where clause takes: all without a condition on col, else what = / IN name
+    (a value outside kinds: the free ones) or what <> / NOT IN leave."""
+    got = set()
+    found = False
+    for m in re.finditer(_KIND_RE.format(col=col), sql, re.I):
+        found = True
+        vals = {m.group(2)} if m.group(2) else set(re.findall(r"'(\w+)'", m.group(3) or ""))
+        if m.group(1).upper() in ("=", "IN"):
+            got |= vals & set(kinds)
+            got |= {KIND_FREE} if vals - set(kinds) else set()
+        else:
+            got |= (set(kinds) - vals) | {KIND_FREE}
+    return got if found else set(kinds) | {KIND_FREE}
+
+
+def query_texts(tree, fn):
+    """{part: the query's text} of the dict(s) of queries in function fn (queries_in with the whole text)."""
+    out = {}
+    f = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == fn)
+    for d in ast.walk(f):
+        if isinstance(d, ast.Dict):
+            for k, v in zip(d.keys, d.values):
+                if isinstance(k, ast.Constant) and isinstance(v, ast.Tuple) and v.elts:
+                    out[k.value] = text_of(v.elts[0])
+    return out
+
+
+def check_kinds(root, tables, reg, hand):
+    """2.1334.0 (#6585): every kind of every table of the core in both exports (module docstring) -> ([findings], {table: kinds})."""
+    bad, seen = [], {}
+    fmt = {}
+    for k, v in KIND_FMT.items():
+        t = const_tuple(root, *v)
+        fmt[k] = "(" + ", ".join(f"'{x}'" for x in t) + ")" if t is not None and const_str(root, *v) is None else const_str(root, *v) or ""
+    acct_all = [*hand, *(e[1] for r in reg.values() for e in (*(r.get("acct") or ()), *(r.get("acct_more") or ())))]
+
+    def fill(sql):
+        return re.sub(r"\{(\w+)\}", lambda m: fmt.get(m.group(1), ""), sql)
+    for t in sorted(t for t in tables if t.startswith("obj_")):
+        if not any(c in tables[t] for c in KIND_COLS):
+            continue
+        if t in CORE_KINDS and t in KIND_WHOLE:
+            bad.append(f"{t}: in CORE_KINDS and in KIND_WHOLE (tools/check_export_tables.py)")
+        if t not in CORE_KINDS and t not in KIND_WHOLE:
+            bad.append(f"{t}: a table of the core with a kind column ({'/'.join(c for c in KIND_COLS if c in tables[t])}) neither in "
+                       "CORE_KINDS (its kinds, each held against the exports) nor in KIND_WHOLE (tools/check_export_tables.py)")
+    for t in sorted(set(KIND_WHOLE) - set(tables)):
+        bad.append(f"{t}: stale in KIND_WHOLE (no such table)")
+    for t, (col, rel, names) in sorted(CORE_KINDS.items()):
+        if t not in tables or col not in tables[t]:
+            bad.append(f"{t}: stale in CORE_KINDS (no such table or no column {col})")
+            continue
+        kinds = []
+        for name in names:
+            v = const_tuple(root, rel, name)
+            if v is None:
+                bad.append(f"{t}: CORE_KINDS names {rel} {name}, which is no tuple there")
+                v = []
+            kinds += [k for k in v if k not in kinds]
+        if t in KIND_HAS_FREE:
+            kinds.append(KIND_FREE)
+        seen[t] = kinds
+        r = reg.get(t) or {}
+        # org: the where clauses of the table's own entries; acct: its own queries and every other one that reads it (FROM / JOIN)
+        # nodes: the documents of a personal office and of a person's private store (admin/orgexport.py ox_doc_parts), both exports
+        nodes = [fill(e[1]) for e in r.get("nodes") or ()]
+        ways = {"org": [fill(e[1]) for e in r.get("org") or ()] + nodes,
+                "acct": [fill(e[1]) for e in (*(r.get("acct") or ()), *(r.get("acct_more") or ()))] + nodes
+                + [fill(q) for q in acct_all if re.search(rf"\b(?:FROM|JOIN)\s+{t}\b", q, re.I)]}
+        for ex, qs in ways.items():
+            got = set()
+            for q in qs:
+                got |= kinds_of(q, col, kinds)
+            for k in kinds:
+                why = KIND_LEFT.get((t, k, ex))
+                if k in got and why:
+                    bad.append(f"{t} {col}={k}: in the {ex} export and named in KIND_LEFT (tools/check_export_tables.py): drop the reason")
+                elif k not in got and not why:
+                    bad.append(f"{t} {col}={k}: in no query of the {ex} export ({'kalmido/core/objexport.py org=' if ex == 'org' else 'objexport.py acct= / acct_more= or a hand query'}) "
+                               "and without a reason in KIND_LEFT (tools/check_export_tables.py)")
+    for (t, k, ex), why in sorted(KIND_LEFT.items()):
+        if t not in seen or k not in seen[t] or ex not in ("org", "acct"):
+            bad.append(f"{t} {k} {ex}: stale in KIND_LEFT (no such table, kind or export)")
+        elif not (isinstance(why, str) and why.strip()):
+            bad.append(f"{t} {k} {ex}: KIND_LEFT needs a reason")
+    return bad, seen
+
+
 def check(root):
     tables = schema_tables(root)
     reg, bad = register(root)  # 2.1093.0 (#5289)
@@ -219,6 +386,11 @@ def check(root):
     for p in sorted(set(parts) & set(r_acct)):  # 2.1097.0 (#5949)
         bad.append(f"{p}: a part of the account export in the export register ({r_acct[p][0]}) and by hand in a query function")
     parts.update({p: top_from(q) for p, (_t, q, _w) in r_acct.items()})
+    hand = [q for tr_, fn in ((ast.parse(read(root, "kalmido", "accounts", "settings.py")), "umz_export_queries"),
+                              (acct, "umz_extra_queries"), (acct, "umz_mine_queries")) for q in query_texts(tr_, fn).values()]
+    kb, kseen = check_kinds(root, tables, reg, hand)  # 2.1334.0 (#6585)
+    bad += kb
+    stats["kinds"] = sum(len(v) for v in kseen.values())
     left_tree = ast.parse(read(root, *admin, "exportleft.py"))
     left, rx_left = reasons(left_tree, "UMZ_LEFT_TABLES"), reasons(left_tree, "RX_LEFT_TABLES")
     later_own = reasons(left_tree, "UMZ_LATER_NAMES")
@@ -266,8 +438,20 @@ def check(root):
     stats["organisation"] = len(onames)
     for t in sorted(onames - set(areas.values()) - set(ox_left)):
         bad.append(f"{t}: has an organisation / list column but is neither in OX_AREAS nor in OX_LEFT (kalmido/admin/orgexport.py)")
-    for t in sorted(set(ox_left) - onames):
-        bad.append(f"{t}: stale in OX_LEFT")
+    # 2.1334.0 (#6359, audit #4773 F11): every table, as the account export's guard (not only those with an organisation / list
+    # column: a person's table reached over another one, hub_mailbox_rules, went missing): exported, named in OX_LEFT with the
+    # reason, or holding nobody's data (UMZ_FREE_TABLES)
+    every = set(tables) - set(FRAME) - {"orgs", "lists"} - set(free)
+    stats["organisation_all"] = len(every)
+    for t in sorted(every - onames - set(areas.values()) - set(ox_left)):
+        bad.append(f"{t}: a table neither in the organisation export (OX_AREAS) nor in OX_LEFT (kalmido/admin/orgexport.py): "
+                   "export it or name why it stays out")
+    for t in sorted(set(ox_left) - set(tables)):
+        bad.append(f"{t}: stale in OX_LEFT (no such table)")
+    for t in sorted(set(ox_left) & set(areas.values())):
+        bad.append(f"{t}: in the organisation export and in OX_LEFT")
+    for t in sorted(set(ox_left) & set(free)):
+        bad.append(f"{t}: in OX_LEFT and in UMZ_FREE_TABLES (a table with nobody's data is in neither export)")
     secret_cols = strings(assigned(ox, "OX_SECRET_COLS"))  # 2.510.0 (#4286): _rows is SELECT *, _clean only drops these names
     named = {f"{t}.{c}" for t in set(areas.values()) for c in tables.get(t, ()) if SECRET_NAME.search(c) and c not in secret_cols}
     for x in sorted(named - set(SECRET_OK)):
@@ -323,7 +507,7 @@ def main():
     for b in bad:
         print("check_export_tables:", b)
     print(f"check_export_tables: {st['tables']} tables, {st['account']} with people's data, {st['organisation']} with an organisation or list column, "
-          f"{st['retention']} office tables, {st['register']} in the export register, {len(bad)} finding(s)")
+          f"(every one of {st['organisation_all']} placed), {st['retention']} office tables, {st['register']} in the export register, {st['kinds']} kinds of the core, {len(bad)} finding(s)")
     return 1 if bad else 0
 
 

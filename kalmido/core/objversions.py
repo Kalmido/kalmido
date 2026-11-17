@@ -21,6 +21,9 @@ from datetime import datetime
 from .pg import insert_id, ts_canon, write_lock
 
 OBJV_TABLE = "obj_versions"
+# 2.1334.0 (#6585): the kinds of versions (knowledge pages, Playbooks, the procedure documentation): obj_version_add refuses another,
+# tools/check_export_tables.py holds each against the exports
+OBJV_KINDS = ("wiki", "playbook", "procdoc")
 OBJV_CTX = "obj_versions.body"  # the AAD context of a sealed body (core/orgcrypt.py FIELDS["obj_versions"])
 OBJV_COLS = "id, kind, ref_id, no, org_id, owner_id, title, body, size, created_by, created_at, updated_at, held_at, source"  # 2.977.0 (#5282): + source
 
@@ -28,6 +31,8 @@ OBJV_COLS = "id, kind, ref_id, no, org_id, owner_id, title, body, size, created_
 def obj_version_add(c, kind, ref_id, org_id, owner_id, title, body, size, by, at, held_at=None, source=""):
     """A new version of object kind / ref_id with the next number (under the lock objv-<kind>-<id> until the transaction
     ends). body as it is stored (the area sealed it); source (2.977.0, #5282) how it came. -> its id."""
+    if kind not in OBJV_KINDS:  # 2.1334.0 (#6585): a new kind is named in OBJV_KINDS first (the export guard holds it)
+        raise ValueError(kind)
     write_lock(c, f"objv-{kind}-{int(ref_id)}")
     no = c.execute("SELECT COALESCE(MAX(no), 0) + 1 FROM obj_versions WHERE kind=? AND ref_id=?", (kind, int(ref_id))).fetchone()[0]
     return insert_id(c, "INSERT INTO obj_versions(kind,ref_id,no,org_id,owner_id,title,body,size,created_by,created_at,updated_at,held_at,"

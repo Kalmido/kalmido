@@ -9,6 +9,7 @@ where their rows go; the hand lists of admin/ hold only the old tables. Invented
    tables that stay out with their reasons
  - freelancer-matrix: a person without an organisation: the account export carries the own comment (data/comments.json), its
    manifest and the export page name the core's tables that stay out (the register's reasons, "history of knowledge pages")
+ - 2.1334.0 (#6585): the change history goes along (history/changes.json, data/my_history.json), named in not_imported
 Starts its OWN container (workspaces mode, no server key: the organisation export is a plain ZIP; P21093B_NOSTART=1 = it runs).
 usage: p21093_b_export_register_test.py <datadir>"""
 # freelancer-matrix: tasks
@@ -75,13 +76,20 @@ OLD_ORG = {
     ("videos/comments.json", "obj_comments", f"kind='video' AND org_id=? AND {live_sql()} AND ref_id NOT IN (SELECT id FROM video_reviews WHERE deleted_at IS NOT NULL)"),
     ("documents/notes.json", "obj_comments", f"kind='doc_note' AND org_id=? AND {live_sql()}"),
     ("hub/mail_links.json", "obj_links", "org_id=? AND src_kind='hub_mail' AND rel='made' AND src_id NOT IN (SELECT id FROM hub_mails WHERE deleted_at IS NOT NULL)"),
+    # 2.1334.0 (#6585, audit #4808 T13 4 / 5): + the free links and the change history (no longer "rebuilt on the target"), wanted
+    # review F2: + both sides carried by the archive (LINKED, filled per archive by ox_build; FALSE elsewhere)
+    ("links.json", "obj_links", f"org_id=? AND rel NOT IN ('made', 'device', 'contact', 'answers', 'reply') AND {live_sql()} AND FALSE"),
+    ("history/changes.json", "obj_history", "org_id=? AND FALSE"),  # its objects are filled in by ox_build (ox_history_where)
 }
 OLD_RX = {("books/procedure-documentation.csv", "obj_versions", "kind='procdoc' AND org_id=?"),
           ("letters/letter-links.csv", "obj_links", f"org_id=? AND {OX_LETTER_LINKS} AND src_id IN (SELECT id FROM office_letters WHERE org_id=? AND status<>'draft')")}
-OLD_OX_LEFT = {"obj_addr_shares": "invitations (not_included)", "obj_history": "derived or working data, rebuilt on the target",
-               "obj_undo": "undo steps of 30 days", "obj_revoked": "shares removed (not_included)"}
 DER, SHR, VIEW = "derived or working data, rebuilt on the target", "who shares what with whom (a share is made anew on the target)", "what a person has seen or hidden, the order of their rows"
-OLD_UMZ_LEFT = {"obj_history": DER, "obj_undo": DER, "obj_revoked": SHR, "obj_addr_shares": SHR, "obj_comment_trash": DER,
+# 2.1334.0 (#6585): obj_history goes along (no reason any more); (#6359) every table in the organisation guard: + the reasons of
+# the core's tables without an organisation column
+OLD_OX_LEFT = {"obj_addr_shares": "invitations (not_included)", "obj_undo": "undo steps of 30 days", "obj_revoked": "shares removed (not_included)",
+               "obj_comment_trash": DER, "obj_search": DER, "obj_search_words": DER, "obj_seen": VIEW,
+               "obj_notif_cap": "a person's own data (their account export)"}
+OLD_UMZ_LEFT = {"obj_undo": DER, "obj_revoked": SHR, "obj_addr_shares": SHR, "obj_comment_trash": DER,
                 "obj_versions": "not yet in the account export", "obj_search_words": DER, "obj_seen": VIEW, "obj_search": DER}
 OLD_LATER = {"obj_versions": "history of knowledge pages"}
 OLD_MAP = {"lists/tags.json": "list_tags", "tasks/tags.json": "task_list_tags", "org/labels.json": "org_tags", "comments.json": "comments"}
@@ -206,13 +214,19 @@ blob = b"".join(z.read(n) for n in names if n.endswith(".json")) if z else b""
 check(b"Kommentar beta" not in blob and b"Kim beta" not in blob, "nothing of beta anywhere in alpha's archive")
 man = json.loads(z.read("manifest.json")) if z and "manifest.json" in names else {}
 ni = " | ".join(man.get("not_included") or [])
-check("undo steps of 30 days: " in ni and "obj_undo" in ni and "obj_history" in ni, f"the manifest names the core's tables that stay out (register) {ni[:400]}")
+# 2.1334.0 (#6585): obj_history is in the archive now (history/changes.json), the manifest says that no import takes it over
+check("undo steps of 30 days: " in ni and "obj_undo" in ni and "obj_history" not in ni, f"the manifest names the core's tables that stay out (register) {ni[:400]}")
+check("history/changes.json" in names and any("history/changes.json" in x for x in man.get("not_imported") or []),
+      f"the change history is in the archive and named as not imported {man.get('not_imported')}")
 
 # ================================================================== freelancer-matrix: the account export of a person without organisation
 FID, Fr = freelancer(B, A)
 FL = ok(Fr.post(B + "/api/lists", json={"name": "Frei Projekt"}), "freelancer: own list").get("id")
 FT = ok(Fr.post(B + "/api/tasks", json={"title": "Frei Aufgabe", "list_id": FL}), "freelancer: own task").get("id")
 ok(Fr.post(B + f"/api/tasks/{FT}/comments", json={"body": "Frei Kommentar"}), "freelancer: own comment")
+# 2.1334.0 (#6585): a change of my own in my private space (the core's history row directly, as the area writes it)
+dbx("INSERT INTO obj_history(kind, ref_id, user_id, action, vals_before, vals_after, created_at, updated_at) "
+    "VALUES('task', ?, ?, 'update', CAST(? AS JSONB), CAST(? AS JSONB), ?, ?)", (FT, FID, '{"title": "Alt"}', '{"title": "Frei Aufgabe"}', TS, TS))
 j = Fr.get(B + "/api/account/export").json()
 later = next((x for x in j.get("not_included") or [] if x.startswith("not yet in the file: ")), "")
 check("history of knowledge pages" in later, f"freelancer: the export page names the register's area not yet in the file {later[:200]}")
@@ -230,6 +244,10 @@ fc = fz.read("data/comments.json").decode() if "data/comments.json" in fn else "
 check("Frei Kommentar" in fc and "Kommentar alpha" not in fc, f"freelancer: data/comments.json has the own comment only {fc[:200]}")
 fman = json.loads(fz.read("manifest.json")) if fz and "manifest.json" in fn else {}
 fni = " | ".join(fman.get("not_included") or [])
-check("obj_seen" in fni and "obj_search" in fni and "obj_history" in fni, f"freelancer: the manifest names the core's tables that stay out {fni[:400]}")
+check("obj_seen" in fni and "obj_search" in fni and "obj_history" not in fni, f"freelancer: the manifest names the core's tables that stay out {fni[:400]}")
+# 2.1334.0 (#6585): the history of my changes is in the file (my_history) and named as not imported
+fh = fz.read("data/my_history.json").decode() if "data/my_history.json" in fn else ""
+check("Alt" in fh and f'"ref_id": {FT}' in fh and any("my_history" in x for x in fman.get("not_imported") or []),
+      f"freelancer: data/my_history.json with my change and its line in not_imported {fh[:300]!r} {fman.get('not_imported')}")
 
 sys.exit(kt.done("p21093_b_export_register"))

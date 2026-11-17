@@ -243,8 +243,13 @@ UMZ_LEFT_OWN = (  # (name, parts): the first part counts, the others only when i
     # 2.360.4 (#3248): what I wrote or got elsewhere; the preview showed the technical names of these parts
     (N_("Channel messages"), ("channel_messages",)),
     (N_("Tasks in other projects"), ("other_tasks",)), (N_("Tasks I take part in"), ("task_people",)),
-    (N_("Stars"), ("kid_stars",)), (N_("Received notifications"), ("notifications",)), (N_("Sign-ins"), ("sessions",)),
+    (N_("Stars"), ("kid_stars",)), (N_("Received notifications"), ("notifications",)), (N_("Sign-ins"), ("sessions", "login_ips")),  # 2.1334.0: + login_ips
     (N_("Push devices"), ("push_devices",)), (N_("Agent chat settings"), ("agent_chat_prefs",)),
+    # 2.1334.0 (#6359, #6585): what came into the account export as an Art. 15 / 20 copy and is not made again on the target
+    (N_("Account"), ("account",)), (N_("Organisations"), ("memberships",)),
+    (N_("Agent chats"), ("chat_files", "chat_saves")), (N_("Direct messages"), ("chat_message_files",)), (N_("Trips"), ("trip_costs",)),
+    (N_("Rewards"), ("kid_rewards",)), (N_("Shopping list"), ("shop_memory",)), (N_("Tables"), ("sheet_links",)),
+    (N_("Knowledge pages"), ("wiki_spaces",)), (N_("Mailbox"), ("mailbox_rules",)),
 )
 UMZ_LEFT = oex_umz_left(UMZ_LEFT_OWN)
 # 2.531.0 (#4317) F5: the parts of UMZ_LEFT are never read: they count against neither size limit (a long history of a person
@@ -562,6 +567,8 @@ UMZ_ORG_SKIP = (  # archive prefix -> what the preview names as not taken over
     ("lists/views.json", N_("Shared views")),  # 2.577.0 (#3356): in the archive, not taken over (they name columns and people of the old ids)
     ("lists/history.json", N_("History")), ("tasks/history.json", N_("History")),
     ("bookings/", N_("Booking page")),  # 2.362.0 (#3096): in the archive, not taken over (a booking page is one person's)
+    # 2.1334.0 (#6585): in the archive for the record, not taken over (orgexport.py OX_NOT_IMPORTED)
+    ("history/", N_("History")), ("links.json", N_("Links")), ("agents/", N_("Agents")), ("lists/template_files.json", N_("Templates")),
 )
 
 
@@ -855,6 +862,9 @@ def umz_preview(c, uid, man, data, can_invite, files=None):
     office = man.get("personal_office") if isinstance(man.get("personal_office"), dict) else {}  # 2.362.2 (#3099)
     if not org_kind and isinstance(office.get("rows"), int) and office["rows"]:
         skipped.append({"what": tr(N_("Office")), "count": office["rows"]})
+    docs = man.get("private_documents") if isinstance(man.get("private_documents"), dict) else {}  # 2.1334.0 (#6585)
+    if not org_kind and isinstance(docs.get("documents"), int) and docs["documents"]:
+        skipped.append({"what": tr(N_("Documents")), "count": docs["documents"]})
     return {
         "format": man.get("format"), "v": man.get("v"), "kalmido_version": _txt(man.get("kalmido_version"), 40),
         "created_at": _txt(man.get("created_at"), 40), "source": {"url": _txt(src.get("url"), 300), "hosted": bool(src.get("hosted"))},

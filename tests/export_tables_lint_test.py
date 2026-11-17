@@ -15,6 +15,8 @@
     twice, gone, or a table of the core without an entry is a finding
 11. 2.1097.0 (#5949): the register's account queries (acct / acct_more) are parts of the account export and its names count as
     UMZ_LEFT: a part by hand too, a name by hand too, a part the import neither reads nor names, a node clause outside org
+12. 2.1334.0 (#6585): every kind of a table of the core in both exports (a kind no query takes, a new kind, a stale reason, a
+    table of the core with a kind column in no list); 2.1334.0 (#6359): every table in the organisation export or OX_LEFT
 usage: python3 tests/export_tables_lint_test.py"""
 import importlib.util
 import json
@@ -89,8 +91,9 @@ rc, out = with_edit(("admin", "exportleft.py"), "UMZ_FREE_TABLES = {\n", 'UMZ_FR
 check(rc == 1 and "habits: in UMZ_FREE_TABLES but it holds" in out, f"a table with a person's data named as nobody's is a finding: {out[-300:]}")
 # 2.958.0 (#5281): the versions of the knowledge pages are rows of obj_versions
 # 2.1093.0 (#5289): obj_versions says it in the export register now (acct_later): an old table's name is taken out
-rc, out = with_edit(("admin", "exportleft.py"), '"wiki_spaces": "spaces of knowledge pages",', "")
-check(rc == 1 and "wiki_spaces: not yet in the account export but without a readable name" in out, f"an area without a readable name is a finding: {out[-300:]}")
+# 2.1334.0 (#6359): wiki_spaces is in the account export now -- the case takes another table not yet in it
+rc, out = with_edit(("admin", "exportleft.py"), '"git_branches": "branches of connected repositories",', "")
+check(rc == 1 and "git_branches: not yet in the account export but without a readable name" in out, f"an area without a readable name is a finding: {out[-300:]}")
 rc, out = with_edit(("accounts", "settings.py"), '    q = {\n        "lists":', '    q = {\n        "zz_part": ("SELECT * FROM habits", ()),\n        "lists":')
 check(rc == 1 and "zz_part" in out, f"a part the import does not know is a finding: {out[-300:]}")
 rc, out = with_edit(("admin", "orgexport.py"), '    ("bookmarks.json", "bookmarks", "org_id=?"),\n',
@@ -110,7 +113,7 @@ check(rc == 1 and "obj_versions: in the export register" in out and "RX_TABLES" 
 rc, out = with_edit(("admin", "acctimport.py"), 'UMZ_READ_OWN = frozenset((\n', 'UMZ_READ_OWN = frozenset((\n    "comments",\n')
 check(rc == 1 and "comments: a part in the export register and by hand in UMZ_READ_OWN" in out, f"a registered part by hand too is a finding: {out[-300:]}")
 # 2.1097.0 (#5949): obj_notif_cap carries account queries now, the cases use obj_seen's one-line entry
-ANCH = 'obj_export("obj_seen", acct_left=_VIEW)'
+ANCH = 'obj_export("obj_seen", org_left=_VIEW, acct_left=_VIEW)'  # 2.1334.0 (#6359): + org_left (every table in the organisation guard)
 rc, out = with_edit(OEXP, ANCH, ANCH + '\nobj_export("obj_seen", acct_left=_VIEW)')
 check(rc == 1 and "obj_seen: registered twice" in out, f"a table registered twice is a finding: {out[-300:]}")
 rc, out = with_edit(OEXP, ANCH, "pass")
@@ -151,6 +154,40 @@ rc, out = with_edit(OEXP, ANCH, 'obj_export("obj_seen", acct_left=_VIEW, acct_mo
 check("zz_part" not in out, f"a register part with its name in the import's preview is known: {out[-300:]}")
 rc, out = with_edit(OEXP, ANCH, 'obj_export("obj_seen", acct_left=_VIEW, nodes=(("zz/n.json", "ref_id IN ({NODES})"),))')
 check(rc == 1 and "obj_seen: the node clause of zz/n.json names no archive of its org entries" in out, f"a node clause outside org is a finding: {out[-300:]}")
+
+# 2.1334.0 (#6585, audit #4808 T13): the kinds of the core's tables, each in both exports or with a reason in KIND_LEFT
+check("33 kinds of the core" in lint()[1], f"the kinds are read: {lint()[1][-200:]}")
+rc, out = with_edit(OEXP, "OR (rel='made' AND", "OR (rel='zz_made' AND")
+check(rc == 1 and "obj_links rel=made: in no query of the acct export" in out and "rel=contact" not in out,
+      f"a private relation the account export no longer takes is a finding (the others not): {out[-300:]}")
+rc, out = with_edit(OEXP, '("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE} AND {LINKED}")', '("links.json", "org_id=? AND rel=\'related\' AND {LIVE} AND {LINKED}")')
+check(rc == 0, f"a named free relation (one outside OLNK_AREA_RELS) counts as the free ones: {out[-300:]}")
+rc, out = with_edit(OEXP, '                             ("links.json", "org_id=? AND rel NOT IN {AREA_RELS} AND {LIVE} AND {LINKED}")),\n', "),\n")
+check(rc == 1 and "obj_links rel=(free): in no query of the org export" in out, f"the free links out of the organisation export are a finding: {out[-300:]}")
+rc, out = with_edit(("core", "objcomments.py"), 'OCM_KINDS = ("task", "video", "doc_note", "tchat")', 'OCM_KINDS = ("task", "video", "doc_note", "tchat", "zz_kind")')
+check(rc == 1 and "obj_comments kind=zz_kind: in no query of the org export" in out and "obj_comments kind=zz_kind: in no query of the acct export" in out,
+      f"a new kind of comments is a finding in both exports: {out[-300:]}")
+rc, out = with_edit(("core", "objseen.py"), 'OSN_KINDS += ("due",)', 'OSN_KINDS += ("due", "zz_seen")')
+check(rc == 1 and "obj_seen kind=zz_seen: in no query of the org export" in out and "obj_seen kind=zz_seen: in no query of the acct export" in out,
+      f"a kind added with += is read too: {out[-300:]}")
+rc, out = with_edit(("core", "objseen.py"), 'OSN_KINDS += ("due",)', "")
+check(rc == 1 and "obj_seen due org: stale in KIND_LEFT" in out, f"a reason for a kind that is gone is a finding: {out[-300:]}")
+rc, out = with_edit(OEXP, ANCH, 'obj_export("obj_seen", org_left=_VIEW, acct_left=_VIEW, acct_more=(("zz_seen", "SELECT * FROM obj_seen WHERE user_id=? AND kind=\'rss\'", "History"),))')
+check(rc == 1 and "obj_seen kind=rss: in the acct export and named in KIND_LEFT" in out and "kind=task: in the acct" not in out,
+      f"a reason for a kind that is exported meanwhile is a finding: {out[-300:]}")
+rc, out = with_edit(SCHEMA, "CREATE TABLE IF NOT EXISTS filters (", "CREATE TABLE IF NOT EXISTS obj_zz (\n  id BIGINT PRIMARY KEY, kind TEXT, user_id BIGINT);\n"
+                    "CREATE TABLE IF NOT EXISTS filters (")
+check(rc == 1 and "obj_zz: a table of the core with a kind column (kind) neither in CORE_KINDS" in out, f"a new kind table of the core outside the lists is a finding: {out[-300:]}")
+rc, out = with_edit(("core", "objhooks.py"), 'OLNK_AREA_RELS = ("made", "device", "contact", "answers", "reply")',
+                    'OLNK_AREA_RELS = ("made", "device", "contact", "answers", "reply", "zz_rel")')
+check(rc == 1 and "obj_links rel=zz_rel: in no query of the org export" in out, f"a new area relation is a finding (the free links' NOT IN follows the constant): {out[-300:]}")
+# 2.1334.0 (#6359): every table in the organisation export or OX_LEFT (was: only those with an organisation / list column)
+rc, out = with_edit(("admin", "orgexport.py"), '"journal": _PERSONAL, ', "")
+check(rc == 1 and "journal: a table neither in the organisation export (OX_AREAS) nor in OX_LEFT" in out, f"a person's table out of OX_LEFT is a finding: {out[-300:]}")
+rc, out = with_edit(("admin", "orgexport.py"), '"journal": _PERSONAL, ', '"journal": _PERSONAL, "zz_gone": _PERSONAL, ')
+check(rc == 1 and "zz_gone: stale in OX_LEFT (no such table)" in out, f"a reason for a table that is gone is a finding: {out[-300:]}")
+rc, out = with_edit(("admin", "orgexport.py"), '"journal": _PERSONAL, ', '"journal": _PERSONAL, "settings": _SERVER, ')
+check(rc == 1 and "settings: in OX_LEFT and in UMZ_FREE_TABLES" in out, f"a table with nobody's data in OX_LEFT is a finding: {out[-300:]}")
 
 # 2.464.0 (#3841): the reasons are keys of the language files, also the ones of the organisation export and without the mark in the manifest
 spec = importlib.util.spec_from_file_location("i18nkeys", os.path.join(ROOT, "kalmido", "core", "i18nkeys.py"))
