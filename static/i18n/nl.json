@@ -1899,7 +1899,6 @@
   "The backup could not be written ({0}).": "De back-up kon niet worden geschreven ({0}).",
   "This is not an Kalmido backup (or the file is damaged).": "Dit is geen Kalmido-back-up (of het bestand is beschadigd).",
   "The backup contains unexpected files and was refused.": "De back-up bevat onverwachte bestanden en is geweigerd.",
-  "The backup is too large (limit {0} MB unpacked).": "De back-up is te groot (limiet {0} MB uitgepakt).",
   "The backup looks like a zip bomb and was refused.": "De back-up lijkt op een zipbom en is geweigerd.",
   "The backup is damaged: a file does not match its checksum.": "De back-up is beschadigd: een bestand komt niet overeen met zijn controlesom.",
   "The database in the backup is damaged (integrity check failed).": "De database in de back-up is beschadigd (integriteitscontrole mislukt).",
@@ -19067,5 +19066,13 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Eén bestand per project in een ZIP: Todoist-CSV voor de import in Todoist, Markdown als checklists voor elke notitie-app. Alleen je eigen projecten gaan erin: met jou gedeelde projecten en projecten die met een wachtwoord zijn vergrendeld blijven buiten, een lijst in de ZIP noemt ze.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "vergrendeld met een wachtwoord (end-to-end versleuteld): de server heeft het alleen versleuteld",
   "shared with you: only the projects you own are exported": "met jou gedeeld: alleen je eigen projecten worden geëxporteerd",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Niet opgenomen gedeelde projecten: {0}. In deze export staan alleen je eigen projecten.",
+  "The backup is too large (limit {0} MB unpacked, set with KALMIDO_BACKUP_MAX_MB).": "De back-up is te groot (limiet {0} MB uitgepakt, instelbaar met KALMIDO_BACKUP_MAX_MB).",
+  "The weekly backup check found {0} damaged file in the backup folder and wrote it again from the original. Check the disk of the backup folder.": ["De wekelijkse controle vond {0} beschadigd bestand in de back-upmap en schreef het opnieuw vanuit het origineel. Controleer de schijf van de back-upmap.", "De wekelijkse controle vond {0} beschadigde bestanden in de back-upmap en schreef ze opnieuw vanuit de originelen. Controleer de schijf van de back-upmap."],
+  "The weekly check of the newest backup ({0}) failed: {1}": "De wekelijkse controle van de nieuwste back-up ({0}) is mislukt: {1}",
+  "Automatic backups are switched off and there is no backup from the last 7 days (newest: {0}). Switch them on under Settings > Server > Backup.": "Automatische back-ups staan uit en er is geen back-up van de laatste 7 dagen (nieuwste: {0}). Zet ze aan onder Instellingen > Server > Back-up.",
+  "Weekly check of the newest backup: fine ({0}).": "Wekelijkse controle van de nieuwste back-up: in orde ({0}).",
+  "The weekly check of the newest backup failed ({0}): {1}": "De wekelijkse controle van de nieuwste back-up is mislukt ({0}): {1}",
+  "The newest backup holds {0}, more than the limit for uploaded backups ({1} MB, KALMIDO_BACKUP_MAX_MB). This server checks and restores it, but a downloaded copy can only be uploaded to a server whose limit is higher.": "De nieuwste back-up bevat {0}, meer dan de limiet voor geüploade back-ups ({1} MB, KALMIDO_BACKUP_MAX_MB). Deze server controleert en herstelt hem, maar een gedownloade kopie kan alleen worden geüpload naar een server met een hogere limiet.",
+  "{0} damaged file in the backup folder was written again from the original.": ["{0} beschadigd bestand in de back-upmap is opnieuw geschreven vanuit het origineel.", "{0} beschadigde bestanden in de back-upmap zijn opnieuw geschreven vanuit de originelen."]
 }

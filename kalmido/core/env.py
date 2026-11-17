@@ -213,7 +213,7 @@ VARS = (
     _v("KALMIDO_BACKUPS", "1", "Switch: automatic backups (the schedule is set in the app).", "backup"),
     _v("KALMIDO_BACKUP_DIR", "<data dir>/backups", "Folder of the backups.", "backup"),
     _v("KALMIDO_BACKUP_PASSPHRASE", "", "Passphrase that encrypts the backups.", "backup"),
-    _v("KALMIDO_BACKUP_MAX_MB", "4096", "Size in MB of a backup that can be restored (upload and unpacked).", "backup"),
+    _v("KALMIDO_BACKUP_MAX_MB", "4096", "Size in MB of an uploaded backup that can be checked or restored (upload and unpacked); the server's own backups have no limit.", "backup"),
     _v("KALMIDO_BACKUP_TICK", "60", "Seconds between two looks at the backup schedule.", "backup"),
     _v("KALMIDO_BACKUP_PG_TIMEOUT", "21600", "Seconds one pg_dump / pg_restore run may take.", "backup"),
     _v("KALMIDO_BACKUP_SHARED_MIN", "65536", "Bytes from which a file is kept once in the shared store of the backups (backups/.store) instead of in every backup (2.432).", "backup"),

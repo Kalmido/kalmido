@@ -223,7 +223,7 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_BACKUPS` | `1` | Switch: automatic backups (the schedule is set in the app). |
 | `KALMIDO_BACKUP_DIR` | `<data dir>/backups` | Folder of the backups. |
 | `KALMIDO_BACKUP_ENCRYPT_REQUIRED` | `0` | Switch: no backup without encryption (hosting; self-hosted installations keep working without it), 2.152.0. |
-| `KALMIDO_BACKUP_MAX_MB` | `4096` | Size in MB of a backup that can be restored (upload and unpacked). |
+| `KALMIDO_BACKUP_MAX_MB` | `4096` | Size in MB of an uploaded backup that can be checked or restored (upload and unpacked); the server's own backups have no limit. |
 | `KALMIDO_BACKUP_PASSPHRASE` | `(empty)` | Passphrase that encrypts the backups. |
 | `KALMIDO_BACKUP_PG_TIMEOUT` | `21600` | Seconds one pg_dump / pg_restore run may take. |
 | `KALMIDO_BACKUP_SHARED_MIN` | `65536` | Bytes from which a file is kept once in the shared store of the backups (backups/.store) instead of in every backup (2.432). |

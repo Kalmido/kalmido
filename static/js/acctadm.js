@@ -314,7 +314,8 @@ async function bkDraw(md, j) {
     ${j.passphrase_set ? '' : hint(tr('Check passphrase: no backup passphrase is set yet.'))}
     <div class="row"><button class="btn sm" data-bk="now" ${j.running ? 'disabled' : ''}>${ic('archive', 's')} ${tr('Back up now')}</button></div>`;
   const st = [j.running ? (j.running === 'restore' ? tr('A restore is running…') : tr('Backup running…')) : j.last_ok ? tr('Last backup: {0}.', esc(aaWhen(j.last_ok))) : tr('No backup yet.'),
-    tr('Backups use {0}, {1} free on the disk.', fmtBytes(j.total_bytes), j.free_bytes ? fmtBytes(j.free_bytes) : '?')];
+    tr('Backups use {0}, {1} free on the disk.', fmtBytes(j.total_bytes), j.free_bytes ? fmtBytes(j.free_bytes) : '?'),
+    j.check_ok && !j.check_error ? tr('Weekly check of the newest backup: fine ({0}).', esc(aaWhen(j.check_ok))) : ''].filter(Boolean);  // 2.1338.0 (#6612)
   h += hint(st.join(' '));
   // 2.432.0 (#3584): larger files are kept once for all backups (the sizes below are without them)
   if (j.store_files) h += `<div class="shint bkstore">${trh('Shared files of all backups: {0} in {1} (each file is kept only once).', fmtBytes(j.store_bytes), trn('{0} file', '{0} files', j.store_files))}</div>`;
@@ -323,6 +324,9 @@ async function bkDraw(md, j) {
   if (j.free_bytes && j.items.length && j.free_bytes < 3 * each) h += `<div class="shint cnote bkspace">${trh('Little space left on the disk for further backups (each one about {0}). Keep fewer backups or give the backup folder a bigger disk.', fmtBytes(each))}</div>`;
   if (j.same_disk_only) h += `<div class="shint cnote bksamedisk">${tr('The backups are on the same disk as the data and no off-site target is on: if that disk dies, both are gone.')}</div>`;  // 2.1179.0 C (#2898)
   if (j.last_error) h += `<div class="shint cnote">${tr('The last backup failed ({0}): {1}', esc(aaWhen(j.last_error_at)), esc(j.last_error))}</div>`;
+  // 2.1338.0 (#6612): the weekly check failed; the newest backup is larger than what another server takes as an upload
+  if (j.check_error) h += `<div class="shint cnote bkcheck">${tr('The weekly check of the newest backup failed ({0}): {1}', esc(aaWhen(j.check_error_at)), esc(j.check_error))}</div>`;
+  if (j.items.length && j.items[0].unpacked_bytes > j.max_mb * 1048576) h += `<div class="shint cnote bklimit">${trh('The newest backup holds {0}, more than the limit for uploaded backups ({1} MB, KALMIDO_BACKUP_MAX_MB). This server checks and restores it, but a downloaded copy can only be uploaded to a server whose limit is higher.', fmtBytes(j.items[0].unpacked_bytes), j.max_mb)}</div>`;
   if ((j.leftovers || []).length) h += `<div class="shint cnote" id="bk-leftovers">${tr('Folders from a restore are lying next to the data folder ({0}). After a hard stop the database and the files may not match: check them, a successful restore removes them.', esc(j.leftovers.join(', ')))}</div>`;  // 2.370.2 (#2779)
   h += j.items.length ? `<div class="members bklist">${j.items.map(x => `<div class="mrow bkrow" data-bkn="${esc(x.name)}"><span class="n"><b>${esc(aaWhen(x.created_at))}</b> · ${tr(BK_KIND[x.kind] || x.kind)} · ${fmtBytes(x.size)}${x.encrypted ? ` · ${ic('lock', 's')} ${tr('encrypted')}` : ''}${x.legacy ? ` · ${tr('old (SQLite), cannot be restored here')}` : ''}
       <small class="muted" style="display:block">${x.unreadable ? tr('unreadable') : `${trn('{0} task', '{0} tasks', x.counts.tasks || 0)}, ${trn('{0} file', '{0} files', x.attachment_files || 0)}${x.shared_files ? ` (${esc(trn('{0} shared', '{0} shared', x.shared_files))}${x.store_new_bytes ? ', ' + esc(tr('{0} newly stored', fmtBytes(x.store_new_bytes))) : ''})` : ''}, ${trn('{0} person', '{0} people', x.counts.users || 0)} · v${esc(x.app_version)}${x.missing_files ? ' · ' + esc(trn('{0} file missing', '{0} files missing', x.missing_files)) : ''}`}</small></span>

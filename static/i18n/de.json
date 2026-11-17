@@ -1891,7 +1891,6 @@
   "The backup could not be written ({0}).": "Die Sicherung konnte nicht geschrieben werden ({0}).",
   "This is not an Kalmido backup (or the file is damaged).": "Das ist keine Kalmido-Sicherung (oder die Datei ist beschädigt).",
   "The backup contains unexpected files and was refused.": "Die Sicherung enthält unerwartete Dateien und wurde abgelehnt.",
-  "The backup is too large (limit {0} MB unpacked).": "Die Sicherung ist zu groß (Grenze {0} MB entpackt).",
   "The backup looks like a zip bomb and was refused.": "Die Sicherung sieht wie eine Zip-Bombe aus und wurde abgelehnt.",
   "The backup is damaged: a file does not match its checksum.": "Die Sicherung ist beschädigt: Eine Datei passt nicht zu ihrer Prüfsumme.",
   "The database in the backup is damaged (integrity check failed).": "Die Datenbank in der Sicherung ist beschädigt (Integritätsprüfung fehlgeschlagen).",
@@ -19067,5 +19066,13 @@
   "One file per project in a ZIP: Todoist CSV for the import of Todoist, Markdown as checklists for any notes app. Only the projects you own go in: projects shared with you and projects locked with a password stay out, a list in the ZIP names them.": "Eine Datei je Projekt in einer ZIP-Datei: Todoist-CSV für den Import in Todoist, Markdown als Checklisten für jede Notiz-App. Es kommen nur deine eigenen Projekte hinein: mit dir geteilte und mit Passwort verschlüsselte Projekte bleiben draußen, eine Liste in der ZIP-Datei nennt sie.",
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "mit Passwort verschlüsselt (Ende-zu-Ende): der Server hat es nur als Geheimtext",
   "shared with you: only the projects you own are exported": "mit dir geteilt: exportiert werden nur deine eigenen Projekte",
-  "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte."
+  "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte.",
+  "The backup is too large (limit {0} MB unpacked, set with KALMIDO_BACKUP_MAX_MB).": "Die Sicherung ist zu groß (Grenze {0} MB entpackt, einstellbar mit KALMIDO_BACKUP_MAX_MB).",
+  "The weekly backup check found {0} damaged file in the backup folder and wrote it again from the original. Check the disk of the backup folder.": ["Die wöchentliche Prüfung der Sicherung hat {0} beschädigte Datei im Sicherungsordner gefunden und aus dem Original neu geschrieben. Prüfe die Festplatte des Sicherungsordners.", "Die wöchentliche Prüfung der Sicherung hat {0} beschädigte Dateien im Sicherungsordner gefunden und aus den Originalen neu geschrieben. Prüfe die Festplatte des Sicherungsordners."],
+  "The weekly check of the newest backup ({0}) failed: {1}": "Die wöchentliche Prüfung der neuesten Sicherung ({0}) ist fehlgeschlagen: {1}",
+  "Automatic backups are switched off and there is no backup from the last 7 days (newest: {0}). Switch them on under Settings > Server > Backup.": "Automatische Sicherungen sind ausgeschaltet und es gibt keine Sicherung aus den letzten 7 Tagen (neueste: {0}). Schalte sie unter Einstellungen > Server > Sicherung ein.",
+  "Weekly check of the newest backup: fine ({0}).": "Wöchentliche Prüfung der neuesten Sicherung: in Ordnung ({0}).",
+  "The weekly check of the newest backup failed ({0}): {1}": "Die wöchentliche Prüfung der neuesten Sicherung ist fehlgeschlagen ({0}): {1}",
+  "The newest backup holds {0}, more than the limit for uploaded backups ({1} MB, KALMIDO_BACKUP_MAX_MB). This server checks and restores it, but a downloaded copy can only be uploaded to a server whose limit is higher.": "Die neueste Sicherung enthält {0}, mehr als die Grenze für hochgeladene Sicherungen ({1} MB, KALMIDO_BACKUP_MAX_MB). Dieser Server prüft und spielt sie ein, eine heruntergeladene Kopie lässt sich aber nur auf einem Server mit höherer Grenze hochladen.",
+  "{0} damaged file in the backup folder was written again from the original.": ["{0} beschädigte Datei im Sicherungsordner wurde aus dem Original neu geschrieben.", "{0} beschädigte Dateien im Sicherungsordner wurden aus den Originalen neu geschrieben."]
 }

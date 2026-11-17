@@ -569,8 +569,13 @@ follow the upgrade notes of that version (it moves the data by itself), then upd
   from `bkstore.py assemble` (see [A copy of the backup folder elsewhere](#database-postgresql)); copy the folder only with
   `.store`. With the defaults (14 daily + 8 weekly) up to 22 archives lie in the backup folder, plus the safety backup of
   every restore, so plan the size of the attachments once plus roughly 22 times the database (the backup page shows the
-  size of each archive and the free space). A restore takes at most `KALMIDO_BACKUP_MAX_MB` (default 4096 MB, upload and
-  unpacked, shared files included) and refuses a larger backup with a message; set it higher on the restoring server.
+  size of each archive and the free space). An uploaded backup is taken up to `KALMIDO_BACKUP_MAX_MB` (default 4096 MB, upload and
+  unpacked, shared files included) and refused above that with a message; set it higher on the restoring server. The
+  server's own backups in its backup folder are checked and restored whatever their size (since 2.1338.0); the backup
+  page warns once the newest one is larger than that limit, as a downloaded copy then needs a higher limit elsewhere.
+  Once a week the newest backup is checked completely, as the button *Check* does; a failure is an admin alert, and a
+  damaged file of `.store` is written again from its original while that is still there. With automatic backups
+  switched off and no backup from the last 7 days, the admins get an alert once a week.
   On a small disk keep fewer of them (Settings > Server > Backup > *Keep*) or put the backup folder on another
   disk with `KALMIDO_BACKUP_DIR`; the backup page warns once less than about three more archives fit. As long as the
   backup folder lies on the same disk as the data and no off-site target is on, the backup page says so (since 2.1179.0,
@@ -2673,7 +2678,7 @@ All settings are environment variables in `.env` (see [.env.example](../.env.exa
 | `KALMIDO_BACKUPS` | `1` | `0` turns automatic backups and restore off completely (see *Backups and restore*) |
 | `KALMIDO_BACKUP_DIR` | `backups/` next to the database | Folder for the backup archives |
 | `KALMIDO_BACKUP_PASSPHRASE` | | Passphrase for encrypted backups (instead of setting it in the app; the app then shows it as set) |
-| `KALMIDO_BACKUP_MAX_MB` | `4096` | Largest backup a restore accepts (upload size and unpacked total) |
+| `KALMIDO_BACKUP_MAX_MB` | `4096` | Largest uploaded backup a check or restore accepts (upload size and unpacked total); the server's own backups have no limit |
 | `KALMIDO_WEBAUTHN_RP_ID` | host of the page | Passkeys: relying party ID, e.g. `example.com` to use passkeys on several subdomains |
 | `KALMIDO_WEBAUTHN_ORIGINS` | | Passkeys: extra origins (comma list, e.g. `https://tasks.example.net`) besides `PUBLIC_URL` |
 | `KALMIDO_OIDC_ISSUER`, `KALMIDO_OIDC_CLIENT_ID`, `KALMIDO_OIDC_CLIENT_SECRET` | | OpenID Connect login (see *Login > OpenID Connect*); issuer + client id turn it on. 2.9.0: also settable in *Settings > Server > Sign-in*; a set variable wins per field |

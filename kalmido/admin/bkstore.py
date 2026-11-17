@@ -161,13 +161,14 @@ def _aad(name, i, last):
     return hashlib.sha256(BLOB_MAGIC + name.encode()).digest() + struct.pack(">QB", i, 1 if last else 0)
 
 
-def put(root, key, src, sha, size):
+def put(root, key, src, sha, size, force=False):
     """Puts the file src (SHA-256 sha, as hashed before) into the store. -> (store path, bytes newly written), or None
-    when the file changed meanwhile (the caller hashes it again). An existing store file of the right size stays."""
+    when the file changed meanwhile (the caller hashes it again). An existing store file of the right size stays.
+    2.1338.0 (#6612): force=True writes it again all the same (the check found it damaged: bytes changed, size kept)."""
     p = rel(key, sha)
     full = os.path.join(root, p)
     try:
-        if os.path.getsize(full) == stored_size(key, size):  # (its time stays: the Pi copy takes the files of the last days)
+        if not force and os.path.getsize(full) == stored_size(key, size):  # (its time stays: the Pi copy takes the files of the last days)
             return p, 0
     except OSError:
         pass
