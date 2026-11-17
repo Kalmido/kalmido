@@ -48,6 +48,7 @@ function onumHtml() {
       <span class="lacts"><input id="${id}" data-onum-in="${r.kind}" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(v)}" class="numin" aria-describedby="${id}-h">
       <span class="muted ofcpv" id="${id}-pv" aria-live="polite">${esc(pv)}</span>
       <span class="muted ofchint onumh" id="${id}-h">${esc(hint)}</span></span>
+      ${/*html-ok*/ onumGapsHtml(r) /* 2.1315.0 (#6472): escaped inside */}
       ${r.reason_needed && jump ? `<span class="lacts onumwhy"><input id="${id}-why" data-onum-why="${r.kind}" value="${esc(ONUM['w' + r.kind] || '')}" maxlength="300" placeholder="${esc(tr('Reason for the jump (kept in the office log)'))}" aria-label="${esc(tr('Reason'))}"></span>` : ''}
       ${ONUM['e' + r.kind] ? `<span class="ofcpv err ofchint" role="alert">${esc(ONUM['e' + r.kind])}</span>` : ''}</div>`;
   }).join('');
@@ -56,6 +57,13 @@ function onumHtml() {
     <p class="muted ofchint">${esc(tr('E.g. to continue your previous program. Only upwards.'))}</p>
     ${/*html-ok*/ ONUM.err ? errorState({sub: ONUM.err, size: 'row'}) /* 2.1076.0 (#5450) */ : ''}${rows}
     ${ONUM.ranges.some(r => !r.shared) ? `<div class="row onumfoot"><span class="lacts"><button type="button" class="btn sm pri" data-onum="apply" ${dirty && !ONUM.busy ? '' : 'disabled'}>${tr('Apply')}</button></span></div>` : ''}</div>`;
+}
+// 2.1315.0 (#6472): the gaps of the series (the same check as the auditor's export, number_ranges.csv) - each range with its reason
+function onumGapsHtml(r) {
+  const g = r.gaps; if (!g || !g.count) return '';
+  const rg = x => (x.from === x.to ? String(x.from) : x.from + '–' + x.to) + ': ' + x.reason;
+  const list = g.ranges.map(rg).concat(g.more ? [tr('{0} more', g.more)] : []).join(' · ');
+  return `<span class="muted ofchint onumgaps${g.none ? ' warn' : ''}" id="onum-${esc(r.kind)}-gaps">${esc(tr('Missing numbers: {0}', g.count))}${g.none ? ' (' + esc(tr('{0} without a reason', g.none)) + ')' : ''} - ${esc(list)}</span>`;
 }
 // 2.855.0 (#5456): the rows whose field differs from the stored next number (shared rows have no own counter)
 const onumDirty = () => (ONUM.ranges || []).filter(r => !r.shared && ONUM['v' + r.kind] != null && ONUM['v' + r.kind].trim() !== String(r.next));

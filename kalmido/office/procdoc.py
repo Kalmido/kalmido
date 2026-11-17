@@ -231,7 +231,16 @@ def pd_auto(c, oid, L):
               ("delivery", "Lieferscheine", "Delivery notes", "delivery_scheme"))
     out["numbers"] = "\n".join([f"- {t(de, en)}: {s.get(k) or num.get(kind) or '-'}" for kind, de, en, k in labels] + [
         t("Nummern werden fortlaufend je Nummernkreis vergeben und sind je Büro eindeutig.",
-          "Numbers are given in sequence per number range and are unique per office.")])
+          "Numbers are given in sequence per number range and are unique per office."),
+        # 2.1315.0 (#6472): what "fortlaufend" means for a gap, and where it is shown with its reason
+        t("Rechnungs- und Korrekturnummern werden erst beim Festschreiben vergeben. Wird eine Nummer übersprungen (Startnummer, "
+          "Zähler erhöht, Nummer von Hand, Nummer bereits durch ein anderes Dokument oder den Altbestand belegt), steht der Grund "
+          "im Büro-Protokoll. Die Seite Nummernkreise und der Prüfer-Export (Tabelle number_ranges.csv) zeigen je Nummernkreis "
+          "den Zählerstand und jede fehlende Nummer als Bereich mit ihrem Grund.",
+          "Invoice and correction numbers are given when the document is finalised. When a number is skipped (start number, counter "
+          "raised, number set by hand, number already carried by another document or the legacy archive), the reason is in the "
+          "office log. The number ranges page and the auditor's export (table number_ranges.csv) show per number range the counter "
+          "and every missing number as a range with its reason.")])
     books = _count(c, "SELECT COUNT(*) FROM office_cashbooks WHERE org_id=? AND NOT archived", (oid,))
     out["cashbook"] = (t(f"{books} Kassenbuch/Kassenbücher in Gebrauch. ", f"{books} cash book(s) in use. ") if books
                        else t("Kein Kassenbuch angelegt. ", "No cash book set up. ")) + t(
