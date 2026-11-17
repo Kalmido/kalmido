@@ -23,6 +23,62 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1330.0] - 2026-11-17
+
+Package 2.1313.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- #6690 Phone tab bar: from 390 px width (e.g. a folded phone's outer screen, about 412 px) it holds 6 places (5 areas + More), below 390 px it stays 5; 600 px = 7 and 900 px = 9 as before. Labels stay on one line and end with "…" instead of widening their place. The hint in Settings ("This device fits 6 tabs") follows.
+- #6367 First start: the service worker signs up only once the app stands (idle, at the latest after 5 s) and fetches the modules loaded on demand at most 6 at a time instead of all ~240 at once; with the data saver or a slow mobile connection it fetches none of them (they load on their first use, unchanged copies of the previous version are kept).
+- #6557 Security (upload address /drop): sending to an agent through the upload token (field `to`, iOS shortcut / HTTP Shortcuts) needs its own switch "Also send to agents" (Settings > Integrations > Share from your phone; only in a signed-in session). A new token starts with it off; tokens from before keep it on and are told once (a notice in the app and in the answer of their first such message). Such a message is marked "via upload token" in the chat and reaches the agent with `origin: "drop"` + `untrusted: true` (message and `chat` event); the agent rules, the reference launcher (capability `drop_untrusted`) and docs/AGENTS.md treat it like text from outside: changes only after an approval card.
+
+### Fixed
+- #6134 Sign-in page on a new device: without a remembered language it speaks the browser's language when Kalmido has it (de, en, es, fr, it, nl; a region drops, fr-CA -> fr), else English - also when the server's answer is missing or offline. Only the display; the sign-in itself is unchanged.
+
+Package 2.1316.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6577: Importing an organisation export into an office that has documents already is no silent merge any more. The preview checks every target it offers: document numbers the target uses already and months the target has locked are listed, and the start is refused (409 with the list; checked once more inside the run). Before, documents with a taken number were skipped together with their positions, payments and PDF, and the target's period lock was ignored.
+- #6577: A finalised document whose original PDF / XML is not in the file (or is refused by the scanner) no longer arrives as a document whose download fails for good: it is not imported and the result names its number; the preview lists such documents beforehand.
+- #6577: The preview says before the start how many finalised documents the file brings and that undoing the import does not take them back; when the file's own period locks would lock months of the target with its own data, the preview and the result say so.
+
+Package 2.1315 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+### Added
+- Auditor's export (#6472): new table `number_ranges.csv` per invoice / correction series and period with the counter and every gap as a range with its reason (from the office log, "draft carries the number", "without a reason"); `invoices.csv` gains address, VAT id, client master note, service period from/to, due date and the cancelled document's number, `positions.csv` the tax key. The number ranges page shows the same gap check under each series.
+- Old documents (#6590): a single imported old PDF can go into the office trash and back (not in a closed month, not in a read-only moved copy).
+### Fixed
+- Auditor's export (#6472): recipient name and number come from the frozen recipient of the invoice, not today's client record (renamed or deleted client).
+- Office imports (#6590): spreadsheet number cells are read as stored (0.125 no longer becomes 125); the same bank period as CSV and CAMT / MT940 is recognised as already there; bank CSV rows in a foreign currency are rejected instead of booked in the office currency; CAMT batch bookings keep every entry; DATEV import names the reason of every rejected row; fixed costs start in the current year; overlapping archive batches skip rows already imported.
+### Changed
+- Performance (#6403, part 3): `rc_receipts` gets indexes on area and billed invoice, so saving a receipt no longer scans the receipts of all organisations.
+- Performance (#6409): idempotency keys are tidied by the hourly background run instead of in every write request with a key; an expired key is still never replayed.
+
+Package 2.1322.0 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6560 (2): The document rules of a mailbox work a folder off from a remembered position, oldest mail first, instead of looking at the newest 200 mails only; an older mail that fits is no longer missed. Changing the folder's rules (or a new UIDVALIDITY) looks at the folder anew. A mail that became no document yet keeps the position before it. Each rule shows how many e-mails of its folder are not checked yet ("N e-mails not checked yet").
+- #6560 (3): Over the hourly limit of a request address (10 per sender, 60 per project) a customer's mail is no longer dropped: it stays unread in the instance mailbox and is taken in a later round (its attempt is not used up, it waits behind the new mails). The project's owner and admins get one notice per hour ("Integration problems").
+- #6560 (4): The error-report webhook of a project checks at every call that the person who switched it on can still change the project; otherwise it pauses (403, the reason in the project's settings, one notice) until a list admin makes a new URL. Its limit per minute is counted for all web processes together.
+- #6560 (5): The Stripe key, the Stripe webhook secret, the payment hook token and the secret of a document flow's webhook are always sealed, also with the instance switch for encryption off. Without a server key (KALMIDO_SECRET_KEY) saving them is refused (409) instead of storing them in plain text.
+- #6560 (6): A webhook that switches itself off (failed deliveries, or its creator is no admin of the organisation any more) names how many waiting events were discarded and since when. Events queued while the creator was still an admin are no longer delivered after the demotion.
+- #6560 (7): No part of a newsletter token or of a server agent's API key is kept or shown any more (the last four characters were); the settings show "Saved".
+- #6560 (8): The payment provider's webhook checks the signature before the area's rate limit, so unsigned calls can no longer use up the limit of real events.
+- #6560 (9): The documents mail logs the number of archive problems, never the names of the files in a customer's mail.
+
+Package 2.1324 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- #6709 Sheets: import .ods (LibreOffice / OpenDocument, also .ots), recognised by the `mimetype` entry of the archive: every visible sheet (at most 30) becomes a sheet of one table, header row = column titles, column types from value types (number, currency with code, percent, date, boolean, text), OpenFormula translated (cross-sheet references included, the rest kept as value and counted in the report), list validations become choice columns, merged and repeated cells unrolled within the cell budget; the same XML protection as the xlsx reader (no DOCTYPE / entities, depth and size limits, empty repeats never unrolled). Menu "Import CSV, Excel or ODS…" (new module `sheets/odsread.py`).
+- #6589 Master data JSON import: "Overwrite existing" first shows a preview (new / overwritten per area, whether settings are replaced; `POST /api/office/import?preview=1` writes nothing); a file above 5000 entries per area is refused with area, count and limit instead of being cut silently.
+
+### Changed
+- #6147 Office bank page on a phone: one header row ("Import statement" + More with Walk through, Fetch from bank only when set up, Imports, Bank accounts); "Fetch from bank" is gone everywhere while fetching is not set up; the "Receipt missing?" hint folds away and stays folded; a suggestion card without a picture is compact. Walk-through: one main step (take suggestion, or search another receipt), upload, the four marks and split under More; the key hint names only keys that work; no tall empty dialog on a computer; the end view is the shared empty state.
+- #6589 Nothing falls out of exports and imports silently: form answer CSV and document CSV have no 2000-row cut any more (spooled, read in pages; the form dialog says "newest 2000 of N, the CSV holds all"); the folder ZIP of the files, the knowledge export and the Markdown / Todoist ZIP write "not included.txt" (localised name) with path and reason for links, blocked / unscanned / damaged files, locked folders, too deep folders, shared and locked projects (new helper `core/omitted.py`); the knowledge export takes linked file store files the exporter may open along under `_attachments/` and rewrites the link, tables are named; the knowledge import detects the text encoding like the task import (`core/csvimport.text_decode`) and names pages read as Windows-1252; the xlsx / ods import reports columns beyond 200 (`report.cols_left_out`).
+
+### Fixed
+- #6589 / #6709 Review findings: the knowledge export takes file store files along only where the file store gates allow it (module card without files, areas off; shared decision `fs_content_ok`, office exception kept) and caps file references per export (`KALMIDO_WIKI_EXPORT_REF_MAX`, default 2000, the rest named); the .ods reader captures each list column once per row, at most 1000 labels, within a work budget over all sheets including hidden ones; the document CSV refuses more than 50 000 ids per call with a message.
+- #6136 Test p2695_a_rowmenu_coverage counts the two task head menus of detail.js (reader and owner).
+
 ## [2.1326.0] - 2026-11-17
 
 Package 2.1312 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), MCP-Zaun: Zaun-Zeichen vollständig entschärfen und).
@@ -212,7 +268,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1326.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1330.0...HEAD
+[2.1330.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1330.0
 [2.1326.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1326.0
 [2.1323.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1323.0
 [2.1318.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1318.0
