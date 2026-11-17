@@ -301,13 +301,13 @@ def rq_take(c, r, msg, raw):
     return tid
 
 
-def rq_limit_tell(c, l):
+def rq_limit_tell(c, lst):
     """2.1322.0 (#6560 3): the owner and the admins of the project hear once an hour that requests by e-mail wait for the limit."""
-    if hit_limit(f"rqtold:{l['id']}", 1, RQ_WINDOW):
+    if hit_limit(f"rqtold:{lst['id']}", 1, RQ_WINDOW):
         return
     with system_ctx(c):  # the project's managers (the mail itself comes from nobody)
-        uids = [l["owner_id"]] + [r[0] for r in c.execute("SELECT user_id FROM list_members WHERE list_id=? AND role='admin'", (l["id"],))]
-    integ_tell(c, uids, "reqmail", l["name"] or f"#{l['id']}", click=f"l/{l['id']}", list=l["id"])
+        uids = [lst["owner_id"]] + [r[0] for r in c.execute("SELECT user_id FROM list_members WHERE list_id=? AND role='admin'", (lst["id"],))]
+    integ_tell(c, uids, "reqmail", lst["name"] or f"#{lst['id']}", click=f"l/{lst['id']}", list=lst["id"])
 
 
 @bgj_fn("mail:reqmail", tries=1)
