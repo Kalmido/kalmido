@@ -19007,6 +19007,7 @@
   "locked with a password (end-to-end encrypted): the server only holds it as ciphertext": "mit Passwort verschlüsselt (Ende-zu-Ende): der Server hat es nur als Geheimtext",
   "shared with you: only the projects you own are exported": "mit dir geteilt: exportiert werden nur deine eigenen Projekte",
   "Shared projects not included: {0}. Only the projects you own are in this export.": "Nicht enthaltene geteilte Projekte: {0}. In diesem Export stehen nur deine eigenen Projekte.",
+  "These projects are locked with a password (end-to-end encrypted). The server only holds them as ciphertext, so they cannot be exported here:": "Diese Projekte sind mit einem Passwort verschlüsselt (Ende-zu-Ende). Der Server hat sie nur als Geheimtext und kann sie hier nicht exportieren:",
   "Sending needs the user name and the password of the SMTP server": "Zum Senden braucht es Benutzername und Passwort des SMTP-Servers",
   "Sending only through port 465 or 587 (port 25 only for a server an admin allowed)": "Senden nur über Port 465 oder 587 (Port 25 nur für einen Server, den ein Admin freigegeben hat)",
   "Sending only with the user name and the password of the SMTP server, through port 465 or 587.": "Gesendet wird nur mit Benutzername und Passwort des SMTP-Servers, über Port 465 oder 587."
