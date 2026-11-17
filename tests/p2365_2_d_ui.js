@@ -49,7 +49,7 @@ const YEAR = String(new Date().getFullYear());
     check(d.querySelector('.smodal .snav [data-sec="biz"]')?.getAttribute('aria-selected') === 'true', `${who}: settingsModal('biz-tax') opens Company & office`);
     check(!!form, `${who}: Company & office has the part Bank & taxes`);
     if (form) {
-      const hs = [...form.querySelectorAll(':scope > h3')].map(h => h.id);  // 2.555.0 (#4664): the groups are h3
+      const hs = [...form.querySelectorAll(':scope > details.sfold > summary > h3')].map(h => h.id);  // 2.555.0 (#4664): the groups are h3; 2.1353.0 (#6827): in folded head rows
       check(hs[0] === 's-biz-company' && hs[1] === 's-biz-tax' && /Bank & taxes/.test(d.getElementById('s-biz-tax').textContent), `${who}: Bank & taxes right after Company ` + hs.join());
       check(await until(() => w.eval('S.bizJump') == null, 40), `${who}: the jump to the part is done once`);
       const q = s => d.querySelector('.smodal #s-biz .ostax ' + s);

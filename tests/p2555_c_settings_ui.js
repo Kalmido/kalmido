@@ -66,7 +66,7 @@ const FEATS = 'cal,timeline,matrix,kanban,collab,progress,deps,fields,comments,a
   check(txt(md.querySelector('#s-account-h')) === 'Profile', 'Account starts with "Profile"');
   const mv = md.querySelector('#s-mview');
   check(mv && txt(md.querySelector('#s-mview-h')) === 'View as member' && txt(mv.closest('label')) === 'Show Kalmido as a member sees it', 'View as member: the tick says something else than the heading');
-  const ex = md.querySelector('#s-exp-h')?.nextElementSibling;
+  const ex = md.querySelector('#s-exp-h')?.closest('details.sfold')?.querySelector('.sfb')?.firstElementChild;  // 2.1353.0 (#6827): the heading in its head row, the row first in the body
   check(ex && ex.querySelector('a[href="/api/export.json"]') && !ex.querySelector('label'), 'Export: no row label "Export" under the heading');
   check(txt(md.querySelector('label[for="s-quota"]')) === 'Limit' && txt(md.querySelector('#s-quota-h')) === 'Storage per person', 'Storage per person: the field is called Limit');
   const helpH = [...md.querySelectorAll('[data-pane="help"] h4')].map(txt);

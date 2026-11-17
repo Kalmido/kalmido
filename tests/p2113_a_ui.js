@@ -50,7 +50,7 @@ const FEAT = 'cal,comments,collab,office,clients';
 
     // ================= #2247 the areas
     // 2.555.0 (#4664): the groups are h3 now (their parts h4)
-    check(await ev(`[...document.querySelectorAll('#ofc-set > h3')].map(h => h.id.replace('s-biz-', '')).join(',')`) === 'company,tax,docs,tpl,packs,functions,data,access', '#2247: the areas, one below the other');  // 2.470.0 (#3596): the office page with its tabs is gone, + Texts & templates
+    check(await ev(`[...document.querySelectorAll('#ofc-set > details.sfold > summary > h3')].map(h => h.id.replace('s-biz-', '')).join(',')`) === 'company,tax,docs,tpl,packs,functions,data,access', '#2247: the areas, one below the other');  // 2.470.0 (#3596): the office page with its tabs is gone, + Texts & templates
     check(await ev(vis('os-name')) && await ev(vis('os-pack')) && await ev(vis('os-paydays')), '#2247: every area is shown');
     check(await ev(`!document.querySelector('[data-ofc="save-settings"]')`), '#2247: no Save button');
     // opening saves nothing and shows no bar
