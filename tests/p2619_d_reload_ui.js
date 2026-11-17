@@ -50,7 +50,7 @@ const until = fn => until0(fn, {timeout: 20000, step: 100});
   // ================= an update of the server: the reload by itself spread
   check(await until(() => w.eval('td_polling ? false : (td_polling = true)')), 'the poll held again');
   const appVer = d.querySelector('meta[name="kalmido-version"]')?.content;
-  w.eval(`verReload = () => { window.__rl = (window.__rl || 0) + 1; }; VER_SPREAD_MS = 600000; document.activeElement?.blur?.(); verIdle = Date.now() - 60000; sessionStorage.removeItem('kalmido-reloaded'); window.__rl = 0`);
+  w.eval(`window.__realVR = verReload; verReload = () => { window.__rl = (window.__rl || 0) + 1; }; VER_SPREAD_MS = 600000; document.activeElement?.blur?.(); verIdle = Date.now() - 60000; sessionStorage.removeItem('kalmido-reloaded'); window.__rl = 0`);
   // quiet: no field, dialog, popover, draft or waiting change (verQuiet holds the reload back otherwise)
   w.eval(`[...document.querySelectorAll('.modal')].forEach(m => m.remove()); const q = document.querySelector('#qinput'); if (q) q.value = ''`);
   const why = () => JSON.stringify(w.eval(`({quiet: verQuiet(), editing: editing(), focused: editFocused(), modal: !!$('.modal'), pop: !!$('#pop:not(.hidden)'), sheet: !!$('.qadd.sheet'), q: OUT.q.length, multi: !!S.multiMode, draft: verDraft(), seen: S.verSeen})`));
@@ -60,7 +60,38 @@ const until = fn => until0(fn, {timeout: 20000, step: 100});
   check(w.eval('S.verSpread?.v === "99.1.0" && S.verSpread.at > Date.now()'), `#3890: the window waits its own random time ${why()}`);
   w.eval('if (S.verSpread) S.verSpread.at = Date.now() - 1; verCheck("99.1.0")');
   check(w.__rl === 1, `#3890: once its time has come it reloads by itself (${w.__rl})`);
-  w.eval(`S.serverVer = '${appVer}'; verCheck('${appVer}'); td_polling = false`);
+  w.eval(`S.serverVer = '${appVer}'; verCheck('${appVer}')`);
+
+  // ================= 2.1337.0 (#6892): a click on "Reload" while the reload by itself waits for the server
+  // the real verReload runs; the wait for the server is held (rl_waitServer), the window is NOT calm (a draft) - the click must
+  // still reload (the mark kalmido-reloaded is set right before location.reload()), and the button is never left disabled
+  w.eval(`verReload = window.__realVR; window.__realWait = rl_waitServer; window.__gate = null; rl_waitServer = () => new Promise(r => { window.__gate = r; });
+    S.serverVer = '99.2.0'; sessionStorage.removeItem('kalmido-reloaded'); verBusy = false; verWant = false; verCheck('99.2.0'); verReload(true)`);
+  check(await until(() => w.eval('verBusy && !!window.__gate')), '#6892: the automatic run waits for the server');
+  const nv = () => d.querySelector('#newver [data-nv="go"]');
+  check(!!nv() && !nv().disabled, '#6892: the button is usable while it waits');
+  const word = nv().textContent;
+  nv().click();
+  check(nv().disabled && nv().textContent !== word, `#6892: the click shows the wait ("${nv().textContent}") instead of just greying out`);
+  w.eval(`const i = document.createElement('input'); i.type = 'text'; i.id = 'nv-draft'; document.body.appendChild(i); i.value = 'typed'`);
+  check(w.eval('!verCalm()'), '#6892: the window is not calm (a draft stands)');
+  w.eval('window.__gate(true)');
+  check(await until(() => !w.eval('verBusy')), '#6892: the run is over');
+  check(w.eval(`sessionStorage.getItem('kalmido-reloaded')`) === '99.2.0', '#6892: the click reloaded although the window was not calm');
+  // an automatic run that gives up (not calm, no click) frees nothing wrongly and a click after a failed wait frees the button
+  w.eval(`sessionStorage.removeItem('kalmido-reloaded'); window.__gate = null; verCheck('99.2.0'); verReload(true)`);
+  check(await until(() => w.eval('verBusy && !!window.__gate')), '#6892: second automatic run waits');
+  w.eval('window.__gate(true)');
+  check(await until(() => !w.eval('verBusy')), '#6892: second run over');
+  check(!w.eval(`sessionStorage.getItem('kalmido-reloaded')`), '#6892: without a click the automatic run still gives up when not calm');
+  check(!nv()?.disabled, '#6892: the button is free again after the automatic run gave up');
+  w.eval(`window.__gate = null; verReload(true)`);
+  check(await until(() => w.eval('verBusy && !!window.__gate')), '#6892: third run waits');
+  nv().click();
+  w.eval('window.__gate(false)');
+  check(await until(() => !w.eval('verBusy')), '#6892: third run over (server not reachable)');
+  check(!nv().disabled && nv().textContent === word, '#6892: the button is free again after a failed wait');
+  w.eval(`document.querySelector('#nv-draft')?.remove(); rl_waitServer = window.__realWait; S.serverVer = '${appVer}'; verCheck('${appVer}'); td_polling = false`);
   w.close();
 
   console.log(`p2619_d_reload_ui: ${ok} ok, ${F.length} failed`);

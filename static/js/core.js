@@ -1738,20 +1738,33 @@ const verDraft = () => ['#c-input', '#tc-in', '#chat-in', '#qinput', '#qsheet', 
 // waiting, a typing timer of a locked project)
 const verQuiet = () => !editing() && !editFocused() && !$('.modal') && !$('#pop:not(.hidden)') && !$('.qadd.sheet') && !OUT.q.length && !S.multiMode && !verDraft() && !(typeof fgAny === 'function' && fgAny());
 const verCalm = () => verQuiet() && (document.hidden || Date.now() - verIdle > 20000);
-let verBusy = false;
+let verBusy = false, verWant = false;
+// 2.1337.0 (#6892): the "Reload" button shows "Loading…" while it waits and is never left disabled: every early exit frees it
+function verBtn(busy) {
+  const b = $('#newver [data-nv="go"]'); if (!b) return;
+  b.disabled = !!busy;
+  if (busy) { if (b.dataset.nvTxt === undefined) b.dataset.nvTxt = b.textContent; b.textContent = tr('Loading…'); }
+  else if (b.dataset.nvTxt !== undefined) { b.textContent = b.dataset.nvTxt; delete b.dataset.nvTxt; }
+}
 // auto = the reload by itself (verCheck): the wait for the server below takes up to 90 s, so it asks for quiet once more right
 // before it reloads and gives up otherwise (2.1257.0 #6286 C2; the bar with "Reload" stays, the next poll tries again)
+// 2.1337.0 (#6892): a click on "Reload" while that automatic run waits (verWant) makes it reload for sure, whatever verCalm says
 async function verReload(auto = false) {
+  if (!auto) verWant = true;
   if (verBusy) return;
   verBusy = true;
-  try { if (OUT.q.length) await flush(); } catch { /* offline: the outbox stays in this browser and is sent after the reload */ }
-  try { if (typeof flushSaves === 'function') await flushSaves(); } catch { /* nothing waiting */ }
-  // 2.45.0 (#1529): only reload once the page and the stylesheet are really served (the container may still be restarting)
-  if (typeof rl_waitServer === 'function' && !await rl_waitServer()) { verBusy = false; const b = $('#newver [data-nv]'); if (b) b.disabled = false; return; }
-  try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch { /* no service worker */ }
-  if (auto && !verCalm()) { verBusy = false; return; }
-  try { sessionStorage.setItem('kalmido-reloaded', S.serverVer); } catch { /* private mode */ }
-  location.reload();
+  let leaving = false;
+  try {
+    try { if (OUT.q.length) await flush(); } catch { /* offline: the outbox stays in this browser and is sent after the reload */ }
+    try { if (typeof flushSaves === 'function') await flushSaves(); } catch { /* nothing waiting */ }
+    // 2.45.0 (#1529): only reload once the page and the stylesheet are really served (the container may still be restarting)
+    if (typeof rl_waitServer === 'function' && !await rl_waitServer()) { verWant = false; verBtn(false); return; }
+    try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch { /* no service worker */ }
+    if (auto && !verWant && !verCalm()) return;
+    try { sessionStorage.setItem('kalmido-reloaded', S.serverVer); } catch { /* private mode */ }
+    leaving = true;
+    location.reload();
+  } finally { verBusy = false; verWant = false; if (!leaving) verBtn(false); }
 }
 // 2.35.0 (#1094): the automatic reload waits until /api/version reported the new version twice in a row (not in the middle of
 // an update, while single requests still fail); after a reload the language file is checked against the code (i18nRetry)
@@ -1779,7 +1792,7 @@ function verCheck(app) {
   el.title = tr('This window runs v{0}, the server v{1}', APP_VER, S.serverVer);
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && verStale()) verCheck(); });
-document.addEventListener('click', e => { const b = e.target.closest?.('[data-nv="go"]'); if (b) { b.disabled = true; verReload(); } });
+document.addEventListener('click', e => { const b = e.target.closest?.('[data-nv="go"]'); if (b) { verBtn(true); verReload(); } });
 document.addEventListener('click', e => { if (e.target.closest?.('[data-nv="x"]')) { S.verShut = S.serverVer; $('#newver')?.remove(); } });  // 2.1170.0 (#6132)
 document.addEventListener('visibilitychange', async () => {
   if (!document.hidden && !editing()) { try { await load(); render(); } catch { /* offline */ } }
