@@ -394,8 +394,8 @@ function prd_opts() {
   return o;
 }
 const prd_lbl = (l, d) => l ? l[(d || OFD.doc)?.lang] || (ofdLang(d) === 'en' ? l.en : l.de) || l.de || l.en || '' : '';  // 2.449.0 (#3768): + the pack's other languages
-const prd_prodShown = d => (d.producing_on != null && d.producing_on !== 0) || (d.producing_on == null && d.kind === 'offer') || (d.producing_mode === 'amount' && !!prd_opts().share)
-  || (d.kind === 'offer' && !d.locked && !!prd_opts().share);  // 2.380.0 (#3420): also a quotation made before the pack was on
+// 2.1353.0 (#6839): no switch for a quotation made before the pack any more (2.380.0, #3420, taken back: decision #2251/#2252)
+const prd_prodShown = d => (d.producing_on != null && d.producing_on !== 0) || (d.producing_on == null && d.kind === 'offer') || (d.producing_mode === 'amount' && !!prd_opts().share);
 // 2.1228.0 (#6254): the markup ("Zuschlag") is a core function of every quotation (no pack needed); handling costs stay a pack option
 // 2.1249.0 (#6281): inside a part no markup (switch, ticks): the title page computes it once over its positions and the part lines
 const prd_slotShown = (d, k) => d.kind === 'offer' && !(k === 'markup' && d.tpPart && !d.locked) && (k === 'markup' || d[k + '_pct'] != null || !!prd_opts()[k]);

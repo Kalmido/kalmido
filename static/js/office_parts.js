@@ -41,7 +41,8 @@ const tpMoney = (v, d) => ofdMoney(v || 0, d);
 // 2.114.3 (#2266): the producing inside a part's net (display only: its days, a shoot part its share line); '' = none
 function tpProdNote(p) {
   const t = p?.totals || {};
-  if (p?.kind === 'shoot') { const s = (t.lines || []).find(l => l?.block === 'share'); return s && +s.total > 0 ? tr('incl. producing ({0})', s.detail || '') : ''; }
+  // 2.1353.0 (#6839): the shoot part names its block as the pack calls it (film: "Produktionsleitung", decision #2251)
+  if (p?.kind === 'shoot') { const s = (t.lines || []).find(l => l?.block === 'share'); return s && +s.total > 0 ? (s.label ? tr('incl. {0} ({1})', s.label, s.detail || '') : tr('incl. producing ({0})', s.detail || '')) : ''; }
   const days = +t.producing_days || 0;
   return days > 0 ? (days === 1 ? tr('incl. producing 1 day') : tr('incl. producing {0} days', ofdNumIn(days))) : '';
 }
