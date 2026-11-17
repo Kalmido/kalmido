@@ -183,6 +183,8 @@ def org_member_add(c, oid, uid, role="member", keep_office=True):
     keep_office=False (2.356.0, review N3): the person creates the organisation herself -- she goes on in it."""
     n = c.execute("INSERT INTO org_members(org_id,user_id,role) VALUES(?,?,?) ON CONFLICT (org_id, user_id) DO NOTHING", (oid, uid, role)).rowcount
     acx_drop()
+    with system_ctx(c):  # 2.1364.0 (#6297 1b, audit #4818): an open invitation of the person ends (else back in its role after a removal)
+        c.execute("DELETE FROM org_joins WHERE org_id=? AND user_id=?", (oid, uid))
     if n == 1 and keep_office:  # 2.356.0 B (#2932): a person with an own office keeps working in it (every way of joining comes here)
         _office_keep_on_join(c, uid)
     if n == 1:  # 2.363.3 (#3133): back within a day: their assignments and "coming along" return (every way of joining comes here)
@@ -1619,8 +1621,11 @@ def org_member_put(oid, ghost=False):
     if not u or (u["kind"] or "user") == "agent" or (uid != me() and not by_mail and not may_see(c, me(), uid)):
         return err(tr("unknown person"), 404)
     cur = c.execute("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone()
-    if cur and uid == me() and role != "admin" and _admins(c, oid) <= 1:
-        return err(tr("The last admin of an organisation cannot step down: make somebody else an admin first"), 409)
+    if cur and cur["role"] == "admin" and role != "admin":
+        # 2.1364.0 (#6297 1c, audit #4818): two admins demoting themselves (or each other) at once: the second waits and counts again
+        org_lock(c, oid)
+        if _admins(c, oid, besides=uid) < 1:
+            return err(tr("The last admin of an organisation cannot step down: make somebody else an admin first"), 409)
     pending = False
     if cur:
         c.execute("UPDATE org_members SET role=? WHERE org_id=? AND user_id=?", (role, oid, uid))
@@ -1668,6 +1673,13 @@ def org_role_news(c, oid, uid, role):
     from ..collab.news import news_add
     name = c.execute("SELECT name FROM orgs WHERE id=?", (oid,)).fetchone()[0]
     news_add(c, uid, "orgrole", row="share", data={"org_id": oid, "name": name, "role": role})
+
+
+def org_lock(c, oid):
+    """2.1364.0 (#6297 1c, audit #4818): the organisation's row locked until the transaction ends, before counting its admins
+    for a change that may leave none (a second such change waits and then counts what the first left)."""
+    with system_ctx(c):  # the row of the organisation (structure)
+        c.execute("SELECT id FROM orgs WHERE id=? FOR UPDATE", (oid,)).fetchone()
 
 
 def _admins(c, oid, besides=0):
@@ -1727,6 +1739,8 @@ def org_leave(c, oid, uid, heir, back=None):
         ws_check_owner(c, oid, heir)  # 2.538.0 (#4371): every caller's heir is a member / admin of the organisation (409)
     snap = olv_snap(c, oid, uid)  # 2.363.3 (#3133): what the end of the membership takes away, for coming back within a day
     was_admin = c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=? AND role='admin'", (oid, uid)).fetchone()  # 2.539.0 (#4373)
+    with system_ctx(c):  # 2.1364.0 (#6297 1b, audit #4818): an invitation row left of the person goes (no way back in its role)
+        c.execute("DELETE FROM org_joins WHERE org_id=? AND user_id=?", (oid, uid))
     n, priv = 0, []
     for lr in c.execute("SELECT * FROM lists WHERE owner_id=? AND org_id=? AND NOT is_inbox", (uid, oid)).fetchall():
         if lr["brought_by"] == uid and not lr["deleted_at"]:
@@ -1825,10 +1839,12 @@ def org_member_remove(oid, uid):
         raise Denied(404)
     if instance_mode(c) != "workspaces":
         _no_change()
-    if not c.execute("SELECT 1 FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone():
+    org_lock(c, oid)  # 2.1364.0 (#6297 1c, audit #4818): two admins leaving / removing each other at once: the second sees what the first left
+    cur = c.execute("SELECT role FROM org_members WHERE org_id=? AND user_id=?", (oid, uid)).fetchone()
+    if not cur:
         return err(tr("unknown"), 404)
     # 2.585.0 (#4290): the active admins besides the person (a disabled admin counted against the remover)
-    if uid != me() and org_role(c, uid, oid) == "admin" and _admins(c, oid, besides=uid) < 1:
+    if uid != me() and cur["role"] == "admin" and _admins(c, oid, besides=uid) < 1:
         return err(tr("The last admin of an organisation cannot leave it: make somebody else an admin first"), 409)
     heir = me() if uid != me() else (c.execute("SELECT m.user_id FROM org_members m JOIN users u ON u.id=m.user_id WHERE m.org_id=? AND m.role='admin' AND NOT u.disabled AND m.user_id!=? ORDER BY m.user_id LIMIT 1", (oid, uid)).fetchone() or [None])[0]
     if uid != me() and request.args.get("to"):  # 2.88.0 (#1980): the admin hands the person's lists to another active member
