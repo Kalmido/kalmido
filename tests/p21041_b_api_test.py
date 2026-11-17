@@ -65,7 +65,8 @@ def items(s, did, its, code=200):
 
 
 def lines(doc, kind=None):
-    return [x for x in (doc.get("totals") or {}).get("lines") or [] if kind is None or x["kind"] == kind]
+    # 2.1327.0 (#6816): "subtotal" = the sections' ones (the positions' subtotal before the discount has items: 1)
+    return [x for x in (doc.get("totals") or {}).get("lines") or [] if kind is None or (x["kind"] == kind and not (kind == "subtotal" and x.get("items")))]
 
 
 def pdf_text(s, did):
@@ -154,7 +155,8 @@ check(j["subtotals"] is True and [(x["sec"], x["title"], x["total"]) for x in st
       "#5816: one subtotal per section, optional / alternative not in it " + str(st))
 check(st and st[0]["label"] == "Zwischensumme Vorproduktion" and st[0]["total_text"] == "2.000,00 €", "#5816: label and amount in the document's language " + str(st[:1]))
 kinds = [x["kind"] for x in lines(j)]
-check(kinds.index("subtotal") < kinds.index("heading", 1) and kinds[-1] == "discount" and kinds[-2] == "subtotal",
+# 2.1327.0 (#6816): kinds[-2] is the positions' subtotal now, the section's one before it
+check(kinds.index("subtotal") < kinds.index("heading", 1) and kinds[-1] == "discount" and kinds[-2] == "subtotal" and kinds[-3] == "subtotal",
       "#5816: the subtotal stands at the end of its section, before the calculation lines " + str(kinds))
 check(j["totals"]["net"] == net_off and j["totals"]["gross"] == round(net_off * 1.19, 2), "#5816: the sums do not change " + str(j["totals"]["net"]))
 j = items(A, Q["id"], [svc("Briefing", 1, 300)] + ITEMS)
@@ -190,7 +192,7 @@ il = {x.get("title"): x for x in rd["lines"] if x["kind"] == "item"}
 check(rd.get("flat") is True and not any(k in il["Kamera"] for k in ("qty", "qty_text", "rate", "rate_text", "total", "total_text", "unit_text")),
       "#5817: the print model has no quantity, price or amount of a position " + str(il["Kamera"]))
 check(il["Moodfilm"].get("total_text") == "400,00 €" and "rate_text" not in il["Moodfilm"], "#5817: the optional position keeps its amount only " + str(il["Moodfilm"]))
-check(not [x for x in rd["lines"] if x["kind"] in ("discount", "producing", "surcharge")] and [x["total"] for x in rd["lines"] if x["kind"] == "subtotal"] == [2000, 2400],
+check(not [x for x in rd["lines"] if x["kind"] in ("discount", "producing", "surcharge")] and [x["total"] for x in rd["lines"] if x["kind"] == "subtotal"] == [2000, 2400],  # 2.1327.0 (#6816): the positions' subtotal goes too
       "#5817: no calculation lines; the subtotals stay")
 check(rd["totals"]["net"] == tot_before[0] and rd["totals"]["gross"] == tot_before[1], "#5817: net and gross in the print model")
 txt = pdf_text(A, QF["id"])
