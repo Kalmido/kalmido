@@ -90,7 +90,7 @@ curl -fsSL https://github.com/Kalmido/kalmido/releases/latest/download/install.s
 ```sh
 git clone https://github.com/Kalmido/kalmido.git
 cd kalmido
-git checkout "$(curl -fsSI -o /dev/null -w '%{redirect_url}' https://github.com/Kalmido/kalmido/releases/latest | sed 's#.*/##')"   # the latest release (same as the installer)
+git checkout "$(curl -fsSIL -o /dev/null -w '%{url_effective}' https://github.com/Kalmido/kalmido/releases/latest | sed 's#.*/##')"   # the latest release (same as the installer)
 cp .env.example .env        # set TZ, PUBLIC_URL and POSTGRES_PASSWORD at least
 mkdir -p data secret        # create them yourself, so the container (user 1000) may write them
 docker compose up -d --build
@@ -249,7 +249,7 @@ How to update depends on how you installed:
 |---|---|
 | the installer | `~/kalmido/update.sh` (Windows: `update.ps1`): backs up the database to `data/backups/` (from 2.37 a `pg_dump`; Windows: `update.ps1` also makes a `pg_dump` into `data/backups/`; only while the `db` service of this installation runs: with an external `DATABASE_URL`, or with Kalmido stopped, it warns and goes on without a copy), adds a database password to `.env` if missing, then fetches the latest release and restarts |
 | prebuilt image (`KALMIDO_IMAGE`) | set the new version in `KALMIDO_IMAGE` (pin the version), then `docker compose pull && docker compose up -d` (2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`) |
-| git + local build | `git fetch --tags && git checkout "$(curl -fsSI -o /dev/null -w '%{redirect_url}' https://github.com/Kalmido/kalmido/releases/latest \| sed 's#.*/##')" && docker compose up -d --build` (takes the latest release, the same one the installer takes; a newer `v*` tag may have no release yet; 2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`, and Docker Compose 2.20+; the installer adds it) |
+| git + local build | `git fetch --tags && git checkout "$(curl -fsSIL -o /dev/null -w '%{url_effective}' https://github.com/Kalmido/kalmido/releases/latest \| sed 's#.*/##')" && docker compose up -d --build` (takes the latest release, the same one the installer takes; a newer `v*` tag may have no release yet; 2.149: `.env` needs a `COMPOSE_PROFILES` line, e.g. `COMPOSE_PROFILES=localdb,clamav`, and Docker Compose 2.20+; the installer adds it) |
 
 A version number alone does not tell you whether an update needs a step from you: read [docs/UPGRADING.md](docs/UPGRADING.md) first.
 
