@@ -29,6 +29,7 @@ from ..collab.comments import collab_on, comment_plain, user_names
 from ..core.objcomments import ocm_ts  # 2.972.0 (#5272)
 from ..collab.integfail import integ_org_admins, integ_tell
 from ..core.errors import BadInput
+from ..core.movelock import mv_sql  # 2.1337.0 (#6600): an organisation that is moving rests
 from ..notify.alerts import _env_int, aa_count, aa_now
 from ..calendars.subscriptions import (
     _cal_opener, cal_allow, cal_allow_parse, CAL_ERR, cal_host_allowed, cal_ip_public, CalError, CAL_SEND_S, cal_left, cal_until,
@@ -542,7 +543,8 @@ def wh_tick():
             # in front of all others for many ticks
             rows = [dict(r) for r in c.execute("""SELECT x.* FROM (SELECT q.*, w.url, w.secret, w.user_id,
                                                          ROW_NUMBER() OVER (PARTITION BY q.webhook_id ORDER BY q.next_at, q.id) AS wh_rn
-                                                         FROM webhook_queue q JOIN webhooks w ON w.id=q.webhook_id WHERE q.next_at<=?) x
+                                                         FROM webhook_queue q JOIN webhooks w ON w.id=q.webhook_id WHERE q.next_at<=?
+                                                         AND """ + mv_sql("w.org_id") + """) x
                                                   ORDER BY x.wh_rn, x.next_at, x.id LIMIT ?""",
                                                (time.time(), WH_BATCH))]
             allow = wh_allow(c)
