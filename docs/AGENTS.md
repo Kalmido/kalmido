@@ -1291,7 +1291,7 @@ with an old one it answers `409` `conflict` with the state now under `current` (
 **An organisation that is moving** (2.1337.0, #6600): an admin of an organisation can start its move (Settings > Organisation >
 Data, *Move the organisation*) before exporting it to another server. Until an admin ends the move, every write into the
 organisation answers `423` - in the REST API `{"error": {"code": "org_moving", "message": "The organisation is moving: it is
-read only."}}`, in the app's own routes `{"error": "...", "code": "org_moving"}` - for people, agents, API tokens, public forms,
+read-only."}}`, in the app's own routes `{"error": "...", "code": "org_moving"}` - for people, agents, API tokens, public forms,
 booking pages, file requests and incoming hooks alike; reading, downloads and the organisation's export stay possible. Its
 background work rests (invoice series, payment reminders, mailboxes, webhooks, plans of agents about its projects), mail for it
 waits on the mail server. An agent stops writing there, tells its person once and does not retry until the move has ended.

@@ -130,7 +130,7 @@ moving423(A.post(B + OFF + "/docs", json={"kind": "invoice", "lang": "de", "clie
           "a new office document (no new number either)")
 r = requests.post(B + "/api/v1/tasks", headers=API, json={"title": "API during", "list_id": L})
 moving423(r, "bob's API token (an agent's way in)")
-check("read only" in r.text, f"... with the message ({r.text[:160]})")
+check("read-only" in r.text, f"... with the message ({r.text[:160]})")
 anon = requests.Session()
 anon.headers.update(H)
 page = anon.get(B + "/f/" + FTOK)
@@ -139,7 +139,7 @@ r = anon.post(B + "/f/" + FTOK, data={"subject": "Eine Anfrage", "text": "Hallo"
 moving423(r, "the public form sent by a script (JSON)")
 r = anon.post(B + "/f/" + FTOK, data={"subject": "Eine Anfrage", "text": "Hallo", "name": "Eve", "stamp": "x"},
               headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
-check(r.status_code == 423 and "<html" in r.text and "read only" in r.text, f"... sent by a browser: a page that says so ({r.status_code})")
+check(r.status_code == 423 and "<html" in r.text and "read-only" in r.text, f"... sent by a browser: a page that says so ({r.status_code})")
 check(not dbx("SELECT 1 FROM tasks WHERE list_id=? AND title IN ('During the move', 'API during', 'Eine Anfrage')", (L,)),
       "nothing of it arrived in the project")
 # reading stays, other places go on
