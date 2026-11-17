@@ -93,6 +93,8 @@
 .dc-acts .btn{min-height:2.5rem}
 .dc-state{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.25rem 0;color:var(--muted);font-size:var(--fs-s)}
 .dc-state.failed{color:var(--danger)}
+.dc-cut{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.25rem 0 .5rem;font-size:var(--fs-s)}  /* 2.1337.0 (#6651) */
+.dc-cut > .i{color:var(--warn)}
 .dc-rev{display:flex;flex-wrap:wrap;align-items:center;gap:.375rem .5rem;margin:.5rem 0;padding:.5rem .75rem;border:1px solid var(--accent);border-radius:var(--radius);background:var(--accent-soft)}
 /* 2.554.0 A (#4469): a compact line: the text left, the buttons right; under 600 px the buttons below, full width */
 .dc-revt{flex:1 1 7rem;min-width:0}

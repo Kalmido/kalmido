@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import json
 import re
+import time
 from datetime import timedelta
 
 from ..core.config import SECRET_KEY, ATT_DIR
@@ -40,6 +41,7 @@ from ..accounts.orgroles import org_role_key  # 2.369.5 (#2517): pulled up from 
 from ..core.errors import BadInput  # 2.369.5 (#2517): pulled up from functions
 from .ocr import thumb_bytes, doc_text, qr_codes, OCR_PAGES, QR_DOC_S, THUMB_WL  # 2.369.5 (#2517): pulled up from functions; 2.583.0 (#4812): THUMB_WL
 from .ocr import OCR_LANG_MAX, ocr_choices  # 2.635.0 (#4807 b)
+from .ocr import OCR_ANON_S, ocr_charge  # 2.1337.0 (#6651)
 from .scanmark import scan_of  # 2.836.0 (#5390): the scan mark
 from .pagesize import PgBusy, pg_of  # 2.905.0 (#5393): the first page's size; 2.990.0 (#5571): PgBusy
 from ..office.einvoice_in import EinvoiceBusy, ei_of_file, ei_text, ei_amount, ei_details, ei_compact, ei_receipt  # 2.369.5 (#2517): pulled up from functions
@@ -1365,6 +1367,16 @@ def doc_guesses(c, m, ws, type_id, text=""):
     return bool(name and RECEIPT_TYPE.search(name)) or bool(RECEIPT_TEXT.search(text[:3000]))
 
 
+# 2.1337.0 (#6651): sources a stranger can fill (the document mail address / a mailbox rule, a file request): their documents
+# get the shorter clock (ocr.OCR_ANON_S) -- unless a person asked for "Recognise again" (auto._full, docs/web.py docs_redo)
+ANON_SOURCES = ("mail", "mailbox", "filereq")
+
+
+def anon_clock(c, m):
+    """2.1337.0 (#6651): the recognition's clock of document row m: OCR_ANON_S for an anonymous source, else None (the full one)."""
+    return OCR_ANON_S if m["source"] in ANON_SOURCES and not meta_json(c, m, "auto", {}).get("_full") else None
+
+
 def process(c, nid):
     """The recognition run of one document: text (text layer / OCR), preview, date / due date / amount, sorting, index.
     Returns the new state. Runs in the background queue (docs/ingest.py) -- never inside a request."""
@@ -1395,7 +1407,11 @@ def process(c, nid):
             ulang = _lang(c, uid=m["created_by"])  # 2.122.0 (#2101): the person's app language picks the OCR language
         except Exception:  # noqa: BLE001 -- the language is a hint only
             ulang = None
-        res = doc_text(node["name"], node["mime"], data, lang=ulang, langs=cfg_get(c, ws)["ocr_langs"] or None)  # 2.635.0 (#4807 b)
+        t0 = time.monotonic()
+        res = doc_text(node["name"], node["mime"], data, lang=ulang, langs=cfg_get(c, ws)["ocr_langs"] or None,  # 2.635.0 (#4807 b)
+                       doc_s=anon_clock(c, m))  # 2.1337.0 (#6651): a shorter clock for an anonymous source
+        if res.get("error") != "busy":
+            ocr_charge(ws, time.monotonic() - t0)  # 2.1337.0 (#6651): the workspace's hour budget
     if res.get("error") == "busy":
         return "wait"
     if ei and not res.get("error"):
@@ -1415,7 +1431,9 @@ def process(c, nid):
         # 2.591.0 B (#4863): the codes of every page (up to ocr.QR_PAGES, a finer second try), kept apart from the text
         pre = cfg_get(c, ws)["asn_prefix"]
         # review: at most as many pages as the text recognition (ocr.OCR_PAGES) and ocr.QR_DOC_S seconds in all
+        t0 = time.monotonic()
         codes = qr_codes(data, res.get("kind"), pages=min(int(res.get("pages") or 1), OCR_PAGES), budget=QR_DOC_S, want=lambda cs: EX.find_asn(pre, (), codes=cs) is not None)
+        ocr_charge(ws, time.monotonic() - t0)  # 2.1337.0 (#6651): reading the codes rasters the pages too
         asn_found = EX.find_asn(pre, [text[:20000]], codes=codes)
     ex = EX.extract(text, guess=False)
     if m["source"] == "paperless":           # an import keeps due date and amount empty (only a monetary field fills them)
@@ -1491,6 +1509,12 @@ def process(c, nid):
         auto_all.pop("_pg", None)
     if scan is not None:                     # 2.781.0 (#5390): a scan (archive number field); unknown = the old mark stays
         auto_all["_scan"] = scan
+    # 2.1337.0 (#6651): not every page was read (the document's clock, pages cut off): the view says so, with "Recognise again"
+    if res.get("truncated") and not res.get("error"):
+        auto_all["_cut"] = 1
+    else:
+        auto_all.pop("_cut", None)
+    auto_all.pop("_full", None)              # 2.1337.0 (#6651): the full clock was for this run only
     if asn_found and not m2["asn"]:
         asn_lock(c, ws, nid)                 # 2.273.0 C (#3047); F2: only around the write
         holder = asn_holder(c, ws, asn_found, nid)

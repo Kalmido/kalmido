@@ -175,7 +175,7 @@ def _files(c, tid, files, owner, top_comment=None):
     for name, mime, data in files[:RQ_FILES]:
         if 0 < len(data) <= MAX_FILE_MB * 1024 * 1024:
             try:
-                save_attachment_bytes(c, tid, unexec_name(name), mime, data, owner=owner)
+                save_attachment_bytes(c, tid, unexec_name(name), mime, data, owner=owner, anon=True)  # 2.1337.0 (#6651): from a mail
             except OSError:
                 whole = False
                 break
