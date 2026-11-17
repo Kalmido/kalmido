@@ -425,12 +425,19 @@ def _aad(org_id, ctx):
 
 
 def oc_enc_k(key, org_id, ctx, value):
-    """Encrypt with a key the caller already holds (loops). '' / None stay as they are; an encrypted value is kept."""
+    """Encrypt with a key the caller already holds (loops). '' / None stay as they are; an encrypted value is kept.
+    2.1364.0 (#6297 2, audit #4741 F6): kept only when it opens with this key at this place (a copy, a CLI pass); a text that
+    only starts like one (typed "kenc1:...") is marked (oc_plain_safe) and sealed like any other - before, it was stored as
+    it was and every later read of the row answered 500."""
     if value is None or value == "" or key is None:
         return value
     value = str(value)
     if value.startswith(PREFIX):
-        return value
+        try:
+            oc_dec_k(key, org_id, ctx, value)
+            return value
+        except OrgCryptError:
+            value = oc_plain_safe(value)
     n = os.urandom(12)
     return PREFIX + _b64u(n + AESGCM(key).encrypt(n, value.encode(), _aad(org_id, ctx)))
 
@@ -457,8 +464,24 @@ def oc_enc(c, org_id, ctx, value):
     """'kenc1:' + base64url(nonce|ciphertext), bound to the organisation and ctx ('table.column'). '' stays ''; plain when
     the encryption is off (no master key / org_encrypt=0) or there is no organisation."""
     if value is None or value == "" or not org_id or not oc_active(c):
-        return value
+        return oc_keep_sealed(c, org_id, ctx, value)  # 2.1364.0 (#6297 2): plain, but never a text that only looks sealed
     return oc_enc_k(oc_key(c, org_id), org_id, ctx, value)
+
+
+def oc_keep_sealed(c, org_id, ctx, value):
+    """2.1364.0 (#6297 2): a value stored plain (encryption off, no organisation): a sealed one that opens with the
+    organisation's key at this place stays, a text that only starts like one gets the mark of oc_plain_safe (else every
+    read of it fails)."""
+    if not oc_is_enc(value):
+        return value
+    try:
+        key = oc_key(c, org_id, create=False) if org_id else None
+        if key is not None:
+            oc_dec_k(key, org_id, ctx, value)
+            return value
+    except OrgCryptError:
+        pass
+    return oc_plain_safe(value)
 
 
 def oc_dec(c, org_id, ctx, value):
@@ -524,7 +547,7 @@ def oc_seal_fields(c, org_id, table, values):
     without a server key or an area: the caller refuses to save rather than keep such a value in plain."""
     d, key = dict(values), None
     for k in FIELDS.get(table, ()):
-        if d.get(k) not in (None, "") and not oc_is_enc(d.get(k)):
+        if d.get(k) not in (None, ""):  # 2.1364.0 (#6297 2): a sealed one too (oc_enc_k keeps it only when it opens)
             if not SECRET_KEY or not org_id:
                 raise OrgCryptError("no server key: access data are never stored in plain")
             key = key or oc_key(c, org_id)
@@ -536,10 +559,13 @@ def oc_enc_fields(c, org_id, table, values):
     """values (dict column -> plain value) with the protected columns of table encrypted (when active)."""
     d = dict(values)
     if not org_id or not oc_active(c):
+        for k in FIELDS.get(table, ()):  # 2.1364.0 (#6297 2): plain, but never a text that only looks sealed
+            if k in d:
+                d[k] = oc_keep_sealed(c, org_id, f"{table}.{k}", d[k])
         return d
     key = None
     for k in FIELDS.get(table, ()):
-        if d.get(k) not in (None, "") and not oc_is_enc(d.get(k)):
+        if d.get(k) not in (None, ""):  # 2.1364.0 (#6297 2): a sealed one too (oc_enc_k keeps it only when it opens)
             key = key or oc_key(c, org_id)
             d[k] = oc_enc_k(key, org_id, f"{table}.{k}", d[k])
     return d
@@ -566,10 +592,11 @@ def oc_json_store(c, org_id, table, col, j):
     key = None
     for k in JSON_KEYS.get((table, col), ()):
         v = j.get(k)
-        if v in (None, "", {}, []) or oc_is_enc(v):
+        if v in (None, "", {}, []):
             continue
         key = key or oc_key(c, org_id)
-        j[k] = oc_enc_k(key, org_id, f"{table}.{col}.{k}", json.dumps(v, ensure_ascii=False, default=str))
+        # 2.1364.0 (#6297 2): a sealed one is kept only when it opens (oc_enc_k)
+        j[k] = oc_enc_k(key, org_id, f"{table}.{col}.{k}", v if oc_is_enc(v) else json.dumps(v, ensure_ascii=False, default=str))
     return j
 
 
