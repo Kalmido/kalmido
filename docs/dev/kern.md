@@ -1267,6 +1267,12 @@ web=, group=, v1=, v1group=, scope=, gate=)` when its module loads; `GET /api/se
 - The browser: `static/js/ftsearch.js SEARCH_SOURCES` -- the server's answer plus the sources of the end-to-end areas (locked
   lists' comments, locked knowledge spaces), which only the browser can read. The message search (`msgSearch`) runs over the
   same registry.
+- 2.1343.0 (#6406): the groups of the web run on a time budget per request (`SRCH_BUDGET_S`, KALMIDO_SEARCH_BUDGET_MS) in
+  their `order`; the kinds not reached come back as `pending`, `?kind=groups&groups=<kinds>` searches them (at least one per
+  request; the palette asks right after). Each kind runs under `SRCH_STMT_MS` in a savepoint (over it = left out), a request
+  the browser dropped stops before the next kind. A kind's `group` should stay cheap: few candidates (newest first), no
+  reading of every visible row into Python (`osw_prefilter` for sealed texts; `OSW_OPEN_MAX` caps the opened texts).
+  `?groups=` (empty) = the tasks alone. The API's `?kind=all` has no budget.
 - A new area with a search: register a kind here (and, end-to-end, a browser source) -- no route of its own. Names that are
   not in `obj_search` (a file's name) use `osr_name_cond` (a part of the name, umlauts as ae / oe / ue); the last ILIKE searches
   (bookmarks, the reading list, the organisation's task overview, file names) went with the stage.
