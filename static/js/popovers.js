@@ -1036,7 +1036,9 @@ function taskMenu(anchor, id, o = {}) {
     // where it lives
     ...(open ? [moveListItem(anchor, id), moveWsItem(anchor, id)] : []),
     ...(open ? ml_menuItems(anchor, t) : []),  // 2.71.0 B (#1459): show also in another list / remove from it
-    ...(open && !t.parent_id && (S.sections.some(x => x.list_id === t.list_id) || canEditList(t.list_id)) ? [{label: tr('Move to section…'), icon: 'columns', next: 1, fn: () => sectionPicker(anchor, id)}] : []),
+    // 2.1365.0 (#6962): in "My tasks" with own sections the own sections first, the project's under their own entry
+    ...(open && mseMenuHere(anchor, [t]) ? mseMenuItems(anchor, [id], !t.parent_id && (S.sections.some(x => x.list_id === t.list_id) || canEditList(t.list_id)) ? () => sectionPicker(anchor, id) : null)
+      : open && !t.parent_id && (S.sections.some(x => x.list_id === t.list_id) || canEditList(t.list_id)) ? [{label: tr('Move to section…'), icon: 'columns', next: 1, fn: () => sectionPicker(anchor, id)}] : []),
     // waiting
     ...(open ? [t.waiting_at ? {label: tr('No longer waiting'), icon: 'hourglass', fn: () => waitClear(id)}
       : hasPeers() ? {label: tr('Waiting on someone…'), icon: 'hourglass', fn: () => waitDialog(id)} : null].filter(Boolean) : []),  // 2.364.0 D (#3036): alone: no "Waiting on someone…" 
