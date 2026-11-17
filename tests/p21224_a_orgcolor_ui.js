@@ -132,6 +132,14 @@ const FEAT = 'comments,collab,sheets,time';
   check(await until(() => d.querySelector('#pop .kbwsi svg.i[data-wsc]')), '#6957 the menu: Private\'s house wears the colour I chose');
   w.eval(`closePop()`);
   await call('PATCH', '/api/settings', {ws_colors: '{}'});
+  // ================= 2.1353.0 (#6723) the stripe of the table panel: 3 px x 60 %, centred, no inset shadow, like the other rows
+  const probe = d.createElement('div');
+  probe.innerHTML = `<div class="sbbt"><button class="sbbtn" data-wso="1" data-wsc="1" style="--wsd:#4252c7;--wsl:#4252c7">x</button></div>`;
+  d.querySelector('#side').appendChild(probe);
+  const cs = w.getComputedStyle(probe.querySelector('.sbbtn'));
+  check(/^(3px|\.1875rem|0\.1875rem) 60%$/.test(cs.backgroundSize), '#6723 table panel button: stripe 3px x 60% ' + cs.backgroundSize);
+  check(cs.boxShadow === 'none', '#6723 table panel button: no inset shadow ' + cs.boxShadow);
+  probe.remove();
   w.close();
 
   // ================= inside the organisation's workspace: no repeated origin; another workspace's item keeps it
