@@ -325,13 +325,16 @@ class Api:
             m = re.search(r'"code": *"(\w+)"', e.body)
             log(f"request token: HTTP {e.status}" + (f" {m.group(1)}" if m else "") + ": the run does not start")
             return None, 0, False
-        except Exception as e:  # the network: never the own token instead
+        except (OSError, ValueError) as e:  # the network, a broken answer: never the own token instead
             log(f"request token: {type(e).__name__}")
             return None, 0, False
+        if not isinstance(r, dict) or "token" not in r:  # no answer of this route (a stand-in without it): as an older server
+            self.request_ok = False
+            return None, 0, True
         self.request_ok = True
-        tok = r.get("token") if isinstance(r, dict) else None
+        tok = r.get("token")
         if not tok:
-            if isinstance(r, dict) and "token" in r and r.get("asked_by"):  # a personal agent (its owner)
+            if r.get("asked_by"):  # a personal agent (its owner)
                 self.req_personal = True
                 return None, 0, True
             return None, 0, False
@@ -2999,6 +3002,9 @@ class Runner:
             for e in ([ev] + list(inner or [])):
                 if isinstance(e, dict) and isinstance(e.get("seq"), int) and not isinstance(e.get("seq"), bool):
                     seqs.append(e["seq"])
+        if not callable(getattr(self.api, "request_token", None)):  # a client without request tokens (a stand-in)
+            self.run_api = self.api
+            return True
         last = self.state.data.setdefault("req_seqs", {}) if uid else {}
         tok, _, go = self.api.request_token(seqs or last.get(str(uid)) or [])
         self.run_api = self.api.as_token(tok) if tok else self.api
