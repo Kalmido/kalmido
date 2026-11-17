@@ -20,7 +20,7 @@ from ..core.db import db, iso, local_now, now_utc, usettings
 from ..accounts.session import me
 from ..core.access import Denied, acx_drop, live_sql
 from ..core.rls import rls_org_open  # 2.602.0 (#4729)
-from ..core.errors import BadInput, DeniedKey
+from ..core.errors import BadInput, BadKey, DeniedKey
 from .packs import office_pack, office_pack_codes, office_pack_for, office_feature_on, office_path_feature
 from .homecur import HC_LOCKED, hc_bookings, hc_code, hc_home_of  # 2.189.0 (#2475)
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields, oc_json_load, oc_json_store  # 2.149.0 G (#2517): pulled up from functions
@@ -1680,13 +1680,27 @@ def office_export(c, oid, admin=True):
     return out
 
 
-def office_import(c, oid, d, overwrite=False):
+# 2.1324.0 (#6589): entries per area of one master data file; more = the file is refused with the numbers (was cut silently)
+OFFICE_IMPORT_ROWS = 5000
+OFFICE_IMPORT_AREAS = {"roles": N_("Freelancer roles"), "crew": N_("Crew"), "services": N_("Services"), "equipment": N_("Equipment"),
+                       "sets": N_("Sets"), "texts": N_("Text blocks"), "contracts": N_("Framework contracts")}
+
+
+def office_import(c, oid, d, overwrite=False, dry=False):
     """Additive import of an export (or a hand-made file of the same shape): rows are matched by their label (services:
     name_de, equipment/sets/contracts: name, texts: kind + key); existing ones are left alone unless overwrite. Ids inside
     the file (sets.items, contracts.rates / rights ids, settings' text ids) are mapped to the new ids; 2.36.2 (#1146): an id
-    that maps to no row of the file is left empty (never taken over as it is) and listed in counts["unmapped"]."""
+    that maps to no row of the file is left empty (never taken over as it is) and listed in counts["unmapped"].
+    2.1324.0 (#6589): dry = the preview -- the same counts (added / updated / skipped per area, settings "updated" when they
+    would be overwritten), nothing written; an area with more than OFFICE_IMPORT_ROWS entries refuses the whole file
+    before anything is written (BadKey with the area, its number and the limit)."""
     if not isinstance(d, dict):
         raise BadInput(tr("Invalid data"))
+    for kind in EXPORT_KINDS:
+        rows = d.get(kind)
+        if isinstance(rows, list) and len(rows) > OFFICE_IMPORT_ROWS:
+            raise BadKey(N_("{0}: {1} entries in the file, at most {2} per area can be imported. Please split the file."),
+                         (OFFICE_IMPORT_AREAS.get(kind, kind),), len(rows), OFFICE_IMPORT_ROWS)
     counts = {k: {"added": 0, "updated": 0, "skipped": 0} for k in EXPORT_KINDS}
     idmap = {k: {} for k in EXPORT_KINDS}
     unmapped = []
@@ -1712,7 +1726,7 @@ def office_import(c, oid, d, overwrite=False):
         if not isinstance(rows, list):
             raise BadInput(tr("Invalid value: {0}", kind))
         existing = {key_of(kind, r): r for r in office_rows(c, oid, kind)}
-        for src in rows[:5000]:
+        for src in rows:  # 2.1324.0 (#6589): the limit is checked above (was rows[:5000], cut silently)
             if not isinstance(src, dict):
                 raise BadInput(tr("Invalid value: {0}", kind))
             b = {k: v for k, v in src.items() if k in MD[kind]["cols"]}
@@ -1754,17 +1768,18 @@ def office_import(c, oid, d, overwrite=False):
                     idmap[kind][_i(old_id)] = cur["id"]
                 continue
             if cur:
-                r = office_update(c, oid, kind, cur["id"], b)
+                r = cur if dry else office_update(c, oid, kind, cur["id"], b)
                 counts[kind]["updated"] += 1
             else:
-                r = office_create(c, oid, kind, b)
+                r = {"id": -1 - sum(len(m) for m in idmap.values())} if dry else office_create(c, oid, kind, b)  # dry: a stand-in id
                 existing[k] = r
                 counts[kind]["added"] += 1
             if old_id is not None:
                 idmap[kind][_i(old_id)] = r["id"]
     st = d.get("settings")
     if isinstance(st, dict):
-        office_settings_lock(c, oid)  # 2.269.0 B (#3014)
+        if not dry:
+            office_settings_lock(c, oid)  # 2.269.0 B (#3014)
         cur = office_settings(c, oid)
         b = {k: v for k, v in st.items() if k in SETTINGS_KEYS and k not in ("logo", "terms")}  # 2.113.2 (#2253): no terms files
         where = ("settings", "")
@@ -1777,7 +1792,8 @@ def office_import(c, oid, d, overwrite=False):
             b["rights_default"] = {f: mapped("texts", v, where, "rights_default") for f, v in b["rights_default"].items()
                                    if f in ("time_id", "territory_id", "media_id")}
         if overwrite or not c.execute("SELECT 1 FROM office_settings WHERE org_id=?", (oid,)).fetchone():
-            office_settings_save(c, oid, office_settings_clean(c, oid, b, cur))
+            if not dry:
+                office_settings_save(c, oid, office_settings_clean(c, oid, b, cur))
             counts["settings"] = "updated"
         else:
             counts["settings"] = "skipped"

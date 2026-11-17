@@ -323,6 +323,26 @@ for who, s, codes in (("a member who does not manage the list", Bo, (403,)), ("a
 check(A.delete(B + f"/api/tasks/{T}").ok, "the first submission into the trash")
 check(T not in [x["task_id"] for x in A.get(B + f"/api/forms/{FQ['id']}/entries").json()["entries"]], "a task in the trash leaves the evaluation")
 
+# 2.1324.0 (#6589): nothing is cut silently: 2001 more submissions (copies made in the database) -> the evaluation shows the newest
+# 2000 and names the total, the CSV has every one (it ended at 2000 rows before)
+TB = es[0]["task_id"]
+_tc = [r[0] for r in dbx("SELECT column_name FROM information_schema.columns WHERE table_name='tasks' AND column_name<>'id' "
+                         "AND is_generated='NEVER' ORDER BY ordinal_position")]
+_ts = {"title": "t.title || ' k6589-' || g", "client_ref": "NULL", "tt_id": "NULL"}
+dbx(f"INSERT INTO tasks({','.join(_tc)}) SELECT {','.join(_ts.get(x, 't.' + x) for x in _tc)} FROM tasks t, generate_series(1, 2001) g WHERE t.id=?", (TB,))
+dbx("""INSERT INTO form_entries(task_id, form_id, client_id, sender, email, answers, created_at, client_typed)
+       SELECT t.id, e.form_id, NULL, 'Bulk', '', e.answers, e.created_at - make_interval(secs => t.id - ?), 0
+       FROM tasks t, form_entries e WHERE e.task_id=? AND t.list_id=(SELECT list_id FROM tasks WHERE id=?) AND t.title LIKE '% k6589-%'""",
+    (TB, TB, TB))
+nb = dbx("SELECT count(*) FROM form_entries e JOIN tasks t ON t.id=e.task_id WHERE e.form_id=? AND t.deleted_at IS NULL", (FQ["id"],))[0][0]
+j = A.get(B + f"/api/forms/{FQ['id']}/entries").json()
+check(nb == 2004 and len(j["entries"]) == 2000 and j.get("total") == 2004, f"#6589: the evaluation shows 2000 and names the total ({nb} {len(j['entries'])} {j.get('total')})")
+r = A.get(B + f"/api/forms/{FQ['id']}/entries.csv")
+rows = list(csv.reader(io.StringIO(r.content.decode("utf-8-sig")))) if r.ok else []
+check(r.ok and len(rows) == 2005 and sum(1 for x in rows if x[2] == "Bulk") == 2001,
+      f"#6589: the CSV has all 2004 submissions, no cut at 2000 ({len(rows)} rows)")
+dbx("DELETE FROM tasks WHERE title LIKE '% k6589-%'")
+
 # ================================================================== the private list moves into the organisation
 r = A.patch(B + f"/api/lists/{PL}", json={"org_id": ORG})
 check(r.ok, "the private list moves into the organisation " + r.text[:200])

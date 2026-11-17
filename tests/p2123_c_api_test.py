@@ -5,9 +5,11 @@
  - POST /api/wiki/pages/<id>/refs answers only what the reader may open in the file store / the table: an organisation
    member without access to a file gets nothing about it (no name in the answer), a file / table of another space (the
    person's private one, another organisation) is never resolved, a file in the trash is gone
+ - 2.1324.0 (#6589): the ZIP export takes the file store's files a page shows / links along (those the exporting person may
+   open), the links point at the copies; tables and files one may not open are named in "not included.txt" by reference
  - GET /api/wiki/refs?file= | sheet= = the pages one may read that reference it (404 without access to the file / table)
  - a move to the private workspace ends the references into the organisation's file store (rows rebuilt, text kept); the ZIP
-   export keeps the references as text; a file deleted for good takes its backlink rows with it
+   export see #6589 above; a file deleted for good takes its backlink rows with it
  - #2108: a converted checkbox line "- [ ] … #<id>" links the task (to_task, "Mentioned in"); the parser runs in the
    browser (p2123_c_ui.js)
  - rights (tenant-matrix: wiki): another organisation 404 on the page's refs; a person without an organisation
@@ -60,7 +62,7 @@ def refs(s, pid, files=(), lk=()):
 
 
 if os.environ.get("P2123C_NOSTART") != "1":
-    env = dict(os.environ, EXTRA=os.environ.get("EXTRA", "") + " -e KALMIDO_INSTANCE_MODE=workspaces")
+    env = dict(os.environ, EXTRA=os.environ.get("EXTRA", "") + " -e KALMIDO_INSTANCE_MODE=workspaces -e KALMIDO_WIKI_EXPORT_REF_MAX=8")  # 2.1324.0 (#6589): F4 below
     r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=env, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
     time.sleep(0.8)
@@ -163,10 +165,85 @@ check(str(F_PIC) not in j.get("files", {}), "#2103: a file in the trash shows as
 check(A.get(B + "/api/wiki/refs", params={"file": F_PIC}).status_code == 404, "#2107: no backlinks of a file in the trash")
 A.post(B + f"/api/files/nodes/{F_PIC}/restore")
 check(str(F_PIC) in refs(A, PG, [F_PIC], []).json().get("files", {}), "#2103: back from the trash, visible again")
+# 2.1324.0 (#6589): the export takes the file store's files the page shows / links along (was: the references stayed as text,
+# dead links in the ZIP); what is left out is named in "not included.txt" -- a file one may not open only by its reference
 r = A.get(B + "/api/wiki/export", params={"space": SP})
 with zipfile.ZipFile(io.BytesIO(r.content)) as z:
     md = z.read("Projekt.md").decode()
-check(f"[[datei:{F_SECRET}|Liste]]" in md and f"/api/files/nodes/{F_PIC}/content" in md, "#2107: the export keeps the references as text")
+    zn = set(z.namelist())
+    got = {n: z.read(n) for n in zn}
+NOT_IN = got.get("not included.txt", b"").decode()
+check("![[_attachments/Projekt/plan.png]]" in md and "[[_attachments/Projekt/vertrag.pdf|Vertrag]]" in md
+      and "[[_attachments/Projekt/vertrag.pdf]]" in md and "[[_attachments/Projekt/geheim-lohnliste.pdf|Liste]]" in md
+      and f"/api/files/nodes/{F_PIC}/content" not in md and f"/api/files/nodes/{F_PDF}/content" not in md,
+      "#6589: the links to the file store's files point at their copies in the ZIP " + md[:400])
+check(got.get("_attachments/Projekt/plan.png") == PNG and got.get("_attachments/Projekt/vertrag.pdf") == PDF
+      and got.get("_attachments/Projekt/geheim-lohnliste.pdf") == PDF and len([n for n in zn if n.startswith("_attachments/")]) == 3,
+      f"#6589: each file once, with its bytes {sorted(zn)}")
+check(f"[[datei:{F_PRIV}]]" in md and "[[tabelle:budget]]" in md and f"/api/files/nodes/{F_C}/content" in md,
+      "#6589: what does not come along stays as text in the page")
+check(f"Projekt: [[datei:{F_PRIV}]]" in NOT_IN and f"Projekt: [[datei:{F_C}]]" in NOT_IN and "Projekt: [[tabelle:budget]]" in NOT_IN
+      and f"Projekt: [[Tabelle: {SH}|Zahlen]]" in NOT_IN and f"/api/files/nodes/{F_C}/content" in NOT_IN
+      and "beta.pdf" not in NOT_IN and "privat.pdf" not in NOT_IN, "#6589: not included.txt names the rest by reference " + NOT_IN[:600])
+r = Bo.get(B + "/api/wiki/export", params={"space": SP})
+with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+    bmd, bzn = z.read("Projekt.md").decode(), set(z.namelist())
+    bnot = z.read("not included.txt").decode() if "not included.txt" in bzn else ""
+check(r.ok and "_attachments/Projekt/plan.png" in bzn and not any("geheim" in n for n in bzn)
+      and f"[[datei:{F_SECRET}|Liste]]" in bmd and f"Projekt: [[datei:{F_SECRET}|Liste]]" in bnot and "geheim" not in bnot,
+      "#6589: a member gets only the files she may open; the closed one is named by its reference, never by its name " + bnot[:400])
+
+
+# 2.1324.0 (#6589, review F1): the export takes a file along only where the file routes would open it -- a module card without
+# "files" (accounts/modcards.py) or the areas ablage + office switched off by the admins (accounts/wsareas.py) keep the file
+# out, named by its reference only; the export decides as the content route does (same function fs_content_ok)
+def bexport():
+    r = Bo.get(B + "/api/wiki/export", params={"space": SP})
+    assert r.ok, r.text[:200]
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        zn = set(z.namelist())
+        return zn, z.read("not included.txt").decode() if "not included.txt" in zn else ""
+
+
+def bgate(label, want_in):
+    zn, nt = bexport()
+    route = Bo.get(B + f"/api/files/nodes/{F_PIC}/content").status_code
+    if want_in:
+        check("_attachments/Projekt/plan.png" in zn and f"/api/files/nodes/{F_PIC}/content" not in nt and route == 200,
+              f"#6589 F1 {label}: the file comes along, as the content route opens it ({route}) {sorted(zn)} {nt[:300]}")
+    else:
+        check(not any(n.startswith("_attachments/") for n in zn) and f"Projekt: /api/files/nodes/{F_PIC}/content" in nt
+              and f"Projekt: /api/files/nodes/{F_PDF}/content" in nt and "plan.png" not in nt and "geheim" not in nt
+              and route == 403, f"#6589 F1 {label}: no file in the ZIP, named by reference only, the content route refuses too ({route}) {sorted(zn)} {nt[-700:]}")
+
+
+BOB = Bo.get(B + "/api/state").json()["me"]["id"]
+r = A.post(B + "/api/modcards", json={"space": SP, "name": "Nur Wissen", "mods": ["wiki"], "people": [BOB]})
+check(r.status_code == 201, "setup: a module card for Bob without the file store " + r.text[:200])
+bgate("card without files", False)
+check(A.patch(B + f"/api/modcards/{r.json()['card']['id']}", json={"mods": ["wiki", "office"]}).ok, "setup: the office on Bob's card")
+bgate("card with the office (the office exception of the gate)", True)
+check(A.delete(B + f"/api/modcards/{r.json()['card']['id']}").ok, "setup: Bob's card deleted")
+bgate("no card", True)
+check(A.patch(B + f"/api/orgs/{ORG}", json={"areas_off": ["ablage", "office"]}).ok, "setup: the file store and the office switched off")
+bgate("areas ablage + office off", False)
+check(A.patch(B + f"/api/orgs/{ORG}", json={"areas_off": ["ablage"]}).ok, "setup: only the file store switched off")
+bgate("area ablage off, office on (the office exception of the gate)", True)
+check(A.patch(B + f"/api/orgs/{ORG}", json={"areas_off": []}).ok, "setup: every area on again")
+bgate("everything on again", True)
+
+# 2.1324.0 (#6589, review F4): at most WKA_REF_MAX distinct file references per export, the rest named with its own reason
+# (the limit is lowered to 8 for this test: KALMIDO_WIKI_EXPORT_REF_MAX at the start; the page Projekt holds 7)
+if os.environ.get("P2123C_NOSTART") != "1":
+    r = A.post(B + "/api/wiki/pages", json={"space": SP, "path": "Viele", "body": " ".join(f"[[datei:{900000 + i}]]" for i in range(6))
+                                            + f" [[datei:{F_PDF}]]"})
+    check(r.status_code == 201, "setup: a page with more references than the limit " + r.text[:200])
+    zn, nt = bexport()
+    check(nt.count("More linked files than one export takes (8)") == 6 and f"Viele: [[datei:{F_PDF}]] - More linked" in nt
+          and "Viele: [[datei:900000]] - A linked file you cannot open" in nt and "_attachments/Viele/" not in " ".join(zn)
+          and "_attachments/Projekt/plan.png" in zn, f"#6589 F4: beyond the limit the references are named, nothing looked up {nt[:600]}")
+    check(A.delete(B + f"/api/wiki/pages/{r.json()['id']}").ok, "setup: the page gone")
+
 check(A.delete(B + f"/api/files/nodes/{F_SECRET}").ok and A.delete(B + f"/api/files/nodes/{F_SECRET}", params={"purge": "1"}).ok,
       "setup: a file deleted for good")
 check(F_SECRET not in links(PG)["file"], "#2103: the backlink rows of a file deleted for good are gone")
@@ -205,6 +282,14 @@ check(Fr.get(B + "/api/wiki/refs", params={"file": FP}).json().get("pages", [{}]
 check(Fr.get(B + "/api/wiki/refs", params={"sheet": FS}).ok, "freelancer: the backlinks of her table")
 check(refs(Fo, FPG, [FP], []).status_code == 404 and Fo.get(B + "/api/wiki/refs", params={"file": FP}).status_code == 404,
       "freelancer: another person reaches neither the page nor the file")
+# 2.1324.0 (#6589): the export of the private workspace takes her own file along, not another person's (named by reference)
+r = Fr.get(B + "/api/wiki/export", params={"space": "private"})
+with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+    fmd, fzn = z.read("Kunde/Notizen.md").decode(), set(z.namelist())
+    fnot = z.read("not included.txt").decode() if "not included.txt" in fzn else ""
+check(r.ok and "![[_attachments/Kunde/Notizen/skizze.png]]" in fmd and "[[_attachments/Kunde/Notizen/skizze.png]]" in fmd
+      and f"[[datei:{OP}]]" in fmd and f"Kunde/Notizen: [[datei:{OP}]]" in fnot and "fremd" not in fnot + " ".join(fzn)
+      and "Kunde/Notizen: [[tabelle:Stunden]]" in fnot, "#6589 freelancer: own file in the ZIP, the rest named " + fmd[:300] + fnot[:300])
 
 print(f"{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

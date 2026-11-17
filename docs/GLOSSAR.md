@@ -310,6 +310,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/objtags.py` (`otg`) - Tags exist once, in the shared core: obj_tags (scope user / list / org / ws) and obj_tag_links; project tags and organisation labels since 2.947
 - `kalmido/core/objversions.py` (`obj_version`) - Versions exist once, in the shared core: one table obj_versions for numbered whole states (knowledge pages since 2.958, stage Q7a)
 - `kalmido/core/objweb.py` (`obj`) - The generic routes of the core objects (core/objects.py, core/writes.py)
+- `kalmido/core/omitted.py` - what an export leaves out is said, never dropped silently
 - `kalmido/core/orgcrypt.py` (`oc`) - Server-side keys per organisation
 - `kalmido/core/orgrows.py` (`orw`) - The organisation of tasks, comments, events and contacts (column org_id, migrations.d/4602_a.py)
 - `kalmido/core/pages.py` (`st`) - HTML pages, security headers, /api/version, the share target, quick capture and /drop
@@ -747,6 +748,7 @@ Tables (spreadsheets): formulas, charts, pivot, printing, sharing, import / expo
 - `kalmido/sheets/core.py` (`sh`) - Tables ("Excel in simple")
 - `kalmido/sheets/formula.py` (`sh`) - The formula engine of tables ("Excel in simple")
 - `kalmido/sheets/io.py` (`shx`) - Tables to and from files. Export (reading the sheet is enough; values evaluated for the person exporting, so a file never holds a value they could not see)
+- `kalmido/sheets/odsread.py` - the OpenDocument spreadsheet (.ods, LibreOffice / OpenOffice) import
 - `kalmido/sheets/shbook.py` (`shb`) - Several sheets in one table (a "book", like the sheets of a spreadsheet file)
 - `kalmido/sheets/shchart.py` - The simple chart of a table
 - `kalmido/sheets/shfmt.py` (`shfm`) - The format of a table
@@ -1157,7 +1159,7 @@ The start-up module.
 - `static/js/sheets.js` (`shv`) - Tables, "Excel in simple" with Kalmido variables
 - `static/js/sheets2.js` (`sh2`) - Tables, step 2 -- carrying data over BY BUTTON, never a silent live link
 - `static/js/sheetshare.js` (`shs`) - One table shared with single people or agents (read | write)
-- `static/js/sheetsio.js` (`shx`) - Tables to and from files: CSV / Excel import in the tables overview and CSV / .xlsx export in a table's menu
+- `static/js/sheetsio.js` (`shx`) - Tables to and from files: CSV / Excel / ODS import in the tables overview and CSV / .xlsx export in a table's menu
 - `static/js/sheetsize.js` (`shz`) - Tables, the frame. On a computer the frame of a table has a grip at its bottom right corner
 - `static/js/shoot.js` - The storyboard of a shoot, module "
 - `static/js/showme.js` (`shw`) - "Show me": the spotlight of the tour on the places of an agent's message, loaded on demand (2.1086.0)

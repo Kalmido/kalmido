@@ -2013,7 +2013,8 @@ the module *Tables* switched on to write). Routes: `GET /api/v1/sheets` (`?space
 the list then holds it with `shared_in: true` and `share_role`, `?space=shared` lists only such tables. Formulas are stored with ids and shown with the current names; every
 value is calculated with the token's visibility (`error: "denied"` for a source it does not see). An agent's write call is
 one batch (`batch` in the answer) a person can take back. The app also exports a table as CSV / .xlsx and imports both
-(`GET /api/sheets/{id}/export.csv|xlsx`, `POST /api/sheets/import`, session only).
+(`GET /api/sheets/{id}/export.csv|xlsx`, `POST /api/sheets/import`, session only; 2.1324.0: the import also takes .ods,
+recognised by its `mimetype` entry, and its `report` has `cols_left_out` when a sheet had more than 200 columns).
 
 2.124.0: column kinds `checkbox` (`1` / `0`), `person` (an account id of someone who may see the table), `link`
 (`http(s)://` / `mailto:` only, 400 otherwise) and `file` (read only through the API: raw `file:<id>`, display = the file

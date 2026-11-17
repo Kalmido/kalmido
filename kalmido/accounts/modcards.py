@@ -29,7 +29,7 @@ from ..core.pg import insert_id, write_lock
 from ..core.schema import USER_DEFAULTS
 from .orgs import is_org_admin, user_orgs
 from .session import me
-from .wsareas import WSA_KEY_RE, _req_org
+from .wsareas import WSA_KEY_RE, _req_org, wsa_file_ok
 
 # the modules a card can hold: every module of Settings > Modules (family/family.py PM_FULL = the client's FEATS, in that
 # order) + the documents. A copy: accounts is a layer below the areas (tools/check_layers.py); tests/p2575_a_api_test.py
@@ -164,6 +164,28 @@ def mc_check(c, uid, oid, mod):
         raise Denied(403, tr(MC_OFF_TEXT))
 
 
+def mc_file_ok(c, uid, oid):
+    """2.1324.0 (#6589): may person uid open a file of the file store of organisation oid by its id as far as their module
+    card goes? No only when oid is one of their organisations and their cap there holds neither "files" nor "office" (a
+    file of the office stays while the office is on the card). One decision for mc_gate and fs_content_ok."""
+    if not oid or oid not in user_orgs(c, uid):
+        return True
+    cap = mc_cap(c, uid, oid)
+    return cap is None or "files" in cap or "office" in cap
+
+
+def fs_content_ok(c, uid, oid):
+    """2.1324.0 (#6589): may person uid read the content of a file of organisation oid's file store (oid None: a private
+    file -> yes) as the gates of the file routes decide: the module card (mc_file_ok) and the areas its admins switched off
+    (wsareas.wsa_file_ok), each with the office exception; agents and API tokens pass as at the gates (what they see is
+    what is shared with them). For what reads files outside the file routes (the knowledge export, wiki/wikiatt.py); the
+    file store's own rights (fs_role) are checked by the caller."""
+    u = getattr(g, "user", None) if _in_req() else None
+    if u is not None and (("kind" in u.keys() and u["kind"] == "agent") or g.get("auth_via") == "token"):
+        return True
+    return not oid or (mc_file_ok(c, uid, oid) and wsa_file_ok(c, oid))
+
+
 @app.before_request
 def mc_gate(p=None):
     """The routes of a module outside the person's card cap answer 403 while that organisation is the workspace of the
@@ -201,9 +223,10 @@ def mc_gate(p=None):
         if m == mod and hit:
             r = c.execute(f"SELECT org_id FROM {table} WHERE id=?", (int(hit.group(1)),)).fetchone()  # noqa: S608 (fixed names)
             if r and r[0] and r[0] in user_orgs(c, u["id"]):
-                cap = mc_cap(c, u["id"], r[0])
-                if mod != "files" or (cap is not None and "office" not in cap):  # a file of the office stays while the office is on
+                if mod != "files":
                     mc_check(c, u["id"], r[0], mod)
+                elif not mc_file_ok(c, u["id"], r[0]):  # a file of the office stays while the office is on
+                    raise Denied(403, tr(MC_OFF_TEXT))
             return None
     if mod == "files" and (request.method != "GET" or p.rstrip("/") not in MC_FILE_VIEWS):
         return None

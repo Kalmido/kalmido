@@ -1183,10 +1183,23 @@ async function ofcLogoUpload(file) {
   try { await ofcUpload('/api/office/logo', file); await ofcInfo(true); toast(w && w < 300 ? tr('Logo saved. It is only {0} px wide and prints small; 600 px or more print sharp.', w) : tr('Logo saved')); }
   catch (x) { toast(ofcUpErr(x)); }
 }
+// 2.1324.0 (#6589): before "overwrite existing" the preview of the server (?preview=1, nothing written): per area how many
+// entries are new / overwritten and whether the settings are overwritten; the import runs only after "Overwrite"
+const OFC_IMP_AREAS = [['roles', N_('Freelancer roles')], ['crew', N_('Crew')], ['services', N_('Services')], ['equipment', N_('Equipment')],
+  ['sets', N_('Sets')], ['texts', N_('Text blocks')], ['contracts', N_('Framework contracts')]];
+/** @param {any} c the counts of the preview */
+function ofcImportAsk(c) {
+  const rows = OFC_IMP_AREAS.filter(([k]) => c[k] && (c[k].added || c[k].updated)).map(([k, l]) =>
+    `<li data-area="${esc(k)}"><b>${esc(tr(l))}</b>: ${esc([c[k].added ? trn('{0} new', '{0} new', c[k].added) : '', c[k].updated ? trn('{0} overwritten', '{0} overwritten', c[k].updated) : ''].filter(Boolean).join(' · '))}</li>`);
+  if (c.settings === 'updated') rows.push(`<li data-area="settings"><b>${esc(tr('Settings'))}</b>: ${esc(tr('are overwritten too'))}</li>`);
+  return askDialog({title: tr('Overwrite master data?'), danger: true, ok: tr('Overwrite'),
+    html: `<ul class="ofc-imp-prev">${/*html-ok*/ rows.join('') || `<li>${esc(tr('Nothing to import'))}</li>`}</ul><p class="muted">${esc(tr('There is no undo: export the master data first to keep the current state.'))}</p>`});
+}
 async function ofcImport(file, overwrite) {
   if (!file) return;
   if (!await importTargetConfirm({what: tr('the master data'), ws: ofcWs(), place: tr('Office')})) return;  // 2.87.9 (#1940)
   try {
+    if (overwrite && !await ofcImportAsk((await ofcUpload('/api/office/import?overwrite=1&preview=1', file)).counts || {})) return;  // 2.1324.0 (#6589)
     const j = await ofcUpload(`/api/office/import${overwrite ? '?overwrite=1' : ''}`, file);
     const c = j.counts || {}, n = Object.values(c).reduce((a, x) => a + (x && typeof x === 'object' ? (x.added || 0) + (x.updated || 0) : 0), 0);
     const um = Array.isArray(c.unmapped) ? c.unmapped.length : 0;

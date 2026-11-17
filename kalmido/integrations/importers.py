@@ -32,6 +32,7 @@ from ..tasks.validation import (
 )
 from ..tasks.tasks import set_tags
 from ..core.errors import BadInput, UnknownFields
+from ..core.csvimport import TXT_CP1252, TXT_UNREADABLE, text_decode  # 2.1324.0 (#6589): the text encoding, shared with the knowledge import
 from ..core.zipread import ZipOver, zip_guard  # 2.1282.0 (#6426): the check before zipfile
 from ..api.common import act_via, hit_limit  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.listtrash import otr_trash  # 2.272.0 C (#3027)
@@ -147,30 +148,15 @@ def imp_fail(key, *a):
 
 def imp_decode(data, plan=None):
     """Bytes of a text file -> str: UTF-8 (with / without BOM), UTF-16 (BOM or detected), else Windows-1252 (with a warning in
-    plan since 2.533.0 #4318 F8: an ISO-8859-15 file shows a wrong euro sign)."""
+    plan since 2.533.0 #4318 F8: an ISO-8859-15 file shows a wrong euro sign). 2.1324.0 (#6589): the detection is
+    core/csvimport.text_decode (the knowledge import uses it too)."""
     try:
-        if data.startswith(b"\xef\xbb\xbf"):
-            s = data[3:].decode("utf-8")
-        elif data.startswith((b"\xff\xfe", b"\xfe\xff")):
-            s = data.decode("utf-16")
-        else:
-            head = data[:4000]
-            if len(head) >= 4 and head.count(b"\x00") > len(head) // 4:
-                s = data.decode("utf-16-le" if head[1::2].count(0) > head[0::2].count(0) else "utf-16-be")
-            else:
-                if b"\x00" in data:
-                    imp_fail(N_("This is not a text file"))
-                try:
-                    s = data.decode("utf-8")
-                except UnicodeDecodeError:
-                    s = data.decode("cp1252")
-                    if plan is not None:
-                        imp_warn(plan, N_("The file is not UTF-8 and was read as Windows-1252: please check umlauts and the euro sign"))
-    except UnicodeDecodeError:
-        imp_fail(N_("The text encoding of the file could not be read (UTF-8, UTF-16 or Windows-1252 expected)"))
-    if "\x00" in s:
-        imp_fail(N_("This is not a text file"))
-    return s.lstrip("﻿")
+        s, enc = text_decode(data)
+    except BadInput as e:
+        imp_fail(*(getattr(e, "stored", None) or (TXT_UNREADABLE,)))
+    if enc == "windows-1252" and plan is not None:
+        imp_warn(plan, TXT_CP1252)
+    return s
 
 
 def imp_line(v, n=TITLE_MAX):

@@ -277,5 +277,24 @@ check(Ca.get(B + f"/api/wiki/files/{some}").status_code == 404 and Ca.get(B + f"
 check(imp(Ca, SP2, sb_zip()).status_code == 409 and Ca.get(B + "/api/wiki/export", params={"space": SP2}).status_code == 409,
       "#2182: import / export of a locked space run in the browser (409)")
 
+# ---------------------------------------------------------------- 2.1324.0 (#6589): the text encoding of imported pages
+# (was decoded as UTF-8 with replacement characters, silently): detected like the task import, Windows-1252 named in the report
+b = io.BytesIO()
+with zipfile.ZipFile(b, "w") as z:
+    z.writestr("Enc/Alt.md", "Café für 5 € – Grüße".encode("cp1252"))
+    z.writestr("Enc/Utf16.md", "Übersicht mit Ä".encode("utf-16"))
+    z.writestr("Enc/Neu.md", "Schon UTF-8: Größe".encode("utf-8"))
+    z.writestr("Enc/Binaer.md", b"\x00\x01\x02PK\x00\x00")
+r = imp(Fo, "private", b.getvalue())
+j = r.json() if r.ok else {}
+fop = {p["path"]: p["id"] for p in Fo.get(B + "/api/wiki", params={"space": "private"}).json()["pages"]}
+body = lambda path: Fo.get(B + f"/api/wiki/pages/{fop[path]}").json().get("body", "") if path in fop else ""  # noqa: E731
+check(r.ok and body("Enc/Alt").startswith("Café für 5 € – Grüße") and "\ufffd" not in body("Enc/Alt"),
+      "#6589: a Windows-1252 page keeps its umlauts and the euro sign " + repr(body("Enc/Alt"))[:120] + r.text[:300])
+check(body("Enc/Utf16").startswith("Übersicht mit Ä") and body("Enc/Neu").startswith("Schon UTF-8: Größe"), "#6589: UTF-16 and UTF-8 read as such")
+check(j.get("recoded") == ["Enc/Alt.md"] and j.get("recoded_n") == 1, f"#6589: the report names the page read as Windows-1252 {j.get('recoded')}")
+check("Enc/Binaer" not in fop and any(d["name"] == "Enc/Binaer.md" and d["reason"] for d in j.get("skipped_detail", [])),
+      f"#6589: a file without text is skipped with its reason {j.get('skipped_detail')}")
+
 print(f"{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

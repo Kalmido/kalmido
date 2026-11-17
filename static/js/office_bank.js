@@ -5,12 +5,24 @@
 // Server: kalmido/office/bank.py. No bank access.
 const BNK = {oid: null, fints: null, state: 'open', data: null, q: '', err: null, imports: null, showImp: false, other: null, cand: null, candQ: '', busy: false, split: false};
 // 2.616.0 (#2473): the direct bank fetch over FinTS (office_fints.js, loaded on its first use): BNK.fints = GET /api/office/bank/fints
-// ({on, message}); off (no product registration on the server) the button stays, switched off, with the reason
+// ({on, message}); off (no product registration on the server) no button (2.1324.0 #6147), the foot line says it
 const bnkFntHtml = () => {
   const f = BNK.fints;
   if (!f) { if (f === null) { BNK.fints = false; api('GET', '/api/office/bank/fints').then(j => { BNK.fints = j; }, () => { BNK.fints = {on: false, message: ''}; }).then(() => ofcDraw()); } return ''; }
-  return `<button class="btn" data-bnk="fints" ${f.on ? '' : `disabled aria-describedby="bnk-fnt-off"`}>${ic('download', 's')}<span>${tr('Fetch from bank')}</span></button>${f.on ? '' : `<small class="muted bnkfnt-off" id="bnk-fnt-off">${esc(f.message || tr('The bank fetch is not set up on this server yet: whoever runs the server sets it up.'))}</small>`}`;
+  // 2.1324.0 (#6147): only when it is set up (was: switched off with a sentence, it looked active); the line at the foot says
+  // "No bank access: only the file you download yourself"; on a phone it sits in the bar's "More" (bnkBarMenu)
+  return f.on ? `<button class="btn bnk-wide" data-bnk="fints">${ic('download', 's')}<span>${tr('Fetch from bank')}</span></button>` : '';
 };
+// 2.1324.0 (#6147): the bank bar on a phone: "Import bank statement" + "More" in one row (the filters below); "More" holds
+// "Go through", "Fetch from bank" (set up only), "Imports" and the bank accounts -- on a computer these stay in the bar
+function bnkBarMenu(anchor) {
+  const n = BNK.data?.counts || {}, tax = tr('Settings › Company & office › {0}', tr(OST_SUBS.find(x => x[0] === 'tax')?.[2] || 'Company & office'));
+  menu(anchor, [
+    n.open ? {label: tr('Go through'), icon: 'right', act: 'bnk-walk', fn: () => wlk_open('bnk')} : null,
+    BNK.fints?.on ? {label: tr('Fetch from bank'), icon: 'download', act: 'bnk-fints', fn: () => fnt_open()} : null,
+    {label: tr('Imports'), icon: 'list', act: 'bnk-imps', on: BNK.showImp, fn: () => { BNK.showImp = !BNK.showImp; ofcDraw(); }},
+    {label: tr('Bank accounts'), sub: tax, icon: 'gear', act: 'bnk-accts', fn: () => settingsModal('biz-tax')}].filter(Boolean), null, null, tr('Bank'));
+}
 OFC_TABS.splice(OFC_TABS.findIndex(t => t[0] === 'settings'), 0, ['bank', 'bank', N_('Bank'), 1, () => bnkHtml(), 'money']);  // admins only; 2.92.1 (#1917): in the menu group Money
 const BNK_KIND = {invoice: N_('Invoice'), receipt: N_('Receipt'), private: N_('Private'), ignored: N_('Ignored'), noreceipt: N_('No receipt needed'), card: N_('Credit card statement'), payout: N_('Collective payout'), cash: N_('Cash box transfer')};  // 2.299.0 C (#3192): noreceipt; 2.444.0 (#3447): card; 2.603.0 (#4927): cash
 
@@ -50,15 +62,17 @@ function bnkHtml() {
   if (typeof BNR === 'object') segs.splice(1, 0, ['norc', tr('Without receipt'), BNR.data?.counts?.out]);  // 2.299.0 C (#3192)
   const bar = `<div class="ofcbar bnkbar"><button class="btn pri" data-bnk="imp">${ic('upload', 's')}<span>${tr('Import bank statement')}</span></button>${bnkFntHtml()}<span class="spacer"></span>
     <div class="seg" role="group" aria-label="${esc(tr('Show'))}">${segs.map(([k, t, c]) => `<button type="button" data-bnk="state" data-v="${k}" class="${BNK.state === k ? 'on' : ''}" aria-pressed="${BNK.state === k}">${esc(t)}${c ? ` <small>${c}</small>` : ''}</button>`).join('')}</div>
-    ${n.open ? `<button class="btn" data-bnk="walk">${ic('right', 's')}<span>${tr('Go through')}</span></button>` : ''}<button class="btn ghost" data-bnk="imps" aria-expanded="${BNK.showImp}">${ic('list', 's')}<span>${tr('Imports')}</span></button></div>`;
+    ${n.open ? `<button class="btn bnk-wide" data-bnk="walk">${ic('right', 's')}<span>${tr('Go through')}</span></button>` : ''}<button class="btn ghost bnk-wide" data-bnk="imps" aria-expanded="${BNK.showImp}">${ic('list', 's')}<span>${tr('Imports')}</span></button>
+    <button type="button" class="btn ghost bnk-mbtn" data-bnk="menu" aria-haspopup="menu">${ic('dots', 's')}<span>${tr('More')}</span></button></div>`;  // 2.1324.0 (#6147): phone only
   if (norc) return bar + (BNK.showImp ? bnkImpHtml() : '') + bnr_html();
   const items = d.items || [];
   const list = items.length ? `<ul class="bnklist" role="list">${items.map(bnkRow).join('')}</ul>`
     : BNK.state === 'open' && (n.open || 0) + (n.matched || 0) ? emptyState({icon: 'check', title: tr('Every booking is matched.')})  // 2.1076.0 (#5450)
       : emptyState({icon: 'bank', title: tr('No bookings yet. Import the statement you download from your bank (CSV, CAMT or MT940).'), action: `<div class="eacts"><button type="button" class="btn pri" data-bnk="imp">${ic('upload', 's')}<span>${tr('Import bank statement')}</span></button></div>`});
   // 2.809.0 (#5452): the hint for a missing receipt once above the list (was in every row without a suggestion)
-  const miss = items.some(t => !t.match && +t.amount < 0 && !(t.suggestions || []).length) ? `<p class="muted bnkmiss bnkmiss1">${tr('Receipt missing? Upload it in the documents of the office, then match it here.')}</p>` : '';
-  return bar + ofcSetLink('tax', tr('Bank accounts')) + (BNK.showImp ? bnkImpHtml() : '') + (typeof brl_sugHtml === 'function' ? brl_sugHtml() : '') + miss + list + `<div class="muted ofchint">${BNK.fints?.on ? tr('Bank access only when you fetch, with your PIN every time.') : tr('No bank access: only the file you download yourself.')/* 2.616.0 (#2473) */}<div class="shint">${tr('A match with an invoice records a payment; with a receipt it sets its payment day.')}</div></div>`;  // 2.298.0 A2 (#3186): the matching rule behind (i)
+  // 2.1324.0 (#6147): folds to its question with one tap, and stays folded (LS bnkMissShut, the toggle listener below)
+  const miss = items.some(t => !t.match && +t.amount < 0 && !(t.suggestions || []).length) ? `<details class="muted bnkmiss bnkmiss1" data-bnk-miss ${LS.get('bnkMissShut', false) ? '' : 'open'}><summary>${tr('Receipt missing?')}</summary> <span>${tr('Upload it in the documents of the office, then match it here.')}</span></details>` : '';
+  return bar + ofcSetLink('tax', tr('Bank accounts')) + (BNK.showImp ? bnkImpHtml() : '') + (typeof brl_sugHtml === 'function' ? brl_sugHtml() : '') + miss + list + `<div class="muted ofchint bnkfoot">${BNK.fints?.on ? tr('Bank access only when you fetch, with your PIN every time.') : tr('No bank access: only the file you download yourself.')/* 2.616.0 (#2473) */}<div class="shint">${tr('A match with an invoice records a payment; with a receipt it sets its payment day.')}</div></div>`;  // 2.298.0 A2 (#3186): the matching rule behind (i)
 }
 function bnkRow(t) {
   const inn = +t.amount > 0;
@@ -299,6 +313,7 @@ function bnkImpModal(text, name, after) {  // text + name: one statement read al
   return md;
 }
 
+document.addEventListener('toggle', e => { const d = /** @type {any} */ (e.target); if (d?.matches?.('[data-bnk-miss]')) LS.set('bnkMissShut', !d.open); }, true);  // 2.1324.0 (#6147)
 let bnkQT = null;
 document.addEventListener('input', e => {
   const pi = e.target.closest?.('[data-bnk-part]');
@@ -322,6 +337,7 @@ document.addEventListener('click', e => {
   else if (a === 'unmatch') bnkUnmatch(id);
   else if (a === 'more') bnkMoreMenu(b, id);  // 2.809.0 (#5452)
   else if (a === 'walk') wlk_open('bnk');  // 2.778.0 (#5383): office_walk.js (lazyload.js LD_CALL)
+  else if (a === 'menu') bnkBarMenu(b);  // 2.1324.0 (#6147): the bar's "More" on a phone
   else if (a === 'other') { BNK.other = BNK.other === id ? null : id; BNK.cand = null; BNK.candQ = ''; BNK.split = false; BNK.parts = {}; ofcDraw(); if (BNK.other) bnkCand(id); }
   else if (a === 'split') { BNK.split = !BNK.split; BNK.parts = {}; ofcDraw(); }  // 2.355.0 B (#2843)
   else if (a === 'splitgo') {

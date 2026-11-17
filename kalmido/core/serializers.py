@@ -468,6 +468,37 @@ def csv_cell(s):
     return "'" + s if s.lstrip(" \t\r\n\u00a0")[:1] in ("=", "+", "-", "@") or s[:1] in ("\t", "\r", "\n") else s  # 2.148.1 E (#2496): also after leading blanks
 
 
+CSV_SPOOL = 1024 * 1024  # 2.1324.0 (#6589): bytes of a CSV download kept in memory, the rest goes to a temporary file
+
+
+def csv_download(head, rows, name, delimiter=",", headers=None):
+    """2.1324.0 (#6589): a CSV download without a row limit: head + rows (an iterable of cell lists, which the caller reads page by
+    page) go into a spooled temporary file (memory up to CSV_SPOOL, then disk), UTF-8 with BOM, CRLF; the file is sent and
+    closed. Nothing is cut: the export has every row the caller yields."""
+    import csv
+    import io
+    import tempfile
+    from flask import Response, request
+    from werkzeug.wsgi import wrap_file
+    f = tempfile.SpooledTemporaryFile(max_size=CSV_SPOOL, mode="w+b")  # noqa: SIM115 -- closed by the response
+    try:
+        t = io.TextIOWrapper(f, encoding="utf-8", newline="", write_through=True)
+        t.write("\ufeff")
+        w = csv.writer(t, delimiter=delimiter, lineterminator="\r\n")
+        w.writerow(head)
+        for r in rows:
+            w.writerow(r)
+        t.flush()
+        t.detach()
+        f.seek(0)
+    except BaseException:
+        f.close()
+        raise
+    h = {"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"}
+    h.update(headers or {})
+    return Response(wrap_file(request.environ, f), mimetype="text/csv; charset=utf-8", headers=h, direct_passthrough=True)
+
+
 def csv_uncell(s):
     """2.273.0 D (#3051): inverse of csv_cell for a Kalmido CSV coming back in: drop the guard "'" it put before = + - @ (so "- x" lists survive)."""
     s = str(s or "")

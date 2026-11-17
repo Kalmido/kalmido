@@ -96,6 +96,7 @@ ORDER = (
     "core.state",
     "core.safexml",  # 2.1272.0 (#6422): the one reader for XML from outside (standard library only)
     "core.csvimport",  # 2.140.0 B (#2134): the statement reader of budget and bank reconciliation
+    "core.omitted",  # 2.1324.0 (#6589): the list "not included.txt" of what a ZIP export leaves out (no routes)
     "core.zipread",  # 2.146.0 (#2453 #2455 #2457): the in-memory ZIP reader of the importers
     "core.merges",  # 2.66.0 (#1835): merging contacts / clients (reversible)
     "core.mt940",  # 2.299.0 A (#3190): MT940 / MT942 statements (after csvimport, before stmtfiles)
@@ -586,6 +587,7 @@ ORDER = (
     "docs.fetcher",  # 2.425.0 C (#3453): receipt fetchers (own key kind: upload receipts + report the portals' state)
     "docs.csvx",  # 2.122.0 (#2100): the documents list as CSV
     "docs.dviews",  # 2.579.0 (#4802): saved views of the documents search (a kind of the shared core + their counts / hits)
+    "sheets.odsread",  # 2.1324.0 (#6709): the .ods import (no routes; read by sheets.io)
     "sheets.io",  # 2.89.0 C (#1916): tables to / from CSV and .xlsx (export, import as a new sheet)
     "sheets.shprint",  # 2.578.0 (#3462): the print view of a table as a PDF (portrait / landscape, fitted, page numbers)
     "sheets.v1",  # 2.89.0 C (#1916): tables for agents (API v1 + OpenAPI)

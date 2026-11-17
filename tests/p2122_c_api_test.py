@@ -191,6 +191,28 @@ r = A.post(B + "/api/docs/export.csv", json={"ids": [D1]})
 t = r.content.decode("utf-8-sig")
 check(t.startswith("Datum;Eingegangen;Titel;Absender;Typ;Tags;Betrag;Währung;Ordner;Dateiname;Zu prüfen") and ";119,00;" in t, f"German: semicolon + decimal comma ({t[:120]!r})")
 A.patch(B + "/api/settings", json={"lang": "en"})
+# 2.1324.0 (#6589): no silent cut at 2000 rows: 2001 copies of D1 (made in the database) + D1 -> 2002 rows in the CSV
+_nc = [r[0] for r in dbx("SELECT column_name FROM information_schema.columns WHERE table_name='fs_nodes' AND column_name<>'id' "
+                         "AND is_generated='NEVER' ORDER BY ordinal_position")]
+_ns = {"name": "n.name || '-k6589-' || g"}
+dbx(f"INSERT INTO fs_nodes({','.join(_nc)}) SELECT {','.join(_ns.get(x, 'n.' + x) for x in _nc)} FROM fs_nodes n, generate_series(1, 2001) g WHERE n.id=?",
+    (D1,), write=True)
+_mc = [r[0] for r in dbx("SELECT column_name FROM information_schema.columns WHERE table_name='doc_meta' AND column_name<>'node_id' "
+                         "AND is_generated='NEVER' ORDER BY ordinal_position")]
+_ms = {"ext_id": "NULL", "asn": "NULL"}
+dbx(f"INSERT INTO doc_meta(node_id,{','.join(_mc)}) SELECT n.id,{','.join(_ms.get(x, 'm.' + x) for x in _mc)} FROM fs_nodes n, doc_meta m "
+    "WHERE m.node_id=? AND n.name LIKE '%-k6589-%'", (D1,), write=True)
+BULK = [r[0] for r in dbx("SELECT id FROM fs_nodes WHERE name LIKE '%-k6589-%' ORDER BY id")]
+r = A.post(B + "/api/docs/export.csv", json={"ids": [D1] + BULK})
+lines = [x for x in r.content.decode("utf-8-sig").split("\r\n") if x] if r.ok else []
+check(len(BULK) == 2001 and len(lines) == 2003 and sum(1 for x in lines if "-k6589-" in x) == 2001,
+      f"#6589: 2002 documents -> 2002 rows, no cut at 2000 ({r.status_code} {len(BULK)} ids, {len(lines)} lines)")
+dbx("DELETE FROM fs_nodes WHERE name LIKE '%-k6589-%'", write=True)
+# 2.1324.0 (#6589, Fable F3): a fixed ceiling of 50 000 ids per call; above it a 400 naming the number and the ceiling (no silent cut)
+r = A.post(B + "/api/docs/export.csv", json={"ids": list(range(10**9, 10**9 + 50_001))})
+check(r.status_code == 400 and "50001" in r.text and "50000" in r.text, f"#6589 F3: 50 001 ids -> 400 with number and ceiling ({r.status_code} {r.text[:200]})")
+r = A.post(B + "/api/docs/export.csv", json={"ids": [D1] * 60_000})
+check(r.status_code == 200, f"#6589 F3: the same id 60 000 times counts once ({r.status_code})")
 
 # ---- #2101: the OCR language choice
 spec = importlib.util.spec_from_file_location("ocr_c", os.path.join(N, "..", "kalmido", "docs", "ocr.py"))

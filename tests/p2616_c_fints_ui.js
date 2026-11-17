@@ -55,9 +55,9 @@ const PIN = 'UiPin-' + Math.random().toString(36).slice(2, 10);
     await ev(`(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`);
     await signIn(ev, 'alice');
     await nav(B + '#office/bank');
-    check(await ready(ev, `!!${BTN}`, 80), 'off: the button "Fetch from bank" is there');
-    check(await ev(`${BTN}.disabled && /not set up on this server/.test(document.querySelector('#bnk-fnt-off')?.textContent || '') && ${BTN}.getAttribute('aria-describedby') === 'bnk-fnt-off'`),
-      'off: switched off, the reason next to it (and named for screen readers)');
+    // 2.1324.0 (#6147): off = no button at all (was: switched off with a sentence, it looked active); the foot says "No bank access"
+    check(await ready(ev, `!!document.querySelector('.bnkbar [data-bnk="imp"]') && /No bank access/.test(document.querySelector('.bnkfoot')?.textContent || '')`, 80), 'off: the bank page with its import button and the foot line "No bank access"');
+    check(await ready(ev, `BNK.fints && BNK.fints.on === false && !${BTN} && !document.querySelector('#bnk-fnt-off')`, 40), 'off: no "Fetch from bank" button, no sentence beside it');
     await shot('p2616-c-off.png');
   }, false);
 
