@@ -22,7 +22,12 @@ function dfl_ruleHtml(r, can) {  // one flow in the list: trigger, filters, acti
     r.fields && Object.keys(r.fields).length && `${tr('Custom fields')}: ${Object.entries(r.fields).map(([k, v]) => `${k} = ${v ?? ''}`).join(', ')}`,
     r.task && tr('Create task'), r.notify?.length && `${tr('Notify')}: ${r.notify.length}`, r.webhook && `${tr('Webhook')}: ${r.webhook}`,
     r.share?.length && `${tr('Share')}: ${r.share.length}`].filter(Boolean);  // 2.635.0 (#4856)
-  return `<li class="dc-rule${r.off ? ' muted' : ''}"><span>${r.name ? `<b>${esc(r.name)}</b> · ` : ''}<span class="muted">${esc(when)}</span>${ifs.length ? ` · ${ifs.join(' · ')}` : ''} → ${esc(does.join(' · '))}${r.off ? ` <span class="muted">(${tr('off')})</span>` : ''}</span>${can ? `<span>
+  // 2.1321.0 (#6555): the webhook's state -- paused (its author is no admin any more), off after failed calls, failures so far
+  const hst = r.hook_state === 'admin' ? tr('Paused: the person who set up its webhook is no admin any more')
+    : r.hook_state === 'failures' ? tr('Webhook off after failed calls') : r.hook_fails ? tr('Webhook calls failed in a row: {0}', r.hook_fails) : '';
+  const hook = hst ? `<span class="dfl-hookst">${esc(hst)}${r.hook_error && r.hook_state !== 'admin' ? ` · ${esc(tr('Last error: {0}', r.hook_error))}` : ''}</span>` : '';
+  return `<li class="dc-rule${r.off ? ' muted' : ''}"><span>${r.name ? `<b>${esc(r.name)}</b> · ` : ''}<span class="muted">${esc(when)}</span>${ifs.length ? ` · ${ifs.join(' · ')}` : ''} → ${esc(does.join(' · '))}${r.off && r.hook_state !== 'admin' ? ` <span class="muted">(${tr('off')})</span>` : ''}${hook ? ` ${hook}` : ''}</span>${can ? `<span>
+    ${r.hook_state === 'failures' && !r.off ? `<button type="button" class="iconbtn" data-dcs="rhook:${r.id}" aria-label="${esc(tr('Switch webhook on again'))}" title="${esc(tr('Switch webhook on again'))}">${ic('play')}</button>` : ''}
     <button type="button" class="iconbtn" data-dcs="redit:${r.id}" aria-label="${esc(tr('Edit flow'))}" title="${esc(tr('Edit flow'))}">${ic('edit')}</button>
     <button type="button" class="iconbtn" data-dcs="rtog:${r.id}" aria-label="${esc(r.off ? tr('Switch on') : tr('Switch off'))}" title="${esc(r.off ? tr('Switch on') : tr('Switch off'))}">${ic(r.off ? 'play' : 'pause')}</button>
     <button type="button" class="iconbtn" data-dcs="rdel:${r.id}" aria-label="${esc(tr('Delete rule'))}">${ic('trash')}</button></span>` : ''}</li>`;

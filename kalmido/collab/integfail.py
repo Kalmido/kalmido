@@ -32,6 +32,8 @@ INTEG_TEXT = {
     "gitcap": N_("Git connection {0} reached its daily limit of new issues or comments ({1}); the rest goes out tomorrow."),  # 2.1306.0 (#6554)
     "maillost": N_("Mailbox {0}: e-mails could not be taken over ({1}); they are still in the mailbox."),  # 2.1269 (#6386)
     "docflow": N_("Document flow {0} keeps failing on a document, failing since {1}."),  # 2.1265.0 (#6389): a scheduled flow
+    "docflow_hook": N_("The webhook of document flow {0} was switched off: its calls could not be delivered (last error: {1})."),  # 2.1321.0 (#6555)
+    "docflow_admin": N_("Document flow {0} was paused: the person who set up its webhook is no admin of the workspace any more."),  # 2.1321.0 (#6555)
     "backup": N_("Backup failed: {0}"),
     "payonline": N_("An online payment on invoice {0} could not be booked: {1}"),  # 2.469.0 (#3459)
 }

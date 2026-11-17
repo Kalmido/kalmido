@@ -38,7 +38,7 @@ from datetime import date, datetime, time as dtime, timedelta
 from flask import g, has_request_context, jsonify
 
 from ..core.config import app, PUBLIC_URL, TZ
-from ..core.db import bump, db, err, insert_id, iso, local_day, local_now, now_utc
+from ..core.db import bump, db, err, insert_id, iso, iso_ms, local_day, local_now, now_utc
 from ..core.i18n import tr
 from ..core.objtags import otg_ws_drop, otg_ws_link  # 2.1119.0 (#5277): the file store's tags are the core's
 from ..core.access import Denied, acx_of, acx_org_ok, task_visible
@@ -47,6 +47,7 @@ from ..tasks.validation import log_act
 from ..accounts.session import me
 from ..collab.comments import collab_user
 from ..collab.integfail import INTEG_FAILS, integ_org_admins, integ_tell  # 2.1265.0 (#6389)
+from ..accounts.orgs import org_role  # 2.1321.0 (#6555)
 from ..collab.news import notif_ok
 from ..files.store import fs_log_add, fs_role
 from ..notify.alerts import aa_count  # 2.1265.0 (#6389)
@@ -529,6 +530,65 @@ def fl_hook_payload(c, run):
     body = {"event": "document.flow", "run": run["id"], "trigger": run["trig"], "at": run["created_at"],
             "flow": {"id": run["rule_id"], "name": r.get("name") or ""}, "document": doc}
     return r["webhook"], r["hook_secret"], json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
+
+
+# ---- 2.1321.0 (#6555): the webhook's author and its failures ----------------------------------------------------------------
+# Like the organisation's webhooks (integrations/webhooks.py who_admin_ok, wh_result): before every call the flow's author must
+# still be an admin of the workspace (the person themself for a private one, never a disabled account) -- else the flow pauses
+# and the admins hear it; failed calls are counted at the flow (hook_fails, the last error in hook_error), and once a call's
+# last retry failed the webhook switches off (the flow's other actions run on) and the admins hear it. Saving the flow again
+# (an admin, docs/web.py _rule_save -> fl_hook_reset) switches it on again; after a pause the saving admin is its author.
+FL_HOOK_STATES = ("failures", "admin")
+
+
+def fl_hook_author_ok(c, ws, uid):
+    """May the author uid of a flow of workspace ws still send its webhook calls."""
+    if not uid:
+        return False
+    u = c.execute("SELECT disabled, kind FROM users WHERE id=?", (uid,)).fetchone()
+    if not u or u["disabled"] or u["kind"] == "agent":
+        return False
+    oid = S.ws_org(ws)
+    return org_role(c, uid, oid) == "admin" if oid else S.ws_user(ws) == uid
+
+
+def fl_hook_admins(c, ws):
+    """Who hears about a flow's webhook: the organisation's admins, the person of a private workspace."""
+    oid = S.ws_org(ws)
+    return integ_org_admins(c, oid) if oid else [S.ws_user(ws)]
+
+
+def fl_hook_off(c, rid, ws, why, error=""):
+    """Switches the webhook of flow rid off (why 'failures') or pauses the flow (why 'admin'), drops its calls still waiting
+    and tells the admins once (caller: system_ctx, commits). -> False when it was off already."""
+    row = c.execute("UPDATE doc_rules SET hook_state=?, updated_at=? WHERE id=? AND ws=? AND hook_state='' RETURNING data",
+                    (why, iso_ms(now_utc()), rid, ws)).fetchone()
+    if not row:
+        return False
+    r = S._jopen(c, ws, "doc_rules.data", row[0], {})
+    if why == "admin" and r and not r.get("off"):
+        r["off"] = True
+        c.execute("UPDATE doc_rules SET data=? WHERE id=?", (S._jseal(c, ws, "doc_rules.data", r), rid))
+    c.execute("UPDATE doc_flow_runs SET hook='off' WHERE rule_id=? AND hook='wait'", (rid,))
+    name = str((r or {}).get("name") or "").strip() or f"#{rid}"
+    print(f"docflows: webhook of flow {rid} {'paused (author no admin)' if why == 'admin' else 'switched off after failures'}", flush=True)
+    integ_tell(c, fl_hook_admins(c, ws), "docflow_admin" if why == "admin" else "docflow_hook", name, error[:120], click="docs")
+    return True
+
+
+def fl_hook_result(c, rid, ok, error=""):
+    """One call of flow rid's webhook went out (ok) or failed (error = its code and HTTP status): counted at the flow."""
+    if ok:
+        c.execute("UPDATE doc_rules SET hook_fails=0 WHERE id=? AND hook_fails<>0", (rid,))
+    else:
+        c.execute("UPDATE doc_rules SET hook_fails=hook_fails+1, hook_error=?, hook_error_at=? WHERE id=?", (error[:200], iso(now_utc()), rid))
+
+
+def fl_hook_reset(c, rid, uid):
+    """The flow was saved again by uid (an admin): a webhook switched off goes on, the count starts anew; after a pause
+    uid becomes the author (the one whose rights the calls check from now on)."""
+    c.execute("UPDATE doc_rules SET created_by=CASE WHEN hook_state='admin' THEN ? ELSE created_by END, hook_state='', hook_fails=0 "
+              "WHERE id=? AND hook_state<>''", (uid, rid))
 
 
 # ---- the routes: runs of a document, undo ---------------------------------------------------------------------------------------
