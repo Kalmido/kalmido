@@ -293,4 +293,13 @@ for k in range(300):
     bad += 0 if now == old_items(r, items) else 1
 check(bad == 0, f"progress bases (home=True): 300 foreign quotations give the home-currency positions of before, {bad} differ")
 
+# 2.1309.0 (#6463): the rest cent of a part in a foreign currency names the position's price in that currency (was the stored
+# home-currency rate 0.8428 with the sign of the foreign one: "3 × 0,8428 HUF")
+fx = D("395.5")
+pos = {"kind": "service", "title": "Dreh", "qty": 3, "unit": "day", "rate": D("333.33") / fx, "tax": "standard", "detail": ""}
+out = P.f8b_fix_cents([pos], {"standard": D("1000.00")}, "de", "HUF", fx)
+want_detail = f"3 × {calc.fmt_rate(D('333.33'), 'de', 'HUF')}"
+check(len(out) == 1 and out[0]["detail"] == want_detail and calc.money(D(str(out[0]["rate"])) * fx) == D("1000.00"),
+      f"#6463: the settled position says {want_detail!r} and is 1,000.00 HUF: {out[0].get('detail')!r} {out[0].get('rate')}")
+
 sys.exit(done("p6299_fx_offer_invoice"))

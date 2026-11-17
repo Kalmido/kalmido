@@ -379,7 +379,8 @@ def pbt_rows(c, src, dst, tables):
                 k += 1
             out[t] = k
         else:
-            out[t] = c.execute(f"UPDATE {t} SET org_id=? WHERE {w}{extra}", (dst,) + (src,) * n + args).rowcount
+            with ofx_release(c, t):  # 2.1309.0 (#6467): the payments of its finalised documents move along (6467.py)
+                out[t] = c.execute(f"UPDATE {t} SET org_id=? WHERE {w}{extra}", (dst,) + (src,) * n + args).rowcount
     return out
 
 

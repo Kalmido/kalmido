@@ -28,6 +28,7 @@ from ..core.access import acx_anon_bind, Denied, FULL_ROLES, list_role, live_sql
 from ..core.orgcrypt import OrgCryptError, oc_dec, oc_dec_fields, oc_enc, oc_enc_fields, oc_is_enc, oc_log_detail
 from .model import office_role, pb_owner
 from .model import pb_personal  # 2.747.0 (#5246)
+from .model import ofx_release  # 2.1309.0 (#6467)
 from .okern import ofk_purge, ofk_register, ofk_trash  # 2.1004.0 (#5494)
 from .rights import NO_RIGHT, ofr_admin_or, ofr_allows
 from ..accounts.orgroles import OFFICE_READ
@@ -176,8 +177,9 @@ def sig_log_trim(c):
             if not isinstance(d, dict) or not any(k in d for k in SIG_LOG_DROP):
                 continue
             t = json.dumps({k: v for k, v in d.items() if k not in SIG_LOG_DROP}, ensure_ascii=False)
-            c.execute("UPDATE office_doc_log SET detail=? WHERE id=?",
-                      (oc_enc(c, r["org_id"], "office_doc_log.detail", t) if sealed else oc_log_detail(c, r["org_id"], t), r["id"]))
+            with ofx_release(c, "office_doc_log"):  # 2.1309.0 (#6467): the log is held by the database (6467.py)
+                c.execute("UPDATE office_doc_log SET detail=? WHERE id=?",
+                          (oc_enc(c, r["org_id"], "office_doc_log.detail", t) if sealed else oc_log_detail(c, r["org_id"], t), r["id"]))
             n += 1
     return n, left
 

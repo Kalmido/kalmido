@@ -1947,6 +1947,19 @@ current transaction only. A new write path to finalised documents needs its colu
 switch, with a reason); an older version runs on with the trigger, the way back is `DROP TRIGGER kalmido_office_locked
 ON office_docs`.
 
+*Since 2.1309.0 (#6467)* three more triggers (`core/migrations.d/6467.py`) hold what belongs to a finalised document:
+- **positions** (`office_doc_items`, `kalmido_office_items_locked`): no new, changed, moved or deleted position on a
+  finalised document (not a trial one); free: the purchase price `cost` / `cost_enc`, `org_id` while empty;
+- **payments** (`office_payments`, `kalmido_office_payments_locked`): only `bank_tx_id` (the bank line booked on it) may
+  change; a payment is never deleted (a reversal row takes it back);
+- **office log** (`office_doc_log`, `kalmido_office_log_locked`): no entry changes, except that an agent's line learns its
+  document once (`doc_id` from empty); only the read entries (open, preview, PDF, XML) are deleted, after 90 days.
+
+The same switch `ledger.ofx_release` (also for the organisation import / undo, moving a personal office, the encryption
+passes, the one-time name fill of 2.1287) and the database's own reference actions pass all three. The way back of the app
+drops them: `DROP TRIGGER kalmido_office_items_locked ON office_doc_items`, `DROP TRIGGER kalmido_office_payments_locked ON
+office_payments`, `DROP TRIGGER kalmido_office_log_locked ON office_doc_log`.
+
 ### Trial documents
 
 *Since 2.144.10.*
@@ -2109,8 +2122,18 @@ due date, reminder level, sending, notes and the stored files' checksums stay ou
 Quotations and trial documents are not chained (a quotation may be taken back, a trial document deleted). Documents
 finalised before 2.531, or brought in by an office import, are chained at the next start in the order they were finalised.
 In the office log, admins (in the personal office the person) press **Check: chain intact**
-(`GET /api/office/log/chain` -> `{ok, count, pending, first_bad: {id, number, chain, seq}}`): every chain is recomputed
+(`GET /api/office/log/chain` -> `{ok, count, pending, first_bad: {id, number, chain, seq, reason}}`): every chain is recomputed
 and the first document that was changed in the database, removed from the middle of its chain or unlocked is named.
+
+*Since 2.1309.0 (#6467).* The canonical data has a version, kept per document in `office_docs.chain_ver` (empty = 1, the
+fields above). Every link made since is **version 2**: it adds the stored PDF's and XML's checksums (`pdf_sha256`,
+`xml_sha256`; finalising stores the files before the document is linked) and the head fields `vat_mode`, `vat_note`,
+`fx_rate`, `cancels_id`, `inv_type`, `abs_refs`, `due_date`, `skonto_pct` / `skonto_days`, `intro` / `closing` and `order_ref`.
+A document without a stored PDF yet (an import) is linked with version 1. Old links keep their version and stay valid.
+The watchdog checks every office's chains **daily**: a new break gives one admin alert (kind "Security events", switchable
+in the admin alert settings) and one line "hash chain broken here (daily check)" on the first bad document in the office
+log; the same break is not reported again. A value the office's key cannot open now (`reason: unreadable`) is no break
+report, only a server log line.
 
 The print model and the PDF of a finalised document are built from this snapshot only: later changes of the company,
 the logo, the services, the client or the country pack do not change it. Changing the head, the positions or the number

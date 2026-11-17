@@ -72,7 +72,7 @@ def gobd_person(s, did):
         return set()
     z = zipfile.ZipFile(io.BytesIO(r.content))
     rows = list(csv.reader(io.StringIO(z.read("log.csv").decode("utf-8"), newline=""), delimiter=";", quotechar='"'))
-    return {(x[3], x[2]) for x in rows if x and x[-1] == str(did)}
+    return {(x[3], x[2]) for x in rows if x and x[5] == str(did)}  # 2.1309.0 (#6471): Dokument_ID is column 6 (Vorher / Nachher / Detail follow)
 
 
 kt.fresh(env={"KALMIDO_SECRET_KEY": KEY}, prefix="P21287B")

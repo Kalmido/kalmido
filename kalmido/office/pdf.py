@@ -1461,6 +1461,8 @@ def office_pdf(model, logo_bytes=None, xml=None, meta=None):
 
     def qty_two(ln):  # 2.296.0 E (#3170): (number, unit) of a row's quantity
         unit = str(ln.get("unit_text") or ln.get("unit") or "")
+        if ln.get("sur_base") is not None:  # 2.1309.0 (#6490): a markup "15 %" has no unit word
+            return (str(ln.get("qty_text") or ""), "")
         if "unit_text" in ln and not ln.get("unit_text") and str(ln.get("unit") or "") in ("flat", "day", "hour", "piece", "minute"):
             unit = str((ml.get("units") or {}).get(ln["unit"]) or "") if isinstance(ml.get("units"), dict) else ""  # 2.296.0 B (#3173): never the key "flat"
         if "qty_text" in ln:
