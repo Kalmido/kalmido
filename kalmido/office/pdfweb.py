@@ -113,6 +113,28 @@ def _stored(oid, r, ext):
     return p if os.path.isfile(p) else None
 
 
+def epdf_ubl_path(oid, r, sid):
+    """2.1321.0 (#6480): the UBL e-invoice that Peppol send sid of document row r carried, byte for byte as it went out,
+    next to the PDF / XML in the office folder (sealed with the organisation's key like them). Its SHA-256 is the send's
+    xml_sha256. Removed with the document's files (doc<id>-* of a trial document); never written for a draft."""
+    return os.path.join(OFFICE_DIR, str(int(oid)), f"doc{int(r['id'])}-{epdf_name(r)}.peppol-{int(sid)}.xml")
+
+
+def epdf_ubl_sent(c, oid, r):
+    """2.1321.0 (#6480): [(send id, path, xml_sha256)] of the Peppol sends of document row r that went out (not a failure
+    the provider never took: status error without its reference) and whose UBL is stored, oldest first -- the exports'
+    list. Sends of before 2.1321.0 have no file and are left out."""
+    out = []
+    for s in c.execute("SELECT id, status, provider_ref, xml_sha256 FROM office_peppol_sends WHERE org_id=? AND doc_id=? ORDER BY id",
+                       (oid, r["id"])).fetchall():
+        if s["status"] == "error" and not s["provider_ref"]:
+            continue
+        p = epdf_ubl_path(oid, r, s["id"])
+        if os.path.isfile(p):
+            out.append((int(s["id"]), p, s["xml_sha256"] or ""))
+    return out
+
+
 def _stored_or_missing(c, oid, r, ext, commit=True):
     """2.38.0 review: the stored file of r; None for a draft or an older finalised document that never had one (rendered
     from its snapshot). A finalised document whose stored file has gone (sha noted, file missing) answers 409 and logs

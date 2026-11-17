@@ -47,6 +47,8 @@ from .ledger import ofx_company, ofx_locked  # 2.369.5 (#2517): pulled up from f
 from ..accounts.login import seal  # 2.369.5 (#2517): pulled up from functions
 from .einvoice import ein_ubl_build, ein_ubl_check  # 2.369.5 (#2517): pulled up from functions
 from .pdfweb import _model, _file_response, epdf_name  # 2.369.5 (#2517): pulled up from functions
+from .pdfweb import epdf_ubl_path  # 2.1321.0 (#6480)
+from ..core.orgcrypt import oc_read_file, oc_write_file  # 2.1321.0 (#6480)
 from ..core.pg import IntegrityError, insert_id, write_lock  # 2.369.5 (#2517): pulled up from functions
 from .docs import doc_row  # 2.369.5 (#2517): pulled up from functions
 from .model import office_need_feature  # 2.369.5 (#2517): pulled up from functions
@@ -545,6 +547,26 @@ def pep_undelivered(c, oid, uid, did):
     ofx_log(c, oid, "peppol_status", doc_id=did, detail={"status": "error", "message": msg})
 
 
+def pep_ubl_kept(c, oid, r):
+    """2.1321.0 (#6480): the stored UBL of the newest send of document row r that went out (not a failure the provider never
+    took) -> bytes, or None (nothing went out; a send of before 2.1321.0 has no file). A file whose SHA-256 differs from
+    the send's xml_sha256 is never delivered: 409 + log store_mismatch (like pdfweb.epdf_stored)."""
+    s = c.execute("SELECT id, xml_sha256 FROM office_peppol_sends WHERE org_id=? AND doc_id=? AND (status<>'error' OR provider_ref<>'') "
+                  "ORDER BY id DESC LIMIT 1", (oid, r["id"])).fetchone()
+    if s is None:
+        return None
+    p = epdf_ubl_path(oid, r, s["id"])
+    if not os.path.isfile(p):
+        return None
+    data = oc_read_file(c, p)
+    got = hashlib.sha256(data).hexdigest()
+    if s["xml_sha256"] and got != s["xml_sha256"]:
+        ofx_log(c, oid, "store_mismatch", doc_id=r["id"], detail={"file": "ubl", "send": s["id"], "sha256": s["xml_sha256"], "found": got})
+        c.commit()
+        raise Denied(409, tr("The stored file of this document does not match its checksum and is not delivered. Please tell the administrator."))
+    return data
+
+
 def pep_send(c, oid, uid, r, again=False):
     """Sends finalised document row r over the provider (see the module text). 409 with the reason when something is
     missing or the document went already; the provider's failure is recorded (status error) and answered as 502."""
@@ -586,6 +608,16 @@ def pep_send(c, oid, uid, r, again=False):
     except IntegrityError:  # the unique index: a second request at the same time
         c.rollback()
         raise Denied(409, tr("This document went over the Peppol network already")) from None
+    # 2.1321.0 (#6480): the UBL is kept byte for byte as it goes out (an e-invoice is kept in the form it was sent in), sealed
+    # next to the PDF / XML; written before the row commits, so a send never stands without its file (a failed write rolls
+    # the row back, nothing goes out). Its SHA-256 is the row's xml_sha256.
+    try:
+        p = epdf_ubl_path(oid, r, sid)
+        os.makedirs(os.path.dirname(p), mode=0o700, exist_ok=True)
+        oc_write_file(c, oid, p, ubl)
+    except Exception:
+        c.rollback()
+        raise
     c.commit()  # the row stands before anything goes out: a crash never leaves a sent document without its record
     try:
         res = ad.send(ubl, conf["sender_id"], receiver, ref)
@@ -661,13 +693,19 @@ def _doc(c, oid, did):
 @app.get("/api/office/docs/<int:did>/ubl")
 def pep_ubl_get(did):
     """The UBL e-invoice of a finalised invoice / credit note (Peppol BIS Billing 3.0, XRechnung UBL for the XRechnung
-    format) with the Peppol ids when they are set, else the e-mail addresses. 409 for drafts and other kinds."""
+    format) with the Peppol ids when they are set, else the e-mail addresses. 409 for drafts and other kinds.
+    2.1321.0 (#6480): a document sent over Peppol answers the UBL stored at sending, byte for byte -- also once it is
+    cancelled; a cancelled one never sent stays 409 (nothing is built for it)."""
     c, uid, oid = _ctx()
     r = _doc(c, oid, did)
-    if r["kind"] not in ("invoice", "credit") or not ofx_locked(r) or r["status"] == "cancelled":
+    if r["kind"] not in ("invoice", "credit") or not ofx_locked(r):
         raise Denied(409, tr("The e-invoice XML exists for finalised invoices and credit notes only."))
     office_need_feature(c, oid, "docs.einvoice")
-    data, _prof = pep_ubl(c, oid, r)
+    data = pep_ubl_kept(c, oid, r)
+    if data is None:
+        if r["status"] == "cancelled":
+            raise Denied(409, tr("The e-invoice XML exists for finalised invoices and credit notes only."))
+        data, _prof = pep_ubl(c, oid, r)
     ofx_log(c, oid, "ubl", doc_id=did, dedupe_min=10)
     c.commit()
     return _file_response(data, epdf_name(r) + "-ubl.xml", "application/xml")
