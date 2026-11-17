@@ -520,8 +520,10 @@ def _public(p, plan, counts, c, oid):
     rows = [x for x in plan if x["action"] != "other"] if p["category"] == 21 else plan
     keys = ("row", "account", "kind", "action", "values", "fill", "differ", "reason", "notes", "current") if p["category"] == 16 else \
         ("row", "account", "label", "amount", "side", "year", "action", "reason")
+    # 2.1315.0 (#6590 d): the reason of EVERY row (skipped, replaced, ...), not only of the first DI_PREVIEW rows shown
+    reasons = [{"row": x["row"], "account": x.get("account") or "", "action": x["action"], "reason": x["reason"]} for x in rows if x.get("reason")]
     return {"category": p["category"], "kind": "master" if p["category"] == 16 else "opening", "counts": counts, "hints": hints,
-            "total": len(plan), "rows": [{k: x.get(k) for k in keys} for x in rows[:DI_PREVIEW]]}
+            "total": len(plan), "rows": [{k: x.get(k) for k in keys} for x in rows[:DI_PREVIEW]], "reasons": reasons}
 
 
 def di_import(c, oid, uid, raw, clients=True):

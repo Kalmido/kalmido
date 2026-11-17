@@ -144,9 +144,13 @@ def bnk_csv(text, mapping):
     if len(rows) > cx.CSV_ROWS:
         raise BadInput(tr("At most {0} rows per import", cx.CSV_ROWS))
     ic = _iban_col(header)
+    cc = cx.csv_currency_col(header)  # 2.1315.0 (#6590 d): a currency column / a code in the amount cell (bnk_parse refuses another one)
+    acols = [m[k] for k in ("amount", "amount_in", "amount_out") if m.get(k) is not None]
     out = []
     for r in rows:
         x = cx.csv_row(r, m)
+        cur = cx.csv_currency(r[cc]) if cc is not None and cc < len(r) else ""
+        cur = cur or next((y for y in (cx.csv_currency(r[i]) for i in acols if i < len(r)) if y), "")
         amt = None
         if x["amount"] is not None:
             amt = money(dec(x["amount"]))
@@ -156,7 +160,7 @@ def bnk_csv(text, mapping):
         purpose = _clean(raw)
         pfull = _clean(raw, BNK_PURPOSE_FULL_MAX)  # 2.273.0 D (#3051): stored in full; only the fingerprint uses `purpose` (cut)
         iban = (r[ic] if ic is not None and ic < len(r) else "").replace(" ", "").upper()
-        out.append({"day": x["day"], "amount": amt, "currency": "", "counterpart": cp, "purpose": purpose, "purpose_full": pfull,
+        out.append({"day": x["day"], "amount": amt, "currency": cur, "counterpart": cp, "purpose": purpose, "purpose_full": pfull,
                     "iban": iban if IBAN_RE.match(iban) else None, "ref": None, "error": x["error"], "pending": False})
     return out
 
