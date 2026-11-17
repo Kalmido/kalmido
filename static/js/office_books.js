@@ -406,7 +406,9 @@ async function bkUpload(files) {
   if (ids.length === 1 && !dups.length) bkSheet(ids[0], true);
   else if (ids.length) bkReload();
 }
-async function bkSheet(id, fresh) {
+// 2.1362.0 (#6327): again = {cf, mine} after a refused save (409): the sheet opens on the current state, what was typed goes
+// over it, and the merge bar of objsave.js marks the fields someone else changed (Keep mine / Take theirs)
+async function bkSheet(id, fresh, again) {
   let doc, rc;
   try { [doc, rc] = await Promise.all([api('GET', `/api/docs/${id}`), api('GET', `/api/docs/${id}/receipt`)]); } catch (x) { ofcErr(x); return; }
   const r = rc.receipt || {}, cats = [...new Set([...(BK.info?.categories || []), ...(rc.categories || [])])];
@@ -448,14 +450,31 @@ async function bkSheet(id, fresh) {
     const v = s => $(s, md)?.value ?? '';
     const amt = ofcNum(v('#bk-amount'));
     if (v('#bk-amount').trim() && amt == null) { $('.aerr', md).textContent = tr('Invalid value: {0}', tr('Amount')); return; }
-    const before = {doc: {amount: doc.amount || '', date: doc.date || ''}, rc: {project_id: r.project?.id || null, category: r.category || '', vat_pct: r.vat_pct ?? null, keep: !!r.is_receipt}};
-    const after = {doc: {amount: amt == null ? '' : amt.toFixed(2), date: v('#bk-date')}, rc: {project_id: r.project?.id || null, category: v('#bk-cat').trim(), vat_pct: v('#bk-vat') || null, keep: true}};
-    // 2.559.0 (#4659): the sheet closes at once, the rows show the new values; a refusal puts them back (api() says why)
+    // 2.1362.0 (#6327): the state the sheet opened with (its versions) and the form now; only the fields that differ are sent,
+    // each part against its version -- the project has no field here and is never sent
+    const open = {doc: bkDocView(doc), rc: bkRcView(r)};
+    const now = {doc: {amount: amt == null ? '' : amt.toFixed(2), date: v('#bk-date')}, rc: {category: v('#bk-cat').trim(), vat_pct: v('#bk-vat') || null, keep: true}};
+    // 2.559.0 (#4659): the sheet closes at once, the rows show the new values; a refusal puts them back
     md.remove();
-    const label = tr('Changed receipt');
-    bkSave(id, after).then(() => histToast(label, histAdd({label, undo: () => bkSave(id, before), redo: () => bkSave(id, after)})), () => {});
+    bkSave(id, open, now).catch(() => {});
   });
   if (fresh) setTimeout(() => $('#bk-cat', md)?.focus(), 0);
+  if (again) bkAgain(md, again);
+}
+// 2.1362.0 (#6327): the sheet's two parts in the shape of its form, with the version each is saved against (saveDialog): the
+// document's edited_at (people's changes; a recognition run is none, docs/web.py docs_patch) and the receipt's updated_at
+const bkDocView = d => ({amount: d.amount ? (+d.amount).toFixed(2) : '', date: d.date || '', updated_at: d.edited_at || ''});
+const bkRcView = r => ({category: r.category || '', vat_pct: r.vat_pct ?? null, keep: !!r.is_receipt, updated_at: r.updated_at || ''});
+const BK_SHF = {amount: '#bk-amount', date: '#bk-date', category: '#bk-cat', vat_pct: '#bk-vat'};
+const bkShIn = (k, x) => k === 'amount' && x ? fmtNum(+x, 2) : (x ?? '');  // the form's text of a value (the amount as the field shows it)
+function bkAgain(md, {cf, mine}) {
+  for (const [k, x] of Object.entries(mine || {})) {
+    const el = BK_SHF[k] && $(BK_SHF[k], md); if (!el) continue;
+    el.value = bkShIn(k, x); el.dispatchEvent(new Event('input', {bubbles: true}));
+    if (k === 'date' && typeof dpSync === 'function') dpSync(el);
+  }
+  const cur = Object.fromEntries(Object.entries(cf.cur).map(([k, x]) => [k, bkShIn(k, x)]));
+  loadModule('objsave').then(() => objMerge(md, {...cf, cur}, () => {}, {field: k => BK_SHF[k] ? $(BK_SHF[k], md) : null})).catch(() => toast(tr('Changed by someone else in the meantime')));
 }
 // 2.121.0 (#2093): the SKR03 / SKR04 account of a receipt category (the one the DATEV export books on); changed here through
 // the office settings (datev_extf.cat_accounts), one undo step. BK.info.accounts is null without the DATEV input side.
@@ -555,11 +574,46 @@ async function bkChkSet(md, id, on) {
 }
 // 2.559.0 (#4659): the rows show the new values at once, both requests run behind it; the lists follow in the background
 // (bkRefresh, also after a refusal: the first request may have gone through)
-async function bkSave(id, v) {
-  const vals = {amount: v.doc.amount || null, date: v.doc.date || null, category: v.rc.category, vat_pct: v.rc.vat_pct ?? null};
+// 2.1362.0 (#6327): each part sends only its changed fields with the version the sheet read (objsave.js saveDialog): the
+// document (amount, date) PATCH /api/docs/{id}, the receipt (category, VAT rate, keep) PUT /api/docs/{id}/receipt. Changed on
+// another device meanwhile -> 409, nothing of that part is written, the rows go back and the sheet opens again on the current
+// state with the typed values and the merge bar (the document part is not sent then either). One undo step: each part back
+// through undoStep (core.js), only its changed fields against the version the save left; changed elsewhere since -> said
+async function bkSave(id, open, now) {
+  const parts = [{url: `/api/docs/${id}`, key: 'doc', view: bkDocView, ver: x => x?.edited_at},
+    {url: `/api/docs/${id}/receipt`, key: 'receipt', method: 'PUT', view: x => bkRcView(x.receipt || {}), ver: x => x?.receipt?.updated_at}]
+    .map((p, i) => ({...p, open: i ? open.rc : open.doc, now: i ? now.rc : now.doc}));
+  const strip = o => { const x = {...o}; delete x.updated_at; return x; };
+  let cf = null;
   try {
-    await optWrite(bkRowsPut([id], vals), async () => { await api('PATCH', `/api/docs/${id}`, v.doc); await api('PUT', `/api/docs/${id}/receipt`, v.rc); }, ofcDraw, {mod: true});
+    await loadModule('objsave');
+    const vals = Object.fromEntries(Object.entries({...objDiff(parts[0].open, parts[0].now), ...objDiff(parts[1].open, parts[1].now)})
+      .filter(([k]) => k !== 'keep').map(([k, x]) => [k, x === '' && k !== 'category' ? null : x]));
+    await optWrite(bkRowsPut([id], vals), async () => {
+      for (const p of parts) {
+        const j = await saveDialog(p.url, p.open, p.now, {key: p.key, method: p.method, view: p.view});
+        if (j?.conflict) { cf = j.conflict; throw Object.assign(new Error(tr('Changed by someone else in the meantime')), {status: 409}); }
+        p.sent = j !== p.open; p.at = p.sent ? p.ver(j) || '' : '';
+      }
+    }, ofcDraw, {mod: true});
+  } catch (x) {
+    if (cf) bkSheet(id, false, {cf, mine: cf.mine});
+    else ofcErr(x);
+    throw x;
   } finally { bkRefresh(); }  // 2.110.0 B (#2055): the receipts list too (rclReload)
+  const done = parts.filter(p => p.sent);
+  if (!done.length) return {};
+  const label = tr('Changed receipt');
+  const step = back => async () => {
+    const skipped = [];
+    for (const p of done) {
+      const r = await undoStep(p.url, strip(back ? p.open : p.now), p.at, {now: strip(back ? p.now : p.open), method: p.method, label, then: x => { p.at = p.ver(x) || p.at; }});
+      if (r.none) skipped.push(...r.skipped);
+    }
+    bkRefresh();
+    return skipped.length === done.length ? {none: true, skipped} : {};
+  };
+  histToast(label, histAdd({label, undo: step(true), redo: step(false)}));
   return {};
 }
 async function bkPoll(id, md, touched, n) {  // the recognition runs in the background: fill what the person has not typed yet
