@@ -511,6 +511,9 @@ coding agents, building files, own tools.
   keeps the old behaviour. The wake of a finished job asks with the events of that person's last run.
   Request tokens are not listed with the agent's tokens; removing one of its computers (or any long-lived token of the
   agent) ends **all** its request tokens at once -- connected starters simply ask again.
+  The step of an answered card (`POST /api/v1/agent/approvals/ID/run`) still runs with the agent's own token, but only a
+  change, and always with the card check: the person who said Yes must be allowed to make that change themselves (also
+  without a control level); a read through a card needs the request token.
   The **hosted MCP access** of a team agent works for the person who connected it (the same cut, renewed with each access
   token).
 - **Guests and read-only people** of the agent's organisation give a team agent no orders (2.1287.0): their chat message,
