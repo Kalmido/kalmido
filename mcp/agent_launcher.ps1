@@ -79,6 +79,10 @@ foreach ($raw in Get-Content -LiteralPath $EnvFile) {
 }
 if (-not $env:KALMIDO_URL) { Log "KALMIDO_URL missing in $EnvFile"; exit 2 }
 if (-not $env:KALMIDO_TOKEN) { Log "KALMIDO_TOKEN missing in $EnvFile"; exit 2 }
+# #7051 (Fable reader N1): the token lives in a script variable, not in this process's environment, so no child process
+# (the model, the event runner, bash, python) inherits it
+$script:Token = $env:KALMIDO_TOKEN
+Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue
 if ($env:KALMIDO_EVENTS -eq '1') { $Events = $true }
 # kalmido-capability: token_scoped (2.1367.0, #6457): the model's process never gets KALMIDO_TOKEN, only the env file's path
 # (KALMIDO_ENV_FILE); the MCP server, the usage hook, kalmido_cli.py and agent_job.py read the token from the file. Event mode:
@@ -189,7 +193,7 @@ function Nap([int]$sec) {  # Start-Sleep that a TERM / INT ends; then the comman
 # GET /api/v1/agent -> a settings object (2.236.0: working / resumes = the work window of the work style). A paused agent's token is refused (403; 2.1264.0, #6351: also while its owner's account is locked, code owner_locked - the same answer here, the agent goes on once the account is unlocked): enabled = $false. $null: Kalmido not
 # reachable (or another error). 2.157.0 (#1517): a revoked token (401) -> revoked = $true. The token only goes into the request header.
 function Fetch {
-  $h = @{ Authorization = "Bearer $($env:KALMIDO_TOKEN)" }
+  $h = @{ Authorization = "Bearer $($script:Token)" }
   try {
     $r = Invoke-WebRequest -Uri $Url -Headers $h -TimeoutSec 20 -UseBasicParsing
     $a = $r.Content | ConvertFrom-Json
@@ -230,7 +234,7 @@ function Report-Host {
   $b = @{ status = $st; text = $txt; host = $(if ($h.Length -gt 80) { $h.Substring(0, 80) } else { $h }) } | ConvertTo-Json -Compress
   try {
     Invoke-WebRequest -Uri ($env:KALMIDO_URL.TrimEnd('/') + '/api/v1/agent/status') -Method Put -Body $b -ContentType 'application/json' `
-      -Headers @{ Authorization = "Bearer $($env:KALMIDO_TOKEN)" } -TimeoutSec 20 -UseBasicParsing | Out-Null
+      -Headers @{ Authorization = "Bearer $($script:Token)" } -TimeoutSec 20 -UseBasicParsing | Out-Null
   } catch { }
 }
 
@@ -279,10 +283,9 @@ function Start-Agent($s) {
   $p = @{FilePath = $exe; PassThru = $true; NoNewWindow = $true}
   if ($rest.Count) { $p.ArgumentList = ($rest | ForEach-Object { Quote $_ }) -join ' ' }
   # 2.1367.0 (#6457): neither the model nor the event runner gets the token in its environment (Fable reader F5: a run could
-  # read the runner's process environment); agent_run.py reads it from KALMIDO_ENV_FILE
-  $tok = $env:KALMIDO_TOKEN
-  Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue
-  try { $script:Proc = Start-Process @p } finally { $env:KALMIDO_TOKEN = $tok }
+  # read the runner's process environment); agent_run.py reads it from KALMIDO_ENV_FILE. #7051: the token is not in $env
+  # at all (script variable $script:Token above)
+  $script:Proc = Start-Process @p
   $script:Started = Get-Date
 }
 function Signal-Agent([string]$sig, [int]$id) {  # Unix: its process group, else the program (the program, not the alias)
