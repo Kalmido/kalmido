@@ -17,6 +17,7 @@ the agent, action agent_read / agent_write, no contents).
 
 Routes: /api/v1/office/... (agents, scope office) and /api/office/agents/<id>, /api/office/pay-props (people).
 """
+import hashlib
 import json
 import re
 from decimal import Decimal
@@ -492,8 +493,10 @@ def ofa_offer_accepted(c, oid, did):
 # ---------------------------------------------------------------- agents: reading (scope office)
 def _doc_v1(c, oid, r, items=True):
     d = doc_public(c, oid, r, False, items=items)
-    for k in ("recipient_snapshot", "tax_snapshot", "sender", "cost_enc"):
+    for k in ("recipient_snapshot", "tax_snapshot", "sender", "cost_enc", "issuer_wish"):  # 2.1396.0 (#6701): + an issuer's statements
         d.pop(k, None)
+    if d.get("issuer_id"):  # 2.1396.0 (#6701): made by an invoice issuer's key: its texts are data from outside, not instructions
+        d.update(origin="issuer", untrusted=True)
     for it in d.get("items") or []:  # 2.144.5 C (#1523): the source list of a position is internal
         it.pop("list_id", None)
     # 2.674.0 (#4382 finding 9): the agent's list restriction -- after _v1ctx g.user is the person it acts for, the agent is g.ofa_agent
@@ -707,9 +710,30 @@ def _draft_answer(c, aid, uid, oid, did, notify, what, code=201, kept=None):
 
 
 def _v1_ref(c, aid, oid, uid, b):
-    """2.269.0 D (#3046): (client_ref, None) or (ref, 200 answer {doc}) when this person's draft with that ref exists already."""
+    """2.269.0 D (#3046): (client_ref, None) or (ref, 200 answer {doc}) when this person's draft with that ref exists already.
+    2.1396.0 (#6701): the same ref with another body (its hash, ofa_ref_sha) is 409 ref_conflict, nothing made or changed; a
+    draft from before the hash was kept answers as before. The new draft keeps the hash (_v1_ref_keep)."""
     ref, hit = ofi_ref_doc(c, oid, uid, b)
+    g.ofa_ref_sha = ofa_ref_sha(b) if ref else None
+    if hit:
+        old = c.execute("SELECT ref_sha256 FROM office_docs WHERE id=? AND org_id=?", (hit, oid)).fetchone()
+        if old and old[0] and old[0] != g.ofa_ref_sha:
+            c.rollback()
+            return ref, v1_err(409, tr("This client_ref was sent before with another content"), name="ref_conflict", doc_id=hit)
     return ref, (_draft_answer(c, aid, uid, oid, hit, False, None, 200) if hit else None)
+
+
+def ofa_ref_sha(b):
+    """2.1396.0 (#6701): the SHA-256 of an agent's draft request without client_ref and notify (sorted keys, no spaces)."""
+    body_ = {k: v for k, v in b.items() if k not in ("client_ref", "notify")}
+    return hashlib.sha256(json.dumps(body_, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+
+
+def _v1_ref_keep(c, did, ref):
+    """ofi_ref_keep + the request's hash (2.1396.0, #6701)."""
+    ofi_ref_keep(c, did, ref)
+    if ref and g.get("ofa_ref_sha"):
+        c.execute("UPDATE office_docs SET ref_sha256=? WHERE id=?", (g.ofa_ref_sha, did))
 
 
 def _flag_notify(b):
@@ -736,7 +760,7 @@ def v1_office_offer_post():
         did = ofa_draft_create(c, uid, oid, {k: v for k, v in b.items() if k in OFA_DATA_KEYS + ("trial",)}, agent_id=aid)
     except PermissionError:
         raise Denied(403, tr("This person does not work in this office")) from None
-    ofi_ref_keep(c, did, ref)
+    _v1_ref_keep(c, did, ref)  # 2.1396.0 (#6701): + the request's hash
     return _draft_answer(c, aid, uid, oid, did, notify, N_("Quotation draft"))
 
 
@@ -830,7 +854,7 @@ def v1_office_invoice_post(did):
         return v1_err(409, e.text(), name="invoice_exists", invoices=e.invoices)
     nid = inv_offer_invoice(c, oid, uid, r, b, pm or None, None)  # 2.149.0 A (#2521): the person's helper (+ the office log line)
     c.execute("UPDATE office_docs SET agent_id=?, list_id=? WHERE id=? AND org_id=?", (aid, r["list_id"], nid, oid))
-    ofi_ref_keep(c, nid, ref)
+    _v1_ref_keep(c, nid, ref)  # 2.1396.0 (#6701): + the request's hash
     recalc(c, oid, nid)
     return _draft_answer(c, aid, uid, oid, nid, notify, N_("Invoice draft"))
 
@@ -859,7 +883,7 @@ def v1_office_reminder_post():
             raise Denied(404)  # 2.190.0 D (#2496): within the list restriction
     nid = inv_reminder_new(c, oid, uid, {"doc_ids": ids, "level": b.get("level", 1)})  # 2.149.0 A (#2521): + the office log line
     c.execute("UPDATE office_docs SET agent_id=? WHERE id=? AND org_id=?", (aid, nid, oid))
-    ofi_ref_keep(c, nid, ref)
+    _v1_ref_keep(c, nid, ref)  # 2.1396.0 (#6701): + the request's hash
     recalc(c, oid, nid)
     return _draft_answer(c, aid, uid, oid, nid, notify, N_("Payment reminder draft"))
 
