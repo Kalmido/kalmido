@@ -98,6 +98,14 @@ c7 = Bo.post(B + f"/api/my/agents/{AID}/setup-code", json={"os": "linux", "folde
 r = redeem(c7, host="ip-box-2", allowed_ips=["198.51.100.0/24"])
 check(r.ok and r.json().get("allowed_ips") == ["198.51.100.0/24"] and r.json().get("allowed_ips_applied") is True, "#6457: a network as the rule " + r.text[-200:])
 check(not requests.get(V + "/agent", headers=tokh(r.json()["token"])).ok, "#6457: the key does not work from another address")
+# Fable reader F1: "current" from an IPv6 address = its /64 with the prefix (before: the bare network address as /128 -
+# the key locked itself out); the test server trusts X-Forwarded-For from the test runner (kt.sess ip=)
+V6 = "2001:db8:1:2:aaaa:bbbb:cccc:dddd"
+c8 = Bo.post(B + f"/api/my/agents/{AID}/setup-code", json={"os": "linux", "folder": "/srv/ip6"}).json()["code"]
+r = requests.post(B + "/api/agent-setup/redeem", headers={**H, "X-Forwarded-For": V6}, json={"code": c8, "host": "ip6-box", "allowed_ips": "current"})
+check(r.ok and r.json().get("allowed_ips") == ["2001:db8:1:2::/64"], "F1: current over IPv6 = the /64 " + r.text[-200:])
+check(r.ok and requests.get(V + "/agent", headers={**tokh(r.json()["token"]), "X-Forwarded-For": V6}).ok,
+      "F1: the key works from the IPv6 address the setup came from")
 check(requests.get(V + "/agent", headers=tokh(TOK)).ok, "#6457: the other computers' keys keep no rule")
 
 ms = Bo.get(B + f"/api/my/agents/{AID}/machines").json()["machines"]
