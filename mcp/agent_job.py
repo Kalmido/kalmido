@@ -500,6 +500,24 @@ def take_wakes():
     return out
 
 
+WAKE_TRIES = 60  # Fable reader job/5498 F6: a wake put back after a check that could not be read, at most this often
+
+
+def wake_back(w):
+    """Fable reader job/5498 F6: the runner could not check a taken wake (its server job not read: network, 5xx): it goes
+    back into the wake folder for the next look instead of being lost (the person would never hear of the job's end). At
+    most WAKE_TRIES times; a wake written meanwhile for the same job wins. True = put back."""
+    jid = (w.get("job") or {}).get("id")
+    tries = int(w.get("tries") or 0) + 1
+    if not str(jid or "").isdigit() or tries > WAKE_TRIES:
+        return False
+    path = os.path.join(state_dir(), "wakes", f"{int(jid)}.json")
+    if os.path.exists(path):
+        return False
+    write_json(path, {**w, "tries": tries})
+    return True
+
+
 # kalmido-capability: job_inbox (2.615.0, #3658 / #1801)
 def inbox_dir(jid):
     return os.path.join(job_dir(jid), "inbox")

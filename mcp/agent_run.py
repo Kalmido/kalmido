@@ -3374,15 +3374,23 @@ class Runner:
         """2.1398.0 (#7132, reader of job/5387 N2): is the server's job jid one of person uid? The job file and the wake file
         lie in the state folder the model's processes can write; the person of the server's job is set by the server
         (POST /agent/jobs pin:user_id, the requester of the run). A team agent wakes / continues a job only when both agree;
-        not read (network, 404, an older server without user_id) = no (the job stays asleep). Another agent: True, as before."""
+        not read (network, 404, an older server without user_id) = no (the job stays asleep). Another agent: True, as before.
+        Fable reader job/5498 F6: True | False (the server says: not this person's job, or no such job of the agent: 404) |
+        None (not read: network, another HTTP error, an answer without user_id) -- the wake loop puts such a wake back."""
         if self.req_mode() != "team":
             return True
         try:
             d = self.api.req("GET", f"/agent/jobs/{int(jid)}")
-            ok = isinstance(d, dict) and str(d.get("user_id")) == str(int(uid))
+        except ApiError as e:
+            log(f"job {jid}: its server job not read (HTTP {e.status}): not started")
+            return False if e.status == 404 else None
         except Exception as e:  # noqa: BLE001 - never stops the watch
             log(f"job {jid}: its server job not read ({type(e).__name__}): not started")
-            return False
+            return None
+        if not isinstance(d, dict) or "user_id" not in d:
+            log(f"job {jid}: the server's job carries no person: not started")
+            return None
+        ok = str(d.get("user_id")) == str(int(uid))
         if not ok:
             log(f"job {jid}: the server's job is not one of person {uid}: not started")
         return ok
@@ -3997,8 +4005,12 @@ class Runner:
                 # of a team agent always has that person (its run had a request token file, agent_job.py cmd_start)
                 log(f"job {jid}: its person ({who}) is not the person of its request token ({w.get('token_person')}): no wake run")
                 continue
-            if who and jid and team and not self.server_job_of(jid, who):
-                continue  # 2.1398.0 (#7132, N2): the wake file names a person the server's job is not for
+            if who and jid and team:
+                sj = self.server_job_of(jid, who)
+                if sj is None and agent_job.wake_back(w):  # reader job/5498 F6: not read -- the wake waits for the next look
+                    log(f"job {jid}: the wake waits for the next look ({int(w.get('tries') or 0) + 1}/{agent_job.WAKE_TRIES})")
+                if not sj:
+                    continue  # 2.1398.0 (#7132, N2): the wake file names a person the server's job is not for
             if who and jid:
                 evs.append({"event": "job_wake", "seq": f"wake-{jid}", "data": {**w, "user": {"id": int(who)}}})
                 log(f"job {jid}: {(w.get('job') or {}).get('state')}, a wake run for its chat")
