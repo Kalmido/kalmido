@@ -1,6 +1,32 @@
 {
  "versions": [
   {
+   "version": "2.1370.0",
+   "date": "2026-11-18",
+   "items": [
+    {
+     "de": "Postfach-Einstellungen zeigen den letzten erfolgreichen Abruf, Störungen und übersprungene Mails; nach falschem Passwort hält der Abruf an und meldet sich auch per Mail.",
+     "en": "Mailbox settings show the last successful fetch, outages and skipped mails; after a wrong password fetching stops and you are told by mail too."
+    },
+    {
+     "de": "Unter „Alle Arbeitsbereiche“ trägt ein Büro, das nur einer Organisation gehört, deren Farbe.",
+     "en": "Under \"All workspaces\" an office that belongs to one organisation only wears its colour."
+    },
+    {
+     "de": "In „Morgen“ siehst du oben einklappbar, was von heute noch offen ist.",
+     "en": "\"Tomorrow\" shows on top, foldable, what is still open from today."
+    },
+    {
+     "de": "Im Büro kannst du zusätzliche Nummernkreise anlegen, jeder mit eigenem Zähler.",
+     "en": "The office can have additional number ranges, each with its own counter."
+    },
+    {
+     "de": "Rechtsklick in „Meine Aufgaben“ verschiebt in deine eigenen Abschnitte.",
+     "en": "Right-click in \"My tasks\" moves into your own sections."
+    }
+   ]
+  },
+  {
    "version": "2.1366.0",
    "date": "2026-11-18",
    "items": [
@@ -1251,24 +1277,6 @@
     {
      "de": "Im Agent-Chat am Handy bricht der Zwischenstand unter „schreibt…“ jetzt auf bis zu drei Zeilen um; Tippen zeigt den ganzen Text.",
      "en": "In the agent chat on a phone the interim status under \"is writing\" now wraps to up to three lines; a tap shows the whole text."
-    }
-   ]
-  },
-  {
-   "version": "2.858.0",
-   "date": "2026-11-10",
-   "items": [
-    {
-     "de": "Agenten, die erst bei einer Nachricht starten, zeigen „bereit“ statt „nicht verbunden“ - die Warnung kommt nur noch, wenn eine Nachricht wirklich liegen bleibt.",
-     "en": "Agents that start with a message show \"ready\" instead of \"not connected\" - the warning only comes when a message really waits."
-    },
-    {
-     "de": "Die Pläne eines Agenten (z. B. Morgen-Briefing) erreichst du im ⋯-Menü des Chats und kannst sie dort mit einem Klick alle pausieren.",
-     "en": "An agent's plans (e.g. the morning briefing) are in the chat's … menu, where you can pause them all with one click."
-    },
-    {
-     "de": "Der Termin-Editor fragt nach, bevor Getipptes beim Schließen verloren geht, und die Zeitzone findest du jetzt unter „Weitere Optionen“ per Stadtsuche.",
-     "en": "The event editor asks before typed input is lost on closing, and the time zone is now under \"More options\" with a city search."
     }
    ]
   }
