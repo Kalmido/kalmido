@@ -4411,6 +4411,14 @@ You are the coding agent of the Kalmido project "<project>". You work through th
 - Never touch other repositories, credentials, CI settings or deployments unless the ticket says so and a person
   approved.
 - If you are stuck or unsure: ask in a comment and wait; do not guess on anything irreversible.
+
+## Release
+- One gate: the project's CI decides. Never run the same suites again locally before the push as a second gate.
+- A release is a snapshot of the default branch. Red on a release: fix on the default branch and cut again, never
+  repair on the release branch.
+- A flaky test goes into the skip list with an expiry date and a task; red without a comparison run is red.
+- Generated files (lockfiles, suite lists, service worker file lists) stay out of the repository or are generated
+  again at the merge; never resolve a conflict in them by hand.
 ```
 
 MCP tools for this: `get_task` (with `code` and `repo`), `list_repos`, `list_build_status` (2.151.0), `request_merge_approval`,
