@@ -19140,8 +19140,5 @@
   "Support started working in your account (access until {0})": "Il supporto ha iniziato a lavorare nel tuo account (accesso fino al {0})",
   "{0} ended the support access to the organisation {1}": "{0} ha terminato l’accesso del supporto all’organizzazione {1}",
   "support access to your account or your organisation: opened by another admin, first used, ended": "accesso del supporto al tuo account o alla tua organizzazione: aperto da un altro admin, usato per la prima volta, terminato",
-  "{0} older entry is no longer listed": ["{0} voce precedente non è più elencata", "{0} voci precedenti non sono più elencate"],
-  "Rules template": "Modello di regole",
-  "Software development": "Sviluppo software",
-  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Sviluppo software aggiunge alla cartella del progetto regole per costruire software (un ramo per incarico, prima un brief, test in due fasi, un rilascio raccolto) e un modello di brief. Un CLAUDE.md esistente resta com'è; le regole arrivano allora accanto come proposta."
+  "{0} older entry is no longer listed": ["{0} voce precedente non è più elencata", "{0} voci precedenti non sono più elencate"]
 }
