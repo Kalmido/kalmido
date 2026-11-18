@@ -41,10 +41,23 @@ def fk_contacts(c, cid, oid=None):
                                 AND (k.org_id=o.id OR (k.org_id IS NULL AND o.personal_of=k.created_by))""", (oid, cid)).fetchone()
         if not here:
             return []
-    return [{"id": r["id"], "name": r["name"], "role": r["role"], "email": r["email"], "phone": r["phone"], "is_default": bool(r["is_default"]),
-             "contact_id": r["contact_id"],  # 2.59.0 (#1735): the linked address book contact (None = not linked)
-             "gets_invoices": bool(r["gets_invoices"]) if "gets_invoices" in r.keys() else False}  # 2.433.0 (#3599)
-            for r in c.execute("SELECT * FROM office_client_contacts WHERE client_id=? ORDER BY is_default DESC, sort, id", (cid,))]
+    return [_fk_row(r) for r in c.execute("SELECT * FROM office_client_contacts WHERE client_id=? ORDER BY is_default DESC, sort, id", (cid,))]
+
+
+def _fk_row(r):
+    return {"id": r["id"], "name": r["name"], "role": r["role"], "email": r["email"], "phone": r["phone"], "is_default": bool(r["is_default"]),
+            "contact_id": r["contact_id"],  # 2.59.0 (#1735): the linked address book contact (None = not linked)
+            "gets_invoices": bool(r["gets_invoices"]) if "gets_invoices" in r.keys() else False}  # 2.433.0 (#3599)
+
+
+def fk_contacts_many(c, cids):
+    """2.1373.0 (#6402): {client id: fk_contacts(c, client id)} of the clients cids in one query (the client list)."""
+    out = {int(x): [] for x in cids}
+    if out:
+        for r in c.execute(f"SELECT * FROM office_client_contacts WHERE client_id IN ({','.join('?' * len(out))}) "
+                           "ORDER BY client_id, is_default DESC, sort, id", list(out)):
+            out[int(r["client_id"])].append(_fk_row(r))
+    return out
 
 
 FK_CC_MAX = 5  # 2.433.0 (#3599): copy addresses of one mail (invoices.inv_send checks the same)
