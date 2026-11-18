@@ -10,6 +10,7 @@ from flask import g, has_request_context
 from ..core.schema import MAX_DEPTH
 from ..core.i18n import N_, tr
 from ..core.db import iso_ms, now_utc, parse_iso
+from ..core.pg import qi  # 2.1375.0 (#6677)
 from ..core.objtags import otg_unames  # 2.955.0 (#5276)
 from ..core.pages import valid_link
 from ..api.common import act_via  # 2.149.0 G (#2517): pulled up from functions
@@ -51,6 +52,40 @@ ACT_MERGE_S = 600
 ACT_NOTES = []
 
 
+# 2.1375.0 (#6677): the history kinds that change a task's text -> the column naming its last writer (migrations.d/6677.py)
+TEXT_BY_COL = {"title": "title_by", "content": "content_by", "md_subtasks": "content_by"}
+
+
+def text_hand(uid, via=None, rule=None):
+    """2.1375.0 (#6677): the writer kept in tasks.title_by / content_by: the account when a person wrote it in the app or with
+    their own token, 0 for every other hand (an inbound webhook, a public link, CalDAV -- as task_create's origin --, a list
+    rule, a support session, a step without a user such as the git issue sync)."""
+    return int(uid) if uid and not rule and via in (None, "api") else 0
+
+
+def text_hand_now():
+    """2.1375.0 (#6677): text_hand of the current request (a write without a history line, collab/liste2e.py)."""
+    if not has_request_context() or not getattr(g, "user", None):
+        return 0
+    uid = g.user["id"] or None
+    return 0 if g.get("acx_sup_uid") == uid else text_hand(uid, act_via(), g.get("rul_run"))
+
+
+def text_by_carry(c, tid, cur, f):
+    """2.1375.0 (#6677, review F5): a move across the lock (collab/liste2e.py le2a_move) writes the task's own texts re-encrypted
+    or decrypted -- the same words, so not the mover's: log_changes saw a change and wrote the mover; the writers go back to
+    the rule of le2a_task_set (stays when the mover was its writer already, else 0). cur = the row before the move; a text
+    counts when it changed (from f or, multi-select / undo, from le2e_move.tasks)."""
+    hand, fix = text_hand_now(), {}
+    new = c.execute("SELECT title, content FROM tasks WHERE id=?", (tid,)).fetchone()
+    for k, col in (("title", "title_by"), ("content", "content_by")):
+        if new and (new[k] or "") != (cur[k] or "") and col in cur.keys():
+            prev = cur[col]
+            fix[col] = prev if (cur["created_by"] if prev is None else prev) == hand else 0
+    if fix:
+        c.execute(f"UPDATE tasks SET {', '.join(qi(x, TEXT_BY_COL.values()) + '=?' for x in fix)} WHERE id=?", (*fix.values(), tid))
+
+
 def log_act(c, tid, kind, data=None, uid=None):
     from ..integrations.webhooks import wh_note
     if uid is None and has_request_context() and getattr(g, "user", None):
@@ -75,6 +110,8 @@ def log_act(c, tid, kind, data=None, uid=None):
         chn_note(c, tid, kind)  # 2.142.0 A (#2145): new / completed / assigned -> organisation channels, own list channels
         for f in ACT_NOTES:
             f(c, tid, kind, data=data)
+    if kind in TEXT_BY_COL:  # 2.1375.0 (#6677): who wrote the title / description last, kept on the task (survives a purge)
+        c.execute(f"UPDATE tasks SET {qi(TEXT_BY_COL[kind], TEXT_BY_COL.values())}=? WHERE id=?", (text_hand(uid, via, rr), tid))
     from ..collab.liste2eguard import le2b_act_data
     data = le2b_act_data(c, tid, kind, data)  # 2.64.1 B (#1817): never a text of a list with the lock in the history
     ts, js = iso_ms(now_utc()), json.dumps(data or {}, ensure_ascii=False)

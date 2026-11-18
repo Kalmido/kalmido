@@ -20,7 +20,7 @@ import json
 
 from .db import ALLOW_PURPOSES, FEATS_2480, FEATS_2623, brought_backfill, gset, gsetting, insert_id, iso, now_utc, repair_data
 from .i18n import LANGS, tr
-from .pg import system_ctx as pg_system_ctx, table_exists
+from .pg import qi, system_ctx as pg_system_ctx, table_exists
 
 
 def _lff():
@@ -443,6 +443,19 @@ def migr_liststate5537(c):
     gset(c, "migr_liststate5537", "1")
 
 
+def migr_textby6677(c):  # 2.1375.0 (#6677): tasks.title_by / content_by of the tasks changed before, once from their history
+    # (the newest title resp. content / md_subtasks line; a hand without a person -- via webhook, public link, CalDAV, support,
+    # a rule, no user -- is 0, as tasks/validation.py text_hand). A task whose history was purged keeps NULL (the creator's).
+    with pg_system_ctx(c):  # every organisation's tasks (row-level security)
+        for name, kinds in (("title_by", ("title",)), ("content_by", ("content", "md_subtasks"))):
+            c.execute(f"""UPDATE tasks t SET {qi(name, ("title_by", "content_by"))} = CASE WHEN a.user_id IS NULL OR a.user_id = 0 OR a.rule IS NOT NULL
+                                                         OR COALESCE(a.via, 'api') <> 'api' THEN 0 ELSE a.user_id END
+                          FROM (SELECT DISTINCT ON (task_id) task_id, user_id, data->>'via' AS via, data->>'rule' AS rule
+                                FROM activity WHERE kind = ANY(CAST(? AS TEXT[])) ORDER BY task_id, id DESC) a
+                          WHERE t.id = a.task_id AND t.{qi(name, ("title_by", "content_by"))} IS NULL""", ("{" + ",".join(kinds) + "}",))
+    gset(c, "migr_textby6677", "1")
+
+
 STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824)
     ("adopt_orphans", "migr_kind", True, migr_kind),
     ("adopt_orphans", "migr_kind272", True, migr_kind272),
@@ -478,6 +491,7 @@ STEPS = [  # (phase, key, once, f): the order of init_db (2.1356.0, #6824)
     ("cdn_backfill", "migr_e2ehist5564", True, migr_e2ehist5564),
     ("cdn_backfill", "migr_offerlist4586", True, migr_offerlist4586),
     ("cdn_backfill", "migr_liststate5537", False, migr_liststate5537),
+    ("cdn_backfill", "migr_textby6677", True, migr_textby6677),
 ]
 
 

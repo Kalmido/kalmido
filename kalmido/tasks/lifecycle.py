@@ -21,7 +21,7 @@ from ..core.serializers import unlink_files
 from ..lists.groups import check_group_assignee, grp_assign_events, grp_name, grp_shares_of_list
 from ..tasks.validation import (
     check_parent, check_url, clean_task, DATE_MAX_Y, descendants, log_act, log_changes, rr_feasible, rr_norm, rr_rule, rmd_split,
-    ticket_template, valid_hm, valid_plan_start,
+    text_by_carry, ticket_template, valid_hm, valid_plan_start,
 )
 from ..tasks.oneway import irr_guard
 from ..tasks.tasks import (
@@ -293,6 +293,8 @@ def apply_update(c, tid, b, conflicts=None, lock=False):
             ms_cleanup(c)  # 2.18.0 (#430): moved / no milestone any more: its tasks (and moved subtasks) let go
     if f:
         log_changes(c, tid, cur, b.get("_act"))
+        if le2_post:  # 2.1375.0 (#6677, review F5): a move across the lock re-writes the texts, it does not author them
+            text_by_carry(c, tid, cur, f)
         new_a, new_g = c.execute("SELECT assignee_id, assignee_group_id FROM tasks WHERE id=?", (tid,)).fetchone()
         assignment_events(c, tid, cur["assignee_id"], new_a)
         if "delegate_agent_id" in f:  # 2.473.0 (#3357; a move that ends the delegation: wat_moved)

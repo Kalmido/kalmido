@@ -184,7 +184,8 @@ check("close #101" in dry and "close #111" not in dry and "start a job for #104"
 check('"skipped": {"113": "other", "114": "none", "115": "none"}' in dry, f"#6523: the dry log names the skipped tasks: {dry[-300:]}")
 check(len(h.api.chats) == 1 and h.api.chats[0][0] == 7 and "dry run" in h.api.chats[0][1] and "close #101" in h.api.chats[0][1],
       f"the day report of a dry run is the only post: {h.api.chats}")
-check("not yours 3" in h.api.chats[0][1] and "Not built, not created by you (another member, or no creator): #113 #114 #115" in h.api.chats[0][1],
+# 2.1375.0 (#6677): the sentence names "last changed by someone else" too
+check("not yours 3" in h.api.chats[0][1] and "Not built, not created by you or last changed by someone else (another member, an agent, or no creator): #113 #114 #115" in h.api.chats[0][1],
       f"#6523: the day report names the skipped tasks: {h.api.chats[0][1]}")
 check(d.tick() is None, "not due again before interval_min")
 
@@ -291,6 +292,14 @@ check(rep_ and "#202 #203 #204" in rep_[-1], f"#6523: the day report names them:
 check(ad.author_of({"created_by": 7, "by_creator": True}, None) == "other" and ad.author_of({"created_by": 7, "by_creator": True}, 7) == ""
       and ad.author_of({"created_by": 7, "by_creator": False}, 7) == "none" and ad.author_of({"created_by": 7}, 7) == "none"
       and ad.author_of({}, 7) == "none" and ad.author_of({"created_by": "x"}, 7) == "none", "#6523: author_of")
+# 2.1375.0 (#6677): the person created it, but another hand wrote its title / description last (updated_by) -> not built
+own = {"created_by": 7, "by_creator": True}
+check(ad.author_of({**own, "updated_by": 7}, 7) == "" and ad.author_of({**own, "updated_by": 8}, 7) == "edited"
+      and ad.author_of({**own, "updated_by": None}, 7) == "edited" and ad.author_of(own, 7) == "",
+      "#6677: author_of: updated_by another account / no person = edited, a server without updated_by = as before")
+st = ad.classify([{**task(301, "Rewritten by bob"), "updated_by": 8}, {**task(302, "Still mine"), "updated_by": 7}],
+                 {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
+check(st == {301: "foreign", 302: "ready"}, f"#6677: a task rewritten by another member is foreign, never started: {st}")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

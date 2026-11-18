@@ -313,6 +313,7 @@ def task_core(r, tags, fields):
             # 2.1308.0 (#6523, review F1): the creator wrote it in the app or with their own token (not a webhook, mail, form,
             # import, sync or a task from before 2.1308.0, which carry created_by too)
             "by_creator": ("origin" in r.keys() and r["origin"] == "person"),
+            "updated_by": text_by(r),  # 2.1375.0 (#6677): who last wrote title and description
             "assignee_group_id": r["assignee_group_id"] if "assignee_group_id" in r.keys() else None,  # 2.10.0 (#441)
             "created_at": r["created_at"], "updated_at": r["updated_at"], "completed_at": r["completed_at"],
             "deleted": bool(r["deleted_at"]), "fields": fields, "waiting": waiting_of(r),
@@ -366,6 +367,20 @@ def waiting_of(r):
     if "waiting_at" not in r.keys() or not r["waiting_at"]:
         return None
     return {"note": r["wait_note"] or "", "until": r["wait_until"], "since": r["waiting_at"], "by": r["wait_by"]}
+
+
+def text_by(r):
+    """2.1375.0 (#6677, review F1/F2): updated_by of a task = who last wrote its title and its description (tasks.title_by /
+    content_by, kept where the history line is written, so a purge of the history does not change it). A field nobody changed
+    since = the creator; 0 = a hand without a person -> None. Title and description are judged each on its own: the creator
+    only when both are theirs, else the other writer (the description's first)."""
+    keys = r.keys()
+    cr = r["created_by"]
+    tb, cb = [(cr if v is None else (v or None)) for v in (r["title_by"] if "title_by" in keys else None,
+                                                             r["content_by"] if "content_by" in keys else None)]
+    if tb == cb:
+        return tb
+    return cb if cb != cr else tb
 
 
 def v1_task(d):

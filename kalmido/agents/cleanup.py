@@ -22,7 +22,7 @@ import secrets
 
 from flask import jsonify
 
-from ..core.pg import insert_id, ts_canon  # 2.1115.0 (#5951): + ts_canon
+from ..core.pg import insert_id, qi, st_ids, ts_canon  # 2.1115.0 (#5951): + ts_canon; 2.1375.0 (#6677): + qi, st_ids
 from ..core.objtags import obj_tags_of  # 2.947.0 (#5275)
 from ..core.i18n import N_, tr
 from ..core.db import bump, err, iso, now_utc
@@ -244,18 +244,52 @@ def cln_pos_sort(c, lid, sid, tid, pos):
     return (rows[i - 1] + rows[i]) / 2
 
 
+# 2.1375.0 (#6677): the columns naming the last writer of title / description (migrations.d/6677.py)
+CLN_BY = ("title_by", "content_by")
+
+
+def cln_by(c, tid):
+    r = c.execute("SELECT title_by, content_by FROM tasks WHERE id=?", (tid,)).fetchone()
+    return {k: r[k] for k in CLN_BY} if r else {}
+
+
 def cln_change(c, rec, tid, want, aid):
-    """One field change through apply_update (before / after for undo)."""
+    """One field change through apply_update (before / after for undo; 2.1375.0, #6677 review F4: with the writers of title /
+    description, so an undo puts them back too)."""
     cur = c.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
     before = {k: cur[k] for k in want}
     want = {k: v for k, v in want.items() if before[k] != v}
     if not want:
         return
+    by = {k: cur[k] for k in CLN_BY}
     msg = apply_update(c, tid, dict(want))
     if msg:
         raise BadInput(msg)
     log_act(c, tid, "proposal", {"agent": aid})
-    rec["changes"][str(tid)] = {"before": {k: before[k] for k in want}, "after": want}
+    rec["changes"][str(tid)] = {"before": {k: before[k] for k in want}, "after": want, "by": {"before": by, "after": cln_by(c, tid)}}
+
+
+def cln_merge_by(c, rec, keep, k, rest):
+    """2.1375.0 (#6677, review N6 / F4): a merge confirmed by the person writes the kept task under their account (log_act), but
+    its text is only theirs when every part was: a merged task of another creator, one that came from a webhook, a mail, a form,
+    an import or a git issue (origin not 'person'), or one whose title / description another hand wrote (title_by / content_by
+    not NULL and not the creator, 0 included) makes the description 0; a writer of the kept task before that was not its
+    creator stays. The app's agent dispatcher then does not build it until the creator writes the text again."""
+    kc = k["created_by"]
+    mine = lambda r: r["created_by"] == kc and r["origin"] == "person" and r["title_by"] in (None, kc) and r["content_by"] in (None, kc)  # noqa: E731
+    fix = {}
+    if not all(mine(r) for r in c.execute("SELECT created_by, origin, title_by, content_by FROM tasks WHERE id = ANY(CAST(? AS BIGINT[]))",
+                                          (st_ids(rest),)).fetchall()):
+        fix["content_by"] = 0
+    elif k["content_by"] not in (None, kc):
+        fix["content_by"] = k["content_by"]
+    if k["title_by"] not in (None, kc):
+        fix["title_by"] = k["title_by"]
+    if fix:
+        c.execute(f"UPDATE tasks SET {', '.join(qi(x, CLN_BY) + '=?' for x in fix)} WHERE id=?", (*fix.values(), keep))
+        ch = rec["changes"].get(str(keep))
+        if ch and ch.get("by"):
+            ch["by"]["after"] = cln_by(c, keep)
 
 
 def cln_close(c, rec, tid, reason, into=None):
@@ -308,7 +342,7 @@ def cln_run(c, j, sel, edits, rec):
             cln_close(c, rec, ids[0], it["reason"])
         else:  # merge: the first one stays, the notes of the others are appended with a reference, the others are closed
             keep, rest = ids[0], ids[1:]
-            k = c.execute("SELECT title, content FROM tasks WHERE id=?", (keep,)).fetchone()
+            k = c.execute("SELECT title, content, created_by, title_by, content_by FROM tasks WHERE id=?", (keep,)).fetchone()
             parts = [(k["content"] or "").rstrip()]
             for t in rest:
                 r = c.execute("SELECT title, content FROM tasks WHERE id=?", (t,)).fetchone()
@@ -318,6 +352,7 @@ def cln_run(c, j, sel, edits, rec):
             if title:
                 want["title"] = title
             cln_change(c, rec, keep, want, aid)
+            cln_merge_by(c, rec, keep, k, rest)
             for t in rest:
                 # review M2: open subtasks of a merged-away task move to the kept one (undo puts them back) instead of
                 # being closed with it; one that cannot move (depth, milestone) is closed with its parent as before
@@ -360,6 +395,13 @@ def cln_undo(c, rec, back=True):
             skipped += prop_titles(c, [tid])
         if not msg and len(conf) < len(a):
             n += 1
+            # 2.1375.0 (#6677, review F4): the writers of title / description as they were at that step (apply_update wrote
+            # the person who undoes as the writer); a field in conflict keeps what someone wrote since
+            by = (ch.get("by") or {}).get("before" if back else "after") or {}
+            held = {x.get("field") for x in conf if isinstance(x, dict)}
+            fix = {col: by[col] for f, col in (("title", "title_by"), ("content", "content_by")) if f in a and f not in held and col in by}
+            if fix:
+                c.execute(f"UPDATE tasks SET {', '.join(qi(x, CLN_BY) + '=?' for x in fix)} WHERE id=?", (*fix.values(), tid))
     for x in rec.get("closed") or []:
         tid = x["id"]
         try:

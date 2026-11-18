@@ -29,6 +29,7 @@ import json
 import re
 
 from ..core.i18n import N_, tr
+from ..core.pg import qi  # 2.1375.0 (#6677)
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import collab_all, joined_lists_sql, ov_open  # 2.149.0 G (#2517): pulled up from functions
 from ..tasks.tasks import can_move  # 2.369.5 (#2517): pulled up from functions
@@ -36,7 +37,7 @@ from .comments import task_people, user_names, MAX_COMMENT  # 2.369.5 (#2517): p
 from ..lists.lists import _in_folder  # 2.369.5 (#2517): pulled up from functions
 from ..lists.groups import grp_shares_of_list  # 2.369.5 (#2517): pulled up from functions
 from ..lists.lffolder import lf_people_rows  # 2.958.0 (#5245): the folder's shares (folder_people is gone)
-from ..tasks.validation import CONTENT_MAX, TITLE_MAX  # 2.369.5 (#2517): pulled up from functions
+from ..tasks.validation import CONTENT_MAX, TITLE_MAX, text_hand_now  # 2.369.5 (#2517): pulled up from functions; 2.1375.0 (#6677): + text_hand_now
 from .news import news_add  # 2.369.5 (#2517): pulled up from functions
 
 LE2E_PREFIX = "e2e1:"
@@ -401,6 +402,15 @@ def le2a_task_set(c, tid, vals):
             v = le2a_snip_store(v)
         sets.append(f"{k}=?")
         args.append(v if k != "url" else (v or None))
+    # 2.1375.0 (#6677, review F3): no history line, but the writer of title / description is kept (tasks.title_by /
+    # content_by): written by its current writer it stays as it is; any other hand (a project admin converting or moving the
+    # texts, a request without a person) makes it 0 -- never the person's again by a conversion
+    hand = text_hand_now()
+    for k, col in (("title", "title_by"), ("content", "content_by")):
+        if k in vals:
+            q = qi(col, ("title_by", "content_by"))
+            sets.append(f"{q}=CASE WHEN COALESCE({q}, created_by) = ? THEN {q} ELSE 0 END")
+            args.append(hand)
     if sets:
         c.execute(f"UPDATE tasks SET {','.join(sets)} WHERE id=?", (*args, tid))
 
