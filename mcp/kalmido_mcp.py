@@ -386,15 +386,21 @@ def _fence_task(api, task):
         for f in ("title", "notes"):
             if isinstance(task.get(f), str) and task[f]:
                 task[f] = _data_fence(task[f], who)
-        for a in task.get("attachments") or []:  # a file name is typed by whoever uploaded it
-            if isinstance(a, dict) and isinstance(a.get("name"), str):
-                a["name"] = _data_fence(a["name"], who)
-        for sub in (task.get("subtasks") or []) + (task.get("sub_snapshot") or [] if isinstance(task.get("sub_snapshot"), list) else []):
-            if isinstance(sub, dict):
-                for f in ("title", "notes"):
-                    if isinstance(sub.get(f), str) and sub[f]:
-                        sub[f] = _data_fence(sub[f], who)
         task["untrusted"] = True
+    # 2.1373.0 (#6952 F1): file names and subtasks are fenced always, also on a task of a trusted account: the API gives no
+    # author per file / subtask, and anyone who may write the task can upload a file or add a subtask. F2: sub_snapshot is
+    # an object {"done", "total", "items": [...]} (tasks/lifecycle.rsn_take), not a list -- its items were never fenced.
+    fwho = who if foreign else "an author the API does not name"
+    for a in task.get("attachments") or []:  # a file name is typed by whoever uploaded it
+        if isinstance(a, dict) and isinstance(a.get("name"), str):
+            a["name"] = _data_fence(a["name"], fwho)
+    snap = task.get("sub_snapshot")
+    items = snap.get("items") if isinstance(snap, dict) else snap
+    for sub in list(task.get("subtasks") or []) + list(items if isinstance(items, list) else []):
+        if isinstance(sub, dict):
+            for f in ("title", "notes"):
+                if isinstance(sub.get(f), str) and sub[f]:
+                    sub[f] = _data_fence(sub[f], fwho)
     for sn in task.get("snippets") or []:
         if not isinstance(sn, dict) or sn.get("by") in ids:
             continue
