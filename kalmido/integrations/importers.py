@@ -2154,7 +2154,7 @@ def imp_run(c, uid, plan, opts, dry):
         opts["_before"](c, plan)
     src = plan["source"]
     created = {"lists": [], "sections": [], "tasks": [], "sprints": []}  # 2.394.0 A (#3377): + sprints
-    report_lists, idmap, rows = [], {}, []
+    report_lists, idmap, rows, known = [], {}, [], {}  # 2.1387.0 (#6784): known = {new task id: [list, section, parent]}
     stats = {"tasks": 0, "subtasks": 0, "done": 0, "skipped": 0, "lists": 0, "sections": 0, "assigned": 0, "sprints": 0}
     spr_cache = {}
     s_all = usettings(c, uid)
@@ -2276,6 +2276,7 @@ def imp_run(c, uid, plan, opts, dry):
                 idmap[t["ext"]] = tid
                 created["tasks"].append(tid)
                 rows.append((t, tid, lid))
+                known[tid] = [lid, sid, None]
                 # 2.394.0 A (#3377): story points, ticket type and sprint. Only open tasks go into a sprint (a finished one of
                 # an old sprint would fill a planned sprint with done work); otherwise the sprint stays a note line
                 sname = imp_line(t.get("sprint") or "", 100)  # 2.394.0 review: only control characters = no sprint
@@ -2299,12 +2300,30 @@ def imp_run(c, uid, plan, opts, dry):
                 rl["tasks"] += 1
             report_lists.append(rl)
         stats["sprints"] = len(created["sprints"])
+        # 2.1387.0 (#6784): list, section and parent of this run's new tasks come from `known` (kept as written here), not from
+        # one SELECT plus a walk up the parent chain per subtask (up to 7 statements each: a deep list of 2300 lines took twice
+        # the flat one and passed 6 s on the CI); a parent the import did not create (skipped as imported before) is read as before
+        def imp_dep(i):
+            n = 0
+            while n < 10:
+                k = known.get(i)
+                if k is None:
+                    return n + depth(c, i)
+                if not k[2]:
+                    return n
+                i, n = k[2], n + 1
+            return n
         for t, tid, lid in rows:  # second pass: parents (the subtask follows its parent's section)
             p = t.get("_parent")
             if p and p in idmap and idmap[p] != tid:
-                pr = c.execute("SELECT list_id, section_id FROM tasks WHERE id=?", (idmap[p],)).fetchone()
-                if pr and pr["list_id"] == lid and depth(c, idmap[p]) + 1 < MAX_DEPTH:
-                    c.execute("UPDATE tasks SET parent_id=?, section_id=? WHERE id=?", (idmap[p], pr["section_id"], tid))
+                pid = idmap[p]
+                pr = known.get(pid)
+                if pr is None:
+                    r0 = c.execute("SELECT list_id, section_id FROM tasks WHERE id=?", (pid,)).fetchone()
+                    pr = [r0["list_id"], r0["section_id"], None] if r0 else None
+                if pr and pr[0] == lid and imp_dep(pid) + 1 < MAX_DEPTH:
+                    c.execute("UPDATE tasks SET parent_id=?, section_id=? WHERE id=?", (pid, pr[1], tid))
+                    known[tid] = [lid, pr[1], pid]
                     stats["subtasks"] += 1
                 else:
                     imp_warn(plan, N_("Subtask in another project or in a cycle, imported as a main task"), t["title"])
