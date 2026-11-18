@@ -3175,11 +3175,14 @@ to people you trust with it.
 
 **A job ends in a pull request (2.1368.0).** The end of a dispatcher job is fixed, not a sentence in the brief. Once a job
 ended, the dispatcher itself runs `check_cmd` in the job's working copy (a temporary one of the branch if it was cleaned
-away; at most `check_timeout_min` minutes; exit 0 = green):
+away; at most `check_timeout_min` minutes; exit 0 = green). The check runs the code of the job's branch: it gets an
+environment without `KALMIDO_*` variables and without tokens or keys, and git hooks of the repository never run for the
+dispatcher (`core.hooksPath=/dev/null` for push and working copies):
 
 - **red**: no pull request. The branch counts for nothing any more, its tasks go back to the list (one try each, see below),
   and the person is told once: *the check failed on branch job/<id> (exit N)*. The check's output stays out of the chat.
-- **green**: the dispatcher pushes the job branch to `push_remote` (only `job/<id>`, never another branch), opens ONE pull
+- **green**: the dispatcher pushes the job branch to `push_remote` (a name `git remote` lists; only `job/<id>`, never
+  another branch), opens ONE pull
   request with `pr_cmd` (default `gh pr create --head {branch} --base {base} --title {title} --body-file -`: the GitHub
   CLI; for another git server name its command, `{branch}` `{base}` `{title}` are filled in per argument, the body comes on
   stdin, the first address it prints is the pull request) and posts the approval card *Ready to merge* (`merge_request`,
@@ -3195,12 +3198,19 @@ open working copies: with `places` above 2 raise it too.
 `check_cmd` (2.1368.0) the dispatcher stays idle; unknown keys and wrong types are named once in the runner's log and left
 at the default. `worktree` and `finish_cmd` are retired (2.1368.0): named once in the log, never used.
 
+What the dispatcher runs comes only from the runner's env file, never from the project folder (the agent can write
+there): `KALMIDO_DISPATCH_CHECK_CMD` (`check_cmd`), `KALMIDO_DISPATCH_PR_CMD` (`pr_cmd`), `KALMIDO_DISPATCH_PUSH_REMOTE`
+(`push_remote`) and `KALMIDO_DISPATCH_BASE` (`base`). One of these keys in `KALMIDO-DISPATCH.json` is not used: the
+dispatcher stays idle and names it.
+
 ```json
 {"lists": ["Backlog"], "places": 1, "interval_min": 10, "close_ref": "origin/main", "fetch": true,
  "size_field": "Size", "bundle_points": 8, "first_tags": ["Urgent"], "skip_tags": ["blocked", "keep"],
- "check_cmd": "make test", "pr_cmd": "gh pr create --head {branch} --base {base} --title {title} --body-file -",
  "report_at": "18:00"}
 ```
+
+In the runner's env file: `KALMIDO_DISPATCH_CHECK_CMD=make test` (and `KALMIDO_DISPATCH_PR_CMD=...` for another git
+server than GitHub).
 
 `close_ref` is the git ref whose commits close tasks (`""` = the current branch). A ref of what is live (e.g. a branch
 `live`, with `"fetch": true` for `origin/...`) closes tasks only once they are live. The pull request goes to `base`
