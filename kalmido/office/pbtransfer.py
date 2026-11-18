@@ -45,6 +45,7 @@ from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from .ledger import ofx_log, ofx_rechain, ofx_release  # 2.542.0 (#4598): + ofx_release; 2.1327.0 (#6591): + ofx_rechain
 from .chain import hch_check  # 2.1327.0 (#6591)
 from .model import office_gate, office_org, pb_owner
+from .issuers import iss_count, iss_ids, iss_revoke_rows  # 2.1381.0 (#6699)
 from .officemove import ofm_reseal
 from .procdoc import PD_WAITING, pd_waiting  # 2.977.0 (#5282)
 from .payonline import POL_EXPIRE_S
@@ -59,7 +60,9 @@ PBT_KEEP = ("office_settings", "office_company", "office_bank_accounts", "office
             "office_period_locks",  # 2.148.0 A (#2471): the locks of each area stay its own
             "office_rgroups", "office_rgroup_members",  # 2.187.0 C (#2476): the personal office's rights groups (its agents) stay; the log goes
             "office_payonline",  # 2.469.0 (#3459): as the Peppol connection: the webhook URL and the provider account stay the area's
-            "office_peppol")  # 2.306.0 D2 (#2875): the Peppol connection stays (its key is sealed for the area; the target has its own)
+            "office_peppol",  # 2.306.0 D2 (#2875): the Peppol connection stays (its key is sealed for the area; the target has its own)
+            # 2.1381.0 (#6699): the invoice issuers stay -- revoked before the move (pbt_post): a key never lands with the target's admins
+            "office_issuers", "office_issuer_keys", "office_issuer_payees", "office_issuer_refs", "office_issuer_ips")
 PBT_SEALED = set(FIELDS) | {t for t, _c in JSON_KEYS} | {"office_doc_items"}
 PBT_STAY_FILE = re.compile(r"logo\.png|letterhead-[0-9a-f]{16}\.pdf")  # the settings' own files (pdfweb.LOGO_FILE, letterhead.BP_FILE_RE)
 PBT_SAME_FILE = re.compile(r"logo-[0-9a-f]{16}\.png|lhs-[0-9a-f]{16}\.pdf")  # content-addressed copies: the same name = the same content
@@ -215,6 +218,10 @@ def pbt_plan(c, uid, src, dst):
     keeps.append(tr("Settings, company data and bank details of your office (the organisation keeps its own)"))
     keeps.append(tr("Your number counters: your private office keeps counting on, the organisation keeps its own"))
     keeps.append(tr("Absences, bookings and everything outside the office stay private"))
+    n_iss = iss_count(c, src)
+    if n_iss:  # 2.1381.0 (#6699): revoked with the move; an admin of the organisation sets up new ones there
+        notes.append(trn("{0} invoice issuer of your office is revoked with the move (its keys stop working); set it up again in the organisation",
+                         "{0} invoice issuers of your office are revoked with the move (their keys stop working); set them up again in the organisation", n_iss))
     if same:
         notes.append(trn("{0} client has the same name as one in the organisation: both stay, they are not merged",
                          "{0} clients have the same name as one in the organisation: both stay, they are not merged", same))
@@ -468,6 +475,7 @@ def pbt_post():
         pbt_empty_heads(c, dst)  # 2.977.0 (#5282): one head per area (unique), an empty one of the target makes room
         # 2.1327.0 (#6591): the hash chain: the personal office's own check before (noted in the log of the move), its
         # documents then join the target's chains (ofx_rechain), the target's check after goes into the answer
+        iss_revoke_rows(c, src, iss_ids(c, src), uid, why="move")  # 2.1381.0 (#6699): before anything moves, in the same transaction
         before = _pbt_chain_check(c, src)
         docs = [r[0] for r in c.execute("SELECT id FROM office_docs WHERE org_id=?", (src,)).fetchall()]
         counts = pbt_rows(c, src, dst, p["tables"])
