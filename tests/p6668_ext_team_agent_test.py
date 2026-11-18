@@ -784,6 +784,21 @@ STEP = {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}
 r = requests.post(V + f"/tasks/{TX}/comments", headers=hdr(RC), json={"body": "FOR-CARL"}, timeout=30)
 check(r.status_code == 201, f"(b) carl's request (he writes there) comments {r.status_code} {r.text[:200]}")
 
+# ---- reader R4 F3: the long-lived token reads no task titles / project names through its usage report
+# Without the fix POST /agent/usage took any task the agent sees (project two too) and GET ?group=task gave its title back.
+r = requests.post(V + "/agent/usage", headers=XH, json={"model": "m-r4", "input_tokens": 3, "output_tokens": 1, "task_id": SX}, timeout=30)
+check(r.status_code == 201, f"(f) R4 F3: the long-lived token reports usage (its own data) {r.status_code} {r.text[:200]}")
+check(requests.post(V + "/agent/usage", headers=hdr(RC), json={"model": "m-r4", "input_tokens": 3, "output_tokens": 1, "task_id": TX}, timeout=30).status_code == 201,
+      "(f) R4 F3: carl's request reports usage on the stork task")
+for grp, key, secret in (("task", "title", "Secret crane budget"), ("list", "name", "Project two")):
+    r = requests.get(V + "/agent/usage", headers=XH, params={"group": grp}, timeout=30)
+    rows = r.json().get("data", []) if r.ok else []
+    check(r.ok and rows and all(d.get(key) is None for d in rows) and secret not in r.text,
+          f"(f) R4 F3: GET /agent/usage?group={grp} with the long-lived token names no {key} {r.status_code} {r.text[:200]}")
+r = requests.get(V + "/agent/usage", headers=hdr(RC), params={"group": "task"}, timeout=30)
+check(r.ok and "Open stork task" in r.text and "Secret crane budget" not in r.text,
+      f"(f) R4 F3: carl's request token reads the title of the task he sees, never the other {r.status_code} {r.text[:200]}")
+
 # ---- (e) the card of rita's order, run with the agent's own token (the replay of an approved request)
 # 2.1386.0 (#6668): since 2.1284.0 (#6453, review G13) a Yes to a write into a wider circle (project one is read by more
 # people than project two) counts only from a person who reads every place the agent reads: carl (project one only) is
