@@ -213,7 +213,7 @@ check(len(r.api.perms) == 1 and r.api.perms[0][0] == 7 and "Bash" in r.api.perms
       and os.environ["KALMIDO_TOKEN"] not in r.api.perms[0][1] and r.api.perms[0][2] == ar.PERM_TIMEOUT_S,
       f"asked in the chat of the person, masked, with the time limit: {r.api.perms}")
 check(not os.path.isdir(os.path.join(r.state_dir, "perm")), "2.625.0 (#3661): no permission files in the state folder")
-check(r.intercept([chat(5, "Ja")]) == [], "a plain yes while one question is open is the answer, no run")
+check(r.intercept([chat(950, "Ja")]) == [], "a plain yes while one question is open is the answer, no run (2.1394.0: written after the question, 901)")
 out = p.stdout.read()
 p.wait(30)
 check(json.loads(out)["hookSpecificOutput"]["decision"]["behavior"] == "allow", f"the hook allows: {out}")
