@@ -7,7 +7,8 @@
    limits them (state notif_cap, GET .../notify-template); agents read it via /api/v1, never change it
  - folders: a list in a shared folder follows the folder's template until it has its own, "reset_lists" brings the lists
    back to the folder, a template per person of the folder, a rename keeps it, a stranger's folder is 404
- - migration (once): lists / folders shared before 2.33 get "all" written, their owners are asked once (notif_ask)
+ - no one-time question on a new server (2.1380.0 #6826: the migration of lists / folders shared before 2.33,
+   migr_notiftpl2330, is retired, its check gone)
  - rollback safety: only new tables (list_notif, folder_notif, login_ips)
  - #834: GET /api/admin/client-ip (admins): the address the server sees, private, the warning when many accounts sign in
    from one private address (the test setup IS that case: every request comes through the docker gateway) + server log
@@ -242,20 +243,10 @@ logs = subprocess.run(["docker", "logs", NAME], capture_output=True, text=True).
 check("client addresses do not arrive" in logs, "#834: the warning is in the server log")
 check(dbx("SELECT COUNT(DISTINCT user_id) FROM login_ips")[0][0] >= 4, "#834: private sign-in addresses remembered")
 
-# ================================================================== migration (once) + the one-time question
+# ================================================================== the one-time question
 check(A.get(B + "/api/state").json()["notif_ask"] == [], "#927: no question on a new server")
-dbx("DELETE FROM obj_notif_cap", write=True)  # 2.981.0 (#5287): list_notif / folder_notif are rows of the core's obj_notif_cap
-dbx("DELETE FROM settings WHERE key='migr_notiftpl2330'", write=True)
-start(keep=True)
-A, Bo = sess("alice"), sess("bob")
-rows = dbx("SELECT ref_id, user_id, tpl FROM obj_notif_cap WHERE kind='list' ORDER BY ref_id")  # 2.981.0 (#5287)
-check((L, 0, "all") in rows and not any(r[0] == F1 for r in rows), "#927 migration: the shared list got all, the list in the shared folder not " + str(rows))
-check(dbx("SELECT ref_id, path, user_id, tpl FROM obj_notif_cap WHERE kind='folder'") == [(1, "Crew", 0, "all")], "#927 migration: the shared folder got all")
-ask = A.get(B + "/api/state").json()["notif_ask"]
-check({(x["kind"], x.get("id") or x.get("folder")) for x in ask} == {("folder", "Crew"), ("list", L)}, "#927 migration: the owner is asked once " + json.dumps(ask))
-check(Bo.get(B + "/api/state").json()["notif_ask"] == [], "#927 migration: members are not asked")
-check(Bo.get(tpl_url(L)).json()["effective"]["tpl"] == "all" and Bo.get(tpl_url(F1)).json()["effective"]["tpl"] == "all",
-      "#927 migration: nothing changes silently (all)")
+# 2.1380.0 (#6826): the migration (once) stood here (templates cleared, flag migr_notiftpl2330 deleted, restart: shared lists /
+# folders got "all", their owner asked once); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 check(A.post(B + "/api/notify-templates/asked", json={}).ok and A.get(B + "/api/state").json()["notif_ask"] == [], "#927: answered -> no question")
 
 # ================================================================== rollback safety

@@ -1171,21 +1171,27 @@ async function ofdClick(e) {
     const first = pv?.first ? ofd_firstHtml() : '';
     // 2.1359.0 (#6482): the server's warning when this invoice would go to a German business without e-invoice (only a warning)
     const warnHtml = pv?.einvoice_warn ? `<p class="ofdwarn ofdfinwarn" role="status">${esc(pv.einvoice_warn)}</p>` : '';
-    const noHtml = pv?.number ? `<p class="ofdfinno">${esc(tr('Will be finalised as {0}', '\u0000')).replace('\u0000', `<b>${esc(pv.number)}</b>`)}</p><p>${esc(fin)}</p>` : '';
+    // 2.1380.0 (#6976): a draft dated in an earlier year: the hint with "Set the date to today" (ticked); the number follows the tick
+    const past = !!pv?.past_year, fin2 = {today: past};
+    const pastHtml = past ? `<div class="ofdfinpast"><p class="ofdwarn" role="status">${esc(tr('The date {0} lies in an earlier year.', fmtDate(pv.past_year)))}</p><label class="chkl"><input type="checkbox" id="ofd-fin-today" checked> ${esc(tr('Set the date to today'))}</label></div>` : '';
+    const pastWire = md => { const cb = $('#ofd-fin-today', md), nb = $('.ofdfinno b', md); if (!cb) return;
+      cb.addEventListener('change', () => { fin2.today = cb.checked; if (nb) nb.textContent = (cb.checked ? pv.number_today : pv.number) || ''; }); };
+    const finBody = extra => ({...extra, ...(past && fin2.today ? {to_today: true} : {})});
+    const noHtml = pv?.number ? `<p class="ofdfinno">${/*html-ok*/ /* escaped inside */ esc(tr('Will be finalised as {0}', '\u0000')).replace('\u0000', `<b>${esc((past ? pv.number_today : pv.number) || '')}</b>`)}</p><p>${esc(fin)}</p>` : '';
     if (ofd_finHand(d)) {  // 2.1289.0 (#6481 N3, S3): a number of your own only here, given with the finalising (office admins)
       let md0 = null, j = null;
-      const html = (noHtml || `<p>${esc(fin)}</p>`) + first + warnHtml + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
+      const html = (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
         + ofdF('fin-no', tr('Number'), `<input id="ofd-fin-no" maxlength="80" autocomplete="off" spellcheck="false" placeholder="${esc(pv?.number || '')}">`)
         + ofdF('fin-why', tr('Reason (needed when numbers are skipped)'), `<input id="ofd-fin-why" maxlength="300">`) + '</details>';
-      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; if (first) ofd_firstWire(md); },
+      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; pastWire(md); if (first) ofd_firstWire(md); },
         submit: async () => { const no = ($('#ofd-fin-no', md0)?.value || '').trim(), why = ($('#ofd-fin-why', md0)?.value || '').trim();
-          j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, no ? {number: no, reason: why} : {}); return !!j || OFD.conflict?.id === d.id; }});  // 2.1317.0 (#6331): a conflict closes the dialog, the bar says it
+          j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, finBody(no ? {number: no, reason: why} : {})); return !!j || OFD.conflict?.id === d.id; }});  // 2.1317.0 (#6331): a conflict closes the dialog, the bar says it
       if (ok && j) toast(tr('Finalised as {0}', j.number || ''));
       return;
     }
-    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first || warnHtml ? {html: (noHtml || `<p>${esc(fin)}</p>`) + first + warnHtml} : {}),
-      ...(first ? {after: ofd_firstWire} : {})})) return;
-    const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, {}); if (j) toast(tr('Finalised as {0}', j.number || ''));
+    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first || warnHtml || pastHtml ? {html: (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml} : {}),
+      ...(first || past ? {after: md => { pastWire(md); if (first) ofd_firstWire(md); }} : {})})) return;
+    const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, finBody({})); if (j) toast(tr('Finalised as {0}', j.number || ''));
     return;
   }
   if (a === 'dup') { try { const ask = await ofdDupAsk(d); if (!ask) return; const j = await ofdRefCall(`dup${d.id}`, ref => rawFetch('POST', `/api/office/docs/${d.id}/duplicate`, {client_ref: ref, ...ask})); OFD.list = null; OFD.doc = j; toast(tr('Copied as {0}', j.number || tr('Draft'))); go(ofd_href(j.id, j.kind)); } catch (x) { ofcErr(x); } return; }

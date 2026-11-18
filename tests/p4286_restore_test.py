@@ -7,8 +7,9 @@ person without an organisation, her private files and tasks go the same way).
     - on the same server: restored from the list, every task, comment, office document and every file byte as at the backup
     - on a new server with the same server key: the bare format-3 file without its store is refused and says what is missing;
       the file assembled with the command of SELF-HOSTING.md (and the download) comes in, content as at the backup
- 2. A backup of release 2.101.0 (tests/fixtures/upgrade, packed as that release wrote it) on a server of today: the migrations
-    run, the schema is complete, the old content is there, a write works, a second start applies nothing
+ 2. A backup of release 2.1001.0 (tests/fixtures/upgrade, packed as that release wrote it) on a server of today: the migrations
+    run, the schema is complete, the old content is there, a write works, a second start applies nothing.
+    2.1380.0 (#6826): one of 2.101.0 (older than core/db.py MIN_FROM) is refused by the check and the restore (too_old), nothing changed
  3. From server A to a new server B with sealed files (SELF-HOSTING.md "restore on another server"):
     - another server key: check warns, restore refused, B unchanged, the upload stays for another try
     - KALMIDO_SECRET_KEY_CHANGED=1: restored with a warning, the sealed file stays closed (never garbage as a file), the server answers
@@ -45,7 +46,8 @@ ST = os.path.join(BK, ".store")
 H = {"X-Requested-With": "kalmido"}
 PASSPHRASE = "the emergency passphrase"
 K1, K2 = (base64.b64encode(os.urandom(32)).decode() for _ in range(2))
-FIX = os.path.join(N, "fixtures", "upgrade", "2.101.0")
+FIX = os.path.join(N, "fixtures", "upgrade", "2.1001.0")  # 2.1380.0 (#6826): was 2.101.0, older than core/db.py MIN_FROM now
+FIX_OLD = os.path.join(N, "fixtures", "upgrade", "2.101.0")  # 2.1380.0 (#6826): refused (too_old)
 MAGIC = b"KENC1\n"  # a file sealed with a space's key (core/orgcrypt.py)
 BIG = os.urandom(2600 * 1024)    # three chunks of the store (bkstore.CHUNK = 1 MiB)
 FBIG = os.urandom(90 * 1024)     # shared as well (from 64 KiB on)
@@ -317,20 +319,20 @@ same(snap(U), SEEN, "3: the old key back in place: everything opens with its byt
 g = U["alice"].get(B + f"/api/attachments/{S.big['id']}")
 check(g.ok and g.content == BIG, f"3: the large sealed file opens again {g.status_code}")
 
-# ================================================================== 2. a backup of release 2.101.0
+# ================================================================== 2. a backup of release 2.1001.0 (2.1380.0, #6826: was 2.101.0)
 with open(FIX + ".json", encoding="utf-8") as f:
     E = json.load(f)
-OLD_FILE = ("1/a783ff7397d8-briefing.txt", b"Briefing Imagefilm\n" * 10)   # tests/upgrade_seed.py wrote this file
+OLD_FILE = ("1/9e8d5ae65a87-briefing.txt", b"Briefing Imagefilm\n" * 10)   # tests/upgrade_seed.py wrote this file (2.101.0: 1/a783ff7397d8-...)
 
 
-def old_backup():
-    """A format-2 archive as bk_dump / bk_create of 2.101.0 wrote it (pg_dump -Fc -Z 6, the same manifest), from the dump of that
+def old_backup(fix=FIX, version=None, old_file=OLD_FILE):
+    """A format-2 archive as bk_dump / bk_create of that release wrote it (pg_dump -Fc -Z 6, the same manifest), from the dump of that
     release's database (tests/fixtures/upgrade); its database goes through a database of its own to come out as -Fc."""
     with open(os.path.join(DATA, ".kalmido-db"), encoding="utf-8") as f:
         dbc, dbn = f.read().split()
     aux = dbn + "old"
     psql("-c", f"DROP DATABASE IF EXISTS {aux} WITH (FORCE)", "-c", f"CREATE DATABASE {aux}", data="kalmido")
-    with gzip.open(FIX + ".sql.gz", "rb") as f:
+    with gzip.open(fix + ".sql.gz", "rb") as f:
         r = subprocess.run(["docker", "exec", "-i", dbc, "psql", "-U", "kalmido", "-v", "ON_ERROR_STOP=1", "-q", "-d", aux], input=f.read(), capture_output=True)
     assert r.returncode == 0, r.stderr.decode()[-1500:]
     r = subprocess.run(["docker", "exec", dbc, "pg_dump", "-U", "kalmido", "-Fc", "-Z", "6", "--enable-row-security", "-d", aux], capture_output=True)
@@ -338,9 +340,9 @@ def old_backup():
     dump = r.stdout
     counts = {k: int(psql("-c", f"SELECT COUNT(*) FROM {k}", data=aux)) for k in ("users", "lists", "tasks", "attachments")}
     psql("-c", f"DROP DATABASE {aux} WITH (FORCE)", data="kalmido")
-    name, data = "attachments/" + OLD_FILE[0], OLD_FILE[1]
+    name, data = "attachments/" + old_file[0], old_file[1]
     files = [["kalmido.dump", len(dump), hashlib.sha256(dump).hexdigest()], [name, len(data), hashlib.sha256(data).hexdigest()]]
-    man = {"format": "kalmido-backup", "format_version": 2, "app_version": E["version"], "schema_version": 2, "created_at": "2026-10-23T06:10:00+00:00",
+    man = {"format": "kalmido-backup", "format_version": 2, "app_version": version or E["version"], "schema_version": 2, "created_at": "2026-10-23T06:10:00+00:00",
            "kind": "manual", "counts": counts, "db_bytes": len(dump), "attachment_files": 1, "attachment_bytes": len(data), "skipped_files": 0, "files": files}
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
@@ -357,8 +359,20 @@ check(len(REF["cols"]) > 500 and REF["policies"], "2: the schema of a new server
 OLD = old_backup()
 up = upload(R, OLD)
 v = verify(R, up)
-check(v.ok and v.json().get("app_version") == E["version"] and v.json().get("attachment_files") == 1 and "another server key" in v.json().get("key_warning", ""),
-      f"2: the old backup checks fine, the warning says its tokens may need entering again {v.status_code} {v.text[:300]}")
+# 2.1380.0 (#6826): the 2.101.0 backup said "another server key" here (no fingerprint before 2.190); 2.1001.0 has none and no keys
+check(v.ok and v.json().get("app_version") == E["version"] and v.json().get("attachment_files") == 1 and not v.json().get("key_warning"),
+      f"2: the old backup checks fine {v.status_code} {v.text[:300]}")
+# 2.1380.0 (#6826): a backup older than core/db.py MIN_FROM: the check and the restore refuse it (too_old), the server stays as it is
+with open(FIX_OLD + ".json", encoding="utf-8") as f:
+    V_OLD = json.load(f)["version"]
+up_old = upload(R, old_backup(FIX_OLD, V_OLD, ("1/a783ff7397d8-briefing.txt", OLD_FILE[1])))
+v = verify(R, up_old)
+check(v.status_code == 400 and v.json().get("code") == "too_old" and "Kalmido < 2.149" in v.json().get("error", "")  # its dump has no stamp
+      and "2.1000.0 or newer" in v.json().get("error", ""), f"2: a backup of {V_OLD} is refused by the check (too_old) {v.status_code} {v.text[:300]}")
+n_users = kt.dbx("SELECT COUNT(*) FROM users")[0][0]
+r = restore(R, upload=up_old)
+check(r.status_code == 400 and r.json().get("code") == "too_old", f"2: a backup of {V_OLD} is refused by the restore (too_old) {r.status_code} {r.text[:300]}")
+check(R.get(B + "/api/state").ok and kt.dbx("SELECT COUNT(*) FROM users")[0][0] == n_users, "2: after the refusal the server is as it was")
 r = restore(R, upload=up)
 assert check(r.ok, f"2: the backup of {E['version']} is restored {r.status_code} {r.text[:300]}"), kt.done("p4286_restore")
 tag = "2: from " + E["version"]

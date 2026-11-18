@@ -11,7 +11,8 @@ server (/mcp and its tools) and the agent's events / webhook (agent_emit) all in
  - a person locked by the instance admin (PATCH /api/users/{id} {disabled}): the same for their agent's token
  - agents without an owner (team agents) and other people's agents are never touched by a lock
  - the access an instance admin gave to a team agent stops on /mcp while that admin is locked; the team agent's own token
-   keeps working (it has no owner)
+   keeps working (it has no owner). 2.1380.0 (#6485): its access token answers 403 owner_locked on /api/v1 at once, a refresh
+   while locked answers 403 and keeps the access; unlocked, the same refresh token goes on
 usage: p21264_a_ownerlock_test.py <datadir>"""
 import base64
 import hashlib
@@ -80,7 +81,7 @@ def mcp_lists(tok, i):
     return r.status_code, (j(r).get("result") or {}).get("isError"), r.text
 
 
-def grant(s, agent):
+def grant(s, agent, full=False):
     """The whole OAuth way (consent page, code, token) of person s for agent -> the access token."""
     v = secrets.token_urlsafe(48)
     ch = base64.urlsafe_b64encode(hashlib.sha256(v.encode()).digest()).rstrip(b"=").decode()
@@ -92,7 +93,7 @@ def grant(s, agent):
     code = (urllib.parse.parse_qs(urllib.parse.urlsplit(r.headers.get("Location", "")).query).get("code") or [""])[0]
     r = requests.post(B + "/oauth/token", data={"grant_type": "authorization_code", "code": code, "redirect_uri": CB, "client_id": CID,
                                                 "code_verifier": v})
-    return j(r).get("access_token", "")
+    return j(r) if full else j(r).get("access_token", "")  # 2.1380.0 (#6485): full = the whole answer (refresh token)
 
 
 # ---------------------------------------------------------------- the people and their agents
@@ -136,7 +137,8 @@ AT = grant(Fr, FA)
 check(AT and mcp(AT, {"jsonrpc": "2.0", "id": 1, "method": "ping"}).status_code == 200, "before: her MCP access answers")
 st, bad, txt = mcp_lists(AT, 2)
 check(st == 200 and not bad and "Shared with the bot" in txt, f"before: the MCP tool reads her project ({st} {txt[:160]})")
-TAT = grant(Ca, TEAM)
+TFULL = grant(Ca, TEAM, full=True)  # 2.1380.0 (#6485): the refresh token too
+TAT, TRT = TFULL.get("access_token", ""), TFULL.get("refresh_token", "")
 check(TAT and mcp(TAT, {"jsonrpc": "2.0", "id": 1, "method": "ping"}).status_code == 200, "before: the access carol gave to the team agent answers")
 
 # something waits for the agent's webhook (the delivery fails: nobody listens)
@@ -206,7 +208,19 @@ check(A.patch(B + f"/api/users/{CAID}", json={"disabled": True}).ok, "the admin 
 check(api(TTOK).status_code == 200, "carol locked: the team agent's own token keeps working")
 r = mcp(TAT, {"jsonrpc": "2.0", "id": 8, "method": "ping"})
 check(r.status_code == 403, f"carol locked: the access she gave stops on /mcp ({r.status_code})")
+# 2.1380.0 (#6485): the access token of that access stops on /api/v1 too (not only after its hour), and a refresh while she is
+# locked answers 403 without ending the access
+r = api(TAT)
+check(r.status_code == 403 and (j(r).get("error") or {}).get("code") == "owner_locked" and "carol" not in r.text.lower(), f"carol locked: the access token 403 owner_locked on /api/v1 at once ({r.status_code} {r.text[:200]})")
+r = requests.post(B + "/oauth/token", data={"grant_type": "refresh_token", "refresh_token": TRT, "client_id": CID})
+check(r.status_code == 403 and "access_token" not in r.text, f"carol locked: the refresh answers 403, no new token ({r.status_code} {r.text[:160]})")
+check(dbx("SELECT COUNT(*) FROM oauth_grants WHERE agent_id=? AND user_id=? AND revoked_at IS NULL", (TEAM, CAID))[0][0] == 1,
+      "carol locked: the refresh did not end the access")
 check(A.patch(B + f"/api/users/{CAID}", json={"disabled": False}).ok, "the admin unlocked carol")
 check(mcp(TAT, {"jsonrpc": "2.0", "id": 9, "method": "ping"}).status_code == 200, "carol unlocked: her access answers again")
+check(api(TAT).status_code == 200, "carol unlocked: the access token works on /api/v1 again")
+r = requests.post(B + "/oauth/token", data={"grant_type": "refresh_token", "refresh_token": TRT, "client_id": CID})
+check(r.status_code == 200 and j(r).get("access_token"), f"carol unlocked: the same refresh token works, no new connecting ({r.status_code} {r.text[:160]})")
+check(mcp(j(r).get("access_token", ""), {"jsonrpc": "2.0", "id": 10, "method": "ping"}).status_code == 200, "carol unlocked: the new access token answers")
 
 sys.exit(done("p21264_a_ownerlock"))

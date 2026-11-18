@@ -414,7 +414,8 @@ def startup_guard():
     genuinely new install (an empty database and a data dir without Kalmido data), False for an existing database.
     2.37.0 (#1150): Postgres. Refused: no DATABASE_URL; the database unreachable; an empty database next to a data dir that
     holds Kalmido data (the marker, attachments, backups). 2.1034.0 (#5304): a SQLite file from before 2.37 is no longer
-    looked at (the move tool is gone; such an install is refused through its marker / attachments like any other)."""
+    looked at (the move tool is gone; such an install is refused through its marker / attachments like any other).
+    2.1380.0 (#6826): a database with tables that last ran a version older than MIN_FROM is refused (minver_guard)."""
     from ..admin.backup import BK_DIR
     if not DATABASE_URL:
         raise DataDirError(_no_url())
@@ -440,6 +441,8 @@ def startup_guard():
         print(f"FATAL: database schema {have} is newer than this version ({SCHEMA_VERSION}); start the matching or a newer "
               "image.", flush=True)
         raise DataDirError(3)
+    if has_tables:  # 2.1380.0 (#6826): an empty database is a new install
+        minver_guard(meta.get("app_version"))
     appver_guard(meta.get("app_version"), meta.get("app_version_prev"), meta.get("back_floor"), meta.get("back_floor_how"))
     if has_tables:
         secret_new_guard()
@@ -475,6 +478,31 @@ def appver_newer_minor(other, mine=None):
 # release that adds a limit adds a line here and in docs/UPGRADING.md. Limits below 2.149 stand only there: those images
 # have no start check at all.
 BACK_LIMITS = (("2.149.0", "going back below 2.149 is not supported: those versions have no start check, see docs/UPGRADING.md"),)
+
+# 2.1380.0 (#6826): the oldest version this image updates from. The one-shot data steps and the column steps every database
+# of MIN_FROM or newer has behind it are gone (core/oncesteps.py, core/schema.py MIGRATIONS), so a database that last ran an
+# older version (or one without app_version that already holds tables: before 2.149) is refused at the start (startup_guard)
+# and in a restore (admin/backup.py bk_scan_dump); it goes through a version from MIN_FROM up to the one before this first.
+# A new, empty database is not affected. docs/UPGRADING.md names the limit.
+MIN_FROM = "2.1000.0"
+
+
+def appver_too_old(stored):
+    """2.1380.0 (#6826): True when a database that already holds tables, stamped with app_version stored, is older than MIN_FROM
+    (a missing or unreadable stamp counts as older: before 2.149 nothing wrote it)."""
+    v = appver_parse(stored)
+    return not v or v < appver_parse(MIN_FROM)
+
+
+def minver_guard(stored):
+    """2.1380.0 (#6826): the start check of MIN_FROM (startup_guard, a database with tables). Raises DataDirError (exit code 3)."""
+    if not appver_too_old(stored):
+        return
+    was = f"last ran Kalmido {stored}" if appver_parse(stored) else "is from a Kalmido version before 2.149 (it has no version stamp)"
+    print(f"FATAL: this database {was}; this image ({APP_VERSION}) only updates from Kalmido {MIN_FROM} or newer. Update to a "
+          f"version {MIN_FROM[:-2]}.x (or newer, but older than this one) first, start it once, then start this image. Nothing "
+          "was changed (see docs/UPGRADING.md).", flush=True)
+    raise DataDirError(3)
 
 
 def appver_check(stored, prev, mine=None, floor=None):
@@ -1130,7 +1158,6 @@ def init_db(guard=True):
                 c.execute("UPDATE user_settings SET value=? WHERE user_id=? AND key='ntfy_topic' AND value=''",
                           (NTFY_TOPIC, first))
         clk("adopt_orphans")
-        run_phase(c, clk, "adopt_orphans")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
         from ..accounts.orgs import instance_sync, ws_migrate
         instance_sync(c)  # 2.46.0 (#1592): only the hint on a former mode setting
         clk("instance_sync")
@@ -1139,14 +1166,12 @@ def init_db(guard=True):
         from ..accounts.tenancy import ws_migrate_objs
         ws_migrate_objs(c)  # 2.30.0 (#1036), once: every calendar and address book gets its workspace
         clk("ws_migrate_objs")
-        run_phase(c, clk, "ws_migrate_objs")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
         # 2.565.0 (#4717 #4719): the areas' forward copies onto the shared core (core/objhooks.START, filled by the areas):
         # once, the team chat's old member rows copied forward, then tchat_members dropped after the start check (collab/tcxcore.py
         # tcx_core_copy / tcx_core_retire, 2.924.0 #5069: stage 7a; was tcx_core_sync every start); once, the shares of tables and of knowledge pages / folders with people as
         # core shares on their reference nodes (2.937.0 #5244, stage 7c: every start until done, sheets/shshare.py shs_retire and
         # wiki/wkshare.py wsh_retire - the last forward copy, the start check, then the old person rows and core_id go, one way)
         run_steps(c, objhooks.START, clk, "onto the shared core")  # 2.1356.0 (#6824): the same runner as the one-shots (core/oncesteps.py)
-        run_phase(c, clk, "core_start")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
         clk("before_users")
         for (uid,) in c.execute("SELECT id FROM users ORDER BY id").fetchall():
             ensure_inbox(c, uid)
@@ -1195,7 +1220,6 @@ def init_db(guard=True):
                 uset(c, uid, "features", ",".join(fs))
                 uset(c, uid, "features_rev", "12")
         clk("users")
-        run_phase(c, clk, "users")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
         if not gsetting(c, "cal_secret"):  # calendar subscriptions: key material for the stored links / passwords
             gset(c, "cal_secret", secrets.token_hex(32))
         if not gsetting(c, "auth_secret"):  # sign-in: key material for the TOTP secrets and the backup passphrase
@@ -1207,11 +1231,9 @@ def init_db(guard=True):
                                            .private_value.to_bytes(32, "big")))
             print("Web Push: generated the VAPID key", flush=True)
         _vapid_load(gsetting(c, "vapid_private"))
-        run_phase(c, clk, "secrets")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
         # 1.8.1: the global "Show completed" switch is gone (per view only, default shown): drop the stored values
         c.execute("DELETE FROM user_settings WHERE key='show_completed'")
         c.execute("DELETE FROM settings WHERE key='show_completed'")
-        run_phase(c, clk, "show_completed")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
         # 2.18.0 (#430): the milestones of the project overview (list_milestones, 2.7.1) become milestone tasks. Runs whenever
         # rows exist (no flag): a restored backup from before 2.18.0 brings them back and is migrated again
         ix_ensure(c, "CREATE INDEX IF NOT EXISTS tasks_msid ON tasks(milestone_id) WHERE milestone_id IS NOT NULL")
@@ -1226,14 +1248,13 @@ def init_db(guard=True):
         clk("folder_agents_sync")
         if n:
             print("folders: took over", n, "folder agent(s)", flush=True)
-        run_phase(c, clk, "folder_agents_sync")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
         # 2.97.0 B (#1951): clients with only a free address get street / postcode / city split from it (idempotent)
         from ..team.clients import cdn_backfill
         n = cdn_backfill(c)
         clk("cdn_backfill")
         if n:
             print("clients: address fields filled from the free address for", n, "client(s)", flush=True)
-        run_phase(c, clk, "cdn_backfill")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py)
+        run_phase(c, clk, "cdn_backfill")  # 2.1356.0 (#6824): the one-shots of this place (core/oncesteps.py); 2.1380.0 (#6826): the only place left
         from .fkeys import fk_ensure
         fk_ensure(c)  # 2.152.0 C (#2174): the missing foreign keys (orphans cleaned first), every start, idempotent
         clk("fk_ensure")

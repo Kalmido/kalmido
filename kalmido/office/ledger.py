@@ -361,6 +361,12 @@ def ofx_range_date(c, oid, r):
         rg = c.execute("SELECT closed_at FROM office_num_ranges WHERE id=? AND org_id=?", (doc_range_id(r), oid)).fetchone()
         if rg is not None and rg["closed_at"]:
             raise DeniedKey(409, N_("This number range is closed"))
+    ofx_date_today(c, oid, r, "range_date")
+
+
+def ofx_date_today(c, oid, r, how):
+    """Document row r gets today as its date; a set due date keeps its term (moves by the same days). The office log notes a
+    changed date with the mark how (range_date: #6698; past_year: #6976). The caller reads the row again."""
     today = local_now().date()
     old = str(r["date"] or "")[:10]
     if old == today.isoformat():
@@ -373,13 +379,28 @@ def ofx_range_date(c, oid, r):
         except ValueError:
             new_due = None
     c.execute("UPDATE office_docs SET date=?, due_date=? WHERE id=? AND org_id=?", (today.isoformat(), new_due, r["id"], oid))
-    ofx_log(c, oid, "update", doc_id=r["id"], detail={"before": {"date": old}, "after": {"date": today.isoformat()}, "range_date": 1})
+    ofx_log(c, oid, "update", doc_id=r["id"], detail={"before": {"date": old}, "after": {"date": today.isoformat()}, how: 1})
 
 
-def ofx_finalize(c, oid, uid, did, manual=None, reason=""):
+def ofx_past_year(r):
+    """2.1380.0 (#6976): an invoice / correction draft of the main number range without a number whose date lies in an earlier
+    year than today (the turn of the year: finalised as it is, it counts in the old year's numbers). The finalise dialog offers
+    to date it today (ofx_finalize to_today); a range's document is dated today anyway (ofx_range_date), a trial has its own
+    numbers."""
+    if r["kind"] not in ("invoice", "credit") or r["number"] or r["trial"] or doc_range_id(r) or not r["date"]:
+        return False
+    try:
+        return date.fromisoformat(str(r["date"])[:10]).year < local_now().date().year
+    except ValueError:
+        return False
+
+
+def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False):
     """Finalises document did of organisation oid (see the module text). 409 when it already is.
     2.1289.0 (#6481 N3, S3): manual = a hand-set number of an invoice / correction, checked and given in the same transaction
-    (docs._assign_number, reason = why it skips numbers); the caller checked the right (the office admin's)."""
+    (docs._assign_number, reason = why it skips numbers); the caller checked the right (the office admin's).
+    2.1380.0 (#6976): to_today = a draft dated in an earlier year (ofx_past_year) is dated today first (due date moves along);
+    other documents ignore it."""
     from .docs import _assign_number, _j, doc_items, doc_row, doc_totals
     from .invoices import inv_before_finalize, inv_after_finalize
     write_lock(c, f"office_doc_{int(did)}")  # 2.39.0 (#1209 audit M1): two parallel finalise calls -> the second gets 409, no lost number
@@ -388,6 +409,9 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason=""):
     s = office_settings(c, oid)
     if r["kind"] in ("invoice", "credit") and not r["number"] and doc_range_id(r):
         ofx_range_date(c, oid, r)  # 2.1365.0 (#6698): Kalmido sets the date of a range's document (the day of finalising)
+        r = doc_row(c, oid, did)
+    elif to_today and ofx_past_year(r):
+        ofx_date_today(c, oid, r, "past_year")  # 2.1380.0 (#6976): the finalise dialog's "Set the date to today"
         r = doc_row(c, oid, did)
     pack = office_pack_for(s, calc_tax_day(dict(r))) or {}  # 2.531.0 (#4498): the rates of its day of service (frozen below)
     if r["kind"] != "offer":  # 2.38.0 (#1021, F1): the required fields of an invoice (400 with the list), due date
@@ -597,7 +621,8 @@ def ofx_finalize_post(did):
         ofx_need_editable(r)  # already finalised: its own 409 first, as without a version
         ofd_need_current(c, oid, r, b, office_role(c, uid, oid) == "admin")
     manual, reason = odoc_finalize_number(c, oid, did)  # 2.1289.0 (#6481 N3, S3): {number?, reason?} of the finalise dialog
-    r = ofx_finalize(c, oid, uid, did, manual, reason)
+    # 2.1380.0 (#6976): {to_today: true} dates a draft of an earlier year today before it gets its number
+    r = ofx_finalize(c, oid, uid, did, manual, reason, to_today=isinstance(b, dict) and b.get("to_today") is True)
     bump(c)
     c.commit()
     return jsonify(doc_public(c, oid, r, office_role(c, uid, oid) == "admin"))

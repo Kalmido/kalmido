@@ -8,20 +8,19 @@
  3 the account export holds private file content, the booking page, polls, forms with entries and holiday allowances
  4 privacy link, contact and imprint on public pages
  5 one export log row per person, list and day
- 6 one way, once: old approval log entries lose e-mail, address and device, sealed ones too; unreadable ones stay
+ 6 2.1380.0 (#6826): gone -- the one-shot of the start that shortened old approval log entries (migr_siglog2360) is retired
 freelancer-matrix: own
 usage: p23602_d_api_test.py <datadir>"""
 import base64
 import io
 import json
 import os
-import subprocess
 import sys
 import zipfile
 
 import requests
 
-from kt import B, CT, DATA, check, dbx, done, fresh, sess, setup, su_get, until
+from kt import B, check, dbx, done, fresh, sess, setup, su_get, until
 from freelancer_fixture import freelancer
 
 KEY = base64.b64encode(os.urandom(32)).decode()
@@ -38,13 +37,6 @@ def user(name, orgs):
                                        "email": f"{name}@example.com"})
     assert r.ok, r.text
     return r.json()["id"]
-
-
-def in_app(code):
-    """Runs code in the app container (the sealing needs the server's key); the output's last line."""
-    r = subprocess.run(["docker", "exec", "-w", "/app", "-e", "TASKS_WATCHDOG=0", CT, "python", "-c", "import app\n" + code], capture_output=True, text=True)
-    assert r.returncode == 0, r.stderr[-800:]
-    return r.stdout.strip().splitlines()[-1]
 
 
 def export_of(s):
@@ -178,43 +170,14 @@ check(A.patch(B + "/api/admin/settings", json={"privacy_email": "not an address"
 check(A.get(B + "/api/about").json().get("privacy_email") == "dpo@example.com", "the admin reads it back")
 check(set(sess().get(B + "/api/auth/info").json()["legal"]) == {"privacy_url", "imprint_url"}, "the login page's data stay as they were")
 
-# ================================================================== 6 + the upgrade of an older database (1)
-PLAIN = {"signoff": 1, "state": "accepted", "name": "Ina", "email": "ina@example.com", "ip": "192.0.2.9", "user_agent": "UA", "reason": "fine", "doc_hash": "abc"}
-sealed = in_app(f"""
-from kalmido.core.db import connect
-from kalmido.core.orgcrypt import oc_enc
-from kalmido.core.pg import system_ctx
-c = connect()
-with system_ctx(c):
-    v = oc_enc(c, {ORG}, "office_doc_log.detail", {json.dumps(json.dumps(PLAIN))})
-    c.commit()
-print(v)
-""")
-assert sealed.startswith("kenc1:"), sealed
-log = lambda act, d: dbx("INSERT INTO office_doc_log(org_id,at,action,target,detail) VALUES(?,?,?,'doc',?) RETURNING id", (ORG, T, act, d))[0][0]  # noqa: E731
-L1, L2, L3, L4 = log("signoff_accepted", json.dumps(PLAIN)), log("signoff_declined", sealed), log("signoff_accepted", "kenc1:AAAA"), log("doc_mail", json.dumps({"email": "keep@example.com"}))
-dbx("DELETE FROM settings WHERE key IN ('migr_siglog2360','migr_upg2360') RETURNING key")
+# ================================================================== the upgrade of an older database (1)
+# 2.1380.0 (#6826): 6 (old approval log entries shortened once, migr_siglog2360) is retired (core/oncesteps.py RETIRED);
+# migr_upg2360 stays a step (it shapes the key of a new database too)
+dbx("DELETE FROM settings WHERE key='migr_upg2360' RETURNING key")
 dbx("DELETE FROM time_sheets WHERE user_id IS NULL RETURNING id")
-dbx("ALTER TABLE time_sheets DROP CONSTRAINT IF EXISTS time_sheets_user_id_fkey RETURNING 1".replace(" RETURNING 1", ""))
+dbx("ALTER TABLE time_sheets DROP CONSTRAINT IF EXISTS time_sheets_user_id_fkey")
 dbx("ALTER TABLE time_sheets ALTER COLUMN user_id SET NOT NULL, ADD CONSTRAINT time_sheets_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE")
 fresh({"KALMIDO_ORGCRYPT_DELAY": "0", "KALMIDO_SECRET_KEY": KEY}, keep=True)
-d1 = json.loads(dbx("SELECT detail FROM office_doc_log WHERE id=?", (L1,))[0][0])
-check(not set(d1) & {"email", "ip", "user_agent"} and d1["name"] == "Ina" and d1["reason"] == "fine" and d1["doc_hash"] == "abc", f"plain entry: the three keys gone, the rest stays {d1}")
-raw = dbx("SELECT detail FROM office_doc_log WHERE id=?", (L2,))[0][0]
-check(raw.startswith("kenc1:") and raw != sealed, "a sealed entry is sealed again")
-d2 = json.loads(in_app(f"""
-from kalmido.core.db import connect
-from kalmido.core.orgcrypt import oc_dec
-from kalmido.core.pg import system_ctx
-c = connect()
-with system_ctx(c):
-    print(oc_dec(c, {ORG}, "office_doc_log.detail", {raw!r}))
-"""))
-check(not set(d2) & {"email", "ip", "user_agent"} and d2["name"] == "Ina", f"sealed entry: opened, shortened {d2}")
-check(dbx("SELECT detail FROM office_doc_log WHERE id=?", (L3,))[0][0] == "kenc1:AAAA", "an entry that cannot be opened stays")
-check("keep@example.com" in dbx("SELECT detail FROM office_doc_log WHERE id=?", (L4,))[0][0], "other entries are not touched")
-logs = subprocess.run(["docker", "logs", CT], capture_output=True, text=True)
-check("1 sealed one(s) without a key left" in logs.stdout + logs.stderr, "the start counts the entries it could not open")
 r = dbx("SELECT is_nullable FROM information_schema.columns WHERE table_name='time_sheets' AND column_name='user_id'")
 k = dbx("SELECT confdeltype FROM pg_constraint WHERE conname='time_sheets_user_id_fkey'")
 check(r[0][0] == "YES" and k[0][0] == "n", f"an older database gets the changed key once {r} {k}")
