@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# kalmido-suite: after=launcher_parity nodata
+# kalmido-suite: after=launcher_ps1 nodata
+# 2.1374.0 (#6323): after launcher_ps1 (was launcher_parity) - stays in the soft group p272_api, launcher_parity is hard now
 """2.625.0 part B (#3661, agents #1524): the answer to a permission question travels over the runner's local connection
 (PermChannel), never through a file in the state folder. Without a server: a stub API, the real hook as a subprocess.
  - allow / deny of the person reach the hook over its own connection

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# kalmido-suite: after=launcher_parity nodata
+# kalmido-suite: after=launcher_ps1 nodata
+# 2.1374.0 (#6323): after launcher_ps1 (was launcher_parity) - stays in the soft group p272_api, launcher_parity is hard now
 """2.619.0 part B (#3659: #1521 #1870 #2196 #2383 #2792 #3267 #3467): starter parity, without a server.
  - #2196 jobs tell the weekly limit apart from the 5-hour window: wait until that reset + 10 min (no 5 h cap), an unknown
    weekly reset is never guessed (look again in an hour), a five_hour window at 100 % stays the old window wait
