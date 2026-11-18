@@ -59,16 +59,20 @@ c.close()
     const st0 = await ev(`({vl: VL.on, segs: VL.segs.length, rows: document.querySelectorAll('#view .trow').length})`);
     check(st0.vl && st0.segs >= SECS && st0.rows < 300, `${tag}: the list is windowed per section ` + JSON.stringify(st0));
     // the lookups of one vl_sync after a scroll step, counted on the view (querySelector / querySelectorAll of any element)
-    const look = await ev(`(async () => { const v = document.getElementById('view'), out = [];
-      const qs = Element.prototype.querySelector, qa = Element.prototype.querySelectorAll; let n = 0;
+    const look = await ev(`(async () => { const v = document.getElementById('view'), out = [], rc = [];
+      const qs = Element.prototype.querySelector, qa = Element.prototype.querySelectorAll, gb = Element.prototype.getBoundingClientRect; let n = 0, m = 0;
       Element.prototype.querySelector = function () { n++; return qs.apply(this, arguments); };
       Element.prototype.querySelectorAll = function () { n++; return qa.apply(this, arguments); };
-      try { for (let i = 0; i < 30; i++) { v.scrollTop += v.clientHeight * .4; ${frame}; n = 0; vl_sync(); out.push(n); } }
-      finally { Element.prototype.querySelector = qs; Element.prototype.querySelectorAll = qa; }
-      out.sort((a, b) => a - b); return {p50: out[15], max: out[29]}; })()`);
+      Element.prototype.getBoundingClientRect = function () { m++; return gb.apply(this, arguments); };
+      try { for (let i = 0; i < 30; i++) { v.scrollTop += v.clientHeight * .4; ${frame}; n = 0; m = 0; vl_sync(); out.push(n); rc.push(m); } }
+      finally { Element.prototype.querySelector = qs; Element.prototype.querySelectorAll = qa; Element.prototype.getBoundingClientRect = gb; }
+      out.sort((a, b) => a - b); rc.sort((a, b) => a - b); return {p50: out[15], max: out[29], rects50: rc[15], rectsMax: rc[29]}; })()`);
     perf(`${tag} lookups per vl_sync`, look);
-    // 2.1383.0 (#6935): before the fix 4 lookups per section and pass (about 1,200 with 300 sections), now a few per pass
+    // 2.1383.0 (#6935): before the fix 4 lookups per section and pass (about 1,500 with 300 sections), now a few per pass
     check(look.max < 40, `${tag}: one vl_sync does a handful of view-wide lookups, not some per section ` + JSON.stringify(look));
+    // 2.1383.0 (#6935): the scrolling box's place once per pass, the anchor found by halving: about one rectangle per section
+    // and pass (before: three per section plus every head above the screen)
+    check(look.rectsMax < SECS * 2, `${tag}: one vl_sync reads about one rectangle per section ` + JSON.stringify(look));
     // usable: real wheel input scrolls the list
     await ev(`(async () => { document.getElementById('view').scrollTop = 0; ${frame}; return 1; })()`);
     const c = await ev(`(() => { const b = document.getElementById('view').getBoundingClientRect(); return {x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2)}; })()`);
