@@ -21,6 +21,9 @@ name, display name or e-mail address; agents are unknown here):
   POST   /api/operator/accounts/find         {email} -> {account} (the address from a support request: never answered, never logged)
   GET    /api/operator/accounts/<id>         {account: id, disabled, is_admin, created, last_active (days), orgs, projects, storage}
   PUT    /api/operator/accounts/<id>         {disabled?, storage_quota_mb?} -- locking ends the sessions; never the admin right
+                                             2.1369.0 (#6699): {issuer_keys: {area: "private" | <organisation id>, on: bool}} unlocks /
+                                             locks the invoice issuers of the account's own office or of an organisation it is an
+                                             admin of (GET names them as issuer_keys: {private, orgs: [{id, on}]}); locking pauses them
   DELETE /api/operator/accounts/<id>?confirm=<id>   deletes like DELETE /api/users/<id>; 409 with a code and a number for own
                                                     projects, records kept by law (no waiver here) or a server admin
 
@@ -38,6 +41,8 @@ from ..core.db import body, bump, db, gsetting, iso, now_utc
 from ..core.i18n import tr, trn
 from ..accounts.session import _rate_blocked, _rate_fail, client_ip, rate_ip
 from ..accounts.login import login_log_ip  # 2.239.0 B (#2888)
+from ..office.issuers import iss_pause_all  # 2.1369.0 (#6699)
+from ..office.model import pb_personal  # 2.1369.0 (#6699)
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.secmail import sec_mail  # 2.485.0 (#3939): earlier in the load order, at module level
 from ..accounts.sessions import ses_end
@@ -241,10 +246,16 @@ def _op_account(c, uid):
     projects = _count(c, "SELECT COUNT(*) FROM lists WHERE owner_id=? AND NOT is_inbox", (uid,))
     own = u["storage_quota_mb"]
     hold = sdl_hold_dict(u)  # 2.1298.0 (#6395): a deletion the account asked for that an admin's lock holds (days, a state)
+    # 2.1369.0 (#6699): the operator's unlock of the invoice issuers: the account's own office and the organisations it is an admin of
+    pb = c.execute("SELECT issuer_keys FROM orgs WHERE personal_of=?", (uid,)).fetchone()
+    iorgs = [{"id": int(r[0]), "on": bool(r[1])} for r in c.execute(
+        "SELECT o.id, o.issuer_keys FROM org_members m JOIN orgs o ON o.id=m.org_id WHERE m.user_id=? AND m.role='admin' AND o.personal_of IS NULL "
+        "AND o.retired_at IS NULL ORDER BY o.id", (uid,)).fetchall()]
     return {"id": int(u["id"]), "disabled": bool(u["disabled"]), "is_admin": bool(u["is_admin"]),
             "created": _op_day(u["created_at"]), "last_active": _op_day(seen), "orgs": orgs, "projects": projects,
             "storage": {"files_bytes": _user_bytes(c, [uid]), "quota_mb": own,
                         "effective_mb": own if own is not None else quota_default_mb(c)},
+            "issuer_keys": {"private": bool(pb and pb[0]), "orgs": iorgs},
             **({"delete_hold": hold} if hold else {})}
 
 
@@ -292,7 +303,7 @@ def operator_account_put(uid):
     b = body()
     if not isinstance(b, dict):
         b = {}
-    extra = set(b) - {"disabled", "storage_quota_mb"}
+    extra = set(b) - {"disabled", "storage_quota_mb", "issuer_keys"}
     if extra or not b:
         return jsonify(error=tr("Invalid value: {0}", ", ".join(sorted(extra)) or "body"), code="invalid"), 400
     if "disabled" in b and not isinstance(b["disabled"], bool):
@@ -300,8 +311,17 @@ def operator_account_put(uid):
     q = b.get("storage_quota_mb")
     if "storage_quota_mb" in b and q is not None and (isinstance(q, bool) or not isinstance(q, int) or not 0 <= q <= 10_000_000):
         return jsonify(error=tr("Invalid value: {0}", "storage_quota_mb"), code="invalid"), 400  # as users.user_update
+    ik = b.get("issuer_keys")
+    if "issuer_keys" in b and (not isinstance(ik, dict) or set(ik) != {"area", "on"} or not isinstance(ik["on"], bool)
+                               or not (ik["area"] == "private" or (isinstance(ik["area"], int) and not isinstance(ik["area"], bool)))):
+        return jsonify(error=tr("Invalid value: {0}", "issuer_keys"), code="invalid"), 400
     c = db()
     locked = False
+    if ik is not None and ik["area"] == "private" and ik["on"]:
+        with system_ctx(c):  # the account (a person, not an agent) gets its own office area to unlock (it commits at once)
+            known = c.execute("SELECT 1 FROM users WHERE id=? AND COALESCE(kind, 'user')<>'agent'", (uid,)).fetchone()
+        if known:
+            pb_personal(c, uid)
     with system_ctx(c):  # the hoster's operating action on one account, without a person
         u = c.execute("SELECT id, kind, is_admin, disabled, signup FROM users WHERE id=?", (uid,)).fetchone()
         if not u or (u["kind"] or "user") == "agent":
@@ -318,12 +338,34 @@ def operator_account_put(uid):
                 locked = not u["disabled"] and not u["signup"]
         if "storage_quota_mb" in b:  # null = the server's default, 0 = unlimited
             c.execute("UPDATE users SET storage_quota_mb=? WHERE id=?", (q, uid))
+        if ik is not None and not _op_issuer_keys(c, uid, ik):
+            c.rollback()
+            return jsonify(error=tr("Invalid value: {0}", "issuer_keys"), code="not_found"), 404
         bump(c)
     c.commit()
     if locked:  # 2.266.0 (#2963): the person hears of the lock, as from the user management
         with system_ctx(c):  # the operator acts without a person, across organisations: numbers and states only
             sec_mail(c, uid, "disabled")
     return jsonify(account=_op_get(c, uid))
+
+
+def _op_issuer_keys(c, uid, ik):
+    """2.1369.0 (#6699): unlocks / locks the invoice issuers of the account's own office (area "private", made on demand) or of
+    an organisation the account is an admin of; locking pauses the issuers there (office/issuers.py). False = no such area."""
+    if ik["area"] == "private":
+        oid = pb_personal(c, uid, create=False)  # made before the caller's block (operator_account_put)
+    else:
+        r = c.execute("SELECT o.id FROM org_members m JOIN orgs o ON o.id=m.org_id WHERE m.user_id=? AND m.org_id=? AND m.role='admin' "
+                      "AND o.personal_of IS NULL AND o.retired_at IS NULL", (uid, ik["area"])).fetchone()
+        oid = r[0] if r else None
+    if not oid:
+        return False
+    was = c.execute("SELECT issuer_keys FROM orgs WHERE id=?", (oid,)).fetchone()[0]
+    c.execute("UPDATE orgs SET issuer_keys=? WHERE id=?", (ik["on"], oid))
+    if was and not ik["on"]:
+        iss_pause_all(c, "operator", oid)
+    print("operator: invoice issuers", "unlocked" if ik["on"] else "locked", "for area", int(oid), flush=True)
+    return True
 
 
 @app.delete("/api/operator/accounts/<int:uid>")

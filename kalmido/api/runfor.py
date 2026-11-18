@@ -254,6 +254,7 @@ RUN_ROUTES = {
     "PATCH /family/rewards/{}": ("noagent", "need_reward kalmido/family/web.py -> need_kid kalmido/family/family.py"),
     "POST /family/rewards/{}/decide": ("noagent", "need_reward kalmido/family/web.py -> need_kid kalmido/family/family.py"),
     "POST /family/rewards/{}/request": ("noagent", "need_reward(parent=False) kalmido/family/web.py -> need_kid kalmido/family/family.py; kid_id == me()"),
+    "GET /issuer": ("noagent", "v1_issuer_get kalmido/office/issuers.py -> _iss_me (g.issuer from iss_authenticate, else 403); an agent's token never"),
     "GET /fetcher": ("noagent", "v1_fetcher_get kalmido/docs/fetcher.py -> _fx_row (g.fetcher from fx_authenticate, else 403); scope docs:uploa"),
     "POST /fetcher/documents": ("noagent", "v1_fetcher_upload kalmido/docs/fetcher.py -> _fx_row (g.fetcher from fx_authenticate, else 403); scope docs:up"),
     "GET /fetcher/recipes": ("noagent", "v1_fetcher_recipes kalmido/docs/fetcher.py -> _fx_row (g.fetcher from fx_authenticate, else 403); scope docs:u"),

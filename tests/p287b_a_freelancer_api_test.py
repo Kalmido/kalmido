@@ -40,6 +40,8 @@ ALLOW = {
     "GET /api/v1/fetcher": "a personal token is no receipt fetcher key",
     # 2.1188.0 (#6152): the same (p21188_b_fetcherrecipes_test.py calls it as the freelancer with a fetcher key)
     "GET /api/v1/fetcher/recipes": "a personal token is no receipt fetcher key",
+    # 2.1369.0 (#6699): only an invoice issuer's own key reaches it (p21369_office_issuer_key_test.py calls it in a personal office)
+    "GET /api/v1/issuer": "a personal token is no invoice issuer key",
 }
 # 2.421.0 A (#2936): route -> (status, why) of a 4xx other than 401 / 403 that is right for the freelancer, too (every other
 # 4xx of the sweep fails like a 403; an exception whose status does not come any more fails as stale)

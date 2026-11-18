@@ -305,6 +305,7 @@ UA8_PRIVATE_AREAS = N_("The account still has things in its private workspace ({
 UA8_OFFICE_SKIP = frozenset((
     "office_settings", "office_company", "office_bank_accounts", "office_numbers", "office_num_ranges", "office_inv_series",  # 2.1365.0 (#6698): + office_num_ranges
     "office_rgroups", "office_rgroup_members",
+    "office_issuers", "office_issuer_keys", "office_issuer_payees", "office_issuer_refs", "office_issuer_ips",  # 2.1369.0 (#6699): the invoice issuers (access, no record)
     "office_rights_log", "office_pack_installs", "office_letter_profiles", "office_letter_blocks", "office_cashbooks",
     "office_datev_guids", "office_peppol", "office_pay_props", "office_import_runs", "office_period_locks",
     "office_payonline", "office_pay_links", "office_pay_sessions", "office_pay_events", "office_pay_payouts"))  # 2.469.0 (#3459)
