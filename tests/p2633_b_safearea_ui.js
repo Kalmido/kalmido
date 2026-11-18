@@ -12,7 +12,7 @@
 //   scroll-edge blur over the top of a home-screen app unless the top centre sits in such a fixed / sticky box; the head is
 //   fully opaque (no opacity / filter / backdrop-filter on it or above it) and nothing lies over it
 // - everything above the bar follows the same edge (--tabs-bot): the "+" button, the office import foot (no second safe-area
-//   padding), the list's end (#view: --tabs-bot + 4.5rem) - the last row ends above the "+" button
+//   padding), the list's end (#view: --tabs-bot + 4.5rem; 2.1383.0 #7060: + 5rem = the button's offset + height + 1rem) - the last row ends above the "+" button
 // - the phone drawer's stripe sits below the status bar too; a light design paints the area behind the white clock black
 // - the page canvas (html) has the tab bar colour = theme-color: no grey band below the bar when it bounces
 // - a computer with a mouse: no tab bar, --tabs-bot is the safe area alone (the old calc(--tabs-h + --safe-b))
@@ -107,7 +107,8 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     check(g34.lab > 0 && g34.vh - g34.lab <= 11 + 16, 'the labels sit close to the bottom edge ' + JSON.stringify(g34));
     check(g34.vh - g34.lab >= 16, 'the labels stay clear of the home indicator (its top ~13 px above the edge) ' + JSON.stringify(g34));
     check(g34.tbot !== '' && g34.vh - g34.fab === 67 + 16, 'the "+" button 1rem above the bar (moves down with it) ' + JSON.stringify(g34));
-    check(g34.view === 67 + 72, '#view ends --tabs-bot + 4.5rem above the bottom (was + 6rem plus the full safe area) ' + JSON.stringify(g34));
+    // 2.1383.0 (#7060): + 5rem (button offset 1rem + height 3rem + a clear gap of 1rem), was + 4.5rem
+    check(g34.view === 67 + 80, '#view ends --tabs-bot + 5rem above the bottom (was + 6rem plus the full safe area, then + 4.5rem) ' + JSON.stringify(g34));
     await ev(`(() => { const v = document.querySelector('#view'); v.scrollTop = v.scrollHeight; return 1; })()`);
     check(await ready(ev, `(() => { const v = document.querySelector('#view'); return v.scrollTop + v.clientHeight >= v.scrollHeight - 1; })()`, 20), 'scrolled to the end of the list');
     const end = await ev(`(() => { const r = [...document.querySelectorAll('#view .trow')].pop().getBoundingClientRect(), f = document.querySelector('#fab').getBoundingClientRect(), t = document.querySelector('#tabs').getBoundingClientRect(); return {row: Math.round(r.bottom), fab: Math.round(f.top), tabs: Math.round(t.top)}; })()`);
@@ -121,7 +122,7 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     await ev(safe(0, 0));
     check(await ready(ev, `parseFloat(getComputedStyle(document.querySelector('#tabs')).paddingBottom) === 0`, 20), 'no safe area: the bar takes it');
     const g0 = await ev(GEO);
-    check(g0.pb === 0 && g0.h === 56 && g0.view === 56 + 72, 'no safe area: no room below the bar, as before ' + JSON.stringify(g0));
+    check(g0.pb === 0 && g0.h === 56 && g0.view === 56 + 80 /* 2.1383.0 (#7060): + 5rem */, 'no safe area: no room below the bar, as before ' + JSON.stringify(g0));
     headOk(await ev(HEAD('#top')), 'list, no safe area (status bar "black")');  // 2.809.0 (#5437)
     // ---- the canvas below the bar: the tab bar colour = theme-color
     const col = await ev(`(() => { const c = document.createElement('canvas').getContext('2d'); c.fillStyle = document.querySelector('meta[name="theme-color"]').content; const m = c.fillStyle;
