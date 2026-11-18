@@ -337,7 +337,7 @@ the shell history is worthless afterwards. The script keeps the token in the ins
 *Remove computer* (or `--uninstall` on the computer) revokes exactly that one. This convenience setup runs the agent as
 your own account. 2.1367.0 (#6457): the launcher no longer passes the token to the agent command: the model's process gets
 only the env file's path (`KALMIDO_ENV_FILE`), the MCP server and the usage hook read the token there, every run's settings
-deny reading the env files in `~/.kalmido` and reading or editing the env file (the event runner starts without the token too and reads it from the file), and the setup writes the deny rules (`WebFetch`, `WebSearch`,
+deny reading the env files in `~/.kalmido` and reading or editing the env file (the event runner starts without the token too and reads it from the file; since #7051 no child process of the launcher carries it - `export -n` in the `.sh`, a script variable in the `.ps1` - and a job's own process reads it from the file as well), and the setup writes the deny rules (`WebFetch`, `WebSearch`,
 the env file) into the project's `.claude/settings.local.json` and offers an address rule for the computer's key. The file
 is still readable for programs of your own account (the guard hook only compares names; Codex gets neither the deny
 rules nor the guard hook), so for an agent that must not reach its token or your files by any

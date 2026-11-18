@@ -109,9 +109,25 @@ with open(os.path.join(MCP, "agent_launcher.sh"), encoding="utf-8") as f:
     lsh = f.read()
 with open(os.path.join(MCP, "agent_launcher.ps1"), encoding="utf-8") as f:
     lps = f.read()
-check("local unset=(-u KALMIDO_TOKEN)\n" in lsh and "[[ $EVENTS == 1 ]] || unset=" not in lsh, "F5: agent_launcher.sh starts every command without the token")
-check("  Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue\n" in lps and "if (-not $Events) { Remove-Item Env:KALMIDO_TOKEN" not in lps,
-      "F5: agent_launcher.ps1 starts every command without the token")
+# #7051 (Fable reader N1): not only the command - no child of the launcher (curl, python, the sleep of the main loop) carries it
+check("\nexport -n KALMIDO_TOKEN\n" in lsh and "[[ $EVENTS == 1 ]] || unset=" not in lsh, "N1: agent_launcher.sh exports the token to no child")
+lps_after = lps.split("Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue\n", 1)
+check(len(lps_after) == 2 and "$script:Token = $env:KALMIDO_TOKEN\n" in lps_after[0] and "$env:KALMIDO_TOKEN" not in lps_after[1]
+      and lps_after[1].count("Bearer $($script:Token)") == 2, "N1: agent_launcher.ps1 keeps the token in a script variable, not in $env")
+if os.name != "nt":  # a fake curl records its environment: the launcher hands the token over on stdin only
+    fb = os.path.join(tmp, "fakebin")
+    os.makedirs(fb)
+    with open(os.path.join(fb, "curl"), "w", encoding="utf-8") as f:
+        f.write('#!/bin/sh\nenv > "$FAKE_ENV"\ncat > "$FAKE_ENV.stdin"\nprintf \'{}\\n200\'\n')
+    os.chmod(os.path.join(fb, "curl"), 0o755)
+    fenv = os.path.join(tmp, "curl.env")
+    p = ar.subprocess.run(["bash", os.path.join(MCP, "agent_launcher.sh"), "-e", envf, "--once", "--", "true"], capture_output=True, text=True,
+                          env={**{k: v for k, v in os.environ.items() if not k.startswith("KALMIDO_")}, "PATH": fb + os.pathsep + os.environ["PATH"],
+                               "FAKE_ENV": fenv, "KALMIDO_PYTHON": sys.executable}, timeout=60)
+    cenv = open(fenv, encoding="utf-8").read() if os.path.exists(fenv) else ""
+    cin = open(fenv + ".stdin", encoding="utf-8").read() if os.path.exists(fenv + ".stdin") else ""
+    check(p.returncode == 0 and "KALMIDO_URL=" in cenv and TOKEN not in cenv and "KALMIDO_TOKEN" not in cenv and TOKEN in cin,
+          f"N1: the launcher's children have no token in their environment, curl gets it on stdin ({p.returncode} {p.stderr[-200:]!r})")
 _keep = os.environ.pop("KALMIDO_TOKEN"), os.environ.pop("KALMIDO_URL")
 os.environ["KALMIDO_ENV_FILE"] = envf
 check(ar.env_file_credentials() == (URL, TOKEN), "F5: the runner reads url and token from KALMIDO_ENV_FILE")
@@ -151,6 +167,31 @@ p = ar.subprocess.run([sys.executable, os.path.join(MCP, "agent_run.py"), "--gua
     capture_output=True, text=True, env=dict(os.environ), timeout=30)
 out = json.loads(p.stdout or "{}").get("hookSpecificOutput") or {}
 check(out.get("permissionDecision") == "deny" and "env file" in out.get("permissionDecisionReason", ""), f"the guard hook denies it: {p.stdout[:200]}")
+# #7051 (Fable reader N1): the job's own process (_run, started by the runner) gets no token either, it reads the file
+spawned = {}
+
+
+class FakePopen:
+    def __init__(self, argv, env=None, **kw):
+        spawned.update(env or {})
+        self.pid = 4711
+
+
+aj.subprocess.Popen, aj.STATE_DIR = FakePopen, os.path.join(tmp, "jstate")
+os.makedirs(aj.job_dir(3))
+os.environ.update(KALMIDO_URL=URL, KALMIDO_TOKEN=TOKEN, KALMIDO_ENV_FILE=envf)
+aj.spawn_run({"id": 3, "cwd": tmp})
+check(spawned.get("KALMIDO_ENV_FILE") == envf and "KALMIDO_TOKEN" not in spawned, "N1: spawn_run starts the job's process without the token")
+# #7051 (Fable reader N2): redact knows the exact value from the env file, also one without the abk_ shape
+plain = "plain7051" + "k" * 12
+envf2 = os.path.join(tmp, "plain.env")
+with open(envf2, "w", encoding="utf-8") as f:
+    f.write(f"KALMIDO_URL={URL}\nKALMIDO_TOKEN={plain}\n")
+_keep = os.environ.pop("KALMIDO_TOKEN"), os.environ.pop("KALMIDO_URL")
+os.environ["KALMIDO_ENV_FILE"] = envf2
+check(plain not in aj.redact(f"out: {plain} end"), "N2: redact blanks the token value read from the env file")
+os.environ["KALMIDO_TOKEN"], os.environ["KALMIDO_URL"] = _keep
+os.environ["KALMIDO_ENV_FILE"] = envf
 src = open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
 check('env.pop("KALMIDO_TOKEN", None)' in src.split("def cmd_run", 1)[1].split("subprocess.Popen", 1)[0], "a job's model process starts without the token")
 sys.exit(done("p6457_token_scope"))

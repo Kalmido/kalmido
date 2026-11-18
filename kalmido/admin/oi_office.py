@@ -33,7 +33,8 @@ from ..office.signoff import sig_purpose, sig_token_new  # 2.369.5 (#2517): pull
 from ..office.letterhead import BP_FILE_RE  # 2.369.5 (#2517): pulled up from functions
 from ..office.eqcare import eqc_sync
 from ..office.periodlock import pl_first_month, pl_label, pl_month  # 2.1316.0 (#6577)
-from ..office.numranges import NR_SUFFIX_RE, nr_scheme_clean  # 2.1365.0 (#6698, Fable F3): an imported range is checked like a new one
+from ..office.model import num_range_schemes  # 2.1390.0 (#7037)
+from ..office.numranges import NR_NAME_MAX, NR_SUFFIX_RE, nr_scheme_clean  # 2.1365.0 (#6698, Fable F3): an imported range is checked like a new one
 from ..core.errors import BadInput
 from .acctimport import UmzBad, tr  # 2.1316.0 (#6577)
 
@@ -257,10 +258,15 @@ def _p_num_range(c, run, src, d, ctx):
         d["credit_suffix"] = "-K"
     try:
         d["scheme"] = nr_scheme_clean(c, ctx.space, d.get("scheme"))
+        nr_scheme_clean(c, ctx.space, num_range_schemes(d)["credit"])  # 2.1390.0 (#7037, Fable F3): the corrections' scheme too
     except BadInput:  # its documents stay in a range of their own (never the main range's chain), but it numbers nothing new
         run.warning(N_("A number range of the archive has a scheme the office does not accept; it was imported closed: {0}"), str(d.get("code") or ""))
-        d["scheme"] = str(d.get("scheme") or "")[:200] or "R-{seq}"
+        # 2.1390.0 (#7037, Fable F1): its corrections still count in it, so never markup characters and at most the 80 characters of
+        # a scheme (office_scheme_clean); opening it again checks the whole scheme (numranges.nr_patch)
+        sch = re.sub(r"[\\/<>\"'&\x00-\x1f]", "", str(d.get("scheme") or "")).strip()[:80]
+        d["scheme"] = sch if "{seq" in sch else "R-{seq}"
         d["closed_at"] = d.get("closed_at") or iso(now_utc())
+    d["name"] = str(d.get("name") or "").strip()[:NR_NAME_MAX]
     base, n = code[:7], 2
     while c.execute("SELECT 1 FROM office_num_ranges WHERE org_id=? AND code=?", (ctx.space, code)).fetchone():
         code, n = f"{base[:8 - len(str(n))]}{n}", n + 1

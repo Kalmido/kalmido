@@ -101,7 +101,8 @@ def log(msg):
 
 def redact(text):
     text = text or ""
-    vals = [os.environ.get("KALMIDO_TOKEN", "")] + [v for k, v in os.environ.items() if re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k)]
+    # #7051 (Fable reader N2): a job started from a run has no KALMIDO_TOKEN in its environment; the value comes from the env file
+    vals = [env_credentials()[1]] + [v for k, v in os.environ.items() if re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k)]
     for v in sorted({v for v in vals if len(v) >= 8}, key=len, reverse=True):
         text = text.replace(v, "[redacted]")
     for pat in SECRET_RES:
@@ -677,6 +678,8 @@ def spawn_run(j, extra=None):
             raise OSError("no request token for the job's person")
         env.pop("KALMIDO_TOKEN", None)
         env["KALMIDO_ENV_FILE"] = f
+    elif env.get("KALMIDO_ENV_FILE"):  # #7051 (Fable reader N1): the job's process reads the token from the file (Api), so the
+        env.pop("KALMIDO_TOKEN", None)  # runner's token stays out of its environment, which the job's model could read
     p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "_run", str(int(j["id"]))] + list(extra or []), env=env, **kw)
     j["runner_pid"] = p.pid
     save(j)
