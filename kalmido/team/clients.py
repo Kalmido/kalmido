@@ -322,7 +322,7 @@ def client_public(c, uid, r, stats=False, month=None, pre=None):
     d.update(archived=bool(r["archived"]), org_name=org[0] if org else "", lists=lids,
              can_delete=bool(u and (u["is_admin"] or r["created_by"] == uid)), label=cdn_label(c, uid, r))
     from ..office.contacts_cl import fk_contacts
-    d["contacts"] = pre["contacts"].get(int(r["id"]), []) if pre is not None else fk_contacts(c, r["id"])  # 2.40.0 (#1380): the contact persons, the default first ("contact" = its name)
+    d["contacts"] = pre["contacts"].get(int(r["id"]), []) if pre is not None else fk_contacts(c, r["id"])  # the contact persons, the default first ("contact" = its name)
     if u and (u["kind"] or "user") == "agent":  # 2.81.0 (#1466): agents get name / role only per contact person, no mail / phone / link
         d["contacts"] = [{k: x[k] for k in ("id", "name", "role", "is_default")} for x in d["contacts"]]
     if u and (u["kind"] or "user") != "agent":  # 2.36.2: billing fields for people only

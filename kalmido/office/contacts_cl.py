@@ -46,8 +46,8 @@ def fk_contacts(c, cid, oid=None):
 
 def _fk_row(r):
     return {"id": r["id"], "name": r["name"], "role": r["role"], "email": r["email"], "phone": r["phone"], "is_default": bool(r["is_default"]),
-            "contact_id": r["contact_id"],  # 2.59.0 (#1735): the linked address book contact (None = not linked)
-            "gets_invoices": bool(r["gets_invoices"]) if "gets_invoices" in r.keys() else False}  # 2.433.0 (#3599)
+            "contact_id": r["contact_id"],  # the linked address book contact (None = not linked)
+            "gets_invoices": bool(r["gets_invoices"]) if "gets_invoices" in r.keys() else False}  # whether invoices go to this person too
 
 
 def fk_contacts_many(c, cids):
