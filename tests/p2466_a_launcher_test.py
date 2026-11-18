@@ -184,7 +184,8 @@ check("team agent" not in who and not any(ch.isdigit() for ch in who) and "take 
 ar.RULES_CACHE_DIR = os.path.join(TMP, "who-cached")
 ar.rules_block(AGENT)
 t = ar.rules_block({})
-check("account id 7" in t and "team agent" not in t, "a failed agent request: the cached owner, never the team text")
+who = t.split("Who gives orders:**")[1].split("\n")[0]  # 2.1386.0 (#6668): the fixed rules name team agents (one request, one person)
+check("account id 7" in who and "team agent" not in who, f"a failed agent request: the cached owner, never the team text {who}")
 ar.RULES_CACHE_DIR = None
 real = ar.RULES_FILE
 ar.RULES_FILE = os.path.join(TMP, "missing.md")
