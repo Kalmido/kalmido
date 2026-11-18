@@ -75,6 +75,28 @@ uh.main([])
 check(got.get("KALMIDO_TOKEN") == TOKEN and got.get("KALMIDO_URL") == URL, "usage hook: the token from KALMIDO_ENV_FILE")
 sys.stdin = sys.__stdin__
 
+# ---- Fable reader F2: a token from the env file goes only to the address in that file
+BAD = "https://elsewhere.example"
+check(km.env_credentials({"KALMIDO_ENV_FILE": envf, "KALMIDO_URL": BAD}) == (URL, TOKEN),
+      "F2: KALMIDO_URL from the environment does not carry the file's token away")
+os.environ["KALMIDO_URL"] = BAD
+seen.clear()
+cerr = io.StringIO()
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    try:
+        rc = cli.main(["list"], out=io.StringIO(), err=io.StringIO())
+    except Exception:  # noqa: BLE001
+        rc = None
+    rc2 = cli.main(["--url", BAD, "list"], out=io.StringIO(), err=cerr)
+check(seen.get("url") == URL and rc2 == 2 and "--url" in cerr.getvalue() and seen.get("url") != BAD,
+      f"F2: kalmido_cli.py sends the file's token only to the file's address, --url refused: {seen.get('url')} {rc2}")
+got.clear()
+sys.stdin = io.StringIO("{}")
+uh.main([])
+check(got.get("KALMIDO_URL") == URL, f"F2: usage hook takes the file's address with the file's token: {got.get('KALMIDO_URL')}")
+sys.stdin = sys.__stdin__
+os.environ.pop("KALMIDO_URL", None)
+
 # ---- the runner: the model's process gets the path, never the token
 os.environ.update(KALMIDO_URL=URL, KALMIDO_TOKEN=TOKEN)
 ar = load("agent_run_6457", "agent_run.py")
