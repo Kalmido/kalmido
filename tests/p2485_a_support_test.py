@@ -246,8 +246,9 @@ GO = r.json()["grant"]["id"]
 r = A.patch(B + f"/api/admin/orgs/{CO}", json={"name": "Client Studio GmbH"})
 check(r.ok and kt.dbx("SELECT name FROM orgs WHERE id=?", (CO,)) == [("Client Studio GmbH",)], "with the grant: the operator renames it " + r.text[:120])
 check(link(uid["cara"]).status_code in (403, 404), "the organisation's grant opens no member's account")
+WS0 = kt.dbx("SELECT work_style FROM agents WHERE user_id=?", (TAG,))
 r = A.patch(B + f"/api/agents/{TAG}/work-style", json=WSB)
-check(r.status_code in CLOSED and kt.dbx("SELECT work_style FROM agents WHERE user_id=?", (TAG,))[0][0] in (None, "", "{}"),
+check(r.status_code in CLOSED and kt.dbx("SELECT work_style FROM agents WHERE user_id=?", (TAG,)) == WS0,
       "#7005: with the organisation's grant: its work style stays unchanged " + r.text[:100])
 r = A.post(B + "/api/users", json={"username": "opsmate", "password": "password123"})
 OPS = r.json()["id"]
