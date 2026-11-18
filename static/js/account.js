@@ -311,8 +311,15 @@ async function lgo_pending() {
 }
 async function logout() {
   if (kd_pinNeed()) return kd_pinAsk(logout);  // 2.49.0 (#1551): a child with the parents' PIN
-  const nq = OUT.q.length + fdList('fdx').length;  // 2.1257.0 (#6286): + own knowledge page texts waiting at their pages
-  if (nq && !await askConfirm(trn('{0} change is not synced yet and will be lost. Sign out anyway?', '{0} changes are not synced yet and will be lost. Sign out anyway?', nq), '', {ok: tr('Sign out'), danger: true})) return;
+  // 2.1397.0 (#6329 D5): as at the account switch (core.js applyState / userSwitchAsk): the queue, the conflict copies (the only
+  // copy of a refused offline change) and every kept input (FD_KINDS) of this account are counted; a yes downloads the copy first
+  outSync();
+  const nq = OUT.q.filter(x => !x.done).length + (S.conflicts || []).length + FD_KINDS.reduce((n, k) => n + fdList(k).length, 0);  // 2.1257.0 (#6286): + own knowledge page texts waiting at their pages
+  if (nq) {
+    if (!await askConfirm(trn('{0} change is not synced yet and will be lost. Sign out anyway?', '{0} changes are not synced yet and will be lost. Sign out anyway?', nq),
+      tr('Signing out deletes them from this device, a copy is downloaded as a text file first.'), {ok: tr('Sign out'), danger: true})) return;
+    try { cfDownload(null, S.me?.id || LS.get('uid', 0)); } catch (e) { console.warn('conflict copies: download failed', e); }
+  }
   await wpDisable().catch(() => {});  // this device stops getting the pushes of the account that logs out
   await e2eForget();  // 2.42.0 (#828): keys remembered on this device go
   let gone = false;

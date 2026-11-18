@@ -19358,6 +19358,8 @@
   "Next slide": "Diapositive suivante",
   "End presentation": "Terminer la présentation",
   "Presentation: {0}": "Présentation : {0}",
+  "Signing out deletes them from this device, a copy is downloaded as a text file first.": "La déconnexion les supprime de cet appareil ; une copie est d’abord téléchargée sous forme de fichier texte.",
+  "Input not saved yet": "Saisie pas encore enregistrée",
   "A support session does not open the original e-mail file: the client does that": "Une session d’assistance n’ouvre pas le fichier d’origine de l’e-mail : c’est le client qui le fait",
   "one of its clients": "l’un de ses clients",
   "{0}: letters, digits and + * . - only": "{0} : uniquement des lettres, des chiffres et + * . -",
