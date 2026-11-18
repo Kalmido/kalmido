@@ -219,8 +219,8 @@ def load_tasks(c, where, args=(), full_snips=False, lean_notes=False):
     ltags = ltags_for(c, ids) if ids else {}
     atts = {}  # the task's own files; files of comments are shown inside their comment (timeline)
     # 2.30.0 (#380): agent = the name of the agent that stored the file ("Created by agent" in the app), else absent
-    for a in c.execute("""SELECT a.id, a.task_id, a.name, a.mime, a.size, a.created_at, u.kind, u.display_name, u.username, a.enc, a.enc_by, a.e2e_gen, a.legacy_aad
-                          FROM attachments a LEFT JOIN users u ON u.id=a.user_id WHERE a.comment_id IS NULL AND a.deleted_at IS NULL
+    for a in c.execute("""SELECT a.id, a.task_id, a.name, a.mime, a.size, a.created_at, u.kind, u.display_name, u.username, a.enc, a.enc_by, a.e2e_gen, a.legacy_aad,
+                                 a.user_id FROM attachments a LEFT JOIN users u ON u.id=a.user_id WHERE a.comment_id IS NULL AND a.deleted_at IS NULL
                           AND a.task_id = ANY(CAST(? AS BIGINT[])) ORDER BY a.id""", (idl,)):
         if a["task_id"] in ids:
             d = {k: a[k] for k in ("id", "name", "mime", "size", "created_at")}
@@ -232,6 +232,8 @@ def load_tasks(c, where, args=(), full_snips=False, lean_notes=False):
                     d["legacy_aad"] = a["legacy_aad"]
             if a["kind"] == "agent":
                 d["agent"] = a["display_name"] or a["username"]
+            if a["user_id"] is not None:  # 2.1391.0 (#6906): who uploaded it (the MCP fences a file name by its own uploader)
+                d["by"] = a["user_id"]
             atts.setdefault(a["task_id"], []).append(d)
     # 2.272.0 E2 (#3038): the files of the task and its comments in the trash (restore in the app), only when there are some
     atrash = {}
