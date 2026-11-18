@@ -73,6 +73,11 @@ set +a
 [[ -n "${KALMIDO_URL:-}" ]] || { log "KALMIDO_URL missing in $ENV_FILE"; exit 2; }
 [[ -n "${KALMIDO_TOKEN:-}" ]] || { log "KALMIDO_TOKEN missing in $ENV_FILE"; exit 2; }
 [[ "${KALMIDO_EVENTS:-0}" == 1 ]] && EVENTS=1
+# kalmido-capability: token_scoped (2.1367.0, #6457): the model's process never gets KALMIDO_TOKEN, only the env file's path
+# (KALMIDO_ENV_FILE); the MCP server, the usage hook, kalmido_cli.py and agent_job.py read the token from the file. Event mode:
+# mcp/agent_run.py takes it out of every run; without --events the command below starts without it.
+KALMIDO_ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd)/$(basename "$ENV_FILE")"
+export KALMIDO_ENV_FILE
 # kalmido-capability: toolsets (2.391.0, #3358: KALMIDO_TOOLSETS from the env file is exported by set -a above and read by mcp/kalmido_mcp.py)
 # kalmido-capability: profile (2.391.0, #3359): the command and its tool may come from the env file: KALMIDO_AGENT_CMD (the
 # command line, shell words, e.g. "codex" or "claude --mcp-config ~/agent/.mcp.json"; a COMMAND after -- wins) and
@@ -187,7 +192,9 @@ start() {  # start the command with the current settings (its own process group,
   log "starting (fresh session, profile $PROFILE): ${args[0]}, model ${MODEL/#-/default}, auto-compact $acs"
   # ${envs[@]+...}: bash 3.2 calls an empty array unbound under set -u
   # 2.157.0 (#1517): KALMIDO_LAUNCHER_PID -- the event runner ends when this launcher was killed hard (no orphan left behind)
-  env -u DISABLE_AUTO_COMPACT -u CLAUDE_AUTOCOMPACT_PCT_OVERRIDE -u KALMIDO_GIT_COAUTHOR KALMIDO_LAUNCHER_PID=$$ ${envs[@]+"${envs[@]}"} "${NEWSESS[@]}" "${args[@]}" &
+  # 2.1367.0 (#6457): without the event runner the command itself is the model: no token in its environment
+  local unset=(); [[ $EVENTS == 1 ]] || unset=(-u KALMIDO_TOKEN)
+  env -u DISABLE_AUTO_COMPACT -u CLAUDE_AUTOCOMPACT_PCT_OVERRIDE -u KALMIDO_GIT_COAUTHOR ${unset[@]+"${unset[@]}"} KALMIDO_LAUNCHER_PID=$$ ${envs[@]+"${envs[@]}"} "${NEWSESS[@]}" "${args[@]}" &
   PID=$!
   STARTED=$(date +%s)
 }

@@ -16,6 +16,7 @@ agent_transcript_path is ignored (never the main transcript twice).
 Configuration (environment, or an env file given as the first argument / with --env FILE, lines KEY=VALUE):
   KALMIDO_URL               base address of the instance, e.g. https://tasks.example.com
   KALMIDO_TOKEN             the agent's API token (abk_...)
+  KALMIDO_ENV_FILE          2.1367.0 (#6457): without KALMIDO_TOKEN and without an env file argument: the env file to read
   KALMIDO_USAGE_STATE_DIR   where the per-session state files go (default ~/.cache/kalmido-usage)
   KALMIDO_USAGE_PRICES      optional cost calculation: JSON {"<model prefix>": [input, output, cache_write, cache_read]}
                            in USD per million tokens, e.g. {"claude-sonnet-4": [3, 15, 3.75, 0.3]}. Without it no cost
@@ -342,6 +343,8 @@ def main(argv=None):
     try:
         env = dict(os.environ)
         path = a.env_opt or a.env_file
+        if not path and not env.get("KALMIDO_TOKEN"):  # 2.1367.0 (#6457): the runner hands the model's process (and so this
+            path = env.get("KALMIDO_ENV_FILE")  # hook) only the env file's path, never the token itself
         if path:
             env.update(load_env(path))
         raw = sys.stdin.read()

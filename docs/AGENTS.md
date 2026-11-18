@@ -257,6 +257,13 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    or edits that line in the env file and restarts the agent; a personal agent asks its owner. The script says who answers, and when the project folder has no
    `CLAUDE.md` (nor `.claude/CLAUDE.md`) it creates one from [`mcp/CLAUDE.template.md`](../mcp/CLAUDE.template.md) (the
    rules between its markers, a short head for your own rules on top); an existing one is never changed,
+   2.1367.0 (#6457): it asks once whether this computer's key should work only from its current internet address
+   (`--ip-rule current|off|ADDRESSES` / `-IpRule ...` answers without asking; Enter or no terminal = no rule). The redeem
+   then sends `allowed_ips` (`"current"` = the address Kalmido sees, IPv6 as its /64, or IPs / networks); Kalmido sets the
+   key's address rule (`api_tokens.allowed_ips`, the same rule as for every token) when it is within the agent's own one
+   and answers `allowed_ips` / `allowed_ips_applied`; a wrong address is `400` before the code is used. For Claude Code it
+   writes the deny rules of the hardened profile into the project folder's `.claude/settings.local.json` (`WebFetch`,
+   `WebSearch`, `Read` of `~/.kalmido` and of the env file, `Edit` of the env file; entries already there stay, nothing twice),
 4. starts the agent in event mode (`agent_launcher.sh` / `.ps1 --events -- claude --mcp-config <instance>/mcp.json`)
    at every login: a **launchd LaunchAgent** on macOS (RunAtLoad, KeepAlive), a **systemd --user** service on Linux
    (`loginctl enable-linger` keeps it running after logout), a hidden **Task Scheduler** task at logon on Windows (no admin
@@ -265,6 +272,10 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    LaunchAgent takes over at the next login. 2.306.0 (#2927): the launcher (`agent_run.py`) hands every Claude Code run
    the usage hook [`mcp/claude_usage_hook.py`](../mcp/claude_usage_hook.py) as `Stop` and `SubagentStop` hook in its own
    run settings, so *Usage* and the usage limits work without a step of yours (`KALMIDO_USAGE_HOOK=0` switches it off).
+   2.1367.0 (#6457): the token never reaches the model's process: the launcher exports only `KALMIDO_ENV_FILE` (the env
+   file's path; `mcp.json` names it too), `agent_run.py` takes `KALMIDO_TOKEN` out of every run and job, and the MCP server,
+   the usage hook, `kalmido_cli.py` and `agent_job.py` read the token from the file. Every run's settings deny `Read` of
+   `~/.kalmido` and `Read` / `Edit` of the env file, and the guard hook refuses a Bash line that names the env file.
 
 One instance per project folder (`~/.kalmido/agents/<folder>-<hash>/`, Windows `%LOCALAPPDATA%\Kalmido\agents\...`), so
 several agents can run on one computer. Every computer gets its own token: the dialog lists the agent's computers with a

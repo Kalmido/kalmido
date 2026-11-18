@@ -86,6 +86,20 @@ check(r.ok, "a second computer for the same agent " + r.text[:100])
 TOK_W = r.json()["token"]
 check(requests.get(V + "/agent", headers=tokh(TOK)).ok, "the first computer keeps working")
 
+# ---- 2.1367.0 (#6457): the setup offers an address rule for the computer's key (api_tokens.allowed_ips)
+c6 = Bo.post(B + f"/api/my/agents/{AID}/setup-code", json={"os": "linux", "folder": "/srv/ip"}).json()["code"]
+r = redeem(c6, host="ip-box", allowed_ips=["not an address"])
+check(r.status_code == 400, "#6457: a wrong address = 400 " + r.text[:200])
+r = redeem(c6, host="ip-box", allowed_ips="current")
+check(r.ok and r.json().get("allowed_ips_applied") is True and len(r.json().get("allowed_ips") or []) == 1,
+      "#6457: a wrong address did not use the code; current = the address the setup comes from " + r.text[-200:])
+check(requests.get(V + "/agent", headers=tokh(r.json()["token"])).ok, "#6457: the key works from that address")
+c7 = Bo.post(B + f"/api/my/agents/{AID}/setup-code", json={"os": "linux", "folder": "/srv/ip2"}).json()["code"]
+r = redeem(c7, host="ip-box-2", allowed_ips=["198.51.100.0/24"])
+check(r.ok and r.json().get("allowed_ips") == ["198.51.100.0/24"] and r.json().get("allowed_ips_applied") is True, "#6457: a network as the rule " + r.text[-200:])
+check(not requests.get(V + "/agent", headers=tokh(r.json()["token"])).ok, "#6457: the key does not work from another address")
+check(requests.get(V + "/agent", headers=tokh(TOK)).ok, "#6457: the other computers' keys keep no rule")
+
 ms = Bo.get(B + f"/api/my/agents/{AID}/machines").json()["machines"]
 mac = next((m for m in ms if m["host"] == "studio-mac"), None)
 win = next((m for m in ms if m["host"] == "office-pc"), None)

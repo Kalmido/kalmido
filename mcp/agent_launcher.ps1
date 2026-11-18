@@ -80,6 +80,10 @@ foreach ($raw in Get-Content -LiteralPath $EnvFile) {
 if (-not $env:KALMIDO_URL) { Log "KALMIDO_URL missing in $EnvFile"; exit 2 }
 if (-not $env:KALMIDO_TOKEN) { Log "KALMIDO_TOKEN missing in $EnvFile"; exit 2 }
 if ($env:KALMIDO_EVENTS -eq '1') { $Events = $true }
+# kalmido-capability: token_scoped (2.1367.0, #6457): the model's process never gets KALMIDO_TOKEN, only the env file's path
+# (KALMIDO_ENV_FILE); the MCP server, the usage hook, kalmido_cli.py and agent_job.py read the token from the file. Event mode:
+# mcp/agent_run.py takes it out of every run; without --events the command below starts without it.
+$env:KALMIDO_ENV_FILE = (Resolve-Path -LiteralPath $EnvFile).ProviderPath
 # kalmido-capability: toolsets (2.391.0, #3358: KALMIDO_TOOLSETS from the env file is in the process environment above and read by mcp/kalmido_mcp.py)
 # kalmido-capability: profile (2.391.0, #3359): the command and its tool may come from the env file: KALMIDO_AGENT_CMD (the
 # command line, words split at spaces, "..." / '...' keep a word together; a COMMAND after -- wins) and KALMIDO_AGENT_PROFILE
@@ -274,7 +278,10 @@ function Start-Agent($s) {
   }
   $p = @{FilePath = $exe; PassThru = $true; NoNewWindow = $true}
   if ($rest.Count) { $p.ArgumentList = ($rest | ForEach-Object { Quote $_ }) -join ' ' }
-  $script:Proc = Start-Process @p
+  # 2.1367.0 (#6457): without the event runner the command itself is the model: no token in its environment
+  $tok = $env:KALMIDO_TOKEN
+  if (-not $Events) { Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue }
+  try { $script:Proc = Start-Process @p } finally { $env:KALMIDO_TOKEN = $tok }
   $script:Started = Get-Date
 }
 function Signal-Agent([string]$sig, [int]$id) {  # Unix: its process group, else the program (the program, not the alias)

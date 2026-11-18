@@ -6,6 +6,7 @@ script or a terminal, the way you would use gh. Python 3 standard library only; 
 Configuration (environment, the same as the MCP server):
   KALMIDO_URL     base address of the instance, e.g. https://tasks.example.com
   KALMIDO_TOKEN   an API token (abk_...): Settings > Access; scopes read, tasks:write (add, done), comments (comment)
+  KALMIDO_ENV_FILE  2.1367.0 (#6457): inside an agent's run the token is not in the environment; it is read from this file
 
 Commands (a task is its id 42 or its ticket key APP-12):
   kalmido_cli.py list [--project ID] [--status open|done|wont_do|all] [--assignee me|none|ID] [--search TEXT] [--limit N]
@@ -25,7 +26,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kalmido_mcp import ApiError, Kalmido  # noqa: E402 -- the module only defines things on import
+from kalmido_mcp import ApiError, Kalmido, env_credentials  # noqa: E402 -- the module only defines things on import
 
 KEY_RX = re.compile(r"[A-Za-z][A-Za-z0-9]{1,5}-\d{1,9}")
 PAGE = 100
@@ -223,7 +224,8 @@ def main(argv=None, out=None, err=None):
     if getattr(a, "limit", 1) < 1:
         print("kalmido: --limit must be at least 1", file=err)
         return 2
-    url, token = a.url or os.environ.get("KALMIDO_URL", ""), os.environ.get("KALMIDO_TOKEN", "")
+    url, token = env_credentials()  # 2.1367.0 (#6457): the environment, else the env file KALMIDO_ENV_FILE
+    url = a.url or url
     if not url or not token:
         print("kalmido: KALMIDO_URL and KALMIDO_TOKEN must be set (an API token: Settings > Access)", file=err)
         return 2

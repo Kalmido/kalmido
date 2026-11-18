@@ -44,6 +44,8 @@ that arrive together: one run), the same way a hosted chat service does it:
 
 usage: agent_run.py [--state DIR] [--once-event FILE] [--dry-run] -- COMMAND [ARGS...]   |   agent_run.py --perm-hook | --guard-hook
   KALMIDO_URL, KALMIDO_TOKEN    from the environment (the launcher loads the env file)
+  KALMIDO_ENV_FILE              2.1367.0 (#6457): the env file's path (set by the launchers); a run's model process gets
+                                this path, never KALMIDO_TOKEN (the MCP server and the usage hook read the token there)
   KALMIDO_PROMPT_FILE           optional text put in front of every event (default: read CLAUDE.md, handle the event)
   KALMIDO_STATE_DIR             event cursor, state.json, queue, lock (default ~/.cache/kalmido-agent; 2.625.0 #3661: no permission files)
   KALMIDO_PERM_RELAY / _TIMEOUT / _USER   permission questions in the chat (default on / 540 s / the agent's owner)
@@ -2639,7 +2641,52 @@ def hook_settings(perm_relay=False, usage=True):
     # Kalmido); it reads KALMIDO_URL / KALMIDO_TOKEN from the run's environment. KALMIDO_USAGE_HOOK=0 switches it off.
     if usage:  # 2.619.0 (#3267): the one builder of the usage hook (usage_hook_settings), runs and jobs alike
         s["hooks"].update(usage_hook_settings())
+    deny = secret_deny_rules()  # 2.1367.0 (#6457): the token's file stays closed to the model's own file tools
+    if deny:
+        s["permissions"] = {"deny": deny}
     return s
+
+
+# kalmido-capability: token_scoped (2.1367.0, #6457)
+def rule_path(p):
+    """2.1367.0 (#6457): an absolute path as a Claude Code permission rule path ("//" + the path; Windows C:\\x -> //c/x)."""
+    p = os.path.abspath(os.path.expanduser(p)).replace("\\", "/")
+    if re.match(r"^[A-Za-z]:/", p):
+        p = "/" + p[0].lower() + p[2:]
+    return "/" + p
+
+
+def secret_deny_rules(env=None):
+    """2.1367.0 (#6457): the deny rules every run's settings carry: no Read of ~/.kalmido and of the env file (the token),
+    no Edit of the env file (a changed KALMIDO_URL would send the token elsewhere). The setup writes the same and more
+    (WebFetch, WebSearch) into the project's .claude/settings.local.json, where the person may loosen the web part."""
+    env = os.environ if env is None else env
+    rules = ["Read(~/.kalmido/**)"]
+    f = env.get("KALMIDO_ENV_FILE") or ""
+    if f:
+        rp = rule_path(f)
+        rules += [f"Read({rp})", f"Edit({rp})"]
+    return rules
+
+
+def model_env(env):
+    """2.1367.0 (#6457): the environment of the model's process (a run, a job): without KALMIDO_TOKEN. The MCP server, the
+    usage hook, kalmido_cli.py and agent_job.py read it from the env file KALMIDO_ENV_FILE (the launchers set the path)."""
+    env = dict(env)
+    env.pop("KALMIDO_TOKEN", None)
+    return env
+
+
+def guard_secret(cmd, env=None):
+    """2.1367.0 (#6457): a Bash line that names the env file (its path or its name) is refused (part of the guard hook,
+    KALMIDO_BLOCK_DANGEROUS=0 switches both off): the token in it is the agent's key. None = fine."""
+    env = os.environ if env is None else env
+    text = re.sub(r"[\\\"']", "", str(cmd or ""))
+    f = env.get("KALMIDO_ENV_FILE") or ""
+    names = {"kalmido-agent.env", "KALMIDO_ENV_FILE"} | ({os.path.basename(f), f, os.path.abspath(f)} if f else set())
+    if any(n and n in text for n in names):
+        return GUARD_NO + "the command touches the agent's env file (its key). The Kalmido tools (MCP) have the access you need."
+    return None
 
 
 def guard_hook(argv):
@@ -2653,7 +2700,8 @@ def guard_hook(argv):
         d = json.loads(raw or "{}")
         if d.get("tool_name") != "Bash":
             return 0
-        why = guard_reason((d.get("tool_input") or {}).get("command") or "")
+        line = (d.get("tool_input") or {}).get("command") or ""
+        why = guard_secret(line) or guard_reason(line)  # 2.1367.0 (#6457): the env file first
     except Exception as e:  # noqa: BLE001 - fail closed only for what looks dangerous (see above)
         why = (GUARD_NO + f"the check failed ({type(e).__name__}) on a command that names a guarded command.") if guard_suspicious(raw) else None
     if why:
@@ -2950,7 +2998,7 @@ class Runner:
     def child_env(self, uid, tid):
         """2.44.0 (#1442): the environment of one run (the hook finds the runner through it)."""
         ex = getattr(self, "extras", None)  # part B (agent_extras): KALMIDO_OUTBOX, KALMIDO_CHAT_USER, ... as the base
-        env = dict(ex.env() if ex and hasattr(ex, "env") else os.environ)
+        env = model_env(ex.env() if ex and hasattr(ex, "env") else os.environ)  # 2.1367.0 (#6457): never the token
         for k in ("KALMIDO_PERM_DIR", "KALMIDO_PERM_SOCK", "KALMIDO_PERM_KEY", "KALMIDO_PERM_PID"):
             env.pop(k, None)  # 2.625.0 (#3661): never an inherited channel; without the runner's channel the hook denies
         ch = getattr(self, "perm_chan", None)
@@ -4292,6 +4340,8 @@ def main(argv):
     if not os.environ.get("KALMIDO_URL") or not os.environ.get("KALMIDO_TOKEN"):
         log("KALMIDO_URL / KALMIDO_TOKEN missing")
         return 2
+    if not os.environ.get("KALMIDO_ENV_FILE"):  # 2.1367.0 (#6457): the runs get no token, only this path (the launchers set it)
+        log("KALMIDO_ENV_FILE not set: the Kalmido tools of a run cannot reach Kalmido (start the runner through agent_launcher)")
     r = Runner(cmd, state, dry)
     lock = RunLock(os.path.join(r.state_dir, "runner.lock"))
     if not dry and not lock.acquire():  # 2.44.0 (#1448): never two runners on one state folder

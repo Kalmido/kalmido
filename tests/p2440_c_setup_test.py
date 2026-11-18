@@ -127,7 +127,8 @@ class Stub(BaseHTTPRequestHandler):
             ST["redeem"].append((self.headers.get("X-Requested-With"), b))
             if b.get("code") != "ks_good_code":
                 return self._json(400, {"error": "This setup code is invalid, used or expired. Create a new one in Kalmido."})
-            return self._json(200, {"token": TOKEN, "url": "https://ignored.example", "version": "2.44.0",
+            ips = {"allowed_ips": ["203.0.113.7/32"], "allowed_ips_applied": True} if b.get("allowed_ips") == "current" else {}  # 2.1367.0 (#6457)
+            return self._json(200, {**ips, "token": TOKEN, "url": "https://ignored.example", "version": "2.44.0",
                                     "agent": {"id": 9, "name": "Helper", "username": "helper"}, "starter_base": ST["base"] or f"{URL}/mcp/",
                                     **({"starter_sha256": ST["sha"]} if ST["sha"] is not None else {})})
         if self.path == "/api/agent-setup/remove":
@@ -160,7 +161,7 @@ for t in ("bash", "env", "curl", "python3", "sleep", "seq", "date", "hostname", 
         os.symlink(w, os.path.join(nobin, t))
 fake = os.path.join(nobin, "fakeagent")
 with open(fake, "w") as f:
-    f.write("#!/usr/bin/env python3\nimport os, sys, time\nopen(os.environ['FAKE_OUT'], 'w').write('%d %d %s' % (os.getpid(), os.getpgid(0), os.environ.get('KALMIDO_LAUNCHER_PID', '-')))\ntime.sleep(120)\n")
+    f.write("#!/usr/bin/env python3\nimport os, sys, time\nopen(os.environ['FAKE_OUT'], 'w').write('%d %d %s %s %s' % (os.getpid(), os.getpgid(0), os.environ.get('KALMIDO_LAUNCHER_PID', '-'), 'T' if 'KALMIDO_TOKEN' in os.environ else '-', os.environ.get('KALMIDO_ENV_FILE', '-')))\ntime.sleep(120)\n")
 os.chmod(fake, 0o755)
 envf = os.path.join(tmp, "agent.env")
 with open(envf, "w") as f:
@@ -178,10 +179,12 @@ for b in BASHES:
     p = subprocess.Popen([b, LAUNCHER, "-e", envf, "--", "fakeagent"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     until(lambda: os.path.exists(out_f) and os.path.getsize(out_f), 30)  # 2.206.0 B (#2513): generous state waits (CI load)
     pid = pgid = None
-    lpid = "-"
+    lpid = tokf = envp = "-"
     if os.path.exists(out_f) and os.path.getsize(out_f):
-        pid, pgid, lpid = read(out_f).split()
+        pid, pgid, lpid, tokf, envp = read(out_f).split()
         pid, pgid = int(pid), int(pgid)
+    # 2.1367.0 (#6457): without --events the command is the model itself: no token, only the env file's path
+    check(tokf == "-" and envp in (envf, os.path.realpath(envf)), f"{b}: #6457: the command gets KALMIDO_ENV_FILE, never KALMIDO_TOKEN ({tokf}, {envp})")
     check(pid and pid == pgid and pgid != os.getpgid(0), f"{b}: the command runs in its own process group without setsid ({pid}, {pgid})")
     check(lpid == str(p.pid), f"{b}: 2.157.0 (#1517): the command gets KALMIDO_LAUNCHER_PID = the launcher's pid ({lpid} vs {p.pid})")
     until(lambda: ST["status"], 30)
@@ -303,6 +306,26 @@ for b in BASHES:
     mj = json.loads(read(os.path.join(inst, "mcp.json"))) if os.path.isfile(os.path.join(inst, "mcp.json")) else {}
     check(mj.get("mcpServers", {}).get("kalmido", {}).get("args") == [os.path.join(inst, "kalmido_mcp.py")] and TOKEN not in json.dumps(mj), f"{b}: mcp.json without the token")
     check(os.path.isdir(proj), f"{b}: the project folder is created")
+    # 2.1367.0 (#6457): the MCP server finds the env file through mcp.json; the deny rules land in .claude/settings.local.json
+    check(mj.get("mcpServers", {}).get("kalmido", {}).get("env") == {"KALMIDO_ENV_FILE": ef}, f"{b}: #6457: mcp.json names the env file (path only): {mj}")
+    hs = os.path.join(proj, ".claude", "settings.local.json")
+    deny = (json.loads(read(hs)).get("permissions") or {}).get("deny") if os.path.isfile(hs) else None
+    want = ["WebFetch", "WebSearch", "Read(~/.kalmido/**)", f"Read(/{ef})", f"Edit(/{ef})"]
+    check(deny == want, f"{b}: #6457: the setup writes the deny rules: {deny}")
+    with open(hs, "w") as f:
+        json.dump({"permissions": {"allow": ["Bash(ls:*)"], "deny": ["Bash(rm:*)", "WebFetch"]}, "model": "x"}, f)
+    n = len(ST["redeem"])
+    r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_good_code", "--dir", "~/my project", "--cmd", "fakeagent", "--no-autostart", "--ip-rule", "current"],
+                       env=env, capture_output=True, text=True, timeout=120)
+    hj = json.loads(read(hs)) if os.path.isfile(hs) else {}
+    check(r.returncode == 0 and hj.get("model") == "x" and hj.get("permissions", {}).get("allow") == ["Bash(ls:*)"]
+          and hj.get("permissions", {}).get("deny") == ["Bash(rm:*)"] + want, f"{b}: #6457: a second setup keeps the entries there and adds nothing twice: {hj}")
+    check(len(ST["redeem"]) == n + 1 and ST["redeem"][-1][1].get("allowed_ips") == "current" and "203.0.113.7/32" in r.stdout,
+          f"{b}: #6457: --ip-rule current asks Kalmido for the address rule and names it: {ST['redeem'][-1][1].get('allowed_ips')} {r.stdout[-300:]!r}")
+    check("allowed_ips" not in ST["redeem"][-2][1], f"{b}: #6457: no rule without --ip-rule and without a terminal")
+    r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_good_code", "--dir", "~/my project", "--cmd", "fakeagent", "--no-autostart", "--ip-rule", "x;rm"],
+                       env=env, capture_output=True, text=True, timeout=60)
+    check(r.returncode != 0 and len(ST["redeem"]) == n + 1, f"{b}: #6457: a wrong --ip-rule stops before the code goes out")
     # a wrong code: nothing stays behind
     n = len(ST["redeem"])
     r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_bad", "--dir", "~/other", "--cmd", "fakeagent", "--no-autostart"],
