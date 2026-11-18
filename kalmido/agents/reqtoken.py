@@ -48,9 +48,11 @@ def req_slot(operator, main_id):
     return ("op:" if operator else "run:") + str(int(main_id or 0))
 
 
-def req_issue(c, aid, who, work, slot=""):
+def req_issue(c, aid, who, work, slot="", ips=""):
     """A request token of team agent aid for person who (None: the events' own automation) -> (token, expires_at, lids).
-    slot: req_slot. The caller runs it in system_ctx and commits."""
+    slot: req_slot. ips: the address rule of the asking token (review R3 F2: a computer's own, narrower rule of #6457 holds
+    for its request tokens too; empty = the agent's rule, as agent_token_new copies it). The caller runs it in system_ctx
+    and commits."""
     from .admin import agent_token_new  # a later module (it imports this one)
     from .srvteam import srv_run_cut  # a later module
     now = now_utc()
@@ -61,6 +63,8 @@ def req_issue(c, aid, who, work, slot=""):
     tok = agent_token_new(c, aid, name=REQ_TOKEN_NAME)
     exp = iso(now + timedelta(seconds=REQ_TTL_S))
     c.execute("UPDATE api_tokens SET expires_at=?, req_slot=? WHERE token_hash=?", (exp, slot, _token_hash(tok)))
+    if (ips or "").strip():
+        c.execute("UPDATE api_tokens SET allowed_ips=? WHERE token_hash=?", (ips.strip(), _token_hash(tok)))
     return tok, exp, srv_run_cut(c, aid, _token_hash(tok), who, work)
 
 
@@ -130,7 +134,9 @@ def v1_agent_request_token():
                 return v1_err(403, tr("This person gives the agent no orders (any more)"), name="no_order")
         if who and not req_person_ok(c, who):  # F4 (2.1386.0): only an active person's account gives orders
             return v1_err(403, tr("This person gives the agent no orders (any more)"), name="no_order")
-        tok, exp, lids = req_issue(c, aid, who, work, req_slot(b.get("operator") is True, g.token["id"]))
+        mt = g.token
+        tok, exp, lids = req_issue(c, aid, who, work, req_slot(b.get("operator") is True, mt["id"]),
+                                   ips=(mt["allowed_ips"] if "allowed_ips" in mt.keys() else "") or "")
         if not a["per_request"]:  # from the first request token on: its own token is its channel only (review F5: never
             c.execute("UPDATE agents SET per_request=true WHERE user_id=?", (aid,))  # by a refused or malformed ask)
     c.commit()

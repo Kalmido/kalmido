@@ -512,6 +512,19 @@ check(dbx("SELECT COUNT(*) FROM api_tokens WHERE user_id=? AND name='Agent reque
       "(k) F2: one request token row for carl")
 RC = RCB
 
+# ---- review R3 F2: the request token keeps the narrower address rule of the asking computer (#6457)
+# Without the fix agent_token_new copied the agent's rule (none here): a leaked request token worked from any address for 8 h.
+dbx("UPDATE api_tokens SET allowed_ips='0.0.0.0/0,::/0' WHERE user_id=? AND asked_by IS NULL", (XT,))
+r = ask([SC])
+check(r.ok and dbx("SELECT allowed_ips FROM api_tokens WHERE user_id=? AND asked_by=?", (XT, uid["carl"])) == [("0.0.0.0/0,::/0",)],
+      f"(k) R3 F2: the request token carries the asking computer's address rule {r.status_code} "
+      f"{dbx('SELECT allowed_ips FROM api_tokens WHERE user_id=? AND asked_by=?', (XT, uid['carl']))}")
+dbx("UPDATE api_tokens SET allowed_ips='' WHERE user_id=? AND asked_by IS NULL", (XT,))
+r = ask([SC])
+check(r.ok and dbx("SELECT allowed_ips FROM api_tokens WHERE user_id=? AND asked_by=?", (XT, uid["carl"])) == [("",)],
+      "(k) R3 F2: without a rule of its own the agent's rule (none) as before")
+RC = r.json().get("token") or "" if r.ok else ""
+
 # ================================================================ (e) the agent's own token is its channel now
 check(dbx("SELECT per_request FROM agents WHERE user_id=?", (XT,)) == [(True,)], "(e) the agent works per request from the first ask on")
 r = requests.get(V + f"/tasks/{SX}", headers=XH, timeout=30)
