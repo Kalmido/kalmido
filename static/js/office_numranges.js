@@ -238,3 +238,189 @@ async function nrDelete(r) {
   if (!r || !await askConfirm(tr('Remove number range {0}?', r.code), tr('Its drafts go back to the main range.'), {ok: tr('Remove')})) return;
   try { await rawFetch('DELETE', `/api/office/num-ranges/${r.id}`); toast(tr('Removed')); onumLoad(); } catch (x) { ofcErr(x); }
 }
+
+// ---- 2.1381.0 (#6699): invoice issuers -- an outside system (a shop, a booking system, an own script) prepares invoice drafts in
+// one additional range with a key of its own (office/issuers.py); a person checks, finalises and sends them. The block sits below
+// the number ranges on the settings page (office.js calls issHtml); hidden while the server / the operator does not allow issuers
+// here (404). Admins of the organisation change, office admins read. Setting up, a new key, raising a limit, loosening the
+// address rule, a new bank account and resuming after a pause the admin did not make ask for the sign-in confirmation (issSend).
+const ISS = {data: null, loading: false, off: false, sig: '', err: ''};
+const ISS_LIM = [['max_gross', N_('Gross per invoice at most'), 'money'], ['day_docs', N_('Invoices per 24 hours'), 'int'],
+  ['day_gross', N_('Gross per 24 hours'), 'money'], ['day_clients', N_('New clients per 24 hours'), 'int'], ['open_drafts', N_('Drafts waiting at most'), 'int'],
+  ['day_mails', N_('E-mails per 24 hours'), 'int'], ['day_withdraw', N_('Withdrawn drafts per 24 hours'), 'int'], ['review_wait_h', N_('Alarm when a draft waits longer than (hours)'), 'int']];
+const ISS_ACT = {issuer_created: N_('set up'), issuer_changed: N_('settings changed'), issuer_key: N_('new key'), issuer_key_ended: N_('key ended'),
+  issuer_pause: N_('paused'), issuer_resume: N_('resumed'), issuer_revoked: N_('revoked'), issuer_payee: N_('bank account added'),
+  issuer_payee_gone: N_('bank account removed'), issuer_read: N_('read'), issuer_write: N_('wrote'), issuer_refused: N_('refused')};
+
+async function issLoad() {
+  if (ISS.loading) return;
+  ISS.loading = true;
+  try { ISS.data = await rawFetch('GET', '/api/office/issuers'); ISS.err = ''; ISS.off = false; }
+  catch (x) { if (x.status === 404) ISS.off = true; else { ISS.data = {issuers: [], ranges: [], admin: false}; ISS.err = ofcErrHere(x); } }
+  ISS.loading = false;
+  issRedraw();
+}
+function issRedraw() { const b = $('#iss-box'); if (b) b.outerHTML = issHtml(); }
+const issDay = v => v ? fmtDate(String(v).slice(0, 10)) : '';
+
+function issHtml() {
+  if (typeof ofcAdmin !== 'function' || !ofcAdmin()) return '';
+  const sig = String(OFC.info?.org_id ?? '');
+  if (ISS.sig !== sig) { ISS.sig = sig; ISS.data = null; ISS.off = false; }
+  if (ISS.off) return '';
+  if (!ISS.data) { if (!ISS.loading) setTimeout(issLoad, 0); return `<div id="iss-box" class="onum issbox" data-fg-skip></div>`; }
+  const d = ISS.data, adm = !!d.admin;
+  const rows = (d.issuers || []).map(i => {
+    const k = (i.keys || []).filter(x => x.valid).sort((a, b) => String(b.expires_at).localeCompare(String(a.expires_at)))[0];
+    const used = (i.keys || []).map(x => x.last_used_at).filter(Boolean).sort().pop();
+    const state = i.paused ? tr('Paused: {0}', i.paused_why || i.paused_reason) : k ? tr('Active') : tr('No valid key');
+    const info = [i.range?.code ? tr('Range {0}', i.range.code) : '', k ? tr('key {0}… valid until {1}', k.prefix, issDay(k.expires_at)) : '',
+      used ? tr('last used {0}', issDay(used)) : tr('not used yet'), i.allowed_ips?.length ? tr('{0} allowed addresses', i.allowed_ips.length) : tr('any address')].filter(Boolean).join(' · ');
+    const id = String(i.id), btn = (a, icon, label) => `<button type="button" class="btn sm" data-iss="${esc(a)}" data-id="${esc(id)}">${ic(icon, 's')}<span>${esc(label)}</span></button>`;
+    return `<div class="row issrow${i.paused ? ' isspaused' : ''}" data-iss-row="${esc(id)}"><label>${esc(i.name)}</label>
+      <span class="lacts"><span class="${i.paused ? 'err' : 'muted'} ofcpv">${esc(state)}</span></span>
+      <span class="muted ofchint">${esc(info)}</span>
+      <span class="lacts onumacts">${/*html-ok*/ adm ? btn('key', 'plus', tr('New key')) + (i.paused ? btn('resume', 'play', tr('Resume')) : btn('pause', 'pause', tr('Pause')))
+        + btn('edit', 'edit', tr('Edit')) + btn('payees', 'card', tr('Bank accounts')) : ''}${/*html-ok*/ btn('log', 'list', tr('Log'))}${/*html-ok*/ adm ? btn('revoke', 'trash', tr('Revoke')) : ''}</span></div>`;
+  }).join('');
+  const noRange = adm && !(d.ranges || []).length;
+  return `<div id="iss-box" class="onum issbox" data-fg-skip><h4>${tr('Invoice issuers')}</h4>
+    <p class="muted ofchint">${esc(tr('An outside system (a shop, a booking system) prepares invoice drafts in a number range with its own key; you check, finalise and send them here.'))}${d.environment === 'test' ? ' ' + esc(tr('This server gives out test keys.')) : ''}</p>
+    ${/*html-ok*/ ISS.err ? errorState({sub: ISS.err, size: 'row'}) : ''}${/*html-ok*/ rows || `<p class="muted">${esc(tr('No invoice issuer yet.'))}</p>`}
+    ${adm ? `<div class="row onumfoot"><span class="lacts"><button type="button" class="btn sm" data-iss="add" ${noRange ? 'disabled' : ''}>${ic('plus', 's')}<span>${tr('Add invoice issuer')}</span></button></span>
+      ${noRange ? `<span class="muted ofchint">${esc(tr('Add a number range first: an issuer writes into its own range.'))}</span>` : ''}</div>` : ''}</div>`;
+}
+
+// a change that may ask for the sign-in confirmation: the password (pwPrompt) or a fresh sign-in (reauthFresh), then once more
+async function issSend(method, url, b = {}) {
+  try { return await rawFetch(method, url, b); } catch (x) {
+    if (x.data?.reauth_needed) { if (!await reauthFresh(x.data)) { x.cancel = true; throw x; } return await rawFetch(method, url, b); }
+    if (!x.data?.password_needed) throw x;
+    const p = await pwPrompt(tr('Confirm with your password')); if (!p) { x.cancel = true; throw x; }
+    return await rawFetch(method, url, {...b, password: p.password});
+  }
+}
+const issFail = x => { if (!x.cancel) ofcErr(x); };
+const issRow = id => (ISS.data?.issuers || []).find(x => String(x.id) === String(id));
+const issVal = (md, id) => (/** @type {HTMLInputElement|null} */ ($('#' + id, md))?.value || '').trim();
+const issOn = (md, id) => !!(/** @type {HTMLInputElement|null} */ ($('#' + id, md))?.checked);
+const issIps = s => s.split(/[\s,]+/).map(x => x.trim()).filter(Boolean);
+
+// the key is shown this once: a dialog with the key and a copy button
+function issKeyShow(key) {
+  askDialog({title: tr('The new key'), ok: tr('Done'), cancel: tr('Close'), html: `<p>${esc(tr('Copy the key now and store it in the outside system: Kalmido shows it only this once.'))}</p>
+    <p><code class="topic isskey" id="iss-key">${esc(key)}</code></p><button type="button" class="btn sm" data-iss="copy">${ic('copy', 's')}<span>${tr('Copy')}</span></button>`,
+  after: md => { $('[data-iss="copy"]', md)?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(key); toast(tr('Copied')); } catch { toast(tr('Please copy the key by hand')); } }); }});
+}
+
+function issAddDialog() {
+  const d = ISS.data || {}; let md0 = null;
+  const f = (id, label, html, hint) => `<div class="row"><label for="${esc(id)}">${esc(label)}</label>${/*html-ok*/ html}${hint ? `<span class="muted ofchint">${esc(hint)}</span>` : ''}</div>`;
+  const html = f('iss-name', tr('Name'), `<input id="iss-name" maxlength="80" placeholder="${esc(tr('e.g. Shop billing'))}">`)
+    + f('iss-range', tr('Number range'), `<select id="iss-range">${(d.ranges || []).map(r => `<option value="${esc(String(r.id))}">${esc(r.code + (r.name ? ' · ' + r.name : ''))}</option>`).join('')}</select>`, tr('cannot be changed later'))
+    + f('iss-ips', tr('Allowed addresses'), `<input id="iss-ips" autocomplete="off" spellcheck="false" placeholder="203.0.113.10, 198.51.100.0/24">`,
+      d.address_needed ? tr('required for a live key: the addresses of the outside system') : tr('empty = any address; recommended as soon as the outside system has fixed addresses'))
+    + (d.address_needed ? `<label class="chk"><input type="checkbox" id="iss-any"> ${esc(tr('Allow any address (not recommended)'))}</label>` : '')
+    + f('iss-days', tr('Key valid for (days)'), `<input id="iss-days" class="numin" inputmode="numeric" value="${esc(String(d.days_max || 365))}">`, tr('at most {0} days', d.days_max || 365))
+    + `<p class="muted ofchint">${esc(tr('The issuer only prepares drafts; a person finalises and sends them. Limits can be changed after setting it up.'))}</p>`;
+  askDialog({title: tr('Add invoice issuer'), html, ok: tr('Add'), cancel: tr('Cancel'), after: md => { md0 = md; }, submit: async () => {
+    const b = {name: issVal(md0, 'iss-name'), range_id: +issVal(md0, 'iss-range'), valid_days: +issVal(md0, 'iss-days') || undefined};
+    const ips = issVal(md0, 'iss-ips');
+    if (issOn(md0, 'iss-any')) b.any_address = true; else if (ips || d.address_needed) b.allowed_ips = issIps(ips);
+    try { const j = await issSend('POST', '/api/office/issuers', b); OFC.log = null; issLoad(); setTimeout(() => issKeyShow(j.key), 0); return true; }
+    catch (x) { issFail(x); return false; }
+  }});
+}
+
+function issEditDialog(i) {
+  if (!i) return; let md0 = null;
+  const d = ISS.data || {};
+  const f = (id, label, html, hint) => `<div class="row"><label for="${esc(id)}">${esc(label)}</label>${/*html-ok*/ html}${hint ? `<span class="muted ofchint">${esc(hint)}</span>` : ''}</div>`;
+  const lim = ISS_LIM.map(([k, label, kind]) => f('iss-l-' + k, tr(label), `<input id="iss-l-${esc(k)}" class="numin" inputmode="${kind === 'money' ? 'decimal' : 'numeric'}" value="${esc(String(i.limits?.[k] ?? ''))}">`,
+    tr('0 = nothing allowed, at most {0}', String(d.limit_max?.[k] ?? '')))).join('');
+  const html = f('iss-name', tr('Name'), `<input id="iss-name" maxlength="80" value="${esc(i.name)}">`)
+    + f('iss-ips', tr('Allowed addresses'), `<input id="iss-ips" autocomplete="off" spellcheck="false" value="${esc((i.allowed_ips || []).join(', '))}">`, tr('empty = any address'))
+    + (d.address_needed ? `<label class="chk"><input type="checkbox" id="iss-any" ${(i.allowed_ips || []).length ? '' : 'checked'}> ${esc(tr('Allow any address (not recommended)'))}</label>` : '')
+    + `<h4>${esc(tr('Limits'))}</h4>${/*html-ok*/ lim}<p class="muted ofchint">${esc(tr('Raising a limit or loosening the address rule asks for your password.'))}</p>`
+    + ((i.addresses || []).length ? `<h4>${esc(tr('Used from'))}</h4><ul class="issips">${i.addresses.map(a => `<li>${esc(a.ip)} · ${esc(tr('last {0}', issDay(a.last_at)))} · ${esc(tr('{0} calls', a.calls))}</li>`).join('')}</ul>` : '');
+  askDialog({title: tr('Invoice issuer {0}', i.name), html, ok: tr('Save'), cancel: tr('Cancel'), after: md => { md0 = md; }, submit: async () => {
+    const limits = {}; for (const [k] of ISS_LIM) { const v = issVal(md0, 'iss-l-' + k).replace(',', '.'); if (v !== String(i.limits?.[k] ?? '')) limits[k] = v; }
+    const b = {name: issVal(md0, 'iss-name'), limits};
+    const ips = issIps(issVal(md0, 'iss-ips'));
+    if (issOn(md0, 'iss-any')) b.any_address = true; else if (ips.join(',') !== (i.allowed_ips || []).join(',')) b.allowed_ips = ips;
+    try { await issSend('PATCH', `/api/office/issuers/${i.id}`, b); toast(tr('Saved')); OFC.log = null; issLoad(); return true; }
+    catch (x) { issFail(x); return false; }
+  }});
+}
+
+async function issNewKey(i) {
+  if (!i) return;
+  const d = ISS.data || {}; let md0 = null;
+  const html = `<p>${esc(tr('The current key keeps working for the overlap, so the outside system can switch over.'))}</p>
+    <div class="row"><label for="iss-ov">${esc(tr('Overlap (days)'))}</label><input id="iss-ov" class="numin" inputmode="numeric" value="${esc(String(d.overlap_default ?? 7))}"><span class="muted ofchint">${esc(tr('0 to {0} days; 0 = the current key ends now', d.overlap_max ?? 14))}</span></div>`;
+  askDialog({title: tr('New key for {0}', i.name), html, ok: tr('Create key'), cancel: tr('Cancel'), after: md => { md0 = md; }, submit: async () => {
+    try { const j = await issSend('POST', `/api/office/issuers/${i.id}/keys`, {overlap_days: +issVal(md0, 'iss-ov') || 0}); OFC.log = null; issLoad(); setTimeout(() => issKeyShow(j.key), 0); return true; }
+    catch (x) { issFail(x); return false; }
+  }});
+}
+
+async function issLogDialog(i) {
+  if (!i) return;
+  let rows = [];
+  try { rows = (await rawFetch('GET', `/api/office/issuers/${i.id}/log`)).log || []; } catch (x) { issFail(x); return; }
+  const line = r => `<li><span class="muted">${esc(issDay(r.at))} ${esc(String(r.at).slice(11, 16))}</span> · ${esc(r.by === 'issuer' ? tr('Issuer') : r.user_name)} · ${esc(tr(ISS_ACT[r.action] || r.action))}${r.target && r.target !== 'issuer' ? ' · ' + esc(r.target) : ''}</li>`;
+  askDialog({title: tr('Log of {0}', i.name), ok: tr('Close'), cancel: tr('Close'), after: () => {}, html: rows.length ? `<ul class="isslog">${/*html-ok*/ rows.map(line).join('')}</ul>` : `<p class="muted">${esc(tr('No entries yet.'))}</p>`});
+}
+
+async function issPayeesDialog(i) {
+  if (!i) return;
+  let rows = [];
+  try { rows = (await rawFetch('GET', `/api/office/issuers/${i.id}/payees`)).payees || []; } catch (x) { issFail(x); return; }
+  let md0 = null;
+  const list = rows.map(p => `<li>${esc(p.label)} · ${esc(p.holder)} · ${esc(p.iban)}${p.bic ? ' · ' + esc(p.bic) : ''}${p.ref_only ? ' · ' + esc(tr('only with reference')) : ''}
+    <button type="button" class="btn sm" data-iss-pdel="${esc(String(p.id))}">${ic('trash', 's')}<span>${tr('Remove')}</span></button></li>`).join('');
+  const html = `<p class="muted ofchint">${esc(tr('The accounts the issuer may select for a payment notice (by number only; it never reads them).'))}</p>${list ? `<ul class="isspay">${/*html-ok*/ list}</ul>` : ''}
+    <h4>${esc(tr('Add bank account'))}</h4>
+    <div class="row"><label for="iss-p-label">${esc(tr('Name'))}</label><input id="iss-p-label" maxlength="80"></div>
+    <div class="row"><label for="iss-p-holder">${esc(tr('Account holder'))}</label><input id="iss-p-holder" maxlength="70"><span class="muted ofchint">${esc(tr('exactly as the bank has it'))}</span></div>
+    <div class="row"><label for="iss-p-iban">IBAN</label><input id="iss-p-iban" autocomplete="off" spellcheck="false"></div>
+    <div class="row"><label for="iss-p-bic">BIC</label><input id="iss-p-bic" autocomplete="off" spellcheck="false"></div>
+    <label class="chk"><input type="checkbox" id="iss-p-ref"> ${esc(tr('A payment can only be matched by its reference'))}</label>`;
+  askDialog({title: tr('Bank accounts of {0}', i.name), html, ok: tr('Add'), cancel: tr('Close'), after: md => {
+    md0 = md;
+    md.addEventListener('click', async e => {
+      const b = /** @type {any} */ (e.target).closest?.('[data-iss-pdel]'); if (!b) return;
+      try { await rawFetch('DELETE', `/api/office/issuers/${i.id}/payees/${b.dataset.issPdel}`); toast(tr('Removed')); b.closest('li')?.remove(); } catch (x) { issFail(x); }
+    });
+  }, submit: async () => {
+    const b = {label: issVal(md0, 'iss-p-label'), holder: issVal(md0, 'iss-p-holder'), iban: issVal(md0, 'iss-p-iban'), bic: issVal(md0, 'iss-p-bic'), ref_only: issOn(md0, 'iss-p-ref')};
+    try { await issSend('POST', `/api/office/issuers/${i.id}/payees`, b); toast(tr('Saved')); issLoad(); return true; } catch (x) { issFail(x); return false; }
+  }});
+}
+
+async function issAct(a, i) {
+  if (!i) return;
+  try {
+    if (a === 'pause') {
+      if (!await askConfirm(tr('Pause {0}?', i.name), tr('Every call of its keys is refused until you resume it; the outside system can repeat them later.'), {ok: tr('Pause')})) return;
+      await rawFetch('POST', `/api/office/issuers/${i.id}/pause`);
+    } else if (a === 'resume') await issSend('POST', `/api/office/issuers/${i.id}/resume`);
+    else if (a === 'revoke') {
+      if (!await askConfirm(tr('Revoke {0}?', i.name), tr('Its keys stop working at once and permanently; its drafts stay in the office.'), {ok: tr('Revoke'), danger: true})) return;
+      await rawFetch('DELETE', `/api/office/issuers/${i.id}`);
+    }
+    OFC.log = null; toast(tr('Saved')); issLoad();
+  } catch (x) { issFail(x); }
+}
+
+document.addEventListener('click', e => {
+  const b = /** @type {any} */ (e.target).closest?.('#iss-box [data-iss]'); if (!b) return;
+  const a = b.dataset.iss, i = issRow(b.dataset.id);
+  if (a === 'add') issAddDialog();
+  else if (a === 'edit') issEditDialog(i);
+  else if (a === 'key') issNewKey(i);
+  else if (a === 'log') issLogDialog(i);
+  else if (a === 'payees') issPayeesDialog(i);
+  else issAct(a, i);
+});
+if (typeof OA_LOG_TG === 'object') OA_LOG_TG.issuer = N_('Invoice issuers');  // the office log names the target

@@ -38,6 +38,7 @@ from ..docs import store as S
 from ..core.orgcrypt import oc_enc_k  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import Denied  # 2.149.0 G (#2517): pulled up from functions
 from ..calendars.subscriptions import cal_err_text, cal_http_refused, cal_norm_url  # 2.369.5 (#2517): pulled up from functions
+from ..calendars.subscriptions import cal_until  # 2.1381.0 (#6428)
 from ..docs.ingest import docs_ingest  # 2.369.5 (#2517): pulled up from functions
 from ..admin.hosting import QuotaExceeded  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.session import GATE  # 2.369.5 (#2517): pulled up from functions
@@ -46,7 +47,10 @@ from ..docs.fields import df_from_paperless  # 2.369.5 (#2517): pulled up from f
 from ..docs.notes import dn_import  # 2.635.0 (#4807 d)
 from ..accounts.orgs import is_org_admin  # 2.369.5 (#2517): pulled up from functions
 
-PL_TIMEOUT = 20               # s per request
+PL_TIMEOUT = 20               # s per socket operation of a request
+# 2.1381.0 (#6428): the whole request, connect + headers + body (cal_until): an API answer / a document file. A server sending
+# one byte every few seconds no longer holds the import worker (PL_TIMEOUT alone only bounded each single read)
+PL_DEADLINE, PL_FILE_DEADLINE = 60, 300
 PL_API_VERSIONS = (10, 9, 5)  # 2.56.4 (#1859): Accept: application/json; version=N, the first one the server takes. Paperless-ngx
                               # 3.x only allows 9 / 10 (406 on anything else), 2.x up to 9, 1.x up to 5 (custom fields, notes as a list)
 PL_PAGE = 50                  # documents per page of the import
@@ -226,6 +230,21 @@ def pl_get(c, url, token, path, raw=False, limit=PL_JSON_MAX):
 
 
 def _pl_get1(c, url, token, path, ver, raw, limit):
+    """2.1381.0 (#6428): one request under a total limit (cal_until shuts its sockets at the end; a body cut off there reads
+    like its end, so a cut always answers "timeout")."""
+    with cal_until(time.monotonic() + (PL_FILE_DEADLINE if raw else PL_DEADLINE)) as cut:
+        try:
+            res = _pl_get2(c, url, token, path, ver, raw, limit)
+        except PlError:
+            if cut.is_set():
+                raise PlError("timeout") from None
+            raise
+    if cut.is_set():
+        raise PlError("timeout")
+    return res
+
+
+def _pl_get2(c, url, token, path, ver, raw, limit):
     from ..calendars.subscriptions import _cal_opener, CalError
     allow = plh_allow(c, url)
     if allow is None:  # 2.69.0 A (#1846): a stored http:// address on a server that is hosted now

@@ -19,8 +19,9 @@ import urllib.request
 from ..core.config import APP_NAME, APP_VERSION
 from ..core.i18n import N_, tr
 from ..core.db import iso, now_utc
+from ..core.errors import BadInput  # 2.1381.0 (#6428)
 from ..lists.lists import LIST_NAME_MAX
-from ..calendars.subscriptions import _cal_opener, CalError
+from ..calendars.subscriptions import _cal_opener, CalError, cal_until  # 2.1381.0 (#6428): + cal_until
 from .importers import (
     imp_addnote, imp_anydate, imp_csv, imp_decode, imp_done, imp_fail, imp_iso, imp_line, imp_list, imp_points, imp_prio_any,
     imp_stem, imp_tags, imp_task, imp_textblock, imp_ts, imp_ttype, imp_warn, IMPORT_FETCHERS, IMPORT_MAX_TASKS, IMPORT_PARSERS,
@@ -88,10 +89,31 @@ def lin_refused(codes, status=None):
 
 
 def lin_post(url, allow, key, after, deadline):
-    """One page of issues -> the decoded answer. Every failure is one of our own texts (no answer text, no key)."""
+    """One page of issues -> the decoded answer. Every failure is one of our own texts (no answer text, no key).
+    2.1381.0 (#6428): the page runs under cal_until(deadline) - the end of the whole fetch also bounds the connect and the
+    header phase (LIN_TIMEOUT alone is per socket operation: a server sending a byte every 20 s held the request)."""
+    if deadline - time.monotonic() < 1:
+        lin_slow()
+    with cal_until(deadline) as cut:
+        try:
+            j = _lin_post1(url, allow, key, after, deadline)
+        except BadInput:
+            if cut.is_set():
+                lin_slow()
+            raise
+    if cut.is_set():  # a body cut off by the watchdog reads like its end
+        lin_slow()
+    return j
+
+
+def lin_slow():
+    imp_fail(N_("Linear took too long to answer; for a big workspace use Linear's CSV export instead"))
+
+
+def _lin_post1(url, allow, key, after, deadline):
     left = deadline - time.monotonic()
     if left < 1:
-        imp_fail(N_("Linear took too long to answer; for a big workspace use Linear's CSV export instead"))
+        lin_slow()
     req = urllib.request.Request(url, data=json.dumps({"query": LIN_QUERY, "variables": {"after": after}}).encode(), method="POST",
                                  headers={"Content-Type": "application/json", "Accept": "application/json", "Authorization": key,
                                           "User-Agent": f"{APP_NAME}/{APP_VERSION} (Linear import)"})

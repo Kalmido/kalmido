@@ -132,11 +132,16 @@ async function wsIconPick(md, oid, how, after) {
 }
 // 2.633.0 (#4920): the chosen / dropped picture of an organisation's symbol: checked, cropped, uploaded
 async function wsIconFile(md, oid, f, after) {
-  if (f.size > 8 * 1024 * 1024) { toast(tr('The picture is too large (at most {0} MB)', 8)); return; }
-  const bl = await avCropModal(f, {title: tr('Symbol'), png: true, square: true}); if (!bl) return;
-  const fd = new FormData(); fd.append('file', bl, 'icon.png');
-  try { await api('POST', `/api/orgs/${oid}/icon`, fd); await wsIconDone(md, after); } catch { /* api() showed it */ }
+  const bl = await wsIconCrop(f); if (!bl) return;
+  try { await wsIconPut(oid, bl); await wsIconDone(md, after); } catch { /* api() showed it */ }
 }
+// 2.1381.0 (#6886): checked + cropped (null = too large / cancelled) and the upload itself, also used by the dialog
+// "New / Edit organisation" (acctset.js orgModal), which keeps the picture until Save (a new organisation has no id before)
+async function wsIconCrop(f) {
+  if (f.size > 8 * 1024 * 1024) { toast(tr('The picture is too large (at most {0} MB)', 8)); return null; }
+  return await avCropModal(f, {title: tr('Symbol'), png: true, square: true}) || null;
+}
+const wsIconPut = (oid, bl) => { const fd = new FormData(); fd.append('file', bl, 'icon.png'); return api('POST', `/api/orgs/${oid}/icon`, fd); };
 // ---- 2.23.0 (#711): registration on the login page (admins): the mode and the e-mail domains
 const SIGNUP_UI = [['off', N_('Off: only admins add people')], ['domain', N_('Only addresses of certain e-mail domains')], ['approval', N_('Anyone, after an admin approves')], ['open', N_('Anyone with a confirmed e-mail address')]];
 function signupAdminHtml(a) {

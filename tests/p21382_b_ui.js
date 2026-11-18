@@ -22,7 +22,6 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
 const change = (w, el) => el && el.dispatchEvent(new w.Event('change', {bubbles: true}));
 const tick = (w, el, on) => { if (!el) return; el.checked = on; change(w, el); };
 const typeIn = (w, el, v) => { if (!el) return; el.value = v; el.dispatchEvent(new w.Event('input', {bubbles: true})); };
-const EMOJI = /\p{Extended_Pictographic}/u;
 
 (async () => {
   await sleep(600);
@@ -86,8 +85,8 @@ const EMOJI = /\p{Extended_Pictographic}/u;
   check(md.querySelector('#og-cnt').textContent === '3 members · 2 admins', '#2407: counter after taking Bob out ' + md.querySelector('#og-cnt').textContent);
   tick(w, mBox(ERIN), true);
   // the head: symbol without emoji placeholder, domain hint under its field
-  const icon = md.querySelector('#og-icon');
-  check(icon && !EMOJI.test(icon.getAttribute('placeholder') || '') && md.querySelector('#og-icprev svg'), '#2407: the symbol field has no emoji placeholder, an app icon preview');
+  // 2.1381.0 (#6886): no symbol field any more: tiles (first letter = automatic, picture, remove); the preview is the letter
+  check(!md.querySelector('#og-icon') && md.querySelector('#og-pic [data-ogsym="auto"]') && /^[A-Z]$/.test(md.querySelector('#og-icprev .ogini')?.textContent || ''), '#2407/#6886: tiles instead of a symbol field, the letter as preview');
   const dom = md.querySelector('#og-dom'), domh = md.querySelector('#og-domh');
   check(dom && domh && dom.parentElement === domh.parentElement && dom.parentElement.classList.contains('ogfld') && dom.nextElementSibling === domh && dom.getAttribute('aria-describedby') === 'og-domh', '#2407: the domain hint sits under the field');
   // Save
@@ -108,14 +107,15 @@ const EMOJI = /\p{Extended_Pictographic}/u;
   // the symbol preview follows the typed symbol; with a picture the picture is shown
   await w.eval(`orgModal({id: ${ORG}}, () => {})`);
   md = await until(() => d.querySelector('.modal.ogmodal'), 40);
-  typeIn(w, md.querySelector('#og-icon'), 'AB');
-  check(/AB/.test(md.querySelector('#og-icprev')?.textContent || ''), '#2407: the preview shows the typed symbol');
+  // 2.1381.0 (#6886): the automatic letter follows the name (no typed symbol any more)
+  typeIn(w, md.querySelector('#og-name'), 'Zeta Works');
+  check(md.querySelector('#og-icprev')?.textContent === 'Z' && md.querySelector('#og-pic [data-ogsym="auto"]')?.textContent === 'Z', '#2407/#6886: the preview follows the name');
   md.querySelector('[data-m="close"]').click(); await sleep(300);
   // "New organisation": no member list
   await w.eval(`orgModal(null, () => {})`);
   md = await until(() => d.querySelector('.modal.ogmodal'), 40);
   check(md && !md.querySelector('#og-list') && !md.querySelector('#og-q') && /first member/.test(md.textContent), '#2407: New organisation has no member list');
-  check(md && !EMOJI.test(md.querySelector('#og-icon')?.getAttribute('placeholder') || ''), '#2407: New organisation: no emoji placeholder either');
+  check(md && !md.querySelector('#og-icon') && md.querySelector('#og-pic [data-ogsym="upload"]'), '#2407/#6886: New organisation: tiles with upload, no symbol field');  // 2.1381.0 (#6886)
   md?.querySelector('[data-m="close"]')?.click();
   w.close();
 

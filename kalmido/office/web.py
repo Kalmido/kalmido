@@ -550,6 +550,8 @@ def pb_move_post():
     acx_drop()
     uset(c, uid, "workspace", f"org:{oid}")
     ofx_log(c, oid, "move", target="settings", detail={"name": name, "clients": len(moved), "letter_links": unlinked})
+    from .issuers import iss_moved  # 2.1381.0 (#6699): the invoice issuers run on in the new organisation (same id); the person hears it
+    iss_moved(c, oid, name)
     bump(c)
     c.commit()
     print("organisation", oid, "made from a personal office by", login_log_who(g.user), flush=True)

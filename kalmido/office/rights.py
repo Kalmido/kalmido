@@ -68,7 +68,8 @@ OFFICE_AREAS = (
     ("texts", N_("Text blocks"), "admin", ("texts",), False, "member"),
     ("agreements", N_("Contracts & insurance"), "admin", ("agreements",), False, "admin"),
     ("settings", N_("Settings"), "admin", ("settings", "logo", "packs", "pack-switch", "number-ranges", "num-ranges", "terms",
-                                           "letterhead", "import", "export", "legacy", "move", "move-space", "agents", "log"),
+                                           "letterhead", "import", "export", "legacy", "move", "move-space", "agents", "log",
+                                           "issuers"),  # 2.1381.0 (#6699): invoice issuer keys (the routes ask for an admin themselves)
      False, "member"),
 )
 AREA_KEYS = tuple(a[0] for a in OFFICE_AREAS)

@@ -348,6 +348,8 @@ an empty value counts as unset. See [SELF-HOSTING.md](SELF-HOSTING.md) for the c
 | `KALMIDO_CHAT_KEEP_DAYS` | `0` | Days agent chat messages are kept (0 = no day limit, only the count limit). |
 | `KALMIDO_HOSTED` | `0` | Switch: a server run as a service for others; integrations may only reach public HTTPS addresses, the instance admin stays out of the customers' organisations and accounts (2.399). |
 | `KALMIDO_IMPRINT_URL` | `(empty)` | Address (http/https) of the operator's imprint (legal notice), linked like the privacy statement. |
+| `KALMIDO_ISSUER_ENV` | `test` | Which invoice issuer keys this server gives out and accepts: test (kis_test_...) or live (kis_live_...); a staging server stays test (2.1381, #6699). |
+| `KALMIDO_ISSUER_KEYS` | `0` | Switch: 1 = office admins may set up invoice issuer keys (an outside system prepares invoice drafts, /api/v1/issuer); off by default (opt-in while the kind of key is new). On a hosted server the operator also unlocks each organisation (2.1381, #6699). |
 | `KALMIDO_LOG_DAYS` | `400` | Days activity and change logs are kept (office logs stay for the legal period). |
 | `KALMIDO_OPERATOR_TOKEN_FILE` | `(empty)` | File with the token of the hosting operator interface (empty = off). |
 | `KALMIDO_ORPHAN_DAYS` | `1` | Days a file without a record must be old before the sweep removes it. |

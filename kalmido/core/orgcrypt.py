@@ -93,6 +93,7 @@ FIELDS = {
     "office_bank_balances": ("amount", "account"),  # 2.124.0 D (#2342): balances of the imported statements
     "office_bank_rules": ("name", "counterpart", "iban", "purpose", "amount_min", "amount_max", "category"),  # 2.299.0 B (#3191): bank rules
     "office_bank_vendors": ("match", "name", "portal"),  # 2.425.0 B (#3451): recurring providers of the bank bookings
+    "office_issuer_payees": ("holder", "iban", "bic"),  # 2.1381.0 (#6699): the accounts an admin allows an invoice issuer
     "office_bank_accounts": ("iban", "bic", "bank_name", "fints_login"),  # 2.470.0 (#3596): the bank accounts of an office; 2.616.0 (#2473): + the FinTS login name
     "office_cc_cards": ("holder_name", "last4", "account"), "office_cc_statements": ("total",),  # 2.444.0 (#3447): credit card statements
     "office_cc_lines": ("merchant", "amount", "orig_amount"),
@@ -156,6 +157,7 @@ PM_CRYPT_CATS = {"office_company": N_("Bank and tax data of the company"), ("off
                  "office_bank_vendors": N_("Bank statements"),  # 2.425.0 B (#3451)
                  "office_payonline": N_("Stored access tokens (online payment)"), "office_pay_links": N_("Stored access tokens (online payment)"),  # 2.469.0 (#3459)
                  "office_bank_accounts": N_("Bank and tax data of the company"),  # 2.470.0 (#3596)
+                 "office_issuer_payees": N_("Bank and tax data of the company"),  # 2.1381.0 (#6699): the accounts of the invoice issuers
                  "office_cc_cards": N_("Credit cards"), "office_cc_statements": N_("Credit cards"), "office_cc_lines": N_("Credit cards"),  # 2.444.0 (#3447)
                  "office_doc_templates": N_("Document templates and documents"), "office_gen_docs": N_("Document templates and documents"),  # 2.93.0 A (#1927)
                  "office_vehicles": N_("Logbook"), "office_drives": N_("Logbook"), "office_drive_log": N_("Logbook"),  # 2.93.0 B (#1928)

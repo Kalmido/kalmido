@@ -39,7 +39,7 @@ from ..core.access import Denied, list_role, need_task, WRITE_ROLES
 from ..core.serializers import load_tasks
 from ..accounts.session import me
 from ..accounts.colors import ACCOUNT_COLORS
-from ..calendars.subscriptions import _CalHTTPConnection, _CalHTTPSConnection, cal_allow, cal_host_allowed, cal_ip_public, CalError
+from ..calendars.subscriptions import _CalHTTPConnection, _CalHTTPSConnection, _cal_connector, cal_allow, cal_host_allowed, cal_ip_public, CalError
 from ..core.orgcrypt import oc_dec_k, oc_enc_k, OrgCryptError  # 2.149.0 G (#2517): pulled up from functions
 from ..api.common import hit_limit, v1_call, V1Error  # 2.149.0 G (#2517): pulled up from functions
 
@@ -230,36 +230,10 @@ def _sem(uid):
 
 
 def _msv_connector(allow):
-    """The SSRF guard of _cal_connector (every address checked, connect to exactly a checked one), but with ONE connect
-    deadline of MSV_CONNECT over at most MSV_ADDRS addresses (review 2: a name with many silent addresses must not hold a
-    slot for addresses x timeout); then the socket waits up to its read timeout."""
-    def create(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None, *a, **k):  # noqa: ARG001
-        host, port = address
-        trusted = cal_host_allowed(allow, host, port)
-        try:
-            infos = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
-        except (socket.gaierror, UnicodeError) as e:
-            raise CalError("network") from e
-        end, fail, tried = time.monotonic() + MSV_CONNECT, None, 0
-        for fam, typ, proto, _, sa in infos:
-            if not trusted and not cal_ip_public(sa[0]):
-                fail = fail or CalError("blocked")
-                continue
-            left = end - time.monotonic()
-            if tried >= MSV_ADDRS or left <= 0:
-                break
-            tried += 1
-            sk = socket.socket(fam, typ, proto)
-            try:
-                sk.settimeout(left)
-                sk.connect(sa)  # exactly the checked address
-                sk.settimeout(None if timeout is socket._GLOBAL_DEFAULT_TIMEOUT else timeout)
-                return sk
-            except OSError as e:
-                sk.close()
-                fail = e
-        raise fail or CalError("network")
-    return create
+    """The SSRF guard of _cal_connector with ONE connect deadline of MSV_CONNECT over at most MSV_ADDRS addresses (review 2: a
+    name with many silent addresses must not hold a slot for addresses x timeout); then the socket waits up to its read
+    timeout. 2.1381.0 (#6428): the same connector now (its connect deadline became the default of every outside call)."""
+    return _cal_connector(allow, MSV_CONNECT, MSV_ADDRS)
 
 
 class _MsvHTTPConnection(_CalHTTPConnection):

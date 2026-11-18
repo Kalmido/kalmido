@@ -227,7 +227,8 @@ SGA_NOT_CONTENT = frozenset((
     "requests", "signoff", "signoffs", "agent", "agents", "ask-agent", "hooks-in", "error-hook", "repos", "folder-repo", "envs", "rules",
     "forms", "e2e", "keys", "lock", "scan-keys", "feed", "fetchers", "rights", "settings", "payonline", "peppol", "mail", "mail-notice",
     "mail-profile", "receipt-mail", "mail-addresses", "notify-template", "send", "send-mail", "purge", "anonymize", "pay-online", "move-space",
-    "request-mail"))  # 2.1254.0 (#6294): a project's request address is a mail inbox of the account: it would outlive the grant
+    "request-mail",  # 2.1254.0 (#6294): a project's request address is a mail inbox of the account: it would outlive the grant
+    "issuers"))  # 2.1381.0 (#6699): invoice issuers hand out access to the office (keys, limits, pause, bank accounts)
 SGA_PLAIN = frozenset(("/api/auth/logout", "/api/client-errors", "/api/settings", "/api/me"))  # /api/me: never SGA_GUARD_ME
 SGA_GUARD_ME = {"password", "email", "username", "current_password", "new_password"}
 SGA_GUARD_SCOPE = {"org_id", "org_visibility", "org_edit"}  # review F2: a PATCH that carries contents out of the account's scope

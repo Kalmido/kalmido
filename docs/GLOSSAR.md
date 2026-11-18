@@ -640,6 +640,7 @@ Office & finance: quotations, invoices, bank, books, tax, DATEV, e-invoices, let
 - `kalmido/office/girocode.py` (`gcq`) - The GiroCode (EPC QR code, EPC069-12 version 002)
 - `kalmido/office/homecur.py` (`hc`) - The office's own home currency (ISO 4217)
 - `kalmido/office/invoices.py` (`inv`) - Office & finance, stage 2: invoices, credit notes and reminders (kinds invoice / credit / reminder of office_docs)
+- `kalmido/office/issuers.py` - invoice issuer keys -- an outside system (a shop, a booking system, a freelancer's own script) prepares invoices in one office area with ...
 - `kalmido/office/kpi.py` (`kpi`) - Office & finance: the business figures at a glance
 - `kalmido/office/leads.py` (`lead`) - Leads before the sales pipeline
 - `kalmido/office/ledger.py` (`ofx`) - Office & finance foundation

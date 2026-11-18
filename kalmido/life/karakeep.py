@@ -18,6 +18,7 @@ from ..core.errors import BadInput
 from ..life.model import _dump, life_list, need_life
 from ..calendars.subscriptions import cal_norm_url  # 2.369.5 (#2517): pulled up from functions
 from ..calendars.subscriptions import cal_allow, cal_http_refused  # 2.674.0 (#4382 finding 6)
+from ..calendars.subscriptions import cal_until  # 2.1381.0 (#6428)
 from ..life.model import _insert  # 2.369.5 (#2517): pulled up from functions
 from ..life.bookmarks import bm_create, bm_kick  # 2.369.5 (#2517): pulled up from functions
 
@@ -145,7 +146,23 @@ def kk_delete(c, uid):
 
 
 def kk_req(c, r, path, method="GET", body=None):
-    """One request to the person's Karakeep (the key only goes to that host)."""
+    """One request to the person's Karakeep (the key only goes to that host).
+    2.1381.0 (#6428): under cal_until - the end of the running sync (_KK_END), else KK_TIMEOUT for this one request, bounds
+    the whole request with connect and headers (the socket timeout alone is per read: a server dripping its headers held it)."""
+    end = getattr(_KK_END, "t", None)
+    with cal_until(end if end else time.monotonic() + KK_TIMEOUT) as cut:
+        try:
+            res = _kk_req1(c, r, path, method, body)
+        except KkError:
+            if cut.is_set():
+                raise KkError("network") from None
+            raise
+    if cut.is_set():  # a body cut off by the watchdog reads like its end
+        raise KkError("network")
+    return res
+
+
+def _kk_req1(c, r, path, method, body):
     from ..calendars.subscriptions import _cal_opener, cal_allow, CalError
     try:
         key = unseal(c, _purpose(r["user_id"]), r["token"])
