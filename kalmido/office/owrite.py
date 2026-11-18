@@ -41,8 +41,8 @@ from ..core.db import bump, iso_ms, now_utc
 from ..core.errors import Denied
 from ..core.i18n import tr
 from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
-from ..core.pg import table_columns, ts_canon, write_lock  # 2.1095.0 (#5306): ts_canon
-from ..core.writes import (NEED_VERSION, OBJ_TRACK, _same, _val, obj_hist_name, obj_history_add, obj_is_agent, obj_track,
+from ..core.pg import system_ctx, table_columns, ts_canon, write_lock  # 2.1095.0 (#5306): ts_canon
+from ..core.writes import (NEED_VERSION, OBJ_TRACK, _same, _val, obj_hist_name, obj_hist_never_merge, obj_history_add, obj_is_agent, obj_track,
                            obj_undo_post, obj_undo_pre)
 
 class OwConflict(Conflict):
@@ -111,7 +111,7 @@ def _stored(v):
 
 
 def ow_write(c, uid, kind, rid, b, clean, *, where="id=? AND org_id=?", args=None, oid=None, dec=None, enc=None, public=None,
-             version=True, extra=None, force=False, lock=None, write=None):
+             version=True, extra=None, force=False, lock=None, write=None, via=None):
     """Change row rid of kind (module docstring). b = the request body (expect_updated_at in it); clean(c, b, cur) -> {column:
     clean value} of the fields sent; dec(c, raw) -> the row as dict (decrypted), enc(c, {column: value}) -> as stored;
     public(c, cur) -> the current state of a 409 (under "current");
@@ -119,7 +119,9 @@ def ow_write(c, uid, kind, rid, b, clean, *, where="id=? AND org_id=?", args=Non
     extra(c, cur, changed) runs inside the step (more rows of the object); force = stamp the row even when no own column
     changed (extra changed something); lock = the name of the row's lock when the module's other writes use one already
     (default obj-<kind>-<id>); write(c, cur, {column: new}) = the module's own writer instead of the plain UPDATE (master
-    data: office/model.py office_update seals and checks itself). Returns (row after, changed)."""
+    data: office/model.py office_update seals and checks itself); via = the actor of a write without a person (2.1384.0 #6700:
+    'issuer:<id>', an invoice issuer's key; its history entries never merge, core/writes.py obj_hist_never_merge). Returns (row
+    after, changed)."""
     reg = OBJ_TRACK.get(kind)
     if reg is None:
         raise ValueError(f"ow_write: kind {kind!r} not tracked (ow_kind)")
@@ -165,19 +167,19 @@ def ow_write(c, uid, kind, rid, b, clean, *, where="id=? AND org_id=?", args=Non
             nw = dict(c.execute(f"SELECT * FROM {t} WHERE id=?", (rid,)).fetchone())
             upd = {k: nw.get(k) for k in changed}
         obj_history_add(c, uid, kind, rid, {k: _stored(rw.get(k)) for k in changed}, {k: _stored(upd.get(k)) for k in changed},
-                        org_id=roid or None, agent=agent)
+                        org_id=roid or None, agent=agent, via=via)
     obj_undo_post(c)
     bump(c)
     new = c.execute(f"SELECT * FROM {t} WHERE id=?", (rid,)).fetchone()
     return (dec(c, new) if dec else dict(new)), changed
 
 
-def ow_created(c, uid, kind, rid, row, oid):
+def ow_created(c, uid, kind, rid, row, oid, via=None):
     """2.585.0 (#4795): the "create" entry of a row made outside ow_write (a deal / lead): row = the columns as stored (sealed
-    ones stay sealed, as in ow_write's entries), without the bookkeeping columns and empty values."""
+    ones stay sealed, as in ow_write's entries), without the bookkeeping columns and empty values. via: as ow_write's."""
     skip = ("org_id", "created_by", "created_at", "updated_by", "updated_at", "sort")
     obj_history_add(c, uid, kind, rid, {}, {k: _stored(v) for k, v in row.items() if k not in skip and v not in (None, "", 0)},
-                    action="create", org_id=oid or None)
+                    action="create", org_id=oid or None, via=via)
 
 
 def ow_history(c, kind, rid, oid, limit=50):
@@ -190,8 +192,14 @@ def ow_history(c, kind, rid, oid, limit=50):
         rows = c.execute("SELECT * FROM obj_history WHERE kind=? AND ref_id=? AND (org_id=? OR org_id IS NULL) ORDER BY id DESC LIMIT ?",
                          (kind, int(rid), int(oid), int(limit))).fetchall()
     names = user_names(c, [r["user_id"] for r in rows if r["user_id"]])
+    iss = sorted({int(r["via"][7:]) for r in rows if obj_hist_never_merge(r["via"]) and r["via"][7:].isdigit()})
+    if iss:  # 2.1384.0 (#6700): the entries of an invoice issuer's key name it
+        with system_ctx(c):  # the issuers' names only (the caller checked the rights to read the row)
+            for x in c.execute(f"SELECT id, name FROM office_issuers WHERE id IN ({','.join('?' * len(iss))})", iss).fetchall():
+                names[f"issuer:{x['id']}"] = tr("Invoice issuer {0}", x["name"])
     return [{"id": r["id"], "at": r["updated_at"], "user_id": r["user_id"], "name": obj_hist_name(r, names), "agent": bool(r["agent"]),
              "support": r["via"] == "support",  # 2.1350.0 (#6502)
+             "issuer": obj_hist_never_merge(r["via"]),  # 2.1384.0 (#6700)
              "action": r["action"], "fields": sorted(set(json.loads(r["vals_before"] or "{}")) | set(json.loads(r["vals_after"] or "{}")))}
             for r in rows]
 

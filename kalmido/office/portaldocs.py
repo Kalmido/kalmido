@@ -82,7 +82,9 @@ def kp_bind(c, who):
     g.user, g.auth_via = PUB_ACTOR, "public"
     if not kp_on(c, oid):
         return None, []
-    rows = c.execute(f"SELECT id, email, email_invoice FROM clients WHERE {pb_cl_sql(c, oid)} AND NOT archived AND deleted_at IS NULL").fetchall()
+    # 2.1384.0 (#6700): a client with a hold mark (data an invoice issuer set, office/isshold.py) gives no sign-in until a person checked it
+    rows = c.execute(f"SELECT id, email, email_invoice FROM clients WHERE {pb_cl_sql(c, oid)} AND NOT archived AND deleted_at IS NULL "
+                     "AND issuer_hold IS NULL").fetchall()
     return oid, [r["id"] for r in rows if eh and eh in (pt_email_hash(c, r["email"]), pt_email_hash(c, r["email_invoice"]))]
 
 
@@ -211,6 +213,8 @@ def kp_link_send(cid):
     cl = c.execute(f"SELECT * FROM clients WHERE id=? AND deleted_at IS NULL AND {pb_cl_sql(c, oid)}", (cid,)).fetchone()
     if not cl:
         raise Denied(404)
+    from .isshold import ihd_check
+    ihd_check(c, cid)  # 2.1384.0 (#6700): no sign-in link to an address an invoice issuer set until a person checked it at the client
     b = body()
     b = b if isinstance(b, dict) else {}
     if not public_links_on(c, "portal") or not office_settings(c, oid).get("portal_docs"):

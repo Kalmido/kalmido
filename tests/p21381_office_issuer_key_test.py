@@ -54,7 +54,9 @@ COMPANY = {"name": "Studio Nordlicht", "street": "Hafenstraße 12", "zip": "2045
 IBAN2 = "DE89370400440532013000"
 KEY_RE = re.compile(r"kis_test_[A-Za-z0-9_-]{43}")
 # the office functions an issuer route calls without a person (office/issuers.py ISS_REUSED): each checked below
-REUSED_CHECKED = ("office.ledger.ofx_company", "office.model.office_settings")
+# 2.1384.0 (#6700): the clients' functions are checked with the issuer's context in tests/p6700_office_issuer_clients_test.py
+REUSED_CHECKED = ("office.ledger.ofx_company", "office.model.office_settings", "team.clients.clean_client", "office.owrite.ow_write",
+                  "office.owrite.ow_created")
 
 
 def sql(q, args=(), write=False):

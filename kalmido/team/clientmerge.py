@@ -11,7 +11,7 @@ duplicates) will call clm_merge / clm_undo directly."""
 from flask import jsonify
 
 from ..core.config import app
-from ..core.i18n import tr, trn
+from ..core.i18n import N_, tr, trn
 from ..core.db import body, bump, db, iso, now_utc
 from ..core.pg import system_ctx, table_columns, write_lock
 from ..core.access import Denied, live_sql
@@ -167,6 +167,16 @@ def clm_log(c, scope, action, detail):
         ofx_log(c, oid, action, target="client", detail=detail)
 
 
+CLM_ISSUER_APART = N_("Clients of an invoice issuer can only be merged with clients of the same issuer.")
+
+
+def clm_issuer_check(rows, ids):
+    """2.1384.0 (#6700): 409 unless every client of ids belongs to the same invoice issuer or none does (else the issuer's key
+    would read and change the client of a person's invoices afterwards, or its documents would point to somebody else's)."""
+    if len({(rows[i]["issuer_id"] if "issuer_id" in rows[i].keys() else None) for i in ids}) > 1:
+        raise Denied(409, tr(CLM_ISSUER_APART))
+
+
 def clm_merge(c, uid, target, ids, pick=None, dry=False):
     """Merges the clients ids into target (see the module text). dry: {lines, counts} without a change; else {run_id}."""
     from ..office.contacts_cl import FK_LIMIT, fk_sync
@@ -174,6 +184,7 @@ def clm_merge(c, uid, target, ids, pick=None, dry=False):
     rows = clm_check(c, uid, target, ids)
     others = [i for i in ids if i != target]
     oid = rows[target]["org_id"]
+    clm_issuer_check(rows, ids)  # 2.1384.0 (#6700): also for the overview (dry)
     if isinstance(pick, dict) and not cl_bill_ok(c, uid, oid, "edit"):  # 2.187.1 A (#2735): no choice in the invoicing fields
         pick = {k: v for k, v in pick.items() if k not in CLIENT_BILL_GATED}
     cols = table_columns(c, "clients")
@@ -201,6 +212,9 @@ def clm_merge(c, uid, target, ids, pick=None, dry=False):
     if dry:
         shown = new if cl_bill_ok(c, uid, oid) else {k: v for k, v in new.items() if k not in CLIENT_BILL_GATED}
         return {"lines": clm_lines(counts, t["name"]), "counts": counts, "fields": shown}
+    held = [rows[i]["issuer_hold"] for i in others if "issuer_hold" in cols and rows[i]["issuer_hold"]]
+    if held and not t["issuer_hold"]:  # 2.1384.0 (#6700): a mark of a merged client stays at the target (its data may move along)
+        new["issuer_hold"] = held[-1]
     scope = clm_scope(t)
     write_lock(c, f"client_merge_{scope[0]}_{scope[1]}")
     with system_ctx(c):  # review: a client deleted / merged meanwhile (between the check and the lock)

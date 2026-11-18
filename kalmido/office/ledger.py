@@ -395,8 +395,10 @@ def ofx_past_year(r):
         return False
 
 
-def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False):
+def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_ok=None):
     """Finalises document did of organisation oid (see the module text). 409 when it already is.
+    2.1384.0 (#6700): hold_ok = the dialog's confirmation of its client's hold mark (office/isshold.py ihd_check: the mark's
+    "at"); None = a way without a dialog (a series), refused (409 client_hold) while the mark stands.
     2.1289.0 (#6481 N3, S3): manual = a hand-set number of an invoice / correction, checked and given in the same transaction
     (docs._assign_number, reason = why it skips numbers); the caller checked the right (the office admin's).
     2.1380.0 (#6976): to_today = a draft dated in an earlier year (ofx_past_year) is dated today first (due date moves along);
@@ -406,6 +408,8 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False):
     write_lock(c, f"office_doc_{int(did)}")  # 2.39.0 (#1209 audit M1): two parallel finalise calls -> the second gets 409, no lost number
     r = doc_row(c, oid, did)
     ofx_need_editable(r)
+    from .isshold import ihd_check
+    ihd_check(c, r["client_id"], hold_ok)  # 2.1384.0 (#6700): the recipient's data from an invoice issuer, not checked by a person yet
     s = office_settings(c, oid)
     if r["kind"] in ("invoice", "credit") and not r["number"] and doc_range_id(r):
         ofx_range_date(c, oid, r)  # 2.1365.0 (#6698): Kalmido sets the date of a range's document (the day of finalising)
@@ -613,6 +617,7 @@ def ofx_finalize_post(did):
     2.1317.0 (#6331): {expect_updated_at?} the version of the draft shown (the web client always sends it; absent: as
     before, agents / older clients); another one stored -> 409 {error, doc} with the current state, nothing finalised."""
     from .docs import doc_public, doc_row, odoc_finalize_number, ofd_need_current
+    from .isshold import ihd_ok
     c, uid, oid = _ctx()
     b = body()
     if isinstance(b, dict) and b.get("expect_updated_at"):
@@ -622,7 +627,8 @@ def ofx_finalize_post(did):
         ofd_need_current(c, oid, r, b, office_role(c, uid, oid) == "admin")
     manual, reason = odoc_finalize_number(c, oid, did)  # 2.1289.0 (#6481 N3, S3): {number?, reason?} of the finalise dialog
     # 2.1380.0 (#6976): {to_today: true} dates a draft of an earlier year today before it gets its number
-    r = ofx_finalize(c, oid, uid, did, manual, reason, to_today=isinstance(b, dict) and b.get("to_today") is True)
+    # 2.1384.0 (#6700): {client_hold_ok} the dialog's confirmation of the client's hold mark (number-preview client_hold.at)
+    r = ofx_finalize(c, oid, uid, did, manual, reason, to_today=isinstance(b, dict) and b.get("to_today") is True, hold_ok=ihd_ok(b))
     bump(c)
     c.commit()
     return jsonify(doc_public(c, oid, r, office_role(c, uid, oid) == "admin"))

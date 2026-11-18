@@ -105,11 +105,14 @@ ISS_PAUSE_WHY = {"admin": N_("paused by an admin"), "refused": N_("it paused its
                  "address": N_("it paused itself after calls from addresses outside its rule"),
                  "noadmin": N_("the office has no admin any more"), "restore": N_("a backup was restored"),
                  "operator": N_("the server operator switched the invoice issuers of this office off")}
-# the only routes a key reaches (method, rule); stage 1b: its own view. Clients and drafts follow (#6700, #6701)
+# the only routes a key reaches (method, rule); stage 1b: its own view. 2.1384.0 (#6700): its clients (office/issclients.py
+# adds them); the drafts follow (#6701)
 ISS_ROUTES = {("GET", "/api/v1/issuer")}
 # 2.1381.0 (#6699): every office function an issuer route calls with the issuer's context (no person): each has a test in
-# tests/p21381_office_issuer_key_test.py (the suite holds this list against its own)
-ISS_REUSED = ("office.ledger.ofx_company", "office.model.office_settings")
+# tests/p21381_office_issuer_key_test.py (the suite holds this list against its own); 2.1384.0 (#6700): the clients' ones in
+# tests/p6700_office_issuer_clients_test.py
+ISS_REUSED = ("office.ledger.ofx_company", "office.model.office_settings", "team.clients.clean_client", "office.owrite.ow_write",
+              "office.owrite.ow_created")
 ISS_OFF = N_("Invoice issuers are not available for this office")
 ISS_ADMIN_ONLY = N_("Only an admin of the organisation can manage invoice issuers")
 ISS_SEC_FOOT = N_("Security notices of invoice issuers always come by e-mail as well.")

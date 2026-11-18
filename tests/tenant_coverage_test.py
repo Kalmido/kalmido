@@ -1470,6 +1470,8 @@ ROUTES = {
     "POST /api/office/issuers/{}/keys": "office", "DELETE /api/office/issuers/{}/keys/{}": "office", "POST /api/office/issuers/{}/pause": "office",  # 2.1381.0 (#6699): p21381_office_issuer_key_test.py
     "POST /api/office/issuers/{}/resume": "office", "GET /api/office/issuers/{}/log": "office", "GET /api/office/issuers/{}/payees": "office",  # 2.1381.0 (#6699): p21381_office_issuer_key_test.py
     "POST /api/office/issuers/{}/payees": "office", "DELETE /api/office/issuers/{}/payees/{}": "office", "GET /api/v1/issuer": "office",  # 2.1381.0 (#6699): p21381_office_issuer_key_test.py
+    "GET /api/v1/issuer/clients/by-ref/{}": "office", "PUT /api/v1/issuer/clients/by-ref/{}": "office",  # 2.1384.0 (#6700): p6700_office_issuer_clients_test.py
+    "POST /api/clients/{}/issuer-hold": "client",  # 2.1384.0 (#6700): need_client of the person (p6700_office_issuer_clients_test.py: another organisation 404)
     # 2.144.0 A (#2412): Stop in the agent chat (who may write the agent) and the agent's confirmation (p2144_a_api_test.py)
     "POST /api/agents/{}/abort": "agent", "POST /api/v1/agent/aborted": "agent",
     # 2.236.0 (#2904-#2911): the work style of an agent (owner / instance admin, else 404); C (#2906): its queue (p2236_c_queue_test.py)

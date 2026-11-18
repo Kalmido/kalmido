@@ -1971,8 +1971,37 @@ call from outside the key's address rule), `forbidden` (`403`, a route outside t
 minute, `Retry-After`), `unavailable` (`503`, the counter could not be read, repeat after `Retry-After`), `unauthorized`
 (`401`: unknown, ended or expired key, or a key of the other environment). Calls of other routes and of ids that do not
 exist count towards a pause; `400`, `409`, `410` and `429` never do. A key lives at most 365 days; when the admin makes a new
-one, the old key keeps working for the overlap the admin chose (at most 14 days). Clients and invoice drafts follow (#6700,
-#6701); the contract of these answers changes only with a notice of 90 days.
+one, the old key keeps working for the overlap the admin chose (at most 14 days). Invoice drafts follow (#6701); the contract
+of these answers changes only with a notice of 90 days.
+
+**Clients** (*since 2.1384.0*). The key sets up and changes only its own clients, by the outside system's own id of the client
+(`external_ref`: `[A-Za-z0-9._:-]{1,64}`, anything else `400 invalid_field`). A platform keeps a fixed prefix of its environment
+in it (`prod:account:12`, `test:account:12`) and keeps it for good: several development systems behind one test key would
+otherwise overwrite each other's clients.
+
+- `PUT /api/v1/issuer/clients/by-ref/{external_ref}` `{name, name_extra?, street?, address_extra?, zip?, city?, country?, vat_id?,
+  email_invoice?, buyer_reference?, doc_lang?, expect_updated_at?}` -> `201` set up / `200` changed or unchanged: the client.
+  `name` is the name of the invoice's recipient, also the name of a person. `country` ISO 3166-1 alpha-2; a `vat_id` is optional
+  (also for German buyers; never the buyer's tax number) and its two letters must fit the country (Greece `EL`, Monaco `FR`,
+  Northern Ireland `XI`), else `400 invalid_field` with `field: "vat_id"`. A field outside this list `400 unknown_field`; a key
+  twice in the body `400`; more than 64 KB `413`. The customer number stays empty (a person sets it in the office).
+- A change needs `expect_updated_at` = the client's `updated_at` (`400 version_required` without; the same values again
+  without it answer `200`, so a queue may repeat a set-up). A person changed it in between: `409 conflict` with the current
+  client in `error.current`.
+- Texts with an IBAN, a web address or an e-mail address are refused in every field (`400 invalid_field` + `field`); in `name` /
+  `name_extra` a web or e-mail pattern only adds the flag `text_suspicious` (companies are called "Booking.com B.V.").
+- `GET /api/v1/issuer/clients/by-ref/{external_ref}` -> the client.
+
+The client: `{external_ref, name, name_extra, street, address_extra, zip, city, country, vat_id, email_invoice, buyer_reference,
+doc_lang, updated_at, checked}`, after a PUT also `flags`: `client_new` (set up by this key and not checked yet),
+`client_lookalike` (another client of the office has the same name or VAT ID), `text_suspicious`. `checked: false` = every
+set-up and every change of the address, the name, the VAT ID, the buyer reference or the e-mail for invoices puts a hold mark on
+the client; until a person in the office checks the data, nothing is finalised or sent to it without a person's confirmation,
+and nothing at all automatically (a series with automatic sending leaves its invoice as a draft). Errors: `404` unknown (also
+another issuer's or another office's client with the same id), `409 client_trashed` (in the office's trash), `410 client_gone`
+(anonymised, deleted for good or merged away; for good, the id is never set up again), `429 limit_reached` (`day_clients` new
+clients within 24 hours, `Retry-After`). A client with the same name or VAT ID as one of the office is never taken over or
+merged; merging stays a person's work, and only among the clients of one issuer.
 
 ## Arrangements of views for agents
 

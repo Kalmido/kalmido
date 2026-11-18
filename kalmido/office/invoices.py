@@ -1359,8 +1359,11 @@ def inv_send(c, oid, uid, r, b, later=False, auto=False):
     (2.38.0 review: a DATEV failure never undoes or repeats the customer mail). Its prerequisites are checked before
     anything goes out. 409 without SMTP. 2.269.0 D (#3046): later = only the checks and the day's counters, returns (files,
     datev, mail): the caller commits, then inv_send_mail(c, oid, uid, mail) mails and marks it sent (nothing goes out
-    before the commit; a refused mail marks nothing). 2.439.0 (#3617): auto = no person pressed send (a series): mailsig.ofm_mail."""
+    before the commit; a refused mail marks nothing). 2.439.0 (#3617): auto = no person pressed send (a series): mailsig.ofm_mail.
+    2.1384.0 (#6700): while the client has a hold mark (office/isshold.py) only the dialog's confirmation b["client_hold_ok"]
+    (the mark's "at") lets it go; auto never (409 client_hold) - a send again, a reminder and a correction alike."""
     from ..integrations.mail import MAIL_OUT_ON
+    from .isshold import ihd_check, ihd_ok
     from .mailsig import ofm_mail, ofm_own_text, ofm_reply, ofm_sender
     if not ofm_sender(c, oid, uid, {} if auto else None)["via"]:  # 2.439.0 (#3617): the person's mailbox also sends without the server's SMTP
         raise DeniedKey(409, N_("E-mail sending is not set up on this server yet: whoever runs the server sets it up."))
@@ -1368,6 +1371,7 @@ def inv_send(c, oid, uid, r, b, later=False, auto=False):
         raise DeniedKey(409, N_("Finalise the document first"))
     if _col(r, "trial"):  # 2.542.0 (#4594): a trial document (SAMPLE mark) never goes out by e-mail: manual send, series, reminder
         raise DeniedKey(409, INV_TRIAL_NO_MAIL)
+    ihd_check(c, r["client_id"], None if auto else ihd_ok(b))  # 2.1384.0 (#6700): data from an invoice issuer not checked yet
     to = (b.get("to") or "").strip() if isinstance(b.get("to"), str) else ""
     cc = (b.get("cc") or "").strip() if isinstance(b.get("cc"), str) else ""
     mail_re = EMAIL_RE  # 2.1297.0 (#6548): the one strict check (was its own pattern that let '<a@x.de>' through)
@@ -1414,7 +1418,8 @@ def inv_send(c, oid, uid, r, b, later=False, auto=False):
          "reply_to": ofm_reply(c, oid, mail["profile"], b), "from_name": mail["name"], "kw": mail["kw"],
          "detail": {"to": to, "cc": cc, "files": [f[0] for f in mail_files], **({"own_text": 1} if own else {}),
                     **({"terms": terms} if terms else {})},  # 2.113.2 (#2253)
-         "base": _inv_base(r)}  # 2.269.0 review: the state the checks saw
+         "base": _inv_base(r),  # 2.269.0 review: the state the checks saw
+         "hold_ok": None if auto else ihd_ok(b)}  # 2.1384.0 (#6700): asked again right before the mail (inv_send_mail)
     if later:
         m["budget"] = budget  # 2.370.2 (#3088): committed before the mail, handed back when it is refused
         m["send"] = inv_send_mail  # 2.269.0 D (#3046): for the series (office/recurring.py), no import of its own
@@ -1440,6 +1445,9 @@ def inv_send_mail(c, oid, uid, m, r=None):
             raise Denied(404)
         if "base" in m and _inv_base(r) != m["base"]:
             raise Denied(409, tr("Changed in the meantime"))
+        if "hold_ok" in m:  # 2.1384.0 (#6700): a hold mark an invoice issuer set after the checks stops the mail too
+            from .isshold import ihd_check
+            ihd_check(c, r["client_id"], m["hold_ok"])
     if r["kind"] == "offer" and r["status"] == "draft":  # 2.113.2 (#2253): a mailed quotation is sent (purchase, pipeline as in the app)
         from .docs import odoc_set_status
         odoc_set_status(c, oid, r["id"], "sent", uid, r)
@@ -1873,9 +1881,11 @@ def inv_recipients_get(did):
     invoices / corrections / reminders to the e-mail for invoices with the contact persons for invoices in copy,
     quotations to the default contact person with the e-mail for invoices in copy."""
     from .docs import doc_row
+    from .isshold import ihd_of, ihd_public
     c, uid, oid = _ctx()
     r = doc_row(c, oid, did)
-    return jsonify(fk_send_rcpts(c, r["client_id"], oid, r["kind"]))
+    # 2.1384.0 (#6700): + client_hold, the client's hold mark the send dialog asks to confirm (client_hold_ok = its "at"), else null
+    return jsonify({**fk_send_rcpts(c, r["client_id"], oid, r["kind"]), "client_hold": ihd_public(c, ihd_of(c, r["client_id"]), r["client_id"])})
 
 
 @app.post("/api/office/docs/<int:did>/send")

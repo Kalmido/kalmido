@@ -178,6 +178,8 @@ def _oi_has(c, table, space):
 def _p_client(c, run, src, d, ctx):
     if not run.org:  # a private client: the person's own (model.py pb_cl_sql)
         d["created_by"] = ctx.uid
+    if d.get("issuer_id") or d.get("external_ref"):  # 2.1384.0 (#6700): issuers are not exported: the client is the office's own (its mark stays)
+        d["issuer_id"], d["external_ref"] = None, None
     return d
 
 

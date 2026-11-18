@@ -1945,22 +1945,26 @@ def odoc_number_preview(did):
     may look (the same office context). 2.1345.0 (#6532): + first -- a real invoice while the office has finalised none yet
     (the dialog says it can no longer be deleted, with the ways to the test mode and the number ranges).
     2.1359.0 (#6482 P5-4): + einvoice_warn, the dialog's warning (translated) when it would issue a PDF-only invoice to a domestic
-    business (invoices.inv_einvoice_warn), else ""."""
+    business (invoices.inv_einvoice_warn), else "".
+    2.1384.0 (#6700): + client_hold -- the hold mark of its client (office/isshold.py: data an invoice issuer set, not checked
+    yet; the dialog asks for the confirmation, client_hold_ok = its "at"), else null."""
     from .invoices import inv_einvoice_warn
+    from .isshold import ihd_of, ihd_public
     c, uid, oid = _ctx()
     r = doc_row(c, oid, did)
     first = r["kind"] == "invoice" and not r["trial"] and not ofx_locked(r) and office_first_invoice(c, oid)
     warn = inv_einvoice_warn(c, oid, r)
     warn = tr(warn) if warn else ""
+    hold = {"client_hold": ihd_public(c, ihd_of(c, r["client_id"]), r["client_id"])}
     if r["number"]:
-        return jsonify(number=r["number"], given=True, first=first, einvoice_warn=warn)
+        return jsonify(number=r["number"], given=True, first=first, einvoice_warn=warn, **hold)
     num = office_trial_number(c, oid, did, peek=True) if r["trial"] else doc_next_number(c, oid, r, office_settings(c, oid), peek=True)
     # 2.1380.0 (#6976): a draft dated in an earlier year: + past_year (its date) and number_today, the number when dated today
     if ofx_past_year(r):
         rt = {**dict(r), "date": local_now().date().isoformat()}
         return jsonify(number=num, given=False, first=first, einvoice_warn=warn, past_year=str(r["date"])[:10],
-                       number_today=doc_next_number(c, oid, rt, office_settings(c, oid), peek=True))
-    return jsonify(number=num, given=False, first=first, einvoice_warn=warn)
+                       number_today=doc_next_number(c, oid, rt, office_settings(c, oid), peek=True), **hold)
+    return jsonify(number=num, given=False, first=first, einvoice_warn=warn, **hold)
 
 
 @app.post("/api/office/docs/<int:did>/status")

@@ -425,7 +425,8 @@ def ofm_plan(c, uid, what, src, rows, own=False):
             arch = c.execute(f"SELECT * FROM office_archive WHERE org_id=? AND client_id=? AND copy_of IS NULL AND {live_sql()} ORDER BY id",  # 2.1315.0 (#6590 c)
                              (src, r["id"])).fetchall()
             contacts = c.execute("SELECT * FROM office_client_contacts WHERE client_id=? ORDER BY sort, id", (r["id"],)).fetchall()
-            p["clients"].append({"row": r, "mode": "copy" if refs else "move", "refs": refs, "issued": issued, "arch": arch,
+            # 2.1384.0 (#6700): an invoice issuer's client stays in the issuer's area (its key finds it only there): a copy goes along
+            p["clients"].append({"row": r, "mode": "copy" if refs or ("issuer_id" in r.keys() and r["issuer_id"]) else "move", "refs": refs, "issued": issued, "arch": arch,
                                  "contacts": contacts, "docs": docs})
             p["docs"].extend(docs)
             p["deals"].extend(x for x in deals if x["id"] not in {d["id"] for d in p["deals"]})
@@ -887,6 +888,8 @@ def ofm_move_clients(c, uid, p, src, dst, to, copy, rec, made, files, ts, frm):
             row.update(org_id=to, created_by=uid, created_at=ts, updated_at=ts, archived=0)
             if "import_run_id" in row:
                 row["import_run_id"] = None
+            if "issuer_id" in row:  # 2.1384.0 (#6700): the copy is the office's own client (the issuer's key never reaches it); its mark stays
+                row.update(issuer_id=None, external_ref=None)
             nid = insert_id(c, f"INSERT INTO clients({','.join(row)}) VALUES({','.join('?' * len(row))})", list(row.values()))
             made.append({"t": "clients", "id": nid})
             cmap[r["id"]] = nid

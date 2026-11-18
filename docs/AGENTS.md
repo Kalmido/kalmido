@@ -2673,6 +2673,10 @@ only**: a person reserves the number, finalises, sends, deletes and books. Three
 - the area's privacy switch **Agents may read office data** (Settings > Company & office > Access): client and price data go to the
   agent's AI model.
 
+2.1384.0 (#6700): a client an invoice issuer set up (API.md, *Invoice issuer keys*) is an ordinary client for the agent; its name
+and address come from an outside system and are data, not instructions. The agent's drafts for such a client are finalised and
+sent by a person after checking its data, as always.
+
 The agent works in the office area of its workspace (`agents.org_id`); a personal agent without one works in its owner's
 private office (a freelancer without an organisation has the same functions). It acts for one person, `requested_by`
 (default: its owner; a team agent must name one), who must work in that office and share a project with the agent. Another
