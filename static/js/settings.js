@@ -243,79 +243,125 @@ function settingsSync(keep = null) {
   md._tabDraw?.();
   md._sideDraw?.();
   if (typeof nav_pageDraw === 'function' && !$('#s-navmenus .navdrag', md)) nav_pageDraw($('#s-navmenus', md));  // 2.418.0 (#3560): after an undo / another device
-  som_sync(md);  // 2.583.0 (#4833): the counts under "Further options" and their open state from another device
+  sf_sync(md);  // 2.1353.0 (#6827): the counts in the head rows and their open state from another device
 }
-// 2.583.0 (#4833): each tab shows the everyday settings first; the rarely changed part lies under ONE fold "Further options" at
-// the end of the tab. SET_MORE = what goes there, per tab: a heading (its whole section up to the next heading) or a single
-// control (its row and the hints right under it). Moving a point between "often" and "rare" = one entry here. Open / closed is
-// the person's setting settings_more (all devices); the search and a jump to a folded section open it without saving that.
-// Not folded: Account (sign-in and security), Menus, Modules (folded per group already), Access, the tabs with sub-tabs
-// (Organisation, Agents, Server), Company & office, Documents and Help (texts).
-const SET_MORE = {
-  general: ['#s-fmt-h', '#s-dates-h', '#s-wt-h'],
-  look: ['#s-wacc-h', '#s-lemo-h', '#s-sdd-h', '#s-tips-h', '#s-prbg-h', '#s-fav-h', '#s-sv-h'],
-  notify: ['#s-bl9ac', '#s-tbl-h', '#s-trd-h', '#s-kbd-h'],
-  integr: ['#s-dav-h', '#s-carddav-h', '#s-scan-h', '#s-fetch-h', '.pl-slot', '#s-kk-h', '#s-nwl-h', '#s-bmlet-h', '#s-apb-h', '#s-pep-h'],
-  data: ['#s-pmeta-h', '#s-vext-h', '#s-xlstd-h', '#s-umz-h', '#s-sample-h', '#s-ofdata-h'],
-};
-const SOM = {defs: null};  // the defaults of the settings (GET /api/settings/defaults, loaded once)
-const som_top = (el, p) => { while (el && el.parentElement !== p) el = el.parentElement; return el; };
-const som_head = n => n.matches('h3, h4, details.setmore') || !!n.querySelector('h3, h4');
-function som_block(p, sel) {  // the top-level nodes of one entry of SET_MORE in its tab (none: not drawn for this person)
-  const a = $(sel, p), t = a && som_top(a, p); if (!t) return [];
-  const out = [t];
-  for (let n = t.nextElementSibling; n && !som_head(n) && (t.matches('h4') || n.matches('.shint')); n = n.nextElementSibling) out.push(n);
-  return out;
+// 2.1353.0 (#6827): every section of a settings tab is a folded head row (native details like the integrations' intr_row #4489
+// and the module groups details.modgrp): icon, name and a short state ("Small business · RE-2026-###", "2 changed"). A tab
+// opens with every section closed except at most one (SF_OPEN: the one for a quick change). Open / closed is the person's
+// setting settings_more (all devices): "o:<tab>/<section>" = open against the start, "c:<tab>/<section>" = closed against it;
+// the search, a jump and a hint link open a section on the screen only (SF.tmp, not saved). Replaces the one fold "Further
+// options" of #4833 (SET_MORE); its count "n changed" stands in every head row now. Keyboard: the summary is the button (#6377).
+// sf_wrap folds a drawn pane: every top-level heading with what follows up to the next one; an element with headings right
+// inside it is folded inside (it keeps its own hiding, e.g. #s-ntfy); SF_ONE elements are one section as a whole (they draw
+// themselves again in place, e.g. #s-lookin). Rows that are folds already (details.introw, details.modgrp) keep their look
+// and get the stored state. Company & office draws its groups as such rows itself (office.js biz_paint with sf_html).
+const SF = {tmp: new Set(), defs: null};
+const SF_OPEN = {look: 'lookin', help: 'n0'};  // the one section open at the start (none: all closed); listed on #6827
+const SF_ONE = {'s-lookin': N_('Colours and font'), 's-xlstd-sec': N_('Sharing defaults')};
+// an SF_ONE element drawn later with its own heading first (xl_stdLater): that heading takes the place of the stand-in in the head row
+function sf_adopt(w) {
+  const h = w?.firstElementChild, ph = w?.id && $(`#${w.id}-sfh`); if (!h?.matches('h3, h4') || !ph) return;
+  ph.replaceWith(h);
+  const own = Element.prototype.scrollIntoView; h.scrollIntoView = function (o) { sf_reveal(this, true); return own ? own.call(this, o) : undefined; };
 }
-const som_open = () => { try { const v = JSON.parse(S.settings?.settings_more || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
-function som_reveal(el) {  // a jump / search hit inside a closed fold opens it (only on screen, not saved)
-  const d = el?.closest?.('details.setmore'); if (d && !d.open) d.open = true;
+const SF_IC = {lang: 'globe', startpg: 'home', fmt: 'clock', today: 'sun', dates: 'done', plan: 'cal', wt: 'brief', ind: 'sliders',
+  lookin: 'palette', split: 'columns', wacc: 'palette', lemo: 'smile', sdd: 'done', tips: 'bulb', tabbar: 'menu', prbg: 'list', side: 'panel', sv: 'eye', fav: 'star',
+  dlv: 'send', thisdev: 'phone', inapp: 'bell', ntfy: 'bellring', rem: 'alarm', quiet: 'moon',
+  imp: 'upload', exp: 'download', pmeta: 'camera', vext: 'film', tpl: 'note', sample: 'sparkle', umz: 'arrow', 'xlstd-sec': 'link', ofdata: 'receipt',
+  account: 'user', mview: 'eye', sig: 'edit', purpose: 'target', nav: 'menu',
+  company: 'building', tax: 'wallet', docs: 'file', packs: 'box', functions: 'sliders', data: 'archive', access: 'shield', rights: 'shield', bizmail: 'mail'};
+const SF_ST = {  // a short state of a few sections (the rest: only the count of changed settings)
+  lang: d => $('[data-lang-set].on', d)?.textContent.trim() || '',
+  lookin: d => $('#s-theme button.on', d)?.textContent.trim() || '',
+  startpg: d => { const o = $('select', d); return o?.selectedOptions?.[0]?.textContent.trim() || ''; }};
+const sf_list = () => { try { const v = JSON.parse(S.settings?.settings_more || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+function sf_isOpen(key, dflt) {
+  if (SF.tmp.has(key)) return true;
+  const a = sf_list(); return a.includes('o:' + key) ? true : a.includes('c:' + key) ? false : !!dflt;
 }
-function som_build(md) {
-  const open = som_open();
-  md._somSeen = S.settings?.settings_more || '';
-  for (const [k, sels] of Object.entries(SET_MORE)) {
-    const p = $(`.spane[data-pane="${k}"]`, md); if (!p) continue;
-    const ns = [...new Set(sels.flatMap(x => som_block(p, x)))].sort((a, b) => a.compareDocumentPosition(b) & 4 ? -1 : 1);
-    if (!ns.length) continue;
-    const d = document.createElement('details');
-    d.className = 'setmore'; d.dataset.more = k; d.open = open.includes(k);
-    d.innerHTML = `<summary><span>${esc(tr('Further options'))}</span><small class="setmorec"></small></summary><div class="setmoreb"></div>`;
-    $('.setmoreb', d).append(...ns);
-    p.append(d);
-    // a jump to a section in here (the focus of settingsModal, the integration cards, a test) opens the fold first
-    const own = Element.prototype.scrollIntoView;
-    for (const el of $$('[id]', d)) el.scrollIntoView = function (o) { som_reveal(this); return own ? own.call(this, o) : undefined; };
+const sf_secOf = (n, cx) => (n.id ? n.id.toLowerCase().replace(/^s-/, '').replace(/-h$/, '').replace(/[^a-z0-9_-]/g, '-').slice(0, 40) : '') || 'n' + cx.n++;
+// one head row as HTML (Company & office): head = the heading element (it keeps its id for the jumps and the search)
+function sf_html(key, icon, head, body, st = '', dflt = false) {
+  return `<details class="sfold" data-sf="${esc(key)}"${dflt ? ' data-sfd="1"' : ''}${sf_isOpen(key, dflt) ? ' open' : ''}><summary class="sfsum">${ic(icon, 's')}${/*html-ok*/ head}<span class="sfst">${esc(st)}</span><span class="sfc"></span>${ic('chev', 's fcar')}</summary><div class="sfb">${/*html-ok*/ body}</div></details>`;
+}
+function sf_make(n, pane, cx, one) {
+  const sec = sf_secOf(n, cx), key = pane + '/' + sec, dflt = SF_OPEN[pane] === sec;
+  const d = document.createElement('details'); d.className = 'sfold'; d.dataset.sf = key; if (dflt) d.dataset.sfd = '1';
+  const sm = document.createElement('summary'); sm.className = 'sfsum';
+  const b = document.createElement('div'); b.className = 'sfb';
+  n.before(d);
+  sm.insertAdjacentHTML('beforeend', ic(SF_IC[sec] || SET_SECS.find(x => x[0] === pane)?.[1] || 'gear', 's'));
+  if (one) { const h = document.createElement('h4'); h.id = n.id + '-sfh'; h.textContent = tr(one); sm.append(h); b.append(n); } else sm.append(n);
+  sm.insertAdjacentHTML('beforeend', `<span class="sfst"></span><span class="sfc"></span>${ic('chev', 's fcar')}`);
+  d.append(sm, b); d.open = sf_isOpen(key, dflt);
+  cx.made++;
+  return d;
+}
+function sf_wrap(p, pane, cx = {n: 0, made: 0}) {
+  const isH = n => n.matches('h3, h4');
+  let cur = null;
+  for (const n of [...p.children]) {
+    if (n.matches('details.introw, details.modgrp, details.sfold, [data-sfown]')) { cur = null; continue; }  // a fold already / drawn later and folded by its drawer (sf_wrap)
+    const one = n.id && SF_ONE[n.id];
+    if (isH(n) || one) { cur = sf_make(n, pane, cx, one); continue; }
+    if ([...n.children].some(isH) && !n.matches('details')) { sf_wrap(n, pane, cx); cur = null; continue; }
+    if (cur) $('.sfb', cur).append(n);
   }
+  return cx;
+}
+// a jump, a search hit or a hint link to a place in a closed section opens it (on the screen) and lights the place up
+function sf_reveal(el, flash) {
+  let opened = false;
+  for (let d = el?.closest?.('details'); d; d = d.parentElement?.closest('details')) if (!d.open && (d.matches('details[data-sf]') || d.contains(el))) { d.open = true; opened = true; }
+  if (flash && el && el !== document.activeElement) { const r = el.closest('.row, .modrow, h3, h4, label') || el; r.classList.add('sflash'); setTimeout(() => r.classList.remove('sflash'), 1600); }
+  return opened;
+}
+function sf_build(md) {
+  SF.tmp.clear();
+  for (const p of $$('.spane', md)) {
+    const pane = p.dataset.pane;
+    if (pane === 'org' || pane === 'users' || pane === 'ai' || pane === 'access' || pane === 'biz') continue;  // sub-tabs / drawn later (biz: office.js biz_paint)
+    const cx = sf_wrap(p, pane);
+    const fs = $$('details.sfold', p);
+    if (cx.made === 1 && fs.length === 1 && !$('details.introw, details.modgrp', p)) { fs[0].dataset.sfd = '1'; fs[0].open = sf_isOpen(fs[0].dataset.sf, true); }  // one section only: open
+    for (const d of $$('details.introw[data-intr], details.modgrp[data-modgrp]', p)) { d.dataset.sf = d.matches('.introw') ? 'integr/' + d.dataset.intr : 'modules/g' + d.dataset.modgrp; d.open = sf_isOpen(d.dataset.sf, false); }
+    // a jump to a place in here (the focus keys of settingsModal, the integration cards, a test) opens its section first
+    const own = Element.prototype.scrollIntoView;
+    for (const el of $$('details[data-sf] [id]', p)) el.scrollIntoView = function (o) { sf_reveal(this, true); return own ? own.call(this, o) : undefined; };
+  }
+  md.addEventListener('toggle', e => { const d = e.target; if (!d?.matches?.('details[data-sf]')) return; if (d.open) SF.tmp.add(d.dataset.sf); else SF.tmp.delete(d.dataset.sf); }, true);
   md.addEventListener('click', e => {
-    const sm = e.target.closest('details.setmore > summary'); if (!sm) return;
-    som_save(sm.parentElement.dataset.more, !sm.parentElement.open);  // the click toggles it right after this handler
+    const sm = e.target.closest('details[data-sf] > summary'); if (!sm || e.target.closest('a, input, select, textarea, button')) return;
+    const d = sm.parentElement; sf_save(d.dataset.sf, !d.open, !!d.dataset.sfd);  // the click toggles it right after this handler
   });
-  md.addEventListener('change', () => setTimeout(() => som_count(md), 0));
-  som_count(md);
-  if (!SOM.defs && $('details.setmore', md)) som_defs().then(() => som_count(md));
+  md.addEventListener('change', () => setTimeout(() => sf_count(md), 0));
+  md._sfSeen = S.settings?.settings_more || '';
+  sf_count(md);
+  if (!SF.defs) sf_defs().then(() => sf_count(md));
 }
-async function som_defs() {
-  try { SOM.defs = (await api('GET', '/api/settings/defaults'))?.defaults || null; } catch { /* offline: no count until the next opening */ }
-  return SOM.defs;
+async function sf_defs() {
+  try { SF.defs = (await api('GET', '/api/settings/defaults'))?.defaults || null; } catch { /* offline: no count until the next opening */ }
+  return SF.defs;
 }
-async function som_save(k, on) {
-  const ks = som_open().filter(x => x !== k); if (on) ks.push(k);
-  if (S.settings) { S.settings.settings_more = JSON.stringify(ks); const md = $$('.smodal').pop(); if (md) md._somSeen = S.settings.settings_more; }
-  try { await api('PATCH', '/api/settings', {set_delta: {settings_more: on ? {add: [k]} : {remove: [k]}}}); } catch { /* shown; the local choice holds until the next load */ }
+async function sf_save(key, on, dflt) {
+  const add = on === dflt ? [] : [(on ? 'o:' : 'c:') + key], rem = ['o:' + key, 'c:' + key].filter(x => !add.includes(x));
+  if (!on) SF.tmp.delete(key);
+  if (S.settings) { S.settings.settings_more = JSON.stringify([...sf_list().filter(x => !rem.includes(x)), ...add.filter(x => !sf_list().includes(x))]); const md = $$('.smodal').pop(); if (md) md._sfSeen = S.settings.settings_more; }
+  try { await api('PATCH', '/api/settings', {set_delta: {settings_more: {add, remove: rem}}}); } catch { /* shown; the local choice holds until the next load */ }
 }
-function som_count(md) {  // "2 changed" on a fold: its settings (SETS) whose stored value differs from the default
-  const D = SOM.defs;
-  for (const d of $$('details.setmore', md)) {
+function sf_count(md) {  // "2 changed" in a head row: its settings (SETS) whose stored value differs from the default
+  const D = SF.defs;
+  for (const d of $$('details.sfold', md)) {
     let n = 0;
-    if (D) for (const el of $$('[id]', d)) { const x = SETS[el.id]; if (x && x[0] in D && String(S.settings?.[x[0]] ?? '') !== String(D[x[0]] ?? '')) n++; }
-    const c = $('.setmorec', d); if (c) c.textContent = n ? tr('{0} changed', n) : '';
+    if (D) for (const el of $$('.sfb [id]', d)) { const x = SETS[el.id]; if (x && x[0] in D && String(S.settings?.[x[0]] ?? '') !== String(D[x[0]] ?? '')) n++; }
+    const c = $(':scope > summary .sfc', d); if (c) c.textContent = n ? tr('{0} changed', n) : '';
+    const sec = d.dataset.sf.split('/')[1], st = SF_ST[sec] && $(':scope > summary .sfst', d); if (st) st.textContent = SF_ST[sec](d);
     d.classList.toggle('chg', n > 0);
   }
 }
-function som_sync(md) {
-  if ((S.settings?.settings_more || '') !== md._somSeen) { md._somSeen = S.settings?.settings_more || ''; const o = som_open(); for (const d of $$('details.setmore', md)) d.open = o.includes(d.dataset.more); }
-  som_count(md);
+function sf_sync(md) {  // after an undo / another device: the counts, and the open state when the stored one changed
+  if ((S.settings?.settings_more || '') !== md._sfSeen) { md._sfSeen = S.settings?.settings_more || ''; for (const d of $$('details[data-sf]', md)) d.open = sf_isOpen(d.dataset.sf, !!d.dataset.sfd); }
+  sf_count(md);
 }
 function ntfyShow(md) {  // U06: the ntfy details only when ntfy is (also) the channel
   const ch = $('#s-pushch', md)?.value || S.settings.push_channel || 'webpush';
@@ -851,6 +897,7 @@ function xl_stdLater(md, hint) {
   loadModule('ablage').then(() => {
     if (!sec.isConnected) return;
     sec.innerHTML = xl_stdHtml(hint);
+    sf_adopt(sec);  // 2.1353.0 (#6827): its heading into its head row
     xl_stdMount(md);
   }, () => { if (sec.isConnected) sec.innerHTML = `<p class="muted">${esc(tr('Could not be loaded'))}</p>`; });
 }
@@ -936,24 +983,24 @@ function settingsModal(focus) {
       ${hint(tr('“Plan my day” fills the free time within these hours with open tasks. The daily review comes after the end of your working hours.'))}
       ${typeof wt_setHtml === 'function' ? wt_setHtml(s, hint) : ''}`,
     modules: modulesHtml(hint),
-    notify: `${S.webpush?.enabled ? `<div class="pushnow" id="s-pushnow" role="status" aria-live="polite"></div>` : ''}${S.webpush?.enabled ? `<h4>${tr('Delivery')}</h4>
+    notify: `${S.webpush?.enabled ? `<div class="pushnow" id="s-pushnow" role="status" aria-live="polite"></div>` : ''}${S.webpush?.enabled ? `<h4 id="s-dlv-h">${tr('Delivery')}</h4>
       <div class="row"><label for="s-pushch">${tr('Channel|push')}</label><select id="s-pushch">${[['webpush', N_('Web Push')], ['ntfy', 'ntfy'], ['both', N_('Both')]].map(([v, n]) => `<option value="${v}" ${(s.push_channel || 'webpush') === v ? 'selected' : ''}>${v === 'ntfy' ? n : tr(n)}</option>`).join('')}</select><button class="btn sm" data-m="ptest">${ic('bell', 's')} ${tr('Test all channels')}</button></div>
       ${prio}
       <div class="shint wpstate" id="s-wpstate"></div>
       ${hint(tr('No extra app needed. Switch it on below on every device that should ring.'))}
-      <h4>${tr('This device')}</h4>
+      <h4 id="s-thisdev-h">${tr('This device')}</h4>
       <div id="s-wp"><div class="muted">${tr('Loading…')}</div></div>` : ''}
-      <h4>${tr('In the app')}</h4>
+      <h4 id="s-inapp-h">${tr('In the app')}</h4>
       <div class="row">${/*html-ok*/ chk('s-msgpop', LS.get('msgPop', '1') !== '0', tr('Pop-up for new messages'))}</div>
       ${/*html-ok*/ hint(tr('A new message from a person or a finished answer of an agent shows briefly at the top edge, wherever you are in Kalmido. Only on this device; while the app is open, this device gets no extra push for it.'))}
-      <div id="s-ntfy"><h4>${S.webpush?.enabled ? 'ntfy' : tr('Notifications (ntfy)')}</h4>
+      <div id="s-ntfy"><h4 id="s-ntfy-h">${S.webpush?.enabled ? 'ntfy' : tr('Notifications (ntfy)')}</h4>
       <div class="row"><label>${tr('Topic')}</label><code class="topic">${esc(s.ntfy_topic)}</code>${S.webpush?.enabled ? '' : `<button class="btn sm" data-m="test">${ic('bell', 's')} ${tr('Send test')}</button>`}</div>${''/* 2.555.0 C (#4664): with Web Push "Test all channels" above covers ntfy */}
       ${S.webpush?.enabled ? '' : prio}
       ${hint(`${tr('Subscribe in the ntfy app: server {0}, topic as above', esc(S.ntfyUrl))}. <a href="${esc(topicUrl)}" target="_blank" rel="noopener">${tr('Web view')}</a>`)}</div>
-      <div id="s-chn"></div>${''/* 2.142.0 A (#2145, #2146): channels + e-mail for single events (integrations.js chn_meDraw) */}
+      <div id="s-chn" data-sfown></div>${''/* 2.142.0 A (#2145, #2146): channels + e-mail for single events (integrations.js chn_meDraw) */}
       ${notifMatrixHtml(s, hint)}${bl9SetHtml(s, hint)}${typeof tbl_setHtml === 'function' ? tbl_setHtml(chk, hint) : ''}
       ${typeof trd_setHtml === 'function' ? trd_setHtml(s, chk, hint) : ''}${typeof kbd_setHtml === 'function' ? kbd_setHtml(s, chk, hint) : ''}
-      <h4>${tr('Reminders')}</h4>
+      <h4 id="s-rem-h">${tr('Reminders')}</h4>
       <div class="row"><label for="s-allday">${tr('All-day reminder at')}</label>${timeIn('s-allday', s.allday_time, {label: tr('All-day reminder at'), clear: false})}</div>
       <div class="row"><label for="s-defrem">${tr('Default reminder')}</label><select id="s-defrem"><option value="">${tr('none')}</option>${REM_OPTS.map(([v, n]) => `<option value="${v}" ${s.default_reminder === v ? 'selected' : ''}>${tr(n)}</option>`).join('')}${s.default_reminder && !REM_OPTS.some(o => o[0] === s.default_reminder) ? `<option value="${esc(s.default_reminder)}" selected>${esc(s.default_reminder.split(',').map(fmtRem).join(', '))}</option>` : ''}</select></div>
       <div class="row"><label for="s-digest">${tr('Daily digest at')}</label>${timeIn('s-digest', s.digest_time, {label: tr('Daily digest at'), empty: tr('off')})}</div>
@@ -1060,7 +1107,7 @@ function settingsModal(focus) {
       <div class="spanes">${secs.map(([k]) => `<section class="spane ${k === cur ? '' : 'hidden'}" role="tabpanel" id="sp-${k}" aria-labelledby="st-${k}" data-pane="${k}">${pane[k]}</section>`).join('')}</div></div>`);
   md.classList.add('smodal');
   md.dataset.dlgsz = 'settings';  // 2.805.0 (#5357): the size grip (dialogs.js dlg_sizer)
-  som_build(md);  // 2.583.0 (#4833): the rare part of each tab under "Further options"
+  sf_build(md);  // 2.1353.0 (#6827): every section a folded head row (was #4833 "Further options")
   xl_stdLater(md, hint);  // 2.470.0 (#3596): the sharing defaults of a workspace (ablinks.js); 2.599.0 (#4907): after the module ablage loaded
   tty_mount(md);  // 2.609.0 (#3372): own ticket types (below)
   $('[data-mv]', md)?.addEventListener('click', () => mvSet(false));  // 2.436.0 (#3620)
@@ -1946,7 +1993,7 @@ function ss_hits(md, q, shown, SYN) {
   if (!grp.length) for (const [ws, sel] of SYN) if (ws.some(w => w === q || (q.length >= 3 && w.startsWith(q)) || (q.length > 3 && q.includes(w)))) { const el = $(sel, md); if (el) add(el, el.closest('.spane')?.dataset.pane); }
   const heads = p => $$('h4, h3.sbizg', p);  // 2.555.0 (#4664): the groups of Company & office are h3
   const secOf = (el, p) => { let last = null; for (const h of heads(p)) { if (h === el || (h.compareDocumentPosition(el) & 4)) last = h; else break; } return last; };
-  const TITLES = 'h4, h3.sbizg, .row > label, label.chkl, .featgrid label > span, .modrow b, summary, button:not(.iconbtn), th, option', HINTS = '.shint, .modrow small';
+  const TITLES = 'h4, h3.sbizg, .row > label, label.chkl, .featgrid label > span, .modrow b, summary:not(.sfsum), button:not(.iconbtn), th, option', HINTS = '.shint, .modrow small';  // 2.1353.0 (#6827): a head row = its heading
   const own = el => el.matches('.featgrid label > span') ? (el.firstChild?.textContent || '') + ' ' + (el.querySelector('small')?.textContent || '') : ss_text(el);
   const okEl = el => shown(el) && !el.closest('.ssres');
   const terms = [q, ...targets];
@@ -2054,9 +2101,9 @@ async function biz_mailDraw(md) {
   if (!box.isConnected) return;
   if (!x || !(x.manage || x.set)) { box.innerHTML = ''; return; }
   const what = !x.set ? tr('No mailbox yet') : [x.receive ? tr('receives') : '', x.send ? tr('sends') : ''].filter(Boolean).join(' · ') + (x.active ? '' : ' · ' + tr('paused'));
-  box.innerHTML = `<h3 id="s-bizmail-h" class="sbizg">${tr('E-mail')}</h3>${''/* 2.555.0 (#4664): a group of Company & office (h3) */}<p class="shint">${tr('A workspace can fetch its own mailbox: its e-mails are filed here like forwarded ones, and replies go out from its address.')}</p>
+  box.innerHTML = sf_html('biz/bizmail', 'mail', `<h3 id="s-bizmail-h" class="sbizg">${tr('E-mail')}</h3>`, `${''/* 2.555.0 (#4664): a group of Company & office (h3); 2.1353.0 (#6827): a head row */}<p class="shint">${tr('A workspace can fetch its own mailbox: its e-mails are filed here like forwarded ones, and replies go out from its address.')}</p>
     <div class="row"><span class="muted">${x.address ? esc(x.address) + ' · ' : ''}${esc(what)}</span>${x.manage ? `<button type="button" class="btn sm" data-hmba="edit" data-ws="${esc(x.ws)}">${ic('gear', 's')}<span>${tr(x.set ? 'Change' : 'Set up')}</span></button>` : ''}</div>
-    ${x.error_text ? `<p class="hmberr" role="status">${ic('info', 's')} ${esc(x.error_text)}</p>` : ''}`;
+    ${x.error_text ? `<p class="hmberr" role="status">${ic('info', 's')} ${esc(x.error_text)}</p>` : ''}`, x.address || '');
 }
 async function biz_draw(md) {
   const box = $('#s-biz', md); if (!box) return;

@@ -33,14 +33,16 @@ const near = (a, b) => Math.abs(+a - +b) < 0.005;
   const CF = await login('frida');
   await call(CF, 'PATCH', '/api/settings', {lang: 'de', tour: 'done', features: FEAT});
   check(((await call(CF, 'GET', '/api/state')).me?.workspaces || []).length === 0, 'frida is in no organisation');
-  const cl = await call(CF, 'POST', '/api/clients', {name: 'Beispiel Medien GmbH'});
-  // 2.380.0 (#3420): the film pack offers share by amount (and handling costs) for a new quotation - this quotation is made
-  // before the pack is on and keeps the calculation by quantities / quotient the sums below are made of
-  const q = await call(CF, 'POST', '/api/office/docs', {project_title: 'Imagefilm', client_id: cl.id, handling_pct: null});
-  const D = `/api/office/docs/${q.id}`;
-  check((await call(CF, 'PATCH', D, {producing_on: 1, prod_quotient: 3, producing_rate: 500, raw_mode: 'none', discount_pct: 0})).http === 200, 'the calculation values of the document');
+  // 2.1353.0 (#6839): the film pack offers no share by amount any more (decision #2251/#2252): the pack is on before the
+  // quotation again, which computes by quantities / quotient (the sums below are made of it)
   const st = await call(CF, 'PUT', '/api/office/settings', {industry_packs: ['film']});
   check(st.http === 200, 'the pack Film & Video in the personal office ' + st.http);
+  const cl = await call(CF, 'POST', '/api/clients', {name: 'Beispiel Medien GmbH'});
+  // 2.138.4 (#2252): since 2.113.1 the film pack switches handling costs (4 %) on for a new quotation - off here, the sums below are without them
+  const q = await call(CF, 'POST', '/api/office/docs', {project_title: 'Imagefilm', client_id: cl.id, handling_pct: null});
+  check(q.producing_mode == null, '#6839: a new quotation with the film pack computes by quantities (no share by amount) ' + q.producing_mode);
+  const D = `/api/office/docs/${q.id}`;
+  check((await call(CF, 'PATCH', D, {producing_on: 1, prod_quotient: 3, producing_rate: 500, raw_mode: 'none', discount_pct: 0})).http === 200, 'the calculation values of the document');
   // part A: takes over the document (4.5 producing days / 3 = 1.5 days), part B: own setting, producing off
   const pa = (await call(CF, 'POST', D + '/parts', {kind: 'items', title: 'Modul Dreh'})).part;
   const pb = (await call(CF, 'POST', D + '/parts', {kind: 'items', title: 'Modul Schnitt'})).part;
@@ -82,7 +84,8 @@ const near = (a, b) => Math.abs(+a - +b) < 0.005;
     check(await ready(ev, `!!(${line(pa.id)})`, 80), 'the title page lists the part lines');
     check(await ev(`${note(pa.id)} === 'inkl. Producing 1,5 Tage'`), 'part A line: "inkl. Producing 1,5 Tage" -- ' + await ev(note(pa.id)));
     check(await ev(`${note(pb.id)} === '' && !!(${line(pb.id)})`), 'part B line (producing off): no note -- ' + await ev(note(pb.id)));
-    check(await ev(`/^inkl\\. Producing \\(20\\s?% (der Personalkosten|of the crew costs)\\)$/.test(${note(ps.id)})`), 'shoot part line names its share -- ' + await ev(note(ps.id)));
+    // 2.1353.0 (#6839): the film pack's share of the crew is "Produktionsleitung" (decision 19.10. 17:05, #2251; "Producing" stays free for the private pack)
+    check(await ev(`/^inkl\\. Produktionsleitung \\(20\\s?% (der Personalkosten|of the crew costs)\\)$/.test(${note(ps.id)})`), 'shoot part line names its share -- ' + await ev(note(ps.id)));
     check(await ev(`/Teilangebote ohne eigene Einstellung übernehmen den Schalter/.test(document.querySelector('.ofdrules .ofdprodhint')?.textContent || '')`), 'the hint at the switch of the title page');
     check(await ev(`!!document.querySelector('.ofdit.ofdprod .ofdprodf.on input[data-k="producing"]:checked')`), 'the ticked producing flag of "Konzept" is marked');
     check(await ev(`[...document.querySelectorAll('.ofdits .ofdflags .ofdprodf')].every(l => l.classList.contains('on') === !!l.querySelector('input').checked)`), 'only ticked producing flags are marked');

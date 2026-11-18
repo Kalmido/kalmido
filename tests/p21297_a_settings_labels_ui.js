@@ -35,8 +35,9 @@ const shown = el => !!el && !el.closest('.hidden, [hidden]');
   const look = md.querySelector('[data-pane="look"]');
   // Completed tasks: one section with both switches
   const hd = look.querySelector('#s-sdd-h');
-  const sec = []; for (let n = hd?.nextElementSibling; n && n.tagName !== 'H4'; n = n.nextElementSibling) sec.push(n);
-  check(sec.some(e => e.querySelector('#s-sdd')) && sec.some(e => e.querySelector('#s-sdn')), 'Completed tasks: s-sdd and s-sdn in the same section');
+  // 2.1353.0 (#6827): every section is a fold (details.sfold) with its heading in the head row: both switches in the heading's fold
+  const fold = hd?.closest('details.sfold');
+  check(!!fold && fold.contains(look.querySelector('#s-sdd')) && fold.contains(look.querySelector('#s-sdn')), 'Completed tasks: s-sdd and s-sdn in the same section');
   check(/rledigte/.test(txt(hd)), 'Completed tasks heading: ' + txt(hd));
   // the bottom bar: heading + link only
   check(!md.querySelector('#s-tabbar') && !look.querySelector('[data-m="tab-add"]'), 'Appearance: no bottom bar editor');

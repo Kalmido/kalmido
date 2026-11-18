@@ -966,7 +966,8 @@ document.addEventListener('keydown', e => { const x = e.target; if (e.key === 'E
 // where a setting of a tab moved: a quiet line with the way into Settings > Company & office (events.js data-setgo)
 const ofcSetLink = (k, what) => `<p class="muted ofchint ofcsetl">${ic('gear', 's')} <span>${esc(what)}:</span> <button type="button" class="linkbtn" data-setgo="biz-${k}">${esc(tr('Settings › Company & office › {0}', tr(OST_SUBS.find(x => x[0] === k)?.[2] || 'Company & office')))}</button></p>`;
 const ost_p = (k, dis) => `<fieldset class="ostp" data-ostp="${k}" ${dis || ''}>`;
-const ost_show = k => ($('#s-biz-' + k) || $('#ofc-set #' + k))?.scrollIntoView?.({block: 'start'});  // 2.365.2 (#2789): the areas stand one below the other; 2.555.0 (#4664): or a part's own id (pkc)
+// 2.365.2 (#2789): the areas stand one below the other; 2.555.0 (#4664): or a part's own id (pkc); 2.1353.0 (#6827): its head row opens, the place lights up
+const ost_show = k => { const el = $('#s-biz-' + k) || $('#ofc-set #' + k); if (!el) return; if (typeof sf_reveal === 'function') sf_reveal(el, true); el.scrollIntoView?.({block: 'start'}); };  // sprung-ok: the person asked for this group (a link, the search)
 // 2.470.0 (#3596): Texts & templates: the catalogues keep their own pages (office/services, office/texts, the document templates);
 // here one row each with what it holds and the way there, as far as the person reaches that point of the office
 const OST_TPL = [['services', 'list', N_('Services'), 'office/services'], ['texts', 'note', N_('Text blocks'), 'office/texts'], ['gendocs', 'file', N_('Document templates'), 'office/gendocs']];
@@ -991,13 +992,14 @@ function biz_paint() {
   // 2.555.0 (#4664): no "Applies to" with the workspace menu (it offered "All workspaces"): the settings hold for the area
   // ofcWs() picks, named once as plain text; the switch is the workspace at the top of the app
   t.innerHTML = `<p class="sbizws muted">${esc(tr('Workspace: {0}', biz_areaName()))}</p>${pb_hintHtml()}${typeof ocf_chooseHtml === 'function' ? ocf_chooseHtml(true) : '' /* 2.470.0 (#3596): were on the old page */}${ofcSettingsHtml()}
-    ${rights ? `<h3 id="s-biz-rights" class="sbizg">${esc(tr('Rights|office'))}</h3><p class="shint">${esc(tr('Who may see and change which part of the office.'))}</p><div class="row"><a class="btn sm" href="#office/rights" data-bizgo>${ic('shield', 's')} ${esc(tr('Rights in the office'))}</a></div>` : ''}`;
+    ${/*html-ok*/ rights ? sf_html('biz/rights', 'shield', `<h3 id="s-biz-rights" class="sbizg">${esc(tr('Rights|office'))}</h3>`, `<p class="shint">${esc(tr('Who may see and change which part of the office.'))}</p><div class="row"><a class="btn sm" href="#office/rights" data-bizgo>${ic('shield', 's')} ${esc(tr('Rights in the office'))}</a></div>`) : ''}`;
   const form = $('#ofc-set', t.content);
-  for (const [k, , n] of OST_SUBS) {
+  for (const [k, i, n] of OST_SUBS) {
     const fs = form ? $$(`[data-ostp="${k}"]`, form).filter(f => f.children.length) : []; if (!fs.length) continue;
-    const h = document.createElement('h3'); h.id = 's-biz-' + k; h.className = 'sbizg'; h.textContent = tr(n);  // 2.555.0 (#4664): the groups h3, their parts h4 (biz_lvl)
-    form.append(h, ...fs);
-    fs.forEach(f => f.setAttribute('aria-labelledby', h.id));
+    // 2.555.0 (#4664): the groups h3, their parts h4 (biz_lvl); 2.1353.0 (#6827): each group a folded head row with its state
+    form.insertAdjacentHTML('beforeend', sf_html('biz/' + k, SF_IC[k] || i, `<h3 id="s-biz-${esc(k)}" class="sbizg">${esc(tr(n))}</h3>`, '', biz_st(k)));
+    form.lastElementChild.querySelector('.sfb').append(...fs);
+    fs.forEach(f => f.setAttribute('aria-labelledby', 's-biz-' + k));
   }
   biz_lvl(t.content);
   keepFocus(box, () => setHtml(box, t.innerHTML));
@@ -1005,6 +1007,16 @@ function biz_paint() {
   if (!box._bizLvl) { box._bizLvl = new MutationObserver(() => biz_lvl(box)); box._bizLvl.observe(box, {childList: true, subtree: true}); }
   if (S.bizJump) biz_jump(box);
 }
+// 2.1353.0 (#6827): the short state in the head row of a group: the company's name; small business and the invoice numbers
+// (RE-{yyyy}-{seq:03} as RE-2026-###); the country pack
+function biz_st(k) {
+  const s = OFC.info.settings || {}, co = s.company || {}, cf = OFC.info.company_fields || {};
+  if (k === 'company') return String(cf.name || co.name || (OFC.info.personal ? '' : orgLabelOf(OFC.info.org_id) || '')).split('\n')[0].trim();
+  if (k === 'docs') return [+s.small_business ? tr('Small business') : '', ofc_schemeMask(s.invoice_scheme)].filter(Boolean).join(' · ');
+  if (k === 'packs') return OFC.info.pack?.name || '';
+  return '';
+}
+const ofc_schemeMask = sc => { const y = String(new Date().getFullYear()); return String(sc || '').replace(/\{yyyy\}/g, y).replace(/\{yy\}/g, y.slice(2)).replace(/\{seq(?::0*(\d+))?\}/g, (m, n) => '#'.repeat(Math.min(8, +n || 1))).replace(/\{[^}]*\}/g, '…'); };
 // 2.555.0 (#4664): the name of the office area the page sets (the office's own head keeps ofcAreaHtml with its switch)
 const biz_areaName = () => OFC.info.personal ? tr('Private|workspace') : (orgLabelOf(OFC.info.org_id) || wsName(ofcWs()));
 // 2.555.0 (#4664): the heading levels of the page: group h3 (biz_paint), the parts one level below it. The part functions write

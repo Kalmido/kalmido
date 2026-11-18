@@ -44,7 +44,7 @@ const FEAT = 'cal,comments,collab,files,docs,office,clients';
     check(!!form, `${who}: the office settings form sits in Settings`);
     if (form) {
       check(!form.querySelector('[data-ostp][hidden]'), `${who}: no tab row, no hidden area`);
-      const hs = [...form.querySelectorAll(':scope > h3')].map(h => h.id);  // 2.555.0 (#4664): the groups are h3
+      const hs = [...form.querySelectorAll(':scope > details.sfold > summary > h3')].map(h => h.id);  // 2.555.0 (#4664): the groups are h3; 2.1353.0 (#6827): in folded head rows
       check(hs[0] === 's-biz-company' && hs.includes('s-biz-docs') && hs.length >= 4, `${who}: one heading per area, Company first ` + hs.join());
       // 2.555.0 (#4664): no "Applies to" with the workspace menu any more: the area once as plain text
       check(/^Workspace: \S/.test(d.querySelector('#s-biz .sbizws')?.textContent || '') && !d.querySelector('#s-biz [data-act="ws-menu"]'), `${who}: the head names the workspace as text, no menu`);

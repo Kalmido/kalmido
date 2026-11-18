@@ -177,12 +177,13 @@ const wso_ws = w => w == null || w === '' ? '' : typeof w === 'number' ? (w ? 'o
 // '' for Private and without organisations (wsOn() false). The sidebar's rows keep their own stripe (#side .srow[data-wsc]).
 // 2.1241.0 (#6181): style = the element's own inline style (e.g. a calendar's --cc), kept in the one style attribute; an
 // entry of Private / without organisations gets it back alone (` style="…"`), so the caller writes no style attribute itself
-const wso_row = (w, style = '') => { const o = wsc_ofWs(wso_ws(w)), v = o ? wsc_vars(o) : '', st = [style, v].filter(Boolean).join(';'); return (v ? ' data-wso="1" data-wsc="1"' : '') + (st ? ` style="${st}"` : ''); };
+// 2.1353.0 (#6957): priv = true (an overview of several workspaces side by side): Private wears my own colour (ws_colors.private) too
+const wso_row = (w, style = '', priv = false) => { const k = wso_ws(w), o = wsc_ofWs(k), v = o ? wsc_vars(o) : priv && k === 'private' ? wsp_vars('private') : '', st = [style, v].filter(Boolean).join(';'); return (v ? ' data-wso="1" data-wsc="1"' : '') + (st ? ` style="${st}"` : ''); };
 // 2.1241.0 (#6181): the same mark on an element that is already drawn (a dialog whose calendar changes, a popover): sets or
 // clears data-wso / data-wsc and --wsd / --wsl, the element's other inline styles stay
-function wso_mark(el, w) {
+function wso_mark(el, w, priv = false) {
   if (!el) return;
-  const o = wsc_ofWs(wso_ws(w)), v = o ? wsc_vars(o) : '';
+  const k = wso_ws(w), o = wsc_ofWs(k), v = o ? wsc_vars(o) : priv && k === 'private' ? wsp_vars('private') : '';
   lp_put(el, 'wso-m', v, WSC_VARS);
   if (v) { el.dataset.wso = '1'; el.dataset.wsc = '1'; } else { delete el.dataset.wso; delete el.dataset.wsc; }
 }

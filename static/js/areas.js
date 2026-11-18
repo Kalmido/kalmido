@@ -416,7 +416,7 @@ const rd_recentHtml = mod => spo_recentHtml(mod, mod, rd_rows());
 // Private, organisations, Shared with me, the trash ...); o.title = the heading (default "All workspaces"), o.label = the
 // list's name for screen readers (default "Workspaces")
 const spo_href = (to, sp) => '#' + (typeof to === 'function' ? to(sp) : to + '/s/' + sp);
-const spo_html = (to, rows, o = {}) => `<section class="spov" aria-label="${esc(o.label || tr('Workspaces'))}"><h3 class="spovt">${esc(o.title || tr('All workspaces'))}</h3><ul class="spovl">${rows.map(([sp, name, icon]) => `<li><a href="${esc(spo_href(to, sp))}" class="spovr" data-spov="${esc(sp)}"${/*html-ok*/ wso_row(sp) /* 2.1254.0 (#6180): an organisation's entry wears its stripe */}>${icon}<span>${esc(name)}</span></a></li>`).join('')}</ul></section>`;
+const spo_html = (to, rows, o = {}) => `<section class="spov" aria-label="${esc(o.label || tr('Workspaces'))}"><h3 class="spovt">${esc(o.title || tr('All workspaces'))}</h3><ul class="spovl">${rows.map(([sp, name, icon]) => `<li><a href="${esc(spo_href(to, sp))}" class="spovr" data-spov="${esc(sp)}"${/*html-ok*/ wso_row(sp, '', true) /* 2.1254.0 (#6180): an organisation's entry wears its stripe; 2.1353.0 (#6957): Private too, when I chose a colour */}>${icon}<span>${esc(name)}</span></a></li>`).join('')}</ul></section>`;
 // the path back above an open space: "All workspaces /" (spo_upHtml, the file store puts its own path after it) + its name
 // 2.769.0 (#5339): a button like the other path links (an anchor is inline: no min-height, other baseline)
 const spo_upHtml = route => `<button type="button" class="linkbtn" data-go="${esc(route)}" data-spovup="1">${esc(tr('All workspaces'))}</button><span class="abcsep" aria-hidden="true">/</span>`;
@@ -818,10 +818,15 @@ function sbb_wsMenu(anchor) {
     {label: tr('Add an organisation'), icon: 'plus', cls: 'kbws-add', fn: sbb_orgAdd},
     ...(set ? [{label: tr('Company settings'), icon: 'building', cls: 'kbws-set', fn: () => settingsModal('org')}] : [])]);
   // each company's own sign in place of the icon: its picture or symbol, else its initial on a tile
+  // 2.1353.0 (#6957): the tile wears the organisation's own colour (as its dot and stripe do), whichever workspace is open;
+  // Private's house wears my own colour when I chose one (ws_colors.private), else it stays neutral
   opts.forEach((ws, i) => {
+    const b = p?.querySelector(`[role="menuitem"][data-i="${i + 1}"]`), x = b?.querySelector('svg.i');
+    if (!x) return;
+    if (ws === 'private') { const v = wsp_vars('private'); if (v) { x.setAttribute('data-wsc', '1'); x.setAttribute('style', v); } return; }
     if (!ws.startsWith('org:')) return;
-    const b = p?.querySelector(`[role="menuitem"][data-i="${i + 1}"]`), o = wsOrg(ws.slice(4)), x = b?.querySelector('svg.i');
-    if (x) x.outerHTML = `<span class="kbwsic">${orgIconHtml(o, `<span class="kbini" aria-hidden="true">${esc(String(o?.name || '?').trim().charAt(0).toUpperCase())}</span>`)}</span>`;
+    const o = wsOrg(ws.slice(4)), bv = wsp_barVars(ws);
+    x.outerHTML = `<span class="kbwsic">${/*html-ok*/ orgIconHtml(o, `<span class="kbini" aria-hidden="true"${/*html-ok*/ bv ? ` data-wsc="1" style="${esc(bv)}"` : ''}>${esc(String(o?.name || '?').trim().charAt(0).toUpperCase())}</span>`)}</span>`;
   });
 }
 // "Add a company": an admin of the server creates one (the dialog of Administration); 2.422.0 (#2937): anybody else creates

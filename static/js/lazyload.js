@@ -108,7 +108,7 @@ const LD_MODS = {
   recent: ['recent'],  // 2.769.0 (#5352): "Recently edited" (the overview "All workspaces" of Knowledge / Files / Reading, the start page's block)
   ofwalk: ['office_walk'],  // 2.778.0 (#5383): the walk-through of open card positions / bank bookings (office_cards.js, office_bank.js)
   callsheet: ['callsheet'],  // 2.855.0 (#1956): the call sheet of a shoot day (the disposition's booking dialog, Film & Video only)
-  quotes: ['quotes_dada'],  // 2.955.0 (#5239): the Dada quote of the day (the sign-in page, Today; account.js qd_slot)
+  quotes: ['quotes_dada'],  // 2.955.0 (#5239): the Dada quote of the day (2.1353.0, #6979: the sign-in page only; account.js qd_slot)
   // 2.1030.0 (#5785): the quote's own texts of one interface language (after quotes, LD_NEED); only that language loads
   quotes_es: ['quotes_dada_es'], quotes_fr: ['quotes_dada_fr'], quotes_it: ['quotes_dada_it'], quotes_nl: ['quotes_dada_nl'],
   helpview: ['helpview'],  // 2.1086.0 (#5820): the view "Help" (#help), the user's how-to sections

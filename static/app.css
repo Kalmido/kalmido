@@ -6512,28 +6512,17 @@ html.mini-chat body.in-chat #view .chview .chmsgs{padding-inline:.75rem}  /* 2.1
 .modal.authscreen[data-lgfoot]::after{content:attr(data-lgfoot);position:relative;z-index:1;font-size:var(--fs-s);color:var(--muted);text-align:center}
 .modal.authscreen .alogo{justify-content:center;font-size:1.625rem;margin-bottom:1.25rem}
 .modal.authscreen .alogo b{font-weight:650;letter-spacing:-.02em}
-/* 2.955.0 (#5239): the Dada quote of the day (quotes_dada.js): the original calm and italic, below it small and grey the
-   translation and the author; long lines wrap, nothing is cut; on the sign-in page centred, alone above the form */
+/* 2.955.0 (#5239): the Dada quote of the day (quotes_dada.js): calm and italic, below it small and grey the author; long lines
+   wrap, nothing is cut; 2.1353.0 (#6979): on the sign-in page only (not on Today any more), centred above the form and smaller:
+   the text in --fs-s, the author in the smallest step, each verse line on its own line (no ' / ') */
 .qd{margin:0 0 1rem;overflow-wrap:break-word}
 .qd .qdo{margin:0;font-style:italic;color:var(--text2);line-height:var(--lh)}
 .qd figcaption{margin-top:.25rem;font-size:var(--fs-s);color:var(--muted);line-height:var(--lh-tight)}
 .qd .qda[title]{cursor:help}
 .authscreen .qd,.authscreen .qdslot{text-align:center}
+.authscreen .qd .qdo{font-size:var(--fs-s);color:var(--muted)}
+.authscreen .qd figcaption{font-size:var(--fs-xxs);font-style:italic}
 .authscreen .qdslot{min-height:2.6rem;margin:0 0 1rem}
-.qd.dashq{margin:-.5rem 0 1rem;max-width:70ch}
-/* 2.955.0 (#5239): on Today the placeholder holds the room of a two-line quote, so the first load does not push the blocks down */
-.dash .qdslot,.qd.dashq{min-height:2.9rem}
-.dash .qdslot{margin:-.5rem 0 1rem}
-/* 2.1111.0 (#5963): the start page's quote is one line (a tap opens it), the slot holds exactly that line: nothing jumps */
-.qd.dashq,.dash .qdslot{margin:-.5rem 0 .5rem;min-height:1.5rem}
-.qd.dashq{cursor:pointer}
-.qd.dashq .qdo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-b)}
-.qd.dashq figcaption{display:none}
-.qd.dashq.open .qdo{white-space:normal;overflow:visible}
-.qd.dashq.open figcaption{display:block}
-/* 2.1121.0 (#5477): the tappable quote is a 44 px target; the text stays one line in its middle, the slot keeps the same room (nothing jumps) */
-.qd.dashq,.dash .qdslot{min-height:2.75rem;margin:-.75rem 0 .25rem}
-.qd.dashq{display:flex;flex-direction:column;justify-content:center}
 .authscreen input:not([type=checkbox]){border-radius:.75rem;background:var(--bg3);border:1px solid var(--line2)}
 .authscreen input:not([type=checkbox]):focus{border-color:var(--accent);box-shadow:0 0 0 .1875rem color-mix(in srgb,var(--accent) 22%,transparent);outline:none}
 .authscreen .btn{height:auto;min-height:2.75rem;border-radius:.75rem}
@@ -7017,11 +7006,11 @@ a.rfcard:hover{border-color:var(--muted);text-decoration:none}
 /* 2.1205.0 (#6179): the organisation colour as a block of the core (wscolor.js wso_row / wso_sync, docs/dev/kern.md): an entry of an
    organisation in any area carries the 3 px stripe on its left edge (the sidebar's rows keep theirs above). The open object
    is marked as an open list is (#main.wsc-on: the frames above; "All": #view.wac-loc) - no header stripe (gone since #2389) */
-[data-wso][data-wsc]:not(#side .srow){box-shadow:inset .1875rem 0 0 var(--wsc)}
+[data-wso][data-wsc]:not(#side .srow,#side .sbbtn){box-shadow:inset .1875rem 0 0 var(--wsc)}
 /* 2.1241.0 (#6181-#6185): the areas on the block. A tree node of the panel (sbb_treeHtml n.wso) wears the sidebar rows' stripe;
    a name with its dot (wso_head outside an origin mark: the calendar list) without the short letters; the origin mark in an
    event's / a conversation's / a contact's row; the open conversation's input frame like the add field's */
-#side .sbbt[data-wso][data-wsc]{box-shadow:none;background-image:linear-gradient(var(--wsc),var(--wsc));background-size:.1875rem 60%;background-repeat:no-repeat;background-position:0 50%}
+#side :is(.sbbt,.sbbtn)[data-wso][data-wsc]{box-shadow:none;background-image:linear-gradient(var(--wsc),var(--wsc));background-size:.1875rem 60%;background-repeat:no-repeat;background-position:0 50%}
 .wslbl .wsoab{display:none}
 .wslbl .wsp-dot{display:inline-block;width:.5rem;height:.5rem;margin-inline:.125rem .25rem}
 :is(.cevo,.tco,.cto,.dco){flex:0 1 auto;min-width:0;max-width:12rem;font-size:var(--fs-s);color:var(--muted);font-weight:400}
@@ -8245,6 +8234,9 @@ label.pmsw>span:last-child>b,label.pmsw>span:last-child>small{display:block;widt
 #pop .kbwsi .kbwsic{display:grid;place-items:center;width:1.25rem;height:1.25rem;flex:none}
 #pop .kbwsi .kbwsic img.orgic{width:1.25rem;height:1.25rem;border-radius:.3125rem;object-fit:cover}
 #pop .kbwsi .kbini{display:grid;place-items:center;width:1.25rem;height:1.25rem;border-radius:.3125rem;background:var(--accent);color:var(--accent-ink,#fff);font-size:var(--fs-xs);font-weight:700}
+/* 2.1353.0 (#6957): the tile in its organisation's own colour (data-wsc: --wsc = the theme's tone), Private's house in mine; no colour keeps the accent */
+#pop .kbwsi .kbini[data-wsc]{background:var(--wsc);color:var(--bg)}
+#pop .kbwsi svg.i[data-wsc]{color:var(--wsc)}
 /* the panel's head: name left, the two buttons right and always visible */
 #app.sb-b #side .sbhead{min-height:2.25rem;margin:0 0 .25rem;padding:0 .125rem 0 .25rem}
 #app.sb-b #side .sbhead .sbbpt{margin:0;font-size:var(--fs-m);font-weight:600;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
