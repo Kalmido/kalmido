@@ -54,7 +54,14 @@ function vl_seg(key, arr, fn, ids, tag = 'div') {
 }
 // the box that scrolls a group: a list with its own scroll (data-vlsc, e.g. the contacts beside the card) or the view
 const vl_sc = (tp, v) => { const w = tp.closest('[data-vlsc]'); return w && w.scrollHeight > w.clientHeight + 1 ? w : v; };
-const vl_pad = (v, sg, w) => v.querySelector(`.vlpad[data-k="vl${w}:${sg.key.replace(/["\\]/g, '\\$&')}"]`);
+// 2.1383.0 (#6935): the spacer stays found per group (sg.pt / sg.pb) - a lookup in the whole view per group and frame made a list
+// with many sections (300 versions: 1,500 searches over 8,000 nodes per frame, 42 ms) stutter while scrolling (measured with a
+// throwaway suite on the Mac); a spacer a redraw replaced is looked up again
+function vl_pad(v, sg, w) {
+  const k = w === 't' ? 'pt' : 'pb', el = sg[k], dk = `vl${w}:${sg.key}`;
+  if (el && el.isConnected && el.dataset.k === dk && v.contains(el)) return el;
+  return (sg[k] = v.querySelector(`.vlpad[data-k="${dk.replace(/["\\]/g, '\\$&')}"]`));
+}
 // the drawn nodes between a group's spacers, by item (task id as text -> nodes)
 function vl_nodes(tp, bp) {
   const m = new Map();
@@ -62,9 +69,12 @@ function vl_nodes(tp, bp) {
   return m;
 }
 // measured heights of the drawn items (from the top of an item to the top of the next one: margins count)
-function vl_measure(v) {
+// 2.1383.0 (#6935): only the groups with drawn items (segs: only these, e.g. the one just patched); a group without drawn items
+// has nothing to measure
+function vl_measure(v, segs = VL.segs) {
   const H = vl_hm(); let sum = 0, cnt = 0;
-  for (const sg of VL.segs) {
+  for (const sg of segs) {
+    if (sg.b <= sg.a) continue;
     const tp = vl_pad(v, sg, 't'), bp = vl_pad(v, sg, 'b'); if (!tp || !bp) continue;
     const m = vl_nodes(tp, bp);
     let prev = null, py = 0;
@@ -132,7 +142,7 @@ function vl_step(v) {
     // it take or leave); otherwise the top spacer is the estimate of the rows above
     let yf = ya; if (ov) for (let j = a0; j < fi; j++) yf += hs(j);
     vl_patch(sg, tp, bp, m0, wa, wb);
-    vl_measure(v);
+    vl_measure(v, [sg]);  // 2.1383.0 (#6935): the patched group only (all groups after every patch: groups x groups per frame)
     if (!wa) sg.tp = 0;
     else if (ov) { let above = 0; for (let j = wa; j < fi; j++) above += hs(j); sg.tp = Math.max(0, yf - tpTop - above); }
     else sg.tp = Math.max(0, y - tpTop);
