@@ -142,7 +142,17 @@ def _f1():
         os.makedirs(proj)
         with open(os.path.join(proj, "KALMIDO-DISPATCH.json"), "w", encoding="utf-8") as f:
             json.dump({"lists": [1]}, f)
-        res = ad.Dispatcher(r, proj).tick(force=True, dry=False) or {}
+        # 2.1398.0 (#7138): since #7028 a round without the project's check stays idle before it asks for anything; the
+        # runner's env file of this stand-in names one, so the round reaches the request token
+        old_check = os.environ.get("KALMIDO_DISPATCH_CHECK_CMD")
+        os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = "exit 0"
+        try:
+            res = ad.Dispatcher(r, proj).tick(force=True, dry=False) or {}
+        finally:
+            if old_check is None:
+                os.environ.pop("KALMIDO_DISPATCH_CHECK_CMD", None)
+            else:
+                os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = old_check
         check("no request token" in str(res.get("problem")) and all(c[0] == "/agent/request-token" for c in r.calls),
               f"(g) F1 {name}: the dispatcher round reads nothing with the agent's own token {res.get('problem')} {r.calls}")
     r = runner("old-server", ar.ApiError(404, '{"error": "Not found"}'), agent={"owner_id": None, "runtime": {}})
