@@ -58,6 +58,7 @@ import segno
 import webauthn
 from webauthn.helpers import structs as wa_structs
 from flask import Flask, Response, g, has_request_context, jsonify, redirect, request, send_file, send_from_directory
+from flask.json.provider import DefaultJSONProvider  # noqa: E402  (2.1373.0, #6430: the JSON net)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .env import env_bool  # 2.149.0 D (#2511): one reading of the switches
@@ -323,6 +324,34 @@ def mail_norm(addr):
 
 MIN_PASSWORD = 8
 
+def _json_finite(o):
+    """2.1373.0 (#6430): o with every NaN / inf float as None (dicts, lists, tuples walked; other values as they are)."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _json_finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_finite(v) for v in o]
+    return o
+
+
+class FiniteJSONProvider(DefaultJSONProvider):
+    """2.1373.0 (#6430): the net under every sort / number check: JSON answers never carry a bare NaN or Infinity (no valid
+    JSON, JSON.parse in the browser refuses the whole answer -- one such value in /api/state stopped the app for everyone
+    who saw it). A non-finite float is written as null; the fast path stays one json.dumps."""
+
+    def dumps(self, obj, **kwargs):
+        kwargs["allow_nan"] = False
+        try:
+            return super().dumps(obj, **kwargs)
+        except ValueError as e:
+            if "Out of range float" not in str(e):
+                raise
+        print("json: a non-finite number in an answer, written as null", flush=True)
+        return super().dumps(_json_finite(obj), **kwargs)
+
+
 # import name "app" + root_path: the same app name and static folder as when everything lived in app.py
 app = Flask("app", root_path=APP_DIR, static_folder="static", static_url_path="/static")
+app.json = FiniteJSONProvider(app)  # 2.1373.0 (#6430): jsonify never writes NaN / Infinity
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_MB * 4 * 1024 * 1024  # one request may carry several files
