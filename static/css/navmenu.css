@@ -10,6 +10,7 @@
 .naved .navr:hover{background:var(--bg3)}
 .naved .navi{display:inline-flex;color:var(--muted)}
 .naved .navn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.naved .navmore{flex:none;font-size:var(--fs-xs)}  /* 2.1367.0 (#6748): the mark of the bottom bar's last place */
 .naved .navgrip{cursor:grab;touch-action:none;color:var(--muted)}
 .naved .navl:not(.navoffl) .navr{cursor:grab}
 .naved .navr.navdrag{cursor:grabbing;box-shadow:0 .125rem .5rem rgba(0,0,0,.15);position:relative;z-index:1}
