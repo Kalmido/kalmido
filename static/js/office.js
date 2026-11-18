@@ -563,7 +563,7 @@ function ofcSettingsHtml() {
     ${ofcSchemeHtml('os-rm-scheme', 'reminder', tr('Payment reminder numbers'), s.reminder_scheme, dis)}
     ${ofcFeat('docs.delivery') ? ofcSchemeHtml('os-ls-scheme', 'delivery', tr('Delivery note numbers'), s.delivery_scheme, dis) : ''}
     ${typeof onumHtml === 'function' ? onumHtml() : ''}
-    ${typeof issHtml === 'function' ? issHtml() : ''}${/* 2.1369.0 (#6699): the invoice issuers (office_numranges.js) */ ''}
+    ${/*html-ok*/ typeof issHtml === 'function' ? issHtml() : '' /* 2.1369.0 (#6699): the invoice issuers (office_numranges.js), escaped inside */}
     ${ofcRowF('os-paydays', tr('Payment terms'), `<span class="lacts"><input id="os-paydays" value="${esc(String(s.payment_days ?? 14))}" inputmode="numeric" class="numin" ${dis}><span class="muted">${tr('days')}</span></span>`)}${ofcII('paydays')}
     ${ofcRowF('os-skonto', tr('Cash discount'), `<span class="lacts"><input id="os-skonto" value="${esc(+s.skonto_pct ? fmtNum(s.skonto_pct, 2) : '')}" inputmode="decimal" class="numin" ${dis}><span class="muted">%</span><input id="os-skonto-days" aria-label="${esc(tr('days'))}" value="${esc(+s.skonto_days ? String(s.skonto_days) : '')}" inputmode="numeric" class="numin" ${dis}><span class="muted">${tr('days')}</span></span>`, tr('default for new invoices; empty = none'))}
     ${ofcRowF('os-exempt', tr('Reason for tax exemption'), `<input id="os-exempt" value="${esc(s.exempt_reason || '')}" maxlength="300" ${dis}>`, tr('printed on invoices with tax-exempt positions (0 %), required for them'))/* 2.296.0 B (#3169) */}

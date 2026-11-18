@@ -619,7 +619,7 @@ ORDER = (
     "office.girocode", "office.dunning",  # 2.147.1 B (#2054): the GiroCode (EPC QR), payment reminders suggested for overdue invoices
     "office.offerexp",  # 2.1064.0 (#5818): a sent quotation without an answer rings the bell before / after its "valid until"
     "office.officemove",  # 2.97.0 C (#2049): office data between the personal office and an organisation's office
-    "office.issuers",  # 2.1369.0 (#6699): invoice issuer keys (own key kind "kis_", /api/v1/issuer; the admins' management)
+    "office.issuers",  # 2.1369.0 (#6699): invoice issuer keys (an own key kind, /api/v1/issuer; the admins' management)
     "office.pbtransfer",  # 2.137.0 D (#1981): the personal office into an existing organisation (after office.officemove)
     "office.owrite",  # 2.567.0 (#4711): the one write call of an office row on the core's write layer (lock, version, history, undo)
     "office.undo",  # 2.111.0 A (#2233): undo of the office editors (copies before each own change, restore with conflict check)

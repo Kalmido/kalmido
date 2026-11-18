@@ -276,17 +276,17 @@ function issHtml() {
     const state = i.paused ? tr('Paused: {0}', i.paused_why || i.paused_reason) : k ? tr('Active') : tr('No valid key');
     const info = [i.range?.code ? tr('Range {0}', i.range.code) : '', k ? tr('key {0}… valid until {1}', k.prefix, issDay(k.expires_at)) : '',
       used ? tr('last used {0}', issDay(used)) : tr('not used yet'), i.allowed_ips?.length ? tr('{0} allowed addresses', i.allowed_ips.length) : tr('any address')].filter(Boolean).join(' · ');
-    const id = esc(String(i.id)), btn = (a, icon, label) => `<button type="button" class="btn sm" data-iss="${a}" data-id="${id}">${ic(icon, 's')}<span>${esc(label)}</span></button>`;
-    return `<div class="row issrow${i.paused ? ' isspaused' : ''}" data-iss-row="${id}"><label>${esc(i.name)}</label>
+    const id = String(i.id), btn = (a, icon, label) => `<button type="button" class="btn sm" data-iss="${esc(a)}" data-id="${esc(id)}">${ic(icon, 's')}<span>${esc(label)}</span></button>`;
+    return `<div class="row issrow${i.paused ? ' isspaused' : ''}" data-iss-row="${esc(id)}"><label>${esc(i.name)}</label>
       <span class="lacts"><span class="${i.paused ? 'err' : 'muted'} ofcpv">${esc(state)}</span></span>
       <span class="muted ofchint">${esc(info)}</span>
-      <span class="lacts onumacts">${adm ? btn('key', 'plus', tr('New key')) + (i.paused ? btn('resume', 'play', tr('Resume')) : btn('pause', 'pause', tr('Pause')))
-        + btn('edit', 'edit', tr('Edit')) + btn('payees', 'card', tr('Bank accounts')) : ''}${btn('log', 'list', tr('Log'))}${adm ? btn('revoke', 'trash', tr('Revoke')) : ''}</span></div>`;
+      <span class="lacts onumacts">${/*html-ok*/ adm ? btn('key', 'plus', tr('New key')) + (i.paused ? btn('resume', 'play', tr('Resume')) : btn('pause', 'pause', tr('Pause')))
+        + btn('edit', 'edit', tr('Edit')) + btn('payees', 'card', tr('Bank accounts')) : ''}${/*html-ok*/ btn('log', 'list', tr('Log'))}${/*html-ok*/ adm ? btn('revoke', 'trash', tr('Revoke')) : ''}</span></div>`;
   }).join('');
   const noRange = adm && !(d.ranges || []).length;
   return `<div id="iss-box" class="onum issbox" data-fg-skip><h4>${tr('Invoice issuers')}</h4>
     <p class="muted ofchint">${esc(tr('An outside system (a shop, a booking system) prepares invoice drafts in a number range with its own key; you check, finalise and send them here.'))}${d.environment === 'test' ? ' ' + esc(tr('This server gives out test keys.')) : ''}</p>
-    ${/*html-ok*/ ISS.err ? errorState({sub: ISS.err, size: 'row'}) : ''}${rows || `<p class="muted">${esc(tr('No invoice issuer yet.'))}</p>`}
+    ${/*html-ok*/ ISS.err ? errorState({sub: ISS.err, size: 'row'}) : ''}${/*html-ok*/ rows || `<p class="muted">${esc(tr('No invoice issuer yet.'))}</p>`}
     ${adm ? `<div class="row onumfoot"><span class="lacts"><button type="button" class="btn sm" data-iss="add" ${noRange ? 'disabled' : ''}>${ic('plus', 's')}<span>${tr('Add invoice issuer')}</span></button></span>
       ${noRange ? `<span class="muted ofchint">${esc(tr('Add a number range first: an issuer writes into its own range.'))}</span>` : ''}</div>` : ''}</div>`;
 }
@@ -336,12 +336,12 @@ function issEditDialog(i) {
   if (!i) return; let md0 = null;
   const d = ISS.data || {};
   const f = (id, label, html, hint) => `<div class="row"><label for="${esc(id)}">${esc(label)}</label>${/*html-ok*/ html}${hint ? `<span class="muted ofchint">${esc(hint)}</span>` : ''}</div>`;
-  const lim = ISS_LIM.map(([k, label, kind]) => f('iss-l-' + k, tr(label), `<input id="iss-l-${k}" class="numin" inputmode="${kind === 'money' ? 'decimal' : 'numeric'}" value="${esc(String(i.limits?.[k] ?? ''))}">`,
+  const lim = ISS_LIM.map(([k, label, kind]) => f('iss-l-' + k, tr(label), `<input id="iss-l-${esc(k)}" class="numin" inputmode="${kind === 'money' ? 'decimal' : 'numeric'}" value="${esc(String(i.limits?.[k] ?? ''))}">`,
     tr('0 = nothing allowed, at most {0}', String(d.limit_max?.[k] ?? '')))).join('');
   const html = f('iss-name', tr('Name'), `<input id="iss-name" maxlength="80" value="${esc(i.name)}">`)
     + f('iss-ips', tr('Allowed addresses'), `<input id="iss-ips" autocomplete="off" spellcheck="false" value="${esc((i.allowed_ips || []).join(', '))}">`, tr('empty = any address'))
     + (d.address_needed ? `<label class="chk"><input type="checkbox" id="iss-any" ${(i.allowed_ips || []).length ? '' : 'checked'}> ${esc(tr('Allow any address (not recommended)'))}</label>` : '')
-    + `<h4>${esc(tr('Limits'))}</h4>${lim}<p class="muted ofchint">${esc(tr('Raising a limit or loosening the address rule asks for your password.'))}</p>`
+    + `<h4>${esc(tr('Limits'))}</h4>${/*html-ok*/ lim}<p class="muted ofchint">${esc(tr('Raising a limit or loosening the address rule asks for your password.'))}</p>`
     + ((i.addresses || []).length ? `<h4>${esc(tr('Used from'))}</h4><ul class="issips">${i.addresses.map(a => `<li>${esc(a.ip)} · ${esc(tr('last {0}', issDay(a.last_at)))} · ${esc(tr('{0} calls', a.calls))}</li>`).join('')}</ul>` : '');
   askDialog({title: tr('Invoice issuer {0}', i.name), html, ok: tr('Save'), after: md => { md0 = md; }, submit: async () => {
     const limits = {}; for (const [k] of ISS_LIM) { const v = issVal(md0, 'iss-l-' + k).replace(',', '.'); if (v !== String(i.limits?.[k] ?? '')) limits[k] = v; }
@@ -369,7 +369,7 @@ async function issLogDialog(i) {
   let rows = [];
   try { rows = (await rawFetch('GET', `/api/office/issuers/${i.id}/log`)).log || []; } catch (x) { issFail(x); return; }
   const line = r => `<li><span class="muted">${esc(issDay(r.at))} ${esc(String(r.at).slice(11, 16))}</span> · ${esc(r.by === 'issuer' ? tr('Issuer') : r.user_name)} · ${esc(tr(ISS_ACT[r.action] || r.action))}${r.target && r.target !== 'issuer' ? ' · ' + esc(r.target) : ''}</li>`;
-  askDialog({title: tr('Log of {0}', i.name), ok: tr('Close'), html: rows.length ? `<ul class="isslog">${rows.map(line).join('')}</ul>` : `<p class="muted">${esc(tr('No entries yet.'))}</p>`});
+  askDialog({title: tr('Log of {0}', i.name), ok: tr('Close'), html: rows.length ? `<ul class="isslog">${/*html-ok*/ rows.map(line).join('')}</ul>` : `<p class="muted">${esc(tr('No entries yet.'))}</p>`});
 }
 
 async function issPayeesDialog(i) {
@@ -379,7 +379,7 @@ async function issPayeesDialog(i) {
   let md0 = null;
   const list = rows.map(p => `<li>${esc(p.label)} · ${esc(p.holder)} · ${esc(p.iban)}${p.bic ? ' · ' + esc(p.bic) : ''}${p.ref_only ? ' · ' + esc(tr('only with reference')) : ''}
     <button type="button" class="btn sm" data-iss-pdel="${esc(String(p.id))}">${ic('trash', 's')}<span>${tr('Remove')}</span></button></li>`).join('');
-  const html = `<p class="muted ofchint">${esc(tr('The accounts the issuer may choose for a payment notice (by number only; it never reads them).'))}</p>${list ? `<ul class="isspay">${list}</ul>` : ''}
+  const html = `<p class="muted ofchint">${esc(tr('The accounts the issuer may choose for a payment notice (by number only; it never reads them).'))}</p>${list ? `<ul class="isspay">${/*html-ok*/ list}</ul>` : ''}
     <h4>${esc(tr('Add bank account'))}</h4>
     <div class="row"><label for="iss-p-label">${esc(tr('Name'))}</label><input id="iss-p-label" maxlength="80"></div>
     <div class="row"><label for="iss-p-holder">${esc(tr('Account holder'))}</label><input id="iss-p-holder" maxlength="70"><span class="muted ofchint">${esc(tr('exactly as the bank has it'))}</span></div>
