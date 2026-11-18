@@ -326,8 +326,11 @@ def _visible_people(c, uid):
             full = [o for o in user_orgs_full(c, uid) if o in orgs]
             q = ",".join("?" * len(orgs))
             ids = {r[0] for r in c.execute(f"SELECT user_id FROM org_members WHERE org_id IN ({q}) AND (role='admin' OR org_id IN ({','.join(str(int(o)) for o in full) or 'NULL'}))", orgs)}
-        elif not c.execute("SELECT 1 FROM orgs WHERE personal_of IS NULL AND retired_at IS NULL AND self_made=0 LIMIT 1").fetchone():  # 2.152.0 A; 2.422.0 (#2937 review): like om_has_orgs
-            return None  # 2.46.0 (#1592): an instance without any organisation (a household): everyone, as before
+        elif not _operator_apart() and not c.execute("SELECT 1 FROM orgs WHERE personal_of IS NULL AND retired_at IS NULL AND self_made=0 LIMIT 1").fetchone():  # 2.152.0 A; 2.422.0 (#2937 review): like om_has_orgs
+            # 2.46.0 (#1592): an instance without any organisation (a household): everyone, as before.
+            # 2.1381.0 (#6592): never on a hosted server (KALMIDO_HOSTED, _operator_apart): there the people are strangers to each
+            # other, and the separation must not hang on the operator's organisation existing (retired / rebuilt / a new instance)
+            return None
         return ids | _connections(c, uid) | {uid}
     if u[0]:
         return None  # shared: admins see everyone
