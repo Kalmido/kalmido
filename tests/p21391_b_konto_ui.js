@@ -76,7 +76,7 @@ const OPEN_ALL = `(() => { document.querySelectorAll('.smodal details.sfold:not(
     check(ses.includes('Program / script') && !ses.some(t => /^node\b/i.test(t)), '#6130: the script\'s session is "Program / script", no raw "node": ' + ses.join(' | '));
     // passkeys over http on an IP: the everyday sentence visible, the technical one only folded
     check(await ready(ev, `!!document.querySelector('.smodal #s-2fa [data-tfa="pk-add"]')`), '#6130: the two-factor part is drawn');
-    const pk = JSON.parse(await ev(`JSON.stringify((() => { const b = document.querySelector('.smodal #s-2fa'); const vis = [...b.querySelectorAll('.shint')].filter(x => !x.closest('details')).map(x => x.textContent).join(' ');
+    const pk = JSON.parse(await ev(`JSON.stringify((() => { const b = document.querySelector('.smodal #s-2fa'); const vis = [...b.querySelectorAll('.shint')].filter(x => !x.closest('details.acadv')).map(x => x.textContent).join(' ');
       return {vis, fold: b.querySelector('details.acadv')?.textContent || '', sum: b.querySelector('details.acadv > summary')?.textContent || ''}; })())`));
     check(/Passkeys cannot be used on this address or in this browser\./.test(pk.vis) && !/HTTPS|IP address/.test(pk.vis), '#6130: the passkey hint in everyday words: ' + pk.vis.slice(0, 160));
     check(pk.sum === 'For advanced users' && /HTTPS/.test(pk.fold), '#6130: the HTTPS / IP details folded for the server admin');
