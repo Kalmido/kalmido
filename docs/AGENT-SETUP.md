@@ -113,6 +113,19 @@ the computer needed); the setup creates `CLAUDE.md` in the project folder from
 `mcp/CLAUDE.template.md` when there is none (never overwritten), and the launcher reports the usage itself (usage hook as
 Stop / SubagentStop hook in its run settings). The setup prints who answers and where `CLAUDE.md` is.
 
+2.1367.0 (#6457): the token stays out of the model's process. The launcher hands the agent command only the path of the env
+file (`KALMIDO_ENV_FILE`), never `KALMIDO_TOKEN`; the Kalmido MCP server, the usage hook, `kalmido_cli.py` and `agent_job.py`
+read the token from that file themselves. A Bash step of the agent (`env`, `printenv`) therefore shows no token, and the guard
+hook refuses a command line that names the env file. The setup does the hardening of [step 7](#7-permissions-claudesettingsjson)
+itself: it writes Claude Code's deny rules into `.claude/settings.local.json` of the project folder (this computer only,
+not in the repository; entries already there stay, a second setup adds nothing twice): `WebFetch`, `WebSearch`, `Read` of
+`~/.kalmido` and of the env file, `Edit` of the env file. Every run of the launcher carries the file rules in its own settings
+as well; the two web rules you may take out of `settings.local.json` again if the agent needs the web. The setup also asks
+once whether this computer's key should work only from its current internet address (`--ip-rule current` / `-IpRule current`
+answers without the question, `off` skips it, or name IPs / networks; Enter or no terminal = no rule). Kalmido stores the
+rule on that computer's key only and never makes it wider than the agent's own address rule. Take it only with a fixed
+address: when the address changes, the agent cannot reach Kalmido until you change the rule (*Settings > Agents >* the agent).
+
 2.47.3 (#1729): *Remove computer* and *Delete agent* show an uninstall command for each computer (run it there first, then delete; it also works after the agent was deleted).
 
 2.157.0 (#1517): on a Mac set up over SSH (nobody logged in at the screen) the agent starts in the background at once and at every screen login after a restart. After *Remove computer* the launcher stops the agent with one log line and waits quietly until you run the uninstall command.
@@ -369,7 +382,7 @@ claude                                          # log in once, then /exit
 
 ### 5. The MCP server behind a wrapper
 
-The MCP server needs only Python 3 and reads `KALMIDO_URL` and `KALMIDO_TOKEN` from its environment. Optionally `KALMIDO_TOOLSETS` (e.g. `tickets,code`; `chat` is always on, default all) or the start option `--toolsets` limits the tools to those packages, which saves context (see [mcp/README.md](../mcp/README.md#toolsets---toolsets-kalmido_toolsets)). A wrapper hands
+The MCP server needs only Python 3 and reads `KALMIDO_URL` and `KALMIDO_TOKEN` from its environment (2.1367.0, #6457: or from the env file `KALMIDO_ENV_FILE` names, which is how the launcher keeps the token out of the model's process). Optionally `KALMIDO_TOOLSETS` (e.g. `tickets,code`; `chat` is always on, default all) or the start option `--toolsets` limits the tools to those packages, which saves context (see [mcp/README.md](../mcp/README.md#toolsets---toolsets-kalmido_toolsets)). A wrapper hands
 them over from the env file, so the token is neither in Claude Code's configuration nor visible to the model:
 
 ```sh
@@ -531,6 +544,10 @@ sed -n '/kalmido-agent-rules:start/,/kalmido-agent-rules:end/p' ~/kalmido/mcp/CL
 ```
 
 ### 7. Permissions: .claude/settings.json
+
+2.1367.0 (#6457): the one-command setup does this itself for its project folder (deny rules for `WebFetch`, `WebSearch`,
+reading `~/.kalmido` and the env file, editing the env file, in `.claude/settings.local.json`; see
+[Quickest](#quickest-one-command-on-your-computer)). The profiles below are for a setup by hand and for narrowing further.
 
 `~/agent/.claude/settings.json`. Two profiles; pick one on purpose and use the same everywhere (this guide,
 [AGENT-SECURITY.md](AGENT-SECURITY.md#4-claude-code-project-settings), [AGENTS.md](AGENTS.md#set-up-an-agent), the guide in the app):

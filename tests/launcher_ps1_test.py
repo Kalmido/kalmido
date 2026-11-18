@@ -76,7 +76,7 @@ fake = os.path.join(tmp, "fakeagent")
 with open(fake, "w") as f:
     f.write("#!/usr/bin/env python3\nimport json, os, sys, time\n"
             f"open({log!r}, 'a').write(json.dumps({{'args': sys.argv[1:], 'pct': os.environ.get('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE'),"
-            " 'dis': os.environ.get('DISABLE_AUTO_COMPACT'), 'extra': os.environ.get('EXTRA_VAR'), 'tok': bool(os.environ.get('KALMIDO_TOKEN'))}) + '\\n')\n"
+            " 'dis': os.environ.get('DISABLE_AUTO_COMPACT'), 'extra': os.environ.get('EXTRA_VAR'), 'tok': bool(os.environ.get('KALMIDO_TOKEN')), 'envf': os.environ.get('KALMIDO_ENV_FILE')}) + '\\n')\n"
             "time.sleep(600)\n")
 os.chmod(fake, 0o755)
 STATE["runtime"].update(model="sonnet", autocompact=True, autocompact_pct=60, reset_seq=0)
@@ -96,7 +96,9 @@ try:
     check(until(lambda: len(starts()) == 1), "the agent starts")
     s = starts()[0] if starts() else {}
     check(s.get("args") == ["--flag", "--model", "sonnet"] and s.get("pct") == "60" and not s.get("dis"), "started with model + auto-compact: " + json.dumps(s))
-    check(s.get("extra") == "hello world" and s.get("tok"), "the env file's variables reach the command")
+    # 2.1367.0 (#6457): the token stays out of the model's process (without --events the command is the model): only the path
+    check(s.get("extra") == "hello world" and not s.get("tok") and os.path.realpath(s.get("envf") or "") == os.path.realpath(envf),
+          "the env file's variables reach the command, the token not (#6457): " + json.dumps(s))
     STATE["runtime"]["reset_seq"] = 1  # "Reset now"
     check(until(lambda: len(starts()) == 2), "Reset now -> a fresh start")
     STATE["runtime"].update(autocompact=False)

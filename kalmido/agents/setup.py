@@ -185,9 +185,34 @@ def ains_admin_machine_del(aid, tid):
         return ains_machine_del(c, aid, tid)
 
 
+# kalmido-capability: token_scoped (2.1367.0, #6457)
+def ains_ips_want(raw):
+    """2.1367.0 (#6457): the address rule the setup offers for this computer's key: None (no rule asked), "current" (the
+    address the setup comes from: IPv4 as it is, IPv6 its /64) or IPs / networks; BadInput 400 for a wrong one."""
+    from ..core.ipallow import ips_clean
+    if raw in (None, "", []):
+        return None
+    return ips_clean(rate_ip() if raw == "current" else raw) or None
+
+
+def ains_ips_set(c, tid, want):
+    """2.1367.0 (#6457): the existing address rule of a token (api_tokens.allowed_ips) for this computer's new key. Within
+    the agent's own rule only (a wider one keeps the agent's); never fails the setup. -> (the key's addresses now ([] = any),
+    whether the asked rule was set)."""
+    import ipaddress
+    have = (c.execute("SELECT allowed_ips FROM api_tokens WHERE id=?", (tid,)).fetchone()[0] or "")
+    nets = lambda v: [ipaddress.ip_network(x, strict=False) for x in v.split(",") if x]  # noqa: E731
+    if want and (not have or all(any(n.version == m.version and n.subnet_of(m) for m in nets(have)) for n in nets(want))):
+        c.execute("UPDATE api_tokens SET allowed_ips=? WHERE id=?", (want, tid))
+        return [x for x in want.split(",") if x], True
+    return [x for x in have.split(",") if x], False
+
+
 @app.post("/api/agent-setup/redeem")
 def ains_redeem():
-    """{code, host?, folder?, os?} -> {token, url, agent, operator_id, starter_base, starter_sha256, version}. No login: the one-time
+    """{code, host?, folder?, os?, allowed_ips?} -> {token, url, agent, operator_id, starter_base, starter_sha256, version, allowed_ips,
+    allowed_ips_applied}.
+    2.1367.0 (#6457): allowed_ips ("current" or IPs / networks) = an address rule for this computer's key. No login: the one-time
     code is the credential. 2.380 G (#3390): starter_sha256 = {file: sha256}, the setup refuses a downloaded file that differs."""
     keys = [("setup:ip:" + rate_ip(), AINS_RATE)]
     if _rate_blocked(keys):
@@ -199,6 +224,7 @@ def ains_redeem():
     b = body()
     code = b.get("code") if isinstance(b.get("code"), str) else ""
     host = ains_text(b.get("host"), AINS_HOST_MAX, "host")
+    want_ips = ains_ips_want(b.get("allowed_ips"))  # 2.1367.0 (#6457): checked before the code is used
     c = db()
     with system_ctx(c):  # no account yet: the code alone decides which agent; read and written only for that one row
         r = c.execute("SELECT * FROM agent_setup_codes WHERE code_hash=?", (_token_hash(code.strip()),)).fetchone() if code else None
@@ -219,6 +245,7 @@ def ains_redeem():
         folder = ains_text(b.get("folder"), AINS_FOLDER_MAX, "folder") or r["folder"]
         osn = b.get("os") if b.get("os") in AINS_OS else r["os"]
         c.execute("UPDATE api_tokens SET host=?, folder=?, os=? WHERE id=?", (host, folder, osn, tid))
+        ips, ips_new = ains_ips_set(c, tid, want_ips)
         c.execute("UPDATE agent_setup_codes SET token_id=? WHERE id=?", (tid, r["id"]))
         bump(c)
         c.commit()
@@ -228,7 +255,7 @@ def ains_redeem():
                        agent={"id": a["user_id"], "name": _plain(a["display_name"] or a["username"]), "username": _plain(a["username"]),
                               "team": not a["owner_id"]},
                        operator_id=ains_operator(c, a, r), starter_base=AINS_STARTER_BASE.replace("{version}", ver or "main"),
-                       starter_sha256=ains_starter_sha())
+                       starter_sha256=ains_starter_sha(), allowed_ips=ips, allowed_ips_applied=ips_new)
 
 
 @app.post("/api/agent-setup/remove")
