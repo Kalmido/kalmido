@@ -79,6 +79,13 @@ print(made)
   // browser
   for (const [vw, vh, touch] of [[1440, 900, false], [390, 844, true]]) await firefox(async o => {
     const {cmd, ev, ctx, nav} = o, tag = `${n} ${vw}`;
+    // 2.1371.0 (#6666): CI run 43894494572 measured the first browser of the suite at 6241 ms (1440) and the second at 2456 ms
+    // (390); p265_d shows the same order (7191 / 4242), the Mac 1440 stays far below the budget. The first text a fresh runner
+    // draws pays its one-off font / graphics set-up - a cost of the runner, not of the app. One plain text page first (no app
+    // file, no HTTP cache of the app), its time printed, so start_ms measures the app's start only.
+    const w0 = Date.now();
+    await nav('data:text/html,' + encodeURIComponent('<!doctype html><meta charset="utf-8"><p style="font:16px sans-serif">Kalmido <b>warm-up</b> äöü 123</p>'));
+    rep(`${tag} warm-up (text page) ms`, Date.now() - w0);
     await nav(B + 'static/icon.svg');
     await ev(`(() => { localStorage.clear(); return 1; })()`);
     await ev(`fetch('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'kalmido'}, body: JSON.stringify({username: 'alice', password: 'password123'})}).then(r => r.status)`);
@@ -87,6 +94,11 @@ print(made)
     await nav(B + '#l/' + L);
     for (let i = 0; i < 300 && !(await ev(`!!document.querySelector('#view .trow')`).catch(() => false)); i++) await sleep(50);
     const start = Date.now() - s0; rep(`${tag} start ms`, start);
+    // 2.1371.0 (#6666): where the start time goes (server answer of the page, scripts, the slowest files) - CI logs tell more next time
+    const nt = await ev(`(() => { const n = performance.getEntriesByType('navigation')[0] || {}; const rs = performance.getEntriesByType('resource');
+      const slow = rs.map(r => [r.name.replace(location.origin, '').slice(0, 60), Math.round(r.duration)]).sort((a, b) => b[1] - a[1]).slice(0, 4);
+      return {html: Math.round(n.responseEnd || 0), dcl: Math.round(n.domContentLoadedEventEnd || 0), load: Math.round(n.loadEventEnd || 0), files: rs.length, slow}; })()`).catch(e => ({err: e.message}));
+    console.log(`perf: ${tag} start parts ${JSON.stringify(nt)}`);
     check(start < (n > 10000 ? 15000 : 8000), `${tag}: start until the list shows in ${start} ms`);
     if (BUDGET.start_ms) check(start < BUDGET.start_ms, `${tag}: start ${start} ms within the budget start_ms ${BUDGET.start_ms} (tools/perf_budget.json)`);
     const m = async (name, js, lim) => { const r = await ev(`(async () => { const t = performance.now(); ${js}; await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); return performance.now() - t; })()`); rep(`${tag} ${name} ms`, r); check(r < lim, `${tag}: ${name} in ${Math.round(r)} ms (limit ${lim})`); return r; };
