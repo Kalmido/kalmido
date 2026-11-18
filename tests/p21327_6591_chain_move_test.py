@@ -16,6 +16,9 @@ freelancer-matrix: office  tenant-matrix: office
    its duration 409, the note still changes), the open one stays open; the invoice no longer names the project
  - 2.1386.0 (#6934 F1): a third entry billed on a draft of the organisation (its position names the project) is free again
    after the project moved (billed_doc_id / billed_at NULL, billable, its duration changes), the position lets go of the project
+ - 2.1398.0 (#6883): the billed entry keeps the finalised invoice in billed_moved_doc_id (the draft's entry does not); the
+   project comes back into the organisation -> the entry is on its invoice again (billable, GET shows it, not "earlier"), the
+   draft's entry stays open; it leaves again -> "billed in an earlier organisation" again with the reference kept
 usage: p21327_6591_chain_move_test.py <datadir>"""
 import base64
 import os
@@ -141,6 +144,20 @@ check(not e.get("billed"), f"#6934: shown as not billed {e.get('billed')}")
 r = Fr.patch(B + f"/api/time/entries/{TD}", json={"minutes": 50})
 check(r.ok, f"#6934: its duration changes again {r.status_code} {r.text[:200]}")
 check(not sql("SELECT 1 FROM office_doc_items WHERE id=? AND list_id IS NOT NULL", (ADI,)), "#6934: the draft's position let go of the project")
+check(sql("SELECT billed_moved_doc_id, billed_moved_item_id FROM time_entries WHERE id=?", (TB,)) == [(A1, None)]
+      and sql("SELECT billed_moved_doc_id FROM time_entries WHERE id=?", (TD,)) == [(None,)], "#6883: only the finalised invoice is remembered")
+r = Fr.patch(B + f"/api/lists/{LID}", json={"org_id": ALPHA})
+check(r.ok and sql("SELECT org_id FROM lists WHERE id=?", (LID,)) == [(ALPHA,)], f"#6883: the project comes back {r.status_code} {r.text[:200]}")
+row = sql("SELECT billed_doc_id, billable, billed_at IS NOT NULL, billed_moved_doc_id FROM time_entries WHERE id=?", (TB,))
+check(row == [(A1, True, True, None)], f"#6883: back in the organisation, the entry is on its invoice again {row}")
+e = Fr.get(B + f"/api/time/entries/{TB}").json()
+check((e.get("billed") or {}).get("id") == A1 and not (e.get("billed") or {}).get("earlier"), f"#6883: shown on its invoice again {e.get('billed')}")
+r = Fr.patch(B + f"/api/time/entries/{TB}", json={"minutes": 90})
+check(r.status_code == 409, f"#6883: its duration stays locked on the invoice {r.status_code}")
+check(sql("SELECT billed_doc_id, billable, billed_at FROM time_entries WHERE id=?", (TD,)) == [(None, True, None)], "#6883: the draft's entry stays open")
+r = Fr.patch(B + f"/api/lists/{LID}", json={"org_id": None})
+row = sql("SELECT billed_doc_id, billable, billed_at IS NOT NULL, billed_moved_doc_id FROM time_entries WHERE id=?", (TB,))
+check(r.ok and row == [(None, False, True, A1)], f"#6883: it leaves again: billed earlier, the reference kept {r.status_code} {row}")
 
 # ---------------------------------------------------------------- 2.1386.0 (#6882): a broken chain refuses the move
 ws(Fr, "private")
