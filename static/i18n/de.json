@@ -19365,10 +19365,5 @@
   "Previous slide": "Vorherige Folie",
   "Next slide": "Nächste Folie",
   "End presentation": "Präsentation beenden",
-  "Presentation: {0}": "Präsentation: {0}",
-  "Signing out deletes them from this device, a copy is downloaded as a text file first.": "Abmelden löscht sie von diesem Gerät, vorher wird eine Kopie als Textdatei heruntergeladen.",
-  "Input not saved yet": "Eingabe noch nicht gespeichert",
-  "A support session does not open the original e-mail file: the client does that": "Eine Support-Sitzung öffnet die Original-E-Mail-Datei nicht: das macht der Kunde",
-  "one of its clients": "einem seiner Kunden",
-  "{0}: letters, digits and + * . - only": "{0}: nur Buchstaben, Ziffern und + * . -"
+  "Presentation: {0}": "Präsentation: {0}"
 }
