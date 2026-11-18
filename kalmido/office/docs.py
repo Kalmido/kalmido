@@ -1790,7 +1790,17 @@ def odoc_list():
     dun = dun_list_extra(c, oid, kind, rows)  # 2.147.1 B (#2054): suggested reminder drafts (count + mark)
     if st in ("partial", "overdue"):  # derived states: filtered after the fact
         rows = [x for x in rows if x["state"] == st]
-    return jsonify(docs=rows, next_cursor=next_cursor, role=role, org_id=oid, **trial_summary(c, oid), **({"dunning": dun} if dun else {}))
+    return jsonify(docs=rows, next_cursor=next_cursor, role=role, org_id=oid, **trial_summary(c, oid), **({"dunning": dun} if dun else {}),
+                   **(odoc_sources(c, oid) if kind in ("invoice", "credit") else {}))
+
+
+def odoc_sources(c, oid):
+    """2.1396.0 (#6701): the filters "number range" and "made by an invoice issuer" of the invoice list: {ranges: [{id, code}],
+    issuers: [{id, name}]} of area oid, each only when it has some (the list's ?range= / ?issuer=)."""
+    rg = [{"id": r["id"], "code": r["code"]} for r in c.execute("SELECT id, code FROM office_num_ranges WHERE org_id=? ORDER BY code, id", (oid,)).fetchall()]
+    iss = [{"id": r["id"], "name": r["name"] or f"#{r['id']}"} for r in c.execute(
+        "SELECT id, name FROM office_issuers WHERE org_id=? ORDER BY name, id", (oid,)).fetchall()]
+    return {**({"ranges": rg} if rg else {}), **({"issuers": iss} if iss else {})}
 
 
 def trial_summary(c, oid):
