@@ -624,6 +624,8 @@ def wiki_update(pid):
         prev = wkh_prev(c, r)
         from .wkundo import wku_note, wku_pre  # 2.778.0 (#5253): the person's save as a step of "Recent steps"
         pre = wku_pre(c, pid) if plain is not None and not locked else None
+        from .wkembed import wem_after_move, wem_cover_state
+        wem0 = wem_cover_state(c, r["org_id"], r["owner_id"], [pid]) if "path" in f and not locked else None  # 2.1368.0 (#6868)
         guard = " AND updated_at=?" if exp else ""  # 2.200.0 F (#1781, review 5): the conflict check in the same statement
         try:
             with c.savepoint():
@@ -653,6 +655,7 @@ def wiki_update(pid):
                 from ..files.store import _now
                 c.execute("UPDATE fs_nodes SET name=?, updated_at=? WHERE kind='ref' AND ref_kind='wiki' AND ref_id=?",
                           (f["path"].rsplit("/", 1)[-1], _now(), pid))
+            wem_after_move(c, uid, wem0)  # 2.1368.0 (#6868): under a new share with pictures: only the mover's visible embeds stay
         bump(c)
         c.commit()
     r = wiki_need(c, pid)
@@ -693,6 +696,8 @@ def wiki_move():
     taken = [nw for _, nw in moves if nw.lower() in held and held[nw.lower()] not in mine]
     if taken:
         return jsonify(error=tr("A page with this name already exists"), taken=taken[:20]), 409
+    from .wkembed import wem_after_move, wem_cover_state
+    wem0 = wem_cover_state(c, oid, None if oid else uid, [r["id"] for r in rows])  # 2.1368.0 (#6868)
     ts = iso_ms(now_utc())
     ids = [r["id"] for r, _ in moves]
     for i in range(0, len(ids), 500):  # first to a free name, then to the target (pages of the folder may swap names among themselves)
@@ -712,6 +717,7 @@ def wiki_move():
     wkf_trash_follow(c, oid, None if oid else uid, src, dst)  # 2.552.0 (#4561 B28): its pages in the trash follow too
     wkf_folder_move(c, uid, oid, src, dst)  # 2.200.0 A (#2747): the folder node (with its shares) follows, then the pages
     wkf_sync(c, uid, oid)
+    wem_after_move(c, uid, wem0)  # 2.1368.0 (#6868)
     bump(c)
     c.commit()
     return jsonify(ok=True, moved=[{"id": r["id"], "from": r["path"], "to": new} for r, new in moves], relinked=n)

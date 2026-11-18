@@ -22,7 +22,8 @@ from ..core import objhooks  # 2.1284.0 (#6321): START, the rows of the pages wr
 from ..core.config import app
 from ..core.db import body, db, gset, gsetting, iso_ms, now_utc
 from ..core.i18n import tr
-from ..core.access import Denied
+from ..core.pg import system_ctx  # 2.1368.0 (#6868)
+from ..core.access import Denied, live_sql
 from ..accounts.session import me
 from ..core.errors import BadInput
 from ..sheets.core import sh_may, sh_need  # 2.369.5 (#2517): pulled up from functions
@@ -106,6 +107,46 @@ def wem_embeds_drop(c, where, args):
 def wem_embedders(c, pid):
     """2.1284.0 (#6321): {node id: account id | None} -- who embedded which picture into page pid."""
     return {r[0]: r[1] for r in c.execute("SELECT node_id, user_id FROM wiki_embeds WHERE page_id=?", (pid,)).fetchall()}
+
+
+def wem_cover_state(c, oid, owner, pids):
+    """2.1368.0 (#6868): before a page is renamed / moved (alone, with its folder, in the tree): which live shares that show
+    pictures (wkshare.wsh_rows with images: the links and, in a private space, the person shares) cover each page of pids
+    in space oid / owner -> state for wem_after_move; None when the space has no such share (nothing to compare)."""
+    from .wkshare import wsh_covers, wsh_rows
+    if not pids:
+        return None
+    with system_ctx(c):  # every share of the space, also the ones of others the mover's context does not list
+        shares = [s for s in wsh_rows(c, oid, None if oid else owner) if s.get("images")]
+    if not shares:
+        return None
+    pages = c.execute(f"SELECT id, path FROM wiki_pages WHERE id = ANY(CAST(? AS BIGINT[])) AND {live_sql()}",
+                      (sorted({int(x) for x in pids}),)).fetchall()
+    return {"oid": oid, "owner": None if oid else owner,
+            "pages": {p["id"]: {s["id"] for s in shares if wsh_covers(s, p["path"], p["id"])} for p in pages}}
+
+
+def wem_after_move(c, uid, state):
+    """2.1368.0 (#6868): a page that came by a rename / move under a share with pictures that did not cover
+    it before (state of wem_cover_state) keeps the picture rows only of the files the mover uid sees; the others go to nobody
+    (user_id NULL: no picture through a link until someone who sees the file puts it in again) -- else a writer without a
+    right on a file carries a colleague's embed under a link of a third person. A rename under the same shares changes
+    nothing. One place for every way a page moves (wiki_update, wiki_move, the tree: wkfolder._before / _after). -> rows set
+    to nobody."""
+    if not state:
+        return 0
+    from .wkshare import wsh_covers, wsh_rows
+    with system_ctx(c):
+        shares = [s for s in wsh_rows(c, state["oid"], state["owner"]) if s.get("images")]
+    n = 0
+    for p in c.execute(f"SELECT * FROM wiki_pages WHERE id = ANY(CAST(? AS BIGINT[])) AND {live_sql()}",
+                       (sorted(state["pages"]),)).fetchall():
+        if not any(s["id"] not in state["pages"][p["id"]] and wsh_covers(s, p["path"], p["id"]) for s in shares):
+            continue
+        for nid, who in sorted(wem_embedders(c, p["id"]).items()):
+            if who is not None and who != uid and not wem_visible(c, uid, nid, p):
+                n += c.execute("UPDATE wiki_embeds SET user_id=NULL WHERE page_id=? AND node_id=?", (p["id"], nid)).rowcount
+    return n
 
 
 WEM_SINCE = "wem_since6321"  # settings: the start of the last run of wem_embeds_start (a point in time)
