@@ -246,7 +246,7 @@ def env_credentials():
     return creds()
 
 
-# kalmido-capability: request_token_expired (2.1386.0, #6668, review R3 F6)
+# 2.1386.0 (#6668, review R3 F6): part of the capability request_token (mcp/launcher_capabilities.json)
 def mark_req_expired(jid=None):
     """2.1386.0 (#6668, review R3 F6): the request token of this job's env file answered 401 and the file holds no newer one
     (8 h are over, no new run of the person renewed it). The job cannot reach Kalmido any more; it leaves a mark in the
