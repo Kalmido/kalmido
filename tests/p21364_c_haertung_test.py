@@ -16,8 +16,8 @@
    account's share nor a history line naming it, and its share id answers 404 like an unknown one (was 400); Fable review
    job/5254 F2: the same person shared by name in the file store's dialog gets no second, hidden row -- the address opens
    again and the one share goes on by name, as in the table's own dialog
- 7 the organisation's table / knowledge trash: a writing member deletes for good only what she made or put there, one at a
-   time (was: any one, one at a time); its admin any
+ 7 the organisation's table / knowledge trash: a writing member deletes for good only what she made, one at a time (was:
+   any one, one at a time; Fable review job/5254 F3: put into the trash by her is not enough); its admin any
 usage: p21364_c_haertung_test.py <datadir>"""
 import base64
 import os
@@ -273,6 +273,17 @@ r = Id.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_BOB]})
 check(r.status_code == 403 and dbx("SELECT 1 FROM wiki_pages WHERE id=?", (P_BOB,)), f"(7) ida cannot delete bob's page for good ({r.status_code})")
 check(Id.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_IDA]}).json().get("ids") == [P_IDA], "(7) ida deletes her own page for good")
 check(Bo.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_BOB]}).json().get("ids") == [P_BOB], "(7) bob (admin) deletes it")
+# 2.1364.0 (#6297 7, Fable review job/5254 F3): put into the trash by ida is not hers -- two steps would cross the admin's limit
+T_BOB = Bo.post(B + "/api/sheets", json={"title": "Bob's second table", "space": SP}).json().get("id")
+check(T_BOB and Id.delete(B + f"/api/sheets/{T_BOB}").ok, "(7) setup: ida puts bob's table into the trash")
+r = Id.post(B + "/api/sheets/purge", json={"space": SP, "ids": [T_BOB]})
+check(r.status_code == 403 and dbx("SELECT 1 FROM sheets WHERE id=?", (T_BOB,)), f"(7) ida cannot then delete it for good ({r.status_code})")
+check(Bo.post(B + "/api/sheets/purge", json={"space": SP, "ids": [T_BOB]}).json().get("ids") == [T_BOB], "(7) bob (admin) can")
+Q_BOB = Bo.post(B + "/api/wiki/pages", json={"space": SP, "path": "Bob page two 6297", "body": "text"}).json().get("id")
+check(Q_BOB and Id.delete(B + f"/api/wiki/pages/{Q_BOB}").ok, "(7) setup: ida puts bob's page into the trash")
+r = Id.post(B + "/api/wiki/purge", json={"space": SP, "ids": [Q_BOB]})
+check(r.status_code == 403 and dbx("SELECT 1 FROM wiki_pages WHERE id=?", (Q_BOB,)), f"(7) ida cannot then delete the page for good ({r.status_code})")
+check(Bo.post(B + "/api/wiki/purge", json={"space": SP, "ids": [Q_BOB]}).json().get("ids") == [Q_BOB], "(7) bob (admin) can")
 
 # ==== 6 (Fable review job/5254 F2): the same person by address and by name in the file store's dialog
 kt.proved()
