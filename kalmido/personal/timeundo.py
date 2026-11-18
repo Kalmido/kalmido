@@ -44,7 +44,8 @@ TEU_DELETED = N_("Time entry deleted ({0})")  # the key exists (static/js/time.j
 TEU_GONE = N_("The time entry is not as this step left it, so it cannot be undone")
 TEU_PLACE = N_("The project of this time entry cannot take time any more, so it cannot be undone")
 TEU_KEEP = frozenset({"user_id", "billed_doc_id", "billed_at", "billed_item_id", "pomo_id", "client_id", "reminded",
-                      "auto_stopped", "task_title", "created_at", "source"})
+                      "auto_stopped", "task_title", "created_at", "source",
+                      "billed_moved_doc_id", "billed_moved_item_id"})  # 2.1398.0 (#6883): the kept reference (office/timebill.py)
 TEU_NOFP = frozenset({"reminded", "auto_stopped", "task_title"})
 
 
@@ -207,7 +208,7 @@ def teu_life_run(c, uid, eid, data, redo):
             row["pomo_id"] = None
         if row.get("client_id") and c.execute("SELECT 1 FROM time_entries WHERE user_id=? AND client_id=?", (uid, row["client_id"])).fetchone():
             row["client_id"] = None
-        for k in ("billed_doc_id", "billed_at", "billed_item_id"):
+        for k in ("billed_doc_id", "billed_at", "billed_item_id", "billed_moved_doc_id", "billed_moved_item_id"):  # 2.1398.0 (#6883)
             row[k] = None
         if _locked(c, row.get("list_id"), row.get("task_id")):  # 2.900.0 (#5550): back without its plain texts
             row.update(note="", task_title="")
