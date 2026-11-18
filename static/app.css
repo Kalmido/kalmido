@@ -504,7 +504,10 @@ code.topic{background:var(--bg3);padding:2px .4375rem;border-radius:var(--r-s);f
   #app,#app.detail-open{grid-template-columns:1fr;display:block}
   #rail{display:none}
   #main{height:100dvh}
-  #view{padding:0 .75rem calc(var(--tabs-bot) + 4.5rem)}
+  /* 2.1383.0 (#7060): the list ends with the + button's room: its bottom offset + its height + a clear gap of 1rem (was a flat
+     4.5rem = .5rem gap; a short list that scrolls a little left "New section" partly under the button) */
+  :root{--fab-bot:1rem;--fab-h:3rem}
+  #view{padding:0 .75rem calc(var(--tabs-bot) + var(--fab-bot) + var(--fab-h) + 1rem)}
   #top{padding:calc(.625rem + var(--safe-t)) .5rem .375rem .25rem;min-height:3.25rem}
   #top h1{font-size:var(--fs-page-m)}
   #top .menu{display:inline-flex}
@@ -522,7 +525,7 @@ code.topic{background:var(--bg3);padding:2px .4375rem;border-radius:var(--r-s);f
   #tabs button.on{color:var(--accent)}
   #tabs button.on::before{content:'';position:absolute;top:-1px;left:30%;right:30%;height:2px;border-radius:0 0 2px 2px;background:var(--accent)}
   #tabs button .dot{position:absolute;top:.5rem;left:calc(50% + .5rem);width:.375rem;height:.375rem;border-radius:50%;background:var(--accent)}
-  #fab{display:grid;place-items:center;position:fixed;right:1rem;bottom:calc(var(--tabs-bot) + 1rem);width:3.25rem;height:3.25rem;border-radius:.875rem;background:var(--accent);color:var(--accent-ink);z-index:41;box-shadow:0 .5rem 1.5rem rgba(0,0,0,.45)}
+  #fab{display:grid;place-items:center;position:fixed;right:1rem;bottom:calc(var(--tabs-bot) + var(--fab-bot));width:var(--fab-h);height:var(--fab-h);border-radius:.875rem;background:var(--accent);color:var(--accent-ink);z-index:41;box-shadow:0 .5rem 1.5rem rgba(0,0,0,.45)}
   #fab svg{width:1.5rem;height:1.5rem;stroke-width:2.2}
   #fab.gone{display:none}
   .qadd.inline{display:none}
@@ -3420,7 +3423,7 @@ svg.kword{display:block;height:.82em;width:auto;aspect-ratio:371.8/81;color:#EEE
    touch tablets (44 px rows, the desktop's text size); the phone's + a little smaller */
 .achip.attn{border-color:transparent}
 @media (min-width:768px) and (pointer:coarse){ #side .srow,#side .fhead{font-size:var(--fs-m);gap:.5rem} #side .sgroup+.sgroup{margin-top:.25rem} }
-@media (max-width:767px){ #fab{width:3rem;height:3rem} }
+/* 2.1383.0 (#7060): the phone's + button size is --fab-h (3rem, the mobile block), the list's end room follows it */
 /* #429: the font size slider; below 100 % touch screens keep 44 px hit areas (2.75rem / --ui = 44 px), only text and
    spacing shrink */
 .lkfs{display:flex;align-items:center;gap:.625rem;flex-wrap:wrap}
