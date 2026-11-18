@@ -41,6 +41,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import sys
 import time
 import urllib.error
@@ -53,21 +54,20 @@ LOCK_WAIT_S = 20  # 2.306.0 (#2927): how long a second run of the same session w
 
 
 def load_env(path):
-    """KEY=VALUE lines (optional quotes, # comments) -> dict."""
+    """KEY=VALUE lines (optional "export ", quotes, # comments, also behind a value) -> dict. 2.1367.0 (#6457): read with
+    shell words like the launchers (agent_launcher.sh sources the file), since the hook now finds the token only here."""
     out = {}
     with open(path, encoding="utf-8") as f:
         for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
+            m = re.match(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line.rstrip("\r\n"))
+            if not m:
                 continue
-            k, v = line.split("=", 1)
-            k = k.strip()
-            if k.startswith("export "):
-                k = k[7:].strip()
-            v = v.strip()
-            if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
-                v = v[1:-1]
-            out[k] = v
+            try:
+                words = shlex.split(m.group(2), comments=True)
+            except ValueError:  # an unbalanced quote: the value as it stands, as before
+                v = m.group(2).strip()
+                words = [v[1:-1] if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"" else v]
+            out[m.group(1)] = words[0] if words else ""
     return out
 
 
