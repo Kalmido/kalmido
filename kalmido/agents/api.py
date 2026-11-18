@@ -25,7 +25,7 @@ from ..agents.core import (
     _AGENT_COND, _AGENT_CONDS, _AGENT_GEN, _AGENT_GENS, _AGENT_LOCK, _AGENT_WAITERS, agent_active, AGENT_EVENTS, AGENT_EVENTS_STALE_H, agent_ids, AGENT_JOBS_KEEP, AGENT_OFFLINE_S,
     AGENT_POLL_WRITE_S, agent_public, agent_row, agent_runtime, agent_shares, agent_usable, AGENT_STATUSES, AGENT_WAIT_MAX,
     AGENT_WAITERS_ALL, AGENT_WAITERS_PER, job_dict, JOB_LOG_MAX, JOB_STATES, JOB_TITLE_MAX, job_visible, need_agent,
-    STATUS_TEXT_MAX, f8f_job_name_in, job_task_ids,
+    STATUS_TEXT_MAX, f8f_job_name_in, job_task_ids, job_words_muted,
 )
 from ..agents.chat import chat_delivered, chat_event_mids
 from ..agents.core import perm_user_of
@@ -496,22 +496,25 @@ def job_notify(c, j, old_state):
     if not s or not job_visible(c, j, uid):
         return
     lid = None
+    # Reader F7 (#6863): a recipient the job names (user_id) passed the gate; one derived from the task (assignee, else creator)
+    # did not -- it gets News and push without the agent's words when job_dict hides them from that person (job_words_muted)
+    title = "" if job_words_muted(c, j, uid) else (j["title"] or "")
     once = acn_job_has_entry(c, uid, j["id"])  # 2.1039.0 (#5804): its approval card in the chat stands in the bell already: once
     if j["task_id"]:  # 2.1.0 (#317): "agent waits for me" as News (2.367.2, #2968: on by default) + the push per the settings
         lr = c.execute("SELECT list_id FROM tasks WHERE id=?", (j["task_id"],)).fetchone()
         lid = lr[0] if lr else None
         if not once:
-            news_add(c, uid, "approval", task_id=j["task_id"], data={"title": (j["title"] or "")[:200], "job": j["id"]}, actor=j["agent_id"], s=s)
+            news_add(c, uid, "approval", task_id=j["task_id"], data={"title": title[:200], "job": j["id"]}, actor=j["agent_id"], s=s)
     elif not once:  # 2.1039.0 (#5804): a job without a task waits too -- an entry about its project (or none), not only the push
         lid = j["list_id"] if "list_id" in j.keys() else None
-        news_add(c, uid, "approval", list_id=lid, data={"title": (j["title"] or "")[:200], "job": j["id"]}, actor=j["agent_id"], s=s)
+        news_add(c, uid, "approval", list_id=lid, data={"title": title[:200], "job": j["id"]}, actor=j["agent_id"], s=s)
     if not notif_ok(c, uid, s, "approval", "push", lid):
         return
     if not h6e_agent_push_ok(j["agent_id"], uid):  # 2.86.0 (N31): daily push budget per agent and person
         return
     lg = lang_of(s)
     name = user_names(c, [j["agent_id"]]).get(j["agent_id"], "?")
-    g.pushes.append((uid, tr("{0} is waiting for your approval", name, lg=lg), j["title"],
+    g.pushes.append((uid, tr("{0} is waiting for your approval", name, lg=lg), title,
                      f"{PUBLIC_URL}/#t/{j['task_id']}" if j["task_id"] else f"{PUBLIC_URL}/#agents", push_prio(s),
                      {"ws": "limit", "scope": f"t:{j['task_id']}" if j["task_id"] else f"a:{j['agent_id']}"}))  # 2.240.0 B2 (#2867); 2.236.0 B (#2909): ws
 

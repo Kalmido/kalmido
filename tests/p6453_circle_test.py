@@ -30,7 +30,7 @@ Fable review of 16.11.2026 (each case red without its fix):
  - G13: the Yes of a person who does not read the sources does not count (approver_rights)
 2.1398.0 (#6863): a team agent's job for a person (POST /agent/jobs user_id, PATCH of its log) = a message to them; a job
 without a task hides its words from who does not read everything; rules / playbook / layout proposals are writes into the
-project
+project; reader F7: a waiting job with a task but no person sends News / push without its title where job_dict hides it
  - also: a chat room without a project, a new page in a folder of a shared space
 usage: p6453_circle_test.py <datadir>"""
 import json
@@ -614,6 +614,33 @@ check(kt.dbx("SELECT count(*) FROM agent_steps WHERE agent_id=? AND user_id=?", 
       and kt.dbx("SELECT log FROM agent_jobs WHERE id=?", (JB_BOBT,))[0][0] == "", "F2: ... no step and no log line reached bob")
 check(requests.patch(V + f"/tasks/{K_ALL}/working", headers=HT, json={"job_id": JB_BOBT}).ok, "F2: 'still working' without words: free")
 kt.dbx("UPDATE agent_jobs SET state='done' WHERE id=?", (JB_BOBT,))
+# Fable reader job/5481 F7: a job with a task but no person, state waiting -- job_notify derives the recipient from the task
+# (assignee) and sent the title as News "approval" and push without the gate (no person): the words reach bob, who does not
+# read all the team agent reads. Now News and push carry no title where job_dict hides it (job_words_muted).
+K_BOB = A.post(B + "/api/tasks", json={"title": "Bob's in the open project", "list_id": L_ALL}).json()["id"]
+K_ALI = A.post(B + "/api/tasks", json={"title": "Alice's own", "list_id": L_OWN}).json()["id"]
+kt.dbx("UPDATE tasks SET assignee_id=? WHERE id=?", (BOB, K_BOB))
+kt.dbx("UPDATE tasks SET assignee_id=? WHERE id=?", (ALICE, K_ALI))
+
+
+def appr_title(uid, jid):
+    r = kt.dbx("SELECT data->>'title' FROM notifications WHERE user_id=? AND kind='approval' AND data->>'job' = ?", (uid, str(jid)))
+    return r[0][0] if r else None
+
+
+r = requests.post(V + "/agent/jobs", headers=HT, json={"title": "Alice's private plan", "task_id": K_BOB, "state": "waiting"})
+check(r.status_code == 201, f"F7 setup: a waiting job on bob's task without a person ({r.status_code} {r.text[:200]})")
+JW = r.json().get("id") if r.ok else None
+check(appr_title(BOB, JW) == "", f"F7: bob's News 'waiting for approval' has no title (POST) {appr_title(BOB, JW)!r}")
+r = requests.post(V + "/agent/jobs", headers=HT, json={"title": "Running first", "task_id": K_BOB})
+JW2 = r.json().get("id") if r.ok else None
+r = requests.patch(V + f"/agent/jobs/{JW2}", headers=HT, json={"state": "waiting", "title": "Alice's second plan"})
+check(r.ok and appr_title(BOB, JW2) == "", f"F7: ... nor through PATCH state waiting ({r.status_code} {appr_title(BOB, JW2)!r})")
+r = requests.post(V + "/agent/jobs", headers=HT, json={"title": "Alice's own plan", "task_id": K_ALI, "state": "waiting"})
+JW3 = r.json().get("id") if r.ok else None
+check(appr_title(ALICE, JW3) == "Alice's own plan", f"F7: a task in the project only alice reads: her News keeps the title {appr_title(ALICE, JW3)!r}")
+for x in (JW, JW2, JW3):
+    kt.dbx("UPDATE agent_jobs SET state='done' WHERE id=?", (x,))
 for path, body in ((f"/lists/{L_OWN}/rules/proposals", {"name": "x"}), (f"/lists/{L_OWN}/playbook/proposals", {"text": "x"})):
     r = requests.post(V + path, headers=HT, json=body)
     check(not (r.status_code == 409 and err(r).get("code") == "approval_required"),
