@@ -620,6 +620,7 @@ document.addEventListener('click', async e => {
     case 'pin': { const t = taskById(id); patchTask(id, {pinned: t.pinned ? 0 : 1}); break; }
     case 'tlk-toggle': { const t = taskById(id); if (t) tlkSet(id, !t.locked).catch(() => {}); break; }  // 2.36.0 (#1118)
     case 'conflicts': conflictModal(); break;
+    case 'store-lost': toast(storeSay(), null, 12000); break;  // 2.1384.0 (#6339)
     case 'att-view': e.preventDefault(); attLightbox(+a.dataset.att); break;
     case 'catt-view': {
       e.preventDefault();

@@ -2,6 +2,21 @@
    Classic script sharing the global scope with the others (load order: index.html, docs/ARCHITECTURE.md). */
 'use strict';
 
+// 2.1384.0 (#6339): the queue counts as kept only once a write really landed. STORE.lost = the kept data whose last write the browser
+// refused (storage full, blocked): 'outbox' (the queue without IndexedDB), 'obx' (an IndexedDB write whose localStorage fallback
+// failed too), 'conflicts', 'idmap', the kept input (fd keys); STORE.closed = the queue's IndexedDB would not open (D10: what an
+// earlier visit left there is not visible in this window). Either one = a lasting sign in the top bar (render.js storeSign) until a
+// later write of the same data lands; navigator.storage.persist() is asked for once the first change waits (D9) (declared first: LS.set calls storeLost from the start)
+const STORE = {lost: new Set(), closed: false, asked: false, obx: false};  // obx = the queue runs on IndexedDB (OBX.on)
+const STORE_KEYS = new Set(['outbox', 'obx', 'conflicts', 'idmap']);
+function storeLost(k, ok) {
+  if (!STORE_KEYS.has(k) && !/^fd/.test(k)) return;
+  if (k === 'outbox' && STORE.obx && !ok) return;  // with IndexedDB localStorage is only the stopgap (outStash writes straight to the queue then)
+  const was = STORE.lost.size;
+  if (ok) STORE.lost.delete(k); else STORE.lost.add(k);
+  if (was !== STORE.lost.size) { try { if (S.booted) renderTop(); } catch { /* before the start (S not there yet) */ } }
+}
+
 // ------------------------------------------------------------------ 2.191.0 B (#2505): start blocks after all start scripts
 // index.html loads the start scripts with defer: they run in order after the page is parsed, while document.readyState is
 // already 'interactive' but before DOMContentLoaded. A start block that must run after every start script (main.js
@@ -440,8 +455,16 @@ function outSync() {
   return OUT.q;
 }
 function outSave(fn) {
-  if (OBX.on) { obxSave(fn); return; }
-  outSync(); fn(); LS.set('outbox', OUT.q);
+  if (OBX.on) { obxSave(fn); outPersist(); return; }
+  outSync(); fn(); LS.set('outbox', OUT.q); outPersist();
+}
+const storeBad = () => STORE.closed || STORE.lost.size > 0;
+const storeSay = () => STORE.closed ? tr('The storage of this device would not open: changes still waiting from an earlier visit are not shown here. Keep this window open until your changes are sent, then reload the page.')
+  : tr('This device could not store your changes (its storage is full or blocked). They are only in this window: keep it open until they are sent.');
+function outPersist() {
+  if (STORE.asked || !OUT.q.length) return;
+  STORE.asked = true;
+  try { const s = navigator.storage; if (s?.persist) Promise.resolve(s.persisted ? s.persisted() : false).then(p => p || s.persist()).catch(() => {}); } catch { /* not offered */ }
 }
 window.addEventListener('storage', ev => { if (ev.key === 'tasks.outbox') { outSync(); if (S.booted) renderTop(); } });
 // 2.143.0 C (#2153): the queue lives in IndexedDB (database "kalmido-outbox": store "ops" = one record per entry, key k, order n;
@@ -450,7 +473,7 @@ window.addEventListener('storage', ev => { if (ev.key === 'tasks.outbox') { outS
 // tells the other tabs on the BroadcastChannel "kalmido-outbox" (put / del by key), the service worker uses the same channel.
 // A queue of an earlier version in localStorage is taken over once at the start (and later, should an old tab still write
 // one). Without IndexedDB (old browser, private mode, jsdom) everything stays in localStorage as before.
-const OBX = {on: false, st: null, ch: null, c: 0, ready: null};
+const OBX = {on: false, st: null, ch: null, c: 0, ready: null, fails: 0, redo: false};
 const obxSeq = () => Date.now() * 1000 + (OBX.c = (OBX.c + 1) % 1000);
 const obxRec = x => { const {done, res, ...r} = x; return JSON.parse(JSON.stringify(r, typeof le2eRepl === 'function' ? le2eRepl() : undefined)); };  // like LS.set: ciphers only
 const obxReq = r => new Promise((ok, no) => { r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
@@ -505,8 +528,9 @@ async function outOpen() {
   return OBX.ready ||= (async () => {
     const st = globalThis.__obxStore || obxIdb(); if (!st) return;
     let rows;
-    try { rows = await st.all(); } catch { return; }  // no IndexedDB (private mode): localStorage as before
-    OBX.st = st; OBX.on = true;
+    // no IndexedDB (private mode): localStorage as before; 2.1384.0 (#6339 D10): the database is there but would not open = a sign
+    try { rows = await st.all(); } catch (e) { console.warn('outbox: IndexedDB not readable', e); STORE.closed = true; if (S.booted) renderTop(); return; }
+    OBX.st = st; OBX.on = STORE.obx = true;
     const mine = new Map(OUT.q.map(x => [x.k, x]));
     OUT.q = rows.sort((a, b) => a.n - b.n).map(r => mine.has(r.k) ? Object.assign(mine.get(r.k), r) : r);
     obxAdopt();
@@ -527,8 +551,11 @@ function obxAdopt() {
   // 2.359.0 (#3024, review): what outStash put there carries its number (a newer change): after the queue, never before it
   const late = add.filter(x => x.n > n0);
   OUT.q = [...add.filter(x => !late.includes(x)), ...OUT.q, ...late.sort((a, b) => a.n - b.n)];
-  const ks = new Set(old.map(x => x.k));
-  obxWrite(add.map(obxRec), []).then(ok => { if (!ok) return; const rest = LS.get('outbox', []).filter(x => !ks.has(x.k)); if (rest.length) LS.set('outbox', rest); else LS.del('outbox'); }, () => {});
+  // 2.1384.0 (#6339 D1): what is in localStorage AND in the queue (an IndexedDB write failed: obxWrite put the whole queue there)
+  // is written again too - only what this write put into IndexedDB leaves localStorage (before: filtered out as "there already",
+  // an empty write, the key deleted, the change only in this window's memory). A write that failed since leaves it all there
+  const ks = new Set(old.map(x => x.k)), by = new Map(OUT.q.map(x => [x.k, x])), g = OBX.fails;
+  obxWrite([...ks].map(k => obxRec(by.get(k))), []).then(ok => { if (!ok || OBX.fails !== g) return; const rest = LS.get('outbox', []).filter(x => !ks.has(x.k)); if (rest.length) LS.set('outbox', rest); else LS.del('outbox'); }, () => {});
 }
 function obxSave(fn) {
   obxAdopt();
@@ -542,11 +569,20 @@ function obxSave(fn) {
     if (before.get(x.k) !== JSON.stringify(r)) put.push(r);
     before.delete(x.k);
   }
-  if (put.length || before.size) obxWrite(put, [...before.keys()]);
+  // 2.1384.0 (#6339): after a failed write (OBX.redo) the next one writes the whole queue, so what missed IndexedDB lands there
+  const full = OBX.redo;
+  if (full) { OBX.redo = false; put.splice(0, put.length, ...OUT.q.map(obxRec)); }
+  if (put.length || before.size) obxWrite(put, [...before.keys()], full);
 }
-function obxWrite(put, del) {
-  return OBX.st.write(put, del).then(() => { try { OBX.ch?.postMessage({put, del}); } catch { /* closed */ } return true; },
-    e => { console.warn('outbox: IndexedDB write failed', e); LS.set('outbox', OUT.q.map(obxRec)); return false; });  // the next start takes it over (2.1257.0 #6286: false = obxAdopt leaves it there)
+function obxWrite(put, del, full) {
+  return OBX.st.write(put, del).then(() => { try { OBX.ch?.postMessage({put, del}); } catch { /* closed */ } if (full) storeLost('obx', true); return true; },
+    e => {
+      console.warn('outbox: IndexedDB write failed', e);
+      // the next start takes it over (2.1257.0 #6286: false = obxAdopt leaves it there); 2.1384.0 (#6339 D8): localStorage full too = a sign
+      OBX.fails++; OBX.redo = true;
+      if (!LS.set('outbox', OUT.q.map(obxRec)) && OUT.q.length) storeLost('obx', false);
+      return false;
+    });
 }
 // what another tab (or the service worker) wrote: the same merge as outSync (an entry keeps its object; gone elsewhere = done)
 function obxRecv(d) {
@@ -908,7 +944,8 @@ function oxbPrev(method, url, body) {
 function outStash(list) {
   if (!list.length) return;
   // 2.359.0 (review): numbered, so they go after what already waits (obxAdopt)
-  if (OBX.on) { LS.set('outbox', [...LS.get('outbox', []), ...list.map(x => ({...x, n: x.n ?? obxSeq()}))]); obxAdopt(); } else outSave(() => OUT.q.push(...list));
+  // 2.1384.0 (#6339 D8): localStorage full = straight into the IndexedDB queue (before: the entries were gone)
+  if (OBX.on) { const add = list.map(x => ({...x, n: x.n ?? obxSeq()})); if (LS.set('outbox', [...LS.get('outbox', []), ...add])) obxAdopt(); else obxSave(() => OUT.q.push(...add)); outPersist(); } else outSave(() => OUT.q.push(...list));
 }
 // a write that outlives the page: fetch with keepalive (sent after the tab closed; the browser allows about 64 KB per page),
 // the queue entry's key with it: the queued copy sent at the next start gets the server's first answer (never applied twice)
@@ -955,9 +992,9 @@ const FD_KINDS = ['ltpend', 'fdf', 'fdc', 'fdw', 'fdx'];
 // review (#4304): before /api/me answered (a 401 at the start) the account of this browser (uid), else authGone found nothing and wiped
 // 2.1257.0 (#6286): uid = another account's records (the previous account at a switch, cfDownload)
 const FD_KEY = (kind, id, uid) => `tasks.${kind}.${uid || S.me?.id || LS.get('uid', 0) || 0}.${id}`;
-function fdKeep(kind, id, b, base = '') { try { localStorage.setItem(FD_KEY(kind, id), JSON.stringify({base: base || '', b, at: Date.now()})); } catch { /* full or private mode */ } }
+function fdKeep(kind, id, b, base = '') { const k = FD_KEY(kind, id); let ok = true; try { localStorage.setItem(k, JSON.stringify({base: base || '', b, at: Date.now()})); } catch { ok = false; /* full or private mode */ } storeLost(k.slice(6), ok); }  // 2.1384.0 (#6339 D8): refused = a sign
 function fdGet(kind, id, uid) { try { return JSON.parse(localStorage.getItem(FD_KEY(kind, id, uid)) || 'null'); } catch { return null; } }
-function fdDrop(kind, id) { try { localStorage.removeItem(FD_KEY(kind, id)); } catch { /* private mode */ } }
+function fdDrop(kind, id) { const k = FD_KEY(kind, id); try { localStorage.removeItem(k); } catch { /* private mode */ } storeLost(k.slice(6), true); }
 // the kept records of a kind of this account (or of the account uid): [{id, base, b, at}]
 function fdList(kind, uid) {
   const pre = FD_KEY(kind, '', uid), out = [];
