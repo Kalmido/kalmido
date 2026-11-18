@@ -1,7 +1,8 @@
 // 2.743.0 D (#4284) UI tests (jsdom), fresh DB: logout() itself, the user boundary of a shared device
 // kalmido-suite: fresh
 // - nothing waits: no question, the session ends on the server, the app's cached files (Cache Storage) and the account's
-//   local keys are gone, the device's own look stays
+//   local keys are gone, the device's own look stays; 2.1378.0 (#6513): the kalmido.* keys with content (dialog sizes, the receipts'
+//   undo rest, the drag token) and vdr-name go too, kalmido.logoutPending stays
 // - a change waits: asked first with the number; "Cancel" keeps the session, the cache and the change
 // - without network, "Sign out": the cache and the local data are gone at once; the session that the server could not be told
 //   about is ended by the next load before anything else (#4284 fix: before it the account opened again once online)
@@ -37,6 +38,9 @@ const start = async (hash, asked, answer) => {
     const asked = [];
     const {w, cs} = await start('l/' + P, asked, () => true);
     w.localStorage.setItem('tasks.theme', 'dark');
+    // 2.1378.0 (#6513): kalmido.* keys with content and the old guest name of the sign-off page go with the account's keys
+    const GONE = ['kalmido.dlgsize.modal-x', 'kalmido.amv.undo.7', 'kalmido.xd', 'vdr-name'];
+    GONE.forEach(k => w.localStorage.setItem(k, '1'));
     check(await alive(w.__cookie), 'the session lives before');
     check(w.eval('OUT.q.length') === 0, 'nothing waits');
     await w.eval('logout()');
@@ -49,6 +53,7 @@ const start = async (hash, asked, answer) => {
     check(!('tasks.uid' in w.__store), 'the account mark of the device is gone');
     check(!left.length, 'the account\'s local keys are gone ' + JSON.stringify(left));
     check(w.__store['tasks.theme'] === 'dark', 'the device\'s own look stays');
+    check(!GONE.some(k => k in w.__store), 'kalmido.* keys with content and vdr-name are gone (#6513) ' + JSON.stringify(GONE.filter(k => k in w.__store)));
     check(!('kalmido.logoutPending' in w.__store), 'online: no sign-out left to do');
     w.close();
   }

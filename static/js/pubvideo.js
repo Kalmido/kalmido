@@ -4,6 +4,9 @@
 // player through its postMessage protocol (no script of Vimeo / YouTube is loaded), pauses it while a comment is typed and
 // fills the comment's timecode, a tap on a timecode or a mark seeks there, the marks sit at second / duration. Messages are
 // taken only from the player's own frame and origin. Without this script the page works as well (timecode typed by hand).
+// 2.1378.0 (#6513): the guest name comes only from the link's own cookie (kgn, videos/vdlink.py, the server fills the field); the
+// old device-wide entry of every link (vdr-name, without an end) goes once -- on every page of this script (video, image, PDF)
+try { localStorage.removeItem('vdr-name'); } catch { /* no storage */ }
 (() => {
   const box = document.querySelector('.vdr-player'); if (!box) return;
   const prov = box.dataset.prov, origin = box.dataset.origin || '';
@@ -61,7 +64,7 @@
       vid.addEventListener('loadedmetadata', () => setDur(vid.duration));
     } else wireFrame();
   });
-  const at = document.getElementById('vd-at'), text = document.getElementById('vd-text'), name = document.getElementById('vd-name');
+  const at = document.getElementById('vd-at'), text = document.getElementById('vd-text');
   if (text && at) text.addEventListener('focus', () => { pause(); if (!at.dataset.manual) at.value = tc(cur); });
   if (at) at.addEventListener('input', () => { at.dataset.manual = at.value ? '1' : ''; });
   const calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -69,10 +72,6 @@
     const a = e.target.closest && e.target.closest('a.vdr-at, .vdr-mk'); if (!a) return;
     e.preventDefault(); seek(+a.dataset.at || 0); box.scrollIntoView({block: 'nearest', behavior: calm ? 'auto' : 'smooth'});
   });
-  try {  // the name stays on this device for the next comment
-    if (name && !name.value) name.value = localStorage.getItem('vdr-name') || '';
-    if (name && name.form) name.form.addEventListener('submit', () => localStorage.setItem('vdr-name', name.value.trim()));
-  } catch { /* no storage */ }
 })();
 // 2.764.0 (#5040): the customer page of an image / PDF sign-off (videos/vdmedia.py vdm_pub_stage): the numbered points of the
 // comments placed on the image / the PDF page (CSSOM: the page's CSP allows no inline style), a tap on the image / page sets the
