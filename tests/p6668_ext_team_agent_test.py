@@ -482,6 +482,24 @@ for path, q in (("/search", {"q": "crane", "kind": "all"}), ("/news", {}), ("/br
     check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
           f"(e) F1: its own token gets no {path} any more (request_token_needed) {r.status_code} {r.text[:120]}")
 
+# ---- (e) review R3 F4: the long-lived token changes only its own filters, never a project's shared view
+# Without the fix PATCH / DELETE /filters/{id} (class own) changed and deleted bob's shared view of project one (200 / 204).
+r = Bo.post(B + "/api/filters", json={"name": "Team view R3", "list_id": X1, "rules": {}})
+check(r.ok, f"(e) R3 F4: bob saves a shared view of project one {r.status_code} {r.text[:160]}")
+VW = r.json().get("id")
+r = requests.patch(V + f"/filters/{VW}", headers=XH, json={"name": "Hijacked"}, timeout=30)
+check(r.status_code == 403, f"(e) R3 F4: its own token renames no shared view {r.status_code} {r.text[:160]}")
+r = requests.delete(V + f"/filters/{VW}", headers=XH, timeout=30)
+check(r.status_code == 403, f"(e) R3 F4: its own token deletes no shared view {r.status_code} {r.text[:160]}")
+check(dbx("SELECT name FROM filters WHERE id=?", (VW,)) == [("Team view R3",)], "(e) R3 F4: the shared view is unchanged")
+r = requests.post(V + "/filters", headers=XH, json={"name": "Own R3", "rules": {}}, timeout=30)
+OWNF = r.json().get("id") if r.status_code == 201 else None
+check(OWNF is not None, f"(e) R3 F4: its own filter is still its own {r.status_code} {r.text[:160]}")
+check(requests.patch(V + f"/filters/{OWNF}", headers=XH, json={"name": "Own R3b"}, timeout=30).ok
+      and requests.delete(V + f"/filters/{OWNF}", headers=XH, timeout=30).status_code == 204, "(e) R3 F4: ... it changes and deletes it")
+r = requests.patch(V + f"/filters/{VW}", headers=hdr(RC), json={"name": "Team view R3 (carl)"}, timeout=30)
+check(r.ok, f"(e) R3 F4: carl's request token (editor of project one) renames the shared view {r.status_code} {r.text[:160]}")
+
 # ================================================================ (b) a reader's order does not write
 check(Ri.post(B + f"/api/agents/{XT}/chat", json={"body": "RITA-ASKS please comment on the stork task"}).status_code == 201, "(b) rita (reads project one) asks in the chat")
 SR = seq_of("RITA-ASKS")

@@ -1,7 +1,7 @@
 """Saved filters, folders and sections (kanban columns)."""
 import json
 import math
-from flask import jsonify
+from flask import g, jsonify
 
 from ..core.config import app
 from ..core.pg import insert_id, write_lock
@@ -81,8 +81,12 @@ def filter_read(c, fid):
 
 
 def need_filter(c, fid):
-    """Change / delete: an own private filter; a shared view for the project's editors (a reader: 403)."""
+    """Change / delete: an own private filter; a shared view for the project's editors (a reader: 403).
+    2.1386.0 (#6668, review R3 F4): the long-lived token of a team agent per request (runfor.py req_main_gate sets
+    g.req_main) reaches only its own filters -- a shared view of a project needs the request token of a person."""
     r = filter_read(c, fid)
+    if r["shared"] and g.get("req_main"):
+        raise Denied(403, tr("This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)"))
     if r["shared"]:
         need_list(c, r["list_id"])
     return r
