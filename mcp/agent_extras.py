@@ -232,15 +232,41 @@ class Extras:
     def due(self):
         return bool(self.pending) and time.time() - self.pending[0][0] >= self.gather_s
 
+    @staticmethod
+    def ev_person(ev):
+        """2.1386.0 (#6668, review R3 F8): the person an event asks for, as the server reads it (kalmido/agents/srvteam.py
+        srv_requester): the person who made it, else the person a job request / a planned job names; None for the server's
+        own events and for agents."""
+        if not isinstance(ev, dict):
+            return None
+        act = ev.get("actor") if isinstance(ev.get("actor"), dict) else {}
+        if act.get("kind") == "person" and isinstance(act.get("id"), int) and not isinstance(act.get("id"), bool):
+            return act["id"]
+        d = ev.get("data") if isinstance(ev.get("data"), dict) else {}
+        if ev.get("event") == "job_request":
+            rb = d.get("requested_by")
+            rb = rb.get("id") if isinstance(rb, dict) else rb
+            return rb if isinstance(rb, int) and not isinstance(rb, bool) else None
+        if ev.get("event") == "scheduled_job":
+            by = d.get("by") if isinstance(d.get("by"), dict) else {}
+            return by.get("id") if isinstance(by.get("id"), int) and not isinstance(by.get("id"), bool) else None
+        return None
+
     def take_bundle(self):
-        """The collected bundle events as ONE event for a run (empty list when nothing is pending)."""
+        """The collected bundle events as one event per person for a run (empty list when nothing is pending).
+        2.1386.0 (#6668, review R3 F8): one bundle = one person (the server gives a team agent's request token for ONE person,
+        events of two people are 400 several_people) -- the people in the order they came, the events without a person
+        (the project's own automation) a bundle of their own; no event is lost."""
         if not self.pending:
             return []
         evs = [ev for _, ev in self.pending]
         self.pending = []
         self._save_pending()
-        return [{"event": "task_bundle", "seq": max([int(e["seq"]) for e in evs if str(e.get("seq") or "").isdigit()] or [0]),
-                 "data": {"events": evs}}]
+        groups = {}
+        for e in evs:
+            groups.setdefault(self.ev_person(e), []).append(e)
+        return [{"event": "task_bundle", "seq": max([int(e["seq"]) for e in g if str(e.get("seq") or "").isdigit()] or [0]),
+                 "data": {"events": g}} for g in groups.values()]
 
     # ---- the prompt
     def bundle_lines(self, ev):
