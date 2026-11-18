@@ -544,4 +544,18 @@ check(r.status_code == 429 and code(r) == "limit_reached" and r.headers.get("Ret
 check(kput(KEY2, "b1", {"zip": cur["zip"], "expect_updated_at": cur["updated_at"]}).status_code == 200, "an unchanged PUT still answers 200")
 check(not sql("SELECT paused FROM office_issuers WHERE id=?", (IID2,))[0][0], "the change limit pauses nothing")
 
+# ---------------------------------------------------------------- #7113: the open hints of the review of job/5377 (F9 to F14)
+IID7, KEY7 = issuer(A, RG, "Review")  # its own key (60 calls a minute each)
+
+# F14: the key's PUT takes the client's lock (clients-<id>) before its row, like a person's change and taking the mark away -
+# a row lock first was the reverse order (a deadlock, Postgres aborts one of them). While another transaction holds the
+# client's lock and its row, the PUT waits for the lock (advisory), not for the row.
+r = kput(KEY7, "f14:1", {"name": "Sperre Eins", **ADDR})
+assert r.status_code == 201, r.text
+L14 = sql("SELECT id FROM clients WHERE external_ref='f14:1' AND issuer_id=?", (IID7,))[0][0]
+U14 = r.json()["updated_at"]
+waited, r = race(L14, lambda: kput(KEY7, "f14:1", {"city": "Bonn", "expect_updated_at": U14}))
+check(waited and r is not None and r.status_code == 200 and r.json().get("city") == "Bonn",
+      f"F14: the key's PUT waits for the client's lock first (not its row) and then writes {waited} {r and r.text[:200]}")
+
 sys.exit(kt.done("p6700_office_issuer_clients"))
