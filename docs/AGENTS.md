@@ -552,7 +552,8 @@ coding agents, building files, own tools.
   person of the request token the job was started with (`agent_job.py start` keeps it; never `KALMIDO_CHAT_USER` alone):
   `POST /agent/jobs` with a request token names only that person (another one `403 run_person`, none = that person), a job
   file whose person differs is not woken, not continued and its end wakes no run for anybody else. The starter's env file
-  stays with the starter: the guard hook of #6457 (above) refuses a Bash line that names it, `/proc/<pid>/environ` or `ps e`,
+  stays with the starter: the guard hook of #6457 (above) refuses a Bash line that names it, `/proc/<pid>/environ` or `ps e`
+  (in doubt refused: every letters-only argument word of `ps` with an `e`, also a value such as `etime`; reader F9, #7132),
   that part also with `KALMIDO_BLOCK_DANGEROUS=0`, and every run's settings deny `Read` of `/proc/*/environ`. The request
   token files of all people (`<state>/run-env/`: `p<id>.env`, `op.env`, `auto.env`, the run's own included -- the MCP server
   and `kalmido_cli.py` read it, the model never needs it) are denied the same way in every run and job: `Read` / `Edit` of the
