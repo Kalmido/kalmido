@@ -18,6 +18,7 @@ class FakeCache {
   async match(req) { const k = typeof req === 'string' ? req : req.url; return this.m.get(k.replace(/^https?:\/\/[^/]+/, '').split('?')[0]) || this.m.get(k.replace(/^https?:\/\/[^/]+/, '')); }
   async put(req, res) { this.m.set((typeof req === 'string' ? req : req.url).replace(/^https?:\/\/[^/]+/, '').split('?')[0], res); }
   async addAll() { if (this.fail) throw new Error('bad status'); for (const u of this.urls || []) this.m.set(u, {status: 200, tag: 'new'}); }
+  async add(u) { this.m.set(u, {status: 200, tag: 'new'}); }  // 2.1387.0 (#7081): the modules on demand come one by one since #6367 (swPool, Cache.add)
 }
 function swEnv() {
   const store = new Map(), listeners = {};
