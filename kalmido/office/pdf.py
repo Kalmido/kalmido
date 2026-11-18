@@ -692,10 +692,25 @@ def pdf_uri_esc(url):
     return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
+class PdfaMissing(Exception):
+    """2.1359.0 (#6482 P5-6): the sRGB profile (ICC_FILE) is not readable, so the PDF would be no PDF/A-3 (no OutputIntent)."""
+
+
+def pdf_srgb_profile():
+    """2.1359.0 (#6482): the bytes of the sRGB profile of the OutputIntent, b"" when the file is missing or unreadable."""
+    try:
+        with open(ICC_FILE, "rb") as fh:
+            return fh.read()
+    except OSError:
+        return b""
+
+
 def pdf_write(pages, images, title="", author="", xml=None, meta=None):
     """Serialises pages ([_Page]) and images ({name: (w, h, data)}) into PDF/A-3b bytes (PDF 1.7: embedded TrueType fonts,
     XMP + Info, sRGB OutputIntent, trailer ID). xml: bytes of the e-invoice to embed as factur-x.xml (AFRelationship
-    Alternative, fx: XMP schema). meta: {"when": aware datetime, "producer", "creator", "xml_name", "xml_profile", "doc_type"}."""
+    Alternative, fx: XMP schema). meta: {"when": aware datetime, "producer", "creator", "xml_name", "xml_profile", "doc_type",
+    "pdfa_required"}. 2.1359.0 (#6482 P5-6): pdfa_required (an e-invoice being finalised) raises PdfaMissing without the sRGB
+    profile instead of writing a PDF that is no PDF/A-3; other PDFs keep the warning in the log."""
     meta = meta or {}
     title, author = _meta_text(title), _meta_text(author)  # 2.296.0 D (#3171): Info and XMP carry the same text
     objs = []  # list of bytes bodies; object number = index + 1
@@ -772,11 +787,10 @@ def pdf_write(pages, images, title="", author="", xml=None, meta=None):
             APP_VERSION = "?"
     producer = str(meta.get("producer") or f"Kalmido v{APP_VERSION}")
     creator = str(meta.get("creator") or f"Kalmido v{APP_VERSION}")
-    try:
-        with open(ICC_FILE, "rb") as fh:
-            icc = fh.read()
-    except OSError:
-        icc = b""
+    icc = pdf_srgb_profile()
+    if not icc:
+        if meta.get("pdfa_required"):
+            raise PdfaMissing(ICC_FILE)
         log.warning("office pdf: ICC profile %s missing, no OutputIntent", ICC_FILE)
     extra = ""
     if icc:
