@@ -2108,7 +2108,8 @@ New scopes `wiki:read` and `wiki:write` (off for new agents, not part of the leg
 `GET /api/v1/wiki/pages` (`?space=all|shared|private|org:<id>`; the pages without their text, `more: true` when the list was
 cut), `GET /api/v1/wiki/pages/{id}` (the Markdown text as `body`, the frontmatter as `attrs`, `role` view | edit),
 `PATCH /api/v1/wiki/pages/{id}` `{body, expect_updated_at?}` (role edit; `409` with the current page in `error.page` when
-someone saved after `expect_updated_at`), `POST /api/v1/wiki/pages/{id}/append` `{text, under?, expect_updated_at?}` (2.1048.0,
+someone saved after `expect_updated_at`; 2.1368.0, #6657: a picture of the file store that a save WITHOUT `expect_updated_at`
+brings into the text counts as embedded by nobody -- a share with pictures does not show it), `POST /api/v1/wiki/pages/{id}/append` `{text, under?, expect_updated_at?}` (2.1048.0,
 #5861: role edit; adds `text` at the end with exactly one empty line in between (2.1068.0, #5829), at most 20,000 characters;
 `under` = a heading of the page (case ignored): the end of that heading's section instead, an unknown heading = `404`
 `heading_not_found` with `error.headings`, nothing written;
