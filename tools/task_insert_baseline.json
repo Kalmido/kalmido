@@ -1,3 +1,3 @@
 {
-"_note": "2.1358.0 (#6825): own INSERT INTO tasks per file (tools/check_task_insert.py); may only go down."
+"_note": "2.1358.0 (#6825): own INSERT INTO tasks per file (tools/check_task_insert.py); may only go down. 2.1389.0 (#6988): _ok = the task-insert-ok exceptions per file, counted the same way."
 }
