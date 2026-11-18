@@ -346,7 +346,10 @@ def main(argv=None):
         if not path and not env.get("KALMIDO_TOKEN"):  # 2.1367.0 (#6457): the runner hands the model's process (and so this
             path = env.get("KALMIDO_ENV_FILE")  # hook) only the env file's path, never the token itself
         if path:
-            env.update(load_env(path))
+            vals = load_env(path)
+            env.update(vals)
+            if vals.get("KALMIDO_TOKEN"):  # Fable reader F2 (#6457): the file's token goes only to the file's address
+                env["KALMIDO_URL"] = vals.get("KALMIDO_URL", "")
         raw = sys.stdin.read()
         hook = json.loads(raw) if raw.strip() else {}
         run(hook if isinstance(hook, dict) else {}, env, a.dry_run)

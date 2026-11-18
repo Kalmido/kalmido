@@ -302,7 +302,8 @@ your own account. 2.1367.0 (#6457): the launcher no longer passes the token to t
 only the env file's path (`KALMIDO_ENV_FILE`), the MCP server and the usage hook read the token there, every run's settings
 deny reading `~/.kalmido` and reading or editing the env file, and the setup writes the deny rules (`WebFetch`, `WebSearch`,
 the env file) into the project's `.claude/settings.local.json` and offers an address rule for the computer's key. The file
-is still readable for programs of your own account, so for an agent that must not reach its token or your files by any
+is still readable for programs of your own account (the guard hook only compares names; Codex gets neither the deny
+rules nor the guard hook), so for an agent that must not reach its token or your files by any
 path, use the dedicated user, the firewall and the wrapper of this recipe instead.
 
 ### 4. Claude Code project settings
