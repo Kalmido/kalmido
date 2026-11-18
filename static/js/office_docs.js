@@ -1187,7 +1187,8 @@ async function ofdClick(e) {
         + ofdF('fin-no', tr('Number'), `<input id="ofd-fin-no" maxlength="80" autocomplete="off" spellcheck="false" placeholder="${esc(pv?.number || '')}">`)
         + ofdF('fin-why', tr('Reason (needed when numbers are skipped)'), `<input id="ofd-fin-why" maxlength="300">`) + '</details>';
       const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; pastWire(md); holdWire(md); if (first) ofd_firstWire(md); },
-        submit: async () => { const no = ($('#ofd-fin-no', md0)?.value || '').trim(), why = ($('#ofd-fin-why', md0)?.value || '').trim();
+        submit: async () => { if (hold && !fin2.hold) { toast(tr('Confirm the client data from the invoice issuer first')); return false; }  // 2.1384.0 (#6700): the dialog stays for the tick
+          const no = ($('#ofd-fin-no', md0)?.value || '').trim(), why = ($('#ofd-fin-why', md0)?.value || '').trim();
           j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, finBody(no ? {number: no, reason: why} : {})); return !!j || OFD.conflict?.id === d.id; }});  // 2.1317.0 (#6331): a conflict closes the dialog, the bar says it
       if (ok && j) toast(tr('Finalised as {0}', j.number || ''));
       return;
