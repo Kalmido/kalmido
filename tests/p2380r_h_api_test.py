@@ -758,7 +758,8 @@ MS, MT = r.json()["id"], r.json().get("url", "").rsplit("/", 1)[-1]
 def oks(pid, nid):
     """The shares picture nid of page pid is confirmed for (wiki_embeds.shares), "-" = no row."""
     r = dbx("SELECT shares FROM wiki_embeds WHERE page_id=? AND node_id=?", (pid, nid))
-    return sorted(r[0][0] or []) if r else "-"
+    v = r[0][0] if r else "-"
+    return "-" if v == "-" else sorted((json.loads(v) if isinstance(v, str) else v) or [])
 
 
 check(img(MT, M0, CIMG) == 200 and emb(M0, CIMG) == uid["carol"] and oks(M0, CIMG) == [f"w{MS}"],
@@ -813,6 +814,7 @@ r = A.post(B + "/api/wiki/move-space", json={"space": "private", "to": SPO, "pag
 g = img(MT, M6, CIMG)
 check(r.ok and (wpath(M6) or "").startswith("Galerie6868/") and g == 404,
       f"#7056 F7: back under carol's link: nothing comes ({r.status_code} {r.text[:160]} {wpath(M6)} {emb(M6, CIMG)} {g})")
+assert wsave(Ca, M6, wbody(Ca, M6) + "\ncarol\n").ok  # its last editor carol again (the import below matches no person but alice)
 # who sees the file and moves the page changes nothing either (was: carol's own move kept it, #6868); her own save under
 # the link confirms her pictures for it (the embedder stands for them there), never bob's save
 M4 = mvpage("Quelle6868d/Vier")
