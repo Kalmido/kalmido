@@ -506,9 +506,10 @@ def t_list_subtasks(api, a):
 
 def t_list_attachments(api, a):
     """2.1391.0 (#6906): another account's file name is data."""
+    ids = _trusted_ids(api)  # read first (once per process): the files are the last request
     r = api.call("GET", f"/tasks/{int(a['task_id'])}/attachments")
     if isinstance(r, dict):
-        _fence_files(_trusted_ids(api), r.get("data"))
+        _fence_files(ids, r.get("data"))
     return r
 
 
