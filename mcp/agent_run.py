@@ -3355,8 +3355,13 @@ class Runner:
         else:
             f = os.path.join(d, f"p{int(uid)}.env")
             f = f if os.path.isfile(f) else None
-        if f and not self.server_job_of(j.get("id"), uid):
-            return None
+        if f:
+            sj = self.server_job_of(j.get("id"), uid)
+            if sj is None:  # Fable reader job/5481 F11: not read (network after a restart) -- try again later, not given up
+                import agent_job
+                raise agent_job.SpawnLater("the job's person could not be checked yet")
+            if not sj:
+                return None
         return f
 
     def server_job_of(self, jid, uid):
@@ -3365,8 +3370,14 @@ class Runner:
         (POST /agent/jobs pin:user_id, the requester of the run). A team agent wakes / continues a job only when both agree;
         not read (network, 404, an older server without user_id) = no (the job stays asleep). Another agent: True, as before.
         Fable reader job/5498 F6: True | False (the server says: not this person's job, or no such job of the agent: 404) |
-        None (not read: network, another HTTP error, an answer without user_id) -- the wake loop puts such a wake back."""
-        if self.req_mode() != "team":
+        None (not read: network, another HTTP error, an answer without user_id) -- the wake loop puts such a wake back.
+        Fable reader job/5481 F10: the agent's mode not known (GET /agent not read) is None too, never True; F11: job_env
+        then raises agent_job.SpawnLater, so a job continued after a restart is tried again on the next look."""
+        mode = self.req_mode()
+        if mode is None:  # Fable reader job/5481 F10: GET /agent not read -- not known whether the check applies: not read
+            log(f"job {jid}: the agent's mode is not known yet (GET /agent not read): not started")
+            return None
+        if mode != "team":
             return True
         try:
             d = self.api.req("GET", f"/agent/jobs/{int(jid)}")
@@ -3997,7 +4008,7 @@ class Runner:
             if who and jid and team:
                 sj = self.server_job_of(jid, who)
                 if sj is None and agent_job.wake_back(w):  # reader job/5498 F6: not read -- the wake waits for the next look
-                    log(f"job {jid}: the wake waits for the next look ({int(w.get('tries') or 0) + 1}/{agent_job.WAKE_TRIES})")
+                    log(f"job {jid}: the wake waits for the next look ({agent_job.as_tries(w.get('tries')) + 1}/{agent_job.WAKE_TRIES})")
                 if not sj:
                     continue  # 2.1398.0 (#7132, N2): the wake file names a person the server's job is not for
             if who and jid:
