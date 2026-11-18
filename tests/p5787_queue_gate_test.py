@@ -37,7 +37,9 @@ st, _, push_groups, _ = stages.select(repo, ["README.md"])
 check(set(hard) <= set(groups) and len(groups) < len(push_groups) and len(groups) < len(repo.first) / 3,
       f"a README change in the queue: the hard groups only, far below the push stage ({len(groups)} vs {len(push_groups)} of {len(repo.first)}) - {reason}")
 reason, groups = stages.queue(repo, ["tests/p5787_queue_gate_test.py"], None, None)
-check("p5787_queue_gate" in {repo.first[g] for g in groups} and set(hard) <= set(groups), "a changed test file: its own suite + the hard groups")
+# 2.1384.0 (#6833): the queue stage = the hard groups only (no touched suites), the same groups as the stage release
+check(set(groups) == set(hard), "a changed test file: the hard groups only, no touched suite")
+check(set(stages.queue(repo, ["static/js/choicecard.js"], None, None)[1]) == set(stages.hard_groups(repo)), "queue groups == release groups (hard_groups) for any files")
 reason2, groups2 = stages.queue(repo, [".github/workflows/ci.yml", "tests/stages.py", "VERSION"], None, None)
 check(set(hard) <= set(groups2) and len(groups2) < len(repo.first) / 3, f"the CI basics / VERSION make no full run in the queue ({len(groups2)} groups)")
 # the CI mode: merge_group -> stage=queue and the groups file
