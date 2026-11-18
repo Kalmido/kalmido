@@ -355,7 +355,20 @@ row = sql("SELECT created_by, issuer_id FROM office_docs WHERE id=?", (FD,))
 check(r.status_code == 201 and row and row[0] == (FID, FI), f"Frida's key: Frida's draft {r.status_code} {row}")
 r = Fr.get(B + D + f"/{FD}")
 check(r.ok and (r.json().get("issuer") or {}).get("name") == "Own script", f"Frida sees it with its issuer {r.status_code}")
+# the other area's key (Frida's personal office <-> the organisation): 404 on every route, nothing changed
+# tenant: GET /api/v1/issuer/docs/{}
 check(kget(FK, f"/docs/{DOC1}").status_code == 404 and kget(KEY, f"/docs/{FD}").status_code == 404, "never across areas")
+# tenant: GET /api/v1/issuer/docs/by-ref/{}
+check(kget(FK, "/docs/by-ref/kauf:1").status_code == 404, "another area's client_ref: 404")
+# tenant: GET /api/v1/issuer/docs/{}/pdf
+check(kget(FK, f"/docs/{DOC1}/pdf").status_code == 404, "another area's preview: 404")
+# tenant: POST /api/v1/issuer/docs/{}/withdraw
+r = requests.post(V + f"/issuer/docs/{DOC1}/withdraw", headers=hk(FK), timeout=30)
+check(r.status_code == 404 and not sql("SELECT deleted_at FROM office_docs WHERE id=?", (DOC1,))[0][0], f"another area's withdrawal: 404, nothing changed {r.status_code}")
+# tenant: POST /api/v1/issuer/invoices
+r = kpost(FK, body("x:1", ext="acc:2"))
+check(r.status_code == 404 and code(r) == "client_unknown" and n_docs(FI) == 1, f"a client of another area: 404, nothing made {r.status_code}")
+# tenant: GET /api/v1/issuer/docs
 check(kget(FK, "/docs").ok and {x["doc_id"] for x in kget(FK, "/docs").json()["docs"]} == {FD}, "Frida's key reads only its own")
 
 # ---------------------------------------------------------------- ISS_REUSED
