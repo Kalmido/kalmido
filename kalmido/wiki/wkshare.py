@@ -1010,7 +1010,7 @@ def wsh_update(sid):
             if "images" in b:
                 c.execute("UPDATE wiki_shares SET images=? WHERE id=?", (imgs, r["id"]))
         if imgs and not r["images"]:  # 2.1401.0 (#7056): switched on -- its maker shares the pictures of its pages as they are now
-            wem_share_confirm(c, r, wsh_ikey(r))
+            wem_share_confirm(c, r, wsh_ikey(r), me())  # reader F2: only what the one who switches sees, too
         bump(c)
         c.commit()
     return jsonify(wsh_one(c, sid))

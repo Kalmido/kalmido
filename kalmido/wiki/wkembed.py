@@ -86,8 +86,8 @@ def wem_embeds_set(c, pid, text, by=None, old=None):
     for nid in new:
         c.execute("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,?,?,CURRENT_TIMESTAMP) "
                   "ON CONFLICT (page_id,node_id) DO NOTHING", (pid, nid, by if was is not None and nid not in was else None))
-    if by:  # 2.1401.0 (#7056): their own pictures are confirmed for the shares with pictures over the page now
-        wem_confirm(c, pid, by)
+    if was is not None:  # 2.1401.0 (#7056, reader F1): what this save embeds is confirmed for the shares with pictures over
+        wem_confirm(c, pid, by, [nid for nid in new if nid not in was])  # the page now -- never a picture that stood there before
 
 
 def wem_embeds_copy(c, src, pid, by):
@@ -98,7 +98,8 @@ def wem_embeds_copy(c, src, pid, by):
     without `by`."""
     c.execute("UPDATE wiki_embeds SET user_id=s.user_id FROM wiki_embeds s WHERE s.page_id=? AND wiki_embeds.page_id=? "
               "AND s.node_id=wiki_embeds.node_id AND s.user_id=?", (src, pid, by))
-    wem_confirm(c, pid, by)  # 2.1401.0 (#7056): confirmed for the shares over the new page, never the template's
+    # 2.1401.0 (#7056): a new page, its own embeds: confirmed for the shares over it, never the template's
+    wem_confirm(c, pid, by, [r[0] for r in c.execute("SELECT node_id FROM wiki_embeds WHERE page_id=? AND user_id=?", (pid, by))])
 
 
 def wem_embeds_drop(c, where, args):
@@ -128,38 +129,41 @@ def wem_img_shares(c, page):
     return {wsh_ikey(s): s["created_by"] for s in rows if s.get("images") and wsh_covers(s, page["path"], page["id"])}
 
 
-def wem_confirm(c, pid, by):
-    """2.1401.0 (#7056): a person's own save of page pid (wem_embeds_set with by, a page from a template): every picture in
-    it that `by` embedded and sees is confirmed for the shares with pictures that cover the page NOW. A share shows a
-    picture only when its row is confirmed for exactly that share (wkshare.wsh_img_nodes) -- the one check at the output,
-    whichever way the page came under the share (a rename, a move, the tree, a folder merged into another, the trash and
-    back, a round trip through another workspace): no way of moving a page confirms anything. -> rows confirmed."""
-    if not by:
+def wem_confirm(c, pid, by, nids):
+    """2.1401.0 (#7056): the pictures nids that a person's own save of page pid has just embedded (wem_embeds_set: the ones
+    the save claims for `by`; a new page from a template: `by`'s own embeds of it) are confirmed, where `by` sees them, for
+    the shares with pictures that cover the page NOW. A share shows a picture only when its row is confirmed for exactly
+    that share (wkshare.wsh_img_nodes) -- the one check at the output, whichever way the page came under the share (a rename,
+    a move, the tree, a folder merged into another, the trash and back, a round trip through another workspace): no way of
+    moving a page confirms anything, and neither does a later save of a picture that stood there already (reader F1: else
+    a colleague's typo fix confirmed what someone else had pushed under a link). -> rows confirmed."""
+    if not by or not nids:
         return 0
     page = c.execute(f"SELECT id, org_id, owner_id, path FROM wiki_pages WHERE id=? AND {live_sql()}", (pid,)).fetchone()
     keys = sorted(wem_img_shares(c, page)) if page else []
     if not keys:
         return 0
-    n = 0
-    for nid, (who, _ok) in sorted(wem_embed_rows(c, pid).items()):
-        if who == by and wem_visible(c, by, nid, page):
+    rows, n = wem_embed_rows(c, pid), 0
+    for nid in sorted(set(nids)):
+        if rows.get(nid, (None,))[0] == by and wem_visible(c, by, nid, page):
             n += c.execute(WEM_ADD, (keys, pid, nid)).rowcount
     return n
 
 
-def wem_share_confirm(c, s, key):
+def wem_share_confirm(c, s, key, actor=None):
     """2.1401.0 (#7056): share s (key wkshare.wsh_ikey) was made with pictures or got them switched on: its maker shares
-    the pages as they are now, so every picture embedded in them now (by a person, wiki_embeds.user_id) that the maker
-    sees is confirmed for s. A page that comes under s later shows its pictures only after its embedder saves it there
-    (wem_confirm). -> rows confirmed."""
+    the pages as they are now, so every picture embedded in them now (by a person, wiki_embeds.user_id) that the maker -- and
+    the person who switches them on, actor (reader F2: an admin switching on a colleague's link) -- sees is confirmed for s.
+    A page that comes under s later shows only the pictures its embedder puts in there (wem_confirm). -> rows confirmed."""
     from .wkshare import wsh_pub_pages
     maker, n = s["created_by"], 0
     if not maker:
         return 0
-    with system_ctx(c):  # the pages of the share and the maker's rights on the file store, whoever switches the pictures on
+    with system_ctx(c):  # the pages of the share and the rights on the file store, whoever switches the pictures on
         for p in wsh_pub_pages(c, s):
             for nid, (who, ok) in sorted(wem_embed_rows(c, p["id"]).items()):
-                if who is not None and key not in ok and wem_visible(c, maker, nid, p):
+                if who is not None and key not in ok and wem_visible(c, maker, nid, p) \
+                        and (actor in (None, maker) or wem_visible(c, actor, nid, p)):
                     n += c.execute(WEM_ADD, ([key], p["id"], nid)).rowcount
     return n
 
