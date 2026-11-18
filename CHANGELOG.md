@@ -23,6 +23,39 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1372.0] - 2026-11-18
+
+Package 2.1353 (Bündel: Film-Paket: Producing nach Betrag zurück ins priva, Arbeitsbereichs-Menü: Kürzel-Kachel jeder Organisa, Zitat des Tages nur noch auf).
+
+### Changed
+- Settings: every section of a tab is a folded head row with icon, name and a short state ("2 changed", "Kleinunternehmer · RE-2026-###"), also the eight groups of Company & office; open/closed is remembered per person across devices; search, jumps and hint links unfold the right section and flash the field; the single "Further options" fold of #4833 is gone (#6827)
+- The quote of the day appears only on the sign-in page, smaller, with real line breaks instead of " / "; the start page no longer shows it (#6979)
+- Film & Video pack: Producing by amount is back in the instance's private pack only, the public pack keeps handling costs and markup; the crew share block is named "Produktionsleitung" / "Production management"; saved quotations with a share by amount keep calculating unchanged (#6839)
+- Workspace menu "Switch to": each organisation's initial tile wears that organisation's own colour, whichever workspace is open; Private wears its chosen colour in the menu and in the "All workspaces" overviews (#6957)
+
+### Fixed
+- The table panel in the sidebar draws the organisation stripe like every other sidebar row (3 px, 60 % of the row height) (#6723)
+
+Package 2.1359 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- E-invoice duty in Germany: with e-invoices switched off, the finalise dialog of an invoice above 250 EUR to a client in Germany that counts as a business warns that it goes out as a PDF only and names the dates (1 January 2027, 1 January 2028 up to 800,000 EUR turnover); small businesses are left out, it is only a warning. The same dates stand at the switch Settings > Company & office > Functions > E-invoices and in the procedure documentation (#6482)
+- The button "Text block" of a quotation / invoice offers the built-in "Retention note section 14b UStG" (work on a property for a private client) in the document's language (#6482)
+- Receipt check: a German supplier's invoice from 2027 on without e-invoice data gets the soft note "the supplier sent no e-invoice format" (not counted as a hint) (#6482)
+
+### Changed
+- The e-invoice XML carries the texts that only stood in the PDF: heading and text lines as the note of the next position (BT-127), intro, rights block, closing and text after the last position as document notes (BT-22) (#6482)
+
+### Fixed
+- Finalising an e-invoice stops with a plain message when the server lacks the sRGB colour profile, instead of storing a PDF that is no PDF/A-3 (#6482)
+
+Package 2.1357 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- Live updates on a second device: a note made or changed elsewhere shows at once in the open notes and the open note (notes are a light area of their own; unsaved typing keeps its text and the reload waits); a write that leaves no delta row (folder properties, a notepad, a public link) reloads the writer's other devices instead of answering "nothing changed" (#6335)
+- An open calendar or Today view shows an event changed on another device without leaving the view; the open file store folder shows a folder or file made elsewhere; the day changing with the app open (or a phone woken next morning) redraws Today and the counts (#6335)
+- A late delta answer overtaken by a newer one no longer takes a task back to an older copy; a team chat message that arrived while typing elsewhere shows with the next poll, not only with the next message (#6335)
+
 ## [2.1370.0] - 2026-11-18
 
 Package 2.1333 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), MCP-Zaun: Zaun-Zeichen vollstä).
@@ -490,7 +523,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1370.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1372.0...HEAD
+[2.1372.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1372.0
 [2.1370.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1370.0
 [2.1366.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1366.0
 [2.1361.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1361.0
