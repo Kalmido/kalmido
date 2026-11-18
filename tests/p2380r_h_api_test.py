@@ -815,16 +815,32 @@ g = img(MT, M6, CIMG)
 check(r.ok and (wpath(M6) or "").startswith("Galerie6868/") and g == 404,
       f"#7056 F7: back under carol's link: nothing comes ({r.status_code} {r.text[:160]} {wpath(M6)} {emb(M6, CIMG)} {g})")
 assert wsave(Ca, M6, wbody(Ca, M6) + "\ncarol\n").ok  # its last editor carol again (the import below matches no person but alice)
-# who sees the file and moves the page changes nothing either (was: carol's own move kept it, #6868); her own save under
-# the link confirms her pictures for it (the embedder stands for them there), never bob's save
+# who sees the file and moves the page changes nothing either (was: carol's own move kept it, #6868); a later save of the
+# text confirms nothing that stood there already (reader F1 of job/5494: bob pushes carol's page under a link, her next typo
+# fix would have sent her picture out) -- only a picture put in there by its embedder is confirmed for the link
 M4 = mvpage("Quelle6868d/Vier")
 r = Ca.patch(B + f"/api/wiki/pages/{M4}", json={"path": "Galerie6868/Vier"})
 g = img(MT, M4, CIMG)
-check(r.ok and emb(M4, CIMG) == uid["carol"] and g == 404, f"#7056: carol (who sees it) moves her page under the link: not confirmed yet ({emb(M4, CIMG)} {g})")
+check(r.ok and emb(M4, CIMG) == uid["carol"] and g == 404, f"#7056: carol (who sees it) moves her page under the link: not confirmed ({emb(M4, CIMG)} {g})")
 check(wsave(Bo, M4, wbody(Bo, M4) + "\nbob\n").ok and img(MT, M4, CIMG) == 404 and img(MT, M4, OIMG) == 404,
       f"#7056: bob's save confirms nothing (the pictures are carol's) {oks(M4, OIMG)}")
-check(wsave(Ca, M4, wbody(Ca, M4) + "\ncarol\n").ok and img(MT, M4, CIMG) == 200 and oks(M4, CIMG) == [f"w{MS}"],
-      f"#7056: carol saves her page under the link: her pictures are confirmed for it and come ({oks(M4, CIMG)})")
+check(wsave(Ca, M4, wbody(Ca, M4) + "\ncarol\n").ok and img(MT, M4, CIMG) == 404 and oks(M4, CIMG) == [],
+      f"#7056 reader F1: carol's typo fix confirms none of the pictures standing there ({oks(M4, CIMG)})")
+check(img(MT, M1, CIMG) == 404 and wsave(Ca, M1, wbody(Ca, M1) + "\ncarol\n").ok and img(MT, M1, CIMG) == 404,
+      f"#7056 reader F1: bob pushed her page under the link, her next save does not send her picture out ({oks(M1, CIMG)})")
+full4 = wbody(Ca, M4)
+check(wsave(Ca, M4, full4.replace(f"![Nur Carol](/api/files/nodes/{CIMG}/content)", "")).ok and wsave(Ca, M4, full4).ok
+      and img(MT, M4, CIMG) == 200 and oks(M4, CIMG) == [f"w{MS}"],
+      f"#7056: carol takes her picture out and puts it in under the link: confirmed for it, it comes ({oks(M4, CIMG)})")
+# reader F2: alice (admin) switches on the pictures of carol's link: only what alice sees, too, is confirmed (CIMG only carol)
+M7 = mvpage("Galerie7056g/Sieben")
+r = Ca.post(B + "/api/wiki/shares", json={"space": SPO, "folder": "Galerie7056g", "kind": "link"})
+assert r.status_code == 201, r.text
+S7, T7 = r.json()["id"], r.json().get("url", "").rsplit("/", 1)[-1]
+see_a = A.get(B + f"/api/files/nodes/{CIMG}").ok
+assert A.patch(B + f"/api/wiki/shares/{S7}", json={"images": True}).ok
+g = (img(T7, M7, CIMG), img(T7, M7, OIMG))
+check(g == ((200 if see_a else 404), 200), f"#7056 reader F2: the admin's switch confirms only what the admin sees too (alice sees CIMG: {see_a}) {g}")
 
 # ================================================================== #2398: polls and bookmarks move with the organisation
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
