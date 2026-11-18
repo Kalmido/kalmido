@@ -84,7 +84,7 @@ const V = B + 'api/v1';
   check(bar && /All workspaces/.test(bar.querySelector('.wsn')?.textContent || '') && !d.querySelector('#side .wsbar') && !d.querySelector('#top .wschip'), '#935: the switch in the head bar says "All workspaces" at first, no chip ' + (bar?.textContent || ''));  // 2.152.3 (#2619): the head bar
   click(w, bar); await until(() => d.querySelector('#pop [role="menuitem"]'));
   const wsItems = [...d.querySelectorAll('#pop .kbwsi')].map(x => x.textContent.trim());  // 2.152.3 (#2619): the workspaces of the new menu (sbb_wsMenu), organisations first
-  check(wsItems.length === 3 && wsItems[0].includes(ORGN) && /Private/.test(wsItems[1]) && /All workspaces/.test(wsItems[2]) && d.querySelector('#pop .kbwsi.on') === d.querySelectorAll('#pop .kbwsi')[2] && d.querySelector('#pop .kbws-add'), '#935: the menu organisation | Private | All (+ Add a company) ' + wsItems.join('|'));  // 2.152.3 (#2619): organisations first, then Private, All
+  check(wsItems.length === 3 && wsItems[0].includes(ORGN) && /Private/.test(wsItems[1]) && /All workspaces/.test(wsItems[2]) && d.querySelector('#pop .kbwsi.on') === d.querySelectorAll('#pop .kbwsi')[2] && !d.querySelector('#pop .kbws-add'), '#935: the menu organisation | Private | All (no Add a company inside an organisation) ' + wsItems.join('|'));  // 2.152.3 (#2619): organisations first, then Private, All; 2.1397.0 (#6885): Add a company only without an organisation
   w.eval('closePop()');
   const names = () => [...d.querySelectorAll('#side .srow[data-list] .n')].map(x => x.textContent.trim());
   check(names().includes('Website') && names().includes('Garden'), '#935: all lists in the sidebar ' + names());
