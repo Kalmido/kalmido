@@ -19414,6 +19414,8 @@
   "From invoice issuers": "Da emittenti di fatture",
   "Number range or invoice issuer": "Serie di numerazione o emittente di fatture",
   "From the issuer {0}": "Dall'emittente {0}",
+  "{0}: no invisible characters": "{0}: nessun carattere invisibile",
+  "Only a draft this key made can be withdrawn": "Si può ritirare solo una bozza creata da questa chiave",
   "Another client of the office has the same name or VAT ID.": "Un altro cliente dell'ufficio ha lo stesso nome o la stessa partita IVA.",
   "The name contains a web or e-mail address.": "Il nome contiene un indirizzo web o e-mail.",
   "Set up by the invoice issuer {0}; no person has checked the data yet.": "Creato dall'emittente di fatture {0}; nessuna persona ha ancora controllato i dati.",
