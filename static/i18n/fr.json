@@ -18791,7 +18791,6 @@
   "This rule does not apply yet.": "Cette règle ne s'applique pas encore.",
   "The agent writes:": "L’agent écrit :",
   "The step could not be described - Yes stays locked": "L’étape n’a pas pu être décrite - Oui reste verrouillé",
-  "No step is bound: Yes only gives your answer to the agent": "Aucune étape liée : Oui transmet seulement ta réponse à l’agent",
   "What Yes does": "Ce que fait Oui",
   "The agent writes: {0}": "L’agent écrit : {0}",
   "Other people get access - check who and to what": "D’autres personnes obtiennent l’accès - vérifie qui et à quoi",

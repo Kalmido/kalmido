@@ -18792,7 +18792,6 @@
   "This rule does not apply yet.": "Questa regola non vale ancora.",
   "The agent writes:": "L’agente scrive:",
   "The step could not be described - Yes stays locked": "Non è stato possibile descrivere il passo - Sì resta bloccato",
-  "No step is bound: Yes only gives your answer to the agent": "Nessun passo vincolato: Sì passa solo la tua risposta all’agente",
   "What Yes does": "Cosa fa Sì",
   "The agent writes: {0}": "L’agente scrive: {0}",
   "Other people get access - check who and to what": "Altre persone ottengono accesso - controlla chi e a cosa",

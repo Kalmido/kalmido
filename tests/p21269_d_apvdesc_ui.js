@@ -81,6 +81,10 @@ const call = async (method, url, body) => { const r = await fetch(B + url.replac
     // ======== Yes locked without a description
     check(await ev(`/disabled/.test(ccApvBtns({approval: {title: 'x', step: {method: 'PUT', path: '/api/v1/lists/1/members/2'}}, choices: []}, () => '', '', 'chat:987654321'))`), 'a card whose description is missing: Yes locked');
     check(await ev(`!/disabled/.test(ccApvBtns({approval: {title: 'x'}, choices: []}, () => '', '', 'chat:987654322'))`), 'a card without a step: Yes as before');
+    // 2.1384.0 (#6991): a card without a step: the agent's text as the title, no quote frame, no server line, Yes usable
+    check(await ev(`(() => { const h = ccApvHead({title: 'Shall I go on?', what: 'I write the plan'}, true, 'chat:987654323'); const d = document.createElement('div'); d.innerHTML = h;
+      return !d.querySelector('.apvq') && !d.querySelector('.apvx') && !/The agent writes|No step|Kein Schritt/.test(h) && d.querySelector('.apvt')?.textContent === 'Shall I go on?' && /I write the plan/.test(d.querySelector('.apvw')?.textContent || ''); })()`), 'a card without a step: title only, no quote, no server line');
+    check(await ev(`(() => { const d = document.createElement('div'); d.innerHTML = ccApvHead({title: 'T', step: {method: 'PUT', path: '/api/v1/lists/1/members/2'}}, true, 'chat:987654324'); return !!d.querySelector('.apvq') && !!d.querySelector('.apvx'); })()`), 'a card with a step: unchanged (quote and server line)');
 
     // ======== moving: the words, the warning, Yes answers, the run moves the task
     check(await ready(ev, `!!${CARD(C2)}?.querySelector('.apvx .apvxv')`), 'the move card gets its words');
