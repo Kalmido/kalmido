@@ -22,13 +22,14 @@ const get = async u => (await fetch(B + u)).text();
 
 // ---- the service worker in a vm: fake caches that know ignoreSearch
 function swRun(src, {failLazy = false} = {}) {
-  const store = new Map(), listeners = {}, added = [];
+  const store = new Map(), listeners = {}, added = [], one = [];  // added: the addAll calls (the shell); one: Cache.add per file (LAZY, #6367)
   const key = r => (typeof r === 'string' ? r : r.url).replace(/^https?:\/\/[^/]+/, '');
   class C {
     constructor() { this.m = new Map(); }
     async match(r, o = {}) { const k = key(r); if (this.m.has(k)) return this.m.get(k); if (o.ignoreSearch) return this.m.get(k.split('?')[0]); return undefined; }
     async put(r, res) { this.m.set(key(r), res); }
     async addAll(urls) { added.push(urls); if (failLazy && urls.some(u => /office_docs/.test(u))) throw new Error('bad status'); for (const u of urls) this.m.set(u, {status: 200, ok: true, body: 'cached ' + u}); }
+    async add(u) { one.push(u); if (failLazy && /office_docs/.test(u)) throw new Error('bad status'); this.m.set(u, {status: 200, ok: true, body: 'cached ' + u}); }  // 2.1387.0 (#4984): the modules on demand come one by one since #6367 (swPool)
   }
   const caches = {async open(n) { if (!store.has(n)) store.set(n, new C()); return store.get(n); }, async keys() { return [...store.keys()]; }, async delete(n) { return store.delete(n); },
     async match(r, o) { for (const c of store.values()) { const x = await c.match(r, o); if (x) return x; } }};
@@ -37,7 +38,7 @@ function swRun(src, {failLazy = false} = {}) {
   const ctx = vm.createContext({self, caches, URL, Response: class { constructor(b, o) { this.status = (o || {}).status || 200; } }, console,
     fetch: (...a) => env.fetchImpl(...a), TypeError, Promise, Headers, atob, Uint8Array});
   vm.runInContext(src, ctx);
-  return {listeners, added, caches, store, env};
+  return {listeners, added, one, caches, store, env};
 }
 
 (async () => {
@@ -53,13 +54,14 @@ function swRun(src, {failLazy = false} = {}) {
   {
     const e = swRun(sw);
     let wait; e.listeners.install({waitUntil: p => { wait = p; }}); await wait;
-    check(e.added.length === 2 && e.added[0].includes('/static/js/core.js') && e.added[1].includes('/static/js/settings.js') && !e.added[0].includes('/static/js/settings.js'), 'install: the shell first, then LAZY');
+    // 2.1387.0 (#4984): the shell in one addAll, then every LAZY file on its own (#6367: at most 6 at a time)
+    check(e.added.length === 1 && e.added[0].includes('/static/js/core.js') && !e.added[0].includes('/static/js/settings.js') && e.one.includes('/static/js/settings.js') && !e.one.includes('/static/js/core.js'), 'install: the shell first, then LAZY');
     let res; e.listeners.fetch({request: {method: 'GET', url: 'http://x/static/js/contacts.js?v=2.53.0'}, respondWith: p => { res = p; }});
     const r = await res;
     check(r && r.body === 'cached /static/js/contacts.js', 'offline: contacts.js?v= comes from the cached copy without the query');
     const e2 = swRun(sw, {failLazy: true});
     let w2, threw = false; e2.listeners.install({waitUntil: p => { w2 = p; }}); try { await w2; } catch { threw = true; }
-    check(!threw && e2.added.length === 2, 'install: a LAZY file that fails does not drop the install');
+    check(!threw && e2.added.length === 1 && e2.one.includes('/static/js/settings.js') && e2.one.some(u => /office_docs/.test(u)), 'install: a LAZY file that fails does not drop the install');
   }
 
   // ================= jsdom: the app
