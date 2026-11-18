@@ -367,7 +367,8 @@ def _f2():
         check(hook(line) is None, f"(m) F2: {line} stays allowed by the env file part")
     # reader R4 F2: only the arguments of ps itself count. Without the fix every line with ps and a later word with an e was
     # refused (docker ps --format table, ps -o etime, echo ps here), also with KALMIDO_BLOCK_DANGEROUS=0.
-    for line in ("docker ps --format table", "ps -o etime", "echo ps here", "ps -eo pid,etime", "ps axo pid,etime", "ps -C node -o etime",
+    # Reader job/5481 F9: "ps -o etime" / "ps -C node -o etime" are refused now (in doubt refused, see F9 below)
+    for line in ("docker ps --format table", "ps -o etime=", "echo ps here", "ps -eo pid,etime", "ps axo pid,etime", "ps -C bash -o pid,etime",
                  "docker ps -a --filter name=web"):
         check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) R4 F2: {line} is no environment read")
     for line in ("ps e", "ps aux e", "ps auxe", "ps -E", "ps eww", "sudo ps eww", "ls; /bin/ps e", "bash -c 'ps e'", "echo $(ps axe)"):
@@ -379,7 +380,7 @@ def _f2():
                  "{ ps e; }", "! ps e", "timeout 5 ps e", "nice -n 5 ps e", "sudo -u root ps e", "stdbuf -o0 ps e", "setsid ps e",
                  "ps -N e", "ps -fN e", "ps -AN e", "ps o e", "ps e>out.txt", "/usr/bin/ps e"):
         check(ar.secret_ps(line) and ar.guard_secret(line, env={}) is not None, f"(m) #7132: {line} is refused")
-    for line in ("docker compose ps --format json", "podman ps -a --filter name=web", "ps -o etime > out.txt"):
+    for line in ("docker compose ps --format json", "podman ps -a --filter name=web", "ps -o pid,etime > out.txt"):
         check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) #7132: {line} stays allowed")
     # Fable reader job/5498 F3: the word before ps counts only from the same command (a line ending on echo / docker before
     # a newline hid the next line's ps e), and "}" ends no argument list (ps ${X} e passed)
@@ -387,6 +388,15 @@ def _f2():
         check(ar.secret_ps(line) and ar.guard_secret(line, env={}) is not None, f"(m) F3: {line!r} is refused")
     for line in ("docker ps --format '{{.Names}}'", "echo ps e"):
         check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) F3: {line!r} stays allowed")
+    # Fable reader job/5481 F9 (fourth round): a value attached to its option (-uroot) or an option the list did not know
+    # (--User) made the next word a "value" and hid the e flag. Without the fix these passed. Now no option parsing: every
+    # letters-only argument word with an e (or a dash block with E) is refused -- also a value such as etime or node.
+    for line in ("ps -uroot eww", "ps -ukalmido eww", "ps Uroot eww", "ps --User root eww", "ps -Cgit eww", "ps --Group x eww",
+                 "ps --width 200 eww", "ps -o etime", "ps -C node -o pid", "ps -p 1 e", "ps U root e", "ps -oE"):
+        check(ar.secret_ps(line) and ar.guard_secret(line, env={}) is not None, f"(m) F9: {line!r} is refused")
+    for line in ("ps -o pid,etime=", "ps -fu root", "ps aux", "ps -p 1 -o pid,cmd", "pgrep -a node", "ps -ef | grep node"):
+        check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) F9: {line!r} stays allowed")
+    check("pgrep" in (ar.guard_secret("ps -o etime", env={}) or ""), "(m) F9: the refusal names the way out (pgrep, ps -o pid,etime=)")
 
     # review R3 F1: the request token files of OTHER people (op.env of the chosen person, p<other>.env, auto.env) lie next to
     # the run's own file in <state>/run-env. Without the fix only the run's own file and the starter's were named: a run for
