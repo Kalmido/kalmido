@@ -19328,7 +19328,5 @@
   "wrote": "ha scritto",
   "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Dopo il ripristino non è stato possibile mettere in pausa gli emittenti di fatture; mettili in pausa nelle impostazioni dell'ufficio.",
   "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "Gli emittenti di fatture sono stati messi in pausa ({0}), ma {1} dei loro avvisi non sono stati scritti; controlla il log del server.",
-  "First letter of the name (automatic)": "Iniziale del nome (automatica)",
-  "Remove address rule": "Rimuovi regola di indirizzo",
-  "Remove the address rule of {0}": "Rimuovi la regola di indirizzo di {0}"
+  "First letter of the name (automatic)": "Iniziale del nome (automatica)"
 }
