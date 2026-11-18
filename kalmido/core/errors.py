@@ -25,6 +25,24 @@ class BadInput(Exception):
     pass
 
 
+SORT_MAX = 1e15  # 2.1373.0 (#6430): far above any place a client or MAX(sort) + 1 gives, far below where floats lose steps
+
+
+def sort_value(v, what="sort", lim=SORT_MAX):
+    """2.1373.0 (#6430): the one check of a sort value from outside: a number (or its text), finite, |v| <= lim -> float, else
+    BadInput (400). float() takes "nan", "inf" and 1e400; a NaN stored in a DOUBLE PRECISION column came out of /api/state as
+    a bare NaN, which JSON.parse refuses -- the app stopped loading for everyone who sees the row."""
+    if isinstance(v, bool):
+        raise BadInput(tr("Invalid value: {0}", what))
+    try:
+        x = float(v)
+    except (TypeError, ValueError, OverflowError):
+        raise BadInput(tr("Invalid value: {0}", what)) from None
+    if x != x or not -lim <= x <= lim:  # NaN compares false with everything; inf is out of every bound
+        raise BadInput(tr("Invalid value: {0}", what))
+    return x
+
+
 # 2.454.0 (#3808): a check whose text may be kept for later (a timer's task, an import's state): as before for a request,
 # e.stored = (key, *values), so the text is built for its reader (tr_stored; values may be stored texts themselves)
 class BadKey(BadInput):
