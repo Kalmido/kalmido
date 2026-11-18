@@ -1,0 +1,27 @@
+{
+  "de": {
+    "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Ändert jemand anderes Titel oder Notizen einer solchen Aufgabe, lässt der Agent sie liegen, bis du sie selbst änderst.",
+    "No tracked time: billed with 0 h": "Keine erfasste Zeit: wird mit 0 h abgerechnet",
+    "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "Die Ist-Summe liegt unter null: die festen Rabatte sind größer als der erfasste Betrag. Prüfe die Rabatte, bevor du den Entwurf anlegst."
+  },
+  "es": {
+    "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Si otra persona cambia el título o las notas de una tarea así, el agente la deja hasta que tú los cambies.",
+    "No tracked time: billed with 0 h": "Sin tiempo registrado: se factura con 0 h",
+    "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "La suma real es negativa: los descuentos fijos superan el importe registrado. Revisa los descuentos antes de crear el borrador."
+  },
+  "fr": {
+    "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Si quelqu'un d'autre modifie le titre ou les notes d'une telle tâche, l'agent la laisse jusqu'à ce que tu les modifies toi-même.",
+    "No tracked time: billed with 0 h": "Aucun temps saisi : facturé à 0 h",
+    "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "La somme réelle est négative : les remises fixes dépassent le montant saisi. Vérifie les remises avant de créer le brouillon."
+  },
+  "it": {
+    "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Se qualcun altro cambia il titolo o le note di un'attività del genere, l'agente la lascia finché non li cambi tu.",
+    "No tracked time: billed with 0 h": "Nessun tempo registrato: fatturato con 0 h",
+    "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "La somma effettiva è sotto zero: gli sconti fissi superano l'importo registrato. Controlla gli sconti prima di creare la bozza."
+  },
+  "nl": {
+    "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Verandert iemand anders de titel of notities van zo'n taak, dan laat de agent haar liggen tot je ze zelf verandert.",
+    "No tracked time: billed with 0 h": "Geen geregistreerde tijd: gefactureerd met 0 u",
+    "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "Het werkelijke totaal is negatief: de vaste kortingen zijn groter dan het geregistreerde bedrag. Controleer de kortingen voordat je het concept maakt."
+  }
+}
