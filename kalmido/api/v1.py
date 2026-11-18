@@ -313,6 +313,7 @@ def task_core(r, tags, fields):
             # 2.1308.0 (#6523, review F1): the creator wrote it in the app or with their own token (not a webhook, mail, form,
             # import, sync or a task from before 2.1308.0, which carry created_by too)
             "by_creator": ("origin" in r.keys() and r["origin"] == "person"),
+            "updated_by": text_by(r),  # 2.1375.0 (#6677): who last wrote title and description
             "assignee_group_id": r["assignee_group_id"] if "assignee_group_id" in r.keys() else None,  # 2.10.0 (#441)
             "created_at": r["created_at"], "updated_at": r["updated_at"], "completed_at": r["completed_at"],
             "deleted": bool(r["deleted_at"]), "fields": fields, "waiting": waiting_of(r),
@@ -368,21 +369,22 @@ def waiting_of(r):
     return {"note": r["wait_note"] or "", "until": r["wait_until"], "since": r["waiting_at"], "by": r["wait_by"]}
 
 
-def text_by(c, tid, created_by):
-    """2.1375.0 (#6677): updated_by of a task = who last wrote its title or description, read from its history (activity
-    title / content / md_subtasks; the newest row, one index step on activity_task). No such row = the creator (nobody changed
-    the text since). None = the last text change came from a hand without a person: an inbound webhook, a public link, the git
-    issue sync or a step without a user. The agent dispatcher of the app builds a task only when this is the person too."""
-    r = c.execute("""SELECT user_id, data->>'via' AS via FROM activity WHERE task_id=? AND kind IN ('title','content','md_subtasks')
-                     ORDER BY id DESC LIMIT 1""", (tid,)).fetchone()
-    if not r:
-        return created_by
-    return None if not r["user_id"] or r["via"] in ("webhook", "public_link") else r["user_id"]
+def text_by(r):
+    """2.1375.0 (#6677, review F1/F2): updated_by of a task = who last wrote its title and its description (tasks.title_by /
+    content_by, kept where the history line is written, so a purge of the history does not change it). A field nobody changed
+    since = the creator; 0 = a hand without a person -> None. Title and description are judged each on its own: the creator
+    only when both are theirs, else the other writer (the description's first)."""
+    keys = r.keys()
+    cr = r["created_by"]
+    tb, cb = [(cr if v is None else (v or None)) for v in (r["title_by"] if "title_by" in keys else None,
+                                                             r["content_by"] if "content_by" in keys else None)]
+    if tb == cb:
+        return tb
+    return cb if cb != cr else tb
 
 
 def v1_task(d):
     out = task_core(d, d["tags"], d.get("fields") or {})
-    out["updated_by"] = text_by(db(), d["id"], d.get("created_by"))  # 2.1375.0 (#6677)
     out["list_tags"] = d.get("ltags") or []
     out["key"] = tk_key(db(), d)  # 2.390.0 (#3353): "APP-12" (null = the project has no key)
     out["partial_until"] = d.get("partial_until")  # 2.392.0 B (#3364): done in part: only this version completes it
@@ -448,7 +450,6 @@ def task_for(c, row, uid):
     if row["list_id"]:  # 2.43.0 (#1328): formula fields are computed (read-only for agents too)
         fields = fx_fill(c, {row["id"]: fields}, {row["id"]: row["list_id"]}).get(row["id"], fields)
     out = {**task_core(row, tags, fields), "list_tags": ltag_names(c, row["id"]), "key": tk_key(c, row)}  # 2.390.0 (#3353): key
-    out["updated_by"] = text_by(c, row["id"], row["created_by"])  # 2.1375.0 (#6677): who last wrote title / description
     out["field_at"] = {str(r[0]): r[1] for r in c.execute("""SELECT v.field_id, v.set_at FROM task_field_values v JOIN list_fields f
                                                           ON f.id=v.field_id WHERE v.task_id=? AND f.list_id=? AND v.set_at IS NOT NULL""",
                                                        (row["id"], row["list_id"]))}  # 2.553.0 C (#3538): as in v1_task

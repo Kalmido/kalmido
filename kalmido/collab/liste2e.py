@@ -401,6 +401,15 @@ def le2a_task_set(c, tid, vals):
             v = le2a_snip_store(v)
         sets.append(f"{k}=?")
         args.append(v if k != "url" else (v or None))
+    # 2.1375.0 (#6677, review F3): no history line, but the writer of title / description is kept (tasks.title_by /
+    # content_by): written by its current writer it stays as it is; any other hand (a project admin converting or moving the
+    # texts, a request without a person) makes it 0 -- never the person's again by a conversion
+    from ..tasks.validation import text_hand_now
+    hand = text_hand_now()
+    for k, col in (("title", "title_by"), ("content", "content_by")):
+        if k in vals:
+            sets.append(f"{col}=CASE WHEN COALESCE({col}, created_by) = ? THEN {col} ELSE 0 END")
+            args.append(hand)
     if sets:
         c.execute(f"UPDATE tasks SET {','.join(sets)} WHERE id=?", (*args, tid))
 
