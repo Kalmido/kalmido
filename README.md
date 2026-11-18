@@ -19,11 +19,10 @@
 
 ## What's new
 
-**2.1370.0** (2026-11-18):
-- **Office**: additional number ranges per office area, each with its own counter, date order and hash chain; the income statement reads credit notes in one pass.
-- **Mailboxes**: failing mailboxes back off, stop after repeated refused sign-ins and tell admins; settings show the last successful fetch.
-- **Tasks**: "Tomorrow" shows what is still open from today; "My tasks" can move items into your own sections.
-- **Workspaces**: under "All workspaces" pages of one organisation wear its colour.
+**2.1378.0** (2026-11-18):
+- **Scheduling**: a quotation taken over into a project books each shoot part's gear as an option on the shoot day; the call sheet (and its PDF) gets a tickable packing list per shoot day.
+- **Office**: an accepted quotation has a "Post-calculation" button with planned vs. actual per item and an invoice draft from the recorded hours.
+- **Privacy**: account export and privacy templates describe the code as it is; the public sign-off remembers a guest's name only in its own link cookie.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
