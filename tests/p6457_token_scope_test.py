@@ -182,6 +182,15 @@ os.makedirs(aj.job_dir(3))
 os.environ.update(KALMIDO_URL=URL, KALMIDO_TOKEN=TOKEN, KALMIDO_ENV_FILE=envf)
 aj.spawn_run({"id": 3, "cwd": tmp})
 check(spawned.get("KALMIDO_ENV_FILE") == envf and "KALMIDO_TOKEN" not in spawned, "N1: spawn_run starts the job's process without the token")
+# #7051 (Fable reader N2): redact knows the exact value from the env file, also one without the abk_ shape
+plain = "plain7051" + "k" * 12
+envf2 = os.path.join(tmp, "plain.env")
+with open(envf2, "w", encoding="utf-8") as f:
+    f.write(f"KALMIDO_URL={URL}\nKALMIDO_TOKEN={plain}\n")
+_keep = os.environ.pop("KALMIDO_TOKEN"), os.environ.pop("KALMIDO_URL")
+os.environ["KALMIDO_ENV_FILE"] = envf2
+check(plain not in aj.redact(f"out: {plain} end"), "N2: redact blanks the token value read from the env file")
+os.environ["KALMIDO_TOKEN"], os.environ["KALMIDO_URL"] = _keep
 os.environ["KALMIDO_ENV_FILE"] = envf
 src = open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read()
 check('env.pop("KALMIDO_TOKEN", None)' in src.split("def cmd_run", 1)[1].split("subprocess.Popen", 1)[0], "a job's model process starts without the token")
