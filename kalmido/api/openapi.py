@@ -307,11 +307,13 @@ def openapi_spec():
             "status": {"type": "integer"}, "task_id": nul("integer"), "list_id": nul("integer"), "ms": {"type": "integer"},
             "denied": {"type": "boolean", "description": "401, 403 or 429"}}},
         "AuditPage": page("AuditEntry"),
-        "Attachment": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "mime": {"type": "string"}, "size": {"type": "integer"}}},
+        "Attachment": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "mime": {"type": "string"}, "size": {"type": "integer"},
+                                                         "by": {"type": "integer", "description": "2.1391.0: the account that uploaded it (absent: not known)"}}},
         "AttachmentInfo": {"type": "object", "properties": {  # 2.13.1 (#465)
             "id": {"type": "integer"}, "task_id": {"type": "integer"}, "comment_id": nul("integer", description="null = a file of the task itself"),
             "name": {"type": "string"}, "mime": {"type": "string"}, "size": {"type": "integer"}, "created_at": {"type": "string"},
-            "url": {"type": "string", "description": "/api/v1/attachments/{id}"}}},
+            "url": {"type": "string", "description": "/api/v1/attachments/{id}"},
+            "by": nul("integer", description="2.1391.0: the account that uploaded it (null: not known)")}},
         "AttachmentText": {"type": "object", "properties": {  # 2.34.0 (#368)
             "id": {"type": "integer"}, "task_id": {"type": "integer"}, "comment_id": nul("integer"), "name": {"type": "string"},
             "mime": {"type": "string"}, "size": {"type": "integer"}, "url": {"type": "string", "description": "/api/v1/attachments/{id} (the file itself)"},

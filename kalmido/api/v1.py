@@ -399,7 +399,8 @@ def v1_task(d):
     out["field_at"] = d.get("field_at") or {}  # 2.553.0 C (#3538): {field id: since when it has its value}, a field absent = not known
     out["relations"] = d.get("relations") or []  # 2.576.0 (#3371): saved relations, only to tasks the reader sees
     out.update(blocked=bool(d.get("blocked")), comment_count=d.get("comment_count", 0), context=bool(d.get("context")),
-               attachments=[{**{k: a[k] for k in ("id", "name", "mime", "size")}, **({"encrypted": True} if a.get("enc") else {})}
+               attachments=[{**{k: a[k] for k in ("id", "name", "mime", "size")}, **({"encrypted": True} if a.get("enc") else {}),
+                             **({"by": a["by"]} if a.get("by") is not None else {})}  # 2.1391.0 (#6906): the uploader
                             for a in d.get("attachments") or []])
     if d.get("encrypted_note"):  # 2.42.0 (#828): only that there is one (the content is end-to-end encrypted)
         out["encrypted_note"] = True

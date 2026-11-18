@@ -426,20 +426,27 @@ def _fence_task(api, task):
     # Kalmido (origin mail / form / git ..., untrusted from the API: created_by is then the owner of the address)
     origin = task.get("origin") if task.get("untrusted") else None
     foreign = task.get("created_by") not in ids or bool(origin)
+    who = f"outside Kalmido: {_defuse(' '.join(str(origin).split()))[:40]}" if origin else f"account {task.get('created_by')}"
     if foreign:
-        who = f"outside Kalmido: {_defuse(' '.join(str(origin).split()))[:40]}" if origin else f"account {task.get('created_by')}"
         for f in ("title", "notes"):
             if isinstance(task.get(f), str) and task[f]:
                 task[f] = _data_fence(task[f], who)
-        for a in task.get("attachments") or []:  # a file name is typed by whoever uploaded it
-            if isinstance(a, dict) and isinstance(a.get("name"), str):
-                a["name"] = _data_fence(a["name"], who)
-        for sub in (task.get("subtasks") or []) + (task.get("sub_snapshot") or [] if isinstance(task.get("sub_snapshot"), list) else []):
-            if isinstance(sub, dict):
-                for f in ("title", "notes"):
-                    if isinstance(sub.get(f), str) and sub[f]:
-                        sub[f] = _data_fence(sub[f], who)
         task["untrusted"] = True
+    # 2.1391.0 (#6906): a file name and a subtask are fenced by their OWN author, too -- another account's file or subtask on
+    # the owner's task is data; on a foreign task everything stays fenced (fence more, never less)
+    _fence_files(ids, task.get("attachments"), who if foreign else None)
+    ss = task.get("sub_snapshot")
+    for sub in (task.get("subtasks") or []) + ((ss.get("items") or []) if isinstance(ss, dict) else ss if isinstance(ss, list) else []):
+        if not isinstance(sub, dict):
+            continue
+        sorigin = sub.get("origin") if sub.get("untrusted") else None
+        if foreign or sub.get("created_by") not in ids or sorigin:
+            swho = (f"outside Kalmido: {_defuse(' '.join(str(sorigin).split()))[:40]}" if sorigin
+                    else f"account {sub['created_by']}" if not foreign and sub.get("created_by") is not None else who)
+            for f in ("title", "notes"):
+                if isinstance(sub.get(f), str) and sub[f]:
+                    sub[f] = _data_fence(sub[f], swho)
+            sub["untrusted"] = True
     for sn in task.get("snippets") or []:
         if not isinstance(sn, dict) or sn.get("by") in ids:
             continue
@@ -473,6 +480,36 @@ def _fence_task(api, task):
                 k[f] = _data_fence(k[f], who)
         k["untrusted"] = True
     return task
+
+
+def _fence_files(ids, files, who=None):
+    """2.1391.0 (#6906): a file name is typed by whoever uploaded it: fenced when the uploader (by) is another account, when
+    the uploader is not known (by absent) and the task is foreign (who set), or always when who is set."""
+    for a in files or []:
+        if not isinstance(a, dict) or not isinstance(a.get("name"), str):
+            continue
+        by = a.get("by")
+        if who is None and (by is None or by in ids):
+            continue
+        a["name"] = _data_fence(a["name"], who if who is not None and (by is None or by in ids) else f"account {by}")
+        a["untrusted"] = True
+
+
+def t_list_subtasks(api, a):
+    """2.1391.0 (#6906): each subtask fenced by its own author (as get_task)."""
+    r = api.call("GET", f"/tasks/{_id(a, 'task_id')}/subtasks")
+    for t in (r.get("data") or []) if isinstance(r, dict) else []:
+        if isinstance(t, dict):
+            _fence_task(api, t)
+    return r
+
+
+def t_list_attachments(api, a):
+    """2.1391.0 (#6906): another account's file name is data."""
+    r = api.call("GET", f"/tasks/{int(a['task_id'])}/attachments")
+    if isinstance(r, dict):
+        _fence_files(_trusted_ids(api), r.get("data"))
+    return r
 
 
 def t_get_task(api, a):
@@ -1386,7 +1423,7 @@ TOOLS = [
      lambda api, a: api.call("POST", f"/agent/chats/{int(a['user_id'])}/messages/{int(a['message_id'])}/withdraw", body=_pick(a, ("outcome",)))),
     ("list_attachments", "Files of a task and of its comments (id, name, mime, size, comment_id): only tasks you see with their "
                          "comments. Read one with get_attachment.",
-     _obj({"task_id": S_ID}, ["task_id"]), lambda api, a: api.call("GET", f"/tasks/{int(a['task_id'])}/attachments")),
+     _obj({"task_id": S_ID}, ["task_id"]), t_list_attachments),
     ("get_attachment", "Read one file: a task / comment attachment (source task, ids from list_attachments, get_task or comment "
                        "events), a chat file (source chat, ids from a chat message's attachments), a team chat file (source team, 2.138.1: ids "
                        "from a team chat message's attachments) or a project file (source project "
@@ -1988,8 +2025,7 @@ TOOLS += [
     ("unwatch_task", "2.473.0: stop watching a task (user_id = your own id from get_agent; somebody else: only project owners / admins).",
      _obj({"task_id": S_ID, "user_id": S_ID}, ["task_id", "user_id"]),
      lambda api, a: api.call("DELETE", f"/tasks/{_id(a, 'task_id')}/watchers/{_id(a, 'user_id')}")),
-    ("list_subtasks", "The subtasks of a task.", _obj({"task_id": S_ID}, ["task_id"]),
-     lambda api, a: api.call("GET", f"/tasks/{_id(a, 'task_id')}/subtasks")),
+    ("list_subtasks", "The subtasks of a task.", _obj({"task_id": S_ID}, ["task_id"]), t_list_subtasks),
     ("add_subtask", "Add a subtask (same fields as create_task, without list_id / parent_id).",
      _obj({"task_id": S_ID, **{k: v for k, v in TASK_FIELDS.items() if k not in ("list_id", "parent_id")}}, ["task_id", "title"]),
      lambda api, a: api.call("POST", f"/tasks/{_id(a, 'task_id')}/subtasks", body=_without(a, "task_id"))),
