@@ -808,14 +808,16 @@ function sbb_bar() {
   fv2_barDraw();
 }
 // the workspace menu of the bar: "Switch to", each company with its own sign (picture / symbol / initial), Private (house),
-// the shown one ticked; then "Add a company" and, while a company is shown, its settings. The switch itself is wsSet.
+// the shown one ticked; then "Add a company" (2.1397.0, #6885: only without an organisation) and, while a company is shown, its settings. The switch itself is wsSet.
 function sbb_wsMenu(anchor) {
   const cur = wsOn() ? wsCur() : 'private', all = wsOn() ? wsOptions() : ['private'];
   const opts = [...all.filter(w => w.startsWith('org:')), ...all.filter(w => !w.startsWith('org:'))];  // the companies first (sketch)
   const set = cur.startsWith('org:') && typeof lmOrgPaneOn === 'function' && lmOrgPaneOn();
   const p = menu(anchor, [{head: tr('Switch to')}, ...opts.map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : ws === 'all' ? 'grid' : 'brief', on: ws === cur, cls: 'kbwsi', title: wsName(ws), fn: () => { if (ws !== wsCur()) wsSet(ws); }})),
     '-', {label: tr('Settings'), icon: 'gear', cls: 'kbws-settings', keys: 'g s', sub: updDot() ? tr('Update available') : '', fn: () => settingsModal()},  // 2.380.2 (#3400)
-    {label: tr('Add an organisation'), icon: 'plus', cls: 'kbws-add', fn: sbb_orgAdd},
+    // 2.1397.0 (#6885): only while the person is in no organisation (the first company stays easy to find); afterwards it
+    // lives in Settings > Organisation > Workspaces (acctset.js wsPaneHtml, same sbb_orgAdd)
+    ...(typeof lmOrgPaneOn === 'function' && lmOrgPaneOn() ? [] : [{label: tr('Add an organisation'), icon: 'plus', cls: 'kbws-add', fn: sbb_orgAdd}]),
     ...(set ? [{label: tr('Company settings'), icon: 'building', cls: 'kbws-set', fn: () => settingsModal('org')}] : [])]);
   // each company's own sign in place of the icon: its picture or symbol, else its initial on a tile
   // 2.1353.0 (#6957): the tile wears the organisation's own colour (as its dot and stripe do), whichever workspace is open;
