@@ -837,8 +837,8 @@ there as the knowledge area's own logic. It is derived from the page text like `
 and to agents (`list_links`), come back from the trash unchanged, and cannot hold numbers the embedder does not see or that name
 no file.
 2.1401.0 (#7056): a picture of a page goes out through a share with pictures only when its row of `wiki_embeds` is confirmed
-for exactly that share (`wiki_embeds.shares`: the embedder's own save under the share, or the share made with / switched to
-pictures over the page by its maker; `wkembed.py` `wem_confirm` / `wem_share_confirm`). The check sits at the output
+for exactly that share (`wiki_embeds.shares`: the embedder putting it into the page under the share, or the share made with /
+switched to pictures over the page, seen by its maker and by the person switching; `wkembed.py` `wem_confirm` / `wem_share_confirm`). The check sits at the output
 (`wsh_img_nodes`), not in the ways a page can move: a new way of moving pages (rename, tree, trash, merge, another workspace)
 needs no hook of its own.
 
