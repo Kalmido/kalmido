@@ -308,7 +308,7 @@ const issIps = s => s.split(/[\s,]+/).map(x => x.trim()).filter(Boolean);
 
 // the key is shown this once: a dialog with the key and a copy button
 function issKeyShow(key) {
-  askDialog({title: tr('The new key'), ok: tr('Done'), html: `<p>${esc(tr('Copy the key now and store it in the outside system: Kalmido shows it only this once.'))}</p>
+  askDialog({title: tr('The new key'), ok: tr('Done'), cancel: tr('Close'), html: `<p>${esc(tr('Copy the key now and store it in the outside system: Kalmido shows it only this once.'))}</p>
     <p><code class="topic isskey" id="iss-key">${esc(key)}</code></p><button type="button" class="btn sm" data-iss="copy">${ic('copy', 's')}<span>${tr('Copy')}</span></button>`,
   after: md => { $('[data-iss="copy"]', md)?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(key); toast(tr('Copied')); } catch { toast(tr('Please copy the key by hand')); } }); }});
 }
@@ -323,7 +323,7 @@ function issAddDialog() {
     + (d.address_needed ? `<label class="chk"><input type="checkbox" id="iss-any"> ${esc(tr('Allow any address (not recommended)'))}</label>` : '')
     + f('iss-days', tr('Key valid for (days)'), `<input id="iss-days" class="numin" inputmode="numeric" value="${esc(String(d.days_max || 365))}">`, tr('at most {0} days', d.days_max || 365))
     + `<p class="muted ofchint">${esc(tr('The issuer only prepares drafts; a person finalises and sends them. Limits can be changed after setting it up.'))}</p>`;
-  askDialog({title: tr('Add invoice issuer'), html, ok: tr('Add'), after: md => { md0 = md; }, submit: async () => {
+  askDialog({title: tr('Add invoice issuer'), html, ok: tr('Add'), cancel: tr('Cancel'), after: md => { md0 = md; }, submit: async () => {
     const b = {name: issVal(md0, 'iss-name'), range_id: +issVal(md0, 'iss-range'), valid_days: +issVal(md0, 'iss-days') || undefined};
     const ips = issVal(md0, 'iss-ips');
     if (issOn(md0, 'iss-any')) b.any_address = true; else if (ips || d.address_needed) b.allowed_ips = issIps(ips);
@@ -343,7 +343,7 @@ function issEditDialog(i) {
     + (d.address_needed ? `<label class="chk"><input type="checkbox" id="iss-any" ${(i.allowed_ips || []).length ? '' : 'checked'}> ${esc(tr('Allow any address (not recommended)'))}</label>` : '')
     + `<h4>${esc(tr('Limits'))}</h4>${/*html-ok*/ lim}<p class="muted ofchint">${esc(tr('Raising a limit or loosening the address rule asks for your password.'))}</p>`
     + ((i.addresses || []).length ? `<h4>${esc(tr('Used from'))}</h4><ul class="issips">${i.addresses.map(a => `<li>${esc(a.ip)} · ${esc(tr('last {0}', issDay(a.last_at)))} · ${esc(tr('{0} calls', a.calls))}</li>`).join('')}</ul>` : '');
-  askDialog({title: tr('Invoice issuer {0}', i.name), html, ok: tr('Save'), after: md => { md0 = md; }, submit: async () => {
+  askDialog({title: tr('Invoice issuer {0}', i.name), html, ok: tr('Save'), cancel: tr('Cancel'), after: md => { md0 = md; }, submit: async () => {
     const limits = {}; for (const [k] of ISS_LIM) { const v = issVal(md0, 'iss-l-' + k).replace(',', '.'); if (v !== String(i.limits?.[k] ?? '')) limits[k] = v; }
     const b = {name: issVal(md0, 'iss-name'), limits};
     const ips = issIps(issVal(md0, 'iss-ips'));
@@ -358,7 +358,7 @@ async function issNewKey(i) {
   const d = ISS.data || {}; let md0 = null;
   const html = `<p>${esc(tr('The current key keeps working for the overlap, so the outside system can switch over.'))}</p>
     <div class="row"><label for="iss-ov">${esc(tr('Overlap (days)'))}</label><input id="iss-ov" class="numin" inputmode="numeric" value="${esc(String(d.overlap_default ?? 7))}"><span class="muted ofchint">${esc(tr('0 to {0} days; 0 = the current key ends now', d.overlap_max ?? 14))}</span></div>`;
-  askDialog({title: tr('New key for {0}', i.name), html, ok: tr('Create key'), after: md => { md0 = md; }, submit: async () => {
+  askDialog({title: tr('New key for {0}', i.name), html, ok: tr('Create key'), cancel: tr('Cancel'), after: md => { md0 = md; }, submit: async () => {
     try { const j = await issSend('POST', `/api/office/issuers/${i.id}/keys`, {overlap_days: +issVal(md0, 'iss-ov') || 0}); OFC.log = null; issLoad(); setTimeout(() => issKeyShow(j.key), 0); return true; }
     catch (x) { issFail(x); return false; }
   }});
@@ -369,7 +369,7 @@ async function issLogDialog(i) {
   let rows = [];
   try { rows = (await rawFetch('GET', `/api/office/issuers/${i.id}/log`)).log || []; } catch (x) { issFail(x); return; }
   const line = r => `<li><span class="muted">${esc(issDay(r.at))} ${esc(String(r.at).slice(11, 16))}</span> · ${esc(r.by === 'issuer' ? tr('Issuer') : r.user_name)} · ${esc(tr(ISS_ACT[r.action] || r.action))}${r.target && r.target !== 'issuer' ? ' · ' + esc(r.target) : ''}</li>`;
-  askDialog({title: tr('Log of {0}', i.name), ok: tr('Close'), html: rows.length ? `<ul class="isslog">${/*html-ok*/ rows.map(line).join('')}</ul>` : `<p class="muted">${esc(tr('No entries yet.'))}</p>`});
+  askDialog({title: tr('Log of {0}', i.name), ok: tr('Close'), cancel: tr('Close'), after: () => {}, html: rows.length ? `<ul class="isslog">${/*html-ok*/ rows.map(line).join('')}</ul>` : `<p class="muted">${esc(tr('No entries yet.'))}</p>`});
 }
 
 async function issPayeesDialog(i) {
