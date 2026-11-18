@@ -29,6 +29,11 @@ persons without an organisation (Frida, Gina):
  - the office log: issuer_write with the fields old -> new; the alarm "client data" reaches the admins (News)
  - five parallel PUTs of one new external_ref: one client
  - a personal office: the client is the owner's private client (org_id NULL, created_by = owner), she sees it and takes its mark away
+ - review of 2.1384 (Fable reader): F1 an organisation import keeps the mark without its issuer, a mark naming another area's
+   issuer shows no name and writes no line in that area's log; F2 client_lookalike only in the mark, never in the key's answer
+   or its OpenAPI; F3 taking a mark away and finalising wait for the client's lock and compare with the mark as it is then
+   (409); F4 Staff (no invoicing fields) sees the changed fields without values; F5 the e-mail of a letter and of a privacy
+   sheet ask for the confirmation (409 client_hold); F6 200 changes of a key's clients within 24 hours, then 429 limit_reached
 usage: p6700_office_issuer_clients_test.py <datadir>"""
 import json
 import os
@@ -242,11 +247,27 @@ r = kput(KEY3, "t2", {"name": "Booking.com B.V.", **ADDR})
 check(r.status_code == 201 and "text_suspicious" in r.json().get("flags", []), f"a web pattern in the name: text_suspicious, no refusal {r.text[:200]}")
 r = kput(KEY3, "t3", {"name": "Thomas Müller", **ADDR})
 check(r.status_code == 201 and "client_lookalike" not in r.json().get("flags", []), f"a person's name alone: set up, no check of names of persons {r.text[:200]}")
+
+
+def mark_flags(ref, iid):
+    h = sql("SELECT issuer_hold FROM clients WHERE external_ref=? AND issuer_id=?", (ref, iid))
+    return (json.loads(h[0][0]) if h and h[0][0] else {}).get("flags") or []
+
+
+# 2.1384.0 (#6700, review F2): client_lookalike stands in the mark (for the persons) only, never in the key's answer - else a key
+# asks the office's client list by name / VAT ID (the decision of 17.11.: twice the same name = a mark, no refusal, stays)
 r = kput(KEY3, "t4", {"name": "Thomas  Müller", **ADDR})
-check(r.status_code == 201 and "client_lookalike" in r.json().get("flags", []), f"twice 'Thomas Müller': client_lookalike, no refusal {r.text[:200]}")
+check(r.status_code == 201 and "client_lookalike" not in r.json().get("flags", []) and "client_lookalike" in mark_flags("t4", IID3),
+      f"twice 'Thomas Müller': client_lookalike in the mark, not told to the key, no refusal {r.text[:200]} {mark_flags('t4', IID3)}")
 HAND = A.post(B + "/api/clients", json={"name": "Echtkunde AG", **ADDR, "vat_id": "DE811111111", "email_invoice": "buchhaltung@echt.example"}).json()["id"]
 r = kput(KEY3, "t5", {"name": "Echtkunde AG", **ADDR, "vat_id": "DE811111111", "email_invoice": "dieb@falsch.example"})
-check(r.status_code == 201 and "client_lookalike" in r.json().get("flags", []), f"a person's client with the same name / VAT ID: a new client, lookalike {r.text[:200]}")
+check(r.status_code == 201 and "client_lookalike" not in r.json().get("flags", []) and "client_lookalike" in mark_flags("t5", IID3),
+      f"a person's client with the same name / VAT ID: a new client, lookalike in the mark only {r.text[:200]}")
+r = kput(KEY3, "t6", {"name": "Ganz Neu GmbH", **ADDR, "vat_id": "DE811111111"})  # the same VAT ID alone: the key cannot tell either
+check(r.status_code == 201 and set(r.json().get("flags") or []) == {"client_new"}, f"the key's flags: its own input only {r.text[:200]}")
+spec = requests.get(V + "/openapi.json", timeout=30).json()
+enum = json.dumps(spec.get("paths", {}).get("/issuer/clients/by-ref/{ref}", {}))
+check("client_new" in enum and "client_lookalike" not in enum, "the OpenAPI of the key's route names no client_lookalike")
 hand = sql("SELECT email_invoice, issuer_id, external_ref FROM clients WHERE id=?", (HAND,))[0]
 check(hand[0] == "buchhaltung@echt.example" and hand[1] is None and hand[2] is None, f"the person's client is never taken over {hand}")
 r = kput(KEY3, "v1", {"name": "Kreta Reisen", **ADDR, "country": "GR", "vat_id": "GR123456789"})
@@ -393,5 +414,134 @@ r = Fr.post(B + f"/api/clients/{FCID}/issuer-hold", json={"at": fh.get("at")})
 check(r.ok, f"private office: the owner takes the mark away {r.status_code} {r.text[:160]}")
 r = Fr.post(B + f"{D}/{FDOC}/finalize", json={})
 check(r.ok, f"private office: finalised after the check without a confirmation {r.status_code} {r.text[:160]}")
+
+# ---------------------------------------------------------------- review F1: a mark with another area's issuer (organisation import)
+out = in_ct("import app, json\nfrom kalmido.admin.oi_office import _p_client\nclass Run:\n    org = 1\n"
+            "d = _p_client(None, Run(), {}, {'issuer_id': 5, 'external_ref': 'x:1', 'issuer_hold': json.dumps({'at': 'T', 'issuer': 5, "
+            "'new': True, 'fields': {'city': ['', 'K']}, 'flags': []})}, None)\nh = json.loads(d['issuer_hold'])\n"
+            "print(json.dumps([d['issuer_id'], d['external_ref'], 'issuer' in h, h.get('at'), h.get('fields')]))\n")
+check(json.loads(out.strip().splitlines()[-1]) == [None, None, False, "T", {"city": ["", "K"]}], f"the organisation import keeps the mark without its issuer {out}")
+BCL = Bo.post(B + "/api/clients", json={"name": "Beta Kunde", **ADDR, "org_id": ORGB}).json()["id"]
+FOREIGN = {"at": "2026-01-01T00:00:00.000+00:00", "issuer": IID, "new": True, "fields": {"city": ["", "Köln"]}, "flags": []}
+sql("UPDATE clients SET issuer_hold=? WHERE id=?", (json.dumps(FOREIGN), BCL), write=True)  # as an older import brought it along
+card = Bo.get(B + f"/api/clients/{BCL}").json().get("issuer") or {}
+bh = card.get("client_hold") or {}
+check(bh.get("at") == FOREIGN["at"] and bh.get("issuer") == "" and not card.get("external_ref"),
+      f"a mark naming another area's issuer: shown at the card, without that issuer's name {card}")
+BDOC = draft(Bo, BCL)
+r = Bo.post(B + f"{D}/{BDOC}/finalize", json={})
+check(r.status_code == 409 and (r.json().get("client_hold") or {}).get("issuer") == "", f"the 409 names no foreign issuer {r.text[:200]}")
+check((Bo.get(B + f"{D}/{BDOC}/number-preview").json().get("client_hold") or {}).get("issuer") == "", "number-preview: no foreign issuer's name")
+r = Bo.post(B + f"/api/clients/{BCL}/issuer-hold", json={"at": FOREIGN["at"]})
+check(r.ok and not sql("SELECT issuer_hold FROM clients WHERE id=?", (BCL,))[0][0], f"Bob takes the mark away {r.status_code} {r.text[:160]}")
+check(not sql("SELECT 1 FROM office_doc_log WHERE issuer_id=? AND target=?", (IID, f"client:{BCL}")),
+      "no line in the office log of the other area's issuer")
+
+# ---------------------------------------------------------------- review F4: invoicing fields a person may not see
+r = A.post(B + "/api/users", json={"orgs": [{"id": ORG, "role": "member"}], "username": "carl", "display_name": "Carl Staff",
+                                   "password": PASSWORD, "email": "carl@example.com"})
+assert r.ok, r.text
+CARL = r.json()["id"]
+assert A.put(B + OF + f"/rights/people/{CARL}", json={"groups": ["tpl:staff"]}).ok
+Ca = login(B, "carl")
+Ca.patch(B + "/api/settings", json={"lang": "en", "features": FEATURES, "tour": "done", "workspace": f"org:{ORG}"})
+r = kput(KEY, "f4:1", {"name": "Feld Kunde", **ADDR, "vat_id": "DE822222222", "email_invoice": "f4@muster.example"})
+assert r.status_code == 201, r.text
+F4C = sql("SELECT id FROM clients WHERE external_ref='f4:1' AND issuer_id=?", (IID,))[0][0]
+cj = Ca.get(B + f"/api/clients/{F4C}").json()
+fl = {f["field"]: f for f in ((cj.get("issuer") or {}).get("client_hold") or {}).get("fields") or []}
+check("vat_id" not in (cj.get("billing") or {}) and fl.get("vat_id", {}).get("new") == "" and fl["vat_id"].get("hidden")
+      and fl.get("email_invoice", {}).get("new") == "" and fl.get("city", {}).get("new") == "Köln" and "DE822222222" not in json.dumps(cj)
+      and "f4@muster.example" not in json.dumps(cj), f"Staff (no invoicing fields): the mark names them without values {fl}")
+fa = {f["field"]: f for f in ((A.get(B + f"/api/clients/{F4C}").json().get("issuer") or {}).get("client_hold") or {}).get("fields") or []}
+check(fa.get("vat_id", {}).get("new") == "DE822222222" and not fa["vat_id"].get("hidden"), f"the admin sees the values {fa}")
+
+# ---------------------------------------------------------------- review F3: the check and the change of the mark under the client's lock
+
+
+def hold_proc(cid, mark):
+    """A transaction that takes the client's lock (as the key's PUT does), sets a new mark and keeps both until a line on stdin."""
+    code_ = ("import os, sys; os.environ['TASKS_WATCHDOG']='0'\nimport app\nfrom kalmido.core.pg import system_ctx, write_lock\n"
+             "c=app.connect()\nwith system_ctx(c):\n"
+             f"    write_lock(c, 'clients-{int(cid)}')\n"
+             f"    c.execute('UPDATE clients SET issuer_hold=? WHERE id=?', ({mark!r}, {int(cid)}))\n"
+             "    print('held', flush=True)\n    sys.stdin.readline()\n    c.commit()\nprint('done', flush=True)")
+    return subprocess.Popen(["docker", "exec", "-i", kt.CT, "python", "-c", code_], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+
+
+def lock_waiter():
+    return sql("SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%advisory%' AND query NOT LIKE '%pg_stat_activity%'")
+
+
+def race(cid, call):
+    """call() while another transaction holds the client's lock and changes its mark -> (it waited for the lock, call's answer)."""
+    new = json.dumps({"at": "2099-01-01T00:00:00.000+00:00", "issuer": IID, "new": False, "fields": {"email_invoice": ["a@muster.example", "umleitung@falsch.example"]}, "flags": []})
+    p = hold_proc(cid, new)
+    assert p.stdout.readline().strip() == "held", p.stderr.read()
+    res = {}
+    th = threading.Thread(target=lambda: res.update(r=call()))
+    th.start()
+    waited = kt.until(lambda: lock_waiter() or not th.is_alive(), timeout=20) and th.is_alive()
+    p.stdin.write("\n")
+    p.stdin.flush()
+    p.wait(timeout=60)
+    th.join(60)
+    return waited, res.get("r")
+
+
+r = kput(KEY, "race:1", {"name": "Race Eins", **ADDR, "email_invoice": "a@muster.example"})
+assert r.status_code == 201, r.text
+RC1 = sql("SELECT id FROM clients WHERE external_ref='race:1' AND issuer_id=?", (IID,))[0][0]
+old = (A.get(B + f"/api/clients/{RC1}").json().get("issuer") or {}).get("client_hold", {}).get("at")
+waited, r = race(RC1, lambda: A.post(B + f"/api/clients/{RC1}/issuer-hold", json={"at": old}, timeout=60))
+check(waited and r is not None and r.status_code == 409 and (r.json().get("client_hold") or {}).get("at", "").startswith("2099")
+      and sql("SELECT issuer_hold FROM clients WHERE id=?", (RC1,))[0][0], f"taking a mark away while the key changes it: 409 with the new mark {waited} {r and r.text[:200]}")
+r = kput(KEY, "race:2", {"name": "Race Zwei", **ADDR, "email_invoice": "a@muster.example"})
+assert r.status_code == 201, r.text
+RC2 = sql("SELECT id FROM clients WHERE external_ref='race:2' AND issuer_id=?", (IID,))[0][0]
+RDOC = draft(A, RC2)
+old2 = (A.get(B + f"{D}/{RDOC}/number-preview").json().get("client_hold") or {}).get("at")
+waited, r = race(RC2, lambda: A.post(B + f"{D}/{RDOC}/finalize", json={"client_hold_ok": old2}, timeout=60))
+check(waited and r is not None and r.status_code == 409 and not sql("SELECT locked_at FROM office_docs WHERE id=?", (RDOC,))[0][0],
+      f"finalising while the key changes the client: it waits for the client's lock and asks again (409) {waited} {r and r.text[:200]}")
+
+# ---------------------------------------------------------------- review F5: the e-mail of a letter and of a privacy sheet ask too
+r = A.post(B + OF + "/letters", json={"client_id": RC2, "subject": "Hinweis", "body": "Guten Tag,\n\nanbei."})
+assert r.status_code == 201, r.text
+LT1 = r.json()["id"]
+md = A.get(B + OF + f"/letters/{LT1}/mail-draft").json()
+lh = md.get("client_hold") or {}
+check(lh.get("at", "").startswith("2099"), f"the letter's mail dialog names the mark {md}")
+r = A.post(B + OF + f"/letters/{LT1}/send-mail", json={"to": "brief@umleitung.example"})
+check(r.status_code == 409 and r.json().get("client_hold") and not mails("brief@umleitung.example"), f"a letter's mail without the confirmation: 409 {r.status_code} {r.text[:160]}")
+r = A.post(B + OF + f"/letters/{LT1}/send-mail", json={"to": "brief@umleitung.example", "client_hold_ok": lh.get("at")})
+check(r.ok and kt.until(lambda: mails("brief@umleitung.example"), timeout=20), f"a letter's mail with the confirmation {r.status_code} {r.text[:160]}")
+TPC = A.post(B + OF + "/doc-templates", json={"kind": "other", "name": "Einwilligung kurz", "lang": "de", "sign": 1,
+                                              "body": "# Einwilligung\n\n{{client.name}} willigt ein."}).json()["id"]
+r = A.post(B + OF + "/privacy-sheets", json={"client_id": RC2, "kind": "consent", "template_id": TPC})
+assert r.status_code == 201, r.text
+PSH = r.json()["sheet"]["id"]
+pm = A.get(B + OF + f"/privacy-sheets/{PSH}/mail").json()
+ph = pm.get("client_hold") or {}
+check(ph.get("at", "").startswith("2099"), f"the privacy sheet's mail dialog names the mark {pm}")
+r = A.post(B + OF + f"/privacy-sheets/{PSH}/send", json={"to": "blatt@umleitung.example"})
+check(r.status_code == 409 and r.json().get("client_hold") and not mails("blatt@umleitung.example"),
+      f"a privacy sheet without the confirmation: 409, no mail (no signature link) {r.status_code} {r.text[:160]}")
+r = A.post(B + OF + f"/privacy-sheets/{PSH}/send", json={"to": "blatt@umleitung.example", "client_hold_ok": ph.get("at")})
+check(r.ok and kt.until(lambda: mails("blatt@umleitung.example"), timeout=20), f"a privacy sheet with the confirmation {r.status_code} {r.text[:160]}")
+
+# ---------------------------------------------------------------- review F6: changes of a key's clients within 24 hours
+now_ = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(timespec="seconds")
+done_ = sql("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_write'", (IID2,))[0][0]
+setups_ = sql("SELECT COUNT(*) FROM office_issuer_refs WHERE issuer_id=? AND route='clients'", (IID2,))[0][0]
+for _ in range(200 - (done_ - setups_)):  # the day's changes up to the limit (as 200 PUTs would write them)
+    sql("INSERT INTO office_doc_log(org_id, at, action, target, issuer_id) VALUES(?,?,'issuer_write','client:b1',?)", (ORG, now_, IID2), write=True)
+cur = kget(KEY2, "b1").json()
+r = kput(KEY2, "b1", {"zip": "50669", "expect_updated_at": cur["updated_at"]})
+check(r.status_code == 429 and code(r) == "limit_reached" and r.headers.get("Retry-After") and kget(KEY2, "b1").json().get("zip") != "50669",
+      f"over 200 changes within 24 hours: 429 limit_reached, nothing changed {r.status_code} {r.text[:160]}")
+check(kput(KEY2, "b1", {"zip": cur["zip"], "expect_updated_at": cur["updated_at"]}).status_code == 200, "an unchanged PUT still answers 200")
+check(not sql("SELECT paused FROM office_issuers WHERE id=?", (IID2,))[0][0], "the change limit pauses nothing")
 
 sys.exit(kt.done("p6700_office_issuer_clients"))
