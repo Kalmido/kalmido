@@ -19,11 +19,11 @@
 
 ## What's new
 
-**2.1380.0** (2026-11-18):
-- **Office**: finalising a draft dated in an earlier year offers to set the date to today.
-- **Calendar**: two-finger zoom is smooth again.
-- **Agents**: a locked account's hosted MCP access answers 403 at once and continues after the unlock.
-- **Updates**: a database must come from Kalmido 2.1000 or newer; older installations update to 2.1000.x first (docs/UPGRADING.md).
+**2.1387.0** (2026-11-18):
+- **Organisation**: org admins can start a move (Settings > Organisation > Data); the organisation is read only meanwhile and everyone sees a notice bar.
+- **Documents**: text recognition has an hourly budget per workspace; a cut-off recognition is flagged and can be run again.
+- **Settings**: arrange the bottom bar and sidebar groups by dragging the grip.
+- **Agents**: hardened starter (token kept out of the model's environment), rules template "Software development"; writes to a moving organisation answer 423 `org_moving`.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
