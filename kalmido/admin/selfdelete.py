@@ -470,12 +470,16 @@ class SdlWait(Exception):
 
 def sdl_run(c, uid):
     """The final deletion of uid (its delete_at passed). True when it went; else the plan notes the try (SDL_RETRY)."""
-    with system_ctx(c):
-        u = c.execute("SELECT * FROM users WHERE id=? AND disabled AND delete_at IS NOT NULL", (uid,)).fetchone()
+    with system_ctx(c):  # 2.1367.0 (#6869): read again under a row lock, never the row read at the tick's start
+        u = c.execute("SELECT * FROM users WHERE id=? AND disabled AND delete_at IS NOT NULL FOR UPDATE", (uid,)).fetchone()
     if not u:
         c.rollback()
         return False
     plan = sdl_plan(u)
+    held = sdl_hold_until(plan) if plan.get("admin") and not plan.get("release") else None
+    if held and held > now_utc():  # an admin's lock came meanwhile (#6395): it holds the deletion, the next tick tells the admins
+        c.rollback()
+        return False
     addr, username, lg = u["email"], u["username"], lang(c, uid)
     why = ""
     with app.test_request_context("/api/account/delete/run"):
