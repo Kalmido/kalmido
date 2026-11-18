@@ -378,5 +378,30 @@ res = d2.tick(force=True)
 check(len([x for x in open(prlog, encoding="utf-8")]) == 1 and "land" not in d2.reg["jobs"]["601"] and h2.api.writes() == [],
       "#7028: a dry run neither checks nor opens a pull request")
 
+# ---- 2.1368.0 (#5198): a write the server refuses after the job started (409 approval needed) never starts the bundle twice
+TASKS[:] = [task(401, "Under a control level", "S")]
+JOBS.clear()
+state5 = os.path.join(proj, ".state5")
+os.makedirs(state5)
+h = Host("on")
+h.state_dir = state5
+d = ad.Dispatcher(h, proj)
+
+
+def refused(*a, **k):
+    raise ar.ApiError(409, '{"error": "approval_required"}')
+
+
+d.report = refused  # the round's next write after the start is refused
+n = len(STARTS)
+res = d.tick(force=True)
+check(len(STARTS) == n + 1 and res["started"]["tasks"] == [401], f"#5198: the job started: {STARTS[n:]}")
+JOBS[str(500 + len(STARTS))] = {"id": 500 + len(STARTS), "state": "running", "created": time.time()}
+d2 = ad.Dispatcher(h, proj)  # the next round (also after a restart of the runner) reads the saved state
+res = d2.tick(force=True)
+check(len(STARTS) == n + 1 and res["states"][401] == "building", f"#5198: the next round starts nothing again: {STARTS[n:]} {res['states']}")
+d2.report = lambda *a, **k: (_ for _ in ()).throw(SystemExit(1))
+check(d2.tick(force=True) is not None, "#5198: not even a SystemExit of a later write ends the round")
+
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
