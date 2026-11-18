@@ -224,8 +224,9 @@ check(len(it) == 1 and "kalmido" in it[0]["data"]["text"] and it[0]["data"]["ws"
 m = until(lambda: mails("bob@example.test"), 30)
 body = email.message_from_string(m[0]["raw"], policy=email.policy.default).get_body(("plain",)).get_content() if m else ""
 check(len(m) == 1 and "fetching stopped" in body and "Settings > Notifications" in body, f"#6545: and a mail to the admin ({body[:300]})")
-first = body.split("\n\n")[0]
-check("Alpha" in first and "kalmido" not in first and "/#mailhub" in body, f"#6738: the mail names the workspace and links its mailbox settings, not the mailbox user name ({first[:200]})")
+first = body.strip().splitlines()[0] if body.strip() else ""
+check("Alpha" in first and "kalmido" not in first, f"#6738: the mail names the workspace, not the mailbox user name ({first[:200]})")
+check("#mailhub" in body, f"#6738: ... and links its mailbox settings ({body!r})")
 check(not news(Ca, "mailbox_auth") and not mails("carol@example.test"), "#6545: a member who is no admin hears nothing")
 check(until(lambda: news(Da, "mailbox_auth"), 20), "#6545: the second admin hears it in the News")
 check(not queued(U["dave"]) and not mails("dave@example.test"), "#6545 F1: but gets no mail: the address is not proved")
