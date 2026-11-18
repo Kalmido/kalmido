@@ -3146,7 +3146,9 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
 
 **Brakes**: a stop file (`dispatch-STOP` in the runner's state folder or `KALMIDO-DISPATCH-STOP` in the project folder), a
 fresh week usage at or above `usage_limit_pct` (default 95) or `KALMIDO_USAGE_LIMIT`, and the closed work window hold new
-starts. Closing and the guard go on. **Dry run**: no comment, no close, no job. What it would do goes to
+starts. Closing and the guard go on. A write the server refuses (2.1368.0: `409 approval_required` under the agent's
+control level, a new agent starts on *approve all*) ends only that write: a started job is in the dispatcher's state before
+any further write of the round, and the next round never starts its bundle again. **Dry run**: no comment, no close, no job. What it would do goes to
 `dispatch-dry.log` in the state folder and into the day report, which is its only post.
 `"<python>" "<mcp>/agent_dispatch.py" --dry-run` runs one round by hand and prints it.
 
