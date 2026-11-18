@@ -4099,7 +4099,11 @@ a.tref:hover{background:var(--accent-soft)}
 .ngroup.read .ngav .avatar{opacity:.5;filter:saturate(0)}
 .nitem:not(.unread) .nexc,.nitem:not(.unread) time{color:var(--faint)}
 .nitem:not(.unread) .avatar{opacity:.5;filter:saturate(0)}
-.bpop .nsh,.bpop .nsec{position:sticky;top:0;z-index:1;background:var(--bg)}
+/* 2.1383.0 (#7023): the heads For you / History stand flush at the top of the bell's list (window and phone sheet), full width
+   and opaque: the list's padding (.25rem) is taken back by top / margin, the spacing is padding, the background the window's;
+   each head sticks inside its own section, so History pushes For you away */
+.bpop .nsh,.bpop .nsec{position:sticky;top:-.25rem;z-index:1;background:var(--bg2)}
+.bpop .nsh{margin:0 -.25rem;padding:.5rem}
 .ngn{font:var(--fs-xs) var(--mono);color:var(--muted);border:1px solid var(--line2);border-radius:var(--r-s);padding:0 .25rem}
 /* 2.1037.0 (#5807): the history (what does not wait for me) folds under one chevron line; For you empty says so; a chip's waiting count */
 .nhisth{display:flex;align-items:center;gap:.375rem;width:100%;min-height:2.75rem;background:none;border:0;padding:0;color:inherit;font:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer;text-align:left}
