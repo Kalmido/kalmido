@@ -9,7 +9,7 @@
 # computer = several folders). Needs: bash (3.2 is enough), curl, python3 3.9+, the agent command (default: claude).
 #
 # usage: agent-setup.sh --url URL --code CODE --dir FOLDER [--tool claude|codex] [--cmd COMMAND] [--from DIR] [--no-autostart] [--dry-run] [--lang de|en|es|fr|it|nl]
-#        [--allow-http] [--ip-rule current|off|ADDRESSES]
+#        [--allow-http] [--ip-rule current|off|ADDRESSES] [--template general|software]
 #        agent-setup.sh --uninstall --dir FOLDER [--dry-run]
 #   --url        your Kalmido address
 #   --code       the one-time setup code (15 minutes, works once; make a new one in Kalmido when it expired); 2.360.0:
@@ -25,6 +25,9 @@
 #   --ip-rule    2.1367.0 (#6457): an address rule for this computer's key: current (the address it reaches Kalmido from),
 #                off, or IPs / networks separated by commas; without it the setup asks on the terminal (Enter = no rule;
 #                no terminal = no rule)
+#   --template   2.1367.0 (#2700): the rules for the project folder: general (the Kalmido rules, the default) or software
+#                (+ the rules for building software and BRIEF-TEMPLATE.md; an existing CLAUDE.md stays, the rules come next
+#                to it as CLAUDE.software.md)
 #   --lang       language of the messages: de, en, es, fr, it or nl (Kalmido adds the language of your account; anything else = en)
 #   --dry-run    only show what would happen: no code is redeemed, nothing is written, no autostart is loaded
 #   --uninstall  stop and remove the autostart, revoke this computer's token in Kalmido, delete the instance folder
@@ -32,7 +35,7 @@
 # 2.1367.0 (#6457): Claude Code's deny rules in <folder>/.claude/settings.local.json.
 set -uo pipefail
 
-URL="" CODE=${KALMIDO_SETUP_CODE:-} DIR="" CMD="" TOOL="" FROM="" DRY=0 UNINSTALL=0 NOAUTO=0 LANGC=en HTTPOK=0 IPRULE=""
+URL="" CODE=${KALMIDO_SETUP_CODE:-} DIR="" CMD="" TOOL="" FROM="" DRY=0 UNINSTALL=0 NOAUTO=0 LANGC=en HTTPOK=0 IPRULE="" TEMPLATE=general
 while [ $# -gt 0 ]; do
   case "$1" in
     --url) URL=${2:-}; shift 2 ;;
@@ -47,7 +50,8 @@ while [ $# -gt 0 ]; do
     --uninstall) UNINSTALL=1; shift ;;
     --lang) LANGC=${2:-en}; shift 2 ;;
     --ip-rule) IPRULE=${2:-}; shift 2 ;;
-    -h|--help) sed -n '2,31p' "$0" 2>/dev/null || echo "see the comment at the top of agent-setup.sh"; exit 0 ;;
+    --template) TEMPLATE=${2:-}; shift 2 ;;
+    -h|--help) sed -n '2,35p' "$0" 2>/dev/null || echo "see the comment at the top of agent-setup.sh"; exit 0 ;;
     *) UNKNOWN=$1; break ;;
   esac
 done
@@ -99,6 +103,13 @@ msg_de() {
     claude_new) echo "  CLAUDE.md angelegt: %s (aus der Vorlage; eigene Regeln oben ergänzen)" ;;
     claude_kept) echo "  CLAUDE.md vorhanden, bleibt unverändert: %s" ;;
     dry_claude) echo "  (Probelauf) CLAUDE.md aus der Vorlage anlegen, wenn keine da ist: %s" ;;
+    badtpl) echo "unbekannte Vorlage %s (--template general oder software)" ;;
+    tpl_claude) echo "  Regeln der Vorlage Software-Entwicklung in CLAUDE.md aufgenommen" ;;
+    tpl_prop) echo "  CLAUDE.md bleibt unverändert; die Regeln der Vorlage Software-Entwicklung liegen als Vorschlag daneben: %s" ;;
+    tpl_propkept) echo "  Vorschlag der Vorlage vorhanden, bleibt unverändert: %s" ;;
+    tpl_brief) echo "  Brief-Vorlage angelegt: %s" ;;
+    tpl_briefkept) echo "  Brief-Vorlage vorhanden, bleibt unverändert: %s" ;;
+    dry_tpl) echo "  (Probelauf) Vorlage Software-Entwicklung: Regeln in CLAUDE.md (oder als Vorschlag daneben) und Brief-Vorlage %s" ;;
     ask_ip) echo "Soll der Schlüssel dieses Computers nur von seiner jetzigen Internet-Adresse aus gelten? Empfohlen bei fester Adresse; wechselt sie, erreicht der Agent Kalmido nicht mehr, bis du die Regel in Kalmido änderst. [j/N]: " ;;
     ip_set) echo "  Schlüssel gilt nur von: %s" ;;
     ip_wide) echo "  Adress-Regel nicht gesetzt: der Agent hat schon eine eigene, engere Regel (%s)" ;;
@@ -179,6 +190,13 @@ msg_en() {
     claude_new) echo "  CLAUDE.md created: %s (from the template; add your own rules on top)" ;;
     claude_kept) echo "  CLAUDE.md exists, left as it is: %s" ;;
     dry_claude) echo "  (dry run) create CLAUDE.md from the template when there is none: %s" ;;
+    badtpl) echo "unknown template %s (--template general or software)" ;;
+    tpl_claude) echo "  Rules of the template Software development added to CLAUDE.md" ;;
+    tpl_prop) echo "  CLAUDE.md stays as it is; the rules of the template Software development are next to it as a proposal: %s" ;;
+    tpl_propkept) echo "  The template's proposal exists, left as it is: %s" ;;
+    tpl_brief) echo "  Brief template created: %s" ;;
+    tpl_briefkept) echo "  Brief template exists, left as it is: %s" ;;
+    dry_tpl) echo "  (dry run) template Software development: rules in CLAUDE.md (or as a proposal next to it) and the brief template %s" ;;
     ask_ip) echo "Should this computer's key work only from its current internet address? Recommended for a fixed address; if it changes, the agent cannot reach Kalmido until you change the rule in Kalmido. [y/N]: " ;;
     ip_set) echo "  The key works only from: %s" ;;
     ip_wide) echo "  Address rule not set: the agent already has its own, narrower rule (%s)" ;;
@@ -259,6 +277,13 @@ msg_es() {
     claude_new) echo "  CLAUDE.md creado: %s (a partir de la plantilla; añade tus propias reglas arriba)" ;;
     claude_kept) echo "  CLAUDE.md ya existe, se deja como está: %s" ;;
     dry_claude) echo "  (simulacro) crear CLAUDE.md a partir de la plantilla si no hay ninguno: %s" ;;
+    badtpl) echo "plantilla desconocida %s (--template general o software)" ;;
+    tpl_claude) echo "  Reglas de la plantilla Desarrollo de software añadidas a CLAUDE.md" ;;
+    tpl_prop) echo "  CLAUDE.md se deja como está; las reglas de la plantilla Desarrollo de software están al lado como propuesta: %s" ;;
+    tpl_propkept) echo "  La propuesta de la plantilla ya existe, se deja como está: %s" ;;
+    tpl_brief) echo "  Plantilla de brief creada: %s" ;;
+    tpl_briefkept) echo "  La plantilla de brief ya existe, se deja como está: %s" ;;
+    dry_tpl) echo "  (simulacro) plantilla Desarrollo de software: reglas en CLAUDE.md (o como propuesta al lado) y la plantilla de brief %s" ;;
     ask_ip) echo "¿La clave de este ordenador debe funcionar solo desde su dirección de internet actual? Recomendado con dirección fija; si cambia, el agente no llega a Kalmido hasta que cambies la regla en Kalmido. [s/N]: " ;;
     ip_set) echo "  La clave solo funciona desde: %s" ;;
     ip_wide) echo "  Regla de direcciones no puesta: el agente ya tiene una propia más estrecha (%s)" ;;
@@ -339,6 +364,13 @@ msg_fr() {
     claude_new) echo "  CLAUDE.md créé : %s (d'après le modèle ; ajoute tes propres règles en haut)" ;;
     claude_kept) echo "  CLAUDE.md existe déjà, laissé tel quel : %s" ;;
     dry_claude) echo "  (essai à blanc) créer CLAUDE.md d'après le modèle s'il n'y en a pas : %s" ;;
+    badtpl) echo "modèle inconnu %s (--template general ou software)" ;;
+    tpl_claude) echo "  Règles du modèle Développement logiciel ajoutées à CLAUDE.md" ;;
+    tpl_prop) echo "  CLAUDE.md reste tel quel ; les règles du modèle Développement logiciel sont à côté comme proposition : %s" ;;
+    tpl_propkept) echo "  La proposition du modèle existe déjà, laissée telle quelle : %s" ;;
+    tpl_brief) echo "  Modèle de brief créé : %s" ;;
+    tpl_briefkept) echo "  Le modèle de brief existe déjà, laissé tel quel : %s" ;;
+    dry_tpl) echo "  (essai à blanc) modèle Développement logiciel : règles dans CLAUDE.md (ou comme proposition à côté) et le modèle de brief %s" ;;
     ask_ip) echo "La clé de cet ordinateur doit-elle fonctionner seulement depuis son adresse internet actuelle ? Recommandé avec une adresse fixe ; si elle change, l'agent n'atteint plus Kalmido jusqu'à ce que tu changes la règle dans Kalmido. [o/N] : " ;;
     ip_set) echo "  La clé fonctionne seulement depuis : %s" ;;
     ip_wide) echo "  Règle d'adresse non posée : l'agent a déjà sa propre règle, plus étroite (%s)" ;;
@@ -419,6 +451,13 @@ msg_it() {
     claude_new) echo "  CLAUDE.md creato: %s (dal modello; aggiungi le tue regole in alto)" ;;
     claude_kept) echo "  CLAUDE.md esiste già, lasciato com'è: %s" ;;
     dry_claude) echo "  (prova) creare CLAUDE.md dal modello se non ce n'è uno: %s" ;;
+    badtpl) echo "modello sconosciuto %s (--template general o software)" ;;
+    tpl_claude) echo "  Regole del modello Sviluppo software aggiunte a CLAUDE.md" ;;
+    tpl_prop) echo "  CLAUDE.md resta com'è; le regole del modello Sviluppo software sono accanto come proposta: %s" ;;
+    tpl_propkept) echo "  La proposta del modello esiste già, lasciata com'è: %s" ;;
+    tpl_brief) echo "  Modello di brief creato: %s" ;;
+    tpl_briefkept) echo "  Il modello di brief esiste già, lasciato com'è: %s" ;;
+    dry_tpl) echo "  (prova) modello Sviluppo software: regole in CLAUDE.md (o come proposta accanto) e il modello di brief %s" ;;
     ask_ip) echo "La chiave di questo computer deve funzionare solo dal suo indirizzo internet attuale? Consigliato con indirizzo fisso; se cambia, l'agente non raggiunge Kalmido finché non cambi la regola in Kalmido. [s/N]: " ;;
     ip_set) echo "  La chiave funziona solo da: %s" ;;
     ip_wide) echo "  Regola di indirizzo non impostata: l'agente ha già una regola propria più stretta (%s)" ;;
@@ -499,6 +538,13 @@ msg_nl() {
     claude_new) echo "  CLAUDE.md aangemaakt: %s (uit de sjabloon; voeg je eigen regels bovenaan toe)" ;;
     claude_kept) echo "  CLAUDE.md bestaat al, blijft zoals het is: %s" ;;
     dry_claude) echo "  (proefrun) CLAUDE.md aanmaken uit de sjabloon als er geen is: %s" ;;
+    badtpl) echo "onbekende sjabloon %s (--template general of software)" ;;
+    tpl_claude) echo "  Regels van de sjabloon Softwareontwikkeling toegevoegd aan CLAUDE.md" ;;
+    tpl_prop) echo "  CLAUDE.md blijft zoals het is; de regels van de sjabloon Softwareontwikkeling staan ernaast als voorstel: %s" ;;
+    tpl_propkept) echo "  Het voorstel van de sjabloon bestaat al, blijft zoals het is: %s" ;;
+    tpl_brief) echo "  Brief-sjabloon aangemaakt: %s" ;;
+    tpl_briefkept) echo "  Brief-sjabloon bestaat al, blijft zoals het is: %s" ;;
+    dry_tpl) echo "  (proefrun) sjabloon Softwareontwikkeling: regels in CLAUDE.md (of als voorstel ernaast) en de brief-sjabloon %s" ;;
     ask_ip) echo "Moet de sleutel van deze computer alleen werken vanaf zijn huidige internetadres? Aanbevolen bij een vast adres; verandert het, dan bereikt de agent Kalmido niet meer tot je de regel in Kalmido aanpast. [j/N]: " ;;
     ip_set) echo "  De sleutel werkt alleen vanaf: %s" ;;
     ip_wide) echo "  Adresregel niet gezet: de agent heeft al een eigen, nauwere regel (%s)" ;;
@@ -577,6 +623,7 @@ if [ -z "$IPRULE" ] && [ "$DRY" = 0 ] && [ "$UNINSTALL" = 0 ] && [ -t 2 ] && (: 
   ans=""; read -r -t 120 ans < /dev/tty || ans=""
   case "$ans" in [jJyYsSoO]*) IPRULE=current ;; esac
 fi
+case "$TEMPLATE" in general|software) ;; *) dief badtpl "$TEMPLATE" ;; esac
 case "$IPRULE" in ""|off|none) IPRULE="" ;; current) ;; *[!0-9A-Fa-f.:/,\ ]*) dief badip ;; esac
 [ -n "$CMD" ] || CMD=$TOOL
 
@@ -865,7 +912,7 @@ run mkdir -p "$DIR"
 # folder has none yet -- never overwritten
 if [ -e "$DIR/CLAUDE.md" ] || [ -e "$DIR/.claude/CLAUDE.md" ]; then sayf claude_kept "$DIR/CLAUDE.md"
 elif [ "$DRY" = 1 ]; then sayf dry_claude "$DIR/CLAUDE.md"
-elif [ -f "$INST/CLAUDE.template.md" ] && "$PY" - "$INST/CLAUDE.template.md" "$DIR/CLAUDE.md" <<'PYEOF'
+elif [ -f "$INST/CLAUDE.template.md" ] && "$PY" - "$INST/CLAUDE.template.md" "$DIR/CLAUDE.md" "$TEMPLATE" <<'PYEOF'
 import sys
 t = open(sys.argv[1], encoding="utf-8").read()
 a, b = t.find("<!-- kalmido-agent-rules:start -->"), t.find("<!-- kalmido-agent-rules:end -->")
@@ -875,10 +922,50 @@ head = ("# Rules for this project\n\n"
         "<!-- Created by the Kalmido agent setup. Add your own rules here: what this agent works on, and, to narrow it\n"
         "further, the Kalmido account ids allowed to give it orders. The launcher's fixed rules come first in every run and\n"
         "this file cannot weaken them. -->\n\n")
+# 2.1367.0 (#2700): the template "Software development" adds its block (between its markers in the template file)
+sa, sb = t.find("<!-- kalmido-template-software:start -->"), t.find("<!-- kalmido-template-software:end -->")
+sw = "\n" + t[sa:sb + len("<!-- kalmido-template-software:end -->")] + "\n" if sys.argv[3] == "software" and 0 <= sa < sb else ""
 with open(sys.argv[2], "x", encoding="utf-8") as f:
-    f.write(head + t[a:b + len("<!-- kalmido-agent-rules:end -->")] + "\n")
+    f.write(head + t[a:b + len("<!-- kalmido-agent-rules:end -->")] + "\n" + sw)
 PYEOF
-then sayf claude_new "$DIR/CLAUDE.md"
+then sayf claude_new "$DIR/CLAUDE.md"; CLAUDE_NEW=1
+fi
+
+# kalmido-setup-step: template
+# 2.1367.0 (#2700): the template "Software development": its rules went into a new CLAUDE.md above; an existing CLAUDE.md
+# is never changed, the rules land next to it as CLAUDE.software.md (a proposal, only when there is none); BRIEF-TEMPLATE.md
+# only when there is none. Nothing here overwrites or deletes a file of the project.
+if [ "$TEMPLATE" = software ]; then
+  if [ "$DRY" = 1 ]; then sayf dry_tpl "$DIR/BRIEF-TEMPLATE.md"
+  elif [ -f "$INST/CLAUDE.template.md" ]; then
+    [ "${CLAUDE_NEW:-0}" = 1 ] && sayf tpl_claude
+    tpl_put() {  # tpl_put MARKER FILE HEAD -> 0 written, 2 there already, else nothing
+      "$PY" - "$INST/CLAUDE.template.md" "$1" "$2" "$3" <<'PYEOF'
+import os, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = sys.argv[2]
+a, b = t.find("<!-- %s:start -->" % m), t.find("<!-- %s:end -->" % m)
+if a < 0 or b < a:
+    sys.exit(1)
+if os.path.exists(sys.argv[3]):
+    sys.exit(2)
+body = t[a + len("<!-- %s:start -->" % m):b].strip("\n") if m == "kalmido-template-brief" else t[a:b + len("<!-- %s:end -->" % m)]
+with open(sys.argv[3], "x", encoding="utf-8") as f:
+    f.write(sys.argv[4] + body + "\n")
+PYEOF
+    }
+    if [ "${CLAUDE_NEW:-0}" != 1 ]; then
+      tpl_put kalmido-template-software "$DIR/CLAUDE.software.md" "# Proposal: rules for building software
+
+<!-- From the template Software development of the Kalmido agent setup. This project already had a CLAUDE.md, which stays as
+it is: copy what fits from here into it, then delete this file. -->
+
+"; rc=$?
+      case $rc in 0) sayf tpl_prop "$DIR/CLAUDE.software.md" ;; 2) sayf tpl_propkept "$DIR/CLAUDE.software.md" ;; esac
+    fi
+    tpl_put kalmido-template-brief "$DIR/BRIEF-TEMPLATE.md" ""; rc=$?
+    case $rc in 0) sayf tpl_brief "$DIR/BRIEF-TEMPLATE.md" ;; 2) sayf tpl_briefkept "$DIR/BRIEF-TEMPLATE.md" ;; esac
+  fi
 fi
 
 # kalmido-setup-step: harden
