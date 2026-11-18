@@ -144,7 +144,9 @@ The env file itself stays with the starter: a team agent's run gets an env file 
 (in the starter's state folder, `run-env/`, readable only by you; `KALMIDO_ENV_FILE` of the run names that one), so the
 Kalmido MCP server, `kalmido_cli.py` and the agent's jobs read the request token there and never the agent's own. The guard
 hook (above, #6457) also refuses a command that names `kalmido-agent.env`, `/proc/<pid>/environ` or `ps` with the
-environment (`ps e`) -- that part holds also with `KALMIDO_BLOCK_DANGEROUS=0`. That is a rule, not a wall -- the run is the
+environment (`ps e`), and the folder `run-env/` with the request token files of all people (the run's own included; the
+Kalmido tools read it, the model never needs it; its settings also deny `Read` / `Edit` there, in every run and job) --
+that part holds also with `KALMIDO_BLOCK_DANGEROUS=0`. That is a rule, not a wall -- the run is the
 same system user as the starter and could still find a way to the file. **A hard separation needs a system user of its own
 for the runs** that cannot read the env file; the user of *Path B, 2.* separates the agent from you, not its runs from its starter.
 

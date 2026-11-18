@@ -987,7 +987,8 @@ def job_settings(ar, j, base, d):
     if not ar or ar.agent_profile(j["cmd"]) != "claude" or not ar.claude_native(j["cmd"]) or \
             any(a == "--settings" or a.startswith("--settings=") for a in base):
         return []
-    hs = ar.hook_settings(perm_relay=False, usage=True)  # 2.619.0 (#3267): jobs get the usage hook too
+    # 2.1386.0 (#6668, review R3 F1): the run-env folder of this job's state folder is closed to the job's model too
+    hs = ar.hook_settings(perm_relay=False, usage=True, secret_dirs=[os.path.join(state_dir(), "run-env")])  # 2.619.0 (#3267): jobs get the usage hook too
     if not hs["hooks"] and not hs.get("permissions"):  # 2.1367.0 (#6457): the deny rules of the env file count too
         return []
     f = os.path.join(d, "run-settings.json")

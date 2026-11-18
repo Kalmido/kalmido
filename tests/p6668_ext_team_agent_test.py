@@ -217,6 +217,54 @@ def _f2():
     for line in ("ps -ef | grep node", "cat /proc/cpuinfo", "cat README.md", "git push --force origin main"):
         check(hook(line) is None, f"(m) F2: {line} stays allowed by the env file part")
 
+    # review R3 F1: the request token files of OTHER people (op.env of the chosen person, p<other>.env, auto.env) lie next to
+    # the run's own file in <state>/run-env. Without the fix only the run's own file and the starter's were named: a run for
+    # person 5 read op.env (cat / Read) and worked with the chosen person's rights for up to 8 hours.
+    hs = ar.hook_settings(False, usage=False, env_files=["/srv/bot/state/run-env/p5.env"], secret_dirs=["/srv/bot/state/run-env"])
+    deny = (hs.get("permissions") or {}).get("deny") or []
+    cmd = hs["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    check("Read(//srv/bot/state/run-env/**)" in deny and "Edit(//srv/bot/state/run-env/**)" in deny
+          and any(x.endswith("/.cache/kalmido-agent/run-env/**)") and x.startswith("Read(") for x in deny),
+          f"(m) R3 F1: Read / Edit of the whole run-env folder (the given state and the default one) are denied {deny}")
+    check('--secret-dir "/srv/bot/state/run-env"' in cmd, f"(m) R3 F1: the guard hook names the run-env folder {cmd}")
+
+    def hook3(line):
+        cp = subprocess.run([sys.executable, os.path.join(ROOT, "mcp", "agent_run.py"), "--guard-hook", "--secret-only",
+                             "--secret-dir", "/srv/bot/state/run-env"],
+                            input=json.dumps({"tool_name": "Bash", "tool_input": {"command": line}, "hook_event_name": "PreToolUse"}),
+                            capture_output=True, text=True, timeout=60,
+                            env=dict(os.environ, KALMIDO_ENV_FILE="/srv/bot/state/run-env/p5.env"))
+        try:
+            return (json.loads(cp.stdout).get("hookSpecificOutput") or {}).get("permissionDecision")
+        except ValueError:
+            return None
+    for line in ("cat /srv/bot/state/run-env/op.env", "cat /srv/bot/state/run-env/p7.env", "cd /srv/bot/state/run-env && cat op.env",
+                 "grep TOKEN auto.env", "ls /srv/bot/state/run-env/", "cat p7.env"):
+        check(hook3(line) == "deny", f"(m) R3 F1: {line} is refused (a sibling file of another person)")
+    for line in ("cat README.md", "ls -la", "python3 tools/setup.env.py"):
+        check(hook3(line) is None, f"(m) R3 F1: {line} stays allowed")
+    # a job of the agent: the run-env folder of its state folder is denied as well (mcp/agent_job.py job_settings)
+    import tempfile
+    aj = sys.modules.get("agent_job")
+    if aj is not None:
+        jd = tempfile.mkdtemp(prefix="kalmido-p6668r3-")
+        old = os.environ.get("KALMIDO_STATE_DIR")
+        os.environ["KALMIDO_STATE_DIR"] = os.path.join(jd, "state")
+        try:
+            out = aj.job_settings(ar, {"cmd": ["claude"]}, ar.profile_args("claude", ["claude"]), jd)
+        finally:
+            if old is None:
+                os.environ.pop("KALMIDO_STATE_DIR", None)
+            else:
+                os.environ["KALMIDO_STATE_DIR"] = old
+        js = json.load(open(out[-1], encoding="utf-8")) if out[:1] == ["--settings"] else {}
+        rp = ar.rule_path(os.path.join(jd, "state", "run-env"))
+        check(f"Read({rp}/**)" in (js.get("permissions") or {}).get("deny", [])
+              and os.path.join(jd, "state", "run-env") in json.dumps(js.get("hooks", {}).get("PreToolUse")),
+              f"(m) R3 F1: a job's settings deny its state's run-env folder and name it to the guard {js}")
+    else:
+        check(False, "(m) R3 F1: agent_job is loaded for the job check")
+
 
 _f2()
 
