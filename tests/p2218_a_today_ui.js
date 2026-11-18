@@ -38,7 +38,7 @@ const lstOf = (d, id) => d.querySelector(`#view .trow[data-id="${id}"] .meta .ls
   const M1 = await mk({title: 'Send the shooting plan', due: day(1)});
 
   const css = require('fs').readFileSync(path.join(__dirname, '..', 'static', 'app.css'), 'utf8');
-  check(css.includes('[data-ly="today"] > .lyb > .lymore{background:none}'), 'CSS: the "…" of the Today blocks without the grey square');
+  check(css.includes('[data-ly="today"] .lyb > .lymore{background:none}'), 'CSS: the "…" of the Today blocks without the grey square');
 
   // ================= phone
   let w = await boot({user: 'alice', mobile: true, hash: 'today', rowIcons: null}), d = w.document;
