@@ -192,8 +192,9 @@ start() {  # start the command with the current settings (its own process group,
   log "starting (fresh session, profile $PROFILE): ${args[0]}, model ${MODEL/#-/default}, auto-compact $acs"
   # ${envs[@]+...}: bash 3.2 calls an empty array unbound under set -u
   # 2.157.0 (#1517): KALMIDO_LAUNCHER_PID -- the event runner ends when this launcher was killed hard (no orphan left behind)
-  # 2.1367.0 (#6457): without the event runner the command itself is the model: no token in its environment
-  local unset=(); [[ $EVENTS == 1 ]] || unset=(-u KALMIDO_TOKEN)
+  # 2.1367.0 (#6457): neither the model nor the event runner gets the token in its environment (Fable reader F5: a run could
+  # read the runner's through /proc/<pid>/environ); agent_run.py reads it from KALMIDO_ENV_FILE
+  local unset=(-u KALMIDO_TOKEN)
   env -u DISABLE_AUTO_COMPACT -u CLAUDE_AUTOCOMPACT_PCT_OVERRIDE -u KALMIDO_GIT_COAUTHOR ${unset[@]+"${unset[@]}"} KALMIDO_LAUNCHER_PID=$$ ${envs[@]+"${envs[@]}"} "${NEWSESS[@]}" "${args[@]}" &
   PID=$!
   STARTED=$(date +%s)

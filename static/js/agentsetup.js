@@ -29,7 +29,8 @@ function ains_machinesHtml(ms) {
   if (!ms.length) return `<div class="muted mhint">${tr('No computer yet. Create a command above.')}</div>`;
   return ms.map(m => `<div class="mrow ainsm" data-ainsm="${m.id}">${hdot(m.connected ? 'ready' : 'offline')}<span class="n"><b>${esc(ains_machineName(m))}</b>
       <small class="muted">${esc((f8c_plainTok(m) ? [m.created_at && tr('created {0}', fmtWhen(m.created_at)), m.connected ? tr('connected') : m.last_used_at ? tr('last used {0}', relTime(m.last_used_at)) : tr('never used')]
-        : [m.connected ? tr('connected') : m.last_used_at ? tr('last contact {0}', relTime(m.last_used_at)) : tr('never connected'), ains_osName(m.os), m.folder]).filter(Boolean).join(' · '))}</small></span>
+        : [m.connected ? tr('connected') : m.last_used_at ? tr('last contact {0}', relTime(m.last_used_at)) : tr('never connected'), ains_osName(m.os), m.folder,
+            (m.allowed_ips || []).length && tr('only from {0}', m.allowed_ips.join(', '))]).filter(Boolean).join(' · '))}</small></span>
       <button class="btn sm danger" data-m="ains-del" aria-label="${esc(tr('Remove computer {0}', m.host || m.prefix))}">${ic('trash', 's')} ${tr('Remove computer')}</button></div>`).join('');
 }
 // 2.47.3 (#1729): the command that takes an agent off one computer again (stops the autostart, revokes the key when it still

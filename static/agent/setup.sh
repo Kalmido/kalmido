@@ -112,6 +112,7 @@ msg_de() {
     dry_tpl) echo "  (Probelauf) Vorlage Software-Entwicklung: Regeln in CLAUDE.md (oder als Vorschlag daneben) und Brief-Vorlage %s" ;;
     ask_ip) echo "Soll der Schlüssel dieses Computers nur von seiner jetzigen Internet-Adresse aus gelten? Empfohlen bei fester Adresse; wechselt sie, erreicht der Agent Kalmido nicht mehr, bis du die Regel in Kalmido änderst. [j/N]: " ;;
     ip_set) echo "  Schlüssel gilt nur von: %s" ;;
+    ip_none) echo "  Adress-Regel nicht gesetzt: die Adresse dieses Computers war nicht lesbar, der Schlüssel gilt von überall (Regel in Kalmido am Agenten setzen)" ;;
     ip_wide) echo "  Adress-Regel nicht gesetzt: der Agent hat schon eine eigene, engere Regel (%s)" ;;
     harden) echo "  Sperrregeln für Claude Code eingetragen: %s (kein WebFetch / WebSearch, kein Lesen der Schlüssel-Datei)" ;;
     dry_harden) echo "  (Probelauf) Sperrregeln für Claude Code eintragen in: %s" ;;
@@ -199,6 +200,7 @@ msg_en() {
     dry_tpl) echo "  (dry run) template Software development: rules in CLAUDE.md (or as a proposal next to it) and the brief template %s" ;;
     ask_ip) echo "Should this computer's key work only from its current internet address? Recommended for a fixed address; if it changes, the agent cannot reach Kalmido until you change the rule in Kalmido. [y/N]: " ;;
     ip_set) echo "  The key works only from: %s" ;;
+    ip_none) echo "  Address rule not set: the address of this computer was not readable, the key works from anywhere (set the rule on the agent in Kalmido)" ;;
     ip_wide) echo "  Address rule not set: the agent already has its own, narrower rule (%s)" ;;
     harden) echo "  Deny rules for Claude Code written: %s (no WebFetch / WebSearch, no reading of the key file)" ;;
     dry_harden) echo "  (dry run) write deny rules for Claude Code into: %s" ;;
@@ -286,6 +288,7 @@ msg_es() {
     dry_tpl) echo "  (simulacro) plantilla Desarrollo de software: reglas en CLAUDE.md (o como propuesta al lado) y la plantilla de brief %s" ;;
     ask_ip) echo "¿La clave de este ordenador debe funcionar solo desde su dirección de internet actual? Recomendado con dirección fija; si cambia, el agente no llega a Kalmido hasta que cambies la regla en Kalmido. [s/N]: " ;;
     ip_set) echo "  La clave solo funciona desde: %s" ;;
+    ip_none) echo "  Regla de direcciones no puesta: la dirección de este equipo no se pudo leer, la clave funciona desde cualquier lugar (pon la regla en el agente en Kalmido)" ;;
     ip_wide) echo "  Regla de direcciones no puesta: el agente ya tiene una propia más estrecha (%s)" ;;
     harden) echo "  Reglas de bloqueo para Claude Code escritas: %s (sin WebFetch / WebSearch, sin leer el archivo de la clave)" ;;
     dry_harden) echo "  (simulacro) escribir reglas de bloqueo para Claude Code en: %s" ;;
@@ -373,6 +376,7 @@ msg_fr() {
     dry_tpl) echo "  (essai à blanc) modèle Développement logiciel : règles dans CLAUDE.md (ou comme proposition à côté) et le modèle de brief %s" ;;
     ask_ip) echo "La clé de cet ordinateur doit-elle fonctionner seulement depuis son adresse internet actuelle ? Recommandé avec une adresse fixe ; si elle change, l'agent n'atteint plus Kalmido jusqu'à ce que tu changes la règle dans Kalmido. [o/N] : " ;;
     ip_set) echo "  La clé fonctionne seulement depuis : %s" ;;
+    ip_none) echo "  Règle d'adresse non posée : l'adresse de cet ordinateur n'était pas lisible, la clé fonctionne de partout (posez la règle sur l'agent dans Kalmido)" ;;
     ip_wide) echo "  Règle d'adresse non posée : l'agent a déjà sa propre règle, plus étroite (%s)" ;;
     harden) echo "  Règles de blocage pour Claude Code écrites : %s (pas de WebFetch / WebSearch, pas de lecture du fichier de la clé)" ;;
     dry_harden) echo "  (essai à blanc) écrire les règles de blocage pour Claude Code dans : %s" ;;
@@ -460,6 +464,7 @@ msg_it() {
     dry_tpl) echo "  (prova) modello Sviluppo software: regole in CLAUDE.md (o come proposta accanto) e il modello di brief %s" ;;
     ask_ip) echo "La chiave di questo computer deve funzionare solo dal suo indirizzo internet attuale? Consigliato con indirizzo fisso; se cambia, l'agente non raggiunge Kalmido finché non cambi la regola in Kalmido. [s/N]: " ;;
     ip_set) echo "  La chiave funziona solo da: %s" ;;
+    ip_none) echo "  Regola di indirizzo non impostata: l'indirizzo di questo computer non era leggibile, la chiave funziona da ovunque (imposta la regola sull'agente in Kalmido)" ;;
     ip_wide) echo "  Regola di indirizzo non impostata: l'agente ha già una regola propria più stretta (%s)" ;;
     harden) echo "  Regole di blocco per Claude Code scritte: %s (niente WebFetch / WebSearch, niente lettura del file della chiave)" ;;
     dry_harden) echo "  (prova) scrivere le regole di blocco per Claude Code in: %s" ;;
@@ -547,6 +552,7 @@ msg_nl() {
     dry_tpl) echo "  (proefrun) sjabloon Softwareontwikkeling: regels in CLAUDE.md (of als voorstel ernaast) en de brief-sjabloon %s" ;;
     ask_ip) echo "Moet de sleutel van deze computer alleen werken vanaf zijn huidige internetadres? Aanbevolen bij een vast adres; verandert het, dan bereikt de agent Kalmido niet meer tot je de regel in Kalmido aanpast. [j/N]: " ;;
     ip_set) echo "  De sleutel werkt alleen vanaf: %s" ;;
+    ip_none) echo "  Adresregel niet gezet: het adres van deze computer was niet leesbaar, de sleutel werkt overal vandaan (zet de regel bij de agent in Kalmido)" ;;
     ip_wide) echo "  Adresregel niet gezet: de agent heeft al een eigen, nauwere regel (%s)" ;;
     harden) echo "  Blokkeerregels voor Claude Code geschreven: %s (geen WebFetch / WebSearch, geen lezen van het sleutelbestand)" ;;
     dry_harden) echo "  (proefrun) blokkeerregels voor Claude Code schrijven in: %s" ;;
@@ -833,7 +839,7 @@ PYEOF
     owner) sayf perm_owner ;;
     *) sayf perm_you "$PERM" "$ENVF" ;;
   esac
-  case "$IPGOT" in +?*) sayf ip_set "${IPGOT#+}" ;; -?*) sayf ip_wide "${IPGOT#-}" ;; esac  # 2.1367.0 (#6457)
+  case "$IPGOT" in +?*) sayf ip_set "${IPGOT#+}" ;; -?*) sayf ip_wide "${IPGOT#-}" ;; *) [ -n "$IPRULE" ] && sayf ip_none ;; esac  # 2.1367.0 (#6457)
 fi
 
 # kalmido-setup-step: starter_files
@@ -979,7 +985,7 @@ if [ "$TOOL" = claude ]; then
   elif "$PY" - "$HSET" "$ENVF" <<'PYEOF'
 import json, os, sys
 path, envf = sys.argv[1], os.path.abspath(sys.argv[2])
-rules = ["WebFetch", "WebSearch", "Read(~/.kalmido/**)", "Read(/%s)" % envf, "Edit(/%s)" % envf]  # "//" + absolute path
+rules = ["WebFetch", "WebSearch", "Read(~/.kalmido/*.env)", "Read(~/.kalmido/**/*.env)", "Read(/%s)" % envf, "Edit(/%s)" % envf]  # "//" + absolute path
 d = {}
 if os.path.exists(path):
     try:

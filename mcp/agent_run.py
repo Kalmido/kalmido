@@ -2656,12 +2656,24 @@ def rule_path(p):
     return "/" + p
 
 
+def env_file_credentials():
+    """2.1367.0 (#6457, Fable reader F5): (url, token) from KALMIDO_ENV_FILE through kalmido_mcp.env_credentials (next to this
+    file), ('', '') when it is not there."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from kalmido_mcp import env_credentials
+    except ImportError:
+        return "", ""
+    return env_credentials({"KALMIDO_ENV_FILE": os.environ.get("KALMIDO_ENV_FILE", "")})
+
+
 def secret_deny_rules(env=None):
-    """2.1367.0 (#6457): the deny rules every run's settings carry: no Read of ~/.kalmido and of the env file (the token),
+    """2.1367.0 (#6457): the deny rules every run's settings carry: no Read of the env files in ~/.kalmido and of the env file (the token),
     no Edit of the env file (a changed KALMIDO_URL would send the token elsewhere). The setup writes the same and more
     (WebFetch, WebSearch) into the project's .claude/settings.local.json, where the person may loosen the web part."""
     env = os.environ if env is None else env
-    rules = ["Read(~/.kalmido/**)"]
+    # Fable reader F6: only the key files of ~/.kalmido, not the whole folder -- the agent's outbox and job folders live there
+    rules = ["Read(~/.kalmido/*.env)", "Read(~/.kalmido/**/*.env)"]
     f = env.get("KALMIDO_ENV_FILE") or ""
     if f:
         rp = rule_path(f)
@@ -4337,6 +4349,13 @@ def main(argv):
         else:
             break
     cmd = argv[i:] or ["claude"]
+    if not os.environ.get("KALMIDO_TOKEN") and os.environ.get("KALMIDO_ENV_FILE"):
+        # Fable reader F5 (#6457): the launchers start this runner without KALMIDO_TOKEN, so its process environment (that a
+        # run could read through /proc/$KALMIDO_PERM_PID/environ or ps eww) has none; the token comes from the file and lives
+        # in this process's memory only (os.environ set later is not in the initial environment block)
+        url, tok = env_file_credentials()
+        if tok:
+            os.environ["KALMIDO_URL"], os.environ["KALMIDO_TOKEN"] = url, tok
     if not os.environ.get("KALMIDO_URL") or not os.environ.get("KALMIDO_TOKEN"):
         log("KALMIDO_URL / KALMIDO_TOKEN missing")
         return 2
