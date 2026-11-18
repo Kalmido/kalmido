@@ -23,6 +23,13 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1374.0] - 2026-11-18
+
+Package 2.1374 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Büro: Aussteller-Schlüssel - Vertragstest in den h, Bündel: Sammelpaket: Aufgaben ohn).
+
+### Changed
+- The static guard suites are hard now: parity, p2695_a_rowmenu_coverage, tenant_coverage, freelancer_coverage, rls_static, launcher_parity, agent_docs_coverage and p2381_a_guards stand in tests/hard_suites.txt, so the merge queue gate holds a package that breaks one of them instead of letting it into main red. parity, rls_static and launcher_parity / agent_docs_coverage got test groups of their own, so no UI or container suite turns hard with them (#6323).
+
 ## [2.1372.0] - 2026-11-18
 
 Package 2.1353 (Bündel: Film-Paket: Producing nach Betrag zurück ins priva, Arbeitsbereichs-Menü: Kürzel-Kachel jeder Organisa, Zitat des Tages nur noch auf).
@@ -523,7 +530,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1372.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1374.0...HEAD
+[2.1374.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1374.0
 [2.1372.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1372.0
 [2.1370.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1370.0
 [2.1366.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1366.0
