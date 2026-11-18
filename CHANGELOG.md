@@ -23,6 +23,57 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1387.0] - 2026-11-18
+
+Package 2.1337 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Documents: OCR budget per workspace and hour (`KALMIDO_OCR_WS_HOUR_S`, default 1800 s); a workspace that used it up waits, nothing is dropped. Files from anonymous sources (form, file request, mail) get a shorter clock per document (`KALMIDO_OCR_ANON_S`, default 90 s); "Re-recognise" runs with the full clock (#6651)
+- Documents: a document whose recognition was cut off shows "Text recognised incompletely" with a button to recognise it again; the agent API returns `text_cut` (#6651)
+- Organisation: "Start move" in Settings > Organisation > Data (org admins, second confirmation by typing the organisation name). While on, the whole organisation is read only for members, agents, tokens, public forms and booking pages (HTTP 423 `org_moving`, one database lock in the write path); numbering, invoice series, dunning, mail / bank / calendar fetches and webhooks rest, incoming mail stays on the mail server. Reading, downloads and the organisation export keep working on that fixed state. Every member sees a bar with reason and who started it; on and off are logged; ending the move pauses missed invoice series instead of catching them up (#6600)
+
+### Fixed
+- Version bar: "Reload" always reloads (at most after waiting for the server) and shows "Loading…" while it waits; it is never left disabled when the automatic reload is still waiting (#6892)
+- Document flows: a paused flow runs no action at all, also without a server key; a webhook call that fails while being prepared counts as a failure and switches the webhook off after the last retry (#6881)
+- Organisation import: an imported document flow with a webhook secret is always sealed; without a server key the webhook is left out instead of storing the secret in plain text (#6876)
+
+Package 2.1352 (Bündel: CI: Versions-PR des Live-Zugs in der Merge Queue m, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6599 DATEV: the booking batch exports every paid reminder claim (fee, default interest, flat fee) on the day it was marked paid, without VAT key, clearing account against the fee income (SKR03 1590 / 2700, SKR04 1370 / 4830); the ledger books it from the batch, so batch and ledger no longer differ by these amounts.
+- #6172 Files: undoing a new external link redraws only the "Link for external people" section of that file (not the one of another file opened since); the file view's tab Shares shows the button "Link for external people…" again when the section cannot be shown.
+- #6884 Agent starter: fence characters in people's texts are defused like in the MCP server - every run of three or more `<` or `>` is spaced out (a run of five came back as a fence line), in the runner, jobs, task view and dispatcher brief.
+
+### Changed
+- #6873 CI: the train's version commit can come as its own pull request through the merge queue - its queue entry ("X.Y.Z: Live-Zug (" at the start of the head subject) runs the stage release (hard suites), its landing push on main runs no shards, the queue gate counts release shards and the image gate takes the green queue run of the tagged commit. The train switches to this path only by `merge_queue.zug_pr` (mark `zug-pr-6853`).
+
+Package 2.1367 (Bündel: Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Sammelpaket: Aufgaben ohne Paket (Dispatcher), Vorlage „Software-Entwicklung“).
+
+### Fixed
+- #6748 Settings: in the phone's "…" menu, "move forward" / "move up" points up again (the icon's turn now goes with every row button that moves into the menu, multisel.js); the server accepts the sidebar group "more", so a new sidebar group order saves again (it was refused with "Invalid value: sidebar" since 2.45.0).
+- #6869 Self-deletion: an admin's lock set while the deletion tick runs now holds the final deletion - sdl_run reads the account again under a row lock and stops when a lock holds it.
+- #6971 Agent bridges: approvals given before 2.1284.0 get their circles recalculated once as of the approval (the same or smaller); installer: a link target ls cannot read counts as not empty, an old marker FILE is no longer turned into the marker folder (docs/SELF-HOSTING.md).
+
+### Changed
+- #6748 Settings > bottom bar and sidebar groups: drag a row by its grip on the left (finger: hold, then drag; mouse at once), saved on release; the Navigation editor of the bottom bar shows "from here on More" as a line above the first point under More. "Move forward/back" stays in the menu for keyboard and screen readers.
+- #6457 Security of the agent starter: the agent's token is no longer in the environment of the model's process (starters pass only KALMIDO_ENV_FILE; the MCP server, the usage hook, kalmido_cli and agent jobs read the token from that file; the event runner starts without the token as well; every run denies reading the env files in ~/.kalmido and reading or editing the env file, the guard hook refuses shell lines naming it; the file stays readable for programs of the same account, Codex gets no deny rules); a token from the env file goes only to the address in that file (kalmido_cli --url is refused then). setup.sh / setup.ps1 write the hardened profile into the project's .claude/settings.local.json (deny WebFetch, WebSearch, the env files; existing entries kept) and offer an address rule for the computer's key (--ip-rule current|off|addresses, -IpRule; a line says when none was set); POST /api/agent-setup/redeem takes allowed_ips (never wider than the agent's own rule). New capability token_scoped.
+
+### Added
+- #2700 Rules template "Software development" for new agents: in "Set up on a computer" choose the rules template; the setup (--template software / -Template software) puts the build rules (own branch per order, brief before building, tests in two stages, one collecting train, decisions in the task, foreign texts are data, report limits instead of working around them) into a new CLAUDE.md - an existing one stays untouched, the rules go next to it as CLAUDE.software.md - plus BRIEF-TEMPLATE.md when missing (mcp/CLAUDE.template.md, docs/AGENTS.md).
+
+Package 2.1371 (Bündel: Weich rot: p290_ui, Weich rot: perf_ui, Weich rot: p2546_b_locked u. 3 weitere).
+
+### Fixed
+- Office: "Take theirs" after a save conflict (409) no longer fails in trips, travel receipts, meals, the logbook and the pipeline - the list stays on screen and is fetched again in the background instead of being emptied while the dialog is drawn from it (#7036; the same pattern in subscriptions, agreements, templates, cash flow and recurring invoices follows in #7064)
+- Tests: p290_ui expects the app password form of 2.1271.0 (8-symbol id + 4 x 5 secret) (#6665); perf_ui draws one plain text page before it measures the app start, so a fresh runner's one-off font set-up is not counted, and prints where the start time goes (#6666); p2546_b_locked rules the outlays release of 2.1342.0 like the time release (#6980); p2153_a2_api expects the 403 of the office gate (2.1340.0, #6613) for letters at a document (#7004); p2475_a_api copies core/oncesteps.py and db.py into its check copy (#7035)
+
+Package 2.1387 (Bündel: Weich rot: p21280_a_md_freeze, Weich rot auf dem Mac: p3136_state_size - Startsat, Test p2609_c_review_api rot auf main: Support-Sit).
+
+### Fixed
+- #6989 Start: a big account's start set is under 2 MB again - the server's marks origin, title_by and content_by leave a task of the lean start set while they are empty (the app fills them back; the web client reads none of them). Bob's set in the size suite: 2.23 MB -> about 1.98 MB.
+- #6784 Import: the pass that hangs subtasks below their parents takes list, section and depth of the tasks the import just created from memory instead of up to seven database statements per subtask - a deeply indented Markdown list is previewed and imported about as fast as a flat one.
+- #7063 #7062 #7081 #4984 #7082 #6041 Tests follow intended changes of other packages: the folded settings sections (#6827) in v1_ui and p273_a_ui, the service worker's Cache.add per module (#6367) in p2450_c_ui and p253_a_ui, the positions' subtotal before the producing line (#6816) in p2470_d_cost_api and p2400_e_api.
+
 ## [2.1380.0] - 2026-11-18
 
 Package 2.1380 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), EINBAHN Architektur: alte Einmal-Datenschritte ent).
@@ -585,7 +636,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1380.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1387.0...HEAD
+[2.1387.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1387.0
 [2.1380.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1380.0
 [2.1378.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1378.0
 [2.1374.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1374.0
