@@ -302,12 +302,31 @@ check("lift (False, False)" in out and dbx("SELECT disabled, delete_at IS NOT NU
 # the final run reads the row, the admin locks while it runs, the run waits: its note of the try keeps the lock
 check(unlock() and login(B, "frida").post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok and not plan_of().get("admin"),
       "(race) asked again for the final run, no lock noted")
-out = py_in_app("def run(c, uid, *a, **k):\n    LOCK()\n    return 'busy', None, 0\n"
-                "S.user_delete_run = run\nprint('ran', S.sdl_run(c, FID))")
+# 2.1367.0 (#6869): sdl_run holds the row (FOR UPDATE), so the admin's lock waits for the run's end (a thread here, else this
+# one process would wait for itself); either order keeps both notes (each reads the plan again under the row lock)
+out = py_in_app("import threading\nts = []\n"
+                "def run(c, uid, *a, **k):\n    ts.append(threading.Thread(target=LOCK))\n    ts[0].start()\n    return 'busy', None, 0\n"
+                "S.user_delete_run = run\nprint('ran', S.sdl_run(c, FID))\nc.commit()\nts[0].join(30)\nprint('joined', not ts[0].is_alive())")
 p = plan_of()
-check("ran False" in out and bool(p.get("tried")) and bool(p.get("admin")) and not p.get("toks"),
+check("ran False" in out and "joined True" in out and bool(p.get("tried")) and bool(p.get("admin")) and not p.get("toks"),
       f"(race) a lock during the final run: the run's note of the try keeps the lock (no cancel link back) {p} " + out[-300:])
 check(unlock() and dbx("SELECT disabled, delete_at FROM users WHERE id=?", (FID,))[0] == (0, None), "(race) cleared: open, nothing planned")
+# 2.1367.0 (#6869): the tick reads the row (no admin yet, the deletion due), the admin locks, then the tick's final run: the
+# run reads the row again under its lock and the admin's lock holds the deletion (#6395) - nothing deleted, no try noted
+# (the tick's clock moved past delete_at in this process only; the deletion itself is a stub that only says it was called)
+check(login(B, "frida").post(B + "/api/account/delete", json={"password": PW, "lists": CHOICE}).ok and not plan_of().get("admin"),
+      "(race) asked again for the held final run, no lock noted")
+out = py_in_app("from kalmido.core.db import now_utc\nS.now_utc = lambda: now_utc() + timedelta(days=S.SDL_DAYS + 1)\n"
+                "plan0 = S.sdl_plan\nhit = []\n"
+                "def hook(u):\n    if u['id'] == FID and not hit:\n        hit.append(1)\n        LOCK()\n    return plan0(u)\n"
+                "def run(c, uid, *a, **k):\n    print('RUN', uid)\n    return 'busy', None, 0\n"
+                "S.sdl_plan = hook\nS.user_delete_run = run\nS.sdl_tick(c)\nprint('hooked', len(hit))")
+p = plan_of()
+check("hooked 1" in out and f"RUN {FID}" not in out and "Traceback" not in out,
+      "(race) a lock between the tick's read and its final run: the run does not delete " + out[-300:])
+check(bool(p.get("admin")) and not p.get("tried") and dbx("SELECT disabled FROM users WHERE id=?", (FID,))[0] == (1,),
+      f"(race) the held run: the lock stays noted, no try noted, the account stays locked {p}")
+check(unlock() and dbx("SELECT disabled, delete_at FROM users WHERE id=?", (FID,))[0] == (0, None), "(race) cleared again: open, nothing planned")
 
 # ---------------------------------------------------------------- the final run (no waiting: delete_at in the past)
 Fr = login(B, "frida")
