@@ -998,7 +998,7 @@ function biz_paint() {
   for (const [k, i, n] of OST_SUBS) {
     const fs = form ? $$(`[data-ostp="${k}"]`, form).filter(f => f.children.length) : []; if (!fs.length) continue;
     // 2.555.0 (#4664): the groups h3, their parts h4 (biz_lvl); 2.1353.0 (#6827): each group a folded head row with its state
-    form.insertAdjacentHTML('beforeend', sf_html('biz/' + k, SF_IC[k] || i, `<h3 id="s-biz-${esc(k)}" class="sbizg">${esc(tr(n))}</h3>`, '', biz_st(k)));
+    form.insertAdjacentHTML('beforeend', /*html-ok*/ sf_html('biz/' + k, SF_IC[k] || i, `<h3 id="s-biz-${esc(k)}" class="sbizg">${esc(tr(n))}</h3>`, '', biz_st(k)));  // html-ok: sf_html escapes key and state, the head is an esc() template
     form.lastElementChild.querySelector('.sfb').append(...fs);
     fs.forEach(f => f.setAttribute('aria-labelledby', 's-biz-' + k));
   }
