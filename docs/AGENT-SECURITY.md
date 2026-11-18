@@ -298,8 +298,12 @@ token: the code lives 15 minutes, works once, is stored only as a hash and is ra
 the shell history is worthless afterwards. The script keeps the token in the instance folder's `kalmido-agent.env`
 (mode 600; on Windows a folder only the account can read) and never prints it. Every computer has its own token, so
 *Remove computer* (or `--uninstall` on the computer) revokes exactly that one. This convenience setup runs the agent as
-your own account, and the launcher passes the env file to the agent command like every launcher does: for an agent that
-must not see its token or your files, use the dedicated user, the firewall and the wrapper of this recipe instead.
+your own account. 2.1367.0 (#6457): the launcher no longer passes the token to the agent command: the model's process gets
+only the env file's path (`KALMIDO_ENV_FILE`), the MCP server and the usage hook read the token there, every run's settings
+deny reading `~/.kalmido` and reading or editing the env file, and the setup writes the deny rules (`WebFetch`, `WebSearch`,
+the env file) into the project's `.claude/settings.local.json` and offers an address rule for the computer's key. The file
+is still readable for programs of your own account, so for an agent that must not reach its token or your files by any
+path, use the dedicated user, the firewall and the wrapper of this recipe instead.
 
 ### 4. Claude Code project settings
 

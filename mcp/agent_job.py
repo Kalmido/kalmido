@@ -4,7 +4,8 @@ build, an audit, a full test run, a migration) the agent starts as a JOB: its ow
 that survives a restart of the event runner (agent_run.py), reports to a Kalmido job (Agents tab), and posts its result
 (with the files in its outbox) into the chat when it is done.
 
-usage (from inside a run; KALMIDO_URL / KALMIDO_TOKEN / KALMIDO_CHAT_USER are in the environment of the run):
+usage (from inside a run; KALMIDO_URL / KALMIDO_CHAT_USER are in the environment of the run;
+2.1367.0 (#6457): the token is not, it is read from the env file KALMIDO_ENV_FILE):
   agent_job.py start --title "Release 2.29" [--name Alma] [--parent ID] [--continue-of ID] [--worktree] [--task ID ...]
                     [--timeout-h 6] -       brief on stdin ("-") or a file; --task more than once = a job of several tasks
   agent_job.py start --audit --title "Audit" -   2.619.0 (#2792): a review job in its own read-only area (see below)
@@ -231,9 +232,23 @@ def job_name(title, name="", parent=None, jobs=None):
 
 # ---- the Kalmido API (the few calls a job needs)
 
+def env_credentials():
+    """2.1367.0 (#6457): (url, token) from the environment, else from the env file KALMIDO_ENV_FILE (kalmido_mcp.py next to
+    this file reads it). A job started from inside a run (agent_job.py start) has no KALMIDO_TOKEN in its environment."""
+    url, tok = os.environ.get("KALMIDO_URL", ""), os.environ.get("KALMIDO_TOKEN", "")
+    if url and tok:
+        return url, tok
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from kalmido_mcp import env_credentials as creds
+    except ImportError:
+        return url, tok
+    return creds()
+
+
 class Api:
     def __init__(self):
-        url, tok = os.environ.get("KALMIDO_URL"), os.environ.get("KALMIDO_TOKEN")
+        url, tok = env_credentials()  # 2.1367.0 (#6457): a job started from a run has only the env file's path
         if not url or not tok:
             raise SystemExit("KALMIDO_URL / KALMIDO_TOKEN missing")
         self.base, self.token = url.rstrip("/") + "/api/v1", tok
@@ -947,7 +962,7 @@ def job_settings(ar, j, base, d):
             any(a == "--settings" or a.startswith("--settings=") for a in base):
         return []
     hs = ar.hook_settings(perm_relay=False, usage=True)  # 2.619.0 (#3267): jobs get the usage hook too
-    if not hs["hooks"]:
+    if not hs["hooks"] and not hs.get("permissions"):  # 2.1367.0 (#6457): the deny rules of the env file count too
         return []
     f = os.path.join(d, "run-settings.json")
     write_json(f, hs)
@@ -977,6 +992,8 @@ def cmd_run(argv):
     base += job_settings(ar, j, base, d)  # 2.615.0 E (#3758): the guard against dangerous commands, as in the chat runs; kalmido-capability: usage_hook (2.619.0, #3267: jobs too)
     env = dict(os.environ, KALMIDO_OUTBOX=outbox, KALMIDO_JOB_ID=str(j["id"]))
     env.pop("KALMIDO_JOB_CMD", None)  # a job does not start jobs
+    # kalmido-capability: token_scoped (2.1367.0, #6457): the job's model process gets the env file's path, never the token
+    env.pop("KALMIDO_TOKEN", None)
     exe = shutil.which(base[0]) or base[0]
     final, timed_out, resets = None, False, None
     prompt, first = brief, True

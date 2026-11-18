@@ -32,14 +32,15 @@ with open(FAKE, "w") as f:
     f.write("#!" + sys.executable + "\n" + r'''import json, os, subprocess, sys, time
 args, prompt = sys.argv[1:], sys.stdin.read()
 with open(os.environ["FAKE_CALLS"], "a") as f:
-    f.write(json.dumps({"args": args, "prompt": prompt, "env": {k: v for k, v in os.environ.items() if k.startswith("KALMIDO_PERM") or k == "KALMIDO_RUN_LABEL"}}) + "\n")
+    f.write(json.dumps({"args": args, "prompt": prompt, "env": {k: v for k, v in os.environ.items() if k.startswith("KALMIDO_PERM") or k == "KALMIDO_RUN_LABEL"},
+                        "tok": "KALMIDO_TOKEN" in os.environ}) + "\n")
 mode = os.environ.get("FAKE_MODE", "plain")
 resume = args[args.index("--resume") + 1] if "--resume" in args else ""
 if mode == "gone" and resume:
     sys.stderr.write("No conversation found with session ID " + resume + "\n")
     sys.exit(1)
 if mode == "crash":
-    sys.stderr.write("boom token=" + os.environ["KALMIDO_TOKEN"] + "\n")
+    sys.stderr.write("boom token=" + os.environ["FAKE_LEAK"] + "\n")  # 2.1367.0 (#6457): the run has no KALMIDO_TOKEN
     sys.exit(1)
 if mode == "hang":
     c = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
@@ -56,6 +57,7 @@ print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "re
 ''')
 os.chmod(FAKE, 0o755)
 os.environ["FAKE_CALLS"] = CALLS
+os.environ["FAKE_LEAK"] = os.environ["KALMIDO_TOKEN"]  # 2.1367.0 (#6457): a secret the crash prints (the run itself has no token)
 
 
 class StubApi:
@@ -339,6 +341,7 @@ check(until(child_gone, 15), "what the command started is ended too")  # 2.206.0
 check("time limit" in r.api.posts[-1]["body"], f"a note in the chat: {r.api.posts[-1]}")
 ar.RUN_TIMEOUT_S = 3600
 cl = go(r, chat(2, "x"), mode="crash")
+check(cl and not any(c.get("tok") for c in cl), "#6457: the model's process of a run has no KALMIDO_TOKEN")
 check(len(cl) == 2 and "failed twice" in r.api.posts[-1]["body"] and os.environ["KALMIDO_TOKEN"] not in r.api.posts[-1]["body"]
       and "[redacted]" in r.api.posts[-1]["body"], f"two tries, then a masked note: {r.api.posts[-1]}")
 r.queue_add([chat(11, "one"), chat(12, "two"), chat(11, "one")])
