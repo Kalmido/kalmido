@@ -70,14 +70,8 @@ function makePdf(pages) {  // a minimal PDF ('' = a page without a text layer, l
   check(d.querySelector('.lmodal') && !d.querySelector('.lmodal .ntfhint'), '#1089: the owner sees no member hint in the list settings');
   d.querySelectorAll('.modal, .mwrap').forEach(m => m.remove());
 
-  // ================= #1090 the badge's short label (jsdom: the markup)
-  const b1 = w.eval(`chatModeHtml({permission_mode: '', may_set_mode: true, host: {host_permission_mode: 'auto'}})`);
-  check(/data-short="Auto"/.test(b1) && /<span class="pmlong">Host default: Auto<\/span>/.test(b1) && /aria-label="Permissions: Host default: Auto"/.test(b1),  // 2.1044.0 (#5826): "Host default: Auto" instead of "(Auto)"
-    '#1090: host default (Auto): short "Auto", the full text inside and in the label ' + b1);
-  const b2 = w.eval(`chatModeHtml({permission_mode: 'ask', may_set_mode: true, host: {permission_mode: 'auto'}})`);
-  check(/data-short="Auto"/.test(b2) && /Ask first · runs: Auto/.test(b2), '#1090: wish and real mode differ: short = what it runs with ' + b2);
-  const b3 = w.eval(`chatModeHtml({permission_mode: '', may_set_mode: true, host: {}})`);
-  check(/data-short="Default"/.test(b3), '#1090: nothing known: short "Default" ' + b3);
+  // 2.1386.0 (#7003): #1090 the badge's short label is gone with chatModeHtml (no caller since the permissions chip left the chat head;
+  // the permissions entry of the chat menu shows the mode, tests/p2290_ui.js)
 
   // ================= #368 / #260 the briefing field takes a PDF
   w.eval(`S.proposers = [{id: ${AG}, name: 'Claude'}]`);
