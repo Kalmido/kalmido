@@ -26,7 +26,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kalmido_mcp import ApiError, Kalmido, env_credentials  # noqa: E402 -- the module only defines things on import
+from kalmido_mcp import ApiError, Kalmido, env_credentials, env_token_from_file  # noqa: E402 -- the module only defines things on import
 
 KEY_RX = re.compile(r"[A-Za-z][A-Za-z0-9]{1,5}-\d{1,9}")
 PAGE = 100
@@ -225,6 +225,9 @@ def main(argv=None, out=None, err=None):
         print("kalmido: --limit must be at least 1", file=err)
         return 2
     url, token = env_credentials()  # 2.1367.0 (#6457): the environment, else the env file KALMIDO_ENV_FILE
+    if a.url and env_token_from_file():  # Fable reader F2: the file's token goes only to the file's address
+        print("kalmido: --url does not work with the token of KALMIDO_ENV_FILE (it goes only to the address in that file)", file=err)
+        return 2
     url = a.url or url
     if not url or not token:
         print("kalmido: KALMIDO_URL and KALMIDO_TOKEN must be set (an API token: Settings > Access)", file=err)

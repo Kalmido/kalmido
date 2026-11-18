@@ -81,13 +81,21 @@ def env_credentials(env=None):
     env = os.environ if env is None else env
     url, tok = env.get("KALMIDO_URL", ""), env.get("KALMIDO_TOKEN", "")
     path = env.get("KALMIDO_ENV_FILE", "")
-    if (not url or not tok) and path:
+    if not tok and path:
         try:
             vals = read_env_file(os.path.expanduser(path))
         except (OSError, UnicodeDecodeError):
             vals = {}
-        url, tok = url or vals.get("KALMIDO_URL", ""), tok or vals.get("KALMIDO_TOKEN", "")
+        # Fable reader F2: a token from the file goes only to the address in the same file -- an address from the environment
+        # (KALMIDO_URL=https://elsewhere set by a misled model) must not carry it away
+        url, tok = vals.get("KALMIDO_URL", ""), vals.get("KALMIDO_TOKEN", "")
     return url, tok
+
+
+def env_token_from_file(env=None):
+    """2.1367.0 (#6457): True when env_credentials takes the token from the env file (none in the environment)."""
+    env = os.environ if env is None else env
+    return not env.get("KALMIDO_TOKEN") and bool(env.get("KALMIDO_ENV_FILE"))
 
 
 # ---------------------------------------------------------------- REST client

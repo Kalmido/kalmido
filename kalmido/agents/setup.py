@@ -193,7 +193,20 @@ def ains_ips_want(raw):
     address the setup comes from: IPv4 as it is, IPv6 its /64) or IPs / networks; BadInput 400 for a wrong one."""
     if raw in (None, "", []):
         return None
-    return ips_clean(rate_ip() if raw == "current" else raw) or None
+    return ips_clean(ains_ip_here() if raw == "current" else raw) or None
+
+
+def ains_ip_here():
+    """2.1367.0 (#6457, Fable reader F1): the network of the setup's own address for "current": IPv4 (also IPv4-mapped) as /32,
+    IPv6 as its /64 with the prefix -- rate_ip() gives the bare network address, which ips_clean would make a /128 that
+    locks the key out. '' for an unreadable address (ips_clean: no rule)."""
+    try:
+        a = ipaddress.ip_address(client_ip().split("%")[0])
+    except ValueError:
+        return ""
+    if a.version == 6 and a.ipv4_mapped:
+        a = a.ipv4_mapped
+    return str(ipaddress.ip_network(f"{a}/64", strict=False)) if a.version == 6 else f"{a}/32"
 
 
 def ains_ips_set(c, tid, want):
