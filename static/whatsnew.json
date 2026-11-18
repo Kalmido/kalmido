@@ -1,6 +1,24 @@
 {
  "versions": [
   {
+   "version": "2.1380.0",
+   "date": "2026-11-18",
+   "items": [
+    {
+     "de": "Beim Festschreiben eines Entwurfs mit Datum im Vorjahr bietet Kalmido an, das Datum auf heute zu setzen.",
+     "en": "Finalising a draft dated last year offers to set the date to today."
+    },
+    {
+     "de": "Büro-Einstellungen: unter den Nummernkreisen kann ein Admin „Rechnungs-Aussteller“ anlegen, deren Schlüssel ein Shop oder ein eigenes Skript für Rechnungsentwürfe nutzt.",
+     "en": "Office settings: below the number ranges an admin can set up \"Invoice issuers\" whose key a shop or an own script uses for invoice drafts."
+    },
+    {
+     "de": "Das Symbol einer Organisation wählst du jetzt per Kachel: Anfangsbuchstabe, eigenes Bild oder entfernen - auch schon beim Anlegen.",
+     "en": "Pick an organisation's symbol from tiles: first letter, your own image or remove - already when creating it."
+    }
+   ]
+  },
+  {
    "version": "2.1378.0",
    "date": "2026-11-18",
    "items": [
@@ -1247,28 +1265,6 @@
     {
      "de": "Die Vorschau eines Dokuments steht sofort in ihrer richtigen Größe und springt beim Laden nicht mehr.",
      "en": "A document's preview stands at its right size at once and no longer jumps while loading."
-    }
-   ]
-  },
-  {
-   "version": "2.883.0",
-   "date": "2026-11-11",
-   "items": [
-    {
-     "de": "In den Dokumenten legst du eigene Filter jetzt wie in den Listen an: mit Bedingungen, UND/ODER und einem Zähler, der sofort zeigt, wie viele Dokumente passen.",
-     "en": "In documents you now create your own filters like in the lists: with conditions, AND/OR and a count that shows at once how many documents match."
-    },
-    {
-     "de": "Neu unter Dateien in der Seitenleiste: „+ Neuer Filter“.",
-     "en": "New under Files in the sidebar: \"+ New filter\"."
-    },
-    {
-     "de": "Das Menü am Handy ist ruhiger: gleich breite Spalten, eine Schriftgröße, Punkte nur noch, wenn wirklich etwas Neues wartet.",
-     "en": "The phone menu is calmer: equal columns, one type size, and dots only when something new is really waiting."
-    },
-    {
-     "de": "Tippe im Handy-Menü auf den Punkt neben einem Agenten, um zu sehen, was seine Farbe bedeutet.",
-     "en": "In the phone menu, tap the dot next to an agent to see what its colour means."
     }
    ]
   }

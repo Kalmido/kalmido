@@ -23,6 +23,35 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1380.0] - 2026-11-18
+
+Package 2.1380 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), EINBAHN Architektur: alte Einmal-Datenschritte ent).
+
+### Added
+- Office: finalising an invoice or correction draft dated in an earlier year (the turn of the year) shows "The date … lies in an earlier year." with "Set the date to today" (ticked); ticked, the draft is dated the day of finalising, a set due date keeps its term and the number shown follows the tick; unticked it stays as before (#6976)
+
+### Changed
+- Security: while the account that gave a hosted MCP access is locked, its access token answers 403 owner_locked on /api/v1 at once (not only after its hour), and a refresh during the lock answers 403 without ending the access, so the app goes on after the unlock; owner_locked is listed in the OpenAPI error codes (#6485)
+- Upgrade suite: every old table of a core move gets a row its move takes; a move checked with 0 rows is red instead of an info line (#6495)
+
+- Updates: a database must come from Kalmido 2.1000.0 or newer (core/db.py MIN_FROM). An older one (or one without a version stamp) is refused at the start with the way through (update to 2.1000.x first, start it once, then this one) and stays untouched; a restore of such a backup is refused too (too_old). The one-shot data steps and 21 frozen MIGRATIONS steps every database from 2.1000 on has long behind it are gone; their flags are written on each start so a step back never runs them on fresh data. One way: a direct jump from a version before 2.1000 is no longer possible (#6826)
+
+### Fixed
+- Calendar: two-finger zoom is smooth again - a second finger ends a begun swipe at once without a glide back on the zoomed grid, and the calendar leafs only after a clear one-finger way (24 px) (#7002)
+
+Package 2.1381 (Bündel: Büro: Aussteller-Schlüssel - neue Schlüssel-Art oh, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- #6699 Invoice issuer keys (stage 1b of the platform billing): an admin of the organisation (in the private office its owner) sets up an invoice issuer for one additional number range in the office settings > Invoice issuers. Its key (`kis_test_…` / `kis_live_…` by `KALMIDO_ISSUER_ENV`, shown once, stored as a hash) is a kind of its own without a person: it reaches only `GET /api/v1/issuer` (name, environment, range, limits, tax profile), never `/api/office` or any other route. Review mode only. Limits with careful defaults (never unlimited), address rule (required for live keys), pause and self-pause after probing calls, keys of at most 365 days with a chosen overlap (at most 14 days) and at most two valid at once, bank accounts for later documents (sealed, never readable with the key), office log of every change and call, alarms to the area's admins (new key, new address, self-pause always by e-mail too), notices 30 / 7 / 0 days before a key runs out. Setting up, a new key, raising a limit, loosening the address rule, a bank account and resuming after a self-pause ask for the password. The kind is off by default (opt-in, `KALMIDO_ISSUER_KEYS=1`); on a hosted server the operator also unlocks each area (`PUT /api/operator/accounts/<id>` `issuer_keys`, locking pauses). Moving the private office into an organisation revokes its issuers, a restore of a backup pauses all of them. Migration 6699: tables `office_issuers`, `office_issuer_keys`, `office_issuer_payees`, `office_issuer_refs`, `office_issuer_ips`; columns `office_doc_log.issuer_id`, `orgs.issuer_keys` (additive).
+
+### Changed
+- #6886 Organisation symbol: the create / edit dialog picks it from tiles (first letter, automatic; upload an image; remove) instead of a raw text field, also when creating - the image is uploaded right after the organisation is created. One tile picker for list images and organisations.
+- #6946 Chat boxes (chat, team chat, thread, edit) size themselves with `field-sizing: content`; the fallback no longer forces a layout on every key (about 70 % less work per key).
+
+### Fixed
+- #6428 Outside calls: every call through `cal_http` now has a total limit (connect + headers + body, default 60 s; before, a server sending its headers drop by drop held a web thread or the calendar loop without end). The connect phase has one deadline over at most 3 checked addresses, and a connection that comes up only after the watchdog fired is shut at once (webhooks, channels, git, newsletter, mail). Paperless, Linear and Karakeep fetches and the CalDAV discovery run under one total limit.
+- #6592 Tenant separation: on a hosted server the household rule ("everyone sees everyone") never applies - a person without an organisation sees only themselves and their connections, whatever organisations exist.
+
 ## [2.1378.0] - 2026-11-18
 
 Package 2.1362 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -556,7 +585,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1378.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1380.0...HEAD
+[2.1380.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1380.0
 [2.1378.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1378.0
 [2.1374.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1374.0
 [2.1372.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1372.0
