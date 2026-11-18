@@ -8,7 +8,8 @@ and no hour position silently turns into a flat amount.
  - the audit's example: a part with 20 positions 0.5 x 33.33 (16.67 each), 3 times on the title page: quotation 1,000.20 /
    1,190.24; every invoice form the same (full was 1,000.00 / 1,190.00); full has one adjustment line of 0.20, its 20
    positions stay days
- - one position of the rate: the rest goes on it as before (flat, its qty x rate in the detail), no extra line
+ - one position of the rate: the rest goes on it as before (flat, its qty x rate in the detail), no extra line; with
+   tag=True (post-calculation, #6247) it keeps its unit and the rest gets its own line
  - a seeded random comparison: quotations with up to 25 positions per part, percent positions, the one surcharge line of
    the title page (#6281) and the former surcharge per part (mk_per_part), in the home currency, USD and HUF (#6299), all
    three invoice forms: net, tax per rate and gross of the invoice = the quotation's
@@ -174,6 +175,23 @@ rows = inv_items_from_offer(None, 1, row(), "full")
 one = [x for x in rows if x.get("title") == "Schnitt"]
 check(same(o, i) and not [x for x in rows if x.get("title") == "Rounding adjustment"] and len(one) == 1 and one[0]["unit"] == "flat"
       and D(str(one[0]["rate"])) == D("30.39") and "3 × " in (one[0].get("detail") or ""), f"one position: the rest on it as before, no extra line: {one} {o} {i}")
+
+# 2.1402.0 (#6247): the same with tag=True (the post-calculation, office/postcalc.py): the one hour position keeps its unit and
+# quantity (it is counted by time there), the rest goes onto its own "Rounding adjustment" line without _key; net = quotation
+PIT1H = {7: [{"id": 100, "kind": "service", "title": "Schnitt", "qty": 1, "unit": "hour", "rate": 10.125, "tax": "standard", "discountable": 1}]}
+t1 = offer_totals(row(), ITEMS, PARTS, PIT1H)
+rows = inv_items_from_offer(None, 1, row(), "full", tag=True)
+one = [x for x in rows if x.get("title") == "Schnitt"]
+adj = [x for x in rows if x.get("title") == "Rounding adjustment"]
+check(len(one) == 1 and one[0]["unit"] == "hour" and D(str(one[0]["qty"])) == D("3") and one[0].get("_key") == "i:100"
+      and len(adj) == 1 and not adj[0].get("_key") and adj[0]["unit"] == "flat" and D(str(adj[0]["rate"])) == D("0.01"),
+      f"#6247 tag=True: the hour position stays 3 h with its key, the rest on its own line: {one} {adj}")
+i1 = calc.inv_calc({"lang": "de", "currency": "EUR", "fx_rate": None, "home": "EUR", "vat_mode": "vat"},
+                   stored([{k: v for k, v in x.items() if not k.startswith("_")} for x in rows]))
+check(D(i1["net"]) == D(str(t1["net"])) == D("30.39"), f"#6247 tag=True: net = the quotation's {i1['net']} {t1['net']}")
+rows = inv_items_from_offer(None, 1, row(), "full")
+check([x["unit"] for x in rows if x.get("title") == "Schnitt"] == ["flat"] and not [x for x in rows if x.get("title") == "Rounding adjustment"],
+      "#6247 without tag: unchanged (the rest on the position, flat)")
 
 # review: without VAT the part line names one base ("standard") while the positions keep their rates - the rates must not
 # be "settled" against each other (was: the standard position turned into a flat 1500 plus "Rounding adjustment" -500)
