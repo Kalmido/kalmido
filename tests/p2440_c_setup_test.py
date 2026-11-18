@@ -326,6 +326,35 @@ for b in BASHES:
     r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_good_code", "--dir", "~/my project", "--cmd", "fakeagent", "--no-autostart", "--ip-rule", "x;rm"],
                        env=env, capture_output=True, text=True, timeout=60)
     check(r.returncode != 0 and len(ST["redeem"]) == n + 1, f"{b}: #6457: a wrong --ip-rule stops before the code goes out")
+    # 2.1367.0 (#2700): the template "Software development": rules in a new CLAUDE.md + BRIEF-TEMPLATE.md; nothing overwritten
+    sw = os.path.join(home, "sw")
+    r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_good_code", "--dir", "~/sw", "--cmd", "fakeagent", "--no-autostart", "--template", "software"],
+                       env=env, capture_output=True, text=True, timeout=120)
+    cm = read(os.path.join(sw, "CLAUDE.md")) if os.path.isfile(os.path.join(sw, "CLAUDE.md")) else ""
+    br = read(os.path.join(sw, "BRIEF-TEMPLATE.md")) if os.path.isfile(os.path.join(sw, "BRIEF-TEMPLATE.md")) else ""
+    check(r.returncode == 0 and "kalmido-agent-rules:start" in cm and "## Building software" in cm and "One working copy per order" in cm
+          and "kalmido-template-brief" not in cm, f"{b}: #2700: a new CLAUDE.md with the general rules and the software block: {r.stdout[-300:]!r}")
+    check(br.startswith("# Brief: TITLE (#TASK)") and "## Done when" in br and "<!--" not in br and not os.path.exists(os.path.join(sw, "CLAUDE.software.md")),
+          f"{b}: #2700: BRIEF-TEMPLATE.md without the markers, no proposal file next to a new CLAUDE.md")
+    with open(os.path.join(sw, "BRIEF-TEMPLATE.md"), "w") as f:
+        f.write("my own brief\n")
+    r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_good_code", "--dir", "~/sw", "--cmd", "fakeagent", "--no-autostart", "--template", "software"],
+                       env=env, capture_output=True, text=True, timeout=120)
+    prop = os.path.join(sw, "CLAUDE.software.md")
+    check(r.returncode == 0 and read(os.path.join(sw, "CLAUDE.md")) == cm and read(os.path.join(sw, "BRIEF-TEMPLATE.md")) == "my own brief\n"
+          and os.path.isfile(prop) and "## Building software" in read(prop) and "kalmido-agent-rules:start" not in read(prop) and "CLAUDE.software.md" in r.stdout,
+          f"{b}: #2700: an existing CLAUDE.md / brief stay, the rules come next to it as a proposal: {r.stdout[-300:]!r}")
+    with open(prop, "w") as f:
+        f.write("edited\n")
+    r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_good_code", "--dir", "~/sw", "--cmd", "fakeagent", "--no-autostart", "--template", "software"],
+                       env=env, capture_output=True, text=True, timeout=120)
+    check(r.returncode == 0 and read(prop) == "edited\n", f"{b}: #2700: a proposal there already is never overwritten")
+    check(not os.path.exists(os.path.join(proj, "BRIEF-TEMPLATE.md")) and "## Building software" not in (read(os.path.join(proj, "CLAUDE.md")) if os.path.isfile(os.path.join(proj, "CLAUDE.md")) else ""),
+          f"{b}: #2700: without --template only the general rules, no brief template")
+    n = len(ST["redeem"])
+    r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_good_code", "--dir", "~/sw2", "--cmd", "fakeagent", "--no-autostart", "--template", "games"],
+                       env=env, capture_output=True, text=True, timeout=60)
+    check(r.returncode != 0 and len(ST["redeem"]) == n and "games" in r.stderr, f"{b}: #2700: an unknown template stops before the code goes out")
     # a wrong code: nothing stays behind
     n = len(ST["redeem"])
     r = subprocess.run([b, SETUP_SH, "--url", URL, "--code", "ks_bad", "--dir", "~/other", "--cmd", "fakeagent", "--no-autostart"],
