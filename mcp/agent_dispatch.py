@@ -446,7 +446,7 @@ class Writer:
         try:
             fn()
             return True
-        except Exception as e:
+        except (Exception, SystemExit) as e:  # noqa: BLE001 - 2.1368.0 (#5198): a refused write (409 approval needed, any error) never ends the round
             log(f"{what}: {type(e).__name__} {str(e)[:120]}")
             return False
 
@@ -703,15 +703,19 @@ class Dispatcher:
                                                       "titles": {str(t["id"]): fenced(t.get("title"), 120) for t in bundle}}
                         self.reg["started"] = int(self.reg.get("started") or 0) + 1
                         res["started"] = {"tasks": ids, "job": jid}
+                        self.save()  # 2.1368.0 (#5198): the started job is in the state before any further write of the round
                         w(f"started job #{jid} for " + " ".join(f"#{i}" for i in ids))
                     else:
                         log(f"job not started: {msg}")
                         res["brakes"].append("job not started")
-        self.report(res, tasks, cfg, now, dry, w)
-        tell = [f for f in res["findings"] if f.get("new")]
-        if tell and not dry and self.owner():
-            text = self.say("dispatch_findings") + "\n" + "\n".join("- " + f["text"] for f in tell)
-            self.chat(text)
+        try:  # 2.1368.0 (#5198): a write the server refuses after the start (409 approval needed) ends only that write
+            self.report(res, tasks, cfg, now, dry, w)
+            tell = [f for f in res["findings"] if f.get("new")]
+            if tell and not dry and self.owner():
+                text = self.say("dispatch_findings") + "\n" + "\n".join("- " + f["text"] for f in tell)
+                self.chat(text)
+        except (Exception, SystemExit) as e:  # noqa: BLE001 - #5198: the report never ends the round
+            log(f"report: {type(e).__name__} {str(e)[:120]}")
         if dry:
             self.dry_log(w.done, res)
         self.save()
