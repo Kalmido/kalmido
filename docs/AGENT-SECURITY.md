@@ -246,8 +246,10 @@ by hand. Go through this list before the first run; each line names what goes wr
 - [ ] **A repository token for this one repository only**, allowed to push branches and open pull requests, nothing else.
 - [ ] **Branch protection on the git server:** the main and the production branch only through a pull request, the
   project's CI as the required check, no force-push, no changing tags. Merging and deploying stay with a person.
-- [ ] **The dispatcher ends in a pull request** ([Working a list off](AGENTS.md#working-a-list-off-24810)): `check_cmd`
-  set, `pr_cmd` for the project's git server, `places` 1.
+- [ ] **The dispatcher ends in a pull request** ([Working a list off](AGENTS.md#working-a-list-off-24810)):
+  `KALMIDO_DISPATCH_CHECK_CMD` set in the runner's env file (and `KALMIDO_DISPATCH_PR_CMD` for the project's git server),
+  `places` 1. The check runs the code of the job's branch with the runner's user: it gets no Kalmido variables and no
+  tokens, but anything else that user can read, it can read too - so run the runner as the dedicated user above.
 - [ ] **First a dry run:** *Work the list off* on *Dry run* with one place, and read its day report before switching to
   *Active*.
 - [ ] `KALMIDO_TOOLSETS` limited to what a coding agent needs (e.g. `tickets,code`), and the short rules

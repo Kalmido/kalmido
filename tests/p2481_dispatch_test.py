@@ -26,6 +26,7 @@ Pure Python, no container."""
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -103,10 +104,18 @@ with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "first_tags": ["Urgent"], "report_at": "00:00", "places": "two", "nonsense": 1, "stale_h": 1}, f)
 cfg, prob = ad.load_config(proj)
 check(prob and "check_cmd" in prob, f"2.1368.0 (#7028): without the project's check the dispatcher stays idle: {prob}")
-# 2.1368.0 (#7028): check_cmd is required now; finish_cmd / worktree are retired keys
+# review F2 of 2.1368: what the dispatcher runs never comes from the project folder (the agent can write it)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "check_cmd": "touch PWNED", "pr_cmd": "sh -c x", "push_remote": "--exec=x"}, f)
+os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = "exit 0"
+cfg, prob = ad.load_config(proj)
+check(prob and "check_cmd, pr_cmd, push_remote in " + ad.CONFIG_FILE + " is not used" in prob and "KALMIDO_DISPATCH_CHECK_CMD" in prob
+      and cfg["check_cmd"] == "exit 0" and cfg["pr_cmd"] == ad.DEFAULTS["pr_cmd"] and cfg["push_remote"] == "origin",
+      f"F2: command keys in the project file are not used, the dispatcher stays idle and names them: {prob}")
+# 2.1368.0 (#7028): check_cmd is required now (from the runner's env file); finish_cmd / worktree are retired keys
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "first_tags": ["Urgent"], "report_at": "00:00", "places": "two", "nonsense": 1, "stale_h": 1,
-               "check_cmd": "exit 0", "finish_cmd": "git push origin HEAD:main", "worktree": False}, f)
+               "finish_cmd": "git push origin HEAD:main", "worktree": False}, f)
 cfg, prob = ad.load_config(proj)
 check("finish_cmd" not in cfg and "worktree" not in cfg and any("finish_cmd is retired" in x for x in ad.LOGGED),
       f"#7028: finish_cmd / worktree are retired and named: {ad.LOGGED}")
@@ -353,13 +362,25 @@ def job_branch(jid, tid, red=False):
 
 
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
-    json.dump({"lists": ["Backlog"], "report_at": "", "check_cmd": f'"{sys.executable}" -c "import os,sys; sys.exit(1 if os.path.exists(\'RED\') else 0)"',
-               "pr_cmd": f'"{sys.executable}" "{fakepr}" {{branch}} {{base}} {{title}}'}, f)
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+# F2: the check sees no Kalmido variables and no tokens (it runs the branch's code); a git hook of the repository never runs
+os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = (f'"{sys.executable}" -c "import os,sys; sys.exit(1 if os.path.exists(\'RED\') or '
+                                            f'any(k.startswith(\'KALMIDO_\') or \'TOKEN\' in k for k in os.environ) else 0)"')
+os.environ["KALMIDO_DISPATCH_PR_CMD"] = f'"{sys.executable}" "{fakepr}" {{branch}} {{base}} {{title}}'
+os.environ["GH_TOKEN"] = "not-for-the-check"
 TASKS[:] = [task(301, "Feature A", "S"), task(302, "Feature B", "S")]
 COMMENTS.clear()
 JOBS.clear()
 JOBS["601"] = {"id": 601, "state": "done", "worktree": job_branch(601, 301)}
 JOBS["602"] = {"id": 602, "state": "done", "worktree": job_branch(602, 302, red=True)}
+gw(JOBS["601"]["worktree"]["path"], "commit", "-q", "--allow-empty", "-m", "#399: an ID the bundle does not have")  # F3
+shutil.rmtree(JOBS["601"]["worktree"]["path"])  # cleaned away: the dispatcher adds a temporary working copy (hooks off)
+g("worktree", "prune")
+hookmark = os.path.join(side, "hook-ran")
+for hk in ("pre-push", "post-checkout"):
+    with open(os.path.join(proj, ".git", "hooks", hk), "w") as f:
+        f.write(f"#!/bin/sh\ntouch '{hookmark}'\n")
+    os.chmod(os.path.join(proj, ".git", "hooks", hk), 0o755)
 state3 = os.path.join(proj, ".state3")
 os.makedirs(state3)
 h = Host("on")
@@ -372,6 +393,9 @@ res = d.tick(force=True)
 prs = [json.loads(x) for x in open(prlog, encoding="utf-8")] if os.path.exists(prlog) else []
 check(len(prs) == 1 and prs[0]["argv"] == ["job/601", "main", "#301: Feature A"] and "Check green" in prs[0]["body"],
       f"#7028: green check -> ONE pull request job/601 -> main: {prs}")
+check(prs and "sys.exit" not in prs[0]["body"] and "#399" not in prs[0]["body"] and "#399" not in prs[0]["argv"][2],
+      f"F3/F4: the pull request names only the bundle's tasks and not the check's command: {prs}")
+check(not os.path.exists(hookmark), "F2: no git hook of the job's repository runs for the dispatcher")
 pushed = subprocess.run(["git", "--git-dir", bare, "branch", "--list"], capture_output=True, text=True).stdout.split()
 check(pushed == ["job/601"], f"#7028: only the green job branch is pushed, never main, never the red one: {pushed}")
 card = [b for m, p_, b in h.api.bodies if m == "POST" and p_ == "/tasks/301/comments"]
@@ -425,6 +449,7 @@ check(len(STARTS) == n + 1 and res["states"][401] == "building", f"#5198: the ne
 d2.report = lambda *a, **k: (_ for _ in ()).throw(SystemExit(1))
 check(d2.tick(force=True) is not None, "#5198: not even a SystemExit of a later write ends the round")
 
+os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = "exit 0"
 # ---- 2.1368.0 (#4060): the jam brake -- more built-but-not-landed tasks than stau_max hold new starts, closing goes on
 for i in range(3):
     g("branch", f"job/7{i}", "main")
@@ -434,7 +459,7 @@ for i in range(3):
 g("commit", "-q", "--allow-empty", "-m", "#510: landed")
 TASKS[:] = [task(500, "A"), task(501, "B"), task(502, "C"), task(510, "D"), task(520, "Fresh", "S")]
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
-    json.dump({"lists": ["Backlog"], "report_at": "00:00", "check_cmd": "exit 0", "stau_max": 2}, f)
+    json.dump({"lists": ["Backlog"], "report_at": "00:00", "stau_max": 2}, f)
 JOBS.clear()
 state6 = os.path.join(proj, ".state6")
 os.makedirs(state6)
@@ -447,7 +472,7 @@ check(res["brakes"] == ["3 built tasks not landed yet (stau_max 2)"] and len(STA
 check(("POST", "/tasks/510/complete") in h.api.calls, "#4060: closing goes on under the jam brake")
 check(any("Held: 3 built tasks not landed yet" in t for _, t in h.api.chats), f"#4060: the day report names the brake: {h.api.chats}")
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
-    json.dump({"lists": ["Backlog"], "report_at": "", "check_cmd": "exit 0", "stau_max": 3}, f)
+    json.dump({"lists": ["Backlog"], "report_at": "", "stau_max": 3}, f)
 res = d.tick(force=True)
 check(res["brakes"] == [] and STARTS[-1][0] == [520], f"#4060: at stau_max it builds again: {res['brakes']} {STARTS[-1]}")
 check(ad.DEFAULTS["stau_max"] == 10, "#4060: default 10")
