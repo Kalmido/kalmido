@@ -782,6 +782,8 @@ def _watchdog_tick(c):
     _wd_section(c, "office log prune", fx2_office_log_prune)  # 2.38.0 (#1155)
     from ..office.chain import hch_watch_tick
     _wd_section(c, "office hash chains", hch_watch_tick)  # 2.1309.0 (#6467): daily, a new break -> admin alert + office log line
+    from ..office.issuers import iss_tick
+    _wd_section(c, "invoice issuers", iss_tick)  # 2.1369.0 (#6699): keys running out (30 / 7 / 0 days), areas without an admin pause
     _wd_section(c, "usage cleanup", usage_cleanup)  # 2.1.1 (#326)
     _wd_section(c, "audit cleanup", audit_cleanup)  # 2.2.1 (#358)
     _wd_section(c, "proposal cleanup", prop_cleanup)  # 2.3.0

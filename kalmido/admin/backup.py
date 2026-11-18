@@ -2320,6 +2320,23 @@ def bk_restore_packs(src):
     return n
 
 
+def bkr_issuers_pause(c):
+    """2.1369.0 (#6699): after a restore every invoice issuer pauses (an older backup brings back keys revoked since); its
+    admins hear it, only a person lets it run again (office/issuers.py). Never fails the restore."""
+    try:
+        if not c.execute("SELECT to_regclass('office_issuers')").fetchone()[0]:
+            return  # a backup from before the issuers: none to pause
+        from ..office.issuers import iss_pause_all
+        n = len(iss_pause_all(c, "restore"))
+        if n:
+            print(f"restore: {n} invoice issuers paused", flush=True)
+    except Exception as e:  # noqa: BLE001 -- the restore stays done
+        c.rollback()
+        print("restore: invoice issuers not paused:", type(e).__name__, flush=True)
+        # review F3: issuers that may run with keys revoked since the backup -> the admins hear it
+        aa_now("security", f"restore-issuers:{int(time.time())}", N_("After the restore, the invoice issuers could not be paused; pause them in the office settings."), [])
+
+
 def bkr_restore_journal(journal, purged=(), keep=False, admin=""):
     """bkr_after_restore with its own connection, its numbers in the log and as an admin alert; never fails the restore.
     2.360.4 (#3243): then what purged names (bkr_purged_after), with numbers of its own.
@@ -2329,6 +2346,7 @@ def bkr_restore_journal(journal, purged=(), keep=False, admin=""):
         try:
             gone, off, recent = bkr_after_restore(c, journal)
             pgone, precent, pstuck, pkept = bkr_purged_after(c, purged, keep)
+            bkr_issuers_pause(c)  # 2.1369.0 (#6699)
         finally:
             c.close()
     except Exception as e:  # noqa: BLE001 -- the restore itself is done; the admin learns it from the alert

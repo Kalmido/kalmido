@@ -24,7 +24,7 @@ import requests
 N = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, N)
 import freelancer_coverage_test as cov  # noqa: E402
-from freelancer_fixture import freelancer, login  # noqa: E402
+from freelancer_fixture import PASSWORD, freelancer, login  # noqa: E402
 
 DATA = sys.argv[1] if len(sys.argv) > 1 else ""
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
@@ -40,6 +40,8 @@ ALLOW = {
     "GET /api/v1/fetcher": "a personal token is no receipt fetcher key",
     # 2.1188.0 (#6152): the same (p21188_b_fetcherrecipes_test.py calls it as the freelancer with a fetcher key)
     "GET /api/v1/fetcher/recipes": "a personal token is no receipt fetcher key",
+    # 2.1369.0 (#6699): only an invoice issuer's own key reaches it (p21369_office_issuer_key_test.py calls it in a personal office)
+    "GET /api/v1/issuer": "a personal token is no invoice issuer key",
 }
 # 2.421.0 A (#2936): route -> (status, why) of a 4xx other than 401 / 403 that is right for the freelancer, too (every other
 # 4xx of the sweep fails like a 403; an exception whose status does not come any more fails as stale)
@@ -172,6 +174,10 @@ IDS["doc"] = q.get("id")
 ok(F.put(B + f"/api/office/docs/{IDS['doc']}/items", json={"items": [{"title": "Shoot", "qty": 1, "rate": 900}]}), "office: positions")
 sv = ok(F.post(B + "/api/office/services", json={"name_de": "Schnitt", "unit": "day", "rate": 600}), "office: master data (a service)", (200, 201))
 IDS["service"], IDS["officekind"] = sv.get("id"), "services"
+# 2.1369.0 (#6699): an additional range and an invoice issuer of the personal office (its own admin; the log / bank accounts in the sweep)
+nr = ok(F.post(B + "/api/office/num-ranges", json={"code": "WEB", "scheme": "WEB-{yyyy}-{seq:03}"}), "office: an additional number range", (200, 201))
+iss = ok(F.post(B + "/api/office/issuers", json={"name": "Own script", "range_id": nr.get("id"), "password": PASSWORD}), "office: an invoice issuer", (200, 201))
+IDS["issuer"] = (iss.get("issuer") or {}).get("id")
 inv = ok(F.post(B + f"/api/office/docs/{IDS['doc']}/invoice"), "office: an invoice from the quotation", (200, 201))
 ok(F.post(B + f"/api/office/docs/{inv.get('id')}/finalize"), "office: finalise the invoice")
 ok(F.get(B + f"/api/office/docs/{inv.get('id')}/pdf"), "office: the PDF")
@@ -399,6 +405,7 @@ SUBST = [
     (r"/budget/files/$", None), (r"/team/files/$", None), (r"/wiki/files/$", None), (r"/wiki/shared/files/$", None),
     (r"/lists/\d+/files/$", None),
     (r"/api/v1/mails/$", "client"),  # 2.483.0 (#1902): no filed mail on the test server (EXPECT_4XX)
+    (r"/office/issuers/$", "issuer"),  # 2.1369.0 (#6699)
     (r"/office/docs/$", "doc"), (r"/office/services/$", "service"), (r"/api(/v1)?/office/$", "officekind"),
     # 2.962 (#5666): the move check of a locked folder's border (#3348) takes any own folder (no lock needed, no ?to= = the top)
     (r"/files/lock/movecheck/$", "folder"),

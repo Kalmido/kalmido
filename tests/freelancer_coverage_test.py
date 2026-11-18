@@ -1229,6 +1229,11 @@ ROUTES = {
     # 2.138.0 D (#2256): number ranges of the office (p2138_d_api_test.py)
     "GET /api/office/number-ranges": "office", "POST /api/office/number-ranges/{}": "office",
     "POST /api/office/num-ranges": "office", "PATCH /api/office/num-ranges/{}": "office", "DELETE /api/office/num-ranges/{}": "office",  # 2.1365.0 (#6698)
+    # 2.1369.0 (#6699): invoice issuers (p21369_office_issuer_key_test.py; GET /api/v1/issuer only with an issuer key)
+    "GET /api/office/issuers": "office", "POST /api/office/issuers": "office", "PATCH /api/office/issuers/{}": "office", "DELETE /api/office/issuers/{}": "office",
+    "POST /api/office/issuers/{}/keys": "office", "DELETE /api/office/issuers/{}/keys/{}": "office", "POST /api/office/issuers/{}/pause": "office",
+    "POST /api/office/issuers/{}/resume": "office", "GET /api/office/issuers/{}/log": "office", "GET /api/office/issuers/{}/payees": "office",
+    "POST /api/office/issuers/{}/payees": "office", "DELETE /api/office/issuers/{}/payees/{}": "office", "GET /api/v1/issuer": "office",
     # 2.144.0 A (#2412): Stop in the agent chat and the agent's confirmation (p2144_a_api_test.py)
     "POST /api/agents/{}/abort": "agents", "POST /api/v1/agent/aborted": "agents",
     # 2.236.0 (#2904-#2911): the work style of an agent (owner / instance admin, else 404); C (#2906): its queue (p2236_c_queue_test.py)

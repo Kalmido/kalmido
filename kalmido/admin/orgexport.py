@@ -617,6 +617,7 @@ _DERIVED = "derived or working data, rebuilt on the target"
 _SERVER = "state of this server (keys, jobs, scanner, queues)"
 _AGENT = "agents and their logs (never in the organisation export)"
 _SHARE = "who shares what with whom (a share is made anew on the target)"  # 2.1334.0 (#6359): = admin/exportleft.py _SHARE
+_ISSUER = "invoice issuers and their keys (an admin sets them up again on the target)"  # 2.1369.0 (#6699)
 _ONLINEPAY = "the online provider's working data (the payments themselves are in the export)"
 OX_LEFT = {
     # organisation column
@@ -624,6 +625,9 @@ OX_LEFT = {
     "doc_fetchers": "a person's receipt fetcher and its token (set up again on the target)", "doc_fetch_portals": _DERIVED,
     "fs_ext_links": _SECRET, "fs_upload_requests": _SECRET, "hub_tokens": _SECRET, "life_trip_costs": _PERSONAL,
     "merge_runs": _PERSONAL, "notify_channels": _SECRET, "support_grants": _SERVER, "office_peppol": _SECRET,
+    # 2.1369.0 (#6699): an invoice issuer is access to the office (its keys, its allowed accounts, its address rule): set up anew
+    # on the target by an admin, never brought back by an import; its idempotency keys and addresses belong to its keys
+    "office_issuers": _ISSUER, "office_issuer_keys": _SECRET, "office_issuer_payees": _ISSUER, "office_issuer_refs": _ISSUER, "office_issuer_ips": _ISSUER,
     "office_payonline": _SECRET, "office_pay_links": _SECRET, "office_pay_sessions": _ONLINEPAY, "office_pay_events": _ONLINEPAY, "office_pay_payouts": _ONLINEPAY,
     "org_invites": "invitations (not_included)", "org_joins": "join requests (not_included)",
     "org_keys": _SERVER, "org_members": "members.json (with the role)", "org_out_requests": "requests of one person, short-lived",

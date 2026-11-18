@@ -1950,6 +1950,30 @@ updated_at}]}]}` (one's own only; `allowed_ips` `[]` = any address; `download` `
 code is shown once: `kalmido-fetch:1:` + base64url without padding of `{"url": "https://example.com", "key": "kbh_…", "name":
 "My computer"}`.
 
+## Invoice issuer keys
+
+*Since 2.1369.0.*
+
+An invoice issuer key lets an outside system (a shop, a booking system, an own script) prepare invoices in one office area; a
+person in the office checks, finalises and sends them. An admin of the organisation (in a private office its owner) sets the
+issuer up in the office settings > *Invoice issuers* and copies the key once. The key (`kis_test_…` on a test server,
+`kis_live_…` on a live one, + 43 characters) is a kind of its own: no API token, no person behind it, stored only as a hash.
+It reaches only the routes below `/issuer`; every other route answers `403`, `/api/office/*` and the web app `401` / `403`, the
+header `X-Kalmido-Replay` with it `401`.
+
+- `GET /api/v1/issuer` -> `{name, environment: "test" | "live", mode: "review", range: {code}, key: {prefix, expires_at},
+  limits: {max_gross, day_docs, day_gross, day_clients, open_drafts, day_mails, day_withdraw, review_wait_h}, tax_profile:
+  {country, small_business}}`. Unknown query fields `400`.
+
+Errors carry a name in `error.code`: `issuer_paused` (`403`, `Retry-After`: an admin paused it or it paused itself; repeat
+later), `issuer_keys_off` (`403`, the server or its operator has the issuers of this office off), `address_refused` (`403`, a
+call from outside the key's address rule), `forbidden` (`403`, a route outside the list), `rate_limited` (`429`, 60 calls a
+minute, `Retry-After`), `unavailable` (`503`, the counter could not be read, repeat after `Retry-After`), `unauthorized`
+(`401`: unknown, ended or expired key, or a key of the other environment). Calls of other routes and of ids that do not
+exist count towards a pause; `400`, `409`, `410` and `429` never do. A key lives at most 365 days; when the admin makes a new
+one, the old key keeps working for the overlap the admin chose (at most 14 days). Clients and invoice drafts follow (#6700,
+#6701); the contract of these answers changes only with a notice of 90 days.
+
 ## Arrangements of views for agents
 
 *Since 2.55.0.*
