@@ -595,4 +595,34 @@ check(res[2] == [None, None, None], f"F11: a mark that says nothing (no at, fiel
 check(res[3][0] == [{"field": "city", "old": "", "new": ""}, {"field": "zip", "old": "", "new": ""}, {"field": "street", "old": "A", "new": "B"}]
       and res[3][1] == [] and res[3][2], f"F11: ihd_public with broken fields / flags: empty values, no 500; an empty mark shows {res[3]}")
 
+# F9: the text checks run after NFKC and without control / format characters; an IBAN with any separator or a letter before it,
+# a web address with any ending, a VAT ID of its own characters - and no false alarm on names with dots or streets with numbers
+out = in_ct("import app, json\nfrom kalmido.office.issclients import isc_norm, isc_has_iban, isc_has_web\n"
+            "iban = ['DE89-3704-0044-0532-0130-00', 'DE89.3704.0044.0532.0130.00', 'IBANDE89370400440532013000', 'DE 89 3704 0044 0532 0130 00',\n"
+            "        'DE89\\u200b370400440532013000', '\\uff24\\uff25\\uff18\\uff19370400440532013000', 'DE89\\x01370400440532013000']\n"
+            "web = ['evil.finance', 'pay.evil.sh', 'evil.example', 'x.com', 'm\\u00fcller.de', '\\uff45\\uff56\\uff49\\uff4c\\uff0e\\uff43\\uff4f\\uff4d', 'e\\u200bvil.com', 'https://a.b']\n"
+            "fine = ['St.Gallen', 'M\\u00fcller & Co. KG', 'GmbH & Co.KG', 'z.Hd. Frau M\\u00fcller', 'z.Hd.Frau Meier', 'Frankfurt a.M.', 'e.V.', 'Hauptstr.12',\n"
+            "        'Dr.M\\u00fcller', 'Gewerbepark 12 Halle 34 Tor 56789', 'Hauptstra\\u00dfe 12 Zimmer 3456789', 'Postfach 10 20 30', 'Geb. 3, 2.OG']\n"
+            "print(json.dumps([[t for t in iban if not isc_has_iban(isc_norm(t))], [t for t in web if not isc_has_web(isc_norm(t))],\n"
+            "                  [t for t in fine if isc_has_web(isc_norm(t)) or isc_has_iban(isc_norm(t))], isc_norm('a\\x00b\\tc  d\\u202e')]))\n")
+res = json.loads(out.strip().splitlines()[-1])
+check(res[0] == [], f"F9: an IBAN with another separator, a letter before it, a zero-width or control character, full-width letters is found {res[0]}")
+check(res[1] == [], f"F9: a web address with any ending (also full-width, zero-width inside) is found {res[1]}")
+check(res[2] == [], f"F9: names with dots and streets with numbers are no web address / IBAN (false alarms) {res[2]}")
+check(res[3] == "ab c d", f"F9: control / format characters are removed, white space is one space {res[3]!r}")
+for ref, b, fld in (("f9:1", {"name": "Kunde Neun", **ADDR, "street": "DE89-3704-0044-0532-0130-00"}, "street"),
+                    ("f9:2", {"name": "IBANDE89370400440532013000"}, "name"),
+                    ("f9:3", {"name": "Kunde Neun", **ADDR, "street": "Zahle an DE89\u200b370400440532013000"}, "street"),
+                    ("f9:4", {"name": "Kunde Neun", **ADDR, "city": "pay.evil.sh"}, "city"),
+                    ("f9:5", {"name": "Kunde Neun", **ADDR, "address_extra": "Zahlung an evil.finance"}, "address_extra"),
+                    ("f9:6", {"name": "Kunde Neun", **ADDR, "vat_id": "DE.EVIL.COM/X"}, "vat_id")):
+    r = kput(KEY7, ref, b)
+    check(r.status_code == 400 and code(r) == "invalid_field" and field(r) == fld and not sql("SELECT 1 FROM clients WHERE external_ref=?", (ref,)),
+          f"F9: {ref} {fld} 400 invalid_field {r.status_code} {r.text[:160]}")
+r = kput(KEY7, "f9:7", {"name": "Müller & Co. KG", **ADDR, "address_extra": "z.Hd. Frau Meier", "city": "St.Gallen", "country": "CH"})
+check(r.status_code == 201 and "text_suspicious" not in r.json().get("flags", []), f"F9: 'Müller & Co. KG', 'z.Hd.', 'St.Gallen': set up, not suspicious {r.status_code} {r.text[:200]}")
+r = kput(KEY7, "f9:8", {"name": "Null\u0000Kunde", **ADDR, "street": "Marktweg\u0000 5\u200b"})
+row = sql("SELECT name, street FROM clients WHERE external_ref='f9:8' AND issuer_id=?", (IID7,))
+check(r.status_code == 201 and row and row[0] == ("NullKunde", "Marktweg 5"), f"F9: a NUL / zero-width character is removed, no 500 {r.status_code} {row}")
+
 sys.exit(kt.done("p6700_office_issuer_clients"))

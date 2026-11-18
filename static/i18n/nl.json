@@ -19368,6 +19368,7 @@
   "Presentation: {0}": "Presentatie: {0}",
   "A support session does not open the original e-mail file: the client does that": "Een supportsessie opent het oorspronkelijke e-mailbestand niet: dat doet de klant",
   "one of its clients": "een van zijn klanten",
+  "{0}: letters, digits and + * . - only": "{0}: alleen letters, cijfers en + * . -",
   "Another client of the office has the same name or VAT ID.": "Een andere klant van het kantoor heeft dezelfde naam of hetzelfde btw-nummer.",
   "The name contains a web or e-mail address.": "De naam bevat een web- of e-mailadres.",
   "Set up by the invoice issuer {0}; no person has checked the data yet.": "Aangemaakt door de factuuruitgever {0}; nog niemand heeft de gegevens gecontroleerd.",
