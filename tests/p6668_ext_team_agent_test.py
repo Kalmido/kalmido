@@ -381,6 +381,12 @@ def _f2():
         check(ar.secret_ps(line) and ar.guard_secret(line, env={}) is not None, f"(m) #7132: {line} is refused")
     for line in ("docker compose ps --format json", "podman ps -a --filter name=web", "ps -o etime > out.txt"):
         check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) #7132: {line} stays allowed")
+    # Fable reader job/5498 F3: the word before ps counts only from the same command (a line ending on echo / docker before
+    # a newline hid the next line's ps e), and "}" ends no argument list (ps ${X} e passed)
+    for line in ("echo\nps e", "docker\nps e", "printf x; ps e", "echo a && ps e", "ps ${X} e", "{ ps e}"):
+        check(ar.secret_ps(line) and ar.guard_secret(line, env={}) is not None, f"(m) F3: {line!r} is refused")
+    for line in ("docker ps --format '{{.Names}}'", "echo ps e"):
+        check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) F3: {line!r} stays allowed")
 
     # review R3 F1: the request token files of OTHER people (op.env of the chosen person, p<other>.env, auto.env) lie next to
     # the run's own file in <state>/run-env. Without the fix only the run's own file and the starter's were named: a run for
