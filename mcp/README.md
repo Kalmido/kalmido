@@ -215,7 +215,8 @@ What a launcher has to do is listed in [`launcher_capabilities.json`](launcher_c
 **Working a list off (2.481.0):** with *Work the list off* switched on in the agent's runtime settings (or
 `KALMIDO_DISPATCH=dry|on`), the event runner loads [`agent_dispatch.py`](agent_dispatch.py) and works the lists named in
 `KALMIDO-DISPATCH.json` (project folder) off mechanically: it closes tasks whose commit (`#ID` in the subject) is in
-`close_ref`, starts ONE job per free place for the next bundle (2.1308.0: only tasks the person wrote themselves, `by_creator`;
+`close_ref`, starts ONE job per free place for the next bundle (2.1368.0: in its own working copy; the ended job's branch
+gets the project's `check_cmd` run by the dispatcher, green = one pull request with an approval card, red = none, never a merge) (2.1308.0: only tasks the person wrote themselves, `by_creator`;
 2.1375.0: and whose title and description the person wrote last, `updated_by`; comments of other
 accounts go into the brief fenced as data), guards the jobs and posts one day report. A dry run changes
 nothing. `python3 agent_dispatch.py --dry-run` runs one round by hand. Details:
