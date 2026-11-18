@@ -226,5 +226,11 @@ def main(argv):
     return 1 if hits or undef else 0
 
 
+LINT_WHY = "a start file that calls a function of a module loaded on demand throws on a fresh device"
+LINT_INSTEAD = "guard the call (typeof fn === 'function' or the module's loader), or move the function into a start file"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_lazy_calls", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

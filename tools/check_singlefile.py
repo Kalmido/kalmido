@@ -266,5 +266,11 @@ def main(argv=None):
     return 1 if fails else 0
 
 
+LINT_WHY = "a module a test loads as a single file broke on a relative import pulled to the top"
+LINT_INSTEAD = "the import inside the function, or a test that loads the module through its package"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_singlefile", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

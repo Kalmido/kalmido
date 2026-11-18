@@ -97,11 +97,17 @@ def write():
         f.write("\n")
 
 
+LINT_WHY = "each own INSERT INTO tasks had its own idea of columns, order and defaults: tasks came out different per source"
+LINT_INSTEAD = "task_insert() of kalmido/tasks/repo.py"
+
+
 if __name__ == "__main__":
-    if "--write" in sys.argv[1:]:
-        write()
-        sys.exit(0)
-    errs = errors()
-    for e in errs:
-        print(e)
-    sys.exit(1 if errs else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_task_insert", LINT_WHY, LINT_INSTEAD):
+        if "--write" in sys.argv[1:]:
+            write()
+            sys.exit(0)
+        errs = errors()
+        for e in errs:
+            print(e)
+        sys.exit(1 if errs else 0)

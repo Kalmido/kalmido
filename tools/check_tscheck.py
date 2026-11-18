@@ -66,5 +66,11 @@ def main():
     return 1 if err else 0
 
 
+LINT_WHY = "a client file without // @ts-check is not type checked at all"
+LINT_INSTEAD = "// @ts-check as the first line of the new file"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_tscheck", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

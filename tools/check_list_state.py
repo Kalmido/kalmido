@@ -171,5 +171,11 @@ def main(argv):
     return 1 if red else 0
 
 
+LINT_WHY = "a handwritten filter on the old columns of lists reads a project's state its own way"
+LINT_INSTEAD = "list_state_sql() / otr_live() / list_set_archived() / list_archived_sql() / list_out() of kalmido/core/access.py"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_list_state", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv))

@@ -181,5 +181,11 @@ def main(argv):
     return 1 if out else 0
 
 
+LINT_WHY = "an unescaped ${} in an HTML template becomes markup when the value comes from a person"
+LINT_INSTEAD = "esc() / trh() / a safe helper; a value that is HTML already: ${/*html-ok*/ x} with a comment that says why"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_innerhtml", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

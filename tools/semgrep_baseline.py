@@ -61,7 +61,7 @@ def findings(results, root=ROOT):
         path, line = str(r.get("path") or ""), int((r.get("start") or {}).get("line") or 0)
         out.append({"rule": str(r.get("check_id") or ""), "file": path.replace(os.sep, "/"), "line": line,
                     "code": first_line(path, line, extra.get("lines"), root), "severity": str(extra.get("severity") or ""),
-                    "message": str(extra.get("message") or "").strip().split("\n")[0][:200]})
+                    "message": str(extra.get("message") or "").strip().split("\n")[0][:400]})
     return out
 
 
@@ -159,6 +159,9 @@ def main(argv=None):
         print(f"::error file={x['file']},line={x['line']},title=semgrep: new finding {x['rule'].rsplit('.', 1)[-1]}::"
               f"{x['rule']} - {x['message'] or 'see the semgrep output'} (known findings: tools/semgrep_baseline.json, SECURITY.md)")
         print(f"NEW  {x['file']}:{x['line']}  {x['rule']}  {x['severity']}\n     {x['code'][:160]}")
+    if new:
+        import lintmsg  # tools/ is the script's folder, so it is on the path
+        lintmsg.say("semgrep_baseline", LINT_WHY, LINT_INSTEAD)
     gone, kept = split_stale(stale, a.root)  # 2.649.0 (#5056)
     for e in gone:
         print(f"::{'error' if a.strict else 'notice'} file={e['file']},title=semgrep baseline: entry without a finding::"
@@ -181,6 +184,11 @@ def main(argv=None):
         print(f"::error title=semgrep baseline::{len(stale)} of {len(entries)} known findings are gone at once or no file "
               "was scanned - scan broken? (after a real big clean-up: remove the entries)")
     return 1 if new or errors or broken or (a.strict and stale) else 0
+
+
+LINT_WHY = "a scanner finding in new code is a possible hole (injection, an unchecked name in SQL, a secret in the open)"
+LINT_INSTEAD = ("fix the code the rule names (the message says how, for the own rules in .semgrep/ the helper); --accept only for "
+                "a reviewed false finding, with its own reason")
 
 
 if __name__ == "__main__":
