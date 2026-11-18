@@ -144,7 +144,7 @@ const item = (d, t) => items(d).find(x => (x.querySelector('.ml')?.firstChild?.t
     check(g === 6, `${tag}: columns of six (${g})`);
     // drag the grip of "Members"/"Key links" (a half block) to two thirds
     const res = await ev(`(async () => {
-      const el = document.querySelector('.lyb[data-lyk="links"]'), gp = el.querySelector('.lygrip'), g = el.parentElement, r = el.getBoundingClientRect(), col = g.clientWidth / 6;
+      const el = document.querySelector('.lyb[data-lyk="links"]'), gp = el.querySelector('.lygrip'), g = el.closest('.lysix'), r = el.getBoundingClientRect(), col = g.clientWidth / 6;
       const pe = (t, x, y) => gp.dispatchEvent(new PointerEvent(t, {bubbles: true, pointerType: 'mouse', button: 0, clientX: x, clientY: y}));
       pe('pointerdown', r.right - 4, r.bottom - 4);
       document.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, pointerType: 'mouse', clientX: r.left + col * 3.8, clientY: r.bottom - 4}));
