@@ -177,6 +177,10 @@ r = A.post(B + f"/api/office/issuers/{IID}/pause")
 check(r.ok and r.json()["issuer"]["paused"] and r.json()["issuer"]["paused_reason"] == "admin", f"pause {r.text[:160]}")
 r = key_get(KEY)
 check(r.status_code == 403 and code(r) == "issuer_paused" and r.headers.get("Retry-After"), f"a paused issuer: 403 issuer_paused {r.text[:160]}")
+for _ in range(5):
+    key_get(KEY)
+n = sql("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND target='paused'", (IID,))[0][0]
+check(n == 1, f"the same refusal is logged once in 10 minutes (the office log cannot be pruned) {n}")
 r = A.post(B + f"/api/office/issuers/{IID}/resume")
 check(r.ok and not r.json()["issuer"]["paused"] and key_get(KEY).ok, f"resume after an admin's pause, without the password {r.text[:160]}")
 for i in range(20):

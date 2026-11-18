@@ -30,8 +30,9 @@ whatever the notification settings say. Admins of the area = the personal office
 Pause: every call of a paused issuer is refused (403 issuer_paused). It pauses itself on ISS_SELF_PAUSE calls within an hour
 that look like probing: refused routes and ids counted per distinct target, or calls from an address outside its rule;
 400, 409, 410 and 429 never count. An area without an admin pauses its issuers (daily check), so does a restore of a backup
-(an older backup would bring revoked keys back), and the operator taking the unlock back. The office log keeps one line per
-refused or writing call and one per hour and target for reads (issuer_read / issuer_write / issuer_refused).
+(an older backup would bring revoked keys back), and the operator taking the unlock back. The office log keeps a line per
+writing call, one per hour and target for reads and one per ISS_REFUSED_EVERY minutes and target for refusals (issuer_read /
+issuer_write / issuer_refused): the office log is never pruned, so a stolen key cannot fill it.
 
 Moving a personal office into an organisation (office/pbtransfer.py) revokes its issuers first (the rows stay with the
 personal office, PBT_KEEP): a key never lands with the target's admins unnoticed.
@@ -65,7 +66,7 @@ from ..core.ipallow import ips_clean, token_ip_ok
 from ..core.mailframe import mail_html
 from ..core.orgcrypt import oc_dec_fields, oc_enc, oc_enc_fields, oc_log_detail
 from ..core.pg import qi, system_ctx, write_lock
-from ..core.ratedb import rate_hit
+from ..core.ratedb import rate_counts, rate_hit
 from ..core.access import acx_anon_bind
 from ..accounts.bgjobs import BGJ_FNS, bgj_add
 from ..accounts.oidc import oidc_reauth
@@ -86,6 +87,7 @@ ISS_KEYS_MAX = 2          # valid keys of one issuer at once (the old one runs o
 ISS_MAX = 20              # issuers of one area that are not revoked
 ISS_RATE = 60             # calls of one issuer per minute (database count)
 ISS_SELF_PAUSE = 20       # probing calls within an hour -> the issuer pauses itself
+ISS_REFUSED_EVERY = 10    # minutes: the same refusal is logged once in this time (the office log is never pruned)
 ISS_USED_EVERY = 60       # s between two last_used_at updates of a key
 ISS_IPS_MAX = 50          # addresses kept per issuer (the oldest go)
 ISS_NAME_MAX, ISS_LABEL_MAX, ISS_HOLDER_MAX = 80, 80, 70
@@ -223,20 +225,32 @@ def _iss_read_logged(c, iss, target):
 
 # ---------------------------------------------------------------- the key's sign-in (api/v1.py api_authenticate)
 def _iss_refuse(c, iss, key, code, msg, name, kind, headers=None):
-    """A refused call of a known issuer: its log line, the self-pause (kind route / id / address count), the API error."""
-    target = f"{kind}:{request.method} {request.path}" if kind != "address" else f"address:{fx2_mask_ip(client_ip())}"
+    """A refused call of a known issuer: its log line, the self-pause, the API error. The office log cannot be pruned
+    (core/migrations.d/6467.py), so a stolen key must not fill it: the same refusal (target) is written once per
+    ISS_REFUSED_EVERY minutes; a paused issuer's and a rate refusal carry no path; probing a route ends in the self-pause after
+    ISS_SELF_PAUSE distinct targets. Calls from outside the address rule are counted in the database (core/ratedb.py), not by
+    their log lines. Both counts start again when a person resumes the issuer."""
+    ip = fx2_mask_ip(client_ip())
+    target = {"address": f"address:{ip}", "paused": "paused", "rate": "rate"}.get(kind) or f"{kind}:{request.method} {request.path}"
     try:
-        iss_log(c, iss["org_id"], iss["id"], "issuer_refused", target,
-                {"status": code, "code": name, "key": key["prefix"], "ip": fx2_mask_ip(client_ip())}, name=iss["name"])
-        if kind in ("route", "id", "address") and not iss["paused"]:
-            since = iso(now_utc() - timedelta(hours=1))
-            with system_ctx(c):  # the issuer's own refused calls of the last hour
-                r = c.execute("SELECT COUNT(DISTINCT target) FILTER (WHERE target LIKE 'route:%' OR target LIKE 'id:%'), "
-                              "COUNT(*) FILTER (WHERE target LIKE 'address:%') FROM office_doc_log "
-                              "WHERE issuer_id=? AND action='issuer_refused' AND at>=? AND id > COALESCE((SELECT MAX(id) FROM office_doc_log "
-                              "WHERE issuer_id=? AND action='issuer_resume'), 0)", (iss["id"], since, iss["id"])).fetchone()  # since a person resumed it
-            if r[0] >= ISS_SELF_PAUSE or r[1] >= ISS_SELF_PAUSE:
-                iss_pause(c, iss, "address" if kind == "address" else "refused")
+        since = iso(now_utc() - timedelta(minutes=ISS_REFUSED_EVERY))
+        with system_ctx(c):  # the issuer's own refused calls
+            seen = c.execute("SELECT 1 FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND target=? AND at>=? LIMIT 1",
+                             (iss["id"], target[:200], since)).fetchone()
+        if not seen:
+            iss_log(c, iss["org_id"], iss["id"], "issuer_refused", target, {"status": code, "code": name, "key": key["prefix"], "ip": ip}, name=iss["name"])
+        if kind in ("route", "id") and not iss["paused"]:
+            hour = iso(now_utc() - timedelta(hours=1))
+            with system_ctx(c):  # the distinct targets probed in the last hour, since a person last resumed the issuer
+                n = c.execute("SELECT COUNT(DISTINCT target) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND at>=? "
+                              "AND (target LIKE 'route:%' OR target LIKE 'id:%') AND id > COALESCE((SELECT MAX(id) FROM office_doc_log "
+                              "WHERE issuer_id=? AND action='issuer_resume'), 0)", (iss["id"], hour, iss["id"])).fetchone()[0]
+            if n >= ISS_SELF_PAUSE:
+                iss_pause(c, iss, "refused")
+        elif kind == "address" and not iss["paused"]:
+            cnt = rate_counts([f"issaddr:{int(iss['id'])}:{iss['updated_at']}"], 3600, add=True, cap={f"issaddr:{int(iss['id'])}:{iss['updated_at']}": 2 * ISS_SELF_PAUSE})
+            if cnt is not None and max(cnt.values()) >= ISS_SELF_PAUSE:
+                iss_pause(c, iss, "address")
         c.commit()
     except Exception as e:  # noqa: BLE001 -- the refusal stands without its log line
         c.rollback()
