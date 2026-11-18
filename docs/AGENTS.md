@@ -3154,9 +3154,12 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
 2. give each task ONE state: *built* (its commit is in `close_ref`), *in a job* (a running job of the dispatcher has it),
    *on a branch* (a commit on a `job/*` branch only), *held* (a tag of `skip_tags` or a line `Waiting for:` / `Blocked by:`
    in its description), *waiting for a yes* (its title or description names a step without a way back, `one_way_rx`, and
-   it lacks the tag `one_way_ok_tag`, default `approved`: a person sets that tag as the approval), *stuck* (`max_tries`
-   jobs ended with it still open), *not yours* (2.1308.0: the person did not create it, see below) or *ready*,
-3. guard: a running job with no progress line for `stale_h` hours, a stuck task, a one-way task and a branch outside
+   it lacks the tag `one_way_ok_tag`, default `approved`: a person sets that tag as the approval), *stuck* (2.1368.0: `max_bundles`
+   bundles, default 3, left it open; see below), *not yours* (2.1308.0: the person did not create it, see below) or *ready*,
+3. guard: a job that ended with a task still open gets exactly ONE second try (`max_tries`, default 2); then the task goes
+   back to the list with the comment *Not finished in 2 jobs - back in the list* and into the next bundle, cut anew from the
+   list (2.1368.0: no rescue of the same working copy again and again); only after `max_bundles` such bundles it is
+   *stuck*. A running job with no progress line for `stale_h` hours, a stuck task, a one-way task and a branch outside
    `close_ref` for `branch_max_d` days are findings, each told **once** in the person's chat,
 4. close the built tasks: a comment naming the commit, then complete (never a task tagged `keep`),
 5. if a place is free (`places`, default 1) and no brake holds, cut the next bundle and start ONE job with
