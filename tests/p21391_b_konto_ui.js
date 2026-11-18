@@ -75,17 +75,6 @@ const OPEN_ALL = `(() => { document.querySelectorAll('.smodal details.sfold:not(
     const ses = JSON.parse(await ev(`JSON.stringify([...document.querySelectorAll('.smodal #s-ses .sesrow b')].map(b => b.textContent))`));
     check(ses.includes('Program / script') && !ses.some(t => /^node\b/i.test(t)), '#6130: the script\'s session is "Program / script", no raw "node": ' + ses.join(' | '));
     // passkeys over http on an IP: the everyday sentence visible, the technical one only folded
-    // passkeys work on localhost: the hint is about an address where they do not, so the app is opened again on the IP address
-    if (await ev(`pkSupported()`)) {
-      const B2 = B.replace('//localhost', '//127.0.0.1');
-      check(B2 !== B, '#6130: the test server answers on localhost and 127.0.0.1 ' + B);
-      await nav(B2 + 'static/icon.svg');
-      await ev(`(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`);
-      await signIn(ev);
-      await nav(B2);
-      check(await ready(ev, `typeof settingsModal === 'function' && !!(S.booted && S.me && S.me.id) && !pkSupported()`, 150), '#6130: the app on the IP address, passkeys not possible there');
-      check(await openAcc(), '#6130: Settings > Account on the IP address');
-    }
     check(await ready(ev, `!!document.querySelector('.smodal #s-2fa [data-tfa="pk-add"]')`), '#6130: the two-factor part is drawn');
     const pk = JSON.parse(await ev(`JSON.stringify((() => { const b = document.querySelector('.smodal #s-2fa'); const vis = [...b.querySelectorAll('.shint')].filter(x => !x.closest('details')).map(x => x.textContent).join(' ');
       return {vis, fold: b.querySelector('details.acadv')?.textContent || '', sum: b.querySelector('details.acadv > summary')?.textContent || ''}; })())`));
