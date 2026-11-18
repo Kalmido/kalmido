@@ -103,6 +103,19 @@ ar = load("agent_run_6457", "agent_run.py")
 e = ar.model_env(os.environ)
 check("KALMIDO_TOKEN" not in e and e.get("KALMIDO_ENV_FILE") == envf and e.get("KALMIDO_URL") == URL, "model_env: no token, the path and the address")
 check(os.environ.get("KALMIDO_TOKEN") == TOKEN, "model_env leaves the runner's own environment alone")
+# Fable reader F5: the launchers start the event runner without KALMIDO_TOKEN too (a run could read the runner's environment
+# through /proc/$KALMIDO_PERM_PID/environ); the runner takes it from KALMIDO_ENV_FILE
+with open(os.path.join(MCP, "agent_launcher.sh"), encoding="utf-8") as f:
+    lsh = f.read()
+with open(os.path.join(MCP, "agent_launcher.ps1"), encoding="utf-8") as f:
+    lps = f.read()
+check("local unset=(-u KALMIDO_TOKEN)\n" in lsh and "[[ $EVENTS == 1 ]] || unset=" not in lsh, "F5: agent_launcher.sh starts every command without the token")
+check("  Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue\n" in lps and "if (-not $Events) { Remove-Item Env:KALMIDO_TOKEN" not in lps,
+      "F5: agent_launcher.ps1 starts every command without the token")
+_keep = os.environ.pop("KALMIDO_TOKEN"), os.environ.pop("KALMIDO_URL")
+os.environ["KALMIDO_ENV_FILE"] = envf
+check(ar.env_file_credentials() == (URL, TOKEN), "F5: the runner reads url and token from KALMIDO_ENV_FILE")
+os.environ["KALMIDO_TOKEN"], os.environ["KALMIDO_URL"] = _keep
 rn = object.__new__(ar.Runner)
 rn.extras, rn.agent, rn.state_dir, rn.run_repo = None, {"owner_id": 7}, os.path.join(tmp, "rstate"), None
 for uid, tid in ((7, None), (None, 12)):
@@ -123,7 +136,7 @@ if os.name != "nt":
     check(ar.rule_path("C:\\Users\\x\\k.env").endswith("C:/Users/x/k.env") or ar.rule_path("C:\\Users\\x\\k.env").startswith("//"),
           "rule path: backslashes become slashes")
 deny = ar.hook_settings(perm_relay=True).get("permissions", {}).get("deny") or []
-check("Read(~/.kalmido/**)" in deny and f"Read(/{envf})" in deny and f"Edit(/{envf})" in deny, f"every run's settings deny the env file: {deny}")
+check("Read(~/.kalmido/**/*.env)" in deny and "Read(~/.kalmido/**)" not in deny and f"Read(/{envf})" in deny and f"Edit(/{envf})" in deny, f"every run's settings deny the env file: {deny}")
 check("WebFetch" not in deny, "the web rules stay in the project's settings (the person may loosen them)")
 os.environ["KALMIDO_BLOCK_DANGEROUS"] = "0"
 check(ar.hook_settings().get("permissions"), "the deny rules stay when the guard for dangerous commands is off")

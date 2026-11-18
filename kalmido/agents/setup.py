@@ -76,7 +76,9 @@ def ains_machines(c, aid):
         age = round((now_utc() - parse_iso(seen)).total_seconds()) if seen else None
         out.append({"id": r["id"], "prefix": r["prefix"], "host": (r["host"] if "host" in k else "") or "",
                     "os": (r["os"] if "os" in k else "") or "", "folder": (r["folder"] if "folder" in k else "") or "",
-                    "created_at": r["created_at"], "last_used_at": seen, "connected": age is not None and age < AGENT_OFFLINE_S})
+                    "created_at": r["created_at"], "last_used_at": seen, "connected": age is not None and age < AGENT_OFFLINE_S,
+                    # 2.1367.0 (#6457, Fable reader F4): the key's address rule ([] = any), shown in the list of computers
+                    "allowed_ips": [x for x in ((r["allowed_ips"] if "allowed_ips" in k else "") or "").split(",") if x]})
     return out
 
 

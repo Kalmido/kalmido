@@ -87,6 +87,7 @@ $MsgEn = @{
   dry_tpl = '  (dry run) template Software development: rules in CLAUDE.md (or as a proposal next to it) and the brief template {0}'
   ask_ip = 'Should this computer''s key work only from its current internet address? Recommended for a fixed address; if it changes, the agent cannot reach Kalmido until you change the rule in Kalmido. [y/N]'
   ip_set = '  The key works only from: {0}'
+  ip_none = '  Address rule not set: the address of this computer was not readable, the key works from anywhere (set the rule on the agent in Kalmido)'
   ip_wide = '  Address rule not set: the agent already has its own, narrower rule ({0})'
   harden = '  Deny rules for Claude Code written: {0} (no WebFetch / WebSearch, no reading of the key file)'
   dry_harden = '  (dry run) write deny rules for Claude Code into: {0}'
@@ -161,6 +162,7 @@ $MsgDe = @{
   dry_tpl = '  (Probelauf) Vorlage Software-Entwicklung: Regeln in CLAUDE.md (oder als Vorschlag daneben) und Brief-Vorlage {0}'
   ask_ip = 'Soll der Schlüssel dieses Computers nur von seiner jetzigen Internet-Adresse aus gelten? Empfohlen bei fester Adresse; wechselt sie, erreicht der Agent Kalmido nicht mehr, bis du die Regel in Kalmido änderst. [j/N]'
   ip_set = '  Schlüssel gilt nur von: {0}'
+  ip_none = '  Adress-Regel nicht gesetzt: die Adresse dieses Computers war nicht lesbar, der Schlüssel gilt von überall (Regel in Kalmido am Agenten setzen)'
   ip_wide = '  Adress-Regel nicht gesetzt: der Agent hat schon eine eigene, engere Regel ({0})'
   harden = '  Sperrregeln für Claude Code eingetragen: {0} (kein WebFetch / WebSearch, kein Lesen der Schlüssel-Datei)'
   dry_harden = '  (Probelauf) Sperrregeln für Claude Code eintragen in: {0}'
@@ -235,6 +237,7 @@ $MsgEs = @{
   dry_tpl = '  (simulacro) plantilla Desarrollo de software: reglas en CLAUDE.md (o como propuesta al lado) y la plantilla de brief {0}'
   ask_ip = '¿La clave de este ordenador debe funcionar solo desde su dirección de internet actual? Recomendado con dirección fija; si cambia, el agente no llega a Kalmido hasta que cambies la regla en Kalmido. [s/N]'
   ip_set = '  La clave solo funciona desde: {0}'
+  ip_none = '  Regla de direcciones no puesta: la dirección de este equipo no se pudo leer, la clave funciona desde cualquier lugar (pon la regla en el agente en Kalmido)'
   ip_wide = '  Regla de direcciones no puesta: el agente ya tiene una propia más estrecha ({0})'
   harden = '  Reglas de bloqueo para Claude Code escritas: {0} (sin WebFetch / WebSearch, sin leer el archivo de la clave)'
   dry_harden = '  (simulacro) escribir reglas de bloqueo para Claude Code en: {0}'
@@ -309,6 +312,7 @@ $MsgFr = @{
   dry_tpl = '  (essai à blanc) modèle Développement logiciel : règles dans CLAUDE.md (ou comme proposition à côté) et le modèle de brief {0}'
   ask_ip = 'La clé de cet ordinateur doit-elle fonctionner seulement depuis son adresse internet actuelle ? Recommandé avec une adresse fixe ; si elle change, l''agent n''atteint plus Kalmido jusqu''à ce que tu changes la règle dans Kalmido. [o/N]'
   ip_set = '  La clé fonctionne seulement depuis : {0}'
+  ip_none = '  Règle d''adresse non posée : l''adresse de cet ordinateur n''était pas lisible, la clé fonctionne de partout (posez la règle sur l''agent dans Kalmido)'
   ip_wide = '  Règle d''adresse non posée : l''agent a déjà sa propre règle, plus étroite ({0})'
   harden = '  Règles de blocage pour Claude Code écrites : {0} (pas de WebFetch / WebSearch, pas de lecture du fichier de la clé)'
   dry_harden = '  (essai à blanc) écrire les règles de blocage pour Claude Code dans : {0}'
@@ -383,6 +387,7 @@ $MsgIt = @{
   dry_tpl = '  (prova) modello Sviluppo software: regole in CLAUDE.md (o come proposta accanto) e il modello di brief {0}'
   ask_ip = 'La chiave di questo computer deve funzionare solo dal suo indirizzo internet attuale? Consigliato con indirizzo fisso; se cambia, l''agente non raggiunge Kalmido finché non cambi la regola in Kalmido. [s/N]'
   ip_set = '  La chiave funziona solo da: {0}'
+  ip_none = '  Regola di indirizzo non impostata: l''indirizzo di questo computer non era leggibile, la chiave funziona da ovunque (imposta la regola sull''agente in Kalmido)'
   ip_wide = '  Regola di indirizzo non impostata: l''agente ha già una regola propria più stretta ({0})'
   harden = '  Regole di blocco per Claude Code scritte: {0} (niente WebFetch / WebSearch, niente lettura del file della chiave)'
   dry_harden = '  (prova) scrivere le regole di blocco per Claude Code in: {0}'
@@ -457,6 +462,7 @@ $MsgNl = @{
   dry_tpl = '  (proefrun) sjabloon Softwareontwikkeling: regels in CLAUDE.md (of als voorstel ernaast) en de brief-sjabloon {0}'
   ask_ip = 'Moet de sleutel van deze computer alleen werken vanaf zijn huidige internetadres? Aanbevolen bij een vast adres; verandert het, dan bereikt de agent Kalmido niet meer tot je de regel in Kalmido aanpast. [j/N]'
   ip_set = '  De sleutel werkt alleen vanaf: {0}'
+  ip_none = '  Adresregel niet gezet: het adres van deze computer was niet leesbaar, de sleutel werkt overal vandaan (zet de regel bij de agent in Kalmido)'
   ip_wide = '  Adresregel niet gezet: de agent heeft al een eigen, nauwere regel ({0})'
   harden = '  Blokkeerregels voor Claude Code geschreven: {0} (geen WebFetch / WebSearch, geen lezen van het sleutelbestand)'
   dry_harden = '  (proefrun) blokkeerregels voor Claude Code schrijven in: {0}'
@@ -697,6 +703,7 @@ else {
   }
   $got = (@($r.allowed_ips) | Where-Object { "$_" -match '^[0-9A-Fa-f.:/]{2,50}$' }) -join ','  # 2.1367.0 (#6457)
   if ($IpRule -and $got) { if ($r.allowed_ips_applied) { Say (M 'ip_set' @($got)) } else { Say (M 'ip_wide' @($got)) } }
+  elseif ($IpRule) { Say (M 'ip_none') }  # Fable reader F7: asked, but no rule came back
 }
 
 # kalmido-setup-step: starter_files
@@ -845,7 +852,7 @@ if ($Tool -ne 'codex') {
   else {
     $ep = ([IO.Path]::GetFullPath($EnvF)) -replace '\\', '/'
     if ($ep -match '^([A-Za-z]):/') { $ep = '/' + $Matches[1].ToLower() + $ep.Substring(2) }
-    $rules = @('WebFetch', 'WebSearch', 'Read(~/.kalmido/**)', "Read(/$ep)", "Edit(/$ep)")
+    $rules = @('WebFetch', 'WebSearch', 'Read(~/.kalmido/*.env)', 'Read(~/.kalmido/**/*.env)', "Read(/$ep)", "Edit(/$ep)")
     try {
       $d = if (Test-Path -LiteralPath $HSet) { [IO.File]::ReadAllText($HSet) | ConvertFrom-Json } else { New-Object PSObject }
       if ($null -eq $d) { $d = New-Object PSObject }

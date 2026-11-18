@@ -297,7 +297,8 @@ os.environ["KALMIDO_USAGE_HOOK"] = "0"
 # 2.1367.0 (#6457): the deny rules of the env file stay in every job's settings, so there are settings without any hook
 extra1 = aj.job_settings(ar, {"cmd": ["claude"]}, base, jtmp)
 jhs1 = json.load(open(extra1[1], encoding="utf-8")) if extra1[:1] == ["--settings"] else {}
-check(jhs1.get("hooks") == {} and "Read(~/.kalmido/**)" in jhs1.get("permissions", {}).get("deny", []),
+# 2.1367.0 (#6457 F6): only the env files of ~/.kalmido
+check(jhs1.get("hooks") == {} and "Read(~/.kalmido/**/*.env)" in jhs1.get("permissions", {}).get("deny", []),
       f"job with KALMIDO_BLOCK_DANGEROUS=0 and KALMIDO_USAGE_HOOK=0: no hooks, only the deny rules (#6457) {jhs1}")
 os.environ.pop("KALMIDO_USAGE_HOOK", None)
 os.environ.pop("KALMIDO_BLOCK_DANGEROUS", None)

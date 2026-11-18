@@ -278,9 +278,10 @@ function Start-Agent($s) {
   }
   $p = @{FilePath = $exe; PassThru = $true; NoNewWindow = $true}
   if ($rest.Count) { $p.ArgumentList = ($rest | ForEach-Object { Quote $_ }) -join ' ' }
-  # 2.1367.0 (#6457): without the event runner the command itself is the model: no token in its environment
+  # 2.1367.0 (#6457): neither the model nor the event runner gets the token in its environment (Fable reader F5: a run could
+  # read the runner's process environment); agent_run.py reads it from KALMIDO_ENV_FILE
   $tok = $env:KALMIDO_TOKEN
-  if (-not $Events) { Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue }
+  Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue
   try { $script:Proc = Start-Process @p } finally { $env:KALMIDO_TOKEN = $tok }
   $script:Started = Get-Date
 }
