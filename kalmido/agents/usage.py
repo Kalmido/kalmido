@@ -514,14 +514,17 @@ def v1_agent_usage_get():
     rows = c.execute(f"""SELECT {col} AS k, {USAGE_SUM} FROM agent_usage WHERE agent_id=? AND day>=? AND day<=?
                          GROUP BY {col} ORDER BY {col}""", (aid, frm, to)).fetchall()
     out = []
+    blind = bool(g.get("req_main"))  # 2.1386.0 (#6668, reader R4 F3): the long-lived token of a team agent per request
+    # (api/runfor.py req_main_gate) reads no task titles / project names here -- POST /agent/usage takes any task the agent
+    # sees, so the title would be content outside its channel; the request token of a person reads them as before
     for r in rows:
         d = {grp if grp in ("day", "model") else grp + "_id": r["k"], **usage_totals(r)}
         if grp in ("task", "list"):
             d["title" if grp == "task" else "name"] = None
-        if grp == "task" and r["k"]:
+        if grp == "task" and r["k"] and not blind:
             t = c.execute("SELECT title FROM tasks WHERE id=?", (r["k"],)).fetchone()
             d["title"] = t["title"] if t and task_visible(c, r["k"], aid) else None
-        if grp == "list" and r["k"]:
+        if grp == "list" and r["k"] and not blind:
             lr = c.execute("SELECT name FROM lists WHERE id=?", (r["k"],)).fetchone()
             d["name"] = lr["name"] if lr and list_role(c, r["k"], aid) else None
         out.append(d)

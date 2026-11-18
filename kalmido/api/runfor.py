@@ -236,7 +236,7 @@ RUN_ROUTES = {
     "GET /agent/schedules": ("mine", "only the requester's rows (core/access.py run_person)"),
     "PUT /agent/status": ("own", "need_agent; task_id via task_visible kalmido/agents/api.py"),
     "POST /agent/typing": ("pin:chat_user_id", "only into the requester's own chat"),
-    "GET /agent/usage": ("own", "need_agent; kalmido/agents/usage.py; titles via task_visible / list_role"),
+    "GET /agent/usage": ("own", "need_agent; kalmido/agents/usage.py; titles via task_visible / list_role (the long-lived token per request: none)"),
     "POST /agent/usage": ("own", "need_agent; kalmido/agents/usage.py; task_visible / list_role ; own job"),
     "GET /agents": ("own", "is_agent -> agent_public(agent_row(me)) (agents/proposals.py)"),
     "POST /agents/{}/chat/{}/choice": ("noagent", "need_chat_agent: is_agent(g.user) -> 404 (agents/core.py)"),
