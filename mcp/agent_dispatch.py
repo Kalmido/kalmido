@@ -41,7 +41,7 @@ STOP_FILE = "dispatch-STOP"
 STATE_FILE = "dispatch.json"
 DRY_LOG = "dispatch-dry.log"
 MODES = ("off", "dry", "on")
-STATES = ("done", "building", "on_branch", "held", "needs_yes", "stuck", "foreign", "ready")
+STATES = ("done", "building", "on_branch", "held", "needs_yes", "stuck", "foreign", "needs_brief", "ready")
 RUNNING = ("starting", "running", "paused")
 
 DEFAULTS = {
@@ -74,7 +74,13 @@ DEFAULTS = {
     "finish_cmd": "",         # the project's own way to land a branch / go live, named in the brief ("" = none)
     "brief_extra": "",        # more text for every brief (the project's rules)
     "max_writes": 40,         # writes (comments, closes) per tick
+    "brief_required": False,  # 2.1383.0 (#4062): on = a task is ready only with a brief (brief_missing), else "needs_brief"
 }
+# 2.1383.0 (#4062): the parts of a brief when brief_required is on -- a bold decision line and a section "Where" (Fundstellen) in
+# the description, and a size set in size_field or as a list tag (size_default does not count)
+BRIEF_DECISION_RX = r"(?m)^[ \t>-]*\*\*([^*\n]{3,})\*\*"
+BRIEF_WHERE_WORDS = r"(?:where|locations|files|fundstellen|emplacements|fichiers|ubicaciones|archivos|posizioni|vindplaatsen|bestanden)"
+BRIEF_WHERE_RX = (r"(?im)^(?:[ \t>*-]*\**\s*" + BRIEF_WHERE_WORDS + r"\s*\**\s*:|[ \t]*#{1,6}[ \t]*" + BRIEF_WHERE_WORDS + r"[ \t:]*$)")
 ID_RE = re.compile(r"(?<![Jj]ob )(?<![\w/])#(\d{1,9})\b")
 
 
@@ -166,6 +172,28 @@ def size_of(t, cfg, field_ids):
     return cfg["size_default"]
 
 
+def size_set(t, cfg, field_ids):
+    """2.1383.0 (#4062): True when the task's size is set (the size field or a list tag S / M / L), not only size_default."""
+    fid = field_ids.get((t.get("list_id"), "size"))
+    v = str((t.get("fields") or {}).get(fid) or "").strip() if fid else ""
+    v = field_ids.get((t.get("list_id"), "size_opt", v), v)
+    return v[:1].upper() in cfg["size_points"] or any(x.strip().upper() in cfg["size_points"] for x in tags_of(t))
+
+
+def brief_missing(t, cfg, field_ids):
+    """2.1383.0 (#4062): what the task's brief lacks ([] = complete): "decision" (a bold line), "where" (a section Where /
+    Fundstellen), "size" (size_field or a list tag)."""
+    notes = t.get("notes") or ""
+    out = []
+    if not any(not re.fullmatch(r"(?i)\s*" + BRIEF_WHERE_WORDS + r"\s*:?\s*", m.group(1)) for m in re.finditer(BRIEF_DECISION_RX, notes)):
+        out.append("decision")
+    if not re.search(BRIEF_WHERE_RX, notes):
+        out.append("where")
+    if not size_set(t, cfg, field_ids):
+        out.append("size")
+    return out
+
+
 def points(t, cfg, field_ids):
     return int(cfg["size_points"].get(size_of(t, cfg, field_ids), cfg["size_points"].get(cfg["size_default"], 3)))
 
@@ -218,11 +246,12 @@ def author_of(t, owner):
     return ""
 
 
-def classify(tasks, evidence, jobs, reg, cfg, owner=None):
+def classify(tasks, evidence, jobs, reg, cfg, owner=None, field_ids=None):
     """One state per open task (STATES): done (commit in close_ref), building (an open job of the dispatcher has it),
     on_branch (a commit on a job branch only), held (skip tag / a waiting line), needs_yes (one-way without the approval
     tag), stuck (max_tries jobs left it open), foreign (2.1308.0, #6523: not created by the person -- another member's
-    task or one without a creator; 2.1375.0, #6677: or one someone else wrote the text of last; never started), ready."""
+    task or one without a creator; 2.1375.0, #6677: or one someone else wrote the text of last; never started),
+    needs_brief (2.1383.0, #4062: with brief_required on, a task without a bold decision line, a section Where or a size), ready."""
     running = {int(t) for jid, e in reg.get("jobs", {}).items() if (jobs.get(str(jid)) or {}).get("state") in RUNNING
                for t in e.get("tasks") or []}
     out = {}
@@ -243,6 +272,8 @@ def classify(tasks, evidence, jobs, reg, cfg, owner=None):
             out[tid] = "needs_yes"
         elif int((reg.get("tries") or {}).get(str(tid)) or 0) >= int(cfg["max_tries"]):
             out[tid] = "stuck"
+        elif cfg.get("brief_required") and brief_missing(t, cfg, field_ids or {}):
+            out[tid] = "needs_brief"
         else:
             out[tid] = "ready"
     return out
@@ -584,7 +615,7 @@ class Dispatcher:
             return res
         self.guard(jobs, cfg, now, res)
         owner = self.owner()
-        states = classify(tasks, ev, jobs, self.reg, cfg, owner)
+        states = classify(tasks, ev, jobs, self.reg, cfg, owner, fids)
         res["states"] = states
         by_id = {int(t["id"]): t for t in tasks}
         # 2.1308.0 (#6523): a task the person did not create is never built -- said, not silent: once per task in the log,
@@ -614,6 +645,9 @@ class Dispatcher:
                 self.finding(res, f"yes:{tid}", self.say("dispatch_needs_yes", f"#{tid}", cfg["one_way_ok_tag"]))
             elif st == "stuck":
                 self.finding(res, f"stuck:{tid}", self.say("dispatch_stuck", f"#{tid}", cfg["max_tries"]))
+            elif st == "needs_brief":  # 2.1383.0 (#4062): said once in the chat, then it waits visibly
+                self.finding(res, f"brief:{tid}", self.say("dispatch_needs_brief", f"#{tid}",
+                                                           ", ".join(self.say("dispatch_brief_" + x) for x in brief_missing(t, cfg, fids))))
         res["brakes"] = self.brakes(cfg)
         running = [jid for jid in self.reg["jobs"] if (jobs.get(str(jid)) or {}).get("state") in RUNNING]
         free = int(cfg["places"]) - len(running)
