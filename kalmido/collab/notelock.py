@@ -26,7 +26,7 @@ from ..core.pg import st_ids
 from ..core.access import Denied, need_task, ov_open
 from ..lists.groups import grp_shares_of_list  # 2.958.0 (#5245): the project's and its folders' group shares
 from ..lists.lffolder import lf_people  # 2.958.0 (#5245): the folder's shares (folder_people is gone)
-from ..tasks.validation import CONTENT_MAX, log_act
+from ..tasks.validation import CONTENT_MAX, log_act, text_hand_now  # 2.1389.0 (#7005 F1): + text_hand_now
 from .e2e import E2E_NOTE_MAX, e2e_blob, e2e_has_keys, e2e_person
 
 
@@ -155,7 +155,6 @@ def ln_delete(tid):
     # their text (tasks.content_by, #6677) -- the creator's agent dispatcher then sees the description as another hand's
     cr = c.execute("SELECT created_by FROM tasks WHERE id=?", (tid,)).fetchone()
     if cr and cr["created_by"] != uid:
-        from ..tasks.validation import text_hand_now
         c.execute("UPDATE tasks SET content_by=? WHERE id=?", (text_hand_now(), tid))
     log_act(c, tid, "note_unlock")
     bump(c)
