@@ -379,8 +379,9 @@ def save_attachment_bytes(c, tid, name, mime, data, owner=None, anon=False):
         except OSError:
             pass
         return
-    aid = insert_id(c, "INSERT INTO attachments(task_id,name,mime,size,path,created_at,user_id) VALUES(?,?,?,?,?,?,?)",
-                    (tid, name, mime, len(data), rel, iso(now_utc()), who))
+    # 2.1391.0 (#6906): outside = the name came from a mail / a public form (user_id only says whose storage it counts against)
+    aid = insert_id(c, "INSERT INTO attachments(task_id,name,mime,size,path,created_at,user_id,outside) VALUES(?,?,?,?,?,?,?,?)",
+                    (tid, name, mime, len(data), rel, iso(now_utc()), who, 1 if anon else 0))
     up_after_store(c, "att", aid, org, {**(info or {}), "anon": True} if anon else info)  # 2.1337.0 (#6651)
 
 

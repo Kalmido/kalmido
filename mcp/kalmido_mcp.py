@@ -495,20 +495,30 @@ def _fence_task(api, task):
         for f in ("text", "body"):
             if isinstance(k.get(f), str):
                 k[f] = _data_fence(k[f], who)
+        _fence_files(ids, k.get("attachments"), who)  # 2.1391.0 (#6906, review F3): the files of a fenced comment, too
         k["untrusted"] = True
     return task
 
 
 def _fence_files(ids, files, who=None):
     """2.1391.0 (#6906): a file name is typed by whoever uploaded it: fenced when the uploader (by) is another account, when
-    the uploader is not known (by absent) and the task is foreign (who set), or always when who is set."""
+    it came from outside Kalmido (untrusted: a mail, a public form), when the uploader is not known, and always on a foreign
+    task or comment (who set) -- only the trusted accounts' own files stay as they are."""
     for a in files or []:
         if not isinstance(a, dict) or not isinstance(a.get("name"), str):
             continue
         by = a.get("by")
-        if who is None and (by is None or by in ids):
+        if a.get("untrusted"):
+            fw = "outside Kalmido: a mail or a form"
+        elif by is not None and by not in ids:
+            fw = f"account {by}"
+        elif who is not None:
+            fw = who
+        elif by is None:
+            fw = "an unknown uploader"
+        else:
             continue
-        a["name"] = _data_fence(a["name"], who if who is not None and (by is None or by in ids) else f"account {by}")
+        a["name"] = _data_fence(a["name"], fw)
         a["untrusted"] = True
 
 
