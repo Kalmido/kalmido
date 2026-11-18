@@ -448,8 +448,9 @@ link_target_ok() {
   m="$1/$LINK_MARK"
   if [ -L "$m" ]; then return 1; fi
   if [ -d "$m" ]; then return 0; fi
-  if [ -f "$m" ]; then rm -f "$m" && mkdir "$m" && return 0; return 1; fi  # the old form (a file): becomes the directory
-  [ -z "$(ls -A "$1" 2>/dev/null)" ]
+  # 2.1367.0 (#6971): a folder ls cannot read (root-squash NFS, an I/O error) is not empty; a marker FILE is no marker
+  lt_ls=$(ls -A "$1" 2>/dev/null) || return 1
+  [ -z "$lt_ls" ]
 }
 
 # the line about the virus scanner at the end of the installation (from .env: what really runs)
