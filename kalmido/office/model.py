@@ -644,6 +644,10 @@ def office_settings_clean(c, oid, b, cur):
             out["fx_usd"] = round(_num(v, "fx_usd", 0.0001, 1000), 4)
         elif k in ("offer_scheme", "invoice_scheme", "credit_scheme", "reminder_scheme", "delivery_scheme"):
             out[k] = office_scheme_clean(v, FE_SCHEME_NAMES.get(k), offer=k == "offer_scheme")
+            if out[k] != cur.get(k) and c is not None and oid:  # 2.1399.0 (#7037, Fable F4): never the scheme of an additional range
+                if out[k] in {x for rg in c.execute("SELECT scheme, credit_suffix FROM office_num_ranges WHERE org_id=?", (oid,)).fetchall()
+                              for x in num_range_schemes(rg).values()}:
+                    raise BadInput(tr("This scheme is already used by another series of the office"))
         elif k in ("skonto_pct", "skonto_days"):  # 2.120.0 A (#2087)
             from .abschlag import abs_settings_clean
             abs_settings_clean(k, v, out)

@@ -27,6 +27,8 @@ personal office of a person without an organisation (freelancer fixture), with a
  - the auditor's export names the range in number_ranges.csv
  - moving the personal office into an organisation: the range moves with its counter (the next number continues, nothing
    left behind in the personal office); a code the organisation has already refuses the move
+2.1399.0 (#7037): a new range checks its correction scheme too (F3), the settings never take a range's scheme (F4), a closed
+range opens only with a valid scheme (F1), the move of the personal office refuses a range scheme the organisation uses (F2)
 usage: p6698_office_numranges_test.py <datadir>"""
 import csv
 import io
@@ -140,6 +142,14 @@ def run(S, who, member=None, stranger=None):
        and g["credit_preview"] == f"GT-{Y}-001-K", f"the range: code upper case, -K, reminders off, next GT-{Y}-001 {g}")
     r = S.post(B + "/api/office/num-ranges", json={"code": "GT", "scheme": "GX-{yyyy}-{seq:03}"})
     ok(r.status_code == 400, f"a code twice: 400 {r.status_code}")
+    # 2.1399.0 (#7037, Fable F3): a new range's correction scheme never one used already (here GT's corrections GT-...-K)
+    r = S.post(B + "/api/office/num-ranges", json={"code": "GK", "scheme": "GT-{yyyy}-{seq:03}-", "credit_suffix": "K"})
+    ok(r.status_code == 400, f"#7037 F3: a correction scheme taken by GT: 400 {r.status_code} {r.text[:160]}")
+    # 2.1399.0 (#7037, Fable F4): the settings never give a main series the scheme of a range (nor its correction scheme)
+    for sch in ("GT-{yyyy}-{seq:03}", "GT-{yyyy}-{seq:03}-K"):
+        r = S.put(B + OF + "/settings", json={"invoice_scheme": sch})
+        ok(r.status_code == 400, f"#7037 F4: the invoice scheme {sch} of the range GT refused {r.status_code} {r.text[:160]}")
+    ok((S.get(B + OF + "/settings").json().get("settings") or {}).get("invoice_scheme") == MAIN, "#7037 F4: the main scheme stays")
     if member:
         x = member.get(B + OF + "/number-ranges").json()
         ok(any(e["id"] == G for e in x.get("extra") or []), "a member reads the range with the series")
@@ -257,7 +267,13 @@ def run(S, who, member=None, stranger=None):
     r = S.post(B + f"{D}/{g2['id']}/credit", json={})
     r = fin(r.json()["id"]) if r.status_code == 201 else r
     ok(r.ok and r.json().get("number", "").endswith("-K"), f"a correction stays possible in a closed range {r.text[:160]}")
+    # 2.1399.0 (#7037, Fable F1): a closed range opens only with a scheme the office accepts (an import closes one it refused)
+    sql("UPDATE office_num_ranges SET scheme=? WHERE id=?", (MAIN, G), write=True)
+    r = S.patch(B + f"/api/office/num-ranges/{G}", json={"closed": False})
+    ok(r.status_code == 400 and extra(G).get("closed") is True, f"#7037 F1: the main scheme in a closed range: opening refused {r.status_code} {r.text[:160]}")
+    sql("UPDATE office_num_ranges SET scheme=? WHERE id=?", ("GT-{yyyy}-{seq:03}", G), write=True)
     S.patch(B + f"/api/office/num-ranges/{G}", json={"closed": False})
+    ok(extra(G).get("closed") is False, "#7037 F1: with its valid scheme it opens again")
 
     # ---------------------------------------------------------------- the auditor's export
     r = S.get(B + OF + f"/gobd/export?from={Y}-01-01&to={Y}-12-31")
@@ -288,6 +304,16 @@ check(r.ok and r.json().get("ok") is False and any("GT" in x for x in r.json().g
 ws(Fr, f"org:{BETA}")
 if BG:
     check(Fr.delete(B + f"/api/office/num-ranges/{BG}").ok, "move: the organisation's unused range removed")
+# 2.1399.0 (#7037, Fable F2): a range of the organisation with another code but the scheme of the moving range refuses the move too
+r = Fr.post(B + "/api/office/num-ranges", json={"code": "PT", "scheme": "GT-{yyyy}-{seq:03}"})
+check(r.status_code == 201, "move: the organisation's range PT numbers like the personal GT " + r.text[:160])
+BP = r.json().get("id") if r.status_code == 201 else None
+ws(Fr, "private")
+r = Fr.get(B + OF + f"/move/check?org={BETA}")
+check(r.ok and r.json().get("ok") is False and any(x.startswith("GT:") for x in r.json().get("conflicts") or []), f"#7037 F2: the same scheme refuses the move {r.text[:300]}")
+ws(Fr, f"org:{BETA}")
+if BP:
+    check(Fr.delete(B + f"/api/office/num-ranges/{BP}").ok, "move: the range PT removed")
 ws(Fr, "private")
 nxt = next(x for x in Fr.get(B + OF + "/number-ranges").json()["extra"] if x["id"] == FG)["next"]
 r = Fr.post(B + OF + "/move/org", json={"org": BETA, "confirm": True})
