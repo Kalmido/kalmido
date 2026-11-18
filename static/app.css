@@ -4345,7 +4345,7 @@ a.frow:hover,.frow a:hover{background:var(--bg3)}
 .orgic{width:1.125rem;height:1.125rem;border-radius:.25rem;object-fit:cover;flex:none;vertical-align:middle}
 .mrow .orgic,summary .orgic,.wsicprev .orgic{width:1.5rem;height:1.5rem}
 /* 2.1391.0 (#7089): an organisation without an own symbol: its first letter in the accent colour (in the colour of the badge where it has one) */
-.orgini{display:inline-grid;place-items:center;width:1.125rem;height:1.125rem;border-radius:.25rem;flex:none;vertical-align:middle;background:var(--accent);color:var(--accent-ink,#fff);font-size:.6875rem;font-weight:700;line-height:1}
+.orgini{display:inline-grid;place-items:center;width:1.125rem;height:1.125rem;border-radius:.25rem;flex:none;vertical-align:middle;background:var(--accent);color:var(--accent-ink,#fff);font-size:var(--fs-xxs);font-weight:700;line-height:1}
 .mrow .orgini,summary .orgini,.wsicprev .orgini{width:1.5rem;height:1.5rem;font-size:var(--fs-s)}
 :is(.wsbadge,.wschip,.wsbar)[data-wsc] .orgini{background:var(--wsc);color:var(--bg)}
 .fwhen{font:var(--fs-s) var(--mono);color:var(--muted);white-space:nowrap;flex:none}
