@@ -353,6 +353,14 @@ def _f2():
         check(hook(line) == "deny", f"(m) F2: {line} is refused (also with KALMIDO_BLOCK_DANGEROUS=0)")
     for line in ("ps -ef | grep node", "cat /proc/cpuinfo", "cat README.md", "git push --force origin main"):
         check(hook(line) is None, f"(m) F2: {line} stays allowed by the env file part")
+    # reader R4 F2: only the arguments of ps itself count. Without the fix every line with ps and a later word with an e was
+    # refused (docker ps --format table, ps -o etime, echo ps here), also with KALMIDO_BLOCK_DANGEROUS=0.
+    for line in ("docker ps --format table", "ps -o etime", "echo ps here", "ps -eo pid,etime", "ps axo pid,etime", "ps -C node -o etime",
+                 "docker ps -a --filter name=web"):
+        check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) R4 F2: {line} is no environment read")
+    for line in ("ps e", "ps aux e", "ps auxe", "ps -E", "ps eww", "sudo ps eww", "ls; /bin/ps e", "bash -c 'ps e'", "echo $(ps axe)"):
+        check(ar.secret_ps(line.replace("'", "")) and ar.guard_secret(line, env={}) is not None, f"(m) R4 F2: {line} stays refused")
+    check(hook("docker ps --format table") is None and hook("ps aux e") == "deny", "(m) R4 F2: ... also through the hook")
 
     # review R3 F1: the request token files of OTHER people (op.env of the chosen person, p<other>.env, auto.env) lie next to
     # the run's own file in <state>/run-env. Without the fix only the run's own file and the starter's were named: a run for
