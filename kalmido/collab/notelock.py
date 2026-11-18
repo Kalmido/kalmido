@@ -151,6 +151,12 @@ def ln_delete(tid):
     ts = iso_ms(now_utc())
     c.execute("DELETE FROM task_note_locks WHERE task_id=?", (tid,))
     c.execute("UPDATE tasks SET content=?, updated_at=? WHERE id=?", (text, ts, tid))
+    # 2.1389.0 (#7005 F1): the note comes back from the unlocker's browser: unlocked by someone other than the task's creator, it is
+    # their text (tasks.content_by, #6677) -- the creator's agent dispatcher then sees the description as another hand's
+    cr = c.execute("SELECT created_by FROM tasks WHERE id=?", (tid,)).fetchone()
+    if cr and cr["created_by"] != uid:
+        from ..tasks.validation import text_hand_now
+        c.execute("UPDATE tasks SET content_by=? WHERE id=?", (text_hand_now(), tid))
     log_act(c, tid, "note_unlock")
     bump(c)
     c.commit()

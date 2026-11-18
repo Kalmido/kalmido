@@ -10,7 +10,7 @@ keeps today's pushes (push "results"); a new agent starts with push "limits" (ag
 import json
 import re
 from datetime import timedelta
-from flask import g, has_request_context, jsonify
+from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, PUBLIC_URL, TZ
 from ..core.i18n import tr, trn
@@ -255,6 +255,12 @@ def ws_need_editor(c, aid):
     a = agent_row(c, aid)
     if not a or is_agent(g.user) or not may_set_runtime(c, a, me()):
         raise Denied(404)
+    if not a["owner_id"]:  # 2.1389.0 (#7005 F3): a team agent -- on a hosted instance, a client's is not the operator's (#2687)
+        from ..accounts.orgs import op_apart_deny, op_foreign_account, op_support_deny, op_support_only
+        if op_foreign_account(c, a["user_id"]):
+            op_apart_deny()
+        if request.method not in ("GET", "HEAD") and op_support_only(c, uid=a["user_id"]):
+            op_support_deny()  # through the client's support access: read, and pause / resume in the administration only (#6496)
     return a
 
 
