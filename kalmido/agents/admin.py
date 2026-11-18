@@ -36,6 +36,7 @@ from ..agents.core import (
     agent_active, agent_emit, AGENT_EVENTS, AGENT_ROW_SQL, AGENT_NOTE_MAX, agent_public, agent_row, agent_runtime, is_agent, need_person,
     perm_user_ok, runtime_clean, RUNTIME_DEFAULTS, runtime_derived,
 )
+from .reqtoken import req_drop_op  # 2.1386.0 (#6668, review R3 F9)
 from ..accounts.orgs import main_org, user_orgs, org_member_add  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.colors import ac_valid  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgroles import user_orgs_full, need_org_write  # 2.369.5 (#2517): pulled up from functions
@@ -274,7 +275,6 @@ def runtime_set(c, a, rt):
         if not ((new["perm_user"] == me() or may_see(c, me(), new["perm_user"])) and perm_user_ok(c, agent_row(c, a["user_id"]), new["perm_user"])):
             raise BadInput(tr("Invalid value: {0}", "perm_user"))
     if new["perm_user"] != cur["perm_user"]:  # 2.1386.0 (#6668, review R3 F9): the old person's list-work token ends
-        from .reqtoken import req_drop_op  # a module that imports this one
         req_drop_op(c, a["user_id"])
     if any(new[k] != cur[k] for k in RUNTIME_DEFAULTS):
         c.execute("UPDATE agents SET runtime=? WHERE user_id=?", (json.dumps(new), a["user_id"]))
