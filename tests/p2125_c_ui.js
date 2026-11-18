@@ -1,6 +1,8 @@
 // 2.125.0 part C UI tests (#2121 #2122; own container, start.sh). jsdom:
 // - the app shortcut /?action=timer: starts the timer (on the list of the latest entry, else the first list with time tracking) and opens the time view, the parameter leaves the URL;
 //   the same shortcut again stops it; with the module "time" off nothing starts
+//   2.1385.0 (#6435 10): only in the installed app (display-mode standalone); in a browser tab the bare link starts / stops
+//   nothing: the time view opens, with a timer running its menu (Stop timer) - the tests of the toggle boot as the installed app
 // - the "Excel (XLSX)" buttons: time view (same query as the CSV button), workload view (weeks / start / org)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -30,8 +32,17 @@ const call = async (method, url, body) => {
   const L = (await call('POST', '/api/lists', {name: 'Billable', time_tracking: true})).id;  // time is a switch of each list
   check(L > 0, 'setup: a list with time tracking');
 
-  // ---- the shortcut starts the timer
+  const APP = {'(display-mode: standalone)': true};  // 2.1385.0 (#6435 10): the installed app
+  // ---- 2.1385.0 (#6435 10): in a browser tab the link starts nothing
   let w = await boot({user: 'alice', path: '?action=timer'}), d = w.document;
+  await until(() => w.location.hash === '#time');
+  await sleep(800);
+  check(w.location.search === '' && w.location.hash === '#time', '#6435 10: browser tab: the time view opens, the parameter is gone ' + w.location.search + w.location.hash);
+  check(!w.eval('S.timer') && !((await call('GET', '/api/time/entries?scope=mine')).entries || []).length, '#6435 10: browser tab: the link starts no timer');
+  w.close();
+
+  // ---- the shortcut starts the timer
+  w = await boot({user: 'alice', path: '?action=timer', media: APP}); d = w.document;
   await sleep(1200);
   check(w.location.search === '', 'the parameter is gone from the URL: ' + w.location.search);
   check(w.location.hash === '#time', 'the time view is open: ' + w.location.hash);
@@ -45,7 +56,12 @@ const call = async (method, url, body) => {
   w = await boot({user: 'alice', hash: 'time'}); d = w.document; await sleep(800);
   check(!!w.eval('S.timer'), 'a plain reload leaves the timer running');
   w.close();
-  w = await boot({user: 'alice', path: '?action=timer'}); d = w.document; await sleep(1200);
+  // 2.1385.0 (#6435 10): a browser tab does not stop it either: it shows the running timer's menu
+  w = await boot({user: 'alice', path: '?action=timer'}); d = w.document;
+  const stopItem = await until(() => [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => /Stop timer/.test(b.textContent)));
+  check(!!stopItem && !!w.eval('S.timer'), '#6435 10: browser tab: the timer keeps running, its menu offers Stop timer');
+  w.close();
+  w = await boot({user: 'alice', path: '?action=timer', media: APP}); d = w.document; await sleep(1200);
   check(!w.eval('S.timer'), 'the shortcut again stops the timer');
   const ents = (await call('GET', '/api/time/entries?scope=mine')).entries || [];
   check(ents.length === 1 && !!ents[0].end, 'one finished entry, none running: ' + JSON.stringify(ents.map(e => e.end)));
@@ -77,7 +93,7 @@ const call = async (method, url, body) => {
 
   // ---- module off: nothing starts
   await call('PATCH', '/api/settings', {features: 'cal,collab,workload'});
-  w = await boot({user: 'alice', path: '?action=timer'}); await sleep(1200);
+  w = await boot({user: 'alice', path: '?action=timer', media: APP}); await sleep(1200);  // 2.1385.0 (#6435 10): as the installed app
   check(w.location.search === '' && !w.eval('S.timer'), 'module off: the shortcut starts nothing');
   const run2 = ((await call('GET', '/api/time/entries?scope=mine')).entries || []).filter(e => !e.end);
   check(run2.length === 0, 'module off: no running entry on the server');

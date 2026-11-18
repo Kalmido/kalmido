@@ -40,8 +40,13 @@ const works = async t => (await fetch(B + 'api/v1/me', {headers: {Authorization:
   };
   await change('password123', 'password234', false);
   check(d.querySelector('#a-new').value === '' && await works(T1), '#4375: tick removed: the password changes, the token stays');
+  // 2.1385.0 (#6503 8): the message says honestly what goes on and where it ends
+  check(/Your other sessions have ended\. App passwords, API tokens, agents and calendar subscription links keep working: Settings > Account, Access and Integrations/.test(d.querySelector('#toast')?.textContent || ''),
+    '#6503 8: tick removed: the message names what keeps working ' + d.querySelector('#toast')?.textContent);
   await change('password234', 'password345', true);
   check(await until(async () => !(await works(T1))), '#4375: tick set: the token ends');
+  check(/Your other sessions, app passwords and API tokens have ended\. Agents and calendar subscription links keep working/.test(d.querySelector('#toast')?.textContent || ''),
+    '#6503 8: tick set: the message names what ended and what keeps working ' + d.querySelector('#toast')?.textContent);
   w.close();
 
   console.log(F.length ? 'FAILED ' + F.length : 'OK ' + ok); process.exit(F.length ? 1 : 0);

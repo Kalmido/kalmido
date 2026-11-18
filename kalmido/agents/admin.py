@@ -539,15 +539,29 @@ def agent_owner_set(c, aid, owner, given):
     if owner in (None, "", 0, "team"):
         if was is not None:
             agent_polls_retire(c, aid, was)  # 2.625.0 C (#3961)
+            agent_access_end(c, aid)  # 2.1385.0 (#6503 1)
         c.execute("UPDATE agents SET owner_id=NULL, admin_paused=0, office_drafts=CASE WHEN owner_id IS NULL THEN office_drafts ELSE 0 END WHERE user_id=?", (aid,))  # 2.51.0 A (#1348)
         return
     if isinstance(owner, bool) or not isinstance(owner, int) or \
-            not c.execute("SELECT 1 FROM users WHERE id=? AND kind!='agent' AND NOT disabled", (owner,)).fetchone():
-        raise BadInput(tr("Invalid value: {0}", "owner_id"))
+            not c.execute("SELECT 1 FROM users WHERE id=? AND kind!='agent' AND NOT disabled AND kid=0", (owner,)).fetchone():
+        raise BadInput(tr("Invalid value: {0}", "owner_id"))  # 2.1385.0 (#6503 2): nor a kid account (it has no API)
     if was != owner:
         agent_polls_retire(c, aid, was or aid)  # 2.625.0 C (#3961): a former team agent keeps them itself
+        agent_access_end(c, aid)  # 2.1385.0 (#6503 1)
     # 2.51.0 A (#1348): another owner = maybe another office area (a personal one): the office switch starts off again
     c.execute("UPDATE agents SET owner_id=?, office_drafts=CASE WHEN owner_id IS NOT DISTINCT FROM ? THEN office_drafts ELSE 0 END WHERE user_id=?", (owner, owner, aid))
+
+
+def agent_access_end(c, aid):
+    """2.1385.0 (#6503 1): agent aid changes hands (also "becomes a team agent"): every way in that the former side set up
+    ends at once - its API tokens (also on the former owner's computer), its unused setup codes and its hosted MCP accesses
+    (mcpr_revoke). The new owner (or an admin) makes a new token or setup code. The caller commits."""
+    from ..agents.mcpremote import mcpr_revoke  # the hosted MCP server imports this module's neighbours
+    with system_ctx(c):  # the agent's own access rows (no content)
+        for (gid,) in c.execute("SELECT id FROM oauth_grants WHERE agent_id=? AND revoked_at IS NULL", (aid,)).fetchall():
+            mcpr_revoke(c, gid)
+        c.execute("DELETE FROM api_tokens WHERE user_id=?", (aid,))
+        c.execute("DELETE FROM agent_setup_codes WHERE agent_id=?", (aid,))
 
 
 def agent_polls_retire(c, aid, keeper):

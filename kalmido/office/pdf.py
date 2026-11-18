@@ -563,32 +563,48 @@ def pdf_to_srgb(im):
         return im
 
 
+try:
+    from ..core import imgsafe as _PDF_IMGSAFE  # 2.1385.0 (#6435)
+except ImportError:  # loaded as a single file (tests): core/imgsafe.py by its path, on first use
+    _PDF_IMGSAFE = None
+
+
+def _pdf_imgsafe():
+    """2.1385.0 (#6435): core/imgsafe.py - the package's, or the file by its path when this module runs on its own (tests)."""
+    global _PDF_IMGSAFE
+    if _PDF_IMGSAFE is None:
+        import importlib.util
+        sp = importlib.util.spec_from_file_location("kalmido_imgsafe_for_pdf", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "core", "imgsafe.py"))
+        m = importlib.util.module_from_spec(sp)
+        sp.loader.exec_module(m)
+        _PDF_IMGSAFE = m
+    return _PDF_IMGSAFE
+
+
 def pdf_image_object(raw):
     """Logo bytes (PNG / JPEG / WebP / GIF / BMP) -> (width px, height px, stream dict entries, stream data) for an
-    image XObject: RGB 8 bit, transparency composed on white, FlateDecode. None when Pillow cannot read it."""
+    image XObject: RGB 8 bit, transparency composed on white, FlateDecode. None when Pillow cannot read it.
+    2.1385.0 (#6435): through the shared decoder (those formats only, pixels before load(), one lock)."""
     try:
         from PIL import Image
     except ImportError:
         return None
     try:
-        im = Image.open(io.BytesIO(raw))
-        if im.width * im.height > 30_000_000:
-            return None
-        im.load()
-        im = pdf_to_8bit(im)  # 2.296.0 D (#3172): 16 bit grey scaled, not clipped to white
-        im = pdf_to_srgb(im)  # 2.357.0 B (#3179): Adobe RGB / CMYK with a profile -> sRGB
-        if im.mode in ("RGBA", "LA", "P", "PA"):
-            im = im.convert("RGBA")
-            bg = Image.new("RGB", im.size, (255, 255, 255))
-            bg.paste(im, mask=im.getchannel("A"))
-            im = bg
-        else:
-            im = im.convert("RGB")
-        if im.width > PDF_LOGO_MAX_PX:
-            im = im.resize((PDF_LOGO_MAX_PX, max(1, round(im.height * PDF_LOGO_MAX_PX / im.width))), Image.Resampling.LANCZOS)
-        data = zlib.compress(im.tobytes(), 6)
+        with _pdf_imgsafe().img_open(raw) as im:
+            im = pdf_to_8bit(im)  # 2.296.0 D (#3172): 16 bit grey scaled, not clipped to white
+            im = pdf_to_srgb(im)  # 2.357.0 B (#3179): Adobe RGB / CMYK with a profile -> sRGB
+            if im.mode in ("RGBA", "LA", "P", "PA"):
+                im = im.convert("RGBA")
+                bg = Image.new("RGB", im.size, (255, 255, 255))
+                bg.paste(im, mask=im.getchannel("A"))
+                im = bg
+            else:
+                im = im.convert("RGB")
+            if im.width > PDF_LOGO_MAX_PX:
+                im = im.resize((PDF_LOGO_MAX_PX, max(1, round(im.height * PDF_LOGO_MAX_PX / im.width))), Image.Resampling.LANCZOS)
+            data = zlib.compress(im.tobytes(), 6)
         return im.width, im.height, data
-    except Exception:  # noqa: BLE001  (not a picture, truncated, bomb)
+    except Exception:  # noqa: BLE001  (not a picture, truncated, bomb, busy)
         return None
 
 

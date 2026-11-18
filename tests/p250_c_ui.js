@@ -83,6 +83,8 @@ const click = (w, el) => el && el.dispatchEvent(new w.MouseEvent('click', {bubbl
   w = await boot({user: 'alice', hash: `office/offers/${DOC}`}); d = w.document;
   const nb = await until(() => d.querySelector('#sg-box [data-sg="new"]'));
   check(nb && /Approval by the client/.test(d.querySelector('.sgsec')?.textContent || ''), 'a sent quotation: "Approval by the client"');
+  // 2.1385.0 (#6947): the button row keeps its distance to "Link valid until" (own class with a top margin in office.css)
+  check(nb?.closest('.row.sgnew') && nb.closest('.row').previousElementSibling?.querySelector('label[for="sg-exp"]'), '#6947: the button has its own row under "Link valid until"');
   click(w, nb);
   const qu = await until(() => d.querySelector('#sg-box [data-sgurl]'));
   check(qu && /\/s\/q\//.test(qu.value) && /Waiting for the client/.test(d.querySelector('#sg-box').textContent), 'Create approval link: link + state');

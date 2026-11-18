@@ -1093,7 +1093,8 @@ def _camt_rows(text, mt940=False):
     """2.140.0 B (#2134): a CAMT.052 / .053 statement -> budget rows like _row_of (text = purpose, else the counterpart).
     The budget has no currency of its own: a booking in another currency than most of the file is refused.
     2.146.0 C (#2469): + pending (a CAMT.052 entry not booked yet), iban, ref (AcctSvcrRef), e2e (EndToEndId)."""
-    rows = mt.mt_parse(text)[0] if mt940 else cx.camt_rows(text)  # 2.299.0 A (#3190): MT940 gives the same rows
+    # 2.299.0 A (#3190): MT940 gives the same rows; 2.1385.0 (#6435): rows counted while reading (RowsOver stops the import)
+    rows = mt.mt_parse(text, max_rows=BUD_ROWS_MAX)[0] if mt940 else cx.camt_rows(text, max_rows=BUD_ROWS_MAX)
     curs = [r["currency"] for r in rows if r["currency"]]
     main = max(set(curs), key=curs.count) if curs else ""
     out = []
@@ -1316,6 +1317,8 @@ def bud_import_parse(c, uid, lid, b, fs=None):
             continue
         try:
             got = _camt_rows(p["text"], p["fmt"] == "mt940") if p["fmt"] in ("camt", "mt940") else _csv_rows(p["text"], b["mapping"])
+        except cx.RowsOver as x:  # 2.1385.0 (#6435): a file over the row limit stops the whole import
+            raise BadInput(f"{p['name']}: {x.args[0]}" if len(parts) > 1 else x.args[0]) from None
         except BadInput as x:
             if len(parts) == 1:
                 raise

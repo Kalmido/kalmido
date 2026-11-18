@@ -880,7 +880,6 @@
   "disabled": "deaktiviert",
   "SSO: {0}": "SSO: {0}",
   "Password: at least {0} characters": "Passwort: mindestens {0} Zeichen",
-  "Password changed": "Passwort geändert",
   "Username": "Benutzername",
   "a-z, 0-9, . - _": "a-z, 0-9, . - _",
   "unchanged": "unverändert",
@@ -12814,7 +12813,6 @@
   "only the project owner and project admins": "nur Besitzer und Projekt-Admins",
   "Others in shared projects see what it does, but cannot address it.": "Andere in geteilten Projekten sehen, was er tut, können ihn aber nicht ansprechen.",
   "Not in any project you see yet. Share a project with it (project dialog > Sharing).": "Noch in keinem Projekt. Teile ein Projekt mit ihm (Projekt > Teilen).",
-  "Switching later needs no new setup: an admin changes “Belongs to” to team or person. Projects and history stay; adjust the rules in its CLAUDE.md.": "Später umstellen braucht keine Neueinrichtung: Ein Admin stellt „Gehört zu“ auf Team bzw. Person. Projekte und Verlauf bleiben; die Regeln in seiner CLAUDE.md anpassen.",
   "Tasks your parents give you are here, under the name of their project. Messages come in behind the bell at the top.": "Aufgaben, die dir deine Eltern geben, stehen hier unter dem Namen ihres Projekts. Nachrichten kommen oben bei der Glocke an.",
   "Tasks your parents give you are here, under the name of their project.": "Aufgaben, die dir deine Eltern geben, stehen hier unter dem Namen ihres Projekts.",
   "This page is end-to-end encrypted, the selected project is not: the task titles are stored without that lock.": "Diese Seite ist im Browser verschlüsselt, das gewählte Projekt nicht: Die Aufgabentitel liegen dann unverschlüsselt.",
@@ -15937,7 +15935,6 @@
   "This document is not in your office or your own documents": "Dieses Dokument liegt weder in deinem Büro noch in deinen eigenen Dokumenten",
   "Everything the account sees that no other permission covers: projects, tasks, comments, notes, time entries, habits, search, the team chat with direct messages, clients with hours and amounts, who is away when, family and home & life, video sign-offs, e-mails filed with clients and projects": "Alles, was das Konto sieht und kein anderes Recht abdeckt: Projekte, Aufgaben, Kommentare, Notizen, Zeiteinträge, Gewohnheiten, Suche, der Team-Chat mit Direktnachrichten, Kunden mit Stunden und Beträgen, wer wann abwesend ist, Familie sowie Haus & Leben, Video-Freigaben, bei Kunden und Projekten abgelegte E-Mails",
   "Your change was not saved ({0}): your text waits here": "Deine Änderung ist nicht gespeichert ({0}): dein Text wartet hier",
-  "Signing in with another account deletes them from this device, a copy is downloaded as a text file first. Cancel signs out again: the previous account can then sign in and send them.": "Die Anmeldung mit einem anderen Konto löscht sie von diesem Gerät, vorher wird eine Kopie als Textdatei heruntergeladen. Abbrechen meldet wieder ab: dann kann sich das vorige Konto anmelden und sie senden.",
   "Your unsaved input is back": "Deine noch nicht gespeicherte Eingabe ist wieder da",
   "Unsaved input of a dialog was kept: open the dialog again to finish it": "Eine noch nicht gespeicherte Eingabe in einem Dialog wurde behalten: öffne den Dialog erneut, um sie abzuschließen",
   "An archive import can only be undone within 24 hours of its import.": "Ein Archiv-Import lässt sich nur innerhalb von 24 Stunden nach dem Import rückgängig machen.",
@@ -19327,5 +19324,11 @@
   "wrote": "geschrieben",
   "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Nach der Rücksicherung ließen sich die Rechnungs-Aussteller nicht pausieren; pausiere sie in den Büro-Einstellungen.",
   "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "Rechnungs-Aussteller wurden pausiert ({0}), aber {1} ihrer Meldungen ließen sich nicht schreiben; sieh im Server-Log nach.",
-  "First letter of the name (automatic)": "Anfangsbuchstabe des Namens (automatisch)"
+  "First letter of the name (automatic)": "Anfangsbuchstabe des Namens (automatisch)",
+  "Switching later: an admin changes “Belongs to” to team or person. Projects and history stay; its tokens, setup codes and MCP accesses end, so set it up again on the new side and adjust the rules in its CLAUDE.md.": "Später umstellen: Ein Admin stellt „Gehört zu“ auf Team bzw. Person. Projekte und Verlauf bleiben; seine Tokens, Einrichtungscodes und MCP-Zugänge enden, also auf der neuen Seite neu einrichten und die Regeln in seiner CLAUDE.md anpassen.",
+  "This link cancels the deletion of an account. Sign out here first, then the sign-in page offers it.": "Dieser Link bricht die Löschung eines Kontos ab. Melde dich hier zuerst ab, dann bietet ihn die Anmeldeseite an.",
+  "App passwords, API tokens, agents and calendar subscription links are no sessions: they keep working. End them under Settings > Account, Access and Integrations.": "App-Passwörter, API-Tokens, Agenten und Kalender-Links sind keine Sitzungen: Sie laufen weiter. Beende sie unter Einstellungen > Konto, Zugänge und Integrationen.",
+  "Password changed. Your other sessions, app passwords and API tokens have ended. Agents and calendar subscription links keep working: Settings > Access and Integrations.": "Passwort geändert. Deine anderen Sitzungen, App-Passwörter und API-Tokens sind beendet. Agenten und Kalender-Links laufen weiter: Einstellungen > Zugänge und Integrationen.",
+  "Password changed. Your other sessions have ended. App passwords, API tokens, agents and calendar subscription links keep working: Settings > Account, Access and Integrations.": "Passwort geändert. Deine anderen Sitzungen sind beendet. App-Passwörter, API-Tokens, Agenten und Kalender-Links laufen weiter: Einstellungen > Konto, Zugänge und Integrationen.",
+  "Signing in with another account deletes them from this device permanently; this account does not get them. Cancel signs out again: the previous account can then sign in and send them.": "Die Anmeldung mit einem anderen Konto löscht sie endgültig von diesem Gerät; dieses Konto bekommt sie nicht. Abbrechen meldet wieder ab: Das vorige Konto kann sich dann anmelden und sie senden."
 }

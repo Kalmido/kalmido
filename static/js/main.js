@@ -30,6 +30,7 @@ function bootDone() {
   // 2.1033.0 (#5790): the link of the address proof mail: the token leaves the address bar at once and waits in this tab over
   // a sign-in (the login reloads the page); confirmed below once the state of the signed-in account is there (acctset.js epv_link)
   { const epv = location.hash.match(/^#mailproof\/([A-Za-z0-9_-]{20,100})$/); if (epv) { try { sessionStorage.setItem('kalmido.epv', epv[1]); } catch { /* no storage */ } history.replaceState(null, '', location.pathname); } }
+  lg_dcKeep();  // 2.1385.0 (#6503 7): the same for the link "Cancel the deletion" (account.js), whoever is signed in here
   const i18nBoot = i18nLoad(uiLang());  // last used language (localStorage), in parallel with the state
   try { await outOpen(); await (MW_ON ? mw_bootLoad() : load()); if (!S.lists.length) throw new Error('no state'); } catch (e) { bootDone(); if (e.message === 'auth') return; await i18nBoot; $('#view').innerHTML = botEmpty(navigator.onLine === false ? 'offline' : 'schaut', tr('Server not reachable.'), tr('Reload the page once the server is reachable again.')).replace(/<\/div>$/, `<button type="button" class="btn pri" id="boot-retry">${ic('sync', 's')} ${tr('Try again')}</button></div>`); $('#boot-retry')?.addEventListener('click', () => location.reload()); botStartle(); /* 2.165.0 (#2613) */ return; }
   await i18nBoot; await i18nLoad(uiLang()); S.booted = true;
@@ -37,6 +38,7 @@ function bootDone() {
   setTimeout(fdWriteFlush, 0);
   for (const r of fdList('fdf')) if (Date.now() - (r.at || 0) > FDF_DAYS * 864e5) fdDrop('fdf', r.id);  // 2.577.0 (#4708 8): a dialog never opened again
   if (fdList('fdf').length) setTimeout(() => toast(tr('Unsaved input of a dialog was kept: open the dialog again to finish it')), 1500);
+  if (lg_dcWaits()) setTimeout(() => toast(tr('This link cancels the deletion of an account. Sign out here first, then the sign-in page offers it.')), 1500);  // 2.1385.0 (#6503 7)
   // 2.145.0 B (#2424): an own window (miniwin.js) shows one list / task / chat: no other servers, no suggestions, no push housekeeping
   if (!MW_ON) setTimeout(msvvBoot, 0);  // 2.73.0 C (#661): the other servers (msvview.js), after the own state
   if (!MW_ON) setTimeout(spl_check, 0);  // 2.742.0 (#4858): the split view's right half, when it is on (miniwin.js)
@@ -127,6 +129,9 @@ function bootDone() {
     if (timeOn()) location.hash = '#time';
     await route();
     if (!timeOn()) toast(tr('Time tracking is switched off in your settings'));
+    // 2.1385.0 (#6435 10): a bare link must not start / stop time tracking - only the installed app's shortcut toggles; in a
+    // browser tab the link opens the time view and, with a timer running, its menu (stop is one click there)
+    else if (!isStandalone()) { const a = S.timer && $('[data-act="run-pop"]'); if (a) runPop(a); }
     else if (S.timer) await timerStop();
     else {  // a timer needs a task or list with time tracking on: the one of the latest entry, else the first such list
       let last = null;

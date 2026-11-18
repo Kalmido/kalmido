@@ -93,8 +93,12 @@ r = A.post(B + "/api/test/fints/conn", json={"size": 8, "count": 3}).json()
 check(r.get("sent") == 3 and r.get("code") is None, f"finding 2: three small answers pass: {r}")
 r = A.post(B + "/api/test/fints/conn", json={"size": 8, "count": 80}).json()
 check(r.get("sent") == 50 and r.get("code") == "too_large", f"finding 2: at most 50 requests to the bank within one step (endless touchdowns): {r}")
+# 2.1385.0 (#6435): one answer at most FNT_HTTP_MAX (a 2 MB statement as base64 + its frame): 20 MB stop at the first answer;
+# the 60 MB of a step are reached by 24 answers of 2.5 MB
 r = A.post(B + "/api/test/fints/conn", json={"size": 20 * 1024 * 1024, "count": 5}).json()
-check(r.get("sent") == 3 and r.get("code") == "too_large", f"finding 2: at most 60 MB of answers within one step: {r.get('sent')} {r.get('code')}")
+check(r.get("sent") == 0 and r.get("code") == "too_large", f"#6435: an answer of 20 MB is stopped while it is read: {r.get('sent')} {r.get('code')}")
+r = A.post(B + "/api/test/fints/conn", json={"size": 2560 * 1024, "count": 30}).json()
+check(r.get("sent") == 24 and r.get("code") == "too_large", f"finding 2: at most 60 MB of answers within one step: {r.get('sent')} {r.get('code')}")
 r = A.post(B + "/api/test/fints/conn", json={"size": 8, "count": 1, "late": True}).json()
 check(r.get("sent") == 0 and r.get("code") == "connection", f"finding 2: the time of a step is up -> no further request: {r}")
 

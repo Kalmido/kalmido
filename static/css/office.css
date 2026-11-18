@@ -177,7 +177,10 @@ button.kptile:hover,button.kptile:focus-visible{border-color:var(--accent)}
 .ofdhead .ofdstat{min-height:var(--fld-h)}
 .ofdhead .ofdsave{font-size:var(--fs-s)}
 .ofdhead .oil_tail{display:inline-flex;align-items:center;gap:.5rem;flex-wrap:nowrap}  /* 2.356.0 C (#3004): Preview, Download and "…" stay in one line */
-.oil_link{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin:0 0 .5rem;font-size:var(--fs-s)}  /* 2.356.0 C (#3003) */
+.oil_link{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap;margin:0;font-size:var(--fs-s)}  /* 2.356.0 C (#3003) */
+.oil_refs{display:flex;flex-direction:column;gap:.25rem;margin:.75rem 0}  /* 2.1385.0 (#6947): the reference lines in the head, the same space above and below */
+.ofdsec.sgsec{margin:0 0 .75rem}  /* 2.1385.0 (#6947): the approval box keeps its distance to what follows */
+.sgsec .sgnew{margin-top:.75rem}  /* 2.1385.0 (#6947): "Link valid until" and the button get air */
 .oil_more{margin:.25rem 0 .5rem}  /* 2.356.0 C (#3005): language, currency, VAT, contract folded below the head */
 .oil_more>summary{display:flex;align-items:center;gap:.375rem;cursor:pointer;min-height:2.5rem;color:var(--muted);font-size:var(--fs-s);list-style:none}
 .oil_more>summary::-webkit-details-marker{display:none}
@@ -1114,6 +1117,10 @@ button.dma-open:hover .dma-n,button.dma-open:focus-visible .dma-n{color:var(--ac
 .dpjlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem;max-width:40rem}
 .dpjdoc{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--line2);border-radius:var(--r-l);color:inherit;text-decoration:none}
 .dpjdoc:hover{background:var(--bg3)}
+/* 2.1385.0 (#6944): in a tile of the project page the documents are rows like the tile's other lists (a line between, no box) */
+.povs .dpjlist{gap:0;max-width:none}
+.povs .dpjdoc{border:0;border-radius:var(--r-s);padding:.375rem .25rem}
+.povs .dpjlist > li + li{border-top:1px solid var(--line)}
 .dpjk{display:inline-flex;align-items:center;gap:.375rem;min-width:7rem;color:var(--muted);font-size:var(--fs-s)}
 .dpjs{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-s)}
 .dpja{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap}

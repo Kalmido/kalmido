@@ -443,8 +443,13 @@ function accountWire(md) {
       if (a === 'pw') {
         const nw = $('#a-new', md).value;
         if (nw.length < 8) { toast(tr('Password: at least {0} characters', 8)); return; }
-        await api('PATCH', '/api/me', {current_password: $('#a-cur', md).value, password: nw, revoke_tokens: $('#a-pwrev', md)?.checked !== false});  // 2.539.0 B (#4375)
-        $('#a-cur', md).value = ''; $('#a-new', md).value = ''; toast(tr('Password changed'));
+        const rev = $('#a-pwrev', md)?.checked !== false;
+        await api('PATCH', '/api/me', {current_password: $('#a-cur', md).value, password: nw, revoke_tokens: rev});  // 2.539.0 B (#4375)
+        // 2.1385.0 (#6503 8): honest - what ended and what goes on (agents, calendar subscription links; without the tick also
+        // app passwords and API tokens) and where that is ended
+        $('#a-cur', md).value = ''; $('#a-new', md).value = '';
+        toast(rev ? tr('Password changed. Your other sessions, app passwords and API tokens have ended. Agents and calendar subscription links keep working: Settings > Access and Integrations.')
+          : tr('Password changed. Your other sessions have ended. App passwords, API tokens, agents and calendar subscription links keep working: Settings > Account, Access and Integrations.'), null, 9000);
       }
       if (a === 'logout') logout();
       if (a === 'shell-server') { const u = shellServerUrl(); if (u) location.href = u; }  // 2.435.0 B (#3578)

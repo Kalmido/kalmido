@@ -884,7 +884,6 @@
   "disabled": "uitgeschakeld",
   "SSO: {0}": "SSO: {0}",
   "Password: at least {0} characters": "Wachtwoord: minstens {0} tekens",
-  "Password changed": "Wachtwoord gewijzigd",
   "Username": "Gebruikersnaam",
   "a-z, 0-9, . - _": "a-z, 0-9, . - _",
   "unchanged": "ongewijzigd",
@@ -12815,7 +12814,6 @@
   "only the project owner and project admins": "alleen de eigenaar en projectbeheerders",
   "Others in shared projects see what it does, but cannot address it.": "Anderen in gedeelde projecten zien wat hij doet, maar kunnen hem niet aanspreken.",
   "Not in any project you see yet. Share a project with it (project dialog > Sharing).": "Nog in geen project dat je ziet. Deel een project met hem (projectvenster > Delen).",
-  "Switching later needs no new setup: an admin changes “Belongs to” to team or person. Projects and history stay; adjust the rules in its CLAUDE.md.": "Later omzetten vraagt geen nieuwe installatie: een beheerder zet „Hoort bij” op team of persoon. Projecten en geschiedenis blijven; pas de regels in zijn CLAUDE.md aan.",
   "Tasks your parents give you are here, under the name of their project. Messages come in behind the bell at the top.": "Taken die je ouders je geven staan hier, onder de naam van hun project. Berichten komen binnen bij het belletje bovenaan.",
   "Tasks your parents give you are here, under the name of their project.": "Taken die je ouders je geven staan hier, onder de naam van hun project.",
   "This page is end-to-end encrypted, the selected project is not: the task titles are stored without that lock.": "Deze pagina is end-to-end versleuteld, het gekozen project niet: de taaktitels worden zonder dat slot opgeslagen.",
@@ -15937,7 +15935,6 @@
   "This document is not in your office or your own documents": "Dit document staat niet in je kantoor en niet in je eigen documenten",
   "Everything the account sees that no other permission covers: projects, tasks, comments, notes, time entries, habits, search, the team chat with direct messages, clients with hours and amounts, who is away when, family and home & life, video sign-offs, e-mails filed with clients and projects": "Alles wat het account ziet en geen ander recht dekt: projecten, taken, opmerkingen, notities, tijdregistraties, gewoonten, zoeken, de teamchat met directe berichten, klanten met uren en bedragen, wie wanneer afwezig is, gezin en huis & leven, videogoedkeuringen, bij klanten en projecten opgeslagen e-mails",
   "Your change was not saved ({0}): your text waits here": "Je wijziging is niet opgeslagen ({0}): je tekst wacht hier",
-  "Signing in with another account deletes them from this device, a copy is downloaded as a text file first. Cancel signs out again: the previous account can then sign in and send them.": "Aanmelden met een ander account verwijdert ze van dit apparaat, eerst wordt een kopie als tekstbestand gedownload. Annuleren meldt weer af: het vorige account kan zich dan aanmelden en ze versturen.",
   "Your unsaved input is back": "Je niet-opgeslagen invoer is terug",
   "Unsaved input of a dialog was kept: open the dialog again to finish it": "Niet-opgeslagen invoer van een dialoogvenster is bewaard: open het dialoogvenster opnieuw om het af te maken",
   "An archive import can only be undone within 24 hours of its import.": "Een archiefimport kan alleen binnen 24 uur na de import ongedaan worden gemaakt.",
@@ -19327,5 +19324,11 @@
   "wrote": "geschreven",
   "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Na het terugzetten konden de factuuruitgevers niet worden gepauzeerd; pauzeer ze in de kantoorinstellingen.",
   "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "De factuuruitgevers zijn gepauzeerd ({0}), maar {1} van hun meldingen konden niet worden geschreven; kijk in het serverlogboek.",
-  "First letter of the name (automatic)": "Beginletter van de naam (automatisch)"
+  "First letter of the name (automatic)": "Beginletter van de naam (automatisch)",
+  "Switching later: an admin changes “Belongs to” to team or person. Projects and history stay; its tokens, setup codes and MCP accesses end, so set it up again on the new side and adjust the rules in its CLAUDE.md.": "Later omzetten: een beheerder zet „Hoort bij” op team of persoon. Projecten en geschiedenis blijven; zijn tokens, installatiecodes en MCP-toegangen vervallen, dus richt hem aan de nieuwe kant opnieuw in en pas de regels in zijn CLAUDE.md aan.",
+  "This link cancels the deletion of an account. Sign out here first, then the sign-in page offers it.": "Deze link breekt het verwijderen van een account af. Meld je hier eerst af, dan biedt de aanmeldpagina hem aan.",
+  "App passwords, API tokens, agents and calendar subscription links are no sessions: they keep working. End them under Settings > Account, Access and Integrations.": "App-wachtwoorden, API-tokens, agenten en agenda-abonnementslinks zijn geen sessies: ze blijven werken. Beëindig ze onder Instellingen > Account, Toegang en Integraties.",
+  "Password changed. Your other sessions, app passwords and API tokens have ended. Agents and calendar subscription links keep working: Settings > Access and Integrations.": "Wachtwoord gewijzigd. Je andere sessies, app-wachtwoorden en API-tokens zijn beëindigd. Agenten en agenda-abonnementslinks blijven werken: Instellingen > Toegang en Integraties.",
+  "Password changed. Your other sessions have ended. App passwords, API tokens, agents and calendar subscription links keep working: Settings > Account, Access and Integrations.": "Wachtwoord gewijzigd. Je andere sessies zijn beëindigd. App-wachtwoorden, API-tokens, agenten en agenda-abonnementslinks blijven werken: Instellingen > Account, Toegang en Integraties.",
+  "Signing in with another account deletes them from this device permanently; this account does not get them. Cancel signs out again: the previous account can then sign in and send them.": "Aanmelden met een ander account verwijdert ze definitief van dit apparaat; dit account krijgt ze niet. Annuleren meldt weer af: het vorige account kan zich dan aanmelden en ze versturen."
 }
