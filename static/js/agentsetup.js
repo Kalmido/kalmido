@@ -66,7 +66,7 @@ function ains_setupModal(a, base) {
     <div class="row"><label>${tr('Computer')}</label><div class="seg" role="tablist" id="ains-os">${AINS_OS.map(([v, n]) => `<button type="button" role="tab" data-ainsos="${v}" aria-selected="${v === os}" class="${v === os ? 'on' : ''}">${tr(n)}</button>`).join('')}</div></div>
     <div class="row"><label for="ains-dir">${tr('Project folder')}</label><input id="ains-dir" maxlength="300" autocapitalize="off" autocomplete="off" spellcheck="false" aria-describedby="ains-dirhint"></div>
     <div class="shint keep" id="ains-dirhint">${esc(tr('The folder the agent works in, e.g. {0}', ains_folderHint(os)))}</div>${''/* 2.366.0 (#3001): an example under the field, a placeholder looked like a filled-in value */}
-    <div class="row"><label for="ains-tpl">${tr('Rules template')}</label><select id="ains-tpl" aria-describedby="ains-tplhint">${AINS_TPL.map(([v, n]) => `<option value="${v}">${esc(tr(n))}</option>`).join('')}</select></div>
+    <div class="row"><label for="ains-tpl">${tr('Rules template')}</label><select id="ains-tpl" aria-describedby="ains-tplhint">${AINS_TPL.map(([v, n]) => `<option value="${esc(v)}">${esc(tr(n))}</option>`).join('')}</select></div>
     <div class="shint keep" id="ains-tplhint">${esc(tr('Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.'))}</div>
     <div class="row"><label></label><button class="btn pri" data-m="ains-make">${ic('key', 's')} ${tr('Create command')}</button></div>
     <div id="ains-out" hidden>
