@@ -1,0 +1,9 @@
+{
+  "id": "contract_notice",
+  "since": "2.70.0",
+  "what": "The event contract_notice (a shared contract's last day to cancel is near) gets one instruction: exactly ONE propose_contract_notice with one sentence in the person's language (what it costs, until when they can decide, no pressure), no comment, no chat, no change; the answer (event job, job.kind notice) gets one line: nothing to do, no second reminder for that deadline",
+  "core": [
+    "def contract_hint",
+    "propose_contract_notice"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "id": "toolsets",
+  "since": "2.391.0",
+  "what": "KALMIDO_TOOLSETS from the env file (e.g. tickets,code,office; chat is always on; all = all but integrations) reaches the MCP server (mcp/kalmido_mcp.py --toolsets): only the tools of those packages are listed and callable; unset = every tool (2.1394.0, #4068: in mcp/agent_run.py --launch, for both launchers)",
+  "core": []
+}

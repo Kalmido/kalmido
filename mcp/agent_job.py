@@ -38,6 +38,9 @@ How it works
     never counted against the working copies of build jobs, not with --worktree / --parent; a read-only note goes in front
     of its brief (no commit, merge, push, deploy, nothing changed in Kalmido but comments and its result); list marks it.
   - a time limit (KALMIDO_JOB_TIMEOUT_H, default 6) ends the job; it says so in its result.
+  - 2.1394.0 (#7031): model and effort per kind of job from Kalmido's runtime settings (GET /api/v1/agent runtime): model_job /
+    effort_job for a build job, model_audit / effort_audit for a review job (--audit); empty = the command's own model and no
+    --effort. Claude Code only (--model / --effort, read at every start, revive and wake of the job).
   - 2.59.0 (#1827): every job gets a name, its title starts with it ("Alma: Release 2.29"): --name, else the next free one
     of JOB_NAMES; --parent ID makes it a part job of job ID ("Alma B", the result posts job_parent). The app shows the
     name on the job's messages and derives the job's colour from it; a part job takes its leader's colour, lighter.
@@ -367,6 +370,22 @@ def outbox_files(outbox):
     return [p for p in fs if os.path.isfile(p) and 0 < os.path.getsize(p) <= cap][:10]
 
 
+def outbox_left_out(outbox):
+    """2.1394.0 (#4951 / #2347): the files of the outbox that do not go along (too big for KALMIDO_MAX_FILE_MB, or more than
+    10) -> one line naming them for the result ("" = none), so the person knows they exist."""
+    try:
+        fs = sorted(os.path.join(outbox, n) for n in os.listdir(outbox) if not n.startswith("."))
+    except OSError:
+        return ""
+    sent = set(outbox_files(outbox))
+    left = [os.path.basename(p) for p in fs if os.path.isfile(p) and os.path.getsize(p) > 0 and p not in sent]
+    if not left:
+        return ""
+    mb = int(os.environ.get("KALMIDO_MAX_FILE_MB") or 50)
+    return (f"(Launcher: {len(left)} file(s) of the job's outbox not attached (over {mb} MB or more than 10 files), they stay in "
+            f"{outbox}: " + ", ".join(left[:20]) + (" ..." if len(left) > 20 else "") + ")")
+
+
 def card_body(body, appr, sugg):
     """2.615.0 (#2347): the closing card / buttons of a job message (on its last part)."""
     if appr:
@@ -379,18 +398,23 @@ def card_body(body, appr, sugg):
     return body
 
 
-def post_result(api, j, text, files, kind="result", appr=None, sugg=None):
+def post_result(api, j, text, files, kind="result", appr=None, sugg=None, sent=None):
     """The result into the chat of the person: the text in parts, the files with the first part (job_id links it to the job).
     2.96.0 (#2015): kind = result | error goes along as job_msg (kalmido-capability: job_msg), the app shows it under the job's card.
     2.615.0 (#2347): appr / sugg = the closing ```approval / ```suggest of the text: the card (it knows this job: job.json
-    "cards") or the buttons on the last part; a server that takes neither (400): the plain text with the question."""
+    "cards") or the buttons on the last part; a server that takes neither (400): the plain text with the question.
+    2.1394.0 (#4951): sent = a list of the part numbers already in the chat (a later try posts only the rest, never a part
+    twice); each part of a long result names its job ("Job #12, 2/3")."""
     uid = j.get("chat_user")
     if not uid:
         return False
+    sent, t0 = ([] if sent is None else sent), time.time()
     parts = chunks(redact(text)) or [""]
     if len(parts) > 1:
-        parts = [f"{p}\n\n_({i + 1}/{len(parts)})_" for i, p in enumerate(parts)]
+        parts = [f"{p}\n\n_(Job #{j['id']}, {i + 1}/{len(parts)})_" for i, p in enumerate(parts)]
     for i, part in enumerate(parts):
+        if i in sent:
+            continue
         body = {"body": part or ((appr or {}).get("title") if i == len(parts) - 1 else "") or "(no text)"}
         if j.get("kalmido_job"):
             body["job_id"] = j["kalmido_job"]
@@ -410,11 +434,13 @@ def post_result(api, j, text, files, kind="result", appr=None, sugg=None):
                     except Exception:
                         pass
                 files = []
+                sent.append(-1)  # 2.1394.0 (#4951): a later try does not post the files again
             try:
                 r = api.req("POST", f"/agent/chats/{int(uid)}", card_body(body, appr, sugg), timeout=60)
                 if appr and isinstance(r, dict) and r.get("id"):
                     j.setdefault("cards", {})[str(r["id"])] = {"title": appr["title"], "what": appr.get("what") or "", "at": time.time()}
                     save(j)
+                sent.append(i)
                 continue
             except Exception as e:  # an older server: the text with the question / the numbered steps
                 log(f"card of the job not posted: {str(e)[:150]}")
@@ -422,7 +448,7 @@ def post_result(api, j, text, files, kind="result", appr=None, sugg=None):
                         else "Next: " + "  ".join(f"{n + 1}) {x}" for n, x in enumerate(sugg[:3])))
                 body["body"] = (body["body"] + "\n\n" if part else "") + tail
         try:
-            if i == 0 and files:
+            if i == 0 and files and -1 not in sent:
                 raw, ct = multipart({k: str(v) for k, v in body.items()}, [("file", p) for p in files])
                 api.req("POST", f"/agent/chats/{int(uid)}", raw=raw, ctype=ct, timeout=120)
             else:
@@ -433,6 +459,7 @@ def post_result(api, j, text, files, kind="result", appr=None, sugg=None):
             if [body.pop(k) for k in ("job_parent", "job_msg") if k in body]:
                 try:
                     api.req("POST", f"/agent/chats/{int(uid)}", body, timeout=60)
+                    sent.append(i)
                     continue
                 except Exception:
                     pass
@@ -443,6 +470,16 @@ def post_result(api, j, text, files, kind="result", appr=None, sugg=None):
                     return False
             else:
                 return False
+        sent.append(i)
+    # 2.1394.0 (#4951): a bare "yes" in the chat decides a card only when the card is newer than this (read fresh: a say from
+    # inside the job must not undo what the job's runner saved meanwhile)
+    j["posted_at"] = t0  # the start of this post: a card it carries counts as newer
+    cur = load(j["id"]) if str(j.get("id") or "").isdigit() else None
+    if cur is not None:
+        cur["posted_at"] = j["posted_at"]
+        if "cards" in j:
+            cur["cards"] = j["cards"]
+        save(cur)
     return True
 
 
@@ -479,6 +516,74 @@ def add_wake(j, state, text="", hint="", posted=True, late=None):
     j["woke"] = time.time()
     save(j)
     return True
+
+
+# kalmido-capability: result_retry (2.1394.0, #4951): a result that could not be posted is tried again with a gap
+RESULT_RETRY_S = (30, 60, 120, 300, 600, 900)  # waits between failed posts of a job's result; after the last one: given up
+
+
+def results_dir():
+    return os.path.join(state_dir(), "results")
+
+
+def queue_result(j, item):
+    """2.1394.0 (#4951 / #2347): a job's result that did not (completely) reach the chat waits as a file
+    <state dir>/results/<job>.json for the runner's next tries (retry_results); the wake run comes only after them."""
+    item = {**item, "job": int(j["id"]), "attempts": 1, "next_try": time.time() + RESULT_RETRY_S[0]}
+    write_json(os.path.join(results_dir(), f"{int(j['id'])}.json"), item)
+    log(f"job {j['id']}: result not in the chat, tried again in {RESULT_RETRY_S[0]} s")
+
+
+def retry_results(api, now=None):
+    """The runner's side (once a minute): every waiting result is posted again once its gap is over -- only the parts not
+    in the chat yet. In the chat: the wake run follows ("its result is in this chat"). After the last try: the file is
+    kept as .failed, the job's history says so and the wake run says plainly that the result is NOT in the chat. -> the
+    number of results that are settled (posted or given up)."""
+    now = time.time() if now is None else now
+    try:
+        names = sorted(n for n in os.listdir(results_dir()) if n.endswith(".json"))
+    except OSError:
+        return 0
+    done = 0
+    for n in names:
+        path = os.path.join(results_dir(), n)
+        try:
+            with open(path, encoding="utf-8") as f:
+                item = json.load(f)
+        except (OSError, ValueError):
+            continue
+        if now < float(item.get("next_try") or 0):
+            continue
+        j = load(item.get("job")) if str(item.get("job") or "").isdigit() else None
+        if not j:
+            os.replace(path, path[:-5] + ".failed")
+            continue
+        sent = list(item.get("sent") or [])
+        # F9 (#4951 comment 22737): only files of this job's own outbox go along, never a path the waiting file names elsewhere
+        box = os.path.realpath(os.path.join(job_dir(j["id"]), "outbox"))
+        files = [p for p in item.get("files") or [] if os.path.isfile(p) and os.path.realpath(p).startswith(box + os.sep)]
+        ok = post_result(api, j, item.get("text") or "", files, item.get("kind") or "result", item.get("appr"), item.get("sugg") or [], sent)
+        j = load(j["id"]) or j
+        state, text, late = item.get("state") or "done", item.get("text") or "", item.get("late") or []
+        if ok:
+            os.unlink(path)
+            log(f"job {j['id']}: result in the chat at try {int(item.get('attempts') or 1) + 1}")
+            api.soft("PATCH", f"/agent/jobs/{int(j['id'])}", {"append_log": f"{time.strftime('%H:%M')} result in the chat (try {int(item.get('attempts') or 1) + 1})"})
+            add_wake(j, state, text, "", posted=True, late=late)
+            done += 1
+            continue
+        n_try = int(item.get("attempts") or 1) + 1
+        if n_try > len(RESULT_RETRY_S):
+            failed = path[:-5] + ".failed"
+            os.replace(path, failed)
+            log(f"job {j['id']}: result NOT in the chat after {n_try} tries, kept in {failed}")
+            api.soft("PATCH", f"/agent/jobs/{int(j['id'])}", {"append_log": f"{time.strftime('%H:%M')} result NOT in the chat after {n_try} tries"})
+            add_wake(j, state, text, f"Its result could not be posted into the chat ({n_try} tries); the full text is in the file {failed}.",
+                     posted=False, late=late)
+            done += 1
+            continue
+        write_json(path, {**item, "sent": sent, "attempts": n_try, "next_try": now + RESULT_RETRY_S[n_try - 1]})
+    return done
 
 
 def take_wakes():
@@ -613,6 +718,51 @@ def card_job(mid):
     return None
 
 
+def open_cards(uid, closed=()):
+    """2.1394.0 (#4951): the open approval cards of this host's jobs for chat person uid -> {message id: {title, what, at,
+    job, uid}} (the chat agent lists them under "Open approvals" and a yes / no in words may decide one); a card answered
+    already (closed) or older than the approval time is left out."""
+    ttl = int(os.environ.get("KALMIDO_APPROVAL_TTL") or 7 * 86400)
+    out, now = {}, time.time()
+    try:
+        names = os.listdir(jobs_dir()) if str(uid or "").isdigit() else []
+    except OSError:
+        return out
+    for n in names:
+        j = load(n) if n.isdigit() else None
+        if not j or str(j.get("chat_user") or "") != str(uid):
+            continue
+        for mid, c in (j.get("cards") or {}).items():
+            if str(mid) in closed or now - float(c.get("at") or 0) >= ttl:
+                continue
+            out[str(mid)] = {"title": c.get("title") or "", "what": c.get("what") or "", "at": float(c.get("at") or 0),
+                             "job": int(j["id"]), "uid": int(uid)}
+    return out
+
+
+def drop_card(mid):
+    """2.1394.0 (#4951): card mid of a job is closed (decided in words by the chat agent): out of its job.json."""
+    found = card_job(mid)
+    if found:
+        j, _ = found
+        j["cards"].pop(str(mid), None)
+        save(j)
+
+
+def last_post(uid):
+    """2.1394.0 (#4951): when one of this host's jobs last posted into the chat of person uid (0 = never)."""
+    try:
+        names = os.listdir(jobs_dir())
+    except OSError:
+        return 0.0
+    t = 0.0
+    for n in names:
+        j = load(n) if n.isdigit() else None
+        if j and str(j.get("chat_user") or "") == str(uid):
+            t = max(t, float(j.get("posted_at") or 0))
+    return t
+
+
 def result_blocks(text):
     """A job text -> (body, approval {title, what} or None, suggestions, done lines). 2.615.0 (#2390): asks without a card
     and exactly ONE suggestion -> that suggestion (up to 200 characters) becomes the card."""
@@ -737,6 +887,28 @@ def refused(err):
     return ""
 
 
+BRIEF_MAX = 60000  # characters of a job's brief in its chat (the server's limit, 2.739.0 #5216)
+
+
+def post_brief(api, uid, jid, brief):
+    """2.1394.0 (#5237): the brief of a new job, word for word (secrets masked), ONCE into the job's own chat (POST
+    /agent/chats/{uid} kind brief + job_id; Kalmido shows it folded at the top of the job's chat only). An older server
+    answers 400 on the unknown kind: then it is left out quietly, never posted as a normal message. True = posted."""
+    text = redact(brief).strip()
+    if not text:
+        return False
+    if len(text) > BRIEF_MAX:
+        tail = "\n\n(... cut: the brief is longer than the chat takes)"
+        text = text[:BRIEF_MAX - len(tail)].rstrip() + tail
+    try:
+        api.req("POST", f"/agent/chats/{int(uid)}", {"kind": "brief", "job_id": int(jid), "body": text}, timeout=60)
+        return True
+    except (RuntimeError, OSError) as e:  # HTTP errors / no connection
+        if "HTTP 400" not in str(e):
+            log(f"job {jid}: brief not posted into its chat: {str(e)[:150]}")
+        return False
+
+
 def cmd_start(argv):
     title, task, worktree, timeout_h, src = "", None, False, float(os.environ.get("KALMIDO_JOB_TIMEOUT_H") or 6), None
     name, parent = "", None  # 2.58.0 (#1803): own name (POST /agent/jobs {name}); 2.59.0 (#1827): part job of job ID
@@ -853,6 +1025,8 @@ def cmd_start(argv):
             print("the working copy could not be created (is the folder a git repository?): " + str(e)[:200])
             return 1
     save(j)
+    if j["chat_user"]:  # kalmido-capability: job_brief (2.1394.0, #5237)
+        post_brief(api, j["chat_user"], jid, brief)
     spawn_run(j)
     print(f"Job #{jid} \"{j['title']}\" started (own background run; the result comes into the chat when it is done)")
     return 0
@@ -1065,6 +1239,44 @@ def job_settings(ar, j, base, d):
     return ["--settings", f]
 
 
+# kalmido-capability: model_per_run (2.1394.0, #7031): model and effort per kind of job from the runtime settings
+JOB_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+
+def job_kind_model(rt, j):
+    """2.1394.0 (#7031): (model, effort) of this job from Kalmido's runtime settings (GET /api/v1/agent runtime): model_job /
+    effort_job for a build job, model_audit / effort_audit for a read-only review job (--audit); "" = the default (the
+    command's own model, no --effort). An effort Claude Code does not know is left out."""
+    kind = "audit" if j.get("audit") else "job"
+    model = str((rt or {}).get("model_" + kind) or "").strip()
+    effort = str((rt or {}).get("effort_" + kind) or "").strip().lower()
+    return model, (effort if effort in JOB_EFFORTS else "")
+
+
+def job_model_args(ar, profile, base, rt, j):
+    """2.1394.0 (#7031): base with --model / --effort of the job's kind instead of the command's own (a Claude Code command
+    only; another command keeps its own model -- Codex and generic commands have no --effort)."""
+    model, effort = job_kind_model(rt, j)
+    if profile != "claude" or not (model or effort) or (ar and not ar.claude_native(j["cmd"])):
+        return base
+    if model:
+        base = ar.with_model(base, model) if ar else [a for a in base if a != "--model"] + ["--model", model]
+    if effort:
+        out, skip = [], False
+        for a in base:
+            if skip:
+                skip = False
+                continue
+            if a == "--effort":
+                skip = True
+                continue
+            if not a.startswith("--effort="):
+                out.append(a)
+        base = out + ["--effort", effort]
+    log(f"job #{j.get('id')}: {'review' if j.get('audit') else 'build'} job, model {model or 'default'}, effort {effort or 'default'}")
+    return base
+
+
 def cmd_run(argv):
     j = load(argv[0])
     if not j:
@@ -1087,6 +1299,7 @@ def cmd_run(argv):
     if streaming and "--input-format" not in base:
         base += ["--input-format", "stream-json"]
     base += job_settings(ar, j, base, d)  # 2.615.0 E (#3758): the guard against dangerous commands, as in the chat runs; kalmido-capability: usage_hook (2.619.0, #3267: jobs too)
+    base = job_model_args(ar, profile, base, ((api.soft("GET", "/agent") or {}).get("runtime") or {}), j)  # 2.1394.0 (#7031)
     env = dict(os.environ, KALMIDO_OUTBOX=outbox, KALMIDO_JOB_ID=str(j["id"]))
     env.pop("KALMIDO_JOB_CMD", None)  # a job does not start jobs
     # kalmido-capability: token_scoped (2.1367.0, #6457): the job's model process gets the env file's path, never the token
@@ -1295,12 +1508,22 @@ def cmd_run(argv):
     if left:
         text = (text + "\n\n" if text else "") + (f"(Launcher: {len(left)} message(s) came after the job's last step and did not reach it: "
                                                     + " | ".join(" ".join(str(x.get("text") or "").split())[:200] for x in left) + ")")
-    posted = post_result(api, j, text, outbox_files(outbox), "result" if ok and not timed_out else "error", appr, sugg)
+    skipped = outbox_left_out(outbox)  # 2.1394.0 (#4951 / #2347): files that do not go along are named in one line
+    if skipped:
+        text = (text + "\n\n" if text else "") + skipped
+    sent, files = [], outbox_files(outbox)
+    kind = "result" if ok and not timed_out else "error"
+    posted = post_result(api, j, text, files, kind, appr, sugg, sent)
     api.soft("PATCH", f"/agent/jobs/{int(j['id'])}", {"state": "done" if ok and not timed_out else "failed",
                                                       "append_log": f"{time.strftime('%H:%M')} {'done' if ok and not timed_out else 'ended'}"})
+    j = load(j["id"]) or j
     j.update(state="done" if ok and not timed_out else "failed", ended=time.time())
     save(j)
     late = inbox_take(j["id"])  # 2.615.0 (#3658 / M6): a message between the last take and the end goes to the wake run
+    if not posted and j.get("chat_user"):  # 2.1394.0 (#4951): tried again with a gap; the wake run says "in the chat" only then
+        queue_result(j, {"text": text, "files": files, "kind": kind, "appr": appr, "sugg": sugg, "sent": sent,
+                         "state": j["state"], "late": [{k: it.get(k) for k in ("t", "kind", "uid", "text")} for it in late]})
+        return 0
     add_wake(j, "done" if ok and not timed_out else "failed", text,  # 2.46.6 (#1445): a wake run instead of a note
              "" if posted else "Its result could not be posted into the chat.", posted=posted, late=late)
     return 0

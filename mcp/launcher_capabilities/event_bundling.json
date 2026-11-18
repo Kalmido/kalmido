@@ -1,0 +1,12 @@
+{
+  "id": "event_bundling",
+  "since": "2.44.0",
+  "what": "Task events of lists where the agent listens in (task_added, tasks_added, tidy) are collected for 2 minutes (KALMIDO_BUNDLE_S) and handled in ONE run that only comments, never builds; pure information (missed, a Stop of an unknown job, events of persons outside KALMIDO_OWNER_IDS) becomes a note for the next run; a task run carries the task, its description and the latest comments; chat events are never delayed; the pending bundle survives a restart",
+  "core": [
+    "def intake",
+    "KALMIDO_BUNDLE_S",
+    "def take_bundle",
+    "def task_context",
+    "KALMIDO_OWNER_IDS"
+  ]
+}

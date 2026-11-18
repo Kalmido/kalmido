@@ -1,0 +1,6 @@
+{
+  "id": "runtime",
+  "since": "2.4.1",
+  "what": "Runtime settings from GET /api/v1/agent: model, auto-compact, fresh session, restart on change / Reset now / nightly, stop while paused",
+  "core": []
+}

@@ -1,0 +1,8 @@
+{
+  "id": "receipt_read",
+  "since": "2.299.0",
+  "what": "A job_request of kind receipt_read (a person asks the agent to read a receipt) gets one more line: open the file itself (read_file as base64 of input.document.id, a local model is fine), answer only the values on the receipt (supplier, VAT id, invoice number, date, net / VAT / gross, rates, positions at most 100, a category of input.categories, a bank booking only of input.bank) with submit_proposal, nothing invented; Kalmido calls no model and sends nothing",
+  "core": [
+    "def receipt_hint"
+  ]
+}

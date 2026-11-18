@@ -1,0 +1,9 @@
+{
+  "id": "text_proposal",
+  "since": "2.126.1",
+  "what": "A job_request of kind office_text / doc_summary / report (a person asks for the introduction or closing of an office draft, a document summary, a client report) gets one more line: word the text from the input only, invent nothing, no placeholders, in the document's language, answer {field, text} or {text} with submit_proposal; Kalmido sends nothing",
+  "core": [
+    "def text_hint",
+    "TEXT_KINDS"
+  ]
+}

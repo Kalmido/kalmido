@@ -711,7 +711,8 @@ agent account.
 
 ### 9. Autostart with the runtime launcher
 
-[`mcp/agent_launcher.sh`](../mcp/agent_launcher.sh) starts Claude Code with the runtime settings an admin chose in
+[`mcp/agent_launcher.sh`](../mcp/agent_launcher.sh) (2.1394.0, #4068: through `mcp/agent_run.py --launch`, the same core as
+`agent_launcher.ps1`; Python 3 is needed) starts Claude Code with the runtime settings an admin chose in
 Kalmido (*Settings > Agents > (agent) > Runtime*: model, auto-compact, nightly fresh restart, *Reset now*),
 always in a fresh session, restarts it when they change, and stops it while the agent is paused. 2.396.0: it also sets
 the agent's **git author** from the block *Git author* of its settings (`GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` and the
@@ -835,7 +836,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
   Runtime > Work the list off* (*Off* / *Dry run* / *Active*) lets the starter work the lists of `KALMIDO-DISPATCH.json` in
   the project folder off on its own. It closes built tasks (a commit with `#ID` in `close_ref`), starts the next job when a
   place is free (2.1368.0: in its own working copy; once it ended, the starter runs the project's `check_cmd` itself and
-  only when it is green opens a pull request with a *Ready to merge* card for you; merging stays yours), tells you once about stuck tasks and silent jobs, and sends a day report. It builds only tasks you wrote
+  only when it is green opens a pull request with a *Ready to merge* card for you; merging stays yours), tells you once about stuck tasks and silent jobs, and sends a day report. A task whose *Blocked by* field
+  names an open task waits until that one is built (2.1394.0). It builds only tasks you wrote
   yourself in the app or with your own token (2.1308.0): tasks of other members, without a creator or from a webhook, an
   e-mail, a form or an import are named in the day report, never built (2.1375.0: also a task of yours whose title or
   description someone else changed last, until you change it yourself; 2.1389.0: never a copy, a saved chat message or a
@@ -845,7 +847,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
 - **Long work as a job** (2.44.0, [`mcp/agent_job.py`](../mcp/agent_job.py)): work that takes more than about ten minutes (a release
   build, an audit, a full test run) the agent starts with `"<python>" "<mcp>/agent_job.py" start --title "..." [--worktree] -` (the brief on
   stdin; 2.223.8: the prompt names the Python that runs the starter and quotes both paths, so Windows without
-  `python3.exe` and user names with spaces work; in PowerShell `&` goes in front). 2.59.0: each job gets a name its title starts with (`Alma: …`; `--name NAME`, else one of a built-in list of
+  `python3.exe` and user names with spaces work; in PowerShell `&` goes in front). 2.1394.0: model and effort of build jobs and
+  of review jobs (`--audit`) are set in *Runtime > Jobs on its computer* (empty = the agent's default; Claude Code only). 2.59.0: each job gets a name its title starts with (`Alma: …`; `--name NAME`, else one of a built-in list of
   neutral first names) and `--parent ID` makes it a part job (`Alma B`); the chat shows the name on the job's messages, the
   colour follows the name, a part job looks like its leader, a little lighter. 2.96.0: all messages of a job form ONE card in the
   chat (name, version, state, the newest line; a tap shows the whole history), the result and errors stay visible under it

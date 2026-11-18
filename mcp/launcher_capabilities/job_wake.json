@@ -1,0 +1,16 @@
+{
+  "id": "job_wake",
+  "since": "2.46.6",
+  "what": "A job that ended (done, failed, time limit, stopped, lost) wakes the chat agent: ONE chat run per job for the job's person (a file in <state dir>/wakes/, taken once by the runner and queued as the launcher's own event job_wake) with the outcome, the start of the result (fenced, data) and what to do next (go on / do not restart a stopped job / offer to start a lost one again); a job without a chat person leaves a note instead. After a restart of the computer a job whose process is gone is continued ONCE in the same session (--resume) when it has one, else it stays lost (Kalmido job failed) and wakes the chat agent; never an endless restart; 2.615.0 (#3757 / #3755): after a job that is done the wake run may answer with the single line STILL: nothing is posted, only logged (a STILL answer with an ```approval block or outbox files is posted without the STILL line); failed, stopped and lost always get a line",
+  "core": [
+    "def add_wake",
+    "def take_wakes",
+    "def revive_lost",
+    "def job_watch",
+    "def wake_hint",
+    "REVIVE_PROMPT",
+    "--revive",
+    "def wake_still",
+    "QUIET_RE"
+  ]
+}

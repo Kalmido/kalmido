@@ -206,7 +206,7 @@ def _dl_lists_locked(c, aid, lids):
 @app.get("/api/agents/<int:aid>/data-lock")
 def dl_route_get(aid):
     c = db()
-    return _dl_view(c, ws_need_editor(c, aid))
+    return _dl_view(c, ws_need_editor(c, aid, read=True))
 
 
 @app.patch("/api/agents/<int:aid>/data-lock")

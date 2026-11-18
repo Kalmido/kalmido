@@ -1,0 +1,10 @@
+{
+  "id": "job_names",
+  "since": "2.59.0",
+  "what": "Every job of agent_job.py gets a name its title starts with (\"Alma: Release 2.29\"): --name, else the next free one of a built-in list of neutral first names; --parent ID makes it a part job (\"Alma B\") whose result names its leader (job_parent with job_id; the job keeps it); older servers that refuse job_parent get the same message without it. The app shows the name on the job's messages and derives the job's colour from it (a part job: its leader's, lighter)",
+  "core": [
+    "JOB_NAMES",
+    "def job_name",
+    "\"job_parent\""
+  ]
+}

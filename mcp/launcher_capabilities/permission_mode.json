@@ -1,0 +1,9 @@
+{
+  "id": "permission_mode",
+  "since": "2.32.0",
+  "what": "The run's permission mode and the host default (permission_mode, host_permission_mode)",
+  "core": [
+    "def permission_modes",
+    "host_permission_mode"
+  ]
+}

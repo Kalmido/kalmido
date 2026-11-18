@@ -7,6 +7,7 @@ readable for the person, fetches the starter files and sets up the autostart. Ev
 (api_tokens.host / folder / os), so "Remove computer" revokes just that one (POST /api/agent-setup/remove with the token
 itself = the setup script's --uninstall). Codes are stored as a hash, live AINS_CODE_TTL_MIN minutes and work once.
 """
+import hashlib
 import ipaddress
 import os
 import re
@@ -48,16 +49,28 @@ def ains_version():
 
 
 def ains_starter_sha():
-    """2.380 G (#3390): {file name: sha256} of the starter files this version was released with (mcp/starter_sha256.txt, made by
-    tools/starter_sha.py; the image has it in /app, a checkout in mcp/) -- {} when missing: the setup then checks nothing."""
-    for p in (os.path.join(app.root_path, "starter_sha256.txt"), os.path.join(app.root_path, "mcp", "starter_sha256.txt")):
-        try:
-            with open(p, encoding="utf-8") as f:
-                rows = [ln.split() for ln in f if ln.strip() and not ln.startswith("#")]
-        except OSError:
-            continue
+    """2.380 G (#3390): {file name: sha256} of the starter files this version was released with (starter_sha256.txt; #6887:
+    the image build writes it into /app, it is no longer checked in) -- a checkout without it (tests, a server started from
+    the source) computes the same sums from mcp/starter_files.txt as tools/starter_sha.py does (a left-over
+    mcp/starter_sha256.txt is not read, it may be stale); {} when neither is there: the setup then checks nothing."""
+    try:
+        with open(os.path.join(app.root_path, "starter_sha256.txt"), encoding="utf-8") as f:
+            rows = [ln.split() for ln in f if ln.strip() and not ln.startswith("#")]
         return {r[1]: r[0].lower() for r in rows if len(r) == 2 and re.fullmatch(r"[0-9a-fA-F]{64}", r[0])}
-    return {}
+    except OSError:
+        pass
+    mcp = os.path.join(app.root_path, "mcp")
+    try:
+        with open(os.path.join(mcp, "starter_files.txt"), encoding="utf-8") as f:
+            names = ["starter_files.txt"] + [n for n in (ln.split("#", 1)[0].strip() for ln in f) if n]
+        out = {}
+        for n in names:
+            if n not in out:
+                with open(os.path.join(mcp, n), "rb") as f:
+                    out[n] = hashlib.sha256(f.read()).hexdigest()
+        return out
+    except OSError:
+        return {}
 
 
 def ains_text(v, n, what):
@@ -179,7 +192,7 @@ def ains_admin_code(aid):
 def ains_admin_machines(aid):
     c = db()
     with system_ctx(c):  # the instance admin manages agent accounts (any organisation; structure, no content)
-        need_agent_admin(c, aid)
+        need_agent_admin(c, aid, read=True)  # #6862: reading; removing a device stays closed to support access
         return jsonify(machines=ains_machines(c, aid))
 
 
@@ -296,6 +309,34 @@ def ains_remove():
         c.commit()
         print("agent setup: computer removed for agent", r["user_id"], "token", r["id"], flush=True)
         return jsonify(ok=True)
+
+
+# #6887: the agent behaviour rules of the setup guides (Settings > Agents, static/js/agentchat.js agRulesHtml) are the marked
+# block of mcp/CLAUDE.template.md, read here at runtime (the image: next to app.py; a checkout: mcp/) instead of a copy in
+# agentchat.js: two packages that each changed a rule collided in that copy in GitHub's merge queue
+AINS_RULES_FILES = (os.path.join(app.root_path, "CLAUDE.template.md"), os.path.join(app.root_path, "mcp", "CLAUDE.template.md"))
+AINS_RULES_RE = re.compile(r"<!-- kalmido-agent-rules:start -->\n(.*?)<!-- kalmido-agent-rules:end -->", re.S)
+
+
+def ains_rules_text():
+    """The rules block of mcp/CLAUDE.template.md, or "" when the file or its markers are missing."""
+    for p in AINS_RULES_FILES:
+        try:
+            with open(p, encoding="utf-8") as f:
+                m = AINS_RULES_RE.search(f.read())
+        except OSError:
+            continue
+        return m.group(1) if m else ""
+    return ""
+
+
+@app.get("/api/agent-rules")
+def ains_rules():
+    """#6887: {rules} for the setup guides (any signed-in account; the same text is public in the repository)."""
+    t = ains_rules_text()
+    if not t:
+        return err(tr("Not available"), 404)
+    return jsonify(rules=t)
 
 
 @app.get("/agent-setup.sh")

@@ -137,7 +137,9 @@ ROT = {"rotate_size": "medium", "rotate_runs": 60, "rotate_idle_min": 45, "rotat
        "git_author_name": "", "git_author_email": "", "git_coauthor": False, "git_author": "Kalmido <noreply@kalmido.com>",  # 2.396.0 A (#3386): the commit identity
        "dispatch": "",  # 2.481.0 (#3662): the starter's mechanical dispatcher, off by default
        # 2.997.0 (#5679): the model per run (#5668 / #5684), off by default - one model as before
-       "model_split": False, "model_decide": "", "model_routine": "", "model_review": ""}
+       "model_split": False, "model_decide": "", "model_routine": "", "model_review": "",
+       # 2.1394.0 (#7031): model and effort per kind of job, empty = the host's default
+       "model_job": "", "effort_job": "", "model_audit": "", "effort_audit": ""}
 me = cl.get("/agent").json()
 check(me.get("runtime") == {"model": "", "autocompact": True, "autocompact_pct": None, "nightly_reset": "", "permission_mode": "", "perm_user": None, "reset_seq": 0,
                             "timezone": "Europe/Berlin", **ROT}, f"runtime defaults: {me.get('runtime')}")

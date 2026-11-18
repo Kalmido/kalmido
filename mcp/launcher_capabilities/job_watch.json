@@ -1,0 +1,10 @@
+{
+  "id": "job_watch",
+  "since": "2.392.2",
+  "what": "The watchdog's events job_stalled (a running job without progress for the work style's stall_min minutes) and branch_stranded (a task's branch without a merge, no open job, 3 days) get one hint: report progress or end the job, merge the branch or park the task with set_delivery; never restart or delete on its own. agent_job.py start passes the chain to Kalmido: --parent as parent_id, --continue-of as continue_of, several --task as task_ids (status prints them)",
+  "core": [
+    "def watch_hint",
+    "\"continue_of\"",
+    "\"task_ids\""
+  ]
+}

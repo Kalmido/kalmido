@@ -1,0 +1,9 @@
+{
+  "id": "job_brief",
+  "since": "2.1394.0",
+  "what": "#5237: the brief of a new job goes once, word for word, as kind brief with job_id into the job's own chat (POST /api/v1/agent/chats/{uid}); an older server (400) = left out quietly, never a normal message",
+  "core": [
+    "def post_brief",
+    "\"kind\": \"brief\""
+  ]
+}

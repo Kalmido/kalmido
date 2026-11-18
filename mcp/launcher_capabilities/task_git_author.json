@@ -1,0 +1,9 @@
+{
+  "id": "task_git_author",
+  "since": "2.619.0",
+  "what": "A task run sets GIT_AUTHOR_* / GIT_COMMITTER_* (and KALMIDO_GIT_COAUTHOR) from the task's repo.git_author (the project's choice, else the agent's value); without it the launcher's agent-level git author stays (#3467)",
+  "core": [
+    "def git_author_env",
+    "self.run_repo"
+  ]
+}

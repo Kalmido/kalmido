@@ -1,0 +1,9 @@
+{
+  "id": "perm_user_choice",
+  "since": "2.312.0",
+  "what": "Who answers the permission questions of a team agent can be chosen in its settings in Kalmido: GET /api/v1/agent perm_user_id (read again after the event runtime_changed) comes before KALMIDO_PERM_USER; null or an older server = KALMIDO_PERM_USER as before",
+  "core": [
+    "def perm_user",
+    "perm_user_id"
+  ]
+}

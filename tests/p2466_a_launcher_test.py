@@ -290,7 +290,26 @@ check(rc == 0 and len(cl) == 1 and cl[0]["args"][-2:] == ["--resume", "S-9"] and
       and cl[0]["prompt"].strip().endswith(aj.REVIVE_PROMPT),  # 2.46.6 (#1715, review): the rules block in front of the note too
       f"revive: --resume of the same session, rules block + the note as the prompt: {cl}")
 w = aj.take_wakes()
-check(aj.load(63)["state"] == "done" and len(w) == 1 and w[0]["job"]["state"] == "done", "the continued job ends and wakes the chat agent")
+# 2.1394.0 (#4951): Kalmido is not reachable here, so its result is not in the chat: it is tried again with a gap and the wake
+# comes after that (plainly "NOT in the chat" once the tries are used up), never at once with a result that is not there
+rq = os.path.join(r.state_dir, "results", "63.json")
+check(aj.load(63)["state"] == "done" and w == [] and os.path.exists(rq), "the continued job ends; its unposted result waits for the next try")
+
+
+class _NoChat:
+    def req(self, *a, **kw):
+        raise RuntimeError("HTTP 502")
+
+    def soft(self, *a, **kw):
+        return None
+
+
+item = json.load(open(rq))
+item["attempts"] = len(aj.RESULT_RETRY_S)
+aj.write_json(rq, item)
+aj.retry_results(_NoChat(), now=time.time() + 4000)
+w = aj.take_wakes()
+check(len(w) == 1 and w[0]["job"]["state"] == "done" and w[0]["posted"] is False, f"after the last try it wakes the chat agent: {w}")
 
 print(f"p2466_a_launcher: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

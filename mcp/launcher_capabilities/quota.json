@@ -1,0 +1,12 @@
+{
+  "id": "quota",
+  "since": "2.33.0",
+  "what": "Plan usage (PUT /api/v1/agent/quota) from the stream's rate_limit_event or a status line file, with measured_at; stale values are unknown; every window passes through; optional own limit pauses new runs",
+  "core": [
+    "/agent/quota",
+    "rate_limit_event",
+    "measured_at",
+    "unifiedWindows",
+    "def paused_until"
+  ]
+}

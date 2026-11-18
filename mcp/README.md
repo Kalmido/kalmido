@@ -160,6 +160,11 @@ The env file holds `KALMIDO_URL` and `KALMIDO_TOKEN`. Details and a systemd unit
 **macOS (2.44.0, #962):** `agent_launcher.sh` runs on a Mac as it is (`/bin/bash` 3.2, `python3`; no GNU `date`, no
 `setsid`, no PowerShell).
 
+**One core (2.1394.0, #4068):** `agent_launcher.sh` and `agent_launcher.ps1` only load the env file, find Python 3 and start
+`agent_run.py --launch`; the runtime loop (settings, model, auto-compact, restarts, git author, work window, host name,
+revoked token, process group) lives there once, so the two launchers cannot drift apart. Python 3 is needed also without
+`--events`.
+
 **Windows (2.7.2):** [`agent_launcher.ps1`](agent_launcher.ps1) is the same launcher in PowerShell (Windows
 PowerShell 5.1 or PowerShell 7; on macOS / Linux an alternative with PowerShell 7):
 
@@ -173,8 +178,8 @@ A scheduled task (Windows) and a launchd plist (macOS): [docs/AGENTS.md](../docs
 **Set up with one command (2.44.0, #1517):** *Settings > Agents > (agent) > Set up on a computer* shows one command with a
 one-time code. The setup script of your Kalmido (`/agent-setup.sh` for macOS / Linux, `/agent-setup.ps1` for Windows)
 trades the code for the agent's token (kept in a private file), fetches the files in [`starter_files.txt`](starter_files.txt)
-(a new starter module must be listed there; then run `python3 tools/starter_sha.py` so `starter_sha256.txt` carries its
-checksum -- the setup refuses a downloaded file whose SHA-256 differs from the one the server sends, 2.380) and sets up the autostart (launchd / systemd --user / Task Scheduler). Both
+(a new starter module must be listed there; the image build computes its checksum with `tools/starter_sha.py` -- the setup
+refuses a downloaded file whose SHA-256 differs from the one the server sends, 2.380) and sets up the autostart (launchd / systemd --user / Task Scheduler). Both
 scripts mark the same steps (`# kalmido-setup-step: <id>`, checked by `tests/launcher_parity_test.py`). Details:
 [docs/AGENTS.md](../docs/AGENTS.md#set-up-on-a-computer-with-one-command-2440).
 
@@ -203,13 +208,16 @@ follows `--`.
 | `generic` | `COMMAND` with the prompt on stdin | the text on stdout is the answer | steps, conversation, permission questions, plan usage |
 
 Approval cards come from the final ` ```approval ` block of the answer for every profile. Jobs (`agent_job.py`) use the same
-profile.
+profile. 2.1394.0 (#4951): a yes / no of the agent's person in words decides the one card it fits (only the bare word or
+"yes, card N"; other words, "ok", a reply to another message or a /drop message never; a bare word only for the one, newest card); a job result the chat did not take is tried again with a gap
+before the wake run; `agent_run.py --card-stats` prints the card counters. (#5237): a job's brief goes once as `kind: brief`
+into its own chat.
 
 ```sh
 KALMIDO_AGENT_CMD="codex --skip-git-repo-check --sandbox workspace-write" ./agent_launcher.sh -e /path/to/kalmido-agent.env --events
 ```
 
-What a launcher has to do is listed in [`launcher_capabilities.json`](launcher_capabilities.json); a test fails when the
+What a launcher has to do is listed in [`launcher_capabilities/`](launcher_capabilities/) (one `<id>.json` per capability); a test fails when the
 `.sh` or the `.ps1` lacks one.
 
 **Working a list off (2.481.0):** with *Work the list off* switched on in the agent's runtime settings (or
@@ -218,7 +226,8 @@ What a launcher has to do is listed in [`launcher_capabilities.json`](launcher_c
 `close_ref`, starts ONE job per free place for the next bundle (2.1368.0: in its own working copy; the ended job's branch
 gets the project's `check_cmd` run by the dispatcher, green = one pull request with an approval card, red = none, never a merge) (2.1308.0: only tasks the person wrote themselves, `by_creator`;
 2.1375.0: and whose title and description the person wrote last, `updated_by`; comments of other
-accounts go into the brief fenced as data), guards the jobs and posts one day report. A dry run changes
+accounts go into the brief fenced as data; 2.1394.0: a task whose dependency field names an open task not built yet
+waits; with `same_file` on, tasks naming the same file share a bundle), guards the jobs and posts one day report. A dry run changes
 nothing. `python3 agent_dispatch.py --dry-run` runs one round by hand. Details:
 [docs/AGENTS.md](../docs/AGENTS.md#working-a-list-off-24810).
 

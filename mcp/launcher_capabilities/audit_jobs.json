@@ -1,0 +1,9 @@
+{
+  "id": "audit_jobs",
+  "since": "2.619.0",
+  "what": "agent_job.py start --audit: a review job in a read-only area of its own (at most KALMIDO_AUDIT_MAX, default 3, open; never counted against the working copies of build jobs; not with --worktree / --parent); a read-only note goes in front of its brief, list and status mark it (#2792)",
+  "core": [
+    "AUDIT_NOTE",
+    "KALMIDO_AUDIT_MAX"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "job_chat",
+  "since": "2.153.0",
+  "what": "A chat message typed in a job's own chat (message.job_id, the job in data.job) gets one line in the prompt: it is about that job, a running background job cannot read it, so the chat run answers it as a message about that job; an answer to messages of ONE job goes into that job's chat (job_id on the answer); an older server or a job that is gone (400 / 404 / 409): the same answer without job_id",
+  "core": [
+    "def job_chat_hint",
+    "\"job_id\""
+  ]
+}

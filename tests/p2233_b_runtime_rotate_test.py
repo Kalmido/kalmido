@@ -14,6 +14,8 @@
    (POST /api/v1/agent/usage run_class / run_id, GET /api/my|admin/agents/<id>/model-usage), model_split in the agent list
    (the chat header's "runs with ..."), a planned job of the kind review (scheduled_job review: true); a person without an
    organisation for all of it
+ - 2.1394.0 (#7031): runtime model_job / effort_job / model_audit / effort_audit (model and effort per kind of job), admin and
+   a person without an organisation; effort only low / medium / high / xhigh / max, null = empty
  - the client file is in the agent bundle and the service worker list (static)
 usage: p2233_b_runtime_rotate_test.py <datadir>      (KMT_NOSTART=1 / P2233B_NOSTART=1: a running server)"""
 import os
@@ -126,6 +128,24 @@ check(r.ok and r.json()["days"] == 7 and [x["run_class"] for x in r.json()["clas
       and all(x["runs"] == 0 and x["tokens"] == 0 for x in r.json()["classes"]) and r.json()["cost"] is False,
       f"#5684: the admin's usage per kind of an agent without reports: the three kinds at 0 {r.text[:300]}")
 check(Bo.get(B + f"/api/admin/agents/{CL}/model-usage").status_code == 403, "#5684: a member: the admin route 403")
+# 2.1394.0 (#7031): model and effort per kind of job (build / review), empty by default; effort only from the known levels
+rt = requests.get(V + "/agent", headers=CLH).json()["runtime"]
+check(all(rt[k] == "" for k in ("model_job", "effort_job", "model_audit", "effort_audit")), f"#7031: empty by default: {rt}")
+cur = requests.get(V + "/agent/events?since=latest", headers=CLH).json()["cursor"]
+r = A.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"model_job": " opus ", "effort_job": "", "model_audit": "claude-fable-5-2", "effort_audit": "High"}})
+rt = requests.get(V + "/agent", headers=CLH).json()["runtime"]
+check(r.ok and rt["model_job"] == "opus" and rt["effort_job"] == "" and rt["model_audit"] == "claude-fable-5-2" and rt["effort_audit"] == "high",
+      f"#7031: the admin sets them: {r.status_code} {rt}")
+check(any(e["event"] == "runtime_changed" and e["data"]["runtime"]["effort_audit"] == "high" for e in events(CLH, cur)), "#7031: runtime_changed carries them")
+for bad, what in (({"effort_job": "turbo"}, "unknown effort"), ({"effort_audit": 3}, "effort as number"), ({"model_job": "a b"}, "space in a model"),
+                  ({"model_audit": "x" * 101}, "model too long")):
+    check(A.patch(B + f"/api/admin/agents/{CL}", json={"runtime": bad}).status_code == 400, f"#7031: 400: {what}")
+check(requests.get(V + "/agent", headers=CLH).json()["runtime"]["effort_audit"] == "high", "#7031: a refused change changed nothing")
+check(Bo.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"model_job": "opus"}}).status_code == 403, "#7031: a member: 403")
+r = A.patch(B + f"/api/admin/agents/{CL}", json={"runtime": {"effort_audit": None, "model_job": None}})
+rt = requests.get(V + "/agent", headers=CLH).json()["runtime"]
+check(r.ok and rt["effort_audit"] == "" and rt["model_job"] == "" and rt["model_audit"] == "claude-fable-5-2", f"#7031: null = empty: {rt}")
+check("function agj_html" in open(os.path.join(ST, "js", "agentrotate.js"), encoding="utf-8").read(), "#7031: the runtime section has the jobs block")
 r = A.post(B + "/api/admin/agents", json={"scopes": ["read"], "username": "robo", "runtime": {"rotate_idle_min": 90}})
 check(r.ok and rot(r.json()["runtime"])["rotate_idle_min"] == 90, "created with an interim-summary value " + r.text[:120])
 
@@ -151,6 +171,11 @@ r = F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"model_split": True, "
 rt = requests.get(V + "/agent", headers=FBH).json()["runtime"]
 check(r.ok and rt["model_split"] is True and rt["model_decide"] == "opus" and rt["model_routine"] == "sonnet", f"#5668: the freelancer sets it: {rt}")
 check(F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"model_split": "on"}}).status_code == 400, "#5668: owner: wrong type 400")
+# 2.1394.0 (#7031): a person without an organisation sets model and effort of the own agent's jobs
+r = F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"model_job": "sonnet", "effort_job": "medium", "effort_audit": "max"}})
+rt = requests.get(V + "/agent", headers=FBH).json()["runtime"]
+check(r.ok and rt["model_job"] == "sonnet" and rt["effort_job"] == "medium" and rt["effort_audit"] == "max", f"#7031: the freelancer sets them: {rt}")
+check(F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"effort_job": "huge"}}).status_code == 400, "#7031: owner: unknown effort 400")
 check("function agm_html" in open(os.path.join(ST, "js", "agentrotate.js"), encoding="utf-8").read(), "#5668: the owner's dialog has the model section")
 # 2.992.0 (#5684): the third model, the header's switch, the usage per kind, a planned review - all as a person without an organisation
 r = F.patch(B + f"/api/my/agents/{FB}", json={"runtime": {"model_review": "fable"}})

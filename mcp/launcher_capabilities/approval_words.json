@@ -1,0 +1,12 @@
+{
+  "id": "approval_words",
+  "since": "2.1394.0",
+  "what": "#4951 / #2347: a yes / no of the agent's person in words decides the open card it fits (a chat card runs like a press, a job's card goes to the job); only the bare word or \"Yes, card N\" decides -- other words, \"ok\", questions, a reply to another message, a message through the upload token (origin drop) and someone else never; a bare yes / no only with one open card newer than the last answer and no open permission question; \"Yes, card N\" by number; the cards of jobs stand in Open approvals; counters with agent_run.py --card-stats; only a message written after the card (a higher message id) decides it",
+  "core": [
+    "WORD_DECIDE_RE",
+    "def word_decision",
+    "def job_cards",
+    "def card_stats",
+    "def open_cards"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "perm_relay",
+  "since": "2.44.0",
+  "what": "A tool call outside the agent's allow list asks the person in the chat (Claude Code: a PermissionRequest hook handed in per run with --settings, never the person's own settings): a permission question with Allow / Deny (permission: true), a thumbs up / down or a plain yes / no while exactly one question is open; no answer within KALMIDO_PERM_TIMEOUT (default 9 min) = denied, no runner = denied at once, a late answer gets a note; KALMIDO_PERM_RELAY=0 switches it off; commands without hooks: off; 2.126.0: only the agent's operator answers (KALMIDO_PERM_USER, the owner, KALMIDO_OWNER_IDS), anyone else chatting gets the step denied with a note",
+  "core": [
+    "def perm_hook",
+    "PermissionRequest",
+    "\"permission\": True",
+    "def intercept",
+    "PERM_TIMEOUT_S",
+    "PERM_LATE",
+    "def perm_operators",
+    "PERM_OPERATOR_ONLY"
+  ]
+}

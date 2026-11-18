@@ -22,6 +22,13 @@ fake Kalmido API and a real temporary git repository.
  - 2.1368.0 (#7028): check_cmd is required; a job always gets its own working copy and ends in a pull request: the dispatcher
    runs the check on the ended job's branch itself (red = no pull request, the tasks go back to the list, told once; green =
    only job/<id> is pushed, ONE pull request, an approval card "merge_request" on the first task), never a merge
+ - 2.1394.0 (#5200): the dependency field holds a task until its blocker is built (commit in close_ref); unreadable / hidden holds;
+   a text line "Grundlage: #ID" holds nothing
+ - 2.1394.0 (#5201): a task the dispatcher closed and a person reopened is neither closed nor bundled again (told once); a new
+   commit closes it
+ - 2.1394.0 (#7031): agent_job.py takes model and effort of the job's kind (build / review) from the runtime settings
+ - 2.1394.0 (#6176): same_file: tasks naming the same file (paths only) join the first task's bundle (same priority class,
+   bundle_points / bundle_max stay, a collect file connects nothing); a task also waits for a job branch on its file
 Pure Python, no container."""
 import importlib.util
 import json
@@ -53,8 +60,8 @@ ad = load("agent_dispatch")
 # ---- the runner side
 src = open(os.path.join(MCP, "agent_run.py"), encoding="utf-8").read()
 check("def dispatch_watch" in src and "self.dispatch_watch()" in src, "the runner calls the dispatcher once a minute")
-caps = {c["id"]: c for c in json.load(open(os.path.join(MCP, "launcher_capabilities.json"), encoding="utf-8"))["capabilities"]}
-check("dispatcher" in caps and caps["dispatcher"]["since"] == "2.481.0", "capability dispatcher")
+cap = json.load(open(os.path.join(MCP, "launcher_capabilities", "dispatcher.json"), encoding="utf-8"))  # #6887: one file per capability
+check(cap.get("id") == "dispatcher" and cap.get("since") == "2.481.0", "capability dispatcher")
 check("agent_dispatch.py" in open(os.path.join(MCP, "starter_files.txt"), encoding="utf-8").read(), "agent_dispatch.py is a starter file")
 for k in ("dispatch_closed", "dispatch_report", "dispatch_stuck", "dispatch_needs_yes", "dispatch_state_ready", "dispatch_state_foreign", "dispatch_skipped"):
     check(k in ar.TEXTS and len(ar.TEXTS[k]) == 6, f"text {k} in six languages")
@@ -139,6 +146,7 @@ TASKS = [{**task(101, "Login button"), "locked": True}, task(111, "Kept", tags=[
          task(113, "Member's wish", "S", tags=["Urgent"], by=8), task(114, "No creator", "S", tags=["Urgent"], by=None),
          task(115, "From a webhook", "S", tags=["Urgent"], own=False)]  # review F1: the real webhook way (created_by = its owner)
 COMMENTS = {}
+DEPS = {}  # 2.1394.0 (#5200): {task id: [blocked_by rows]} of GET /tasks/<id>/dependencies; a missing id = 404
 
 
 class FakeApi:
@@ -154,6 +162,11 @@ class FakeApi:
             return {"data": [{"id": 77, "name": "Size", "type": "select", "options": {"options": [{"id": "S", "name": "S small"}]}}]}
         if path == "/tasks":
             return {"data": [t for t in TASKS if t["status"] == "open"]}
+        if path.endswith("/dependencies") and method == "GET":
+            tid_ = int(path.split("/")[2])
+            if tid_ not in DEPS:
+                raise RuntimeError("404")
+            return {"blocked_by": DEPS[tid_], "blocking": []}
         if path.endswith("/comments") and method == "GET":
             return {"data": COMMENTS.get(int(path.split("/")[2]), []), "next_cursor": None}
         if path.endswith("/complete"):
@@ -335,6 +348,129 @@ st = ad.classify([{**task(301, "Rewritten by bob"), "updated_by": 8}, {**task(30
                  {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
 check(st == {301: "foreign", 302: "ready"}, f"#6677: a task rewritten by another member is foreign, never started: {st}")
 
+# ---- 2.1394.0 (#5200): the dependency field holds a task until its blocker is built (a commit in close_ref); a text line
+# "Grundlage: #ID" in the notes or a comment is no field and holds nothing
+ev0 = {"done": {402: "abc"}, "branch": {}}
+blk = {**task(401, "Needs 402"), "blocked": True}
+check(ad.dep_wait(blk, {"done": {}, "branch": {}}, {401: [402]}) == ["#402"], "#5200: an open blocker not built yet holds")
+check(ad.dep_wait(blk, ev0, {401: [402]}) == [], "#5200: a blocker with its commit in close_ref frees the task")
+check(ad.dep_wait(blk, ev0, {}) == ["?"] and ad.dep_wait(blk, ev0, {401: [None]}) == ["?"],
+      "#5200: an unreadable field or a blocker the token cannot see holds")
+check(ad.dep_wait(task(401, "No deps"), ev0, {}) == [], "#5200: a task without blockers is free")
+TASKS[:] = [{**task(401, "Needs 402", "S"), "blocked": True}, task(402, "The base", "S"),
+            task(403, "Text line only", "S", notes="Grundlage: #402"), {**task(404, "Unreadable field", "S"), "blocked": True}]
+DEPS.clear()
+DEPS[401] = [{"id": 402, "title": "The base", "status": "open", "list_id": 9, "hidden": False},
+             {"id": 399, "title": "Done one", "status": "done", "list_id": 9, "hidden": False}]
+COMMENTS.clear()
+JOBS.clear()
+state3 = os.path.join(proj, ".state3")
+os.makedirs(state3)
+h = Host("on")
+h.state_dir = state3
+d = ad.Dispatcher(h, proj)
+n = len(STARTS)
+res = d.tick(force=True)
+check(res["states"][401] == "held" and res["states"][404] == "held" and res["states"][402] == "ready" and res["states"][403] == "ready",
+      f"#5200: held by the dependency field, a text line holds nothing: {res['states']}")
+check(res["waiting"] == {401: ["#402"], 404: ["?"]}, f"#5200: the result names what each waits for: {res['waiting']}")
+check(("GET", "/tasks/401/dependencies") in h.api.calls and ("GET", "/tasks/402/dependencies") not in h.api.calls,
+      "#5200: only blocked tasks are read")
+check(len(STARTS) == n + 1 and 401 not in STARTS[-1][0] and 404 not in STARTS[-1][0] and STARTS[-1][0] == [402, 403],
+      f"#5200: never bundled while waiting: {STARTS[n:]}")
+rep_ = [t for _, t in h.api.chats if "day report" in t]
+check(rep_ and "Waiting for another task (dependency field) or a job branch on the same file: #401 (#402), #404 (?)" in rep_[-1], f"#5200: the day report names them: {rep_}")
+g("commit", "-q", "--allow-empty", "-m", "#402: the base")
+res = d.tick(force=True)
+check(res["states"][401] == "ready" and 401 not in res["waiting"], f"#5200: free once the blocker is built in close_ref: {res['states']}")
+check(ar.say("dispatch_waiting", "de", "#1 (#2)") == "Warten auf eine andere Aufgabe (Feld Abhängigkeit) oder einen Job-Zweig an derselben Datei: #1 (#2)" and len(ar.TEXTS["dispatch_waiting"]) == 6,
+      "#5200: text in six languages")
+
+# ---- 2.1394.0 (#5201): a task the dispatcher closed and a person opened again keeps its bundle: not closed again, not
+# bundled again, told once; a new commit naming it closes it as usual
+TASKS[:] = [task(551, "Built once", "S"), task(552, "Other", "S")]
+DEPS.clear()
+JOBS.clear()
+g("commit", "-q", "--allow-empty", "-m", "#551: built once")
+state4b = os.path.join(proj, ".state4b")
+os.makedirs(state4b)
+h = Host("on")
+h.state_dir = state4b
+d = ad.Dispatcher(h, proj)
+res = d.tick(force=True)
+check(551 in res["closed"] and TASKS[0]["status"] == "done", f"#5201: built and closed: {res['closed']}")
+sha551 = d.reg["closed"].get("551")
+check(bool(sha551), f"#5201: the close is remembered with its commit: {d.reg['closed']}")
+TASKS[0]["status"] = "open"  # the person opens it again
+n, calls = len(STARTS), len(h.api.calls)
+res = d.tick(force=True)
+check(res["states"][551] == "held" and 551 not in res["closed"], f"#5201: reopened = held, not closed again: {res['states']}")
+check(("POST", "/tasks/551/complete") not in h.api.calls[calls:], "#5201: no second complete")
+check(all(551 not in s[0] for s in STARTS[n:]), f"#5201: never bundled again: {STARTS[n:]}")
+told = [t for _, t in h.api.chats if "#551 was opened again" in t]
+check(len(told) == 1 and sha551 in told[0], f"#5201: told once, with the commit: {told}")
+d.tick(force=True)
+check(len([t for _, t in h.api.chats if "#551 was opened again" in t]) == 1, "#5201: a finding only once")
+g("commit", "-q", "--allow-empty", "-m", "#551: the rest")
+res = d.tick(force=True)
+check(res["states"][551] == "done" and 551 in res["closed"] and d.reg["closed"]["551"] != sha551, f"#5201: a new commit closes it again: {res['states']}")
+check(len(ar.TEXTS["dispatch_reopened"]) == 6, "#5201: text in six languages")
+
+# ---- 2.1394.0 (#6176): tasks naming the same source file go into one bundle (same priority class, inside the limits); with
+# same_file on, a task also waits while an open job branch changes one of its files
+check(ad.files_of({"title": "Fix mcp/agent_dispatch.py:223 and app.py", "notes": "see https://x.org/a/b.py, ./static/css/wiki.css"})
+      == {"mcp/agent_dispatch.py", "app.py", "static/css/wiki.css"}, "#6176: files are paths only, the line number dropped, links left out")
+check(ad.files_of({"title": "Version 2.1394.0 is out, e.g. today. Mail me@example.com"}) == set(), "#6176: no file from a sentence")
+FID = {(9, "size"): "77"}
+q6 = [task(601, "Fix static/css/a.css", "S"), task(602, "Other thing", "S"), task(603, "Also static/css/a.css:12", "S"),
+      {**task(604, "Low prio static/css/a.css", "S"), "priority": "low"}]
+st6 = {t["id"]: "ready" for t in q6}
+base = {**ad.DEFAULTS, "bundle_max": 2}
+check([t["id"] for t in ad.cut_bundle(q6, st6, base, FID)] == [601, 602], "#6176: off (the default): priority order as before")
+on6 = {**base, "same_file": True}
+check([t["id"] for t in ad.cut_bundle(q6, st6, on6, FID)] == [601, 603], "#6176: on: the task with the same file joins the bundle")
+check([t["id"] for t in ad.cut_bundle(q6, st6, {**on6, "bundle_max": 6}, FID)] == [601, 603, 602, 604],
+      "#6176: another priority class is not pulled forward")
+check([t["id"] for t in ad.cut_bundle(q6, st6, {**on6, "bundle_points": 1}, FID)] == [601], "#6176: bundle_points stay")
+q7 = [task(700, "Touch lib/common.py first", "S"), task(701, "Unrelated", "S")] + [task(702 + i, f"Touch lib/common.py part {i}", "S") for i in range(7)]
+st7 = {t["id"]: "ready" for t in q7}
+check([t["id"] for t in ad.cut_bundle(q7, st7, on6, FID)] == [700, 701], "#6176: a collect file (8 of 8 tasks) connects nothing")
+check([t["id"] for t in ad.cut_bundle(q7, st7, {**on6, "bundle_max": 9}, FID)][:3] == [700, 702, 703],
+      "#6176: below the collect limit (bundle_max) the same file pulls")
+# the hold on a job branch: with same_file on (every job has its own branch since 2.1368.0, #7028)
+os.makedirs(os.path.join(proj, "lib"), exist_ok=True)
+g("checkout", "-q", "-b", "job/7")
+with open(os.path.join(proj, "lib", "a.py"), "w") as f:
+    f.write("x = 1\n")
+g("add", "lib/a.py")
+g("commit", "-q", "-m", "work in progress")
+g("checkout", "-q", "main")
+t8 = [task(801, "Change lib/a.py", "S"), task(802, "Change lib/b.py", "S")]
+ev8 = ad.evidence_of(proj, {**ad.DEFAULTS, "same_file": True})
+check(ev8["branch_files"].get("job/7") == {"lib/a.py"}, f"#6176: the files of an open job branch: {ev8['branch_files']}")
+st8 = ad.classify(t8, ev8, {}, {"jobs": {}}, {**ad.DEFAULTS, "same_file": True}, 7)
+check(st8 == {801: "held", 802: "ready"} and ad.file_wait(t8[0], ev8, {**ad.DEFAULTS, "same_file": True}) == ["job/7"],
+      f"#6176: a task waits for the job branch on its file: {st8}")
+ev8b = ad.evidence_of(proj, {**ad.DEFAULTS})
+check(ev8b["branch_files"] == {} and ad.classify(t8, ev8b, {}, {"jobs": {}}, {**ad.DEFAULTS}, 7) == {801: "ready", 802: "ready"},
+      "#6176: without same_file no hold")
+
+# ---- 2.1394.0 (#7031): model and effort per kind of job (runtime model_job / effort_job, model_audit / effort_audit), empty =
+# the default; Claude Code only
+aj = load("agent_job")
+os.environ.pop("KALMIDO_AGENT_PROFILE", None)
+check(aj.job_kind_model({"model_job": " opus ", "effort_job": "High", "model_audit": "fable"}, {}) == ("opus", "high"), "#7031: a build job takes model_job / effort_job")
+check(aj.job_kind_model({"model_job": "opus", "model_audit": "fable", "effort_audit": "turbo"}, {"audit": True}) == ("fable", ""),
+      "#7031: a review job takes model_audit; an unknown effort is left out")
+cmd7 = ["claude", "-p", "--model", "sonnet", "--effort", "low", "--output-format", "stream-json"]
+j7 = {"id": 7, "cmd": ["claude"]}
+check(aj.job_model_args(ar, "claude", list(cmd7), {"model_job": "opus", "effort_job": "max"}, j7)
+      == ["claude", "-p", "--output-format", "stream-json", "--model", "opus", "--effort", "max"], "#7031: --model / --effort of the kind replace the command's own")
+check(aj.job_model_args(ar, "claude", list(cmd7), {}, j7) == cmd7, "#7031: empty = the command as it is")
+check(aj.job_model_args(ar, "codex", ["codex", "exec"], {"model_job": "opus", "effort_job": "max"}, {"id": 7, "cmd": ["codex"]}) == ["codex", "exec"],
+      "#7031: another command keeps its own model")
+check("job_model_args(ar, profile, base" in open(os.path.join(MCP, "agent_job.py"), encoding="utf-8").read(), "#7031: every job run applies it")
+
 # ---- 2.1368.0 (#7028): the end of a job -- check by the dispatcher, then a pull request with an approval card
 bare = tempfile.mkdtemp(prefix="kalmido-origin-")
 subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
@@ -381,10 +517,10 @@ for hk in ("pre-push", "post-checkout"):
     with open(os.path.join(proj, ".git", "hooks", hk), "w") as f:
         f.write(f"#!/bin/sh\ntouch '{hookmark}'\n")
     os.chmod(os.path.join(proj, ".git", "hooks", hk), 0o755)
-state3 = os.path.join(proj, ".state3")
-os.makedirs(state3)
+state3m = os.path.join(proj, ".state3m")
+os.makedirs(state3m)
 h = Host("on")
-h.state_dir = state3
+h.state_dir = state3m
 d = ad.Dispatcher(h, proj)
 d.reg["jobs"] = {"601": {"tasks": [301], "at": time.time(), "titles": {"301": "Feature A"}},
                  "602": {"tasks": [302], "at": time.time(), "titles": {"302": "Feature B"}}}

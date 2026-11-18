@@ -20,6 +20,7 @@ from ..core.errors import BadInput, UnknownFields
 from ..tasks.validation import valid_hm
 from ..accounts.session import me
 from ..agents.core import agent_emit, agent_row, is_agent, may_set_runtime
+from ..accounts.orgs import op_apart_deny, op_foreign_account, op_support_deny, op_support_only  # #6862
 from ..agents.chat import CHOICES_MAX
 from ..collab.comments import PUSH_BURST_SKIP, PUSH_FILTERS
 from ..notify.push import notify, push_prio
@@ -249,19 +250,27 @@ def ws_budget_reset(c, a):
         c.execute("UPDATE agents SET usage_alerted=? WHERE user_id=?", (json.dumps(done, separators=(",", ":")), a["user_id"]))
 
 
-def ws_need_editor(c, aid):
+def ws_need_editor(c, aid, read=False):
     """The agent row when the signed-in person may set its work style (owner of a personal agent, an instance admin for a
-    team agent); everyone else gets 404 (the priority rule and budget are the owner's business)."""
+    team agent); everyone else gets 404 (the priority rule and budget are the owner's business).
+    #6862 (decision 17.11.2026): a team agent of a hosted client like need_agent_admin -- without the client's support access
+    op_apart_deny, through it only reading (read=True); work style, data lock, control, agent rules and the queue never change
+    through support access (only the kill switch does, agents/admin.py)."""
     a = agent_row(c, aid)
     if not a or is_agent(g.user) or not may_set_runtime(c, a, me()):
         raise Denied(404)
+    if not a["owner_id"]:
+        if op_foreign_account(c, aid):
+            op_apart_deny()
+        if not read and op_support_only(c, uid=aid):
+            op_support_deny()
     return a
 
 
 @app.get("/api/agents/<int:aid>/work-style")
 def ws_route_get(aid):
     c = db()
-    a = ws_need_editor(c, aid)
+    a = ws_need_editor(c, aid, read=True)
     return jsonify(work_style=ws_get(a), defaults=WS_DEFAULTS, state=ws_state(ws_get(a)), budget_state=ws_budget(c, a))
 
 

@@ -1,0 +1,11 @@
+{
+  "id": "token_scoped",
+  "since": "2.1367.0",
+  "what": "The agent's token is not in the environment of the model's process (#6457; the env file stays readable for programs of the same account, and Codex has no deny rules or guard hook): the launchers export only the env file's path (KALMIDO_ENV_FILE) and start the command (or the event runner, which reads the token from the file) without KALMIDO_TOKEN; agent_run.py takes it out of every run and job; the MCP server, the usage hook, kalmido_cli.py and agent_job.py read it from the file; every run's settings deny Read of the env files in ~/.kalmido and Read / Edit of the env file, the guard hook refuses a Bash line that names it, /proc/<pid>/environ or ps with the environment -- this part also with KALMIDO_BLOCK_DANGEROUS=0 (--secret-only), and the starter's env file is named to it (--secret-file) also when a team agent's run has only its request token's file (2.1386.0, #6668); deny rules for /proc/*/environ (a name check, not a wall)",
+  "core": [
+    "def model_env",
+    "def secret_deny_rules",
+    "def guard_secret",
+    "KALMIDO_ENV_FILE"
+  ]
+}

@@ -9,7 +9,9 @@
    2.481.0 (#3662): below it "Work the list off": the starter's mechanical dispatcher (mcp/agent_dispatch.py) off, as a dry
    run or on (runtime.dispatch); which lists and how is the project's KALMIDO-DISPATCH.json on the agent's computer.
    2.974.0 (#5668) / 2.992.0 (#5684): the section "Model" (the model per run: decisions, reviews, routine; the usage per kind of
-   the last 7 days); the chat header's "runs with …" opens it as a dialog of its own (agm_open). */
+   the last 7 days); the chat header's "runs with …" opens it as a dialog of its own (agm_open).
+   2.1394.0 (#7031): "Jobs on its computer": model and effort for build jobs and review jobs (runtime model_job / effort_job /
+   model_audit / effort_audit), in the admin's and the owner's dialog, saved at once. */
 'use strict';
 
 const AGZ_SIZES = [['small', N_('Small'), '0.4 MB'], ['medium', N_('Medium'), '0.8 MB'], ['large', N_('Large'), '1.5 MB']];
@@ -24,7 +26,7 @@ function agz_html(a, own) {
     <div class="row"><label for="agz-runs">${tr('After messages')}</label><input id="agz-runs" class="numin" data-agzk="rotate_runs" type="number" min="10" max="500" step="1" inputmode="numeric" value="${rt.rotate_runs ?? 60}"></div>
     <div class="row"><label for="agz-idle">${tr('After a pause of')}</label><span class="agpct"><input id="agz-idle" class="numin" data-agzk="rotate_idle_min" type="number" min="0" max="1440" step="1" inputmode="numeric" value="${idle}"><span class="muted">${tr('min')}</span></span></div>
     <div class="shint">${tr('Pause: 0 = never; it counts only from the small size on.')}</div>
-    ${own ? `<div class="row agznr"><label>${tr('Daily summary')}</label>${timeIn('agz-nr', rt.nightly_reset || '', {label: tr('Daily summary'), empty: tr('Agent default')})}</div>` : '<div class="agznr-slot"></div>'}</div>${agg_html(a)}${agd_html(a)}${/*html-ok*/ own ? agm_html(a) : ''}`;  // 2.974.0 (#5668): agm_html escapes its values
+    ${own ? `<div class="row agznr"><label>${tr('Daily summary')}</label>${timeIn('agz-nr', rt.nightly_reset || '', {label: tr('Daily summary'), empty: tr('Agent default')})}</div>` : '<div class="agznr-slot"></div>'}</div>${agg_html(a)}${agd_html(a)}${/*html-ok*/ agj_html(a)}${/*html-ok*/ own ? agm_html(a) : ''}`;  // 2.974.0 (#5668): agm_html escapes its values
 }
 // 2.974.0 (#5668): the model and the model per run in the owner's dialog of a personal agent (the admin dialog has them in
 // "Runtime", agentchat.js agSplitFields); saved at once like the fields above. 2.992.0 (#5684): a third model for reviews
@@ -128,6 +130,24 @@ function agd_html(a) {
     <div class="shint">${tr('It builds only tasks you wrote yourself in the app or with your own token, never tasks of other members or tasks from a webhook, an e-mail, a form or an import; comments of others reach the job only as information, never as an order.')} ${esc(tr('Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.'))}</div>
     <div class="row"><label for="agd-mode">${tr('Mode')}</label><select id="agd-mode" data-agzk="dispatch">${AGD_MODES.map(([k, n]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${esc(tr(n))}</option>`).join('')}</select></div></div>`;
 }
+// 2.1394.0 (#7031): model and effort per kind of job (a build job, a read-only review job) its host starts with agent_job.py;
+// empty = the agent's default; saved at once like the sections above
+const AGJ_EFFORTS = [['', N_('Agent default')], ['low', N_('Low')], ['medium', N_('Medium')], ['high', N_('High')], ['xhigh', N_('Extra high')], ['max', N_('Maximum')]];
+/** @param {any} a */
+function agj_html(a) {
+  const rt = a.runtime || {};
+  /** @param {string} id @param {string} k */
+  const mi = (id, k) => `<input id="${esc(id)}" data-agzk="${esc(k)}" list="agj-models" value="${esc(rt[k] || '')}" maxlength="100" placeholder="${esc(tr('Agent default'))}" autocomplete="off" autocapitalize="off" spellcheck="false">`;
+  /** @param {string} id @param {string} k */
+  const ei = (id, k) => `<select id="${esc(id)}" data-agzk="${esc(k)}">${AGJ_EFFORTS.map(([v, n]) => `<option value="${esc(v)}" ${(rt[k] || '') === v ? 'selected' : ''}>${esc(tr(n))}</option>`).join('')}</select>`;
+  return `<div class="agzsec agzjob" data-agz="${esc(String(a.id))}"><h4 id="agj-h">${tr('Jobs on its computer')}</h4>
+    <div class="shint">${tr('Long work the agent starts as a job: a build or a read-only review. Empty = the agent’s default; the effort applies to Claude Code only.')}</div>
+    <datalist id="agj-models">${['opus', 'sonnet', 'haiku'].map(m => `<option value="${esc(m)}"></option>`).join('')}</datalist>
+    <div class="row"><label for="agj-model">${tr('Model for build jobs')}</label>${/*html-ok*/ mi('agj-model', 'model_job')}</div>
+    <div class="row"><label for="agj-effort">${tr('Effort for build jobs')}</label>${/*html-ok*/ ei('agj-effort', 'effort_job')}</div>
+    <div class="row"><label for="agj-amodel">${tr('Model for review jobs')}</label>${/*html-ok*/ mi('agj-amodel', 'model_audit')}</div>
+    <div class="row"><label for="agj-aeffort">${tr('Effort for review jobs')}</label>${/*html-ok*/ ei('agj-aeffort', 'effort_audit')}</div></div>`;
+}
 /** @type {Record<string, number[]>} */
 const AGZ_RANGE = {rotate_runs: [10, 500], rotate_idle_min: [5, 1440]};
 // autosave of the section's fields; in the admin dialog the existing "Nightly fresh restart" row moves in as "Daily summary"
@@ -144,6 +164,17 @@ function agz_wire(md, a, base) {
       if (r?.runtime) a.runtime = r.runtime;
       savedTick(el);
     } catch { el.value = (a.runtime || {}).dispatch || ''; /* api() said it */ }
+  });
+  const job = $(`.agzjob[data-agz="${a.id}"]`, md);  // 2.1394.0 (#7031): model / effort per kind of job
+  if (job) job.addEventListener('change', async (/** @type {any} */ e) => {
+    const el = e.target, k = el.dataset.agzk; if (!k) return;
+    const v = String(el.value).trim();
+    try {
+      const r = await api('PATCH', base, {runtime: {[k]: v}});
+      if (r?.runtime) a.runtime = r.runtime;
+      el.value = v;
+      savedTick(el);
+    } catch { el.value = (a.runtime || {})[k] || ''; /* api() said it */ }
   });
   agm_wire($(`.agzmod[data-agz="${a.id}"]`, md), a, base);  // 2.974.0 (#5668), 2.992.0 (#5684): agm_wire
   const slot = $('.agznr-slot', sec), nr = slot && $('#ag-nr', md)?.closest('.row');

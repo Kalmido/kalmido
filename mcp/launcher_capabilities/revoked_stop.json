@@ -1,0 +1,6 @@
+{
+  "id": "revoked_stop",
+  "since": "2.157.0",
+  "what": "A revoked token (GET /api/v1/agent answers 401: the computer was removed or the agent deleted in Kalmido) stops the agent command with one log line naming the uninstall command; the launcher stays and checks quietly every poll instead of exiting (an autostart would start it again and again), also when the token is already revoked at its start (2.1394.0, #4068: in mcp/agent_run.py --launch, for both launchers)",
+  "core": []
+}
