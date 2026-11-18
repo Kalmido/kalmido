@@ -763,6 +763,56 @@ def _r4f1():
             check([e["data"]["job"]["id"] for e in queued] == [907], f"F6: ... and wakes on the next look once the server answers {queued}")
         finally:
             aj.revive_lost = keep
+        # Fable reader job/5481 F10: GET /agent not read (mode None) said "yes" -- the job file got its token without the check
+        mode_keep = r.req_mode
+        r.req_mode = lambda: None
+        check(r.server_job_of(901, 5) is None, f"F10: the agent's mode not known: the server's job counts as not read {r.server_job_of(901, 5)!r}")
+        r.req_mode = mode_keep
+        # F11: a job continued after a restart whose server job could not be read was lost for good (OSError, revived set);
+        # now it stays lost without revived / lost_handled and is continued on the next look once the server answers
+        spawned = []
+        aj.SPAWN_ENV = r.job_env
+        aj.spawn_run, real_spawn = (lambda jj, extra=None: (aj.SPAWN_ENV(jj), spawned.append(jj["id"]))), old_spawn
+        down.add(901)
+        lj = {**(aj.load(901) or j), "state": "lost", "session": "s-901"}
+        lj.pop("lost_handled", None)
+        lj.pop("revived", None)
+        aj.save(lj)
+        keep_all = aj.all_jobs
+        aj.all_jobs = lambda: [x for x in (aj.load(901),) if x]
+        try:
+            check(aj.revive_lost() == [] and not spawned, "F11: not read: not continued now")
+            st = aj.load(901) or {}
+            check(st.get("state") == "lost" and not st.get("revived") and not st.get("lost_handled") and st.get("revive_tries") == 1,
+                  f"F11: ... and not given up (lost, no revived / lost_handled, one try) {st}")
+            down.clear()
+            check(aj.revive_lost() == [901] and spawned == [901], f"F11: the next look continues it once the server answers {spawned}")
+        finally:
+            aj.all_jobs, aj.spawn_run = keep_all, real_spawn
+        # F11: a wake file with tries that are no number stopped the whole round (int()); now it counts as used up
+        check(aj.as_tries("x") == aj.WAKE_TRIES and aj.as_tries(None) == 0 and aj.as_tries("3") == 3 and aj.as_tries(-1) == aj.WAKE_TRIES,
+              "F11: as_tries reads a forged value as used up")
+        down.add(907)
+        del queued[:]
+        aj.revive_lost = lambda api=None: []
+        try:
+            aj.add_wake({**j, "id": 907, "title": "net"}, "done", "result")
+            wp = os.path.join(aj.state_dir(), "wakes", "907.json")
+            with open(wp, encoding="utf-8") as f:
+                wd_ = json.load(f)
+            wd_["tries"] = "many"
+            with open(wp, "w", encoding="utf-8") as f:
+                json.dump(wd_, f)
+            aj.add_wake({**j, "id": 903, "title": "ok"}, "done", "result")
+            try:
+                r.job_watch()
+                ok = True
+            except (TypeError, ValueError):
+                ok = False
+            check(ok and [e["data"]["job"]["id"] for e in queued] == [903], f"F11: a wake with tries 'many' does not stop the round {queued}")
+        finally:
+            aj.revive_lost = keep
+            down.clear()
     finally:
         aj.STATE_DIR, aj.Api.req, aj.spawn_run, aj.SPAWN_ENV = old_sd, old_req, old_spawn, None
         for k, v in saved.items():

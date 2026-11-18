@@ -608,12 +608,27 @@ def take_wakes():
 WAKE_TRIES = 60  # Fable reader job/5498 F6: a wake put back after a check that could not be read, at most this often
 
 
+def as_tries(v):
+    """Fable reader job/5481 F11: the count of tries of a wake / a job file -- both lie in the folder the model's processes can
+    write: a value that is no whole number counts as used up (never stops the round)."""
+    try:
+        n = int(str(v if v is not None else 0).strip())
+    except (TypeError, ValueError):
+        return WAKE_TRIES
+    return n if n >= 0 else WAKE_TRIES
+
+
+class SpawnLater(OSError):
+    """Fable reader job/5481 F11: SPAWN_ENV could not read what it checks (the server's job: network, 5xx, GET /agent not
+    read yet) -- not a no: the job is tried again on the next look instead of being given up."""
+
+
 def wake_back(w):
     """Fable reader job/5498 F6: the runner could not check a taken wake (its server job not read: network, 5xx): it goes
     back into the wake folder for the next look instead of being lost (the person would never hear of the job's end). At
     most WAKE_TRIES times; a wake written meanwhile for the same job wins. True = put back."""
     jid = (w.get("job") or {}).get("id")
-    tries = int(w.get("tries") or 0) + 1
+    tries = as_tries(w.get("tries")) + 1  # reader job/5481 F11: a value that is no number no longer stops the round
     if not str(jid or "").isdigit() or tries > WAKE_TRIES:
         return False
     path = os.path.join(state_dir(), "wakes", f"{int(jid)}.json")
@@ -702,7 +717,7 @@ def deliver(jid, text, kind="text", who="", wake=False, uid=None):
                 pass
         return "into its inbox"
     if wake and not is_open(j) and j.get("session") and j.get("state") in ("done", "failed"):
-        inbox_put(j["id"], text, kind, who, uid)
+        put, was = inbox_put(j["id"], text, kind, who, uid), j.get("state")
         j.update(state="starting", woken=time.time(), woke=None, cmd_pid=None, runner_pid=None)
         save(j)
         wp = os.path.join(state_dir(), "wakes", f"{int(j['id'])}.json")
@@ -712,6 +727,15 @@ def deliver(jid, text, kind="text", who="", wake=False, uid=None):
             pass
         try:
             spawn_run(j, ["--wake"])
+        except SpawnLater:  # reader job/5481 F11: not checked yet -- the job stays as it was, the caller answers with a chat run
+            log(f"job {j['id']}: its person could not be checked yet: not woken now")
+            j["state"] = was
+            save(j)
+            try:
+                os.unlink(put)
+            except OSError:
+                pass
+            return ""
         except OSError as e:
             log(f"job {j['id']}: cannot be woken: {type(e).__name__}")
             j["state"] = "failed"
@@ -865,14 +889,29 @@ def revive_lost(api=None):
             j.update(state="starting", revived=time.time(), cmd_pid=None)
             j.pop("lost_handled", None)  # lost once more later: then it is handled (woken), never continued again
             save(j)
-            if api:
+            if api and not j.get("revive_said"):  # reader job/5481 F11: said once, also when the start is tried again
                 api.soft("PATCH", f"/agent/jobs/{int(j['id'])}", {"state": "running", "append_log": f"{time.strftime('%H:%M')} "
                          "interrupted (restart): the same session goes on"})
+                j["revive_said"] = time.time()
             try:
                 spawn_run(j, ["--revive"])
                 out.append(j["id"])
                 log(f"job {j['id']}: interrupted, continued once in the same session")
                 continue
+            except SpawnLater:
+                # Fable reader job/5481 F11: the person of the job could not be checked (the network is not back after the
+                # restart): not continued yet, not given up -- lost without revived / lost_handled, so the next look (once a
+                # minute) tries again, at most WAKE_TRIES times
+                tries = as_tries(j.get("revive_tries")) + 1
+                if tries <= WAKE_TRIES:
+                    j.update(state="lost", revive_tries=tries)
+                    j.pop("revived", None)
+                    j.pop("lost_handled", None)
+                    save(j)
+                    log(f"job {j['id']}: its person could not be checked yet: continued on a later look ({tries}/{WAKE_TRIES})")
+                    continue
+                log(f"job {j['id']}: its person could not be checked {WAKE_TRIES} times: not continued")
+                j["state"] = "lost"
             except OSError as e:
                 log(f"job {j['id']}: cannot be continued: {type(e).__name__}")
                 j["state"] = "lost"

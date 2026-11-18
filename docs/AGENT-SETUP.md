@@ -153,7 +153,8 @@ request token file only when the person in its job file is the person of the job
 file the run rewrote to another person does not get that person's token while its job number still names a job of the
 first one. The check binds only the pair of job number and person -- a job file rewritten to the number **and** the person
 of another person's job of the same agent still gets that person's token; only the system user of its own below closes
-that. A wake whose server job could not be read (network) waits for the next look instead of being lost. **A hard separation needs a system user of its own
+that. A wake whose server job could not be read (network) waits for the next look instead of being lost; so does a job continued
+after a restart while the network (or the agent's own settings) cannot be read yet -- it is tried again once a minute. **A hard separation needs a system user of its own
 for the runs** that cannot read the env file; the user of *Path B, 2.* separates the agent from you, not its runs from its starter.
 
 2.47.3 (#1729): *Remove computer* and *Delete agent* show an uninstall command for each computer (run it there first, then delete; it also works after the agent was deleted).
