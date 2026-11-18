@@ -622,6 +622,7 @@ def _r4f1():
     tmp = tempfile.mkdtemp(prefix="kalmido-p6668r4-")
     sd = os.path.join(tmp, "state")
     p5, p7 = os.path.join(sd, "run-env", "p5.env"), os.path.join(sd, "run-env", "p7.env")
+    os.makedirs(os.path.join(sd, "run-env"), mode=0o700)
     ar.write_token_file(p5, "http://127.0.0.1:9", "abk_p5" + "a" * 26)
     ar.write_token_file(p7, "http://127.0.0.1:9", "abk_p7" + "b" * 26)
     brief = os.path.join(tmp, "brief.txt")
