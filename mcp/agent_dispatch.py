@@ -18,7 +18,8 @@ chosen lists off deterministically -- no model decides what comes next:
   5. when a place is free and no brake holds: cut the next bundle (priority order, task sizes as points) and start ONE
      job (agent_job.py start --worktree) with a brief built from the tasks,
   5a. 2.1368.0 (#7028): a job of the dispatcher ends in a pull request, never in a merge or a deploy. Once it ended, the
-     dispatcher runs the project's check (check_cmd, required) in the job's working copy itself: red = no pull request,
+     dispatcher runs the project's check (check_cmd, required, only from the runner's env file) in the job's working copy
+     itself, with a cleaned environment and without git hooks: red = no pull request,
      the person is told and the tasks go back to the list; green = it pushes the job branch (job/<id>, never another
      branch) and opens ONE pull request (pr_cmd) with an approval card ("Ready to merge") on the bundle's first task.
      Merging stays the person's step; the tasks close once their commits are in close_ref,
@@ -78,16 +79,29 @@ DEFAULTS = {
     "report_at": "18:00",     # local time of the daily report ("" = none)
     "usage_limit_pct": 95.0,  # a fresh week value at or above this holds new starts (0 = never)
     "check_cmd": "",          # required (2.1368.0, #7028): the project's check (tests / lint); the job runs it before each
-                              # commit, the dispatcher runs it again on the ended job's branch -- exit 0 = green
+                              # commit, the dispatcher runs it again on the ended job's branch -- exit 0 = green.
+                              # Only from the runner's env file: KALMIDO_DISPATCH_CHECK_CMD (EXEC_KEYS)
     "check_timeout_min": 30,  # the dispatcher's check run at most this long (then red)
-    "push_remote": "origin",  # where the dispatcher pushes the job branch job/<id> (never another branch)
-    "base": "",               # the pull request's target branch ("" = close_ref without its remote, else the current branch)
+    "push_remote": "origin",  # where the dispatcher pushes the job branch job/<id> (never another branch); a name of
+                              # `git remote`; only from KALMIDO_DISPATCH_PUSH_REMOTE
+    "base": "",               # the pull request's target branch ("" = close_ref without its remote, else the current branch);
+                              # only from KALMIDO_DISPATCH_BASE
     "pr_cmd": "gh pr create --head {branch} --base {base} --title {title} --body-file -",  # opens the pull request and prints
-                              # its address; {branch} {base} {title} are filled in per argument, the body comes on stdin
+                              # its address; {branch} {base} {title} are filled in per argument, the body comes on stdin;
+                              # only from KALMIDO_DISPATCH_PR_CMD
     "brief_extra": "",        # more text for every brief (the project's rules)
     "max_writes": 40,         # writes (comments, closes) per tick
     "stau_max": 10,           # 2.1368.0 (#4060): more tasks built but not landed (on a branch) than this hold new starts (0 = never)
 }
+# 2.1368.0 (#7028, review F2): what the dispatcher RUNS comes only from the runner's environment (its env file), never from
+# KALMIDO-DISPATCH.json: the project folder is the agent's working place, a job could write a command there that the
+# dispatcher would then run with the runner's rights. Such a key in the file is not used and keeps the dispatcher idle.
+EXEC_KEYS = {"check_cmd": "KALMIDO_DISPATCH_CHECK_CMD", "pr_cmd": "KALMIDO_DISPATCH_PR_CMD",
+             "push_remote": "KALMIDO_DISPATCH_PUSH_REMOTE", "base": "KALMIDO_DISPATCH_BASE"}
+# the check runs the branch's code: its environment carries no Kalmido variables and no credentials
+SECRET_ENV_RX = re.compile(r"(?i)^(KALMIDO_|GH_|GITHUB_|ANTHROPIC_|OPENAI_|AWS_|SSH_AUTH_SOCK$|GIT_ASKPASS$|SSH_ASKPASS$)"
+                           r"|TOKEN|SECRET|PASSW|API_?KEY|CREDENTIAL|PRIVATE_?KEY")
+NO_HOOKS = ("-c", "core.hooksPath=/dev/null")  # git hooks of the job's repository never run for the dispatcher
 # 2.1368.0 (#7028): keys that are gone -- named once in the log, never used
 RETIRED = {"worktree": "every job of the dispatcher has its own working copy (branch job/<id>)",
            "finish_cmd": "a job ends in a pull request with an approval card; merging and deploying are the person's"}
@@ -142,15 +156,25 @@ def load_config(project_dir):
     unknown = sorted(k for k in raw if k not in DEFAULTS and k not in RETIRED)
     if unknown:
         log_once("unknown keys in the configuration left out: " + ", ".join(unknown))
+    in_file = sorted(k for k in raw if k in EXEC_KEYS)
     for k, v in raw.items():
+        if k in EXEC_KEYS:
+            continue
         if k in DEFAULTS and (type(v) is type(DEFAULTS[k]) or (isinstance(DEFAULTS[k], float) and isinstance(v, int))):
             cfg[k] = v
         elif k in DEFAULTS:
             log_once(f"configuration key {k}: wrong type, default kept")
+    for k, var in EXEC_KEYS.items():  # review F2: commands, remote and base only from the runner's environment
+        v = os.environ.get(var)
+        if v is not None and v.strip():
+            cfg[k] = v.strip()
+    if in_file:  # never run, told: the project file is writable by the agent
+        return cfg, (", ".join(in_file) + " in " + CONFIG_FILE + " is not used (the agent can write the project folder): set "
+                     + ", ".join(EXEC_KEYS[k] for k in in_file) + " in the runner's env file")
     if not cfg["lists"]:
         return cfg, "no lists in " + CONFIG_FILE
     if not str(cfg["check_cmd"]).strip():  # 2.1368.0 (#7028): no build without the project's check
-        return cfg, "no check_cmd in " + CONFIG_FILE + " (a job ends only after the project's check)"
+        return cfg, "no check_cmd (KALMIDO_DISPATCH_CHECK_CMD in the runner's env file; a job ends only after the project's check)"
     return cfg, ""
 
 
@@ -534,10 +558,17 @@ def start_job(bundle, brief, cfg, env, state_dir):
 
 # ---- 2.1368.0 (#7028): the end of a job -- the check, then a pull request with an approval card
 
+def check_env():
+    """The check's environment (review F2): it runs the branch's code, so no Kalmido variables and no credentials."""
+    return {k: v for k, v in os.environ.items() if not SECRET_ENV_RX.search(k)}
+
+
 def run_check(cmd, cwd, timeout_min):
-    """(green, why): the project's check in the job's working copy; exit 0 = green. Its output stays out of the chat."""
+    """(green, why): the project's check in the job's working copy; exit 0 = green. Its output stays out of the chat.
+    The check runs the code of the job's branch: a cleaned environment (check_env), stdin closed."""
     try:
-        p = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=max(1, int(timeout_min)) * 60)
+        p = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=max(1, int(timeout_min)) * 60,
+                           env=check_env(), stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
         return False, f"timed out after {timeout_min} min"
     except (OSError, subprocess.SubprocessError) as e:
@@ -567,7 +598,11 @@ def open_pr(cfg, repo, cwd, branch, title, body):
     """Push the job branch (only job/*) and open the pull request; (url | None, why)."""
     if not branch.startswith("job/"):
         return None, "not a job branch"
-    rc, _ = git(repo, "push", "--quiet", cfg["push_remote"] or "origin", f"{branch}:refs/heads/{branch}", timeout=180)
+    remote = cfg["push_remote"] or "origin"
+    rc, out = git(repo, "remote")
+    if rc != 0 or remote not in out.split():  # review F2: only a remote the repository names, never a URL or an option
+        return None, "push_remote is no remote of the repository"
+    rc, _ = git(repo, *NO_HOOKS, "push", "--quiet", "--no-verify", remote, f"{branch}:refs/heads/{branch}", timeout=180)
     if rc != 0:
         return None, f"push failed (exit {rc})"
     try:
@@ -782,7 +817,8 @@ class Dispatcher:
         Never a merge, never another branch. e["land"]: none | empty | red | pr | no_pr."""
         wt = (j or {}).get("worktree") or {}
         br = str(wt.get("branch") or "")
-        tids = sorted(t for t, (b, _) in ev["branch"].items() if b == br) if br else []
+        mine = {int(t) for t in e.get("tasks") or []}  # review F3: only the bundle's tasks, never another #ID of a commit
+        tids = sorted(t for t, (b, _) in ev["branch"].items() if b == br and int(t) in mine) if br else []
         if not tids:
             e["land"] = "empty" if br else "none"
             return
@@ -794,13 +830,13 @@ class Dispatcher:
         if not os.path.isdir(path):  # the working copy was cleaned away: a temporary one of the branch
             import tempfile
             tmp = tempfile.mkdtemp(prefix="kalmido-check-")
-            rc, _ = git(repo, "worktree", "add", "--detach", tmp, br, timeout=120)
+            rc, _ = git(repo, *NO_HOOKS, "worktree", "add", "--detach", tmp, br, timeout=120)
             path = tmp if rc == 0 else ""
         try:
             green, why = run_check(cfg["check_cmd"], path, cfg["check_timeout_min"]) if path else (False, "no working copy")
         finally:
             if tmp:
-                git(repo, "worktree", "remove", "--force", tmp, timeout=120)
+                git(repo, *NO_HOOKS, "worktree", "remove", "--force", tmp, timeout=120)
         if not green:
             e["land"] = "red"
             self.reg["red"] = (self.reg["red"] + [br])[-200:]
@@ -811,7 +847,7 @@ class Dispatcher:
         by_id = e.get("titles") or {}
         title = "#" + " #".join(str(t) for t in tids) + (": " + by_id.get(str(tids[0]), "") if by_id.get(str(tids[0])) else "")
         summary = "\n".join([f"- #{t} {by_id.get(str(t), '')}".rstrip() for t in tids] +
-                             ["", f"Check green: {cfg['check_cmd']}", f"Built by job #{jid} of the Kalmido dispatcher on {br}; "
+                             ["", "Check green.", f"Built by job #{jid} of the Kalmido dispatcher on {br}; "
                               "merging is the person's step."])
         url, why = open_pr(cfg, repo, path if os.path.isdir(path) else repo, br, title[:200], summary)
         if not url:
