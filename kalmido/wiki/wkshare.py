@@ -65,7 +65,7 @@ from ..files.fslock import fl_is_locked
 from ..files.scan import sc_guard
 from ..files.store import fs_version_row
 from ..files.store import FS_NOT_ADDR  # 2.1145.0 (#6062)
-from .wkembed import WEM_MAX, wem_embedders, wem_img_ids, wem_visible
+from .wkembed import WEM_MAX, wem_embed_rows, wem_img_ids, wem_visible
 from .wkhist import WikiUnreadable
 from .wikie2e import wke_mode, wke_open_sql  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.validation import valid_date  # 2.369.5 (#2517): pulled up from functions
@@ -273,6 +273,13 @@ def wsh_live_rows(c, oid, owner):
     """2.1138.0 (#6026): the live shares of a space as its mark, its counter and WSH_MAX see them -- wsh_rows and the open
     shares by address of a private space that have not run out (an address without an account counts like one with)."""
     return wsh_rows(c, oid, owner) + _wsh_open_live(c, oid, owner)
+
+
+def wsh_ikey(s):
+    """2.1399.0 (#7056): the key under which a share confirms the pictures of its pages (wiki_embeds.shares): "w<id>" a link
+    (a row of wiki_shares), "p<id>" a person share (its card's core share: wsh_rows' entries and wsh_person_shares carry the
+    id as "p<id>" already)."""
+    return s["id"] if isinstance(s["id"], str) else f"w{int(s['id'])}"
 
 
 def wsh_covers(r, path, pid=None):
@@ -483,26 +490,32 @@ def wsh_img_nodes(c, shares, page, text, only=None):
     """2.380 H (#2356): {node id: (node, version)} of the file store pictures a share may show in a page -- only with the switch
     (images) of one of the shares, only pictures embedded in the page's text, of the page's own space (wem_visible), that
     the person who made that share AND the person who embedded the picture (2.1284.0 #6321) may still see now, an image
-    type, never in a locked (end-to-end encrypted) folder."""
-    makers = sorted({s["created_by"] for s in shares if s["images"] and s["created_by"]})
+    type, never in a locked (end-to-end encrypted) folder. 2.1399.0 (#7056): and only for a share the picture is confirmed
+    for (wiki_embeds.shares: its embedder's save under that share, or the share's pictures switched on over it, wkembed.py
+    wem_confirm / wem_share_confirm) -- the check sits here, at the output, not in the ways a page can move."""
+    pics = [s for s in shares if s["images"] and s["created_by"]]
     ids = wem_img_ids(text)[:WEM_MAX]
     if only is not None:  # one picture asked for: check just that one (review: not up to 200 nodes per fetch)
         ids = [i for i in ids if i == only]
     out = {}
-    if not makers or not ids:
+    if not pics or not ids:
         return out
     # 2.1257.0 (#6295, audit #4741 Z6-F1): the share's maker alone is not enough -- otherwise a fellow editor embeds a file only
     # the maker sees into a covered page and reads it through the maker's link. 2.1284.0 (#6321, Fable review of #6295): the
     # second person is who brought THIS picture into the text (wiki_embeds, kept per page and file at every write of the
-    # text), no longer the page's last editor: a rename, a move or a relink by someone who sees the file opened it, and one
-    # by someone who does not see it took the pictures of others away. No row or nobody (account gone) = no picture.
-    who = wem_embedders(c, page["id"])
+    # text), no longer the page's last editor. No row or nobody (account gone) = no picture. 2.1399.0 (#7056, Fable re-check
+    # of 2.1368 F1-F3, F7): who embedded it and the maker both seeing it is not enough either -- a writer who sees neither
+    # brought a colleague's page under a third person's link by a merge of folders, the trash, a round trip through another
+    # workspace; so the row must be confirmed for exactly the share that shows it, and that share's maker must see the file.
+    rows = wem_embed_rows(c, page["id"])
     from ..files.extlinks import XL_IMG
     # the share's guest / the public link reads as somebody else: the maker's rights on the file store decide (deliberately
     # across the reader's context, for the pictures embedded in this shared page only)
     with system_ctx(c):
         for nid in ids:
-            if not who.get(nid) or not wem_visible(c, who[nid], nid, page) or not any(wem_visible(c, u, nid, page) for u in makers) or fl_is_locked(c, nid):
+            who, ok = rows.get(nid, (None, set()))
+            if not who or not wem_visible(c, who, nid, page) or fl_is_locked(c, nid) \
+                    or not any(wsh_ikey(s) in ok and wem_visible(c, s["created_by"], nid, page) for s in pics):
                 continue
             n = c.execute("SELECT * FROM fs_nodes WHERE id=?", (nid,)).fetchone()
             v = fs_version_row(c, nid, None)
@@ -694,6 +707,10 @@ def wsh_create():
         sid = insert_id(c, "INSERT INTO wiki_shares(org_id,owner_id,path,is_folder,kind,token_hash,token,expires_at,created_by,created_at,page_id,images) "
                            "VALUES(?,?,?,?,'link',?,?,?,?,?,?,?)", (oid, owner, path, 1 if folder else 0, h, seal(c, WSH_SEAL + h, tok), exp, uid, ts, page, imgs))
         print("wiki public link created", sid, flush=True)
+        if imgs:  # 2.1399.0 (#7056): the maker shares the pictures of the pages as they are now
+            from .wkembed import wem_share_confirm
+            wem_share_confirm(c, {"id": sid, "org_id": oid, "owner_id": owner, "path": path, "is_folder": folder, "page_id": page,
+                                  "created_by": uid}, f"w{sid}")
     else:
         if oid is not None:
             return jsonify(error=tr("Every member of the organisation reads these pages already. For people outside it, use a public link."),
@@ -749,6 +766,11 @@ def wsh_create():
         c.execute("INSERT INTO wiki_share_cards(fs_share_id,folder,pair_id,images,email) VALUES(?,?,?,?,?) ON CONFLICT (fs_share_id) "
                   "DO UPDATE SET folder=excluded.folder, pair_id=COALESCE(excluded.pair_id, wiki_share_cards.pair_id), images=excluded.images",
                   (ids[0], bool(folder), pair, bool(imgs), mail))
+        if imgs:  # 2.1399.0 (#7056): the maker shares the pictures of the pages as they are now
+            from .wkembed import wem_share_confirm
+            wem_share_confirm(c, {"id": f"p{ids[0]}", "org_id": None, "owner_id": owner, "path": path, "is_folder": folder,
+                                  "page_id": page, "created_by": c.execute("SELECT created_by FROM fs_shares WHERE id=?", (ids[0],)).fetchone()[0]},
+                              f"p{ids[0]}")
         if not had:  # 2.126.2 B (#2355): the same live share again: no second News item
             # a News item for exactly that person (the sharing row of their settings; no push); only the path they may read now
             news_add(c, who, "wiki_shared", data={"path": path, "folder": bool(folder)})
@@ -989,6 +1011,9 @@ def wsh_update(sid):
                 c.execute("UPDATE wiki_shares SET expires_at=? WHERE id=?", (exp, r["id"]))
             if "images" in b:
                 c.execute("UPDATE wiki_shares SET images=? WHERE id=?", (imgs, r["id"]))
+        if imgs and not r["images"]:  # 2.1399.0 (#7056): switched on -- its maker shares the pictures of its pages as they are now
+            from .wkembed import wem_share_confirm
+            wem_share_confirm(c, r, wsh_ikey(r))
         bump(c)
         c.commit()
     return jsonify(wsh_one(c, sid))
@@ -1181,7 +1206,8 @@ def wsh_person_shares(c, uid, pid):
     up = [int(x["id"]) for x in fs_chain(c, n["id"])] if n is not None else []
     if not up:
         return []
-    return c.execute("SELECT DISTINCT k.fs_share_id AS id, k.images, f0.created_by FROM wiki_share_cards k "
+    # 2.1399.0 (#7056): the id as "p<id>", the key the share confirms pictures under (wsh_ikey)
+    return c.execute("SELECT DISTINCT 'p' || k.fs_share_id AS id, k.images, f0.created_by FROM wiki_share_cards k "
                      "JOIN fs_shares f0 ON f0.id=k.fs_share_id JOIN fs_shares f ON f.id IN (k.fs_share_id, k.pair_id) "
                      "JOIN fs_nodes nn ON nn.id=f0.node_id JOIN users o ON o.id=nn.owner_id AND NOT o.disabled "
                      "WHERE f.user_id=? AND f.node_id = ANY(CAST(? AS BIGINT[])) AND nn.org_id IS NULL AND (f.expires_at IS NULL OR f.expires_at>?) "

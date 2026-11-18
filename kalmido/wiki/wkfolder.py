@@ -94,7 +94,6 @@ from ..files.store import ROLE_RANK, _now, fs_chain, fs_deleted, fs_log_add, fs_
 from .pages import WIKI_BAD_CHARS, WIKI_DEPTH, wiki_clean_path, wiki_lock_pages, wiki_relink, wiki_space, wiki_space_sql
 from .wikie2e import _wke_free_path, wke_mode, wke_open_sql, wke_page_mode
 from .wkhist import wkh_body
-from .wkembed import wem_after_move, wem_cover_state  # 2.1368.0 (#6868)
 from .wkshare import wsh_repath
 
 WKF_KIND = "wiki"
@@ -491,20 +490,7 @@ def _before(c, uid, n):
         if top is not None and wkf_base(c, uid, {"org_id": top["org_id"] or None,
                                                  "owner_id": None if top["org_id"] else top["owner_id"]}) != "edit":
             raise Denied(403)
-    return {"folder": wkf_folder_path(c, n["id"]) if n["kind"] == "folder" else None, "wem": _wem_state(c, n)}
-
-
-def _wem_state(c, n):
-    """2.1368.0 (#6868): the shares with pictures over the pages at / below node n before it moves (wkembed.wem_cover_state)."""
-    if n["kind"] not in ("folder", "ref") or (n["kind"] == "ref" and n["ref_kind"] != WKF_KIND):
-        return None
-    top = _root_of_chain(c, fs_chain(c, n["id"]))
-    if top is None:
-        return None
-    oid, owner = top["org_id"], (None if top["org_id"] else top["owner_id"])
-    pids = [n["ref_id"]] if n["kind"] == "ref" else [r["ref_id"] for r in _subtree(c, n["id"])
-                                                      if r["kind"] == "ref" and r["ref_kind"] == WKF_KIND and r["ref_id"]]
-    return wem_cover_state(c, oid, owner, pids)
+    return {"folder": wkf_folder_path(c, n["id"]) if n["kind"] == "folder" else None}
 
 
 def _after(c, uid, nid, ctx):
@@ -529,7 +515,6 @@ def _after(c, uid, nid, ctx):
     else:
         return
     wkf_repath(c, uid, oid, owner, refs, (ctx or {}).get("folder"), own)
-    wem_after_move(c, uid, (ctx or {}).get("wem"))  # 2.1368.0 (#6868): under a new share with pictures
 
 
 def wkf_trash_follow(c, oid, owner, src, dst):

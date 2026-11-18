@@ -86,6 +86,8 @@ def wem_embeds_set(c, pid, text, by=None, old=None):
     for nid in new:
         c.execute("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,?,?,CURRENT_TIMESTAMP) "
                   "ON CONFLICT (page_id,node_id) DO NOTHING", (pid, nid, by if was is not None and nid not in was else None))
+    if by:  # 2.1399.0 (#7056): their own pictures are confirmed for the shares with pictures over the page now
+        wem_confirm(c, pid, by)
 
 
 def wem_embeds_copy(c, src, pid, by):
@@ -96,6 +98,7 @@ def wem_embeds_copy(c, src, pid, by):
     without `by`."""
     c.execute("UPDATE wiki_embeds SET user_id=s.user_id FROM wiki_embeds s WHERE s.page_id=? AND wiki_embeds.page_id=? "
               "AND s.node_id=wiki_embeds.node_id AND s.user_id=?", (src, pid, by))
+    wem_confirm(c, pid, by)  # 2.1399.0 (#7056): confirmed for the shares over the new page, never the template's
 
 
 def wem_embeds_drop(c, where, args):
@@ -104,48 +107,79 @@ def wem_embeds_drop(c, where, args):
     c.execute(f"DELETE FROM wiki_embeds WHERE page_id IN (SELECT id FROM wiki_pages WHERE {where})", args)
 
 
-def wem_embedders(c, pid):
-    """2.1284.0 (#6321): {node id: account id | None} -- who embedded which picture into page pid."""
-    return {r[0]: r[1] for r in c.execute("SELECT node_id, user_id FROM wiki_embeds WHERE page_id=?", (pid,)).fetchall()}
+def wem_embed_rows(c, pid):
+    """2.1399.0 (#7056): {node id: (account id | None, {share key, ...})} -- who embedded which picture into page pid and for
+    which shares with pictures it is confirmed (wiki_embeds.shares, wkshare.wsh_ikey)."""
+    return {r[0]: (r[1], set(r[2] or ())) for r in c.execute("SELECT node_id, user_id, shares FROM wiki_embeds WHERE page_id=?",
+                                                              (pid,)).fetchall()}
 
 
-def wem_cover_state(c, oid, owner, pids):
-    """2.1368.0 (#6868): before a page is renamed / moved (alone, with its folder, in the tree): which live shares that show
-    pictures (wkshare.wsh_rows with images: the links and, in a private space, the person shares) cover each page of pids
-    in space oid / owner -> state for wem_after_move; None when the space has no such share (nothing to compare)."""
-    from .wkshare import wsh_covers, wsh_rows
-    if not pids:
-        return None
-    with system_ctx(c):  # every share of the space, also the ones of others the mover's context does not list
-        shares = [s for s in wsh_rows(c, oid, None if oid else owner) if s.get("images")]
-    if not shares:
-        return None
-    pages = c.execute(f"SELECT id, path FROM wiki_pages WHERE id = ANY(CAST(? AS BIGINT[])) AND {live_sql()}",
-                      (sorted({int(x) for x in pids}),)).fetchall()
-    return {"oid": oid, "owner": None if oid else owner,
-            "pages": {p["id"]: {s["id"] for s in shares if wsh_covers(s, p["path"], p["id"])} for p in pages}}
+# 2.1399.0 (#7056): the keys of shares go into wiki_embeds.shares (TEXT[]): added, never twice, sorted
+WEM_ADD = "shares=ARRAY(SELECT DISTINCT k FROM unnest(COALESCE(shares, CAST('{}' AS TEXT[])) || CAST(? AS TEXT[])) AS k ORDER BY k)"
 
 
-def wem_after_move(c, uid, state):
-    """2.1368.0 (#6868): a page that came by a rename / move under a share with pictures that did not cover
-    it before (state of wem_cover_state) keeps the picture rows only of the files the mover uid sees; the others go to nobody
-    (user_id NULL: no picture through a link until someone who sees the file puts it in again) -- else a writer without a
-    right on a file carries a colleague's embed under a link of a third person. A rename under the same shares changes
-    nothing. One place for every way a page moves (wiki_update, wiki_move, the tree: wkfolder._before / _after). -> rows set
-    to nobody."""
-    if not state:
+def wem_img_shares(c, page):
+    """2.1399.0 (#7056): {share key: its maker} of the live shares with pictures that cover page (a row with id, org_id,
+    owner_id, path) now: the links of its space and, in a private space, the person shares (wkshare.wsh_rows)."""
+    from .wkshare import wsh_covers, wsh_ikey, wsh_rows
+    with system_ctx(c):  # every share of the space, also the ones of others the writer's context does not list
+        rows = wsh_rows(c, page["org_id"], None if page["org_id"] else page["owner_id"])
+    return {wsh_ikey(s): s["created_by"] for s in rows if s.get("images") and wsh_covers(s, page["path"], page["id"])}
+
+
+def wem_confirm(c, pid, by):
+    """2.1399.0 (#7056): a person's own save of page pid (wem_embeds_set with by, a page from a template): every picture in
+    it that `by` embedded and sees is confirmed for the shares with pictures that cover the page NOW. A share shows a
+    picture only when its row is confirmed for exactly that share (wkshare.wsh_img_nodes) -- the one check at the output,
+    whichever way the page came under the share (a rename, a move, the tree, a folder merged into another, the trash and
+    back, a round trip through another workspace): no way of moving a page confirms anything. -> rows confirmed."""
+    if not by:
         return 0
-    from .wkshare import wsh_covers, wsh_rows
-    with system_ctx(c):
-        shares = [s for s in wsh_rows(c, state["oid"], state["owner"]) if s.get("images")]
+    page = c.execute(f"SELECT id, org_id, owner_id, path FROM wiki_pages WHERE id=? AND {live_sql()}", (pid,)).fetchone()
+    keys = sorted(wem_img_shares(c, page)) if page else []
+    if not keys:
+        return 0
     n = 0
-    for p in c.execute(f"SELECT * FROM wiki_pages WHERE id = ANY(CAST(? AS BIGINT[])) AND {live_sql()}",
-                       (sorted(state["pages"]),)).fetchall():
-        if not any(s["id"] not in state["pages"][p["id"]] and wsh_covers(s, p["path"], p["id"]) for s in shares):
-            continue
-        for nid, who in sorted(wem_embedders(c, p["id"]).items()):
-            if who is not None and who != uid and not wem_visible(c, uid, nid, p):
-                n += c.execute("UPDATE wiki_embeds SET user_id=NULL WHERE page_id=? AND node_id=?", (p["id"], nid)).rowcount
+    for nid, (who, _ok) in sorted(wem_embed_rows(c, pid).items()):
+        if who == by and wem_visible(c, by, nid, page):
+            n += c.execute(f"UPDATE wiki_embeds SET {WEM_ADD} WHERE page_id=? AND node_id=?", (keys, pid, nid)).rowcount
+    return n
+
+
+def wem_share_confirm(c, s, key):
+    """2.1399.0 (#7056): share s (key wkshare.wsh_ikey) was made with pictures or got them switched on: its maker shares
+    the pages as they are now, so every picture embedded in them now (by a person, wiki_embeds.user_id) that the maker
+    sees is confirmed for s. A page that comes under s later shows its pictures only after its embedder saves it there
+    (wem_confirm). -> rows confirmed."""
+    from .wkshare import wsh_pub_pages
+    maker, n = s["created_by"], 0
+    if not maker:
+        return 0
+    with system_ctx(c):  # the pages of the share and the maker's rights on the file store, whoever switches the pictures on
+        for p in wsh_pub_pages(c, s):
+            for nid, (who, ok) in sorted(wem_embed_rows(c, p["id"]).items()):
+                if who is not None and key not in ok and wem_visible(c, maker, nid, p):
+                    n += c.execute(f"UPDATE wiki_embeds SET {WEM_ADD} WHERE page_id=? AND node_id=?", ([key], p["id"], nid)).rowcount
+    return n
+
+
+WEM_OK_FLAG = "wem_ok7056"  # settings: the live shares with pictures of before #7056 confirmed their pictures once
+
+
+def wem_ok_start(c):
+    """2.1399.0 (#7056, core/objhooks.START, once): the pictures that a share with pictures showed before this version are
+    confirmed for it (wem_share_confirm for every live link and person share with pictures), so an update takes no picture
+    away; from now on only an embedder's save and a share's pictures switched on confirm."""
+    from .wkshare import wsh_ikey, wsh_rows
+    n = 0
+    with system_ctx(c):
+        spaces = c.execute("SELECT DISTINCT org_id, owner_id FROM wiki_shares WHERE kind='link' AND images=1 AND revoked_at IS NULL "
+                           "UNION SELECT DISTINCT NULL, n.owner_id FROM wiki_share_cards k JOIN fs_shares f ON f.id=k.fs_share_id "
+                           "JOIN fs_nodes n ON n.id=f.node_id WHERE k.images AND n.org_id IS NULL").fetchall()
+        for sp in spaces:
+            for s in wsh_rows(c, sp[0], None if sp[0] else sp[1]):
+                if s.get("images"):
+                    n += wem_share_confirm(c, s, wsh_ikey(s))
     return n
 
 
@@ -181,7 +215,7 @@ def wem_embeds_start(c):
         for r in rows:
             last = r["id"]
             if r["stale"]:  # 2.1368.0 (#6657): written without the stamp -- nobody stands for its pictures any more
-                n += c.execute("UPDATE wiki_embeds SET user_id=NULL WHERE page_id=? AND user_id IS NOT NULL", (r["id"],)).rowcount
+                n += c.execute("UPDATE wiki_embeds SET user_id=NULL, shares=NULL WHERE page_id=? AND (user_id IS NOT NULL OR shares IS NOT NULL)", (r["id"],)).rowcount  # 2.1399.0 (#7056): and no share confirmed
             try:
                 ids = set(wem_img_ids(wkh_open(c, r["org_id"], r["owner_id"], r["body"])))
             except WikiUnreadable:
@@ -194,6 +228,8 @@ def wem_embeds_start(c):
                 n += c.execute("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,?,?,CURRENT_TIMESTAMP) "
                                "ON CONFLICT (page_id,node_id) DO NOTHING", (r["id"], nid, who)).rowcount
     c.execute("UPDATE wiki_pages SET wem_at=CAST(updated_at AS timestamptz) WHERE wem_at IS DISTINCT FROM CAST(updated_at AS timestamptz)")  # 2.1368.0 (#6657)
+    if not since:  # 2.1399.0 (#7056): the pages of before had no confirmations either -- the shares that showed them confirm once
+        n += wem_ok_start(c)
     gset(c, WEM_SINCE, ts)
     return n
 
@@ -379,3 +415,4 @@ _wem_hook()
 
 
 objhooks.START.append(("wem_embeds_start", False, wem_embeds_start))  # 2.1284.0 (#6321): every start (the first one: all pages)
+objhooks.START.append((WEM_OK_FLAG, True, wem_ok_start))  # 2.1399.0 (#7056): once, after the step above
