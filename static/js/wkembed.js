@@ -119,7 +119,7 @@ async function wem_tickSave(p) {
     wko_keep(p.space, r);
     wk_savedHint(tr('Saved'));
   } catch (e) {
-    if (e.status === 409 && e.data?.page) { await wk_conflict(p, e.data.page, patch); return; }
+    if (e.status === 409 && e.data?.page) { await wk_conflict(p, e.data.page, patch, true); return; }  // 2.1397.0 (#6329 E6)
     if (e instanceof Offline) { await wko_queue(p, patch); return; }
     toast(errText(e, tr('The page could not be saved'))); viewSafeRender();  // 2.1177.0 (#6088): what failed first
   }

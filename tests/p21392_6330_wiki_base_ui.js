@@ -69,6 +69,19 @@ const call = async (method, url, body, ck = CK) => { const r = await fetch(B + u
   await flushing;
   check(await until(() => w.eval('WK.pg.body') === 'Plan of the phone'), '#6330: "Take theirs": the page shows the other device\'s text');
   check((await call('GET', '/api/wiki/pages/' + W1, null, CF)).body === 'Plan of the phone', '#6330: ... and the server keeps it');
+  // 2.1397.0 (#6329 E6): "Take theirs" after an online 409 does not drop the own text: it waits at the page (kept input 'fdx')
+  const XK = `tasks.fdx.${stf.me.id}.${W1}`, xb = () => { try { return JSON.parse(w.__store[XK] || 'null')?.b; } catch { return null; } };
+  check(await until(() => xb()?.mine === 'Plan of the laptop'), '#6329 E6: "Take theirs": my text waits at the page as kept input (rollback test) ' + JSON.stringify(xb()));
+  if (!w.document.querySelector('#view .wkocf')) w.eval('renderView(); 1');
+  const bar = await until(() => w.document.querySelector('#view .wkocf'));
+  check(bar && /Changed in the meantime/.test(bar.textContent) && bar.querySelector('[data-wk="cfshow"]'), '#6329 E6: the page shows it with Compare ' + (bar?.textContent || ''));
+  // Compare -> "Take theirs" again is the explicit choice: the waiting text goes
+  bar?.querySelector('[data-wk="cfshow"]')?.click();
+  const md2 = await until(() => [...w.document.querySelectorAll('.modal.cdlg')].find(x => /Changed in the meantime/.test(x.textContent)), {timeout: 10000});
+  check(md2 && md2.textContent.includes('Plan of the laptop'), '#6329 E6: Compare shows my waiting text');
+  md2?.querySelector('[data-cd="no"]')?.click();
+  check(await until(() => !w.__store[XK] && !w.eval(`WKO.cf[${W1}]`)), '#6329 E6: "Take theirs" in Compare drops the waiting text');
+  w.eval('WK.dirty = false; 1');
 
   // ================= without typing the reload takes the new base
   w.document.activeElement?.blur?.();
