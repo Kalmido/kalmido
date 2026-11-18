@@ -19398,6 +19398,7 @@
   "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Ändert jemand anderes Titel oder Notizen einer solchen Aufgabe, lässt der Agent sie liegen, bis du sie selbst änderst.",
   "No tracked time: billed with 0 h": "Keine erfasste Zeit: wird mit 0 h abgerechnet",
   "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "Die Ist-Summe liegt unter null: die festen Rabatte sind größer als der erfasste Betrag. Prüfe die Rabatte, bevor du den Entwurf anlegst.",
+  "Coding agent on a project with live clients: checklist": "Programmier-Agent an einem Projekt mit Live-Kunden: Checkliste",
   "{0} in use, no storage limit": "{0} belegt, kein Speicherlimit",
   "No files stored yet, no storage limit": "Noch keine Dateien gespeichert, kein Speicherlimit",
   "Program / script": "Programm / Skript",

@@ -19398,6 +19398,7 @@
   "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Verandert iemand anders de titel of notities van zo'n taak, dan laat de agent haar liggen tot je ze zelf verandert.",
   "No tracked time: billed with 0 h": "Geen geregistreerde tijd: gefactureerd met 0 u",
   "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "Het werkelijke totaal is negatief: de vaste kortingen zijn groter dan het geregistreerde bedrag. Controleer de kortingen voordat je het concept maakt.",
+  "Coding agent on a project with live clients: checklist": "Programmeeragent op een project met live klanten: checklist",
   "{0} in use, no storage limit": "{0} in gebruik, geen opslaglimiet",
   "No files stored yet, no storage limit": "Nog geen bestanden opgeslagen, geen opslaglimiet",
   "Program / script": "Programma / script",
