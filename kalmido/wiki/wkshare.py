@@ -491,7 +491,7 @@ def wsh_img_nodes(c, shares, page, text, only=None):
     (images) of one of the shares, only pictures embedded in the page's text, of the page's own space (wem_visible), that
     the person who made that share AND the person who embedded the picture (2.1284.0 #6321) may still see now, an image
     type, never in a locked (end-to-end encrypted) folder. 2.1401.0 (#7056): and only for a share the picture is confirmed
-    for (wiki_embeds.shares: its embedder's save under that share, or the share's pictures switched on over it, wkembed.py
+    for (wiki_embeds.shares: its embedder putting it in under that share, or the share's pictures switched on over it, wkembed.py
     wem_confirm / wem_share_confirm) -- the check sits here, at the output, not in the ways a page can move."""
     pics = [s for s in shares if s["images"] and s["created_by"]]
     ids = wem_img_ids(text)[:WEM_MAX]
