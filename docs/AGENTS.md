@@ -3179,6 +3179,11 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
    brakes, findings).
 
+**Time limit** (2.1383.0): a job that reaches `job_timeout_h` gets a reminder ten minutes before (state into
+`JOB-NOTES.md`, commit the branch, the rest as a comment on the task) and then ends. No follow-up job starts by itself: the
+next round finds the job ended and its tasks still open, counts one try each (`max_tries`) and bundles them again with the
+notes of the last job on the task.
+
 **Places** (2.1383.0): the number of jobs at once comes from ONE source, *Max parallel* of the agent's work style in
 Kalmido (`work_style.max_parallel` of `GET /api/v1/agent`), capped by the starter's own ceiling `places` (default 4).
 `max_parallel` 0 (no limit) or an older server = one place. When Kalmido refuses the start with 409 `slots_full` (jobs
