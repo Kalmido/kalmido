@@ -23,10 +23,12 @@ separate block: [PRIVACY-ASSISTANT-TEMPLATE.md](PRIVACY-ASSISTANT-TEMPLATE.md).
 |------|---------|-----------------------|
 | Account: user name, display name, e-mail, password hash, picture, language, settings | sign-in and use of the app | Art. 6 (1) b GDPR |
 | Content: tasks, projects, comments, chats, notes, files, calendars, contacts and whatever the modules switched on hold | the app's function | Art. 6 (1) b GDPR |
-| Sign-in data: sessions (device, browser, time), passkeys / two-factor settings, the address of failed sign-ins | security of the accounts | Art. 6 (1) f GDPR |
-| Activity history of projects, files and tables (who changed what) | traceability for the members of a project | Art. 6 (1) b / f GDPR |
+| Sign-in data: sessions (device, browser, time), passkeys / two-factor settings, the address of failed sign-ins; keyed hashes of the addresses an account signed in from (so a known address is not locked out) and of the account's last 10 browsers (a sign-in from a new one sends the mail "New sign-in to your account" with browser and shortened address); successful sign-ins from private network addresses (address, account, time; to warn when a proxy hides the real addresses) | security of the accounts | Art. 6 (1) f GDPR |
+| Activity history of projects, files and tables, and the change history of single entries (who changed what, the values before and after; changes made during a support access are marked as such) | traceability for the members of a project | Art. 6 (1) b / f GDPR |
+| Employee data, if the organisation uses these modules: absences (vacation, sick leave, days off), monthly time sheets, time entries | planning, working time records, billing | Art. 6 (1) b / c GDPR, in Germany § 26 BDSG |
 | Office data (invoices, receipts, books, if the office module is used) | bookkeeping | Art. 6 (1) c GDPR (legal retention) |
 | Customer reports and questionnaires through a form or the support portal: name, e-mail, the report or the answers, the reporter's comments, the status link | answering the report | Art. 6 (1) b / f GDPR |
+| Files sent through a file request link (`/u/<token>`): the files with their names, the name the sender typed (optional), the time. They land in the requester's folder as files of the requester; the name stands in each file's history and in the requester's News | receiving the documents | Art. 6 (1) b GDPR |
 | Approvals through a customer link (quotations, acceptances, video sign-offs): name, e-mail (optional), reason, time, address and browser of the signer, a fingerprint of what was shown | proof of the decision | Art. 6 (1) b / c GDPR |
 | Bookings through a booking page: name, e-mail, phone and message as typed, the time; the address of the device only until the booking is confirmed. A confirmed booking also makes an event, with the module Contacts a contact, with an office area chosen a lead | arranging the appointment | Art. 6 (1) b GDPR |
 | Scheduling polls through a link: name, e-mail (optional), the answers, a keyed hash of the address (it cannot be turned back into the address) | finding a date | Art. 6 (1) b / f GDPR |
@@ -36,6 +38,10 @@ separate block: [PRIVACY-ASSISTANT-TEMPLATE.md](PRIVACY-ASSISTANT-TEMPLATE.md).
 are off until a person switches them on, are shown only to that person (health lists only to the people they are shared
 with) and are never given to agents. Name in your statement on which basis you process them (usually the explicit
 consent of the person who switches the module on, Art. 9 (2) a GDPR).
+
+An absence of the kind *sick* is health data too. The team sees only "absent" and the period; the kind and the note only
+the person and the admins of the organisation; agents never see the kind. For employees name the basis of an employer
+(in Germany usually Art. 9 (2) b GDPR with § 26 (3) BDSG).
 
 **Children.** Child accounts are created by an admin or a parent. For a child under 16, the consent of a parent or
 guardian is needed (Art. 8 GDPR); say in your statement who gives it and how.
@@ -49,20 +55,32 @@ Kalmido's defaults (the operator can change them with the variables named; see [
 | Trash (tasks, projects, files, pages, mails, events, bookmarks, …) | 30 days, then deleted for good | `KALMIDO_TRASH_DAYS` |
 | Activity / project / file / table change log | 400 days | `KALMIDO_LOG_DAYS` |
 | Cell history of tables | the newest 200 entries of a table, at most as long as the change log | `KALMIDO_LOG_DAYS` |
+| Change history of single entries (tasks, projects, pages, …: who, when, values before and after) | the newest 200 entries per entry, no period in days; it goes when the entry is deleted for good | – |
+| Undo steps of a person (with a copy of the changed entry) | 30 days, at most the newest 300 steps | – |
 | Office log | changes stay for good (bookkeeping); reads (open, preview, PDF, XML) 90 days | – |
 | Bookings of a booking page | never confirmed: 7 days after they expired; cancelled and never confirmed: 30 days. Confirmed ones (also when cancelled later) have no period: the owner of the page deletes them in the app (search by name or e-mail over all bookings), otherwise they stay until the owner's account is deleted | – |
 | E-mails deleted in a workspace mailbox | the mail leaves the list, but its `.eml` and attachments stay readable in the file store for those who could read it. Only the trash run, when switched on, removes the mail and moves its folder to the file store's trash; without that switch they stay. To remove the content at once, delete the folder *E-Mails / ...* too | `KALMIDO_TRASH_DAYS`, `KALMIDO_PURGE_TRASH` |
 | Admin alerts, sign-in addresses seen by admins | 365 days | – |
 | News feed entries | 90 days | `TASKS_NEWS_DAYS` |
 | Finished agent jobs | 180 days | – |
+| Chat with an agent | the newest 1000 messages per person and agent, no period in days; people delete single messages or the whole chat themselves | `KALMIDO_CHAT_KEEP_DAYS` (0 = no day limit) |
+| Team chat messages, their files and voice messages | as long as the message; a deleted message waits in the trash with its files, then they are deleted for good | `KALMIDO_TRASH_DAYS` |
+| Read marks (what a person has seen) | as long as the entry and the account | – |
 | Agent usage records / agent audit log | 400 / 90 days | `KALMIDO_USAGE_DAYS` / `KALMIDO_AUDIT_DAYS` |
 | Sessions | 1 day, or 30 days with "Stay logged in"; then a new sign-in | `AUTH_SESSION_DAYS` |
+| Expired sessions, tokens and codes | deleted without the retention switch; an expired API token answers "expired" for 30 more days, then goes | – |
+| Sign-in data: addresses an account signed in from (keyed hash) / sign-ins from private network addresses / hashes of the last browsers | 30 days / 14 days / the last 10 browsers per account | – |
+| Support access (hosted servers): the grants and their log (time, who, method, route and status, never contents) | no period; it goes with the account or the organisation | – |
+| Webhook delivery log (status, code, duration, no contents) | the newest 50 per webhook | – |
 | Account export / import archives | 24 hours | – |
 | Backups | every backup of the last 24 hours, one a day for 14 days, one a week for 8 weeks (at most 104 weeks, whatever is set; 52 with the retention switch) | Settings > Server > Backup |
-| Safety backups (made before updates and restores) | 30 days | `KALMIDO_SAFETY_BACKUP_DAYS` |
+| Safety backups (made before updates and restores) | at most the last 3; with the retention switch these go too once they are 30 days old. Of the backups made with "Back up now" the last 3 stay, older ones follow the rotation above | `KALMIDO_SAFETY_BACKUP_DAYS` |
 | Database copies made by `update.sh` / `update.ps1` (installer only; `data/backups/kalmido-*.dump`, **not encrypted**) | the last 10, however old they are | delete them by hand |
 | Journal of deleted accounts (salted hashes of user name and e-mail, no plain text) | until no backup can hold the account any more: older than 104 weeks and older than every backup on the server | `KALMIDO_PURGE_LOGS` |
-| Receipts, books, logbook, sent business letters (office) | kept 8 / 10 / 8 / 6 years by law, locked, not deleted | – |
+| Record of retention exports and waivers before an account or organisation is deleted (who, when, what was missing) | no period; it stays after the deletion as the proof | – |
+| Newsletter suppression list and consent log (SHA-256 hash of the address, never the address; who consented, confirmed or left, and when) | no period, so an unsubscription is never forgotten; it goes with the organisation | – |
+| Online payment events (what the provider reported: event, amount, state, reference) | no period; they go with the organisation | – |
+| Receipts, books, logbook, sent business letters (office) | the law (8 / 10 / 8 / 6 years from the end of the year) plus a buffer of 1 year, so 9 / 11 / 9 / 7 years; locked, not deleted. An office with *Extend the lock* (a tax audit is open) keeps them also after that | `KALMIDO_RETENTION_BUFFER_YEARS` (0 = exactly the law, at most 30) |
 | Server log (stdout of the container) | as long as your log rotation keeps it | your Docker / log setup |
 
 **Important:** deleting for good after these periods runs only when `KALMIDO_RETENTION_PURGE=1` is set (or
@@ -96,16 +114,18 @@ example for fail2ban; if you set it, say so here.
 ## 4. Recipients and outside connections
 
 The browser loads nothing from other servers: fonts, icons and the PDF viewer come from your server, there is no CDN,
-no analytics and no telemetry. Exceptions in the browser: a video review that embeds a video from another site (e.g.
-YouTube, Vimeo) loads it from there when opened; map and documentation links open only on a click; images in e-mails
-load only on a click.
+no analytics and no telemetry. Exceptions in the browser: a video review (also its public page) with a video from another site (YouTube, Vimeo) or a
+video or audio file from another https address loads it from there only after a click on *Load video*; before that it
+shows a plain placeholder and says that loading sends data such as the address to that site. A person can tick *Do not
+ask again* for YouTube and Vimeo (then these load at once for that person); a file from another address always asks. Map
+and documentation links open only on a click; images in e-mails load only on a click.
 
 The **server** connects to other services only for what follows. Keep the rows you use.
 
 | Service | When | What is sent | Default |
 |---------|------|--------------|---------|
-| Push services of the browsers (Google `fcm.googleapis.com`, Mozilla `push.services.mozilla.com`, Apple `push.apple.com`, Microsoft `notify.windows.com`) | a person allows notifications on a device | the notification, encrypted end to end (RFC 8291); the service sees only that a message goes to a device | on (`KALMIDO_WEBPUSH`) |
-| ntfy (`NTFY_URL`, default `https://ntfy.sh`) | a person chooses ntfy for notifications (an own ntfy server also gets a message no device took on Web Push; the public ntfy.sh only with ntfy chosen) | title and text of the notification, **not encrypted** | off per person |
+| Push services of the browsers (Google `fcm.googleapis.com`, Mozilla `push.services.mozilla.com`, Apple `push.apple.com`, Microsoft `notify.windows.com`) | a person allows notifications on a device | the notification, encrypted end to end (RFC 8291); the service sees that a message goes to a device, and the server's address (it signs every message with it, VAPID) | on (`KALMIDO_WEBPUSH`) |
+| ntfy (`NTFY_URL`, default `https://ntfy.sh`) | a person chooses ntfy for notifications (an own ntfy server also gets a message no device took on Web Push; the public ntfy.sh only with ntfy chosen) | title and text of the notification and the link it opens (the server's address with the path of the entry), **not encrypted** | off per person |
 | E-mail (`KALMIDO_SMTP_*`) | invitations, password links, reminders and notifications by e-mail | address, name, task or project titles in the text | only when configured |
 | GitHub (`api.github.com`) | update check for admins, a few times a day | the installed version and the server's address | on (`KALMIDO_UPDATE_CHECK`, switch in Settings > Server > Server) |
 | Calendar subscriptions (ICS / CalDAV) and address books (CardDAV) | a person adds one | sign-in to that server, appointments / contacts to sync | per subscription |
@@ -123,7 +143,8 @@ The **server** connects to other services only for what follows. Keep the rows y
 | Off-site backup (S3, WebDAV, SFTP) | configured by the admin | backups, always encrypted | off |
 | Virus scanner (ClamAV) | configured by the admin | uploaded files (on your own network) | off |
 | Assistant (`KALMIDO_AI_BASE_URL`) | configured by the admin, switched on by a person, on that person's request | see [PRIVACY-ASSISTANT-TEMPLATE.md](PRIVACY-ASSISTANT-TEMPLATE.md) | off |
-| Similarity service (`KALMIDO_EMBED_URL`) | configured by the admin; in the background, no person starts it | titles and descriptions of tasks. If the service is not your own, name it and its contract here | off |
+| Similarity service (`KALMIDO_EMBED_URL`) | configured by the admin; in the background for every task, and while a person adds a task or searches | the folder, project and parent task names with the title and description of each task; the text a person types while adding a task or searching. Another host only with `KALMIDO_EMBED_EXTERNAL=1`. If the service is not your own, name it and its contract here | off |
+| Catalog of office packs (`KALMIDO_PACKS_CATALOG`) | an admin opens the office packs page (the list is kept for an hour) | a request for the catalog address; the other side sees the server's address | off |
 
 Every account gets a random ntfy topic when it is created; nothing goes to it until the person chooses ntfy. The full list of
 what the server contacts, with the switch for each, is in [SELF-HOSTING.md](SELF-HOSTING.md#outgoing-connections).
@@ -139,10 +160,11 @@ models):
 
 > **AI functions.** `<name of the operator>` uses AI models of third parties as a deployer: agents that people connect to
 > their projects, and the optional assistant if it is switched on. Kalmido itself does not run an AI model. Texts and
-> answers written by an agent are marked "AI agent" in the app and in the customer portal (also in its e-mails). Before a
-> text written by an agent goes out (a letter, a public link to a wiki page), the app offers to add the line "Created with
-> AI support". Whoever publishes or sends such a text is responsible for its content and for labelling it, unless a person
-> has checked it and takes editorial responsibility for it.
+> answers written by an agent are marked "AI agent" in the app and in the customer portal (also in its e-mails). Before an
+> agent's letter goes out, or a wiki page an agent wrote or changed last gets a public link, the app offers to add the line "Created with AI
+> support". Other texts carry no such mark, for example notification e-mails and public project pages. Whoever publishes or
+> sends such a text is responsible for its content and for labelling it, unless a person has checked it and takes editorial
+> responsibility for it.
 
 Use the same paragraph, as a section "AI functions", in your terms of use or service terms for the people and customers
 of your server. An agent that is a bot without AI can be marked as such in its settings (it then shows as "Agent").
@@ -161,6 +183,8 @@ The app sets only cookies it needs to work (no consent banner needed for them, �
 | `kv<number>` | lets a guest change their own vote in a scheduling poll | 180 days |
 | `kgn` | the name a client typed on an approval link (only for that link's address) | 180 days |
 
+On a public video approval the name a guest types is kept only in the cookie `kgn` of that link, not in the browser's storage.
+
 The app also keeps a copy of your data in the browser (local storage, IndexedDB, the service worker's cache), so it
 starts fast and works offline. Logging out, or a session that ended, removes it; if changes are still waiting to be sent, the stored data stays
 until they are sent after the next sign-in. Display preferences of the device (theme, text size) stay.
@@ -169,14 +193,15 @@ until they are sent after the next sign-in. Display preferences of the device (t
 
 > You have the right to access (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction (Art. 18), data
 > portability (Art. 20) and objection (Art. 21), and to lodge a complaint with a supervisory authority
-> (`<authority>`). You can download your data yourself (Settings > Data, "Export everything"). To delete your account, write to
-> `<e-mail>`.
+> (`<authority>`). You can download your data yourself (Settings > Data, "Export everything") and delete your account
+> yourself (Settings > Account > Delete account; it is locked at once and deleted after 7 days, see section 3). Child
+> accounts have no such button: an admin deletes them on request. For anything else write to `<e-mail>`.
 
 ### People without an account
 
-Customers who send a report or answer a questionnaire, people who sign an approval link, book an appointment, answer a poll
-or pay an invoice through a link have no account. The controller for their data is whoever the report, approval, booking,
-poll or invoice belongs to: the organisation (or, for a project without organisation, the person who owns it). Requests
+Customers who send a report or answer a questionnaire, people who sign an approval link, book an appointment, answer a poll,
+send files through a file request or pay an invoice through a link have no account. The controller for their data is whoever
+the report, approval, booking, poll, file request or invoice belongs to: the organisation (or, for a project without organisation, the person who owns it). Requests
 for access or erasure go to that controller:
 
 - **Reports:** the reporter sees every own report of the same space by signing in to the portal with the e-mail link,
@@ -190,7 +215,7 @@ for access or erasure go to that controller:
   signed quotation cannot be deleted); it goes with the project, or with the organisation after its legal retention
   period. **Video sign-offs are different:** when the video, its task or its project is deleted, the record stays with name,
   e-mail, reason, address, browser and decision. The admins of the organisation and the creator see and delete it, a decided
-  record of an organisation or private office only after its legal period (6 years, to the end of the year). Say in your
+  record of an organisation or private office only after its legal period (6 years plus the buffer of section 3, so 7 by default, to the end of the year). Say in your
   statement how long you keep it and on which basis.
 - **Questionnaires:** the answers and the sender's address stand in the task the form makes, so everyone who sees that task
   reads them and the project's agents get it. They go with the task, or with the form.
@@ -198,6 +223,9 @@ for access or erasure go to that controller:
   person's export. To answer an erasure request, the owner finds the booking by name or e-mail and deletes a confirmed or
   cancelled booking in the app (no e-mail goes out, the cancel link stops working). Its event, contact and lead are separate
   entries and stay; they are deleted on their own where needed.
+- **File requests:** the files land as files of the person who made the request, in that person's folder; the sender's
+  name stands in each file's history and in that person's News. To erase them, delete the files (they go with the trash of
+  the file store, see section 3). The page of the link never shows other uploads or folder names.
 - **Polls:** a person changes their own vote in the same browser (cookie, see section 5). The poll's owner sees
   names, e-mails and answers; they go with the poll.
 - **Online payment:** the payment stays with the invoice for the legal period (section 3). For what Stripe keeps, name Stripe

@@ -755,7 +755,8 @@ messages and their whole history with an agent themselves at any time.
 archived documents, booked receipts, travel receipts in DATEV or a logbook by law is retired instead of deleted: no
 members, nothing visible in the app, export only for the people who were its admins when it was retired (2.186.0; one
 retired before 2.186 by the instance admins), public links answer 404. After the legal period
-(books 10 years, receipts and the logbook 8 years, from the end of the calendar year) the trash run deletes it for good.
+(books 10 years, receipts and the logbook 8 years, from the end of the calendar year, plus `KALMIDO_RETENTION_BUFFER_YEARS`)
+the trash run deletes it for good.
 
 **Locks instead of deletion.** Booked receipts (paid or with a VAT rate), travel receipts in DATEV or billed on a finalised
 document, payments of finalised invoices (a reversal line instead), the logbook (closed after 7 days or per month,
@@ -2096,10 +2097,10 @@ or a person sets the function up.
 | Update check | Request to the GitHub API for the latest release (your server's address, no data of yours) | every 6 hours | `KALMIDO_UPDATE_CHECK=0` or the admin switch |
 | Image pull and `update.sh` | Image from ghcr.io; `update.sh` downloads the installer (`install.sh`) of the latest release | at install and at every update you start | do not run `update.sh`; pull a pinned image yourself |
 | Built-in assistant | Task texts, notes and comments of the list the person picked, texts they type, for a day plan their busy times, to the service in `KALMIDO_AI_BASE_URL` | per call of the person | off while `KALMIDO_AI_BASE_URL` is empty (default) |
-| Similarity service | Titles and descriptions of tasks, to the service in `KALMIDO_EMBED_URL` | in the background | off while `KALMIDO_EMBED_URL` is empty (default) |
+| Similarity service | Per task the folder, project and parent task names with its title and description; the text a person types while adding a task or searching. To the service in `KALMIDO_EMBED_URL` (another host only with `KALMIDO_EMBED_EXTERNAL=1`) | in the background; while adding a task or searching | off while `KALMIDO_EMBED_URL` is empty (default) |
 | Agents you connect | What the agent reads, to the AI provider you connected it with | when the agent works | do not connect agents; see [AGENT-SECURITY.md](AGENT-SECURITY.md) |
-| ntfy push | Title and text of a notification, in plain text, to `NTFY_URL` (default ntfy.sh) | per notification, for people who chose the channel ntfy (with an own ntfy server also when no device takes a Web Push) | do not choose ntfy; set `NTFY_URL` to your own server |
-| Browser push | Encrypted notification to the push service of the browser (Google, Mozilla, Apple, Microsoft) | per notification | `KALMIDO_WEBPUSH=0` |
+| ntfy push | Title and text of a notification and the link it opens (the server's address with the path of the entry), in plain text, to `NTFY_URL` (default ntfy.sh) | per notification, for people who chose the channel ntfy (with an own ntfy server also when no device takes a Web Push) | do not choose ntfy; set `NTFY_URL` to your own server |
+| Browser push | Encrypted notification to the push service of the browser (Google, Mozilla, Apple, Microsoft); the service sees the server's address (the VAPID signature of every message) | per notification | `KALMIDO_WEBPUSH=0` |
 | Bookmark preview | Every saved bookmark address and its image are fetched by the server | when a bookmark is saved | leave the bookmarks module off |
 | Contact photos | Photo of a Google contact from Google's servers | at import | do not import Google contacts |
 | Feeds, Karakeep | Feed addresses and the Karakeep server of the person | in the background | leave the module off or remove the feed |
@@ -2117,13 +2118,14 @@ or a person sets the function up.
 | Server link (several servers) | Requests to the other Kalmido server | per action | do not link servers |
 | Error reports | The error message and place in the code of a browser error, as a ticket on the server itself | on a browser error | set *Report to* to *Off* (see below) |
 | Off-site backup | Encrypted backup to S3, WebDAV or SFTP | on the schedule set | leave off-site backup off |
-| Pack catalog | Request for the list of office packs | when the packs page is opened | leave `KALMIDO_PACKS_CATALOG` empty (default) |
+| Pack catalog | Request for the list of office packs to the address in `KALMIDO_PACKS_CATALOG` (the other side sees the server's address) | when the packs page is opened (kept for an hour), and when a pack is installed from it | leave `KALMIDO_PACKS_CATALOG` empty (default) |
 | SMTP and IMAP | All outgoing mail via `KALMIDO_SMTP_*`; polling of the mailbox via `KALMIDO_IMAP_*` (every 60 seconds); per-workspace mailboxes | per mail | leave the settings empty |
 | Virus scanner | File content to the scanner in `KALMIDO_CLAMD` (normally a container of your own) | per upload | leave `KALMIDO_CLAMD` empty |
 
 In the browser, only the video review loads anything from outside: a YouTube or Vimeo link is shown as the provider's
-player, and a video file can come from any https address. That happens as soon as such a review is opened, also on the
-public review page. Map links (Apple, Google) and links to the documentation open only on a click, and images in e-mails
+player, and a video or audio file can come from any https address. Both, also on the public review page, show a plain
+placeholder first and load from the other site only after a click on *Load video*; a person can tick *Do not ask again*
+for YouTube and Vimeo (Settings), a file from another address always asks. Map links (Apple, Google) and links to the documentation open only on a click, and images in e-mails
 stay blocked until you allow them.
 
 ## Production updates
