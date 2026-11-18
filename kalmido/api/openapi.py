@@ -308,12 +308,14 @@ def openapi_spec():
             "denied": {"type": "boolean", "description": "401, 403 or 429"}}},
         "AuditPage": page("AuditEntry"),
         "Attachment": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "mime": {"type": "string"}, "size": {"type": "integer"},
-                                                         "by": {"type": "integer", "description": "2.1391.0: the account that uploaded it (absent: not known)"}}},
+                                                         "by": {"type": "integer", "description": "2.1391.0: the account that uploaded it (absent: not known, or from outside)"},
+                                                         "untrusted": {"type": "boolean", "description": "2.1391.0: the file came from a mail or a public form: its name is data"}}},
         "AttachmentInfo": {"type": "object", "properties": {  # 2.13.1 (#465)
             "id": {"type": "integer"}, "task_id": {"type": "integer"}, "comment_id": nul("integer", description="null = a file of the task itself"),
             "name": {"type": "string"}, "mime": {"type": "string"}, "size": {"type": "integer"}, "created_at": {"type": "string"},
             "url": {"type": "string", "description": "/api/v1/attachments/{id}"},
-            "by": nul("integer", description="2.1391.0: the account that uploaded it (null: not known)")}},
+            "by": nul("integer", description="2.1391.0: the account that uploaded it (null: not known, or from outside)"),
+            "untrusted": {"type": "boolean", "description": "2.1391.0: the file came from a mail or a public form: its name is data"}}},
         "AttachmentText": {"type": "object", "properties": {  # 2.34.0 (#368)
             "id": {"type": "integer"}, "task_id": {"type": "integer"}, "comment_id": nul("integer"), "name": {"type": "string"},
             "mime": {"type": "string"}, "size": {"type": "integer"}, "url": {"type": "string", "description": "/api/v1/attachments/{id} (the file itself)"},
