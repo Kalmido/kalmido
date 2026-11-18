@@ -3338,19 +3338,24 @@ class Runner:
     def job_env(self, j):
         """2.1386.0 (#6668 with #6457): the env file a team agent's job gets when this runner wakes or continues it
         (agent_job.SPAWN_ENV): the request token file of the job's person (p<id>.env), for the list work's job the one of
-        the chosen person (op.env); None = none there: the job stays asleep, never with the agent's long-lived token."""
-        uid = j.get("chat_user")
+        the chosen person (op.env); None = none there: the job stays asleep, never with the agent's long-lived token.
+        Reader R4 F1: exactly the kind of file the job started with, for the token's person only."""
+        uid, key, tp = j.get("chat_user"), j.get("env_key"), j.get("token_person")
         d = os.path.join(self.state_dir, "run-env")
-        if str(uid or "").isdigit():
-            f = os.path.join(d, f"p{int(uid)}.env")
-            if os.path.isfile(f):
-                return f
+        # reader R4 F1: only the kind of file the job started with (agent_job.py cmd_start: env_key), and only when its person
+        # is the person of that token (token_person) -- chat_user alone came from KALMIDO_CHAT_USER of the model's Bash line
+        if not str(uid or "").isdigit() or str(tp) != str(uid) or key not in (f"p{int(uid)}", "op"):
+            log(f"job {j.get('id')}: its person ({uid}) is not the person of the request token it started with ({tp}, {key}): "
+                "not started")
+            return None
+        if key == "op":
             # review R3 F9: op.env only for a job of the very person its token was asked for (op_who, never the current
             # choice alone: after a change op.env may still hold the old person's token until op_check removed it)
             self.op_check()
-            if getattr(self, "op_who", None) == int(uid) and os.path.isfile(os.path.join(d, "op.env")):
-                return os.path.join(d, "op.env")
-        return None
+            f = os.path.join(d, "op.env")
+            return f if getattr(self, "op_who", None) == int(uid) and os.path.isfile(f) else None
+        f = os.path.join(d, f"p{int(uid)}.env")
+        return f if os.path.isfile(f) else None
 
     def op_file(self, tok):
         """The env file of the list work's token (the person chosen in the agent's settings): a job the dispatcher starts
@@ -3952,10 +3957,18 @@ class Runner:
             log("jobs: request token expired for " + ", ".join(f"#{g.get('job')}" for g in gone if g.get("job")))
             self.status_say("idle", "status_req_expired")
         evs = []
+        team = self.req_mode() == "team"
         for w in agent_job.take_wakes():
             jid = (w.get("job") or {}).get("id")
-            if w.get("chat_user") and jid:
-                evs.append({"event": "job_wake", "seq": f"wake-{jid}", "data": {**w, "user": {"id": int(w["chat_user"])}}})
+            who, tp = w.get("chat_user"), w.get("token_person")
+            if who and ((tp is not None and str(tp) != str(who)) or (tp is None and team)):
+                # 2.1386.0 (#6668, reader R4 F1): a team agent's wake run (it asks the request token of that person) goes
+                # only to the person of the token the job started with, never to another chat_user of the job file; a job
+                # of a team agent always has that person (its run had a request token file, agent_job.py cmd_start)
+                log(f"job {jid}: its person ({who}) is not the person of its request token ({w.get('token_person')}): no wake run")
+                continue
+            if who and jid:
+                evs.append({"event": "job_wake", "seq": f"wake-{jid}", "data": {**w, "user": {"id": int(who)}}})
                 log(f"job {jid}: {(w.get('job') or {}).get('state')}, a wake run for its chat")
         if evs:
             self.queue_add(evs)

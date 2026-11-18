@@ -366,8 +366,11 @@ def v1_job_in(c, aid, b, create):
         if f["task_ids"]:
             f["task_id"] = f["task_ids"][0]
         f["parent_id"], f["continue_of"] = v1_job_rel(c, aid, b, "parent_id"), v1_job_rel(c, aid, b, "continue_of")
-        if b.get("user_id") not in (None, ""):
-            uid = as_int(b["user_id"], "user_id", 1)
+        by = run_person()  # 2.1386.0 (#6668, reader R4 F1): in a run / with a request token a job is the requester's
+        if by and g.get("approved_job") and g.get("ctl_for"):
+            by = int(g.ctl_for)  # as api/runfor.py run_gate: the replay of an approved request counts the person who said Yes
+        if b.get("user_id") not in (None, "") or by:  # (api/runfor.py pin:user_id refuses another person; none named = them)
+            uid = as_int(b["user_id"], "user_id", 1) if b.get("user_id") not in (None, "") else by
             u = c.execute("SELECT kind FROM users WHERE id=?", (uid,)).fetchone()
             if not u or u["kind"] == "agent" or not agent_shares(c, aid, uid):
                 raise BadInput(tr("Invalid value: {0}", "user_id"))

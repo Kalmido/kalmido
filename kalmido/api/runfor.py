@@ -209,7 +209,7 @@ RUN_ROUTES = {
     "POST /agent/decisions": ("own", "need_agent; ctl_log kalmido/agents/control.py"),
     "GET /agent/events": ("mine", "only the requester's rows (core/access.py run_person)"),
     "GET /agent/jobs": ("mine", "only the requester's rows (core/access.py run_person)"),
-    "POST /agent/jobs": ("send", "writes a message / card to a person who shares a project of the run's cut (agent_shares / the project's people); reads nothing of theirs"),
+    "POST /agent/jobs": ("pin:user_id", "a named person must be the requester; none named = the requester (agents/api.py v1_job_in, 2.1386.0 #6668 reader R4 F1)"),
     "GET /agent/jobs/{}": ("mine", "only the requester's rows (core/access.py run_person)"),
     "PATCH /agent/jobs/{}": ("mine", "only the requester's rows (core/access.py run_person)"),
     "POST /agent/jobs/{}/proposal": ("mine", "only the requester's rows (core/access.py run_person)"),

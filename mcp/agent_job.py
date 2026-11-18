@@ -474,6 +474,7 @@ def add_wake(j, state, text="", hint="", posted=True, late=None):
     if os.path.exists(path):
         return False
     write_json(path, {"t": time.time(), "job": {"id": j["id"], "title": j["title"], "state": state}, "chat_user": j["chat_user"],
+                      "token_person": j.get("token_person"),  # 2.1386.0 (#6668, reader R4 F1): agent_run.py job_watch
                       "text": " ".join(redact(text).split())[:1500], "hint": hint, "posted": bool(posted), "late": late})
     j["woke"] = time.time()
     save(j)
@@ -641,6 +642,18 @@ REVIVE_PROMPT = ("The computer restarted (or the job's process ended) and your j
                  "stopped; do not repeat finished work.")
 
 
+# kalmido-capability: request_token (2.1386.0, #6668 reader R4 F1)
+def run_env_key(path=None):
+    """2.1386.0 (#6668, reader R4 F1): the kind of request token file a run / job reads (KALMIDO_ENV_FILE): "p<id>" (the
+    request token of person id), "op" (the list work's person), "auto" (the events' own automation) for a file of a team
+    agent's run-env folder (agent_run.py Runner.token_file); None = no such file (a personal agent: the starter's env file)."""
+    f = (os.environ.get("KALMIDO_ENV_FILE") or "") if path is None else (path or "")
+    name = os.path.basename(f)
+    if os.path.basename(os.path.dirname(f)) != "run-env" or not re.fullmatch(r"(?:p\d+|op|auto)\.env", name):
+        return None
+    return name[:-4]
+
+
 # 2.1386.0 (#6668 with #6457): set by the runner of a TEAM agent (Runner.job_env): j -> the env file of the request token
 # of the job's person, or None (no such token: the job is not started, OSError). A job woken / continued by the runner never
 # inherits the runner's environment with the agent's long-lived token (KALMIDO_TOKEN / the starter's KALMIDO_ENV_FILE).
@@ -783,6 +796,16 @@ def cmd_start(argv):
         title = f"{name}: {title.strip()}"
     api = Api()
     uid = os.environ.get("KALMIDO_CHAT_USER") or ""
+    # 2.1386.0 (#6668, reader R4 F1): a team agent's job is for the person of the request token it starts with (the run's
+    # env file), never for the one KALMIDO_CHAT_USER of the model's Bash line names: the server refuses another person
+    # (api/runfor.py pin:user_id) and the job keeps the token's person -- the runner wakes / continues it only with her file
+    key = run_env_key()
+    tp = int(key[1:]) if key and key[1:].isdigit() else None
+    if tp is not None and uid.isdigit() and int(uid) != tp:
+        print(f"this run works for person {tp}: no job for another person (KALMIDO_CHAT_USER={uid})")
+        return 2
+    if tp is not None:
+        uid = str(tp)
     body = {"title": title.strip()[:200], "state": "running"}
     if uid.isdigit():
         body["user_id"] = int(uid)
@@ -802,6 +825,13 @@ def cmd_start(argv):
         print(refused(str(e)) or "the Kalmido job could not be created: " + str(e)[:200])  # 2.392.0 A (#3367)
         return 1
     jid = int(kj["id"])
+    su = kj.get("user_id")
+    if key and tp is None and isinstance(su, int) and not isinstance(su, bool):
+        tp = su  # op / auto: the server pins the job to the token's person (none named = that person)
+    if key and (uid or tp is not None) and (tp is None or not uid.isdigit() or int(uid) != tp or (su is not None and su != tp)):
+        api.soft("PATCH", f"/agent/jobs/{jid}", {"state": "failed", "append_log": "the job's person is not the request token's"})
+        print(f"the job's person ({uid or '-'}) is not the person of this run's request token ({tp}): not started")
+        return 2
     d = job_dir(jid)
     os.makedirs(os.path.join(d, "outbox"), exist_ok=True)
     with open(os.path.join(d, "brief.txt"), "w", encoding="utf-8") as f:
@@ -809,6 +839,7 @@ def cmd_start(argv):
     j = {"id": jid, "kalmido_job": jid, "title": title.strip(), "name": name, "parent": parent, "state": "starting", "cmd": cmd, "task": task,
          "tasks": tasks, "continue_of": cont,
          "chat_user": int(uid) if uid.isdigit() else None, "timeout_s": int(timeout_h * 3600), "resumes": 0,
+         "env_key": key, "token_person": tp,  # 2.1386.0 (#6668, reader R4 F1): agent_run.py Runner.job_env / job_watch
          "created": time.time(), "cwd": os.getcwd(), "worktree": None, "session": "", "audit": audit}
     if worktree:
         try:
