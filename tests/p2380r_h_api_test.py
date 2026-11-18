@@ -24,8 +24,10 @@ freelancer-matrix: wiki
    (a backtick in a page's / folder's name), the tree's move, a restore, a lock that goes off make appear is nobody's, a
    page from a template keeps the template's embedders, an embed without a row is never the next writer's; every later
    start looks at the pages changed since the start before
- - #6868 (2.1368.0): a page that a rename / move (PATCH path, /api/wiki/move, the tree) brings under a share with pictures
-   it was not under keeps only the embeds of files the mover sees; the others are nobody's; the same shares: nothing changes
+ - #6868 (2.1368.0), #7056 (2.1399.0): a share shows a picture only when its row is confirmed for exactly that share (the
+   embedder's save under it, its pictures switched on over the page); no move confirms anything: a rename / move (PATCH path,
+   /api/wiki/move, the tree), the trash and back, a folder merged into another, a round trip through another workspace
+   bring a page under a link with pictures without its pictures; the same shares: nothing changes
  - #6657 (2.1368.0): a page whose stamp (wem_at) does not match its updated_at at the start (written by a version without the
    stamp / by hand): all its pictures are nobody's; a save without expect_updated_at or "Keep mine" (overwrite) claims no picture
  - #2398: the organisation export carries the organisation's polls (options, votes) and bookmarks (with the picture);
@@ -734,45 +736,93 @@ check(KEEPS.search("c.execute('UPDATE wiki_pages SET body=? WHERE id=?')") is No
       and WRITES.search('f"UPDATE wiki_pages SET {cols}"') and not WRITES.search('"UPDATE wiki_pages SET path=? WHERE id=?"'),
       "#6321: the guard's patterns tell a text write from a rename")
 
-# ================================================================== 2.1368.0 (#6868): a move under a new share with pictures
+# ================================================================== 2.1368.0 (#6868), 2.1399.0 (#7056): a move under a share with pictures
 # carol embeds a picture only she sees (CIMG) and one bob sees too (OIMG) into her page; carol has a folder link with pictures
 # on another folder. bob (writes the wiki, does not see CIMG) moves her page under that link -- the row said carol, so the
-# picture came through the link. Now: a page that comes under a share with pictures it was not under keeps only the rows
-# of the files the mover sees; the others are nobody's. A rename under the same shares changes nothing; a mover who sees
-# the file changes nothing.
-def mvpage(path):
-    return wnew(Ca, path, f"# Seite\n\n![Nur Carol](/api/files/nodes/{CIMG}/content)\n\n![Offen](/api/files/nodes/{OIMG}/content)\n")
+# picture came through the link. 2.1399.0 (#7056): the check sits at the output: a share shows a picture only when the row
+# is confirmed for exactly that share (its embedder's save under it, or its pictures switched on over the page) -- no way of
+# moving a page confirms anything (Fable re-check of 2.1368: F1 the trash, F6 a folder merged into another, F7 a round trip
+# through another workspace; was: wem_after_move on three of the ways, the others open). The rows stay whose they are.
+def mvpage(path, s=None):
+    return wnew(s or Ca, path, f"# Seite\n\n![Nur Carol](/api/files/nodes/{CIMG}/content)\n\n![Offen](/api/files/nodes/{OIMG}/content)\n")
 
 
 M0 = mvpage("Galerie6868/Drin")
 r = Ca.post(B + "/api/wiki/shares", json={"space": SPO, "folder": "Galerie6868", "kind": "link"})
 assert r.status_code == 201, r.text
+check(img(r.json().get("url", "").rsplit("/", 1)[-1], M0, CIMG) == 404, "#7056: a link without pictures confirms nothing")
 assert A.patch(B + f"/api/wiki/shares/{r.json()['id']}", json={"images": True}).ok
-MT = r.json().get("url", "").rsplit("/", 1)[-1]
-check(img(MT, M0, CIMG) == 200 and emb(M0, CIMG) == uid["carol"], f"#6868 setup: carol's picture comes through her folder link ({emb(M0, CIMG)})")
+MS, MT = r.json()["id"], r.json().get("url", "").rsplit("/", 1)[-1]
+
+
+def oks(pid, nid):
+    """The shares picture nid of page pid is confirmed for (wiki_embeds.shares), "-" = no row."""
+    r = dbx("SELECT shares FROM wiki_embeds WHERE page_id=? AND node_id=?", (pid, nid))
+    return sorted(r[0][0] or []) if r else "-"
+
+
+check(img(MT, M0, CIMG) == 200 and emb(M0, CIMG) == uid["carol"] and oks(M0, CIMG) == [f"w{MS}"],
+      f"#7056 setup: the pictures switched on (by alice, the admin): carol's picture is confirmed for her link and comes ({oks(M0, CIMG)})")
 r = Bo.patch(B + f"/api/wiki/pages/{M0}", json={"path": "Galerie6868/Drin neu"})
 g = img(MT, M0, CIMG)
 check(r.ok and g == 200 and emb(M0, CIMG) == uid["carol"], f"#6868: bob renames the page under the same link: the picture stays ({r.status_code} {g} {emb(M0, CIMG)})")
 M1 = mvpage("Quelle6868/Eins")
 r = Bo.patch(B + f"/api/wiki/pages/{M1}", json={"path": "Galerie6868/Eins"})
 g = (img(MT, M1, CIMG), img(MT, M1, OIMG))
-check(r.ok and wpath(M1) == "Galerie6868/Eins" and emb(M1, CIMG) is None and g[0] == 404,
-      f"#6868: bob (no sight) moves carol's page under her link (PATCH path): her picture is nobody's, nothing comes ({r.status_code} {emb(M1, CIMG)} {g})")
-check(emb(M1, OIMG) == uid["carol"] and g[1] == 200, f"#6868: the picture bob sees stays carol's and comes ({emb(M1, OIMG)} {g})")
+check(r.ok and wpath(M1) == "Galerie6868/Eins" and emb(M1, CIMG) == uid["carol"] and oks(M1, CIMG) == [] and g == (404, 404),
+      f"#7056: bob moves carol's page under her link (PATCH path): the rows stay hers, nothing is confirmed, nothing comes ({r.status_code} {emb(M1, CIMG)} {oks(M1, CIMG)} {g})")
 M2 = mvpage("Quelle6868b/Zwei")
 r = Bo.post(B + "/api/wiki/move", json={"space": SPO, "from": "Quelle6868b", "to": "Galerie6868/Quelle"})
 g = img(MT, M2, CIMG)
-check(r.ok and wpath(M2) == "Galerie6868/Quelle/Zwei" and emb(M2, CIMG) is None and g == 404,
+check(r.ok and wpath(M2) == "Galerie6868/Quelle/Zwei" and g == 404,
       f"#6868: the same when bob moves the folder of the page (/api/wiki/move) ({r.status_code} {r.text[:100]} {emb(M2, CIMG)} {g})")
 M3 = mvpage("Quelle6868c/Drei")
 r = Bo.patch(B + f"/api/files/nodes/{wnode(M3)[0]}", json={"parent_id": wnode(M0)[1]})
 g = img(MT, M3, CIMG)
-check(r.ok and wpath(M3) == "Galerie6868/Drei" and emb(M3, CIMG) is None and g == 404,
+check(r.ok and wpath(M3) == "Galerie6868/Drei" and g == 404,
       f"#6868: the same when bob moves the page in the tree ({r.status_code} {r.text[:100]} {wpath(M3)} {emb(M3, CIMG)} {g})")
+# 2.1399.0 (#7056, re-check F2 / Meadows F1): the trash -- bob puts carol's page into the trash, moves its folder under the
+# link (the page in the trash follows), takes it back out
+M5 = mvpage("Quelle7056e/Fuenf")
+wnew(Bo, "Quelle7056e/Bleibt", "bleibt")  # a live page, so the folder moves
+check(Bo.delete(B + f"/api/wiki/pages/{M5}").ok, "#7056 F2 setup: bob puts carol's page into the trash")
+r = Bo.post(B + "/api/wiki/move", json={"space": SPO, "from": "Quelle7056e", "to": "Galerie6868/Quelle7056e"})
+check(r.ok, f"#7056 F2 setup: bob moves the folder under the link ({r.status_code} {r.text[:120]})")
+r = Bo.post(B + "/api/wiki/restore", json={"ids": [M5]})
+g = (img(MT, M5, CIMG), img(MT, M5, OIMG))
+check(r.ok and wpath(M5).startswith("Galerie6868/") and emb(M5, CIMG) == uid["carol"] and g == (404, 404),
+      f"#7056 F2: back from the trash under carol's link: nothing comes ({r.status_code} {r.text[:120]} {wpath(M5)} {emb(M5, CIMG)} {g})")
+# F6: the share wanders to the pages -- carol's link with pictures on the folder Pub7056; bob merges Pub7056 into the
+# existing folder Intern7056: the link follows its folder and now covers carol's internal page there
+PUB = mvpage("Pub7056/Offen")
+r = Ca.post(B + "/api/wiki/shares", json={"space": SPO, "folder": "Pub7056", "kind": "link", "images": True})
+assert r.status_code == 201, r.text
+PS, PT = r.json()["id"], r.json().get("url", "").rsplit("/", 1)[-1]
+check(img(PT, PUB, CIMG) == 200 and oks(PUB, CIMG) == [f"w{PS}"], f"#7056 F6 setup: a link made with pictures confirms the pictures of its pages now ({oks(PUB, CIMG)})")
+INT = mvpage("Intern7056/Geheim")
+r = Bo.post(B + "/api/wiki/move", json={"space": SPO, "from": "Pub7056", "to": "Intern7056"})
+g = (img(PT, INT, CIMG), img(PT, INT, OIMG), img(PT, PUB, CIMG))
+check(r.ok and wpath(PUB) == "Intern7056/Offen" and requests.get(B + f"/s/w/{PT}/p/{INT}").ok and g == (404, 404, 200),
+      f"#7056 F6: bob merges the shared folder into another: the link covers carol's internal page, its pictures never come; the page shared before keeps its picture ({r.status_code} {r.text[:120]} {g})")
+# F7: a round trip through another workspace -- alice (the admin) takes carol's page out of the organisation into her
+# private space and brings it back with dest under carol's link
+M6 = mvpage("Quelle7056f/Sechs")
+r = A.post(B + "/api/wiki/move-space", json={"space": SPO, "to": "private", "pages": [M6]})
+check(r.ok, f"#7056 F7 setup: alice moves carol's page into her private space ({r.status_code} {r.text[:160]})")
+r = A.post(B + "/api/wiki/move-space", json={"space": "private", "to": SPO, "pages": [M6], "dest": "Galerie6868"})
+g = img(MT, M6, CIMG)
+check(r.ok and (wpath(M6) or "").startswith("Galerie6868/") and g == 404,
+      f"#7056 F7: back under carol's link: nothing comes ({r.status_code} {r.text[:160]} {wpath(M6)} {emb(M6, CIMG)} {g})")
+# who sees the file and moves the page changes nothing either (was: carol's own move kept it, #6868); her own save under
+# the link confirms her pictures for it (the embedder stands for them there), never bob's save
 M4 = mvpage("Quelle6868d/Vier")
 r = Ca.patch(B + f"/api/wiki/pages/{M4}", json={"path": "Galerie6868/Vier"})
 g = img(MT, M4, CIMG)
-check(r.ok and emb(M4, CIMG) == uid["carol"] and g == 200, f"#6868: carol (who sees it) moves her page under the link: it stays and comes ({emb(M4, CIMG)} {g})")
+check(r.ok and emb(M4, CIMG) == uid["carol"] and g == 404, f"#7056: carol (who sees it) moves her page under the link: not confirmed yet ({emb(M4, CIMG)} {g})")
+check(wsave(Bo, M4, wbody(Bo, M4) + "\nbob\n").ok and img(MT, M4, CIMG) == 404 and img(MT, M4, OIMG) == 404,
+      f"#7056: bob's save confirms nothing (the pictures are carol's) {oks(M4, OIMG)}")
+check(wsave(Ca, M4, wbody(Ca, M4) + "\ncarol\n").ok and img(MT, M4, CIMG) == 200 and oks(M4, CIMG) == [f"w{MS}"],
+      f"#7056: carol saves her page under the link: her pictures are confirmed for it and come ({oks(M4, CIMG)})")
 
 # ================================================================== #2398: polls and bookmarks move with the organisation
 A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
