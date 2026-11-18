@@ -21,7 +21,7 @@ const msvHtml = () => `<h4 id="s-msv-h">${tr('Servers')}</h4>
   <div class="members" id="s-msv"><div class="muted mhint">${tr('Loading…')}</div></div>
   <div class="row msvbtns"><button class="btn sm pri" data-msva="add">${ic('plus', 's')} ${tr('Add server')}</button><button class="btn sm" data-msva="code">${ic('key', 's')} ${tr('Create a connection code for another server')}</button></div>`;
 async function msvDraw(md) {
-  // the section stands in Settings > Account above "Advanced · for developers"
+  // the section stands in Settings > Account above "For advanced users"
   let box = $('#s-msv', md);
   if (!box) {
     // 2.1353.0 (#6827): the sections are folded head rows (settings.js sf_*): Servers is one of its own, before the one around "Advanced"
