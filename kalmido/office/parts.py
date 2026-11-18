@@ -228,7 +228,9 @@ def f8b_fix_cents(rows, want, lang="de", currency="EUR", fx=None):
     here as their amount, unit flat): with exactly one position of that rate it becomes that position's flat amount (its
     qty x rate stays in the detail, as before); with several (or none) the part gets its own position "Rounding
     adjustment" (qty 1, flat) at its end - no hour position silently turns into a flat amount. So the invoice hits the
-    quotation's net and gross in every mode (was: only up to 0.05, and nothing at all with a percent position)."""
+    quotation's net and gross in every mode (was: only up to 0.05, and nothing at all with a percent position).
+    2.1402.0 (#6247): a single position carrying "_key" (tag=True, the post-calculation) is not made flat either: the rest
+    gets the "Rounding adjustment" line, so the position keeps its unit and counts by time."""
     def conv(rate):
         return rate * fx if fx is not None else rate
 
@@ -257,7 +259,9 @@ def f8b_fix_cents(rows, want, lang="de", currency="EUR", fx=None):
             # no rounding rest any more (a rest is at most half a cent per position and part qty): still settled, so the
             # invoice equals the quotation, but said in the log - a computation fault must not hide in this line
             app.logger.warning("f8b_fix_cents: rest %s on %s position(s) of rate %s (wanted %s)", diff, len(svc), k, want.get(k))
-        if len(svc) == 1 and svc[0].get("unit") != "percent":
+        # 2.1402.0 (#6247): a position tagged for the post-calculation (_key, tp_inv_items tag=True) stays as quoted - its
+        # qty is replaced by the tracked hours there; the rest goes onto its own line "Rounding adjustment" (no _key)
+        if len(svc) == 1 and svc[0].get("unit") != "percent" and not svc[0].get("_key"):
             last = svc[0]
             q, rate = dec(last.get("qty"), "1"), dec(last.get("rate"))  # 2.354.0 A (#2831): the exact rate
             # 2.1042.0 (#5815): a discounted position becomes its net after the discount (the flat amount carries it, no percent left)

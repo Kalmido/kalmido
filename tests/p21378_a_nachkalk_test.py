@@ -14,6 +14,8 @@ tenant-matrix: office
  - only the quotation's project counts: a task moved to another project brings no hours any more
  - rights: an office member who does not see the project 403, an editor of the project (sees only own times) 403, an admin
    of the project 200; a person without the office refused; another workspace's quotation 404
+ - #6247: a part with one hour position and a rest cent: the position stays by time (tracked hours), the rest cent gets
+   its own line "Rundungsausgleich"
  - the same for a person without an organisation (the personal office, a private project)
 usage: p21378_a_nachkalk_test.py <datadir>"""
 import base64
@@ -156,6 +158,31 @@ def scenario(S, who, org=None):
     j = S.get(B + f"{D}/{QN}/postcalc").json()
     sn = j.get("sums") or {}
     check(sn.get("negative") is True and sn.get("actual_net", 0) < 0 and sn.get("no_time") == 1, f"{who}: #6106 the fixed discount makes the actual sum negative: warned {sn}")
+    # 2.1402.0 (#6247): a part with one hour position and a fractional rest cent (1 h x 10.125, the part 3 times: quotation
+    # 3 x 10.13 = 30.39, the position 3 h x 10.125 = 30.38): the rest goes onto its own line, the hour position stays by time
+    r = S.post(B + D, json={"kind": "offer", "lang": "de", "project_title": f"Montage {who}", "client_id": cl, "items": []})
+    QR = r.json().get("id")
+    PR = S.post(B + f"{D}/{QR}/parts", json={"title": "Montage"}).json()["part"]["id"]
+    S.put(B + f"{D}/{QR}/parts/{PR}/items", json={"items": [{"kind": "service", "title": "Feinmontage", "qty": 1, "unit": "hour", "rate": 10.125}]})
+    its = S.get(B + f"{D}/{QR}").json()["items"]
+    for x in its:
+        if x.get("ref_part_id") == PR:
+            x["qty"] = 3
+    tot = S.put(B + f"{D}/{QR}/items", json={"items": its}).json().get("totals") or {}
+    check(abs(float(tot.get("net", 0)) - 30.39) < 0.001, f"{who}: #6247 the quotation 30.39 {tot.get('net')}")
+    LR = S.post(B + "/api/lists", json={"name": f"Montage {who}", "ptype": "agency", "time_tracking": True, "org_id": org}).json()["id"]
+    S.post(B + f"{D}/{QR}/project", json={"list_id": LR})
+    S.post(B + f"{D}/{QR}/tasks", json={"pick": [x["key"] for x in S.get(B + f"{D}/{QR}/tasks").json()["rows"]]})
+    S.post(B + f"{D}/{QR}/status", json={"status": "accepted"})
+    tr_ = sql("SELECT id FROM tasks WHERE list_id=? AND title=? AND deleted_at IS NULL", (LR, "Feinmontage"))
+    check(len(tr_) == 1, f"{who}: #6247 the task of the part's hour position {tr_}")
+    track(S, tr_[0][0], 200, who)  # 3.33 h -> 3.25
+    rb = {x["title"]: x for x in S.get(B + f"{D}/{QR}/postcalc").json().get("rows") or []}
+    fm, adj = rb.get("Feinmontage") or {}, rb.get("Rundungsausgleich") or {}
+    check(fm.get("state") == "time" and fm.get("unit") == "hour" and fm.get("plan_qty") == 3.0 and fm.get("actual_qty") == 3.25,
+          f"{who}: #6247 the hour position stays by time with the tracked hours (was: flat, 'not by time') {fm}")
+    check(adj.get("state") == "none" and adj.get("unit") == "flat" and abs(adj.get("rate", 0) - 0.01) < 0.0001,
+          f"{who}: #6247 the rest cent on its own line {adj}")
     return Q, L, ts
 
 
