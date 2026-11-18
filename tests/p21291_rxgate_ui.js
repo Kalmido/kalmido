@@ -6,7 +6,7 @@
 //   is declared and offers to take it back; taken back, the button is there again
 // - the instance admin deletes that account: the retention step offers no waiver of her own, it says who can declare it;
 //   after the person's declaration the step offers "Delete without the export (declared on ...)", and with it and the
-//   confirmation the account goes
+//   confirmation the server still refuses: a finalised invoice in its legal period is never deleted (#1969, 2.1327.0)
 const path = require('path');
 const crypto = require('crypto');
 const {execFileSync} = require('child_process');
@@ -92,8 +92,11 @@ const FEAT = 'cal,comments,collab,office,clients,docs,files';
     await ev(`(() => { ${RXM}.querySelector('[data-m="go"]').click(); return 1; })()`);
     check(await ready(ev, `!!document.querySelector('.modal [data-cd="yes"]') && !document.querySelector('.modal [name="rxhow"]')`, 60), 'then the usual question');
     await ev(`(() => { document.querySelector('.modal [data-cd="yes"]').click(); return 1; })()`);
-    check(await ready(ev, `window.__del === true`, 60), 'deleted with the declared waiver ' + await ev('String(window.__del)'));
-    check((await call(CA, 'GET', `/api/users/${FID}/delete-info`)).http === 404, 'frida is gone');
+    // 2.1327.0 (#1969, decision of 17.11.2026): her finalised invoice is in its legal period - the waiver does not delete it,
+    // the server refuses (only its operator after a finished export, or after the period); frida stays
+    check(await ready(ev, `window.__del === false`, 60), 'the declared waiver does not delete finalised documents in their period (#1969) ' + await ev('String(window.__del)'));
+    const left = await call(CA, 'DELETE', `/api/users/${FID}?retention=waived`);
+    check(left.http === 409 && left.reason === 'locked_docs' && (await call(CA, 'GET', `/api/users/${FID}/delete-info`)).http === 200, 'frida stays: 409 locked_docs ' + left.http + ' ' + left.reason);
   }, false);
 
   console.log(`p21291_rxgate_ui: ${ok} ok, ${F.length} failed`);
