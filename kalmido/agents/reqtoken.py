@@ -87,7 +87,7 @@ def req_drop_op(c, aid):
     the list work's request tokens (place op:, req_slot) of the person chosen before end at once -- the starter's dispatcher
     must not work up to 8 hours on as the old person; the starter asks anew for the new one. The caller commits."""
     with system_ctx(c):
-        c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=? AND req_slot LIKE 'op:%'", (aid, REQ_TOKEN_NAME))
+        c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=? AND substr(req_slot, 1, 3)='op:'", (aid, REQ_TOKEN_NAME))  # a prefix without LIKE (pg_dialect)
 
 
 def _main(row):
