@@ -108,3 +108,25 @@ def fk_third_country(client, home):
     h = fk_country_code(home) or str(home or "").strip().upper() or "DE"
     cc, h = FK_VAT_AREA.get(cc, cc), FK_VAT_AREA.get(h, h)  # 2.538.0 (#4368)
     return bool(cc) and cc != h and cc not in FK_EU
+
+
+# 2.1396.0 (#6701): territories outside the EU's VAT area (or with rules of their own) that have no country code of their own:
+# country -> postcode prefixes (the review of 17.11.2026, also in docs/API.md). An invoice issuer's draft to such an address
+# carries the flag vat_territory and waits for a person; Kalmido derives no VAT case from a postcode, the person decides.
+FK_VAT_TERRITORIES = {
+    "ES": ("35", "38", "51", "52"),          # the Canary Islands (Las Palmas, Santa Cruz de Tenerife), Ceuta, Melilla
+    "IT": ("23041", "22061"),                # Livigno, Campione d'Italia
+    "GR": ("63086", "63087"),                # Mount Athos
+    "FI": ("22",),                           # Aland under FI (its own code AX is a third country already)
+    "FR": ("971", "972", "973", "974", "975", "976"),  # the overseas departments under FR
+    "DE": ("78266", "27498"),                # Buesingen, Heligoland
+}
+
+
+def fk_vat_territory(country, zip_):
+    """True when the postcode zip_ in country (ISO code) lies in a territory of FK_VAT_TERRITORIES."""
+    cc = fk_country_code(country) or str(country or "").strip().upper()
+    z = "".join(ch for ch in str(zip_ or "") if ch.isalnum()).upper()
+    if cc == "FI" and z.startswith("AX"):
+        return True
+    return bool(z) and any(z.startswith(p) for p in FK_VAT_TERRITORIES.get(cc, ()))
