@@ -58,6 +58,17 @@ a test for what you change; security fixes need a regression test in `tests/secu
   cleaned). Fix a new finding (or mark a deliberate one with `# noqa: CODE -- reason`); after a reviewed clean-up or a
   ruff update `python3 tools/ruff_baseline.py /tmp/ruff.json --update` writes the list anew. A silent
   `except Exception: pass` names its reason after the `noqa` marker (`tests/p2755_d_ruff_baseline_test.py` checks it).
+- **A red check says why and what instead; suppressions only with a reason** (#7143): every own check (`tools/check_*.py`,
+  `.semgrep/`, the ruff and semgrep baselines) prints after its findings a `Why:` line, an `Instead:` line naming the helper
+  or file to use, and "do not suppress it, do not build around it" (`tools/lintmsg.py`). Fix the cause; a marker that must
+  stay (`# noqa: CODE`, `nosemgrep`, `eslint-disable`, `sprung-ok:` ...) carries its reason in the same comment
+  (`# noqa: BLE001 -- the worker never dies on one run`). `python3 tools/check_suppress.py` counts the markers per kind
+  (`tools/suppress_baseline.json`): a new one without a reason is red, and so is a kind whose number rises (import order,
+  lambda and re-export codes of ruff and the own `-ok` markers: a notice only). `python3 tools/check_rules.py` holds the
+  decisions against patching that can be seen in the code (`tools/rules_baseline.json`): no `os.environ` outside
+  `kalmido/core/env.py`, no version marks like `2.123.0 (#4567)` in comments of `kalmido/` and `static/` (the history is in
+  git), no further copy of a starter helper or a fence per MCP tool, no further `SECRET_*` name pattern, no new generated
+  file in git. Both baselines only fall: `--update` lowers them to today and never raises one; `--list KIND` shows the places.
 - **Calls get all required parameters** (2.1056.0, #5863): `python3 tools/check_call_arity.py` reads every module-level
   function of `kalmido/` and `app.py` with `ast` and checks its calls (same module, `from ... import`, module aliases,
   re-exports): a missing required or keyword-only parameter, too many positional arguments or an unknown keyword is red in
