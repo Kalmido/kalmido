@@ -73,19 +73,20 @@ def _agent_name(v):
     return re.sub(r"[\x00-\x1f\x7f]", " ", str(v or "")).strip()[:60]
 
 
-def need_agent_admin(c, aid, kill=False, cred=False):
+def need_agent_admin(c, aid, kill=False, cred=False, read=False):
     """An instance admin and agent aid (404 without it). 2.399.0 (#2687): hosted, an agent of a client (its organisation's, or a
     client's personal one) only for the kill switch (kill=True: PATCH {enabled}); everything else 403. 2.485.0 (#3939, review
-    F1): cred=True (a token, secret or setup code) never through the client's support access."""
+    F1): cred=True (a token, secret or setup code) never through the client's support access.
+    2.1363.0 (#6862): through the client's support access only the kill switch changes the agent; delete, reset, avatar,
+    test event and removing a device answer 403 like the other closed ways -- read=True marks the reading routes."""
     need_admin()
     a = agent_row(c, aid)
     if not a:
         raise Denied(404)
     if not kill and op_foreign_account(c, aid):
         op_apart_deny()
-    if cred:
-        if op_support_only(c, uid=aid):
-            op_support_deny()
+    if (cred or not (kill or read)) and op_support_only(c, uid=aid):
+        op_support_deny()
     return a
 
 

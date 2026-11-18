@@ -143,7 +143,8 @@ def openapi_spec():
         "tags": {"type": "array", "items": {"type": "string"}, "description": "The token user's own tags"},
         "pinned": {"type": "boolean"}, "assignee_id": nul("integer"), "created_by": nul("integer"), "completed_by": nul("integer"),
         "by_creator": {"type": "boolean", "description": "2.1308.0: created_by wrote the task themselves (in the app or with their own "
-                       "token); false for tasks from an inbound webhook, a mail, a form, an import, a sync and tasks from before 2.1308.0"},
+                       "token); false for tasks from an inbound webhook, a mail, a form, an import, a sync and tasks from before 2.1308.0; "
+                       "2.1363.0: false for good once another account changes the title or the description, false for a copy"},
         "assignee_group_id": nul("integer", description="2.10.0: assigned to a group (whoever has time takes it, POST /tasks/{id}/take); "
                                  "setting it clears assignee_id and the other way round; the project must be shared with the group"),
         "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"},

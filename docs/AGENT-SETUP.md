@@ -795,7 +795,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
   the project folder off on its own. It closes built tasks (a commit with `#ID` in `close_ref`), starts the next job when a
   place is free, tells you once about stuck tasks and silent jobs, and sends a day report. It builds only tasks you wrote
   yourself in the app or with your own token (2.1308.0): tasks of other members, without a creator or from a webhook, an
-  e-mail, a form or an import are named in the day report, never built, and comments
+  e-mail, a form or an import are named in the day report, never built (2.1363.0: also your task once somebody else
+  changed its title or notes), and comments
   of others reach the job only as data. Start with *Dry run*: it only
   reports what it would do. Details and every key: [AGENTS.md](AGENTS.md#working-a-list-off-24810).
 - **Long work as a job** (2.44.0, [`mcp/agent_job.py`](../mcp/agent_job.py)): work that takes more than about ten minutes (a release

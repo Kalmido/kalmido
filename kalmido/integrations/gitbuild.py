@@ -16,7 +16,7 @@ from ..api.v1 import _v1_live, v1_args, v1_one, v1_view
 from ..collab.liste2e import le2e_mode
 from ..lists.fields import set_field_values
 from ..tasks.review import rvw_gate
-from ..tasks.tasks import one_task, task_create
+from ..tasks.tasks import one_task, task_create, task_no_origin  # 2.1363.0 (#6728): + task_no_origin
 from ..tasks.validation import log_act
 from .webhooks import wh_note
 from ..tasks.oneway import irr_needs_yes
@@ -628,7 +628,8 @@ def gb_partial(c, t, version, note=""):
     # the rest takes t's lock, not the "an agent's task starts locked" default (#1118): since 2.542.0 (#4609) the release pass
     # never completes a locked task, and the rest of an open task must go with the release of Y like the task itself
     keep["locked"] = 1 if t["locked"] else 0
-    rest = v1_call(task_create, body={"title": f"Rest: {t['title']}", "list_id": lid, "content": note, "fields": {f["id"]: val}, **keep})["id"]
+    with task_no_origin():  # 2.1363.0 (#6728, N2): the 'Rest:' task is the release's, not text its person wrote
+        rest = v1_call(task_create, body={"title": f"Rest: {t['title']}", "list_id": lid, "content": note, "fields": {f["id"]: val}, **keep})["id"]
     ts = iso_ms(now_utc())
     c.execute("INSERT INTO task_deps(task_id,blocker_id,created_by,created_at) VALUES(?,?,?,?)", (tid, rest, me(), ts))
     log_act(c, tid, "dep_add", {"id": rest, "title": f"Rest: {t['title']}"[:200]})

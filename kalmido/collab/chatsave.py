@@ -36,7 +36,7 @@ from ..api.common import v1_call, V1Error  # 2.149.0 G (#2517): pulled up from f
 from ..collab.comments import user_names, need_live_comment  # 2.369.5 (#2517): pulled up from functions
 from ..core.objcomments import OCM_MENTION_RE  # 2.972.0 (#5272): the one mention token
 from ..collab.teamchat import tchat_on, tchat_room_ok  # 2.369.5 (#2517): pulled up from functions
-from ..tasks.tasks import one_task, task_create  # 2.369.5 (#2517): pulled up from functions
+from ..tasks.tasks import one_task, task_create, task_no_origin  # 2.369.5 (#2517): pulled up from functions; 2.1363.0 (#6728)
 from ..accounts.orgout import OO_ADMIN_ONLY, org_out, org_out_ok  # 2.369.5 (#2517): pulled up from functions
 from ..core.orgcrypt import oc_copy_file, oc_task_org, oc_task_space  # 2.369.5 (#2517): pulled up from functions
 from ..collab.teamchan import tcx_group_name  # 2.369.5 (#2517): pulled up from functions
@@ -202,7 +202,8 @@ def chat_save():
     if b.get("due") not in (None, ""):
         new["due"] = b["due"]
     try:
-        t = v1_call(task_create, body=new)  # the usual rules, activity and events of a new task (commits)
+        with task_no_origin():  # 2.1363.0 (#6728, N2): the message's text is somebody else's (or a chat's), no origin mark
+            t = v1_call(task_create, body=new)  # the usual rules, activity and events of a new task (commits)
     except V1Error as e:
         return e.resp
     tid = t["id"]
