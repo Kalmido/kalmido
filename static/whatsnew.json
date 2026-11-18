@@ -1,6 +1,40 @@
 {
  "versions": [
   {
+   "version": "2.1399.0",
+   "date": "2026-11-18",
+   "items": [
+    {
+     "de": "In „Meine Aufgaben“ kommen beim Ziehen mehrerer Aufgaben jetzt alle im Ziel an - im eigenen Abschnitt, in der eigenen Reihenfolge und auf der Tafel.",
+     "en": "In \"My tasks\", dragging several tasks now moves all of them - into an own section, within your own order and on the board."
+    },
+    {
+     "de": "Die Nachkalkulation warnt bei Stundenpositionen ohne erfasste Zeit und wenn feste Rabatte die Ist-Summe unter null drücken.",
+     "en": "The post-calculation warns about hour positions without tracked time and when fixed discounts push the actual sum below zero."
+    },
+    {
+     "de": "Unter „Alle Arbeitsbereiche“ öffnet sich das Büro direkt, wenn es nur in einem Bereich eingeschaltet ist.",
+     "en": "Under \"All workspaces\" the office opens directly when it is switched on in one area only."
+    },
+    {
+     "de": "Legt ein Rechnungs-Aussteller einen Kunden an oder ändert ihn, zeigt die Kundenkarte eine Halte-Marke; Festschreiben und Senden fragen bis zur Prüfung nach.",
+     "en": "When an invoice issuer sets up or changes a client, the client card shows a hold mark; finalising and sending ask for a check until a person confirmed it."
+    },
+    {
+     "de": "Freigabe-Karten ohne gebundenen Schritt zeigen nur noch die Frage des Agenten als Titel, ohne Zitat-Rahmen und ohne Hinweiszeile.",
+     "en": "Approval cards without a bound step now show only the agent's question as the title, without quote frame or notice line."
+    },
+    {
+     "de": "Kann dein Gerät eine Änderung nicht speichern (Speicher voll), zeigt die Kopfleiste „Nicht gesichert“, bis sie gesendet ist.",
+     "en": "If your device cannot store a change (storage full), the top bar shows \"Not saved\" until it is sent."
+    },
+    {
+     "de": "Im Agenten-Chat findest du im Menü ⋯ jetzt „Einstellungen von <Agent>“.",
+     "en": "The agent chat's ⋯ menu now has \"Settings of <agent>\"."
+    }
+   ]
+  },
+  {
    "version": "2.1395.0",
    "date": "2026-11-18",
    "items": [
@@ -1223,32 +1257,6 @@
     {
      "de": "Die linke Leiste von Dateien hat jetzt dasselbe ruhige Zeilenraster wie Projekte.",
      "en": "The left panel of Files now has the same calm row grid as Projects."
-    }
-   ]
-  },
-  {
-   "version": "2.910.0",
-   "date": "2026-11-11",
-   "items": [
-    {
-     "de": "Beim Öffnen eines Dokuments springt das Vorschaubild nicht mehr, wenn das volle Dokument geladen ist.",
-     "en": "Opening a document, the preview no longer jumps when the full document has loaded."
-    },
-    {
-     "de": "Rückgängig und Strg+Z nehmen deine letzten Schritte zurück, auch wenn du sie auf einem anderen Gerät gemacht hast.",
-     "en": "Undo and Ctrl+Z take back your latest steps, also those made on another device."
-    },
-    {
-     "de": "Dialoge in Listen schließen einheitlich mit „Fertig“, „Schließen“ oder „Abbrechen“ + „Speichern“.",
-     "en": "List dialogs now close the same way everywhere: \"Done\", \"Close\" or \"Cancel\" + \"Save\"."
-    },
-    {
-     "de": "Die Schnelleingabe zeigt jede erkannte Angabe nur noch einmal.",
-     "en": "Quick add shows each recognised detail only once."
-    },
-    {
-     "de": "Klappt Abhaken oder Verschieben nicht, sagt eine Meldung, was nicht gespeichert wurde, und der Haken geht zurück.",
-     "en": "If ticking off or moving fails, a message says what was not saved and the tick goes back."
     }
    ]
   }

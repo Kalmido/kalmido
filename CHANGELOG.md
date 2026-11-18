@@ -23,6 +23,62 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1399.0] - 2026-11-18
+
+Package 2.1389 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Changed
+- My tasks: a dragged selection arrives whole - onto the head of an own section, onto a row of the own order and onto a column of the board (date, priority, project) all selected tasks move in one step, in the order the view shows them; "Recently assigned" still takes nothing (#6959)
+- Agents: a task counts as the person's own (`by_creator`) only when they wrote it by hand - in their sign-in session, through the proxy sign-in or with their own token; a list rule, the document fetcher, an e-mail issuer key and a support session in their account no longer count. A copy of a task (to another project or server), a chat message saved as a task, the `Rest:` task of a release and an event's preparation task under the event's title never carry the mark (#6728, #7005)
+- Packing list of a quotation: the double booking check asks once per shoot day for all devices instead of once per device (#6106)
+- Lint: every `task-insert-ok` exception is counted per file in `tools/task_insert_baseline.json` (`_ok`); a new one is red until `--write` records it in the same commit (#6988)
+
+### Added
+- Post-calculation: a linked hour position without tracked time says "No tracked time: billed with 0 h"; when fixed discounts push the actual sum below zero, the preview warns before the draft is created (API: `rows[].warn`, `sums.no_time`, `sums.negative`) (#6106)
+
+### Fixed
+- Agents: unlocking the locked note of somebody else's task makes the description the unlocker's (`updated_by`), so the creator's dispatcher no longer builds it as their order (#7005)
+
+Package 2.1392 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6330 Knowledge pages: when the page reloads while you start typing, the base you write on (version and text) stays, so the save shows the "Changed in the meantime" dialog instead of overwriting the other device's text.
+- #6717 Office under "All workspaces": with several organisations and the office on in only one area, that office opens directly (every office request names the area) instead of "Select a workspace at the top".
+- #6738 Workspace mailbox: `KALMIDO_MAILBOX_MAIL_MAX` is bounded to 1 MB .. 200 MB; the e-mail about a mailbox that cannot fetch names the workspace (and links the mailbox settings) instead of the mailbox's user name.
+
+### Changed
+- #7101 Tests: the upgrade suite also starts from an old state of 2.1380.0 (quarter Q4/2026, `tests/fixtures/upgrade`).
+
+Package 2.1384 (Bündel: Bündel: Büro: Aussteller-Schlüssel - Kunden per externer K, Büro: Zustell-Zustand der Rechnungs-Mail am Beleg , CI: Merge-Queue-Lauf).
+
+### Added
+- #6700 Invoice issuer clients (stage 1c of the platform billing): an issuer's key sets up and changes only its own clients by an external reference (`PUT` / `GET /api/v1/issuer/clients/by-ref/<ref>`; fixed field list, unknown field 400, a change needs `expect_updated_at`, `name` = the invoice recipient's name, also a person's; the country code of a VAT ID must match the client's country, Greece = EL). Every setup or change by the key puts a hold mark on the client that only a person takes away (client card: "Client data from the invoice issuer checked"); while it stands, finalising and sending ask for an explicit confirmation in the dialog and every way without one (series auto_send and its mail catch-up, the client portal) refuses. A key changes at most 200 clients within 24 hours (429 `limit_reached`). Letter mails and the privacy sheet ask for the same confirmation. Issuer history entries are never merged; merging only among clients of the same issuer, no move to another workspace, trash 409 `client_trashed`, anonymised / gone 410 `client_gone`. Migration 6700: columns `clients.issuer_id`, `external_ref`, `issuer_hold`, unique (`issuer_id`, `external_ref`) (additive).
+
+### Changed
+- #6991 Approval cards without a bound step (a plain question of an agent) show the agent's text as the card's title, with "If yes: …" below when given - no server line "No step is bound", no quote frame "The agent writes:". Cards with a step are unchanged (server description first, the agent's text as a quote).
+- #6833 CI: a merge queue entry runs only the groups of the hard suites (the same as the stage release), no longer the soft suites it touches; the gate "Merge queue gate" and the fallback to the full run for empty groups stay.
+
+### Fixed
+- #6339 Offline queue: a change counts as kept only once a write really landed. After a failed IndexedDB write the localStorage stopgap is no longer deleted on the next save (the change stayed only in the window's memory); the next write takes the whole queue. A refused write (storage full or blocked) of the queue, conflicts, the id map or kept input shows a lasting "Not saved – keep this window open" sign in the top bar until a later write lands; the same sign when the queue's database would not open. `navigator.storage.persist()` is asked for once the first change waits. Entries `outStash` could not put into a full localStorage go straight into the queue.
+
+Package 2.1386 (Bündel: Büro-Umzug: gebrochene Hash-Kette nicht still neu , Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Action needed
+- #6668: Team agents with their own starter or program: from the first request token on, the agent's own long-lived token reaches only its channel (events, status, chats, jobs, cards); project content needs a request token (`POST /api/v1/agent/request-token`). Update the starter (agent_launcher.sh / .ps1) - it asks for a request token before every run and starts nothing without one. A program that never asks keeps working as before.
+- #6623: Scripts or own clients that answer approval cards with Yes: fetch the step's description first (`GET /api/v1/approvals/diff`, field `proof`) and send it as `desc_proof` with the Yes; without it a card with a bound step answers 409 `desc_proof_needed`. No never needs it.
+
+### Added
+- #6668: An external team agent (own token, own starter, hosted MCP) works per request for exactly one person: the request token has the same cut as a server run (that person's projects, writes capped to their role); events without a person allow reading their projects only and every change becomes an approval card. One valid request token per agent and person (a new one replaces the old), only for an active person account (else 403 `no_order`); the starter falls back to the long-lived token only when the server does not announce `request_token`. Removing a computer ends all request tokens of the agent; hosted MCP of a team agent works for the person who connected it. Starters (.sh, .ps1), MCP, agent docs and the in-app setup guide follow (migration 6668: columns `agents.per_request`, `api_tokens.req_slot`). The agent's long-lived token then reaches only its channel routes (events, chats, jobs, progress, typing; everything else 403 `request_token_needed`); one valid request token per agent, person and slot (run or operator, per computer), renewed once on a 401; a request token stops when the person's account is disabled; a team agent's run gets its own env file (0600) with only the request token as `KALMIDO_ENV_FILE` (MCP server, CLI, jobs and usage hook read it, re-read once on a 401), never the agent's env file; jobs woken or resumed by the starter get only their person's file; the guard hook and the deny rules refuse the whole `run-env` folder of the starter, `/proc/<pid>/environ` and `ps e`, also with `KALMIDO_BLOCK_DANGEROUS=0`. A request token keeps the narrower address rule of the computer that asked; collected task events form one bundle per person; changing the person under *Permission questions go to* ends the operator tokens at once; the long-lived token changes only its own filters, never shared views; a job whose request token expired shows "Request token expired" in the agent's status (renewal follows in #7106). A job started in a run belongs to that run's person (`POST /agent/jobs` 403 for another person); waking or resuming it uses only that person's token file. Usage with the long-lived token shows no task titles.
+- #6623: New route `GET /api/v1/approvals/diff` for people with an access key (agents 403).
+
+### Changed
+- #6623: A Yes on an approval card with a bound step is accepted by the server only with the proof of the server's description of that step (bound to card, person, step and wording) - for chat and comment cards, web and v1. The web card sends it along and reloads the description on a 409.
+- #7003: The agent chat's ⋯ menu has "Settings of <agent>" right above "Chat settings" (owner, or admin for a team agent); it opens "Work style and notifications". The same entry is on the agent's person card; the entry left the permissions menu. Settings > Agents labels the row's settings button "Settings of <agent>".
+
+### Fixed
+- #6882 Office: moving the private office into an organisation refuses (already in the preview, 409 on the move) when the private office's hash chain is broken or cannot be checked, naming the document, instead of chaining finalised documents anew. The move's answer carries ok / count / pending of the chain; the broken document only for a person with an office role.
+- #6934 Office: a project moving out of an office frees its time entries billed on a draft there (billable again); only time on a finalised document stays "billed in an earlier organisation".
+
 ## [2.1395.0] - 2026-11-18
 
 Package 2.1368 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Starter-Parität: Dispatcher-Pflicht - Ende im Pull, Starter-Parität: Regeln und Vorla).
@@ -655,7 +711,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1395.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1399.0...HEAD
+[2.1399.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1399.0
 [2.1395.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1395.0
 [2.1387.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1387.0
 [2.1380.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1380.0
