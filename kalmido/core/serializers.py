@@ -79,6 +79,8 @@ def task_dict(r, tags, full_snips=False):
     d.pop("org_id", None)  # 2.724.0 (#5184): the row-level security column of #4602, the client takes the organisation from the list
     for k in ("rev", "updated_by", "deleted_by"):  # 2.1031.0 (#5538): the core's columns of its restore (5491_a), the server's only
         d.pop(k, None)  # (the task's version stays updated_at; who deleted it is in its log) -- the dict stays as before 2.1002
+    # 2.1375.0 (#6677, review N8): title_by / content_by stay in the dict on purpose: the API's task_core reads them from it
+    # (updated_by of GET /api/v1/tasks, which builds on load_tasks); they name an account the same readers see in the task's history
     # 2.18.0 (#430): ms only on milestones, milestone_id only when set (keeps every other task's dict as it was)
     if not d.get("ms"):
         d.pop("ms", None)
