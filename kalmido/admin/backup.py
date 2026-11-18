@@ -2084,8 +2084,18 @@ def bkr_purged_preview(c, since):
         kinds[tbl] = kinds.get(tbl, 0) + 1
         first, last = min(first or at, at), max(last, at)
     accounts = sum(1 for r in bkr_read(c) if not since or (r[3] or "") >= since)
+    # 2.1373.0 (#6357): the name of every further kind of the register's list (the dialog knows only PURGED_BASE by itself)
+    labels = {t: tr(BKR_LABELS.get(t) or (OBJ[_bkr_kind(t)]["label"] if _bkr_kind(t) else N_("Other entries")))
+              for t in kinds if t not in PURGED_BASE}
     return {"kinds": kinds, "total": sum(kinds.values()), "first": first, "last": last, "recent": recent,
-            "recent_days": BKR_RECENT_DAYS, "accounts": accounts}
+            "recent_days": BKR_RECENT_DAYS, "accounts": accounts, "labels": labels}
+
+
+# 2.1373.0 (#6357): the names of the tables of the list without a core kind of their own (side objects, PURGED_EXTRA)
+BKR_LABELS = {"hub_absences": N_("Absences"), "appt_bookings": N_("Bookings"), "sections": N_("Sections"),
+              "list_fields": N_("Custom fields"), "time_entries": N_("Time entries"), "tchat_msgs": N_("Messages"),
+              "obj_links": N_("Links"), "sprints": N_("Sprints"), "hook_in": N_("Webhooks"), "member_memos": N_("Notes"),
+              "sheet_files": N_("Attachments"), "wiki_files": N_("Attachments"), "obj_comments": N_("Comments")}
 
 
 def bkr_purged_after(c, rows, keep=False):
