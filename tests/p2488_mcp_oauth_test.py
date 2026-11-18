@@ -32,7 +32,8 @@ import threading
 import urllib.parse
 
 import requests
-from kt import B, CT, PASSWORD, check, dbx, done, fresh, sess, setup
+from kt import B, CT, PASSWORD, apv_body, check, dbx, done, fresh, sess, setup
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 from freelancer_fixture import freelancer, login
 
 KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="  # 2.488.0 (#3363): a test server key (32 bytes, base64): restart with hosted keeps it
@@ -339,7 +340,7 @@ bad, txt = call(tk2.get("access_token", ""), 2, "request_chat_approval", {"user_
 check(bad is False and "Needs a Yes" in txt, f"N1: after the refresh the card is made from step_ref=1 {txt[:300]}")
 # review: use_approval in one /mcp request and the call in the next (the approved card lives with the access too)
 MID = (json.loads(txt).get("result", {}).get("structuredContent") or {}).get("id") if bad is False else None
-check(Fr.post(B + f"/api/agents/{AID}/chat/{MID}/choice", json={"choice_ids": ["yes"]}).ok, "N1 review: the person says Yes")
+check(Fr.post(B + f"/api/agents/{AID}/chat/{MID}/choice", json=apv_body(Fr, B, f"chat:{MID}", "yes")).ok, "N1 review: the person says Yes")
 bad, txt = call(tk2.get("access_token", ""), 4, "use_approval", {"message_id": MID})
 check(bad is False, f"N1 review: use_approval {txt[:200]}")
 bad, txt = call(tk2.get("access_token", ""), 5, "create_task", {"title": "Needs a Yes", "list_id": L1})

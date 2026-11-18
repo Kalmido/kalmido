@@ -288,12 +288,12 @@ APP_TO_API = {
     "PATCH /api/obj/comments/{}": ["PATCH /videos/{}/comments/{}"],
     # 2.1111.0 (#5830): the help of the app (2.1086.0, #5820) has its agents' twin since 2.1067.0 (#5819) - parity was red on main
     "GET /api/help": ["GET /help"], "GET /api/help/section": ["GET /help/section"],
+    # 2.1386.0 (#6623): the description + proof a Yes on an approval card needs, also for people with an access token
+    "GET /api/approvals/diff": ["GET /approvals/diff"],
 }
 # app routes with no API counterpart on purpose (prefix match on "METHOD /api/path"; reason first)
 APP_ONLY = [
     # 2.1111.0 (#5830): three people-only app routes of other packages - parity was red on main
-    ("2.1068.0 (#5831): the diff of an approval card is what the PERSON sees before answering; the agent never receives it",
-     ("=GET /api/approvals/diff",)),
     ("2.1050.0 (#5658): open shares by e-mail address are listed and revoked by the sharing person in the Share dialogs",
      ("=GET /api/addr-shares", "=DELETE /api/addr-shares/{}")),
     ("2.1037.0 (#5803): the bell's \"deadline seen\" mark is the person's own reading state in the app", ("=POST /api/news/due-seen",)),
@@ -1037,6 +1037,7 @@ API_ONLY = {  # REST routes on purpose without an MCP tool (reason)
     "DELETE /me/app-passwords/{}": "account: never for agents",
     "PATCH /me/notifications": "account: never for agents",
     "POST /agents/{}/chat/{}/reactions": "a person's reaction in an agent chat (the agent: react_to_chat)",
+    "GET /approvals/diff": "2.1386.0 (#6623): what the PERSON reads before a Yes on an approval card (and its proof); the agent never receives it (2.1068.0, #5831: 403 for agents)",
     "POST /agents/{}/chat/{}/choice": "2.28.0 (#1005): a person's answer to an agent's buttons; agents never answer (the agent asks with send_chat choices)",
     "POST /comments/{}/choice": "2.41.0 (#1383): a person's answer to an agent's comment buttons; agents never answer (the agent asks with add_comment choices)",
     "GET /lists/{}/links": "in get_project_overview",
@@ -1058,6 +1059,8 @@ API_ONLY = {  # REST routes on purpose without an MCP tool (reason)
     "POST /focus/{}/pause": "2.116.0 (#2067): as GET /focus",
     "POST /focus/{}/resume": "2.116.0 (#2067): as GET /focus",
     "POST /me/purpose": "2.19.0: the modules of the account (scope account): never for agents",
+    "POST /agent/request-token": "2.1386.0 (#6668): the starter asks it before a run (mcp/agent_run.py run_request); never a "
+                                 "tool -- the model works with the token it was given and never gets another",
 }
 none = sorted(r for r in API if r not in reached and r not in API_ONLY)
 check(not none, f"API routes without an MCP tool or a documented exception: {none}")

@@ -8,10 +8,14 @@ freelancer-matrix: office  tenant-matrix: office
    (in the order they were finalised, places 3 and 4, no two documents on one place), the organisation's chain check is
    intact with four documents and nothing pending -- in the answer of the move and in GET /api/office/log/chain; each moved
    invoice has the office log line "chain_moved"; the log of the move notes the personal office's own check before
+ - 2.1386.0 (#6882): before that, one of the personal office's invoices changed in the database: the preview names it as a
+   conflict and the move refuses (409, its number named) -- nothing moved, nothing chained anew
  - a project of the organisation with two time entries, one billed on the organisation's finalised invoice (which names
    the project): the project goes into the private workspace -> the billed entry no longer points at that invoice but stays
    billed ("billed in an earlier organisation": billed_at kept, not billable; GET shows billed with earlier, a change of
    its duration 409, the note still changes), the open one stays open; the invoice no longer names the project
+ - 2.1386.0 (#6934 F1): a third entry billed on a draft of the organisation (its position names the project) is free again
+   after the project moved (billed_doc_id / billed_at NULL, billable, its duration changes), the position lets go of the project
 usage: p21327_6591_chain_move_test.py <datadir>"""
 import base64
 import os
@@ -105,6 +109,18 @@ assert r.ok, r.text
 TO = r.json()["id"]
 sql("UPDATE time_entries SET billed_doc_id=?, billed_at='2026-03-05T10:00:00+00:00' WHERE id=?", (A1, TB), write=True)  # as "invoice from time" did
 check(sql("SELECT list_id FROM office_docs WHERE id=?", (A1,)) == [(LID,)], "setup: the invoice names the project")
+# 2.1386.0 (#6934 F1): a third entry on a draft of the organisation (its position names the project): never billed
+r = Fr.post(B + "/api/time/entries", json={"list_id": LID, "start": "2026-03-03T09:00", "minutes": 45, "note": "Farbe"})
+assert r.ok, r.text
+TD = r.json()["id"]
+r = Fr.post(B + OFC + "/docs", json={"kind": "invoice", "client_id": sql("SELECT client_id FROM office_docs WHERE id=?", (A1,))[0][0],
+                                     "items": [{"title": "Farbe", "qty": 0.75, "rate": 120}]})
+assert r.status_code == 201, r.text
+AD = r.json()["id"]
+ADI = sql("SELECT id FROM office_doc_items WHERE doc_id=? ORDER BY id LIMIT 1", (AD,))[0][0]
+sql("UPDATE office_doc_items SET list_id=? WHERE id=?", (LID, ADI), write=True)
+sql("UPDATE time_entries SET billed_doc_id=?, billed_item_id=?, billed_at='2026-03-05T11:00:00+00:00' WHERE id=?", (AD, ADI, TD), write=True)
+check(sql("SELECT locked_at FROM office_docs WHERE id=?", (AD,)) == [(None,)], "setup: a draft")
 r = Fr.patch(B + f"/api/lists/{LID}", json={"org_id": None})
 check(r.ok and sql("SELECT org_id FROM lists WHERE id=?", (LID,)) == [(None,)], f"the project goes into the private workspace {r.status_code} {r.text[:200]}")
 row = sql("SELECT billed_doc_id, billed_item_id, billable, billed_at IS NOT NULL FROM time_entries WHERE id=?", (TB,))
@@ -118,9 +134,30 @@ r = Fr.patch(B + f"/api/time/entries/{TB}", json={"note": "Dreh, Tag 1"})
 check(r.ok, f"#6591: its note still changes {r.status_code} {r.text[:200]}")
 check(sql("SELECT list_id FROM office_docs WHERE id=?", (A1,)) == [(None,)] and not sql("SELECT 1 FROM office_doc_items WHERE doc_id=? AND list_id=?", (A1, LID)),
       "#6591: the organisation's invoice no longer names the project")
+row = sql("SELECT billed_doc_id, billed_item_id, billable, billed_at FROM time_entries WHERE id=?", (TD,))
+check(row == [(None, None, True, None)], f"#6934: the entry on the draft is free again (billable, not 'billed earlier') {row}")
+e = Fr.get(B + f"/api/time/entries/{TD}").json()
+check(not e.get("billed"), f"#6934: shown as not billed {e.get('billed')}")
+r = Fr.patch(B + f"/api/time/entries/{TD}", json={"minutes": 50})
+check(r.ok, f"#6934: its duration changes again {r.status_code} {r.text[:200]}")
+check(not sql("SELECT 1 FROM office_doc_items WHERE id=? AND list_id IS NOT NULL", (ADI,)), "#6934: the draft's position let go of the project")
+
+# ---------------------------------------------------------------- 2.1386.0 (#6882): a broken chain refuses the move
+ws(Fr, "private")
+dt = sql("SELECT date FROM office_docs WHERE id=?", (P2,))[0][0]
+sql("UPDATE office_docs SET date=? WHERE id=?", ("2026-01-02" if str(dt) != "2026-01-02" else "2026-01-03", P2), write=True)  # changed in the database
+NO2 = sql("SELECT number FROM office_docs WHERE id=?", (P2,))[0][0]
+r = Fr.get(B + OFC + f"/move/check?org={ALPHA}")
+pv = r.json() if r.ok else {}
+check(pv.get("ok") is False and any(NO2 in x for x in pv.get("conflicts") or []),
+      f"#6882: the preview names the broken document of the personal office as a conflict {r.status_code} {r.text[:300]}")
+r = Fr.post(B + OFC + "/move/org", json={"org": ALPHA, "confirm": True})
+check(r.status_code == 409 and NO2 in r.text, f"#6882: the move refuses (409) and names the document {r.status_code} {r.text[:300]}")
+check(chain(P1)[0] == PB and chain(P2)[0] == PB and [chain(P1)[2], chain(P2)[2]] == [1, 2] and chain(A2)[2] == 2,
+      f"#6882: nothing moved, nothing chained anew {[chain(x) for x in (P1, P2, A2)]}")
+sql("UPDATE office_docs SET date=? WHERE id=?", (dt, P2), write=True)  # taken back: intact again
 
 # ---------------------------------------------------------------- a) the personal office moves into the organisation
-ws(Fr, "private")
 r = Fr.get(B + OFC + f"/move/check?org={ALPHA}")
 check(r.ok and r.json().get("ok") is True, f"setup: the preview has no conflict {r.text[:300]}")
 r = Fr.post(B + OFC + "/move/org", json={"org": ALPHA, "confirm": True})

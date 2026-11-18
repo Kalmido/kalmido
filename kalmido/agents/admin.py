@@ -10,6 +10,7 @@ from ..core.pg import insert_id, qi, system_ctx
 from ..core.i18n import tr, trn
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gset, gsetting, iso, iso_ms, now_utc, uset, usettings, write_lock
 from ..accounts.session import _token_hash, me
+from ..agents.reqtoken import REQ_TOKEN_NAME  # 2.1386.0 (#6668)
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from ..accounts.pictures import avatar_drop_file, ALL_PRESETS
 from ..accounts.colors import ac_assign
@@ -54,7 +55,9 @@ def agent_admin_dict(c, a):
     return {**agent_public(c, a), "enabled": bool(a["enabled"]), "disabled": bool(a["disabled"]), "note": a["note"] or "",
             "provider": a["provider"] if "provider" in a.keys() else "",  # 2.24.0 (#896): where it runs (shown when it joins a list)
             "created_at": a["created_at"], "last_event_at": last,
-            "tokens": [token_public(r) for r in c.execute("SELECT * FROM api_tokens WHERE user_id=? ORDER BY id DESC", (a["user_id"],))],
+            # 2.1386.0 (#6668): the short-lived tokens of single requests are no tokens of the agent to manage
+            "tokens": [token_public(r) for r in c.execute("SELECT * FROM api_tokens WHERE user_id=? AND name<>? ORDER BY id DESC",
+                                                          (a["user_id"], REQ_TOKEN_NAME))],
             "webhook": wh_public(c, w) if w else None,
             "limits": usage_limits(a), "usage": usage_state(c, a),  # 2.1.1 (#326)
             "proposals": prop_mode(a),  # 2.3.0: off | shared | all

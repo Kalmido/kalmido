@@ -29,7 +29,8 @@ import requests
 
 import kt
 from freelancer_fixture import freelancer
-from kt import B, check, done, fresh, setup
+from kt import B, apv_body, check, done, fresh, setup
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 
 V = B + "/api/v1"
 HDR = "X-Kalmido-Approval"
@@ -79,7 +80,7 @@ def card(step, h=FH, uid=FID, want=201, **kw):
 
 
 def answer(mid, choice="yes", s=F, aid=FA):
-    r = s.post(B + f"/api/agents/{aid}/chat/{mid}/choice", json={"choice_ids": [choice]})
+    r = s.post(B + f"/api/agents/{aid}/chat/{mid}/choice", json=apv_body(s, B, f"chat:{mid}", choice))
     check(r.ok, f"answer {choice} {r.status_code} {r.text[:150]}")
 
 

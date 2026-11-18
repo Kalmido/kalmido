@@ -267,9 +267,10 @@ class Extras:
     def task_context(self, tid):
         """The task, its description and the latest comments, fenced as data (fetched when the run starts)."""
         try:
-            t = self.api.req("GET", f"/tasks/{int(tid)}", timeout=15)
+            api = getattr(self, "run_api", None) or self.api  # 2.1386.0 (#6668): the token of the run's request
+            t = api.req("GET", f"/tasks/{int(tid)}", timeout=15)
             t = t.get("data", t) if isinstance(t, dict) else {}
-            cs = self.api.req("GET", f"/tasks/{int(tid)}/comments", timeout=15)
+            cs = api.req("GET", f"/tasks/{int(tid)}/comments", timeout=15)
             cs = (cs.get("data") or []) if isinstance(cs, dict) else []
         except Exception as e:
             return [f"(The text of task #{tid} could not be read: {type(e).__name__} -- read it with the tools if needed.)"]

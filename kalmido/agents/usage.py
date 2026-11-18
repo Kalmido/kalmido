@@ -1090,7 +1090,9 @@ def agent_spec(paths, schemas, op, ok, errs, ref, q, pid, nul, page):
                                 "perm_user": nul("integer", description="2.312.0 (#3266): the chosen person for its permission questions"),
                                 "timezone": {"type": "string"}}},
         perm_user_id=nul("integer", description="GET /agent only, 2.312.0 (#3266): who answers its permission questions (a team agent, "
-                         "chosen in its settings and still reaching it); null = the host keeps KALMIDO_PERM_USER / the owner"))
+                         "chosen in its settings and still reaching it); null = the host keeps KALMIDO_PERM_USER / the owner"),
+        request_token={"type": "boolean", "description": "GET /agent only, 2.1386.0 (#6668): the server gives request tokens "
+                       "(POST /agent/request-token); a team agent's starter falls back to its own token only when this is missing"})
     tot = {"type": "object", "properties": {k: {"type": "integer"} for k in ("tokens", "input", "output", "cache_read", "cache_write", "calls")}
            | {"cost": nul("number")}}
     lim = {"oneOf": [{"type": "null"}, {"type": "object", "properties": {
@@ -1201,6 +1203,21 @@ def agent_spec(paths, schemas, op, ok, errs, ref, q, pid, nul, page):
                    "Created", "201") | errs("400", "403", "429"), scope=W,
             body={"type": "object", "required": ["title"], "additionalProperties": False, "properties": {
                 "title": {"type": "string", "maxLength": 4000}, "ref": {"type": "string", "maxLength": 4000}}})},
+        # 2.1386.0 (#6668): a team agent with its own token works per request for one person (agents/reqtoken.py)
+        "/agent/request-token": {"post": op(
+            "A short-lived token of a team agent for one request", AG, desc=
+            "2.1386.0 (#6668): a short-lived token of a TEAM agent for ONE request (8 h). seqs: the event numbers of the request "
+            "(all from the same person, else 400 several_people); the token reaches only what that person reaches themselves, "
+            "writes capped to their role (a reader's order: an approval card). Events without a person: only their projects, "
+            "every change a card. operator: true = the person chosen in your settings (perm_user_id), for your own list work. "
+            "Only with your own long-lived token (403 request_token_main); a personal agent gets token null (use your own). From "
+            "the first request token on, your own token reaches only your channel (403 request_token_needed elsewhere).",
+            responses=ok({"type": "object", "properties": {"token": {"type": ["string", "null"]}, "expires_at": {"type": ["string", "null"]},
+                                                     "asked_by": {"type": ["integer", "null"]},
+                                                     "list_ids": {"type": ["array", "null"], "items": {"type": "integer"}}}})
+            | errs("400", "403", "404", "409"), scope=W,
+            body={"type": "object", "additionalProperties": False, "properties": {
+                "seqs": {"type": "array", "items": {"type": "integer"}, "maxItems": 100}, "operator": {"type": "boolean"}}})},
         "/agent/events": {"get": op("Events for the agent after a cursor; long-polling with wait", AG, ok(ref("EventPage")) | errs("400", "403"),
                                     [q("since", "seq of the last event you processed (0 = from the start)", {"type": "integer"}),
                                      q("limit", "At most 500", {"type": "integer"}),
@@ -1400,9 +1417,20 @@ def agent_spec(paths, schemas, op, ok, errs, ref, q, pid, nul, page):
                                                                  body={"type": "object", "properties": {"outcome": {"type": "string", "enum": ["allowed", "denied", "expired"]}}})},
         "/agents": {"get": op("Agents you share lists with (an agent: itself)", AG, ok(ref("AgentPage")) | errs())},
         "/agents/{id}/chat/{mid}/choice": {"post": op("2.28.0 (#1005): answer an agent's question with one of its buttons ({choice_ids}); once per message; "
-                                                      "the agent gets the event chat_choice. 2.30.0 (#1037): 409 when the buttons are no longer current", AG, ok(ref("ChatMessage")) | errs("400", "403", "404", "409"),
+                                                      "the agent gets the event chat_choice. 2.30.0 (#1037): 409 when the buttons are no longer current. "
+                                                      "2.1386.0 (#6623): Yes on an approval card with a bound step needs desc_proof (GET /approvals/diff?chat=<mid> -> proof), "
+                                                      "else 409 desc_proof_needed with describe; No never needs it", AG, ok(ref("ChatMessage")) | errs("400", "403", "404", "409"),
                                                       [pid("id", "Agent id"), pid("mid", "Message id")], scope=W,
-                                                      body={"type": "object", "required": ["choice_ids"], "properties": {"choice_ids": {"type": "array", "items": {"type": "string"}}}})},
+                                                      body={"type": "object", "required": ["choice_ids"], "properties": {"choice_ids": {"type": "array", "items": {"type": "string"}},
+                                                            "desc_proof": {"type": "string", "description": "2.1386.0 (#6623): proof of GET /approvals/diff (Yes on a card with a bound step)"}}})},
+        "/approvals/diff": {"get": op("2.1386.0 (#6623): what a Yes on an approval card does -- the server's description of the bound step (desc), the change "
+                                      "of a text (diff) and the proof a Yes needs (proof, sent as desc_proof); people only (agents: 403)", AG,
+                                      ok({"type": "object", "properties": {"diff": {"oneOf": [{"type": "null"}, {"type": "object"}]},
+                                                                           "desc": {"oneOf": [{"type": "null"}, {"type": "boolean"}, {"type": "object"}]},
+                                                                           "proof": {"type": "string", "description": "only on an open card with a described step"}}}) | errs("400", "403", "404"),
+                                      [q("chat", "Message id of an approval card in your chat with an agent", {"type": "integer"}),
+                                       q("comment", "Comment id of an approval card on a task", {"type": "integer"}),
+                                       q("full", "1 = all rows of the diff")])},
         "/agents/{id}/chat/{mid}/reactions": {"post": op("React to a message of your chat with an agent (2.7.2): 👍 / 👎 on an agent's message "
                                                          "that asks something (asks, 2.13.0) = approval / rejection; the agent gets the event reaction", AG, ok(chat_rx_out) | errs("400", "403", "404"),
                                                          [pid("id", "Agent id"), pid("mid", "Message id")], scope=W, body=chat_rx_in)},

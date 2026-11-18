@@ -1699,7 +1699,8 @@ def v1_agent_chat_react(uid, mid):
 @app.post("/api/v1/agents/<int:aid>/chat/<mid>/choice")
 @v1_view
 def v1_agent_chat_choice(aid, mid):
-    """2.28.0 (#1005): {choice_ids: [...]} -- a person (own token) answers an agent's question with its buttons."""
+    """2.28.0 (#1005): {choice_ids: [...]} -- a person (own token) answers an agent's question with its buttons.
+    2.1386.0 (#6623): Yes on an approval card with a bound step + desc_proof (GET /api/approvals/diff?chat=<mid> -> proof)."""
     v1_args(())
     c = db()
     need_chat_agent(c, aid)
@@ -1707,9 +1708,21 @@ def v1_agent_chat_choice(aid, mid):
     m = c.execute("SELECT * FROM agent_chat WHERE id=? AND agent_id=? AND user_id=?", (mid, aid, me())).fetchone()
     if not m:
         raise Denied(404)
-    m2 = chat_choice_set(c, m, me(), v1_json().get("choice_ids"))
+    b = v1_json()
+    m2 = chat_choice_set(c, m, me(), b.get("choice_ids"), b.get("desc_proof"))  # 2.1386.0 (#6623)
     c.commit()
     return jsonify(chat_one(c, m2, api=True))
+
+
+@app.get("/api/v1/approvals/diff")
+@v1_view
+def v1_approval_diff():
+    """2.1386.0 (#6623): ?chat=<message id> | ?comment=<comment id> [&full=1] -- the server's description of the step an
+    approval card binds (desc), its text change (diff) and the proof a Yes needs (proof -> desc_proof); people only."""
+    a = v1_args(("chat", "comment", "full"))
+    need_person(403, tr("Agents cannot use this endpoint"))
+    from .apvdiff import apvd_answer
+    return jsonify(apvd_answer(db(), me(), a))
 
 
 @app.post("/api/v1/agents/<int:aid>/chat/<mid>/reactions")

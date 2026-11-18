@@ -47,7 +47,8 @@ TEST_IBAN = "DE89370400440532013000"
 O = "/api/office"
 V = B + "/api/v1"
 FEAT = "cal,comments,collab,office,clients,time,wiki"
-from kt import FAILS, OKS, check, sess  # 2.192.0 (#2514): shared helpers (tests/kt.py)
+from kt import FAILS, OKS, apv_body, check, sess  # noqa: E402  2.192.0 (#2514): shared helpers (tests/kt.py)
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 
 
 def pem(k):
@@ -174,10 +175,10 @@ def can(s, tid, cid):
 
 C1 = card(T, "Publish the cut")
 check(can(Ed, T, C1) is False and can(Mi, T, C1) is True and can(A, T, C1) is True, f"#2001: choice_can ed / max / alice {can(Ed, T, C1)} {can(Mi, T, C1)} {can(A, T, C1)}")
-r = Ed.post(B + f"/api/comments/{C1}/choice", json={"choice_ids": ["yes"]})
+r = Ed.post(B + f"/api/comments/{C1}/choice", json=apv_body(Ed, B, f"comment:{C1}", "yes"))
 check(r.status_code == 403 and "approval" in r.json().get("error", ""), f"#2001: an editor who is no approver: 403 {r.status_code} {r.text[:150]}")
 check(Ed.get(B + f"/api/comments/{C1}/choice").json().get("choice_state") == "open", "#2001: the card stays open")
-r = Mi.post(B + f"/api/comments/{C1}/choice", json={"choice_ids": ["yes"]})
+r = Mi.post(B + f"/api/comments/{C1}/choice", json=apv_body(Mi, B, f"comment:{C1}", "yes"))
 check(r.ok and r.json().get("choice_state") == "answered" and r.json().get("choice_can") is True, f"#2001: a list admin decides {r.status_code} {r.text[:150]}")
 C2 = card(T, "Send the invoice")
 A.patch(B + f"/api/tasks/{T}", json={"assignee_id": ids["ed"]})
@@ -299,7 +300,7 @@ check(Fr.put(B + f"/api/lists/{FL}/members", json={"user_id": FA, "role": "edit"
 FT = Fr.post(B + "/api/tasks", json={"title": "Deliver", "list_id": FL}).json()["id"]
 FC = card(FT, "Deliver the files", FH)
 check(can(Fr, FT, FC) is True, "#2001 freelancer: the owner of the list is an approver")
-r = Fr.post(B + f"/api/comments/{FC}/choice", json={"choice_ids": ["yes"]})
+r = Fr.post(B + f"/api/comments/{FC}/choice", json=apv_body(Fr, B, f"comment:{FC}", "yes"))
 check(r.ok and r.json().get("choice_state") == "answered", f"#2001 freelancer: decides the own agent's card {r.status_code} {r.text[:150]}")
 check(Ed.post(B + f"/api/comments/{FC}/choice", json={"choice_ids": ["no"]}).status_code in (403, 404), "#2001 freelancer: another person cannot decide")
 

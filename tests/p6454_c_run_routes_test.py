@@ -39,5 +39,30 @@ for k, (cls, why) in table.items():
 for k, want in (("GET /agent/chats", "mine"), ("GET /agent/events", "mine"), ("GET /agent/jobs", "mine"), ("GET /briefing", "pin:user_id"),
                 ("GET /me/waiting", "pin:user_id"), ("GET /office/docs", "pin:requested_by"), ("GET /folders", "closed")):
     check(table.get(k, ("?",))[0] == want, f"{k} is {want}")
+# 2.1386.0 (#6668, review F1): the long-lived token of a team agent per request reaches the classes REQ_MAIN_PASS plus the
+# routes of REQ_MAIN_CHANNEL by name -- never a class mine / send / pin as a whole (run_person() is None for that token, so
+# nothing caps them: /search, /news, /time/*, /office/*, /briefing ... reached every project and person of the agent).
+def _lit(name):
+    for n in tree.body:
+        if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == name:
+            v = n.value
+            if isinstance(v, ast.Call) and getattr(v.func, "id", "") == "frozenset":
+                v = v.args[0]
+            return ast.literal_eval(v)
+    return None
+
+
+mpass, chan = _lit("REQ_MAIN_PASS"), set(_lit("REQ_MAIN_CHANNEL") or ())
+check(set(mpass or ()) == {"own", "safe", "noagent"}, f"F1: REQ_MAIN_PASS is own / safe / noagent only {mpass}")
+check(chan and chan <= set(table), f"F1: REQ_MAIN_CHANNEL names routes of RUN_ROUTES {sorted(chan - set(table))}")
+opened = sorted(k for k, (cls, _) in table.items() if cls.partition(":")[0] in (mpass or ()) or k in chan)
+for k in opened:
+    kind = table[k][0].partition(":")[0]
+    check(kind in ("own", "safe", "noagent") or k.split(" ", 1)[1].startswith("/agent/"),
+          f"F1: {k} ({table[k][0]}) is open to the long-lived token only as its own data or its /agent channel")
+for k in ("GET /search", "GET /news", "GET /time/entries", "PATCH /time/entries/{}", "GET /time/gaps", "GET /office/docs",
+          "POST /office/invoices", "GET /briefing", "GET /me/waiting", "GET /layouts/blocks", "GET /chat-attachments/{}",
+          "POST /agent/proposals", "GET /agent/rules"):
+    check(k in table and k not in opened, f"F1: {k} needs the request token (closed to the long-lived token)")
 print(f"p6454_c_run_routes: {len(table)} routes; {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

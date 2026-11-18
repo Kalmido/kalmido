@@ -254,6 +254,20 @@ class Api:
         self.base, self.token = url.rstrip("/") + "/api/v1", tok
 
     def req(self, method, path, body=None, timeout=30, raw=None, ctype=None):
+        """2.1386.0 (#6668 with #6457): a 401 with the token of the env file (a team agent's request token, replaced by the
+        starter in the same file) reads the file once more and sends the call again with a new token; never another token."""
+        try:
+            return self._req(method, path, body, timeout, raw, ctype)
+        except RuntimeError as e:
+            if not str(e).startswith("HTTP 401") or os.environ.get("KALMIDO_TOKEN") or not os.environ.get("KALMIDO_ENV_FILE"):
+                raise
+            url, tok = env_credentials()
+            if not tok or tok == self.token or url.rstrip("/") + "/api/v1" != self.base:
+                raise
+            self.token = tok
+            return self._req(method, path, body, timeout, raw, ctype)
+
+    def _req(self, method, path, body=None, timeout=30, raw=None, ctype=None):
         data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
         h = {"Authorization": "Bearer " + self.token, "Accept": "application/json"}
         if data is not None:
@@ -589,6 +603,12 @@ REVIVE_PROMPT = ("The computer restarted (or the job's process ended) and your j
                  "stopped; do not repeat finished work.")
 
 
+# 2.1386.0 (#6668 with #6457): set by the runner of a TEAM agent (Runner.job_env): j -> the env file of the request token
+# of the job's person, or None (no such token: the job is not started, OSError). A job woken / continued by the runner never
+# inherits the runner's environment with the agent's long-lived token (KALMIDO_TOKEN / the starter's KALMIDO_ENV_FILE).
+SPAWN_ENV = None
+
+
 def spawn_run(j, extra=None):
     """Start `agent_job.py _run <id>` detached (own session / process group) and keep its pid."""
     d = job_dir(j["id"])
@@ -600,6 +620,12 @@ def spawn_run(j, extra=None):
         kw["start_new_session"] = True
     env = dict(os.environ, KALMIDO_STATE_DIR=state_dir())
     env.pop("KALMIDO_OUTBOX", None)
+    if callable(SPAWN_ENV):
+        f = SPAWN_ENV(j)
+        if not f:
+            raise OSError("no request token for the job's person")
+        env.pop("KALMIDO_TOKEN", None)
+        env["KALMIDO_ENV_FILE"] = f
     p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "_run", str(int(j["id"]))] + list(extra or []), env=env, **kw)
     j["runner_pid"] = p.pid
     save(j)

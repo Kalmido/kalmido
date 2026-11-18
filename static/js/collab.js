@@ -819,6 +819,7 @@ function personCard(anchor, id) {
   const acts = [];
   if (a && a.enabled && typeof chatOpen === 'function') acts.push(['chat', 'comment', tr('Open chat')]);
   if (a && feat('agents')) acts.push(['jobs', 'bot', tr('Jobs')]);
+  if (a && S.me && ((a.owner_id && a.owner_id === S.me.id) || (S.me.is_admin && !a.owner_id)) && typeof awOpen === 'function') acts.push(['aset', 'cog', tr('Settings of {0}', a.name)]);  // 2.1386.0 (#7003): owner / admin of a team agent, as in the chat ⋯
   if (!a && id !== meId) acts.push(['dm', 'comment', tr('Message')]);  // 2.24.0 (#906): a direct message, first and big
   if ((a ? a.enabled && typeof chatOpen === 'function' : id !== meId && teamOn()) && typeof cw_split === 'function') acts.push(['cwsplit', 'panel', tr('Open in split window')]);  // 2.47.1 (#1720): after Message (#906 stays first and big)
   if (!a) acts.push(['who', 'list', id === meId ? tr('My tasks') : tr('Tasks of {0}', name)]);  // 2.7.2 (#418)
@@ -840,6 +841,7 @@ function personCard(anchor, id) {
     else if (k === 'who') { if (S.sel && isMobile()) closeDetail(); go('who/' + id); }
     else if (k === 'dm') { if (S.sel && isMobile()) closeDetail(); dmOpen(id, name); }
     else if (k === 'chat') chatOpen(id);
+    else if (k === 'aset') awOpen(a);  // 2.1386.0 (#7003)
     else if (k === 'cwsplit') { if (a) cw_split('a:' + id); else { try { const r = await rawFetch('POST', '/api/team/dm', {user_id: id}); if (!(S.tc.rooms || []).some(x => x.id === r.id)) S.tc.rooms = [{...r, unread: 0, mention: false, muted: false, last: null, last_at: null}, ...(S.tc.rooms || [])]; cw_split('t:' + r.id); } catch (er) { dmWhy('err', er.message, name); } } }  // 2.47.1 (#1720)
     else if (k === 'jobs') go('agents');
     else if (k === 'assign') { patchTask(t.id, {assignee_id: id}); ab2_warnAssign(id, t); }  // 2.50.0 (#1195): warn when away

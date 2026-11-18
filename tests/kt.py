@@ -135,6 +135,17 @@ def until(fn, timeout=30, step=0.25, secs=None):
         time.sleep(step)
 
 
+def apv_body(s, base, src, ids=("yes",), url=None, **kw):
+    """2.1386.0 (#6623): the body of an answer to an approval card as the web card sends it: a Yes on a card with a bound step
+    carries the proof of the server's description (GET /api/approvals/diff -> proof). base = the suite's B; src = chat:<message id> | comment:<id>;
+    url = the description's address of a token (V + "/approvals/diff"), kw = its headers."""
+    ids = list(ids) if isinstance(ids, (list, tuple)) else [ids]
+    k, i = src.split(":", 1)
+    r = s.get((url or base + "/api/approvals/diff") + f"?{k}={i}", **kw)
+    p = (r.json() or {}).get("proof") if r.ok else None
+    return {"choice_ids": ids, **({"desc_proof": p} if p and "yes" in ids else {})}
+
+
 def dbx(sql, args=(), data=None):
     """Rows of a query in the suite's database (tests/dbx.py, the data dir names it)."""
     c = _dbx.connect(os.path.join(data or DATA, "tasks.db"))

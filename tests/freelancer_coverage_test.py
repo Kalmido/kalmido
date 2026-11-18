@@ -303,6 +303,7 @@ ROUTES = {
     "POST /api/v1/agent/proposals/sheet-tasks": "agents",  # 2.126.1 B (#2125): p21261_b_api_test.py, the freelancer's own agent
     "POST /api/v1/agent/proposals/shoot": "agents", "POST /api/v1/agent/proposals/time": "agents",
     "POST /api/v1/agent/typing": "agents", "POST /api/v1/agent/usage": "agents",
+    "POST /api/v1/agent/request-token": "agents",  # 2.1386.0 (#6668): p6668_ext_team_agent_test.py (her personal agent: no token needed)
     "POST /api/v1/agents/{}/chat/{}/choice": "agents", "POST /api/v1/agents/{}/chat/{}/reactions": "agents",
     "PUT /api/agents/{}/autoshare": "agents", "PUT /api/agents/{}/permission-mode": "agents",
     "GET /api/agents/{}/perm-users": "agents",  # 2.312.0 D (#3266): p2312_d_perm_user_test.py
@@ -1248,6 +1249,7 @@ ROUTES = {
     # 2.235.0 B (#2902): the data lock of an agent (owner / instance admin, else 404; p2235_b_datalock_test.py)
     "GET /api/agents/{}/data-lock": "agents", "PATCH /api/agents/{}/data-lock": "agents",
     "GET /api/agents/{}/sees": "agents",  # 2.1045.0 (#5822): what an agent sees (p21045_c_sees_test.py)
+    "GET /api/v1/approvals/diff": "agents",  # 2.1386.0 (#6623): the same answer for a person's access token (p6623_desc_proof_test.py)
     "GET /api/approvals/diff": "agents",  # 2.1068.0 (#5831): the change an approval card makes in a text (p21068_apvdiff_test.py)
     # 2.235.0 A (#2891 #2901): the control of an agent and the undo of its decisions (owner / instance admin, else 404; p2235_a_control_test.py)
     "GET /api/agents/{}/control": "agents", "PATCH /api/agents/{}/control": "agents", "POST /api/agents/{}/control/history/{}/undo": "agents",

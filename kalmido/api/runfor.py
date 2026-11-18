@@ -106,6 +106,58 @@ def run_gate(c, row, u):
     return v1_err(403, tr("Not available in this run: the person you work for does not reach this themselves"), name="run_closed")
 
 
+# 2.1386.0 (#6668): what the long-lived token of a team agent that works per request still reaches: its own technical
+# data and what asks nothing (the classes REQ_MAIN_PASS) plus its channel, by name (REQ_MAIN_CHANNEL: what the reference
+# starter mcp/agent_run.py and its job runner agent_job.py send with that token -- events, chats, jobs, progress, typing).
+# Review F1: the classes mine / send / pin are capped only by run_person(), which is None for this token -- so no class of
+# them as a whole: /search, /news, /time/*, /office/*, /briefing, /me/waiting, /layouts/* ... need the request token.
+# tests/p6668_ext_team_agent_test.py checks every route of RUN_ROUTES against these two.
+REQ_MAIN_PASS = ("own", "safe", "noagent")
+REQ_MAIN_CHANNEL = frozenset((
+    "GET /agent/chats", "POST /agent/chats/{}", "POST /agent/chats/{}/messages/{}/withdraw",
+    "GET /agent/events", "GET /agent/jobs", "GET /agent/jobs/{}", "PATCH /agent/jobs/{}",
+    "POST /agent/progress", "POST /agent/typing",
+))
+
+
+def req_main_open(key):
+    """2.1386.0 (#6668, review F1): does the long-lived token of a team agent per request reach route key ('GET /agent')?"""
+    return RUN_ROUTES.get(key, ("closed", ""))[0].partition(":")[0] in REQ_MAIN_PASS or key in REQ_MAIN_CHANNEL
+
+
+def req_main_gate(c, row, u):
+    """2.1386.0 (#6668, agents/reqtoken.py): api/v1.py api_authenticate -- a 403 for a request of the long-lived token of a
+    team agent that works per request (agents.per_request) on a route outside its own channel, else None. A run / request
+    token (asked_by) is held by run_gate; the replay of an approved job and the step of an answered card (run in this process
+    by agents/control.py ctl_run_replay, environ "kalmido.ctl_run" = CTL_RUN_ENV, never set by a network request: the step a
+    person said Yes to; review F3: only a write -- ctl_gate then always checks the card and the rights of the person who said
+    Yes, also without a control level; a read through a card needs the request token; second review F1: a write ctl_class
+    calls "meta" gets no card check in ctl_gate, so ctl_gate holds it with req_main_step below) are no such request."""
+    if ("asked_by" in row.keys() and row["asked_by"] is not None) or g.get("approved_job") or request.url_rule is None:
+        return None
+    if request.environ.get("kalmido.ctl_run") and request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        return None  # review F3: only a change, and agents/control.py ctl_gate checks the card and the Yes-sayer's rights
+    with system_ctx(c):  # structure: the agent row
+        a = c.execute("SELECT owner_id, per_request FROM agents WHERE user_id=?", (u["id"],)).fetchone()
+    if a is None or a["owner_id"] or not a["per_request"]:
+        return None
+    if req_main_open(run_key(request.method, request.url_rule.rule)):
+        return None
+    return v1_err(403, tr("This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)"),
+                  name="request_token_needed")
+
+
+def req_main_step():
+    """2.1386.0 (#6668, second review F1): agents/control.py ctl_gate -- the "meta" step of an answered card run with the
+    long-lived token of a team agent per request (req_main_gate lets every write of a card run through, and ctl_gate checks
+    no card for a meta step): a 403 request_token_needed outside the agent's own channel (req_main_open), else None. So the
+    token reaches e.g. POST /tasks/brief or /news/read through a card no more than without one."""
+    if req_main_open(run_key(request.method, request.url_rule.rule)):
+        return None
+    return v1_err(403, tr("This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)"),
+                  name="request_token_needed")
+
+
 def run_job_ok(c, j):
     """May the request read / change job j of its agent? No run: yes. A run: the requester's jobs, and the agent's own jobs
     without a person whose task (if any) lies in the run's cut."""
@@ -137,6 +189,7 @@ RUN_ROUTES = {
     "POST /address-books/{}/import": ("cap", "need_book(write) kalmido/contacts/model.py (book_role, for_cap); op_import kalmido/contacts/web.py"),
     "DELETE /address-books/{}/members/{}": ("cap", "op_book_member_rm kalmido/contacts/web.py -> need_book (book_role, for_cap)"),
     "PUT /address-books/{}/members/{}": ("cap", "the area's role function ends with for_cap (calendars: ev_role / my_cal_ids, files: fs_role / fs_ref_role, books: book_role, tables: sh_may)"),
+    "GET /approvals/diff": ("noagent", "need_person 403 kalmido/agents/proposals.py v1_approval_diff (2.1386.0, #6623)"),
     "GET /admin/agents/{}/audit": ("noagent", "api_authenticate admin gate kalmido/api/v1.py; spec scope admin-read kalmido/api/openapi.py"),
     "PUT /admin/announcement": ("noagent", "scope account (hosting_spec kalmido/admin/hosting.py) + is_admin + need_scope admin-read"),
     "GET /admin/orgs/activity": ("noagent", "api_authenticate api/v1.py; scope admin-read (SCOPES_AGENT_NEVER api/v1.py)"),
@@ -151,6 +204,7 @@ RUN_ROUTES = {
     "POST /agent/chats/{}/messages/{}/reactions": ("pin:uid", "only in the requester's own chat"),
     "POST /agent/chats/{}/messages/{}/withdraw": ("pin:uid", "only in the requester's own chat"),
     "GET /agent/chats/{}/reply-style": ("pin:uid", "only in the requester's own chat"),
+    "POST /agent/request-token": ("own", "2.1386.0 (#6668): only the agent's own long-lived token (agents/reqtoken.py); a run / request token 403"),
     "POST /agent/decisions": ("own", "need_agent; ctl_log kalmido/agents/control.py"),
     "GET /agent/events": ("mine", "only the requester's rows (core/access.py run_person)"),
     "GET /agent/jobs": ("mine", "only the requester's rows (core/access.py run_person)"),

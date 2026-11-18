@@ -17,7 +17,8 @@ import sys
 import requests
 
 from freelancer_fixture import freelancer
-from kt import B, check, done, fresh, sess
+from kt import B, apv_body, check, done, fresh, sess
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 
 V = B + "/api/v1"
 H = {"X-Requested-With": "kalmido"}
@@ -102,7 +103,7 @@ check(len(ev) == 1 and ev[0]["data"].get("reply_style") == "Reply in German", "c
 q = requests.post(V + f"/agent/chats/{ALICE}", headers=CLH, json={"body": "Ship it?", "choices": [{"id": "yes", "label": "Yes"}, {"id": "no", "label": "No"}]})
 check(q.status_code == 201, "an agent question with buttons " + q.text[:200])
 cur = cursor()
-check(A.post(B + f"/api/agents/{CL}/chat/{q.json()['id']}/choice", json={"choice_ids": ["yes"]}).ok, "Alice presses Yes")
+check(A.post(B + f"/api/agents/{CL}/chat/{q.json()['id']}/choice", json=apv_body(A, B, f"chat:{q.json()['id']}", "yes")).ok, "Alice presses Yes")
 ev = events(cur, "chat_choice")
 check(len(ev) == 1 and ev[0]["data"].get("reply_style") == "Short answers, no tables", "chat_choice: the presser's wishes " + str(ev)[:300])
 

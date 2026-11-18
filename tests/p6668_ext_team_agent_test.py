@@ -1,0 +1,652 @@
+#!/usr/bin/env python3
+# kalmido-suite: fresh
+"""2.1386.0 (#6668, rest of #6454 F5): a TEAM agent with its own token (its own starter, its own program) works per request for
+ONE person: POST /api/v1/agent/request-token gives a short-lived token of the agent cut to the rights of the person the events
+come from (kalmido/agents/reqtoken.py, the same cut as the server's run: agents/srvteam.py srv_run_cut); from the first ask on
+the agent's own token reaches only its channel (api/runfor.py req_main_gate).
+freelancer-matrix: agents (the person without an organisation: her personal agent gets token null -- its own token is hers --
+  and keeps its whole reach after asking)
+tenant-matrix: agent (only the agent's own events; the token reaches only what the person reaches themselves)
+ (a) member carl (project one only) mentions the agent: his request token reads the task of project one, the task of project two
+     is 404 (also not listed); without the fix (no cut) it would be 200
+ (b) reader rita (view in project one) asks in the chat: with her request token the agent (role edit) writes no comment, the
+     answer is 409 approval_required; carl's token writes it
+ (c) an event without a person (the project's own automation): only its project, nothing outside, and every change is a card
+     (409 approval_required) -- also with no control level chosen
+ (d) an expired request token is refused (401); a request token cannot ask for another one (403 request_token_main); events of
+     two people in one call 400 several_people; an unknown event 404 event_gone; no operator chosen 409 no_operator
+ (e) the agent's own token after the first ask: content routes 403 request_token_needed, its channel (events, chats, status)
+     stays; review F1: also /search, /news, /time, /office, /briefing, /me/waiting, /layouts (the classes mine / pin); a card a person answered still runs with it (the replay of an approved request)
+ (f) static: the reference starter asks before every run and gives only the request token to the run (child_env), the
+     dispatcher works with the chosen person's token; both launchers name the capability
+ (i) review F3: the step of a card run with the agent's own token always checks the card and the rights of the person who
+     said Yes (a reader's Yes changes nothing)
+ (c) review F4: an event older than 24 hours gives no request token any more (404 event_gone)
+ (h) review F2: removing a computer of the agent (its long-lived token) ends the request tokens too (401)
+ (g) review F1, no server: no request token for a team agent (403 no_order, 400, 404 event_gone, the network) = the run, the
+     dispatcher round and their children never start / never get the agent's own token; 2.1386.0 (F1): also a plain 404 /
+     405 of the route -- only a server whose GET /agent does not report request_token (and a personal agent) keeps it,
+     nothing is remembered; a job's wake asks with the person's last events
+ (k) F2: one valid request token per agent and person -- a new one ends the older one (401)
+ (l) F4: a locked person's account gets no request token (403 no_order); review F3: her request token stops while she is locked
+ (n) review F4: the list work's token has its own place (a chat run of the same person keeps it); a 401 of a request
+     token's client asks once anew (no server part)
+ (m) review F2: the guard hook (also with KALMIDO_BLOCK_DANGEROUS=0) and the deny rules keep the run from the env file and
+     the starter's environment (no server)
+ (o) merged with #6457: a team agent's run, a job of the run, a woken job and the dispatcher's job read only a request
+     token through an env file of their own -- MCP server, kalmido_cli.py, agent_job.py never the long-lived one (no server)
+usage: p6668_ext_team_agent_test.py <datadir>      (KMT_NOSTART=1 / P6668_NOSTART=1: a running server)"""
+import json
+import os
+import uuid
+
+import requests
+
+from kt import B, apv_body, check, dbx, docker_logs_on_first_fail, done, fresh, sess
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
+from freelancer_fixture import freelancer
+
+N = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.join(N, "..")
+V = B + "/api/v1"
+SCOPES = ["read", "tasks:write", "comments", "structure"]
+
+
+def read(*p):
+    with open(os.path.join(ROOT, *p), encoding="utf-8") as f:
+        return f.read()
+
+
+# ---------------------------------------------------------------- (f) static: the starter and both launchers
+RUN, DISP = read("mcp", "agent_run.py"), read("mcp", "agent_dispatch.py")
+check("def run_request" in RUN and "self.run_request(evs, uid)" in RUN, "(f) agent_run.py asks for the request token of every run")
+# 2.1386.0 (#6668 with #6457): the request token goes to the run through an env file of its own (token_file), never in the environment
+check('env["KALMIDO_ENV_FILE"] = self.run_env_file' in RUN and "def token_file" in RUN, "(f) agent_run.py: the run's env file carries only the request token")
+check("self.run_api = self.api" in RUN, "(f) agent_run.py: the request token is forgotten after the run")
+check("def data_api" in DISP and "api = self.data_api()" in DISP and "read_tasks(api, cfg)" in DISP and 'env["KALMIDO_ENV_FILE"] = self.host.op_env_file' in DISP and "if api is not self.host.api" in DISP,
+      "(f) agent_dispatch.py: the list work and its jobs with the chosen person's token")
+for name in ("agent_launcher.sh", "agent_launcher.ps1"):
+    check("kalmido-capability: request_token" in read("mcp", name), f"(f) {name} names request_token")
+
+
+def _starter_env():
+    import tempfile
+    d = tempfile.mkdtemp(prefix="kalmido-p6668-starter-")
+    f = os.path.join(d, "kalmido-agent.env")
+    with open(f, "w", encoding="utf-8") as fh:
+        fh.write("KALMIDO_URL=http://127.0.0.1:9\nKALMIDO_TOKEN=abk_" + "m" * 30 + "\n")
+    return f
+
+
+STARTER_ENV = _starter_env()  # the starter's env file with the agent's long-lived token (abk_mmm...)
+
+
+# ---------------------------------------------------------------- (g) review F1: the starter fails closed (no server)
+# Without the fix a refused request token (403 no_order, 400 several_people, 409 no_operator, the network) let the run go on with
+# the agent's own long-lived token: the model could fetch any person's reach with it. Only an older server (plain 404) keeps it.
+def _f1():
+    import importlib.util
+    import sys
+    import tempfile
+    os.environ.update(KALMIDO_URL="http://127.0.0.1:9", KALMIDO_TOKEN="abk_" + "m" * 30, KALMIDO_ENV_FILE=STARTER_ENV)
+    sys.path.insert(0, os.path.join(ROOT, "mcp"))
+    for nm in ("agent_run", "agent_dispatch", "kalmido_mcp", "agent_job"):
+        spec = importlib.util.spec_from_file_location(nm, os.path.join(ROOT, "mcp", nm + ".py"))
+        m = importlib.util.module_from_spec(spec)
+        sys.modules[nm] = m
+        spec.loader.exec_module(m)
+    ar, ad = sys.modules["agent_run"], sys.modules["agent_dispatch"]
+    tmp = tempfile.mkdtemp(prefix="kalmido-p6668f1-")
+
+    TEAM = {"owner_id": None, "request_token": True, "runtime": {"dispatch": "on"}}
+
+    def runner(name, answer, agent=None):
+        r = ar.Runner(["claude"], os.path.join(tmp, name))
+        r.extras = None
+        r.calls, r.started, r.said = [], [], []
+        r.agent = dict(TEAM if agent is None else agent)
+
+        def req(method, path, body=None, query=None, timeout=30, retry=True):
+            r.calls.append((path, body, r.api.token))
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        r.api.req = req
+        r.api.status = lambda *a, **k: r.said.append(k.get("key"))
+        r.attempt_runs = lambda *a, **k: (r.started.append(1), (None, 1, "stub"))[1]
+        return r
+
+    def asks(r):
+        return [c for c in r.calls if c[0] == "/agent/request-token"]
+
+    ev = [{"event": "chat", "seq": 41, "data": {"user": {"id": 5}, "message": {"id": 1, "body": "hi"}}}]
+    # 2.1386.0 (#6668, F1): a plain 404 / 405 of the route is no reason for the own token any more (only GET /agent decides)
+    for name, answer in (("no_order", ar.ApiError(403, '{"error": {"code": "no_order"}}')),
+                         ("several_people", ar.ApiError(400, '{"error": {"code": "several_people"}}')),
+                         ("event_gone", ar.ApiError(404, '{"error": {"code": "event_gone"}}')),
+                         ("plain404", ar.ApiError(404, '{"error": "Not found"}')),
+                         ("plain405", ar.ApiError(405, '{"error": "Method not allowed"}')),
+                         ("no_token_key", {"ok": True}),
+                         ("network", OSError("unreachable"))):
+        r = runner(name, answer)
+        check(r.run_request(ev, 5) is False and r.run_api is r.api, f"(g) F1 {name}: no request token = the run may not start")
+        check(r.run_request(ev, 5) is False and len(asks(r)) == 2, f"(g) F1 {name}: nothing remembered, the next request asks again")
+        r = runner(name + "-run", answer)
+        r.run(5, [dict(e) for e in ev])
+        check(not r.started and "status_no_request" in r.said, f"(g) F1 {name}: the run is skipped with a status line {r.said}")
+        ce = r.child_env(5, None)  # 2.1386.0 (with #6457): nor the path of the starter's env file
+        check("KALMIDO_TOKEN" not in ce and "KALMIDO_ENV_FILE" not in ce, f"(g) F1 {name}: a child of the team agent never gets its own token")
+        r = runner(name + "-op", answer)
+        check(r.op_api() is None, f"(g) F1 {name}: the dispatcher gets no client for the chosen person")
+        proj = os.path.join(tmp, name + "-proj")
+        os.makedirs(proj)
+        with open(os.path.join(proj, "KALMIDO-DISPATCH.json"), "w", encoding="utf-8") as f:
+            json.dump({"lists": [1]}, f)
+        res = ad.Dispatcher(r, proj).tick(force=True, dry=False) or {}
+        check("no request token" in str(res.get("problem")) and all(c[0] == "/agent/request-token" for c in r.calls),
+              f"(g) F1 {name}: the dispatcher round reads nothing with the agent's own token {res.get('problem')} {r.calls}")
+    r = runner("old-server", ar.ApiError(404, '{"error": "Not found"}'), agent={"owner_id": None, "runtime": {}})
+    check(r.run_request(ev, 5) is True and not asks(r) and r.child_env(5, None).get("KALMIDO_ENV_FILE") == STARTER_ENV and r.op_api() is r.api,
+          "(g) F1: a server whose GET /agent does not report request_token keeps the agent's own token, as before (never asked)")
+    r = runner("unknown", ar.ApiError(503, "{}"), agent={})
+    check(r.run_request(ev, 5) is False and not asks(r) and r.op_api() is None and "KALMIDO_ENV_FILE" not in r.child_env(5, None),
+          "(g) F1: GET /agent not read (unknown) = nothing starts, no own token for a child")
+    r = runner("personal", {"token": None}, agent={"owner_id": 5, "request_token": True, "runtime": {}})
+    check(r.run_request(ev, 5) is True and not asks(r) and r.child_env(5, None).get("KALMIDO_ENV_FILE") == STARTER_ENV,
+          "(g) F1: a personal agent keeps its own token (the starter's env file, #6457)")
+    r = runner("server-personal", {"token": None, "expires_at": None, "asked_by": 5, "list_ids": None})
+    check(r.run_request(ev, 5) is True and r.run_api is r.api, "(g) the server says a personal agent (token null + asked_by): its own token")
+    r = runner("ok", {"token": "abk_" + "r" * 30, "expires_at": "2099-01-01T00:00:00Z", "asked_by": 5, "list_ids": [1]})
+    check(r.run_request(ev, 5) is True, "(g) F1: the run gets its request token")
+    ce = r.child_env(5, None)
+    check("KALMIDO_TOKEN" not in ce and ce.get("KALMIDO_ENV_FILE") == r.run_env_file and r.run_env_file != STARTER_ENV
+          and sys.modules["kalmido_mcp"].env_credentials(ce) == ("http://127.0.0.1:9", "abk_" + "r" * 30),
+          f"(g) F1: the run gets the request token only, through its own env file {ce.get('KALMIDO_ENV_FILE')}")
+    r.run_api = r.api
+    wake = [{"event": "job_wake", "seq": "wake-9", "data": {"user": {"id": 5}}}]
+    check(r.run_request(wake, 5) is True and r.calls[-1][1] == {"seqs": [41]}, f"(g) F1: a job's wake asks with the person's last events {r.calls[-1]}")
+    r.run_api = r.api  # after the run (Runner.handle)
+    r.run_env_file = None
+    ce = r.child_env(5, None)
+    check("KALMIDO_TOKEN" not in ce and "KALMIDO_ENV_FILE" not in ce, "(g) F1: outside a request the team agent's children get no token")
+
+
+_f1()
+
+
+# ---------------------------------------------------------------- (m) review F2: no run reads the long-lived token
+# Without the fix a team agent's run could read kalmido-agent.env (or the starter's /proc/<pid>/environ) and ask request
+# tokens for anybody with the agent's own token. 2.1386.0 (merged with #6457): the guard hook of #6457 carries it -- its
+# env file part (also /proc/<pid>/environ, ps e, the starter's file named with --secret-file) holds also with
+# KALMIDO_BLOCK_DANGEROUS=0 (--secret-only); Read / Grep of the files and of /proc/*/environ are deny rules of every run.
+def _f2():
+    import subprocess
+    import sys
+    ar = sys.modules["agent_run"]
+    os.environ["KALMIDO_BLOCK_DANGEROUS"] = "0"
+    try:
+        hs = ar.hook_settings(False, usage=False, env_files=["/srv/bot/state/run-env/p5.env"])
+    finally:
+        os.environ.pop("KALMIDO_BLOCK_DANGEROUS", None)
+    pre = hs["hooks"].get("PreToolUse") or []
+    cmd = pre[0]["hooks"][0]["command"] if pre else ""
+    check(len(pre) == 1 and pre[0].get("matcher") == "Bash" and "--guard-hook" in cmd and "--secret-only" in cmd
+          and f'--secret-file "{os.path.abspath(STARTER_ENV)}"' in cmd,
+          f"(m) F2: every run (also KALMIDO_BLOCK_DANGEROUS=0) carries the env file part of the guard, naming the starter's file {pre}")
+    deny = (hs.get("permissions") or {}).get("deny") or []
+    check(all(x in deny for x in (f"Read(/{STARTER_ENV})", "Read(//srv/bot/state/run-env/p5.env)", "Edit(//srv/bot/state/run-env/p5.env)",
+                                  "Read(//proc/*/environ)", "Read(//proc/*/task/*/environ)")),
+          f"(m) F2: Read / Grep of the starter's and the run's env file and of /proc/*/environ are denied {deny}")
+    for name in ("agent_launcher.sh", "agent_launcher.ps1"):
+        src = read("mcp", name)
+        check("KALMIDO_ENV_FILE" in src and "kalmido-capability: env_file_guard" not in src and "--secret-hook" not in src,
+              f"(m) F2: {name} hands the env file's path on once (#6457), no second mechanism")
+
+    def hook(line, envf="/srv/bot/state/run-env/p5.env"):
+        cp = subprocess.run([sys.executable, os.path.join(ROOT, "mcp", "agent_run.py"), "--guard-hook", "--secret-only",
+                             "--secret-file", "/srv/bot/agents/team-bot.env"],
+                            input=json.dumps({"tool_name": "Bash", "tool_input": {"command": line}, "hook_event_name": "PreToolUse"}),
+                            capture_output=True, text=True, timeout=60, env=dict(os.environ, KALMIDO_ENV_FILE=envf))
+        try:
+            return (json.loads(cp.stdout).get("hookSpecificOutput") or {}).get("permissionDecision")
+        except ValueError:
+            return None
+    for line in ("cat ../kalmido-agent.env", "grep TOKEN /srv/bot/agents/team-bot.env", "cat $HOME/agents/team-bot.env",
+                 "tr '\\0' '\\n' < /proc/$PPID/environ", "cat /proc/*/env*", "ps eww -p 1", "ps auxe", 'cat "$KALMIDO_ENV_FILE"'):
+        check(hook(line) == "deny", f"(m) F2: {line} is refused (also with KALMIDO_BLOCK_DANGEROUS=0)")
+    for line in ("ps -ef | grep node", "cat /proc/cpuinfo", "cat README.md", "git push --force origin main"):
+        check(hook(line) is None, f"(m) F2: {line} stays allowed by the env file part")
+
+
+_f2()
+
+
+# ---------------------------------------------------------------- (o) the merge with #6457: MCP / CLI / job never reach the long-lived token
+# #6457 lets the MCP server, kalmido_cli.py, agent_job.py and the usage hook read the token from KALMIDO_ENV_FILE. Without the
+# run's own env file a team agent's run would name the starter's file there -- every one of them would read the agent's
+# long-lived token and #6668 would be void. A run, a job of the run, a job the runner wakes and a job of the dispatcher read
+# only a request token; a renewed token (401) reaches the same file.
+def _o():
+    import subprocess
+    import sys
+    import tempfile
+    ar, km, aj = sys.modules["agent_run"], sys.modules["kalmido_mcp"], sys.modules["agent_job"]
+    own, url = "abk_" + "m" * 30, "http://127.0.0.1:9"
+
+    class Fake(ar.Api):
+        def _req(self, method, path, body=None, query=None, timeout=30):
+            if path == "/agent/request-token":
+                self.n[0] += 1
+                who = None if (body or {}).get("operator") else 5
+                return {"token": "abk_req%02d" % self.n[0] + "x" * 24, "expires_at": "2099-01-01T00:00:00Z",
+                        "asked_by": who if who else 9, "list_ids": [1]}
+            if self.token in self.dead:
+                raise ar.ApiError(401, '{"error": "Missing or invalid API token"}')
+            return {"ok": True}
+
+    sd = tempfile.mkdtemp(prefix="kalmido-p6668o-")
+    r = ar.Runner(["claude"], sd)
+    r.extras = None
+    r.agent = {"owner_id": None, "request_token": True, "perm_user_id": 9, "runtime": {}}
+    r.api.__class__ = Fake
+    r.api.n, r.api.dead = [0], set()
+    ev = [{"event": "chat", "seq": 88, "data": {"user": {"id": 5}, "message": {"id": 1, "body": "hi"}}}]
+    check(r.run_request(ev, 5) is True, "(o) the run gets its request token")
+    ce = r.child_env(5, None)
+    rf = ce.get("KALMIDO_ENV_FILE") or ""
+    blob = json.dumps(ce)
+    check(rf and rf != STARTER_ENV and STARTER_ENV not in blob and own not in blob and "KALMIDO_TOKEN" not in ce,
+          f"(o) the run's environment names neither the starter's env file nor the long-lived token {rf}")
+    if os.name != "nt":
+        check(oct(os.stat(rf).st_mode & 0o777) == "0o600", f"(o) the run's env file is 0600 {oct(os.stat(rf).st_mode)}")
+    t1 = r.run_api.token
+    check(km.env_credentials(ce) == (url, t1), "(o) MCP server of the run: the request token")
+    # kalmido_cli.py as the model would call it (stdlib only, no server: the token it would send)
+    cli = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); import kalmido_cli as c; "
+                          "print(c.env_credentials()[1])", os.path.join(ROOT, "mcp")],
+                         capture_output=True, text=True, timeout=60, env=ce)
+    check(cli.stdout.strip() == t1, f"(o) kalmido_cli.py in the run: the request token {cli.stdout.strip()[:12]} {cli.stderr[-200:]}")
+    job = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, sys.argv[1]); import agent_job as j; "
+                          "print(j.Api().token)", os.path.join(ROOT, "mcp")],
+                         capture_output=True, text=True, timeout=60, env=ce)
+    check(job.stdout.strip() == t1, f"(o) agent_job.py started from the run: the request token {job.stdout.strip()[:12]} {job.stderr[-200:]}")
+    # review F4 + #6457: a 401 renews the token -- the run's file carries the new one, the MCP server reads it again
+    r.api.dead.add(t1)
+    check(r.run_api.req("GET", "/tasks") == {"ok": True} and r.run_api.token != t1, "(o) F4: the runner's 401 asks anew")
+    t2 = r.run_api.token
+    check(km.env_credentials(ce) == (url, t2), "(o) F4: the new request token is in the same run file")
+    k = km.Kalmido(url, t1)
+    k.reload = lambda: km.env_credentials(ce)[1]
+    seen = []
+
+    def send(req, timeout, cap):
+        tok = req.get_header("Authorization").split()[-1]
+        seen.append(tok)
+        if tok == t1:
+            raise km.ApiError(401, "Missing or invalid API token")
+        return {"ok": True}
+    k._send = send
+    check(k.call("GET", "/tasks") == {"ok": True} and seen == [t1, t2] and own not in seen,
+          f"(o) MCP server: a 401 reads the run file once more, never the long-lived token {seen}")
+    # a job the runner wakes (card answer) / continues: the file of its person, never the runner's environment
+    aj.SPAWN_ENV = r.job_env
+    check(r.job_env({"chat_user": 5}) == rf and r.job_env({"chat_user": 77}) is None,
+          "(o) a woken job of the person gets her request token file; a person without one: none (it stays asleep)")
+    aj.SPAWN_ENV = None
+    # the dispatcher's job: the chosen person's token file (op), never the starter's
+    opc = r.op_api()
+    check(opc is not None and getattr(r, "op_env_file", None) and km.env_credentials({"KALMIDO_ENV_FILE": r.op_env_file}) == (url, opc.token)
+          and opc.token != own, "(o) the dispatcher's list work: the chosen person's token in its own env file")
+    r.run_api, r.run_env_file = r.api, None  # after the run
+    ce = r.child_env(5, None)
+    check("KALMIDO_ENV_FILE" not in ce and "KALMIDO_TOKEN" not in ce, "(o) outside a request: no env file, no token")
+    # a personal agent: unchanged #6457 (the starter's env file)
+    r.agent = {"owner_id": 5, "request_token": True, "runtime": {}}
+    check(r.run_request(ev, 5) is True and r.child_env(5, None).get("KALMIDO_ENV_FILE") == STARTER_ENV,
+          "(o) a personal agent: the starter's env file as before (#6457)")
+
+
+_o()
+
+
+# ---------------------------------------------------------------- (n) review F4: a 401 of a request token asks once anew (no server)
+# Without the fix the dispatcher's cached token (op_api) and the runner's run token stayed dead after being replaced: the
+# list work failed for hours, the run's answer was lost.
+def _f4():
+    import sys
+    import tempfile
+    ar = sys.modules["agent_run"]
+
+    class Fake(ar.Api):
+        def _req(self, method, path, body=None, query=None, timeout=30):
+            self.log.append((path, self.token, body))
+            if path == "/agent/request-token":
+                if self.refuse:
+                    raise ar.ApiError(403, '{"error": {"code": "no_order"}}')
+                self.n[0] += 1
+                return {"token": "abk_new%02d" % self.n[0] + "x" * 24, "expires_at": "2099-01-01T00:00:00Z", "asked_by": 5, "list_ids": [1]}
+            if self.token in self.dead:
+                raise ar.ApiError(401, '{"error": "Missing or invalid API token"}')
+            return {"ok": True}
+
+    r = ar.Runner(["claude"], tempfile.mkdtemp(prefix="kalmido-p6668f4-"))
+    r.extras = None
+    r.agent = {"owner_id": None, "request_token": True, "runtime": {}}
+    r.api.__class__ = Fake
+    r.api.log, r.api.dead, r.api.n, r.api.refuse = [], set(), [0], False
+    c1 = r.op_api()
+    t1 = c1.token
+    r.api.dead.add(t1)
+    check(c1.req("GET", "/tasks") == {"ok": True} and c1.token not in (t1, r.api.token) and r.op_api().token == c1.token,
+          f"(n) F4: the list work's token answers 401 -> asked once anew with operator, the call goes through {r.api.log[-3:]}")
+    check([b for p, _, b in r.api.log if p == "/agent/request-token"][-1] == {"operator": True}, "(n) F4: ... for the chosen person")
+    r.api.dead.add(c1.token)
+    r.api.refuse = True
+    try:
+        c1.req("GET", "/tasks")
+        ok = False
+    except ar.ApiError as e:
+        ok = e.status == 401
+    check(ok and r.api.token not in [t for p, t, _ in r.api.log if p == "/tasks"], "(n) F4: no new token = the 401 stands, never the own token")
+    r.api.refuse = False
+    ev = [{"event": "chat", "seq": 77, "data": {"user": {"id": 5}, "message": {"id": 1, "body": "hi"}}}]
+    check(r.run_request(ev, 5) is True, "(n) the run gets its request token")
+    t2 = r.run_api.token
+    r.api.dead.add(t2)
+    check(r.run_api.req("POST", "/tasks/1/comments", {"body": "x"}) == {"ok": True} and r.run_api.token != t2
+          and [b for p, _, b in r.api.log if p == "/agent/request-token"][-1] == {"seqs": [77]},
+          "(n) F4: the run's token answers 401 -> the runner asks once anew with the run's events")
+    try:
+        r.api.req("GET", "/agent")
+        r.api.dead.add(r.api.token)
+        r.api.req("GET", "/agent")
+        ok = False
+    except ar.ApiError as e:
+        ok = e.status == 401
+    check(ok, "(n) the agent's own client asks for nothing on a 401 (revoked computer: as before)")
+
+
+_f4()
+
+# ---------------------------------------------------------------- server
+fresh(prefix="P6668")
+docker_logs_on_first_fail()
+
+
+def err(r):
+    try:
+        e = r.json()["error"]
+        return e if isinstance(e, dict) else {}
+    except (ValueError, KeyError, TypeError):
+        return {}
+
+
+assert sess().post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice", "password": "password123"}).ok
+A = sess("alice")
+A.post(B + "/api/admin/setup", json={"org_name": "Example Studio", "lang": "en", "collab_all": True,
+                                    "modules": ["comments", "collab"]})
+FEAT = "comments,collab"
+A.patch(B + "/api/settings", json={"tour": "done", "lang": "en", "features": FEAT})
+ORG = A.get(B + "/api/state").json()["me"]["workspaces"][0]["id"]
+check(A.put(B + "/api/admin/agent-policy", json={"user_agents": True}).ok, "setup: personal agents allowed")
+uid = {}
+for u, rk in (("bob", "admin"), ("carl", "member"), ("rita", "member")):
+    r = A.post(B + "/api/users", json={"orgs": [{"id": ORG, "role": rk}], "username": u, "display_name": u.title(),
+                                       "password": "password123", "email": f"{u}@example.com"})
+    check(r.ok, f"setup: {u} as {rk} " + r.text[:200])
+    uid[u] = r.json().get("id")
+S = {u: sess(u) for u in uid}
+Bo, Ca, Ri = S["bob"], S["carl"], S["rita"]
+for s in S.values():
+    s.patch(B + "/api/settings", json={"tour": "done", "lang": "en", "features": FEAT})
+FID, Fr = freelancer(B, A)
+
+r = A.post(B + "/api/admin/agents", json={"scopes": SCOPES, "username": "extbot", "display_name": "Ext Bot", "org_id": ORG})
+check(r.status_code == 201, f"setup: a team agent with its own token {r.status_code} {r.text[:200]}")
+XT, XTOK = r.json()["id"], r.json()["token"]
+XH = {"Authorization": "Bearer " + XTOK}
+check(dbx("SELECT owner_id FROM agents WHERE user_id=?", (XT,)) == [(None,)], "setup: a team agent (no owner)")
+X1 = Bo.post(B + "/api/lists", json={"name": "Project one", "org_id": ORG}).json()["id"]
+X2 = Bo.post(B + "/api/lists", json={"name": "Project two", "org_id": ORG}).json()["id"]
+for u, role in (("carl", "edit"), ("rita", "view")):
+    check(Bo.put(B + f"/api/lists/{X1}/members", json={"user_id": uid[u], "role": role}).ok, f"setup: {u} in project one ({role})")
+for lid in (X1, X2):
+    r = Bo.put(B + f"/api/lists/{lid}/members", json={"user_id": XT, "role": "edit", "bridge_ok": True})
+    check(r.ok, f"setup: the agent in project {lid} {r.status_code} {r.text[:160]}")
+    check(Bo.patch(B + f"/api/lists/{lid}", json={"agent_members": True}).ok, "setup: members may use the agent")
+TX = Bo.post(B + "/api/tasks", json={"title": "Open stork task", "list_id": X1}).json()["id"]
+SX = Bo.post(B + "/api/tasks", json={"title": "Secret crane budget", "list_id": X2}).json()["id"]
+check(Ca.get(B + f"/api/tasks/{SX}").status_code == 404, "setup: carl does not see the task of project two")
+check(requests.get(V + f"/tasks/{SX}", headers=XH, timeout=30).ok, "setup: before any request token the agent's own token reaches all (as before)")
+
+
+def hdr(tok):
+    return {"Authorization": "Bearer " + tok}
+
+
+def seq_of(mark):
+    """The seq of the agent's event whose payload carries mark (its own token, the channel)."""
+    r = requests.get(V + "/agent/events", headers=XH, params={"since": 0, "limit": 500}, timeout=30)
+    check(r.ok, f"the agent reads its events {r.status_code} {r.text[:160]}")
+    hits = [e["seq"] for e in r.json().get("data", []) if mark in json.dumps(e)]
+    check(len(hits) == 1, f"one event with {mark}: {hits}")
+    return hits[0] if hits else -1
+
+
+def ask(seqs=None, headers=None, **body):
+    return requests.post(V + "/agent/request-token", headers=headers or XH, json={"seqs": seqs, **body} if seqs is not None else body, timeout=30)
+
+
+# ================================================================ (a) a member of project one only
+check(Ca.post(B + f"/api/tasks/{TX}/comments", json={"body": f"<@{XT}> CARL-ASKS tell me about the crane"}).ok, "(a) carl mentions the agent")
+SC = seq_of("CARL-ASKS")
+r = ask([SC])
+check(r.ok and r.json().get("token") and r.json().get("asked_by") == uid["carl"] and r.json().get("list_ids") == [X1],
+      f"(a) a request token for carl, cut to project one {r.status_code} {r.text[:200]}")
+RC = r.json().get("token") or ""
+check(dbx("SELECT asked_by, run_lists, name FROM api_tokens WHERE user_id=? AND asked_by IS NOT NULL", (XT,)) == [(uid["carl"], str(X1), "Agent request")],
+      "(a) the token row carries carl and the cut")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC), timeout=30).status_code == 200, "(a) carl's request reads the task of project one")
+check(requests.get(V + f"/tasks/{SX}", headers=hdr(RC), timeout=30).status_code == 404, "(a) carl's request: the task of project two is 404")
+check(SX not in [t["id"] for t in requests.get(V + "/tasks", headers=hdr(RC), params={"limit": 200}, timeout=30).json().get("data", [])],
+      "(a) ... and not in the task list")
+r = requests.get(V + "/agent", headers=hdr(RC), timeout=30)
+check(r.ok, f"(a) the request token reaches the agent's own channel {r.status_code}")
+check(r.json().get("request_token") is True, "(a) F1: GET /agent reports the capability request_token (the starter's only fallback signal)")
+
+# ---- (k) F2: a second ask for the same person replaces the first token
+r = ask([SC])
+RCB = r.json().get("token") or "" if r.ok else ""
+check(r.ok and RCB and RCB != RC, f"(k) F2: a second request token for carl {r.status_code}")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC), timeout=30).status_code == 401, "(k) F2: carl's older request token is refused (401)")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RCB), timeout=30).status_code == 200, "(k) F2: the new one works")
+check(dbx("SELECT COUNT(*) FROM api_tokens WHERE user_id=? AND name='Agent request' AND asked_by=?", (XT, uid["carl"])) == [(1,)],
+      "(k) F2: one request token row for carl")
+RC = RCB
+
+# ================================================================ (e) the agent's own token is its channel now
+check(dbx("SELECT per_request FROM agents WHERE user_id=?", (XT,)) == [(True,)], "(e) the agent works per request from the first ask on")
+r = requests.get(V + f"/tasks/{SX}", headers=XH, timeout=30)
+check(r.status_code == 403 and err(r).get("code") == "request_token_needed", f"(e) its own token: the content of a project 403 {r.status_code} {r.text[:160]}")
+r = requests.get(V + f"/tasks/{TX}", headers=XH, timeout=30)
+check(r.status_code == 403 and err(r).get("code") == "request_token_needed", f"(e) ... also of project one {r.status_code}")
+check(requests.get(V + "/agent/events", headers=XH, params={"since": 0}, timeout=30).ok and requests.get(V + "/agent", headers=XH, timeout=30).ok
+      and requests.get(V + "/agent/chats", headers=XH, timeout=30).ok, "(e) its own token keeps its channel: events, the agent, chats")
+check(requests.put(V + "/agent/status", headers=XH, json={"status": "idle"}, timeout=30).ok, "(e) ... and its status")
+# 2.1386.0 (#6668, review F1): the classes mine / send / pin are capped only in a run (run_person); with the long-lived token
+# nothing capped them -- without the fix these answered 200 with every project and person of the agent. The routes with a
+# scope this agent lacks (/time, /office, /layouts) stop at the scope check first; tests/p6454_c_run_routes_test.py holds them.
+for path, q in (("/search", {"q": "crane", "kind": "all"}), ("/news", {}), ("/briefing", {"user_id": uid["carl"]}),
+                ("/me/waiting", {"user_id": uid["carl"]})):
+    r = requests.get(V + path, headers=XH, params=q, timeout=30)
+    check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
+          f"(e) F1: its own token gets no {path} any more (request_token_needed) {r.status_code} {r.text[:120]}")
+
+# ================================================================ (b) a reader's order does not write
+check(Ri.post(B + f"/api/agents/{XT}/chat", json={"body": "RITA-ASKS please comment on the stork task"}).status_code == 201, "(b) rita (reads project one) asks in the chat")
+SR = seq_of("RITA-ASKS")
+r = ask([SR])
+check(r.ok and r.json().get("asked_by") == uid["rita"] and r.json().get("list_ids") == [X1], f"(b) a request token for rita {r.status_code} {r.text[:200]}")
+RR = r.json().get("token") or ""
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30).ok, "(b) rita's request reads the task she reads herself")
+r = requests.post(V + f"/tasks/{TX}/comments", headers=hdr(RR), json={"body": "FOR-RITA"}, timeout=30)
+check(r.status_code == 409 and err(r).get("code") == "approval_required", f"(b) the agent (role edit) writes no comment for the reader: a card {r.status_code} {r.text[:200]}")
+check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='FOR-RITA'", (TX,)), "(b) ... nothing written")
+ap = err(r).get("approval") or {}
+STEP = {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}
+r = requests.post(V + f"/tasks/{TX}/comments", headers=hdr(RC), json={"body": "FOR-CARL"}, timeout=30)
+check(r.status_code == 201, f"(b) carl's request (he writes there) comments {r.status_code} {r.text[:200]}")
+
+# ---- (e) the card of rita's order, run with the agent's own token (the replay of an approved request)
+# 2.1386.0 (#6668): since 2.1284.0 (#6453, review G13) a Yes to a write into a wider circle (project one is read by more
+# people than project two) counts only from a person who reads every place the agent reads: carl (project one only) is
+# refused, bob (both projects) approves and the step runs with the agent's own token.
+m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Comment for Rita?", "step": STEP}}, timeout=30)
+check(m.status_code == 201, f"(e) its own token sends the card (its channel) {m.status_code} {m.text[:200]}")
+MID = m.json().get("id")
+check(Ca.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json=apv_body(Ca, B, f"chat:{MID}", "yes")).ok, "(e) carl says Yes")
+r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
+check(r.status_code == 409 and err(r).get("code") == "approval_invalid" and err(r).get("reason") == "approver_rights",
+      f"(e) carl's Yes runs nothing in the wider circle (#6453: he does not read project two) {r.status_code} {r.text[:300]}")
+m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, json={"approval": {"title": "Comment for Rita?", "step": STEP}}, timeout=30)
+check(m.status_code == 201, f"(e) a card to bob {m.status_code} {m.text[:200]}")
+MID = m.json().get("id")
+check(Bo.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json=apv_body(Bo, B, f"chat:{MID}", "yes")).ok, "(e) bob (reads both projects) says Yes")
+r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
+check(r.status_code == 201 and dbx("SELECT COUNT(*) FROM obj_comments WHERE kind='task' AND ref_id=? AND body='FOR-RITA'", (TX,)) == [(1,)],
+      f"(e) the approved step runs with the agent's own token (the replay) {r.status_code} {r.text[:300]}")
+
+# ---- (i) review F3: the step of a card with the own token always checks the person who said Yes (no control level chosen)
+# Without the fix a Yes of a reader ran with the agent's whole reach (a card's step is always a change: approval.step).
+m = requests.post(V + f"/agent/chats/{uid['rita']}", headers=XH, json={"approval": {"title": "Comment by Rita's Yes?", "step":
+                  {"method": "POST", "path": f"/api/v1/tasks/{TX}/comments", "body": {"body": "RITA-SAID-YES"}}}}, timeout=30)
+check(m.status_code == 201, f"(i) a card to rita {m.status_code} {m.text[:200]}")
+check(Ri.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json=apv_body(Ri, B, f"chat:{m.json().get('id')}", "yes")).ok, "(i) rita (reads only) says Yes")
+r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
+check(r.status_code == 409 and err(r).get("reason") in ("approver_rights", None) and err(r).get("code") == "approval_invalid",
+      f"(i) the reader's Yes runs no change in project one {r.status_code} {r.text[:200]}")
+check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='RITA-SAID-YES'", (TX,)), "(i) ... nothing written")
+
+# ---- (j) second review F1: a card's "meta" step (no card check in ctl_gate) with the own token stays outside its channel
+# Without the fix the long-lived token reached e.g. POST /tasks/brief through any answered card (req_main_gate lets a card's
+# write through, ctl_gate stepped out for meta before checking the card).
+BRIEF = {"method": "POST", "path": "/api/v1/tasks/brief", "body": {"task_ids": [TX]}}
+m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, json={"approval": {"title": "Brief?", "step": BRIEF}}, timeout=30)
+check(m.status_code == 201, f"(j) a card with the step POST /tasks/brief to bob {m.status_code} {m.text[:200]}")
+check(Bo.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json=apv_body(Bo, B, f"chat:{m.json().get('id')}", "yes")).ok, "(j) bob says Yes")
+r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
+check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
+      f"(j) the meta step of a card with the own token: 403 request_token_needed {r.status_code} {r.text[:300]}")
+r = requests.post(V + "/tasks/brief", headers=hdr(RC), json={"task_ids": [TX]}, timeout=30)
+check(r.ok, f"(j) ... with the request token of carl's order the brief stays allowed {r.status_code} {r.text[:200]}")
+
+# ================================================================ (c) an event without a person
+payload = {"id": str(uuid.uuid4()), "event": "followup_due", "agent_id": XT, "actor": None, "via": "web",
+           "data": {"task": {"id": TX, "list_id": X1}, "list_id": X1, "note": "NOBODY-ASKS"}}
+SN = dbx("INSERT INTO agent_events(agent_id, uuid, event, payload, created_at) VALUES(?,?,?,CAST(? AS jsonb),now()) RETURNING id",
+         (XT, payload["id"], "followup_due", json.dumps(payload)))[0][0]
+r = ask([SN])
+check(r.ok and r.json().get("asked_by") is None and r.json().get("list_ids") == [X1], f"(c) a request token without a person: its project only {r.status_code} {r.text[:200]}")
+RN = r.json().get("token") or ""
+check(dbx("SELECT asked_by FROM api_tokens WHERE user_id=? AND asked_by=0", (XT,)) == [(0,)], "(c) the token row: a request without a person (0)")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RN), timeout=30).ok, "(c) reads the task of its project")
+check(requests.get(V + f"/tasks/{SX}", headers=hdr(RN), timeout=30).status_code == 404, "(c) the other project 404")
+r = requests.post(V + f"/tasks/{TX}/comments", headers=hdr(RN), json={"body": "FROM-NOBODY"}, timeout=30)
+check(r.status_code == 409 and err(r).get("code") == "approval_required", f"(c) every change is a card (no control level chosen) {r.status_code} {r.text[:200]}")
+check(not dbx("SELECT 1 FROM obj_comments WHERE kind='task' AND ref_id=? AND body='FROM-NOBODY'", (TX,)), "(c) ... nothing written")
+dbx("UPDATE agent_events SET created_at=now() - interval '25 hours' WHERE id=?", (SN,))
+r = ask([SN])
+check(r.status_code == 404 and err(r).get("code") == "event_gone", f"(c) review F4: an event older than 24 h gives no request token {r.status_code}")
+
+# ================================================================ (d) what is refused
+r = ask([SC, SR])
+check(r.status_code == 400 and err(r).get("code") == "several_people", f"(d) events of two people: 400 {r.status_code} {r.text[:160]}")
+r = requests.post(V + "/agent/request-token", headers=hdr(RC), json={"seqs": [SC]}, timeout=30)
+check(r.status_code == 403 and err(r).get("code") == "request_token_main", f"(d) a request token asks for no other one {r.status_code}")
+r = Ca.post(B + "/api/v1/agent/request-token", json={"seqs": [SC]})
+check(r.status_code in (401, 403), f"(d) a person (no agent) gets none {r.status_code}")
+r = ask([SC + 100000])
+check(r.status_code == 404 and err(r).get("code") == "event_gone", f"(d) an unknown event 404 {r.status_code}")
+r = A.post(B + "/api/admin/agents", json={"scopes": SCOPES, "username": "otherbot", "display_name": "Other Bot", "org_id": ORG})
+check(r.status_code == 201, f"setup: another team agent {r.status_code}")
+YT, YH = r.json().get("id"), {"Authorization": "Bearer " + r.json().get("token", "")}
+r = requests.post(V + "/agent/request-token", headers=YH, json={"seqs": [SC]}, timeout=30)
+check(r.status_code == 404 and not r.json().get("token"), f"(d) another agent gets no token for this agent's event (404) {r.status_code}")
+r = requests.post(V + "/agent/request-token", headers=YH, json={"seqs": []}, timeout=30)
+check(r.status_code == 400, f"(d) no event: 400 {r.status_code}")
+check(dbx("SELECT per_request FROM agents WHERE user_id=?", (YT,)) == [(False,)],
+      "(d) review F5: refused asks never switch an agent to per request (only an issued request token does)")
+r = ask(None, operator=True)
+check(r.status_code == 409 and err(r).get("code") == "no_operator", f"(d) nobody chosen for its questions: 409 {r.status_code} {r.text[:160]}")
+r = ask([])
+check(r.status_code == 400, f"(d) no event: 400 {r.status_code}")
+dbx("UPDATE api_tokens SET expires_at=now() - interval '1 minute' WHERE user_id=? AND asked_by=?", (XT, uid["carl"]))
+r = requests.get(V + f"/tasks/{TX}", headers=hdr(RC), timeout=30)
+check(r.status_code == 401, f"(d) carl's expired request token is refused {r.status_code}")
+r = ask([SC])
+check(r.ok and not dbx("SELECT 1 FROM api_tokens WHERE user_id=? AND asked_by=? AND expires_at<now()", (XT, uid["carl"])),
+      "(d) the next ask clears the expired request tokens")
+XA = [a for a in A.get(B + "/api/admin/agents").json().get("agents", []) if a.get("id") == XT]
+check(XA and XA[0].get("tokens") and not any(t.get("name") == "Agent request" for t in XA[0]["tokens"]),
+      "(d) request tokens are not listed with the agent's tokens")
+
+# ================================================================ (l) F4: a locked person gets no request token
+RC2 = r.json().get("token") or ""
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30).ok, "(l) rita's request token works before the lock")
+check(A.patch(B + f"/api/users/{uid['rita']}", json={"disabled": True}).ok, "(l) the admin locks rita")
+r = ask([SR])
+check(r.status_code == 403 and err(r).get("code") == "no_order" and not r.json().get("token"),
+      f"(l) F4: rita's event gives no request token while her account is locked {r.status_code} {r.text[:160]}")
+# review F3: the request token she already gave stops at once (without the fix it worked on with her rights for up to 8 hours)
+r = requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30)
+check(r.status_code == 403 and err(r).get("code") == "no_order", f"(l) F3: rita's request token stops while she is locked {r.status_code} {r.text[:160]}")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC2), timeout=30).ok, "(l) F3: carl's request token goes on")
+check(A.patch(B + f"/api/users/{uid['rita']}", json={"disabled": False}).ok, "(l) the admin unlocks rita")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30).ok, "(l) F3: unlocked, her request token works again")
+check(A.patch(B + f"/api/users/{uid['rita']}", json={"disabled": True}).ok, "(l) the admin locks rita again")
+
+# ================================================================ (n) review F4: the dispatcher's place is its own
+# Without the fix bob's chat run (bob is chosen for the agent's questions) ended the token of the starter's list work (401).
+check(A.patch(B + f"/api/admin/agents/{XT}", json={"runtime": {"perm_user": uid["bob"]}}).ok, "(n) bob answers the agent's questions")
+r = ask(None, operator=True)
+OPT = r.json().get("token") or "" if r.ok else ""
+check(r.ok and OPT and r.json().get("asked_by") == uid["bob"], f"(n) the list work's token for bob {r.status_code} {r.text[:160]}")
+check(Bo.post(B + f"/api/tasks/{TX}/comments", json={"body": f"<@{XT}> BOB-ASKS"}).ok, "(n) bob mentions the agent")
+r = ask([seq_of("BOB-ASKS")])
+RBT = r.json().get("token") or "" if r.ok else ""
+check(r.ok and RBT and RBT != OPT, f"(n) a run token for bob {r.status_code}")
+check(requests.get(V + f"/tasks/{SX}", headers=hdr(OPT), timeout=30).ok and requests.get(V + f"/tasks/{SX}", headers=hdr(RBT), timeout=30).ok,
+      "(n) F4: both work -- bob's chat run does not end the list work's token")
+MAIN = dbx("SELECT id FROM api_tokens WHERE user_id=? AND name<>'Agent request' AND asked_by IS NULL", (XT,))
+check(sorted(x[0] for x in dbx("SELECT req_slot FROM api_tokens WHERE user_id=? AND asked_by=?", (XT, uid["bob"]))) ==
+      sorted(["op:%s" % MAIN[0][0], "run:%s" % MAIN[0][0]]) if MAIN else False, "(n) F4: the places are kind + the asking computer")
+r = ask(None, operator=True)
+check(r.ok and requests.get(V + f"/tasks/{SX}", headers=hdr(OPT), timeout=30).status_code == 401
+      and requests.get(V + f"/tasks/{SX}", headers=hdr(RBT), timeout=30).ok, "(n) a new list-work token replaces only the older list-work token")
+
+# ================================================================ (h) review F2: removing the computer ends its request tokens
+# Without the fix the request tokens fetched with a removed computer's token lived on for up to 8 h, unlisted and unrevocable.
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC2), timeout=30).ok, "(h) carl's new request token works")
+MT = [t["id"] for t in XA[0]["tokens"]] if XA else []
+check(len(MT) == 1, f"(h) the agent has one computer (its own token) {MT}")
+r = A.delete(B + f"/api/admin/agents/{XT}/machines/{MT[0] if MT else 0}")
+check(r.ok, f"(h) the admin removes the computer {r.status_code} {r.text[:160]}")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC2), timeout=30).status_code == 401,
+      "(h) the request token fetched with it is refused (401)")
+check(not dbx("SELECT 1 FROM api_tokens WHERE user_id=? AND name='Agent request'", (XT,)), "(h) no request token of the agent is left")
+
+# ================================================================ the person without an organisation loses nothing
+r = Fr.post(B + "/api/my/agents", json={"username": "fridabot", "display_name": "Fridabot", "scopes": SCOPES})
+check(r.status_code in (200, 201), f"freelancer: her personal agent {r.status_code} {r.text[:160]}")
+FA, FH = r.json()["id"], {"Authorization": "Bearer " + r.json()["token"]}
+FL = Fr.post(B + "/api/lists", json={"name": "Frida work"}).json()["id"]
+check(Fr.put(B + f"/api/lists/{FL}/members", json={"user_id": FA, "role": "edit"}).ok, "freelancer: her project is shared with her agent")
+FT = Fr.post(B + "/api/tasks", json={"title": "Frida's task", "list_id": FL}).json()["id"]
+r = requests.post(V + "/agent/request-token", headers=FH, json={"seqs": [1]}, timeout=30)
+check(r.ok and r.json().get("token") is None and r.json().get("asked_by") == FID, f"freelancer: her personal agent needs no request token {r.status_code} {r.text[:160]}")
+check(dbx("SELECT per_request FROM agents WHERE user_id=?", (FA,)) == [(False,)], "freelancer: her agent does not switch to per request")
+check(requests.get(V + f"/tasks/{FT}", headers=FH, timeout=30).ok, "freelancer: her agent's own token reaches her project as before")
+r = requests.post(V + f"/tasks/{FT}/comments", headers=FH, json={"body": "from her agent"}, timeout=30)
+check(r.status_code == 201, f"freelancer: her agent comments in her project {r.status_code} {r.text[:160]}")
+
+raise SystemExit(done("p6668_ext_team_agent"))
