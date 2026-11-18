@@ -450,6 +450,8 @@ def isc_put(ref):
                                                                   "fields": {k: [a, z] for k, (a, z) in changed.items()}}, name=iss["name"])
     if seen.get("held"):
         _tell(c, iss, new)
+    from .issdocs import isd_client_changed
+    isd_client_changed(c, iss["id"], r["id"])  # 2.1396.0 (#6701): its drafts' preview follows the key's own change of the client
     c.commit()
     new = isc_row(c, iss, ref)
     return jsonify(isc_public(new, flags=_flags_of(new)))
