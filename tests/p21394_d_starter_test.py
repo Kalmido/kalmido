@@ -257,6 +257,11 @@ reset({"501": "Deploy 1.3 to staging"}, answered_ago=60)
 check(r.intercept([ev])[0]["event"] == "chat" and not r.api.withdrawn, "F7: a message without an id decides nothing")
 reset({"20000": "Deploy 1.3 to staging"}, answered_ago=60)
 check(r.intercept([chat("Ja, Karte 20000")])[0]["event"] == "chat", "F7: by its number too, an older message decides nothing")
+# #5473 F3: "yes, card N" quoting another card M decides nothing (the number and the quote disagree)
+reset({"501": "Deploy 1.3 to staging", "502": "Delete the branch old-ui"}, answered_ago=60)
+ev = chat("Ja, Karte 502")
+ev["data"]["message"]["reply_to"] = 501
+check(r.intercept([ev])[0]["event"] == "chat" and not r.api.withdrawn, "#5473 F3: number and quoted card disagree: nothing decided")
 r.run = keep_run
 if keep_usage is not None:
     r.usage = keep_usage
@@ -280,6 +285,20 @@ r.resolve_perm, keep_rp = (lambda mid, dec: resolved.append((mid, dec))), r.reso
 out = r.intercept([dropped("ja")])
 check(out[0]["event"] == "chat" and resolved == [], f"F3: a /drop yes answers no permission question: {out} {resolved}")
 check(r.intercept([chat("ja")]) == [] and resolved == [("801", "allow")], f"the person's own yes still answers it: {resolved}")
+# #5473 F2: a yes quoting a card while a permission question is open answers the card, never the question; a yes older than
+# the question (it waited in the queue) answers nothing
+r.state.data["perms"] = {"801": {"uid": 7, "at": time.time()}}
+r.approvals = {"700": {"uid": 7, "title": "Deploy", "what": "", "at": time.time()}}
+resolved.clear()
+ev = chat("ja")
+ev["data"]["message"]["reply_to"] = 700
+out = r.intercept([ev])
+check(resolved == [] and out and out[0]["event"] == "chat_choice" and out[0]["data"]["message_id"] == 700,
+      f"#5473 F2: a quoted card is answered, not the open permission question: {resolved} {out}")
+r.state.data["perms"] = {"20001": {"uid": 7, "at": time.time()}}
+r.approvals = {}
+resolved.clear()
+check(r.intercept([chat("ja")])[0]["event"] == "chat" and resolved == [], f"#5473 F2: a yes older than the question answers nothing {resolved}")
 r.resolve_perm = keep_rp
 check(ar.is_drop({"message": {"origin": "drop", "untrusted": True}}) and not ar.is_drop({"message": {"origin": "drop"}})
       and not ar.is_drop({"message": {}}), "is_drop: origin drop and untrusted together")
