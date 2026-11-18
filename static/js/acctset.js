@@ -365,6 +365,7 @@ async function orgModal(o, done) {
 function wsPaneHtml(hint) {
   return `<h4 id="s-ws-h">${tr('Workspaces')}</h4>${hint(tr('Every project belongs to one workspace; the sidebar shows one at a time. An organisation’s project is shared only inside it; private sharing stays invisible to it.'))}
     <div class="members" id="s-ws" aria-labelledby="s-ws-h"><div class="muted mhint">${tr('Loading…')}</div></div>
+    <div class="row"><button type="button" class="btn sm" data-wsorgadd="1">${ic('plus', 's')} ${tr('Add an organisation')}</button></div>${''/* 2.1364.0 (#6885): its lasting place (the workspace menu offers it only without an organisation) */}
     ${(S.me.workspaces || []).length ? `<h4 id="s-wsr-h">${tr('Absences and holiday')}</h4><div id="s-wsr"><div class="muted mhint">${tr('Loading…')}</div></div>` : ''}${''/* 2.365.2 C (#2789) */}`;
 }
 // 2.365.2 C (#2789): the rules of an organisation that the Absences tab used to hold: vacation needs an approval, the state

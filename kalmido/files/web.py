@@ -32,7 +32,7 @@ from .fsroots import fs_area_after, fs_area_before, fs_area_folder_name, fs_area
 from .fsroots import fs_area_share  # 2.200.0 B (#2747)
 from .fsroots import fs_area_root_excl, fs_area_root_shares  # 2.1045.0 (#5823); 2.1225.0 (#5862): fs_area_root_excl
 from ..core.dlock import dl_chain_cut, dl_excl_parse, dl_forget  # 2.1045.0 (#5823); 2.1225.0 (#5862): dl_excl_parse, dl_forget
-from .fsref import fs_unshare_hooks  # 2.623.0 (#4778)
+from .fsref import fs_byname_hooks, fs_unshare_hooks  # 2.623.0 (#4778); 2.1364.0 (#6297 6): fs_byname_hooks
 from .fsviews import fsv_collections, fsv_drop, fsv_hidden  # 2.429.0 (#3580): the file store shows only its own folders
 from ..core.conflict import Conflict, need_version, version_rule  # 2.577.0 (#4708 3)
 from ..core.pg import system_ctx, write_lock  # 2.149.0 G (#2517): pulled up from functions
@@ -443,6 +443,9 @@ def fs_trash_root_by(chain):
 
 def _send(c, n, version=None, dl=False):
     """The content of a file / link node for the browser (images / pdf / text inline, else a download; sandbox CSP)."""
+    if "hub_mail_id" in n.keys() and n["hub_mail_id"]:  # 2.1364.0 (#6320): a filed mail's .eml, not for a support session
+        from ..hub.hubmail import hbm_eml_refused
+        hbm_eml_refused(c, n["id"])
     if n["kind"] == "ref":  # 2.199.0 A (#2742): the bytes of the area (fs_ref_content checks the role)
         data, name, mime = fs_ref_content(c, me(), n)
         inline = mime in INLINE_TYPES and request.args.get("dl") != "1" and not dl
@@ -965,6 +968,9 @@ def files_share_add(nid):
     # 2.1145.0 (#6062, Fable review 2.1138 F4): a share by e-mail address of the knowledge dialog (FS_NOT_ADDR) is no row of this
     # dialog -- not taken over, raised and logged as "the same target again", not counted for SHARE_MAX: this share gets a row of
     # its own beside it (the answer and the limit must not tell that the address belongs to this account)
+    if key == "user_id":  # 2.1364.0 (#6297 6, Fable review job/5254 F2): a table's address bound to tid opens again, its
+        for f in fs_byname_hooks:  # one share row goes on by name (sheets/shshare.py shs_fs_by_name)
+            f(c, n, tid)
     na = f" AND {FS_NOT_ADDR.format(a='fs_shares')}"
     old = c.execute(f"SELECT id FROM fs_shares WHERE node_id=? AND {key}=? AND COALESCE(list_own, 0)=0{na}", (nid, tid)).fetchone()  # #4739
     if not old and c.execute(f"SELECT COUNT(*) FROM fs_shares WHERE node_id=? AND COALESCE(list_own, 0)=0{na}", (nid,)).fetchone()[0] >= SHARE_MAX:

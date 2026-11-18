@@ -425,12 +425,19 @@ def _aad(org_id, ctx):
 
 
 def oc_enc_k(key, org_id, ctx, value):
-    """Encrypt with a key the caller already holds (loops). '' / None stay as they are; an encrypted value is kept."""
+    """Encrypt with a key the caller already holds (loops). '' / None stay as they are; an encrypted value is kept.
+    2.1364.0 (#6297 2, audit #4741 F6): kept only when it opens with this key at this place (a copy, a CLI pass); a text that
+    only starts like one (typed "kenc1:...") is marked (oc_plain_safe) and sealed like any other - before, it was stored as
+    it was and every later read of the row answered 500."""
     if value is None or value == "" or key is None:
         return value
     value = str(value)
     if value.startswith(PREFIX):
-        return value
+        try:
+            oc_dec_k(key, org_id, ctx, value)
+            return value
+        except OrgCryptError:
+            value = oc_plain_safe(value)
     n = os.urandom(12)
     return PREFIX + _b64u(n + AESGCM(key).encrypt(n, value.encode(), _aad(org_id, ctx)))
 
@@ -457,8 +464,24 @@ def oc_enc(c, org_id, ctx, value):
     """'kenc1:' + base64url(nonce|ciphertext), bound to the organisation and ctx ('table.column'). '' stays ''; plain when
     the encryption is off (no master key / org_encrypt=0) or there is no organisation."""
     if value is None or value == "" or not org_id or not oc_active(c):
-        return value
+        return oc_keep_sealed(c, org_id, ctx, value)  # 2.1364.0 (#6297 2): plain, but never a text that only looks sealed
     return oc_enc_k(oc_key(c, org_id), org_id, ctx, value)
+
+
+def oc_keep_sealed(c, org_id, ctx, value):
+    """2.1364.0 (#6297 2): a value stored plain (encryption off, no organisation): a sealed one that opens with the
+    organisation's key at this place stays, a text that only starts like one gets the mark of oc_plain_safe (else every
+    read of it fails)."""
+    if not oc_is_enc(value):
+        return value
+    try:
+        key = oc_key(c, org_id, create=False) if org_id else None
+        if key is not None:
+            oc_dec_k(key, org_id, ctx, value)
+            return value
+    except OrgCryptError:
+        pass
+    return oc_plain_safe(value)
 
 
 def oc_dec(c, org_id, ctx, value):
@@ -524,7 +547,7 @@ def oc_seal_fields(c, org_id, table, values):
     without a server key or an area: the caller refuses to save rather than keep such a value in plain."""
     d, key = dict(values), None
     for k in FIELDS.get(table, ()):
-        if d.get(k) not in (None, "") and not oc_is_enc(d.get(k)):
+        if d.get(k) not in (None, ""):  # 2.1364.0 (#6297 2): a sealed one too (oc_enc_k keeps it only when it opens)
             if not SECRET_KEY or not org_id:
                 raise OrgCryptError("no server key: access data are never stored in plain")
             key = key or oc_key(c, org_id)
@@ -536,10 +559,13 @@ def oc_enc_fields(c, org_id, table, values):
     """values (dict column -> plain value) with the protected columns of table encrypted (when active)."""
     d = dict(values)
     if not org_id or not oc_active(c):
+        for k in FIELDS.get(table, ()):  # 2.1364.0 (#6297 2): plain, but never a text that only looks sealed
+            if k in d:
+                d[k] = oc_keep_sealed(c, org_id, f"{table}.{k}", d[k])
         return d
     key = None
     for k in FIELDS.get(table, ()):
-        if d.get(k) not in (None, "") and not oc_is_enc(d.get(k)):
+        if d.get(k) not in (None, ""):  # 2.1364.0 (#6297 2): a sealed one too (oc_enc_k keeps it only when it opens)
             key = key or oc_key(c, org_id)
             d[k] = oc_enc_k(key, org_id, f"{table}.{k}", d[k])
     return d
@@ -566,10 +592,11 @@ def oc_json_store(c, org_id, table, col, j):
     key = None
     for k in JSON_KEYS.get((table, col), ()):
         v = j.get(k)
-        if v in (None, "", {}, []) or oc_is_enc(v):
+        if v in (None, "", {}, []):
             continue
         key = key or oc_key(c, org_id)
-        j[k] = oc_enc_k(key, org_id, f"{table}.{col}.{k}", json.dumps(v, ensure_ascii=False, default=str))
+        # 2.1364.0 (#6297 2): a sealed one is kept only when it opens (oc_enc_k)
+        j[k] = oc_enc_k(key, org_id, f"{table}.{col}.{k}", v if oc_is_enc(v) else json.dumps(v, ensure_ascii=False, default=str))
     return j
 
 
@@ -1677,13 +1704,20 @@ def rck_tell(c, oid, actor, action):
     return n
 
 
+RCK_GONE = []  # 2.1364.0 (#6297 1): fn(c, oid, uid) of higher layers, called by rck_admin_gone
+
+
 def rck_admin_gone(c, oid, uid):
     """2.539.0 (#4373, audit #2482 F3): uid is no longer an active admin of organisation oid (taken out, left, demoted, locked
     or deleted). Did uid show (or make) the organisation's recovery key since the key was last renewed (org_keys.rotated_at;
     the office log, oc_route_recovery), the remaining admins get the News item "orgkey" with action renew: the person may
     still hold a recovery key that opens later data copies of the organisation. Nothing is rotated here -- a new recovery key
     must be shown and kept by an admin. Call it before an account is deleted (the log loses the user id then). Caller
-    commits. Returns the number of admins told."""
+    commits. Returns the number of admins told.
+    2.1364.0 (#6297 1): every way an admin's right ends comes here: what registered in RCK_GONE ends with it (accounts/orginvite.py:
+    the invitations uid made in oid)."""
+    for fn in RCK_GONE:
+        fn(c, oid, uid)
     with system_ctx(c):  # orgcrypt: key rows, the office log's showing entries and who administers (structure, no values)
         k = c.execute("SELECT recovery_shown_at, rotated_at FROM org_keys WHERE org_id=?", (int(oid),)).fetchone()
         if not k or not k["recovery_shown_at"]:

@@ -45,6 +45,7 @@ from ..accounts.orgs import _need_org_admin, _oinv_pending, ORG_ROLES, _operator
 from ..accounts.invite import invite_state, invite_new  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.users import user_purge  # 2.369.5 (#2517): pulled up from functions
 from ..core.objhooks import person_revoked  # 2.649.0 (#5051)
+from ..core.orgcrypt import RCK_GONE  # 2.1364.0 (#6297 1)
 
 OINV_DAY = 20  # new invitations per inviting person and day
 OINV_RESEND_DAY = 3  # 2.148.1 A (#2486): resends per invitation and day
@@ -53,7 +54,11 @@ OJN_DAYS = 14  # 2.148.1 A (#2480): an invitation of an existing account stays o
 # long as the invitation: whoever uses it on the last day still gets the full time to accept). Params: the same cut twice.
 # Only a link of this invitation or newer counts (created_at): an older link does not bring an expired invitation back.
 # 2.593.0 (#3570): + never a silent invitation (ojn_silent): it does not exist for the invited person
-OJN_LIVE = "NOT j.silent AND (j.created_at>? OR EXISTS (SELECT 1 FROM user_invites v WHERE v.user_id=j.user_id AND v.kind='invite' AND v.used_at>? AND v.created_at>=j.created_at))"
+# 2.1364.0 (#6297 1, audit #4741/#4818): + its inviter is still an active admin of the organisation (or an instance admin, the
+# operator's org_join_or_add): an invitation ends with its admin's right (ojn_by_gone deletes the rows; this covers the rest)
+OJN_BY = ("EXISTS (SELECT 1 FROM users b WHERE b.id=j.created_by AND NOT b.disabled AND (b.is_admin OR EXISTS (SELECT 1 FROM "
+          "org_members bm WHERE bm.org_id=j.org_id AND bm.user_id=b.id AND bm.role='admin')))")
+OJN_LIVE = "NOT j.silent AND " + OJN_BY + " AND (j.created_at>? OR EXISTS (SELECT 1 FROM user_invites v WHERE v.user_id=j.user_id AND v.kind='invite' AND v.used_at>? AND v.created_at>=j.created_at))"
 OINV_REF = "org-invite"  # 2.360.2 M (#2561): purpose of the sealed row reference
 
 # 2.985.0 (#4922, review F1): the address of an org_joins row as the list shows it: a silent row the one typed (it never follows
@@ -707,6 +712,21 @@ def ojn_share_later(c, oid, uid, r):
         if l and not l["deleted_at"] and l["org_id"] == oid and l["owner_id"] == by and _folder_member_add(c, lid, uid, role, by):
             n += 1
     return n
+
+
+def ojn_by_gone(c, oid, uid):
+    """2.1364.0 (#6297 1, audit #4741/#4818): uid is no admin of organisation oid any more (core/orgcrypt.py rck_admin_gone,
+    every way that ends it): the invitations uid made there end. Rows of existing accounts, silent and neutral ones go; the
+    row of a new account this organisation set up (org_invites) only runs out, so the other admins still see it in the list
+    and can send it again (as theirs) or withdraw the account. The caller commits."""
+    with system_ctx(c):  # the invited people are no members
+        c.execute("DELETE FROM org_joins j WHERE j.org_id=? AND j.created_by=? AND NOT EXISTS (SELECT 1 FROM org_invites i "
+                  "WHERE i.org_id=j.org_id AND i.user_id=j.user_id)", (oid, uid))
+        c.execute("UPDATE org_joins SET created_at=? WHERE org_id=? AND created_by=? AND created_at>?",
+                  (iso(now_utc() - timedelta(days=OJN_DAYS, seconds=1)), oid, uid, iso(now_utc() - timedelta(days=OJN_DAYS))))
+
+
+RCK_GONE.append(ojn_by_gone)
 
 
 def ojn_open(c, oid, uid):

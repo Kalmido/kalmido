@@ -85,7 +85,8 @@ const ms_tag = (kind) => kind === 'client' ? `<span class="mstag mstag-cl">${ic(
 // organisation = its clients, All = every client one sees)
 // 2.1254.0 (#6180): the open client card reports its organisation (wscolor.js); no card open = nothing
 wso_open('clients', () => { const id = S.route?.mod === 'clients' ? S.route.client : null; if (!id || id === 'mailhub') return null; const c = (MSC.items || []).find(x => x.id === id) || (CLV.data && CLV.id === id ? CLV.data : null); return c ? {org_id: c.org_id ?? null} : null; });
-const ms_inWs = c => { const ws = typeof wsCur === 'function' ? wsCur() : 'all'; return ws === 'all' || (ws === 'private' ? c.org_id == null : 'org:' + c.org_id === ws); };
+// 2.1364.0 (#6722): under "All" only the clients of workspaces where Clients is on for me (areas.js mod_entryOn)
+const ms_inWs = c => { const ws = typeof wsCur === 'function' ? wsCur() : 'all'; return ws === 'all' ? mod_entryOn(c.org_id || 0, 'office', 'clients') : (ws === 'private' ? c.org_id == null : 'org:' + c.org_id === ws); };
 // 2.122.3 A (#2335): the way from a list of the office to its section of Settings > Import legacy data (#office/import/<area>):
 // an empty list says "Already have a list? Import from Excel", a filled one ends with a quiet "Import…" (office admins only;
 // lives here because the clients view draws it too without the office module loaded; the import page checks again)

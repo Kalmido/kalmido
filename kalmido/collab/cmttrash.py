@@ -28,14 +28,15 @@ from ..core.objcomments import ocm_trash_drop, ocm_trash_forget, ocm_trash_keep,
 from ..core.objhooks import USER_GONE  # 2.981.0 (#5274)
 
 
-def tcx_trash(c, mid):
-    """Team chat message mid into the trash: text (and the ciphertext of an encrypted one) kept, files stay. Caller commits."""
+def tcx_trash(c, mid, by=None):
+    """Team chat message mid into the trash: text (and the ciphertext of an encrypted one) kept, files stay. Caller commits.
+    2.1364.0 (#6297 3): by = who deleted it (tchat_msgs.deleted_by, read by the restore)."""
     m = c.execute(f"SELECT body, enc FROM tchat_msgs WHERE id=? AND {live_sql()} FOR UPDATE", (mid,)).fetchone()
     if not m:
         return None
     ts = iso_ms(now_utc())
     ocm_trash_keep(c, "tchat", mid, m["body"] or "", enc=m["enc"])  # 2.981.0 (#5274): the core's trash, kind 'tchat'
-    c.execute("UPDATE tchat_msgs SET deleted_at=?, edited_at=?, body='', enc=NULL WHERE id=?", (ts, ts, mid))
+    c.execute("UPDATE tchat_msgs SET deleted_at=?, edited_at=?, body='', enc=NULL, deleted_by=? WHERE id=?", (ts, ts, by, mid))
     return ts
 
 
@@ -46,7 +47,7 @@ def tcx_restore(c, mid):
     r = ocm_trash_take(c, "tchat", mid)  # 2.981.0 (#5274): only the kind 'tchat' (a comment may have the same id)
     if not r:
         return False
-    c.execute("UPDATE tchat_msgs SET body=?, enc=?, deleted_at=NULL, edited_at=? WHERE id=?", (r["body"], r["enc"], iso_ms(now_utc()), mid))
+    c.execute("UPDATE tchat_msgs SET body=?, enc=?, deleted_at=NULL, deleted_by=NULL, edited_at=? WHERE id=?", (r["body"], r["enc"], iso_ms(now_utc()), mid))
     return True
 
 

@@ -139,6 +139,12 @@ there). `obj_need` turns this into 404 / 403; `obj_visible_sql(c, uid, kind)` / 
 with a `cap` hook lists only with `obj_rows` (it asks `obj_role` per row): `obj_visible_sql` refuses it with `ValueError`,
 because a share there may open less than the SQL would name.
 
+A support session (2.1364.0, #6320) reads with the narrowed context of #6502 (private space, own office, organisations with
+their own support access). Writing into another organisation of the person is refused in the core itself, before the role:
+`obj_need` (need other than view), `need_list` / `need_task` (write) and `files/store.need_node` (write / manage) answer
+403 code `support_session` (`core/access.py acx_sup_write`; "writing" = the caller asks for write access or the request
+method writes). A new area on these functions needs no path entry in `accounts/supportgrant.py`.
+
 Office documents filed in a folder (`office/docref.py`, decision of #2742, confirmed with #5048): the folder share and the
 office groups are two ways in, and the higher one counts for the document itself -- a folder share can lift reading or
 changing a draft above the person's office group in the area (also for a member whose group gives the area nothing). The
@@ -1559,3 +1565,28 @@ open table via `wso_open('sheets', …)`), time tracking (#6187: entries, report
 hits, the trash, news, project group heads and favourite agents (#6188). 2.1254.0 (#6180): the office (badge `wsp_attr`, every page and the open quotation / invoice via
 `wso_open('office')`, the overview rows of `spo_html` for every area) and the clients (rows, origin under "All", open card).
 Tests: `tests/p21254_c_orgfarbe_ui.js`, `tests/p21205_b_orgcolor_ui.js`, `tests/p21241_orgcolor_areas_ui.js`, `tests/p21224_a_orgcolor_ui.js`.
+
+### A module's workspaces under "All workspaces" (2.1364.0, #6722)
+
+One switch, one meaning: a module switched off for me in a workspace (Settings > Modules, the area switch `ws_areas_off` /
+an organisation's `areas_off`, or the module switch `ws_mods_off` / a card's cap) is gone from that workspace under "All
+workspaces" too - its overview, its panel and its mixed lists. Nothing is deleted; the search and the trash still find
+everything, and an entry opened from there still opens.
+
+- browser: `static/js/areas.js` -- `mod_spaces(areaId, featKey)` -> the workspaces the module is on in (Private, organisations);
+  `mod_entryOn(o, areaId, featKey)` -> false for an entry of a mixed list whose workspace has the module off (only under "All")
+- `areaId` is the area of `WSA_AREAS` (`null` for a module without one: the calendar, Disposition, Workload), `featKey` the
+  module's key of `FEATS`
+
+```js
+// a module with one entry per workspace under "All": its spaces; exactly one left = open it directly, it wears its colour
+const sps = mod_spaces('wiki');                    // Knowledge; office: mod_spaces('office'); files: mod_spaces('ablage', 'files')
+// a mixed list: leave out the entries of a workspace where the module is off
+items.filter(c => mod_entryOn(c.org_id || 0, 'office', 'clients'));
+```
+
+Who uses it: the office (`ofc_spaces`), Knowledge (`wk_shown`), Files (`ab_spaces`), Reading and Home (`rd_spaces`, the open
+space reports itself via `wso_open('reading')`), Tables (`shvShown`, its overview wears the one space's colour), Workload /
+Absences / Disposition (`tm_on`, `tm_wsp`: one area left opens it), clients (`ms_inWs`), contacts (`ctBookOn`), calendar
+events (`cevWs`) and the time report (`tv_wsLists`: the projects of the workspaces still on as the report's filter).
+Do not ask `wsa_wsOn` / `mc_wsOn` in an area for this; build on these two. Test: `tests/p21364_a_modspaces_ui.js`.

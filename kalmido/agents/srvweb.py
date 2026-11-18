@@ -32,8 +32,10 @@ from urllib.parse import urlparse
 
 from datetime import timedelta
 
+from flask import g
+
 from ..core.config import PUBLIC_URL
-from ..core.db import iso, now_utc
+from ..core.db import db, iso, now_utc
 from ..core.pg import system_ctx
 from ..core.i18n import tr
 from ..core.env import env_int
@@ -297,15 +299,17 @@ def srvweb_state(c, aid):
     from .srvagent_run import SRV_CALL_S, SRV_LOST_TEXT
     since = iso(now_utc() - timedelta(seconds=SRV_CALL_S))
     with system_ctx(c):  # the agent's own run row (asked for its own requests only)
-        r = c.execute("""SELECT web FROM agent_runs WHERE agent_id=? AND web<>'' AND (state='run' OR (state='failed' AND error=?
-                         AND ended>?)) ORDER BY id DESC LIMIT 1""", (aid, SRV_LOST_TEXT, since)).fetchone()
+        r = c.execute("""SELECT web, model FROM agent_runs WHERE agent_id=? AND web<>'' AND (state='run' OR (state='failed' AND
+                         error=? AND ended>?)) ORDER BY id DESC LIMIT 1""", (aid, SRV_LOST_TEXT, since)).fetchone()
     if not r:
         return None
     try:
         st = json.loads(r["web"])
     except (TypeError, ValueError):
-        return {"to": [], "urls": [], "hits": []}  # broken = as strict as it gets
-    return st if isinstance(st, dict) else {"to": [], "urls": [], "hits": []}
+        st = None
+    st = st if isinstance(st, dict) else {"to": [], "urls": [], "hits": []}  # broken = as strict as it gets
+    st["run_model"] = r["model"] or ""  # 2.1364.0 (#6297 (10), Fable F5): the run's own model, the one free status model
+    return st
 
 
 def srvweb_mark(text, srcs, lg, mx):
@@ -355,11 +359,47 @@ def srvweb_gate_step(st, method, path, b, va):
     """The class of a write of an agent while its web run st is on: a meta step outside SRV_WEB_META_OK becomes "change" (needs a
     card); chat messages and their reactions only to the people of the run; the cross proposal only as tasks (its sources are
     added) -> None = keep the class."""
+    to = st.get("to") or []
     if any(re.search(rx, path) for rx in SRV_WEB_META_OK):
-        return None
+        return _srvweb_free_text(to, method, path, b or {}, va, str(st.get("run_model") or "").strip())
     if path.startswith("/agent/chats/{}"):
-        return None if va.get("uid") in (st.get("to") or []) else "change"
+        return None if va.get("uid") in to else "change"
     if path == "/agent/proposals" and method == "POST" and (b or {}).get("kind") in (None, "", "extract"):
         return None
     return "change"
 
+
+def _srvweb_free_text(to, method, path, b, va, st_model=""):
+    """2.1364.0 (#6297 (10), audit #4741 F1): the free meta routes that carry the model's own text before other people - a job's
+    title (its chat line, the News entry and the push "waiting for your approval"), a progress step, the working mark's line and
+    title on a task, the status text on the avatar - stay free only towards the people of the run; else "change" (a card). A job
+    on a task (task_id / agent_job_tasks) is never free for its log (its last line is the task's working mark, Fable F1) nor
+    its title (Fable F4); the status model only as the run's own model st_model (Fable F5)."""
+    def _job(jid):
+        return db().execute("""SELECT user_id, (task_id IS NOT NULL OR EXISTS (SELECT 1 FROM agent_job_tasks t WHERE t.job_id=j.id))
+                               AS on_task FROM agent_jobs j WHERE id=? AND agent_id=?""", (jid, g.user["id"])).fetchone() \
+            if isinstance(jid, int) and not isinstance(jid, bool) else None
+
+    def _job_user(jid):
+        r = _job(jid)
+        return r["user_id"] if r else None
+    if path == "/agent/jobs" and method == "POST":  # Fable F1 (job 5271): a job on a task shows its log line as the task's
+        if b.get("task_id") not in (None, "") or b.get("task_ids"):  # working mark to everyone who sees the task (wk_for)
+            return "change"
+        return None if b.get("user_id") in to else "change"  # without a person it goes to the task's assignee
+    if path == "/agent/jobs/{}" and method == "PATCH" and any(b.get(k) for k in ("title", "log", "append_log", "state")):
+        r = _job(va.get("jid"))
+        if not r or r["user_id"] not in to:
+            return "change"
+        # the same mark (F1); Fable F4: its title too - everyone who sees the task reads it (the task's job line)
+        return "change" if r["on_task"] and any(b.get(k) for k in ("title", "log", "append_log")) else None
+    if path == "/agent/progress" and method == "POST":
+        uid = b.get("chat_user_id") if b.get("job_id") is None else _job_user(b.get("job_id"))
+        return None if uid in to else "change"
+    if path == "/tasks/{}/working" and method in ("POST", "PATCH") and any(b.get(k) for k in ("text", "title", "name")):
+        return "change"  # every person who sees the task reads it
+    if path == "/agent/status" and str(b.get("text") or "").strip():
+        return "change"  # every member who sees the agent reads it
+    if path == "/agent/status" and method == "PUT" and str(b.get("model") or "").strip() not in ("", st_model):
+        return "change"  # Fable F5: the model stands in the agent's chat head - only the run's own model stays free
+    return None

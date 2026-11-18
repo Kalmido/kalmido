@@ -44,19 +44,32 @@ def tbill_doc(c, did):
 
 def tbill_list_moved(c, lid):
     """2.1327.0 (#6591): project lid just changed its workspace (accounts/orgs.list_space_follow, ws_private_for). Its time
-    entries billed on a document of another office than its new one stay billed -- "billed in an earlier organisation": the
-    reference goes (billed_doc_id / billed_item_id NULL, no pointer into an office the project has left), billed_at stays and
-    they are no longer billable (never billed twice; the same state as billed entries an import brought without their invoice,
-    admin/acctimport.umz_billed). The office rows of other offices that named the project (documents, positions) let go of it.
+    entries billed on a document of another office than its new one: on a finalised document they stay billed -- "billed in
+    an earlier organisation": billed_doc_id / billed_item_id NULL (no pointer into an office the project has left), billed_at
+    stays, no longer billable (never billed twice; the same state as billed entries an import brought without their invoice,
+    admin/acctimport.umz_billed). 2.1364.0 (#6883): the reference is kept in billed_moved_doc_id / billed_moved_item_id and
+    comes back when the project returns to that office (billable again, as it was when billed); time on a DRAFT of the office
+    left is free again (open, billable as before), as when the draft is deleted (tbill_free) -- a draft never made it billed.
+    The office rows of other offices that named the project (documents, positions, also of the draft) let go of it.
     -> the number of entries marked. The caller commits."""
     with system_ctx(c):  # the documents of the office the project left (the person moving it need not see them)
         lr = c.execute("SELECT org_id, owner_id FROM lists WHERE id=?", (lid,)).fetchone()
         if not lr:
             return 0
         office = lr["org_id"] or (c.execute("SELECT id FROM orgs WHERE personal_of=?", (lr["owner_id"],)).fetchone() or [None])[0]
-        n = c.execute("UPDATE time_entries SET billed_doc_id=NULL, billed_item_id=NULL, billable=false, billed_at=COALESCE(billed_at, ?), updated_at=? "
-                      "WHERE list_id=? AND billed_doc_id IS NOT NULL AND EXISTS (SELECT 1 FROM office_docs d WHERE d.id=time_entries.billed_doc_id "
-                      "AND d.org_id IS DISTINCT FROM ?)", (iso(now_utc()), iso(now_utc()), lid, office)).rowcount
+        ts = iso(now_utc())
+        other = "SELECT 1 FROM office_docs d WHERE d.id=time_entries.billed_doc_id AND d.org_id IS DISTINCT FROM ?"
+        # 2.1364.0 (#6883): back in the office of its finalised document -> the reference again (a document still there)
+        c.execute("UPDATE time_entries SET billed_doc_id=billed_moved_doc_id, billed_item_id=billed_moved_item_id, billable=true, "
+                  "billed_moved_doc_id=NULL, billed_moved_item_id=NULL, updated_at=? WHERE list_id=? AND billed_doc_id IS NULL "
+                  "AND billed_moved_doc_id IS NOT NULL AND EXISTS (SELECT 1 FROM office_docs d WHERE d.id=time_entries.billed_moved_doc_id "
+                  f"AND d.org_id IS NOT DISTINCT FROM ? AND d.locked_at IS NOT NULL AND {live_sql('d')})", (ts, lid, office))
+        # 2.1364.0 (#6883, review #5143 F1): a draft of the office left lets go of its time: open again
+        c.execute("UPDATE time_entries SET billed_doc_id=NULL, billed_item_id=NULL, billed_at=NULL, updated_at=? "
+                  f"WHERE list_id=? AND billed_doc_id IS NOT NULL AND EXISTS ({other} AND d.locked_at IS NULL)", (ts, lid, office))
+        n = c.execute("UPDATE time_entries SET billed_moved_doc_id=billed_doc_id, billed_moved_item_id=billed_item_id, "
+                      "billed_doc_id=NULL, billed_item_id=NULL, billable=false, billed_at=COALESCE(billed_at, ?), updated_at=? "
+                      f"WHERE list_id=? AND billed_doc_id IS NOT NULL AND EXISTS ({other})", (ts, ts, lid, office)).rowcount
         c.execute("UPDATE office_docs SET list_id=NULL WHERE list_id=? AND org_id IS DISTINCT FROM ?", (lid, office))  # a free column (4598.py)
         with ofx_release(c, "office_doc_items"):  # the position's project link is no part of what was finalised (chain.HCH_ITEM_FIELDS)
             c.execute("UPDATE office_doc_items SET list_id=NULL WHERE list_id=? AND org_id IS DISTINCT FROM ?", (lid, office))

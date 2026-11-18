@@ -278,6 +278,42 @@ check(hr and hr[0][1] == "mention" and HID not in hst.get("to", [0]), f"the ment
 check(not dbx("SELECT 1 FROM agent_chat WHERE agent_id=? AND user_id=? AND body LIKE 'INJECTED%'", (TMA, HID)),
       "the person whose mention started the web run gets no message without a card")
 
+# 2.1364.0 (#6297 (10), audit #4741 F1): the free texts of the agent's own channel (a job's title, a progress step, the working
+# mark's line, the status text) reach other people only by card in a web run; a step to the person who asked stays free
+until(lambda: not dbx("SELECT 1 FROM agent_runs WHERE agent_id=? AND state='run'", (TMA,)), 40)
+# 2.1364.0 (#6297 (10), Fable F1 job 5271): a job on the task shows its last log line as the task's working mark to everyone who
+# sees the task (serializers.wk_for) - creating such a job with a log, or appending to it, needs a card even for the asker
+TJ = dbx("INSERT INTO agent_jobs(agent_id,task_id,user_id,title,state,log,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) RETURNING id",
+         (TMA, TA, AU, "asker's task job", "waiting", "", datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))[0][0]
+r = A.post(B + f"/api/agents/{TMA}/chat", json={"body": f"FAKEWEB_META {TA} {HID} {AU} {TJ}"})
+check(r.status_code == 201, f"#6297 (10): the admin asks the team agent {r.status_code} {r.text[:120]}")
+ans = until(lambda: dbx("SELECT body FROM agent_chat WHERE agent_id=? AND user_id=? AND sender='agent' AND body LIKE 'FAKEWEB meta%'", (TMA, AU)), 40)
+res = {x.split(" ", 1)[0]: x for x in ((ans or [[""]])[0][0].split("FAKEWEB meta: ", 1)[-1].split("\n")[0].split(" | "))}
+for t, what in (("toolu_m1", "a job for the other person"), ("toolu_m2", "a progress step to the other person"),
+                ("toolu_m3", "a working line on the task"), ("toolu_m4", "a status text on the avatar")):
+    # a step to another person of a run for one person is refused before the card already (2.1287.0, #6454: 403)
+    check("ERROR" in res.get(t, "") and ("approval" in res.get(t, "") or (t == "toolu_m2" and "403" in res.get(t, ""))),
+          f"#6297 (10): {what} needs an approval card {res.get(t, '')[:240]!r}")
+check("ERROR" not in res.get("toolu_m5", "ERROR"), f"#6297 (10): a step to the person who asked stays free {res.get('toolu_m5', '')[:240]!r}")
+for t, what in (("toolu_m7", "a job of the asker on the task with a log"), ("toolu_m8", "a log line appended to the asker's job on the task")):
+    check("ERROR" in res.get(t, "") and "approval" in res.get(t, ""), f"#6297 (10) F1: {what} needs an approval card {res.get(t, '')[:240]!r}")
+check("ERROR" not in res.get("toolu_m9", "ERROR"), f"#6297 (10) F1: a job of the asker without a task stays free {res.get('toolu_m9', '')[:240]!r}")
+check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND log LIKE '%INJECTED%'", (TMA,)), "#6297 (10) F1: no log line on a task's job")
+# 2.1364.0 (#6297 (10), Fable F4): the title of a job on a task shows at the task too - a new one needs a card
+check("ERROR" in res.get("toolu_m10", "") and "approval" in res.get("toolu_m10", ""),
+      f"#6297 (10) F4: a new title on the asker's job on the task needs an approval card {res.get('toolu_m10', '')[:240]!r}")
+check(dbx("SELECT 1 FROM agent_jobs WHERE id=? AND title=?", (TJ, "asker's task job")), "#6297 (10) F4: the task job's title stays")
+# Fable F5: the status model stands in the agent's chat head - only the run's own model stays free
+check("ERROR" in res.get("toolu_m11", "") and "approval" in res.get("toolu_m11", ""),
+      f"#6297 (10) F5: a status model other than the run's needs an approval card {res.get('toolu_m11', '')[:240]!r}")
+check("ERROR" not in res.get("toolu_m12", "ERROR"), f"#6297 (10) F5: the run's own model stays free {res.get('toolu_m12', '')[:240]!r}")
+check(not dbx("SELECT 1 FROM agents WHERE user_id=? AND host_info LIKE '%INJECTED%'", (TMA,)), "#6297 (10) F5: no foreign model in the chat head")
+check(dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND user_id=? AND title='web job ok' AND task_id IS NULL", (TMA, AU)),
+      "#6297 (10) F1: the asker's job without a task was made")
+check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND title LIKE 'INJECTED%'", (TMA,)), "#6297 (10): no job for the other person")
+check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND task_id=? AND log LIKE 'INJECTED%'", (TMA, TA)), "#6297 (10): no working line on the task")
+check(dbx("SELECT 1 FROM agent_steps WHERE agent_id=? AND user_id=? AND text='web step ok'", (TMA, AU)), "#6297 (10): the step to the asker is free")
+
 # ---------------------------------------------------------------- without the switch the same comment is written (the gate ends)
 check(Fr.put(SRV, json={"flow_web": {"other": False}}).ok, "web off again")
 after, rid = chat(f"Again FAKEWEB_INJECT {T1} {GID} {FID}")

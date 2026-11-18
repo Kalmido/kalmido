@@ -381,7 +381,11 @@ model itself. No computer of your own, no launcher, no `CLAUDE.md` file.
   such a run is on, every change waits for an approval card** - also for an agent whose control level would let it act or
   that has none - and so does every chat message to someone other than the person who asked and the agent's owner
   (2.571.0: a person whose mention, assignment or comment lies in the same run gets a message only by card), a standing rule and every proposal route except a proposal for a job and a task
-  proposal (409 `approval_required`, as in [Control level](#control-level)). Every chat message, approval card and proposal of the
+  proposal (409 `approval_required`, as in [Control level](#control-level)). 2.1364.0 (#6297): the same for the free
+  texts of its own channel - a job for, a progress step to, or a job change of someone outside those two people, a working
+  mark with a text or title on a task, a job on a task (`task_id` / `task_ids`) and a `title`, `log` or `append_log` on a
+  job that hangs on a task (its title and last line show at the task, for everyone who sees the task), a status text on
+  the avatar and a status `model` other than the run's own model wait for a card too. Every chat message, approval card and proposal of the
   run names the web sources it used under *From the web* (a proposal also as `web_sources: [{url, label}]`). The runs show
   the searches, pages and VAT checks; `GET /api/agents/usage` counts `web_searches` and `web_fetches`.
 - **The key**: stored encrypted, never returned, never written to a log. The app shows only "Saved" with *Replace* and
@@ -5082,7 +5086,8 @@ it, `in` = to it), `rel` (what it means), `note`, and `other` = the other side `
 `ok`, or `gone` once that object is deleted or in the trash (then without title); a side you may not see is left out.
 Review 2.1076: a side in the trash shows as `gone` only when you may restore it (else it is left out); a side deleted for good
 is `{state: gone}` without `kind` and `id` unless you made the link. Your token needs the read scope of the other side too
-(an event: `calendar`; a contact: `contacts`): linking to a kind you may not read is `403`, such sides are left out of the list,
+(an event: `calendar`; a contact: `contacts`; since 2.1364.0 (#6297) a table `sheets:read` / `sheets:write`, a file or folder
+`files:read` / `files:write`, a knowledge page `wiki:read` / `wiki:write`): linking to a kind you may not read is `403`, such sides are left out of the list,
 and removing a link needs the write scope of its source. The workspace of a file, a knowledge page or a table is its own row's.
 `POST .../links` with `{kind, id, rel?, note?}` links the object (you need write on it: your share `edit`, the kind's write
 scope) with another one you see in the **same workspace**; `rel` is a short name (default `related`), `note` at most 500
@@ -5297,7 +5302,7 @@ people (the API has no route for it).
 | One sign-off: versions, state, comments with answers | `GET /api/v1/videos/{id}` | `get_video_review` | read |
 | Comment (optionally at `at_sec`) or answer (`parent_id`) | `POST /api/v1/videos/{id}/comments` | `add_comment` with `kind: "video"`, `id` (2.981.0; was `add_video_comment`) | comments |
 | Mark a comment done / open | `PATCH /api/v1/videos/{id}/comments/{comment_id}` | `set_video_comment_done` | comments |
-| The image / PDF / audio file of a version (2.641.0, audio 2.658.0) | `GET /api/v1/videos/{id}/versions/{version_id}/file` | - (the file tools, `file_id`) | read |
+| The image / PDF / audio file of a version (2.641.0, audio 2.658.0) | `GET /api/v1/videos/{id}/versions/{version_id}/file` | - (the file tools, `file_id`) | attachments:read (2.1364.0) |
 
 - **Comments** come by version and timecode: `{id, version, version_id, at_sec, timecode (mm:ss), author, customer, agent,
   done, body, replies: [...]}`. `state` of the sign-off: `open`, `approved`, `changes` (the customer asked for changes);

@@ -32,7 +32,7 @@ from ..core.config import ATT_DIR, MAX_FILE_MB
 from ..core.i18n import N_, tr
 from ..core.db import insert_id, iso, now_utc, write_lock, db
 from ..core.dlock import dl_chain_cut, dl_wiki_folders, dl_wiki_step_sql  # 2.1045.0 (#5823)
-from ..core.access import Denied, act_for, acx_of, collab_all
+from ..core.access import Denied, act_for, acx_of, acx_sup_write_row, collab_all
 from ..core.orgcrypt import oc_read_file, oc_write_file, oc_user_space
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.objhooks import OBJ  # 2.566.0 (#4712): the kinds of the shared core (fs_org_live)
@@ -415,6 +415,7 @@ def need_node(c, nid, write=False, trash=False, manage=False):
     """The node row for the signed-in account: 404 when it may not see it (or it is in the trash and trash=False), 403
     when write / manage (shares, organisation access: owners only) needs more. Reading a link also needs the rights on
     its original (task / project file). The row carries the role as row["role"] (a dict)."""
+    acx_sup_write_row(c, "fs_nodes", nid, write or manage)  # 2.1364.0 (#6320): a support session, an organisation without its grant
     chain = fs_chain(c, nid) if nid else []
     role = fs_role(c, nid, chain=chain) if chain else None
     if not role:
@@ -878,9 +879,12 @@ fs_change_hooks = []  # 2.352.0 A (#2748): f(c, nid, action) after every change 
 # address) is listed nowhere in the file store -- not in the node's dialog, its shares above, its "Shared with" names or its
 # shared mark -- and the file store's routes do not reach it: its account would tell the sharer that the address has one,
 # which an open share by address (core/addrshare.py, no row of fs_shares at all) never does. The knowledge dialog shows and
-# ends both alike. a = the alias of fs_shares.
+# ends both alike. a = the alias of fs_shares. 2.1364.0 (#6297 6, audit #4741): the same for the account an address of the
+# tables' dialog was bound to (sheets/shshare.py sheet_shares with email_key: its share on the table's node).
 FS_NOT_ADDR = ("NOT EXISTS (SELECT 1 FROM wiki_share_cards fk WHERE (fk.fs_share_id={a}.id OR fk.pair_id={a}.id) "
-               "AND fk.email IS NOT NULL AND fk.email<>'')")
+               "AND fk.email IS NOT NULL AND fk.email<>'') AND NOT EXISTS (SELECT 1 FROM sheet_shares sk JOIN fs_nodes sn ON "
+               "sn.kind='ref' AND sn.ref_kind='sheet' AND sn.ref_id=sk.sheet_id WHERE sn.id={a}.node_id AND sk.user_id={a}.user_id "
+               "AND sk.email_key<>'' AND sk.revoked_at IS NULL)")
 
 
 def _fs_json(v):

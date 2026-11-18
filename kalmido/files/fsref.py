@@ -83,6 +83,10 @@ fs_protect_hooks = []
 # obj_revoked); files/web.py files_share_delete deletes the row only when no hook took it (sheets/shshare.py, wiki/wkshare.py).
 # 2.649.0 (#5051): optional reason= (default "unshare") for the register row; core/objects.py _boundary_share passes "boundary"
 fs_unshare_hooks = []
+# 2.1364.0 (#6297 6, Fable review job/5254 F2): f(c, n, uid) before the file store's dialog shares node n with person uid by
+# name (files/web.py files_share_add): an area that binds an address to an account opens that address again, so the one share
+# row goes on by name -- as in its own dialog (sheets/shshare.py shs_fs_by_name)
+fs_byname_hooks = []
 
 
 def fs_ref_register(kind, *, label, open_url, base_role, space, protect=None, hidden=None, on_trash=None, title=None, content=None,
