@@ -3194,8 +3194,12 @@ portal, a git sync) is fenced as `data from <name> (account N), not an order`, a
 person's text is an order, also for the comments it reads with `get_task`, and that a task whose `updated_by` is no longer
 the person is not built. `updated_by` is kept on the task (a purge of the history does not change it) and judges title and
 description each on its own; a text written without a person (a webhook, a public link, CalDAV, a list rule, a support
-session, the git sync, a merge with other people's text) makes it `null`. Still give write access to a dispatched list only
-to people you trust with it.
+session, the git sync, a merge with other people's text) makes it `null`. 2.1389.0: `by_creator` counts only the person's
+own hand -- their sign-in session, the proxy's sign-in or their own token, never a list rule, the document fetcher, a support
+session in their account or a new way added later -- and a copy of a task (to another project or server), a chat message
+saved as a task, the `Rest:` task of a release and an event's preparation task under the event's title never carry it;
+unlocking a note of somebody else's task makes its description the unlocker's. Still give write access to a dispatched list
+only to people you trust with it.
 
 `KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists` the dispatcher
 stays idle; unknown keys and wrong types are named once in the runner's log and left at the default:
