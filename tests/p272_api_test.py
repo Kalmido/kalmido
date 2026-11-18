@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """2.7.2 API, own container (start.sh, isolated test database):
 #414 the list type "checklist" is gone: kinds list | project, the display option done_at_bottom (web: checklist) on every
-list, kind "checklist" + the boolean "checklist" as deprecated aliases (web, token API, OpenAPI), the migration of stored
-checklist lists after a restart, templates keep the option, the sample's packing list;
+list, kind "checklist" + the boolean "checklist" as deprecated aliases (web, token API, OpenAPI), templates keep the option,
+the sample's packing list (2.1380.0 #6826: the start's migration of stored checklist lists, migr_kind272, is retired);
 #420 personal agents: the admin policy (off by default, limit per person, default limits), create / list / rename / pause /
 token / delete by the owner, refused when off or over the limit, only the owner shares lists with it and chats with it,
 others never find it, never admin, an admin pause the owner cannot undo, admins see the owner and delete it (lists go to
@@ -117,15 +117,9 @@ if tp.ok:
     nl = ap.json().get("list_id") if ap.ok else None
     st = {x["id"]: x for x in A.get(B + "/api/state").json()["lists"]}
     check(nl and st[nl]["kind"] == "list" and st[nl]["checklist"] == 1, f"the template's list has the option: {ap.text[:200]}")
-# migration of stored checklists (as 2.7.0 left them)
-db("UPDATE lists SET kind='checklist', checklist=1 WHERE id=?", (L1,))
-db("UPDATE settings SET value='0' WHERE key='migr_kind272'")
-restart()
-A, Bo, Ca = sess("alice"), sess("bob"), sess("carl")
-st = {x["id"]: x for x in A.get(B + "/api/state").json()["lists"]}
-check(st[L1]["kind"] == "list" and st[L1]["checklist"] == 1, f"migration: checklist -> list + option ({st[L1]['kind']}, {st[L1]['checklist']})")
-check(any(x["id"] == t for x in A.get(B + "/api/state").json()["tasks"]), "migration: nothing lost")
-check(db("SELECT COUNT(*) FROM lists WHERE kind='checklist'")[0][0] == 0, "no list of kind checklist left")
+# 2.1380.0 (#6826): the migration of stored checklists stood here (kind 'checklist' written, flag migr_kind272 reset, restart:
+# a list with the option); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
+check(db("SELECT COUNT(*) FROM lists WHERE kind='checklist'")[0][0] == 0, "no list of kind checklist")
 # the sample: its packing list is a plain list with the option
 sm = A.post(B + "/api/sample").json()
 st = A.get(B + "/api/state").json()["lists"]

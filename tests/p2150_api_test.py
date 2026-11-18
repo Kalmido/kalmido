@@ -7,7 +7,7 @@ Scopes:
    scope never fails for the scope (documentation = enforcement)
  - PATCH /api/me/tokens/{id} (scopes, allowed_ips, name), other people's tokens 404, admin-read only for admins
  - the address restriction (allowed_ips), the admin's limit for agents / personal tokens (scope_limit), GET /v1/me
-   effective_scopes, the migration (old read tokens get attachments:read once, old agents keep read + write)
+   effective_scopes (2.1380.0 #6826: the start's one-shot migration of old tokens / agents is retired, its check gone)
  - agents: default read + tasks:write + comments, admin / owner change them (never account / admin-read), a new token keeps
    them and can expire; the audit log records the scope a request needed
 Approvals (agents only): deleting a list / a field, emptying the trash, a batch of 10+ tasks, moving an own list into another
@@ -19,7 +19,6 @@ edit / delete, folders, members, filters, News, habits, timer, time entries, exp
 #632: a new user's inbox is named in their language (lang, else the admin's); every default name shows localized
 MCP against the real server: tools/list shows only the tools the token may use; move_task works
 Starts its OWN container (start.sh). usage: p2150_api_test.py <datadir>"""
-import hashlib
 import json
 import os
 import re
@@ -542,24 +541,8 @@ check(fa.delete(f"/lists/{XL}").status_code == 409, "delete: archive first (409)
 check(fa.patch(f"/lists/{XL}", {"archived": True}).json()["archived"] is True, "archived")
 check(fa.delete(f"/lists/{XL}").status_code == 204 and fa.get(f"/lists/{XL}").status_code == 404, "list deleted for good (a person: at once)")
 
-# ================================================================== the migration (restart with the flag cleared)
-OLDR = "abk_" + "o" * 43
-dbx("INSERT INTO api_tokens(user_id,name,token_hash,prefix,scopes,created_at) VALUES(1,'oldread',?,'abk_o','read','2026-01-01')",
-    (hashlib.sha256(OLDR.encode()).hexdigest(),))
-dbx("UPDATE agents SET scopes='' WHERE user_id=?", (AG,))
-dbx("UPDATE settings SET value='0' WHERE key='migr_scopes215'")
-subprocess.run(["docker", "restart", CT], capture_output=True)
-for _ in range(60):
-    try:
-        if requests.get(B + "/api/health", timeout=2).ok:
-            break
-    except requests.RequestException:
-        pass
-    time.sleep(0.5)
-check(dbx("SELECT scopes FROM api_tokens WHERE name='oldread'")[0][0] == "read,attachments:read", "migration: an old read token gets attachments:read")
-check(dbx("SELECT scopes FROM agents WHERE user_id=?", (AG,))[0][0] == "read,write", "migration: an old agent keeps read + write")
-check(dbx("SELECT scopes FROM api_tokens WHERE id=?", (W["id"],))[0][0] == "read,write", "migration: write tokens unchanged")
-check(Api(OLDR).get(f"/attachments/{AT}").ok, "the old read token still downloads files")
+# 2.1380.0 (#6826): the migration of the scopes (flag migr_scopes215 reset, restart: an old read token got attachments:read,
+# an old agent kept read + write) stood here; that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 
 # ================================================================== MCP against this server
 MCP = os.path.join(N, "..", "mcp", "kalmido_mcp.py")

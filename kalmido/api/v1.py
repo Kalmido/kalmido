@@ -195,6 +195,14 @@ def api_authenticate():
         if agent_owner_locked(arow):
             return v1_err(403, tr("The account this agent belongs to is locked"), name="owner_locked")
         return v1_err(403, tr("This agent is paused"))
+    if is_agent(u) and row["id"]:
+        # 2.1380.0 (#6485): a token of a hosted MCP access (oauth_grants.token_id) also stops while the account that GAVE the
+        # access is locked - as /mcp does (agents/mcpremote.py mcpr_mcp), not only after its hour; unlocking lets it go on
+        with system_ctx(c):  # the giver's state only
+            gv = c.execute("SELECT u.disabled FROM oauth_grants g LEFT JOIN users u ON u.id=g.user_id "
+                           "WHERE g.token_id=? AND g.revoked_at IS NULL", (row["id"],)).fetchone()
+        if gv and (gv["disabled"] is None or gv["disabled"]):
+            return v1_err(403, tr("The account this access belongs to is locked"), name="owner_locked")
     if is_agent(u):  # 2.1.1 (#326): over its hard usage limit -> 429 (reporting usage + the status still work)
         refused = usage_refused(c, u["id"])
         if refused is not None:

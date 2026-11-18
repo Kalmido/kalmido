@@ -4,7 +4,7 @@
    member of a shared list notices nothing), 404 for a list one cannot see, 400 for a non-boolean, agents never
  - #1471 time tracking is a switch of each list (lists.time_tracking, default off for every type): new time needs it (409 with
    a clear message), web + REST API read / write it (owner only), a folder default, tracked time stays in the reports when it
-   is switched off, the project page's "Tracked" only with it on; migration: lists with time entries get it on once
+   is switched off, the project page's "Tracked" only with it on (2.1380.0 #6826: the start's migration, migr_time241, retired)
  - #1205 "Waiting on" suggestions: GET /api/me/wait-suggestions (own history only, newest first, also from completed
    tasks, never another person's text of a shared list), DELETE hides one (the task keeps it), using it again brings it back
 usage: p2410_d_api_test.py <datadir>"""
@@ -126,21 +126,8 @@ check(lst(A, FL)["time_tracking"] == 1, "#1471: a new list in the folder gets it
 FL2 = A.post(B + "/api/lists", json={"name": "Client Z", "folder": "Clients", "time_tracking": False}).json()["id"]
 check(lst(A, FL2)["time_tracking"] == 0, "#1471: an explicit value beats the folder")
 check(A.put(B + "/api/folders/props", json={"folder": "Clients", "props": {"time_tracking": "yes"}}).status_code == 400, "#1471: folder default must be a switch")
-# migration: a list with entries gets the switch on once (a list switched off later keeps it off on the next start)
-OLD = A.post(B + "/api/lists", json={"name": "Old project", "kind": "project", "time_tracking": True}).json()["id"]
-OT = A.post(B + "/api/tasks", json={"title": "Old work", "list_id": OLD}).json()["id"]
-A.post(B + "/api/time/entries", json={"task_id": OT, "start": D(-2) + "T09:00", "minutes": 60})
-dbx("UPDATE lists SET time_tracking=0 WHERE id IN (?, ?)", (OLD, PRIV), write=True)
-dbx("DELETE FROM settings WHERE key='migr_time241'", write=True)
-env = dict(os.environ, KEEP="1")
-r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=env, capture_output=True, text=True)
-assert r.returncode == 0, r.stdout + r.stderr
-A, Bo, Ca = sess("alice"), sess("bob"), sess("carol")
-check(lst(A, OLD)["time_tracking"] == 1 and lst(A, PRIV)["time_tracking"] == 0, "#1471: migration: a list with time entries gets it on, the rest stays off")
-A.patch(B + f"/api/lists/{OLD}", json={"time_tracking": False})
-subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=env, capture_output=True, text=True)
-A, Bo, Ca = sess("alice"), sess("bob"), sess("carol")
-check(lst(A, OLD)["time_tracking"] == 0, "#1471: migration runs once (switched off stays off)")
+# 2.1380.0 (#6826): the migration stood here (time switched off on a list with entries, flag migr_time241 deleted, restart:
+# switched on once); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 
 # ================= #1205 Waiting on suggestions
 WT = [A.post(B + "/api/tasks", json={"title": f"W{i}", "list_id": TEAM}).json()["id"] for i in range(4)]

@@ -8,7 +8,7 @@ header + typing signal (#375) and the wake routes without a button (#376).
  - tidy agent: the first agent with edit rights by default (participants never), tidy events only to it, PATCH
    /api/lists/{id} {tidy_agent_id} (owner / list admin; a participant agent, a non-member, a bad type refused), v1 lists +
    the event's list carry tidy_agent_id, suggestions / POST /api/v1/tasks/{id}/tidy by another agent 403, the fallback when
-   the tidy agent leaves the list, the one-time migration of lists with tidy on (their first agent)
+   the tidy agent leaves the list (2.1380.0 #6826: the one-time migration of lists with tidy on, migr_tidy_agent, is retired)
  - chat header: online null before the first poll, true after it (last_poll_at, poll_age), false after 5 minutes without one
    (and back with a version bump); POST /api/v1/agent/typing {chat_user_id} (validation, only people sharing a list, 10 s,
    the answer ends it, only the addressed person sees it); my_job; OpenAPI /agent/typing
@@ -286,16 +286,13 @@ check(agent_seen(A, AG5)["my_job"] is False, "a finished job does not count")
 stop()
 old = (testclock.now() - timedelta(minutes=10)).astimezone(timezone.utc).isoformat(timespec="seconds")
 dbx("UPDATE agents SET last_poll_at=? WHERE user_id=?", (old, AG5))
-# the migration of #379 runs once: a list that had tidy on before 2.4.1 gets its first agent
-dbx("UPDATE lists SET agent_tidy='suggest', tidy_agent=NULL WHERE id=?", (C,))
-dbx("DELETE FROM settings WHERE key='migr_tidy_agent'")
+# 2.1380.0 (#6826): the migration of #379 was set up here (a list with tidy on and no tidy agent, flag migr_tidy_agent deleted);
+# that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it -- the restart stays for the offline check
 start(keep=True)
 A, Bo = sess("alice"), sess("bob")
 a4 = agent_seen(A, AG5)
 check(a4["online"] is False and a4["poll_age"] >= 590, f"no poll for 10 minutes: offline ({a4['online']}, {a4['poll_age']})")
-check(dbx("SELECT tidy_agent FROM lists WHERE id=?", (C,)) == [(AG5,)], "migration: the list's first agent tidies it up")
-check(dbx("SELECT value FROM settings WHERE key='migr_tidy_agent'") == [("1",)], "migration done once")
-check(dbx("SELECT tidy_agent FROM lists WHERE id=?", (L,)) == [(AG,)], "migration: a stored choice stays")
+check(dbx("SELECT tidy_agent FROM lists WHERE id=?", (L,)) == [(AG,)], "a stored tidy choice stays over a restart")
 v0 = version(A)
 cl5.get("/agent/events", params={"since": 0})
 check(agent_seen(A, AG5)["online"] is True and version(A) != v0, "back online with a version bump")

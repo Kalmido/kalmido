@@ -52,16 +52,17 @@ def vt(tag):
     return tuple(int(x) for x in m.groups()) if m else None
 
 
-def pick(version, tags, latest=None, released=lambda t: True, limit=10):
+def pick(version, tags, latest=None, released=lambda t: True, limit=10, floor=None):
     """The release to start from: the latest release (what update.sh of a self-hoster fetches) when it is older than the
     candidate, else the newest tag below the candidate that has a GitHub release (a tag whose CI was red has none,
-    tools/ci_gate.py); at most `limit` tags are asked. None: nothing older."""
-    cur = vt(version)
+    tools/ci_gate.py); at most `limit` tags are asked. None: nothing older. 2.1380.0 (#6826): floor (X.Y.Z) = the oldest
+    start the candidate updates from (kalmido/core/db.py MIN_FROM, min_from()): nothing older is taken."""
+    cur, low = vt(version), vt(floor) or (0, 0, 0)
     if cur is None:
         return None
-    if vt(latest) and vt(latest) < cur:
+    if vt(latest) and low <= vt(latest) < cur:
         return "v" + ".".join(map(str, vt(latest)))
-    older = sorted({t for t in tags if vt(t) and vt(t) < cur}, key=vt, reverse=True)
+    older = sorted({t for t in tags if vt(t) and low <= vt(t) < cur}, key=vt, reverse=True)
     for t in older[:limit]:
         if released(t):
             return t
@@ -76,7 +77,7 @@ def live_v(ref):
     return vt(ref[len(LIVE_PREFIX):]) if (ref or "").startswith(LIVE_PREFIX) else None
 
 
-def pick_start(version, refs, latest=None, released=lambda t: True, limit=10):
+def pick_start(version, refs, latest=None, released=lambda t: True, limit=10, floor=None):
     """2.1011.0 (#5713): the version to start from = what runs live: the newest latest-ok/X.Y.Z below the candidate (the live
     train sets it after the device test; one of them becomes the weekly release, tools/weekly_release.py). Since the train
     there were no releases for 490 versions, so the latest release (2.502.0) missed every trap of the jumps live makes.
@@ -87,12 +88,13 @@ def pick_start(version, refs, latest=None, released=lambda t: True, limit=10):
     cur = vt(version)
     if cur is None:
         return None
-    live = sorted({live_v(r) for r in refs if live_v(r) and live_v(r) < cur}, reverse=True)
+    low = vt(floor) or (0, 0, 0)  # 2.1380.0 (#6826): no start below the candidate's MIN_FROM
+    live = sorted({live_v(r) for r in refs if live_v(r) and low <= live_v(r) < cur}, reverse=True)
     lat = vt(latest)
     if live and not (lat and live[0] < lat < cur):
         v = "v" + ".".join(map(str, live[0]))
         return (v, "release") if released(v) else (LIVE_PREFIX + v[1:], "tag")
-    t = pick(version, [r for r in refs if vt(r)], latest, released, limit)
+    t = pick(version, [r for r in refs if vt(r)], latest, released, limit, floor)
     return (t, "release") if t else None
 
 
@@ -119,11 +121,18 @@ def version():
         return f.read().strip()
 
 
+def min_from():
+    """2.1380.0 (#6826): MIN_FROM of kalmido/core/db.py (read as text: standard library only, no import of the app); None if not found."""
+    with open(os.path.join(ROOT, "kalmido", "core", "db.py"), encoding="utf-8") as f:
+        m = re.search(r'^MIN_FROM = "(\d+\.\d+\.\d+)"', f.read(), re.M)
+    return m.group(1) if m else None
+
+
 def prev_tag():
     """(ref, how) of pick_start() over the tags of the checkout (v* and latest-ok/*), None when nothing is older."""
     tags = subprocess.run(["git", "-C", ROOT, "tag", "-l", "v*", LIVE_PREFIX + "*"], capture_output=True, text=True,
                           check=True).stdout.split()
-    return pick_start(version(), tags, latest_release(), has_release)
+    return pick_start(version(), tags, latest_release(), has_release, floor=min_from())
 
 
 def start_of(ref):

@@ -483,9 +483,8 @@ L5 = A.post(B + "/api/lists", json={"name": "Later", "folder": "House"}).json()[
 check(L5 not in {l["id"] for l in Bo.get(B + "/api/state").json()["lists"]} and L3 not in {l["id"] for l in Bo.get(B + "/api/state").json()["lists"]},
       "#740 / #2748: stopped: new lists no longer, the folder's lists neither")
 A.put(B + f"/api/lists/{L3}/members", json={"user_id": BOB, "role": "view"})  # 2.352.0 (#2748): shared by hand for the check below
-# older shares: sorted in once at the update (migration); a list the person already put into a folder stays there
-dbx("UPDATE list_members SET folder='' WHERE list_id=? AND user_id=?", (L3, BOB))
-dbx("DELETE FROM settings WHERE key='migr_folders2220'")
+# 2.1380.0 (#6826): older shares were sorted in once at the update here (member folder cleared, flag migr_folders2220 deleted,
+# restart); that one-shot is retired (core/oncesteps.py RETIRED). The restart stays (the mail stub below); the shares keep their place
 subprocess.run(["docker", "restart", CT], capture_output=True)
 def _up():
     try:
@@ -497,7 +496,7 @@ def _up():
 check(until(_up, 60), "#740: restarted")
 Bo = sess(None); Bo.post(B + "/api/auth/login", json={"username": "bob", "password": "bob-new-pass-1"})
 bl = {l["id"]: l for l in Bo.get(B + "/api/state").json()["lists"]}
-check(bl[L3]["folder"] == "House" and bl[FL]["folder"] == "Other", "#740: the update sorts older shares in (2.27.0: placed like the owner)")
+check(bl[L3]["folder"] == "House" and bl[FL]["folder"] == "Other", "#740: after a restart the shares stay placed like the owner (2.27.0)")
 subprocess.run(["docker", "exec", "-d", CT, "python", "/data/stub_mail.py"])
 
 # ================================================================== #741: the purpose "Home"

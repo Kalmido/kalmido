@@ -321,20 +321,15 @@ check(r.ok and next(l for l in state(A)["lists"] if l["id"] == W)["dep_shift"] =
 # ---- migration of existing users (features_rev 7 -> 8, then 9 = "comments", 2.0.6) after a restart on the same data
 with db() as c:
     c.execute("UPDATE settings SET value='cal,habits,collab,time' WHERE key='default_features'")
-    c.execute("DELETE FROM settings WHERE key='migr_feat8'")
+    # 2.1380.0 (#6826): the flag migr_feat8 was deleted here; the setup default's one-shot (features_rev 8-12) is retired
     for uid, fs in ((1, "cal,timeline,matrix,collab,time"), (BOB, "cal,habits,collab"), (CAROL, "cal,habits,collab")):
         c.execute("UPDATE user_settings SET value=? WHERE user_id=? AND key='features'", (fs, uid))
         c.execute("UPDATE user_settings SET value='7' WHERE user_id=? AND key='features_rev'", (uid,))
     c.execute("DELETE FROM task_deps WHERE task_id IN (SELECT id FROM tasks WHERE list_id=?) OR blocker_id IN (SELECT id FROM tasks WHERE list_id=?)", (P, P))
     c.execute("INSERT INTO list_fields(list_id,name,type,options,sort,created_at) VALUES(?,?,?,?,?,?)", (P, "Phase", "text", "{}", 0, "2026-01-01T00:00:00Z"))
     c.commit()
-with db() as c:  # list types from before 1.2: every list a plain list again, checklist flag set on one
-    c.execute("UPDATE lists SET kind='list', checklist=0")
-    c.execute("UPDATE lists SET checklist=1 WHERE id=?", (CKL,))
-    c.execute("INSERT INTO time_entries(user_id,task_id,list_id,task_title,start,\"end\",seconds,source,created_at,updated_at) "
-              "VALUES(1,?,?,'misclick','2026-09-01T08:00:00Z','2026-09-01T08:01:00Z',60,'timer','2026-09-01T08:01:00Z','2026-09-01T08:01:00Z')", (pt, PL))  # 2.1112.2 (#5968): TIMESTAMPTZ, no 'x'
-    c.execute("DELETE FROM settings WHERE key='migr_kind'")
-    c.commit()
+# 2.1380.0 (#6826): the list types from before 1.2 (every list a plain list again, flag migr_kind deleted) stood here; the
+# one-shot migr_kind is retired (core/oncesteps.py RETIRED), the start no longer turns lists into projects / checklists
 subprocess.run(["docker", "stop", os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")], capture_output=True)
 r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=dict(os.environ, KEEP="1"), capture_output=True, text=True)
 check(r.returncode == 0, "container restarted on the same data " + r.stderr[-300:])
@@ -348,13 +343,11 @@ check(u[BOB] == "cal,habits,collab,deps,fields,comments,events,contacts,files,do
 check(u[CAROL] == "cal,habits,collab,fields,comments,events,contacts,files,docs,videos", f"migration: user with a custom field gets fields; deps = instance default (off): {u[CAROL]}")  # 2.623.0 (#4765): features_rev 12 adds the module Approval (videos)
 check(all(v == "12" for v in rev.values()), f"migration: features_rev 12 for everyone (8 + comments + 2.21 events / contacts + 2.48 files + docs + 2.623 videos): {rev}")  # 2.623.0 (#4765): features_rev 12 adds the module Approval (videos)
 check(dflt == "cal,habits,collab,time", f"migration: setup default without timeline / progress stays as chosen: {dflt}")
+# 2.1380.0 (#6826): the checks of migr_kind's list types after the restart stood here (one-shot retired, see above)
 with db() as c:
-    kinds = {r2["id"]: r2["kind"] for r2 in c.execute("SELECT id, kind FROM lists")}
-check(kinds[W] == "project" and kinds[TP] == "project" and kinds[P] == "project", f"migration: lists with dependencies / time / fields became projects: {kinds}")
-check(kinds[CKL] == "checklist" and kinds[PL] == "list" and kinds[X] == "project", "migration: checklist stays a checklist, a list with only a 1-minute timer (under 5 min) stays a list")
-with db() as c:
-    c.execute("UPDATE settings SET value='cal,timeline,progress,collab,time' WHERE key='default_features'")
-    c.execute("DELETE FROM settings WHERE key='migr_feat8'")
+    # 2.1380.0 (#6826): was the old default 'cal,timeline,progress,collab,time' + flag migr_feat8 deleted, checked to gain
+    # deps + fields at the start; that one-shot is retired, so the default is set as it reads after it and only the users' step is checked
+    c.execute("UPDATE settings SET value='cal,timeline,progress,collab,time,deps,fields' WHERE key='default_features'")
     c.execute("UPDATE user_settings SET value='cal' WHERE user_id=? AND key='features'", (CAROL,))
     c.execute("UPDATE user_settings SET value='7' WHERE user_id=? AND key='features_rev'", (CAROL,))
     # user 1 (rev 9) switches comments off: the migrations must not bring them back
@@ -367,7 +360,7 @@ with db() as c:
     dflt = c.execute("SELECT value FROM settings WHERE key='default_features'").fetchone()[0]
     uc = c.execute("SELECT value FROM user_settings WHERE key='features' AND user_id=?", (CAROL,)).fetchone()[0]
     u1 = c.execute("SELECT value FROM user_settings WHERE key='features' AND user_id=1").fetchone()[0]
-check(dflt == "cal,timeline,progress,collab,time,deps,fields", f"migration: an old setup default with the timeline gets deps + fields: {dflt}")
+check(dflt == "cal,timeline,progress,collab,time,deps,fields", f"the setup default stays as stored (2.1380.0 #6826: its one-shot is retired): {dflt}")
 check(uc == "cal,deps,fields,comments,events,contacts,files,docs,videos", f"migration: no data, no timeline -> the (migrated) instance default: {uc}")  # 2.48.0 (#1207, #1111): + files, docs; 2.623.0 (#4765): + videos
 check(u1 == "cal,timeline,matrix,collab,time,deps,fields", f"migration runs once (rev 12 users untouched, comments stay off): {u1}")
 

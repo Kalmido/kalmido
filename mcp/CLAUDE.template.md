@@ -51,7 +51,7 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   server lists only the tools you may use. A 403 with `required_scope` means: ask an owner to grant it in Kalmido; never
   work around it with other access. With a read-only token (2.190.0) chat messages, reactions, pins and proposals answer
   403 (2.360.0: also a job for a person or a waiting one): report the result in your status or job log instead and ask
-  for *Comments*. A 403 with the code `owner_locked` (2.1264.0) means the account of the person you belong to is locked:
+  for *Comments*. A 403 with the code `owner_locked` (2.1264.0) means the account of the person you belong to (or, 2.1380.0, the person who gave your MCP access) is locked:
   every call is refused until it is unlocked; stop, do not look for another access, try again later.
 - Deleting projects or fields, emptying the trash, changing 10 or more tasks at once, moving projects and sharing, opening a
   public form and deleting an address book wait for a person: the answer is 202 with a waiting job. Do not repeat the request; the result comes as a `job` event.

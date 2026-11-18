@@ -42,7 +42,9 @@ in a fragment made every backup unrestorable). CURRENT_TIMESTAMP instead of now(
 2.1356.0 (#6824): the one-shot data steps of the start (settings flag migr_*) stand in ONE ordered list, kalmido/core/oncesteps.py
 STEPS. A flag read or written as gsetting(c, "migr_...") / gset(c, "migr_...") anywhere else is a finding, except the area
 functions of ONCE_ELSEWHERE (each with why it stays there); the keys of STEPS are unique, each phase stands in one piece, and
-core/db.py init_db calls run_phase once per phase, in the order of STEPS.
+core/db.py init_db calls run_phase once per phase, in the order of STEPS. 2.1380.0 (#6826): the one-shots every database from
+core/db.py MIN_FROM on has behind it are retired: their keys stand in oncesteps.RETIRED (flag written at every start, never in
+STEPS again), and the MIGRATIONS steps of schema.py whose column stands in its CREATE TABLE went (and out of the frozen list).
 
 usage: python3 tools/check_migrations.py [-v]     exit code 1 on a finding
 """
@@ -389,6 +391,10 @@ def once_findings(root=ROOT):
         return bad + [f"{ONCE_HOME}: STEPS not readable ({e})"]
     keys = [k for _, k in steps]
     bad += [f"{ONCE_HOME}: STEPS key {k} twice" for k in sorted({k for k in keys if keys.count(k) > 1})]
+    # 2.1380.0 (#6826): a retired one-shot (RETIRED, its flag only written) never comes back as a step, and is listed once
+    retired = [e.value for n in tree.body if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "RETIRED" for e in n.value.elts]
+    bad += [f"{ONCE_HOME}: {k} is in RETIRED and in STEPS (a retired one-shot does not run again)" for k in sorted(set(retired) & set(keys))]
+    bad += [f"{ONCE_HOME}: RETIRED key {k} twice" for k in sorted({k for k in retired if retired.count(k) > 1})]
     phases = [p for i, (p, _) in enumerate(steps) if i == 0 or steps[i - 1][0] != p]
     bad += [f"{ONCE_HOME}: STEPS phase {p} not in one piece" for p in sorted({p for p in phases if phases.count(p) > 1})]
     with open(os.path.join(root, "kalmido", "core", "db.py"), encoding="utf-8") as f:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """2.437.0 (#3729): init_db names its steps and their milliseconds in the start log; no content, and lines the operator's
-filtered start log keeps. A one-shot that takes over a second (the projects trees over many lists) gets a line of its own."""
+filtered start log keeps. A step that takes over a second gets a line of its own (2.1380.0 #6826: its check is gone with the
+one-shot it used, migr_lf2352; the line format is still checked by LINE)."""
 import os
 import re
 import subprocess
@@ -43,21 +44,13 @@ tc = [r[0] for r in dbx("SELECT column_name FROM information_schema.columns WHER
 ts = ",".join(tc)
 tid = dbx("SELECT id FROM tasks WHERE title=?", (SECRET,))[0][0]
 dbx(f"INSERT INTO tasks(list_id,title,{ts}) SELECT (SELECT min(id) FROM lists) + (g % {LISTS}), 't' || g, {ts} FROM tasks t, generate_series(1,{TASKS}) g WHERE t.id={tid}")
-for u in ("bob", "carol", "dave", "erin"):
-    A.post(B + "/api/users", json={"username": u, "display_name": u, "password": "password123"})
-aid = dbx("SELECT id FROM users WHERE username='alice'")[0][0]
-dbx(f"UPDATE lists SET owner_id={aid} WHERE owner_id IS NULL")
-dbx("INSERT INTO list_members(list_id,user_id,role,own_role,added_at) SELECT l.id,u.id,'edit','edit','2026-01-01T00:00:00' FROM lists l, users u WHERE u.id<>l.owner_id AND NOT l.is_inbox ON CONFLICT DO NOTHING")
-# 2.958.0 (#5245): folder_people is gone on a new database; the old table of 2.351 (the start's retirement drops it again)
-dbx("""CREATE TABLE IF NOT EXISTS folder_people (owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, folder TEXT NOT NULL,
-       user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE, role TEXT NOT NULL DEFAULT 'edit', created_at TEXT NOT NULL,
-       PRIMARY KEY (owner_id, folder, user_id))""")
-dbx("INSERT INTO folder_people(owner_id,folder,user_id,role,created_at) SELECT DISTINCT l.owner_id,l.folder,u.id,'edit','2026-01-01T00:00:00' FROM lists l, users u WHERE u.id<>l.owner_id AND l.folder<>'' ON CONFLICT DO NOTHING")
-dbx("DELETE FROM settings WHERE key='migr_lf2352'")
+# 2.1380.0 (#6826): people, members of every list and the old folder shares (folder_people) were added here and the flag
+# migr_lf2352 deleted, so the projects trees' one-shot took over a second at the restart; that one-shot is retired
+# (core/oncesteps.py RETIRED) and no step left in init_db is reliably slow on test data, so the check of a slow step's own line is gone.
+# The lists / tasks above stay: the second start runs over them (and the title above must not reach the log).
 subprocess.run(["docker", "restart", CT], check=True, capture_output=True)
 until(lambda: sum(" total " in x for x in clock_lines()) > 1, 300)
 new = clock_lines()[len(first):]
-check(any(" step migr_lf2352 " in x for x in new), "a one-shot over 1 s has a line of its own: " + repr(new))
 check(any(" total " in x for x in new), "a second start reports too")
 check(all(LINE.match(x) for x in new), "only names and numbers on the second start")
 check(not any(SECRET in x for x in logs()), "no content in the log")

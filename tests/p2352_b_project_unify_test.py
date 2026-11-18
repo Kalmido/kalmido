@@ -7,8 +7,7 @@
  (c) the inbox stays outside: no status, no project page, no dependencies (409)
  (d) a list template keeps its dates relative to the project start, also without "relative" (the flag is ignored)
  (e) a person without an organisation: the same in her private workspace
- (f) the start step: an old kind=project without a status becomes "on track" once; kind list, the inbox and a status
-     cleared afterwards stay as they are (only with an own container, not under KMT_NOSTART)
+ (f) 2.1380.0 (#6826): gone -- the start step (an old kind=project without a status became "on track" once) is retired
 usage: p2352_b_project_unify_test.py <datadir>
 freelancer-matrix: lists"""
 import os
@@ -17,10 +16,9 @@ from datetime import timedelta
 
 N = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, N)
-import dbx as dbxm  # noqa: E402
 import kt  # noqa: E402
 from freelancer_fixture import freelancer  # noqa: E402
-from kt import B, DATA, check, sess  # noqa: E402
+from kt import B, check  # noqa: E402
 
 started = kt.fresh(prefix="P2352B")
 A = kt.setup()
@@ -98,21 +96,7 @@ for body, what in (({"list_id": TL, "name": "Fair A"}, "without the flag"), ({"l
 FID, Fr = freelancer(B, A)
 project_checks(Fr, "frida")
 
-# (f) the start step (own container only: it restarts on the same data)
-if started:
-    with dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10) as c:
-        c.execute("UPDATE lists SET status='' WHERE id IN (?,?)", (PL, PK))
-        c.execute("DELETE FROM settings WHERE key='migr_kind2352'")
-        c.commit()
-    kt.fresh(keep=True)
-    A = sess("alice")
-    check(lst(A, PK)["status"] == "on_track", f"start step: an old kind=project without a status is on track: {lst(A, PK)['status']!r}")
-    check(not lst(A, PL)["status"] and not lst(A, inbox(A))["status"], "start step: kind list and the inbox stay without a status")
-    check(A.post(B + f"/api/lists/{PK}/status", json={"status": ""}).ok, "start step: the status cleared again")
-    kt.fresh(keep=True)
-    A = sess("alice")
-    check(not lst(A, PK)["status"], "start step: once only, a cleared status stays cleared after the next start")
-else:
-    print("p2352_b_project_unify: start step skipped (KMT_NOSTART / P2352B_NOSTART)")
+# 2.1380.0 (#6826): (f) the start step stood here (flag migr_kind2352 deleted, restart: an old kind=project without a status
+# became "on track" once); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 
 sys.exit(kt.done("p2352_b_project_unify"))
