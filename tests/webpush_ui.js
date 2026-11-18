@@ -130,7 +130,8 @@ async function uiTests() {
   let w = await boot({user: 'carol', setup: f.setup});
   let p = await pane(w);
   check(p.querySelector('#s-pushch')?.value === 'webpush', 'channel select: Web Push');
-  check(/No device subscribed for push yet\. Until then, notifications go to your ntfy topic\./.test(text(p.querySelector('#s-wpstate'))) && !p.querySelector('#s-wpstate').classList.contains('warn'), 'no device yet: the neutral "until then … ntfy topic" hint (2.5.2: not red)');
+  // 2.1391.0 (#6130): everyday words (the notification app instead of the ntfy topic)
+  check(/No device switched on yet\. Until then, notifications go to the notification app\./.test(text(p.querySelector('#s-wpstate'))) && !p.querySelector('#s-wpstate').classList.contains('warn'), 'no device yet: the neutral "until then … ntfy topic" hint (2.5.2: not red)');
   check(p.querySelector('#s-wpdev') && !p.querySelector('#s-wpdev').checked && !p.querySelector('[data-m="wp-test"]'), 'toggle off, no device test button yet');
   check(/Your browser asks for permission once/.test(text(p)), 'permission hint');
   // 2.555.0 (#4664): with Web Push the channel test "Test all channels" covers ntfy; no third test button at the topic
@@ -145,7 +146,8 @@ async function uiTests() {
   p = w.document.querySelector('.smodal [data-pane="notify"]');
   // 2.555.0 (#4664): the device test once (in the status line on top), not again under "This device"
   check(p.querySelector('#s-wpdev').checked && p.querySelectorAll('[data-m="wp-test"]').length === 1 && p.querySelector('#s-pushnow [data-m="wp-test"]'), 'toggle on + one "Send test" for this device');
-  check(/Web Push to 1 device\. ntfy only if no device accepts a push\./.test(text(p.querySelector('#s-wpstate'))), 'state: Web Push to 1 device');
+  // 2.1391.0 (#6130): everyday words (Browser notification / Notification app)
+  check(/Browser notification on 1 device\. The notification app only if no device accepts it\./.test(text(p.querySelector('#s-wpstate'))), 'state: Web Push to 1 device');
   check(/Chrome on Android/.test(text(p.querySelector('.wpdevs'))) && p.querySelector('.wpdevs .devtag'), 'device list: this device tagged');
   check(/Notifications on for this device/.test(text(w.document.querySelector('#toast'))), 'toast: on');
   // test to this device
@@ -155,9 +157,11 @@ async function uiTests() {
   // channel select: state follows, saved at once (1.5); the ntfy details only when ntfy is a channel
   check(p.querySelector('#s-ntfy').classList.contains('hidden'), 'channel Web Push: ntfy details hidden');
   const ch = p.querySelector('#s-pushch'); ch.value = 'ntfy'; ch.dispatchEvent(new w.Event('change', {bubbles: true})); await sleep(600);
-  check(/Everything goes to ntfy\./.test(text(p.querySelector('#s-wpstate'))) && (await api(w, 'GET', '/api/state')).settings.push_channel === 'ntfy' && !p.querySelector('#s-ntfy').classList.contains('hidden'), 'channel ntfy: state, saved at once, ntfy details shown');
+  // 2.1391.0 (#6130): everyday words (Browser notification / Notification app)
+  check(/Everything goes to the notification app\./.test(text(p.querySelector('#s-wpstate'))) && (await api(w, 'GET', '/api/state')).settings.push_channel === 'ntfy' && !p.querySelector('#s-ntfy').classList.contains('hidden'), 'channel ntfy: state, saved at once, ntfy details shown');
   ch.value = 'both'; ch.dispatchEvent(new w.Event('change', {bubbles: true})); await sleep(600);
-  check(/Web Push to 1 device and ntfy\./.test(text(p.querySelector('#s-wpstate'))), 'channel both: state');
+  // 2.1391.0 (#6130): everyday words (Browser notification / Notification app)
+  check(/Browser notification on 1 device and the notification app\./.test(text(p.querySelector('#s-wpstate'))), 'channel both: state');
   check((await api(w, 'GET', '/api/state')).settings.push_channel === 'both', 'the channel is stored at once');
   await api(w, 'PATCH', '/api/settings', {push_channel: 'webpush'});
   // message from the SW: open a link in this window; foreign origins ignored
@@ -170,7 +174,8 @@ async function uiTests() {
   click(w, p.querySelector('.wpdevs [data-m="wp-del"]')); await sleep(900);
   p = w.document.querySelector('.smodal [data-pane="notify"]');
   check(f.unsub === 1 && !(await api(w, 'GET', '/api/push/subs')).subs.length && !p.querySelector('.wpdevs'), 'remove: server + browser subscription gone');
-  check(/Until then, notifications go to your ntfy topic/.test(text(p.querySelector('#s-wpstate'))) && !p.querySelector('#s-wpdev').checked, 'back to "until then … ntfy topic"');
+  // 2.1391.0 (#6130): everyday words (the notification app instead of the ntfy topic)
+  check(/Until then, notifications go to the notification app/.test(text(p.querySelector('#s-wpstate'))) && !p.querySelector('#s-wpdev').checked, 'back to "until then … ntfy topic"');
   // on again, then off with the toggle
   let t2 = p.querySelector('#s-wpdev'); t2.checked = true; t2.dispatchEvent(new w.Event('change', {bubbles: true})); await sleep(1200);
   check((await api(w, 'GET', '/api/push/subs')).subs.length === 1 && f.asked === 1, 'on again (permission not asked twice)');
@@ -211,7 +216,8 @@ async function uiTests() {
   f = fakePush({ua: 'Mozilla/5.0 (X11; Linux x86_64) Old/1.0', push: false});
   w = await boot({user: 'carol', setup: f.setup});
   p = await pane(w);
-  check(/This browser does not support Web Push/.test(text(p)) && !p.querySelector('#s-wpdev'), 'no Web Push support: hint');
+  // 2.1391.0 (#6130): everyday words (Browser notification / Notification app)
+  check(/This browser cannot show notifications/.test(text(p)) && !p.querySelector('#s-wpdev'), 'no Web Push support: hint');
   w.close();
 
   // German
@@ -221,7 +227,7 @@ async function uiTests() {
   w.close();
   w = await boot({user: 'carol', setup: f.setup});
   p = await pane(w);
-  check(/Auf diesem Gerät benachrichtigen/.test(text(p)) && /Noch kein Gerät für Push angemeldet\. Bis dahin kommen Benachrichtigungen über dein ntfy-Thema\./.test(text(p)) && /Zustellung/.test(text(p)), 'German strings');  // 2.364.0 C (#3044): ntfy-Thema
+  check(/Auf diesem Gerät benachrichtigen/.test(text(p)) && /Noch kein Gerät eingeschaltet\. Bis dahin gehen Benachrichtigungen an die Benachrichtigungs-App\./.test(text(p)) && /Zustellung/.test(text(p)), 'German strings');  // 2.364.0 C (#3044): ntfy-Thema; 2.1391.0 (#6130): the notification app
   await api(w, 'PATCH', '/api/settings', {lang: 'en'});
   w.close();
 }
