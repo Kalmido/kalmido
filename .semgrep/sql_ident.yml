@@ -8,8 +8,9 @@ rules:
     languages: [python]
     severity: WARNING
     message: >-
-      A name is put into SQL text with an f-string (FROM / JOIN / INTO / UPDATE / SET / TABLE / TRUNCATE / INDEX x ON {...}) without qi(). Put table and
-      column names through qi(name, allowlist) from kalmido/core/pg.py; values always go as ? parameters.
+      A name is put into SQL text with an f-string (FROM / JOIN / INTO / UPDATE / SET / TABLE / TRUNCATE / INDEX x ON {...}) without qi().
+      Why: a name from a request or a stored value becomes SQL - an injection. Instead: qi(name, allowlist) from kalmido/core/pg.py
+      for table and column names; values always go as ? parameters. Do not suppress it and do not build around it: fix the cause.
     pattern-either:
       - pattern-regex: \b[rR]?[fF][rR]?("|')(?:(?!\1)[^\n])*?\b(FROM|JOIN|INTO|UPDATE|SET|TABLE|TRUNCATE|INDEX\s+\S+\s+ON)\s+\{(?![^{}]*\bqi\()
       - pattern-regex: \b[rR]?[fF][rR]?("""|''')(?:(?!\1)[\s\S])*?\b(FROM|JOIN|INTO|UPDATE|SET|TABLE|TRUNCATE|INDEX\s+\S+\s+ON)\s+\{(?![^{}]*\bqi\()

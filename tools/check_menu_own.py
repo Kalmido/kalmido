@@ -114,5 +114,11 @@ def main(argv):
     return 1 if h else 0
 
 
+LINT_WHY = "a menu built by hand looks and behaves differently from all the others (audit 11.11.2026)"
+LINT_INSTEAD = "menu() of static/js/popovers.js"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_menu_own", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

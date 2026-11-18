@@ -111,10 +111,16 @@ def findings(root=ROOT):
     return bad
 
 
+LINT_WHY = "a check in tests/ that cannot fail is green whatever the code does"
+LINT_INSTEAD = "a check that turns red when the behaviour breaks (try it: without the fix the test is red)"
+
+
 if __name__ == "__main__":
-    out = findings()
-    for x in out:
-        print(x)
-    if "-v" in sys.argv or out:
-        print(f"check_nosham: {len(ALLOWED)} allowed line(s), {len(out)} finding(s)")
-    sys.exit(1 if out else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_nosham", LINT_WHY, LINT_INSTEAD):
+        out = findings()
+        for x in out:
+            print(x)
+        if "-v" in sys.argv or out:
+            print(f"check_nosham: {len(ALLOWED)} allowed line(s), {len(out)} finding(s)")
+        sys.exit(1 if out else 0)

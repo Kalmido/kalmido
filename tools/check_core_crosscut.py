@@ -276,11 +276,17 @@ def findings(root=ROOT, srcs=None, allow=None, code=True, strict=False):
     return bad, hints
 
 
+LINT_WHY = "links, tags, comments, read marks, versions and following exist once in the shared core; an area's own table splits them"
+LINT_INSTEAD = "the core parts named in docs/dev/kern.md 'Cross-cutting parts' (obj_* tables and their helpers)"
+
+
 if __name__ == "__main__":
-    root = sys.argv[sys.argv.index("--root") + 1] if "--root" in sys.argv else ROOT
-    out, hints = findings(root, strict="--strict" in sys.argv)  # #4314: a gone allow line is a hint, red only with --strict
-    for x in hints + out:
-        print(x)
-    if "-v" in sys.argv or out:
-        print(f"check_core_crosscut: {len(load_allow(root).get('tables', {}))} allowed table(s), {len(out)} finding(s)")
-    sys.exit(1 if out else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_core_crosscut", LINT_WHY, LINT_INSTEAD):
+        root = sys.argv[sys.argv.index("--root") + 1] if "--root" in sys.argv else ROOT
+        out, hints = findings(root, strict="--strict" in sys.argv)  # #4314: a gone allow line is a hint, red only with --strict
+        for x in hints + out:
+            print(x)
+        if "-v" in sys.argv or out:
+            print(f"check_core_crosscut: {len(load_allow(root).get('tables', {}))} allowed table(s), {len(out)} finding(s)")
+        sys.exit(1 if out else 0)

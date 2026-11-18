@@ -296,12 +296,18 @@ def findings(root=ROOT, extra=None, only=None):
     return Index(root, extra).findings(only)
 
 
+LINT_WHY = "two packages merged side by side changed a signature and added a caller; only the full CI saw it"
+LINT_INSTEAD = "pass every required parameter, or give the new parameter a default in the function that grew it"
+
+
 if __name__ == "__main__":
-    idx = Index()
-    out = idx.findings()
-    for x in out:
-        print(x)
-    if "-v" in sys.argv or out:
-        n = sum(len(m.sigs) for m in idx.mods.values())
-        print(f"check_call_arity: {len(idx.mods)} module(s), {n} signature(s), {len(out)} finding(s)")
-    sys.exit(1 if out else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_call_arity", LINT_WHY, LINT_INSTEAD):
+        idx = Index()
+        out = idx.findings()
+        for x in out:
+            print(x)
+        if "-v" in sys.argv or out:
+            n = sum(len(m.sigs) for m in idx.mods.values())
+            print(f"check_call_arity: {len(idx.mods)} module(s), {n} signature(s), {len(out)} finding(s)")
+        sys.exit(1 if out else 0)

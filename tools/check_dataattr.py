@@ -129,5 +129,11 @@ def main(argv):
     return 1 if out else 0
 
 
+LINT_WHY = "all client files share one document: a click listener on a data attribute also gets the other files' clicks"
+LINT_INSTEAD = "a data attribute with its own name, or a guard in the document click listener"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_dataattr", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

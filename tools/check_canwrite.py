@@ -69,11 +69,17 @@ def write():
         f.write("\n")
 
 
+LINT_WHY = "an area that decides with its own role check shows New / upload / save to people who may not write, or forgets it"
+LINT_INSTEAD = "canWrite() of static/js/workspace.js (docs/dev/kern.md, 'Who may write: the client')"
+
+
 if __name__ == "__main__":
-    if "--write" in sys.argv[1:]:
-        write()
-        sys.exit(0)
-    errs = errors()
-    for e in errs:
-        print(e)
-    sys.exit(1 if errs else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_canwrite", LINT_WHY, LINT_INSTEAD):
+        if "--write" in sys.argv[1:]:
+            write()
+            sys.exit(0)
+        errs = errors()
+        for e in errs:
+            print(e)
+        sys.exit(1 if errs else 0)

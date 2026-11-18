@@ -187,5 +187,11 @@ def main(argv):
     return 1 if out else 0
 
 
+LINT_WHY = "the view jumps without the person asking: a redraw must keep the reading place"
+LINT_INSTEAD = "keepReading of static/js/render.js; a jump the person asked for: '// sprung-ok: <reason>' on its line"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_scrolljump", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

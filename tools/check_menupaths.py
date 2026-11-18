@@ -175,5 +175,11 @@ def main(argv):
     return 1 if bad else 0
 
 
+LINT_WHY = "a menu path in the docs or a hint that does not exist sends the person to a setting that is not there"
+LINT_INSTEAD = "the path as the settings name it today (SET_SECS in static/js/setcore.js)"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_menupaths", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

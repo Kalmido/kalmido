@@ -512,5 +512,11 @@ def main():
     return 1 if bad else 0
 
 
+LINT_WHY = "a table with people's data that no export names goes missing from the export silently"
+LINT_INSTEAD = "name the table in the export (account / organisation export) or with its reason in kalmido/admin/exportleft.py"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_export_tables", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

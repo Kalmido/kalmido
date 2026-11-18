@@ -121,5 +121,11 @@ def main():
     return 1 if errs else 0
 
 
+LINT_WHY = "the screen width is no answer to 'does a finger operate this': a touch tablet or a narrow desktop window gets it wrong"
+LINT_INSTEAD = "isTouchUi() for finger operation; isMobile() for layout only"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_touch_switch", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

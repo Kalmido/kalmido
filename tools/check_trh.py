@@ -233,5 +233,11 @@ def main(argv):
     return 1 if out or (stale and "--strict" in argv) else 0
 
 
+LINT_WHY = "tr() puts a value into the translation as it is: inside HTML a typed name becomes markup"
+LINT_INSTEAD = "trh() / trnh() of static/i18n.js"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_trh", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

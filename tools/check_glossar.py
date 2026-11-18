@@ -102,5 +102,11 @@ def main(argv):
     return 0
 
 
+LINT_WHY = "a module without a line in docs/GLOSSAR.md is invisible to the next agent, who then builds it a second time"
+LINT_INSTEAD = "one line for the file in docs/GLOSSAR.md (`path` in backticks)"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_glossar", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

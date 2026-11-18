@@ -96,5 +96,11 @@ def main(argv):
     return 1 if red else 0
 
 
+LINT_WHY = "a handwritten 'not in the trash' filter differs from the core's and shows trashed rows or hides live ones"
+LINT_INSTEAD = "live_sql() / trash_sql() of kalmido/core/access.py"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_live_filter", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv))

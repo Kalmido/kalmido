@@ -35,9 +35,15 @@ def errors(tests_dir=None):
     return out
 
 
+LINT_WHY = "kt.done() only returns the result; without sys.exit(done(...)) a red suite exits 0 and stays green"
+LINT_INSTEAD = "end the test file with sys.exit(done(...))"
+
+
 if __name__ == "__main__":
-    errs = errors(sys.argv[1] if len(sys.argv) > 1 else None)
-    for e in errs:
-        print("ERROR:", e)
-    print(f"check_done_exit: {len(errs)} error(s)")
-    sys.exit(1 if errs else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_done_exit", LINT_WHY, LINT_INSTEAD):
+        errs = errors(sys.argv[1] if len(sys.argv) > 1 else None)
+        for e in errs:
+            print("ERROR:", e)
+        print(f"check_done_exit: {len(errs)} error(s)")
+        sys.exit(1 if errs else 0)

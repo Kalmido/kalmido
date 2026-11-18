@@ -98,5 +98,11 @@ def main():
     return 1 if h else 0
 
 
+LINT_WHY = "an entry that opens a further menu without the arrow surprises the person (decision 08.11.2026)"
+LINT_INSTEAD = "{next: 1} or {more: [...]} on the entry of menu() in static/js/popovers.js"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_menu_next", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

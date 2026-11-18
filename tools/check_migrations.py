@@ -428,10 +428,16 @@ def findings(root=ROOT):
     return bad + once_findings(root)
 
 
+LINT_WHY = "every package adding at the same spot of schema.py collided in every queue"
+LINT_INSTEAD = "a fragment kalmido/core/migrations.d/<task>.py"
+
+
 if __name__ == "__main__":
-    out = findings()
-    for x in out:
-        print(x)
-    if "-v" in sys.argv or out:
-        print(f"check_migrations: {len(fragments())} fragment(s), {len(out)} finding(s)")
-    sys.exit(1 if out else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_migrations", LINT_WHY, LINT_INSTEAD):
+        out = findings()
+        for x in out:
+            print(x)
+        if "-v" in sys.argv or out:
+            print(f"check_migrations: {len(fragments())} fragment(s), {len(out)} finding(s)")
+        sys.exit(1 if out else 0)

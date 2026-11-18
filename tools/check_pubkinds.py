@@ -59,9 +59,15 @@ def errors(root=None):
     return out
 
 
+LINT_WHY = "a misspelt or computed kind is never switched off: its public links stay on when the admin turns the kind off"
+LINT_INSTEAD = "a kind of PUB_KINDS (kalmido/core/instance.py) as a string literal"
+
+
 if __name__ == "__main__":
-    errs = errors(sys.argv[1] if len(sys.argv) > 1 else None)
-    for e in errs:
-        print("ERROR:", e)
-    print(f"check_pubkinds: {len(errs)} error(s)")
-    sys.exit(1 if errs else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_pubkinds", LINT_WHY, LINT_INSTEAD):
+        errs = errors(sys.argv[1] if len(sys.argv) > 1 else None)
+        for e in errs:
+            print("ERROR:", e)
+        print(f"check_pubkinds: {len(errs)} error(s)")
+        sys.exit(1 if errs else 0)
