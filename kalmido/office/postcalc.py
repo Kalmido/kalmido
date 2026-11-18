@@ -148,17 +148,23 @@ def pc_build(c, uid, oid, r, strict=False):
                      "state": st, "task_id": a["task_id"] if a else None, "plan_qty": float(q0), "actual_qty": float(q1),
                      "actual_h": float(round(Decimal(a["s"]) / 3600, 2)) if a else None, "diff_qty": float(q1 - q0),
                      "plan_text": fmt_qty(q0, lg), "actual_text": fmt_qty(q1, lg), "diff_text": fmt_qty(q1 - q0, lg),
-                     "plan_net_text": fmt_money(n0, lg, home), "actual_net_text": fmt_money(n1, lg, home)})
+                     "plan_net_text": fmt_money(n0, lg, home), "actual_net_text": fmt_money(n1, lg, home),
+                     # 2.1389.0 (#6106 b): a linked hour position without tracked time (0 h after rounding) goes onto the draft as 0
+                     "warn": "no_time" if st == "time" and q1 == 0 else ""})
     sums = {"plan_net": float(round(plan, 2)), "actual_net": float(round(actual, 2)), "diff_net": float(round(actual - plan, 2)),
             "plan_net_text": fmt_money(plan, lg, home), "actual_net_text": fmt_money(actual, lg, home), "diff_net_text": fmt_money(actual - plan, lg, home),
-            "currency": home, "linked": len(act), "timed": len([x for x in prev if x["state"] == "time"]), "step_h": float(PC_STEP)}
+            "currency": home, "linked": len(act), "timed": len([x for x in prev if x["state"] == "time"]), "step_h": float(PC_STEP),
+            # 2.1389.0 (#6106 b): the fixed discounts are larger than the actual amount: the draft would be negative
+            "no_time": len([x for x in prev if x["warn"] == "no_time"]), "negative": actual < 0}
     return out, prev, sums, bind
 
 
 @app.get("/api/office/docs/<int:did>/postcalc")
 def pc_get(did):
     """The preview: {doc_id, rows: [{key, title, unit, rate, state: time|not_time|none|part, task_id, plan_qty, actual_qty,
-    actual_h, diff_qty, *_text}], sums: {plan_net, actual_net, diff_net, *_text, currency, linked, timed, step_h}}."""
+    actual_h, diff_qty, *_text, warn: "" | "no_time"}], sums: {plan_net, actual_net, diff_net, *_text, currency, linked, timed,
+    step_h, no_time, negative}} (2.1389.0, #6106: warn / no_time = linked hour positions with 0 tracked hours, negative = the actual
+    sum is below 0 through fixed discounts)."""
     c, uid, oid = office_ctx()
     r = _pc_offer(c, oid, did)
     _, prev, sums, _ = pc_build(c, uid, oid, r)

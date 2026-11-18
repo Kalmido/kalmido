@@ -205,11 +205,16 @@ def _gear_busy(c, oid, d, own):
         return {}
     a = date.fromisoformat(d["start"])
     e = a + timedelta(days=d["days"] - 1)
-    rows = [{"id": None, "start": a.isoformat(), "end": e.isoformat(), "resource_kind": "equipment", "resource_id": g["eid"], "key": g["key"]}
+    # 2.1389.0 (#6106 a): one dsp_conflicts for all devices of the day (it reads the area's sets and bookings once; before it ran
+    # once per device: 60 devices = 120 queries a day); each row gets its own id "g:<key>" so the answers do not fall together.
+    # The stock part of the decision waits for a stock quantity of a device (office_equipment has none yet): as before, every
+    # other booking holding the device in the period counts.
+    rows = [{"id": f"g:{g['key']}", "start": a.isoformat(), "end": e.isoformat(), "resource_kind": "equipment", "resource_id": g["eid"], "key": g["key"]}
             for g in d["gear"]]
+    res = dsp_conflicts(c, oid, rows, a, e)
     conf = {}
     for x in rows:
-        dbl = [i for i in dsp_conflicts(c, oid, [x], a, e).get(None, {}).get("double", []) if i not in own]
+        dbl = [i for i in res.get(x["id"], {}).get("double", []) if i not in own]
         if dbl:
             conf[x["key"]] = len(dbl)
     return conf
