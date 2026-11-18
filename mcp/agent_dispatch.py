@@ -669,6 +669,23 @@ class Dispatcher:
         f = getattr(self.host, "op_api", None)
         return f() if callable(f) else self.host.api
 
+    def job_env(self, api):
+        """The environment of a job of the round (api: the round's client, data_api). Review R3 F5: one place for the runner and
+        a tick by hand (CliHost), so a job of the chosen person never inherits KALMIDO_TOKEN of the starter's environment."""
+        env = self.host.child_env(self.owner(), None) if hasattr(self.host, "child_env") else dict(os.environ)
+        if api is not self.host.api:  # 2.1386.0 (#6668): the job works for the chosen person (child_env: never the own
+            # token of a team agent, review F1); with #6457 through the env file of that person's token (op_file).
+            # Review R3 F5: also a tick by hand (CliHost, its environment is the starter's): never KALMIDO_TOKEN
+            env.pop("KALMIDO_ENV_FILE", None)
+            env.pop("KALMIDO_TOKEN", None)
+            if getattr(self.host, "op_env_file", None):
+                env["KALMIDO_ENV_FILE"] = self.host.op_env_file
+        for k in ("KALMIDO_CHAT_USER", "KALMIDO_OUTBOX"):  # never the person / outbox of the last chat run
+            env.pop(k, None)
+        if self.owner():
+            env["KALMIDO_CHAT_USER"] = str(self.owner())
+        return env
+
     def tick(self, now=None, force=False, dry=None):
         """One round when it is due (or force). Returns the result dict (or None when not due / off)."""
         now = now or time.time()
@@ -752,17 +769,11 @@ class Dispatcher:
                     w("start a job for " + " ".join(f"#{i}" for i in ids))
                     res["started"] = {"tasks": ids, "dry": True}
                 else:
-                    env = self.host.child_env(self.owner(), None) if hasattr(self.host, "child_env") else dict(os.environ)
-                    if api is not self.host.api:  # 2.1386.0 (#6668): the job works for the chosen person (child_env: never the own
-                        # token of a team agent, review F1); with #6457 through the env file of that person's token (op_file)
-                        env.pop("KALMIDO_ENV_FILE", None)
-                        if getattr(self.host, "op_env_file", None):
-                            env["KALMIDO_ENV_FILE"] = self.host.op_env_file
-                    for k in ("KALMIDO_CHAT_USER", "KALMIDO_OUTBOX"):  # never the person / outbox of the last chat run
-                        env.pop(k, None)
-                    if self.owner():
-                        env["KALMIDO_CHAT_USER"] = str(self.owner())
-                    jid, msg = start_job(bundle, brief, cfg, env, self.host.state_dir)
+                    env = self.job_env(api)
+                    if api is not self.host.api and not env.get("KALMIDO_ENV_FILE"):
+                        jid, msg = None, "no env file of the chosen person's token"  # review R3 F5: never without a token file
+                    else:
+                        jid, msg = start_job(bundle, brief, cfg, env, self.host.state_dir)
                     if jid:
                         self.reg["jobs"][str(jid)] = {"tasks": ids, "at": now,
                                                       "titles": {str(t["id"]): fenced(t.get("title"), 120) for t in bundle}}
@@ -944,6 +955,8 @@ class CliHost:
         os.makedirs(self.state_dir, exist_ok=True)
         self.agent = self.api.req("GET", "/agent") or {}
         self._say = agent_run.say
+        self._write = agent_run.write_token_file  # review R3 F5
+        self.op_env_file = None
 
     def say(self, key, *args):
         return self._say(key, self.agent.get("lang"), *args)
@@ -956,7 +969,17 @@ class CliHost:
         if self.agent.get("owner_id") or self.agent.get("request_token") is not True:
             return self.api
         tok, _, go = self.api.request_token(operator=True)
-        return None if not go else (self.api.as_token(tok) if tok else self.api)
+        if not go:
+            return None
+        if tok:  # review R3 F5: the job of a tick by hand reads the chosen person's token from op.env, as the runner's (op_file)
+            self.op_env_file = None
+            try:
+                d = os.path.join(self.state_dir, "run-env")
+                os.makedirs(d, mode=0o700, exist_ok=True)
+                self.op_env_file = self._write(os.path.join(d, "op.env"), os.environ.get("KALMIDO_URL", ""), tok)
+            except OSError:
+                return None  # without the file no job of the chosen person can start: the round waits
+        return self.api.as_token(tok) if tok else self.api
 
     def perm_uid(self, tid=None):
         v = self.agent.get("perm_user_id") or os.environ.get("KALMIDO_PERM_USER") or self.agent.get("owner_id")

@@ -174,6 +174,41 @@ def _f1():
 _f1()
 
 
+
+# ---------------------------------------------------------------- review R3 F5: a tick by hand (CliHost) never hands on the long-lived token
+# Without the fix the dispatcher run from the command line (agent_dispatch.py --once) gave a job of the chosen person the
+# starter's environment: KALMIDO_TOKEN (the agent's long-lived token) and no env file of the person's request token.
+def _f5():
+    import sys
+    import tempfile
+    import time as _t
+    ar, ad, km = sys.modules["agent_run"], sys.modules["agent_dispatch"], sys.modules["kalmido_mcp"]
+    tmp = tempfile.mkdtemp(prefix="kalmido-p6668f5-")
+    os.environ["KALMIDO_TOKEN"] = "abk_" + "m" * 30  # the starter's environment of a tick by hand
+    h = ad.CliHost.__new__(ad.CliHost)
+    h.api = ar.Api("http://127.0.0.1:9", "abk_" + "m" * 30)
+    h.state_dir, h._say, h._write, h.op_env_file = tmp, ar.say, ar.write_token_file, None
+    h.agent = {"owner_id": None, "request_token": True, "perm_user_id": 9, "runtime": {"dispatch": "on"}}
+    h.api.request_token = lambda operator=False: ("abk_op" + "o" * 26, _t.time() + 3600, True)
+    api = h.op_api()
+    check(api is not None and api is not h.api and api.token == "abk_op" + "o" * 26, "(p) R3 F5: the tick by hand works the lists with the chosen person's token")
+    check(h.op_env_file and km.env_credentials({"KALMIDO_ENV_FILE": h.op_env_file}) == ("http://127.0.0.1:9", "abk_op" + "o" * 26),
+          f"(p) R3 F5: ... and writes it to op.env {h.op_env_file}")
+    proj = os.path.join(tmp, "proj")
+    os.makedirs(proj)
+    with open(os.path.join(proj, "KALMIDO-DISPATCH.json"), "w", encoding="utf-8") as f:
+        json.dump({"lists": [1]}, f)
+    env = ad.Dispatcher(h, proj).job_env(api)
+    check("KALMIDO_TOKEN" not in env and env.get("KALMIDO_ENV_FILE") == h.op_env_file,
+          f"(p) R3 F5: the job of a tick by hand gets op.env, never KALMIDO_TOKEN {sorted(k for k in env if k.startswith('KALMIDO'))}")
+    h.op_env_file = None
+    env = ad.Dispatcher(h, proj).job_env(api)
+    check("KALMIDO_TOKEN" not in env and "KALMIDO_ENV_FILE" not in env, "(p) R3 F5: without op.env neither the token nor the starter's file")
+
+
+_f5()
+
+
 # ---------------------------------------------------------------- (m) review F2: no run reads the long-lived token
 # Without the fix a team agent's run could read kalmido-agent.env (or the starter's /proc/<pid>/environ) and ask request
 # tokens for anybody with the agent's own token. 2.1386.0 (merged with #6457): the guard hook of #6457 carries it -- its
