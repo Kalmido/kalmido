@@ -348,6 +348,10 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   call `list_build_status` (list_id = the project) and settle each open task that already has a published version or an open
   branch; `get_task` shows the same as `build` (`state` released / main / branch / none, `branches`, `stale` = open
   although published). The reference starter (2.619.0) sets `repo.git_author` itself for each task run.
+- **Cause before symptom (2.1368.0).** When the same hint stands in a status line or report for the second time, or
+  something is red (test, lint, CI) before the next push or release, fix the cause or file it as a task, and tell the
+  person in one line. Never only carry it on to the next report, never cover it with a quiet routine message, and do not
+  patch the same kind of red again and again one case at a time.
 - **Release: one gate, a snapshot of the main branch (2.1368.0).** (1) Exactly one gate decides about a release: the
   project's CI. Never run the same suites a second time locally before the push as a second gate; in practice a second run
   mostly reports red that is green on the main branch, and costs days. (2) A release is a snapshot of the main branch. Red
