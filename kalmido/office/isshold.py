@@ -19,7 +19,7 @@ new]} (old of the first change since a person last checked, new of the last), "f
 The fields are the client's own invoicing data (not sealed at rest, like the client's columns)."""
 import json
 
-from flask import jsonify
+from flask import g, has_request_context, jsonify
 
 from ..core.config import app
 from ..core.db import body, bump, db, iso, now_utc
@@ -27,7 +27,7 @@ from ..core.errors import Denied, DeniedKey
 from ..core.i18n import N_, tr
 from ..core.pg import system_ctx
 from ..accounts.session import me
-from ..team.clients import _gate, cl_bill_ok, need_client
+from ..team.clients import CLIENT_BILL_GATED, _gate, cl_bill_ok, need_client
 from .issuers import iss_log
 from .owrite import ow_write
 
@@ -47,18 +47,55 @@ def ihd_load(raw):
     return h if isinstance(h, dict) else {"at": str(raw)[:40], "fields": {}, "flags": [], "new": False}
 
 
-def ihd_public(c, h, cid=None):
-    """The mark as the office shows it: {at, new, issuer: name, fields: [{field, old, new}], flags, client_id}."""
+def ihd_issuer(c, h, cid):
+    """The issuer of mark h (row id, org_id, name) only when it belongs to the area of client cid; None: no issuer, an unknown
+    one or another area's (review F1: a mark that came along with an organisation import or was set by hand names no issuer
+    of another area - its name is not shown and its office log gets no line)."""
+    try:
+        iid = int((h or {}).get("issuer") or 0)
+    except (TypeError, ValueError):
+        return None
+    if not iid or not cid:
+        return None
+    from .model import pb_cl_sql
+    with system_ctx(c):  # the issuer and whether the client lies in its area (both rows may be outside the reader's context)
+        iss = c.execute("SELECT id, org_id, name FROM office_issuers WHERE id=?", (iid,)).fetchone()
+        if iss is None or not c.execute(f"SELECT 1 FROM clients WHERE id=? AND {pb_cl_sql(c, iss['org_id'])}", (int(cid),)).fetchone():
+            return None
+    return iss
+
+
+def _viewer():
+    """The signed-in person of the request (None: none, e.g. a series' run in the background)."""
+    u = g.get("user") if has_request_context() else None
+    return u["id"] if u else None
+
+
+def ihd_public(c, h, cid=None, uid=None):
+    """The mark as the office shows it: {at, new, issuer: name, fields: [{field, old, new}], flags, client_id}.
+    review F4: the old / new values of an invoicing field a person may not see (team/clients.py CLIENT_BILL_GATED,
+    cl_bill_ok) stay empty - the field's name shows that it changed (uid: the person, default the request's)."""
     if not h:
         return None
-    name = ""
-    if h.get("issuer"):
-        with system_ctx(c):  # the issuer's name only
-            r = c.execute("SELECT name FROM office_issuers WHERE id=?", (int(h["issuer"]),)).fetchone()
-        name = r["name"] if r else ""
+    iss = ihd_issuer(c, h, cid)
+    uid = uid if uid is not None else _viewer()
+    see = True
     f = h.get("fields") if isinstance(h.get("fields"), dict) else {}
-    return {"at": str(h.get("at") or ""), "new": bool(h.get("new")), "issuer": name, "client_id": cid,
-            "fields": [{"field": k, "old": (v or ["", ""])[0], "new": (v or ["", ""])[-1]} for k, v in f.items() if k in IHD_FIELDS],
+    if any(k in CLIENT_BILL_GATED for k in f):
+        oid = None
+        if cid:
+            with system_ctx(c):  # the client's area only (the rights of uid in it decide)
+                r = c.execute("SELECT org_id FROM clients WHERE id=?", (int(cid),)).fetchone()
+            oid = r[0] if r else None
+        see = bool(uid) and cl_bill_ok(c, uid, oid)
+
+    def val(k, v, i):
+        if k in CLIENT_BILL_GATED and not see:
+            return ""
+        return (v or ["", ""])[i]
+    return {"at": str(h.get("at") or ""), "new": bool(h.get("new")), "issuer": iss["name"] if iss else "", "client_id": cid,
+            "fields": [{"field": k, "old": val(k, v, 0), "new": val(k, v, -1), **({} if see or k not in CLIENT_BILL_GATED else {"hidden": True})}
+                       for k, v in f.items() if k in IHD_FIELDS],
             "flags": [x for x in (h.get("flags") or []) if isinstance(x, str)][:5]}
 
 
@@ -108,13 +145,21 @@ def ihd_clear(cid):
     h = ihd_load(r["issuer_hold"])
     if h is None:
         return jsonify(ok=True, client_hold=None)
-    if not isinstance(at, str) or at != str(h.get("at") or ""):
-        e = Denied(409, tr("The invoice issuer changed the client's data again meanwhile; check them again"))
-        e.data = {"client_hold": ihd_public(c, h, cid)}
-        raise e
-    ow_write(c, uid, "client", cid, {}, lambda c, b, cur: {"issuer_hold": None}, where="id=?", args=(cid,), lock=f"clients-{cid}", version=False)
-    with system_ctx(c):  # the issuer's area (its log)
-        iss = c.execute("SELECT id, org_id FROM office_issuers WHERE id=?", (int(h.get("issuer") or 0),)).fetchone()
+    seen = {}
+
+    def clean(c, b, cur):  # review F3: compared under the client's lock with the mark as it is now (a key's change waits for it)
+        hc = ihd_load(cur.get("issuer_hold"))
+        if hc is None:
+            return {}
+        if not isinstance(at, str) or at != str(hc.get("at") or ""):
+            e = Denied(409, tr("The invoice issuer changed the client's data again meanwhile; check them again"))
+            e.data = {"client_hold": ihd_public(c, hc, cid, uid)}
+            raise e
+        seen["h"] = hc
+        return {"issuer_hold": None}
+    ow_write(c, uid, "client", cid, {}, clean, where="id=?", args=(cid,), lock=f"clients-{cid}", version=False)
+    h = seen.get("h")
+    iss = ihd_issuer(c, h, cid) if h else None  # review F1: only an issuer of the client's own area gets the line
     if iss is not None:
         iss_log(c, iss["org_id"], iss["id"], "issuer_hold_checked", f"client:{cid}", {"client": cid, "at": h.get("at"), "checked_at": iso(now_utc())}, uid=uid)
     bump(c)

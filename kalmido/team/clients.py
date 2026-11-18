@@ -279,9 +279,12 @@ def client_public(c, uid, r, stats=False, month=None):
             for k in CLIENT_BILL_GATED:
                 d["billing"].pop(k, None)
         d["bill_edit"] = cl_bill_ok(c, uid, r["org_id"], "edit")
-        if "issuer_id" in r.keys() and r["issuer_id"]:  # 2.1384.0 (#6700): set up by an invoice issuer's key; its mark until a person checked
+        # 2.1384.0 (#6700): set up by an invoice issuer's key; its mark until a person checked. review F1: a mark without the issuer
+        # (an organisation import keeps the mark, not the issuer) shows too, so a person can check it and take it away
+        if ("issuer_id" in r.keys() and r["issuer_id"]) or ("issuer_hold" in r.keys() and r["issuer_hold"]):
             from ..office.isshold import ihd_load, ihd_public
-            d["issuer"] = {"external_ref": r["external_ref"] or "", "client_hold": ihd_public(c, ihd_load(r["issuer_hold"]), r["id"])}
+            d["issuer"] = {"external_ref": (r["external_ref"] if r["issuer_id"] else "") or "",
+                           "client_hold": ihd_public(c, ihd_load(r["issuer_hold"]), r["id"], uid)}
     if stats:
         st = client_stats(c, uid, r["id"], lids, month)
         if agent_time_hidden():  # 2.582.0 (#4380, fable review F2): an agent without the scope time: no hours / amounts

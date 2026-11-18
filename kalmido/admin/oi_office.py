@@ -180,6 +180,11 @@ def _p_client(c, run, src, d, ctx):
         d["created_by"] = ctx.uid
     if d.get("issuer_id") or d.get("external_ref"):  # 2.1384.0 (#6700): issuers are not exported: the client is the office's own (its mark stays)
         d["issuer_id"], d["external_ref"] = None, None
+    if d.get("issuer_hold"):  # review F1: the mark stays (nothing is sent unchecked), its issuer number does not (another area's issuer)
+        from ..office.isshold import ihd_load
+        h = dict(ihd_load(d["issuer_hold"]) or {})
+        h.pop("issuer", None)
+        d["issuer_hold"] = json.dumps(h, ensure_ascii=False)
     return d
 
 

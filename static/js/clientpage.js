@@ -183,7 +183,7 @@ const IHD_FIELDS = {name: N_('Name'), name_extra: N_('Name addition'), street: N
   city: N_('City'), country: N_('Country'), vat_id: N_('VAT ID'), email_invoice: N_('E-mail for invoices'), buyer_reference: N_('Buyer reference (e.g. routing ID)')};
 function ihd_listHtml(h) {
   const v = x => x ? esc(x) : `<span class="muted">${esc(tr('empty'))}</span>`;
-  const rows = (h.fields || []).map(f => `<li><span class="muted">${esc(tr(IHD_FIELDS[f.field] || f.field))}:</span> ${/*html-ok*/ h.new ? v(f.new) : `${/*html-ok*/ v(f.old)} → <b>${/*html-ok*/ v(f.new)}</b>` /* v() escapes */}</li>`);
+  const rows = (h.fields || []).map(f => `<li><span class="muted">${esc(tr(IHD_FIELDS[f.field] || f.field))}:</span> ${/*html-ok*/ f.hidden ? `<span class="muted">${esc(tr('changed'))}</span>` /* review F4: an invoicing field this person may not see */ : h.new ? v(f.new) : `${/*html-ok*/ v(f.old)} → <b>${/*html-ok*/ v(f.new)}</b>` /* v() escapes */}</li>`);
   const flags = [(h.flags || []).includes('client_lookalike') ? tr('Another client of the office has the same name or VAT ID.') : '',
     (h.flags || []).includes('text_suspicious') ? tr('The name contains a web or e-mail address.') : ''].filter(Boolean);
   return `<p><b>${esc(h.new ? tr('Set up by the invoice issuer {0}; no person has checked the data yet.', h.issuer || '') : tr('Changed by the invoice issuer {0}; no person has checked the changes yet.', h.issuer || ''))}</b></p>`
@@ -193,7 +193,7 @@ function ihd_listHtml(h) {
 const ihd_dlgHtml = h => h ? `<div class="ofdwarn ihdbox" role="status">${/*html-ok*/ ihd_listHtml(h)}<label class="chkl"><input type="checkbox" id="ofd-ihd-ok"> ${esc(tr('I checked these client data'))}</label></div>` : '';
 function ihd_cardHtml(c) {
   const i = c.issuer; if (!i) return '';
-  const ref = `<p class="muted ihdref">${esc(tr('Managed by an invoice issuer, external ID {0}', i.external_ref || '–'))}</p>`;
+  const ref = i.external_ref ? `<p class="muted ihdref">${esc(tr('Managed by an invoice issuer, external ID {0}', i.external_ref))}</p>` : '';  // review F1: an imported mark has no issuer
   const h = i.client_hold; if (!h) return ref;
   return `${/*html-ok*/ ref}<div class="ofdwarn ihdbox" role="status">${/*html-ok*/ ihd_listHtml(h)}<p>${esc(tr('Until a person checks them, documents to this client are finalised and sent only after a confirmation in the dialog, and never automatically.'))}</p>`
     + `${c.bill_edit ? `<button class="btn sm" data-ihd-ok="${esc(String(c.id))}" data-at="${esc(h.at)}">${ic('check', 's')} ${esc(tr('Client data from the invoice issuer checked'))}</button>` : ''}</div>`;
