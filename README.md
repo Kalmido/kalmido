@@ -19,10 +19,11 @@
 
 ## What's new
 
-**2.1378.0** (2026-11-18):
-- **Scheduling**: a quotation taken over into a project books each shoot part's gear as an option on the shoot day; the call sheet (and its PDF) gets a tickable packing list per shoot day.
-- **Office**: an accepted quotation has a "Post-calculation" button with planned vs. actual per item and an invoice draft from the recorded hours.
-- **Privacy**: account export and privacy templates describe the code as it is; the public sign-off remembers a guest's name only in its own link cookie.
+**2.1380.0** (2026-11-18):
+- **Office**: finalising a draft dated in an earlier year offers to set the date to today.
+- **Calendar**: two-finger zoom is smooth again.
+- **Agents**: a locked account's hosted MCP access answers 403 at once and continues after the unlock.
+- **Updates**: a database must come from Kalmido 2.1000 or newer; older installations update to 2.1000.x first (docs/UPGRADING.md).
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
