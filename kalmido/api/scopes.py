@@ -428,6 +428,8 @@ def approval_replay_token(c, header):
     a = agent_row(c, j["agent_id"])
     if a is not None and not a["owner_id"] and j["action_by"]:
         g.ctl_for = j["action_by"]
+    # 2.1386.0 (#6668): bound to the token id - a replaced or expired request token ends a stored approval with 401 (safe
+    # side); binding to agent + person follows in #7125
     if ap.get("tok"):  # 2.360.0 C (#2496): the token that asked (its lists / scopes), gone = no replay; older jobs: the newest
         return c.execute("SELECT * FROM api_tokens WHERE id=? AND user_id=?", (ap["tok"], j["agent_id"])).fetchone()
     # ... the newest of its own tokens: never the run token of a run for somebody else (asked_by, agents/srvteam.py)
