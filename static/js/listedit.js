@@ -210,11 +210,17 @@ const liconSrc = k => k === 'kalmido' ? '/static/icon.svg' : `/static/avatars/${
 const LICON_OK = /^(\/static\/|\/api\/list-icon\/|data:image\/(png|jpeg|gif|webp);)/;  // 2.306.0 D4 (#2875): the picture of a list only from the app or inline
 const liconOk = src => LICON_OK.test(src || '');  // 2.306.0 (#2875 review N23): one check for every place that shows a list picture
 const licon = (l, cls = 'licon') => l && l.icon && liconOk(l.icon) ? `<img class="${cls}" src="${esc(l.icon)}" alt="" loading="lazy" decoding="async">` : '';
+// 2.1381.0 (#6886): one tile picker for pictures (the project icon here, the organisation's symbol in acctset.js orgModal):
+// fixed tiles, an upload tile behind its fixed file input (data-fpass), a remove tile. key = the data attribute of the buttons.
+function picTilesHtml({label, key, tiles = [], up = true, upOn = false, upImg = '', rm = false}) {
+  return `<div class="lipick" role="group" aria-label="${esc(label)}">${tiles.map(t => `<button type="button" class="avopt ${t.on ? 'on' : ''}" data-${esc(key)}="${esc(t.k)}" title="${esc(t.t)}" aria-label="${esc(t.t)}" aria-pressed="${t.on ? 'true' : 'false'}">${/*html-ok*/ t.html}</button>`).join('')}` +
+    (up ? `<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-fpass><button type="button" class="avopt up ${upOn ? 'on' : ''}" data-${esc(key)}="upload" title="${esc(tr('Upload a picture…'))}" aria-label="${esc(tr('Upload a picture…'))}" aria-pressed="${upOn ? 'true' : 'false'}">${upImg ? `<img src="${esc(upImg)}" alt="">` : ic('plus')}</button>` : '') +
+    (rm ? `<button type="button" class="avopt none" data-${esc(key)}="none" title="${esc(tr('Remove the picture'))}" aria-label="${esc(tr('Remove the picture'))}">${ic('ban', 's')}</button>` : '') + '</div>';
+}
 function liconPickHtml(l) {
-  const cur = l.icon || '';
-  return `<div class="lipick" role="group" aria-label="${esc(tr('Picture'))}">${LICON_PRESETS.map(([k, n]) => `<button type="button" class="avopt ${cur === liconSrc(k) ? 'on' : ''}" data-licon="${k}" title="${esc(k === 'kalmido' ? n : avTitle(k))}" aria-label="${esc(k === 'kalmido' ? n : avTitle(k))}" aria-pressed="${cur === liconSrc(k)}"><img src="${liconSrc(k)}" alt=""></button>`).join('')}` +
-    `<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-fpass><button type="button" class="avopt up ${cur.startsWith('/api/list-icon/') ? 'on' : ''}" data-licon="upload" title="${esc(tr('Upload a picture…'))}" aria-label="${esc(tr('Upload a picture…'))}">${cur.startsWith('/api/list-icon/') ? `<img src="${esc(cur)}" alt="">` : ic('plus')}</button>` +
-    (cur ? `<button type="button" class="avopt none" data-licon="none" title="${esc(tr('Remove the picture'))}" aria-label="${esc(tr('Remove the picture'))}">${ic('ban', 's')}</button>` : '') + '</div>';
+  const cur = l.icon || '', own = cur.startsWith('/api/list-icon/');
+  return picTilesHtml({label: tr('Picture'), key: 'licon', upOn: own, upImg: own ? cur : '', rm: !!cur,
+    tiles: LICON_PRESETS.map(([k, n]) => ({k, t: k === 'kalmido' ? n : avTitle(k), on: cur === liconSrc(k), html: `<img src="${liconSrc(k)}" alt="">`}))});
 }
 async function liconSet(lid, how) {
   let j;

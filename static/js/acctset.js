@@ -268,20 +268,24 @@ async function orgModal(o, done) {
   const mem = new Set(o?.members || []), adm = new Set(o?.admins || []);  // 2.28.0 (#935): + the organisation's admins
   // 2.138.3 B (#2407): members as a list like Users (search, filter Members / All, a Member and an Admin box per row) instead of
   // one button per person; the symbol shows the picture / an app icon, never an emoji placeholder; the domain hint under the field
-  const icPrev = v => orgIconHtml(v ? {icon: v} : {icon_url: o?.icon_url});  // a typed symbol replaces the picture on saving
-  // 2.161.0 (#2594): an own picture also here (as in Settings > Workspaces, the same routes: only an admin of this organisation)
-  const picAdm = !!o && (o.admins || []).includes(S.me?.id);
-  const picRow = () => picAdm ? `<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-fpass><button type="button" class="iconbtn" data-ogpic="up" title="${esc(tr('Upload a picture…'))}" aria-label="${esc(tr('Upload a picture…'))}">${ic('picture', 's')}</button>${o.icon_url ? `<button type="button" class="iconbtn" data-ogpic="rm" title="${esc(tr('Remove the picture'))}" aria-label="${esc(tr('Remove the picture'))}">${ic('x', 's')}</button>` : ''}` : '';
-  const picDone = async () => {
-    try { S.orgs = (await api('GET', '/api/admin/orgs')).orgs; } catch { return; }
-    const f = S.orgs.find(x => x.id === o.id); if (!f) return;
-    Object.assign(o, {icon: f.icon, icon_url: f.icon_url});
-    const inp = $('#og-icon', md); if (inp) inp.value = f.icon || '';  // the picture replaced the emoji: saving must not bring it back
-    $('#og-icprev', md).innerHTML = icPrev(f.icon || ''); $('#og-pic', md).innerHTML = picRow();
-  };
+  // 2.1381.0 (#6886): the symbol as tiles instead of a text field (picTilesHtml, the picker of the project icon): the first letter
+  // of the name (automatic, the default), a symbol typed before stays as a tile, an own picture (upload, cropped), remove.
+  // Kept here until Save (Cancel changes nothing; a new organisation gets its picture right after it was created).
+  // sym: 'auto' | 'text' (o.icon) | 'pic' (the saved picture or bl, the cropped new one)
+  const picAdm = !o || (o.admins || []).includes(S.me?.id);  // 2.161.0 (#2594): an own picture only by an admin of the organisation (the creator becomes one)
+  const txt0 = o?.icon_url ? '' : (o?.icon || '');
+  let sym = o?.icon_url ? 'pic' : txt0 ? 'text' : 'auto', bl = null, blUrl = '';
+  const ini = () => `<span class="ogini" aria-hidden="true">${esc(String($('#og-name', md)?.value ?? o?.name ?? '').trim().charAt(0).toUpperCase() || '?')}</span>`;
+  const picUrl = () => bl ? blUrl : sym === 'pic' ? (o?.icon_url || '') : '';
+  const icPrev = () => sym === 'pic' && picUrl() ? `<img class="orgic" src="${esc(picUrl())}" alt="" width="32" height="32">` : sym === 'text' ? orgIconHtml({icon: txt0}) : ini();
+  const lock = !picAdm && !!o?.icon_url;  // someone else's picture: only an admin of the organisation removes it (hint below)
+  const picRow = () => lock ? '' : picTilesHtml({label: tr('Symbol'), key: 'ogsym', up: picAdm, upOn: sym === 'pic', upImg: picUrl(), rm: sym !== 'auto',
+    tiles: [{k: 'auto', t: tr('First letter of the name (automatic)'), on: sym === 'auto', html: ini()}, ...(txt0 ? [{k: 'text', t: tr('Symbol'), on: sym === 'text', html: orgIconHtml({icon: txt0})}] : [])]});
+  const symDraw = () => { $('#og-icprev', md).innerHTML = icPrev(); $('#og-pic', md).innerHTML = picRow(); };
+  const symSet = (k, b2) => { if (blUrl) URL.revokeObjectURL(blUrl); bl = b2 || null; blUrl = bl ? URL.createObjectURL(bl) : ''; sym = k; symDraw(); };
   const md = modal(`<h3>${o ? tr('Edit organisation') : tr('New organisation')}</h3>
     <div class="row"><label for="og-name">${tr('Name')}</label><input id="og-name" maxlength="60" value="${esc(o?.name || '')}"></div>
-    <div class="row"><label for="og-icon">${tr('Symbol')}</label><span class="wsicprev" id="og-icprev">${icPrev(o?.icon || '')}</span><input id="og-icon" maxlength="8" class="numin" value="${esc(o?.icon || '')}" placeholder="${esc(tr('optional'))}"${o && !picAdm ? ' aria-describedby="og-pich"' : ''}>${o ? `<span id="og-pic">${picRow()}</span>` : ''}</div>
+    <div class="row ogsymrow"><label>${tr('Symbol')}</label><span class="wsicprev" id="og-icprev"></span><span id="og-pic"></span></div>
     <div class="row"><label for="og-dom">${tr('E-mail domains')}</label><div class="ogfld"><input id="og-dom" maxlength="500" value="${esc(o?.domains || '')}" placeholder="example.com" autocapitalize="off" aria-describedby="og-domh"><span class="muted" id="og-domh">${tr('registrations with these addresses join it')}</span></div></div>
     ${o ? `<div class="oghd"><b id="og-mh">${tr('Members')}</b><span class="muted" id="og-cnt" aria-live="polite"></span></div>
     <div class="ua8bar"><input type="search" id="og-q" placeholder="${esc(tr('Name, user name or e-mail'))}" aria-label="${esc(tr('Search people'))}" autocomplete="off" autocapitalize="off" spellcheck="false"><select id="og-flt" aria-label="${esc(tr('Filter'))}"><option value="mem">${tr('Members')}</option><option value="all">${tr('All')}</option></select></div>
@@ -289,6 +293,7 @@ async function orgModal(o, done) {
     <div class="shint">${setLinkHtml(tr('Admins of an organisation manage its members, name and e-mail domains (Settings > Organisation > People); they are not admins of the server.'))}${picAdm ? '' : ` <span id="og-pich">${tr('Only an admin of the organisation can upload a picture.')}</span>`}</div>` : `<div class="shint">${tr('You become its first member and admin; add people afterwards.')}</div>`}
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="save">${o ? tr('Save') : tr('Create')}</button></div>`);
   md.classList.add('ogmodal');
+  symDraw();
   const row = u => `<div class="mrow ogrow" data-ogrow="${u.id}">${uRowAv(u)}<span class="n">${esc(u.display_name)} <span class="muted">${esc(u.username)}${u.is_admin ? ' · ' + tr('Manages the server') : ''}</span></span>`
     + `<label class="ogchk"><input type="checkbox" data-ogm="${u.id}" ${mem.has(u.id) ? 'checked' : ''} aria-label="${esc(tr('{0} is a member', u.display_name))}"><span>${tr('Member')}</span></label>`
     + `<label class="ogchk ${mem.has(u.id) ? '' : 'off'}"><input type="checkbox" data-oga="${u.id}" ${adm.has(u.id) ? 'checked' : ''} ${mem.has(u.id) ? '' : 'disabled'} aria-label="${esc(tr('{0} is an admin of the organisation', u.display_name))}"><span>${tr('Admin')}</span></label></div>`;
@@ -304,7 +309,7 @@ async function orgModal(o, done) {
   if (o) { if (!mem.size) $('#og-flt', md).value = 'all'; draw(); }
   md.addEventListener('input', e => {
     if (e.target.id === 'og-q') draw();
-    else if (e.target.id === 'og-icon') $('#og-icprev', md).innerHTML = icPrev(e.target.value.trim());
+    else if (e.target.id === 'og-name' && sym === 'auto') symDraw();  // 2.1381.0 (#6886): the letter follows the name
   });
   md.addEventListener('change', e => {
     if (e.target.id === 'og-flt') { draw(); return; }
@@ -318,12 +323,23 @@ async function orgModal(o, done) {
     count();
   });
   md.addEventListener('click', async e => {
-    const pb = e.target.closest('[data-ogpic]'); if (pb) { wsIconPick(md, o.id, pb.dataset.ogpic, picDone); return; }  // 2.161.0 (#2594)
+    const pb = e.target.closest('[data-ogsym]');
+    if (pb) {  // 2.1381.0 (#6886)
+      const k = pb.dataset.ogsym;
+      if (k !== 'upload') { symSet(k === 'none' ? 'auto' : k); return; }
+      const got = async f => { const b2 = f && await wsIconCrop(f); if (b2 && md.isConnected) symSet('pic', b2); };
+      const f0 = fpass_take(); if (f0) { got(f0); return; }  // 2.633.0 (#4920): the file of the fixed input before the tile
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp,image/gif';
+      inp.addEventListener('change', () => got(inp.files?.[0])); inp.click();
+      return;
+    }
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { md.remove(); return; }
     try {
       if (b.dataset.m === 'save') {
-        const body = {name: $('#og-name', md).value.trim(), icon: $('#og-icon', md).value.trim(), domains: $('#og-dom', md).value};
+        // 2.1381.0 (#6886): the symbol text only when it changed (an empty one keeps a picture on the server; DELETE removes it)
+        const icon = sym === 'text' ? txt0 : '';
+        const body = {name: $('#og-name', md).value.trim(), domains: $('#og-dom', md).value, ...(o && icon === txt0 ? {} : {icon})};
         if (o) {
           // 2.270.0 A (#3019): only what was changed here (who joined / became admin meanwhile stays): the fields that differ
           // from the opened state, the members and admins as add / remove
@@ -333,7 +349,14 @@ async function orgModal(o, done) {
           // 2.1317.0 (#6496): empty lists stay out (through a client's support access only name and symbol may be sent)
           const ops = Object.entries({members_add: df(mem, m0), members_remove: df(m0, mem), admins_add: df(a1, a0), admins_remove: df(a0, a1).filter(id => !df(m0, mem).includes(id))}).filter(([, v]) => v.length);
           await api('PATCH', `/api/admin/orgs/${o.id}`, {...ch, ...Object.fromEntries(ops)});
-        } else await api('POST', '/api/admin/orgs', body);
+          if (bl) await wsIconPut(o.id, bl);  // 2.1381.0 (#6886): the picture chosen here / removed here
+          else if (o.icon_url && sym !== 'pic') await api('DELETE', `/api/orgs/${o.id}/icon`);
+        } else {
+          const j = await api('POST', '/api/admin/orgs', body);
+          // 2.1381.0 (#6886): the picture right after creating (the creator is its admin); a failed upload leaves the organisation
+          // created (api() said why) and the dialog closes, else Create again would collide with the name
+          if (bl && j?.id) await wsIconPut(j.id, bl).catch(() => {});
+        }
       }
       md.remove(); done && done(); await load(); render();
     } catch { /* api() said it */ }
