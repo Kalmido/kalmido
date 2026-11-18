@@ -3168,7 +3168,10 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    the tasks and the rules: one commit per task with `#ID` in the subject, a task that does not fit gets a comment instead
    of a build, never close tasks or start another job, the project's `check_cmd` / `finish_cmd`,
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
-   brakes, findings).
+   brakes, findings). 2.1383.0: it always names three numbers of the last 7 days - the median hours from *built* (the
+   author time of the task's commit) to *in `close_ref`* (the round that closed it), how many of the dispatcher's jobs
+   ended with a task still open (neither in `close_ref` nor on a branch), and how often a safeguard was overridden (see
+   *Overrides* below). Whoever sees them daily turns the cause sooner.
 
 **Overrides** (2.1383.0): every switch on the computer that suspends a safeguard of the starter writes one line
 `overridden: ...` into the runner's log when it starts, and the day report counts them over 7 days (*Overridden (7 days):
