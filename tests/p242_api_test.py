@@ -210,5 +210,48 @@ check(A.get(B + f"/api/tasks/{TT}").json().get("content") == "Milk, eggs, bread"
 r = A.patch(B + f"/api/tasks/{TT}", json={"content": "Milk, eggs, bread, cheese", "_prev": {"content": "Milk, eggs, bread"}}).json()
 check(not r.get("conflicts") and r.get("content") == "Milk, eggs, bread, cheese", "#6326: a save on the shown newest text goes through")
 
+# 2.1357.0 (#6335 B3): no change falls through the delta any more - a note is the light area "notes" (the delta's side part
+# carries the notes), a route of the tasks area that leaves no row for the delta (a folder's properties; no list in it) counts as "other"
+# (the whole state) for the writer's own devices only, a task change stays "tasks". A2 = a second device of alice.
+def areas(s):
+    return s.get(B + "/api/version").json().get("a") or {}
+
+
+def moved(before, after):
+    return {k for k in after if after.get(k) != before.get(k)}
+
+
+def vs(s):
+    return s.get(B + "/api/version").json().get("vs")
+
+
+A2 = sess("alice")
+TL = A.post(B + "/api/lists", json={"name": "Two devices"}).json()["id"]
+TT = A.post(B + "/api/tasks", json={"title": "Shopping", "list_id": TL}).json()["id"]
+a0 = areas(A)
+r = A2.post(B + f"/api/lists/{TL}/notes", json={"title": "Second device note", "body": "first line"})
+check(r.status_code in (200, 201), f"B3: a note made on the second device {r.status_code}")
+NID = r.json().get("id")
+m = moved(a0, areas(A))
+check("notes" in m and "tasks" not in m and "other" not in m, f"B3: a new note moves the area notes (not tasks / other): {m}")
+v1 = version(A)
+a0 = areas(A)
+check(A2.patch(B + f"/api/notes/{NID}", json={"body": "second line"}).ok, "B3: the note changed on the second device")
+m = moved(a0, areas(A))
+check(m == {"notes"}, f"B3: a changed note moves notes only: {m}")
+dl = A.get(B + f"/api/state/delta?since={v1}&lean=1&side=1&tt=1").json()
+check(dl.get("full") is False and any(n["id"] == NID and n["title"] == "Second device note" for n in dl.get("notes") or []),
+      f"B3: the delta's side part carries the notes {dl.get('full')}")
+a0, va0, vb0 = areas(A), vs(A), vs(Bo)
+check(A2.put(B + "/api/folders/props", json={"folder": "Corner", "props": {"hide_done": True}, "apply": "new"}).ok, "B3: folder properties saved")
+m = moved(a0, areas(A))
+check("other" in m and "tasks" not in m, f"B3: folder properties (no delta row) count as other: {m}")
+check(vs(A) != va0, "B3: the writer's other device sees the change (its vs moved)")
+check(vs(Bo) == vb0, "B3: another person's devices do not load the whole state for it (vs unchanged)")
+a0 = areas(A)
+check(A2.patch(B + f"/api/tasks/{TT}", json={"title": "Shopping list"}).ok, "B3: a task change")
+m = moved(a0, areas(A))
+check("tasks" in m and "other" not in m, f"B3: a task change stays tasks (the delta has it): {m}")
+
 print(f"p242_api: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

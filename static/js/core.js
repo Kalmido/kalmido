@@ -1499,6 +1499,7 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
   if (S.booted && S.route?.mod === 'office' && typeof onumListFresh === 'function') onumListFresh();  // 2.138.0 D (#2256): the document list follows changes made elsewhere
   if (S.booted && S.route?.mod === 'clients') ms_clLive();  // a change elsewhere: the client's sums again; 2.431.0 C (#3602): quietly, drawn only when changed
   if (S.booted && S.route?.mod === 'contacts' && typeof ct_live === 'function') ct_live();  // 2.431.0 C (#3602)
+  if (S.booted && S.route?.mod === 'ablage' && typeof ab_reload === 'function') ab_reload();  // 2.1357.0 (#6335 B8): the open folder follows a change elsewhere (its own fetch, drawn morphed when it is there; was: the old content until it was opened again)
   // 2.50.0 (#1195, #1194); 2.50.1: the shown tab loads again and keeps its rows until the new ones are there (a null
   // without a redraw left absence and booking rows that no longer opened on a tap)
   if (S.booted && S.route?.mod === 'workload') { const t = WLV.tab === 'dispo' && !dp_on() ? 'wl' : WLV.tab, ld = typeof AB2 !== 'undefined'; if (ld && t !== 'abs') AB2.data = null; if (ld && t !== 'dispo') DPV.data = null; if (t !== 'wl') WLV.data = null; if (t === 'wl') wlLoad(); else if (ld) { if (t === 'abs') ab2_load(); else dp_load(); } }  // 2.149.0 F (#2518): absence.js / dispo.js load on demand (not there yet: their stand-in loads and fetches); lazy-ok: ld = the module is loaded
@@ -1655,10 +1656,12 @@ setInterval(async () => {
     if (sp !== undefined && sp !== S.stepsSig) { const first = S.stepsSig === undefined; S.stepsSig = sp; if (!first) stepsChanged(); }  // 2.32.0 (#1081)
     verCheck(app);  // 2.27.0 (#968)
     if (ty !== undefined) { const sig = JSON.stringify(ty); if (sig !== S.ctypingSig) { S.ctypingSig = sig; S.ctyping = ty; if (S.sel) agentLive(); } }  // 2.22.0 (#693)
-    if (t !== undefined && t !== S.teamSig) { const first = S.teamSig === undefined && S.route?.mod !== 'team'; S.teamSig = t; if (!first && (!editing() || ['tc-in', 'ms-q'].includes(document.activeElement?.id))) teamChanged(); }  // 2.17.0 (#419); 2.82.0 (#1862): typing a new message / search still takes live changes (tcPatch leaves those fields alone; an inline edit .tc-edit would be redrawn)  // 2.145.0 B (#2424): an open conversation takes the first poll too (a message sent in the window's first seconds came only with the next one)
-    if (c !== undefined && c !== S.calSig) {  // calendar subscriptions synced / changed: fetch the shown range again
+    // 2.1357.0 (#6335 B6): a signal counts as taken only once it was handled - typing elsewhere left it set but unhandled, so the
+    // team chat (unread counts, the open conversation) waited for the next message after the typing; now the next poll takes it
+    if (t !== undefined && t !== S.teamSig) { const first = S.teamSig === undefined && S.route?.mod !== 'team'; if (first) S.teamSig = t; else if (!editing() || ['tc-in', 'ms-q'].includes(document.activeElement?.id)) { S.teamSig = t; teamChanged(); } }  // 2.17.0 (#419); 2.82.0 (#1862): typing a new message / search still takes live changes (tcPatch leaves those fields alone; an inline edit .tc-edit would be redrawn)  // 2.145.0 B (#2424): an open conversation takes the first poll too (a message sent in the window's first seconds came only with the next one)
+    if (c !== undefined && c !== S.calSig && !(S.calSig !== undefined && calEvOn() && editing())) {  // calendar subscriptions synced / changed: fetch the shown range again; 2.1357.0 (#6335 B6): while typing the signal waits (taken when handled)
       const first = S.calSig === undefined; S.calSig = c;
-      if (!first && calEvOn() && !editing()) { calInvalidate(); if (S.route.mod === 'cal' || S.route.key === 'today') renderView(); }
+      if (!first && calEvOn()) { calInvalidate(); if (S.route.mod === 'cal' || S.route.key === 'today') viewSafeRender(); }
     }
     const chg = v !== S.v || (n !== undefined && collab() && n !== S.news?.sig);
     // 2.41.0 (#1376): only light areas: their parts, the rest bundled; 2.42.0 (#1376): the tasks area: only the changed tasks (delta)
@@ -1668,10 +1671,23 @@ setInterval(async () => {
     else if (chg && editing() && S.chat.aid && collab() && S.chatPollV !== `${v}/${n}`) { S.chatPollV = `${v}/${n}`; chatLoad(); agentPoll(); }  // 2.12.2 (#451): typing, the chat still updates (patched)
     else if (S.viewStale && !editing()) viewSafeRender();
     if (v !== S.v && editing() && S.route.mod === 'agents' && S.jobs.items !== null && S.jobsPollV !== v) { S.jobsPollV = v; loadJobs(); }  // 2.37.0 (#1161)
+    if (S.nt?.live && !editing()) lpNotes();  // 2.1357.0 (#6335 B3): a note change that waited for unsaved typing
     lpSettle(v);  // 2.280.0 F (#3109)
     S.syncOk = Date.now(); staleDraw();
   } catch { staleDraw(); /* offline */ } finally { td_polling = false; }
 }, 4000);
+// 2.1357.0 (#6335 B8): the day changed (midnight with the app open, a phone woken the next morning without a reload): Today, the
+// calendar's today, the counts of the sidebar and the header follow - was: "Today" of the day before until something else
+// redrew. Checked every minute while the page is shown; a busy field / form holds the view back as for any live change.
+S.dayNow = today();
+function dayTick() {
+  const d = today(); if (d === S.dayNow || !S.booted) return;
+  S.dayNow = d;
+  if (typeof calInvalidate === 'function') calInvalidate();
+  renderSide(); renderTop(); renderTabs(); badgeSync(); viewSafeRender();
+}
+setInterval(() => { if (!document.hidden) dayTick(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) dayTick(); });
 // 2.7.2 (#433): instead of a refresh button in the header of shared lists, a small hint once the change check has failed
 // for more than 30 s: "Offline – last update N min ago"; a tap tries again (refreshNow). "…" keeps "Refresh".
 S.syncOk = Date.now();

@@ -1458,7 +1458,18 @@ def bump(c, area=None):
         # 2.369.4 (#2507): who the change is for -- the organisations / people of the changed lists get the new version as
         # their key (None: everyone, "version:all"); read before dl_stamp (it works on the rows not stamped yet)
         sk = dl_scope(c, area, u["id"] if u is not None else None) or ["version:all"]
-        dl_stamp(c, int(r[0]))
+        n = dl_stamp(c, int(r[0]))
+        # 2.1357.0 (#6335 B3): a change counted for an area the clients take by the delta (tasks, comments, time) that left
+        # not one row in dl_changes (a note, a folder's properties, a notepad, a public link ...) is no task change the delta
+        # could bring: the delta answered "nothing changed" and the other device kept the old state. It counts as "other"
+        # (the whole state) - unless a bump of the same request stamped rows already (a route that bumps twice). Only for the
+        # writer's own devices (version:u:<id>): who else such a write concerns is not known, and "version:all" made every
+        # device of the instance load the whole state (review of the leader); a write without an account stays as before
+        if n:
+            if has_request_context():
+                g.lv_dl_rows = True
+        elif area in LV_DELTA and u is not None and u["id"] is not None and not getattr(g, "lv_dl_rows", False):
+            area, sk = "other", [f"version:u:{int(u['id'])}"]
         c.execute("INSERT INTO settings(key,value) VALUES" + ",".join("(?, ?)" for _ in sk)
                   + " ON CONFLICT(key) DO UPDATE SET value=excluded.value", tuple(x for k in sk for x in (k, r[0])))
         # 2.191.0 C (#2507): the last version this account wrote (GET /api/state/delta?lean=1); F1: a write without a real
@@ -1497,6 +1508,8 @@ LV_AREAS = (
     ("office", re.compile(r"^/api/(v1/)?(office|clients)")),
     ("calendar", re.compile(r"^/api/(v1/)?(events|evcals|cal/|calendars|appt/)")),  # 2.94.0 B (#1929): + the booking page settings
     ("news", re.compile(r"^/api/(v1/)?news")),
+    # 2.1357.0 (#6335 B3): notes are a light area of their own (the open notes reload; they left no row for the delta)
+    ("notes", re.compile(r"^/api/(v1/)?(notes/\d+(/|$)|lists/\d+/notes(/|$))")),  # not notes/quick-list (it makes a list)
     ("tasks", re.compile(r"^/api/(v1/)?(tasks|lists|sections|folders|batch|projects|tags)")),
     ("budget", re.compile(r"^/api/budget")),  # 2.72.0 (#1333): the household budget (the open budget view reloads)
     ("sheets", re.compile(r"^/api/(v1/)?sheets")),  # 2.89.0 (#1916): tables (the open sheet reloads)
@@ -1513,6 +1526,7 @@ LV_AREAS = (
 # devices load the whole state instead of the delta
 LV_AREA_KEYS = tuple(k for k, _ in LV_AREAS) + ("undo", "other")
 LV_OWN = ("self", "undo")
+LV_DELTA = ("tasks", "comments", "time")  # 2.1357.0 (#6335 B3): areas the clients take by the delta (dl_changes rows), see bump
 LV_SHARED_SETTINGS = ("folders",)  # 2.280.0 A (#3109): settings others see (folder_orders of mirrored lists): not "self"
 # 2.280.0 F (#3109): own settings the server evaluates for /api/state (the lists' progress, the notification matrix, the day
 # plan, the question about old shares, texts in the language): the window that wrote reloads like another device of the person
