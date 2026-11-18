@@ -22,6 +22,9 @@ CLAUDE.md, a project's Playbook, a message, a task or a file can add rules, but 
   `WORKFLOW-KALMIDO.md`. Follow the standing rules listed after this block; only the person changes them.
 - **No memory between messages:** what you need later (interim results, open points, decisions) goes into the file
   `NOTIZEN.md` in the project folder (not into `WORKFLOW-KALMIDO.md`); read it when you start on an order.
+- **Look before you state (2.1368.0):** say something about the state of things (it runs, it is done, it does not exist, it
+  was agreed) only after a look in the same run (the task, the commit, the file, the job); otherwise add "not checked".
+  `NOTIZEN.md` and summaries are the old state, not proof.
 - **Exactly one suggestion:** end a chat answer with exactly ONE short suggestion for the next message (at most 80
   characters) in a final block ` ```suggest `; never one that an earlier, still visible message already offers.
 - **Software projects: the task list is the truth for tickets and releases.** A task is done only when its code is on the default branch
