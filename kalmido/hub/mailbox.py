@@ -62,7 +62,9 @@ from ..core.mailguard import mail_parse  # 2.1281.0 (#6425)
 
 MBX_TLS = ("starttls", "ssl", "none")
 # review: a larger mail of a workspace's own server is not fetched (marked seen); 2.1333.0 (#6545): counted at the mailbox
-MBX_MAIL_MAX = _env_int("KALMIDO_MAILBOX_MAIL_MAX", 50 * 1024 * 1024)
+# 2.1392.0 (#6738): bounded to 1 MB .. 200 MB (a larger value would cost that much memory per mail; a tiny one files nothing)
+MBX_MAIL_MIN, MBX_MAIL_HI = 1024 * 1024, 200 * 1024 * 1024
+MBX_MAIL_MAX = min(_env_int("KALMIDO_MAILBOX_MAIL_MAX", 50 * 1024 * 1024, lo=MBX_MAIL_MIN), MBX_MAIL_HI)
 MBX_BOX_S = 300         # 2.148.1 D (#2485): time one mailbox gets in a round before its connection is closed
 MBX_SEND_HOUR = 30      # mails one person sends from the filing in an hour
 MBX_RCPT = 20           # recipients of one mail (To + Cc)
@@ -766,6 +768,17 @@ def _mbx_owners(c, box):
     return integ_org_admins(c, box["org_id"]) if box["org_id"] else [box["owner_id"] or box["created_by"]]
 
 
+def _mbx_space_name(c, box):
+    """2.1392.0 (#6738): what the outage mail calls the mailbox: the workspace's name, never the freely set user name of the
+    mailbox (the mail goes out of the server; its link leads to the mailbox settings). f(language) for integ_tell."""
+    if box["org_id"]:
+        with system_ctx(c):
+            o = c.execute("SELECT name FROM orgs WHERE id=?", (box["org_id"],)).fetchone()
+        n = (o["name"] if o else "") or ""
+        return lambda lg: n or tr("Organisation", lg=lg)
+    return lambda lg: tr("Private", lg=lg)
+
+
 def _mbx_lost(box, k):
     """2.1269 (#6386): k mails of the mailbox were given up after their last attempt (integrations/mail.py MAIL_TRIES): they
     stay in the mailbox; its owners hear it once per round that gave some up (News + push of the event "integration")."""
@@ -822,7 +835,8 @@ def _mbx_trouble(c, box):
             mail = bool(c.execute("UPDATE hub_mailboxes SET mailed_at=? WHERE id=? AND (mailed_at IS NULL OR mailed_at<?) RETURNING id",
                                   (_now(), box["id"], iso(now_utc() - timedelta(seconds=MBX_TELL_AGAIN_S)))).fetchone())
             integ_tell(c, _mbx_owners(c, box), "mailbox_auth" if r["error"] == "auth" else "mailbox",
-                       box["imap_user"] or box["imap_host"], str(r["error_at"] or "")[:10], click="mailhub", mail=mail, ws=box["ws"])
+                       box["imap_user"] or box["imap_host"], str(r["error_at"] or "")[:10], click="mailhub", mail=mail,
+                       mail_name=_mbx_space_name(c, box) if mail else None, ws=box["ws"])
 
 
 def mbx_poll_one(box, hold=None):
