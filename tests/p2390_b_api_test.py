@@ -194,6 +194,13 @@ check(r.status_code == 201 and len(r.json()["proposal"]["items"]) == 8, f"a vali
 v = A.get(B + f"/api/proposals/{J}").json()
 check(v["state"] == "ready" and v["kind"] == "cleanup" and v["proposal"]["items"][2]["section_id"] == SEC, "the person sees it ready")
 check(len(q("SELECT id FROM notifications WHERE user_id=? AND kind='proposal'", (ALICE,))) == 1, "one News entry for the proposal")
+# 2.1375.0 (#6677, review F4): dup2's description came from a hand without a person (as a webhook / public link writes it):
+# merged into dup1, the kept description is no longer only alice's (content_by 0) -- the undo puts the writers back
+con_ = dbxm.connect(os.path.join(DATA, "tasks.db"))
+con_.execute("UPDATE tasks SET content_by=0 WHERE id=?", (T["dup2"],))
+con_.commit()
+con_.close()
+check(tuple(q("SELECT title_by, content_by FROM tasks WHERE id=?", (T["dup1"],))[0]) == (None, None), "#6677: dup1 untouched so far")
 
 # ================================================================== applying: four kinds, skipped with the reason
 check(Bo.post(B + f"/api/tasks/{T['editing']}/editing").ok, "#999: Bob is editing a task")
@@ -211,6 +218,8 @@ check(k["title"] == "Order the flyers" and f"Merged from #{T['dup2']} Task dup2"
       f"merge: the kept task has the title and the notes of the other {k.get('title')} {k.get('content', '')[:120]!r}")
 d2 = task(A, T["dup2"])
 check(d2["status"] == -1, f"merge: the other one is closed as won't do ({d2['status']})")
+check(tuple(q("SELECT title_by, content_by FROM tasks WHERE id=?", (T["dup1"],))[0]) == (ALICE, 0),
+      f"#6677 (F4): merged text of another hand -> the description is nobody's (0), the title alice's: {q('SELECT title_by, content_by FROM tasks WHERE id=?', (T['dup1'],))}")
 # 2.972.0 (#5272): the task comments are rows of the core's obj_comments (kind 'task', ref_id = the task)
 check(len(q("SELECT id FROM obj_comments WHERE kind='task' AND ref_id=? AND deleted_at IS NULL", (T["dup2"],))) == 1, "merge: its comment stays with it")
 check(task(A, SUB2)["parent_id"] == T["dup1"] and task(A, SUB2)["status"] == 0, "merge: an open subtask of the other one moves to the kept task")
@@ -235,6 +244,8 @@ check(A.post(B + f"/api/proposals/{J}/apply", json={"select": ["0"]}).status_cod
 r = A.post(B + f"/api/proposals/{J}/undo")
 check(r.ok and not r.json()["none"], f"undo: {r.text[:200]}")
 check(task(A, T["dup1"])["title"] == "Task dup1" and task(A, T["dup1"])["content"] == "note of dup1", "undo: merge title + notes back")
+check(tuple(q("SELECT title_by, content_by FROM tasks WHERE id=?", (T["dup1"],))[0]) == (None, None),
+      f"#6677 (F4): the undo puts the writers back: {q('SELECT title_by, content_by FROM tasks WHERE id=?', (T['dup1'],))}")
 check(task(A, T["dup2"])["status"] == 0 and task(A, T["stale"])["status"] == 0 and task(A, SUB)["status"] == 0, "undo: closed tasks open again (subtask too)")
 check(task(A, T["vague"])["title"] == "Task vague" and task(A, T["misplaced"])["section_id"] is None, "undo: rename + move back")
 check(task(A, SUB2)["parent_id"] == T["dup2"] and task(A, SUB2)["status"] == 0, "undo: the moved subtask is back under its task")
