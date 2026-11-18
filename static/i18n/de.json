@@ -19328,6 +19328,7 @@
   "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Nach der Rücksicherung ließen sich die Rechnungs-Aussteller nicht pausieren; pausiere sie in den Büro-Einstellungen.",
   "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "Rechnungs-Aussteller wurden pausiert ({0}), aber {1} ihrer Meldungen ließen sich nicht schreiben; sieh im Server-Log nach.",
   "First letter of the name (automatic)": "Anfangsbuchstabe des Namens (automatisch)",
+  "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Ändert jemand anderes Titel oder Notizen einer solchen Aufgabe, lässt der Agent sie liegen, bis du sie selbst änderst.",
   "The organisation is moving: it is read-only.": "Die Organisation zieht um: nur lesen.",
   "Please try again later.": "Bitte versuchen Sie es später noch einmal.",
   "The move of this organisation has already started": "Der Umzug dieser Organisation läuft schon",

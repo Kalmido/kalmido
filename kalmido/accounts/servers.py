@@ -1045,12 +1045,13 @@ def _dst_create(c, srv, lid, s):
         p["list_id"] = lid
     if srv is None:
         from ..api.v1 import v1_task_in
-        from ..tasks.tasks import task_create
+        from ..tasks.tasks import task_create, task_no_origin
         if lid is not None and list_role(c, lid) not in WRITE_ROLES:
             raise Denied(403 if list_role(c, lid) else 404)
-        nid = v1_call(task_create, body=v1_task_in(p))["id"]
-        for st in s["subs"]:
-            v1_call(task_create, body={"title": st, "parent_id": nid})
+        with task_no_origin():  # 2.1389.0 (#6728, N2): a copy carries the text of whoever wrote the task, no origin mark
+            nid = v1_call(task_create, body=v1_task_in(p))["id"]
+            for st in s["subs"]:
+                v1_call(task_create, body={"title": st, "parent_id": nid})
         return nid, 0
     nid = _t_or_fail(srv, msv_req(c, srv, "/tasks", "POST", payload=p))["id"]
     lost = 0

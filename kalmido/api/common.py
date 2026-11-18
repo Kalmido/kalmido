@@ -91,6 +91,20 @@ def act_via():
         "webhook" if v == "hook_in" else None  # 2.115.0 A (#2061): the inbound webhook of a list
 
 
+# 2.1389.0 (#6728, N3): the ways in which a person writes a text by hand -- a list of what counts (their sign-in session, the
+# proxy's sign-in, their own access token), so any other way (a list rule, the document fetcher, an e-mail issuer key, a support
+# session in their account, a run without a request, a new way added later) is no hand of theirs
+ACT_BY_HAND = ("session", "proxy", "token")
+
+
+def act_by_hand():
+    """2.1389.0 (#6728, N3): True when the current request is the signed-in person themselves (ACT_BY_HAND)."""
+    if not has_request_context() or g.get("auth_via") not in ACT_BY_HAND or g.get("fetcher") or g.get("no_origin"):
+        return False
+    u = getattr(g, "user", None)
+    return bool(u) and not (g.get("acx_sup_uid") and g.get("acx_sup_uid") == u["id"])
+
+
 def v1_err(code, msg, headers=None, name=None, **extra):
     """{"error": {"code", "message", **extra}}; name overrides the code's default name (2.2.1: unknown_field + fields)."""
     r = jsonify(error={"code": name or V1_CODES.get(code, "error"), "message": msg, **extra})

@@ -1,6 +1,8 @@
 """Creating and changing tasks: milestones, moving subtrees, tags, assignees, waiting on external."""
 from datetime import timedelta
 
+from contextlib import contextmanager
+
 from flask import g, has_request_context, jsonify, request
 
 from ..core.config import app, PUBLIC_URL
@@ -27,7 +29,7 @@ from ..core.orgcrypt import oc_enabled, oc_list_space  # 2.369.5 (#2517): pulled
 from ..videos.vdrescue import vdr_rescue  # 2.530.0 D (#4316)
 from ..core.access import _org_list_writes, list_state_sql  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.ttypes import tt_check  # 2.609.0 (#3372)
-from ..api.common import act_via  # 2.1269.0 (#6431)
+from ..api.common import act_by_hand, act_via  # 2.1269.0 (#6431), 2.1389.0 (#6728)
 from ..lists.seckind import sk_answer  # 2.577.0 (#3354)
 
 
@@ -256,6 +258,19 @@ def task_inherit(c, tid, src):
 FREQ_ENDPOINTS = ("task_create", "v1_task_create")
 
 
+@contextmanager
+def task_no_origin():
+    """2.1389.0 (#6728, N2): task_create (and the person's text marks of tasks.title_by / content_by) inside it count as no hand
+    of the person -- the text was written by another hand (a copy of a task, a saved chat message, the 'Rest:' task of a
+    release, an event's preparation task under the event's title), so the person's agent dispatcher never builds it as an order."""
+    was = g.get("no_origin")
+    g.no_origin = True
+    try:
+        yield
+    finally:
+        g.no_origin = was
+
+
 @app.post("/api/tasks")
 def task_create():
     from ..tasks.lifecycle import repeat_problem
@@ -365,8 +380,9 @@ def task_create():
     ts = iso(now_utc())
     f["created_by"] = me()
     # 2.1308.0 (#6523, review F1): the creator wrote it -- in the app or with their own token; a webhook (its creator's rights,
-    # act_via "webhook"), a public link or CalDAV leaves the origin empty (another hand wrote the text)
-    f["origin"] = "person" if me() and act_via() in (None, "api") else None
+    # act_via "webhook"), a public link or CalDAV leaves the origin empty (another hand wrote the text). 2.1389.0 (#6728): N3 the
+    # way is a list of what counts (act_by_hand); N2 a copy, a saved chat message, a 'Rest:' task carry none (task_no_origin)
+    f["origin"] = "person" if me() and act_by_hand() else None
     if ref and me():
         f["client_ref"] = ref
     if f.get("assignee_id") or f.get("assignee_group_id"):

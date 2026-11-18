@@ -136,6 +136,8 @@ check(r.status_code == 403, "#1159: a list without the right to change it: 403 "
 r = A.post(B + "/api/chat-save", json={"kind": "agent", "msg_id": AM, "due": "2026-10-20"})
 check(r.status_code == 201, "#1159: saved " + r.text[:200])
 T1 = r.json().get("task", {})
+# 2.1389.0 (#6728, N2): the saved message is the agent's text, not alice's -- no origin mark (her agent dispatcher never builds it)
+check(dbx("SELECT origin FROM tasks WHERE id=?", (T1.get("id"),))[0][0] is None, "#6728: a saved chat message has no origin 'person'")
 inbox = [l for l in lists_of(A).values() if l.get("is_inbox")][0]
 check(T1.get("title") == "Release plan 2.40" and T1.get("list_id") == inbox["id"] and T1.get("due") == "2026-10-20",
       "#1159: title from the heading, the inbox, the review date " + str({k: T1.get(k) for k in ("title", "list_id", "due")}))
