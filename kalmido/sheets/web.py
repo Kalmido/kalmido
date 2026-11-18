@@ -626,9 +626,10 @@ def sheets_purge_many():
     if oid and not shx_may_empty(c, uid, oid):
         if b.get("all") is True or len(mine) > 1:
             raise Denied(403, tr(SHX_ADMIN_ONLY))  # one's own single table stays allowed (like knowledge)
-        # 2.1364.0 (#6297 7, audit #4741): one at a time only one's own - made or put into the trash by the person (before: any
-        # table of the organisation's trash, table by table)
-        if any(uid not in (r["created_by"], r["deleted_by"]) for r in rows):
+        # 2.1364.0 (#6297 7, audit #4741): one at a time only one's own - made by the person (before: any table of the
+        # organisation's trash, table by table); Fable review job/5254 F3: put into the trash by the person is not enough
+        # (another's table first into the trash, then for good = the admin's limit crossed in two steps)
+        if any(r["created_by"] != uid for r in rows):
             raise Denied(403, tr(SHX_ADMIN_ONLY))
     from ..core.writes import obj_purge_after  # 2.809.0 (#5365): the core's delete for good (sheets/shkern.py)
     from .shkern import shk_purge
