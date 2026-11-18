@@ -14,7 +14,8 @@
  - a crafted file: ids / owner / org / author from the file are ignored, wrong types fall back, cycles and lists that are not
    in the file are dropped; a missing person is invited only by an instance admin
  - attacks: no ZIP, path traversal, duplicate part, encrypted ZIP, ZIP bomb, deep JSON, wrong checksum, missing file, wrong
-   format, newer version, too large, too many rows in one table, storage quota before the upload and in the middle of the run (stops, undo possible)
+   format, newer version, too large, too many rows in one table, storage quota (2.1402.0, #6579: not at the upload, the
+   archive counts for nobody; before the preview and at the start, all or nothing)
 Starts its OWN container (start.sh) with KALMIDO_SECRET_KEY and the mode workspaces.
 usage: p273_b_api_test.py <datadir>"""
 import base64
@@ -529,10 +530,12 @@ check(Da.post(B + "/api/account/import", json={"size": "big"}).status_code == 40
 # 2.272.0 (#3027): the undo above left the lists in the trash, their files still count -- emptied here for good
 for x in Da.get(B + "/api/trash/lists").json().get("lists", []):
     Da.delete(B + f"/api/trash/lists/{x['id']}")
-# storage quota: before the upload, and in the middle of the run (stops, undo possible)
+# storage quota: 2.1402.0 (#6579) not at the upload (the archive only lies in the import folder), before the preview and at the start
 check(A.patch(B + f"/api/users/{DAVE}", json={"storage_quota_mb": 1}).ok, "dave: 1 MB")
 r = Da.post(B + "/api/account/import", json={"size": 2 * 1024 * 1024})
-check(r.status_code == 413 and r.json().get("code") == "quota_exceeded", f"quota before the upload {r.status_code}")
+check(r.ok and r.json().get("id"), f"#6579 the upload itself is no quota question {r.status_code} {r.text[:160]}")
+if r.ok:
+    Da.delete(B + f"/api/account/import/{r.json()['id']}")
 big = b"Q" * 600_000  # (below the 1 MB per file of the tests)  # compresses well: the file is small, its attachments are not
 qz = mkzip({"lists": [{"id": 1, "name": "Kontingent Test", "created_at": ts}],
             "tasks": [{"id": i, "list_id": 1, "title": f"Quota {i}", "created_at": ts, "updated_at": ts, "assignee_id": 55} for i in (1, 2, 3)],
@@ -548,20 +551,13 @@ check(j.get("state") == "invalid" and "too small for the files" in json.dumps(j.
 A.patch(B + f"/api/users/{DAVE}", json={"storage_quota_mb": None})
 iid = upload(Da, qz)
 j = wait(Da, iid)
-A.patch(B + f"/api/users/{DAVE}", json={"storage_quota_mb": 1})  # 2.480.0 (#3470): full only after the preview: the run stops
-j = run(Da, iid, people={"bob@example.com": {"share": True}}) if j.get("state") == "preview" else j
-check(j.get("state") == "stopped" and j["result"].get("stopped") and j["result"].get("import_id"), f"quota in the run: stopped {j.get('state')}")
-na = dbx("SELECT COUNT(*) AS n FROM attachments a JOIN tasks t ON t.id=a.task_id JOIN lists l ON l.id=t.list_id WHERE l.owner_id=? AND l.name='Kontingent Test'",
-         (DAVE,))[0]["n"]
-check(na == 1, f"one file fitted ({na})")
-qa = dbx("SELECT t.assignee_id FROM tasks t JOIN lists l ON l.id=t.list_id WHERE l.owner_id=? AND l.name='Kontingent Test'", (DAVE,))
-# 2.972.0 (#5272): the task comments are rows of the core's obj_comments (kind 'task', ref_id = the task)
-qc = dbx("SELECT c.user_id, c.ext_name FROM obj_comments c WHERE c.body='Bob im Kontingent'")
-# 2.362.4 (#3100): a full storage stops only the files, the sharing still runs: bob joins and stays assignee
-check(qa and all(x["assignee_id"] == ids["bob"] for x in qa) and qc and qc[0]["user_id"] is None and qc[0]["ext_name"] == "Bob aus der Datei",
-      f"the sharing ran after the stop: bob is assignee, the comment keeps his name as text {qa}")
-check(Da.post(B + f"/api/imports/{j['result'].get('import_id')}/undo").ok and not dbx("SELECT 1 FROM lists WHERE owner_id=? AND name='Kontingent Test' AND deleted_at IS NULL", (DAVE,)),  # 2.272.0 (#3027): trash
-      "undo after the stop")
+A.patch(B + f"/api/users/{DAVE}", json={"storage_quota_mb": 1})  # full only after the preview: 2.1402.0 (#6579) the start refuses
+check(j.get("state") == "preview", f"the preview with room {j.get('state')} {j.get('error')}")
+r = Da.post(B + f"/api/account/import/{iid}/run", json={"target": "private", "people": {"bob@example.com": {"share": True}}, "again": True})
+check(r.status_code == 409 and r.json().get("code") == "quota_exceeded" and r.json().get("missing", 0) > 0,
+      f"#6579 quota at the start: refused with what is missing (was: stopped halfway) {r.status_code} {r.text[:200]}")
+check(not dbx("SELECT 1 FROM lists WHERE owner_id=? AND name='Kontingent Test'", (DAVE,)), "#6579 nothing was created")
+Da.delete(B + f"/api/account/import/{iid}")
 A.patch(B + f"/api/users/{DAVE}", json={"storage_quota_mb": None})
 
 # 2.547.0 (#4295): a run that breaks off at its end (recording it is refused by a test trigger) leaves nothing behind:

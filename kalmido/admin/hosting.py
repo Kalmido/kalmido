@@ -198,9 +198,12 @@ def _list_pic_bytes(c, uids, q, cached=False):
                                  AND (header_by IN ({q}) OR (header_by IS NULL AND owner_id IN ({q})))""", [*uids, *uids]).fetchone()[0])
 
 
-def quota_info(c, uid, cached=False):
+def quota_info(c, uid, cached=False, org=None, extra=0):
     """{used, limit (bytes, null = unlimited), pct, level: ok | warn | high | full, pool: user | org, support}.
-    cached (2.549.0, #3139): only for the badge of /api/state, the list pictures may be up to PIC_CACHE_S old."""
+    cached (2.549.0, #3139): only for the badge of /api/state, the list pictures may be up to PIC_CACHE_S old.
+    2.1402.0 (#6579): org = the pool of that organisation (uid a member; the import into it) instead of uid's first one;
+    extra = people the import invites into it: they join the pool once they accept (members x quota). Without pool "org"
+    (or with a quota of uid's own) both change nothing: the files count for uid."""
     u = c.execute("SELECT id, storage_quota_mb FROM users WHERE id=?", (uid,)).fetchone()
     if not u:
         return None
@@ -209,7 +212,10 @@ def quota_info(c, uid, cached=False):
     members = [uid]
     if pool == "org" and own is None:
         with system_ctx(c):  # 2.37.0 (#1150): the pool's members (ids, structure; also when an admin looks at somebody else)
-            r = c.execute("SELECT org_id FROM org_members WHERE user_id=? ORDER BY org_id LIMIT 1", (uid,)).fetchone()
+            if org is not None:  # 2.1402.0 (#6579)
+                r = c.execute("SELECT org_id FROM org_members WHERE user_id=? AND org_id=?", (uid, org)).fetchone()
+            else:
+                r = c.execute("SELECT org_id FROM org_members WHERE user_id=? ORDER BY org_id LIMIT 1", (uid,)).fetchone()
             if r:
                 members = [x[0] for x in c.execute("""SELECT m.user_id FROM org_members m JOIN users u ON u.id=m.user_id
                                                       WHERE m.org_id=? AND u.kind!='agent' AND u.storage_quota_mb IS NULL""", (r[0],))] or [uid]
@@ -218,11 +224,12 @@ def quota_info(c, uid, cached=False):
     else:
         pool = "user"
     mb = own if own is not None else quota_default_mb(c)
-    limit = mb * 1024 * 1024 * (len(members) if pool == "org" else 1) if mb else None
+    seats = len(members) + max(0, int(extra or 0)) if pool == "org" else 1  # 2.1402.0 (#6579): + the people an import invites
+    limit = mb * 1024 * 1024 * seats if mb else None
     used = _user_bytes_cached(c, members) if cached else _user_bytes(c, members)  # 2.640.0 (#4185): the badge from a short cache
     pct = round(used * 100 / limit, 1) if limit else 0
     level = "ok" if not limit or pct < 80 else "warn" if pct < 95 else "high" if used < limit else "full"
-    return {"used": used, "limit": limit, "pct": pct, "level": level, "pool": pool, "members": len(members) if pool == "org" else 1,
+    return {"used": used, "limit": limit, "pct": pct, "level": level, "pool": pool, "members": seats,
             "support": support_email(c)}
 
 
