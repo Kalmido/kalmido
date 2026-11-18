@@ -110,13 +110,19 @@ function vl_step(v) {
   // the first drawn row in view keeps its place on the screen (per scrolling box: the view, or a list with its own scroll)
   const ancOf = sc => {
     if (anc.has(sc)) return; const vr = sc.getBoundingClientRect(); anc.set(sc, null);
-    for (const el of sc.querySelectorAll('[data-vlg], .ghead')) { const r = el.getBoundingClientRect(); if (r.bottom > vr.top + 1 && r.height) { anc.set(sc, [el, r.top]); break; } }
+    // 2.1383.0 (#6935): the items are in their order on the screen: halve to the first one below the top instead of measuring all
+    // above it (300 section heads when scrolled to the end)
+    const els = sc.querySelectorAll('[data-vlg], .ghead'), above = el => { const r = el.getBoundingClientRect(); return r.height > 0 && r.bottom <= vr.top + 1; };
+    let lo = 0, hi = els.length; while (lo < hi) { const m = (lo + hi) >> 1; if (above(els[m])) lo = m + 1; else hi = m; }
+    for (let i = Math.max(0, lo - 1); i < els.length; i++) { const r = els[i].getBoundingClientRect(); if (r.bottom > vr.top + 1 && r.height) { anc.set(sc, [els[i], r.top]); break; } }
   };
+  // 2.1383.0 (#6935): the scrolling box's place and size once per box and pass (they were read per group); a patch can move them
+  const geo = new Map(), geoOf = sc => geo.get(sc) || geo.set(sc, {vr: sc.getBoundingClientRect(), st: sc.scrollTop, vh: sc.clientHeight || innerHeight}).get(sc);
   for (const sg of VL.segs) { const tp = vl_pad(v, sg, 't'); if (tp) ancOf(vl_sc(tp, v)); }
   let ch = false;
   for (const sg of VL.segs) {
     const tp = vl_pad(v, sg, 't'), bp = vl_pad(v, sg, 'b'); if (!tp || !bp) continue;
-    const sc = vl_sc(tp, v), vr = sc.getBoundingClientRect(), st = sc.scrollTop, vh = sc.clientHeight || innerHeight;
+    const sc = vl_sc(tp, v), {vr, st, vh} = geoOf(sc);
     const need = [st - vh * .5, st + vh * 1.5], want = [st - vh * 1.5, st + vh * 2.5];
     const n = sg.arr.length, ya = tp.getBoundingClientRect().top - vr.top + st + sg.tp;  // the content y of item a
     const H = vl_hm(), hs = i => H.get(sg.arr[i].id) ?? vl_h(sg, sg.arr[i]);
@@ -142,6 +148,7 @@ function vl_step(v) {
     // it take or leave); otherwise the top spacer is the estimate of the rows above
     let yf = ya; if (ov) for (let j = a0; j < fi; j++) yf += hs(j);
     vl_patch(sg, tp, bp, m0, wa, wb);
+    geo.clear();
     vl_measure(v, [sg]);  // 2.1383.0 (#6935): the patched group only (all groups after every patch: groups x groups per frame)
     if (!wa) sg.tp = 0;
     else if (ov) { let above = 0; for (let j = wa; j < fi; j++) above += hs(j); sg.tp = Math.max(0, yf - tpTop - above); }
