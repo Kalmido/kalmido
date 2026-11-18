@@ -9,6 +9,8 @@
    other action (a tag) runs on for the next document but no call goes out; saving the flow again switches it on
  - rights lost: carol becomes a member -- the next call of her flow does not go out, the flow pauses (off, hook_state
    admin), the admin bob hears it; bob switches it on again and is its author from then on, the call goes out again
+ - author (2.1373.0, #6875): an admin who sets or changes the address is its author at once; the same address saved again
+   changes nothing; losing the rights pauses the flow, no call to the address
  - a person without an organisation (freelancer-matrix: files): frida's private flow switches off after failures, she
    hears it herself
 freelancer-matrix: files
@@ -172,6 +174,28 @@ check(r.ok and dbx("SELECT created_by, hook_state FROM doc_rules WHERE id=?", (f
       f"rights lost: switched on again by bob, he is its author now {r.status_code} {r.text[:200]}")
 upload(Bo, "carol3.pdf", ["Carolfall drei", "Seite 1"], ws=OWS)
 check(until(lambda: len(calls("/ok")) == n_ok + 1, 30), "rights lost: after the new author's switch the call goes out again")
+
+# ---- 2.1373.0 (#6875): whoever sets or changes the webhook's address becomes its author at once (not only after a pause):
+# bob's flow without a webhook, carol (admin again) adds her address -> carol is the author; bob saves it unchanged -> carol
+# stays; carol loses her admin rights -> the call to her address does not go out, the flow pauses
+check(Bo.put(B + f"/api/orgs/{ORG}/members", json={"user_id": ids["carol"], "role": "admin"}).ok, "setup: carol is an admin again")
+r = Bo.post(B + "/api/docs/rules", json={"ws": OWS, "name": "Wechsel", "kind": "any", "match": "Wechselfall", "tags": ["Gewechselt"]})
+check(r.status_code == 201, f"author: bob's flow without a webhook {r.status_code} {r.text[:200]}")
+W = rule(Bo, OWS, "Wechsel")["id"]
+r = patch(Ca, rule(Ca, OWS, "Wechsel"))
+check(r.ok and dbx("SELECT created_by FROM doc_rules WHERE id=?", (W,))[0][0] == ids["bob"], f"author: saved again without a webhook, bob stays {r.text[:200]}")
+r = patch(Ca, rule(Ca, OWS, "Wechsel"), webhook=STUB + "/ok-carol")
+check(r.ok and dbx("SELECT created_by FROM doc_rules WHERE id=?", (W,))[0][0] == ids["carol"],
+      f"author: carol set the address, she is its author now {r.status_code} {r.text[:200]}")
+r = patch(Bo, rule(Bo, OWS, "Wechsel"))
+check(r.ok and rule(Bo, OWS, "Wechsel").get("webhook") == STUB + "/ok-carol" and dbx("SELECT created_by FROM doc_rules WHERE id=?", (W,))[0][0] == ids["carol"],
+      f"author: bob saved the same address again, carol stays its author {r.status_code} {r.text[:200]}")
+check(Bo.put(B + f"/api/orgs/{ORG}/members", json={"user_id": ids["carol"], "role": "member"}).ok, "setup: carol is a member again")
+upload(Bo, "wechsel1.pdf", ["Wechselfall eins", "Seite 1"], ws=OWS)
+f = until(lambda: (lambda x: x if x and x.get("hook_state") == "admin" else None)(rule(Bo, OWS, "Wechsel")), 30)
+check(f and f.get("off"), f"author: the address's author lost her rights, the flow paused {f}")
+time.sleep(2)  # a few ticks of the webhook loop: nothing may go out
+check(not calls("/ok-carol"), f"author: no call went out to the former admin's address {len(calls('/ok-carol'))}")
 
 # ---- a person without an organisation: her own flow switches off, she hears it
 r = Fr.post(B + "/api/docs/rules", json={"ws": "private", "name": "Frida tot", "kind": "any", "match": "Fridafall", "webhook": STUB + "/fail-frida"})

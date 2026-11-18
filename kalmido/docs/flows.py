@@ -537,7 +537,8 @@ def fl_hook_payload(c, run):
 # still be an admin of the workspace (the person themself for a private one, never a disabled account) -- else the flow pauses
 # and the admins hear it; failed calls are counted at the flow (hook_fails, the last error in hook_error), and once a call's
 # last retry failed the webhook switches off (the flow's other actions run on) and the admins hear it. Saving the flow again
-# (an admin, docs/web.py _rule_save -> fl_hook_reset) switches it on again; after a pause the saving admin is its author.
+# (an admin, docs/web.py _rule_save -> fl_hook_reset) switches it on again; after a pause the saving admin is its author,
+# 2.1373.0 (#6875) also as soon as an admin sets or changes the webhook's address.
 FL_HOOK_STATES = ("failures", "admin")
 
 
@@ -588,9 +589,13 @@ def fl_hook_result(c, rid, ok, error=""):
         c.execute("UPDATE doc_rules SET hook_fails=hook_fails+1, hook_error=?, hook_error_at=? WHERE id=?", (error[:200], iso(now_utc()), rid))
 
 
-def fl_hook_reset(c, rid, uid):
+def fl_hook_reset(c, rid, uid, moved=False):
     """The flow was saved again by uid (an admin): a webhook switched off goes on, the count starts anew; after a pause
-    uid becomes the author (the one whose rights the calls check from now on)."""
+    uid becomes the author (the one whose rights the calls check from now on). 2.1373.0 (#6875): moved = uid set or
+    changed the webhook's address -- then uid becomes its author at once, else the calls would go to uid's server on the
+    rights of the flow's first author (losing uid's admin rights would stop nothing)."""
+    if moved:
+        c.execute("UPDATE doc_rules SET created_by=? WHERE id=? AND created_by IS DISTINCT FROM ?", (uid, rid, uid))
     c.execute("UPDATE doc_rules SET created_by=CASE WHEN hook_state='admin' THEN ? ELSE created_by END, hook_state='', hook_fails=0 "
               "WHERE id=? AND hook_state<>''", (uid, rid))
 
