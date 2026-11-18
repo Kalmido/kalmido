@@ -300,7 +300,7 @@ def _f8():
     asked = []
 
     def rt(seqs=None, operator=False):
-        asked.append(sorted(seqs or []))
+        asked.append(sorted(set(seqs or [])))  # as Api.request_token sends them (the bundle's seq is one of its events)
         return "abk_rq" + "z" * 26, 0, True
     r.api.request_token = rt
     for b in bs:
@@ -756,8 +756,9 @@ check(dbx("SELECT name FROM filters WHERE id=?", (VW,)) == [("Team view R3",)], 
 r = requests.post(V + "/filters", headers=XH, json={"name": "Own R3", "rules": {}}, timeout=30)
 OWNF = r.json().get("id") if r.status_code == 201 else None
 check(OWNF is not None, f"(e) R3 F4: its own filter is still its own {r.status_code} {r.text[:160]}")
-check(requests.patch(V + f"/filters/{OWNF}", headers=XH, json={"name": "Own R3b"}, timeout=30).ok
-      and requests.delete(V + f"/filters/{OWNF}", headers=XH, timeout=30).status_code == 204, "(e) R3 F4: ... it changes and deletes it")
+r1 = requests.patch(V + f"/filters/{OWNF}", headers=XH, json={"name": "Own R3b"}, timeout=30)
+r2 = requests.delete(V + f"/filters/{OWNF}", headers=XH, timeout=30)
+check(r1.ok and r2.status_code == 204, f"(e) R3 F4: ... it changes and deletes it {r1.status_code} {r1.text[:200]} / {r2.status_code} {r2.text[:200]}")
 r = requests.patch(V + f"/filters/{VW}", headers=hdr(RC), json={"name": "Team view R3 (carl)"}, timeout=30)
 check(r.ok, f"(e) R3 F4: carl's request token (editor of project one) renames the shared view {r.status_code} {r.text[:160]}")
 

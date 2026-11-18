@@ -40,6 +40,8 @@ class H(BaseHTTPRequestHandler):
         elif self.path.startswith("/api/v1/tasks/"):
             tid = int(self.path.split("/")[4])
             out = {"data": {"id": tid, "title": f"Task {tid}", "notes": f"Description of task {tid}", "list_id": 3, "status": "open"}}
+        elif self.path == "/api/v1/agent":  # 2.1386.0 (#6668): GET /agent answers with runtime -- an empty answer means
+            out = {"runtime": {}}  # "not read" and the starter starts nothing since #6668 (fail closed)
         elif self.path == "/api/v1/agent/jobs" and method == "POST":
             out, code = {"id": 41 + sum(1 for r in REQS if r["p"] == "/api/v1/agent/jobs" and r["m"] == "POST") - 1}, 201
         elif self.path == "/api/v1/agent/progress":
