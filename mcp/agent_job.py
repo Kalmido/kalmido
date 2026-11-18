@@ -600,6 +600,8 @@ def spawn_run(j, extra=None):
         kw["start_new_session"] = True
     env = dict(os.environ, KALMIDO_STATE_DIR=state_dir())
     env.pop("KALMIDO_OUTBOX", None)
+    if env.get("KALMIDO_ENV_FILE"):  # #7051 (Fable reader N1): the job's process reads the token from the file (Api), so the
+        env.pop("KALMIDO_TOKEN", None)  # runner's token stays out of its environment, which the job's model could read
     p = subprocess.Popen([sys.executable, os.path.abspath(__file__), "_run", str(int(j["id"]))] + list(extra or []), env=env, **kw)
     j["runner_pid"] = p.pid
     save(j)
