@@ -553,6 +553,28 @@ try:
           f"#6863: bob sees the job without a task, not its title or log {jb and {k: jb.get(k) for k in ('title', 'name', 'log', 'log_last')}}")
     ja = next((x for x in A.get(B + "/api/agents/jobs", params={"agent_id": TA}).json().get("jobs", []) if x["id"] == JB_NONE), None)
     check(ja is not None and ja["title"] == "Nobody's secret", f"#6863: ... alice, who reads everything, reads it {ja and ja.get('title')}")
+    # Fable reader job/5498 F4: the same in "Waiting for me" and in the job cards of the chat (jcd_jobs) -- both gave the title
+    kt.dbx("UPDATE agent_jobs SET state='waiting' WHERE id=?", (JB_NONE,))
+    wi = next((x for x in BS.get(B + "/api/inbox").json().get("items", []) if x["kind"] == "job" and x["id"] == JB_NONE), None)
+    check(wi is not None and wi["title"] == "", f"F4: bob's waiting list has the job without its title {wi}")
+    wa = next((x for x in A.get(B + "/api/inbox").json().get("items", []) if x["kind"] == "job" and x["id"] == JB_NONE), None)
+    check(wa is None or wa["title"] == "Nobody's secret", f"F4: ... alice reads it {wa}")
+    out = subprocess.run(["docker", "exec", kt.CT, "python", "-c", f"""import json, app
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.agents.jobchat import jcd_jobs
+c = connect()
+with system_ctx(c):
+    print(json.dumps({{k: jcd_jobs(c, {TA}, [{{"job_id": {JB_NONE}}}], u).get(str({JB_NONE})) for k, u in (("bob", {BOB}), ("alice", {ALICE}))}}))
+c.close()"""], capture_output=True, text=True)
+    try:
+        jc = json.loads(out.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        jc = {"error": (out.stdout + out.stderr)[-600:]}
+    jb_, ja_ = jc.get("bob") or {}, jc.get("alice") or {}
+    check(jb_.get("id") == JB_NONE and jb_.get("title") == "" and "secret" not in str(jb_.get("name")),
+          f"F4: the chat's job card for bob has no title or name {jc}")
+    check(ja_.get("title") == "Nobody's secret", f"F4: ... alice's has them {jc}")
 finally:
     kt.dbx("UPDATE users SET is_admin=FALSE WHERE id=?", (BOB,))
 for path, body in ((f"/lists/{L_ALL}/rules/proposals", {"name": "From alice's project", "trigger": {}, "action": {}}),
