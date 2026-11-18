@@ -173,8 +173,14 @@ for who, S, uid in (("org admin", A, ALICE), ("freelancer", F, FID)):
     check((j.get("time") or {}).get("rate_missing") is False, f"{who}: the client has an hourly rate {j.get('time')}")
     check(head(I1)["number"] == "", f"{who}: no number in the database")
     r = requests.post(INV, headers=AH, json={"client_id": CL, "from_time": True, "list_id": LP, "task_id": T1, "from": D9, "to": TODAY,
-                                                         "client_ref": f"ref-{who}"})
+                                                         "title": "Film edit", "client_ref": f"ref-{who}"})
     check(r.status_code == 200 and (r.json().get("doc") or {}).get("id") == I1, f"{who}: the same client_ref again: the same draft ({r.status_code})")
+    # 2.1396.0 (#6701): the same client_ref with another content is 409 ref_conflict (was: silently the first draft), nothing made
+    n_before = dbx("SELECT COUNT(*) FROM office_docs WHERE kind='invoice'")[0][0]
+    r = requests.post(INV, headers=AH, json={"client_id": CL, "from_time": True, "list_id": LP, "task_id": T1, "from": D9, "to": TODAY,
+                                                         "client_ref": f"ref-{who}"})
+    check(r.status_code == 409 and r.json()["error"]["code"] == "ref_conflict" and dbx("SELECT COUNT(*) FROM office_docs WHERE kind='invoice'")[0][0] == n_before,
+          f"{who}: the same client_ref with another content: 409 ref_conflict, nothing made ({r.status_code} {r.text[:160]})")
     r = requests.post(INV, headers=AH, json={"client_id": CL, "from_time": True, "list_id": LP, "from": D9, "to": TODAY})
     check(r.status_code == 201, f"{who}: the rest of the project's time {r.status_code} {r.text[:200]}")
     I2 = (r.json().get("doc") or {}).get("id") if r.status_code == 201 else None
