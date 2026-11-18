@@ -904,6 +904,9 @@ APP_ONLY = [
     ("2.1130.0 (#6057): the pop-up for new chat messages is a card of the web app; agents get messages as events "
      "(chat, team_message) and never see a pop-up",
      ("=GET /api/msgpop",)),
+    ("2.1394.0 (#6887): the agent rules block is the text the web app's setup guide shows a person; agents get the same "
+     "block in their CLAUDE.md from mcp/CLAUDE.template.md at setup",
+     ("=GET /api/agent-rules",)),
 ]
 
 
