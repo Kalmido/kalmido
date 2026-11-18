@@ -44,7 +44,7 @@ from ..core.pg import IntegrityError, qi, system_ctx, table_columns, write_lock 
 from ..accounts.login import login_log_who  # 2.239.0 B (#2888)
 from .ledger import ofx_log, ofx_rechain, ofx_release  # 2.542.0 (#4598): + ofx_release; 2.1327.0 (#6591): + ofx_rechain
 from .chain import hch_check  # 2.1327.0 (#6591)
-from .model import office_gate, office_org, pb_owner
+from .model import num_range_schemes, office_gate, office_org, office_settings, pb_owner  # 2.1390.0 (#7037): + num_range_schemes, office_settings
 from .issuers import iss_count, iss_ids, iss_revoke_rows  # 2.1381.0 (#6699)
 from .officemove import ofm_reseal
 from .procdoc import PD_WAITING, pd_waiting  # 2.977.0 (#5282)
@@ -185,6 +185,15 @@ def pbt_plan(c, uid, src, dst):
         conflicts.append(trn("and {0} more number", "and {0} more numbers", len(taken) - 50))
     for x in c.execute("SELECT code FROM office_num_ranges WHERE org_id=? AND code IN (SELECT code FROM office_num_ranges WHERE org_id=?) ORDER BY code", (src, dst)):
         conflicts.append(tr("The short code {0} is already used", x[0]))  # 2.1365.0 (#6698): a number range's code is unique per area
+    # 2.1390.0 (#7037, Fable F2): a moving range's schemes (invoices and corrections) never one the organisation numbers with
+    # already (a main series or one of its ranges): two counters would write the same pattern (numranges.nr_scheme_clean)
+    sd = office_settings(c, dst)
+    used = {sd.get(k + "_scheme") for k in ("offer", "invoice", "credit", "reminder", "delivery")}
+    for rg in c.execute("SELECT scheme, credit_suffix FROM office_num_ranges WHERE org_id=?", (dst,)).fetchall():
+        used |= set(num_range_schemes(rg).values())
+    for rg in c.execute("SELECT code, scheme, credit_suffix FROM office_num_ranges WHERE org_id=? ORDER BY code", (src,)).fetchall():
+        if used & set(num_range_schemes(rg).values()):
+            conflicts.append(f"{rg['code']}: {tr('This scheme is already used by another series of the office')}")
     files = pbt_files(src)
     ddir = os.path.join(OFFICE_DIR, str(int(dst)))
     for rel, _p in files:

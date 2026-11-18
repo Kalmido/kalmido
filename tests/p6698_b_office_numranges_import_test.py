@@ -10,7 +10,8 @@ tenant-matrix: own  freelancer-matrix: office
  - a person without an organisation who has a range GT already imports the same export privately: the imported range gets
    another code (GT2, named in the report), both ranges count apart
  - Fable F3: the import checks a range like the route does: an organisation whose own range already holds the archive's scheme
-   takes the range closed (a warning names it), its documents stay in that range (never the main range), no new invoice there
+   takes the range closed (a warning names it), its documents stay in that range (never the main range), no new invoice there;
+   2.1390.0 (#7037, F1): it opens again only with a scheme the office accepts
 usage: p6698_b_office_numranges_import_test.py <datadir>"""
 import base64
 import os
@@ -177,6 +178,11 @@ rows = sql("SELECT number, range_id FROM office_docs WHERE org_id=? AND kind='in
 check(len(rows) == 2 and all(r_[1] == x3.get("id") for r_ in rows), f"delta: its documents stay in that range {rows}")
 r = A.post(B + OF + "/docs", json={"kind": "invoice", "client_id": CD, "range_id": x3.get("id"), "items": [{"title": "Tarif Studio", "qty": 1, "rate": 150, "unit": "piece"}]})
 check(r.status_code in (400, 409), f"delta: no new invoice in the closed range {r.status_code} {r.text[:160]}")
+# 2.1390.0 (#7037, Fable F1): opening it again checks its scheme (still XY's) -> refused; with a scheme of its own it opens
+r = A.patch(B + f"/api/office/num-ranges/{x3.get('id')}", json={"closed": False})
+check(r.status_code == 400 and extra(A, "GT").get("closed") is True, f"#7037 F1: delta: opening with the taken scheme refused {r.status_code} {r.text[:160]}")
+r = A.patch(B + f"/api/office/num-ranges/{x3.get('id')}", json={"closed": False, "scheme": "GTD-{yyyy}-{seq:03}"})
+check(r.ok and extra(A, "GT").get("closed") is False, f"#7037 F1: delta: with a scheme of its own it opens {r.status_code} {r.text[:160]}")
 
 # ---------------------------------------------------------------- a person without an organisation with a GT of her own imports it
 FID, Fr = freelancer(B, A)
