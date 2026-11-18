@@ -387,7 +387,7 @@ async function authScreen(j) {
         location.replace(afterLogin());
       } catch { errEl.textContent = tr('Server not reachable.'); }
     });
-    const dc = (location.hash.match(/delete-cancel=([\w.-]+)/) || [])[1];  // 2.553.0 (#1413): the link of the mail
+    const dc = (location.hash.match(/delete-cancel=([\w.-]+)/) || [])[1] || lg_dcTake();  // 2.553.0 (#1413): the link of the mail; 2.1385.0 (#6503 7): main.js took it out of the address bar
     if (dc) { history.replaceState(null, '', location.pathname); lg_delScreen(el, logo, {token: dc}); }
   }
   document.body.appendChild(el);
@@ -588,6 +588,23 @@ document.addEventListener('change', async e => {
 // 2.49.0 (#1531): "Forgot your password?": e-mail address or user name -> a one-time link by mail (the answer is always the same)
 // 2.553.0 (#1413): an account whose deletion was asked for: the sign-in (right password) or the mail's link offers only
 // "Cancel the deletion" (POST /api/auth/delete-cancel, admin/selfdelete.py); afterwards the ordinary sign-in
+// 2.1385.0 (#6503 7): the token of the mail's "Cancel the deletion" link leaves the address bar at once (main.js lg_dcKeep), also
+// while another account is signed in and no sign-in page comes; it waits in this tab (sessionStorage) for the sign-in page
+const LG_DC_KEY = 'kalmido.delcancel';
+let lgDelCancel = '';
+function lg_dcKeep() {
+  const m = location.hash.match(/delete-cancel=([\w.-]+)/);
+  if (!m) return;
+  lgDelCancel = m[1];
+  try { sessionStorage.setItem(LG_DC_KEY, m[1]); } catch { /* no storage: it waits in this page only */ }
+  history.replaceState(null, '', location.pathname);
+}
+function lg_dcWaits() { try { return !!(lgDelCancel || sessionStorage.getItem(LG_DC_KEY)); } catch { return !!lgDelCancel; } }
+function lg_dcTake() {
+  let t = lgDelCancel; lgDelCancel = '';
+  try { t = t || sessionStorage.getItem(LG_DC_KEY) || ''; sessionStorage.removeItem(LG_DC_KEY); } catch { /* no storage */ }
+  return t;
+}
 function lg_delScreen(el, logo, o) {
   el.innerHTML = `<div class="card">${logo}
     <h2 class="invh">${tr('Your account will be deleted')}</h2>

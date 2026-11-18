@@ -19,6 +19,7 @@ from ..core.access import Denied, list_role, need_list
 from ..accounts.session import me
 from ..accounts.pictures import list_icon_path, list_pic_guard
 from ..core.errors import BadInput
+from ..core.imgsafe import ImgRefused, img_open  # 2.1385.0 (#6435)
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..core.orgcrypt import oc_list_space, oc_plain_size, oc_send_file, oc_write_file  # 2.149.0 G (#2517): pulled up from functions
 from ..lists.lists import clean_folder  # 2.369.5 (#2517): pulled up from functions
@@ -85,30 +86,23 @@ def o3c_head_process(raw):
         from PIL import Image, ImageOps
     except ImportError:
         raise BadInput(tr("Photos are not available on this server"))
-    Image.MAX_IMAGE_PIXELS = 30_000_000
     try:
-        im = Image.open(io.BytesIO(raw))  # reads the header only
-        if im.format not in ("JPEG", "PNG", "WEBP"):
-            raise BadInput(tr("Please select a JPEG, PNG or WebP picture"))
-        if im.width * im.height > 20_000_000:  # 2.83.0 review: a 1600 x 800 strip needs no more (PNG / WebP decode in full)
-            raise BadInput(tr("This picture cannot be read"))
-        if im.format == "JPEG":
-            im.draft("RGB", (HEAD_W, HEAD_H))
-        im.load()
-        im = ImageOps.exif_transpose(im)
-        if im.mode in ("RGBA", "LA", "P"):
-            im = im.convert("RGBA")
-            bg = Image.new("RGB", im.size, (255, 255, 255))
-            bg.paste(im, mask=im.getchannel("A"))
-            im = bg
-        else:
-            im = im.convert("RGB")
-        im.thumbnail((HEAD_W, HEAD_H), Image.Resampling.LANCZOS)
-        out = io.BytesIO()
-        im.save(out, "JPEG", quality=82, optimize=True)  # a new file: no EXIF, GPS or ICC data carried over
+        # 2.1385.0 (#6435): the shared decoder; a 1600 x 800 strip needs no more than its pixel limit (2.83.0 review: 20 M)
+        with img_open(raw, formats=("JPEG", "PNG", "WEBP"), draft=(HEAD_W, HEAD_H)) as im:
+            im = ImageOps.exif_transpose(im)
+            if im.mode in ("RGBA", "LA", "P"):
+                im = im.convert("RGBA")
+                bg = Image.new("RGB", im.size, (255, 255, 255))
+                bg.paste(im, mask=im.getchannel("A"))
+                im = bg
+            else:
+                im = im.convert("RGB")
+            im.thumbnail((HEAD_W, HEAD_H), Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            im.save(out, "JPEG", quality=82, optimize=True)  # a new file: no EXIF, GPS or ICC data carried over
         return out.getvalue()
-    except BadInput:
-        raise
+    except ImgRefused as e:
+        raise BadInput(tr("Please select a JPEG, PNG or WebP picture") if e.reason == "format" else tr("This picture cannot be read")) from None
     except Exception:  # noqa: BLE001  (decompression bomb, truncated, unknown format ...)
         raise BadInput(tr("This picture cannot be read"))
 

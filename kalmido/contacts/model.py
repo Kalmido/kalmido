@@ -685,11 +685,31 @@ def parse_vcard(text):
     return v
 
 
+def _photo_kind(b64):
+    """2.1385.0 (#6435): the picture type a base64 photo really is, from its first bytes (magic): jpeg / png / gif / webp,
+    '' for anything else - the declared type (data URI, vCard TYPE) is not trusted, the stored one is what the bytes are."""
+    head = re.sub(r"\s", "", b64[:64])[:16]
+    try:
+        b = base64.b64decode(head + "=" * (-len(head) % 4))
+    except ValueError:
+        return ""
+    if b.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if b.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if b[:6] in (b"GIF87a", b"GIF89a"):
+        return "gif"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "webp"
+    return ""
+
+
 def _photo_in(params, val):
     val = val.strip()
     if val.lower().startswith("data:image/"):
         m = re.fullmatch(r"data:(image/(?:jpeg|png|gif|webp));base64,([A-Za-z0-9+/=\s]+)", val, re.I)
-        return f"data:{m.group(1).lower()};base64," + re.sub(r"\s", "", m.group(2)) if m and len(val) <= PHOTO_MAX else ""
+        t = _photo_kind(m.group(2)) if m and len(val) <= PHOTO_MAX else ""  # 2.1385.0 (#6435): the bytes decide
+        return f"data:image/{t};base64," + re.sub(r"\s", "", m.group(2)) if t else ""
     enc = [x.lower() for x in params.get("ENCODING", [])]
     if "b" in enc or "base64" in enc:
         t = (params.get("TYPE") or ["jpeg"])[0].lower().replace("image/", "")
@@ -700,7 +720,8 @@ def _photo_in(params, val):
             base64.b64decode(val, validate=False)
         except ValueError:
             return ""
-        return f"data:image/{t};base64," + re.sub(r"\s", "", val)
+        t = _photo_kind(val)  # 2.1385.0 (#6435): the bytes decide (TYPE=JPEG on a PNG stores image/png; neither: no photo)
+        return f"data:image/{t};base64," + re.sub(r"\s", "", val) if t else ""
     return ""
 
 

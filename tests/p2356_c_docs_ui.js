@@ -50,6 +50,10 @@ const FEAT = 'cal,comments,collab,office,clients';
   // #3003 on the quotation
   check(await until(() => d.querySelector(`.oil_link a[href="#office/offers/${I}"]`)) && /Invoices for this quotation/.test(d.querySelector('.oil_link').textContent),
     '#3003: the quotation lists its invoice with a link');
+  // 2.1385.0 (#6947): the reference lines sit in the head (right under the head / the finalised note), in one block before every box
+  { const r = d.querySelector('.oil_refs'), p = r?.previousElementSibling;
+    check(r && r.querySelector('.oil_link') && p && (p.matches('.ofdhead') || p.matches('.ofdlocked')) && !r.closest('.ofdeditor') && !d.querySelector('#view .oil_link:not(.oil_refs .oil_link)'),
+      '#6947: the reference lines are one block in the head: ' + (p?.className || '-')); }
   // #3005 head: client first, the rest folded
   const head = d.querySelector('[data-sec="head"]');
   check(head?.querySelector('.ofdgrid .row')?.querySelector('#ofd-client_id'), '#3005: the client is the first field of the head');

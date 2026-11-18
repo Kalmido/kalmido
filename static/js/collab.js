@@ -777,8 +777,8 @@ function actText0(a, U) {
 // comment text: the same markdown as a description (renderMd: headings, lists, read-only checkboxes, bold, code, links;
 // 2.13.2 #478 N4, before only inline), <@id> -> highlighted @name; compact in comments and chat bubbles (.mdc)
 function commentBody(body, U, lid) {  // 2.18.0 (#408 G): lid = the list (file:line links into its repository)
-  return `<div class="md mdc">${mdTaskRefs(renderMd(body, true, {lid}), true)}</div>`  // 2.35.0 (#1096): #123 -> the task
-    .replace(/&lt;@(\d+)&gt;/g, (_, id) => mentionTag(+id, uname(+id, U), !!(U || {})[id] || !!agentById(id)));
+  return htmlTextSub(`<div class="md mdc">${mdTaskRefs(renderMd(body, true, {lid}), true)}</div>`,  // 2.35.0 (#1096): #123 -> the task
+    /&lt;@(\d+)&gt;/g, (_, id) => mentionTag(+id, uname(+id, U), !!(U || {})[id] || !!agentById(id)));  // 2.1385.0 (#6435 12): not in attributes
 }
 // 2.4.2 (#389): a mention is a button that opens a small card about the person or agent; a name nobody has stays text
 const mentionTag = (id, name, known = true) => known

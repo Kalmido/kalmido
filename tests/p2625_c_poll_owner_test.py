@@ -109,6 +109,8 @@ check(PP in ids(Cl) and link(PL) == 200, "before the change: Clara lists her age
 
 # ---- the owner changes: Clara -> Bert
 owner_set(P, BERT)
+# 2.1385.0 (#6503): the change ended the agent's token; Bert makes a new one
+PH = ahead(Be.post(B + f"/api/my/agents/{P}/token", json={}).json()["token"])
 check(link(PL) == 404, "after the change: the link of the old poll answers 404")
 check(PP not in ids(Be) and PP not in ids(Be, trash=True) and PD not in ids(Be, trash=True), "the new owner lists none of the old polls (nor in the trash)")
 check(Be.get(B + f"/api/polls/{PP}").status_code == 404, "the new owner cannot read the old poll (404)")

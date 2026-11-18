@@ -148,8 +148,10 @@ def is_agent(u):
 # 2.1264.0 (#6351): THE row of an agent - its agents row, its account and owner_locked: the account of the person it belongs to
 # is locked (users.disabled of agents.owner_id; false for an agent without an owner, a team agent). Every query that hands rows
 # to agent_active uses it, so nothing reads an agent without its owner's state. users carries no row-level security: the
-# owner's row is seen in every context (also the agent's own).
-AGENT_ROW_SQL = """SELECT a.*, u.username, u.display_name, u.avatar, u.disabled, COALESCE(o.disabled, false) AS owner_locked
+# owner's row is seen in every context (also the agent's own). 2.1385.0 (#6503 2): an owner made a kid account counts as locked
+# too (a kid has no API, family/family.py kid_set): its personal agents pause; an ordinary account again lets them work at once.
+AGENT_ROW_SQL = """SELECT a.*, u.username, u.display_name, u.avatar, u.disabled,
+                          (COALESCE(o.disabled, false) OR COALESCE(o.kid, 0)<>0) AS owner_locked
                    FROM agents a JOIN users u ON u.id=a.user_id LEFT JOIN users o ON o.id=a.owner_id"""
 
 
@@ -158,8 +160,8 @@ def agent_row(c, aid):
 
 
 def agent_owner_locked(a):
-    """2.1264.0 (#6351): the account of the person agent a (agent_row) belongs to is locked. Nothing is written to the agent:
-    unlocking the account lets it work again at once."""
+    """2.1264.0 (#6351): the account of the person agent a (agent_row) belongs to is locked (2.1385.0, #6503: or a kid account).
+    Nothing is written to the agent: unlocking the account lets it work again at once."""
     return bool(a) and bool(a["owner_locked"])
 
 

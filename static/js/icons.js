@@ -272,6 +272,13 @@ function sbiIconFor(emoji) {  // the line icon for an emoji ('' = none)
 }
 const ic = (n, c = '') => `<svg class="i ${c}" viewBox="0 0 20 20" aria-hidden="true">${P[n] || ''}</svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+// 2.1385.0 (#6435 12): html.replace(re, fn) on finished HTML, but only outside of tags: a match inside a tag (an attribute) stays
+// as it is, so a placeholder / mention never puts an element into an attribute. fn gets the match and re's groups (no offset)
+function htmlTextSub(html, re, fn) {
+  const n = new RegExp(re.source + '|').exec('').length - 1;  // the groups of re
+  return String(html).replace(new RegExp(`(?:${re.source})|(<\\/?[a-zA-Z][\\w-]*[^>]*>)`, re.flags.includes('g') ? re.flags : re.flags + 'g'),
+    (m, ...a) => a[n] !== undefined ? m : fn(m, ...a.slice(0, n)));
+}
 // colors from the server only ever reach a style attribute as a plain hex value
 const cssColor = v => typeof v === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v) ? v : '';
 const $ = (s, r = document) => r.querySelector(s);

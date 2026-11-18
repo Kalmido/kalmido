@@ -622,7 +622,7 @@ change answers `403`. 2.79.0: a kid account has no API and no CalDAV / CardDAV (
 answer `401`, and making an account a kid account deletes its API tokens and app passwords.
 A parent can give a kid account a PIN (2.49.0, in the app only: Family > the kid's card > PIN; 4 to 6 digits, stored only as
 a hash). With a PIN the kid needs it in the app to change its account and settings or to log out; ticking off and asking
-for rewards stay free. Five wrong PINs lock it for 15 minutes and the parents get a push. Agents never see or set the
+for rewards stay free. Five wrong PINs lock it for 15 minutes and the parents get a push; each further lock in a row doubles the time, up to a day (2.1385.0, #6503), a right PIN or a new one starts again at 15 minutes. Agents never see or set the
 PIN; `GET /family/kids` shows only `pin: true|false`.
 
 ## Events

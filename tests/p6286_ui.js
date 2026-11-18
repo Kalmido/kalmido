@@ -4,7 +4,7 @@
 // localStorage shared by its windows.
 // - C1: an own knowledge page text the server refused (waiting at its page, x:) survives a new sign-in, an ended session
 //   (401) and the 14-day tidying of the copy; logout counts it in its question, the switch to another account counts it and
-//   downloads it; another account of the browser never reads it
+//   deletes it (2.1385.0, #6503: no download for the other account); another account of the browser never reads it
 // - C2: the reload by itself asks for quiet (incl. the form guard, fgAny) right before it reloads, not only before its wait
 //   for the server, and gives up otherwise
 // - C3: the adoption of the old localStorage queue removes only the adopted entries there, not what was put there meanwhile
@@ -115,7 +115,8 @@ const lsj = (br, k) => { const v = br.shared.store['tasks.' + k]; return v == nu
   check(!!br.shared.store[XK] && lsj(br, 'uid') === me, 'C1: the waiting text survives the ended session ' + Object.keys(br.shared.store).filter(k => k.startsWith('tasks.fdx')));
   w.close();
 
-  // another account in this browser: never reads it; the switch asks with it counted and downloads it
+  // another account in this browser: never reads it; the switch asks with it counted and deletes it
+  // 2.1385.0 (#6503 9): no download any more (it went to the account signing in now)
   const asked = [], blobs = [];
   w = await win(br, 'alice', {hash: '', setup: x => {
     x.confirm = t => { asked.push(String(t)); return true; };
@@ -124,10 +125,8 @@ const lsj = (br, k) => { const v = br.shared.store['tasks.' + k]; return v == nu
   }});
   check(await until(() => asked.length), 'C1: the switch to another account asks');
   check(/1 change of the previous account/.test(asked[0] || ''), 'C1: the switch counts the waiting text ' + asked[0]);
-  check(await until(() => blobs.length), 'C1: the switch downloads');
-  const txt = blobs[0]?.__txt || '';
-  check(/Beds · Knowledge page/.test(txt) && /My offline beds/.test(txt), 'C1: the download holds the waiting text ' + txt);
   check(await until(() => !Object.keys(br.shared.store).some(k => k.startsWith('tasks.fdx.'))), 'C1: after the switch it is gone from this browser');
+  check(!blobs.some(b => /My offline beds/.test(b.__txt || '')), '#6503 9: ... and the other account got no file with it');
   w.close();
 
   // ================= C2: the reload by itself asks for quiet right before it reloads

@@ -29,6 +29,7 @@ from flask import g, jsonify, request, Response, send_file
 from ..core.config import app, APP_VERSION, OFFICE_DIR
 from ..core.i18n import N_, stored_join, tr
 from ..core.errors import BadKey
+from ..core.imgsafe import ImgRefused, img_open  # 2.1385.0 (#6435)
 from ..core.db import bump, connect, db, err
 from ..core.access import Denied
 from .model import office_feature, office_gate, office_logo_set, office_need_feature, office_org, office_settings
@@ -71,25 +72,21 @@ def opdf_logo_process(raw):
         from PIL import Image, ImageOps
     except ImportError:
         raise ValueError(tr("Photos are not available on this server"))
-    Image.MAX_IMAGE_PIXELS = 30_000_000
     try:
-        try:
-            im = Image.open(io.BytesIO(raw))
-        except Exception:  # noqa: BLE001  (SVG, PDF, text: not a raster picture Pillow knows)
-            raise ValueError(tr("Please select a PNG, JPEG or WebP picture (PNG at least 600 px wide prints sharply)")) from None
-        if im.format not in ("JPEG", "PNG", "WEBP"):
-            raise ValueError(tr("Please select a PNG, JPEG or WebP picture (PNG at least 600 px wide prints sharply)"))
-        if im.width * im.height > 30_000_000:
-            raise ValueError(tr("This picture cannot be read"))
-        im.load()
-        im = ImageOps.exif_transpose(im)
-        im = pdf_to_8bit(im)  # 2.296.0 D (#3172): 16 bit grey scaled, not clipped to white
-        im = im.convert("RGBA") if im.mode in ("RGBA", "LA", "P", "PA") else im.convert("RGB")
-        if im.width > LOGO_MAX_PX:
-            im = im.resize((LOGO_MAX_PX, max(1, round(im.height * LOGO_MAX_PX / im.width))), Image.Resampling.LANCZOS)
-        out = io.BytesIO()
-        im.save(out, "PNG", optimize=True)
+        # 2.1385.0 (#6435): the shared decoder (only JPEG / PNG / WebP, pixels before load(), one lock); SVG, PDF, text: "format"
+        with img_open(raw, formats=("JPEG", "PNG", "WEBP")) as im:
+            im = ImageOps.exif_transpose(im)
+            im = pdf_to_8bit(im)  # 2.296.0 D (#3172): 16 bit grey scaled, not clipped to white
+            im = im.convert("RGBA") if im.mode in ("RGBA", "LA", "P", "PA") else im.convert("RGB")
+            if im.width > LOGO_MAX_PX:
+                im = im.resize((LOGO_MAX_PX, max(1, round(im.height * LOGO_MAX_PX / im.width))), Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            im.save(out, "PNG", optimize=True)
         return out.getvalue(), im.width, im.height
+    except ImgRefused as e:
+        if e.reason == "format":
+            raise ValueError(tr("Please select a PNG, JPEG or WebP picture (PNG at least 600 px wide prints sharply)")) from None
+        raise ValueError(tr("This picture cannot be read")) from None
     except ValueError:
         raise
     except Exception:  # noqa: BLE001  (truncated, bomb, unknown)

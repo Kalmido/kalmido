@@ -140,6 +140,30 @@ check(pin_err(Li.patch(B + "/api/me", json={"display_name": "Lina"})), "locked: 
 r = Bo.put(B + f"/api/family/kids/{LINA}/pin", json={"pin": "7391"})
 check(r.ok and Li.post(B + "/api/me/pin/unlock", json={"pin": "7391"}).ok, "a new PIN from the parent ends the lock")
 
+# ================================================================== 2.1385.0 (#6503 6): the lock grows, a right PIN starts again
+def lock_round(pin_ok="7391"):
+    """Five wrong PINs after an ended lock -> the answer of the fifth."""
+    dbx("UPDATE kid_pins SET lock_until='2000-01-01T00:00:00+00:00' WHERE kid_id=?", (LINA,))
+    for p in ("1111", "2222", "3333", "4444"):
+        Li.post(B + "/api/me/pin/unlock", json={"pin": p})
+    return Li.post(B + "/api/me/pin/unlock", json={"pin": "5555"})
+
+
+r = lock_round()
+check(r.status_code == 429 and r.json().get("wait") == 900, "#6503 6: after the new PIN the first lock is 15 minutes again " + r.text)
+r = lock_round()
+check(r.status_code == 429 and r.json().get("wait") == 1800, "#6503 6: the next lock in a row doubles: 30 minutes " + r.text)
+r = lock_round()
+check(r.status_code == 429 and r.json().get("wait") == 3600, "#6503 6: ... 60 minutes " + r.text)
+dbx("UPDATE kid_pins SET locks=12 WHERE kid_id=?", (LINA,))
+r = lock_round()
+check(r.status_code == 429 and r.json().get("wait") == 86400, "#6503 6: never more than a day " + r.text)
+dbx("UPDATE kid_pins SET lock_until='2000-01-01T00:00:00+00:00' WHERE kid_id=?", (LINA,))
+check(Li.post(B + "/api/me/pin/unlock", json={"pin": "7391"}).ok and dbx("SELECT locks FROM kid_pins WHERE kid_id=?", (LINA,))[0][0] == 0,
+      "#6503 6: the right PIN starts again")
+r = lock_round()
+check(r.status_code == 429 and r.json().get("wait") == 900, "#6503 6: ... at 15 minutes " + r.text)
+
 # ================================================================== removing it
 check(Bo.delete(B + f"/api/family/kids/{LINA}/pin").ok and k(Bo)[0]["pin"] is False, "the parent removes the PIN")
 check(not dbx("SELECT 1 FROM kid_pins WHERE kid_id=?", (LINA,)) and not dbx("SELECT 1 FROM kid_pin_open WHERE kid_id=?", (LINA,)), "nothing of it is left")

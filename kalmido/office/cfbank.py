@@ -177,7 +177,8 @@ def cfb_mt940_balances(text, home):
     """2.299.0 A (#3190): MT940 / MT942 text -> the balances like cfb_camt_balances (core/mt940.mt_parse); other currency
     than home left out; an unreadable file gives []."""
     try:
-        bals = mt.mt_parse(text)[1]
+        from .bank import BNK_FILE_ROWS  # 2.1385.0 (#6435): the rows are counted while reading (RowsOver is a BadInput: [])
+        bals = mt.mt_parse(text, max_rows=BNK_FILE_ROWS)[1]
     except BadInput:
         return []
     return [{"account": x["account"] or tr("Main account"), "day": x["day"], "amount": x["amount"], "kind": x["kind"]}

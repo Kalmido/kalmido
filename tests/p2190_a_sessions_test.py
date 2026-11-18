@@ -159,10 +159,11 @@ check("ran" in out and f"{STUB}/push/orphan" not in left and f"{STUB}/push/old" 
       f"#1991: clean-up: a subscription of a gone session goes, '' and live ones stay {left} {out[-300:]}")
 
 # ================================================================== #2496: tickets per address
+# 2.1385.0 (#6503 4): passkey tickets ('pk') live in their own namespace now -> the 2FA tickets ('2fa') are counted here
 out = box("from kalmido.core.config import app as fa\nfrom kalmido.accounts import login as L\n"
           "with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '198.51.100.7'}):\n"
-          "    for _ in range(L.PEND_PER_IP + 10):\n        L.pend_new('pk', None, chal='x')\n"
-          "with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '198.51.100.8'}):\n    L.pend_new('pk', None, chal='y')\n"
+          "    for _ in range(L.PEND_PER_IP + 10):\n        L.pend_new('2fa', None, remember=True)\n"
+          "with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '198.51.100.8'}):\n    L.pend_new('2fa', None, remember=True)\n"
           # 2.622.0 (#3891): the tickets live in the database (core/ephem.py), the address as an HMAC
           "from kalmido.core.ephem import eph_hash\n"
           "n = lambda ip: c.execute(\"SELECT COUNT(*) FROM eph_state WHERE ns='pend' AND ip=? AND exp > extract(epoch FROM now())\", (eph_hash('ip', ip),)).fetchone()[0]\n"
@@ -177,10 +178,29 @@ check("cap ['b', 'c']" in out, "#2496: the address's own oldest gives way " + ou
 out = box("from kalmido.core.config import app as fa\nfrom kalmido.accounts import login as L\nc.execute(\"DELETE FROM eph_state WHERE ns='pend'\")\nc.commit()\n"
           "for i in range(L.PEND_PER_IP + 5):\n"
           "    with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '2001:db8:1:2::%x' % (i + 1)}):\n"
-          "        L.pend_new('pk', None, chal='x')\n"
+          "        L.pend_new('2fa', None, remember=True)\n"
           "print('v6', c.execute(\"SELECT COUNT(*) FROM eph_state WHERE ns='pend'\").fetchone()[0], L.PEND_PER_IP)")
 m = re.search(r"v6 (\d+) (\d+)", out)
 check(m and m.group(1) == m.group(2), "#2496: addresses of one IPv6 /64 share the ticket cap " + out[-300:])
+# 2.1385.0 (#6503 4): a flood of passwordless passkey tickets (POST /api/auth/passkey/options, open to anybody) fills only
+# their own namespace with its own caps: the 2FA tickets of people half way through signing in stay (both totals made small)
+out = box("from kalmido.core.config import app as fa\nfrom kalmido.accounts import login as L\n"
+          "c.execute(\"DELETE FROM eph_state WHERE ns IN ('pend','pendpk')\")\nc.commit()\nL.PEND_MAX = 5\nL.PK_PEND_MAX = 5\n"
+          "with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '198.51.100.20'}):\n"
+          "    for _ in range(3):\n        L.pend_new('2fa', None, remember=True)\n"
+          "for i in range(30):\n"
+          "    with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '203.0.113.%d' % (i + 1)}):\n"
+          "        L.pend_new('pk', None, chal=b'x', rp='kalmido.example')\n"
+          "with fa.test_request_context('/', environ_base={'REMOTE_ADDR': '203.0.113.99'}):\n"
+          "    for _ in range(L.PK_PEND_PER_IP + 7):\n        L.pend_new('pk', None, chal=b'x', rp='kalmido.example')\n"
+          "from kalmido.core.ephem import eph_hash\n"
+          "q = lambda ns: c.execute(\"SELECT COUNT(*) FROM eph_state WHERE ns=? AND exp > extract(epoch FROM now())\", (ns,)).fetchone()[0]\n"
+          "print('pkflood', q('pend'), q('pendpk'), L.PK_PEND_PER_IP)")
+m = re.search(r"pkflood (\d+) (\d+) (\d+)", out)
+check(m and m.group(1) == "3" and m.group(2) == "5", "#6503 4: 33 passkey tickets leave the 3 2FA tickets alone, their own total holds " + out[-300:])
+r = requests.post(B + "/api/auth/passkey/options", json={}, headers=H)
+check(r.ok and (r.cookies.get("kalmido_2fa") or "").startswith("pk.") and r.json().get("challenge"),
+      f"#6503 4: the passkey options mark their ticket for its namespace {r.status_code} {r.text[:120]}")
 
 # ================================================================== #2496: WebAuthn origin
 Bo = By
