@@ -241,7 +241,7 @@ def _iss_refuse(c, iss, key, code, msg, name, kind, headers=None):
             hour = iso(now_utc() - timedelta(hours=1))
             with system_ctx(c):  # the distinct targets probed in the last hour, since a person last resumed the issuer
                 n = c.execute("SELECT COUNT(DISTINCT target) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND at>=? "
-                              "AND (target LIKE 'route:%' OR target LIKE 'id:%') AND id > COALESCE((SELECT MAX(id) FROM office_doc_log "
+                              "AND (target LIKE 'route:%' OR target LIKE 'id:%') AND id > COALESCE((SELECT MAX(id) FROM office_doc_log "  # pg-ok: own lower-case prefixes, exact case
                               "WHERE issuer_id=? AND action='issuer_resume'), 0)", (iss["id"], hour, iss["id"])).fetchone()[0]
         since = iso(now_utc() - timedelta(minutes=ISS_REFUSED_EVERY))
         with system_ctx(c):  # the issuer's own refused calls
