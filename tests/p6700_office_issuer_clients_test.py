@@ -574,4 +574,25 @@ out = in_ct("import app, json\nfrom kalmido.office import issuers, issclients\ng
 got = json.loads(out.strip().splitlines()[-1])
 check(got.get("news") == "Zahle an pay.evil.example" and got.get("mail") == "one of its clients", f"F10: the client's name in the News only, not in the mail {got}")
 
+# F11: an organisation import builds the mark anew (at a text, known fields with two texts, flags of the fixed list, an empty one
+# NULL, issuer_id / external_ref always NULL); the office shows a broken mark without a 500
+out = in_ct("import app, json\nfrom kalmido.admin.oi_office import _p_client\nfrom kalmido.office.isshold import ihd_public\n"
+            "class Run:\n    org = 1\nres = []\n"
+            "for d in ({'issuer_id': 0, 'external_ref': '', 'issuer_hold': '{}'}, {'issuer_hold': json.dumps({'at': 7, 'issuer': 3, 'new': 1, "
+            "'fields': {'city': 5, 'zip': {'a': 1}, 'note': ['a', 'b'], 'name': ['Alt', 'Neu'], 'street': ['x']}, 'flags': ['x', 'text_suspicious', 3]})}, "
+            "{'issuer_hold': json.dumps({'at': '', 'fields': [], 'flags': 'text_suspicious'})}):\n"
+            "    o = _p_client(None, Run(), {}, dict(d), None)\n"
+            "    res.append([o.get('issuer_id'), o.get('external_ref'), json.loads(o['issuer_hold']) if o.get('issuer_hold') else None])\n"
+            "p = ihd_public(None, {'at': 'T', 'fields': {'city': 5, 'zip': {'a': 1}, 'street': ['A', 'B']}, 'flags': 7}, None, 1)\n"
+            "res.append([p['fields'], p['flags'], ihd_public(None, {}, None, 1) is not None])\nprint(json.dumps(res))\n")
+res = json.loads(out.strip().splitlines()[-1])
+check(res[0] == [None, None, None], f"F11: an empty mark {{}} is NULL, issuer_id 0 / external_ref '' NULL {res[0]}")
+h11 = res[1][2] or {}
+check(res[1][:2] == [None, None] and isinstance(h11.get("at"), str) and h11.get("at") and h11.get("fields") == {"name": ["Alt", "Neu"]}
+      and h11.get("flags") == ["text_suspicious"] and h11.get("new") is False and "issuer" not in h11,
+      f"F11: the mark built anew: at a text, only known fields with two texts, flags of the list, no issuer {h11}")
+check(res[2] == [None, None, None], f"F11: a mark that says nothing (no at, fields, flags) is NULL {res[2]}")
+check(res[3][0] == [{"field": "city", "old": "", "new": ""}, {"field": "zip", "old": "", "new": ""}, {"field": "street", "old": "A", "new": "B"}]
+      and res[3][1] == [] and res[3][2], f"F11: ihd_public with broken fields / flags: empty values, no 500; an empty mark shows {res[3]}")
+
 sys.exit(kt.done("p6700_office_issuer_clients"))

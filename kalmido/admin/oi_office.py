@@ -178,13 +178,12 @@ def _oi_has(c, table, space):
 def _p_client(c, run, src, d, ctx):
     if not run.org:  # a private client: the person's own (model.py pb_cl_sql)
         d["created_by"] = ctx.uid
-    if d.get("issuer_id") or d.get("external_ref"):  # 2.1384.0 (#6700): issuers are not exported: the client is the office's own (its mark stays)
-        d["issuer_id"], d["external_ref"] = None, None
-    if d.get("issuer_hold"):  # review F1: the mark stays (nothing is sent unchecked), its issuer number does not (another area's issuer)
-        from ..office.isshold import ihd_load
-        h = dict(ihd_load(d["issuer_hold"]) or {})
-        h.pop("issuer", None)
-        d["issuer_hold"] = json.dumps(h, ensure_ascii=False)
+    # 2.1384.0 (#6700): issuers are not exported: the client is the office's own (its mark stays); #7113 (review F11): always,
+    # also a 0 / "" the file brought along
+    d["issuer_id"], d["external_ref"] = None, None
+    if "issuer_hold" in d:  # review F1 / #7113 F11: the mark stays (nothing is sent unchecked), built anew (office/isshold.py
+        from ..office.isshold import ihd_norm  # ihd_norm: no issuer number of another area, known fields / flags only, empty = NULL)
+        d["issuer_hold"] = ihd_norm(d["issuer_hold"])
     return d
 
 

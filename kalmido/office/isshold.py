@@ -22,7 +22,7 @@ import json
 from flask import g, has_request_context, jsonify
 
 from ..core.config import app
-from ..core.db import body, bump, db, iso, now_utc
+from ..core.db import body, bump, db, iso, iso_ms, now_utc
 from ..core.errors import Denied, DeniedKey
 from ..core.i18n import N_, tr
 from ..core.pg import system_ctx
@@ -46,6 +46,37 @@ def ihd_load(raw):
     except (TypeError, ValueError):
         h = None
     return h if isinstance(h, dict) else {"at": str(raw)[:40], "fields": {}, "flags": [], "new": False}
+
+
+IHD_FLAGS = ("client_lookalike", "text_suspicious")  # the flags a mark may carry (office/issclients.py sets them)
+IHD_VALUE_MAX = 200  # a field's value in a mark: the longest client field a key sets (street, address extra, e-mail)
+
+
+def _ihd_pair(v):
+    """[old, new] of a mark's field as two texts ("" for anything else: a number, an object, a list of another length)."""
+    if isinstance(v, (list, tuple)) and len(v) == 2 and all(isinstance(x, str) for x in v):
+        return [v[0][:IHD_VALUE_MAX], v[1][:IHD_VALUE_MAX]]
+    return None
+
+
+def ihd_norm(raw):
+    """#7113 (review F11): a mark built anew from what an import brought along (the importing admin's file): "at" as a text,
+    "fields" only the known ones with two texts, "flags" from IHD_FLAGS, "new" a boolean, no issuer (another area's). A mark that
+    says nothing (no at, field, flag, new) is None (NULL): an empty one held every finalising and send without being shown. An
+    unreadable one still holds (ihd_load). -> JSON text or None."""
+    h = ihd_load(raw)
+    if h is None:
+        return None
+    at = h.get("at") if isinstance(h.get("at"), str) else ""
+    f = h.get("fields") if isinstance(h.get("fields"), dict) else {}
+    fields = {k: p for k, p in ((k, _ihd_pair(f.get(k))) for k in IHD_FIELDS if k in f) if p is not None}
+    fl = h.get("flags") if isinstance(h.get("flags"), list) else []
+    flags = sorted({x for x in fl if isinstance(x, str) and x in IHD_FLAGS})
+    new = h.get("new") is True
+    if not (at.strip() or fields or flags or new):
+        return None
+    out = {"at": at.strip()[:40] or iso_ms(now_utc()), "new": new, "fields": fields, "flags": flags}
+    return json.dumps(out, ensure_ascii=False)
 
 
 def ihd_issuer(c, h, cid):
@@ -75,7 +106,7 @@ def ihd_public(c, h, cid=None, uid=None):
     """The mark as the office shows it: {at, new, issuer: name, fields: [{field, old, new}], flags, client_id}.
     review F4: the old / new values of an invoicing field a person may not see (team/clients.py CLIENT_BILL_GATED,
     cl_bill_ok) stay empty - the field's name shows that it changed (uid: the person, default the request's)."""
-    if not h:
+    if h is None:  # #7113 (review F11): an empty mark {} still holds, so it shows too (a person can take it away)
         return None
     iss = ihd_issuer(c, h, cid)
     uid = uid if uid is not None else _viewer()
@@ -92,11 +123,11 @@ def ihd_public(c, h, cid=None, uid=None):
     def val(k, v, i):
         if k in CLIENT_BILL_GATED and not see:
             return ""
-        return (v or ["", ""])[i]
+        return (_ihd_pair(v) or ["", ""])[i]  # #7113 (review F11): a broken value (number, object) shows empty, no 500
     return {"at": str(h.get("at") or ""), "new": bool(h.get("new")), "issuer": iss["name"] if iss else "", "client_id": cid,
             "fields": [{"field": k, "old": val(k, v, 0), "new": val(k, v, -1), **({} if see or k not in CLIENT_BILL_GATED else {"hidden": True})}
                        for k, v in f.items() if k in IHD_FIELDS],
-            "flags": [x for x in (h.get("flags") or []) if isinstance(x, str)][:5]}
+            "flags": [x for x in (h.get("flags") if isinstance(h.get("flags"), list) else []) if isinstance(x, str)][:5]}
 
 
 def ihd_of(c, cid):
