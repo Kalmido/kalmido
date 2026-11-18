@@ -25,6 +25,7 @@ from ..core.schema import (
     SEC_AT_TRIGGER,  # 2.410.0 B (#3515)
 )
 from ..core.i18n import LANGS, browser_lang, tr  # 2.1337.0 (#6600): + browser_lang
+from .errors import BadInput  # 2.1385.0 (#6435): body()
 from .pg import pool_refresh, system_ctx as pg_system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from . import config  # 2.369.5 (#2517): pulled up from functions
 from . import objhooks  # 2.565.0 (#4717 #4719): START, the areas' forward copies onto the shared core
@@ -1684,7 +1685,13 @@ def body():
     b = g.get("body") if has_request_context() else None
     if b is not None:
         return b
-    return request.get_json(silent=True) or {}
+    b = request.get_json(silent=True)
+    if b is None and g.get("json_deep"):  # 2.1385.0 (#6435): nested deeper than the parser goes (core/config.py _DeepJSON): 400
+        raise BadInput(tr("Invalid data"))
+    b = b or {}
+    if not isinstance(b, dict):  # 2.1385.0 (#6435): a list / text / number as the body is 400, not a 500 at b.get (also sign-in)
+        raise BadInput(tr("The body must be a JSON object"))
+    return b
 
 
 # 2.40.0 (#1432): "Load more" pages (jobs, completed, trash) -- a composite cursor "<timestamp>|<id>" so rows with the

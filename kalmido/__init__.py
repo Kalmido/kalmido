@@ -98,6 +98,7 @@ ORDER = (
     "core.instance",
     "core.state",
     "core.safexml",  # 2.1272.0 (#6422): the one reader for XML from outside (standard library only)
+    "core.imgsafe",  # 2.1385.0 (#6435): the one decoder for foreign pictures in the app process (standard library + Pillow only)
     "core.csvimport",  # 2.140.0 B (#2134): the statement reader of budget and bank reconciliation
     "core.omitted",  # 2.1324.0 (#6589): the list "not included.txt" of what a ZIP export leaves out (no routes)
     "core.zipread",  # 2.146.0 (#2453 #2455 #2457): the in-memory ZIP reader of the importers

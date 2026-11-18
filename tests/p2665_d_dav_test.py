@@ -246,8 +246,9 @@ check(r.ok, f"a contact: {r.status_code}")
 CID = r.json().get("id")
 a2 = al.ctag(f"b{bk}", "addressbooks")
 check(a2 not in (None, a1), "a new contact changes the address book's ctag")
-PNG1 = "data:image/png;base64," + "A" * 40 + "QUJD"
-PNG2 = "data:image/png;base64," + "B" * 40 + "QUJD"  # same length, other bytes
+# 2.1385.0 (#6435): both start with a PNG head (iVBORw0KGgoAAAAN) - a stored contact photo must start like the picture it claims to be
+PNG1 = "data:image/png;base64,iVBORw0KGgoAAAAN" + "A" * 40 + "QUJD"
+PNG2 = "data:image/png;base64,iVBORw0KGgoAAAAN" + "B" * 40 + "QUJD"  # same length, other bytes
 A.patch(B + f"/api/contacts/{CID}", json={"photo": PNG1})
 a3 = al.ctag(f"b{bk}", "addressbooks")
 check(a3 != a2, "a contact photo changes the ctag")

@@ -10,6 +10,11 @@
 .vdrst.st-approved{background:var(--accent);border-color:var(--accent)}
 .vdrst.st-changes{border-color:var(--accent)}
 .vdrpov .vdrrows,.vdrcl .vdrrows{max-width:var(--w-form)}
+/* 2.1385.0 (#6944): in a tile of the project page the approvals are rows like the tile's other lists (a line between, no box) */
+.povs .vdrrows{gap:0;max-width:none}
+.povs .vdrrow{border:0;border-radius:var(--r-s);padding:.375rem .25rem}
+.povs .vdrrow:hover{background:var(--bg3)}
+.povs .vdrrows > li + li{border-top:1px solid var(--line)}
 .vdrform label{display:block;margin:.75rem 0 .25rem;font-size:var(--fs-m);color:var(--text2)}
 .vdrform input{width:100%}
 /* the review view: wide on a desktop, the whole screen on a phone */

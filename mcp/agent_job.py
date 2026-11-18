@@ -71,6 +71,16 @@ import urllib.parse
 import urllib.request
 import uuid
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """2.1385.0 (#6435 11): a redirect is never followed - urllib would send the Authorization header (the agent's token) along
+    to the address the answer names (like kalmido/agents/srvagent.py). A 3xx ends as an HTTPError."""
+    def redirect_request(self, *a, **kw):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OPEN_STATES = ("starting", "running", "paused")
 MAX_RESUMES = 3
@@ -312,7 +322,7 @@ class Api:
             h["Content-Type"] = ctype or "application/json"
         rq = urllib.request.Request(self.base + path, data=data, method=method, headers=h)
         try:
-            with urllib.request.urlopen(rq, timeout=timeout) as r:
+            with _OPENER.open(rq, timeout=timeout) as r:  # 2.1385.0 (#6435 11): no redirects
                 b = r.read()
                 return json.loads(b) if b else {}
         except urllib.error.HTTPError as e:

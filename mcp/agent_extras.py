@@ -31,6 +31,16 @@ import urllib.error
 import urllib.request
 import uuid
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """2.1385.0 (#6435 11): a redirect is never followed - urllib would send the Authorization header (the agent's token) along
+    to the address the answer names (like kalmido/agents/srvagent.py). A 3xx ends as an HTTPError."""
+    def redirect_request(self, *a, **kw):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -455,7 +465,7 @@ class Extras:
             rq = urllib.request.Request(self.api.base + f"/agent/chats/{int(uid)}", data=raw, method="POST", headers={
                 "Authorization": "Bearer " + self.api.token, "Accept": "application/json", "Content-Type": ct})
             try:
-                with urllib.request.urlopen(rq, timeout=120):
+                with _OPENER.open(rq, timeout=120):  # 2.1385.0 (#6435 11): no redirects
                     pass
                 self.files_ok = True
                 log(f"{len(files)} file(s) attached to the answer")

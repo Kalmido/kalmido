@@ -176,6 +176,8 @@ check(A.patch(B + f"/api/admin/agents/{CL}", json={"owner_id": CAROL}).json()["o
 check(not any(a["id"] == CL for a in A.get(B + "/api/agents").json()["agents"]), "#965: ... then even the instance admin (not the owner) does not reach it")
 check(A.patch(B + f"/api/admin/agents/{CL}", json={"owner_id": None}).json()["owner"] is None, "#965: and back to a team agent")
 check(A.patch(B + f"/api/admin/agents/{CL}", json={"owner_id": CL}).status_code == 400, "#965: an agent cannot own an agent")
+# 2.1385.0 (#6503): the change of owner ended the agent's token; a new one for the rest of this test
+CLH["Authorization"] = "Bearer " + A.post(B + f"/api/admin/agents/{CL}/token", json={}).json()["token"]
 us = A.get(B + "/api/users").json()["users"]
 check(all("kind" in u for u in us) and sum(1 for u in us if u["kind"] == "agent") == 2, "#1011: the user list carries kind (the app shows people only)")
 

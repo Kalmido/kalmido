@@ -24,6 +24,7 @@ from ..core.config import app, ATT_DIR
 from ..core.access import live_sql
 from ..core.i18n import tr
 from ..core.errors import BadInput
+from ..core.imgsafe import img_head, img_open  # 2.1385.0 (#6435)
 from ..core.mdedit import MD_LINE_MAX, md_head_line  # 2.1280.0 (#6423)
 from ..accounts.session import me
 from ..core.db import db, now_utc
@@ -265,9 +266,8 @@ def wkd_images(c, page, blocks):
         except Exception:  # noqa: BLE001  (a missing / unreadable file: the picture stays text)
             continue
         try:
-            from PIL import Image
-            with Image.open(io.BytesIO(raw)) as im:  # the header only: the size before anything is decoded
-                n = im.width * im.height
+            w, h, _fmt = img_head(raw)  # the header only (2.1385.0, #6435: the shared formats): the size before anything is decoded
+            n = w * h
         except Exception:  # noqa: BLE001  (not a picture after all: stays text)
             continue
         if px + n > WKD_IMG_PX:
@@ -572,18 +572,15 @@ def wkd_docx(title, blocks, images, style=""):
         if not hit:
             return None
         try:
-            from PIL import Image
-            im = Image.open(io.BytesIO(hit[0]))
-            if im.width * im.height > 30_000_000:
-                return None
-            im.load()
-            if max(im.width, im.height) > WKD_IMG_EDGE:  # review (job/4457): not saved again at full size
-                im.thumbnail((WKD_IMG_EDGE, WKD_IMG_EDGE))
-            if im.mode not in ("RGB", "RGBA", "L", "LA"):
-                im = im.convert("RGBA")
-            buf = io.BytesIO()
-            im.save(buf, "PNG")
-        except Exception:  # noqa: BLE001  (not a picture after all)
+            # 2.1385.0 (#6435): the shared decoder (formats, pixels before load() - a JPEG at the scale it is drafted to -, one lock)
+            with img_open(hit[0], draft=(WKD_IMG_EDGE, WKD_IMG_EDGE)) as im:
+                if max(im.width, im.height) > WKD_IMG_EDGE:  # review (job/4457): not saved again at full size
+                    im.thumbnail((WKD_IMG_EDGE, WKD_IMG_EDGE))
+                if im.mode not in ("RGB", "RGBA", "L", "LA"):
+                    im = im.convert("RGBA")
+                buf = io.BytesIO()
+                im.save(buf, "PNG")
+        except Exception:  # noqa: BLE001  (not a picture after all, too large, busy)
             return None
         name = f"image{len(media) + 1}.png"
         media[name] = buf.getvalue()

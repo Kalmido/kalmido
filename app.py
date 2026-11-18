@@ -75,6 +75,25 @@ if __name__ == "__main__":
         from kalmido.core.db import skfp_warn_changed
         skfp_warn_changed()  # 2.190.0 R (#2592): KALMIDO_SECRET_KEY_CHANGED left on
     from waitress import serve
+
+    def _body_limits(cap, big_paths):
+        """2.1385.0 (#6435): waitress has one body limit for every path (max_request_body_size, the restore's 4 GB) and reads
+        the whole body (to a temp file) before the app can say 413. Its parser compares the body with self.adj
+        .max_request_body_size right after parse_header (Content-Length) and while a chunked body comes in: a request
+        whose path is not in big_paths gets a copy of the settings with the limit cap, so it is refused (413) before
+        its body is read."""
+        import copy
+        from waitress import channel, parser
+
+        class _Parser(parser.HTTPRequestParser):
+            def parse_header(self, header_plus):
+                super().parse_header(header_plus)
+                if self.path not in big_paths and self.adj.max_request_body_size > cap:
+                    adj = copy.copy(self.adj)
+                    adj.max_request_body_size = cap
+                    self.adj = adj
+
+        channel.HTTPChannel.parser_class = _Parser
     port = int(os.environ.get("PORT", 3040))
     listen = f"0.0.0.0:{port}" + (f" 0.0.0.0:{AUTH_PROXY_PORT}" if AUTH_PROXY_PORT and AUTH_PROXY_PORT != str(port) else "")
     # 2.642.0 (#4975): KALMIDO_WEB_PROCS > 1 -- every process binds the same port(s) with SO_REUSEPORT (admin/worker.py); the
@@ -92,5 +111,8 @@ if __name__ == "__main__":
     # 2.642.0 (#4975): WEB_THREADS = this process' part of KALMIDO_THREADS
     # 2.1343.0 (#6406): channel_request_lookahead=1 -- waitress keeps reading the connection while a request runs, so a request
     # the browser dropped (a newer search in the palette) is seen (environ waitress.client_disconnected, core/srchreg.py _gone)
+    # 2.1385.0 (#6435): the 4 GB of a restore only for its upload route; every other path is refused from its Content-Length (or
+    # a chunked body once it grows past it) at the request limit, before waitress spools the body to disk
+    _body_limits(app.config["MAX_CONTENT_LENGTH"] + 1024 * 1024, {"/api/admin/backups/upload"})
     serve(app, **where, threads=WEB_THREADS, max_request_body_size=max(BK_MAX_BYTES, app.config["MAX_CONTENT_LENGTH"]) + 1024 * 1024,
           clear_untrusted_proxy_headers=False, channel_request_lookahead=1)

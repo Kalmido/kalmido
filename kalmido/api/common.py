@@ -31,6 +31,7 @@ except ValueError:
 V1_KEY_KINDS = {}
 
 
+HITS_SWEEP_S, _HITS_SWEPT = 10, [0.0]  # 2.1385.0 (#6435): hit_limit's sweep of idle keys
 RATE_WINDOW_S = test_seconds("KALMIDO_TEST_RATE_WINDOW_S", 60)  # 2.149.0 E (#2513): the minute of hit_limit (tests only)
 
 
@@ -47,7 +48,10 @@ def hit_limit(key, limit, window=None):
             return True
         arr.append(now)
         _HITS[key] = arr
-        if len(_HITS) > 20000:  # forget idle keys
+        # forget idle keys; 2.1385.0 (#6435): at most every HITS_SWEEP_S seconds - with over 20,000 keys that are all busy every
+        # call scanned all of them under the lock
+        if len(_HITS) > 20000 and now - _HITS_SWEPT[0] >= HITS_SWEEP_S:
+            _HITS_SWEPT[0] = now
             for k in [k for k, v in _HITS.items() if not v or now - v[-1] >= window]:
                 _HITS.pop(k, None)
     if window >= RATE_SHARED_MIN_S:  # 2.306.0 D1 (#2875): the long limits count for every web process (failed count: this one's)

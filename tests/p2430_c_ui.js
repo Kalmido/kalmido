@@ -143,8 +143,9 @@ const item = (d, t) => items(d).find(x => (x.querySelector('.ml')?.firstChild?.t
     const g = await ev(`(() => { const g = document.querySelector('.pov .lysix'); return getComputedStyle(g).gridTemplateColumns.split(' ').length; })()`);
     check(g === 6, `${tag}: columns of six (${g})`);
     // drag the grip of "Members"/"Key links" (a half block) to two thirds
+    // 2.1385.0 (#6944): the grid is el.closest('.lysix') (a half block may sit in a column .lycol); the order is the style order
     const res = await ev(`(async () => {
-      const el = document.querySelector('.lyb[data-lyk="links"]'), gp = el.querySelector('.lygrip'), g = el.parentElement, r = el.getBoundingClientRect(), col = g.clientWidth / 6;
+      const el = document.querySelector('.lyb[data-lyk="links"]'), gp = el.querySelector('.lygrip'), g = el.closest('.lysix'), r = el.getBoundingClientRect(), col = g.clientWidth / 6;
       const pe = (t, x, y) => gp.dispatchEvent(new PointerEvent(t, {bubbles: true, pointerType: 'mouse', button: 0, clientX: x, clientY: y}));
       pe('pointerdown', r.right - 4, r.bottom - 4);
       document.dispatchEvent(new PointerEvent('pointermove', {bubbles: true, pointerType: 'mouse', clientX: r.left + col * 3.8, clientY: r.bottom - 4}));
@@ -165,7 +166,7 @@ const item = (d, t) => items(d).find(x => (x.querySelector('.ml')?.firstChild?.t
       const line = !!document.querySelector('.wgline:not([hidden])');
       pe(document, 'pointerup', t.left + 10, t.top + 40);
       await new Promise(f => setTimeout(f, 1200));
-      return {line, order: [...document.querySelectorAll('.pov .lysix > .lyb')].map(b => b.dataset.lyk).slice(0, 3)};
+      return {line, order: [...document.querySelectorAll('.pov .lysix .lyb')].sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map(b => b.dataset.lyk).slice(0, 3)};
     })()`);
     check(mv.line && mv.order.indexOf('ms') < mv.order.indexOf('desc'), `${tag}: #1452 the header moves a block, a line shows where ${JSON.stringify(mv)}`);
     await shot('p2430c-1440-project.png');
@@ -179,7 +180,8 @@ const item = (d, t) => items(d).find(x => (x.querySelector('.ml')?.firstChild?.t
     check(await ffLogin(o) === 200, tag + ': login');
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await o.nav(B + '#l/' + P); await ready(ev);
-    const m = await ev(`(() => { const bs = [...document.querySelectorAll('.pov .lysix > .lyb')]; return {lefts: [...new Set(bs.map(b => Math.round(b.getBoundingClientRect().left)))].length,
+    // 2.1385.0 (#6944): .lysix .lyb: + the blocks of a column (.lyrun > .lycol)
+    const m = await ev(`(() => { const bs = [...document.querySelectorAll('.pov .lysix .lyb')]; return {lefts: [...new Set(bs.map(b => Math.round(b.getBoundingClientRect().left)))].length,
       grip: !!document.querySelector('.lygrip'), tgt: [...document.querySelectorAll('.lymore')].filter(b => b.offsetWidth).map(b => Math.round(b.getBoundingClientRect().height)), sw: document.documentElement.scrollWidth}; })()`);
     check(m.lefts === 1 && !m.grip && m.tgt.length && m.tgt.every(h => h >= 43.5) && m.sw <= 390, `${tag}: #1452 one column, no grip, the menu a full touch target ${JSON.stringify(m)}`);
     await shot('p2430c-390-project.png');
