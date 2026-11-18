@@ -1,0 +1,47 @@
+{
+  "de": {
+    "Present": "Präsentieren",
+    "Slide": "Folie",
+    "Slide {0} of {1}": "Folie {0} von {1}",
+    "Previous slide": "Vorherige Folie",
+    "Next slide": "Nächste Folie",
+    "End presentation": "Präsentation beenden",
+    "Presentation: {0}": "Präsentation: {0}"
+  },
+  "es": {
+    "Present": "Presentar",
+    "Slide": "Diapositiva",
+    "Slide {0} of {1}": "Diapositiva {0} de {1}",
+    "Previous slide": "Diapositiva anterior",
+    "Next slide": "Diapositiva siguiente",
+    "End presentation": "Terminar presentación",
+    "Presentation: {0}": "Presentación: {0}"
+  },
+  "fr": {
+    "Present": "Présenter",
+    "Slide": "Diapositive",
+    "Slide {0} of {1}": "Diapositive {0} sur {1}",
+    "Previous slide": "Diapositive précédente",
+    "Next slide": "Diapositive suivante",
+    "End presentation": "Terminer la présentation",
+    "Presentation: {0}": "Présentation : {0}"
+  },
+  "it": {
+    "Present": "Presenta",
+    "Slide": "Diapositiva",
+    "Slide {0} of {1}": "Diapositiva {0} di {1}",
+    "Previous slide": "Diapositiva precedente",
+    "Next slide": "Diapositiva successiva",
+    "End presentation": "Termina presentazione",
+    "Presentation: {0}": "Presentazione: {0}"
+  },
+  "nl": {
+    "Present": "Presenteren",
+    "Slide": "Dia",
+    "Slide {0} of {1}": "Dia {0} van {1}",
+    "Previous slide": "Vorige dia",
+    "Next slide": "Volgende dia",
+    "End presentation": "Presentatie beëindigen",
+    "Presentation: {0}": "Presentatie: {0}"
+  }
+}
