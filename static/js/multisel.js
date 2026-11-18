@@ -72,10 +72,12 @@ function ms_icName(svg) {
   if (!ms_icMap) { ms_icMap = new Map(); const d = document.createElement('div'); for (const k of Object.keys(P)) { d.innerHTML = ic(k); ms_icMap.set(d.firstElementChild.innerHTML, k); } }
   return ms_icMap.get(svg.innerHTML) || '';
 }
+// 2.1367.0 (#6748): the icon's own classes besides i / s (a turn like 'up': chev up = "move forward") go along into the menu
+const ms_icCls = svg => svg ? [...svg.classList].filter(c => c !== 'i' && c !== 's').join(' ') : '';
 function ms_btnItems(anchor, btns) {
   const list = typeof btns === 'string' ? [...anchor.querySelectorAll(btns)] : [...btns];
   return list.filter(b => !b.hidden && !b.closest('[hidden]')).map(b => ({label: (b.getAttribute('title') || b.getAttribute('aria-label') || b.textContent || '').trim(),
-    icon: ms_icName(b.querySelector('svg.i')), cls: b.classList.contains('danger') ? 'danger' : '', dis: b.disabled, fn: () => b.click()}));
+    icon: ms_icName(b.querySelector('svg.i')), icls: ms_icCls(b.querySelector('svg.i')), cls: b.classList.contains('danger') ? 'danger' : '', dis: b.disabled, fn: () => b.click()}));
 }
 function ms_btnMenu(anchor, btns, title, head = []) { menu(anchor, [...head, ...ms_btnItems(anchor, btns)], null, null, title); }
 // 2.1151.0 C (#3835): settings / dialog rows with two or more symbols: on a phone ONE "…" (no long press) instead of the row of
