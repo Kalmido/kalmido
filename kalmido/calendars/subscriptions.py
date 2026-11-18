@@ -77,7 +77,10 @@ CAL_WALK_MAX = 10000         # dates one rule may pass before the window (more: 
 CAL_WALK_TOTAL = 300000      # the same dates summed over one download (more: "too complex"; bounds CPU and the date caches)
 CAL_DATES_MAX = 1000         # RDATE / EXDATE values per event, each (more: the rest is dropped; the library expands each one)
 CAL_DATES_BACK = 31          # days before the window an RDATE / EXDATE may lie and still be kept (a long event reaching into it)
-CAL_TIMEOUT, CAL_DEADLINE = 20, 60  # s per socket operation / for a whole download
+CAL_TIMEOUT, CAL_DEADLINE = 20, 60  # s per socket operation / for a whole call (2.1381.0, #6428: connect + headers + body)
+# 2.1381.0 (#6428): one connect deadline over at most CAL_ADDRS checked addresses (a name with many silent addresses must not
+# hold a thread for addresses x timeout; the logic of accounts/servers.py _msv_connector, which now uses this one)
+CAL_CONNECT, CAL_ADDRS = 10, 3
 CAL_MAX_SUBS = 20            # per user
 CAL_INTERVALS = (15, 60)     # minutes
 CAL_ALERT_FAILS = 5          # failed syncs in a row -> admin alert ("integration")
@@ -252,8 +255,12 @@ def cal_url_secret(url):
     return False
 
 
-def _cal_connector(allow):
-    """socket.create_connection replacement: resolve, check every address, connect to a checked one."""
+def _cal_connector(allow, connect_s=None, addrs=None):
+    """socket.create_connection replacement: resolve, check every address, connect to a checked one (the SSRF guard).
+    2.1381.0 (#6428): the connect phase has ONE deadline (connect_s, default CAL_CONNECT, and never past the end of an
+    open cal_until) spread over at most `addrs` (default CAL_ADDRS) checked addresses; each attempt waits at most the
+    time left of it. The socket then gets the caller's timeout and is handed to every open cal_until watchdog
+    (_cal_watch_sock) - a connection that comes up only after a watchdog fired is shut at once (CalError timeout)."""
     def create(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None, *a, **k):  # noqa: ARG001
         host, port = address
         trusted = cal_host_allowed(allow, host, port)
@@ -261,25 +268,58 @@ def _cal_connector(allow):
             infos = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
         except (socket.gaierror, UnicodeError) as e:
             raise CalError("network") from e
-        fail = None
+        end = time.monotonic() + (connect_s or CAL_CONNECT)
+        wend = _cal_watch_end()
+        if wend is not None:
+            end = min(end, wend)
+        if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT and timeout is not None:
+            end = min(end, time.monotonic() + timeout)  # the caller's per-operation timeout bounds the connect, as before
+        fail, tried, most = None, 0, addrs or CAL_ADDRS
         for fam, typ, proto, _, sa in infos:
             if not trusted and not cal_ip_public(sa[0]):
                 fail = fail or CalError("blocked")
                 continue
+            if tried >= most:
+                break
+            left = end - time.monotonic()
+            if left <= 0:
+                fail = CalError("timeout")
+                break
+            tried += 1
             s = socket.socket(fam, typ, proto)
             try:
-                if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
-                    s.settimeout(timeout)
+                s.settimeout(left)
                 s.connect(sa)  # exactly the checked address
-                return s
+                s.settimeout(None if timeout is socket._GLOBAL_DEFAULT_TIMEOUT else timeout)
             except OSError as e:
                 s.close()
                 fail = e
+                continue
+            _cal_watch_sock(s)  # after this the watchdog reaches it, or it fired already and the socket is shut here
+            return s
         raise fail or CalError("network")
     return create
 
 
 _CAL_WATCH = threading.local()  # 2.424.0 B2 (#3450): the connections of a cal_http call with `until` (its watchdog)
+
+
+class _CalWatch:
+    """2.1381.0 (#6428): one open cal_until: its connections, the Event set when it cut, its time.monotonic() end."""
+    __slots__ = ("conns", "cut", "until")
+
+    def __init__(self, until):
+        self.conns, self.cut, self.until = [], threading.Event(), until
+
+
+class _CalSock:
+    """2.1381.0 (#6428): a bare socket handed to the watchdogs (_cal_cut reads .sock like a connection's)."""
+    __slots__ = ("sock",)
+
+    def __init__(self, sock):
+        self.sock = sock
+
+
 # 2.539.0 (#4379): the whole time of one delivery to an outside server (a webhook, a notification channel, a git API call, a
 # newsletter API call), connect + headers + body: a target sending one byte every 9 s never holds a queue longer than this
 CAL_SEND_S = 15
@@ -287,7 +327,30 @@ CAL_SEND_S = 15
 
 def _cal_watch(conn):
     for w in getattr(_CAL_WATCH, "stack", None) or ():  # 2.539.0 (#4379): every open cal_until around this call
-        w.append(conn)
+        w.conns.append(conn)
+
+
+def _cal_watch_end():
+    """2.1381.0 (#6428): the earliest end of the cal_until blocks open in this thread (None: none is open)."""
+    st = getattr(_CAL_WATCH, "stack", None)
+    return min(w.until for w in st) if st else None
+
+
+def _cal_watch_sock(sk):
+    """2.1381.0 (#6428, the rest of #4379 F2): a socket that just connected joins every open watchdog. A watchdog that fired
+    while the connect was still running found no socket to shut; this one would then read without a total limit. Order:
+    first registered, then the check - a watchdog firing after the check sees the socket in its list (it sets its Event
+    before it reads the list), one that fired before is seen here and the socket is shut (CalError timeout)."""
+    st = getattr(_CAL_WATCH, "stack", None) or ()
+    for w in st:
+        w.conns.append(_CalSock(sk))
+    if any(w.cut.is_set() for w in st) or any(time.monotonic() >= w.until for w in st):
+        try:
+            sk.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        sk.close()
+        raise CalError("timeout")
 
 
 @contextlib.contextmanager
@@ -299,13 +362,13 @@ def cal_until(until):
     stack = getattr(_CAL_WATCH, "stack", None)
     if stack is None:
         stack = _CAL_WATCH.stack = []
-    conns, cut = [], threading.Event()
-    dog = threading.Timer(max(0.0, until - time.monotonic()), _cal_cut, (conns, cut))
+    w = _CalWatch(until)
+    dog = threading.Timer(max(0.0, until - time.monotonic()), _cal_cut, (w.conns, w.cut))
     dog.daemon = True
-    stack.append(conns)
+    stack.append(w)
     dog.start()
     try:
-        yield cut
+        yield w.cut
     finally:
         dog.cancel()
         stack.pop()  # review 2.539.0 (#4379): blocks nest LIFO; remove() compared by == and could take an equal outer list
@@ -414,9 +477,16 @@ def cal_http(url, method="GET", body=None, headers=None, auth=None, allow=frozen
     host is only followed without credentials (cross_redirects, https only). Every hop runs through the SSRF guard.
     until (2.424.0 B2, #3450): a time.monotonic() point the whole call ends at, also in the connect and header phase (a
     server sending its headers drop by drop): each hop's socket timeout is at most the time left and a watchdog shuts
-    the open connections down then (CalError timeout). Without it (the calendar subscriptions) nothing changes."""
+    the open connections down then (CalError timeout).
+    2.1381.0 (#6428): there is always such a point. Without `until` it is now + deadline (default CAL_DEADLINE) - before,
+    the deadline only bounded the body and a server sending its headers one byte every 19 s held the call (a web thread,
+    the calendar loop) without end. Inside an open cal_until (a caller bounding several calls) it never lies past that
+    block's end, so the inner call reports "timeout" itself instead of reading a socket the outer watchdog shut."""
     if until is None:
-        return _cal_http(url, method, body, headers, auth, allow, cross_redirects, max_bytes, timeout, deadline, None)
+        until = time.monotonic() + (deadline or CAL_DEADLINE)
+    wend = _cal_watch_end()
+    if wend is not None:
+        until = min(until, wend)
     with cal_until(until) as cut:  # 2.539.0 (#4379): the watchdog moved into cal_until (shared with the deliveries)
         try:
             res = _cal_http(url, method, body, headers, auth, allow, cross_redirects, max_bytes, timeout, deadline, until)
@@ -933,7 +1003,14 @@ def _dav_cal(url, props):
 
 
 def caldav_discover(url, auth, allow):
-    """The event calendars of a CalDAV account (the URL may be the server, the principal or one calendar)."""
+    """The event calendars of a CalDAV account (the URL may be the server, the principal or one calendar).
+    2.1381.0 (#6428): its up to four requests together end after CAL_DEADLINE (it runs in a web thread; each cal_http
+    inside keeps to the end of this block)."""
+    with cal_until(time.monotonic() + CAL_DEADLINE):
+        return _caldav_discover(url, auth, allow)
+
+
+def _caldav_discover(url, auth, allow):
     cup, home = None, None
     o = _origin(url)
     root = f"{o[0]}://{'[' + o[1] + ']' if ':' in o[1] else o[1]}:{o[2]}" if o else url
