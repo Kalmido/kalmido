@@ -408,8 +408,8 @@ def le2a_task_set(c, tid, vals):
     hand = text_hand_now()
     for k, col in (("title", "title_by"), ("content", "content_by")):
         if k in vals:
-            col = qi(col, ("title_by", "content_by"))
-            sets.append(f"{col}=CASE WHEN COALESCE({col}, created_by) = ? THEN {col} ELSE 0 END")
+            q = qi(col, ("title_by", "content_by"))
+            sets.append(f"{q}=CASE WHEN COALESCE({q}, created_by) = ? THEN {q} ELSE 0 END")
             args.append(hand)
     if sets:
         c.execute(f"UPDATE tasks SET {','.join(sets)} WHERE id=?", (*args, tid))

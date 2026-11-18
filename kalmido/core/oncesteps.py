@@ -448,12 +448,11 @@ def migr_textby6677(c):  # 2.1375.0 (#6677): tasks.title_by / content_by of the 
     # a rule, no user -- is 0, as tasks/validation.py text_hand). A task whose history was purged keeps NULL (the creator's).
     with pg_system_ctx(c):  # every organisation's tasks (row-level security)
         for name, kinds in (("title_by", ("title",)), ("content_by", ("content", "md_subtasks"))):
-            col = qi(name, ("title_by", "content_by"))
-            c.execute(f"""UPDATE tasks t SET {col} = CASE WHEN a.user_id IS NULL OR a.user_id = 0 OR a.rule IS NOT NULL
+            c.execute(f"""UPDATE tasks t SET {qi(name, ("title_by", "content_by"))} = CASE WHEN a.user_id IS NULL OR a.user_id = 0 OR a.rule IS NOT NULL
                                                          OR COALESCE(a.via, 'api') <> 'api' THEN 0 ELSE a.user_id END
                           FROM (SELECT DISTINCT ON (task_id) task_id, user_id, data->>'via' AS via, data->>'rule' AS rule
                                 FROM activity WHERE kind = ANY(CAST(? AS TEXT[])) ORDER BY task_id, id DESC) a
-                          WHERE t.id = a.task_id AND t.{col} IS NULL""", ("{" + ",".join(kinds) + "}",))
+                          WHERE t.id = a.task_id AND t.{qi(name, ("title_by", "content_by"))} IS NULL""", ("{" + ",".join(kinds) + "}",))
     gset(c, "migr_textby6677", "1")
 
 
