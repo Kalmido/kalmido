@@ -28,7 +28,7 @@ from ..core.access import list_role, need_list, vis_sql, WRITE_ROLES, list_state
 from ..core.pages import new_inbox_task, save_attachment_bytes, split_link, valid_url
 from ..tasks.validation import as_int, log_act
 from ..collab.news import news_unread
-from ..collab.integfail import integ_tell  # 2.1269 (#6386)
+from ..collab.integfail import integ_backoff_s, integ_tell  # 2.1269 (#6386), 2.1333.0 (#6545)
 from ..accounts.users import need_admin
 from ..notify.alerts import aa_count, aa_err, aa_fail, aa_ok
 from ..agents.core import agent_added_events, agent_comment_events, need_person  # 2.553.0 B (#3460): the events also for integrations/reqmail.py
@@ -528,7 +528,7 @@ def mail_seen_prune():
         c.close()
 
 
-def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefetch=False, lost=None):
+def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefetch=False, lost=None, skipped=None):
     """2.141.0 A (#2141): the unseen mails of folder (a logged-in IMAP connection) -> importer(c, raw), each one marked \\Seen
     before its import (2.519.0 B, #4378: a mail that breaks the import does not come back as unseen). Returns how many were taken in.
     max_bytes (review): a mail whose RFC822.SIZE is larger is not fetched (marked seen) -- a workspace's own server.
@@ -541,8 +541,11 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
     one that failed, was taken in only in part (MailKept), was refused by an importer (None / 0) or skipped as too large
     stays (marked \\Seen).
     prefetch (2.424.0 B2, #3450): importer(None, raw) runs first, outside the gate and any database transaction (the
-    invoice link downloads, up to 40 s), its result goes in as importer(c, raw, pre)."""
-    n, gone, gave = 0, [], 0
+    invoice link downloads, up to 40 s), its result goes in as importer(c, raw, pre).
+    skipped (2.1333.0, #6545): skipped(n) hears how many mails this round left as too large or without a size, or refused by
+    the limits of core/mailguard.py (head, lines, parts, depth: #6425) -- else a log line was all: the mails were marked seen
+    and nobody knew."""
+    n, gone, gave, big = 0, [], 0, 0
     max_bytes = max_bytes or MAIL_LITERAL_MAX  # 2.148.1 G (#2485): a too large mail is skipped (seen), never fetched again
     mail_cap_literals(M, max_bytes + 1024 * 1024)  # 2.148.1 D (#2485)
     typ, _ = M.select(folder)
@@ -566,6 +569,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                 if not got or int(got.group(1)) > max_bytes:
                     print("mail: skipped one mail: too large or no size", flush=True)
                     M.uid("STORE", u, "+FLAGS", "(\\Seen)")
+                    big += 1
                     continue
             # 2.1269 (#6386): BODY.PEEK[] does not mark the mail seen; it is marked once its attempt is noted (a restart in
             # between leaves it unseen, never seen without an attempt)
@@ -584,6 +588,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
             except MailRefused as e:
                 print("mail: refused one mail:", e.code, flush=True)
                 M.uid("STORE", u, "+FLAGS", "(\\Seen)")
+                big += 1  # 2.1333.0 (#6545): refused by its size limits (#6425): counted at the mailbox like a too large one
                 if retry:  # (an open attempt of it from before: refused for good, never tried again)
                     with GATE.bg():
                         mail_try_gone(box, u)
@@ -640,6 +645,7 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
                     print("mail: refused one mail:" if refused else "mail: skipped one mail:", e.code if refused else type(e).__name__,
                           f"(attempt {tries})" if tries and not refused else "", flush=True)
                     failed = not refused
+                    big += refused  # 2.1333.0 (#6545): refused for good (#6425): it stays in the mailbox, counted there
                     try:
                         c.rollback()
                         if refused and box:
@@ -665,6 +671,11 @@ def mail_fetch(M, folder, importer, max_bytes=None, box="", delete=False, prefet
         if gone:
             mail_expunge(M, gone)
     finally:
+        if big and skipped:  # 2.1333.0 (#6545)
+            try:
+                skipped(big)
+            except Exception as e:  # noqa: BLE001 -- the counter never stops the round
+                print("mail: skipped count failed:", type(e).__name__, flush=True)
         if gave:
             print("mail: gave up", gave, "mail(s), they stay in the mailbox", flush=True)  # 2.1269 (#6386): a count, no subject / sender
             if lost:
@@ -731,16 +742,21 @@ _MAIL_WAKE = threading.Event()
 
 
 def mail_loop():
+    fails = 0
     while True:
         try:
             n = mail_poll_once()
             aa_ok("mail")
+            fails = 0
             if n:
                 print("mail: imported", n, "task(s)", flush=True)
         except Exception as e:  # noqa: BLE001
             print("mail:", type(e).__name__, flush=True)  # 2.240.0 A (#2883): no message text
             aa_fail("mail", aa_err(e))
-        _MAIL_WAKE.wait(IMAP["interval"])
+            fails += 1
+        # 2.1333.0 (#6545): a mailbox that keeps failing (a wrong password) is asked less and less often, at most every 6 h;
+        # "Look into the mailbox now" (mail_poll_now) still wakes it at once
+        _MAIL_WAKE.wait(integ_backoff_s(IMAP["interval"], fails))
         _MAIL_WAKE.clear()
 
 

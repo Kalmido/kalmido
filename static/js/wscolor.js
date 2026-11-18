@@ -52,7 +52,7 @@ const wsp_dot = ws => { const v = wsp_barVars(ws); return `<span class="wsp-dot"
 // 4 px stripe on top of the sidebar and the 3 px stripe on top of the header while the sidebar is closed (phone, rail)
 const WSB_VARS = ['--wbd', '--wbl'];
 function wsp_side() {
-  const ws = wsOn() ? wsCur() : 'private', t = wsp_barTone(ws);
+  const ws = wsOn() ? wso_scope() || wsCur() : 'private', t = wsp_barTone(ws);  // 2.1333.0 (#6697): a page of one workspace under "All" wears its colour
   lp_put($('#app'), 'wsb-on', t ? `--wbd:${t[0]};--wbl:${t[1]}` : '', WSB_VARS);
   wac_sync(ws);  // 2.490.0 B (#4026)
 }
@@ -213,8 +213,33 @@ function wso_sync() {
   const ws = wso_cur(), o = wsc_ofWs(ws), main = $('#main');
   lp_put(main, 'wsc-on', o ? wsc_vars(o) : '', WSC_VARS);
   lp_put($('#view'), 'wac-loc', main?.classList.contains('lp-acc') ? '' : wso_locVars(ws), WAC_VARS);
+  wso_side(ws);  // 2.1333.0 (#6697)
 }
 const wso_locVars = ws => ws && ws !== 'all' && wsOn() && wac_on() && wsCur() === 'all' ? wac_locVars(ws) : '';
+// ---- 2.1333.0 (#6697): rule #4222 under "All workspaces" -- what can be told to one workspace wears its colour, the frame too.
+// (1) wso_scope(): the workspace the shown page belongs to as a whole: its module is on in exactly ONE workspace (Settings >
+// Modules, per workspace: wsa_wsOn / mc_wsOn; the team chat: the organisations). wsp_side / wac_sync then take that workspace
+// instead of "All": the stripe on top of the sidebar and :root's accent (rail, panel, header, tab bar, drawer) -- the page looks
+// as in that workspace. '' = a page of several workspaces, inside one workspace, without organisations.
+const WSO_FEAT = {ablage: ['files']};
+function wso_scope() {
+  if (!wsOn() || wsCur() !== 'all') return '';
+  const mod = S.route?.mod; if (!mod || mod === 'tasks' || mod === 'home') return '';
+  if (mod === 'team') { const o = wsOptions().filter(w => w.startsWith('org:')); return o.length === 1 ? o[0] : ''; }
+  const area = wsa_areaOfMod(mod), part = mg_areaOf(mod)?.[3].find(p => p[0] === mod);
+  const fs = mod === 'workload' && typeof WLV === 'object' && WLV.tab === 'dispo' ? ['dispo'] : WSO_FEAT[mod] || (part ? part[4]() : [mod]);
+  const sps = wsa_spaces().filter(w => (!area || !WSA_AREAS.includes(area) || wsa_wsOn(w, area)) && fs.some(f => mc_wsOn(w, f)));
+  return sps.length === 1 ? sps[0] : '';
+}
+// (2) a page of several workspaces with an open object of an organisation (a project, a page, a table, a channel, a client, a
+// contact): #view wears its tone (wso_sync) and so does the active row of the sidebar that shows it (a row with the organisation's
+// stripe, data-wsc) instead of Kalmido's accent. After every render (renderView -> wso_sync) and every redraw of the sidebar
+const WSO_SIDE_ON = '#side .srow.on[data-wsc], #side .sbbi.on[data-wsc]';
+function wso_side(ws = wso_cur()) {
+  const v = $('#main')?.classList.contains('lp-acc') ? '' : wso_locVars(ws);
+  for (const el of $$('#side .wac-loc')) if (!v || !el.matches(WSO_SIDE_ON)) lp_put(el, 'wac-loc', '', WAC_VARS);
+  if (v) for (const el of $$(WSO_SIDE_ON)) lp_put(el, 'wac-loc', v, WAC_VARS);
+}
 // moved from Private into an organisation -> the toast says who sees it now (the move keeps its Undo)
 function wsc_moveMsg(fromList, toList, msg) {
   const a = lp_listOf(fromList), b = lp_listOf(toList);

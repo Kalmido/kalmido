@@ -470,6 +470,27 @@ below a number set by hand (`manual`, the logged reason), the counter was set (`
 counter `legacy`), else `none`. The same function (`office/numranges.py onum_gaps`) fills `number_ranges.csv` of the
 auditor's export.
 
+**Additional number ranges** (2.1365, #6698): next to the main range an office area (also the private office) can have further
+ranges for invoices and their corrections, e.g. `GT-{yyyy}-{seq:03}` with the corrections' ending `-K` (`office_num_ranges`:
+code 1-8 of A-Z 0-9, scheme with a fixed text in front and only `{yyyy} {yy} {seq} {seq:0N}`, never the scheme of another series).
+A range has its own counter (`office_numbers` kind `r<id>`, invoices and corrections on it), its own date order and its own
+hash chain (`chain_key` `r<id>`); the main range and its schemes stay exactly as they are (`office_docs.range_id` NULL). Every
+place that holds a document row takes counter and schemes from `model.num_view` / `num_key`. An invoice draft without a number
+chooses its range (`range_id`, default the main range); a correction keeps its invoice's range, a copy or a series starts in
+the main range. In a range Kalmido sets the date when finalising (the due date moves by the same days) and there are no
+numbers by hand (400, no counter moves). Payment reminders and overdue notices for a range only when switched on (`dunning`,
+default off). A range with a finalised document is never removed (409), only closed (no new invoice; corrections stay
+possible); a new scheme applies from the next number on. Office admins only, members read; office log `num_range`.
+
+- `GET /api/office/number-ranges` -> `... extra: [{id, key, code, name, scheme, credit_suffix, credit_scheme, dunning, closed, used, period, next, min_next, preview, credit_preview}]`
+- `POST /api/office/num-ranges` `{code, name?, scheme, credit_suffix? (-K), dunning?}` · `PATCH /api/office/num-ranges/<id>` `{name?, scheme?, credit_suffix?, dunning?, closed?}` · `DELETE /api/office/num-ranges/<id>` (only unused; its drafts go back to the main range)
+- `POST /api/office/number-ranges/r<id>` `{next, reason?}` the range's next number; `GET /api/office/docs?range=<id>|main` the list of one range
+
+The organisation export carries `office/num_ranges.json` (the import gives a code the target has already a digit, GT2), the
+retention export `books/extra-number-ranges.csv`, the auditor's `number_ranges.csv` names a range's rows `GT: invoice+credit`.
+Moving the private office into an organisation takes the ranges with their counters (the same code in the target: conflict).
+One way: from the first finalised document in a range an older version would count it into the main range's date order.
+
 ## Country packs
 
 Tax rates, number and date formats, the labels of the documents and the default texts are not in the code but in a
@@ -2167,7 +2188,11 @@ A document without a stored PDF yet (an import) is linked with version 1. Old li
 The watchdog checks every office's chains **daily**: a new break gives one admin alert (kind "Security events", switchable
 in the admin alert settings) and one line "hash chain broken here (daily check)" on the first bad document in the office
 log; the same break is not reported again. A value the office's key cannot open now (`reason: unreadable`) is no break
-report, only a server log line.
+report, only a server log line. *Since 2.1333.0 (#6770)* the check goes on behind such a link (so it no longer hides a real
+break further on, which is then named `first_bad`; the answer names the first unreadable document in `unreadable`), and an
+unreadable link found on 3 days in a row gives one admin alert of its own ("cannot be checked"). Each office is checked in its
+own savepoint: an office whose check fails does not drop the log lines of the others. The marks of what was reported lie in
+the same database (see docs/dev/hashkette.md): they catch a mistake, not someone who can write to the database.
 
 The print model and the PDF of a finalised document are built from this snapshot only: later changes of the company,
 the logo, the services, the client or the country pack do not change it. Changing the head, the positions or the number

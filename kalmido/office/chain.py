@@ -2,7 +2,7 @@
 
 Every finalised invoice, credit note, reminder and delivery note joins the chain of its office (organisation or personal
 office) and number series (chain_key = the counter it counts with, models.num_kind: credit notes on the invoices' counter share
-that chain) when it is finalised:
+that chain; 2.1365.0 (#6698): a document of an additional number range the range's chain 'r<id>', models.num_key) when it is finalised:
 
     chain_hash = sha256(chain_prev + canonical data of the document)      chain_prev = chain_hash of the one before ('' = first)
     chain_seq  = its place in that chain (1, 2, ...)
@@ -26,25 +26,27 @@ finalised). A document whose PDF checksum is still empty when it is linked (no s
 file writer) is linked with version 1 -- the catch-up of office/storefill.py fills the checksums later and would break a
 version-2 link. Old links keep their version and stay valid; hch_check reads each with its own.
 
-hch_check recomputes every chain of an office: {ok, count, pending, first_bad: {id, number, chain, seq, reason} | None}
-(reason gap / link / unlocked / data, or unreadable: the office's key cannot open a value now -- no proof of a change). A document that was
+hch_check recomputes every chain of an office: {ok, count, pending, first_bad: {id, number, chain, seq, reason} | None, unreadable}
+(reason gap / link / unlocked / data, or unreadable: the office's key cannot open a value now -- no proof of a change; 2.1333.0,
+#6770: the check goes on behind an unreadable link, first_bad prefers a real break, unreadable names the first unreadable one). A document that was
 changed, removed from the middle, moved to another chain or unlocked in the database is the first bad one of its chain;
 pending = finalised documents not chained yet (an import of a whole office, a start before the next one chains them).
 Removing the newest document of a chain leaves no trace in the chain itself (the office log keeps its finalise entry)."""
 import hashlib
 import json
 import time
+from datetime import date, timedelta
 from decimal import Decimal
 
 from ..core.config import app
-from ..core.db import gset, gsetting, iso, now_utc  # 2.1309.0 (#6467): the daily check
+from ..core.db import gset, gsetting, iso, local_now, now_utc  # 2.1309.0 (#6467): the daily check; 2.1333.0 (#6770): local_now
 from ..core.moneycol import mc_fields  # 2.755.0 (#5293)
 from ..core.orgcrypt import OrgCryptError, oc_dec_fields, oc_log_detail
 from ..core.i18n import N_  # 2.1309.0 (#6467)
 from ..notify.alerts import aa_now  # 2.1309.0 (#6467)
 from ..core.pg import system_ctx, write_lock
 from ..core.access import live_sql  # 2.1005.0 (#5415)
-from .model import num_kind, office_settings, ofx_release  # 2.542.0 (#4598): freeing a copied place passes the trigger
+from .model import num_key, office_settings, ofx_release  # 2.542.0 (#4598): freeing a copied place passes the trigger
 
 HCH_DOC_FIELDS = ("number", "kind", "date", "service_from", "service_to", "currency", "locked_at")
 HCH_JSON_FIELDS = {"recipient_snapshot": "recipient", "sender": "sender", "totals": "totals"}
@@ -157,17 +159,20 @@ def hch_append(c, oid, did=None, s=None):
     write_lock(c, f"office_chain_{int(oid)}")
     s = s if s is not None else office_settings(c, oid)
     for r in hch_pending(c, oid):
-        _link(c, oid, r, num_kind(s, r["kind"]))
+        _link(c, oid, r, num_key(s, r))  # 2.1365.0 (#6698): a document of an additional range in the range's chain 'r<id>'
     if did is not None:
         r = c.execute(f"SELECT * FROM office_docs WHERE id=? AND org_id=? AND {live_sql()}", (did, oid)).fetchone()  # 2.1005.0 (#5415): not the trash
         if r is not None and r["chain_seq"] is None and r["locked_at"] and hch_chained(r):
-            _link(c, oid, r, num_kind(s, r["kind"]))
+            _link(c, oid, r, num_key(s, r))
 
 
 def hch_check(c, oid):
-    """Recomputes every chain of office oid -> {ok, count, pending, first_bad}. first_bad = the first document (of the first
-    broken chain, by its first finalising) whose link or data does not fit."""
-    bad, count = [], 0
+    """Recomputes every chain of office oid -> {ok, count, pending, first_bad, unreadable}. first_bad = the first document (of the
+    first broken chain, by its first finalising) whose link or data does not fit. 2.1333.0 (#6770): a link whose value the
+    office's key cannot open now (reason "unreadable") no longer ends its chain's check: the check goes on behind it with the
+    stored hash (the next link must still start from it), so a real break further on is still found and named first_bad before
+    any unreadable one; unreadable = the first unreadable document {id, number, chain, seq} | None (then ok is False too)."""
+    bad, unread, count = [], [], 0
     keys = [x[0] for x in c.execute("SELECT DISTINCT chain_key FROM office_docs WHERE org_id=? AND chain_seq IS NOT NULL ORDER BY chain_key", (oid,))]
     for key in keys:
         prev, want = "", 1
@@ -182,12 +187,17 @@ def hch_check(c, oid):
                     why = "unreadable"
                 except Exception:  # noqa: BLE001 -- a value that cannot be read is a break as well
                     why = "data"
-            if why:
-                bad.append({"id": r["id"], "number": r["number"] or "", "chain": key, "seq": int(r["chain_seq"]), "reason": why})
+            item = {"id": r["id"], "number": r["number"] or "", "chain": key, "seq": int(r["chain_seq"]), "reason": why}
+            if why == "unreadable":  # 2.1333.0 (#6770): noted, and the check goes on behind it (see above)
+                unread.append(item)
+            elif why:
+                bad.append(item)
                 break
             prev, want = r["chain_hash"] or "", want + 1
-    first = min(bad, key=lambda b: b["id"]) if bad else None
-    return {"ok": not bad, "count": count, "pending": len(hch_pending(c, oid)), "first_bad": first}
+    first = min(bad, key=lambda b: b["id"]) if bad else min(unread, key=lambda b: b["id"]) if unread else None
+    first_unread = min(unread, key=lambda b: b["id"]) if unread else None
+    return {"ok": not bad and not unread, "count": count, "pending": len(hch_pending(c, oid)), "first_bad": first,
+            "unreadable": first_unread}
 
 
 def hch_heads(c, oid):
@@ -221,50 +231,91 @@ def hch_migrate(c):
 # ---------------------------------------------------------------- the daily check (2.1309.0, #6467)
 HCH_WATCH = {"at": 0.0}
 HCH_WATCH_EVERY = 86400  # s: once after the start, then daily (watchdog)
+# Both marks below live in the global settings of the SAME database as the chains (docs/dev/hashkette.md): they keep a mistake
+# (a script, a restore, a broken migration) from going unnoticed, not someone with write access to the database -- whoever can
+# change a document there can set the mark as well, and the alert never comes.
 HCH_WATCH_KEY = "office_chain_watch"  # global settings: {office id: "chain:seq:id:reason"} of the breaks already reported
+HCH_UNREAD_KEY = "office_chain_unreadable"  # 2.1333.0 (#6770): {office id: {id, since, last, told}} of offices with an unreadable link
+HCH_UNREAD_DAYS = 3  # 2.1333.0 (#6770): days in a row an unreadable link is found before its one admin alert
+
+
+def _load(c, key):
+    try:
+        v = json.loads(gsetting(c, key) or "{}")
+    except ValueError:
+        v = {}
+    return v if isinstance(v, dict) else {}
+
+
+def _unread_day(seen, k, ur, today):
+    """2.1333.0 (#6770): notes today's unreadable link ur of office k in seen (HCH_UNREAD_KEY) -> True when it is due for its one
+    alert now: found on HCH_UNREAD_DAYS days in a row (a day without a check, or with the office readable, starts anew)."""
+    e = seen.get(k) if isinstance(seen.get(k), dict) else {}
+    last = e.get("last") or ""
+    yesterday = (today - timedelta(days=1)).isoformat()
+    if last not in (today.isoformat(), yesterday):
+        e = {"since": today.isoformat(), "told": False}
+    e.update({"id": ur["id"], "last": today.isoformat()})
+    seen[k] = e
+    try:
+        days = (today - date.fromisoformat(e["since"])).days + 1
+    except (TypeError, ValueError):
+        e["since"], days = today.isoformat(), 1
+    if days >= HCH_UNREAD_DAYS and not e.get("told"):
+        e["told"] = True
+        return True
+    return False
 
 
 def hch_watch_tick(c, force=False):
     """2.1309.0 (#6467): daily in the watchdog (notify/push.py): hch_check for every office with a chain. A break found the first
     time -> one admin alert (kind "security", switchable in the admin alert settings) and one line "chain_broken" in that
     office's log on the first bad document; the same break the next days says nothing again (HCH_WATCH_KEY), a chain intact
-    again forgets it. A value the key cannot open now (reason "unreadable") is no proof of a change: server log only.
+    again forgets it. A value the key cannot open now (reason "unreadable") is no proof of a change: server log only --
+    2.1333.0 (#6770): found on HCH_UNREAD_DAYS days in a row it gets one admin alert of its own (HCH_UNREAD_KEY), and the
+    check goes on behind it (hch_check), so it no longer hides a later break. Each office runs in its own savepoint: one that
+    fails rolls back only its own statements, never the log lines of the offices before it.
     Returns the number of new breaks."""
     if not force and time.time() - HCH_WATCH["at"] < HCH_WATCH_EVERY:
         return 0
     HCH_WATCH["at"] = time.time()
-    try:
-        seen = json.loads(gsetting(c, HCH_WATCH_KEY) or "{}")
-    except ValueError:
-        seen = {}
-    seen = seen if isinstance(seen, dict) else {}
+    seen, unread = _load(c, HCH_WATCH_KEY), _load(c, HCH_UNREAD_KEY)
+    today = local_now().date()
     new = 0
     with system_ctx(c):  # every office's chain (row-level security); reads only, its own line per new break
         oids = [r[0] for r in c.execute("SELECT DISTINCT org_id FROM office_docs WHERE chain_seq IS NOT NULL ORDER BY org_id").fetchall()]
         for oid in oids:
+            k = str(oid)
             try:
-                res = hch_check(c, oid)
+                with c.savepoint():  # 2.1333.0 (#6770): was c.rollback(), which dropped the lines of the offices before
+                    res = hch_check(c, oid)
+                    fb, ur = res["first_bad"], res.get("unreadable")
+                    if ur is None:
+                        unread.pop(k, None)
+                    else:
+                        app.logger.warning("office chain check: office %s, document %s cannot be read now", oid, ur["id"])
+                        if _unread_day(unread, k, ur, today):
+                            aa_now("security", f"office_chain_unreadable:{oid}",
+                                   N_("Office hash chain cannot be checked: office {0}, document id {1} (series {2}, place {3}) cannot be read with the office's key for {4} days. The check goes on behind it."),
+                                   (oid, ur["id"], ur["chain"], ur["seq"], HCH_UNREAD_DAYS))
+                    if fb is None or fb["reason"] == "unreadable":
+                        if fb is None:
+                            seen.pop(k, None)
+                        continue
+                    mark = f"{fb['chain']}:{fb['seq']}:{fb['id']}:{fb['reason']}"
+                    if seen.get(k) == mark:
+                        continue
+                    det = {"chain": fb["chain"], "seq": fb["seq"], "reason": fb["reason"], "number": fb["number"], "count": res["count"]}
+                    c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,NULL,?,?,'doc',?,'')",
+                              (oid, fb["id"], iso(now_utc()), "chain_broken", oc_log_detail(c, oid, json.dumps(det, ensure_ascii=False))))  # ledger.ofx_log without a person
+                    seen[k] = mark
+                    aa_now("security", f"office_chain:{oid}", N_("Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it."),
+                           (oid, fb["id"], fb["chain"], fb["seq"], fb["reason"]))
+                    new += 1
             except Exception as e:  # noqa: BLE001 -- one office never stops the others
-                c.rollback()
                 app.logger.warning("office chain check: office %s failed: %s", oid, type(e).__name__)
                 continue
-            fb, k = res["first_bad"], str(oid)
-            if fb is None:
-                seen.pop(k, None)
-                continue
-            if fb["reason"] == "unreadable":
-                app.logger.warning("office chain check: office %s, document %s cannot be read now", oid, fb["id"])
-                continue
-            mark = f"{fb['chain']}:{fb['seq']}:{fb['id']}:{fb['reason']}"
-            if seen.get(k) == mark:
-                continue
-            seen[k] = mark
-            det = {"chain": fb["chain"], "seq": fb["seq"], "reason": fb["reason"], "number": fb["number"], "count": res["count"]}
-            c.execute("INSERT INTO office_doc_log(org_id, doc_id, user_id, at, action, target, detail, user_name) VALUES(?,?,NULL,?,?,'doc',?,'')",
-                      (oid, fb["id"], iso(now_utc()), "chain_broken", oc_log_detail(c, oid, json.dumps(det, ensure_ascii=False))))  # ledger.ofx_log without a person
-            aa_now("security", f"office_chain:{oid}", N_("Office hash chain broken: office {0}, document id {1} (series {2}, place {3}, {4}). The office log names it."),
-                   (oid, fb["id"], fb["chain"], fb["seq"], fb["reason"]))
-            new += 1
         gset(c, HCH_WATCH_KEY, json.dumps(seen, sort_keys=True))
+        gset(c, HCH_UNREAD_KEY, json.dumps(unread, sort_keys=True))
     c.commit()
     return new
