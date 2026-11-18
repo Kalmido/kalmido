@@ -102,3 +102,17 @@ p2235_c_rules_api
 # 2.1306.0 (#6554): the issue sync's way out - only what a person creates, daily limits, no @mentions, http(s) links, the
 # token's person may remove its connection and it pauses when that person leaves the project
 p6554_git_sync_guard
+
+# 2.1374.0 (#6323): the static guards (seconds, no data, never flaky - red only when a package brings a route / a "…" button /
+# a tool / a table without its list entry). Soft, they let two packages into main red on 15.11. (PR 140 / 142); hard, the
+# queue gate holds the package that breaks them. Each has a group of its own or one of static guards only (tests/suites.txt),
+# so no UI or container suite turns hard with them. pg_dialect is hard above; mcp, usage_hook, p2125_d_demo stay soft (own
+# container or UI group).
+parity
+p2695_a_rowmenu_coverage
+tenant_coverage
+freelancer_coverage
+rls_static
+launcher_parity
+agent_docs_coverage
+p2381_a_guards

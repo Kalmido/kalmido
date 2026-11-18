@@ -8,7 +8,8 @@ freelancer-matrix: n/a (no route: a start option of the local MCP server, nothin
 Pure Python, no container, no server."""
 # stages-covers: mcp/kalmido_mcp.py
 # 2.658.0 (#5095): every new MCP tool needs a TOOLSETS entry - this suite runs whenever the MCP server changes
-# kalmido-suite: after=launcher_parity nodata
+# kalmido-suite: after=launcher_ps1 nodata
+# 2.1374.0 (#6323): after launcher_ps1 (was launcher_parity) - stays in the soft group p272_api, launcher_parity is hard now
 import collections
 import importlib.util
 import json
