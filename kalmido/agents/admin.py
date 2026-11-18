@@ -560,14 +560,20 @@ def agent_owner_set(c, aid, owner, given):
 
 def agent_access_end(c, aid):
     """2.1385.0 (#6503 1): agent aid changes hands (also "becomes a team agent"): every way in that the former side set up
-    ends at once - its API tokens (also on the former owner's computer), its unused setup codes and its hosted MCP accesses
-    (mcpr_revoke). The new owner (or an admin) makes a new token or setup code. The caller commits."""
+    ends at once - its API tokens (also on the former owner's computer), its unused setup codes, its hosted MCP accesses
+    (mcpr_revoke) and its webhook. The new owner (or an admin) makes a new token or setup code. The caller commits."""
     from ..agents.mcpremote import mcpr_revoke  # the hosted MCP server imports this module's neighbours
     with system_ctx(c):  # the agent's own access rows (no content)
         for (gid,) in c.execute("SELECT id FROM oauth_grants WHERE agent_id=? AND revoked_at IS NULL", (aid,)).fetchall():
             mcpr_revoke(c, gid)
         c.execute("DELETE FROM api_tokens WHERE user_id=?", (aid,))
         c.execute("DELETE FROM agent_setup_codes WHERE agent_id=?", (aid,))
+        # its webhook (URL and signing secret of the former side) goes too, with its queue (ON DELETE CASCADE): the agent's
+        # events no longer reach the former owner's address (reader F2 of 2.1385); the new owner sets up a new one
+        wid = c.execute("SELECT webhook_id FROM agents WHERE user_id=?", (aid,)).fetchone()
+        if wid and wid[0]:
+            c.execute("UPDATE agents SET webhook_id=NULL WHERE user_id=?", (aid,))
+            c.execute("DELETE FROM webhooks WHERE id=?", (wid[0],))
 
 
 def agent_polls_retire(c, aid, keeper):

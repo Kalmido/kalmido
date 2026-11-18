@@ -3,7 +3,7 @@
 """2.1385.0 (#6503) API tests, own container: ways in that outlive what they were made for. Invented people only (example.com).
  - point 1: a change of an agent's owner (a team agent becomes Bob's, Bob's agent becomes a team agent again) ends its API
    tokens (the old token answers 401), its setup codes and its hosted MCP accesses (the access token answers 401, the refresh
-   token no longer works); the new owner (or the admin) makes a new token that works; the same owner again changes nothing
+   token no longer works) and its webhook with its queue; the new owner (or the admin) makes a new token that works; the same owner again changes nothing
  - point 2: an owner made a kid account pauses its personal agents (403 owner_locked, no write to the agent: enabled stays)
    and nobody can hand a kid an agent (400); an ordinary account again lets the same token work at once
  - point 3: /drop counts wrong upload tokens per address: after DROP_FAIL_LIMIT the address gets 429 (also with the right
@@ -86,6 +86,11 @@ G = grant(A, TEAM)
 check(G.get("access_token") and api(G["access_token"]).status_code == 200, f"the admin's MCP access of the team agent works {str(G)[:120]}")
 setup_code(TEAM)
 check(api(TTOK).status_code == 200 and codes(TEAM) == 1, "before: the team agent's token works, a setup code waits")
+# the former side's webhook (reader F2 of 2.1385): a row of the agent with a queued delivery
+WH = dbx("INSERT INTO webhooks(user_id,name,url,events,secret,enabled,created_at,updated_at,agent) "
+         "VALUES(?,'','https://example.com/hook','','x',true,now(),now(),1) RETURNING id", (TEAM,))[0][0]
+dbx("UPDATE agents SET webhook_id=? WHERE user_id=?", (WH, TEAM))
+dbx("INSERT INTO webhook_queue(webhook_id,delivery,event,payload,attempt,next_at,created_at) VALUES(?,'d1','task.created','{}',0,extract(epoch from now()),now())", (WH,))
 
 check(A.patch(B + f"/api/admin/agents/{TEAM}", json={"display_name": "Team Bot 2"}).ok, "another change (name) ...")
 check(api(TTOK).status_code == 200 and codes(TEAM) == 1, "... ends nothing")
@@ -96,6 +101,9 @@ r = A.patch(B + f"/api/admin/agents/{TEAM}", json={"owner_id": BOB})
 check(r.ok and (j(r).get("owner") or {}).get("id") == BOB, f"the team agent becomes Bob's {r.status_code} {r.text[:160]}")
 check(api(TTOK).status_code == 401, f"#6503 1: the old token on the former side's computer stops ({api(TTOK).status_code})")
 check(codes(TEAM) == 0, "#6503 1: the setup codes are gone")
+check(not dbx("SELECT 1 FROM webhooks WHERE id=?", (WH,)) and not dbx("SELECT 1 FROM webhook_queue WHERE webhook_id=?", (WH,))
+      and dbx("SELECT webhook_id FROM agents WHERE user_id=?", (TEAM,))[0][0] is None,
+      "#6503 1: the former side's webhook (URL, secret) and its queue are gone, the agent has none")
 check(api(G["access_token"]).status_code == 401, "#6503 1: the MCP access token stops")
 r = requests.post(B + "/oauth/token", data={"grant_type": "refresh_token", "refresh_token": G.get("refresh_token", ""), "client_id": CID})
 check(r.status_code >= 400 and not j(r).get("access_token"), f"#6503 1: the MCP refresh token no longer works ({r.status_code})")

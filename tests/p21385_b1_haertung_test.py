@@ -59,6 +59,7 @@ def save(im, fmt, **kw):
     b = io.BytesIO(); im.save(b, fmt, **kw); return b.getvalue()
 BIG = save(Image.new("1", (5000, 4000)), "PNG")          # 20 M pixels in a few kB
 BIGJ = save(Image.new("L", (6000, 4000)), "JPEG")         # 24 M pixels as JPEG (drafted to 1/8 it is small)
+HUGEJ = save(Image.new("L", (8000, 7700)), "JPEG")        # 61.6 M pixels: over IMG_MAX_FULL even when drafted (reader F3)
 TIFF = save(Image.new("RGB", (8, 8)), "TIFF")
 EPS = b"%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 10 10\n"
 OK = save(Image.new("RGB", (64, 48), (40, 90, 160)), "PNG")
@@ -81,6 +82,7 @@ with app.test_request_context():
     out["big"] = why(opened, BIG)
     out["bigj"] = why(opened, BIGJ)
     out["bigj_draft"] = why(opened, BIGJ, draft=(256, 256))
+    out["hugej_draft"] = why(opened, HUGEJ, draft=(256, 256))
     out["tiff"] = why(opened, TIFF)
     out["eps"] = why(opened, EPS)
     out["ok"] = why(opened, OK)
@@ -117,6 +119,8 @@ check(R1.get("big", [""])[0] == "refused:size" and R1["big"][1] == 0,
       f"#6435 1: a PNG of 20 M pixels ({R1.get('sizes')} bytes) is refused from its header, load() never runs {R1.get('big')}")
 check(R1.get("bigj", [""])[0] == "refused:size" and R1["bigj"][1] == 0, f"... a JPEG of 24 M pixels as well {R1.get('bigj')}")
 check(R1.get("bigj_draft", [""])[0] == "ok:tuple", f"... unless the caller decodes it small (draft): 1/8 of it is fine {R1.get('bigj_draft')}")
+check(R1.get("hugej_draft", [""])[0] == "refused:size" and R1["hugej_draft"][1] == 0,
+      f"... but its full size still counts: a JPEG over IMG_MAX_FULL is refused before the draft (2.1385 reader F3) {R1.get('hugej_draft')}")
 check(R1.get("tiff", [""])[0] == "refused:format" and R1.get("eps", [""])[0] == "refused:format",
       f"#6435 1: TIFF and EPS are not among the formats: refused {R1.get('tiff')} {R1.get('eps')}")
 check(R1.get("ok", [""])[0] == "ok:tuple" and R1["ok"][1] >= 1, f"a small PNG opens and is decoded {R1.get('ok')}")
@@ -295,6 +299,13 @@ st = raw_post("/api/office/bank/import", LIM + 2 * 1024 * 1024)
 check(" 413 " in st + " ", f"#6435 8: a Content-Length over the request limit ({LIM // 1048576} MB) is answered 413 before its body is read: {st!r}")
 st = raw_post("/api/admin/backups/upload", LIM + 2 * 1024 * 1024, wait=2.0)
 check(st == "", f"... the restore upload waits for its body (its own 4 GB limit): {st!r}")
+# 2.1385 reader F1: the routes that take more than the app's limit keep it (wiki import 500 MB, a file request's plain form)
+st = raw_post("/api/wiki/import", LIM + 2 * 1024 * 1024, wait=2.0)
+check(st == "", f"... the wiki import waits for its body (WKA_ZIP_TOTAL): {st!r}")
+st = raw_post("/u/notatoken", LIM + 2 * 1024 * 1024, wait=2.0)
+check(st == "", f"... a file request's form (/u/<token>) waits for its body (FRQ_PER_POST files): {st!r}")
+st = raw_post("/u/v/up.js", LIM + 2 * 1024 * 1024)
+check(" 413 " in st + " ", f"... a deeper /u/ path keeps the app's limit: {st!r}")
 st = raw_post("/api/files/upload", LIM + 8 * 1024 * 1024, chunked=True)
 check(" 413 " in st + " ", f"#6435 8: a chunked body is stopped once it grows past the limit: {st!r}")
 r = F.get(B + "/api/state")

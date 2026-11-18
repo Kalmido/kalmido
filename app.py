@@ -76,21 +76,22 @@ if __name__ == "__main__":
         skfp_warn_changed()  # 2.190.0 R (#2592): KALMIDO_SECRET_KEY_CHANGED left on
     from waitress import serve
 
-    def _body_limits(cap, big_paths):
+    def _body_limits(cap, limit_of):
         """2.1385.0 (#6435): waitress has one body limit for every path (max_request_body_size, the restore's 4 GB) and reads
         the whole body (to a temp file) before the app can say 413. Its parser compares the body with self.adj
         .max_request_body_size right after parse_header (Content-Length) and while a chunked body comes in: a request
-        whose path is not in big_paths gets a copy of the settings with the limit cap, so it is refused (413) before
-        its body is read."""
+        gets a copy of the settings with its path's limit (limit_of(path), at least cap), so it is refused (413) before
+        its body is read. A route that takes more than the app's limit (request.max_content_length) is named in limit_of."""
         import copy
         from waitress import channel, parser
 
         class _Parser(parser.HTTPRequestParser):
             def parse_header(self, header_plus):
                 super().parse_header(header_plus)
-                if self.path not in big_paths and self.adj.max_request_body_size > cap:
+                lim = max(limit_of(self.path or "") or 0, cap)  # never below the app's limit
+                if self.adj.max_request_body_size > lim:
                     adj = copy.copy(self.adj)
-                    adj.max_request_body_size = cap
+                    adj.max_request_body_size = lim
                     self.adj = adj
 
         channel.HTTPChannel.parser_class = _Parser
@@ -113,6 +114,16 @@ if __name__ == "__main__":
     # the browser dropped (a newer search in the palette) is seen (environ waitress.client_disconnected, core/srchreg.py _gone)
     # 2.1385.0 (#6435): the 4 GB of a restore only for its upload route; every other path is refused from its Content-Length (or
     # a chunked body once it grows past it) at the request limit, before waitress spools the body to disk
-    _body_limits(app.config["MAX_CONTENT_LENGTH"] + 1024 * 1024, {"/api/admin/backups/upload"})
+    # the routes that raise request.max_content_length above the app's limit keep their own (reader F1): the restore upload,
+    # the wiki import (wiki/pages.py: WKA_ZIP_TOTAL) and the plain form of a file request (files/filereq.py: FRQ_PER_POST files
+    # of at most MAX_FILE_MB each, the script sends one per request); the 1 MB is the form framing, as at those routes
+    from kalmido.core.config import MAX_FILE_MB
+    from kalmido.files.filereq import FRQ_PER_POST
+    from kalmido.files.upsafe import H6D_SLACK
+    from kalmido.wiki.wikiatt import WKA_ZIP_TOTAL
+    _big = {"/api/admin/backups/upload": BK_MAX_BYTES + 1024 * 1024, "/api/wiki/import": WKA_ZIP_TOTAL + 1024 * 1024}
+    _frq = MAX_FILE_MB * 1024 * 1024 * FRQ_PER_POST + H6D_SLACK + 1024 * 1024  # POST /u/<token>
+    _body_limits(app.config["MAX_CONTENT_LENGTH"] + 1024 * 1024,
+                 lambda path: _big.get(path) or (_frq if path.startswith("/u/") and path.count("/") == 2 else None))
     serve(app, **where, threads=WEB_THREADS, max_request_body_size=max(BK_MAX_BYTES, app.config["MAX_CONTENT_LENGTH"]) + 1024 * 1024,
           clear_untrusted_proxy_headers=False, channel_request_lookahead=1)
