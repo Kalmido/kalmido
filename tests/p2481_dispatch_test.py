@@ -291,6 +291,14 @@ check(rep_ and "#202 #203 #204" in rep_[-1], f"#6523: the day report names them:
 check(ad.author_of({"created_by": 7, "by_creator": True}, None) == "other" and ad.author_of({"created_by": 7, "by_creator": True}, 7) == ""
       and ad.author_of({"created_by": 7, "by_creator": False}, 7) == "none" and ad.author_of({"created_by": 7}, 7) == "none"
       and ad.author_of({}, 7) == "none" and ad.author_of({"created_by": "x"}, 7) == "none", "#6523: author_of")
+# 2.1375.0 (#6677): the person created it, but another hand wrote its title / description last (updated_by) -> not built
+own = {"created_by": 7, "by_creator": True}
+check(ad.author_of({**own, "updated_by": 7}, 7) == "" and ad.author_of({**own, "updated_by": 8}, 7) == "edited"
+      and ad.author_of({**own, "updated_by": None}, 7) == "edited" and ad.author_of(own, 7) == "",
+      "#6677: author_of: updated_by another account / no person = edited, a server without updated_by = as before")
+st = ad.classify([{**task(301, "Rewritten by bob"), "updated_by": 8}, {**task(302, "Still mine"), "updated_by": 7}],
+                 {"done": {}, "branch": {}}, {}, {"jobs": {}}, dict(ad.DEFAULTS), 7)
+check(st == {301: "foreign", 302: "ready"}, f"#6677: a task rewritten by another member is foreign, never started: {st}")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
