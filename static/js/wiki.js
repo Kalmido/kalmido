@@ -860,7 +860,7 @@ async function wk_flush(hide) {
     if (WKO.cf[p.id]?.why) wko_cfDel(p.id);  // 2.527.0 (#4304 A18): saved now, the draft goes
     wk_savedHint(tr('Saved'));
   } catch (e) {
-    if (e.status === 409 && e.data?.page) { wk_conflict(p, e.data.page, patch); return; }
+    if (e.status === 409 && e.data?.page) { wk_conflict(p, e.data.page, patch, true); return; }  // 2.1397.0 (#6329 E6): mine waits unless saved
     if (e instanceof Offline) { await wko_queue(p, patch); return; }
     WK.dirty = true; if (e.message !== 'auth') { toast(errText(e, tr('The page could not be saved'))); wk_unsaved(p.id); }  // 2.1177.0 (#6088): what failed first, and the footer keeps it
     if (e.message !== 'auth' && e.status >= 400 && e.status < 500) await wko_draft(p, patch.body, e.message).catch(() => {});  // 2.527.0 (#4304 A18)
@@ -878,12 +878,15 @@ function wk_savedHint(t) { WK.unsaved = 0; const s = $('#wk-saved'); if (s) { s.
 const wk_unsavedHtml = () => `${esc(tr('Not saved'))} · <button type="button" class="linkbtn" data-wk="resave">${esc(tr('Try again'))}</button>`;
 function wk_unsaved(id) { WK.unsaved = id; const s = $('#wk-saved'); if (s) { s.classList.add('wkunsaved'); s.innerHTML = wk_unsavedHtml(); } }
 // true = settled (mine saved or theirs taken), false = mine could not be saved, null = closed without a choice (as before: theirs shown)
-async function wk_conflict(mine, theirs, patch) {
+// 2.1397.0 (#6329 E6): draft = an online save met the 409: unless mine was saved, the own text waits at the page (wko_draft ->
+// kept input 'fdx', #6286) - closed without a choice, "Take theirs" and a failed "Keep mine" never drop it unseen
+async function wk_conflict(mine, theirs, patch, draft) {
   let took = false;
   const keep = await askDialog({after: md => md.querySelector('[data-cd="no"]')?.addEventListener('click', () => { took = true; }), title: tr('Changed in the meantime by {0}', theirs.updated_by_name || '?'), html: `<p>${tr('Keep your version or take theirs?')}</p>${/*html-ok*/ wkh_bothHtml(patch.body, theirs.body) /* 2.1168.0 (#6092): the differences marked, not two raw texts */}`, ok: tr('Keep mine'), cancel: tr('Take theirs')});
   let ok = true;
   if (keep) { try { Object.assign(mine, await wkeApi('PATCH', '/api/wiki/pages/' + mine.id, {...patch, expect_updated_at: theirs.updated_at, overwrite: true /* 2.1368.0 (#6657): the pictures it brings back are nobody's */}, mine.space)); } catch (e) { toast(errText(e, tr('The page could not be saved'))); ok = false; } }
   else { Object.assign(mine, theirs); if (!took) ok = null; }
+  if (draft && !(keep && ok) && typeof patch.body === 'string' && patch.body !== theirs.body) await wko_draft(mine, patch.body, tr('Changed in the meantime')).catch(() => {});
   renderView();
   return ok;
 }
