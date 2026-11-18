@@ -470,6 +470,7 @@ async function dsb_mail(x) {
     ${ofcRowF('dsb-subj', tr('Subject'), ofcIn('dsb-subj', m.subject, {max: 200}))}
     <label for="dsb-text" class="dtp-lab">${tr('Text')}</label><textarea id="dsb-text" class="dtp-ta" rows="9" maxlength="5000">${esc(m.text || '')}</textarea>
     <p class="muted ofchint">${esc([tr('The PDF goes along as attachment.'), m.link ? tr('[Link] becomes the link to sign online.') : '', m.reply_in ? tr('A reply with the signed PDF is filed with the client; keep the code in the subject.') : ''].filter(Boolean).join(' '))}</p>
+    ${/*html-ok*/ typeof ihd_dlgHtml === 'function' ? ihd_dlgHtml(m.client_hold) : '' /* review F5 (#6700): escaped inside */}
     <div class="aerr" role="alert"></div>
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="send">${ic('mail', 's')} ${tr('Send|mail')}</button></div>`);
   md.classList.add('ofcdlg', 'dsbdlg');
@@ -477,9 +478,11 @@ async function dsb_mail(x) {
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
+    const hold = m.client_hold || null;  // review F5 (#6700): the tick confirms the client's data from an invoice issuer
+    if (hold && !$('#ofd-ihd-ok', md)?.checked) { $('.aerr', md).textContent = tr('Confirm the client data from the invoice issuer first'); return; }
     b.disabled = true;
     try {
-      await api('POST', `${DSB_API}/${x.id}/send`, {to: $('#dsb-to', md).value.trim(), subject: $('#dsb-subj', md).value, text: $('#dsb-text', md).value});
+      await api('POST', `${DSB_API}/${x.id}/send`, {...(hold ? {client_hold_ok: hold.at} : {}), to: $('#dsb-to', md).value.trim(), subject: $('#dsb-subj', md).value, text: $('#dsb-text', md).value});
       md.remove(); toast(tr('Sent')); dsb_clReload();
     } catch (er) { b.disabled = false; const el = $('.aerr', md); if (el) el.textContent = ofcErrHere(er); }
   });

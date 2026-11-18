@@ -194,6 +194,7 @@ async function ltmMailModal(id) {
   if (typeof LT !== 'undefined' && LT.pend && LT.pend.d.id === id) await ltSave(LT.pend.d, true);
   try { [j, info] = await Promise.all([api('GET', `/api/office/letters/${id}/mail-draft`), ltmInfo()]); } catch (x) { ofcErr(x); return; }
   if (!j.to) j.to = ($('#lt-rcpt_email')?.value || '').trim();  // 2.595.0 (#4906): the form's E-mail field, when the server has none yet
+  const hold = j.client_hold || null;  // review F5 (#6700): the client's data from an invoice issuer, not checked yet: the tick confirms them
   const hint = j.reply_address ? tr('Answers go to {0} and are linked to this letter automatically.', j.reply_address)
     : tr('There is no document address for this office: answers go to the company e-mail and are assigned to the letter by hand.');
   /** @type {any} */
@@ -205,6 +206,7 @@ async function ltmMailModal(id) {
     <p class="muted ofchint">${ic('clip', 's')} ${esc(j.filename)}</p>
     ${ofmSendHtml(prof, !j.reply_address)}
     <p class="muted ofchint">${esc(hint)}</p>
+    ${/*html-ok*/ typeof ihd_dlgHtml === 'function' ? ihd_dlgHtml(hold) : '' /* review F5 (#6700): escaped inside */}
     <div class="aerr" role="alert"></div>
     <div class="foot"><span class="spacer"></span><button class="btn" data-m="close">${tr('Cancel')}</button><button class="btn pri" data-m="send">${ic('send', 's')} ${tr('Send')}</button></div>`);
   md.classList.add('ofcdlg', 'ltm-dlg');
@@ -213,9 +215,10 @@ async function ltmMailModal(id) {
   md.addEventListener('click', async e => {
     const b = /** @type {any} */ (e.target).closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'close') { close(); return; }
+    if (hold && !$('#ofd-ihd-ok', md)?.checked) { $('.aerr', md).textContent = tr('Confirm the client data from the invoice issuer first'); return; }
     b.disabled = true;
     try {
-      await api('POST', `/api/office/letters/${id}/send-mail`, {to: $('#ltm-to', md).value.trim(), cc: $('#ltm-cc', md).value.trim(),
+      await api('POST', `/api/office/letters/${id}/send-mail`, {...(hold ? {client_hold_ok: hold.at} : {}), to: $('#ltm-to', md).value.trim(), cc: $('#ltm-cc', md).value.trim(),
         subject: $('#ltm-subj', md).value, text: $('#ltm-text', md).value, ...ofmSendBody(md)});
       md.remove(); toast(tr('Sent')); ltmReload();
     } catch (x) { b.disabled = false; const el = $('.aerr', md); if (el) el.textContent = ofcErrHere(x); }

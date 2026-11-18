@@ -185,8 +185,11 @@ def ltm_draft_get(lid):
     c, uid, oid = lt_ctx()
     d = lt_row(c, oid, lid)
     lg = ltm_lang(c, oid, d)
+    from .isshold import ihd_of, ihd_public
+    cid = d.get("client_id")  # review F5 (#6700): the client's hold mark, the dialog asks to confirm it (client_hold_ok = its "at")
     return jsonify(to=d.get("rcpt_email") or "", subject=d.get("subject") or tr("Letter", lg=lg), text=ltm_default_text(c, oid, d, lg),
-                   filename=ltm_filename(d, lg), reply_address=ltm_reply_address(c, oid, uid, d["id"]))
+                   filename=ltm_filename(d, lg), reply_address=ltm_reply_address(c, oid, uid, d["id"]),
+                   client_hold=ihd_public(c, ihd_of(c, cid), cid) if cid else None)
 
 
 def ltm_drop_filed(c, nid):
@@ -202,8 +205,9 @@ def ltm_drop_filed(c, nid):
 
 @app.post("/api/office/letters/<int:lid>/send-mail")
 def ltm_send_post(lid):
-    """{to?, cc?, subject?, text?} mails draft lid with its PDF (to = the recipient's e-mail by default), keeps the Message-ID
-    and marks it sent (channel email). 400 without a mail server / not a draft / no address; 409 when the server refuses."""
+    """{to?, cc?, subject?, text?, client_hold_ok?} mails draft lid with its PDF (to = the recipient's e-mail by default), keeps the Message-ID
+    and marks it sent (channel email). 400 without a mail server / not a draft / no address; 409 when the server refuses.
+    review F5 (#6700): 409 client_hold while its client has a hold mark and client_hold_ok is not the mark's "at"."""
     from .mailsig import ofm_mail, ofm_reply, ofm_sender
     c, uid, oid = lt_ctx()
     b = body() or {}
@@ -215,6 +219,8 @@ def ltm_send_post(lid):
     d = lt_row(c, oid, lid)
     if d["status"] != "draft":
         raise BadInput(tr("The letter has already been sent"))
+    from .isshold import ihd_check, ihd_ok
+    ihd_check(c, d.get("client_id"), ihd_ok(b))  # review F5 (#6700): an address an invoice issuer set goes out only after the dialog's confirmation
     to = lt_line(b.get("to"), "to", 254) or (d.get("rcpt_email") or "")
     cc = lt_line(b.get("cc"), "cc", 254)
     if not to:

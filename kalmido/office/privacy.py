@@ -357,14 +357,17 @@ def dsb_mail_get(sid):
     to, subject, text, reply, _code = dsb_mail_parts(c, oid, r, d, link)
     c.commit()  # a new code is kept
     smtp, rin = dsb_mail_on()
-    return jsonify(to=to, subject=subject, text=text, smtp=smtp, reply_in=bool(rin and sign), link=link)
+    from .isshold import ihd_of, ihd_public  # review F5 (#6700): the client's hold mark, the dialog asks to confirm it
+    return jsonify(to=to, subject=subject, text=text, smtp=smtp, reply_in=bool(rin and sign), link=link,
+                   client_hold=ihd_public(c, ihd_of(c, r["client_id"]), r["client_id"]))
 
 
 @app.post("/api/office/privacy-sheets/<int:sid>/send")
 def dsb_send(sid):
-    """{to, subject?, text?} mails the finished sheet (its PDF attached) to the client; a sheet to sign gets a new
+    """{to, subject?, text?, client_hold_ok?} mails the finished sheet (its PDF attached) to the client; a sheet to sign gets a new
     signature link ([Link] in the text, appended when it is missing) and the reply address with its code. Status: sent
-    (handed for the privacy information). 409 without SMTP / not finished; 429 like the invoice mails."""
+    (handed for the privacy information). 409 without SMTP / not finished; 429 like the invoice mails. review F5 (#6700):
+    409 client_hold while its client has a hold mark and client_hold_ok is not the mark's "at"."""
     from ..integrations.mail import MAIL_OUT_ON
     c, uid, oid = _ctx()
     write_lock(c, f"office_privacy_{int(sid)}")
@@ -379,6 +382,8 @@ def dsb_send(sid):
         raise Denied(409, tr("Finish the document first") if d["status"] == "draft" else tr("This sheet is already decided"))
     b = body()
     b = b if isinstance(b, dict) else {}
+    from .isshold import ihd_check, ihd_ok
+    ihd_check(c, r["client_id"], ihd_ok(b))  # review F5 (#6700): no sheet (nor a signature link) to an address an invoice issuer set, unconfirmed
     to = (b.get("to") or "").strip() if isinstance(b.get("to"), str) else ""
     if not re.fullmatch(r"[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+", to):
         raise BadInput(tr("Invalid value: {0}", "to"))
