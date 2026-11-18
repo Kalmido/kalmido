@@ -541,7 +541,8 @@ clients. Name = the name of the invoice's recipient, also the name of a person. 
 (`clients.issuer_hold`: the fields old -> new, the issuer, when; the marks *another client has the same name or VAT ID* and *a
 web or e-mail address in the name*). While it stands, the client card shows it and **finalising and sending ask for a tick**
 "I checked these client data" in the dialog (`client_hold_ok` = the mark's `at`; a mark the key changed after the dialog opened
-asks again; also for a send again, a reminder and a correction), and every way without a dialog is refused: a series with
+asks again; also for a send again, a reminder, a correction, the e-mail of a letter and of a privacy sheet), and every way
+without a dialog is refused: a series with
 automatic sending leaves the invoice a draft and tells its people why, the client portal takes no sign-in by such an address
 and sends no portal link. A person with the right to change the client's invoicing fields takes the mark away on the card
 (*Client data from the invoice issuer checked*, `POST /api/clients/<id>/issuer-hold {at}`; office log `issuer_hold_checked`).
@@ -550,7 +551,9 @@ change back stay two entries), and in the office log with old -> new. Merging is
 (else `409`); such a client stays in its office ("Move to another workspace" takes a copy, which is the office's own client);
 the trash and anonymising work as for every client, the key then gets `409 client_trashed` / `410 client_gone` (anonymising
 lets go of its `external_ref`, which is never set up again). The admins hear of new or changed client data once a day (News
-and e-mail, always), of a reached limit of new clients once a day.
+and e-mail, always), of a reached limit of new clients or of 200 changes of clients within 24 hours once a day. Values of
+invoicing fields a person may not see (VAT ID, e-mail for invoices, buyer reference) show in the mark as "changed" only. An
+organisation import keeps a client's mark but not its issuer (issuers are not exported).
 
 ## Country packs
 

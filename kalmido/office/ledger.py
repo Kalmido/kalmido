@@ -409,6 +409,8 @@ def ofx_finalize(c, oid, uid, did, manual=None, reason="", to_today=False, hold_
     r = doc_row(c, oid, did)
     ofx_need_editable(r)
     from .isshold import ihd_check
+    if r["client_id"]:  # review F3: the client's lock (the key's PUT takes it, issclients.py) until the commit: check and address one state
+        write_lock(c, f"clients-{int(r['client_id'])}")
     ihd_check(c, r["client_id"], hold_ok)  # 2.1384.0 (#6700): the recipient's data from an invoice issuer, not checked by a person yet
     s = office_settings(c, oid)
     if r["kind"] in ("invoice", "credit") and not r["number"] and doc_range_id(r):
