@@ -377,14 +377,14 @@ function hpSubc(t) {
   return `<span class="subc" title="${lab}">${ic('sub', 's')}${dn}/${kids.length}<span class="sr"> ${lab}</span></span>`;
 }
 // 2.1213.0 (#6126): a row of another workspace than the shown one carries that workspace's dot + name. The start page shows the
-// bell's things of every workspace, its cards only the shown one. The mark is the shared origin helper ws_originHtml (workspace.js,
-// #4821; the org colour piece #6179 takes it over), here also for a shown single workspace; ws = 'private' | 'org:<id>', nm = the
+// bell's things of every workspace, its cards only the shown one. The mark is the org colour's origin piece (wscolor.js
+// wso_origin, #6179; 2.1383.0 #6234: was ws_originHtml), here also for a shown single workspace; ws = 'private' | 'org:<id>', nm = the
 // list / room / lists it is about (title and screen readers). '' = no workspace, the shown one, or "All" shown.
 const hpRoomWs = r => !r ? '' : r.list_id ? (listById(r.list_id) ? wsOf(listById(r.list_id)) : '') : r.org_id ? 'org:' + r.org_id : '';
 const hpItemWs = it => it.list_id ? (listById(it.list_id) ? wsOf(listById(it.list_id)) : '') : it.data?.room ? hpRoomWs((S.tc?.rooms || []).find(r => r.id === +it.data.room)) : '';
 const hpItemNm = it => it.list_id ? lname(listById(it.list_id)) || '' : it.data?.room ? roomName((S.tc?.rooms || []).find(r => r.id === +it.data.room) || {}) || '' : '';
-const hpWsMark = (ws, nm = '', cls = '') => !ws || !wsOn() || wsCur() === 'all' || ws === wsCur() ? ''
-  : ws_originHtml(ws === 'private' ? {name: ''} : {org_id: +ws.slice(4), name: ''}, nm, 'hpws' + (cls ? ' ' + cls : ''));
+// 2.1383.0 (#6234): on the org colour's building block (wscolor.js wso_origin {other}, kern.md "Organisation colour"), no own variant
+const hpWsMark = (ws, nm = '', cls = '') => wso_origin(ws, 'hpws' + (cls ? ' ' + cls : ''), {other: true, sub: nm});
 // the deadline lines of the box: the server counts every workspace (the bell), the Today card and the sentence only the shown
 // one. Counted here the server's way (mine: assigned to me or nobody's in my list; due today / before), a part in another
 // workspace is a line of its own with that workspace's mark; [kind, n, ws, list names]. Not the server's number (still
@@ -477,7 +477,8 @@ function dashCard(k) {
     const prog = l => { const x = pn.get(l.id); return x ? x.dn / x.n : 0; };
     if (srt === 'name') ps.sort((a, b) => lname(a).localeCompare(lname(b), LOCALE())); else if (srt === 'progress') ps.sort((a, b) => prog(b) - prog(a));
     return card(`<ul class="dpl">${ps.slice(0, lyo_get('home', 'projects', 'n', 5)).map(l => { const pc = Math.round(prog(l) * 100);
-      return `<li><a href="#l/${l.id}"><span class="dpn">${esc(lname(l))}</span><span class="dpb" role="img" aria-label="${esc(tr('{0} % done', pc))}"><i style="width:${pc}%"></i></span><span class="dpp">${pc} %</span></a></li>`; }).join('')}</ul>`, overviewOn() ? `<a class="linkbtn" href="#overview">${tr('All projects')}</a>` : '', ps.length, act ? tr('Active projects') : tr('Projects'));  // 2.1249.0 (#6125): the link in the head
+      const wo = wso_origin(l, 'hpws');  // 2.1383.0 (#6234): under "All workspaces" the project's workspace (dot + name)
+      return `<li><a href="#l/${l.id}">${wo ? `<span class="dpnw"><span class="dpn">${esc(lname(l))}</span>${/*html-ok*/ wo}</span>` : `<span class="dpn">${esc(lname(l))}</span>`}<span class="dpb" role="img" aria-label="${esc(tr('{0} % done', pc))}"><i style="width:${pc}%"></i></span><span class="dpp">${pc} %</span></a></li>`; }).join('')}</ul>`, overviewOn() ? `<a class="linkbtn" href="#overview">${tr('All projects')}</a>` : '', ps.length, act ? tr('Active projects') : tr('Projects'));  // 2.1249.0 (#6125): the link in the head
   }
   if (k === 'pinned') {
     const ts = openTasks().filter(t => t.pinned && !t.parent_id);
@@ -485,7 +486,7 @@ function dashCard(k) {
   }
   if (k === 'notes') {
     const ns = nt_wsNotes().slice(0, 5);  // 2.398.0 (#3405): the shown workspace's notes
-    return ns.length ? card(`<ul class="dwl">${ns.map(n => `<li><a href="#note/${n.id}">${ic('edit', 's')}<span class="dwt"><b>${esc(n.title)}</b> <span class="muted">${esc(lname(listById(n.list_id)) || '')} · ${esc(relTime(n.updated_at))}</span></span></a></li>`).join('')}</ul>`) : '';
+    return ns.length ? card(`<ul class="dwl">${ns.map(n => `<li><a href="#note/${n.id}">${ic('edit', 's')}<span class="dwt"><b>${esc(n.title)}</b> <span class="muted">${esc(lname(listById(n.list_id)) || '')} · ${esc(relTime(n.updated_at))}</span></span>${/*html-ok*/ n.list_id && listById(n.list_id) ? wso_origin(listById(n.list_id), 'hpws hpwsn') : '' /* 2.1383.0 (#6234): under "All workspaces" */}</a></li>`).join('')}</ul>`) : '';
   }
   if (k === 'agents') {
     const ags = (S.agents || []).filter(a => a.enabled);
