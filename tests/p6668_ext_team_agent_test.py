@@ -525,6 +525,24 @@ check(r.ok and dbx("SELECT allowed_ips FROM api_tokens WHERE user_id=? AND asked
       "(k) R3 F2: without a rule of its own the agent's rule (none) as before")
 RC = r.json().get("token") or "" if r.ok else ""
 
+# ---- review R3 F3: every order event must be one the person may give; another event of hers carries none along
+# Without the fix (any()) carl's order in project two (he is no member there: no order) came with a token as soon as one
+# event of his that is no order (followup_due) was in the same ask.
+def _ins(ev, lid, note):
+    pl = {"id": str(uuid.uuid4()), "event": ev, "agent_id": XT, "actor": {"kind": "person", "id": uid["carl"]}, "via": "web",
+          "data": {"task": {"id": SX if lid == X2 else TX, "list_id": lid}, "list_id": lid, "note": note}}
+    return dbx("INSERT INTO agent_events(agent_id, uuid, event, payload, created_at) VALUES(?,?,?,CAST(? AS jsonb),now()) RETURNING id",
+               (XT, pl["id"], ev, json.dumps(pl)))[0][0]
+
+
+SO2, SF1 = _ins("mention", X2, "CARL-NO-ORDER"), _ins("followup_due", X1, "CARL-FOLLOWUP")
+r = ask([SF1, SO2])
+check(r.status_code == 403 and err(r).get("code") == "no_order" and not r.json().get("token"),
+      f"(k) R3 F3: an order carl may not give is refused, also next to another event of his {r.status_code} {r.text[:160]}")
+r = ask([SO2])
+check(r.status_code == 403 and err(r).get("code") == "no_order", f"(k) R3 F3: ... and alone {r.status_code}")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC), timeout=30).ok, "(k) R3 F3: a refused ask leaves carl's token alone")
+
 # ================================================================ (e) the agent's own token is its channel now
 check(dbx("SELECT per_request FROM agents WHERE user_id=?", (XT,)) == [(True,)], "(e) the agent works per request from the first ask on")
 r = requests.get(V + f"/tasks/{SX}", headers=XH, timeout=30)
