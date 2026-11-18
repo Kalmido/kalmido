@@ -281,6 +281,32 @@ def _client_addr_write(c, kind, uid, org_id):
         need_org_write(c, uid, org_id)
 
 
+# 2.1397.0 (#6320, review #4788 (3)): a filed mail names the account's secret filing address among its recipients (to_addrs) and
+# its original .eml carries it in the headers: for a support session the address is blacked out and the .eml refused
+HBM_EML_REFUSED = N_("A support session does not open the original e-mail file: the client does that")
+HBM_TOKEN_MASK = "…"
+
+
+def hbm_mask_tokens(c, v):
+    """v (the recipients of a filed mail, a text or a list) without the server's token addresses (local+token@domain of
+    KALMIDO_MAIL_ADDRESS, integrations/mail.mail_addr) for a support session; unchanged otherwise."""
+    local, _, dom = os.environ.get("KALMIDO_MAIL_ADDRESS", "").strip().partition("@")  # as integrations/mail.MAIL_ADDRESS (a higher layer)
+    if not v or not dom or not sga_is_support(c):
+        return v
+    rx = re.compile(re.escape(local) + r"\+[^\s,;<>\"'@]+@" + re.escape(dom), re.I)
+    return [rx.sub(HBM_TOKEN_MASK, x) if isinstance(x, str) else x for x in v] if isinstance(v, list) else rx.sub(HBM_TOKEN_MASK, str(v))
+
+
+def hbm_eml_refused(c, nid):
+    """Denied 403 code support_session when a support session would read node nid and it is the .eml of a filed mail."""
+    if not nid or not sga_is_support(c):
+        return
+    with system_ctx(c):  # only whether the node is a mail's original: structure, no content
+        hit = c.execute("SELECT 1 FROM hub_mails WHERE eml_id=? LIMIT 1", (int(nid),)).fetchone()
+    if hit:
+        raise Denied(403, tr(HBM_EML_REFUSED), data={"code": "support_session"})
+
+
 def _address_of(c, kind, uid, org_id, cid, lid):
     """The filing address of a client / project / my hub inbox ('' = none). Review of 2.1254.0 (#6294): never for a support
     session (a secret inbox of the account: it would outlive the grant; the filed mails stay readable)."""
@@ -451,17 +477,18 @@ def hbm_public(c, m, full=False, memo=None):
            "sent_at": m["sent_at"], "created_at": m["created_at"], "files": len(_files(m)), "note": m["note"] or "",
            "mine": m["owner_id"] == me(), "deleted": bool(m["deleted_at"])}
     from .mailbox import mbx_state  # 2.141.0 A (#2138): a mail sent from the filing (dir out, to = its recipients; state sending / failed)
-    out.update(dir=m["direction"] or "in", state=mbx_state(m), **({"to_list": d["to_addrs"]} if m["direction"] == "out" else {}))
+    out.update(dir=m["direction"] or "in", state=mbx_state(m), **({"to_list": hbm_mask_tokens(c, d["to_addrs"])} if m["direction"] == "out" else {}))
     if full:
         out["body"] = d["body"]
         from ..integrations.mailtrim import md_trim_view  # 2.352.0 D (#2754): the shortened text (display only; "body" stays whole)
         out["body_short"] = md_trim_view(d["body"] or "")
-        out["to"] = d["to_addrs"]
+        out["to"] = hbm_mask_tokens(c, d["to_addrs"])  # 2.1397.0 (#6320): no secret filing address for a support session
         out["can_write"] = hbm_can(c, me(), m, write=True)
         out["folder_id"] = m["folder_id"] if m["folder_id"] and fs_role(c, m["folder_id"]) else None
         out["attachments"] = []
-        out["eml_id"] = m["eml_id"]
-        ids = _files(m) + ([m["eml_id"]] if m["eml_id"] else [])
+        eml = m["eml_id"] if not sga_is_support(c) else None  # 2.1397.0 (#6320): the .eml stays closed to a support session
+        out["eml_id"] = eml
+        ids = _files(m) + ([eml] if eml else [])
         if ids:
             rows = c.execute(f"SELECT id, name, size, mime FROM fs_nodes WHERE id IN ({','.join('?' * len(ids))}) AND deleted_at IS NULL",
                              ids).fetchall()
