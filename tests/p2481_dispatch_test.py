@@ -17,6 +17,9 @@ fake Kalmido API and a real temporary git repository.
  - 2.1308.0 (#6523): only a task the person created is built; a task of another member or without a creator is "foreign"
    (never in a brief, named in the result, the dry log and the day report); comments of other accounts reach the brief only
    fenced as data of their author, the person's own comments as part of the task; a comment cannot close its fence
+ - 2.1368.0 (#7028): check_cmd is required; a job always gets its own working copy and ends in a pull request: the dispatcher
+   runs the check on the ended job's branch itself (red = no pull request, the tasks go back to the list, told once; green =
+   only job/<id> is pushed, ONE pull request, an approval card "merge_request" on the first task), never a merge
 Pure Python, no container."""
 import importlib.util
 import json
@@ -97,6 +100,14 @@ os.environ.pop("KALMIDO_DISPATCH_CONFIG")
 with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
     json.dump({"lists": ["Backlog"], "first_tags": ["Urgent"], "report_at": "00:00", "places": "two", "nonsense": 1, "stale_h": 1}, f)
 cfg, prob = ad.load_config(proj)
+check(prob and "check_cmd" in prob, f"2.1368.0 (#7028): without the project's check the dispatcher stays idle: {prob}")
+# 2.1368.0 (#7028): check_cmd is required now; finish_cmd / worktree are retired keys
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "first_tags": ["Urgent"], "report_at": "00:00", "places": "two", "nonsense": 1, "stale_h": 1,
+               "check_cmd": "exit 0", "finish_cmd": "git push origin HEAD:main", "worktree": False}, f)
+cfg, prob = ad.load_config(proj)
+check("finish_cmd" not in cfg and "worktree" not in cfg and any("finish_cmd is retired" in x for x in ad.LOGGED),
+      f"#7028: finish_cmd / worktree are retired and named: {ad.LOGGED}")
 check(not prob and cfg["lists"] == ["Backlog"] and cfg["places"] == 1 and "nonsense" not in cfg and cfg["stale_h"] == 1,
       f"configuration: lists, a wrong type keeps the default, unknown keys left out: {prob} {cfg['places']}")
 
@@ -121,10 +132,11 @@ COMMENTS = {}
 
 class FakeApi:
     def __init__(self):
-        self.calls, self.chats = [], []
+        self.calls, self.chats, self.bodies = [], [], []
 
     def req(self, method, path, body=None, query=None, timeout=30):
         self.calls.append((method, path))
+        self.bodies.append((method, path, body))
         if path == "/lists":
             return {"data": [{"id": 9, "name": "Backlog"}, {"id": 10, "name": "Other"}]}
         if path == "/lists/9/fields":
@@ -291,6 +303,80 @@ check(rep_ and "#202 #203 #204" in rep_[-1], f"#6523: the day report names them:
 check(ad.author_of({"created_by": 7, "by_creator": True}, None) == "other" and ad.author_of({"created_by": 7, "by_creator": True}, 7) == ""
       and ad.author_of({"created_by": 7, "by_creator": False}, 7) == "none" and ad.author_of({"created_by": 7}, 7) == "none"
       and ad.author_of({}, 7) == "none" and ad.author_of({"created_by": "x"}, 7) == "none", "#6523: author_of")
+
+# ---- 2.1368.0 (#7028): the end of a job -- check by the dispatcher, then a pull request with an approval card
+bare = tempfile.mkdtemp(prefix="kalmido-origin-")
+subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
+g("remote", "add", "origin", bare)
+side = tempfile.mkdtemp(prefix="kalmido-side-")
+fakepr, prlog = os.path.join(side, "fakepr.py"), os.path.join(side, "pr.log")
+with open(fakepr, "w") as f:
+    f.write("import json, sys\nopen(%r, 'a').write(json.dumps({'argv': sys.argv[1:], 'body': sys.stdin.read()}) + '\\n')\n"
+            "print('Creating pull request...')\nprint('https://git.example.com/o/r/pull/7')\n" % prlog)
+
+
+def gw(path, *a):
+    subprocess.run(["git", "-C", path, *a], check=True, capture_output=True, text=True,
+                   env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com", "GIT_COMMITTER_NAME": "t",
+                        "GIT_COMMITTER_EMAIL": "t@example.com"})
+
+
+def job_branch(jid, tid, red=False):
+    wt = os.path.join(tempfile.mkdtemp(prefix="kalmido-wt-"), "wt")
+    g("worktree", "add", "-q", "-b", f"job/{jid}", wt, "main")
+    gw(wt, "commit", "-q", "--allow-empty", "-m", f"#{tid}: built")
+    if red:
+        open(os.path.join(wt, "RED"), "w").close()
+    return {"path": wt, "branch": f"job/{jid}", "repo": proj}
+
+
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "", "check_cmd": f'"{sys.executable}" -c "import os,sys; sys.exit(1 if os.path.exists(\'RED\') else 0)"',
+               "pr_cmd": f'"{sys.executable}" "{fakepr}" {{branch}} {{base}} {{title}}'}, f)
+TASKS[:] = [task(301, "Feature A", "S"), task(302, "Feature B", "S")]
+COMMENTS.clear()
+JOBS.clear()
+JOBS["601"] = {"id": 601, "state": "done", "worktree": job_branch(601, 301)}
+JOBS["602"] = {"id": 602, "state": "done", "worktree": job_branch(602, 302, red=True)}
+state3 = os.path.join(proj, ".state3")
+os.makedirs(state3)
+h = Host("on")
+h.state_dir = state3
+d = ad.Dispatcher(h, proj)
+d.reg["jobs"] = {"601": {"tasks": [301], "at": time.time(), "titles": {"301": "Feature A"}},
+                 "602": {"tasks": [302], "at": time.time(), "titles": {"302": "Feature B"}}}
+n = len(STARTS)
+res = d.tick(force=True)
+prs = [json.loads(x) for x in open(prlog, encoding="utf-8")] if os.path.exists(prlog) else []
+check(len(prs) == 1 and prs[0]["argv"] == ["job/601", "main", "#301: Feature A"] and "Check green" in prs[0]["body"],
+      f"#7028: green check -> ONE pull request job/601 -> main: {prs}")
+pushed = subprocess.run(["git", "--git-dir", bare, "branch", "--list"], capture_output=True, text=True).stdout.split()
+check(pushed == ["job/601"], f"#7028: only the green job branch is pushed, never main, never the red one: {pushed}")
+card = [b for m, p_, b in h.api.bodies if m == "POST" and p_ == "/tasks/301/comments"]
+check(len(card) == 1 and card[0]["suggestion"] == {"kind": "merge_request", "pr_url": "https://git.example.com/o/r/pull/7", "summary": card[0]["suggestion"]["summary"]}
+      and card[0]["body"].startswith("Ready to merge: https://git.example.com/o/r/pull/7"), f"#7028: the approval card on the first task: {card}")
+check(not any(p_.endswith("/complete") for _, p_ in h.api.calls), "#7028: nothing is closed before the merge")
+check(res["states"][301] == "on_branch" and d.reg["jobs"]["601"]["land"] == "pr" and d.reg["jobs"]["601"]["pr"].endswith("/pull/7"),
+      f"#7028: the task waits on its branch for the merge: {res['states']}")
+check(d.reg["red"] == ["job/602"] and d.reg["jobs"]["602"]["land"] == "red" and d.reg["tries"].get("302") == 1 and "301" not in d.reg["tries"],
+      f"#7028: red check -> the branch counts for nothing, one try for its task, none for the built one: {d.reg['red']} {d.reg['tries']}")
+check(len(STARTS) == n + 1 and STARTS[-1][0] == [302], f"#7028: the red task goes back to the list: {STARTS[n:]}")
+told = "\n".join(t for _, t in h.api.chats)
+check("pull request https://git.example.com/o/r/pull/7 for #301 waits for your approval" in told and "check failed on branch job/602 (exit 1)" in told,
+      f"#7028: both told in the chat: {told}")
+b = STARTS[-1][1]
+check("never merge, never push, never open a pull request, never deploy" in b and "Before each commit run the project's check" in b,
+      "#7028: the brief fixes the job's end")
+res = d.tick(force=True)
+check(len([x for x in open(prlog, encoding="utf-8")]) == 1, "#7028: a landed job is never landed again")
+h2 = Host("dry")
+h2.state_dir = os.path.join(proj, ".state4")
+os.makedirs(h2.state_dir)
+d2 = ad.Dispatcher(h2, proj)
+d2.reg["jobs"] = {"601": {"tasks": [301], "at": time.time()}}
+res = d2.tick(force=True)
+check(len([x for x in open(prlog, encoding="utf-8")]) == 1 and "land" not in d2.reg["jobs"]["601"] and h2.api.writes() == [],
+      "#7028: a dry run neither checks nor opens a pull request")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

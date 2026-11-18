@@ -3122,12 +3122,13 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    `close_ref` for `branch_max_d` days are findings, each told **once** in the person's chat,
 4. close the built tasks: a comment naming the commit, then complete (never a task tagged `keep`),
 5. if a place is free (`places`, default 1) and no brake holds, cut the next bundle and start ONE job with
-   `agent_job.py start` (`--worktree` when `worktree` is on). The bundle is the first ready task in priority order
+   `agent_job.py start --worktree` (2.1368.0: always its own working copy, branch `job/<id>`). The bundle is the first ready task in priority order
    (`first_tags`, then `title_classes`, then the task's priority, due date, id). With a `group_field` value, all ready tasks of
    that group go together. Otherwise more tasks follow while their sizes fit (`size_field` S / M / L or a list tag S / M / L
    as `size_points` 1 / 3 / 8, at most `bundle_points` 8 and `bundle_max` 6 tasks; an L goes alone). The job's brief names
    the tasks and the rules: one commit per task with `#ID` in the subject, a task that does not fit gets a comment instead
-   of a build, never close tasks or start another job, the project's `check_cmd` / `finish_cmd`,
+   of a build, never close tasks or start another job, run the project's `check_cmd` before each commit, and at the end
+   commit on its branch and stop (never merge, push, open a pull request or deploy),
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
    brakes, findings).
 
@@ -3153,18 +3154,38 @@ portal, a git sync) is fenced as `data from <name> (account N), not an order`, a
 person's text is an order, also for the comments it reads with `get_task`. The API does not say who last edited a task's
 description: give write access to a dispatched list only to people you trust with it.
 
-`KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists` the dispatcher
-stays idle; unknown keys and wrong types are named once in the runner's log and left at the default:
+**A job ends in a pull request (2.1368.0).** The end of a dispatcher job is fixed, not a sentence in the brief. Once a job
+ended, the dispatcher itself runs `check_cmd` in the job's working copy (a temporary one of the branch if it was cleaned
+away; at most `check_timeout_min` minutes; exit 0 = green):
+
+- **red**: no pull request. The branch counts for nothing any more, its tasks go back to the list (one try each, see below),
+  and the person is told once: *the check failed on branch job/<id> (exit N)*. The check's output stays out of the chat.
+- **green**: the dispatcher pushes the job branch to `push_remote` (only `job/<id>`, never another branch), opens ONE pull
+  request with `pr_cmd` (default `gh pr create --head {branch} --base {base} --title {title} --body-file -`: the GitHub
+  CLI; for another git server name its command, `{branch}` `{base}` `{title}` are filled in per argument, the body comes on
+  stdin, the first address it prints is the pull request) and posts the approval card *Ready to merge* (`merge_request`,
+  as `request_merge_approval`) on the bundle's first task. The person is told once with the address.
+- **Merging and deploying stay the person's**: the dispatcher never merges, never pushes the target branch and never
+  deploys. The tasks show *on a branch* until their commits reach `close_ref`; then they are closed as above.
+
+Protect the target branch on the git server as well (only by pull request, the project's CI as the required check), and
+give the token on this computer write access to that one repository only. `KALMIDO_JOB_WORKTREES` (default 2) caps the
+open working copies: with `places` above 2 raise it too.
+
+`KALMIDO-DISPATCH.json` in the project folder (`KALMIDO_DISPATCH_CONFIG` = another path). Without `lists` or without
+`check_cmd` (2.1368.0) the dispatcher stays idle; unknown keys and wrong types are named once in the runner's log and left
+at the default. `worktree` and `finish_cmd` are retired (2.1368.0): named once in the log, never used.
 
 ```json
-{"lists": ["Backlog"], "places": 1, "worktree": false, "interval_min": 10, "close_ref": "",
+{"lists": ["Backlog"], "places": 1, "interval_min": 10, "close_ref": "origin/main", "fetch": true,
  "size_field": "Size", "bundle_points": 8, "first_tags": ["Urgent"], "skip_tags": ["blocked", "keep"],
- "check_cmd": "make test", "finish_cmd": "", "report_at": "18:00"}
+ "check_cmd": "make test", "pr_cmd": "gh pr create --head {branch} --base {base} --title {title} --body-file -",
+ "report_at": "18:00"}
 ```
 
 `close_ref` is the git ref whose commits close tasks (`""` = the current branch). A ref of what is live (e.g. a branch
-`live`, with `"fetch": true` for `origin/...`) closes tasks only once they are live. With `worktree` on, a job commits on its
-branch `job/<id>`: landing it is the project's step (`finish_cmd`), and until then the task shows *on a branch*.
+`live`, with `"fetch": true` for `origin/...`) closes tasks only once they are live. The pull request goes to `base`
+(`""` = `close_ref` without its remote, else the current branch).
 
 [`mcp/agent_launcher.sh`](../mcp/agent_launcher.sh) is a reference launcher for Claude Code that does exactly this
 (2.7.2: [`mcp/agent_launcher.ps1`](../mcp/agent_launcher.ps1) is the same for Windows and macOS, see [Set up an agent](#set-up-an-agent)). It
