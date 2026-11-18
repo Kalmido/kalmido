@@ -1683,13 +1683,13 @@ def odoc_list():
     iq = str(request.args.get("issuer") or "")  # 2.1396.0 (#6701): made by an invoice issuer (any = by one of them)
     if iq == "any":
         sql += " AND issuer_id IS NOT NULL"
-    elif iq.isdigit():
+    elif re.fullmatch(r"[0-9]{1,18}", iq):  # review F5: isdigit() takes "²" too
         sql += " AND issuer_id=?"
         args.append(int(iq))
     rq = str(request.args.get("range") or "")  # 2.1365.0 (#6698): one number range (main = the main range)
     if rq == "main":
         sql += " AND range_id IS NULL"
-    elif rq.isdigit():
+    elif re.fullmatch(r"[0-9]{1,18}", rq):  # 2.1396.0 (#6701, review F5): isdigit() takes "²" too
         sql += " AND range_id=?"
         args.append(int(rq))
     # 2.199.0 B (#2742): the automatic groups of the folder panel (filter views): one client, project or year
