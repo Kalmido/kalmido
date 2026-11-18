@@ -122,6 +122,8 @@ try:
     core = os.path.join(tmp, "kalmido", "core")
     os.makedirs(os.path.join(core, "migrations.d"))
     shutil.copy(os.path.join(ROOT, "kalmido", "core", "schema.py"), core)
+    for f in ("oncesteps.py", "db.py"):  # 2.1368.0 (#6824): the check reads the one-shot list and init_db's phases too
+        shutil.copy(os.path.join(ROOT, "kalmido", "core", f), core)
     check(cm.findings(ROOT) == [], f"#3478: schema.py as it is passes {cm.findings(ROOT)[:5]}")
     check(cm.findings(tmp) == [], "#3478: the copy passes")
     orig = open(os.path.join(core, "schema.py"), encoding="utf-8").read()
