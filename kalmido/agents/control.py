@@ -43,6 +43,7 @@ from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
 from ..api.runfor import req_main_step  # 2.1386.0 (#6668, second review F1)
 from ..accounts.session import me
+from ..accounts.layoutsets import LYV_LIST_RE  # 2.1398.0 (#6863, reader F1): the layout key as the route reads it
 from ..tasks.lifecycle import apply_update, task_reopen, trash_task
 from ..collab.news import news_forget_comment
 from ..notify.push import notify, push_prio, WD_TICKS
@@ -565,7 +566,6 @@ def ctl_meta_circle(c, a, method, path, va, b):
     if method == "POST" and path in CTL_PROPOSALS:
         lid = va.get("lid")
         view = b.get("view") if path == "/layouts/proposals" else None
-        from ..accounts.layoutsets import LYV_LIST_RE  # here: the accounts package loads late
         if isinstance(view, str) and LYV_LIST_RE.fullmatch(view):  # reader F1: the route's own key check ("list:²" is none)
             lid = int(view[5:])
         w = circle_of(c, a, method, path, va, b, [lid]) if _ctl_int(lid) and list_role(c, lid, a["user_id"]) else None
