@@ -343,6 +343,8 @@ APP_ONLY = [
      ("=GET /api/clients/trash", "=GET /api/clients/usage", "=DELETE /api/clients/{}/purge")),
     ("2.223.3 B (#2878): anonymising a client (its personal data removed for good, finalised documents keep their copy) is "
      "a person's decision like deleting it for good -- no agent route", ("=POST /api/clients/{}/anonymize",)),
+    ("2.1384.0 (#6700): taking an invoice issuer's hold mark off a client (\"Client data from the invoice issuer checked\") is a "
+     "person's confirmation -- no agent route", ("=POST /api/clients/{}/issuer-hold",)),
     ("2.272.0 F (#3038, E2-H2): task / comment files and project files in the trash are restored or deleted for good by a "
      "person (the trash view) -- an agent's file delete puts them into that trash, the way back stays with people",
      ("=POST /api/attachments/{}/restore", "=DELETE /api/attachments/{}/purge", "=POST /api/list-files/{}/restore",
@@ -1021,6 +1023,8 @@ API_ONLY = {  # REST routes on purpose without an MCP tool (reason)
     "PUT /fetcher/status": "2.425.0 C (#3453): only for receipt fetcher keys (their own key kind, a helper program); never agents",
     "POST /fetcher/documents": "2.425.0 C (#3453): only for receipt fetcher keys (their own key kind, a helper program); never agents",
     "GET /issuer": "2.1381.0 (#6699): only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
+    "GET /issuer/clients/by-ref/{}": "2.1384.0 (#6700): only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
+    "PUT /issuer/clients/by-ref/{}": "2.1384.0 (#6700): only for invoice issuer keys (their own key kind, an outside invoicing system); never agents",
     "GET /fetcher/recipes": "2.1188.0 (#6152): the central recipes, only for receipt fetcher keys (a helper program); never agents",
     "GET /lists/{}/notify-template": "2.33.0 (#927): the owner's notification ceiling of a list; agents get no pushes, it is read by scripts",
     "POST /import/{}": "imports of other apps' files: people upload them (multipart) in the app or with the REST API",
