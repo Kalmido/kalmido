@@ -9,6 +9,9 @@
 // - a short swipe springs back (same month, no transform, no placeholder)
 // - the week: the next week's head lies beside it (its 7 days), its 12:00 at the height of the shown 12:00 (the hours scrolled);
 //   let go = 7 days on; a fetch answered mid-swipe (the week's events) waits for the finger (cgs_held)
+// - 2.1380.0 (#7002): a second finger a moment late (finger 1 down, 6 / 16 / 30 px sideways, finger 2 down, spread): the pinch
+//   owns the grid - no placeholder, no translateX and no transition from the leafing on it (the .2s glide back left on the
+//   grid eased every step of the zoom), the zoom's scale stands at once; the trace is printed (MEASURE #7002)
 // The pinch zoom and the trackpad stay (p21640_ui, p2290_a_calzoom_ui).
 // freelancer-matrix: n/a (no route; the gestures run in the client only, tested as alice without an organisation)
 const {execFileSync} = require('child_process');
@@ -97,6 +100,30 @@ const call = async (method, url, body) => { const r = await fetch(B + url.replac
       const wtf = await ev(`__tf`);
       check(!wtf.filter(([t, s]) => s === s0 && !/translateX\(-[1-9]/.test(t)).length, `Firefox ${W}: the week's grid never went back to 0 before the change ` + JSON.stringify(wtf));
       await sleep(800);
+
+      // ---- 2.1380.0 (#7002): the second finger lands a moment late: the pinch owns the grid at once
+      await ev(`(() => { S.calMode = 'month'; LS.set('calMode', 'month'); S.calMonth = '2026-03'; S.calSel = '2026-03-10'; renderView(); return 1; })()`);
+      check(await wait(`!!${GRID}?.querySelector('.cell') && S.calMonth === '2026-03'`), `Firefox ${W}: #7002 March again`);
+      for (const pre of [6, 16, 30]) {
+        await sleep(500);
+        const tr = await ev(`(() => { ${TOUCH} const pre = ${pre}, g = ${GRID}, c = g.querySelectorAll('.cell:not(.out)')[9], [x, y] = at(c), T = [];
+          const st = n => T.push({n, tf: g.style.transform, tr: g.style.transition, cs: getComputedStyle(g).transitionDuration, nb: document.querySelectorAll('#view .swn-nb').length, pz: !!CGS.pz});
+          window.__at = c; tc(c, 'touchstart', [[x, y]]); st('f1 down');
+          for (let i = 1; i <= 3; i++) { tc(c, 'touchmove', [[x - pre * i / 3, y]]); st('f1 -' + Math.round(pre * i / 3) + 'px'); }
+          const x1 = x - pre; tc(c, 'touchstart', [[x1, y], [x1 + 60, y]]); st('f2 down');
+          for (const f of [1.05, 1.1, 1.15]) tc(c, 'touchmove', [[x1 - 30 * (f - 1), y], [x1 + 60 + 30 * (f - 1), y]]);
+          return T; })()`);
+        await sleep(120);  // the zoom draws in the next frame (rafThrottle)
+        const z = await ev(`(() => { const g = ${GRID}; return {tf: g.style.transform, tr: g.style.transition, cs: getComputedStyle(g).transitionDuration, ctf: getComputedStyle(g).transform, nb: document.querySelectorAll('#view .swn-nb').length, k: CGS.pz ? Math.round(CGS.pz.k * 100) / 100 : 0}; })()`);
+        console.log(`MEASURE #7002 ${W} ${pre}px:`, JSON.stringify(tr), '-> pinch', JSON.stringify(z));
+        const f2 = tr.find(t => t.n === 'f2 down') || {};
+        check(f2.pz && !f2.nb && !/translateX/.test(f2.tf) && !/\.2s|0\.2s/.test(f2.tr) && f2.cs === '0s', `Firefox ${W}: #7002 ${pre} px, then the second finger: no swipe left on the grid (no placeholder, no translateX, no transition) ` + JSON.stringify(f2));
+        check(!tr.some(t => t.nb && pre < 24), `Firefox ${W}: #7002 ${pre} px alone begins no swipe ` + JSON.stringify(tr));
+        check(z.k >= 1.1 && /^scale\(1\.1/.test(z.tf) && z.cs === '0s' && !z.nb && z.ctf !== 'none' && Math.abs(parseFloat(z.ctf.slice(7)) - parseFloat(z.tf.slice(6))) < .01, `Firefox ${W}: #7002 ${pre} px: the zoom scales the grid at once (no easing) ` + JSON.stringify(z));
+        await ev(`(() => { ${TOUCH} lift(); return 1; })()`);
+        check(await wait(`S.calMode === 'month' && S.calMonth === '2026-03' && !${GRID}?.style.transform && !document.querySelector('#view .swn-nb') && !CGS.pz`), `Firefox ${W}: #7002 ${pre} px: let go = the month as it was`);
+      }
+      await sleep(400);
     }
   }, true);
 

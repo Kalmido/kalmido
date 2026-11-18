@@ -606,6 +606,14 @@ def _token_refresh(c, cl, f, fail):
         return fail(desc=f"the access ended after {MCPR_GRANT_MAX_DAYS} days, connect again")
     if not gr["refresh_expires_at"] or parse_iso(gr["refresh_expires_at"]) <= now_utc():
         return fail(desc="the refresh token has expired")
+    # 2.1380.0 (#6485): while the account that gave the access (or the personal agent's owner) is locked, the refresh answers
+    # 403 and the access stays: the lock can be taken back and the app then goes on without connecting again (#6351)
+    giver = c.execute("SELECT disabled FROM users WHERE id=?", (gr["user_id"],)).fetchone()
+    with system_ctx(c):  # the agent's owner state only
+        ag = agent_row(c, gr["agent_id"])
+    if (giver and giver["disabled"]) or agent_owner_locked(ag):
+        c.commit()
+        return _oerr("access_denied", "the account this access belongs to is locked", 403)
     if not mcpr_may(c, gr["user_id"], gr["agent_id"], support=True):
         mcpr_revoke(c, gr["id"])
         return fail(desc="the agent cannot be connected any more")

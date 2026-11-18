@@ -6,16 +6,14 @@
    bookkeeping's trips/bill-docs stays open) and the settings stay reachable; switched on again the data is back unchanged;
    an unknown key in features_off = 400
  - #3435: the folded sections of the task panel are one account setting (detail_fold, known keys only, each once; "" = none)
- - #3438: a new agency project gets only the field "Budget h"; the one-shot at the start removes the empty "Client" /
-   "Kunde" text fields of agency projects, a "Client" field with a value stays, so does one in a list without the type
+ - #3438: a new agency project gets no "Client" field (2.1380.0 #6826: the one-shot at the start that removed the empty
+   "Client" / "Kunde" fields of old agency projects is retired, its check gone)
 P4: a person without an organisation (tests/freelancer_fixture.py) gets the same (freelancer-matrix: office)
 usage: p2380r_f_api_test.py <datadir>"""
-import os
 import sys
 
-import dbx as dbxm
 import kt
-from kt import B, check, sess
+from kt import B, check
 from freelancer_fixture import FEATURES, freelancer
 
 kt.fresh(prefix="P2380RF")
@@ -84,16 +82,6 @@ fold(Fr, "frida (no organisation)")
 
 
 # ---------------------------------------------------------------- #3438 the agency type's "Client" field
-def dbw(sql, args=()):
-    c = dbxm.connect(os.path.join(kt.DATA, "tasks.db"), timeout=10)
-    try:
-        out = c.execute(sql, args).fetchall()
-        c.commit()
-        return [tuple(r) for r in out]
-    finally:
-        c.close()
-
-
 def fields(s, lid):
     return [(f["name"], f["type"]) for f in s.get(B + "/api/state").json()["fields"] if f["list_id"] == lid]
 
@@ -101,28 +89,7 @@ def fields(s, lid):
 for s, who in ((A, "alice"), (Fr, "frida (no organisation)")):
     lid = s.post(B + "/api/lists", json={"name": f"Agency {who[:5]}", "ptype": "agency"}).json()["id"]
     check(fields(s, lid) == [], f"{who}: #3438 a new agency project has no Client field (2.551.0, #3906: nor Budget h) {fields(s, lid)}")
-# the state of before: agency projects with "Client" (empty / with a value) and "Kunde" (empty), a plain list with an empty "Client"
-TS = "2026-10-01T00:00:00Z"
-L_EMPTY = A.post(B + "/api/lists", json={"name": "Old agency", "ptype": "agency"}).json()["id"]
-L_VAL = A.post(B + "/api/lists", json={"name": "Old agency with client", "ptype": "agency"}).json()["id"]
-L_DE = Fr.post(B + "/api/lists", json={"name": "Alte Agentur", "ptype": "agency"}).json()["id"]
-L_PLAIN = A.post(B + "/api/lists", json={"name": "Plain list"}).json()["id"]
-ids = {}
-for lid, name in ((L_EMPTY, "Client"), (L_VAL, "Client"), (L_DE, "Kunde"), (L_PLAIN, "Client")):
-    ids[lid] = dbw("INSERT INTO list_fields(list_id, name, type, created_at) VALUES(?,?,?,?) RETURNING id", (lid, name, "text", TS))[0][0]
-T_EMPTY = A.post(B + "/api/tasks", json={"title": "Edit", "list_id": L_EMPTY}).json()["id"]
-dbw("INSERT INTO task_field_values(task_id, field_id, value) VALUES(?,?,?)", (T_EMPTY, ids[L_EMPTY], ""))  # an empty value counts as none
-T_VAL = A.post(B + "/api/tasks", json={"title": "Grade", "list_id": L_VAL}).json()["id"]
-dbw("INSERT INTO task_field_values(task_id, field_id, value) VALUES(?,?,?)", (T_VAL, ids[L_VAL], "Example Ltd"))
-dbw("DELETE FROM settings WHERE key='migr_agcl2380'")
-if kt.fresh(keep=True, prefix="P2380RF"):
-    A, Fr = sess("alice"), sess("frida")
-left = {r[0] for r in dbw("SELECT id FROM list_fields WHERE id IN (?,?,?,?)", tuple(ids.values()))}
-check(ids[L_EMPTY] not in left and ids[L_DE] not in left, f"#3438: the empty Client / Kunde fields of agency projects are gone {left}")
-check(ids[L_VAL] in left, "#3438: a Client field with a value stays")
-check(ids[L_PLAIN] in left, "#3438: an empty Client field of a list without the type stays")
-check(not fields(A, L_EMPTY) and dbw("SELECT value FROM task_field_values WHERE task_id=?", (T_VAL,)) == [("Example Ltd",)],
-      "#3438: Budget h and the value kept")
-check([r[0] for r in dbw("SELECT value FROM settings WHERE key='migr_agcl2380'")] == ["1"], "#3438: the one-shot is marked done")
+# 2.1380.0 (#6826): the one-shot at the start stood here (old agency projects with empty "Client" / "Kunde" fields, flag
+# migr_agcl2380 deleted, restart: the empty ones gone, a value kept); that one-shot is retired (core/oncesteps.py RETIRED)
 
 sys.exit(kt.done("p2380r_f_api"))

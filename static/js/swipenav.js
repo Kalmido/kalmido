@@ -26,7 +26,11 @@
    = a neighbour made ready by the caller (o.peek -> {el}) leaves its placeholder unused (sprung back, or the other side): the
    caller keeps it (docs.js parks it again), it is not thrown away with the placeholder. The handle tells more: snapping() = the
    last one still snaps in, at() = when the last swipe ended. swn_skip(target, stop) = the shared exceptions where one finger
-   is no swipe: typing / marking in a field, a select or slider, a part that scrolls sideways (up to stop), marked text. */
+   is no swipe: typing / marking in a field, a select or slider, a part that scrolls sideways (up to stop), marked text.
+   2.1380.0 (#7002): two options for a caller whose area is also pinched (the calendar, calgest.js): o.cut = a second finger (or
+   o.busy) ends a swipe at once - the area loses its transform without a glide back and the placeholders go now (a .2s
+   transition left on the area eased every step of the zoom that scales the same element); o.lock = the finger's way in px
+   before a swipe begins (default 10), so a second finger landing a moment late finds no swipe begun. Without them: as before. */
 'use strict';
 
 const SWN_EDGE = 16, SWN_GAP = 16;
@@ -47,11 +51,11 @@ function swn_box(el, full, inside) {
   const cs = getComputedStyle(f), pl = parseFloat(cs.paddingLeft) || 0, pt = parseFloat(cs.paddingTop) || 0;
   return {l: pl, t: pt, w: f.clientWidth - pl - (parseFloat(cs.paddingRight) || 0), h: f.clientHeight - pt - (parseFloat(cs.paddingBottom) || 0)};
 }
-/** @param {HTMLElement|Document} root @param {{area: (t: any) => HTMLElement|null, can: (dir: number) => boolean, go: (dir: number) => any, peek?: (dir: number) => ({img?: string, el?: HTMLElement}|null), full?: boolean, inside?: boolean, edge?: number, busy?: () => boolean, back?: (el: HTMLElement) => void}} o */
+/** @param {HTMLElement|Document} root @param {{area: (t: any) => HTMLElement|null, can: (dir: number) => boolean, go: (dir: number) => any, peek?: (dir: number) => ({img?: string, el?: HTMLElement}|null), full?: boolean, inside?: boolean, edge?: number, busy?: () => boolean, back?: (el: HTMLElement) => void, cut?: boolean, lock?: number}} o */
 function swn_attach(root, o) {
   /** @type {any} */
   let s = null, end = 0, snap = false;
-  const EDGE = o.edge ?? SWN_EDGE;
+  const EDGE = o.edge ?? SWN_EDGE, LOCK = o.lock ?? 10;
   /** @param {HTMLElement} el -> what glides: the area, or (o.inside, #5213) its children but the neighbours */
   const parts = el => o.inside ? /** @type {HTMLElement[]} */ ([...el.children]).filter(x => !x.classList.contains('swn-nb')) : [el];
   /** @param {HTMLElement} el @param {string} tf */
@@ -71,7 +75,9 @@ function swn_attach(root, o) {
     for (const nb of c.nb) { nb.style.transition = 'transform .2s ease-out'; nb.style.transform = `translateX(${+nb.dataset.dir * (c.w + SWN_GAP)}px)`; }
     const gone = c.nb; c.nb = []; setTimeout(() => gone.forEach((/** @type {HTMLElement} */ x) => rid(x)), 250);
   };
-  const drop = () => { if (s?.lock) loose(s); s = null; };
+  /** @param {any} c 2.1380.0 (#7002): o.cut - off at once: no transform, no transition, no placeholder */
+  const cut = c => { for (const el of parts(c.el)) put(el, ''); clear(c); };
+  const drop = () => { if (s?.lock) (o.cut ? cut : loose)(s); s = null; };
   /** @param {HTMLElement} el @param {number} dir the neighbour beside the area, in its place and size */
   const lay = (el, dir) => {
     const p = o.peek ? o.peek(dir) : null, nb = document.createElement('div'), b = swn_box(el, o.full, o.inside);
@@ -114,7 +120,7 @@ function swn_attach(root, o) {
     if (e.touches.length !== 1 || (typeof pz_busy === 'function' && pz_busy()) || o.busy?.()) { drop(); return; }  // a second finger: the zoom; 2.754.0 (#5213): a long press
     const t = e.touches[0], dx = t.clientX - s.x0, dy = t.clientY - s.y0;
     if (!s.lock) {
-      if (Math.hypot(dx, dy) < 10) return;
+      if (Math.hypot(dx, dy) < LOCK) return;  // 2.1380.0 (#7002): o.lock
       if (Math.abs(dx) <= Math.abs(dy) * 1.2) { s = null; return; }  // up / down: scrolling
       s.lock = 'x';
       s.edge = {'1': !o.can(1), '-1': !o.can(-1)};

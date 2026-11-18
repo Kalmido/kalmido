@@ -10,14 +10,13 @@ addresses @example.com. tenant-matrix: org
  - GET leave-info: back_counts / back_text next to stays, what cannot go by itself = kept (a space with the lock, the same link)
  - the removed person's News counts everything, the organisation's log has one row per area, the admins are told
  - a way out clears the mark (out and in by an admin of the same organisation: not brought in by the admin's move out)
- - the old data: the mark comes from the last move in space_moves, one-time at the start
+ - 2.1380.0 (#6826): the old data's one-time mark at the start (migr_brought2365) is retired, its check gone
  - a person without an organisation (freelancer-matrix: orgadmin): no preview of another organisation (404)
 usage: p23651_orgback_test.py <datadir>      (P23651_NOSTART=1: a running server on KALMIDO_TEST_PORT)"""
 import json
 import os
 import subprocess
 import sys
-import time
 
 import requests
 
@@ -298,25 +297,8 @@ check(d.ok and d.content == b"daves words", "removed by an admin: the file opens
 un = [x for x in Da.get(B + "/api/news").json()["items"] if x["kind"] == "unshare"]
 check(un and un[0]["data"].get("back") == 2, f"dave's News counts it ({[x['data'] for x in un]})")
 
-# ================================================================ the old data: from the last move, once
-T8 = in_sheet(Er, "Old table")
-sheet_in(Er, T8)
-Q8 = poll(Er, "Old poll")
-check(Er.post(B + f"/api/polls/{Q8}/move-space", json={"to": SP}).ok, "setup: poll in")
-T9 = in_sheet(Er, "Made in Alpha, out, in by an admin", SP)
-sql("UPDATE sheets SET brought_by=NULL WHERE id=?", (T8,), write=True)
-sql("UPDATE sched_polls SET brought_by=NULL WHERE id=?", (Q8,), write=True)
-sql("DELETE FROM settings WHERE key='migr_brought2365'", write=True)
-subprocess.run(["docker", "restart", CT], capture_output=True)
-for _ in range(120):
-    try:
-        if requests.get(B + "/api/health", timeout=2).ok:
-            break
-    except requests.RequestException:
-        pass
-    time.sleep(0.5)
-check(brought("sheets", T8) == ERIN and brought("sched_polls", Q8) == ERIN, "the old data: the mark comes from the last move")
-check(brought("sheets", T9) is None, "the old data: no move, no mark (never a guess from who made it)")
+# 2.1380.0 (#6826): the old data stood here (marks cleared, flag migr_brought2365 deleted, restart: the mark came from the last
+# move in space_moves); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 
 print(f"{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

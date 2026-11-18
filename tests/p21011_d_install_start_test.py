@@ -3,6 +3,7 @@
 """2.1011.0 D (#5713): the nightly CI job install-upgrade, as far as it runs without network and server:
  - tools/install_upgrade_check.py pick_start: the start is the live version (newest tag latest-ok/X.Y.Z below the candidate),
    not the latest release (2.502.0 for 490 versions); with a release page it is installed as a release, without one from the tag
+ - 2.1380.0 (#6826): never a start below kalmido/core/db.py MIN_FROM (the candidate would refuse it)
  - --prev: vX.Y.Z / X.Y.Z = a release, latest-ok/X.Y.Z = the tag; anything else is refused
  - .dockerignore: the install folder is the build context of docker-compose.yml (build: .) - pgdata/ (postgres, 0700) made
    docker compose build stop with "permission denied"; data/, secret/, .env never go to the build either, and the Dockerfile
@@ -52,6 +53,16 @@ check(iuc.pick_start("2.997.0", ["v2.995.0", "v2.996.0", "main"], latest="v2.502
 check(iuc.pick_start("main", REFS) is None and iuc.pick_start("2.0.0", REFS) is None, "pick_start: no version / nothing older -> None")
 check(iuc.live_v("latest-ok/2.941.0") == (2, 941, 0) and iuc.live_v("v2.941.0") is None and iuc.live_v("latest-ok/x") is None,
       "live_v reads only latest-ok/X.Y.Z")
+# 2.1380.0 (#6826): never a start below the candidate's update floor (kalmido/core/db.py MIN_FROM): the start would be refused
+check(iuc.min_from() == re.search(r'^MIN_FROM = "([\d.]+)"', read("kalmido", "core", "db.py"), re.M).group(1), f"min_from reads MIN_FROM ({iuc.min_from()})")
+R2 = ["v2.502.0", "v2.996.0", "latest-ok/2.998.0", "latest-ok/2.1001.0"]
+check(iuc.pick_start("2.1380.0", R2, latest="v2.502.0", released=lambda t: False, floor="2.1000.0") == ("latest-ok/2.1001.0", "tag"),
+      "pick_start floor: the live version from the floor on")
+check(iuc.pick_start("2.1380.0", R2[:3], latest="v2.502.0", floor="2.1000.0") is None,
+      "pick_start floor: only live versions / releases below the floor -> None (no start that is refused)")
+check(iuc.pick_start("2.1380.0", ["v2.996.0", "v2.1001.0"], latest="v2.996.0", floor="2.1000.0") == ("v2.1001.0", "release"),
+      "pick_start floor: a latest release below the floor is not taken, the newest release from the floor on is")
+check("floor=min_from()" in read("tools", "install_upgrade_check.py"), "prev_tag passes the floor")
 
 # ---- --prev
 check(iuc.start_of("2.941.0") == ("v2.941.0", "release") and iuc.start_of("v2.941.0") == ("v2.941.0", "release"),

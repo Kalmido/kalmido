@@ -231,6 +231,10 @@ document.addEventListener('touchcancel', cgs_touchEnd, {passive: true});
 
 // ---- 2.1312.0 (#6711): one finger leafs like a page (swipenav.js swn_attach): the grid only, the neighbour as a placeholder
 const CGS_LEAF = ['month', 'week', 'day', 'year'];
+// 2.1380.0 (#7002): the pinch owns two fingers wholly. A swipe begins only after this much one-finger way (a second finger
+// landing a moment late finds none begun), and a second finger ends a begun one at once (o.cut: no glide back, no transform
+// left on the grid that the zoom scales - the .2s glide back stayed on it for the whole pinch and eased every step)
+const CGS_LOCK = 24;
 // the state of the neighbour period (calendar.js calStep, the arrows' step) while fn runs; the shown period stays
 function cgs_with(dir, fn) {
   const was = {sel: S.calSel, mon: S.calMonth, tl: S.tlStart};
@@ -276,7 +280,7 @@ if (typeof swn_attach === 'function') {
   try {
     CGS.sw = swn_attach(document, {area: cgs_leafArea, can: () => CGS_LEAF.includes(S.calMode), peek: cgs_peek,
       go: dir => { CGS.redraw = false; calStep(dir); renderView(); },  // drawn in place: no an_calSlide (the neighbour already stands there)
-      busy: () => cgs_busy() || !!CGS.pz || CGS.hold});
+      busy: () => cgs_busy() || !!CGS.pz || CGS.hold, cut: true, lock: CGS_LOCK});
   } finally { CGS.attaching = false; }
 }
 // a finger that leafs (from the swipe's lock to the end of its snap): the calendar's own redraws (calendar.js: the events, the

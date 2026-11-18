@@ -17,6 +17,10 @@ and starts the current image on it:
 - a second start is idempotent: no migration step runs again, schema and data stay the same
 - 2.1265.0 (#6287): the rows of the old tables a core move retires arrive in their target (tests/upgrade_moves.py: before the
   start the rows each move has to take, after it the target; a drop-ok line of migrations.d without an entry there is red)
+- 2.1380.0 (#6495): every old table of a core move gets a row its move takes (upgrade_moves.FILL: a real kind, an existing
+  person and target); a move checked with 0 rows in a dump that still has its old table is red (was an info line)
+- 2.1380.0 (#6826): a dump older than core/db.py MIN_FROM (2.101.0, 2.941.0) is refused at the start with the way through and
+  stays as it was; the checks above run on the dumps from MIN_FROM on (2.1001.0)
 Replaces the group's database (own group with `fresh` in run_all.sh). P2192C_NOSTART / KMT_NOSTART: not supported (the
 suite restarts the container itself)."""
 import glob
@@ -117,13 +121,17 @@ def fill_old_tables():
             return "2026-01-01T00:00:00Z"  # (now_iso) - the filler text broke later moves into TIMESTAMPTZ columns (#5306)
         return {"bytea": "\\x00", "jsonb": "{}", "json": "{}", "boolean": "false", "date": "2026-01-01"}.get(typ, "p2192-fill-" + t if "timestamp" not in typ else "2026-01-01")
 
-    def insert(t, more=()):
-        """One row in t, with the columns more on top of the required ones."""
+    def insert(t, more=(), over=None):
+        """One row in t, with the columns more on top of the required ones; over = {column: SQL of its value} (2.1319.0, #6495:
+        upgrade_moves.FILL; a column t does not have is left out)."""
         cols = q("""SELECT column_name, data_type, is_nullable='NO' AND column_default IS NULL AND is_identity='NO' AND is_generated='NEVER'
                     FROM information_schema.columns WHERE table_schema='public' AND table_name=? ORDER BY ordinal_position""", (t,))
         names, vals = [], []
         for name, typ, need in cols:
-            if need or name in more:
+            if over and name in over:
+                names.append(f'"{name}"')
+                vals.append(f"({over[name]})")
+            elif need or name in more:
                 v = value(t, name, typ)
                 if v is None:
                     return f"{name} points at an empty table"
@@ -135,11 +143,34 @@ def fill_old_tables():
     for t, more in FILL_FIRST:
         insert(t, more)
     tables = [r[0] for r in q("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY 1")]
+    # 2.1380.0 (#6495): the old tables of the core moves get their row from upgrade_moves.FILL (a row the move takes: a real
+    # kind, an existing person and target), after the other tables (their parents) and before the round for the rest
+    moved = set(upgrade_moves.FILL) & set(tables)
+    FILL_ERR.clear()
+    rounds(insert, tables, fks, skip=moved)
+    for _ in range(2):  # twice: an old table pointing at another one (task_list_tags -> list_tags) after it
+        for old in sorted(upgrade_moves.empty(q) & moved, key=list(upgrade_moves.FILL).index):
+            for t, over in upgrade_moves.FILL[old]:
+                try:
+                    insert(t, over=over)
+                    FILL_ERR.pop(old, None)
+                except Exception as e:  # noqa: BLE001 - named by the move's check (0 rows) with this text
+                    FILL_ERR[old] = f"{t}: {str(e)[-300:]}"
+                    break
+    return rounds(insert, tables, fks)
+
+
+FILL_ERR = {}  # 2.1380.0 (#6495): {old table: why its FILL row could not be written} (named when its move checks 0 rows)
+
+
+def rounds(insert, tables, fks, skip=()):
+    """2.509.0 (#4285): a few rounds over the tables still empty (one pointing at another one fills after it) -> {table: why not}."""
+    q = kt.dbx
     why = {}
     for _ in range(4):
         why = {}
         for t in tables:
-            if q(f'SELECT 1 FROM "{t}" LIMIT 1'):
+            if t in skip or q(f'SELECT 1 FROM "{t}" LIMIT 1'):
                 continue
             try:
                 w = insert(t)
@@ -163,11 +194,20 @@ FILL_FIRST = (("users", ()), ("orgs", ()), ("lists", ("owner_id",)), ("tasks", (
 
 
 DUMPS = sorted(glob.glob(os.path.join(FIX, "*.sql.gz")))
+# 2.1380.0 (#6826): a dump older than the update floor core/db.py MIN_FROM must be refused at the start (no upgrade any more)
+MIN_FROM = re.search(r'^MIN_FROM = "([\d.]+)"', open(os.path.join(ROOT, "kalmido", "core", "db.py"), encoding="utf-8").read(), re.M).group(1)
+
+
+def too_old(v):
+    return tuple(int(x) for x in v.split(".")) < tuple(int(x) for x in MIN_FROM.split("."))
+
+
 # 2.1265.0 (#6287): every old table / column a fragment drops has its entry in tests/upgrade_moves.py (rows compared or why not)
 MISSING, STALE = upgrade_moves.guard()
 check(not MISSING, f"every drop-ok of kalmido/core/migrations.d has an entry in tests/upgrade_moves.py (MOVES or OTHER): {MISSING}")
 check(not STALE, f"every entry of tests/upgrade_moves.py names a drop-ok of migrations.d: {STALE}")
 check(DUMPS, "at least one dump in tests/fixtures/upgrade")
+check(any(not too_old(os.path.basename(d)[:-len(".sql.gz")]) for d in DUMPS), f"at least one dump of {MIN_FROM} or newer (an upgrade that runs)")
 kt.fresh()  # the current server on an empty database: the reference schema of a fresh install
 REF = schema()
 check(len(REF["cols"]) > 500 and REF["policies"], "reference schema of a fresh install read")
@@ -176,6 +216,19 @@ for dump in DUMPS:
         E = json.load(f)
     tag = "from " + E["version"]
     load(dump)
+    if too_old(E["version"]):  # 2.1380.0 (#6826): older than core/db.py MIN_FROM - refused with the way through, nothing changed
+        meta0 = kt.dbx("SELECT key, value FROM kalmido_meta ORDER BY key") if kt.dbx("SELECT to_regclass('public.kalmido_meta')")[0][0] else []
+        os.environ["START_WAIT_S"] = "30"  # the refusal comes at once (start.sh waits for /api/health that long)
+        try:
+            kt.fresh(keep=True)
+            started = True
+        except AssertionError:
+            started = False
+        lg = logs()
+        check(not started and "FATAL: this database " in lg and f"only updates from Kalmido {MIN_FROM} or newer" in lg,
+              f"{tag}: older than {MIN_FROM}: the start is refused with the way through ({started}, {lg[-300:]!r})")
+        check((kt.dbx("SELECT key, value FROM kalmido_meta ORDER BY key") if meta0 else []) == meta0, f"{tag}: the old database stays as it was")
+        continue
     empty = fill_old_tables()  # 2.509.0 (#4285)
     check(not empty, f"{tag}: every old table has a row before the start: {empty}")
     before = kt.dbx(OLD_TASKS)[0][0]
@@ -237,8 +290,11 @@ for dump in DUMPS:
             check(False, f"{tag}: move {label}: {miss}")
             continue
         check(not miss, f"{tag}: move {label}: {n - len(miss)} of {n} row(s) arrived" + (f", missing {miss[:5]}" if miss else ""))
-        if not n:
-            print(f"   info: {tag}: move {label}: the dump holds no row the move has to take (checked empty)")
+        # 2.1380.0 (#6495): was an info line -- fill_old_tables writes a row each move takes (upgrade_moves.FILL), so a move
+        # checked with 0 rows means that row did not fit the move's condition (or could not be written): red
+        old_t = label.split(" ")[0].split(".")[0]
+        check(n > 0, f"{tag}: move {label}: the fill's row is taken by the move's condition (0 rows checked)"
+              + (f" -- the FILL row failed: {FILL_ERR[old_t]}" if old_t in FILL_ERR else ""))
     users = data_checks(E, tag)
     A, Fr = users["alice"], users["frida"]
     ids = E["ids"]

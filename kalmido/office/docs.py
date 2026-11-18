@@ -35,6 +35,7 @@ from .ledger import (ofx_release, ofx_company, ofx_company_print, ofx_sender_lin
                      ofx_number_at_finalize, ofx_snapshot_pack, OFX_LOCKED)
 from .ledger import ofx_user_label  # 2.1287.0 (#6470)
 from .ledger import ofx_unlink, ofx_unlock  # 2.1005.0 (#5415): a finalised quotation never sent goes as a draft
+from .ledger import ofx_past_year  # 2.1380.0 (#6976)
 from .ledger import ofx_company_from_free  # 2.1308.0 (#6477): free recipient lines read like the company's
 from .countries import fk_country_code, fk_country_label  # 2.296.0 B (#3168); 2.1308.0 (#6477): + fk_country_code
 from .invoices import (INV_KINDS, INV_STATUSES, STATE_TXT, inv_apply_client, inv_manual_number, inv_money_fields, inv_new_row, inv_paid_map, inv_payments,
@@ -1954,6 +1955,11 @@ def odoc_number_preview(did):
     if r["number"]:
         return jsonify(number=r["number"], given=True, first=first, einvoice_warn=warn)
     num = office_trial_number(c, oid, did, peek=True) if r["trial"] else doc_next_number(c, oid, r, office_settings(c, oid), peek=True)
+    # 2.1380.0 (#6976): a draft dated in an earlier year: + past_year (its date) and number_today, the number when dated today
+    if ofx_past_year(r):
+        rt = {**dict(r), "date": local_now().date().isoformat()}
+        return jsonify(number=num, given=False, first=first, einvoice_warn=warn, past_year=str(r["date"])[:10],
+                       number_today=doc_next_number(c, oid, rt, office_settings(c, oid), peek=True))
     return jsonify(number=num, given=False, first=first, einvoice_warn=warn)
 
 

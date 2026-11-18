@@ -4,7 +4,8 @@
    (timeline without activity / people, no mentions, no News, no pushes, no agent events); edit + delete of own notes
  - the new module "comments": on for new users, writing refused with it off (409, reading stays), agents excepted,
    no comment News / pushes for a recipient who switched it off, /api/v1/me reports it
- - migration features_rev 9: existing users (and the setup's default modules) get "comments" once, after a restart
+ - migration features_rev 9: existing users get "comments" once, after a restart (2.1380.0 #6826: the setup's default
+   modules no longer; that one-shot migr_feat9 is retired)
  - roadmap prefs accept {nd: bool}
 Runs against a fresh test container (start.sh). usage: p206_api_test.py <datadir>"""
 import os
@@ -145,13 +146,14 @@ check(A.patch(B + "/api/settings", json={"roadmap": '{"nd":"x"}'}).status_code =
 dbx("UPDATE user_settings SET value='cal,collab,time' WHERE user_id=? AND key='features'", (bob,))
 dbx("UPDATE user_settings SET value='8' WHERE user_id=? AND key='features_rev'", (bob,))
 dbx("INSERT INTO settings(key,value) VALUES('default_features','cal,kanban,collab,time') ON CONFLICT (key) DO UPDATE SET value=excluded.value")
-dbx("DELETE FROM settings WHERE key='migr_feat9'")
+# 2.1380.0 (#6826): the flag migr_feat9 was deleted here (the setup default's one-shot, retired)
 restart()
 Bo = sess("bob")
 # 2.48.0 (#1207, #1111): features_rev 11 also turns on the file store and the documents
 check(feats(Bo) == ["cal", "collab", "time", "comments", "events", "contacts", "files", "docs", "videos"], f"migration: comments added once (2.21: events + contacts too, 2.48: files + docs), the rest kept: {feats(Bo)}")
 check(dbx("SELECT value FROM user_settings WHERE user_id=? AND key='features_rev'", (bob,))[0][0] == "12", "features_rev 12")  # 2.623.0 (#4765): features_rev 12 adds the module Approval (videos)
-check(dbx("SELECT value FROM settings WHERE key='default_features'")[0][0] == "cal,kanban,collab,time,comments", "setup default modules get comments too")
+# 2.1380.0 (#6826): was "setup default modules get comments too" (the retired one-shot migr_feat9); the default stays as stored
+check(dbx("SELECT value FROM settings WHERE key='default_features'")[0][0] == "cal,kanban,collab,time", "setup default modules stay as stored")
 Bo.patch(B + "/api/settings", json={"features": "cal,collab,time"})
 restart()
 check(sess("bob").get(B + "/api/state").json()["settings"]["features"] == "cal,collab,time", "migration runs once: switched off stays off")

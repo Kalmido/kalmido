@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """2.25.0 API tests.
  - #931 a list created inside a folder that is shared with people is shared with them on EVERY path: the list dialog,
-   a project of a built-in type, a family list, an import (Trello, lists mode: the board is the folder); the one-time
-   repair at start (migr_folder931) shares lists that came into a shared folder after it was shared and missed it, but
-   never a list someone was taken off on purpose (created before the share)
+   a project of a built-in type, a family list, an import (Trello, lists mode: the board is the folder), never a list
+   someone was taken off on purpose (2.1380.0 #6826: the one-time repair at start, migr_folder931, is retired)
  - UX-03 the user setting "sidebar" ({order, hidden}: validated, stored normalized, '' = default)
  - UX-26 accounts added by an admin start with a lean sidebar (Tomorrow / Next 7 days / Now doable hidden), the admin
    who set up the server does not
@@ -15,7 +14,6 @@ import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
 import subprocess
 import sys
 import time
-import testclock  # 2.206.0 A (#2512)
 
 import requests
 
@@ -75,24 +73,8 @@ imp = [x[0] for x in dbx("SELECT id FROM lists WHERE owner_id=1 AND folder='Clie
 check(r.ok and imp and all(member(x, BOB) for x in imp), f"#931: an import into the folder (Trello, lists mode): shared {len(imp)} " + r.text[:120])
 check(not member(old, BOB), "#931: 'Old' stays without bob")
 
-# the one-time repair: a list that missed the share (written as an older version did) gets it, 'Old' does not
-ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(testclock.now().timestamp() + 5))  # 2.206.0 A (#2512): the test clock
-dbx("INSERT INTO lists(name,folder,sort,view,created_at,owner_id) VALUES('Missed','Clients',99,'list',?,1)", (ts,), write=True)
-miss = dbx("SELECT id FROM lists WHERE name='Missed'")[0][0]
-dbx("DELETE FROM settings WHERE key='migr_folder931'", write=True)
-check(not member(miss, BOB), "repair: before the start the list misses bob")
-subprocess.run(["docker", "restart", CT], check=True, stdout=subprocess.DEVNULL)
-for _ in range(60):
-    try:
-        if requests.get(B + "/api/health", timeout=2).ok:
-            break
-    except requests.RequestException:
-        pass
-    time.sleep(0.5)
-check(member(miss, BOB), "repair (migr_folder931): the missed list is shared now")
-check(not member(old, BOB), "repair: a list taken off on purpose stays off")
-check(dbx("SELECT value FROM settings WHERE key='migr_folder931'") == [("1",)], "repair: runs once")
-A = sess("alice")
+# 2.1380.0 (#6826): the one-time repair at start stood here (a list that missed the folder's share, flag migr_folder931
+# deleted, restart: shared now, 'Old' not); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 
 # ================================================================== UX-03 / UX-26 the sidebar setting
 st = A.get(B + "/api/state").json()["settings"]

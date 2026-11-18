@@ -7,7 +7,7 @@
    subfolder moves into another folder or to the top level, a folder with subfolders cannot become a subfolder, a folder
    cannot go into itself; delete (POST /api/folders/delete): a top folder's subfolders become top-level folders, a
    subfolder's lists go to its parent; everything per user (a member's own folder rows, the owner's untouched)
- - migration: existing flat folder names with a "/" (owner rows, member rows, the stored order) stay top-level (U+2215)
+ - 2.1380.0 (#6826): the start's migration of flat folder names with a "/" (migr_folder_path) is retired, its check gone
  - project types: POST /api/lists {ptype} (sections in the person's language, custom fields, view, ticket types, "move
    dependent tasks along", the modules it needs switched on: modules_on), POST /api/v1/lists {project_type}, bad type 400,
    the setup's "Start with a project"
@@ -35,7 +35,6 @@ B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 V = B + "/api/v1"
 H = {"X-Requested-With": "kalmido"}
 from kt import FAILS, OKS, check, sess  # 2.192.0 (#2514): shared helpers (tests/kt.py)
-C = "∕"
 
 
 def start(keep=False):
@@ -46,10 +45,6 @@ def start(keep=False):
         os.makedirs(DATA, exist_ok=True)
     r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=dict(os.environ, KEEP="1"), capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
-
-
-def stop():
-    subprocess.run(["docker", "stop", os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")], capture_output=True)
 
 
 class Api:
@@ -321,20 +316,8 @@ cap = [x for x in m["shortcuts"] if x["url"] == "/?action=capture"]
 check(cap and cap[0]["name"] == "Quick add", "manifest: Quick add shortcut")
 check(all(requests.get(B + i["src"]).ok for i in cap[0]["icons"]), "shortcut icons exist")
 
-# ================================================================== migration: flat folders with "/" stay top-level
-stop()
-dbx("UPDATE lists SET folder='Kunden/Firma' WHERE id=?", (L4,))
-dbx("UPDATE list_members SET folder='Privat/Alt' WHERE list_id=? AND user_id=?", (L1, BOB))
-uid_a = dbx("SELECT id FROM users WHERE username='alice'")[0][0]
-dbx("UPDATE user_settings SET value=? WHERE user_id=? AND key='folders'", (json.dumps(["Kunden/Firma", "Home"]), uid_a))
-dbx("DELETE FROM settings WHERE key='migr_folder_path'")
-start(keep=True)
-A = sess("alice")
-Bo = sess("bob")
-check(folder(A, L4) == "Kunden" + C + "Firma", f"owner row: kept top-level ({folder(A, L4)!r})")
-check(folder(Bo, L1) == folder(A, L1), f"2.27.0 (#988): member row mirrors the owner ({folder(Bo, L1)!r})")
-check(json.loads(settings(A)["folders"])[0] == "Kunden" + C + "Firma", "folder order migrated")
-check(dbx("SELECT value FROM settings WHERE key='migr_folder_path'") == [("1",)], "migration done once")
+# 2.1380.0 (#6826): the migration of flat folders with "/" stood here (old names written, flag migr_folder_path deleted,
+# restart: kept top-level with U+2215); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 
 # ================================================================== setup: "Start with a project"
 start()

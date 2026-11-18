@@ -129,7 +129,7 @@ headers: call the API from a server, a script or an app, not from JavaScript on 
 
 `code` is one of `invalid` (400), `unknown_field` (400, see below), `unauthorized` (401: missing, invalid or expired
 token), `forbidden` (403: scope, project role or a module that is switched off), `not_found` (404: also for things the user
-cannot see, so their existence is not revealed), `method_not_allowed` (405), `conflict` (409), `slots_full` and `wip_full` (409, 2.392.0: `POST /agent/jobs` refused by a hard limit, see AGENTS.md), `month_closed` (409, 2.125.0: a time entry in a month the person closed
+cannot see, so their existence is not revealed), `method_not_allowed` (405), `conflict` (409), `owner_locked` (403, 2.1264.0: the account the agent or its hosted MCP access belongs to is locked; wait, it works again once unlocked), `slots_full` and `wip_full` (409, 2.392.0: `POST /agent/jobs` refused by a hard limit, see AGENTS.md), `month_closed` (409, 2.125.0: a time entry in a month the person closed
 in the timesheet: creating, changing, deleting, the timer), `rate_limited` (429, with `Retry-After`). The message is in the
 user's language.
 

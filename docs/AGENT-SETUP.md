@@ -1179,7 +1179,8 @@ them with the right people.
 - **No reaction to a mention**: is the agent enabled, and is the project shared with it? `journalctl --user -u
   kalmido-agent` as the agent user; run `~/agent/bin/events.sh` by hand (stop the service first, it moves the cursor).
 - **`EVENTS: http 403`**: the agent is paused or the token was rotated; fix the env file and restart the service. With
-  `"code": "owner_locked"` in the answer (2.1264.0) the account of the person the personal agent belongs to is locked:
+  `"code": "owner_locked"` in the answer (2.1264.0) the account of the person the personal agent belongs to (2.1380.0: or the
+  person who gave a hosted MCP access) is locked:
   nothing to fix on the host, it works again once the account is unlocked.
 - **`EVENTS: http 000`**: Kalmido is not reachable: check the firewall rule for Kalmido (step 3) and `KALMIDO_URL`.
 - **`"busy": true`**: too many waiting requests (2 per agent, and on the whole server as many as the web threads less 8, see `KALMIDO_AGENT_WAITERS`); only one event loop per agent. The answer carries `Retry-After` (3-8 s): come back after it.

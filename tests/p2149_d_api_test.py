@@ -9,6 +9,7 @@ freelancer-matrix: admin
    to start (FATAL in the log), KALMIDO_ALLOW_DOWNGRADE=1 starts it with a warning and keeps the stamp; the one step back
    (app_version_prev = this version) starts without it and changes no stamp; a database of an older version is upgraded
    (prev = the older one); a newer patch of the same minor starts and keeps its stamp
+ - 2.1380.0 (#6826): a database older than MIN_FROM (2.1000.0) or without a stamp: refused at the start, nothing changed
  - TASKS_WATCHDOG: true = on (the watchdog loop runs, was off before 2.149), 0 = off, unset = on
  - restore: an archive whose manifest names a newer minor is refused with code "newer" (upload check), an older one is not
    refused for its version; a person without an organisation (own admin of the private workspace only) gets 403
@@ -191,6 +192,21 @@ set_meta("app_version", OLDER)
 set_meta("app_version_prev", None)
 check(start(), "older stamp: starts")
 check(meta() == {"app_version": VER, "app_version_prev": OLDER}, f"upgrade: app_version {VER}, prev {OLDER}: {meta()}")
+# 2.1380.0 (#6826): a database older than core/db.py MIN_FROM (2.1000.0), or one with tables but without a stamp (before
+# 2.149), is refused at the start with the way through; nothing is changed
+res = in_app("from kalmido.core.db import MIN_FROM, appver_too_old as t\n"
+             "print(json.dumps([MIN_FROM, t('2.999.9'), t(None), t(''), t('0.0.0'), t('2.1000.0'), t('2.1000.4'), t('2.1001.0'), t('3.0.0')]))")
+check(res == json.dumps(["2.1000.0", True, True, True, True, False, False, False, False]), f"appver_too_old: the limit MIN_FROM {res}")
+for old, was in (("2.999.9", "last ran Kalmido 2.999.9"), (None, "is from a Kalmido version before 2.149")):
+    set_meta("app_version", old)
+    set_meta("app_version_prev", None)
+    ok = start()
+    lg = logs()
+    check(not ok and f"FATAL: this database {was}" in lg and "only updates from Kalmido 2.1000.0 or newer" in lg
+          and "Update to a version 2.1000.x" in lg, f"older than MIN_FROM ({old}): start refused with the way through ({ok}, {lg[-300:]!r})")
+    check(meta() == ({"app_version": old} if old else {}), f"older than MIN_FROM ({old}): no stamp changed {meta()}")
+set_meta("app_version", VER)
+check(start(), "the stamp back: starts")
 # a newer patch of the same minor
 PATCH = f"{MAJ}.{MIN}.{PAT + 5}"
 set_meta("app_version", PATCH)

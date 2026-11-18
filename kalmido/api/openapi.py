@@ -252,7 +252,7 @@ def openapi_spec():
     task_in["content"] = {"type": "string", "description": "Alias of notes (the web API's name, 2.2.1); not together with a different notes"}
     schemas = {
         "Error": {"type": "object", "required": ["error"], "properties": {"error": {"type": "object", "required": ["code", "message"], "properties": {
-            "code": {"type": "string", "enum": sorted(set(V1_CODES.values()) | {"unknown_field", "slots_full", "wip_full"})}, "message": {"type": "string"},
+            "code": {"type": "string", "enum": sorted(set(V1_CODES.values()) | {"unknown_field", "slots_full", "wip_full", "owner_locked"})}, "message": {"type": "string"},
             "fields": {"type": "array", "items": {"type": "string"},
                        "description": "code unknown_field (2.2.1): the body fields this endpoint does not know (nothing was changed)"},
             # 2.392.0 A (#3367): POST /agent/jobs refused by a hard limit (409)
