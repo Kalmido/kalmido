@@ -99,6 +99,23 @@ const openEdit = async (w, id) => {
   check(await until(() => w.eval('OUT.q.length') === 0), '… the waiting change left the queue');
   cd.querySelector('[data-cd="yes"]').click();
   check(await until(async () => (await call('GET', `/api/notes/${N3.id}`)).body === 'Mine one two' && w.eval('OUT.q.length') === 0), '"Keep mine" saves mine');
+
+  // ================= 2.1397.0 (#6329 E6): the dialog closed without a choice: theirs shows, mine waits in the conflicts list
+  await call('PATCH', `/api/notes/${N3.id}`, {body: 'Changed on the phone'});
+  hold(w);
+  type(w, '#nt-body', 'Typed on the laptop');
+  w.eval('noteFlush()');
+  check(await until(() => w.__held.length === 1), 'E6: the change is on its way');
+  release(w);
+  const cd2 = await until(() => [...w.document.querySelectorAll('.modal.cdlg')].pop());
+  check(cd2 && cd2.textContent.includes('Typed on the laptop'), 'E6: the dialog with both versions');
+  cd2?.remove();  // closed without a choice (Esc, outside): the dialog's answer is the same as "Take theirs"
+  check(await until(() => !w.document.querySelector('.modal.cdlg')), 'E6: the dialog is gone');
+  const rj = await until(() => w.eval("(S.conflicts || []).filter(c => c.field === 'rejected')").find(c => /Typed on the laptop/.test(c.mine)));
+  check(!!rj && rj.title === 'Agenda', 'E6: the own text waits as a refused change in the conflicts list (rollback test) ' + JSON.stringify(w.eval('S.conflicts')));
+  check(/Typed on the laptop/.test(w.__store['tasks.conflicts'] || ''), 'E6: … kept in this browser (survives a reload)');
+  check((await call('GET', `/api/notes/${N3.id}`)).body === 'Changed on the phone', 'E6: the server keeps theirs');
+  w.eval("S.conflicts = []; LS.set('conflicts', [])");
   w.__dialogs = undefined;
 
   // ================= a locked list: never in the queue, nothing in localStorage

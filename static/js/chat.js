@@ -1224,10 +1224,17 @@ async function noteFlush() {
 }
 async function noteConflict(mine, theirs, patch) {
   const keep = await askDialog({title: tr('Changed in the meantime by {0}', theirs.updated_by_name || '?'), html: `<p>${tr('Keep your version or take theirs?')}</p><div class="ntdiff"><div><b>${tr('Yours')}</b><pre>${esc(patch.body ?? mine.body)}</pre></div><div><b>${tr('Theirs')}</b><pre>${esc(theirs.body)}</pre></div></div>`, ok: tr('Keep mine'), cancel: tr('Take theirs')});
-  if (keep && !ntLocked(mine.list_id)) { mine.updated_at = theirs.updated_at; ntEnqueue('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); }  // 2.536.0 (#4567): the outbox
+  let kept = false;  // 2.1397.0 (#6329 E6)
+  if (keep && !ntLocked(mine.list_id)) { mine.updated_at = theirs.updated_at; ntEnqueue('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); kept = true; }  // 2.536.0 (#4567): the outbox
   else if (keep) {
-    try { const r = await rawFetch('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); Object.assign(mine, r); } catch (e) { toast(e.message); }
+    try { const r = await rawFetch('PATCH', `/api/notes/${mine.id}`, {...patch, expect_updated_at: theirs.updated_at}); Object.assign(mine, r); kept = true; } catch (e) { toast(e.message); }
   } else Object.assign(mine, theirs);
+  // 2.1397.0 (#6329 E6): closed without a choice, "Take theirs" or a failed "Keep mine": the own text is not dropped unseen, it
+  // waits in the conflicts dialog (core.js outReject, as a refused offline change: Copy / Dismiss; counted at logout). A locked
+  // list's text never goes into localStorage (#4567): there as before
+  if (!kept && !ntLocked(mine.list_id) && Object.keys(patch).some(k => k !== 'expect_updated_at' && !k.startsWith('_') && JSON.stringify(patch[k]) !== JSON.stringify(theirs[k]))) {
+    outReject({method: 'PATCH', url: `/api/notes/${theirs.id}`, body: patch}, {message: tr('Changed in the meantime')}); renderTop();
+  }
   renderView();
 }
 async function noteNew() {
