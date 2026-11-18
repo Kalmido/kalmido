@@ -113,7 +113,7 @@ if not os.environ.get("KMT_NOSTART"):
     # 2.483.0 (#1902 #2007): the sweep calls 120+ API routes with one token within a minute (the default limit 120): no
     # rate limit in this container (the limit itself is api_v1_test.py's)
     subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], check=True, stdout=subprocess.DEVNULL,
-                   env=dict(os.environ, EXTRA=(os.environ.get("EXTRA", "") + " -e KALMIDO_API_RATE=100000").strip()))
+                   env=dict(os.environ, EXTRA=(os.environ.get("EXTRA", "") + " -e KALMIDO_API_RATE=100000 -e KALMIDO_ISSUER_KEYS=1").strip()))  # 2.1381.0 (#6699): issuers are opt-in
 s0 = requests.Session()
 s0.headers.update(H)
 assert s0.post(B + "/api/auth/setup", json={"username": "alice", "display_name": "Alice", "password": "password123"}).ok

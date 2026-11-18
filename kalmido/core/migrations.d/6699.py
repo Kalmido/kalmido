@@ -6,7 +6,7 @@ office_issuer_payees = the bank accounts an admin allows for it (sealed, core/or
 #6819 on), office_issuer_refs = its idempotency keys (from the drafts on, #6701), office_issuer_ips = the addresses its keys
 were used from (the admins see them, a new one is an alarm). office_doc_log.issuer_id: the issuer behind a log line (the
 detail may be sealed). orgs.issuer_keys: the operator of a hosted instance has unlocked the issuers for this area (default
-off; a self-hosted server asks only KALMIDO_ISSUER_KEYS). Only 'review' exists as mode (CHECK): automatic is stage 2.
+off; a self-hosted server asks only KALMIDO_ISSUER_KEYS, itself off by default). Only 'review' exists as mode (CHECK): automatic is stage 2.
 New tables and nullable / defaulted columns only: an older version ignores all of it."""
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS office_issuers (

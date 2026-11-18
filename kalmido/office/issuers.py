@@ -77,7 +77,7 @@ from ..notify.alerts import aa_now, fx2_mask_ip
 from .ledger import _cap, _iban_ok, _log_public, ofx_company, ofx_log_name
 from .model import office_gate, office_on, office_org, office_settings, office_where, pb_owner
 
-ISS_ON = env_bool("KALMIDO_ISSUER_KEYS", True)
+ISS_ON = env_bool("KALMIDO_ISSUER_KEYS", False)  # opt-in while the kind of key is new (Kalmido-Dev after review #5304)
 ISS_HOSTED = env_bool("KALMIDO_HOSTED", False)  # admin.hosting.hosted() (a higher layer), the same switch
 ISS_ENV = "live" if (os.environ.get("KALMIDO_ISSUER_ENV", "") or "").strip().lower() == "live" else "test"
 ISS_PREFIX = "kis_"
