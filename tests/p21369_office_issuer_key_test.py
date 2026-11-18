@@ -223,6 +223,7 @@ check(r.status_code == 201 and r.json()["payee"]["iban"] == IBAN2 and r.json()["
 PID = r.json()["payee"]["id"] if r.status_code == 201 else 0
 check(IBAN2 not in key_get(KEY).text, "the key never reads the bank accounts")
 check(Bo.get(B + f"/api/office/issuers/{IID}/payees").status_code == 403, "a member does not read the bank accounts")
+check(Fr.delete(B + f"/api/office/issuers/{IID}/payees/{PID}").status_code == 404, "another office removes no bank account (404)")
 r = A.delete(B + f"/api/office/issuers/{IID}/payees/{PID}")
 check(r.ok and not A.get(B + f"/api/office/issuers/{IID}/payees").json()["payees"], f"bank account removed {r.status_code}")
 
@@ -235,8 +236,9 @@ KEY2 = r.json().get("key", "") if r.status_code == 201 else ""
 check(r.status_code == 201 and KEY_RE.fullmatch(KEY2) and key_get(KEY).ok and key_get(KEY2).ok, f"a new key, the old one still works in the overlap {r.status_code}")
 r = A.post(B + f"/api/office/issuers/{IID}/keys", json={"overlap_days": 7, "password": PASSWORD})
 check(r.status_code == 409, f"at most two valid keys: 409 {r.status_code}")
-k2 = next(k for k in A.get(B + "/api/office/issuers").json()["issuers"][0]["keys"] if KEY2.startswith(k["prefix"]))
-r = A.delete(B + f"/api/office/issuers/{IID}/keys/{k2['id']}")
+K2ID = next(k for k in A.get(B + "/api/office/issuers").json()["issuers"][0]["keys"] if KEY2.startswith(k["prefix"]))["id"]
+check(Fr.delete(B + f"/api/office/issuers/{IID}/keys/{K2ID}").status_code == 404 and key_get(KEY2).ok, "another office ends no key (404)")
+r = A.delete(B + f"/api/office/issuers/{IID}/keys/{K2ID}")
 check(r.ok and key_get(KEY2).status_code == 401 and key_get(KEY).ok, f"a key ended at once: 401, the other works {r.status_code}")
 r = A.post(B + f"/api/office/issuers/{IID}/keys", json={"overlap_days": 0, "password": PASSWORD})
 KEY3 = r.json().get("key", "") if r.status_code == 201 else ""
@@ -258,7 +260,7 @@ FRG = setup_area(Fr, "private", "WEB")
 r = Fr.post(B + "/api/office/issuers", json={"name": "Own script", "range_id": FRG, "password": PASSWORD})
 check(r.status_code == 201, f"private office: the owner sets up an issuer {r.status_code} {r.text[:200]}")
 FI, FK = (r.json()["issuer"]["id"], r.json()["key"]) if r.status_code == 201 else (0, "")
-r = key_get(FK)
+r = key_get(FK)  # tenant: GET /api/v1/issuer
 check(r.ok and r.json().get("range", {}).get("code") == "WEB" and r.json().get("tax_profile", {}).get("country") == "AT", f"private office: the key's view {r.text[:200]}")
 check(A.get(B + f"/api/office/issuers/{FI}/log").status_code == 404, "another office's issuer: 404")
 check(Fr.get(B + f"/api/office/issuers/{IID}/log").status_code == 404 and Fr.post(B + f"/api/office/issuers/{IID}/pause").status_code == 404, "the organisation's issuer from the private office: 404")
