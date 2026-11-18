@@ -65,7 +65,7 @@ from ..files.fslock import fl_is_locked
 from ..files.scan import sc_guard
 from ..files.store import fs_version_row
 from ..files.store import FS_NOT_ADDR  # 2.1145.0 (#6062)
-from .wkembed import WEM_MAX, wem_embed_rows, wem_img_ids, wem_visible
+from .wkembed import WEM_MAX, wem_embed_rows, wem_img_ids, wem_share_confirm, wem_visible
 from .wkhist import WikiUnreadable
 from .wikie2e import wke_mode, wke_open_sql  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.validation import valid_date  # 2.369.5 (#2517): pulled up from functions
@@ -708,7 +708,6 @@ def wsh_create():
                            "VALUES(?,?,?,?,'link',?,?,?,?,?,?,?)", (oid, owner, path, 1 if folder else 0, h, seal(c, WSH_SEAL + h, tok), exp, uid, ts, page, imgs))
         print("wiki public link created", sid, flush=True)
         if imgs:  # 2.1399.0 (#7056): the maker shares the pictures of the pages as they are now
-            from .wkembed import wem_share_confirm
             wem_share_confirm(c, {"id": sid, "org_id": oid, "owner_id": owner, "path": path, "is_folder": folder, "page_id": page,
                                   "created_by": uid}, f"w{sid}")
     else:
@@ -767,7 +766,6 @@ def wsh_create():
                   "DO UPDATE SET folder=excluded.folder, pair_id=COALESCE(excluded.pair_id, wiki_share_cards.pair_id), images=excluded.images",
                   (ids[0], bool(folder), pair, bool(imgs), mail))
         if imgs:  # 2.1399.0 (#7056): the maker shares the pictures of the pages as they are now
-            from .wkembed import wem_share_confirm
             wem_share_confirm(c, {"id": f"p{ids[0]}", "org_id": None, "owner_id": owner, "path": path, "is_folder": folder,
                                   "page_id": page, "created_by": c.execute("SELECT created_by FROM fs_shares WHERE id=?", (ids[0],)).fetchone()[0]},
                               f"p{ids[0]}")
@@ -1012,7 +1010,6 @@ def wsh_update(sid):
             if "images" in b:
                 c.execute("UPDATE wiki_shares SET images=? WHERE id=?", (imgs, r["id"]))
         if imgs and not r["images"]:  # 2.1399.0 (#7056): switched on -- its maker shares the pictures of its pages as they are now
-            from .wkembed import wem_share_confirm
             wem_share_confirm(c, r, wsh_ikey(r))
         bump(c)
         c.commit()
