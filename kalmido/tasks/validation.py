@@ -51,6 +51,25 @@ ACT_MERGE_S = 600
 ACT_NOTES = []
 
 
+# 2.1375.0 (#6677): the history kinds that change a task's text -> the column naming its last writer (migrations.d/6677.py)
+TEXT_BY_COL = {"title": "title_by", "content": "content_by", "md_subtasks": "content_by"}
+
+
+def text_hand(uid, via=None, rule=None):
+    """2.1375.0 (#6677): the writer kept in tasks.title_by / content_by: the account when a person wrote it in the app or with
+    their own token, 0 for every other hand (an inbound webhook, a public link, CalDAV -- as task_create's origin --, a list
+    rule, a support session, a step without a user such as the git issue sync)."""
+    return int(uid) if uid and not rule and via in (None, "api") else 0
+
+
+def text_hand_now():
+    """2.1375.0 (#6677): text_hand of the current request (a write without a history line, collab/liste2e.py)."""
+    if not has_request_context() or not getattr(g, "user", None):
+        return 0
+    uid = g.user["id"] or None
+    return 0 if g.get("acx_sup_uid") == uid else text_hand(uid, act_via(), g.get("rul_run"))
+
+
 def log_act(c, tid, kind, data=None, uid=None):
     from ..integrations.webhooks import wh_note
     if uid is None and has_request_context() and getattr(g, "user", None):
@@ -75,6 +94,8 @@ def log_act(c, tid, kind, data=None, uid=None):
         chn_note(c, tid, kind)  # 2.142.0 A (#2145): new / completed / assigned -> organisation channels, own list channels
         for f in ACT_NOTES:
             f(c, tid, kind, data=data)
+    if kind in TEXT_BY_COL:  # 2.1375.0 (#6677): who wrote the title / description last, kept on the task (survives a purge)
+        c.execute(f"UPDATE tasks SET {TEXT_BY_COL[kind]}=? WHERE id=?", (text_hand(uid, via, rr), tid))
     from ..collab.liste2eguard import le2b_act_data
     data = le2b_act_data(c, tid, kind, data)  # 2.64.1 B (#1817): never a text of a list with the lock in the history
     ts, js = iso_ms(now_utc()), json.dumps(data or {}, ensure_ascii=False)

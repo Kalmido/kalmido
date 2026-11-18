@@ -22,7 +22,7 @@ import secrets
 
 from flask import jsonify
 
-from ..core.pg import insert_id, ts_canon  # 2.1115.0 (#5951): + ts_canon
+from ..core.pg import insert_id, st_ids, ts_canon  # 2.1115.0 (#5951): + ts_canon; 2.1375.0 (#6677): + st_ids
 from ..core.objtags import obj_tags_of  # 2.947.0 (#5275)
 from ..core.i18n import N_, tr
 from ..core.db import bump, err, iso, now_utc
@@ -318,6 +318,13 @@ def cln_run(c, j, sel, edits, rec):
             if title:
                 want["title"] = title
             cln_change(c, rec, keep, want, aid)
+            # 2.1375.0 (#6677, review N6): text of another hand appended -> the description is no longer only its creator's
+            # (tasks.content_by = 0: the app's agent dispatcher does not build it until the creator writes it again)
+            kc = c.execute("SELECT created_by FROM tasks WHERE id=?", (keep,)).fetchone()[0]
+            if any(r["created_by"] != kc or (r["title_by"] or kc) != kc or (r["content_by"] or kc) != kc
+                   for r in c.execute("SELECT created_by, title_by, content_by FROM tasks WHERE id = ANY(CAST(? AS BIGINT[]))",
+                                      (st_ids(rest),)).fetchall()):
+                c.execute("UPDATE tasks SET content_by=0 WHERE id=?", (keep,))
             for t in rest:
                 # review M2: open subtasks of a merged-away task move to the kept one (undo puts them back) instead of
                 # being closed with it; one that cannot move (depth, milestone) is closed with its parent as before

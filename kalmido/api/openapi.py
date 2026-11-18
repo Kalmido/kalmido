@@ -144,9 +144,9 @@ def openapi_spec():
         "pinned": {"type": "boolean"}, "assignee_id": nul("integer"), "created_by": nul("integer"), "completed_by": nul("integer"),
         "by_creator": {"type": "boolean", "description": "2.1308.0: created_by wrote the task themselves (in the app or with their own "
                        "token); false for tasks from an inbound webhook, a mail, a form, an import, a sync and tasks from before 2.1308.0"},
-        "updated_by": nul("integer", description="2.1375.0: who last wrote the title or the description (from the task's history); the "
-                          "creator while nobody changed them; null when the last change came from an inbound webhook, a public link, "
-                          "the git issue sync or a step without a person"),
+        "updated_by": nul("integer", description="2.1375.0: who last wrote the title and the description: the creator while both are "
+                          "theirs (nobody else changed them since), else the other writer; null when that was an inbound webhook, a "
+                          "public link, CalDAV, a list rule, a support session or the git issue sync"),
         "assignee_group_id": nul("integer", description="2.10.0: assigned to a group (whoever has time takes it, POST /tasks/{id}/take); "
                                  "setting it clears assignee_id and the other way round; the project must be shared with the group"),
         "created_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"},

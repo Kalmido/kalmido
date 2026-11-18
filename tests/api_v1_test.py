@@ -321,18 +321,23 @@ ta2 = a.post("/tasks", {"title": "for bob", "list_id": L3["id"], "assignee_id": 
 check(ta2["assignee_id"] == 2 and [x["title"] for x in b.get("/tasks", params={"assignee": "me"}).json()["data"]] == ["for bob"], "filter assignee=me")
 check("for bob" not in g(assignee="none") and "fresh" in g(assignee="none"), "filter assignee=none")
 check(is_err(a.post("/tasks", {"title": "x", "assignee_id": 2}), 400), "assign someone without access: 400")
-# 2.1375.0 (#6677): updated_by = who last wrote title / description (from the history); the agent dispatcher of the app builds a
-# task only when that is the person too -- a member with write access rewriting it shows up, a priority change does not count
+# 2.1375.0 (#6677): updated_by = who last wrote title and description (tasks.title_by / content_by); the agent dispatcher of the
+# app builds a task only when that is the person too -- a member with write access rewriting it shows up, a priority change does
+# not count; review F2: title and description each on their own; review F1: a purge of the history changes nothing
 tx = a.post("/tasks", {"title": "Alice's order", "notes": "build X", "list_id": L3["id"]}).json()
 check(tx["created_by"] == 1 and tx["updated_by"] == 1, f"#6677: a new task: updated_by = the creator: {tx.get('updated_by')}")
 check(b.patch(f"/tasks/{tx['id']}", {"notes": "build Y instead"}).ok and a.get(f"/tasks/{tx['id']}").json()["updated_by"] == 2,
       "#6677: bob rewrote the description: updated_by = bob")
 check([x["updated_by"] for x in a.get("/tasks", params={"list_id": L3["id"], "limit": 200}).json()["data"] if x["id"] == tx["id"]] == [2],
       "#6677: the list carries updated_by too")
-check(a.patch(f"/tasks/{tx['id']}", {"title": "Alice's order, checked"}).ok and a.get(f"/tasks/{tx['id']}").json()["updated_by"] == 1,
-      "#6677: alice changed the title herself: hers again")
-check(b.patch(f"/tasks/{tx['id']}", {"priority": "high"}).ok and a.get(f"/tasks/{tx['id']}").json()["updated_by"] == 1,
-      "#6677: a priority change of bob is no text change")
+check(a.patch(f"/tasks/{tx['id']}", {"title": "Alice's order, checked"}).ok and a.get(f"/tasks/{tx['id']}").json()["updated_by"] == 2,
+      "#6677 (F2): alice changing only the title leaves bob's description: still bob")
+dbx("DELETE FROM activity WHERE task_id=?", (tx["id"],))  # what the history purge (dataretention) does after ret_days("logs")
+check(a.get(f"/tasks/{tx['id']}").json()["updated_by"] == 2, "#6677 (F1): the history purged: still bob")
+check(b.patch(f"/tasks/{tx['id']}", {"priority": "high"}).ok and a.get(f"/tasks/{tx['id']}").json()["updated_by"] == 2,
+      "#6677: a priority change is no text change")
+check(a.patch(f"/tasks/{tx['id']}", {"notes": "build X after all"}).ok and a.get(f"/tasks/{tx['id']}").json()["updated_by"] == 1,
+      "#6677: alice wrote the description again: hers again")
 check(is_err(b.get("/tasks", params={"list_id": L2["id"]}), 404), "IDOR: list filter on a foreign list")
 check(all(x["list_id"] in (L3["id"],) or x["created_by"] == 2 for x in b.get("/tasks", params={"status": "all", "limit": 500}).json()["data"]),
       "bob's task list: only what bob sees")
