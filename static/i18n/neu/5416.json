@@ -1,0 +1,22 @@
+{
+  "de": {
+    "Remove address rule": "Adress-Regel entfernen",
+    "Remove the address rule of {0}": "Adress-Regel von {0} entfernen"
+  },
+  "es": {
+    "Remove address rule": "Quitar regla de direcciones",
+    "Remove the address rule of {0}": "Quitar la regla de direcciones de {0}"
+  },
+  "fr": {
+    "Remove address rule": "Retirer la règle d'adresse",
+    "Remove the address rule of {0}": "Retirer la règle d'adresse de {0}"
+  },
+  "it": {
+    "Remove address rule": "Rimuovi regola di indirizzo",
+    "Remove the address rule of {0}": "Rimuovi la regola di indirizzo di {0}"
+  },
+  "nl": {
+    "Remove address rule": "Adresregel verwijderen",
+    "Remove the address rule of {0}": "Adresregel van {0} verwijderen"
+  }
+}
