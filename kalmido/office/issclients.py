@@ -330,7 +330,10 @@ def isc_put(ref):
     oid = int(iss["org_id"])
     actor = f"issuer:{int(iss['id'])}"
     write_lock(c, f"issuer-{int(iss['id'])}")  # one write of this issuer at a time: two parallel set-ups = one client
-    r = isc_row(c, iss, ref, lock=True)
+    # review F14 (#7113): no row lock here - ow_write takes clients-<id>, then the row (FOR UPDATE), as a person's change
+    # (team/clients.py) and taking the mark away do; a row lock first was the reverse order (a deadlock, one of them aborted).
+    # The issuer's lock above queues the key's writes, ow_write reads the row anew under clients-<id>.
+    r = isc_row(c, iss, ref, lock=False)
     if r is None and not isc_gone(c, iss, ref):
         return _create(c, iss, oid, ref, b, actor)
     _need_live(c, iss, ref, r)
