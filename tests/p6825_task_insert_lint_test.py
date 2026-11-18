@@ -6,6 +6,7 @@
  3. green: other tables (task_tags, tasks_x), reading, UPDATE / DELETE, a schema name before tasks is no own insert either way
  4. the exception: `task-insert-ok: <reason>` on the line of the INSERT; without a reason or on another line still red
  5. the ratchet: a file above its baseline is red, at or below it quiet; repo.py itself never counts
+ 6. 2.1389.0 (#6988): the exceptions are counted too (baseline "_ok"): a new task-insert-ok is red until the baseline holds it
 usage: python3 tests/p6825_task_insert_lint_test.py"""
 import json
 import os
@@ -26,6 +27,7 @@ r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "check_task_inse
 check(r.returncode == 0, "the server package: no own INSERT INTO tasks: " + (r.stdout + r.stderr)[-800:])
 check(cti.counts() == {}, f"nothing left over: {cti.counts()}")
 check(cti.load_baseline() == {}, f"the baseline is empty: {cti.load_baseline()}")
+check(cti.counts(marked=True) == cti.load_ok_baseline(), f"#6988: the exceptions are the baseline's: {cti.counts(marked=True)} {cti.load_ok_baseline()}")
 check("check_task_insert.errors()" in open(os.path.join(ROOT, "tools", "check_layout.py"), encoding="utf-8").read(),
       "check_layout.py (CI lint, Mac lint) runs the check")
 REPO = open(os.path.join(ROOT, "kalmido", "tasks", "repo.py"), encoding="utf-8").read()
@@ -77,6 +79,15 @@ try:
     check(len(e) == 1 and rel in e[0] and "task_insert()" in e[0] and "kalmido/tasks/repo.py" in e[0], f"a new file is red, with the way out: {e}")
     check(cti.errors(tmp, base={rel: 2}) == [] and cti.errors(tmp, base={rel: 3}) == [], "at or below its baseline: quiet")
     check(len(cti.errors(tmp, base={rel: 1})) == 1, "above its baseline: red")
+    # 6. the exceptions (#6988)
+    oks = os.path.join("kalmido", "office", "y.py")
+    with open(os.path.join(tmp, oks), "w", encoding="utf-8") as f:
+        f.write(ok + "\n")
+    check(cti.counts(tmp) == {rel: 2} and cti.counts(tmp, marked=True) == {oks: 1}, f"#6988: the exception counted on its own: {cti.counts(tmp, marked=True)}")
+    e = cti.errors(tmp, base={rel: 2}, ok_base={})
+    check(len(e) == 1 and oks in e[0] and "task-insert-ok" in e[0] and "--write" in e[0], f"#6988: a new exception is red, with the way out: {e}")
+    check(cti.errors(tmp, base={rel: 2}, ok_base={oks: 1}) == [], "#6988: an exception in the baseline: quiet")
+    check(len(cti.errors(tmp, base={rel: 2}, ok_base={oks: 0})) == 1, "#6988: above its baseline: red")
 finally:
     shutil.rmtree(tmp)
 check(json.load(open(cti.BASELINE, encoding="utf-8")).get("_note", "").startswith("2.1358.0 (#6825)"), "the baseline names its rule")
