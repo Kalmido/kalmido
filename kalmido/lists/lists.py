@@ -17,7 +17,7 @@ from ..core.addrshare import ads_bound, ads_kind, ads_open  # 2.1071.0 (#5658)
 from ..core.access import acx_drop, addr_account, collab_all, Denied, dlg_gone, MANAGE_ROLES, my_inbox, my_max_sort, need_collab, need_list, reading_ids, ROLES, list_state_sql, otr_live, list_set_archived, list_archived_sql, list_out
 from ..core.state import visible_lists
 from ..core.numtext import user_num  # 2.263.0 (#2976)
-from ..core.errors import BadInput, web_fields  # 2.149.0 G (#2517): pulled up from functions
+from ..core.errors import BadInput, sort_value, web_fields  # 2.149.0 G (#2517): pulled up from functions
 from ..tasks.ticketkey import tk_set  # 2.390.0 (#3353)
 from ..tasks.validation import TICKET_TYPES, TT_KEY_RE  # 2.483.0 (#3916); 2.609.0 (#3372)
 from ..tasks.ttypes import tt_known  # 2.609.0 (#3372)
@@ -310,13 +310,7 @@ def clean_list_value(k, v, member=False):
             raise BadInput(tr("Invalid value: {0}", tr("View")))
         return v
     if k == "sort":
-        try:
-            v = float(v)
-        except (TypeError, ValueError):
-            raise BadInput(tr("Invalid value: {0}", "sort")) from None
-        if not math.isfinite(v):
-            raise BadInput(tr("Invalid value: {0}", "sort"))
-        return v
+        return sort_value(v)  # 2.1373.0 (#6430): the one sort check
     if k in ("archived", "checklist", "dep_shift", "tickets", "time_tracking"):
         return 1 if v else 0
     if k in ("points_on", "irreversible_needs_yes", "two_eyes", "mail_guests"):  # 2.60.0 (#1511); 2.392.0 C (#3370); 2.395.0 (#3380); 2.574.0 (#3376)

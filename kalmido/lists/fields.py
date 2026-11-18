@@ -16,7 +16,7 @@ from ..core.pages import valid_link
 from ..lists.lists import COL_MAX, columns_out
 from ..tasks.validation import log_act
 from ..collab.comments import user_names
-from ..core.errors import BadInput
+from ..core.errors import BadInput, sort_value
 from ..core.conflict import Conflict  # 2.564.0 (#4701)
 from ..core.objparts import part_kind, part_write  # 2.610.0 (#4762): the core's write layer of side objects
 from ..core.objparts import part_copy, part_copy_back  # 2.783.0 (#5368): the field trash is the core's copy trash
@@ -408,11 +408,11 @@ def field_update(fid):
         if pinned and not r["pinned"] and not fields_pinned_ok(c, r["list_id"], fid):
             return err(tr("At most {0} fields can be shown on the task rows", FIELD_PINNED_MAX))
         c.execute("UPDATE list_fields SET pinned=? WHERE id=?", (pinned, fid))
-    if "sort" in b:
+    if "sort" in b:  # 2.1373.0 (#6430): finite and bounded (core/errors.sort_value); NaN / inf broke /api/state for everyone
         try:
-            c.execute("UPDATE list_fields SET sort=? WHERE id=?", (float(b["sort"]), fid))
-        except (TypeError, ValueError):
-            return err(tr("Invalid data"))
+            c.execute("UPDATE list_fields SET sort=? WHERE id=?", (sort_value(b["sort"]), fid))
+        except BadInput as e:
+            return err(str(e))
     if "required" in b:
         field_required_set(c, fid, r["type"], b["required"])  # 2.609.0 (#3373)
     # 2.564.0 (#4701): only now, under the lock and after the check above (with _prev the stored list is the seen one), so only
