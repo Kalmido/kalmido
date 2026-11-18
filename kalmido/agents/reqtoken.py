@@ -82,6 +82,14 @@ def req_drop(c, aid):
     c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=?", (aid, REQ_TOKEN_NAME))
 
 
+def req_drop_op(c, aid):
+    """2.1386.0 (#6668, review R3 F9): the person chosen for team agent aid's questions changed (agents/admin.py runtime_set):
+    the list work's request tokens (place op:, req_slot) of the person chosen before end at once -- the starter's dispatcher
+    must not work up to 8 hours on as the old person; the starter asks anew for the new one. The caller commits."""
+    with system_ctx(c):
+        c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=? AND req_slot LIKE 'op:%'", (aid, REQ_TOKEN_NAME))
+
+
 def _main(row):
     """Is token row the agent's own long-lived token (no request, no run of the server, no MCP access of a person)?"""
     return (row is not None and ("asked_by" not in row.keys() or row["asked_by"] is None)

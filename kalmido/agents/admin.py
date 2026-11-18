@@ -273,6 +273,9 @@ def runtime_set(c, a, rt):
     if new["perm_user"] and new["perm_user"] != cur["perm_user"]:  # 2.312.0 D (#3266): only a person who may answer (owner / reached)
         if not ((new["perm_user"] == me() or may_see(c, me(), new["perm_user"])) and perm_user_ok(c, agent_row(c, a["user_id"]), new["perm_user"])):
             raise BadInput(tr("Invalid value: {0}", "perm_user"))
+    if new["perm_user"] != cur["perm_user"]:  # 2.1386.0 (#6668, review R3 F9): the old person's list-work token ends
+        from .reqtoken import req_drop_op  # a module that imports this one
+        req_drop_op(c, a["user_id"])
     if any(new[k] != cur[k] for k in RUNTIME_DEFAULTS):
         c.execute("UPDATE agents SET runtime=? WHERE user_id=?", (json.dumps(new), a["user_id"]))
         agent_emit(c, a["user_id"], "runtime_changed", {"runtime": {**new, **runtime_derived(new), "reset_seq": cur["reset_seq"], "timezone": str(TZ)}})

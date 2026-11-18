@@ -516,7 +516,8 @@ def _f4():
 
     r = ar.Runner(["claude"], tempfile.mkdtemp(prefix="kalmido-p6668f4-"))
     r.extras = None
-    r.agent = {"owner_id": None, "request_token": True, "runtime": {}}
+    # 2.1386.0 (#6668): R3 F9 -- the list work's token must be for the person the settings name (the server cuts it so: 5)
+    r.agent = {"owner_id": None, "request_token": True, "perm_user_id": 5, "runtime": {}}
     r.api.__class__ = Fake
     r.api.log, r.api.dead, r.api.n, r.api.refuse = [], set(), [0], False
     c1 = r.op_api()
@@ -552,6 +553,50 @@ def _f4():
 
 
 _f4()
+
+
+# ---------------------------------------------------------------- review R3 F9: another person chosen drops the list work's token
+# Without the fix the token of the person chosen before stayed in the starter and in op.env for up to 8 hours (the dispatcher
+# worked on as her), and job_env gave op.env to a job of the newly chosen person whose own file was missing.
+def _f9():
+    import sys
+    import tempfile
+    ar = sys.modules["agent_run"]
+    r = ar.Runner(["claude"], tempfile.mkdtemp(prefix="kalmido-p6668f9-"))
+    r.extras = None
+    r.agent = {"owner_id": None, "request_token": True, "perm_user_id": 9, "runtime": {}}
+    nxt = {"agent": dict(r.agent)}
+
+    def req(method, path, body=None, query=None, timeout=30, retry=True):
+        if path == "/agent/request-token":
+            r.api.asked_by = nxt["agent"]["perm_user_id"]  # the server cuts it for the person chosen right now
+            return {"token": "abk_op%02d" % nxt["agent"]["perm_user_id"] + "y" * 24, "expires_at": "2099-01-01T00:00:00Z",
+                    "asked_by": nxt["agent"]["perm_user_id"], "list_ids": [1]}
+        if path == "/agent":
+            return dict(nxt["agent"])
+        return {"ok": True}
+    r.api.req = req
+    opc = r.op_api()
+    opf = os.path.join(r.state_dir, "run-env", "op.env")
+    check(opc is not None and os.path.isfile(opf) and r.job_env({"chat_user": 9}) == opf and r.job_env({"chat_user": 5}) is None,
+          "(s) R3 F9: op.env for a job of the chosen person (9) only")
+    nxt["agent"] = {**r.agent, "perm_user_id": 7}
+    r.refresh_agent()  # runtime_changed: the settings are read again
+    check(not os.path.isfile(opf) and getattr(r, "_op_tok", (None, 0))[0] is None,
+          "(s) R3 F9: another person chosen -- the starter drops the old token and op.env at once")
+    check(r.job_env({"chat_user": 7}) is None and r.job_env({"chat_user": 9}) is None,
+          "(s) R3 F9: no job gets op.env of another person (7 has no file of its own: it stays asleep)")
+    opc = r.op_api()
+    check(opc is not None and opc.token.startswith("abk_op07") and r.job_env({"chat_user": 7}) == opf,
+          "(s) R3 F9: the next round asks for the newly chosen person")
+    # the settings this runner knows are stale (the server cut the token for another person): read again, then decide
+    r.agent = {**r.agent, "perm_user_id": 9}
+    r._op_tok = (None, 0)
+    opc = r.op_api()
+    check(opc is not None and r.op_who == 7 and r.perm_uid() == 7, "(s) R3 F9: stale settings are read again before the token counts")
+
+
+_f9()
 
 # ---------------------------------------------------------------- server
 fresh(prefix="P6668")
@@ -857,6 +902,16 @@ check(sorted(x[0] for x in dbx("SELECT req_slot FROM api_tokens WHERE user_id=? 
 r = ask(None, operator=True)
 check(r.ok and requests.get(V + f"/tasks/{SX}", headers=hdr(OPT), timeout=30).status_code == 401
       and requests.get(V + f"/tasks/{SX}", headers=hdr(RBT), timeout=30).ok, "(n) a new list-work token replaces only the older list-work token")
+# review R3 F9: choosing another person for the agent's questions ends the list-work token of the one before at once
+# (without the fix bob's token worked on for up to 8 hours although carl was chosen now)
+OPB = r.json().get("token") or "" if r.ok else ""
+r = A.patch(B + f"/api/admin/agents/{XT}", json={"runtime": {"perm_user": uid["carl"]}})
+check(r.ok, f"(n) R3 F9: carl answers the agent's questions now {r.status_code} {r.text[:160]}")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(OPB), timeout=30).status_code == 401,
+      "(n) R3 F9: bob's list-work token ends with the change (401)")
+check(requests.get(V + f"/tasks/{SX}", headers=hdr(RBT), timeout=30).ok, "(n) R3 F9: bob's run token stays (only the list work's place)")
+r = ask(None, operator=True)
+check(r.ok and r.json().get("asked_by") == uid["carl"], f"(n) R3 F9: the next list-work token is carl's {r.status_code}")
 
 # ================================================================ (h) review F2: removing the computer ends its request tokens
 # Without the fix the request tokens fetched with a removed computer's token lived on for up to 8 h, unlisted and unrevocable.

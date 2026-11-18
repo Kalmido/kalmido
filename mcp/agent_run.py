@@ -3232,14 +3232,15 @@ class Runner:
             return None
         if mode == "own":
             return self.api
+        self.op_check()  # review R3 F9: another person chosen meanwhile -- never on with the old one's token
         tok, exp = getattr(self, "_op_tok", (None, 0))
         if not tok or exp - time.time() < 900:
             tok, exp, go = self.api.request_token(operator=True)
             self._op_tok = (tok, exp)
             if not go:
                 return None
-            if tok:
-                self.op_file(tok)
+            if tok and not self.op_got(tok):
+                return None
         return self.api.as_token(tok, renew=self.op_renew) if tok else self.api
 
     def op_renew(self):
@@ -3249,9 +3250,38 @@ class Runner:
         tok, exp, go = self.api.request_token(operator=True)
         if tok and go:
             self._op_tok = (tok, exp)
-            self.op_file(tok)
-            return tok
+            return tok if self.op_got(tok) else None
         return None
+
+    def op_got(self, tok):
+        """2.1386.0 (#6668, review R3 F9): a new list-work token: remember the person the server cut it for (asked_by) and
+        write op.env. The settings this runner knows name another person (changed meanwhile): read them again first; still
+        another person -> the token is dropped (False)."""
+        who = getattr(self.api, "asked_by", None)
+        self.op_who = int(who) if str(who or "").isdigit() else None
+        if self.op_who is not None and self.op_who != self.perm_uid():
+            self.refresh_agent()  # op_check: the token goes when the person is still another one
+        if self.op_who is None:
+            self._op_tok = (None, 0)
+            return False
+        self.op_file(tok)
+        return True
+
+    def op_check(self):
+        """2.1386.0 (#6668, review R3 F9): the person chosen in the agent's settings (perm_user_id) is no longer the one the
+        list work's token was asked for: forget that token and remove op.env at once (the server ends it too, agents/
+        reqtoken.py req_drop_op); the next round asks for the new person. Called after every read of the agent's settings
+        and before the list work."""
+        who = getattr(self, "op_who", None)
+        if who is None or who == self.perm_uid():
+            return False
+        self._op_tok, self.op_who, self.op_env_file = (None, 0), None, None
+        try:
+            os.remove(os.path.join(self.state_dir, "run-env", "op.env"))
+        except OSError:
+            pass
+        log("request token: another person answers the agent's questions now -- the list work's token is dropped")
+        return True
 
     # kalmido-capability: request_token_file (2.1386.0, #6668 with #6457)
     def token_key(self):
@@ -3287,7 +3317,10 @@ class Runner:
             f = os.path.join(d, f"p{int(uid)}.env")
             if os.path.isfile(f):
                 return f
-            if self.perm_uid() == int(uid) and os.path.isfile(os.path.join(d, "op.env")):
+            # review R3 F9: op.env only for a job of the very person its token was asked for (op_who, never the current
+            # choice alone: after a change op.env may still hold the old person's token until op_check removed it)
+            self.op_check()
+            if getattr(self, "op_who", None) == int(uid) and os.path.isfile(os.path.join(d, "op.env")):
                 return os.path.join(d, "op.env")
         return None
 
@@ -3824,6 +3857,7 @@ class Runner:
             self.agent = self.api.req("GET", "/agent") or {}
             self.api.lang = self.agent.get("lang") or ""
             self.refresh_due = False
+            self.op_check()  # 2.1386.0 (#6668, review R3 F9): another person chosen: the list work's token goes at once
         except Exception as e:
             log(f"agent settings: {type(e).__name__}")
 
