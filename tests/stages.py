@@ -30,7 +30,7 @@ test files and the changed files, nothing is started; Python standard library on
                      GITHUB_EVENT_NAME, CI_BEFORE, CI_BASE_SHA, CI_INPUT_STAGE, CI_MESSAGE) and the changed files; prints "stage=" /
                      "reason=" lines, writes the groups of the push stage to --groups-out
                      #5787: a merge queue entry (merge_group) gets the stage "queue" = the groups of the hard suites
-                     (tests/hard_suites.txt) + the suites it touches (--touched), never the push stage or the full run
+                     (tests/hard_suites.txt) only (#6833, 2.1384.0: no touched suites any more, the same as "release"), never the push stage or the full run
                      #6063: a push on main the merge queue made (CI_QUEUE_RUN = its merge_group run, looked up by ci.yml)
                      gets the stage "none" = no test shards (the queue checked the same commit)
                      #6253: the train's release push on main ("X.Y.Z: Live-Zug (...)") gets the stage "release" = the
@@ -827,17 +827,12 @@ def hard_groups(repo, path=HARD_FILE):
 
 
 def queue(repo, files, base=None, head=None):
-    """#5787 (decision 12.11.2026): a merge queue entry runs the groups of the hard suites and the suites the entry touches
-    (touched(), as the train's check before it lands), never the whole push stage (1442 of 2176 groups for a README change)
-    and never the full run - the release push of the train keeps that. -> (reason, {group: [why...]})."""
+    """#5787 (decision 12.11.2026) / #6833 (2.1384.0): a merge queue entry runs only the groups of the hard suites
+    (hard_groups(), the same as the stage release) - no touched() part any more (the static guards of #6323 are hard), never the
+    whole push stage and never the full run (the release push of the train keeps that). -> (reason, {group: [why...]})."""
     groups = hard_groups(repo)
-    nh = len(groups)
-    order, why, unmapped = touched(repo, files, base, head) if files else ([], {}, [])
-    for x in order:
-        if x in repo.group_of:
-            groups.setdefault(repo.group_of[x], []).append(f"{x}: {why.get(x, 'touched')}")
-    reason = (f"merge queue entry: {nh} hard groups + the touched suites ({len(order)}) = {len(groups)} of {len(repo.first)} groups"
-              f" ({len(files)} changed files" + (f", {len(unmapped)} without a suite" if unmapped else "") + ")")
+    reason = (f"merge queue entry: {len(groups)} hard groups (stage queue = hard only, #5074) of {len(repo.first)} groups"
+              f" ({len(files)} changed files)")
     return reason, groups
 
 

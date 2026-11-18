@@ -16,7 +16,7 @@ on:
   # queue entry has its own gh-readonly-queue/... ref, so entries never cancel each other; #6050: an entry whose group GitHub
   # discarded (ref deleted) cancels its own run in the first step of its test shards.
   # #5787 (decision 12.11.2026, "only hard suites hold build and live"): a queue entry runs its own lean stage "queue" = the
-  # hard suites (tests/hard_suites.txt) + the suites it touches, beside Lint, PR lint and semgrep; the required check is the job
+  # hard suites (tests/hard_suites.txt) only (#6833: no touched suites), beside Lint, PR lint and semgrep; the required check is the job
   # "Merge queue gate" (green when those are green and no HARD suite is red - a soft red suite holds nothing, it is a task like
   # in the release push's full run). A pull request runs only Lint and PR lint (no test shards, nothing twice).
   merge_group:
@@ -112,7 +112,7 @@ jobs:
           if [ "$stage" = queue ] && ! [ -s /tmp/push-groups.txt ]; then stage=full; reason="no groups for the queue stage - full run"; fi
           if [ "$stage" = release ] && ! [ -s /tmp/push-groups.txt ]; then stage=full; reason="no hard groups for the release stage - full run"; fi
           # #6253: release = the train's release push (the hard suites only; the soft suites run nightly and by hand)
-          [ "$stage" = push ] || [ "$stage" = queue ] || [ "$stage" = release ] || [ "$stage" = none ] || stage=full  # #5787: queue = a merge queue entry (hard + touched suites); #6063: none = a push from the queue
+          [ "$stage" = push ] || [ "$stage" = queue ] || [ "$stage" = release ] || [ "$stage" = none ] || stage=full  # #5787: queue = a merge queue entry (hard suites only, #6833); #6063: none = a push from the queue
           { echo "stage=$stage"; echo "reason=$reason"; } >> "$GITHUB_OUTPUT"
           if [ "$stage" = none ]; then
             echo 'matrix=[{"shard": 1, "hart": ""}]' >> "$GITHUB_OUTPUT"  # never expanded: the shard job is skipped
