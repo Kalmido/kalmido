@@ -697,7 +697,9 @@ except ValueError:
     print("warning: KALMIDO_DB_STATEMENT_TIMEOUT is not a number of seconds; using 30", flush=True)
     STATEMENT_TIMEOUT_S = 30
 SESSION_OPTIONS = (f"-c statement_timeout={STATEMENT_TIMEOUT_S * 1000} -c idle_in_transaction_session_timeout=300000 "
-                   "-c jit=off -c timezone=UTC")  # 2.37: JIT costs 15-20 ms per /api/state for <3 ms queries (EXPLAIN)
+                   "-c jit=off -c timezone=UTC -c app.wem6657=on")  # 2.37: JIT costs 15-20 ms per /api/state for <3 ms queries (EXPLAIN)
+# 2.1368.0 (#6657): app.wem6657 = a connection of this version -- the trigger kalmido_wem_at (migrations.d/6657.py) stamps a
+# knowledge page's write only then; a write of an older version (a rollback) or by hand leaves the stamp behind
 # 2.1095.0 (#5306, review F13): timezone=UTC said here, not left to the server's default - the text of a TIMESTAMPTZ (CAST(x AS text),
 # to_jsonb, a time without a zone read as one) is UTC, as the TEXT columns always held it
 
