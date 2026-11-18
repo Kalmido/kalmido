@@ -19407,6 +19407,8 @@
   "From invoice issuers": "Des émetteurs de factures",
   "Number range or invoice issuer": "Série de numérotation ou émetteur de factures",
   "From the issuer {0}": "De l'émetteur {0}",
+  "{0}: no invisible characters": "{0} : pas de caractères invisibles",
+  "Only a draft this key made can be withdrawn": "Seul un brouillon créé par cette clé peut être retiré",
   "Another client of the office has the same name or VAT ID.": "Un autre client du bureau a le même nom ou le même numéro de TVA.",
   "The name contains a web or e-mail address.": "Le nom contient une adresse web ou e-mail.",
   "Set up by the invoice issuer {0}; no person has checked the data yet.": "Créé par l'émetteur de factures {0} ; personne n'a encore vérifié les données.",

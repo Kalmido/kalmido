@@ -108,10 +108,14 @@ ISD_REF_RE = re.compile(r"[A-Z0-9-]{1,35}")
 # the client's columns its fingerprint holds (what the preview prints of it): a person's change of one = edited_by_human
 ISD_CLIENT_COLS = ("name", "name_extra", "contact", "address", "street", "address_extra", "zip", "city", "country", "vat_id",
                    "email_invoice", "buyer_reference", "doc_lang", "customer_no")
-# the document's columns its fingerprint holds, with the positions' (what the preview prints)
-ISD_DOC_COLS = ("client_id", "contact_id", "lang", "currency", "vat_mode", "vat_note", "service_from", "service_to", "order_ref",
-                "project_title", "project_ref", "intro", "closing", "payment_days", "due_date", "range_id", "einvoice_format")
-ISD_ITEM_COLS = ("kind", "title", "detail", "qty", "unit", "rate", "tax", "discount_pct")
+# the fingerprint of a draft (the preview only as delivered): every column of the document and of its positions but these (identity,
+# state, versions, sums Kalmido derives, the issuer's own columns). Review F2 of 2.1396.0: an exclusion list, so a person's change
+# of any printed field (free fields, rights, date, discounts, a position's switches) ends the preview
+ISD_DOC_SKIP = frozenset(("id", "org_id", "number", "status", "totals", "created_at", "created_by", "updated_at", "updated_by", "rev",
+                          "issuer_id", "issuer_wish", "issuer_rev", "ref_sha256", "client_ref", "sent_at", "deleted_at", "deleted_by",
+                          "trash_refs", "locked_at", "locked_by", "agent_id", "cashflow"))
+ISD_ITEM_SKIP = frozenset(("id", "doc_id", "org_id", "sort", "agent_flag", "created_at", "updated_at", "updated_by", "rev", "net",
+                           "tax_pct", "tax_amount", "cost_enc", "deleted_at", "deleted_by"))
 
 INTEG_TEXT.update({
     "issuer_over_limit": N_("Invoice issuer {0} sent a draft over its limit ({1}). Check it before you finalise it."),
@@ -347,9 +351,9 @@ def _val(v):
 
 
 def isd_doc_fp(c, oid, r):
-    """The fingerprint of document r with its positions (ISD_DOC_COLS, ISD_ITEM_COLS)."""
-    head = {k: _val(r[k]) for k in ISD_DOC_COLS if k in r.keys()}
-    items = [{k: _val(it.get(k)) for k in ISD_ITEM_COLS} for it in doc_items(c, r["id"], oid)]
+    """The fingerprint of document r with its positions (all columns but ISD_DOC_SKIP / ISD_ITEM_SKIP)."""
+    head = {k: _val(r[k]) for k in r.keys() if k not in ISD_DOC_SKIP}
+    items = [{k: _val(v) for k, v in dict(it).items() if k not in ISD_ITEM_SKIP} for it in doc_items(c, r["id"], oid)]
     return _fp({"doc": head, "items": items})
 
 
@@ -795,6 +799,8 @@ def isd_withdraw(did):
         return jsonify(out)
     if r["status"] != "draft" or r["number"]:
         raise IsdErr(409, tr("Only a draft can be withdrawn; a person corrects a finalised invoice"), "not_draft")
+    if not ref:  # review F1: a correction a person made of its invoice carries issuer_id too, but is the person's
+        raise IsdErr(409, tr("Only a draft this key made can be withdrawn"), "not_own_draft")
     with system_ctx(c):  # the issuer's own withdrawals of the last 24 hours
         n = c.execute("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_write' AND target ILIKE 'withdraw:%' AND at>=?",
                       (iid, iso(now_utc() - timedelta(days=1)))).fetchone()[0]

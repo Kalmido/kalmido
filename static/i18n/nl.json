@@ -19407,6 +19407,8 @@
   "From invoice issuers": "Van factuuruitgevers",
   "Number range or invoice issuer": "Nummerreeks of factuuruitgever",
   "From the issuer {0}": "Van uitgever {0}",
+  "{0}: no invisible characters": "{0}: geen onzichtbare tekens",
+  "Only a draft this key made can be withdrawn": "Alleen een concept dat deze sleutel heeft aangemaakt kan worden ingetrokken",
   "Another client of the office has the same name or VAT ID.": "Een andere klant van het kantoor heeft dezelfde naam of hetzelfde btw-nummer.",
   "The name contains a web or e-mail address.": "De naam bevat een web- of e-mailadres.",
   "Set up by the invoice issuer {0}; no person has checked the data yet.": "Aangemaakt door de factuuruitgever {0}; nog niemand heeft de gegevens gecontroleerd.",
