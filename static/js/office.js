@@ -110,7 +110,7 @@ function ofcAreaHint() {
 const ofc_spaces = () => wsOptions().filter(w => w !== 'all' && wsa_wsOn(w, 'office') && mc_wsOn(w, 'office'));
 const ofc_sp = () => { const sp = ofc_spOpen(); return sp && ofc_spaces().includes(sp) ? sp : ''; };  // the open area under "All" ('' = none / not mine)
 const ofc_allOvr = () => wsOn() && wsCur() === 'all' && ofc_spaces().length > 1 && !ofc_sp();
-const ofc_allUpHtml = () => ofc_sp() ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';
+const ofc_allUpHtml = () => ofc_sp() && ofc_spaces().length > 1 ? `<a href="#office" class="linkbtn ofcallup" data-ofcall="up">${esc(tr('All workspaces'))}</a><span class="abcsep" aria-hidden="true">/</span>` : '';  // 2.1392.0 (#6717): not for the only office under "All" (no overview)
 const ofc_wsKey = () => (typeof wsCur === 'function' ? wsCur() : '') + (ofc_sp() ? '>' + ofc_sp() : '');  // OFC.ws: the shown office (a workspace, or "All" + an area)
 // 2.1254.0 (#6180): every page of the office (and an open quotation / invoice / receipt / template) reports its organisation (wscolor.js)
 wso_open('office', () => S.route?.mod === 'office' && OFC.info && !OFC.infoErr && !ofc_allOvr() ? ofcWs() : null);

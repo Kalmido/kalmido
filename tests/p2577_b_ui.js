@@ -6,6 +6,8 @@
 // - an outbox entry keeps the area it was made in, even when another area is open by the time it goes out
 // - #4638 (review): a download link inside the area carries ?_osp=<space>, a raw fetch the header
 // - the browser's Back leads to the overview; Private opens the personal office the same way
+// - 2.1392.0 (#6717): the office on in Alpha only (Private and Bravo off): "All" opens Alpha's office directly at #office
+//   (no overview, no error, no "All workspaces /"), its tabs load and a change lands in Alpha
 // - freelancer-matrix: office (a person without an organisation: no overview, office/s/private = her own office)
 const {execFileSync} = require('child_process');
 const path = require('path');
@@ -70,6 +72,20 @@ const svc = async sp => ((await call('GET', '/api/office/services', null, CK, {'
   d.querySelector('#view .spov [data-spov="private"]')?.click();
   check(await until(() => w.location.hash === '#office/s/private' && w.eval('OFC.info && OFC.info.personal')), 'Private: the personal office at its own address ' + w.location.hash);
   w.close();
+
+  // ================= 2.1392.0 (#6717): two organisations, the office on in one only (Private and Bravo off): "All" opens it directly
+  const mo = await call('PATCH', '/api/settings', {ws_mods_off: JSON.stringify({private: ['office'], [WB]: ['office']})});
+  check(mo.http < 300, 'setup #6717: the office off in Private and Bravo ' + mo.http);
+  w = await boot({hash: 'office', allWs: true, mobile: true}); d = w.document;
+  check(await until(() => w.eval('OFC.info && OFC.info.org_id') === A && !w.eval('OFC.infoErr')), '#6717: under "All" the only office (Alpha) opens, no error ' + w.eval('OFC.infoErr || ""'));
+  check(!rows(d) && !/Select a workspace/i.test(d.querySelector('#view')?.textContent || ''), '#6717: no overview, no "Select a workspace" ' + (d.querySelector('#view')?.textContent || '').slice(0, 120));
+  check(w.location.hash === '#office' && w.eval('S.settings.workspace') === 'all' && !d.querySelector('#view [data-ofcall="up"]'), '#6717: the address stays #office, the workspace "All", no "All workspaces /" ' + w.location.hash);
+  w.eval("go('office/offers')");
+  check(await until(() => w.location.hash === '#office/offers' && w.eval('OFC.info && OFC.info.org_id') === A && !w.eval('OFC.infoErr')), '#6717: another tab of it loads too ' + w.location.hash);
+  await w.eval("api('POST', '/api/office/services', {name_de: 'Only office service'})").catch(e => check(false, '#6717: the change ' + e.message));
+  check((await svc(WA)).includes('Only office service'), '#6717: a change made there lands in Alpha (the request names it)');
+  w.close();
+  await call('PATCH', '/api/settings', {ws_mods_off: '{}'});
 
   // ================= a person without an organisation
   await call('PATCH', '/api/settings', {lang: 'en', tour: 'done', features: FEAT}, CK = await login('frida'));
