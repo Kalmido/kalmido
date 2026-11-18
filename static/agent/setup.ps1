@@ -21,12 +21,17 @@ per project folder. Needs: Windows PowerShell 5.1 or PowerShell 7, Python 3.9+, 
   -Lang         language of the messages: de, en, es, fr, it or nl (Kalmido adds the language of your account; anything else = en)
   -DryRun       only show what would happen: no code is redeemed, nothing is written, no task is registered
   -AllowHttp    2.360.0: an http:// address that is not this computer (localhost) -- only for a Kalmido without https
+  -IpRule       2.1367.0 (#6457): an address rule for this computer's key: current (the address it reaches Kalmido from),
+                off, or IPs / networks separated by commas; without it the setup asks once (Enter = no rule; not
+                interactive = no rule)
   (2.360.0: without -Code the code comes from the environment variable KALMIDO_SETUP_CODE)
   -Uninstall    stop and remove the autostart, revoke this computer's token in Kalmido, delete the instance folder
-Files: %LOCALAPPDATA%\Kalmido\agents\<folder name>-<hash>\ (starter files, kalmido-agent.env, mcp.json, agent.log).
+Files: %LOCALAPPDATA%\Kalmido\agents\<folder name>-<hash>\ (starter files, kalmido-agent.env, mcp.json, agent.log);
+2.1367.0 (#6457): Claude Code's deny rules in <folder>\.claude\settings.local.json.
 #>
 param([string]$Url = '', [string]$Code = '', [string]$Dir = '', [string]$Cmd = '', [string]$From = '',
-      [switch]$NoAutostart, [switch]$DryRun, [switch]$Uninstall, [string]$Lang = 'en', [switch]$AllowHttp, [string]$Tool = '')
+      [switch]$NoAutostart, [switch]$DryRun, [switch]$Uninstall, [string]$Lang = 'en', [switch]$AllowHttp, [string]$Tool = '',
+      [string]$IpRule = '')
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Invoke-WebRequest is slow with the progress bar in 5.1
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
@@ -70,6 +75,13 @@ $MsgEn = @{
   claude_new = '  CLAUDE.md created: {0} (from the template; add your own rules on top)'
   claude_kept = '  CLAUDE.md exists, left as it is: {0}'
   dry_claude = '  (dry run) create CLAUDE.md from the template when there is none: {0}'
+  ask_ip = 'Should this computer''s key work only from its current internet address? Recommended for a fixed address; if it changes, the agent cannot reach Kalmido until you change the rule in Kalmido. [y/N]'
+  ip_set = '  The key works only from: {0}'
+  ip_wide = '  Address rule not set: the agent already has its own, narrower rule ({0})'
+  harden = '  Deny rules for Claude Code written: {0} (no WebFetch / WebSearch, no reading of the key file)'
+  dry_harden = '  (dry run) write deny rules for Claude Code into: {0}'
+  harden_fail = '  The deny rules could not be written ({0} is not valid JSON); add them by hand, see the guide'
+  badip = '-IpRule: current, off or addresses / networks separated by commas (e.g. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Fetching the starter files'
   dry_files = '  (dry run) the files of {0}/starter_files.txt into {1}'
   nobase = 'Kalmido sent no address for the starter files; use -From DIR'
@@ -130,6 +142,13 @@ $MsgDe = @{
   claude_new = '  CLAUDE.md angelegt: {0} (aus der Vorlage; eigene Regeln oben ergänzen)'
   claude_kept = '  CLAUDE.md vorhanden, bleibt unverändert: {0}'
   dry_claude = '  (Probelauf) CLAUDE.md aus der Vorlage anlegen, wenn keine da ist: {0}'
+  ask_ip = 'Soll der Schlüssel dieses Computers nur von seiner jetzigen Internet-Adresse aus gelten? Empfohlen bei fester Adresse; wechselt sie, erreicht der Agent Kalmido nicht mehr, bis du die Regel in Kalmido änderst. [j/N]'
+  ip_set = '  Schlüssel gilt nur von: {0}'
+  ip_wide = '  Adress-Regel nicht gesetzt: der Agent hat schon eine eigene, engere Regel ({0})'
+  harden = '  Sperrregeln für Claude Code eingetragen: {0} (kein WebFetch / WebSearch, kein Lesen der Schlüssel-Datei)'
+  dry_harden = '  (Probelauf) Sperrregeln für Claude Code eintragen in: {0}'
+  harden_fail = '  Sperrregeln konnten nicht eingetragen werden ({0} ist kein gültiges JSON); trag sie von Hand ein, siehe Anleitung'
+  badip = '-IpRule: current, off oder Adressen/Netze mit Komma (z. B. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Lade die Starter-Dateien'
   dry_files = '  (Probelauf) die Dateien aus {0}/starter_files.txt nach {1}'
   nobase = 'Kalmido hat keine Adresse für die Starter-Dateien geschickt; nimm -From ORDNER'
@@ -190,6 +209,13 @@ $MsgEs = @{
   claude_new = '  CLAUDE.md creado: {0} (a partir de la plantilla; añade tus propias reglas arriba)'
   claude_kept = '  CLAUDE.md ya existe, se deja como está: {0}'
   dry_claude = '  (simulacro) crear CLAUDE.md a partir de la plantilla si no hay ninguno: {0}'
+  ask_ip = '¿La clave de este ordenador debe funcionar solo desde su dirección de internet actual? Recomendado con dirección fija; si cambia, el agente no llega a Kalmido hasta que cambies la regla en Kalmido. [s/N]'
+  ip_set = '  La clave solo funciona desde: {0}'
+  ip_wide = '  Regla de direcciones no puesta: el agente ya tiene una propia más estrecha ({0})'
+  harden = '  Reglas de bloqueo para Claude Code escritas: {0} (sin WebFetch / WebSearch, sin leer el archivo de la clave)'
+  dry_harden = '  (simulacro) escribir reglas de bloqueo para Claude Code en: {0}'
+  harden_fail = '  No se pudieron escribir las reglas de bloqueo ({0} no es JSON válido); añádelas a mano, ver la guía'
+  badip = '-IpRule: current, off o direcciones / redes separadas por comas (p. ej. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Descargando los archivos de inicio'
   dry_files = '  (simulacro) los archivos de {0}/starter_files.txt en {1}'
   nobase = 'Kalmido no ha enviado ninguna dirección para los archivos de inicio; usa -From CARPETA'
@@ -250,6 +276,13 @@ $MsgFr = @{
   claude_new = '  CLAUDE.md créé : {0} (d''après le modèle ; ajoute tes propres règles en haut)'
   claude_kept = '  CLAUDE.md existe déjà, laissé tel quel : {0}'
   dry_claude = '  (essai à blanc) créer CLAUDE.md d''après le modèle s''il n''y en a pas : {0}'
+  ask_ip = 'La clé de cet ordinateur doit-elle fonctionner seulement depuis son adresse internet actuelle ? Recommandé avec une adresse fixe ; si elle change, l''agent n''atteint plus Kalmido jusqu''à ce que tu changes la règle dans Kalmido. [o/N]'
+  ip_set = '  La clé fonctionne seulement depuis : {0}'
+  ip_wide = '  Règle d''adresse non posée : l''agent a déjà sa propre règle, plus étroite ({0})'
+  harden = '  Règles de blocage pour Claude Code écrites : {0} (pas de WebFetch / WebSearch, pas de lecture du fichier de la clé)'
+  dry_harden = '  (essai à blanc) écrire les règles de blocage pour Claude Code dans : {0}'
+  harden_fail = '  Les règles de blocage n''ont pas pu être écrites ({0} n''est pas du JSON valide) ; ajoute-les à la main, voir le guide'
+  badip = '-IpRule : current, off ou des adresses / réseaux séparés par des virgules (p. ex. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Téléchargement des fichiers de démarrage'
   dry_files = '  (essai à blanc) les fichiers de {0}/starter_files.txt dans {1}'
   nobase = 'Kalmido n''a envoyé aucune adresse pour les fichiers de démarrage ; utilise -From DOSSIER'
@@ -310,6 +343,13 @@ $MsgIt = @{
   claude_new = '  CLAUDE.md creato: {0} (dal modello; aggiungi le tue regole in alto)'
   claude_kept = '  CLAUDE.md esiste già, lasciato com''è: {0}'
   dry_claude = '  (prova) creare CLAUDE.md dal modello se non ce n''è uno: {0}'
+  ask_ip = 'La chiave di questo computer deve funzionare solo dal suo indirizzo internet attuale? Consigliato con indirizzo fisso; se cambia, l''agente non raggiunge Kalmido finché non cambi la regola in Kalmido. [s/N]'
+  ip_set = '  La chiave funziona solo da: {0}'
+  ip_wide = '  Regola di indirizzo non impostata: l''agente ha già una regola propria più stretta ({0})'
+  harden = '  Regole di blocco per Claude Code scritte: {0} (niente WebFetch / WebSearch, niente lettura del file della chiave)'
+  dry_harden = '  (prova) scrivere le regole di blocco per Claude Code in: {0}'
+  harden_fail = '  Impossibile scrivere le regole di blocco ({0} non è JSON valido); aggiungile a mano, vedi la guida'
+  badip = '-IpRule: current, off o indirizzi / reti separati da virgole (es. 203.0.113.7,2001:db8::/64)'
   s_starter = 'Scaricamento dei file di avvio'
   dry_files = '  (prova) i file di {0}/starter_files.txt in {1}'
   nobase = 'Kalmido non ha inviato alcun indirizzo per i file di avvio; usa -From CARTELLA'
@@ -370,6 +410,13 @@ $MsgNl = @{
   claude_new = '  CLAUDE.md aangemaakt: {0} (uit de sjabloon; voeg je eigen regels bovenaan toe)'
   claude_kept = '  CLAUDE.md bestaat al, blijft zoals het is: {0}'
   dry_claude = '  (proefrun) CLAUDE.md aanmaken uit de sjabloon als er geen is: {0}'
+  ask_ip = 'Moet de sleutel van deze computer alleen werken vanaf zijn huidige internetadres? Aanbevolen bij een vast adres; verandert het, dan bereikt de agent Kalmido niet meer tot je de regel in Kalmido aanpast. [j/N]'
+  ip_set = '  De sleutel werkt alleen vanaf: {0}'
+  ip_wide = '  Adresregel niet gezet: de agent heeft al een eigen, nauwere regel ({0})'
+  harden = '  Blokkeerregels voor Claude Code geschreven: {0} (geen WebFetch / WebSearch, geen lezen van het sleutelbestand)'
+  dry_harden = '  (proefrun) blokkeerregels voor Claude Code schrijven in: {0}'
+  harden_fail = '  De blokkeerregels konden niet worden geschreven ({0} is geen geldige JSON); voeg ze met de hand toe, zie de handleiding'
+  badip = '-IpRule: current, off of adressen / netwerken gescheiden door komma''s (bijv. 203.0.113.7,2001:db8::/64)'
   s_starter = 'De startbestanden ophalen'
   dry_files = '  (proefrun) de bestanden uit {0}/starter_files.txt naar {1}'
   nobase = 'Kalmido heeft geen adres voor de startbestanden gestuurd; gebruik -From MAP'
@@ -408,14 +455,11 @@ function Die([string]$m) {
 $OnWindows = ($env:OS -eq 'Windows_NT')
 if (-not $OnWindows -and -not $DryRun) { Die (M 'wrongos') }
 
-# 2.391.0 (#3359): the tool (Claude Code by default), asked once when neither -Tool nor -Cmd names it and the console is
-# interactive; a dry run, the uninstall or no console: Claude Code
-if (-not $Tool -and $Cmd) { $Tool = if ([IO.Path]::GetFileNameWithoutExtension($Cmd).ToLower() -eq 'codex') { 'codex' } else { 'claude' } }
-if (-not $Tool -and -not $DryRun -and -not $Uninstall -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
-  # 2.575.0 (#3948): with a 120 s timeout like setup.sh (read -t 120); no answer = Claude Code
+# one answer typed on the console, 120 s like setup.sh (read -t 120); no answer = '' (2.1367.0: shared by the questions below)
+function Ask([string]$q) {
   $ans = ''
   try {
-    Write-Host -NoNewline ((M 'ask_tool') + ' ')
+    Write-Host -NoNewline ($q + ' ')
     $end = (Get-Date).AddSeconds(120)
     while ((Get-Date) -lt $end) {
       if (-not [Console]::KeyAvailable) { Start-Sleep -Milliseconds 100; continue }
@@ -426,8 +470,23 @@ if (-not $Tool -and -not $DryRun -and -not $Uninstall -and [Environment]::UserIn
     }
     Write-Host ''
   } catch { $ans = '' }
+  return $ans
+}
+# 2.391.0 (#3359): the tool (Claude Code by default), asked once when neither -Tool nor -Cmd names it and the console is
+# interactive; a dry run, the uninstall or no console: Claude Code
+if (-not $Tool -and $Cmd) { $Tool = if ([IO.Path]::GetFileNameWithoutExtension($Cmd).ToLower() -eq 'codex') { 'codex' } else { 'claude' } }
+if (-not $Tool -and -not $DryRun -and -not $Uninstall -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+  # 2.575.0 (#3948): with a 120 s timeout like setup.sh (read -t 120); no answer = Claude Code
+  $ans = Ask (M 'ask_tool')
   if ("$ans".Trim() -in @('2', 'codex', 'Codex', 'Codex CLI')) { $Tool = 'codex' }
 }
+# 2.1367.0 (#6457): the address rule of this computer's key (api_tokens.allowed_ips, set by Kalmido at the redeem); asked once
+# like the tool (default no: a home connection often changes its address); not interactive: none
+if (-not $IpRule -and -not $DryRun -and -not $Uninstall -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+  if ("$(Ask (M 'ask_ip'))".Trim() -match '^[jJyYsSoO]') { $IpRule = 'current' }
+}
+if ($IpRule -in @('off', 'none')) { $IpRule = '' }
+if ($IpRule -and $IpRule -ne 'current' -and $IpRule -notmatch '^[0-9A-Fa-f.:/, ]+$') { Die (M 'badip') }
 if (-not $Tool) { $Tool = 'claude' }
 $Tool = $Tool.ToLowerInvariant()
 if ($Tool -notin @('claude', 'codex')) { Die (M 'badtool' @($Tool)) }
@@ -546,7 +605,10 @@ else {
   $me = [Security.Principal.WindowsIdentity]::GetCurrent().User
   $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($me, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')))
   Set-Acl -LiteralPath $Inst -AclObject $acl
-  $body = @{ code = $Code.Trim(); host = $HostN; folder = $Dir; os = 'windows' } | ConvertTo-Json -Compress
+  $bd = @{ code = $Code.Trim(); host = $HostN; folder = $Dir; os = 'windows' }
+  # 2.1367.0 (#6457): "current" or IPs / networks; Kalmido sets the key's address rule (never wider than the agent's own)
+  if ($IpRule) { $bd.allowed_ips = if ($IpRule -eq 'current') { 'current' } else { @($IpRule -split '[\s,]+' | Where-Object { $_ }) } }
+  $body = $bd | ConvertTo-Json -Compress
   try {
     $r = Invoke-RestMethod -Method Post -Uri "$Url/api/agent-setup/redeem" -Body $body -ContentType 'application/json' -Headers @{ 'X-Requested-With' = 'kalmido' } -TimeoutSec 30
   } catch {
@@ -586,6 +648,8 @@ else {
     'owner' { Say (M 'perm_owner') }
     default { Say (M 'perm_you' @($perm, $EnvF)) }
   }
+  $got = (@($r.allowed_ips) | Where-Object { "$_" -match '^[0-9A-Fa-f.:/]{2,50}$' }) -join ','  # 2.1367.0 (#6457)
+  if ($IpRule -and $got) { if ($r.allowed_ips_applied) { Say (M 'ip_set' @($got)) } else { Say (M 'ip_wide' @($got)) } }
 }
 
 # kalmido-setup-step: starter_files
@@ -633,8 +697,8 @@ else {
 }
 
 # kalmido-setup-step: mcp_config
-# the agent command gets the MCP server with --mcp-config (works headless without a trust prompt); the token comes from the
-# launcher's environment, so it is in no config file but the env file
+# the agent command gets the MCP server with --mcp-config (works headless without a trust prompt); the token is in no config
+# file but the env file (2.1367.0, #6457: the server reads it there, the launcher hands the model's process only its path)
 $McpJ = Join-Path $Inst 'mcp.json'
 $pyArgsJ = @($PyArgs + @((Join-Path $Inst 'kalmido_mcp.py')))
 function Q([string]$s) { "'" + $s.Replace("'", "''") + "'" }
@@ -662,7 +726,7 @@ foreach ($l in Get-Content -LiteralPath @@ENVF@@) { if ($l -match '^\s*(?:export
   [IO.File]::WriteAllLines($McpJ, $w)
 }
 else {
-  $mcp = @{ mcpServers = @{ kalmido = @{ command = $Py; args = $pyArgsJ } } } | ConvertTo-Json -Depth 5
+  $mcp = @{ mcpServers = @{ kalmido = @{ command = $Py; args = $pyArgsJ; env = @{ KALMIDO_ENV_FILE = $EnvF } } } } | ConvertTo-Json -Depth 5
   [IO.File]::WriteAllText($McpJ, $mcp)
 }
 if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
@@ -685,6 +749,37 @@ elseif (Test-Path -LiteralPath $Tpl) {
             "this file cannot weaken them. -->`n`n"
     [IO.File]::WriteAllText($ClaudeMd, $head + $t.Substring($a, $b + $mb.Length - $a) + "`n")
     Say (M 'claude_new' @($ClaudeMd))
+  }
+}
+
+# kalmido-setup-step: harden
+# 2.1367.0 (#6457): Claude Code's deny rules for this project folder in .claude\settings.local.json (this computer only, not
+# in the repository): no WebFetch / WebSearch, no Read of ~/.kalmido and of the env file, no Edit of the env file. Entries
+# already there stay, a second setup adds nothing twice; the person may take the web rules out again (every run's settings
+# keep the file rules, mcp/agent_run.py secret_deny_rules). Claude Code matches Windows paths as //c/Users/...
+if ($Tool -ne 'codex') {
+  $HSet = Join-Path (Join-Path $Dir '.claude') 'settings.local.json'
+  if ($DryRun) { Say (M 'dry_harden' @($HSet)) }
+  else {
+    $ep = ([IO.Path]::GetFullPath($EnvF)) -replace '\\', '/'
+    if ($ep -match '^([A-Za-z]):/') { $ep = '/' + $Matches[1].ToLower() + $ep.Substring(2) }
+    $rules = @('WebFetch', 'WebSearch', 'Read(~/.kalmido/**)', "Read(/$ep)", "Edit(/$ep)")
+    try {
+      $d = if (Test-Path -LiteralPath $HSet) { [IO.File]::ReadAllText($HSet) | ConvertFrom-Json } else { New-Object PSObject }
+      if ($null -eq $d) { $d = New-Object PSObject }
+      if (-not ($d -is [PSCustomObject])) { throw 'not an object' }
+      if (-not $d.PSObject.Properties['permissions']) { $d | Add-Member -NotePropertyName permissions -NotePropertyValue (New-Object PSObject) }
+      if (-not ($d.permissions -is [PSCustomObject])) { throw 'permissions is not an object' }
+      if (-not $d.permissions.PSObject.Properties['deny']) { $d.permissions | Add-Member -NotePropertyName deny -NotePropertyValue @() }
+      if ($null -ne $d.permissions.deny -and -not ($d.permissions.deny -is [array])) { throw 'deny is not a list' }
+      $deny = @($d.permissions.deny | Where-Object { $null -ne $_ })
+      foreach ($x in $rules) { if ($deny -notcontains $x) { $deny += $x } }
+      $d.permissions.deny = $deny
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $HSet) | Out-Null
+      [IO.File]::WriteAllText("$HSet.new", ($d | ConvertTo-Json -Depth 20) + "`n")
+      Move-Item -LiteralPath "$HSet.new" -Destination $HSet -Force
+      Say (M 'harden' @($HSet))
+    } catch { Say (M 'harden_fail' @($HSet)) }
   }
 }
 
