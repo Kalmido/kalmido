@@ -351,6 +351,14 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   call `list_build_status` (list_id = the project) and settle each open task that already has a published version or an open
   branch; `get_task` shows the same as `build` (`state` released / main / branch / none, `branches`, `stale` = open
   although published). The reference starter (2.619.0) sets `repo.git_author` itself for each task run.
+- **Release: one gate, a snapshot of the main branch (2.1368.0).** (1) Exactly one gate decides about a release: the
+  project's CI. Never run the same suites a second time locally before the push as a second gate; in practice a second run
+  mostly reports red that is green on the main branch, and costs days. (2) A release is a snapshot of the main branch. Red
+  on a release: fix it on the main branch and cut the release again, never repair on the release branch (that breeds its
+  own class of faults: missing picks, conflicts on the way back). (3) A flaky test goes into the project's skip list with
+  an expiry date and a task; red without a comparison run on the main branch is red. (4) Generated files (lockfiles, suite
+  lists, file lists of a service worker) stay out of the repository or are generated again at the merge; never resolve
+  a conflict in them by hand.
 - **Reviews in their own read-only area (2.619.0).** Audits and reviews run in a small area of their own (a few places)
   that never takes the place of a building agent. Their brief says **read-only** as a hard rule: no commit, merge, push,
   tag, deploy or server change, nothing written but comments and the result; a needed change becomes a finding.
