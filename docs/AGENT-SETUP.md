@@ -797,7 +797,8 @@ chat messages of one person that arrive together: one run). It does what a hoste
   yourself in the app or with your own token (2.1308.0): tasks of other members, without a creator or from a webhook, an
   e-mail, a form or an import are named in the day report, never built (2.1375.0: also a task of yours whose title or
   description someone else changed last, until you change it yourself), and comments
-  of others reach the job only as data. Start with *Dry run*: it only
+  of others reach the job only as data. 2.1383.0: with `"brief_required": true` it builds only tasks with a brief (a bold
+  decision line, a section *Where* and a size); the rest waits as *needs a brief*. Start with *Dry run*: it only
   reports what it would do. Details and every key: [AGENTS.md](AGENTS.md#working-a-list-off-24810).
 - **Long work as a job** (2.44.0, [`mcp/agent_job.py`](../mcp/agent_job.py)): work that takes more than about ten minutes (a release
   build, an audit, a full test run) the agent starts with `"<python>" "<mcp>/agent_job.py" start --title "..." [--worktree] -` (the brief on
