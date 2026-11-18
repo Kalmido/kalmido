@@ -378,7 +378,9 @@ function dgDrop(e, id) {
   const side = el.closest?.('.srow[data-drop]'), kcol = el.closest?.('.kcol'), quad = el.closest?.('.quad'), cell = el.closest?.('.cal .cell');
   const wcol = el.closest?.('.wcol'), wad = el.closest?.('.wad, .wh'), sec = !row && el.closest?.('#view .ghead[data-section], #view .sdrop');
   const may = ids.filter(i => canEdit(S.tasks.get(i)));
-  if (!may.length) { roToast(); return true; }
+  // 2.1389.0 (#6959): the own order and own sections of My tasks are the person's, read-only tasks too (as one task in dnd.js)
+  const mine = moActive() && (row || el.closest?.('#view .ghead[data-key^="ms:"]'));
+  if (!may.length && !mine) { roToast(); return true; }
   if (side) {
     const k = side.dataset.drop;
     if (k.startsWith('l:')) mv_ask(ids, listById(+k.slice(2))).then(y => y && dgToList(ids, +k.slice(2)));  // 2.455.0 (#3848)
@@ -400,12 +402,15 @@ function dgDrop(e, id) {
     if (ids.includes(tid)) return true;
     const zn = dgZone(row, y);
     if (zn === 'onto') dgMakeSubs(ids, tid);
-    else if (moActive()) { DG.ids = null; return false; }  // My tasks keeps its own order: the dragged task alone (2.40.0, #1344)
+    else if (moActive()) moDropMany(ids, row, zn === 'after');  // My tasks keeps its own order (2.40.0, #1344); 2.1389.0 (#6959): the whole selection
     else dgBlock(ids, row, zn === 'after');
     return true;
   }
-  if (kcol && kcol.dataset.mbcol != null) { DG.ids = null; return false; }  // 2.156.0 C (#2072): the board of My tasks: the dragged task alone
-  if (el.closest?.('#view .ghead[data-key^="ms:"]')) { DG.ids = null; return false; }  // 2.569.0 (#4395): an own section of My tasks: the dragged task alone
+  // 2.1389.0 (#6959): the board of My tasks (#2072) and the head of an own section (#4395) take the whole selection too, in its
+  // order ("Recently assigned" takes nothing); before, they took the dragged task alone under a ghost naming the selection
+  if (kcol && kcol.dataset.mbcol != null) { if (typeof mb_dropMany === 'function') mb_dropMany(ids, el); return true; }
+  const msh = el.closest?.('#view .ghead[data-key^="ms:"]');
+  if (msh) { if (moActive() && mseOn()) { const all = new Set(moAll().map(x => x.id)), mv = ids.filter(i => all.has(i)); if (mv.length) mseDropMany(mv, msh); } return true; }
   if (kcol) { const sid = kcol.dataset.kcol ? +kcol.dataset.kcol : null, lid = S.tasks.get(ids[0])?.list_id; if (lid) dgToSection(ids, lid, sid); return true; }
   if (cell) { batch('patch', {due: cell.dataset.day}, false, may); return true; }
   if (wad) { batch('patch', {due: wad.dataset.day, due_time: null}, false, may); return true; }
