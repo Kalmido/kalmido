@@ -24,7 +24,8 @@ In an organisation's office (Alice its admin) and in the personal office of a pe
  - parallel: five equal requests at once = one draft
  - review of 2.1396 (Fable reader): F1 the key cannot withdraw a person's correction draft (409 not_own_draft); F2 a person's
    change of the date or a switch alone ends the preview; F3 an IBAN split by dashes, dots, no-break or zero-width spaces and
-   a direction mark: 400
+   a direction mark: 400; round 2: F3 more ways to write an IBAN (a valid one is found by its check digits), F4 the key's own
+   change of a client a person changed does not clear the preview's 409
  - the personal office: Frida's key makes Frida's draft (created_by Frida), she sees it
  - ISS_REUSED: every function of the drafts named there and run here with the issuer's context
 usage: p6701_office_issuer_invoices_test.py <datadir>"""
@@ -217,7 +218,13 @@ r = kpost(KEY3, body("bad:1", items=[{"text": "Zahlung an DE89 3704 0044 0532 01
 check(r.status_code == 400 and "text" in (field(r) or ""), f"an IBAN in a position: 400 {r.status_code} {r.text[:160]}")
 # review F3 (2.1396.0): an IBAN split by dashes, dots, a no-break space, or a zero-width space / a direction mark in the text: 400
 for txt in ("Zahlung an DE89-3704-0044-0532-0130-00", "Zahlung an DE89.3704.0044.0532.0130.00", "Zahlung an DE89\u00a03704\u00a00044\u00a00532\u00a00130\u00a000",
-            "Zahlung an DE89\u200b3704004405320130 00", "Tarif \u202eoidutS"):
+            "Zahlung an DE89\u200b3704004405320130 00", "Tarif \u202eoidutS",
+            # review F3 round 2: a space after the country code, several separators, colons, commas, a line break, a thin space,
+            # full-width digits, a combining grapheme joiner
+            "Zahlung an DE 89 3704 0044 0532 0130 00", "Zahlung an DE89 -- 3704 -- 0044 -- 0532 -- 0130 -- 00", "Zahlung an DE89:3704:0044:0532:0130:00",
+            "Zahlung an DE89,3704,0044,0532,0130,00", "Zahlung an DE89\n3704 0044 0532 0130 00", "Zahlung an DE89\u20093704\u20090044\u20090532\u20090130\u200900",
+            "Zahlung an \uff24\uff25\uff18\uff19\uff13\uff17\uff10\uff14\uff10\uff10\uff14\uff14\uff10\uff15\uff13\uff12\uff10\uff11\uff13\uff10\uff10\uff10",
+            "Zahlung an DE8\u034f9370400440532013000"):
     r = kpost(KEY3, body("bad:1", items=[{"text": txt, "qty": 1, "rate": "150.00"}]))
     check(r.status_code == 400 and "text" in (field(r) or ""), f"review F3: {txt!r} in a position: 400 {r.status_code} {r.text[:120]}")
 r = kpost(KEY3, body("bad:1", order_ref="Infos auf www.example.com"))
@@ -230,7 +237,9 @@ r = kpost(KEY3, None, raw=json.dumps(body("bad:1"))[:-1] + ', "client_ref": "bad
 check(r.status_code == 400, f"a key twice: 400 {r.status_code}")
 r = kpost(KEY3, body("bad:1", ext="acc:none"))
 check(r.status_code == 404 and code(r) == "client_unknown", f"an unknown client: 404 client_unknown {r.status_code}")
-check(not sql("SELECT 1 FROM office_issuer_refs WHERE issuer_id=? AND route='invoices'", (IID3,)) and n_docs(IID3) == 0, "no 400 / 404 stored a ref or a draft")
+r = kpost(KEY3, body("ok:1", items=[{"text": "Tarif Studio 2026, Dezember, Raum 12 B, Nr. 4711-0815-2026", "qty": 1, "rate": "150.00"}], order_ref="Kauf 12345678 / 2026-12-01"))
+check(r.status_code == 201, f"ordinary numbers in texts are no IBAN {r.status_code} {r.text[:160]}")
+check(not sql("SELECT 1 FROM office_issuer_refs WHERE issuer_id=? AND route='invoices' AND client_ref<>'ok:1'", (IID3,)) and n_docs(IID3) == 1, "no 400 / 404 stored a ref or a draft")
 check(not sql("SELECT paused FROM office_issuers WHERE id=?", (IID3,))[0][0], "400s pause nothing")
 
 # ---------------------------------------------------------------- payee, due date
@@ -307,6 +316,21 @@ for i, chg in enumerate(({"date": (TODAY - __import__("datetime").timedelta(days
     rr = A.patch(B + D + f"/{di}", json={**chg, "expect_updated_at": cur.get("updated_at")})
     r = kget(KEY, f"/docs/{di}/pdf")
     check(rr.ok and r.status_code == 409 and code(r) == "edited_by_human", f"review F2: a person changed {list(chg)}: 409 edited_by_human {rr.status_code} {r.status_code}")
+
+# review F4 (2.1396.0): a person changed the client (customer number): the key's own later change of the client does not clear the 409
+assert kput(KEY, "acc:f4", {"name": "Kundin F4", **ADDR}).status_code == 201
+DF4 = kpost(KEY, body("f4:1", ext="acc:f4")).json().get("doc_id")
+CF4 = sql("SELECT id FROM clients WHERE external_ref='acc:f4' AND issuer_id=?", (IID,))[0][0]
+check(kget(KEY, f"/docs/{DF4}/pdf").status_code == 200, "review F4: the preview as delivered")
+cu = kput(KEY, "acc:f4", {"name": "Kundin F4"}).json()
+r = kput(KEY, "acc:f4", {"city": "Bonn", "expect_updated_at": cu.get("updated_at")})
+check(r.ok and kget(KEY, f"/docs/{DF4}/pdf").status_code == 200, f"review F4: the key's own change of the client keeps its preview {r.status_code}")
+check(A.patch(B + f"/api/clients/{CF4}", json={"customer_no": "K-4711"}).ok, "a person sets the customer number")
+check(kget(KEY, f"/docs/{DF4}/pdf").status_code == 409, "review F4: after the person's change 409")
+cu = requests.get(V + CR + "acc:f4", headers=hk(KEY), timeout=30).json()
+r = kput(KEY, "acc:f4", {"city": "Köln", "expect_updated_at": cu.get("updated_at")})
+r2 = kget(KEY, f"/docs/{DF4}/pdf")
+check(r.ok and r2.status_code == 409 and code(r2) == "edited_by_human", f"review F4: the key's change afterwards does not clear it {r.status_code} {r2.status_code}")
 
 # ---------------------------------------------------------------- finalise, correct, changed_since
 D2 = kpost(KEY, body("fin:1", ext="acc:2")).json()["doc_id"]

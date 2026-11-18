@@ -54,6 +54,7 @@ from ..core.pg import insert_id, system_ctx, write_lock
 from ..notify.alerts import fx2_mask_ip
 from ..accounts.session import client_ip
 from .countries import fk_vat_prefix
+from .ledger import _iban_ok
 from .isshold import IHD_FIELDS, ihd_load
 from .issuers import _iss_me, _iss_once, _iss_read_logged, iss_log, iss_tell, ISS_ROUTES
 from .model import pb_cl_sql, pb_owner
@@ -75,6 +76,15 @@ ISC_KEY_FLAGS = ("client_new", "text_suspicious")  # review F2: what the key hea
 # an IBAN form: two letters, two check digits, 11 to 30 letters / digits (spaces allowed between), at least 8 digits in it
 # 2.1396.0 (#6701, review F3): the groups may also be split by a dash, a dot, a slash or a no-break / thin space
 ISC_IBAN_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{2}[0-9]{2}(?:[ \u00a0\u2007\u202f._/-]?[A-Za-z0-9]){11,30}(?![A-Za-z0-9])")
+# 2.1396.0 (#6701, review F3 round 2): the lengths of the IBAN registry (ISO 13616) by country: a valid IBAN is found however the
+# text splits or writes it (isc_iban_hidden: NFKC, all but A-Z / 0-9 taken out, the country's length, the check digits mod 97)
+ISC_IBAN_LEN = {cc: int(n) for cc, n in (x.split(":") for x in (
+    "AD:24 AE:23 AL:28 AT:20 AZ:28 BA:20 BE:16 BG:22 BH:22 BR:29 BY:28 CH:21 CR:22 CY:28 CZ:24 DE:22 DK:18 DO:28 EE:20 EG:29 ES:24 FI:18 "
+    "FO:18 FR:27 GB:22 GE:22 GI:23 GL:18 GR:27 GT:28 HR:21 HU:28 IE:22 IL:23 IQ:23 IS:26 IT:27 JO:30 KW:30 KZ:20 LB:28 LC:32 LI:21 LT:20 "
+    "LU:20 LV:21 MC:27 MD:24 ME:22 MK:19 MR:27 MT:31 MU:30 NL:18 NO:15 PK:24 PL:28 PS:29 PT:25 QA:29 RO:24 RS:22 SA:24 SC:31 SE:24 SI:19 "
+    "SK:24 SM:27 ST:25 SV:28 TL:23 TN:24 TR:26 UA:29 VA:22 VG:24 XK:20").split())}
+# characters that print as nothing (fillers) besides the formats (Cf) and enclosing marks (Me)
+ISC_INVISIBLE = frozenset("\u034f\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\uffa0")
 ISC_MAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
 ISC_TLDS = ("com|net|org|info|biz|io|de|at|ch|eu|co|uk|fr|it|es|nl|be|pl|ru|cn|us|me|ly|app|xyz|top|link|shop|online|site|"
             "store|click|live|page|dev|ai|tv|cc|ws|to|gg|li|lu")
@@ -115,15 +125,29 @@ def isc_text_check(field, v):
     """'' / 'suspicious' for value v of field, or BadInput invalid_field (an IBAN form, a web or an e-mail address)."""
     if not v or field in ISC_NO_TEXT_CHECK:
         return ""
-    if any(unicodedata.category(ch) == "Cf" for ch in v):  # 2.1396.0 (#6701, review F3): invisible / direction marks hide what is printed
+    if any(unicodedata.category(ch) in ("Cf", "Me") or ch in ISC_INVISIBLE for ch in v):  # 2.1396.0 (#6701, review F3): invisible / direction marks hide what is printed
         raise _bad(field, tr("{0}: no invisible characters", field))
-    if any(sum(ch.isdigit() for ch in m.group(0)) >= 8 for m in ISC_IBAN_RE.finditer(v)):
+    if isc_iban_hidden(v) or any(sum(ch.isdigit() for ch in m.group(0)) >= 8 for m in ISC_IBAN_RE.finditer(v)):
         raise _bad(field, tr("{0}: no bank account (IBAN) in the client's data", field))
-    if ISC_WEB_RE.search(v) or ISC_MAIL_RE.search(v):
+    w = unicodedata.normalize("NFKC", v)  # 2.1396.0 (#6701): full-width letters and dots count as the plain ones
+    if ISC_WEB_RE.search(w) or ISC_MAIL_RE.search(w):
         if field in ISC_FLAG_ONLY:
             return "suspicious"
         raise _bad(field, tr("{0}: no web or e-mail address in the client's data", field))
     return ""
+
+
+def isc_iban_hidden(v):
+    """2.1396.0 (#6701, review F3): True when text v holds a valid IBAN however it is split or written (spaces, dashes, dots,
+    colons, line breaks, full-width digits, invisible characters): NFKC, all but A-Z / 0-9 taken out, then at every country
+    code + two digits the country's IBAN length with at least 8 digits and the check digits mod 97 (ledger._iban_ok)."""
+    s = "".join(ch for ch in unicodedata.normalize("NFKC", v).upper() if ch.isascii() and ch.isalnum())
+    for m in re.finditer(r"(?=([A-Z]{2})[0-9]{2})", s):
+        n = ISC_IBAN_LEN.get(m.group(1))
+        cand = s[m.start():m.start() + n] if n else ""
+        if n and len(cand) == n and sum(ch.isdigit() for ch in cand) >= 8 and _iban_ok(cand):
+            return True
+    return False
 
 
 def isc_body():
@@ -364,6 +388,8 @@ def isc_put(ref):
         c.execute("UPDATE clients SET issuer_hold=? WHERE id=?", (isc_hold(cur.get("issuer_hold"), iss["id"], held, False, flags), cur["id"]))
         seen["held"] = held
 
+    from .issdocs import isd_client_fp
+    fp_before = isd_client_fp(c, r["id"])  # review F4 (2.1396.0): only drafts still as the key delivered them follow its change
     try:
         new, changed = ow_write(c, None, "client", r["id"], b, clean, where=f"id=? AND issuer_id=? AND {_area_sql(c, oid)}",
                                 args=(r["id"], int(iss["id"])), lock=f"clients-{int(r['id'])}", public=lambda c, cur: isc_public(cur),
@@ -379,7 +405,7 @@ def isc_put(ref):
     if seen.get("held"):
         _tell(c, iss, new)
     from .issdocs import isd_client_changed
-    isd_client_changed(c, iss["id"], r["id"])  # 2.1396.0 (#6701): its drafts' preview follows the key's own change of the client
+    isd_client_changed(c, iss["id"], r["id"], fp_before)  # 2.1396.0 (#6701): its drafts' preview follows the key's own change of the client
     c.commit()
     new = isc_row(c, iss, ref)
     return jsonify(isc_public(new, flags=_flags_of(new)))
