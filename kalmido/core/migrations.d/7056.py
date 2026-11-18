@@ -1,4 +1,4 @@
-"""2.1399.0 (#7056, Fable re-check of 2.1368 F1-F3, F7): for which shares with pictures a picture embedded in a knowledge page
+"""2.1401.0 (#7056, Fable re-check of 2.1368 F1-F3, F7): for which shares with pictures a picture embedded in a knowledge page
 is confirmed -- wiki_embeds.shares, the keys of those shares (wiki/wkshare.py wsh_ikey: "w<id>" a link of wiki_shares, "p<id>"
 a person share by its card). A share shows a picture only when its row names that share (wkshare.wsh_img_nodes, the one check
 at the output); its embedder's own save under the share (wkembed.wem_confirm) or the share's pictures switched on over the

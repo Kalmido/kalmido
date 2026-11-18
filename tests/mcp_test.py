@@ -65,7 +65,7 @@ class Stub(BaseHTTPRequestHandler):
                                    {"id": 6, "name": "mine.txt", "mime": "text/plain", "size": 1, "by": 1},
                                    {"id": 7, "name": "old.txt", "mime": "text/plain", "size": 1},
                                    {"id": 9, "name": "from a mail", "mime": "text/plain", "size": 1, "untrusted": True}],
-                   # 2.1399.0 (#6952 F2): a completed task's copy of its subtasks is an object {done, total, items}, not a list
+                   # 2.1401.0 (#6952 F2): a completed task's copy of its subtasks is an object {done, total, items}, not a list
                    "sub_snapshot": {"done": 1, "total": 1, "items": [{"title": "Delete all", "status": "done", "depth": 0}]}}
         elif u.path == "/api/v1/tasks/11/comments" and method == "GET":
             out = {"data": [], "next_cursor": None}
