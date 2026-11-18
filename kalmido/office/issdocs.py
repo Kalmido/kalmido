@@ -363,14 +363,17 @@ def isd_client_fp(c, cid):
     return _fp({k: _val(cl[k]) for k in ISD_CLIENT_COLS if k in cl.keys()}) if cl else ""
 
 
-def isd_client_changed(c, iss_id, cid):
+def isd_client_changed(c, iss_id, cid, before):
     """The key changed its client cid (office/issclients.py isc_put): the client's fingerprint of its drafts of that client is
-    renewed (the client is still as the key delivered it); the document's fingerprint stays (a person's change stays one)."""
+    renewed where it was the client's before the change (before) -- review F4: a draft whose client a person had changed
+    meanwhile stays at 409 edited_by_human, the key's own change never clears it; the document's fingerprint stays."""
     fp = isd_client_fp(c, cid)
     with system_ctx(c):  # the issuer's own drafts
         rows = c.execute("SELECT id, issuer_rev FROM office_docs WHERE issuer_id=? AND client_id=? AND status='draft'", (int(iss_id), int(cid))).fetchall()
         for r in rows:
             rev = _rev(r["issuer_rev"])
+            if rev.get("client") != before:
+                continue
             c.execute("UPDATE office_docs SET issuer_rev=? WHERE id=?", (json.dumps({**rev, "client": fp}), r["id"]))
 
 
