@@ -250,6 +250,8 @@ PT = r.json()["task"]
 check(r.status_code == 201 and PT["title"] == "Prepare: Dentist" and PT["due"] == str(D + timedelta(days=1) - timedelta(days=2)) and r.json()["event"]["task_id"] == PT["id"],
       f"preparation task: two days before, linked {PT.get('due')}")
 check(A.post(B + f"/api/events/{E1['id']}/prep-task", json={}).status_code == 409, "a second one: 409")
+# 2.1389.0 (#7005 F2): "Prepare: <the event's title>" may carry somebody else's text (an invitation): no origin mark 'person'
+check(dbx("SELECT origin FROM tasks WHERE id=?", (PT["id"],))[0][0] is None, "#7005: the preparation task under the event's title has no origin mark")
 st = A.get(B + "/api/state").json()
 check(st["evlinks"].get(str(PT["id"]), [{}])[0].get("id") == E1["id"], "the state links the task to its event")
 check([e["id"] for e in A.get(B + f"/api/tasks/{PT['id']}/events").json()["items"]] == [E1["id"]], "GET /api/tasks/<id>/events")

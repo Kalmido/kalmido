@@ -151,6 +151,15 @@ check(any(u["route"] == "/api/state" and u["method"] == "GET" for u in uses), f"
 check(any(u["route"] == "/api/me/tokens" and u["status"] == 403 for u in uses), f"a refused write in the support session is listed {uses}")
 check(not any(u["route"] == "/api/support-access" and u["method"] == "GET" for u in uses), f"frida's own requests are not listed {uses}")
 
+# 2.1389.0 (#6728, N3): a task the operator writes in the support session is not frida's text (act_by_hand: no support session),
+# a task frida writes herself is
+r = X.post(B + "/api/tasks", json={"title": "Written by support"})
+check(r.status_code in (200, 201) and kt.dbx("SELECT origin FROM tasks WHERE id=?", (r.json().get("id"),))[0][0] is None,
+      f"#6728: a task from the support session has no origin 'person' {r.status_code} {r.text[:100]}")
+r = S["frida"].post(B + "/api/tasks", json={"title": "Written by frida"})
+check(r.status_code in (200, 201) and kt.dbx("SELECT origin FROM tasks WHERE id=?", (r.json().get("id"),))[0][0] == "person",
+      f"#6728: frida's own task has it {r.status_code} {r.text[:100]}")
+
 
 def sup_uses():
     return S["frida"].get(B + "/api/support-access").json()["account"]["uses"]
@@ -216,6 +225,17 @@ check(link(FID).ok, "open again (3 days)")
 dbw("UPDATE support_grants SET ends_at='2020-01-01T00:00:00Z' WHERE id=?", (GF3,))
 check(link(FID).status_code == 403, "after its end time: closed without anybody ending it")
 
+# ---- 2.1389.0 (#7005 F3): a team agent of the client's organisation -- its work style, data lock, control and rules are not the
+# operator's (work-style routes: agents/workstyle.py ws_need_editor); with the organisation's grant it may read, never write
+r = A.post(B + "/api/admin/agents", json={"username": "studiobot"})
+TAG = r.json().get("id") if r.ok else None
+check(r.status_code == 201 and TAG, "the operator makes a team agent of its own " + r.text[:100])
+dbw("UPDATE agents SET org_id=?, owner_id=NULL WHERE user_id=?", (CO, TAG))  # as if the client's organisation had it (a real state)
+WSB = {"quiet_mode": "on"}
+check(A.get(B + f"/api/agents/{TAG}/work-style").status_code == 403, "#7005: no grant: the client's team agent's work style is closed (GET)")
+check(A.patch(B + f"/api/agents/{TAG}/work-style", json=WSB).status_code == 403, "#7005: no grant: no change of its work style")
+check(A.patch(B + f"/api/agents/{TAG}/data-lock", json={}).status_code == 403, "#7005: no grant: no change of its data lock")
+
 # ---- the organisation grant
 r = S["carl"].post(B + "/api/support-access", json={"hours": 24, "org_id": CO})
 check(r.ok and r.json()["grant"]["org_id"] == CO, "carl (admin) grants the organisation " + r.text[:120])
@@ -223,6 +243,10 @@ GO = r.json()["grant"]["id"]
 r = A.patch(B + f"/api/admin/orgs/{CO}", json={"name": "Client Studio GmbH"})
 check(r.ok and kt.dbx("SELECT name FROM orgs WHERE id=?", (CO,)) == [("Client Studio GmbH",)], "with the grant: the operator renames it " + r.text[:120])
 check(link(uid["cara"]).status_code in (403, 404), "the organisation's grant opens no member's account")
+check(A.get(B + f"/api/agents/{TAG}/work-style").ok, "#7005: with the grant: the operator reads the team agent's work style")
+r = A.patch(B + f"/api/agents/{TAG}/work-style", json=WSB)
+check(r.status_code == 403 and kt.dbx("SELECT work_style FROM agents WHERE user_id=?", (TAG,))[0][0] in (None, "", "{}"),
+      "#7005: with the grant: its work style stays unchanged (403) " + r.text[:100])
 r = A.post(B + "/api/users", json={"username": "opsmate", "password": "password123"})
 OPS = r.json()["id"]
 for body in ({"members_add": [OPS]}, {"admins_add": [OPS]}):
