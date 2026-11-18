@@ -502,6 +502,38 @@ retention export `books/extra-number-ranges.csv`, the auditor's `number_ranges.c
 Moving the private office into an organisation takes the ranges with their counters (the same code in the target: conflict).
 One way: from the first finalised document in a range an older version would count it into the main range's date order.
 
+**Invoice issuers** (2.1381, #6699): an outside system (a shop, a booking system, an own script) prepares invoices in one
+additional range with a key of its own; a person in the office checks, finalises and sends them (review mode, the only mode).
+An issuer is no account and no agent (`office/issuers.py`, `office_issuers`): it belongs to the office area and to one
+additional range (fixed after setting it up). Only an **admin of the organisation** sets one up and changes it (in the private
+office its owner), in *Settings of the office > Invoice issuers* below the number ranges; office admins read. Setting up, a new
+key, raising a limit, loosening or removing the address rule, a new bank account and resuming after any pause but the admin's
+own ask for the password (or a fresh sign-in). Keys: `kis_test_…` or `kis_live_…` (`KALMIDO_ISSUER_ENV`, a staging server gives
+out test keys only and takes no live key), shown once, stored as a hash only, at most 365 days, at most two valid at once; a
+new key ends the previous one after the overlap the admin chooses (default 7, at most 14 days, 0 = at once); a key can be ended
+at once, revoking the issuer ends all of them. Limits per issuer (never unlimited, 0 = nothing): gross per invoice 2,000, invoices
+50 / gross 20,000 / new clients 50 / e-mails 100 / withdrawn drafts 10 per 24 hours, 200 waiting drafts, an alarm after 24
+hours of waiting; they count from the drafts on (#6701). Address rule like an API token (a live key needs one unless the admin
+allows any address on purpose). Pause: every call refused (`403 issuer_paused`); an issuer pauses itself after 20 probing calls
+in an hour (other routes per distinct address, calls from outside its address rule; `400`, `409`, `410`, `429` never count), when
+the area has no admin any more (daily check), after a restore of a backup and when the operator locks it. Bank accounts the
+issuer may name later (#6819): holder exactly as the bank has it, IBAN, BIC, the mark "a payment can only be matched by its
+reference" (sealed like the company's bank data; the key never reads them). Every change and every call is in the office log
+(`office_doc_log.issuer_id`; reads once per hour and target). The admins of the area hear of changes (News / push by their
+settings); a new key, a first call from a new address and a self-pause come by e-mail as well, always. A key running out is
+announced 30 and 7 days before and on the day.
+`KALMIDO_ISSUER_KEYS=0` switches the kind of key off for the server; on a hosted server (`KALMIDO_HOSTED=1`) the operator
+unlocks each area (`PUT /api/operator/accounts/<id>` `{issuer_keys: {area: "private" | <organisation id>, on}}`, default off;
+locking pauses). Moving the private office into an organisation revokes its issuers (the preview says so); turning it into a
+new organisation keeps them. Not in the organisation, account or retention export: an admin sets them up again on the target.
+
+- `GET /api/office/issuers` · `POST /api/office/issuers` `{name, range_id, allowed_ips?, any_address?, limits?, valid_days?, password?}` -> `{issuer, key}`
+- `PATCH /api/office/issuers/<id>` `{name?, limits?, allowed_ips?, any_address?, password?}` · `DELETE /api/office/issuers/<id>` (revoke)
+- `POST /api/office/issuers/<id>/keys` `{valid_days?, overlap_days?, password?}` -> `{key}` · `DELETE /api/office/issuers/<id>/keys/<kid>`
+- `POST /api/office/issuers/<id>/pause` · `POST /api/office/issuers/<id>/resume` `{password?}` · `GET /api/office/issuers/<id>/log`
+- `GET|POST /api/office/issuers/<id>/payees` `{label, holder, iban, bic?, ref_only?, password?}` · `DELETE /api/office/issuers/<id>/payees/<pid>`
+- The key itself: `GET /api/v1/issuer` (API.md, *Invoice issuer keys*)
+
 ## Country packs
 
 Tax rates, number and date formats, the labels of the documents and the default texts are not in the code but in a
