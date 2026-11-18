@@ -215,7 +215,8 @@ per document with *Insert label* ("Created with AI support"); nothing is blocked
 
 Two guides, each for Linux, macOS and Windows. The same steps are in the app: *Settings > Agents > Set up*. The full
 Linux walk-through with every command, the rules template and the test checklist is [AGENT-SETUP.md](AGENT-SETUP.md);
-the threat model is [AGENT-SECURITY.md](AGENT-SECURITY.md).
+the threat model is [AGENT-SECURITY.md](AGENT-SECURITY.md). A coding agent on someone else's project with live customers:
+first the checklist [Connecting a coding agent to a project with live customers](AGENT-SECURITY.md#connecting-a-coding-agent-to-a-project-with-live-customers).
 
 <a id="set-up-on-a-computer-with-one-command-2440"></a>
 
@@ -3217,6 +3218,9 @@ Changing the settings sends the event `runtime_changed`, *Reset now* the event `
    from the event's `repo`), for both launchers alike; a chat run keeps the agent's value.
 
 ### Working a list off (2.481.0)
+
+Before the dispatcher builds on a project with live customers, go through
+[Connecting a coding agent to a project with live customers](AGENT-SECURITY.md#connecting-a-coding-agent-to-a-project-with-live-customers).
 
 Without it, the reference starter only reacts: a chat message, a task event, a job that ended. Nothing works a list off on
 its own, so planned tasks can be left lying. *Work the list off* in the runtime section switches on the starter's

@@ -53,6 +53,9 @@ subscription or API key. Kalmido provides:
 - About 30 minutes.
 - Think about encryption first: projects with a lock and knowledge spaces encrypted in the browser (2.64) are invisible to agents (no
   texts, no access, no writes). An agent never joins such a project; switch the lock on only where that is intended.
+- A coding agent for someone else's software whose product has live customers (a partner's or a customer's repository):
+  go through [Connecting a coding agent to a project with live customers](AGENT-SECURITY.md#connecting-a-coding-agent-to-a-project-with-live-customers)
+  before the first run, including the points you still secure by hand.
 
 The examples use these names; change them if you like, but consistently:
 

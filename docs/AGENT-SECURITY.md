@@ -255,6 +255,29 @@ by hand. Go through this list before the first run; each line names what goes wr
 - [ ] `KALMIDO_TOOLSETS` limited to what a coding agent needs (e.g. `tickets,code`), and the short rules
   `mcp/CLAUDE.coding.md` as the project's `CLAUDE.md`.
 
+**Not built in yet: secure these by hand**
+
+The starter does not cover these four points on its own yet. Until it does, the list above is what holds them; check
+them on purpose rather than assume them.
+
+- **The token on the computer.** A run gets only the short-lived request token of its person, in an env file of its
+  own, and Claude Code's guard hook and deny rules keep the run from reading it. Any other program of the same OS user
+  (another agent tool, a script, the project's check) can read it. Keep the starter and its env files with one user and
+  the agent's tools with another ([4b](#4b-an-own-os-user-for-the-agents-tools)), and limit the network
+  ([2. Egress firewall](#2-egress-firewall)), so a token that leaks cannot be used from elsewhere.
+- **No block list of the project's own.** The guard against dangerous commands knows a fixed list (force-push,
+  changing tags, `docker prune`, rebooting) and nothing about your project: not the names of the live servers, the deploy
+  commands or the database logins. Leave none of them on the computer (no SSH key, no `.env`, no deploy token for the
+  live system) and block the live servers in the firewall; a command that has nothing to reach does no harm.
+- **The control files are writable by the agent.** `KALMIDO-DISPATCH.json` lies in the project folder (the stop file
+  `KALMIDO-DISPATCH-STOP` may too); `.claude/settings.json` and the env files belong to the same OS user unless you separate them. A run could raise the
+  places, delete the stop file or loosen its own rules. Let the starter's user own these files and give the tools' user
+  read access only ([4b](#4b-an-own-os-user-for-the-agents-tools)); keep the commands of the dispatcher in the runner's
+  env file, never in the project folder, and look at `git diff` of these files before you switch the dispatcher on.
+- **Jobs cannot ask for permission.** A run asks the person in the chat; a long job has nobody to ask, so whatever its
+  allow list does not name is refused without a question. Do not answer that with a job command that allows everything
+  (`bypassPermissions`, `--dangerously-skip-permissions`): add the one narrow rule the job needs and keep the rest denied.
+
 ## Host sandbox recipe (Claude Code)
 
 A generic recipe for Linux. Adjust names and paths to your system; the principles matter more than the details.
