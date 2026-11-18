@@ -26,6 +26,8 @@ freelancer-matrix: wiki
    start looks at the pages changed since the start before
  - #6868 (2.1368.0): a page that a rename / move (PATCH path, /api/wiki/move, the tree) brings under a share with pictures
    it was not under keeps only the embeds of files the mover sees; the others are nobody's; the same shares: nothing changes
+ - #6657 (2.1368.0): a page whose stamp (wem_at) does not match its updated_at at the start (written by a version without the
+   stamp / by hand): all its pictures are nobody's; a save without expect_updated_at or "Keep mine" (overwrite) claims no picture
  - #2398: the organisation export carries the organisation's polls (options, votes) and bookmarks (with the picture);
    imported into an empty organisation they come with a new poll link (the old one is dead, the report says so), the votes
    name the new options, the bookmark's picture opens; the person's own poll / bookmark (no organisation) stays out
@@ -394,7 +396,10 @@ def wbody(s, pid):
 
 
 def wsave(s, pid, text):
-    return s.patch(B + f"/api/wiki/pages/{pid}", json={"body": text})
+    """A person's save from the editor: on the state it was written on (expect_updated_at). 2.1368.0 (#6657): was a save
+    without it -- such a save claims no picture any more (re-check N4), the editor always sends it."""
+    exp = s.get(B + f"/api/wiki/pages/{pid}").json().get("updated_at")
+    return s.patch(B + f"/api/wiki/pages/{pid}", json={"body": text, "expect_updated_at": exp})
 
 
 FREMD = f"\n![Fremd](/api/files/nodes/{CIMG}/content)\n"
@@ -674,6 +679,27 @@ check(emb(R5, PIMG) is None, f"#6321 F5: the pictures of a text that came out of
 full5 = wbody(Ca, R5)
 check(wsave(Ca, R5, "# Tresor\n").ok and wsave(Ca, R5, full5).ok and emb(R5, PIMG) == uid["carol"], f"#6321 F5: taken out and put in again, it is hers ({emb(R5, PIMG)})")
 
+# ---- 2.1368.0 (#6657, re-check N4): bob embeds carol's picture and takes it out again; carol saves from her editor's state of
+# before ("Keep mine" over bob's save, or through the API without expect_updated_at) -- the picture comes back with her text
+# and was hers (carol sees the file: it came through her link) without her ever putting it in. Now nobody's
+N4P = wnew(Ca, "Kniff/Alter Stand", "start\n")
+N4T = piclink(N4P)
+check(wsave(Bo, N4P, "start\n" + FREMD).ok and emb(N4P, CIMG) == uid["bob"], f"#6657 N4 setup: bob embeds carol's picture ({emb(N4P, CIMG)})")
+stale4 = Ca.get(B + f"/api/wiki/pages/{N4P}").json()
+check(wsave(Bo, N4P, "start\n").ok and emb(N4P, CIMG) == "-", f"#6657 N4 setup: bob takes it out again ({emb(N4P, CIMG)})")
+r = Ca.patch(B + f"/api/wiki/pages/{N4P}", json={"body": stale4["body"] + "\nCarol\n", "expect_updated_at": stale4["updated_at"]})
+check(r.status_code == 409 and r.json().get("page", {}).get("updated_at"), f"#6657 N4 setup: carol's save from the old state meets bob's save (409) ({r.status_code})")
+r = Ca.patch(B + f"/api/wiki/pages/{N4P}", json={"body": stale4["body"] + "\nCarol\n", "expect_updated_at": r.json()["page"]["updated_at"], "overwrite": True})
+g = img(N4T, N4P, CIMG)
+check(r.ok and FREMD.strip() in wbody(Ca, N4P) and emb(N4P, CIMG) is None and g == 404,
+      f"#6657 N4: \"Keep mine\" (overwrite) brings the picture back as nobody's, nothing comes ({r.status_code} {emb(N4P, CIMG)} {g})")
+check(wsave(Bo, N4P, "start\n").ok and emb(N4P, CIMG) == "-", "#6657 N4 setup: out again")
+r = Ca.patch(B + f"/api/wiki/pages/{N4P}", json={"body": stale4["body"]})
+g = img(N4T, N4P, CIMG)
+check(r.ok and emb(N4P, CIMG) is None and g == 404, f"#6657 N4: a save without expect_updated_at: nobody's ({r.status_code} {emb(N4P, CIMG)} {g})")
+check(wsave(Ca, N4P, "start\n").ok and wsave(Ca, N4P, stale4["body"]).ok and emb(N4P, CIMG) == uid["carol"] and img(N4T, N4P, CIMG) == 200,
+      f"#6657 N4: carol's own save on the current state puts it in: hers, it comes ({emb(N4P, CIMG)})")
+
 # ---- the guard: every place of the app that writes a page's text keeps wiki_embeds (pages.wiki_set_links, or the plain
 # DELETE of a text that goes behind a space's lock) -- a new write of wiki_pages.body without it is red here
 WRITES = re.compile(r"UPDATE wiki_pages SET (?:[^\"\n]*\bbody\s*=|\{)|INSERT INTO wiki_pages\b|DELETE FROM wiki_links\b")
@@ -861,11 +887,30 @@ dbx("UPDATE wiki_embeds SET node_id=999999 WHERE page_id=? AND node_id=?", (GP, 
 dbx("UPDATE wiki_pages SET updated_at=CAST(? AS timestamptz) + interval '1 second' WHERE id=?", (since, GP))
 dbx("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,999998,?,now())", (R4, uid["carol"]))
 check(restart(), "#6321 F6: the server is up again")
-check(emb(GP, 999999) == "-" and emb(GP, CIMG) is None and emb(GP, OIMG) == uid["carol"] and upd(GP) == uid["carol"],
-      f"#6321 F6: a page changed since the last start: the stale row went, the embed without a row is nobody's, the rest stays ({emb(GP, 999999)} {emb(GP, CIMG)} {emb(GP, OIMG)})")
+# 2.1368.0 (#6657): was "the rest stays" -- the page's updated_at was set by hand, not by this version (its stamp wem_at stayed
+# behind): then nobody stands for any of its pictures (re-check N2), also the one that stayed in the text
+check(emb(GP, 999999) == "-" and emb(GP, CIMG) is None and emb(GP, OIMG) is None and upd(GP) == uid["carol"],
+      f"#6321 F6 / #6657: a page changed since the last start: the stale row went, the embed without a row is nobody's, written without the stamp: all nobody's ({emb(GP, 999999)} {emb(GP, CIMG)} {emb(GP, OIMG)})")
 check(emb(R4, 999998) == uid["carol"] and one("SELECT value FROM settings WHERE key='wem_since6321'") > since,
       f"#6321 F6: a page not changed since is not opened again ({emb(R4, 999998)})")
 dbx("DELETE FROM wiki_embeds WHERE node_id=999998")
+
+# ---- 2.1368.0 (#6657, re-check N2): under a version without the stamp (a rollback; here a write by hand) carol takes her
+# picture out and bob puts it in again -- the text is the same, the row still says carol. The stamp (wem_at) stayed behind:
+# the next start sets all rows of the page to nobody; a page this version wrote keeps its rows
+N2P = wnew(Ca, "Kniff/Rueckfall", "# R\n" + FREMD)
+N2T = piclink(N2P)
+check(emb(N2P, CIMG) == uid["carol"] and img(N2T, N2P, CIMG) == 200 and one("SELECT wem_at=updated_at FROM wiki_pages WHERE id=?", (N2P,)),
+      f"#6657 N2 setup: carol's picture comes, the page is stamped ({emb(N2P, CIMG)})")
+check(wsave(Ca, R4c, wbody(Ca, R4c) + "\nneu\n").ok and one("SELECT wem_at=updated_at FROM wiki_pages WHERE id=?", (R4c,)),
+      "#6657: a save of this version stamps the page")
+dbx("UPDATE wiki_pages SET updated_at=now(), updated_by=? WHERE id=?", (uid["bob"], N2P))
+check(one("SELECT wem_at<>updated_at FROM wiki_pages WHERE id=?", (N2P,)), "#6657 N2 setup: a write without this version leaves the stamp behind")
+check(restart(), "#6657 N2: the server is up again")
+g = img(N2T, N2P, CIMG)
+check(emb(N2P, CIMG) is None and g == 404, f"#6657 N2: the page written without the stamp: its picture is nobody's, nothing comes ({emb(N2P, CIMG)} {g})")
+check(emb(R4c, CIMG) == uid["carol"] and img(piclink(R4c), R4c, CIMG) == 200, f"#6657 N2: a page this version wrote keeps its rows ({emb(R4c, CIMG)})")
+check(one("SELECT COUNT(*) FROM wiki_pages WHERE wem_at IS DISTINCT FROM updated_at") == 0, "#6657 N2: the start stamped every page")
 
 print(f"p2380r_h_api: {OKS[0]} ok, {len(FAILS)} failed", flush=True)
 sys.exit(1 if FAILS else 0)

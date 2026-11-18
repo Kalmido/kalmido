@@ -159,7 +159,11 @@ def wem_embeds_start(c):
     known), nobody (NULL) when the page has no editor any more.
     Every later start: only the pages changed since the start before (a version without wiki_embeds may have run in
     between, a rollback; else this finds nothing to do) -- a row whose picture is no longer in the text goes, an embed
-    without a row gets nobody. A text that cannot be opened keeps what it has (no row = no picture)."""
+    without a row gets nobody. A text that cannot be opened keeps what it has (no row = no picture).
+    2.1368.0 (#6657, re-check N2): and every page whose stamp (wiki_pages.wem_at, migrations.d/6657.py) does not match its
+    updated_at -- a version without the stamp (a rollback) or a hand wrote it: its rows may name someone who took the
+    picture out meanwhile while another put it in again, so ALL its rows go to nobody (then the rule above). At the end
+    every page is stamped (wem_at = updated_at)."""
     from .wkhist import WikiUnreadable, wkh_open
     since, ts = gsetting(c, WEM_SINCE), iso_ms(now_utc())
     try:
@@ -167,13 +171,17 @@ def wem_embeds_start(c):
     except ValueError:
         since = None
     last, n = 0, 0
+    stale = "(wem_at IS NOT NULL AND wem_at<>updated_at)"
     while True:
-        rows = c.execute("SELECT id, org_id, owner_id, body, updated_by FROM wiki_pages WHERE id>?"
-                         + (" AND updated_at>=?" if since else "") + " ORDER BY id LIMIT 500", (last, *([since] if since else ()))).fetchall()
+        rows = c.execute(f"SELECT id, org_id, owner_id, body, updated_by, {stale} AS stale FROM wiki_pages WHERE id>?"
+                         + (f" AND (updated_at>=? OR {stale})" if since else "") + " ORDER BY id LIMIT 500",
+                         (last, *([since] if since else ()))).fetchall()
         if not rows:
             break
         for r in rows:
             last = r["id"]
+            if r["stale"]:  # 2.1368.0 (#6657): written without the stamp -- nobody stands for its pictures any more
+                n += c.execute("UPDATE wiki_embeds SET user_id=NULL WHERE page_id=? AND user_id IS NOT NULL", (r["id"],)).rowcount
             try:
                 ids = set(wem_img_ids(wkh_open(c, r["org_id"], r["owner_id"], r["body"])))
             except WikiUnreadable:
@@ -185,6 +193,7 @@ def wem_embeds_start(c):
             for nid in sorted(ids - have):
                 n += c.execute("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,?,?,CURRENT_TIMESTAMP) "
                                "ON CONFLICT (page_id,node_id) DO NOTHING", (r["id"], nid, who)).rowcount
+    c.execute("UPDATE wiki_pages SET wem_at=updated_at WHERE wem_at IS DISTINCT FROM updated_at")  # 2.1368.0 (#6657)
     gset(c, WEM_SINCE, ts)
     return n
 
