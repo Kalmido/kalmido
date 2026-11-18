@@ -19,6 +19,7 @@ from ..core.access import Denied
 from ..core.errors import BadInput, UnknownFields
 from ..tasks.validation import valid_hm
 from ..accounts.session import me
+from ..accounts.orgs import op_apart_deny, op_foreign_account, op_support_deny, op_support_only  # 2.1389.0 (#7005 F3)
 from ..agents.core import agent_emit, agent_row, is_agent, may_set_runtime
 from ..agents.chat import CHOICES_MAX
 from ..collab.comments import PUSH_BURST_SKIP, PUSH_FILTERS
@@ -256,7 +257,6 @@ def ws_need_editor(c, aid):
     if not a or is_agent(g.user) or not may_set_runtime(c, a, me()):
         raise Denied(404)
     if not a["owner_id"]:  # 2.1389.0 (#7005 F3): a team agent -- on a hosted instance, a client's is not the operator's (#2687)
-        from ..accounts.orgs import op_apart_deny, op_foreign_account, op_support_deny, op_support_only
         if op_foreign_account(c, a["user_id"]):
             op_apart_deny()
         if request.method not in ("GET", "HEAD") and op_support_only(c, uid=a["user_id"]):
