@@ -57,7 +57,8 @@ from ..accounts.orgout import oo_exported  # 2.362.3 (#3101)
 from ..accounts.pictures import avatar_path
 from ..accounts.session import me
 from ..docs.store import doc_open  # 2.1334.0 (#6585): my notes on an organisation's documents (org_doc_notes)
-from .orgexport import EXPORT_DIR, OX_SECRET_COLS, _Man, _jdef, _safe_part, _under, ox_pb_parts, ox_private_docs, ox_read_listed
+from .orgexport import (EXPORT_DIR, OX_SECRET_COLS, _Man, _jdef, _safe_part, _under, ox_history_vals, ox_pb_parts, ox_private_docs,
+                        ox_read_listed)
 from .exportleft import left_lines, umz_later_names, umz_left_tables  # 2.362.4 (#3107), 2.531.0 (#4317); 2.1093.0 (#5289): + the core's register
 from .offsite import stepup_download  # 2.360.0 A (#2496): the step-up before the download
 from ..core.orgcrypt import OrgCryptError, oc_read_file  # 2.149.0 G (#2517): pulled up from functions
@@ -281,6 +282,8 @@ def umz_clean(table, r):
     d = {k: v for k, v in dict(r).items() if k not in OX_SECRET_COLS}
     if table == "settings" and d.get("key") in SETTINGS_SERVER_ONLY:
         return None  # review N5: server-side state (ntfy_topic is set by an admin only, digest marks, ...)
+    if table == "my_history":  # 2.1378.0 (#6938 F2): a secret-like field never leaves inside the history's values (as orgexport _clean)
+        ox_history_vals(d)
     if table == "webhooks" and "url" in d:
         d["url_hint"] = cal_url_hint(d.pop("url"))  # review N5: a Slack / Teams webhook address is itself the secret
     return umz_export_clean(table, d)
@@ -321,8 +324,12 @@ def umz_people(c, uid, salt=None):
 
 
 # 2.1334.0 (#6585 T13 3): the files and voice messages a person sent in direct messages and in the rooms of their private space
+# 2.1378.0 (#6938 F1): a list's channel has no org_id (collab/teamchat.py tchat_list_room) -- only the channels of the person's
+# own private lists (an organisation's project channel is in its export, admin/orgexport.py RSQ); direct messages and group
+# conversations (no organisation's room, in no organisation export) stay. Two "?": the person.
 UMZ_TCHAT_FILES = (f"FROM tchat_files f JOIN tchat_rooms r ON r.id=f.room_id JOIN tchat_msgs m ON m.id=f.message_id AND {live_sql('m')} "
-                   "WHERE f.user_id=? AND (r.kind='dm' OR r.org_id IS NULL)")
+                   "WHERE f.user_id=? AND (r.kind IN ('dm','group') OR (r.kind='list' AND r.list_id IN "
+                   "(SELECT id FROM lists WHERE owner_id=? AND org_id IS NULL)))")
 
 
 def umz_extra_queries(uid):
@@ -449,8 +456,9 @@ def umz_extra_queries(uid):
         # 2.1334.0 (#6585, audit #4808 T13): the files and voice messages I sent in direct messages and in the rooms of my private
         # space (an organisation's rooms: its export); the bytes under files/chat/ (umz_build)
         "chat_message_files": ("SELECT f.id, f.message_id, f.room_id, r.kind AS room_kind, f.name, f.mime, f.size, f.voice, f.duration_ms, "
-                               f"f.created_at {UMZ_TCHAT_FILES} ORDER BY f.id", (uid,)),
-        # Art. 15 (#6585 T13 7): my account's own row (never a secret: OX_SECRET_COLS and umz_account_row), the organisations I am
+                               f"f.created_at {UMZ_TCHAT_FILES} ORDER BY f.id", (uid, uid)),
+        # Art. 15 (#6585 T13 7): my account's own row (never a secret: the listed columns, OX_SECRET_COLS in umz_clean; 2.1378.0
+        # (#6938 F3): was named umz_account_row, which does not exist), the organisations I am
         # a member of with my role, and the sign-in addresses this server keeps of me
         "account": ("""SELECT id, username, display_name, email, email_proved, kind, kid, color, created_at, signup, disabled,
                        is_admin, storage_quota_mb, delete_at FROM users WHERE id=?""", (uid,)),
@@ -736,7 +744,7 @@ def umz_build(c, uid, stream, export_id):
         for table, kind, sql in (("chat_files", "chat", "SELECT f.id, f.name, f.path FROM chat_files f JOIN agent_chat m ON m.id=f.message_id "
                                                         "WHERE m.user_id=? ORDER BY f.id"),
                                  ("chat_message_files", "tchat", f"SELECT f.id, f.name, f.path {UMZ_TCHAT_FILES} ORDER BY f.id")):
-            for r in c.execute(sql, (uid,)).fetchall():
+            for r in c.execute(sql, (uid,) * sql.count("?")).fetchall():  # 2.1378.0 (#6938 F1): two in UMZ_TCHAT_FILES
                 sig = inf.get((kind, int(r["id"]), 0))
                 if sig is not None:
                     locked.append({"area": table, "id": r["id"], "name": r["name"] or "", "signature": sig})
