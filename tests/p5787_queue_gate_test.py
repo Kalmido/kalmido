@@ -36,6 +36,11 @@ check(len(hard) > 20 and all(any(gate.hard_suite(s, pats, {}) for g2, s, _ in re
 # that drops "office" would take them out of both without a word
 for s_ in ("p6700_office_issuer_clients", "p21381_office_issuer_key"):
     check(repo.group_of.get(s_) in hard and gate.hard_suite(s_, pats, {}), f"{s_}: a hard suite, its group in the queue / release stage")
+# 2.1397.0 (#7113, review F13): this guard itself is hard - soft, it ran in no stage before live (the queue runs hard groups only);
+# its group holds no other suite (a UI or container suite would turn hard with it)
+g_ = repo.group_of.get("p5787_queue_gate")
+check(g_ in hard and gate.hard_suite("p5787_queue_gate", pats, {}) and [s for g2, s, _ in repo.rows if g2 == g_] == ["p5787_queue_gate"],
+      "p5787_queue_gate: a hard suite in a group of its own")
 reason, groups = stages.queue(repo, ["README.md"], None, None)
 st, _, push_groups, _ = stages.select(repo, ["README.md"])
 check(set(hard) <= set(groups) and len(groups) < len(push_groups) and len(groups) < len(repo.first) / 3,
