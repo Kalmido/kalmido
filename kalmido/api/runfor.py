@@ -142,6 +142,7 @@ def req_main_gate(c, row, u):
     if a is None or a["owner_id"] or not a["per_request"]:
         return None
     if req_main_open(run_key(request.method, request.url_rule.rule)):
+        g.req_main = True  # review R3 F4: lists/sections.py need_filter holds a shared view for this token
         return None
     return v1_err(403, tr("This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)"),
                   name="request_token_needed")
@@ -325,8 +326,8 @@ RUN_ROUTES = {
     "POST /files/{}/versions": ("cap", "v1_file_version kalmido/files/v1.py -> need_node(write); only kind file"),
     "GET /filters": ("own", "SELECT filters WHERE user_id=me AND list_id IS NULL kalmido/api/scopes.py"),
     "POST /filters": ("own", "filter_create kalmido/lists/sections.py (branch list_id None)"),
-    "DELETE /filters/{}": ("own", "the agent's own filter; a project's view by the cut"),
-    "PATCH /filters/{}": ("own", "the agent's own filter; a project's view by the cut"),
+    "DELETE /filters/{}": ("own", "the agent's own filter; a project's view by the cut (the long-lived token per request: none, lists/sections.py need_filter)"),
+    "PATCH /filters/{}": ("own", "the agent's own filter; a project's view by the cut (the long-lived token per request: none, lists/sections.py need_filter)"),
     "GET /focus": ("noagent", "v1f_person kalmido/personal/v1focus.py (need_person 403, first statement of the view)"),
     "POST /focus/start": ("noagent", "v1f_person kalmido/personal/v1focus.py (need_person 403, first statement of the view)"),
     "GET /focus/stats": ("noagent", "v1f_person kalmido/personal/v1focus.py (need_person 403, first statement of the view)"),
