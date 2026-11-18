@@ -299,6 +299,15 @@ for t, what in (("toolu_m7", "a job of the asker on the task with a log"), ("too
     check("ERROR" in res.get(t, "") and "approval" in res.get(t, ""), f"#6297 (10) F1: {what} needs an approval card {res.get(t, '')[:240]!r}")
 check("ERROR" not in res.get("toolu_m9", "ERROR"), f"#6297 (10) F1: a job of the asker without a task stays free {res.get('toolu_m9', '')[:240]!r}")
 check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND log LIKE '%INJECTED%'", (TMA,)), "#6297 (10) F1: no log line on a task's job")
+# 2.1364.0 (#6297 (10), Fable F4): the title of a job on a task shows at the task too - a new one needs a card
+check("ERROR" in res.get("toolu_m10", "") and "approval" in res.get("toolu_m10", ""),
+      f"#6297 (10) F4: a new title on the asker's job on the task needs an approval card {res.get('toolu_m10', '')[:240]!r}")
+check(dbx("SELECT 1 FROM agent_jobs WHERE id=? AND title=?", (TJ, "asker's task job")), "#6297 (10) F4: the task job's title stays")
+# Fable F5: the status model stands in the agent's chat head - only the run's own model stays free
+check("ERROR" in res.get("toolu_m11", "") and "approval" in res.get("toolu_m11", ""),
+      f"#6297 (10) F5: a status model other than the run's needs an approval card {res.get('toolu_m11', '')[:240]!r}")
+check("ERROR" not in res.get("toolu_m12", "ERROR"), f"#6297 (10) F5: the run's own model stays free {res.get('toolu_m12', '')[:240]!r}")
+check(not dbx("SELECT 1 FROM agents WHERE user_id=? AND host_info LIKE '%INJECTED%'", (TMA,)), "#6297 (10) F5: no foreign model in the chat head")
 check(dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND user_id=? AND title='web job ok' AND task_id IS NULL", (TMA, AU)),
       "#6297 (10) F1: the asker's job without a task was made")
 check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND title LIKE 'INJECTED%'", (TMA,)), "#6297 (10): no job for the other person")
