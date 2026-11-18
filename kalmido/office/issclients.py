@@ -86,6 +86,7 @@ INTEG_TEXT.update({
 })
 ISC_LIMIT_CLIENTS = N_("new clients within 24 hours")
 ISC_LIMIT_CHANGES = N_("changes of clients within 24 hours")
+ISC_MAIL_CLIENT = N_("one of its clients")  # #7113 (review F10): the security mail names no client (its name is the key's text)
 # review F6: changes of its clients a key makes within 24 hours (rolling). Each is a line of the office log, which is never
 # pruned, and a history entry that never merges; 60 calls a minute alone would allow ~86,000 a day. A constant, no limit an
 # admin sets (no column): a platform with more changes a day asks for a higher one.
@@ -428,7 +429,9 @@ def _flags_of(r):
 
 def _tell(c, iss, r):
     if _iss_once(c, iss, "client"):
-        iss_tell(c, iss["org_id"], iss, "issuer_client", (r["name"] if not isinstance(r, dict) else r.get("name")) or "", security=True)
+        # #7113 (review F10): the client's name (free text of the key) only in the app's News, never in the security mail
+        iss_tell(c, iss["org_id"], iss, "issuer_client", (r["name"] if not isinstance(r, dict) else r.get("name")) or "", security=True,
+                 mail_detail=ISC_MAIL_CLIENT)
 
 
 def _create(c, iss, oid, ref, b, actor):

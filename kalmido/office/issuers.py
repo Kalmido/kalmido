@@ -166,15 +166,16 @@ def _who(c, uid):
     return ((u["display_name"] or u["username"]) or "") if u else ""
 
 
-def iss_tell(c, oid, iss, what, detail="", who="", besides=None, security=None):
+def iss_tell(c, oid, iss, what, detail="", who="", besides=None, security=None, mail_detail=None):
     """An issuer's notice to the admins of its area (News + push by their settings), besides = not to this person (the one who
     acted). A security notice (ISS_SECURITY, or security=True) goes to every admin by e-mail as well, whatever their settings
-    say (a hijacked session must not stay unnoticed; in a personal office there is nobody else). The caller commits."""
+    say (a hijacked session must not stay unnoticed; in a personal office there is nobody else). mail_detail: the mail's
+    detail when it must not carry the News' one (#7113: no text a key wrote goes into a mail from Kalmido). The caller commits."""
     admins = iss_admins(c, oid)
     name = iss["name"] or f"#{int(iss['id'])}"
     integ_tell(c, [u for u in admins if u != besides], what, name, detail, click="office/settings", more=(who,), issuer_id=int(iss["id"]))
     if security if security is not None else what in ISS_SECURITY:
-        iss_mail(c, admins, what, name, detail, who)
+        iss_mail(c, admins, what, name, detail if mail_detail is None else mail_detail, who)
 
 
 def iss_mail(c, uids, what, name, detail="", who=""):
