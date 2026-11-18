@@ -1215,6 +1215,7 @@ The start-up module.
 - `static/js/wklive.js` (`wklv`) - Slash commands of the knowledge editor, the task search, reading styles
 - `static/js/wkarea.js` (`wkar`) - The whole knowledge area shared with an agent: Share whole knowledge area…, Exclude folders…, the marks (#5823)
 - `static/js/wkdoc.js` - @ts-check
+- `static/js/wkpresent.js` (`wkp`) - A knowledge page as a presentation: "Present" in the page's "…", slides at # / ## (#5525)
 - `static/js/wkshare.js` (`wsh`) - Read-only shares of knowledge pages (wiki.js)
 - `static/js/wktags.js` (`wkt`) - 2.371 tags of knowledge pages and the `
 - `static/js/workspace.js` (`ws`) - Workspaces: "Private" and the organisations a person belongs to, and the sidebar switch that shows one of them or all

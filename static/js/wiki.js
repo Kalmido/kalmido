@@ -1212,12 +1212,14 @@ function wk_pmenuItems(p) {
     {label: tr('Copy as [[link]]'), icon: 'copy', fn: () => { navigator.clipboard?.writeText(`[[${p.path}]]`).then(() => toast(tr('Reference copied')));  /* 2.1168.0 (#6091) */ }}];
   const view = [...(typeof wkst_items === 'function' ? wkst_items(p) : []), ...(typeof pgw_items === 'function' ? pgw_items('wiki', p.id) : [])];
   const hist = typeof wkh_items === 'function' ? wkh_items(p) : [];  // 2.123.0 A (#2102): the page history (wkhist.js)
+  // 2.1368.0 (#5525): Present first under Page, also for who may only read (wkpresent.js, loaded on the click)
+  const pres = wk_bodyStrip(p.body).trim() && S.me?.kind !== 'agent' ? [{label: tr('Present'), icon: 'play', fn: () => { loadModule('wkpresent').then(() => wkp_open(p)).catch(() => {}); }}] : [];
   // 2.1163.0 (#6089): in groups - Page / Folder / View on this device, Delete last and set apart. The moves and shares of the page's
   // folder (wk_smvItems, wsh_menuItems: their entries with the folder symbol) go to "Folder"
-  if (!may) return [{head: tr('Page')}, ...hist, ...link, ...wk_docItems(p) /* 2.1151.0 D (#5524): reading people download the page too */, ...(view.length ? [{head: tr('View on this device')}, ...view] : []), ...(top.length ? ['-', ...top] : [])];
+  if (!may) return [{head: tr('Page')}, ...pres, ...hist, ...link, ...wk_docItems(p) /* 2.1151.0 D (#5524): reading people download the page too */, ...(view.length ? [{head: tr('View on this device')}, ...view] : []), ...(top.length ? ['-', ...top] : [])];
   const both = [...wk_smvItems(p) /* 2.96.0 B (#1941) */, ...(typeof wsh_menuItems === 'function' ? wsh_menuItems(p) : []) /* 2.123.0 B (#2104): Share… / Share folder… */];
   const fold = [...(p.path.includes('/') ? [{label: tr('Rename folder…'), icon: 'folder', fn: () => wk_moveFolder(p)}] : []), ...both.filter(x => x.icon === 'folder')];
-  return [{head: tr('Page')}, {label: tr('Rename…'), icon: 'edit', fn: () => wk_rename(p)}, ...both.filter(x => x.icon !== 'folder'), ...hist, ...link, ...wk_docItems(p) /* 2.1151.0 D (#5524): the page as PDF / Word */,
+  return [{head: tr('Page')}, ...pres, {label: tr('Rename…'), icon: 'edit', fn: () => wk_rename(p)}, ...both.filter(x => x.icon !== 'folder'), ...hist, ...link, ...wk_docItems(p) /* 2.1151.0 D (#5524): the page as PDF / Word */,
     ...(typeof wem_cbItems === 'function' ? wem_cbItems(p) : []),  // 2.1163.0 (#6089): "Open items as tasks" (was a big button above the text)
     ...(fold.length ? [{head: tr('Folder')}, ...fold] : []),
     {head: tr('View on this device')}, ...wk_modeItems(p) /* 2.554.0 (#4052): Edit as Markdown (the way out) / Read only */, ...view,  // 2.371.3 (#3152): reading style; 2.599.0 (#4808): the page's width
