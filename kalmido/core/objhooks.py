@@ -30,6 +30,8 @@ MOVE = []  # 2.972.0 (#5272): f(c) that core/db.init_db runs at every start befo
 #            of old tables into the core (core/objcomments.py ocm_move) before its fragment drops them
 USER_GONE = []  # 2.972.0 (#5272): f(c, uid) before account uid goes (accounts/users.py): the core's rows of the person
 #                 (core/objcomments.py ocm_purge_user: the kept texts of its deleted comments, its mentions)
+USER_LOCKED = []  # #6978 F6: f(c, uid) when account uid is locked (accounts/users.py, admin/operator.py, admin/selfdelete.py):
+#                   what works in the person's name and must end at once (agents/reqtoken.py req_drop_person: request tokens)
 # 2.1076.0 (#5271, review): the area relations of the links' core (core/objlinks.py olnk_rel registers only these; the boundary
 # check accounts/tenancy.py leaves them to their area's own checks) -- one list, read without importing the links' core
 OLNK_AREA_RELS = ("made", "device", "contact", "answers", "reply")
@@ -45,6 +47,12 @@ def person_revoked(c, uid, org, reason, heir=None, role=None):
     for f in REVOKE:
         out.update(f(c, uid, org, reason, heir=heir, role=role) or {})
     return out
+
+
+def person_locked(c, uid):
+    """#6978 F6: account uid is locked: every USER_LOCKED hook (the caller commits)."""
+    for f in USER_LOCKED:
+        f(c, uid)
 
 
 def obj_boundary(c, table, oid, uid):
