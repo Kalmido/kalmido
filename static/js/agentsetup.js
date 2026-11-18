@@ -11,9 +11,13 @@ const ains_lang = () => { const l = (LS.get('lang') || S.settings?.lang || 'en')
 // 2.360.0 C (#2496): the scripts take http:// only for localhost or with --allow-http (a Kalmido without https); on Mac /
 // Linux the code goes in the environment, not on the command line (process list); 2.360.0 R (#2496, review): on Windows too
 const ains_http = url => /^http:\/\/(?!(localhost|127\.0\.0\.1|\[::1\])(:|\/|$))/i.test(url);
-function ains_command(os, url, code, folder) {
-  if (os === 'windows') return `$env:KALMIDO_SETUP_CODE=${ains_pq(code)}; & ([scriptblock]::Create((irm ${ains_pq(url + '/agent-setup.ps1')}))) -Url ${ains_pq(url)} -Dir ${ains_pq(folder)} -Lang ${ains_lang()}${ains_http(url) ? ' -AllowHttp' : ''}`;
-  return `curl -fsSL ${ains_q(url + '/agent-setup.sh')} | KALMIDO_SETUP_CODE=${code} bash -s -- --url ${ains_q(url)} --dir ${ains_q(folder)} --lang ${ains_lang()}${ains_http(url) ? ' --allow-http' : ''}`;
+// 2.1367.0 (#2700): the rules template for the project folder: General (the Kalmido rules) or Software development (+ the rules
+// for building software and BRIEF-TEMPLATE.md); only a choice other than General goes into the command
+const AINS_TPL = [['general', N_('General')], ['software', N_('Software development')]];
+function ains_command(os, url, code, folder, tpl) {
+  const sw = tpl === 'software';
+  if (os === 'windows') return `$env:KALMIDO_SETUP_CODE=${ains_pq(code)}; & ([scriptblock]::Create((irm ${ains_pq(url + '/agent-setup.ps1')}))) -Url ${ains_pq(url)} -Dir ${ains_pq(folder)}${sw ? ' -Template software' : ''} -Lang ${ains_lang()}${ains_http(url) ? ' -AllowHttp' : ''}`;
+  return `curl -fsSL ${ains_q(url + '/agent-setup.sh')} | KALMIDO_SETUP_CODE=${code} bash -s -- --url ${ains_q(url)} --dir ${ains_q(folder)}${sw ? ' --template software' : ''} --lang ${ains_lang()}${ains_http(url) ? ' --allow-http' : ''}`;
 }
 const ains_folderHint = os => os === 'windows' ? '~\\projects\\website' : '~/projects/website';
 const ains_osName = os => tr((AINS_OS.find(x => x[0] === os) || ['', ''])[1]) || '';
@@ -62,6 +66,8 @@ function ains_setupModal(a, base) {
     <div class="row"><label>${tr('Computer')}</label><div class="seg" role="tablist" id="ains-os">${AINS_OS.map(([v, n]) => `<button type="button" role="tab" data-ainsos="${v}" aria-selected="${v === os}" class="${v === os ? 'on' : ''}">${tr(n)}</button>`).join('')}</div></div>
     <div class="row"><label for="ains-dir">${tr('Project folder')}</label><input id="ains-dir" maxlength="300" autocapitalize="off" autocomplete="off" spellcheck="false" aria-describedby="ains-dirhint"></div>
     <div class="shint keep" id="ains-dirhint">${esc(tr('The folder the agent works in, e.g. {0}', ains_folderHint(os)))}</div>${''/* 2.366.0 (#3001): an example under the field, a placeholder looked like a filled-in value */}
+    <div class="row"><label for="ains-tpl">${tr('Rules template')}</label><select id="ains-tpl" aria-describedby="ains-tplhint">${AINS_TPL.map(([v, n]) => `<option value="${v}">${esc(tr(n))}</option>`).join('')}</select></div>
+    <div class="shint keep" id="ains-tplhint">${esc(tr('Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.'))}</div>
     <div class="row"><label></label><button class="btn pri" data-m="ains-make">${ic('key', 's')} ${tr('Create command')}</button></div>
     <div id="ains-out" hidden>
       <div class="shint keep" id="ains-how"></div>
@@ -100,7 +106,7 @@ function ains_setupModal(a, base) {
       b.disabled = true; show('');
       try {
         const r = await api('POST', base + '/setup-code', {os, folder: dir});
-        $('#ains-cmd', md).value = ains_command(os, location.origin, r.code, dir); $('#ains-cmd', md).classList.remove('off');
+        $('#ains-cmd', md).value = ains_command(os, location.origin, r.code, dir, $('#ains-tpl', md).value); $('#ains-cmd', md).classList.remove('off');
         $('#ains-how', md).textContent = os === 'windows' ? tr('Open PowerShell on the computer, paste the command and press Enter.') : tr('Open the Terminal on the computer, paste the command and press Enter.');
         $('#ains-out', md).hidden = false;
         exp = new Date(r.expires_at).getTime(); clearInterval(timer); timer = setInterval(tick, 30000); tick();
@@ -118,6 +124,7 @@ function ains_setupModal(a, base) {
       try { const j = await api('DELETE', `${base}/machines/${mc.id}`); $('#ains-ms', md).innerHTML = ains_machinesHtml(j.machines || []); md._ms = j.machines || []; toast(tr('Computer removed')); } catch (x) { show(x.message); }
     }
   });
+  $('#ains-tpl', md).addEventListener('change', () => { $('#ains-out', md).hidden = true; });  // 2.1367.0 (#2700): the command shown was made for the other template
   ms();
   setTimeout(() => $('#ains-dir', md)?.focus(), 0);
   return md;
