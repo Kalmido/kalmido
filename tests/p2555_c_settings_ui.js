@@ -86,7 +86,8 @@ const FEATS = 'cal,timeline,matrix,kanban,collab,progress,deps,fields,comments,a
     // a browser without Web Push (jsdom has none): the sentence once, in the status line on top, not again under "This device"
     w.eval(`wpDraw(document.querySelector('.smodal'))`);
     check(await until(() => txt(np.querySelector('#s-pushnow')) && !/Loading/.test(txt(np.querySelector('#s-wp'))) && np), 'Notifications: the device part is drawn');
-    check(count(np.textContent, 'This browser does not support Web Push') === 1, 'without Web Push: the sentence once: ' + count(np.textContent, 'This browser does not support Web Push'));
+    // 2.1391.0 (#6130): everyday words
+    check(count(np.textContent, 'This browser cannot show notifications') === 1, 'without Web Push: the sentence once: ' + count(np.textContent, 'This browser cannot show notifications'));
     check(!np.querySelector('[data-m="wp-test"]'), 'no device test without a subscribed device');
   }
   // the assistant under its sub-tab: no second heading, no row label of the same name

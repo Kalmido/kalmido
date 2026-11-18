@@ -6,7 +6,11 @@
 const SES_VIA = {password: N_('Password'), '2fa': N_('Password and second factor'), passkey: N_('Passkey'), oidc: N_('Single sign-on'),
   invite: N_('Invitation link'), link: N_('Sign-in link'), support: N_('Support (support access)')};
 const sesHtml = () => `<h4 id="s-ses-h">${tr('Active sessions')}</h4><div id="s-ses" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div>`;
-const sesName = s => s.browser && s.system ? tr('{0} on {1}', s.browser, s.system) : s.browser || s.system || tr('Unknown device');
+// 2.1391.0 (#6130): a session without a known browser and system (a script, a tool like "node" or "curl") is a "Program / script",
+// not its raw name (that stays in the row's hint)
+const SES_BROWSERS = ['Edge', 'Opera', 'Samsung Internet', 'Firefox', 'Chrome', 'Safari'];
+const sesProg = s => !!s.browser && !s.system && !SES_BROWSERS.includes(s.browser);
+const sesName = s => sesProg(s) ? tr('Program / script') : s.browser && s.system ? tr('{0} on {1}', s.browser, s.system) : s.browser || s.system || tr('Unknown device');
 function sesIcon(s) { return ic(s.device === 'phone' || s.device === 'tablet' ? 'phone' : 'laptop', 's'); }
 async function sesDraw(md) {
   const box = $('#s-ses', md); if (!box) return;
@@ -14,7 +18,7 @@ async function sesDraw(md) {
   box._j = j;
   const day = x => x ? fmtDateNum(new Date(x)) : '';  // 2.368.0 B (#2982): one locale source
   const others = j.sessions.filter(s => !s.current).length;
-  box.innerHTML = (j.sessions.length ? `<div class="members seslist">${j.sessions.map(s => `<div class="mrow sesrow" data-sid="${esc(s.sid)}"><span class="avatar">${sesIcon(s)}</span>
+  box.innerHTML = (j.sessions.length ? `<div class="members seslist">${j.sessions.map(s => `<div class="mrow sesrow" data-sid="${esc(s.sid)}"${sesProg(s) ? ` title="${esc(s.browser)}"` : ''}><span class="avatar">${sesIcon(s)}</span>
       <span class="n"><b>${esc(sesName(s))}</b>${s.current ? ` <span class="tfastate on sescur">${tr('This device')}</span>` : ''}
       <small class="muted">${esc([s.current ? tr('active now') : tr('last active {0}', relTime(s.last_seen_at)), tr('signed in since {0}', day(s.created_at)), tr(SES_VIA[s.via] || SES_VIA.password)].join(' · '))}</small></span>
       <button class="btn sm" data-ses="end" aria-label="${esc(tr('Sign out {0}', sesName(s)))}">${ic('logout', 's')} ${tr('Sign out')}</button></div>`).join('')}</div>`

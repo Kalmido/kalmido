@@ -119,9 +119,9 @@ const subs = (md, sec) => [...md.querySelectorAll(`[data-pane="${sec}"] [data-ad
   const ros = [...md.querySelectorAll('#s-ws select[data-wsrole] option')].map(o => o.textContent);
   check(w.eval(`tr(ROLES.find(r => r[0] === 'view')[1])`) === 'Nur ansehen' && ros.includes('Nur ansehen') && !ros.some(t => /Betrachter|Read-only/.test(t)), 'German: "Nur ansehen" for projects and organisations: ' + [...new Set(ros)].join('|')); // 2.831.0 (#5481): Nur ansehen
   check(/Personen einladen/.test(md.querySelector('#s-ws').textContent), 'German: "Personen einladen"');
-  // #3044: everyday words (old -> new in the report); 2.800.0 (#5441): 'Swimlanes' is 'Gruppieren nach' (was 'Zeilen')
+  // #3044: everyday words (old -> new in the report); 2.1391.0 (#6130): 'Web Push' is 'Browser notification' now; 2.800.0 (#5441): 'Swimlanes' is 'Gruppieren nach' (was 'Zeilen')
   const W = {'Tab bar': 'Leiste unten', 'Swimlanes': 'Gruppieren nach', 'Block': 'Kachel', 'Lying idle': 'Unberührt', 'Host default': 'Vorgabe des Servers', 'Show the celebration': 'Kleine Feier zeigen',
-    'Copy as [[link]]': 'Als Verweis kopieren', 'Web Push': 'Browser-Push', 'ntfy topic': 'ntfy-Thema', 'Pipeline, weighted': 'Anfragen nach Chance', 'Advanced': 'Erweitert', 'For advanced users': 'Für Fortgeschrittene'};
+    'Copy as [[link]]': 'Als Verweis kopieren', 'Browser notification': 'Browser-Benachrichtigung', 'ntfy topic': 'ntfy-Thema', 'Pipeline, weighted': 'Anfragen nach Chance', 'Advanced': 'Erweitert', 'For advanced users': 'Für Fortgeschrittene'};
   const bad = Object.entries(W).filter(([k, v]) => w.eval(`tr(${JSON.stringify(k)})`) !== v).map(([k]) => k + '=' + w.eval(`tr(${JSON.stringify(k)})`));
   check(!bad.length, 'German everyday words: ' + bad.join(' | '));
   w.close();
