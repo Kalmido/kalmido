@@ -21,7 +21,7 @@ from ..events.invite import evi_after_delete, evi_after_restore, evi_after_save,
 from ..events.invite import evi_cal_cancel  # 2.947.0 (#5367)
 from ..events.model import ev_tell  # 2.947.0 (#5367)
 from ..api.common import v1_call  # 2.149.0 G (#2517): pulled up from functions
-from ..tasks.tasks import task_create  # 2.369.5 (#2517): pulled up from functions
+from ..tasks.tasks import task_create, task_no_origin  # 2.369.5 (#2517): pulled up from functions; 2.1389.0 (#7005)
 from ..core.errors import UnknownFields  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import obj_org_set, ws_fit_problem  # 2.369.5 (#2517): pulled up from functions
 from ..core.conflict import Conflict  # 2.564.0 (#4701/#4702)
@@ -327,7 +327,11 @@ def op_prep_task(c, uid, eid, b):
     tb = {"title": (b.get("title") or tr("Prepare: {0}", r["title"]))[:EV_TITLE_MAX], "due": d0.isoformat()}
     if b.get("list_id") not in (None, ""):
         tb["list_id"] = as_int(b["list_id"], "list_id", 1)
-    t = v1_call(task_create, body=tb)
+    if (b.get("title") or "").strip():
+        t = v1_call(task_create, body=tb)
+    else:  # 2.1389.0 (#7005 F2): "Prepare: <event title>" -- the event's title may come from somebody else's invitation: no origin mark
+        with task_no_origin():
+            t = v1_call(task_create, body=tb)
     c.execute("UPDATE events SET task_id=?, updated_at=?, updated_by=? WHERE id=?", (t["id"], iso_ms(now_utc()), uid, eid))  # 2.571.0 (#4776)
     cal_touch(c, r["cal_id"])
     bump(c)
