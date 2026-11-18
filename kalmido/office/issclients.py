@@ -41,6 +41,7 @@ from flask import g, jsonify, request
 
 from ..api.common import v1_err, v1_view
 from ..collab.integfail import INTEG_TEXT
+from ..core.access import live_sql
 from ..core.config import app
 from ..core.conflict import Conflict
 from ..core.db import bump, iso, iso_ms, now_utc
@@ -215,7 +216,7 @@ def isc_lookalike(c, oid, cid, name, vat):
     n = " ".join((name or "").split()).lower()
     if not n and not vat:
         return False
-    q = (f"SELECT 1 FROM clients WHERE {_area_sql(c, oid)} AND deleted_at IS NULL AND id<>? AND "
+    q = (f"SELECT 1 FROM clients WHERE {_area_sql(c, oid)} AND {live_sql()} AND id<>? AND "
          "(lower(regexp_replace(btrim(name), '\\s+', ' ', 'g'))=? OR (?<>'' AND vat_id=?)) LIMIT 1")
     with system_ctx(c):  # existence only, across the area (a client the key does not own counts too)
         return c.execute(q, (int(cid or 0), n, vat or "", vat or "")).fetchone() is not None

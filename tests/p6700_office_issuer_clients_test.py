@@ -55,7 +55,7 @@ V = B + "/api/v1"
 CR = "/issuer/clients/by-ref/"
 TODAY = __import__("datetime").date.today().isoformat()
 COMPANY = {"name": "Studio Nordlicht", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE",
-           "email": "hallo@nordlicht.example", "tax_number": "12/345/67890", "iban": "DE02120300000000202051", "bic": "BYLADEM1001"}
+           "email": "hallo@nordlicht.example", "phone": "+49 40 1234567", "tax_number": "12/345/67890", "iban": "DE02120300000000202051", "bic": "BYLADEM1001"}
 # the issuer functions of office/issuers.py ISS_REUSED this suite runs with the issuer's context (the PUT / GET below)
 REUSED_HERE = ("team.clients.clean_client", "office.owrite.ow_write", "office.owrite.ow_created")
 
@@ -394,4 +394,4 @@ check(r.ok, f"private office: the owner takes the mark away {r.status_code} {r.t
 r = Fr.post(B + f"{D}/{FDOC}/finalize", json={})
 check(r.ok, f"private office: finalised after the check without a confirmation {r.status_code} {r.text[:160]}")
 
-kt.done("p6700_office_issuer_clients")
+sys.exit(kt.done("p6700_office_issuer_clients"))
