@@ -1047,6 +1047,9 @@ TEXTS = {
     "status_no_request": {"en": "Skipped a request: no token for the person who asked", "de": "Eine Anfrage übersprungen: kein Token für die anfragende Person",
                           "fr": "Une demande ignorée : aucun jeton pour la personne qui l'a faite", "es": "Se omitió una solicitud: no hay token para la persona que la hizo",
                           "it": "Richiesta saltata: nessun token per la persona che l'ha fatta", "nl": "Een verzoek overgeslagen: geen token voor de persoon die het vroeg"},
+    "status_req_expired": {"en": "Request token expired: a job could not go on", "de": "Anfrage-Token abgelaufen: Ein Job konnte nicht weiterarbeiten",
+                           "fr": "Jeton de requête expiré : une tâche n'a pas pu continuer", "es": "Token de solicitud caducado: un trabajo no pudo continuar",
+                           "it": "Token di richiesta scaduto: un job non ha potuto continuare", "nl": "Verzoektoken verlopen: een taak kon niet verder"},
     "status_run_failed": {"en": "The last run failed", "de": "Der letzte Lauf ist fehlgeschlagen", "fr": "La dernière exécution a échoué",
                           "es": "La última ejecución falló", "it": "L'ultima esecuzione non è riuscita", "nl": "De laatste run is mislukt"},
     "status_outside_hours": {"en": "Outside working hours", "de": "Außerhalb der Arbeitszeit", "fr": "En dehors des heures de travail",
@@ -3878,6 +3881,14 @@ class Runner:
             agent_job.revive_lost(agent_job.Api() if os.environ.get("KALMIDO_URL") and os.environ.get("KALMIDO_TOKEN") else None)
         except Exception as e:
             log(f"jobs: {type(e).__name__}")
+        try:  # 2.1386.0 (#6668, review R3 F6): a job's request token ran out (401, no fresh env file): say it in the status
+            gone = agent_job.take_req_expired()
+        except Exception as e:  # noqa: BLE001 - never stops the watch
+            gone = []
+            log(f"jobs: {type(e).__name__}")
+        if gone:
+            log("jobs: request token expired for " + ", ".join(f"#{g.get('job')}" for g in gone if g.get("job")))
+            self.status_say("idle", "status_req_expired")
         evs = []
         for w in agent_job.take_wakes():
             jid = (w.get("job") or {}).get("id")

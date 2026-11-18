@@ -3350,7 +3350,8 @@ detected by its answer (404 / 400) and the feature is switched off once. 2.450.0
 a card) comes from one table by the agent's language (`lang` of `GET /api/v1/agent`: de, en, fr, es, it, nl, otherwise English),
 yes and no count in these languages, and so does the check for an answer that asks without a card. `KALMIDO_PERM_TEXT` and the
 other text variables override a text in every language. Its status texts also go out as `text_key` (`status_chat`,
-`status_event`, `status_no_command`, `status_run_failed`, `status_outside_hours`, `status_plan_limit`) with `text_at` (ISO, the
+`status_event`, `status_no_command`, `status_run_failed`, `status_outside_hours`, `status_plan_limit`, `status_no_request`,
+`status_req_expired` -- 2.1386.0: a job's request token ran out, #6668) with `text_at` (ISO, the
 time in the text): `GET` carries them as `status_key` / `status_key_at` and the app shows the text in the language of whoever
 looks. `text` is still required for anything to show and stays what an older app or an unknown key shows; a server before
 2.450.0 answers 400 and gets the status again without the key.

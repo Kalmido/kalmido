@@ -209,6 +209,65 @@ def _f5():
 _f5()
 
 
+
+# ---------------------------------------------------------------- review R3 F6: a job whose request token ran out says so
+# Without the fix a job after 8 h (401, no newer token in its env file) failed silently: its result, progress and state never
+# reached Kalmido and nobody saw why. Renewing is a later task (#7106); here only the clear status.
+def _f6():
+    import sys
+    import tempfile
+    ar, aj = sys.modules["agent_run"], sys.modules["agent_job"]
+    tmp = tempfile.mkdtemp(prefix="kalmido-p6668f6-")
+    envf = os.path.join(tmp, "p5.env")
+    ar.write_token_file(envf, "http://127.0.0.1:9", "abk_old" + "x" * 24)
+    saved = {k: os.environ.get(k) for k in ("KALMIDO_TOKEN", "KALMIDO_ENV_FILE", "KALMIDO_STATE_DIR")}
+    os.environ.pop("KALMIDO_TOKEN", None)
+    os.environ.update(KALMIDO_ENV_FILE=envf, KALMIDO_STATE_DIR=os.path.join(tmp, "state"))
+    old_sd, aj.STATE_DIR = aj.STATE_DIR, None
+    try:
+        api = aj.Api()
+        api.job_id = 31
+
+        def dead(*a, **k):
+            raise RuntimeError("HTTP 401 Missing or invalid API token")
+        api._req = dead
+        try:
+            api.req("GET", "/agent")
+            raised = False
+        except RuntimeError:
+            raised = True
+        marks = aj.take_req_expired()
+        check(raised and [m.get("job") for m in marks] == [31], f"(q) R3 F6: a 401 without a fresh env file leaves the job's mark {marks}")
+        check(aj.take_req_expired() == [], "(q) R3 F6: a mark is taken once")
+        # the starter's job watch turns the mark into the status (its own channel)
+        aj.mark_req_expired(32)
+        os.environ["KALMIDO_TOKEN"] = "abk_" + "m" * 30  # the starter's own environment
+        r = ar.Runner(["claude"], os.path.join(tmp, "state"))
+        os.environ.pop("KALMIDO_TOKEN", None)
+        r.extras = None
+        r.agent = {"owner_id": None, "request_token": True, "runtime": {}, "lang": "de"}
+        said = []
+        r.api.status = lambda *a, **k: said.append((a, k))
+        r.req_mode = lambda: "team"
+        aj.revive_lost, keep = (lambda api=None: []), aj.revive_lost
+        try:
+            r.job_watch()
+        finally:
+            aj.revive_lost = keep
+        check(any(k.get("key") == "status_req_expired" for _, k in said) and any("Anfrage-Token abgelaufen" in a[1] for a, _ in said),
+              f"(q) R3 F6: the starter shows 'Anfrage-Token abgelaufen' in the agent's status {said}")
+    finally:
+        aj.STATE_DIR = old_sd
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+_f6()
+
+
 # ---------------------------------------------------------------- (m) review F2: no run reads the long-lived token
 # Without the fix a team agent's run could read kalmido-agent.env (or the starter's /proc/<pid>/environ) and ask request
 # tokens for anybody with the agent's own token. 2.1386.0 (merged with #6457): the guard hook of #6457 carries it -- its
