@@ -112,6 +112,12 @@ ORG2 = sql("INSERT INTO orgs(name, created_at) VALUES('Later office', ?) RETURNI
 sql("INSERT INTO office_numbers(org_id, kind, period, last) VALUES(?,?,?,?)", (ORG2, "invoice", "2026", 3), write=True)
 he_before = sql("SELECT delete_at, delete_plan FROM users WHERE id=?", (HE,))[0]
 
+# ------ the dialog's preview names the further kinds (labels, translated by the server)
+pv = A.get(B + "/api/admin/backups/purged-preview").json()
+check(pv.get("kinds", {}).get("hub_absences") == 1 and pv.get("kinds", {}).get("video_reviews") == 1, f"preview: the new kinds are counted {pv.get('kinds')}")
+check((pv.get("labels") or {}).get("hub_absences") == "Absences" and (pv.get("labels") or {}).get("video_reviews") == "Video sign-off",
+      f"preview: their names {pv.get('labels')}")
+
 # ------ the restore of the older backup
 j = restore(BK)
 A = sess("alice")
