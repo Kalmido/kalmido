@@ -57,6 +57,30 @@ const OFD_RAW = [['optional', N_('optional (shown, not counted)')], ['included',
 const ofdLang = d => ['', 'de', undefined, null].includes((d || OFD.doc)?.lang) ? 'de' : 'en';
 const ofdNumEn = d => (d || OFD.doc)?.lang === 'en';
 // money and quantities in the DOCUMENT's language and currency (not the person's locale): 1.234,56 € / €1,234.50 / $1,234.50
+// 2.1396.0 (#6701): a document an invoice issuer's key made: who made it, and what the outside system said along with it -- only
+// shown, as unconfirmed statements (a person books, sends and checks the VAT case with the usual buttons; nothing is applied)
+const OFD_ISS_PAY = {transfer: N_('Bank transfer'), cash: N_('Cash'), card: N_('Card'), direct_debit: N_('Direct debit'), paypal: N_('PayPal'),
+  online: N_('Online'), other: N_('Other|payment')};
+function ofdIssuerNote(d) {
+  if (!d || !d.issuer) return '';
+  const iw = d.issuer_wish || {}, w = iw.wish || {}, li = [];
+  const day = v => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v || ''); return m ? fmtDateNum(new Date(+m[1], +m[2] - 1, +m[3])) : String(v || ''); };
+  if (w.paid) li.push(tr('Paid {0} on {1} by {2}', ofdMoney(w.paid.amount, d), day(w.paid.date), tr(OFD_ISS_PAY[w.paid.method] || w.paid.method))
+    + (w.paid.online_ref ? ` · ${tr('reference of the payment provider: {0}', w.paid.online_ref)}` : ''));
+  if (w.send) li.push(tr('Sending wished'));
+  if (w.due_date) li.push(tr('Due on {0}', day(w.due_date)));
+  else if (w.due_days != null) li.push(tr('Payment terms of {0} days', w.due_days));
+  if (w.payee) li.push(tr('Bank account allowed for the issuer: #{0}', w.payee));
+  if (w.reference) li.push(tr('Payment reference: {0}', w.reference));
+  if (iw.vat_check) li.push(tr('VAT ID check of the outside system (no proof): {0}', Object.entries(iw.vat_check).map(([k, v]) => `${k} ${v}`).join(', ')));
+  if (iw.business_check) li.push(tr('Business check of the outside system (no proof): {0}', Object.entries(iw.business_check).map(([k, v]) => `${k} ${v}`).join(', ')));
+  const fl = iw.flags || [];
+  if (fl.includes('over_limit')) li.push(tr('Over a limit of the issuer: check it before you finalise'));
+  if (fl.includes('vat_territory')) li.push(tr('The address lies in a territory with VAT rules of its own (e.g. Büsingen, Heligoland, the Canary Islands): check the VAT case'));
+  const head = tr('Made by the invoice issuer {0}', d.issuer.name) + (iw.client_ref ? ` · ${iw.client_ref}` : '');
+  return `<div class="cdnmiss ofdiss" role="status" data-issuer="${esc(String(d.issuer.id))}">${ic('info', 's')} <b>${esc(head)}</b>${li.length
+    ? `<br><span class="muted">${esc(tr('Unconfirmed statements of the outside system (nothing is booked or sent from them):'))}</span><ul>${li.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>`;
+}
 // 2.368.0 C (#2983): through curMoney in the document's language (like calc.fmt_money on the PDF: "1 234,50 €" in French)
 const OFD_LOCS = ['de', 'en', 'fr', 'es', 'it', 'nl'];
 function ofdMoney(n, d) {
@@ -439,7 +463,7 @@ function ofdEditorHtml() {
     : `<button type="button" class="btn sm ofdpdf" data-ofd="pdf-ask" aria-label="${esc(tr('Open PDF'))}" title="${esc(tr('Open PDF'))}">${ic('pdf', 's')}<span class="ofdpdft">${tr('Preview')}</span></button>
     <button type="button" class="btn sm ofddl" data-ofd="pdf-ask" data-dl="1" aria-label="${esc(tr('Download PDF'))}" title="${esc(tr('Download PDF'))}">${ic('download', 's')}<span class="ofdpdft">${tr('Download')}</span></button>`}
     <button type="button" class="btn sm" data-ofd="more" aria-haspopup="menu" aria-label="${esc(tr('More'))}">${ic('dots', 's')}</button></span></div>`;  // 2.356.0 C (#3004): "…" never wraps alone into a line of its own
-  const invFields = inv && kind !== 'reminder' ? `
+  const invFields = inv && kind !== 'reminder' ? `${ofdIssuerNote(d)}
     ${d.dup_times_from && !lk ? `<p class="cdnmiss" role="status">${ic('info', 's')} ${esc(tr('Copy of {0}: the hours of that invoice are already billed. This copy binds no times.', d.dup_times_from))}</p>` : ''}
     ${ofdF('order_ref', tr('Order number / reference'), ofdIn('order_ref', d.order_ref, {max: 80, ph: tr('the client\'s order reference')}))}
     ${kind === 'invoice' ? ofdF('payment_days', tr('Payment terms'), `<span class="lacts">${ofdIn('payment_days', d.payment_days ?? '', {num: true, max: 3})}<span class="muted">${tr('days')}</span></span>`) : ''}
