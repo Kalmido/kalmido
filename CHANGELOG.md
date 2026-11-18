@@ -23,6 +23,32 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1378.0] - 2026-11-18
+
+Package 2.1362 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Fixed
+- #6327 Office bookkeeping: the receipt sheet no longer puts back what another device changed meanwhile. It sends only the changed fields (amount / date to the document, category / VAT rate to the receipt), each with the version it read; `PUT /api/docs/{id}/receipt` takes `expect_updated_at` (the receipt's new `updated_at`, `''` = no receipt yet) and answers 409 with the current state under `receipt`. With a version only the fields sent change; without one the old behaviour stays. A refused save opens the sheet again on the current state with the typed values and the merge bar (Keep mine / Take theirs); Undo takes back only the own fields and says when they were changed elsewhere since.
+
+Package 2.1378 (Bündel: Büro: Aussteller-Schlüssel - fertige PDF und XML f, Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
+
+### Added
+- Packing list per shoot day: when a quotation is taken over into a project, the gear of each shoot part's equipment block is booked as an option on the shoot day in the scheduling (with quantity, the usual double-booking warning, adjusted by a new quotation version); the call sheet shows a tickable packing list, also in its PDF; items without a gear record are text rows (#4566)
+- Post-calculation: an accepted quotation gets a "Post-calculation" button; the preview shows planned/actual per item, hourly items carry the billable, not yet invoiced recorded hours (rounded to 0.25 h) at the quotation's rate, and the result is only an invoice draft bound to those times (#4566)
+
+### Changed
+- Account export: team chat files only from direct messages, group conversations and the channels of the person's own private lists (an organisation's project channels belong to the organisation); history values in my_history lose secret-like fields like in the organisation export (#6938)
+- Privacy templates and the outgoing-connections list in SELF-HOSTING describe the code as it is: retention = law + 1 year buffer, item history (newest 200, no day limit), employee data and sick notes, self-deletion, missing rows (agent chat, undo copies, support access log, tokens, webhook log, backups ...), sign-in data, file requests, video/audio on click, similarity service, package catalogue, ntfy, Web Push, AI labelling (#6511)
+
+### Fixed
+- The public sign-off remembers a guest's name only in the link's own cookie (180 days); the browser-wide vdr-name entry is gone and removed on load; sign-out also wipes the kalmido.* keys with content (dialog sizes, receipt-matching undo rest, ...) (#6513)
+- p2546_b_locked lists the outlays-release route (red on main since #6479)
+
+Package 2.1375 (Bündel: Büro: Aussteller-Schlüssel - Kunden per externer K, Büro: Zustell-Zustand der Rechnungs-Mail am Beleg , CI: Merge-Queue-Lauf fährt n).
+
+### Changed
+- #6677: The API's task (GET /api/v1/tasks, task webhooks) carries `updated_by`: who last wrote the title and the description, kept on the task (tasks.title_by / content_by, filled once from the history; a history purge does not change it; title and description judged each on its own; the creator while nobody else changed them; null for an inbound webhook, a public link, CalDAV, a list rule, a support session or the git issue sync; an e2e conversion, a move across the lock or a merge with other people's text never makes it the creator's again; undoing a merge puts the writers back). The agent dispatcher of the reference starter builds a task only when that is the person too; a task another member with write access rewrote is "not yours" (reason `edited`), named in the log and the day report, until the person changes the text again.
+
 ## [2.1374.0] - 2026-11-18
 
 Package 2.1374 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Büro: Aussteller-Schlüssel - Vertragstest in den h, Bündel: Sammelpaket: Aufgaben ohn).
@@ -530,7 +556,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1374.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1378.0...HEAD
+[2.1378.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1378.0
 [2.1374.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1374.0
 [2.1372.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1372.0
 [2.1370.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1370.0
