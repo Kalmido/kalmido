@@ -178,6 +178,8 @@ const ROUND = '---\ntags: demo\n---\n# Title  \n\nSome **bold** word and `code`.
     await click(`document.querySelector('[data-wk="pmenu"]')`);
     check(await until(`!!document.querySelector('#pop:not(.hidden) [role="menuitem"]')`), 'no right: the "…" opens');
     const roItems = await ev(`[...document.querySelectorAll('#pop [role="menuitem"]')].map(x => x.textContent.trim())`);
+    // 2.1368.0 (#5525): who may only read can present the page too (first under "Page")
+    check(roItems[0] === 'Present', 'no right: the "…" offers Present first ' + JSON.stringify(roItems));
     // 2.1163.0 (#6087): plus everything that only reads (History, the links)
     check(roItems.includes('Download as PDF') && roItems.includes('History') && roItems.includes('Copy link') && !roItems.some(t => /^(Rename…|Delete|Move to the trash|Edit as Markdown|Read-only|Lock editing \(this device\))$/.test(t)), 'no right: the "…" only reads (downloads, history, links) ' + JSON.stringify(roItems));
   }, false);
