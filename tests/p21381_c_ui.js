@@ -49,7 +49,7 @@ const click = (w, el) => el.dispatchEvent(new w.MouseEvent('click', {bubbles: tr
   check(nd()?.classList.contains('n-sync'), '#2392: syncing: the dot shows');
   w.eval(`OUT.flushing = false; netDotDraw()`);
   w.eval(`S.about = Object.assign(S.about || {}, {available: '99.0.0'}); renderSide()`);
-  check(d.querySelector('#kbar .kbsw .kbupd') && !d.querySelector('#kbar .kbacct .dot'), '#2392: the update dot only at the Kalmido menu (Settings)'); // 2.380.2 (#3400): Settings moved from the bottom of the bar into the Kalmido menu (#kbar .kbsw)  // 2.152.3 (#2619): the account in the head bar
+  check(d.querySelector('#kbar .kbacct .kbupd') && !d.querySelector('#kbar .kbsw .kbupd') && !d.querySelector('#kbar .kbacct .dot'), '#2392 / #6127: the update dot only at the account menu (Settings)');  // 2.1401.0 (#6127): Settings moved from the Kalmido menu into the account menu // 2.380.2 (#3400): Settings moved from the bottom of the bar into the Kalmido menu (#kbar .kbsw)  // 2.152.3 (#2619): the account in the head bar
   w.eval(`S.about.available = null; renderSide()`);
   click(w, d.querySelector('#kbar .kbacct')); await sleep(200);  // 2.152.3 (#2619): the account in the head bar
   const home = [...d.querySelectorAll('#pop [role="menuitem"]')].find(b => (b.querySelector('.ml') || b).textContent.trim() === 'Start');
