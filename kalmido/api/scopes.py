@@ -492,8 +492,12 @@ def agent_scopes_set(c, aid, b):
         print("agent", aid, "scopes", sc, "by", login_log_who(g.user), flush=True)
     if "allowed_ips" in b:
         ips = ips_clean(b["allowed_ips"])
+        old = c.execute("SELECT allowed_ips FROM agents WHERE user_id=?", (aid,)).fetchone()
         c.execute("UPDATE agents SET allowed_ips=? WHERE user_id=?", (ips, aid))
-        c.execute("UPDATE api_tokens SET allowed_ips=? WHERE user_id=?", (ips, aid))
+        # 2.1367.0 (#6457, Fable reader F4): the dialogs send allowed_ips with every scope change; only a CHANGED agent rule goes
+        # onto all its keys -- an unchanged one keeps the rule a computer got at its setup (agent_setup redeem, allowed_ips)
+        if old is None or (old[0] or "") != ips:
+            c.execute("UPDATE api_tokens SET allowed_ips=? WHERE user_id=?", (ips, aid))
 
 
 def agent_scope_dict(c, a):

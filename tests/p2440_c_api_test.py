@@ -98,6 +98,19 @@ c7 = Bo.post(B + f"/api/my/agents/{AID}/setup-code", json={"os": "linux", "folde
 r = redeem(c7, host="ip-box-2", allowed_ips=["198.51.100.0/24"])
 check(r.ok and r.json().get("allowed_ips") == ["198.51.100.0/24"] and r.json().get("allowed_ips_applied") is True, "#6457: a network as the rule " + r.text[-200:])
 check(not requests.get(V + "/agent", headers=tokh(r.json()["token"])).ok, "#6457: the key does not work from another address")
+# Fable reader F4: saving the agent's scopes with its unchanged address rule (the dialogs always send it) keeps the rule a
+# computer got at its setup; the list of computers shows it; a CHANGED agent rule goes onto all keys again
+TOK7 = r.json()["token"]
+r7 = Bo.patch(B + f"/api/my/agents/{AID}", json={"scopes": ["read", "tasks:write", "comments", "files:read", "files:write"], "allowed_ips": []})
+check(r7.ok, "F4: saving scopes " + r7.text[:200])
+m7 = [m for m in Bo.get(B + f"/api/my/agents/{AID}/machines").json()["machines"] if m.get("host") == "ip-box-2"]
+check(m7 and m7[0].get("allowed_ips") == ["198.51.100.0/24"], f"F4: the computer keeps its rule and the list shows it: {m7}")
+check(not requests.get(V + "/agent", headers=tokh(TOK7)).ok, "F4: the key still does not work from another address")
+r7 = Bo.patch(B + f"/api/my/agents/{AID}", json={"allowed_ips": ["203.0.113.0/24"]})
+m7 = [m for m in Bo.get(B + f"/api/my/agents/{AID}/machines").json()["machines"] if m.get("host") == "ip-box-2"]
+check(r7.ok and m7 and m7[0].get("allowed_ips") == ["203.0.113.0/24"], f"F4: a changed agent rule goes onto every key: {m7}")
+r7 = Bo.patch(B + f"/api/my/agents/{AID}", json={"allowed_ips": []})
+check(r7.ok and requests.get(V + "/agent", headers=tokh(TOK7)).ok, "F4: clearing the agent rule frees every key again")
 # Fable reader F1: "current" from an IPv6 address = its /64 with the prefix (before: the bare network address as /128 -
 # the key locked itself out); the test server trusts X-Forwarded-For from the test runner (kt.sess ip=)
 V6 = "2001:db8:1:2:aaaa:bbbb:cccc:dddd"
