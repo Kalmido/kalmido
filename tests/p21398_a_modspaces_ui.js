@@ -117,8 +117,8 @@ const off = wss => ({ws_areas_off: JSON.stringify(Object.fromEntries(wss.map(w =
     // usable: a tap on Nord opens it, the path above it leads back to the overview
     await ev(`document.querySelector('#view [data-spov="${N}"], #view a[href="#wiki/s/${N}"]')?.click()`);
     check(await ready(ev, `wk_open() === ${JSON.stringify(N)} && /Handbuch Nord/.test(${txt})`, 60), 'C: a tap on Nord opens it');
-    await ev(`document.querySelector('#view [data-spovup], #view a[href="#wiki"]')?.click()`);
-    check(await ready(ev, `!wk_open() && !!document.querySelector('#view [data-spov]')`, 60), 'C: the path back leads to the overview');
+    await ev(`(history.back(), 1)`);  // the browser's Back (the computer has no path above an open space of Knowledge)
+    check(await ready(ev, `!wk_open() && wk_all() && !!document.querySelector('#view [data-spov="${N}"], #view a[href="#wiki/s/${N}"]')`, 60), 'C: Back leads to the overview again');
     await go('wiki/s/org:' + O2);
     check(await ready(ev, `!wk_open()`, 20), 'C: the address of Süd leads to the overview (Knowledge off there)');
 
