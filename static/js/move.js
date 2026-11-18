@@ -59,6 +59,12 @@ function umzOfficeHtml(p, t) {
   return (c.conflicts.length ? `<div class="shint warn" role="alert">${ic('alert', 's')} ${esc(tr('This office cannot take the office part of the file:'))}<ul class="umzleftl">${c.conflicts.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '')
     + c.notes.map(x => hintK(esc(x))).join('');
 }
+// 2.1402.0 (#6579): the files need more storage than the chosen target has free: what is missing and the way (the start refuses;
+// into an organisation the people invited there count, so the start checks again with the ticks)
+function umzStorageHtml(p, t) {
+  const c = (p.storage?.targets || {})[String(t)];
+  return c ? `<div class="shint warn" role="alert">${ic('alert', 's')} ${esc(c.text)}</div>` : '';
+}
 function umzPreviewHtml(j) {
   const p = j.preview, org = p.kind === 'org', src = p.source.url ? esc(p.source.url) : tr('unknown');
   const people = p.people.length ? `<div class="muted mhint">${tr('People of your projects')}</div>` + p.people.map((x, i) => `<div class="mrow umzp">
@@ -87,7 +93,7 @@ function umzPreviewHtml(j) {
   const none = org && !p.targets.length;  // 2.73.0 B (part 4): an organisation export needs an organisation I administer here
   return `<div class="impbox umzbox" role="status"><div class="imphead"><b>${org ? tr('Organisation export of {0}', esc(p.user.name)) : tr('Export of {0}', esc(p.user.name || p.user.email))}</b></div>
     <div class="muted">${org ? esc(fmtWhen(p.created_at)) : tr('From {0}, created {1}', src, esc(fmtWhen(p.created_at)))}</div>
-    <div class="umzcnt">${umzCounts(p.counts)}</div>${lists}${people}${notes}${tgt}<div id="s-umz-ochk" aria-live="polite">${/*html-ok*/ umzOfficeHtml(p, p.targets[0]?.id ?? 'private')}</div>
+    <div class="umzcnt">${umzCounts(p.counts)}</div>${lists}${people}${notes}${tgt}<div id="s-umz-ochk" aria-live="polite">${/*html-ok*/ umzStorageHtml(p, p.targets[0]?.id ?? 'private') + umzOfficeHtml(p, p.targets[0]?.id ?? 'private')}</div>
     ${none ? hintK(tr('You are not the admin of an organisation on this server. Create one or ask its admin first.')) : ''}
     <div class="row"><button type="button" class="btn sm pri" data-umz="go" ${none ? 'disabled' : ''}>${ic('download', 's')} ${tr('Start the import')}</button><button type="button" class="btn sm" data-umz="cancel">${tr('Cancel')}</button></div></div>`;
 }
@@ -176,8 +182,10 @@ function umzInit(md) {
   api('GET', '/api/account/import').then(j => { if (j.current && j.current.state !== 'upload') umzImpDraw(md, j.current); }).catch(() => {});
   $('#s-umz-file', md)?.addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) umzUpload(md, f).catch(() => umzImpDraw(md, null)); });
   md.addEventListener('change', async e => {  // review M1: a typed address that is not the one in the file -> hint at once
+    if (e.target.id === 's-umz-tgt' && UMZ.cur?.preview) {  // 2.1316.0 (#6577), 2.1402.0 (#6579): the checks of the chosen target
+      const oc = $('#s-umz-ochk', md); if (oc) oc.innerHTML = umzStorageHtml(UMZ.cur.preview, e.target.value) + umzOfficeHtml(UMZ.cur.preview, e.target.value);
+    }
     if (e.target.id === 's-umz-tgt' && UMZ.cur?.preview?.kind === 'org') {  // 2.96.0 D (#1941): into Private nobody joins an organisation
-      const oc = $('#s-umz-ochk', md); if (oc) oc.innerHTML = umzOfficeHtml(UMZ.cur.preview, e.target.value);  // 2.1316.0 (#6577)
       const t = e.target.value === 'private' ? tr('Share my projects') : tr(UMZ_ORG_TICK);
       md.querySelectorAll('[data-umzsl]').forEach(x => { x.textContent = t; });
       md.querySelectorAll('[data-umzr]').forEach(x => { x.hidden = e.target.value === 'private'; });  // 2.278.0 A (#3095)

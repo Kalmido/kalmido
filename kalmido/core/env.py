@@ -370,6 +370,7 @@ VARS = (
     _v("KALMIDO_TEST_BK_ZIP_DELAY", "", "Test containers only (with KALMIDO_TEST=1): seconds the backup waits after its ZIP (2.281.0, #3118).", "test"),
     _v("KALMIDO_TEST_UMZ_END_DELAY", "", "Test containers only (with KALMIDO_TEST=1): seconds an account or wiki import's worker waits before it ends (2.308.0, #3261; 2.363.0, #3280).", "test"),
     _v("KALMIDO_TEST_UMZ_SHARE_DELAY", "", "Test containers only (with KALMIDO_TEST=1): seconds an account or organisation import waits after sharing with each ticked person, before it commits (2.644.0, #5024).", "test"),
+    _v("KALMIDO_TEST_UMZ_FILE_DELAY", "", "Test containers only (with KALMIDO_TEST=1): seconds an account or organisation import waits before each file's storage check (2.1402.0, #6579).", "test"),
     _v("KALMIDO_TEST_BK_IDLE_TX_MS", "", "Test containers only (with KALMIDO_TEST=1): idle-in-transaction limit of the backup's connection (2.281.0, #3118) and of the backup loop's read transaction (2.1265.0, #6383).", "test"),
     _v("KALMIDO_TEST_FL_FAIL_DOC", "", "Test containers only (with KALMIDO_TEST=1): a scheduled document flow raises on the document of this name (2.1265.0, #6389).", "test"),
     _v("KALMIDO_TEST_BK_MARK_FAIL", "", "Test containers only (with KALMIDO_TEST=1): while this file exists, writing the day marker of a scheduled backup fails (2.1265.0, #6383).", "test"),
