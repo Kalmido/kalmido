@@ -401,7 +401,7 @@ for bad in ("/", os.path.join(TMP, "gone")):
 check("`chown -hR`" in open(os.path.join(ROOT, "docs", "SELF-HOSTING.md"), encoding="utf-8").read(), "#6606 F10: SELF-HOSTING.md names chown -hR and links")
 
 # 2.1345.0 (#6658, decision 17.11.2026): ONE rule for a link target - empty, or the marker DIRECTORY .kalmido-target in it
-# (never a link; an older run's marker file becomes the directory); / is refused outright
+# (never a link; 2.1367.0 (#6971): a marker file is none); / is refused outright
 def link_case(target):
     d = folder()
     os.symlink(target, os.path.join(d, "data"))
@@ -438,13 +438,23 @@ os.makedirs(trap)
 os.symlink(victim, os.path.join(trap, ".kalmido-target"))
 rc, out, err = link_case(trap)
 check(rc == 1 and open(victim).read() == "keep me" and "chown" not in calls(), f"#6658: a marker that is a link stops, the file behind it untouched ({rc} {out + err})")
-# the old form: a marker FILE in an older run's folder becomes the directory
+# 2.1367.0 (#6971, Fable reader #5199 F3): a marker FILE never existed on main - it is no marker (the folder is not empty):
+# it stops, nothing removed or created as root in the target, no chown
 old = os.path.join(base, "old")
 os.makedirs(old)
 open(os.path.join(old, "tasks-export.csv"), "w").close()
 open(os.path.join(old, ".kalmido-target"), "w").close()
 rc, out, err = link_case(old)
-check(rc == 0 and os.path.isdir(os.path.join(old, ".kalmido-target")), f"#6658: an old marker file is accepted and becomes the directory ({rc} {out + err})")
+check(rc == 1 and os.path.isfile(os.path.join(old, ".kalmido-target")) and "chown" not in calls(),
+      f"#6971 F3: a marker file is no marker - stops, the file stays ({rc} {out + err} {calls()})")
+# 2.1367.0 (#6971, Fable reader #5199 F2): a target ls cannot read (root-squash NFS, an I/O error) counts as not empty: stops
+d = folder()
+unread = os.path.join(base, "unreadable")
+os.makedirs(unread)
+os.symlink(unread, os.path.join(d, "data"))
+os.makedirs(os.path.join(d, "secret"))
+rc, out, err = run(LINUX + CHOWN + 'id() { echo 0; }\nls() { return 2; }\nDIR="%s"; PORT=3040; write_override' % d)
+check(rc == 1 and "chown" not in calls(), f"#6971 F2: a link target ls cannot read stops, no chown ({rc} {out + err} {calls()})")
 # env_get: blanks before the quote
 rc, out, t, cl = env_case('TZ=UTC\nKALMIDO_CLAMD= "scanner.example.com:3310"\nPOSTGRES_PASSWORD=x\n', 'printf "[%s]" "$(env_get KALMIDO_CLAMD)"')
 check("[scanner.example.com:3310]" in out, f"#6658: env_get strips blanks before the quote ({out})")
