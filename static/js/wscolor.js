@@ -192,10 +192,16 @@ function wso_mark(el, w, priv = false) {
 const wso_head = ws => `${/*html-ok*/ wsp_dot(ws)}<span class="wsows">${esc(wsName(ws))}</span><span class="wsoab">${esc(ws_abbr(ws))}</span>`;
 // 2.1224.0 (#6187): mixed = a page that is mixed in every workspace (time tracking, search hits, the trash): the mark also
 // inside one workspace for what belongs to another organisation; Private and the shown workspace itself stay without a mark
-function wso_origin(w, cls = '', mixed = false) {
-  const ws = wso_ws(w); if (!ws || ws === 'all' || !wsOn() || (mixed ? ws === 'private' || ws === wsCur() : wsCur() !== 'all')) return '';
+// 2.1383.0 (#6234) o = {other: true} = a view of ONE workspace that also shows things of others (the start page's box "Waiting
+// for you", its news and team chat rows): the mark on what belongs to another workspace than the shown one, Private included,
+// none under "All"; {sub: name} = what it is in there (a project, a room) after the workspace's name, also in the title and for
+// screen readers. o = true stays the short form of {mixed: true}
+function wso_origin(w, cls = '', o = false) {
+  const {mixed = false, other = false, sub = ''} = o && typeof o === 'object' ? o : {mixed: !!o};
+  const ws = wso_ws(w), cur = wsCur(); if (!ws || ws === 'all' || !wsOn()) return '';
+  if (other ? cur === 'all' || ws === cur : mixed ? ws === 'private' || ws === cur : cur !== 'all') return '';
   const nm = wsName(ws);
-  return `<span class="wso${cls ? ' ' + esc(cls) : ''}" title="${esc(nm)}"><span class="sr">${esc(tr('Workspace: {0}', nm))}</span><span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws)}</span></span>`;
+  return `<span class="wso${cls ? ' ' + esc(cls) : ''}" title="${esc(sub ? nm + ' · ' + sub : nm)}"><span class="sr">${esc(tr('Workspace: {0}', nm) + (sub ? ', ' + sub : ''))}</span><span class="wsov" aria-hidden="true">${/*html-ok*/ wso_head(ws)}${sub ? `<span class="wsosep">·</span><span class="wsol">${esc(sub)}</span>` : ''}</span></span>`;
 }
 // (3) the open object: every area registers once how it finds the workspace of what it shows -- wso_open(name, fn), fn() ->
 // an organisation's id / 'org:<id>' / 'private' / an object with org_id, or null when its page is not open (or shows
