@@ -171,7 +171,7 @@ def wem_embeds_start(c):
     except ValueError:
         since = None
     last, n = 0, 0
-    stale = "(wem_at IS NOT NULL AND wem_at<>updated_at)"
+    stale = "(wem_at IS NOT NULL AND wem_at<>CAST(updated_at AS timestamptz))"  # the cast: a time column still TEXT (#5306)
     while True:
         rows = c.execute(f"SELECT id, org_id, owner_id, body, updated_by, {stale} AS stale FROM wiki_pages WHERE id>?"
                          + (f" AND (updated_at>=? OR {stale})" if since else "") + " ORDER BY id LIMIT 500",
@@ -193,7 +193,7 @@ def wem_embeds_start(c):
             for nid in sorted(ids - have):
                 n += c.execute("INSERT INTO wiki_embeds(page_id,node_id,user_id,created_at) VALUES(?,?,?,CURRENT_TIMESTAMP) "
                                "ON CONFLICT (page_id,node_id) DO NOTHING", (r["id"], nid, who)).rowcount
-    c.execute("UPDATE wiki_pages SET wem_at=updated_at WHERE wem_at IS DISTINCT FROM updated_at")  # 2.1368.0 (#6657)
+    c.execute("UPDATE wiki_pages SET wem_at=CAST(updated_at AS timestamptz) WHERE wem_at IS DISTINCT FROM CAST(updated_at AS timestamptz)")  # 2.1368.0 (#6657)
     gset(c, WEM_SINCE, ts)
     return n
 
