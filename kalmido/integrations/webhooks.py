@@ -532,7 +532,7 @@ def wh_tick():
             # (agent_emit queues nothing new meanwhile; nothing is written to the agent, unlocking lets new events through)
             c.execute("""DELETE FROM webhook_queue WHERE webhook_id IN (SELECT w.id FROM webhooks w JOIN users u ON u.id=w.user_id
                          WHERE NOT w.enabled OR u.disabled OR (w.agent=1 AND EXISTS (SELECT 1 FROM agents a JOIN users o
-                         ON o.id=a.owner_id WHERE a.user_id=w.user_id AND o.disabled)))""")
+                         ON o.id=a.owner_id WHERE a.user_id=w.user_id AND (o.disabled OR o.kid<>0))))""")  # 2.1385.0 (#6503 2): or a kid
             # 2.1322.0 (#6560 6): what waits for an organisation's webhook whose creator is no admin there any more is not
             # delivered (who_admin_ok was asked only when an event was queued): the webhook turns off, its queue goes
             who_admin_ok(c, c.execute("""SELECT w.* FROM webhooks w WHERE w.enabled AND w.org_id IS NOT NULL AND w.agent=0

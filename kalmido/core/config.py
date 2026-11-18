@@ -326,3 +326,22 @@ MIN_PASSWORD = 8
 # import name "app" + root_path: the same app name and static folder as when everything lived in app.py
 app = Flask("app", root_path=APP_DIR, static_folder="static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_MB * 4 * 1024 * 1024  # one request may carry several files
+
+
+class _DeepJSON(app.json_provider_class):
+    """2.1385.0 (#6435): JSON nested deeper than the parser goes raises RecursionError, which request.get_json does not catch
+    (a 500 on every route). Here it is a ValueError like any broken body: get_json() answers 400, get_json(silent=True) None,
+    and db.body() answers 400 from the mark g.json_deep. Parsing stays where it was (lazy), so a route that reads the raw
+    stream itself (hosted MCP, mcpremote.mcpr_body) still gets its body."""
+
+    def loads(self, s, **kwargs):
+        try:
+            return super().loads(s, **kwargs)
+        except RecursionError:
+            from flask import g, has_app_context
+            if has_app_context():
+                g.json_deep = True
+            raise ValueError("JSON nested too deep") from None
+
+
+app.json = _DeepJSON(app)

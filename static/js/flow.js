@@ -67,7 +67,7 @@ function flw_html(l) {
   else if (!j.cycle_time.columns.length) notes.push(tr('Cycle time counts from a column named “In Arbeit”, “In progress”, “Doing” or “WIP”.'));
   if (j.capped) notes.push(tr('Only the newest {0} tasks are counted.', fmtNum(2000)));
   return `<div class="flw">${tiles}<div class="muted flwnote">${notes.map(esc).join(' · ')}</div>
-    <h6>${tr('Cumulative flow')}</h6>${flw_cfdSvg(j)}${flw_cfdTable(j)}<h6>${tr('Bug trend')}</h6>${flw_bugHtml(j)}</div>`;
+    <h4 class="povsub">${tr('Cumulative flow')}</h4>${flw_cfdSvg(j)}${flw_cfdTable(j)}<h4 class="povsub">${tr('Bug trend')}</h4>${flw_bugHtml(j)}</div>`;  // 2.1385.0 (#6944): the tiles' sub heading (was a tiny bold h6)
 }
 function flw_povPart(l) {  // the block "Flow" of the project page; undefined = not offered (the basket)
   if (!l || l.is_inbox) return undefined;

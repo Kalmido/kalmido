@@ -70,7 +70,8 @@ def unfold(t):
 
 def vcards(n, prefix):
     rnd = random.Random(11)
-    ph = base64.b64encode(bytes(rnd.getrandbits(8) for _ in range(1500))).decode()
+    # 2.1385.0 (#6435): a JPEG head before the random bytes - a stored contact photo must start like the picture it claims to be
+    ph = base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(rnd.getrandbits(8) for _ in range(1500))).decode()
     out = []
     for i in range(n):
         out.append("\r\n".join(["BEGIN:VCARD", "VERSION:3.0", f"UID:{prefix}-{i}", f"FN:Probe Person {i}", f"N:Person {i};Probe;;;",

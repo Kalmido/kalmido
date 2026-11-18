@@ -279,6 +279,7 @@ The foundation: database, schema, access layer, request context, conflicts (409)
 - `kalmido/core/i18nkeys.py` (`key`) - The translation keys of the code and their split per module loaded on demand
 - `kalmido/core/i18nparts.py` (`i18np`) - The web client's texts per module
 - `kalmido/core/idem.py` (`idem`) - Idempotency keys of write requests (header Idempotency-Key)
+- `kalmido/core/imgsafe.py` - one way to decode a foreign picture inside the app process
 - `kalmido/core/instance.py` (`update`) - Version, update check and instance settings (admins)
 - `kalmido/core/ipallow.py` - The optional address rule of a key
 - `kalmido/core/jsonlimit.py` - The size limit of JSON request bodies

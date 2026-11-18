@@ -47,6 +47,16 @@ import time
 import urllib.error
 import urllib.request
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """2.1385.0 (#6435 11): a redirect is never followed - urllib would send the Authorization header (the agent's token) along
+    to the address the answer names (like kalmido/agents/srvagent.py). A 3xx ends as an HTTPError."""
+    def redirect_request(self, *a, **kw):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
 VERSION = "2.11.0"
 NOTE_MAX = 200
 KEEP_IDS = 200  # message ids remembered per session (Claude Code writes one line per content block of a message)
@@ -215,7 +225,7 @@ def api(base, token, method, path, body=None, timeout=10):
     req = urllib.request.Request(base.rstrip("/") + "/api/v1" + path, data=data, method=method, headers={
         "Authorization": "Bearer " + token, "Accept": "application/json", "User-Agent": "kalmido-claude-usage-hook/" + VERSION,
         **({"Content-Type": "application/json"} if data is not None else {})})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with _OPENER.open(req, timeout=timeout) as r:  # 2.1385.0 (#6435 11): no redirects
         raw = r.read()
         return json.loads(raw) if raw else {}
 

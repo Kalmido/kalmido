@@ -5,8 +5,15 @@
 #favup{display:none}
 @media (max-width:767px){
   #favup.hidden.an-out{display:flex!important}
-  #favup:not(.hidden),#favup.hidden.an-out{display:flex;position:fixed;left:0;right:0;bottom:var(--tabs-bot);z-index:39;gap:.25rem;padding:.75rem .5rem .5rem;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;background:var(--bg2);border-top:1px solid var(--line);box-shadow:0 -.5rem 1.5rem rgba(0,0,0,.2)}
-  #favup::-webkit-scrollbar{display:none}
+  #favup:not(.hidden),#favup.hidden.an-out{display:flex;position:fixed;left:0;right:0;bottom:var(--tabs-bot);z-index:39;padding:.75rem 0 .5rem;background:var(--bg2);border-top:1px solid var(--line);box-shadow:0 -.5rem 1.5rem rgba(0,0,0,.2)}
+  /* 2.1385.0 (#6983): the tiles scroll in their own strip (.fvu-s, fv2_barDraw) so the fade at an edge where more favourites follow
+     (fvd_edge sets fvu-r / fvu-l on #favup) is a mask on the strip alone: the panel's background, line and shadow stay whole, and no
+     overlay catches a tap. The tiles fade into the panel's background colour. */
+  #favup .fvu-s{position:relative;display:flex;align-items:center;gap:.25rem;flex:1 1 auto;min-width:0;padding:0 .5rem;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;
+    --fvu-l:0px;--fvu-r:0px;-webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fvu-l),#000 calc(100% - var(--fvu-r)),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 var(--fvu-l),#000 calc(100% - var(--fvu-r)),transparent 100%)}
+  #favup .fvu-s::-webkit-scrollbar{display:none}
+  #favup.fvu-l .fvu-s{--fvu-l:2.5rem}
+  #favup.fvu-r .fvu-s{--fvu-r:2.5rem}
   #favup:not(.hidden){animation:an_up .22s cubic-bezier(.2,.8,.2,1)}
   #favup.hidden.an-out{animation:an_down .18s ease-in forwards;pointer-events:none}
   #tabs{touch-action:pan-x}
@@ -14,3 +21,7 @@
   body.kb-open #favup,body.ms-typing #favup,body.tl-typing #favup,body.kidmode #favup,html.mini #favup,html.shzfull #favup{display:none!important}
 }
 @media (max-width:767px) and (pointer:coarse){ #favup .fv2-tile{width:2.75rem;height:2.75rem} }
+/* 2.1385.0 (#6983): the fade's width animates (a registered length); "reduce motion": it simply appears */
+@property --fvu-l{syntax:'<length>';inherits:false;initial-value:0px}
+@property --fvu-r{syntax:'<length>';inherits:false;initial-value:0px}
+@media (max-width:767px) and (prefers-reduced-motion:no-preference){ #favup .fvu-s{transition:--fvu-l .15s ease,--fvu-r .15s ease} }

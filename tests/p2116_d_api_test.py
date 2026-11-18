@@ -145,6 +145,8 @@ for name, kw in (("teambot", {}), ("alicebot", {})):
     uid = ra.json()["id"]
     if name == "alicebot":
         A.patch(B + f"/api/admin/agents/{uid}", json={"owner_id": A.get(B + "/api/state").json()["me"]["id"]})
+        # 2.1385.0 (#6503): a change of owner ends the agent's tokens -> the new owner makes a new one
+        ag = bearer(A.post(B + f"/api/my/agents/{uid}/token", json={}).json()["token"])
     check(ag.get(B + "/api/v1/focus").status_code == 403, f"{name}: GET /focus 403")
     check(ag.get(B + "/api/v1/focus/stats").status_code == 403, f"{name}: stats 403")
     check(ag.post(B + "/api/v1/focus/start", json={}).status_code == 403, f"{name}: start 403")

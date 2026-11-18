@@ -14,7 +14,7 @@ from ..core.config import app, APP_VERSION, ATT_DIR, ICAL_PREFIX, PUB_PREFIX, SE
 from .pg import insert_id
 from ..core.i18n import browser_lang, lang, N_, tr, trn
 from ..core.db import bump, db, err, iso, now_utc
-from ..accounts.session import client_ip, GATE, me
+from ..accounts.session import _rate_blocked, _rate_fail, client_ip, FAIL_WINDOW, GATE, me, rate_ip  # 2.1385.0 (#6503 3): + the address lock
 from ..core.access import Denied, my_inbox, time_all, acx_token_bind, collab_all
 from ..core.orgcrypt import oc_task_org  # 2.149.0 G (#2517): pulled up from functions
 from ..core.tokenhash import tkh_hash, tkh_match  # 2.149.0 G (#2517): pulled up from functions
@@ -445,6 +445,9 @@ def drop_user(c, auth):
     return r if r and tkh_match(got, r["drop_token_hash"]) else None
 
 
+DROP_FAIL_LIMIT = 30  # 2.1385.0 (#6503 3): wrong upload tokens per client address within FAIL_WINDOW, then 429 (as ICAL_FAIL_LIMIT)
+
+
 @app.post("/drop")
 @app.post("/drop/drop")  # 2.0.2: a shortcut that appends /drop to an address already ending in /drop still works
 def drop_post():
@@ -453,10 +456,16 @@ def drop_post():
     the bearer token (TASKS_DROP_TOKEN) is its lock. Every user has an own token (task lands in their inbox)."""
     from ..tasks.attachments import safe_name, save_attachments
     from ..notify.alerts import aa_count
+    # 2.1385.0 (#6503 3): wrong tokens are counted per address and lock it like the calendar feed (calendars/icalfeed.py)
+    keys = [("drop:" + rate_ip(), DROP_FAIL_LIMIT)]
+    if _rate_blocked(keys):
+        return Response("Too many requests\n", 429, mimetype="text/plain", headers={"Retry-After": str(FAIL_WINDOW)})
     auth = request.headers.get("Authorization", "")
     c = db()
     u = drop_user(c, auth)
     if not u:
+        if auth:  # a missing header is a client mistake (a shortcut set up without its token), a wrong token is counted
+            _rate_fail(keys)
         aa_count("security", "drop", client_ip())
         print("drop: 403, auth header", "missing" if not auth else
               f"len {len(auth)} starts {auth[:7]!r} ends-with-space {auth != auth.rstrip()}", flush=True)

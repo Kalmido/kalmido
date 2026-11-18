@@ -710,7 +710,7 @@ def _took_part(c, m, frm):
 def mbx_import(c, box, raw):
     """One mail of workspace mailbox box -> the e-mail filing of box's workspace (never another one). Returns the mail id,
     0 when it was not filed (a double, nobody to receive)."""
-    from ..integrations.mail import MAIL_TOKEN_RE, mail_text
+    from ..integrations.mail import MAIL_LATER, MAIL_TOKEN_RE, mail_text
     msg = mail_parse(raw)  # 2.1281.0 (#6425): counted before it is taken apart (MailRefused: mail_fetch skips it)
     org, ws = box["org_id"] or None, box["ws"]
     with system_ctx(c):  # the background round: the rights are checked here (holder, workspace), like hbm_mail_import
@@ -748,7 +748,7 @@ def mbx_import(c, box, raw):
             r = {"kind": "inbox", "user_id": holder, "org_id": org, "client_id": None, "list_id": None, "token": ""}
         out = H._import(c, r, msg, raw, mail_text)
     c.commit()
-    return out
+    return MAIL_LATER if out is H.HBM_LATER else out  # 2.1385.0 (#6435 7): over the sender's limit, the mail waits
 
 
 def _bg(fn):

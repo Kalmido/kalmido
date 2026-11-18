@@ -7,6 +7,7 @@ import re
 from ..core.config import ATT_DIR
 from ..core.i18n import tr
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
+from ..core.imgsafe import ImgRefused, img_open  # 2.1385.0 (#6435)
 from ..core.orgcrypt import oc_plain_size  # 2.498.0 (#3884)
 
 
@@ -68,30 +69,23 @@ def avatar_process(raw):
         from PIL import Image, ImageOps
     except ImportError:
         raise BadInput(tr("Photos are not available on this server"))
-    Image.MAX_IMAGE_PIXELS = 30_000_000
     try:
-        im = Image.open(io.BytesIO(raw))  # reads the header only
-        if im.format not in ("JPEG", "PNG", "WEBP", "GIF", "BMP"):
-            raise BadInput(tr("Please select a JPEG, PNG or WebP picture"))
-        if im.width * im.height > 60_000_000:  # the browser sends 512 px; this only stops huge direct uploads (memory)
-            raise BadInput(tr("This picture cannot be read"))
-        if im.format == "JPEG":
-            im.draft("RGB", (AVATAR_PX * 2, AVATAR_PX * 2))  # decode big photos at a reduced scale (fast, little memory)
-        im.load()
-        im = ImageOps.exif_transpose(im)
-        if im.mode in ("RGBA", "LA", "P"):
-            im = im.convert("RGBA")
-            bg = Image.new("RGB", im.size, (255, 255, 255))
-            bg.paste(im, mask=im.getchannel("A"))
-            im = bg
-        else:
-            im = im.convert("RGB")
-        im = ImageOps.fit(im, (AVATAR_PX, AVATAR_PX), method=Image.Resampling.LANCZOS)
-        out = io.BytesIO()
-        im.save(out, "JPEG", quality=86, optimize=True)  # a new file: no EXIF, GPS or ICC data carried over
+        # 2.1385.0 (#6435): the shared decoder (formats, pixels before load() - the browser sends 512 px -, one lock)
+        with img_open(raw, draft=(AVATAR_PX * 2, AVATAR_PX * 2)) as im:
+            im = ImageOps.exif_transpose(im)
+            if im.mode in ("RGBA", "LA", "P"):
+                im = im.convert("RGBA")
+                bg = Image.new("RGB", im.size, (255, 255, 255))
+                bg.paste(im, mask=im.getchannel("A"))
+                im = bg
+            else:
+                im = im.convert("RGB")
+            im = ImageOps.fit(im, (AVATAR_PX, AVATAR_PX), method=Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            im.save(out, "JPEG", quality=86, optimize=True)  # a new file: no EXIF, GPS or ICC data carried over
         return out.getvalue()
-    except BadInput:
-        raise
+    except ImgRefused as e:
+        raise BadInput(tr("Please select a JPEG, PNG or WebP picture") if e.reason == "format" else tr("This picture cannot be read")) from None
     except Exception:  # noqa: BLE001  (decompression bomb, truncated, unknown format ...)
         raise BadInput(tr("This picture cannot be read"))
 
@@ -182,23 +176,15 @@ def list_icon_process(raw):
         from PIL import Image, ImageOps
     except ImportError:
         raise BadInput(tr("Photos are not available on this server"))
-    Image.MAX_IMAGE_PIXELS = 30_000_000
     try:
-        im = Image.open(io.BytesIO(raw))
-        if im.format not in ("JPEG", "PNG", "WEBP", "GIF", "BMP"):
-            raise BadInput(tr("Please select a JPEG, PNG or WebP picture"))
-        if im.width * im.height > 60_000_000:
-            raise BadInput(tr("This picture cannot be read"))
-        if im.format == "JPEG":
-            im.draft("RGB", (LIST_ICON_PX * 2, LIST_ICON_PX * 2))
-        im.load()
-        im = ImageOps.exif_transpose(im)
-        im = im.convert("RGBA")
-        im = ImageOps.fit(im, (LIST_ICON_PX, LIST_ICON_PX), method=Image.Resampling.LANCZOS)
-        out = io.BytesIO()
-        im.save(out, "PNG", optimize=True)  # a new file: no EXIF, GPS, text chunks or ICC data carried over
+        with img_open(raw, draft=(LIST_ICON_PX * 2, LIST_ICON_PX * 2)) as im:  # 2.1385.0 (#6435): the shared decoder
+            im = ImageOps.exif_transpose(im)
+            im = im.convert("RGBA")
+            im = ImageOps.fit(im, (LIST_ICON_PX, LIST_ICON_PX), method=Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            im.save(out, "PNG", optimize=True)  # a new file: no EXIF, GPS, text chunks or ICC data carried over
         return out.getvalue()
-    except BadInput:
-        raise
+    except ImgRefused as e:
+        raise BadInput(tr("Please select a JPEG, PNG or WebP picture") if e.reason == "format" else tr("This picture cannot be read")) from None
     except Exception:  # noqa: BLE001
         raise BadInput(tr("This picture cannot be read"))

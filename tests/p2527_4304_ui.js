@@ -132,7 +132,8 @@ const online = w => { w.__offline = false; w.eval('OUT.retryAt = 0'); w.dispatch
   check(bar && /not saved \(Text too large\)/.test(bar.textContent) && bar.querySelector('[data-wk="cfshow"]'), 'A18: the page shows the draft with Compare ' + (bar?.textContent || ''));
   ww.close();
 
-  // ================= A20: the account switch keeps the conflict copies as a download
+  // ================= A20: the account switch and the conflict copies of the previous account
+  // 2.1385.0 (#6503 9): no download any more - the file went to the account signing in now; the copies are only deleted
   const bob = (await call('POST', '/api/users', {username: 'bob', display_name: 'Bob', password: 'password123', email: 'bob@example.com'})).id;
   const asked = [], blobs = [], names = [];
   const cfl = [{tid: T1, title: 'Cut the hedge', field: 'title', server: 'Cut the hedge', mine: 'Cut the hedge on Friday', at: Date.now()}];
@@ -140,12 +141,11 @@ const online = w => { w.__offline = false; w.eval('OUT.retryAt = 0'); w.dispatch
   const wb = await boot({user: 'alice', hash: 'l/' + P, ls: {'tasks.uid': String(bob), 'tasks.outbox': JSON.stringify(ent), 'tasks.conflicts': JSON.stringify(cfl)},
     setup: x => { x.confirm = t => { asked.push(t); return true; }; const OB = x.Blob; x.Blob = class extends OB { constructor(parts, o) { super(parts, o); this.__txt = (parts || []).join(''); } }; x.URL.createObjectURL = b => { blobs.push(b); return 'blob:x'; }; x.URL.revokeObjectURL = () => {}; x.HTMLAnchorElement.prototype.click = function () { if (this.download) names.push(this.download); }; }});
   check(await until(() => asked.length > 0), 'A20: another account: asked first');
-  check(/downloaded as a text file/.test(asked.join(' ')), 'A20: the question says a copy is downloaded ' + asked[0]);
-  check(await until(() => names.length > 0), 'A20: "Delete and continue" downloads a file ' + JSON.stringify(names));
-  check(/^kalmido-conflicts-\d{4}-\d{2}-\d{2}\.txt$/.test(names[0] || ''), 'A20: named kalmido-conflicts-<date>.txt ' + names[0]);
-  const txt = blobs[0]?.__txt || '';
-  check(/Cut the hedge on Friday/.test(txt) && /Water the roses twice/.test(txt), 'A20: the file holds the conflict copy and the waiting change ' + JSON.stringify(txt.slice(0, 300)));
-  check(await until(() => !/Cut the hedge on Friday/.test(wb.__store['tasks.conflicts'] || '')), 'A20: then the local data of the previous account goes as before');
+  check(/deletes them from this device permanently; this account does not get them/.test(asked.join(' ')) && !/download/.test(asked.join(' ')),
+    '#6503 9: the question says they are deleted, not handed over ' + asked[0]);
+  check(await until(() => !/Cut the hedge on Friday/.test(wb.__store['tasks.conflicts'] || '')), 'A20: "Delete and continue": the local data of the previous account goes as before');
+  check(!names.length && !blobs.some(b => /Cut the hedge on Friday|Water the roses twice/.test(b.__txt || '')),
+    '#6503 9: ... and no file with its texts is downloaded for the account signing in ' + JSON.stringify(names));
   wb.close();
 
   // ================= A5: the session ends while the client dialog / a comment waits (a person without an organisation)

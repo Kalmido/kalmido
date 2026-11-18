@@ -7,6 +7,8 @@ const SES_VIA = {password: N_('Password'), '2fa': N_('Password and second factor
   invite: N_('Invitation link'), link: N_('Sign-in link'), support: N_('Support (support access)')};
 const sesHtml = () => `<h4 id="s-ses-h">${tr('Active sessions')}</h4><div id="s-ses" aria-live="polite"><div class="muted mhint">${tr('Loading…')}</div></div>`;
 const sesName = s => s.browser && s.system ? tr('{0} on {1}', s.browser, s.system) : s.browser || s.system || tr('Unknown device');
+// 2.1385.0 (#6503 8): a sign-out ends browser sessions only; these ways in go on (ended where they are made)
+const SES_NOT_HERE = N_('App passwords, API tokens, agents and calendar subscription links are no sessions: they keep working. End them under Settings > Account, Access and Integrations.');
 function sesIcon(s) { return ic(s.device === 'phone' || s.device === 'tablet' ? 'phone' : 'laptop', 's'); }
 async function sesDraw(md) {
   const box = $('#s-ses', md); if (!box) return;
@@ -20,7 +22,7 @@ async function sesDraw(md) {
       <button class="btn sm" data-ses="end" aria-label="${esc(tr('Sign out {0}', sesName(s)))}">${ic('logout', 's')} ${tr('Sign out')}</button></div>`).join('')}</div>`
     : `<div class="muted mhint">${tr('No other sessions.')}</div>`)
     + (others ? `<div class="row"><button class="btn sm" data-ses="others">${ic('logout', 's')} ${tr('Sign out everywhere else')}</button></div>` : '')
-    + `<div class="shint">${tr('Every browser or app you are signed in with. Do you not recognise one? Log it out and change your password.')}</div>`;
+    + `<div class="shint">${tr('Every browser or app you are signed in with. Do you not recognise one? Log it out and change your password.')} ${tr(SES_NOT_HERE)}</div>`;
 }
 document.addEventListener('click', async e => {
   const b = /** @type {any} */ (e.target).closest?.('[data-ses]'); if (!b) return;
@@ -35,7 +37,8 @@ document.addEventListener('click', async e => {
       await api('DELETE', '/api/me/sessions/' + encodeURIComponent(s.sid));
       toast(tr('Signed out'));
     } else {
-      if (!await askConfirm(tr('Sign out everywhere else?'), tr('Every other browser and app has to sign in again. This device stays signed in.'), {ok: tr('Sign out'), danger: true})) return;
+      // 2.1385.0 (#6503 8): honest - what a sign-out does not end and where that is ended
+      if (!await askConfirm(tr('Sign out everywhere else?'), tr('Every other browser and app has to sign in again. This device stays signed in.') + ' ' + tr(SES_NOT_HERE), {ok: tr('Sign out'), danger: true})) return;
       const r = await api('POST', '/api/me/sessions/others');
       toast(trn('{0} session signed out', '{0} sessions signed out', r.ended));
     }

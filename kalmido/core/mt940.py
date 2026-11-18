@@ -16,7 +16,7 @@ import re
 from datetime import date
 from decimal import Decimal
 
-from .csvimport import CAMT_AMOUNT_MAX, IBAN_RE, REF_NONE, _bad, _money, csv_clean
+from .csvimport import CAMT_AMOUNT_MAX, IBAN_RE, REF_NONE, _bad, _money, csv_clean, rows_over
 from .i18n import tr
 
 MT_TAG_RE = re.compile(r"^:(\d\d[A-Z]?):(.*)$")
@@ -180,9 +180,10 @@ def _entry(v, cur, pending, text_max):
         row["error"] = tr("The date cannot be read")
         return row
     value = _day(m.group(1))
-    if value is not None:
-        row["day"] = _booking_day(value, m.group(2)).isoformat()
-    else:
+    booked = _booking_day(value, m.group(2)) if value is not None else None
+    if booked is not None:
+        row["day"] = booked.isoformat()
+    else:  # 2.1385.0 (#6435): also a booking day no year has (1399, 0230): this row unreadable, not a 500 for the import
         row["error"] = tr("The date cannot be read")
     a = _num(m.group(5))
     if a is not None and a != 0 and _money(a) != 0:
@@ -198,7 +199,8 @@ def _entry(v, cur, pending, text_max):
     return row
 
 
-def mt_parse(text, text_max=300):
+def mt_parse(text, text_max=300, max_rows=None):
+    """2.1385.0 (#6435): max_rows: RowsOver (core/csvimport.py) at the first :61: over it, while reading."""
     rows, bals = [], []
     acct, cur, pending, opens, closes = "", "", False, [], []
     last = None
@@ -234,6 +236,8 @@ def mt_parse(text, text_max=300):
                     closes.append((MT_BAL_RANK[tag], b))
             last = None
         elif tag == "61":
+            if max_rows is not None and len(rows) >= max_rows:
+                raise rows_over(max_rows)
             last = _entry(val, cur, pending, text_max)
             rows.append(last)
         elif tag == "86" and last is not None:

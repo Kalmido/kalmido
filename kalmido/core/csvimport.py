@@ -86,6 +86,15 @@ def _bad(msg):
     return BadInput(msg)
 
 
+class RowsOver(BadInput):
+    """2.1385.0 (#6435): a statement has more rows than its reader may build (max_rows of camt_rows / mt_parse): raised at
+    the first row over it, while reading. An import of several files stops at it (not just this file skipped)."""
+
+
+def rows_over(n):
+    return RowsOver(tr("At most {0} rows per import", n))
+
+
 def csv_norm(s):
     s = unicodedata.normalize("NFKC", s or "").casefold()
     return re.sub(r"\s+", " ", s).strip()
@@ -180,15 +189,18 @@ def csv_table_numbered(text, max_rows=CSV_ROWS):
     text = csv_decode(text)
     lines = text.split("\n")
     d = csv_delim(lines)
+    numbered = []
     try:
-        numbered = [(n, r) for n, r in enumerate(csv.reader(io.StringIO(text), delimiter=d), 1) if any(x.strip() for x in r)]
+        for n, r in enumerate(csv.reader(io.StringIO(text), delimiter=d), 1):
+            if any(x.strip() for x in r):
+                if len(numbered) >= max_rows + 50:  # 2.1385.0 (#6435): stopped at the first row too many, not after all of them
+                    raise rows_over(max_rows)
+                numbered.append((n, r))
     except csv.Error:
         raise _bad(tr("The file cannot be read as CSV")) from None
     if not numbered:
         raise _bad(tr("The file is empty"))
     nums, rows = zip(*numbered)
-    if len(rows) > max_rows + 50:
-        raise _bad(tr("At most {0} rows per import", max_rows))
     lens = [len(r) for r in rows]
     common = max(set(lens), key=lens.count)
     hi = next(i for i, r in enumerate(rows) if len(r) == common)
@@ -603,9 +615,10 @@ def _camt_positions(txs, credit, total):
     return out if sum(x for x, _c in out) == total else None
 
 
-def camt_rows(text, text_max=300):
+def camt_rows(text, text_max=300, max_rows=None):
     """CAMT.052 / .053 XML -> [{day, amount (signed Decimal), currency, counterpart, purpose, iban, ref, error}]. Documents
-    with a DOCTYPE or an ENTITY are refused by the reader (camt_tree: no entity expansion, no external references)."""
+    with a DOCTYPE or an ENTITY are refused by the reader (camt_tree: no entity expansion, no external references).
+    2.1385.0 (#6435): max_rows: RowsOver at the first row over it, while reading (was: counted after every row was built)."""
     try:
         root = camt_tree(text)
     except safexml.XmlRefused as e:
@@ -618,6 +631,8 @@ def camt_rows(text, text_max=300):
     for ntry in root.iter():
         if camt_local(ntry.tag) != "Ntry":
             continue
+        if max_rows is not None and len(out) >= max_rows:  # 2.1385.0 (#6435): one more entry = at least one row too many
+            raise rows_over(max_rows)
         amt_el = camt_kid(ntry, "Amt")
         row = {"day": _camt_day(camt_kid(ntry, "BookgDt")) or _camt_day(camt_kid(ntry, "ValDt")), "amount": None,
                "currency": ((amt_el.get("Ccy") if amt_el is not None else "") or "").upper()[:3], "counterpart": "", "purpose": "",
@@ -660,6 +675,8 @@ def camt_rows(text, text_max=300):
         elif row["amount"] is None:
             row["error"] = tr("The amount cannot be read")
         out.append(row)
+    if max_rows is not None and len(out) > max_rows:  # the positions of the last batch booking
+        raise rows_over(max_rows)
     if not out:
         raise _bad(tr("The file contains no bookings"))
     return out

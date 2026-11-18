@@ -671,7 +671,7 @@ function wk_render(p, ctx = {seen: new Set([p.id]), d: 0}) {
     .replace(typeof WKQ_RE === 'undefined' ? /(?!)/ : WKQ_RE, (_, t) => { qs.push(t); return `\n\n\u2063WKQ${qs.length - 1}\u2063\n\n`; }), fls), ems);
   wk_dgNeed(src, ims);
   let h = mdTaskRefs(renderMd(src, true), false, true);  // 2.619.0 (#4947): a bare #123 stays text, a task is [[#123]] (below)
-  if (ims.length) h = h.replace(/\u2063IM(\d+)\u2063/g, (_, n) => { const t = ims[+n] ?? ''; return `<span class="wkimath" data-tex="${esc(t)}">\\(${esc(t)}\\)</span>`; });
+  if (ims.length) h = htmlTextSub(h, /\u2063IM(\d+)\u2063/g, (_, n) => { const t = ims[+n] ?? ''; return `<span class="wkimath" data-tex="${esc(t)}">\\(${esc(t)}\\)</span>`; });
   // [[links]] only in text: every tag is passed whole (no match inside an attribute), nothing inside code / pre / links
   let skip = 0;
   const pgs = [];  // 2.371.2 (#3151): ![[Page]] / ![[Page#Heading]], drawn after the page's own boxes and ticks (they count its lines)
@@ -686,10 +686,11 @@ function wk_render(p, ctx = {seen: new Set([p.id]), d: 0}) {
     return pg ? `<a href="#wiki/${pg.id}" class="wklink"${/*html-ok*/ ti/* the path, HTML already (t) */}>${lb}</a>` : `<a href="#wiki" class="wklink wkmissing" data-wk="create" data-path="${t}" title="${esc(tr('Create this page'))}">${lb}</a>`;
   });
   if (typeof wkt_linkHtml === 'function') h = wkt_linkHtml(h, p.space);  // 2.371 (#3150): #tags as links to their list
-  h = h.replace(/(?:<p>)?\u2063WKT(\d+)\u2063(?:<\/p>)?/g, (_, n) => wk_tocHtml(p.space, tcs[+n] || ''));  // 2.376 (#3294)
-  h = h.replace(/(?:<p>)?\u2063WKQ(\d+)\u2063(?:<\/p>)?/g, (_, n) => wkq_html(p, qs[+n] || ''));  // 2.371 (#3150)
-  h = wem_put(p, wka_put(h.replace(/(?:<p>)?MM(\d+)(?:<\/p>)?/g, (_, i) => typeof mm_blockHtml === 'function' ? mm_blockHtml(mms[+i] || '') : `<pre class="mdpre">${esc(mms[+i] || '')}</pre>`), fls, p), ems);  // 2.123.0 C (#2103, #2108); #5227: p (the sizes of its pictures)
-  return pgs.length ? h.replace(/(?:<p>)?\u2063WKE(\d+)\u2063(?:<\/p>)?/g, (_, n) => pgs[+n] ? wem_pgHtml(p, pgs[+n], ctx) : '') : h;  // 2.371.2 (#3151)
+  // 2.1385.0 (#6435 12): the placeholders below are put back only outside of tags (htmlTextSub), never into an attribute
+  h = htmlTextSub(h, /(?:<p>)?\u2063WKT(\d+)\u2063(?:<\/p>)?/g, (_, n) => wk_tocHtml(p.space, tcs[+n] || ''));  // 2.376 (#3294)
+  h = htmlTextSub(h, /(?:<p>)?\u2063WKQ(\d+)\u2063(?:<\/p>)?/g, (_, n) => wkq_html(p, qs[+n] || ''));  // 2.371 (#3150)
+  h = wem_put(p, wka_put(htmlTextSub(h, /(?:<p>)?MM(\d+)(?:<\/p>)?/g, (_, i) => typeof mm_blockHtml === 'function' ? mm_blockHtml(mms[+i] || '') : `<pre class="mdpre">${esc(mms[+i] || '')}</pre>`), fls, p), ems);  // 2.123.0 C (#2103, #2108); #5227: p (the sizes of its pictures)
+  return pgs.length ? htmlTextSub(h, /(?:<p>)?\u2063WKE(\d+)\u2063(?:<\/p>)?/g, (_, n) => pgs[+n] ? wem_pgHtml(p, pgs[+n], ctx) : '') : h;  // 2.371.2 (#3151)
 }
 // 2.619.0 (#4947): [[#123]] / [[#123|label]] -- the task link of a page: the task's link with its title for who may see it
 // (taskById: the tasks this browser has; the title of another task is never asked for), else plain "#123" (label = HTML already)
@@ -740,7 +741,7 @@ const wka_dec = n => { try { return decodeURIComponent(n); } catch { return n; }
 function wk_imgWH(w, h) { return w > 0 && h > 0 ? ` width="${Math.round(w)}" height="${Math.round(h)}"` : ''; }
 function wka_put(h, fls, p) {
   const own = new Map((p?.files || []).map(f => [String(f.id), f]));
-  return h.replace(/\u2063WKA(\d+)\u2063/g, (m, i) => {
+  return htmlTextSub(h, /\u2063WKA(\d+)\u2063/g, (m, i) => {  // 2.1385.0 (#6435 12): not in attributes
     const f = fls[+i]; if (!f) return '';
     const url = `/api/wiki/files/${f.id}/${encodeURIComponent(wka_dec(f.name))}`, d = own.get(String(f.id)), wh = wk_imgWH(d?.w, d?.h);
     return f.img ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img class="wkimg${wh ? '' : ' wkph'}" src="${esc(url)}" alt="${esc(f.label)}" loading="lazy"${/*html-ok*/ wh}></a>`  // sprung-ok: width/height or the fixed .wkph box (#5227)

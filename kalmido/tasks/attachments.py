@@ -2,6 +2,7 @@
 import mimetypes
 import os
 import re
+import unicodedata
 import uuid
 from flask import g, has_request_context, jsonify, request
 
@@ -19,7 +20,10 @@ from ..tasks.tasks import one_task
 # ---------------------------------------------------------------- attachments
 
 def safe_name(n):
-    n = os.path.basename((n or "").replace("\\", "/")).strip()
+    # 2.1385.0 (#6435 6): invisible format characters (Unicode category Cf: direction marks and overrides U+200E/F, U+202A-202E,
+    # U+2066-2069, zero widths, soft hyphen) go - "rechnung<U+202E>fdp.exe" showed itself as "rechnungexe.pdf"
+    n = "".join(ch for ch in (n or "") if unicodedata.category(ch) != "Cf")
+    n = os.path.basename(n.replace("\\", "/")).strip()
     n = re.sub(r"[\x00-\x1f/\\:*?\"<>|]", "_", n)[:150]
     return n or "datei"
 

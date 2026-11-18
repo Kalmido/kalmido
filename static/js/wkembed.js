@@ -52,7 +52,7 @@ function wem_link(p, t, label) {
 }
 function wem_put(p, h, ems) {
   const w = wem_st(p);
-  h = h.replace(/⁣WEM(\d+)⁣/g, (m, i) => {
+  h = htmlTextSub(h, /⁣WEM(\d+)⁣/g, (m, i) => {  // 2.1385.0 (#6435 12): not in attributes
     const e = ems[+i]; if (!e) return '';
     wem_need(p, 'f', e.id);
     const x = w.files[e.id];

@@ -953,7 +953,7 @@ function outOrgDrop(oid) {
 // here, not in the page copy (IndexedDB kalmido-wiki), which a new sign-in, an ended session and 14 days without a sync empty
 const FD_KINDS = ['ltpend', 'fdf', 'fdc', 'fdw', 'fdx'];
 // review (#4304): before /api/me answered (a 401 at the start) the account of this browser (uid), else authGone found nothing and wiped
-// 2.1257.0 (#6286): uid = another account's records (the previous account at a switch, cfDownload)
+// 2.1257.0 (#6286): uid = another account's records (the previous account, e.g. counted at a logout)
 const FD_KEY = (kind, id, uid) => `tasks.${kind}.${uid || S.me?.id || LS.get('uid', 0) || 0}.${id}`;
 function fdKeep(kind, id, b, base = '') { try { localStorage.setItem(FD_KEY(kind, id), JSON.stringify({base: base || '', b, at: Date.now()})); } catch { /* full or private mode */ } }
 function fdGet(kind, id, uid) { try { return JSON.parse(localStorage.getItem(FD_KEY(kind, id, uid)) || 'null'); } catch { return null; } }
@@ -1397,28 +1397,12 @@ async function userSwitchAsk(id, n) {
   if (typeof bootDone === 'function') bootDone();
   try { await i18nLoad(uiLang()); } catch { /* English */ }
   const ok = await askConfirm(trn('{0} change of the previous account on this device is not synced yet', '{0} changes of the previous account on this device are not synced yet', n),
-    tr('Signing in with another account deletes them from this device, a copy is downloaded as a text file first. Cancel signs out again: the previous account can then sign in and send them.'), {ok: tr('Delete and continue'), danger: true});
-  if (ok) { try { cfDownload(id, LS.get('uid', 0)); } catch (e) { console.warn('conflict copies: download failed', e); } userSwitch(id); return; }  // 2.527.0 (#4304 A20)
+    tr('Signing in with another account deletes them from this device permanently; this account does not get them. Cancel signs out again: the previous account can then sign in and send them.'), {ok: tr('Delete and continue'), danger: true});
+  // 2.1385.0 (#6503 9): no download here any more - it gave the previous account's unsent texts (conflict copies, waiting
+  // changes, knowledge page texts) as a file to the account signing in now; they are only deleted (userSwitch clearLocal)
+  if (ok) { userSwitch(id); return; }
   try { await fetch('/api/auth/logout', {method: 'POST', headers: {'X-Requested-With': 'kalmido'}}); } catch { /* offline */ }
   location.reload();
-}
-// 2.527.0 (#4304 A20): the conflict copies and the changes still waiting of the previous account are not deleted silently at
-// the switch: they leave as a text file (downloaded) first - each with its task, field, the saved and the own version
-// 2.1257.0 (#6286): prev = the previous account: its knowledge page texts waiting at their pages (kept input 'fdx') go along
-function cfDownload(uid, prev) {
-  for (const e of outSync().filter(x => x.uid !== uid && !x.done)) outReject(e, {message: tr('Not synced yet')});
-  const list = S.conflicts || [], wx = prev ? fdList('fdx', prev).map(r => r.b).filter(b => b && typeof b.mine === 'string') : [];
-  if (!list.length && !wx.length) return false;
-  const val = (f, v) => { try { return fmtVal(f, v); } catch { return typeof v === 'object' ? JSON.stringify(v) : String(v ?? ''); } };
-  const txt = [`${APP_NAME} · ${new Date().toLocaleString()}`, ''].concat(...list.map(c => c.field === 'rejected'
-    ? [`== ${c.title || '?'} · ${tr('Offline change not saved')}`, `${tr('reason')}: ${c.server || ''}`, `${tr('your version')}:`, String(c.mine ?? ''), '']
-    : [`== ${c.title || '?'} · ${histFieldName(c.field)}`, `${tr('saved')}: ${val(c.field, c.server)}`, `${tr('your version')}: ${val(c.field, c.mine)}`, '']),
-  ...wx.map(b => [`== ${b.title || '#' + b.id} · ${tr('Knowledge page')}`, ...(b.why ? [`${tr('reason')}: ${b.why}`] : []), `${tr('your version')}:`, b.mine, ''])).join('\n');
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], {type: 'text/plain'}));
-  a.download = `${APP_NAME.toLowerCase()}-conflicts-${today()}.txt`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-  return true;
 }
 // another user than last time in this browser: drop everything local of the previous one, then the app loads again
 function userSwitch(id) {

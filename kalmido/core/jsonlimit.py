@@ -42,7 +42,9 @@ def jl_cap(method, rule):
 
 @app.before_request
 def jl_guard():
-    """413 for a JSON body above the route's limit; a body without a length (chunked) is cut there by werkzeug (413)."""
+    """413 for a JSON body above the route's limit; a body without a length (chunked) is cut there by werkzeug (413).
+    2.1385.0 (#6435): JSON nested deeper than the parser goes is handled lazily by core/config.py _DeepJSON (no parse here:
+    a route that reads the raw stream itself, the hosted MCP server, would find it empty)."""
     if not request.is_json:
         return None
     cap = jl_cap(request.method, request.url_rule.rule if request.url_rule is not None else "")

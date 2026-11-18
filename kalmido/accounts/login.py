@@ -333,6 +333,22 @@ def unseal(c, purpose, s):
 # atomically). A WebAuthn challenge has a row of its own (ns "pendc"): taking it is DELETE ... RETURNING, so one challenge
 # answers one request of all processes. A restart keeps them now (they still end after PEND_TTL).
 EPH_PEND, EPH_PEND_CHAL = "pend", "pendc"
+# 2.1385.0 (#6503 4): the tickets of the passwordless passkey sign-in (POST /api/auth/passkey/options, open to anybody) live in
+# namespaces of their own with their own caps, so a flood of them only pushes out older passkey tickets, never the 2FA /
+# enrolment tickets of people half way through signing in. Their cookie value starts with PK_TOK_PREFIX ("." is no character of
+# token_urlsafe), so the second step knows the namespace without a look-up. No address lock (#3111): the cap per address only
+# lets an address's own oldest tickets give way.
+EPH_PEND_PK, EPH_PEND_PK_CHAL = "pendpk", "pendpkc"
+PK_PEND_MAX = 2000
+PK_PEND_PER_IP = 20
+PK_TOK_PREFIX = "pk."
+
+
+def _pend_ns(tok):
+    """2.1385.0 (#6503 4): (ticket namespace, challenge namespace, caps) of a ticket by its cookie value."""
+    if tok.startswith(PK_TOK_PREFIX):
+        return EPH_PEND_PK, EPH_PEND_PK_CHAL, {"ip": PK_PEND_PER_IP, "all": PK_PEND_MAX}
+    return EPH_PEND, EPH_PEND_CHAL, {"ip": PEND_PER_IP, "all": PEND_MAX}
 
 
 def _pend_json(o):
@@ -361,19 +377,20 @@ class PendTicket(dict):
     """2.622.0 (#3891): a ticket as the callers knew it (a dict whose changes stick): every change is written back to its row;
     "chal" lives in a row of its own and pop("chal") takes it once for all processes."""
 
-    def __init__(self, key, d, tries=0):
+    def __init__(self, key, d, tries=0, ns=EPH_PEND, ns_chal=EPH_PEND_CHAL):
         super().__init__(d)
         self._key = key
+        self._ns, self._ns_chal = ns, ns_chal  # 2.1385.0 (#6503 4)
         dict.__setitem__(self, "tries", tries)
 
     def _save(self):
-        eph_set(EPH_PEND, self._key, _pend_seal(self._key, {k: v for k, v in self.items() if k not in ("tries", "chal")}))
+        eph_set(self._ns, self._key, _pend_seal(self._key, {k: v for k, v in self.items() if k not in ("tries", "chal")}))
 
     def __setitem__(self, k, v):
         if k == "tries":  # counted in the row (pend_fail), not written from here
             return dict.__setitem__(self, k, v)
         if k == "chal":
-            eph_put(EPH_PEND_CHAL, self._key, _pend_seal("c:" + self._key, {"chal": v}), PEND_TTL, caps={"all": PEND_MAX})
+            eph_put(self._ns_chal, self._key, _pend_seal("c:" + self._key, {"chal": v}), PEND_TTL, caps={"all": PEND_MAX})
             return dict.__setitem__(self, k, v)
         dict.__setitem__(self, k, v)
         self._save()
@@ -389,7 +406,7 @@ class PendTicket(dict):
     def pop(self, k, *default):
         if k == "chal":
             dict.pop(self, k, None)
-            v = eph_take(EPH_PEND_CHAL, self._key)
+            v = eph_take(self._ns_chal, self._key)
             d = _pend_open("c:" + self._key, v) if v else None
             return d.get("chal") if d else (default[0] if default else None)
         out = dict.pop(self, k, *default)
@@ -407,15 +424,15 @@ def pend_ip_cap(store, ip, cap):
 
 
 def pend_new(kind, uid, **data):
-    tok = secrets.token_urlsafe(32)
+    tok = (PK_TOK_PREFIX if kind == "pk" else "") + secrets.token_urlsafe(32)  # 2.1385.0 (#6503 4): pk = its own namespaces
+    ns, ns_chal, caps = _pend_ns(tok)
     ip = rate_ip()  # 2.190.0 R (#2496): the counter key (IPv6 as its /64), like the other address limits
     key = "t:" + _token_hash(tok)
     chal = data.pop("chal", None)
-    if not eph_put(EPH_PEND, key, _pend_seal(key, {"kind": kind, "uid": uid, **data}), PEND_TTL, uid=uid, ip=ip,
-                   caps={"ip": PEND_PER_IP, "all": PEND_MAX}):
+    if not eph_put(ns, key, _pend_seal(key, {"kind": kind, "uid": uid, **data}), PEND_TTL, uid=uid, ip=ip, caps=caps):
         raise RuntimeError("sign-in ticket not stored")  # the database is away: the sign-in fails (500), nothing half-done
     if chal is not None:  # the passkey sign-in's challenge: its own row, taken once (PendTicket.pop)
-        eph_put(EPH_PEND_CHAL, key, _pend_seal("c:" + key, {"chal": chal}), PEND_TTL, caps={"all": PEND_MAX})
+        eph_put(ns_chal, key, _pend_seal("c:" + key, {"chal": chal}), PEND_TTL, caps={"all": caps["all"]})
     return tok
 
 
@@ -425,12 +442,12 @@ def pend_cookie(resp, tok):
     return resp
 
 
-def _pend_load(key):
-    r = eph_get(EPH_PEND, key)
+def _pend_load(key, ns=EPH_PEND, ns_chal=EPH_PEND_CHAL):
+    r = eph_get(ns, key)
     d = _pend_open(key, r["v"]) if r else None
     if d is None:
         return None
-    return PendTicket(key, d, r["n"])
+    return PendTicket(key, d, r["n"], ns, ns_chal)
 
 
 def pend_get(kinds):
@@ -438,23 +455,26 @@ def pend_get(kinds):
     tok = request.cookies.get(PEND_COOKIE) or ""
     if not tok:
         return None
-    p = _pend_load("t:" + _token_hash(tok))
+    ns, ns_chal, _ = _pend_ns(tok)
+    p = _pend_load("t:" + _token_hash(tok), ns, ns_chal)
     return p if p and p.get("kind") in kinds else None
 
 
 def pend_fail(p):
     """2.622.0 (#3891): one more wrong try of ticket p (atomic over all processes); the ticket dies after PEND_TRIES."""
-    n = eph_count_up(EPH_PEND, p._key)
+    n = eph_count_up(p._ns, p._key)
     dict.__setitem__(p, "tries", n if n is not None else PEND_TRIES)
     if n is None or n >= PEND_TRIES:
-        eph_drop(EPH_PEND, p._key)
-        eph_drop(EPH_PEND_CHAL, p._key)
+        eph_drop(p._ns, p._key)
+        eph_drop(p._ns_chal, p._key)
 
 
 def pend_drop():
-    key = "t:" + _token_hash(request.cookies.get(PEND_COOKIE) or "")
-    eph_drop(EPH_PEND, key)
-    eph_drop(EPH_PEND_CHAL, key)
+    tok = request.cookies.get(PEND_COOKIE) or ""
+    ns, ns_chal, _ = _pend_ns(tok)  # 2.1385.0 (#6503 4)
+    key = "t:" + _token_hash(tok)
+    eph_drop(ns, key)
+    eph_drop(ns_chal, key)
 
 
 def pend_set(key, **data):

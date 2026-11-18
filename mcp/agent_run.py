@@ -79,6 +79,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """2.1385.0 (#6435 11): a redirect is never followed - urllib would send the Authorization header (the agent's token) along
+    to the address the answer names (like kalmido/agents/srvagent.py). A 3xx ends as an HTTPError."""
+    def redirect_request(self, *a, **kw):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
 try:  # 2.44.0 B (#1443 #1445 #1447): outbox, jobs, task bundling live in a module of their own; without it all works as before
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import agent_extras
@@ -239,7 +249,7 @@ class Api:
             "Authorization": "Bearer " + self.token, "Accept": "application/json",
             **({"Content-Type": "application/json"} if data is not None else {})})
         try:
-            with urllib.request.urlopen(rq, timeout=timeout) as r:
+            with _OPENER.open(rq, timeout=timeout) as r:  # 2.1385.0 (#6435 11): no redirects
                 raw = r.read()
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:

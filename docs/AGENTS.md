@@ -318,8 +318,9 @@ Behind a login proxy, let `/agent-setup.sh`, `/agent-setup.ps1` and `/api/agent-
 - Fewer people giving orders means less risk. A personal agent is gone while its owner's computer is off. The project switch
   *Members may see and use the agent* does not open a personal agent to the members: only its owner addresses it (the
   switch says so when a personal agent is in the project or the folder).
-- Switching later needs no new setup: an admin changes *Belongs to* to team or person. Projects and history stay; adjust the
-  rules in its `CLAUDE.md`.
+- Switching later: an admin changes *Belongs to* to team or person. Projects and history stay; its API tokens, setup codes
+  and hosted MCP accesses end at once (2.1385.0, #6503), so set it up again on the new side and adjust the rules in its
+  `CLAUDE.md`.
 - **Server agent** (2.557.0): when you have no computer that should run an agent. It runs on the Kalmido server with your
   own API key of a model provider; Kalmido calls the model itself. See [Server agents](#server-agents).
 - **Server agent in team projects** (2.569.0, #4675): as your *personal* one it works in projects you share with others,
@@ -989,7 +990,9 @@ sharing, `GET /api/agents`, its jobs) only through projects it is in, like every
 `owner_id`) is invisible to admins everywhere; the administration lists it by name and owner with the kill switch only
 (`restricted: true`, every other change answers 403). Admins create a personal agent for a person with `owner_id` on
 `POST /api/admin/agents`, or turn a team agent into one with `PATCH /api/admin/agents/{id} {"owner_id": <user id>}`
-(*Belongs to* in the app); `null` makes it a team agent again.
+(*Belongs to* in the app); `null` makes it a team agent again. A change of owner (also to or from a team agent) ends every
+way in the former side set up (2.1385.0, #6503): the agent's API tokens, its setup codes and its hosted MCP accesses; the new
+owner makes a new token (`POST /api/my/agents/{id}/token`) or setup code, an admin `POST /api/admin/agents/{id}/token`.
 
 **The private list "Notes" (2.477.0).** Each person's quick notes live in one private list "Notes" (made on the first
 quick note). It is never shared: adding members, a group, an agent, a public link, another owner, a workspace or a folder

@@ -15,6 +15,7 @@ from flask import request, Response
 
 from ..core.config import APP_NAME
 from ..core.db import bump, parse_iso
+from ..core.imgsafe import ImgRefused, img_open  # 2.1385.0 (#6435)
 from ..core.pg import write_lock  # 2.273.0 C (#3048)
 from ..core.access import collab_all, live_sql, trash_sql  # 2.985.0 (#5394, review F1): live_sql; review F9: trash_sql
 from ..calendars.caldav import (
@@ -51,7 +52,8 @@ _PHOTO_SMALL, _PHOTO_LOCK = collections.OrderedDict(), threading.Lock()
 
 
 def _photo_shrink(uri):
-    """A data URI -> the same picture at most DAV_PHOTO_PX as a JPEG data URI, or '' (not a picture, no Pillow, not smaller)."""
+    """A data URI -> the same picture at most DAV_PHOTO_PX as a JPEG data URI, or '' (not a picture, no Pillow, not smaller);
+    None when the shared decoder stayed busy (2.1385.0, #6435)."""
     m = re.fullmatch(r"data:image/\w+;base64,(.+)", uri, re.S)
     if not m:
         return ""
@@ -60,23 +62,23 @@ def _photo_shrink(uri):
     except ImportError:
         return ""
     try:
-        im = Image.open(io.BytesIO(base64.b64decode(m.group(1))))  # reads the header only
-        if im.width * im.height > 60_000_000:
-            return ""
-        if im.format == "JPEG":
-            im.draft("RGB", (DAV_PHOTO_PX * 2, DAV_PHOTO_PX * 2))  # decode at a reduced scale (fast, little memory)
-        im.load()
-        im = ImageOps.exif_transpose(im)
-        if im.mode in ("RGBA", "LA", "P"):
-            im = im.convert("RGBA")
-            bg = Image.new("RGB", im.size, (255, 255, 255))
-            bg.paste(im, mask=im.getchannel("A"))
-            im = bg
-        else:
-            im = im.convert("RGB")
-        im.thumbnail((DAV_PHOTO_PX, DAV_PHOTO_PX), Image.Resampling.LANCZOS)
-        out = io.BytesIO()
-        im.save(out, "JPEG", quality=85, optimize=True)
+        # 2.1385.0 (#6435): the shared decoder - the four photo formats only, pixels before load() (a JPEG at its reduced
+        # scale), one lock; refused / busy = the stored picture goes as it is
+        with img_open(base64.b64decode(m.group(1)), formats=("JPEG", "PNG", "GIF", "WEBP"),
+                      draft=(DAV_PHOTO_PX * 2, DAV_PHOTO_PX * 2)) as im:
+            im = ImageOps.exif_transpose(im)
+            if im.mode in ("RGBA", "LA", "P"):
+                im = im.convert("RGBA")
+                bg = Image.new("RGB", im.size, (255, 255, 255))
+                bg.paste(im, mask=im.getchannel("A"))
+                im = bg
+            else:
+                im = im.convert("RGB")
+            im.thumbnail((DAV_PHOTO_PX, DAV_PHOTO_PX), Image.Resampling.LANCZOS)
+            out = io.BytesIO()
+            im.save(out, "JPEG", quality=85, optimize=True)
+    except ImgRefused as e:
+        return None if e.reason == "busy" else ""  # busy: this answer carries the stored one, the next tries again (not kept)
     except Exception:  # noqa: BLE001  (truncated, unknown format, decompression bomb ...): the stored picture goes
         return ""
     small = "data:image/jpeg;base64," + base64.b64encode(out.getvalue()).decode("ascii")
@@ -93,7 +95,10 @@ def dav_photo(uri):
         if hit is not None:
             _PHOTO_SMALL.move_to_end(k)
             return hit
-    small = _photo_shrink(uri) or uri
+    small = _photo_shrink(uri)
+    if small is None:  # 2.1385.0 (#6435): the decoder was busy - not kept, the next answer tries again
+        return uri
+    small = small or uri
     with _PHOTO_LOCK:
         _PHOTO_SMALL[k] = small
         while len(_PHOTO_SMALL) > DAV_PHOTO_KEEP:
