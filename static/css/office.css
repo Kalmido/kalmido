@@ -1117,6 +1117,10 @@ button.dma-open:hover .dma-n,button.dma-open:focus-visible .dma-n{color:var(--ac
 .dpjlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.25rem;max-width:40rem}
 .dpjdoc{display:flex;align-items:center;gap:.625rem;min-height:2.75rem;padding:.375rem .625rem;border:1px solid var(--line2);border-radius:var(--r-l);color:inherit;text-decoration:none}
 .dpjdoc:hover{background:var(--bg3)}
+/* in a tile of the project page the documents are rows like the tile's other lists (a line between, no box) */
+.povs .dpjlist{gap:0;max-width:none}
+.povs .dpjdoc{border:0;border-radius:var(--r-s);padding:.375rem .25rem}
+.povs .dpjlist > li + li{border-top:1px solid var(--line)}
 .dpjk{display:inline-flex;align-items:center;gap:.375rem;min-width:7rem;color:var(--muted);font-size:var(--fs-s)}
 .dpjs{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-s)}
 .dpja{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap}

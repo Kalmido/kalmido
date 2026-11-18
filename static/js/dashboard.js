@@ -208,11 +208,22 @@ function lyHtml(v, parts, o = {}) {
   // 2.1213.0 (#6126): between 768 and 1099 px a third / half block is one of two columns, two thirds / full the whole row. A slim
   // "...: nothing" strip takes the whole row, and so does the last of an odd run of narrow blocks: no hole beside it (lyfill,
   // css/start-dash-6126.css)
+  // two or more half blocks in a row (lw3, not the start page's two columns) stack in two columns of their own
+  // (.lyrun > .lycol, odd / even): a short block keeps its height beside a tall one and the next block moves up under it.
+  // A phone dissolves the columns (display:contents), the blocks keep their order by style order. The run is one row for lyfill.
+  const pk = [];
+  if (!o.cols) for (let i = 0; i < ent.length;) { let j = i; while (j < ent.length && ent[j].w === 3) j++; if (j - i >= 2) pk.push([i, j]); i = Math.max(j, i + 1); }
+  const inPk = i => pk.some(([a, z]) => i >= a && i < z);
   let run = [];
   const runEnd = () => { if (run.length % 2) run[run.length - 1].fill = true; run = []; };
-  for (const e of ent) { if (e.w >= 4 || e.slim) { runEnd(); e.fill = e.w < 4; } else run.push(e); }
+  ent.forEach((e, i) => { if (inPk(i)) runEnd(); else if (e.w >= 4 || e.slim) { runEnd(); e.fill = e.w < 4; } else run.push(e); });
   runEnd();
-  const ws = ent.map(e => e.w), out = ent.map(({k, b, h, w, fill}, i) => `<div class="lyb ly-${size(k)} lw${esc(w)} lh${pr.h(k)}${fill ? ' lyfill' : ''}${m ? ' lym' : ''}${wgColorCls(v, k)}" data-lyk="${k}"${o.cols ? ` style="order:${i}"` : ''}>${h}${m ? wgBlockTools(v, k, b) : ''}</div>`);
+  const ord = o.cols || pk.length;
+  const ws = ent.map(e => e.w), out = ent.map(({k, b, h, w, fill}, i) => `<div class="lyb ly-${size(k)} lw${esc(w)} lh${pr.h(k)}${fill ? ' lyfill' : ''}${m ? ' lym' : ''}${wgColorCls(v, k)}" data-lyk="${k}"${ord ? ` style="order:${i}"` : ''}>${h}${m ? wgBlockTools(v, k, b) : ''}</div>`);
+  for (const [a, z] of pk.slice().reverse()) {
+    const xs = out.slice(a, z);
+    out.splice(a, z - a, `<div class="lyrun" style="order:${esc(a)}"><div class="lycol">${/*html-ok*/ xs.filter((_, i) => !(i % 2)).join('')}</div><div class="lycol">${/*html-ok*/ xs.filter((_, i) => i % 2).join('')}</div></div>`);
+  }
   // 2.45.0 (#1504): two columns (wide main, narrow side) while every block is two thirds or a third wide, each column stacks
   // on its own; on narrower screens the columns are display:contents and the blocks keep their order (style order)
   const cols = o.cols && ws.includes(4) && ws.includes(2) && ws.every(x => x === 2 || x === 4);

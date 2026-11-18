@@ -194,11 +194,12 @@ function wgReset(v) {
 function wgGridCols(grid) { return wgCols(grid) ? 6 : getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length || 1; }
 // 2.45.0 (#1504): the start page's two columns (dashboard.js lyHtml): a block sits in .hpcol inside the grid; the columns
 // count while they show as columns (narrower screens: display:contents, the plain grid)
-const wgGrid = el => el.parentElement?.classList.contains('hpcol') ? el.parentElement.parentElement : el.parentElement;
+// the grid of a block is the nearest .lysix, also for a run of half blocks in two columns (.lyrun > .lycol, dashboard.js lyHtml)
+const wgGrid = el => el.closest('.lysix');
 const wgCols = grid => grid?.classList.contains('hpcols') && getComputedStyle(grid.firstElementChild).display !== 'contents';
 document.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch' || e.button !== 0 || S.ly.view) return;
-  const g = e.target.closest?.('.lysix > .lyb > .lygrip, .lysix > .hpcol > .lyb > .lygrip');
+  const g = e.target.closest?.('.lysix > .lyb > .lygrip, .lysix > .hpcol > .lyb > .lygrip, .lysix > .lyrun > .lycol > .lyb > .lygrip');
   if (g) {
     const el = g.parentElement, grid = wgGrid(el), v = grid.dataset.ly, k = el.dataset.lyk, pr = lyPref(v), r = el.getBoundingClientRect();
     if (wgGridCols(grid) < 6) return;
@@ -207,7 +208,8 @@ document.addEventListener('pointerdown', e => {
     document.body.classList.add('wgresizing');
     return;
   }
-  const hd = e.target.closest?.('.lysix > .lym .povh, .lysix > .lym > .dcard > h3, .lysix > .lym > .dcard > h2, .lysix > .lym > section > h2, .lysix > .lym > section > h3, .lysix > .hpcol > .lym > .dcard > h3');
+  const hd = e.target.closest?.(['.lysix > .lym .povh', '.lysix > .lym > .dcard > h3', '.lysix > .lym > .dcard > h2', '.lysix > .lym > section > h2', '.lysix > .lym > section > h3', '.lysix > .hpcol > .lym > .dcard > h3',
+    '.lycol > .lym .povh', '.lycol > .lym > .dcard > h3', '.lycol > .lym > .dcard > h2', '.lycol > .lym > section > h2', '.lycol > .lym > section > h3'].join());
   if (!hd || e.target.closest('a,button,input,textarea,select,label,[contenteditable]')) return;
   const el = hd.closest('.lyb');
   if (el.closest('.lysix') !== wgGrid(el)) return;
@@ -242,7 +244,7 @@ function wgPointerEnd(cancel) {
   const mv = WG.mv; WG.mv = null; if (!mv?.active) return;
   mv.line?.remove(); mv.el.classList.remove('wgdrag'); document.body.classList.remove('wgmoving');
   if (cancel || !mv.to) return;
-  const keys = $$(':scope > .lyb, :scope > .hpcol > .lyb', mv.grid).sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map(x => x.dataset.lyk).filter(x => x !== mv.k);
+  const keys = $$(':scope > .lyb, :scope > .hpcol > .lyb, :scope > .lyrun > .lycol > .lyb', mv.grid).sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0)).map(x => x.dataset.lyk).filter(x => x !== mv.k);
   keys.splice(keys.indexOf(mv.to) + (mv.after ? 1 : 0), 0, mv.k);
   const nm = lyBlocks(mv.v).find(b => b[0] === mv.k)?.[1];
   lydragDo(mv.v, lydragOrder(mv.v, keys), tr('{0} moved', tr(nm || '')));

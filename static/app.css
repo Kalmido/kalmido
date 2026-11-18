@@ -2897,12 +2897,12 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 }
 /* #407: tracked time in the list / folder header: hours, days, budget bar */
 .tsum{display:inline-flex;align-items:center;gap:.375rem;font-size:var(--fs-s);color:var(--muted);white-space:nowrap;min-width:0}
-.tsum b{font:600 var(--fs-s) var(--mono);color:var(--text);font-variant-numeric:tabular-nums}
+.tsum b{font-size:var(--fs-s);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}  /* the text font ("66 h" without the monospace gap) */
 .tsum .tsd::before{content:"·";margin-right:.375rem}
 .tsum .tbud{display:inline-block;position:relative;width:4rem;height:.375rem;border-radius:99rem;background:var(--bg4);overflow:hidden}
 .tsum .tbud i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:99rem}
 .tsum.over .tbud i{background:var(--p5)}
-.tsum .tbn{font:var(--fs-xs) var(--mono);font-variant-numeric:tabular-nums}
+.tsum .tbn{font-size:var(--fs-xs);font-variant-numeric:tabular-nums}  /* "66/103 h" in the text font */
 .tsum.over .tbn{color:var(--p5)}
 .tsum .tbw{font-size:var(--fs-xs);font-weight:600;color:var(--text)}.tsum.warn .tbud i{background:var(--p3)}.tsum.over .tbw{color:var(--danger)}  /* 2.555.0 (#4570): the budget warning */
 @media (max-width:30rem){ .lhead .tsum .tbw{display:none} }  /* 2.555.0 (#4570): the phone's header keeps the coloured bar, the project page the text */
@@ -2945,7 +2945,8 @@ button.mention.mlink:hover,button.mention.mlink:focus-visible{text-decoration:un
 .povc{min-width:0}
 .povs{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r-l);padding:.75rem 1rem .875rem;margin-top:.75rem;min-width:0}
 .povh{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;min-height:1.75rem}
-.povh h3{margin:.75rem 0 .375rem;font-size:var(--fs-b);font-weight:600}
+.povh h3{margin:0;font-size:var(--fs-b);font-weight:600}  /* no own margins: title, hint and buttons share one middle line */
+.povsub{margin:.875rem 0 .375rem;font-size:var(--fs-m);font-weight:600;color:var(--text2)}  /* the sub heading inside a tile (flow.js) */
 .povh .btn .i{width:.875rem;height:.875rem}
 .povempty{font-size:var(--fs-m);padding:1.5rem 1rem;text-align:center}
 .povmd{cursor:default;font-size:var(--fs-b)}
@@ -5984,20 +5985,20 @@ html.mini-task #app,html.mini-task #app.detail-open{grid-template-columns:minmax
 @media (pointer:coarse){ .lymore{opacity:.8;min-width:2.75rem;min-height:2.75rem;justify-content:center} }
 /* 2.218.0 A (#2803): Today: the blocks' "…" without the grey square; over the tasks it sits on the line of the first heading
    (the headings' rule ends before it instead of running under it) */
-[data-ly="today"] > .lyb > .lymore{background:none}
-[data-ly="today"] > .lyb.lym[data-lyk="tasks"] .ghead{padding-right:2.25rem}
-@media (pointer:coarse){ [data-ly="today"] > .lyb.lym[data-lyk="tasks"] > .lymore{top:0} [data-ly="today"] > .lyb.lym[data-lyk="tasks"] .ghead{padding-right:3rem} }
+[data-ly="today"] .lyb > .lymore{background:none}
+[data-ly="today"] .lyb.lym[data-lyk="tasks"] .ghead{padding-right:2.25rem}
+@media (pointer:coarse){ [data-ly="today"] .lyb.lym[data-lyk="tasks"] > .lymore{top:0} [data-ly="today"] .lyb.lym[data-lyk="tasks"] .ghead{padding-right:3rem} }
 /* 2.354.0 C (#3009): the head of "Overdue" carries "All to today" / "Another day…": its right edge keeps clear of the block's "…"
    (the button's width + its offset), so the two never overlap at any width */
-[data-ly="today"] > .lyb.lym[data-lyk="tasks"] .ghead:has(.odact){padding-right:3.25rem}
+[data-ly="today"] .lyb.lym[data-lyk="tasks"] .ghead:has(.odact){padding-right:3.25rem}
 /* 2.366.0 (#3001): Agents like Today: the blocks' "…" without the grey square, the jobs head (Open | All) keeps clear of it;
    the one-line hint below has none (Arrange blocks… moves or hides it) */
-[data-ly=agents]>.lyb>.lymore{background:none}
-[data-ly=agents]>.lyb.lym[data-lyk=jobs]>.lymore{top:0}
-[data-ly=agents]>.lyb.lym[data-lyk=jobs] .agjh{padding-right:2.5rem}
-@media (pointer:coarse){[data-ly=agents]>.lyb.lym[data-lyk=jobs] .agjh{padding-right:3.25rem}}
-[data-ly=agents]>.lyb[data-lyk=hint]>.lymore{display:none}
-@media (pointer:coarse){ [data-ly="today"] > .lyb.lym[data-lyk="tasks"] .ghead:has(.odact){padding-right:4rem} }
+[data-ly=agents] .lyb>.lymore{background:none}
+[data-ly=agents] .lyb.lym[data-lyk=jobs]>.lymore{top:0}
+[data-ly=agents] .lyb.lym[data-lyk=jobs] .agjh{padding-right:2.5rem}
+@media (pointer:coarse){[data-ly=agents] .lyb.lym[data-lyk=jobs] .agjh{padding-right:3.25rem}}
+[data-ly=agents] .lyb[data-lyk=hint]>.lymore{display:none}
+@media (pointer:coarse){ [data-ly="today"] .lyb.lym[data-lyk="tasks"] .ghead:has(.odact){padding-right:4rem} }
 .lyb.lym .povh,.lyb.lym > .dcard > h3,.lyb.lym > .dcard > h2{padding-right:2rem}
 .lyb.lym .agjh{padding-right:2.25rem}  /* the … button must not cover the Open / All switch of the agents view (axe target-size) */
 /* 2.46.2 (#1452): the evening review card (only after the end of the working hours) keeps its "Hide for today" x clear of the … button */
@@ -6006,9 +6007,21 @@ html.mini-task #app,html.mini-task #app.detail-open{grid-template-columns:minmax
 @media (pointer:coarse){ .lyb.lym > .rvcard > .rvhd{padding-right:2.5rem} .lyb.lym > .rvcard.fold{padding-right:3.25rem} }
 .pov .lysix{margin-top:.75rem;row-gap:.75rem}
 .pov .lysix > .lyb > .povs{margin-top:0;height:100%}
+/* a run of half blocks stacks in two columns of its own (dashboard.js lyHtml .lyrun > .lycol): a short block
+   keeps its height beside a tall one, the next one moves up under it; a phone dissolves the columns (the blocks keep their order) */
+.lysix > .lyrun,.lyrun > .lycol{display:contents}
+.lyrun > .lycol > .lyb{grid-column:1/-1}
+@media (min-width:768px){
+  .lysix > .lyrun{display:flex;grid-column:1/-1;align-items:flex-start;column-gap:inherit;row-gap:inherit}
+  .lyrun > .lycol{display:flex;flex-direction:column;flex:1 1 0;min-width:0;row-gap:inherit}
+}
+.lycol > .lh1 > :first-child{max-height:15rem;overflow:auto}
+.lycol > .lh3 > :first-child{min-height:28rem}
+.pov .lycol > .lyb > .povs{margin-top:0}
+@media (pointer:fine){ .lycol > .lym .povh,.lycol > .lym > .dcard > h3,.lycol > .lym > .dcard > h2{cursor:grab} }
 .lygrip{position:absolute;right:1px;bottom:1px;width:.875rem;height:.875rem;cursor:nwse-resize;opacity:0;transition:opacity .15s;
   background:linear-gradient(135deg,transparent 45%,var(--faint) 45%,var(--faint) 55%,transparent 55%,transparent 70%,var(--faint) 70%,var(--faint) 80%,transparent 80%)}
-.lyb:hover > .lygrip,body.wgresizing .lygrip{opacity:.8}
+.lygrip:hover,body.wgresizing .lygrip{opacity:.8}  /* no grip to see while the pointer is only on the block; its corner shows it (and the cursor) */
 body.wgresizing,body.wgresizing *{cursor:nwse-resize!important;user-select:none}
 @media (pointer:fine){ .lysix > .lym .povh,.lysix > .lym > .dcard > h3,.lysix > .lym > .dcard > h2{cursor:grab} }
 body.wgmoving,body.wgmoving *{cursor:grabbing!important;user-select:none}
