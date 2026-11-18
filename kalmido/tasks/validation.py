@@ -74,10 +74,12 @@ def text_hand_now():
 def text_by_carry(c, tid, cur, f):
     """2.1375.0 (#6677, review F5): a move across the lock (collab/liste2e.py le2a_move) writes the task's own texts re-encrypted
     or decrypted -- the same words, so not the mover's: log_changes saw a change and wrote the mover; the writers go back to
-    the rule of le2a_task_set (stays when the mover was its writer already, else 0). cur = the row before the move."""
+    the rule of le2a_task_set (stays when the mover was its writer already, else 0). cur = the row before the move; a text
+    counts when it changed (from f or, multi-select / undo, from le2e_move.tasks)."""
     hand, fix = text_hand_now(), {}
+    new = c.execute("SELECT title, content FROM tasks WHERE id=?", (tid,)).fetchone()
     for k, col in (("title", "title_by"), ("content", "content_by")):
-        if k in f and col in cur.keys():
+        if new and (new[k] or "") != (cur[k] or "") and col in cur.keys():
             prev = cur[col]
             fix[col] = prev if (cur["created_by"] if prev is None else prev) == hand else 0
     if fix:
