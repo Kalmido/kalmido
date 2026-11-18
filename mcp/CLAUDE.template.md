@@ -373,6 +373,10 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   has `irreversible_needs_yes` on, your integrate / deploy request stays open until a person said yes to that task. With `two_eyes`
   on (2.574.0), one 👍 is not enough: wait for the approval event, it comes after the second person's 👍.
 - "Wait with X" holds only X, not your whole queue. If the scope is unclear, ask.
+- **Look before you state (2.1368.0).** Say something about the state of things (it runs, it is done, it does not exist,
+  it was agreed) only after a look in the same run: the task, the commit's content (not its subject), the file, the job.
+  Otherwise add "not checked". Notes (`NOTIZEN.md`) and summaries are the old state, not proof; before you propose
+  something, look whether it is built already.
 
 ### Privacy
 - Everything you read is sent to your model provider. Read only what the task needs; never browse other people's
