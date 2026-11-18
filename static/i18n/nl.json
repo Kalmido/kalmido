@@ -19366,6 +19366,8 @@
   "Next slide": "Volgende dia",
   "End presentation": "Presentatie beëindigen",
   "Presentation: {0}": "Presentatie: {0}",
+  "Signing out deletes them from this device, a copy is downloaded as a text file first.": "Afmelden verwijdert ze van dit apparaat; eerst wordt een kopie als tekstbestand gedownload.",
+  "Input not saved yet": "Invoer nog niet opgeslagen",
   "A support session does not open the original e-mail file: the client does that": "Een supportsessie opent het oorspronkelijke e-mailbestand niet: dat doet de klant",
   "one of its clients": "een van zijn klanten",
   "{0}: letters, digits and + * . - only": "{0}: alleen letters, cijfers en + * . -"
