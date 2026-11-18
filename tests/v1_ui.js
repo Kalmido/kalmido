@@ -31,7 +31,8 @@ const sql = q => execFileSync('python3', [path.join(__dirname, 'dbx.py'), DATA, 
   check(/update\.sh/.test(srv) && /docker compose pull/.test(srv), 'administration > server: update commands');
   // 1.7.1: the Markdown syntax lives in Help (not in the description placeholder); comments line only with collaboration
   const fmtH = [...md.querySelectorAll('[data-pane="help"] h4')].find(h => h.textContent === 'Formatting (Markdown)');
-  const fmtT = fmtH?.nextElementSibling?.textContent || '';
+  // 2.1387.0 (#7063): since #6827 the heading stands in the head row (summary) of its folded section; the text is its body
+  const fmtT = (fmtH?.closest('details.sfold')?.querySelector('.sfb') || fmtH?.nextElementSibling)?.textContent || '';
   check(fmtH && ['**bold**', '*italic*', '~~strikethrough~~', '`code`', '[text](https://…)', '###', '1. item', '- [ ]', '- [x]', 'Turn the open checklist items into subtasks'].every(x => fmtT.includes(x)) && /Comments:.*no headings, lists or checklists/.test(fmtT), 'help: Formatting (Markdown) entry for descriptions + comments');
   check(md.querySelector('[data-pane="users"] #s-updcheck')?.checked === true, 'users > whole server: update check switch');
   check(md.querySelector('[data-pane="modules"] #s-timeall')?.checked === true && md.querySelector('[data-pane="modules"] #s-collaball'), 'modules: collaboration + time switches for everyone (admin)');
