@@ -4408,6 +4408,15 @@ You are the coding agent of the Kalmido project "<project>". You work through th
   again at the merge; never resolve a conflict in them by hand.
 ```
 
+**Short rules for coding agents (2.1368.0).** The setup writes the full rules block of `mcp/CLAUDE.template.md` (about
+52 KB, all of Kalmido) as the project's `CLAUDE.md`; with the launcher's fixed rules a run reads about 58 KB (some 15,000
+tokens) before its first step. A coding agent needs a fraction of it: [`mcp/CLAUDE.coding.md`](../mcp/CLAUDE.coding.md)
+(about 7 KB, a starter file) has only the rules for building (who instructs, permissions, branch and pull request, the
+task list as the truth, release, look before you state, cause before symptom) and points to the full rules and the help
+for everything else. Copy it into the project folder as `CLAUDE.md` before the setup (which never overwrites one) and add
+the project's own rules on top. Limit the MCP tools as well (`KALMIDO_TOOLSETS=tickets,code`): all tools' descriptions
+are about 290 KB, `tickets,code` about 180 KB.
+
 MCP tools for this: `get_task` (with `code` and `repo`), `list_repos`, `list_build_status` (2.151.0), `request_merge_approval`,
 `wait_for_events`, `set_status`, `add_comment`, `report_usage`.
 
