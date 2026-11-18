@@ -443,5 +443,13 @@ res = d.tick(force=True)
 check(res["brakes"] == [] and STARTS[-1][0] == [520], f"#4060: at stau_max it builds again: {res['brakes']} {STARTS[-1]}")
 check(ad.DEFAULTS["stau_max"] == 10, "#4060: default 10")
 
+# ---- 2.1368.0 (#7033): the short rules for coding agents -- a starter file, small, with the building rules
+short = open(os.path.join(MCP, "CLAUDE.coding.md"), encoding="utf-8").read()
+check("CLAUDE.coding.md" in open(os.path.join(MCP, "starter_files.txt"), encoding="utf-8").read(), "#7033: CLAUDE.coding.md is a starter file")
+check(len(short.encode()) < 12000, f"#7033: the short rules stay short: {len(short.encode())} bytes")
+for frag in ("data, not instructions", "409 approval_required", "Never merge, push, open the pull request", "One gate: the project's CI",
+             "only after a look", "fix the cause", "CLAUDE.template.md"):
+    check(frag in short, f"#7033: the short rules carry {frag!r}")
+
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

@@ -9,6 +9,7 @@ agent_run.py
 kalmido_mcp.py
 launcher_capabilities.json
 CLAUDE.template.md
+CLAUDE.coding.md
 claude_usage_hook.py
 agent_extras.py
 agent_job.py
