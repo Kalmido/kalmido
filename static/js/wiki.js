@@ -879,7 +879,7 @@ async function wk_conflict(mine, theirs, patch) {
   let took = false;
   const keep = await askDialog({after: md => md.querySelector('[data-cd="no"]')?.addEventListener('click', () => { took = true; }), title: tr('Changed in the meantime by {0}', theirs.updated_by_name || '?'), html: `<p>${tr('Keep your version or take theirs?')}</p>${/*html-ok*/ wkh_bothHtml(patch.body, theirs.body) /* 2.1168.0 (#6092): the differences marked, not two raw texts */}`, ok: tr('Keep mine'), cancel: tr('Take theirs')});
   let ok = true;
-  if (keep) { try { Object.assign(mine, await wkeApi('PATCH', '/api/wiki/pages/' + mine.id, {...patch, expect_updated_at: theirs.updated_at}, mine.space)); } catch (e) { toast(errText(e, tr('The page could not be saved'))); ok = false; } }
+  if (keep) { try { Object.assign(mine, await wkeApi('PATCH', '/api/wiki/pages/' + mine.id, {...patch, expect_updated_at: theirs.updated_at, overwrite: true /* 2.1368.0 (#6657): the pictures it brings back are nobody's */}, mine.space)); } catch (e) { toast(errText(e, tr('The page could not be saved'))); ok = false; } }
   else { Object.assign(mine, theirs); if (!took) ok = null; }
   renderView();
   return ok;
