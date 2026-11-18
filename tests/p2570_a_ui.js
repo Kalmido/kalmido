@@ -73,7 +73,7 @@ const DAY = new Date().toISOString().slice(0, 10);
   click(w, m1.querySelector('.obj-merge [data-om="theirs"]'));
   check(await until(() => dlg() && dlg() !== m1 && dlg().querySelector('#rk-dest')?.value === 'Kiel Nord' && dlg().querySelector('#rk-note')?.value === 'their note'),
     'Take theirs: the dialog shows the saved trip ' + dlg()?.querySelector('#rk-dest')?.value + ' / ' + dlg()?.querySelector('#rk-note')?.value);
-  check(!!d.querySelector('.rklist [data-rk="open"]'), 'Take theirs: the list stays on screen while it is fetched again');
+  check(!!head(), 'Take theirs: the open trip stays on screen while the list is fetched again');
   free(); w.fetch = f0;
   check((await trip()).note === 'their note', 'conflict 2: nothing was overwritten');
   w.close();
