@@ -1,0 +1,12 @@
+{
+  "id": "approval_lifecycle",
+  "since": "2.44.0",
+  "what": "Open approval cards live in the state folder (state.json) and survive a restart; one reminder after 2 h (KALMIDO_APPROVAL_REMIND), after APPROVAL_TTL_S (7 days) the card is withdrawn as expired and the next prompt of that chat says so; a press on an expired card gets an answer, the same answer twice (button + reaction) counts once",
+  "core": [
+    "class RunnerState",
+    "def housekeep",
+    "APPROVAL_REMIND_S",
+    "\"expired\"",
+    "approval_expired"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "perm_channel",
+  "since": "2.625.0",
+  "what": "The answer to a permission question travels over a local connection of the runner (a Unix socket with a random name in a fresh 0700 folder, a named pipe on Windows), never through a file in the state folder: the hook proves the run's key and the runner proves it back (HMAC challenge both ways, a new key per run), the hook checks that the other end IS the runner's process (peer credentials / pipe server process id) and sends a one-time nonce the answer must carry; no runner, another process, a wrong or old key, no answer in time or the connection gone = denied. KALMIDO_PERM_SOCK_DIR / KALMIDO_PERM_SHARED=1 for an agent under an OS user of its own (#3661)",
+  "core": [
+    "class PermChannel",
+    "def peer_pid",
+    "def perm_request",
+    "KALMIDO_PERM_SOCK",
+    "KALMIDO_PERM_SHARED"
+  ]
+}

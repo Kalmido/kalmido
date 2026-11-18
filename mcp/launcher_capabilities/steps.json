@@ -1,0 +1,11 @@
+{
+  "id": "steps",
+  "since": "2.32.0",
+  "what": "Prose between tool calls as steps (POST /api/v1/agent/progress): text blocks only, never tool input or output, secrets masked, at most one every 2 s, the final answer is no step, none for task events",
+  "core": [
+    "/agent/progress",
+    "class Stream",
+    "STEP_GAP_S",
+    "def redact"
+  ]
+}

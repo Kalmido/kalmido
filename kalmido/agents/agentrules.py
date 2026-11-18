@@ -246,7 +246,7 @@ def _need_rule(c, aid, rid):
 @app.get("/api/agents/<int:aid>/rules")
 def ar_route_list(aid):
     c = db()
-    ws_need_editor(c, aid)
+    ws_need_editor(c, aid, read=True)
     return _list(c, aid)
 
 

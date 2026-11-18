@@ -109,9 +109,28 @@ with open(os.path.join(MCP, "agent_launcher.sh"), encoding="utf-8") as f:
     lsh = f.read()
 with open(os.path.join(MCP, "agent_launcher.ps1"), encoding="utf-8") as f:
     lps = f.read()
-check("local unset=(-u KALMIDO_TOKEN)\n" in lsh and "[[ $EVENTS == 1 ]] || unset=" not in lsh, "F5: agent_launcher.sh starts every command without the token")
-check("  Remove-Item Env:KALMIDO_TOKEN -ErrorAction SilentlyContinue\n" in lps and "if (-not $Events) { Remove-Item Env:KALMIDO_TOKEN" not in lps,
-      "F5: agent_launcher.ps1 starts every command without the token")
+# 2.1394.0 (#4068): both launchers start agent_run.py --launch, which starts every command (event runner or plain command)
+check("--launch" in lsh and "--launch" in lps, "F5: both launchers hand the start to agent_run.py --launch")
+with open(os.path.join(MCP, "agent_run.py"), encoding="utf-8") as f:
+    lrun = f.read()
+start = lrun[lrun.index("class Launcher:"):lrun.index("def platform_node")]
+check('if k not in ("KALMIDO_TOKEN",' in start, "F5: the launcher core starts every command without the token")
+os.environ["KALMIDO_TOKEN"] = TOKEN
+la = ar.Launcher(["true"])
+la.once = False
+cap = {}
+
+
+class _P:
+    pid = 1
+
+
+ar.subprocess.Popen, _popen = (lambda argv, env=None, **kw: cap.update(env=env) or _P()), ar.subprocess.Popen
+try:
+    la.start({"model": None, "ac": True, "pct": None, "gname": None, "gmail": None, "gco": False})
+finally:
+    ar.subprocess.Popen = _popen
+check("KALMIDO_TOKEN" not in cap["env"] and cap["env"].get("KALMIDO_URL") == URL, "F5: the started command has no token in its environment")
 _keep = os.environ.pop("KALMIDO_TOKEN"), os.environ.pop("KALMIDO_URL")
 os.environ["KALMIDO_ENV_FILE"] = envf
 check(ar.env_file_credentials() == (URL, TOKEN), "F5: the runner reads url and token from KALMIDO_ENV_FILE")

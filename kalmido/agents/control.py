@@ -1219,7 +1219,7 @@ def ctl_state(c, a):
 @app.get("/api/agents/<int:aid>/control")
 def ctl_route_get(aid):
     c = db()
-    a = ws_need_editor(c, aid)
+    a = ws_need_editor(c, aid, read=True)
     return jsonify(ctl_state(c, a))
 
 
@@ -1228,7 +1228,7 @@ def ctl_route_history(aid):
     """2.653.0 (#5079): the whole history, page by page (the view "Whole history"): ?before=<line id> (older than it), ?limit=
     (1..200, default 100) -> {history: [newest first], more: bool}. Owner / instance admin like the settings, else 404."""
     c = db()
-    a = ws_need_editor(c, aid)
+    a = ws_need_editor(c, aid, read=True)
     try:
         before = int(request.args.get("before") or 0)
         limit = int(request.args.get("limit") or 100)

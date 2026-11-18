@@ -1,0 +1,12 @@
+{
+  "id": "abort",
+  "since": "2.144.0",
+  "what": "The event abort (the person pressed Stop in the chat): the running command ends with its whole process group, no second try, one short line into the chat (tool steps done until then), only for the person the run is for or an operator (anyone else's Stop is ignored, not confirmed), confirmed with POST /api/v1/agent/aborted (older servers: status idle); a Stop in a job's history only notes it (a single step of a job cannot be stopped by the launcher); 2.615.0 (#3658 / #2422): a Stop with job_id ends that ONE job of agent_job.py (its process group, Kalmido job stopped, the chat agent woken as stopped), only for the job's person or an operator; a job this launcher does not run keeps the note",
+  "core": [
+    "\"abort\"",
+    "/agent/aborted",
+    "def abort",
+    "st.aborted",
+    "def stop_local_job"
+  ]
+}

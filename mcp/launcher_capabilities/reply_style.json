@@ -1,0 +1,9 @@
+{
+  "id": "reply_style",
+  "since": "2.491.0",
+  "what": "The person's wishes for the replies (their chat settings, reply_style in their chat / chat_choice / message_edited events; GET /api/v1/agent/chats/{uid}/reply-style): fenced into the prompt of that person's chat run, only theirs, never another person's",
+  "core": [
+    "def reply_style_hint",
+    "\"reply_style\""
+  ]
+}

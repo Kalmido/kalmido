@@ -1,0 +1,10 @@
+{
+  "id": "proposals",
+  "since": "2.39.0",
+  "what": "A job_request (a person asks for a proposal, e.g. kind cleanup = tidy up a list) is its own run: the prompt names the job, the full input comes from get_job (the event in the prompt may be cut), exactly one submit_proposal, nothing changed directly",
+  "core": [
+    "kind == \"job_request\"",
+    "get_job",
+    "submit_proposal"
+  ]
+}

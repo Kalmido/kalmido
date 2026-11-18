@@ -1,0 +1,10 @@
+{
+  "id": "comment_blocks",
+  "since": "2.42.0",
+  "what": "The final text of a task run is posted nowhere unless it ends with an approval or suggest block: then it becomes the agent's comment on that task with the approval card / the answer buttons (older servers: the plain comment with the question / the numbered steps)",
+  "core": [
+    "def task_blocks",
+    "def comment(self, tid",
+    "/comments"
+  ]
+}

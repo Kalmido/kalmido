@@ -52,7 +52,9 @@ for path in (LAUNCHER, SETUP_SH):
         check(not hits, f"{os.path.basename(path)}: no {name} (macOS / bash 3.2): {hits}")
     check(not re.search(r"(^|[^\w-])setsid\s+\"", code), f"{os.path.basename(path)}: setsid only through the portable NEWSESS")
 src = read(LAUNCHER)
-check("date -d" not in src.replace("GNU date -d", "") and "epoch_at" in src and "os.setsid()" in src, "launcher: python3 for time and process group")
+# 2.1394.0 (#4068): the launcher only loads the env file and starts agent_run.py --launch; the time of the nightly restart and the
+# process group are Python's (mcp/agent_run.py nightly_at, start_new_session), the same for agent_launcher.ps1
+check("date -d" not in src.replace("GNU date -d", "") and "--launch" in src and "exec " in src, "launcher: python3 for time and process group")
 
 BASHES = []
 for b in ("/bin/bash", shutil.which("bash")):
@@ -65,15 +67,19 @@ for b in BASHES:
         r = subprocess.run([b, "-n", path], capture_output=True, text=True)
         check(r.returncode == 0, f"{b} -n {os.path.basename(path)}: {r.stderr[:200]}")
 
-# ---- the launcher's time function = zoneinfo
-fn = re.search(r"^epoch_at\(\) \{.*?^\}", src, re.M | re.S).group(0)
-for b in BASHES:
-    for day, hm, tz in (("2026-10-15", "03:00", "Europe/Berlin"), ("2026-01-15", "23:30", "America/New_York"), ("2026-07-01", "00:00", "UTC")):
-        out = subprocess.run([b, "-c", f'PY=python3\n{fn}\nepoch_at "$1" "$2" "$3"', "x", day, hm, tz], capture_output=True, text=True).stdout.strip()
-        y, m, d = map(int, day.split("-"))
-        hh, mm = map(int, hm.split(":"))
-        want = int(datetime(y, m, d, hh, mm, tzinfo=ZoneInfo(tz)).timestamp())
-        check(out == str(want), f"{b}: epoch_at {day} {hm} {tz} = {want}, got {out!r}")
+# ---- the launcher core's time function = zoneinfo (2.1394.0, #4068: mcp/agent_run.py nightly_at)
+import importlib.util  # noqa: E402
+_spec = importlib.util.spec_from_file_location("agent_run_p2440c", os.path.join(ROOT, "mcp", "agent_run.py"))
+ar = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(ar)
+for day, hm, tz in (("2026-10-15", "03:00", "Europe/Berlin"), ("2026-01-15", "23:30", "America/New_York"), ("2026-07-01", "00:00", "UTC")):
+    y, m, d = map(int, day.split("-"))
+    hh, mm = map(int, hm.split(":"))
+    want = int(datetime(y, m, d, hh, mm, tzinfo=ZoneInfo(tz)).timestamp())
+    noon = datetime(y, m, d, 12, 0, tzinfo=ZoneInfo(tz)).timestamp()
+    got = ar.nightly_at(hm, tz, now=noon)
+    check(got is not None and int(got) == want, f"nightly_at {day} {hm} {tz} = {want}, got {got!r}")
+check(ar.nightly_at("25:00", "UTC") is None and ar.nightly_at("", "UTC") is None, "no such time: no restart")
 
 # ---- a stub Kalmido
 TOKEN = "abk_stub_secret_token_4711"
@@ -401,8 +407,9 @@ for b in BASHES:
     check(r.returncode != 0 and "without https://" in r.stderr, f"{b}: starter files from a plain http address are refused: {r.stderr[-300:]}")
     # 2.380 G (#3390): the checksums of the redeem answer (mcp/starter_sha256.txt): matching -> installed; one file differs -> the
     # setup stops before that file is installed
-    with open(os.path.join(MCP, "starter_sha256.txt"), encoding="utf-8") as f:
-        SHA = {ln.split()[1]: ln.split()[0] for ln in f if ln.strip() and not ln.startswith("#")}
+    # #6887: the sums are computed (tools/starter_sha.py), the file is no longer checked in
+    _ss = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "starter_sha.py"), "--print"], capture_output=True, text=True)
+    SHA = {ln.split()[1]: ln.split()[0] for ln in _ss.stdout.splitlines() if ln.strip() and not ln.startswith("#")}
     check("starter_files.txt" in SHA and "agent_run.py" in SHA, f"starter_sha256.txt lists the list and the files: {sorted(SHA)}")
     agents = os.path.join(home, ".kalmido", "agents")
     ST["sha"] = SHA

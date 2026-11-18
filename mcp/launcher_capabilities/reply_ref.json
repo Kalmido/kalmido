@@ -1,0 +1,11 @@
+{
+  "id": "reply_ref",
+  "since": "2.33.0",
+  "what": "The quote of the message a person answers goes into the prompt; reply_to when one answer covers several messages; 2.615.0 (#3757 / #3751): the answered chat message in full (GET /api/v1/agent/chats?since=id-1&user_id=&limit=1), fenced, up to 4000 characters with its file names; deleted, encrypted or not loaded: Kalmido's quote stays and the line says that only its start is known",
+  "core": [
+    "def reply_hint",
+    "reply_to",
+    "def reply_message",
+    "REPLY_FULL_MAX"
+  ]
+}

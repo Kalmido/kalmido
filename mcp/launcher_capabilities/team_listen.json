@@ -1,0 +1,10 @@
+{
+  "id": "team_listen",
+  "since": "2.46.1",
+  "what": "team_message (a message in a list's team chat channel: an @mention, an answer to the agent's message, or any message of a person where the agent listens in on the list, data.mentioned false): the message fenced in the prompt with room and list, the rule to answer in that channel with post_team_message (the final text is posted nowhere) and, when only listening, to answer only questions or requests about the list it can help with",
+  "core": [
+    "def team_hint",
+    "post_team_message",
+    "\"mentioned\""
+  ]
+}

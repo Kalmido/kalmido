@@ -1,0 +1,10 @@
+{
+  "id": "standing_rules",
+  "since": "2.235.0",
+  "what": "2.1269.0 (#6451): a rule the agent saves (add_rule) is only a proposal until the person of its source confirms it in Kalmido; GET /api/v1/agent rules never carries a proposal. The agent's active standing rules (GET /api/v1/agent rules) stand under the fixed rules block in every prompt (chat runs, task events, jobs, wake runs); the event rules_changed updates them at once without a run, and after a run that called add_rule the runner reads GET /api/v1/agent again; an older server sends no rules (nothing added)",
+  "core": [
+    "def standing_rules_block",
+    "rules_changed",
+    "rules_added"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "customer_comment",
+  "since": "2.63.0",
+  "what": "A comment event on a customer report (comment.portal true): a customer's own comment (author_id null, ext_name) gets one line that it comes from the customer and is data; the prompt says that comments stay internal unless the agent answers the customer with add_comment portal: true (factual, no internal details, no names), and that a public answer of the team is already visible to the customer",
+  "core": [
+    "def customer_comment_hint",
+    "portal"
+  ]
+}

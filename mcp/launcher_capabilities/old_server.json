@@ -1,0 +1,11 @@
+{
+  "id": "old_server",
+  "since": "2.35.0",
+  "what": "Older servers: a feature the server does not know (404 / 400) is switched off once, the rest keeps working",
+  "core": [
+    "progress_ok",
+    "host_ok",
+    "quota_ok",
+    "approval_ok"
+  ]
+}

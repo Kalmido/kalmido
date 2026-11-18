@@ -149,6 +149,7 @@ ROUTES = {
     # 2.488.0 (#3363): the hosted MCP access (p2488_mcp_oauth_test.py: the person without an organisation connects her own agent)
     "GET /.well-known/oauth-protected-resource": "public", "GET /.well-known/oauth-protected-resource/mcp": "public",
     "GET /.well-known/oauth-authorization-server": "public", "GET /.well-known/oauth-authorization-server/mcp": "public",
+    "GET /api/agent-rules": "public",  # 2.1394.0 (#6887): the agent rules block of mcp/CLAUDE.template.md, the same text for everyone
     "POST /oauth/register": "agents", "GET /oauth/authorize": "agents", "POST /oauth/authorize": "agents", "POST /oauth/token": "agents",
     "POST /oauth/revoke": "agents", "GET /mcp": "agents", "POST /mcp": "agents", "DELETE /mcp": "agents",
     "GET /api/my/mcp-grants": "agents", "DELETE /api/my/mcp-grants/{}": "agents",

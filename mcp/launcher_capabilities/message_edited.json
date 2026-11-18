@@ -1,0 +1,9 @@
+{
+  "id": "message_edited",
+  "since": "2.39.0",
+  "what": "message_edited (a person changed a chat message, comment or team message the agent already had): a run of its own with the old and the new text fenced, a correction (confirm, keep running work); a chat edit is answered in that chat",
+  "core": [
+    "\"message_edited\"",
+    "def edit_hint"
+  ]
+}

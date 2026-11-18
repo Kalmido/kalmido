@@ -1,0 +1,15 @@
+{
+  "id": "robust_runs",
+  "since": "2.44.0",
+  "what": "HTTP 429 of the API is tried again after 5 / 15 / 30 / 60 s (2.391.0: the MCP client too: 429 and 503 after Retry-After, at most 3 requests and 60 s of waiting, never the long poll, with RateLimit-Remaining 0 it waits for the reset; every write carries an Idempotency-Key, the same on a retry); a time limit per run (KALMIDO_RUN_TIMEOUT, default 3600 s) ends the command with everything it started (POSIX process group, Windows taskkill /T); at most 2 tries per run (the second only when the first did nothing), then a short, masked error note in the chat; events that come during a run wait in a queue on disk (fetched by their own thread); a lock in the state folder stops a second runner; 2.443.0: TERM / INT end the running command with everything it started, then the runner",
+  "core": [
+    "RETRY_429_S",
+    "def kill_tree",
+    "def stop_on_signal",
+    "RUN_TIMEOUT_S",
+    "def attempt_runs",
+    "def queue_add",
+    "def fetch_loop",
+    "class RunLock"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "team_thread",
+  "since": "2.139.0",
+  "what": "team_message with message.thread_of (an answer in a thread of the team chat, #2127): the prompt names the thread and says to read it with read_team_chat thread and to answer in that thread with post_team_message thread_of, not in the main conversation",
+  "core": [
+    "thread_of",
+    "read_team_chat thread"
+  ]
+}

@@ -65,8 +65,8 @@ check('env["KALMIDO_ENV_FILE"] = self.run_env_file' in RUN and "def token_file" 
 check("self.run_api = self.api" in RUN, "(f) agent_run.py: the request token is forgotten after the run")
 check("def data_api" in DISP and "api = self.data_api()" in DISP and "read_tasks(api, cfg)" in DISP and 'env["KALMIDO_ENV_FILE"] = self.host.op_env_file' in DISP and "if api is not self.host.api" in DISP,
       "(f) agent_dispatch.py: the list work and its jobs with the chosen person's token")
-for name in ("agent_launcher.sh", "agent_launcher.ps1"):
-    check("kalmido-capability: request_token" in read("mcp", name), f"(f) {name} names request_token")
+# 2.1394.0 (#4068): the thin launchers only start agent_run.py --launch; every capability marker sits in the core
+check("kalmido-capability: request_token" in read("mcp", "agent_run.py"), "(f) the launch core agent_run.py names request_token")
 
 
 def _starter_env():
@@ -89,6 +89,8 @@ def _f1():
     import sys
     import tempfile
     os.environ.update(KALMIDO_URL="http://127.0.0.1:9", KALMIDO_TOKEN="abk_" + "m" * 30, KALMIDO_ENV_FILE=STARTER_ENV)
+    # 2.1368.0 (#7028): the dispatcher needs the project's check before anything else; set, so the round reaches the token
+    os.environ["KALMIDO_DISPATCH_CHECK_CMD"] = "exit 0"
     sys.path.insert(0, os.path.join(ROOT, "mcp"))
     for nm in ("agent_run", "agent_dispatch", "kalmido_mcp", "agent_job"):
         spec = importlib.util.spec_from_file_location(nm, os.path.join(ROOT, "mcp", nm + ".py"))
@@ -648,7 +650,10 @@ def _r4f1():
               f"(t) R4 F1: person 5's run starts no job for person 7 (KALMIDO_CHAT_USER), nothing asked {calls}")
         os.environ.pop("KALMIDO_CHAT_USER")
         answer.update(id=901, user_id=5)
-        check(aj.cmd_start(["--title", "For five", brief]) == 0 and calls[-1][2].get("user_id") == 5, f"(t) R4 F1: without a person: the token's {calls[-1:]}")
+        made = lambda: [c for c in calls if c[:2] == ("POST", "/agent/jobs")]  # noqa: E731 - 2.1394.0 (#5237): a brief post may follow
+        check(aj.cmd_start(["--title", "For five", brief]) == 0 and made()[-1][2].get("user_id") == 5, f"(t) R4 F1: without a person: the token's {made()[-1:]}")
+        check(calls[-1][:2] == ("POST", "/agent/chats/5") and calls[-1][2].get("kind") == "brief",
+              f"(t) #5237: the brief goes into the chat of the token's person only {calls[-1:]}")
         j = aj.load(901) or {}
         check(j.get("chat_user") == 5 and j.get("token_person") == 5 and j.get("env_key") == "p5", f"(t) R4 F1: the job keeps the token's person {j}")
         answer.update(id=902, user_id=7)  # a server that named somebody else: the job is closed, not started

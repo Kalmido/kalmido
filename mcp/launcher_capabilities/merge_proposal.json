@@ -1,0 +1,8 @@
+{
+  "id": "merge_proposal",
+  "since": "2.70.0",
+  "what": "A job_request of kind merge (find duplicate contacts in one address book) gets one more line: group only clear duplicates (same e-mail / phone normalised, a name variant with a shared detail), when in doubt leave it out, ids only from input.contacts, nothing found = an empty proposal (groups: [])",
+  "core": [
+    "def merge_hint"
+  ]
+}

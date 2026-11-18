@@ -1,0 +1,12 @@
+{
+  "id": "notice",
+  "since": "2.41.0",
+  "what": "When the command compacts its conversation during a chat run (stream event system / compact_boundary), a notice goes into that chat (POST /api/v1/agent/chats/{id} with kind notice: one small grey line, no push, never unread; text KALMIDO_NOTICE_COMPACTED, default 'Conversation compacted (HH:MM)'); a host that starts a fresh session with a summary of the old one sends one too; older servers (400 / 404) get nothing, never a normal message",
+  "core": [
+    "\"compact_boundary\"",
+    "\"kind\": \"notice\"",
+    "notice_ok",
+    "NOTICE_COMPACTED",
+    "def notice"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "approval_move",
+  "since": "2.615.0",
+  "what": "A card wanders to the newest answer (#3658 / #2347): a chat answer without an ```approval block that refers to an open card (\"card 1234\", \"the card\" while only one is open, or its wording) carries that card again (up to 3), the old card is withdrawn; a press on the old message that still arrives counts for the new one (state moved)",
+  "core": [
+    "def referenced_approvals",
+    "def cards_named",
+    "def card_moved",
+    "\"moved\""
+  ]
+}
