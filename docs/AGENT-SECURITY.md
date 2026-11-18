@@ -14,6 +14,7 @@ rules, event loop, autostart, tests), see [AGENT-SETUP.md](AGENT-SETUP.md).
 - [What Kalmido enforces](#what-kalmido-enforces)
 - [Server-enforced boundaries (2.30)](#server-enforced-boundaries)
 - [Use agents safely](#use-agents-safely)
+- [Connecting a coding agent to a project with live customers](#connecting-a-coding-agent-to-a-project-with-live-customers)
 - [Host sandbox recipe (Claude Code)](#host-sandbox-recipe-claude-code)
 - [Test checklist](#test-checklist)
 - [Results](#results)
@@ -217,6 +218,39 @@ work apart.
 - Agree in the team which AI providers are allowed (privacy, customer data).
 - Share projects with customer data only with agents whose provider has a data processing agreement with you, or with a
   local model.
+
+## Connecting a coding agent to a project with live customers
+
+*Since 2.1368.0.* A coding agent that works on someone else's software (a partner's or a customer's repository whose
+product has live customers) needs every layer of this page at once. Most of them exist, but they are spread out and set
+by hand. Go through this list before the first run; each line names what goes wrong without it.
+
+**In Kalmido (the instance's admin together with the project's owner)**
+
+- [ ] **One agent per project, owned by the person who gives its orders.** Only the owner's text is an order for the
+  agent, so the owner is the project's lead developer, not the instance's admin.
+- [ ] **Project restriction** on exactly the project's list(s) (*Project restriction* above). Without it the agent can
+  be given every project its owner sees, including internal lists with open security findings.
+- [ ] **Rights: read, tasks, comments.** No `office` (the office belongs to the organisation, not to a project), no
+  deleting, no export.
+- [ ] **Control level chosen on purpose.** A new agent starts at `approve_all`; decide which level fits before the first
+  run and expect `409 approval_required` until then.
+- [ ] **The token restricted to the agent computer's IP address** and a **usage limit** for this agent.
+
+**On the agent's computer (the project's side)**
+
+- [ ] **A dedicated OS user** for the agent ([1. A dedicated user](#1-a-dedicated-user),
+  [4b](#4b-an-own-os-user-for-the-agents-tools)): it cannot read your SSH keys, cloud logins or other projects.
+- [ ] **No production access on this computer:** no keys, no `.env` files and no deploy token for the live system. A
+  key that is not there cannot be misused by an injected text.
+- [ ] **A repository token for this one repository only**, allowed to push branches and open pull requests, nothing else.
+- [ ] **Branch protection on the git server:** the main and the production branch only through a pull request, the
+  project's CI as the required check, no force-push, no changing tags. Merging and deploying stay with a person.
+- [ ] **The dispatcher ends in a pull request** ([Working a list off](AGENTS.md#working-a-list-off-24810)): `check_cmd`
+  set, `pr_cmd` for the project's git server, `places` 1.
+- [ ] **First a dry run:** *Work the list off* on *Dry run* with one place, and read its day report before switching to
+  *Active*.
+- [ ] `KALMIDO_TOOLSETS` limited to what a coding agent needs (e.g. `tickets,code`).
 
 ## Host sandbox recipe (Claude Code)
 
