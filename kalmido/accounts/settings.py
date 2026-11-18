@@ -37,7 +37,7 @@ SETTINGS_SERVER_ONLY = ("digest_sent", "digest_mail_sent", "digest_mail_try", "r
 USER_DEFAULTS.setdefault("settings_more", "[]")  # 2.583.0 (#4833); 2.1353.0 (#6827): the head rows of the settings opened / closed against their start
 USER_DEFAULTS.setdefault("col_widths", "{}")  # 2.742.0 (#4857): the dragged column widths per list (accounts/colwidths.py)
 USER_DEFAULTS.setdefault("view_cols", "")  # 2.750.0 (#4502): the columns of the collected views (Today, My tasks, filters, ...): json list of keys, '' = the default (not in schema.py)
-SIDE_GROUPS = ("focus", "clients", "lists", "filters", "tags", "views", "areas", "team")  # 2.25.0 (UX-03); 2.39.1 (#1185): areas
+SIDE_GROUPS = ("focus", "clients", "lists", "filters", "tags", "views", "areas", "team", "more")  # 2.25.0 (UX-03); 2.39.1 (#1185): areas; 2.1367.0 (#6748): + more (the client has it since 2.45.0: every new order was refused)
 # 2.575.0 D (#4051): start_page "a:<area>" = the app opens on that area (the ids of SBB_RAIL in static/js/areas.js; home stays "home")
 START_AREA_RE = re.compile(r"a:(tasks|cal|notes|office|time|review|life|reading|ablage|wiki|sheets|habits|team|agents)")
 PUSH_TEST_LIMIT = 40  # 2.367.5 (#2980): test pushes (ntfy and device) per person and hour
