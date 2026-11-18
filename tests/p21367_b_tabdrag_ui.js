@@ -135,8 +135,8 @@ async function look(w, kid) {
   const ed = await until(() => d.querySelector('.smodal .naved[data-naved="tabbar"]'), {timeout: 10000});
   if (check(ed, 'Navigation: the editor of the bottom bar')) {
     const navRows = () => [...d.querySelectorAll('.smodal .naved[data-naved="tabbar"] .navl:not(.navoffl) .navr')];
-    const nmore = () => navRows().findIndex(r => r.querySelector('.navmore'));
-    check(nmore() === 4 && navRows()[4].dataset.k === 's:week', 'Navigation: the mark "from here on More" on the 5th point: ' + nmore());
+    const nmore = () => navRows().findIndex(r => r.previousElementSibling?.matches('.navmore'));  // the line above the first point under More
+    check(nmore() === 4 && navRows()[4].dataset.k === 's:week', 'Navigation: the line "from here on More" above the 5th point: ' + nmore());
     lay(navRows());
     const g = navRows()[5].querySelector('.navgrip');
     pe(w, g, 'pointerdown', 550); pe(w, d, 'pointermove', 20); pe(w, d, 'pointerup', 20);

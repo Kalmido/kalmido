@@ -64,9 +64,11 @@ function nav_list(id) {
   const ps = id === 'ablage' ? mg_parts(a).filter(p => !o3a_hid(p[0]) && !nav_orgOff(id, p[0])) : mg_partsShown(a);
   return nav_sort(id, ps, p => p[0]).map(p => ({key: p[0], icon: p[1], name: tr(mg_partName(p[0], p[2])), hid: nav_hid(id, p[0])}));
 }
-const nav_row = (id, x, i, n) => `<li class="navr" data-k="${esc(x.key)}"><button type="button" class="iconbtn navmin" data-act="nav-hide" aria-label="${esc(tr('Hide {0}', x.name))}" title="${esc(tr('Hide'))}">${ic('minus', 's')}</button>`
+// 2.1367.0 (#6748): the bottom bar's editor: a line "from here on More" above the first point that goes under "More" (drawn
+// again after a move; as the mark of the child's list in settings.js)
+const nav_row = (id, x, i, n) => (id === 'tabbar' && i === tabMax() - 1 && n > tabMax() ? `<li class="navmore">${esc(tr('from here on “More”'))}</li>` : '')
+  + `<li class="navr" data-k="${esc(x.key)}"><button type="button" class="iconbtn navmin" data-act="nav-hide" aria-label="${esc(tr('Hide {0}', x.name))}" title="${esc(tr('Hide'))}">${ic('minus', 's')}</button>`
   + `<span class="navi">${x.iconHtml || ic(x.icon, 's')}</span><span class="navn">${esc(x.name)}</span>`
-  + (id === 'tabbar' && i === tabMax() - 1 && n > tabMax() ? `<span class="muted navmore">${esc(tr('from here on “More”'))}</span>` : '')  // 2.1367.0 (#6748): as in the child's list (settings.js); drawn again after a move
   + `<button type="button" class="iconbtn navgrip" data-act="nav-grip" aria-label="${esc(tr('Move {0}', x.name))}" aria-describedby="navhint-${id}" title="${esc(tr('Drag, or use the arrow keys'))}" data-i="${i}" data-n="${n}">${ic('grip', 's')}</button></li>`;
 const nav_hidRow = x => `<li class="navr navoff" data-k="${esc(x.key)}"><button type="button" class="iconbtn navplus" data-act="nav-show" aria-label="${esc(tr('Show {0}', x.name))}" title="${esc(tr('Show'))}">${ic('plus', 's')}</button>`
   + `<span class="navi">${x.iconHtml || ic(x.icon, 's')}</span><span class="navn">${esc(x.name)}</span></li>`;
