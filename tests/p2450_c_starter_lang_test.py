@@ -3,7 +3,6 @@
 the card check and yes / no work in all of them, and status texts go out as a key with the text as fallback, also towards a
 server that has no key yet. Pure Python, no container."""
 import importlib.util
-import json
 import os
 import re
 import sys
@@ -119,12 +118,17 @@ with open(os.path.join(ROOT, "static", "js", "agents.js"), encoding="utf-8") as 
     js = f.read()
 tab = dict(re.findall(r"(status_[a-z_]+): N_\('([^']+)'\)", js))
 check(set(tab) == {k for k in ar.TEXTS if k.startswith("status_")}, f"client table = starter table: {sorted(tab)}")
+# 2.1394.0: the language files as the app reads them -- static/i18n/<code>.json plus the packages' new texts in
+# static/i18n/neu/<KID>.json (core/i18nfrag.py, #6194), so a package's status text counts before the train folds it in
+_fs = importlib.util.spec_from_file_location("i18nfrag", os.path.join(ROOT, "kalmido", "core", "i18nfrag.py"))
+i18nfrag = importlib.util.module_from_spec(_fs)
+_fs.loader.exec_module(i18nfrag)
+I18N = os.path.join(ROOT, "static", "i18n")
 for k, en in tab.items():
     check(en == ar.TEXTS[k]["en"], f"{k}: same English text")
     for lg in LANGS:
         if lg != "en":
-            with open(os.path.join(ROOT, "static", "i18n", lg + ".json"), encoding="utf-8") as f:
-                check(json.load(f).get(en) == ar.TEXTS[k][lg], f"{k}: {lg} file = table")
+            check(i18nfrag.load_lang(I18N, lg).get(en) == ar.TEXTS[k][lg], f"{k}: {lg} file = table")
 
 print(f"p2450_c_starter_lang: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
