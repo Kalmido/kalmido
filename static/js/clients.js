@@ -377,16 +377,21 @@ function ab2_tabs(cur) {
 // overview of the areas (areas.js spo_html, like Knowledge and the file store) instead of a picker or silently one area; a tap
 // opens #workload/s/<space> (the three tabs keep it), the path above it leads back. A workspace chosen = as before.
 const tm_allOn = () => wsOn() && wsCur() === 'all';
-const tm_wsp = () => tm_allOn() && S.route?.mod === 'workload' ? S.route.wsp || '' : '';
+// 2.1398.0 (#6722): under "All" only the areas where the open tab's module is on for me (areas.js mod_spaces: Disposition =
+// dispo, Workload and Absences = workload; Private only for the absences); one left = it opens directly (tm_wsp names it)
+const tm_on = () => mod_spaces(null, WLV.tab === 'dispo' ? 'dispo' : 'workload').filter(w => WLV.tab === 'abs' || w !== 'private');
+const tm_wsp = () => { if (!tm_allOn() || S.route?.mod !== 'workload') return ''; if (S.route.wsp) return S.route.wsp; const on = tm_on(); return on.length === 1 ? on[0] : ''; };
 // the areas of a tab's answer: its organisations, for the absences also the personal area (Private)
 const tm_rows = (d, priv) => [...(priv && d?.personal ? [['private', tr('Private|workspace'), wsIcon('private')]] : []), ...(d?.orgs || []).map(o => ['org:' + o.id, o.name, wsIcon('org:' + o.id)])];
+const tm_rowsOn = (d, priv) => { const a = tm_rows(d, priv), on = tm_on(), b = a.filter(r => on.includes(r[0])); return b.length ? b : a; };
 // the area id to load for the open space (null = the server's choice); personal = the personal area's id once known
 const tm_want = personal => { const w = tm_wsp(); return w === 'private' ? personal || null : /^org:\d+$/.test(w) ? +w.slice(4) : null; };
 // the head of a tab under "All": {ovr} = the overview (no space open), {crumb} = the path back above the open one; null = as before
 function tm_head(d, priv) {
   if (!tm_allOn()) return null;
-  const rows = tm_rows(d, priv); if (rows.length < 2) return null;
-  const open = rows.find(r => r[0] === tm_wsp());
+  const all = tm_rows(d, priv); if (all.length < 2) return null;
+  const rows = tm_rowsOn(d, priv); if (rows.length < 2) return {crumb: ''};  // 2.1398.0 (#6722): one area on = that one, no picker, no path back
+  const open = rows.find(r => r[0] === S.route?.wsp);
   return open ? {crumb: spo_crumbHtml('workload', open[1])} : {ovr: spo_html('workload', rows)};
 }
 // "Plan my day" on a day away / a holiday: a hint instead of the proposal (the server leaves the proposal empty)
