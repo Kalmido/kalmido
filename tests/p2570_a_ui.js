@@ -62,12 +62,19 @@ const DAY = new Date().toISOString().slice(0, 10);
   check(await openEdit(), 'the trip dialog opens again');
   const o2 = await call('PATCH', `/api/office/trips/${T.id}`, {dest: 'Kiel Nord'});
   check(o2.http === 200, 'the other tab renamed the destination');
+  // 2.1371.0 (#7036): CI run 44189720959 clicked "Take theirs" while the list of trips was still being fetched after the 409
+  // (TypeError on RK.data.people: the conflict emptied RK.data and the dialog is drawn from it). The list's answer is held
+  // here until the dialog stands, so the slow runner's order is the one tested on every machine.
+  let free; const hold = new Promise(r => { free = r; }), f0 = w.fetch;
+  w.fetch = (u, o) => /\/api\/office\/trips(\?|$)/.test(String(u)) && !(o?.method && o.method !== 'GET') ? hold.then(() => f0(u, o)) : f0(u, o);
   dlg().querySelector('#rk-note').value = 'my note'; click(w, dlg().querySelector('[data-m="save"]'));
   check(await until(() => dlg()?.querySelector('.obj-merge [data-om="theirs"]')), 'conflict 2: the merge bar');
   const m1 = dlg();
   click(w, m1.querySelector('.obj-merge [data-om="theirs"]'));
   check(await until(() => dlg() && dlg() !== m1 && dlg().querySelector('#rk-dest')?.value === 'Kiel Nord' && dlg().querySelector('#rk-note')?.value === 'their note'),
     'Take theirs: the dialog shows the saved trip ' + dlg()?.querySelector('#rk-dest')?.value + ' / ' + dlg()?.querySelector('#rk-note')?.value);
+  check(!!d.querySelector('.rklist [data-rk="open"]'), 'Take theirs: the list stays on screen while it is fetched again');
+  free(); w.fetch = f0;
   check((await trip()).note === 'their note', 'conflict 2: nothing was overwritten');
   w.close();
 

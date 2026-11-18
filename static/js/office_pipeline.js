@@ -159,7 +159,7 @@ function pp_modal(x, stage) {
       md.remove();
       if (x) {
         // 2.576.0 (#4794): saved elsewhere meanwhile -> the card is back, the dialog opens again on the saved deal with this input and the merge bar
-        try { await pp_patch(x.id, body, tr('Saved'), x); } catch (x2) { ofcSaveErr(null, x2, r => { const m2 = pp_modal(r); pp_reload(); return m2; }); }
+        try { await pp_patch(x.id, body, tr('Saved'), x); } catch (x2) { ofcSaveErr(null, x2, r => { const m2 = pp_modal(r); pp_refresh(); return m2; }); }
         return;
       }
       const tmp = -Date.now(), was = PPS.stage;

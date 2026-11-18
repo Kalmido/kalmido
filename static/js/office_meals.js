@@ -14,7 +14,7 @@ const bw_meal = id => (BW.data?.meals || []).find(m => m.id === id);
 // behind it, a refusal puts the old state back (api() says why); the answer's receipt replaces the local one (sums), the list
 // (evaluation, choice lists) is fetched again in the background, the rows stay until the fresh ones are there. A new receipt
 // is a provisional row with a negative id until the answer. Approving stays waiting (it locks the stored receipt).
-const bw_refresh = () => { BW.rep = null; BW.gen++; if (BW.data) bw_load(); };
+const bw_refresh = () => { BW.rep = null; BW.gen++; if (BW.data) bw_load(); };  // 2.1371.0 (#7036): also after a 409 (never bw_reload: "Take theirs" draws the dialog from BW.data)
 const bw_wait = id => { if (!(+id < 0)) return false; toast(tr('Still syncing, try again in a moment')); return true; };  // a provisional row
 function bw_mealSet(m, was = m?.id) {  // the server's receipt in place of the local one (was: its provisional id)
   const ms = BW.data?.meals; if (!ms || !m) return;
@@ -43,7 +43,7 @@ async function bw_saveNow(m, b, pend) {  // the button "Save draft": the dialog 
     // 2.560.0 D (#4700) kept: the draft's save checks the version too (409: the receipt is back, the dialog opens again with the input and "Reload")
     // 2.576.0 (#4794): objsave.js - only the changed fields; a 409 opens the dialog again on the saved receipt with the input and the merge bar
     const m0 = ofcBase(null, m);  // before the row shows the new values (optSet changes the row object)
-    try { j = await optWrite(optSet(() => bw_meal(m.id), bw_local(b, m)), () => ofcSave(null, `${BW_U}/${m.id}`, m0, b), ofcDraw, {mod: true}); } catch (x) { ofcSaveErr(null, x, r => { const m2 = bw_modal(r); bw_reload(); return m2; }); return null; }
+    try { j = await optWrite(optSet(() => bw_meal(m.id), bw_local(b, m)), () => ofcSave(null, `${BW_U}/${m.id}`, m0, b), ofcDraw, {mod: true}); } catch (x) { ofcSaveErr(null, x, r => { const m2 = bw_modal(r); bw_refresh(); return m2; }); return null; }
     if (!j) { bw_refresh(); return m; }
     bw_mealSet(j); bw_refresh();
     const now = j; toast(tr('Saved'), async () => { await undoWrite(`${BW_U}/${m.id}`, old, now?.updated_at, {now: b}).catch(() => null); bw_refresh(); });  // 2.566.0 (#4704): core.js undoWrite - only the keys this save changed, against its version; changed since -> said, kept
@@ -348,7 +348,7 @@ function bw_modal(m0) {
         try { await bw_approve(m.id, sig); md.remove(); }
         catch (x) { md.remove(); bw_modal(m).querySelector('.aerr').textContent = tr('Saved as a draft.') + ' ' + ofcErrHere(x); }
       }
-    } catch (x) { if (typeof objConflict === 'function' && await objConflict(md, x, r => { const m2 = bw_modal(r); bw_reload(); return m2; })) return; err(x.message); }  // 2.576.0 (#4794)
+    } catch (x) { if (typeof objConflict === 'function' && await objConflict(md, x, r => { const m2 = bw_modal(r); bw_refresh(); return m2; })) return; err(x.message); }  // 2.576.0 (#4794)
   });
   place(); host(); sum();
   return md;

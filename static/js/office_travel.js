@@ -12,6 +12,8 @@ const rk_reload = () => { RK.data = null; RK.rep = null; RK.gen++; ofcDraw(); };
 // (sums, per diem); the list itself (badge "not in DATEV", evaluation) is fetched again in the background, the rows stay
 // until the fresh ones are there. A new trip / receipt is a provisional row with a negative id until the answer.
 const rk_refresh = () => { RK.rep = null; RK.gen++; if (RK.data) rk_load(); };
+// 2.1371.0 (#7036): after a 409 the dialog opens again with rk_refresh, never rk_reload - "Take theirs" builds the dialog anew
+// from RK.data (people, categories); a reload emptied it until the list came back (CI: TypeError on RK.data.people)
 const rk_wait = id => { if (+id >= 0) return false; toast(tr('Still syncing, try again in a moment')); return true; };  // a provisional row
 function rk_tripSet(t, was = t?.id) {  // the server's trip in place of the local one (was: its provisional id)
   const ts = RK.data?.trips; if (!ts || !t) return;
@@ -319,7 +321,7 @@ function rk_tripModal(t) {
         // 2.560.0 D (#4700) kept: the save checks the version (409 = saved elsewhere meanwhile: row back, the saved one opens)
         // 2.576.0 (#4794): objsave.js - only the changed fields; a 409 opens the dialog again on the saved trip with the input and the merge bar
         const t0 = ofcBase(md, t);
-        let j; try { j = await optWrite(optSet(() => rk_trip(t.id), loc), () => ofcSave(null, `/api/office/trips/${t.id}`, t0, body), ofcDraw, {mod: true}); } catch (x) { ofcSaveErr(null, x, r => { const m2 = rk_tripModal(r); rk_reload(); return m2; }); return; }
+        let j; try { j = await optWrite(optSet(() => rk_trip(t.id), loc), () => ofcSave(null, `/api/office/trips/${t.id}`, t0, body), ofcDraw, {mod: true}); } catch (x) { ofcSaveErr(null, x, r => { const m2 = rk_tripModal(r); rk_refresh(); return m2; }); return; }
         if (!j) { rk_refresh(); return; }
         rk_tripSet(j); rk_refresh();
         toast(tr('Saved'), async () => { const r = await undoWrite(`/api/office/trips/${t.id}`, old, j?.updated_at, {now: body}).catch(() => null); if (r?.id) rk_tripSet(r); rk_refresh(); });  // 2.566.0 (#4704): core.js undoWrite - only the keys this save changed, against its version; changed since -> said, kept
@@ -381,7 +383,7 @@ function rk_itemModal(t, i) {
         const old = {date: i.date, category: i.category, amount: i.amount, currency: i.currency, fx_rate: i.fx_rate, amount_home: i.amount_home, text: i.text, datev: i.datev, datev_no: i.datev_no, vat_pct: i.vat_pct ?? null};  // 2.545.0 (#4387): + VAT rate
         // 2.560.0 D (#4700) kept: the save checks the version (409: row back, the saved receipt opens)
         const i0 = ofcBase(md, i);
-        let j; try { j = await optWrite(rk_itemsPut(t.id, its => its.map(x => x.id === i.id ? {...x, ...loc} : x)), () => ofcSave(null, `/api/office/trips/${t.id}/items/${i.id}`, i0, body), ofcDraw, {mod: true}); } catch (x) { ofcSaveErr(null, x, r => { const m2 = rk_itemModal(t, r); rk_reload(); return m2; }); return; }  // 2.576.0 (#4794)
+        let j; try { j = await optWrite(rk_itemsPut(t.id, its => its.map(x => x.id === i.id ? {...x, ...loc} : x)), () => ofcSave(null, `/api/office/trips/${t.id}/items/${i.id}`, i0, body), ofcDraw, {mod: true}); } catch (x) { ofcSaveErr(null, x, r => { const m2 = rk_itemModal(t, r); rk_refresh(); return m2; }); return; }  // 2.576.0 (#4794)
         if (!j) { rk_refresh(); return; }
         rk_tripSet(j); rk_refresh();
         const now = j?.items?.find(x => x.id === i.id);
