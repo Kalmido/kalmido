@@ -424,6 +424,7 @@ def nr_create():
     suffix = str(b.get("credit_suffix") if b.get("credit_suffix") is not None else "-K").strip()
     if not NR_SUFFIX_RE.fullmatch(suffix):
         return err(tr("Invalid value: {0}", "credit_suffix"))
+    nr_scheme_clean(c, oid, num_range_schemes({"scheme": scheme, "credit_suffix": suffix})["credit"])  # 2.1390.0 (#7037, Fable F3): the corrections' too, as nr_patch
     name = str(b.get("name") or "").strip()[:NR_NAME_MAX]
     ts = iso(now_utc())
     c.execute("INSERT INTO office_num_ranges(org_id, code, name, scheme, credit_suffix, dunning, created_by, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
@@ -461,7 +462,12 @@ def nr_patch(rid):
         f["dunning"] = _nr_flag(b.get("dunning"))
     if "closed" in b:
         f["closed_at"] = (rg["closed_at"] or iso(now_utc())) if _nr_flag(b.get("closed")) else None
-    if "scheme" in f or "credit_suffix" in f:  # never the scheme of another series (also the correction scheme)
+    # 2.1390.0 (#7037, Fable F1): a closed range opens only with a scheme the office accepts now (the import closes one whose
+    # scheme it refused, office/admin/oi_office.py _p_num_range); 400 with the reason -> change the scheme first
+    opening = "closed_at" in f and f["closed_at"] is None and rg["closed_at"] is not None
+    if opening and "scheme" not in f:
+        nr_scheme_clean(c, oid, rg["scheme"], rid)
+    if "scheme" in f or "credit_suffix" in f or opening:  # never the scheme of another series (also the correction scheme)
         new = num_range_schemes({"scheme": f.get("scheme", rg["scheme"]), "credit_suffix": f.get("credit_suffix", rg["credit_suffix"])})
         nr_scheme_clean(c, oid, new["credit"], rid)
     f = {k: v for k, v in f.items() if (bool(v) if k in ("dunning",) else v) != (bool(rg[k]) if k in ("dunning",) else rg[k])}
