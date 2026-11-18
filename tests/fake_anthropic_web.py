@@ -8,7 +8,10 @@
 #                       to <asker>; step 3: a text with a cited web source + send_chat to <asker> with the earlier tool results
 #     FAKEWEB_META <task> <person> <asker>  (2.1364.0, #6297 (10)) step 1: a fetched page, then the free texts of the agent's own
 #                       channel towards <person> and the task (create_job, report_progress, set_working, set_status) + a step
-#                       to <asker>; step 3: send_chat to <asker> with the tool results
+#                       to <asker>; Fable F1: create_job for <asker> on <task> with a log, update_job append_log on the job
+#                       [<job>] (of <asker> on <task>), create_job for <asker> without a task; step 3: send_chat to <asker>
+#                       with the tool results
+#     FAKEWEB_META <task> <person> <asker> <job>  the same with the job id
 #     FAKEWEB_SLOW <task>  (review F1) step 1: a fetched page + check_vat_id DE555555555 (a slow tool: the VIES time limit);
 #                       step 2 waits until /data/slow-go exists (the test took the run for lost meanwhile), then add_comment
 #                       on <task>; step 3: "ok"
@@ -126,9 +129,10 @@ class H(BaseHTTPRequestHandler):
                     {'type': 'tool_use', 'id': 'toolu_c4', 'name': 'send_chat', 'input': {
                         'user_id': asker, 'body': 'FAKEWEB done: ' + text_of(msgs[2]['content'])[:1500]}}])
             return answer('end_turn', [{'type': 'text', 'text': 'ok'}])
-        m = re.search(r'FAKEWEB_META (\d+) (\d+) (\d+)', first)
+        m = re.search(r'FAKEWEB_META (\d+) (\d+) (\d+)(?: (\d+))?', first)
         if m:
             tid, other, asker = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            tjob = int(m.group(4) or 0)  # Fable F1 (2.1364.0): a job of <asker> on <task> (the test made it)
             if k == 1:
                 return answer('tool_use', [
                     {'type': 'server_tool_use', 'id': 'srvtoolu_m1', 'name': 'web_fetch', 'input': {'url': PAGE}},
@@ -141,6 +145,11 @@ class H(BaseHTTPRequestHandler):
                     {'type': 'tool_use', 'id': 'toolu_m3', 'name': 'set_working', 'input': {'task_id': tid, 'text': 'INJECTED working'}},
                     {'type': 'tool_use', 'id': 'toolu_m4', 'name': 'set_status', 'input': {'status': 'working', 'text': 'INJECTED status'}},
                     {'type': 'tool_use', 'id': 'toolu_m5', 'name': 'report_progress', 'input': {'text': 'web step ok', 'chat_user_id': asker}},
+                    {'type': 'tool_use', 'id': 'toolu_m7', 'name': 'create_job', 'input': {
+                        'title': 'web task job', 'task_id': tid, 'user_id': asker, 'state': 'waiting', 'log': 'INJECTED task log'}},
+                    {'type': 'tool_use', 'id': 'toolu_m8', 'name': 'update_job', 'input': {'job_id': tjob, 'append_log': 'INJECTED append'}},
+                    {'type': 'tool_use', 'id': 'toolu_m9', 'name': 'create_job', 'input': {
+                        'title': 'web job ok', 'user_id': asker, 'state': 'waiting', 'log': 'free log'}},
                 ], {'web_fetch_requests': 1})
             if k == 3:
                 return answer('tool_use', [{'type': 'tool_use', 'id': 'toolu_m6', 'name': 'send_chat', 'input': {

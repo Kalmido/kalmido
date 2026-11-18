@@ -370,15 +370,25 @@ def srvweb_gate_step(st, method, path, b, va):
 def _srvweb_free_text(to, method, path, b, va):
     """2.1364.0 (#6297 (10), audit #4741 F1): the free meta routes that carry the model's own text before other people - a job's
     title (its chat line, the News entry and the push "waiting for your approval"), a progress step, the working mark's line and
-    title on a task, the status text on the avatar - stay free only towards the people of the run; else "change" (a card)."""
-    def _job_user(jid):
-        r = db().execute("SELECT user_id FROM agent_jobs WHERE id=? AND agent_id=?", (jid, g.user["id"])).fetchone() \
+    title on a task, the status text on the avatar - stay free only towards the people of the run; else "change" (a card). A job
+    on a task (task_id / agent_job_tasks) is never free for its log: its last line is the task's working mark (Fable F1)."""
+    def _job(jid):
+        return db().execute("""SELECT user_id, (task_id IS NOT NULL OR EXISTS (SELECT 1 FROM agent_job_tasks t WHERE t.job_id=j.id))
+                               AS on_task FROM agent_jobs j WHERE id=? AND agent_id=?""", (jid, g.user["id"])).fetchone() \
             if isinstance(jid, int) and not isinstance(jid, bool) else None
+
+    def _job_user(jid):
+        r = _job(jid)
         return r["user_id"] if r else None
-    if path == "/agent/jobs" and method == "POST":
+    if path == "/agent/jobs" and method == "POST":  # Fable F1 (job 5271): a job on a task shows its log line as the task's
+        if b.get("task_id") not in (None, "") or b.get("task_ids"):  # working mark to everyone who sees the task (wk_for)
+            return "change"
         return None if b.get("user_id") in to else "change"  # without a person it goes to the task's assignee
     if path == "/agent/jobs/{}" and method == "PATCH" and any(b.get(k) for k in ("title", "log", "append_log", "state")):
-        return None if _job_user(va.get("jid")) in to else "change"
+        r = _job(va.get("jid"))
+        if not r or r["user_id"] not in to:
+            return "change"
+        return "change" if r["on_task"] and any(b.get(k) for k in ("log", "append_log")) else None  # the same mark (F1)
     if path == "/agent/progress" and method == "POST":
         uid = b.get("chat_user_id") if b.get("job_id") is None else _job_user(b.get("job_id"))
         return None if uid in to else "change"
