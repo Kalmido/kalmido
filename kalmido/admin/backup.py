@@ -21,7 +21,9 @@ from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from flask import Response, g, jsonify, request, send_file
 
 from ..core.config import app, APP_NAME, APP_VERSION, ATT_DIR, DATABASE_URL, DB, OFFICE_DIR, PUBLIC_URL, SECRET_KEY, SESSION_DAYS, TZ
-from ..core.schema import PURGED_TABLES, SCHEMA_TRIGGERS, SCHEMA_VERSION
+from ..core.schema import PURGED_BASE, SCHEMA_TRIGGERS, SCHEMA_VERSION, purged_made_sql  # 2.1373.0 (#6357): PURGED_BASE, purged_made_sql
+from ..core.objparts import purged_tables  # 2.1373.0 (#6357): the list of the core's register
+from ..core.objhooks import OBJ  # 2.1373.0 (#6357): bkr_purged_drop, the core kinds
 from ..core import pg as _pg
 from ..core.i18n import LANGS, N_, tr
 from ..core.db import body, connect, db, err, gset, gsetting, init_db, iso, local_now, now_utc, parse_iso, usettings
@@ -1924,6 +1926,89 @@ def bkr_creds_after(c, creds):
         print(f"restore: {n} hosted MCP accesses ended (their token was revoked after the backup)", flush=True)
 
 
+# ---- 2.1373.0 (#6357): a deletion an account asked for (admin/selfdelete.py: users.delete_at / delete_plan, the account locked,
+# its agents paused; #6395: an admin's hold plan.admin, the release) stays as it is now: an older backup would unlock the
+# account and drop the deletion its mail promised, or bring back one the person cancelled since. Read before, set after
+# for the same account (same id and made-at time): disabled, delete_at, delete_plan (its cancel link's hash with it) and
+# the paused / running state of its agents as they are now.
+def bkr_sdl_read(c):
+    """-> {"users": {id: (made, disabled, delete_at, delete_plan)}, "agents": {(user_id, owner_id): enabled}}; caller is in
+    system_ctx. A database from before 2.553 (no delete_at) -> empty."""
+    try:
+        with c.savepoint():
+            users = {r[0]: (r[1], bool(r[2]), r[3], r[4] or "") for r in c.execute(
+                f"SELECT id, {purged_made_sql('to_jsonb(u)')}, disabled, delete_at, delete_plan FROM users u "
+                "WHERE COALESCE(kind, 'user')<>'agent'").fetchall()}
+            agents = {(r[0], r[1]): bool(r[2]) for r in c.execute("SELECT user_id, owner_id, enabled FROM agents").fetchall()}
+            return {"users": users, "agents": agents}
+    except _pg.Error:
+        return {"users": {}, "agents": {}}
+
+
+def bkr_sdl_after(c, snap):
+    """After pg_restore and init_db (system_ctx, caller commits): every account whose deletion state differs from the one of
+    before the restore gets that one back. -> (requests set again, requests the backup brought back that were gone)."""
+    users = snap.get("users") or {}
+    if not users:
+        return 0, 0
+    back, off = 0, 0
+    for r in c.execute(f"SELECT id, {purged_made_sql('to_jsonb(u)')}, disabled, delete_at, delete_plan FROM users u "
+                       "WHERE COALESCE(kind, 'user')<>'agent'").fetchall():
+        was = users.get(r[0])
+        if was is None or was[0] != r[1]:  # an account the server did not have, or another one with the same id
+            continue
+        made, disabled, at, plan = was
+        if not at and not r[3]:
+            continue
+        if at == r[3] and plan == (r[4] or "") and disabled == bool(r[2]):
+            continue
+        c.execute("UPDATE users SET disabled=?, delete_at=?, delete_plan=? WHERE id=?", (disabled, at, plan, r[0]))
+        for (aid, own), on in (snap.get("agents") or {}).items():  # its agents as they are now (paused by the request or not)
+            if own == r[0]:
+                c.execute("UPDATE agents SET enabled=? WHERE user_id=? AND owner_id=?", (on, aid, own))
+        if at:
+            back += 1
+        else:
+            off += 1
+    if back or off:
+        print(f"restore: deletions asked for: {back} set again as before the restore, {off} the backup held were cancelled since", flush=True)
+    return back, off
+
+
+# ---- 2.1373.0 (#6357): the number counters of the office (office_numbers) never go back: an older backup would give the
+# numbers of invoices / corrections sent since it was written a second time. The counters of before the restore are the
+# source outside the backup; each one of the same organisation (same id and made-at time) goes up to it, never down.
+def bkr_counters_read(c):
+    """-> [(org_id, org made, kind, period, last)]; caller is in system_ctx."""
+    try:
+        with c.savepoint():
+            return [tuple(r) for r in c.execute(f"SELECT n.org_id, {purged_made_sql('to_jsonb(o)')}, n.kind, n.period, n.last "
+                                                "FROM office_numbers n JOIN orgs o ON o.id=n.org_id").fetchall()]
+    except _pg.Error:
+        return []
+
+
+def bkr_counters_after(c, rows):
+    """After pg_restore and init_db (system_ctx, caller commits): -> how many counters went up. A counter of an additional
+    number range (kind r<id>) only while that range is there."""
+    if not rows:
+        return 0
+    orgs = {r[0]: r[1] for r in c.execute(f"SELECT id, {purged_made_sql('to_jsonb(o)')} FROM orgs o").fetchall()}
+    ranges = set()
+    if any(str(k).startswith("r") for _, _, k, _, _ in rows):
+        ranges = {(r[0], f"r{int(r[1])}") for r in c.execute("SELECT org_id, id FROM office_num_ranges").fetchall()}
+    n = 0
+    for oid, made, kind, period, last in rows:
+        if orgs.get(oid) != made or (re.fullmatch(r"r[0-9]+", kind or "") and (oid, kind) not in ranges):
+            continue
+        n += len(c.execute("INSERT INTO office_numbers(org_id, kind, period, last) VALUES(?,?,?,?) ON CONFLICT(org_id, kind, period) "
+                           "DO UPDATE SET last=excluded.last WHERE office_numbers.last < excluded.last RETURNING last",
+                           (oid, kind, period, last)).fetchall())
+    if n:
+        print(f"restore: {n} number counters of the office raised to their value before the restore (no number twice)", flush=True)
+    return n
+
+
 BKR_RECENT_DAYS = 7
 BK_KEPT_NOTE = N_("You kept what the backup holds, accounts excepted: accounts deleted since the backup was written are deleted again. What lay in a trash in the backup is deleted again when its trash period is over: take it out of the trash now if it is to stay.")  # 2.505.0 (#4302); 2.538.0 (#4367): the accounts are no part of the choice
 
@@ -1963,8 +2048,25 @@ def bkr_purged_drop(c, tbl, rid):
         files = [r[0] for r in c.execute("""WITH RECURSIVE t(id) AS (SELECT id FROM tasks WHERE id=?
                                             UNION SELECT k.id FROM tasks k JOIN t ON k.parent_id=t.id)
                                             SELECT a.path FROM attachments a JOIN t ON t.id=a.task_id""", (rid,))]
-    c.execute(f"DELETE FROM {tbl} WHERE id=?", (rid,))
+    elif tbl not in PURGED_BASE:
+        # 2.1373.0 (#6357): a table of a core kind goes the core's way of the delete for good (core/writes.py _purge_rows: its
+        # node, history, undo steps, links, children and the area's hook, whose stored files land in the caller's
+        # obj_purge_after box); a hook that keeps it (kept by law) leaves the row -- counted as not deleted
+        kind = _bkr_kind(tbl)
+        if kind is not None:
+            from ..core.writes import _purge_rows
+            _purge_rows(c, kind, OBJ[kind], rid)
+            if c.execute(f"SELECT 1 FROM {_pg.qi(tbl, (tbl,))} WHERE id=?", (rid,)).fetchone():
+                raise BackupError("kept")
+            return files
+    c.execute(f"DELETE FROM {_pg.qi(tbl, (tbl,))} WHERE id=?", (rid,))
     return files
+
+
+def _bkr_kind(tbl):
+    """2.1373.0 (#6357): the core kind (obj_register) whose table is tbl, None for a side object (part_kind) or a table without
+    a kind (PURGED_EXTRA): those go by a plain DELETE (their rows cascade, the storage sweep takes their files)."""
+    return next((k for k, r in sorted(OBJ.items()) if r["table"] == tbl and r.get("trash_prune")), None)
 
 
 def bkr_purged_preview(c, since):
@@ -1990,19 +2092,21 @@ def bkr_purged_after(c, rows, keep=False):
     """After the accounts (own commits): the list back, then what the backup brought back goes one row at a time.
     2.505.0 (#4302): keep = the admin's choice in the restore dialog: everything stays and leaves the list (it lives again:
     a later restore must not take it). -> (deleted again, kept as deleted recently, could not be deleted, kept by choice)."""
+    from ..core.writes import obj_purge_after  # 2.1373.0 (#6357): the core kinds' stored files after the commit
     gone, recent, stuck, files, back = 0, 0, 0, [], []
     cut = iso(now_utc() - timedelta(days=BKR_RECENT_DAYS))
-    with _pg.system_ctx(c):  # entries of every organisation; numbers only
+    with _pg.system_ctx(c), obj_purge_after(keep_locked=True) as box:  # entries of every organisation; numbers only
         bkr_purged_note(c, rows)
         c.commit()
-        for tbl in PURGED_TABLES:  # the big ones first: what goes with them needs no step of its own
+        for tbl in purged_tables():  # the big ones first: what goes with them needs no step of its own; 2.1373.0 (#6357): the register's list
             todo = {r[1]: r for r in rows if r[0] == tbl}
             ids = sorted(todo)
             here = []
             for i in range(0, len(ids), 1000):
                 part = ids[i:i + 1000]
-                here += [r[0] for r in c.execute(f"SELECT id, created_at FROM {tbl} WHERE id IN ({','.join('?' * len(part))})", part).fetchall()
-                         if r[1] == todo[r[0]][2]]
+                # 2.1373.0 (#6357): the made-at text as the trigger wrote it (also a table without created_at, or not TEXT)
+                here += [r[0] for r in c.execute(f"SELECT id, {purged_made_sql('to_jsonb(x)')} FROM {_pg.qi(tbl, (tbl,))} x WHERE id IN ({','.join('?' * len(part))})",
+                                                 part).fetchall() if r[1] == todo[r[0]][2]]
             if keep:
                 back += [(tbl, rid) for rid in here]
                 continue
@@ -2011,9 +2115,10 @@ def bkr_purged_after(c, rows, keep=False):
                 if at >= cut:
                     recent += 1
                     continue
-                if not c.execute(f"SELECT 1 FROM {tbl} WHERE id=?", (rid,)).fetchone():  # went with one before it
+                if not c.execute(f"SELECT 1 FROM {_pg.qi(tbl, (tbl,))} WHERE id=?", (rid,)).fetchone():  # went with one before it
                     gone += 1  # 2.505.0 (#4302, review): counted as the dialog's preview did
                     continue
+                a0 = len(box["after"])
                 try:
                     with c.savepoint():
                         files += bkr_purged_drop(c, tbl, rid)
@@ -2021,6 +2126,7 @@ def bkr_purged_after(c, rows, keep=False):
                     gone += 1
                 except Exception as e:  # noqa: BLE001 -- one row must not stop the others (a legal lock, a key that is gone)
                     c.rollback()
+                    del box["after"][a0:]  # 2.1373.0 (#6357): its row stays, so do its files
                     print("restore: deleting an entry again failed:", tbl, type(e).__name__, flush=True)
                     stuck += 1
         if back:
@@ -2028,6 +2134,7 @@ def bkr_purged_after(c, rows, keep=False):
         else:
             bkr_purged_note(c, rows)  # the deletions just now noted their own time: the first one counts
         c.commit()
+        files += box["after"]  # 2.1373.0 (#6357): what the core kinds' hooks queued
     unlink_files(files)
     return gone, recent, stuck, len(back)
 
@@ -2184,6 +2291,8 @@ def bk_restore(path, pw, admin, via, keep_purged=False):
                 jobs = cur.execute("SELECT count(*) FROM bg_jobs WHERE state IN ('wait','run')").fetchone()[0]
                 creds = bkr_creds_read(cur)  # 2.360.0 A (#2496)
                 purged = bkr_purged_read(cur)  # 2.360.4 (#3243)
+                sdl = bkr_sdl_read(cur)  # 2.1373.0 (#6357)
+                counters = bkr_counters_read(cur)  # 2.1373.0 (#6357)
         finally:
             cur.close()
         if not GATE.begin(own=1, timeout=60):
@@ -2221,6 +2330,8 @@ def bk_restore(path, pw, admin, via, keep_purged=False):
                     c.execute("DELETE FROM sessions")
                     c.execute("DELETE FROM push_subs WHERE session_hash<>''")  # 2.190.0 R (#1991): their sessions ended just now
                     bkr_creds_after(c, creds)  # 2.360.0 A (#2496): what was revoked since the backup stays revoked
+                    man["_sdl"] = bkr_sdl_after(c, sdl)  # 2.1373.0 (#6357): deletions asked for stay as they are now
+                    man["_counters"] = bkr_counters_after(c, counters)  # 2.1373.0 (#6357): no invoice number twice
                     tok = None
                     u = c.execute("SELECT * FROM users WHERE username=? AND is_admin AND NOT disabled", (admin,)).fetchone()
                     if u and via == "session":
@@ -2875,6 +2986,8 @@ def backups_restore():
     resp = jsonify(ok=True, safety=safety, relogin=tok is None and via != "proxy", created_at=man.get("created_at"),
                    key_warning=bk_key_warning(man),  # 2.359.3 (#2893)
                    deleted_again=man.get("_again") or {},  # 2.152.0 B (#2172): accounts of the journal
+                   # 2.1373.0 (#6357): deletions asked for set again / cancelled since, office number counters raised
+                   deletions_kept=dict(zip(("again", "cancelled"), man.get("_sdl") or (0, 0))), counters_raised=man.get("_counters") or 0,
                    notes=[tr(*n) for n in man.get("_notes") or []])  # 2.273.0 A (#3051 p. 12, 13)
     if tok:
         set_cookie(resp, tok, SESSION_DAYS * 86400)
