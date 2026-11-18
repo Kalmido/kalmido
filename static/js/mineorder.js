@@ -42,23 +42,34 @@ async function moSave(ids, secs) {  // 2.569.0 (#4395): secs = {task id: own sec
   } catch { if (S.mineBase === send) S.mineBase = seen; /* api() showed it; the server never confirmed this order; offline it waits in the outbox */ }
 }
 // dnd.js dropTask0: a drop onto a row of "My tasks" -> true when handled here (never a change of tasks.sort)
-async function moDrop(t, row, after) {
+const moDrop = (t, row, after) => moDropMany([t.id], row, after);
+// 2.1389.0 (#6959): a selection dragged onto a row of "My tasks" (dragmulti.js dgDrop) moves as a whole, in the selection's
+// order, in one moSave (as one task did); grouped by project into another group = all of them into that project
+async function moDropMany(ids, row, after) {
   if (!moActive() || !row) return false;
   const target = S.tasks.get(+row.dataset.id);
-  if (!target || target.id === t.id) return true;
-  const all = moAll().map(x => x.id);
-  if (!all.includes(t.id) || !all.includes(target.id)) return true;  // e.g. "From your lists, without a date": no own order there
-  if (mseOn()) return mseDrop(t, row.closest('.group')?.querySelector('.ghead[data-key^="ms:"]'), target.id, after);  // 2.569.0 (#4395)
-  const ids = all.filter(x => x !== t.id);
-  ids.splice(ids.indexOf(target.id) + (after ? 1 : 0), 0, t.id);
-  if (moView() === 'lists' && target.list_id !== t.list_id) {  // grouped: into another group = into that list
+  if (!target || ids.includes(target.id)) return true;
+  const all = moAll().map(x => x.id), mv = ids.filter(i => all.includes(i));
+  if (!mv.length || !all.includes(target.id)) return true;  // e.g. "From your lists, without a date": no own order there
+  if (mseOn()) return mseDropMany(mv, row.closest('.group')?.querySelector('.ghead[data-key^="ms:"]'), target.id, after);  // 2.569.0 (#4395)
+  const keep = new Set(mv), out = all.filter(x => !keep.has(x));
+  out.splice(out.indexOf(target.id) + (after ? 1 : 0), 0, ...mv);
+  const away = mv.filter(i => S.tasks.get(i)?.list_id !== target.list_id);
+  if (moView() === 'lists' && away.length) {  // grouped: into another group = into that list
     if (!canEditList(target.list_id)) { roToast(); return true; }
-    if (tlkHits(t, {list_id: target.list_id})) { tlkToast(t); render(); return true; }  // a locked task keeps its list
-    if (!await mv_ask([t.id], listById(target.list_id))) return true;  // 2.455.0 (#3848)
-    S.mineOrder = Object.fromEntries(ids.map((id, i) => [id, i]));
-    try { await patchUndoable(t.id, {list_id: target.list_id, section_id: null}, tr('Moved to {0}', lname(listById(target.list_id)))); } catch { return true; }
+    if (mv.length === 1) {
+      const t = S.tasks.get(mv[0]);
+      if (tlkHits(t, {list_id: target.list_id})) { tlkToast(t); render(); return true; }  // a locked task keeps its list
+      if (!await mv_ask([t.id], listById(target.list_id))) return true;  // 2.455.0 (#3848)
+      S.mineOrder = Object.fromEntries(out.map((id, i) => [id, i]));
+      try { await patchUndoable(t.id, {list_id: target.list_id, section_id: null}, tr('Moved to {0}', lname(listById(target.list_id)))); } catch { return true; }
+    } else {
+      if (!await mv_ask(away, listById(target.list_id))) return true;  // 2.455.0 (#3848)
+      S.mineOrder = Object.fromEntries(out.map((id, i) => [id, i]));
+      await dgToList(away, target.list_id);  // dragmulti.js: one batch, one Undo (read-only ones are skipped and named)
+    }
   }
-  await moSave(ids);
+  await moSave(out);
   return true;
 }
 // the grey subtitle "List › Section" (render.js taskRow, own order only)
@@ -207,9 +218,11 @@ const mseHeadHtml = g => g.mosec && g.mosec.kind !== 'recent' ? `<button data-ro
 const mseAddHtml = () => mseOn() ? `<button type="button" class="linkbtn msenew" data-mse-add="1">${ic('plus', 's')}<span>${esc(tr('New section'))}</span></button>` : '';
 // a drop into an own section (moDrop: onto a row of it; dnd.js: onto its head = on top of it). Only the tasks shown in own
 // sections are sent (with their places); "Recently assigned" takes nothing.
-async function mseDrop(t, head, targetId = null, after = false) {
+const mseDrop = (t, head, targetId = null, after = false) => mseDropMany([t.id], head, targetId, after);
+// 2.1389.0 (#6959): the whole selection (dragmulti.js dgDrop), in its order
+async function mseDropMany(ids, head, targetId = null, after = false) {
   const sid = head ? +head.dataset.key.slice(3) : NaN;
-  await mseMoveTo([t.id], sid, targetId, after);
+  await mseMoveTo(ids, sid, targetId, after);
   return true;
 }
 // 2.1365.0 (#6962): tasks (ids, in this order) into own section sid in one moSave - before / after targetId, else on top of it

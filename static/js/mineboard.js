@@ -73,3 +73,32 @@ async function mb_drop(t, el) {
   await patchUndoable(t.id, body, due ? tr('Date: {0}', dayLabel(due)) : tr('No date')).catch(() => {});
   return true;
 }
+
+// 2.1389.0 (#6959): a selection dragged onto a column of the board (dragmulti.js dgDrop) takes what the column means for all of
+// them at once (one batch, one Undo; locked and read-only ones are skipped and named); tasks already there stay as they are.
+// Overdue (and This week on its last day) take nothing, as for one task.
+async function mb_dropMany(ids, el) {
+  const col = el.closest?.('#view .mboard .mbcol'); if (!col) return false;
+  const key = col.dataset.mbcol || '', by = moBoardBy(), ts = ids.map(i => S.tasks.get(i)).filter(Boolean);
+  const may = ts.filter(t => canEdit(t));
+  if (!may.length) { roToast(); return true; }
+  if (by === 'prio') {
+    const p = +key.slice(1), go = may.filter(t => (t.priority || 0) !== p).map(t => t.id);
+    if (go.length) await batch('patch', {priority: p}, false, go);
+    return true;
+  }
+  if (by === 'list') {
+    const lid = +key.slice(1), go = may.filter(t => t.list_id !== lid || t.parent_id).map(t => t.id);
+    if (!lid || !go.length) return true;
+    if (!canEditList(lid)) { roToast(); return true; }
+    if (!await mv_ask(go, listById(lid))) return true;  // 2.455.0 (#3848)
+    await dgToList(go, lid);
+    return true;
+  }
+  const t0 = today(), we = mb_weekEnd(t0), tm = addDays(t0, 1);
+  const due = {today: t0, week: tm <= we ? tm : undefined, later: addDays(we, 1), none: null}[key];
+  if (due === undefined) { toast(tr('Select a day in the task')); return true; }
+  const go = may.filter(t => mb_cols('due', [t]).find(c => c.tasks.length)?.key !== key).map(t => t.id);
+  if (go.length) await batch('patch', due ? {due} : {due: null, due_time: null}, false, go);
+  return true;
+}
