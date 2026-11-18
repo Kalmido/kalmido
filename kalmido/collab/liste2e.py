@@ -29,6 +29,7 @@ import json
 import re
 
 from ..core.i18n import N_, tr
+from ..core.pg import qi  # 2.1375.0 (#6677)
 from ..core.errors import BadInput  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import collab_all, joined_lists_sql, ov_open  # 2.149.0 G (#2517): pulled up from functions
 from ..tasks.tasks import can_move  # 2.369.5 (#2517): pulled up from functions
@@ -407,6 +408,7 @@ def le2a_task_set(c, tid, vals):
     hand = text_hand_now()
     for k, col in (("title", "title_by"), ("content", "content_by")):
         if k in vals:
+            col = qi(col, ("title_by", "content_by"))
             sets.append(f"{col}=CASE WHEN COALESCE({col}, created_by) = ? THEN {col} ELSE 0 END")
             args.append(hand)
     if sets:

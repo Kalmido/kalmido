@@ -10,6 +10,7 @@ from flask import g, has_request_context
 from ..core.schema import MAX_DEPTH
 from ..core.i18n import N_, tr
 from ..core.db import iso_ms, now_utc, parse_iso
+from ..core.pg import qi  # 2.1375.0 (#6677)
 from ..core.objtags import otg_unames  # 2.955.0 (#5276)
 from ..core.pages import valid_link
 from ..api.common import act_via  # 2.149.0 G (#2517): pulled up from functions
@@ -95,7 +96,7 @@ def log_act(c, tid, kind, data=None, uid=None):
         for f in ACT_NOTES:
             f(c, tid, kind, data=data)
     if kind in TEXT_BY_COL:  # 2.1375.0 (#6677): who wrote the title / description last, kept on the task (survives a purge)
-        c.execute(f"UPDATE tasks SET {TEXT_BY_COL[kind]}=? WHERE id=?", (text_hand(uid, via, rr), tid))
+        c.execute(f"UPDATE tasks SET {qi(TEXT_BY_COL[kind], TEXT_BY_COL.values())}=? WHERE id=?", (text_hand(uid, via, rr), tid))
     from ..collab.liste2eguard import le2b_act_data
     data = le2b_act_data(c, tid, kind, data)  # 2.64.1 B (#1817): never a text of a list with the lock in the history
     ts, js = iso_ms(now_utc()), json.dumps(data or {}, ensure_ascii=False)
