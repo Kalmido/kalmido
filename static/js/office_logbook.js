@@ -217,7 +217,7 @@ function lbDriveModal(d, fix) {
         md.remove();
         const d0 = ofcBase(md, d);  // before the row shows the new values (optSet changes the row object)
         let j; try { j = await optWrite(optSet(() => LB.drives?.find(x => x.id === d.id), lbRowVals(body)), () => ofcSave(null, `/api/office/drives/${d.id}`, d0, body), ofcDraw, {mod: true}); }
-        catch (x) { ofcSaveErr(null, x, r => { const m2 = lbDriveModal(r); lbReload(); return m2; }); return; }
+        catch (x) { ofcSaveErr(null, x, r => { const m2 = lbDriveModal(r); lbRefresh(); return m2; }); return; }
         if (!j) { ofcDraw(); return; }
         const x = LB.drives?.find(y => y.id === d.id); if (x && j?.id === d.id) Object.assign(x, j);
         ofcDraw(); lbRefresh();
