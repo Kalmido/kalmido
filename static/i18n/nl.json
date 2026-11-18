@@ -19397,8 +19397,5 @@
   "Request token expired: a job could not go on": "Verzoektoken verlopen: een taak kon niet verder",
   "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Verandert iemand anders de titel of notities van zo'n taak, dan laat de agent haar liggen tot je ze zelf verandert.",
   "No tracked time: billed with 0 h": "Geen geregistreerde tijd: gefactureerd met 0 u",
-  "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "Het werkelijke totaal is negatief: de vaste kortingen zijn groter dan het geregistreerde bedrag. Controleer de kortingen voordat je het concept maakt.",
-  "Organisation settings": "Organisatie-instellingen",
-  "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Een organisatie wordt aangemaakt door de beheerder van deze server. De beheerders van de organisatie kunnen je daarna per e-mail uitnodigen.",
-  "The organisation “{0}” is set up": "De organisatie „{0}” is aangemaakt"
+  "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "Het werkelijke totaal is negatief: de vaste kortingen zijn groter dan het geregistreerde bedrag. Controleer de kortingen voordat je het concept maakt."
 }

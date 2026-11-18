@@ -19398,8 +19398,5 @@
   "Request token expired: a job could not go on": "Token di richiesta scaduto: un job non ha potuto continuare",
   "Once somebody else changes the title or notes of such a task, the agent leaves it until you change them yourself.": "Se qualcun altro cambia il titolo o le note di un'attività del genere, l'agente la lascia finché non li cambi tu.",
   "No tracked time: billed with 0 h": "Nessun tempo registrato: fatturato con 0 h",
-  "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "La somma effettiva è sotto zero: gli sconti fissi superano l'importo registrato. Controlla gli sconti prima di creare la bozza.",
-  "Organisation settings": "Impostazioni dell’organizzazione",
-  "An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.": "Un’organizzazione viene creata dall’amministratore di questo server. Poi gli amministratori dell’organizzazione possono invitarti per e-mail.",
-  "The organisation “{0}” is set up": "L’organizzazione «{0}» è stata creata"
+  "The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.": "La somma effettiva è sotto zero: gli sconti fissi superano l'importo registrato. Controlla gli sconti prima di creare la bozza."
 }
