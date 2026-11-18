@@ -10,8 +10,9 @@ chosen lists off deterministically -- no model decides what comes next:
      is ever built -- a task of another member or without a creator (webhook, git issue) is "foreign" (2.1375.0, #6677: also
      one whose title or description someone else wrote last, updated_by -- reason "edited"), named in the log
      and the day report, never started; comments of other accounts reach the brief only fenced as data,
-  3. guard: a job without a progress line for stale_h hours, a job that ended with its tasks still open (one try more
-     each, at max_tries the task is "stuck" and the person is told once), commits on a branch that never reached
+  3. guard: a job without a progress line for stale_h hours, a job that ended with its tasks still open (2.1368.0, #4069:
+     exactly one second try; after max_tries the task goes back to the list with a comment and into the next bundle, only
+     after max_bundles bundles it is "stuck" and the person is told once), commits on a branch that never reached
      close_ref, a one-way task without approval, a task waiting for something,
   4. close the tasks whose commit is in close_ref (a comment with the commit, then complete),
   5. when a place is free and no brake holds: cut the next bundle (priority order, task sizes as points) and start ONE
@@ -70,7 +71,9 @@ DEFAULTS = {
     "close_ref": "",          # git ref whose commits close tasks ("" = the current branch; e.g. "origin/main" or a live branch)
     "fetch": False,           # git fetch before reading close_ref (for a remote ref)
     "stale_h": 3.0,           # a running job without a progress line for this long = finding
-    "max_tries": 2,           # jobs that ended with the task still open; then "stuck"
+    "max_tries": 2,           # 2.1368.0 (#4069): jobs of one bundle that ended with the task still open (one second try);
+                              # then the task goes back to the list ("bundled anew", a comment on it)
+    "max_bundles": 3,         # 2.1368.0 (#4069): bundles that left the task open that often = "stuck" (told once)
     "branch_max_d": 2.0,      # commits on a job branch outside close_ref for this long = finding
     "report_at": "18:00",     # local time of the daily report ("" = none)
     "usage_limit_pct": 95.0,  # a fresh week value at or above this holds new starts (0 = never)
@@ -240,7 +243,7 @@ def author_of(t, owner):
 def classify(tasks, evidence, jobs, reg, cfg, owner=None):
     """One state per open task (STATES): done (commit in close_ref), building (an open job of the dispatcher has it),
     on_branch (a commit on a job branch only), held (skip tag / a waiting line), needs_yes (one-way without the approval
-    tag), stuck (max_tries jobs left it open), foreign (2.1308.0, #6523: not created by the person -- another member's
+    tag), stuck (2.1368.0, #4069: max_bundles bundles left it open, max_tries jobs each), foreign (2.1308.0, #6523: not created by the person -- another member's
     task or one without a creator; 2.1375.0, #6677: or one someone else wrote the text of last; never started), ready."""
     running = {int(t) for jid, e in reg.get("jobs", {}).items() if (jobs.get(str(jid)) or {}).get("state") in RUNNING
                for t in e.get("tasks") or []}
@@ -260,7 +263,7 @@ def classify(tasks, evidence, jobs, reg, cfg, owner=None):
             out[tid] = "held"
         elif re.search(cfg["one_way_rx"], text) and not has_tag(t, [cfg["one_way_ok_tag"]]):
             out[tid] = "needs_yes"
-        elif int((reg.get("tries") or {}).get(str(tid)) or 0) >= int(cfg["max_tries"]):
+        elif int((reg.get("bundles") or {}).get(str(tid)) or 0) >= int(cfg["max_bundles"]):
             out[tid] = "stuck"
         else:
             out[tid] = "ready"
@@ -588,7 +591,7 @@ class Dispatcher:
         self.project_dir = project_dir or os.getcwd()
         self.state_path = os.path.join(host.state_dir, STATE_FILE)
         self.reg = load_json(self.state_path, {})
-        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0), ("red", [])):
+        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0), ("red", []), ("bundles", {})):
             self.reg.setdefault(k, v)
         self.last = 0.0
 
@@ -686,7 +689,7 @@ class Dispatcher:
             elif st == "needs_yes":
                 self.finding(res, f"yes:{tid}", self.say("dispatch_needs_yes", f"#{tid}", cfg["one_way_ok_tag"]))
             elif st == "stuck":
-                self.finding(res, f"stuck:{tid}", self.say("dispatch_stuck", f"#{tid}", cfg["max_tries"]))
+                self.finding(res, f"stuck:{tid}", self.say("dispatch_stuck", f"#{tid}", int(cfg["max_tries"]) * int(cfg["max_bundles"])))
         res["brakes"] = self.brakes(cfg)
         # 2.1368.0 (#4060): the jam brake -- building was never the bottleneck, landing is; closing and the guard go on
         jam = sum(1 for st in states.values() if st == "on_branch")
@@ -755,7 +758,19 @@ class Dispatcher:
                 for tid in e.get("tasks") or []:
                     if int(tid) in ev["done"] or int(tid) in ev["branch"]:
                         continue  # built: no try
-                    self.reg["tries"][str(tid)] = int(self.reg["tries"].get(str(tid)) or 0) + 1
+                    k = str(tid)
+                    self.reg["tries"][k] = int(self.reg["tries"].get(k) or 0) + 1
+                    if self.reg["tries"][k] < int(cfg["max_tries"]):
+                        continue  # 2.1368.0 (#4069): exactly one second try
+                    # 2.1368.0 (#4069): no rescue of the same working copy -- back to the list, the next bundle is cut anew
+                    self.reg["bundles"][k] = int(self.reg["bundles"].get(k) or 0) + 1
+                    if self.reg["bundles"][k] >= int(cfg["max_bundles"]):
+                        continue  # stuck: classify says so, the person is told once
+                    self.reg["tries"][k] = 0
+                    if w is not None:
+                        api = self.host.api
+                        text = self.say("dispatch_rebundled", int(cfg["max_tries"]))
+                        w(f"#{tid} back to the list", lambda tid=tid, text=text: api.req("POST", f"/tasks/{int(tid)}/comments", {"body": text}))
             if now - float(e.get("at") or now) > 30 * 86400:
                 self.reg["jobs"].pop(jid, None)
 
