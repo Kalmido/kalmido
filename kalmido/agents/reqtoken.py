@@ -130,7 +130,9 @@ def v1_agent_request_token():
             if len(people) > 1:
                 return v1_err(400, tr("One request works for one person: these events come from several"), name="several_people")
             who = people.pop() if people else None
-            if who and not any(srv_may_order(c, a, who, e) for e in work):
+            # review R3 F3: EVERY order event must be one the person may give (as agents/srvteam.py srv_batch checks each);
+            # an event that is no order (srv_may_order is true for it) never carries a refused order along
+            if who and not all(srv_may_order(c, a, who, e) for e in work):
                 return v1_err(403, tr("This person gives the agent no orders (any more)"), name="no_order")
         if who and not req_person_ok(c, who):  # F4 (2.1386.0): only an active person's account gives orders
             return v1_err(403, tr("This person gives the agent no orders (any more)"), name="no_order")
