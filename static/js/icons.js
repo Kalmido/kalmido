@@ -353,7 +353,7 @@ try { if (screen.orientation?.addEventListener) screen.orientation.addEventListe
 document.addEventListener('focusout', () => { if (vpPending) setTimeout(() => { if (!editFocused()) stableViewport(); }, 0); }, true);
 const LS = {
   get(k, d) { try { const v = localStorage.getItem('tasks.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('tasks.' + k, JSON.stringify(v, typeof le2eRepl === 'function' ? le2eRepl() : undefined)); } catch { /* private mode */ } if (typeof lookQueue === 'function') lookQueue(k); },  // 2.64.1 (#1817): ciphers only (H1); 2.143.0 D (#2155): appearance keys go to the account
+  set(k, v) { let ok = true; try { localStorage.setItem('tasks.' + k, JSON.stringify(v, typeof le2eRepl === 'function' ? le2eRepl() : undefined)); } catch { ok = false; /* full or private mode */ } if (typeof lookQueue === 'function') lookQueue(k); if (typeof storeLost === 'function') storeLost(k, ok); return ok; },  // 2.64.1 (#1817): ciphers only (H1); 2.143.0 D (#2155): appearance keys go to the account; 2.1384.0 (#6339 D8): true = written, a refused write of kept data shows (core.js storeLost)
   del(k) { try { localStorage.removeItem('tasks.' + k); } catch { /* private mode */ } if (typeof lookQueue === 'function') lookQueue(k); },
 };
 // multi-user: everything under tasks.* belongs to the logged-in user (cache, outbox, tab bar, ...) except

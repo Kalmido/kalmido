@@ -40,7 +40,10 @@ project in the app, and this document keeps the technical name.
    one tab sends under a Web Lock; browsers without IndexedDB keep it in `localStorage`). Where the browser has
    Background Sync, the service worker sends it once the device is online again, but only while no tab is open (a tab
    sends it itself, with the full conflict handling) and only for the user signed in on the device; it stops at the
-   first answer it cannot handle alone. New tasks, notes and manual time entries carry a device id (`client_ref` /
+   first answer it cannot handle alone. 2.1384.0 (#6339): a change counts as kept only once a write landed - a failed
+   IndexedDB write falls back to `localStorage` and the next write takes the whole queue; where both refuse (storage full,
+   blocked) or the outbox database does not open, the top bar shows "Not saved" until a later write lands; the first
+   waiting change asks for persistent storage (`navigator.storage.persist()`). New tasks, notes and manual time entries carry a device id (`client_ref` /
    `client_id`), so a change sent twice is stored once. 2.169.0 (#2671): the knowledge pages keep an offline copy per space
    in IndexedDB (`kalmido-wiki`: the index with every text as the server sent it, so an encrypted space only as ciphers;
    `GET /api/wiki?offline=1&since=…` sends only the texts changed since); offline the view reads it, a text changed
