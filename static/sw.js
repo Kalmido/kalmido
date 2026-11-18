@@ -372,6 +372,7 @@ const LAZY = [
   '/static/js/wkhist.js',
   '/static/js/wkimport.js',
   '/static/js/wklive.js',
+  '/static/js/wkpresent.js',
   '/static/js/wkshare.js',
   '/static/js/wktags.js',
 ];
