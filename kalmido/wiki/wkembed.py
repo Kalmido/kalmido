@@ -175,7 +175,7 @@ def wem_ok_start(c):
     n = 0
     with system_ctx(c):
         spaces = c.execute("SELECT DISTINCT org_id, owner_id FROM wiki_shares WHERE kind='link' AND images=1 AND revoked_at IS NULL "
-                           "UNION SELECT DISTINCT NULL, n.owner_id FROM wiki_share_cards k JOIN fs_shares f ON f.id=k.fs_share_id "
+                           "UNION SELECT DISTINCT CAST(NULL AS BIGINT), n.owner_id FROM wiki_share_cards k JOIN fs_shares f ON f.id=k.fs_share_id "
                            "JOIN fs_nodes n ON n.id=f.node_id WHERE k.images AND n.org_id IS NULL").fetchall()
         for sp in spaces:
             for s in wsh_rows(c, sp[0], None if sp[0] else sp[1]):
