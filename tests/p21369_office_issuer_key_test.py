@@ -20,6 +20,8 @@ In an organisation's office (Alice its admin, Bob a member) and in the personal 
  - bank accounts: only with the password, never readable with the key; log lines by the issuer and by the admin
  - alarms reach the owner of a personal office (News "integfail")
  - moving the personal office into an organisation revokes its issuers (the preview names them)
+ - review of 2.1369: a paused issuer probing new paths adds no log line, nor does probing after the self-pause (F1); a
+   support session writes no issuer route (F2); any_address false keeps the live address rule (F5)
  - KALMIDO_ISSUER_KEYS=0: management 404, the key 403 issuer_keys_off; KALMIDO_HOSTED=1: off until the operator unlocks the
    area (PUT /api/operator/accounts/<id> issuer_keys), locking again pauses; KALMIDO_ISSUER_ENV=live: a test key 401, a new
    issuer needs addresses, its key starts with kis_live_
@@ -28,6 +30,7 @@ import os
 import re
 import secrets
 import shutil
+import subprocess
 import sys
 
 import requests
@@ -181,6 +184,11 @@ for _ in range(5):
     key_get(KEY)
 n = sql("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND target='paused'", (IID,))[0][0]
 check(n == 1, f"the same refusal is logged once in 10 minutes (the office log cannot be pruned) {n}")
+n0 = sql("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused'", (IID,))[0][0]
+for i in range(30):
+    key_get(KEY, f"/tasks/{900 + i}")
+n1 = sql("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused'", (IID,))[0][0]
+check(n1 == n0, f"a paused issuer probing 30 new paths adds no log line (review F1) {n0} -> {n1}")
 r = A.post(B + f"/api/office/issuers/{IID}/resume")
 check(r.ok and not r.json()["issuer"]["paused"] and key_get(KEY).ok, f"resume after an admin's pause, without the password {r.text[:160]}")
 for i in range(20):
@@ -190,6 +198,10 @@ for i in range(20):
     key_get(KEY, f"/tasks/{i + 1}")
 x = A.get(B + "/api/office/issuers").json()["issuers"][0]
 check(x["paused"] and x["paused_reason"] == "refused", f"20 refused routes: self-pause {x['paused_reason']}")
+for i in range(30):
+    key_get(KEY, f"/lists/{500 + i}")
+n = sql("SELECT COUNT(DISTINCT target) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND target LIKE 'route:%'", (IID,))[0][0]
+check(n <= 21, f"probing on after the self-pause adds no route lines (review F1) {n}")
 check(bool(news(ALICE, "issuer_paused")), "the admins hear of the self-pause")
 r = A.post(B + f"/api/office/issuers/{IID}/resume")
 check(r.status_code == 403 and r.json().get("password_needed"), f"resume after a self-pause asks for the password {r.status_code}")
@@ -282,6 +294,12 @@ check(r.ok, f"move: the personal office moves {r.status_code} {r.text[:200]}")
 check(key_get(FK).status_code == 401 and sql("SELECT revoked_at IS NOT NULL FROM office_issuers WHERE id=?", (FI,))[0][0],
       "move: the issuer is revoked, its key 401")
 
+# ---------------------------------------------------------------- a support session never changes an issuer (review F2)
+r = subprocess.run(["docker", "exec", "-w", "/app", kt.CT, "python", "-c", "from kalmido.accounts.supportgrant import sga_may_write as w; "
+                    "print(w('/api/office/issuers/1/resume'), w('/api/office/issuers'), w('/api/office/issuers/1/payees/2'), w('/api/office/docs/1'))"],
+                   capture_output=True, text=True, timeout=120)
+check(r.stdout.split()[-4:] == ["False", "False", "False", "True"], f"support sessions write no issuer route, still office documents {r.stdout[-200:]} {r.stderr[-300:]}")
+
 # ---------------------------------------------------------------- server switches (the same data, restarted)
 kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_ISSUER_KEYS": "0"}, keep=True, data=DATA)
 A = kt.sess("alice")
@@ -305,6 +323,8 @@ A = kt.sess("alice")
 check(key_get(KEY3).status_code == 401, "a live server takes no test key")
 r = A.post(B + "/api/office/issuers", json={"name": "Live", "range_id": RG, "password": PASSWORD})
 check(r.status_code == 400, f"a live issuer needs addresses {r.status_code}")
+r = A.post(B + "/api/office/issuers", json={"name": "Live", "range_id": RG, "any_address": False, "password": PASSWORD})
+check(r.status_code == 400, f"any_address false is no way around the address rule (review F5) {r.status_code}")
 r = A.post(B + "/api/office/issuers", json={"name": "Live", "range_id": RG, "allowed_ips": ["198.51.100.0/24"], "password": PASSWORD})
 check(r.status_code == 201 and str(r.json().get("key", "")).startswith("kis_live_") and len(r.json()["key"]) == len("kis_live_") + 43,
       f"a live server gives out kis_live_ keys {r.status_code}")

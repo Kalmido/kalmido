@@ -2324,14 +2324,17 @@ def bkr_issuers_pause(c):
     """2.1369.0 (#6699): after a restore every invoice issuer pauses (an older backup brings back keys revoked since); its
     admins hear it, only a person lets it run again (office/issuers.py). Never fails the restore."""
     try:
+        if not c.execute("SELECT to_regclass('office_issuers')").fetchone()[0]:
+            return  # a backup from before the issuers: none to pause
         from ..office.issuers import iss_pause_all
-        n = iss_pause_all(c, "restore")
-        c.commit()
+        n = len(iss_pause_all(c, "restore"))
         if n:
             print(f"restore: {n} invoice issuers paused", flush=True)
-    except Exception as e:  # noqa: BLE001 -- a backup from before the issuers has no table; the restore stays done
+    except Exception as e:  # noqa: BLE001 -- the restore stays done
         c.rollback()
         print("restore: invoice issuers not paused:", type(e).__name__, flush=True)
+        # review F3: issuers that may run with keys revoked since the backup -> the admins hear it
+        aa_now("security", f"restore-issuers:{int(time.time())}", N_("After the restore, the invoice issuers could not be paused; pause them in the office settings."), [])
 
 
 def bkr_restore_journal(journal, purged=(), keep=False, admin=""):

@@ -73,7 +73,7 @@ from ..accounts.oidc import oidc_reauth
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip, FAIL_WINDOW
 from ..api.common import v1_err, v1_view, V1_KEY_KINDS
 from ..collab.integfail import INTEG_TEXT, integ_tell
-from ..notify.alerts import fx2_mask_ip
+from ..notify.alerts import aa_now, fx2_mask_ip
 from .ledger import _cap, _iban_ok, _log_public, ofx_company, ofx_log_name
 from .model import office_gate, office_on, office_org, office_settings, office_where, pb_owner
 
@@ -90,6 +90,7 @@ ISS_SELF_PAUSE = 20       # probing calls within an hour -> the issuer pauses it
 ISS_REFUSED_EVERY = 10    # minutes: the same refusal is logged once in this time (the office log is never pruned)
 ISS_USED_EVERY = 60       # s between two last_used_at updates of a key
 ISS_IPS_MAX = 50          # addresses kept per issuer (the oldest go)
+ISS_NEW_IPS_DAY = 5       # new addresses a day that are each an alarm; one more pauses the issuer ("address")
 ISS_NAME_MAX, ISS_LABEL_MAX, ISS_HOLDER_MAX = 80, 80, 70
 ISS_PAYEES_MAX = 10
 ISS_WARN_DAYS = (30, 7, 0)  # the admins hear of a key running out this many days before
@@ -231,22 +232,26 @@ def _iss_refuse(c, iss, key, code, msg, name, kind, headers=None):
     ISS_SELF_PAUSE distinct targets. Calls from outside the address rule are counted in the database (core/ratedb.py), not by
     their log lines. Both counts start again when a person resumes the issuer."""
     ip = fx2_mask_ip(client_ip())
+    if iss["paused"]:  # review F1: every refusal of a paused issuer is one target (a new path each time would be a new line)
+        kind = "paused"
     target = {"address": f"address:{ip}", "paused": "paused", "rate": "rate"}.get(kind) or f"{kind}:{request.method} {request.path}"
     try:
-        since = iso(now_utc() - timedelta(minutes=ISS_REFUSED_EVERY))
-        with system_ctx(c):  # the issuer's own refused calls
-            seen = c.execute("SELECT 1 FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND target=? AND at>=? LIMIT 1",
-                             (iss["id"], target[:200], since)).fetchone()
-        if not seen:
-            iss_log(c, iss["org_id"], iss["id"], "issuer_refused", target, {"status": code, "code": name, "key": key["prefix"], "ip": ip}, name=iss["name"])
-        if kind in ("route", "id") and not iss["paused"]:
+        n = 0
+        if kind in ("route", "id"):
             hour = iso(now_utc() - timedelta(hours=1))
             with system_ctx(c):  # the distinct targets probed in the last hour, since a person last resumed the issuer
                 n = c.execute("SELECT COUNT(DISTINCT target) FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND at>=? "
                               "AND (target LIKE 'route:%' OR target LIKE 'id:%') AND id > COALESCE((SELECT MAX(id) FROM office_doc_log "
                               "WHERE issuer_id=? AND action='issuer_resume'), 0)", (iss["id"], hour, iss["id"])).fetchone()[0]
-            if n >= ISS_SELF_PAUSE:
-                iss_pause(c, iss, "refused")
+        since = iso(now_utc() - timedelta(minutes=ISS_REFUSED_EVERY))
+        with system_ctx(c):  # the issuer's own refused calls
+            seen = n >= ISS_SELF_PAUSE or c.execute(  # review F1: never more than ISS_SELF_PAUSE probed targets an hour
+                "SELECT 1 FROM office_doc_log WHERE issuer_id=? AND action='issuer_refused' AND target=? AND at>=? LIMIT 1",
+                (iss["id"], target[:200], since)).fetchone() is not None
+        if not seen:
+            iss_log(c, iss["org_id"], iss["id"], "issuer_refused", target, {"status": code, "code": name, "key": key["prefix"], "ip": ip}, name=iss["name"])
+        if kind in ("route", "id") and n + (0 if seen else 1) >= ISS_SELF_PAUSE:
+            iss_pause(c, iss, "refused")
         elif kind == "address" and not iss["paused"]:
             cnt = rate_counts([f"issaddr:{int(iss['id'])}:{iss['updated_at']}"], 3600, add=True, cap={f"issaddr:{int(iss['id'])}:{iss['updated_at']}": 2 * ISS_SELF_PAUSE})
             if cnt is not None and max(cnt.values()) >= ISS_SELF_PAUSE:
@@ -325,8 +330,14 @@ def _iss_seen(c, iss, key):
             if new:
                 c.execute("DELETE FROM office_issuer_ips WHERE issuer_id=? AND ip IN (SELECT ip FROM office_issuer_ips WHERE issuer_id=? "
                           "ORDER BY last_at DESC OFFSET ?)", (iss["id"], iss["id"], ISS_IPS_MAX))
-        if new and _iss_once(c, iss, "ip:" + fx2_mask_ip(ip)):
-            iss_tell(c, iss["org_id"], iss, "issuer_ip", fx2_mask_ip(ip))
+        if new:  # review F4: at most ISS_NEW_IPS_DAY alarms a day; one more new address pauses it (one alarm instead of many)
+            with system_ctx(c):  # the issuer's addresses first seen in the last 24 hours
+                fresh = c.execute("SELECT COUNT(*) FROM office_issuer_ips WHERE issuer_id=? AND first_at>=?",
+                                  (iss["id"], iso(now - timedelta(days=1)))).fetchone()[0]
+            if fresh > ISS_NEW_IPS_DAY:
+                iss_pause(c, iss, "address")
+            else:
+                iss_tell(c, iss["org_id"], iss, "issuer_ip", fx2_mask_ip(ip))
         c.commit()
     except Exception as e:  # noqa: BLE001 -- the call goes on without its bookkeeping
         c.rollback()
@@ -450,7 +461,7 @@ def _iss_ips(b, cur, live_env):
     v = ips_clean(b.get("allowed_ips")) if "allowed_ips" in b else cur
     if b.get("any_address") is True:
         v = ""
-    elif not v and live_env and "any_address" not in b:
+    elif not v and live_env and b.get("any_address") is not True:  # review F5: only true removes the rule on purpose
         raise BadInput(tr("A live issuer key needs the addresses of the system that uses it (or allow any address on purpose)"))
     old = [x for x in (cur or "").split(",") if x]
     new = [x for x in v.split(",") if x]
@@ -547,7 +558,7 @@ def iss_create():
     lim = {k: d for k, (_kind, d, _m) in ISS_LIMITS.items()}
     lim.update(_iss_limits_clean(b.get("limits")))
     ips, _l = _iss_ips(b, "", ISS_ENV == "live")
-    if "allowed_ips" not in b and "any_address" not in b and ISS_ENV == "live":
+    if "allowed_ips" not in b and b.get("any_address") is not True and ISS_ENV == "live":  # review F5
         raise BadInput(tr("A live issuer key needs the addresses of the system that uses it (or allow any address on purpose)"))
     days = _iss_days(b.get("valid_days"), ISS_DAYS, 1, ISS_DAYS, "valid_days")
     e = _iss_confirm(c, b)
@@ -871,17 +882,31 @@ def iss_tick(c, force=False):
     return n
 
 
-def iss_pause_all(c, why, oid=None):
-    """Pauses every issuer (of area oid) that runs, with its alarm: after a restore ("restore") or when the operator takes the
-    unlock back ("operator"). -> how many. The caller commits."""
+def iss_pause_all(c, why, oid=None, commit=True):
+    """Pauses every issuer (of area oid) that runs: after a restore ("restore") or when the operator takes the unlock back
+    ("operator"). Review F3: the pause itself is one statement for all of them, committed first; the log line and the alarm
+    of each follow in a savepoint of its own (one that fails costs only its own notice). -> the paused rows."""
+    now = iso(now_utc())
     with system_ctx(c):  # every area's issuers, or the one area
-        rows = c.execute("SELECT * FROM office_issuers WHERE revoked_at IS NULL AND NOT paused" + (" AND org_id=?" if oid else ""),
-                         (oid,) if oid else ()).fetchall()
-    n = 0
+        rows = c.execute("UPDATE office_issuers SET paused=true, paused_reason=?, paused_at=?, paused_by=NULL WHERE revoked_at IS NULL "
+                         "AND NOT paused" + (" AND org_id=?" if oid else "") + " RETURNING *", (why, now, *((oid,) if oid else ()))).fetchall()
+    if commit:  # commit=False: inside the caller's transaction (the operator's switch commits with it)
+        c.commit()
+    failed = 0
     for r in rows:
-        if iss_pause(c, r, why):
-            n += 1
-    return n
+        try:
+            with c.savepoint():
+                iss_log(c, r["org_id"], r["id"], "issuer_pause", detail={"reason": why}, name=r["name"])
+                iss_tell(c, r["org_id"], r, "issuer_paused", ISS_PAUSE_WHY.get(why, why))
+        except Exception as e:  # noqa: BLE001 -- paused anyway; its admins miss this one notice
+            failed += 1
+            print("issuer pause notice failed:", type(e).__name__, flush=True)
+    if commit:
+        c.commit()
+    if failed:
+        aa_now("security", f"issuer-pause:{why}:{int(now_utc().timestamp())}",
+               N_("Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log."), [why, str(failed)])
+    return rows
 
 
 def iss_moved(c, oid, name):

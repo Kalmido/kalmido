@@ -19244,6 +19244,8 @@
   "Used from": "Gebruikt vanaf",
   "Withdrawn drafts per 24 hours": "Ingetrokken concepten per 24 uur",
   "wrote": "geschreven",
+  "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Na het terugzetten konden de factuuruitgevers niet worden gepauzeerd; pauzeer ze in de kantoorinstellingen.",
+  "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "De factuuruitgevers zijn gepauzeerd ({0}), maar {1} van hun meldingen konden niet worden geschreven; kijk in het serverlogboek.",
   "Office hash chain cannot be checked: office {0}, document id {1} (series {2}, place {3}) cannot be read with the office's key for {4} days. The check goes on behind it.": "Hashketen van het kantoor niet te controleren: kantoor {0}, document-ID {1} (reeks {2}, plaats {3}) is al {4} dagen niet te lezen met de sleutel van het kantoor. De controle gaat erachter verder.",
   "Mailbox {0}: fetching stopped, the server refused the sign-in several times in a row (failing since {1}). Save the access data again.": "Postvak {0}: ophalen gestopt, de server weigerde de aanmelding meerdere keren achter elkaar (mislukt sinds {1}). Sla de toegangsgegevens opnieuw op.",
   "You get this e-mail because Integrations is switched on in Settings > Notifications.": "Je krijgt deze mail omdat Integraties aan staat in Instellingen > Meldingen.",

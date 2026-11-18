@@ -363,7 +363,7 @@ def _op_issuer_keys(c, uid, ik):
     was = c.execute("SELECT issuer_keys FROM orgs WHERE id=?", (oid,)).fetchone()[0]
     c.execute("UPDATE orgs SET issuer_keys=? WHERE id=?", (ik["on"], oid))
     if was and not ik["on"]:
-        iss_pause_all(c, "operator", oid)
+        iss_pause_all(c, "operator", oid, commit=False)
     print("operator: invoice issuers", "unlocked" if ik["on"] else "locked", "for area", int(oid), flush=True)
     return True
 

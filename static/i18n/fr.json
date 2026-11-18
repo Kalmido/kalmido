@@ -19244,6 +19244,8 @@
   "Used from": "Utilisée depuis",
   "Withdrawn drafts per 24 hours": "Brouillons retirés par 24 heures",
   "wrote": "a écrit",
+  "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Après la restauration, les émetteurs de factures n'ont pas pu être mis en pause ; mets-les en pause dans les réglages du bureau.",
+  "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "Les émetteurs de factures ont été mis en pause ({0}), mais {1} de leurs avis n'ont pas pu être écrits ; consulte le journal du serveur.",
   "Office hash chain cannot be checked: office {0}, document id {1} (series {2}, place {3}) cannot be read with the office's key for {4} days. The check goes on behind it.": "Chaîne de hachage du bureau impossible à vérifier : bureau {0}, document ID {1} (série {2}, place {3}) illisible avec la clé du bureau depuis {4} jours. La vérification continue au-delà.",
   "Mailbox {0}: fetching stopped, the server refused the sign-in several times in a row (failing since {1}). Save the access data again.": "Boîte {0} : relève arrêtée, le serveur a refusé la connexion plusieurs fois de suite (en échec depuis {1}). Enregistre à nouveau les identifiants.",
   "You get this e-mail because Integrations is switched on in Settings > Notifications.": "Tu reçois cet e-mail car Intégrations est activé dans Paramètres > Notifications.",
