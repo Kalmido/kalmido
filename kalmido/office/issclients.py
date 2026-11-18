@@ -265,7 +265,7 @@ def isc_day_changes(c, iss):
     tombstones; a set-up writes a line too and counts against day_clients)."""
     since = iso(now_utc() - timedelta(days=1))
     with system_ctx(c):  # the issuer's own log lines and tombstones
-        w = c.execute("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_write' AND target LIKE 'client:%' AND at>=?",
+        w = c.execute("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_write' AND target ILIKE 'client:%' AND at>=?",
                       (int(iss["id"]), since)).fetchone()[0]
         n = c.execute("SELECT COUNT(*) FROM office_issuer_refs WHERE issuer_id=? AND route=? AND created_at>=?",
                       (int(iss["id"]), ISC_REF_ROUTE, since)).fetchone()[0]

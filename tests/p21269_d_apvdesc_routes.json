@@ -263,6 +263,7 @@
  "PUT /contacts/{}/care": "update",
  "PUT /event-calendars/{}/members/{}": "share",
  "PUT /fetcher/status": "update",
+ "PUT /issuer/clients/by-ref/{}": "update",
  "PUT /life/journal/{}": "update",
  "PUT /lists/{}/groups/{}": "share",
  "PUT /lists/{}/links/order": "update",

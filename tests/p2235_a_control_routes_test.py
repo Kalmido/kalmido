@@ -163,6 +163,8 @@ ROUTES = {
     "POST /api/v1/orgs/{}/webhooks/{}/secret": "change", "POST /api/v1/orgs/{}/webhooks/{}/test": "change",
     "POST /api/v1/lists/{}/repos": "change", "PUT /api/v1/lists/{}/repos/version-field": "change",
     "PATCH /api/v1/repos/{}": "change", "DELETE /api/v1/repos/{}": "one_way",
+    # 2.1384.0 (#6700): the invoice issuer key's client route (an issuer key only, ISS_ROUTES; no agent token reaches it)
+    "PUT /api/v1/issuer/clients/by-ref/{}": "change",
 }
 
 FOUND, PROBLEMS = app_routes(ROOT)
