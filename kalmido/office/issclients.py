@@ -175,6 +175,8 @@ def isc_text_check(field, v):
     e-mail address). A VAT ID: its own characters (ISC_VAT_RE) and no web address."""
     if not v:
         return ""
+    if any(unicodedata.category(ch) == "Cf" for ch in v):  # 2.1396.0 (#6701, review F3): invisible / direction marks hide what is printed
+        raise _bad(field, tr("{0}: no invisible characters", field))
     if field == "vat_id":
         if not ISC_VAT_RE.fullmatch(v.replace(" ", "").upper()) or isc_has_web(v):
             raise _bad(field, tr("{0}: letters, digits and + * . - only", field))
