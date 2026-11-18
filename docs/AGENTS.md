@@ -3137,8 +3137,10 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    brakes, findings).
 
 **Brakes**: a stop file (`dispatch-STOP` in the runner's state folder or `KALMIDO-DISPATCH-STOP` in the project folder), a
-fresh week usage at or above `usage_limit_pct` (default 95) or `KALMIDO_USAGE_LIMIT`, and the closed work window hold new
-starts. Closing and the guard go on. A write the server refuses (2.1368.0: `409 approval_required` under the agent's
+fresh week usage at or above `usage_limit_pct` (default 95) or `KALMIDO_USAGE_LIMIT`, the closed work window, and
+(2.1368.0) the **jam brake**: more tasks *on a branch* (built, not yet in `close_ref`) than `stau_max` (default 10, `0` =
+never) hold new starts. In practice building is never the bottleneck, landing is (with pull requests: the person's
+approval); without this brake unmerged branches and their conflicts pile up. The day report names every brake that holds. Closing and the guard go on. A write the server refuses (2.1368.0: `409 approval_required` under the agent's
 control level, a new agent starts on *approve all*) ends only that write: a started job is in the dispatcher's state before
 any further write of the round, and the next round never starts its bundle again. **Dry run**: no comment, no close, no job. What it would do goes to
 `dispatch-dry.log` in the state folder and into the day report, which is its only post.
