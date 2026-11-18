@@ -250,7 +250,8 @@ by hand. Go through this list before the first run; each line names what goes wr
   set, `pr_cmd` for the project's git server, `places` 1.
 - [ ] **First a dry run:** *Work the list off* on *Dry run* with one place, and read its day report before switching to
   *Active*.
-- [ ] `KALMIDO_TOOLSETS` limited to what a coding agent needs (e.g. `tickets,code`).
+- [ ] `KALMIDO_TOOLSETS` limited to what a coding agent needs (e.g. `tickets,code`), and the short rules
+  `mcp/CLAUDE.coding.md` as the project's `CLAUDE.md`.
 
 ## Host sandbox recipe (Claude Code)
 
