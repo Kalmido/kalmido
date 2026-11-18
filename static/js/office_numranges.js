@@ -33,7 +33,8 @@ async function onumLoad() {
 }
 function onumRedraw() { const box = $('#onum-box'); if (box) box.outerHTML = onumHtml(); }
 // 2.979.0 (#5667): an undo / redo the server did: the shown number ranges come again
-histReloader('numranges', () => { if (!ONUM.ranges) return; if ($('#onum-box')) return onumLoad(); ONUM.ranges = null; });
+// 2.1391.0 (#7111): and the issuer block (its ranges decide whether an issuer can be added)
+histReloader('numranges', () => { issFresh(); if (!ONUM.ranges) return; if ($('#onum-box')) return onumLoad(); ONUM.ranges = null; });
 
 // the block of the settings page (office.js ofcSettingsHtml calls it below the number schemes); admins only
 function onumHtml() {
@@ -231,12 +232,12 @@ function nrDialog(r) {
         if (r) await rawFetch('PATCH', `/api/office/num-ranges/${r.id}`, {...b, closed: on('nr-closed')});
         else await rawFetch('POST', '/api/office/num-ranges', {...b, code: v('nr-code').toUpperCase()});
       } catch (x) { ofcErr(x); return false; }
-      toast(tr('Saved')); if (typeof OFC === 'object') OFC.log = null; onumLoad(); return true;
+      toast(tr('Saved')); if (typeof OFC === 'object') OFC.log = null; onumLoad(); issFresh(); return true;
     }});
 }
 async function nrDelete(r) {
   if (!r || !await askConfirm(tr('Remove number range {0}?', r.code), tr('Its drafts go back to the main range.'), {ok: tr('Remove')})) return;
-  try { await rawFetch('DELETE', `/api/office/num-ranges/${r.id}`); toast(tr('Removed')); onumLoad(); } catch (x) { ofcErr(x); }
+  try { await rawFetch('DELETE', `/api/office/num-ranges/${r.id}`); toast(tr('Removed')); onumLoad(); issFresh(); } catch (x) { ofcErr(x); }
 }
 
 // ---- 2.1381.0 (#6699): invoice issuers -- an outside system (a shop, a booking system, an own script) prepares invoice drafts in
@@ -261,6 +262,9 @@ async function issLoad() {
   issRedraw();
 }
 function issRedraw() { const b = $('#iss-box'); if (b) b.outerHTML = issHtml(); }
+// 2.1391.0 (#7111): a number range added, changed or removed: the issuer block asks the server again (its ranges decide whether
+// "Add invoice issuer" is possible) instead of keeping the old answer until a reload
+function issFresh() { if (ISS.off) return; ISS.data = null; issRedraw(); }
 const issDay = v => v ? fmtDate(String(v).slice(0, 10)) : '';
 
 function issHtml() {
