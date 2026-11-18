@@ -151,7 +151,8 @@ Is `data/` or `secret/` itself a link (to another disk), the installer gives the
 container writes there) and says so; a link to `/` or to a missing folder stops it. Since 2.1345.0 (#6658) that folder
 must be empty or carry the marker directory `.kalmido-target` (the installer makes it on the first run); any other folder
 stops the installer with two ready commands: `mkdir "<folder>/.kalmido-target"` when it is Kalmido's own folder, or a link
-to an empty folder of its own. An older run's marker file is turned into the directory.
+to an empty folder of its own. A file of that name is no marker (2.1367.0); a folder the installer cannot list
+counts as not empty.
 
 ### Organisations and private spaces
 
