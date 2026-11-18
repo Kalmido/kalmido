@@ -373,6 +373,14 @@ def _f2():
     for line in ("ps e", "ps aux e", "ps auxe", "ps -E", "ps eww", "sudo ps eww", "ls; /bin/ps e", "bash -c 'ps e'", "echo $(ps axe)"):
         check(ar.secret_ps(line.replace("'", "")) and ar.guard_secret(line, env={}) is not None, f"(m) R4 F2: {line} stays refused")
     check(hook("docker ps --format table") is None and hook("ps aux e") == "deny", "(m) R4 F2: ... also through the hook")
+    # 2.1398.0 (#7132, reader of job/5387 F5): ps at every word again -- without the fix these passed (only a ps at the start
+    # of a command was read; -N counted as an option with a value)
+    for line in ("LC_ALL=C ps e", "FOO=1 ps auxe", "env FOO=1 ps e", "if true; then ps e; fi", "for i in 1; do ps eww; done",
+                 "{ ps e; }", "! ps e", "timeout 5 ps e", "nice -n 5 ps e", "sudo -u root ps e", "stdbuf -o0 ps e", "setsid ps e",
+                 "ps -N e", "ps -fN e", "ps -AN e", "ps o e", "ps e>out.txt", "/usr/bin/ps e"):
+        check(ar.secret_ps(line) and ar.guard_secret(line, env={}) is not None, f"(m) #7132: {line} is refused")
+    for line in ("docker compose ps --format json", "podman ps -a --filter name=web", "ps -o etime > out.txt"):
+        check(not ar.secret_ps(line) and ar.guard_secret(line, env={}) is None, f"(m) #7132: {line} stays allowed")
 
     # review R3 F1: the request token files of OTHER people (op.env of the chosen person, p<other>.env, auto.env) lie next to
     # the run's own file in <state>/run-env. Without the fix only the run's own file and the starter's were named: a run for
@@ -447,6 +455,8 @@ def _o():
                         "asked_by": who if who else 9, "list_ids": [1]}
             if self.token in self.dead:
                 raise ar.ApiError(401, '{"error": "Missing or invalid API token"}')
+            if path.startswith("/agent/jobs/"):  # 2.1398.0 (#7132): the server's job of a woken job (job 801 is person 5's)
+                return {"id": int(path.rsplit("/", 1)[1]), "user_id": 5 if path.endswith("/801") else 77}
             return {"ok": True}
 
     sd = tempfile.mkdtemp(prefix="kalmido-p6668o-")
@@ -496,8 +506,8 @@ def _o():
     # a job the runner wakes (card answer) / continues: the file of its person, never the runner's environment
     aj.SPAWN_ENV = r.job_env
     # 2.1386.0 (#6668): reader R4 F1 -- job_env needs the token's person and kind the job started with (agent_job.py cmd_start)
-    check(r.job_env({"chat_user": 5, "env_key": "p5", "token_person": 5}) == rf
-          and r.job_env({"chat_user": 77, "env_key": "p77", "token_person": 77}) is None,
+    check(r.job_env({"id": 801, "chat_user": 5, "env_key": "p5", "token_person": 5}) == rf
+          and r.job_env({"id": 802, "chat_user": 77, "env_key": "p77", "token_person": 77}) is None,
           "(o) a woken job of the person gets her request token file; a person without one: none (it stays asleep)")
     aj.SPAWN_ENV = None
     # the dispatcher's job: the chosen person's token file (op), never the starter's
@@ -596,12 +606,14 @@ def _f9():
                     "asked_by": nxt["agent"]["perm_user_id"], "list_ids": [1]}
         if path == "/agent":
             return dict(nxt["agent"])
+        if path.startswith("/agent/jobs/"):  # 2.1398.0 (#7132): the server's job 900 + n is person n's
+            return {"user_id": int(path.rsplit("/", 1)[1]) - 900}
         return {"ok": True}
     r.api.req = req
     opc = r.op_api()
     opf = os.path.join(r.state_dir, "run-env", "op.env")
     def oj(uid):  # 2.1386.0 (#6668): reader R4 F1 -- a job of the list work started with op.env for person uid
-        return {"chat_user": uid, "env_key": "op", "token_person": uid}
+        return {"id": 900 + uid, "chat_user": uid, "env_key": "op", "token_person": uid}
     check(opc is not None and os.path.isfile(opf) and r.job_env(oj(9)) == opf and r.job_env(oj(5)) is None,
           "(s) R3 F9: op.env for a job of the chosen person (9) only")
     nxt["agent"] = {**r.agent, "perm_user_id": 7}
@@ -676,10 +688,18 @@ def _r4f1():
         r.extras = None
         r.agent = {"owner_id": None, "request_token": True, "runtime": {}}
         r.req_mode = lambda: "team"
+        srv = {901: 5, 903: 5}  # 2.1398.0 (#7132): the person of each server job (set by the server, pin:user_id)
+        r.api.req = lambda method, path, body=None, *a, **k: {"id": int(path.rsplit("/", 1)[1]), "user_id": srv.get(int(path.rsplit("/", 1)[1]))}
         bad = {"id": 903, "title": "x", "chat_user": 7, "env_key": "p5", "token_person": 5}
         check(r.job_env(bad) is None and r.job_env({**bad, "env_key": "p7"}) is None and r.job_env({"id": 904, "chat_user": 7}) is None,
               "(t) R4 F1: a job file with chat_user 7 and token person 5 never gets p7.env (nor without a token person)")
         check(r.job_env(j) == p5, "(t) R4 F1: the job of person 5 gets p5.env")
+        # 2.1398.0 (#7132, reader of job/5387 N2): the job file lies in the state folder the model's processes write -- a file
+        # rewritten as a whole to person 7 (chat_user, token_person, env_key) agrees with itself, not with the server's job
+        forged = {**j, "chat_user": 7, "token_person": 7, "env_key": "p7"}
+        check(r.job_env(forged) is None, "(t) #7132 N2: a job file rewritten to person 7 does not get p7.env (the server's job is 5's)")
+        srv[905] = None
+        check(r.job_env({**j, "id": 905}) is None, "(t) #7132 N2: a server job without that person (or not read): it stays asleep")
         aj.spawn_run = old_spawn
         aj.SPAWN_ENV = r.job_env
         os.makedirs(aj.job_dir(903), exist_ok=True)
@@ -696,6 +716,7 @@ def _r4f1():
         try:
             aj.add_wake(dict(bad), "done", "result")
             aj.add_wake(dict(j), "done", "result")
+            aj.add_wake({**forged, "id": 906, "title": "forged"}, "done", "result")  # #7132 N2: server job 906 is nobody's
             r.job_watch()
         finally:
             aj.revive_lost = keep
