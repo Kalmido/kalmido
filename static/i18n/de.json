@@ -19367,5 +19367,6 @@
   "End presentation": "Präsentation beenden",
   "Presentation: {0}": "Präsentation: {0}",
   "A support session does not open the original e-mail file: the client does that": "Eine Support-Sitzung öffnet die Original-E-Mail-Datei nicht: das macht der Kunde",
-  "one of its clients": "einem seiner Kunden"
+  "one of its clients": "einem seiner Kunden",
+  "{0}: letters, digits and + * . - only": "{0}: nur Buchstaben, Ziffern und + * . -"
 }
