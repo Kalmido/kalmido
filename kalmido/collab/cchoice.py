@@ -119,7 +119,7 @@ def lv_approvals_open(c, tid):
     return [r for r in rows if lv_state(r, lv_jload(r["choices"]), None, 0) == "open"]
 
 
-def lv_answer(c, r, uid, ids, via="button"):
+def lv_answer(c, r, uid, ids, via="button", proof=None):
     """The person uid answers comment r with ids: stored once, logged, the agent hears it. -> (row, the person's comment id
     of a suggestion or None). Denied / BadInput."""
     from ..agents.core import agent_comment, agent_emit, agent_task_data, is_agent
@@ -147,6 +147,8 @@ def lv_answer(c, r, uid, ids, via="button"):
             or (len(ids) > 1 and not ch.get("multi")):
         raise BadInput(tr("Invalid value: {0}", "choice_ids"))
     ids = [x for x in valid if x in ids]
+    from ..agents.apvdiff import apvd_need_proof
+    apvd_need_proof(c, f"comment:{r['id']}", uid, ch, ids, proof)  # 2.1386.0 (#6623): Yes only with the proof of the description
     ans = {"ids": ids, "at": iso_ms(now_utc()), "user_id": uid, "via": via}
     c.execute("UPDATE obj_comments SET extra = jsonb_set(extra, '{choice}', CAST(? AS JSONB)) WHERE id=? AND extra->'choice' IS NULL",
               (json.dumps(ans), r["id"]))  # 2.972.0 (#5272): written once
@@ -204,7 +206,8 @@ def comment_choice(cid):
     if not r:
         raise Denied(404)
     need_task(c, r["task_id"], write=False, full=True)
-    r2, said = lv_answer(c, r, me(), body().get("choice_ids"))
+    b = body()
+    r2, said = lv_answer(c, r, me(), b.get("choice_ids"), proof=b.get("desc_proof"))  # 2.1386.0 (#6623)
     bump(c)
     c.commit()
     return jsonify({**lv_one(c, r2), "answer_comment_id": said})
@@ -254,13 +257,13 @@ def v1_comment_choice(cid):
     """{choice_ids: [...]} -- a person (own token) answers an agent's comment with its buttons; agents never answer (403)."""
     v1_args(())
     b = v1_json()
-    reject_unknown(b, ("choice_ids",))
+    reject_unknown(b, ("choice_ids", "desc_proof"))
     c = db()
     r = ocm_row(c, cid, live=True)  # 2.972.0 (#5272)
     if not r:
         raise Denied(404)
     need_task(c, r["task_id"], write=False, full=True)
-    r2, said = lv_answer(c, r, me(), b.get("choice_ids"))
+    r2, said = lv_answer(c, r, me(), b.get("choice_ids"), proof=b.get("desc_proof"))  # 2.1386.0 (#6623)
     bump(c)
     c.commit()
     return jsonify({**lv_v1_dict(c, {**lv_one(c, r2), "task_id": r2["task_id"]}), "answer_comment_id": said})

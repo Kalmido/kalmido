@@ -132,10 +132,27 @@ class Kalmido:
         self.cards = {}  # 2.235.0 A2: message id -> step of the approval cards this process sent
         self.refused = {}  # 2.1045.0 (#5827): step_ref -> the step of a 409 approval_required (request_chat_approval step_ref takes it over)
         self.rl_until = 0.0  # 2.391.0 A (#3360): RateLimit-Remaining was 0: no request before this time (the header's Reset)
+        self.reload = None  # 2.1386.0 (#6668): -> the token of the env file again (main: only when the token came from there)
 
     def call(self, method, path, query=None, body=None, timeout=None, multipart=None, binary_cap=None):
         """multipart: (fields dict, [(name, mime, bytes)]) -> a multipart/form-data body (field `file` per file).
-        binary_cap: the answer is a file -> {"bytes", "mime", "name"} (ApiError 413 when larger than the cap)."""
+        binary_cap: the answer is a file -> {"bytes", "mime", "name"} (ApiError 413 when larger than the cap).
+        2.1386.0 (#6668 with #6457): a 401 with a token from the env file reads the file once more -- a team agent's run file
+        gets the person's new request token from the starter (agent_run.py token_file) -- and sends the call again with it."""
+        appr = (self.approval, self.approval_step)
+        try:
+            return self._call(method, path, query, body, timeout, multipart, binary_cap)
+        except ApiError as e:
+            if e.status != 401 or not callable(self.reload):
+                raise
+            tok = self.reload()
+            if not tok or tok == self.token:
+                raise
+            self.token = tok
+            self.approval, self.approval_step = appr  # the refused call did not use the card
+            return self._call(method, path, query, body, timeout, multipart, binary_cap)
+
+    def _call(self, method, path, query=None, body=None, timeout=None, multipart=None, binary_cap=None):
         if not self.base or not self.token:
             raise ApiError(0, "KALMIDO_URL and KALMIDO_TOKEN must be set")
         q = {k: v for k, v in (query or {}).items() if v is not None and v != ""}
@@ -3599,6 +3616,8 @@ def main(argv=None):
         print(f"kalmido-mcp: {e}", file=sys.stderr)
         return 2
     api = Kalmido(*env_credentials())  # 2.1367.0 (#6457): the environment, else the env file KALMIDO_ENV_FILE
+    if env_token_from_file():  # 2.1386.0 (#6668): a new token in the file after a 401 (a team agent's request token)
+        api.reload = lambda: env_credentials()[1]
     if not api.base or not api.token:
         print("kalmido-mcp: KALMIDO_URL and KALMIDO_TOKEN must be set", file=sys.stderr)
     if a.http and len(os.environ.get("MCP_HTTP_TOKEN", "")) < 16:  # 2.126.0 B (#1979 G2)

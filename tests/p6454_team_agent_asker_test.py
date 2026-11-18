@@ -19,6 +19,8 @@ tenant-matrix: agent (the cut is the requester's own rights: a person of another
      a participant's run and a person who left the project mid-run reach no task of it; an admin's run keeps the folders
  audit #4818: a read-only person of the organisation gives the team agent no orders (chat, mention); the owner of an
      approval job who is read-only now approves nothing
+ 2.1386.0 (#6668): the external team agent (its own token) asks the request token for carl's event itself: cut to carl's
+     project; its own token then reaches only its channel (403 request_token_needed); more in p6668_ext_team_agent_test.py
 usage: p6454_team_agent_asker_test.py <datadir>      (KMT_NOSTART=1 / P6454_NOSTART=1: a running server)"""
 import json
 import os
@@ -27,7 +29,8 @@ import subprocess
 
 import requests
 
-from kt import B, CT, DATA, check, dbx, done, docker_logs_on_first_fail, fresh, sess, until
+from kt import B, CT, DATA, apv_body, check, dbx, docker_logs_on_first_fail, done, fresh, sess, until
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 from freelancer_fixture import freelancer
 
 N = os.path.dirname(os.path.abspath(__file__))
@@ -304,7 +307,7 @@ m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval
 check(m.status_code == 409 and err(m).get("circle") == "wider" and made() == 0,
       f"(d) the card to carl (no right on the address book, not every source) is itself held: a wider circle {m.status_code} {m.text[:200]}")
 M2 = card(uid["bob"])
-check(Bo.post(B + f"/api/agents/{XT}/chat/{M2}/choice", json={"choice_ids": ["yes"]}).ok, "(d) bob (owns the address book) says Yes")
+check(Bo.post(B + f"/api/agents/{XT}/chat/{M2}/choice", json=apv_body(Bo, B, f"chat:{M2}", "yes")).ok, "(d) bob (owns the address book) says Yes")
 r = requests.post(V + f"/agent/approvals/{M2}/run", headers=XH, timeout=60)
 check(r.status_code == 201 and made() == 1, f"(d) bob's Yes writes the contact {r.status_code} {r.text[:200]}")
 check(A.patch(B + f"/api/agents/{XT}/control", json={"level": "free", "goal": "Help the team"}).ok, "setup: free again")
@@ -334,7 +337,7 @@ check(r.status_code == 409, f"freelancer: a new contact needs her card {r.status
 ap = err(r).get("approval") or {}
 m = requests.post(V + f"/agent/chats/{FID}", headers=FH, timeout=30,
                   json={"approval": {"title": "Add?", "step": {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}}})
-check(m.status_code == 201 and Fr.post(B + f"/api/agents/{FA}/chat/{m.json().get('id')}/choice", json={"choice_ids": ["yes"]}).ok, "freelancer: she says Yes")
+check(m.status_code == 201 and Fr.post(B + f"/api/agents/{FA}/chat/{m.json().get('id')}/choice", json=apv_body(Fr, B, f"chat:{m.json().get('id')}", "yes")).ok, "freelancer: she says Yes")
 r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=FH, timeout=60)
 check(r.status_code == 201, f"freelancer: her Yes on a card without a project writes the contact {r.status_code} {r.text[:200]}")
 check(Fr.post(B + f"/api/tasks/{T1}/comments", json={"body": f"<@{XT}> x"}).status_code == 404, "another organisation's project stays closed to her (no requester there)")
@@ -354,7 +357,7 @@ if r.status_code == 409 and err(r).get("circle") == "wider":
     ap = err(r).get("approval") or {}
     m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, timeout=30,
                       json={"approval": {"title": "Move?", "step": {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}}})
-    check(m.status_code == 201 and Bo.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json={"choice_ids": ["yes"]}).ok,
+    check(m.status_code == 201 and Bo.post(B + f"/api/agents/{XT}/chat/{m.json().get('id')}/choice", json=apv_body(Bo, B, f"chat:{m.json().get('id')}", "yes")).ok,
           f"#4818: the move into a wider project asks bob with a card {m.status_code} {m.text[:200]}")
     r = requests.post(V + f"/agent/approvals/{m.json().get('id')}/run", headers=XH, timeout=60)
 J = (r.json().get("job") or {}).get("id") if r.status_code == 202 else None
@@ -374,5 +377,23 @@ check(dbx("SELECT COUNT(*) FROM agent_runs WHERE agent_id=? AND asked_by=?", (TK
 check(A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": uid["bob"], "role": "admin"}).ok, "bob is an admin again")
 r = Bo.post(B + f"/api/agents/jobs/{J}/action", json={"action": "approve"})
 check(r.ok and dbx("SELECT list_id FROM tasks WHERE id=?", (TM,))[0][0] == P3, f"#4818: with his write right back the approval moves the task ({r.status_code} {r.text[:160]})")
+
+# ---------------------------------------------------------------- 2.1386.0 (#6668): the external team agent per request
+# The team agent with its own token (XT, its own starter) gets the same cut as the server's run, now from the server itself:
+# it asks a request token for the event of carl (project one only) -- no more hand-made run token (run_for).
+# Without #6668 its own token kept the whole reach for every person who asked (the rest of #6454 F5).
+run_for(None, [])
+check(Ca.post(B + f"/api/tasks/{TX}/comments", json={"body": f"<@{XT}> CARL-EXT-ASKS"}).ok, "#6668: carl mentions the external team agent")
+ev = [e["seq"] for e in xget("/agent/events", params={"since": 0, "limit": 500}).json().get("data", []) if "CARL-EXT-ASKS" in json.dumps(e)]
+check(len(ev) == 1, f"#6668: the agent sees carl's event {ev}")
+r = requests.post(V + "/agent/request-token", headers=XH, json={"seqs": ev[:1]}, timeout=30)
+check(r.ok and r.json().get("asked_by") == uid["carl"] and X1 in (r.json().get("list_ids") or []) and X2 not in (r.json().get("list_ids") or []),
+      f"#6668: a request token for carl, cut to his projects (project one, not project two) {r.status_code} {r.text[:200]}")
+RQ = {"Authorization": "Bearer " + (r.json().get("token") or "")} if r.ok else XH
+check(requests.get(V + f"/tasks/{TX}", headers=RQ, timeout=30).ok, "#6668: carl's request reads his project")
+check(requests.get(V + f"/tasks/{SX}", headers=RQ, timeout=30).status_code == 404, "#6668: carl's request does not reach project two")
+r = xget(f"/tasks/{SX}")
+check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
+      f"#6668: the agent's own token reaches no content any more (its channel only) {r.status_code} {r.text[:160]}")
 
 raise SystemExit(done("p6454_team_agent_asker"))

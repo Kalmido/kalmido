@@ -40,7 +40,8 @@ import requests
 
 import kt
 from freelancer_fixture import freelancer, login
-from kt import B, check, done, fresh, setup
+from kt import B, apv_body, check, done, fresh, setup
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 from testclock import now
 
 V = B + "/api/v1"
@@ -125,7 +126,7 @@ def mark(mid):
 
 
 def yes(aid, mid):
-    r = F.post(B + f"/api/agents/{aid}/chat/{mid}/choice", json={"choice_ids": ["yes"]})
+    r = F.post(B + f"/api/agents/{aid}/chat/{mid}/choice", json=apv_body(F, B, f"chat:{mid}", "yes"))
     assert r.ok, r.text
 
 
@@ -468,7 +469,7 @@ r = requests.post(V + f"/agent/chats/{ALICE}", headers=HT, json={"approval": {"t
 assert r.status_code == 201, r.text
 M_BOB = r.json()["id"]
 check(mark(M_BOB) == "wider", f"G12: the card for that message is marked 'wider' ({mark(M_BOB)})")
-assert A.post(B + f"/api/agents/{TA}/chat/{M_BOB}/choice", json={"choice_ids": ["yes"]}).ok
+assert A.post(B + f"/api/agents/{TA}/chat/{M_BOB}/choice", json=apv_body(A, B, f"chat:{M_BOB}", "yes")).ok
 r = run(HT, M_BOB)
 check(r.status_code == 201 and kt.dbx("SELECT 1 FROM agent_chat WHERE agent_id=? AND user_id=? AND sender='agent'", (TA, BOB)),
       f"G12: after the Yes of a person who reads everything the message goes out ({r.status_code} {r.text[:200]})")

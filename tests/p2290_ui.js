@@ -151,6 +151,18 @@ const V = B + 'api/v1';
   badge = await hm();
   check(/Permissions: Auto/.test(badge?.textContent || ''), '#1029: switched to Auto');
   w.eval('closePop()');
+  // 2.1386.0 (#7003): "Settings of <agent>" sits in the chat ⋯ above "Chat settings" and opens the dialog "Work style and notifications";
+  // the Permissions menu has no such entry any more
+  click(w, d.querySelector('#achat [data-act="chat-head-menu"]'));
+  await until(() => [...d.querySelectorAll('#pop [role="menuitem"]')].find(x => /^Chat settings/.test(x.textContent.trim())));
+  const mi = [...d.querySelectorAll('#pop [role="menuitem"]')], si = mi.findIndex(x => /^Settings of /.test(x.textContent.trim()));
+  check(si >= 0 && si === mi.findIndex(x => /^Chat settings/.test(x.textContent.trim())) - 1, '#7003: "Settings of <agent>" above "Chat settings" ' + mi.map(x => x.textContent.trim()).join('|'));
+  click(w, mi[si]);
+  check(await until(() => d.querySelector('.awdlg')), '#7003: it opens the dialog "Work style and notifications"');
+  w.eval(`document.querySelector('.awdlg [data-m="close"]')?.click()`);
+  badge = await hm(); click(w, badge); await until(() => [...d.querySelectorAll('#pop [role="menuitem"]')].find(x => /^Auto/.test(x.textContent.trim())));
+  check(![...d.querySelectorAll('#pop [role="menuitem"]')].some(x => /Work style/.test(x.textContent)), '#7003: no "Work style and notifications" in the Permissions menu');
+  w.eval('closePop()');
   // 2.437.0 (#2931): the computer fixed the mode: the entry says so and opens no menu
   w.eval(`agentById(${AG}).host = {permission_fixed: true, permission_mode: 'ask'}`);
   const fixed = await hm();

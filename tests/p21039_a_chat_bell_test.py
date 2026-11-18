@@ -17,7 +17,8 @@ import requests
 
 N = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, N)
-from kt import B, check, done, fresh, setup, until  # noqa: E402
+from kt import B, apv_body, check, done, fresh, setup, until  # noqa: E402
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 from freelancer_fixture import freelancer  # noqa: E402
 
 V = B + "/api/v1"
@@ -58,7 +59,7 @@ check(len(it) == 1 and it[0]["to_me"] and it[0]["data"].get("chat") == m1["id"] 
       f"#5804 the card is an entry for you: {feed('approval')}")
 check(bell() == n0 + 1, f"#5804 the bell counts it: {bell()} (was {n0})")
 check(Fr.get(B + f"/api/agents/{AG}/chat").ok and len(unread("approval")) == 1, "#5804 opening the chat does not decide it: it stays")
-r = Fr.post(B + f"/api/agents/{AG}/chat/{m1['id']}/choice", json={"choice_ids": ["yes"]})
+r = Fr.post(B + f"/api/agents/{AG}/chat/{m1['id']}/choice", json=apv_body(Fr, B, f"chat:{m1['id']}", "yes"))
 check(r.ok, f"answer {r.status_code} {r.text[:200]}")
 check(not unread("approval") and bell() == n0, f"#5804 decided = out of the number: {bell()} {feed('approval')}")
 

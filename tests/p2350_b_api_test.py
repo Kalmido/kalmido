@@ -24,7 +24,8 @@ DATA = sys.argv[1]
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 V = B + "/api/v1"
 H = {"X-Requested-With": "kalmido"}
-from kt import FAILS, OKS, check, sess  # 2.192.0 (#2514): shared helpers (tests/kt.py)
+from kt import FAILS, OKS, apv_body, check, sess  # noqa: E402  2.192.0 (#2514): shared helpers (tests/kt.py)
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 
 
 def dbx(sql, args=(), write=False):
@@ -141,7 +142,7 @@ check([x["id"] for x in j.get("approvals_open", [])][:2] == [m1["id"], m2["id"]]
 # ================================================================== who answers
 check(press(Bo, m1["id"], ["yes"]).status_code == 404, "another person cannot answer (404)")
 check(press(Ca, m1["id"], ["yes"]).status_code in (403, 404), "a stranger cannot answer")
-r = requests.post(B + f"/api/agents/{CL}/chat/{m1['id']}/choice", headers={**CLH, **H}, json={"choice_ids": ["yes"]})
+r = requests.post(B + f"/api/agents/{CL}/chat/{m1['id']}/choice", headers={**CLH, **H}, json=apv_body(requests, B, f"chat:{m1['id']}", "yes", headers={**CLH, **H}))
 check(r.status_code in (401, 403, 404), "the agent's own token cannot answer " + str(r.status_code))
 r = requests.post(V + f"/agent/chats/{ALICE}/messages/{m1['id']}/reactions", headers=CLH, json={"emoji": "up"})
 check(dbx("SELECT choice FROM agent_chat WHERE id=?", (m1["id"],))[0][0] is None, "a 👍 of the agent approves nothing")

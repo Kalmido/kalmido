@@ -6,7 +6,7 @@
    shutdown) and of allowed ones (an ordinary git push, git tag without -d, docker ps, the words in a commit message or an
    echo text)
  - the per-run settings carry the hook as PreToolUse / Bash, also without the permission relay; KALMIDO_BLOCK_DANGEROUS=0
-   leaves it out
+   leaves out the dangerous commands (2.1386.0, #6668 with #6457: the env file part stays, --secret-only)
  - the hook's answer is Claude Code's PreToolUse format (deny + reason); an allowed command or another tool: no output
  - the hook's own failure refuses only a command that names a guarded command (fail closed for those, open for the rest)
  - 2.615.0 E (#3758, Fable review): each confirmed finding as a case (substitutions inside the words, jobs get the hook,
@@ -292,14 +292,18 @@ os.environ["KALMIDO_BLOCK_DANGEROUS"] = "0"
 # 2.619.0 (#3267): jobs also get the usage hook, so KALMIDO_BLOCK_DANGEROUS=0 only drops the guard; with KALMIDO_USAGE_HOOK=0 as well: none
 extra0 = aj.job_settings(ar, {"cmd": ["claude"]}, base, jtmp)
 jhs0 = json.load(open(extra0[1], encoding="utf-8")) if extra0[:1] == ["--settings"] else {}
-check("PreToolUse" not in jhs0.get("hooks", {}), f"job with KALMIDO_BLOCK_DANGEROUS=0: no guard {jhs0}")
+# 2.1386.0 (#6668 with #6457): the env file part of the guard (--secret-only) stays in every job, also without the guard
+check("--secret-only" in json.dumps(jhs0.get("hooks", {}).get("PreToolUse")),
+      f"job with KALMIDO_BLOCK_DANGEROUS=0: no guard for dangerous commands, its env file part stays {jhs0}")
 os.environ["KALMIDO_USAGE_HOOK"] = "0"
 # 2.1367.0 (#6457): the deny rules of the env file stay in every job's settings, so there are settings without any hook
 extra1 = aj.job_settings(ar, {"cmd": ["claude"]}, base, jtmp)
 jhs1 = json.load(open(extra1[1], encoding="utf-8")) if extra1[:1] == ["--settings"] else {}
 # 2.1367.0 (#6457 F6): only the env files of ~/.kalmido
-check(jhs1.get("hooks") == {} and "Read(~/.kalmido/**/*.env)" in jhs1.get("permissions", {}).get("deny", []),
-      f"job with KALMIDO_BLOCK_DANGEROUS=0 and KALMIDO_USAGE_HOOK=0: no hooks, only the deny rules (#6457) {jhs1}")
+# 2.1386.0 (#6668): plus the env file part of the guard (--secret-only), also with KALMIDO_BLOCK_DANGEROUS=0
+check(list(jhs1.get("hooks")) == ["PreToolUse"] and "--secret-only" in json.dumps(jhs1["hooks"]["PreToolUse"])
+      and "Read(~/.kalmido/**/*.env)" in jhs1.get("permissions", {}).get("deny", []),
+      f"job with KALMIDO_BLOCK_DANGEROUS=0 and KALMIDO_USAGE_HOOK=0: the env file part of the guard and the deny rules (#6457) {jhs1}")
 os.environ.pop("KALMIDO_USAGE_HOOK", None)
 os.environ.pop("KALMIDO_BLOCK_DANGEROUS", None)
 check(ar.hook_settings(True, usage=False)["hooks"].keys() >= {"PermissionRequest", "PreToolUse"}
@@ -342,7 +346,8 @@ check(args is not None and "--settings" in args and "--guard-hook" in json.dumps
       f"a job's start command carries the settings with the PreToolUse guard: {args} {hs}")
 args, hs = job_run("0")
 # 2.619.0 (#3267): a job also gets the usage hook, so with KALMIDO_BLOCK_DANGEROUS=0 the settings stay, only without the guard
-check(args is not None and "PreToolUse" not in (hs.get("hooks") or {}), f"KALMIDO_BLOCK_DANGEROUS=0: a job starts without the guard: {args} {hs}")
+# 2.1386.0 (#6668 with #6457): only the env file part of the guard stays (--secret-only)
+check(args is not None and "--secret-only" in json.dumps(hs.get("hooks") or {}), f"KALMIDO_BLOCK_DANGEROUS=0: a job starts without the guard: {args} {hs}")
 
 
 # ---- the per-run settings: PreToolUse / Bash, also without the permission relay; switched off with the variable
@@ -352,10 +357,12 @@ for relay in (True, False):
     hs = ar.Runner.hook_settings(None)
     pre = hs["hooks"].get("PreToolUse") or []
     check(len(pre) == 1 and pre[0].get("matcher") == "Bash" and "--guard-hook" in pre[0]["hooks"][0]["command"]
+          and "--secret-only" not in pre[0]["hooks"][0]["command"]
           and pre[0]["hooks"][0]["type"] == "command", f"per-run settings carry the guard (relay {relay}): {pre}")
 for off in ("0", " 0 "):
     os.environ["KALMIDO_BLOCK_DANGEROUS"] = off
-    check("PreToolUse" not in ar.Runner.hook_settings(None)["hooks"], f"KALMIDO_BLOCK_DANGEROUS={off!r}: no guard")
+    # 2.1386.0 (#6668 with #6457): the guard hook stays for the env file only (--secret-only)
+    check("--secret-only" in json.dumps(ar.Runner.hook_settings(None)["hooks"].get("PreToolUse")), f"KALMIDO_BLOCK_DANGEROUS={off!r}: no guard")
 os.environ["KALMIDO_BLOCK_DANGEROUS"] = "1"
 check("PreToolUse" in ar.Runner.hook_settings(None)["hooks"], "KALMIDO_BLOCK_DANGEROUS=1: guard on")
 os.environ.pop("KALMIDO_BLOCK_DANGEROUS", None)

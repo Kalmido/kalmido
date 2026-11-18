@@ -21,7 +21,8 @@ import requests
 
 import kt
 from freelancer_fixture import freelancer
-from kt import B, check, done, fresh, setup
+from kt import B, apv_body, check, done, fresh, setup
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 
 V = B + "/api/v1"
 os.environ["KALMIDO_AGENT_CONTROL_NEW"] = "approve_all"  # the real default (tests/start.sh starts other suites with legacy)
@@ -174,7 +175,7 @@ check(ow(MID) is None, f"{who}: the card for an unused tag is not marked one-way
 r2 = requests.post(V + f"/agent/chats/{FID}", headers=FH, json={"approval": {
     "title": "Delete a used tag", "what": "x", "step": {"method": "DELETE", "path": f"/api/v1/lists/{FL}/tags/{T_TRASH}"}}})
 check(r2.status_code == 201 and ow(r2.json()["id"]) == "true", f"{who}: the card for a tag in use stays one-way ({r2.status_code} {ow(r2.json().get('id', 0))})")
-assert F.post(B + f"/api/agents/{FA}/chat/{MID}/choice", json={"choice_ids": ["yes"]}).ok
+assert F.post(B + f"/api/agents/{FA}/chat/{MID}/choice", json=apv_body(F, B, f"chat:{MID}", "yes")).ok
 r = requests.post(V + f"/agent/approvals/{MID}/run", headers=FH)
 check(r.status_code == 204 and T3 not in tags_of(FH, FL), f"{who}: after the Yes the card runs the delete ({r.status_code} {r.text[:160]})")
 one_way(who, FH, FL, T_TRASH, "approve_all, a tag on a task in the trash")

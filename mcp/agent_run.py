@@ -211,6 +211,7 @@ class Api:
     plan usage, 2.35 approval cards)."""
 
     keep_status = None  # 2.503.0 (#4309): -> True while no status report may go out (Runner.held)
+    renew = None  # 2.1386.0 (#6668, review F4): a request token's client: -> a new token after a 401 (Runner.op_api / run_request)
 
     def __init__(self, url, token):
         self.base = url.rstrip("/") + "/api/v1"
@@ -221,7 +222,22 @@ class Api:
         self.progress_ok = self.host_ok = self.quota_ok = self.approval_ok = self.choices_ok = self.notice_ok = None
 
     def req(self, method, path, body=None, query=None, timeout=30, retry=True):
-        """One API call; HTTP 429 is tried again after 5 / 15 / 30 / 60 s (kalmido-capability: robust_runs, 2.44.0 #1448)."""
+        """One API call; HTTP 429 is tried again after 5 / 15 / 30 / 60 s (kalmido-capability: robust_runs, 2.44.0 #1448).
+        2.1386.0 (#6668, review F4): a request token's client (renew) that gets 401 (the token was replaced or ended) asks
+        once for a new one and sends the call again with it; no new token = the 401 stands (never the agent's own token)."""
+        try:
+            return self._req_429(method, path, body, query, timeout, retry)
+        except ApiError as e:
+            if e.status != 401 or not callable(self.renew):
+                raise
+            tok = self.renew()
+            if not tok or tok == self.token:
+                raise
+            log(f"{path.split('?')[0]}: HTTP 401, a new request token")
+            self.token = tok
+            return self._req_429(method, path, body, query, timeout, retry)
+
+    def _req_429(self, method, path, body=None, query=None, timeout=30, retry=True):
         for wait in (RETRY_429_S if retry else ()):
             try:
                 return self._req(method, path, body, query, timeout)
@@ -300,6 +316,46 @@ class Api:
         self.soft("POST", "/agent/typing", {"chat_user_id": uid}, timeout=10)
 
     task_typing_ok = None
+    # kalmido-capability: request_token (2.1386.0, #6668)
+    def request_token(self, seqs=None, operator=False):
+        """2.1386.0 (#6668): a token for ONE request of a team agent (POST /agent/request-token): it reaches only what the
+        person of these events (operator: the person chosen in the agent's settings) reaches themselves. -> (token, expires
+        epoch, go). Only asked when GET /agent reports request_token (Runner.req_mode). go True without a token: the server
+        says a personal agent (token null, asked_by = its owner) -- its own token is already its owner's. go False (F1): no
+        request token for any other answer (403 no_order, 400 several_people / no event, 409 no_operator, 404 / 405 of any
+        kind, any other error, the network, an answer without token) -- fail closed: the caller starts nothing, its own
+        long-lived token never reaches a run or a job; nothing is remembered, the next request asks again."""
+        body = {"operator": True} if operator else {"seqs": sorted(set(seqs or []))[-100:]}
+        try:
+            r = self.req("POST", "/agent/request-token", body, timeout=30)
+        except ApiError as e:
+            m = re.search(r'"code": *"(\w+)"', e.body or "")
+            log(f"request token: HTTP {e.status}" + (f" {m.group(1)}" if m else "") + ": not started")
+            return None, 0, False
+        except (OSError, ValueError) as e:  # the network, a broken answer: never the own token instead
+            log(f"request token: {type(e).__name__}")
+            return None, 0, False
+        if not isinstance(r, dict) or "token" not in r:
+            log("request token: an answer without token: not started")
+            return None, 0, False
+        tok = r.get("token")
+        self.asked_by = r.get("asked_by")  # the person of the token: Runner.token_file names the run's env file after it
+        if not tok:
+            return None, 0, bool(r.get("asked_by"))  # token null + asked_by: a personal agent (its owner)
+        try:
+            import calendar
+            exp = calendar.timegm(time.strptime(str(r.get("expires_at") or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+        except ValueError:
+            exp = time.time() + 3600
+        return tok, exp, True
+
+    def as_token(self, tok, renew=None):
+        """A copy of this client that sends tok (the feature flags it found stay); renew: see req (2.1386.0, review F4)."""
+        import copy
+        x = copy.copy(self)
+        x.token = tok
+        x.renew = renew
+        return x
 
     def task_typing(self, tid):
         """2.615.0 (#3757 / #3754): the typing dots on a task while a task run writes there (POST /tasks/{id}/typing, valid
@@ -988,6 +1044,9 @@ TEXTS = {
     "status_no_command": {"en": "The agent command cannot be started", "de": "Der Agentenbefehl lässt sich nicht starten",
                           "fr": "La commande de l'agent ne peut pas démarrer", "es": "No se puede iniciar el comando del agente",
                           "it": "Il comando dell'agente non si avvia", "nl": "De agentopdracht kan niet worden gestart"},
+    "status_no_request": {"en": "Skipped a request: no token for the person who asked", "de": "Eine Anfrage übersprungen: kein Token für die anfragende Person",
+                          "fr": "Une demande ignorée : aucun jeton pour la personne qui l'a faite", "es": "Se omitió una solicitud: no hay token para la persona que la hizo",
+                          "it": "Richiesta saltata: nessun token per la persona che l'ha fatta", "nl": "Een verzoek overgeslagen: geen token voor de persoon die het vroeg"},
     "status_run_failed": {"en": "The last run failed", "de": "Der letzte Lauf ist fehlgeschlagen", "fr": "La dernière exécution a échoué",
                           "es": "La última ejecución falló", "it": "L'ultima esecuzione non è riuscita", "nl": "De laatste run is mislukt"},
     "status_outside_hours": {"en": "Outside working hours", "de": "Außerhalb der Arbeitszeit", "fr": "En dehors des heures de travail",
@@ -2637,7 +2696,7 @@ def guard_reason(cmd, depth=0, fed=False):
     return None
 
 
-def hook_settings(perm_relay=False, usage=True):
+def hook_settings(perm_relay=False, usage=True, env_files=()):
     """2.44.0 (#1442) / 2.615.0 E (#3758, free function so that jobs get it too): the hooks of the settings file handed to a
     Claude Code run with --settings (never the person's own settings): the PermissionRequest hook that asks in the chat
     (perm_relay), the guard against dangerous commands (PreToolUse / Bash, unless KALMIDO_BLOCK_DANGEROUS=0) and the
@@ -2647,15 +2706,20 @@ def hook_settings(perm_relay=False, usage=True):
     if perm_relay:
         s["hooks"]["PermissionRequest"] = [{"matcher": "*", "hooks": [{"type": "command", "command": cmd,
                                                                         "timeout": PERM_TIMEOUT_S + 60}]}]
-    if guard_on():  # 2.615.0 C (#3758): the guard against dangerous commands, also without perm_relay
-        gcmd = f'"{sys.executable}" "{os.path.abspath(__file__)}" --guard-hook'
-        s["hooks"]["PreToolUse"] = [{"matcher": "Bash", "hooks": [{"type": "command", "command": gcmd, "timeout": 30}]}]
+    # 2.615.0 C (#3758): the guard against dangerous commands, also without perm_relay. 2.1386.0 (#6668 with #6457): always
+    # there -- KALMIDO_BLOCK_DANGEROUS=0 (--secret-only) switches off the dangerous commands, never the env file part
+    # (guard_secret); the starter's env file is named to it (--secret-file), a team agent's run does not have it in its environment
+    gcmd = f'"{sys.executable}" "{os.path.abspath(__file__)}" --guard-hook' + ("" if guard_on() else " --secret-only")
+    sf = os.environ.get("KALMIDO_ENV_FILE") or ""
+    if sf and '"' not in sf:
+        gcmd += f' --secret-file "{os.path.abspath(sf)}"'
+    s["hooks"]["PreToolUse"] = [{"matcher": "Bash", "hooks": [{"type": "command", "command": gcmd, "timeout": 30}]}]
     # kalmido-capability: usage_hook (2.306.0, #2927)
     # 2.306.0 E (#2927): the usage hook next to this file as Stop / SubagentStop hook ("Usage" and the usage limits in
     # Kalmido); it reads KALMIDO_URL / KALMIDO_TOKEN from the run's environment. KALMIDO_USAGE_HOOK=0 switches it off.
     if usage:  # 2.619.0 (#3267): the one builder of the usage hook (usage_hook_settings), runs and jobs alike
         s["hooks"].update(usage_hook_settings())
-    deny = secret_deny_rules()  # 2.1367.0 (#6457): the token's file stays closed to the model's own file tools
+    deny = secret_deny_rules(extra=env_files)  # 2.1367.0 (#6457): the token's file stays closed to the model's own file tools
     if deny:
         s["permissions"] = {"deny": deny}
     return s
@@ -2681,7 +2745,7 @@ def env_file_credentials():
     return env_credentials({"KALMIDO_ENV_FILE": os.environ.get("KALMIDO_ENV_FILE", "")})
 
 
-def secret_deny_rules(env=None):
+def secret_deny_rules(env=None, extra=()):
     """2.1367.0 (#6457): the deny rules every run's settings carry: no Read of the env files in ~/.kalmido and of the env file (the token),
     no Edit of the env file (a changed KALMIDO_URL would send the token elsewhere). The setup writes the same and more
     (WebFetch, WebSearch) into the project's .claude/settings.local.json, where the person may loosen the web part."""
@@ -2692,7 +2756,25 @@ def secret_deny_rules(env=None):
     if f:
         rp = rule_path(f)
         rules += [f"Read({rp})", f"Edit({rp})"]
+    for x in extra or ():  # 2.1386.0 (#6668): a team agent's run: its request token's env file (Runner.token_file) too
+        if x and x != f:
+            rp = rule_path(x)
+            rules += [f"Read({rp})", f"Edit({rp})"]
+    # 2.1386.0 (#6668, review F2): the environment of the starter's processes (/proc/<pid>/environ) stays closed too
+    rules += ["Read(//proc/*/environ)", "Read(//proc/*/task/*/environ)"]
     return rules
+
+
+def write_token_file(path, url, tok):
+    """2.1386.0 (#6668 with #6457): KALMIDO_URL / KALMIDO_TOKEN as an env file (0600, written next to it and moved in, so a
+    reader never sees half a file) -> path. kalmido_mcp.read_env_file reads it."""
+    import shlex
+    tmp = f"{path}.{os.getpid()}.new"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(f"KALMIDO_URL={shlex.quote(url)}\nKALMIDO_TOKEN={shlex.quote(tok)}\n")
+    os.replace(tmp, path)
+    return path
 
 
 def model_env(env):
@@ -2703,15 +2785,28 @@ def model_env(env):
     return env
 
 
-def guard_secret(cmd, env=None):
-    """2.1367.0 (#6457): a Bash line that names the env file (its path or its name) is refused (part of the guard hook,
-    KALMIDO_BLOCK_DANGEROUS=0 switches both off): the token in it is the agent's key. None = fine."""
+# 2.1386.0 (#6668, review F2): the environment of a process (/proc/<pid>/environ, also through a glob) and ps with the
+# environment (BSD e, -E) show what the starter's processes hold
+SECRET_PROC = re.compile(r"/proc/+[^\s/]*/+(?:task/+[^\s/]*/+)?[^\s/]*(?:env|[*?\[])")
+SECRET_PS = re.compile(r"(?:^|[\s;&|(`])ps(?:\s+[^;&|\n`)]*?)?\s(?:[a-df-zA-Z]*e[a-zA-Z]*|-[a-zA-Z]*E[a-zA-Z]*)(?=[\s;&|)`]|$)")
+
+
+def guard_secret(cmd, env=None, files=()):
+    """2.1367.0 (#6457): a Bash line that names the env file (its path or its name) is refused: the token in it is the
+    agent's key. 2.1386.0 (#6668): also the starter's env file named to the hook (files: --secret-file; a team agent's run
+    has its request token's file in KALMIDO_ENV_FILE, not that one), /proc/<pid>/environ and ps with the environment; this
+    part holds also with KALMIDO_BLOCK_DANGEROUS=0. A name check, not a wall. None = fine."""
     env = os.environ if env is None else env
-    text = re.sub(r"[\\\"']", "", str(cmd or ""))
-    f = env.get("KALMIDO_ENV_FILE") or ""
-    names = {"kalmido-agent.env", "KALMIDO_ENV_FILE"} | ({os.path.basename(f), f, os.path.abspath(f)} if f else set())
+    raw = str(cmd or "")
+    text = re.sub(r"[\\\"']", "", raw)
+    names = {"kalmido-agent.env", "KALMIDO_ENV_FILE"}
+    for f in [env.get("KALMIDO_ENV_FILE") or ""] + list(files or ()):
+        if f:
+            names |= {os.path.basename(f), f, os.path.abspath(f)}
     if any(n and n in text for n in names):
         return GUARD_NO + "the command touches the agent's env file (its key). The Kalmido tools (MCP) have the access you need."
+    if SECRET_PROC.search(text) or SECRET_PS.search(text):
+        return GUARD_NO + "the command reads the environment of processes (it holds the agent's key). The Kalmido tools (MCP) have the access you need."
     return None
 
 
@@ -2721,15 +2816,18 @@ def guard_hook(argv):
     (the normal permission rules decide). The hook's own failure refuses only a command that names a guarded command:
     a bug here must not stop every Bash step of the agent, and must not let a dangerous one through."""
     raw = ""
+    only = "--secret-only" in argv  # 2.1386.0 (#6668): KALMIDO_BLOCK_DANGEROUS=0 -- the env file part stays
+    files = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--secret-file"]
     try:
         raw = sys.stdin.read()
         d = json.loads(raw or "{}")
         if d.get("tool_name") != "Bash":
             return 0
         line = (d.get("tool_input") or {}).get("command") or ""
-        why = guard_secret(line) or guard_reason(line)  # 2.1367.0 (#6457): the env file first
+        why = guard_secret(line, files=files) or (None if only else guard_reason(line))  # 2.1367.0 (#6457): the env file first
     except Exception as e:  # noqa: BLE001 - fail closed only for what looks dangerous (see above)
-        why = (GUARD_NO + f"the check failed ({type(e).__name__}) on a command that names a guarded command.") if guard_suspicious(raw) else None
+        sus = ("kalmido-agent.env" in raw or "KALMIDO_ENV_FILE" in raw or "/proc/" in raw) or (not only and guard_suspicious(raw))
+        why = (GUARD_NO + f"the check failed ({type(e).__name__}) on a command that names a guarded command.") if sus else None
     if why:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                                  "permissionDecisionReason": why + GUARD_TAIL}}))
@@ -3019,12 +3117,168 @@ class Runner:
     def hook_settings(self):
         """2.44.0 (#1442): the settings file handed to every run with --settings (never the person's own settings): the
         PermissionRequest hook that asks in the chat. Further hooks of other parts go in here too (see hook_settings)."""
-        return hook_settings(PERM_RELAY)
+        return hook_settings(PERM_RELAY, env_files=[f for f in [getattr(self, "run_env_file", None)] if f])
+
+    def req_mode(self):
+        """2.1386.0 (#6668, F1): how this agent's runs get their token, from GET /agent (self.agent): "team" = a team agent on
+        a server that reports request_token (every run asks for its request token); "own" = a personal agent, or a server
+        that does not report the capability (older than 2.1386.0: the agent's own token as before); None = not known (GET
+        /agent not read): nothing starts. Only this answer decides the fallback -- never a 404 / 405 of the route itself."""
+        if not callable(getattr(getattr(self, "api", None), "request_token", None)):
+            return "own"  # a stand-in client without request tokens (tests, embeddings): as before
+        a = getattr(self, "agent", None) or {}
+        if "runtime" not in a:  # no answer of GET /agent (runtime: a field it always carries, since 2.4.1)
+            return None
+        if a.get("owner_id"):
+            return "own"
+        return "team" if a.get("request_token") is True else "own"
+
+    # kalmido-capability: request_token (2.1386.0, #6668)
+    def run_request(self, evs, uid=None):
+        """2.1386.0 (#6668): a team agent works per request for ONE person: the token of this run's events (Api.request_token)
+        is the only token the run gets (child_env: KALMIDO_TOKEN, the MCP server reads it) and the one the runner reads the
+        task with and posts the task's answer with. A personal agent / a server that does not report request_token in GET
+        /agent (req_mode "own"): the agent's own token, as before.
+        -> True = the run may start; False (F1) = a team agent got no request token, or GET /agent could not be read: the
+        run does not start, never with the agent's own token instead. A wake of a job (no event number) asks with the
+        events of the person's last run."""
+        self.run_api = self.api
+        self.run_env_file = None
+        if self.extras:
+            self.extras.run_api = None
+        mode = self.req_mode()
+        if mode is None:
+            self.refresh_agent()
+            mode = self.req_mode()
+        if mode is None:
+            log("request token: the agent's settings could not be read")
+            return False
+        if mode == "own":
+            return True
+        seqs = []
+        for ev in evs:
+            inner = (ev.get("data") or {}).get("events") if ev.get("event") == "task_bundle" else None
+            for e in ([ev] + list(inner or [])):
+                if isinstance(e, dict) and isinstance(e.get("seq"), int) and not isinstance(e.get("seq"), bool):
+                    seqs.append(e["seq"])
+        last = self.state.data.setdefault("req_seqs", {}) if uid else {}
+        asked = seqs or last.get(str(uid)) or []
+        tok, _, go = self.api.request_token(asked)
+        if tok:  # review F4: a 401 of the runner's own calls (the token replaced meanwhile) asks once more with the same events
+            key = self.token_key()
+            try:  # #6457: the run reads its token from a file of its own, never the starter's env file
+                self.run_env_file = self.token_file(key, tok)
+            except OSError as e:
+                log(f"request token: the run's env file could not be written ({type(e).__name__}): not started")
+                return False
+
+            def renew():
+                t = self.api.request_token(asked)[0]
+                if t:  # the run's MCP server / CLI read the new token from the same file (kalmido_mcp: once more after a 401)
+                    self.token_file(key, t)
+                return t
+            self.run_api = self.api.as_token(tok, renew=renew)
+            if self.extras:
+                self.extras.run_api = self.run_api
+        if tok and uid and seqs:
+            with self.state.lock:
+                last[str(uid)] = sorted(set(seqs))[-20:]
+                self.state.save()
+        return go
+
+    def op_api(self):
+        """2.1386.0 (#6668): the client of the starter's own list work (agent_dispatch.py): a team agent's work for the
+        person chosen in its settings (a request token for them, renewed before it runs out); else the agent's own client.
+        None (F1): a team agent got no token for that person, or GET /agent could not be read -- the list work waits, never
+        with the agent's own token."""
+        mode = self.req_mode()
+        if mode is None:
+            return None
+        if mode == "own":
+            return self.api
+        tok, exp = getattr(self, "_op_tok", (None, 0))
+        if not tok or exp - time.time() < 900:
+            tok, exp, go = self.api.request_token(operator=True)
+            self._op_tok = (tok, exp)
+            if not go:
+                return None
+            if tok:
+                self.op_file(tok)
+        return self.api.as_token(tok, renew=self.op_renew) if tok else self.api
+
+    def op_renew(self):
+        """2.1386.0 (#6668, review F4): the list work's token answered 401 (ended or replaced): forget it and ask once anew
+        -> the new token or None (the 401 stands, nothing remembered)."""
+        self._op_tok = (None, 0)
+        tok, exp, go = self.api.request_token(operator=True)
+        if tok and go:
+            self._op_tok = (tok, exp)
+            self.op_file(tok)
+            return tok
+        return None
+
+    # kalmido-capability: request_token_file (2.1386.0, #6668 with #6457)
+    def token_key(self):
+        """The name of a request token's env file: the person the server cut it for (asked_by), "auto" for the events' own
+        automation. One file per person and kind: a new token of the same person replaces the old one in the same file."""
+        who = getattr(self.api, "asked_by", None)
+        return f"p{int(who)}" if str(who or "").isdigit() else "auto"
+
+    def token_file(self, key, tok):
+        """2.1386.0 (#6668 with #6457): the env file of a team agent's request token (<state>/run-env/<key>.env, 0600; the
+        address of the starter's env file, the request token) -> its path. A run / a job gets this path as KALMIDO_ENV_FILE
+        (child_env), never the starter's env file with the agent's long-lived token; written anew on every new token (also
+        after a 401, review F4), so a job of the same person reads the current one."""
+        d = os.path.join(self.state_dir, "run-env")
+        os.makedirs(d, mode=0o700, exist_ok=True)
+        if not getattr(self, "_run_env_swept", False):  # files of tokens that have run out (8 h) go at the first write
+            self._run_env_swept = True
+            for n in os.listdir(d):
+                try:
+                    if time.time() - os.path.getmtime(os.path.join(d, n)) > 9 * 3600:
+                        os.remove(os.path.join(d, n))
+                except OSError:
+                    pass
+        return write_token_file(os.path.join(d, f"{key}.env"), os.environ.get("KALMIDO_URL", ""), tok)
+
+    def job_env(self, j):
+        """2.1386.0 (#6668 with #6457): the env file a team agent's job gets when this runner wakes or continues it
+        (agent_job.SPAWN_ENV): the request token file of the job's person (p<id>.env), for the list work's job the one of
+        the chosen person (op.env); None = none there: the job stays asleep, never with the agent's long-lived token."""
+        uid = j.get("chat_user")
+        d = os.path.join(self.state_dir, "run-env")
+        if str(uid or "").isdigit():
+            f = os.path.join(d, f"p{int(uid)}.env")
+            if os.path.isfile(f):
+                return f
+            if self.perm_uid() == int(uid) and os.path.isfile(os.path.join(d, "op.env")):
+                return os.path.join(d, "op.env")
+        return None
+
+    def op_file(self, tok):
+        """The env file of the list work's token (the person chosen in the agent's settings): a job the dispatcher starts
+        reads it (agent_dispatch.py). Never fatal: without it that job does not start."""
+        try:
+            self.op_env_file = self.token_file("op", tok)
+        except OSError as e:
+            self.op_env_file = None
+            log(f"request token: the list work's env file could not be written ({type(e).__name__})")
 
     def child_env(self, uid, tid):
         """2.44.0 (#1442): the environment of one run (the hook finds the runner through it)."""
         ex = getattr(self, "extras", None)  # part B (agent_extras): KALMIDO_OUTBOX, KALMIDO_CHAT_USER, ... as the base
         env = model_env(ex.env() if ex and hasattr(ex, "env") else os.environ)  # 2.1367.0 (#6457): never the token
+        ra = getattr(self, "run_api", None)
+        if ra is not None and ra is not getattr(self, "api", None):
+            # 2.1386.0 (#6668 with #6457): a team agent's run gets the env file of its request (token_file: only the request
+            # token) as KALMIDO_ENV_FILE -- the MCP server, kalmido_cli.py, agent_job.py and the usage hook read it there; the
+            # starter's env file (the agent's long-lived token) is not named in the run's environment
+            if getattr(self, "run_env_file", None):
+                env["KALMIDO_ENV_FILE"] = self.run_env_file
+            else:
+                env.pop("KALMIDO_ENV_FILE", None)
+        elif self.req_mode() != "own":  # F1: a team agent's run never reaches the long-lived token (nor when not known)
+            env.pop("KALMIDO_ENV_FILE", None)
         for k in ("KALMIDO_PERM_DIR", "KALMIDO_PERM_SOCK", "KALMIDO_PERM_KEY", "KALMIDO_PERM_PID"):
             env.pop(k, None)  # 2.625.0 (#3661): never an inherited channel; without the runner's channel the hook denies
         ch = getattr(self, "perm_chan", None)
@@ -3254,6 +3508,11 @@ class Runner:
                              ensure_ascii=False))
             return
         what = "status_chat" if uid else "status_event"  # 2.450.0 (#3769): a key of TEXTS
+        if not self.run_request(evs, uid):  # 2.1386.0 (#6668): before anything of the run reads Kalmido
+            # review F1: a team agent without a request token (the person may not order it, the server refused, the network)
+            log(f"run not started: no request token ({'chat ' + str(uid) if uid else 'task event'})")
+            self.status_say("idle", "status_no_request")
+            return
         if self.extras:  # 2.44.0 B (#1443): a fresh outbox folder for a chat run
             self.extras.begin_run(uid, not uid)
         tid = None if uid else task.get("id")
@@ -3581,6 +3840,7 @@ class Runner:
         except ImportError:
             return 0
         agent_job.STATE_DIR = self.state_dir
+        agent_job.SPAWN_ENV = self.job_env if self.req_mode() != "own" else None  # 2.1386.0 (#6668 with #6457)
         try:
             agent_job.revive_lost(agent_job.Api() if os.environ.get("KALMIDO_URL") and os.environ.get("KALMIDO_TOKEN") else None)
         except Exception as e:
@@ -3649,6 +3909,7 @@ class Runner:
         except ImportError:
             return False
         agent_job.STATE_DIR = self.state_dir
+        agent_job.SPAWN_ENV = self.job_env if self.req_mode() != "own" else None  # 2.1386.0 (#6668 with #6457): the wake
         ids = [str(i) for i in (x.get("choice_ids") or [])]
         found = agent_job.card_job(mid) if x.get("approval") in ("approved", "rejected") or ids in (["yes"], ["no"]) else None
         if not found:
@@ -3741,7 +4002,7 @@ class Runner:
         if not appr and not sugg:
             return None
         try:
-            r = self.api.comment(tid, body, approval=appr, suggest=None if appr else sugg)
+            r = (getattr(self, "run_api", None) or self.api).comment(tid, body, approval=appr, suggest=None if appr else sugg)
             log(f"task {tid}: answer posted as a comment with {'an approval card' if appr else f'{len(sugg)} buttons'}")
             return r
         except Exception as e:
@@ -4060,7 +4321,7 @@ class Runner:
                 if uid:
                     self.api.typing(uid)
                 elif hasattr(self.api, "task_typing"):  # kalmido-capability: status_typing (2.615.0, #3754): a task run writes on the task (never a summary run)
-                    self.api.task_typing(tid)
+                    (getattr(self, "run_api", None) or self.api).task_typing(tid)
 
         def on_usage(info):
             self.usage.seen(info)
@@ -4155,6 +4416,11 @@ class Runner:
             except Exception as e:
                 log(f"run failed: {type(e).__name__}")
                 self.status_say("error", "status_run_failed")
+            finally:  # 2.1386.0 (#6668): a request's token never outlives its run in the runner
+                self.run_api = self.api
+                self.run_env_file = None  # the file stays for a job of the run (the token's 8 h), the next run names its own
+                if self.extras:
+                    self.extras.run_api = None
             if save:  # a restart in the middle of a batch never answers the done groups again
                 seqs = [int(e["seq"]) for e in group if str(e.get("seq") or "").isdigit()]
                 if seqs and max(seqs) > self.cur:

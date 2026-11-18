@@ -33,7 +33,7 @@ async function scenario(tag, user, PA, ck) {
   w.eval(`window.__ao = api; api = function(m, u, b) { if (/work-style/.test(u) && m === 'PATCH') window.__sent.push([u, JSON.stringify(b)]); return window.__ao.apply(this, arguments); }; window.__sent = [];`);
   const r = await row(w, d, PA);
   const btn = r?.querySelector('[data-myag-act="work"]');
-  check(btn && /Work style and notifications/.test(btn.getAttribute('aria-label') || ''), 'the row has the cog button' + T);
+  check(btn && /Settings of /.test(btn.getAttribute('aria-label') || ''), 'the row has the cog button ("Settings of <agent>", #7003)' + T);
   click(w, btn);
   const md = await until(() => lastModal(d)?.classList.contains('awdlg') && lastModal(d));
   check(md, 'the dialog opens from the agent row' + T);

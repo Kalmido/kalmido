@@ -25,7 +25,8 @@ import requests
 
 import kt
 from freelancer_fixture import freelancer
-from kt import B, check, done, fresh, setup, until
+from kt import B, apv_body, check, done, fresh, setup, until
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 from testclock import now
 
 V = B + "/api/v1"
@@ -89,7 +90,7 @@ def run(who, S, UID, AID, H, L):
         return r.json()["id"]
 
     def answer(mid, choice="yes"):
-        r = S.post(B + f"/api/agents/{AID}/chat/{mid}/choice", json={"choice_ids": [choice]})
+        r = S.post(B + f"/api/agents/{AID}/chat/{mid}/choice", json=apv_body(S, B, f"chat:{mid}", choice))
         check(r.ok, f"{who}: answer {choice} {r.status_code} {r.text[:150]}")
 
     # ---- a new agent: approve_all

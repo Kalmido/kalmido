@@ -278,6 +278,7 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    file's path; `mcp.json` names it too), `agent_run.py` takes `KALMIDO_TOKEN` out of every run and job, and the MCP server,
    the usage hook, `kalmido_cli.py` and `agent_job.py` read the token from the file. Every run's settings deny `Read` of
    the env files in `~/.kalmido` and `Read` / `Edit` of the env file, and the guard hook refuses a Bash line that names the env file.
+   2.1386.0 (#6668): a team agent's run gets an env file of its own with only the token of its request (see *Team agents* below).
 
 One instance per project folder (`~/.kalmido/agents/<folder>-<hash>/`, Windows `%LOCALAPPDATA%\Kalmido\agents\...`), so
 several agents can run on one computer. Every computer gets its own token: the dialog lists the agent's computers with a
@@ -516,10 +517,51 @@ coding agents, building files, own tools.
   `requested_by` ...) accepts only the requester (`403 run_person`), a route over the organisation as a whole only for a
   full member, a route over all the agent's projects only for an admin of its organisation (`403 run_closed`). With a
   valid approval card the person who said Yes counts instead of the requester.
-  **Limit:** a team agent that runs elsewhere with its own token (your own runner, the hosted MCP access) has no run the
-  server could bind to a person: the server does not know who asked, so none of the above applies there -- only the rules
-  on the token itself hold (*Members may see and use the agent*, the channel rule, the approver's write right). Use a
-  server agent, or a personal agent, when people with different rights give the agent orders.
+- **A team agent with its own token works per request** (2.1386.0, #6668): the same cut for a team agent that runs
+  elsewhere (the reference starter, your own program). Before working on events it asks
+  `POST /api/v1/agent/request-token {"seqs": [<seq>, ...]}` -> `{token, expires_at, asked_by, list_ids}`: a token of the
+  agent that lasts 8 hours and reaches only what the person of these events reaches themselves (their projects, outside
+  projects at most their own role, writes capped to their role -- a reader's order becomes an approval card). Events of
+  two people in one call: `400 several_people` (one request = one person); a person who may no longer give the agent
+  orders (also a locked account: only an active person's account gets a request token, and a request token already given
+  answers `403 no_order` while that account is locked): `403 no_order`; an event that
+  is gone or older than 24 hours: `404 event_gone`. One valid request token per agent, person and place: a new ask replaces the
+  older token of the same person in the same place (it answers `401` from then on) -- the place is the kind (a run /
+  `{"operator": true}`) and the long-lived token (computer) that asked, so a chat run of the chosen person never ends the
+  list work's token and two computers never end each other's. The reference starter answers a `401` of a request token
+  by asking once anew (the runner with the run's events, the list work with `operator`); a job keeps the token of the run
+  that started it. Events without a person (the project's own automation):
+  only the projects of these events, nothing outside them, and **every change is an approval card**.
+  `{"operator": true}` gives the token for the person chosen in the agent's settings (*who answers its permission
+  questions*, `perm_user_id`) for the agent's own list work (the starter's dispatcher); none chosen: `409 no_operator`.
+  Only the agent's own long-lived token may ask (`403 request_token_main`); a personal agent gets `{"token": null}` (its
+  own token is already its owner's). **From the first request token on, the agent's own token reaches only its channel** (events,
+  status, usage and quota -- the class own of the route table above -- plus, by name, the routes the reference starter
+  sends with it: `GET /agent/events`, `GET /agent/chats`, `POST /agent/chats/{id}` with `.../withdraw`, `GET /agent/jobs`,
+  `GET` / `PATCH /agent/jobs/{id}`, `POST /agent/progress`, `POST /agent/typing`; api/runfor.py `REQ_MAIN_CHANNEL`); every
+  other route -- also `/search`, `/news`, `/time/*`, `/office/*`, `/briefing`, `/me/waiting`, `/layouts/*` -- answers `403 request_token_needed` -- use the request token there. A program that never asks keeps its
+  token's whole reach (as before 2.1386); the reference starter asks before every run, gives ONLY the request token to
+  the run (2.1386.0 with #6457: an env file of the run with only that token, `KALMIDO_ENV_FILE` of the run -- the MCP
+  server, `kalmido_cli.py`, `agent_job.py` and the usage hook read it there, never the starter's env file), reads the task and
+  posts the task's answer with it.
+  **No request token, no run:** when the server refuses one (`403 no_order`, `400`, `409 no_operator`, `404 event_gone`,
+  any `404` / `405`) or cannot be reached, the starter skips the request (a status line) and its dispatcher round waits -- the agent's own
+  token never reaches a run, a job or the dispatcher's list work; nothing is remembered, the next request asks again.
+  The run's env file is written anew with every new token of that person (also after a `401`), so a job of the run keeps
+  working; a job the starter wakes or continues gets the file of its person (none: it stays asleep). The starter's env file
+  stays with the starter: the guard hook of #6457 (above) refuses a Bash line that names it, `/proc/<pid>/environ` or `ps e`,
+  that part also with `KALMIDO_BLOCK_DANGEROUS=0`, and every run's settings deny `Read` of `/proc/*/environ`. That is a rule
+  of the same system user, not a wall: **only a system user of its own for the runs** (that cannot read the env file)
+  separates them hard.
+  `GET /api/v1/agent` carries `"request_token": true` on a server with request tokens: only when that field is missing
+  (a server older than 2.1386.0) does the starter keep the old behaviour. The wake of a finished job asks with the events of that person's last run.
+  Request tokens are not listed with the agent's tokens; removing one of its computers (or any long-lived token of the
+  agent) ends **all** its request tokens at once -- connected starters simply ask again.
+  The step of an answered card (`POST /api/v1/agent/approvals/ID/run`) still runs with the agent's own token, but only a
+  change, and always with the card check: the person who said Yes must be allowed to make that change themselves (also
+  without a control level); a read through a card needs the request token.
+  The **hosted MCP access** of a team agent works for the person who connected it (the same cut, renewed with each access
+  token).
 - **Guests and read-only people** of the agent's organisation give a team agent no orders (2.1287.0): their chat message,
   mention or assignment does not reach it (the role's own words: a guest uses no agents, a read-only person changes nothing).
 - **The circle limit** of `agents/safety.py` holds unchanged: a team agent in two projects with different people is a
@@ -2136,7 +2178,8 @@ Since 2.46.6 the approval card has a pen next to *Yes*: it writes "Yes, but: <ca
 The person's answer arrives as the event **`chat_choice`**: `data.message_id`, `data.choice_ids` (in the buttons'
 order), `data.labels`, `data.message` (the whole message), `data.user` and, when the message was about a task, the task
 as in a chat event. Only the chat's person answers (the web app, or `POST /api/v1/agents/{agent_id}/chat/{message_id}/choice
-{"choice_ids": [...]}` with their own token), once per message; agents never. Do not ask the same question twice: the
+{"choice_ids": [...]}` with their own token; a Yes on an approval card with a bound step also `desc_proof`, see *A Yes only
+after the description*), once per message; agents never. Do not ask the same question twice: the
 answer may take a while, and an unanswered question stays answerable.
 
 **Approval requests (2.35.0).** Whenever you need a person's go-ahead before you do something (a deploy, sending a mail,
@@ -3601,6 +3644,14 @@ Yes does, with the names of the target and the people, the values of the body an
 sends data out of Kalmido or moves something to another project. Your `title` and `what` stand below it as *The agent
 writes:*. The card's format does not change; write a title that says what the step does - a card whose words differ from
 the step gets a No.
+
+**A Yes only after the description (2.1386.0, #6623):** the server takes a Yes on a card with a bound step only together
+with the proof that the person fetched this description: `GET /api/v1/approvals/diff?chat=<message id>` (or
+`?comment=<comment id>`; the app: `GET /api/approvals/diff`) answers `{diff, desc, proof}`, and the Yes sends it along:
+`{"choice_ids": ["yes"], "desc_proof": "<proof>"}`. The proof belongs to the card, the person, the step and the words of
+the description; when the description changes (a name, a value of the target) the old proof no longer counts. Without it:
+`409` with `error.code` `desc_proof_needed` and `error.describe` (the address of the description). No needs no proof.
+Agents never answer cards (and never get the description over the REST API, 403).
 
 **Since 2.1045.0 (#5827) one way:** take the step from this answer as it stands, never type it yourself, and let the server
 run it from the card after the Yes:

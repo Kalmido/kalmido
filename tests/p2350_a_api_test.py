@@ -34,7 +34,8 @@ DATA = sys.argv[1]
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 V = B + "/api/v1"
 H = {"X-Requested-With": "kalmido"}
-from kt import FAILS, OKS, check, sess  # 2.192.0 (#2514): shared helpers (tests/kt.py)
+from kt import FAILS, OKS, apv_body, check, sess  # noqa: E402  2.192.0 (#2514): shared helpers (tests/kt.py)
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 
 
 def wait_for(fn, what, secs=45):
@@ -209,7 +210,7 @@ try:
         check("```approval" not in (m.get("body") or m.get("text") or ""), "the block itself is not shown")
         if isinstance(ch, dict) and ch.get("approval") is not None:
             check((ch.get("approval") or {}).get("title") == "Deploy version 1.2", "approval card with its title: " + json.dumps(ch)[:200])
-        r = A.post(B + f"/api/agents/{AID}/chat/{m['id']}/choice", json={"choice_ids": ["yes"]})
+        r = A.post(B + f"/api/agents/{AID}/chat/{m['id']}/choice", json=apv_body(A, B, f"chat:{m['id']}", "yes"))
         check(r.ok, "Alice presses Yes " + r.text[:160])
         wait_for(lambda: [x for x in agent_msgs() if "Thanks, it is done" in (x.get("body") or x.get("text") or "")], "the approved run answers")
         pr = prompts()[n0:]
@@ -266,6 +267,13 @@ class Old(BaseHTTPRequestHandler):
     def _body(self):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n) or b"{}")
+
+    def do_GET(self):
+        # 2.1386.0 (#6668 F1): GET /agent exists since 2.4.1 (runtime); an old server answers it without request_token, so
+        # the starter keeps the agent's own token - it never falls back on a missing route (404 / no answer: nothing starts)
+        if self.path == "/api/v1/agent":
+            return self._send(200, {"id": 7, "owner_id": None, "runtime": {}})
+        self._send(404)
 
     def do_PUT(self):
         b = self._body()

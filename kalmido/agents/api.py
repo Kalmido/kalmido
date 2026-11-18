@@ -29,6 +29,7 @@ from ..agents.core import (
 )
 from ..agents.chat import chat_delivered, chat_event_mids
 from ..agents.core import perm_user_of
+from ..agents import reqtoken  # noqa: F401 -- 2.1386.0 (#6668): POST /api/v1/agent/request-token
 from ..agents.steps import redact, step_clean, steps_job_log  # 2.407.0 A (#3513)
 from ..core.serializers import wk_for  # 2.407.0 A (#3513)
 from ..agents.workstyle import ws_get, ws_public
@@ -58,6 +59,9 @@ def agent_self(c, aid):
             # 2.312.0 D (#3266): who answers its permission questions (a team agent, chosen in its settings, still allowed);
             # null = the host keeps KALMIDO_PERM_USER / the owner
             "perm_user_id": perm_user_of(c, a),
+            # 2.1386.0 (#6668, F1): this server gives request tokens (agents/reqtoken.py); a team agent's starter falls back to
+            # its own long-lived token only when GET /agent does not say so (an older server), never because of an error
+            "request_token": True,
             "work_style": ws_public(c, a),  # 2.236.0 (#2904-#2911): how it works and reports (agents/workstyle.py)
             "control": ctl_public(c, a),  # 2.235.0 A (#2891 #2900 #2901): control level, goal, one-way steps, approval deadline
             "data_lock": dl_public(c, a),  # 2.235.0 B (#2902): what it may never see

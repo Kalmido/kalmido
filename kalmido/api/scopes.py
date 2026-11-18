@@ -1614,9 +1614,11 @@ def api479_spec(paths, schemas, op, ok, errs, ref, pid, nul, page, q):
         "/comments/{id}/choice": {
             "post": op("Answer an agent's comment with its buttons (a person's token; agents never answer: 403)", "Comments",
                        ok(ref("Comment")) | errs("400", "403", "404", "409"), [pid("id", "Comment id")], scope="comments",
-                       body={"type": "object", "required": ["choice_ids"], "properties": {"choice_ids": {"type": "array", "items": {"type": "string"}}}},
+                       body={"type": "object", "required": ["choice_ids"], "properties": {"choice_ids": {"type": "array", "items": {"type": "string"}},
+                             "desc_proof": {"type": "string", "description": "2.1386.0 (#6623): proof of GET /approvals/diff?comment=<id> (Yes on a card with a bound step)"}}},
                        desc="Only people who can edit the task; once per comment. A plain button is also posted as your comment with its text "
-                            "(answer_comment_id). The agent gets a comment event with answer.")},
+                            "(answer_comment_id). The agent gets a comment event with answer. 2.1386.0 (#6623): Yes on an approval card with a "
+                            "bound step needs desc_proof (GET /approvals/diff?comment=<id> -> proof), else 409 desc_proof_needed; No never needs it.")},
         "/comments/{id}/withdraw": {
             "post": op("Withdraw the open buttons / approval card of your own comment (agents)", "Comments",
                        ok(ref("Comment")) | errs("400", "403", "404", "409"), [pid("id", "Comment id")], scope="comments",

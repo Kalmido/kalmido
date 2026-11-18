@@ -68,7 +68,7 @@ from ..collab.replies import with_replies  # 2.369.5 (#2517): pulled up from fun
 from ..personal.timetrack import n43_admin_lists  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import instance_mode, visible_people  # 2.369.5 (#2517): pulled up from functions
 from ..lists.formula import fx_fill  # 2.369.5 (#2517): pulled up from functions
-from .runfor import run_gate  # 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
+from .runfor import req_main_gate, run_gate  # 2.1386.0 (#6668): req_main_gate; 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
 from ..core.access import feats  # 2.1327.0 (#6823): the one reading of the module switches
 SRV_TOKEN_NAME = "Server agent run"  # 2.557.0 (#4670): = agents/srvagent_run.py SRV_TOKEN_NAME (no import: api below agents)
 
@@ -198,11 +198,17 @@ def api_authenticate():
     if is_agent(u) and row["id"]:
         # 2.1380.0 (#6485): a token of a hosted MCP access (oauth_grants.token_id) also stops while the account that GAVE the
         # access is locked - as /mcp does (agents/mcpremote.py mcpr_mcp), not only after its hour; unlocking lets it go on
-        with system_ctx(c):  # the giver's state only
-            gv = c.execute("SELECT u.disabled FROM oauth_grants g LEFT JOIN users u ON u.id=g.user_id "
-                           "WHERE g.token_id=? AND g.revoked_at IS NULL", (row["id"],)).fetchone()
-        if gv and (gv["disabled"] is None or gv["disabled"]):
+        # 2.1386.0 (#6668, review F3): in the same query the person a request / run token works for (asked_by > 0): locked
+        # (or gone) = the token stops at once, not only after its 8 hours
+        by = row["asked_by"] if "asked_by" in row.keys() and row["asked_by"] else 0
+        with system_ctx(c):  # the giver's and the asker's state only
+            gv = c.execute("SELECT (SELECT COALESCE(u.disabled, TRUE) FROM oauth_grants g LEFT JOIN users u ON u.id=g.user_id "
+                           "WHERE g.token_id=? AND g.revoked_at IS NULL LIMIT 1) AS giver, "
+                           "(SELECT disabled FROM users WHERE id=?) AS asker", (row["id"], by)).fetchone()
+        if gv["giver"]:
             return v1_err(403, tr("The account this access belongs to is locked"), name="owner_locked")
+        if by and (gv["asker"] is None or gv["asker"]):
+            return v1_err(403, tr("This person gives the agent no orders (any more)"), name="no_order")
     if is_agent(u):  # 2.1.1 (#326): over its hard usage limit -> 429 (reporting usage + the status still work)
         refused = usage_refused(c, u["id"])
         if refused is not None:
@@ -241,6 +247,10 @@ def api_authenticate():
         return v1_err(403, tr("This token lacks the permission “{0}”", tr(SCOPE_LABELS.get(need, need))), required_scope=need)
     if is_agent(u) and "asked_by" in row.keys() and row["asked_by"] is not None:
         closed = run_gate(c, row, u)
+        if closed is not None:
+            return closed
+    if is_agent(u) and not srv_inproc:  # 2.1386.0 (#6668): a team agent that works per request: its own token is its channel
+        closed = req_main_gate(c, row, u)
         if closed is not None:
             return closed
     limited = hit_limit(f"api:{row['id']}", API_RATE)
@@ -710,8 +720,12 @@ def token_update(tid):
 @app.delete("/api/me/tokens/<int:tid>")
 def token_delete(tid):
     c = db()
-    if not c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=?", (tid, me())).rowcount:
+    r = c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=? RETURNING name", (tid, me())).fetchone()
+    if not r:
         raise Denied(404)
+    if (g.user["kind"] or "user") == "agent" and str(r["name"] or "") != "Agent request":  # = agents/reqtoken.py REQ_TOKEN_NAME
+        # 2.1386.0 (#6668, review F2): an agent revoking its own token -- its request tokens go too (as agents/reqtoken.py req_drop)
+        c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=?", (me(), "Agent request"))
     c.commit()
     return jsonify(ok=True)
 

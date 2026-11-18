@@ -13,6 +13,10 @@ of a page, a task's notes and a project's description; core/mdedit.py) show the 
     -> {diff: null, desc} (no text step) | {diff: {kind, name, ref, added, removed, rows, more, changed, hidden?, decided?, at?}, desc}
        desc (2.1269.0, #6450): the server's words for EVERY bound step (agents/apvdesc.py), null for a card without a step;
        the card shows it open above its buttons and keeps Yes locked until it is there.
+       proof (2.1386.0, #6623): an open card with a described step also gets a proof of that description -- an HMAC over the
+       card, the person, the bound step and the description (apvd_proof; no table). A Yes on a card with a bound step is
+       taken only with the proof of the description as it is now (desc_proof next to choice_ids, apvd_need_proof), else
+       409 desc_proof_needed with the address of this route; No never needs it.
        rows = [[op, line]]: op " " (context, two lines around each change), "+" added, "-" removed, "…" (a gap);
        more = rows were cut (full=1: all, up to APVD_FULL_ROWS); changed = the target changed since the card was made;
        hidden = encrypted | no_access | gone (no rows, no text of the target); decided = the snapshot stored with the
@@ -25,6 +29,8 @@ obj_comments.extra->'apvdiff'; never inside choices, which go to the agent) with
 only to a viewer who may read the target now (a gone target: the stored lines stay readable); the line diff is the one of the knowledge history (static/js/wkhist.js renders both with txtDiffHtml).
 """
 import difflib
+import hashlib
+import hmac
 import json
 import re
 
@@ -37,6 +43,7 @@ from ..core.errors import BadInput
 from ..core.pg import ts_canon  # 2.1115.0 (#5951)
 from ..core.i18n import tr
 from ..accounts.session import me
+from ..accounts.login import auth_key  # 2.1386.0 (#6623): the server key of the description's proof
 from ..collab.liste2e import le2e_is_cipher
 from ..core.objcomments import ocm_row
 from ..wiki.wkfolder import wkf_locked, wkf_role
@@ -249,6 +256,45 @@ def apvd_snapshot(c, uid, ch, created_at):
     return d
 
 
+def _h(v):
+    return hashlib.sha256(json.dumps(v, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+
+
+def apvd_proof(c, src, uid, step, desc):
+    """2.1386.0 (#6623): the proof that person uid fetched the server's description desc of the step bound to card src
+    (chat:<id> | comment:<id>). Stateless: the server key (accounts/login.py auth_key) over card, person, step and words."""
+    msg = f"kalmido-apv-desc-v1|{src}|{int(uid)}|{_h(step)}|{_h(desc)}"
+    return hmac.new(auth_key(c), msg.encode(), hashlib.sha256).hexdigest()[:40]
+
+
+def _apvd_desc_now(c, uid, step):
+    try:
+        with c.savepoint():
+            return APVD_DESC[0](c, uid, step, decided=False)
+    except Exception as e:  # noqa: BLE001  not describable now = no Yes
+        print("apvx_describe failed", type(e).__name__, flush=True)
+        return False
+
+
+def apvd_need_proof(c, src, uid, ch, ids, proof):
+    """2.1386.0 (#6623): a Yes (ids == ["yes"]) on an approval card ch with a bound step only with the proof of the server's
+    description of that step as it is now, fetched by this person (GET /api/approvals/diff, its "proof"). No never needs it.
+    Denied 409 desc_proof_needed (with the address of the description) otherwise."""
+    ap = (ch or {}).get("approval")
+    if ids != ["yes"] or not isinstance(ap, dict) or not ap.get("step"):
+        return
+    desc = _apvd_desc_now(c, uid, ap.get("step"))
+    if isinstance(desc, dict) and isinstance(proof, str) and \
+            hmac.compare_digest(proof.encode(), apvd_proof(c, src, uid, ap.get("step"), desc).encode()):
+        return
+    k, i = src.split(":", 1)
+    url = f"/api/approvals/diff?{k}={i}"
+    e = Denied(409, tr("Read the server's description of this step first, then say yes again"),
+               data={"code": "desc_proof_needed", "describe": url})
+    e.v1_name, e.v1_extra = "desc_proof_needed", {"describe": url}
+    raise e
+
+
 def _jl(v):
     if isinstance(v, (dict, list)) or v is None:
         return v
@@ -261,12 +307,15 @@ def _jl(v):
 @app.get("/api/approvals/diff")
 def apvd_route():
     """?chat=<id> | ?comment=<id> [&full=1] -> {diff} (module docstring)."""
-    c = db()
-    uid = me()
-    a = request.args
+    return jsonify(apvd_answer(db(), me(), request.args))
+
+
+def apvd_answer(c, uid, a):
+    """The answer of GET /api/approvals/diff (and /api/v1/approvals/diff, 2.1386.0 #6623) for person uid, args a."""
     full = a.get("full") == "1"
     if bool(a.get("chat")) == bool(a.get("comment")) or not re.fullmatch(r"[0-9]{1,18}", a.get("chat") or a.get("comment") or ""):
         raise BadInput(tr("Invalid value: {0}", "chat"))
+    src = f"chat:{int(a['chat'])}" if a.get("chat") else f"comment:{int(a['comment'])}"
     if a.get("chat"):
         m = c.execute("""SELECT choices, choice, created_at, apv_diff FROM agent_chat WHERE id=? AND user_id=? AND sender='agent'
                          AND choices->'approval' IS NOT NULL""", (int(a["chat"]), uid)).fetchone()
@@ -290,8 +339,10 @@ def apvd_route():
         print("apvx_describe failed", type(e).__name__, flush=True)
         desc = False
 
+    proof = apvd_proof(c, src, uid, ap.get("step"), desc) if isinstance(desc, dict) and not decided and ap.get("step") else None
+
     def answer(d):
-        return jsonify(diff=d, desc=desc)
+        return {"diff": d, "desc": desc, **({"proof": proof} if proof else {})}
     if decided:  # decided / closed: the state at the answer, never the target now
         if not isinstance(snap, dict):
             return answer(None)

@@ -98,6 +98,7 @@
  "POST /agent/chats/{}/messages/{}/reactions": "meta",
  "POST /agent/chats/{}/messages/{}/withdraw": "meta",
  "POST /agent/decisions": "meta",
+ "POST /agent/request-token": "meta",
  "POST /agent/jobs": "meta",
  "POST /agent/jobs/{}/proposal": "meta",
  "POST /agent/objects/{}/{}/links": "link",

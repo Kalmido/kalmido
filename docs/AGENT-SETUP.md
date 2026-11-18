@@ -132,6 +132,22 @@ release, flaky tests collected, decisions in bold, limits reported) to the new `
 an existing `CLAUDE.md` stays as it is and the rules come next to it as `CLAUDE.software.md`. See
 [AGENTS.md, Behaviour rules template](AGENTS.md#behaviour-rules-template).
 
+2.1386.0 (#6668): a team agent works **per request**: before each run the starter asks Kalmido for a token of that request
+(`POST /api/v1/agent/request-token`, valid 8 hours) and gives only that token to the run -- it reaches what the person who
+asked reaches themselves, and an order of a person who only reads becomes an approval card. From then on the token in
+`kalmido-agent.env` reaches only the agent's own channel (events, status, chat, jobs); keep the starter up to date
+(the setup command again) so its runs get their request tokens. The list work of the dispatcher runs for the person
+chosen under *Permission questions go to*. Without a request token (the person may not give the agent orders, nobody is
+chosen, Kalmido cannot be reached) the starter skips the request and shows it in the agent's status; it never runs with
+the token of `kalmido-agent.env` instead. Removing a computer under *Settings > Agents* ends its request tokens at once.
+The env file itself stays with the starter: a team agent's run gets an env file of its own with only its request token
+(in the starter's state folder, `run-env/`, readable only by you; `KALMIDO_ENV_FILE` of the run names that one), so the
+Kalmido MCP server, `kalmido_cli.py` and the agent's jobs read the request token there and never the agent's own. The guard
+hook (above, #6457) also refuses a command that names `kalmido-agent.env`, `/proc/<pid>/environ` or `ps` with the
+environment (`ps e`) -- that part holds also with `KALMIDO_BLOCK_DANGEROUS=0`. That is a rule, not a wall -- the run is the
+same system user as the starter and could still find a way to the file. **A hard separation needs a system user of its own
+for the runs** that cannot read the env file; the user of *Path B, 2.* separates the agent from you, not its runs from its starter.
+
 2.47.3 (#1729): *Remove computer* and *Delete agent* show an uninstall command for each computer (run it there first, then delete; it also works after the agent was deleted).
 
 2.157.0 (#1517): on a Mac set up over SSH (nobody logged in at the screen) the agent starts in the background at once and at every screen login after a restart. After *Remove computer* the launcher stops the agent with one log line and waits quietly until you run the uninstall command.

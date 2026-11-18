@@ -23,7 +23,8 @@ import requests
 
 import kt
 from freelancer_fixture import freelancer
-from kt import B, check, done, fresh, setup
+from kt import B, apv_body, check, done, fresh, setup
+# 2.1386.0 (#6623): a Yes on an approval card with a bound step carries the proof of the description (kt.apv_body)
 
 V = B + "/api/v1"
 D = B + "/api/approvals/diff"
@@ -140,7 +141,7 @@ check(r.ok and d and d.get("hidden") == "no_access" and d["rows"] == [] and "hid
 
 # ================================================================== decided: the state at the answer
 before = diff(F, chat=M1)[1]
-check(F.post(B + f"/api/agents/{FA}/chat/{M1}/choice", json={"choice_ids": ["yes"]}).ok, "Frida says Yes to the page card")
+check(F.post(B + f"/api/agents/{FA}/chat/{M1}/choice", json=apv_body(F, B, f"chat:{M1}", "yes")).ok, "Frida says Yes to the page card")
 check(F.patch(B + f"/api/wiki/pages/{PID}", json={"body": "Totally new text"}).ok, "setup: the page changes after the Yes")
 r, d = diff(F, chat=M1)
 check(d and d.get("decided") is True and d.get("at") and d["rows"] == before["rows"][:60] and d["added"] == before["added"],
@@ -165,7 +166,7 @@ r, d = diff(F, comment=CID)
 check(d and d["kind"] == "wiki" and d["added"] == 1 and ["+", "One more"] in d["rows"], f"a comment card: the diff for a person who sees the task {d}")
 # tenant: GET /api/approvals/diff
 check(diff(OTTO, comment=CID)[0].status_code == 404 and diff(OTTO, chat=M2)[0].status_code == 404, "the other person: 404 for both kinds")
-check(F.post(B + f"/api/comments/{CID}/choice", json={"choice_ids": ["yes"]}).ok, "Frida says Yes to the comment card")
+check(F.post(B + f"/api/comments/{CID}/choice", json=apv_body(F, B, f"comment:{CID}", "yes")).ok, "Frida says Yes to the comment card")
 row = kt.dbx("SELECT extra->'apvdiff' IS NOT NULL, extra->'choices'->'approval'->'diff' IS NOT NULL FROM obj_comments WHERE id=?", (CID,))
 check(row and row[0][0] and not row[0][1], f"the comment's record sits beside choices {row}")
 r, d = diff(F, comment=CID)

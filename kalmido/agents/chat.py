@@ -634,7 +634,7 @@ def chat_choice_answer(c, m, ch, ids, uid, via, collected=False):
     return m2
 
 
-def chat_choice_set(c, m, uid, ids):
+def chat_choice_set(c, m, uid, ids, proof=None):
     """2.28.0 (#1005): the person (the chat's partner) answers an agent message with buttons: stores the choice (once),
     sends the agent the event chat_choice. Returns the message row. BadInput / Denied."""
     ch = _jload(m["choices"])
@@ -649,6 +649,8 @@ def chat_choice_set(c, m, uid, ids):
     if not isinstance(ids, list) or not ids or not all(isinstance(x, str) and x in valid for x in ids) or len(set(ids)) != len(ids) \
             or (len(ids) > 1 and not ch.get("multi")):
         raise BadInput(tr("Invalid value: {0}", "choice_ids"))
+    from .apvdiff import apvd_need_proof
+    apvd_need_proof(c, f"chat:{m['id']}", uid, ch, [x for x in valid if x in ids], proof)  # 2.1386.0 (#6623): Yes only with the proof of the description
     m2 = chat_choice_answer(c, m, ch, [x for x in valid if x in ids], uid, "button", collected=st == "collected")
     bump(c)
     return m2
@@ -706,7 +708,8 @@ def agent_chat_choice(aid, mid):
     if not m:
         raise Denied(404)
     try:
-        m2 = chat_choice_set(c, m, me(), body().get("choice_ids"))
+        b = body()
+        m2 = chat_choice_set(c, m, me(), b.get("choice_ids"), b.get("desc_proof"))  # 2.1386.0 (#6623)
     except BadInput as e:
         return err(str(e))
     c.commit()

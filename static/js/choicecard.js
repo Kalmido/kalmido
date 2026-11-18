@@ -31,6 +31,10 @@ function ccApvDesc(ap, src = '') {
 }
 // may Yes be pressed? a card without a step: yes; with a step: only once the server's description is shown
 const ccApvReady = (ch, src) => !ch.approval?.step || !!(src && S.apvd[src]?.x?.lines);
+// 2.1386.0 (#6623): the body of an answer: + desc_proof on a Yes of a card with a step (the server takes Yes only with it); a 409
+// desc_proof_needed (the description changed since) drops the fetched one, so the card fetches it again and keeps Yes locked
+const ccApvAnswerBody = (ch, src, ids) => ({choice_ids: ids, ...(ch?.approval?.step && ids.includes('yes') && S.apvd[src]?.p ? {desc_proof: S.apvd[src].p} : {})});
+const ccApvStale = src => { if (S.apvd[src]) delete S.apvd[src]; };
 // 2.1068.0 (#5831): a line diff as rows [[op, line]] (op ' ' / '+' / '-' / '…' = a gap) -- one rendering for the knowledge
 // history (wkhist.js) and the approval card; + / − in front, not only the colour
 function txtDiffHtml(rows) {
@@ -65,10 +69,10 @@ async function ccApvdLoad(src, full = false) {
   const e = S.apvd[src]; if (e && (e.busy || (e.d !== undefined && e.x !== undefined && !e.err && !full))) return;
   S.apvd[src] = {...(e || {}), busy: true};
   const [k, id] = src.split('|')[0].split(':');
-  let d = null, x = null, err = false;
-  try { const j = await api('GET', `/api/approvals/diff?${k}=${id}${full ? '&full=1' : ''}`); d = j.diff ?? null; x = j.desc ?? null; }
-  catch (er) { d = e?.d ?? null; x = e?.x?.lines ? e.x : null; err = !x; }
-  S.apvd[src] = {d, x, err, at: Date.now(), busy: false};
+  let d = null, x = null, p = null, err = false;
+  try { const j = await api('GET', `/api/approvals/diff?${k}=${id}${full ? '&full=1' : ''}`); d = j.diff ?? null; x = j.desc ?? null; p = j.proof ?? null; }
+  catch (er) { d = e?.d ?? null; x = e?.x?.lines ? e.x : null; p = x ? e?.p ?? null : null; err = !x; }
+  S.apvd[src] = {d, x, p, err, at: Date.now(), busy: false};  // 2.1386.0 (#6623): p = the proof of the description, sent with Yes
   for (const n of document.querySelectorAll(`[data-apvd="${CSS.escape(src)}"]`)) ccApvdFill(n, d, src);
   for (const n of document.querySelectorAll(`[data-apvx="${CSS.escape(src)}"]`)) n.innerHTML = ccApvxHtml(x);
   const ok = !!x?.lines;
@@ -170,8 +174,8 @@ async function ccAnswer(cid, id, send = false) {
   if (c.choices?.multi && !send) { const s = S.ccPick[cid] ||= new Set(); s.has(id) ? s.delete(id) : s.add(id); drawTimeline(); return; }
   const ids = send ? [...(S.ccPick[cid] || [])] : [id]; if (!ids.length) return;
   let j;
-  try { j = await capi('POST', `/api/comments/${cid}/choice`, {choice_ids: ids}); }
-  catch { if (S.sel) loadTimeline(S.sel); return; }  // capi said it (409: no longer current, 403): the card follows the server
+  try { j = await capi('POST', `/api/comments/${cid}/choice`, ccApvAnswerBody(c.choices, 'comment:' + cid, ids)); }
+  catch { if (c.choices?.approval) ccApvStale('comment:' + cid); if (S.sel) loadTimeline(S.sel); return; }  // capi said it (409: no longer current, 403): the card follows the server
   delete S.ccPick[cid];
   Object.assign(c, {choices: j.choices, choice: j.choice, choice_state: j.choice_state, choice_can: j.choice_can});
   const t = taskById(S.sel); if (t && c.choices?.approval && t.approvals_open) { t.approvals_open--; viewSafeRender(); }
