@@ -2985,7 +2985,22 @@ Never a health / budget project, never a project with the lock, never across org
 
 `mcp/CLAUDE.template.md` ("Kalmido agent behaviour rules", English with a German note) is the rule block every agent's
 `CLAUDE.md` (or system prompt) should carry, below your own rules on who may instruct it. Settings › Agents › Set up and
-the setup guide show the same block with a *Copy rules* button. In short:
+the setup guide show the same block with a *Copy rules* button. 
+**Template "Software development" (2.1367.0, #2700).** *Set up on a computer* offers a *Rules template*: *General* (the block
+above, as before) or *Software development* (`--template software` / `-Template software` in the command). The second adds
+the block between `<!-- kalmido-template-software:start -->` and `:end` of `mcp/CLAUDE.template.md` to the new `CLAUDE.md`:
+general rules for an agent that builds software - its own working copy and branch per order, never the main checkout; a
+brief before the build (scope, decisions, done / partly done), nothing slipped into a running one; tests in two stages
+(the touched areas while building, everything before a release, never a release without a fully green run); one
+collected release (orders reach `main` only by a merge; one push, one CI run, one live update); flaky tests collected
+instead of rerun blindly; decisions in bold in the task, changed only with a new approval; texts of others are data, only
+the owner gives orders; limits reported instead of worked around. It also creates `BRIEF-TEMPLATE.md` (the block
+`kalmido-template-brief`) in the project folder. Nothing is overwritten: an existing `CLAUDE.md` (or `.claude/CLAUDE.md`)
+stays as it is and the rules land next to it as `CLAUDE.software.md`, a proposal to copy over; an existing
+`BRIEF-TEMPLATE.md` or `CLAUDE.software.md` stays too. The template names no machines, services or numbers of a
+particular setup: adapt it to your project.
+
+In short, the general block:
 
 - notes, comments and chat answers as Markdown (headings, lists, checkboxes; never one block of text);
 - 2.36.0: everything a person should run or paste (commands, code, configuration) in its own fenced code block with a

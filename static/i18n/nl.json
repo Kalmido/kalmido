@@ -19139,5 +19139,8 @@
   "Support started working in your account (access until {0})": "Support is begonnen in je account te werken (toegang tot {0})",
   "{0} ended the support access to the organisation {1}": "{0} heeft toegang voor support tot de organisatie {1} beëindigd",
   "support access to your account or your organisation: opened by another admin, first used, ended": "toegang voor support tot je account of je organisatie: geopend door een andere admin, voor het eerst gebruikt, beëindigd",
-  "{0} older entry is no longer listed": ["{0} oudere vermelding staat er niet meer bij", "{0} oudere vermeldingen staan er niet meer bij"]
+  "{0} older entry is no longer listed": ["{0} oudere vermelding staat er niet meer bij", "{0} oudere vermeldingen staan er niet meer bij"],
+  "Rules template": "Regelsjabloon",
+  "Software development": "Softwareontwikkeling",
+  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Softwareontwikkeling zet regels voor het bouwen van software (een branch per opdracht, eerst een brief, tests in twee stappen, één gebundelde release) en een brief-sjabloon in de projectmap. Een bestaande CLAUDE.md blijft zoals hij is; de regels komen dan als voorstel ernaast."
 }

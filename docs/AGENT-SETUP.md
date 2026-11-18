@@ -126,6 +126,12 @@ answers without the question, `off` skips it, or name IPs / networks; Enter or n
 rule on that computer's key only and never makes it wider than the agent's own address rule. Take it only with a fixed
 address: when the address changes, the agent cannot reach Kalmido until you change the rule (*Settings > Agents >* the agent).
 
+2.1367.0 (#2700): the dialog offers a *Rules template*. *Software development* (`--template software` / `-Template software`)
+adds rules for building software (a working copy and branch per order, a brief first, tests in two stages, one collected
+release, flaky tests collected, decisions in bold, limits reported) to the new `CLAUDE.md` and creates `BRIEF-TEMPLATE.md`;
+an existing `CLAUDE.md` stays as it is and the rules come next to it as `CLAUDE.software.md`. See
+[AGENTS.md, Behaviour rules template](AGENTS.md#behaviour-rules-template).
+
 2.47.3 (#1729): *Remove computer* and *Delete agent* show an uninstall command for each computer (run it there first, then delete; it also works after the agent was deleted).
 
 2.157.0 (#1517): on a Mac set up over SSH (nobody logged in at the screen) the agent starts in the background at once and at every screen login after a restart. After *Remove computer* the launcher stops the agent with one log line and waits quietly until you run the uninstall command.
