@@ -73,6 +73,10 @@ set +a
 # 2.443.0 (#2940): exit 2 with a log line like the .ps1 (":?" ended it with 127)
 [[ -n "${KALMIDO_URL:-}" ]] || { log "KALMIDO_URL missing in $ENV_FILE"; exit 2; }
 [[ -n "${KALMIDO_TOKEN:-}" ]] || { log "KALMIDO_TOKEN missing in $ENV_FILE"; exit 2; }
+# #7051 (Fable reader N1): set -a exported the token; no child of this launcher gets it in its environment (the model, the
+# event runner, curl, python and the sleep of the main loop, whose /proc/<pid>/environ a run could read through
+# KALMIDO_LAUNCHER_PID); curl gets it through the builtin printf on stdin
+export -n KALMIDO_TOKEN
 [[ "${KALMIDO_EVENTS:-0}" == 1 ]] && EVENTS=1
 # kalmido-capability: token_scoped (2.1367.0, #6457): the model's process never gets KALMIDO_TOKEN, only the env file's path
 # (KALMIDO_ENV_FILE); the MCP server, the usage hook, kalmido_cli.py and agent_job.py read the token from the file. Event mode:
@@ -195,9 +199,9 @@ start() {  # start the command with the current settings (its own process group,
   # ${envs[@]+...}: bash 3.2 calls an empty array unbound under set -u
   # 2.157.0 (#1517): KALMIDO_LAUNCHER_PID -- the event runner ends when this launcher was killed hard (no orphan left behind)
   # 2.1367.0 (#6457): neither the model nor the event runner gets the token in its environment (Fable reader F5: a run could
-  # read the runner's through /proc/<pid>/environ); agent_run.py reads it from KALMIDO_ENV_FILE
-  local unset=(-u KALMIDO_TOKEN)
-  env -u DISABLE_AUTO_COMPACT -u CLAUDE_AUTOCOMPACT_PCT_OVERRIDE -u KALMIDO_GIT_COAUTHOR ${unset[@]+"${unset[@]}"} KALMIDO_LAUNCHER_PID=$$ ${envs[@]+"${envs[@]}"} "${NEWSESS[@]}" "${args[@]}" &
+  # read the runner's through /proc/<pid>/environ); agent_run.py reads it from KALMIDO_ENV_FILE. #7051: export -n above
+  # keeps it out of every child, so no env -u here
+  env -u DISABLE_AUTO_COMPACT -u CLAUDE_AUTOCOMPACT_PCT_OVERRIDE -u KALMIDO_GIT_COAUTHOR KALMIDO_LAUNCHER_PID=$$ ${envs[@]+"${envs[@]}"} "${NEWSESS[@]}" "${args[@]}" &
   PID=$!
   STARTED=$(date +%s)
 }
