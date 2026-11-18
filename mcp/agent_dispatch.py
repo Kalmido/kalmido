@@ -82,6 +82,7 @@ DEFAULTS = {
                               # its address; {branch} {base} {title} are filled in per argument, the body comes on stdin
     "brief_extra": "",        # more text for every brief (the project's rules)
     "max_writes": 40,         # writes (comments, closes) per tick
+    "stau_max": 10,           # 2.1368.0 (#4060): more tasks built but not landed (on a branch) than this hold new starts (0 = never)
 }
 # 2.1368.0 (#7028): keys that are gone -- named once in the log, never used
 RETIRED = {"worktree": "every job of the dispatcher has its own working copy (branch job/<id>)",
@@ -666,6 +667,10 @@ class Dispatcher:
             elif st == "stuck":
                 self.finding(res, f"stuck:{tid}", self.say("dispatch_stuck", f"#{tid}", cfg["max_tries"]))
         res["brakes"] = self.brakes(cfg)
+        # 2.1368.0 (#4060): the jam brake -- building was never the bottleneck, landing is; closing and the guard go on
+        jam = sum(1 for st in states.values() if st == "on_branch")
+        if int(cfg["stau_max"]) > 0 and jam > int(cfg["stau_max"]):
+            res["brakes"].append(f"{jam} built tasks not landed yet (stau_max {int(cfg['stau_max'])})")
         running = [jid for jid in self.reg["jobs"] if (jobs.get(str(jid)) or {}).get("state") in RUNNING]
         free = int(cfg["places"]) - len(running)
         if free > 0 and not res["brakes"]:

@@ -12,7 +12,8 @@ fake Kalmido API and a real temporary git repository.
  - a dry run changes nothing (no comment, no close, no job) and lists what it would do in dispatch-dry.log and the day report
  - the guard: a job that ended counts one try per open task, at max_tries the task is stuck (told once in the chat); a job
    without progress for stale_h hours is a finding
- - brakes: the stop file, the usage limit; the day report once a day after report_at
+ - brakes: the stop file, the usage limit; the day report once a day after report_at; 2.1368.0 (#4060): the jam brake
+   (more tasks on a branch than stau_max hold new starts, closing goes on, the day report names it)
  - the runner hands over (dispatch_watch, capability "dispatcher", texts in six languages)
  - 2.1308.0 (#6523): only a task the person created is built; a task of another member or without a creator is "foreign"
    (never in a brief, named in the result, the dry log and the day report); comments of other accounts reach the brief only
@@ -402,6 +403,33 @@ res = d2.tick(force=True)
 check(len(STARTS) == n + 1 and res["states"][401] == "building", f"#5198: the next round starts nothing again: {STARTS[n:]} {res['states']}")
 d2.report = lambda *a, **k: (_ for _ in ()).throw(SystemExit(1))
 check(d2.tick(force=True) is not None, "#5198: not even a SystemExit of a later write ends the round")
+
+# ---- 2.1368.0 (#4060): the jam brake -- more built-but-not-landed tasks than stau_max hold new starts, closing goes on
+for i in range(3):
+    g("branch", f"job/7{i}", "main")
+    g("checkout", "-q", f"job/7{i}")
+    g("commit", "-q", "--allow-empty", "-m", f"#50{i}: built, waits for the merge")
+    g("checkout", "-q", "main")
+g("commit", "-q", "--allow-empty", "-m", "#510: landed")
+TASKS[:] = [task(500, "A"), task(501, "B"), task(502, "C"), task(510, "D"), task(520, "Fresh", "S")]
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "00:00", "check_cmd": "exit 0", "stau_max": 2}, f)
+JOBS.clear()
+state6 = os.path.join(proj, ".state6")
+os.makedirs(state6)
+h = Host("on")
+h.state_dir = state6
+d = ad.Dispatcher(h, proj)
+n = len(STARTS)
+res = d.tick(force=True)
+check(res["brakes"] == ["3 built tasks not landed yet (stau_max 2)"] and len(STARTS) == n, f"#4060: the jam brake holds new starts: {res['brakes']}")
+check(("POST", "/tasks/510/complete") in h.api.calls, "#4060: closing goes on under the jam brake")
+check(any("Held: 3 built tasks not landed yet" in t for _, t in h.api.chats), f"#4060: the day report names the brake: {h.api.chats}")
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "", "check_cmd": "exit 0", "stau_max": 3}, f)
+res = d.tick(force=True)
+check(res["brakes"] == [] and STARTS[-1][0] == [520], f"#4060: at stau_max it builds again: {res['brakes']} {STARTS[-1]}")
+check(ad.DEFAULTS["stau_max"] == 10, "#4060: default 10")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)
