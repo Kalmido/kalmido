@@ -2998,6 +2998,8 @@ the setup guide show the same block with a *Copy rules* button. In short:
   (`202`) are not repeated, the result comes as a `job` event;
 - usage hook as Stop and SubagentStop hook;
 - park blockers with a note instead of stalling;
+- 2.1368.0: look before you state: "it runs / is done / does not exist / was agreed" only after a look in the same run,
+  otherwise "not checked"; notes and summaries are the old state, not proof;
 - team chat (2.17): answer in a project's channel when @mentioned (`team_message`), short, Markdown; 2.46.1: in projects where
   it listens in every person's channel message comes as `team_message` with `mentioned: false`;
 - read attachments through the API when someone asks about a screenshot;
