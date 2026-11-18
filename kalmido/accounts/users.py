@@ -9,7 +9,7 @@ import zipfile
 from flask import g, jsonify, request, Response, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from ..core.objhooks import obj_gone_drop, obj_private_refs, person_revoked, USER_GONE  # 2.558.0 (#4709): the shared core without importing the domain layer
+from ..core.objhooks import obj_gone_drop, obj_private_refs, person_locked, person_revoked, USER_GONE  # 2.558.0 (#4709): the shared core without importing the domain layer
 from ..core.config import app, COOKIE, EMAIL_RE, MIN_PASSWORD, PUBLIC_URL, USERNAME_RE
 from ..core.i18n import lang, LANGS, N_, tr, trn
 from ..core.db import body, bump, create_user, db, ensure_inbox, err, gsetting, now_utc, uset, usettings, iso
@@ -432,6 +432,7 @@ def user_update(uid):
         if b["disabled"]:
             ses_end(c, uid)  # 2.190.0 A (#1991): with the push subscriptions made in them
             sdl_admin_locked(c, uid)  # 2.1254.0 (#6293): a pending own deletion no longer unlocks it
+            person_locked(c, uid)  # #6978 F6: what works in their name (an agent's request tokens) ends at once
             if not u["disabled"]:  # 2.539.0 (#4373): a locked admin who saw an organisation's recovery key
                 for o in rck_admin_orgs(c, uid):
                     rck_admin_gone(c, o, uid)

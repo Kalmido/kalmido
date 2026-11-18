@@ -48,7 +48,7 @@ from ..lists.lists import list_purge
 from ..accounts.orglists import _ol_people  # 2.1151.0 D (#4562)
 from ..collab.news import KIND_ROW
 from ..core.objnotify import obj_notify
-from ..core.objhooks import NOTIFY_READERS  # 2.1298.0 (#6395)
+from ..core.objhooks import NOTIFY_READERS, person_locked  # 2.1298.0 (#6395); #6978 F6: person_locked
 from ..lists.ownership import owner_candidates, owner_transfer
 from ..accounts.users import _active_admins, need_admin, om_admin_all, user_delete_run
 from ..accounts.orgretain import odl_docs_block  # 2.1327.0 (#1969)
@@ -256,6 +256,7 @@ def sdl_request():
     sdl_notify(c, uid, choice, at)  # 2.1151.0 D (#4562): before the lock (the projects' roles as they are now)
     c.execute("UPDATE users SET disabled=true, delete_at=?, delete_plan=? WHERE id=?", (at, json.dumps(plan), uid))
     ses_end(c, uid)  # every session, this one too
+    person_locked(c, uid)  # #6978 F6: what works in their name (an agent's request tokens) ends at once
     bump(c)
     c.commit()
     aa_now("security", f"selfdel:{uid}", N_("The account {0} asked for its deletion; it is locked and goes on {1}."), [f"#{uid}", at[:10]])

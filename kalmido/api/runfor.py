@@ -34,6 +34,20 @@ from ..core.i18n import tr
 from ..core.pg import system_ctx
 from ..api.common import v1_err
 
+# #6978 F7: a request token of a team agent (agents/reqtoken.py) is recognised by its columns, never by its name (a later way
+# giving an agent token that name must not make an invisible, unremovable long-lived token): the person it works for
+# (asked_by, 0 = nobody) and its place (req_slot, agents/reqtoken.py req_slot) -- only req_issue sets req_slot; a server run
+# or a hosted MCP access carries asked_by but no place
+REQ_SQL = "(asked_by IS NOT NULL AND req_slot<>'')"
+REQ_NOT_SQL = "(asked_by IS NULL OR req_slot='')"
+
+
+def req_is(t):
+    """#6978 F7: is api_tokens row t a request token (REQ_SQL in Python)?"""
+    k = t.keys()
+    return "asked_by" in k and t["asked_by"] is not None and "req_slot" in k and bool(t["req_slot"])
+
+
 RUN_PASS = ("cut", "cap", "mine", "send", "own", "noagent", "safe")
 RUN_CLASSES = RUN_PASS + ("pin", "org", "closed")
 RUN_FULL = ("admin", "member")  # the organisation roles that reach the organisation's areas themselves
@@ -92,6 +106,13 @@ def run_gate(c, row, u):
     by = int(by)
     if g.get("approved_job") and g.get("ctl_for"):
         by = int(g.ctl_for)  # the replay of an approved request: the person who said Yes (api/scopes.py approval_replay_token)
+    return run_class_refuse(c, u["id"], by)
+
+
+def run_class_refuse(c, aid, by):
+    """The class check of run_gate for the current request of agent aid working for person by (0 = nobody): a 403 for a
+    pin / org / closed route that person does not reach, else None. #6978 F5: also the step of an answered card with the
+    long-lived token of a team agent per request (agents/control.py ctl_claim, by = the person who said Yes)."""
     cls = RUN_ROUTES.get(run_key(request.method, request.url_rule.rule), ("closed", ""))[0]
     kind, _, par = cls.partition(":")
     if kind in RUN_PASS:
@@ -100,7 +121,7 @@ def run_gate(c, row, u):
         if all(str(v) == str(by) and by for v in _named(par)):
             return None
         return v1_err(403, tr("In this run you work for one person: only that person can be named here"), name="run_person", parameter=par)
-    ok = bool(by) and (run_org_ok(c, u["id"], by) if kind == "org" else run_boss(c, u["id"], by))
+    ok = bool(by) and (run_org_ok(c, aid, by) if kind == "org" else run_boss(c, aid, by))
     if ok:
         return None
     return v1_err(403, tr("Not available in this run: the person you work for does not reach this themselves"), name="run_closed")
