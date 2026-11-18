@@ -698,7 +698,8 @@ async function bkrPurged(m, src) {
   const box = $('#bkr-purged', m);
   let j; try { j = await rawFetch('GET', '/api/admin/backups/purged-preview?since=' + encodeURIComponent(src.created_at || '')); } catch { return; }
   if (!box.isConnected) return;
-  const kinds = Object.entries(j.kinds || {}).map(([k, n]) => `${esc(tr(BKR_KINDS[k] || k))}: ${n}`).join(' · ');
+  // 2.1373.0 (#6357): the further kinds of the register's list come with their name (j.labels, translated by the server)
+  const kinds = Object.entries(j.kinds || {}).map(([k, n]) => `${esc(BKR_KINDS[k] ? tr(BKR_KINDS[k]) : (j.labels || {})[k] || k)}: ${n}`).join(' · ');
   const when = j.first === j.last ? esc(aaWhen(j.first)) : tr('{0} to {1}', esc(aaWhen(j.first)), esc(aaWhen(j.last)));
   const also = [j.recent ? trn('{0} entry deleted in the last {1} days stays either way.', '{0} entries deleted in the last {1} days stay either way.', j.recent, j.recent_days) : '',
     j.accounts ? trn('{0} account deleted since then stays deleted or disabled either way.', '{0} accounts deleted since then stay deleted or disabled either way.', j.accounts) : ''].filter(Boolean).join(' ');
