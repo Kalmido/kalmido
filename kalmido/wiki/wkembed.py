@@ -115,7 +115,8 @@ def wem_embed_rows(c, pid):
 
 
 # 2.1399.0 (#7056): the keys of shares go into wiki_embeds.shares (TEXT[]): added, never twice, sorted
-WEM_ADD = "shares=ARRAY(SELECT DISTINCT k FROM unnest(COALESCE(shares, CAST('{}' AS TEXT[])) || CAST(? AS TEXT[])) AS k ORDER BY k)"
+WEM_ADD = ("UPDATE wiki_embeds SET shares=ARRAY(SELECT DISTINCT k FROM unnest(COALESCE(shares, CAST('{}' AS TEXT[])) || CAST(? AS TEXT[])) "
+           "AS k ORDER BY k) WHERE page_id=? AND node_id=?")
 
 
 def wem_img_shares(c, page):
@@ -142,7 +143,7 @@ def wem_confirm(c, pid, by):
     n = 0
     for nid, (who, _ok) in sorted(wem_embed_rows(c, pid).items()):
         if who == by and wem_visible(c, by, nid, page):
-            n += c.execute(f"UPDATE wiki_embeds SET {WEM_ADD} WHERE page_id=? AND node_id=?", (keys, pid, nid)).rowcount
+            n += c.execute(WEM_ADD, (keys, pid, nid)).rowcount
     return n
 
 
@@ -159,7 +160,7 @@ def wem_share_confirm(c, s, key):
         for p in wsh_pub_pages(c, s):
             for nid, (who, ok) in sorted(wem_embed_rows(c, p["id"]).items()):
                 if who is not None and key not in ok and wem_visible(c, maker, nid, p):
-                    n += c.execute(f"UPDATE wiki_embeds SET {WEM_ADD} WHERE page_id=? AND node_id=?", ([key], p["id"], nid)).rowcount
+                    n += c.execute(WEM_ADD, ([key], p["id"], nid)).rowcount
     return n
 
 
