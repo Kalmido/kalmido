@@ -2818,23 +2818,30 @@ def model_env(env):
 SECRET_PROC = re.compile(r"/proc/+[^\s/]*/+(?:task/+[^\s/]*/+)?[^\s/]*(?:env|[*?\[])")
 # 2.1386.0 (#6668, review R3 F1): the request token files of a team agent by name (also after a cd into the folder)
 SECRET_RUNENV = re.compile(r"(?:^|[^\w.-])(?:run-env|op\.env|auto\.env|p\d+\.env)(?![\w-])")
-# Reader R4 F2: only ps as a command (line start, after ; & | ( ` $( or a prefix such as sudo / env / xargs) and only its own
-# option arguments: a BSD block without a dash with e (ps e, ps auxe, ps eww, ps aux e) or a dash block with E (ps -E);
-# a later word (docker ps --format table, ps -o etime, echo ps here) is no environment
-SECRET_PS_CMD = re.compile(r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:sudo|doas|exec|eval|command|nice|nohup|env|time|watch|xargs|busybox|"
-                           r"\S*sh\s+-[a-z]*c)(?:\s+-\S+)*\s+)*(?:\S*/)?ps(?=\s|$)([^;&|\n`)]*)")
-PS_VAL_DASH = re.compile(r"^-(?:[a-zA-Z]*[oOpqUuGgtCkN]|-(?:format|pid|ppid|sort|user|group|cols|columns|rows|lines|tty|sid|ppid|quick-pid))$")
-PS_VAL_BSD = re.compile(r"^[a-zA-Z]*[oOpUtkN]$")
+# Reader R4 F2: only the option arguments of ps itself count: a BSD block without a dash with e (ps e, ps auxe, ps eww,
+# ps aux e) or a dash block with E (ps -E); a later word (ps -o etime) is no environment. 2.1398.0 (#7132, reader of
+# job/5387 F5): ps is looked for at EVERY word again (then / do / { / VAR=x / timeout 5 / sudo -u root / nice -n 5 before
+# it); only the word right after a known host command is another program's ps (docker ps, docker compose ps, echo ps)
+SECRET_PS_WORD = re.compile(r"(?:^|(?<=[\s;&|(`{!]))(?:\S*/)?ps(?=\s|$)([^;&|\n`)}]*)")
+PS_HOSTS = {"docker", "podman", "nerdctl", "kubectl", "compose", "echo", "printf"}
+PS_VAL_DASH = re.compile(r"^-(?:[a-zA-Z]*[oOpqUuGgtCk]|-(?:format|pid|ppid|sort|user|group|cols|columns|rows|lines|tty|sid|ppid|quick-pid))$")
+PS_VAL_BSD = re.compile(r"^[a-zA-Z]*[oOpUtk]$")
 
 
 def secret_ps(text):
     """2.1386.0 (#6668, reader R4 F2): does a Bash line run ps with the environment (BSD e, -E)? The arguments of every ps
-    command in the line, a value of an option that takes one (-o etime, o etime, -p 1) skipped."""
-    for m in SECRET_PS_CMD.finditer(text):
-        args, skip = m.group(1).split(), False
+    word in the line, a value of an option that takes one (-o etime, o etime, -p 1) skipped. 2.1398.0 (#7132): -N / N
+    negate (procps) and take no value; a format value that is only the letter e (ps o e) counts as the flag."""
+    for m in SECRET_PS_WORD.finditer(text):
+        before = text[:m.start()].split()
+        if before and before[-1].rsplit("/", 1)[-1] in PS_HOSTS:
+            continue
+        args, skip = [x for x in re.split(r"[\s<>]+", m.group(1)) if x], False  # ps e>file: the redirection is no argument
         for a in args:
             if skip:
                 skip = False
+                if a == "e":
+                    return True
                 continue
             if a.startswith("--"):
                 skip = bool(PS_VAL_DASH.match(a)) and "=" not in a
@@ -3353,9 +3360,30 @@ class Runner:
             # choice alone: after a change op.env may still hold the old person's token until op_check removed it)
             self.op_check()
             f = os.path.join(d, "op.env")
-            return f if getattr(self, "op_who", None) == int(uid) and os.path.isfile(f) else None
-        f = os.path.join(d, f"p{int(uid)}.env")
-        return f if os.path.isfile(f) else None
+            f = f if getattr(self, "op_who", None) == int(uid) and os.path.isfile(f) else None
+        else:
+            f = os.path.join(d, f"p{int(uid)}.env")
+            f = f if os.path.isfile(f) else None
+        if f and not self.server_job_of(j.get("id"), uid):
+            return None
+        return f
+
+    def server_job_of(self, jid, uid):
+        """2.1398.0 (#7132, reader of job/5387 N2): is the server's job jid one of person uid? The job file and the wake file
+        lie in the state folder the model's processes can write; the person of the server's job is set by the server
+        (POST /agent/jobs pin:user_id, the requester of the run). A team agent wakes / continues a job only when both agree;
+        not read (network, 404, an older server without user_id) = no (the job stays asleep). Another agent: True, as before."""
+        if self.req_mode() != "team":
+            return True
+        try:
+            d = self.api.req("GET", f"/agent/jobs/{int(jid)}")
+            ok = isinstance(d, dict) and str(d.get("user_id")) == str(int(uid))
+        except Exception as e:  # noqa: BLE001 - never stops the watch
+            log(f"job {jid}: its server job not read ({type(e).__name__}): not started")
+            return False
+        if not ok:
+            log(f"job {jid}: the server's job is not one of person {uid}: not started")
+        return ok
 
     def op_file(self, tok):
         """The env file of the list work's token (the person chosen in the agent's settings): a job the dispatcher starts
@@ -3967,6 +3995,8 @@ class Runner:
                 # of a team agent always has that person (its run had a request token file, agent_job.py cmd_start)
                 log(f"job {jid}: its person ({who}) is not the person of its request token ({w.get('token_person')}): no wake run")
                 continue
+            if who and jid and team and not self.server_job_of(jid, who):
+                continue  # 2.1398.0 (#7132, N2): the wake file names a person the server's job is not for
             if who and jid:
                 evs.append({"event": "job_wake", "seq": f"wake-{jid}", "data": {**w, "user": {"id": int(who)}}})
                 log(f"job {jid}: {(w.get('job') or {}).get('state')}, a wake run for its chat")
