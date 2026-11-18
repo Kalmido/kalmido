@@ -68,6 +68,8 @@ full rules first: `CLAUDE.template.md` in the starter's folder (next to `agent_r
   and summaries are the old state, not proof; before you propose something, look whether it is built already.
 - The same hint in a status for the second time, or red (test, lint, CI) before the next push or release: fix the cause
   or file it as a task, and tell the person in one line. Never only carry it on, never cover it with a routine message.
+- A lint message names the cause and the right way (its `Why:` / `Instead:` lines): fix that cause; never suppress it, never
+  build around it, never raise a baseline. A suppression marker only with its reason in the same comment.
 
 ### Showing that you are alive, when you are stuck
 - While you work, status **working** with a short text (`set_status`, with `task_id` when you write in that task);
