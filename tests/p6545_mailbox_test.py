@@ -5,6 +5,7 @@
 The clock is set through the rows (polled_at, told_at), never by waiting; "a round went by" = the freelancer's healthy
 mailbox was fetched twice more.
  - a mail over KALMIDO_MAILBOX_MAIL_MAX stays in the mailbox and is counted there (skipped), the small one is filed;
+   #6738: the limit is at least 1 MB (a mail over the 4000 asked is still filed)
    ok_at = the last success
  - the same mailbox in a second workspace: both see the warning (never which workspace), another folder ends it
  - after failures the mailbox waits longer each time (no login while it waits), and is fetched once the wait is over
@@ -39,7 +40,8 @@ DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(N, ".data")
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
 CT = os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")
 H = {"X-Requested-With": "kalmido"}
-BIG = 4000  # KALMIDO_MAILBOX_MAIL_MAX below
+BIG = 4000  # KALMIDO_MAILBOX_MAIL_MAX below; 2.1392.0 (#6738): bounded to 1 MB .. 200 MB, so the server takes 1 MB
+MAIL_MAX = 1024 * 1024
 ENV = ["-e", "KALMIDO_SMTP_HOST=127.0.0.1", "-e", "KALMIDO_SMTP_PORT=1025", "-e", "KALMIDO_SMTP_TLS=none",
        "-e", "KALMIDO_MAIL_FROM=kalmido@example.test", "-e", "KALMIDO_IMAP_INTERVAL=10", "-e", f"KALMIDO_MAILBOX_MAIL_MAX={BIG}",
        "-e", "KALMIDO_CALENDAR_ALLOW_HOSTS=127.0.0.1:1143,127.0.0.1:1025", "-e", "TASKS_WATCHDOG_INTERVAL=1",
@@ -171,7 +173,7 @@ cols = {x[0] for x in dbx("SELECT column_name FROM information_schema.columns WH
 check({"ok_at", "told_at", "mailed_at", "skipped", "skipped_at"} <= cols, f"migration 6545: the new columns ({sorted(cols)})")
 
 # ---- a mail too large: counted at the mailbox, the small one filed, ok_at = the last success
-small, big = drop("Small one"), drop("Big one", BIG + 500)
+small, big = drop("Small one", BIG + 500), drop("Big one", MAIL_MAX + 500)  # #6738: over the 4000 asked, under the 1 MB floor: filed
 r = Bo.put(B + "/api/hubmail/mailbox", json=BOX)
 check(r.ok, f"setup: Alpha's mailbox {r.text[:200]}")
 WS = dbx("SELECT ws FROM hub_mailboxes WHERE org_id=?", (ORG,))[0][0]
@@ -222,6 +224,8 @@ check(len(it) == 1 and "kalmido" in it[0]["data"]["text"] and it[0]["data"]["ws"
 m = until(lambda: mails("bob@example.test"), 30)
 body = email.message_from_string(m[0]["raw"], policy=email.policy.default).get_body(("plain",)).get_content() if m else ""
 check(len(m) == 1 and "fetching stopped" in body and "Settings > Notifications" in body, f"#6545: and a mail to the admin ({body[:300]})")
+first = body.split("\n\n")[0]
+check("Alpha" in first and "kalmido" not in first and "/#mailhub" in body, f"#6738: the mail names the workspace and links its mailbox settings, not the mailbox user name ({first[:200]})")
 check(not news(Ca, "mailbox_auth") and not mails("carol@example.test"), "#6545: a member who is no admin hears nothing")
 check(until(lambda: news(Da, "mailbox_auth"), 20), "#6545: the second admin hears it in the News")
 check(not queued(U["dave"]) and not mails("dave@example.test"), "#6545 F1: but gets no mail: the address is not proved")
