@@ -67,7 +67,7 @@ OFFICE_AREAS = (
     ("equipment", N_("Equipment"), "admin", ("equipment", "roles", "crew", "sets"), False, "member"),
     ("texts", N_("Text blocks"), "admin", ("texts",), False, "member"),
     ("agreements", N_("Contracts & insurance"), "admin", ("agreements",), False, "admin"),
-    ("settings", N_("Settings"), "admin", ("settings", "logo", "packs", "pack-switch", "number-ranges", "terms",
+    ("settings", N_("Settings"), "admin", ("settings", "logo", "packs", "pack-switch", "number-ranges", "num-ranges", "terms",
                                            "letterhead", "import", "export", "legacy", "move", "move-space", "agents", "log"),
      False, "member"),
 )

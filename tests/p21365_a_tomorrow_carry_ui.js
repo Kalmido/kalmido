@@ -65,7 +65,9 @@ const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d
   w.eval(`go('today')`);
   check(await until(() => d.querySelector(`#view .trow[data-id="${TOD}"]`) && !head('tm:carry') && !head('tm:tomorrow')), 'Today: as before, without the group');
   w.close();
-  const DE = require('../static/i18n/de.json');
+  // the merge queue moves a package's new texts into static/i18n/neu/<KID>.json (tools/i18n_neu.py): read both
+  const fs = require('fs'), NEU = path.join(__dirname, '../static/i18n/neu');
+  const DE = Object.assign({}, require('../static/i18n/de.json'), ...(fs.existsSync(NEU) ? fs.readdirSync(NEU).filter(f => f.endsWith('.json')).map(f => JSON.parse(fs.readFileSync(path.join(NEU, f), 'utf8')).de || {}) : []));
   check(DE['Still open from today'] === 'Noch offen von heute', 'German: "Noch offen von heute"');
 
   console.log(`p21365_a_tomorrow_carry_ui: ${ok} ok, ${F.length} failed`);
