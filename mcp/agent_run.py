@@ -2822,7 +2822,8 @@ SECRET_RUNENV = re.compile(r"(?:^|[^\w.-])(?:run-env|op\.env|auto\.env|p\d+\.env
 # ps aux e) or a dash block with E (ps -E); a later word (ps -o etime) is no environment. 2.1398.0 (#7132, reader of
 # job/5387 F5): ps is looked for at EVERY word again (then / do / { / VAR=x / timeout 5 / sudo -u root / nice -n 5 before
 # it); only the word right after a known host command is another program's ps (docker ps, docker compose ps, echo ps)
-SECRET_PS_WORD = re.compile(r"(?:^|(?<=[\s;&|(`{!]))(?:\S*/)?ps(?=\s|$)([^;&|\n`)}]*)")
+# Reader job/5498 F3: "}" ends no argument list (ps ${X} e), and the word before ps is read only from the same command
+SECRET_PS_WORD = re.compile(r"(?:^|(?<=[\s;&|(`{!]))(?:\S*/)?ps(?=\s|$)([^;&|\n`)]*)")
 PS_HOSTS = {"docker", "podman", "nerdctl", "kubectl", "compose", "echo", "printf"}
 PS_VAL_DASH = re.compile(r"^-(?:[a-zA-Z]*[oOpqUuGgtCk]|-(?:format|pid|ppid|sort|user|group|cols|columns|rows|lines|tty|sid|ppid|quick-pid))$")
 PS_VAL_BSD = re.compile(r"^[a-zA-Z]*[oOpUtk]$")
@@ -2833,10 +2834,11 @@ def secret_ps(text):
     word in the line, a value of an option that takes one (-o etime, o etime, -p 1) skipped. 2.1398.0 (#7132): -N / N
     negate (procps) and take no value; a format value that is only the letter e (ps o e) counts as the flag."""
     for m in SECRET_PS_WORD.finditer(text):
-        before = text[:m.start()].split()
+        before = re.split(r"[\n;&|]", text[:m.start()])[-1].split()  # reader job/5498 F3: only this command's words
         if before and before[-1].rsplit("/", 1)[-1] in PS_HOSTS:
             continue
-        args, skip = [x for x in re.split(r"[\s<>]+", m.group(1)) if x], False  # ps e>file: the redirection is no argument
+        # ps e>file: the redirection is no argument; { ps e} / ${X}: a closing brace is no part of a flag (reader F3)
+        args, skip = [x for x in (y.rstrip("}") for y in re.split(r"[\s<>]+", m.group(1))) if x], False
         for a in args:
             if skip:
                 skip = False
