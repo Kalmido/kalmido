@@ -315,7 +315,7 @@ def odp_apply(c, oid, uid, r, root, lid, pick, dates):
         nonlocal n_upd
         # 2.589.0 (review F3): only while it is still an open pencilled-in place - filled meanwhile (dsp_fill) = marked instead;
         # 2.1378.0 (#4566 A): or a pencilled-in device from the quotation
-        if c.execute("UPDATE hub_bookings SET deleted_at=? WHERE id=? AND (resource_kind='slot' OR (resource_kind='equipment' AND offer_pos LIKE '%:g:%')) "
+        if c.execute("UPDATE hub_bookings SET deleted_at=? WHERE id=? AND (resource_kind='slot' OR (resource_kind='equipment' AND offer_pos ILIKE '%:g:%')) "
                      "AND status='option' AND deleted_at IS NULL", (ts, b["id"])).rowcount:
             n_upd += 1
         else:
