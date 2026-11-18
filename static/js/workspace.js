@@ -40,7 +40,10 @@ function canWrite(x) {
 const roHintHtml = (txt = '') => `<div class="rohint cwro" role="note">${ic('eye', 's')}<span>${esc(txt || tr('You can only read here'))}</span></div>`;
 const wsName = ws => ws === 'all' ? tr('All workspaces') : ws === 'private' ? tr('Private|workspace') : (wsOrg(ws.slice(4))?.name || tr('Organisation'));
 // 2.87.9 (#1913): an organisation's symbol -- its own picture, else its emoji, else fb (the workspace switch, Settings, the admin list)
-const orgIconHtml = (o, fb = ic('brief', 's')) => o?.icon_url ? `<img class="orgic" src="${esc(o.icon_url)}" alt="" loading="lazy" decoding="async">`
+// 2.1391.0 (#7089): fb by default the first letter of the organisation's name in the accent colour (as the "automatic" tile of
+// the organisation dialog shows it), the briefcase only for an organisation without a name
+const orgIniHtml = o => { const c = String(o?.name || '').trim().charAt(0).toUpperCase(); return c ? `<span class="orgini" aria-hidden="true">${esc(c)}</span>` : ic('brief', 's'); };
+const orgIconHtml = (o, fb = orgIniHtml(o)) => o?.icon_url ? `<img class="orgic" src="${esc(o.icon_url)}" alt="" loading="lazy" decoding="async">`
   : o?.icon ? `<span class="wsemo" aria-hidden="true">${esc(o.icon)}</span>` : fb;
 const wsIcon = ws => ws === 'private' ? ic('home', 's') : ws === 'all' ? ic('grid', 's') : orgIconHtml(wsOrg(ws.slice(4)));
 const wsOptions = () => ['private', ...(S.me?.workspaces || []).map(w => 'org:' + w.id), 'all'];
