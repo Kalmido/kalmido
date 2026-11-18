@@ -90,6 +90,8 @@ ISC_IBAN_LEN = {
     "ME": 22, "MK": 19, "MN": 20, "MR": 27, "MT": 31, "MU": 30, "NI": 28, "NL": 18, "NO": 15, "OM": 23, "PK": 24, "PL": 28, "PS": 29,
     "PT": 25, "QA": 29, "RO": 24, "RS": 22, "RU": 33, "SA": 24, "SC": 31, "SD": 18, "SE": 24, "SI": 19, "SK": 24, "SM": 27, "SO": 23,
     "ST": 25, "SV": 28, "TL": 23, "TN": 24, "TR": 26, "UA": 29, "VA": 22, "VG": 24, "XK": 20, "YE": 30}
+# characters that print as nothing (fillers) besides the formats (Cf) and enclosing marks (Me)
+ISC_INVISIBLE = frozenset("\u034f\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\uffa0")
 ISC_MAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
 # #7113 (review F9): a web address with any ending (evil.finance, pay.evil.sh, evil.example; letters of every script, punycode):
 # a scheme, www., or labels joined by dots without a space. The common endings below only decide the abbreviations: a name with
@@ -175,17 +177,18 @@ def isc_text_check(field, v):
     e-mail address). A VAT ID: its own characters (ISC_VAT_RE) and no web address."""
     if not v:
         return ""
-    if any(unicodedata.category(ch) == "Cf" for ch in v):  # 2.1396.0 (#6701, review F3): invisible / direction marks hide what is printed
+    if any(unicodedata.category(ch) in ("Cf", "Me") or ch in ISC_INVISIBLE for ch in v):  # 2.1396.0 (#6701, review F3): invisible / direction marks hide what is printed
         raise _bad(field, tr("{0}: no invisible characters", field))
+    w = unicodedata.normalize("NFKC", v)  # 2.1396.0 (#6701): full-width letters and dots count as the plain ones
     if field == "vat_id":
         if not ISC_VAT_RE.fullmatch(v.replace(" ", "").upper()) or isc_has_web(v):
             raise _bad(field, tr("{0}: letters, digits and + * . - only", field))
         return ""
     if field in ISC_NO_TEXT_CHECK:
         return ""
-    if isc_has_iban(v):
+    if isc_has_iban(w):
         raise _bad(field, tr("{0}: no bank account (IBAN) in the client's data", field))
-    if isc_has_web(v) or ISC_MAIL_RE.search(v):
+    if isc_has_web(w) or ISC_MAIL_RE.search(w):
         if field in ISC_FLAG_ONLY:
             return "suspicious"
         raise _bad(field, tr("{0}: no web or e-mail address in the client's data", field))
@@ -438,6 +441,8 @@ def isc_put(ref):
         c.execute("UPDATE clients SET issuer_hold=? WHERE id=?", (isc_hold(cur.get("issuer_hold"), iss["id"], held, False, flags), cur["id"]))
         seen["held"] = held
 
+    from .issdocs import isd_client_fp
+    fp_before = isd_client_fp(c, r["id"])  # review F4 (2.1396.0): only drafts still as the key delivered them follow its change
     try:
         new, changed = ow_write(c, None, "client", r["id"], b, clean, where=f"id=? AND issuer_id=? AND {_area_sql(c, oid)}",
                                 args=(r["id"], int(iss["id"])), lock=f"clients-{int(r['id'])}", public=lambda c, cur: isc_public(cur),
@@ -453,7 +458,7 @@ def isc_put(ref):
     if seen.get("held"):
         _tell(c, iss, new)
     from .issdocs import isd_client_changed
-    isd_client_changed(c, iss["id"], r["id"])  # 2.1396.0 (#6701): its drafts' preview follows the key's own change of the client
+    isd_client_changed(c, iss["id"], r["id"], fp_before)  # 2.1396.0 (#6701): its drafts' preview follows the key's own change of the client
     c.commit()
     new = isc_row(c, iss, ref)
     return jsonify(isc_public(new, flags=_flags_of(new)))
