@@ -2818,7 +2818,35 @@ def model_env(env):
 SECRET_PROC = re.compile(r"/proc/+[^\s/]*/+(?:task/+[^\s/]*/+)?[^\s/]*(?:env|[*?\[])")
 # 2.1386.0 (#6668, review R3 F1): the request token files of a team agent by name (also after a cd into the folder)
 SECRET_RUNENV = re.compile(r"(?:^|[^\w.-])(?:run-env|op\.env|auto\.env|p\d+\.env)(?![\w-])")
-SECRET_PS = re.compile(r"(?:^|[\s;&|(`])ps(?:\s+[^;&|\n`)]*?)?\s(?:[a-df-zA-Z]*e[a-zA-Z]*|-[a-zA-Z]*E[a-zA-Z]*)(?=[\s;&|)`]|$)")
+# Reader R4 F2: only ps as a command (line start, after ; & | ( ` $( or a prefix such as sudo / env / xargs) and only its own
+# option arguments: a BSD block without a dash with e (ps e, ps auxe, ps eww, ps aux e) or a dash block with E (ps -E);
+# a later word (docker ps --format table, ps -o etime, echo ps here) is no environment
+SECRET_PS_CMD = re.compile(r"(?:^|[;&|(`\n]|\$\()\s*(?:(?:sudo|doas|exec|eval|command|nice|nohup|env|time|watch|xargs|busybox|"
+                           r"\S*sh\s+-[a-z]*c)(?:\s+-\S+)*\s+)*(?:\S*/)?ps(?=\s|$)([^;&|\n`)]*)")
+PS_VAL_DASH = re.compile(r"^-(?:[a-zA-Z]*[oOpqUuGgtCkN]|-(?:format|pid|ppid|sort|user|group|cols|columns|rows|lines|tty|sid|ppid|quick-pid))$")
+PS_VAL_BSD = re.compile(r"^[a-zA-Z]*[oOpUtkN]$")
+
+
+def secret_ps(text):
+    """2.1386.0 (#6668, reader R4 F2): does a Bash line run ps with the environment (BSD e, -E)? The arguments of every ps
+    command in the line, a value of an option that takes one (-o etime, o etime, -p 1) skipped."""
+    for m in SECRET_PS_CMD.finditer(text):
+        args, skip = m.group(1).split(), False
+        for a in args:
+            if skip:
+                skip = False
+                continue
+            if a.startswith("--"):
+                skip = bool(PS_VAL_DASH.match(a)) and "=" not in a
+            elif a.startswith("-"):
+                if "E" in a[1:]:
+                    return True
+                skip = bool(PS_VAL_DASH.match(a))
+            elif re.fullmatch(r"[a-zA-Z]+", a):
+                if "e" in a:
+                    return True
+                skip = bool(PS_VAL_BSD.match(a))
+    return False
 
 
 def guard_secret(cmd, env=None, files=(), dirs=()):
@@ -2840,7 +2868,7 @@ def guard_secret(cmd, env=None, files=(), dirs=()):
             names |= {d, os.path.abspath(d), os.path.realpath(d)}
     if any(n and n in text for n in names) or SECRET_RUNENV.search(text):
         return GUARD_NO + "the command touches the agent's env file (its key). The Kalmido tools (MCP) have the access you need."
-    if SECRET_PROC.search(text) or SECRET_PS.search(text):
+    if SECRET_PROC.search(text) or secret_ps(text):
         return GUARD_NO + "the command reads the environment of processes (it holds the agent's key). The Kalmido tools (MCP) have the access you need."
     return None
 
