@@ -268,6 +268,49 @@ def _f6():
 _f6()
 
 
+
+# ---------------------------------------------------------------- review R3 F8: collected task events are cut per person
+# Without the fix the events of the gather window went as ONE bundle into one run, whoever made them: with two people the
+# server answered 400 several_people, the run was skipped and the events were gone from the queue.
+def _f8():
+    import sys
+    import tempfile
+    ar = sys.modules["agent_run"]
+    sys.path.insert(0, os.path.join(ROOT, "mcp"))
+    import agent_extras
+    tmp = tempfile.mkdtemp(prefix="kalmido-p6668f8-")
+
+    def ev(seq, who, kind="task_added"):
+        return {"event": kind, "seq": seq, "actor": {"kind": "person", "id": who} if who else None,
+                "data": {"task": {"id": 100 + seq, "title": f"t{seq}"}, "list_id": 1}}
+    ex = agent_extras.Extras(None, os.path.join(tmp, "st"), ["claude"])
+    ex.gather_s = 0
+    ex.owners = set()
+    got = ex.intake([ev(1, 5), ev(2, 7), ev(3, 5), ev(4, None, "tidy"), ev(5, 7)])
+    check(got == [] and len(ex.pending) == 5, f"(r) R3 F8: five task events wait in the gather window {len(ex.pending)}")
+    bs = ex.take_bundle()
+    who = [sorted({agent_extras.Extras.ev_person(e) for e in b["data"]["events"]}, key=str) for b in bs]
+    seqs = sorted(e["seq"] for b in bs for e in b["data"]["events"])
+    check(len(bs) == 3 and who == [[5], [7], [None]] and seqs == [1, 2, 3, 4, 5] and [b["seq"] for b in bs] == [3, 5, 4],
+          f"(r) R3 F8: one bundle per person (and one for the automation), no event lost {who} {seqs} {[b['seq'] for b in bs]}")
+    # each bundle asks the request token for its one person: never 400 several_people
+    r = ar.Runner(["claude"], os.path.join(tmp, "run"))
+    r.extras = None
+    r.agent = {"owner_id": None, "request_token": True, "runtime": {}}
+    asked = []
+
+    def rt(seqs=None, operator=False):
+        asked.append(sorted(seqs or []))
+        return "abk_rq" + "z" * 26, 0, True
+    r.api.request_token = rt
+    for b in bs:
+        check(r.run_request([b], None) is True, "(r) R3 F8: the bundle's run gets its token")
+    check(asked == [[1, 3], [2, 5], [4]], f"(r) R3 F8: each ask names one person's events only {asked}")
+
+
+_f8()
+
+
 # ---------------------------------------------------------------- (m) review F2: no run reads the long-lived token
 # Without the fix a team agent's run could read kalmido-agent.env (or the starter's /proc/<pid>/environ) and ask request
 # tokens for anybody with the agent's own token. 2.1386.0 (merged with #6457): the guard hook of #6457 carries it -- its
