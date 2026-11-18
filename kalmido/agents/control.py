@@ -528,6 +528,7 @@ def ctl_gate():
 
 
 CTL_PROPOSALS = ("/lists/{}/playbook/proposals", "/lists/{}/rules/proposals", "/layouts/proposals")
+# other proposal routes to a person: #7158 (reader F8, legacy)
 
 
 def ctl_meta_circle(c, a, method, path, va, b):
