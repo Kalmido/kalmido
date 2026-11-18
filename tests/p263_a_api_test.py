@@ -162,6 +162,10 @@ if att:
     check(A.get(B + f"/api/attachments/{att[0][0]}").content == png(), "the list's owner reads the file")
     check(Ca.get(B + f"/api/attachments/{att[0][0]}").status_code in (403, 404), "another organisation: no file")
     check(anon.get(B + f"/api/attachments/{att[0][0]}").status_code in (401, 403, 404), "without an account: no file")
+    # 2.1391.0 (#6906): the name came from outside Kalmido: marked, no uploader in the task (the MCP fences it as data)
+    check(dbx("SELECT outside FROM attachments WHERE id=?", (att[0][0],))[0][0] == 1, "#6906: the form's file is marked as from outside")
+    ta = (A.get(B + f"/api/tasks/{t[0]}").json().get("attachments") or [{}])[0]
+    check(ta.get("outside") is True and "by" not in ta, f"#6906: the task's file: from outside, no uploader {ta}")
 ev = [e for e in events(AG)[n0:] if e["event"] == "task_added"]
 check(ev and ev[0]["data"].get("source") == "form" and ev[0]["data"].get("portal") is True and ev[0]["data"].get("ttype") == "bug",
       "the agent: task_added with source form, portal, ttype " + json.dumps(ev[:1])[:400])
