@@ -578,7 +578,8 @@ def wiki_relink_many(c, oid, uid, renames, ts):
 @app.patch("/api/wiki/pages/<int:pid>")
 def wiki_update(pid):
     """{path?, body?, expect_updated_at? (409 with the current page when someone else saved in between), relink? (default
-    true: a new name changes the [[links]] to it in the space)}"""
+    true: a new name changes the [[links]] to it in the space), overwrite? (2.1368.0 #6657: true = "Keep mine" after a 409:
+    the text goes over a save in between; the pictures it brings in are nobody's, like a save without expect_updated_at)}"""
     c = db()
     if "path" in (request.get_json(silent=True) or {}):  # review 2.533.0 (#4318 A17): a rename may relink: that lock first
         write_lock(c, "wiki-relink")
@@ -636,7 +637,11 @@ def wiki_update(pid):
         if not hit:  # someone saved between the read above and this write
             return conflict(wiki_need(c, pid))
         if "body" in f:
-            wiki_set_links(c, pid, plain, uid, prev[0])  # 2.1284.0 (#6321): the person's own save: what it embeds is theirs
+            # 2.1284.0 (#6321): the person's own save: what it embeds is theirs. 2.1368.0 (#6657, re-check N4): only a save on
+            # the state it was written on (expect_updated_at) -- one without it, or "Keep mine" over a save in between
+            # (overwrite: true), may bring back a picture someone else took out: what appears there is nobody's
+            mine = bool(exp) and b.get("overwrite") is not True
+            wiki_set_links(c, pid, plain, uid if mine else None, prev[0])
         if "path" in f:
             wkh_rename(c, r, f["path"], uid)  # 2.571.0 (#4766): the new name in the core's history (obj_history)
         if not locked:  # 2.123.0 A (#2102, #2106): the history and the word index
