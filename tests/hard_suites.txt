@@ -116,3 +116,6 @@ rls_static
 launcher_parity
 agent_docs_coverage
 p2381_a_guards
+# 2.1397.0 (#7113, review F13 of job/5377): the merge queue's own guard (static, no server, its own group) - soft, it ran in no
+# stage before live since the queue stage runs the hard groups only (tests/stages.py queue)
+p5787_queue_gate
