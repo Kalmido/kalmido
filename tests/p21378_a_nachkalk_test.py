@@ -97,6 +97,9 @@ def scenario(S, who, org=None):
     check(abs(s["plan_net"] - float(doc["totals"]["net"])) < 0.01 and abs(s["actual_net"] - actual) < 0.01 and abs(s["diff_net"] - (actual - s["plan_net"])) < 0.01,
           f"{who}: planned = the quotation's net {doc['totals']['net']}, actual {actual}: {s}")
     check(s["timed"] == 3 and s["linked"] == 5 and s["plan_net_text"] and s["actual_net_text"], f"{who}: the counters {s}")
+    # 2.1389.0 (#6106 b): a linked hour position without tracked time is marked; the sum is not below zero here
+    check(rb["Farbkorrektur"].get("warn") == "no_time" and rb["Schnitt"].get("warn") == "" and rb["Konzept"].get("warn") == ""
+          and s.get("no_time") == 1 and s.get("negative") is False, f"{who}: #6106 Farbkorrektur (0 h) warned, the sum not negative {s}")
     check(not sql("SELECT 1 FROM office_docs WHERE source_doc_id=?", (Q,)), f"{who}: the preview makes nothing")
     # ------------------------------------------------------------ the draft
     r = S.post(B + f"{D}/{Q}/postcalc", json={"client_ref": f"pc-{who}-1"})
@@ -141,6 +144,18 @@ def scenario(S, who, org=None):
         check(S.delete(B + f"{D}/{x}").status_code in (200, 204), f"{who}: draft {x} deleted")
     rb = {x["title"]: x for x in S.get(B + f"{D}/{Q}/postcalc").json()["rows"]}
     check(rb["Schnitt"]["actual_qty"] == 8.25, f"{who}: the times are open again {rb['Schnitt']}")
+    # 2.1389.0 (#6106 b): a fixed discount larger than the tracked amount: the preview says the actual sum is below zero
+    r = S.post(B + D, json={"kind": "offer", "lang": "de", "project_title": f"Kurzfilm {who}", "client_id": cl,
+                            "items": [{"kind": "service", "title": "Dreh", "qty": 2, "unit": "hour", "rate": 50}]})
+    QN = r.json().get("id")
+    check(r.status_code == 201 and S.patch(B + f"{D}/{QN}", json={"discount_amount": 80}).ok, f"{who}: #6106 a quotation with a fixed discount {r.text[:160]}")
+    LN = S.post(B + "/api/lists", json={"name": f"Kurz {who}", "ptype": "agency", "time_tracking": True, "org_id": org}).json()["id"]
+    S.post(B + f"{D}/{QN}/project", json={"list_id": LN})
+    S.post(B + f"{D}/{QN}/tasks", json={"pick": [x["key"] for x in S.get(B + f"{D}/{QN}/tasks").json()["rows"]]})
+    S.post(B + f"{D}/{QN}/status", json={"status": "accepted"})
+    j = S.get(B + f"{D}/{QN}/postcalc").json()
+    sn = j.get("sums") or {}
+    check(sn.get("negative") is True and sn.get("actual_net", 0) < 0 and sn.get("no_time") == 1, f"{who}: #6106 the fixed discount makes the actual sum negative: warned {sn}")
     return Q, L, ts
 
 

@@ -11,7 +11,8 @@ function opc_rowHtml(x, d) {
   const unit = x.unit ? ofdUnit(x.unit, d) : '';
   const diff = x.state === 'time' && x.diff_qty ? `<span class="opc-diff ${x.diff_qty > 0 ? 'up' : 'down'}">${esc((x.diff_qty > 0 ? '+' : '') + x.diff_text)}</span>` : '';
   return `<tr class="opc-${esc(x.state)}" data-opc-key="${esc(x.key || '')}"><th scope="row">${esc(x.title || tr('Position'))}<small class="muted opc-st">${esc(tr(OPC_STATE[x.state] || x.state))}</small></th>`
-    + `<td class="num">${esc(x.plan_text)} ${esc(unit)}</td><td class="num opc-act">${esc(x.actual_text)} ${esc(unit)}${x.actual_h != null && x.state !== 'time' ? `<small class="muted">${esc(tr('{0} h tracked', fmtNum(x.actual_h, 2)))}</small>` : ''}</td>`
+    + `<td class="num">${esc(x.plan_text)} ${esc(unit)}</td><td class="num opc-act">${esc(x.actual_text)} ${esc(unit)}${x.actual_h != null && x.state !== 'time' ? `<small class="muted">${esc(tr('{0} h tracked', fmtNum(x.actual_h, 2)))}</small>` : ''}`
+    + `${x.warn === 'no_time' ? `<small class="opc-warn">${esc(tr('No tracked time: billed with 0 h'))}</small>` : '' /* 2.1389.0 (#6106) */}</td>`
     + `<td class="num">${/*html-ok*/ diff /* every value esc() */}</td><td class="num">${esc(x.plan_net_text)}</td><td class="num opc-actnet">${esc(x.actual_net_text)}</td></tr>`;
 }
 
@@ -26,6 +27,7 @@ function opc_html(j, d) {
     + `<th scope="col" class="num">${esc(tr('Planned'))} ${esc(tr('net'))}</th><th scope="col" class="num">${esc(tr('Actual'))} ${esc(tr('net'))}</th></tr></thead>`
     + `<tbody>${/*html-ok*/ rows.map(x => opc_rowHtml(x, d)).join('') /* opc_rowHtml escapes every value */}</tbody>`
     + `<tfoot><tr><th scope="row">${esc(tr('Sum'))}</th><td></td><td></td><td class="num opc-sumdiff">${esc(s.diff_net_text || '')}</td><td class="num opc-sumplan">${esc(s.plan_net_text || '')}</td><td class="num opc-sumact">${esc(s.actual_net_text || '')}</td></tr></tfoot></table></div>`
+    + (s.negative ? `<p class="opc-warn opc-neg" role="alert">${esc(tr('The actual sum is below zero: the fixed discounts are larger than the tracked amount. Check the discounts before you create the draft.'))}</p>` : '')  // 2.1389.0 (#6106)
     + `<p class="muted">${esc(tr('Before tax. The automatic lines (producing, raw data, discount) keep the quotation\'s amounts. The draft is not finalised.'))}</p>`;
 }
 
