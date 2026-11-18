@@ -101,7 +101,8 @@ def log(msg):
 
 def redact(text):
     text = text or ""
-    vals = [os.environ.get("KALMIDO_TOKEN", "")] + [v for k, v in os.environ.items() if re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k)]
+    # #7051 (Fable reader N2): a job started from a run has no KALMIDO_TOKEN in its environment; the value comes from the env file
+    vals = [env_credentials()[1]] + [v for k, v in os.environ.items() if re.search(r"TOKEN|SECRET|PASSWORD|API_KEY", k)]
     for v in sorted({v for v in vals if len(v) >= 8}, key=len, reverse=True):
         text = text.replace(v, "[redacted]")
     for pat in SECRET_RES:
