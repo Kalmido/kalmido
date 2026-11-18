@@ -21,8 +21,9 @@ from ..core.pg import (  # noqa: F401  (re-exported: the app imports the databas
     connect_pooled, insert_id, like_escape, table_columns, table_exists, wait_ready, write_lock,
 )
 from ..core.schema import (
-    GLOBAL_DEFAULTS, INDEXES, LIST_E2E_TRIGGER, PURGED_TRIGGER, QUICKNOTE_TRIGGER, REVOKED_TRIGGER, TICKET_NO_TRIGGER, WIKI_E2E_TRIGGER, MIGRATIONS, SCHEMA, SCHEMA_VERSION, TIME_TITLE_TRIGGER, USER_DEFAULTS,
+    GLOBAL_DEFAULTS, INDEXES, LIST_E2E_TRIGGER, QUICKNOTE_TRIGGER, REVOKED_TRIGGER, TICKET_NO_TRIGGER, WIKI_E2E_TRIGGER, MIGRATIONS, SCHEMA, SCHEMA_VERSION, TIME_TITLE_TRIGGER, USER_DEFAULTS,
     SEC_AT_TRIGGER,  # 2.410.0 B (#3515)
+    purged_trigger,  # 2.1373.0 (#6357): the trigger over the register's list (objparts.purged_tables)
 )
 from ..core.i18n import LANGS, browser_lang, tr  # 2.1337.0 (#6600): + browser_lang
 from .pg import pool_refresh, system_ctx as pg_system_ctx  # 2.149.0 G (#2517): pulled up from functions
@@ -1062,7 +1063,12 @@ def init_db(guard=True):
         c.executescript(trigger_skip_present(c, QUICKNOTE_TRIGGER))  # 2.477.0 (#3881): the private list "Notes" stays without members
         c.executescript(trigger_skip_present(c, WIKI_E2E_TRIGGER))  # 2.64.3 (#1817): members of organisations whose knowledge space has the lock
         c.executescript(trigger_skip_present(c, REVOKED_TRIGGER))  # 2.360.0 R (#2496): what was revoked stays revoked after a restore
-        c.executescript(trigger_skip_present(c, PURGED_TRIGGER))  # 2.360.4 (#3243): what was deleted for good stays deleted after a restore
+        # 2.360.4 (#3243): what was deleted for good stays deleted after a restore; 2.1373.0 (#6357): on every table the core's
+        # register names (objparts.purged_tables: every kind with a trash), only one with the row id the trigger reads
+        from .objparts import purged_tables
+        have = {r[0] for r in c.execute("SELECT table_name FROM information_schema.columns WHERE table_schema=current_schema() "
+                                        "AND column_name='id'").fetchall()}
+        c.executescript(trigger_skip_present(c, purged_trigger([t for t in purged_tables() if t in have])))
         c.executescript(trigger_skip_present(c, TICKET_NO_TRIGGER))  # 2.390.0 (#3353): running ticket numbers of projects with a key
         clk("triggers")
         from .objseen import osn_move
