@@ -8,7 +8,7 @@ tenant-matrix: office
  - A2: the letters' links to private documents (answer link, filed PDF) and private address book contacts end when the
    personal office moves (into an organisation, or becomes a new one): the preview names the number, the documents stay
    private and present, the boundary check finds nothing
- - A3: the organisation role accounting reads the bookkeeping but not the letters (403, the document side empty); an
+ - A3: the organisation role accounting reads the bookkeeping but not the letters (403, at a document too since 2.1340.0); an
    admin and a person without an organisation read them
 usage: p2153_a2_api_test.py <datadir>      (P2153A2_NOSTART=1: a running server on KALMIDO_TEST_PORT, no start.sh)"""
 import base64
@@ -169,7 +169,10 @@ for path in (LT, f"{LT}/{L1}", LT + "/recipients?q=a", LT + "/profile"):
 ws(Fr, f"org:{KAP}")
 DK = upload(Fr, "Kappa.txt", "Lieferant Beispiel\nDatum: 03.10.2026\nIhre Bestellung.\n", f"org:{KAP}")
 check(Fr.get(B + LT).status_code == 200 and Fr.get(B + f"{LT}/doc/{DK}").json().get("available") is True, "A3: the admin reads the letters")
-check(Bo.get(B + f"{LT}/doc/{DK}").status_code == 404, "A3: accounting sees no letters at a document (2.161.0: 404)")
+r = Bo.get(B + f"{LT}/doc/{DK}")
+# 2.1340.0 (task 6613): the role accounting has no area letters at all - the office's gate refuses before the document
+# is looked at (rights.ofr_acc_cap: 403 "not this area", the same for every document); before: 404 from the route (2.161.0)
+check(r.status_code == 403 and "letters" not in r.json(), f"A3: accounting sees no letters at a document (403) {r.status_code} {r.text[:200]}")
 
 print(f"\np2153_a2: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

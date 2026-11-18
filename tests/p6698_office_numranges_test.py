@@ -221,6 +221,7 @@ def run(S, who, member=None, stranger=None):
 
     # ---------------------------------------------------------------- payment reminders per range (default off)
     past = (TODAY - timedelta(days=30)).isoformat()
+    doc_due = {x[0]: x[1] for x in sql("SELECT id, due_date FROM office_docs WHERE id IN (?, ?)", (g2["id"], m1["id"]))}
     sql("UPDATE office_docs SET due_date=? WHERE id IN (?, ?)", (past, g2["id"], m1["id"]), write=True)
 
     def marked(did):
@@ -230,6 +231,9 @@ def run(S, who, member=None, stranger=None):
     r = S.patch(B + f"/api/office/num-ranges/{G}", json={"dunning": True})
     ok(r.ok and r.json().get("dunning") is True, "reminders switched on for the range " + r.text[:160])
     ok(until(lambda: marked(g2["id"]), 90), "... now the range's overdue invoice is told about too")
+    # 2.1360.0 (#6882): the due date is hashed into the chain (version 2) and a broken chain refuses the move: taken back
+    for x in (g2, m1):
+        sql("UPDATE office_docs SET due_date=? WHERE id=?", (doc_due[x["id"]], x["id"]), write=True)
 
     # ---------------------------------------------------------------- one way, close, remove
     r = S.delete(B + f"/api/office/num-ranges/{G}")

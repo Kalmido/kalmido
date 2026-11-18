@@ -138,7 +138,9 @@ def finalized(s, client, title):
     did = r.json()["id"]
     r = s.post(B + f"{D}/{did}/finalize")
     assert r.ok, r.text
-    sql("UPDATE office_docs SET date=? WHERE id=?", (day(5), did))
+    # 2.1360.0 (#6882): the date is hashed into the chain and a broken chain refuses the move: the back-dated document leaves
+    # its place (pending, like ledger.ofx_rechain) and the next finalising / the move links it anew with the date
+    sql("UPDATE office_docs SET date=?, chain_key='', chain_seq=NULL, chain_prev='', chain_hash='', chain_ver=NULL WHERE id=?", (day(5), did))
     return did, r.json()["number"]
 
 
