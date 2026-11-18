@@ -19327,5 +19327,7 @@
   "wrote": "geschreven",
   "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Na het terugzetten konden de factuuruitgevers niet worden gepauzeerd; pauzeer ze in de kantoorinstellingen.",
   "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "De factuuruitgevers zijn gepauzeerd ({0}), maar {1} van hun meldingen konden niet worden geschreven; kijk in het serverlogboek.",
-  "First letter of the name (automatic)": "Beginletter van de naam (automatisch)"
+  "First letter of the name (automatic)": "Beginletter van de naam (automatisch)",
+  "Remove address rule": "Adresregel verwijderen",
+  "Remove the address rule of {0}": "Adresregel van {0} verwijderen"
 }
