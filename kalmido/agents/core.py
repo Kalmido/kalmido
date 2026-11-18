@@ -958,8 +958,12 @@ RUNTIME_DEFAULTS = {"model": "", "autocompact": True, "autocompact_pct": None, "
                     "model_split": False, "model_decide": "", "model_routine": "",
                     # 2.992.0 (#5684): a third kind, reviews (a review the agent is asked for, a planned job of the kind
                     # review, a list check); '' = like model_decide
-                    "model_review": ""}
+                    "model_review": "",
+                    # 2.1394.0 (#7031): model and effort per kind of job of the host (agent_job.py: a build job, a read-only
+                    # review job --audit); '' = the host's default. The effort is Claude Code's --effort
+                    "model_job": "", "effort_job": "", "model_audit": "", "effort_audit": ""}
 DISPATCH_MODES = ("", "dry", "on")
+JOB_EFFORTS = ("", "low", "medium", "high", "xhigh", "max")  # 2.1394.0 (#7031): '' = the host's default
 # 2.396.0 A (#3386): the git author the agent's host sets for its commits (public in GitHub). '' = the neutral default;
 # git_coauthor: whether the AI appends a Co-Authored-By line. A project with a repo may override name / mail (git_author_of).
 GIT_AUTHOR_DEFAULT = ("Kalmido", "noreply@kalmido.com")
@@ -1039,7 +1043,7 @@ def runtime_clean(cur, b):
         if m and (len(m) > RUNTIME_MODEL_MAX or not RUNTIME_MODEL_RE.fullmatch(m)):
             raise BadInput(tr("Invalid value: {0}", "model"))
         out["model"] = m
-    for k in ("model_decide", "model_routine", "model_review"):  # 2.974.0 (#5668), 2.992.0 (#5684): same rules as model
+    for k in ("model_decide", "model_routine", "model_review", "model_job", "model_audit"):  # 2.974.0 (#5668), 2.992.0 (#5684), 2.1394.0 (#7031): same rules as model
         if k in b:
             m = b[k] if b[k] is not None else ""
             if not isinstance(m, str):
@@ -1048,6 +1052,12 @@ def runtime_clean(cur, b):
             if m and (len(m) > RUNTIME_MODEL_MAX or not RUNTIME_MODEL_RE.fullmatch(m)):
                 raise BadInput(tr("Invalid value: {0}", k))
             out[k] = m
+    for k in ("effort_job", "effort_audit"):  # 2.1394.0 (#7031)
+        if k in b:
+            v = b[k] if b[k] is not None else ""
+            if not isinstance(v, str) or v.strip().lower() not in JOB_EFFORTS:
+                raise BadInput(tr("Invalid value: {0}", k))
+            out[k] = v.strip().lower()
     if "model_split" in b:
         if not isinstance(b["model_split"], bool):
             raise BadInput(tr("Invalid value: {0}", "model_split"))

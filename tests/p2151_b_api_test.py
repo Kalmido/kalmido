@@ -26,10 +26,10 @@ def read(*p):
 
 files = {"mcp/agent_rules.md": read("mcp", "agent_rules.md"), "mcp/CLAUDE.template.md": read("mcp", "CLAUDE.template.md"),
          "docs/AGENT-SETUP.md": read("docs", "AGENT-SETUP.md"), "docs/AGENTS.md": read("docs", "AGENTS.md")}
-jsp = os.path.join(R, "static", "js", "agentchat.js")
-if os.path.exists(jsp):
-    with open(jsp, encoding="utf-8") as f:
-        files["AG_RULES"] = re.sub(r"\\n|\s+", " ", f.read()).lower()
+# #6887: the in-app rules (Settings > Agents > Set up) are the marked block of the template, read at runtime from
+# GET /api/agent-rules (no copy in static/js/agentchat.js any more)
+files["the in-app rules (template block)"] = re.search(r"<!-- kalmido-agent-rules:start -->(.*?)<!-- kalmido-agent-rules:end -->",
+                                                       files["mcp/CLAUDE.template.md"], re.S).group(1)
 for name, txt in files.items():
     for what, pat in PHRASES:
         if re.search(pat.lower(), txt):

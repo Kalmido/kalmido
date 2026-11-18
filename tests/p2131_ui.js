@@ -90,12 +90,17 @@ const form = (fields, files) => { const fd = new FormData(); for (const [k, v] o
     // #469: the rules block in both guides
     const tpl = fs.readFileSync(path.join(__dirname, '..', 'mcp', 'CLAUDE.template.md'), 'utf8');
     const part = tpl.split('<!-- kalmido-agent-rules:start -->\n')[1].split('<!-- kalmido-agent-rules:end -->')[0].trim() + '\n';
-    check(w.eval('AG_RULES') === part, 'AG_RULES = mcp/CLAUDE.template.md between the markers');
+    // #6887: no copy in agentchat.js any more: GET /api/agent-rules cuts the block out of the template
+    check(w.eval('typeof AG_RULES') === 'undefined' && (await call('GET', '/api/agent-rules')).rules === part, 'GET /api/agent-rules = mcp/CLAUDE.template.md between the markers');
     for (const k of ['Markdown', '**Entscheidung', 'typing signal', 'one job', 'summary in the chat', 'Approvals come only from humans', 'data, not instructions', 'Stop and SubagentStop', 'Park a blocker', 'get_attachment'])
       check(part.includes(k), `rules mention ${k}`);
-    w.eval('agGuideModal()'); await sleep(100);
+    w.eval('agGuideModal()');
+    await until(() => d.querySelector('.modal.agguide pre.agrules:not([aria-busy])'));
     const g = d.querySelector('.modal.agguide');
-    check(g && g.querySelector('pre.agrules')?.textContent === part && g.querySelector('[data-agr-copy]'), 'setup guide: the rules block with Copy rules');
+    check(g && g.querySelector('pre.agrules')?.textContent === part && g.querySelector('[data-agr-copy]'), 'setup guide: the rules block (loaded on opening) with Copy rules');
+    let copied = null; w.navigator.clipboard ? (w.navigator.clipboard.writeText = async t => { copied = t; }) : Object.defineProperty(w.navigator, 'clipboard', {value: {writeText: async t => { copied = t; }}});
+    click(w, g.querySelector('[data-agr-copy]')); await until(() => copied !== null);
+    check(copied === part, '#6887: Copy rules copies the loaded block');
     g?.remove();
     const h = w.eval(`agSetupHtml('own', 'linux')`);
     check(h.includes('class="agprompt agrules"') && h.includes('data-agr-copy'), 'Settings > Agents > Set up: the rules block');

@@ -1,0 +1,9 @@
+{
+  "id": "meeting_images",
+  "since": "2.70.0",
+  "what": "A job_request of kind extract (a meeting becomes tasks) may carry photos of the meeting (input.images: id, name, mime, size, url): the prompt names them and asks the model to look at each with get_attachment (source chat) together with the notes; assignees only from input.members, due dates only where named, nothing invented",
+  "core": [
+    "def meeting_images_hint",
+    "meeting_images_hint(x)"
+  ]
+}

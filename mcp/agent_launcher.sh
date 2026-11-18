@@ -3,7 +3,8 @@
 #
 # Kalmido never runs an agent. An admin only chooses runtime settings in Settings > Agents > (agent) > Runtime and
 # Kalmido hands them to the agent: GET /api/v1/agent -> "runtime" {model, autocompact, autocompact_pct, nightly_reset,
-# reset_seq, timezone}. This script runs on the agent's host and applies them:
+# reset_seq, timezone}. This launcher (2.1394.0, #4068) only loads the env file, finds Python and starts mcp/agent_run.py
+# --launch, which applies them -- the same code for this launcher and agent_launcher.ps1:
 #   - starts the agent command, ALWAYS in a fresh session (Claude Code starts a new conversation unless it gets
 #     --continue / --resume, so never pass those here)
 #   - model:            appends `--model <model>` (empty = the command's own default)
@@ -14,6 +15,7 @@
 #   - git author (2.396.0, #3386): GIT_AUTHOR_NAME / _EMAIL and GIT_COMMITTER_NAME / _EMAIL from runtime.git_author (a
 #     project with a repository may name its own: data.repo.git_author of a task), KALMIDO_GIT_COAUTHOR=1 when the agent
 #     should append a Co-Authored-By line; an older server without git_author: nothing is set
+#   - work window (2.236.0, #2905): outside the work window of its work style no new session starts
 #   - interim summary (2.233.0, #3189: rotate_size / rotate_runs / rotate_idle_min, sent as rotate_tokens etc.): applied per chat
 #     conversation by mcp/agent_run.py in --events mode; without --events the command runs one session (not applicable)
 # It polls GET /api/v1/agent every KALMIDO_POLL seconds (default 60): one small request, no events are consumed.
@@ -29,11 +31,11 @@
 #             generic names the tool, 2.391.0). Example, a headless loop that works through its events:
 #               agent_launcher.sh -e ~/.config/kalmido/agent.env -- claude -p "$(cat ~/agent/prompt.md)" --permission-mode acceptEdits
 #   --once    print the command line and environment it would use, then exit (a dry run; the token is never printed)
-#   --events  event mode (2.35.0, recommended for Claude Code): the launcher starts mcp/agent_run.py, which waits for the
-#             agent's events and starts ONE fresh headless run of COMMAND per event (`-p --output-format stream-json
-#             --verbose`, the event as prompt on stdin), like a hosted chat service: steps between tool calls, model and
-#             permission mode, typing / status, plan usage ring, reply reference, approval cards; the final text of a
-#             chat run is posted as the answer. COMMAND then is the plain agent command without -p, e.g.
+#   --events  event mode (2.35.0, recommended for Claude Code): mcp/agent_run.py waits for the agent's events and starts
+#             ONE fresh headless run of COMMAND per event (`-p --output-format stream-json --verbose`, the event as prompt
+#             on stdin), like a hosted chat service: steps between tool calls, model and permission mode, typing / status,
+#             plan usage ring, reply reference, approval cards; the final text of a chat run is posted as the answer.
+#             COMMAND then is the plain agent command without -p, e.g.
 #               agent_launcher.sh -e ~/.config/kalmido/agent.env --events -- claude --mcp-config ~/agent/.mcp.json
 #             Same as KALMIDO_EVENTS=1 in the env file. Optional keys there: KALMIDO_PROMPT_FILE (text in front of every
 #             event), KALMIDO_USAGE_LIMIT (pause new runs at this % of the week), KALMIDO_USAGE_FILE (a status line
@@ -42,266 +44,46 @@
 #             in the chat when a run compacts its conversation, {0} = the time). Without --events: the command runs as it is.
 #   KALMIDO_HOST  the computer name shown in Kalmido (2.44.0; default: hostname without the domain), sent once at start
 #   KALMIDO_PYTHON  the Python to use (default: python3)
+#   KALMIDO_POLL / KALMIDO_RESTART_DELAY  seconds between two reads of the settings (60) / before a restart (10)
 # Exit codes: 0 stopped (TERM / INT end the command with everything it started, KILL after 30 s), 1 Kalmido not reachable at
-# the start, 2 a wrong start (no env file, KALMIDO_URL / KALMIDO_TOKEN missing, event mode without agent_run.py).
-# Needs: bash (3.2 is enough, the macOS one), curl, python3 (JSON, time zones, a new process group). 2.44.0 (#962): no GNU
-# date, setsid or other GNU-only tools any more, so it runs on macOS and Linux alike. /agent-setup.sh of your Kalmido sets it up with an
-# autostart (launchd LaunchAgent / systemd --user); see docs/AGENTS.md "Runtime settings" for a hand-made systemd unit.
+# the start, 2 a wrong start (no env file, KALMIDO_URL / KALMIDO_TOKEN missing, no Python 3 or no mcp/agent_run.py).
+# Needs: bash (3.2 is enough, the macOS one) and python3 (3.9+). /agent-setup.sh of your Kalmido sets it up with an autostart
+# (launchd LaunchAgent / systemd --user); see docs/AGENTS.md "Runtime settings" for a hand-made systemd unit.
+# 2.1394.0 (#4068): two steps, the same in agent_launcher.ps1 (tests/launcher_parity_test.py checks the markers); every
+# capability of tests/launcher_parity_test.py lives in mcp/agent_run.py.
 set -uo pipefail
 
 log() { printf '%s agent_launcher: %s\n' "$(date '+%F %T')" "$*" >&2; }
 ENV_FILE=./kalmido-agent.env
-ONCE=0
-EVENTS=0
+FLAGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -e|--env) [[ $# -ge 2 ]] || { log "-e needs a file"; exit 2; }; ENV_FILE=$2; shift 2 ;;
-    --once) ONCE=1; shift ;;
-    --events) EVENTS=1; shift ;;
+    --once|--events) FLAGS+=("$1"); shift ;;
     --) shift; break ;;
     -h|--help) awk 'NR > 1 && !/^#/ { exit } NR > 1' "$0"; exit 0 ;;
     *) break ;;
   esac
 done
-CMD=("$@")
+
+# kalmido-starter-step: env_file -- every line of the env file into the environment (KALMIDO_ENV_FILE = its full path: the
+# model's process never gets KALMIDO_TOKEN, the MCP server, the hooks and agent_job.py read the token from the file, #6457)
 [[ -r "$ENV_FILE" ]] || { log "cannot read $ENV_FILE"; exit 2; }
 [[ "$ENV_FILE" == */* ]] || ENV_FILE=./$ENV_FILE  # "." would search PATH for a bare name
 set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
 set +a
-# 2.443.0 (#2940): exit 2 with a log line like the .ps1 (":?" ended it with 127)
-[[ -n "${KALMIDO_URL:-}" ]] || { log "KALMIDO_URL missing in $ENV_FILE"; exit 2; }
-[[ -n "${KALMIDO_TOKEN:-}" ]] || { log "KALMIDO_TOKEN missing in $ENV_FILE"; exit 2; }
-[[ "${KALMIDO_EVENTS:-0}" == 1 ]] && EVENTS=1
-# kalmido-capability: token_scoped (2.1367.0, #6457): the model's process never gets KALMIDO_TOKEN, only the env file's path
-# (KALMIDO_ENV_FILE); the MCP server, the usage hook, kalmido_cli.py and agent_job.py read the token from the file. Event mode:
-# mcp/agent_run.py takes it out of every run; without --events the command below starts without it.
 KALMIDO_ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd)/$(basename "$ENV_FILE")"
 export KALMIDO_ENV_FILE
-# kalmido-capability: toolsets (2.391.0, #3358: KALMIDO_TOOLSETS from the env file is exported by set -a above and read by mcp/kalmido_mcp.py)
-# kalmido-capability: profile (2.391.0, #3359): the command and its tool may come from the env file: KALMIDO_AGENT_CMD (the
-# command line, shell words, e.g. "codex" or "claude --mcp-config ~/agent/.mcp.json"; a COMMAND after -- wins) and
-# KALMIDO_AGENT_PROFILE (claude | codex | generic, else from the command's name). mcp/agent_run.py builds each run for the
-# profile (Codex CLI: codex exec --json); Kalmido's model setting is a Claude model and goes only to a claude command.
-if [[ ${#CMD[@]} -eq 0 && -n "${KALMIDO_AGENT_CMD:-}" ]]; then eval "CMD=($KALMIDO_AGENT_CMD)"; fi
-[[ ${#CMD[@]} -gt 0 ]] || CMD=(claude)
-AGENT0=${CMD[0]}  # the agent command itself (event mode puts python3 agent_run.py in front)
-PROFILE=${KALMIDO_AGENT_PROFILE:-}
-if [[ -z "$PROFILE" ]]; then
-  case "$(basename "$AGENT0")" in codex|codex.*) PROFILE=codex ;; *) PROFILE=claude ;; esac
-fi
-# kalmido-capability: steps, model, permission_mode, quota, reply_ref, status_typing, approval, old_server, proposals, message_edited, playbook, approval_check, notice, comment_answer, comment_blocks
-# kalmido-capability: outbox, jobs, event_bundling (2.44.0: mcp/agent_extras.py and mcp/agent_job.py, loaded by agent_run.py)
-# kalmido-capability: approval_closed, perm_relay, approval_lifecycle, session_resume, robust_runs
-# kalmido-capability: team_listen (2.46.1: team chat messages of lists the agent listens in on, in mcp/agent_run.py)
-# kalmido-capability: team_thread (2.139.0: a team chat message in a thread is answered in that thread, in mcp/agent_run.py)
-# kalmido-capability: rules_block (2.46.6: the fixed rules of mcp/agent_rules.md in front of every prompt, in mcp/agent_run.py)
-# kalmido-capability: control_rules (2.235.0: the control level, goal and one-way steps in the rules block, in mcp/agent_run.py)
-# kalmido-capability: workflow_file (2.46.6: WORKFLOW-KALMIDO.md, asked for once, in mcp/agent_run.py)
-# kalmido-capability: job_wake (2.46.6: a wake run after a job, a lost job continued once; mcp/agent_run.py + agent_job.py)
-# kalmido-capability: job_names (2.59.0: a name per job, part jobs name their leader; mcp/agent_job.py)
-# kalmido-capability: job_msg (2.96.0: a job's result posts job_msg result / error; mcp/agent_job.py)
-# kalmido-capability: layout_answer (2.55.0: the answer to an arrangement proposal, in mcp/agent_run.py)
-# kalmido-capability: chat_pinned (2.62.0: a pinned / unpinned chat message is information only, no run; in mcp/agent_run.py)
-# kalmido-capability: data_lock_info (2.235.0: data_lock_changed is information only, no run; Kalmido enforces the lock itself; in mcp/agent_run.py)
-# kalmido-capability: job_message (2.56.0: a message to a job from its card, in mcp/agent_run.py)
-# kalmido-capability: job_chat (2.153.0: a message typed in a job's own chat is answered there, in mcp/agent_run.py)
-# kalmido-capability: customer_comment (2.63.0: a customer's comment / public answers of a customer report, in mcp/agent_run.py)
-# kalmido-capability: meeting_images (2.70.0: the photos of a meeting request, looked at with get_attachment, in mcp/agent_run.py)
-# kalmido-capability: merge_proposal (2.70.0: duplicate contacts as a proposal, in mcp/agent_run.py)
-# kalmido-capability: text_proposal (2.126.1: an office text, a document summary, a client report as a proposal, in mcp/agent_run.py)
-# kalmido-capability: ideas_proposal (2.156.0: ideas for a branch of the mind map as a proposal, in mcp/agent_run.py)
-# kalmido-capability: receipt_read (2.299.0: a receipt read by the agent from the file itself as a proposal, in mcp/agent_run.py)
-# kalmido-capability: card_statement_read (2.469.0: a credit card statement read by the agent from the PDF itself as a proposal, in mcp/agent_run.py)
-# kalmido-capability: dispatcher (2.481.0, #3662: the list worked off mechanically when switched on, in mcp/agent_run.py + mcp/agent_dispatch.py;
-# 2.1368.0 #7028: a job ends in a pull request with an approval card after the dispatcher's own check, never in a merge)
-# kalmido-capability: model_per_run (2.974.0, #5668: the model per run when switched on in Kalmido; 2.992.0, #5684: a third kind for reviews, usage per kind, in mcp/agent_run.py)
-# kalmido-capability: abort (2.144.0: Stop in the chat ends the running command and confirms it, in mcp/agent_run.py)
-# kalmido-capability: contract_notice (2.70.0: a contract's notice deadline -> ONE propose_contract_notice, in mcp/agent_run.py)
-# kalmido-capability: perm_user_choice (2.312.0, #3266: the person for permission questions chosen in Kalmido before KALMIDO_PERM_USER, in mcp/agent_run.py)
-# kalmido-capability: letter_draft (2.153.0: a request to draft an answer to a document -> ONE create_letter_draft, in mcp/agent_run.py)
-# (2.44.0: agent_run.py; perm_relay and session_resume only when COMMAND is Claude Code; 2.391.0: session_resume also Codex CLI)
-# (2.126.0: perm_relay asks only the agent's operator: owner, KALMIDO_PERM_USER, KALMIDO_OWNER_IDS)
-# kalmido-capability: usage_hook (2.306.0, #2927: claude_usage_hook.py as Stop / SubagentStop hook in the run settings, in mcp/agent_run.py)
-# kalmido-capability: dangerous_guard (2.615.0, #3758: a PreToolUse hook in the run settings refuses force-push, tag delete, docker prune, reboot; KALMIDO_BLOCK_DANGEROUS=0 from the env file switches it off, in mcp/agent_run.py)
-# (2.619.0, #3267: jobs get the same usage hook, in mcp/agent_job.py)
-# kalmido-capability: weekly_limit (2.619.0, #2196: a job at the weekly limit waits for that reset, in mcp/agent_job.py)
-# kalmido-capability: audit_jobs (2.619.0, #2792: agent_job.py start --audit, a read-only review area of its own)
-# kalmido-capability: image_root (2.619.0, #2383: looked-at images only from KALMIDO_PROJECT_DIR / the project folder, in mcp/agent_extras.py)
-# kalmido-capability: task_git_author (2.619.0, #3467: a task run commits as the task's repo.git_author, in mcp/agent_run.py)
-# kalmido-capability: perm_channel (2.625.0, #3661: the answer to a permission question over a local connection of the runner, never a file; in mcp/agent_run.py)
-# (2.126.0: playbook names the authors of a foreign Playbook; texts marked untrusted are framed as data)
-# kalmido-capability: untrusted_comments (2.1269.0, #6431: webhook tasks and comments without a Kalmido account are framed as data, in mcp/agent_run.py)
-# kalmido-capability: drop_untrusted (2.1313.0, #6557: a chat message through the upload token is framed as not proven, act only after an approval card, in mcp/agent_run.py)
-# (event mode: mcp/agent_run.py does them for both launchers, so .sh and .ps1 cannot drift apart)
-if [[ $EVENTS == 1 ]]; then
-  RUNNER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent_run.py"
-  [[ -r "$RUNNER" ]] || { log "$RUNNER missing (event mode)"; exit 2; }
-  CMD=("${KALMIDO_PYTHON:-python3}" "$RUNNER" -- "${CMD[@]}")
-fi
+
+# kalmido-starter-step: python -- KALMIDO_PYTHON or python3, and mcp/agent_run.py next to this file
 PY=${KALMIDO_PYTHON:-python3}
-# 2.44.0 (#962): an own process group without util-linux setsid (macOS has none): python3 starts a new session and
-# replaces itself with the command (same pid, so "kill -- -PID" ends all of it)
-if command -v setsid >/dev/null 2>&1; then NEWSESS=(setsid)
-else NEWSESS=("$PY" -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])'); fi
-POLL=${KALMIDO_POLL:-60}
-RESTART_DELAY=${KALMIDO_RESTART_DELAY:-10}
+command -v "$PY" >/dev/null 2>&1 || { log "needs Python 3 ($PY not found; set KALMIDO_PYTHON)"; exit 2; }
+RUNNER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent_run.py"
+[[ -r "$RUNNER" ]] || { log "$RUNNER missing"; exit 2; }
 
-# GET /api/v1/agent -> one tab-separated line: model autocompact pct nightly reset_seq timezone enabled working resumes_at
-# git_name git_mail coauthor (2.236.0: the work window of the work style, 1 = inside or none set; 2.396.0 #3386: the git author,
-# "-" = not sent). A paused agent's token is refused (403; 2.1264.0, #6351: also while its owner's account is locked,
-# code owner_locked - the same answer here, the agent goes on once the account is unlocked): that prints
-# "- - - - - - 0 1 - - - -" (stop the agent). The token goes to curl on stdin, never on its
-# command line. Exit 1: Kalmido not reachable (or another error); exit 2 (2.157.0, #1517): the token is revoked (401).
-# 2.443.0 (#2940): the JSON goes through KALMIDO_PYTHON too, not a fixed python3.
-fetch() {
-  local out code
-  out=$(printf 'header = "Authorization: Bearer %s"\n' "$KALMIDO_TOKEN" |
-        curl -sS --max-time 20 --config - -w '\n%{http_code}' "${KALMIDO_URL%/}/api/v1/agent") || return 1
-  code=${out##*$'\n'}
-  if [[ "$code" == 403 ]]; then printf -- '-\t-\t-\t-\t%s\tUTC\t0\t1\t-\t-\t-\t-\t0\n' "${SEQ:-0}"; return 0; fi
-  [[ "$code" == 401 ]] && return 2
-  [[ "$code" == 200 ]] || { log "GET /api/v1/agent: HTTP $code"; return 1; }
-  printf '%s' "${out%$'\n'*}" | "$PY" -c '
-import json, re, sys
-a = json.load(sys.stdin)
-r = a.get("runtime") or {}
-w = (a.get("work_style") or {}).get("state") or {}
-pct = r.get("autocompact_pct")
-ga = re.fullmatch(r"([^<>\t\n]+) <([^<>\s]+)>", str(r.get("git_author") or ""))
-print("\t".join(str(x) for x in (r.get("model") or "-", "1" if r.get("autocompact", True) else "0", pct if pct else "-",
-                                  r.get("nightly_reset") or "-", int(r.get("reset_seq") or 0), r.get("timezone") or "UTC",
-                                  "1" if a.get("enabled", True) else "0", "0" if w.get("working") is False else "1",
-                                  w.get("work_resumes_at") or "-", (ga.group(1).strip() or "-") if ga else "-", ga.group(2) if ga else "-",
-                                  "1" if r.get("git_coauthor") else "0",
-                                  "1" if a.get("status") == "paused" and "status_key" in a and not a["status_key"] else "0")))'
-}
-
-PID=""
-# kalmido-capability: runtime (model, auto-compact, fresh session, restart on change / reset / nightly, pause)
-start() {  # start the command with the current settings (its own process group, so a restart ends all of it)
-  local args=("${CMD[@]}") envs=()
-  [[ "$MODEL" != "-" && "$PROFILE" == claude ]] && args+=(--model "$MODEL")
-  if [[ "$AC" == "0" ]]; then envs+=(DISABLE_AUTO_COMPACT=1)
-  elif [[ "$PCT" != "-" ]]; then envs+=(CLAUDE_AUTOCOMPACT_PCT_OVERRIDE="$PCT"); fi
-  # kalmido-capability: git_author (2.396.0, #3386): the agent's commits carry the git author set in Kalmido
-  if [[ -n "$GNAME" && "$GNAME" != "-" && -n "$GMAIL" && "$GMAIL" != "-" ]]; then
-    envs+=(GIT_AUTHOR_NAME="$GNAME" GIT_AUTHOR_EMAIL="$GMAIL" GIT_COMMITTER_NAME="$GNAME" GIT_COMMITTER_EMAIL="$GMAIL" KALMIDO_GIT_COAUTHOR="$GCO")
-  fi
-  if [[ $ONCE == 1 ]]; then echo "env ${envs[*]:-} ${args[*]}"; return; fi
-  local acs=off; [[ "$AC" == 1 ]] && acs="on at ${PCT/#-/the default }%"
-  log "starting (fresh session, profile $PROFILE): ${args[0]}, model ${MODEL/#-/default}, auto-compact $acs"
-  # ${envs[@]+...}: bash 3.2 calls an empty array unbound under set -u
-  # 2.157.0 (#1517): KALMIDO_LAUNCHER_PID -- the event runner ends when this launcher was killed hard (no orphan left behind)
-  # 2.1367.0 (#6457): neither the model nor the event runner gets the token in its environment (Fable reader F5: a run could
-  # read the runner's through /proc/<pid>/environ); agent_run.py reads it from KALMIDO_ENV_FILE
-  local unset=(-u KALMIDO_TOKEN)
-  env -u DISABLE_AUTO_COMPACT -u CLAUDE_AUTOCOMPACT_PCT_OVERRIDE -u KALMIDO_GIT_COAUTHOR ${unset[@]+"${unset[@]}"} KALMIDO_LAUNCHER_PID=$$ ${envs[@]+"${envs[@]}"} "${NEWSESS[@]}" "${args[@]}" &
-  PID=$!
-  STARTED=$(date +%s)
-}
-stop() {
-  [[ -n "$PID" ]] || return 0
-  kill -TERM -- "-$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null
-  for _ in $(seq 1 30); do kill -0 "$PID" 2>/dev/null || break; sleep 1; done
-  kill -KILL -- "-$PID" 2>/dev/null || true
-  wait "$PID" 2>/dev/null
-  PID=""
-}
-trap 'stop; exit 0' TERM INT
-
-# epoch_at DAY HH:MM ZONE -> unix time of that wall-clock time in the IANA zone (2.44.0 #962: python3 instead of GNU date -d)
-epoch_at() {
-  "$PY" -c 'import sys, datetime
-from zoneinfo import ZoneInfo
-y, m, d = (int(x) for x in sys.argv[1].split("-")); hh, mm = (int(x) for x in sys.argv[2].split(":")[:2])
-print(int(datetime.datetime(y, m, d, hh, mm, tzinfo=ZoneInfo(sys.argv[3])).timestamp()))' "$1" "$2" "$3" 2>/dev/null
-}
-
-# kalmido-capability: host_name
-# 2.44.0 (#1517): which computer this is (PUT /api/v1/agent/status {status: idle, host}); a missing agent command is
-# reported as the agent's error. Older servers refuse the field (400): nothing happens.
-report_host() {
-  local h=${KALMIDO_HOST:-$(hostname 2>/dev/null || uname -n)} st=idle txt=""
-  h=${h%%.*}
-  if ! command -v "$AGENT0" >/dev/null 2>&1; then st=error; txt="agent command not found on ${h:-this computer}: $AGENT0"; log "$txt"; fi
-  printf 'header = "Authorization: Bearer %s"\n' "$KALMIDO_TOKEN" |
-    curl -sS --max-time 20 --config - -o /dev/null -X PUT -H 'Content-Type: application/json' \
-      --data "$("$PY" -c 'import json, sys; print(json.dumps({"status": sys.argv[1], "text": sys.argv[2], "host": sys.argv[3][:80]}))' "$st" "$txt" "$h")" \
-      "${KALMIDO_URL%/}/api/v1/agent/status" 2>/dev/null || true
-}
-
-# kalmido-capability: revoked_stop
-# 2.157.0 (#1517): a revoked token ("Remove computer" / agent deleted in Kalmido) stops the agent with ONE log line; the
-# launcher stays and checks quietly (exiting would only make launchd / systemd start it again and again)
-REVOKED=""
-revoked() {
-  [[ -n "$REVOKED" ]] || log "this computer's key no longer works (computer removed or agent deleted in Kalmido): the agent stays stopped; take it off this computer with the uninstall command that Kalmido shows"
-  REVOKED=1
-}
-while true; do
-  line=$(fetch); rc=$?
-  [[ $rc == 0 ]] && break
-  [[ $rc == 2 && $ONCE != 1 ]] || { log "cannot read the runtime settings from $KALMIDO_URL"; exit 1; }
-  revoked
-  sleep "$POLL" & wait $!
-done
-REVOKED=""
-IFS=$'\t' read -r MODEL AC PCT NIGHTLY SEQ TZNAME ENABLED WORKING RESUMES GNAME GMAIL GCO HELD <<< "$line"
-if [[ $ONCE == 1 ]]; then start; exit 0; fi
-SIG="$MODEL|$AC|$PCT|$GNAME|$GMAIL|$GCO"
-DONE_DAY=""  # the day whose nightly restart is done (a start after that time counts)
-nightly_due() {
-  [[ "$NIGHTLY" != "-" ]] || return 1
-  local day at
-  day=$(TZ="$TZNAME" date +%F)
-  [[ "$DONE_DAY" != "$day" ]] || return 1
-  at=$(epoch_at "$day" "$NIGHTLY" "$TZNAME") || return 1
-  [[ -n "$at" ]] || return 1
-  (( $(date +%s) >= at )) || return 1
-  DONE_DAY=$day
-  (( STARTED < at ))  # started before tonight's time -> restart now
-}
-# kalmido-capability: standing_rules (2.235.0, #2903: the active standing rules under the rules block, in mcp/agent_run.py; 2.1269.0, #6451: a rule the agent saves is only a proposal until its person confirms it, never in the block before)
-# kalmido-capability: reply_style (2.491.0, #2849: the person's wishes for the replies from the event into the prompt, in mcp/agent_run.py)
-# kalmido-capability: request_token (2.1386.0, #6668: a team agent works per request - the run gets only the token of its
-#   request, POST /api/v1/agent/request-token, in an env file of its own as KALMIDO_ENV_FILE; the dispatcher the one of the chosen person; in mcp/agent_run.py + agent_dispatch.py)
-# kalmido-capability: lang_texts (2.450.0, #3769: the texts by the agent's language, in mcp/agent_run.py)
-# kalmido-capability: job_watch (2.392.2, #3366: the watchdog hints in mcp/agent_run.py, the job chain in mcp/agent_job.py)
-# kalmido-capability: job_inbox, job_cards, approval_move (2.615.0, #3658: messages and card answers reach the job, cards wander, in mcp/agent_run.py + mcp/agent_job.py)
-# kalmido-capability: work_window (2.236.0, #2905): outside the work window of the work style (work_style.state.working
-# false) no new session starts until work_resumes_at; the events wait in Kalmido (event mode: mcp/agent_run.py holds its queue)
-CLOSED=""
-closed() {
-  [[ "$WORKING" == 0 ]] || { [[ -n "$CLOSED" ]] && log "work window open again"; CLOSED=""; return 1; }
-  [[ -n "$CLOSED" ]] || log "outside the work window of its work style: no new session until ${RESUMES/#-/the window opens}"
-  CLOSED=1
-}
-[[ "$ENABLED" == 1 && "$HELD" != 1 ]] && report_host  # 2.503.0 (#4309): the report says idle, a pause with a reason stays
-if [[ "$ENABLED" != 1 ]]; then log "the agent is paused in Kalmido; waiting"; elif ! closed; then start; fi
-STARTED=${STARTED:-$(date +%s)}
-nightly_due >/dev/null || true  # a start after tonight's time already counts as the nightly restart
-while true; do
-  sleep "$POLL" & wait $!
-  if [[ -n "$PID" ]] && ! kill -0 "$PID" 2>/dev/null; then
-    wait "$PID" 2>/dev/null; PID=""
-    log "the command ended; restarting in ${RESTART_DELAY}s"; sleep "$RESTART_DELAY"
-  fi
-  line=$(fetch); rc=$?
-  if [[ $rc == 2 ]]; then revoked; stop; continue; fi
-  if [[ $rc != 0 ]]; then log "Kalmido not reachable; keeping the agent as it is"; continue; fi
-  REVOKED=""
-  IFS=$'\t' read -r MODEL AC PCT NIGHTLY NSEQ TZNAME ENABLED WORKING RESUMES GNAME GMAIL GCO HELD <<< "$line"
-  why=""
-  [[ "$NSEQ" != "$SEQ" ]] && why="reset now ($SEQ -> $NSEQ)"
-  [[ -z "$why" && "$MODEL|$AC|$PCT|$GNAME|$GMAIL|$GCO" != "$SIG" ]] && why="runtime settings changed"
-  [[ -z "$why" ]] && nightly_due && why="nightly fresh restart ($NIGHTLY $TZNAME)"
-  SEQ=$NSEQ; SIG="$MODEL|$AC|$PCT|$GNAME|$GMAIL|$GCO"
-  if [[ "$ENABLED" != 1 ]]; then
-    [[ -n "$PID" ]] && { log "paused in Kalmido: stopping"; stop; }
-    continue
-  fi
-  if [[ -n "$why" && -n "$PID" ]]; then log "restart: $why"; stop; fi
-  [[ -n "$PID" ]] || closed || start
-done
+# kalmido-starter-step: run -- agent_run.py --launch does the rest (same process: TERM / INT reach it directly); without
+# KALMIDO_TOKEN in its environment: it reads the token from KALMIDO_ENV_FILE (#6457)
+export KALMIDO_LAUNCHER_PID=$$
+exec env -u KALMIDO_TOKEN "$PY" "$RUNNER" --launch ${FLAGS[@]+"${FLAGS[@]}"} -- "$@"

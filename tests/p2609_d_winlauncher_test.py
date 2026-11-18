@@ -193,15 +193,15 @@ def pid_alive(pid):
 # Every function that calls a native command with 2>$null sets a local 'Continue' (Signal-Agent runs inside Stop-Agent).
 with open(PS1, encoding="utf-8") as f:
     ps1 = f.read()
-fn = re.search(r"^function Stop-Agent \{\n(.*?)^\}", ps1, re.M | re.S)
-check(fn and "taskkill.exe" in fn.group(1) and re.search(r"^  \$ErrorActionPreference = 'Continue'$", fn.group(1), re.M)
-      and fn.group(1).index("$ErrorActionPreference = 'Continue'") < fn.group(1).index("taskkill.exe"),
-      "agent_launcher.ps1: Stop-Agent sets a local ErrorActionPreference Continue before taskkill ... 2>$null (PowerShell 5.1)")
-natives = [m.start() for m in re.finditer(r"^\s*.*& .*2>\$null", ps1, re.M)]
-for pos in natives:
-    owner = [m for m in re.finditer(r"^function ([\w-]+)", ps1[:pos], re.M)]
-    name = owner[-1].group(1) if owner else "?"
-    check(name in ("Stop-Agent", "Signal-Agent"), f"agent_launcher.ps1: a native call with 2>$null only under Stop-Agent's Continue ({name})")
+# 2.1394.0 (#4068): the launcher is thin -- no native call with 2>$null left in it; ending the tree (taskkill /T politely,
+# /F after 30 s) is done by agent_run.py --launch for both launchers
+code = ps1.split("#>", 1)[-1]  # the script after its help
+check(not re.search(r"^\s*.*& .*2>\$null", code, re.M) and "taskkill" not in code, "agent_launcher.ps1: no native call with 2>$null any more")
+with open(os.path.join(ROOT, "mcp", "agent_run.py"), encoding="utf-8") as f:
+    core = f.read()
+stop = core[core.index("    def stop(self):\n        \"\"\"End the command with everything it started"):core.index("    def nap(self, sec):")]
+check('["taskkill", "/T", "/PID"' in stop and '["taskkill", "/T", "/F", "/PID"' in stop and stop.index('"/T", "/PID"') < stop.index('"/T", "/F"'),
+      "agent_run.py --launch: taskkill /T first, /F after the wait")
 
 
 # ---- 3. the launcher with a stub API

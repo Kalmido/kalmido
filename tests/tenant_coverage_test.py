@@ -279,6 +279,7 @@ ROUTES = {
     "GET /api/lists/{}/agent-proposals": "agent", "POST /api/orgs/{}/server-agents": "agent",  # p2569_b_srvteam_test.py (another organisation 404)
     "GET /.well-known/oauth-protected-resource": "public", "GET /.well-known/oauth-protected-resource/mcp": "public",
     "GET /.well-known/oauth-authorization-server": "public", "GET /.well-known/oauth-authorization-server/mcp": "public",
+    "GET /api/agent-rules": "public",  # 2.1394.0 (#6887): the agent rules block of mcp/CLAUDE.template.md, the same text for everyone
     "GET /api/my/agents": "agent", "POST /api/my/agents": "agent", "PATCH /api/my/agents/{}": "agent",
     "PATCH /api/agents/{}/color": "agent",  # 2.47.1 (#1721): also p247c_b_api_test.py
     "POST /api/agents/{}/chat/{}/pin": "agent", "POST /api/v1/agent/chats/{}/messages/{}/pin": "agent",  # 2.62.0 (#1848): also p262_a_api_test.py

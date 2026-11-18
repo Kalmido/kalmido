@@ -14,6 +14,7 @@ import collections
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -102,10 +103,15 @@ p = stdio_list(["--toolsets", "bogus"], {})
 check(p.returncode == 2 and "bogus" in p.stderr, "a typo ends the server with exit 2")
 
 # starter parity: both launchers name the capability, the list knows it
-caps = json.load(open(os.path.join(MCP, "launcher_capabilities.json"), encoding="utf-8"))["capabilities"]
-check(any(c["id"] == "toolsets" for c in caps), "launcher_capabilities.json has toolsets")
+# #6887: one file per capability
+check(json.load(open(os.path.join(MCP, "launcher_capabilities", "toolsets.json"), encoding="utf-8")).get("id") == "toolsets",
+      "launcher_capabilities/toolsets.json")
+# 2.1394.0 (#4068): the launchers are thin (env file, Python, agent_run.py --launch); the capability is marked in agent_run.py,
+# the variable still named in both helps (it reaches the MCP server through the env file)
+with open(os.path.join(MCP, "agent_run.py"), encoding="utf-8") as fh:
+    check(re.search(r"kalmido-capability:[^\n]*\btoolsets\b", fh.read()) is not None, "agent_run.py names the capability")
 for f in ("agent_launcher.sh", "agent_launcher.ps1"):
     src = open(os.path.join(MCP, f), encoding="utf-8").read()
-    check("kalmido-capability: toolsets" in src and "KALMIDO_TOOLSETS" in src, f"{f} names the capability and the variable")
+    check("KALMIDO_TOOLSETS" in src, f"{f} names the variable")
 
 sys.exit(done("p2391_b_toolsets"))

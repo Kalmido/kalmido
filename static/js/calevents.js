@@ -169,12 +169,15 @@ async function evPop(anchor, e) {
   const desc = (e.description || '').slice(0, 2000);
   // 2.1241.0 (#6181): an event of an organisation's calendar: the organisation's stripe on the popover and, under "All
   // workspaces", where it comes from next to its calendar (cevOrg, docs/dev/kern.md "Organisation colour")
-  p.innerHTML = `<div class="cevpop evpop"${/*html-ok*/ wso_row(cevOrg(e), `--cc:${evCalColor(e)}`)}>
+  // #6720: whichever way it opens (a click, #ev/<id> from a push or News): the loaded event's calendar decides, and under
+  // "All workspaces" the popover wears the organisation's tone as its accent (wac-loc, like #detail of a task)
+  const org = cevOrg(e) || evCal(ev.cal_id) || null;
+  p.innerHTML = `<div class="cevpop evpop"${/*html-ok*/ wso_row(org, `--cc:${evCalColor(e)}`)}>
     <div class="cevh"><i class="cevdot"></i><b>${esc(cevTitle(e))}</b>${e.status === 'cancelled' ? `<span class="evst">${tr('Cancelled')}</span>` : (ev.status || e.status) === 'tentative' ? `<span class="evst evdraftb">${tr('Draft')}</span>` : ''}</div>
     <div class="cevm">${ic('clock', 's')}<span>${esc(evWhen(e, ev))}</span></div>
     ${e.recurring ? `<div class="cevm">${ic('repeat', 's')}<span>${esc(repeatLabel(ev.rrule) || tr('Repeats'))}${e.changed ? ' · ' + esc(tr('this date changed')) : ''}</span></div>` : ''}
     ${e.location ? `<div class="cevm">${ic('mappin', 's')}<span>${esc(e.location)}</span></div>` : ''}
-    <div class="cevm">${ic('cal', 's')}<span>${esc(evCalName(e))}${w ? '' : ' · ' + esc(tr('read-only'))}</span>${/*html-ok*/ wso_origin(cevOrg(e), 'cevo')}</div>
+    <div class="cevm">${ic('cal', 's')}<span>${esc(evCalName(e))}${w ? '' : ' · ' + esc(tr('read-only'))}</span>${/*html-ok*/ wso_origin(org, 'cevo')}</div>
     ${att.length ? `<div class="cevm evatt">${ic('users', 's')}<span>${att.slice(0, 8).map(a => `<span class="evap ps-${esc(a.partstat)}" title="${esc(tr(EV_PS_WORD[a.partstat] || ''))}">${esc(a.name || a.email)}</span>`).join(', ')}${att.length > 8 ? ' …' : ''}</span></div>` : ''}
     ${ev.reminders?.length ? `<div class="cevm">${ic('bell', 's')}<span>${esc(ev.reminders.map(m => evRemLabel(m, ev.all_day)).join(', '))}</span></div>` : ''}
     ${desc ? `<div class="cevdesc">${cevLinkify(desc)}</div>` : ''}
@@ -184,6 +187,7 @@ async function evPop(anchor, e) {
     ${me ? `<div class="evrsvp" role="group" aria-label="${esc(tr('Your answer'))}">${EV_PS.map(([k, n, i]) => `<button class="btn sm ${me.partstat === k ? 'on' : ''}" data-evps="${k}" aria-pressed="${me.partstat === k}">${ic(i, 's')} ${tr(n)}</button>`).join('')}</div>` : ''}
     ${w && ev.status === 'tentative' && !e.recurring ? `<div class="cevact apdraftact"><button class="btn sm pri" data-evp="apok">${ic('check', 's')} ${tr('Confirm')}</button><button class="btn sm" data-evp="del">${ic('x', 's')} ${tr('Discard')}</button></div>` : ''}
     <div class="cevact">${w ? `<button class="btn sm${ev.status === 'tentative' && !e.recurring ? '' : ' pri'}" data-evp="edit">${ic('edit', 's')} ${tr('Edit')}</button>${!ev.task_id ? `<button class="btn sm" data-evp="prep">${ic('plus', 's')} ${tr('Preparation task')}</button>` : ''}` : `<button class="btn sm" data-evp="totask">${ic('plus', 's')} ${tr('Create task from event')}</button>`}${feat('wiki') ? `<button class="btn sm" data-evp="minutes" title="${esc(tr('Minutes of this event as a knowledge page'))}">${ic('note', 's')} ${tr('Minutes|meeting')}</button>` : ''}${w ? `<button class="btn sm danger" data-evp="del">${ic('trash', 's')} ${tr('Delete')}</button>` : ''}</div></div></div>`;
+  lp_put(p.querySelector('.cevpop'), 'wac-loc', wso_locVars(wso_ws(org)), WAC_VARS);  // #6720: '' = Kalmido's accent
   placePop(p, at(), true);
   p.onclick = async ev2 => {
     const ps = ev2.target.closest('[data-evps]');
@@ -1006,7 +1010,8 @@ function evOpen(id) {  // #ev/<id> (a push, News): the calendar on that day, the
     if (S.route.mod !== 'cal') go('cal');
     setTimeout(() => {
       const anchor = $('#view .calbar h2') || $('#view');
-      const e = {eid: ev.id, occ: ev.start, cal: ev.cal_id, title: ev.title, location: ev.location, description: ev.description, all_day: ev.all_day,
+      // #6720: own = an event of an own calendar (cevOrg: the organisation's stripe, origin and tone, like a click)
+      const e = {own: true, eid: ev.id, occ: ev.start, cal: ev.cal_id, title: ev.title, location: ev.location, description: ev.description, all_day: ev.all_day,
         start: ev.all_day ? ev.start : new Date(ev.start).toISOString(), end: ev.all_day ? ev.end : new Date(ev.end).toISOString(), recurring: !!ev.rrule, status: ev.status, role: ev.role};
       if (!ev.all_day) { const s = new Date(`${ev.start}:00`), en = new Date(`${ev.end}:00`); e.start = s.toISOString(); e.end = en.toISOString(); }
       evPop(anchor, cevPrep(e));

@@ -247,8 +247,8 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    the token is never printed,
 3. fetches the starter files listed in [`mcp/starter_files.txt`](../mcp/starter_files.txt) (from the release of your
    server's version; `KALMIDO_STARTER_BASE` on the server points to a mirror; `--from DIR` / `-From DIR` takes a local copy),
-   *since 2.380:* every downloaded file must have the SHA-256 that your server sends with the token (`starter_sha256`, from
-   [`mcp/starter_sha256.txt`](../mcp/starter_sha256.txt), made by `tools/starter_sha.py` and checked in CI); a file that
+   *since 2.380:* every downloaded file must have the SHA-256 that your server sends with the token (`starter_sha256`,
+   computed by [`tools/starter_sha.py`](../tools/starter_sha.py) when the server image is built); a file that
    differs is not installed and the setup stops (a local copy via `--from` and an older server without checksums are not
    checked),
    2.306.0 (#2927): for a **team agent** (no owner) the person who made the setup code answers its permission questions by
@@ -592,10 +592,13 @@ Paths used below:
 | Usage hook (Stop + SubagentStop) | `python3 ~/kalmido/mcp/claude_usage_hook.py ~/.config/kalmido/agent.env` | `python C:/Users/<you>/kalmido/mcp/claude_usage_hook.py C:/Users/<you>/.config/kalmido/agent.env` |
 | Work directory | `~/agent` | `%USERPROFILE%\agent` |
 
-2.44.0 (#962): `agent_launcher.sh` runs on macOS as it is (bash 3.2, BSD tools): the time and the own process group come
-from `python3` instead of GNU `date` and util-linux `setsid`. `agent_launcher.ps1` with PowerShell 7 stays an alternative
-(`brew install --cask powershell`); both do the same and are tested (`tests/p2440_c_setup_test.py` also on macOS
-`/bin/bash`, `tests/launcher_ps1_test.py`).
+2.44.0 (#962): `agent_launcher.sh` runs on macOS as it is (bash 3.2, BSD tools). `agent_launcher.ps1` with PowerShell 7
+stays an alternative (`brew install --cask powershell`); both do the same and are tested (`tests/p2440_c_setup_test.py`
+also on macOS `/bin/bash`, `tests/launcher_ps1_test.py`). 2.1394.0 (#4068): both launchers are thin -- they load the env
+file, find Python 3 (3.9+, `KALMIDO_PYTHON`) and start `mcp/agent_run.py --launch`, which does all the rest once for both:
+reading the runtime settings, model, auto-compact, restarts, git author, work window, host name, a revoked token, the own
+process group (Windows: `taskkill /T`). Python 3 is now needed also without `--events`; on Windows the time zone of the
+nightly restart needs Python's `tzdata` package (`py -m pip install tzdata`), else the computer's local time counts.
 
 ### Guide A: a shared team agent on a server (admins)
 
@@ -3059,7 +3062,8 @@ Never a health / budget project, never a project with the lock, never across org
 
 `mcp/CLAUDE.template.md` ("Kalmido agent behaviour rules", English with a German note) is the rule block every agent's
 `CLAUDE.md` (or system prompt) should carry, below your own rules on who may instruct it. Settings › Agents › Set up and
-the setup guide show the same block with a *Copy rules* button. 
+the setup guide show the same block with a *Copy rules* button (since #6887 read from the template at runtime:
+`GET /api/agent-rules` -> `{"rules": "..."}` for any signed-in account, no copy in the app code).
 **Template "Software development" (2.1367.0, #2700).** *Set up on a computer* offers a *Rules template*: *General* (the block
 above, as before) or *Software development* (`--template software` / `-Template software` in the command). The second adds
 the block between `<!-- kalmido-template-software:start -->` and `:end` of `mcp/CLAUDE.template.md` to the new `CLAUDE.md`:
@@ -3119,6 +3123,7 @@ agent accordingly.
 |---|---|---|
 | Model | e.g. `opus`, `sonnet`, `haiku` or a full model id; empty = the agent's default | `model` (string, `""`) |
 | Model per run (2.974.0) | *Select the model per run*: off (default) = the one model above for every run. On = the host picks per run: *For your messages and decisions* (the person's chat messages, buttons, reactions, comments, team messages, unknown events, a job wake with a hard sign, a planned job that names a decision / approval / warning / failure) and *For routine* (job wakes without a hard sign, new tasks, tidy, follow-ups, other planned jobs); an empty field = *Model*. Same rules for the names as *Model*. Shown in the admin's *Runtime* and in the owner's permissions dialog of a personal agent (section *Model*, saved at once). While it is on the chat header shows only the model of the last run. 2.992.0: a third field *For reviews* (`model_review`, empty = *For your messages and decisions*) and below them the usage of the last 7 days per kind (runs, tokens, the costs only when the host reports them); the header shows *runs with <model of the last run>*, a tap opens this section (its owner, admins) | `model_split` (bool, default `false`), `model_decide`, `model_routine`, `model_review` (string, `""`; 400 otherwise) |
+| Jobs on its computer (2.1394.0) | model and effort for the long work the agent starts as a job on its computer (`agent_job.py`): *Model for build jobs*, *Effort for build jobs*, *Model for review jobs* (`--audit`, read only), *Effort for review jobs*; empty = the agent's default. Effort: *Low*, *Medium*, *High*, *Extra high*, *Maximum* (Claude Code's `--effort`). Shown in the admin's *Runtime* and in the owner's permissions dialog of a personal agent, saved at once | `model_job`, `model_audit` (string, `""`; same rules as `model`), `effort_job`, `effort_audit` (`""`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, `"max"`; 400 otherwise; `null` = `""`) |
 | Auto-compact | summarize the conversation when this much of the context is used; off = never | `autocompact` (bool), `autocompact_pct` (10-100 or `null` = the agent's default) |
 | Nightly fresh restart | a new session every night at this time, in the server's time zone; 2.233.0: shown as *Daily summary* in the section *Interim summary* (a host that keeps chat conversations writes the day's summary then and starts the next day's conversation) | `nightly_reset` (`"HH:MM"`, `""` = off / the host's default), `timezone` |
 | Interim summary (2.233.0) | when a host that keeps a chat conversation going (`--resume`) ends it with a short summary and starts a fresh one: at a session size *small / medium / large*, after so many runs (10-500), after so many minutes of pause (5-1440, 0 = never; a pause counts only from the small size on). Defaults = the former fixed values. Saves cost; the new conversation can forget details | `rotate_size` (`"small"`, `"medium"`, `"large"`), `rotate_runs` (default 60), `rotate_idle_min` (default 45); read-only, always filled in: `rotate_mb` (0.4 / 0.8 / 1.5, the session file in MB), `rotate_tokens` (80000 / 150000 / 250000 context tokens), `rotate_idle_mb` (0.4) |
@@ -3161,6 +3166,12 @@ host reports costs (`KALMIDO_USAGE_PRICES`), the costs - nothing is estimated
 `""` = reports without a kind, e.g. the summary before a new conversation or an older starter). The chat header shows
 *runs with <model>* (the model the host reported for its last run) only while the switch is on.
 
+2.1394.0 (#7031): model and effort per kind of job. The reference starter (`mcp/agent_job.py`, capability `model_per_run`)
+reads them at every start, revive and wake of a job: a build job gets `--model` of `model_job` and `--effort` of `effort_job`,
+a review job (`agent_job.py start --audit`) those of `model_audit` / `effort_audit`, each instead of the command's own; an
+empty field keeps the command as it is. A command that is not Claude Code keeps its own model and gets no effort. The job's
+log names the model and the effort.
+
 2.312.0: *Permission questions go to* is offered in the runtime section of a team agent (the people come from
 `GET /api/agents/{id}/perm-users` -> `{team, current, people: [{id, name}]}`, for instance admins and the owner of a personal
 agent). Saving checks the person (400 `perm_user` for an agent account, a disabled account, someone the agent does not reach
@@ -3176,7 +3187,8 @@ GET /api/v1/agent   -> {…, "runtime": {"model": "sonnet", "autocompact": true,
                                         "git_author_name": "", "git_author_email": "", "git_coauthor": false,
                                         "git_author": "Kalmido <noreply@kalmido.com>", "dispatch": "",
                                         "model_split": false, "model_decide": "", "model_routine": "",
-                                        "model_review": ""}}
+                                        "model_review": "", "model_job": "", "effort_job": "",
+                                        "model_audit": "", "effort_audit": ""}}
 PATCH /api/admin/agents/{id}  {"runtime": {"model": "opus", "autocompact_pct": 80}}   (admins; only the given keys change)
 POST  /api/admin/agents/{id}/reset                                                     (admins; 409 while paused)
 ```
@@ -3216,7 +3228,7 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    git repository. A commit whose subject names `#ID` means task ID is built; `job #N` is no task,
 2. give each task ONE state: *built* (its commit is in `close_ref`), *in a job* (a running job of the dispatcher has it),
    *on a branch* (a commit on a `job/*` branch only), *held* (a tag of `skip_tags` or a line `Waiting for:` / `Blocked by:`
-   in its description), *waiting for a yes* (its title or description names a step without a way back, `one_way_rx`, and
+   in its description; 2.1394.0: or its dependency field *Blocked by* names an open task that is not built yet, see below), *waiting for a yes* (its title or description names a step without a way back, `one_way_rx`, and
    it lacks the tag `one_way_ok_tag`, default `approved`: a person sets that tag as the approval), *stuck* (2.1368.0: `max_bundles`
    bundles, default 3, left it open; see below), *not yours* (2.1308.0: the person did not create it, see below) or *ready*,
 3. guard: a job that ended with a task still open gets exactly ONE second try (`max_tries`, default 2); then the task goes
@@ -3235,6 +3247,17 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    commit on its branch and stop (never merge, push, open a pull request or deploy),
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
    brakes, findings).
+
+**Dependencies (2.1394.0):** a task whose dependency field (*Blocked by* in the task, `POST /api/v1/tasks/{id}/dependencies
+{"blocked_by": ID}`) names an open task waits (*held*) until that task is built - its commit is in `close_ref` - or done. A
+blocker the agent cannot see and a field that cannot be read hold it too: an unread field never lets a task start early. The
+day report names the waiting tasks with their blockers, the `--dry-run` output and `dispatch-dry.log` list them under
+`waiting`. Only the field counts: a line such as `Grundlage: #12` in a comment or the description is text, not a dependency.
+
+**Reopened tasks (2.1394.0):** closing and reopening restore a state, they are no new order. A task the dispatcher closed
+for a commit and a person opened again keeps its bundle: it is *held*, not closed again and not bundled again, and the
+person is told once in the chat. A new commit naming it closes it as usual. Its tries (`max_tries`) also stay when a task
+is closed and opened again.
 
 **Brakes**: a stop file (`dispatch-STOP` in the runner's state folder or `KALMIDO-DISPATCH-STOP` in the project folder), a
 fresh week usage at or above `usage_limit_pct` (default 95) or `KALMIDO_USAGE_LIMIT`, the closed work window, and
@@ -3315,8 +3338,18 @@ server than GitHub).
 `live`, with `"fetch": true` for `origin/...`) closes tasks only once they are live. The pull request goes to `base`
 (`""` = `close_ref` without its remote, else the current branch).
 
+**Same file, one bundle (2.1394.0):** with `"same_file": true` (default off) the ready tasks that name a file of the first
+task of the bundle come right behind it: the one with the most shared files first, only tasks of the same priority class
+and priority, never a chain over files, inside `bundle_points` and `bundle_max`. A file is a path in the task's title or
+description (`static/css/app.css`, `mcp/agent_dispatch.py:223`, `app.py`; a folder or a source file ending), never a
+word of a sentence or a link. A file that most of the class's tasks name (more than a fifth of those that name files and
+more than `bundle_max`) connects nothing. A ready task also waits (*held*, listed under `waiting`)
+while an open job branch (`job/<id>`, commits outside `close_ref`) changes one of its files, so two jobs never change the
+same file at once.
+
 [`mcp/agent_launcher.sh`](../mcp/agent_launcher.sh) is a reference launcher for Claude Code that does exactly this
-(2.7.2: [`mcp/agent_launcher.ps1`](../mcp/agent_launcher.ps1) is the same for Windows and macOS, see [Set up an agent](#set-up-an-agent)). It
+(2.7.2: [`mcp/agent_launcher.ps1`](../mcp/agent_launcher.ps1) is the same for Windows and macOS, see [Set up an agent](#set-up-an-agent);
+2.1394.0, #4068: both only load the env file and start `mcp/agent_run.py --launch`, which does the steps below once for both). It
 reads `KALMIDO_URL` and `KALMIDO_TOKEN` from an env file, polls `GET /api/v1/agent` every 60 seconds (no events are
 consumed) and runs the command you give it:
 
@@ -3357,7 +3390,18 @@ it is posted with a visible note that nothing happens without an explicit yes (`
 then it becomes the agent's comment on that task with the approval card / the answer buttons. 2.44.0: the open cards of a
 chat stand in its prompt and a final block ` ```approval-done ` closes exactly the cards the person decided in words
 (`POST /api/v1/agent/chats/{user_id}/messages/{id}/withdraw`, never as a yes); open cards live in the state folder, get one
-reminder after 2 h and expire after 7 days; with Claude Code a `PermissionRequest` hook (handed in per run with
+reminder after 2 h and expire after 7 days. 2.1394.0 (#4951): a yes / no of the agent's person as the bare word ("Ja", "nein") or
+with a card number ("Yes, card 1234") decides the open card it fits like a press (the card's buttons go, the words reach the
+run as data; a job's card goes to its job); any other words ("Yes, but ...", "Ja, stopp"), "ok", questions, a reply to
+another message, a message through the upload token (origin drop) and anyone else never decide; a bare yes / no only when
+exactly one card is open, it is newer than the last answer (and the last job post) and no permission question is open;
+only a message written after the card (a higher message id) decides it. The cards of the
+person's jobs stand in the same list ("Card N (from your job #J)"). A job result that did not reach the chat is posted again
+after 30 s, 1, 2, 5, 10 and 15 min (only the parts still missing; each part of a long result names its job), the wake run
+follows only then and otherwise says plainly that the result is NOT in the chat (the file stays in `results/` of the state
+folder). `agent_run.py --card-stats` prints the counters (cards posted, moved, asked without a card, closed in words, by a
+yes / no text). 2.1394.0 (#5237): `agent_job.py start` posts the job's brief once, word for word, as `kind: brief` with
+`job_id` into the job's own chat; a server before 2.739 (400) gets nothing. With Claude Code a `PermissionRequest` hook (handed in per run with
 `--settings`) asks the person in the chat before a tool outside the allow list (`permission: true`, 9 minutes, no answer =
 no, `KALMIDO_PERM_RELAY=0`: off), and each person's chat goes on in one conversation (`--resume`; a new one after size,
 runs, a pause, a new day, a model change or *Reset now*, with a summary as context; `KALMIDO_SESSION_RESUME=0`: off); 429
@@ -3371,7 +3415,9 @@ other text variables override a text in every language. Its status texts also go
 `status_req_expired` -- 2.1386.0: a job's request token ran out, #6668) with `text_at` (ISO, the
 time in the text): `GET` carries them as `status_key` / `status_key_at` and the app shows the text in the language of whoever
 looks. `text` is still required for anything to show and stays what an older app or an unknown key shows; a server before
-2.450.0 answers 400 and gets the status again without the key.
+2.450.0 answers 400 and gets the status again without the key. 2.1394.0 (#3820): the launcher's report of a missing agent
+command (status `error`) goes the same way: `text_key` `status_no_command`, the text with the computer and the command in the
+agent's language ("Agentenbefehl auf desk-07 nicht gefunden: claude"), a 400 of an older server = again without the key.
 Keys in the env file: `KALMIDO_EVENTS=1` (same
 as `--events`), `KALMIDO_PROMPT_FILE`, `KALMIDO_STATE_DIR` (event cursor, default `~/.cache/kalmido-agent`),
 `KALMIDO_PERMISSION_MODE`, `KALMIDO_PERM_RELAY`, `KALMIDO_PERM_TIMEOUT`, `KALMIDO_PERM_USER` (2.126.0: with the owner and
@@ -3385,8 +3431,8 @@ values count as unknown), `KALMIDO_PYTHON` (2.443.0: both launchers and both set
 [AGENT-SETUP.md](AGENT-SETUP.md#other-tools-codex-cli-cursor-windsurf-gemini-cli)).
 2.443.0: both launchers stop alike: TERM / INT end the command and all it started (KILL after 30 s; Windows `taskkill /T`,
 `/F` after 30 s), a command that cannot start or an error in one round never ends the launcher. The list of these capabilities is
-[`mcp/launcher_capabilities.json`](../mcp/launcher_capabilities.json); `tests/launcher_parity_test.py` fails when one of the
-two launchers lacks one.
+the folder [`mcp/launcher_capabilities/`](../mcp/launcher_capabilities/) (one `<id>.json` per capability, #6887);
+`tests/launcher_parity_test.py` fails when one of the two launchers lacks one.
 
 ```sh
 mcp/agent_launcher.sh -e ~/.config/kalmido/agent.env --events -- claude --mcp-config ~/.kalmido-mcp.json --permission-mode dontAsk
@@ -3484,8 +3530,8 @@ active one is done.
 ### Host contract for the work style
 
 A host that follows the work style starts no new session and no run while `work_style.state.working` is false and goes
-on at `work_resumes_at`; the events stay where they are. The reference starters do this (capability `work_window` in
-[`mcp/launcher_capabilities.json`](../mcp/launcher_capabilities.json)): `agent_launcher.sh` / `agent_launcher.ps1` start
+on at `work_resumes_at`; the events stay where they are. The reference starters do this (capability `work_window`,
+[`mcp/launcher_capabilities/work_window.json`](../mcp/launcher_capabilities/work_window.json)): `agent_launcher.sh` / `agent_launcher.ps1` start
 no session outside the window, `agent_run.py` (event mode) keeps the events in its queue on disk, shows the status
 *paused* with the time it goes on, and reads `work_style_changed` at once (no run for it).
 

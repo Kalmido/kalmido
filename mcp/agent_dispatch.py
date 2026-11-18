@@ -13,7 +13,8 @@ chosen lists off deterministically -- no model decides what comes next:
   3. guard: a job without a progress line for stale_h hours, a job that ended with its tasks still open (2.1368.0, #4069:
      exactly one second try; after max_tries the task goes back to the list with a comment and into the next bundle, only
      after max_bundles bundles it is "stuck" and the person is told once), commits on a branch that never reached
-     close_ref, a one-way task without approval, a task waiting for something,
+     close_ref, a one-way task without approval, a task waiting for something (2.1394.0, #5200: also its dependency
+     field -- an open blocker not built yet),
   4. close the tasks whose commit is in close_ref (a comment with the commit, then complete),
   5. when a place is free and no brake holds: cut the next bundle (priority order, task sizes as points) and start ONE
      job (agent_job.py start --worktree) with a brief built from the tasks,
@@ -62,6 +63,9 @@ DEFAULTS = {
     "bundle_points": 8,       # at most this many points per job (a bigger task goes alone)
     "bundle_max": 6,          # at most this many tasks per job
     "group_field": "",        # tasks with the same value of this field go into one job together ("" = no groups)
+    "same_file": False,       # 2.1394.0 (#6176): ready tasks naming the same source file (a path in title / description) of
+                              # the same priority class go into the first task's bundle first; a ready task
+                              # also waits while an open job branch changes one of its files
     "first_tags": [],         # tags / list tags that go first (class 0)
     "title_classes": [],      # regular expressions on the title; the first match = class 1, 2, ...
     "skip_tags": ["blocked", "keep"],  # never started
@@ -106,6 +110,13 @@ NO_HOOKS = ("-c", "core.hooksPath=/dev/null")  # git hooks of the job's reposito
 RETIRED = {"worktree": "every job of the dispatcher has its own working copy (branch job/<id>)",
            "finish_cmd": "a job ends in a pull request with an approval card; merging and deploying are the person's"}
 ID_RE = re.compile(r"(?<![Jj]ob )(?<![\w/])#(\d{1,9})\b")
+# 2.1394.0 (#6176): a file a task names -- only paths ("mcp/agent_dispatch.py:223", "app.py"), never words of a sentence: a
+# path has a folder or a source file ending; links are left out
+URL_RE = re.compile(r"\b[a-z][a-z0-9+.-]*://\S+", re.I)
+PATH_RE = re.compile(r"(?<![\w./@-])(?:\./)?((?:[\w.-]+/)*[\w-]+\.[A-Za-z][A-Za-z0-9]{0,7})(?::\d+(?:-\d+)?)?(?![\w/@])")
+SOURCE_EXT = {"py", "js", "mjs", "ts", "tsx", "jsx", "css", "scss", "html", "htm", "vue", "svelte", "go", "rs", "rb", "php", "java",
+              "kt", "swift", "c", "h", "cc", "cpp", "hpp", "cs", "sh", "ps1", "sql", "json", "yml", "yaml", "toml", "md", "xml", "dart"}
+SAME_FILE_SHARE = 0.2  # a file named by more than this share of the class's tasks that name files (and by more than bundle_max) connects nothing
 
 
 LOGGED = set()
@@ -221,6 +232,17 @@ def group_of(t, field_ids):
     return str((t.get("fields") or {}).get(fid) or "").strip() if fid else ""
 
 
+def files_of(t):
+    """2.1394.0 (#6176): the files a task names in its title and description (paths only, the line number dropped)."""
+    text = URL_RE.sub(" ", (t.get("title") or "") + "\n" + (t.get("notes") or ""))
+    out = set()
+    for m in PATH_RE.finditer(text):
+        p = m.group(1)
+        if "/" in p or p.rsplit(".", 1)[-1].lower() in SOURCE_EXT:
+            out.add(p)
+    return out
+
+
 PRIO_RANK = {"urgent": 0, "high": 1, "medium": 2, "normal": 2, "": 2, "low": 3}
 
 
@@ -264,9 +286,48 @@ def author_of(t, owner):
     return ""
 
 
-def classify(tasks, evidence, jobs, reg, cfg, owner=None):
+def dep_wait(t, evidence, deps):
+    """2.1394.0 (#5200): what a task waits for in its dependency field (Kalmido's "Blocked by", task_deps; set in the app or
+    with POST /api/v1/tasks/<id>/dependencies {blocked_by}): the open blockers that are not built yet (no commit in
+    close_ref), "?" for a blocker the token cannot see or a list of blockers that could not be read -- an unread field never
+    lets a task start early. [] = free. deps = {task id: [blocker id | None = not visible]} (read_deps); a blocker that is
+    done never shows up (the server's "blocked" counts open blockers only). Not a text line: a comment is no field."""
+    if not (t.get("blocked") or deps.get(int(t["id"]))):
+        return []
+    bl = deps.get(int(t["id"]))
+    if bl is None:
+        return ["?"]
+    return ["?" if b is None else f"#{b}" for b in bl if b is None or int(b) not in evidence["done"]]
+
+
+def reopened(tid, evidence, reg):
+    """2.1394.0 (#5201): the dispatcher closed this task for the commit that is still its newest in close_ref, and a person
+    opened it again. Closing and reopening restore a state, they are no new order: the task keeps its bundle -- it is not
+    closed again (no fight with the person) and not bundled again; a NEW commit naming it closes it as usual. Its tries
+    (reg tries) stay as well."""
+    return bool(evidence["done"].get(tid)) and str((reg.get("closed") or {}).get(str(tid)) or "") == str(evidence["done"][tid])
+
+
+def file_wait(t, evidence, cfg):
+    """2.1394.0 (#6176): with same_file on, the open job branches (job/<id>, commits outside close_ref; every job has its own
+    branch since 2.1368.0, #7028) that change a file this task names: it waits for them, so two jobs never change the same
+    file at once. [] = free."""
+    if not cfg.get("same_file"):
+        return []
+    files = files_of(t)
+    return sorted(br for br, fs in (evidence.get("branch_files") or {}).items() if files & fs) if files else []
+
+
+def wait_reasons(t, evidence, deps, cfg):
+    """2.1394.0: what a task waits for -- open blockers of its dependency field (#5200), job branches on its files (#6176)."""
+    return dep_wait(t, evidence, deps or {}) + file_wait(t, evidence, cfg)
+
+
+def classify(tasks, evidence, jobs, reg, cfg, owner=None, deps=None):
     """One state per open task (STATES): done (commit in close_ref), building (an open job of the dispatcher has it),
-    on_branch (a commit on a job branch only), held (skip tag / a waiting line), needs_yes (one-way without the approval
+    on_branch (a commit on a job branch only), held (skip tag / a waiting line; 2.1394.0, #5200: an open blocker in its
+    dependency field that is not built yet, dep_wait; #5201: reopened after the dispatcher closed it; #6176: an open job
+    branch changes one of its files, file_wait), needs_yes (one-way without the approval
     tag), stuck (2.1368.0, #4069: max_bundles bundles left it open, max_tries jobs each), foreign (2.1308.0, #6523: not created by the person -- another member's
     task or one without a creator; 2.1375.0, #6677: or one someone else wrote the text of last; never started), ready."""
     running = {int(t) for jid, e in reg.get("jobs", {}).items() if (jobs.get(str(jid)) or {}).get("state") in RUNNING
@@ -275,7 +336,9 @@ def classify(tasks, evidence, jobs, reg, cfg, owner=None):
     for t in tasks:
         tid = int(t["id"])
         text = (t.get("title") or "") + "\n" + (t.get("notes") or "")
-        if tid in evidence["done"]:
+        if tid in evidence["done"] and reopened(tid, evidence, reg):
+            out[tid] = "held"
+        elif tid in evidence["done"]:
             out[tid] = "done"
         elif tid in running:
             out[tid] = "building"
@@ -283,7 +346,7 @@ def classify(tasks, evidence, jobs, reg, cfg, owner=None):
             out[tid] = "on_branch"
         elif author_of(t, owner):
             out[tid] = "foreign"
-        elif has_tag(t, cfg["skip_tags"]) or re.search(cfg["waiting_rx"], t.get("notes") or ""):
+        elif has_tag(t, cfg["skip_tags"]) or re.search(cfg["waiting_rx"], t.get("notes") or "") or wait_reasons(t, evidence, deps, cfg):
             out[tid] = "held"
         elif re.search(cfg["one_way_rx"], text) and not has_tag(t, [cfg["one_way_ok_tag"]]):
             out[tid] = "needs_yes"
@@ -297,10 +360,13 @@ def classify(tasks, evidence, jobs, reg, cfg, owner=None):
 def cut_bundle(tasks, states, cfg, field_ids):
     """The next job's tasks: the first ready task in priority order; with a group value all ready tasks of that group,
     else more ready tasks while the points fit (bundle_points) and bundle_max holds. A task bigger than bundle_points goes
-    alone. Deterministic: the same input gives the same bundle."""
+    alone. Deterministic: the same input gives the same bundle. 2.1394.0 (#6176): with same_file on, the ready tasks that
+    name a file of the first task come right behind it (same_file_first), inside the same limits."""
     q = sorted((t for t in tasks if states.get(int(t["id"])) == "ready"), key=lambda t: sort_key(t, cfg))
     if not q:
         return []
+    if cfg.get("same_file"):
+        q = same_file_first(q, cfg)
     first = q[0]
     g = group_of(first, field_ids)
     if g:
@@ -318,6 +384,33 @@ def cut_bundle(tasks, states, cfg, field_ids):
             out.append(t)
             pts += p
     return out
+
+
+def same_file_first(q, cfg):
+    """2.1394.0 (#6176, parity to the dispatcher of the Kalmido team): the queue with the tasks that share a file DIRECTLY
+    with the first task moved right behind it -- most shared files first, then queue order; only of the same priority class
+    and priority (sort_key's first two parts), never a chain over files. A collect file (named by more than SAME_FILE_SHARE
+    of the class's tasks that name files and by more than bundle_max) connects nothing. bundle_points / bundle_max stay."""
+    a = q[0]
+    cls = sort_key(a, cfg)[:2]
+    same = [t for t in q if sort_key(t, cfg)[:2] == cls]
+    tf = {int(t["id"]): files_of(t) for t in same}
+    files = tf[int(a["id"])]
+    if not files:
+        return q
+    count = {}
+    for fs in tf.values():
+        for f in fs:
+            count[f] = count.get(f, 0) + 1
+    limit = max(SAME_FILE_SHARE * sum(1 for fs in tf.values() if fs), int(cfg["bundle_max"]))
+    files = {f for f in files if count[f] <= limit}
+    pos = {int(t["id"]): n for n, t in enumerate(q)}
+    hits = sorted((-len(tf[int(t["id"])] & files), pos[int(t["id"])], t) for t in same[1:] if tf[int(t["id"])] & files)
+    if not hits:
+        return q
+    pulled = [h[2] for h in hits]
+    ids = {int(a["id"])} | {int(t["id"]) for t in pulled}
+    return [a] + pulled + [t for t in q if int(t["id"]) not in ids]
 
 
 def defuse_fence(text):
@@ -414,9 +507,10 @@ def ids_of(subject):
 def evidence_of(repo, cfg, now=None, skip=()):
     """{done: {tid: sha}, branch: {tid: (branch, age_s)}, ok}: commits of close_ref name built tasks; commits of the job
     branches (job/*) outside close_ref name tasks built but not landed. 2.1368.0 (#7028): a branch in skip (its check was
-    red) names nothing -- its tasks go back to the list."""
+    red) names nothing -- its tasks go back to the list. 2.1394.0 (#6176): branch_files = {branch: files it changes}
+    with same_file on (every job has its own branch since #7028)."""
     now = now or time.time()
-    out = {"done": {}, "branch": {}, "ok": False}
+    out = {"done": {}, "branch": {}, "branch_files": {}, "ok": False}
     if cfg["fetch"]:
         git(repo, "fetch", "--quiet", timeout=120)
     ref = cfg["close_ref"] or "HEAD"
@@ -432,6 +526,11 @@ def evidence_of(repo, cfg, now=None, skip=()):
     for br in (txt.split() if rc == 0 else []):
         if br in skip:
             continue
+        if cfg.get("same_file"):  # 2.1394.0 (#6176): the files an open job branch changes
+            rc3, t3 = git(repo, "diff", "--name-only", f"{ref}...{br}")
+            fs = {x.strip() for x in t3.splitlines() if x.strip()} if rc3 == 0 else set()
+            if fs:
+                out["branch_files"][br] = fs
         rc2, t2 = git(repo, "log", "--format=%ct\t%s", f"{ref}..{br}")
         for ln in (t2.splitlines() if rc2 == 0 else []):
             ts, _, subj = ln.partition("\t")
@@ -523,6 +622,24 @@ def read_tasks(api, cfg):
             if not cursor:
                 break
     return tasks, fids, ""
+
+
+def read_deps(api, tasks):
+    """2.1394.0 (#5200): {task id: [open blocker id | None = a task the token cannot see]} of the tasks whose row says
+    blocked (GET /tasks/<id>/dependencies, blocked_by); a task whose dependencies cannot be read is left out (dep_wait
+    holds it as unreadable)."""
+    out = {}
+    for t in tasks:
+        if not t.get("blocked"):
+            continue
+        try:
+            r = api.req("GET", f"/tasks/{int(t['id'])}/dependencies") or {}
+        except Exception as e:  # noqa: BLE001 - an unread field holds the task (dep_wait), the round goes on
+            log(f"dependencies #{int(t['id'])}: {type(e).__name__}")
+            continue
+        out[int(t["id"])] = [None if b.get("hidden") or b.get("id") is None else int(b["id"])
+                             for b in (r.get("blocked_by") or []) if isinstance(b, dict) and str(b.get("status") or "open") == "open"]
+    return out
 
 
 def read_comments(api, bundle):
@@ -698,7 +815,8 @@ class Dispatcher:
             return None
         self.last = now
         dry = (mode == "dry") if dry is None else dry
-        res = {"mode": "dry" if dry else "on", "problem": problem, "states": {}, "skipped": {}, "findings": [], "started": None, "closed": [], "brakes": []}
+        res = {"mode": "dry" if dry else "on", "problem": problem, "states": {}, "skipped": {}, "waiting": {}, "findings": [], "started": None,
+               "closed": [], "brakes": []}
         if problem:
             if self.reg["told"].get("problem") != problem:
                 self.reg["told"]["problem"] = problem
@@ -724,9 +842,11 @@ class Dispatcher:
             return res
         self.guard(jobs, cfg, now, res, ev, w)
         owner = self.owner()
-        states = classify(tasks, ev, jobs, self.reg, cfg, owner)
+        deps = read_deps(self.host.api, tasks)  # 2.1394.0 (#5200): the dependency field of the blocked tasks
+        states = classify(tasks, ev, jobs, self.reg, cfg, owner, deps)
         res["states"] = states
         by_id = {int(t["id"]): t for t in tasks}
+        res["waiting"] = {tid: wt for tid, st in states.items() if st == "held" and (wt := wait_reasons(by_id[tid], ev, deps, cfg))}
         # 2.1308.0 (#6523): a task the person did not create is never built -- said, not silent: once per task in the log,
         # every round in the result, in the dry log and in the day report
         res["skipped"] = {tid: author_of(by_id[tid], owner) for tid, st in states.items() if st == "foreign"}
@@ -745,6 +865,12 @@ class Dispatcher:
                     api.req("POST", f"/tasks/{tid}/complete")))
                 if ok:
                     res["closed"].append(tid)
+                    if not dry:  # 2.1394.0 (#5201): remembered, so a reopen of this task does not close or bundle it again
+                        self.reg["closed"][str(tid)] = str(sha)
+                        while len(self.reg["closed"]) > 2000:
+                            self.reg["closed"].pop(next(iter(self.reg["closed"])))
+            elif st == "held" and reopened(tid, ev, self.reg):
+                self.finding(res, f"reopened:{tid}:{ev['done'][tid]}", self.say("dispatch_reopened", f"#{tid}", ev["done"][tid]))
             elif st == "on_branch":
                 br, age = ev["branch"][tid]
                 if age >= float(cfg["branch_max_d"]) * 86400:
@@ -928,6 +1054,8 @@ class Dispatcher:
             lines.append(self.say("dispatch_brakes", ", ".join(res["brakes"])))
         if res.get("skipped"):  # 2.1308.0 (#6523)
             lines.append(self.say("dispatch_skipped", " ".join(f"#{t}" for t in sorted(res["skipped"]))))
+        if res.get("waiting"):  # 2.1394.0 (#5200)
+            lines.append(self.say("dispatch_waiting", ", ".join(f"#{t} ({' '.join(res['waiting'][t])})" for t in sorted(res["waiting"]))))
         for f in res["findings"]:
             lines.append("- " + f["text"])
         if dry:
@@ -939,6 +1067,7 @@ class Dispatcher:
             with open(os.path.join(self.host.state_dir, DRY_LOG), "a", encoding="utf-8") as f:
                 f.write(time.strftime("%Y-%m-%d %H:%M ") + json.dumps({"would": done, "brakes": res["brakes"],
                                                                         "skipped": {str(k): v for k, v in (res.get("skipped") or {}).items()},
+                                                                        "waiting": {str(k): v for k, v in (res.get("waiting") or {}).items()},
                                                                         "findings": [x["text"] for x in res["findings"]]}, ensure_ascii=False) + "\n")
         except OSError:
             pass
@@ -1011,6 +1140,7 @@ def main(argv):
     out = dict(res)
     out["states"] = {str(k): v for k, v in (res.get("states") or {}).items()}
     out["skipped"] = {str(k): v for k, v in (res.get("skipped") or {}).items()}
+    out["waiting"] = {str(k): v for k, v in (res.get("waiting") or {}).items()}
     print(json.dumps(out, ensure_ascii=False, indent=1))
     return 0
 

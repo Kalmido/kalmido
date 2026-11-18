@@ -123,6 +123,15 @@ for body in ({"owner_id": AL}, {"enabled": True, "owner_id": AL}, {"webhook_url"
 check(kt.dbx("SELECT owner_id FROM agents WHERE user_id=?", (FAG,)) == [(FID,)], "her agent stays hers")
 check(A.patch(B + f"/api/admin/agents/{FAG}", json={"enabled": False}).ok and A.patch(B + f"/api/admin/agents/{FAG}", json={"enabled": True}).ok,
       "with the grant: the kill switch still works")
+# #6862: the kill switch is all support access changes on her agent -- no delete, reset, avatar, test event or device
+for meth, path in (("post", "/reset"), ("post", "/test"), ("delete", "/machines/999999"), ("delete", "")):
+    r = getattr(A, meth)(B + f"/api/admin/agents/{FAG}{path}")
+    check(r.status_code == 403, f"with the grant: {meth.upper()} her agent{path} -> 403 " + r.text[:100])
+r = A.post(B + f"/api/admin/agents/{FAG}/avatar", files={"file": ("a.png", b"\x89PNG\r\n\x1a\n", "image/png")})
+check(r.status_code == 403, "with the grant: no avatar on her agent -> 403 " + r.text[:100])
+check(kt.dbx("SELECT 1 FROM agents WHERE user_id=?", (FAG,)) == [(1,)], "her agent still exists")
+for path in ("/machines", "/model-usage", "/audit"):
+    check(A.get(B + f"/api/admin/agents/{FAG}{path}").ok, f"with the grant: reading her agent{path} still works")
 # a kid of the client that lists the operator as a parent (made before, by the client): no sign-in link, no PIN without a grant
 r = A.post(B + "/api/users", json={"username": "fkid", "display_name": "Fkid", "password": "password123", "orgs": []})
 KID = r.json()["id"]
@@ -239,6 +248,39 @@ check(A.patch(B + f"/api/agents/{TAG}/work-style", json=WSB).status_code in CLOS
 check(A.patch(B + f"/api/agents/{TAG}/data-lock", json={}).status_code in CLOSED, "#7005: no grant: no change of its data lock")
 check(A.patch(B + f"/api/agents/{TAG}/control", json={}).status_code in CLOSED, "#7005: no grant: no change of its control")
 
+# ---- #6862 (decision 17.11.2026): a team agent of the client's organisation (made in the database: hosted the operator makes
+# none there); its work style, data lock, control and rules are the client's -- without a grant nothing, through it only reading.
+# A stranger to the organisation does not even see the agent (row-level security: 404); the operator as a plain member of it
+# (no admin) sees it, and there ws_need_editor decides like need_agent_admin (op_foreign_account / op_support_only)
+r = A.post(B + "/api/admin/agents", json={"username": "studiobot6862"})
+check(r.status_code == 201, "the operator makes a team agent (to move into the client's organisation) " + r.text[:100])
+CAG = r.json()["id"]
+dbw("UPDATE agents SET owner_id=NULL, org_id=? WHERE user_id=?", (CO, CAG))
+WS = {"work_mode": "office"}
+
+
+def ag_writes(why, codes=(403,)):
+    """#6862: no change through ws_need_editor (work style, data lock, control, a rule)."""
+    for meth, path, body in (("patch", "/work-style", WS), ("patch", "/data-lock", {"areas": {}}), ("patch", "/control", {"goal": "x"}),
+                             ("post", "/rules", {"text": "Ops rule"})):
+        r = getattr(A, meth)(B + f"/api/agents/{CAG}{path}", json=body)
+        check(r.status_code in codes, f"{why}: {meth.upper()} {path} of the client's team agent -> {codes} " + r.text[:100])
+
+
+def ops_member(on):
+    """The operator as a plain member of the client's organisation (on) or out again."""
+    if on:
+        dbw("INSERT INTO org_members(org_id, user_id, role) VALUES(?, ?, 'member')", (CO, AL))
+    else:
+        dbw("DELETE FROM org_members WHERE org_id=? AND user_id=?", (CO, AL))
+
+
+ag_writes("no grant, a stranger to the organisation", (403, 404))
+ops_member(True)
+ag_writes("no grant, the operator a plain member")
+r = A.get(B + f"/api/agents/{CAG}/work-style")
+check(r.status_code == 403, "no grant, a plain member: no reading of its work style either -> 403 " + r.text[:100])
+ops_member(False)
 # ---- the organisation grant
 r = S["carl"].post(B + "/api/support-access", json={"hours": 24, "org_id": CO})
 check(r.ok and r.json()["grant"]["org_id"] == CO, "carl (admin) grants the organisation " + r.text[:120])
@@ -266,6 +308,15 @@ check(not kt.dbx("SELECT 1 FROM org_joins WHERE org_id=? AND user_id=?", (CO, OP
       "... no invitation, no membership")
 r = A.post(B + "/api/admin/agents", json={"username": "intruder", "org_id": CO})
 check(r.status_code == 403 and not kt.dbx("SELECT 1 FROM users WHERE username='intruder'"), "with the grant: no new agent in the organisation " + r.text[:100])
+ops_member(True)
+ag_writes("with the grant")
+check(A.get(B + f"/api/agents/{CAG}/work-style").ok and A.get(B + f"/api/agents/{CAG}/rules").ok, "with the grant: reading its work style and rules works")
+ops_member(False)
+check("office" not in json.dumps(kt.dbx("SELECT work_style FROM agents WHERE user_id=?", (CAG,))), "its work style is unchanged")
+check(A.patch(B + f"/api/admin/agents/{CAG}", json={"enabled": False}).ok and A.patch(B + f"/api/admin/agents/{CAG}", json={"enabled": True}).ok,
+      "with the grant: the kill switch of the client's team agent still works")
+r = A.post(B + f"/api/admin/agents/{CAG}/reset")
+check(r.status_code == 403, "with the grant: no reset of the client's team agent " + r.text[:100])
 j = S["carl"].get(B + "/api/support-access").json()
 og = {o["org_id"]: o for o in j["orgs"]}
 check(og[CO]["grant"]["id"] == GO and any(u["method"] == "PATCH" for u in og[CO]["grant"]["uses"]), f"carl sees the organisation's grant and its use {og}")

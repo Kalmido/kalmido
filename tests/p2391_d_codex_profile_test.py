@@ -229,18 +229,20 @@ check("ar.codex_event(ev)" in src and 'profile == "generic"' in src, "agent_job.
 # ---- both launchers take the command and the profile from the env file
 for name in ("agent_launcher.sh", "agent_launcher.ps1"):
     s = open(os.path.join(MCP, name), encoding="utf-8").read()
-    check("KALMIDO_AGENT_CMD" in s and "KALMIDO_AGENT_PROFILE" in s and "kalmido-capability: profile" in s, f"{name}: command + profile")
-if shutil.which("bash"):
-    # the sh launcher splits KALMIDO_AGENT_CMD like a shell (words, quotes) -- the part before the first request only
-    envf = os.path.join(TMP, "a.env")
-    with open(envf, "w") as f:
-        f.write('KALMIDO_URL=http://127.0.0.1:9\nKALMIDO_TOKEN=abk_x\nKALMIDO_AGENT_CMD=\'codex --skip-git-repo-check -c "model=gpt 5"\'\n')
-    code = ('set -a; . "$1"; set +a; CMD=(); '
-            'if [[ ${#CMD[@]} -eq 0 && -n "${KALMIDO_AGENT_CMD:-}" ]]; then eval "CMD=($KALMIDO_AGENT_CMD)"; fi; printf "%s|" "${CMD[@]}"')
-    launcher = open(os.path.join(MCP, "agent_launcher.sh"), encoding="utf-8").read()
-    check('eval "CMD=($KALMIDO_AGENT_CMD)"' in launcher, "the launcher line the check below runs")
-    out = subprocess.run(["bash", "-c", code, "x", envf], capture_output=True, text=True).stdout
-    check(out == "codex|--skip-git-repo-check|-c|model=gpt 5|", f"KALMIDO_AGENT_CMD as shell words: {out!r}")
+    check("KALMIDO_AGENT_CMD" in s and "KALMIDO_AGENT_PROFILE" in s and "--launch" in s, f"{name}: command + profile (in agent_run.py --launch)")
+# 2.1394.0 (#4068): agent_run.py --launch splits KALMIDO_AGENT_CMD for both launchers: shell words on macOS / Linux (quotes,
+# ~ and $VAR as the .sh's eval did), on Windows "..." / '...' keep a word together and backslashes stay (paths)
+check(ar.split_cmd('codex --skip-git-repo-check -c "model=gpt 5"', windows=False) == ["codex", "--skip-git-repo-check", "-c", "model=gpt 5"],
+      "KALMIDO_AGENT_CMD as shell words")
+check(ar.split_cmd("claude --mcp-config ~/a.json", windows=False)[2] == os.path.expanduser("~/a.json"), "~ is expanded as in the shell")
+check(ar.split_cmd(r'C:\tools\claude.cmd --mcp-config "C:\my dir\m.json"', windows=True) == [r"C:\tools\claude.cmd", "--mcp-config", r"C:\my dir\m.json"],
+      "Windows: quotes keep a word, backslashes stay")
+os.environ["KALMIDO_URL"], os.environ["KALMIDO_TOKEN"] = "http://127.0.0.1:9", "abk_x"
+os.environ["KALMIDO_AGENT_CMD"] = "codex exec"
+la = ar.Launcher([])
+check(la.cmd == ["codex", "exec"] and la.profile == "codex", f"the command and the profile from the env file: {la.cmd} {la.profile}")
+check("--model" not in la.args({"model": "claude-opus-5-5"}), "Kalmido's model setting goes only to a claude command")
+del os.environ["KALMIDO_AGENT_CMD"]
 # ---- the setup scripts ask for the tool (Claude Code by default) and hand Codex the MCP server with -c
 ROOT = os.path.join(HERE, "..")
 ssh = open(os.path.join(ROOT, "static", "agent", "setup.sh"), encoding="utf-8").read()

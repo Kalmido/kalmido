@@ -1,0 +1,11 @@
+{
+  "id": "control_rules",
+  "since": "2.235.0",
+  "what": "The control level of the agent (GET /api/v1/agent control: level approve_all / routine / free, goal, project exceptions, the fixed and own one-way steps, the deadline of approvals) stands in the rules block in front of every prompt with the way to an approval (2.1045.0: an approval card with the step_ref of the 409, then run_approved_step - the server runs the card's step; the older way, the same request with the header X-Kalmido-Approval, still works); control_changed is read at once, no run; an agent without a chosen level gets nothing added",
+  "core": [
+    "def control_block",
+    "control_changed",
+    "X-Kalmido-Approval",
+    "run_approved_step"
+  ]
+}

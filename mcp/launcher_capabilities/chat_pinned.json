@@ -1,0 +1,8 @@
+{
+  "id": "chat_pinned",
+  "since": "2.62.0",
+  "what": "The event chat_pinned (the person pinned / unpinned a message of the agent's chat) is information only: no run, no tokens; the pins show in the message fields pinned_at / pinned_by",
+  "core": [
+    "\"chat_pinned\""
+  ]
+}

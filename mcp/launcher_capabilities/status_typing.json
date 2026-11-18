@@ -1,0 +1,12 @@
+{
+  "id": "status_typing",
+  "since": "2.0.2",
+  "what": "Status working / idle / error per run, typing dots while a chat run lasts; 2.615.0 (#3757 / #3754): a task run shows the typing dots on its task (POST /api/v1/tasks/{id}/typing every 8 s, never in a summary run; a server without it, 404 / 405, gets none)",
+  "core": [
+    "/agent/typing",
+    "\"working\"",
+    "\"idle\"",
+    "def task_typing",
+    "/typing\""
+  ]
+}

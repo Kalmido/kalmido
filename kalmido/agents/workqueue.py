@@ -185,7 +185,7 @@ def v1_agent_queue_set():
 def wq_route_get(aid):
     """The queue of agent aid for the person who may set its work style (404 for everyone else)."""
     c = db()
-    a = ws_need_editor(c, aid)
+    a = ws_need_editor(c, aid, read=True)
     q = wq_build(c, a)
     # 2.236.0 (#2906, tenant boundary): the agent may see tasks of lists the person cannot (shared with the agent only):
     # those keep their place in the queue but carry no title, list or id

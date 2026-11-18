@@ -1,0 +1,10 @@
+{
+  "id": "workflow_file",
+  "since": "2.46.6",
+  "what": "WORKFLOW-KALMIDO.md in the project folder is the agent's working routine: the rules block says to read it first for every order and to write a routine the person explains into it (NOTIZEN.md stays for interim results); the first chat run without the file asks the person once for it (orders, inbox, results, status) with one suggestion; 'asked' is kept in the state folder, never in the project folder",
+  "core": [
+    "def workflow_hint",
+    "WORKFLOW_FILE",
+    "workflow_asked"
+  ]
+}

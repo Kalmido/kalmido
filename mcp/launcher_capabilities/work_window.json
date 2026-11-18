@@ -1,0 +1,10 @@
+{
+  "id": "work_window",
+  "since": "2.236.0",
+  "what": "The work window of the work style (GET /api/v1/agent work_style, work_mode office: work_from-work_to on work_days in the instance time zone): outside it no new session starts (launchers: work_style.state.working false -> wait until work_resumes_at) and no run starts (agent_run.py keeps the events in its queue on disk, status paused with the time it goes on); work_style_changed is read at once, no run",
+  "core": [
+    "def work_window_open",
+    "work_style_changed",
+    "def work_closed"
+  ]
+}

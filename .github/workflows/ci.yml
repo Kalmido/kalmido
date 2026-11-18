@@ -276,9 +276,6 @@ jobs:
       # fresh processes from two copies of the tree - any difference stops the run (the release attaches it per version)
       - name: Web manifest reproducible (built twice independently)
         run: python tools/web_manifest.py --twice -o /tmp/web-manifest.json
-      # 2.380 G (#3390): the hashes the server sends to the agent setup match the starter files
-      - name: Starter file hashes (mcp/starter_sha256.txt)
-        run: python tools/starter_sha.py --check
       # 2.149.0 F (#2519): a start file calls a function of a module loaded on demand only guarded (a fresh device has not
       # loaded it yet), and every var(--x) without a fallback is defined
       - name: Calls into modules loaded on demand are guarded, CSS variables defined

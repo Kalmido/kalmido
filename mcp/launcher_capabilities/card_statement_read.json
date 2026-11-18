@@ -1,0 +1,9 @@
+{
+  "id": "card_statement_read",
+  "since": "2.469.0",
+  "what": "A job_request of kind card_statement_read (a person asks the agent to read a credit card statement no reader could read) gets one more line: open the PDF itself (read_file as base64 of input.document.id, a local model is fine), answer only the printed positions (day, merchant, amount, foreign amount with its currency, kind) and the total with submit_proposal, no balances, nothing invented; Kalmido calls no model, the person takes the positions over and confirms the statement",
+  "core": [
+    "def card_statement_hint",
+    "card_statement_hint(x)"
+  ]
+}

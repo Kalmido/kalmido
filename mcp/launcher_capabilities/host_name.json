@@ -1,0 +1,6 @@
+{
+  "id": "host_name",
+  "since": "2.44.0",
+  "what": "The launcher itself (not agent_run.py) reports the computer it runs on once at start (PUT /api/v1/agent/status with host: KALMIDO_HOST or the host name without the domain), so Settings > Agents shows which computer is connected; a missing agent command becomes the agent's error status; older servers (400) ignore it (2.1394.0, #4068: in mcp/agent_run.py --launch, for both launchers)",
+  "core": []
+}

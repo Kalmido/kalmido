@@ -12,6 +12,7 @@
 // of the last 7 days (runs, tokens, the costs only when reported). The chat header of the own agent shows "runs with <model of
 // the last run>" only while the switch is on; a tap opens the section Model as a dialog of its own (its content: the three
 // fields and the usage), switching it off there removes the header's line at once. German: "läuft mit", "Für Prüfungen".
+// 2.1394.0 (#7031): the section "Jobs on its computer" (model and effort for build / review jobs) in the owner's dialog, saved at once.
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, sleep, B, login} = require('./boot');
@@ -145,6 +146,27 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   check(await until(async () => (await mine()).runtime.model_review === 'fable'), '#5684 freelancer: the review model saved at once');
   check(await until(() => /Last 7 days/.test(ms.querySelector('.agmu')?.textContent || '') && /No usage reported yet/.test(ms.querySelector('.agmu').textContent)
     && /reports no costs/.test(ms.querySelector('.agmu').textContent)), '#5684 freelancer: the usage section, nothing yet, no costs');
+  // 2.1394.0 (#7031): the section "Jobs on its computer" of the own agent: model and effort per kind of job, saved at once;
+  // an invalid model is refused and the old value comes back; the dialog opens with the saved values again
+  const js = md.querySelector('.agzjob');
+  check(js && /Jobs on its computer/.test(js.querySelector('h4')?.textContent || '') && js.querySelector('#agj-model') && js.querySelector('#agj-effort')
+    && js.querySelector('#agj-amodel') && js.querySelector('#agj-aeffort') && js.querySelector('#agj-effort').value === ''
+    && [...js.querySelector('#agj-effort').options].map(o => o.value).join(',') === ',low,medium,high,xhigh,max', '#7031 freelancer: the jobs section with model and effort per kind, default empty');
+  change(w, js.querySelector('#agj-model'), ' opus ');
+  check(await until(async () => (await mine()).runtime.model_job === 'opus') && js.querySelector('#agj-model').value === 'opus', '#7031 freelancer: model for build jobs saved at once');
+  change(w, js.querySelector('#agj-aeffort'), 'high');
+  check(await until(async () => (await mine()).runtime.effort_audit === 'high'), '#7031 freelancer: effort for review jobs saved at once');
+  change(w, js.querySelector('#agj-amodel'), 'bad model'); await idle(w);
+  check(await until(() => js.querySelector('#agj-amodel').value === '') && (await mine()).runtime.model_audit === '', '#7031 freelancer: an invalid model is refused, the old value back');
+  w.close();
+  w = await boot({user: 'frida', hash: 'today'}); d = w.document;
+  w.eval(`settingsModal('ai')`); await sleep(500);
+  await w.eval(`aiSubShow(document.querySelector('.smodal'), 'setup', false)`);
+  const prow2 = await until(() => d.querySelector(`#s-myown [data-myag="${FB}"]`));
+  click(w, prow2.querySelector('[data-myag-act="perm"]'));
+  md = await until(() => lastModal(d)?.querySelector('.agzjob') && lastModal(d));
+  check(md && md.querySelector('#agj-model').value === 'opus' && md.querySelector('#agj-aeffort').value === 'high' && md.querySelector('#agj-effort').value === '',
+    '#7031 freelancer: the dialog opens again with the saved values');
   w.close();
 
   // ================= 2.992.0 (#5684): the chat header "runs with ..." and its dialog (frida's own agent, model per run on)

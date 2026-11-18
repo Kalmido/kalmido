@@ -1,0 +1,10 @@
+{
+  "id": "lang_texts",
+  "since": "2.450.0",
+  "what": "What the starter itself says to a person (permission question, failed run, reminders, notices, the hint on an answer without a card) comes from one table by the agent's language (GET /api/v1/agent lang: de, en, fr, es, it, nl; missing = English), and the check for an answer that asks without a card knows these six languages. Status texts go out with the optional text_key / text_at in PUT /agent/status: the app shows them in the language of whoever looks, text stays the fallback for an older app; an older server (400) gets the status again without the key",
+  "core": [
+    "TEXTS = {",
+    "text_key",
+    "ASKS_NL"
+  ]
+}

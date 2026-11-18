@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""2.35.0 (#1098): the reference launchers keep up with what a hosted agent service does. mcp/launcher_capabilities.json
-lists the capabilities (steps, model, permission mode, plan usage, reply reference, status / typing, approvals, older
-servers, runtime settings, future ones); this test checks that agent_launcher.sh AND agent_launcher.ps1 both name every one
-of them ('# kalmido-capability: <id>' where they do it or hand it to mcp/agent_run.py), that neither names an unknown one,
-that the event runner has the code each capability needs, that both launchers start the same runner, and that
+"""2.35.0 (#1098): the reference launchers keep up with what a hosted agent service does. mcp/launcher_capabilities/
+(#6887: one <id>.json per capability) lists the capabilities (steps, model, permission mode, plan usage, reply reference, status / typing, approvals, older
+servers, runtime settings, future ones); this test checks that mcp/agent_run.py (with agent_extras.py / agent_job.py) marks
+every one of them ('# kalmido-capability: <id>') and has the code each needs, that agent_launcher.sh AND agent_launcher.ps1
+do the same three steps and nothing else (2.1394.0, #4068: env file, Python, agent_run.py --launch), and that
 mcp/agent_run.py works without a server (stream parsing, approval block, reply hint, usage windows, stale values).
 Pure Python, no container."""
 import importlib.util
@@ -24,30 +24,40 @@ def read(name):
         return f.read()
 
 
-caps = json.loads(read("launcher_capabilities.json"))["capabilities"]
+# #6887: one file per capability (mcp/launcher_capabilities/<id>.json) instead of one list two packages collided in
+CAPD = os.path.join(MCP, "launcher_capabilities")
+caps = []
+for fn in sorted(os.listdir(CAPD)):
+    if fn.endswith(".json"):
+        caps.append(json.loads(read(os.path.join("launcher_capabilities", fn))))
+        check(caps[-1].get("id") + ".json" == fn, f"launcher_capabilities/{fn}: the file is named after its id")
+check(len(caps) >= 9 and not os.path.exists(os.path.join(MCP, "launcher_capabilities.json")), f"#6887: the folder, no single list: {len(caps)}")
 # 2.488.0 (#3363): an entry with "server": true is done by the server alone (no launcher part): a hint, not checked here
 check(all(not c.get("core") and not c.get("launcher") for c in caps if c.get("server")), "server-side entries name no launcher or runner code")
 caps = [c for c in caps if not c.get("server")]
 ids = [c["id"] for c in caps]
 check(len(ids) == len(set(ids)) and len(ids) >= 9, f"capability ids unique, at least 9: {ids}")
 core = read("agent_run.py") + read("agent_extras.py") + read("agent_job.py")  # 2.44.0 (#1443 #1445 #1447): the additions live in modules of their own
+# 2.1394.0 (#4068): the launchers are thin -- both do the same steps (load the env file, find Python, start agent_run.py
+# --launch) and nothing else; every capability, also the runtime loop, lives in agent_run.py (one place, no drift)
+starter_steps = {}
 for name in ("agent_launcher.sh", "agent_launcher.ps1"):
     src = read(name)
-    named = set()
-    for m in re.finditer(r"#\s*kalmido-capability:\s*([a-z_, ]+)", src):
-        named |= {x.strip() for x in m.group(1).split(",") if x.strip()}
-    for cid in ids:
-        check(cid in named, f"{name} names capability {cid}")
-    check(not (named - set(ids)), f"{name} names no unknown capability: {sorted(named - set(ids))}")
-    check("agent_run.py" in src and "--events" in src and "KALMIDO_EVENTS" in src, f"{name}: event mode starts mcp/agent_run.py")
+    starter_steps[name] = re.findall(r"#\s*kalmido-starter-step:\s*([a-z_]+)", src)
+    check(starter_steps[name] == ["env_file", "python", "run"], f"{name}: the steps env_file, python, run: {starter_steps[name]}")
+    check("agent_run.py" in src and "--launch" in src and "--events" in src, f"{name}: starts mcp/agent_run.py --launch (and passes --events)")
+    check(not re.search(r"#\s*kalmido-capability:", src), f"{name}: no capability of its own (all in agent_run.py)")
+    check(not re.search(r"api/v1/agent\b|reset_seq|nightly|GIT_AUTHOR|work_style", src.split("#>")[-1] if name.endswith(".ps1") else
+                        "\n".join(x for x in src.splitlines() if not x.lstrip().startswith("#"))),
+          f"{name}: no runtime logic of its own (Kalmido request, restart, git author, work window)")
+check(starter_steps["agent_launcher.sh"] == starter_steps["agent_launcher.ps1"], "both starters do the same steps")
 for c in caps:
     for pat in c.get("core") or []:
         check(pat in core, f"agent_run.py has {pat!r} ({c['id']})")
     check(c.get("what") and c.get("since"), f"{c['id']}: what + since")
-launcher_only = {c["id"] for c in caps if c.get("launcher")}  # 2.44.0 (#1517): done by the launchers themselves (host_name)
+    check(not c.get("launcher"), f"{c['id']}: no launcher-only capability any more (#4068)")
 for cid in ids:
-    if cid != "runtime" and cid not in launcher_only:
-        check(re.search(r"kalmido-capability:[^\n]*\b" + cid + r"\b", core) is not None, f"agent_run.py marks {cid}")
+    check(re.search(r"kalmido-capability:[^\n]*\b" + cid + r"\b", core) is not None, f"agent_run.py marks {cid}")
 
 # ---- 2.44.0 (#1517): the setup scripts (static/agent/setup.sh | setup.ps1) do the same steps in the same order, and the
 # starter file list they fetch names every starter module (a new one missing there would be absent on a set-up computer)
@@ -64,8 +74,9 @@ listed = [x for x in listed if x]
 check(len(listed) == len(set(listed)) and all("/" not in x and "\\" not in x for x in listed), f"starter_files.txt: plain unique names {listed}")
 # 2.46.6 (#1715): the rules block (agent_rules.md) is a starter file too
 for fn in sorted(os.listdir(MCP)):
-    if re.match(r"(agent_[a-z_]+\.py|agent_rules\.md|agent_launcher\.(sh|ps1)|kalmido_mcp\.py|launcher_capabilities\.json)$", fn):
+    if re.match(r"(agent_[a-z_]+\.py|agent_rules\.md|agent_launcher\.(sh|ps1)|kalmido_mcp\.py)$", fn):
         check(fn in listed, f"starter_files.txt lists {fn}")
+check("launcher_capabilities.json" not in listed, "#6887: the capabilities are no starter file (no runtime reads them)")
 for fn in ("agent_launcher.sh", "agent_launcher.ps1", "agent_run.py", "kalmido_mcp.py"):
     check(os.path.isfile(os.path.join(MCP, fn)) and fn in listed, f"required starter file {fn}")
 
@@ -510,8 +521,7 @@ for nm, cmd in LAUNCHERS:
     os.chmod(wrap, 0o755)
     r = subprocess.run(cmd + ["-e", envfile("py.env", *BASE, f"KALMIDO_PYTHON={wrap}"), "--events", "--once", "--", "claude"], env=ENV, capture_output=True, text=True, timeout=60)
     check(r.returncode == 0 and f"{wrap} " in r.stdout, f"{nm}: the event runner starts with KALMIDO_PYTHON: {r.stdout[-200:]} {r.stderr[-200:]}")
-    if nm == "sh":
-        check(os.path.exists(calls) and "work_style" in open(calls).read(), "sh: the settings are read with KALMIDO_PYTHON")
+    check(os.path.exists(calls) and "agent_run.py --launch" in open(calls).read(), f"{nm}: the launcher core runs with KALMIDO_PYTHON")
 if PWSH:
     var = {k: {x for x in re.findall(r"KALMIDO_[A-Z_]+", v)} for k, v in helps.items()}
     check(var["sh"] == var["ps1"], f"the helps name the same variables: {sorted(var['sh'] ^ var['ps1'])}")

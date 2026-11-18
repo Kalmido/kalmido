@@ -1,0 +1,8 @@
+{
+  "id": "layout_answer",
+  "since": "2.55.0",
+  "what": "The event job that answers an arrangement proposal (job.kind layout, action approve / reject) gets one line: accepted = it is saved (and in use when used is true), say so only when asked; declined = do not propose the same arrangement again unasked",
+  "core": [
+    "def layout_hint"
+  ]
+}

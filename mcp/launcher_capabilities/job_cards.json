@@ -1,0 +1,13 @@
+{
+  "id": "job_cards",
+  "since": "2.615.0",
+  "what": "Cards know their job (#3658 / #2347 / #2390): a job's result or a message of `agent_job.py say ID \"text\"` that ends in ```approval becomes an approval card linked to that job (job_id, job.json cards), ```suggest becomes buttons, ```approval-done closes the job's own cards; a result that asks without a card but has exactly ONE suggestion: the suggestion (up to 200 characters) becomes the card; Yes / No on a job's card goes to that job, never to the chat agent: into its inbox while it runs, or it wakes the ended job once in its session (--wake); a job that cannot take it: the chat run as before; only the job's person or an operator (account id) reaches the inbox / decides the card, anyone else: the chat run, their text as data",
+  "core": [
+    "def card_job",
+    "def result_blocks",
+    "def cmd_say",
+    "def job_card_answer",
+    "--wake",
+    "WAKE_PROMPT"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "letter_draft",
+  "since": "2.153.0",
+  "what": "The event letter_draft_requested (an office admin asks for a draft answer to an incoming document shared with the agent) gets one instruction: read the document with get_document, then exactly ONE create_letter_draft with answers = the document and requested_by = the asking person, subject and text only (greeting and signature come from the office), never send it or write in the chat; the person's note is fenced as data",
+  "core": [
+    "def letter_hint",
+    "letter_draft_requested"
+  ]
+}

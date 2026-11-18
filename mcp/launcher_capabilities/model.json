@@ -1,0 +1,10 @@
+{
+  "id": "model",
+  "since": "2.32.0",
+  "what": "The model of the stream's init event with PUT /api/v1/agent/status (model)",
+  "core": [
+    "\"init\"",
+    "def model_label",
+    "\"model\":"
+  ]
+}

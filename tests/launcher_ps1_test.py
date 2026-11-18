@@ -162,15 +162,15 @@ r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command", f"& '{PS1
 os.close(slave); os.close(master)
 check(os.path.exists(agentlog) and "KALMIDO_TOKEN missing" in open(agentlog).read(), "the log line is in the file of *>>")
 
-# the table for Windows PowerShell 5.1: every Windows id is a real one, Europe/Berlin is in it
-# 2.445.0 (#3748): a Linux without the legacy tz names cannot load every id; its Windows id table still knows them
+# 2.1394.0 (#4068): the nightly time is Python's now (mcp/agent_run.py zone_now / nightly_at, the same for both launchers): the
+# zone table for Windows PowerShell 5.1 is gone; a zone Python cannot load (Windows without the tzdata package) is the local time
+import importlib.util  # noqa: E402
+_sp = importlib.util.spec_from_file_location("agent_run_ps1t", os.path.join(HERE, "..", "mcp", "agent_run.py"))
+_ar = importlib.util.module_from_spec(_sp)
+_sp.loader.exec_module(_ar)
 src = open(PS1, encoding="utf-8").read()
-table = src[src.index("$WinZones = @{"):src.index("function Now-In")]
-ids = re.findall(r"^  '([^']+)' = '", table, re.M)
-check(len(ids) > 30 and "Europe/Berlin" in table, f"the zone table: {len(ids)}")
-script = "foreach ($i in @(" + ",".join(f"'{i}'" for i in ids) + ")) { try { [void][TimeZoneInfo]::FindSystemTimeZoneById($i) } catch { $x = $null; if (-not [TimeZoneInfo]::TryConvertWindowsIdToIanaId($i, [ref]$x)) { Write-Output \"BAD $i\" } } }"
-r = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, timeout=60)
-check(r.returncode == 0 and "BAD" not in r.stdout, f"every Windows zone id exists: {r.stdout[-300:]} {r.stderr[-200:]}")
+check(not re.search(r"\$WinZones|function Now-In|TimeZoneInfo", src), "the .ps1 has no time zone code of its own any more")
+check(_ar.zone_now("No/Such_Zone").tzinfo is not None and _ar.nightly_at("03:00", "No/Such_Zone") is not None, "an unknown zone: the local time, no crash")
 
 # 2.445.0 (#3748): agent_run.py keeps its own agent_run.log (on Windows by default; here via KALMIDO_RUN_LOG): a restart appends
 # instead of overwriting, and a file over 1 MiB moves to .1 so it cannot grow without end

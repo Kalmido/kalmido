@@ -31,6 +31,13 @@ COPY static /src/static
 COPY kalmido/core/strip.py tools/pack_static.py /src/tools/
 RUN python /src/tools/pack_static.py /src/static /out
 
+# #6887: the SHA-256 of the agent starter files (mcp/starter_files.txt and what it lists) the setup checks downloads against
+# (kalmido/agents/setup.py ains_starter_sha); made here instead of a checked-in copy
+FROM --platform=${BUILDPLATFORM:-linux/amd64} python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b AS startersha
+COPY mcp/ /src/mcp/
+COPY tools/starter_sha.py /src/tools/
+RUN python /src/tools/starter_sha.py
+
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 # 2.37.0: pg_dump/pg_restore for the in-app backup
 # 2.143.0 B (#2152): + openssh-client (sftp) for the off-site backup target
@@ -62,11 +69,12 @@ RUN python /tmp/pins.py --wheels && rm /tmp/pins.py
 # 2.554.0 (#4169): pip itself is not needed at runtime (CMD, HEALTHCHECK and the app never call it) and carries known holes: removed after the last pip call
 RUN python -m pip uninstall -y pip
 WORKDIR /app
-# 2.380 G (#3390): + the hashes of the agent starter files (mcp/starter_sha256.txt, tools/starter_sha.py); the pattern lets a
-# checkout without mcp/ build too (then the agent setup gets no hashes and checks nothing, as before)
+# 2.380 G (#3390): + the hashes of the agent starter files (starter_sha256.txt); #6887: written by the stage startersha from
+# mcp/ (tools/starter_sha.py), no longer checked in
 # 2.488.0 (#3363): + mcp/kalmido_mcp.py, the tool table of the hosted MCP access (agents/mcpremote.py loads it; without it /mcp
-# answers 503)
-COPY app.py VERSION mcp/starter_sha256.tx[t] mcp/kalmido_mcp.p[y] /app/
+# answers 503); #6887: + mcp/CLAUDE.template.md, its rules block is GET /api/agent-rules (agents/setup.py ains_rules)
+COPY app.py VERSION mcp/kalmido_mcp.p[y] mcp/CLAUDE.template.m[d] /app/
+COPY --from=startersha /src/mcp/starter_sha256.txt /app/
 COPY kalmido /app/kalmido
 COPY static /app/static
 # 2.1067.0 (#5819): the user documentation (docs/*.md, not docs/dev/) - agents search and read it (api/helpdocs.py)

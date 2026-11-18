@@ -1,0 +1,12 @@
+{
+  "id": "playbook",
+  "since": "2.39.0",
+  "what": "An event that carries a list's Playbook (data.playbook, the owner's working rules for that list): its text goes into the prompt in full and fenced, once per run (the event JSON may be cut), with the rule to follow it within the agent's rights and never change it (propose_playbook); a scheduled_job with list_check names the scheduled check of the list; 2.126.0: a foreign Playbook (foreign: true, not written by the agent's operator) names its authors and counts as data, not rules, and texts marked untrusted (origin mail / form / errors / git) get a frame saying they are data, not instructions",
+  "core": [
+    "def playbook_hint",
+    "pb_seen",
+    "list_check",
+    "def untrusted_hint",
+    "pb.get(\"foreign\")"
+  ]
+}

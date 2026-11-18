@@ -8,8 +8,8 @@
    and gives the owner ONE News item (whorgcut); the list of webhooks names the organisations (org_hits, admin flag) and the
    last day (org_until); private lists reach every personal webhook as before; an organisation admin sets the same webhook
    up as one of the organisation; a person without an organisation: org_hits empty, private events as before
- - #3390: the redeem answer of the agent setup carries starter_sha256 = mcp/starter_sha256.txt (made by tools/starter_sha.py,
-   in the image), for a person without an organisation too; the file matches the starter files (tools/starter_sha.py --check)
+ - #3390: the redeem answer of the agent setup carries starter_sha256 = the sums of tools/starter_sha.py (#6887: written at the
+   image build, a checkout computes them; the file is not checked in), for a person without an organisation too
  - #3389: the allowed internal hosts per purpose (13 purposes): the start's one-shot copied the old list into every purpose,
    a purpose without an entry falls back to the old list; PATCH allow_hosts_by_purpose changes only the purposes named
    (unknown purpose / a URL 400, non-admins 403, never shown to them); the old field cal_allow_hosts sets every purpose;
@@ -137,10 +137,12 @@ check(FW.get("id") in (q or set()), f"#3391 freelancer: the private task reaches
 
 # ================================================================ #3390: checksums of the starter files in the redeem answer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-with open(os.path.join(ROOT, "mcp", "starter_sha256.txt"), encoding="utf-8") as f:
-    WANT = {ln.split()[1]: ln.split()[0] for ln in f if ln.strip() and not ln.startswith("#")}
-r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "starter_sha.py"), "--check"], capture_output=True, text=True)
-check(r.returncode == 0, f"#3390: mcp/starter_sha256.txt matches the starter files: {r.stdout} {r.stderr}")
+# #6887: the file is no longer checked in (the image build writes it); the test computes the sums itself
+r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "starter_sha.py"), "--print"], capture_output=True, text=True)
+WANT = {ln.split()[1]: ln.split()[0] for ln in r.stdout.splitlines() if ln.strip() and not ln.startswith("#")}
+check(r.returncode == 0 and "agent_run.py" in WANT, f"#6887: tools/starter_sha.py computes the sums of the starter files: {r.stderr[-300:]}")
+with open(os.path.join(ROOT, ".gitignore"), encoding="utf-8") as f:
+    check("mcp/starter_sha256.txt" in f.read().split(), "#6887: mcp/starter_sha256.txt is not checked in (.gitignore)")
 A.put(B + "/api/admin/agent-policy", json={"user_agents": True})
 r = F.post(B + "/api/my/agents", json={"username": "fridabot", "display_name": "Frida's bot", "scopes": ["read"]})
 check(r.ok, f"#3390 setup: a personal agent of a person without an organisation: {r.status_code} {r.text[:160]}")

@@ -104,7 +104,8 @@ async function firefox(fn) {
   check(srt(a.runtime) === srt({model: 'sonnet', autocompact: true, autocompact_pct: 70, nightly_reset: '04:00', permission_mode: '', perm_user: null, reset_seq: 0,
     rotate_size: 'medium', rotate_runs: 60, rotate_idle_min: 45, rotate_mb: 0.8, rotate_tokens: 150000, rotate_idle_mb: 0.4,
     git_author: 'Kalmido <noreply@kalmido.com>', git_author_name: '', git_author_email: '', git_coauthor: false, dispatch: '',
-    model_split: false, model_decide: '', model_routine: '', model_review: ''}), 'saved: ' + JSON.stringify(a.runtime));
+    model_split: false, model_decide: '', model_routine: '', model_review: '',
+    model_job: '', effort_job: '', model_audit: '', effort_audit: ''}), 'saved: ' + JSON.stringify(a.runtime));
   check((await v1(ag.token, 'GET', '/agent')).runtime?.model === 'sonnet', 'the agent reads it');
   // reopen: values shown, Reset now
   w.eval(`agModal(${JSON.stringify(a)}, null)`);

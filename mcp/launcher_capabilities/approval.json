@@ -1,0 +1,10 @@
+{
+  "id": "approval",
+  "since": "2.35.0",
+  "what": "An answer ending in an ```approval block becomes an approval card (approval: {title, what}); older servers: Yes / No buttons; the answer comes back as chat_choice with approval; silence is no",
+  "core": [
+    "\"approval\"",
+    "def split_approval",
+    "approval_request"
+  ]
+}

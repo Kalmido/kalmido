@@ -1,0 +1,9 @@
+{
+  "id": "image_root",
+  "since": "2.619.0",
+  "what": "An image the agent looks at is attached only from the project folder (KALMIDO_PROJECT_DIR, which the setup scripts write, else the working folder) or KALMIDO_AUTO_IMAGE_DIRS; a home folder or a drive root never counts as the project folder (#2383)",
+  "core": [
+    "def image_root",
+    "KALMIDO_PROJECT_DIR"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "usage_hook",
+  "since": "2.306.0",
+  "what": "Claude Code: the usage hook claude_usage_hook.py (next to agent_run.py) goes into the per-run settings as Stop and SubagentStop hook, so Usage and the usage limits in Kalmido work after the one-command setup; KALMIDO_USAGE_HOOK=0 switches it off; also when the permission relay is off",
+  "core": [
+    "claude_usage_hook.py",
+    "\"SubagentStop\"",
+    "KALMIDO_USAGE_HOOK"
+  ]
+}

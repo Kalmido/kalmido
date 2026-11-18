@@ -1,0 +1,7 @@
+{
+  "id": "help_docs",
+  "since": "2.1067.0",
+  "server": true,
+  "what": "server-side, no launcher part: the help of the running version (#5819) - the MCP tools help_overview / search_help / read_help (GET /api/v1/help, /search?kind=help, /help/section) and the rule in agent_rules.md / CLAUDE.template.md to look a question about using Kalmido up before answering; they come with kalmido_mcp.py and the rules file of the starter",
+  "core": []
+}

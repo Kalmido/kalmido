@@ -1,0 +1,6 @@
+{
+  "id": "git_author",
+  "since": "2.396.0",
+  "what": "The git author set in Kalmido (GET /api/v1/agent runtime.git_author, \"Name <mail>\", always filled in; a project with a repository may name its own in data.repo.git_author of a task): the launchers start the agent with GIT_AUTHOR_NAME / _EMAIL and GIT_COMMITTER_NAME / _EMAIL set from it and KALMIDO_GIT_COAUTHOR (1 = append a Co-Authored-By line, runtime.git_coauthor); a change restarts the agent; an older server without git_author: nothing is set (2.1394.0, #4068: in mcp/agent_run.py --launch, for both launchers)",
+  "core": []
+}

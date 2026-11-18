@@ -1,0 +1,8 @@
+{
+  "id": "data_lock_info",
+  "since": "2.235.0",
+  "what": "The event data_lock_changed (the owner changed what the agent may never see; Kalmido enforces it itself) is information only: no run, no tokens; the runner keeps data_lock of GET /api/v1/agent current",
+  "core": [
+    "\"data_lock_changed\""
+  ]
+}

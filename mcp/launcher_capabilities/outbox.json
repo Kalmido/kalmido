@@ -1,0 +1,12 @@
+{
+  "id": "outbox",
+  "since": "2.44.0",
+  "what": "Files at the answer: every chat run gets a fresh folder (KALMIDO_OUTBOX); files in it and images the command looks at with its Read tool (not in task runs, not the person's own uploads; 2.126.0: only from the project folder or KALMIDO_AUTO_IMAGE_DIRS) are attached to the chat answer as chat files (multipart, 10 per message, the server's size limit, MIME from the ending); older servers without chat files get nothing",
+  "core": [
+    "KALMIDO_OUTBOX",
+    "def watch",
+    "def send_outbox",
+    "KALMIDO_NO_AUTO_IMAGE_DIRS",
+    "KALMIDO_AUTO_IMAGE_DIRS"
+  ]
+}

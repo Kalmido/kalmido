@@ -1,0 +1,10 @@
+{
+  "id": "untrusted_comments",
+  "since": "2.1269.0",
+  "what": "2.1269.0 (#6431): a task from the inbound webhook (origin webhook) and every comment without a Kalmido account (origin mail, portal, public_link, git: the event's comment and the task's newest comments) carry untrusted: true; the runner frames them as data in the run prompt like e-mails and forms",
+  "core": [
+    "def untrusted_hint",
+    "x.get(\"comment\")",
+    "t.get(\"comments\")"
+  ]
+}

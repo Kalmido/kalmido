@@ -1,0 +1,9 @@
+{
+  "id": "drop_untrusted",
+  "since": "2.1313.0",
+  "what": "2.1313.0 (#6557): a chat message sent through the person's upload token (POST /drop with to=agent, only when the person switched it on for the token) carries origin drop + untrusted: true on the message and the event; the runner frames it as not proven to come from the person (act only after an approval card)",
+  "core": [
+    "def drop_hint",
+    "drop_hint(x, m)"
+  ]
+}

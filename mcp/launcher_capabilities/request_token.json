@@ -1,0 +1,13 @@
+{
+  "id": "request_token",
+  "since": "2.1386.0",
+  "what": "2.1386.0 (#6668): a team agent works per request for ONE person: before each run the runner asks for the token of that run's events (POST /api/v1/agent/request-token {seqs}) and hands ONLY that token to the run: an env file of the run (<state>/run-env/p<person>.env, 0600, written anew on every new token of that person, also after a 401) as KALMIDO_ENV_FILE of the child, never the starter's env file (the MCP server, kalmido_cli.py, agent_job.py and the usage hook read it there; the MCP server reads it once more after a 401); a job of the run keeps that file, a job the runner wakes or continues gets the file of its person (none: it stays asleep); it reads the task and posts the task's answer with it, and forgets it after the run. The list work of the dispatcher asks for the token of the person chosen in the agent's settings ({operator: true}). No request token (any refusal, also a 404 / 405, the network): the run does not start, nothing is remembered. A personal agent, or a server whose GET /api/v1/agent does not report request_token (older than 2.1386.0): the agent's own token as before. Review R3: the whole run-env folder is denied to every run and job (guard hook + Read / Edit rules); collected task events go in one bundle per person; another person chosen drops the list work's token and op.env at once, op.env only for a job of the person it was cut for; a job whose token ran out (401, no fresh file) shows the status status_req_expired. Reader R4: a job keeps the person and kind of the request token file it started with (agent_job.py start, never KALMIDO_CHAT_USER alone); the runner wakes / continues it only with exactly that file and wakes a run only for that person",
+  "core": [
+    "def request_token",
+    "def run_request",
+    "def op_api",
+    "/agent/request-token",
+    "def token_file",
+    "def job_env"
+  ]
+}

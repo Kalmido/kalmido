@@ -1,0 +1,8 @@
+{
+  "id": "job_msg",
+  "since": "2.96.0",
+  "what": "The result of a job of agent_job.py goes into the chat with job_msg result (the job ended well) or error (failed, time limit, no result), so the app shows it under the job's card as the end result or an error; an older server answers 400 for the field -- then the same message without it",
+  "core": [
+    "\"job_msg\""
+  ]
+}

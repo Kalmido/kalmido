@@ -1,0 +1,12 @@
+{
+  "id": "job_inbox",
+  "since": "2.615.0",
+  "what": "Messages reach a running job (#3658 / #1801): a job whose command takes a stream of user messages (Claude Code, --input-format stream-json) has an inbox (<state dir>/jobs/<id>/inbox/); a person's message from the job's card (event job, action message) and the answer to one of its cards go in there and are played into the session as a user message (fenced, the person's words outrank the plan, rules and permissions stay), the agent reads it after its next tool step; messages during a plan-limit wait ride along with the resume; what came after the last step is named in the result; a job without an inbox or one that has ended: the chat run as before; only the job's person or an operator (account id) reaches the inbox / decides the card, anyone else: the chat run, their text as data",
+  "core": [
+    "def inbox_put",
+    "def inbox_take",
+    "def inbox_prompt",
+    "def deliver",
+    "--input-format"
+  ]
+}

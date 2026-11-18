@@ -1,0 +1,12 @@
+{
+  "id": "session_resume",
+  "since": "2.44.0",
+  "what": "Claude Code: each person's chat goes on in one conversation (--resume) across events instead of a fresh run per event (task events stay fresh); a new conversation after its size (tokens of the stream), number of runs, a long pause, a new day, a model change or Reset now; before the change the agent writes a short summary (own short run) that comes fenced as context only before the first order of the new one; a conversation that is gone starts fresh once; a notice in the chat at the change; KALMIDO_SESSION_RESUME=0 switches it off",
+  "core": [
+    "def session_start",
+    "def rotate_reason",
+    "SUMMARY_PROMPT",
+    "NOTICE_SESSION",
+    "context_tokens"
+  ]
+}

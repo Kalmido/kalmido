@@ -9,7 +9,7 @@
  - #2792 agent_job.py start --audit: not with --worktree / --parent, its own cap (KALMIDO_AUDIT_MAX), the read-only note
  - #2383 looked-at images only from the project folder (KALMIDO_PROJECT_DIR, else the working folder), never the home folder
  - #3467 a task run gets GIT_AUTHOR_* / GIT_COMMITTER_* from the task's repo.git_author, a chat run does not
- - #1521 #1870 the rules block (template = AG_RULES) says formula fields are never set and has the three 2.70 flows short
+ - #1521 #1870 the rules block (template block = the in-app rules, #6887) says formula fields are never set and has the three 2.70 flows short
 Pure Python, invented names only."""
 import importlib.util
 import json
@@ -153,7 +153,7 @@ e2 = rn.child_env(7, None)
 check(e2.get("GIT_AUTHOR_NAME") == "Agent Default", "#3467: a chat run keeps the agent's git author of the launcher")
 os.environ.pop("GIT_AUTHOR_NAME")
 
-# ---- #1521 #1870: the rules block (the template block = AG_RULES, checked in agent_docs_coverage too)
+# ---- #1521 #1870: the rules block (the template block = the in-app rules, #6887 via GET /api/agent-rules; agent_docs_coverage)
 tpl = read("mcp", "CLAUDE.template.md")
 block = re.search(r"<!-- kalmido-agent-rules:start -->\n(.*?)<!-- kalmido-agent-rules:end -->", tpl, re.S).group(1)
 flat = re.sub(r"\s+", " ", block)
@@ -165,8 +165,7 @@ check("weekly limit (`seven_day`)" in flat and "never guess it" in flat, "#2196:
 check("**read-only**" in flat, "#2792: reviews read only in the rules block")
 check("also background jobs" in flat, "#3267: the usage hook in jobs in the rules block")
 js = read("static", "js", "agentchat.js")
-am = re.search(r"^const AG_RULES = (\".*\");$", js, re.M)
-check(am and json.loads(am.group(1)) == block, "AG_RULES equals the template block")
+check("AG_RULES" not in js and "/api/agent-rules" in js, "#6887: the in-app rules come from the template block (GET /api/agent-rules)")
 steps = js[js.index("const AG_STEPS"):js.index("function agGuideModal")]
 auto = [ln for ln in steps.split("\n") if "N_('Autostart')" in ln]
 check(auto and "LaunchAgent with agent_launcher.sh" in auto[0] and "agent_launcher.ps1" not in auto[0], "#3267: the macOS step names agent_launcher.sh")

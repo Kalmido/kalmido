@@ -1,0 +1,9 @@
+{
+  "id": "ideas_proposal",
+  "since": "2.156.0",
+  "what": "A job_request of kind ideas (a person asks for sub-branches of a mind map branch) gets one more line: propose short titles for the last title of input.path, follow input.hint, in input.lang, children only when input.levels is 2, at most 50 entries, answer {items} with submit_proposal and read nothing more of the list",
+  "core": [
+    "def ideas_hint",
+    "ideas_hint(x)"
+  ]
+}

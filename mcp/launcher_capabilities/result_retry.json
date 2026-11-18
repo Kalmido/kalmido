@@ -1,0 +1,11 @@
+{
+  "id": "result_retry",
+  "since": "2.1394.0",
+  "what": "#4951 / #2347: a job result that did not reach the chat is posted again with a gap (only the missing parts, each part names its job); the wake run says \"in the chat\" only then, after the last try plainly NOT (file kept, job history); outbox files that do not go along are named in one line",
+  "core": [
+    "def retry_results",
+    "RESULT_RETRY_S",
+    "def queue_result",
+    "def outbox_left_out"
+  ]
+}

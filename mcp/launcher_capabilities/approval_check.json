@@ -1,0 +1,13 @@
+{
+  "id": "approval_check",
+  "since": "2.40.0",
+  "what": "A chat answer (chat runs only, no task events) that asks the person to decide or makes a proposal (German and English, questions and statements; code blocks, quotes and lines about cards already posted do not count) but has no ```approval block goes back to the agent once in the same session (the complete answer again with the block, no tools); still without a block it is posted with a visible note that nothing happens without an explicit yes; KALMIDO_APPROVAL_CHECK=0 switches it off; 2.615.0 (#3658 / #2390, #3757 / #3753): an approval named in passing counts (\"braucht deine Freigabe\", \"needs your approval\", \"sobald du freigibst\", \"once you approve\"), \"deine Freigabe\" / \"your approval\" only as a question; advice against (\"empfehle ich nicht\", \"I would not recommend\") and quoted words or titles („…“, \"…\", “…”, «…») never",
+  "core": [
+    "def asks_without_card",
+    "APPROVAL_CHECK",
+    "card_hint",
+    "--resume",
+    "def check_approval",
+    "(?![^\\n.;:]{0,30}\\bnicht\\b)"
+  ]
+}
