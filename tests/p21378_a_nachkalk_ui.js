@@ -30,6 +30,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   const q = await call('POST', '/api/office/docs', {kind: 'offer', project_title: 'Film', client_id: C.id, items: [
     {kind: 'service', title: 'Concept', qty: 2, unit: 'day', rate: 800},
     {kind: 'service', title: 'Edit', qty: 6, unit: 'hour', rate: 95},
+    {kind: 'service', title: 'Grading', qty: 1, unit: 'hour', rate: 100},  // 2.1389.0 (#6106): linked, nothing tracked
     {kind: 'service', title: 'Music licence', qty: 1, unit: 'flat', rate: 400}]});
   check(q.id, 'the quotation');
   const L = await call('POST', '/api/lists', {name: 'Film project', ptype: 'agency', time_tracking: true});
@@ -65,7 +66,11 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
     'Concept: a day position stays, marked not by time ' + txt(row('Concept')));
   check(/no task/.test(txt(row('Music licence'))), 'Music licence: no task ' + txt(row('Music licence')));
   const foot = txt(md?.querySelector('.opc-tab tfoot'));
-  check(/2,?570\.00/.test(foot) && /2,?783\.75/.test(foot), 'the sums planned 2,570.00 / actual 2,783.75 ' + foot);
+  check(/2,?670\.00/.test(foot) && /2,?783\.75/.test(foot), 'the sums planned 2,670.00 / actual 2,783.75 ' + foot);
+  // 2.1389.0 (#6106 b): the linked hour position without tracked time says so; a tracked one and the sum stay quiet
+  check(/No tracked time: billed with 0 h/.test(txt(row('Grading')?.querySelector('.opc-warn'))) && !row('Edit')?.querySelector('.opc-warn'),
+    'Grading (0 h) warned, Edit not ' + txt(row('Grading')));
+  check(!md?.querySelector('.opc-neg'), 'the actual sum is above zero: no warning about it');
   md.querySelector('[data-m="ok"]')?.click();
   const opened = await until(() => /Invoice/.test(txt(d.querySelector('.ofdhead .ofdnum'))) && !d.querySelector('.modal.opc-dlg'));
   check(opened, 'the invoice draft opens ' + txt(d.querySelector('.ofdhead .ofdnum')));
