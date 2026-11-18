@@ -542,22 +542,34 @@ def ctl_meta_circle(c, a, method, path, va, b):
     if method == "POST" and path == "/agent/chats/{}":
         return circle_person(c, a, va.get("uid"))
     if method == "POST" and path == "/agent/jobs":
-        uid = b.get("user_id") if b.get("user_id") not in (None, "") else run_person()
-        return circle_person(c, a, _ctl_int(uid))
+        return _ctl_person(c, a, b)
     if method == "PATCH" and path == "/agent/jobs/{}" and any(k in b for k in ("title", "log", "append_log")):
         j = c.execute("SELECT user_id FROM agent_jobs WHERE id=? AND agent_id=?", (_ctl_int(va.get("jid")), a["user_id"])).fetchone()
         return circle_person(c, a, j["user_id"]) if j and j["user_id"] else None
     if method == "POST" and path in CTL_PROPOSALS:
         lid = va.get("lid")
         view = b.get("view") if path == "/layouts/proposals" else None
-        if isinstance(view, str) and view.startswith("list:") and view[5:].isdigit():
+        from ..accounts.layoutsets import LYV_LIST_RE  # here: the accounts package loads late
+        if isinstance(view, str) and LYV_LIST_RE.fullmatch(view):  # reader F1: the route's own key check ("list:²" is none)
             lid = int(view[5:])
         w = circle_of(c, a, method, path, va, b, [lid]) if _ctl_int(lid) and list_role(c, lid, a["user_id"]) else None
         if w or path != "/layouts/proposals":
             return w
-        uid = b.get("user_id") if b.get("user_id") not in (None, "") else run_person()
-        return circle_person(c, a, _ctl_int(uid))
+        return _ctl_person(c, a, b)
     return None
+
+
+def _ctl_person(c, a, b):
+    """The circle of the person a job / layout proposal of agent row a goes to: body user_id, else the person of the run.
+    2.1398.0 (#6863, Fable reader job/5498 F1, decision 18.11.2026): read as the route reads it (as_int); a user_id that is
+    there but no id (7.0, true, "+7") fails closed for a team agent -- "wider" -- instead of passing as "nobody"."""
+    v = b.get("user_id")
+    if v in (None, ""):
+        return circle_person(c, a, _ctl_int(run_person()))
+    uid = _ctl_int(v)
+    if uid is None and not a["owner_id"]:
+        return "wider"
+    return circle_person(c, a, uid)
 
 
 def ctl_tag_unused(c, va):
