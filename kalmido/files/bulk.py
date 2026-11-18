@@ -29,6 +29,7 @@ from ..core.access import Denied, live_sql
 from ..core.omitted import Omitted  # 2.1324.0 (#6589)
 from ..core.serializers import unlink_files  # 2.809.0 (#5365): the purges' files after the commit
 from ..accounts.session import me
+from ..accounts.supportgrant import sga_is_support  # 2.1397.0 (#6320): files_zip
 from .store import DEPTH_MAX, fs_chain, fs_deleted, fs_log_add, fs_put, fs_read, fs_role, fs_visible_ids, need_node, safe_fs_name, _free_name
 from .fsref import fs_ref_need_move, fs_ref_trashed, fs_trash_prepare, fs_trash_restored  # 2.199.0 A (#2742); 2.238.0 A (#2863)
 from .fsroots import fs_area_before, fs_area_root_need_free  # 2.199.0 F (#2742, review G1); 2.200.0 (#2747)
@@ -432,6 +433,8 @@ def files_zip():
     vis = fs_visible_ids(c)
     locked = set(fsl_map(c, list(vis)))
     vis -= locked  # 2.353.0 A (#2758): ciphertexts of a locked folder stay out (the browser opens them one by one)
+    if sga_is_support(c) and vis:  # 2.1397.0 (#6320): the .eml of a filed mail stays closed to a support session (hub/hubmail.py)
+        vis -= {r[0] for r in c.execute("SELECT eml_id FROM hub_mails WHERE eml_id IS NOT NULL")}
 
     def why_not(c2, n):  # 2.1324.0 (#6589): named in "not included.txt"
         return ABM_WHY_LOCKED if n["id"] in locked else None
