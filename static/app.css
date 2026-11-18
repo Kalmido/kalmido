@@ -1708,6 +1708,7 @@ body.tdrag .sdrop{display:flex}
 :root[data-theme="light"]{--danger-ink:#ffffff}
 @media (prefers-color-scheme: light){ :root[data-theme="auto"]{--danger-ink:#ffffff} }
 .modal.cdlg{z-index:75}
+.modal.pwprompt{z-index:77}  /* 2.1391.0 (#7111): the sign-in confirmation above every dialog that asks for it (cdlg / fgrqdlg 75), below date pop and toast */
 .modal.cdlg .card{width:min(27rem,100%)}
 .modal.cdlg h3{margin-bottom:.5rem;line-height:var(--lh-tight)}
 .cdlg-b{color:var(--text2);font-size:var(--fs-b);line-height:var(--lh)}
