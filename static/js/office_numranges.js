@@ -379,7 +379,7 @@ async function issPayeesDialog(i) {
   let md0 = null;
   const list = rows.map(p => `<li>${esc(p.label)} · ${esc(p.holder)} · ${esc(p.iban)}${p.bic ? ' · ' + esc(p.bic) : ''}${p.ref_only ? ' · ' + esc(tr('only with reference')) : ''}
     <button type="button" class="btn sm" data-iss-pdel="${esc(String(p.id))}">${ic('trash', 's')}<span>${tr('Remove')}</span></button></li>`).join('');
-  const html = `<p class="muted ofchint">${esc(tr('The accounts the issuer may choose for a payment notice (by number only; it never reads them).'))}</p>${list ? `<ul class="isspay">${/*html-ok*/ list}</ul>` : ''}
+  const html = `<p class="muted ofchint">${esc(tr('The accounts the issuer may select for a payment notice (by number only; it never reads them).'))}</p>${list ? `<ul class="isspay">${/*html-ok*/ list}</ul>` : ''}
     <h4>${esc(tr('Add bank account'))}</h4>
     <div class="row"><label for="iss-p-label">${esc(tr('Name'))}</label><input id="iss-p-label" maxlength="80"></div>
     <div class="row"><label for="iss-p-holder">${esc(tr('Account holder'))}</label><input id="iss-p-holder" maxlength="70"><span class="muted ofchint">${esc(tr('exactly as the bank has it'))}</span></div>
@@ -406,7 +406,7 @@ async function issAct(a, i) {
       await rawFetch('POST', `/api/office/issuers/${i.id}/pause`);
     } else if (a === 'resume') await issSend('POST', `/api/office/issuers/${i.id}/resume`);
     else if (a === 'revoke') {
-      if (!await askConfirm(tr('Revoke {0}?', i.name), tr('Its keys stop working at once and for good; its drafts stay in the office.'), {ok: tr('Revoke'), danger: true})) return;
+      if (!await askConfirm(tr('Revoke {0}?', i.name), tr('Its keys stop working at once and permanently; its drafts stay in the office.'), {ok: tr('Revoke'), danger: true})) return;
       await rawFetch('DELETE', `/api/office/issuers/${i.id}`);
     }
     OFC.log = null; toast(tr('Saved')); issLoad();

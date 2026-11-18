@@ -524,10 +524,10 @@ def iss_create():
     try:
         rid = int(b.get("range_id"))
     except (TypeError, ValueError):
-        return err(tr("Please choose a number range"))
+        return err(tr("Please select a number range"))
     write_lock(c, f"office_issuers_{int(oid)}")
     if not c.execute("SELECT 1 FROM office_num_ranges WHERE id=? AND org_id=? AND closed_at IS NULL", (rid, oid)).fetchone():
-        return err(tr("Please choose a number range"))
+        return err(tr("Please select a number range"))
     if c.execute("SELECT COUNT(*) FROM office_issuers WHERE org_id=? AND revoked_at IS NULL", (oid,)).fetchone()[0] >= ISS_MAX:
         return err(tr("At most {0} invoice issuers per office", ISS_MAX), 409)
     lim = {k: d for k, (_kind, d, _m) in ISS_LIMITS.items()}
