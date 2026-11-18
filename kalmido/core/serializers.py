@@ -379,6 +379,10 @@ TD_DEFAULTS = {
     "wait_fired": "", "waiting_at": None, "wait_note": "", "wait_until": None,
     "tags": [], "ltags": [], "attachments": [], "comment_count": 0, "unread": 0, "fields": {}, "blocked": 0, "blockers": [],
     "blocking": 0,
+    # 2.1387.0 (#6989): the server's marks of where a task came from (#6523 origin) and who last wrote its title / description
+    # (#6677 title_by / content_by) - the web client reads none of them, at NULL they were 14-16 bytes per task (bob's start
+    # set: +254 KB, over the 2 MB of p3136_state_size); the agent API reads them from the dict before td_lean
+    "origin": None, "title_by": None, "content_by": None,
     # 2.1060.0 (#5875 #5184): no updated_by / deleted_by / rev any more (2.1002.0 #5491 had them here): task_dict leaves them out
     # since 2.1031.0 (#5538), so tdFill must not put them back -- a key here every task of load_tasks has to carry
 }
