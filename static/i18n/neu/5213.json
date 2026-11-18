@@ -1,0 +1,22 @@
+{
+  "de": {
+    "Colours and font": "Farben und Schrift",
+    "incl. {0} ({1})": "inkl. {0} ({1})"
+  },
+  "es": {
+    "Colours and font": "Colores y tipo de letra",
+    "incl. {0} ({1})": "incl. {0} ({1})"
+  },
+  "fr": {
+    "Colours and font": "Couleurs et police",
+    "incl. {0} ({1})": "y compris {0} ({1})"
+  },
+  "it": {
+    "Colours and font": "Colori e carattere",
+    "incl. {0} ({1})": "incl. {0} ({1})"
+  },
+  "nl": {
+    "Colours and font": "Kleuren en lettertype",
+    "incl. {0} ({1})": "incl. {0} ({1})"
+  }
+}
