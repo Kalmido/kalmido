@@ -132,6 +132,7 @@ A.put(B + "/api/admin/agent-policy", json={"user_agents": True})  # the server's
 FID, F = freelancer(B, A)
 IDS = {"objkind": "objprobe"}  # 2.558.0 (#4709): the kind for the shared core's routes (SUBST)
 IDS["dispojob"] = "nojob"  # 2.855.0 (#1956): a shoot day of the disposition (a job, no number): none in the sweep
+IDS["issref"] = "acct:1"  # 2.1384.0 (#6700): an invoice issuer's external_ref (the personal token gets 403, ALLOW)
 
 # ================================================================== tasks + lists in the private workspace
 # freelancer-matrix: tasks, lists
@@ -386,6 +387,7 @@ SUBST = [
     (r"/api/obj/task/$", "task"), (r"/api/v1/agent/objects/task/$", "task"),  # 2.1076.0 (#5271): the links of the own task (a light kind of the core)  # 2.981.0 (#5273): the notes of the own document through the comments' core (USE)
     (r"/api/v1/agent/objects/$", "objkind"), (r"/api/v1/agent/objects/objprobe/$", "list"),
     (r"/api/team/dispo/callsheet/$", "dispojob"),  # 2.855.0 (#1956)
+    (r"/issuer/clients/by-ref/$", "issref"),  # 2.1384.0 (#6700)
     (r"/api/team/dispo/callsheet/[^/]+/photo/$", "contact"),  # 2.993.0 (#5650): the logo of a contact on the call sheet
     # 2.421.0 A (#2936): own objects of the setup above; file ids of other stores than the file store: none (skipped)
     (r"/me/webhooks/$", "webhook"),  # 2.391.0 (#3362)
