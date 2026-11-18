@@ -31,7 +31,8 @@ const agentStandby = a => !!a && a.enabled && !a.webhook && !agentOffline(a) && 
 // 2.26.0 (#949): paused with a reason ("does not answer right now: …"); (#933) "connected, but no service running": its
 // token is used (an interactive session) but nothing has collected its events for 10 minutes
 const AGENT_TXT = {status_chat: N_('Answering in the chat'), status_event: N_('Working on an event'), status_no_command: N_('The agent command cannot be started'), status_run_failed: N_('The last run failed'),
-  status_outside_hours: N_('Outside working hours'), status_outside_hours_at: N_('Outside working hours, back {0}'), status_plan_limit: N_('Plan limit reached'), status_plan_limit_at: N_('Plan limit reached, back at {0}')};
+  status_outside_hours: N_('Outside working hours'), status_outside_hours_at: N_('Outside working hours, back {0}'), status_plan_limit: N_('Plan limit reached'), status_plan_limit_at: N_('Plan limit reached, back at {0}'),
+  status_no_request: N_('Skipped a request: no token for the person who asked')};  // 2.1386.0 (#6668): the starter skipped a request without a request token
 // 2.450.0 (#3769): the status text of the reference starter in the language of whoever looks; an unknown key or an older starter: its own text
 const agentStTx = a => { if (!a.status_text) return ''; const at = a.status_key_at ? new Date(a.status_key_at) : null, tim = at && !isNaN(at) ? AGENT_TXT[a.status_key + '_at'] : ''; return tim ? tr(tim, fmtStamp(at)) : AGENT_TXT[a.status_key] ? tr(AGENT_TXT[a.status_key]) : a.status_text; };
 // 2.826.0 (#5509): "connected, but no service running" (#933) only while a message to it waits; answered = "ready"

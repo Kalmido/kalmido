@@ -19335,6 +19335,7 @@
   "This person gives the agent no orders (any more)": "Deze persoon kan de agent geen opdrachten (meer) geven",
   "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Deze agent werkt per verzoek: gebruik het verzoektoken van de gebeurtenis (POST /api/v1/agent/request-token)",
   "It works per request for the person who asked: each run reaches only what that person reaches themselves.": "Hij werkt per verzoek voor de persoon die het vroeg: elke run bereikt alleen wat die persoon zelf bereikt.",
+  "Skipped a request: no token for the person who asked": "Een verzoek overgeslagen: geen token voor de persoon die het vroeg",
   "The organisation is moving: it is read-only.": "De organisatie verhuist: alleen lezen.",
   "Please try again later.": "Probeer het later opnieuw.",
   "The move of this organisation has already started": "De verhuizing van deze organisatie is al gestart",
