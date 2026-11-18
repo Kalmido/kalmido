@@ -483,7 +483,9 @@ def _o():
           f"(o) MCP server: a 401 reads the run file once more, never the long-lived token {seen}")
     # a job the runner wakes (card answer) / continues: the file of its person, never the runner's environment
     aj.SPAWN_ENV = r.job_env
-    check(r.job_env({"chat_user": 5}) == rf and r.job_env({"chat_user": 77}) is None,
+    # 2.1386.0 (#6668): reader R4 F1 -- job_env needs the token's person and kind the job started with (agent_job.py cmd_start)
+    check(r.job_env({"chat_user": 5, "env_key": "p5", "token_person": 5}) == rf
+          and r.job_env({"chat_user": 77, "env_key": "p77", "token_person": 77}) is None,
           "(o) a woken job of the person gets her request token file; a person without one: none (it stays asleep)")
     aj.SPAWN_ENV = None
     # the dispatcher's job: the chosen person's token file (op), never the starter's
@@ -586,16 +588,18 @@ def _f9():
     r.api.req = req
     opc = r.op_api()
     opf = os.path.join(r.state_dir, "run-env", "op.env")
-    check(opc is not None and os.path.isfile(opf) and r.job_env({"chat_user": 9}) == opf and r.job_env({"chat_user": 5}) is None,
+    def oj(uid):  # 2.1386.0 (#6668): reader R4 F1 -- a job of the list work started with op.env for person uid
+        return {"chat_user": uid, "env_key": "op", "token_person": uid}
+    check(opc is not None and os.path.isfile(opf) and r.job_env(oj(9)) == opf and r.job_env(oj(5)) is None,
           "(s) R3 F9: op.env for a job of the chosen person (9) only")
     nxt["agent"] = {**r.agent, "perm_user_id": 7}
     r.refresh_agent()  # runtime_changed: the settings are read again
     check(not os.path.isfile(opf) and getattr(r, "_op_tok", (None, 0))[0] is None,
           "(s) R3 F9: another person chosen -- the starter drops the old token and op.env at once")
-    check(r.job_env({"chat_user": 7}) is None and r.job_env({"chat_user": 9}) is None,
+    check(r.job_env(oj(7)) is None and r.job_env(oj(9)) is None,
           "(s) R3 F9: no job gets op.env of another person (7 has no file of its own: it stays asleep)")
     opc = r.op_api()
-    check(opc is not None and opc.token.startswith("abk_op07") and r.job_env({"chat_user": 7}) == opf,
+    check(opc is not None and opc.token.startswith("abk_op07") and r.job_env(oj(7)) == opf,
           "(s) R3 F9: the next round asks for the newly chosen person")
     # the settings this runner knows are stale (the server cut the token for another person): read again, then decide
     r.agent = {**r.agent, "perm_user_id": 9}
@@ -605,6 +609,91 @@ def _f9():
 
 
 _f9()
+
+
+# ---------------------------------------------------------------- reader R4 F1: a job keeps the person of the token it started with
+# Without the fix agent_job.py start took the job's person from KALMIDO_CHAT_USER (the model's Bash line) and the runner gave
+# a woken / continued job the request token file of that person (job_env by chat_user alone): a job of person 5's run named
+# person 7, a card answer or a restart continued it with p7.env, and its end woke a run for 7.
+def _r4f1():
+    import sys
+    import tempfile
+    ar, aj = sys.modules["agent_run"], sys.modules["agent_job"]
+    tmp = tempfile.mkdtemp(prefix="kalmido-p6668r4-")
+    sd = os.path.join(tmp, "state")
+    p5, p7 = os.path.join(sd, "run-env", "p5.env"), os.path.join(sd, "run-env", "p7.env")
+    ar.write_token_file(p5, "http://127.0.0.1:9", "abk_p5" + "a" * 26)
+    ar.write_token_file(p7, "http://127.0.0.1:9", "abk_p7" + "b" * 26)
+    brief = os.path.join(tmp, "brief.txt")
+    with open(brief, "w", encoding="utf-8") as f:
+        f.write("do it")
+    keys = ("KALMIDO_TOKEN", "KALMIDO_ENV_FILE", "KALMIDO_STATE_DIR", "KALMIDO_CHAT_USER", "KALMIDO_JOB_CMD", "KALMIDO_URL")
+    saved = {k: os.environ.get(k) for k in keys}
+    old_sd, old_req, old_spawn = aj.STATE_DIR, aj.Api.req, aj.spawn_run
+    calls, answer = [], {}
+
+    def req(self, method, path, body=None, *a, **k):
+        calls.append((method, path, body))
+        return dict(answer) if method == "POST" else {}
+    try:
+        aj.STATE_DIR = None
+        os.environ.pop("KALMIDO_TOKEN", None)
+        os.environ.update(KALMIDO_ENV_FILE=p5, KALMIDO_STATE_DIR=sd, KALMIDO_JOB_CMD='["true"]', KALMIDO_URL="http://127.0.0.1:9")
+        aj.Api.req, aj.spawn_run = req, (lambda j, extra=None: 0)
+        check(aj.run_env_key() == "p5" and aj.run_env_key("/x/run-env/op.env") == "op" and aj.run_env_key("/x/kalmido-agent.env") is None,
+              "(t) R4 F1: the kind of a run's request token file")
+        os.environ["KALMIDO_CHAT_USER"] = "7"
+        check(aj.cmd_start(["--title", "For seven", brief]) == 2 and not calls,
+              f"(t) R4 F1: person 5's run starts no job for person 7 (KALMIDO_CHAT_USER), nothing asked {calls}")
+        os.environ.pop("KALMIDO_CHAT_USER")
+        answer.update(id=901, user_id=5)
+        check(aj.cmd_start(["--title", "For five", brief]) == 0 and calls[-1][2].get("user_id") == 5, f"(t) R4 F1: without a person: the token's {calls[-1:]}")
+        j = aj.load(901) or {}
+        check(j.get("chat_user") == 5 and j.get("token_person") == 5 and j.get("env_key") == "p5", f"(t) R4 F1: the job keeps the token's person {j}")
+        answer.update(id=902, user_id=7)  # a server that named somebody else: the job is closed, not started
+        check(aj.cmd_start(["--title", "Odd", brief]) == 2 and aj.load(902) is None and calls[-1][:2] == ("PATCH", "/agent/jobs/902"),
+              f"(t) R4 F1: the server's job of another person is not started {calls[-1:]}")
+        # the runner: woken / continued only with the file of the token's person
+        os.environ["KALMIDO_TOKEN"] = "abk_" + "m" * 30
+        r = ar.Runner(["claude"], sd)
+        os.environ.pop("KALMIDO_TOKEN", None)
+        r.extras = None
+        r.agent = {"owner_id": None, "request_token": True, "runtime": {}}
+        r.req_mode = lambda: "team"
+        bad = {"id": 903, "title": "x", "chat_user": 7, "env_key": "p5", "token_person": 5}
+        check(r.job_env(bad) is None and r.job_env({**bad, "env_key": "p7"}) is None and r.job_env({"id": 904, "chat_user": 7}) is None,
+              "(t) R4 F1: a job file with chat_user 7 and token person 5 never gets p7.env (nor without a token person)")
+        check(r.job_env(j) == p5, "(t) R4 F1: the job of person 5 gets p5.env")
+        aj.spawn_run = old_spawn
+        aj.SPAWN_ENV = r.job_env
+        os.makedirs(aj.job_dir(903), exist_ok=True)
+        try:
+            aj.spawn_run(dict(bad))
+            raised = False
+        except OSError:
+            raised = True
+        check(raised, "(t) R4 F1: waking / continuing such a job starts nothing")
+        # the end of the job wakes a run only for the token's person
+        queued = []
+        r.queue_add = lambda evs: queued.extend(evs)
+        aj.revive_lost, keep = (lambda api=None: []), aj.revive_lost
+        try:
+            aj.add_wake(dict(bad), "done", "result")
+            aj.add_wake(dict(j), "done", "result")
+            r.job_watch()
+        finally:
+            aj.revive_lost = keep
+        check([e["data"]["user"]["id"] for e in queued] == [5], f"(t) R4 F1: the end wakes a run for person 5 only, never for 7 {queued}")
+    finally:
+        aj.STATE_DIR, aj.Api.req, aj.spawn_run, aj.SPAWN_ENV = old_sd, old_req, old_spawn, None
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
+_r4f1()
 
 # ---------------------------------------------------------------- server
 fresh(prefix="P6668")
@@ -783,6 +872,17 @@ ap = err(r).get("approval") or {}
 STEP = {k: ap[k] for k in ("method", "path", "body", "if_match") if k in ap}
 r = requests.post(V + f"/tasks/{TX}/comments", headers=hdr(RC), json={"body": "FOR-CARL"}, timeout=30)
 check(r.status_code == 201, f"(b) carl's request (he writes there) comments {r.status_code} {r.text[:200]}")
+
+# ---- reader R4 F1: a job of carl's request is carl's -- never another person's (KALMIDO_CHAT_USER of the model's Bash line)
+# Without the fix POST /agent/jobs (class send) took any person who shares a project with the agent: a job of carl's run named
+# rita, the starter woke / continued it later with rita's request token file (p<rita>.env) and her rights.
+r = requests.post(V + "/agent/jobs", headers=hdr(RC), json={"title": "R4 job for rita", "user_id": uid["rita"], "state": "done"}, timeout=30)
+check(r.status_code == 403 and err(r).get("code") == "run_person", f"(f) R4 F1: carl's request starts no job for rita {r.status_code} {r.text[:200]}")
+check(not dbx("SELECT 1 FROM agent_jobs WHERE agent_id=? AND title='R4 job for rita'", (XT,)), "(f) R4 F1: ... nothing stored")
+r = requests.post(V + "/agent/jobs", headers=hdr(RC), json={"title": "R4 job unnamed", "state": "done"}, timeout=30)
+check(r.status_code == 201 and r.json().get("user_id") == uid["carl"], f"(f) R4 F1: a job without a person is carl's (the requester) {r.status_code} {r.text[:200]}")
+r = requests.post(V + "/agent/jobs", headers=hdr(RC), json={"title": "R4 job carl", "user_id": uid["carl"], "state": "done"}, timeout=30)
+check(r.status_code == 201 and r.json().get("user_id") == uid["carl"], f"(f) R4 F1: carl named himself: his job {r.status_code} {r.text[:200]}")
 
 # ---- reader R4 F3: the long-lived token reads no task titles / project names through its usage report
 # Without the fix POST /agent/usage took any task the agent sees (project two too) and GET ?group=task gave its title back.

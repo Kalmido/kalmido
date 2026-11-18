@@ -548,7 +548,10 @@ coding agents, building files, own tools.
   any `404` / `405`) or cannot be reached, the starter skips the request (a status line) and its dispatcher round waits -- the agent's own
   token never reaches a run, a job or the dispatcher's list work; nothing is remembered, the next request asks again.
   The run's env file is written anew with every new token of that person (also after a `401`), so a job of the run keeps
-  working; a job the starter wakes or continues gets the file of its person (none: it stays asleep). The starter's env file
+  working; a job the starter wakes or continues gets the file of its person (none: it stays asleep). That person is the
+  person of the request token the job was started with (`agent_job.py start` keeps it; never `KALMIDO_CHAT_USER` alone):
+  `POST /agent/jobs` with a request token names only that person (another one `403 run_person`, none = that person), a job
+  file whose person differs is not woken, not continued and its end wakes no run for anybody else. The starter's env file
   stays with the starter: the guard hook of #6457 (above) refuses a Bash line that names it, `/proc/<pid>/environ` or `ps e`,
   that part also with `KALMIDO_BLOCK_DANGEROUS=0`, and every run's settings deny `Read` of `/proc/*/environ`. The request
   token files of all people (`<state>/run-env/`: `p<id>.env`, `op.env`, `auto.env`, the run's own included -- the MCP server
@@ -1929,6 +1932,8 @@ PATCH /api/v1/agent/jobs/{id}   {"state": "waiting" | "running" | "done" | "fail
 ```
 
 A job object: `{id, agent_id, task_id, user_id, title, state, log, action, action_by, action_at, created_at, updated_at, name}`.
+2.1386.0 (#6668): in a run for a person (a run / request token of a team agent) a job is that person's: `user_id` may name
+only them (another person `403 run_person`), without `user_id` the job is theirs.
 2.58.0 (#1803): `name` (optional, only when creating) is the job's own short name: letters, spaces, `.`, `'`, `-`, up to 24
 characters, no digits or colons, no plain words such as `Release` or `Fix` (else 400). Keep the log short: it is a summary, not a build log.
 
