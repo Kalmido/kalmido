@@ -11,6 +11,8 @@ current server on every dump in this folder and compares (`tests/upgrade_views.p
   `kalmido-mactest.sh shot upgrade_seed` (KMT_SRC = that tree); the dump comes back in the run's `shots` folder.
 - `2.1001.0` (#6826): the first release from the update floor on (`MIN_FROM` = 2.1000.0 in `kalmido/core/db.py`, since 2.1380.0),
   made the same way (the tag's `ruff.toml` needs `tests/.data-only` in `extend-exclude` for the Mac's lint).
+- `2.1380.0` (#7101): the quarter's old state Q4/2026 (live when it was taken), made the same way: the tag's tree with the
+  current `tests/upgrade_seed.py` as the suite `upgrade_seed` (`# kalmido-suite: fresh`), `kalmido-mactest.sh shot upgrade_seed`.
 
 Since 2.1380.0 (#6826) a dump older than `MIN_FROM` (2.101.0, 2.941.0) is no longer updated: the suite checks that the start
 refuses it with the way through and leaves it as it was. The full checks run on the dumps from `MIN_FROM` on.
