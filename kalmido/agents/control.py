@@ -399,7 +399,7 @@ def ctl_refuse(step, level, lid, d, circle=None):
     im = (request.headers.get("If-Match") or "").strip()[:200]  # 2.1045.0 (#5827): the version read, sent along when the card runs
     st = {"method": request.method, "path": request.path, **({"body": rb} if rb not in ({}, []) else {}), **({"if_match": im} if im else {})}
     if circle:  # 2.1284.0 (#6453): the level would let it pass, the circle of people does not
-        msg = tr(CTL_CIRCLE_TEXT["person" if step == "meta" else circle]) + " " + msg
+        msg = tr(CTL_CIRCLE_TEXT["person" if step == "meta" and request.path.startswith(API_PREFIX + "agent/") else circle]) + " " + msg
     return v1_err(409, msg, name="approval_required", step=step, level=level, project_id=lid,
                   approval={**st, "header": CTL_HEADER}, **({"run": "header"} if files else {}), **({"circle": circle} if circle else {}))
 
@@ -488,12 +488,12 @@ def ctl_gate():
     if step == "meta" and web is not None:  # its own channel too: messages only to the people of the run, rules by card
         from .srvweb import srvweb_gate_step
         step = srvweb_gate_step(web, request.method, path, b, request.view_args or {}) or step
-    person = ctl_chat_person(c, a, request.method, path, request.view_args or {}) if step == "meta" else None
+    person = ctl_meta_circle(c, a, request.method, path, request.view_args or {}, b) if step == "meta" else None
     if step == "meta" and not person:
         # 2.1386.0 (#6668, second review F1): no card check for a meta step -- a card's meta step with the long-lived token
         # of a team agent per request (ctl_force_for above) reaches only the agent's own channel, else 403 request_token_needed
         return req_main_step() if g.get("ctl_force_for") else None
-    lids, unknown = ([], False) if person else ctl_lists(c, a["user_id"], path, b)
+    lids, unknown = ([], False) if person and path.startswith("/agent/") else ctl_lists(c, a["user_id"], path, b)
     if lids is None:
         return None  # a project it cannot see: the route answers 404
     if nolevel and all(list_role(c, x, p) in WRITE_ROLES for x in lids for p in act_for(a["user_id"]) or ()):
@@ -526,14 +526,38 @@ def ctl_gate():
     return None
 
 
-def ctl_chat_person(c, a, method, path, va):
-    """2.1284.0 (#6453, review G12): "wider" | None for a step of the agent's own channel -- a TEAM agent's chat message to a
-    person who does not read every place the agent reads (agents/circle.py circle_person). Such a message (its text, also
-    an approval card's own title and words) needs the Yes of a person who reads all of them, on every level: the agent asks
-    that person with a card whose step is this message, and runs it. A personal agent writes only to its owner: None."""
-    if method != "POST" or path != "/agent/chats/{}":
-        return None
-    return circle_person(c, a, va.get("uid"))
+CTL_PROPOSALS = ("/lists/{}/playbook/proposals", "/lists/{}/rules/proposals", "/layouts/proposals")
+
+
+def ctl_meta_circle(c, a, method, path, va, b):
+    """2.1284.0 (#6453, review G12): "wider" | "public" | None for a step of the agent's own channel -- a TEAM agent's chat
+    message to a person who does not read every place the agent reads (agents/circle.py circle_person). Such a message (its
+    text, also an approval card's own title and words) needs the Yes of a person who reads all of them, on every level: the
+    agent asks that person with a card whose step is this message, and runs it. A personal agent writes only to its owner.
+    2.1398.0 (#6863): the same for a job of a team agent for a person (POST /agent/jobs with user_id or in a run for a
+    person; PATCH of its title / log): its title and log reach that person (chat start line, progress, News, push). A job
+    for nobody shows its words only to who reads every source (agents/circle.py job_mute). A proposal for the rules,
+    playbook or a layout of a project is a write into that project (circle_of with the route's project); a layout
+    proposal goes to a person as well."""
+    if method == "POST" and path == "/agent/chats/{}":
+        return circle_person(c, a, va.get("uid"))
+    if method == "POST" and path == "/agent/jobs":
+        uid = b.get("user_id") if b.get("user_id") not in (None, "") else run_person()
+        return circle_person(c, a, _ctl_int(uid))
+    if method == "PATCH" and path == "/agent/jobs/{}" and any(k in b for k in ("title", "log", "append_log")):
+        j = c.execute("SELECT user_id FROM agent_jobs WHERE id=? AND agent_id=?", (_ctl_int(va.get("jid")), a["user_id"])).fetchone()
+        return circle_person(c, a, j["user_id"]) if j and j["user_id"] else None
+    if method == "POST" and path in CTL_PROPOSALS:
+        lid = va.get("lid")
+        view = b.get("view") if path == "/layouts/proposals" else None
+        if isinstance(view, str) and view.startswith("list:") and view[5:].isdigit():
+            lid = int(view[5:])
+        w = circle_of(c, a, method, path, va, b, [lid]) if _ctl_int(lid) and list_role(c, lid, a["user_id"]) else None
+        if w or path != "/layouts/proposals":
+            return w
+        uid = b.get("user_id") if b.get("user_id") not in (None, "") else run_person()
+        return circle_person(c, a, _ctl_int(uid))
+    return None
 
 
 def ctl_tag_unused(c, va):
@@ -1071,7 +1095,7 @@ def ctl_card_circle(st):
     if a is None:
         return None
     if ctl_class(st["method"], path, b) == "meta":
-        return ctl_chat_person(c, a, st["method"], path, va)
+        return ctl_meta_circle(c, a, st["method"], path, va, b)
     lids, _ = ctl_lists(c, a["user_id"], path, b, va)
     if lids is None:
         return None

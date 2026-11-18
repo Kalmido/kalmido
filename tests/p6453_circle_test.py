@@ -28,6 +28,9 @@ Fable review of 16.11.2026 (each case red without its fix):
  - G9: a page / a task of somebody else gives the same answer as one that does not exist
  - G12: a team agent's message to a person who does not read all it reads = a card; its status text is hidden from them
  - G13: the Yes of a person who does not read the sources does not count (approver_rights)
+2.1398.0 (#6863): a team agent's job for a person (POST /agent/jobs user_id, PATCH of its log) = a message to them; a job
+without a task hides its words from who does not read everything; rules / playbook / layout proposals are writes into the
+project
  - also: a chat room without a project, a new page in a folder of a shared space
 usage: p6453_circle_test.py <datadir>"""
 import json
@@ -263,7 +266,8 @@ r = A.post(B + "/api/users", json={"username": "bob", "display_name": "Bob", "pa
                                    "orgs": [{"id": ORG, "role": "member"}]})
 assert r.ok, r.text
 BOB = r.json()["id"]
-r = A.post(B + "/api/admin/agents", json={"username": "teambot", "display_name": "Team", "scopes": SCOPES, "org_id": ORG})
+r = A.post(B + "/api/admin/agents", json={"username": "teambot", "display_name": "Team", "scopes": SCOPES + ["structure", "layouts"],
+                                          "org_id": ORG})  # 2.1398.0 (#6863): structure / layouts for the rules / layout proposals
 assert r.status_code in (200, 201), r.text
 TA, HT = r.json()["id"], {"Authorization": "Bearer " + r.json()["token"]}
 r = A.patch(B + f"/api/agents/{TA}/control", json={"level": "routine"})
@@ -521,6 +525,44 @@ r = requests.post(V + f"/tasks/{T_PRIV}/working", headers=H, json={"text": "sort
 j = r.json() if r.ok else {}
 check(r.status_code == 201 and (j.get("working") or {}).get("text") == "sorting the notes" and "text_shown" not in j,
       f"its private project: the progress line as before ({r.status_code} {r.text[:200]})")
+
+# ================================================================== 2.1398.0 (#6863): jobs, proposals, agents without a level
+# A team agent's job for a person is a message to that person (title and log reach them: chat start line, progress, News,
+# push): a person who does not read every source = a card, nothing stored. A job without a task shows its words only to
+# who reads every source. A proposal for the rules / playbook / layout of a project is a write into that project. Each
+# red without the fix. (Agents without a level: a task of its own, the decision of #6863.)
+n0 = kt.dbx("SELECT count(*) FROM agent_jobs WHERE agent_id=?", (TA,))[0][0]
+card(requests.post(V + "/agent/jobs", headers=HT, json={"title": "Alice's private plan", "user_id": BOB, "log": "private words"}),
+     "wider", "#6863: a team agent's job for a person who does not read all it reads")
+check(kt.dbx("SELECT count(*) FROM agent_jobs WHERE agent_id=?", (TA,))[0][0] == n0, "#6863: ... no job was stored")
+r = requests.post(V + "/agent/jobs", headers=HT, json={"title": "For alice", "user_id": ALICE})
+check(r.status_code == 201, f"#6863: a job for a person who reads everything: free ({r.status_code} {r.text[:200]})")
+JB_BOB = kt.dbx("""INSERT INTO agent_jobs(agent_id,user_id,title,state,log,created_at,updated_at) VALUES(?,?,?,'running','',?,?)
+                   RETURNING id""", (TA, BOB, "Bob's job", ts(), ts()))[0][0]
+card(requests.patch(V + f"/agent/jobs/{JB_BOB}", headers=HT, json={"append_log": "alice's private line"}), "wider",
+     "#6863: a log line of a job for that person")
+check(kt.dbx("SELECT log FROM agent_jobs WHERE id=?", (JB_BOB,))[0][0] == "", "#6863: ... the log stayed empty")
+check(requests.patch(V + f"/agent/jobs/{JB_BOB}", headers=HT, json={"state": "done"}).ok, "#6863: its state alone is no words: free")
+r = requests.post(V + "/agent/jobs", headers=HT, json={"title": "Nobody's secret", "log": "alice's private notes"})
+check(r.status_code == 201, f"#6863: a job without a task and a person passes the gate ({r.status_code} {r.text[:200]})")
+JB_NONE = r.json().get("id") if r.ok else None
+kt.dbx("UPDATE users SET is_admin=TRUE WHERE id=?", (BOB,))  # an admin sees the jobs of agents it reaches (core.job_visible)
+try:
+    jb = next((x for x in BS.get(B + "/api/agents/jobs", params={"agent_id": TA}).json().get("jobs", []) if x["id"] == JB_NONE), None)
+    check(jb is not None and jb["title"] == "" and jb["name"] is None and not jb.get("log") and not jb.get("log_last"),
+          f"#6863: bob sees the job without a task, not its title or log {jb and {k: jb.get(k) for k in ('title', 'name', 'log', 'log_last')}}")
+    ja = next((x for x in A.get(B + "/api/agents/jobs", params={"agent_id": TA}).json().get("jobs", []) if x["id"] == JB_NONE), None)
+    check(ja is not None and ja["title"] == "Nobody's secret", f"#6863: ... alice, who reads everything, reads it {ja and ja.get('title')}")
+finally:
+    kt.dbx("UPDATE users SET is_admin=FALSE WHERE id=?", (BOB,))
+for path, body in ((f"/lists/{L_ALL}/rules/proposals", {"name": "From alice's project", "trigger": {}, "action": {}}),
+                   (f"/lists/{L_ALL}/playbook/proposals", {"text": "alice's private notes"}),
+                   ("/layouts/proposals", {"view": f"list:{L_ALL}", "name": "x", "layout": {}, "user_id": ALICE})):
+    card(requests.post(V + path, headers=HT, json=body), "wider", f"#6863: a proposal into the project everyone reads ({path})")
+for path, body in ((f"/lists/{L_OWN}/rules/proposals", {"name": "x"}), (f"/lists/{L_OWN}/playbook/proposals", {"text": "x"})):
+    r = requests.post(V + path, headers=HT, json=body)
+    check(not (r.status_code == 409 and err(r).get("code") == "approval_required"),
+          f"#6863: a proposal into the project only alice reads: no card from the rule ({path} {r.status_code} {r.text[:160]})")
 
 # ================================================================== 2.1345.0 (#6736, Fable reader #4945 N1): approvals from before 2.1284
 # A bridge approved before the circles were kept (circle_a / circle_b NULL) gets at the start the circle of the moment of

@@ -40,6 +40,11 @@ Review of 16.11.2026 (G1 - G13), all in the direction "in doubt a card":
   * a TEAM agent's message to a person (POST /agent/chats/<uid>) is a target with one reader; its status text is hidden
     from a person who does not read every source (circle_reader). A personal agent writes only to its owner: free.
   * who says Yes to a card of this rule must read every source (control.ctl_claim: circle_reader), else approver_rights.
+  * 2.1398.0 (#6863): a team agent's job for a person (POST /agent/jobs with user_id / in a run for a person, PATCH of its
+    title / log) is a message to that person (control.ctl_meta_circle); a job without a task shows its words only to who
+    reads every source (job_mute); a proposal for the rules / playbook / layout of a project is a write into that project
+    (circle_of), a layout proposal a message to its person too. An agent without a chosen control level stays outside
+    the rule for now (its own task, see the decision of #6863).
 
 The cost per request: the agent's projects, their circles (four statements for all of them, list_circles2) and its shares
 once per request and agent (_sources); a person's roles on the shares once per request, the shares' chains once. wk_mute
@@ -60,7 +65,7 @@ from ..collab.teamchat import tchat_room_members, tchat_room_ok
 from ..wiki.wkfolder import _root_of_chain
 from ..wiki.wkshare import wsh_covers, wsh_live_rows
 from ..wiki.wkv1 import wkv_need
-from .core import agent_row, agent_shares, ST_MUTE
+from .core import agent_row, agent_shares, JOB_MUTE, ST_MUTE
 
 CIRCLE_PAIRS_MAX = 400  # persons of the target x node shares of the agent one request looks at; more = "wider"
 CIRCLE_NODES_MAX = 500  # node shares of one agent the rule reads; more = it cannot tell: "wider" (review G10)
@@ -514,13 +519,29 @@ def wk_mute(c, marks):
 
 
 def st_mute(c, a, uid):
-    """Is the status text of agent row a hidden from person uid (review G12)? A TEAM agent with a control level: everybody
-    who shares a project with it sees its status, so its words show only to a person who reads every source of it (the
-    simple form, as the progress line). A personal agent's status is its owner's: shown."""
+    """Is the status text of agent row a hidden from person uid (review G12)? A TEAM agent: everybody who shares a project
+    with it sees its status, so its words show only to a person who reads every source of it (the simple form, as the
+    progress line). A personal agent's status is its owner's: shown."""
     if a is None or a["owner_id"] or not uid or uid == a["user_id"] or not _has_level(a):
         return False
     return _short(("st", a["user_id"], uid), lambda: not circle_reader(c, a["user_id"], uid))
 
 
+def job_mute(c, aid, uid):
+    """2.1398.0 (#6863): are the words (title, name, log) of a job of agent aid WITHOUT a task hidden from person uid? No
+    task, no place whose circle wk_mute could ask: the job reaches the person it is for (the gate asks for that person, as
+    for a chat message: control.ctl_meta_circle) and the admins who share the agent (core.job_visible) -- a team agent's
+    words show there only to a person who reads every source of it (with a control level, as wk_mute). A personal agent: never."""
+    if not uid or uid == aid:
+        return False
+
+    def ask():
+        with system_ctx(c):  # the agent's own row, also when a person of another organisation looks
+            a = agent_row(c, aid)
+        return bool(a is not None and not a["owner_id"] and _has_level(a) and not circle_reader(c, aid, uid))
+    return _short(("jb", aid, uid), ask)
+
+
 WK_MUTE.append(wk_mute)
 ST_MUTE.append(st_mute)
+JOB_MUTE.append(job_mute)
