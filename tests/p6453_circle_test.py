@@ -575,6 +575,23 @@ for bad in (float(BOB), f"+{BOB}", True, f"{BOB}_0"):
 check(kt.dbx("SELECT count(*) FROM agent_jobs WHERE agent_id=? AND user_id=?", (TA, BOB))[0][0] == nl0, "F1: ... no job for bob was stored")
 r = requests.post(V + "/layouts/proposals", headers=HT, json={"view": "list:\u00b2", "name": "x", "layout": {}, "user_id": ALICE})
 check(r.status_code < 500, f"F1: a view key 'list:\u00b2' is a 4xx, not a 500 ({r.status_code} {r.text[:160]})")
+# Fable reader job/5498 F2: a progress step (chat or a job for bob) and a /working line into a job for bob are words to bob too
+ns0 = kt.dbx("SELECT count(*) FROM agent_steps WHERE agent_id=? AND user_id=?", (TA, BOB))[0][0]
+card(requests.post(V + "/agent/progress", headers=HT, json={"text": "alice's private notes", "job_id": JB_BOB}), "wider",
+     "F2: a progress step of a job for bob")
+card(requests.post(V + "/agent/progress", headers=HT, json={"text": "alice's private notes", "chat_user_id": BOB}), "wider",
+     "F2: a progress step of a chat with bob")
+JB_BOBT = kt.dbx("""INSERT INTO agent_jobs(agent_id,task_id,user_id,title,state,log,created_at,updated_at) VALUES(?,?,?,?,'running','',?,?)
+                    RETURNING id""", (TA, K_ALL, BOB, "Bob's task job", ts(), ts()))[0][0]
+for meth in ("POST", "PATCH"):
+    card(requests.request(meth, V + f"/tasks/{K_ALL}/working", headers=HT, json={"text": "alice's private notes", "job_id": JB_BOBT}),
+         "wider", f"F2: {meth} /tasks/{{id}}/working into a job for bob")
+card(requests.patch(V + f"/tasks/{K_ALL}/working", headers=HT, json={"text": "alice's private notes"}), "wider",
+     "F2: PATCH /tasks/{id}/working without job_id picks the newest job -- the one for bob")
+check(kt.dbx("SELECT count(*) FROM agent_steps WHERE agent_id=? AND user_id=?", (TA, BOB))[0][0] == ns0
+      and kt.dbx("SELECT log FROM agent_jobs WHERE id=?", (JB_BOBT,))[0][0] == "", "F2: ... no step and no log line reached bob")
+check(requests.patch(V + f"/tasks/{K_ALL}/working", headers=HT, json={"job_id": JB_BOBT}).ok, "F2: 'still working' without words: free")
+kt.dbx("UPDATE agent_jobs SET state='done' WHERE id=?", (JB_BOBT,))
 for path, body in ((f"/lists/{L_OWN}/rules/proposals", {"name": "x"}), (f"/lists/{L_OWN}/playbook/proposals", {"text": "x"})):
     r = requests.post(V + path, headers=HT, json=body)
     check(not (r.status_code == 409 and err(r).get("code") == "approval_required"),
