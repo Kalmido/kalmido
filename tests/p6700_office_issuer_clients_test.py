@@ -565,4 +565,13 @@ check(kget(KEY7, "f12:2").ok and kput(KEY7, "f12:2", {"name": "Lesen Zwei"}).sta
 rd = sql("SELECT target FROM office_doc_log WHERE issuer_id=? AND action='issuer_read'", (IID7,))
 check([x[0] for x in rd] == ["clients"], f"F12: one read line for both clients within the hour, target clients {rd}")
 
+# F10: the alarm "client data changed" names the client (the key's free text) in the app's News only, never in the security mail
+out = in_ct("import app, json\nfrom kalmido.office import issuers, issclients\ngot = {}\n"
+            "issuers.iss_admins = lambda c, oid: [1]\nissclients._iss_once = lambda *a, **k: True\n"
+            "issuers.integ_tell = lambda c, uids, what, name, detail, **k: got.update(news=detail)\n"
+            "issuers.iss_mail = lambda c, uids, what, name, detail='', who='': got.update(mail=detail)\n"
+            "issclients._tell(None, {'org_id': 1, 'id': 7, 'name': 'Shop'}, {'name': 'Zahle an pay.evil.example'})\nprint(json.dumps(got))\n")
+got = json.loads(out.strip().splitlines()[-1])
+check(got.get("news") == "Zahle an pay.evil.example" and got.get("mail") == "one of its clients", f"F10: the client's name in the News only, not in the mail {got}")
+
 sys.exit(kt.done("p6700_office_issuer_clients"))
