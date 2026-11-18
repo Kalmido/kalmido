@@ -14,6 +14,9 @@ Rules (the design's section 2.4 "Clients", decided 16.11.2026 and 17.11.2026):
     sets it in the office). No address as free text, no note, no rate, no Peppol id.
   - Texts with an IBAN form, a web address or an e-mail address are refused (400 invalid_field) in every text field; in name /
     name_extra a web or e-mail pattern only flags text_suspicious (companies are called "Booking.com B.V."), an IBAN stays 400.
+    #7113 (review F9): checked after NFKC and without control / format characters (isc_norm, also what is stored); an IBAN with
+    any separator or letters before it (check digits), a web address with any ending (isc_has_web); a VAT ID only of letters,
+    digits and + * . -.
   - The country of a VAT ID must fit the client's country (Greece = EL, Monaco = FR; Northern Ireland XI for GB), else 400
     invalid_field vat_id. A VAT ID is optional (also for German buyers; never the buyer's tax number).
   - A change needs expect_updated_at (this route insists itself, ow_write asks it of agents only): 400 version_required
@@ -56,6 +59,7 @@ from ..notify.alerts import fx2_mask_ip
 from ..accounts.session import client_ip
 from .countries import fk_vat_prefix
 from .isshold import IHD_FIELDS, ihd_load
+from .ledger import _iban_ok  # #7113 (review F9): the office's IBAN check (mod 97)
 from .issuers import _iss_me, _iss_once, _iss_read_logged, iss_log, iss_tell, ISS_ROUTES
 from .model import pb_cl_sql, pb_owner
 from ..team.clients import clean_client
@@ -75,10 +79,64 @@ ISC_PUBLIC = ("external_ref", *ISC_FIELDS)
 ISC_KEY_FLAGS = ("client_new", "text_suspicious")  # review F2: what the key hears of the mark - only its own input
 # an IBAN form: two letters, two check digits, 11 to 30 letters / digits (spaces allowed between), at least 8 digits in it
 ISC_IBAN_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{2}[0-9]{2}(?:[ ]?[A-Za-z0-9]){11,30}(?![A-Za-z0-9])")
+# #7113 (review F9): and an IBAN anywhere in the letters and digits of a text, whatever stands between or before them
+# ("DE89-3704-...", "DE89.3704...", "IBANDE89...", "DE 89 3704..."): the country's IBAN length and the check digits
+# (office/ledger.py _iban_ok, mod 97) keep a street with house numbers out of it
+ISC_IBAN_LEN = {
+    "AD": 24, "AE": 23, "AL": 28, "AT": 20, "AZ": 28, "BA": 20, "BE": 16, "BG": 22, "BH": 22, "BI": 27, "BR": 29, "BY": 28, "CH": 21,
+    "CR": 22, "CY": 28, "CZ": 24, "DE": 22, "DJ": 27, "DK": 18, "DO": 28, "EE": 20, "EG": 29, "ES": 24, "FI": 18, "FK": 18, "FO": 18,
+    "FR": 27, "GB": 22, "GE": 22, "GI": 23, "GL": 18, "GR": 27, "GT": 28, "HR": 21, "HU": 28, "IE": 22, "IL": 23, "IQ": 23, "IS": 26,
+    "IT": 27, "JO": 30, "KW": 30, "KZ": 20, "LB": 28, "LC": 32, "LI": 21, "LT": 20, "LU": 20, "LV": 21, "LY": 25, "MC": 27, "MD": 24,
+    "ME": 22, "MK": 19, "MN": 20, "MR": 27, "MT": 31, "MU": 30, "NI": 28, "NL": 18, "NO": 15, "OM": 23, "PK": 24, "PL": 28, "PS": 29,
+    "PT": 25, "QA": 29, "RO": 24, "RS": 22, "RU": 33, "SA": 24, "SC": 31, "SD": 18, "SE": 24, "SI": 19, "SK": 24, "SM": 27, "SO": 23,
+    "ST": 25, "SV": 28, "TL": 23, "TN": 24, "TR": 26, "UA": 29, "VA": 22, "VG": 24, "XK": 20, "YE": 30}
 ISC_MAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
+# #7113 (review F9): a web address with any ending (evil.finance, pay.evil.sh, evil.example; letters of every script, punycode):
+# a scheme, www., or labels joined by dots without a space. The common endings below only decide the abbreviations: a name with
+# one of them is a web address whatever stands before the dot (x.com); with another ending, an abbreviation or a single
+# letter before it is none ("St.Gallen", "Co.KG", "z.Hd.").
 ISC_TLDS = ("com|net|org|info|biz|io|de|at|ch|eu|co|uk|fr|it|es|nl|be|pl|ru|cn|us|me|ly|app|xyz|top|link|shop|online|site|"
             "store|click|live|page|dev|ai|tv|cc|ws|to|gg|li|lu")
-ISC_WEB_RE = re.compile(r"(?i)(?:[a-z][a-z0-9+.-]{1,15}://|www\.|(?<![\w.-])[a-z0-9-]{2,63}(?:\.[a-z0-9-]{1,63})*\.(?:" + ISC_TLDS + r")(?![\w-]))")
+ISC_TLD_SET = frozenset(ISC_TLDS.split("|"))
+ISC_ABBR = frozenset("st ste sta str dr nr no co fa hd zhd geb bzw ca inh ing dipl prof abt whg og eg ug kg ag gbr mbh".split())
+ISC_SCHEME_RE = re.compile(r"(?i)(?:[a-z][a-z0-9+.-]{1,15}://|www\.)")
+ISC_HOST_RE = re.compile(r"(?<![\w.-])[^\W_][\w-]{0,62}(?:\.[^\W_][\w-]{0,62})*\.(?:[^\W\d_]{2,24}|xn--[a-z0-9-]{2,59})(?![\w-])", re.I)
+ISC_VAT_RE = re.compile(r"[A-Z0-9+*.-]*")  # #7113 (review F9): a VAT ID's letters, digits, + * . (Ireland) and - (Swiss UID)
+
+
+def isc_norm(v):
+    """#7113 (review F9): a text of the key as it is checked and stored: NFKC (full-width letters, ligatures), no control or
+    format characters (zero-width, bidi marks, \\u0000: an IBAN split by them passed the check and showed whole; a NUL ended in a
+    500), white space as one space."""
+    v = unicodedata.normalize("NFKC", v or "")
+    v = re.sub(r"\s+", " ", v)
+    v = "".join(ch for ch in v if unicodedata.category(ch) not in ("Cc", "Cf", "Cs", "Co"))
+    return re.sub(r" {2,}", " ", v).strip()
+
+
+def isc_has_iban(v):
+    """An IBAN form (ISC_IBAN_RE) or a valid IBAN in the letters and digits of v (any separator, anything before it)."""
+    if any(sum(ch.isdigit() for ch in m.group(0)) >= 8 for m in ISC_IBAN_RE.finditer(v)):
+        return True
+    s = re.sub(r"[^A-Z0-9]", "", v.upper())
+    for i in range(len(s) - 14):
+        n = ISC_IBAN_LEN.get(s[i:i + 2])
+        if n and s[i + 2:i + 4].isdigit() and i + n <= len(s) and _iban_ok(s[i:i + n]):
+            return True
+    return False
+
+
+def isc_has_web(v):
+    """A scheme, www. or a host name with any ending (ISC_HOST_RE; abbreviations of other endings aside, ISC_ABBR)."""
+    if ISC_SCHEME_RE.search(v):
+        return True
+    for m in ISC_HOST_RE.finditer(v):
+        labels = m.group(0).lower().split(".")
+        tld, sld = labels[-1], labels[-2]
+        if tld in ISC_TLD_SET or tld.startswith("xn--") or (len(sld) >= 2 and sld not in ISC_ABBR):
+            return True
+    return False
+
 
 INTEG_TEXT.update({
     "issuer_client": N_("Invoice issuer {0} set up or changed the client data of {1}. Check them at the client before you send to it."),
@@ -113,12 +171,19 @@ def _ref(ref):
 
 
 def isc_text_check(field, v):
-    """'' / 'suspicious' for value v of field, or BadInput invalid_field (an IBAN form, a web or an e-mail address)."""
-    if not v or field in ISC_NO_TEXT_CHECK:
+    """'' / 'suspicious' for value v of field (normalised by isc_norm), or BadInput invalid_field (an IBAN form, a web or an
+    e-mail address). A VAT ID: its own characters (ISC_VAT_RE) and no web address."""
+    if not v:
         return ""
-    if any(sum(ch.isdigit() for ch in m.group(0)) >= 8 for m in ISC_IBAN_RE.finditer(v)):
+    if field == "vat_id":
+        if not ISC_VAT_RE.fullmatch(v.replace(" ", "").upper()) or isc_has_web(v):
+            raise _bad(field, tr("{0}: letters, digits and + * . - only", field))
+        return ""
+    if field in ISC_NO_TEXT_CHECK:
+        return ""
+    if isc_has_iban(v):
         raise _bad(field, tr("{0}: no bank account (IBAN) in the client's data", field))
-    if ISC_WEB_RE.search(v) or ISC_MAIL_RE.search(v):
+    if isc_has_web(v) or ISC_MAIL_RE.search(v):
         if field in ISC_FLAG_ONLY:
             return "suspicious"
         raise _bad(field, tr("{0}: no web or e-mail address in the client's data", field))
@@ -162,7 +227,7 @@ def isc_clean(c, b, cur):
         v = b[k]
         if v is not None and not isinstance(v, str):
             raise _bad(k)
-        v = unicodedata.normalize("NFC", re.sub(r"\s+", " ", (v or "")).strip())
+        v = isc_norm(v)  # #7113 (review F9): first NFKC and without control / format characters, then the checks
         if len(v) > ISC_FIELDS[k] and k != "vat_id":
             raise _bad(k, tr("{0}: at most {1} characters", k, ISC_FIELDS[k]))
         if isc_text_check(k, v) == "suspicious":

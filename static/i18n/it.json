@@ -19361,6 +19361,7 @@
   "Presentation: {0}": "Presentazione: {0}",
   "A support session does not open the original e-mail file: the client does that": "Una sessione di supporto non apre il file originale dell’e-mail: lo fa il cliente",
   "one of its clients": "uno dei suoi clienti",
+  "{0}: letters, digits and + * . - only": "{0}: solo lettere, cifre e + * . -",
   "Another client of the office has the same name or VAT ID.": "Un altro cliente dell'ufficio ha lo stesso nome o la stessa partita IVA.",
   "The name contains a web or e-mail address.": "Il nome contiene un indirizzo web o e-mail.",
   "Set up by the invoice issuer {0}; no person has checked the data yet.": "Creato dall'emittente di fatture {0}; nessuna persona ha ancora controllato i dati.",
