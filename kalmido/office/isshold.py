@@ -29,6 +29,7 @@ from ..core.pg import system_ctx
 from ..accounts.session import me
 from ..team.clients import CLIENT_BILL_GATED, _gate, cl_bill_ok, need_client
 from .issuers import iss_log
+from .model import pb_cl_sql
 from .owrite import ow_write
 
 IHD_FIELDS = ("email_invoice", "name", "name_extra", "street", "address_extra", "zip", "city", "country", "vat_id", "buyer_reference")
@@ -57,7 +58,6 @@ def ihd_issuer(c, h, cid):
         return None
     if not iid or not cid:
         return None
-    from .model import pb_cl_sql
     with system_ctx(c):  # the issuer and whether the client lies in its area (both rows may be outside the reader's context)
         iss = c.execute("SELECT id, org_id, name FROM office_issuers WHERE id=?", (iid,)).fetchone()
         if iss is None or not c.execute(f"SELECT 1 FROM clients WHERE id=? AND {pb_cl_sql(c, iss['org_id'])}", (int(cid),)).fetchone():
