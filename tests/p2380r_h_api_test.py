@@ -24,7 +24,7 @@ freelancer-matrix: wiki
    (a backtick in a page's / folder's name), the tree's move, a restore, a lock that goes off make appear is nobody's, a
    page from a template keeps the template's embedders, an embed without a row is never the next writer's; every later
    start looks at the pages changed since the start before
- - #6868 (2.1368.0), #7056 (2.1399.0): a share shows a picture only when its row is confirmed for exactly that share (the
+ - #6868 (2.1368.0), #7056 (2.1401.0): a share shows a picture only when its row is confirmed for exactly that share (the
    embedder's save under it, its pictures switched on over the page); no move confirms anything: a rename / move (PATCH path,
    /api/wiki/move, the tree), the trash and back, a folder merged into another, a round trip through another workspace
    bring a page under a link with pictures without its pictures; the same shares: nothing changes
@@ -736,10 +736,10 @@ check(KEEPS.search("c.execute('UPDATE wiki_pages SET body=? WHERE id=?')") is No
       and WRITES.search('f"UPDATE wiki_pages SET {cols}"') and not WRITES.search('"UPDATE wiki_pages SET path=? WHERE id=?"'),
       "#6321: the guard's patterns tell a text write from a rename")
 
-# ================================================================== 2.1368.0 (#6868), 2.1399.0 (#7056): a move under a share with pictures
+# ================================================================== 2.1368.0 (#6868), 2.1401.0 (#7056): a move under a share with pictures
 # carol embeds a picture only she sees (CIMG) and one bob sees too (OIMG) into her page; carol has a folder link with pictures
 # on another folder. bob (writes the wiki, does not see CIMG) moves her page under that link -- the row said carol, so the
-# picture came through the link. 2.1399.0 (#7056): the check sits at the output: a share shows a picture only when the row
+# picture came through the link. 2.1401.0 (#7056): the check sits at the output: a share shows a picture only when the row
 # is confirmed for exactly that share (its embedder's save under it, or its pictures switched on over the page) -- no way of
 # moving a page confirms anything (Fable re-check of 2.1368: F1 the trash, F6 a folder merged into another, F7 a round trip
 # through another workspace; was: wem_after_move on three of the ways, the others open). The rows stay whose they are.
@@ -782,7 +782,7 @@ r = Bo.patch(B + f"/api/files/nodes/{wnode(M3)[0]}", json={"parent_id": wnode(M0
 g = img(MT, M3, CIMG)
 check(r.ok and wpath(M3) == "Galerie6868/Drei" and g == 404,
       f"#6868: the same when bob moves the page in the tree ({r.status_code} {r.text[:100]} {wpath(M3)} {emb(M3, CIMG)} {g})")
-# 2.1399.0 (#7056, re-check F2 / Meadows F1): the trash -- bob puts carol's page into the trash, moves its folder under the
+# 2.1401.0 (#7056, re-check F2 / Meadows F1): the trash -- bob puts carol's page into the trash, moves its folder under the
 # link (the page in the trash follows), takes it back out
 M5 = mvpage("Quelle7056e/Fuenf")
 wnew(Bo, "Quelle7056e/Bleibt", "bleibt")  # a live page, so the folder moves
