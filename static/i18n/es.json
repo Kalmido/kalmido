@@ -19336,6 +19336,7 @@
   "This agent works per request: use the request token of the event (POST /api/v1/agent/request-token)": "Este agente trabaja por solicitud: usa el token de solicitud del evento (POST /api/v1/agent/request-token)",
   "It works per request for the person who asked: each run reaches only what that person reaches themselves.": "Trabaja por solicitud para la persona que preguntó: cada ejecución alcanza solo lo que esa persona alcanza por sí misma.",
   "Skipped a request: no token for the person who asked": "Se omitió una solicitud: no hay token para la persona que la hizo",
+  "Request token expired: a job could not go on": "Token de solicitud caducado: un trabajo no pudo continuar",
   "The organisation is moving: it is read-only.": "La organización se está mudando: solo lectura.",
   "Please try again later.": "Inténtelo de nuevo más tarde.",
   "The move of this organisation has already started": "La mudanza de esta organización ya ha empezado",

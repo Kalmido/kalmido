@@ -246,6 +246,43 @@ def env_credentials():
     return creds()
 
 
+# kalmido-capability: request_token_expired (2.1386.0, #6668, review R3 F6)
+def mark_req_expired(jid=None):
+    """2.1386.0 (#6668, review R3 F6): the request token of this job's env file answered 401 and the file holds no newer one
+    (8 h are over, no new run of the person renewed it). The job cannot reach Kalmido any more; it leaves a mark in the
+    state folder (req-expired/<job>.json) and the starter (agent_run.py job_watch, the agent's own channel) shows the
+    status "Request token expired". Never fatal. Renewing a running job's token is a later task (#7106)."""
+    try:
+        d = os.path.join(state_dir(), "req-expired")
+        os.makedirs(d, mode=0o700, exist_ok=True)
+        name = f"{int(jid)}.json" if str(jid or "").isdigit() else f"pid{os.getpid()}.json"
+        with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+            json.dump({"job": int(jid) if str(jid or "").isdigit() else None, "at": time.time()}, f)
+    except OSError:
+        pass
+
+
+def take_req_expired():
+    """The marks of mark_req_expired, taken (removed) -> [{"job": id, "at": time}]."""
+    d, out = os.path.join(state_dir(), "req-expired"), []
+    try:
+        names = sorted(os.listdir(d))
+    except OSError:
+        return out
+    for n in names:
+        p = os.path.join(d, n)
+        try:
+            with open(p, encoding="utf-8") as f:
+                out.append(json.load(f))
+        except (OSError, ValueError):
+            out.append({"job": None})
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+    return out
+
+
 class Api:
     def __init__(self):
         url, tok = env_credentials()  # 2.1367.0 (#6457): a job started from a run has only the env file's path
@@ -263,6 +300,7 @@ class Api:
                 raise
             url, tok = env_credentials()
             if not tok or tok == self.token or url.rstrip("/") + "/api/v1" != self.base:
+                mark_req_expired(getattr(self, "job_id", None))  # review R3 F6: no fresh file -- the starter says so
                 raise
             self.token = tok
             return self._req(method, path, body, timeout, raw, ctype)
@@ -1001,6 +1039,7 @@ def cmd_run(argv):
     if not j:
         return 1
     api = Api()
+    api.job_id = j["id"]  # review R3 F6: a 401 without a fresh env file names the job in its mark
     d = job_dir(j["id"])
     outbox = os.path.join(d, "outbox")
     brief = (rules_for_job(api) + (AUDIT_NOTE if j.get("audit") else "")  # 2.619.0 (#2792): read only
