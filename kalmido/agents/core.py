@@ -1436,6 +1436,8 @@ def job_dict(c, j, names=None, pre=None):
         # are the agent's words (POST /tasks/<id>/working, /agent/jobs), no channel of their own there (agents/circle.py
         # wk_mute). The agent itself and the person the job is for read them as before.
         j = {**{k: j[k] for k in j.keys()}, "title": "", "name": None, **({"log": ""} if "log" in j.keys() else {"log_last": "", "has_log": False})}
+    elif job_words_hidden(c, j, viewer):  # 2.1398.0 (#6863): a job without a task, the same for a viewer outside the circle
+        j = {**{k: j[k] for k in j.keys()}, "title": "", "name": None, **({"log": ""} if "log" in j.keys() else {"log_last": "", "has_log": False})}
     return {"id": j["id"], "agent_id": j["agent_id"], "agent_name": names.get(j["agent_id"], ""), "task_id": j["task_id"],
             "task_title": t["title"] if t else None, "list_id": t["list_id"] if t else None, "user_id": j["user_id"],
             "title": j["title"], "state": j["state"], "action": j["action"], "action_by": j["action_by"],
@@ -1447,6 +1449,14 @@ def job_dict(c, j, names=None, pre=None):
             "name": jc_job_name(j["title"], j["name"] if "name" in j.keys() else None),  # 2.56.0 (#1793), 2.58.0 (#1803): own field first: "Clara" of "Clara: Release 2.50" (null without)
             "parent_id": j["parent_id"] if "parent_id" in j.keys() else None,  # 2.59.0 (#1827): the leading job of a part job
             **job_links(c, j, viewer, pre)}  # 2.392.2 (#3366): task_ids, continue_of, continued_by, parts
+
+
+def job_words_hidden(c, j, viewer):
+    """2.1398.0 (#6863): a team agent's job without a task, seen by a person who is neither the agent nor the person it is
+    for (the gate asked for that one: agents/control.py ctl_meta_circle) and who does not read every source of the agent
+    (agents/circle.py job_mute): its title, name and log are not shown, the job itself is."""
+    return bool(viewer and not j["task_id"] and viewer not in (j["agent_id"], j["user_id"])
+                and any(fn(c, j["agent_id"], viewer) for fn in JOB_MUTE))
 
 
 def jl_log(j):
@@ -1484,6 +1494,8 @@ def jn9_job_names(c, ids, uid):
     if pids:
         rows.update({j["id"]: j for j in c.execute(f"SELECT * FROM agent_jobs WHERE id IN ({','.join('?' * len(pids))})", pids)})
     seen = {i: j for i, j in rows.items() if job_visible(c, j, uid)}
+    # 2.1398.0 (#6863): the name of a job whose words this person does not read is not given (as in job_dict)
+    seen = {i: (j if not job_words_hidden(c, j, uid) else {**{k: j[k] for k in j.keys()}, "title": "", "name": None}) for i, j in seen.items()}
     out = {}
     for i in ids:
         j = seen.get(i)
@@ -1634,6 +1646,7 @@ def agent_is_ai(a):
     return not (a is not None and "ai" in a.keys() and a["ai"] is not None and int(a["ai"]) == 0)
 
 
+JOB_MUTE = []  # 2.1398.0 (#6863): fn(c, agent id, viewer) -> True = the viewer does not read the words of the agent's jobs without a task (agents/circle.py job_mute)
 ST_MUTE = []  # 2.1284.0 (#6453, review G12): fn(c, agent row, viewer) -> True = the viewer does not read the agent's status text (agents/circle.py)
 
 

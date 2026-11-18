@@ -3687,6 +3687,14 @@ The progress line of a task (`/tasks/{id}/working`, a job's `log` / `append_log`
 mark shows that the agent works, its text stays empty (`working.text: ""`, `working.muted: true`; the answer of `POST` /
 `PATCH .../working` adds `text_shown: false` and a `note`). The job behind the mark is listed for other people without its
 `title`, `name` and `log` (`GET /api/agents/jobs`); the agent itself and the person the job is for read them as before.
+*2.1398.0 (#6863):* a team agent's **job for a person** is a message to that person (its title and log reach them: the
+chat's start line, progress, News, push): `POST /agent/jobs` with `user_id` (or in a run for a person) and a `PATCH` of
+its `title` / `log` / `append_log` answer `409 approval_required` (`step: "meta"`, `circle: "wider"`) when that person
+does not read every place the agent reads; nothing is stored. A job **without a task** shows its title, name and log
+only to people who read every place of the agent. A **proposal** for the rules, the playbook or a layout of a project
+(`POST /lists/{id}/rules/proposals`, `/lists/{id}/playbook/proposals`, `/layouts/proposals` with `view: "list:<id>"`)
+is a write into that project: a wider or public project = the card (a layout proposal also when its person does not
+read every place).
 
 **An agent made before 2.235.0** has no level (`control.level`
 null, `chosen: false`): it works as before, without any of these checks, until its owner picks one.
