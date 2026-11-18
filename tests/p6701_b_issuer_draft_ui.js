@@ -4,6 +4,7 @@
 // - the invoice editor of a draft the key made shows "Made by the invoice issuer Shop" with its client_ref and the outside
 //   system's unconfirmed statements (paid by card, sending wished, payment terms, the VAT ID check: no proof)
 // - the person works on as with any draft: a field saved in the editor, "Finalise" opens its dialog, back in the list
+// - the invoice list's filter "number range / invoice issuer": only the issuer's draft, then all again
 // - a draft a person made shows no such note
 // freelancer-matrix: office (frida has no organisation: her personal office, her own issuer)
 // usage: node p6701_b_issuer_draft_ui.js <datadir>
@@ -67,8 +68,16 @@ const ADDR = {street: 'Marktweg 5', zip: '50667', city: 'Köln', country: 'DE'};
   // ---- the list: the draft is there; a person's own draft has no note
   const own = await call(CK, 'POST', '/api/office/docs', {kind: 'invoice', lang: 'en', service_from: TODAY, service_to: TODAY, items: [{title: 'Schnitt', qty: 1, rate: 400}]});
   w = await boot({user: 'frida', hash: 'office/invoices'}); d = w.document;
-  const row = await until(() => d.querySelector(`[data-id="${dr.doc_id}"], [data-doc="${dr.doc_id}"], a[href$="/${dr.doc_id}"]`) || (/Musterkunde GmbH/.test(d.body.textContent) && d.body), 60);
-  check(!!row, 'back in the list: the issuer\'s draft is there');
+  const row = await until(() => d.querySelector(`.ofdrow[data-id="${dr.doc_id}"]`), 60);
+  check(!!row && !!d.querySelector(`.ofdrow[data-id="${own.id}"]`), 'back in the list: the issuer\'s draft and the own one are there');
+  const sel = await until(() => d.querySelector('#ofd-src'), 40);
+  const opts = [...(sel?.options || [])].map(o => o.value);
+  check(sel && opts.includes('issuer:any') && opts.includes(`range:${RG}`) && opts.includes('range:main'), 'the filter offers the main range, the range and the issuers ' + opts.join(','));
+  if (sel) { sel.value = 'issuer:any'; sel.dispatchEvent(new w.Event('change', {bubbles: true})); }
+  const only = await until(() => d.querySelector(`.ofdrow[data-id="${dr.doc_id}"]`) && !d.querySelector(`.ofdrow[data-id="${own.id}"]`), 60);
+  check(only, 'filter "From invoice issuers": only the issuer\'s draft');
+  if (sel) { const s2 = d.querySelector('#ofd-src'); s2.value = ''; s2.dispatchEvent(new w.Event('change', {bubbles: true})); }
+  check(await until(() => d.querySelector(`.ofdrow[data-id="${own.id}"]`), 60), 'filter back to all: the own draft again');
   w.close();
   w = await boot({user: 'frida', hash: `office/invoices/${own.id}`}); d = w.document;
   await until(() => d.querySelector('[data-ofd="finalize"]'), 60);
