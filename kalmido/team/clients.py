@@ -236,21 +236,55 @@ def client_stats(c, uid, cid, lids, month=None):
                 "estimated": 0, "open": 0, "done": 0}
     q = ",".join("?" * len(lids))
     csv = ",".join(str(x) for x in lids)
-    today = local_now().date()
-    m = month or today.strftime("%Y-%m")
-    try:
-        d1 = date.fromisoformat(m + "-01")
-    except ValueError:
-        raise BadInput(tr("Invalid value: {0}", "month")) from None
-    d2 = date(d1.year + (d1.month == 12), d1.month % 12 + 1, 1).toordinal() - 1
+    m, d1, d2 = _cl_month(month)
     # 2.525.0 (#4187): one report, the month as its window (was a second report over the same lists)
-    tot = time_report(c, uid, {"scope": "all", "lists": csv}, window=(d1, date.fromordinal(d2)))["total"]
+    tot = time_report(c, uid, {"scope": "all", "lists": csv}, window=(d1, d2))["total"]
     mon = tot["window"]
     est = c.execute(f"""SELECT COALESCE(SUM(duration),0), COUNT(duration), SUM(CASE WHEN status=0 THEN 1 ELSE 0 END), SUM(CASE WHEN status!=0 THEN 1 ELSE 0 END) FROM tasks
                         WHERE list_id IN ({q}) AND deleted_at IS NULL AND ms=0 AND {tvis(c, uid)}""", lids).fetchone()
     return {"seconds": tot["seconds"], "rounded": tot["rounded"], "amount": tot["amount"], "month": m,
             "month_seconds": mon["seconds"], "month_amount": mon["amount"], "estimate_min": est[0] or 0, "estimated": est[1] or 0,
             "open": est[2] or 0, "done": est[3] or 0}
+
+
+def _cl_month(month):
+    """The month YYYY-MM of the client stats (default: this one) -> (m, first day, last day); a wrong one: BadInput."""
+    m = month or local_now().date().strftime("%Y-%m")
+    try:
+        d1 = date.fromisoformat(m + "-01")
+    except ValueError:
+        raise BadInput(tr("Invalid value: {0}", "month")) from None
+    return m, d1, date.fromordinal(date(d1.year + (d1.month == 12), d1.month % 12 + 1, 1).toordinal() - 1)
+
+
+def client_stats_many(c, uid, lids_of, month=None):
+    """2.1373.0 (#6402): {client id: client_stats(...)} of the clients lids_of = {client id: [their list ids]} from ONE time
+    report over all their lists and ONE estimate query grouped by list (was a report + a query per client). The sums per
+    client add the same entries in the same order as the report of the client alone (time_report per=), so the numbers are
+    the same to the cent."""
+    if not lids_of:
+        return {}
+    m, d1, d2 = _cl_month(month)
+    owner = {lid: cid for cid, lids in lids_of.items() for lid in lids}
+    blank = {"seconds": 0, "rounded": 0, "amount": 0.0, "month": m, "month_seconds": 0, "month_amount": 0.0, "estimate_min": 0,
+             "estimated": 0, "open": 0, "done": 0}
+    out = {cid: dict(blank) for cid in lids_of}
+    if not owner:
+        return out
+    per = time_report(c, uid, {"scope": "all", "lists": ",".join(str(x) for x in sorted(owner))}, window=(d1, d2), per=owner)["total"]["per"]
+    for cid, t in per.items():
+        out[cid].update(seconds=t["seconds"], rounded=t["rounded"], amount=t["amount"], month_seconds=t["window"]["seconds"],
+                        month_amount=t["window"]["amount"])
+    q = ",".join("?" * len(owner))
+    for r in c.execute(f"""SELECT list_id, COALESCE(SUM(duration),0), COUNT(duration), SUM(CASE WHEN status=0 THEN 1 ELSE 0 END),
+                           SUM(CASE WHEN status!=0 THEN 1 ELSE 0 END) FROM tasks
+                           WHERE list_id IN ({q}) AND {live_sql()} AND ms=0 AND {tvis(c, uid)} GROUP BY list_id""", sorted(owner)):
+        o = out[owner[r[0]]]
+        o["estimate_min"] += r[1] or 0
+        o["estimated"] += r[2] or 0
+        o["open"] += r[3] or 0
+        o["done"] += r[4] or 0
+    return out
 
 
 def budget_state(st, cl):
@@ -261,16 +295,34 @@ def budget_state(st, cl):
     return {"pct_h": ph, "pct_amount": pa, "level": "none" if top is None else "over" if top >= 100 else "warn" if top >= 80 else "ok"}
 
 
-def client_public(c, uid, r, stats=False, month=None):
-    lids = client_lists(c, uid, r["id"])
-    org = c.execute("SELECT name FROM orgs WHERE id=?", (r["org_id"],)).fetchone() if r["org_id"] else None
-    u = _user(c, uid)
+def client_pre(c, uid, rows, stats=False, month=None):
+    """2.1373.0 (#6402): what client_public reads per client, for all client rows at once (a fixed number of statements
+    for the whole list, was some ten per client): {"user", "lists", "orgs", "contacts", "stats"}."""
+    from ..office.contacts_cl import fk_contacts_many
+    ids = [int(r["id"]) for r in rows]
+    lids = client_lists_many(c, uid, ids)
+    oids = sorted({int(r["org_id"]) for r in rows if r["org_id"]})
+    orgs = {x[0]: x[1] for x in c.execute(f"SELECT id, name FROM orgs WHERE id IN ({','.join('?' * len(oids))})", oids)} if oids else {}
+    return {"user": _user(c, uid), "lists": lids, "orgs": orgs, "contacts": fk_contacts_many(c, ids),
+            "stats": client_stats_many(c, uid, lids, month) if stats and ids else {}}
+
+
+def client_public(c, uid, r, stats=False, month=None, pre=None):
+    """pre (2.1373.0, #6402): client_pre of the whole list (the list route), None = read for this client alone."""
+    if pre is not None:
+        lids = pre["lists"].get(int(r["id"]), [])
+        org = (pre["orgs"].get(r["org_id"]),) if r["org_id"] and r["org_id"] in pre["orgs"] else None
+        u = pre["user"]
+    else:
+        lids = client_lists(c, uid, r["id"])
+        org = c.execute("SELECT name FROM orgs WHERE id=?", (r["org_id"],)).fetchone() if r["org_id"] else None
+        u = _user(c, uid)
     d = {k: r[k] for k in ("id", "name", "name_extra", "display_name", "short_code", "icon", "color", "contact", "email", "phone", "address", "note", "rate", "budget_h",
                            "budget_amount", "org_id", "created_by", "created_at", "updated_at")}
     d.update(archived=bool(r["archived"]), org_name=org[0] if org else "", lists=lids,
              can_delete=bool(u and (u["is_admin"] or r["created_by"] == uid)), label=cdn_label(c, uid, r))
     from ..office.contacts_cl import fk_contacts
-    d["contacts"] = fk_contacts(c, r["id"])  # 2.40.0 (#1380): the contact persons, the default first ("contact" = its name)
+    d["contacts"] = pre["contacts"].get(int(r["id"]), []) if pre is not None else fk_contacts(c, r["id"])  # 2.40.0 (#1380): the contact persons, the default first ("contact" = its name)
     if u and (u["kind"] or "user") == "agent":  # 2.81.0 (#1466): agents get name / role only per contact person, no mail / phone / link
         d["contacts"] = [{k: x[k] for k in ("id", "name", "role", "is_default")} for x in d["contacts"]]
     if u and (u["kind"] or "user") != "agent":  # 2.36.2: billing fields for people only
@@ -280,7 +332,7 @@ def client_public(c, uid, r, stats=False, month=None):
                 d["billing"].pop(k, None)
         d["bill_edit"] = cl_bill_ok(c, uid, r["org_id"], "edit")
     if stats:
-        st = client_stats(c, uid, r["id"], lids, month)
+        st = pre["stats"][int(r["id"])] if pre is not None else client_stats(c, uid, r["id"], lids, month)
         if agent_time_hidden():  # 2.582.0 (#4380, fable review F2): an agent without the scope time: no hours / amounts
             d["stats"], d["budget"] = cl_stats_blank(st), {"pct_h": None, "pct_amount": None, "level": "none"}
             return d
@@ -317,14 +369,20 @@ def _gate(c):
 @app.get("/api/clients")
 def clients_list():
     """The clients I see with their lists, hours, amounts and budget (?month=YYYY-MM for the month's sums; ?archived=1
-    with the archived ones). Also GET /api/v1/clients."""
+    with the archived ones; 2.1373.0 (#6402): ?brief=1 = only the names, no statistics). Also GET /api/v1/clients."""
     c = db()
     uid = me()
     if (g.user["kind"] or "user") != "agent":
         need_feat("clients")
     arch = request.args.get("archived") in ("1", "true")
-    return jsonify(clients=[client_public(c, uid, r, stats=True, month=request.args.get("month"))
-                            for r in client_rows(c, uid, archived=arch)])
+    rows = client_rows(c, uid, archived=arch)
+    if request.args.get("brief") in ("1", "true"):
+        # 2.1373.0 (#6402): ?brief=1 = the names only (the offers / invoices area compares them, office_docs.js), no statistics
+        return jsonify(clients=[{"id": r["id"], "name": r["name"], "name_extra": r["name_extra"], "display_name": r["display_name"],
+                                 "label": cdn_label(c, uid, r), "icon": r["icon"], "color": r["color"], "org_id": r["org_id"],
+                                 "archived": bool(r["archived"])} for r in rows])
+    pre = client_pre(c, uid, rows, stats=True, month=request.args.get("month"))  # 2.1373.0 (#6402): all clients at once
+    return jsonify(clients=[client_public(c, uid, r, stats=True, month=request.args.get("month"), pre=pre) for r in rows])
 
 
 def client_blocks_off(c, r):
@@ -353,12 +411,14 @@ def client_get(cid):
     d = client_public(c, uid, r, stats=True, month=request.args.get("month"))
     # estimate vs. actual per list (#330): the sum of the tasks' durations next to the tracked time
     per, hide = [], agent_time_hidden()
+    # 2.1373.0 (#6402): the lists and their stats in one go (was a query + a time report per list)
+    ls = {x["id"]: x for x in c.execute("SELECT id, name, kind, rate, status FROM lists WHERE id = ANY(?)", ([int(x) for x in d["lists"]],))}
+    sts = client_stats_many(c, uid, {lid: [lid] for lid in d["lists"]}, request.args.get("month"))
     for lid in d["lists"]:
-        l = c.execute("SELECT id, name, kind, rate, status FROM lists WHERE id=?", (lid,)).fetchone()
-        st = client_stats(c, uid, cid, [lid], request.args.get("month"))
+        lr, st = ls[lid], sts[lid]
         if hide:  # 2.582.0 (#4380, fable review F2): an agent without the scope time
             st = cl_stats_blank(st)
-        per.append({"id": lid, "name": l["name"], "kind": l["kind"], "rate": l["rate"], "status": l["status"], **st})
+        per.append({"id": lid, "name": lr["name"], "kind": lr["kind"], "rate": lr["rate"], "status": lr["status"], **st})
     d["per_list"] = per
     d["blocks_off"] = client_blocks_off(c, r)  # 2.435.0 A (#3600)
     from .clientmerge import clm_history
