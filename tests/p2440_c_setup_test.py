@@ -310,7 +310,7 @@ for b in BASHES:
     check(mj.get("mcpServers", {}).get("kalmido", {}).get("env") == {"KALMIDO_ENV_FILE": ef}, f"{b}: #6457: mcp.json names the env file (path only): {mj}")
     hs = os.path.join(proj, ".claude", "settings.local.json")
     deny = (json.loads(read(hs)).get("permissions") or {}).get("deny") if os.path.isfile(hs) else None
-    want = ["WebFetch", "WebSearch", "Read(~/.kalmido/**)", f"Read(/{ef})", f"Edit(/{ef})"]
+    want = ["WebFetch", "WebSearch", "Read(~/.kalmido/*.env)", "Read(~/.kalmido/**/*.env)", f"Read(/{ef})", f"Edit(/{ef})"]
     check(deny == want, f"{b}: #6457: the setup writes the deny rules: {deny}")
     with open(hs, "w") as f:
         json.dump({"permissions": {"allow": ["Bash(ls:*)"], "deny": ["Bash(rm:*)", "WebFetch"]}, "model": "x"}, f)

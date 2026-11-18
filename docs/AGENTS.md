@@ -263,7 +263,7 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    key's address rule (`api_tokens.allowed_ips`, the same rule as for every token) when it is within the agent's own one
    and answers `allowed_ips` / `allowed_ips_applied`; a wrong address is `400` before the code is used. For Claude Code it
    writes the deny rules of the hardened profile into the project folder's `.claude/settings.local.json` (`WebFetch`,
-   `WebSearch`, `Read` of `~/.kalmido` and of the env file, `Edit` of the env file; entries already there stay, nothing twice),
+   `WebSearch`, `Read` of the env files in `~/.kalmido` (`*.env`) and of the env file, `Edit` of the env file; entries already there stay, nothing twice),
 4. starts the agent in event mode (`agent_launcher.sh` / `.ps1 --events -- claude --mcp-config <instance>/mcp.json`)
    at every login: a **launchd LaunchAgent** on macOS (RunAtLoad, KeepAlive), a **systemd --user** service on Linux
    (`loginctl enable-linger` keeps it running after logout), a hidden **Task Scheduler** task at logon on Windows (no admin
@@ -275,7 +275,7 @@ only over `https://` or from the Kalmido itself. The script, served by your own 
    2.1367.0 (#6457): the token never reaches the model's process: the launcher exports only `KALMIDO_ENV_FILE` (the env
    file's path; `mcp.json` names it too), `agent_run.py` takes `KALMIDO_TOKEN` out of every run and job, and the MCP server,
    the usage hook, `kalmido_cli.py` and `agent_job.py` read the token from the file. Every run's settings deny `Read` of
-   `~/.kalmido` and `Read` / `Edit` of the env file, and the guard hook refuses a Bash line that names the env file.
+   the env files in `~/.kalmido` and `Read` / `Edit` of the env file, and the guard hook refuses a Bash line that names the env file.
 
 One instance per project folder (`~/.kalmido/agents/<folder>-<hash>/`, Windows `%LOCALAPPDATA%\Kalmido\agents\...`), so
 several agents can run on one computer. Every computer gets its own token: the dialog lists the agent's computers with a

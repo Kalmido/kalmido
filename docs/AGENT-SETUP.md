@@ -119,7 +119,7 @@ read the token from that file themselves. A Bash step of the agent (`env`, `prin
 hook refuses a command line that names the env file. The setup does the hardening of [step 7](#7-permissions-claudesettingsjson)
 itself: it writes Claude Code's deny rules into `.claude/settings.local.json` of the project folder (this computer only,
 not in the repository; entries already there stay, a second setup adds nothing twice): `WebFetch`, `WebSearch`, `Read` of
-`~/.kalmido` and of the env file, `Edit` of the env file. Every run of the launcher carries the file rules in its own settings
+the env files in `~/.kalmido` (`*.env`; the outbox and job folders there stay readable) and of the env file, `Edit` of the env file. Every run of the launcher carries the file rules in its own settings
 as well; the two web rules you may take out of `settings.local.json` again if the agent needs the web. The setup also asks
 once whether this computer's key should work only from its current internet address (`--ip-rule current` / `-IpRule current`
 answers without the question, `off` skips it, or name IPs / networks; Enter or no terminal = no rule). Kalmido stores the
@@ -550,7 +550,7 @@ sed -n '/kalmido-agent-rules:start/,/kalmido-agent-rules:end/p' ~/kalmido/mcp/CL
 ### 7. Permissions: .claude/settings.json
 
 2.1367.0 (#6457): the one-command setup does this itself for its project folder (deny rules for `WebFetch`, `WebSearch`,
-reading `~/.kalmido` and the env file, editing the env file, in `.claude/settings.local.json`; see
+reading the env files in `~/.kalmido` and the env file, editing the env file, in `.claude/settings.local.json`; see
 [Quickest](#quickest-one-command-on-your-computer)). The profiles below are for a setup by hand and for narrowing further.
 
 `~/agent/.claude/settings.json`. Two profiles; pick one on purpose and use the same everywhere (this guide,
