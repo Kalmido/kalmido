@@ -41,7 +41,7 @@ from ..core.pg import insert_id, system_ctx
 from ..core.access import act_for, run_person, Denied, joined_lists_sql, list_role, task_visible, WRITE_ROLES, otr_live
 from ..core.errors import BadInput, UnknownFields
 from ..api.common import hit_limit, v1_args, v1_call, v1_err, v1_json, v1_view, V1Error
-from ..api.runfor import req_main_step  # 2.1386.0 (#6668, second review F1)
+from ..api.runfor import req_main_step, run_class_refuse  # 2.1386.0 (#6668, second review F1); #6978 F5: run_class_refuse
 from ..accounts.session import me
 from ..tasks.lifecycle import apply_update, task_reopen, trash_task
 from ..collab.news import news_forget_comment
@@ -517,6 +517,8 @@ def ctl_gate():
         if circle is None and not person:  # the level asks for the card: the circle still decides which card fits (ctl_claim)
             circle = circle_of(c, a, request.method, path, request.view_args or {}, b, lids)
         mid, why = ctl_claim(c, a, hdr, step, lids, circle)
+        if not mid and g.get("ctl_closed") is not None:
+            return g.ctl_closed  # #6978 F5: 403 run_closed, as for a request token of the person who said Yes
         if not mid:  # 2.1045.0 (#5827): the 409 names what does not fit (reason + its words), never a content of the card
             return v1_err(409, tr("This approval does not fit: it needs a person's Yes, exactly this method, path and body, and works once.")
                           + " " + ctl_reason_text(why), name="approval_invalid", step=step, level=level, project_id=lid,
@@ -689,6 +691,11 @@ def ctl_claim(c, a, hdr, step, lids, circle=None):
     who = ans.get("user_id") or (m["user_id"] if ans.get("via") == "deadline" else None)
     if not who:
         return None, {"reason": "unanswered"}
+    if g.get("ctl_force_for"):  # #6978 F5: the card step with the long-lived token of a team agent per request -- the
+        closed = run_class_refuse(c, aid, int(who))  # route classes of a request token of the person who said Yes (org /
+        if closed is not None:  # closed / pin, api/runfor.py run_gate): the same 403 run_closed, the card stays unused
+            g.ctl_closed = closed
+            return None, {"reason": "run_closed"}
     if step == "one_way" and (not ap.get("one_way") or ans.get("via") == "deadline"):
         return None, {"reason": "one_way"}
     # 2.1284.0 (#6453): a write into a wider / public place needs the Yes of a person who read that on the card (the mark the

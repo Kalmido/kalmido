@@ -68,7 +68,7 @@ from ..collab.replies import with_replies  # 2.369.5 (#2517): pulled up from fun
 from ..personal.timetrack import n43_admin_lists  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.orgs import instance_mode, visible_people  # 2.369.5 (#2517): pulled up from functions
 from ..lists.formula import fx_fill  # 2.369.5 (#2517): pulled up from functions
-from .runfor import req_main_gate, run_gate  # 2.1386.0 (#6668): req_main_gate; 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
+from .runfor import REQ_SQL, req_is, req_main_gate, run_gate  # #6978 F7: REQ_SQL, req_is; 2.1386.0 (#6668): req_main_gate; 2.1287.0 (#6454, review): a team agent's run for a person: the one table of routes
 from ..core.access import feats  # 2.1327.0 (#6823): the one reading of the module switches
 SRV_TOKEN_NAME = "Server agent run"  # 2.557.0 (#4670): = agents/srvagent_run.py SRV_TOKEN_NAME (no import: api below agents)
 
@@ -722,12 +722,12 @@ def token_update(tid):
 @app.delete("/api/me/tokens/<int:tid>")
 def token_delete(tid):
     c = db()
-    r = c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=? RETURNING name", (tid, me())).fetchone()
+    r = c.execute("DELETE FROM api_tokens WHERE id=? AND user_id=? RETURNING asked_by, req_slot", (tid, me())).fetchone()
     if not r:
         raise Denied(404)
-    if (g.user["kind"] or "user") == "agent" and str(r["name"] or "") != "Agent request":  # = agents/reqtoken.py REQ_TOKEN_NAME
-        # 2.1386.0 (#6668, review F2): an agent revoking its own token -- its request tokens go too (as agents/reqtoken.py req_drop)
-        c.execute("DELETE FROM api_tokens WHERE user_id=? AND name=?", (me(), "Agent request"))
+    if (g.user["kind"] or "user") == "agent" and not req_is(r):  # #6978 F7: a request token by its columns, not its name
+        # 2.1386.0 (#6668, review F2): an agent revoking its own token -- its request tokens go too (agents/reqtoken.py req_drop)
+        c.execute(f"DELETE FROM api_tokens WHERE user_id=? AND {REQ_SQL}", (me(),))
     c.commit()
     return jsonify(ok=True)
 

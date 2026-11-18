@@ -33,6 +33,10 @@ tenant-matrix: agent (only the agent's own events; the token reaches only what t
      token's client asks once anew (no server part)
  (m) review F2: the guard hook (also with KALMIDO_BLOCK_DANGEROUS=0) and the deny rules keep the run from the env file and
      the starter's environment (no server)
+ (p) #6978 F5: the step of an answered card with the long-lived token holds the route classes (org / closed / pin) of the
+     person who said Yes -- 403 run_closed as with her request token, the card stays unused
+ #6978 F6: locking a person or a role in the organisation that gives no orders (guest) deletes her request tokens at once
+ #6978 F7: request tokens are known by asked_by + req_slot, never by their name (a token named "Agent request" is listed)
  (o) merged with #6457: a team agent's run, a job of the run, a woken job and the dispatcher's job read only a request
      token through an env file of their own -- MCP server, kalmido_cli.py, agent_job.py never the long-lived one (no server)
 usage: p6668_ext_team_agent_test.py <datadir>      (KMT_NOSTART=1 / P6668_NOSTART=1: a running server)"""
@@ -948,6 +952,28 @@ check(r.status_code == 403 and err(r).get("code") == "request_token_needed",
 r = requests.post(V + "/tasks/brief", headers=hdr(RC), json={"task_ids": [TX]}, timeout=30)
 check(r.ok, f"(j) ... with the request token of carl's order the brief stays allowed {r.status_code} {r.text[:200]}")
 
+# ---- (p) #6978 F5: a card's step with the own token holds the route classes of the person who said Yes (as her request token)
+# Without the fix the step of POST /folders/rename (class closed: only an admin of the agent's organisation) went past the
+# class check with the Yes of carl (a member, no admin) -- his own request token gets 403 run_closed there.
+REN = {"method": "POST", "path": "/api/v1/folders/rename", "body": {"old": "F6978-A", "new": "F6978-B"}}
+r = requests.post(V + "/folders/rename", headers=hdr(RC), json=REN["body"], timeout=30)
+check(r.status_code == 403 and err(r).get("code") == "run_closed",
+      f"(p) F5: carl's request token: POST /folders/rename is 403 run_closed {r.status_code} {r.text[:200]}")
+m = requests.post(V + f"/agent/chats/{uid['carl']}", headers=XH, json={"approval": {"title": "Rename the folder?", "step": REN}}, timeout=30)
+check(m.status_code == 201, f"(p) F5: a card with the step POST /folders/rename to carl {m.status_code} {m.text[:200]}")
+MID = m.json().get("id")
+check(Ca.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json=apv_body(Ca, B, f"chat:{MID}", "yes")).ok, "(p) F5: carl says Yes")
+r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
+check(r.status_code == 403 and err(r).get("code") == "run_closed",
+      f"(p) F5: the card's step with the own token is 403 run_closed for carl's Yes, as his request token {r.status_code} {r.text[:300]}")
+check(dbx("SELECT choices->'approval'->>'used_at' FROM agent_chat WHERE id=?", (MID,)) == [(None,)], "(p) F5: ... the card stays unused")
+m = requests.post(V + f"/agent/chats/{uid['bob']}", headers=XH, json={"approval": {"title": "Rename the folder?", "step": REN}}, timeout=30)
+check(m.status_code == 201, f"(p) F5: the same card to bob {m.status_code} {m.text[:200]}")
+MID = m.json().get("id")
+check(Bo.post(B + f"/api/agents/{XT}/chat/{MID}/choice", json=apv_body(Bo, B, f"chat:{MID}", "yes")).ok, "(p) F5: bob (admin of the organisation) says Yes")
+r = requests.post(V + f"/agent/approvals/{MID}/run", headers=XH, timeout=60)
+check(err(r).get("code") != "run_closed", f"(p) F5: bob's Yes passes the class check (an admin reaches it himself) {r.status_code} {r.text[:300]}")
+
 # ================================================================ (c) an event without a person
 payload = {"id": str(uuid.uuid4()), "event": "followup_due", "agent_id": XT, "actor": None, "via": "web",
            "data": {"task": {"id": TX, "list_id": X1}, "list_id": X1, "note": "NOBODY-ASKS"}}
@@ -997,6 +1023,24 @@ check(r.ok and not dbx("SELECT 1 FROM api_tokens WHERE user_id=? AND asked_by=? 
 XA = [a for a in A.get(B + "/api/admin/agents").json().get("agents", []) if a.get("id") == XT]
 check(XA and XA[0].get("tokens") and not any(t.get("name") == "Agent request" for t in XA[0]["tokens"]),
       "(d) request tokens are not listed with the agent's tokens")
+# #6978 F7: a request token is known by its columns (asked_by + its place), never by its name: a long-lived token named
+# "Agent request" is listed and can be removed like any other (without the fix it was hidden and refused: invisible, unremovable)
+FAKE = dbx("""INSERT INTO api_tokens(user_id, name, token_hash, prefix, scopes, created_at)
+              SELECT user_id, 'Agent request', 'p6978-f7-not-a-hash', 'abk_p6978f7', scopes, created_at FROM api_tokens
+              WHERE user_id=? AND asked_by IS NULL ORDER BY id LIMIT 1 RETURNING id""", (XT,))
+FID7 = FAKE[0][0] if FAKE else 0
+check(FID7, "(d) #6978 F7: a long-lived token of the agent named like a request token")
+XA2 = [a for a in A.get(B + "/api/admin/agents").json().get("agents", []) if a.get("id") == XT]
+check(XA2 and any(t.get("id") == FID7 for t in XA2[0]["tokens"]), "(d) #6978 F7: ... it is listed with the agent's tokens")
+r = A.delete(B + f"/api/admin/agents/{XT}/machines/{FID7}")
+check(r.ok and not dbx("SELECT 1 FROM api_tokens WHERE id=?", (FID7,)), f"(d) #6978 F7: ... and removed as a computer {r.status_code} {r.text[:160]}")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC), timeout=30).status_code == 401, "(d) #6978 F7: removing it ends the agent's request tokens (as every computer)")
+r = ask([SR])
+RR = r.json().get("token") or "" if r.ok else ""
+check(r.ok and RR, f"(d) rita asks anew {r.status_code}")
+r = ask([SC])
+RC = r.json().get("token") or "" if r.ok else ""
+check(r.ok and RC, f"(d) carl asks anew {r.status_code}")
 
 # ================================================================ (l) F4: a locked person gets no request token
 RC2 = r.json().get("token") or ""
@@ -1006,11 +1050,21 @@ r = ask([SR])
 check(r.status_code == 403 and err(r).get("code") == "no_order" and not r.json().get("token"),
       f"(l) F4: rita's event gives no request token while her account is locked {r.status_code} {r.text[:160]}")
 # review F3: the request token she already gave stops at once (without the fix it worked on with her rights for up to 8 hours)
+# #6978 F6: the lock deletes it (asked_by = rita) -- it never comes back with an unlock (401 instead of the 403 no_order before)
 r = requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30)
-check(r.status_code == 403 and err(r).get("code") == "no_order", f"(l) F3: rita's request token stops while she is locked {r.status_code} {r.text[:160]}")
+check(r.status_code == 401, f"(l) F3 / #6978 F6: rita's request token stops with the lock {r.status_code} {r.text[:160]}")
+check(not dbx("SELECT 1 FROM api_tokens WHERE asked_by=? AND req_slot<>''", (uid["rita"],)), "(l) #6978 F6: the lock deleted rita's request tokens")
 check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC2), timeout=30).ok, "(l) F3: carl's request token goes on")
 check(A.patch(B + f"/api/users/{uid['rita']}", json={"disabled": False}).ok, "(l) the admin unlocks rita")
-check(requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30).ok, "(l) F3: unlocked, her request token works again")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30).status_code == 401, "(l) #6978 F6: unlocked, her old request token stays gone")
+r = ask([SR])
+RR = r.json().get("token") or "" if r.ok else ""
+check(r.ok and RR and requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30).ok, f"(l) #6978 F6: unlocked, she gets a new one {r.status_code}")
+# #6978 F6: a role in the agent's organisation that gives no orders (guest) ends her request tokens of its agents at once
+check(A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": uid["rita"], "role": "guest"}).ok, "(l) #6978 F6: rita becomes a guest")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RR), timeout=30).status_code == 401, "(l) #6978 F6: a guest's request token is gone (401)")
+check(requests.get(V + f"/tasks/{TX}", headers=hdr(RC2), timeout=30).ok, "(l) #6978 F6: carl's request token goes on")
+check(A.put(B + f"/api/orgs/{ORG}/members", json={"user_id": uid["rita"], "role": "member"}).ok, "(l) rita is a member again")
 check(A.patch(B + f"/api/users/{uid['rita']}", json={"disabled": True}).ok, "(l) the admin locks rita again")
 
 # ================================================================ (n) review F4: the dispatcher's place is its own

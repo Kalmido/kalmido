@@ -46,6 +46,7 @@ from ..office.model import pb_personal  # 2.1381.0 (#6699)
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
 from ..accounts.secmail import sec_mail  # 2.485.0 (#3939): earlier in the load order, at module level
 from ..accounts.sessions import ses_end
+from ..core.objhooks import person_locked  # #6978 F6
 from ..accounts.users import _active_admins, sdl_admin_locked, user_delete_run
 from ..accounts.delhold import sdl_hold_dict  # 2.1298.0 (#6395)
 from .selfdelete import sdl_decide  # 2.1298.0 (#6395)
@@ -335,6 +336,7 @@ def operator_account_put(uid):
             if b["disabled"]:
                 ses_end(c, uid)  # 2.190.0 A (#1991): with the push subscriptions made in them
                 sdl_admin_locked(c, uid)  # 2.1254.0 (#6293): a pending own deletion no longer unlocks it
+                person_locked(c, uid)  # #6978 F6: what works in their name (an agent's request tokens) ends at once
                 locked = not u["disabled"] and not u["signup"]
         if "storage_quota_mb" in b:  # null = the server's default, 0 = unlimited
             c.execute("UPDATE users SET storage_quota_mb=? WHERE id=?", (q, uid))
