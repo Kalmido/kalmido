@@ -429,8 +429,8 @@ r = Ca.post(B + "/api/wiki/purge", json={"space": "private", "ids": [o1]})
 check(r.ok and r.json()["ids"] == [] and not gone(o1), f"#2211 an id of another space is skipped {r.text}")
 check(o1 not in (trash_ids(Ca, "private") or []) and c_p not in (trash_ids(A, "private") or []), "#2211 the private trash shows only the own pages")
 check(trash_ids(Bo, SP) == [o1], "#2211 a member sees the organisation's trash")
-# 2.1364.0 (#6297 7): a member deletes for good only a page she made or put into the trash (was: any page of the organisation,
-# one by one); the organisation's admin any
+# 2.1364.0 (#6297 7): a member deletes for good only a page she made (was: any page of the organisation, one by one; Fable
+# review job/5254 F3: put into the trash by her is not enough); the organisation's admin any
 check(Bo.post(B + "/api/wiki/purge", json={"space": SP, "ids": [o1]}).status_code == 403 and not gone(o1),
       "#2211 a member does not delete the admin's page for good (403)")
 r = A.post(B + "/api/wiki/purge", json={"space": SP, "ids": [o1]})
