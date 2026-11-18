@@ -171,6 +171,11 @@ Q, L, TS = scenario(A, "alice", ORG)
 r = Bo.get(B + f"/api/office/docs/{Q}/postcalc")
 check(r.status_code == 403, f"Bob (office, not in the project): 403 {r.status_code}")
 check(Bo.post(B + f"/api/office/docs/{Q}/postcalc", json={"force": True}).status_code == 403, "Bob (office, not in the project): no draft 403")
+# 2.1391.0 (#7080 F4): pc_post asks the rights on the project's times BEFORE it frees stale bindings (a write in the system's
+# context); the refused request commits nothing, so the order is checked in the source
+_src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "kalmido", "office", "postcalc.py"), encoding="utf-8").read()
+_pp = _src[_src.index("def pc_post("):]
+check(-1 < _pp.find("_pc_need_times(") < _pp.find("tbill_free_stale("), "#7080 F4: pc_post checks the rights before tbill_free_stale")
 check(A.put(B + f"/api/lists/{L}/members", json={"user_id": ids["bob"], "role": "edit"}).ok, "Bob an editor of the project")
 check(Bo.get(B + f"/api/office/docs/{Q}/postcalc").status_code == 403, "Bob the editor sees only his own times: 403")
 check(A.put(B + f"/api/lists/{L}/members", json={"user_id": ids["bob"], "role": "admin"}).ok, "Bob an admin of the project")

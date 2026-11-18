@@ -178,6 +178,7 @@ def pc_post(did):
         return _answer(c, oid, uid, hit)
     oil_need_no_invoice(c, oid, r, {"force": b.get("force")})  # inv_type is no choice here: always the full invoice
     if r["list_id"]:  # review F1: entries bound to a gone / trashed draft are open again first (as tbill_take)
+        _pc_need_times(c, uid, oid, r["list_id"])  # 2.1391.0 (#7080 F4): the rights first, then the write (pc_build asks again)
         tbill_free_stale(c, "FROM time_entries e WHERE e.list_id=?", [r["list_id"]])
     rows, _, sums, bind = pc_build(c, uid, oid, r, strict=True)
     row = inv_new_row(c, oid, office_settings(c, oid), "invoice", r["lang"], r)
