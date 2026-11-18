@@ -1449,6 +1449,17 @@ def job_words_hidden(c, j, viewer):
                 and any(fn(c, j["agent_id"], viewer) for fn in JOB_MUTE))
 
 
+def job_words_muted(c, j, viewer):
+    """Reader F7 (#6863): does job_dict hide the job's title, name and log from viewer? The same answer for every other way
+    the words reach a person: a job with a task in a wider / public place of the agent (WK_MUTE), a job without a task
+    (job_words_hidden). The agent itself and the person the job is for read them (the gate asked for that one)."""
+    if not viewer or viewer in (j["agent_id"], j["user_id"]):
+        return False
+    if j["task_id"]:
+        return any(j["task_id"] in fn(c, {j["task_id"]: j["agent_id"]}) for fn in WK_MUTE)
+    return job_words_hidden(c, j, viewer)
+
+
 def jl_log(j):
     """2.674.0 B (#4194): {log} of a job row with its log; a row of a job list (JL_COLS: without the log) gives {log: null,
     log_last: the log's last line (at most 140 characters, what the list shows folded), has_log}."""
