@@ -727,6 +727,32 @@ def _r4f1():
         finally:
             aj.revive_lost = keep
         check([e["data"]["user"]["id"] for e in queued] == [5], f"(t) R4 F1: the end wakes a run for person 5 only, never for 7 {queued}")
+        # Fable reader job/5498 F6: a wake whose server job could not be read (network) goes back into the folder and wakes on
+        # the next look; a 404 (no such job of the agent) drops it. Without the fix both were lost at once.
+        down = {907}
+
+        def req_f6(method, path, body=None, *a, **k):
+            n = int(path.rsplit("/", 1)[1])
+            if n in down:
+                raise OSError("network down")
+            if n == 908:
+                raise ar.ApiError(404, "not found")
+            return {"id": n, "user_id": srv.get(n)}
+        r.api.req, srv[907], srv[908] = req_f6, 5, 5
+        del queued[:]
+        aj.revive_lost = lambda api=None: []
+        try:
+            aj.add_wake({**j, "id": 907, "title": "net"}, "done", "result")
+            aj.add_wake({**j, "id": 908, "title": "gone"}, "done", "result")
+            r.job_watch()
+            wd = os.path.join(aj.state_dir(), "wakes")
+            check(not queued and os.path.isfile(os.path.join(wd, "907.json")) and not os.path.exists(os.path.join(wd, "908.json")),
+                  f"F6: a wake not checked waits in its folder, a 404 drops it {queued} {sorted(os.listdir(wd))}")
+            down.clear()
+            r.job_watch()
+            check([e["data"]["job"]["id"] for e in queued] == [907], f"F6: ... and wakes on the next look once the server answers {queued}")
+        finally:
+            aj.revive_lost = keep
     finally:
         aj.STATE_DIR, aj.Api.req, aj.spawn_run, aj.SPAWN_ENV = old_sd, old_req, old_spawn, None
         for k, v in saved.items():
