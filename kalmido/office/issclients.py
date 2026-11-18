@@ -33,7 +33,8 @@ Rules (the design's section 2.4 "Clients", decided 16.11.2026 and 17.11.2026):
     likewise ISC_DAY_CHANGES changes of its clients within 24 hours (review F6: the office log is never pruned).
   - A personal office: the client is the owner's private client (org_id NULL, created_by = the owner, else it would not show
     in the own office); an organisation: org_id = the area, created_by empty.
-  - Log: every writing PUT one line issuer_write (the fields old -> new), an unchanged one and a read once an hour and target.
+  - Log: every writing PUT one line issuer_write (the fields old -> new); reads and unchanged PUTs one line issuer_read per issuer
+    and hour, target "clients" (#7113, review F12: per client it grew with the number of clients, the office log is never pruned).
     Alarm "client data changed" to the admins of the area, by e-mail as well, once a day."""
 import json
 import re
@@ -272,7 +273,12 @@ def isc_day_changes(c, iss):
     return int(w) - int(n)
 
 
-def _log_read(c, iss, target):
+ISC_READ_TARGET = "clients"  # #7113 (review F12): one read line per issuer and hour for all its clients
+
+
+def _log_read(c, iss):
+    """One line issuer_read per issuer and hour for the reads of all its clients (not per client: the log is never pruned)."""
+    target = ISC_READ_TARGET
     if not _iss_read_logged(c, iss, target):
         iss_log(c, iss["org_id"], iss["id"], "issuer_read", target, {"key": g.issuer_key["prefix"], "ip": fx2_mask_ip(client_ip())}, name=iss["name"])
         c.commit()
@@ -313,7 +319,7 @@ def isc_get(ref):
     ref = _ref(ref)
     r = isc_row(c, iss, ref)
     _need_live(c, iss, ref, r)
-    _log_read(c, iss, f"client:{ref}")
+    _log_read(c, iss)
     return jsonify(isc_public(r))
 
 
@@ -352,7 +358,7 @@ def isc_put(ref):
             e = Denied(400, tr("expect_updated_at is missing: send the client's updated_at with every change"))
             e.v1_name, e.v1_extra = "version_required", {"fields": ["expect_updated_at"]}
             raise e
-        _log_read(c, iss, f"client:{ref}")
+        _log_read(c, iss)
         return jsonify(isc_public(r, flags=_flags_of(r)))
 
     def extra(c, cur, changed):
@@ -372,7 +378,7 @@ def isc_put(ref):
         c.rollback()
         raise _limit(c, iss, "day_changes", text=ISC_LIMIT_CHANGES) from None
     if not changed:
-        _log_read(c, iss, f"client:{ref}")
+        _log_read(c, iss)
         return jsonify(isc_public(new, flags=_flags_of(new)))
     iss_log(c, oid, iss["id"], "issuer_write", f"client:{ref}", {"client": int(r["id"]), "key": g.issuer_key["prefix"],
                                                                   "fields": {k: [a, z] for k, (a, z) in changed.items()}}, name=iss["name"])
