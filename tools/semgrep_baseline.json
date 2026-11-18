@@ -334,30 +334,6 @@
   {
    "rule": "semgrep.kalmido-sql-ident-without-qi",
    "file": "kalmido/admin/backup.py",
-   "code": "c.execute(f\"DELETE FROM {tbl} WHERE id=?\", (rid,))",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/admin/backup.py",
-   "code": "here += [r[0] for r in c.execute(f\"SELECT id, created_at FROM {tbl} WHERE id IN ({','.join('?' * len(part))})\", part).fetchall()",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/admin/backup.py",
-   "code": "if not c.execute(f\"SELECT 1 FROM {tbl} WHERE id=?\", (rid,)).fetchone(): # went with one before it",
-   "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
-   "date": "2026-11-09",
-   "task": 5296
-  },
-  {
-   "rule": "semgrep.kalmido-sql-ident-without-qi",
-   "file": "kalmido/admin/backup.py",
    "code": "rf\"CREATE TABLE {_T} \\(.*\\)\",",
    "reason": "Existing SQL text before qi() (#5296): the interpolated name comes from fixed code, a registry or the schema, never from a request; listed, not rewritten (decision 08.11.2026); a touched place moves to qi().",
    "date": "2026-11-09",
