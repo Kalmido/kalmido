@@ -7,6 +7,7 @@ readable for the person, fetches the starter files and sets up the autostart. Ev
 (api_tokens.host / folder / os), so "Remove computer" revokes just that one (POST /api/agent-setup/remove with the token
 itself = the setup script's --uninstall). Codes are stored as a hash, live AINS_CODE_TTL_MIN minutes and work once.
 """
+import ipaddress
 import os
 import re
 import secrets
@@ -18,6 +19,7 @@ from ..core.pg import system_ctx
 from ..core.i18n import N_, tr
 from ..core.db import body, bump, db, err, iso, now_utc, parse_iso
 from ..core.access import Denied
+from ..core.ipallow import ips_clean
 from ..accounts.session import _rate_blocked, _rate_fail, _token_hash, client_ip, rate_ip
 from ..api.v1 import API_ON, need_api
 from ..agents.core import AGENT_OFFLINE_S, agent_row, agent_shares
@@ -189,7 +191,6 @@ def ains_admin_machine_del(aid, tid):
 def ains_ips_want(raw):
     """2.1367.0 (#6457): the address rule the setup offers for this computer's key: None (no rule asked), "current" (the
     address the setup comes from: IPv4 as it is, IPv6 its /64) or IPs / networks; BadInput 400 for a wrong one."""
-    from ..core.ipallow import ips_clean
     if raw in (None, "", []):
         return None
     return ips_clean(rate_ip() if raw == "current" else raw) or None
@@ -199,7 +200,6 @@ def ains_ips_set(c, tid, want):
     """2.1367.0 (#6457): the existing address rule of a token (api_tokens.allowed_ips) for this computer's new key. Within
     the agent's own rule only (a wider one keeps the agent's); never fails the setup. -> (the key's addresses now ([] = any),
     whether the asked rule was set)."""
-    import ipaddress
     have = (c.execute("SELECT allowed_ips FROM api_tokens WHERE id=?", (tid,)).fetchone()[0] or "")
     nets = lambda v: [ipaddress.ip_network(x, strict=False) for x in v.split(",") if x]  # noqa: E731
     if want and (not have or all(any(n.version == m.version and n.subnet_of(m) for m in nets(have)) for n in nets(want))):
