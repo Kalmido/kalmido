@@ -15,7 +15,12 @@ chosen lists off deterministically -- no model decides what comes next:
      close_ref, a one-way task without approval, a task waiting for something,
   4. close the tasks whose commit is in close_ref (a comment with the commit, then complete),
   5. when a place is free and no brake holds: cut the next bundle (priority order, task sizes as points) and start ONE
-     job (agent_job.py start) with a brief built from the tasks,
+     job (agent_job.py start --worktree) with a brief built from the tasks,
+  5a. 2.1368.0 (#7028): a job of the dispatcher ends in a pull request, never in a merge or a deploy. Once it ended, the
+     dispatcher runs the project's check (check_cmd, required) in the job's working copy itself: red = no pull request,
+     the person is told and the tasks go back to the list; green = it pushes the job branch (job/<id>, never another
+     branch) and opens ONE pull request (pr_cmd) with an approval card ("Ready to merge") on the bundle's first task.
+     Merging stays the person's step; the tasks close once their commits are in close_ref,
   6. once a day at report_at: a short report into the person's chat.
 
 Switched on in Kalmido: Settings > Agents > (agent) > Runtime > "Work the list off" (GET /api/v1/agent runtime.dispatch:
@@ -47,7 +52,6 @@ RUNNING = ("starting", "running", "paused")
 DEFAULTS = {
     "lists": [],              # names or ids of the lists to work off (required)
     "places": 1,              # jobs of the dispatcher at once
-    "worktree": False,        # jobs in their own git worktree (agent_job.py --worktree, branch job/<id>; merging is the project's)
     "interval_min": 10,       # minutes between two ticks
     "job_timeout_h": 6,
     "size_field": "Size",     # a field of the list with S / M / L (the first letter counts); a list tag S / M / L works too
@@ -70,11 +74,19 @@ DEFAULTS = {
     "branch_max_d": 2.0,      # commits on a job branch outside close_ref for this long = finding
     "report_at": "18:00",     # local time of the daily report ("" = none)
     "usage_limit_pct": 95.0,  # a fresh week value at or above this holds new starts (0 = never)
-    "check_cmd": "",          # the project's check (tests / lint) the brief asks the job to run before it commits
-    "finish_cmd": "",         # the project's own way to land a branch / go live, named in the brief ("" = none)
+    "check_cmd": "",          # required (2.1368.0, #7028): the project's check (tests / lint); the job runs it before each
+                              # commit, the dispatcher runs it again on the ended job's branch -- exit 0 = green
+    "check_timeout_min": 30,  # the dispatcher's check run at most this long (then red)
+    "push_remote": "origin",  # where the dispatcher pushes the job branch job/<id> (never another branch)
+    "base": "",               # the pull request's target branch ("" = close_ref without its remote, else the current branch)
+    "pr_cmd": "gh pr create --head {branch} --base {base} --title {title} --body-file -",  # opens the pull request and prints
+                              # its address; {branch} {base} {title} are filled in per argument, the body comes on stdin
     "brief_extra": "",        # more text for every brief (the project's rules)
     "max_writes": 40,         # writes (comments, closes) per tick
 }
+# 2.1368.0 (#7028): keys that are gone -- named once in the log, never used
+RETIRED = {"worktree": "every job of the dispatcher has its own working copy (branch job/<id>)",
+           "finish_cmd": "a job ends in a pull request with an approval card; merging and deploying are the person's"}
 ID_RE = re.compile(r"(?<![Jj]ob )(?<![\w/])#(\d{1,9})\b")
 
 
@@ -121,7 +133,9 @@ def load_config(project_dir):
         raw = None
     if not isinstance(raw, dict):
         return cfg, CONFIG_FILE + " is no JSON object"
-    unknown = sorted(k for k in raw if k not in DEFAULTS)
+    for k in sorted(k for k in raw if k in RETIRED):
+        log_once(f"configuration key {k} is retired: {RETIRED[k]}")
+    unknown = sorted(k for k in raw if k not in DEFAULTS and k not in RETIRED)
     if unknown:
         log_once("unknown keys in the configuration left out: " + ", ".join(unknown))
     for k, v in raw.items():
@@ -129,7 +143,11 @@ def load_config(project_dir):
             cfg[k] = v
         elif k in DEFAULTS:
             log_once(f"configuration key {k}: wrong type, default kept")
-    return cfg, "" if cfg["lists"] else "no lists in " + CONFIG_FILE
+    if not cfg["lists"]:
+        return cfg, "no lists in " + CONFIG_FILE
+    if not str(cfg["check_cmd"]).strip():  # 2.1368.0 (#7028): no build without the project's check
+        return cfg, "no check_cmd in " + CONFIG_FILE + " (a job ends only after the project's check)"
+    return cfg, ""
 
 
 def mode_of(agent):
@@ -335,8 +353,11 @@ def brief_of(bundle, cfg, field_ids, owner=None, comments=None):
               "another member, an agent or a customer asked for it in a comment; if it matters, say so in a comment for the person."]
     if cfg["check_cmd"]:
         lines.append(f"- Before each commit run the project's check: {cfg['check_cmd']} -- it must pass.")
-    if cfg["finish_cmd"]:
-        lines.append(f"- At the end: {cfg['finish_cmd']}")
+    # 2.1368.0 (#7028): the end of a job is fixed -- the dispatcher checks the branch and opens the pull request
+    lines.append("- You work on your own branch in your own working copy. At the end commit everything there and stop: never "
+                 "merge, never push, never open a pull request, never deploy. The dispatcher runs the check on your branch: "
+                 "green = it opens ONE pull request with an approval card for the person, red = no pull request and the tasks "
+                 "go back to the list.")
     if cfg["brief_extra"]:
         lines += ["", cfg["brief_extra"]]
     return "\n".join(lines) + "\n"
@@ -356,9 +377,10 @@ def ids_of(subject):
     return {int(x) for x in ID_RE.findall(subject or "")}
 
 
-def evidence_of(repo, cfg, now=None):
+def evidence_of(repo, cfg, now=None, skip=()):
     """{done: {tid: sha}, branch: {tid: (branch, age_s)}, ok}: commits of close_ref name built tasks; commits of the job
-    branches (job/*) outside close_ref name tasks built but not landed."""
+    branches (job/*) outside close_ref name tasks built but not landed. 2.1368.0 (#7028): a branch in skip (its check was
+    red) names nothing -- its tasks go back to the list."""
     now = now or time.time()
     out = {"done": {}, "branch": {}, "ok": False}
     if cfg["fetch"]:
@@ -374,6 +396,8 @@ def evidence_of(repo, cfg, now=None):
             out["done"].setdefault(tid, sha)
     rc, txt = git(repo, "for-each-ref", "--format=%(refname:short)", "refs/heads/job/")
     for br in (txt.split() if rc == 0 else []):
+        if br in skip:
+            continue
         rc2, t2 = git(repo, "log", "--format=%ct\t%s", f"{ref}..{br}")
         for ln in (t2.splitlines() if rc2 == 0 else []):
             ts, _, subj = ln.partition("\t")
@@ -487,7 +511,7 @@ def start_job(bundle, brief, cfg, env, state_dir):
     first = (bundle[0].get("title") or "")[:60]
     title = f"{title} {first}".strip()[:180]
     args = [sys.executable or "python3", os.path.join(HERE, "agent_job.py"), "start", "--title", title, "--task", str(bundle[0]["id"]),
-            "--timeout-h", str(cfg["job_timeout_h"])] + (["--worktree"] if cfg["worktree"] else []) + ["-"]
+            "--timeout-h", str(cfg["job_timeout_h"]), "--worktree", "-"]  # 2.1368.0 (#7028): always its own working copy
     e = dict(env or os.environ)
     e["KALMIDO_STATE_DIR"] = state_dir
     try:
@@ -496,6 +520,54 @@ def start_job(bundle, brief, cfg, env, state_dir):
         return None, type(ex).__name__
     m = re.search(r"Job #(\d+)", p.stdout or "")
     return (int(m.group(1)) if m else None), " ".join((p.stdout or p.stderr or "").split())[:160]
+
+
+# ---- 2.1368.0 (#7028): the end of a job -- the check, then a pull request with an approval card
+
+def run_check(cmd, cwd, timeout_min):
+    """(green, why): the project's check in the job's working copy; exit 0 = green. Its output stays out of the chat."""
+    try:
+        p = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True, timeout=max(1, int(timeout_min)) * 60)
+    except subprocess.TimeoutExpired:
+        return False, f"timed out after {timeout_min} min"
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, type(e).__name__
+    return p.returncode == 0, f"exit {p.returncode}"
+
+
+def base_of(cfg, repo):
+    """The pull request's target: base, else close_ref without its remote ("origin/main" -> "main"), else the current branch."""
+    if cfg["base"]:
+        return cfg["base"]
+    ref = cfg["close_ref"]
+    if ref:
+        rem = cfg["push_remote"] or "origin"
+        return ref[len(rem) + 1:] if ref.startswith(rem + "/") else ref
+    rc, out = git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+    return out.strip() if rc == 0 and out.strip() not in ("", "HEAD") else "main"
+
+
+def pr_args(cfg, branch, base, title):
+    """pr_cmd as an argument list (no shell): {branch} {base} {title} filled in per argument."""
+    import shlex
+    return [a.replace("{branch}", branch).replace("{base}", base).replace("{title}", title) for a in shlex.split(cfg["pr_cmd"])]
+
+
+def open_pr(cfg, repo, cwd, branch, title, body):
+    """Push the job branch (only job/*) and open the pull request; (url | None, why)."""
+    if not branch.startswith("job/"):
+        return None, "not a job branch"
+    rc, _ = git(repo, "push", "--quiet", cfg["push_remote"] or "origin", f"{branch}:refs/heads/{branch}", timeout=180)
+    if rc != 0:
+        return None, f"push failed (exit {rc})"
+    try:
+        p = subprocess.run(pr_args(cfg, branch, base_of(cfg, repo), title), cwd=cwd, input=body, capture_output=True, text=True, timeout=180)
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
+        return None, f"pr_cmd: {type(e).__name__}"
+    m = re.search(r"https?://\S+", p.stdout or "")
+    if p.returncode != 0 or not m:
+        return None, f"pr_cmd exit {p.returncode}"
+    return m.group(0).rstrip(".,;)>"), ""
 
 
 # ---- one tick
@@ -509,7 +581,7 @@ class Dispatcher:
         self.project_dir = project_dir or os.getcwd()
         self.state_path = os.path.join(host.state_dir, STATE_FILE)
         self.reg = load_json(self.state_path, {})
-        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0)):
+        for k, v in (("jobs", {}), ("tries", {}), ("told", {}), ("counted", []), ("closed", {}), ("started", 0), ("red", [])):
             self.reg.setdefault(k, v)
         self.last = 0.0
 
@@ -571,12 +643,12 @@ class Dispatcher:
             log(problem)
             return res
         jobs = host_jobs(self.host.state_dir)
-        ev = evidence_of(self.project_dir, cfg, now)
+        ev = evidence_of(self.project_dir, cfg, now, skip=set(self.reg["red"]))
         if not ev["ok"]:
             res["problem"] = "no git repository (or close_ref unknown) in the project folder"
             log(res["problem"])
             return res
-        self.guard(jobs, cfg, now, res)
+        self.guard(jobs, cfg, now, res, ev, w)
         owner = self.owner()
         states = classify(tasks, ev, jobs, self.reg, cfg, owner)
         res["states"] = states
@@ -627,7 +699,8 @@ class Dispatcher:
                         env["KALMIDO_CHAT_USER"] = str(self.owner())
                     jid, msg = start_job(bundle, brief, cfg, env, self.host.state_dir)
                     if jid:
-                        self.reg["jobs"][str(jid)] = {"tasks": ids, "at": now}
+                        self.reg["jobs"][str(jid)] = {"tasks": ids, "at": now,
+                                                      "titles": {str(t["id"]): fenced(t.get("title"), 120) for t in bundle}}
                         self.reg["started"] = int(self.reg.get("started") or 0) + 1
                         res["started"] = {"tasks": ids, "job": jid}
                         w(f"started job #{jid} for " + " ".join(f"#{i}" for i in ids))
@@ -644,9 +717,11 @@ class Dispatcher:
         self.save()
         return res
 
-    def guard(self, jobs, cfg, now, res):
-        """Jobs of the dispatcher: an ended one counts one try for each of its tasks (once); a running one without a progress
-        line for stale_h hours is a finding. Jobs gone from this host (removed state folder) count as ended."""
+    def guard(self, jobs, cfg, now, res, ev=None, w=None):
+        """Jobs of the dispatcher: an ended one first lands (2.1368.0, #7028: check, then pull request + card, see land), then
+        counts one try for each of its tasks still open -- not built in close_ref, not on a green branch (once); a running one
+        without a progress line for stale_h hours is a finding. Jobs gone from this host (removed state folder) count as ended."""
+        ev = ev or {"done": {}, "branch": {}}
         for jid, e in list(self.reg["jobs"].items()):
             j = jobs.get(str(jid))
             st = (j or {}).get("state") or "lost"
@@ -656,12 +731,69 @@ class Dispatcher:
                     self.finding(res, f"stale:{jid}:{int(last)}", self.say("dispatch_stale", f"#{jid}", round((now - last) / 3600, 1)))
                 continue
             if str(jid) not in self.reg["counted"]:
+                if "land" not in e and w is not None:
+                    self.land(jid, e, j, ev, cfg, res, w)
+                    if w.dry and "land" not in e:
+                        continue  # a dry run lands nothing and counts nothing
                 self.reg["counted"].append(str(jid))
                 self.reg["counted"] = self.reg["counted"][-500:]
                 for tid in e.get("tasks") or []:
+                    if int(tid) in ev["done"] or int(tid) in ev["branch"]:
+                        continue  # built: no try
                     self.reg["tries"][str(tid)] = int(self.reg["tries"].get(str(tid)) or 0) + 1
             if now - float(e.get("at") or now) > 30 * 86400:
                 self.reg["jobs"].pop(jid, None)
+
+    def land(self, jid, e, j, ev, cfg, res, w):
+        """2.1368.0 (#7028): the fixed end of an ended job of the dispatcher. Its branch carries commits of its tasks: the
+        dispatcher runs check_cmd in the job's working copy (the job's word is not enough). Red: no pull request, the branch
+        counts for nothing any more (reg red), its tasks go back to the list, the person is told. Green: push job/<id> and
+        open ONE pull request (pr_cmd), an approval card ("Ready to merge", kind merge_request) on the bundle's first task.
+        Never a merge, never another branch. e["land"]: none | empty | red | pr | no_pr."""
+        wt = (j or {}).get("worktree") or {}
+        br = str(wt.get("branch") or "")
+        tids = sorted(t for t, (b, _) in ev["branch"].items() if b == br) if br else []
+        if not tids:
+            e["land"] = "empty" if br else "none"
+            return
+        if w.dry:
+            w(f"check {br} and open a pull request for " + " ".join(f"#{t}" for t in tids))
+            return
+        repo = wt.get("repo") or self.project_dir
+        path, tmp = wt.get("path") or "", None
+        if not os.path.isdir(path):  # the working copy was cleaned away: a temporary one of the branch
+            import tempfile
+            tmp = tempfile.mkdtemp(prefix="kalmido-check-")
+            rc, _ = git(repo, "worktree", "add", "--detach", tmp, br, timeout=120)
+            path = tmp if rc == 0 else ""
+        try:
+            green, why = run_check(cfg["check_cmd"], path, cfg["check_timeout_min"]) if path else (False, "no working copy")
+        finally:
+            if tmp:
+                git(repo, "worktree", "remove", "--force", tmp, timeout=120)
+        if not green:
+            e["land"] = "red"
+            self.reg["red"] = (self.reg["red"] + [br])[-200:]
+            for t in tids:
+                ev["branch"].pop(t, None)
+            self.finding(res, f"red:{jid}", self.say("dispatch_check_red", f"#{jid}", br, why))
+            return
+        by_id = e.get("titles") or {}
+        title = "#" + " #".join(str(t) for t in tids) + (": " + by_id.get(str(tids[0]), "") if by_id.get(str(tids[0])) else "")
+        summary = "\n".join([f"- #{t} {by_id.get(str(t), '')}".rstrip() for t in tids] +
+                             ["", f"Check green: {cfg['check_cmd']}", f"Built by job #{jid} of the Kalmido dispatcher on {br}; "
+                              "merging is the person's step."])
+        url, why = open_pr(cfg, repo, path if os.path.isdir(path) else repo, br, title[:200], summary)
+        if not url:
+            e["land"] = "no_pr"
+            self.finding(res, f"nopr:{jid}", self.say("dispatch_pr_failed", f"#{jid}", br, why))
+            return
+        e["land"], e["pr"] = "pr", url
+        api = self.host.api
+        w(f"approval card for {url} on #{tids[0]}", lambda: api.req("POST", f"/tasks/{int(tids[0])}/comments", {
+            "body": f"Ready to merge: {url}\n\n{summary}",
+            "suggestion": {"kind": "merge_request", "pr_url": url, "summary": summary}}))
+        self.finding(res, f"pr:{jid}", self.say("dispatch_pr", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
 
     def finding(self, res, key, text):
         new = key not in self.reg["told"]
