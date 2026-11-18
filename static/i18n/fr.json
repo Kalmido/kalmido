@@ -19327,8 +19327,6 @@
   "After the restore, the invoice issuers could not be paused; pause them in the office settings.": "Après la restauration, les émetteurs de factures n'ont pas pu être mis en pause ; mets-les en pause dans les réglages du bureau.",
   "Invoice issuers were paused ({0}), but {1} of their notices could not be written; check the server log.": "Les émetteurs de factures ont été mis en pause ({0}), mais {1} de leurs avis n'ont pas pu être écrits ; consulte le journal du serveur.",
   "First letter of the name (automatic)": "Initiale du nom (automatique)",
-  "Remove address rule": "Retirer la règle d'adresse",
-  "Remove the address rule of {0}": "Retirer la règle d'adresse de {0}",
   "The organisation is moving: it is read-only.": "L’organisation déménage : lecture seule.",
   "Please try again later.": "Veuillez réessayer plus tard.",
   "The move of this organisation has already started": "Le déménagement de cette organisation a déjà commencé",
