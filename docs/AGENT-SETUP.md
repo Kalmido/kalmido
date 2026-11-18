@@ -147,7 +147,9 @@ hook (above, #6457) also refuses a command that names `kalmido-agent.env`, `/pro
 environment (`ps e`), and the folder `run-env/` with the request token files of all people (the run's own included; the
 Kalmido tools read it, the model never needs it; its settings also deny `Read` / `Edit` there, in every run and job) --
 that part holds also with `KALMIDO_BLOCK_DANGEROUS=0`. That is a rule, not a wall -- the run is the
-same system user as the starter and could still find a way to the file. **A hard separation needs a system user of its own
+same system user as the starter and could still find a way to the file. A job the starter wakes or continues gets a
+request token file only when the person in its job file is the person of the job on the server (2.1398.0, #7132): a job
+file the run rewrote does not get another person's token. **A hard separation needs a system user of its own
 for the runs** that cannot read the env file; the user of *Path B, 2.* separates the agent from you, not its runs from its starter.
 
 2.47.3 (#1729): *Remove computer* and *Delete agent* show an uninstall command for each computer (run it there first, then delete; it also works after the agent was deleted).
