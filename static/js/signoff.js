@@ -16,7 +16,7 @@ function sg_draw(box, j, list) {
   // 2.1185.0 (#6150): "Link valid until": the link's own date, not the quotation's "Valid until" in its head
   box.innerHTML = `${rows.length ? `<ul class="sglist" role="list">${rows.map(sg_row).join('')}</ul>` : ''}
     ${pick}<div class="row"><label for="sg-exp">${tr('Link valid until')}</label>${/*html-ok*/ dateIn('sg-exp', '', {min: today(), label: tr('Link valid until'), empty: tr('no expiry')}) /* dateIn escapes its values */}</div>
-    <div class="row"><button type="button" class="btn sm ${live ? '' : 'pri'}" data-sg="new">${ic('link', 's')} ${list ? tr('Request acceptance') : live ? tr('New approval link') : tr('Create approval link')}</button></div>
+    <div class="row sgnew"><button type="button" class="btn sm ${live ? '' : 'pri'}" data-sg="new">${ic('link', 's')} ${list ? tr('Request acceptance') : live ? tr('New approval link') : tr('Create approval link')}</button></div>
     <div class="shint">${esc(sg_note())}</div><div class="calerr" role="alert" data-sgerr hidden></div>`;
 }
 // the quotation (office_docs.js draws the placeholder for sent and decided quotations)
