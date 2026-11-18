@@ -106,6 +106,13 @@ check(r7.ok, "F4: saving scopes " + r7.text[:200])
 m7 = [m for m in Bo.get(B + f"/api/my/agents/{AID}/machines").json()["machines"] if m.get("host") == "ip-box-2"]
 check(m7 and m7[0].get("allowed_ips") == ["198.51.100.0/24"], f"F4: the computer keeps its rule and the list shows it: {m7}")
 check(not requests.get(V + "/agent", headers=tokh(TOK7)).ok, "F4: the key still does not work from another address")
+# #7051 (Fable reader N3): "Remove address rule" at the computer gives its key the agent's rule again (here none = any address)
+mid7 = m7[0]["id"] if m7 else 0
+check(Bo.patch(B + f"/api/my/agents/{AID}", json={"machine_ip_reset": 999999}).status_code == 404, "N3: a key of no computer of this agent = 404")
+r7 = Bo.patch(B + f"/api/my/agents/{AID}", json={"machine_ip_reset": mid7})
+m7 = [m for m in Bo.get(B + f"/api/my/agents/{AID}/machines").json()["machines"] if m.get("host") == "ip-box-2"]
+check(r7.ok and m7 and m7[0].get("allowed_ips") == [] and requests.get(V + "/agent", headers=tokh(TOK7)).ok,
+      f"N3: the computer's rule is removed, its key works again: {r7.status_code} {m7}")
 r7 = Bo.patch(B + f"/api/my/agents/{AID}", json={"allowed_ips": ["203.0.113.0/24"]})
 m7 = [m for m in Bo.get(B + f"/api/my/agents/{AID}/machines").json()["machines"] if m.get("host") == "ip-box-2"]
 check(r7.ok and m7 and m7[0].get("allowed_ips") == ["203.0.113.0/24"], f"F4: a changed agent rule goes onto every key: {m7}")
