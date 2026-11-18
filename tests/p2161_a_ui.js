@@ -102,6 +102,9 @@ const png = (() => {
   md = await open(ORG);
   check(md.querySelector('#og-icprev')?.textContent === 'A' && !md.querySelector('#og-icprev img') && !T('text'), '#6886: reopened: the letter (automatic), no emoji tile');
   md.querySelector('[data-m="close"]').click(); await sleep(300);
+  // 2.1391.0 (#7089): outside the dialog the same letter: the workspace symbol and the organisation list in Settings
+  check(w.eval(`(() => { const ws = S.me.workspaces = S.me.workspaces || []; ws.push({id: 987654, name: 'zeta'}); const h = wsIcon('org:987654'); ws.pop(); return /<span class="orgini"[^>]*>Z<\\/span>/.test(h) && !/<svg/.test(h); })()`), '#7089: the workspace symbol of an organisation without an own symbol is its first letter, not the briefcase');
+  check(w.eval(`/<svg/.test(orgIconHtml({name: ''})) && /orgini/.test(orgIconHtml({name: 'beta'})) && orgIconHtml({name: 'beta'}).includes('>B<')`), '#7089: the letter is upper case; no name keeps the briefcase');
 
   // ================= a server admin who does not administer the organisation: no upload tile, a hint (the routes stay as they are)
   md = await open(OTHER);
