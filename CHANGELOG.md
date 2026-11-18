@@ -23,6 +23,25 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1395.0] - 2026-11-18
+
+Package 2.1368 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Starter-Parität: Dispatcher-Pflicht - Ende im Pull, Starter-Parität: Regeln und Vorla).
+
+### Added
+- #5525 Knowledge: a page can be shown as a presentation - "Present" is the first entry of the "Page" group in the page's "…" menu (also for readers): every # / ## heading starts a slide, text before the first heading becomes a title slide with the page name; full screen, arrow keys / Home / End, swipe on phones, Esc, × or Back to leave. Loaded on demand (static/js/wkpresent.js).
+- #7030 docs/AGENT-SECURITY.md: a checklist for connecting a coding agent to a project with live customers.
+- #7033 Starter: mcp/CLAUDE.coding.md, short rules for coding agents (about 7 KB instead of about 52 KB of template per run); the full template stays the reference.
+
+### Fixed
+- #6868 Knowledge security: a page renamed or moved (PATCH with path, /api/wiki/move, dragging in the tree) under a share with pictures that did not cover it before keeps the picture rows only of the files the mover can see; the others go to nobody, so a link no longer shows a picture the mover could not see. A rename under the same shares changes nothing.
+- #6657 Knowledge security: a stamp per page (wiki_pages.wem_at, migration 6657, trigger kalmido_wem_at, connection setting app.wem6657): pages written by an older version (rollback) or by hand get all their picture rows set to nobody at the next start. "Keep mine" in a save conflict sends overwrite: true; an overwrite or a save without expect_updated_at no longer makes the saver the embedder of new pictures (docs/API.md).
+- #6824 Test p2475_a copies core/oncesteps.py into its check copy.
+
+### Changed
+- #7039 Starter dispatcher (mcp/agent_dispatch.py): #7028 check_cmd is required, every job works in its own worktree, the dispatcher runs the check on the job's branch itself and only on green pushes job/<id>, opens one pull request (pr_cmd, default gh) and puts a "Ready to merge" card on the first task - it never merges or deploys (finish_cmd / worktree retired); #5198 a write refused after a job started (409) ends only that step, the started job is saved at once and the same bundle is never started twice; #4060 jam brake: more built-but-not-landed tasks than stau_max (default 10) hold new starts, closing and the guard go on, the daily report names it; #4069 one retry per job (max_tries 2), then the tasks go back to the list with a comment, stuck only after three bundles (max_bundles). What the dispatcher runs (check_cmd, pr_cmd, push_remote, base) comes only from the runner's env file (KALMIDO_DISPATCH_CHECK_CMD, _PR_CMD, _PUSH_REMOTE, _BASE), never from KALMIDO-DISPATCH.json in the agent-writable project folder (such a key keeps the dispatcher idle and is named); the check runs without Kalmido variables and tokens, git hooks never run for the dispatcher, push_remote must be a git remote; the pull request names only the bundle's tasks and not the check's command.
+- #4067 Coding agent template (mcp/CLAUDE.template.md, docs/AGENTS.md, in-app rules): a Release section - one gate (the project's CI), a release is a snapshot of the main branch and red is fixed there, flaky tests only with expiry date and task, generated files regenerated, never resolved by hand.
+- #7040 Agent rules (mcp/agent_rules.md, template, docs/AGENTS.md): #4065 state something only after looking in the same run, notes and summaries are the old state; #4066 cause before symptom - the same hint twice or red before the next push is fixed or filed and told in one line.
+
 ## [2.1387.0] - 2026-11-18
 
 Package 2.1337 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -636,7 +655,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1387.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1395.0...HEAD
+[2.1395.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1395.0
 [2.1387.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1387.0
 [2.1380.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1380.0
 [2.1378.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1378.0
