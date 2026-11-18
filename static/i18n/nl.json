@@ -19359,5 +19359,12 @@
   "The recognition ran out of time: not every page was read.": "De herkenning had niet genoeg tijd: niet elke pagina is gelezen.",
   "Rules template": "Regelsjabloon",
   "Software development": "Softwareontwikkeling",
-  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Softwareontwikkeling zet regels voor het bouwen van software (een branch per opdracht, eerst een brief, tests in twee stappen, één gebundelde release) en een brief-sjabloon in de projectmap. Een bestaande CLAUDE.md blijft zoals hij is; de regels komen dan als voorstel ernaast."
+  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Softwareontwikkeling zet regels voor het bouwen van software (een branch per opdracht, eerst een brief, tests in twee stappen, één gebundelde release) en een brief-sjabloon in de projectmap. Een bestaande CLAUDE.md blijft zoals hij is; de regels komen dan als voorstel ernaast.",
+  "Present": "Presenteren",
+  "Slide": "Dia",
+  "Slide {0} of {1}": "Dia {0} van {1}",
+  "Previous slide": "Vorige dia",
+  "Next slide": "Volgende dia",
+  "End presentation": "Presentatie beëindigen",
+  "Presentation: {0}": "Presentatie: {0}"
 }

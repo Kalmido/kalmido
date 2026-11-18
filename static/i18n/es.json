@@ -19359,5 +19359,12 @@
   "The recognition ran out of time: not every page was read.": "El reconocimiento se quedó sin tiempo: no se leyeron todas las páginas.",
   "Rules template": "Plantilla de reglas",
   "Software development": "Desarrollo de software",
-  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Desarrollo de software añade a la carpeta del proyecto reglas para construir software (una rama por encargo, primero un brief, pruebas en dos etapas, una publicación conjunta) y una plantilla de brief. Un CLAUDE.md existente se deja como está; las reglas van entonces al lado como propuesta."
+  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Desarrollo de software añade a la carpeta del proyecto reglas para construir software (una rama por encargo, primero un brief, pruebas en dos etapas, una publicación conjunta) y una plantilla de brief. Un CLAUDE.md existente se deja como está; las reglas van entonces al lado como propuesta.",
+  "Present": "Presentar",
+  "Slide": "Diapositiva",
+  "Slide {0} of {1}": "Diapositiva {0} de {1}",
+  "Previous slide": "Diapositiva anterior",
+  "Next slide": "Diapositiva siguiente",
+  "End presentation": "Terminar presentación",
+  "Presentation: {0}": "Presentación: {0}"
 }

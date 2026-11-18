@@ -19359,5 +19359,12 @@
   "The recognition ran out of time: not every page was read.": "Die Erkennung hatte nicht genug Zeit: Nicht jede Seite wurde gelesen.",
   "Rules template": "Regel-Vorlage",
   "Software development": "Software-Entwicklung",
-  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Software-Entwicklung legt Regeln fürs Bauen von Software (ein Zweig pro Auftrag, erst ein Brief, Tests in zwei Stufen, ein gesammeltes Release) und eine Brief-Vorlage in den Projektordner. Eine vorhandene CLAUDE.md bleibt unverändert; die Regeln kommen dann als Vorschlag daneben."
+  "Software development adds rules for building software (a branch per order, a brief first, tests in two stages, one collected release) and a brief template to the project folder. An existing CLAUDE.md stays as it is; the rules then come next to it as a proposal.": "Software-Entwicklung legt Regeln fürs Bauen von Software (ein Zweig pro Auftrag, erst ein Brief, Tests in zwei Stufen, ein gesammeltes Release) und eine Brief-Vorlage in den Projektordner. Eine vorhandene CLAUDE.md bleibt unverändert; die Regeln kommen dann als Vorschlag daneben.",
+  "Present": "Präsentieren",
+  "Slide": "Folie",
+  "Slide {0} of {1}": "Folie {0} von {1}",
+  "Previous slide": "Vorherige Folie",
+  "Next slide": "Nächste Folie",
+  "End presentation": "Präsentation beenden",
+  "Presentation: {0}": "Präsentation: {0}"
 }
