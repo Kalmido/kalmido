@@ -313,6 +313,19 @@ jobs:
       # 2.754.0 (#5297): every ${} in an HTML template is escaped / a safe helper / marked; the old findings are the baseline
       - name: Every ${} in an HTML template is escaped, new findings red (2.754.0, #5297)
         run: python tools/check_innerhtml.py
+      # 2.1360.0 (#6831): the coupling of the client's global scope only shrinks - a file that newly writes a key of the app state S
+      # another file makes is red (a setter of that file instead); the count of top-level names is shown. Compared with the base
+      # (the queue entry's / pull request's base, the commit before a push); no base (schedule, a new branch) = nothing compared
+      - name: No new file writes a key of the app state S it does not make (2.1360.0, #6831)
+        env:
+          QBASE: ${{ github.event.merge_group.base_sha }}
+          PBASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          base=${QBASE:-${PBASE:-$BEFORE}}
+          if [ -z "$base" ] || [ -z "${base//0/}" ]; then python tools/check_globals.py; exit 0; fi
+          if ! git fetch --no-tags --depth=1 origin "$base"; then echo "::warning title=check_globals::the base $base cannot be fetched - nothing compared"; exit 0; fi
+          python tools/check_globals.py --base "$base" -v
       # 2.924.0 (#5224): a new scrollIntoView / scrollTo / scrollTop assignment / focus() without preventScroll outside a dialog
       # needs `// sprung-ok: <reason>`; the old places are the baseline (tools/scrolljump_baseline.json, only shrinks)
       - name: The view moves only when the person makes it move - new jumps need a reason (2.924.0, #5224)
