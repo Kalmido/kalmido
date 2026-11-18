@@ -81,7 +81,7 @@ Kalmido's defaults (the operator can change them with the variables named; see [
 | Newsletter suppression list and consent log (SHA-256 hash of the address, never the address; who consented, confirmed or left, and when) | no period, so an unsubscription is never forgotten; it goes with the organisation | – |
 | Online payment events (what the provider reported: event, amount, state, reference) | no period; they go with the organisation | – |
 | Receipts, books, logbook, sent business letters (office) | the law (8 / 10 / 8 / 6 years from the end of the year) plus a buffer of 1 year, so 9 / 11 / 9 / 7 years; locked, not deleted. An office with *Extend the lock* (a tax audit is open) keeps them also after that | `KALMIDO_RETENTION_BUFFER_YEARS` (0 = exactly the law, at most 30) |
-| Server log (stdout of the container) | as long as your log rotation keeps it | your Docker / log setup |
+| Server log (stdout of the container: one line per request with the shortened address) | as long as your log rotation keeps it - name the days here; for example the hosted server keeps it at most 30 days (journald `MaxRetentionSec=30day`) | your Docker / log setup |
 
 **Important:** deleting for good after these periods runs only when `KALMIDO_RETENTION_PURGE=1` is set (or
 `KALMIDO_PURGE_<KIND>=1` for one kind). Without it Kalmido only counts what it would delete (the admin reads the counts at
@@ -109,7 +109,7 @@ on the server can still hold the account. A copy kept outside the server (a down
 keeps many backups) is not seen: if you restore such an older copy, check the accounts it brings back.
 
 The server log shortens every address by default (IPv4 to /24, IPv6 to /48). `KALMIDO_LOG_FULL_IP=1` keeps them in full, for
-example for fail2ban; if you set it, say so here.
+example for fail2ban; if you set it, say so here. Name where the server is hosted (your provider, with its data processing agreement), the purpose (operation and security, Art. 6 (1) (f) GDPR) and how many days the log stays, as in the table above.
 
 ## 4. Recipients and outside connections
 
