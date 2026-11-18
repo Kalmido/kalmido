@@ -350,3 +350,14 @@
 .umzem { flex: 1 1 12rem; min-height: 2.75rem; }  /* review M1: the address an admin types for an invitation */
 .umzmis { flex-basis: 100%; color: var(--danger, inherit); }
 .orgrolehelp ul { margin: .25rem 0 0; padding-left: 1.125rem; }
+/* 2.1391.0 (#6130): Settings > Account - Sign out next to the name, the password fields one under the other (never cut off on a
+   phone), the technical details folded for advanced users, the colour swatches of "My colour" wrap inside the window and the
+   workspace name is not cut */
+.acwho .acout { margin-left: auto; }
+.pwrow .pwcol { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; flex: 1 1 14rem; min-width: 0; max-width: 24rem; }
+.pwrow .pwcol input { width: 100%; min-width: 0; box-sizing: border-box; }
+.pwrow .pwcol .btn { align-self: flex-start; }
+details.acadv { margin: .25rem 0 .5rem; }
+details.acadv > summary { cursor: pointer; color: var(--text2); font-size: var(--fs-s); padding: .375rem 0; min-height: 2rem; }
+.wsp-row .wsp-nm { white-space: normal; overflow-wrap: break-word; flex: 1 1 100%; }  /* the name on its own line above the swatches, whole */
+.wsp-row .colors, .wscpick .colors { flex: 1 1 auto; min-width: 0; max-width: 100%; }
