@@ -226,15 +226,18 @@ dbw("UPDATE support_grants SET ends_at='2020-01-01T00:00:00Z' WHERE id=?", (GF3,
 check(link(FID).status_code == 403, "after its end time: closed without anybody ending it")
 
 # ---- 2.1389.0 (#7005 F3): a team agent of the client's organisation -- its work style, data lock, control and rules are not the
-# operator's (work-style routes: agents/workstyle.py ws_need_editor); with the organisation's grant it may read, never write
+# operator's (work-style routes: agents/workstyle.py ws_need_editor): the organisation's rows stay out of the operator's reach
+# (tenancy), so the agent is not found, also with the organisation's support grant
 r = A.post(B + "/api/admin/agents", json={"username": "studiobot"})
 TAG = r.json().get("id") if r.ok else None
 check(r.status_code == 201 and TAG, "the operator makes a team agent of its own " + r.text[:100])
 dbw("UPDATE agents SET org_id=?, owner_id=NULL WHERE user_id=?", (CO, TAG))  # as if the client's organisation had it (a real state)
 WSB = {"quiet_mode": "on"}
-check(A.get(B + f"/api/agents/{TAG}/work-style").status_code == 403, "#7005: no grant: the client's team agent's work style is closed (GET)")
-check(A.patch(B + f"/api/agents/{TAG}/work-style", json=WSB).status_code == 403, "#7005: no grant: no change of its work style")
-check(A.patch(B + f"/api/agents/{TAG}/data-lock", json={}).status_code == 403, "#7005: no grant: no change of its data lock")
+CLOSED = (403, 404)
+check(A.get(B + f"/api/agents/{TAG}/work-style").status_code in CLOSED, "#7005: no grant: the client's team agent's work style is closed (GET)")
+check(A.patch(B + f"/api/agents/{TAG}/work-style", json=WSB).status_code in CLOSED, "#7005: no grant: no change of its work style")
+check(A.patch(B + f"/api/agents/{TAG}/data-lock", json={}).status_code in CLOSED, "#7005: no grant: no change of its data lock")
+check(A.patch(B + f"/api/agents/{TAG}/control", json={}).status_code in CLOSED, "#7005: no grant: no change of its control")
 
 # ---- the organisation grant
 r = S["carl"].post(B + "/api/support-access", json={"hours": 24, "org_id": CO})
@@ -243,10 +246,9 @@ GO = r.json()["grant"]["id"]
 r = A.patch(B + f"/api/admin/orgs/{CO}", json={"name": "Client Studio GmbH"})
 check(r.ok and kt.dbx("SELECT name FROM orgs WHERE id=?", (CO,)) == [("Client Studio GmbH",)], "with the grant: the operator renames it " + r.text[:120])
 check(link(uid["cara"]).status_code in (403, 404), "the organisation's grant opens no member's account")
-check(A.get(B + f"/api/agents/{TAG}/work-style").ok, "#7005: with the grant: the operator reads the team agent's work style")
 r = A.patch(B + f"/api/agents/{TAG}/work-style", json=WSB)
-check(r.status_code == 403 and kt.dbx("SELECT work_style FROM agents WHERE user_id=?", (TAG,))[0][0] in (None, "", "{}"),
-      "#7005: with the grant: its work style stays unchanged (403) " + r.text[:100])
+check(r.status_code in CLOSED and kt.dbx("SELECT work_style FROM agents WHERE user_id=?", (TAG,))[0][0] in (None, "", "{}"),
+      "#7005: with the organisation's grant: its work style stays unchanged " + r.text[:100])
 r = A.post(B + "/api/users", json={"username": "opsmate", "password": "password123"})
 OPS = r.json()["id"]
 for body in ({"members_add": [OPS]}, {"admins_add": [OPS]}):
