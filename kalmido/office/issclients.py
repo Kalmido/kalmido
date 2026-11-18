@@ -27,7 +27,10 @@ Rules (the design's section 2.4 "Clients", decided 16.11.2026 and 17.11.2026):
     "issuer:<id>" (obj_history.via): its entries never merge, a change and its change back are two entries. A set-up: the
     history's "create" entry. Every set-up and every change of a held field (office/isshold.py IHD_FIELDS) sets the hold
     mark; the flags client_new (set up now), client_lookalike (name or VAT ID of another client of the area), text_suspicious.
-  - day_clients new clients within 24 hours (rolling, counted by the tombstones), else 429 limit_reached (an alarm, no pause).
+    The key's answer names client_new and text_suspicious only (its own input); client_lookalike is for the persons in the
+    mark (review F2: else a key could ask whether the office knows a name or VAT ID).
+  - day_clients new clients within 24 hours (rolling, counted by the tombstones), else 429 limit_reached (an alarm, no pause);
+    likewise ISC_DAY_CHANGES changes of its clients within 24 hours (review F6: the office log is never pruned).
   - A personal office: the client is the owner's private client (org_id NULL, created_by = the owner, else it would not show
     in the own office); an organisation: org_id = the area, created_by empty.
   - Log: every writing PUT one line issuer_write (the fields old -> new), an unchanged one and a read once an hour and target.
@@ -68,6 +71,7 @@ ISC_NO_TEXT_CHECK = ("country", "vat_id", "email_invoice", "doc_lang")  # own fo
 ISC_BODY_MAX = 64 * 1024
 ISC_REF_ROUTE = "clients"  # office_issuer_refs.route of a client's tombstone
 ISC_PUBLIC = ("external_ref", *ISC_FIELDS)
+ISC_KEY_FLAGS = ("client_new", "text_suspicious")  # review F2: what the key hears of the mark - only its own input
 # an IBAN form: two letters, two check digits, 11 to 30 letters / digits (spaces allowed between), at least 8 digits in it
 ISC_IBAN_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{2}[0-9]{2}(?:[ ]?[A-Za-z0-9]){11,30}(?![A-Za-z0-9])")
 ISC_MAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
@@ -80,6 +84,11 @@ INTEG_TEXT.update({
     "issuer_limit": N_("Invoice issuer {0} reached its limit: {1}."),
 })
 ISC_LIMIT_CLIENTS = N_("new clients within 24 hours")
+ISC_LIMIT_CHANGES = N_("changes of clients within 24 hours")
+# review F6: changes of its clients a key makes within 24 hours (rolling). Each is a line of the office log, which is never
+# pruned, and a history entry that never merges; 60 calls a minute alone would allow ~86,000 a day. A constant, no limit an
+# admin sets (no column): a platform with more changes a day asks for a higher one.
+ISC_DAY_CHANGES = 200
 
 
 def _bad(field, msg=None):
@@ -235,16 +244,32 @@ def isc_hold(old, iss_id, changed, new, flags):
     return json.dumps(h, ensure_ascii=False)
 
 
-def _limit(c, iss, what, retry=3600):
+def _limit(c, iss, what, retry=3600, text=ISC_LIMIT_CLIENTS):
     """429 limit_reached; the admins hear of it once a day (no pause: a busy day is no attack)."""
     try:
         if _iss_once(c, iss, f"limit:{what}"):
-            iss_tell(c, iss["org_id"], iss, "issuer_limit", ISC_LIMIT_CLIENTS)
+            iss_tell(c, iss["org_id"], iss, "issuer_limit", text)
         c.commit()
     except Exception as e:  # noqa: BLE001 -- the refusal stands without its notice
         c.rollback()
         print("issuer limit notice failed:", type(e).__name__, flush=True)
-    return _fail(429, tr("The invoice issuer reached its limit of {0}", tr(ISC_LIMIT_CLIENTS)), "limit_reached", {"Retry-After": str(retry)})
+    return _fail(429, tr("The invoice issuer reached its limit of {0}", tr(text)), "limit_reached", {"Retry-After": str(retry)})
+
+
+class _OverChanges(Exception):
+    """A change over ISC_DAY_CHANGES (raised inside the write, answered after its rollback)."""
+
+
+def isc_day_changes(c, iss):
+    """The changes of its clients the issuer made within 24 hours: its issuer_write lines of clients minus its set-ups (the
+    tombstones; a set-up writes a line too and counts against day_clients)."""
+    since = iso(now_utc() - timedelta(days=1))
+    with system_ctx(c):  # the issuer's own log lines and tombstones
+        w = c.execute("SELECT COUNT(*) FROM office_doc_log WHERE issuer_id=? AND action='issuer_write' AND target LIKE 'client:%' AND at>=?",
+                      (int(iss["id"]), since)).fetchone()[0]
+        n = c.execute("SELECT COUNT(*) FROM office_issuer_refs WHERE issuer_id=? AND route=? AND created_at>=?",
+                      (int(iss["id"]), ISC_REF_ROUTE, since)).fetchone()[0]
+    return int(w) - int(n)
 
 
 def _log_read(c, iss, target):
@@ -314,6 +339,8 @@ def isc_put(ref):
     def clean(c, b, cur):
         vals, sus = isc_clean(c, b, cur)
         seen["sus"] = sus
+        if any((cur.get(k) or "") != (v or "") for k, v in vals.items()) and isc_day_changes(c, iss) >= ISC_DAY_CHANGES:
+            raise _OverChanges()  # review F6: an unchanged PUT writes nothing and still answers
         return vals
 
     if not b.get("expect_updated_at"):  # a change needs the version (ow_write asks agents only); an unchanged retry does not
@@ -334,9 +361,13 @@ def isc_put(ref):
         c.execute("UPDATE clients SET issuer_hold=? WHERE id=?", (isc_hold(cur.get("issuer_hold"), iss["id"], held, False, flags), cur["id"]))
         seen["held"] = held
 
-    new, changed = ow_write(c, None, "client", r["id"], b, clean, where=f"id=? AND issuer_id=? AND {_area_sql(c, oid)}",
-                            args=(r["id"], int(iss["id"])), lock=f"clients-{int(r['id'])}", public=lambda c, cur: isc_public(cur),
-                            extra=extra, via=actor)
+    try:
+        new, changed = ow_write(c, None, "client", r["id"], b, clean, where=f"id=? AND issuer_id=? AND {_area_sql(c, oid)}",
+                                args=(r["id"], int(iss["id"])), lock=f"clients-{int(r['id'])}", public=lambda c, cur: isc_public(cur),
+                                extra=extra, via=actor)
+    except _OverChanges:
+        c.rollback()
+        raise _limit(c, iss, "day_changes", text=ISC_LIMIT_CHANGES) from None
     if not changed:
         _log_read(c, iss, f"client:{ref}")
         return jsonify(isc_public(new, flags=_flags_of(new)))
@@ -358,7 +389,7 @@ def isc_spec(paths, op, ok, errs):
     fields["vat_id"]["description"] = "Optional, also for German buyers (never the buyer's tax number); its two letters fit the country"
     client = {"type": "object", "properties": {"external_ref": txt, **fields, "updated_at": {"type": "string", "format": "date-time"},
                                                "checked": {"type": "boolean", "description": "false while a person has not checked the data the key set"},
-                                               "flags": {"type": "array", "items": {"type": "string", "enum": ["client_new", "client_lookalike", "text_suspicious"]}}}}
+                                               "flags": {"type": "array", "items": {"type": "string", "enum": list(ISC_KEY_FLAGS)}}}}
     ref = {"name": "ref", "in": "path", "required": True, "description": "external_ref: [A-Za-z0-9._:-]{1,64}, the outside system's own id of "
            "the client with a fixed prefix of its environment (prod:account:12), kept for good", "schema": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,64}$"}}
     paths["/issuer/clients/by-ref/{ref}"] = {
@@ -374,12 +405,16 @@ def isc_spec(paths, op, ok, errs):
                        "pattern only flags text_suspicious. A VAT ID must fit the country (400 invalid_field vat_id). Every set-up and every "
                        "change of the address, the name, the VAT ID, the buyer reference or the e-mail for invoices puts a hold mark on the "
                        "client until a person checks it (checked false): nothing is sent to it without the person's confirmation. "
-                       "429 limit_reached (day_clients new clients within 24 hours, Retry-After).")}
+                       "429 limit_reached (day_clients new clients or 200 changes of clients within 24 hours, Retry-After).")}
 
 
 def _flags_of(r):
+    """The flags of the mark the key sees: client_new and text_suspicious (its own input). client_lookalike stays in the mark
+    for the persons (office/isshold.py): told to the key it would answer whether the office knows a name or VAT ID (review F2)."""
     h = ihd_load(r["issuer_hold"] if not isinstance(r, dict) else r.get("issuer_hold"))
-    return sorted(set((h or {}).get("flags") or []) | ({"client_new"} if (h or {}).get("new") else set())) if h else []
+    if not h:
+        return []
+    return sorted(x for x in set(h.get("flags") or []) | ({"client_new"} if h.get("new") else set()) if x in ISC_KEY_FLAGS)
 
 
 def _tell(c, iss, r):

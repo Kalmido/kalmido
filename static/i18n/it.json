@@ -19248,6 +19248,7 @@
   "Not saved – keep this window open": "Non salvato – lascia aperta questa finestra",
   "The storage of this device would not open: changes still waiting from an earlier visit are not shown here. Keep this window open until your changes are sent, then reload the page.": "Non è stato possibile aprire la memoria di questo dispositivo: le modifiche ancora in attesa da una visita precedente non sono mostrate qui. Lascia aperta questa finestra finché le modifiche non sono inviate, poi ricarica la pagina.",
   "This device could not store your changes (its storage is full or blocked). They are only in this window: keep it open until they are sent.": "Questo dispositivo non ha potuto salvare le tue modifiche (memoria piena o bloccata). Sono solo in questa finestra: lasciala aperta finché non vengono inviate.",
+  "changes of clients within 24 hours": "modifiche di clienti in 24 ore",
   "The backup was made with Kalmido {0}; this server only takes data from Kalmido {1} or newer. Restore it on Kalmido {2}.x first (or a newer version older than this one), then make a new backup there.": "Il backup è stato creato con Kalmido {0}; questo server accetta solo dati a partire da Kalmido {1}. Ripristinalo prima su Kalmido {2}.x (o una versione più recente ma precedente a questa), poi crea lì un nuovo backup.",
   "The account this access belongs to is locked": "L'account a cui appartiene questo accesso è bloccato",
   "The date {0} lies in an earlier year.": "La data {0} cade in un anno precedente.",

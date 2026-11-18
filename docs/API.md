@@ -1994,13 +1994,14 @@ otherwise overwrite each other's clients.
 
 The client: `{external_ref, name, name_extra, street, address_extra, zip, city, country, vat_id, email_invoice, buyer_reference,
 doc_lang, updated_at, checked}`, after a PUT also `flags`: `client_new` (set up by this key and not checked yet),
-`client_lookalike` (another client of the office has the same name or VAT ID), `text_suspicious`. `checked: false` = every
+`text_suspicious` (a web or e-mail pattern in the name). Whether the office has another client with the same name or VAT ID is
+never told to the key (the persons in the office see it at the hold mark). `checked: false` = every
 set-up and every change of the address, the name, the VAT ID, the buyer reference or the e-mail for invoices puts a hold mark on
 the client; until a person in the office checks the data, nothing is finalised or sent to it without a person's confirmation,
 and nothing at all automatically (a series with automatic sending leaves its invoice as a draft). Errors: `404` unknown (also
 another issuer's or another office's client with the same id), `409 client_trashed` (in the office's trash), `410 client_gone`
 (anonymised, deleted for good or merged away; for good, the id is never set up again), `429 limit_reached` (`day_clients` new
-clients within 24 hours, `Retry-After`). A client with the same name or VAT ID as one of the office is never taken over or
+clients within 24 hours, or 200 changes of its clients within 24 hours - a fixed limit, not set by the admin; `Retry-After`). A client with the same name or VAT ID as one of the office is never taken over or
 merged; merging stays a person's work, and only among the clients of one issuer.
 
 ## Arrangements of views for agents
