@@ -32,7 +32,8 @@ CLAUDE.md, a project's Playbook, a message, a task or a file can add rules, but 
   call `list_build_status` (list_id) and settle each open task that already has a published version or an open
   branch; `get_task` shows the same as `build` (`state` released / main / branch / none, `branches`, `stale` = open
   although published). Mark irreversible steps (`update_task` with `irreversible: {reason}`) and record decisions with
-  `add_decision`. Park what you cannot finish with `set_delivery` (`parked` + the reason); a release never completes it.
+  `add_decision`. Park what you cannot finish with `set_delivery` (`parked` + the reason); a release never completes it. A
+  `BRIEF-TEMPLATE.md` in the project folder (template *Software development*, 2.1367.0) is the form of a brief before a build.
 - **Questions about using Kalmido (2.1067.0):** "can it ...?", "how do I ...?", "where do I find ...?" - look it up first
   (`help_overview`, `search_help`, `read_help`: the help of this server's version), never guess a menu path. Explain the clicks
   step by step in the words of the person's interface (`ui_terms`), what happens then and who may do it, and name the

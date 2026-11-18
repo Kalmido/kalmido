@@ -21,6 +21,9 @@ per project folder. Needs: Windows PowerShell 5.1 or PowerShell 7, Python 3.9+, 
   -Lang         language of the messages: de, en, es, fr, it or nl (Kalmido adds the language of your account; anything else = en)
   -DryRun       only show what would happen: no code is redeemed, nothing is written, no task is registered
   -AllowHttp    2.360.0: an http:// address that is not this computer (localhost) -- only for a Kalmido without https
+  -Template     2.1367.0 (#2700): the rules for the project folder: general (the Kalmido rules, the default) or software
+                (+ the rules for building software and BRIEF-TEMPLATE.md; an existing CLAUDE.md stays, the rules come next to
+                it as CLAUDE.software.md)
   -IpRule       2.1367.0 (#6457): an address rule for this computer's key: current (the address it reaches Kalmido from),
                 off, or IPs / networks separated by commas; without it the setup asks once (Enter = no rule; not
                 interactive = no rule)
@@ -31,7 +34,7 @@ Files: %LOCALAPPDATA%\Kalmido\agents\<folder name>-<hash>\ (starter files, kalmi
 #>
 param([string]$Url = '', [string]$Code = '', [string]$Dir = '', [string]$Cmd = '', [string]$From = '',
       [switch]$NoAutostart, [switch]$DryRun, [switch]$Uninstall, [string]$Lang = 'en', [switch]$AllowHttp, [string]$Tool = '',
-      [string]$IpRule = '')
+      [string]$IpRule = '', [string]$Template = 'general')
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Invoke-WebRequest is slow with the progress bar in 5.1
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
@@ -75,6 +78,13 @@ $MsgEn = @{
   claude_new = '  CLAUDE.md created: {0} (from the template; add your own rules on top)'
   claude_kept = '  CLAUDE.md exists, left as it is: {0}'
   dry_claude = '  (dry run) create CLAUDE.md from the template when there is none: {0}'
+  badtpl = 'unknown template {0} (-Template general or software)'
+  tpl_claude = '  Rules of the template Software development added to CLAUDE.md'
+  tpl_prop = '  CLAUDE.md stays as it is; the rules of the template Software development are next to it as a proposal: {0}'
+  tpl_propkept = '  The template''s proposal exists, left as it is: {0}'
+  tpl_brief = '  Brief template created: {0}'
+  tpl_briefkept = '  Brief template exists, left as it is: {0}'
+  dry_tpl = '  (dry run) template Software development: rules in CLAUDE.md (or as a proposal next to it) and the brief template {0}'
   ask_ip = 'Should this computer''s key work only from its current internet address? Recommended for a fixed address; if it changes, the agent cannot reach Kalmido until you change the rule in Kalmido. [y/N]'
   ip_set = '  The key works only from: {0}'
   ip_wide = '  Address rule not set: the agent already has its own, narrower rule ({0})'
@@ -142,6 +152,13 @@ $MsgDe = @{
   claude_new = '  CLAUDE.md angelegt: {0} (aus der Vorlage; eigene Regeln oben ergänzen)'
   claude_kept = '  CLAUDE.md vorhanden, bleibt unverändert: {0}'
   dry_claude = '  (Probelauf) CLAUDE.md aus der Vorlage anlegen, wenn keine da ist: {0}'
+  badtpl = 'unbekannte Vorlage {0} (-Template general oder software)'
+  tpl_claude = '  Regeln der Vorlage Software-Entwicklung in CLAUDE.md aufgenommen'
+  tpl_prop = '  CLAUDE.md bleibt unverändert; die Regeln der Vorlage Software-Entwicklung liegen als Vorschlag daneben: {0}'
+  tpl_propkept = '  Vorschlag der Vorlage vorhanden, bleibt unverändert: {0}'
+  tpl_brief = '  Brief-Vorlage angelegt: {0}'
+  tpl_briefkept = '  Brief-Vorlage vorhanden, bleibt unverändert: {0}'
+  dry_tpl = '  (Probelauf) Vorlage Software-Entwicklung: Regeln in CLAUDE.md (oder als Vorschlag daneben) und Brief-Vorlage {0}'
   ask_ip = 'Soll der Schlüssel dieses Computers nur von seiner jetzigen Internet-Adresse aus gelten? Empfohlen bei fester Adresse; wechselt sie, erreicht der Agent Kalmido nicht mehr, bis du die Regel in Kalmido änderst. [j/N]'
   ip_set = '  Schlüssel gilt nur von: {0}'
   ip_wide = '  Adress-Regel nicht gesetzt: der Agent hat schon eine eigene, engere Regel ({0})'
@@ -209,6 +226,13 @@ $MsgEs = @{
   claude_new = '  CLAUDE.md creado: {0} (a partir de la plantilla; añade tus propias reglas arriba)'
   claude_kept = '  CLAUDE.md ya existe, se deja como está: {0}'
   dry_claude = '  (simulacro) crear CLAUDE.md a partir de la plantilla si no hay ninguno: {0}'
+  badtpl = 'plantilla desconocida {0} (-Template general o software)'
+  tpl_claude = '  Reglas de la plantilla Desarrollo de software añadidas a CLAUDE.md'
+  tpl_prop = '  CLAUDE.md se deja como está; las reglas de la plantilla Desarrollo de software están al lado como propuesta: {0}'
+  tpl_propkept = '  La propuesta de la plantilla ya existe, se deja como está: {0}'
+  tpl_brief = '  Plantilla de brief creada: {0}'
+  tpl_briefkept = '  La plantilla de brief ya existe, se deja como está: {0}'
+  dry_tpl = '  (simulacro) plantilla Desarrollo de software: reglas en CLAUDE.md (o como propuesta al lado) y la plantilla de brief {0}'
   ask_ip = '¿La clave de este ordenador debe funcionar solo desde su dirección de internet actual? Recomendado con dirección fija; si cambia, el agente no llega a Kalmido hasta que cambies la regla en Kalmido. [s/N]'
   ip_set = '  La clave solo funciona desde: {0}'
   ip_wide = '  Regla de direcciones no puesta: el agente ya tiene una propia más estrecha ({0})'
@@ -276,6 +300,13 @@ $MsgFr = @{
   claude_new = '  CLAUDE.md créé : {0} (d''après le modèle ; ajoute tes propres règles en haut)'
   claude_kept = '  CLAUDE.md existe déjà, laissé tel quel : {0}'
   dry_claude = '  (essai à blanc) créer CLAUDE.md d''après le modèle s''il n''y en a pas : {0}'
+  badtpl = 'modèle inconnu {0} (-Template general ou software)'
+  tpl_claude = '  Règles du modèle Développement logiciel ajoutées à CLAUDE.md'
+  tpl_prop = '  CLAUDE.md reste tel quel ; les règles du modèle Développement logiciel sont à côté comme proposition : {0}'
+  tpl_propkept = '  La proposition du modèle existe déjà, laissée telle quelle : {0}'
+  tpl_brief = '  Modèle de brief créé : {0}'
+  tpl_briefkept = '  Le modèle de brief existe déjà, laissé tel quel : {0}'
+  dry_tpl = '  (essai à blanc) modèle Développement logiciel : règles dans CLAUDE.md (ou comme proposition à côté) et le modèle de brief {0}'
   ask_ip = 'La clé de cet ordinateur doit-elle fonctionner seulement depuis son adresse internet actuelle ? Recommandé avec une adresse fixe ; si elle change, l''agent n''atteint plus Kalmido jusqu''à ce que tu changes la règle dans Kalmido. [o/N]'
   ip_set = '  La clé fonctionne seulement depuis : {0}'
   ip_wide = '  Règle d''adresse non posée : l''agent a déjà sa propre règle, plus étroite ({0})'
@@ -343,6 +374,13 @@ $MsgIt = @{
   claude_new = '  CLAUDE.md creato: {0} (dal modello; aggiungi le tue regole in alto)'
   claude_kept = '  CLAUDE.md esiste già, lasciato com''è: {0}'
   dry_claude = '  (prova) creare CLAUDE.md dal modello se non ce n''è uno: {0}'
+  badtpl = 'modello sconosciuto {0} (-Template general o software)'
+  tpl_claude = '  Regole del modello Sviluppo software aggiunte a CLAUDE.md'
+  tpl_prop = '  CLAUDE.md resta com''è; le regole del modello Sviluppo software sono accanto come proposta: {0}'
+  tpl_propkept = '  La proposta del modello esiste già, lasciata com''è: {0}'
+  tpl_brief = '  Modello di brief creato: {0}'
+  tpl_briefkept = '  Il modello di brief esiste già, lasciato com''è: {0}'
+  dry_tpl = '  (prova) modello Sviluppo software: regole in CLAUDE.md (o come proposta accanto) e il modello di brief {0}'
   ask_ip = 'La chiave di questo computer deve funzionare solo dal suo indirizzo internet attuale? Consigliato con indirizzo fisso; se cambia, l''agente non raggiunge Kalmido finché non cambi la regola in Kalmido. [s/N]'
   ip_set = '  La chiave funziona solo da: {0}'
   ip_wide = '  Regola di indirizzo non impostata: l''agente ha già una regola propria più stretta ({0})'
@@ -410,6 +448,13 @@ $MsgNl = @{
   claude_new = '  CLAUDE.md aangemaakt: {0} (uit de sjabloon; voeg je eigen regels bovenaan toe)'
   claude_kept = '  CLAUDE.md bestaat al, blijft zoals het is: {0}'
   dry_claude = '  (proefrun) CLAUDE.md aanmaken uit de sjabloon als er geen is: {0}'
+  badtpl = 'onbekende sjabloon {0} (-Template general of software)'
+  tpl_claude = '  Regels van de sjabloon Softwareontwikkeling toegevoegd aan CLAUDE.md'
+  tpl_prop = '  CLAUDE.md blijft zoals het is; de regels van de sjabloon Softwareontwikkeling staan ernaast als voorstel: {0}'
+  tpl_propkept = '  Het voorstel van de sjabloon bestaat al, blijft zoals het is: {0}'
+  tpl_brief = '  Brief-sjabloon aangemaakt: {0}'
+  tpl_briefkept = '  Brief-sjabloon bestaat al, blijft zoals het is: {0}'
+  dry_tpl = '  (proefrun) sjabloon Softwareontwikkeling: regels in CLAUDE.md (of als voorstel ernaast) en de brief-sjabloon {0}'
   ask_ip = 'Moet de sleutel van deze computer alleen werken vanaf zijn huidige internetadres? Aanbevolen bij een vast adres; verandert het, dan bereikt de agent Kalmido niet meer tot je de regel in Kalmido aanpast. [j/N]'
   ip_set = '  De sleutel werkt alleen vanaf: {0}'
   ip_wide = '  Adresregel niet gezet: de agent heeft al een eigen, nauwere regel ({0})'
@@ -485,6 +530,8 @@ if (-not $Tool -and -not $DryRun -and -not $Uninstall -and [Environment]::UserIn
 if (-not $IpRule -and -not $DryRun -and -not $Uninstall -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
   if ("$(Ask (M 'ask_ip'))".Trim() -match '^[jJyYsSoO]') { $IpRule = 'current' }
 }
+if ($Template -notin @('general', 'software')) { Die (M 'badtpl' @($Template)) }
+$Template = $Template.ToLowerInvariant()
 if ($IpRule -in @('off', 'none')) { $IpRule = '' }
 if ($IpRule -and $IpRule -ne 'current' -and $IpRule -notmatch '^[0-9A-Fa-f.:/, ]+$') { Die (M 'badip') }
 if (-not $Tool) { $Tool = 'claude' }
@@ -735,6 +782,7 @@ if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
 # 2.306.0 E (#2927): a CLAUDE.md for the project folder from mcp/CLAUDE.template.md (the rules between its markers) when the
 # folder has none yet -- never overwritten
 $ClaudeMd = Join-Path $Dir 'CLAUDE.md'
+$ClaudeNew = $false
 $Tpl = Join-Path $Inst 'CLAUDE.template.md'
 if ((Test-Path -LiteralPath $ClaudeMd) -or (Test-Path -LiteralPath (Join-Path (Join-Path $Dir '.claude') 'CLAUDE.md'))) { Say (M 'claude_kept' @($ClaudeMd)) }
 elseif ($DryRun) { Say (M 'dry_claude' @($ClaudeMd)) }
@@ -747,8 +795,42 @@ elseif (Test-Path -LiteralPath $Tpl) {
             "<!-- Created by the Kalmido agent setup. Add your own rules here: what this agent works on, and, to narrow it`n" +
             "further, the Kalmido account ids allowed to give it orders. The launcher's fixed rules come first in every run and`n" +
             "this file cannot weaken them. -->`n`n"
-    [IO.File]::WriteAllText($ClaudeMd, $head + $t.Substring($a, $b + $mb.Length - $a) + "`n")
+    # 2.1367.0 (#2700): the template "Software development" adds its block (between its markers in the template file)
+    $sw = ''
+    $sa = $t.IndexOf('<!-- kalmido-template-software:start -->'); $sbm = '<!-- kalmido-template-software:end -->'; $sb = $t.IndexOf($sbm)
+    if ($Template -eq 'software' -and $sa -ge 0 -and $sb -gt $sa) { $sw = "`n" + $t.Substring($sa, $sb + $sbm.Length - $sa) + "`n" }
+    [IO.File]::WriteAllText($ClaudeMd, $head + $t.Substring($a, $b + $mb.Length - $a) + "`n" + $sw)
     Say (M 'claude_new' @($ClaudeMd))
+    $ClaudeNew = $true
+  }
+}
+
+# kalmido-setup-step: template
+# 2.1367.0 (#2700): the template "Software development": its rules went into a new CLAUDE.md above; an existing CLAUDE.md
+# is never changed, the rules land next to it as CLAUDE.software.md (a proposal, only when there is none); BRIEF-TEMPLATE.md
+# only when there is none. Nothing here overwrites or deletes a file of the project.
+function TplPut([string]$m, [string]$file, [string]$head) {  # -> 'new', 'kept' or '' (no block in the template file)
+  $t = [IO.File]::ReadAllText($Tpl)
+  $ms = "<!-- ${m}:start -->"; $me = "<!-- ${m}:end -->"
+  $a = $t.IndexOf($ms); $b = $t.IndexOf($me)
+  if ($a -lt 0 -or $b -lt $a) { return '' }
+  if (Test-Path -LiteralPath $file) { return 'kept' }
+  $body = if ($m -eq 'kalmido-template-brief') { $t.Substring($a + $ms.Length, $b - $a - $ms.Length).Trim("`n", "`r") } else { $t.Substring($a, $b + $me.Length - $a) }
+  $fs = [IO.File]::Open($file, [IO.FileMode]::CreateNew)  # never over a file that appeared meanwhile
+  try { $wr = New-Object IO.StreamWriter($fs, (New-Object Text.UTF8Encoding($false))); $wr.Write($head + $body + "`n"); $wr.Flush() } finally { $fs.Dispose() }
+  return 'new'
+}
+if ($Template -eq 'software') {
+  $Brief = Join-Path $Dir 'BRIEF-TEMPLATE.md'
+  if ($DryRun) { Say (M 'dry_tpl' @($Brief)) }
+  elseif (Test-Path -LiteralPath $Tpl) {
+    if ($ClaudeNew) { Say (M 'tpl_claude') }
+    else {
+      $Prop = Join-Path $Dir 'CLAUDE.software.md'
+      $head = "# Proposal: rules for building software`n`n<!-- From the template Software development of the Kalmido agent setup. This project already had a CLAUDE.md, which stays as`nit is: copy what fits from here into it, then delete this file. -->`n`n"
+      switch (TplPut 'kalmido-template-software' $Prop $head) { 'new' { Say (M 'tpl_prop' @($Prop)) } 'kept' { Say (M 'tpl_propkept' @($Prop)) } }
+    }
+    switch (TplPut 'kalmido-template-brief' $Brief '') { 'new' { Say (M 'tpl_brief' @($Brief)) } 'kept' { Say (M 'tpl_briefkept' @($Brief)) } }
   }
 }
 

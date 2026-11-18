@@ -53,6 +53,17 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   const code = (cmd.match(/\| KALMIDO_SETUP_CODE=(ks_[\w-]+) bash -s -- /) || [])[1];
   check(code && cmd.startsWith("curl -fsSL '") && cmd.includes(" bash -s -- --url '") && !cmd.includes('--code') && !cmd.includes('--allow-http') && cmd.includes(`--dir '~/projects/bob'\\''s site'`), 'one command with the code (shell quoting) ' + cmd);
   check(/Valid for 15 more minutes, works once/.test(md.querySelector('#ains-exp').textContent), 'how long the code is valid: ' + md.querySelector('#ains-exp').textContent);
+  // 2.1367.0 (#2700): the rules template: General (default, nothing in the command) or Software development (--template software)
+  const tsel = md.querySelector('#ains-tpl');
+  check(tsel && tsel.value === 'general' && [...tsel.options].map(o => o.value).join() === 'general,software' && !cmd.includes('--template')
+        && /brief template/.test(md.querySelector('#ains-tplhint')?.textContent || ''), '#2700: rules template General by default, explained, not in the command');
+  tsel.value = 'software'; tsel.dispatchEvent(new w.Event('change', {bubbles: true}));
+  check(md.querySelector('#ains-out').hidden, '#2700: another template hides the command made for the old one');
+  click(w, md.querySelector('[data-m="ains-make"]'));
+  await until(() => !md.querySelector('#ains-out').hidden);
+  const scmd = md.querySelector('#ains-cmd').value;
+  check(/ --dir '~\/projects\/bob'\\''s site' --template software --lang (de|en)$/.test(scmd), '#2700: Software development -> --template software ' + scmd);
+  tsel.value = 'general'; tsel.dispatchEvent(new w.Event('change', {bubbles: true}));
   check(md.querySelector('[data-m="ains-copy"]') && /Terminal/.test(md.querySelector('#ains-how').textContent), 'copy button + where to paste it');
   // Windows: the PowerShell form
   click(w, md.querySelector(`[data-ainsos="windows"]`));
@@ -62,6 +73,7 @@ const lastModal = d => [...d.querySelectorAll('.modal')].pop();
   click(w, md.querySelector('[data-m="ains-make"]'));
   await until(() => !md.querySelector('#ains-out').hidden);
   const wcmd = md.querySelector('#ains-cmd').value;
+  check(!wcmd.includes('-Template'), '#2700: General again: no template in the Windows command');
   // 2.46.6 (#1713): the command ends with the account language (-Lang de|en)
   // 2.360.0 (#2496): the code in the environment ($env:KALMIDO_SETUP_CODE), not as -Code on the command line (process list)
   check(/^\$env:KALMIDO_SETUP_CODE='ks_[\w-]+'; & \(\[scriptblock\]::Create\(\(irm /.test(wcmd) && wcmd.includes("/agent-setup.ps1'))) -Url '")
