@@ -1655,11 +1655,11 @@ def v1_task_attachments(tid):
     c = db()
     _v1_live(c, tid, write=False, full=True)
     live = {r[0] for r in c.execute("SELECT id FROM obj_comments WHERE kind='task' AND ref_id=? AND deleted_at IS NULL", (tid,))}
-    rows = c.execute("SELECT id, name, mime, size, comment_id, created_at, enc FROM attachments WHERE task_id=? AND deleted_at IS NULL ORDER BY id", (tid,)).fetchall()
+    rows = c.execute("SELECT id, name, mime, size, comment_id, created_at, enc, user_id FROM attachments WHERE task_id=? AND deleted_at IS NULL ORDER BY id", (tid,)).fetchall()
     # 2.42.0 (#828): an encrypted file is listed as such (only its uploader can open it, never an agent)
     from ..files.scan import sc_up
     return jsonify(data=sc_up(c, "att", [{"id": r["id"], "task_id": tid, "comment_id": r["comment_id"], "name": r["name"], "mime": r["mime"],
-                                         "size": r["size"], "created_at": r["created_at"], "url": f"/api/v1/attachments/{r['id']}",
+                                         "size": r["size"], "created_at": r["created_at"], "url": f"/api/v1/attachments/{r['id']}", "by": r["user_id"],
                                          **({"encrypted": True} if r["enc"] else {})}
                                         for r in rows if r["comment_id"] is None or r["comment_id"] in live]), next_cursor=None)  # 2.61.0 (#1818): + up
 
