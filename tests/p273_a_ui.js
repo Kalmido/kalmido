@@ -39,8 +39,10 @@ const recode = (code, u) => { const j = JSON.parse(Buffer.from(code.slice('kalmi
   await until(() => box()?.querySelector('[data-msvid="self"]'));
   check(box()?.querySelector('[data-msvid="self"] .msvb')?.textContent.length >= 1, 'this server has a badge');
   check(/This server/.test(box()?.querySelector('[data-msvid="self"]')?.textContent || ''), 'this server is named');
-  check(d.querySelector('#s-msv-h') && d.querySelector('.smodal details.sdev')?.previousElementSibling?.classList.contains('msvsec'),
-    'the section stands above "Advanced · for developers"');
+  // 2.1387.0 (#7062): since #6827 "Advanced" lies in a folded section; the servers' section stands right before that section
+  { const sdev = d.querySelector('.smodal details.sdev'), nx = d.querySelector('.smodal .msvsec')?.nextElementSibling;
+    check(d.querySelector('#s-msv-h') && sdev && (nx === sdev || nx?.matches('details.sfold') && nx.contains(sdev)),
+    'the section stands above "Advanced · for developers"'); }
   check(/No other server connected yet/.test(box().textContent), 'the empty state');
 
   // ---- a broken code: the reason in the dialog
