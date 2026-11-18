@@ -33,6 +33,16 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """2.1385.0 (#6435 11): a redirect is never followed - urllib would send the Authorization header (the agent's token) along
+    to the address the answer names (like kalmido/agents/srvagent.py). A 3xx ends as an HTTPError."""
+    def redirect_request(self, *a, **kw):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
 SERVER_NAME = "kalmido"
 def _server_version():  # 2.306.0 F (#2939): the app's VERSION file next to the mcp folder; a standalone copy has none
     # 2.306.0 (#2927): a starter set up by agent-setup has the VERSION of its server next to this file (written by the setup)
@@ -195,7 +205,7 @@ class Kalmido:
     def _send(self, req, timeout, binary_cap):
         """One request. Remembers an exhausted rate limit (RateLimit-Remaining 0 + Reset) for the next call."""
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with _OPENER.open(req, timeout=timeout) as r:  # 2.1385.0 (#6435 11): no redirects
                 self._note_limit(r.headers)
                 if binary_cap:
                     n = int(r.headers.get("Content-Length") or 0)
@@ -211,6 +221,9 @@ class Kalmido:
         except urllib.error.HTTPError as e:
             raw = e.read()
             msg = self._err_msg(e.code, raw)
+            if 300 <= e.code < 400:  # 2.1385.0 (#6435 11): not followed (the token would go along)
+                msg = f"HTTP {e.code}: Kalmido answered with a redirect, which is not followed (the token never goes along) - " \
+                      "set KALMIDO_URL to the server's own address"
             self._note_limit(e.headers)
             raise ApiError(e.code, msg, _retry_after(e.headers, None) if e.code in (429, 503) else None) from None
         except (urllib.error.URLError, OSError) as e:

@@ -5,7 +5,8 @@ cannot change its account (name, picture, password, sign-in, two-factor, passkey
 ticking tasks off and asking for rewards stay free, and so do the automatic writes of the app (PIN_FREE_SETTINGS, push
 subscriptions, the onboarding). A correct PIN opens these for PIN_OPEN seconds in THIS session only (kid_pin_open, keyed
 by the session's token hash, gone with the session). The brake counts per kid (kid_pins.fails, not per session or
-address): PIN_TRIES wrong PINs lock the PIN for PIN_LOCK seconds and the parents get a family push.
+address): PIN_TRIES wrong PINs lock the PIN for PIN_LOCK seconds and the parents get a family push; 2.1385.0 (#6503 6): each
+further lock in a row doubles the time up to PIN_LOCK_MAX (kid_pins.locks), a right PIN or a new one starts again.
 The PIN is stored only as a password hash (werkzeug, like users.password_hash) and never sent back; checks run through
 check_password_hash also when there is no PIN / a malformed one (the dummy hash), so the answer time says nothing."""
 import re
@@ -23,6 +24,7 @@ from ..family.family import h6a_admin_kid_ok, is_kid, kid_dict, kid_parents, kid
 PIN_RE = re.compile(r"^[0-9]{4,6}$")  # 2.49.0 review L6: ASCII digits only (\d takes other scripts too)
 PIN_TRIES = 5      # wrong PINs in a row, then the lock
 PIN_LOCK = 900     # s: the lock after PIN_TRIES wrong PINs
+PIN_LOCK_MAX = 86400  # 2.1385.0 (#6503 6): each further lock in a row doubles PIN_LOCK, up to a day (a right PIN starts again)
 PIN_OPEN = 300     # s: how long a correct PIN opens account / settings / log out in this session
 # what a kid's app writes by itself (#1537): never asks for the PIN
 PIN_FREE_SETTINGS = {"tour", "folders_closed", "detail_split", "detail_cm_fold", "fav_suggest",
@@ -64,6 +66,12 @@ def pin_state(c, kid):
         if left:
             d["pin_wait"] = left
     return d
+
+
+def pin_lock_s(locks):
+    """2.1385.0 (#6503 6): seconds of the next lock after `locks` locks in a row: PIN_LOCK doubled each time, at most PIN_LOCK_MAX."""
+    n = max(0, int(locks or 0))
+    return PIN_LOCK_MAX if n >= 20 else min(PIN_LOCK_MAX, PIN_LOCK * 2 ** n)
 
 
 def _lock_left(r):
@@ -121,7 +129,7 @@ def pin_unlock():
     now = now_utc()
     if good:
         until = iso(now + timedelta(seconds=PIN_OPEN))
-        c.execute("UPDATE kid_pins SET fails=0, lock_until=NULL WHERE kid_id=?", (uid,))  # 2.1115.0 (#5951): TIMESTAMPTZ, no lock = NULL
+        c.execute("UPDATE kid_pins SET fails=0, lock_until=NULL, locks=0 WHERE kid_id=?", (uid,))  # 2.1115.0 (#5951): TIMESTAMPTZ, no lock = NULL
         c.execute("DELETE FROM kid_pin_open WHERE token_hash=?", (sh,))
         c.execute("INSERT INTO kid_pin_open(token_hash,kid_id,until) VALUES(?,?,?)", (sh, uid, until))
         c.commit()
@@ -131,18 +139,20 @@ def pin_unlock():
         c.execute("UPDATE kid_pins SET fails=? WHERE kid_id=?", (fails, uid))
         c.commit()
         return jsonify(error=tr("Wrong PIN"), left=PIN_TRIES - fails), 403
-    c.execute("UPDATE kid_pins SET fails=0, lock_until=? WHERE kid_id=?", (iso(now + timedelta(seconds=PIN_LOCK)), uid))
+    lock = pin_lock_s(r["locks"])  # 2.1385.0 (#6503 6): 15 minutes, then 30, 60 ... up to a day (was 15 minutes every time:
+    c.execute("UPDATE kid_pins SET fails=0, lock_until=?, locks=locks+1 WHERE kid_id=?",  # 480 guesses a day)
+              (iso(now + timedelta(seconds=lock)), uid))
     who = user_names(c, [uid]).get(uid, "?")
     adm = [x[0] for x in c.execute("SELECT id FROM users WHERE is_admin AND NOT disabled")]
     adm = [x for x in adm if h6a_admin_kid_ok(c, x, uid)]  # 2.86.0 (N8): only admins of the kid's own organisation
     g.pushes = []
     for p in dict.fromkeys(kid_parents(c, uid) or adm):
         kid_push(c, p, lambda lg: tr("{0} entered a wrong PIN {1} times", who, PIN_TRIES, lg=lg),
-                 lambda lg: tr("Settings stay locked for {0} minutes.", PIN_LOCK // 60, lg=lg))
+                 lambda lg: tr("Settings stay locked for {0} minutes.", lock // 60, lg=lg))
     c.commit()
     send_pushes(g.pop("pushes", None))  # the answer is a 429: send_queued_pushes would drop them
     g.pushes = []
-    return jsonify(error=tr("Too many wrong PINs. Try again in {0} minutes.", PIN_LOCK // 60), wait=PIN_LOCK), 429
+    return jsonify(error=tr("Too many wrong PINs. Try again in {0} minutes.", lock // 60), wait=lock), 429
 
 
 @app.post("/api/me/pin/lock")

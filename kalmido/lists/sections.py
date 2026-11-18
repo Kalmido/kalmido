@@ -37,6 +37,25 @@ def view_plain(c, lid, name, rules):
     le2a_locked_text(c, lid, name, r.get("text"), *[v if isinstance(v, str) or v is None else json.dumps(v) for v in texts])
 
 
+# 2.1385.0 (#6435): the rules of a saved filter / view are an object of the filter form (core/filters.py: {op, conds: [...]})
+# of at most FLT_RULES_MAX bytes as JSON and FLT_RULES_DEPTH levels - was any JSON up to the 10 MB of a request
+FLT_RULES_MAX, FLT_RULES_DEPTH = 64 * 1024, 8
+
+
+def filter_rules_in(v):
+    """The rules of a filter body as stored: {} for none, else a dict within the limits (400 otherwise)."""
+    v = v or {}
+    if not isinstance(v, dict) or len(json.dumps(v)) > FLT_RULES_MAX:
+        raise BadInput(tr("Invalid value: {0}", "rules"))
+    todo = [(v, 1)]
+    while todo:
+        x, d = todo.pop()
+        if d > FLT_RULES_DEPTH:
+            raise BadInput(tr("Invalid value: {0}", "rules"))
+        todo.extend((y, d + 1) for y in (x.values() if isinstance(x, dict) else x) if isinstance(y, (dict, list)))
+    return v
+
+
 @app.post("/api/filters")
 def filter_create():
     """2.577.0 (#3356): with list_id a shared view of that project (shared: true, the default then), for its editors."""
@@ -44,6 +63,7 @@ def filter_create():
     name = (b.get("name") or "").strip()
     if not name:
         return err(tr("Name missing"))
+    b = {**b, "rules": filter_rules_in(b.get("rules"))}  # 2.1385.0 (#6435): size and form
     c = db()
     if b.get("list_id") is None:
         if b.get("shared"):
@@ -97,13 +117,13 @@ def filter_update(fid):
     b = body()
     c = db()
     f = need_filter(c, fid)
+    if "rules" in b:
+        b = {**b, "rules": filter_rules_in(b["rules"])}  # 2.1385.0 (#6435): size and form (was: checked for a shared view only)
     if f["shared"]:
         view_plain(c, f["list_id"], b.get("name"), b.get("rules"))
     if "name" in b and (b["name"] or "").strip():
         c.execute("UPDATE filters SET name=? WHERE id=?", (b["name"].strip(), fid))
     if "rules" in b:
-        if f["shared"] and not isinstance(b["rules"] or {}, dict):
-            raise BadInput(tr("Invalid value: {0}", "rules"))
         c.execute("UPDATE filters SET rules=? WHERE id=?", (json.dumps(view_rules(b["rules"]) if f["shared"] else b["rules"] or {}), fid))
     if "sort" in b:
         c.execute("UPDATE filters SET sort=? WHERE id=?", (b["sort"], fid))

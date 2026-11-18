@@ -64,7 +64,10 @@ FNT_DAYS_MAX = 730  # the longest period of one fetch
 FNT_DAYS_DEFAULT = 90  # an account without bookings: the last 90 days (most banks give them without a TAN)
 FNT_POLL_MIN = 2.0  # seconds between two status questions to the bank (decoupled approval)
 FNT_HTTP_TIMEOUT = 60
-FNT_HTTP_MAX = 30 * 1024 * 1024
+# 2.1385.0 (#6435): one answer at most a statement at the file import's limit (bank.BNK_FILE_MAX, 2 MB) as base64 plus the
+# message around it - a larger one is stopped while it is read (was 30 MB per answer, 60 MB per step, kept for the dialog's
+# 900 s although a statement over 2 MB is refused by the import anyway)
+FNT_HTTP_MAX = bnk.BNK_FILE_MAX * 4 // 3 + 256 * 1024
 FNT_STEP_MAX = 240  # 2.616.0 (Fable finding 2): seconds one step may talk to the bank in all (below FNT_TTL: no expiry mid-step)
 FNT_STEP_HOPS = 50  # requests to the bank within one step (the touchdowns of a long statement)
 FNT_STEP_BYTES = bnk.BNK_UNPACKED_MAX  # bytes the bank may send within one step, all answers together

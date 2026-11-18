@@ -31,7 +31,8 @@ def vcards(n, photos=False, prefix="lv", photo_bytes=1500):
     rnd = random.Random(7)
     giv = ["Anna", "Ben", "Clara", "Dario", "Eva", "Finn", "Greta", "Hugo", "Ida", "Jon"]
     fam = ["Muster", "Beispiel", "Probe", "Testmann", "Fiktiv", "Erfunden"]
-    ph = base64.b64encode(bytes(rnd.getrandbits(8) for _ in range(photo_bytes))).decode() if photos else ""
+    # 2.1385.0 (#6435): a JPEG head before the random bytes - a stored contact photo must start like the picture it claims to be
+    ph = base64.b64encode(b"\xff\xd8\xff\xe0" + bytes(rnd.getrandbits(8) for _ in range(photo_bytes))).decode() if photos else ""
     out = []
     for i in range(n):
         g, f = giv[i % len(giv)], fam[i % len(fam)]

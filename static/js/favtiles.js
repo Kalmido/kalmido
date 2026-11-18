@@ -196,13 +196,14 @@ function fv2_barDraw() {
   if (!on) return;
   fv2_fetch();
   const ts = fv2_distinct(fv2_tiles()), body = ts.map(t => fv2_tileHtml(t)).join('');
-  const html = on === kb ? `${body}<button type="button" class="fv2-more" data-fv2-more hidden aria-haspopup="menu"></button>` : body;
+  // 2.1385.0 (#6983): the phone's row scrolls its own strip (.fvu-s): the fade at its edges masks the tiles, not the panel
+  const html = on === kb ? `${body}<button type="button" class="fv2-more" data-fv2-more hidden aria-haspopup="menu"></button>` : `<div class="fvu-s">${/*html-ok*/ body}</div>`;
   if (on === row) fvd_sync(ts.filter(t => !t.sep).length);
   if (FV2.last.get(on) === html && on.firstChild) { if (on === kb) fv2_fit(); return; }
   FV2.last.set(on, html);
   on.setAttribute('aria-label', tr('Favourites'));
   keepFocus(on, () => { on.innerHTML = html; });
-  if (on === kb) fv2_fit();
+  if (on === kb) fv2_fit(); else fvd_edge();  // 2.1385.0 (#6983): new tiles, new edges
 }
 // "+N": what does not fit stays hidden in the row and is offered by the button at its end; the bar never takes room from the others
 function fv2_fit(again) {
@@ -610,6 +611,15 @@ function fvd_can() {
 function fvd_sync(n) {
   if (n !== undefined) FVD.n = n;
   if (!fvd_can() && fvd_isOpen()) fvd_set(false);
+  fvd_edge();
+}
+// 2.1385.0 (#6983): a soft fade at the edge where more favourites follow (fvu-r: more to the right, fvu-l: more to the left);
+// the mask lives in start-favswipe-4747.css (no overlay that would catch taps); a closed row measures nothing
+function fvd_edge() {
+  const r = $('#favup'), sc = r && $('.fvu-s', r); if (!r) return;
+  const open = !!sc && fvd_isOpen() && sc.clientWidth > 0, x = open ? Math.abs(sc.scrollLeft) : 0, max = open ? sc.scrollWidth - sc.clientWidth : 0;
+  r.classList.toggle('fvu-l', open && x > 1);
+  r.classList.toggle('fvu-r', open && x < max - 1);
 }
 // the focus a closing row hands back: the tab bar's current tab (2.1183.0 #6178: was the grip)
 const fvd_backFocus = () => { const t = $('#tabs button.on') || $('#tabs button'); if (t) t.focus({preventScroll: true}); };
@@ -617,8 +627,10 @@ function fvd_set(on) {
   const r = $('#favup'); if (!r || (on && !fvd_can()) || on === fvd_isOpen()) return;
   r.classList.toggle('hidden', !on);
   document.body.classList.toggle('favup-open', on);
-  if (on) { const t = $('.fv2-tile.on', r); if (t) r.scrollLeft = Math.max(0, t.offsetLeft - (r.clientWidth - t.offsetWidth) / 2); }
+  const sc = $('.fvu-s', r) || r;  // 2.1385.0 (#6983): the strip scrolls
+  if (on) { const t = $('.fv2-tile.on', r); if (t) sc.scrollLeft = Math.max(0, t.offsetLeft - (sc.clientWidth - t.offsetWidth) / 2); }
   else if (r.contains(document.activeElement)) fvd_backFocus();
+  fvd_edge();  // 2.1385.0 (#6983)
 }
 // the swipe: on the tab bar and the row; up opens, down closes; a click on a tab right after a swipe is no tap on it
 function fvd_touchStart(e) {
@@ -644,6 +656,7 @@ domReady(() => {
   }
   try { localStorage.removeItem('tasks.favgripX'); } catch { /* storage off */ }  // 2.1183.0 (#6178): the gone grip's place
   if (typeof an_watch === 'function') an_watch($('#favup'), 'hidden');
+  $('#favup')?.addEventListener('scroll', fvd_edge, {passive: true, capture: true});  // 2.1385.0 (#6983): the fades follow the finger (the strip's scroll)
 });
 // a tile opens its target and closes the row; any other tap closes it (on window, before the app's handlers)
 window.addEventListener('click', e => {

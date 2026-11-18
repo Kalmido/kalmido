@@ -164,7 +164,8 @@ If you already use Claude Code on that machine (as a user with sudo), it can do 
 the agent in Kalmido and put its token into an env file yourself (step 1 below), so the token never passes through a
 chat. Then copy this prompt, replace the placeholders and paste it into Claude Code:
 
-- `<KALMIDO_URL>`: the address of your Kalmido, e.g. `https://tasks.example.com`
+- `<KALMIDO_URL>`: the address of your Kalmido, e.g. `https://tasks.example.com` - the exact one that answers, with
+  `https://`: the starter follows no redirect (2.1385.0), so the token never goes to another address
 - `<TOKEN_ENV_FILE>`: the path of the env file you created
 - `<AGENT_USER>`: the Linux user for the agent, e.g. `kalmido-agent`
 - `<OWNER_NAME>` and `<OWNER_ID>`: the one person who may instruct the agent, and their Kalmido account id

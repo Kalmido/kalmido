@@ -42,7 +42,8 @@ from flask import g, jsonify, request
 from ..core.config import app
 from ..core.pg import insert_id, system_ctx
 from ..core.i18n import N_, lang, tr
-from ..core.db import body, bump, db, err, iso, now_utc
+from ..core.db import body, bump, db, err, iso, test_seconds
+from ..api.common import hit_limit
 from ..core.access import Denied, MANAGE_ROLES, WRITE_ROLES, acx_of, list_role, list_roles, need_list, reading_sql, vis_sql, list_state_sql
 from ..core.orgcrypt import FIELDS, OrgCryptError, PREFIX, oc_active_for, oc_dec_fields, oc_enc_fields, oc_is_enc, oc_plain_safe
 from ..accounts.session import me
@@ -55,6 +56,14 @@ from ..core.objwords import osw_match, osw_put, osw_register  # 2.1002.0 (#5279)
 
 HBM_BODY_MAX = 200000   # characters of the plain text kept
 HBM_FILES = 20          # attachments of one mail at most
+# 2.1385.0 (#6435 7): a mail from outside keeps at most HBM_IN_BODY_MAX characters of its text in the database (outside the
+# storage quota); the whole mail stays in its .eml file (the file store counts it), the mail notes "The text was shortened".
+# One sender files at most HBM_IN_SENDER_HOUR mails per workspace and hour; more wait in the mailbox for a later round
+# (MAIL_LATER, like the request mails of integrations/reqmail.py)
+HBM_IN_BODY_MAX = 50000
+HBM_IN_SENDER_HOUR = 30
+HBM_LATER = object()  # _import's answer over the limit: its callers hand on integrations/mail.py MAIL_LATER (a higher layer)
+HBM_WINDOW = test_seconds("KALMIDO_TEST_HBM_WINDOW_S", 3600)  # the hour of the sender limit (a test container may shorten it)
 HBM_PAGE = 200          # mails in one list answer
 HBM_KINDS = ("inbox", "client", "list")
 # audit I4: the authserv-id of the receiving mail server (its Authentication-Results); empty = the topmost such header
@@ -776,7 +785,7 @@ def hbm_mail_import(c, msg, raw):
     """A mail to a hub address (hub_tokens): filed with its client / project / the recipient's "Not assigned". None = not
     a hub address (the task import goes on); else the mail id, 0 = taken in but not filed (unknown recipient, gone rights,
     a double)."""
-    from ..integrations.mail import MAIL_TOKEN_RE, mail_text
+    from ..integrations.mail import MAIL_LATER, MAIL_TOKEN_RE, mail_text
     hdrs = " ".join(str(msg.get_all(h, [])) for h in ("To", "Cc", "Delivered-To", "X-Original-To", "Envelope-To"))
     toks = MAIL_TOKEN_RE.findall(hdrs)
     if not toks:
@@ -790,7 +799,7 @@ def hbm_mail_import(c, msg, raw):
         else:
             out = _import(c, r, msg, raw, mail_text)
     c.commit()
-    return out
+    return MAIL_LATER if out is HBM_LATER else out  # 2.1385.0 (#6435 7)
 
 
 HBM_TICKET_HOOK = {}  # 2.553.0 B (#3460): integrations/reqmail.py (take = a mail to a list's request address)
@@ -919,9 +928,15 @@ def _import(c, r, msg, raw, mail_text):
         return 0
     from_name, from_addr = email.utils.parseaddr(str(msg.get("From", "")))
     from_addr = from_addr.strip().lower()
+    # 2.1385.0 (#6435 7): per sender (the From as written, before a forward names its original sender) and workspace an hour
+    if hit_limit(f"hbmin:{ws}:{hashlib.sha256(from_addr.encode()).hexdigest()[:32]}", HBM_IN_SENDER_HOUR, HBM_WINDOW):
+        print("hubmail: sender over its hourly limit, the mail waits", flush=True)  # no address in the log
+        return HBM_LATER
     to = _addrs(msg, "To", "Cc")
     subj = re.sub(r"\s+", " ", str(msg.get("Subject", ""))).strip()[:500]
-    text, files = mail_text(msg, HBM_BODY_MAX)
+    text, files = mail_text(msg, HBM_IN_BODY_MAX + 1)
+    cut = len(text) > HBM_IN_BODY_MAX  # 2.1385.0 (#6435 7)
+    text = text[:HBM_IN_BODY_MAX]
     own = (u["email"] or "").strip().lower()
     mine = bool(own) and from_addr == own
     fwd = mine and hbm_from_verified(msg, own)  # audit I4: a From with the own address can be forged
@@ -959,6 +974,8 @@ def _import(c, r, msg, raw, mail_text):
     cn, ln = _names(c, cid, lid)
     day = (sent or ts)[:10]
     notes, node_ids, folder, eml_id = [], [], None, None
+    if cut:  # 2.1385.0 (#6435 7): the whole text is in the mail's .eml file
+        notes.append(tr("The text was shortened", lg=lg))
     try:
         with c.savepoint():
             # 2.84.0: file store names are not sealed -- with the encryption on, no subject in the names

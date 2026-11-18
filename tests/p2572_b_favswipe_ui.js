@@ -3,7 +3,7 @@
 // row over the tab bar. A swipe up on the tab bar opens it, a swipe down / a tile / a tap next to it / Escape closes it; a plain
 // tap on a tab never opens it; no row while the tab "Favourites" is pinned or a field has the focus (the keyboard).
 // 2.1183.0 (#6178): the grip over the tab bar (#5965, movable since #6082) is gone: no #favgrip, its saved place goes too;
-// the swipe up stays the way in. Invented data only. P2572B_SHOTS=dir: pictures.
+// the swipe up stays the way in. 2.1385.0 (#6983): more favourites than fit fade at the edge where more follow. Invented data only. P2572B_SHOTS=dir: pictures.
 // freelancer-matrix: tasks  (frida has no organisation)
 const path = require('path');
 const {execFileSync} = require('child_process');
@@ -130,6 +130,37 @@ const CAN = `fvd_can()`;
     // a computer / tablet: the favourites stay in the head bar, no row over the tab bar
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1024, height: 760}});
     check(await ready(ev, `document.querySelectorAll('#kbar .fv2bar .fv2-tile').length === 4 && !document.querySelector('#favup .fv2-tile')`), 'wide: head bar, no row');
+
+    // 2.1385.0 (#6983): more favourites than fit: a fade (mask on the strip .fvu-s) at the edge where more follow -- fvu-r at the
+    // start, both in the middle, fvu-l at the end; a tile under the fade still takes its tap; a closed row has no fade class
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 760}});
+    const more = [];
+    for (let i = 1; i <= 10; i++) { const id = (await call(CF, 'POST', '/api/lists', {name: 'Shoot day ' + i})).id; await call(CF, 'PUT', `/api/lists/${id}/favorite`, {on: true}); more.push(`l:${id}`); }
+    await call(CF, 'PATCH', '/api/settings', {fav_items: ['v:today', 'v:week', 'v:all', `l:${FL}`, ...more]});
+    await nav(B + 'static/icon.svg'); await nav(B + '#today');
+    check(await ready(ev, `S.booted && document.querySelectorAll('#favup .fvu-s .fv2-tile').length === 14`), '#6983: the row holds 14 favourites in its strip ' + await ev(`document.querySelectorAll('#favup .fv2-tile').length`));
+    const FC = `document.querySelector('#favup').classList`, SC = `document.querySelector('#favup .fvu-s')`;
+    check(await ev(`!${FC}.contains('fvu-r') && !${FC}.contains('fvu-l')`), '#6983: a closed row has no fade');
+    await ev(`(() => { fvd_set(true); return 1; })()`);
+    await ready(ev, OPEN);
+    await ready(ev, `!document.querySelector('#favup').getAnimations().some(a => a.playState === 'running')`, 20);
+    check(await ready(ev, `${FC}.contains('fvu-r') && !${FC}.contains('fvu-l')`), '#6983: at the start: a fade on the right only ' + await ev(`${FC}.value`));
+    const mk = JSON.parse(await ev(`(() => { const c = getComputedStyle(${SC}), p = getComputedStyle(document.querySelector('#favup')); return JSON.stringify({m: c.maskImage || c.webkitMaskImage || '', pm: p.maskImage || '', bg: p.backgroundColor, sb: c.scrollbarWidth, ox: c.overflowX}); })()`));
+    check(/gradient/.test(mk.m) && !/gradient/.test(mk.pm) && mk.sb === 'none' && mk.ox === 'auto', '#6983: the mask sits on the strip, not on the panel; no scrollbar ' + JSON.stringify(mk));
+    // a tile half under the right fade still takes a tap (the mask catches nothing)
+    const hit = await ev(`(() => { const r = ${SC}.getBoundingClientRect(), t = [...document.querySelectorAll('#favup .fv2-tile')].find(x => { const b = x.getBoundingClientRect(); return b.right > r.right - 40 && b.left < r.right - 4; }); if (!t) return 'none'; const b = t.getBoundingClientRect(), e = document.elementFromPoint(Math.min(b.right, r.right) - 6, b.top + b.height / 2); return e && e.closest('.fv2-tile') === t ? 'ok' : (e?.className || 'nothing'); })()`);
+    check(hit === 'ok', '#6983: a tile under the fade is still the tap target: ' + hit);
+    await shot('p2572b-fade-start.png');
+    await ev(`(() => { ${SC}.scrollLeft = 96; return 1; })()`);
+    check(await ready(ev, `${FC}.contains('fvu-r') && ${FC}.contains('fvu-l')`), '#6983: in the middle: a fade on both sides ' + await ev(`${FC}.value`));
+    await ev(`(() => { const s = ${SC}; s.scrollLeft = s.scrollWidth; return 1; })()`);
+    check(await ready(ev, `${FC}.contains('fvu-l') && !${FC}.contains('fvu-r')`), '#6983: at the end: a fade on the left only ' + await ev(`${FC}.value`));
+    await shot('p2572b-fade-end.png');
+    await ev(`(() => { fvd_set(false); return 1; })()`);
+    check(await ready(ev, `${SHUT} && !${FC}.contains('fvu-l') && !${FC}.contains('fvu-r')`), '#6983: the closed row drops its fade');
+    // the computer's head bar is untouched: no strip, no fade there
+    await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 1024, height: 760}});
+    check(await ready(ev, `document.querySelectorAll('#kbar .fv2bar .fv2-tile').length > 0 && !document.querySelector('#kbar .fvu-s')`), '#6983: wide: the head bar has no strip and no fade');
   }, true);
 
   console.log(`p2572_b_favswipe_ui: ${ok} ok, ${F.length} failed`);

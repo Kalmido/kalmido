@@ -126,12 +126,12 @@ _local, _kids, _kid, _txt = cx.camt_local, cx.camt_kids, cx.camt_kid, cx.camt_tx
 def bnk_camt(text):
     """CAMT.052 / .053 XML -> [{day, amount (signed Decimal), currency, counterpart, purpose, iban, ref, error}]
     (core/csvimport.camt_rows: DOCTYPE / ENTITY refused before parsing)."""
-    return cx.camt_rows(text, BNK_TEXT_MAX)
+    return cx.camt_rows(text, BNK_TEXT_MAX, max_rows=BNK_FILE_ROWS)  # 2.1385.0 (#6435): counted while reading
 
 
 def bnk_mt940(text):
     """2.299.0 A (#3190): MT940 / MT942 -> rows like bnk_camt (core/mt940; MT942 bookings are pending)."""
-    return mt.mt_parse(text, BNK_TEXT_MAX)[0]
+    return mt.mt_parse(text, BNK_TEXT_MAX, max_rows=BNK_FILE_ROWS)[0]  # 2.1385.0 (#6435): counted while reading
 
 
 _iban_col = cx.csv_iban_col  # 2.146.0 C (#2455): the counterpart's IBAN column (an own-account IBAN column only when alone)
@@ -236,7 +236,10 @@ def bnk_parse(c, oid, b, fs=None):
         try:
             got = bnk_camt(p["text"]) if p["fmt"] == "camt" else bnk_mt940(p["text"]) if p["fmt"] == "mt940" else bnk_csv(p["text"], mapping)
             if len(got) > BNK_FILE_ROWS:
-                raise BadInput(tr("At most {0} rows per import", BNK_FILE_ROWS))
+                raise cx.rows_over(BNK_FILE_ROWS)
+        except cx.RowsOver as x:
+            # 2.1385.0 (#6435): a statement over the row limit stops the whole import (was: skipped, the next files read on)
+            raise BadInput(f"{p['name']}: {x.args[0]}" if len(parts) > 1 else x.args[0]) from None
         except BadInput as x:
             if len(parts) == 1:
                 raise

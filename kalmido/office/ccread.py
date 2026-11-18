@@ -15,11 +15,20 @@ statement are no positions. Fees, interest and the foreign fee are kind "fee"; m
 amount of its own that is neither the foreign amount nor the rate is never dropped: it becomes a position (kind by its sign,
 so it asks for a receipt) - unless the printed total already fits without such lines (then it was a footer, no position)."""
 import io
+import json
+import os
 import re
+import subprocess
+import sys
 from datetime import date
 from decimal import Decimal
 
 from .calc import dec, money
+
+try:  # 2.1385.0 (#6435): the limits of the PDF text worker (tasks/attachtext.py); loaded as a single file (tests): in this process
+    from ..tasks.attachtext import PDF_MEM, PDF_SECONDS, PDF_WAIT, _SEM
+except ImportError:
+    PDF_MEM = PDF_SECONDS = PDF_WAIT = _SEM = None
 
 CCR_PAGES_MAX = 60
 CCR_LINES_MAX = 2000
@@ -205,9 +214,61 @@ def ccr_mastercard(text):
 CCR_READERS = {"mastercard": ccr_mastercard, "visa": ccr_mastercard, "amex": ccr_mastercard}  # one more provider with its own layout: one more reader
 
 
+# 2.1385.0 (#6435, rest of #4073): pypdf reads the statement in its own short-lived process like every other PDF reader of the
+# app (tasks/attachtext.py WORKER): memory (RLIMIT_AS), CPU and wall time, no files, no processes; a hostile PDF ends that
+# process, the statement is then "not readable" (the person types the positions in)
+CCR_WORKER = r"""
+import io, json, resource, sys
+def lim(k, v):
+    try:
+        resource.setrlimit(k, (v, v))
+    except (ValueError, OSError):
+        pass
+MEM, CPU, PAGES, CAP = (int(x) for x in sys.argv[1:5])
+lim(resource.RLIMIT_AS, MEM)
+lim(resource.RLIMIT_CPU, CPU)
+lim(resource.RLIMIT_FSIZE, 0)
+lim(resource.RLIMIT_CORE, 0)
+if hasattr(resource, "RLIMIT_NPROC"):
+    lim(resource.RLIMIT_NPROC, 0)
+data = sys.stdin.buffer.read()
+import logging, warnings
+logging.disable(logging.CRITICAL)
+warnings.simplefilter("ignore")
+from pypdf import PdfReader
+out, size = [], 0
+try:
+    rd = PdfReader(io.BytesIO(data))
+    if not rd.is_encrypted:
+        for p in rd.pages[:PAGES]:
+            t = p.extract_text(extraction_mode="layout") or p.extract_text() or ""
+            out.append(t)
+            size += len(t) + 1
+            if size >= CAP:
+                break
+except Exception:
+    out = []
+print(json.dumps({"text": "\n".join(out)[:CAP]}))
+"""
+
+
 def ccr_text(data):
-    """The text layer of a PDF ('' when it has none or cannot be opened: a scan, a password)."""
-    from pypdf import PdfReader
+    """The text layer of a PDF ('' when it has none or cannot be opened: a scan, a password; 2.1385.0 (#6435): or when the
+    limited process ran out of memory / time, or no place was free in time)."""
+    if _SEM is not None:
+        if not _SEM.acquire(timeout=PDF_WAIT * 5):
+            return ""
+        try:
+            p = subprocess.run([sys.executable, "-I", "-c", CCR_WORKER, str(PDF_MEM), str(PDF_SECONDS), str(CCR_PAGES_MAX), str(CCR_ALL_MAX)],
+                               input=data, capture_output=True, timeout=PDF_SECONDS, close_fds=True,
+                               env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "LANG": "C.UTF-8"})
+            got = json.loads(p.stdout.decode("utf-8", "replace") or "null") if p.returncode == 0 else None
+        except (subprocess.SubprocessError, OSError, ValueError):
+            got = None
+        finally:
+            _SEM.release()
+        return str(got.get("text") or "")[:CCR_ALL_MAX] if isinstance(got, dict) else ""
+    from pypdf import PdfReader  # loaded as a single file (tests): in this process, as before
     try:
         rd = PdfReader(io.BytesIO(data))
         if rd.is_encrypted:

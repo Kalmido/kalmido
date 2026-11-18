@@ -196,6 +196,8 @@ def kid_set(c, uid, on, parents=None):
         # 2.79.0 (#476 M5): API tokens and app passwords made before bypass the child limits -> revoked (like a disabled account)
         c.execute("DELETE FROM api_tokens WHERE user_id=?", (uid,))
         c.execute("DELETE FROM app_passwords WHERE user_id=?", (uid,))
+        # 2.1385.0 (#6503 2): its personal agents pause without a write - agents/core.py AGENT_ROW_SQL counts a kid owner as
+        # locked (agent_active: token, MCP, events, webhook, schedules); an ordinary account again lets them work at once
         if parents is None and not kid_parents(c, uid) and has_request_context():
             parents = [me()]
     if parents is not None:

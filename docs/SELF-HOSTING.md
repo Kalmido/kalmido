@@ -2567,6 +2567,13 @@ calendar subscriptions: public addresses and https only, unless the host is allo
 internal hosts list under *Settings > Server > Server > Advanced*), which you need for a provider in your own network. The
 client secret, codes and tokens are never logged or shown. Two-factor for OIDC logins is the provider's job.
 
+**Signing out and blocking people (OIDC and the login proxy, 2.1385.0, #6503):** Kalmido asks the provider (or your login
+proxy) only when a person signs in. Signing out of Kalmido does not end the session at the provider, and blocking or
+deleting a person at the provider does not reach into Kalmido: their Kalmido session goes on (with "stay logged in" up to
+`AUTH_SESSION_DAYS`, 30 days), and so do their API tokens, app passwords, personal agents and calendar feeds, which never
+pass the provider. Whoever blocks a person at the identity provider therefore also locks the account in Kalmido
+(*Settings > Organisation > People*): that ends the sessions and stops tokens, app passwords and personal agents at once.
+
 ## Reverse proxy
 
 More from running Kalmido (proxy pitfalls, VPN-only setups, PWA and push, backups and encryption at rest, server
