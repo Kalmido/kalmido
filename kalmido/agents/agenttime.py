@@ -21,6 +21,7 @@ from ..core.access import Denied, list_role, need_feat, need_time, task_visible
 from ..accounts.session import me
 from ..personal.timetrack import local_bounds, mt_time_on, time_target, tt_note_check
 from ..core.errors import BadInput
+from ..tasks.validation import as_int  # 2.1398.0 (#6863, reader F1)
 from ..core.usertz import tz_of_s
 from ..api.common import v1_args, v1_err, v1_feature, v1_json, v1_view
 from ..agents.core import agent_shares, is_agent, JOB_TITLE_MAX, job_dict, need_agent  # 2.369.5 (#2517): pulled up from functions
@@ -48,10 +49,9 @@ def atm_person(c, a):
     uid = me()
     pid = uid
     if a.get("user_id") not in (None, ""):
-        try:
-            pid = int(a["user_id"])
-        except (TypeError, ValueError):
-            raise BadInput(tr("Invalid value: {0}", "user_id")) from None
+        # 2.1398.0 (#6863, Fable reader job/5498 F1): read as the agent gate reads it (agents/safety.py ctl_id = as_int):
+        # 7.0, true, "+7", "7_0" are no person here either -- else the gate saw none and the route wrote to person 7 / 1.
+        pid = as_int(a["user_id"], "user_id")
         if pid != uid:
             u = c.execute("SELECT kind, disabled FROM users WHERE id=?", (pid,)).fetchone()
             if not is_agent(g.user) or not u or u["kind"] == "agent" or u["disabled"] or not agent_shares(c, uid, pid):

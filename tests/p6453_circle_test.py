@@ -559,6 +559,22 @@ for path, body in ((f"/lists/{L_ALL}/rules/proposals", {"name": "From alice's pr
                    (f"/lists/{L_ALL}/playbook/proposals", {"text": "alice's private notes"}),
                    ("/layouts/proposals", {"view": f"list:{L_ALL}", "name": "x", "layout": {}, "user_id": ALICE})):
     card(requests.post(V + path, headers=HT, json=body), "wider", f"#6863: a proposal into the project everyone reads ({path})")
+# Fable reader job/5498 F1: gate and route read the person of a layout proposal alike (as_int) -- 7.0, true, "+7" were no
+# person for the gate (free) and person 7 / 1 for the route (int()): the proposal reached bob without a card
+LY_OK = {"order": ["today", "news"]}
+card(requests.post(V + "/layouts/proposals", headers=HT, json={"view": "dashboard", "name": "x", "layout": LY_OK, "user_id": BOB}),
+     "wider", "F1 setup: a layout proposal to bob")
+nl0 = kt.dbx("SELECT count(*) FROM agent_jobs WHERE agent_id=? AND user_id=?", (TA, BOB))[0][0]
+for bad in (float(BOB), f"+{BOB}", True):
+    r = requests.post(V + "/layouts/proposals", headers=HT, json={"view": "dashboard", "name": "x", "layout": LY_OK, "user_id": bad})
+    check(r.status_code in (400, 409), f"F1: user_id {bad!r} is no way around the circle ({r.status_code} {r.text[:160]})")
+check(kt.dbx("SELECT count(*) FROM agent_jobs WHERE agent_id=? AND user_id=?", (TA, BOB))[0][0] == nl0, "F1: ... no proposal for bob was stored")
+for bad in (float(BOB), f"+{BOB}", True, f"{BOB}_0"):
+    card(requests.post(V + "/agent/jobs", headers=HT, json={"title": "x", "user_id": bad}), "wider",
+         f"F1 (decision 18.11.2026): a user_id that is there but no id fails closed ({bad!r})")
+check(kt.dbx("SELECT count(*) FROM agent_jobs WHERE agent_id=? AND user_id=?", (TA, BOB))[0][0] == nl0, "F1: ... no job for bob was stored")
+r = requests.post(V + "/layouts/proposals", headers=HT, json={"view": "list:\u00b2", "name": "x", "layout": {}, "user_id": ALICE})
+check(r.status_code < 500, f"F1: a view key 'list:\u00b2' is a 4xx, not a 500 ({r.status_code} {r.text[:160]})")
 for path, body in ((f"/lists/{L_OWN}/rules/proposals", {"name": "x"}), (f"/lists/{L_OWN}/playbook/proposals", {"text": "x"})):
     r = requests.post(V + path, headers=HT, json=body)
     check(not (r.status_code == 409 and err(r).get("code") == "approval_required"),
