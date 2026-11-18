@@ -610,4 +610,45 @@ except (ValueError, IndexError):
     j = {"error": (out.stdout + out.stderr)[-600:]}
 check(j.get("a") == "" and j.get("b") == "", f"#6736 F2: an approval older than the log period proves nobody (asks anew): {j}")
 
+# 2.1367.0 (#6971, Fable reader #5199 F1): 2.1284 to 2.1344 filled the circles of such approvals with the circle of the day of
+# the update (otto came between the approval and that start: wrongly approved). Once, before bridge_circles_start, the rows
+# approved before the first start of 2.1284 (the step that added circle_a, kalmido_migrations) go back to NULL and get the circle
+# of the moment of the approval; an approval made after that start keeps its circle.
+LG_I, LG_J, LG_K = project("Legacy filled own"), project("Legacy filled shared"), project("Fresh approval shared")
+# otto came to both after their approval (stored wide here on purpose: the fresh row must stay as stored, not be recalculated)
+for lid in (LG_J, LG_K):
+    kt.dbx("INSERT INTO list_members(list_id,user_id,role,added_at) VALUES(?,?,'edit',?)", (lid, OID, ts(-1)))
+wide = f"{min(FID, OID)},{max(FID, OID)}"
+IX, IY, KX, KY = min(LG_I, LG_J), max(LG_I, LG_J), min(LG_I, LG_K), max(LG_I, LG_K)
+kt.dbx("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at,circle_a,circle_b) VALUES(?,?,?,?,?,?,?)",
+       (aid, IX, IY, FID, ts(-48), wide if IX == LG_J else str(FID), wide if IY == LG_J else str(FID)))
+kt.dbx("INSERT INTO agent_bridges(agent_id,list_a,list_b,by_id,at,circle_a,circle_b) VALUES(?,?,?,?,?,?,?)",
+       (aid, KX, KY, FID, ts(-2), wide if KX == LG_K else str(FID), wide if KY == LG_K else str(FID)))
+mig0 = kt.dbx("SELECT applied_at, note FROM kalmido_migrations WHERE id='agent_bridges.circle_a'")
+kt.dbx("UPDATE kalmido_migrations SET applied_at=?, note='applied' WHERE id='agent_bridges.circle_a'", (ts(-24),))
+out = subprocess.run(["docker", "exec", kt.CT, "python", "-c", f"""import json, app
+from kalmido.core.db import connect
+from kalmido.core.pg import system_ctx
+from kalmido.agents.safety import bridge_circles_reset, bridge_circles_start
+c = connect()
+n = bridge_circles_reset(c)
+bridge_circles_start(c)
+c.commit()
+with system_ctx(c):
+    out = {{"n": n}}
+    for k, (x, y) in (("old", ({IX}, {IY})), ("fresh", ({KX}, {KY}))):
+        r = c.execute("SELECT * FROM agent_bridges WHERE agent_id=? AND list_a=? AND list_b=?", ({aid}, x, y)).fetchone()
+        out[k] = [r["circle_a"], r["circle_b"]]
+    print(json.dumps(out))
+c.close()"""], capture_output=True, text=True)
+if mig0:
+    kt.dbx("UPDATE kalmido_migrations SET applied_at=?, note=? WHERE id='agent_bridges.circle_a'", tuple(mig0[0]))
+try:
+    j = json.loads(out.stdout.strip().splitlines()[-1])
+except (ValueError, IndexError):
+    j = {"error": (out.stdout + out.stderr)[-600:]}
+check(sorted(j.get("old") or []) == [str(FID), str(FID)] and sorted(j.get("fresh") or []) == sorted([wide, str(FID)]) and j.get("n", 0) >= 1,
+      f"#6971 F1: a circle 2.1284 filled with the day of the update is reset and narrowed (otto came after the approval); "
+      f"an approval after that start keeps its circle: {j}")
+
 sys.exit(done("p6453_circle"))

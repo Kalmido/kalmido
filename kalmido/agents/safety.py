@@ -170,6 +170,38 @@ def bridge_circles_start(c):
         print("agent bridges: circles of", len(rows), "approvals from before kept (as proved at their approval)", flush=True)
 
 
+BRIDGE_RESET_FLAG = "agent_bridge_circles6971"  # the settings flag of the one-shot below (core/oncesteps.run_steps writes it)
+
+
+def bridge_circles_reset(c):
+    """2.1367.0 (#6971, Fable reader #5199 F1; once, before bridge_circles_start): 2.1284.0 to 2.1344.0 gave the approvals from
+    before the circles the circle of the day of the update, not the one of the approval -- who came in between still counted as
+    approved. Such a row has its approval (at) before the first start of 2.1284.0: when the step that added circle_a ran
+    (kalmido_migrations "agent_bridges.circle_a"; bridge_store sets at anew with every approval since). Their circles go back
+    to NULL and bridge_circles_start, right after, gives them the circle of the moment of the approval (_circle_then: the same
+    or smaller). Without that record (or one of a column that was there already): all filled rows -- the new circle is then
+    the same or smaller as well. -> the number of rows reset"""
+    with system_ctx(c):
+        m = c.execute("SELECT applied_at, note FROM kalmido_migrations WHERE id='agent_bridges.circle_a'").fetchone()
+        cut = _when(m["applied_at"]) if m and m["note"] in ("applied", "again") else None
+        rows = c.execute("SELECT agent_id, list_a, list_b, at FROM agent_bridges "
+                         "WHERE circle_a IS NOT NULL OR circle_b IS NOT NULL").fetchall()
+        old = [r for r in rows if cut is None or (_when(r["at"]) or cut) <= cut]  # an unreadable at: reset as well
+        for r in old:
+            c.execute("UPDATE agent_bridges SET circle_a=NULL, circle_b=NULL WHERE agent_id=? AND list_a=? AND list_b=?",
+                      (r["agent_id"], r["list_a"], r["list_b"]))
+    return len(old)
+
+
+def _when(v):
+    """A time of the database (datetime or ISO text) as an aware datetime, None when unreadable."""
+    try:
+        t = v if isinstance(v, datetime) else datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
 def bridge_conflicts(c, aid, lid, circle=None, joining=False):
     """Ids of the other lists of agent aid whose circle is not nested with list lid's (circle: lid's circle to test, e.g.
     with a person added) and that no approval covers. joining: aid is about to join lid (its own cap does not matter then
@@ -542,4 +574,5 @@ def agent_bridges_get(aid):
         raise Denied(404)
     return jsonify(bridges=agent_bridges_info(c, aid, None if full else me()))
 
+objhooks.START.append((BRIDGE_RESET_FLAG, True, bridge_circles_reset))  # 2.1367.0 (#6971): once, before the step below
 objhooks.START.append(("agent_bridge_circles", False, bridge_circles_start))
