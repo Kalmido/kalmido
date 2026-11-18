@@ -295,9 +295,16 @@ r = A.patch(B + f"/api/tasks/{TO}", json={"list_id": L})
 check(r.status_code == 409 and code(r) == "list_e2e_move" and set(r.json()["need"]["tasks"]) == {TO, TOS},
       "move in: without the texts 409, names what is needed " + r.text[:300])
 check(A.post(B + "/api/tasks/reorder", json={"items": [{"id": TO, "list_id": L, "sort": 1}]}).status_code == 409, "move in: dragging (reorder) 409")
+# 2.1375.0 (#6677, review F5): bob wrote TO's description before; alice moving it across the lock does not make it hers
+c_ = dbxm.connect(os.path.join(DATA, "tasks.db"), timeout=10)
+c_.execute("UPDATE tasks SET title_by=NULL, content_by=? WHERE id=?", (BOB, TO))
+c_.commit()
+c_.close()
 r = A.patch(B + f"/api/tasks/{TO}", json={"list_id": L, "title": ct(1), "content": ct(1), "le2e_move": {"tasks": [{"id": TOS, "title": ct(1)}]}})
 row = dbx("SELECT list_id, title FROM tasks WHERE id=?", (TOS,))[0]
 check(r.ok and row[0] == L and row[1].startswith("e2e1:"), "move in: with the texts of the subtree " + r.text[:200])
+check(tuple(dbx("SELECT title_by, content_by FROM tasks WHERE id=?", (TO,))[0]) == (None, 0),
+      f"#6677 (F5): the move keeps alice's title hers, bob's description is nobody's: {dbx('SELECT title_by, content_by FROM tasks WHERE id=?', (TO,))}")
 r = A.patch(B + f"/api/tasks/{TO}", json={"list_id": LO})
 check(r.status_code == 409 and code(r) == "list_e2e_move", "move out: without the texts 409")
 r = A.patch(B + f"/api/tasks/{TO}", json={"list_id": LO, "title": "Open task", "content": "open text", "le2e_move": {"tasks": [{"id": TOS, "title": "Open subtask"}]}})
@@ -308,6 +315,8 @@ r = A.post(B + "/api/tasks/batch", json={"ids": [TO], "action": "patch", "data":
 row = dbx("SELECT list_id, title, content FROM tasks WHERE id=?", (TO,))[0]
 check(r.ok and r.json()["count"] == 1 and row[0] == L and row[1].startswith("e2e1:") and row[2].startswith("e2e1:"),
       "batch move in: own texts from le2e_move " + r.text[:200])
+check(tuple(dbx("SELECT title_by, content_by FROM tasks WHERE id=?", (TO,))[0]) == (None, 0),
+      f"#6677 (F5): the batch move keeps the writers too: {dbx('SELECT title_by, content_by FROM tasks WHERE id=?', (TO,))}")
 r = A.post(B + "/api/tasks/batch", json={"ids": [TO], "action": "patch_each", "data": {"items": {str(TO): {"list_id": LO, "le2e_move": {
     "tasks": [{"id": TO, "title": "Open task", "content": "open text"}, {"id": TOS, "title": "Open subtask"}]}}}}})
 row = dbx("SELECT list_id, title FROM tasks WHERE id=?", (TO,))[0]

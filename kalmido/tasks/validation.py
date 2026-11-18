@@ -71,6 +71,19 @@ def text_hand_now():
     return 0 if g.get("acx_sup_uid") == uid else text_hand(uid, act_via(), g.get("rul_run"))
 
 
+def text_by_carry(c, tid, cur, f):
+    """2.1375.0 (#6677, review F5): a move across the lock (collab/liste2e.py le2a_move) writes the task's own texts re-encrypted
+    or decrypted -- the same words, so not the mover's: log_changes saw a change and wrote the mover; the writers go back to
+    the rule of le2a_task_set (stays when the mover was its writer already, else 0). cur = the row before the move."""
+    hand, fix = text_hand_now(), {}
+    for k, col in (("title", "title_by"), ("content", "content_by")):
+        if k in f and col in cur.keys():
+            prev = cur[col]
+            fix[col] = prev if (cur["created_by"] if prev is None else prev) == hand else 0
+    if fix:
+        c.execute(f"UPDATE tasks SET {', '.join(qi(x, TEXT_BY_COL.values()) + '=?' for x in fix)} WHERE id=?", (*fix.values(), tid))
+
+
 def log_act(c, tid, kind, data=None, uid=None):
     from ..integrations.webhooks import wh_note
     if uid is None and has_request_context() and getattr(g, "user", None):
