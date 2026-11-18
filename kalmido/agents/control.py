@@ -538,13 +538,29 @@ def ctl_meta_circle(c, a, method, path, va, b):
     person; PATCH of its title / log): its title and log reach that person (chat start line, progress, News, push). A job
     for nobody shows its words only to who reads every source (agents/circle.py job_mute). A proposal for the rules,
     playbook or a layout of a project is a write into that project (circle_of with the route's project); a layout
-    proposal goes to a person as well."""
+    proposal goes to a person as well. Fable reader job/5498 F2: also a progress step (POST /agent/progress, chat_user_id or
+    a job for a person) and a progress line of /tasks/{id}/working into a job for a person."""
     if method == "POST" and path == "/agent/chats/{}":
         return circle_person(c, a, va.get("uid"))
     if method == "POST" and path == "/agent/jobs":
         return _ctl_person(c, a, b)
     if method == "PATCH" and path == "/agent/jobs/{}" and any(k in b for k in ("title", "log", "append_log")):
         j = c.execute("SELECT user_id FROM agent_jobs WHERE id=? AND agent_id=?", (_ctl_int(va.get("jid")), a["user_id"])).fetchone()
+        return circle_person(c, a, j["user_id"]) if j and j["user_id"] else None
+    if method == "POST" and path == "/agent/progress":  # Fable reader job/5498 F2: a step is a line in that person's chat
+        if b.get("job_id") is not None:
+            j = c.execute("SELECT user_id FROM agent_jobs WHERE id=? AND agent_id=?", (_ctl_int(b.get("job_id")), a["user_id"])).fetchone()
+            return circle_person(c, a, j["user_id"]) if j and j["user_id"] else None
+        return circle_person(c, a, b.get("chat_user_id"))
+    if method in ("POST", "PATCH") and path == "/tasks/{}/working" and b.get("text") not in (None, ""):
+        # F2: the progress line goes into the log and the history of the job the route picks (api.py wk_pick) -- a job for a
+        # person: a line to that person
+        if b.get("job_id") in (None, ""):
+            j = c.execute("""SELECT user_id FROM agent_jobs WHERE agent_id=? AND task_id=? AND state='running' AND kind IS NULL
+                             AND COALESCE(approval, '')='' ORDER BY updated_at DESC, id DESC LIMIT 1""",
+                          (a["user_id"], _ctl_int(va.get("tid")))).fetchone()
+        else:
+            j = c.execute("SELECT user_id FROM agent_jobs WHERE id=? AND agent_id=?", (_ctl_int(b.get("job_id")), a["user_id"])).fetchone()
         return circle_person(c, a, j["user_id"]) if j and j["user_id"] else None
     if method == "POST" and path in CTL_PROPOSALS:
         lid = va.get("lid")

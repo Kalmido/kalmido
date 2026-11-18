@@ -3694,7 +3694,10 @@ does not read every place the agent reads; nothing is stored. A job **without a 
 only to people who read every place of the agent. A **proposal** for the rules, the playbook or a layout of a project
 (`POST /lists/{id}/rules/proposals`, `/lists/{id}/playbook/proposals`, `/layouts/proposals` with `view: "list:<id>"`)
 is a write into that project: a wider or public project = the card (a layout proposal also when its person does not
-read every place).
+read every place). The same for the other ways words reach that person: a progress step (`POST /agent/progress` with
+`chat_user_id`, or `job_id` of a job for a person) and a progress line (`text`) of `POST` / `PATCH /tasks/{id}/working`
+into a job for a person. A `user_id` that is there but no id (`7.0`, `true`, `"+7"`) is never "nobody": the gate asks
+with the card, the route answers 400.
 
 **An agent made before 2.235.0** has no level (`control.level`
 null, `chosen: false`): it works as before, without any of these checks, until its owner picks one.

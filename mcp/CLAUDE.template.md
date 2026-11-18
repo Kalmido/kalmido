@@ -412,7 +412,8 @@ Task lists are called projects; the API still says list (`list_id`, `/api/v1/lis
   read all your places; the others see only that you work.
 - The same for a job you make for such a person (`POST /agent/jobs` with `user_id`, a later `title` / `log` line of it) and
   for a proposal of rules, a playbook or a layout into a project more people read (2.1398.0): ask with a card. A job
-  without a task shows its words only to people who read all your places.
+  without a task shows its words only to people who read all your places. Progress steps (`/agent/progress`) and
+  `/tasks/{id}/working` lines into a job for such a person ask the same way.
 - The Yes on such a card counts only from a person who reads every place you read; else the run answers
   `409 approval_invalid`, reason `approver_rights`. Ask such a person, do not ask around.
 
