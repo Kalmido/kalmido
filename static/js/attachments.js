@@ -482,10 +482,23 @@ function mdCells(l) {
 }
 // 2.32.0 (#1074): the short "auto" height must not move the task panel behind the docked comment box (its scroll
 // position is kept; the caret reveal is handled in app.css, #detail:has(.dbot :focus))
+// 2.1381.0 (#6946): typing must not lay out more than the box. The chat boxes (agent chat, team chat, thread, editing a
+// message: AS_FS_SEL) size themselves by CSS where the browser can (field-sizing: content in app.css): no script, no forced
+// layout per key. Elsewhere / without it: a growing text only reads the height (one layout, no "auto" first); the "auto"
+// round (write, read, write) only when the text got shorter, the only case where the box may have to shrink.
+let AS_FS = null;  // field-sizing: content supported (asked once)
+const AS_FS_SEL = '.chcomp textarea, .cbub.tcedit textarea';
 function autosize(el) {
   if (!el) return;
+  if (AS_FS === null) AS_FS = !!globalThis.CSS?.supports?.('field-sizing', 'content');
+  if (AS_FS && el.matches?.(AS_FS_SEL)) { if (el.style.height && el.style.height === el._asH) el.style.height = ''; return; }  // a height dragged by hand stays
+  const n = el.value?.length ?? 0, grow = el._asN != null && n > el._asN; el._asN = n;  // the same length (a redraw, a wider box): the full round
   const sc = el.closest?.('.dbot') ? el.closest('#detail') : null, top = sc ? sc.scrollTop : 0;
-  el.style.height = 'auto'; if (el.scrollHeight) el.style.height = el.scrollHeight + (el.offsetHeight - el.clientHeight) + 'px';  // the border counts: without it a long text keeps an inner scroll bar
+  if (grow) {
+    const sh = el.scrollHeight; if (sh <= el.clientHeight) return;  // still fits: nothing written
+    const h = sh + (el.offsetHeight - el.clientHeight) + 'px'; if (el.style.height !== h) el.style.height = h;
+  } else { el.style.height = 'auto'; if (el.scrollHeight) el.style.height = el.scrollHeight + (el.offsetHeight - el.clientHeight) + 'px'; }  // the border counts: without it a long text keeps an inner scroll bar
+  el._asH = el.style.height;
   if (sc && sc.scrollTop !== top) sc.scrollTop = top;
 }
 // base: the value before the edit when the caller already changed the local copy (markdown checkbox)
