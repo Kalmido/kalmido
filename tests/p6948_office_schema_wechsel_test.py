@@ -10,7 +10,8 @@ on the same counter, an additional number range GT-{yyyy}-{seq:03} (#6698, corre
 once in the personal office of a person without an organisation:
  (1) the new schemes are taken by the settings; the hash chain stays intact, no date order error
  (2) the first invoice of 2027 is GS-2027-001, its correction GS-2027-002-K on the same counter
- (3) a draft of December finalised in January: with the date set to the day of finalising GS-2027-003; a draft that keeps its
+ (3) a draft of December finalised in January: with the date set to the day of finalising (2.1380.0, #6976: the dialog's
+     "Set the date to today", to_today) GS-2027-003; a draft that keeps its
      December date gets the number of its own year (GS-2026-001, a counter of 2026 under the new scheme) -- the finalise
      dialog's preview names exactly that number before
  (4) the correction of a December invoice (old form) in January gets a 2027 number and points at that invoice (cancels,
@@ -110,11 +111,26 @@ def run(S, who):
     ok(nk1 == "GS-2027-002-K", f"(2) its correction on the same counter with -K {nk1}")
 
     # ---------------------------------------------------------------- (3) the drafts of December
-    ok(S.patch(B + f"{D}/{dec_a}", json={"date": TODAY.isoformat()}).ok, "(3) the December draft takes the day of finalising")
-    na = fin(dec_a)
+    # 2.1380.0 (#6976): the finalise dialog offers "Set the date to today" (ticked) for a draft of an earlier year; with the tick
+    # (to_today) it is dated the day of finalising, its due date keeps its term
+    ok(S.patch(B + f"{D}/{dec_a}", json={"due_date": "2027-01-03"}).ok, "(3) the December draft has a due date")
+    pa = S.get(B + f"{D}/{dec_a}/number-preview").json()
+    ok(pa.get("past_year") == "2026-12-20" and pa.get("number_today") == "GS-2027-003" and pa.get("number") == "GS-2026-001",
+       f"(3) the dialog knows the December date and both numbers {pa}")
+    before = S.get(B + f"{D}/{dec_a}").json()
+    r = S.post(B + f"{D}/{dec_a}/finalize", json={"to_today": True})
+    ok(r.ok, f"(3) finalised with 'Set the date to today' {r.text[:240]}")
+    na = (r.json() if r.ok else {}).get("number") or ""
     ok(na == "GS-2027-003", f"(3) ... and the number of 2027 {na}")
-    pv = S.get(B + f"{D}/{dec_b}/number-preview").json().get("number")
-    ok(pv == "GS-2026-001", f"(3) a draft keeping its December date: the dialog names the number of its year before {pv}")
+    after = S.get(B + f"{D}/{dec_a}").json()
+    ok(str(after.get("date"))[:10] == TODAY.isoformat(), f"(3) ... dated the day of finalising {after.get('date')}")
+    ok(str(before.get("due_date"))[:10] == "2027-01-03" and str(after.get("due_date"))[:10] == "2027-01-19",
+       f"(3) ... the due date keeps its term of 14 days {before.get('due_date')} -> {after.get('due_date')}")
+    pv = S.get(B + f"{D}/{dec_b}/number-preview").json()
+    ok(pv.get("past_year") == "2026-12-22" and pv.get("number_today") == "GS-2027-004",
+       f"(3) the other December draft: the tick would give the next 2027 number {pv}")
+    pv = pv.get("number")
+    ok(pv == "GS-2026-001", f"(3) a draft keeping its December date (no tick): the dialog names the number of its year before {pv}")
     nb = fin(dec_b)
     ok(nb == pv, f"(3) ... and it gets exactly that one {nb}")
     chain_ok("(3)")

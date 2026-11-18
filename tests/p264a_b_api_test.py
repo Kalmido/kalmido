@@ -612,9 +612,9 @@ finally:
 check(r.ok and r.json().get("values") == 0 and fld_vals(F6) == [],
       f"#5565: during a key change an older key's value stays behind {r.status_code} {r.text[:200]} {fld_vals(F6)}")
 
-# the once-run at the start (core/db.py migr_e2etrashsec5565 -> liste2eguard.py le2b_trash_section_fit): a task in the trash of
-# the locked project with a plain section name (left by a version before #5552), one of the open project with a ciphertext
-# lose it; the open project's plain name stays
+# the once-run (liste2eguard.py le2b_trash_section_fit, called directly; 2.1380.0 #6826: its run at the start, migr_e2etrashsec5565,
+# is retired): a task in the trash of the locked project with a plain section name (left by a version before #5552), one of the
+# open project with a ciphertext lose it; the open project's plain name stays
 TS = [A.post(B + "/api/tasks", json={"list_id": lid, "title": "Trash " + str(i)}).json()["id"] for i, lid in enumerate((L2, L2, L2))]
 for t, name in zip(TS, ("PlainLocked", cipher(6), "OpenSection")):
     check(A.delete(B + f"/api/tasks/{t}").ok, "#5565 setup: a task into the trash")
@@ -860,8 +860,9 @@ plain = dbx("SELECT note, task_title FROM time_entries WHERE note LIKE ? OR task
 check(r.ok and r.json().get("restored") == len(ENTS11) and not plain,
       f"#5588 (d): the restore writes no plain title / note of a task moved into another organisation's locked project {plain} {r.text[:200]}")
 
-# ================================================================== #5588 (b): the once-run at the start (core/db.py migr_e2etrashsec5588 ->
-# liste2eguard.py le2b_trash_sec_plain) replaces migrations.d/5552_a.py's fixed cut-off: a plain-named section copy in the trash of
+# ================================================================== #5588 (b): the once-run (liste2eguard.py le2b_trash_sec_plain, called
+# directly; 2.1380.0 #6826: its run at the start, migr_e2etrashsec5588, is retired) replaces migrations.d/5552_a.py's fixed
+# cut-off: a plain-named section copy in the trash of
 # a locked project goes whatever its date, a ciphertext name stays, an open project's plain copy stays
 SC = []
 for lid, name in ((L, "PlainLate"), (L, cipher(55)), (L2, "OpenPlain")):
@@ -954,7 +955,7 @@ check(wt and free is True, f"#5588 review F4: a moving batch waits for the lower
 check(r is not None and r.ok and [x[0] for x in dbx("SELECT list_id FROM tasks WHERE id IN (?, ?) ORDER BY id", (TB1, TB2))] == [L5, L5],
       f"#5588 review F4: the batch goes through after the restore {r.status_code if r is not None else None} {r.text[:200] if r is not None else ''}")
 
-# review F7: the switch migr_e2etrashsec5588 in init_db (the start runs the once-run, then never again), and the copies of a
+# review F7: the switch migr_e2etrashsec5588 (2.1380.0 #6826: a retired flag, written at every start), and the copies of a
 # project whose lock is being switched on / off ('encrypting' / 'decrypting') stay: their finish empties the section trash
 LE = A.post(B + "/api/lists", json={"name": "Switching on", "org_id": None}).json()["id"]
 LD = A.post(B + "/api/lists", json={"name": "Switching off", "org_id": None}).json()["id"]
@@ -968,25 +969,9 @@ rc, out, er = py("from kalmido.collab.liste2eguard import le2b_trash_sec_plain\n
                  "c=app.connect()\nwith system_ctx(c):\n    n=le2b_trash_sec_plain(c)\nc.commit()\nprint(n)")
 left = [x[0] for x in dbx("SELECT id FROM list_part_trash WHERE id IN (?, ?, ?) ORDER BY id", tuple(SW))]
 check(rc == 0 and left == SW[1:], f"#5588 review F7: the once-run leaves the copies of projects being switched ('encrypting' / 'decrypting') {left} {SW} {er}")
-SW2 = dbx("INSERT INTO list_part_trash(list_id,kind,ref_id,snap,held,deleted_by,deleted_at) VALUES(?,?,?,?,?,?,?) RETURNING id",
-          (L, "section", 9955899, json.dumps({"name": "PlainAtStart", "sort": 1}), "{}", 1, "2026-12-03T00:00:00Z"))[0][0]
 check(dbx("SELECT value FROM settings WHERE key='migr_e2etrashsec5588'") == [("1",)], "#5588 review F7: the container's start set the switch")
-# the switch set: a start leaves the copy (the once-run ran)
-for _ in range(4):  # importing the app runs init_db next to the running server: now and then a deadlock of this helper (calendars_test.py)
-    rc, out, er = py("print('started')")
-    if "deadlock detected" not in er:
-        break
-    time.sleep(2)
-check(rc == 0 and dbx("SELECT 1 FROM list_part_trash WHERE id=?", (SW2,)), f"#5588 review F7: with the switch set a start runs nothing {rc} {er}")
-dbx("DELETE FROM settings WHERE key='migr_e2etrashsec5588'", write=True)
-for _ in range(4):
-    rc, out, er = py("print('started')")
-    if "deadlock detected" not in er:
-        break
-    time.sleep(2)
-check(rc == 0 and not dbx("SELECT 1 FROM list_part_trash WHERE id=?", (SW2,)) and dbx("SELECT 1 FROM list_part_trash WHERE id IN (?, ?)", tuple(SW[1:]))
-      and dbx("SELECT value FROM settings WHERE key='migr_e2etrashsec5588'") == [("1",)],
-      f"#5588 review F7: without the switch the start runs the once-run once and sets it {rc} {er}")
+# 2.1380.0 (#6826): the starts with the switch set / deleted stood here (a plain copy left / dropped by the once-run at the start);
+# that one-shot is retired (core/oncesteps.py RETIRED, retired_flags writes the switch), so only the helper above is checked
 dbx("UPDATE lists SET e2e=NULL WHERE id IN (?, ?)", (LE, LD), write=True)
 print(f"\n{OKS[0]} checks ok, {len(FAILS)} failed", flush=True)
 if FAILS:

@@ -69,7 +69,9 @@ empty status = not tracked (start page card *Projects*, *Where is it stuck?*). T
   `{"error": {"code": "owner_locked", "message": "The account this agent belongs to is locked"}}` (REST and the tools of
   the hosted MCP server; `/mcp` itself answers `403`), no new events are recorded, its webhook gets nothing and pending
   deliveries are dropped. Nothing is changed on the agent: once the account is unlocked it works again at once, with the
-  same token. Team agents (no owner) are not affected. An agent treats it like *paused*: wait and try again later, do not
+  same token. Team agents (no owner) are not affected; their own permanent token keeps working. 2.1380.0: an access of the
+  hosted MCP server also stops while the account that gave it is locked - its access token answers `403 owner_locked`
+  on `/api/v1` too, and a refresh answers `403` without ending the access, so the app goes on after the unlock. An agent treats it like *paused*: wait and try again later, do not
   ask for a new token.
 - **Everything is visible.** The agent's comments, changes, jobs and approvals appear in the task history and in the Agents tab like anyone else's.
 

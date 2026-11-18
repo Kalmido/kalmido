@@ -9,8 +9,8 @@ status note and its description -- never stay in plain text in a locked project.
  - an open project of the same person keeps and accepts all three
  - review 2646 finding 2: an agent's time proposal (agents/agenttime.py) brings no note in: applying it 409, with the
    note emptied ok; redoing an entry undone before the lock 409
- - review 2646 finding 1: a project locked before 2.538 (e2e 'on' without the scrub) loses the three texts once at the next
-   start (core/db.py, migr_e2efree4372; one way); the open project keeps them
+ - review 2646 finding 1: a new server carries the flag migr_e2efree4372 (2.1380.0 #6826: the one-shot that emptied the three
+   texts of a project locked before 2.538 at the next start is retired, its check gone)
  - everything as a person without an organisation (freelancer-matrix: lists, time)
 usage: p2538_b_locked_test.py <datadir>      (P2538BL_NOSTART=1: a running server on KALMIDO_TEST_PORT)"""
 import base64
@@ -192,30 +192,11 @@ check(Fr.patch(B + f"/api/lists/{L2}/overview", json={"description": "fine"}).ok
 check(Fr.post(B + "/api/time/entries", json={"task_id": T2, "start": start, "minutes": 5, "note": "fine"}).ok, "open: a time note works")
 check(not [x for x in dbx("SELECT note FROM time_entries WHERE list_id=? OR task_id=?", (L, T)) if x[0]], "no time note in the locked project at the end")
 
-# ---- finding 1: a project locked before 2.538 (the lock on, the texts never emptied) loses them once at the next start
+# ---- finding 1: the flag of the retired one-shot (a project locked before 2.538 lost the texts once at the next start)
 check([x[0] for x in dbx("SELECT value FROM settings WHERE key='migr_e2efree4372'")] == ["1"], "old lock: the one-shot is marked done on a new server")
-if os.environ.get("P2538BL_NOSTART") != "1":
-    L3 = Fr.post(B + "/api/lists", json={"name": "Locked long ago", "org_id": None, "time_tracking": True}).json()["id"]
-    T3 = Fr.post(B + "/api/tasks", json={"list_id": L3, "title": "Old task"}).json()["id"]
-    check(Fr.post(B + f"/api/lists/{L3}/status", json={"status": "at_risk", "note": MK + "PStatus"}).ok, "old lock setup: a status note")
-    check(Fr.patch(B + f"/api/lists/{L3}/overview", json={"description": MK + "PDescOld"}).ok, "old lock setup: a description")
-    check(Fr.patch(B + f"/api/lists/{L3}/overview", json={"description": MK + "PDesc"}).ok, "old lock setup: a newer description")
-    check(Fr.post(B + "/api/time/entries", json={"task_id": T3, "start": start, "minutes": 7, "note": MK + "PTaskTime"}).ok, "old lock setup: a task time note")
-    check(Fr.post(B + "/api/time/entries", json={"list_id": L3, "start": start, "minutes": 8, "note": MK + "PListTime"}).ok, "old lock setup: a project time note")
-    dbx("UPDATE lists SET e2e='on', e2e_gen=1 WHERE id=?", (L3,), write=True)  # as 2.537 left it: locked, the texts still there
-    dbx("DELETE FROM settings WHERE key='migr_e2efree4372'", write=True)
-    check(len(dbx("SELECT id FROM time_entries WHERE note LIKE ?", (MK + "P%",))) == 2, "old lock setup: the plain notes are there before the start")
-    r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env={**os.environ, "KEEP": "1"}, capture_output=True, text=True)
-    assert r.returncode == 0, r.stdout + r.stderr
-    check(not dbx("SELECT id FROM time_entries WHERE note<>'' AND (list_id=? OR task_id=?)", (L3, T3)), "old lock: no time note left")
-    lr = dbx("SELECT status, status_note, description, e2e FROM lists WHERE id=?", (L3,))[0]
-    check(lr[0] == "at_risk" and lr[1] == "" and lr[2] == "" and lr[3] == "on", f"old lock: status and lock kept, note and description empty {tuple(lr)}")
-    check(not dbx("SELECT id FROM list_status WHERE list_id=? AND note<>''", (L3,)), "old lock: the status history keeps no note")
-    check(not dbx("SELECT id FROM list_activity WHERE list_id=? AND kind='desc'", (L3,)), "old lock: no earlier description")
-    o = dbx("SELECT status_note, description FROM lists WHERE id=?", (L2,))[0]
-    check(o[0] == "fine" and o[1] == "fine", f"old lock: the open project keeps its texts {tuple(o)}")
-    check(dbx("SELECT note FROM time_entries WHERE note LIKE ? AND list_id=?", (MK + "O%", L2)), "old lock: the open project keeps its time notes")
-    check([x[0] for x in dbx("SELECT value FROM settings WHERE key='migr_e2efree4372'")] == ["1"], "old lock: the one-shot is marked done again")
+# 2.1380.0 (#6826): the old lock's run at the start stood here (a project locked as 2.537 left it, flag migr_e2efree4372
+# deleted, restart: the three texts emptied once, the open project kept them); that one-shot is retired (core/oncesteps.py
+# RETIRED), the start no longer runs it; the flag above is written by retired_flags at every start
 
 print(f"{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

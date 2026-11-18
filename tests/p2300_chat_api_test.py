@@ -11,7 +11,7 @@
  - #1034 listening in by project type: software lists -> every agent listens in (task_added for created AND moved tasks,
    every comment); other lists only @mention / assignment; a switch per list (listen_agent_ids, listen_default), a change
    of the project type starts over, a folder setting agent_listen, tidy also for moved tasks, tasks_added only to
-   listeners; the migration keeps who listened before
+   listeners (2.1380.0 #6826: the start's migration of the old form, migr_listen2300, is retired, its check gone)
 usage: p2300_chat_api_test.py <datadir>"""
 import os
 import dbx as dbxm  # 2.37.0: the suite has its own dbx() helper
@@ -310,33 +310,8 @@ bulk = [e for e in ev if e["event"] == "tasks_added"]
 check(len(bulk) == 1 and bulk[0]["data"]["list_id"] == PL["id"], "#1034: a bulk comes as tasks_added only from the listening list " + str([(e["data"]["list_id"], e["data"]["count"]) for e in bulk]))
 check(not any(e["event"] == "task_added" and e["data"]["list"]["id"] == AG["id"] for e in ev), "#1034: ... nothing from the other")
 
-# ================================================================== #1034 the migration keeps who listened before
-# a 2.29 database: agent_listen in the old form (NULL = the tidy agent while tidying is on; "3" = these read every comment)
-M1 = A.post(B + "/api/lists", json={"name": "Old tidy", "org_id": ORG}).json()
-M2 = A.post(B + "/api/lists", json={"name": "Old explicit sw", "ptype": "software", "org_id": ORG}).json()
-M3 = A.post(B + "/api/lists", json={"name": "Old default sw", "ptype": "software", "org_id": ORG}).json()
-M4 = A.post(B + "/api/lists", json={"name": "Old plain", "org_id": ORG}).json()
-for l in (M1, M2, M3, M4):
-    A.put(B + f"/api/lists/{l['id']}/agent", json={"agent_id": CL})
-dbx("UPDATE lists SET agent_listen=NULL, agent_tidy='suggest' WHERE id=?", (M1["id"],), write=True)
-dbx("UPDATE lists SET agent_listen='' WHERE id=?", (M2["id"],), write=True)   # 2.29: "nobody" chosen explicitly
-dbx("UPDATE lists SET agent_listen=NULL WHERE id IN (?, ?)", (M3["id"], M4["id"]), write=True)
-dbx("DELETE FROM settings WHERE key='migr_listen2300'", write=True)
-subprocess.run(["docker", "restart", os.environ.get("KALMIDO_TEST_CONTAINER", "kalmido-test")], check=True, stdout=subprocess.DEVNULL)
-for _ in range(60):
-    try:
-        if requests.get(B + "/api/health", timeout=2).ok:
-            break
-    except requests.RequestException:
-        pass
-    time.sleep(0.5)
-A = sess("alice")
-L = lists_of(A)
-check(L[M1["id"]]["listen_agent_ids"] == [CL], "#1034 migration: the tidy agent that listened by the old default keeps listening " + str(L[M1["id"]]["listen_agent_ids"]))
-check(L[M2["id"]]["listen_agent_ids"] == [], "#1034 migration: an explicit 'nobody' in a software list stays")
-check(L[M3["id"]]["listen_agent_ids"] == [CL], "#1034 migration: a software list on the default: its agent listens in")
-check(L[M4["id"]]["listen_agent_ids"] == [], "#1034 migration: a plain list on the default: nobody")
-check(dbx("SELECT value FROM settings WHERE key='migr_listen2300'") == [("1",)], "#1034 migration: runs once")
+# 2.1380.0 (#6826): #1034 the migration stood here (lists in the 2.29 form, flag migr_listen2300 deleted, restart: who listened
+# before keeps listening); that one-shot is retired (core/oncesteps.py RETIRED), the start no longer runs it
 
 print(f"{OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

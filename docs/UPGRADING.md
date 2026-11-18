@@ -10,8 +10,19 @@ A release that needs a step from you lists it here, in the same release, whateve
 number alone does not tell you whether a step is needed**, 2.37, 2.45 and 2.149 needed one and were minor versions.
 Read this list before an update; nothing listed between your version and the new one means nothing to do.
 
-A big jump (say 2.30 to 2.400) is allowed: every migration runs in order on the first start. Do the steps of **every**
-version you pass, and make a backup first. There is no need to stop at each version in between.
+A big jump is allowed: every migration runs in order on the first start. Do the steps of **every** version you pass, and
+make a backup first. There is no need to stop at each version in between, with one exception: the oldest version an update
+starts from.
+
+## Oldest version to update from: 2.1000
+
+Since 2.1380 (#6826) a version updates only a database that last ran **2.1000.0 or newer**. The one-time data steps and
+column steps every such database has behind it are gone from the code. A database that last ran an older version (or one
+from before 2.149 without a version stamp) is refused at the start with a line starting `FATAL: this database`, and the
+container stops with exit code 3; nothing is changed. A backup from such a version is refused by *Check* and *Restore* the
+same way. The way through: update to a version 2.1000.x (or any newer one older than 2.1380) first, start it once, then
+update to the current version (a backup made there restores here). A new, empty database is not affected. The limit is
+`MIN_FROM` in `kalmido/core/db.py`; a release that raises it says so here.
 
 ## Versions that need a step
 

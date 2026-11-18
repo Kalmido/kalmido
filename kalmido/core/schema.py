@@ -2814,6 +2814,9 @@ CREATE OR REPLACE TRIGGER kalmido_ticket_no BEFORE INSERT OR UPDATE OF list_id O
 # additive migrations: (table, column, ddl). 2.102.0 D (#1996): append new ones at the end as before; each gets its id from
 # table + column (not from its place, so parallel releases may add theirs anywhere), a start runs only the ones not yet in
 # kalmido_migrations (core/db.py mig_apply). A second step for the same column (e.g. an UPDATE filling it) runs with the first.
+# 2.1380.0 (#6826): a step whose column stands in its CREATE TABLE (SCHEMA above or a fragment's) and which every database of
+# core/db.py MIN_FROM (2.1000.0) on has behind it is gone (a new install gets the column from CREATE TABLE); its row in
+# kalmido_migrations stays. A column with several steps keeps them (their ids count up per column).
 MIGRATIONS = [
     ("tasks", "pinned", "ALTER TABLE tasks ADD COLUMN pinned BOOLEAN NOT NULL DEFAULT false"),
     ("tasks", "start", "ALTER TABLE tasks ADD COLUMN start TEXT"),          # timeline: first day (local date)
@@ -2971,7 +2974,6 @@ MIGRATIONS = [
     ("tasks", "rotation", "ALTER TABLE tasks ADD COLUMN rotation TEXT NOT NULL DEFAULT ''"),
     ("tasks", "stars", "ALTER TABLE tasks ADD COLUMN stars BIGINT"),
     ("lists", "family", "ALTER TABLE lists ADD COLUMN family TEXT NOT NULL DEFAULT ''"),
-    ("contact_links", "book", "ALTER TABLE contact_links ADD COLUMN book TEXT NOT NULL DEFAULT ''"),
     ("users", "kid", "ALTER TABLE users ADD COLUMN kid BIGINT NOT NULL DEFAULT 0"),
     # 2.22.0 (#663): "Home & life". lists.life: '' | contracts | home | health | travel | reading (what the list is for);
     # lists.trip: json {from, to, where} of a trip list; tasks.fam also holds the kinds contract / device / upkeep / health /
@@ -3166,8 +3168,6 @@ MIGRATIONS = [
     # project page (json list of tiles), both the same for everyone
     ("lists", "tb_sums", "ALTER TABLE lists ADD COLUMN tb_sums TEXT"),
     ("lists", "fx_kpis", "ALTER TABLE lists ADD COLUMN fx_kpis TEXT"),
-    # 2.45.1 (#1556): the English name of a device (like office_services.name_en; '' = the German name is used)
-    ("office_equipment", "name_en", "ALTER TABLE office_equipment ADD COLUMN name_en TEXT NOT NULL DEFAULT ''"),
     # 2.47.0 (#1649): a service points to its freelancer role (office_roles.id; no reference: a deleted role leaves the id,
     # readers treat a missing role as none)
     ("office_services", "role_id", "ALTER TABLE office_services ADD COLUMN role_id BIGINT"),
@@ -3296,15 +3296,6 @@ MIGRATIONS = [
     # collab/liste2efile.py), e2e_gen = its generation (0 for other files)
     ("lists", "e2e_reenc", "ALTER TABLE lists ADD COLUMN e2e_reenc BIGINT NOT NULL DEFAULT 0"),
     ("attachments", "e2e_gen", "ALTER TABLE attachments ADD COLUMN e2e_gen BIGINT NOT NULL DEFAULT 0"),
-    # 2.278.0 C (#3091): after an account move the browser ciphertext still carries the AAD of the old server's ids: the old
-    # AAD (attachments / task_note_locks: the whole string; e2e_keys: a JSON list of "kalmido-e2e:v1:<old user id>") lets the
-    # browser open it again (a saved note is sealed anew and loses it). Older versions ignore it (then unreadable as before)
-    ("attachments", "legacy_aad", "ALTER TABLE attachments ADD COLUMN IF NOT EXISTS legacy_aad TEXT"),
-    ("task_note_locks", "legacy_aad", "ALTER TABLE task_note_locks ADD COLUMN IF NOT EXISTS legacy_aad TEXT"),
-    ("e2e_keys", "legacy_aad", "ALTER TABLE e2e_keys ADD COLUMN IF NOT EXISTS legacy_aad TEXT"),
-    # 2.362.0 (#3090): the same for the encrypted task notes ("kalmido-note:v1:<old task id>:<old user id>"), now that the
-    # account import takes them over
-    ("task_enc_notes", "legacy_aad", "ALTER TABLE task_enc_notes ADD COLUMN IF NOT EXISTS legacy_aad TEXT"),
     # 2.67.0 A (#1838): fixed costs of the cash flow: a free category (the list groups by it) and the VAT rate of the net
     # amount (0 / 7 / 19; 0 = as before, nothing shifts)
     ("office_fixed_costs", "category", "ALTER TABLE office_fixed_costs ADD COLUMN category TEXT NOT NULL DEFAULT ''"),
@@ -3323,9 +3314,6 @@ MIGRATIONS = [
     ("pl_uploads", "src", "ALTER TABLE pl_uploads ADD COLUMN src TEXT NOT NULL DEFAULT ''"),
     # 2.81.0 C (#1866): a portal sign-in carries its cookie; signing out revokes it (NULL = still valid until it expires)
     ("portal_logins", "revoked_at", "ALTER TABLE portal_logins ADD COLUMN revoked_at TIMESTAMPTZ"),
-    # 2.86 audit B3 (#1968): the office role of the person behind a history row of an archived document ('member' = shown
-    # "by member"; '' = admin or a row of before)
-    ("office_archive_log", "role", "ALTER TABLE office_archive_log ADD COLUMN role TEXT NOT NULL DEFAULT ''"),
     # 2.87.9 (#1940): the workspace the running Paperless import files into ('' = the connection's / upload's own; else the
     # starter's private space: "Rather into private" from an organisation's connection or export)
     ("pl_sources", "run_ws", "ALTER TABLE pl_sources ADD COLUMN run_ws TEXT NOT NULL DEFAULT ''"),
@@ -3678,9 +3666,6 @@ MIGRATIONS = [
     ("git_conns", "main_sha", "ALTER TABLE git_conns ADD COLUMN main_sha TEXT NOT NULL DEFAULT ''"),
     ("git_conns", "rel_check", "ALTER TABLE git_conns ADD COLUMN rel_check TEXT NOT NULL DEFAULT ''"),
     ("lists", "git_ver_field", "ALTER TABLE lists ADD COLUMN git_ver_field BIGINT"),
-    # 2.153.0 (#2179): a row id of the custom field values for the paged key passes (rotation, decrypt-all, account key);
-    # for a database that got the table before the column (existing rows are numbered). Older versions ignore it
-    ("doc_field_values", "id", "ALTER TABLE doc_field_values ADD COLUMN IF NOT EXISTS id BIGINT GENERATED BY DEFAULT AS IDENTITY UNIQUE"),
     # 2.154.0 D (#2567): the invoice a copy was made from while the copy keeps the client + period of its hours (hint on the draft)
     ("office_docs", "dup_times_from", "ALTER TABLE office_docs ADD COLUMN dup_times_from TEXT NOT NULL DEFAULT ''"),
     # 2.154.0 A (#1111): the page scan of a stack (archive number codes / separator sheets / blank pages per page, numbers
@@ -3740,34 +3725,9 @@ MIGRATIONS = [
     # 2.270.0 A (#3019): when the project description was saved last (lists/projects.py overview_patch: expect_updated_at,
     # 409 on an older state). Older versions ignore it (a save there leaves it as it was)
     ("lists", "description_at", "ALTER TABLE lists ADD COLUMN IF NOT EXISTS description_at TIMESTAMPTZ"),
-    # 2.272.0 D (#3029): a deleted client lies in the trash (deleted_at) until the trash period ends; trash_lists = the projects
-    # it hung on (back on restore). Older versions show a client in the trash as a normal one again (the way back)
-    ("clients", "deleted_at", "ALTER TABLE clients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"),
-    ("clients", "trash_lists", "ALTER TABLE clients ADD COLUMN IF NOT EXISTS trash_lists TEXT"),
-    # 2.272.0 E1 (#3038): a deleted contact / address book / note lies in the trash (deleted_at) until the trash period ends
-    # (files/trashpurge.py). Older versions show them as normal ones again (the way back)
-    ("contacts", "deleted_at", "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"),
-    ("books", "deleted_at", "ALTER TABLE books ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"),
-    ("notes", "deleted_at", "ALTER TABLE notes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"),
-    # 2.272.0 E2 (#3038): a deleted task / comment file and a deleted project file lie in the trash (deleted_at) until the trash
-    # period ends (files/trashpurge.py -> tasks/atttrash.py), then row and file go. Older versions show them as normal again
-    ("attachments", "deleted_at", "ALTER TABLE attachments ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"),
-    ("list_files", "deleted_at", "ALTER TABLE list_files ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"),
-    # 2.272.0 E2 (#3038): the name of the section a task in the trash was in when that section was deleted; restoring the task
-    # puts it back into a section of that name (made anew when gone). Older versions ignore it (the task comes back without one)
-    ("tasks", "trash_section", "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trash_section TEXT"),
-    # 2.272.0 F (#3038, review M8): the contact a client's contact person was linked to when that contact went to the trash
-    # (no FK); its restore links them again. Older versions ignore it (the contact person stays unlinked, as before)
-    ("office_client_contacts", "trash_contact_id", "ALTER TABLE office_client_contacts ADD COLUMN IF NOT EXISTS trash_contact_id BIGINT"),
     # 2.306.0 A (#2885): the mood of a sealed journal entry (life/model.py jr_seal; mood is NULL then). Older versions show a
     # sealed entry without its mood and its text as the sealed value (the way back first: orgcrypt_cli decrypt-private)
     ("journal", "mood_enc", "ALTER TABLE journal ADD COLUMN IF NOT EXISTS mood_enc TEXT"),
-    # 2.273.0 F2 (#3048): the last file import of a contact / event (imp_at = its updated_at after that write, imp_rev = the
-    # file's REV / LAST-MODIFIED): "newer here" then means changed here after that import. Older versions ignore them
-    ("contacts", "imp_at", "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS imp_at TIMESTAMPTZ"),
-    ("contacts", "imp_rev", "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS imp_rev TEXT"),
-    ("events", "imp_at", "ALTER TABLE events ADD COLUMN IF NOT EXISTS imp_at TIMESTAMPTZ"),
-    ("events", "imp_rev", "ALTER TABLE events ADD COLUMN IF NOT EXISTS imp_rev TEXT"),
     # 2.299.0 D (#3193): the fixed check of a receipt (receipts/rchecks.py): rchk = the codes of its hints ("." none, "" not
     # checked yet), rchk_at = the state they were made for, rchk_ok = the codes a person hid. Plain codes, no content; older
     # versions never read them

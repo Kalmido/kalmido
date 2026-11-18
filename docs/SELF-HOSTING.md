@@ -503,7 +503,8 @@ deleted from `docker-compose.yml`, which every update restored). Needs Docker Co
 Kalmido runs on PostgreSQL since 2.37. The tool that moved the data of an older install out of the SQLite file
 `data/tasks.db` (`migrate-sqlite`) is gone (#5304): this version neither reads nor moves such a file, and an install with
 an empty PostgreSQL database next to old data refuses to start. If you still run 2.36 or older, update to 2.37.0 first and
-follow the upgrade notes of that version (it moves the data by itself), then update to the current version.
+follow the upgrade notes of that version (it moves the data by itself), then update to a 2.1000.x version and start it
+once, then to the current version ([oldest version to update from](UPGRADING.md#oldest-version-to-update-from-21000)).
 
 ## Backup and encryption
 
@@ -2205,6 +2206,10 @@ stay blocked until you allow them.
   (keeping the previous image as above). In an emergency `KALMIDO_ALLOW_DOWNGRADE=1`
   starts anyway; go back to the newer image soon. The first version with the guard is 2.149: a database is stamped on
   its first start with it.
+- **Oldest version to update from (2.1380.0, #6826).** A database that last ran a version older than 2.1000.0 (or one
+  without a version stamp, from before 2.149) refuses to start, and a backup of such a version is refused by the check
+  and the restore; nothing is changed. Update to a 2.1000.x version first, start it once, then update on: see
+  [Oldest version to update from](UPGRADING.md#oldest-version-to-update-from-21000).
 - **Format limits (2.359.3, #2896).** The guard also knows the [format limits](UPGRADING.md#format-limits-going-back): an
   image below the limit of its database refuses to start and names the step, even as the one step back.
 - **A database update that fails at the start** (since 2.1179.0, #2898; for example old data that breaks a new unique
@@ -2215,7 +2220,7 @@ stay blocked until you allow them.
 - **Installer.** The first start after an update migrates the database, which can take minutes on a big one; the
   installer keeps waiting (up to 30 minutes) while the container runs and stops at once when it exits.
 - **Restore.** A backup made with a newer minor version than the running server is refused ("update Kalmido first, then
-  restore it"); older backups restore as before. The same `KALMIDO_ALLOW_DOWNGRADE=1` lets a newer backup through.
+  restore it"); older backups restore as before, down to 2.1000.0 (since 2.1380.0, see above). The same `KALMIDO_ALLOW_DOWNGRADE=1` lets a newer backup through.
   The database schema number in the backup (`schema_version`) stays a second, independent guard.
 - **A newer PostgreSQL (#2945).** `pg_dump` refuses a server of a newer major version, so `postgresql-client` has to move
   along with the server: the image carries version 17. Before every backup Kalmido compares the major versions of
