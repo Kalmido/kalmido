@@ -79,5 +79,11 @@ def main():
     return 0
 
 
+LINT_WHY = "unused classes and odd breakpoints make the stylesheets grow and the layout differ per area"
+LINT_INSTEAD = "remove the dead class; phone max-width 599px, tablet max-width 767px"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_css_classes", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

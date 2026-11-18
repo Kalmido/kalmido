@@ -126,6 +126,9 @@ def main(argv=None):
         print(f"::error file={x['file']},line={x['line']},title=ruff {x['rule']}::{x['message']} (only new code is checked; "
               f"known findings: tools/ruff_baseline.json)")
         print(f"NEW  {x['file']}:{x['line']}  {x['rule']}  {x['message'][:100]}\n     {x['code'][:160]}")
+    if new:
+        import lintmsg  # tools/ is the script's folder, so it is on the path
+        lintmsg.say("ruff_baseline", LINT_WHY, LINT_INSTEAD)
     total = sum(base.values())
     if stale:
         print(f"::{'error' if a.strict else 'notice'} title=ruff baseline::{stale} entries without a finding (fixed code) - "
@@ -136,6 +139,12 @@ def main(argv=None):
         print(f"::error title=ruff baseline::{stale} of {total} known findings are gone at once - wrong config or paths? "
               "(after a real big clean-up: --update)")
     return 1 if new or broken or (a.strict and stale) else 0
+
+
+LINT_WHY = ("ruff's findings in new code are real faults or traps (an unused import, a name that is not defined, a blind "
+            "except Exception that makes a database or program error look like an expected case)")
+LINT_INSTEAD = ("fix the line ('ruff check FILE' explains the rule); BLE001: the narrowest exception class plus a log line; "
+                "the baseline is the old code's list, not a place for new findings")
 
 
 if __name__ == "__main__":

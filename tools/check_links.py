@@ -112,5 +112,11 @@ def main(argv):
     return 1 if bad else 0
 
 
+LINT_WHY = "a dead link or anchor in the docs sends the reader and the next agent nowhere"
+LINT_INSTEAD = "the link to the file / heading as it is today (GitHub's anchor rules)"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_links", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

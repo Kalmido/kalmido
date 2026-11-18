@@ -88,10 +88,16 @@ def errors(root=ROOT, verbose=False):
     return err
 
 
+LINT_WHY = "every package appending to static/app.css collided on the same last lines (the most frequent merge conflict)"
+LINT_INSTEAD = "the module's own stylesheet static/css/<module>.css (LD_CSS in static/js/lazyload.js) or the start style file of its part"
+
+
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    r = args[args.index("--root") + 1] if "--root" in args else ROOT
-    e = errors(r, "-v" in args)
-    for x in e:
-        print("ERROR:", x)
-    sys.exit(1 if e else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_appcss", LINT_WHY, LINT_INSTEAD):
+        args = sys.argv[1:]
+        r = args[args.index("--root") + 1] if "--root" in args else ROOT
+        e = errors(r, "-v" in args)
+        for x in e:
+            print("ERROR:", x)
+        sys.exit(1 if e else 0)

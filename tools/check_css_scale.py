@@ -11,6 +11,13 @@ import runpy
 import sys
 
 TESTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tests")
-sys.path.insert(0, TESTS)  # tests/kt.py
-sys.argv = [os.path.join(TESTS, "p2419_scale_test.py")]
-runpy.run_path(sys.argv[0], run_name="__main__")
+LINT_WHY = ("a size, line height or gap outside the scale makes areas look different; it slipped through to the full CI "
+            "six times")
+LINT_INSTEAD = "the steps of the type and spacing scale (tests/p2419_scale_test.py names them)"
+
+if __name__ == "__main__":
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    sys.path.insert(0, TESTS)  # tests/kt.py
+    sys.argv = [os.path.join(TESTS, "p2419_scale_test.py")]
+    with lintmsg.red_hint("check_css_scale", LINT_WHY, LINT_INSTEAD):
+        runpy.run_path(sys.argv[0], run_name="__main__")

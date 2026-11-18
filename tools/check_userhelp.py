@@ -217,5 +217,11 @@ def main(argv):
     return 1 if bad else 0
 
 
+LINT_WHY = "the user's help that names labels the screen no longer has, or an old translation, misleads the person"
+LINT_INSTEAD = "the label as the interface shows it today; translate from today's English section (its src= fingerprint)"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_userhelp", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv[1:]))

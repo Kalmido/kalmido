@@ -65,5 +65,11 @@ def main():
     return 1 if errs else 0
 
 
+LINT_WHY = "a suite with its own check() / sess() / until() drifts from the shared helpers and misses their fixes"
+LINT_INSTEAD = "import them from tests/kt.py"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_kt", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

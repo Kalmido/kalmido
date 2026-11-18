@@ -312,51 +312,70 @@ for f in sorted(glob.glob(os.path.join(ROOT, "static", "js", "*.js"))):
 # (the end of an @media print block made the rules of three parts apply only when printing)
 # 2.476.0 (#3487): the same per start style file, and app.css does not grow (tools/check_appcss.py)
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+import lintmsg  # noqa: E402 -- tools/ goes on the path one line above
+_SUB_RED, _SUB_N = [], [0]
+LINT_WHY = ("module lists that disagree load a client file twice or never, or leave a server module out")
+LINT_INSTEAD = ("the lists named in the message: static/index.html, static/sw.js SHELL / LAZY, static/js/lazyload.js LD_MODS, "
+                "kalmido/__init__.py")
+
+
+def _sub(mod, errs):
+    """The findings of a check that runs inside this one; its Why / Instead lines follow at the end when it has any."""
+    ERR.extend(errs)
+    _SUB_N[0] += len(errs)
+    if errs:
+        _SUB_RED.append(mod)
+
+
 import check_appcss  # noqa: E402
-ERR += check_appcss.braces("app.css", read("static", "app.css")) + check_appcss.errors(ROOT)
+_sub(check_appcss, check_appcss.braces("app.css", read("static", "app.css")) + check_appcss.errors(ROOT))
 
 # 2.192.0 C (#2514): new Python suites import check/sess/until from tests/kt.py (tools/check_kt.py, list tools/kt_legacy.txt)
 import check_kt  # noqa: E402
 _kt_err, _kt_warn = check_kt.errors()
-ERR += [e.removeprefix("ERROR: ") for e in _kt_err]
+_sub(check_kt, [e.removeprefix("ERROR: ") for e in _kt_err])
 for _w in _kt_warn:
     print(_w)
 
 # 2.623.0 (#4950): a test file must end with sys.exit(done(...)), not a bare done(...) (tools/check_done_exit.py)
 import check_done_exit  # noqa: E402
-ERR += check_done_exit.errors()
+_sub(check_done_exit, check_done_exit.errors())
 
 # 2.638.0 (#4294): every public_links_on(c, KIND) names a kind of PUB_KINDS (tools/check_pubkinds.py)
 import check_pubkinds  # noqa: E402
-ERR += check_pubkinds.errors()
+_sub(check_pubkinds, check_pubkinds.errors())
 
 # 2.653.0 (#5087): finger operation hangs on isTouchUi(), the width (isMobile()) only on layout (tools/check_touch_switch.py,
 # list tools/touch_switch_legacy.txt); runs here so the CI lint and the Mac lint both have it
 import check_touch_switch  # noqa: E402
 _ts_err, _ts_warn = check_touch_switch.errors()
-ERR += _ts_err
+_sub(check_touch_switch, _ts_err)
 for _w in _ts_warn:
     print(_w)
 
 # 2.726.0 (#5164): a menu entry that opens a further menu / sheet / picker shows the arrow ({next: 1} or {more}),
 # tools/check_menu_next.py; runs here so the CI lint and the Mac lint both have it
 import check_menu_next  # noqa: E402
-ERR += check_menu_next.errors()
+_sub(check_menu_next, check_menu_next.errors())
 
 # 2.1024.0 (#5693): every menu goes through menu() of popovers.js, no fold-out / role="menu" of its own
 # (tools/check_menu_own.py); runs here so the CI lint and the Mac lint both have it
 import check_menu_own  # noqa: E402
-ERR += check_menu_own.errors()
+_sub(check_menu_own, check_menu_own.errors())
 # 2.1238.0 (#6161): write entries ask canWrite() of static/js/workspace.js, no own role checks beyond the baseline
 # (tools/check_canwrite.py, tools/canwrite_baseline.json)
 import check_canwrite  # noqa: E402
-ERR += check_canwrite.errors()
+_sub(check_canwrite, check_canwrite.errors())
 # 2.1358.0 (#6825): a new task is written only by task_insert() of kalmido/tasks/repo.py, no own INSERT INTO tasks beyond
 # the baseline (tools/check_task_insert.py, tools/task_insert_baseline.json)
 import check_task_insert  # noqa: E402
-ERR += check_task_insert.errors()
+_sub(check_task_insert, check_task_insert.errors())
 
 for e in ERR:
     print("ERROR:", e)
 print(f"check_layout: {len(tags)} client modules, {len(order)} server modules, {n_people} tables with people, {len(ERR)} error(s)")
+if len(ERR) > _SUB_N[0]:
+    lintmsg.say("check_layout", LINT_WHY, LINT_INSTEAD)
+for _m in _SUB_RED:
+    lintmsg.say(_m.__name__, _m.LINT_WHY, _m.LINT_INSTEAD)
 sys.exit(1 if ERR else 0)

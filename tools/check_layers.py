@@ -238,5 +238,11 @@ def main():
     return 1 if err else 0
 
 
+LINT_WHY = "a module-level import of a higher layer ties the layers into a knot (import cycles, a core that needs a domain)"
+LINT_INSTEAD = "import the higher layer inside the function that needs it, or move the code down a layer (docs/ARCHITECTURE.md)"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_layers", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main())

@@ -70,10 +70,16 @@ def findings(root=ROOT, src=None, old=None):
     return bad
 
 
+LINT_WHY = "an *_id column without a foreign key leaves rows that point at nothing after a delete"
+LINT_INSTEAD = "REFERENCES ... ON DELETE ..., or 'no FK' with its reason on the column's line"
+
+
 if __name__ == "__main__":
-    out = findings()
-    for x in out:
-        print(x)
-    if "-v" in sys.argv or out:
-        print(f"check_fk_comment: {len(legacy())} frozen column(s), {len(out)} finding(s)")
-    sys.exit(1 if out else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_fk_comment", LINT_WHY, LINT_INSTEAD):
+        out = findings()
+        for x in out:
+            print(x)
+        if "-v" in sys.argv or out:
+            print(f"check_fk_comment: {len(legacy())} frozen column(s), {len(out)} finding(s)")
+        sys.exit(1 if out else 0)

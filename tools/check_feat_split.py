@@ -83,5 +83,11 @@ def main(argv):
     return 1 if out else 0
 
 
+LINT_WHY = "a module switch read by hand skips the agent's data lock and reads the comma list its own way"
+LINT_INSTEAD = "feat_has / feat_in / feat_list / feats of kalmido/core/access.py"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_feat_split", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv))

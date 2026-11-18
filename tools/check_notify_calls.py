@@ -125,5 +125,11 @@ def main(argv):
     return 1 if red else 0
 
 
+LINT_WHY = "a direct notif_ok / news_put builds its own set of people and skips the rights step"
+LINT_INSTEAD = "obj_notify() of kalmido/core/objnotify.py"
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_notify_calls", LINT_WHY, LINT_INSTEAD):
+        sys.exit(main(sys.argv))

@@ -164,17 +164,23 @@ def stale(root=ROOT, srcs=None, base=None):
     return [f"{BASELINE}: {k} has a real type by now or is gone - the line can go" for k in sorted(set(base) - set(now))]
 
 
+LINT_WHY = "text timestamps, 0/1 numbers and JSON as text are SQLite habits each column has to be moved off later"
+LINT_INSTEAD = "TIMESTAMPTZ (or DATE), BOOLEAN, JSONB for the new column"
+
+
 if __name__ == "__main__":
-    if "--list" in sys.argv:
-        for k, (r, _p, _ln) in sorted(caught(sources()).items()):
-            print(f"{k} {r}")
-        sys.exit(0)
-    out = findings(strict="--strict" in sys.argv)
-    for x in out:
-        print(x)
-    if "--strict" not in sys.argv:
-        for x in stale():
-            print("note:", x)
-    if "-v" in sys.argv or out:
-        print(f"check_coltypes: {len(baseline())} old column(s) in the baseline, {len(out)} finding(s)")
-    sys.exit(1 if out else 0)
+    import lintmsg  # tools/ is the script's folder, so it is on the path
+    with lintmsg.red_hint("check_coltypes", LINT_WHY, LINT_INSTEAD):
+        if "--list" in sys.argv:
+            for k, (r, _p, _ln) in sorted(caught(sources()).items()):
+                print(f"{k} {r}")
+            sys.exit(0)
+        out = findings(strict="--strict" in sys.argv)
+        for x in out:
+            print(x)
+        if "--strict" not in sys.argv:
+            for x in stale():
+                print("note:", x)
+        if "-v" in sys.argv or out:
+            print(f"check_coltypes: {len(baseline())} old column(s) in the baseline, {len(out)} finding(s)")
+        sys.exit(1 if out else 0)
