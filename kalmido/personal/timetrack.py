@@ -819,6 +819,18 @@ def time_rows(c, uid, a, own=None, newest=None):
             except ValueError:
                 raise BadInput(tr("unknown")) from None
             where.append(f"{col}=?")
+    wanted = None
+    if a.get("lists"):
+        try:
+            wanted = {int(x) for x in str(a["lists"]).split(",") if x.strip()}
+        except ValueError:
+            raise BadInput(tr("unknown")) from None
+    if wanted is not None and newest is None and 0 not in wanted:
+        # the lists asked for in SQL (index time_list), was every visible entry filtered in Python; the
+        # Python filter of the callers stays (an entry of a list the viewer does not see counts as "no list" = 0, so with 0
+        # asked for, every entry has to come back)
+        where.append(f"e.list_id IN ({','.join('?' * len(wanted))})" if wanted else "FALSE")
+        args += sorted(wanted)
     if newest is not None:  # 2.281.0 E (#3117): newest first with the LIMIT in SQL (+ the totals of all, see time_list)
         rows = c.execute(TIME_Q + f" WHERE {' AND '.join(where)} ORDER BY e.start DESC, e.id DESC LIMIT ?", [*args, newest]).fetchall()
         tot = c.execute("SELECT COALESCE(SUM(e.seconds), 0), COALESCE(SUM(CASE WHEN e.user_id=? THEN e.seconds ELSE 0 END), 0) "
@@ -827,12 +839,6 @@ def time_rows(c, uid, a, own=None, newest=None):
                         "AND e.\"end\" IS NULL", args).fetchall()
         return rows, (int(tot[0]), int(tot[1]), run), f, t
     rows = c.execute(TIME_Q + f" WHERE {' AND '.join(where)} ORDER BY e.start, e.id", args).fetchall()
-    wanted = None
-    if a.get("lists"):
-        try:
-            wanted = {int(x) for x in str(a["lists"]).split(",") if x.strip()}
-        except ValueError:
-            raise BadInput(tr("unknown")) from None
     return rows, f, t, wanted
 
 
@@ -878,10 +884,11 @@ def time_list():
                    mine=sum(e["seconds"] for e in out if e["mine"]))
 
 
-def time_report(c, uid, a, own=None, window=None):
+def time_report(c, uid, a, own=None, window=None, per=None):
     """The time report of filters a (time_rows). 2.525.0 (#4187): window = (first day, last day) adds total["window"]
     {seconds, rounded, amount} = the total the same report with from / to = window would give (the client card: the month
-    next to all time from one report, was two)."""
+    next to all time from one report, was two). per = {list id: key} adds total["per"] = {key: {seconds,
+    rounded, amount, window?}} = the total the report of only that key's lists would give (the client list: one report)."""
     s = usettings(c, uid)
     rm, ref, vis = time_rounding(s), now_utc(), vis_ids(c, uid)
     lists = {l["id"]: l for l in visible_lists(c, uid, light=True)}  # 2.280.0 B (#3116): only names / colours / rates
@@ -896,6 +903,7 @@ def time_report(c, uid, a, own=None, window=None):
         from .timesheet import tz_of
         wlo, whi = local_bounds(window[0], window[1], tz_of(c, uid))  # the bounds time_rows sets for from / to
         win = {"seconds": 0, "rounded": 0, "amount": 0.0}
+    pk = {}  # the totals per key of per
 
     def add(d, e, amt):
         d["seconds"] += e["seconds"]
@@ -919,8 +927,14 @@ def time_report(c, uid, a, own=None, window=None):
         entries.append(e)
         add(tot, e, amt)
         tot["count"] += 1
-        if win is not None and wlo <= r["start"] < whi:
+        inwin = win is not None and wlo <= r["start"] < whi
+        if inwin:
             add(win, e, amt)
+        if per is not None and lid in per:  # the same additions, in the same order, per key
+            pt = pk.setdefault(per[lid], {"seconds": 0, "rounded": 0, "amount": 0.0, **({"window": {"seconds": 0, "rounded": 0, "amount": 0.0}} if win is not None else {})})
+            add(pt, e, amt)
+            if inwin:
+                add(pt["window"], e, amt)
         grp = L.setdefault(lid, {"id": lid, "name": l["name"] if l else "", "is_inbox": bool(l and l["is_inbox"]),
                                "color": l["color"] if l else "", "rate": rate, "seconds": 0, "rounded": 0, "amount": 0.0,
                                "tasks": {}, "users": {}})
@@ -947,6 +961,12 @@ def time_report(c, uid, a, own=None, window=None):
     if win is not None:
         win["amount"] = round(win["amount"], 2)
         tot["window"] = win
+    if per is not None:
+        for pt in pk.values():
+            pt["amount"] = round(pt["amount"], 2)
+            if "window" in pt:
+                pt["window"]["amount"] = round(pt["window"]["amount"], 2)
+        tot["per"] = pk
     for d in D.values():
         d.pop("amount", None)
     for u in U.values():

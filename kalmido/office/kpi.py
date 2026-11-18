@@ -213,7 +213,9 @@ def kpi_doc_clients(c, oid, ids):
 # and day for KPI_TTL seconds while nothing changed: kpi_mark = the data version of the instance (every write through the
 # app moves it: time entries, clients, purchases ...) plus a short fingerprint of the office's documents and payments
 # (writes past the version too), so nobody sees the old figures after an own change; every worker process checks it itself.
-KPI_TTL = 45
+# 300 s, longer than the tile's minute (office_kpi.js), else a single tab never hit it; the fingerprint
+# guards against old figures, the time only bounds what it cannot see (time entries, clients ... written past the app)
+KPI_TTL = 300
 KPI_CACHE_MAX = 256
 _KPI_CACHE = {}
 
@@ -221,10 +223,15 @@ _KPI_CACHE = {}
 def kpi_mark(c, oid):
     """The fingerprint of kpi_cached: one query over small columns (no texts, no totals JSON). 2.525.0 review (#4187): also the
     office settings (a new home currency or tax reserve is not served from the cache; saving them bumps no data version)."""
+    # counters instead of md5 over one long sorted string of every row: the count, the newest change and
+    # a sum of row hashes (no sort, no big string) - a new, changed (also past the app, without updated_at) or deleted row
+    # still moves it
     r = c.execute("SELECT (SELECT value FROM settings WHERE key='version'), "
-                  "(SELECT md5(string_agg(id || ':' || status || ':' || COALESCE(CAST(locked_at AS text), '') || ':' || updated_at || ':' || date, ',' ORDER BY id)) "
+                  "(SELECT COUNT(*) || ':' || COALESCE(CAST(MAX(updated_at) AS text), '') || ':' || COALESCE(SUM(hashtext(id || ':' || status || ':' || "
+                  "COALESCE(CAST(locked_at AS text), '') || ':' || updated_at || ':' || date)), 0) "
                   f"FROM office_docs WHERE org_id=? AND {live_sql()}), "  # 2.1005.0 (#5415): a draft into the trash changes the fingerprint
-                  "(SELECT md5(string_agg(id || ':' || doc_id || ':' || amount || ':' || date, ',' ORDER BY id)) FROM office_payments WHERE org_id=?), "
+                  "(SELECT COUNT(*) || ':' || COALESCE(SUM(hashtext(id || ':' || doc_id || ':' || amount || ':' || date)), 0) "
+                  "FROM office_payments WHERE org_id=?), "
                   "(SELECT md5(CAST(data AS text)) FROM office_settings WHERE org_id=?)",  # 2.525.0 review (#4187): home currency, tax reserve
                   (oid, oid, oid)).fetchone()
     return tuple(str(x) for x in r)
