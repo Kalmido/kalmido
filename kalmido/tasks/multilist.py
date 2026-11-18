@@ -9,10 +9,13 @@ workspace (lists.org_id equal, NULL == NULL), no health list, no locked list, no
 at most ML_MAX further lists. A database trigger (core/schema.py kalmido_ml_prune) drops links that a move of the task
 or a workspace change of a list would carry across the boundary, whatever the write path.
 """
+import math
+
 from flask import g, jsonify
 
 from ..core.config import app
 from ..core.i18n import tr
+from ..core.errors import SORT_MAX, sort_value
 from ..core.db import body, bump, db, err, iso, now_utc, trigger_skip_present
 from ..accounts.session import me
 from ..core.access import Denied, list_role, need_list, need_task, task_visible, vis_sql, WRITE_ROLES, otr_live, list_archived_sql
@@ -151,6 +154,7 @@ def ml_link(tid):
     if e:
         from ..tasks.movememo import tmm_wish
         srt = b.get("sort") if isinstance(b.get("sort"), (int, float)) and not isinstance(b.get("sort"), bool) else 0
+        srt = srt if math.isfinite(srt) and abs(srt) <= SORT_MAX else 0  # 2.1373.0 (#6430): no NaN / inf into the memo
         # 2.363.3 (#3133): a person's request that waited offline is not lost to a move made meanwhile (agents have no queue: they get the refusal)
         if g.user["kind"] != "agent" and tmm_wish(c, tid, lid, _int(b.get("section_id")), srt):
             bump(c)
@@ -161,7 +165,9 @@ def ml_link(tid):
     if e:
         return err(e)
     srt = b.get("sort")
-    if not isinstance(srt, (int, float)) or isinstance(srt, bool):
+    if srt is not None:  # 2.1373.0 (#6430): the one sort check (a number or its text, finite, bounded), else 400
+        srt = sort_value(srt)
+    else:
         srt = max(c.execute("SELECT COALESCE(MAX(sort), 0) FROM tasks WHERE list_id=? AND parent_id IS NULL", (lid,)).fetchone()[0],
                   c.execute("SELECT COALESCE(MAX(sort), 0) FROM task_links WHERE list_id=?", (lid,)).fetchone()[0]) + 1
     org = c.execute("SELECT org_id FROM lists WHERE id=?", (lid,)).fetchone()[0]
@@ -214,7 +220,7 @@ def ml_place(tid, lid):
         if not isinstance(b["sort"], (int, float)) or isinstance(b["sort"], bool):
             return err(tr("Invalid value: {0}", "sort"))
         sets.append("sort=?")
-        args.append(float(b["sort"]))
+        args.append(sort_value(b["sort"]))  # 2.1373.0 (#6430): finite and bounded (core/errors.sort_value); NaN / inf broke /api/state for everyone
     if sets:
         c.execute(f"UPDATE task_links SET {', '.join(sets)} WHERE task_id=? AND list_id=?", (*args, tid, lid))
         bump(c)

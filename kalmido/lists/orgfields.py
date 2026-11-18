@@ -20,7 +20,7 @@ from ..core.i18n import tr
 from ..core.db import body, bump, db, err, iso, now_utc, trigger_skip_present
 from ..accounts.session import me
 from ..core.access import MANAGE_ROLES, Denied, need_list
-from ..core.errors import BadInput
+from ..core.errors import BadInput, sort_value
 from ..accounts.orgs import is_org_admin
 from ..accounts.orgroles import org_writes, user_orgs_full
 from .fields import FIELD_MAX, field_clean_def, field_prune_opts, tb_fields_module_on
@@ -150,11 +150,11 @@ def of_update(ofid):
         name, _, opts = field_clean_def(b, r)
     except BadInput as e:
         return err(str(e))
-    if "sort" in b:
+    if "sort" in b:  # 2.1373.0 (#6430): finite and bounded (core/errors.sort_value); NaN / inf broke /api/state for everyone
         try:
-            c.execute("UPDATE org_fields SET sort=? WHERE id=?", (float(b["sort"]), ofid))
-        except (TypeError, ValueError):
-            return err(tr("Invalid data"))
+            c.execute("UPDATE org_fields SET sort=? WHERE id=?", (sort_value(b["sort"]), ofid))
+        except BadInput as e:
+            return err(str(e))
     o = json.dumps(opts, ensure_ascii=False)
     c.execute("UPDATE org_fields SET name=?, options=? WHERE id=?", (name, o, ofid))
     # 2.1258.0 (#6296): only the linked fields of projects in the schema's own space (as orglabels.py): a project that moved to
