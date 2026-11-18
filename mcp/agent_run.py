@@ -2696,7 +2696,25 @@ def guard_reason(cmd, depth=0, fed=False):
     return None
 
 
-def hook_settings(perm_relay=False, usage=True, env_files=()):
+def run_env_dirs(extra=()):
+    """2.1386.0 (#6668, review R3 F1): every folder that holds a team agent's request token files (<state>/run-env: p<id>.env,
+    op.env, auto.env) -- of this runner's --state, of KALMIDO_STATE_DIR (a job) and of the default state folder -- as
+    absolute paths. No run or job reads any of them with its own tools: the MCP server, kalmido_cli.py and agent_job.py
+    read their file through KALMIDO_ENV_FILE themselves."""
+    out = []
+    for sd in [RULES_CACHE_DIR, os.environ.get("KALMIDO_STATE_DIR"), "~/.cache/kalmido-agent"]:
+        if sd:
+            x = os.path.abspath(os.path.expanduser(os.path.join(sd, "run-env")))
+            if x not in out:
+                out.append(x)
+    for x in extra or ():
+        x = os.path.abspath(os.path.expanduser(x)) if x else ""
+        if x and x not in out:
+            out.append(x)
+    return out
+
+
+def hook_settings(perm_relay=False, usage=True, env_files=(), secret_dirs=()):
     """2.44.0 (#1442) / 2.615.0 E (#3758, free function so that jobs get it too): the hooks of the settings file handed to a
     Claude Code run with --settings (never the person's own settings): the PermissionRequest hook that asks in the chat
     (perm_relay), the guard against dangerous commands (PreToolUse / Bash, unless KALMIDO_BLOCK_DANGEROUS=0) and the
@@ -2713,13 +2731,17 @@ def hook_settings(perm_relay=False, usage=True, env_files=()):
     sf = os.environ.get("KALMIDO_ENV_FILE") or ""
     if sf and '"' not in sf:
         gcmd += f' --secret-file "{os.path.abspath(sf)}"'
+    dirs = run_env_dirs(secret_dirs)  # 2.1386.0 (#6668, review R3 F1): the request token files of every person
+    for x in dirs:
+        if '"' not in x:
+            gcmd += f' --secret-dir "{x}"'
     s["hooks"]["PreToolUse"] = [{"matcher": "Bash", "hooks": [{"type": "command", "command": gcmd, "timeout": 30}]}]
     # kalmido-capability: usage_hook (2.306.0, #2927)
     # 2.306.0 E (#2927): the usage hook next to this file as Stop / SubagentStop hook ("Usage" and the usage limits in
     # Kalmido); it reads KALMIDO_URL / KALMIDO_TOKEN from the run's environment. KALMIDO_USAGE_HOOK=0 switches it off.
     if usage:  # 2.619.0 (#3267): the one builder of the usage hook (usage_hook_settings), runs and jobs alike
         s["hooks"].update(usage_hook_settings())
-    deny = secret_deny_rules(extra=env_files)  # 2.1367.0 (#6457): the token's file stays closed to the model's own file tools
+    deny = secret_deny_rules(extra=env_files, dirs=dirs)  # 2.1367.0 (#6457): the token's file stays closed to the model's own file tools
     if deny:
         s["permissions"] = {"deny": deny}
     return s
@@ -2745,7 +2767,7 @@ def env_file_credentials():
     return env_credentials({"KALMIDO_ENV_FILE": os.environ.get("KALMIDO_ENV_FILE", "")})
 
 
-def secret_deny_rules(env=None, extra=()):
+def secret_deny_rules(env=None, extra=(), dirs=()):
     """2.1367.0 (#6457): the deny rules every run's settings carry: no Read of the env files in ~/.kalmido and of the env file (the token),
     no Edit of the env file (a changed KALMIDO_URL would send the token elsewhere). The setup writes the same and more
     (WebFetch, WebSearch) into the project's .claude/settings.local.json, where the person may loosen the web part."""
@@ -2760,6 +2782,9 @@ def secret_deny_rules(env=None, extra=()):
         if x and x != f:
             rp = rule_path(x)
             rules += [f"Read({rp})", f"Edit({rp})"]
+    for x in dirs or ():  # 2.1386.0 (#6668, review R3 F1): the whole run-env folder -- the files of other people too
+        rp = rule_path(x)
+        rules += [f"Read({rp}/**)", f"Edit({rp}/**)"]
     # 2.1386.0 (#6668, review F2): the environment of the starter's processes (/proc/<pid>/environ) stays closed too
     rules += ["Read(//proc/*/environ)", "Read(//proc/*/task/*/environ)"]
     return rules
@@ -2788,22 +2813,29 @@ def model_env(env):
 # 2.1386.0 (#6668, review F2): the environment of a process (/proc/<pid>/environ, also through a glob) and ps with the
 # environment (BSD e, -E) show what the starter's processes hold
 SECRET_PROC = re.compile(r"/proc/+[^\s/]*/+(?:task/+[^\s/]*/+)?[^\s/]*(?:env|[*?\[])")
+# 2.1386.0 (#6668, review R3 F1): the request token files of a team agent by name (also after a cd into the folder)
+SECRET_RUNENV = re.compile(r"(?:^|[^\w.-])(?:run-env|op\.env|auto\.env|p\d+\.env)(?![\w-])")
 SECRET_PS = re.compile(r"(?:^|[\s;&|(`])ps(?:\s+[^;&|\n`)]*?)?\s(?:[a-df-zA-Z]*e[a-zA-Z]*|-[a-zA-Z]*E[a-zA-Z]*)(?=[\s;&|)`]|$)")
 
 
-def guard_secret(cmd, env=None, files=()):
+def guard_secret(cmd, env=None, files=(), dirs=()):
     """2.1367.0 (#6457): a Bash line that names the env file (its path or its name) is refused: the token in it is the
     agent's key. 2.1386.0 (#6668): also the starter's env file named to the hook (files: --secret-file; a team agent's run
     has its request token's file in KALMIDO_ENV_FILE, not that one), /proc/<pid>/environ and ps with the environment; this
-    part holds also with KALMIDO_BLOCK_DANGEROUS=0. A name check, not a wall. None = fine."""
+    part holds also with KALMIDO_BLOCK_DANGEROUS=0. Review R3 F1: also the run-env folder of the request tokens of every
+    person (dirs: --secret-dir, and its file names) and a file by its real path (a link with another name). A name check,
+    not a wall. None = fine."""
     env = os.environ if env is None else env
     raw = str(cmd or "")
     text = re.sub(r"[\\\"']", "", raw)
     names = {"kalmido-agent.env", "KALMIDO_ENV_FILE"}
     for f in [env.get("KALMIDO_ENV_FILE") or ""] + list(files or ()):
         if f:
-            names |= {os.path.basename(f), f, os.path.abspath(f)}
-    if any(n and n in text for n in names):
+            names |= {os.path.basename(f), f, os.path.abspath(f), os.path.realpath(f), os.path.basename(os.path.realpath(f))}
+    for d in dirs or ():
+        if d:
+            names |= {d, os.path.abspath(d), os.path.realpath(d)}
+    if any(n and n in text for n in names) or SECRET_RUNENV.search(text):
         return GUARD_NO + "the command touches the agent's env file (its key). The Kalmido tools (MCP) have the access you need."
     if SECRET_PROC.search(text) or SECRET_PS.search(text):
         return GUARD_NO + "the command reads the environment of processes (it holds the agent's key). The Kalmido tools (MCP) have the access you need."
@@ -2818,15 +2850,16 @@ def guard_hook(argv):
     raw = ""
     only = "--secret-only" in argv  # 2.1386.0 (#6668): KALMIDO_BLOCK_DANGEROUS=0 -- the env file part stays
     files = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--secret-file"]
+    dirs = [argv[i + 1] for i, a in enumerate(argv[:-1]) if a == "--secret-dir"]  # 2.1386.0 (#6668, review R3 F1)
     try:
         raw = sys.stdin.read()
         d = json.loads(raw or "{}")
         if d.get("tool_name") != "Bash":
             return 0
         line = (d.get("tool_input") or {}).get("command") or ""
-        why = guard_secret(line, files=files) or (None if only else guard_reason(line))  # 2.1367.0 (#6457): the env file first
+        why = guard_secret(line, files=files, dirs=dirs) or (None if only else guard_reason(line))  # 2.1367.0 (#6457): the env file first
     except Exception as e:  # noqa: BLE001 - fail closed only for what looks dangerous (see above)
-        sus = ("kalmido-agent.env" in raw or "KALMIDO_ENV_FILE" in raw or "/proc/" in raw) or (not only and guard_suspicious(raw))
+        sus = ("kalmido-agent.env" in raw or "KALMIDO_ENV_FILE" in raw or "/proc/" in raw or "run-env" in raw) or (not only and guard_suspicious(raw))
         why = (GUARD_NO + f"the check failed ({type(e).__name__}) on a command that names a guarded command.") if sus else None
     if why:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",

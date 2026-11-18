@@ -550,7 +550,10 @@ coding agents, building files, own tools.
   The run's env file is written anew with every new token of that person (also after a `401`), so a job of the run keeps
   working; a job the starter wakes or continues gets the file of its person (none: it stays asleep). The starter's env file
   stays with the starter: the guard hook of #6457 (above) refuses a Bash line that names it, `/proc/<pid>/environ` or `ps e`,
-  that part also with `KALMIDO_BLOCK_DANGEROUS=0`, and every run's settings deny `Read` of `/proc/*/environ`. That is a rule
+  that part also with `KALMIDO_BLOCK_DANGEROUS=0`, and every run's settings deny `Read` of `/proc/*/environ`. The request
+  token files of all people (`<state>/run-env/`: `p<id>.env`, `op.env`, `auto.env`, the run's own included -- the MCP server
+  and `kalmido_cli.py` read it, the model never needs it) are denied the same way in every run and job: `Read` / `Edit` of the
+  folder and every Bash line that names it or such a file. That is a rule
   of the same system user, not a wall: **only a system user of its own for the runs** (that cannot read the env file)
   separates them hard.
   `GET /api/v1/agent` carries `"request_token": true` on a server with request tokens: only when that field is missing
