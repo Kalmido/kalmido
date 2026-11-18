@@ -8,6 +8,8 @@ admin. Kalmido itself never starts AI processes; this server runs wherever YOU r
 Configuration (environment):
   KALMIDO_URL     base address of the instance, e.g. https://tasks.example.com
   KALMIDO_TOKEN   the agent's API token (abk_...), Settings > Agents (team agents: admins; personal agents: Set up)
+  KALMIDO_ENV_FILE  2.1367.0 (#6457): the agent's env file; KALMIDO_URL / KALMIDO_TOKEN are read from it when the environment
+                  has none (the agent launcher keeps the token out of the model's process and hands on only this path)
   MCP_HTTP_TOKEN optional: HTTP mode requires "Authorization: Bearer <this>" from the MCP client
 
 Transports:
@@ -52,6 +54,41 @@ WAIT_MAX = 60
 ATT_CAP_DEFAULT = 5 * 1024 * 1024    # 2.13.1 (#465): get_attachment returns at most this many bytes (base64 in the answer)
 ATT_CAP_MAX = 20 * 1024 * 1024
 STEP_BODY_MAX = 32000  # 2.1078.0 (#5866, N1): the longest body (canonical JSON) an approval card binds (server: agents/control.py CTL_BODY_MAX)
+
+# kalmido-capability: token_scoped (2.1367.0, #6457)
+def read_env_file(path):
+    """2.1367.0 (#6457): KEY=VALUE lines of an agent env file (an optional "export ", shell quotes, # comments) -> dict,
+    read the way the launchers read it (agent_launcher.sh sources it, the .ps1 parses it)."""
+    import shlex
+    out = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            m = re.match(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$", line.rstrip("\r\n"))
+            if not m:
+                continue
+            try:
+                words = shlex.split(m.group(2), comments=True)
+            except ValueError:
+                words = [m.group(2).strip()]
+            out[m.group(1)] = words[0] if words else ""
+    return out
+
+
+def env_credentials(env=None):
+    """2.1367.0 (#6457): (url, token) from the environment, else from the env file KALMIDO_ENV_FILE names. The runner of an
+    agent keeps KALMIDO_TOKEN out of the model's process (it passes on only the path); this server, kalmido_cli.py,
+    agent_job.py and the usage hook read the token here, so it never sits in the environment a Bash step of the model sees."""
+    env = os.environ if env is None else env
+    url, tok = env.get("KALMIDO_URL", ""), env.get("KALMIDO_TOKEN", "")
+    path = env.get("KALMIDO_ENV_FILE", "")
+    if (not url or not tok) and path:
+        try:
+            vals = read_env_file(os.path.expanduser(path))
+        except (OSError, UnicodeDecodeError):
+            vals = {}
+        url, tok = url or vals.get("KALMIDO_URL", ""), tok or vals.get("KALMIDO_TOKEN", "")
+    return url, tok
+
 
 # ---------------------------------------------------------------- REST client
 
@@ -3553,7 +3590,7 @@ def main(argv=None):
     except ValueError as e:
         print(f"kalmido-mcp: {e}", file=sys.stderr)
         return 2
-    api = Kalmido(os.environ.get("KALMIDO_URL", ""), os.environ.get("KALMIDO_TOKEN", ""))
+    api = Kalmido(*env_credentials())  # 2.1367.0 (#6457): the environment, else the env file KALMIDO_ENV_FILE
     if not api.base or not api.token:
         print("kalmido-mcp: KALMIDO_URL and KALMIDO_TOKEN must be set", file=sys.stderr)
     if a.http and len(os.environ.get("MCP_HTTP_TOKEN", "")) < 16:  # 2.126.0 B (#1979 G2)

@@ -9,7 +9,7 @@
 # computer = several folders). Needs: bash (3.2 is enough), curl, python3 3.9+, the agent command (default: claude).
 #
 # usage: agent-setup.sh --url URL --code CODE --dir FOLDER [--tool claude|codex] [--cmd COMMAND] [--from DIR] [--no-autostart] [--dry-run] [--lang de|en|es|fr|it|nl]
-#        [--allow-http]
+#        [--allow-http] [--ip-rule current|off|ADDRESSES]
 #        agent-setup.sh --uninstall --dir FOLDER [--dry-run]
 #   --url        your Kalmido address
 #   --code       the one-time setup code (15 minutes, works once; make a new one in Kalmido when it expired); 2.360.0:
@@ -22,13 +22,17 @@
 #                server, Codex CLI the same server with -c mcp_servers.kalmido.command=... (no change of ~/.codex/config.toml)
 #   --from DIR   take the starter files from a local copy of mcp/ instead of downloading them
 #   --no-autostart  install everything but the autostart (start agent_launcher.sh yourself)
+#   --ip-rule    2.1367.0 (#6457): an address rule for this computer's key: current (the address it reaches Kalmido from),
+#                off, or IPs / networks separated by commas; without it the setup asks on the terminal (Enter = no rule;
+#                no terminal = no rule)
 #   --lang       language of the messages: de, en, es, fr, it or nl (Kalmido adds the language of your account; anything else = en)
 #   --dry-run    only show what would happen: no code is redeemed, nothing is written, no autostart is loaded
 #   --uninstall  stop and remove the autostart, revoke this computer's token in Kalmido, delete the instance folder
-# Files: ~/.kalmido/agents/<folder name>-<hash>/ (starter files, kalmido-agent.env with mode 600, mcp.json, agent.log).
+# Files: ~/.kalmido/agents/<folder name>-<hash>/ (starter files, kalmido-agent.env with mode 600, mcp.json, agent.log);
+# 2.1367.0 (#6457): Claude Code's deny rules in <folder>/.claude/settings.local.json.
 set -uo pipefail
 
-URL="" CODE=${KALMIDO_SETUP_CODE:-} DIR="" CMD="" TOOL="" FROM="" DRY=0 UNINSTALL=0 NOAUTO=0 LANGC=en HTTPOK=0
+URL="" CODE=${KALMIDO_SETUP_CODE:-} DIR="" CMD="" TOOL="" FROM="" DRY=0 UNINSTALL=0 NOAUTO=0 LANGC=en HTTPOK=0 IPRULE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --url) URL=${2:-}; shift 2 ;;
@@ -42,7 +46,8 @@ while [ $# -gt 0 ]; do
     --allow-http) HTTPOK=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --lang) LANGC=${2:-en}; shift 2 ;;
-    -h|--help) sed -n '2,28p' "$0" 2>/dev/null || echo "see the comment at the top of agent-setup.sh"; exit 0 ;;
+    --ip-rule) IPRULE=${2:-}; shift 2 ;;
+    -h|--help) sed -n '2,31p' "$0" 2>/dev/null || echo "see the comment at the top of agent-setup.sh"; exit 0 ;;
     *) UNKNOWN=$1; break ;;
   esac
 done
@@ -94,6 +99,13 @@ msg_de() {
     claude_new) echo "  CLAUDE.md angelegt: %s (aus der Vorlage; eigene Regeln oben ergänzen)" ;;
     claude_kept) echo "  CLAUDE.md vorhanden, bleibt unverändert: %s" ;;
     dry_claude) echo "  (Probelauf) CLAUDE.md aus der Vorlage anlegen, wenn keine da ist: %s" ;;
+    ask_ip) echo "Soll der Schlüssel dieses Computers nur von seiner jetzigen Internet-Adresse aus gelten? Empfohlen bei fester Adresse; wechselt sie, erreicht der Agent Kalmido nicht mehr, bis du die Regel in Kalmido änderst. [j/N]: " ;;
+    ip_set) echo "  Schlüssel gilt nur von: %s" ;;
+    ip_wide) echo "  Adress-Regel nicht gesetzt: der Agent hat schon eine eigene, engere Regel (%s)" ;;
+    harden) echo "  Sperrregeln für Claude Code eingetragen: %s (kein WebFetch / WebSearch, kein Lesen der Schlüssel-Datei)" ;;
+    dry_harden) echo "  (Probelauf) Sperrregeln für Claude Code eintragen in: %s" ;;
+    harden_fail) echo "  Sperrregeln konnten nicht eingetragen werden (%s ist kein gültiges JSON); trag sie von Hand ein, siehe Anleitung" ;;
+    badip) echo "--ip-rule: current, off oder Adressen/Netze mit Komma (z. B. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Lade die Starter-Dateien" ;;
     dry_files) echo "  (Probelauf) die Dateien aus %s/starter_files.txt nach %s" ;;
     nobase) echo "Kalmido hat keine Adresse für die Starter-Dateien geschickt; nimm --from ORDNER" ;;
@@ -167,6 +179,13 @@ msg_en() {
     claude_new) echo "  CLAUDE.md created: %s (from the template; add your own rules on top)" ;;
     claude_kept) echo "  CLAUDE.md exists, left as it is: %s" ;;
     dry_claude) echo "  (dry run) create CLAUDE.md from the template when there is none: %s" ;;
+    ask_ip) echo "Should this computer's key work only from its current internet address? Recommended for a fixed address; if it changes, the agent cannot reach Kalmido until you change the rule in Kalmido. [y/N]: " ;;
+    ip_set) echo "  The key works only from: %s" ;;
+    ip_wide) echo "  Address rule not set: the agent already has its own, narrower rule (%s)" ;;
+    harden) echo "  Deny rules for Claude Code written: %s (no WebFetch / WebSearch, no reading of the key file)" ;;
+    dry_harden) echo "  (dry run) write deny rules for Claude Code into: %s" ;;
+    harden_fail) echo "  The deny rules could not be written (%s is not valid JSON); add them by hand, see the guide" ;;
+    badip) echo "--ip-rule: current, off or addresses / networks separated by commas (e.g. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Fetching the starter files" ;;
     dry_files) echo "  (dry run) the files of %s/starter_files.txt into %s" ;;
     nobase) echo "Kalmido sent no address for the starter files; use --from DIR" ;;
@@ -240,6 +259,13 @@ msg_es() {
     claude_new) echo "  CLAUDE.md creado: %s (a partir de la plantilla; añade tus propias reglas arriba)" ;;
     claude_kept) echo "  CLAUDE.md ya existe, se deja como está: %s" ;;
     dry_claude) echo "  (simulacro) crear CLAUDE.md a partir de la plantilla si no hay ninguno: %s" ;;
+    ask_ip) echo "¿La clave de este ordenador debe funcionar solo desde su dirección de internet actual? Recomendado con dirección fija; si cambia, el agente no llega a Kalmido hasta que cambies la regla en Kalmido. [s/N]: " ;;
+    ip_set) echo "  La clave solo funciona desde: %s" ;;
+    ip_wide) echo "  Regla de direcciones no puesta: el agente ya tiene una propia más estrecha (%s)" ;;
+    harden) echo "  Reglas de bloqueo para Claude Code escritas: %s (sin WebFetch / WebSearch, sin leer el archivo de la clave)" ;;
+    dry_harden) echo "  (simulacro) escribir reglas de bloqueo para Claude Code en: %s" ;;
+    harden_fail) echo "  No se pudieron escribir las reglas de bloqueo (%s no es JSON válido); añádelas a mano, ver la guía" ;;
+    badip) echo "--ip-rule: current, off o direcciones / redes separadas por comas (p. ej. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Descargando los archivos de inicio" ;;
     dry_files) echo "  (simulacro) los archivos de %s/starter_files.txt en %s" ;;
     nobase) echo "Kalmido no ha enviado ninguna dirección para los archivos de inicio; usa --from CARPETA" ;;
@@ -313,6 +339,13 @@ msg_fr() {
     claude_new) echo "  CLAUDE.md créé : %s (d'après le modèle ; ajoute tes propres règles en haut)" ;;
     claude_kept) echo "  CLAUDE.md existe déjà, laissé tel quel : %s" ;;
     dry_claude) echo "  (essai à blanc) créer CLAUDE.md d'après le modèle s'il n'y en a pas : %s" ;;
+    ask_ip) echo "La clé de cet ordinateur doit-elle fonctionner seulement depuis son adresse internet actuelle ? Recommandé avec une adresse fixe ; si elle change, l'agent n'atteint plus Kalmido jusqu'à ce que tu changes la règle dans Kalmido. [o/N] : " ;;
+    ip_set) echo "  La clé fonctionne seulement depuis : %s" ;;
+    ip_wide) echo "  Règle d'adresse non posée : l'agent a déjà sa propre règle, plus étroite (%s)" ;;
+    harden) echo "  Règles de blocage pour Claude Code écrites : %s (pas de WebFetch / WebSearch, pas de lecture du fichier de la clé)" ;;
+    dry_harden) echo "  (essai à blanc) écrire les règles de blocage pour Claude Code dans : %s" ;;
+    harden_fail) echo "  Les règles de blocage n'ont pas pu être écrites (%s n'est pas du JSON valide) ; ajoute-les à la main, voir le guide" ;;
+    badip) echo "--ip-rule : current, off ou des adresses / réseaux séparés par des virgules (p. ex. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Téléchargement des fichiers de démarrage" ;;
     dry_files) echo "  (essai à blanc) les fichiers de %s/starter_files.txt dans %s" ;;
     nobase) echo "Kalmido n'a envoyé aucune adresse pour les fichiers de démarrage ; utilise --from DOSSIER" ;;
@@ -386,6 +419,13 @@ msg_it() {
     claude_new) echo "  CLAUDE.md creato: %s (dal modello; aggiungi le tue regole in alto)" ;;
     claude_kept) echo "  CLAUDE.md esiste già, lasciato com'è: %s" ;;
     dry_claude) echo "  (prova) creare CLAUDE.md dal modello se non ce n'è uno: %s" ;;
+    ask_ip) echo "La chiave di questo computer deve funzionare solo dal suo indirizzo internet attuale? Consigliato con indirizzo fisso; se cambia, l'agente non raggiunge Kalmido finché non cambi la regola in Kalmido. [s/N]: " ;;
+    ip_set) echo "  La chiave funziona solo da: %s" ;;
+    ip_wide) echo "  Regola di indirizzo non impostata: l'agente ha già una regola propria più stretta (%s)" ;;
+    harden) echo "  Regole di blocco per Claude Code scritte: %s (niente WebFetch / WebSearch, niente lettura del file della chiave)" ;;
+    dry_harden) echo "  (prova) scrivere le regole di blocco per Claude Code in: %s" ;;
+    harden_fail) echo "  Impossibile scrivere le regole di blocco (%s non è JSON valido); aggiungile a mano, vedi la guida" ;;
+    badip) echo "--ip-rule: current, off o indirizzi / reti separati da virgole (es. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "Scaricamento dei file di avvio" ;;
     dry_files) echo "  (prova) i file di %s/starter_files.txt in %s" ;;
     nobase) echo "Kalmido non ha inviato alcun indirizzo per i file di avvio; usa --from CARTELLA" ;;
@@ -459,6 +499,13 @@ msg_nl() {
     claude_new) echo "  CLAUDE.md aangemaakt: %s (uit de sjabloon; voeg je eigen regels bovenaan toe)" ;;
     claude_kept) echo "  CLAUDE.md bestaat al, blijft zoals het is: %s" ;;
     dry_claude) echo "  (proefrun) CLAUDE.md aanmaken uit de sjabloon als er geen is: %s" ;;
+    ask_ip) echo "Moet de sleutel van deze computer alleen werken vanaf zijn huidige internetadres? Aanbevolen bij een vast adres; verandert het, dan bereikt de agent Kalmido niet meer tot je de regel in Kalmido aanpast. [j/N]: " ;;
+    ip_set) echo "  De sleutel werkt alleen vanaf: %s" ;;
+    ip_wide) echo "  Adresregel niet gezet: de agent heeft al een eigen, nauwere regel (%s)" ;;
+    harden) echo "  Blokkeerregels voor Claude Code geschreven: %s (geen WebFetch / WebSearch, geen lezen van het sleutelbestand)" ;;
+    dry_harden) echo "  (proefrun) blokkeerregels voor Claude Code schrijven in: %s" ;;
+    harden_fail) echo "  De blokkeerregels konden niet worden geschreven (%s is geen geldige JSON); voeg ze met de hand toe, zie de handleiding" ;;
+    badip) echo "--ip-rule: current, off of adressen / netwerken gescheiden door komma's (bijv. 203.0.113.7,2001:db8::/64)" ;;
     s_starter) echo "De startbestanden ophalen" ;;
     dry_files) echo "  (proefrun) de bestanden uit %s/starter_files.txt naar %s" ;;
     nobase) echo "Kalmido heeft geen adres voor de startbestanden gestuurd; gebruik --from MAP" ;;
@@ -523,6 +570,14 @@ if [ -z "$TOOL" ] && [ "$DRY" = 0 ] && [ "$UNINSTALL" = 0 ] && [ -t 2 ] && (: < 
 fi
 TOOL=${TOOL:-claude}
 case "$TOOL" in claude|codex) ;; *) dief badtool "$TOOL" ;; esac
+# 2.1367.0 (#6457): the address rule of this computer's key (api_tokens.allowed_ips, set by Kalmido at the redeem); asked once
+# on the terminal like the tool (default no: a home connection often changes its address); no terminal: none
+if [ -z "$IPRULE" ] && [ "$DRY" = 0 ] && [ "$UNINSTALL" = 0 ] && [ -t 2 ] && (: < /dev/tty) 2>/dev/null; then
+  printf '%s' "$(msg ask_ip)" >&2
+  ans=""; read -r -t 120 ans < /dev/tty || ans=""
+  case "$ans" in [jJyYsSoO]*) IPRULE=current ;; esac
+fi
+case "$IPRULE" in ""|off|none) IPRULE="" ;; current) ;; *[!0-9A-Fa-f.:/,\ ]*) dief badip ;; esac
 [ -n "$CMD" ] || CMD=$TOOL
 
 # kalmido-setup-step: prereq
@@ -652,12 +707,16 @@ else
   run mkdir -p "$INST" || dief nocreate "$INST"
   chmod 700 "$INST"
   # the code goes to python in the environment, the token straight into the env file (mode 600) -- neither is printed
-  out=$(KALMIDO_SETUP_CODE=$CODE KALMIDO_SETUP_URL=$URL KALMIDO_SETUP_ENV=$ENVF KALMIDO_SETUP_HOST=$HOSTN \
+  out=$(KALMIDO_SETUP_CODE=$CODE KALMIDO_SETUP_URL=$URL KALMIDO_SETUP_ENV=$ENVF KALMIDO_SETUP_HOST=$HOSTN KALMIDO_SETUP_IPS=$IPRULE \
         KALMIDO_SETUP_DIR=$DIR KALMIDO_SETUP_OS=$OS KALMIDO_M_REF="$(msg refused)" KALMIDO_M_DEF="$(msg refused_def)" KALMIDO_M_REACH="$(msg noreach)" "$PY" - <<'PYEOF'
 import json, os, re, shlex, sys, urllib.error, urllib.request
 e = os.environ
-body = json.dumps({"code": e["KALMIDO_SETUP_CODE"].strip(), "host": e["KALMIDO_SETUP_HOST"][:80], "folder": e["KALMIDO_SETUP_DIR"][:300],
-                   "os": e["KALMIDO_SETUP_OS"]}).encode()
+b = {"code": e["KALMIDO_SETUP_CODE"].strip(), "host": e["KALMIDO_SETUP_HOST"][:80], "folder": e["KALMIDO_SETUP_DIR"][:300],
+     "os": e["KALMIDO_SETUP_OS"]}
+ips = e.get("KALMIDO_SETUP_IPS", "").strip()
+if ips:  # 2.1367.0 (#6457): "current" or IPs / networks; Kalmido sets the key's address rule (never wider than the agent's own)
+    b["allowed_ips"] = ips if ips == "current" else [x for x in re.split(r"[\s,]+", ips) if x]
+body = json.dumps(b).encode()
 req = urllib.request.Request(e["KALMIDO_SETUP_URL"] + "/api/agent-setup/redeem", data=body, method="POST",
                              headers={"Content-Type": "application/json", "X-Requested-With": "kalmido"})
 try:
@@ -714,10 +773,11 @@ elif os.path.exists(shaf):
 if re.fullmatch(r"\d+(\.\d+){1,3}", ver):
     with open(os.path.join(os.path.dirname(e["KALMIDO_SETUP_ENV"]), "VERSION"), "w", encoding="utf-8") as f:
         f.write(ver + "\n")
-print("%s\t%s\t%s" % (nm, perm, r.get("starter_base") or ""))
+got = ",".join(str(x) for x in r.get("allowed_ips") or [] if re.fullmatch(r"[0-9A-Fa-f.:/]{2,50}", str(x)))  # 2.1367.0 (#6457)
+print("%s\t%s\t%s\t%s" % (nm, perm, r.get("starter_base") or "", (("+" if r.get("allowed_ips_applied") else "-") + got) if ips else ""))
 PYEOF
   ) || dief stopped
-  IFS=$'\t' read -r AGNAME PERM STARTER_BASE <<< "$out"
+  IFS=$'\t' read -r AGNAME PERM STARTER_BASE IPGOT <<< "$out"
   REDEEMED=1
   sayf agent "$AGNAME" "$ENVF"
   case "$PERM" in
@@ -726,6 +786,7 @@ PYEOF
     owner) sayf perm_owner ;;
     *) sayf perm_you "$PERM" "$ENVF" ;;
   esac
+  case "$IPGOT" in +?*) sayf ip_set "${IPGOT#+}" ;; -?*) sayf ip_wide "${IPGOT#-}" ;; esac  # 2.1367.0 (#6457)
 fi
 
 # kalmido-setup-step: starter_files
@@ -777,8 +838,8 @@ else
 fi
 
 # kalmido-setup-step: mcp_config
-# the agent command gets the MCP server with --mcp-config (works headless without a trust prompt); the token comes from the
-# launcher's environment, so it is in no config file but the env file
+# the agent command gets the MCP server with --mcp-config (works headless without a trust prompt); the token is in no config
+# file but the env file (2.1367.0, #6457: the server reads it there, the launcher hands the model's process only its path)
 MCPJ=$INST/mcp.json
 MCPARGS=(--mcp-config "$MCPJ")
 if [ "$TOOL" = codex ]; then
@@ -793,8 +854,9 @@ elif [ "$TOOL" = codex ]; then
     "$ENVF" "$(command -v "$PY")" "$INST/kalmido_mcp.py" > "$MCPJ"
   chmod 700 "$MCPJ"
 else
-  "$PY" -c 'import json, sys; json.dump({"mcpServers": {"kalmido": {"command": sys.argv[1], "args": [sys.argv[2]]}}}, open(sys.argv[3], "w"), indent=2)' \
-    "$(command -v "$PY")" "$INST/kalmido_mcp.py" "$MCPJ"
+  # 2.1367.0 (#6457): the server reads the token from the env file itself (only its path here; the model's process has no token)
+  "$PY" -c 'import json, sys; json.dump({"mcpServers": {"kalmido": {"command": sys.argv[1], "args": [sys.argv[2]], "env": {"KALMIDO_ENV_FILE": sys.argv[4]}}}}, open(sys.argv[3], "w"), indent=2)' \
+    "$(command -v "$PY")" "$INST/kalmido_mcp.py" "$MCPJ" "$ENVF"
 fi
 run mkdir -p "$DIR"
 
@@ -817,6 +879,38 @@ with open(sys.argv[2], "x", encoding="utf-8") as f:
     f.write(head + t[a:b + len("<!-- kalmido-agent-rules:end -->")] + "\n")
 PYEOF
 then sayf claude_new "$DIR/CLAUDE.md"
+fi
+
+# kalmido-setup-step: harden
+# 2.1367.0 (#6457): Claude Code's deny rules for this project folder in .claude/settings.local.json (this computer only, not
+# in the repository): no WebFetch / WebSearch, no Read of ~/.kalmido and of the env file, no Edit of the env file. Entries
+# already there stay, a second setup adds nothing twice; the person may take the web rules out again (every run's settings
+# keep the file rules, mcp/agent_run.py secret_deny_rules)
+if [ "$TOOL" = claude ]; then
+  HSET=$DIR/.claude/settings.local.json
+  if [ "$DRY" = 1 ]; then sayf dry_harden "$HSET"
+  elif "$PY" - "$HSET" "$ENVF" <<'PYEOF'
+import json, os, sys
+path, envf = sys.argv[1], os.path.abspath(sys.argv[2])
+rules = ["WebFetch", "WebSearch", "Read(~/.kalmido/**)", "Read(/%s)" % envf, "Edit(/%s)" % envf]  # "//" + absolute path
+d = {}
+if os.path.exists(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except ValueError:
+        sys.exit(3)
+p = d.setdefault("permissions", {}) if isinstance(d, dict) else None
+deny = p.setdefault("deny", []) if isinstance(p, dict) else None
+if not isinstance(deny, list):
+    sys.exit(3)
+deny += [r for r in rules if r not in deny]
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path + ".new", "w", encoding="utf-8") as f:
+    f.write(json.dumps(d, indent=2) + "\n")
+os.replace(path + ".new", path)
+PYEOF
+  then sayf harden "$HSET"; else sayf harden_fail "$HSET"; fi
 fi
 
 # kalmido-setup-step: autostart
