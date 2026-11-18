@@ -558,4 +558,11 @@ waited, r = race(L14, lambda: kput(KEY7, "f14:1", {"city": "Bonn", "expect_updat
 check(waited and r is not None and r.status_code == 200 and r.json().get("city") == "Bonn",
       f"F14: the key's PUT waits for the client's lock first (not its row) and then writes {waited} {r and r.text[:200]}")
 
+# F12: reads and unchanged PUTs write one line issuer_read per issuer and hour (target "clients"), not one per client
+check(kget(KEY7, "f14:1").ok, "F12: GET of the first client")
+assert kput(KEY7, "f12:2", {"name": "Lesen Zwei", **ADDR}).status_code == 201
+check(kget(KEY7, "f12:2").ok and kput(KEY7, "f12:2", {"name": "Lesen Zwei"}).status_code == 200, "F12: GET and an unchanged PUT of a second client")
+rd = sql("SELECT target FROM office_doc_log WHERE issuer_id=? AND action='issuer_read'", (IID7,))
+check([x[0] for x in rd] == ["clients"], f"F12: one read line for both clients within the hour, target clients {rd}")
+
 sys.exit(kt.done("p6700_office_issuer_clients"))
