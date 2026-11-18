@@ -47,22 +47,24 @@ const rowBox = el => { el.getBoundingClientRect = () => ({top: 100, bottom: 140,
     select(ids);
     const src = await until(() => row(ids[0]));
     dnd(w, src, 'dragstart');
-    check(w.eval('DG.ids && DG.ids.length') === ids.length, `the ghost names ${ids.length} tasks`);
+    const got = w.eval('DG.ids ? [...DG.ids] : []');  // the selection in the order the view shows it (dgOrder)
+    check(got.length === ids.length, `the ghost names ${ids.length} tasks`);
     dnd(w, target, 'dragover', o); dnd(w, target, 'drop', o); dnd(w, src, 'dragend');
+    return got;
   };
 
   // three selected onto the head of Soon: all three there, in their order
   await until(() => row(TA) && row(TE));
-  await dragTo([TA, TC, TE], head(/Soon/));
+  const o1 = await dragTo([TA, TC, TE], head(/Soon/));
   check(await until(() => inSec(/Soon/, TA) && inSec(/Soon/, TC) && inSec(/Soon/, TE)), 'onto the head of Soon: all three stand under it');
   check(await until(async () => { const s = (await st()).mine_sections.tasks; return [TA, TC, TE].every(i => s[i] === sid(/Soon/)); }), 'the server keeps all three in Soon');
-  check(await until(() => order([TA, TC, TE])), 'their order is the selection\'s');
+  check(await until(() => order(o1)), 'their order is the selection\'s ' + o1);
   check(!inSec(/Soon/, TB) && !inSec(/Soon/, TD), 'the others stay where they were');
 
-  // two selected onto the lower part of the row of TA: both after TA, in their order
-  await dragTo([TB, TD], rowBox(row(TA)), {clientY: 135});
+  // two selected onto the lower part of the first row of Soon: both right after it, in their order
+  const o2 = await dragTo([TB, TD], rowBox(row(o1[0])), {clientY: 135});
   check(await until(() => inSec(/Soon/, TB) && inSec(/Soon/, TD)), 'onto a row of Soon: both stand in Soon');
-  check(await until(() => order([TA, TB, TD, TC, TE])), 'after the row, in the selection\'s order');
+  check(await until(() => order([o1[0], ...o2, ...o1.slice(1)])), 'after the row, in the selection\'s order ' + o2);
 
   // the board by priority: one drop on "High" sets both
   w.eval(`S.multiMode = false; S.multi.clear(); S.settings.mine_board = '1'; S.settings.mine_board_by = 'prio'; render();`);
