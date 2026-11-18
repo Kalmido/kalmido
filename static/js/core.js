@@ -1408,12 +1408,15 @@ function conflictModal() {
       <div class="cfb"><button class="btn sm" data-cf="server" data-i="${i}">${tr('Dismiss')}</button>${c.qf ? `<button class="btn sm" data-cf="dl" data-i="${i}">${ic('download', 's')} ${tr('Download')}</button>` : '' /* 2.380 H (#3387) */}<button class="btn sm pri" data-cf="copy" data-i="${i}">${ic('copy', 's')} ${tr('Copy')}</button></div></div>` : `<div class="cfitem"><div class="cfh"><b>${esc(c.title)}</b><span class="muted">${esc(histFieldName(c.field))}</span></div>
       <div class="cfv"><div><span>${tr('saved')}</span>${esc(fmtVal(c.field, c.server))}</div><div><span>${tr('your version')}</span>${esc(fmtVal(c.field, c.mine))}</div></div>
       <div class="cfb"><button class="btn sm" data-cf="server" data-i="${i}">${tr('Keep saved')}</button><button class="btn sm pri" data-cf="mine" data-i="${i}">${tr('Use mine')}</button></div></div>`).join('') || `<div class="muted" style="padding:.625rem 0">${tr('No open conflicts.')}</div>`;
+    $('[data-m="all-server"]', md).hidden = !S.conflicts.some(c => c.field !== 'rejected');  // 2.1397.0 (#6329 A8)
   };
   draw();
   md.addEventListener('click', async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.m === 'close') { md.remove(); return; }
-    if (b.dataset.m === 'all-server') { if (typeof qfForget === 'function') qfForget(S.conflicts.map(c => c.qf)); S.conflicts = []; }
+    // 2.1397.0 (#6329 A8): "All: keep the other version" settles only the fields changed elsewhere; an offline change the server
+    // refused ('rejected') has no other version, the entry is its only copy: it stays until its own Dismiss
+    if (b.dataset.m === 'all-server') { S.conflicts = S.conflicts.filter(c => c.field === 'rejected'); }
     if (b.dataset.cf) {
       const c = S.conflicts[+b.dataset.i];
       if (b.dataset.cf === 'copy') { try { await navigator.clipboard.writeText(c.mine); toast(tr('Copied')); } catch { toast(c.mine); } return; }  // 2.126.0 D (#1992 O8)
@@ -1448,12 +1451,18 @@ async function userSwitchAsk(id, n) {
 function cfDownload(uid, prev) {
   for (const e of outSync().filter(x => x.uid !== uid && !x.done)) outReject(e, {message: tr('Not synced yet')});
   const list = S.conflicts || [], wx = prev ? fdList('fdx', prev).map(r => r.b).filter(b => b && typeof b.mine === 'string') : [];
-  if (!list.length && !wx.length) return false;
+  // 2.1397.0 (#6329 D5): the other kept input too (a dialog's fields 'fdf', a comment draft 'fdc', a kept write 'fdw', a letter
+  // 'ltpend'): its texts, so the copy holds everything the question counted
+  const kv = b => typeof b === 'string' ? b : Object.entries(b && typeof b === 'object' ? b : {}).filter(([k, v]) => !k.startsWith('_') && v != null && v !== '')
+    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n');
+  const kx = prev ? FD_KINDS.filter(k => k !== 'fdx').flatMap(k => fdList(k, prev).map(r => [k, r.id, kv(r.b)])).filter(x => x[2]) : [];
+  if (!list.length && !wx.length && !kx.length) return false;
   const val = (f, v) => { try { return fmtVal(f, v); } catch { return typeof v === 'object' ? JSON.stringify(v) : String(v ?? ''); } };
   const txt = [`${APP_NAME} · ${new Date().toLocaleString()}`, ''].concat(...list.map(c => c.field === 'rejected'
     ? [`== ${c.title || '?'} · ${tr('Offline change not saved')}`, `${tr('reason')}: ${c.server || ''}`, `${tr('your version')}:`, String(c.mine ?? ''), '']
     : [`== ${c.title || '?'} · ${histFieldName(c.field)}`, `${tr('saved')}: ${val(c.field, c.server)}`, `${tr('your version')}: ${val(c.field, c.mine)}`, '']),
-  ...wx.map(b => [`== ${b.title || '#' + b.id} · ${tr('Knowledge page')}`, ...(b.why ? [`${tr('reason')}: ${b.why}`] : []), `${tr('your version')}:`, b.mine, ''])).join('\n');
+  ...wx.map(b => [`== ${b.title || '#' + b.id} · ${tr('Knowledge page')}`, ...(b.why ? [`${tr('reason')}: ${b.why}`] : []), `${tr('your version')}:`, b.mine, '']),
+  ...kx.map(([k, id, t]) => [`== ${k} ${id} · ${tr('Input not saved yet')}`, t, ''])).join('\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], {type: 'text/plain'}));
   a.download = `${APP_NAME.toLowerCase()}-conflicts-${today()}.txt`;
   document.body.appendChild(a); a.click(); a.remove();
@@ -1477,7 +1486,7 @@ function applyState(j, w0) {  // w0: S.wseq when its GET /api/state started (ld_
     if (last !== null && last !== j.me.id) {
       // 2.359.0 A (#3023): changes of the previous account still wait on this device: asked first (only their number shows);
       // "Cancel" signs out again, so the previous person can sign in and send them
-      const n = outSync().filter(x => x.uid !== j.me.id).length + (S.conflicts || []).length + fdList('fdx', last).length;  // 2.359.0 A (#3023); 2.1257.0 (#6286): + waiting knowledge page texts
+      const n = outSync().filter(x => x.uid !== j.me.id).length + (S.conflicts || []).length + FD_KINDS.reduce((m, k) => m + fdList(k, last).length, 0);  // 2.359.0 A (#3023); 2.1257.0 (#6286): + waiting knowledge page texts; 2.1397.0 (#6329 D5): + every kept input (cfDownload holds it)
       if (!n) userSwitch(j.me.id); else if (!OUT.switchAsk) OUT.switchAsk = userSwitchAsk(j.me.id, n);  // 2.359.0 (review): one question, not one per poll
       throw new Error('auth');
     }

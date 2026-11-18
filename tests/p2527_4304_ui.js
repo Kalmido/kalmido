@@ -148,6 +148,38 @@ const online = w => { w.__offline = false; w.eval('OUT.retryAt = 0'); w.dispatch
   check(await until(() => !/Cut the hedge on Friday/.test(wb.__store['tasks.conflicts'] || '')), 'A20: then the local data of the previous account goes as before');
   wb.close();
 
+  // ================= 2.1397.0 (#6329 A8): "All: keep the other version" leaves the refused offline changes standing
+  const aid = (await call('GET', '/api/state')).me.id;
+  const ask2 = [], blobs2 = [], names2 = [];
+  const cfl2 = [{tid: T1, title: 'Cut the hedge', field: 'title', server: 'Cut the hedge', mine: 'Cut the hedge today', at: Date.now()},
+    {tid: T2, title: 'Water the roses', field: 'rejected', server: 'no permission', mine: 'Roses typed on the train', at: Date.now()}];
+  let say = false;
+  const wd = await boot({user: 'alice', hash: 'l/' + P, ls: {'tasks.conflicts': JSON.stringify(cfl2), [`tasks.fdc.${aid}.${T1}`]: JSON.stringify({base: '', b: 'Comment typed before the sign-out', at: Date.now()})},
+    setup: x => { x.confirm = t => { ask2.push(t); return say; }; const OB = x.Blob; x.Blob = class extends OB { constructor(parts, o) { super(parts, o); this.__txt = (parts || []).join(''); } }; x.URL.createObjectURL = b => { blobs2.push(b); return 'blob:x'; }; x.URL.revokeObjectURL = () => {}; x.HTMLAnchorElement.prototype.click = function () { if (this.download) names2.push(this.download); }; }});
+  check(await until(() => wd.eval('S.booted') && wd.eval('S.conflicts.length') === 2), 'A8 setup: two conflicts, one of them refused offline');
+  wd.eval('conflictModal()');
+  const md8 = await until(() => [...wd.document.querySelectorAll('.modal')].find(x => x.querySelector('#cf-list .cfitem')));
+  const all8 = md8?.querySelector('[data-m="all-server"]');
+  check(all8 && !all8.hidden, 'A8: the button is there while a field conflict is open');
+  all8?.click();
+  const left8 = wd.eval('S.conflicts');
+  check(left8.length === 1 && left8[0].field === 'rejected' && /Roses typed on the train/.test(wd.__store['tasks.conflicts'] || ''), '#6329 A8: the refused offline change stays (rollback test) ' + JSON.stringify(left8));
+  check(md8.isConnected && /Roses typed on the train/.test(md8.querySelector('#cf-list').textContent) && md8.querySelector('[data-m="all-server"]').hidden, 'A8: the dialog stays with it, the button is gone (nothing left for it)');
+  md8?.remove();
+
+  // ================= 2.1397.0 (#6329 D5): logout asks like the account switch when only conflict copies / kept input wait
+  check(wd.eval('OUT.q.length') === 0, 'D5 setup: the queue is empty');
+  await wd.eval('logout()');
+  check(ask2.length === 1 && /2 changes are not synced yet/.test(ask2[0]) && /downloaded as a text file/.test(ask2[0]), '#6329 D5: an empty queue, a conflict copy and a comment draft: asked first (rollback test) ' + JSON.stringify(ask2));
+  check(/Roses typed on the train/.test(wd.__store['tasks.conflicts'] || '') && wd.__store[`tasks.fdc.${aid}.${T1}`] && wd.eval('!!S.me') && !names2.length, 'D5: "Cancel" keeps everything, nothing downloaded');
+  say = true;
+  await wd.eval('logout()');
+  check(names2.length === 1 && /^kalmido-conflicts-\d{4}-\d{2}-\d{2}\.txt$/.test(names2[0]), 'D5: "Sign out" downloads the copy first ' + JSON.stringify(names2));
+  const txt2 = blobs2[0]?.__txt || '';
+  check(/Roses typed on the train/.test(txt2) && /Comment typed before the sign-out/.test(txt2), 'D5: the file holds the conflict copy and the kept comment ' + JSON.stringify(txt2.slice(0, 300)));
+  check(!wd.__store['tasks.conflicts'] && !wd.__store[`tasks.fdc.${aid}.${T1}`], 'D5: then signed out, the local data is gone');
+  wd.close();
+
   // ================= A5: the session ends while the client dialog / a comment waits (a person without an organisation)
   const featsC = [...new Set([...feats.split(','), 'clients', 'comments', 'collab'])].join(',');
   await call('PATCH', '/api/settings', {features: featsC}, CF);
