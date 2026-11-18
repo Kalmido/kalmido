@@ -14,6 +14,8 @@ change history follows the objects an archive carries. Invented names only (exam
    own changes; a template's file gone from the disk is named in missing (was left out silently); the import's preview names
    the documents as staying behind
  - a member: the account export carries the own note on an organisation's document and the memberships (Art. 15)
+ - 2.1378.0 (#6938): the account export carries a person's chat files of direct messages, groups and their own private list's
+   channel, never those of an organisation's project channel (F1); no secret-like field inside the values of my_history (F2)
 Starts its OWN container (workspaces mode, no server key: the archives are plain ZIPs). usage: p21334_a_export_kinds_test.py <datadir>"""
 # freelancer-matrix: tasks
 import io
@@ -194,7 +196,8 @@ SEC = one(dbx("SELECT id FROM sections WHERE list_id=? ORDER BY id LIMIT 1", (FL
 if SEC:
     dbx("INSERT INTO shop_memory(list_id, item, section_id, at) VALUES(?, 'Frei Milch', ?, ?)", (FL, SEC, TS))
 dbx("INSERT INTO login_ips(ip, user_id, at) VALUES('192.0.2.7', ?, ?)", (FID, TS))
-dbx(HIST, ("task", FT[0], None, FID, '{"title": "Frei alt"}', '{"title": "Frei Aufgabe 1"}', TS, TS))
+# 2.1378.0 (#6938 F2): a secret-like field inside the values of my own history never leaves the account export
+dbx(HIST, ("task", FT[0], None, FID, '{"title": "Frei alt", "token": "frei-geheim-alt"}', '{"title": "Frei Aufgabe 1", "token": "frei-geheim-neu"}', TS, TS))
 FTPL = one(dbx("INSERT INTO templates(owner_id, kind, name, created_at, updated_at) VALUES(?, 'task', 'Frei Vorlage', ?, ?) RETURNING id", (FID, TS, TS)))
 FTF = one(dbx("INSERT INTO template_files(template_id, user_id, node_key, name, path, created_at) VALUES(?, ?, 'n1', 'frei.txt', 'tpl/gone/frei.txt', ?) "
               "RETURNING id", (FTPL, FID, TS)))
@@ -228,6 +231,8 @@ check(len(acc) == 1 and acc[0].get("id") == FID and "password_hash" not in acc[0
       f"freelancer: the own account row, never a secret {acc}")
 mh = json.dumps(rows_of(fz, "data/my_history.json"))
 check("Frei alt" in mh, f"freelancer: the history of my own change {mh[:200]}")
+check("geheim" not in mh and "token" not in mh,
+      f"freelancer: a secret-like field never leaves inside the values of my history (#6938 F2, as the organisation export) {mh[:300]}")
 fman = json.loads(fz.read("manifest.json")) if fz and "manifest.json" in fn else {}
 check(any(m.get("file", "").startswith(f"files/template_files/{FTF}-") for m in fman.get("missing") or []),
       f"freelancer: a template's file copy gone from the disk is named in missing {fman.get('missing')}")
@@ -243,6 +248,26 @@ check((fman.get("private_documents") or {}).get("documents") == 1, f"freelancer:
 ODOC = one(dbx("INSERT INTO fs_nodes(owner_id, org_id, kind, name, created_at, updated_at) VALUES(?, ?, 'file', 'org.pdf', ?, ?) RETURNING id",
                (ALICE, ORG, TS, TS)))
 dbx("INSERT INTO obj_comments(kind, ref_id, org_id, user_id, body, created_at) VALUES('doc_note', ?, ?, ?, 'Alice in Alpha', ?)", (ODOC, ORG, ALICE, TS))
+# 2.1378.0 (#6938 F1): files alice sent in the team chat -- in a direct message, a group conversation and the channel of her own
+# private list they are hers; in the project channel of alpha's list (a list room has no org_id) the organisation's (its export)
+ALST = one(dbx("SELECT list_id FROM tasks WHERE id=?", (ta[0],)))
+A.patch(B + "/api/settings", json={"workspace": "private"})
+PLST = ok(A.post(B + "/api/lists", json={"name": "Alice privat"}), "alice: own private list").get("id")
+check(ALST and PLST and not one(dbx("SELECT org_id FROM lists WHERE id=?", (PLST,))), f"setup: alpha's list and alice's private list {ALST} {PLST}")
+ROOMS = {
+    "org-projekt": one(dbx("INSERT INTO tchat_rooms(kind, list_id, created_at) VALUES('list', ?, ?) ON CONFLICT DO NOTHING RETURNING id", (ALST, TS)))
+                   or one(dbx("SELECT id FROM tchat_rooms WHERE kind='list' AND list_id=?", (ALST,))),
+    "privat-liste": one(dbx("INSERT INTO tchat_rooms(kind, list_id, created_at) VALUES('list', ?, ?) ON CONFLICT DO NOTHING RETURNING id", (PLST, TS)))
+                    or one(dbx("SELECT id FROM tchat_rooms WHERE kind='list' AND list_id=?", (PLST,))),
+    "direkt": one(dbx("INSERT INTO tchat_rooms(kind, a, b, created_at) VALUES('dm', ?, ?, ?) RETURNING id", (min(ALICE, CAROL), max(ALICE, CAROL), TS))),
+    "gruppe": one(dbx("INSERT INTO tchat_rooms(kind, name, created_by, created_at) VALUES('group', 'Gruppe', ?, ?) RETURNING id", (ALICE, TS))),
+}
+for tag, rid in ROOMS.items():
+    mid = one(dbx("INSERT INTO tchat_msgs(room_id, user_id, body, created_at) VALUES(?, ?, ?, ?) RETURNING id", (rid, ALICE, f"Datei {tag}", TS)))
+    dbx("INSERT INTO tchat_files(message_id, room_id, user_id, name, mime, size, path, created_at) VALUES(?, ?, ?, ?, 'text/plain', 1, ?, ?)",
+        (mid, rid, ALICE, f"{tag}.txt", f"tchat/gone/{tag}.txt", TS))
+check(all(ROOMS.values()), f"setup: alice's chat rooms {ROOMS}")
+A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 ok(A.post(B + "/api/account/export", json={}), "alice: account export starts")
 kt.until(lambda: A.get(B + "/api/account/export").json().get("state") != "running", timeout=240)
 check(A.get(B + "/api/account/export").json().get("state") == "done", "alice: account export done")
@@ -251,6 +276,9 @@ on = rows_of(az, "data/org_doc_notes.json")
 check([(n.get("node_id"), n.get("text")) for n in on] == [(ODOC, "Alice in Alpha")], f"alice: my note on an organisation's document {on}")
 apl = rows_of(az, "data/private_links.json")
 check(any(x.get("note") == "eigen verknuepft" for x in apl), f"alice: my own link inside an organisation (review #5144 F2) {apl}")
+cf = sorted(x.get("name") for x in rows_of(az, "data/chat_message_files.json"))
+check(cf == ["direkt.txt", "gruppe.txt", "privat-liste.txt"],
+      f"alice: my files of direct messages, a group and my private list's channel, never one of an organisation's project channel (#6938 F1) {cf}")
 ms = rows_of(az, "data/memberships.json")
 check({m.get("org_name") for m in ms} >= {"Alpha Quelle", "Beta Fremd"}, f"alice: the organisations I am a member of {ms}")
 

@@ -555,17 +555,19 @@ def _offer_lines(c, oid, r, home=False):
     return office_calc(d, doc_items(c, r["id"], oid), pack)["lines"], (fx if foreign else None)
 
 
-def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None, home=False):
+def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None, home=False, tag=False):
     """The positions of an invoice from quotation r: every quotation line becomes a plain position with its amount (the
     producing / raw data / discount automation of the quotation is condensed into positions; an uncounted raw data option
     is left out). Rates stay in EUR; the invoice converts them with its own rate (2.1254.0, #6299: an automatic line of a
     quotation in a foreign currency = its amount there / the rate, so the invoice's sums equal the quotation's).
     home = the positions of the run in the home currency (as before 2.1254.0): the home-currency net a chain of progress
-    invoices bills against (abschlag.py), so a running chain keeps its figures."""
+    invoices bills against (abschlag.py), so a running chain keeps its figures.
+    2.1378.0 (#4566): tag = every row from a quotation position carries "_key" (i:<origin item>, the key of
+    task_offer_links), a part's amount row "_part" -- for the post-calculation (office/postcalc.py), which drops them."""
     from .docs import doc_items
     from .parts import tp_flat_items, tp_inv_items  # 2.47.0 (#1215): a quotation with parts -> title page / summary / full (office/parts.py)
     flat = bool(_col(r, "flat_print"))  # 2.1041.0 (#5817): a flat price quotation: one position per tax rate (its summary form)
-    out = tp_inv_items(c, oid, r, parts_mode or ("summary" if flat else None), parts_title, home=home)
+    out = tp_inv_items(c, oid, r, parts_mode or ("summary" if flat else None), parts_title, home=home, tag=tag)
     if out is not None:
         return out
     if flat:
@@ -581,6 +583,8 @@ def inv_items_from_offer(c, oid, r, parts_mode=None, parts_title=None, home=Fals
         row.update(raw_fee=0, producing=0, discountable=1)
         if it.get("unit") == "percent" and it.get("id") in pct:  # 2.47.0 (#1649): a percent position becomes its amount
             row.update(qty=1, unit="flat", rate=calc_home_rate(pct[it["id"]]["total"], fx), discount_pct=0)
+        elif tag and (it.get("kind") or "service") == "service":
+            row["_key"] = f"i:{it.get('origin_id') or it['id']}"  # 2.1378.0 (#4566)
         out.append(row)
     for ln in lines:
         if ln["kind"] == "producing":  # 2.113.1 (#2251): without its calculation (internal)

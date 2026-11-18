@@ -280,6 +280,7 @@ const LAZY = [
   '/static/js/office_peppol.js',
   '/static/js/office_periods.js',
   '/static/js/office_pipeline.js',
+  '/static/js/office_postcalc.js',
   '/static/js/office_procdoc.js',
   '/static/js/office_receipts.js',
   '/static/js/office_recurring.js',

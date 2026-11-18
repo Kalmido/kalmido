@@ -11,13 +11,13 @@ privacy policy. Replace every `<…>` and check the wording against your contrac
 
 | Unterauftragnehmer | Ort der Verarbeitung | Zweck | Rechtsgrundlage |
 |--------------------|----------------------|-------|-----------------|
-| `<Anbieter>` | `<Ort>` | Verarbeitung von Aufgabentexten, eingegebenen Texten und Belegt-Zeiten für den eingebauten Assistenten (nur wenn die Person ihn eingeschaltet hat und auf ihren Anstoß) | Auftragsverarbeitungsvertrag nach Art. 28 DSGVO; laut Vertrag keine Speicherung über die Anfrage hinaus und keine Verwendung zum Training |
+| `<Anbieter>` | `<Ort>` | Verarbeitung von Aufgabentexten, eingegebenen Texten, Belegt-Zeiten sowie Namen freigegebener Listen, Ordner, Abschnitte und Mitglieder für den eingebauten Assistenten (nur wenn die Person ihn eingeschaltet hat und auf ihren Anstoß) | Auftragsverarbeitungsvertrag nach Art. 28 DSGVO; laut Vertrag keine Speicherung über die Anfrage hinaus und keine Verwendung zum Training |
 
 **English**
 
 | Sub-processor | Place of processing | Purpose | Legal basis |
 |---------------|---------------------|---------|-------------|
-| `<Provider>` | `<Location>` | Processing of task texts, typed texts and busy times for the built-in assistant (only when the person switched it on, and only on their request) | Data processing agreement under Art. 28 GDPR; per contract no storage beyond the request and no use for training |
+| `<Provider>` | `<Location>` | Processing of task texts, typed texts, busy times and the names of shared projects, folders, sections and members for the built-in assistant (only when the person switched it on, and only on their request) | Data processing agreement under Art. 28 GDPR; per contract no storage beyond the request and no use for training |
 
 ## 2. Paragraph for the privacy policy
 
@@ -27,9 +27,12 @@ privacy policy. Replace every `<…>` and check the wording against your contrac
 > entwirft und Vorschläge macht (Aufgaben, Tags, Fälligkeit, Sortierung des Korbs, Tagesplan). Er ist
 > standardmäßig ausgeschaltet. Erst wenn du ihn in den Einstellungen einschaltest und Listen für ihn freigibst, und
 > nur wenn du ihn ausdrücklich fragst, senden wir die Texte der gewählten Aufgaben (Titel, Notiz, Kommentare bzw. Tags
-> und Termine) und Texte, die du selbst eingibst, an `<Anbieter>` in `<Ort>`. Für einen Tagesplan kommen die Zeiten deiner
-> Kalendertermine dazu (nur als „Belegt“, ohne Titel), wenn Aufgaben aus einem Text entstehen, der Name, die Abschnitte
-> und die Namen der Mitglieder des Projekts. Gesperrte Notizen, Gesundheitslisten, Anhänge und Dateien werden nie
+> und Termine) und Texte, die du selbst eingibst, an `<Anbieter>` in `<Ort>`. Kommentare anderer Personen gehen nur mit,
+> wenn die Liste privat ist (ohne Organisation) oder die Organisation es in ihren Einstellungen erlaubt; ihre Mitglieder werden darüber
+> in den Neuigkeiten informiert. Für einen Tagesplan kommen die Zeiten deiner Kalendertermine dazu (nur als „Belegt“, ohne
+> Titel); zum Sortieren des Korbs die Namen aller Listen, die du für ihn freigegeben hast und ändern darfst, mit ihren Ordnern und
+> Abschnitten; wenn Aufgaben aus einem Text entstehen, der Name, die Abschnitte und die Namen der Mitglieder des Projekts.
+> Gesperrte Notizen, Gesundheitslisten, Anhänge und Dateien werden nie
 > gesendet; Aufgaben aus dem Korb nur, wenn du sie selbst auswählst. Ergebnisse sind Vorschläge, die du annimmst oder
 > ablehnst. Wir protokollieren jeden Aufruf mit Zeit, Art, Status und Länge, nicht aber die Texte selbst; das
 > Protokoll siehst du in den Einstellungen und es wird nach `<Tage>` Tagen gelöscht. Rechtsgrundlage ist Art. 6 Abs. 1
@@ -41,9 +44,11 @@ privacy policy. Replace every `<…>` and check the wording against your contrac
 > **Built-in assistant.** Kalmido includes an optional assistant that summarizes tasks, drafts replies and makes
 > proposals (tasks, tags, due dates, sorting the basket, a day plan). It is off by default. Only once you switch it on
 > in the settings and share projects with it, and only when you explicitly ask it, do we send the texts of the chosen
-> tasks (title, note, comments, or tags and dates) and texts you type yourself to `<Provider>` in `<Location>`. For a day
-> plan the times of your calendar events are added (only as "Busy", no titles); when tasks are made from a text, the project's
-> name, its sections and the names of its members. Locked notes, health projects,
+> tasks (title, note, comments, or tags and dates) and texts you type yourself to `<Provider>` in `<Location>`. Comments of
+> other people go along only when the project is a private one (no organisation) or the organisation allows it in its settings; its members
+> are told so in their News. For a day plan the times of your calendar events are added (only as "Busy", no titles); for
+> sorting the basket the names of all projects you shared with it and may change, with their folders and sections; when tasks are made
+> from a text, the project's name, its sections and the names of its members. Locked notes, health projects,
 > attachments and files are never sent; basket tasks only when you pick them yourself. Results are proposals you accept
 > or reject. We log every call with its time, kind, status and length, but not the texts themselves; you see the log in
 > the settings, and it is deleted after `<days>` days. The legal basis is Art. 6(1)(b) GDPR (providing the feature you

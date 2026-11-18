@@ -130,7 +130,8 @@ def vdl_name():
 
 
 def vdl_name_set(resp, token, prefix, name):
-    """Remembers the name for this link only (its path); nothing else is stored on the client's device."""
+    """Remembers the name for this link only (its path); nothing else is stored on the client's device (2.1378.0, #6513: the
+    page's own device-wide copy vdr-name is gone, static/js/pubvideo.js removes an old one)."""
     if len(name or "") < 2:
         return resp
     secure = request.is_secure or request.headers.get("X-Forwarded-Proto", "") == "https"

@@ -80,6 +80,8 @@ ROUTES = {
     "POST /api/office/docs/{}/invoice": ("refused", "an invoice is made from a quotation only", [{}]),
     # 2.546.0 (#4287): the route of 2.537 (#3433) that arrived on main meanwhile - tasks are made from a quotation only (otk_offer)
     "POST /api/office/docs/{}/tasks": ("refused", "tasks with a time budget come from a quotation only, never from an invoice", [{"pick": []}]),
+    # 2.1378.0 (#4566 B): the post-calculation's invoice draft comes from an accepted quotation only
+    "POST /api/office/docs/{}/postcalc": ("refused", "the post-calculation makes an invoice from an accepted quotation only, never from an invoice", [{}]),
     "POST /api/office/docs/{}/send": ("allowed", "the mail sends the stored files; the status sent is a mark (no mail server here: 409)",
                                       [{"to": "rechnung@example.com", "subject": "Changed", "text": "Changed"}]),
     "POST /api/office/docs/{}/datev": ("allowed", "the DATEV copy sends the stored files; datev_sent_at is a mark (no mail server here: 409)", [{}]),
@@ -88,6 +90,8 @@ ROUTES = {
     "POST /api/office/docs/{}/cashflow": ("refused", "the cash flow share is planning of quotations (an invoice: 400); on a finalised quotation it "
                                                     "may change, never printed (MARKS)", [{"cashflow": "no"}]),
     "POST /api/office/docs/{}/time-release": ("allowed", "frees the time entries of a cancelled invoice (their own rows; before: 409)", [{}]),
+    # 2.1378.0 (#6479): red on main since e49f9493db (the route came without its decision here)
+    "POST /api/office/docs/{}/outlays-release": ("allowed", "frees the receipts / travel receipts of a cancelled invoice (their own rows; before: 409)", [{}]),
     "PUT /api/office/docs/{}/pay-online": ("allowed", "the pay link of a finalised invoice is frozen in the sender; this only answers or refuses",
                                            [{"on": False}, {"on": True}]),
     "POST /api/office/docs/{}/signoff": ("refused", "the customer's approval is for quotations", [{}]),
@@ -260,7 +264,7 @@ for who, S in (("org admin", A), ("freelancer", F)):
     check(kt.dbx("SELECT status FROM office_docs WHERE id=?", (INV,))[0]["status"] == "cancelled", f"{who}: the invoice is cancelled by it")
     pays = S.get(B + f"{D}/{INV}/payments").json().get("payments") or []
     codes = matrix(f"{who} (cancelled)", S, INV, ROUTES, OURS, {"DELETE /api/office/docs/{}/payments/{}": [pays[0]["id"]] if pays else []})
-    succeeded(f"{who} (cancelled)", codes, ("POST /api/office/docs/{}/time-release",))
+    succeeded(f"{who} (cancelled)", codes, ("POST /api/office/docs/{}/time-release", "POST /api/office/docs/{}/outlays-release"))  # 2.1378.0 (#6479)
 
     # ---- undo (office/undo.py): steps on the draft, then finalised -> 409, nothing moves
     I2 = invoice("Rueckgaengig")

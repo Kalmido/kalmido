@@ -223,11 +223,7 @@ def _clean(c, oid, table, r):
     if table == "obj_reactions":
         row[OX_RX_COL[row.pop("target_kind")]] = row.pop("target_id")
     if table == "obj_history":  # 2.1334.0 (review #5153 F2): a change of a secret-like field never leaves, also inside the history
-        for k in ("vals_before", "vals_after"):
-            v = row.get(k)
-            j = json.loads(v) if isinstance(v, str) and v.strip().startswith("{") else v
-            if isinstance(j, dict):
-                row[k] = {f: x for f, x in j.items() if f not in OX_SECRET_COLS}
+        ox_history_vals(row)
     if table == "template_files":  # 2.1334.0 (review F4): the server's storage path stays here (the file is under files/templates/)
         row.pop("path", None)
     if table == "agent_rules":  # 2.1334.0 (#6585): the rule, never where it was learned (a member's private chat with the agent, a
@@ -694,6 +690,18 @@ OX_HISTORY_TABLES = {"tchat_msg": "tchat_msgs"}
 # the hidden nodes); by archive name the files whose rows hang on such a node or mail. ox_build filters with these, and their
 # tables' objects never count as carried (ox_carried_sql: the history / the free links of a hidden mail or node stay out)
 # (OX_AFTER_READ / OX_AFTER_READ_FILES: below OX_NODE_FILES)
+
+
+def ox_history_vals(row):
+    """2.1334.0 (review #5153 F2); 2.1378.0 (#6938 F2): drops the OX_SECRET_COLS keys inside a history row's vals_before /
+    vals_after (in place) -- the one filter of the organisation export (_clean) and of the account export (acctexport.py
+    umz_clean, my_history)."""
+    for k in ("vals_before", "vals_after"):
+        v = row.get(k)
+        j = json.loads(v) if isinstance(v, str) and v.strip().startswith("{") else v
+        if isinstance(j, dict):
+            row[k] = {f: x for f, x in j.items() if f not in OX_SECRET_COLS}
+    return row
 
 
 def ox_reads_agent_rules(c, by):

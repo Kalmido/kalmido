@@ -432,10 +432,17 @@ const hintK = t => `<div class="shint keep">${t}</div>`;  // 2.13.0: a helper li
 const kt = (label, keys) => isTouch() ? label : `${label} (${kbText(keys)})`;  // a label with its keyboard shortcut
 // 2.306.0 B (#2889): tasks.cwins (the open chat windows) no longer stays
 const LS_KEEP = new Set(['tasks.theme', 'tasks.i18n', 'tasks.density', 'tasks.densitySide', 'tasks.densityRows', 'tasks.densSideV', 'tasks.densRowsV', 'tasks.fsize', 'tasks.font', 'tasks.accent', 'tasks.chatHuman', 'tasks.chatAgent', 'tasks.railLabels', 'tasks.accentMig280', 'tasks.pw.det', 'tasks.pw.chat', 'tasks.sideGroups', 'tasks.agband', 'tasks.sideFold', 'tasks.mdOpen', 'tasks.pack', 'tasks.headShow', 'tasks.rings', 'tasks.lookLocal', 'tasks.pwaHint', 'tasks.vmode']);  // 2.310.0 (#3270): + the view of this device; 2.143.0 C (#2153): + the install hint (per device); 2.83.0 C (#1427): + theme, header pictures, rings
+// 2.1378.0 (#6513): THE rule which localStorage keys signing out (clearLocal) wipes -- extend it here, nowhere else: every tasks.*
+// and kalmido.* key with content of the account or its work (kalmido.dlgsize.* dialog sizes, kalmido.amv.undo.<id> the undo rest
+// of the receipt assignment, kalmido.xd the drag token, ...) and the old guest name of the public sign-off page (vdr-name); the
+// device's own look and choices (LS_KEEP) and LS_KEEP_DEVICE stay
+const LS_KEEP_DEVICE = new Set(['kalmido.logoutPending']);  // 2.743.0 (#4284): the sign-out the server did not hear yet (account.js lgo_pending)
+const LS_WIPE_KEYS = new Set(['vdr-name']);
+const lsWiped = k => !!k && (LS_WIPE_KEYS.has(k) || (k.startsWith('tasks.') && !LS_KEEP.has(k)) || (k.startsWith('kalmido.') && !LS_KEEP_DEVICE.has(k)));
 function clearLocal() {
   try {
     const ks = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('tasks.') && !LS_KEEP.has(k)) ks.push(k); }
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (lsWiped(k)) ks.push(k); }
     ks.forEach(k => localStorage.removeItem(k));
   } catch { /* private mode */ }
   // 2.306.0 B (#2889): the session's own keys too (step-up, tour, receipts filter); the reload guards stay (no reload loop)

@@ -6,6 +6,8 @@
 // A PDF: the page drawn by the bundled pdf.js under the page's strict CSP (fetch / worker from this server only), "Page 1 of 2",
 // the next page, a tap there = page 2 + point; after sending, a tap on the comment's "p. 2 · 1" turns to page 2 and shows the
 // point. Nothing sticks out sideways at 320 px. Invented names only.
+// 2.1378.0 (#6513): the guest name only from the link's cookie (kgn): an old vdr-name in localStorage goes on load, a reload of
+// the same link has the name, another link has none, nothing is written to localStorage.
 // freelancer-matrix: videos (the API suite p2642_a_reviewlink_test.py runs the person without an organisation)
 // P2764AUI_NOSTART=1 = the server already runs.
 const {execFileSync} = require('child_process');
@@ -75,6 +77,11 @@ const SEND = text => `(() => { document.getElementById('vd-name').value = 'Kundi
     // ================= the image
     await o.nav(B + 's/q/' + TI); await idle();
     check(await until(`(() => { const i = document.querySelector('.vdr-stage img'); return !!i && i.complete && i.naturalWidth === 40; })()`), 'the image loads from the link (CSP img-src self)');
+    // 2.1378.0 (#6513): an old device-wide guest name (vdr-name) is removed on load and never fills the field
+    await ev(`localStorage.setItem('vdr-name', 'Alter Name'), 1`);
+    await o.nav(B + 's/q/' + TI); await idle();
+    check(await until(`document.readyState === 'complete' && localStorage.getItem('vdr-name') === null`) && await ev(`document.getElementById('vd-name').value === ''`),
+      'an old vdr-name is gone after loading and the name field stays empty (#6513) ' + await ev(`String(document.getElementById('vd-name').value)`));
     check(await ev(`document.getElementById('vd-pt').hidden && !document.getElementById('vd-at')`), 'no point yet, no timecode field');
     await ev(TAP(0.75, 0.25));
     check(await until(`document.querySelector('.vdr-pin.new')?.textContent === '1' && Math.abs(parseFloat(document.querySelector('.vdr-pin.new').style.left) - 75) < 0.5`), 'a tap sets the pending point 1 at its place '
@@ -95,8 +102,14 @@ const SEND = text => `(() => { document.getElementById('vd-name').value = 'Kundi
     check(fi.sx <= fi.vw && fi.r <= fi.vw && fi.l >= 0, 'image page: nothing sticks out sideways at 320 px ' + JSON.stringify(fi));
     await shot('p2764a-image-320.png');
 
+    // 2.1378.0 (#6513): after a reload the name comes from this link's cookie (kgn), nothing in localStorage
+    await o.nav(B + 's/q/' + TI); await idle();
+    check(await until(`document.getElementById('vd-name')?.value === 'Kundin Example'`) && await ev(`localStorage.getItem('vdr-name') === null`),
+      'reload: the name from the link\'s cookie, no vdr-name on the device (#6513) ' + await ev(`String(document.getElementById('vd-name')?.value)`));
     // ================= the PDF
     await o.nav(B + 's/q/' + TP); await idle();
+    check(await until(`!!document.getElementById('vd-name')`) && await ev(`document.getElementById('vd-name').value === ''`),
+      'another link does not know the name (the cookie is per link, #6513) ' + await ev(`String(document.getElementById('vd-name')?.value)`));
     check(await until(`!!document.querySelector('.vdr-cv canvas') && document.querySelector('.vdr-pgno')?.textContent === 'Page 1 of 2'`, {timeout: 20000}),
       'pdf.js draws page 1 under the page\'s CSP ' + await ev(`String(document.querySelector('.vdr-pgmsg')?.textContent) + ' ' + String(document.querySelector('.vdr-pgmsg')?.hidden)`));
     check(await ev(`!document.querySelector('.vdr-pgbar').hidden && document.querySelector('[data-pg="-1"]').disabled && document.querySelector('.vdr-pgmsg').hidden`), 'the page bar: page 1 of 2, back disabled, no message');
