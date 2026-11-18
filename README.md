@@ -19,9 +19,11 @@
 
 ## What's new
 
-**2.1351.0** (2026-11-17):
-- **Backups**: your own backups have no size limit (`KALMIDO_BACKUP_MAX_MB` applies to uploaded archives only); the newest backup is checked completely once a week, and a damaged shared file is repaired from its original.
-- **Export**: the account and organisation exports now cover far more (private documents, links, change history, free links, template files, agent rules); every table and kind is held against the export guards.
+**2.1370.0** (2026-11-18):
+- **Office**: additional number ranges per office area, each with its own counter, date order and hash chain; the income statement reads credit notes in one pass.
+- **Mailboxes**: failing mailboxes back off, stop after repeated refused sign-ins and tell admins; settings show the last successful fetch.
+- **Tasks**: "Tomorrow" shows what is still open from today; "My tasks" can move items into your own sections.
+- **Workspaces**: under "All workspaces" pages of one organisation wear its colour.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 

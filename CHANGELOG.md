@@ -23,6 +23,33 @@ in Settings > Help shows that section of the target version.
 - [2.0-2.99](docs/changelog/2.0-2.99.md)
 - [1.x](docs/changelog/1.x.md)
 
+## [2.1370.0] - 2026-11-18
+
+Package 2.1333 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher), MCP-Zaun: Zaun-Zeichen vollstä).
+
+### Fixed
+- #6697 Organisation colour: under "All workspaces" a page whose module is on in only one workspace (office, customers, time, team, dispatch) wears that workspace's colour in stripe, accent, icon rail, panel and phone bar; on mixed pages the active sidebar row of an open organisation object wears its tone.
+- #6545 Mailbox fetching: a failing workspace mailbox waits longer each round (up to 6 h, the instance mailbox too); after 5 refused sign-ins it stops until the access data is saved again or "Test connection" signs in; admins are told by News, push and mail (only to a proved address, again every 3 days); a mailbox nobody can receive for is not fetched; mails too large or refused by the parser limits are counted at the mailbox; "Fetch now" is limited to 10 per person in 10 minutes; settings show the last successful fetch, failing since, the stop and a warning when the same person fetches the same mailbox in two workspaces. New `KALMIDO_MAILBOX_MAIL_MAX`. Migration 6545 adds columns to `hub_mailboxes` only.
+- #6429 Security, calendar subscriptions: one recurrence rule per event, a rule ending before the window is dropped, the walk before the window is bounded per rule and per download, RDATE / EXDATE capped, the time budget is checked between series.
+- #6770 Office hash chain check: an unreadable link no longer hides later breaks; after 3 days in a row it raises its own admin alarm once; each office runs in its own savepoint, so one failing office no longer drops the alarms of the others (docs/dev/hashkette.md).
+- #6731 MCP `get_task`: the data fence defuses every run of three or more fence characters and also fences the title, file names and code snippets of other accounts and the title and description of tasks from outside Kalmido (mail, form, git ...); docs/TEAM.md says what the address proof mail names.
+
+Package 2.1365 (Bündel: Büro: Zusätzliche Nummernkreise je Bereich (eigene, Morgen zeigt oben „Noch offen von heute“ (einklapp, Meine Aufgaben: Rechtsklick ).
+
+### Added
+- #6698: Additional number ranges per office area (Settings > Office > Number ranges): own counter, own date order and own hash chain, corrections with their own suffix (e.g. `-K`) in the same counter, dunning per range (off by default). The main scheme and counter stay as they are. In a range Kalmido sets the document date when finalising; hand numbers are refused. A range with a finalised document can only be closed, not removed. Ranges move with a private office transfer and go through the organisation export/import (code, scheme and suffix checked like a new range; a scheme the target already uses comes in closed) and the retention/auditor export. New table `office_num_ranges`, column `office_docs.range_id` (migration 6698). One way from the first finalised document in an additional range on: an older version would count it into the main range's date order - back only with a restore.
+- #6960: "Tomorrow" shows a foldable group "Still open from today" on top (due today or overdue, same rule as "Today"); the tasks of tomorrow follow below under their own head. The sidebar count of Tomorrow is unchanged.
+
+### Fixed
+- #6698: The new number-range routes belong to the office area Settings (rights check); the account-deletion UI test follows #1969 (no deletion of finalised documents in their legal period, also with a declared waiver).
+- #6962: In "My tasks" with own sections, "Move to section…" in the context menu and in multi-edit offers the own sections (with "New section…"); the project's sections are behind their own entry "Move to section of <project>…".
+
+- #6795: The income statement (EÜR) and the office key figures read the credit notes once per run instead of once per paid invoice: with 5,000 paid invoices about 60 database statements instead of 3,400 (measured 750 ms -> constant). The document list stays under 150 ms with 5,000 invoices (measured, no change needed).
+- #7034: The export register lint reads the new texts waiting in `static/i18n/neu/` too (it was red on main for the reason "Links").
+
+### Changed
+- #6948: Test suite for the number scheme change at the turn of 2026 -> 2027 (GS-{yyyy}-{seq:03}, corrections in the same counter with -K, a parallel GT range): chain, counters, December drafts, DATEV, income statement and e-invoice stay correct.
+
 ## [2.1366.0] - 2026-11-18
 
 Package 2.1356 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
@@ -463,7 +490,8 @@ Package 2.1282 (Bündel: Sammelpaket: Aufgaben ohne Paket (Dispatcher)).
 ### Fixed
 - #6426: the account import reads its sealed upload through a buffer, like the knowledge import (the sealed reader answers short reads at block ends).
 
-[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1366.0...HEAD
+[Unreleased]: https://github.com/Kalmido/kalmido/compare/v2.1370.0...HEAD
+[2.1370.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1370.0
 [2.1366.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1366.0
 [2.1361.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1361.0
 [2.1355.0]: https://github.com/Kalmido/kalmido/releases/tag/v2.1355.0
