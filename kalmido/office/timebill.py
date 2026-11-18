@@ -50,7 +50,10 @@ def tbill_list_moved(c, lid):
     admin/acctimport.umz_billed). The office rows of other offices that named the project (documents, positions) let go of it.
     2.1386.0 (#6934 F1): only a finalised document (locked_at) bills them for good; entries on a draft of the office left are
     free again (billed_doc_id / billed_item_id / billed_at NULL, billable as they were), the draft's position lets go of the
-    project like every other row. -> the number of entries marked. The caller commits."""
+    project like every other row. 2.1398.0 (#6883): the reference to the finalised document is kept (billed_moved_doc_id /
+    billed_moved_item_id) and comes back when the project returns to that office while the document is still there (billable
+    again, as when it was billed); a move never loses for good what was billed. -> the number of entries marked. The caller
+    commits."""
     with system_ctx(c):  # the documents of the office the project left (the person moving it need not see them)
         lr = c.execute("SELECT org_id, owner_id FROM lists WHERE id=?", (lid,)).fetchone()
         if not lr:
@@ -59,9 +62,16 @@ def tbill_list_moved(c, lid):
         ts = iso(now_utc())
         other = ("WHERE list_id=? AND billed_doc_id IS NOT NULL AND EXISTS (SELECT 1 FROM office_docs d WHERE d.id=time_entries.billed_doc_id "
                  "AND d.org_id IS DISTINCT FROM ? AND d.locked_at IS {0} NULL)")
+        # 2.1398.0 (#6883): back in the office of its finalised document (still there) -> on it again
+        c.execute("UPDATE time_entries SET billed_doc_id=billed_moved_doc_id, billed_item_id=billed_moved_item_id, billable=true, "
+                  "billed_moved_doc_id=NULL, billed_moved_item_id=NULL, updated_at=? WHERE list_id=? AND billed_doc_id IS NULL "
+                  "AND billed_at IS NOT NULL AND billed_moved_doc_id IS NOT NULL AND EXISTS (SELECT 1 FROM office_docs d "
+                  f"WHERE d.id=time_entries.billed_moved_doc_id AND d.org_id IS NOT DISTINCT FROM ? AND d.locked_at IS NOT NULL AND {live_sql('d')})",
+                  (ts, lid, office))
         # 2.1386.0 (#6934 F1): a draft never billed them: free again (not "billed in an earlier organisation")
         c.execute("UPDATE time_entries SET billed_doc_id=NULL, billed_item_id=NULL, billed_at=NULL, updated_at=? " + other.format(""), (ts, lid, office))
-        n = c.execute("UPDATE time_entries SET billed_doc_id=NULL, billed_item_id=NULL, billable=false, billed_at=COALESCE(billed_at, ?), updated_at=? "
+        n = c.execute("UPDATE time_entries SET billed_moved_doc_id=billed_doc_id, billed_moved_item_id=billed_item_id, "  # 2.1398.0 (#6883): kept
+                      "billed_doc_id=NULL, billed_item_id=NULL, billable=false, billed_at=COALESCE(billed_at, ?), updated_at=? "
                       + other.format("NOT"), (ts, ts, lid, office)).rowcount
         c.execute("UPDATE office_docs SET list_id=NULL WHERE list_id=? AND org_id IS DISTINCT FROM ?", (lid, office))  # a free column (4598.py)
         with ofx_release(c, "office_doc_items"):  # the position's project link is no part of what was finalised (chain.HCH_ITEM_FIELDS)
