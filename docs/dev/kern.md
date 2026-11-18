@@ -225,6 +225,9 @@ c.commit()
   (`GET /api/undo`, mode `trash` / `restore`, no copy): taking it back runs `obj_restore` / `obj_trash` with the rights of
   now. `trash_prune=True` lets the core's retention run (`obj_trash_tick`, hourly, `ret_trash_cut` + the switch "trash")
   delete the kind's trash the same way as `obj_purge`; an area with its own run keeps it until its stage moves it.
+  2.1373.0 (#6357): every kind with `trash_prune` (`obj_register`, `ofk_register`, `part_kind`) is on the restore's
+  list of rows deleted for good by itself (`core/objparts.py purged_tables()`, the trigger set at start): after a restore
+  of an older backup they are deleted again; no hand-kept list (`PURGED_EXTRA` only for tables without a trash).
 - 2.784.0 (#5366, stage 4): an office kind that deletes by `deleted_at` registers with `office/okern.py ofk_register(kind,
   table, label, rights area, need)` (no routes, node or listing; the core's role = the office's level `need` in that area)
   and its own routes call `ofk_trash` / `ofk_restore` after their office checks; the core's run deletes it after the period.
