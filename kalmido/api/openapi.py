@@ -143,7 +143,8 @@ def openapi_spec():
         "tags": {"type": "array", "items": {"type": "string"}, "description": "The token user's own tags"},
         "pinned": {"type": "boolean"}, "assignee_id": nul("integer"), "created_by": nul("integer"), "completed_by": nul("integer"),
         "by_creator": {"type": "boolean", "description": "2.1308.0: created_by wrote the task themselves (in the app or with their own "
-                       "token); false for tasks from an inbound webhook, a mail, a form, an import, a sync and tasks from before 2.1308.0"},
+                       "token); false for tasks from an inbound webhook, a mail, a form, an import, a sync and tasks from before 2.1308.0; "
+                       "2.1389.0: false for a list rule, a support session, a copy, a saved chat message and a 'Rest:' task"},
         "updated_by": nul("integer", description="2.1375.0: who last wrote the title and the description: the creator while both are "
                           "theirs (nobody else changed them since), else the other writer; null when that was an inbound webhook, a "
                           "public link, CalDAV, a list rule, a support session or the git issue sync"),
