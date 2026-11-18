@@ -230,8 +230,11 @@ dbx_w = dbxm.connect(DATA)
 def imp(s, quota=None):
     iid = upload(s, raw, "konto.zip")
     check(wait(s, iid).get("state") == "preview", "#3865 the preview")
-    dbx_w.execute("UPDATE users SET storage_quota_mb=? WHERE id=?", (quota, GID))  # after the upload: it counts against the storage too
-    ok(s.post(B + f"/api/account/import/{iid}/run", json={"again": True, "target": "private", "people": {}}), "#3865 the import starts")
+    dbx_w.execute("UPDATE users SET storage_quota_mb=? WHERE id=?", (quota, GID))  # after the preview: the start checks again (#6579)
+    r = s.post(B + f"/api/account/import/{iid}/run", json={"again": True, "target": "private", "people": {}})
+    if quota:
+        return r
+    ok(r, "#3865 the import starts")
     return wait(s, iid)
 
 
@@ -243,12 +246,12 @@ L0 = G.post(B + "/api/lists", json={"name": "Voll"}).json()["id"]
 T0 = G.post(B + "/api/tasks", json={"list_id": L0, "title": "Gross"}).json()["id"]
 for i in range(3):
     ok(G.post(B + f"/api/tasks/{T0}/attachments", files={"file": (f"gross{i}.bin", os.urandom(400000), "application/octet-stream")}), "#3865 setup: the storage fills")
-j = imp(G, 1)
-check(j.get("state") == "stopped" and not tfiles(), f"#3865 a full storage keeps the file of the template out {j.get('state')} {tfiles()}")
+# 2.1402.0 (#6579, was: the template came without its file, state stopped): a full storage refuses the start, nothing comes
+r = imp(G, 1)
+check(r.status_code == 409 and r.json().get("code") == "quota_exceeded" and r.json().get("missing", 0) > 0 and not tfiles(),
+      f"#6579 a full storage refuses the start with what is missing {r.status_code} {r.text[:200]} {tfiles()}")
 # 2.905.0 (#5288): templates.owner_id (was user_id)
-check(one("SELECT COUNT(*) FROM templates WHERE owner_id=?", (GID,)) == 1, "#3865 the template itself came")
-check(any("storage is full" in w["text"] for w in j["result"]["warnings"]), f"#3865 and it is named {j['result']['warnings']}")
-ok(G.post(B + f"/api/imports/{j['result']['import_id']}/undo", json={}), "#3865 setup: undo of the full run")
+check(one("SELECT COUNT(*) FROM templates WHERE owner_id=?", (GID,)) == 0, "#6579 nothing came, not even the template")
 dbx_w.execute("UPDATE users SET storage_quota_mb=NULL WHERE id=?", (GID,))
 
 j = imp(G)

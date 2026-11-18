@@ -7,7 +7,9 @@ filter, a template, a person, a task and a formula field and a large attachment;
  - a saved filter carries the new project / section / field ids, a filter on what did not come along is left out, not widened
  - a template keeps only what a new template stores
  - person and task field values and formulas carry new ids
- - a full storage leaves out the file; time entries, habits, contacts and the journal after it still come, the state says stopped
+ - 2.1402.0 (#6579, was #3100: a full storage left out the file, the rest came): all or nothing -- a storage too small at the
+   start refuses the start (409 quota_exceeded with what is missing and the way), nothing is created; a storage that runs full
+   while the run writes rolls the whole run back (state failed, no list, no file on disk); with room everything comes
  - a checksum that goes wrong while the run writes removes the files written so far
  - a run of imports never takes the undo of an import that is younger than the undo window
 usage: p2362_4_import_test.py <datadir>"""
@@ -103,7 +105,8 @@ def stored_files():
 
 
 # ---------------------------------------------------------------- server, people
-env = dict(os.environ)
+# 2.1402.0 (#6579): each file of a run waits a little (tests only), so the quota can be cut while the run writes
+env = dict(os.environ, EXTRA=(os.environ.get("EXTRA", "") + " -e KALMIDO_TEST_UMZ_FILE_DELAY=0.8").strip())
 r = subprocess.run(["bash", os.path.join(N, "start.sh"), DATA], env=env, capture_output=True, text=True)
 assert r.returncode == 0, r.stdout + r.stderr
 s0 = requests.Session()
@@ -168,18 +171,37 @@ def new_list(uid):
     return rows("SELECT id FROM lists WHERE owner_id=? AND name=?", (uid, "Umzug Projekt"))[0]["id"]
 
 
-# ---------------------------------------------------------------- nobody ticked, the storage full
+# ---------------------------------------------------------------- nobody ticked; 2.1402.0 (#6579): the storage all or nothing
 iid = upload(G, EXP)
 j = wait(G, iid)
 check(j.get("state") == "preview", f"preview {j.get('state')} {j.get('error')}")
-db().execute("UPDATE users SET storage_quota_mb=1 WHERE id=?", (GINA,))  # after the upload: it counts against the storage too
+check(not ((j.get("preview") or {}).get("storage") or {}).get("targets"), f"#6579 the files fit: no target short {(j.get('preview') or {}).get('storage')}")
+db().execute("UPDATE users SET storage_quota_mb=1 WHERE id=?", (GINA,))  # after the preview: the start checks again
+r = G.post(B + f"/api/account/import/{iid}/run", json={"target": "private", "people": {}, "again": True})
+e = r.json() if r.content else {}
+check(r.status_code == 409 and e.get("code") == "quota_exceeded" and e.get("missing", 0) > 0 and e.get("need", 0) >= 2 * len(BIG)
+      and "missing" in (e.get("error") or "") and "operator" in (e.get("error") or ""), f"#6579 the start refuses with what is missing and the way {r.status_code} {e}")
+check(not rows("SELECT 1 FROM lists WHERE owner_id=? AND name=?", (GINA, "Umzug Projekt")), "#6579 the refused start created nothing")
+check(G.get(B + f"/api/account/import/{iid}").json().get("state") == "preview", "#6579 the upload stays in the preview")
+db().execute("UPDATE users SET storage_quota_mb=NULL WHERE id=?", (GINA,))
+before = stored_files()
+r = G.post(B + f"/api/account/import/{iid}/run", json={"target": "private", "people": {}, "again": True})
+check(r.status_code == 202, f"#6579 with room the run starts {r.status_code} {r.text[:200]}")
+db().execute("UPDATE users SET storage_quota_mb=1 WHERE id=?", (GINA,))  # cut while the run writes: the second file no longer fits
+j = wait(G, iid)
+err = json.dumps(j.get("error"), ensure_ascii=False)
+check(j.get("state") == "failed" and "nothing was imported" in err, f"#6579 the run over the limit fails as a whole {j.get('state')} {err[:300]}")
+check(not rows("SELECT 1 FROM lists WHERE owner_id=? AND name=?", (GINA, "Umzug Projekt")) and not rows("SELECT 1 FROM habits WHERE user_id=?", (GINA,))
+      and not rows("SELECT 1 FROM imports WHERE user_id=?", (GINA,)), "#6579 rolled back: no project, no habit, no import record")
+check(stored_files() == before, f"#6579 no file of the run stays on disk {sorted(stored_files() - before)[:3]}")
+db().execute("UPDATE users SET storage_quota_mb=NULL WHERE id=?", (GINA,))
+iid = upload(G, EXP)
+check(wait(G, iid).get("state") == "preview", "#6579 the file again")
 j = run(G, iid)
-check(j.get("state") == "stopped", f"a full storage: state stopped ({j.get('state')}: {j.get('error')})")
-res = j.get("result") or {}
-check("some files were left out" in (res.get("stopped") or ""), f"the text says what is missing: {res.get('stopped')}")
-check("left out because your storage is full" in texts(j), f"the file is named in the warnings: {texts(j)}")
+check(j.get("state") == "done" and not (j.get("result") or {}).get("stopped") and "storage is full" not in texts(j),
+      f"#6579 with room everything comes ({j.get('state')}: {j.get('error')} {texts(j)})")
 LG = new_list(GINA)
-check(rows("SELECT COUNT(*) FROM attachments a JOIN tasks t ON t.id=a.task_id WHERE t.list_id=?", (LG,))[0][0] == 1, "the file that no longer fits stayed out")
+check(rows("SELECT COUNT(*) FROM attachments a JOIN tasks t ON t.id=a.task_id WHERE t.list_id=?", (LG,))[0][0] == 2, "#6579 both files came")
 check(rows("SELECT COUNT(*) FROM time_entries WHERE user_id=?", (GINA,))[0][0] == 1, "#3100: the time entry after the file came along")
 check(rows("SELECT COUNT(*) FROM habits WHERE user_id=?", (GINA,))[0][0] == 1, "#3100: the habit after the file came along")
 check(rows("SELECT COUNT(*) FROM filters WHERE user_id=?", (GINA,))[0][0] == 3, "#3100: filters after the file came along")  # 2.521.0 (#4479): + Zeilen, Feld null
@@ -195,7 +217,8 @@ vals = {r["field_id"]: r["value"] for r in rows("SELECT field_id, value FROM tas
 check(f["Wer"]["id"] not in vals, f"a person field of somebody not ticked stays empty: {vals}")
 check(vals.get(f["Bezug"]["id"]) == str(t["Erste"]), f"the task field points at the new task: {vals}")
 expr = json.loads(f["Summe"]["options"]).get("expr") or ""
-check(f'#{f["Menge"]["id"]}' in expr and f"#{FA}" not in expr, f"the formula names the new fields: {expr}")
+# 2.1402.0 (#6579): whole references ({#id}): after a rolled-back run the new ids may start with the old one ("#1" in "{#11}")
+check(f'{{#{f["Menge"]["id"]}}}' in expr and f"{{#{FA}}}" not in expr, f"the formula names the new fields: {expr}")
 flt = rows("SELECT name, rules FROM filters WHERE user_id=? ORDER BY id", (GINA,))
 check([x["name"] for x in flt] == ["Passt", "Zeilen", "Feld null"], f"a filter on what stayed behind is left out, not widened: {flt}")  # 2.521.0 (#4479): + Zeilen, Feld null
 check(json.loads(flt[2]["rules"])["conds"][0].get("name") == "Stufe", f"#4479: the field condition by name came along: {flt[2]}")

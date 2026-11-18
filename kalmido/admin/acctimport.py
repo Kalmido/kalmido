@@ -1,7 +1,8 @@
 """2.73.0 B (#1473): account import -- takes over a file of the account export (admin/acctexport.py) on this server.
 
 Flow (Settings > Data, people only):
-    POST   /api/account/import                 {size, name} -> {id, chunk}: a new upload (quota + disk space checked first)
+    POST   /api/account/import                 {size, name} -> {id, chunk}: a new upload (disk space checked first; the
+                                               target's storage before the preview and at the start, #6579)
     PUT    /api/account/import/<id>?offset=n   the next piece (raw body, `chunk` bytes, the last one shorter); the file is
                                                sealed at rest like the export (0600, own folder of the person)
     GET    /api/account/import/<id>            state: upload | checking | preview (+ preview) | invalid (+ error) |
@@ -45,7 +46,7 @@ from ..files.upsafe import up_after_store, up_check, UploadRefused  # 2.464.0 (#
 from ..lists.projects import LIST_FILES_SUB
 from ..lists.tplextra import tx_import, tx_keys
 from ..tasks.attachments import safe_name
-from .hosting import QuotaExceeded, fmt_bytes, quota_guard, quota_info
+from .hosting import fmt_bytes, quota_info
 from ..core.db import body, bump, connect, db, err, iso, iso_ms, now_utc, parse_iso, usettings, uset, create_user, DataError, IntegrityError
 from ..core.pg import insert_id, system_ctx, ts_canon  # 2.1095.0 (#5306): ts_canon
 from ..core.moneycol import MC_COLS, MC_FITS  # 2.765.0 (#5315): the money columns NUMERIC(14,2) and their rule
@@ -1326,7 +1327,9 @@ def umz_have(c, run, uid, rows, mine=False):
 
 
 UMZ_MENTION_RE = re.compile(r"<@(\d{1,18})>")  # as in collab/comments.py
-UMZ_NO_SPACE = N_("A file was left out because your storage is full")  # 2.362.4 (#3100)
+# 2.362.4 (#3100); 2.1402.0 (#6579): no run leaves files out any more -- the texts stay for the results of older runs (stored texts)
+UMZ_NO_SPACE = N_("A file was left out because your storage is full")
+UMZ_QUOTA_STOPPED = N_("Your storage is full: some files were left out, everything else came over. The import can be undone.")
 
 
 def umz_cmt_extra(r):
@@ -1447,7 +1450,8 @@ class _Run:
         self.sprint_list = {}  # 2.455.0 (#3469): new sprint id -> its list
         self.field_type, self.names = {}, {}  # 2.362.4 (#3100)
         self.written = []  # full paths of files written (removed again when the run fails)
-        self.stopped = None
+        self.stopped = None  # 2.1402.0 (#6579): no run stops halfway any more (a state "stopped" of an older run stays readable)
+        self.invites = 0  # 2.1402.0 (#6579): the people this run invites into the target, counted in its storage (umz_take)
         self.kind = "account"  # or "org": an organisation export (part 4)
         self.chain = {}  # 2.1327.0 (#6591): office id -> its hash chain check after the import (oi_office._f_chain)
 
@@ -1618,9 +1622,6 @@ def umz_files(c, run, uid, me_old, zf, files, data):
             if enc and _oid(r.get("enc_by")) != me_old:
                 run.warning(N_("Encrypted file of another person not imported: {0}"), _txt(r.get("name"), 80))
                 continue
-            if run.stopped:  # 2.362.4 (#3100): the storage is full, the rows without a file still come
-                run.warning(UMZ_NO_SPACE)
-                continue
             raw = _file_bytes(zf, files, r.get("file"))
             if raw is None:
                 run.warning(N_("A file is missing in the export: {0}"), _txt(r.get("name"), 80))
@@ -1628,12 +1629,7 @@ def umz_files(c, run, uid, me_old, zf, files, data):
             if not raw or len(raw) > MAX_FILE_MB * 1024 * 1024:
                 run.warning(N_("A file is empty or too large and was skipped: {0}"), _txt(r.get("name"), 80))
                 continue
-            try:
-                quota_guard(c, uid, len(raw))
-            except QuotaExceeded:
-                run.stopped = "quota"
-                run.warning(UMZ_NO_SPACE)
-                continue
+            umz_take(c, run, len(raw))  # 2.1402.0 (#6579): all or nothing (was: the file left out, #3100)
             name = safe_name(_txt(r.get("name"), 150))
             if enc and raw[:5] != b"KENC\x01":  # 2.148.1 C (#2492): only a real browser-encrypted file (collab/e2e.py) skips the checks
                 enc = 0
@@ -1690,9 +1686,6 @@ def umz_template_files(c, run, uid, zf, files, data):
         if node not in keys[tpl]:  # review: a task the template does not have: the file would never be used, only count
             run.warning(N_("A file could not be imported: {0}"), _txt(r.get("name"), 80))
             continue
-        if run.stopped:
-            run.warning(UMZ_NO_SPACE)
-            continue
         raw = _file_bytes(zf, files, r.get("file"))
         if raw is None:
             run.warning(N_("A file is missing in the export: {0}"), _txt(r.get("name"), 80))
@@ -1700,12 +1693,7 @@ def umz_template_files(c, run, uid, zf, files, data):
         if not raw or len(raw) > MAX_FILE_MB * 1024 * 1024:
             run.warning(N_("A file is empty or too large and was skipped: {0}"), _txt(r.get("name"), 80))
             continue
-        try:
-            quota_guard(c, uid, len(raw))
-        except QuotaExceeded:
-            run.stopped = "quota"
-            run.warning(UMZ_NO_SPACE)
-            continue
+        umz_take(c, run, len(raw))  # 2.1402.0 (#6579)
         name = safe_name(_txt(r.get("name"), 150))
         try:
             raw, mime, info = up_check(c, name, raw, _txt(r.get("mime"), 120) or "application/octet-stream", uid, None, "att")
@@ -2186,7 +2174,7 @@ def umz_write(c, run, uid, man, zf, files, data, people):
         from .oi_office import oi_target_refuse  # 2.1316.0 (#6577): numbers / locked months of the target refuse, before any office row
         oi_target_refuse(c, run, data, files, run.org or getattr(run, "pb", None))
         oi_write(c, run, uid, man, zf, files, data, who)
-        run.created["oi_done"] = True  # 2.362.3 (#3098, review): a run stopped inside (quota) took only a part of the areas
+        run.created["oi_done"] = True  # 2.362.3 (#3098)
     if man.get("kind") != "org":  # #3470: my private file store, knowledge pages and tables
         umz_private(c, run, uid, man, zf, files, data, who)
     if man.get("kind") == "org":  # 2.459.0 (#3849): also on a second run: the lists it creates anew
@@ -2531,6 +2519,7 @@ def umz_run(uid, iid, opts):
             eid = st.get("export_id") or secrets.token_hex(8)
             run = _Run(uid, iid, eid, opts["org"], total)
             run.kind = man.get("kind") or "account"
+            run.invites = int(opts.get("invites") or 0)  # 2.1402.0 (#6579): counted by umz_go
             src = umz_src(man, st.get("export_id") or "")
             umz_have(c, run, uid, umz_earlier(c, uid, src, st.get("export_id") or ""),  # 2.362.3 (#3098)
                      mine=src == umz_src({"format": UMZ_FORMAT, "source": {"url": PUBLIC_URL}, "user": {"id": uid}}, ""))
@@ -2596,16 +2585,21 @@ def umz_run(uid, iid, opts):
                   "warnings": run.warnings()}  # 2.448.0 (#3765): key + values, umz_view translates; 2.531.0 (#4317) F4: the must ones first
         if run.chain:  # 2.1327.0 (#6591): the hash chain check of each office the import wrote documents into
             result["chain"] = run.chain
-        if run.stopped == "quota":
-            result["stopped"] = [N_("Your storage is full: some files were left out, everything else came over. The import can be undone.")]
         # 2.1140.0 (#6060): the upload goes BEFORE the state says done / stopped - the finally below removed it only after, so a
         # client that read "done" could still find the file (a slow CI runner: p273_b_api "the upload is gone after the run")
         try:
             os.remove(os.path.join(_dir(uid, iid), "upload.bin"))
         except OSError:
             pass
-        _set(uid, iid, state="stopped" if run.stopped else "done", result=result, progress=None)
+        _set(uid, iid, state="done", result=result, progress=None)
         print(f"account import of user {uid}: {run.stats.get('tasks', 0)} tasks", flush=True)
+    except UmzQuota as e:  # 2.1402.0 (#6579): the target's storage was full in the run: everything rolled back, nothing half
+        c.rollback()
+        umz_unwrite(run)
+        from .orgimport import oi_drop_empty_pb
+        oi_drop_empty_pb(c, run, uid)
+        _set(uid, iid, state="failed", error=[e.text, *e.args_], progress=None)
+        print(f"account import of user {uid}: the target's storage was full, rolled back", flush=True)
     except UmzBad as e:
         c.rollback()
         umz_unwrite(run)  # 2.362.4 (#3100)
@@ -2635,18 +2629,81 @@ def umz_run(uid, iid, opts):
             _UMI.pop(int(uid), None)
 
 
-def umz_room(c, uid, files):
-    """#3470: the files of the export (their unpacked sizes: what the import writes) must fit my storage and the server's disk,
-    else UmzBad with what they need and what is free (the upload only counted its packed size)."""
-    need = sum(zi.file_size for p, (zi, _s) in files.items() if p.startswith("files/"))
+# 2.1402.0 (#6579): the storage of the target, before the run and in it -- all or nothing. The files of an import count for
+# the importing person (files.user_id ...); with the pool "org" that is the pool of the TARGET organisation (its members x
+# quota, the people the import invites into it included: they join once they accept), not the person's first organisation.
+# A run never leaves files out any more: the start refuses with what is missing, a run over the limit rolls back.
+UMZ_SPACE_WAY = N_("Ask the operator for more storage or a larger plan, or free up space, then start the import again.")
+UMZ_SPACE_SHORT = N_("The storage of the target is too small for the files of this export: they need {0}, {1} are free, {2} are missing. {3}")
+
+
+class UmzQuota(UmzBad):
+    """The target's storage does not take the files (the start refuses, a run rolls back): the text names what is missing."""
+
+
+def umz_need(files):
+    """The bytes the files of the archive will count against the storage once imported (their unpacked sizes). Office files
+    (files/office/: documents, receipts, the archive) count for nobody (#6537, decision of 17.11.2026)."""
+    return sum(zi.file_size for p, (zi, _s) in files.items() if p.startswith("files/") and not p.startswith("files/office/"))
+
+
+def umz_room_at(c, uid, org, need, extra=0):
+    """None when `need` more bytes fit the storage the import into org (None = the private space) counts against, else
+    {need, free, missing} (bytes). extra: the people the import invites into org (#6579)."""
+    info = quota_info(c, uid, org=org, extra=extra)
+    if not need or not info or not info["limit"] or info["used"] + need <= info["limit"]:
+        return None
+    free = max(0, info["limit"] - info["used"])
+    return {"need": need, "free": free, "missing": need - free}
+
+
+def umz_room_err(short):
+    return UmzQuota(UMZ_SPACE_SHORT, fmt_bytes(short["need"]), fmt_bytes(short["free"]), fmt_bytes(short["missing"]), [UMZ_SPACE_WAY])
+
+
+def umz_invitable(data):
+    """The people of an organisation export the import could invite into the target at most (not agents)."""
+    return sum(1 for p in data.get("people", []) if umz_pid(p) and not p.get("agent"))
+
+
+def umz_room(c, uid, files, man=None, data=None):
+    """#3470: the files of the export (their unpacked sizes: what the import writes) must fit the server's disk, else UmzBad.
+    2.1402.0 (#6579): the storage per target -> {target id: {need, free, missing}} of the targets they do not fit now (without
+    invitations); when they fit no target at all, not even with every person of an organisation export invited, UmzQuota
+    before the preview. The start checks the chosen target again (umz_go), the run each file (umz_take)."""
+    need = umz_need(files)
     if not need:
-        return
-    info = quota_info(c, uid)
-    if info and info["limit"] and info["used"] + need > info["limit"]:
-        raise UmzBad(N_("Your storage is too small for the files of this export: they need {0}, {1} are free. Free up space or ask for more storage, then upload the file again."),
-                     fmt_bytes(need), fmt_bytes(max(0, info["limit"] - info["used"])))
+        return {}
+    short, best = {}, None
+    org_kind = (man or {}).get("kind") == "org"
+    for t in umz_targets(c, uid):
+        org = None if t["id"] == "private" else t["id"]
+        now = umz_room_at(c, uid, org, need)
+        if now is None:
+            best = False
+            continue
+        short[str(t["id"])] = now
+        most = umz_room_at(c, uid, org, need, umz_invitable(data or {})) if org is not None and org_kind else now
+        if most is None:
+            best = False
+        elif best is not False and (best is None or most["missing"] < best["missing"]):
+            best = most
+    if best:
+        raise umz_room_err(best)
     if not umz_space_ok(ATT_DIR, need):
         raise UmzBad(N_("There is not enough space on the server for the import. Please ask the server admin."))
+    return short
+
+
+def umz_take(c, run, n):
+    """2.1402.0 (#6579): before each file of a run: the file of n bytes fits the target's storage (measured fresh: this run's
+    files so far and what others uploaded meanwhile), else UmzQuota -- the run rolls back as a whole, nothing half."""
+    if os.environ.get("KALMIDO_TEST") == "1" and os.environ.get("KALMIDO_TEST_UMZ_FILE_DELAY"):  # tests only: time to cut the quota
+        time.sleep(float(os.environ["KALMIDO_TEST_UMZ_FILE_DELAY"]))
+    short = umz_room_at(c, run.uid, run.org, n, run.invites)
+    if short:
+        raise UmzQuota(N_("The storage of the target was full before every file was in: nothing was imported ({0} missing). {1}"),
+                       fmt_bytes(short["missing"]), [UMZ_SPACE_WAY])
 
 
 def umz_check(uid, iid, can_invite):
@@ -2665,11 +2722,22 @@ def umz_check(uid, iid, can_invite):
             return
         zf, man, files, data = umz_open(os.path.join(_dir(uid, iid), "upload.bin"), key, st["size"])
         zf.close()
-        umz_room(c, uid, files)  # #3470: before the preview, never halfway through the run
+        short = umz_room(c, uid, files, man, data)  # #3470: before the preview, never halfway through the run; 2.1402.0 (#6579): per target
         pv = umz_preview(c, uid, man, data, can_invite, files)
+        # 2.1402.0 (#6579): the storage the files need and, per target they do not fit now, what is missing and the way (the
+        # start refuses such a target; into an organisation the people the admin invites there count)
+        need = umz_need(files)
+        pv["storage"] = {"need": need, "targets": {k: {**v, "text": [UMZ_SPACE_SHORT, *umz_room_err(v).args_]}
+                                                   for k, v in short.items()}}
+        seen = umz_seen(c, uid, umz_salt(man))
+        ids = {}  # 2.1402.0 (#6579): the accounts found per person of the file, for the start's count of invitations (never to the client)
+        for p in data.get("people", []):
+            if umz_pid(p) and not p.get("agent"):
+                hit = umz_find(c, uid, umz_phash(p), seen)
+                ids[umz_pid(p)] = hit["id"] if hit else None
         c.rollback()
         facts = pv.pop("office_facts", None)  # 2.1316.0 (#6577): for the start's check, not for the client
-        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"], office_facts=facts)
+        _set(uid, iid, state="preview", preview=pv, export_id=pv["export_id"], src=pv["src"], office_facts=facts, need=need, people_ids=ids)
     except UmzBad as e:
         _set(uid, iid, state="invalid", error=[e.text, *e.args_])
         try:
@@ -3146,6 +3214,8 @@ def _view(uid, iid, st):
     if out.get("preview"):  # 2.454.0 (#3808)
         pv = out["preview"]
         out["preview"] = {**pv, "not_taken": umz_areas_tr(pv.get("not_taken")), "taken_areas": umz_areas_tr(pv.get("taken_areas"))}
+        if isinstance(pv.get("storage"), dict):  # 2.1402.0 (#6579)
+            out["preview"]["storage"] = {**pv["storage"], "targets": {k: {**v, "text": tr_stored(v.get("text"))} for k, v in (pv["storage"].get("targets") or {}).items()}}
         if isinstance(pv.get("office"), dict):  # 2.1316.0 (#6577)
             out["preview"]["office"] = {**pv["office"], "targets": {k: umz_office_tr(v) for k, v in (pv["office"].get("targets") or {}).items()}}
     if out.get("result"):
@@ -3158,7 +3228,10 @@ def _view(uid, iid, st):
 
 @app.post("/api/account/import")
 def umz_new():
-    """{size, name}: a new upload. 413 above KALMIDO_ACCOUNT_IMPORT_MAX_MB, 413 quota_exceeded, 507 without disk space."""
+    """{size, name}: a new upload. 413 above KALMIDO_ACCOUNT_IMPORT_MAX_MB, 507 without disk space.
+    2.1402.0 (#6579): no storage check of the person here (was quota_guard, 413 quota_exceeded): the upload only lies in the
+    import folder until the run and counts for nobody; what its files will need is checked per target before the preview
+    (umz_room: unpacked sizes) and at the start (umz_go) -- an organisation's pool after the import, not the admin alone."""
     umz_person()
     uid = me()
     b = body()
@@ -3169,8 +3242,6 @@ def umz_new():
         return err(tr("The file is too large (at most {0} MB)", UMZ_IMPORT_MAX_MB), 413)
     import_upload_rate(uid)  # 2.1282.0 (#6426)
     c = db()
-    from ..admin.hosting import quota_guard
-    quota_guard(c, uid, size)  # the files in it will count against my storage (checked again per file in the run)
     if not umz_space_ok(UMZ_IN_DIR, size * 2):
         return err(tr("There is not enough space on the server for the import. Please ask the server admin."), 507)
     if _busy(uid):
@@ -3261,6 +3332,24 @@ def umz_undo_plan_get(iid):
     return jsonify(umz_undo_preview(db(), me(), iid))
 
 
+def umz_invites(c, uid, st, org, picks, can_invite):
+    """2.1402.0 (#6579): the people an organisation export's run invites into the target org (umz_share: a found account not
+    a member yet, ticked "share"; a missing one ticked "invite" with an address, by an instance admin) -- they join its storage
+    pool once they accept. 0 into the private space and for an account export (it invites nobody into an organisation)."""
+    if org is None or (st.get("preview") or {}).get("kind") != "org":
+        return 0
+    ids, n = st.get("people_ids") or {}, 0
+    for k, v in picks.items():
+        if k not in ids:
+            continue
+        hid = ids[k] or ((umz_find_login(c, uid, v.get("login")) or {"id": None})["id"] if v.get("login") else None)
+        if hid:
+            n += bool(v.get("share") and not umz_in_org(c, org, hid))
+        else:
+            n += bool(v.get("invite") and can_invite and v.get("email"))
+    return n
+
+
 @app.post("/api/account/import/<iid>/run")
 def umz_go(iid):
     """{target: "private" | org id (I am its admin), people: {key: {share: bool, invite: bool, email?: str}}} -> the run starts.
@@ -3301,9 +3390,15 @@ def umz_go(iid):
                         or (_email(em) if "@" in str(em) else ""), "login": _txt(v.get("login"), 64)}  # 2.278.0 B (#3094): a user name
             if "role" in v:  # 2.278.0 A (#3095): the role the admin confirmed (unknown = member; none sent = the file's)
                 picks[e]["role"] = umz_role(v["role"])
+    invites = umz_invites(c, uid, st, org, picks, bool(g.user["is_admin"]))
+    short = umz_room_at(c, uid, org, int(st.get("need") or 0), invites)  # 2.1402.0 (#6579): all or nothing, before the run
+    if short:
+        c.rollback()
+        e = umz_room_err(short)
+        return jsonify(error=tr_stored([e.text, *e.args_]), code="quota_exceeded", **short), 409
     c.rollback()
     try:
-        _thread(uid, umz_run, iid, {"org": org, "people": picks, "can_invite": bool(g.user["is_admin"])}, iid=iid,
+        _thread(uid, umz_run, iid, {"org": org, "people": picks, "can_invite": bool(g.user["is_admin"]), "invites": invites}, iid=iid,
                 state={"state": "running", "progress": {"done": 0, "total": 1}, "target": org})
     except Denied:
         _set(uid, iid, state="preview")

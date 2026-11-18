@@ -28,9 +28,9 @@ from ..core.errors import BadInput
 from ..core.i18n import N_
 from ..office.ledger import ofx_release  # 2.542.0 (#4598)
 from ..lists.listhead import HEAD_DIR, HEAD_MAX_MB, o3c_head_process, o3c_head_rel
-from .acctimport import UMZ_NO_SPACE, _BAD, _coerce, _file_bytes, _oid, _read_entry, _txt, tr, umz_cols, umz_insert, umz_money_misfit, umz_row
+from .acctimport import _BAD, _coerce, _file_bytes, _oid, _read_entry, _txt, tr, umz_cols, umz_insert, umz_money_misfit, umz_row
+from .acctimport import umz_take  # 2.1402.0 (#6579)
 from .acctimport import UMZ_ORG_SKIP  # 2.278.0 B (#3094)
-from .hosting import quota_fits  # 2.459.0 (#3849)
 from ..core.orgcrypt import oc_enc_fields, oc_list_org, oc_list_space, oc_user_space, oc_write_file  # 2.149.0 G (#2517): pulled up from functions
 from ..core.db import iso, now_utc  # 2.149.0 G (#2517): pulled up from functions
 from ..core.access import Denied  # 2.237.0 D (#2870)
@@ -202,12 +202,8 @@ def oi_drop_empty_pb(c, run, uid):
 
 
 def oi_file(ctx, path, sub, name, space=None, base=ATT_DIR, check=True, mime="", seal=True, strict=False):
-    from ..admin.hosting import QuotaExceeded, quota_guard
     from ..files.upsafe import up_check, UploadRefused
     c, run = ctx.c, ctx.run
-    if run.stopped:  # 2.362.4 (#3100): a full storage stops the files, not the rest of the areas
-        run.warning(UMZ_NO_SPACE)
-        return None
     raw = _file_bytes(ctx.zf, ctx.files, path)
     name = safe_name(_txt(name, 150)) or "file"
     if raw is None:
@@ -216,12 +212,8 @@ def oi_file(ctx, path, sub, name, space=None, base=ATT_DIR, check=True, mime="",
     if not raw or len(raw) > MAX_FILE_MB * 1024 * 1024 * 4:
         run.warning(N_("A file is empty or too large and was skipped: {0}"), name)
         return None
-    try:
-        quota_guard(c, ctx.uid, len(raw))
-    except QuotaExceeded:
-        run.stopped = "quota"
-        run.warning(UMZ_NO_SPACE)
-        return None
+    if not path.startswith("files/office/"):  # 2.1402.0 (#6579): all or nothing (was: a full storage left the rest out, #3100); office files count for nobody (#6537)
+        umz_take(c, run, len(raw))
     if check:
         try:
             raw, _m, _i = up_check(c, name, raw, mime or "application/octet-stream", ctx.uid, space if space and space > 0 else None, "att")
@@ -383,9 +375,7 @@ def _oi_pic(c, run, uid, zf, files, path, max_mb, process):
     except BadInput:
         run.warning(N_("A file could not be imported: {0}"), what)
         return None
-    if not quota_fits(c, uid, len(out)):
-        run.warning(N_("A file is empty or too large and was skipped: {0}"), what)
-        return None
+    umz_take(c, run, len(out))  # 2.1402.0 (#6579): all or nothing
     return out
 
 

@@ -1145,7 +1145,13 @@ the household budget, for one). Agents and API tokens cannot do this; it is a pe
    hash in the file, otherwise nobody is invited; everybody else invites them later as usual. Assignments to people that
    are not taken over stay empty; comments of such people keep their name.
 
-**When the storage is full:** the import leaves out the files that no longer fit; everything else still comes, and the result says so.
+**Storage (all or nothing, 2.1402.0):** the upload itself counts for nobody. Before the preview and again at the start the import
+adds up what the files of the export need and compares it with the storage of the chosen target: your own storage for the private
+space, and with the pool "organisation" the pool of the target organisation -- its members plus the people the import invites
+there (they join the pool when they accept). If it does not fit, the preview names the target with what is missing and the import
+does not start; ask the operator for more storage or a larger plan, or free up space. Should the storage run full while the run
+writes (somebody else uploaded meanwhile), the whole run is rolled back: nothing is imported, never half. On a server without
+a storage quota nothing of this applies.
 Ids of the old server never stay behind: mentions become the new account or plain `@name`, saved filters follow the new projects (a filter
 on something that did not come along is left out and named), person and task fields and formulas are rewritten.
 
