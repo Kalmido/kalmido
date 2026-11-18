@@ -22,7 +22,7 @@ In an organisation's office (Alice its admin, Bob a member) and in the personal 
  - moving the personal office into an organisation revokes its issuers (the preview names them)
  - review of 2.1381: a paused issuer probing new paths adds no log line, nor does probing after the self-pause (F1); a
    support session writes no issuer route (F2); any_address false keeps the live address rule (F5)
- - KALMIDO_ISSUER_KEYS=0: management 404, the key 403 issuer_keys_off; KALMIDO_HOSTED=1: off until the operator unlocks the
+ - KALMIDO_ISSUER_KEYS unset (off by default, opt-in) or 0: management 404, the key 403 issuer_keys_off; KALMIDO_HOSTED=1: off until the operator unlocks the
    area (PUT /api/operator/accounts/<id> issuer_keys), locking again pauses; KALMIDO_ISSUER_ENV=live: a test key 401, a new
    issuer needs addresses, its key starts with kis_live_
 usage: p21381_office_issuer_key_test.py <datadir>"""
@@ -101,7 +101,7 @@ with open(os.path.join(OPDIR, "token"), "w") as f:
     f.write(TOKEN + "\n")
 os.chmod(OPDIR, 0o755)
 os.chmod(os.path.join(OPDIR, "token"), 0o644)
-kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces"}, data=DATA)
+kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_ISSUER_KEYS": "1"}, data=DATA)  # 2.1381.0 (#6699): the kind is opt-in
 A = kt.setup()
 A.patch(B + "/api/settings", json={"lang": "en", "features": FEATURES, "tour": "done"})
 ALICE = A.get(B + "/api/state").json()["me"]["id"]
@@ -301,13 +301,14 @@ r = subprocess.run(["docker", "exec", "-w", "/app", kt.CT, "python", "-c", "from
 check(r.stdout.split()[-4:] == ["False", "False", "False", "True"], f"support sessions write no issuer route, still office documents {r.stdout[-200:]} {r.stderr[-300:]}")
 
 # ---------------------------------------------------------------- server switches (the same data, restarted)
-kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_ISSUER_KEYS": "0"}, keep=True, data=DATA)
-A = kt.sess("alice")
-r = key_get(KEY3)
-check(r.status_code == 403 and code(r) == "issuer_keys_off", f"KALMIDO_ISSUER_KEYS=0: the key 403 {r.text[:160]}")
-check(A.get(B + "/api/office/issuers").status_code == 404, "KALMIDO_ISSUER_KEYS=0: the management 404")
+for sw in ({}, {"KALMIDO_ISSUER_KEYS": "0"}):  # 2.1381.0 (#6699): off by default (opt-in) and switched off
+    kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", **sw}, keep=True, data=DATA)
+    A = kt.sess("alice")
+    r = key_get(KEY3)
+    check(r.status_code == 403 and code(r) == "issuer_keys_off", f"KALMIDO_ISSUER_KEYS {sw or 'unset'}: the key 403 {r.text[:160]}")
+    check(A.get(B + "/api/office/issuers").status_code == 404, f"KALMIDO_ISSUER_KEYS {sw or 'unset'}: the management 404")
 
-kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_HOSTED": "1"}, keep=True, data=DATA)
+kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_HOSTED": "1", "KALMIDO_ISSUER_KEYS": "1"}, keep=True, data=DATA)
 A = kt.sess("alice")
 check(key_get(KEY3).status_code == 403 and A.get(B + "/api/office/issuers").status_code == 404, "hosted: off until the operator unlocks the organisation")
 acc = op("GET", f"accounts/{ALICE}").json().get("account") or {}
@@ -318,7 +319,7 @@ check(r.ok and key_get(KEY3).ok and A.get(B + "/api/office/issuers").ok, f"hoste
 r = op("PUT", f"accounts/{ALICE}", json={"issuer_keys": {"area": ORG, "on": False}})
 check(r.ok and sql("SELECT paused_reason FROM office_issuers WHERE id=?", (IID,))[0][0] == "operator", "hosted: locking again pauses the issuers")
 
-kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_ISSUER_ENV": "live"}, keep=True, data=DATA)
+kt.fresh({"KALMIDO_INSTANCE_MODE": "workspaces", "KALMIDO_ISSUER_KEYS": "1", "KALMIDO_ISSUER_ENV": "live"}, keep=True, data=DATA)
 A = kt.sess("alice")
 check(key_get(KEY3).status_code == 401, "a live server takes no test key")
 r = A.post(B + "/api/office/issuers", json={"name": "Live", "range_id": RG, "password": PASSWORD})

@@ -522,8 +522,8 @@ reference" (sealed like the company's bank data; the key never reads them). Ever
 (`office_doc_log.issuer_id`; reads once per hour and target). The admins of the area hear of changes (News / push by their
 settings); a new key, a first call from a new address and a self-pause come by e-mail as well, always. A key running out is
 announced 30 and 7 days before and on the day.
-`KALMIDO_ISSUER_KEYS=0` switches the kind of key off for the server; on a hosted server (`KALMIDO_HOSTED=1`) the operator
-unlocks each area (`PUT /api/operator/accounts/<id>` `{issuer_keys: {area: "private" | <organisation id>, on}}`, default off;
+The kind of key is off by default: `KALMIDO_ISSUER_KEYS=1` switches it on for the server; on a hosted server (`KALMIDO_HOSTED=1`)
+the operator also unlocks each area (`PUT /api/operator/accounts/<id>` `{issuer_keys: {area: "private" | <organisation id>, on}}`, default off;
 locking pauses). Moving the private office into an organisation revokes its issuers (the preview says so); turning it into a
 new organisation keeps them. Not in the organisation, account or retention export: an admin sets them up again on the target.
 
