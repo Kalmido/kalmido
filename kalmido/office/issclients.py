@@ -73,7 +73,8 @@ ISC_REF_ROUTE = "clients"  # office_issuer_refs.route of a client's tombstone
 ISC_PUBLIC = ("external_ref", *ISC_FIELDS)
 ISC_KEY_FLAGS = ("client_new", "text_suspicious")  # review F2: what the key hears of the mark - only its own input
 # an IBAN form: two letters, two check digits, 11 to 30 letters / digits (spaces allowed between), at least 8 digits in it
-ISC_IBAN_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{2}[0-9]{2}(?:[ ]?[A-Za-z0-9]){11,30}(?![A-Za-z0-9])")
+# 2.1396.0 (#6701, review F3): the groups may also be split by a dash, a dot, a slash or a no-break / thin space
+ISC_IBAN_RE = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]{2}[0-9]{2}(?:[ \u00a0\u2007\u202f._/-]?[A-Za-z0-9]){11,30}(?![A-Za-z0-9])")
 ISC_MAIL_RE = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
 ISC_TLDS = ("com|net|org|info|biz|io|de|at|ch|eu|co|uk|fr|it|es|nl|be|pl|ru|cn|us|me|ly|app|xyz|top|link|shop|online|site|"
             "store|click|live|page|dev|ai|tv|cc|ws|to|gg|li|lu")
@@ -114,6 +115,8 @@ def isc_text_check(field, v):
     """'' / 'suspicious' for value v of field, or BadInput invalid_field (an IBAN form, a web or an e-mail address)."""
     if not v or field in ISC_NO_TEXT_CHECK:
         return ""
+    if any(unicodedata.category(ch) == "Cf" for ch in v):  # 2.1396.0 (#6701, review F3): invisible / direction marks hide what is printed
+        raise _bad(field, tr("{0}: no invisible characters", field))
     if any(sum(ch.isdigit() for ch in m.group(0)) >= 8 for m in ISC_IBAN_RE.finditer(v)):
         raise _bad(field, tr("{0}: no bank account (IBAN) in the client's data", field))
     if ISC_WEB_RE.search(v) or ISC_MAIL_RE.search(v):

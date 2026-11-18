@@ -22,6 +22,9 @@ In an organisation's office (Alice its admin) and in the personal office of a pe
  - the office: the draft names its issuer and the unconfirmed wish; it cannot become a series template (409), its client
    cannot become a person's client (409); a copy is no issuer draft; the list filter issuer=any
  - parallel: five equal requests at once = one draft
+ - review of 2.1396 (Fable reader): F1 the key cannot withdraw a person's correction draft (409 not_own_draft); F2 a person's
+   change of the date or a switch alone ends the preview; F3 an IBAN split by dashes, dots, no-break or zero-width spaces and
+   a direction mark: 400
  - the personal office: Frida's key makes Frida's draft (created_by Frida), she sees it
  - ISS_REUSED: every function of the drafts named there and run here with the issuer's context
 usage: p6701_office_issuer_invoices_test.py <datadir>"""
@@ -212,6 +215,11 @@ r = kpost(KEY3, body("bad:1", items=[{"text": "Erstattung", "qty": -1, "rate": "
 check(r.status_code == 400 and "qty" in (field(r) or ""), f"a negative quantity: 400 {r.status_code} {r.text[:160]}")
 r = kpost(KEY3, body("bad:1", items=[{"text": "Zahlung an DE89 3704 0044 0532 0130 00", "qty": 1, "rate": "150.00"}]))
 check(r.status_code == 400 and "text" in (field(r) or ""), f"an IBAN in a position: 400 {r.status_code} {r.text[:160]}")
+# review F3 (2.1396.0): an IBAN split by dashes, dots, a no-break space, or a zero-width space / a direction mark in the text: 400
+for txt in ("Zahlung an DE89-3704-0044-0532-0130-00", "Zahlung an DE89.3704.0044.0532.0130.00", "Zahlung an DE89\u00a03704\u00a00044\u00a00532\u00a00130\u00a000",
+            "Zahlung an DE89\u200b3704004405320130 00", "Tarif \u202eoidutS"):
+    r = kpost(KEY3, body("bad:1", items=[{"text": txt, "qty": 1, "rate": "150.00"}]))
+    check(r.status_code == 400 and "text" in (field(r) or ""), f"review F3: {txt!r} in a position: 400 {r.status_code} {r.text[:120]}")
 r = kpost(KEY3, body("bad:1", order_ref="Infos auf www.example.com"))
 check(r.status_code == 400 and field(r) == "order_ref", f"a web address in order_ref: 400 {r.status_code}")
 r = kpost(KEY3, body("bad:1", wish={"due_days": 14, "due_date": TODAY.isoformat()}))
@@ -291,6 +299,14 @@ r = kget(KEY, f"/docs/{DOCP}/pdf") if False else kget(KEY2, f"/docs/{DOCP}/pdf")
 check(r.status_code == 200 and r.content[:4] == b"%PDF", f"the preview of a draft as delivered: a PDF {r.status_code} {r.text[:160] if r.status_code != 200 else ''}")
 r = kget(KEY, f"/docs/{DOC1}/pdf")
 check(r.status_code == 409 and code(r) == "edited_by_human", f"after a person's change: 409 edited_by_human {r.status_code} {r.text[:160]}")
+# review F2 (2.1396.0): a person's change of a field outside the head's usual ones (the date, a position's switch) ends it too
+for i, chg in enumerate(({"date": (TODAY - __import__("datetime").timedelta(days=1)).isoformat()}, {"subtotals": True})):
+    di = kpost(KEY, body(f"fp:{i}", ext="acc:2")).json().get("doc_id")
+    check(kget(KEY, f"/docs/{di}/pdf").status_code == 200, f"review F2: the fresh draft's preview {chg}")
+    cur = A.get(B + D + f"/{di}").json()
+    rr = A.patch(B + D + f"/{di}", json={**chg, "expect_updated_at": cur.get("updated_at")})
+    r = kget(KEY, f"/docs/{di}/pdf")
+    check(rr.ok and r.status_code == 409 and code(r) == "edited_by_human", f"review F2: a person changed {list(chg)}: 409 edited_by_human {rr.status_code} {r.status_code}")
 
 # ---------------------------------------------------------------- finalise, correct, changed_since
 D2 = kpost(KEY, body("fin:1", ext="acc:2")).json()["doc_id"]
@@ -300,6 +316,9 @@ check(r.ok, f"a person finalises the issuer's draft {r.status_code} {r.text[:200
 r = A.post(B + D + f"/{D2}/credit", json={})
 CRD = r.json().get("id") if r.ok else 0
 check(r.ok and sql("SELECT issuer_id, kind FROM office_docs WHERE id=?", (CRD,))[0] == (IID, "credit"), f"a person's correction inherits issuer_id {r.status_code} {r.text[:200]}")
+r = requests.post(V + f"/issuer/docs/{CRD}/withdraw", headers=hk(KEY), timeout=30)
+check(r.status_code == 409 and code(r) == "not_own_draft" and not sql("SELECT deleted_at FROM office_docs WHERE id=?", (CRD,))[0][0],
+      f"review F1: the key cannot withdraw the person's correction draft: 409 not_own_draft {r.status_code} {r.text[:160]}")
 seen, cursor, pages = {}, None, 0
 while pages < 20:
     r = kget(KEY, "/docs?limit=2" + (f"&cursor={requests.utils.quote(cursor)}" if cursor else ""))
