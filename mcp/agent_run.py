@@ -3610,8 +3610,8 @@ class Runner:
     # kalmido-capability: override_log (2.1383.0, #4064)
     def log_overrides(self):
         """2.1383.0 (#4064): one line in the runner's log per switch of this computer that suspends a safeguard (approval check,
-        permission questions, session resume, the dispatcher switched on against Kalmido); the dispatcher counts them in its
-        day report. A new switch of that kind goes into agent_dispatch.OVERRIDE_SWITCHES, never without this line."""
+        permission questions, session resume, the danger guard, a permission mode set here, the dispatcher switched on against
+        Kalmido); the dispatcher counts them in its day report. A new switch of that kind goes into agent_dispatch.OVERRIDE_SWITCHES, never without this line."""
         try:
             import agent_dispatch
         except ImportError:
