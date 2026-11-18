@@ -122,7 +122,7 @@ const RARE = ['Agent access', 'Tasks from notes…', 'Notifications: Default', '
   await until(() => d.querySelector('#pop [role="menuitem"]'));
   const mh = [...d.querySelectorAll('#pop .mgh')].map(h => h.textContent), mi = [...d.querySelectorAll('#pop [role="menuitem"]')].map(b => b.textContent.trim());
   // 2.364.0 (#3040): the areas as in the drawer, the conversations, Search, the tab bar, Settings fixed at the end
-  check(mh[0] === 'Areas' && !mh.includes('Conversations') /* 2.489.0 (#2664): no heading Conversations any more */ && mi.includes('Customise tab bar') && mi[mi.length - 1] === 'Settings', '#1056 "More": groups ' + mh.join('|') + ' / ' + mi.join('|'));
+  check(!mh.includes('Areas') /* 2.1401.0 (#6127): the areas are the drawer's, More does not repeat them */ && !mh.includes('Conversations') /* 2.489.0 (#2664): no heading Conversations any more */ && mi.includes('Customise tab bar') && mi[mi.length - 1] === 'Settings', '#1056 "More": groups ' + mh.join('|') + ' / ' + mi.join('|'));
   w.eval('closePop()');
   // #1057: the tab "Search" opens the palette (no page "Search")
   check(w.eval(`tabItem('search').act`) === 'palette', '#1057 the tab "Search" opens the search');

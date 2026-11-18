@@ -14,11 +14,11 @@ const sql = q => execFileSync('python3', [path.join(__dirname, 'dbx.py'), DATA, 
   sql(`UPDATE settings SET value='1' WHERE key='update_check'`);
   sql(`UPDATE settings SET value='{"checked_at": "2026-09-01T00:00:00Z", "latest": "99.0.0", "url": "https://github.com/example/kalmido/releases/tag/v99.0.0"}' WHERE key='update_info'`);
   let w = await boot({user: 'alice'}), d = w.document;
-  check(d.querySelector('#kbar .kbsw .kbupd'), 'admin: update dot on the Kalmido menu (Settings)'); // 2.380.2 (#3400): Settings moved from the bottom of the bar into the Kalmido menu (#kbar .kbsw)  // 2.152.2 (#2622): Settings at the bottom of the bar
-  // 2.380.2 (#3400): the Kalmido menu (brand button of the head bar) holds Settings, with the update note; clicking opens them
-  d.querySelector('#kbar .kbsw').click(); await sleep(100);
-  const kset = d.querySelector('#pop .kbws-settings');
-  check(kset && /Settings/.test(kset.textContent) && /Update available/.test(kset.textContent), '#3400: Kalmido menu: Settings with "Update available"');
+  check(d.querySelector('#kbar .kbacct .kbupd') && !d.querySelector('#kbar .kbsw .kbupd'), 'admin: update dot on the account button (Settings)');  // 2.1401.0 (#6127): Settings left the workspace menu for the account menu, the dot went with them // 2.380.2 (#3400): Settings moved from the bottom of the bar into the Kalmido menu (#kbar .kbsw)  // 2.152.2 (#2622): Settings at the bottom of the bar
+  // 2.380.2 (#3400): Settings with the update note; 2.1401.0 (#6127): in the account menu (the workspace menu holds only the organisation's)
+  d.querySelector('#kbar .kbacct').click(); await sleep(100);
+  const kset = d.querySelector('#pop .um-settings');
+  check(kset && /Settings/.test(kset.textContent) && /Update available/.test(kset.textContent), '#3400 / #6127: account menu: Settings with "Update available"');
   kset?.click();
   check(await until(() => !!d.querySelector('.smodal')), '#3400: the menu entry opens the settings');
   d.querySelector('.smodal')?.remove(); w.eval('closePop()');

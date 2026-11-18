@@ -541,7 +541,7 @@ function sbb_railHtml(hid) {
   // 2.152.3 A (#2619): the account moved up into the head bar (sbb_barHtml). 2.542.0 (#4610): the button "Show the panel" on top
   // of the bar is gone (its place came and went, the icons below moved): a tap on the open area's icon brings the panel back,
   // and a change of the area opens it again (sbb_unfoldOnSwitch)
-  return `<div class="srbs">${sbb_ids().map(btn).join('')}</div>`;  // 2.380.2 (#3400): Settings moved into the Kalmido menu of the head bar (sbb_wsMenu); 2.575.0 D (#4051): the person's order
+  return `<div class="srbs">${sbb_ids().map(btn).join('')}</div>`;  // 2.380.2 (#3400): Settings moved into the account menu of the head bar (2.1401.0 #6127, was the Kalmido menu); 2.575.0 D (#4051): the person's order
 }
 // ---- 2.575.0 D (#4051): a right click (computer) or a long press (phone) on an area's icon (the computer's bar, the phone's
 // row in the drawer) opens the area's menu: Move up / down (the computer also drags), Hide from the bar (Settings > Appearance >
@@ -790,8 +790,8 @@ let sbb_barLast = '';
 function sbb_barHtml() {
   // P4: without an organisation the switch shows the private space (its menu: Private + "Add a company")
   const cur = wsOn() ? wsCur() : 'private', nm = wsName(cur);
-  const acct = S.me ? `<button type="button" class="kbacct" data-act="user-menu" aria-haspopup="menu" title="${esc(acctLabel())}" aria-label="${esc(acctLabel())}">${av(S.me.id, S.me.display_name, 'avatar', '', '', true)}</button>` : '';
-  return `<button type="button" class="kbsw" data-act="sbb-ws" aria-haspopup="menu" aria-label="${esc(APP_NAME + ' · ' + tr('Workspace') + ': ' + nm)}" title="${esc(tr('Switch to'))}"${wsp_attr(cur)}><span class="kbbrand">${logoSvg(28)}${wordSvg()}</span><span class="kbfirm">${cur === 'all' ? ic('grid', 's') : wsp_dot(cur)}<span class="wsn">${esc(nm)}</span>${ic('chev', 's')}</span>${updDot() ? `<span class="kbupd" title="${esc(tr('Update available'))}"></span>` : ''}</button>`
+  const acct = S.me ? `<button type="button" class="kbacct" data-act="user-menu" aria-haspopup="menu" title="${esc(acctLabel())}" aria-label="${esc(acctLabel())}">${av(S.me.id, S.me.display_name, 'avatar', '', '', true)}${updDot() ? `<span class="kbupd" title="${esc(tr('Update available'))}"></span>` : '' /* 2.1401.0 (#6127): Settings live in the account menu now, so does the update's dot (#3400) */}</button>` : '';
+  return `<button type="button" class="kbsw" data-act="sbb-ws" aria-haspopup="menu" aria-label="${esc(APP_NAME + ' · ' + tr('Workspace') + ': ' + nm)}" title="${esc(tr('Switch to'))}"${wsp_attr(cur)}><span class="kbbrand">${logoSvg(28)}${wordSvg()}</span><span class="kbfirm">${cur === 'all' ? ic('grid', 's') : wsp_dot(cur)}<span class="wsn">${esc(nm)}</span>${ic('chev', 's')}</span></button>`
     + '<div class="fv2bar" role="group"></div>'  // 2.441.0 (#3592): the favourites, only in the free room (favtiles.js fv2_barDraw)
     + `<button type="button" class="kbsrch" data-act="palette" title="${esc(tr('Search and commands'))} (${kbText('Mod+K')})" aria-label="${esc(tr('Search and commands'))}">${ic('search', 's')}<span>${esc(tr('Search'))}</span></button>`
     + `<span class="kbend">${/*html-ok*/ spl_btn() /* 2.1037.0 (#5803): miniwin.js */}${bellBtn()}${netDotHtml()}${acct}</span>`;
@@ -807,48 +807,25 @@ function sbb_bar() {
   const nu = $('.kbacct', k); if (old && nu && old !== nu && old.innerHTML === nu.innerHTML && old.title === nu.title) nu.replaceWith(old);
   fv2_barDraw();
 }
-// the workspace menu of the bar: "Switch to", each company with its own sign (picture / symbol / initial), Private (house),
-// the shown one ticked; then "Add a company" (2.1397.0, #6885: only without an organisation) and, while a company is shown, its settings. The switch itself is wsSet.
-function sbb_wsMenu(anchor) {
-  const cur = wsOn() ? wsCur() : 'private', all = wsOn() ? wsOptions() : ['private'];
-  const opts = [...all.filter(w => w.startsWith('org:')), ...all.filter(w => !w.startsWith('org:'))];  // the companies first (sketch)
-  const set = cur.startsWith('org:') && typeof lmOrgPaneOn === 'function' && lmOrgPaneOn();
-  const p = menu(anchor, [{head: tr('Switch to')}, ...opts.map(ws => ({label: wsName(ws), icon: ws === 'private' ? 'home' : ws === 'all' ? 'grid' : 'brief', on: ws === cur, cls: 'kbwsi', title: wsName(ws), fn: () => { if (ws !== wsCur()) wsSet(ws); }})),
-    '-', {label: tr('Settings'), icon: 'gear', cls: 'kbws-settings', keys: 'g s', sub: updDot() ? tr('Update available') : '', fn: () => settingsModal()},  // 2.380.2 (#3400)
-    // 2.1397.0 (#6885): only while the person is in no organisation (the first company stays easy to find); afterwards it
-    // lives in Settings > Organisation > Workspaces (acctset.js wsPaneHtml, same sbb_orgAdd)
-    ...(typeof lmOrgPaneOn === 'function' && lmOrgPaneOn() ? [] : [{label: tr('Add an organisation'), icon: 'plus', cls: 'kbws-add', fn: sbb_orgAdd}]),
-    ...(set ? [{label: tr('Company settings'), icon: 'building', cls: 'kbws-set', fn: () => settingsModal('org')}] : [])]);
-  // each company's own sign in place of the icon: its picture or symbol, else its initial on a tile
-  // 2.1353.0 (#6957): the tile wears the organisation's own colour (as its dot and stripe do), whichever workspace is open;
-  // Private's house wears my own colour when I chose one (ws_colors.private), else it stays neutral
-  opts.forEach((ws, i) => {
-    const b = p?.querySelector(`[role="menuitem"][data-i="${i + 1}"]`), x = b?.querySelector('svg.i');
-    if (!x) return;
-    if (ws === 'private') { const v = wsp_vars('private'); if (v) { x.setAttribute('data-wsc', '1'); x.setAttribute('style', v); } return; }
-    if (!ws.startsWith('org:')) return;
-    const o = wsOrg(ws.slice(4)), bv = wsp_barVars(ws);
-    x.outerHTML = `<span class="kbwsic">${/*html-ok*/ orgIconHtml(o, `<span class="kbini" aria-hidden="true"${/*html-ok*/ bv ? ` data-wsc="1" style="${esc(bv)}"` : ''}>${esc(String(o?.name || '?').trim().charAt(0).toUpperCase())}</span>`)}</span>`;
-  });
-}
+// 2.1401.0 (#6127): the workspace menu of the bar is the one of workspace.js (wsMenu), the same on every device
 // "Add a company": an admin of the server creates one (the dialog of Administration); 2.422.0 (#2937): anybody else creates
 // a company of her own by its name (POST /api/orgs, she becomes its admin) and lands in it; where the server does not allow
 // that (not the mode workspaces, the limit reached) the answer says why
 async function sbb_orgAdd() {
   if (S.me?.is_admin && typeof orgModal !== 'function') await loadModule('settings').catch(() => {});  // 2.152.3: orgModal lives in the lazy settings module
   if (S.me?.is_admin && typeof orgModal === 'function') { orgModal(null, () => load().then(render).catch(() => {})); return; }
-  const name = ((await askPrompt(tr('Name of the new company'), '', {body: tr('Keeps your work apart from your private things. You become its admin and can invite people by e-mail.'), ok: tr('Create'), input: {max: 60}})) || '').trim();
+  const name = ((await askPrompt(tr('Name of the new organisation'), '', {body: tr('Keeps your work apart from your private things. You become its admin and can invite people by e-mail.'), ok: tr('Create'), input: {max: 60}})) || '').trim();
   if (!name) return;
   let o; try { o = await api('POST', '/api/orgs', {name}); } catch (x) {
-    await askConfirm(tr('Add an organisation'), x.status === 403 ? tr('A company is set up by the admin of this server. A company’s admin can then invite you by e-mail.') : (x.message || tr('unknown')), {ok: tr('OK')});
+    await askConfirm(tr('Add an organisation'), x.status === 403 ? tr('An organisation is set up by the admin of this server. An organisation’s admin can then invite you by e-mail.') : (x.message || tr('unknown')), {ok: tr('OK')});
     return;
   }
   await load().catch(() => {});
   if (typeof wsSet === 'function') wsSet('org:' + o.id); else render();
-  toast(tr('The company “{0}” is set up', o.name));
+  toast(tr('The organisation “{0}” is set up', o.name));
 }
 // the panel's head: the area's name, "Fold all" / "Unfold all" (only a panel with groups that fold: Tasks, or a panel whose
-// html has sbb_head groups or a tree marked data-sbbfold) and "Hide the panel". pan = the panel's html (not Tasks)
+// html has sbb_head groups or a tree marked data-sbbfold) and "Hide the sidebar". pan = the panel's html (not Tasks)
 const sbb_foldGroups = pan => pan == null ? $$('#side [data-act="sbb-group"]').map(b => b.dataset.g)
   : [...pan.matchAll(/data-act="sbb-group" data-g="([^"]*)"/g)].map(m => m[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
 function sbb_foldOpen(id, pan) {
@@ -864,7 +841,7 @@ function sbb_headHtml(id, pan = '') {
   const d = sbb_def(id), groups = id === 'tasks' || /data-act="sbb-group"|data-sbbfold/.test(pan) || /data-act="sbb-tree"/.test(pan);  // 2.198.0 B (#2764): with a tree the button always stays
   const open = groups && sbb_foldOpen(id, pan), lab = open ? tr('Fold all') : tr('Unfold all');
   const fold = groups ? `<button type="button" class="iconbtn sbbfa" data-act="sbb-foldall" aria-pressed="${!open}" title="${esc(lab)}" aria-label="${esc(lab)}">${ic(open ? 'collapse' : 'expand', 's')}</button>` : '';
-  const hide = `<button type="button" class="iconbtn sbbhide" data-act="sbb-panel" title="${esc(tr('Hide the panel'))}" aria-label="${esc(tr('Hide the panel'))}">${ic('panelhide', 's')}</button>`;
+  const hide = `<button type="button" class="iconbtn sbbhide" data-act="sbb-panel" title="${esc(tr('Hide the sidebar'))}" aria-label="${esc(tr('Hide the sidebar'))}">${ic('panelhide', 's')}</button>`;
   return `<h2 class="sbbpt">${esc(tr(d ? d[2] : 'Projects'))}</h2><span class="spacer"></span><span class="sbtools">${fold}${id === 'tasks' ? fv2_svToolBtn() /* 2.156.0 D (#2186) */ : ''}${id === 'team' ? tc_newBtnHtml() /* 2.479.0 (#2814) */ : ''}${hide}</span>`;
 }
 function sbb_foldAll() {
@@ -889,7 +866,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest?.('[data-act="sbb-ws"], [data-act="sbb-foldall"], [data-act="sbb-panel"]'); if (!b) return;
   e.preventDefault(); e.stopPropagation();
   const a = b.dataset.act;
-  if (a === 'sbb-ws') sbb_wsMenu(b); else if (a === 'sbb-foldall') sbb_foldAll(); else sbb_panel();
+  if (a === 'sbb-ws') wsMenu(b); else if (a === 'sbb-foldall') sbb_foldAll(); else sbb_panel();
 }, true);
 // with the panel hidden by hand (or folded for room) a click on the open area's icon brings it back
 document.addEventListener('click', e => {

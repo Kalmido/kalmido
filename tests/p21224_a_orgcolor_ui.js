@@ -104,7 +104,7 @@ const FEAT = 'comments,collab,sheets,time';
   check(tr && /Old campaign/.test(tr.textContent) && striped(tr, T), '#6188 the trash: the organisation\'s deleted project wears its stripe');
   // ================= 2.1353.0 (#6957) the menu "Switch to": each organisation's tile in its own colour, whichever workspace is open
   const tile = () => d.querySelector('#pop .kbwsi .kbini');
-  w.eval(`sbb_wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);
+  w.eval(`wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);  // 2.1401.0 (#6127): the one workspace menu (was sbb_wsMenu)
   let kt = await until(tile);
   check(kt && kt.dataset.wsc === '1' && kt.style.getPropertyValue('--wsd') === T.d, '#6957 the tile of the organisation wears its own colour (workspace "All" open)');
   check(!d.querySelector('#pop .kbwsi svg[data-wsc]'), '#6957 Private without a colour of its own: the house stays neutral');
@@ -114,7 +114,7 @@ const FEAT = 'comments,collab,sheets,time';
   if (O2) {
     await call('PATCH', '/api/orgs/' + O2, {color: '#4cc3d9'});
     await w.eval(`load().then(render)`);
-    w.eval(`sbb_wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);
+    w.eval(`wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);  // 2.1401.0 (#6127): the one workspace menu (was sbb_wsMenu)
     await until(() => d.querySelectorAll('#pop .kbwsi .kbini').length >= 2);
     const tv = [...d.querySelectorAll('#pop .kbwsi .kbini')].map(x => x.style.getPropertyValue('--wsd'));
     check(tv.length >= 2 && new Set(tv).size === tv.length && tv.every(Boolean), '#6957 two organisations: two different tile colours ' + tv.join('|'));
@@ -128,7 +128,7 @@ const FEAT = 'comments,collab,sheets,time';
   const o1 = ovr();
   check(/data-wso="1"[^>]*>[^]*Private/.test(o1.split('</li>')[0]) || /spovr[^>]*data-wso="1"/.test(o1.split('</li>')[0]), '#6957 overview: Private wears the colour I chose ' + o1.slice(0, 300));
   check(w.eval(`wso_row('private')`) === '', '#6957 other views: wso_row without the overview flag leaves Private neutral');
-  w.eval(`sbb_wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);
+  w.eval(`wsMenu(document.querySelector('#kbar .kbfirm, #kbar button, #side button'))`);  // 2.1401.0 (#6127): the one workspace menu (was sbb_wsMenu)
   check(await until(() => d.querySelector('#pop .kbwsi svg.i[data-wsc]')), '#6957 the menu: Private\'s house wears the colour I chose');
   w.eval(`closePop()`);
   await call('PATCH', '/api/settings', {ws_colors: '{}'});

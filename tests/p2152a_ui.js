@@ -100,9 +100,10 @@ const call = async (ck, method, url, body) => { const r = await fetch(B + url.re
     check(b && b.first && b.logo && b.ws === 'Private' && b.inside, '#2607: phone: the drawer has the brand on top ' + JSON.stringify(b));
     await shot('p2152a-drawer-390.png');
     m = await ev(openMenu);
-    check(m.home && m.side === 'Hide the sidebar', '#2607: phone: Start + Hide the sidebar ' + JSON.stringify(m));
-    await ev(pick('wsm-side'));
-    check(await ready(ev, `!document.querySelector('#side.open')`), '#2607: phone: Hide the sidebar closes the drawer');
+    // 2.1401.0 (#6127): ONE menu: the drawer's brand shows the same entries as the head bar (no Start / Hide the sidebar / Settings any more)
+    check(!m.home && !m.side && m.head.includes('Switch to') && m.items.join('|') === 'Alpha|Private|All workspaces'  /* 2.1397.0 (#6885): no Add inside an organisation */, '#6127: phone: the same menu as on a computer ' + JSON.stringify(m));
+    await ev(`(() => { closePop(); closeSide(); return 1; })()`);
+    check(await ready(ev, `!document.querySelector('#side.open')`), '#2607: phone: the drawer closes');
   }, false);
 
   // ===== P4: frida without an organisation

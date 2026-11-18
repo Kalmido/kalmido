@@ -1526,6 +1526,10 @@ organisation's mark is the stripe, so the two never read as one.
 // (2b) a page that is mixed in every workspace (time tracking, search hits, news): mixed = true marks what belongs to another
 // organisation also inside one workspace; Private and the shown workspace itself stay without a mark (2.1224.0, #6187)
 `${wso_origin(obj.org_id, 'mymeta', true)}`
+// (2c) a view of ONE workspace that also shows things of others (the start page's box "Waiting for you", its news and team
+// chat rows): other marks what belongs to another workspace than the shown one, Private included, nothing under "All"; sub =
+// what it is in there (title, screen readers, after a "·"). true above is the short form of {mixed: true} (2.1401.0, #6234)
+`${wso_origin(obj.org_id, 'mymeta', {other: true, sub: roomName})}`
 // (3) the open object: once per area, at the top level of its file; null when its page is not open
 wso_open('wiki', () => S.route?.mod === 'wiki' && WK.pg ? WK.pg.org_id || 'private' : null);
 // (4) 2.1241.0 (#6181): an element with an inline style of its own (a calendar's --cc): the style goes in, one attribute out
@@ -1562,6 +1566,7 @@ Who uses it: the projects (sidebar rows `wsc_rowAttr` -> `wso_row`, the open lis
 messages neutral; `tc_org`), files and documents (spaces, panel, document cards, the open space / folder / document) and
 contacts (rows, card, address books, panel spaces). 2.1224.0: tables (#6186: cards, folder cards, group headings, panel, the
 open table via `wso_open('sheets', …)`), time tracking (#6187: entries, report lines, timesheet card), the palette / search
-hits, the trash, news, project group heads and favourite agents (#6188). 2.1254.0 (#6180): the office (badge `wsp_attr`, every page and the open quotation / invoice via
+hits, the trash, news, project group heads and favourite agents (#6188). 2.1401.0 (#6234): the start page - the Projects and
+Notes cards under "All" (`wso_origin`), the box "Waiting for you", news and team chat rows (`hpWsMark` = `wso_origin(.., {other: true})`). 2.1254.0 (#6180): the office (badge `wsp_attr`, every page and the open quotation / invoice via
 `wso_open('office')`, the overview rows of `spo_html` for every area) and the clients (rows, origin under "All", open card).
 Tests: `tests/p21254_c_orgfarbe_ui.js`, `tests/p21205_b_orgcolor_ui.js`, `tests/p21241_orgcolor_areas_ui.js`, `tests/p21224_a_orgcolor_ui.js`.
