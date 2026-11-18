@@ -10,8 +10,9 @@ fake Kalmido API and a real temporary git repository.
  - the next bundle in priority order (first_tags before the rest), sizes as points: an L alone, then S + S + M together
  - a free place starts ONE job (agent_job.py start with the brief: #IDs, one commit per task); a running job holds the place
  - a dry run changes nothing (no comment, no close, no job) and lists what it would do in dispatch-dry.log and the day report
- - the guard: a job that ended counts one try per open task, at max_tries the task is stuck (told once in the chat); a job
-   without progress for stale_h hours is a finding
+ - the guard: a job that ended counts one try per open task; 2.1368.0 (#4069): after max_tries the task goes back to the
+   list with a comment, only after max_bundles bundles it is stuck (told once in the chat); a job without progress for
+   stale_h hours is a finding
  - brakes: the stop file, the usage limit; the day report once a day after report_at; 2.1368.0 (#4060): the jam brake
    (more tasks on a branch than stau_max hold new starts, closing goes on, the day report names it)
  - the runner hands over (dispatch_watch, capability "dispatcher", texts in six languages)
@@ -230,18 +231,29 @@ res = d.tick(force=True)
 check(d.reg["tries"].get("104") == 1 and len(STARTS) == 2 and STARTS[1][0] == [104], f"an ended job counts one try, 104 again: {d.reg['tries']}")
 JOBS["502"] = {"id": 502, "state": "failed"}
 res = d.tick(force=True)
-check(res["states"][104] == "stuck" and d.reg["tries"]["104"] == 2, "after max_tries jobs the task is stuck")
+# 2.1368.0 (#4069): after max_tries (2) jobs the task is no longer stuck: back to the list with a comment, into the next bundle
+check(res["states"][104] == "ready" and d.reg["tries"]["104"] == 0 and d.reg["bundles"]["104"] == 1 and STARTS[-1][0] == [104],
+      f"#4069: twice left open -> back to the list, bundled anew: {res['states'][104]} {d.reg['tries']} {d.reg['bundles']}")
+cm = [b["body"] for m, p_, b in h.api.bodies if m == "POST" and p_ == "/tasks/104/comments"]
+check(len(cm) == 1 and cm[0].startswith("Not finished in 2 jobs - back in the list"), f"#4069: the comment on the task: {cm}")
+check(not any("#104" in t and "needs you" in t for _, t in h.api.chats), "#4069: not stuck yet, nobody is called")
+# the third bundle that leaves it open makes it stuck (max_bundles 3): two bundles already, one try in the third
+d.reg["bundles"]["104"], d.reg["tries"]["104"] = 2, 1
+JOBS["503"] = {"id": 503, "state": "failed"}
+res = d.tick(force=True)
+check(res["states"][104] == "stuck" and d.reg["bundles"]["104"] == 3, "#4069: stuck only after max_bundles bundles")
+check(len([1 for m, p_, b in h.api.bodies if m == "POST" and p_ == "/tasks/104/comments"]) == 1, "#4069: no comment for the stuck one")
 check(STARTS[-1][0] == [102, 103, 108], f"then the S + S + M bundle (5 points): {STARTS[-1][0]}")
 check(all(i not in s[0] for s in STARTS for i in (113, 114, 115)), f"#6523: never a job for another member's task or one without a creator: {STARTS}")
-check(any("#104" in t and "needs you" in t for _, t in h.api.chats), "stuck: told in the chat")
+check(any("#104" in t and "needs you" in t and "after 6 jobs" in t for _, t in h.api.chats), "stuck: told in the chat")
 
 # a running job without progress for stale_h hours
-JOBS["503"] = {"id": 503, "state": "running", "created": time.time() - 2 * 3600}
+JOBS["504"] = {"id": 504, "state": "running", "created": time.time() - 2 * 3600}  # 2.1368.0 (#4069): one job more above
 res = d.tick(force=True)
-check(any("Job #503" in f["text"] for f in res["findings"]), f"a stale job is a finding: {[f['text'] for f in res['findings']]}")
+check(any("Job #504" in f["text"] for f in res["findings"]), f"a stale job is a finding: {[f['text'] for f in res['findings']]}")
 
 # brakes: the stop file holds new starts, closing goes on
-JOBS["503"]["state"] = "done"
+JOBS["504"]["state"] = "done"
 TASKS.append(task(112, "Another fix", "S"))
 g("commit", "-q", "--allow-empty", "-m", "#103: the other fix")
 open(os.path.join(state, ad.STOP_FILE), "w").close()
