@@ -17,7 +17,8 @@ from flask import g, jsonify, request
 from ..core.config import app
 from ..core.db import body, bump, db, err, insert_id, iso, now_utc
 from ..core.i18n import tr
-from ..core.pg import system_ctx, ts_canon  # 2.1115.0 (#5951): ts_canon
+from ..core.pg import system_ctx, ts_canon, write_lock  # 2.1115.0 (#5951): ts_canon; 2.1362.0 (#6327): write_lock
+from ..core.conflict import Conflict, ccf_check  # 2.1362.0 (#6327)
 from ..core.access import Denied, list_role, list_state_sql, live_sql, list_archived_sql  # 2.1004.0 (#5494): live_sql
 from ..accounts.session import me
 from ..api.v1 import BadInput, UnknownFields
@@ -206,6 +207,12 @@ def rc_set(c, node, ws, lid, cat, uid, vat=_KEEP, keep=False):
     return prev
 
 
+def rc_ver(r):
+    """2.1362.0 (#6327): the version of a receipt's assignment (project, category, VAT rate) = its set_at, canonical; '' = no
+    receipt row. rc_set and the bank rules stamp set_at; the tick Checked, paid / billed are no part of the sheet's fields."""
+    return ts_canon(r["set_at"]) if r and r["set_at"] else ""
+
+
 def rc_state(c, node, m, uid):
     r = c.execute("SELECT * FROM rc_receipts WHERE node_id=?", (node["id"],)).fetchone()
     lid = r["list_id"] if r else None
@@ -215,6 +222,7 @@ def rc_state(c, node, m, uid):
     cur["rc13b"] = (r["rc13b"] or None) if r else None  # 2.545.0 (#4387): reverse charge mark (office/books.py BK_RC13B)
     cur["checked_at"] = r["checked_at"] if r else None  # 2.420.0 C (#3448): a person's tick (office/receiptlist.py)
     cur["checked_by"] = _who(c, r["checked_by"]) if r and r["checked_at"] else None
+    cur["updated_at"] = rc_ver(r)  # 2.1362.0 (#6327): the version of the assignment (rc_put expect_updated_at)
     sugs = [rc_sug_json(c, s, uid) for s in c.execute("SELECT * FROM rc_suggest WHERE node_id=? AND state='open' ORDER BY id", (node["id"],))]
     projects, recent = rc_projects(c, node["org_id"], uid)
     return {"receipt": cur, "suggestions": sugs, "categories": rc_categories(c, m["ws"]), "projects": projects, "recent": recent,
@@ -272,16 +280,35 @@ def rc_get(nid):
 def rc_put(nid):
     """{project_id: id|null, category: text, vat_pct?: "19"|"7"|"0"|null, keep?: bool, rc13b?: ""|"eu"|"other"} -- a person sets
     the assignment (role edit); all empty = none. 2.90.0 A (#1921): vat_pct (left as it is when missing); keep = it stays a receipt
-    when empty. 2.545.0 (#4387): rc13b = reverse charge (section 13b UStG; left as it is when missing; set = it stays a receipt)."""
+    when empty. 2.545.0 (#4387): rc13b = reverse charge (section 13b UStG; left as it is when missing; set = it stays a receipt).
+    2.1362.0 (#6327): expect_updated_at = the receipt's updated_at the client read ('' = it was no receipt): another one -> 409
+    with the current state under "receipt", nothing written (the bookkeeping's sheet; an undo never overwrites another
+    device's change). With it, only the fields sent change (project_id / category missing = as they are, keep missing = it
+    stays what it is); without it the old behaviour (missing = empty)."""
     _person()
     c = db()
     uid = me()
     n, m = rc_doc(c, nid, write=True)
     rc_office_need(c, m, uid)  # 2.237.0 A (#2861)
     b = body()
-    extra = sorted(set(b) - {"project_id", "category", "vat_pct", "keep", "rc13b"})
+    if not isinstance(b, dict):
+        return err(tr("Invalid value: {0}", "body"))
+    extra = sorted(set(b) - {"project_id", "category", "vat_pct", "keep", "rc13b", "expect_updated_at"})
     if extra:
         return err(tr("Unknown field: {0}", ", ".join(extra)[:200]))
+    if "expect_updated_at" in b:  # 2.1362.0 (#6327): checked under the lock, against the row as it is now
+        write_lock(c, f"rc_receipts-{int(nid)}")
+        old = c.execute("SELECT * FROM rc_receipts WHERE node_id=?", (nid,)).fetchone()
+        exp, have = str(b.pop("expect_updated_at") or ""), rc_ver(old)
+        cur = lambda: rc_state(c, n, m, uid)  # noqa: E731
+        if not exp or not have:  # became a receipt / stopped being one in the meantime (ccf_check skips an empty version)
+            if exp != have:
+                raise Conflict("receipt", cur())
+        else:
+            ccf_check({"expect_updated_at": exp}, have, "receipt", cur)
+        b.setdefault("project_id", old["list_id"] if old else None)
+        b.setdefault("category", (old["category"] or "") if old else "")
+        b.setdefault("keep", bool(old))
     try:
         lid, cat = rc_clean(b)
         vat = rc_vat_clean(b["vat_pct"]) if "vat_pct" in b else _KEEP
