@@ -13,7 +13,7 @@ from ..core.db import body, err, like_escape
 from ..accounts.session import me
 from ..core.access import Denied
 from ..collab.comments import user_names
-from ..agents.core import agent_emit, jc_job_name, JOB_MESSAGE_MAX, job_dict, job_may_act, job_visible
+from ..agents.core import agent_emit, jc_job_name, JOB_MESSAGE_MAX, job_dict, job_may_act, job_visible, job_words_hidden
 from ..personal.timetrack import BadInput  # 2.369.5 (#2517): pulled up from functions
 from ..tasks.validation import as_int  # 2.369.5 (#2517): pulled up from functions
 from ..agents.chat import chat_add  # 2.369.5 (#2517): pulled up from functions
@@ -98,6 +98,8 @@ def jcd_jobs(c, aid, msgs, uid):
     if pids:
         rows.update({j["id"]: j for j in c.execute(f"SELECT * FROM agent_jobs WHERE agent_id=? AND id IN ({','.join('?' * len(pids))})", (aid, *pids))})
     seen = {i: j for i, j in rows.items() if job_visible(c, j, uid)}
+    # Fable reader job/5498 F4: the title / name of a job whose words uid does not read is not given (as jn9_job_names)
+    seen = {i: (j if not job_words_hidden(c, j, uid) else {**{k: j[k] for k in j.keys()}, "title": "", "name": None}) for i, j in seen.items()}
     out = {}
     for i in ids:
         j = seen.get(i)
