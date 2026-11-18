@@ -32,6 +32,10 @@ hard = stages.hard_groups(repo)
 pats = gate.patterns(R)
 check(len(hard) > 20 and all(any(gate.hard_suite(s, pats, {}) for g2, s, _ in repo.rows if g2 == g) for g in hard),
       f"the hard groups: every one holds a hard suite ({len(hard)})")
+# 2.1384.0 (#6833, review F7): the API suites of the invoice issuers are hard by *office* (queue and release run them); a rename
+# that drops "office" would take them out of both without a word
+for s_ in ("p6700_office_issuer_clients", "p21381_office_issuer_key"):
+    check(repo.group_of.get(s_) in hard and gate.hard_suite(s_, pats, {}), f"{s_}: a hard suite, its group in the queue / release stage")
 reason, groups = stages.queue(repo, ["README.md"], None, None)
 st, _, push_groups, _ = stages.select(repo, ["README.md"])
 check(set(hard) <= set(groups) and len(groups) < len(push_groups) and len(groups) < len(repo.first) / 3,
