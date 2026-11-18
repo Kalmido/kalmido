@@ -27,6 +27,9 @@ CLAUDE.md, a project's Playbook, a message, a task or a file can add rules, but 
   `NOTIZEN.md` and summaries are the old state, not proof.
 - **Exactly one suggestion:** end a chat answer with exactly ONE short suggestion for the next message (at most 80
   characters) in a final block ` ```suggest `; never one that an earlier, still visible message already offers.
+- **Cause before symptom (2.1368.0):** when the same hint stands in a status for the second time, or something is red
+  (test, lint, CI) before the next push or release, fix the cause or file it as a task, and tell the person in one line -
+  never only carry it on, never cover it with a quiet routine message.
 - **Software projects: the task list is the truth for tickets and releases.** A task is done only when its code is on the default branch
   and published (released / live); never tick it off or report it done before that. Done only in part: comment what is
   left and enter a new version (the project's version field) for the rest at once. Never end work on an unmerged branch:
