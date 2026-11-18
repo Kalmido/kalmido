@@ -174,17 +174,18 @@ const tabAreaItems = () => { const cur = sbb_area(); return sbb_ids().filter(id 
 function tabOverflow() {
   const items = tabItems(), mx = tabMax(), shown = items.length > mx ? items.slice(0, mx - 1) : items;  // 2.477.0 (#3938)
   const areas = tabAreaItems(), over = items.slice(shown.length), pinned = k => items.some(t => t.id === k);
-  // 2.883.0 (#5560): an overflowing pinned tab whose place is also an area (Calendar, Reading) stands once, in the group Areas
-  const rest = over.filter(t => !areas.some(a => a.id === t.id || (t.mod && a.mod === t.mod)));  // by place, not by go: a list tab can be Projects' kept page
-  const conv = ['team', 'news'].filter(k => !pinned(k) && !areas.some(t => t.id === k) /* 2.479.0 (#2814): the team chat is an area */).map(tabItem).filter(t => t && !o3a_hidT(t));
+  // 2.1401.0 (#6127): "More" holds only what the tab bar does not show: the overflowing pinned tabs (an area among them too),
+  // then Search / Settings when not pinned. The areas stay in the drawer (the menu button), News at the bell: neither twice.
+  const rest = over.filter(t => t.id !== 'news');
   const end = ['search', 'settings'].filter(k => !pinned(k)).map(tabItem).filter(Boolean);
   // search + settings are also in the side menu: they alone do not justify a "Mehr" tab
-  return {shown, rest, more: over.length || areas.some(t => !pinned(t.id)) ? [...rest, ...areas, ...conv, ...end] : []};
+  return {shown, rest, more: over.length || areas.some(t => !pinned(t.id)) ? [...rest, ...end] : []};
 }
 function renderTabs() {
   const {shown, more} = tabOverflow(), all = tabItems(), on = tabOn(all);
   // highlight "Mehr" when the current view is only reachable through it (overflow tab, unpinned module, search)
-  const moreOn = more.length > 0 && !(S.viaDrawer && '#' + S.viaDrawer === location.hash) && (on ? !shown.some(t => t.id === on) : (S.route.mod !== 'tasks' && S.route.mod !== 'news') || S.route.key === 'search');
+  // 2.1401.0 (#6127): only for a place that More itself holds (an overflowing tab, the search); an area of the drawer is not in it
+  const moreOn = more.length > 0 && !(S.viaDrawer && '#' + S.viaDrawer === location.hash) && (on ? !shown.some(t => t.id === on) && more.some(t => t.id === on) : S.route.key === 'search' && more.some(t => t.id === 'search'));
   // 2.31.0 (#1057): with "Search" in the tab bar the phone has ONE search: no magnifier in the header, no search field in the
   // drawer and no search button next to it (CSS body.tab-search); without the tab they stay, so search is always reachable
   document.body.classList.toggle('tab-search', shown.some(t => t.id === 'search'));
@@ -208,10 +209,12 @@ function tabsMore(anchor) {
   // the tab bar, set apart
   // 2.364.0 B (#3040): overflowing pinned tabs (Views), the areas (as in the drawer), the conversations, then Search, the tab
   // bar and Settings fixed at the end
-  const grp = t => rest.includes(t) ? 0 : ['team', 'news'].includes(t.id) && !t.rail ? 2 : t.id === 'search' ? 3 : t.id === 'settings' ? 4 : 1;
+  // 2.1401.0 (#6127): no group Areas (they are the drawer's) and no News (the bell): the overflowing tabs, then the end
+  const grp = t => rest.includes(t) ? 0 : t.id === 'search' ? 3 : t.id === 'settings' ? 4 : 1;
   // 2.489.0 (#2664, decision #2636): no heading "Conversations" any more (the team chat is the area Chat, #2814): News after a line
   const head = [{head: tr('Views')}, {head: tr('Areas|nav')}, '-', '-', null];
   const ord = [0, 1, 2, 3, 4].flatMap(g => { const ts = more.filter(t => grp(t) === g); return ts.length || g === 3 ? [...(head[g] ? [head[g]] : []), ...ts, ...(g === 3 ? [{label: tr('Customise tab bar'), icon: 'edit', fn: () => settingsModal('tabbar')}] : [])] : []; });
+  while (ord[0] === '-') ord.shift();  // 2.1401.0 (#6127): nothing overflows: no line on top
   menu(anchor, [...wk.map(a => ({label: tr('{0} is working', a.name) + (a.status_text ? ' · ' + a.status_text : ''), dot: 'working', fn: () => go('agents')})), ...(wk.length ? ['-'] : []), ...ord.map(t => t === '-' || t.head || t.fn ? t : ({label: t.id === 'news' && bellCount() ? `${t.label} (${bellCount()})` : t.label, icon: t.ico || 'list', lic: t.lic,  // 2.883.0 (#5560): the item's own icon (was a guess by module, 'dots' for Knowledge, Tables, Office)
     fn: () => t.act === 'side' ? sideOpenDrawer() : t.act === 'palette' ? openPalette() : t.act ? settingsModal() : go(t.area && t.area === sbb_area() ? sbb_home(t.area) : t.go)}))]).querySelector('.tch-sh')?.classList.add('tch-sh0');  // 2.417.0 A (#3559)
   // 2.883.0 (#5560): "More" has no title: no empty head line, its X sits in the grip's line

@@ -115,9 +115,9 @@ const items = async ck => JSON.parse((await call(ck, 'GET', '/api/state')).setti
     await sleep(300);
     const g1 = await ev(GEO);
     check(g0 === g1, 'the head bar keeps place and size of everything else ' + g0 + ' / ' + g1);
-    const m = JSON.parse(await ev(`(() => { const t = document.querySelector('#kbar .fv2-tile[data-fv2="v:today"]').getBoundingClientRect(), b = document.querySelector('#kbar .fv2bar').getBoundingClientRect(), a = document.querySelector('#kbar .kbsw').getBoundingClientRect(), s = document.querySelector('#kbar .kbsrch').getBoundingClientRect(); return JSON.stringify({left: b.left >= a.right - 1, right: b.right <= s.left + 9, sq: Math.abs(t.width - t.height) < 1, sep: !!document.querySelector('#kbar .fv2-sep'), side: !!document.querySelector('#side .fv2-tile')}); })()`));
+    const m = JSON.parse(await ev(`(() => { const t = document.querySelector('#kbar .fv2-tile[data-fv2="v:today"]').getBoundingClientRect(), b = document.querySelector('#kbar .fv2bar').getBoundingClientRect(), a = document.querySelector('#kbar .kbsw').getBoundingClientRect(), s = document.querySelector('#kbar .kbsrch').getBoundingClientRect(); return JSON.stringify({left: b.left >= a.right - 1, right: b.right <= s.left + 9, sq: document.querySelector('#kbar .fv2bar').classList.contains('fv2-icons') ? Math.abs(t.width - t.height) < 1 : getComputedStyle(document.querySelector('#kbar .fv2-tile[data-fv2="v:today"] .fv2-nm')).display !== 'none' && t.width <= 9 * 16 + 1, sep: !!document.querySelector('#kbar .fv2-sep'), side: !!document.querySelector('#side .fv2-tile')}); })()`));
     check(m.left && m.right, 'the row lies between the switch and the search ' + JSON.stringify(m));
-    check(m.sq && m.sep && !m.side, 'symbols, a divider, none in the sidebar any more ' + JSON.stringify(m));
+    check(m.sq && m.sep && !m.side, 'symbols (2.1401.0 #6127: with room their names, at most 9rem; tight: square symbols), a divider, none in the sidebar any more ' + JSON.stringify(m));
     const hint = await ev(`document.querySelector('#kbar .fv2-tile[data-fv2="r:wiki:${PG2}"]').title`);
     check(/Team handbook/.test(hint) && /Page/.test(hint), 'the hint has the name and the place ' + hint);
     check(await ev(`!!document.querySelector('#kbar .fv2-tile[data-fv2="r:wiki:${PG2}"] .wsp-dot')`), 'a dot shows the workspace');

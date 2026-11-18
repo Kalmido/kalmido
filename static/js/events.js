@@ -554,7 +554,7 @@ document.addEventListener('click', async e => {
       ...(n.k !== 'on' ? [{label: tr('Try again'), icon: 'sync', fn: () => { if (OUT.q.length) flush(); refreshNow().then(staleDraw).catch(() => {}); }}] : []), '-',
       {label: tr('Start|home'), icon: 'start', fn: () => { closeSide(); go('home'); }},  // 2.138.2 C (#2392): the logo (the way home) left the sidebar
       {label: tr('Account'), icon: 'user', fn: () => { closeSide(); settingsModal('account'); }},
-      {label: tr('Settings'), icon: 'gear', keys: 'g s', fn: () => { closeSide(); settingsModal(); }},
+      {label: tr('Settings'), icon: 'gear', cls: 'um-settings', keys: 'g s', sub: updDot() ? tr('Update available') : '', fn: () => { closeSide(); settingsModal(); }},  // 2.1401.0 (#6127): my settings only here (not in the workspace menu), with the update hint (#3400)
       ...(S.me && S.me.kind !== 'agent' ? [{label: tr('Recent steps'), icon: 'undo', act: 'ul-page', fn: () => { closeSide(); go('steps'); }}] : []),  // 2.773.0 (#5250): the list of the ← button as a page (undolist.js)
       ...(mvOn() ? [{label: tr('Show administration again'), icon: 'eye', fn: () => { closeSide(); loadModule('settings').then(() => mvSet(false), () => {}); }}] : []),  // 2.436.0 (#3620)
       ...(S.me?.auth === 'session' ? ['-', {label: tr('Sign out'), icon: 'logout', fn: logout}] : [])]); break; }

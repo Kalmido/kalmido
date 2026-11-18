@@ -45,7 +45,7 @@ const until = (fn, n) => require('./boot').until(fn, {timeout: n ? n * 150 : 150
   // #2636: the sidebar settings name the group People, no Conversations
   w.eval("settingsModal('sidebar')");
   check(await until(() => d.querySelector('#s-sidebar [data-sideg="team"]')), 'the sidebar settings are drawn');
-  const tn = d.querySelector('#s-sidebar [data-sideg="team"] > span')?.textContent || '';
+  const tn = d.querySelector('#s-sidebar [data-sideg="team"] > span:not(.rowgrip)')?.textContent || '';
   check(tn === 'People' && !/Conversations/.test(d.querySelector('#s-sidebar')?.textContent || ''), '#2636: the group is called People: ' + tn);
   // #2654: no section Assistant, the built-in assistant is a tab of Agents
   check(!d.querySelector('.smodal .snav [data-sec="assistant"]') && w.eval("!SET_SECS.some(s => s[0] === 'assistant') && AI_SUBS.some(s => s[0] === 'assistant')"), '#2654: the assistant is a tab of Agents, no section');

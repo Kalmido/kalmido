@@ -87,7 +87,9 @@ const ALL = 'cal,timeline,matrix,habits,pomo,collab,stats,time,progress,agents,c
   await until(() => tiles().length >= 7);
   const want = ['v:today', 'l:' + TEAM, 'folder:Work', 'm:matrix', 'f:' + FLT, 'tag:errand', 'p:' + BOB, ...(AG && d.querySelector(`.fv2bar .fv2-tile[data-fv2="a:${AG}"]`) ? ['a:' + AG] : [])].join();  // 2.152.2 (#2622): the calendar is an icon of the bar (no row menu there); a Views row (Matrix) carries the module star
   check(order() === want, 'the tiles in the order of the stars, across kinds: ' + order());
-  check(tiles().every(t => (t.textContent.trim() === '' || t.querySelector('.avatar')) && !t.querySelector('.n') && t.title && t.getAttribute('aria-label') === t.title), 'tiles: icon only (a person: the avatar), the name as title + aria-label');
+  // 2.1401.0 (#6127): besides the icon a tile carries its name (.fv2-nm, aria-hidden: the name is read from aria-label), nothing else
+  const own = t => [...t.childNodes].filter(n => !(n.classList && n.classList.contains('fv2-nm'))).map(n => n.textContent).join('').trim();
+  check(tiles().every(t => (own(t) === '' || t.querySelector('.avatar')) && t.querySelector('.fv2-nm[aria-hidden="true"]')?.textContent.trim() && !t.querySelector('.n') && t.title && t.getAttribute('aria-label') === t.title), 'tiles: icon (a person: the avatar) + its name, the name as title + aria-label');
   check(!/\d/.test(tiles().map(t => t.textContent).join('')) && !d.querySelector('.fv2bar .fv2-tile .c'), 'tiles: no numbers');
   check(d.querySelector('.fv2bar .fv2-tile[data-fv2="v:today"]')?.title === 'Today' && d.querySelector('.fv2bar .fv2-tile[data-fv2="v:today"]').classList.contains('on'), 'the tile of the open view is marked');
   check(!d.querySelector('#side .sg-favs .srow'), 'no list rows in the favourites any more');
@@ -181,7 +183,7 @@ const ALL = 'cal,timeline,matrix,habits,pomo,collab,stats,time,progress,agents,c
       check(m.scroll > 100, tag + ': the sidebar scrolls ' + JSON.stringify({...m, extra}));
       if (m.flow) check(Math.abs(m.top1 - (m.top0 - m.scroll)) < 2, tag + ': sidebar B: the head scrolls along (#3303) ' + JSON.stringify(m));  // 2.331.0 A (#3303): in sidebar B the head is no longer fixed
       else check(Math.abs(m.top1 - m.top0) < 2 && m.top1 >= -1 && m.front, tag + ': the head stays in place while the sidebar scrolls ' + JSON.stringify(m));
-      check(Math.abs(m.w - m.th) < 2 && m.w >= 1.875 * m.rem - 1, tag + ': tiles square, at least 1.875 rem '  /* 2.441.0 (#3592): the row of the head bar */ + JSON.stringify(m));
+      check(m.th >= 1.875 * m.rem - 1 && m.w >= m.th - 1 && m.w <= 9 * m.rem + 1, tag + ': tiles at least 1.875 rem high, as wide as their name allows (2.1401.0 #6127: at most 9 rem) '  /* 2.441.0 (#3592): the row of the head bar */ + JSON.stringify(m));
       check(m.h < m.vh * 0.6, tag + ': the head stays below 60 % of the height ' + JSON.stringify(m));
     }
     await ev(`(() => { document.querySelector('#side').scrollTop = 0; return 1; })()`);
