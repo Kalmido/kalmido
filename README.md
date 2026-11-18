@@ -19,11 +19,10 @@
 
 ## What's new
 
-**2.1387.0** (2026-11-18):
-- **Organisation**: org admins can start a move (Settings > Organisation > Data); the organisation is read only meanwhile and everyone sees a notice bar.
-- **Documents**: text recognition has an hourly budget per workspace; a cut-off recognition is flagged and can be run again.
-- **Settings**: arrange the bottom bar and sidebar groups by dragging the grip.
-- **Agents**: hardened starter (token kept out of the model's environment), rules template "Software development"; writes to a moving organisation answer 423 `org_moving`.
+**2.1399.0** (2026-11-18):
+- **Office**: invoice issuer keys also set up their clients by an external reference; a hold mark on the client keeps automatic sending back until a person has checked the data.
+- **Agents**: external team agents work per request for one person with a request token; `by_creator` marks only tasks a person wrote by hand.
+- **Tasks**: dragging several tasks in "My tasks" moves all of them.
 
 Full history: [CHANGELOG.md](CHANGELOG.md).
 
