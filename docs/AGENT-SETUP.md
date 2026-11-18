@@ -838,7 +838,10 @@ chat messages of one person that arrive together: one run). It does what a hoste
   working copies of build jobs, not with `--worktree` / `--parent`; a read-only note goes in front of its brief (no commit,
   merge, push, deploy, nothing written but comments and the result) and `list` marks it.
   `--worktree` gives it its own `git worktree` and branch `job/<id>` (at most `KALMIDO_JOB_WORKTREES` open, default 2); `list`,
-  `status ID` and `stop ID` do what they say; `KALMIDO_JOB_TIMEOUT_H` (default 6) ends a job that runs too long. After the
+  `status ID` and `stop ID` do what they say; `KALMIDO_JOB_TIMEOUT_H` (default 6) ends a job that runs too long (2.1383.0: ten minutes before, the
+  job is reminded to write its state into `JOB-NOTES.md`, commit its branch and leave the rest as a comment on its task; the
+  starter never starts a follow-up job by itself - with *Work the list off* on, the dispatcher takes the open tasks up again
+  in its next round, which counts as one try against `max_tries`). After the
   command compacted its conversation (`compact_boundary`) the brief is played in again -- this needs an agent command that
   takes a stream of user messages (Claude Code: `--input-format stream-json`, used automatically for a command named `claude`);
   other commands cannot be reminded. Stop, resume and the brief survive because everything lives in the state folder
