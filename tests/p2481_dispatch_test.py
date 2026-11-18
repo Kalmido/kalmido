@@ -412,8 +412,43 @@ check(rep_ and "Overridden (7 days): 2 - KALMIDO_PERM_RELAY=0, stop file removed
 d2 = ad.Dispatcher(h, proj)  # a new start of the runner counts again
 d2.tick(force=True)
 check(len(d2.reg["overrides"]) == 3, f"#4064: a new start counts again: {d2.reg['overrides']}")
-check(ar.say("dispatch_overrides", "de", 2, "x") == "Übersteuert (7 Tage): 2 - x" and len(ar.TEXTS["dispatch_overrides"]) == 6, "#4064: six languages")
+check(ar.say("dispatch_overrides", "de", 2, " - x") == "Übersteuert (7 Tage): 2 - x" and len(ar.TEXTS["dispatch_overrides"]) == 6, "#4064: six languages")
 os.environ.pop("KALMIDO_PERM_RELAY")
+
+# ---- 2.1383.0 (#4061): the day report names three numbers -- median hours built to close_ref, jobs ended with open tasks,
+# overrides (each over 7 days)
+TASKS[:] = [task(701, "Seven"), task(702, "Left open"), task(703, "Built late")]
+JOBS.clear()
+state6 = os.path.join(proj, ".state6")
+os.makedirs(state6)
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": ""}, f)
+h = Host("on")
+h.state_dir = state6
+d = ad.Dispatcher(h, proj)
+d.reg["jobs"] = {"801": {"tasks": [702], "at": time.time()}, "802": {"tasks": [703], "at": time.time()}}
+JOBS.update({"801": {"state": "done"}, "802": {"state": "failed"}})
+os.environ["GIT_AUTHOR_DATE"] = f"{int(time.time()) - 5 * 3600} +0000"
+g("commit", "-q", "--allow-empty", "-m", "#703: built five hours ago")
+os.environ.pop("GIT_AUTHOR_DATE")
+ev6 = ad.evidence_of(proj, dict(ad.DEFAULTS))
+check(abs(ev6["built_at"][703] - (time.time() - 5 * 3600)) < 120 and ev6["built_at"][101] > 0, f"#4061: built_at = the author time: {ev6['built_at']}")
+res = d.tick(force=True)
+check(703 in res["closed"] and len(d.reg["lead"]) == 1 and 4.9 <= d.reg["lead"][0][1] <= 5.1, f"#4061: a closed task notes its hours: {d.reg['lead']}")
+check([x[1] for x in d.reg["ended"]] == [True, False], f"#4061: job 801 left 702 open, 802 built 703: {d.reg['ended']}")
+with open(os.path.join(proj, ad.CONFIG_FILE), "w") as f:
+    json.dump({"lists": ["Backlog"], "report_at": "00:00"}, f)
+JOBS[str(500 + len(STARTS))] = {"state": "running", "created": time.time()}  # the job the first round started for 702 runs on
+d.reg["lead"] += [[int(time.time()) - 86400, 1.0], [int(time.time()) - 86400, 30.0], [int(time.time()) - 9 * 86400, 99.0]]
+d.tick(force=True)
+rep_ = [t for _, t in h.api.chats if "day report" in t]
+check(rep_ and "Built to HEAD (7 days): median 5 h, 3 tasks" in rep_[-1], f"#4061: the median of the last 7 days: {rep_}")
+check("Jobs ended with open tasks (7 days): 1 of 2 (50 %)" in rep_[-1], f"#4061: the share of jobs ended with open tasks: {rep_}")
+check("Overridden (7 days): 0" in rep_[-1], f"#4061: the overrides, also when there are none: {rep_}")
+check(all(len(ar.TEXTS[k]) == 6 for k in ("dispatch_lead", "dispatch_open_end")), "#4061: six languages")
+dd = ad.Dispatcher(h, proj)
+dd.reg["lead"] = [[int(time.time()), 2.0], [int(time.time()), 4.0]]
+check(dd.metrics(time.time())[0] == (3.0, 2), "#4061: the median of an even count is the middle of the two")
 
 print(f"p2481_dispatch: {OKS[0]} ok, {len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

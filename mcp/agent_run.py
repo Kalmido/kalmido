@@ -1023,7 +1023,10 @@ TEXTS = {
     "dispatch_brief_where": {"en": "a section Where", "de": "ein Abschnitt Fundstellen", "fr": "une section Emplacements", "es": "una sección Ubicaciones", "it": "una sezione Posizioni", "nl": "een sectie Vindplaatsen"},
     "dispatch_brief_size": {"en": "the size", "de": "die Größe", "fr": "la taille", "es": "el tamaño", "it": "la dimensione", "nl": "de grootte"},
     # 2.1383.0 (#4064): the overrides of a safeguard in the day report
-    "dispatch_overrides": {"en": "Overridden (7 days): {0} - {1}", "de": "Übersteuert (7 Tage): {0} - {1}", "fr": "Contourné (7 jours) : {0} - {1}", "es": "Anulado (7 días): {0} - {1}", "it": "Aggirato (7 giorni): {0} - {1}", "nl": "Overschreven (7 dagen): {0} - {1}"},
+    "dispatch_overrides": {"en": "Overridden (7 days): {0}{1}", "de": "Übersteuert (7 Tage): {0}{1}", "fr": "Contourné (7 jours) : {0}{1}", "es": "Anulado (7 días): {0}{1}", "it": "Aggirato (7 giorni): {0}{1}", "nl": "Overschreven (7 dagen): {0}{1}"},
+    # 2.1383.0 (#4061): the other two numbers of the day report
+    "dispatch_lead": {"en": "Built to {2} (7 days): median {0} h, {1} tasks", "de": "Gebaut bis {2} (7 Tage): Median {0} h, {1} Aufgaben", "fr": "Réalisé jusqu'à {2} (7 jours) : médiane {0} h, {1} tâches", "es": "Hecho hasta {2} (7 días): mediana {0} h, {1} tareas", "it": "Fatto fino a {2} (7 giorni): mediana {0} h, {1} attività", "nl": "Gebouwd tot {2} (7 dagen): mediaan {0} u, {1} taken"},
+    "dispatch_open_end": {"en": "Jobs ended with open tasks (7 days): {0} of {1} ({2} %)", "de": "Jobs mit offenen Aufgaben beendet (7 Tage): {0} von {1} ({2} %)", "fr": "Travaux terminés avec des tâches ouvertes (7 jours) : {0} sur {1} ({2} %)", "es": "Trabajos terminados con tareas abiertas (7 días): {0} de {1} ({2} %)", "it": "Job finiti con attività aperte (7 giorni): {0} su {1} ({2} %)", "nl": "Jobs beëindigd met open taken (7 dagen): {0} van {1} ({2} %)"},
     "status_plan_limit": {"en": "Plan limit reached", "de": "Tarifgrenze erreicht", "fr": "Limite de l'abonnement atteinte",
                           "es": "Límite del plan alcanzado", "it": "Limite del piano raggiunto", "nl": "Limiet van het abonnement bereikt"},
     "status_plan_limit_at": {"en": "Plan limit reached, back at {0}", "de": "Tarifgrenze erreicht, zurück um {0}",
