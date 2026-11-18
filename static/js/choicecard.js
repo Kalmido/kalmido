@@ -7,6 +7,9 @@
 // quote ("The agent writes:") -- the agent may write anything there, the server describes what a Yes really does
 function ccApvHead(ap, open, src = '') {
   const s = src && !open ? src + '|d' : src;  // a decided card: its own entry (the state at the answer)
+  // 2.1384.0 (#6991): a card without a step shows no server line and no quote frame: the agent's title as the card's title, "If yes: ..." below
+  if (ap && !ap.step) return (open ? `<div class="apvh">${ic('lock', 's')}<span>${esc(tr('Approval needed'))}</span></div>` : '')
+    + `<div class="apvt" data-apv-agent>${esc(ap.title)}</div>${ap.what ? `<div class="apvw">${esc(tr('If yes: {0}', ap.what))}</div>` : ''}`;
   return (open ? `<div class="apvh">${ic('lock', 's')}<span>${esc(tr('Approval needed'))}</span></div>` : '')
     + (ap ? `${/*html-ok*/ /* escaped inside */ ccApvDesc(ap, s)}<div class="apvq" data-apv-agent><div class="apvqh">${esc(tr('The agent writes:'))}</div><div class="apvt">${esc(ap.title)}</div>${ap.what ? `<div class="apvw">${esc(tr('If yes: {0}', ap.what))}</div>` : ''}</div>${/*html-ok*/ /* escaped inside */ ccApvStep(ap, s)}` : '');
 }
@@ -21,7 +24,7 @@ function ccApvxHtml(x) {
     + (Array.isArray(x.warns) ? x.warns : []).map(([k, t]) => `<div class="apvw" data-apvx-warn="${esc(String(k))}"><b>${esc(String(t || ''))}</b></div>`).join('');
 }
 function ccApvDesc(ap, src = '') {
-  if (!ap.step) return `<div class="apvx" data-apvx-none>${esc(tr('No step is bound: Yes only gives your answer to the agent'))}</div>`;
+  if (!ap.step) return '';  // 2.1384.0 (#6991): no step, no server line
   const c = src ? S.apvd[src] : null;
   if (src && (!c || (c.x === undefined && !c.busy) || (c.err && !c.busy && Date.now() - c.at > 5000))) setTimeout(() => ccApvdLoad(src), 0);
   return `<div class="apvx" role="group" aria-label="${esc(tr('What Yes does'))}" ${src ? `data-apvx="${esc(src)}"` : ''}>${/*html-ok*/ /* escaped inside */ ccApvxHtml(c ? c.x : src ? undefined : null)}</div>`;
