@@ -3159,14 +3159,16 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    *on a branch* (a commit on a `job/*` branch only), *held* (a tag of `skip_tags` or a line `Waiting for:` / `Blocked by:`
    in its description), *waiting for a yes* (its title or description names a step without a way back, `one_way_rx`, and
    it lacks the tag `one_way_ok_tag`, default `approved`: a person sets that tag as the approval), *stuck* (2.1368.0: `max_bundles`
-   bundles, default 3, left it open; see below), *not yours* (2.1308.0: the person did not create it, see below) or *ready*,
+   bundles, default 3, left it open; see below), *not yours* (2.1308.0: the person did not create it, see below), *needs a brief*
+   (2.1383.0: only with `brief_required` on, see below) or *ready*,
 3. guard: a job that ended with a task still open gets exactly ONE second try (`max_tries`, default 2); then the task goes
    back to the list with the comment *Not finished in 2 jobs - back in the list* and into the next bundle, cut anew from the
    list (2.1368.0: no rescue of the same working copy again and again); only after `max_bundles` such bundles it is
    *stuck*. A running job with no progress line for `stale_h` hours, a stuck task, a one-way task and a branch outside
    `close_ref` for `branch_max_d` days are findings, each told **once** in the person's chat,
 4. close the built tasks: a comment naming the commit, then complete (never a task tagged `keep`),
-5. if a place is free (`places`, default 1) and no brake holds, cut the next bundle and start ONE job with
+5. if a place is free (2.1383.0: `max_parallel` of the agent's work style, capped by `places`, default 4;
+   409 `slots_full` holds only the next build job) and no brake holds, cut the next bundle and start ONE job with
    `agent_job.py start --worktree` (2.1368.0: always its own working copy, branch `job/<id>`). The bundle is the first ready task in priority order
    (`first_tags`, then `title_classes`, then the task's priority, due date, id). With a `group_field` value, all ready tasks of
    that group go together. Otherwise more tasks follow while their sizes fit (`size_field` S / M / L or a list tag S / M / L
@@ -3175,7 +3177,35 @@ mode; `KALMIDO_DISPATCH=off|dry|on` on the computer outranks the switch). No mod
    of a build, never close tasks or start another job, run the project's `check_cmd` before each commit, and at the end
    commit on its branch and stop (never merge, push, open a pull request or deploy),
 6. once a day after `report_at` (default 18:00, local time): a short report into the person's chat (counts per state,
-   brakes, findings).
+   brakes, findings). 2.1383.0: it always names three numbers of the last 7 days - the median hours from *built* (the
+   author time of the task's commit) to *in `close_ref`* (the round that closed it), how many of the dispatcher's jobs
+   ended with a task still open (neither in `close_ref` nor on a branch), and how often a safeguard was overridden (see
+   *Overrides* below). Whoever sees them daily turns the cause sooner.
+
+**Overrides** (2.1383.0): every switch on the computer that suspends a safeguard of the starter writes one line
+`overridden: ...` into the runner's log when it starts, and the day report counts them over 7 days (*Overridden (7 days):
+2 - KALMIDO_PERM_RELAY=0, stop file removed*): `KALMIDO_APPROVAL_CHECK=0`, `KALMIDO_PERM_RELAY=0`,
+`KALMIDO_SESSION_RESUME=0`, `KALMIDO_BLOCK_DANGEROUS=0`, `KALMIDO_PERMISSION_MODE` (any value), `KALMIDO_DISPATCH` set further on than the setting in Kalmido (`dry` / `on` against *Off*) and a
+stop file that was removed. A new switch of that kind gets its log line too (`OVERRIDE_SWITCHES` in
+`mcp/agent_dispatch.py`). Who sees the number daily notices early when a rule is overridden all the time - and fixes the rule.
+
+**Time limit** (2.1383.0): a job that reaches `job_timeout_h` gets a reminder ten minutes before (state into
+`JOB-NOTES.md`, commit the branch, the rest as a comment on the task) and then ends. No follow-up job starts by itself: the
+next round finds the job ended and its tasks still open, counts one try each (`max_tries`) and bundles them again with the
+notes of the last job on the task.
+
+**Places** (2.1383.0): the number of jobs at once comes from ONE source, *Max parallel* of the agent's work style in
+Kalmido (`work_style.max_parallel` of `GET /api/v1/agent`), capped by the starter's own ceiling `places` (default 4) and by
+`KALMIDO_JOB_WORKTREES` (default 2: every job has its own working copy).
+`max_parallel` 0 (no limit) or an older server = one place. When Kalmido refuses the start with 409 `slots_full` (jobs
+started elsewhere hold the places; `agent_job.py start` then exits with 4), only that next build job waits - closing,
+the guard and every chat run go on, and the next round tries again.
+
+**Brief required** (2.1383.0, `brief_required`, default off): when on, a task is *ready* only with a brief - a bold
+decision line in its description (`**Decision: ...**`), a section *Where* (a line `Where:` / `Fundstellen:` or a heading
+`## Where`, naming the files or places to change) and a size set in `size_field` or as a list tag S / M / L (`size_default`
+does not count). Any other task waits as *needs a brief*; the chat names it once with what is missing. A job then never has
+to guess what the person meant.
 
 **Brakes**: a stop file (`dispatch-STOP` in the runner's state folder or `KALMIDO-DISPATCH-STOP` in the project folder), a
 fresh week usage at or above `usage_limit_pct` (default 95) or `KALMIDO_USAGE_LIMIT`, the closed work window, and

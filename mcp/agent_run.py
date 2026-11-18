@@ -1022,6 +1022,17 @@ TEXTS = {
     "dispatch_pr": {"en": "Job {0}: pull request {1} for {2} waits for your approval (check green, the card is on the first task)", "de": "Job {0}: Pull Request {1} für {2} wartet auf deine Freigabe (Prüfung grün, die Karte steht an der ersten Aufgabe)", "fr": "Tâche {0} : la pull request {1} pour {2} attend ton accord (vérification verte, la carte est sur la première tâche)", "es": "Trabajo {0}: la pull request {1} para {2} espera tu aprobación (comprobación en verde, la tarjeta está en la primera tarea)", "it": "Job {0}: la pull request {1} per {2} attende la tua approvazione (verifica verde, la scheda è sulla prima attività)", "nl": "Job {0}: pull request {1} voor {2} wacht op je goedkeuring (controle groen, de kaart staat bij de eerste taak)"},
     "dispatch_check_red": {"en": "Job {0}: the check failed on branch {1} ({2}): no pull request, its tasks go back to the list", "de": "Job {0}: die Prüfung ist auf Zweig {1} rot ({2}): kein Pull Request, die Aufgaben gehen zurück in die Liste", "fr": "Tâche {0} : la vérification a échoué sur la branche {1} ({2}) : pas de pull request, ses tâches retournent dans la liste", "es": "Trabajo {0}: la comprobación falló en la rama {1} ({2}): sin pull request, sus tareas vuelven a la lista", "it": "Job {0}: la verifica è fallita sul ramo {1} ({2}): nessuna pull request, le attività tornano nella lista", "nl": "Job {0}: de controle faalde op branch {1} ({2}): geen pull request, de taken gaan terug naar de lijst"},
     "dispatch_pr_failed": {"en": "Job {0}: the check is green, but the pull request could not be opened ({2}); the work is on branch {1}", "de": "Job {0}: die Prüfung ist grün, aber der Pull Request ließ sich nicht öffnen ({2}); die Arbeit liegt auf Zweig {1}", "fr": "Tâche {0} : la vérification est verte, mais la pull request n'a pas pu être ouverte ({2}) ; le travail est sur la branche {1}", "es": "Trabajo {0}: la comprobación está en verde, pero no se pudo abrir la pull request ({2}); el trabajo está en la rama {1}", "it": "Job {0}: la verifica è verde, ma non è stato possibile aprire la pull request ({2}); il lavoro è sul ramo {1}", "nl": "Job {0}: de controle is groen, maar de pull request kon niet worden geopend ({2}); het werk staat op branch {1}"},
+    # 2.1383.0 (#4062): brief_required -- a task without a brief waits as "needs_brief", told once
+    "dispatch_state_needs_brief": {"en": "need a brief", "de": "brauchen einen Brief", "fr": "attendent un brief", "es": "necesitan un brief", "it": "serve un brief", "nl": "hebben een brief nodig"},
+    "dispatch_needs_brief": {"en": "{0} is not built until its brief is complete, missing: {1}", "de": "{0} wird erst gebaut, wenn der Brief vollständig ist, es fehlt: {1}", "fr": "{0} ne sera réalisé qu'avec un brief complet, il manque : {1}", "es": "{0} no se hará hasta que su brief esté completo, falta: {1}", "it": "{0} non sarà fatto finché il brief non è completo, manca: {1}", "nl": "{0} wordt pas gebouwd als de brief compleet is, er ontbreekt: {1}"},
+    "dispatch_brief_decision": {"en": "a bold decision line", "de": "eine fette Entscheidungszeile", "fr": "une ligne de décision en gras", "es": "una línea de decisión en negrita", "it": "una riga di decisione in grassetto", "nl": "een vetgedrukte beslisregel"},
+    "dispatch_brief_where": {"en": "a section Where", "de": "ein Abschnitt Fundstellen", "fr": "une section Emplacements", "es": "una sección Ubicaciones", "it": "una sezione Posizioni", "nl": "een sectie Vindplaatsen"},
+    "dispatch_brief_size": {"en": "the size", "de": "die Größe", "fr": "la taille", "es": "el tamaño", "it": "la dimensione", "nl": "de grootte"},
+    # 2.1383.0 (#4064): the overrides of a safeguard in the day report
+    "dispatch_overrides": {"en": "Overridden (7 days): {0}{1}", "de": "Übersteuert (7 Tage): {0}{1}", "fr": "Contourné (7 jours) : {0}{1}", "es": "Anulado (7 días): {0}{1}", "it": "Aggirato (7 giorni): {0}{1}", "nl": "Overschreven (7 dagen): {0}{1}"},
+    # 2.1383.0 (#4061): the other two numbers of the day report
+    "dispatch_lead": {"en": "Built to {2} (7 days): median {0} h, {1} tasks", "de": "Gebaut bis {2} (7 Tage): Median {0} h, {1} Aufgaben", "fr": "Réalisé jusqu'à {2} (7 jours) : médiane {0} h, {1} tâches", "es": "Hecho hasta {2} (7 días): mediana {0} h, {1} tareas", "it": "Fatto fino a {2} (7 giorni): mediana {0} h, {1} attività", "nl": "Gebouwd tot {2} (7 dagen): mediaan {0} u, {1} taken"},
+    "dispatch_open_end": {"en": "Jobs ended with open tasks (7 days): {0} of {1} ({2} %)", "de": "Jobs mit offenen Aufgaben beendet (7 Tage): {0} von {1} ({2} %)", "fr": "Travaux terminés avec des tâches ouvertes (7 jours) : {0} sur {1} ({2} %)", "es": "Trabajos terminados con tareas abiertas (7 días): {0} de {1} ({2} %)", "it": "Job finiti con attività aperte (7 giorni): {0} su {1} ({2} %)", "nl": "Jobs beëindigd met open taken (7 dagen): {0} van {1} ({2} %)"},
     "status_plan_limit": {"en": "Plan limit reached", "de": "Tarifgrenze erreicht", "fr": "Limite de l'abonnement atteinte",
                           "es": "Límite del plan alcanzado", "it": "Limite del piano raggiunto", "nl": "Limiet van het abonnement bereikt"},
     "status_plan_limit_at": {"en": "Plan limit reached, back at {0}", "de": "Tarifgrenze erreicht, zurück um {0}",
@@ -3596,6 +3607,20 @@ class Runner:
         return len(evs)
 
     # kalmido-capability: dispatcher (2.481.0, #3662)
+    # kalmido-capability: override_log (2.1383.0, #4064)
+    def log_overrides(self):
+        """2.1383.0 (#4064): one line in the runner's log per switch of this computer that suspends a safeguard (approval check,
+        permission questions, session resume, the danger guard, a permission mode set here, the dispatcher switched on against
+        Kalmido); the dispatcher counts them in its day report. A new switch of that kind goes into agent_dispatch.OVERRIDE_SWITCHES, never without this line."""
+        try:
+            import agent_dispatch
+        except ImportError:
+            return []
+        found = agent_dispatch.overrides(self.agent)
+        for what in found:
+            log("overridden: " + what)
+        return found
+
     def dispatch_watch(self):
         """2.481.0 (#3662): the mechanical dispatcher (agent_dispatch.py) -- switched on in Kalmido (runtime.dispatch dry | on)
         or with KALMIDO_DISPATCH, it works the lists of KALMIDO-DISPATCH.json off: one tick every interval_min, closes built
@@ -4230,6 +4255,7 @@ class Runner:
                 wait = min(300, wait * 2)
         self.cur = cur
         self.refresh_agent()
+        self.log_overrides()
         self.ensure_perm_watch()
         threading.Thread(target=self.fetch_loop, daemon=True).start()
         last_hk = 0.0
