@@ -13,7 +13,8 @@ const css = [fs.readFileSync(path.join(st, 'app.css'), 'utf8'), ...fs.readdirSyn
 // the declarations of the LAST plain rule whose selector list is exactly `.name` (or the given selector)
 const rule = sel => {
   const esc = sel.replace(/[.\[\]()]/g, '\\$&');
-  const all = [...css.matchAll(new RegExp('(?:^|[}\\s,])' + esc + '\\s*\\{([^}]*)\\}', 'g'))].map(m => m[1]);
+  // the selector must open the rule (after `{`, `}` or `,`): `.povs .dpjdoc{...}` is a descendant rule, not `.dpjdoc`
+  const all = [...css.matchAll(new RegExp('(?:^|[{},])\\s*' + esc + '\\s*\\{([^}]*)\\}', 'g'))].map(m => m[1]);
   const o = {};
   for (const body of all) for (const d of body.split(';')) { const i = d.indexOf(':'); if (i > 0) o[d.slice(0, i).trim()] = d.slice(i + 1).trim(); }
   return o;

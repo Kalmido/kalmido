@@ -165,7 +165,7 @@ const item = (d, t) => items(d).find(x => (x.querySelector('.ml')?.firstChild?.t
       const line = !!document.querySelector('.wgline:not([hidden])');
       pe(document, 'pointerup', t.left + 10, t.top + 40);
       await new Promise(f => setTimeout(f, 1200));
-      return {line, order: [...document.querySelectorAll('.pov .lysix > .lyb')].map(b => b.dataset.lyk).slice(0, 3)};
+      return {line, order: [...document.querySelectorAll('.pov .lysix .lyb')].sort((x, y) => (+x.style.order || 0) - (+y.style.order || 0)).map(b => b.dataset.lyk).slice(0, 3)};
     })()`);
     check(mv.line && mv.order.indexOf('ms') < mv.order.indexOf('desc'), `${tag}: #1452 the header moves a block, a line shows where ${JSON.stringify(mv)}`);
     await shot('p2430c-1440-project.png');
@@ -179,7 +179,7 @@ const item = (d, t) => items(d).find(x => (x.querySelector('.ml')?.firstChild?.t
     check(await ffLogin(o) === 200, tag + ': login');
     await cmd('browsingContext.setViewport', {context: ctx, viewport: {width: 390, height: 844}});
     await o.nav(B + '#l/' + P); await ready(ev);
-    const m = await ev(`(() => { const bs = [...document.querySelectorAll('.pov .lysix > .lyb')]; return {lefts: [...new Set(bs.map(b => Math.round(b.getBoundingClientRect().left)))].length,
+    const m = await ev(`(() => { const bs = [...document.querySelectorAll('.pov .lysix .lyb')]; return {lefts: [...new Set(bs.map(b => Math.round(b.getBoundingClientRect().left)))].length,
       grip: !!document.querySelector('.lygrip'), tgt: [...document.querySelectorAll('.lymore')].filter(b => b.offsetWidth).map(b => Math.round(b.getBoundingClientRect().height)), sw: document.documentElement.scrollWidth}; })()`);
     check(m.lefts === 1 && !m.grip && m.tgt.length && m.tgt.every(h => h >= 43.5) && m.sw <= 390, `${tag}: #1452 one column, no grip, the menu a full touch target ${JSON.stringify(m)}`);
     await shot('p2430c-390-project.png');
