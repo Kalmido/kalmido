@@ -442,7 +442,8 @@ v1r = {}
 for ln in routes:
     if ln.startswith("/api/v1/") and "openapi" not in ln:
         rule, meth = ln.split()
-        v1r.setdefault(re.sub(r"<(\w+)>", r"{\1}", re.sub(r"<int:\w+>", "{id}", rule[len("/api/v1"):])), set()).update(m.lower() for m in meth.split(","))
+        # 2.1384.0 (#6700): <path:ref> (an issuer's external_ref: a slash in it is a 400 of its own, not "no route") = {ref}
+        v1r.setdefault(re.sub(r"<(?:path:)?(\w+)>", r"{\1}", re.sub(r"<int:\w+>", "{id}", rule[len("/api/v1"):])), set()).update(m.lower() for m in meth.split(","))
 # 2.143.0: a second int id in a route is documented under its own name (e.g. /team/rooms/{id}/members/{uid}, a spec
 # path may not repeat {id}): compare with every placeholder after the first {id} as {id}
 _one = lambda p: p if "{id}" not in p else p[:p.index("{id}") + 4] + re.sub(r"\{\w+\}", "{id}", p[p.index("{id}") + 4:])

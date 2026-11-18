@@ -279,6 +279,9 @@ def client_public(c, uid, r, stats=False, month=None):
             for k in CLIENT_BILL_GATED:
                 d["billing"].pop(k, None)
         d["bill_edit"] = cl_bill_ok(c, uid, r["org_id"], "edit")
+        if "issuer_id" in r.keys() and r["issuer_id"]:  # 2.1384.0 (#6700): set up by an invoice issuer's key; its mark until a person checked
+            from ..office.isshold import ihd_load, ihd_public
+            d["issuer"] = {"external_ref": r["external_ref"] or "", "client_hold": ihd_public(c, ihd_load(r["issuer_hold"]), r["id"])}
     if stats:
         st = client_stats(c, uid, r["id"], lids, month)
         if agent_time_hidden():  # 2.582.0 (#4380, fable review F2): an agent without the scope time: no hours / amounts
@@ -424,6 +427,8 @@ def client_update(cid):
         cl_bill_strip(c, uid, old["org_id"], f)  # 2.187.1 A (#2735)
         if "org_id" in f:
             cl_bill_strip(c, uid, f["org_id"], f)
+        if "org_id" in f and old.get("issuer_id"):  # 2.1384.0 (#6700): an invoice issuer's client stays in the issuer's area
+            raise Denied(409, tr(CL_ISSUER_STAYS))
         if "org_id" in f:
             h6c_client_move_ok(c, uid, need_client(c, cid, uid))
             if cl_locked_docs(c, cid):  # 2.126.0 A (#1979 F7): its finalised documents keep it; 2.148.1 B (#2484): also a personal office's
@@ -452,6 +457,7 @@ def client_update(cid):
 
 
 CL_LOCKED_PRIVATE = N_("Finalised documents of your office refer to this client, so it stays here.")
+CL_ISSUER_STAYS = N_("An invoice issuer manages this client, so it stays in its office. “Move to another workspace…” in the office takes a copy along.")
 CL_LOCKED_DELETE = N_("Finalised documents refer to this client, so it cannot be deleted. Archive it instead.")
 
 
@@ -612,6 +618,8 @@ def cl_anonymize(c, cid):
     finalised documents keep their own copy of the address. The caller checks the rights and commits."""
     cols = table_columns(c, "clients")
     f = {k: "" for k in CL_ANON_COLS if k in cols}
+    if "external_ref" in cols:  # 2.1384.0 (#6700): an invoice issuer's client lets go of its id (its tombstone answers 410) and its mark
+        f.update(external_ref=None, issuer_hold=None)
     c.execute(f"UPDATE clients SET name=?, {''.join(k + '=?, ' for k in f)}archived=true, updated_at=? WHERE id=?",
               (tr("Deleted client"), *f.values(), iso(now_utc()), cid))
     with system_ctx(c):  # every contact person of the client (they hang on it only)

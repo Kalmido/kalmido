@@ -82,6 +82,15 @@ FK_EU = frozenset("AT BE BG CY CZ DE DK EE ES FI FR GR HR HU IE IT LT LU LV MT N
 FK_VAT_AREA = {"MC": "FR"}  # 2.538.0 (#4368): Monaco and France are one VAT territory (a sale between them is domestic)
 
 
+FK_VAT_PREFIX = {"GR": ("EL",), "MC": ("FR",), "GB": ("GB", "XI")}  # 2.1384.0 (#6700): VAT IDs of Greece, Monaco, Northern Ireland
+
+
+def fk_vat_prefix(country):
+    """2.1384.0 (#6700): the letters a VAT ID of a client in country may start with (Greece EL, Monaco FR, GB / XI), () without a country."""
+    cc = fk_country_code(country) or ""
+    return FK_VAT_PREFIX.get(cc, (cc,) if cc else ())
+
+
 def fk_reverse_case(client, home):
     """'domestic' (client in the sender's country or without one), 'eu' (another member state) or 'other' (CH, GB, US ...)."""
     cc = fk_country_code(client) or str(client or "").strip().upper()

@@ -1176,21 +1176,25 @@ async function ofdClick(e) {
     const pastHtml = past ? `<div class="ofdfinpast"><p class="ofdwarn" role="status">${esc(tr('The date {0} lies in an earlier year.', fmtDate(pv.past_year)))}</p><label class="chkl"><input type="checkbox" id="ofd-fin-today" checked> ${esc(tr('Set the date to today'))}</label></div>` : '';
     const pastWire = md => { const cb = $('#ofd-fin-today', md), nb = $('.ofdfinno b', md); if (!cb) return;
       cb.addEventListener('change', () => { fin2.today = cb.checked; if (nb) nb.textContent = (cb.checked ? pv.number_today : pv.number) || ''; }); };
-    const finBody = extra => ({...extra, ...(past && fin2.today ? {to_today: true} : {})});
+    // 2.1384.0 (#6700): the client's data from an invoice issuer, not checked yet: the dialog lists them, the tick confirms them
+    const hold = pv?.client_hold || null, holdHtml = hold && typeof ihd_dlgHtml === 'function' ? ihd_dlgHtml(hold) : '';
+    const holdWire = md => { const cb = $('#ofd-ihd-ok', md); if (cb) cb.addEventListener('change', () => { fin2.hold = cb.checked; }); };
+    const finBody = extra => ({...extra, ...(past && fin2.today ? {to_today: true} : {}), ...(hold && fin2.hold ? {client_hold_ok: hold.at} : {})});
     const noHtml = pv?.number ? `<p class="ofdfinno">${/*html-ok*/ /* escaped inside */ esc(tr('Will be finalised as {0}', '\u0000')).replace('\u0000', `<b>${esc((past ? pv.number_today : pv.number) || '')}</b>`)}</p><p>${esc(fin)}</p>` : '';
     if (ofd_finHand(d)) {  // 2.1289.0 (#6481 N3, S3): a number of your own only here, given with the finalising (office admins)
       let md0 = null, j = null;
-      const html = (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
+      const html = (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + holdHtml + `<details class="ofdfinhand"><summary>${esc(tr('Number of your own (optional)'))}</summary>`
         + ofdF('fin-no', tr('Number'), `<input id="ofd-fin-no" maxlength="80" autocomplete="off" spellcheck="false" placeholder="${esc(pv?.number || '')}">`)
         + ofdF('fin-why', tr('Reason (needed when numbers are skipped)'), `<input id="ofd-fin-why" maxlength="300">`) + '</details>';
-      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; pastWire(md); if (first) ofd_firstWire(md); },
+      const ok = await askDialog({title: tr('Finalise this document?'), html, ok: tr('Finalise'), after: md => { md0 = md; pastWire(md); holdWire(md); if (first) ofd_firstWire(md); },
         submit: async () => { const no = ($('#ofd-fin-no', md0)?.value || '').trim(), why = ($('#ofd-fin-why', md0)?.value || '').trim();
           j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, finBody(no ? {number: no, reason: why} : {})); return !!j || OFD.conflict?.id === d.id; }});  // 2.1317.0 (#6331): a conflict closes the dialog, the bar says it
       if (ok && j) toast(tr('Finalised as {0}', j.number || ''));
       return;
     }
-    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first || warnHtml || pastHtml ? {html: (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml} : {}),
-      ...(first || past ? {after: md => { pastWire(md); if (first) ofd_firstWire(md); }} : {})})) return;
+    if (!await askConfirm(tr('Finalise this document?'), fin, {ok: tr('Finalise'), ...(noHtml || first || warnHtml || pastHtml || holdHtml ? {html: (noHtml || `<p>${esc(fin)}</p>`) + pastHtml + first + warnHtml + holdHtml} : {}),
+      ...(first || past || hold ? {after: md => { pastWire(md); holdWire(md); if (first) ofd_firstWire(md); }} : {})})) return;
+    if (hold && !fin2.hold) { toast(tr('Confirm the client data from the invoice issuer first')); return; }  // 2.1384.0 (#6700)
     const j = await ofdSave('POST', `/api/office/docs/${d.id}/finalize`, finBody({})); if (j) toast(tr('Finalised as {0}', j.number || ''));
     return;
   }
@@ -1541,6 +1545,7 @@ async function ofdSendDialog(d, o = {}) {
   let rc = {to: '', cc: []};
   if (d.client_id) rc = await get(`/api/office/docs/${d.id}/recipients`, tr('Recipients|mail')) || rc;
   const to = rc.to || '', cc = (rc.cc || []).join(', ');
+  const hold = rc.client_hold || null;  // 2.1384.0 (#6700): data of the client from an invoice issuer, not checked yet: the tick confirms them
   // 2.40.0 (#1368 point 10): plain words for people who do not run the server; without mail the button downloads the PDF
   // 2.1185.0 (#6151): without mail ONE sentence and the button "Download PDF"; the mail form stays out of sight (hidden, still
   // locked) instead of empty locked fields, and the sentence says "not set up" once (admins too)
@@ -1557,8 +1562,10 @@ async function ofdSendDialog(d, o = {}) {
     + (d.timesheet_ok ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-s-ts"> ${tr('Attach the timesheet')}</label></div>` : '')  // 2.120.0 D (#2089)
     + (d.timesheet_ok ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-s-tsnb"> ${tr('Show non-billable entries')}</label></div>` : '')  // 2.955.0 (#5648): off = the client's sheet without them
     + (d.kind !== 'reminder' && d.kind !== 'delivery' && ms.datev_on !== false ? `<div class="row"><label class="chkl" style="min-width:0"><input type="checkbox" id="ofd-s-datev" ${ms.datev_email && ms.datev_auto ? 'checked' : ''} ${ms.datev_email && ms.smtp ? '' : 'disabled'}> ${tr('Copy to the DATEV inbox')}${ms.datev_email ? ` <span class="muted">(${esc(ms.datev_email)})</span>` : ` <span class="muted">${tr('(no address in the settings)')}</span>`}</label></div>` : '')
-    + (typeof agbSendRow === 'function' ? agbSendRow(tm, ms.smtp) : '') + '</div>',
-    ms.smtp ? tr('Send|mail') : tr('Download PDF'), async md => { if (!ms.smtp) { const a = document.createElement('a'); a.href = ofdPdfUrl(d.id); a.download = ''; document.body.appendChild(a); a.click(); a.remove(); return; } const tk = $('#ofd-s-terms', md); const j = await ofcSendTerms(x => ofdSave('POST', `/api/office/docs/${d.id}/send`, {to: $('#ofd-s-to', md).value.trim(), cc: $('#ofd-s-cc', md).value.trim(), subject: $('#ofd-s-subject', md).value, text: $('#ofd-s-text', md).value, datev: !!$('#ofd-s-datev', md)?.checked, timesheet: !!$('#ofd-s-ts', md)?.checked, nonbillable: !!$('#ofd-s-tsnb', md)?.checked, ...(tk ? {terms: tk.checked} : {}), ...(typeof ofmSendBody === 'function' ? ofmSendBody(md) : {}), ...x})); if (!j) return false; toast(j.datev_error || tr('Sent')); });  // 2.534.0 (#4339): terms only with the tick (a quotation: the server's default, its terms as pages or a separate file)  // 2.269.0 D (#3046): DATEV failed after the mail = a hint, the dialog closes
+    + (typeof agbSendRow === 'function' ? agbSendRow(tm, ms.smtp) : '') + (ms.smtp && typeof ihd_dlgHtml === 'function' ? ihd_dlgHtml(hold) : '') + '</div>',
+    ms.smtp ? tr('Send|mail') : tr('Download PDF'), async md => { if (!ms.smtp) { const a = document.createElement('a'); a.href = ofdPdfUrl(d.id); a.download = ''; document.body.appendChild(a); a.click(); a.remove(); return; } const tk = $('#ofd-s-terms', md);
+      if (hold && !$('#ofd-ihd-ok', md)?.checked) { toast(tr('Confirm the client data from the invoice issuer first')); return false; }  // 2.1384.0 (#6700)
+      const j = await ofcSendTerms(x => ofdSave('POST', `/api/office/docs/${d.id}/send`, {...(hold ? {client_hold_ok: hold.at} : {}), to: $('#ofd-s-to', md).value.trim(), cc: $('#ofd-s-cc', md).value.trim(), subject: $('#ofd-s-subject', md).value, text: $('#ofd-s-text', md).value, datev: !!$('#ofd-s-datev', md)?.checked, timesheet: !!$('#ofd-s-ts', md)?.checked, nonbillable: !!$('#ofd-s-tsnb', md)?.checked, ...(tk ? {terms: tk.checked} : {}), ...(typeof ofmSendBody === 'function' ? ofmSendBody(md) : {}), ...x})); if (!j) return false; toast(j.datev_error || tr('Sent')); });  // 2.534.0 (#4339): terms only with the tick (a quotation: the server's default, its terms as pages or a separate file)  // 2.269.0 D (#3046): DATEV failed after the mail = a hint, the dialog closes
 }
 async function ofdReminderDialog() {
   let rows = [];

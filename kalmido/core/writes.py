@@ -172,14 +172,23 @@ def obj_hist_via(uid):
 
 def obj_hist_name(r, names):
     """2.1350.0 (#6502): the name a history entry r shows: the person's, marked when support made the change in their account."""
+    if obj_hist_never_merge(r["via"]):  # 2.1384.0 (#6700): an invoice issuer's key (the caller may name it: names[via])
+        return names.get(r["via"]) or tr("Invoice issuer")
     n = names.get(r["user_id"], "") if r["user_id"] else ""
     return tr("{0} (support access)", n) if r["via"] == "support" else n
 
 
-def obj_history_add(c, uid, kind, rid, before, after, action="update", org_id=None, agent=None):
+def obj_hist_never_merge(via):
+    """2.1384.0 (#6700): the entries of an invoice issuer's key (via 'issuer:<id>', office/issclients.py) never merge: a value
+    it changes and changes back within OBJ_MERGE_MIN minutes stays two entries (merging would let the change vanish)."""
+    return str(via or "").startswith("issuer:")
+
+
+def obj_history_add(c, uid, kind, rid, before, after, action="update", org_id=None, agent=None, via=None):
     """Note a change of the object in obj_history (before / after: {field: value} of what changed). An 'update' of the same
     person (and the same agent flag) within OBJ_MERGE_MIN minutes merges into the last entry: its before stays, after grows.
-    2.1350.0 (#6502): a change in a support session is marked (via 'support') and never merges with the person's own."""
+    2.1350.0 (#6502): a change in a support session is marked (via 'support') and never merges with the person's own.
+    2.1384.0 (#6700): via = the actor without a person ('issuer:<id>', uid None): its entries never merge (obj_hist_never_merge)."""
     reg = _reg(kind)
     if org_id is None:
         if kind in OBJ_TRACK:  # 2.777.0 (#5254): a tracked table without a workspace column (habits: always a person's own)
@@ -189,9 +198,9 @@ def obj_history_add(c, uid, kind, rid, before, after, action="update", org_id=No
             r = obj_row(c, kind, rid)
         org_id = (r["org_id"] or None) if r is not None else None
     ag = 1 if (obj_is_agent(c, uid) if agent is None else agent) else 0
-    via = obj_hist_via(uid)
+    via = via or obj_hist_via(uid)
     ts = _now()
-    if action == "update":
+    if action == "update" and not obj_hist_never_merge(via):
         last = c.execute("SELECT * FROM obj_history WHERE kind=? AND ref_id=? ORDER BY id DESC LIMIT 1", (kind, int(rid))).fetchone()
         lim = now_utc() - timedelta(minutes=OBJ_MERGE_MIN)
         if last is not None and last["action"] == "update" and last["user_id"] == uid and last["agent"] == ag and last["via"] == via \

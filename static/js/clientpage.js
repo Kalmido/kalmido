@@ -150,7 +150,7 @@ function ms_clCard(c) {
   const ks = (c.contacts || []).filter(k => k.name);
   return `<article class="ctcard msclcard" aria-labelledby="mscl-h" data-ck="${c.id}"${/*html-ok*/ wso_row(c) /* 2.1254.0 (#6180) */}>
     <div class="cthead">${lsd_one() ? `<button class="iconbtn" data-mscl="back" aria-label="${esc(tr('Back'))}">${ic('back')}</button>` : ''}${ms_clAv(c, true)}<div class="cthn"><h3 id="mscl-h">${esc(cdn_label(c))}</h3>${cdn_label(c) !== c.name ? `<small class="muted cdnlegal">${esc(c.name)}</small>` : ''}<div class="mstags">${ms_tag('client')}${c.archived ? `<span class="rotag">${tr('Archived')}</span>` : ''}${c.org_name ? `<span class="muted">${esc(c.org_name)}</span>` : ''}</div></div>
-      <span class="ctacts"><button class="btn sm" data-act="client-edit" data-id="${c.id}">${ic('edit', 's')} ${tr('Edit')}</button><button class="iconbtn" data-mscl="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>
+      <span class="ctacts"><button class="btn sm" data-act="client-edit" data-id="${c.id}">${ic('edit', 's')} ${tr('Edit')}</button><button class="iconbtn" data-mscl="cmenu" aria-haspopup="menu" aria-label="${esc(tr('More'))}" title="${esc(tr('More'))}">${ic('dots')}</button></span></div>${/*html-ok*/ ihd_cardHtml(c) /* 2.1384.0 (#6700): escaped inside */}
     <div class="mscly msclstats cldetail">${S.ly.view === 'clients' ? '' : `<div class="lybar"><span class="spacer"></span>${lyCustomBtn('clients')}</div>`}${lyHtml('clients', ms_clFoldAll(c, ks, inv, {  // 2.55.0 (#1067): the card's sections are blocks of the view builder
       details: `<div class="ctfields">
       ${f('money', tr('Hourly rate'), c.rate != null ? esc(curMoney(c.rate, cur)) : '')}
@@ -175,6 +175,35 @@ function ms_clCard(c) {
       ...clientDetailParts(c)}))}${clm_histHtml(c)}${typeof hbm_clientHtml === 'function' ? hbm_clientHtml(c) : ''}${typeof vdr_clientHtml === 'function' ? vdr_clientHtml(c) : ''}${''/* 2.99.1 A (#1959): video sign-offs */}</div>
   </article>`;
 }
+
+// ---- 2.1384.0 (#6700): a client an invoice issuer's key set up or changed (office/isshold.py): its external id and, until a
+// person checked them, the hold mark with the fields old -> new; "Client data from the invoice issuer checked" takes it away
+// (the rights to change its invoicing fields). The finalise and send dialogs (office_docs.js) show the same list with a tick.
+const IHD_FIELDS = {name: N_('Name'), name_extra: N_('Name addition'), street: N_('Street'), address_extra: N_('Address extra'), zip: N_('Postcode'),
+  city: N_('City'), country: N_('Country'), vat_id: N_('VAT ID'), email_invoice: N_('E-mail for invoices'), buyer_reference: N_('Buyer reference (e.g. routing ID)')};
+function ihd_listHtml(h) {
+  const v = x => x ? esc(x) : `<span class="muted">${esc(tr('empty'))}</span>`;
+  const rows = (h.fields || []).map(f => `<li><span class="muted">${esc(tr(IHD_FIELDS[f.field] || f.field))}:</span> ${/*html-ok*/ h.new ? v(f.new) : `${/*html-ok*/ v(f.old)} → <b>${/*html-ok*/ v(f.new)}</b>` /* v() escapes */}</li>`);
+  const flags = [(h.flags || []).includes('client_lookalike') ? tr('Another client of the office has the same name or VAT ID.') : '',
+    (h.flags || []).includes('text_suspicious') ? tr('The name contains a web or e-mail address.') : ''].filter(Boolean);
+  return `<p><b>${esc(h.new ? tr('Set up by the invoice issuer {0}; no person has checked the data yet.', h.issuer || '') : tr('Changed by the invoice issuer {0}; no person has checked the changes yet.', h.issuer || ''))}</b></p>`
+    + (rows.length ? `<ul class="ihdlist">${/*html-ok*/ rows.join('') /* escaped above */}</ul>` : '') + flags.map(x => `<p>${esc(x)}</p>`).join('');
+}
+// the box of a dialog: the list and the tick that confirms it (id ofd-ihd-ok); '' without a mark
+const ihd_dlgHtml = h => h ? `<div class="ofdwarn ihdbox" role="status">${/*html-ok*/ ihd_listHtml(h)}<label class="chkl"><input type="checkbox" id="ofd-ihd-ok"> ${esc(tr('I checked these client data'))}</label></div>` : '';
+function ihd_cardHtml(c) {
+  const i = c.issuer; if (!i) return '';
+  const ref = `<p class="muted ihdref">${esc(tr('Managed by an invoice issuer, external ID {0}', i.external_ref || '–'))}</p>`;
+  const h = i.client_hold; if (!h) return ref;
+  return `${/*html-ok*/ ref}<div class="ofdwarn ihdbox" role="status">${/*html-ok*/ ihd_listHtml(h)}<p>${esc(tr('Until a person checks them, documents to this client are finalised and sent only after a confirmation in the dialog, and never automatically.'))}</p>`
+    + `${c.bill_edit ? `<button class="btn sm" data-ihd-ok="${esc(String(c.id))}" data-at="${esc(h.at)}">${ic('check', 's')} ${esc(tr('Client data from the invoice issuer checked'))}</button>` : ''}</div>`;
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#view [data-ihd-ok]'); if (!b) return;
+  b.disabled = true;
+  try { await api('POST', `/api/clients/${+b.dataset.ihdOk}/issuer-hold`, {at: b.dataset.at}); toast(tr('Checked')); } catch { /* api() said it */ }
+  if (typeof ms_clAfter === 'function') await ms_clAfter(); else clReload();
+});
 
 // ---- 2.120.0 B (#2088): "Send portal link": the client gets the sign-in link of the customer portal by mail (office/portaldocs.py;
 // the office setting "Show documents in the customer portal" must be on, else the server says so)
