@@ -9,7 +9,8 @@
 #     FAKEWEB_META <task> <person> <asker>  (2.1364.0, #6297 (10)) step 1: a fetched page, then the free texts of the agent's own
 #                       channel towards <person> and the task (create_job, report_progress, set_working, set_status) + a step
 #                       to <asker>; Fable F1: create_job for <asker> on <task> with a log, update_job append_log on the job
-#                       [<job>] (of <asker> on <task>), create_job for <asker> without a task; step 3: send_chat to <asker>
+#                       [<job>] (of <asker> on <task>), create_job for <asker> without a task; Fable F4/F5: update_job title
+#                       on [<job>], set_status with a foreign model and with the run's own model; step 3: send_chat to <asker>
 #                       with the tool results
 #     FAKEWEB_META <task> <person> <asker> <job>  the same with the job id
 #     FAKEWEB_SLOW <task>  (review F1) step 1: a fetched page + check_vat_id DE555555555 (a slow tool: the VIES time limit);
@@ -150,6 +151,10 @@ class H(BaseHTTPRequestHandler):
                     {'type': 'tool_use', 'id': 'toolu_m8', 'name': 'update_job', 'input': {'job_id': tjob, 'append_log': 'INJECTED append'}},
                     {'type': 'tool_use', 'id': 'toolu_m9', 'name': 'create_job', 'input': {
                         'title': 'web job ok', 'user_id': asker, 'state': 'waiting', 'log': 'free log'}},
+                    # Fable F4/F5: a new title on the job on <task>; a status model other than the run's own, and the run's own
+                    {'type': 'tool_use', 'id': 'toolu_m10', 'name': 'update_job', 'input': {'job_id': tjob, 'title': 'INJECTED title'}},
+                    {'type': 'tool_use', 'id': 'toolu_m11', 'name': 'set_status', 'input': {'status': 'working', 'model': 'INJECTED model'}},
+                    {'type': 'tool_use', 'id': 'toolu_m12', 'name': 'set_status', 'input': {'status': 'working', 'model': body.get('model')}},
                 ], {'web_fetch_requests': 1})
             if k == 3:
                 return answer('tool_use', [{'type': 'tool_use', 'id': 'toolu_m6', 'name': 'send_chat', 'input': {
