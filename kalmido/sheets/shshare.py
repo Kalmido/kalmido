@@ -34,7 +34,7 @@ at the start after a last forward copy and the start check (shs_retire, core/ker
 from flask import g, has_request_context, jsonify
 
 from ..core import objhooks  # 2.565.0: START (core/db.init_db runs the forward copy)
-from ..files.fsref import fs_ref_node, fs_unshare_hooks  # 2.623.0 (#4778)
+from ..files.fsref import fs_byname_hooks, fs_ref_node, fs_unshare_hooks  # 2.623.0 (#4778); 2.1364.0 (#6297 6): fs_byname_hooks
 from ..core.config import app, EMAIL_RE
 from ..core.access import Denied, acx_of, acx_org_ok, collab_all, need_feat, trash_sql
 from ..core.access import addr_account  # 2.983.0 (#5643)
@@ -438,6 +438,18 @@ def shs_fs_unshare(c, uid, n, s, reason="unshare"):  # 2.649.0 (#5051): reason (
     return True
 
 
+def shs_fs_by_name(c, n, tid):
+    """2.1364.0 (#6297 6, Fable review job/5254 F2): the file store's dialog shares table node n with person tid by name: an
+    address bound to tid opens again (as sheets_shares_add does), so the account's one core share goes on as a share by name --
+    else files/store.py FS_NOT_ADDR hid that row and a second, hidden row came beside it (its empty answer telling that the
+    address is tid's)."""
+    if n["kind"] != "ref" or n["ref_kind"] != SHS_KIND:
+        return
+    if c.execute("UPDATE sheet_shares SET user_id=NULL WHERE sheet_id=? AND user_id=? AND email_key!='' RETURNING id",
+                 (n["ref_id"], int(tid))).fetchall():
+        shs_drop_cache()
+
+
 def shs_end(c, sid, reason="move"):
     """Every share of sheet sid ends (a move to another workspace): the core shares of its node go into obj_revoked, the
     addresses typed in are marked ended (revoked_at; the move's undo opens them again). Returns (address row ids, obj_revoked
@@ -653,6 +665,7 @@ def sheets_shares_delete(sid, shid):
 
 
 fs_unshare_hooks.append(shs_fs_unshare)  # 2.623.0 (#4778)
+fs_byname_hooks.append(shs_fs_by_name)  # 2.1364.0 (#6297 6)
 
 
 def _shs_last_copy(c, sheet_id=None, by=None):

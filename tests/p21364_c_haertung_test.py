@@ -13,7 +13,9 @@
  5 another person's own ticket types: only the ones their private project I see offers, without note template, switched off
    ones or id (was: every own type of that person)
  6 a table shared by e-mail address tells nothing of an account behind it: the file store's node shows neither the bound
-   account's share nor a history line naming it, and its share id answers 404 like an unknown one (was 400)
+   account's share nor a history line naming it, and its share id answers 404 like an unknown one (was 400); Fable review
+   job/5254 F2: the same person shared by name in the file store's dialog gets no second, hidden row -- the address opens
+   again and the one share goes on by name, as in the table's own dialog
  7 the organisation's table / knowledge trash: a writing member deletes for good only what she made or put there, one at a
    time (was: any one, one at a time); its admin any
 usage: p21364_c_haertung_test.py <datadir>"""
@@ -271,5 +273,27 @@ r = Id.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_BOB]})
 check(r.status_code == 403 and dbx("SELECT 1 FROM wiki_pages WHERE id=?", (P_BOB,)), f"(7) ida cannot delete bob's page for good ({r.status_code})")
 check(Id.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_IDA]}).json().get("ids") == [P_IDA], "(7) ida deletes her own page for good")
 check(Bo.post(B + "/api/wiki/purge", json={"space": SP, "ids": [P_BOB]}).json().get("ids") == [P_BOB], "(7) bob (admin) deletes it")
+
+# ==== 6 (Fable review job/5254 F2): the same person by address and by name in the file store's dialog
+kt.proved()
+SH2 = Bo.post(B + "/api/sheets", json={"title": "Rates 6297", "space": SP}).json().get("id")
+r = Bo.post(B + f"/api/sheets/{SH2}/shares", json={"email": "ida@example.com", "role": "read"})
+check(SH2 and r.status_code == 201, f"(6) setup: bob shares an organisation table with ida's address {r.text[:120]}")
+N2 = dbx("SELECT id FROM fs_nodes WHERE kind='ref' AND ref_kind='sheet' AND ref_id=?", (SH2,))[0][0]
+
+
+def ida_rows():
+    return dbx("SELECT id, role FROM fs_shares WHERE node_id=? AND user_id=?", (N2, IDA))
+
+
+check(len(ida_rows()) == 1, f"(6) setup: the address is bound to ida's account ({ida_rows()})")
+r = Bo.post(B + f"/api/files/nodes/{N2}/shares", json={"user_id": IDA, "role": "edit"})
+rows = ida_rows()
+check(r.status_code == 201 and len(rows) == 1 and rows[0][1] == "edit", f"(6) by name: one row of ida, its role changed ({r.status_code} {rows})")
+check(any(x.get("user_id") == IDA for x in r.json().get("shares", [])), "(6) the file store's dialog lists ida's share by name")
+check([tuple(x) for x in dbx("SELECT user_id FROM sheet_shares WHERE sheet_id=? AND email_key<>''", (SH2,))] == [(None,)],
+      "(6) the address stays, open again (as in the table's own dialog)")
+r = Bo.delete(B + f"/api/files/shares/{rows[0][0] if rows else 0}")
+check(r.ok and not ida_rows(), f"(6) and the file store's dialog ends it ({r.status_code})")
 
 sys.exit(kt.done("p21364_c_haertung"))
