@@ -1570,3 +1570,30 @@ open table via `wso_open('sheets', …)`), time tracking (#6187: entries, report
 hits, the trash, news, project group heads and favourite agents (#6188). 2.1254.0 (#6180): the office (badge `wsp_attr`, every page and the open quotation / invoice via
 `wso_open('office')`, the overview rows of `spo_html` for every area) and the clients (rows, origin under "All", open card).
 Tests: `tests/p21254_c_orgfarbe_ui.js`, `tests/p21205_b_orgcolor_ui.js`, `tests/p21241_orgcolor_areas_ui.js`, `tests/p21224_a_orgcolor_ui.js`.
+
+### A module's workspaces under "All workspaces" (2.1398.0, #6722)
+
+One switch, one meaning: a module switched off for me in a workspace (Settings > Modules, the area switch `ws_areas_off` /
+an organisation's `areas_off`, or the module switch `ws_mods_off` / a card's cap) is gone from that workspace under "All
+workspaces" too - its overview, its panel and its mixed lists. Nothing is deleted; the search and the trash still find
+everything, and an entry opened from there still opens.
+
+- browser: `static/js/areas.js` -- `mod_spaces(areaId, featKey)` -> the workspaces the module is on in (Private, organisations);
+  `mod_entryOn(o, areaId, featKey)` -> false for an entry of a mixed list whose workspace has the module off (only under "All")
+- `areaId` is the area of `WSA_AREAS` (`null` for a module without one: the calendar, Disposition, Workload), `featKey` the
+  module's key of `FEATS`
+
+```js
+// a module with one entry per workspace under "All": its spaces; exactly one left = open it directly, it wears its colour
+const sps = mod_spaces('wiki');                    // Knowledge; office: mod_spaces('office'); files: mod_spaces('ablage', 'files')
+// a mixed list: leave out the entries of a workspace where the module is off
+items.filter(c => mod_entryOn(c.org_id || 0, 'office', 'clients'));
+```
+
+Who uses it: the office (`ofc_spaces`), Knowledge (`wk_shown`), Files (`ab_spaces`), Reading and Home (`rd_spaces`, the open
+space reports itself via `wso_open('reading')`), Tables (`shvShown`, its overview wears the one space's colour), Workload /
+Absences / Disposition (`tm_on`, `tm_wsp`: one area left opens it), clients (`ms_inWs`), contacts (`ctBookOn`), calendar
+events (`cevWs`) and the time report (`tv_wsLists`: the projects of the workspaces still on as the report's filter).
+The frame colour of #6697 (`wscolor.js wso_scope`: a page whose module is on in exactly one workspace wears its colour) asks
+`mod_spaces` too (featKey may be a list: on when one of them is on), so the list and the colour never disagree.
+Do not ask `wsa_wsOn` / `mc_wsOn` in an area for this; build on these two. Test: `tests/p21398_a_modspaces_ui.js`.

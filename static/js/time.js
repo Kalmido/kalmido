@@ -413,9 +413,17 @@ function timeRange() {
 const timeScope = () => hasSharing() && S.tv.scope === 'all' ? 'all' : 'mine';
 const tvClient = () => S.tv.client && clientById(S.tv.client);  // 2.23.0 (#463): the time of one client (its lists)
 const tvLists = () => tvClient() ? (tvClient().lists.length ? tvClient().lists : [-1]) : S.tv.lists.filter(id => id === 0 || listById(id));
+// 2.1398.0 (#6722): under "All workspaces" with Time tracking off in a workspace: the projects of the others (+ "No project"
+// while Private is on) as the report's filter, so the server's totals leave that workspace out too; null = no filter
+const tv_wsLists = () => {
+  if (!wsOn() || wsCur() !== 'all') return null;
+  const on = mod_spaces('time'); if (on.length >= wsa_spaces().length) return null;
+  return [...(on.includes('private') ? [0] : []), ...S.lists.filter(l => on.includes(wso_ws(l) || 'private')).map(l => l.id)];
+};
 function timeQuery() {
-  const [f, t] = timeRange(), q = new URLSearchParams({from: f, to: t, scope: timeScope()});
+  const [f, t] = timeRange(), q = new URLSearchParams({from: f, to: t, scope: timeScope()}), w = tvLists().length ? null : tv_wsLists();
   if (tvLists().length) q.set('lists', tvLists().join(','));
+  else if (w) q.set('lists', (w.length ? w : [-1]).join(','));
   return q.toString();
 }
 async function loadTime() {

@@ -207,7 +207,8 @@ function calEvState(lo, hi, none = '') {
 // not shown = invalidated, the next view fetches (ensureCalEv). Here and not in calview.js: Today and Home use the events without it
 histReloader('calendar', () => { if (!S.cal?.key && !S.cal?.items?.length) return; calInvalidate(); if (S.route.mod === 'cal' || (S.route.mod === 'tasks' && S.route.key === 'today') || S.route.mod === 'home') renderView(); });
 // 2.30.0 (#1036): an own event of a calendar outside the shown workspace is left out (subscriptions and invitations stay)
-const cevWs = e => !e.own || e.cal == null || wsObjIn(evCal(e.cal));
+// 2.1398.0 (#6722): under "All" also left out where Calendar or Events is off for me (areas.js mod_entryOn)
+const cevWs = e => !e.own || e.cal == null || (c => wsObjIn(c) && (!c || mod_entryOn(c, null, 'cal') && mod_entryOn(c, null, 'events')))(evCal(e.cal));
 const cevOn = d => S.cal.items.filter(e => e.d0 <= d && e.d1 >= d && cevWs(e));
 const cevSort = (a, b) => (b.all_day - a.all_day) || a.start.localeCompare(b.start) || cmpText(a.title, b.title);
 const cevColor = e => e.booking ? 'var(--accent)' : abcX(e) ? 'var(--muted)' : e.own ? evCalColor(e) : cssColor(S.cal.subs[e.sub]?.color) || 'var(--muted)';  // 2.50.0 (#1194): bookings

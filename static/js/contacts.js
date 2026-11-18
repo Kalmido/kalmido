@@ -16,6 +16,8 @@ const ctBook = id => (S.books || []).find(b => b.id === id);
 // 2.1241.0 (#6185): the organisation colour (docs/dev/kern.md): a contact of an organisation's address book wears its stripe
 // (row, card, the book in "Address books"; the book's own colour stays its dot) and, under "All workspaces", where it comes
 // from; the open card is the open object (wso_sync). A book of Private, no book: neutral
+// 2.1398.0 (#6722): an address book shown: of the shown workspace, under "All" only where Contacts is on for me (areas.js mod_entryOn)
+const ctBookOn = b => wsObjIn(b) && mod_entryOn(b, 'office', 'contacts');
 wso_open('contacts', () => S.route?.mod === 'contacts' && CT.card && (!isMobile() || CT.sel) ? ctBook(CT.card.book_id) || null : null);
 // 2.1238.0 (#6161, Stufe 1): may I change this address book's contacts - the shared core's canWrite (workspace.js) decides, from
 // the book's role (owner/edit/view) and the organisation role; no own role check here any more
@@ -128,8 +130,8 @@ function viewContacts() {
   if (CT.trash) return ctt_html();  // 2.272.0 E1 (#3038)
   if (CT.items === null && !CT.loading) setTimeout(ctLoad, 0);
   ct_prune();  // 2.46.4 (#1732): also after a live update
-  const books = (S.books || []).filter(b => wsObjIn(b));  // 2.30.0 (#1036): the address books of the shown workspace
-  const items = CT.items === null ? null : CT.items.filter(c => !ctBook(c.book_id) || wsObjIn(ctBook(c.book_id)));
+  const books = (S.books || []).filter(ctBookOn);  // 2.30.0 (#1036): the address books of the shown workspace
+  const items = CT.items === null ? null : CT.items.filter(c => !ctBook(c.book_id) || ctBookOn(ctBook(c.book_id)));
   const mob = lsd_one(), cardLd = !CT.card && CT.cardLd && CT.cardLd === CT.sel, showCard = (CT.card || cardLd) && (!mob || CT.sel);  // 2.1168.0 (#6117): lsd_one() (render.js) = a phone or a content area too narrow for list + card
   // 2.1238.0 (#6161, Stufe 1): the write entries only where canWrite says yes; ONE read hint under the bar when no book of the
   // shown workspace may be written (the card's own "Read-only" stays away then; a phone's open card hides the bar: it keeps its own)
@@ -528,7 +530,7 @@ async function bk_matching() {
   }
   return out;
 }
-const bk_shown = items => items.filter(c => bk_can(c) && (!ctBook(c.book_id) || wsObjIn(ctBook(c.book_id))));
+const bk_shown = items => items.filter(c => bk_can(c) && (!ctBook(c.book_id) || ctBookOn(ctBook(c.book_id))));
 const bk_allOn = () => !!CT.pick?.size && CT.items !== null && (CT.pickAll === ctx_key() || CT.total <= CT.items.length && bk_shown(CT.items).every(c => CT.pick.has(c.id)) && CT.pick.size >= bk_shown(CT.items).length);  // 2.119.1 A (#2081): "All" also covers the pages not loaded yet
 async function bk_barAct(k, el) {
   if (!CT.pick) return;

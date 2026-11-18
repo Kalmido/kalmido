@@ -229,7 +229,8 @@ function wso_scope() {
   if (mod === 'team') { const o = wsOptions().filter(w => w.startsWith('org:')); return o.length === 1 ? o[0] : ''; }
   const area = wsa_areaOfMod(mod), part = mg_areaOf(mod)?.[3].find(p => p[0] === mod);
   const fs = mod === 'workload' && typeof WLV === 'object' && WLV.tab === 'dispo' ? ['dispo'] : WSO_FEAT[mod] || (part ? part[4]() : [mod]);
-  const sps = wsa_spaces().filter(w => (!area || !WSA_AREAS.includes(area) || wsa_wsOn(w, area)) && fs.some(f => mc_wsOn(w, f)));
+  if (!fs.length) return '';
+  const sps = mod_spaces(area && WSA_AREAS.includes(area) ? area : null, fs);  // 2.1398.0 (#6722): the one core of a module's workspaces
   return sps.length === 1 ? sps[0] : '';
 }
 // (2) a page of several workspaces with an open object of an organisation (a project, a page, a table, a channel, a client, a
