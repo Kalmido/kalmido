@@ -55,6 +55,10 @@ const FEAT = 'cal,comments,collab,files,docs,office,clients';
   check(!!sel && /GT/.test(sel.textContent), `the issuer dialog offers the new range: ${sel?.textContent}`);
   type(w, d.querySelector('#iss-name'), 'Shop billing');
   d.querySelector('.modal.cdlg form').dispatchEvent(new w.Event('submit', {bubbles: true, cancelable: true}));
+  // setting up asks for the sign-in confirmation: the password question comes over the dialog and answers it
+  const pp = await until(() => d.querySelector('.modal.pwprompt #pp-pw'));
+  check(!!pp, 'setting up asks for the password');
+  if (pp) { pp.value = 'password123'; d.querySelector('.modal.pwprompt form').dispatchEvent(new w.Event('submit', {bubbles: true, cancelable: true})); }
   check(!!await until(async () => ((await call('GET', '/api/office/issuers', null, CK)).issuers || []).some(x => x.name === 'Shop billing')), 'the issuer is set up');
   w.close();
 
@@ -66,14 +70,12 @@ const FEAT = 'cal,comments,collab,files,docs,office,clients';
     await nav(B + 'static/icon.svg');
     await ev(`(() => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('tasks.theme', '"light"'); return 1; })()`);
     await signIn(ev, 'alice');
-    await nav(B + '#today');
-    check(await ready(ev, `typeof settingsModal === 'function' && !!document.querySelector('#side, main')`), 'ff: the app');
-    await ev(`(() => { settingsModal('biz'); return 1; })()`);
+    await nav(B + '#office/settings');
     check(await ready(ev, `!!document.querySelector('#iss-box [data-iss="add"]:not([disabled])')`), 'ff: "Add invoice issuer" is on');
-    await ev(`(() => { document.querySelector('#iss-box [data-iss="add"]').click(); return 1; })()`);
+    await ev(`(() => { const b = document.querySelector('#iss-box [data-iss="add"]'); b.scrollIntoView({block: 'center'}); b.click(); return 1; })()`);
     check(await ready(ev, `!!document.querySelector('.modal.cdlg #iss-name')`), 'ff: the issuer dialog');
-    await ev(`(() => { window.__pp = pwPrompt(tr('Confirm with your password')); return 1; })()`);
-    check(await ready(ev, `!!document.querySelector('.modal.pwprompt #pp-pw')`), 'ff: the password question');
+    await ev(`(() => { const i = document.querySelector('.modal.cdlg #iss-name'); i.value = 'Second shop'; i.dispatchEvent(new Event('input', {bubbles: true})); document.querySelector('.modal.cdlg form').requestSubmit(); return 1; })()`);
+    check(await ready(ev, `!!document.querySelector('.modal.pwprompt #pp-pw')`), 'ff: setting up asks for the password');
     const top = await ev(`(() => { const p = document.querySelector('.modal.pwprompt #pp-pw'), b = p.getBoundingClientRect();
       const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       return JSON.stringify({top: at === p, pz: getComputedStyle(p.closest('.modal')).zIndex, dz: getComputedStyle(document.querySelector('.modal.cdlg')).zIndex}); })()`);
