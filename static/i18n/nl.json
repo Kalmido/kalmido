@@ -19451,6 +19451,7 @@
   "the list is encrypted in the browser": "de lijst is versleuteld in de browser",
   "it was refused": "het werd geweigerd",
   "{0} file was not filed ({1}): {2}": ["{0} bestand is niet opgeslagen ({1}): {2}", "{0} bestanden zijn niet opgeslagen ({1}): {2}"],
+  "the file is too large": "het bestand is te groot",
   "This organisation has an admin of its own: only that admin can end the move": "Deze organisatie heeft een eigen beheerder: alleen die kan de verhuizing beëindigen",
   "Private or with an organisation?": "Privé of met een organisatie?",
   "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido houdt je privézaken en het werk van een organisatie (een bedrijf, een team, een vereniging) gescheiden. Je kunt er ook later een toevoegen: Instellingen > Organisatie.",

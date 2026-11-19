@@ -19451,6 +19451,7 @@
   "the list is encrypted in the browser": "la lista está cifrada en el navegador",
   "it was refused": "fue rechazado",
   "{0} file was not filed ({1}): {2}": ["{0} archivo no se guardó ({1}): {2}", "{0} archivos no se guardaron ({1}): {2}"],
+  "the file is too large": "el archivo es demasiado grande",
   "This organisation has an admin of its own: only that admin can end the move": "Esta organización tiene un administrador propio: solo él puede terminar la mudanza",
   "Private or with an organisation?": "¿Privado o con una organización?",
   "Kalmido keeps your private things and the work of an organisation (a company, a team, an association) apart. You can add one later too: Settings > Organisation.": "Kalmido mantiene separadas tus cosas privadas y el trabajo de una organización (una empresa, un equipo, una asociación). También puedes añadirla más tarde: Ajustes > Organización.",
