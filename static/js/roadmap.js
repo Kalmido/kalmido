@@ -221,7 +221,7 @@ function viewRoadmap() {
       <div id="rm-rows"></div>
       ${todayX >= 0 && todayX < G.days * G.dw ? `<i class="tl-now" style="left:calc(var(--tl-name) + ${todayX + G.dw / 2}px)"></i>` : ''}
       <svg class="tl-deps" id="tl-deps" aria-hidden="true" data-fl-fill></svg>
-    </div></div>
+    </div></div><div class="tlngrip" aria-label="${esc(tr('Width of the name column'))}"></div>
     ${hintOnce('tlfoot', hint)}<div class="muted tl-foot"><div class="shint" data-iilabel="${esc(tr('How to use this view'))}">${hint}</div></div></div>`;
 }
 // only the rows in view (+ a margin, in chunks) are in the DOM; called after a render and on scroll
@@ -246,6 +246,7 @@ function rmRows(force) {
 function rmAfterRender(el, left, top) {
   const V = S.rmV; if (!V) return;
   const {G} = V;
+  tl_nameGrip(el);  // #7308 (timeline.js)
   el.scrollTop = top ?? 0;
   const at = S.rmFocus && S.rmFocus >= G.start && S.rmFocus <= G.end ? S.rmFocus : today();
   el.scrollLeft = left ?? Math.max(0, (diffDays(G.start, at) - (G.z === 'week' ? 2 : G.z === 'month' ? 7 : 21)) * G.dw);
