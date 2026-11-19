@@ -1463,7 +1463,9 @@ class Dispatcher:
             # (#7199, reader F6): a comment that keeps failing (the task closed or gone, no right) is not tried every
             # round for ever: after CARD_TRIES rounds the person learns of the pull request without the card
             e["carded"] = True
-            self.finding(res, f"pr:{jid}", self.say("dispatch_pr_nocard", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))
+            # (#7199, reader F1 of job/5726): the message carries the reading's verdict the card would have carried
+            self.finding(res, f"pr:{jid}", self.say("dispatch_pr_nocard", f"#{jid}", url, " ".join(f"#{t}" for t in tids),
+                                                    READ_LINE.get(verdict, READ_LINE["none"]) if verdict else "not read (reading is off)"))
             return
         e["carded"] = True
         self.finding(res, f"pr:{jid}", self.say("dispatch_pr", f"#{jid}", url, " ".join(f"#{t}" for t in tids)))

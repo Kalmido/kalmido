@@ -17,7 +17,7 @@ import sys
 N = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, N)
 from freelancer_fixture import FEATURES, freelancer  # noqa: E402
-from kt import B, check, done, fresh, sess  # noqa: E402
+from kt import B, check, dbx, done, fresh, sess  # noqa: E402
 
 fresh(prefix="P7300")
 D = B + "/api/office/docs"
@@ -114,6 +114,12 @@ check(r.ok, f"finalise {r.status_code} {r.text[:200]}")
 check(meta(A, Q).get("Your contact") == "Bob Muster", f"a finalised quotation keeps the name it was printed with: {meta(A, Q)}")
 r = A.patch(D + f"/{Q}", json={"author_id": ME})
 check(r.status_code == 409, f"a finalised quotation: no change of the author (409) {r.status_code}")
+
+# reader F5 of job/5726: a draft moved into another office names nobody of the old organisation
+Q5 = new(A, author_id=UID["bob"])
+r = A.post(B + "/api/office/move-space", json={"what": "drafts", "ids": [Q5], "to": "private"})
+row = dbx("SELECT author_id FROM office_docs WHERE id=?", (Q5,))
+check(r.ok and row and row[0][0] is None, f"a moved draft drops its author {r.status_code} {r.text[:160]} {row}")
 
 # a member works with it too; a person without an organisation has no choice and no line
 Bo = sess("bob")
