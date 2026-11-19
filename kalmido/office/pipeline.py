@@ -21,7 +21,7 @@ from ..core.orgcrypt import oc_dec_fields, oc_enc_fields
 from ..core.i18n import tr
 from ..core.db import body, bump, db, iso_ms, local_now, now_utc
 from ..core.access import Denied, live_sql  # 2.1005.0 (#5415): live_sql
-from ..core.errors import BadInput
+from ..core.errors import BadInput, sort_value
 from .calc import dec, dstr, money
 from .model import office_gate, office_org, office_settings, pb_cl_live, pb_cl_sql, pb_owner
 
@@ -142,9 +142,9 @@ def pl2_clean(c, oid, b, cur=None):
         out["expected_date"] = _day(b.get("expected_date"), "expected_date")
     if "sort" in b:
         s = b.get("sort")
-        if isinstance(s, bool) or not isinstance(s, (int, float)) or abs(s) > 1e12:
+        if isinstance(s, bool) or not isinstance(s, (int, float)):
             raise BadInput(tr("Invalid value: {0}", "sort"))
-        out["sort"] = float(s)
+        out["sort"] = sort_value(s, lim=1e12)  # #6430: abs(NaN) > 1e12 is false -- NaN went through
     return out
 
 
