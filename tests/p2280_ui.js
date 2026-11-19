@@ -9,6 +9,7 @@
 // #1005 the answer buttons under an agent's chat message: a tap answers, the buttons lock
 // Firefox (1440 light / dark, 390 touch): screenshots of the changed screens; #976 a REAL right-click on a list in the sidebar
 // right next to the sidebar grip opens the list menu while the grip is invisible and the menu is on top.
+// #7210 (390 px): the chip of an organisation shows its letter, only the name is hidden on the phone
 const {execFileSync} = require('child_process');
 const path = require('path');
 const {boot, B, login} = require('./boot');
@@ -317,6 +318,12 @@ const V = B + 'api/v1';
     await ev(`(() => { wsSet('private'); return 1; })()`); await o.until(`!!document.querySelector('#top .wschip')`);
     check(await ev(`!!document.querySelector('#top .wschip')`), `${tag}: #935 the chip on the phone`);
     await shot('p2280-light-390-today-private.png');
+    // #7210: in an organisation the chip shows its letter (.orgini), only the name is hidden on the phone - the chip is never empty
+    await ev(`(() => { wsSet('org:${ORG}'); return 1; })()`); await o.until(`!!document.querySelector('#top .wschip .orgini')`);
+    const ini = JSON.parse(await ev(`(() => { const c = document.querySelector('#top .wschip'), i = c?.querySelector('.orgini'), n = c?.querySelector('.wsname');
+      return JSON.stringify({iw: Math.round(i?.getBoundingClientRect().width || 0), it: i?.textContent || '', nd: n ? getComputedStyle(n).display : 'missing'}); })()`));
+    check(ini.iw > 8 && ini.it === ORGN.charAt(0).toUpperCase() && ini.nd === 'none', `${tag}: #7210 the chip of the organisation shows its letter, only the name is hidden ` + JSON.stringify(ini));
+    await shot('p2280-light-390-today-org.png');
     await ev(`(() => { wsSet('all'); return 1; })()`); await wsAll();
     await o.nav(B + '#news'); await ready(o); await o.until(`!!document.querySelector('.ntabs')`);
     check(await ev(`(() => { const t = document.querySelector('.ntabs'); return !!t && t.getBoundingClientRect().width <= 390 && document.documentElement.scrollWidth <= 390; })()`), `${tag}: #987 the tabs fit the phone`);

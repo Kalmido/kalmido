@@ -226,7 +226,7 @@ wsBlinkPlan();
 function wsChip() {
   if (!wsOn() || wsCur() === 'all') return '';
   const cur = wsCur();
-  return `<button type="button" class="wschip tf5" data-act="ws-menu" data-ico="${cur === 'private' ? 'home' : 'brief'}" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', wsName(cur)) + ' · ' + tr('Only this workspace is shown'))}" aria-label="${esc(tr('Workspace: {0}', wsName(cur)))}"${wsp_attr(cur) /* 2.53.0 (#1474), 2.57.0 B (#1807) */}>${wsIcon(cur)}<span>${esc(wsName(cur))}</span></button>`;
+  return `<button type="button" class="wschip tf5" data-act="ws-menu" data-ico="${cur === 'private' ? 'home' : 'brief'}" aria-haspopup="menu" title="${esc(tr('Workspace: {0}', wsName(cur)) + ' · ' + tr('Only this workspace is shown'))}" aria-label="${esc(tr('Workspace: {0}', wsName(cur)))}"${wsp_attr(cur) /* 2.53.0 (#1474), 2.57.0 B (#1807) */}>${wsIcon(cur)}<span class="wsname">${esc(wsName(cur))}</span></button>`;  // #7210: the name has its own class: the phone hides only it, never the letter / symbol (.orgini, .wsemo)
 }
 // 2.1401.0 (#6127): ONE menu "Switch to" for the head bar (sbb-ws), the phone's button / the brand of the drawer and the
 // workspace badges (ws-menu), the same entries in the same order on every device: the organisations (each with its own sign),
