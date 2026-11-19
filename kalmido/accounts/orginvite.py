@@ -232,9 +232,20 @@ def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
     return uid, invite_new(c, uid, by, send=True, days=None if direct else OJN_DAYS, bg=bg)
 
 
+def oinv_left(by):
+    """2.1424.0 (#6580, reader F7): how many tries admin `by` has left today on the day counter of POST /invites (counted over
+    every process; OINV_DAY when the count cannot be read - oinv_count still refuses at the limit)."""
+    from ..core.ratedb import rate_counts
+    key = f"oinv:{by}"
+    return max(0, OINV_DAY - int((rate_counts([key], 86400) or {}).get(key) or 0))
+
+
 def oinv_count(by, n):
     """2.1424.0 (#6580, reader F1/F2): n invitations of admin `by` on the day counter of POST /invites ("oinv:<id>", every try
-    counts before the address is looked up, a withdrawal gives nothing back) -> False once the day's OINV_DAY are used up."""
+    counts before the address is looked up, a withdrawal gives nothing back) -> False when they do not fit: reader F7 - more
+    than what is left counts nothing (the caller refuses and names the rest), else all n are counted."""
+    if n > oinv_left(by):
+        return False
     return not any(hit_limit(f"oinv:{by}", OINV_DAY, 86400) for _ in range(n))
 
 

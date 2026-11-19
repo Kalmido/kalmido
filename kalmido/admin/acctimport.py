@@ -77,7 +77,7 @@ from ..core.schema import MAX_DEPTH  # 2.149.0 G (#2517): pulled up from functio
 from ..office.model import pb_personal  # 2.1316.0 (#6577): umz_office_space
 from ..life.model import JOURNAL_MAX, jr_open, jr_seal  # 2.306.0 A (#2885); 2.531.0 (#4317): + JOURNAL_MAX, jr_open
 from ..accounts.orginvite import ojn_drop_later, ojn_invite, ojn_later  # 2.278.0 A (#3095)
-from ..accounts.orginvite import OINV_DAY, oinv_by_import, oinv_count, oinv_on, oinv_pending  # 2.1424.0 (#6580)
+from ..accounts.orginvite import OINV_DAY, oinv_by_import, oinv_count, oinv_left, oinv_on, oinv_pending  # 2.1424.0 (#6580)
 from ..accounts.users import user_purge  # 2.1424.0 (#6580)
 from ..collab.e2e import _pub, e2e_has_keys, e2e_import_keys, e2e_same_keys  # 2.278.0 C (#3091)
 from .oilock import oil_preview, OIL_NODES, OIL_LOCKS, OIL_KEYS  # #4300: locked folders of the file store
@@ -2504,8 +2504,9 @@ def umz_undo_made(c, made):
                 continue
             if not busy and oinv_pending(c, who):
                 files += user_purge(c, who)
-            elif not c.execute("SELECT 1 FROM org_joins WHERE user_id=? AND NOT silent", (who,)).fetchone():
-                c.execute("DELETE FROM user_invites WHERE user_id=? AND used_at IS NULL", (who,))
+            elif oinv_pending(c, who) and not c.execute("SELECT 1 FROM org_joins WHERE user_id=? AND NOT silent", (who,)).fetchone():
+                # reader F8: only the invitation link of an account never used (a set-up account keeps e.g. its reset link)
+                c.execute("DELETE FROM user_invites WHERE user_id=? AND kind='invite' AND used_at IS NULL", (who,))
     return files
 
 
@@ -3402,8 +3403,11 @@ def umz_invites(c, uid, st, org, picks, can_invite, mails_out=None):
                 accounts.add(hid)
         elif v.get("invite") and can_invite:
             em = _email(v.get("email"))
-            if em and umz_email_hash(em, salt) == k:
-                mails.add(em.strip().lower())
+            if em:
+                if umz_email_hash(em, salt) == k:
+                    mails.add(em.strip().lower())
+            elif not k.startswith("id"):  # reader F6: no address typed - umz_share takes the file's own (plain in an organisation export)
+                mails.add("key:" + k)
     if mails_out is not None:
         mails_out.update(mails)
     if accounts:
@@ -3474,8 +3478,9 @@ def umz_go(iid):
     # anything is looked up (an address with an account counts like a new one; undo or withdrawal give nothing back); over
     # the limit nothing starts. A server admin invites without this limit, as before.
     if org is not None and mails and not g.user["is_admin"] and not oinv_count(uid, len(mails)):
-        c.rollback()
-        return err(tr("Too many invitations today (at most {0}). Try again tomorrow.", OINV_DAY), 429)
+        c.rollback()  # reader F7: nothing counted when they do not fit; the message names what is left
+        return err(tr("The import would invite {0} people by e-mail, {1} invitations are left for you today (at most {2} a day). Tick fewer now and invite the rest tomorrow.",
+                      len(mails), oinv_left(uid), OINV_DAY), 429)
     c.rollback()
     try:
         _thread(uid, umz_run, iid, {"org": org, "people": picks, "can_invite": can_invite, "invites": invites}, iid=iid,
