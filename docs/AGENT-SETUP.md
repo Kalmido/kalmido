@@ -6,9 +6,11 @@ tasks to and chat with, running in a sandbox on a machine you control. It is the
 recipe). The same guide is in the app: *Settings > Agents > Set up*. For macOS and Windows, and for a personal agent on your own
 computer, see [AGENTS.md: Set up an agent](AGENTS.md#set-up-an-agent).
 
-**Kalmido never runs an AI itself.** It does not download, start or host a model. You bring the agent (Claude Code,
+**Kalmido runs no AI for the agent you set up here.** It does not download, start or host a model. You bring the agent (Claude Code,
 another coding assistant, an n8n flow, a local model or a script) and run it on your own machine with your own
-subscription or API key. Kalmido provides:
+subscription or API key. (The one exception is the optional [Kalmido AI (server agent)](AGENTS.md#server-agents): the Kalmido
+server itself calls the model provider with the key of a person or an organisation, in an organisation only after its admin
+switched it on.) Kalmido provides:
 
 - an **agent account**: a user of type *Agent*, never an admin, sees only the projects shared with it
   (the API calls projects lists: `list_id`, `/api/v1/lists`, `kind=list|project`; since 2.352.0 `kind` is no longer
