@@ -124,7 +124,7 @@ def clm_counts(c, others):
             continue
         n = c.execute(f"SELECT COUNT(*) FROM {t} WHERE {col} IN ({qs})", others).fetchone()[0]
         out[t] = out.get(t, 0) + int(n or 0)
-    # 2.1426.0 (#6288): the links of the core (obj_links, both directions) move along too ("N more links")
+    # (#6288): the links of the core (obj_links, both directions) move along too ("N more links")
     out["obj_links"] = int(c.execute(f"SELECT COUNT(*) FROM obj_links WHERE (src_kind='client' AND src_id IN ({qs})) OR "
                                      f"(dst_kind='client' AND dst_id IN ({qs}))", [*others, *others]).fetchone()[0] or 0)
     return {k: v for k, v in out.items() if v}
@@ -230,7 +230,7 @@ def clm_merge(c, uid, target, ids, pick=None, dry=False):
         kdef = [dict(r) for r in c.execute(f"SELECT id, client_id, is_default FROM office_client_contacts WHERE client_id IN "
                                            f"({','.join('?' * len(ids))})", ids)]
         refs = [mg_repoint(c, tb, col, others, target) for tb, col in clm_ref_tables(c)]
-        refs.append(mg_olnk_move(c, "client", others, target))  # 2.1426.0 (#6288): obj_links has no foreign key (trigger kalmido_olnk_gone)
+        refs.append(mg_olnk_move(c, "client", others, target))  # (#6288): obj_links has no foreign key (trigger kalmido_olnk_gone)
         cascade = mg_cascade_rows(c, "clients", others)
         # contact persons: the target's default stays; pick "contact" = the default of the chosen client
         src = pick.get("contact") if isinstance(pick, dict) else None

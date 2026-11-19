@@ -16,7 +16,7 @@ From 2.143.0 on an unknown stored role reads as guest (restrictive), never as me
 from flask import g, has_request_context, request
 
 from ..core.i18n import N_, tr
-from ..core.access import ACX_SUPPORT_ORGS, Denied  # 2.149.0 G (#2517): pulled up from functions; #6977 F1: the support narrowing
+from ..core.access import ACX_SUPPORT_ORGS, Denied  # (#2517): pulled up from functions; #6977 F1: the support narrowing
 from .orgs import instance_mode  # 2.369.5 (#2517): pulled up from functions
 from ..core.pg import system_ctx  # 2.369.5 (#2517): pulled up from functions
 
@@ -48,7 +48,7 @@ def org_roles_read(c, uid):
     (accounts/orgs.py user_orgs raw=True from core/access.py _orgs_of; _ctx_support narrows a support session itself)."""
     with system_ctx(c):  # membership structure (also asked for other people)
         return {r[0]: role_known(r[1], r[0], uid)
-                for r in c.execute("SELECT m.org_id, m.role FROM org_members m JOIN orgs o ON o.id=m.org_id "  # 2.223.2 A (#2859)
+                for r in c.execute("SELECT m.org_id, m.role FROM org_members m JOIN orgs o ON o.id=m.org_id "  # (#2859)
                                    "WHERE m.user_id=? AND o.retired_at IS NULL", (uid,))}
 
 

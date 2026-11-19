@@ -160,7 +160,7 @@ def ctm_lines(rows, f, refs, occ_names, unfit=0):
     t = rows[0]
     n = {}
     for rec in refs:
-        if rec.get("olnk"):  # 2.1426.0 (#6288): a link to a task counts as a task link, every other one as another reference
+        if rec.get("olnk"):  # (#6288): a link to a task counts as a task link, every other one as another reference
             for r in (*rec["moved"], *rec["dropped"]):
                 tb = "obj_links" if "task" in (r["src_kind"], r["dst_kind"]) else "obj_links_other"
                 n[tb] = n.get(tb, 0) + 1
@@ -220,7 +220,7 @@ def ctm_merge(c, uid, target, ids, pick=None, dry=False):
             t_occ = [r[0] for r in c.execute("SELECT kind FROM contact_occ WHERE contact_id=?", (t["id"],)).fetchall()]
             refs = [mg_repoint(c, tb_, col, others, t["id"]) for tb_, col, _ in mg_fk_refs(c, "contacts") if tb_ != "contact_occ"]
             refs += [mg_repoint(c, tb_, col, others, t["id"], where) for tb_, col, where in CTM_SOFT]
-            # 2.1426.0 (#6288): the links of the core (obj_links, no foreign key) in both directions, core/merges.py
+            # (#6288): the links of the core (obj_links, no foreign key) in both directions, core/merges.py
             refs.append(mg_olnk_move(c, "contact", others, t["id"]))
             refs = [r for r in refs if r["moved"] or r["dropped"]]
             refs.append(ctm_dedupe_attendees(c, t["id"]))

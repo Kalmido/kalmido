@@ -175,7 +175,7 @@ def user_orgs(c, uid, raw=False):
         return []
     from .orgroles import org_roles_cap, org_roles_of, org_roles_read
     if raw:
-        return sorted(org_roles_read(c, uid))  # 2.37.0 (#1150) / 2.223.2 A (#2859): read as system, a retired organisation grants nothing
+        return sorted(org_roles_read(c, uid))  # (#1150) / (#2859): read as system, a retired organisation grants nothing
     if has_request_context() and request.method in ("GET", "HEAD"):  # 2.280.0 B (#3116): a read asks once per person, not per call
         return sorted(org_roles_of(c, uid))  # the same org ids (request cache, forgotten by acx_drop)
     return sorted(org_roles_cap(c, uid, org_roles_read(c, uid)))  # a write asks the database each time
@@ -238,7 +238,7 @@ def org_role(c, uid, oid):
     if _rq("or") is not None:  # 2.369.6 (#3139): a read takes the role from the request cache user_orgs read (same rows)
         return org_roles_of(c, uid).get(oid)
     # #6605 / #6977 F1: a write reads fresh, narrowed as org_roles_of (a personal agent, a support session)
-    return org_roles_cap(c, uid, org_roles_read(c, uid)).get(oid)  # 2.143.0 A (#2151, review): unknown -> guest (role_known)
+    return org_roles_cap(c, uid, org_roles_read(c, uid)).get(oid)  # (#2151, review): unknown -> guest (role_known)
 
 
 def is_org_admin(c, uid, oid):
@@ -1735,12 +1735,12 @@ def org_agents_out(c, oid, uid, person=False):
         c.execute("DELETE FROM org_members WHERE org_id=? AND user_id=?", (oid, aid))
     ppl = [uid, *ags] if person else ags
     if ppl:
-        # 2.87.0 (#1983): the leaver and their agents are no longer invited to the events of the organisation's calendars
+        # (#1983): the leaver and their agents are no longer invited to the events of the organisation's calendars
         c.execute("DELETE FROM event_attendees WHERE user_id IN (%s) AND event_id IN (SELECT e.id FROM events e JOIN ev_cals k "
                   "ON k.id=e.cal_id WHERE k.org_id=?)" % ",".join("?" * len(ppl)), (*ppl, oid))
     c.execute("UPDATE agents SET org_id=NULL WHERE owner_id=? AND org_id=?", (uid, oid))
     if ppl:
-        with system_ctx(c):  # 2.223.2 B (#2860): their office rights groups go too (coming back = no old groups)
+        with system_ctx(c):  # (#2860): their office rights groups go too (coming back = no old groups)
             c.execute("DELETE FROM office_rgroup_members WHERE org_id=? AND user_id IN (%s)" % ",".join("?" * len(ppl)), (oid, *ppl))
     acx_drop()
     return ags
