@@ -50,6 +50,7 @@ const M = `JSON.stringify((() => {
       check(await until(`!!document.querySelector('#shv-scroll') && !!document.querySelector('#shv-side')`, {timeout: 20000}), `${W}: the table and its details`);
     };
     const drag = async (x0, y0, dx, look) => {
+      const vw = +(await ev('innerWidth')); dx = Math.max(1, Math.min(vw - 2, x0 + dx)) - x0;  // a far drag ends at the window's edge
       await cmd('input.performActions', {context: ctx, actions: [{type: 'pointer', id: 'm', parameters: {pointerType: 'mouse'}, actions: [
         {type: 'pointerMove', x: Math.round(x0), y: Math.round(y0)}, {type: 'pointerDown', button: 0},
         {type: 'pointerMove', x: Math.round(x0 + dx / 2), y: Math.round(y0), duration: 100}, {type: 'pointerMove', x: Math.round(x0 + dx), y: Math.round(y0), duration: 100}]}]});
