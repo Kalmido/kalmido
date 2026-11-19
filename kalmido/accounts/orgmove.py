@@ -12,7 +12,8 @@ to the organisation's log (org_list_log, actions move_on / move_off: Projects of
 GET    /api/orgs/<org id>/moving   every member: {moving, since?, by_name?, why?}
 POST   /api/orgs/<org id>/moving   an admin: {confirm: the organisation's name, why?} -> starts it (409 when it runs already)
 DELETE /api/orgs/<org id>/moving   an admin: ends it -> {moving: false, paused: [series ids]}; 2.1413.0 (#6951): an instance admin
-                                   too (not a member: org log move_off with instance_admin), so no organisation stays read only
+                                   too when the organisation has no active admin of its own (else 409; org log move_off with
+                                   instance_admin), so no organisation stays read only
 People only (agents 403); app only (APP_ONLY "* /api/orgs" in tests/parity_test.py)."""
 import json
 
@@ -27,7 +28,7 @@ from ..core.movelock import mv_allow, mv_forget, mv_info
 from ..core.pg import system_ctx
 from .bgjobs import bgj_add
 from .session import me
-from .orgs import _need_org_admin, org_need_person
+from .orgs import _need_org_admin, org_need_person, org_own_admin
 
 MV_WHY_MAX = 500
 
@@ -85,14 +86,20 @@ def org_moving_start(oid):
 
 def _need_ender(c, oid):
     """2.1413.0 (#6951, Fable review of job/5128): an admin of the organisation ends the move - or an instance admin (a person),
-    so an organisation whose last admin is gone never stays read only. True when it is the instance admin's way."""
+    but only when the organisation has no active admin of its own any more (org_own_admin), so it never stays read only
+    without one; while it has one, the move stays its decision (also hosted: never past the client, op_foreign_org).
+    True when it is the instance admin's way."""
     try:
         _need_org_admin(c, oid)
         return False
-    except Denied:
+    except Denied as e:
         u = g.get("user")
-        if not (u and u["is_admin"] and (u["kind"] or "user") != "agent"):  # a person (agents/core.py is_agent), never an agent
+        if e.code not in (403, 404) or not (u and u["is_admin"] and (u["kind"] or "user") != "agent"):  # a person, never an agent
             raise
+        with system_ctx(c):  # the organisation's admins (structure; the caller is an instance admin)
+            own = org_own_admin(c, oid)
+        if own is not None:
+            raise Denied(409, tr("This organisation has an admin of its own: only that admin can end the move")) from None
         return True
 
 
