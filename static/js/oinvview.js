@@ -72,7 +72,7 @@ function oinvDialog(oid, hints = [], on = true) {
     setTimeout(() => $(lnk ? '#oinv-name' : '#oinv-mail', md)?.focus(), 0);
   });
   if (lk && typeof userNameFollow === 'function') userNameFollow(md, 'oinv-name', 'oinv-user', 'oinv-userhint');
-  $('#oinv-role', md).addEventListener('change', e => { const k = /** @type {any} */ (e.target).value; $('.oinvrolehint', md).textContent = (hints.find(x => x.key === k) || {}).hint || ''; $('.oinvoffice', md).textContent = oinvOffice(hints, k); });  // 2.143.0 A (#2151), #6527
+  $('#oinv-role', md).addEventListener('change', e => { const k = /** @type {any} */ (e.target).value; $('.oinvrolehint', md).textContent = (hints.find(x => x.key === k) || {}).hint || ''; $('.oinvoffice', md).textContent = oinvOffice(hints, k); });  // the role's hint (#2151) and its office sentence (#6527)
   md.querySelector('form').addEventListener('submit', async e => {
     e.preventDefault();
     const email = $('#oinv-mail', md).value.trim(), role = $('#oinv-role', md).value, sb = md.querySelector('[type=submit]');
