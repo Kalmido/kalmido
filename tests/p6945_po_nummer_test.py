@@ -62,7 +62,8 @@ def run(S, who):
     CL = r.json()["id"]
 
     def offer(title):
-        r = S.post(B + D, json={"client_id": CL, "project_title": title, "raw_mode": "none", "producing_on": 0, "lang": "de"})
+        r = S.post(B + D, json={"client_id": CL, "project_title": title, "raw_mode": "none", "producing_on": 0, "lang": "de",
+                                "service_from": "2026-10-01", "service_to": "2026-10-20"})
         assert r.status_code == 201, r.text
         did = r.json()["id"]
         S.put(B + f"{D}/{did}/items", json={"items": [{"title": "Regie", "qty": 1, "rate": 1000, "unit": "flat"}]})
