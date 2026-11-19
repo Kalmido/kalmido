@@ -1,0 +1,21 @@
+/* Kalmido web client: the styles of the module "formq" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.98.0 B (#1954): the own questions of a form (formq.js): a row per question, the grip drags it (touch too) */
+.fq-ed{margin:.25rem 0 .75rem;padding:.75rem 0 0;border-top:1px solid var(--line)}
+.fq-head{display:flex;flex-direction:column;gap:.125rem;margin-bottom:.5rem}
+.fq-list{display:flex;flex-direction:column;gap:.5rem}
+.fqe{display:flex;gap:.375rem;align-items:flex-start;padding:.5rem;border:1px solid var(--line2);border-radius:.5rem;background:var(--bg2)}
+.fqe-grip{flex:none}
+.fqe-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:.375rem}
+.fqe-top{display:flex;gap:.5rem;align-items:center}
+.fqe-kind{flex:none;font-size:var(--fs-s);color:var(--accent)}
+.fqe-main input:not([type=checkbox]),.fqe-main textarea{width:100%;min-width:0}
+.fqe-btns{display:flex;flex-direction:column;flex:none}
+.fq-add{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.5rem 0 .75rem}
+.fq-chks{display:flex;flex-direction:column;gap:.375rem}
+.fq-entries{display:flex;flex-direction:column;gap:.375rem;max-height:60vh;overflow:auto}
+.fqen{border:1px solid var(--line2);border-radius:.5rem;padding:.5rem .75rem}
+.fqen summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center}
+.fqen dl{margin:.5rem 0;display:grid;grid-template-columns:minmax(0,1fr);gap:.125rem}
+.fqen dt{font-size:var(--fs-s);color:var(--muted);margin-top:.375rem}
+.fqen dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}

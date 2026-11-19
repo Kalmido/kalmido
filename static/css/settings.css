@@ -1,5 +1,10 @@
 /* Kalmido web client: the styles of the module "settings" (2.65.0, #1824), loaded with it (static/js/lazyload.js LD_CSS).
    Moved unchanged from app.css (same order); later than app.css in the cascade. */
+/* 2.1420.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
+/* 1.5.1: the list dialog saves itself: title, "Saved · Undo", close */
+.sdev{margin:1.25rem 0 .5rem;border:1px solid var(--line);border-radius:var(--radius);padding:.25rem .75rem}
+.sdev[open]{padding-bottom:.75rem}
+/* the rules of this file */
 /* 2.1305.0 (#4742): moved unchanged from app.css, only this module draws them (start budget). They stand before the file's own rules, so the cascade stays as it was. Where only part of a section moved, its comment stands in both places. */
 /* 1.5.1: the list dialog saves itself: title, "Saved · Undo", close */
 .sdev>summary{cursor:pointer;display:flex;align-items:center;gap:.5rem;padding:.5rem 0;color:var(--text2);font-size:var(--fs-m);font-weight:500;list-style:none}

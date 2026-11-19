@@ -1,0 +1,15 @@
+/* Kalmido web client: the styles of the module "habitdlg" (2.1420.0, #4742), loaded with it (static/js/lazyload.js LD_CSS).
+   Moved unchanged from app.css (same order); later than app.css in the cascade. */
+.wdays{display:flex;gap:.25rem}
+/* ---------- habits ---------- */
+.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:.1875rem;margin-top:.375rem}
+.hstats div{background:var(--bg2);padding:.625rem;text-align:center}
+.hstats b{display:block;font:600 var(--fs-h) var(--mono)}
+.hstats span{font-size:var(--fs-xs);color:var(--muted)}
+/* ---------- habits: notes + per week ---------- */
+/* 2.140.0 C (#2135): week progress segments + several reminder times */
+.hrems{display:flex;flex-wrap:wrap;gap:.375rem;align-items:center}
+.hday{margin-top:.625rem;background:var(--bg3);border-radius:var(--radius);padding:.625rem}
+.hdh{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.hday textarea{width:100%;resize:vertical;background:var(--bg2)}
+.hdhint{font-size:var(--fs-s);margin-top:.5rem}
