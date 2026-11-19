@@ -151,7 +151,7 @@ const txt = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
   w.eval('window.__offline = false');
   const dout = d.querySelector('#upbars .upout');
   check(dout && /angebot-offline\.txt Only available online\./.test(txt(dout)), 'documents offline: the list names the file and why: ' + txt(dout));
-  check(!w.__toasts.some(t => /Offline: only works again with a connection/.test(t)), 'documents offline: no second message as a toast: ' + JSON.stringify(w.__toasts));
+  check(!w.__toasts.some(t => /Only available online/.test(t)), 'documents offline: no second message as a toast: ' + JSON.stringify(w.__toasts));
   w.close();
 
   console.log(`p21247_a_upload_ui: ${ok} ok, ${F.length} failed`);
