@@ -41,6 +41,7 @@ from ..api.common import hit_limit  # 2.149.0 G (#2517): pulled up from function
 from ..core.schema import USER_DEFAULTS  # 2.149.0 G (#2517): pulled up from functions
 from ..core.serializers import unlink_files  # 2.149.0 G (#2517): pulled up from functions
 from ..core.pg import system_ctx  # 2.149.0 G (#2517): pulled up from functions
+from ..core.ratedb import rate_counts  # 2.1424.0 (#6580)
 from ..accounts.orgs import _need_org_admin, _oinv_pending, ORG_ROLES, _operator_apart, instance_mode, may_see, org_member_add, org_member_put  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.invite import invite_state, invite_new  # 2.369.5 (#2517): pulled up from functions
 from ..accounts.users import user_purge  # 2.369.5 (#2517): pulled up from functions
@@ -235,7 +236,6 @@ def oinv_new_account(c, oid, email, role, name, lg, by, direct, bg=True):
 def oinv_left(by):
     """2.1424.0 (#6580, reader F7): how many tries admin `by` has left today on the day counter of POST /invites (counted over
     every process; OINV_DAY when the count cannot be read - oinv_count still refuses at the limit)."""
-    from ..core.ratedb import rate_counts
     key = f"oinv:{by}"
     return max(0, OINV_DAY - int((rate_counts([key], 86400) or {}).get(key) or 0))
 
