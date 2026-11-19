@@ -37,7 +37,7 @@ function kp_html() {
     ${tile(r.to_date ? tr('Revenue this year so far') : tr('Revenue {0}', y), ofcMoney(r.year), `${nr} · ${trh('a year earlier: {0}', ofcMoney(r.year_prev))} ${kp_delta(r.year, r.year_prev)}`)}
     ${tile(tr('Open items'), ofcMoney(d.invoices.open.amount), esc(`${trn('{0} invoice', '{0} invoices', d.invoices.open.count)} · ${tr('open and overdue')}`), 'open')}${/* 2.356.0 D (#3007): the accountant's word */ ''}
     ${tile(tr('Overdue|invoices'), ofcMoney(d.invoices.overdue.amount), esc(trn('{0} invoice', '{0} invoices', d.invoices.overdue.count)), 'overdue', +d.invoices.overdue.count ? 'warn' : '')}
-    ${tile(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted), esc(tr('value × probability') + ' · ' + tr('{0} open', ofcMoney(d.pipeline.open))), 'pipeline')}
+    ${/*html-ok*/ d.pipeline ? tile(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted), esc(tr('value × probability') + ' · ' + tr('{0} open', ofcMoney(d.pipeline.open))), 'pipeline') : ''}
     ${tile(tr('Cash flow, next 3 months'), ofcMoney(d.cashflow.reduce((a, x) => a + +x.balance, 0)), esc(tr('Balance incl. expected payments')), 'cashflow')}</div>`;
   // revenue per month: two series (this year / the year before), one accent; legend + values on tap and in a table for screen readers
   const max = Math.max(1, ...r.months.flatMap(m => [+m.amount, +m.prev]));
@@ -83,7 +83,7 @@ function kp_tile(card) {
   // card no longer grows by a row when the figures arrive (the home page keeps it only when something is overdue)
   const over = +d.invoices.overdue.count, overRow = on('over') && (over || S.route.mod === 'office');
   return card(`<ul class="kptl" role="list">${on('rev') ? row(tr('Revenue this month'), ofcMoney(d.revenue.month)) : ''}${on('open') ? row(tr('Open items'), ofcMoney(d.invoices.open.amount)) : ''}
-    ${/*html-ok*/ overRow ? row(tr('Overdue|invoices'), ofcMoney(d.invoices.overdue.amount), over ? 'neg' : '') : '' /* row() escapes */}${on('pipe') ? row(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted)) : ''}</ul>
+    ${/*html-ok*/ overRow ? row(tr('Overdue|invoices'), ofcMoney(d.invoices.overdue.amount), over ? 'neg' : '') : '' /* row() escapes */}${/*html-ok*/ on('pipe') && d.pipeline ? row(tr('Pipeline, weighted'), ofcMoney(d.pipeline.weighted)) : '' /* #6953: no pipeline for accounting; tile() / row() escape */}</ul>
     <a class="linkbtn" href="#office/kpi">${tr('All figures')}</a>`);
 }
 

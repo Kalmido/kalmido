@@ -33,6 +33,7 @@ from .costs import ek_purchases  # 2.369.5 (#2517): pulled up from functions
 from .travel import rk_trips  # 2.369.5 (#2517): pulled up from functions
 from .cashflow import rk_cashflow  # 2.369.5 (#2517): pulled up from functions
 from .pipeline import pl2_weighted  # 2.369.5 (#2517): pulled up from functions
+from .rights import office_can  # #6953
 from .euerbasis import eb_basis_of, eb_income_payment_ids  # 2.603.0 (#4927): the basis of the EUeR per year
 
 
@@ -259,7 +260,8 @@ def kpi_build(c, uid, oid, year=None, today=None):
     cf = rk_cashflow(c, oid, today[:7], 3, today)
     return {"currency": home, "today": today, "year": year, "revenue": kpi_revenue(c, oid, home, docs, year, today),
             "invoices": kpi_open(docs, pm, home, today), "clients": kpi_clients(c, uid, oid, home, docs, year),
-            "pipeline": pl2_weighted(c, oid), "cashflow": cf["rows"]}
+            # #6953 (reader job/5148 #5205 F1): the weighted pipeline only for who may see the pipeline (not accounting)
+            "pipeline": pl2_weighted(c, oid) if office_can(c, uid, oid, "pipeline") else None, "cashflow": cf["rows"]}
 
 
 @app.get("/api/office/kpi")

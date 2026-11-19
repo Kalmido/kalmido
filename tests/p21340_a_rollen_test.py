@@ -8,6 +8,9 @@ Invented names only, addresses @example.com. tenant-matrix: org (every check run
    read-only and accounting get state and dates, no address (they cannot decide as the customer)
  3 accounting reads bookkeeping, quotations / invoices, contracts, cash -- not the pipeline, the generated documents /
    templates / privacy sheets and the whole office log; its levels in the office's settings say so (menu)
+ #6953: folders below the documents folder holding a receipt of the organisation are walkable for accounting (folder only),
+   the receipt rule needs the organisation in the single check as in the listing; the figures without the pipeline sum; a
+   project's acceptance links follow the quotation's rule
  - a person without organisation (freelancer-matrix: office): the own approval link with its address as before
 usage: p21340_a_rollen_test.py <datadir>      (a fresh container; P21340A_NOSTART=1 = the server already runs)"""
 import os
@@ -19,7 +22,7 @@ import requests
 N = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, N)
 from freelancer_fixture import FEATURES, freelancer  # noqa: E402
-from kt import FAILS, OKS, check, sess  # noqa: E402
+from kt import FAILS, OKS, check, dbx, sess  # noqa: E402
 
 DATA = sys.argv[1] if len(sys.argv) > 1 else os.path.join(N, ".data")
 B = "http://127.0.0.1:" + os.environ.get("KALMIDO_TEST_PORT", "3048")
@@ -86,6 +89,36 @@ check(Ax.get(B + f"/api/files/nodes/{OWN}/content").ok, "accounting: reads its o
 check(CONTRACT in listed(Bo) and CONTRACT in listed(A), "member / admin: the contract stays visible to its owner and the admin")
 check(CONTRACT not in listed(Ri), "read-only: no other member's unshared document (as before)")
 
+# ---- #6953 (reader job/5148 F2, F3): folders below the documents folder that hold a receipt are walkable for accounting
+# (the folder only), the others and the other files in such a folder stay hidden; listing and single check follow one rule
+ROOT = A.get(B + f"/api/files/nodes/{RECEIPT}").json().get("parent_id")
+SUB = A.post(B + "/api/files/folders", json={"name": "Receipts 2026", "parent_id": ROOT}).json().get("id")
+EMPTY = A.post(B + "/api/files/folders", json={"name": "Staff papers", "parent_id": ROOT}).json().get("id")
+check(ROOT and SUB and EMPTY, f"setup: two folders below the documents folder {ROOT} {SUB} {EMPTY}")
+for nid in (RECEIPT, CONTRACT):
+    r = A.patch(B + f"/api/files/nodes/{nid}", json={"parent_id": SUB})
+    check(r.ok, f"setup: the admin moves {nid} into the receipts folder {r.status_code} {r.text[:120]}")
+r = Ax.get(B + f"/api/files/nodes/{SUB}")
+check(r.ok and r.json().get("role") == "view", f"F3: accounting opens the folder with a receipt, read only ({r.status_code} {r.text[:120]})")
+check(Ax.get(B + f"/api/files/nodes/{EMPTY}").status_code in (403, 404), "F3: a folder without receipts stays closed to accounting")
+r = Ax.get(B + "/api/files", params={"parent": SUB})
+ids = {x["id"] for x in r.json().get("items", [])} if r.ok else set()
+check(r.ok and RECEIPT in ids and CONTRACT not in ids, f"F3: inside it accounting lists the receipt, not the contract ({r.status_code} {ids})")
+r = Ax.get(B + "/api/files", params={"parent": ROOT})
+ids = {x["id"] for x in r.json().get("items", [])} if r.ok else set()
+check(r.ok and SUB in ids and EMPTY not in ids, f"F3: the documents folder lists the receipts folder, not the other ({r.status_code} {ids})")
+seen = listed(Ax)
+check(RECEIPT in seen and CONTRACT not in seen, "F3: the documents list still has the receipt, not the contract")
+check(Ax.get(B + f"/api/files/nodes/{RECEIPT}/content").ok, "F3: accounting reads the receipt in the sub folder")
+check(Ax.get(B + f"/api/files/nodes/{CONTRACT}/content").status_code in (403, 404), "F3: ... and not the contract next to it")
+check(A.get(B + "/api/files", params={"parent": SUB}).ok and CONTRACT in listed(A), "F3: the admin sees everything as before")
+# F2: a receipt row of no organisation (or another one) opens nothing for accounting; the listing never showed it
+dbx("UPDATE rc_receipts SET org_id=NULL WHERE node_id=?", (RECEIPT,), data=DATA)
+check(Ax.get(B + f"/api/files/nodes/{RECEIPT}/content").status_code in (403, 404) and RECEIPT not in listed(Ax),
+      "F2: a receipt without the organisation is neither readable nor listed for accounting (one rule)")
+check(Ax.get(B + f"/api/files/nodes/{SUB}").status_code in (403, 404), "F2/F3: its folder closes again with it")
+dbx("UPDATE rc_receipts SET org_id=? WHERE node_id=?", (ORG, RECEIPT), data=DATA)
+
 # ================================================================ 2 the approval link of a quotation
 r = A.put(B + "/api/office/settings", json={"company": {"name": "Alpha Studio GmbH", "lines": ["Alpha Studio GmbH"]}, "lang": "de", "currency": "EUR"})
 check(r.ok, "setup: office settings " + r.text[:120])
@@ -112,6 +145,17 @@ for nm, s in (("read-only", Ri), ("accounting", Ax)):
     check(code == 200 and x.get("live") is True and x.get("url") is None and x.get("signer_email") is None
           and x.get("ip") is None and x.get("user_agent") is None, f"{nm}: the link's state, no address, no signer data ({code} {x})")
 
+# #6953 (reader job/5148 F1): a project's acceptance links follow the quotation's rule -- the link's address for who may change
+# them, the signer's data (here the device) only for an office admin among them
+LB = Bo.post(B + "/api/lists", json={"name": "Bob's shoot", "org_id": ORG}).json()["id"]
+r = Bo.post(B + f"/api/lists/{LB}/signoffs", json={})
+check(r.ok and r.json().get("id"), f"setup: bob makes an acceptance link of his project {r.status_code} {r.text[:150]}")
+dbx("UPDATE office_signoffs SET user_agent='TestBrowser/1.0' WHERE list_id=?", (LB,), data=DATA)
+r = Bo.get(B + f"/api/lists/{LB}/signoffs")
+x = (r.json().get("signoffs") or [{}])[0] if r.ok else {}
+check(r.ok and x.get("url") and x.get("user_agent") is None and x.get("ip") is None,
+      f"member who owns the project: the link's address, no signer device ({r.status_code} {x})")
+
 # ================================================================ 3 what accounting reads in the office
 for path in ("/api/office/books", "/api/office/docs", "/api/office/contracts", "/api/office/cashbooks", "/api/office/settings"):
     r = Ax.get(B + path)
@@ -121,6 +165,11 @@ for path in ("/api/office/deals", "/api/office/gen-docs", "/api/office/doc-templ
     r = Ax.get(B + path)
     check(r.status_code == 403, f"accounting: {path} refused ({r.status_code} {r.text[:100]})")
     check(A.get(B + path).ok, f"admin: {path} as before")
+# #6953 (reader job/5148 #5205 F1): the figures carry the weighted pipeline only for who may see the pipeline
+k = Ax.get(B + "/api/office/kpi")
+check(k.status_code == 403 or (k.ok and k.json().get("pipeline") is None), f"accounting: no pipeline sum in the figures ({k.status_code} {k.text[:160]})")
+k = A.get(B + "/api/office/kpi")
+check(k.ok and isinstance(k.json().get("pipeline"), dict), f"admin: the figures with the pipeline as before ({k.status_code})")
 lv = Ax.get(B + "/api/office/settings").json()["rights"]["levels"]
 check(all(lv.get(k) == "none" for k in ("pipeline", "gendocs", "letters")) and lv.get("books") == "view" and lv.get("offers") == "view",
       f"accounting: the levels of the menu ({lv})")
