@@ -55,7 +55,8 @@ BOOK_ROLES = ("view", "edit")
 BOOK_COLORS = ("#6d8cff", "#2dd4bf", "#f5b041", "#f87171", "#c084fc", "#4ade80")
 # properties mapped to columns (the rest goes to extra)
 VC_MAPPED = {"BEGIN", "END", "VERSION", "PRODID", "UID", "FN", "N", "NICKNAME", "ORG", "TITLE", "EMAIL", "TEL", "ADR", "URL",
-             "BDAY", "ANNIVERSARY", "X-ANNIVERSARY", "NOTE", "CATEGORIES", "PHOTO", "REV", "KIND", "X-ADDRESSBOOKSERVER-KIND"}
+             "BDAY", "ANNIVERSARY", "X-ANNIVERSARY", "NOTE", "CATEGORIES", "PHOTO", "REV", "KIND", "X-ADDRESSBOOKSERVER-KIND",
+             "X-KIND", "X-ABSHOWAS"}  # #6587: the kind of a vCard 3.0 (render_vcard writes them)
 
 
 def contacts_on(c, uid):
@@ -556,7 +557,8 @@ def vc_date(v, params):
 VC_PRESENT = {"FN": ("fn",), "N": ("family", "given", "middle", "prefix", "suffix"), "NICKNAME": ("nickname",), "ORG": ("org", "dept"),
               "TITLE": ("title",), "EMAIL": ("emails",), "TEL": ("phones",), "URL": ("urls",), "ADR": ("addresses",), "BDAY": ("bday",),
               "ANNIVERSARY": ("anniversary",), "X-ANNIVERSARY": ("anniversary",), "NOTE": ("note",), "CATEGORIES": ("groups",),
-              "PHOTO": ("photo",), "KIND": ("kind",), "X-ADDRESSBOOKSERVER-KIND": ("kind",)}
+              "PHOTO": ("photo",), "KIND": ("kind",), "X-ADDRESSBOOKSERVER-KIND": ("kind",), "X-KIND": ("kind",),
+              "X-ABSHOWAS": ("kind",)}  # #6587
 
 
 def vc_rev(val):
@@ -592,7 +594,7 @@ def parse_vcard(text):
          "org": "", "dept": "", "title": "", "emails": [], "phones": [], "addresses": [], "urls": [], "bday": "", "anniversary": "",
          "note": "", "groups": [], "photo": "", "version": "3.0"}
     keep, labels, nest = [], {}, 0
-    props = []
+    props, show_as, kind_set = [], "", False
     for line in lines[starts[0] + 1:ends[0]]:
         up = line.upper()
         if up.startswith("BEGIN:"):
@@ -660,17 +662,22 @@ def parse_vcard(text):
                 if not ph and re.match(r"https://", vc_unesc(val).strip(), re.I):
                     v["photo_url"] = vc_unesc(val).strip()  # 2.47.3 (#1738): a link; the file import may fetch it (photo_fetch)
                 keep.append(line)
-        elif name in ("KIND", "X-ADDRESSBOOKSERVER-KIND"):
+        elif name in ("KIND", "X-ADDRESSBOOKSERVER-KIND", "X-KIND"):
             k = val.strip().lower()
             v["kind"] = "group" if k == "group" else "org" if k == "org" else "individual"
+            kind_set = True
             if name == "X-ADDRESSBOOKSERVER-KIND":
                 keep.append(line)
+        elif name == "X-ABSHOWAS":  # #6587: Apple Contacts' (and the own vCard 3.0's) mark of a company
+            show_as = val.strip().upper()
         elif name == "REV":
             v["rev"] = vc_rev(val)           # 2.273.0 C (#3048): the card's own change time (import: newer wins)
         elif name in ("PRODID", "BEGIN", "END"):
             continue
         else:
             keep.append(line)  # X-ABLabel of a mapped item stays here, with its group, and is written back next to it
+    if show_as == "COMPANY" and not kind_set:  # #6587: a KIND / X-KIND line says it more exactly
+        v["kind"] = "org"
     v["groups"] = list(dict.fromkeys(v["groups"]))[:ITEMS_MAX]
     if not v["fn"]:
         v["fn"] = " ".join(x for x in (v["prefix"], v["given"], v["middle"], v["family"], v["suffix"]) if x).strip() or v["org"] or \
@@ -751,12 +758,24 @@ def _params_out(t, pref, version):
     return out
 
 
+def vc_kind3(kind, extra):
+    """#6587: the kind lines of a vCard 3.0 (X-ABShowAs:COMPANY for a company, X-KIND), each only when the kept lines (extra,
+    a card from an older import) do not carry it already."""
+    has = {m.group(1).upper() for m in re.finditer(r"^(?:[\w-]+\.)?([\w-]+)[;:]", extra or "", re.M)}
+    out = ["X-ABShowAs:COMPANY"] if kind == "org" and "X-ABSHOWAS" not in has else []
+    if not has & {"X-KIND", "X-ADDRESSBOOKSERVER-KIND"}:
+        out.append(f"X-KIND:{kind}")
+    return out
+
+
 def render_vcard(r, rev=None):
     """The vCard text of a contact row (in its own version, 3.0 or 4.0)."""
     ver = r["version"] if r["version"] in ("3.0", "4.0") else "3.0"
     L = ["BEGIN:VCARD", f"VERSION:{ver}", f"PRODID:-//{APP_NAME}//CardDAV {APP_VERSION}//EN", f"UID:{r['uid']}"]
     if r["kind"] != "individual" and ver == "4.0":
         L.append(f"KIND:{r['kind']}")
+    elif r["kind"] != "individual":  # #6587: vCard 3.0 has no KIND: Apple's X-ABShowAs for a company, X-KIND for the kind
+        L += vc_kind3(r["kind"], r["extra"])
     L.append("FN:" + vc_esc(r["fn"] or r["org"] or " "))
     L.append("N:" + ";".join(vc_esc(r[k]) for k in ("family", "given", "middle", "prefix", "suffix")))
     if r["nickname"]:
