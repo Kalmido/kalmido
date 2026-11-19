@@ -563,7 +563,7 @@ def sga_flush(resp):
     return resp
 
 
-@bgj_fn("sga:log")
+@bgj_fn("sga:log", free=True)  # 2.1413.0 (#6951, reader F4): the client's record of the operator's access, also while its organisation moves
 def _sga_log_bg(gids, sup, e, op):
     """2.1350.0 (#6502): an entry sga_flush could not write right away; a failed run is retried (bgjobs) and stays as a failed row."""
     c = connect()
