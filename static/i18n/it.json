@@ -19469,6 +19469,5 @@
   "The IBAN printed on your invoices": "L’IBAN stampato sulle tue fatture",
   "Coming from another program? Then enter the next number here": "Arrivi da un altro programma? Inserisci qui il numero successivo",
   "Logo / letterhead": "Logo / carta intestata",
-  "Your logo on every document (optional)": "Il tuo logo su ogni documento (facoltativo)",
-  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Il suo avviatore non chiede ancora un token di richiesta: dal {0} il suo token raggiunge solo il suo canale. Esegui di nuovo il comando di configurazione sul suo computer."
+  "Your logo on every document (optional)": "Il tuo logo su ogni documento (facoltativo)"
 }

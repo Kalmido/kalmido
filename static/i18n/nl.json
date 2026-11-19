@@ -19468,6 +19468,5 @@
   "The IBAN printed on your invoices": "De IBAN die op je facturen staat",
   "Coming from another program? Then enter the next number here": "Kom je van een ander programma? Vul hier dan het volgende nummer in",
   "Logo / letterhead": "Logo / briefhoofd",
-  "Your logo on every document (optional)": "Je logo op elk document (optioneel)",
-  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Zijn starter vraagt nog geen verzoektoken aan: vanaf {0} bereikt zijn eigen token alleen nog zijn kanaal. Voer de installatieopdracht op zijn computer opnieuw uit."
+  "Your logo on every document (optional)": "Je logo op elk document (optioneel)"
 }

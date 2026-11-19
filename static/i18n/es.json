@@ -19468,6 +19468,5 @@
   "The IBAN printed on your invoices": "El IBAN que aparece en tus facturas",
   "Coming from another program? Then enter the next number here": "¿Vienes de otro programa? Introduce aquí el siguiente número",
   "Logo / letterhead": "Logotipo / membrete",
-  "Your logo on every document (optional)": "Tu logotipo en cada documento (opcional)",
-  "Its starter asks for no request token yet: from {0} its own token reaches only its channel. Run the setup command on its computer again.": "Su iniciador aún no pide token de solicitud: a partir del {0} su propio token solo llega a su canal. Vuelve a ejecutar el comando de configuración en su ordenador."
+  "Your logo on every document (optional)": "Tu logotipo en cada documento (opcional)"
 }
