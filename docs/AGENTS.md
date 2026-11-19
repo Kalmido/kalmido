@@ -3284,6 +3284,13 @@ for a commit and a person opened again keeps its bundle: it is *held*, not close
 person is told once in the chat. A new commit naming it closes it as usual. Its tries (`max_tries`) also stay when a task
 is closed and opened again.
 
+**Overrides** (2.1426.0): every switch on the computer that suspends a safeguard of the starter writes one line
+`overridden: ...` into the runner's log when it starts, and the day report counts them over 7 days (*Overridden (7 days):
+2 - KALMIDO_PERM_RELAY=0, stop file removed*): `KALMIDO_APPROVAL_CHECK=0`, `KALMIDO_PERM_RELAY=0`,
+`KALMIDO_SESSION_RESUME=0`, `KALMIDO_DISPATCH` set further on than the setting in Kalmido (`dry` / `on` against *Off*) and a
+stop file that was removed. A new switch of that kind gets its log line too (`OVERRIDE_SWITCHES` in
+`mcp/agent_dispatch.py`). Who sees the number daily notices early when a rule is overridden all the time - and fixes the rule.
+
 **Time limit** (2.1426.0): a job that reaches `job_timeout_h` gets a reminder ten minutes before (state into
 `JOB-NOTES.md`, commit the branch, the rest as a comment on the task) and then ends. No follow-up job starts by itself: the
 next round finds the job ended and its tasks still open, counts one try each (`max_tries`) and bundles them again with the
