@@ -6,7 +6,7 @@ Below integrations on purpose: the mail:* kinds of every area (accounts, calenda
 import smtplib
 from datetime import timedelta
 
-from ..core.db import iso, now_utc
+from ..core.db import DbError, iso, now_utc
 from ..core.pg import system_ctx
 from .bgjobs import bgj_last
 
@@ -20,6 +20,11 @@ MAIL_RETRY = 3
 class SmtpTemporary(Exception):
     """(#6385): the mail server failed in passing; the row of the queue raises it to be tried again (its error column names
     it: mail_disturbed counts these rows)."""
+
+
+class SmtpRcptTemporary(SmtpTemporary):
+    """(#6385): a passing refusal of the recipient (450 / 451 to RCPT): tried again like SmtpTemporary, but the server works -
+    mail_disturbed does not count it (an address anyone can name must not switch on the notice of every organisation admin)."""
 
 
 def _smtp_code(e):
@@ -59,29 +64,37 @@ def mail_bg_failed(what, e, final=None):
     'failed', the admins' queue alert counts it)."""
     print(what, "mail failed:", smtp_err(e), flush=True)
     temp = smtp_temp(e)
+    kind = SmtpRcptTemporary if isinstance(e, smtplib.SMTPRecipientsRefused) else SmtpTemporary
     if temp and not bgj_last():
-        raise SmtpTemporary(smtp_err(e)) from e
+        raise kind(smtp_err(e)) from e
     if final:
         try:
             final()
         except Exception as x:  # noqa: BLE001 -- the notice is extra; the row ends either way
             print(what, "mail: notice failed:", type(x).__name__, flush=True)
     if temp:
-        raise SmtpTemporary(smtp_err(e)) from e
+        raise kind(smtp_err(e)) from e
 
 
 def mail_bg_list(what, items, send, again):
     """(#6385): the mails of one queued row one after the other (send(item) per mail). The server fails before the first:
     mail_bg_failed (the row is tried again as a whole). It fails after some went out: the rest goes into a new row
     (again(rest) -> bgj_again), so no one gets a mail twice; on the row's last run the rest is tried one by one."""
-    temp = None
+    temp, out = None, 0
     for i, item in enumerate(items):
         try:
             send(item)
+            out += 1
         except Exception as e:  # noqa: BLE001 -- one address's failure of any kind must not stop the mails to the rest
-            if i and smtp_temp(e) and not bgj_last() and again(items[i:]):
-                print(what, "mail failed:", smtp_err(e), "- the rest waits for a new try", flush=True)
-                return
+            if i and smtp_temp(e) and not bgj_last():
+                try:  # some went out: the row must not raise from here (the queue would send them again)
+                    moved = again(items[i:])
+                except DbError as x:
+                    print(what, "mail: the rest's new row failed:", type(x).__name__, "- tried one by one now", flush=True)
+                    moved = False
+                if moved:
+                    print(what, "mail failed:", smtp_err(e), "- the rest waits for a new try", flush=True)
+                    return
             try:
                 mail_bg_failed(what, e)
             except SmtpTemporary as x:
@@ -89,7 +102,9 @@ def mail_bg_list(what, items, send, again):
                     raise
                 temp = x
             # a lasting refusal of this address, or the last run: the next one
-    if temp:
+    if temp and out and not bgj_last():  # some went out and the rest's own row failed: never the whole row again
+        print(what, "mail: the rest failed in this run, not tried again (some went out)", flush=True)
+    elif temp:
         raise temp  # the row ends 'failed' (the admins' queue alert, mail_disturbed)
 
 
@@ -98,6 +113,6 @@ def mail_disturbed(c):
     failure of the server, or ended on one within the hour (the queue's rows: the same answer in every process). The same
     answer for every address (an organisation admin's general notice, #3570: it never tells which address has an account)."""
     with system_ctx(c):  # a state of the queue, no content
-        return bool(c.execute("""SELECT 1 FROM bg_jobs WHERE kind LIKE ? AND error LIKE ? AND
+        return bool(c.execute("""SELECT 1 FROM bg_jobs WHERE kind ILIKE ? AND error = ? AND
                                  (state='wait' OR (state='failed' AND finished_at >= ?)) LIMIT 1""",
-                              ("mail:%", "SmtpTemporary%", iso(now_utc() - timedelta(hours=1)))).fetchone())
+                              ("mail:%", "SmtpTemporary", iso(now_utc() - timedelta(hours=1)))).fetchone())
