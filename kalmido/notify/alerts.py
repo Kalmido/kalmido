@@ -69,7 +69,7 @@ AA_SWITCH_LABEL = {"collab_all": N_("Collaboration for everyone"), "time_all": N
                    "oidc_autocreate": N_("Create accounts on the first OIDC sign-in"), "bk_on": N_("Automatic backups"),
                    "public_links": N_("Public links to projects"),
                    "mcp_remote": N_("Hosted MCP access"),  # 2.488.0 (#3363)
-                   "server_agents": N_("Server agents (run on this server with their own API key)"),  # 2.557.0 (#4670)
+                   "server_agents": N_("Server agents (run on this server with their own API key)"),  # (#4670)
                    "org_server_agents": N_("Kalmido AI in this organisation")}  # (#6363): aa_org_switch
 _AA_LOCK = threading.Lock()
 _AA = {"q": [], "b": {}, "int": {}, "disk_at": 0.0, "qc_at": 0.0, "storage": {}, "qc": {}}
@@ -289,7 +289,7 @@ def _aa_cool(c, kind, key, since):
     """The row a new alert of (kind, key) counts as a repeat of within the cooldown, or None."""
     if str(key).startswith(AA_VALUE_KEYS) and ":" in key:
         stem = key.rsplit(":", 1)[0] + ":"
-        r = c.execute("SELECT id, key FROM admin_alerts WHERE kind=? AND key LIKE ? AND created_at>? AND state!='capped' "
+        r = c.execute("SELECT id, key FROM admin_alerts WHERE kind=? AND key ILIKE ? ESCAPE '\\' AND created_at>? AND state!='capped' "
                       "ORDER BY id DESC LIMIT 1", (kind, like_escape(stem) + "%", since)).fetchone()
         return r if r and r[1] == key else None
     return c.execute("SELECT id FROM admin_alerts WHERE kind=? AND key=? AND created_at>? AND state!='capped' "
