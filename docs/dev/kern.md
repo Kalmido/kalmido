@@ -1576,7 +1576,12 @@ wso_mark(el, obj);
 
 A file loaded at start before `wscolor.js` (chat.js, calendar.js ...) registers its `wso_open` on `DOMContentLoaded`; an area that
 redraws `#view` without `renderView` (its own `setHtml`) calls `wso_sync()` after it. A tree node of the shared panel tree
-(`sbb_treeHtml`) takes `wso: <workspace>` and wears the sidebar rows' stripe; the overview rows of "All workspaces"
+(`sbb_treeHtml`) with `wso: <workspace>` IS that workspace's row (#7389) and the core draws it the same in every area: the symbol
+(`wsIcon`; `lock: true` = a locked space), the stripe on the row (Private in the colour the person chose), the arrow and the open
+state. The area gives only `has` (content: true / false = known empty, no arrow / null = not loaded yet) and `here` (the open
+object lies in it); the only workspace row of a tree starts open, under "All" only the one with the open object, otherwise what
+the person folded by hand (LS `sbbOpen`). `icon`, `ichtml`, `kids`, `open` or `fold` on such a node are refused (`console.error`,
+`sbb_wsoBad`); rows below a workspace wear no stripe of their own. Test: `tests/p7389_wsnode_ui.js` (one test over every area); the overview rows of "All workspaces"
 (`zle_ovrHtml`) carry the stripe of their space. Under "All workspaces" `wso_origin` names Private too (as the task rows do) -
 without a colour.
 

@@ -554,18 +554,17 @@ function wk_panelHtml() {
 // loads then: "Loading…"); a locked space has the lock and no folders until it is unlocked on its page
 function wk_panelAllHtml() {
   const r = S.route, onW = r.mod === 'wiki', op = onW ? wk_open() : null;
-  return `<div class="sgroup sbbp sbbtree" role="group" aria-label="${esc(tr('Workspaces'))}">${/*html-ok*/ wk_shown().map(sp => {
+  return `<div class="sgroup sbbp sbbtree" role="group" aria-label="${esc(tr('Workspaces'))}">${/*html-ok*/ sbb_treeHtml(wk_shown().map(sp => {
     const d = WK.idx[sp], lock = wk_locked(sp), here = op === sp;
     const pa = here && r.wid ? wk_pgAt(r.wid) : null;  // 2.319 (#3287)
     const at = here ? (r.wdir != null ? r.wdir : pa ? wk_dirOf(pa.path) : '').toLowerCase() : '';
     const node = n => { const lp = n.path.toLowerCase(); return {k: 'wk:' + sp + ':' + lp, name: n.label, go: wk_dirGo(n.path, sp), ...(n.page ? {ichtml: wk_dirIcon(n)} : {}), on: !!at && at === lp || !!pa && !!n.page && n.page.id === r.wid, kids: wk_kidsN(n) > 0, open: at.startsWith(lp + '/') || !!pa && at === lp, sub: () => wk_subNodes(sp, n, node), ...wk_dnd(sp, n)}; };
-    const root = {k: 'wk:' + sp + ':', name: wk_rootName(sp), icon: lock ? 'lock' : 'book', go: 'wiki/s/' + sp, on: here && !r.wid && !r.wdir,
-      kids: !lock && !(d?.pages && !wk_kidsN(wk_treeOf(sp))), open: here, attrs: `data-wksp="${esc(sp)}"`, wso: sp,  // the open space shows its folders; 2.1241.0 (#6182): an organisation's space wears its stripe
+    // #7389: the core's workspace node (sbb_treeHtml wso: the space's symbol, a locked one the lock, stripe, arrow, open)
+    return {k: 'wk:' + sp + ':', name: wk_rootName(sp), lock, go: 'wiki/s/' + sp, on: here && !r.wid && !r.wdir,
+      has: lock ? false : d?.pages ? wk_kidsN(wk_treeOf(sp)) > 0 : null, here, attrs: `data-wksp="${esc(sp)}"`, wso: sp,  // the open space shows its folders
       ...(d?.root && !wk_e2e(sp) && d.mayWrite !== false ? {ns: 'wk', id: d.root, par: 'wk:', drop: true, menu: typeof wkar_rootItems === 'function' /* 2.1045.0 (#5823) */} : {}),  // 2.200.0 A (#2747): dropped on = to the top
       sub: () => { if (!d || d.v === -1) wk_load(sp); const tg = d?.pages && typeof wkt_panelNode === 'function' && wkt_panelNode(sp); return d?.pages ? [...wk_subNodes(sp, wk_treeOf(sp), node), ...(tg ? [tg] : [])] : d?.err ? [] : null; }};  // 2.371 (#3150): + the group "Tags\"
-    const h = sbb_treeHtml([root]), mark = ic('book');  // 2.406.0 A (#3492): the tree draws full-size symbols
-    return lock ? h : h.replace(mark, () => wk_spIcon(sp));  // the space's own symbol (the shared tree takes icon names only)
-  }).join('')}</div>`;
+  }))}</div>`;
 }
 // 2.139.0 C (#2386): a page whose text cannot be read -- the message with its way out, and deleting (save, rename, move are refused)
 function wk_lostHtml() {

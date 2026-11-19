@@ -238,8 +238,11 @@ function ab_panelHtml() {
     kids: !!x.subs?.length, open: !!x.subs?.some(y => on && r.aus === y.key && ab_curSpace() === s), sub: () => (x.subs || []).map(y => collNode(s, y))});
   const collNodes = s => (AB.pt['s:' + s]?.coll || []).map(x => collNode(s, x));
   const withColl = (s, it) => it && [...it.map(node), ...collNodes(s)];
-  const spaceNode = s => ({k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s) /* 2.540.0 (#4575) */, on: cur === s, wso: s /* 2.1241.0 (#6184): an organisation's space wears its stripe */, icon: s === 'private' ? 'home' : s === 'shared' ? 'users' : s === 'trash' ? 'trash' : 'folder', battrs: `data-absp="${esc(s)}"`,
-    kids: real.includes(s) && (AB.pt['s:' + s]?.items?.length !== 0 || !!AB.pt['s:' + s]?.coll?.length), open: !!path.length && AB.data?.space === s, sub: () => withColl(s, ab_ptGet('s:' + s))});
+  // #7389: a workspace (Private / an organisation) is the core's workspace node (sbb_treeHtml wso: symbol, stripe, arrow, open);
+  // "Shared with me" and the trash are no workspace and keep their own symbol, without folders
+  const spaceNode = s => real.includes(s) ? {k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s) /* 2.540.0 (#4575) */, on: cur === s, wso: s, battrs: `data-absp="${esc(s)}"`,
+    has: AB.pt['s:' + s]?.items ? AB.pt['s:' + s].items.length > 0 || !!AB.pt['s:' + s]?.coll?.length : null, here: !!path.length && AB.data?.space === s, sub: () => withColl(s, ab_ptGet('s:' + s))}
+    : {k: 'ab:s:' + s, name: ab_spaceName(s), go: ab_home(s), on: cur === s, icon: s === 'shared' ? 'users' : s === 'trash' ? 'trash' : 'folder', battrs: `data-absp="${esc(s)}"`, kids: false};
   // 2.752.0 (#4887): ONE tree (the documents' own tree with the same folders again is gone); below it "All documents", "To
   // review" and the saved views (2.579.0 #4802, docviews.js, loaded without redrawing the view: it draws the panel itself,
   // sbb_sync), then "Shared with me" and the trash. The part docs of the area stays the switch of the documents (Settings >

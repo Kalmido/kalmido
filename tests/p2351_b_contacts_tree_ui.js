@@ -50,6 +50,10 @@ const openRow = async (d, name) => { const a = rowOf(d, name)?.querySelector('[d
   let w = await boot({user: 'alice', hash: 'contacts'}), d = w.document;
   const roots = await until(() => { const r = [...d.querySelectorAll('#side .sbbt[data-sbbns="ct"][data-sbbid^="r:"]')]; return r.length === 2 && r; });
   check(roots && roots.map(r => r.dataset.sbbid).join() === `r:private,r:org:${ORG}`, 'one entry per workspace ' + (roots || []).map(r => r.dataset.sbbid).join());
+  // #7389: under "All" a workspace starts closed until something of it is open (the core's workspace node, one rule for every
+  // area); the person opens it with its arrow
+  check(roots && roots.every(r => !r.querySelector('[data-act="sbb-tree"][data-open="1"]')), '#7389 under "All" the workspaces start closed');
+  await openRow(d, 'Private');
   const R1 = await until(() => rowOf(d, 'Friends'));
   check(R1 && R1.dataset.sbbid === 'f' + FR && R1.dataset.sbbpar === 'r:private' && R1.getAttribute('draggable') === 'true' && R1.dataset.sbbdrop === '1' && R1.dataset.sbbmenu === '1',
     'a folder: ns / id / par, draggable, takes drops, has a menu');

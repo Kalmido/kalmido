@@ -89,7 +89,8 @@ function oft_spNode(area, sp) {
   const doc = x => ({k: `of:s:${sp}:d:${area}:${x.id}`, name: x.title + (x.sub ? ' · ' + x.sub : ''), icon: OFT_AREAS[area][1], go: at(x.open), kids: false, attrs: `data-oftspdoc="${area}:${x.id}"`});
   const fold = (d, f) => ({k: `of:s:${sp}:f:${f.id}`, name: f.outside ? f.path : f.name, icon: f.shared ? 'users' : 'folder', go: 'ablage/' + f.id,
     kids: oft_kids(area, f.id, d).length > 0 || oft_docsIn(area, f.id, d).length > 0, sub: () => [...oft_kids(area, f.id, d).map(g => fold(d, g)), ...oft_docsIn(area, f.id, d).map(doc)]});
-  return {k: `of:s:${sp}:${area}`, name: wsName(sp), ichtml: wsIcon(sp), go: top, wso: sp, kids: true, attrs: `data-oftsp="${esc(sp)}"`,
+  const d0 = OFT.ov[`${S.me?.id || ''}:${sp}|${area}`], r = S.route;  // #7389: the core's workspace node (sbb_treeHtml wso); has = the loaded tree's content
+  return {k: `of:s:${sp}:${area}`, name: wsName(sp), go: top, wso: sp, has: d0 && !d0.err ? d0.folders.length + d0.docs.length > 0 : null, here: r.mod === 'office' && r.tab === area && r.wsp === sp, attrs: `data-oftsp="${esc(sp)}"`,
     sub: () => { const d = oft_getSp(area, sp); if (!d) return null;
       if (d.err && !d.folders.length && !d.docs.length) return [];
       return [...oft_kids(area, null, d).map(f => fold(d, f)), ...oft_docsIn(area, null, d).map(doc),
