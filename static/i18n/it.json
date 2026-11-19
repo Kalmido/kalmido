@@ -19490,6 +19490,7 @@
   "The export of {0} is ready. Download it within {1} hours.": "L’esportazione ({0}) è pronta. Scaricala entro {1} ore.",
   "The export of {0} failed. Please try again later or ask the server admin.": "L’esportazione ({0}) non è riuscita. Riprova più tardi o chiedi all’amministratore del server.",
   "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "L’esportazione ({0}) non è riuscita: sul server non c’era spazio sufficiente. Chiedi all’amministratore del server.",
+  "Width of the list": "Larghezza dell'elenco",
   "Not updated since {0}": "Non aggiornato dal {0}",
   "Calendar {0} could not be updated: its events as of {1} still block times here.": "Non è stato possibile aggiornare il calendario {0}: i suoi eventi aggiornati al {1} continuano a bloccare orari qui.",
   "Calendar {0} could not be updated for more than a day. Its events are as of {2} and still count as busy.": "Il calendario {0} non si aggiorna da più di un giorno. I suoi eventi sono aggiornati al {2} e contano ancora come occupati.",
