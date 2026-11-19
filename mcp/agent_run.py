@@ -4558,10 +4558,10 @@ class Runner:
                 if word in YES_WORDS or word in NO_WORDS:
                     pend = [m for m, q in d["perms"].items() if str(q.get("uid")) == str(uid)]
                     late = [m for m, q in d["perm_expired"].items() if str(q.get("uid")) == str(uid) and time.time() - q["at"] < 300]
-                    if len(pend) == 1 and answers_question(x, pend[0]):
+                    if len(pend) == 1 and answers_question(x, pend[0]) and not self.newer_card(x, uid, pend[0]):
                         self.resolve_perm(pend[0], "allow" if word in YES_WORDS else "deny")
                         continue
-                    if (not pend and late and answers_question(x, late[-1])
+                    if (not pend and late and answers_question(x, late[-1]) and not self.newer_card(x, uid, late[-1])
                             and not any(str(a.get("uid")) == str(uid) for a in self.approvals.values())):
                         self.resolve_perm(late[-1], None)
                         continue
@@ -4573,6 +4573,17 @@ class Runner:
                     continue
             out.append(ev)
         return out
+
+    def newer_card(self, x, uid, q):
+        """#7141 (Fable reader H1 of job/5443): a bare yes / no without a quote while a card of this person was posted after
+        the permission question q (a higher chat message id) is unclear -- it answers neither; the message goes on as a normal
+        one (the person quotes the question or the card). A reply to the question itself still answers it."""
+        if str((x.get("message") or {}).get("reply_to") or "") == str(q) or not str(q).isdigit():
+            return False
+        with self.state.lock:
+            ids = [k for k, a in self.approvals.items() if str(a.get("uid")) == str(uid)]
+            ids += list(self.job_cards(uid))
+        return any(str(k).isdigit() and int(k) > int(q) for k in ids)
 
     # kalmido-capability: approval_words (2.1394.0, #4951 / #2347)
     def word_decision(self, ev, uid, x):
