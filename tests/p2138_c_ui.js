@@ -122,14 +122,28 @@ const RK_RE = /^R2(-[A-Z2-7]{4}){13}$/;
   click(w, d.querySelector(`#s-wsdata .ocbox[data-ocorg="${ORG}"] [data-oc="new"]`));
   const ask = await until(() => d.querySelector('.cdlg'));
   check(ask && /stops working at once/.test(ask.textContent), 'new: asks first (the current key stops working)');
-  submit(w, ask && ask.querySelector('form'));
+  // #6604: the question says that earlier archives open only with the earlier key; Cancel is the focused button
+  check(ask && /Archives downloaded before open only with the earlier key/.test(ask.textContent), 'new: the question warns about earlier archives (#6604)');
+  check(await until(() => d.activeElement && d.activeElement.dataset.cd === 'no'), 'new: Cancel is the focused button, not the irreversible step (#6604)');
+  click(w, ask && ask.querySelector('[data-cd="no"]'));
+  check(await until(() => !d.querySelector('.cdlg')) && !d.querySelector('.pwprompt'), 'new: Cancel ends it before the password (#6604)');
+  click(w, d.querySelector(`#s-wsdata .ocbox[data-ocorg="${ORG}"] [data-oc="new"]`));
+  const ask2 = await until(() => d.querySelector('.cdlg'));
+  submit(w, ask2 && ask2.querySelector('form'));
   pw = await until(() => d.querySelector('.pwprompt #pp-pw'));
   if (pw) { pw.value = 'password123'; submit(w, d.querySelector('.pwprompt form')); }
   const rk2 = await until(() => d.querySelector('#oc-rk'));
   const RK2 = rk2 ? rk2.textContent.trim() : '';
   check(RK_RE.test(RK2) && RK2 !== RK1, 'new: a different key');
   check(/earlier ones no longer work/.test(rk2 ? rk2.closest('.modal').textContent : ''), 'new: the hint that earlier keys no longer work');
-  click(w, rk2 && rk2.closest('.modal').querySelector('[data-m="close"]'));
+  // #6604: after the change the dialog offers a new export (the box of the same organisation shows it running / done)
+  const oxBtn = rk2 && rk2.closest('.modal').querySelector('[data-m="ox"]');
+  check(!!oxBtn && /Create export/.test(oxBtn.textContent) && /earlier key/.test(rk2.closest('.modal').textContent), 'new: "Create export" offered with the archive hint (#6604)');
+  click(w, oxBtn);
+  check(await until(() => !d.querySelector('#oc-rk')), 'new: "Create export" closes the key dialog (#6604)');
+  const ox = await until(() => (call('GET', `/api/orgs/${ORG}/export`)).then(x => ['running', 'done'].includes(x.state) && x));
+  check(!!ox, 'new: the export was started (#6604) ' + JSON.stringify(ox || {}).slice(0, 120));
+  check(await until(() => /being created|Download/.test(d.querySelector(`#s-wsdata .oxbox[data-oxorg="${ORG}"]`)?.textContent || '')), 'new: the export box shows the new archive (#6604)');
   w.close();
 
   // ================= the other admin's News: who and what, never the value

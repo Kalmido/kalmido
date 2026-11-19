@@ -67,21 +67,30 @@ async function ocStepUp(oid, step, title, st = {}, isNew = false) {
   if (step === 'passkey') { try { b.credential = await pkGet(await api('POST', `/api/orgs/${oid}/encryption/recovery/passkey`)); } catch (e) { if (e?.name) toast(pkErr(e)); return null; } }
   return b;
 }
+const OC_ARCH = N_('Archives downloaded before open only with the earlier key, never with the new one: keep the earlier key with them or create a new export afterwards.');  // #6604
 async function ocShowRecovery(oid, st, isNew = false, confirmed = false) {
   const step = st?.step || (st?.password === false ? 'fresh' : 'password');
-  if (isNew && !confirmed && !await askConfirm(tr('Make a new recovery key?'), tr('The current recovery key stops working at once. Keep the new one offline, e.g. printed in a safe.'), {ok: tr('New recovery key')})) return;
+  // #6604: an archive (export) carries the key of its time - it never opens with the new one; Cancel is the focused button (danger)
+  if (isNew && !confirmed && !await askConfirm(tr('Make a new recovery key?'), `${tr('The current recovery key stops working at once. Keep the new one offline, e.g. printed in a safe.')} ${tr(OC_ARCH)}`, {ok: tr('New recovery key'), danger: true})) return;
   const b = await ocStepUp(oid, step, isNew ? tr('New recovery key') : tr('Show recovery key'), st || {}, isNew);
   if (!b) return;
   let j; try { j = await api('POST', `/api/orgs/${oid}/encryption/recovery`, {...b, new: isNew}); } catch { return; /* api() showed it */ }
+  const oxb = j.new && typeof oxLoad === 'function' ? document.querySelector(`.oxbox[data-oxorg="${+oid}"]`) : null;  // #6604
   const md = modal(`<h3>${tr('Recovery key')}</h3>
     <p class="shint keep">${ic('alert', 's')} ${esc(tr('Anyone with this key and a copy of the data can read the organisation’s encrypted data. Keep it offline and never send it by e-mail or chat. Without the server key and without this key the data is lost.'))}</p>
-    ${j.new ? `<p class="mhint">${esc(tr('This is a new recovery key: earlier ones no longer work.'))}</p>` : ''}
+    ${j.new ? `<p class="mhint">${esc(tr('This is a new recovery key: earlier ones no longer work.'))} ${esc(tr(OC_ARCH))}</p>` : ''}
     <div class="row"><code class="topic ocrk" id="oc-rk">${esc(j.recovery_key)}</code></div>
-    <div class="foot"><button type="button" class="btn" data-m="copy">${ic('copy', 's')} ${tr('Copy')}</button><span class="spacer"></span><button type="button" class="btn pri" data-m="close">${tr('Done')}</button></div>`);
+    <div class="foot"><button type="button" class="btn" data-m="copy">${ic('copy', 's')} ${tr('Copy')}</button>${oxb ? `<button type="button" class="btn" data-m="ox">${ic('download', 's')} ${tr('Create export')}</button>` : ''}<span class="spacer"></span><button type="button" class="btn pri" data-m="close">${tr('Done')}</button></div>`);
   md.addEventListener('click', async e => {
     const b = e.target.closest('[data-m]'); if (!b) return;
     if (b.dataset.m === 'copy') toast(await clipCopy(j.recovery_key) ? tr('Copied') : tr('Copy failed, select the text by hand'));
     if (b.dataset.m === 'close') md.remove();
+    if (b.dataset.m === 'ox') {  // #6604: a new archive under the new key, in the export box of the same page (orgexport.js)
+      b.disabled = true;
+      try { await api('POST', `/api/orgs/${oid}/export`); } catch { b.disabled = false; return; /* api() showed it */ }
+      md.remove();
+      if (oxb.isConnected) { oxLoad(oxb); oxb.scrollIntoView({block: 'nearest'}); }
+    }
   });
 }
 function ocDraw(root) {
