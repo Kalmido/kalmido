@@ -119,7 +119,9 @@ function grip_row(el, opts) { return grip_line(el, 'y', grip_key(opts, 'grip_row
  *  size), edge 'end' (default: the panel lies before the grip, left / above it; dragging right / down makes it bigger) or
  *  'start' (the panel lies after the grip), panel (element or function; default the grip's neighbour on that side), scope /
  *  dragScope (where the variable lives / lives during a drag), step, round, label, legacy, load / save, onChange(v), off(),
- *  menu: false (no menu on a tap), tip: false (no title).
+ *  menu: false (no menu on a tap), tip: false (no title), place: true (#7303 #7304: the grip is no item of the layout - it
+ *  stands absolutely in the scope (a positioned box) on the panel's edge, the middle of the gap; kept there while the panel
+ *  or the scope changes size; hidden while the panel is not drawn or fills the scope alone - one column).
  * @param {any} el @param {string} axis @param {any} o */
 function grip_line(el, axis, o) {
   if (el._grip) el._grip.destroy();
@@ -141,7 +143,22 @@ function grip_line(el, axis, o) {
   const put = (v, at) => { if (v == null) at.style.removeProperty(vn); else at.style.setProperty(vn, v + u); };
   const label = o.label || tr('Drag to resize · double-click: default size');
   const aria = () => { const L = lim(), v = now(); grip_aria(el, o, label, v, L[0], isFinite(L[1]) ? L[1] : Math.max(v, Math.round(((X ? scope.clientWidth : scope.clientHeight) || 0) / upx())), grip_unitText(v, u)); };
-  const show = () => { put(cur != null ? clamp(cur) : def(), scope); aria(); };
+  // #7303 #7304: opts.place - the grip on the panel's far edge, in the scope's coordinates
+  const place = () => {
+    if (!o.place) return;
+    const p = panel(), pr = p && p.getClientRects().length ? p.getBoundingClientRect() : null, sr = scope.getBoundingClientRect();
+    if (ro && p && p !== seen) { if (seen) ro.unobserve(seen); ro.observe(p); seen = p; }  // a redraw may bring a new panel
+    const on = !!pr && !grip_off(o) && (X ? pr.width < sr.width - 2 : pr.height < sr.height - 2);
+    if (el.hidden !== !on) el.hidden = !on;
+    if (!on) return;
+    const cs = getComputedStyle(scope), gap = parseFloat(X ? cs.columnGap : cs.rowGap) || 0, half = (X ? el.offsetWidth : el.offsetHeight) / 2;
+    const at = X ? (sgn > 0 ? pr.right : pr.left) - sr.left - scope.clientLeft + scope.scrollLeft : (sgn > 0 ? pr.bottom : pr.top) - sr.top - scope.clientTop + scope.scrollTop;
+    const v = Math.round(at + sgn * gap / 2 - half) + 'px';
+    if (el.style[X ? 'left' : 'top'] !== v) el.style[X ? 'left' : 'top'] = v;
+  };
+  const ro = o.place && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { if (el.isConnected) place(); }) : null;
+  let seen = null;
+  const show = () => { put(cur != null ? clamp(cur) : def(), scope); aria(); place(); };
   const h = {
     el, o, key: o.key, axis, cls: X ? 'x' : 'y',
     get: () => cur, now,
@@ -153,7 +170,7 @@ function grip_line(el, axis, o) {
     },
     reset() { h.set(null); grip_say((X ? tr('Default width') : tr('Default height'))); },
     refresh: show,
-    destroy() { unwire(); el.removeEventListener('keydown', key); GRIP_LIVE.delete(h); delete el._grip; },
+    destroy() { unwire(); ro?.disconnect(); el.removeEventListener('keydown', key); GRIP_LIVE.delete(h); delete el._grip; },
     menu: () => {
       const st = (o.step || GRIP_STEP[u] || 1) * 4;
       return [{label: (X ? tr('Wider') : tr('Taller')), icon: X ? (sgn > 0 ? 'right' : 'left') : (sgn > 0 ? 'down' : 'up'), fn: () => h.set(now() + st)},
@@ -164,7 +181,7 @@ function grip_line(el, axis, o) {
   const unwire = grip_wire(el, h, () => {
     const L = lim(), w = upx(), v0 = now();
     let v = v0;
-    const f = rafThrottle((dx, dy) => { v = clamp(v0 + sgn * (X ? dx : dy) / w, L); put(v, dscope); });
+    const f = rafThrottle((dx, dy) => { v = clamp(v0 + sgn * (X ? dx : dy) / w, L); put(v, dscope); place(); });
     const mv = (dx, dy) => f(dx, dy);
     mv.end = keep => {
       f.flush();
@@ -185,6 +202,7 @@ function grip_line(el, axis, o) {
   };
   el.addEventListener('keydown', key);
   el.classList.add('grip', 'grip-' + h.cls);
+  if (o.place) { el.classList.add('grip-place'); ro?.observe(scope); }
   el.setAttribute('aria-orientation', X ? 'vertical' : 'horizontal');  // the separator line between columns stands upright
   if (!el.dataset.grip) el.dataset.grip = o.key;
   el._grip = h; GRIP_LIVE.add(h);

@@ -121,7 +121,11 @@ r = Bo.post(B + "/api/clients", json={"name": "Bobs Kunde", "org_id": ORG})
 CLB = r.json()["id"]
 check(Bo.patch(B + f"/api/lists/{LA}", json={"client_id": CLB}).ok, "setup: bob's client on the Alpha list")
 r = Bo.patch(B + f"/api/clients/{CLB}", json={"org_id": BETA})
-check(r.ok and r.json().get("org_id") == BETA, f"N11: the creator moves the client ({r.status_code} {r.text[:120]})")
+check(r.status_code == 403, f"#6607: a member who created it does not take it into another organisation ({r.status_code})")
+dbx("UPDATE org_members SET role='admin' WHERE user_id=? AND org_id=?", (BOB, ORG))  # #6607: into another organisation only an admin of Alpha
+r = Bo.patch(B + f"/api/clients/{CLB}", json={"org_id": BETA})
+dbx("UPDATE org_members SET role='member' WHERE user_id=? AND org_id=?", (BOB, ORG))
+check(r.ok and r.json().get("org_id") == BETA, f"N11: the creator (an admin of Alpha) moves the client ({r.status_code} {r.text[:120]})")
 check(dbx("SELECT client_id FROM lists WHERE id=?", (LA,))[0][0] is None, "N11: the Alpha list lost the moved client")
 check(Bo.patch(B + f"/api/lists/{LB}", json={"client_id": CLB}).ok, "N11: the moved client fits the Beta list")
 r = A.post(B + "/api/clients", json={"name": "Erins Kunde", "org_id": ORG})
