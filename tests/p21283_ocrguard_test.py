@@ -299,7 +299,7 @@ O.ocr_charge("u900031", O.OCR_WS_HOUR_S * O.OCR_ANON_SHARE, anon=True)
 O.ocr_charge("u900032", O.OCR_WS_HOUR_S * O.OCR_ANON_SHARE - 5, anon=True)
 O.ocr_charge("u900032", 100)  # a member's seconds never count on the anonymous share
 at = [O.ocr_anon_tired(), O.ocr_tired()]
-seen2.clear()
+seen2 = []  # proc2 appends here now (the list of the step before stays in out["queue_budget"])
 c = connect()
 with system_ctx(c):
     for ref, anon in ((900031, 1), (900032, 0)):
