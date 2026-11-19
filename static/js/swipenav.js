@@ -52,7 +52,16 @@ function swn_box(el, full, inside) {
   return {l: pl, t: pt, w: f.clientWidth - pl - (parseFloat(cs.paddingRight) || 0), h: f.clientHeight - pt - (parseFloat(cs.paddingBottom) || 0)};
 }
 /** @param {HTMLElement|Document} root @param {{area: (t: any) => HTMLElement|null, can: (dir: number) => boolean, go: (dir: number) => any, peek?: (dir: number) => ({img?: string, el?: HTMLElement}|null), full?: boolean, inside?: boolean, edge?: number, busy?: () => boolean, back?: (el: HTMLElement) => void, cut?: boolean, lock?: number}} o */
+/** @type {{root: HTMLElement|Document, area: (t: any) => HTMLElement|null}[]} 2.1408.0 (#6693): the attached areas */
+const SWN_REG = [];
+/** @param {any} t -> true when a leafing area owns a touch on t (the sidebar's swipe to the right leaves it alone, events.js) */
+function swn_owns(t) {
+  for (const r of SWN_REG) { try { if (r.root.contains(t) && r.area(t)) return true; } catch { /* an area that cannot answer */ } }
+  return false;
+}
 function swn_attach(root, o) {
+  for (let i = SWN_REG.length - 1; i >= 0; i--) { const r = SWN_REG[i].root; if (r !== document && !/** @type {HTMLElement} */ (r).isConnected) SWN_REG.splice(i, 1); }  // a closed viewer's area
+  SWN_REG.push({root, area: o.area});
   /** @type {any} */
   let s = null, end = 0, snap = false;
   const EDGE = o.edge ?? SWN_EDGE, LOCK = o.lock ?? 10;

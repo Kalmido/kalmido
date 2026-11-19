@@ -854,45 +854,93 @@ $('#scrim').addEventListener('click', () => { closeSide(); closePop(); });
 // closes (the drawer: closeSide, the panel beside the content: the button's way, sbb_panel, the state is kept as before),
 // otherwise it snaps back. Starts only after a clear sideways move (8 px, like calgest.js), vertical scrolling stays, a
 // second finger cancels. Mouse / keyboard are untouched (touch events only).
-const SWP = {s: null, MIN: 8};
+// 2.1408.0 (#6693): the counterpart - a swipe to the right opens the folded sidebar on every touch device: folded by hand (LS
+// sideFold) through sbb_panel(), the drawer (side-rail, phone) through sideDrawerOpen(). The same thresholds (8 px lock, a
+// third of the width), it follows the finger. Only on the page (#main: the head bar, empty space, group heads, section
+// titles); never within 16 px of the screen's edge (the phone's Back), on a row that swipes itself (rowswipe.js: done /
+// reply), in a leafing area (swipenav.js), on a field, on a part that scrolls sideways (swn_skip), on a zoomed page.
+// Both ways the icon bar stays visible: the panel glides under it (clip-path at the panel's own left edge, which is the
+// bar's right edge); in the drawer the scrim follows the visible share. A drag of drag.js (a project / folder / area icon
+// held) never moves the panel.
+const SWP = {s: null, MIN: 8, EDGE: 16};
 function swp_target() {
   const sd = $('#side'); if (!sd) return null;
-  if (sd.classList.contains('open')) return {el: sd, fn: closeSide};
+  if (sd.classList.contains('open')) return {el: sd, fn: closeSide, scrim: true};
   const app = $('#app');
   if (typeof sbb_on === 'function' && sbb_on() && !app?.classList.contains('side-rail') && !sbb_noPan() && !LS.get('sideFold', false)) return {el: sd, fn: () => sbb_panel()};
   return null;
 }
+/** the folded sidebar a swipe to the right brings out, or null (it shows already / there is no panel) */
+function swp_openTarget() {
+  const sd = $('#side'), app = $('#app'); if (!sd || !app || sd.classList.contains('open')) return null;
+  if (typeof sbb_on === 'function' && sbb_on() && sbb_noPan()) return null;  // an area without a panel
+  if (!isMobile() && !app.classList.contains('side-rail')) return null;  // the panel shows beside the content
+  if (!isMobile() && LS.get('sideFold', false)) return {el: sd, fn: () => sbb_panel(), open: true};
+  return {el: sd, fn: sideDrawerOpen, open: true, scrim: true};
+}
+/** a touch on the page that may open the sidebar (#6693) */
+function swp_openFrom(tg, t) {
+  if (!tg.closest('#main') || t.clientX < SWP.EDGE || t.clientX > innerWidth - SWP.EDGE) return false;
+  if ((window.visualViewport?.scale || 1) > 1.05) return false;  // a zoomed page: the finger pans it
+  if (tg.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""], .modal, .sheet, .trow, .cmsg, .nitem')) return false;  // a row: its own swipe (done / reply) wins
+  if (typeof swn_skip === 'function' && swn_skip(tg, document.body)) return false;
+  if (typeof swn_owns === 'function' && swn_owns(tg)) return false;  // swipenav.js: leafing
+  if (typeof cgs_area === 'function' && cgs_area(tg)) return false;  // the calendar's grid (calgest.js)
+  if (typeof RSW_REG !== 'undefined') { const e = {target: tg, touches: [t]}; for (const o of RSW_REG) { try { if (o.at(e)) return false; } catch { /* a row helper that cannot answer: not ours */ } } }
+  return true;
+}
+/** a drag of drag.js / dnd.js holds the finger (#6693) */
+const swp_busy = () => (typeof drg_cur !== 'undefined' && !!drg_cur && (!!drg_cur.lifted || !!drg_cur.on)) || document.body.classList.contains('tdrag');
+/** the panel at offset o px from where it stands open (0 = fully out), clipped at its own left edge; the scrim follows */
+function swp_put(s, o) {
+  const el = s.el; o = Math.max(0, Math.min(s.w, o));
+  el.style.transition = 'none'; el.style.transform = `translateX(${-o}px)`;
+  el.style.clipPath = o > 0 ? `polygon(${o}px -100vh, 300vw -100vh, 300vw 200vh, ${o}px 200vh)` : '';
+  if (s.open) el.style.visibility = 'visible';
+  const sc = $('#scrim'); if (s.scrim && sc) { sc.classList.remove('hidden'); sc.style.opacity = String(Math.round((1 - o / s.w) * 100) / 100); }
+}
 function swp_reset(el, snap) {
   if (!el) return;
-  el.style.transition = snap ? '' : 'none'; el.style.transform = '';
+  el.style.transition = snap ? '' : 'none'; el.style.transform = ''; el.style.clipPath = ''; el.style.visibility = '';
   if (!snap) requestAnimationFrame(() => { el.style.transition = ''; });
+}
+/** the swipe is over without effect: the panel snaps back, a scrim the opening showed goes again */
+function swp_back(s) {
+  if (!s) return;
+  swp_reset(s.el, true);
+  const sc = $('#scrim'); if (s.scrim && sc) { sc.style.opacity = ''; if (s.open && !$('#side.open') && !$('.qadd.sheet') && $('#pop')?.classList.contains('hidden')) sc.classList.add('hidden'); }
 }
 document.addEventListener('touchstart', e => {
   if (!e.touches) return;  // a plain Event("touchstart") (tests, synthetic taps) has no touch list
-  if (e.touches.length !== 1) { if (SWP.s) { swp_reset(SWP.s.el, true); SWP.s = null; } return; }
+  if (e.touches.length !== 1) { if (SWP.s) { swp_back(SWP.s); SWP.s = null; } return; }
   const t = e.touches[0], tg = e.target?.closest ? e.target : null;
-  if (!tg || !tg.closest('#side') || tg.closest('input, textarea, select, .sv-row')) { SWP.s = null; return; }
-  const w = swp_target(); if (!w) { SWP.s = null; return; }
+  if (!tg) { SWP.s = null; return; }
+  let w = null;
+  if (tg.closest('#side')) { if (!tg.closest('input, textarea, select, .sv-row')) w = swp_target(); }
+  else if (swp_openFrom(tg, t)) w = swp_openTarget();
+  if (!w) { SWP.s = null; return; }
   SWP.s = {...w, x0: t.clientX, y0: t.clientY, dx: 0, lock: null, w: w.el.getBoundingClientRect().width || 1};
 }, {passive: true});
 document.addEventListener('touchmove', e => {
   const s = SWP.s; if (!s) return;
-  if (!e.touches || e.touches.length !== 1) { swp_reset(s.el, true); SWP.s = null; return; }
+  if (!e.touches || e.touches.length !== 1 || swp_busy()) { if (s.lock) swp_back(s); SWP.s = null; return; }
   const t = e.touches[0], dx = t.clientX - s.x0, dy = t.clientY - s.y0;
   if (!s.lock) {
     if (Math.abs(dx) < SWP.MIN && Math.abs(dy) < SWP.MIN) return;
-    if (Math.abs(dx) > Math.abs(dy) && dx < 0) { s.lock = 'x'; s.el.style.transition = 'none'; } else { SWP.s = null; return; }  // vertical / to the right: not ours
+    if (Math.abs(dx) > Math.abs(dy) && (s.open ? dx > 0 : dx < 0)) s.lock = 'x'; else { SWP.s = null; return; }  // vertical / the other way: not ours
   }
-  s.dx = Math.min(0, dx);
-  s.el.style.transform = `translateX(${s.dx}px)`;
+  s.dx = s.open ? Math.max(0, Math.min(s.w, dx)) : Math.min(0, dx);
+  swp_put(s, s.open ? s.w - s.dx : -s.dx);
   if (e.cancelable) e.preventDefault();
 }, {passive: false});
 function swp_end(cancel) {
   const s = SWP.s; SWP.s = null; if (!s || s.lock !== 'x') return;
-  if (!cancel && -s.dx > s.w / 3) {
-    s.el.style.transition = ''; s.el.style.transform = '';  // the class / state change below animates on from here
+  if (!cancel && Math.abs(s.dx) > s.w / 3) {
+    const sc = $('#scrim');
+    s.el.style.transition = ''; s.el.style.transform = ''; s.el.style.clipPath = ''; s.el.style.visibility = '';  // the class / state change below animates on from here
+    if (sc) sc.style.opacity = '';
     s.fn();
-  } else swp_reset(s.el, true);
+  } else swp_back(s);
 }
 document.addEventListener('touchend', () => swp_end(false));
 document.addEventListener('touchcancel', () => swp_end(true));
