@@ -25,6 +25,7 @@ const svc = (title, qty, rate, unit = 'day') => ({kind: 'service', title, qty, u
 
 async function editor(user) {
   const tag = ` (${user})`;
+  await call('PUT', '/api/office/settings', {company_fields: {name: 'Studio Beispiel', street: 'Hafenstraße 12', zip: '20457', city: 'Hamburg', country: 'DE'}});  // 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
   const doc = await call('POST', '/api/office/docs', {kind: 'offer', lang: 'en', project_title: 'Spot', items: [svc('Concept', 1, 800)]});
   check(doc.status === 201, 'a quotation ' + doc.status + tag);
   const w = await boot({user, hash: `office/offers/${doc.id}`}), d = w.document;

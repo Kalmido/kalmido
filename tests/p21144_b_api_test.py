@@ -90,7 +90,7 @@ A.patch(B + "/api/settings", json={"workspace": f"org:{ORG}"})
 
 
 def scenario(S, who):
-    r = S.put(B + "/api/office/settings", json={"lang": "en", "currency": "EUR"})
+    r = S.put(B + "/api/office/settings", json={"lang": "en", "currency": "EUR", "company_fields": {"name": "Studio Beispiel", "street": "Hafenstraße 12", "zip": "20457", "city": "Hamburg", "country": "DE"}})  # 2.1416.0 (#6530): a quotation is finalised only with its sender's name and address
     check(r.ok and r.json()["settings"].get("accept_on") == 1, f"{who}: the setting is on by default {r.text[:200]}")
     cl = S.post(B + "/api/clients", json=CLIENT).json().get("id")
 

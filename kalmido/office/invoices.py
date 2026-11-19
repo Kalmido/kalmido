@@ -29,7 +29,7 @@ from .calc import INV_VAT_NOTES, TAX_KEYS, calc_cur, calc_home_rate, dec, dstr, 
 from .homecur import hc_code, hc_home, hc_office_rate, hc_rate_missing  # 2.189.0 (#2475); 2.355.0 C (#2844): hc_rate_missing
 from .packs import office_pack_for
 from .doclang import doc_lg, doc_pack  # 2.185.0 C (#2520)
-from .model import doc_range_id, num_view, num_kind, num_scheme, office_feature, office_need_feature, office_role, office_scheme_period, office_settings, pb_cl_sql, pb_cl_live, trial_flag
+from .model import doc_range_id, num_view, num_kind, num_scheme, office_feature, office_first_invoice, office_need_feature, office_role, office_scheme_period, office_settings, pb_cl_sql, pb_cl_live, trial_flag
 from .contacts_cl import fk_send_rcpts  # 2.433.0 (#3599)
 from .model import SCHEME_RE, scheme_variants  # 2.355.0 A (#2839)
 from .ledger import ofx_company, ofx_locked, ofx_log, ofx_need_editable
@@ -300,11 +300,24 @@ def inv_refund_open(c, oid, r):
 # ---------------------------------------------------------------- finalising (called by ledger.ofx_finalize)
 def inv_missing(c, oid, r, s, pack, items):
     """The required fields of an invoice that are still missing (stored texts: 2.454.0, #3808, the reader's language, tr_stored)."""
+    return [m for _, m in inv_missing_keyed(c, oid, r, s, pack, items)]
+
+
+def inv_missing_keyed(c, oid, r, s, pack, items):
+    """(#6529): inv_missing with a fixed key per line [(key, stored text)] -- the key is where the editor leads to
+    (INV_MISS_KEYS); the same lines, the same order."""
     miss = []
+    if r["kind"] == "offer":  # (#6530): a quotation needs its sender: the company's name and address (no tax, bank or period)
+        co = ofx_company(c, oid)
+        if not (co.get("name") or (s.get("company") or {}).get("name")):
+            miss.append(("company_name", [N_("company name")]))
+        if not (co.get("street") and co.get("zip") and co.get("city")):
+            miss.append(("company_address", [N_("company address")]))
+        return miss
     rec = _j(r["recipient"], {})
     cl = c.execute(f"SELECT * FROM clients WHERE id=? AND {pb_cl_sql(c, oid)}", (r["client_id"],)).fetchone() if r["client_id"] else None
     if not (rec.get("name") or "").strip():
-        miss.append([N_("recipient name")])
+        miss.append(("recipient_name", [N_("recipient name")]))
     addr_ok = cl is not None and all((cl[k] if k in cl.keys() else "") for k in ("street", "zip", "city"))
     from .countries import fk_country_code  # 2.40.0 (#1372): an unknown country code stops here, never silently DE
     # 2.1308.0 (#6477): an invoice / correction without a client needs the fixed fields (street, postcode, city; the country
@@ -315,47 +328,47 @@ def inv_missing(c, oid, r, s, pack, items):
     if fixed:
         for k, word in (("street", N_("street of the recipient")), ("zip", N_("postcode of the recipient")), ("city", N_("city of the recipient"))):
             if not str(rec.get(k) or "").strip():
-                miss.append([word])
+                miss.append(("recipient_" + k, [word]))
         if rec.get("country") and fk_country_code(rec["country"]) is None:
-            miss.append([N_("valid country of the client (ISO code, now {0})"), rec["country"]])
+            miss.append(("recipient_country", [N_("valid country of the client (ISO code, now {0})"), rec["country"]]))
     # 2.97.0 B (#1951): with a client only its fields count (its name + attn. line are no address)
     elif not addr_ok and (cl is not None or len([x for x in (rec.get("lines") or []) if x.strip()]) < 2):
-        miss.append([N_("recipient address (street, postcode and city)")])
+        miss.append(("recipient_address", [N_("recipient address (street, postcode and city)")]))
     if not r["date"]:
-        miss.append([N_("date")])
+        miss.append(("date", [N_("date")]))
     if r["kind"] == "reminder":
         if not _j(_col(r, "ref_doc_ids") or "[]", []):
-            miss.append([N_("invoices to remind of")])
+            miss.append(("reminder_refs", [N_("invoices to remind of")]))
         return miss
     if r["kind"] == "delivery":  # 2.120.0 D (#2089): no tax, bank or period needed: recipient, date and one position
         if not any(it.get("kind") == "service" for it in items):
-            miss.append([N_("at least one position")])
+            miss.append(("positions", [N_("at least one position")]))
         return miss
     if not (_col(r, "service_from") or _col(r, "service_to")):
-        miss.append([N_("period of service")])
+        miss.append(("service_period", [N_("period of service")]))
     if not any(it.get("kind") == "service" for it in items):
-        miss.append([N_("at least one position")])
+        miss.append(("positions", [N_("at least one position")]))
     co = ofx_company(c, oid)
     free = s.get("company") or {}
     if not (co.get("name") or free.get("name")):
-        miss.append([N_("company name")])
+        miss.append(("company_name", [N_("company name")]))
     # 2.1308.0 (#6477): only the fixed company fields count (ledger.ofx_company already reads plain free lines into them)
     if not (co.get("street") and co.get("zip") and co.get("city")):
-        miss.append([N_("company address")])
+        miss.append(("company_address", [N_("company address")]))
     if not (co.get("tax_number") or co.get("vat_id")):
-        miss.append([N_("tax number or VAT ID")])
+        miss.append(("company_tax", [N_("tax number or VAT ID")]))
     if not co.get("iban"):
-        miss.append([N_("IBAN")])
+        miss.append(("company_iban", [N_("IBAN")]))
     if co.get("country") and fk_country_code(co["country"]) is None:
-        miss.append([N_("valid country of the company (ISO code, now {0})"), co["country"]])
+        miss.append(("company_country", [N_("valid country of the company (ISO code, now {0})"), co["country"]]))
     elif not co.get("country") and (pack or {}).get("neutral"):  # 2.147.0 (#2461): the base pack assumes no country (the e-invoice needs one)
-        miss.append([N_("country of the company")])
+        miss.append(("company_country", [N_("country of the company")]))
     if cl is not None and "country" in cl.keys() and cl["country"] and fk_country_code(cl["country"]) is None:
-        miss.append([N_("valid country of the client (ISO code, now {0})"), cl["country"]])
+        miss.append(("client_country", [N_("valid country of the client (ISO code, now {0})"), cl["country"]]))
     if r["kind"] == "invoice" and not (_col(r, "due_date") or _col(r, "payment_days")) and not s.get("payment_days"):
-        miss.append([N_("due date or payment days")])
+        miss.append(("due_date", [N_("due date or payment days")]))
     if r["kind"] in ("invoice", "credit") and hc_rate_missing(r, hc_home(s)):  # 2.355.0 C (#2844): a foreign currency needs its rate (the tax in the home currency)
-        miss.append([N_("the exchange rate of {0} (document or office settings)"), r["currency"]])
+        miss.append(("fx_rate", [N_("the exchange rate of {0} (document or office settings)"), r["currency"]]))
     if r["kind"] == "invoice" and dec(_col(r, "skonto_pct") or 0) > 0 and int(_col(r, "skonto_days") or 0) > 0 and r["date"]:
         # 2.355.0 C (#2840): the cash discount period ends on the due day at the latest (else the PDF and BT-20 contradict the terms)
         due = _col(r, "due_date") or ""
@@ -365,17 +378,17 @@ def inv_missing(c, oid, r, s, pack, items):
         except ValueError:
             days = None
         if days is not None and int(_col(r, "skonto_days")) > days:
-            miss.append([N_("a cash discount period no longer than the payment terms ({0} days)"), days])
+            miss.append(("skonto", [N_("a cash discount period no longer than the payment terms ({0} days)"), days]))
     # 2.1289.0 (#6475): the switch "Small business" binds the tax at finalising, not only as the default of a new draft
     # (section 14c UStG: VAT shown is owed; section 19 note only for a small business); a correction (cancels_id) keeps the
     # tax of its invoice, also of one from before the switch
     if not _col(r, "cancels_id"):
         if s.get("small_business") and r["vat_mode"] != "novat":
-            miss.append([N_("as a small business no VAT may be shown")])
+            miss.append(("small_vat", [N_("as a small business no VAT may be shown")]))
         elif not s.get("small_business") and r["vat_mode"] == "novat" and _col(r, "vat_note") == "small":
-            miss.append([N_("the VAT note small business only with the switch Small business in the office settings")])
+            miss.append(("small_note", [N_("the VAT note small business only with the switch Small business in the office settings")]))
     if r["vat_mode"] == "novat" and (_col(r, "vat_note") or "") not in INV_VAT_NOTES:
-        miss.append([N_("VAT note (reverse charge / not taxable / small business)")])
+        miss.append(("vat_note", [N_("VAT note (reverse charge / not taxable / small business)")]))
     if r["vat_mode"] == "novat" and _col(r, "vat_note") == "reverse":  # 2.296.0 B (#3168): both VAT ids (section 14a (1) UStG, BR-AE-02)
         # 2.296.0 F (#3168): a stale note of a taxed invoice counts no more; at home (section 13b) the tax number will do and
         # the client needs a VAT id only for the EU case or when the e-invoice is built (BR-AE-02 asks for BT-48)
@@ -383,46 +396,46 @@ def inv_missing(c, oid, r, s, pack, items):
         case = fk_reverse_case(ctry, co.get("country") or "DE")
         # 2.502.0 (#4081): field 21 / category AE are for the EU only; a correction inherits its invoice's note and must stay possible
         if fk_third_country(ctry, co.get("country") or "DE") and not _col(r, "cancels_id"):
-            miss.append([N_("for a client in a third country the VAT note not taxable domestically instead of reverse charge")])
+            miss.append(("vat_note", [N_("for a client in a third country the VAT note not taxable domestically instead of reverse charge")]))
         # 2.538.0 (#4368): without the client's country the tax case is a guess (the books would count it as section 13b at
         # home, field 60) -> refused; a correction inherits its invoice's note and must stay possible
         if not str(ctry or "").strip() and not _col(r, "cancels_id"):
-            miss.append([N_("the client's country (reverse charge)")])
+            miss.append(("client_country", [N_("the client's country (reverse charge)")]))
         if not (co.get("vat_id") or (case != "eu" and co.get("tax_number"))):
-            miss.append([N_("your VAT ID (reverse charge)")])
+            miss.append(("company_vat_id", [N_("your VAT ID (reverse charge)")]))
         if (case == "eu" or (office_feature(c, oid, "docs.einvoice", s) and not _col(r, "trial"))) and not (
                 cl is not None and "vat_id" in cl.keys() and str(cl["vat_id"] or "").strip()):
-            miss.append([N_("the client's VAT ID (reverse charge)")])
+            miss.append(("client_vat_id", [N_("the client's VAT ID (reverse charge)")]))
     # 2.354.0 A (#2834): "abroad" without a register number is category G in the e-invoice, which needs the seller's VAT id (BR-G-02);
     # 2.357.0 (#3218): with the tax number it is O (einvoice._doc_cat), which needs no VAT id
     if r["vat_mode"] == "novat" and _col(r, "vat_note") == "abroad" and office_feature(c, oid, "docs.einvoice", s) and not _col(r, "trial") and not (
             co.get("vat_id") or str(co.get("register_no") or "").strip() or str(co.get("tax_number") or "").strip()):
-        miss.append([N_("your VAT ID or register number (not taxable domestically)")])
+        miss.append(("company_vat_id", [N_("your VAT ID or register number (not taxable domestically)")]))
     if r["vat_mode"] == "novat" and _col(r, "vat_note") in ("eu_goods", "export"):
         # 2.355.0 C (#2844): goods to a business in another EU state (section 6a UStG: both VAT ids, BR-IC-02) / to a third
         # country (section 6 UStG; BR-G-02 the seller's VAT id in the e-invoice); the delivery date = the period of service
         case = fk_reverse_case(cl["country"] if cl is not None and "country" in cl.keys() else "", co.get("country") or "DE")
         eu = _col(r, "vat_note") == "eu_goods"
         if case != ("eu" if eu else "other"):
-            miss.append([N_("a client in another EU country (intra-Community supply)") if eu else N_("a client outside the EU (export)")])
+            miss.append(("vat_note", [N_("a client in another EU country (intra-Community supply)") if eu else N_("a client outside the EU (export)")]))
         if not co.get("vat_id") and (eu or (office_feature(c, oid, "docs.einvoice", s) and not _col(r, "trial"))):
-            miss.append([N_("your VAT ID")])
+            miss.append(("company_vat_id", [N_("your VAT ID")]))
         if eu and not (cl is not None and "vat_id" in cl.keys() and str(cl["vat_id"] or "").strip()):
-            miss.append([N_("the client's VAT ID")])
+            miss.append(("client_vat_id", [N_("the client's VAT ID")]))
     # 2.1308.0 (#6476): XRechnung asks for more than ZUGFeRD -- named here, before finalising builds the XML (pdfweb.epdf_store
     # checks the finished XML once more with einvoice.ein_check_block); the contact person is the managing director or the company
     if r["kind"] in ("invoice", "credit") and not _col(r, "trial") and office_feature(c, oid, "docs.einvoice", s) and epdf_format(c, oid, r) == "xrechnung":
         cget = (lambda k: str((cl[k] if k in cl.keys() else "") or "").strip()) if cl is not None else (lambda k: "")
         if not cget("buyer_reference"):
-            miss.append([N_("the client's Leitweg ID (buyer reference, XRechnung)")])
+            miss.append(("client_buyer_reference", [N_("the client's Leitweg ID (buyer reference, XRechnung)")]))
         if not (str(co.get("phone") or "").strip() and str(co.get("email") or "").strip()):
-            miss.append([N_("phone and e-mail of your company (office settings, company; XRechnung)")])
+            miss.append(("company_contact", [N_("phone and e-mail of your company (office settings, company; XRechnung)")]))
         if not (cget("email_invoice") or cget("email")):
-            miss.append([N_("the client's invoice e-mail (XRechnung)")])
+            miss.append(("client_email", [N_("the client's invoice e-mail (XRechnung)")]))
     # 2.296.0 B (#3169): a 0 % position of a taxed invoice needs the reason of its exemption (section 14 (4) no. 8 UStG, BT-120)
     if r["vat_mode"] != "novat" and not str(s.get("exempt_reason") or "").strip() and any(
             it.get("kind") in ("service", "discount") and it.get("tax") == "exempt" and pack_tax(pack, "exempt") == 0 for it in items):  # 2.357.0 (#3217): a 0 % standard / reduced rate is zero rated (Z), no reason
-        miss.append([N_("reason for the tax exemption of the 0 % positions (office settings, invoices)")])
+        miss.append(("exempt_reason", [N_("reason for the tax exemption of the 0 % positions (office settings, invoices)")]))
     return miss
 
 
@@ -449,6 +462,33 @@ def inv_before_finalize(c, oid, r, s, pack):
             days = int(s.get("payment_days") or 14)
         d = date.fromisoformat(r["date"]) + timedelta(days=int(days))
         c.execute("UPDATE office_docs SET due_date=?, payment_days=? WHERE id=? AND org_id=?", (d.isoformat(), int(days), r["id"], oid))
+
+
+def inv_missing_public(c, oid, r, items):
+    """(#6529): what finalising draft r would still miss, for the editor's list above "Finalise": [{key, text, level}]
+    -- level "block" = inv_missing_keyed (the server refuses finalising, its check stays the truth), "warn" = a hint that
+    leaves finalising open (the e-invoice duty, #6482). [] for a finalised document. key = where the editor leads to."""
+    if ofx_locked(r) or r["kind"] not in ("offer", "invoice", "credit", "reminder", "delivery"):
+        return []
+    s = office_settings(c, oid)
+    pack = office_pack_for(s, calc_tax_day(dict(r))) or {}
+    if r["kind"] == "credit":
+        pack = inv_credit_pack(c, oid, r, pack)
+    out = [{"key": k, "text": tr(*m), "level": "block"} for k, m in inv_missing_keyed(c, oid, r, s, pack, items)]
+    warn = inv_einvoice_warn(c, oid, r, s)
+    if warn:
+        out.append({"key": "einvoice", "text": tr(warn), "level": "warn"})
+    if r["kind"] == "invoice" and not _col(r, "trial"):  # #6532: the first real invoice can no longer be deleted (the dialog says it too)
+        if office_first_invoice(c, oid):
+            out.append({"key": "first", "text": tr("Your first invoice. It can no longer be deleted afterwards, only corrected."), "level": "warn"})
+    return out
+
+
+def inv_offer_before_finalize(c, oid, r, s):
+    """(#6530): 400 with the list when a quotation still misses its sender (inv_missing_keyed, kind offer)."""
+    miss = inv_missing(c, oid, r, s, {}, [])
+    if miss:
+        raise BadKey(N_("Missing before finalising: {0}"), stored_join(miss))
 
 
 def inv_neg_final_floor(c, oid, r):
