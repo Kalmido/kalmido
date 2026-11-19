@@ -12,13 +12,15 @@ from .news import news_add
 
 # #6531: why a file was left out, in the words of the note on the task (core/pages.py save_attachment_bytes)
 ATT_SKIP_WHY = {"quota": N_("the storage is full"), "virus": N_("the virus scanner refused it"),
-                "lock": N_("the list is encrypted in the browser"), "denied": N_("it was refused")}
+                "lock": N_("the list is encrypted in the browser"), "denied": N_("it was refused"),
+                "large": N_("the file is too large")}
 
 
 def mail_files_save(c, tid, files, cap, owner=None, rename=None):
     """#6531: the files of a mail (or a form) as files of task tid -> (whole, skipped, top). whole = every file was filed
     (False: more than cap files, one too large, one not written, or one left out: the mail stays in the mailbox, MailKept);
-    skipped = [(name, why)] of the files save_attachment_bytes left out (att_skip_note writes them on the task);
+    skipped = [(name, why)] of the files left out: save_attachment_bytes' reason or "large" (over the size limit; att_skip_note
+    writes them on the task);
     top = the highest file id of the task before (a reply's caller hangs the new files on its comment: id > top)."""
     top = c.execute("SELECT COALESCE(MAX(id),0) FROM attachments WHERE task_id=?", (tid,)).fetchone()[0]
     whole, skipped = len(files) <= cap, []
@@ -33,6 +35,7 @@ def mail_files_save(c, tid, files, cap, owner=None, rename=None):
                 skipped.append((name, why))
                 whole = False
         elif data:
+            skipped.append((name, "large"))  # (over TASKS_MAX_FILE_MB)
             whole = False
     return whole, skipped, top
 
