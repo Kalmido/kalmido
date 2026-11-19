@@ -181,9 +181,10 @@ function dgAfter(put, j) {
 // 2.559.0 (#4659): shown at once (dgItemsPut), the request behind it; an error puts the tasks back (no reload)
 // 2.1271.0 (#6436): a subtask an item makes standalone (parent_id: null) takes its parent's date / priority into its empty fields
 // (dnd.js detachPatch), in the same item; one toast for all of them with "Don't adopt"
-async function dgApply(items, lab, notes = []) {
+// 2.1444 (#7344): o.quiet = no toast (the caller's gesture says it once, with what it did besides); -> {j, dt} (dt: dtToast's got)
+async function dgApply(items, lab, notes = [], o = {}) {
   const ids = Object.keys(items).map(Number);
-  if (!ids.length) { toast(notes.filter(Boolean).join(' · ') || tr('Nothing to move')); return null; }
+  if (!ids.length) { if (!o.quiet) toast(notes.filter(Boolean).join(' · ') || tr('Nothing to move')); return null; }
   const dt = dtMerge(items);
   const snaps = ids.flatMap(withKids), put = dgItemsPut(items);
   let j;
@@ -191,6 +192,7 @@ async function dgApply(items, lab, notes = []) {
   dgAfter(put, j);
   const pairs = snaps.filter(b => ids.includes(b.id)).map(b => [b, snapTask(S.tasks.get(b.id))]);
   const e = histFields(lab, pairs, {res: j, fields: [...UNDO_FIELDS, 'sort']});
+  if (o.quiet) return {j, dt: dtDone(dt, j)};
   const fail = ids.length - (j?.count ?? ids.length);
   const msg = [lab, fail ? trn('{0} task not changed', '{0} tasks not changed', fail) + (j?.errors?.[0] ? ': ' + j.errors[0] : '') : '', ...notes].filter(Boolean).join(' · ');
   if (dtToast(msg, dtDone(dt, j))) return j;  // 2.1271.0 (#6436): the Undo of the step stays in the history
@@ -244,7 +246,8 @@ function dgSubPick(ids) {
     pick: x => dgMakeSubs(ids, x.id)});
 }
 // a block before / after a row: the same parent, list and section as the row, sorted between it and its neighbour
-async function dgBlock(ids, row, after) {
+// 2.1444 (#7344): plain = only the place (My tasks: beside a subtask under its parent; no priority block, no sort switch)
+async function dgBlock(ids, row, after, plain = false) {
   const target = S.tasks.get(+row.dataset.id); if (!target) return;
   const set = new Set(ids), kcol = row.closest('.kcol');
   if (set.has(target.id) || dgAncestors(target.id).some(a => set.has(a))) return;
@@ -254,7 +257,7 @@ async function dgBlock(ids, row, after) {
   const deep = target.parent_id ? list.filter(i => !dgFits(target.parent_id, i)) : [];
   list = list.filter(i => !deep.includes(i));
   if (target.list_id && list.some(i => S.tasks.get(i).list_id !== target.list_id) && !canEditList(target.list_id)) { roToast(); return; }
-  const mode = sortMode();
+  const mode = plain ? 'custom' : sortMode();
   let rows = vl_ids().map(i => S.tasks.get(i)).filter(x => x && x.parent_id === target.parent_id && !set.has(x.id) && (x.status === 0 || x.id === target.id));
   if (mode === 'prio' && !kcol) rows = rows.filter(x => x.priority === target.priority);
   const i = rows.findIndex(x => x.id === target.id), n = list.length;
@@ -315,6 +318,39 @@ async function dgToList(ids, lid) {
     [ro.length ? trn('{0} task skipped (read-only)', '{0} tasks skipped (read-only)', ro.length) : '']);
 }
 
+// ---- 2.1444 (#7344): the drop core, step 1 (audit #5731). One resolver reads where a drop lands - mouse or finger, one task or
+// a selection (one task = a selection of one): a row (before / after it), the head of a group, a "New ..." button. What a
+// place means belongs to the adapter of the container that is shown (DROP_ADAPTERS; step 1: "My tasks" = own order / own
+// sections, mineorder.js). An adapter answers where(tgt) -> null (not mine: the old ways of dnd.js / dgDrop go on), {no: text}
+// (it takes nothing there: the text instead of a silent nothing, no highlight) or a place, and put(ids, place) does the whole
+// gesture as one step of the history. The middle of a row (= make subtasks, dgMakeSubs) stays the same everywhere and comes
+// before the core. The project list follows in step 3 (#7351).
+const DROP_ADAPTERS = [];
+function dropAt(el, y, after) {
+  if (!el?.closest || el.closest('#detail')) return null;
+  const row = el.closest('#view .trow');
+  if (row) return {kind: 'row', row, tid: +row.dataset.id, after: after ?? dropAfter(row, y), gkey: row.closest('.group')?.querySelector(':scope > .ghead')?.dataset.key || ''};
+  const nw = el.closest('#view [data-dropnew]');
+  if (nw) return {kind: 'new', el: nw};
+  const head = el.closest('#view .ghead[data-key]');
+  return head ? {kind: 'head', el: head, key: head.dataset.key} : null;
+}
+// -> {a: adapter, tgt, w: its place} or null (no adapter takes this target); after = the selection's zone (dgZone)
+function dropFor(el, y, ids, after) {
+  const tgt = dropAt(el, y, after); if (!tgt) return null;
+  for (const a of DROP_ADAPTERS) { if (!a.on()) continue; const w = a.where(tgt, ids); if (w) return {a, tgt, w}; }
+  return null;
+}
+// the drop itself: false = not the core's; true = it takes nothing there (said); else the promise of the put (a caller inside
+// a histGroup awaits it, so the gesture stays one step)
+function dropRun(ids, el, y, after) {
+  const d = dropFor(el, y, ids, after); if (!d) return false;
+  if (d.w.no) { if (d.w.no !== true) toast(d.w.no); return true; }
+  return Promise.resolve(d.a.put(ids, d.w)).then(() => true);
+}
+// dragover: a target the core refuses gets no highlight (the drop still comes, to say why)
+const dropNo = (el, y, ids) => !!dropFor(el, y, ids)?.w.no;
+
 // ---- dragging (desktop); dnd.js asks dgOver on every dragover and dgDrop on the drop
 const dgZone = (row, y) => { const r = row.getBoundingClientRect(), f = r.height > 0 ? (y - r.top) / r.height : .5; return f < .28 ? 'before' : f > .72 ? 'after' : 'onto'; };
 function dgClear() { $$('.dgdep,.dgonto,.dgno').forEach(x => { x.classList.remove('dgdep', 'dgonto', 'dgno'); delete x.dataset.dg; }); $$('.dgzone.drop').forEach(x => x.classList.remove('drop')); }
@@ -332,7 +368,8 @@ function dgOver(e, id) {
   const row = e.target.closest?.('#view .trow');
   if (!row || row.closest('#detail')) return false;
   const tid = +row.dataset.id, ids = DG.ids || [id];
-  if (ids.includes(tid)) return false;
+  const own = ids.includes(tid);  // 2.1444 (#7344): onto a row of the selection = the selection at its place, where the core takes it
+  if (own && (!DG.ids || e.altKey || !dropFor(row, e.clientY, ids) || dropNo(row, e.clientY, ids))) return false;
   if (e.altKey) {
     $$('.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'drop'));
     const bad = ids.find(w => !dgDepOk(w, tid));
@@ -344,7 +381,9 @@ function dgOver(e, id) {
   }
   if (!DG.ids) return dgs_over(e, row, id, tid);  // 2.122.3 B (#2334): one task, the middle of a row
   $$('.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'drop'));
-  const zn = dgZone(row, e.clientY);
+  let zn = dgZone(row, e.clientY);
+  if (own && zn === 'onto') zn = dropAfter(row, e.clientY) ? 'after' : 'before';
+  if (zn !== 'onto' && dropNo(row, e.clientY, ids)) { dgLast = null; return true; }  // 2.1444 (#7344): no highlight; the drop says why
   if (zn === 'onto') dgMark(row, 'dgonto', trn('{0} task becomes its subtask', '{0} tasks become its subtasks', dgRoots(ids).length));
   else row.classList.add(zn === 'after' ? 'dropafter' : 'dropbefore');
   dgLast = {row, zn, cls: zn === 'onto' ? 'dgonto' : zn === 'after' ? 'dropafter' : 'dropbefore'};
@@ -377,10 +416,10 @@ function dgDrop(e, id) {
   if (el.closest?.('#detail')) return true;
   const side = el.closest?.('.srow[data-drop]'), kcol = el.closest?.('.kcol'), quad = el.closest?.('.quad'), cell = el.closest?.('.cal .cell');
   const wcol = el.closest?.('.wcol'), wad = el.closest?.('.wad, .wh'), sec = !row && el.closest?.('#view .ghead[data-section], #view .sdrop');
+  // 2.1444 (#7344): the drop core first (My tasks: own order, own sections, "New section"); the middle of a row stays "subtasks"
+  { const zn = row && dgZone(row, y); if (zn !== 'onto' || ids.includes(+row.dataset.id)) { if (dropRun(ids, el, y, row ? (zn === 'onto' ? dropAfter(row, y) : zn === 'after') : undefined)) return true; } }
   const may = ids.filter(i => canEdit(S.tasks.get(i)));
-  // 2.1389.0 (#6959): the own order and own sections of My tasks are the person's, read-only tasks too (as one task in dnd.js)
-  const mine = moActive() && (row || el.closest?.('#view .ghead[data-key^="ms:"]'));
-  if (!may.length && !mine) { roToast(); return true; }
+  if (!may.length) { roToast(); return true; }
   if (side) {
     const k = side.dataset.drop;
     if (k.startsWith('l:')) mv_ask(ids, listById(+k.slice(2))).then(y => y && dgToList(ids, +k.slice(2)));  // 2.455.0 (#3848)
@@ -402,15 +441,12 @@ function dgDrop(e, id) {
     if (ids.includes(tid)) return true;
     const zn = dgZone(row, y);
     if (zn === 'onto') dgMakeSubs(ids, tid);
-    else if (moActive()) moDropMany(ids, row, zn === 'after');  // My tasks keeps its own order (2.40.0, #1344); 2.1389.0 (#6959): the whole selection
     else dgBlock(ids, row, zn === 'after');
     return true;
   }
-  // 2.1389.0 (#6959): the board of My tasks (#2072) and the head of an own section (#4395) take the whole selection too, in its
-  // order ("Recently assigned" takes nothing); before, they took the dragged task alone under a ghost naming the selection
+  // 2.1389.0 (#6959): the board of My tasks (#2072) takes the whole selection too, in its order (step 2 of the drop core: #7344 F6);
+  // the own sections of My tasks: the drop core above
   if (kcol && kcol.dataset.mbcol != null) { if (typeof mb_dropMany === 'function') mb_dropMany(ids, el); return true; }
-  const msh = el.closest?.('#view .ghead[data-key^="ms:"]');
-  if (msh) { if (moActive() && mseOn()) { const all = new Set(moAll().map(x => x.id)), mv = ids.filter(i => all.has(i)); if (mv.length) mseDropMany(mv, msh); } return true; }
   if (kcol) { const sid = kcol.dataset.kcol ? +kcol.dataset.kcol : null, lid = S.tasks.get(ids[0])?.list_id; if (lid) dgToSection(ids, lid, sid); return true; }
   if (cell) { batch('patch', {due: cell.dataset.day}, false, may); return true; }
   if (wad) { batch('patch', {due: wad.dataset.day, due_time: null}, false, may); return true; }

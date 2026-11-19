@@ -12,7 +12,7 @@ document.addEventListener('dragstart', e => {
   requestAnimationFrame(() => r.classList.add('dragging'));
 });
 document.addEventListener('dragend', () => { dragId = null; DSE.v = 0; kph_clear(); document.body.classList.remove('tdrag'); $$('.dragging,.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dragging', 'dropbefore', 'dropafter', 'drop')); });
-const DROP_SEL = '.trow, .kcol, .quad, .cal .cell, .srow[data-drop], .wcol, .wad, .wh, #view .ghead[data-section], #view .sdrop, #view .sprh[data-sprdrop], #view .ghead[data-key^="ms:"]';  // 2.60.0 (#343): + the sprint header; 2.569.0 (#4395): + the own sections of My tasks
+const DROP_SEL = '.trow, .kcol, .quad, .cal .cell, .srow[data-drop], .wcol, .wad, .wh, #view .ghead[data-section], #view .sdrop, #view .sprh[data-sprdrop], #view .ghead[data-key^="ms:"], #view [data-dropnew]';  // 2.60.0 (#343): + the sprint header; 2.569.0 (#4395): + the own sections of My tasks; 2.1444 (#7344): + "New section" of My tasks
 // lower half of a row = drop after it (so the end of a block / list is reachable)
 const dropAfter = (row, y) => { const r = row.getBoundingClientRect(); return y != null && r.height > 0 && y > r.top + r.height / 2; };
 // 2.87.9 (#1965): the highlight changes only when the target or its half changes (dragover fires on every mouse move; the
@@ -21,6 +21,8 @@ let mdLast = null;
 function markDrop(el, id, y) {
   const tgt = el && el.closest(DROP_SEL), row = tgt && tgt.classList.contains('trow');
   const ok = !!tgt && !tgt.closest('#detail') && !(row && +tgt.dataset.id === id);
+  if (ok && mdLast?.no === tgt) return true;
+  if (ok && dropNo(tgt, y, [id])) { mdLast = {no: tgt}; $$('.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dropbefore', 'dropafter', 'drop')); return true; }  // 2.1444 (#7344): the core takes nothing there (the drop says why)
   const cls = !ok ? null : row ? (dropAfter(tgt, y) ? 'dropafter' : 'dropbefore') : 'drop', col = row ? tgt.closest('.kcol,.quad') : null;
   if (cls && mdLast && mdLast.tgt === tgt && mdLast.cls === cls && tgt.classList.contains(cls) && (!col || col.classList.contains('drop'))) return true;
   mdLast = null;
@@ -142,7 +144,6 @@ async function dropTask0(id, el, clientY) {
   const t = S.tasks.get(id); if (!t || !el) return;
   // 2.579.0 (#4798): as this device saw it before the drop - a patchTask below changes t at once (outbox, #4568): undo, _prev, lock move
   let before = snapTask(t), dt = null;  // dt: a subtask dragged out of its parent and what it adopted (2.1271.0, #6436)
-  if (!canEdit(t) && !ml_in(t, ml_viewList())) { roToast(); return; }  // 2.71.0 B (#1459): a further list's writer moves the link
   const side = el.closest('.srow[data-drop]');
   const row = el.closest('.trow');
   const kcol = el.closest('.kcol');
@@ -153,12 +154,16 @@ async function dropTask0(id, el, clientY) {
   $$('.dragging,.dropbefore,.dropafter,.drop').forEach(x => x.classList.remove('dragging', 'dropbefore', 'dropafter', 'drop'));
   document.body.classList.remove('tdrag');
   if (el.closest('#detail')) return;
+  if (canEdit(t) && await mbDropHook(t, el)) return;  // 2.156.0 C (#2072): the board of My tasks (its column = date / priority / list)
+  // 2.1444 (#7344): the drop core (dragmulti.js dropRun; one task = a selection of one): My tasks' own order and own sections,
+  // read-only tasks too (the own order is the person's); the structure it changes is checked there. Awaited: the same step.
+  const core = dropRun([id], el, clientY);
+  if (core) { await core; return; }
+  if (!canEdit(t) && !ml_in(t, ml_viewList())) { roToast(); return; }  // 2.71.0 B (#1459): a further list's writer moves the link
   // 2.559.0 (#4659): dropped into a section still on its way (a kanban column, a row under its header): its real id first,
   // into the element the drop reads it from (taskToSection waits by itself)
   { const gh = !kcol && row?.closest('.group')?.querySelector('.ghead[data-section]'), at = kcol ? [kcol, 'kcol'] : gh ? [gh, 'section'] : null;
     if (at && +at[0].dataset[at[1]] < 0) { const r = await secReal(+at[0].dataset[at[1]]); if (!r) return; at[0].dataset[at[1]] = r; } }
-  if (await mbDropHook(t, el)) return;  // 2.156.0 C (#2072): the board of My tasks (its column = date / priority / list)
-  if (!row && await mseDropHead(t, el)) return;  // 2.569.0 (#4395): onto the head of an own section of My tasks
   if (await ml_drop(t, {sec, kcol, row, side, cell, wcol, wad, quad, y: clientY})) return;  // 2.71.0 B (#1459): in a further list only the link moves
   if (sec && sec.dataset.newsec) { taskToNewSection(id); return; }  // (sec is false over a row)
   if (sec) { taskToSection(id, sec.dataset.section ? +sec.dataset.section : null); return; }
@@ -198,7 +203,6 @@ async function dropTask0(id, el, clientY) {
       if (!dtToast(tr('Subtask is now standalone'), [[id, ad, pid]])) toast(tr('Subtask is now standalone'));
       return;
     }
-    if (row && moActive() && await moDrop(t, row, dropAfter(row, clientY))) return;  // 2.40.0 (#1344): My tasks = the own order
     if (row && +row.dataset.id !== id) {
       const target = S.tasks.get(+row.dataset.id);
       if (!target) return;
