@@ -46,6 +46,7 @@ Bo, Ca, Do, Ri = (S[u] for u in ("bob", "carl", "dora", "rita"))
 for s in S.values():
     s.patch(B + "/api/settings", json={"tour": "done", "lang": "en", "features": "comments,collab"})
 FID, Fr = freelancer(B, A)
+check(Bo.patch(B + f"/api/orgs/{ORG}", json={"server_agents": True}).ok, "setup: bob switches the Kalmido AI on")  # (#6363): the Kalmido AI is off in a new organisation
 
 r = Bo.post(B + f"/api/orgs/{ORG}/server-agents", json={"username": "teamki", "display_name": "Team KI"})
 check(r.status_code == 201, f"setup: bob creates the team agent {r.status_code} {r.text[:200]}")

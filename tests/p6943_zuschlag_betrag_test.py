@@ -86,6 +86,7 @@ ALICE = A.get(B + "/api/state").json()["me"]["id"]
 r = A.post(B + "/api/admin/orgs", json={"name": "Alpha", "admin_id": ALICE})
 assert r.status_code == 201, r.text
 A.patch(B + "/api/settings", json={"workspace": f"org:{r.json()['id']}"})
+assert A.patch(B + f"/api/orgs/{r.json()['id']}", json={"server_agents": True}).ok  # (#6363): the Kalmido AI is off in a new organisation
 A.put(B + "/api/admin/agent-policy", json={"user_agents": True, "max_per_user": 10})
 FID, Fr = freelancer(B, A)
 
