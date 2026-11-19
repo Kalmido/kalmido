@@ -380,7 +380,7 @@ def admin_agent_update(aid):
             except BadInput:
                 c.rollback()
                 raise
-        if "scopes" in b or "allowed_ips" in b:  # 2.15.0 (#479)
+        if "scopes" in b or "allowed_ips" in b or "machine_ip_reset" in b:  # 2.15.0 (#479); #7051
             try:
                 agent_scopes_set(c, aid, b)
             except BadInput:
@@ -822,7 +822,7 @@ def my_agent_update(aid):
     a = need_own_agent(c, aid)
     b = body()
     unknown = sorted(k for k in b if k not in ("display_name", "note", "enabled", "scopes", "allowed_ips", "provider", "pause_reason", "org_id",
-                                               "runtime", "list_ids", "bridge_ok", "limits", "ai"))
+                                               "runtime", "list_ids", "bridge_ok", "limits", "ai", "machine_ip_reset"))
     if unknown:
         return err(tr("Invalid value: {0}", ", ".join(unknown)))
     if "org_id" in b:  # 2.28.0 (#935): the owner moves the agent into another workspace (its lists must fit: none of another one)
@@ -831,7 +831,7 @@ def my_agent_update(aid):
         except BadInput:
             c.rollback()
             raise
-    if "scopes" in b or "allowed_ips" in b:  # 2.15.0 (#479): the owner decides what the agent may do (within the admin's limit)
+    if "scopes" in b or "allowed_ips" in b or "machine_ip_reset" in b:  # 2.15.0 (#479), #7051: the owner decides what the agent may do (within the admin's limit)
         try:
             agent_scopes_set(c, aid, b)
         except BadInput:

@@ -485,8 +485,8 @@ def approval_run(c, j):
 
 
 def agent_scopes_set(c, aid, b):
-    """{scopes?, allowed_ips?} of an agent (admin: team agents, owner: personal ones) -> stored on the agent and on its
-    tokens (a new token gets them too)."""
+    """{scopes?, allowed_ips?, machine_ip_reset? (#7051: one computer's token id)} of an agent (admin: team agents, owner:
+    personal ones) -> stored on the agent and on its tokens (a new token gets them too)."""
     if "scopes" in b:
         sc = ",".join(scopes_clean(b["scopes"], {"is_admin": 0}, agent=True))
         c.execute("UPDATE agents SET scopes=? WHERE user_id=?", (sc, aid))
@@ -500,6 +500,17 @@ def agent_scopes_set(c, aid, b):
         # onto all its keys -- an unchanged one keeps the rule a computer got at its setup (agent_setup redeem, allowed_ips)
         if old is None or (old[0] or "") != ips:
             c.execute("UPDATE api_tokens SET allowed_ips=? WHERE user_id=?", (ips, aid))
+            print("agent", aid, "address rule", ips or "-", "by", login_log_who(g.user), flush=True)  # #7114 (reader #5427 F1)
+    if "machine_ip_reset" in b:  # #7051 (Fable reader N3): one computer's key takes the agent's rule again ("Remove address rule")
+        from ..agents.reqtoken import REQ_TOKEN_NAME  # here: agents imports this module
+        tid = b["machine_ip_reset"]
+        # #7114 (reader #5427 F3): only a computer's key, never a request token (it keeps its requester's narrower rule)
+        if type(tid) is not int or not c.execute("SELECT 1 FROM api_tokens WHERE id=? AND user_id=? AND name<>?",
+                                                 (tid, aid, REQ_TOKEN_NAME)).fetchone():
+            raise Denied(404)
+        a = c.execute("SELECT allowed_ips FROM agents WHERE user_id=?", (aid,)).fetchone()
+        c.execute("UPDATE api_tokens SET allowed_ips=? WHERE id=?", ((a[0] if a else "") or "", tid))
+        print("agent", aid, "token", tid, "address rule reset to the agent's", "by", login_log_who(g.user), flush=True)  # #7114 F1
 
 
 def agent_scope_dict(c, a):
