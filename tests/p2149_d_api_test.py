@@ -202,8 +202,9 @@ for old, was in (("2.999.9", "last ran Kalmido 2.999.9"), (None, "is from a Kalm
     set_meta("app_version_prev", None)
     ok = start()
     lg = logs()
+    # #7086: the way through names 2.1001.0, a real release (there was never a 2.1000.x)
     check(not ok and f"FATAL: this database {was}" in lg and "only updates from Kalmido 2.1000.0 or newer" in lg
-          and "Update to Kalmido 2.1001.0" in lg and "2.1000.x" not in lg  # #7086: 2.1000.x never existed, f"older than MIN_FROM ({old}): start refused with the way through ({ok}, {lg[-300:]!r})")
+          and "Update to Kalmido 2.1001.0" in lg and "2.1000.x" not in lg, f"older than MIN_FROM ({old}): start refused with the way through ({ok}, {lg[-300:]!r})")
     check(meta() == ({"app_version": old} if old else {}), f"older than MIN_FROM ({old}): no stamp changed {meta()}")
 set_meta("app_version", VER)
 check(start(), "the stamp back: starts")
