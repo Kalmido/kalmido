@@ -1,0 +1,47 @@
+{
+  "de": {
+    "Exports": "Exporte",
+    "the export of an organisation or of your office you started is ready or failed": "der Export einer Organisation oder deines Büros, den du gestartet hast, ist fertig oder fehlgeschlagen",
+    "your office": "deinem Büro",
+    "Another organisation’s export is running on this server. Please try again later.": "Auf diesem Server läuft gerade der Export einer anderen Organisation. Bitte versuche es später noch einmal.",
+    "The export of {0} is ready. Download it within {1} hours.": "Der Export von {0} ist fertig. Lade ihn innerhalb von {1} Stunden herunter.",
+    "The export of {0} failed. Please try again later or ask the server admin.": "Der Export von {0} ist fehlgeschlagen. Bitte versuche es später noch einmal oder frag den Server-Admin.",
+    "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "Der Export von {0} ist fehlgeschlagen: Auf dem Server war nicht genug Platz. Bitte frag den Server-Admin."
+  },
+  "es": {
+    "Exports": "Exportaciones",
+    "the export of an organisation or of your office you started is ready or failed": "la exportación de una organización o de tu oficina que iniciaste está lista o ha fallado",
+    "your office": "tu oficina",
+    "Another organisation’s export is running on this server. Please try again later.": "En este servidor se está ejecutando la exportación de otra organización. Inténtalo más tarde.",
+    "The export of {0} is ready. Download it within {1} hours.": "La exportación de {0} está lista. Descárgala en un plazo de {1} horas.",
+    "The export of {0} failed. Please try again later or ask the server admin.": "La exportación de {0} ha fallado. Inténtalo más tarde o pregunta al administrador del servidor.",
+    "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "La exportación de {0} ha fallado: no había espacio suficiente en el servidor. Pregunta al administrador del servidor."
+  },
+  "fr": {
+    "Exports": "Exports",
+    "the export of an organisation or of your office you started is ready or failed": "l’export d’une organisation ou de ton bureau que tu as lancé est prêt ou a échoué",
+    "your office": "ton bureau",
+    "Another organisation’s export is running on this server. Please try again later.": "L’export d’une autre organisation est en cours sur ce serveur. Réessaie plus tard.",
+    "The export of {0} is ready. Download it within {1} hours.": "L’export de {0} est prêt. Télécharge-le dans les {1} heures.",
+    "The export of {0} failed. Please try again later or ask the server admin.": "L’export de {0} a échoué. Réessaie plus tard ou demande à l’administrateur du serveur.",
+    "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "L’export de {0} a échoué : il n’y avait pas assez de place sur le serveur. Demande à l’administrateur du serveur."
+  },
+  "it": {
+    "Exports": "Esportazioni",
+    "the export of an organisation or of your office you started is ready or failed": "l’esportazione di un’organizzazione o del tuo ufficio che hai avviato è pronta o non è riuscita",
+    "your office": "il tuo ufficio",
+    "Another organisation’s export is running on this server. Please try again later.": "Su questo server è in corso l’esportazione di un’altra organizzazione. Riprova più tardi.",
+    "The export of {0} is ready. Download it within {1} hours.": "L’esportazione ({0}) è pronta. Scaricala entro {1} ore.",
+    "The export of {0} failed. Please try again later or ask the server admin.": "L’esportazione ({0}) non è riuscita. Riprova più tardi o chiedi all’amministratore del server.",
+    "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "L’esportazione ({0}) non è riuscita: sul server non c’era spazio sufficiente. Chiedi all’amministratore del server."
+  },
+  "nl": {
+    "Exports": "Exports",
+    "the export of an organisation or of your office you started is ready or failed": "de export van een organisatie of van je kantoor die je hebt gestart is klaar of mislukt",
+    "your office": "je kantoor",
+    "Another organisation’s export is running on this server. Please try again later.": "Op deze server loopt de export van een andere organisatie. Probeer het later opnieuw.",
+    "The export of {0} is ready. Download it within {1} hours.": "De export van {0} is klaar. Download hem binnen {1} uur.",
+    "The export of {0} failed. Please try again later or ask the server admin.": "De export van {0} is mislukt. Probeer het later opnieuw of vraag het de serverbeheerder.",
+    "The export of {0} failed: there was not enough space on the server. Please ask the server admin.": "De export van {0} is mislukt: er was niet genoeg ruimte op de server. Vraag het de serverbeheerder."
+  }
+}
