@@ -87,6 +87,38 @@ check(r1.get("temp") == {"refused": True, "timeout": True, "gone": True, "451": 
 check(r1.get("down") == {"refused": True, "timeout": True, "gone": True, "451": True, "550": True, "auth": True,
                          "rcpt550": False, "rcpt450": False, "value": False}, f"failures of the server: all but a refused recipient {r1.get('down')}")
 
+# reader F1 of job/5710: a passing refusal of the recipient is tried again under its own name, which mail_disturbed (the
+# organisation admin's notice) does not count - an address anyone can name never switches the notice on
+r1b = py("""
+import json, smtplib
+from kalmido.accounts import mailfail as M
+from kalmido.accounts import bgjobs as Q
+from kalmido.core.db import connect
+out = {}
+for k, e in (("rcpt450", smtplib.SMTPRecipientsRefused({"a@example.com": (450, b"later")})), ("refused", ConnectionRefusedError(111, "x"))):
+    Q._CUR.rid, Q._CUR.run, Q._CUR.kind = 1, 1, "mail:forms"
+    try:
+        M.mail_bg_failed("test", e)
+    except M.SmtpTemporary as x:
+        out[k] = type(x).__name__
+    finally:
+        Q._CUR.rid = Q._CUR.run = Q._CUR.kind = None
+c = connect()
+from kalmido.core.pg import system_ctx
+with system_ctx(c):
+    c.execute("DELETE FROM bg_jobs WHERE kind='mail:p6385f1'")
+    c.execute("INSERT INTO bg_jobs (kind, payload, state, error, run_after, created_at) VALUES ('mail:p6385f1', '[]', 'wait', 'SmtpRcptTemporary', '2999-01-01T00:00:00Z', '2026-01-01T00:00:00Z')")
+c.commit()
+out["disturbed_rcpt"] = M.mail_disturbed(c)
+with system_ctx(c):
+    c.execute("DELETE FROM bg_jobs WHERE kind='mail:p6385f1'")
+c.commit()
+c.close()
+print(json.dumps(out))
+""")
+check(r1b.get("rcpt450") == "SmtpRcptTemporary" and r1b.get("refused") == "SmtpTemporary" and r1b.get("disturbed_rcpt") is False,
+      f"reader F1: a recipient's 4xx is tried again as SmtpRcptTemporary and does not count for the notice {r1b}")
+
 # ---------------------------------------------------------------- 2. the admin alert after AA_FAIL_ROW failures in a row
 r2 = py("""
 import json, smtplib, time
