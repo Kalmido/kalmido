@@ -21,6 +21,7 @@ from ..core.orgcrypt import oc_send_file
 from .upsafe import h6d_one_file_request, h6d_read
 from .scan import sc_guard  # 2.477.0 (#3936): pulled up from functions
 from .store import download_name  # 2.750.0 (#4876)
+from .store import fs_children_seen  # #6953
 from .store import FS_NOT_ADDR  # 2.1138.0 (#6025)
 from .store import (fs_chain, fs_chains, fs_deleted, fs_link_target, fs_log_add, fs_new_version, fs_put, fs_read,
                     fs_height, fs_mail_rows, fs_role, fs_version_row, DEPTH_MAX, fs_visible_ids, need_node, safe_fs_name, _free_name,
@@ -40,7 +41,7 @@ from ..accounts.orgs import visible_people  # 2.369.5 (#2517): pulled up from fu
 from ..lists.groups import grp_visible  # 2.369.5 (#2517): pulled up from functions
 from ..core.retention import ret_on, ret_trash_days  # 2.369.5 (#2517): pulled up from functions
 from ..api.common import hit_limit  # 2.523.0 (#4073 d)
-from ..accounts.orgroles import org_role_key, org_writes, need_org_write  # 2.369.5 (#2517): pulled up from functions
+from ..accounts.orgroles import org_writes, need_org_write  # 2.369.5 (#2517): pulled up from functions
 
 SHARE_MAX = 200  # shares per node
 LOG_MAX = 100    # history entries shown
@@ -186,9 +187,8 @@ def files_list():
         ar = fs_area_root_of(c, pid)
         if ar and not fs_area_open(ar[1]):  # 2.199.0 F (#2742, review G1): an area's root lists only the folders with a role of their own; 2.200.0 A (#2747): not an open one
             rows = [r for r in rows if fs_role(c, r["id"], uid, chain=fs_chain(c, r["id"])[:-1])]
-        elif n["role"] != "owner" and n["org_id"] and org_role_key(c, uid, n["org_id"]) == "accounting":
-            # #6953: a folder accounting may walk to its receipts (store._fs_limited_role) lists only what it may open itself
-            rows = [r for r in rows if fs_role(c, r["id"], uid)]
+        else:
+            rows = fs_children_seen(c, uid, n, rows)  # #6953: accounting lists in a receipts folder only what it may open
         fs_log_add(c, pid, "list")
         c.commit()
         chain = fs_chain(c, pid)
